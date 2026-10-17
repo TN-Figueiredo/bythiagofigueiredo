@@ -59,9 +59,11 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
     '@/lib/youtube/observatorio/contexto-ia/frases', '@/lib/youtube/observatorio/medidas/regras',
     '../_comparar/definicoes', '../_comparar/medidas-do-par', './modelo-medidas-comparar', '../_comparar/regua-da-linha', '../_comparar/so-seu-canal-model', '../_proprio/taxa-faixa-model', '../_proprio/retencao-model',
     '../_canal/videos-model', '../_canal/lista',
+    // TG: os modelos puros das medidas da página do canal (os mesmos que a tela usa)
+    '../_canal/medidas/canal-derivado', '../_canal/medidas/cabecalho-model', '../_canal/medidas/estado-model', '../_canal/medidas/frase-do-topo', '../_canal/medidas/formatos',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
-  it('há dez empacotadores', () => { expect(empacotadores).toHaveLength(10) })
+  it('há onze empacotadores', () => { expect(empacotadores).toHaveLength(11) })
   for (const p of empacotadores) {
     it(`${nome(p)}: valor só de permitidos, de irmãos empacotar-* e de contexto-ia/; nenhum módulo importado tem 'use client'`, () => {
       for (const i of importacoes(ler(p))) {

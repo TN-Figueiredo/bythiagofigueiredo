@@ -1,10 +1,4 @@
 import { Suspense, type ReactNode } from 'react'
-import * as Sentry from '@sentry/nextjs'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { carregarMedidasDoCanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
-import { dayPt } from '@/lib/youtube/coleta/day-pt'
-import { contaComoTroca } from '@/lib/youtube/observatorio/changes'
-import type { ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import { link } from '@/lib/youtube/observatorio/links'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
@@ -12,7 +6,8 @@ import { gerarPacoteIa } from '../../contexto-ia-actions'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { CanalScreen, CanalNotFound } from '../../_canal/canal-screen'
 import { LeituraDoNicho } from '../../_canal/leitura'
-import { BlocosDoCanal, CelulasDoCanal, TopoDoCanal, type ContextoDoCanal } from '../../_canal/medidas/blocos-do-canal'
+import { BlocosDoCanal, CelulasDoCanal, TopoDoCanal } from '../../_canal/medidas/blocos-do-canal'
+import { contextoDoCanal, lerMedidasDoCanal } from '../../_canal/medidas/contexto-do-canal'
 import { canalNaoCarregou } from '../../_canal/medidas/canal-derivado-async'
 import { EsqueletoDasCelulas, EsqueletoDosBlocos, EsqueletoDoTopo } from '../../_canal/medidas/esqueleto'
 import { assistidoDoCanal, montarCanal, origemDoCanal, type PropsAssistidoDoCanal, type PropsOrigemDoCanal } from '../../_canal/montar'
@@ -55,17 +50,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = Array.isArray(v) ? v[0] : v
   const m = await montarCanal(id, flat, {
     // a leitura das medidas nasce depois de `view` existir e antes de `canAdminSiteUsers` (dentro de `montarCanal`): corre em paralelo com ele e com a leitura do nicho
-    iniciarMedidas: async ({ pagina, obs, view }) => {
-      // `async`: o corpo roda até o primeiro `await` na hora da chamada (a promessa nasce aqui, antes de `canAdminSiteUsers`) e nada lança para fora dela
-      try {
-        return await carregarMedidasDoCanalInteiro(getSupabaseServiceClient(), {
-          siteId: pagina.siteId, obs, channelId: view.header.id, agoraMs: pagina.now, pedir: { serie: true, mudancas: true, horas: true },
-        })
-      } catch (err) {
-        Sentry.captureException(err, { tags: { component: 'observatorio-canal', step: 'medidas' } })
-        return canalNaoCarregou()
-      }
-    },
+    iniciarMedidas: lerMedidasDoCanal,
   })
   const { owns } = m.pagina
   if (m.tipo === 'proprio_sem_videos') {
@@ -133,17 +118,4 @@ function leituraDoNicho(niche: string | null, nicheLabel: string | null, mv: Par
       <div data-obs-screen="mudancas"><section className="forja"><ReadingCard view={mv} /></section></div>
     </LeituraDoNicho>
   )
-}
-
-/** O que a página já sabe, sem esperar medida: os títulos dos vídeos, as trocas do motor (90 dias), a sincronização e os inscritos. */
-function contextoDoCanal(obs: NonNullable<Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['obs']>, view: Extract<Awaited<ReturnType<typeof montarCanal>>, { tipo: 'concorrente' }>['view'], agoraMs: number, quem: { siteId: string; provas: ProvasDeQuemVe; permissaoFalhou: boolean }): ContextoDoCanal {
-  const ch = obs.channel(view.header.id)
-  return {
-    comentarios: { siteId: quem.siteId, channelId: view.header.id, nome: view.header.name, provas: quem.provas, permissaoFalhou: quem.permissaoFalhou },
-    F: obs.fmt, subs: ch?.subs ?? null,
-    sync: { state: ch?.sync.state ?? 'ok', last: ch?.sync.last ?? null, errorSince: ch?.sync.errorSince ?? null },
-    hojeSP: dayPt(new Date(agoraMs)), agoraMs, primeiraBusca: ch?.sync.state === 'backfill', semVideos: view.videos.videos.length === 0,
-    titulos: view.videos.videos.map(v => [v.id, v.title] as const),
-    trocas: obs.changesIn({ days: 90, channel: view.header.id }).filter(contaComoTroca).map(c => ({ videoId: c.video, campo: c.type === 'title' ? 'titulo' as const : 'miniatura' as const, emMs: c.at })),
-  }
 }

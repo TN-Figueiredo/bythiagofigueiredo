@@ -19,6 +19,7 @@ import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { BlocoCitado, Celula, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { citadosDaForjaDe, inventarioDaForja, tabelaDaForjaDe } from './empacotar-mudancas'
+import { INVENTARIO_MEDIDAS_CANAL, tabelasDeMedidas, type MedidasIa } from './empacotar-canal-medidas'
 
 // ───────────────────────── o modelo
 export interface DerivadoCanal {
@@ -26,11 +27,13 @@ export interface DerivadoCanal {
   lista: Pick<ListaView, 'counts' | 'resultado' | 'vazio' | 'mais'>
   cardsDeTrocas: number[]
   leitura: { forja: MudancasView['forja']; forjaCard: MudancasView['forjaCard'] } | null
+  /** Os blocos de medida da tela (topo, células, blocos), já em texto; nulo = as medidas não foram pedidas a este empacotador. */
+  medidas: MedidasIa | null
 }
 export type ModeloCanal = CanalView & { derivado: DerivadoCanal }
 
 /** Tudo o que o modelo da tela tem, mais o derivado. `leituraMv` é o conjunto do site já montado para a aba Leitura (nulo nas outras abas e sem nicho). */
-export function modeloDeCanal(view: CanalView, leituraMv: MudancasView | null): ModeloCanal {
+export function modeloDeCanal(view: CanalView, leituraMv: MudancasView | null, medidas: MedidasIa | null = null): ModeloCanal {
   const lista = montarLista(view.videos.videos, view.state)
   const porId = new Map(view.videos.videos.map((v) => [v.id, v]))
   const visiveis = lista.secoes.flatMap((s) => s.itens.map((v) => porId.get(v.id)!))
@@ -45,6 +48,7 @@ export function modeloDeCanal(view: CanalView, leituraMv: MudancasView | null): 
       lista: { counts: lista.counts, resultado: lista.resultado, vazio: lista.vazio, mais: lista.mais },
       cardsDeTrocas,
       leitura: view.state.tab === 'leitura' && leituraMv ? { forja: leituraMv.forja, forjaCard: leituraMv.forjaCard } : null,
+      medidas,
     },
   }
 }
@@ -104,6 +108,8 @@ export const INVENTARIO_CANAL: Inventario = {
   'derivado.videos[].formato': 'rotulo',
   'derivado.leitura': CTRL,
   ...inventarioDaForja('derivado.leitura.'),
+  'derivado.medidas': CTRL,
+  ...INVENTARIO_MEDIDAS_CANAL,
 }
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste (cada uma tem teste sintético próprio quando importa). */
@@ -111,6 +117,8 @@ export const SEM_FOLHA_NA_MATRIZ_CANAL: readonly string[] = [
   'header.backfill.done', 'header.backfill.total', 'videos.videos[].pin', 'videos.videos[].viewer', 'origem', 'origem.*',
   'derivado.leitura.forja.card.lines[]', 'derivado.leitura.forja.niches[].reading.moreItems[]', 'derivado.leitura.forja.niches[].reading.siteNotes[]',
   'derivado.leitura.forja.reading', 'derivado.leitura.forjaCard.shorts.text', 'derivado.leitura.forjaCard.shorts.href', 'derivado.leitura.forjaCard.confirm',
+  // as folhas dos blocos de medida têm matriz própria (`contexto-ia-canal-medidas.test.tsx`)
+  ...Object.keys(INVENTARIO_MEDIDAS_CANAL),
 ]
 
 /** Folhas de número cru: nenhuma. Todo número desta tela já vem formatado pelo modelo (`obs.fmt`). */
@@ -203,8 +211,8 @@ function tabelasDeTrocas(m: ModeloCanal): Tabela[] {
 // ───────────────────────── avisos e definições (frases do próprio modelo)
 const presentes = (xs: ReadonlyArray<string | null | undefined>): string[] => xs.filter((x): x is string => typeof x === 'string' && x !== '')
 
-function avisosDe(m: ModeloCanal): string[] {
-  const out = presentes([m.header.sync.text, m.header.sync.banner])
+function avisosDe(m: ModeloCanal, daMedida: string[]): string[] {
+  const out = presentes([m.header.sync.text, m.header.sync.banner, ...daMedida])
   const t = m.state
   if (t.tab === 'videos') {
     out.push(...presentes([m.videos.nota, m.videos.semVideos, m.derivado.lista.vazio?.text, m.derivado.lista.mais?.frase]))
@@ -224,8 +232,10 @@ function avisosDe(m: ModeloCanal): string[] {
 export function empacotarCanal(modelo: ModeloCanal): PacoteModelo {
   const aba = modelo.state.tab
   const leitura = modelo.derivado.leitura
+  const medidas = tabelasDeMedidas(modelo.derivado.medidas)
   const tabelas: Tabela[] = [
     ...tabelasDoCabecalho(modelo),
+    ...medidas.tabelas,
     ...(aba === 'videos' ? tabelasDeVideos(modelo) : aba === 'trocas' ? tabelasDeTrocas(modelo) : leitura ? tabelaDaForjaDe(leitura.forja, 'modelo.derivado.leitura.forja') : []),
   ]
   const citados: BlocoCitado[] = aba === 'leitura' && leitura ? citadosDaForjaDe(leitura.forja, 'modelo.derivado.leitura.forja') : []
@@ -237,7 +247,7 @@ export function empacotarCanal(modelo: ModeloCanal): PacoteModelo {
     tabelas,
     citados,
     definicoes: [],
-    avisos: avisosDe(modelo),
+    avisos: avisosDe(modelo, medidas.avisos),
     naoMede: [NAO_MEDE_PRIVADO, NAO_MEDE_ANTIGOS, ...(aba === 'leitura' ? [NAO_MEDE_LEITURA] : [])],
     privado: { estado: 'na' },
     comentarios: { estado: 'na' },
