@@ -45,7 +45,7 @@ export function fraseDoAviso(campos: Array<'title' | 'thumbnail'>): string {
  */
 export async function sessaoExpirou(): Promise<boolean> {
   try {
-    const r = await fetch(window.location.href, { method: 'HEAD', redirect: 'manual', cache: 'no-store' })
+    const r = await fetch(window.location.href, { method: 'HEAD', redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(5000) })
     return r.type === 'opaqueredirect' || (r.status >= 300 && r.status < 400)
   } catch {
     return false
@@ -171,9 +171,11 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
     if (timer.current) clearTimeout(timer.current)
     voo.current = false
     if (expirou.current) return // a tela já disse "sem resposta"; recarregar mostra a verdade
-    if (!montado.current && !(r.ok && r.resultado === 'feito') && !(!r.ok && r.resultado === 'ja_encerrado') && !(!r.ok && r.resultado === 'mudou') && !(!r.ok && r.resultado === 'sem_permissao' && r.error === 'unauthenticated')) {
+    if (!montado.current && !(r.ok && r.resultado === 'feito') && !(!r.ok && r.resultado === 'ja_encerrado') && !(!r.ok && r.resultado === 'sem_permissao' && r.error === 'unauthenticated')) {
       // O diálogo já fechou: nada mudou no banco, mas o dono acha que encerrou. A página avisa.
-      onAviso?.(r.ok
+      onAviso?.(!r.ok && r.resultado === 'mudou'
+        ? 'O teste mudou em outra aba antes de encerrar. Nada foi alterado.'
+        : r.ok
         ? 'O teste ainda não foi encerrado: o título ou a thumbnail foi alterado no YouTube por fora. Clique em Encerrar de novo para escolher o que fica no vídeo.'
         : `O teste ainda não foi encerrado: ${textoDoErro(r, 'encerrar')}`)
       router.refresh()
@@ -200,7 +202,7 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
     if (r.resultado === 'mudou') { setFase('mudou'); return }
     setFase('escolha')
     if (r.resultado === 'ja_encerrado') { router.refresh(); onFechar(); return }
-    if (r.resultado === 'sem_permissao' && r.error === 'unauthenticated') { router.push('/cms/login'); return }
+    if (r.resultado === 'sem_permissao' && r.error === 'unauthenticated') { router.push(hrefDoLogin()); return }
     setErro({ titulo: 'Não foi possível encerrar', texto: textoDoErro(r, 'encerrar') })
   }, [opcao, encerrar, seqVisto, router, onFechar, onAviso])
 

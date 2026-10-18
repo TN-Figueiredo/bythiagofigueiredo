@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
@@ -19,8 +19,9 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   pauseAbTest: vi.fn().mockResolvedValue(undefined),
 }))
 
+const refresh = vi.hoisted(() => vi.fn())
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh }),
 }))
 
 // Mock YtPortal to render children directly (no createPortal in test env)
@@ -109,5 +110,17 @@ describe('AbPauseDialog', () => {
     expect(screen.getByRole('button', { name: 'Recarregar' })).toBeTruthy()
     expect(screen.getAllByRole('button', { name: 'Fechar' }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
+  })
+
+  it('T18 D-1: mudou com o diálogo já fechado -> aviso de página e refresh', async () => {
+    let resolver!: (r: unknown) => void
+    const pausar = vi.fn().mockReturnValue(new Promise(res => { resolver = res }))
+    const onAviso = vi.fn()
+    const { unmount } = render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
+    unmount()
+    await act(async () => { resolver({ ok: false, resultado: 'mudou', error: 'x' }) })
+    expect(onAviso).toHaveBeenCalledWith('O teste mudou em outra aba antes de pausar. Nada foi alterado.')
+    expect(refresh).toHaveBeenCalledTimes(1)
   })
 })

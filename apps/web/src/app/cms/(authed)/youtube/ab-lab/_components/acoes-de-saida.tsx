@@ -64,7 +64,7 @@ export function AcoesDeSaida({ view, encerrar, pausar, onAviso }: AcoesDeSaidaPr
         Encerrar
       </button>
       {showPause && (
-        <AbPauseDialog pausar={pausar} seqVisto={view.restoreSeq} onClose={() => setShowPause(false)} />
+        <AbPauseDialog pausar={pausar} seqVisto={view.restoreSeq} onClose={() => setShowPause(false)} onAviso={onAviso} />
       )}
       {showEnd && (
         <AbEndTestDialog

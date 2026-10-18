@@ -86,11 +86,24 @@ export function SettingsDrawer({ settings, onSave, onClose }: SettingsDrawerProp
 
   useEffect(() => { if (settings && !edited) setEdited(settings) }, [settings, edited])
 
-  useEffect(() => { return () => { if (debounceRef.current) clearTimeout(debounceRef.current) } }, [])
+  const onSaveRef = useRef(onSave)
+  onSaveRef.current = onSave
+
+  // Fechar (Esc, X, scrim) antes dos 500 ms não pode perder a edição: salva o pendente em vez de descartar.
+  useEffect(() => {
+    return () => {
+      if (!debounceRef.current) return
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+      const pendente = latestEdited.current
+      if (pendente) void Promise.resolve(onSaveRef.current(pendente)).catch(() => {})
+    }
+  }, [])
 
   const scheduleAutoSave = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
+      debounceRef.current = null
       const current = latestEdited.current
       if (!current) return
       setSaveStatus('saving')

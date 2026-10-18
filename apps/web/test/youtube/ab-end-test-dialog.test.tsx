@@ -215,7 +215,7 @@ describe('AbEndTestDialog: envio', () => {
     encerrar.mockResolvedValue({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })
     render(<AbEndTestDialog {...props()} />)
     await marcarB(); await clicarEncerrar()
-    expect(router.push).toHaveBeenCalledWith('/cms/login')
+    expect(router.push).toHaveBeenCalledWith(expect.stringMatching(/^\/cms\/login\?next=/))
     expect(router.refresh).not.toHaveBeenCalled()
     expect(onAviso).not.toHaveBeenCalled()
   })
@@ -431,5 +431,36 @@ describe('T15 r1', () => {
     expect(onFechar).not.toHaveBeenCalled()
     expect(router.refresh).not.toHaveBeenCalled()
     expect(screen.getByText('Sem resposta')).toBeTruthy()
+  })
+})
+
+describe('T18 R1 (Yannis)', () => {
+  it('D-1: mudou com o diálogo já fechado -> aviso de página e refresh', async () => {
+    let resolver!: (r: ResultadoAcaoSaida) => void
+    encerrar.mockReturnValue(new Promise<ResultadoAcaoSaida>(res => { resolver = res }))
+    const { unmount } = render(<AbEndTestDialog {...props()} />)
+    await marcarB(); await clicarEncerrar()
+    unmount()
+    await act(async () => { resolver({ ok: false, resultado: 'mudou', error: 'x' }) })
+    expect(onAviso).toHaveBeenCalledTimes(1)
+    expect(onAviso).toHaveBeenCalledWith('O teste mudou em outra aba antes de encerrar. Nada foi alterado.')
+    expect(router.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('D-2: HEAD preso é abortado em 5 s -> "Sem resposta", não fica em Encerrando', async () => {
+    encerrar.mockRejectedValue(new Error('rede'))
+    vi.stubGlobal('fetch', vi.fn((_u: string, init?: RequestInit) => new Promise((_res, rej) => {
+      init?.signal?.addEventListener('abort', () => rej(new DOMException('abort', 'AbortError')))
+    })))
+    render(<AbEndTestDialog {...props()} />)
+    await marcarB()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    fireEvent.click(screen.getByRole('button', { name: /^Encerrar e ficar com/ }))
+    await act(async () => { await Promise.resolve() })
+    expect(screen.queryByText('Sem resposta')).toBeNull()
+    await act(async () => { vi.advanceTimersByTime(5_100) })
+    expect(screen.getByText('Sem resposta')).toBeTruthy()
+    expect(screen.queryByText('Sessão expirada')).toBeNull()
+    vi.unstubAllGlobals()
   })
 })

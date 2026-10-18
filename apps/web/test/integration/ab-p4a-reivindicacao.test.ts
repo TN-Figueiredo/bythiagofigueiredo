@@ -121,6 +121,19 @@ describe.skipIf(skipIfNoLocalDb())('migration da P4a', () => {
     expect(new Date(c.data!.ended_at).getTime()).toBe(new Date(x.data!.paused_at).getTime())
   })
 
+  it('T18 Phil D-1: encerrar a partir de paused fecha o ciclo aberto na hora da pausa, não em now()', async () => {
+    const dias = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString()
+    await clienteServico().from('ab_tests').update({ status: 'paused', paused_at: dias(2) }).eq('id', t.testId)
+    await clienteServico().from('ab_test_cycles').update({ started_at: dias(5) }).eq('test_id', t.testId)
+    const r = await clienteServico().rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: 0, p_de: ['paused'], p_para: 'completed', p_end_reason: 'encerrado', p_restore_status: {}, p_extra: {} })
+    expect(r.error).toBeNull()
+    expect(r.data?.[0]?.claimed_seq).toBe(1)
+    const x = await clienteServico().from('ab_tests').select('paused_at').eq('id', t.testId).single()
+    const c = await clienteServico().from('ab_test_cycles').select('ended_at, end_reason').eq('test_id', t.testId).single()
+    expect(c.data?.end_reason).toBe('encerrado')
+    expect(new Date(c.data!.ended_at).getTime()).toBe(new Date(x.data!.paused_at).getTime())
+  })
+
   it('ab_settle_claim com seq velho ou estado fora de p_de: zero linhas, nada muda', async () => {
     const r1 = await clienteServico().rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: 7, p_de: ['active'], p_para: 'paused', p_end_reason: 'pausa', p_restore_status: {}, p_extra: {} })
     const r2 = await clienteServico().rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: 0, p_de: ['paused'], p_para: 'completed', p_end_reason: 'encerrado', p_restore_status: {}, p_extra: {} })

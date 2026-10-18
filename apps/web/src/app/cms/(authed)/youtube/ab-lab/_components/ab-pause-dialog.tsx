@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { focarFaixa, textoDoErro, sessaoExpirou, hrefDoLogin } from './ab-end-test-dialog'
@@ -14,10 +14,17 @@ interface AbPauseDialogProps {
   /** `restore_seq` que a tela leu ao abrir; a action recusa se o teste mudou desde então (D3). */
   seqVisto: number
   onClose: () => void
+  /** Aviso de página para o que acontece depois de o diálogo fechar. */
+  onAviso?: (texto: string) => void
 }
 
-export function AbPauseDialog({ pausar, seqVisto, onClose }: AbPauseDialogProps) {
+export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDialogProps) {
   const router = useRouter()
+  const montado = useRef(true)
+  useEffect(() => {
+    montado.current = true
+    return () => { montado.current = false }
+  }, [])
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [fase, setFase] = useState<'escolha' | 'sessao_expirada' | 'mudou'>('escolha')
@@ -42,6 +49,11 @@ export function AbPauseDialog({ pausar, seqVisto, onClose }: AbPauseDialogProps)
         router.refresh()
         onClose()
         if (recusado) focarFaixa()
+        return
+      }
+      if (!montado.current && !result.ok && result.resultado === 'mudou') {
+        onAviso?.('O teste mudou em outra aba antes de pausar. Nada foi alterado.')
+        router.refresh()
         return
       }
       if (!result.ok && result.resultado === 'mudou') { setFase('mudou'); setError(null); return }
