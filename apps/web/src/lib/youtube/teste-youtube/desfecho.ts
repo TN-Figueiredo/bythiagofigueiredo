@@ -57,11 +57,12 @@ export function inferirDesfecho(antes: VereditoTesteYoutube, leiturasDepois: rea
 
   // 5
   if (sufixo.length >= minLeiturasEstavel && janelaSufixo >= minJanelaEstavelMs) {
-    if (!antes.variantes.titulo.some(t => normalizarTitulo(t) === votoFinal)) return semDado('valor_fora_do_teste')
+    const canonica = antes.variantes.titulo.find(t => normalizarTitulo(t) === votoFinal)
+    if (canonica === undefined) return semDado('valor_fora_do_teste')
     const oficial = tituloOficialMaisFrequente(sufixo)
     if (oficial === null) return semDado('oficial_nao_lido')
     if (normalizarTitulo(oficial) !== votoFinal) return semDado('oficial_diverge')
-    return { estado: 'vencedor_provavel', vencedor: sufixo[0]!.votoCru as string, leiturasDescartadas, versaoRegra }
+    return { estado: 'vencedor_provavel', vencedor: canonica, leiturasDescartadas, versaoRegra }
   }
 
   // 6

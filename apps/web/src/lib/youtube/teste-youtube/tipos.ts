@@ -265,7 +265,9 @@ export function resolverOpcoes(opts?: OpcoesDeteccao): LimiaresDeteccao {
     exigirLimiar(k, o[k])
   }
   ;(o.escritasConhecidas ?? []).forEach((e, i) => {
-    if (typeof e?.em !== 'string' || !Number.isFinite(Date.parse(e.em))) throw new Error(`detectarTesteYoutube: escritasConhecidas[${i}].em inválido (ISO 8601)`)
+    if (typeof e?.em !== 'string' || !Number.isFinite(Date.parse(e.em)) || !/(Z|[+-]\d{2}:\d{2})$/.test(e.em)) {
+      throw new Error(`detectarTesteYoutube: escritasConhecidas[${i}].em inválido (ISO 8601 com fuso)`)
+    }
   })
   return {
     minLeituras: o.minLeituras ?? PADROES_DETECCAO.minLeituras,
