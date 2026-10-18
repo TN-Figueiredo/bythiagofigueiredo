@@ -11,6 +11,8 @@ import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/acti
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 
+const ACOES = { encerrar: vi.fn(), pausar: vi.fn() }
+
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() })),
 }))
@@ -89,7 +91,7 @@ const SEM_IMP: Partial<AbTestActiveView> = {
 
 describe('ActiveDetail', () => {
   it('renders key sections via data-section attributes', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView()} />)
+    const { container } = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     const sections = [
       'header', 'lock-countdown', 'hero-band', 'variant-performance',
     ]
@@ -99,14 +101,14 @@ describe('ActiveDetail', () => {
   })
 
   it('quem administra o site vê "Forçar rotação"; a editora vê o motivo no lugar, e segue com Pausar/Encerrar', () => {
-    const admin = render(<ActiveDetail view={makeActiveView()} />)
+    const admin = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     expect(admin.getByText('Forçar rotação')).toBeTruthy()
     expect(admin.queryByTestId('admin-only-note')).toBeNull()
     admin.unmount()
 
     siteAdmin.value = false
     try {
-      const editor = render(<ActiveDetail view={makeActiveView()} />)
+      const editor = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
       expect(editor.queryByText('Forçar rotação')).toBeNull()
       expect(editor.getByText('Pausar')).toBeTruthy()
       expect(editor.getByText('Encerrar')).toBeTruthy()
@@ -117,7 +119,7 @@ describe('ActiveDetail', () => {
   })
 
   it('não mostra watch time, comentários, compartilh., receita estimada nem Raio-X; mostra a frase fixa', () => {
-    render(<ActiveDetail view={makeActiveView({ revenue: { low: 1200, high: 3600, currency: 'BRL', isDefault: false }, ...SEM_IMP } as Partial<AbTestActiveView>)} />)
+    render(<ActiveDetail view={makeActiveView({ revenue: { low: 1200, high: 3600, currency: 'BRL', isDefault: false }, ...SEM_IMP } as Partial<AbTestActiveView>)} {...ACOES} />)
     for (const texto of [/watch time/i, /comentários/i, /compartilh/i, /receita estimada/i, /raio-x/i]) {
       expect(screen.queryAllByText(texto), String(texto)).toHaveLength(0)
     }
@@ -126,22 +128,22 @@ describe('ActiveDetail', () => {
 
   it('o banner de carência não promete aplicação automática', () => {
     const view = makeActiveView({ graceExpiresAt: new Date(Date.now() + 5 * 3600000).toISOString(), winnerAppliedAt: null })
-    render(<ActiveDetail view={view} />)
+    render(<ActiveDetail view={view} {...ACOES} />)
     expect(screen.queryAllByText(/aplicação automática/i)).toHaveLength(0)
   })
 
   it('SignalCard renders "Sinal ao vivo" heading', () => {
-    render(<ActiveDetail view={makeActiveView()} />)
+    render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     expect(screen.getByText('Sinal ao vivo')).toBeDefined()
   })
 
   it('VariantTable do teste ativo ordena por CTR, sem a coluna de chance de vencer', () => {
-    render(<ActiveDetail view={makeActiveView()} />)
+    render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     expect(screen.getByText('ordenado por CTR')).toBeDefined()
   })
 
   it('não mostra o painel de critérios nem "N / 3 consecutive"; a frase fixa ocupa o lugar', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView(SEM_IMP)} />)
+    const { container } = render(<ActiveDetail view={makeActiveView(SEM_IMP)} {...ACOES} />)
     expect(screen.queryAllByText(/\d+ ?\/ ?3/)).toHaveLength(0)
     expect(screen.queryAllByText(/consecutive/i)).toHaveLength(0)
     expect(screen.queryAllByText(/10,000 min/)).toHaveLength(0)
@@ -151,7 +153,7 @@ describe('ActiveDetail', () => {
   })
 
   it('não mostra o bloco "Chance de vencer" (probabilidade sobre views)', () => {
-    render(<ActiveDetail view={makeActiveView()} />)
+    render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     expect(screen.queryAllByText('Chance de vencer')).toHaveLength(0)
     expect(screen.queryAllByText(/ordenado por chance de vencer/i)).toHaveLength(0)
     expect(screen.queryAllByText(/^(30|70)%$/)).toHaveLength(0)
@@ -159,7 +161,7 @@ describe('ActiveDetail', () => {
   })
 
   it('bloco de confiança saiu: sem curva, sem meta 95%, frase fixa com contraste legível', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView(SEM_IMP)} />)
+    const { container } = render(<ActiveDetail view={makeActiveView(SEM_IMP)} {...ACOES} />)
     expect(container.textContent).not.toMatch(/meta 95%/)
     expect(container.textContent).not.toMatch(/curva de confiança/i)
     expect(container.textContent).not.toMatch(/Confiança ao longo do tempo/)
@@ -171,7 +173,7 @@ describe('ActiveDetail', () => {
 
   it('KPIs do topo: sem CONFIANÇA, sem "0%" de líder nem "0,0%" de lift; nulo mostra "—" e a frase', () => {
     const view = makeActiveView({ confirmedData: { confidence: 0, leader: 'A' as DisplayLabel, leaderColor: '#8A8F98', lift: 0 }, ...SEM_IMP })
-    render(<ActiveDetail view={view} />)
+    render(<ActiveDetail view={view} {...ACOES} />)
     const hero = screen.getByTestId('hero-band')
     expect(hero.textContent).not.toMatch(/Confiança/i)
     expect(hero.textContent).not.toMatch(/\b0\s?%/)
@@ -182,13 +184,13 @@ describe('ActiveDetail', () => {
   })
 
   it('ABBATimeline receives seq data and renders cycle count', () => {
-    render(<ActiveDetail view={makeActiveView()} />)
+    render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     // ABBATimeline footer shows "done/total ciclos ABBA completos"
     expect(screen.getByText('4/6 ciclos ABBA completos')).toBeDefined()
   })
 
   it('LockCountdown section exists', () => {
-    const { container } = render(<ActiveDetail view={makeActiveView()} />)
+    const { container } = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     const lockSection = container.querySelector('[data-section="lock-countdown"]')
     expect(lockSection).not.toBeNull()
     // Contains the lock text
@@ -197,20 +199,20 @@ describe('ActiveDetail', () => {
   })
 
   it('HeroBand shows leader VChip for variant B', () => {
-    render(<ActiveDetail view={makeActiveView()} />)
+    render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     // Multiple VChips with "Variant B" exist (hero-band + variant-table)
     const chips = screen.getAllByLabelText('Variant B')
     expect(chips.length).toBeGreaterThanOrEqual(1)
   })
 
   it('ClickMoment component is rendered', () => {
-    render(<ActiveDetail view={makeActiveView()} />)
+    render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     // ClickMoment renders context buttons like "Home"
     expect(screen.getByText('Home')).toBeDefined()
   })
 
   it('title from view.videoTitle renders in header', () => {
-    render(<ActiveDetail view={makeActiveView({ videoTitle: 'Special Test Video Title' })} />)
+    render(<ActiveDetail view={makeActiveView({ videoTitle: 'Special Test Video Title' })} {...ACOES} />)
     // Title may appear multiple times (header, variant table, click-moment, feed)
     const allTitles = screen.getAllByText('Special Test Video Title')
     expect(allTitles.length).toBeGreaterThanOrEqual(1)

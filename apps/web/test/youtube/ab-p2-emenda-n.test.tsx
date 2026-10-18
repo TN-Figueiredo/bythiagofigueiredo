@@ -19,6 +19,8 @@ import { SuggestedCard } from '@/app/cms/(authed)/youtube/ab-lab/_components/sug
 import { makeTestRow, makeSuggestion } from '../helpers/ab-fixtures'
 import type { AbTestResults, AbTestWinnerView, AbTestActiveView, FullChartVariant, VariantStats } from '@/lib/youtube/ab-types'
 
+const ACOES = { encerrar: vi.fn(), pausar: vi.fn() }
+
 afterEach(() => cleanup())
 
 const FRASE = 'CTR ainda não medido. Você decide o vencedor.'
@@ -68,7 +70,7 @@ describe('emenda N (Gio)', () => {
   } as unknown as AbTestActiveView
 
   it('N3: ativo sem medição não mostra funil, Δ em zero nem cartão vazio de métricas', () => {
-    const { container } = render(<ActiveDetail view={ativo} />)
+    const { container } = render(<ActiveDetail view={ativo} {...ACOES} />)
     const t = container.textContent ?? ''
     expect(t).not.toMatch(/Funil por variante/)
     expect(t).not.toMatch(/Métricas computadas/)
@@ -77,7 +79,7 @@ describe('emenda N (Gio)', () => {
   })
 
   it('N7: tendência estável é uma célula só com "—", sem "estavel"', () => {
-    const { container } = render(<ActiveDetail view={ativo} />)
+    const { container } = render(<ActiveDetail view={ativo} {...ACOES} />)
     const t = container.textContent ?? ''
     expect(t).not.toMatch(/estavel/)
     const celula = screen.getByText('Tendência').parentElement!

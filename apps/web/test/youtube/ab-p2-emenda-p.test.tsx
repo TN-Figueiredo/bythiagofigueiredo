@@ -9,6 +9,8 @@ import { PlayoffDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/pla
 import { makeCardView } from '../helpers/ab-fixtures'
 import type { AbTestActiveView, AbTestPlayoffView, FullChartVariant } from '@/lib/youtube/ab-types'
 
+const ACOES = { encerrar: vi.fn(), pausar: vi.fn() }
+
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() }) }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   forceRotate: vi.fn(), applyWinnerNow: vi.fn(), cancelGracePeriod: vi.fn(),
@@ -55,7 +57,7 @@ describe('emenda P1-P6 (Gio)', () => {
       totalRounds: 1, hasPlayoff: false, gates: [],
       confirmedData: { confidence: 0, leader: 'A', leaderColor: '#888', lift: 0 },
     } as unknown as AbTestActiveView
-    const { container } = render(<ActiveDetail view={view} />)
+    const { container } = render(<ActiveDetail view={view} {...ACOES} />)
     expect(container.textContent).not.toMatch(/credibilidade/)
     expect(container.textContent).not.toMatch(/Faixa provável/)
     expect(container.textContent).not.toMatch(/últimos \d+ dias/)
