@@ -167,12 +167,12 @@ describe('RULES.hourly', () => {
 })
 
 describe('a lista única de definições (o catálogo e o vigia leem a mesma)', () => {
-  it('são dez, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
-    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.5, 5.7, 5.9, 6, 7, 8])
+  it('são onze, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
+    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.3, 5.5, 5.7, 5.9, 6, 7, 8])
     expect(DEFINICOES_COMENTARIOS.map(d => d.nome)).toEqual(['anular_identidade', 'retratos_comentarios'])
     expect(DEFINICOES.length).toBe(3)
-    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 5) // + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4)
+    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 6) // + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4) + poda_leituras_watch (A5 S4)
   })
   it('as duas da E14, valor por valor', () => {
     const por = (n: string) => TODAS_AS_DEFINICOES.find(d => d.nome === n)!
@@ -272,5 +272,23 @@ describe('A10 leitura_watch no catálogo (A5 S4)', () => {
     expect(nomes.indexOf('leitura_watch')).toBeGreaterThan(nomes.indexOf('playlists_semanais'))
     expect(nomes.indexOf('leitura_watch')).toBeLessThan(nomes.indexOf('sincronizar_canais'))
     expect(CATALOGO.find(t => t.nome === 'leitura_watch')!.devidaPeloDado?.({ linhas: null, agora: () => 0 })).toBe(true)
+  })
+})
+
+describe('A10 poda_leituras_watch no catálogo (A5 S4)', () => {
+  const alvoDoCatalogo = CATALOGO.map(t => ({ nome: t.nome, ligaCom: t.ligaCom }))
+  it('com OBS_WATCH_READ apagada, leitura_watch fica desligada e poda_leituras_watch NÃO (roda sempre, sem ligaCom)', () => {
+    const env: NodeJS.ProcessEnv = {}
+    delete env.OBS_WATCH_READ
+    const r = tarefasDesligadas(env, alvoDoCatalogo).desligadas
+    expect(r.has('leitura_watch')).toBe(true)
+    expect(r.has('poda_leituras_watch')).toBe(false)
+    expect(CATALOGO.find(t => t.nome === 'poda_leituras_watch')!.ligaCom).toBeUndefined()
+  })
+  it('a definição, valor por valor', () => {
+    const d = TODAS_AS_DEFINICOES.find(x => x.nome === 'poda_leituras_watch')!
+    expect(d).toMatchObject({ rotulo: 'poda das leituras da página do YouTube', ordem: 5.3, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 5, tetoTentativas: 12,
+      toleranciaVigiaH: 36, naoTerminouVermelhoEm: null, comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000 })
+    expect(Object.keys(d.motivos).sort()).toEqual(['banco_falhou', 'prova_falhou', 'sobrou'])
   })
 })

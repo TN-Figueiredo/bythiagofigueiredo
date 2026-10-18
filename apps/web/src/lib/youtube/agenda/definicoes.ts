@@ -209,6 +209,22 @@ export const DEFINICAO_LEITURA_WATCH: Definicao = {
   },
 }
 
+/**
+ * `poda_leituras_watch` (A5 S4): poda as leituras vencidas da `watch` (até 3 lotes de 5.000) e roda a prova diária da saúde da leitura (`yt_watch_prova`).
+ * Leve, depois das 05:00 de São Paulo, **sem `ligaCom`**: com a coleta desligada ela roda assim mesmo (a prova recebe `p_coleta_ligada = false` e não acende aviso).
+ * `ordem: 5.3` (depois de `poda_acesso_ia`, antes de `marcas_de_idade`).
+ */
+export const DEFINICAO_PODA_LEITURAS_WATCH: Definicao = {
+  nome: 'poda_leituras_watch', rotulo: 'poda das leituras da página do YouTube', ordem: 5.3, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 5,
+  tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
+  comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000,
+  motivos: {
+    banco_falhou: 'o banco falhou ao podar as leituras da página do YouTube',
+    prova_falhou: 'não foi possível conferir a saúde da leitura das páginas do YouTube',
+    sobrou: 'ficaram leituras vencidas para o dia seguinte',
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
@@ -216,7 +232,7 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_PODA_LEITURAS_WATCH].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {

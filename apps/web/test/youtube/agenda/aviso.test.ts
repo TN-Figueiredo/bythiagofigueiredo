@@ -272,3 +272,20 @@ describe('avisarDono: periodo e título por chave (A5 E10, T9)', () => {
     }
   })
 })
+
+describe('avisarDono: leitura_watch_vermelha (A5 S4, T13)', () => {
+  it('leitura_watch_vermelha tem título e mensagem próprios', async () => {
+    await avisarDono(banco().sb, [aviso({ chave: 'leitura_watch_vermelha', tarefa: 'poda das leituras da página do YouTube', frase: 'mais de 20% das leituras não acharam o título.' })], O)
+    const arg = createNotification.mock.calls[0]![0]
+    expect(arg.title).toBe('A leitura das páginas do YouTube está com problema')
+    expect(arg.message).toBe('mais de 20% das leituras não acharam o título. As leituras perdidas não são recuperadas. Confira a coleta no CMS, em ' + link.canais() + '.')
+    expect(arg.title).not.toContain('esgotou as tentativas')
+    expect(arg.dedup_key).toContain('leitura_watch_vermelha')
+  })
+  it('frase com <tag> não é escapada duas vezes', async () => {
+    await avisarDono(banco().sb, [aviso({ chave: 'leitura_watch_vermelha', frase: 'achou <b>x</b> & y' })], O)
+    const m = createNotification.mock.calls[0]![0].message as string
+    expect(m).toContain('<b>x</b> & y')
+    expect(m).not.toContain('&amp;')
+  })
+})
