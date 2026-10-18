@@ -7,7 +7,8 @@ vi.mock('@supabase/supabase-js', () => { throw new Error('carregou') })
 
 import * as rota from '../../../src/app/api/cron/watch-pv/route'
 import { contarPagina, rodadaMista, IDS_RAJADA, VIDEO_PV } from '../../../src/app/api/cron/watch-pv/contar'
-import { executarPv, LEITURAS_FASE2, type ExecutarDeps } from '../../../src/app/api/cron/watch-pv/executar'
+import { USER_AGENT_LEITOR, ACCEPT_LANGUAGE_LEITOR, urlWatch } from '../../../src/lib/youtube/watch/cabecalhos'
+import { executarPv, VALIDA_ATE, LEITURAS_FASE2, type ExecutarDeps } from '../../../src/app/api/cron/watch-pv/executar'
 
 const TIT_A = '5 - Como somos controlados - Consistência e Compromisso (Part 4)'
 const TIT_B = 'Consistência e Compromisso (Part 4)'
@@ -46,12 +47,30 @@ describe('rota', () => {
     expect((await rota.GET(req(ok, null))).status).toBe(400)
     expect(f).not.toHaveBeenCalled()
   })
+  it('sem CRON_SECRET recusa e não faz fetch', async () => {
+    const f = vi.fn(); vi.stubGlobal('fetch', f)
+    const guardado = process.env.CRON_SECRET
+    delete process.env.CRON_SECRET
+    try {
+      const r = await rota.GET(req('Bearer undefined', VIDEO_PV))
+      expect([401, 500]).toContain(r.status)
+      expect(f).not.toHaveBeenCalled()
+    } finally { process.env.CRON_SECRET = guardado }
+  })
   it('depois de VALIDA_ATE devolve 410 sem fetch', async () => {
     const f = vi.fn(); vi.stubGlobal('fetch', f)
-    vi.useFakeTimers(); vi.setSystemTime(rota.VALIDA_ATE + 1000)
+    vi.useFakeTimers(); vi.setSystemTime(VALIDA_ATE + 1000)
     const r = await rota.GET(req(`Bearer ${process.env.CRON_SECRET}`, VIDEO_PV))
     expect(r.status).toBe(410)
     expect(f).not.toHaveBeenCalled()
+  })
+})
+
+describe('cabeçalhos do leitor', () => {
+  it('literais fixos', () => {
+    expect(USER_AGENT_LEITOR).toBe('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36')
+    expect(ACCEPT_LANGUAGE_LEITOR).toBe('pt-BR')
+    expect(urlWatch('abc')).toBe('https://www.youtube.com/watch?v=abc&hl=pt-BR&gl=BR')
   })
 })
 
@@ -133,12 +152,29 @@ describe('executarPv (relógio falso)', () => {
     }
     expect(out.fase1.rodadas.length).toBeLessThan(10)
   })
-  it('I1: fase 2 com leituras de 10 s -> nenhuma começa depois de 280 s, cortado fase2, lidas < 48', async () => {
+  it('I1: fase 2 com leituras de 10 s -> nenhuma começa depois de 270 s, cortado fase2, lidas < 48', async () => {
     const r = relogio(10_000)
     const out = await executarPv(r.deps)
     expect(out.cortado === 'fase1' || out.cortado === 'fase2').toBe(true)
     expect(out.fase2.lidas).toBeLessThan(48)
-    expect(Math.max(...r.stats().inicios)).toBeLessThan(280_000)
+    expect(Math.max(...r.stats().inicios)).toBeLessThan(270_000)
+  })
+  it('M-T1-2: fase 1 cortada mantém cortado fase1', async () => {
+    const out = await executarPv(relogio(9000).deps)
+    expect(out.cortado).toBe('fase1')
+  })
+  it('fase 2 começa com fase 1 acabando em ~195 s', async () => {
+    const r = relogio(1000)
+    const out = await executarPv(r.deps)
+    expect(out.fase2.lidas).toBeGreaterThan(0)
+    expect(r.stats().inicios[30]!).toBeLessThanOrEqual(200_000)
+  })
+  it('fase 2 pulada quando a fase 1 acaba depois de 200 s (~204 s)', async () => {
+    const r = relogio(1300)
+    const out = await executarPv(r.deps)
+    expect(out.fase2.lidas).toBe(0)
+    expect(out.cortado).toBe('fase2')
+    expect(r.stats().n).toBe(30)
   })
   it('braço ? para página sem renderers e rodada [?, B, B] não é mista; não importa nada de banco', async () => {
     const r = relogio(500, (n) => (n % 3 === 1 ? 'sem renderers' : PAGINA_B))

@@ -1,3 +1,4 @@
+import { USER_AGENT_LEITOR, ACCEPT_LANGUAGE_LEITOR, urlWatch } from '../../../../lib/youtube/watch/cabecalhos'
 import { contarPagina, rodadaMista, IDS_RAJADA, VIDEO_PV, type ContagemPv } from './contar'
 
 export const RODADAS = 10
@@ -5,14 +6,14 @@ export const LEITURAS_POR_RODADA = 3
 export const PAUSA_ENTRE_LEITURAS_MS = 1_500
 export const PAUSA_ENTRE_RODADAS_MS = 15_000
 export const RODADA_NAO_COMECA_APOS_MS = 200_000
-export const FASE2_NAO_COMECA_APOS_MS = 235_000
-export const LEITURA_NAO_COMECA_APOS_MS = 280_000
+export const FASE2_NAO_COMECA_APOS_MS = 200_000
+export const LEITURA_NAO_COMECA_APOS_MS = 270_000
+/** Depois desta data a rota se desativa sozinha (cada chamada faz 78 requisições ao YouTube). */
+export const VALIDA_ATE = Date.parse('2026-10-22T00:00:00Z')
 export const CONCORRENCIA_RAJADA = 3
 export const PASSADAS = 3
 export const TIMEOUT_LEITURA_MS = 10_000
 export const LEITURAS_FASE2 = IDS_RAJADA.length * PASSADAS
-
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
 
 export type LeituraPv = ContagemPv & { ms: number; erro?: string }
 
@@ -44,8 +45,8 @@ export function ehBloqueio(c: ContagemPv): boolean {
 async function ler(deps: ExecutarDeps, v: string): Promise<LeituraPv> {
   const t0 = deps.agora()
   try {
-    const res = await deps.fetch(`https://www.youtube.com/watch?v=${v}&hl=pt-BR&gl=BR`, {
-      headers: { 'Accept-Language': 'pt-BR', 'User-Agent': UA },
+    const res = await deps.fetch(urlWatch(v), {
+      headers: { 'Accept-Language': ACCEPT_LANGUAGE_LEITOR, 'User-Agent': USER_AGENT_LEITOR },
       redirect: 'manual',
       cache: 'no-store',
       signal: AbortSignal.timeout(TIMEOUT_LEITURA_MS),
@@ -96,14 +97,14 @@ export async function executarPv(deps: ExecutarDeps): Promise<RespostaPv> {
     const trabalhador = async () => {
       for (let v = fila.shift(); v !== undefined; v = fila.shift()) {
         for (const passada of [1, 2, 3] as const) {
-          if (decorrido() >= LEITURA_NAO_COMECA_APOS_MS) { cortado = 'fase2'; return }
+          if (decorrido() >= LEITURA_NAO_COMECA_APOS_MS) { cortado ??= 'fase2'; return }
           leiturasF2.push({ ...(await ler(deps, v)), v, passada })
         }
       }
     }
     await Promise.all(Array.from({ length: CONCORRENCIA_RAJADA }, trabalhador))
   } else {
-    cortado = 'fase2'
+    cortado ??= 'fase2'
   }
 
   return {
