@@ -62,6 +62,8 @@ interface Props {
   onCreated: (testId: string) => void
   prefill?: PrefillData
   existingDraftId?: string
+  /** Referência (ex.: de concorrente) mostrada junto do passo das variantes */
+  referencia?: React.ReactNode
 }
 
 /* ------------------------------------------------------------------ */
@@ -248,7 +250,7 @@ function stepIsValid(step: number, state: WizardState): boolean {
 /*  AbCreateWizard                                                     */
 /* ------------------------------------------------------------------ */
 
-export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, prefill, existingDraftId }: Props) {
+export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, prefill, existingDraftId, referencia }: Props) {
   const continuingDraft = Boolean(existingDraftId && prefill?.draftVariants && prefill.draftVariants.length > 1)
 
   // When continuing a DB draft, ignore stale localStorage
@@ -516,6 +518,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         )
       case 2:
         return (
+          <>
+          {referencia}
           <StepVariantes
             type={state.type!}
             variants={state.variants}
@@ -531,6 +535,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
               setLibraryPickerFor(variantIndex)
             }}
           />
+          </>
         )
       case 3:
         return (

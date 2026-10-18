@@ -32,6 +32,7 @@ import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
+import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -158,12 +159,15 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
 
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('*')
+    .select('*, youtube_videos(youtube_video_id)')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
 
   if (testError || !test) return null
+  // `ab_tests.youtube_video_id` é a FK (uuid); o id do YouTube vem do join com `youtube_videos`.
+  const videoJoin = (test as { youtube_videos?: { youtube_video_id?: string | null } | Array<{ youtube_video_id?: string | null }> | null }).youtube_videos
+  const youtubeId = (Array.isArray(videoJoin) ? videoJoin[0] : videoJoin)?.youtube_video_id ?? null
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
@@ -191,6 +195,7 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
       label: v.label,
       blob_url: v.blob_url,
       title_text: v.title_text,
+      dimensions: v.dimensions,
       metadata: v.metadata,
       is_original: v.is_original,
       total_impressions: 0,
@@ -255,6 +260,7 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     timeline: allCycles,
     data_freshness: new Date().toISOString(),
     latestPolls,
+    youtubeId,
   } as AbTestResults
 }
 
@@ -1049,7 +1055,16 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     label: toDisplayLabel(v.label, v.is_original),
     is_original: v.is_original,
     blob_url: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
+    title_text: v.is_original ? (v.title_text ?? test.original_title ?? null) : v.title_text,
+    dimensions: v.dimensions ?? null,
   }))
+
+  // Variante do último ciclo fechado: a que estava no ar quando o teste saiu (rótulo da faixa de restauração).
+  const ultimoFechado = results.timeline.filter(c => c.ended_at !== null).sort((a, b) => b.cycle_number - a.cycle_number)[0]
+  const varNoAr = ultimoFechado ? results.variants.find(v => v.variant_id === ultimoFechado.variant_id) : undefined
+  const noArAntes = ultimoFechado && varNoAr
+    ? { label: toDisplayLabel(varNoAr.label, varNoAr.is_original), desde: ultimoFechado.started_at ?? null }
+    : null
 
   const base = {
     id: test.id,
@@ -1070,6 +1085,11 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     gates,
     activeNow,
     createdAt: test.created_at,
+    restoreStatus: paraRestoreStatus(test.restore_status),
+    restoreSeq: test.restore_seq ?? 0,
+    youtubeVideoId: results.youtubeId ?? null,
+    noArAntes,
+    noArAgora: openCycle && activeNow ? { label: activeNow, desde: openCycle.started_at ?? null } : null,
   }
 
   // Discriminate by status/outcome

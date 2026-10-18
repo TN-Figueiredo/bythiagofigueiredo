@@ -5,7 +5,8 @@
  */
 import type { CSSProperties } from 'react'
 import { Direcao } from '../_chrome/medidas/direcao'
-import { AindaNaoExiste, NaoCarregou, ZeroMedido } from '../_chrome/medidas/marcas'
+import { AindaNaoExiste, ZeroMedido } from '../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { textoDaMarca, type Falta, type Ainda, type CelulaDirecao, type CelulaAcerto, type CelulaContagem, type CelulaNumero, type CelulaReacao } from './medidas-do-lado'
 import { TEXTO_LEITURAS_DIFERENTES } from './medidas-do-par'
 import type { RelacaoNova } from './relacao-do-par'
@@ -21,10 +22,10 @@ export function Rotulo({ lado }: { lado: 'A' | 'B' }) {
 /** O que mostrar quando não há número. */
 export function Sem({ c }: { c: Falta | Ainda }) {
   switch (c.tipo) {
-    case 'nao_carregou': return <NaoCarregou />
+    case 'nao_carregou': return <PastilhaAusencia estado="falhou" />
     case 'canal_proprio': return <small className="why own">{c.porque}</small>
     case 'ainda_nao_existe': return <AindaNaoExiste existeEm={c.existeEm} />
-    case 'nao_medido': return <><span className="obs-ch-nm">não medido</span><small className="why">{c.porque}</small></>
+    case 'nao_medido': return <>{c.ausencia === 'falhou' || c.ausencia === 'restrito' ? <PastilhaAusencia estado={c.ausencia} /> : <span className="obs-ch-nm">não medido</span>}<small className="why">{c.porque}</small></>
     default: { const nunca: never = c; return nunca }
   }
 }

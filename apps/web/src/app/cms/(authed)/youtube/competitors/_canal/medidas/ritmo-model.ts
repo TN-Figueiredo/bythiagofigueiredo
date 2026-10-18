@@ -131,7 +131,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
   if (m === null || o.videos === null) {
     const nc: ValorDoCartao = { tipo: 'nao_carregou' }
     return {
-      frase: { negrito: 'Ritmo não carregou:', resto: ' não deu para ler os vídeos ou as medidas. Nada aqui vale como zero.', tom: 'nao_carregou' },
+      frase: { negrito: 'A leitura falhou:', resto: ' não deu para ler os vídeos ou as medidas. Nada aqui vale como zero.', tom: 'nao_carregou' },
       raias: [], eixoFim: 'esta semana', ponteiro: null, semanasLidas: 0,
       cartoes: [
         { chave: 'intervalo', rotulo: 'Intervalo típico (valor do meio)', valor: nc },
@@ -193,7 +193,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
       frase = { negrito: `Publica ${nome.um} ${aCada}.`, resto: d !== null ? ` O último saiu há ${ptn(d, 'dia', 'dias')}.` : '', tom: 'medido' }
     }
   } else if (e6.tipo === 'nao_carregou') {
-    frase = { negrito: 'Ritmo não carregou:', resto: ' o cálculo falhou. As casas abaixo mostram o que foi lido.', tom: 'nao_carregou' }
+    frase = { negrito: 'A leitura falhou:', resto: ' o cálculo falhou. As casas abaixo mostram o que foi lido.', tom: 'nao_carregou' }
   } else if (e6.tom === 'parcial') {
     frase = { negrito: 'Ritmo parcial:', resto: ' o canal ainda está buscando vídeos. As casas abaixo mostram o que já foi buscado.', tom: 'parcial' }
   } else if (e6.tom === 'sem_leitura') {

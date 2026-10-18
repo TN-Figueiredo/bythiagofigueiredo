@@ -6,10 +6,10 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
-import { denyUnlessSiteAdmin, requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Database } from '@/types/database.types'
-import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS, DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
+import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type {
   AbTestCreateInput,
   AbTestVariantRow,
@@ -19,35 +19,31 @@ import type {
   VariantMetadata,
 } from '@/lib/youtube/ab-types'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { channelAccountIdForVideo, CHANNEL_NOT_IDENTIFIED_MESSAGE } from '@/lib/youtube/channel-account'
+import { channelAccountIdForVideo } from '@/lib/youtube/channel-account'
 import { preflightTokenCheck } from '@/lib/youtube/ab-preflight'
 import { setThumbnail, fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
+import { resolveVideoChannel } from '@/lib/youtube/ab-video-context'
 import { getVariantForCycle, getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { captureOriginalMetadata, updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from '@/lib/youtube/ab-schemas'
-import { applyVariantToYouTube } from '@/lib/youtube/ab-apply'
 import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
+import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
-import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
+import { retomarTeste, recusaTipoForaDeUso } from '@/lib/youtube/ab-resume'
+import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
+import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
+import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
+import {
+  MSG_EM_ANDAMENTO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+} from '@/lib/youtube/ab-acao-saida'
+import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
-async function preserveOriginalThumbnail(ytUrl: string): Promise<string> {
-  const hostname = new URL(ytUrl).hostname
-  const allowed = ['.ytimg.com', '.ggpht.com', '.googleusercontent.com', '.blob.vercel-storage.com']
-  if (!allowed.some(s => hostname.endsWith(s))) throw new Error(`Blocked fetch from untrusted host: ${hostname}`)
-  const imgRes = await fetch(ytUrl, { signal: AbortSignal.timeout(15_000) })
-  if (!imgRes.ok) throw new Error(`Fetch failed: ${imgRes.status}`)
-  const buffer = Buffer.from(await imgRes.arrayBuffer())
-  const ct = imgRes.headers.get('content-type') ?? 'image/jpeg'
-  const ext = ct.includes('png') ? 'png' : 'jpg'
-  const blob = await put(
-    `ab-originals/${crypto.randomUUID()}/original.${ext}`,
-    buffer,
-    { access: 'public', contentType: ct, addRandomSuffix: true },
-  )
-  return blob.url
+/** Guarda a maior cópia da original no Blob (P4a): url, dHash como o YouTube serve e dimensões. */
+async function preserveOriginalThumbnail(youtubeId: string) {
+  return guardarOriginalMaior(youtubeId, crypto.randomUUID())
 }
 
 export async function getVideoTestHistory(
@@ -56,25 +52,33 @@ export async function getVideoTestHistory(
   return _getVideoTestHistory(...args)
 }
 
-const CHANNEL_NOT_IDENTIFIED = CHANNEL_NOT_IDENTIFIED_MESSAGE
+export type { OpcaoEncerrar, ResultadoAcaoSaida }
+
+/** Frase provisória da exceção inesperada em settleOnAir (T17: Logan fecha). */
+const MSG_FALHA_SAIDA = 'Não foi possível concluir agora. Atualize a página e confira o estado do teste.'
+
+function invalidarTelasDoAbLab(): void {
+  revalidateTag('youtube', { expire: 0 })
+  revalidatePath('/cms/youtube/ab-lab')
+}
 
 /**
- * O id "UC…" do canal dono do vídeo, ou a mensagem pronta para a tela. Nunca cai em
- * "a conexão mais recente": sem canal identificado a operação não sai.
+ * Traduz o resultado de settleOnAir e, se saiu do ar, invalida as telas. Uma exceção (settleOnAir relança o erro
+ * desconhecido por desenho) vira `resultado: 'erro'` + Sentry, em vez de derrubar a tela no error boundary;
+ * revalida porque o estado pode ter mudado.
  */
-async function resolveVideoChannel(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  siteId: string,
-  internalVideoId: string,
-): Promise<{ ok: true; channelAccountId: string } | { ok: false; error: string }> {
+async function concluirSaida(saida: Promise<ResultadoSaida>): Promise<ResultadoAcaoSaida> {
+  let r: ResultadoSaida
   try {
-    const channelAccountId = await channelAccountIdForVideo(supabase, siteId, internalVideoId)
-    if (!channelAccountId) return { ok: false, error: CHANNEL_NOT_IDENTIFIED }
-    return { ok: true, channelAccountId }
+    r = await saida
   } catch (e) {
-    Sentry.captureException(e, { tags: { area: 'ab-lab' }, extra: { stage: 'resolve-video-channel', internalVideoId } })
-    return { ok: false, error: CHANNEL_NOT_IDENTIFIED }
+    Sentry.captureException(e, { tags: { area: 'ab-acao-saida' } })
+    invalidarTelasDoAbLab()
+    return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
   }
+  const out = traduzirSaida(r)
+  if (out.ok && out.resultado === 'feito') invalidarTelasDoAbLab()
+  return out
 }
 
 async function requireEditAccess(): Promise<string> {
@@ -111,7 +115,7 @@ export async function createAbTest(
   // Fetch video
   const { data: video, error: videoError } = await supabase
     .from('youtube_videos')
-    .select('id, duration_seconds, thumbnail_hq_url')
+    .select('id, youtube_video_id, duration_seconds, thumbnail_hq_url')
     .eq('id', input.youtube_video_id)
     .eq('site_id', siteId)
     .single()
@@ -194,9 +198,14 @@ export async function createAbTest(
   // O blob da thumbnail original só é gravado agora que a criação vai acontecer: nenhuma
   // recusa acima (teste já existe, originais não capturados) deixa blob órfão.
   let immutableOriginalUrl: string | null = video.thumbnail_hq_url ?? null
+  let originalDhash: string | null = null
+  let originalDimensions: string | null = null
   if (video.thumbnail_hq_url && /\.(ytimg|ggpht|googleusercontent)\.com/.test(video.thumbnail_hq_url)) {
     try {
-      immutableOriginalUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
+      const guardada = await preserveOriginalThumbnail(video.youtube_video_id)
+      immutableOriginalUrl = guardada.url
+      originalDhash = guardada.dhash
+      originalDimensions = `${guardada.largura}x${guardada.altura}`
     } catch {
       return { ok: false, error: 'Falha ao salvar thumbnail original. Tente novamente.' }
     }
@@ -228,6 +237,8 @@ export async function createAbTest(
     label: 'original',
     is_original: true,
     blob_url: immutableOriginalUrl,
+    thumbnail_dhash: originalDhash,
+    dimensions: originalDimensions,
     blob_key: null,
     sort_order: 0,
   })
@@ -363,6 +374,7 @@ export async function uploadVariant(
     addRandomSuffix: false,
     contentType: file.type,
   })
+  const thumbnailDhash = await dhashOuNulo(buffer, `uploadVariant:${testId}`)
 
   // Insert variant row
   const sortOrder = 1 + (existingVariants?.length ?? 0)
@@ -374,6 +386,7 @@ export async function uploadVariant(
       is_original: false,
       blob_url: blob.url,
       blob_key: blob.pathname,
+      thumbnail_dhash: thumbnailDhash,
       file_size_bytes: file.size,
       sort_order: sortOrder,
       title_text: formData.get('title_text') as string | null ?? null,
@@ -585,6 +598,7 @@ export async function pullPipelineThumbnails(
         addRandomSuffix: false,
         contentType,
       })
+      const thumbnailDhash = await dhashOuNulo(buffer, `pullPipelineThumbnails:${testId}`)
 
       const sortOrder = 1 + existingCount + added
       const { error: insertError } = await supabase.from('ab_test_variants').insert({
@@ -593,6 +607,7 @@ export async function pullPipelineThumbnails(
         is_original: false,
         blob_url: blob.url,
         blob_key: blob.pathname,
+        thumbnail_dhash: thumbnailDhash,
         file_size_bytes: buffer.byteLength,
         sort_order: sortOrder,
       })
@@ -626,18 +641,6 @@ export async function pullPipelineThumbnails(
  * Resolve the YouTube Data API video ID (youtube_video_id column on youtube_videos)
  * given the FK stored in ab_tests (which is the PK of youtube_videos).
  */
-async function resolveYouTubeVideoId(
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  internalVideoId: string,
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('youtube_videos')
-    .select('youtube_video_id')
-    .eq('id', internalVideoId)
-    .single()
-  return (data?.youtube_video_id as string | null) ?? null
-}
-
 // ---------------------------------------------------------------------------
 // startAbTest
 // ---------------------------------------------------------------------------
@@ -664,71 +667,16 @@ export async function startAbTest(
 // pauseAbTest
 // ---------------------------------------------------------------------------
 
-export async function pauseAbTest(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function pauseAbTest(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, original_thumbnail_url')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (testError || !test) return { ok: false, error: 'Test not found' }
-  if (test.status !== 'active') return { ok: false, error: 'Only active tests can be paused' }
-
-  const { data: variants } = await supabase
-    .from('ab_test_variants')
-    .select('id, label, is_original, blob_url')
-    .eq('test_id', testId)
-
-  const originalVariant = variants?.find(v => v.is_original)
-
-  try {
-    const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-    if (!channel.ok) return { ok: false, error: channel.error }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channel.channelAccountId)
-    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
-
-    const revertUrl = originalVariant?.blob_url ?? (test.original_thumbnail_url as string | null)
-    if (revertUrl) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(revertUrl)
-      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-    }
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const now = new Date().toISOString()
-
-  // Set paused first (prevents rotate cron from acting on this test)
-  const { error: updateError } = await supabase
-    .from('ab_tests')
-    .update({ status: 'paused', paused_at: now, updated_at: now })
-    .eq('id', testId)
-
-  if (updateError) return { ok: false, error: updateError.message }
-
-  // Now close the open cycle safely
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: now })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  revalidateTag('youtube', { expire: 0 })
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true, seqEsperado: seq.data }))
 }
 
 // ---------------------------------------------------------------------------
@@ -759,212 +707,54 @@ export async function acknowledgeAbTestDrift(
 // resumeAbTest
 // ---------------------------------------------------------------------------
 
-/** Teste antigo com tipo fora dos três (descrição saiu do A/B): mensagem de recusa, ou null se o tipo vale. */
-function recusaTipoForaDeUso(testType: unknown): string | null {
-  if (TestTypeSchema.safeParse(testType ?? 'thumbnail').success) return null
-  return testType === 'description' ? DESCRICAO_FORA_DO_TESTE.message : 'Tipo de teste desconhecido'
-}
-
-export async function resumeAbTest(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function resumeAbTest(testId: string): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, status_note, drift_acknowledged_at, youtube_video_id, test_type, original_title, config')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (testError || !test) return { ok: false, error: 'Test not found' }
-  if (test.status !== 'paused') return { ok: false, error: 'Only paused tests can be resumed' }
-  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
-  if (tipoRecusado) return { ok: false, error: tipoRecusado }
-  if (test.status_note === DRIFT_STATUS_NOTE && !test.drift_acknowledged_at) {
-    return { ok: false, error: 'Drift não reconhecido. Reconheça a mudança antes de retomar o teste.' }
-  }
-
-  const { data: variants } = await supabase
-    .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, title_text, sort_order')
-    .eq('test_id', testId)
-    .order('sort_order', { ascending: true })
-
-  if (!variants || variants.length < 2) {
-    return { ok: false, error: 'No variants found' }
-  }
-
-  const { count: totalCycleCount } = await supabase
-    .from('ab_test_cycles')
-    .select('id', { count: 'exact', head: true })
-    .eq('test_id', testId)
-
-  const nextCycleNumber = totalCycleCount ?? 0
-  const nextIndex = getNextVariantIndex(test.config?.rotation_pattern ?? 'abba', variants.length, nextCycleNumber)
-  if (nextIndex < 0 || nextIndex >= variants.length) {
-    return { ok: false, error: 'Invalid variant rotation index' }
-  }
-  const nextVariant = variants[nextIndex] as AbTestVariantRow
-
-  let appliedMeta: import('@/lib/youtube/ab-types').AppliedMetadata = {}
-  try {
-    const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-    if (!channel.ok) return { ok: false, error: channel.error }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channel.channelAccountId)
-    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
-
-    const testType = (test.test_type ?? 'thumbnail') as TestType
-    const applyResult = await applyVariantToYouTube({
-      youtubeVideoId,
-      accessToken,
-      testType,
-      variant: {
-        id: nextVariant.id,
-        blob_url: nextVariant.blob_url,
-        title_text: nextVariant.title_text,
-      },
-      originalTitle: test.original_title,
-    })
-    if (!applyResult.ok) throw new Error(applyResult.error ?? 'apply failed')
-    appliedMeta = applyResult.meta
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const now = new Date().toISOString()
-
-  const { error: cycleError } = await supabase.from('ab_test_cycles').insert({
-    test_id: testId,
-    variant_id: nextVariant.id,
-    cycle_number: nextCycleNumber,
-    started_at: now,
-    applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
+  // O corpo mora em lib/youtube/ab-resume.ts: as portas injetáveis (banco, relógio, token, leitura) não podem ser
+  // parâmetro de uma server action (todo parâmetro vem da rede).
+  const r = await retomarTeste(testId, siteId, {
+    supabase: getSupabaseServiceClient(),
+    agora: () => new Date(),
+    token: async (sid, canal) => (await ensureFreshToken(sid, 'youtube', canal)).accessToken,
   })
-
-  if (cycleError) return { ok: false, error: cycleError.message }
-
-  const { error: updateError } = await supabase
-    .from('ab_tests')
-    .update({ status: 'active', paused_at: null, drift_acknowledged_at: null, status_note: null, updated_at: now })
-    .eq('id', testId)
-
-  if (updateError) return { ok: false, error: updateError.message }
-
-  revalidateTag('youtube', { expire: 0 })
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  // A reivindicação já mexeu no teste (restore_seq, restore_status): qualquer desfecho depois dela invalida as telas.
+  if (r.ok || r.resultado === 'erro' || r.resultado === 'em_andamento') invalidarTelasDoAbLab()
+  return r
 }
 
 // ---------------------------------------------------------------------------
 // endAbTest
 // ---------------------------------------------------------------------------
 
-export async function endAbTest(
-  testId: string,
-  winnerId?: string,
-): Promise<{ ok: boolean; error?: string }> {
-  // Degrau "administrar o site": aplicar uma variante vencedora troca o thumbnail no canal de
-  // verdade. A pergunta é feita no topo (antes de qualquer service client, falha fechado); a
-  // recusa sai assim que se sabe que o vencedor NÃO é o original. Encerrar restaurando o
-  // original (com ou sem `winnerId`) segue com a editora.
-  const siteAdmin = winnerId ? (await requireSiteAdminScope((await getSiteContext()).siteId)).ok : false
+export async function endAbTest(testId: string, opcao: OpcaoEncerrar): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
 
-  const supabase = getSupabaseServiceClient()
+  const seq = seqVistoSchema.safeParse(opcao.seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
 
-  const { data: test, error: testError } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, original_thumbnail_url')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (testError || !test) return { ok: false, error: 'Test not found' }
-  if (!['active', 'paused'].includes(test.status as string)) {
-    return { ok: false, error: 'Only active or paused tests can be ended' }
-  }
-
-  const { data: variants } = await supabase
-    .from('ab_test_variants')
-    .select('id, label, is_original, blob_url')
-    .eq('test_id', testId)
-
-  if (!variants) return { ok: false, error: 'No variants found' }
-
-  // Validate winnerId belongs to this test
-  if (winnerId) {
-    const winnerExists = variants.some(v => v.id === winnerId)
-    if (!winnerExists) return { ok: false, error: 'Winner variant does not belong to this test' }
-    if (!siteAdmin && !variants.find(v => v.id === winnerId)?.is_original) {
-      return { ok: false, error: siteAdminOnlyMessage('encerrar um teste A/B aplicando um vencedor no canal') }
+  let destino: OpcoesSaida['destino'] = ORIGINAL
+  if (opcao.destino === 'variante') {
+    // O id da variante original equivale a "voltar ao original" e segue com a editora (17).
+    // Qualquer outra deixa uma variante no canal: degrau "administrar o site".
+    const originalId = await varianteOriginalId(testId, siteId)
+    if (opcao.varianteId !== originalId) {
+      if (await denyUnlessSiteAdmin(siteId, 'deixar uma variante no ar')) {
+        return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }
+      }
+      destino = { tipo: 'variante', id: opcao.varianteId }
     }
   }
-
-  const targetVariant = winnerId
-    ? variants.find(v => v.id === winnerId)
-    : variants.find(v => v.is_original)
-
-  try {
-    const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-    if (!channel.ok) return { ok: false, error: channel.error }
-    const { accessToken } = await ensureFreshToken(siteId, 'youtube', channel.channelAccountId)
-    const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-    if (!youtubeVideoId) return { ok: false, error: 'YouTube video ID not found' }
-
-    const applyUrl = targetVariant?.blob_url ?? (test.original_thumbnail_url as string | null)
-    if (applyUrl) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(applyUrl)
-      await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-    }
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const now = new Date().toISOString()
-
-  // Close open cycle
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: now })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  const completedReason = winnerId ? 'manual_winner' : 'manual_archive'
-
-  const { error: updateError } = await supabase
-    .from('ab_tests')
-    .update({
-      status: 'completed',
-      completed_at: now,
-      completed_reason: completedReason,
-      winner_variant_id: winnerId ?? null,
-      updated_at: now,
-    })
-    .eq('id', testId)
-
-  if (updateError) return { ok: false, error: updateError.message }
-
-  if (winnerId) {
-    try { await autoImportWinner(testId, siteId) } catch { /* non-fatal */ }
-  }
-
-  revalidateTag('youtube', { expire: 0 })
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  const forcar = opcao.destino === 'variante' && opcao.forcar !== undefined ? { forcar: opcao.forcar } : {}
+  return concluirSaida(settleOnAir(testId, { siteId, destino, motivo: 'encerrado', humano: true, seqEsperado: seq.data, ...forcar }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1154,31 +944,32 @@ export async function updateTextVariant(
 // forceRotate
 // ---------------------------------------------------------------------------
 
-export async function forceRotate(testId: string): Promise<{ ok: boolean; error?: string }> {
+export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
+  const prazo = Date.now() + TETO_MS // F-D3: ação humana, início + 55 s
   // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
   // service client; falha fechado.
   const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'forçar a rotação de um teste A/B no canal')
-  if (denied) return denied
+  if (denied) return { ok: false, resultado: 'sem_permissao', error: denied.error }
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
 
   const supabase = getSupabaseServiceClient()
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, youtube_video_id, test_type, original_title, config, last_applied_variant_id, variants:ab_test_variants!test_id(*)')
+    .select('id, site_id, name, status, restore_seq, youtube_video_id, test_type, original_title, config, last_applied_variant_id, updated_at, variants:ab_test_variants!test_id(*)')
     .eq('id', testId)
     .eq('site_id', siteId)
     .eq('status', 'active')
     .single()
 
-  if (!test) return { ok: false, error: 'Test not found or not active' }
+  if (!test) return { ok: false, resultado: 'erro', error: 'Test not found or not active' }
   const tipoRecusado = recusaTipoForaDeUso(test.test_type)
-  if (tipoRecusado) return { ok: false, error: tipoRecusado }
+  if (tipoRecusado) return { ok: false, resultado: 'erro', error: tipoRecusado }
 
   // Resolve channel for correct token
   const { data: video } = await supabase
@@ -1186,16 +977,16 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
     .select('youtube_video_id, channel_id')
     .eq('id', test.youtube_video_id)
     .single()
-  if (!video) return { ok: false, error: 'Video not found' }
+  if (!video) return { ok: false, resultado: 'erro', error: 'Video not found' }
 
   // O canal dono do vídeo (filtro de site; erro de banco não vira "canal não identificado")
   const channelResolved = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-  if (!channelResolved.ok) return { ok: false, error: channelResolved.error }
+  if (!channelResolved.ok) return { ok: false, resultado: 'erro', error: channelResolved.error }
 
   // Pre-flight token check (validates token works against YouTube API)
   const preflight = await preflightTokenCheck(siteId, 'youtube', channelResolved.channelAccountId)
   if (!preflight.ok) {
-    return { ok: false, error: `Token inválido: ${preflight.reason}` }
+    return { ok: false, resultado: 'erro', error: `Token inválido: ${preflight.reason}` }
   }
   const accessToken = preflight.accessToken
 
@@ -1215,310 +1006,74 @@ export async function forceRotate(testId: string): Promise<{ ok: boolean; error?
   const pattern = (config?.rotation_pattern as 'abba' | 'round_robin' | 'random' | undefined) ?? 'abba'
   const nextIndex = getNextVariantIndex(pattern, variants.length, nextCycle)
   const nextVariant = variants[nextIndex]
-  if (!nextVariant) return { ok: false, error: 'Invalid variant index' }
+  if (!nextVariant) return { ok: false, resultado: 'erro', error: MSG_VARIANTE_DA_VEZ }
 
-  // Write-ahead marker: record intent BEFORE calling YouTube API
-  await supabase
-    .from('ab_tests')
-    .update({ last_applied_variant_id: nextVariant.id })
-    .eq('id', testId)
+  // Phil I-1: variante da vez sem arquivo no Blob / sem título não vai ao ar (antes de reivindicar).
+  const semConteudo = motivoVarianteSemConteudo(((test.test_type as string) ?? 'thumbnail') as 'thumbnail' | 'title' | 'combo', nextVariant, test.original_title as string | null)
+  if (semConteudo) {
+    await avisarRotacaoSemConteudo({
+      testId, siteId, testName: (test.name as string | null) ?? '', motivo: semConteudo, variantId: nextVariant.id,
+    })
+    return { ok: false, resultado: 'erro', error: `A rotação não foi feita: a variante da vez está ${semConteudo}. Abra o teste, corrija a variante e tente de novo.` }
+  }
 
-  // Apply variant based on test type (matches cron logic)
-  const testType = (test.test_type as string) ?? 'thumbnail'
-  const youtubeVideoId = video.youtube_video_id as string
+  // Reivindica a vez ANTES de escrever, como o cron; o marcador velho (queda anterior, mais antigo que
+  // MARCADOR_VELHO_MS) é aceito exatamente (Y-D9). Zero linhas = outra rotação (marcador novo = em voo), pausa ou
+  // encerramento chegou antes: não escreve.
+  const seq = await reivindicarRotacao(
+    supabase, testId, test.restore_seq as number, nextVariant.id, (test.last_applied_variant_id as string | null) ?? null,
+  )
+  if (seq === null) return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
 
-  const applyResult = await applyVariantToYouTube({
-    youtubeVideoId,
+  const resultado = await aplicarRotacao(supabase, {
+    testId,
+    siteId,
+    testName: (test.name as string | null) ?? '',
+    seq,
+    youtubeVideoId: video.youtube_video_id as string,
     accessToken,
-    testType: testType as TestType,
-    variant: {
-      id: nextVariant.id,
-      blob_url: nextVariant.blob_url,
-      title_text: nextVariant.title_text,
-    },
+    testType: ((test.test_type as string) ?? 'thumbnail') as 'thumbnail' | 'title' | 'combo',
+    variante: nextVariant as AbTestVariantRow,
     originalTitle: test.original_title as string | null,
+    cycleNumber: nextCycle,
+    metaExtra: { trigger: 'manual' },
+    prazo,
   })
 
-  if (!applyResult.ok) return { ok: false, error: applyResult.error ?? 'apply failed' }
-  const appliedMeta: Record<string, unknown> = { trigger: 'manual', ...applyResult.meta }
-
-  // Close old cycle + open new cycle AFTER YouTube confirms
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  await supabase.from('ab_test_cycles').insert({
-    test_id: testId,
-    variant_id: nextVariant.id,
-    cycle_number: nextCycle,
-    started_at: new Date().toISOString(),
-    applied_metadata: Object.keys(appliedMeta).length ? appliedMeta : null,
-  })
-
-  // Clear write-ahead marker after success
-  await supabase
-    .from('ab_tests')
-    .update({ last_applied_variant_id: null })
-    .eq('id', testId)
+  if (!resultado.ok) {
+    if (resultado.motivo !== 'youtube') {
+      if (resultado.motivo === 'perdeu_a_vez') return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
+      return { ok: false, resultado: 'erro', error: 'A rotação e uma pausa se cruzaram. Confira a thumbnail e o título do vídeo no YouTube.' }
+    }
+    // Sem escrita, limpa o marcador; com escrita parcial ele fica (sinal para o settleOnAir).
+    if (!resultado.appliedThumbnail && !resultado.appliedMetadata) {
+      await supabase.from('ab_tests').update({ last_applied_variant_id: null }).eq('id', testId).eq('restore_seq', seq)
+    }
+    return { ok: false, resultado: 'erro', error: resultado.erro.message }
+  }
 
   revalidateTag('ab-tests', { expire: 0 })
   revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  return { ok: true, resultado: 'feito', campos: {} }
 }
 
 // ---------------------------------------------------------------------------
-// applyWinnerNow — Manual early apply (skips grace period)
+// revertWinner — volta ao original (janela de 7 dias), por settleOnAir
 // ---------------------------------------------------------------------------
 
-export async function applyWinnerNow(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
+export async function revertWinner(testId: string): Promise<ResultadoAcaoSaida> {
   // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
   // service client; falha fechado.
-  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'aplicar o vencedor de um teste A/B no canal')
-  if (denied) return denied
+  const siteIdDaTela = (await getSiteContext()).siteId
+  const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'reverter o vencedor de um teste A/B no canal')
+  if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
-    return { ok: false, error: (e as Error).message }
+    return recusaDeSessao(e)
   }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, status, winner_variant_id, youtube_video_id, test_type, original_title, grace_expires_at, winner_applied_at')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!test || !test.winner_variant_id || test.winner_applied_at) {
-    return { ok: false, error: 'Test not in grace period or already applied' }
-  }
-  const tipoRecusado = recusaTipoForaDeUso(test.test_type)
-  if (tipoRecusado) return { ok: false, error: tipoRecusado }
-
-  // Get winner variant
-  const { data: variant } = await supabase
-    .from('ab_test_variants')
-    .select('id, blob_url, title_text, is_original')
-    .eq('id', test.winner_variant_id)
-    .single()
-
-  if (!variant) return { ok: false, error: 'Winner variant not found' }
-
-  // O canal DONO do vídeo — nunca "um canal qualquer do site": a escrita no
-  // YouTube tem de sair com o token dele.
-  const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-  if (!channel.ok) return { ok: false, error: channel.error }
-  const channelAccountId = channel.channelAccountId
-
-  // Pre-flight check
-  const preflight = await preflightTokenCheck(siteId, 'youtube', channelAccountId)
-  if (!preflight.ok) return { ok: false, error: `Token inválido: ${preflight.reason}` }
-
-  // Get YouTube video ID
-  const { data: video } = await supabase
-    .from('youtube_videos')
-    .select('youtube_video_id')
-    .eq('id', test.youtube_video_id)
-    .single()
-
-  if (!video?.youtube_video_id) return { ok: false, error: 'Video not found' }
-
-  // Apply based on test_type
-  const testType = test.test_type as string
-  const applyResult = await applyVariantToYouTube({
-    youtubeVideoId: video.youtube_video_id as string,
-    accessToken: preflight.accessToken,
-    testType: testType as TestType,
-    variant: {
-      id: variant.id as string,
-      blob_url: variant.blob_url as string | null,
-      title_text: variant.title_text as string | null,
-    },
-    originalTitle: test.original_title as string | null,
-  })
-
-  if (!applyResult.ok) {
-    return { ok: false, error: `YouTube API error: ${applyResult.error}` }
-  }
-
-  // Close the open cycle
-  await supabase
-    .from('ab_test_cycles')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('test_id', testId)
-    .is('ended_at', null)
-
-  // Mark applied
-  await supabase
-    .from('ab_tests')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      completed_reason: 'manual_apply',
-      winner_applied_at: new Date().toISOString(),
-      applied_by: 'manual',
-      revert_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
-      grace_expires_at: null,
-    })
-    .eq('id', testId)
-
-  // Auto-import winning thumbnail to library
-  try {
-    await autoImportWinner(testId, siteId)
-  } catch {
-    // Non-fatal — library import failure shouldn't block test completion
-  }
-
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
-}
-
-// ---------------------------------------------------------------------------
-// cancelGracePeriod — Cancel auto-apply, complete without applying winner
-// ---------------------------------------------------------------------------
-
-export async function cancelGracePeriod(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
-  let siteId: string
-  try {
-    siteId = await requireEditAccess()
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const supabase = getSupabaseServiceClient()
-
-  // Guard: ensure test is actually in grace period
-  const { data: test } = await supabase
-    .from('ab_tests')
-    .select('id, status, grace_expires_at, youtube_video_id, original_thumbnail_url')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!test || !test.grace_expires_at || test.status !== 'active') {
-    return { ok: false, error: 'Test not in grace period' }
-  }
-
-  // Revert thumbnail to original before completing (best-effort)
-  try {
-    const revertUrl = test.original_thumbnail_url as string | null
-    if (revertUrl?.includes('blob.vercel-storage.com')) {
-      const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-      if (!channel.ok) throw new Error(channel.error)
-      const { accessToken } = await ensureFreshToken(siteId, 'youtube', channel.channelAccountId)
-      const youtubeVideoId = await resolveYouTubeVideoId(supabase, test.youtube_video_id as string)
-      if (youtubeVideoId) {
-        const { buffer, contentType } = await fetchVariantImageBuffer(revertUrl)
-        await setThumbnail(youtubeVideoId, buffer, contentType, accessToken)
-      }
-    }
-  } catch (revertErr) {
-    Sentry.captureException(revertErr, { extra: { context: 'cancelGracePeriod-revert', testId } })
-  }
-
-  await supabase
-    .from('ab_tests')
-    .update({
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      completed_reason: 'manual_no_apply',
-      grace_expires_at: null,
-    })
-    .eq('id', testId)
-    .eq('site_id', siteId)
-
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
-}
-
-// ---------------------------------------------------------------------------
-// revertWinner — Restore original (7-day window)
-// ---------------------------------------------------------------------------
-
-export async function revertWinner(
-  testId: string,
-): Promise<{ ok: boolean; error?: string }> {
-  // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
-  // service client; falha fechado.
-  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'reverter o vencedor de um teste A/B no canal')
-  if (denied) return denied
-  let siteId: string
-  try {
-    siteId = await requireEditAccess()
-  } catch (e) {
-    return { ok: false, error: (e as Error).message }
-  }
-
-  const supabase = getSupabaseServiceClient()
-
-  const { data: test } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, youtube_video_id, test_type, original_thumbnail_url, original_title, revert_expires_at, winner_applied_at')
-    .eq('id', testId)
-    .eq('site_id', siteId)
-    .single()
-
-  if (!test || !test.winner_applied_at) {
-    return { ok: false, error: 'Test has no applied winner' }
-  }
-  if (!TestTypeSchema.safeParse(test.test_type ?? 'thumbnail').success) {
-    return { ok: false, error: 'Teste antigo de descrição: restaure a descrição pelo Studio' }
-  }
-
-  if (!test.revert_expires_at || new Date(test.revert_expires_at as string) < new Date()) {
-    return { ok: false, error: 'Revert window expired (7 days)' }
-  }
-
-  // O canal DONO do vídeo — nunca "um canal qualquer do site": a escrita no
-  // YouTube tem de sair com o token dele.
-  const channel = await resolveVideoChannel(supabase, siteId, test.youtube_video_id as string)
-  if (!channel.ok) return { ok: false, error: channel.error }
-  const channelAccountId = channel.channelAccountId
-
-  const preflight = await preflightTokenCheck(siteId, 'youtube', channelAccountId)
-  if (!preflight.ok) return { ok: false, error: `Token inválido: ${preflight.reason}` }
-
-  const { data: video } = await supabase
-    .from('youtube_videos')
-    .select('youtube_video_id')
-    .eq('id', test.youtube_video_id)
-    .single()
-
-  if (!video?.youtube_video_id) return { ok: false, error: 'Video not found' }
-
-  const testType = test.test_type as string
-  try {
-    if ((testType === 'thumbnail' || testType === 'combo') && test.original_thumbnail_url) {
-      const { buffer, contentType } = await fetchVariantImageBuffer(test.original_thumbnail_url as string)
-      await setThumbnail(video.youtube_video_id as string, buffer, contentType, preflight.accessToken)
-    }
-    if ((testType === 'title' || testType === 'combo') && test.original_title) {
-      await updateVideoMetadata(video.youtube_video_id as string, test.original_title as string, preflight.accessToken)
-    }
-  } catch (err) {
-    return { ok: false, error: `YouTube API error: ${(err as Error).message}` }
-  }
-
-  // Clear applied state
-  await supabase
-    .from('ab_tests')
-    .update({
-      winner_applied_at: null,
-      revert_expires_at: null,
-      applied_by: null,
-    })
-    .eq('id', testId)
-
-  revalidatePath('/cms/youtube/ab-lab')
-  return { ok: true }
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1739,7 +1294,7 @@ export async function batchStartTests(
   for (const videoId of eligible) {
     const { data: video } = await supabase
       .from('youtube_videos')
-      .select('id, title, thumbnail_hq_url')
+      .select('id, youtube_video_id, title, thumbnail_hq_url')
       .eq('id', videoId)
       .eq('site_id', siteId)
       .single()
@@ -1747,9 +1302,14 @@ export async function batchStartTests(
     if (!video) continue
 
     let batchImmutableUrl: string | null = video.thumbnail_hq_url ?? null
+    let batchDhash: string | null = null
+    let batchDimensions: string | null = null
     if (video.thumbnail_hq_url && /\.(ytimg|ggpht|googleusercontent)\.com/.test(video.thumbnail_hq_url)) {
       try {
-        batchImmutableUrl = await preserveOriginalThumbnail(video.thumbnail_hq_url)
+        const guardada = await preserveOriginalThumbnail(video.youtube_video_id)
+        batchImmutableUrl = guardada.url
+        batchDhash = guardada.dhash
+        batchDimensions = `${guardada.largura}x${guardada.altura}`
       } catch {
         continue
       }
@@ -1775,6 +1335,8 @@ export async function batchStartTests(
         label: 'original',
         is_original: true,
         blob_url: batchImmutableUrl,
+        thumbnail_dhash: batchDhash,
+        dimensions: batchDimensions,
         blob_key: null,
         sort_order: 0,
       })

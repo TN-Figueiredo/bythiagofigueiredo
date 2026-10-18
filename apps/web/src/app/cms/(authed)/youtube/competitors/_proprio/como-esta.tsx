@@ -10,6 +10,7 @@
  * layout effect. O formulário é GET de verdade (select e botão, duas paradas de Tab) e mudar o select NÃO envia (a seta num select fechado dispara
  * `change` em alguns navegadores). O `Link` é importado aqui, no módulo cliente: nenhum Link chega por prop.
  */
+import { PastilhaAntes } from '../_chrome/ausencia/pastilhas'
 import Link from 'next/link'
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { Popover } from '../_chrome/flut/flut'
@@ -90,7 +91,7 @@ function Taxa({ t }: { t: TaxaBlocoView }) {
         <h3 id={popId + 't'}>Como a taxa é calculada</h3>
         {METODO_TAXA_CANAL.map(p => <p key={p}>{p}</p>)}
       </Popover>
-      {t.frase ? <p className="pn-fr">{t.frase.map((x, i) => (x.b ? <b key={i}>{x.t}</b> : <span key={i}>{x.t}</span>))}</p> : <p className="pn-vazio">{t.vazio}</p>}
+      {t.frase ? <p className="pn-fr">{t.frase.map((x, i) => (x.b ? <b key={i}>{x.t}</b> : <span key={i}>{x.t}</span>))}</p> : <p className="pn-vazio"><PastilhaAntes estado={t.vazioEstado} />{t.vazio}</p>}
       {t.faixa ? <TaxaFaixa view={t.faixa} /> : null}
       {t.nota ? <p className="pn-nt">{t.nota}</p> : null}
     </section>
@@ -103,7 +104,7 @@ function Corpo({ view, grafico, graficoViews, canalId }: { view: ComoEstaView; g
   return (
     <>
       {/* sem o que desenhar o gráfico já diz a mesma frase: ela não se repete três vezes (linha recolhida, topo e gráfico) */}
-      {view.frase !== grafico.vazio ? <p className="pn-lead">{view.frase}</p> : null}
+      {view.frase !== grafico.vazio ? <p className="pn-lead"><PastilhaAntes estado={view.fraseEstado} />{view.frase}</p> : null}
       <div className="pn-g">
         <div className="pn-c">
           <Impressoes view={grafico} titulo={TITULO_GRAFICO} />
@@ -123,7 +124,7 @@ function Corpo({ view, grafico, graficoViews, canalId }: { view: ComoEstaView; g
                 </li>
               ))}
             </ol>
-          ) : <p className="pn-vazio">{view.topVazio}</p>}
+          ) : <p className="pn-vazio"><PastilhaAntes estado={view.topVazioEstado} />{view.topVazio}</p>}
           {view.topNota ? <p className="pn-nota">{view.topNota}</p> : null}
         </div>
       </div>

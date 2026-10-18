@@ -28,7 +28,9 @@ export interface ComentariosVideoIa {
   estados: Array<{ idade: string; titulo: string; corpo: string | null; selo: string | null; nota: string | null }>
   listas: Array<{
     idade: string; frase: string; barra: string; movimento: string; inscritosOcultos: string | null
-    legenda: Array<{ rotulo: string; texto: string; zero: boolean }>
+    legenda: Array<{ rotulo: string; texto: string }>
+    /** Os motivos opcionais que ficaram em zero, numa frase (nulo sem zero). */
+    zeros: string | null
   }>
   /** Cada comentário uma vez só (ele pode estar nas três idades). Vazio no nível contagem. */
   itens: Comentario[]
@@ -68,9 +70,9 @@ export function projetarComentariosDoVideo(lida: SecaoLida, canalNome: string): 
   const estados = paineis.flatMap((p) => (p.kind === 'estado'
     ? [{ idade: `${p.marco} ${p.marco === 1 ? 'dia' : 'dias'}`, titulo: p.titulo, corpo: p.corpo, selo: p.selo?.texto ?? null, nota: p.nota }] : []))
   const listas = paineis.filter(fim).map((p) => ({
-    idade: `${p.marco} ${p.marco === 1 ? 'dia' : 'dias'}`, frase: p.frase, barra: p.barra.texto,
+    idade: `${p.marco} ${p.marco === 1 ? 'dia' : 'dias'}`, frase: p.frase.resto ? `${p.frase.negrito} ${p.frase.resto}` : p.frase.negrito, barra: p.barra.texto,
     movimento: `${p.movimento.texto}${p.movimento.saidas ? ` · ${p.movimento.saidas}` : ''}`, inscritosOcultos: p.inscritosOcultos,
-    legenda: p.legenda.map((l) => ({ rotulo: l.rotulo, texto: l.texto, zero: l.zero })),
+    legenda: p.legenda.map((l) => ({ rotulo: l.rotulo, texto: l.texto })), zeros: p.zeros,
   }))
   // cada comentário uma vez, na ordem de aparição (a idade mais nova primeiro, como a tela abre)
   const vistos = new Map<number, CartaoView>()
@@ -87,7 +89,10 @@ export function projetarComentariosDoVideo(lida: SecaoLida, canalNome: string): 
     if (c.saiu !== null || c.texto === null) return []
     const r = c.resposta
     // as menções de terceiros saem em QUALQUER nível (I-2 do portão Phil): o pacote é anônimo mesmo quando a tela mostra o @handle
-    const respostas = r && r.forma === 'respondeu' && r.textos ? r.textos.map((t) => semMencoes(t.texto).texto).filter((t) => t !== '') : []
+    // cada resposta com a data da fala (a mesma `dd/mm` da tela) e ` …` quando cortada, como a tela escreve
+    const respostas = r && r.forma === 'respondeu' && r.textos
+      ? r.textos.flatMap((t) => { const x = semMencoes(t.texto).texto; return x === '' ? [] : [`${t.data ? `${t.data}: ` : ''}${x}${t.cortado ? ' …' : ''}`] })
+      : []
     const cur = curtidasDe(c, listadoAte.get(Number(ORDEM_DO_ID.exec(c.id)?.[1])) ?? 0)
     return [{
       texto: semMencoes(c.texto.texto).texto, curtidas: cur.n, respostas: c.rodape.respostas?.n ?? null, idade: c.rodape.publicado ?? 'sem data',
@@ -109,7 +114,8 @@ export const INVENTARIO_COMENTARIOS_VIDEO: Inventario = {
   'derivado.comentarios.estados[].selo': 'base', 'derivado.comentarios.estados[].nota': 'base',
   'derivado.comentarios.listas[].idade': 'rotulo', 'derivado.comentarios.listas[].frase': 'base', 'derivado.comentarios.listas[].barra': 'base',
   'derivado.comentarios.listas[].movimento': 'base', 'derivado.comentarios.listas[].inscritosOcultos': 'base',
-  'derivado.comentarios.listas[].legenda[].rotulo': 'rotulo', 'derivado.comentarios.listas[].legenda[].texto': 'numero', 'derivado.comentarios.listas[].legenda[].zero': CTRL,
+  'derivado.comentarios.listas[].legenda[].rotulo': 'rotulo', 'derivado.comentarios.listas[].legenda[].texto': 'numero',
+  'derivado.comentarios.listas[].zeros': 'base',
   // os itens saem pelo bloco "Comentários de destaque" do pacote (texto de terceiros, sem autor)
   'derivado.comentarios.itens[].texto': 'terceiros', 'derivado.comentarios.itens[].curtidas': 'numero', 'derivado.comentarios.itens[].respostas': 'numero',
   'derivado.comentarios.itens[].idade': 'rotulo', 'derivado.comentarios.itens[].sinalizadores[]': 'base',
@@ -139,11 +145,12 @@ export function tabelasDeComentariosDoVideo(c: ComentariosVideoIa | null): { tab
         e.corpo !== null ? terceiros(e.corpo, `${O}.estados[${i}].corpo`) : sem(), e.selo !== null ? base(e.selo, `${O}.estados[${i}].selo`) : sem(), e.nota !== null ? base(e.nota, `${O}.estados[${i}].nota`) : sem()])))
   }
   if (c.listas.length) {
-    tabelas.push(lista('video-comentarios-listas', 'Comentários de destaque: a frase, a barra e o movimento de cada idade', 'frases dos comentários por idade', ['Idade', 'Frase', 'Barra', 'Movimento', 'Inscritos ocultos'],
+    tabelas.push(lista('video-comentarios-listas', 'Comentários de destaque: a frase, a barra e o movimento de cada idade', 'frases dos comentários por idade', ['Idade', 'Frase', 'Barra', 'Movimento', 'Inscritos ocultos', 'Motivos sem comentário'],
       c.listas.map((l, i) => [rotulo(l.idade, `${O}.listas[${i}].idade`), base(l.frase, `${O}.listas[${i}].frase`), base(l.barra, `${O}.listas[${i}].barra`), base(l.movimento, `${O}.listas[${i}].movimento`),
-        l.inscritosOcultos !== null ? base(l.inscritosOcultos, `${O}.listas[${i}].inscritosOcultos`) : sem()])))
+        l.inscritosOcultos !== null ? base(l.inscritosOcultos, `${O}.listas[${i}].inscritosOcultos`) : sem(),
+        l.zeros !== null ? base(l.zeros, `${O}.listas[${i}].zeros`) : sem()])))
     tabelas.push(lista('video-comentarios-legenda', 'Comentários de destaque: quantos de cada motivo, por idade', 'motivos dos comentários por idade', ['Idade', 'Motivo', 'Quantos'],
-      c.listas.flatMap((l, i) => l.legenda.map((g, k): Celula[] => [rotulo(l.idade, `${O}.listas[${i}].idade`), rotulo(g.rotulo, `${O}.listas[${i}].legenda[${k}].rotulo`), medido(g.texto, `${O}.listas[${i}].legenda[${k}].texto`, g.zero)]))))
+      c.listas.flatMap((l, i) => l.legenda.map((g, k): Celula[] => [rotulo(l.idade, `${O}.listas[${i}].idade`), rotulo(g.rotulo, `${O}.listas[${i}].legenda[${k}].rotulo`), medido(g.texto, `${O}.listas[${i}].legenda[${k}].texto`, false)]))))
   }
   const avisos = [
     ...(c.faixa ? [c.faixa] : []), c.fonte,

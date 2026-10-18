@@ -8,7 +8,7 @@
  *   crypto.createHash('sha256').update(raw).digest('hex')
  */
 import { createHash, randomUUID } from 'node:crypto'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
 import jwt from 'jsonwebtoken'
 import { getLocalJwtSecret, localSupabaseUrl } from './db-skip'
@@ -793,4 +793,75 @@ export async function seedYoutubeChannelAndVideo(
   if (vidErr || !video) throw new Error(`seedYoutubeChannelAndVideo (video): ${vidErr?.message}`)
 
   return { channelId: channel.id, videoId: video.id, youtubeVideoId }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A/B Lab (P4a): SQL cru, cliente de serviço e semente de teste com duas variantes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Executa SQL cru no banco de SUPABASE_DB_URL e devolve as linhas (uma conexão por chamada). */
+export async function q<T extends object = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+  const pg = new Client({ connectionString: PG_URL })
+  await pg.connect()
+  try {
+    const r = await pg.query(sql, params)
+    return r.rows as T[]
+  } finally {
+    await pg.end()
+  }
+}
+
+/** Cliente com a chave de serviço local (aponta para NEXT_PUBLIC_SUPABASE_URL). */
+export function clienteServico(): SupabaseClient {
+  return createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  })
+}
+
+export interface SemearTesteAbOpts {
+  status?: 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'queued'
+  /** Número do ciclo aberto semeado (padrão 0); null = nenhum ciclo. */
+  cicloAberto?: number | null
+  testType?: 'thumbnail' | 'title' | 'description' | 'combo'
+}
+
+/** Semeia site, vídeo, teste, variante A (original) e B e, por padrão, o ciclo 0 aberto na A. */
+export async function semearTesteAb(
+  opts: SemearTesteAbOpts = {},
+): Promise<{ testId: string; varA: string; varB: string; siteId: string }> {
+  const db = clienteServico()
+  const { siteId } = await seedSite(db)
+  const { videoId } = await seedYoutubeChannelAndVideo(db, siteId)
+  const { data: teste, error: eT } = await db
+    .from('ab_tests')
+    .insert({
+      site_id: siteId,
+      youtube_video_id: videoId,
+      name: 'Semente P4a',
+      status: opts.status ?? 'active',
+      test_type: opts.testType ?? 'thumbnail',
+      config: { max_duration_days: 14, confidence_threshold: 0.95, burn_in_days: 2, rotation_pattern: 'abba' },
+      original_thumbnail_url: 'https://i.ytimg.com/vi/test/hqdefault.jpg',
+    })
+    .select('id')
+    .single()
+  if (eT || !teste) throw new Error(`semearTesteAb (teste): ${eT?.message}`)
+  const { data: vars, error: eV } = await db
+    .from('ab_test_variants')
+    .insert([
+      { test_id: teste.id, label: 'A', is_original: true, sort_order: 0 },
+      { test_id: teste.id, label: 'B', is_original: false, sort_order: 1 },
+    ])
+    .select('id, label')
+  if (eV || !vars) throw new Error(`semearTesteAb (variantes): ${eV?.message}`)
+  const varA = vars.find(v => v.label === 'A')!.id as string
+  const varB = vars.find(v => v.label === 'B')!.id as string
+  const aberto = opts.cicloAberto === undefined ? 0 : opts.cicloAberto
+  if (aberto !== null) {
+    const { error: eC } = await db
+      .from('ab_test_cycles')
+      .insert({ test_id: teste.id, variant_id: varA, cycle_number: aberto, started_at: new Date().toISOString() })
+    if (eC) throw new Error(`semearTesteAb (ciclo): ${eC.message}`)
+  }
+  return { testId: teste.id as string, varA, varB, siteId }
 }

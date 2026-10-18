@@ -47,16 +47,16 @@ describe('E5a T5: dado ausente', () => {
     const comps = rowsOf(v).filter(r => !r.own)
     expect(comps.length).toBe(concorrentes.length)
     for (const r of comps) expect(r.direcao.tipo).toBe('nao_carregou')
-    expect(v.resumo.frase).toContain(`A direção não carregou em ${comps.length} canais`)
+    expect(v.resumo.frase).toContain(`A leitura da direção falhou em ${comps.length} canais`)
     expect(v.resumo.casas.map(c => c.n)).toEqual([null, null, null, null])
     const { container } = mount({ medidas: null })
     expect(container.querySelectorAll('.obs-cn-casa .obs-ch-zero').length).toBe(0)
-    expect(container.querySelectorAll('.obs-cn-casa .obs-md-nc').length).toBe(4)
-    // D3: com o estado também sem leitura, Parados e Saíram não dizem 0 medido: dizem "não carregou"
+    expect(container.querySelectorAll('.obs-cn-casa .obs-au-falhou').length).toBe(4)
+    // D3: com o estado também sem leitura, Parados e Saíram não dizem 0 medido: dizem "a leitura falhou"
     const f = (ch: string) => v.resumo.filtros.find(x => x.chave === ch)!
     expect(f('parados').n).toBeNull()
     expect(f('sairam').n).toBeNull()
-    expect(f('parados').leitor).toContain('não carregou')
+    expect(f('parados').leitor).toContain('a leitura falhou')
     expect(container.querySelectorAll('.obs-cn-filtro .obs-ch-zero').length).toBe(0)
   })
   it('canal sem 56 dias: "fecha em dd/mm" na linha e a data na casa "não medido"', () => {
@@ -84,7 +84,7 @@ describe('E5a T5: dado ausente', () => {
     const { container } = mount({ medidas: medidasDoMotor(obs, { 'matt-wolfe': { extras: { subscribersHidden: true } } }) })
     expect(container.querySelector('[data-subs-ocultos]')).not.toBeNull()
   })
-  it('extras não lidos: a pastilha "Saiu do YouTube" não é inventada e a linha diz "não carregou"', () => {
+  it('extras não lidos: a pastilha "Saiu do YouTube" não é inventada e a linha diz "a leitura falhou"', () => {
     const v = vw({ medidas: medidasDoMotor(obs, {}, true) })
     const r = rowsOf(v).find(x => x.id === 'matt-wolfe')!
     expect(r.estado).toMatchObject({ pastilha: 'ativo', extrasNaoLidos: true })
@@ -99,7 +99,7 @@ describe('E5a T5: dado ausente', () => {
     expect(proprio.estado.pastilha).toBe('canal_proprio')
     expect(v.resumo.direcao.canais).toBe(concorrentes.length)
     expect(v.resumo.contagem.todos).toBe(concorrentes.length)
-    expect(v.resumo.frase).not.toMatch(/não carregou/)
+    expect(v.resumo.frase).not.toMatch(/a leitura falhou/)
     const { container } = mount({ medidas: medidasDoMotor(obs) })
     expect(container.textContent).toContain('o YouTube não dá esse número do seu canal')
   })
@@ -109,13 +109,13 @@ describe('E5a T5: dado ausente', () => {
     const r = rowsOf(v).find(x => x.id === 'bald-and-bankrupt')!
     expect(r.estado.pastilha).toBe('nao_carregou')
     expect(r.paused).toBe('nao_carregou')
-    expect(r.cells.cadence).toMatchObject({ kind: 'ok', sub: 'não carregou', paused: null })
+    expect(r.cells.cadence).toMatchObject({ kind: 'ok', sub: 'a leitura falhou', paused: null })
     const ritmo = v.drawer!.stats[0]!
-    expect(ritmo).toMatchObject({ sub: 'não carregou', subWeak: false, subErro: true })
+    expect(ritmo).toMatchObject({ sub: 'a leitura falhou', subWeak: false, subErro: true })
     mount({ medidas, channel: 'bald-and-bankrupt' })
     const dlg = screen.getByRole('dialog')
     expect(dlg.querySelector('.dstats .l .weak')).toBeNull()
-    expect(dlg.querySelector('.dstats .obs-md-nc')).not.toBeNull()
+    expect(dlg.querySelector('.dstats .obs-au-falhou')).not.toBeNull()
     expect(dlg.textContent).not.toMatch(/Parado: último vídeo/)
   })
   it('todos os canais com sem_registro_recente: a frase diz "sem retrato desde dd/mm" e o sinal para o Sentry existe uma vez', () => {

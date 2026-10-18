@@ -57,7 +57,7 @@ export interface EntradaDoCabecalho {
   hojeSP: string
 }
 
-const NAO_CARREGOU = 'não carregou'
+const NAO_CARREGOU = 'a leitura falhou'
 
 /** Grade fixa de 12 px: uma fileira até 8; acima, duas equilibradas, no máximo 10 por fileira; com mais de 20, só o número. */
 export function colunasDosPontinhos(n: number): { colunas: number; soNumero: boolean } {

@@ -6,7 +6,7 @@ import 'server-only'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { mapLimit } from '@/lib/youtube/observatorio/load'
-import { edicaoValida, provarEdicao } from '@/lib/youtube/observatorio/proprio/edicao'
+import { edicaoValida, provarEdicaoComAviso } from '@/lib/youtube/observatorio/proprio/edicao'
 import { leituraValida, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { ErroLeituraDimensoes, lerDetalheDaOrigem, type DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
 import type { DiaYt, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
@@ -23,10 +23,12 @@ export async function lerTermosESites(a: {
 }): Promise<Privado<DetalheCanal>> {
   if (!leituraValida(a.prova)) return { acesso: 'negado' }
   const leitura = a.prova
-  // `provarEdicao` engole o erro e devolve nulo; se mesmo assim lançar, quem não prova não lê
-  let edicao: Awaited<ReturnType<typeof provarEdicao>> = null
-  try { edicao = await provarEdicao(leitura.siteId) } catch { edicao = null }
-  if (!edicaoValida(edicao)) return { acesso: 'negado' }
+  // `provarEdicaoComAviso` engole o erro e devolve nulo com `avisou: true` (guarda caída, já no Sentry): isso é `erro` (decisão 75), nunca `negado`/cadeado.
+  // Se mesmo assim lançar, quem não prova não lê, e também é `erro`: só a ausência de direito de verdade (`avisou: false`) é `negado`.
+  let prova: Awaited<ReturnType<typeof provarEdicaoComAviso>>
+  try { prova = await provarEdicaoComAviso(leitura.siteId) } catch { return { acesso: 'erro' } }
+  if (prova.avisou) return { acesso: 'erro' }
+  if (!edicaoValida(prova.token)) return { acesso: 'negado' }
   const hoje = dayPt(new Date(a.agora))
   try {
     const chamadas = chamadasDe(a.ytIds, a.de, a.ate)

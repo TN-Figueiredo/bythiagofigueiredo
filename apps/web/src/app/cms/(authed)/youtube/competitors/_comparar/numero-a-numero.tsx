@@ -5,6 +5,7 @@
  * de B, o eixo (régua do nicho ou barras finas) e a relação, sempre nomeando o maior. Dado ausente: pastilha de hachura "não medido" e o
  * motivo na segunda linha, nunca zero. Linha sem dado nos dois lados não aparece (o rodapé conta). Cores só por `--c`; sem verde nem vermelho.
  */
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { useMemo, useRef, useState, useId, type CSSProperties, type ReactNode } from 'react'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
@@ -47,7 +48,7 @@ function Celula({ n, pos, classe, cor }: { n: Numero; pos: LinhaPar['pos'][numbe
     return (
       <td role="cell" className={`nd ${classe}`} style={vars(cor)}>
         <Rotulo lado={lado} />
-        <span className="obs-ch-nm">não medido</span>
+        {n.ausencia === 'falhou' || n.ausencia === 'restrito' ? <PastilhaAusencia estado={n.ausencia} /> : <span className="obs-ch-nm">não medido</span>}
         <small className="why">{n.motivo}</small>
       </td>
     )
@@ -151,7 +152,7 @@ export function NumeroANumero({ pack, par, medidas = null }: { pack: CompararPac
       </Popover>
       {medidas?.semCarregar.length ? (
         <p className="cp-erro" role="alert" data-erro-lado="">
-          Os números de {medidas.semCarregar.map(x => `${x.nome} (lado ${x.lado})`).join(' e ')} não carregaram. A tabela mostra só o que veio.{' '}
+          A leitura dos números de {medidas.semCarregar.map(x => `${x.nome} (lado ${x.lado})`).join(' e ')} falhou. A tabela mostra só o que veio.{' '}
           <button type="button" className="lk" onClick={() => window.location.reload()}>Tentar de novo</button>
         </p>
       ) : null}

@@ -19,6 +19,8 @@ import { buildMedidasDoPar } from '../_comparar/medidas-do-par'
 import { modeloDasMedidas, type CelulaDoModeloMedidas, type LinhaDoModeloMedidas, type ModeloMedidas } from './modelo-medidas-comparar'
 import { reguaDaLinha } from '../_comparar/regua-da-linha'
 import { buildSoSeuCanal, INFO_SO_SEU_CANAL, type SoSeuCanalCartao } from '../_comparar/so-seu-canal-model'
+import { celulaAusente } from './celula-ausente'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
@@ -42,6 +44,8 @@ export interface LinhaDoCartao {
   nota: string | null
   /** Só sem valor: a nota da linha, ou, sem nota, a frase do cartão. */
   motivo: string | null
+  /** Decisão 75: só sem valor; o estado do cartão (restrito no negado, falhou no erro), senão não medido. */
+  ausencia: EstadoAusencia | null
   fraco: boolean; aindaNaoDa: boolean
 }
 export interface CartaoDoModelo extends Omit<SoSeuCanalCartao, 'linhas'> { linhas: LinhaDoCartao[] }
@@ -84,6 +88,7 @@ export function modeloDeComparar(pack: CompararPack, par: ParView): ModeloCompar
       chave: l.chave, rotulo: l.rotulo, sub: l.sub, valor: l.valor,
       nota: l.valor === null ? null : l.nota,
       motivo: l.valor === null ? (l.nota ?? c.frase) : null,
+      ausencia: l.valor === null ? (c.ausencia ?? 'nao_medido') : null,
       fraco: l.fraco, aindaNaoDa: l.aindaNaoDa,
     })),
   }))
@@ -103,7 +108,7 @@ export function modeloDeComparar(pack: CompararPack, par: ParView): ModeloCompar
 
 // ───────────────────────── o inventário de folhas (item 160)
 const celulaDoInventario = (p: string): Inventario => ({
-  [`${p}.estado`]: { descartado: 'controle de tela' }, [`${p}.texto`]: 'numero', [`${p}.palavra`]: 'base', [`${p}.notas[]`]: 'base', [`${p}.motivo`]: 'motivo',
+  [`${p}.estado`]: { descartado: 'controle de tela' }, [`${p}.ausencia`]: { descartado: 'controle de tela' }, [`${p}.texto`]: 'numero', [`${p}.palavra`]: 'base', [`${p}.notas[]`]: 'base', [`${p}.motivo`]: 'motivo',
 })
 const linhaDoInventario = (p: string): Inventario => ({
   [`${p}[].titulo`]: 'rotulo', [`${p}[].notas[]`]: 'base', [`${p}[].relacao`]: 'base', ...celulaDoInventario(`${p}[].a`), ...celulaDoInventario(`${p}[].b`),
@@ -154,7 +159,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   publicacao: { descartado: 'controle de tela' },
   'fora[]': { descartado: 'repetido' }, // vai no rodapé e na definição "Ficaram de fora"
   rodape: 'base',
-  'leitura[].simbolo': { descartado: 'aparência' }, 'leitura[].lado': { descartado: 'aparência' }, 'leitura[].texto': 'base',
+  'leitura[].simbolo': { descartado: 'aparência' }, 'leitura[].lado': { descartado: 'aparência' }, 'leitura[].texto': 'base', 'leitura[].ausencia': { descartado: 'controle de tela' },
   serieDesde: 'base',
   'eixo[]': 'rotulo',
   'comprimidas[]': { descartado: 'repetido' }, // vai na definição "Régua"
@@ -169,6 +174,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   'linhas[].a.texto': 'numero', 'linhas[].b.texto': 'numero',
   'linhas[].a.motivo': 'motivo', 'linhas[].b.motivo': 'motivo',
   'linhas[].a.nota': 'base', 'linhas[].b.nota': 'base',
+  'linhas[].a.ausencia': { descartado: 'controle de tela' }, 'linhas[].b.ausencia': { descartado: 'controle de tela' }, // a forma da pastilha; a palavra da célula vem do `motivo` (a Task 9 põe `falhou`/`restrito` na célula)
   'linhas[].posA': { descartado: 'repetido' }, 'linhas[].posB': { descartado: 'repetido' },
   'linhas[].posA.texto': 'base', 'linhas[].posB.texto': 'base',
   'linhas[].posA.geral': 'base', 'linhas[].posB.geral': 'base',
@@ -180,7 +186,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   // o cartão "Só o seu canal mede" (dado privado do canal)
   'cartoes[].id': { descartado: 'identificador' },
   'cartoes[].canal': 'rotulo',
-  'cartoes[].frase': 'base',
+  'cartoes[].frase': 'motivo', 'cartoes[].ausencia': { descartado: 'controle de tela' },
   'cartoes[].naoMedido': { descartado: 'controle de tela' },
   'cartoes[].taxa': { descartado: 'repetido' }, 'cartoes[].taxa.*': { descartado: 'repetido' }, // cliques, impressões e taxa: as linhas do cartão
   'cartoes[].linhas[].chave': { descartado: 'identificador' },
@@ -191,6 +197,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   'cartoes[].linhas[].motivo': 'motivo',
   'cartoes[].linhas[].fraco': { descartado: 'aparência' },
   'cartoes[].linhas[].aindaNaoDa': { descartado: 'controle de tela' },
+  'cartoes[].linhas[].ausencia': { descartado: 'controle de tela' },
 }
 
 /** Folhas de número cru: o componente escreve, o empacotador usa o MESMO texto por nome. O formato do vídeo e da publicação sai como rótulo. */
@@ -218,13 +225,13 @@ const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiro
 
 /** `origem` é o caminho do NÚMERO (`modelo.linhas[3].a`): o texto vem de `.texto`, o motivo de `.motivo`. */
 function celulaDoNumero(n: Numero, origem: string): Celula {
-  if (n.x === null || n.texto === null) return { papel: 'numero', estado: 'nao_medido', motivo: n.motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `${origem}.motivo` }
+  if (n.x === null || n.texto === null) return celulaAusente(n.ausencia, n.motivo, `${origem}.motivo`)
   if (n.x === 0) return { papel: 'numero', estado: 'zero_medido', texto: n.texto, x: 0, origem: `${origem}.texto` }
   return { papel: 'numero', estado: 'medido', texto: n.texto, x: n.x, origem: `${origem}.texto` }
 }
 
 function celulaDoCartao(l: LinhaDoCartao, origem: string): Celula {
-  if (l.valor === null) return { papel: 'numero', estado: 'nao_medido', motivo: l.motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `${origem}.motivo` }
+  if (l.valor === null) return celulaAusente(l.ausencia, l.motivo, `${origem}.motivo`)
   if (l.valor === '0') return { papel: 'numero', estado: 'zero_medido', texto: l.valor, x: 0, origem: `${origem}.valor` }
   return { papel: 'numero', estado: 'medido', texto: l.valor, x: null, origem: `${origem}.valor` }
 }
@@ -347,7 +354,7 @@ function tabelasDosCanais(m: ModeloComparar): Tabela[] {
 // ───────────────────────── as medidas novas (estado, Direção, primeiros dias, acerto, reação)
 /** Número de uma célula do modelo das medidas: texto (medido, ou "0" = zero medido) ou o motivo. */
 function celulaDaMedida(c: CelulaDoModeloMedidas, origem: string): Celula {
-  if (c.texto === null) return { papel: 'numero', estado: 'nao_medido', motivo: c.motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `${origem}.motivo` }
+  if (c.texto === null) return celulaAusente(c.ausencia, c.motivo, `${origem}.motivo`)
   return { papel: 'numero', estado: c.texto === '0' ? 'zero_medido' : 'medido', texto: c.texto, x: c.texto === '0' ? 0 : null, origem: `${origem}.texto` }
 }
 
@@ -458,6 +465,7 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
   const avisosPrivados: string[] = []
   const avisos: string[] = [AVISO_FREQUENCIA, modelo.rodape, ...(modelo.medidas?.contexto ? [modelo.medidas.contexto] : [])]
   let cartoesLidos = 0
+  const ausentesDoCartao: Celula[][] = []
   for (const [k, , c] of proprios) {
     const achado = cartaoDe(c.id)
     if (!achado) continue
@@ -466,11 +474,17 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
       avisosPrivados.push(achado.cartao.frase)
       cartoesLidos += 1
     } else {
-      avisos.push(achado.cartao.frase) // a frase do motivo (negado ou falhou) é texto do site, não dado privado
+      // a frase do motivo (negado ou falhou) é texto do site, não dado privado; a palavra da pastilha vem do estado (restrito/falhou), nunca do texto
+      const ausencia: EstadoAusencia = achado.cartao.ausencia ?? 'nao_medido'
+      avisos.push(`${ausencia === 'nao_medido' ? 'não medido' : ausencia}: ${achado.cartao.frase}`)
+      ausentesDoCartao.push([rotulo(achado.cartao.canal, `modelo.cartoes[${achado.k}].canal`), celulaAusente(ausencia, achado.cartao.frase, `modelo.cartoes[${achado.k}].frase`)])
     }
   }
 
-  const publicas = [...tabelasDasLinhas(modelo, indicesPublicos, false), ...tabelasDasMedidas(modelo), ...tabelasDosCanais(modelo)]
+  const cartaoAusente: Tabela[] = ausentesDoCartao.length
+    ? [{ id: 'alcance-sem-numero', titulo: 'Só o seu canal mede: o que não chegou', tipo: 'fixa', nomeNoCorte: 'alcance que não chegou', privada: false, colunas: ['Canal', 'Alcance'], linhas: ausentesDoCartao }]
+    : []
+  const publicas = [...tabelasDasLinhas(modelo, indicesPublicos, false), ...tabelasDasMedidas(modelo), ...tabelasDosCanais(modelo), ...cartaoAusente]
   const leitura: Tabela[] = modelo.leitura.length
     ? [{
       id: 'leitura-rapida', titulo: 'Leitura rápida', tipo: 'fixa', nomeNoCorte: 'leitura rápida', privada: false, colunas: ['Leitura'],

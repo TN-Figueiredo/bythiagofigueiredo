@@ -59,7 +59,7 @@ const montar = (ret?: Privado<RetencaoDoVideo>, dados: Privado<DadosDoVideo> = d
   render(<div data-obs-screen="video-proprio"><VideoBlocos view={buildVideoBlocos({ obs: W.obs, videoId: W.foco.id, dados, hoje: W.hoje, dm: dmDia })} /></div>)
 const secao = (c: HTMLElement) => [...c.querySelectorAll('section')].find(s => s.querySelector('h2')?.textContent?.startsWith('Retenção'))!
 const texto = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim()
-const svgsDaCurva = (s: Element) => [...s.querySelectorAll('svg')].filter(x => !x.closest('button'))
+const svgsDaCurva = (s: Element) => [...s.querySelectorAll('svg')].filter(x => !x.closest('button') && !x.closest('.obs-au'))   // o triângulo/cadeado da pastilha (decisão 75) não é curva
 
 describe('o modelo: estado "coletada"', () => {
   it('a frase traz o minuto certo para uma curva e uma duração conhecidas: 35% de 6:00 = 2:06', () => {
@@ -205,14 +205,16 @@ describe('o modelo: os outros quatro estados', () => {
     expect(v.estado).toBe('erro')
     expect(v.frase).not.toContain('Ainda não coletamos')
     expect(v.frase).toContain('Recarregar não resolve')
-    expect(v.rotulo).toBe('falhou')
+    expect(v.ausencia).toBe('falhou')
   })
-  it('a pastilha é por estado (C1): não medido só para o que não foi medido, falhou no erro, nenhuma no negado', () => {
-    expect(view(undefined).rotulo).toBe('não medido')
-    expect(view(retencao({ ultimaResposta: { dia: D(4), resultado: 'sem_dado_na_janela' } })).rotulo).toBe('não medido')
-    expect(view({ acesso: 'erro' }).rotulo).toBe('falhou')
-    expect(view({ acesso: 'negado' }).rotulo).toBeNull()
-    expect(view(comCurva(curvaDe(cruzaEm35))).rotulo).toBeNull()
+  it('a pastilha é por estado (C1, decisão 75): não medido só para o que não foi medido, falhou no erro, restrito só com sem_direito', () => {
+    expect(view(undefined).ausencia).toBe('nao_medido')
+    expect(view(retencao({ ultimaResposta: { dia: D(4), resultado: 'sem_dado_na_janela' } })).ausencia).toBe('nao_medido')
+    expect(view({ acesso: 'erro' }).ausencia).toBe('falhou')
+    // decisão 75: negado é restrito SÓ com a prova `sem_direito`; sem ela (guarda caída) é falhou
+    expect(buildRetencaoView({ retencao: { acesso: 'negado' }, duracaoSeg: 360, dm: dmDia, negativa: 'sem_direito' }).ausencia).toBe('restrito')
+    expect(view({ acesso: 'negado' }).ausencia).toBe('falhou')
+    expect(view(comCurva(curvaDe(cruzaEm35))).ausencia).toBeNull()
   })
   it('curva ilegível na janela da vida: ERRO de leitura, nunca "ainda não coletamos", mesmo com a última resposta `ok`', () => {
     const v = view(retencao({ janelasIlegiveis: ['vida'], descartados: 1, ultimaResposta: { dia: D(1), resultado: 'ok' } }))

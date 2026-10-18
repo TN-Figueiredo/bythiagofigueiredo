@@ -531,7 +531,9 @@ describe('estados da série', () => {
     const v = buildImpressoes(montarDias(alcanceCheio('c', ['yt1'], HOJE), { hoje: HOJE }).dias, null, { ...O, acesso: 'negado' })
     const { container } = montar(v)
     expect(screen.getByText('Só quem edita o site vê as impressões.')).toBeTruthy()
-    expect(container.querySelector('svg, details, [role="group"]')).toBeNull()
+    // decisão 75: o cadeado da pastilha é o único SVG
+    expect([...container.querySelectorAll('svg')].filter(x => !x.closest('.obs-au'))).toHaveLength(0)
+    expect(container.querySelector('details, [role="group"]')).toBeNull()
     expect(container.textContent).not.toMatch(/\d{2,}/)
   })
 
@@ -909,7 +911,7 @@ describe('13.2: botões "Dia anterior" e "Dia seguinte" e a frase do dia', () =>
     const { container } = montar(negado)
     expect(screen.queryByRole('button', { name: 'Dia anterior' })).toBeNull()
     expect(container.querySelector('[role="status"]')).toBeNull()
-    expect(container.querySelector('svg')).toBeNull()
+    expect([...container.querySelectorAll('svg')].filter(x => !x.closest('.obs-au'))).toHaveLength(0)
     expect(container.textContent).toContain('Só quem edita o site vê as impressões.')
     expect(container.textContent).not.toMatch(/\d{2}\/\d{2}/)
   })

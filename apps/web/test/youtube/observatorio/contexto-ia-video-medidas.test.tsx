@@ -292,9 +292,9 @@ describe('Vídeo, medidas: dado ausente, estados e terceiros', () => {
     expect(serie.medidas.idade.tipo).toBe('nao_carregou')
     expect(tab(serie, 'video-idade')).toBeUndefined()
     const ass = tab(serie, 'video-resumo-numeros')!.linhas[1]![1]!
-    expect(ass).toMatchObject({ papel: 'numero', estado: 'nao_medido' })
+    expect(ass).toMatchObject({ papel: 'numero', estado: 'falhou' })
     const mud = await montar(caso('as mudanças não carregaram'), false)
-    expect(tab(mud, 'video-mudancas-estado')!.linhas[0]![1]).toMatchObject({ papel: 'numero', estado: 'nao_medido' })
+    expect(tab(mud, 'video-mudancas-estado')!.linhas[0]![1]).toMatchObject({ papel: 'numero', estado: 'falhou' })
     expect(mud.medidas.mudancas.itens).toEqual([])
     expect(mud.textoDoPacote).not.toMatch(/nenhuma mudan/i)
   })
@@ -380,5 +380,16 @@ describe('Vídeo, medidas: dado ausente, estados e terceiros', () => {
   it('medidas não pedidas ao empacotador: nenhuma tabela nem aviso novo', () => {
     const p = empacotarVideo(modeloDeVideo(view))
     expect(p.tabelas.some((t) => t.id.startsWith('video-'))).toBe(false)
+  })
+})
+
+describe('Vídeo de fora, medidas: a falha nunca sai como "não medido" (decisão 75, I-1)', () => {
+  it('rede: em nenhum caso há célula `nao_medido` cujo motivo fale de falha', async () => {
+    for (const caso of CASOS) {
+      const m = await montar(caso, false)
+      for (const t of m.pacote.tabelas) for (const l of t.linhas) for (const c of l) {
+        if (c.papel === 'numero' && c.estado === 'nao_medido') expect(c.motivo, `${caso.nome} ${t.id}`).not.toMatch(/falh/i)
+      }
+    }
   })
 })

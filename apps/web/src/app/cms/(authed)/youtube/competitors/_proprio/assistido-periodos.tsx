@@ -9,6 +9,7 @@ import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type Reac
 import { useSearchParams } from 'next/navigation'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { BarraAssistido } from './barra-assistido'
 import type { BlocoAssistido } from './video-blocos-model'
 import { CHAVE_ASSISTIDO, PERIODOS_ASSISTIDO, type AssistidoPeriodosView, type CelulaFaixa, type ConteudoAssistido, type Seta } from './assistido-periodo-model'
@@ -54,8 +55,13 @@ function Negrito({ texto, negrito }: { texto: string; negrito: readonly string[]
   return <>{partes}</>
 }
 
+/** Decisão 75: o cartão sem número escolhe a forma pelo `ausencia` (restrito / falhou), nunca pela palavra; o resto segue a hachura com a palavra do motivo. */
+function Sem({ c }: { c: CelulaFaixa }) {
+  return c.ausencia === 'falhou' || c.ausencia === 'restrito' ? <PastilhaAusencia estado={c.ausencia} /> : <span className="obs-ch-nm">{c.semNumero}</span>
+}
+
 function Celula({ c }: { c: CelulaFaixa }) {
-  if (c.estado === 'sem-numero') return <><span className="obs-ch-nm">{c.semNumero}</span><span className="ap-vw mut">{c.legenda}</span></>
+  if (c.estado === 'sem-numero') return <><Sem c={c} /><span className="ap-vw mut">{c.legenda}</span></>
   return <><b className="num">{c.valor}</b>{c.seta ? <> <SetaView s={c.seta} /></> : null}<span className="ap-vw mut num">{c.legenda}</span></>
 }
 
@@ -107,7 +113,7 @@ export function AssistidoPeriodos({ view, barra }: { view: AssistidoPeriodosView
     if (l != null) { setPeriodo(l); setSalvo(l !== view.padrao) }
   }, [doUrl, view.padrao])
 
-  if (view.vazio != null) return <>{barra ? <BarraAssistido a={barra} normal={null} /> : null}<p className="ap-vazio" role={view.estado === 'erro' ? 'alert' : undefined}>{view.vazio}</p></>
+  if (view.vazio != null) return <>{barra ? <BarraAssistido a={barra} normal={null} /> : null}<p className="ap-vazio" role={view.estado === 'erro' ? 'alert' : undefined}>{view.vazioEstado === 'falhou' || view.vazioEstado === 'restrito' ? <><PastilhaAusencia estado={view.vazioEstado} />{' '}</> : null}{view.vazio}</p></>
 
   const escolher = (p: PeriodoAssistido) => { setPeriodo(p); setSalvo(p !== view.padrao); guardar(p) }
   const tecla = (e: KeyboardEvent<HTMLDivElement>, i: number) => {
@@ -145,7 +151,7 @@ export function AssistidoPeriodos({ view, barra }: { view: AssistidoPeriodosView
               <span className="ap-t"><span className="l">{c.rotulo}</span><span className="s">{c.curto}</span></span>
               {c.estado === 'medido'
                 ? <span className="ap-v"><b className="num">{c.valor}</b>{c.seta ? <> <SetaView s={c.seta} /></> : null}</span>
-                : <span className="ap-v"><span className="obs-ch-nm">{c.semNumero}</span></span>}
+                : <span className="ap-v"><Sem c={c} /></span>}
               <span className="ap-s">{c.legenda}</span>
             </div>
           )

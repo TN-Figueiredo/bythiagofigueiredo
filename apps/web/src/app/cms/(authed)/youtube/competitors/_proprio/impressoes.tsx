@@ -15,6 +15,7 @@
  * Ponteiro: o mouse aponta o dia sob ele; o toque abre a dica e ela fica até um toque fora. Next 16 não remonta o componente quando só
  * a query muda: o dia em foco é guardado COM a assinatura dos dias que o gerou e vale só enquanto a assinatura é a mesma.
  */
+import { PastilhaAntes } from '../_chrome/ausencia/pastilhas'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { HoverTip, Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
@@ -413,7 +414,7 @@ export function Impressoes({ view, titulo }: { view: ImpressoesView; titulo: str
   return (
     <figure className="ic" ref={raiz} aria-labelledby={tid}>
       <div className="ic-t" id={tid}>{titulo}</div>
-      {view.vazio ? <p className="ic-vazio">{view.vazio}</p> : view.cedo ? <><FaixaCedo cedo={view.cedo} />{view.notaFaixas ? <p className="ic-nota-trocas">{view.notaFaixas}</p> : null}</> : (
+      {view.vazio ? <p className="ic-vazio"><PastilhaAntes estado={view.vazioEstado} />{view.vazio}</p> : view.cedo ? <><FaixaCedo cedo={view.cedo} />{view.notaFaixas ? <p className="ic-nota-trocas">{view.notaFaixas}</p> : null}</> : (
         <>
           {view.resumo ? <p className="ic-res">{view.resumo}</p> : null}
           <div className="ic-meta">

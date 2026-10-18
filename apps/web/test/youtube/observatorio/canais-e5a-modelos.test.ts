@@ -85,7 +85,7 @@ describe('E5a T5: resumo das quatro casas', () => {
   it('medidas não carregaram: nenhuma casa mostra 0 e a frase diz quantos', () => {
     const r = resumoDeDirecao([celulaDeDirecao(null, EX), celulaDeDirecao(null, EX)])
     expect(r).toMatchObject({ sobe: null, estavel: null, desce: null, naoMedido: null, naoCarregou: 2 })
-    expect(r.frase).toBe('A direção não carregou em 2 canais.')
+    expect(r.frase).toBe('A leitura da direção falhou em 2 canais.')
   })
   it('canal próprio não entra em casa nenhuma, e a frase não diz que um canal não carregou', () => {
     const r = resumoDeDirecao([med(200, 100), celulaDeDirecao(null, null, { proprio: true })])

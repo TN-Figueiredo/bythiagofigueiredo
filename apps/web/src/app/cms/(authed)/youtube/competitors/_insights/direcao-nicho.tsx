@@ -6,6 +6,7 @@
 import { useOptimistic, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { FRASE_FIXA_DA_FONTE } from '@/lib/youtube/observatorio/medidas-telas/frases'
 import { LINHAS_POR_PAGINA, type DirecaoNichoView, type LeituraDaDirecao, type LeituraNoPainel, type LinhaDaDirecao } from './direcao-nicho-model'
 
@@ -51,7 +52,7 @@ function Painel({ id, itens }: { id: string; itens: readonly LeituraNoPainel[] }
         <li key={p.key} className={p.principal ? 'pr' : undefined} data-leitura={p.key}>
           <span className="q-ln">{p.nome} <small>{p.sub}</small>{p.principal ? <span className="q-pr">a que ordena a régua</span> : null}</span>
           <span className="q-lv">
-            {p.simbolo && p.texto ? <><Simbolo simbolo={p.simbolo} vazado={!p.principal} /><b>{p.texto}</b></> : <span className="q-mot">{p.estado === 'nao_carregou' ? 'não carregou' : 'não medido'}</span>}
+            {p.simbolo && p.texto ? <><Simbolo simbolo={p.simbolo} vazado={!p.principal} /><b>{p.texto}</b></> : <span className="q-mot">{p.estado === 'nao_carregou' ? <PastilhaAusencia estado="falhou" /> : 'não medido'}</span>}
           </span>
           <span className="q-lb">{p.motivo && !p.texto ? <>{p.motivo}{p.base.length ? ' · ' : ''}</> : null}{p.base.join(' · ')}</span>
         </li>
@@ -80,7 +81,7 @@ function Linha({ l }: { l: LinhaDaDirecao }) {
           {medido && l.simbolo ? (
             <><Simbolo simbolo={l.simbolo} /><span className="q-dt"><b>{l.simbolo === 'sobe' ? 'subindo' : l.simbolo === 'desce' ? 'descendo' : 'estável'}</b><span className="num">{l.texto}</span></span></>
           ) : (
-            <><span className="obs-ch-nm">{l.estado === 'nao_carregou' ? 'não carregou' : 'não medido'}</span>{l.motivo && l.estado !== 'nao_carregou' ? <span className="q-mot" title={l.motivoLongo ?? undefined}>{l.motivo}</span> : null}</>
+            <><PastilhaAusencia estado={l.estado === 'nao_carregou' ? 'falhou' : 'nao_medido'} />{l.motivo && l.estado !== 'nao_carregou' ? <span className="q-mot" title={l.motivoLongo ?? undefined}>{l.motivo}</span> : null}</>
           )}
         </span>
         <button type="button" className="q-mais" aria-expanded={aberta} aria-controls={painel} onClick={() => setAberta(a => !a)}>

@@ -29,6 +29,8 @@ import { Grade } from './grade'
 import { lotesParaMostrar, paginarGrade, TAMANHO_PAGINA } from './grade-paginacao'
 import { usePaginaGrade, type PaginaGradeEstado } from './use-pagina-grade'
 import { Tabela } from './tabela'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
+import type { ProprioVideosView } from '../_proprio/videos-model'
 import { Trocas } from './trocas'
 import { montarLista, type ListaView } from './lista'
 import { canalQuery, LOTE, parseCanalState, type CanalState } from './params'
@@ -136,6 +138,13 @@ function AbasNav({ view, state, resumo, onAba }: { view: CanalView; state: Canal
  * impressões, formato sem Fixados, colunas de alcance; o cartão e a linha escolhem as colunas pelo dado). `onSync` ausente = sem o botão de sincronizar
  * (o canal próprio sincroniza pelo Painel).
  */
+/** Decisão 75: o motivo do alcance não lido, só quando ele é `falhou` ou `restrito` (o canal próprio; o de fora não tem o campo). */
+function avisoDoAlcance(v: CanalVideosView): { texto: string; estado: EstadoAusencia } | null {
+  const p = v as Partial<ProprioVideosView>
+  const e = p.motivoAlcanceEstado
+  return p.motivoAlcance && (e === 'falhou' || e === 'restrito') ? { texto: p.motivoAlcance, estado: e } : null
+}
+
 export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSync, onAmpliar, raiz, proprio = false }: {
   videos: CanalVideosView; state: CanalState; lista: ListaView; set: (patch: Partial<CanalState>) => void; nome: string; channelId: string; onSync?: () => void
   /** Os lotes de 24 da grade (`usePaginaGrade`): moram na tela, que os sobe no Voltar do Histórico. */
@@ -276,7 +285,7 @@ export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSy
           {lista.secoes.length ? <a className="lk cv-skip" href="#cv-fim" onClick={e => { e.preventDefault(); porId(raiz, 'cv-fim')?.focus() }}>Pular a lista de vídeos</a> : null}
           {lista.secoes.length
             ? state.ver === 'lista'
-              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={onAmpliar} onTrocas={verTrocas} proprio={proprio} />
+              ? <Tabela lista={lista} state={state} nome={nome} descrito="cv-foot" hrefDe={hrefs} onSort={onColuna} onAmpliar={onAmpliar} onTrocas={verTrocas} proprio={proprio} avisoAlcance={proprio ? avisoDoAlcance(videos) : null} />
               : <Grade lista={lista} sort={state.sort} nome={nome} hrefDe={hrefs} onAmpliar={onAmpliar} onTrocas={verTrocas} limite={pagina.limite} />
             : null}
           <div id="cv-fim" tabIndex={-1} />

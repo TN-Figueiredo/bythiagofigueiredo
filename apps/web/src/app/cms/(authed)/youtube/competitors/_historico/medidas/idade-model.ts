@@ -107,10 +107,10 @@ function videoNaIdade(p: PontoDoVideo, e: EntradaDeIdade): VideoNaIdade {
     case 'sem_publicacao':
       return nao('nao_medido', 'sem data de publicação', 'o vídeo não tem data de publicação')
     case 'serie_nao_pedida':
-      return nao('nao_carregou', 'não carregou', 'não carregou: o dia a dia do vídeo não foi lido')
+      return nao('nao_carregou', 'falhou', 'a leitura falhou: o dia a dia do vídeo não foi lido')
     case 'leitura_falhou':
     case 'calculo_falhou':
-      return nao('nao_carregou', 'não carregou', 'não carregou: não deu para ler este vídeo; recarregue a página')
+      return nao('nao_carregou', 'falhou', 'a leitura falhou: não deu para ler este vídeo; recarregue a página')
     default:
       // Outro motivo da E4: a tela não inventa texto.
       return nao('nao_medido', 'não medido', 'não medido')
@@ -210,7 +210,7 @@ function aoVivoFora(normal: Medida<PontoDaCurva[]> | null): number {
  * 30 dias é anterior à contagem; `nao_carregou` quando a série não foi lida (o cabeçalho segue).
  */
 export function blocoDeIdade(e: EntradaDeIdade): BlocoDeIdade {
-  if (e.pontos === null) return { tipo: 'nao_carregou', frase: 'não carregou: o histórico por idade deste vídeo não foi lido; recarregue a página' }
+  if (e.pontos === null) return { tipo: 'nao_carregou', frase: 'a leitura falhou: o histórico por idade deste vídeo não foi lido; recarregue a página' }
   const dados = e.pontos
   const pontos: PontoDeIdade[] = IDADES_DO_EIXO.map((idade) => {
     const dado = dados.find((p) => p.idadeDias === idade)
@@ -271,7 +271,7 @@ export function celulaDeIdade(p: PontoDeIdade): CelulaDeIdade {
 /** As três células "Com 1, 7 e 30 dias" da faixa de números, para qualquer estado do bloco. */
 export function celulasDaFaixa(b: BlocoDeIdade): CelulaDeIdade[] {
   if (b.tipo === 'nao_carregou') {
-    return IDADES_DOS_PARES.map((idade) => ({ idade, rotulo: `Com ${idadeTxt(idade)}`, estado: 'nao_medido' as const, views: null, razao: null, sub: 'não carregou' }))
+    return IDADES_DOS_PARES.map((idade) => ({ idade, rotulo: `Com ${idadeTxt(idade)}`, estado: 'nao_medido' as const, views: null, razao: null, sub: 'a leitura falhou' }))
   }
   return IDADES_DOS_PARES.map((idade) => celulaDeIdade(b.pontos.find((p) => p.idade === idade)!))
 }

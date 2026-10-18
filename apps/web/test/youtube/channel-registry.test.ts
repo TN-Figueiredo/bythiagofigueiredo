@@ -7,7 +7,7 @@ import {
 import { CHANNEL_LOCALES, isChannelLocale, channelLocaleDef } from '@/lib/youtube/channel-locales'
 import { showcaseChannelId } from '@/lib/youtube/showcase'
 
-const IMPACT: RemovalImpact = { name: 'N', slug: 's-1', videos: 2, comments: 3, syncLogs: 4, abTests: 5, abDrafts: 0, analyses: 6, tasks: 7, notes: 8, notifications: 0, connections: 0, pipelineLinks: 9, serieColetada: 0, blockers: [] }
+const IMPACT: RemovalImpact = { name: 'N', slug: 's-1', videos: 2, comments: 3, syncLogs: 4, abTests: 5, abDrafts: 0, analyses: 6, tasks: 7, notes: 8, notifications: 0, connections: 0, pipelineLinks: 9, serieColetada: 0, blockers: [], restauracoesPendentes: [] }
 
 describe('idiomas do canal (lista central)', () => {
   it('pt e en, com chip e nome; qualquer outro valor é recusado', () => {

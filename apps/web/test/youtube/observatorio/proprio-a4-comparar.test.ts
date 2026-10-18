@@ -18,9 +18,10 @@ const dados = vi.hoisted(() => ({ podeVerPrivado: vi.fn(), lerDiarioDosCanais: v
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({ openObservatoryPage: dados.abrir }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', async (orig) => ({
+  ausenciaDaProva: (await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')>()).ausenciaDaProva,
   podeVerPrivado: dados.podeVerPrivado,
-  acessoPrivado: async (s: string) => { const leitura = await dados.podeVerPrivado(s); return { leitura, edita: leitura != null, negativa: null } }, lerDiarioDosCanais: dados.lerDiarioDosCanais, lerAlcanceDosCanais: dados.lerAlcanceDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
+  acessoPrivado: async (s: string) => { const leitura = await dados.podeVerPrivado(s); return { leitura, edita: leitura != null, negativa: leitura ? null : 'sem_direito' } }, lerDiarioDosCanais: dados.lerDiarioDosCanais, lerAlcanceDosCanais: dados.lerAlcanceDosCanais, longosAcompanhadosDe: dados.longosAcompanhadosDe,
 }))
 
 afterEach(() => new Promise<void>(r => setTimeout(r, 0)))
@@ -51,7 +52,7 @@ describe('A4.5 comparação: números do lado próprio', () => {
     const subs = BASE.obs.channel(OWN)!.subs!
     const ex = extras({ [OWN]: medido(2.4, 3), [OWN2]: semValor('sem-diario') })
     const n = nums(BASE.obs, OWN, ex)
-    expect(n.vpd).toEqual({ x: 2.4, texto: '2,4', motivo: null, nota: 'média dos últimos 28 dias do YouTube com medida (de 11/09 a 08/10), mediana de 3 longos' })
+    expect(n.vpd).toEqual({ x: 2.4, texto: '2,4', motivo: null, nota: 'média dos últimos 28 dias do YouTube com medida (de 11/09 a 08/10), mediana de 3 longos', ausencia: null })
     const porMil = 2.4 / (subs / 1000)
     expect(n.vpdPorMil.x).toBeCloseTo(porMil, 10)
     expect(n.vpdPorMil.texto).toBe(vpdText(porMil, BASE.obs.fmt.num))
@@ -75,7 +76,7 @@ describe('A4.5 comparação: números do lado próprio', () => {
 
   it('zero medido do canal próprio (parado) é "0" com a base escrita, nunca "não medido"', () => {
     const n = nums(BASE.obs, OWN, extras({ [OWN]: medido(0, 2) }))
-    expect(n.vpd).toEqual({ x: 0, texto: '0', motivo: null, nota: 'média dos últimos 28 dias do YouTube com medida (de 11/09 a 08/10), mediana de 2 longos' })
+    expect(n.vpd).toEqual({ x: 0, texto: '0', motivo: null, nota: 'média dos últimos 28 dias do YouTube com medida (de 11/09 a 08/10), mediana de 2 longos', ausencia: null })
     expect(n.vpdPorMil.x).toBe(0); expect(n.vpdPorMil.texto).toBe('0')
   })
 
@@ -116,8 +117,10 @@ describe('A4.5 comparação: números do lado próprio', () => {
   it('sem extras (o dado não foi lido): "ainda não há coleta diária deste canal", nunca um número, nunca a frase antiga', () => {
     const n = nums(BASE.obs, OWN)
     naoMedido(n.vpd, 'ainda não há coleta diária deste canal'); naoMedido(n.vpdPorMil, 'ainda não há coleta diária deste canal')
-    // canal que o mapa não traz = como não lido
-    naoMedido(nums(BASE.obs, OWN2, extras({ [OWN]: medido(1) })).vpd, 'ainda não há coleta diária deste canal')
+    // decisão 75 (Phil I3): o mapa lido que não traz o canal é FALHA ("não chegou"), não "não lido" nem cadeado
+    const semOCanal = nums(BASE.obs, OWN2, extras({ [OWN]: medido(1) })).vpd
+    naoMedido(semOCanal, 'a leitura das views por dia falhou agora; recarregue a página')
+    expect(semOCanal.ausencia).toBe('falhou')
   })
 
   it('inscritos ocultos e zero inscritos: o absoluto continua medido; o por mil diz o motivo de hoje', () => {

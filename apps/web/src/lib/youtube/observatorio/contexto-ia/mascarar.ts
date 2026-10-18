@@ -11,7 +11,7 @@ export function mascararCrus(m: PacoteModelo, crus: readonly string[]): PacoteMo
   const t = (s: string): string => lista.reduce((acc, c) => acc.split(c).join(ERRO_DA_COLETA_SEM_DETALHE), s)
   const tn = (s: string | null): string | null => (s === null ? null : t(s))
   const celula = (c: Celula): Celula => {
-    if (c.papel === 'numero') return c.estado === 'nao_medido' ? { ...c, motivo: t(c.motivo) } : { ...c, texto: t(c.texto) }
+    if (c.papel === 'numero') return c.estado === 'nao_medido' || c.estado === 'falhou' || c.estado === 'restrito' ? { ...c, motivo: t(c.motivo) } : { ...c, texto: t(c.texto) }
     return { ...c, texto: t(c.texto) }
   }
   const tabela = (x: Tabela): Tabela => ({ ...x, linhas: x.linhas.map((l) => l.map(celula)) })

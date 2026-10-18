@@ -25,7 +25,8 @@ import { LinhaDoTempoBloco } from './linha-do-tempo'
 import { linhaDoTempo } from './linha-do-tempo-model'
 import { RitmoBloco } from './ritmo-bloco'
 import { blocoDeRitmo } from './ritmo-model'
-import { fraseDoTopo, type Glifo } from './frase-do-topo'
+import { fraseDoTopo, topoFalhou, type Glifo } from './frase-do-topo'
+import { BlocoComTentativa } from '../../_chrome/ausencia/tentar-de-novo'
 import { entradaDaFrase } from './canal-derivado'
 import './canal-medidas.css'
 
@@ -36,15 +37,16 @@ const GLIFO: Record<Glifo, string> = { up: '▲', dn: '▼', eq: '＝', x: '✕'
 
 export async function TopoDoCanal({ medidas, contexto }: PropsDosBlocos): Promise<ReactNode> {
   const { d } = await canalDerivadoDe(medidas, contexto)
-  const f = fraseDoTopo(entradaDaFrase(contexto, d))
+  const entrada = entradaDaFrase(contexto, d)
+  const f = fraseDoTopo(entrada)
   return (
-    <>
+    <BlocoComTentativa falhou={topoFalhou(entrada)} fraseFalha="Nada do canal carregou.">
       <FaixaDeEstado estado={d.estado} />
-      <p className={`pc-fr ${f.tom}`} data-frase-do-topo>
+      <p className={`pc-fr ${f.tom}`} data-frase-do-topo data-valor>
         <span className={`pc-sim ${f.tom}`} aria-hidden="true">{GLIFO[f.glifo]}</span>
         <span>{f.partes.map((p, i) => (p.k === 'forte' ? <b key={i}>{p.t}</b> : p.k === 'num' ? <span key={i} className="num">{p.t}</span> : <span key={i}>{p.t}</span>))}</span>
       </p>
-    </>
+    </BlocoComTentativa>
   )
 }
 
@@ -95,14 +97,43 @@ export async function BlocosDoCanal({ medidas, contexto }: PropsDosBlocos): Prom
     foraEm: d.estado.tipo === 'saiu' ? d.estado.ate : null, hojeSP: contexto.hojeSP,
   })
   const cr = await criadorDe(medidas, contexto, c, d)
+  const modeloHoras = horasDoCanal({ videos: d.videos, horas, formato: d.formato, agoraMs: contexto.agoraMs })
+  // Quem falhou, bloco a bloco. Cada BlocoComTentativa fica no MESMO lugar da árvore nos dois ramos (falhou e ok): é o que o router.refresh() preserva.
+  const falhou = {
+    direcao: direcao.queda.estado === 'nao_carregou' || direcao.linhas.some((l) => l.estado === 'nao_carregou'),
+    lancamentos: d.lanc.modelo.tipo === 'nao_carregou',
+    horas: modeloHoras.tipo === 'nao_carregou',
+    tempo: tempo.barras.tipo === 'nao_carregou' || Object.values(tempo.raias).some((r) => r.tipo === 'nao_carregou'),
+    ritmo: ritmo.frase.tom === 'nao_carregou' || ritmo.cartoes.some((c2) => c2.valor.tipo === 'nao_carregou'),
+    // sem leitura de comentários pedida não há o que falhar: o bloco fica fora da conta da falha total
+    criador: cr ? cr.modelo.bloco.tipo === 'nao_carregou' || cr.lista?.tipo === 'nao_carregou' : null,
+  }
+  // Falha total (o topo e todos os blocos que existem, juntos): só o topo leva o botão; os blocos ficam só com a pastilha (Logan M5, condições A e B).
+  const soPastilha = topoFalhou(entradaDaFrase(contexto, d)) && Object.values(falhou).every((f) => f !== false)
+  // O bloco de lançamentos já leva as 72 horas dentro: se ele falhou, o botão dele cobre as horas (um botão só, não dois aninhados).
+  const botaoDasHoras = falhou.horas && !falhou.lancamentos
   return (
     <div className="pc-blocos" data-blocos-do-canal>
       <nav className="pc-nav" aria-label="Nesta página">{ATALHOS.map(([id, t]) => <a key={id} href={`#${id}`}>{t}</a>)}</nav>
-      <DirecaoBloco bloco={direcao} />
-      <Lancamentos modelo={d.lanc.modelo} horas={<HorasDoCanal modelo={horasDoCanal({ videos: d.videos, horas, formato: d.formato, agoraMs: contexto.agoraMs })} />} />
-      <LinhaDoTempoBloco modelo={tempo} />
-      <RitmoBloco bloco={ritmo} />
-      {cr ? <CriadorResponde bloco={cr.modelo.bloco} lista={cr.lista} canalId={contexto.comentarios?.channelId} /> : <CriadorSemLeitura />}
+      <BlocoComTentativa falhou={falhou.direcao} soPastilha={soPastilha} fraseFalha="A leitura falhou: não deu para ler a direção do canal agora.">
+        <DirecaoBloco bloco={direcao} />
+      </BlocoComTentativa>
+      <BlocoComTentativa falhou={falhou.lancamentos} soPastilha={soPastilha} fraseFalha="A leitura falhou: não deu para ler os lançamentos agora.">
+        <Lancamentos modelo={d.lanc.modelo} horas={(
+          <BlocoComTentativa falhou={botaoDasHoras} soPastilha={soPastilha} fraseFalha="A leitura falhou: não deu para ler as 72 horas agora.">
+            <HorasDoCanal modelo={modeloHoras} />
+          </BlocoComTentativa>
+        )} />
+      </BlocoComTentativa>
+      <BlocoComTentativa falhou={falhou.tempo} soPastilha={soPastilha} fraseFalha="A leitura falhou: não deu para ler a linha do tempo agora.">
+        <LinhaDoTempoBloco modelo={tempo} />
+      </BlocoComTentativa>
+      <BlocoComTentativa falhou={falhou.ritmo} soPastilha={soPastilha} fraseFalha="A leitura falhou: não deu para ler o ritmo agora.">
+        <RitmoBloco bloco={ritmo} />
+      </BlocoComTentativa>
+      <BlocoComTentativa falhou={falhou.criador === true} soPastilha={soPastilha} fraseFalha="A leitura falhou: não deu para ler o que o criador respondeu agora.">
+        {cr ? <CriadorResponde bloco={cr.modelo.bloco} lista={cr.lista} canalId={contexto.comentarios?.channelId} criador={contexto.criador} /> : <CriadorSemLeitura />}
+      </BlocoComTentativa>
     </div>
   )
 }

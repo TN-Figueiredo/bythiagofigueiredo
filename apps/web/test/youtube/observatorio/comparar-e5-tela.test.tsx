@@ -53,7 +53,7 @@ describe('Comparar T7: estados', () => {
   it('lado que não carregou: só o nome e "Não carregou" no cartão, o aviso com "Tentar de novo", e o outro lado segue', () => {
     mostrar(pacote('2027-12-01', { c1: doLado(planas()), c2: doLado(null) }), 'c1', 'c2')
     const b = document.querySelector('[data-lado="B"]')!
-    expect(b.textContent).toContain('Não carregou')
+    expect(b.textContent).toContain('falhou')
     expect(b.textContent).not.toContain('inscritos')
     const aviso = document.querySelector('[data-erro-lado]')!
     expect(aviso.textContent).toContain('Ana Viaja (lado B)')

@@ -23,7 +23,7 @@ export function cartao(ordem: number, motivo: MotivoDoCartao, o: Partial<CartaoI
 export function doze(): CartaoIdentidade[] {
   const cs: CartaoIdentidade[] = []
   for (let i = 1; i <= 8; i++) cs.push(cartao(i, 'curtidos'))
-  for (let i = 9; i <= 12; i++) cs.push(cartao(i, 'criador', { criador: i <= 11 ? 'respondeu' : 'nao_vimos', respostas: 2, respostasDoCriador: i <= 11 ? [{ texto: `Resposta ${i}`, cortado: false }] : [] }))
+  for (let i = 9; i <= 12; i++) cs.push(cartao(i, 'criador', { criador: i <= 11 ? 'respondeu' : 'nao_vimos', respostas: 2, respostasDoCriador: i <= 11 ? [{ texto: `Resposta ${i}`, cortado: false, publicadoEm: '2026-10-08T15:00:00.000Z' }] : [] }))
   return cs
 }
 

@@ -1,13 +1,21 @@
+import { AvisoDePagina } from '../_components/acoes-de-saida'
 import { getTestResults, toDetailView } from '../queries'
 import { ActiveDetail } from '../_components/active-detail'
 import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
 import { EarlyDetail } from '../_components/early-detail'
 import { notFound } from 'next/navigation'
+import { endAbTest, pauseAbTest } from '../actions'
+import * as Sentry from '@sentry/nextjs'
+import { FaixaRestauracao } from '../_components/faixa-restauracao'
+import { AtualizarEnquantoEmAndamento } from '../_components/atualizar-enquanto-em-andamento'
+import { isEarly } from '../_components/is-early'
+import { faixaDaPagina } from '../_components/faixa-da-pagina'
 import type { Metadata } from 'next'
 import type { AbTestDetailView, AbTestActiveView } from '@/lib/youtube/ab-types'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // F-D3: settleOnAir (teto de 55 s) corre dentro das ações desta página
 
 // ---------------------------------------------------------------------------
 // generateMetadata — show video title in the browser tab
@@ -53,16 +61,12 @@ async function getMockMap(): Promise<Record<string, AbTestDetailView>> {
   }
 }
 
-/** Test is in early state when no cycles completed and confidence < 5%. */
-function isEarly(view: AbTestDetailView): view is AbTestActiveView {
-  if (view.status === 'completed') return false
-  const active = view as AbTestActiveView
-  return active.cycles.done < 1 && active.confirmedData.confidence < 5
-}
-
 function renderView(view: AbTestDetailView) {
-  if (isEarly(view)) return <EarlyDetail view={view} />
-  if (view.status !== 'completed') return <ActiveDetail view={view} />
+  if (view.status !== 'completed') {
+    const id = (view as AbTestActiveView).id
+    if (isEarly(view)) return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
+    return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
+  }
   if (view.outcome === 'winner') return <WinnerDetail view={view} />
   return <PlayoffDetail view={view} />
 }
@@ -76,10 +80,20 @@ export default async function AbTestDetailPage({
 
   const mockMap = await getMockMap()
   const mockView = mockMap[testId]
-  if (mockView) return renderView(mockView)
+  if (mockView) return <><AvisoDePagina testId={testId} />{renderView(mockView)}</>
 
   const results = await getTestResults(testId)
   if (!results) notFound()
 
-  return renderView(await toDetailView(results))
+  const view = await toDetailView(results)
+  const { faixa, emAndamentoDesde, ilegivel } = faixaDaPagina(view, results.test.restore_status, new Date())
+  if (ilegivel) Sentry.captureMessage('restore_status ilegível', { extra: { testId } })
+  return (
+    <>
+      {faixa ? <FaixaRestauracao faixa={faixa} /> : null}
+      {emAndamentoDesde ? <AtualizarEnquantoEmAndamento emAndamentoDesde={emAndamentoDesde} /> : null}
+      <AvisoDePagina testId={testId} />
+      {renderView(view)}
+    </>
+  )
 }

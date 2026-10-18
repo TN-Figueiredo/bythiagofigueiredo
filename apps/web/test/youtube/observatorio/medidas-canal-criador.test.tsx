@@ -78,7 +78,7 @@ describe('criadorDoCanal: a frase só cita números que estão na legenda (C2 do
     const legenda = b.legenda.map(l => l.texto).join(' | ')
     expect(legenda).toContain('6 em coleta, ainda sem os 30 dias')
     expect(legenda).toContain('7 já tinham mais de 37 dias quando a coleta começou (15/10)')
-    expect(b.frase.resto).toMatch(/^ Só 1 dos 14 vídeos dos últimos \d+ dias já tem o retrato de 30 dias; o primeiro dos outros fecha em \d{2}\/\d{2}\.$/)
+    expect(b.frase.resto).toMatch(/^Só 1 dos 14 vídeos dos últimos \d+ dias já tem o retrato de 30 dias; o primeiro dos outros fecha em \d{2}\/\d{2}\. Quanto ele responde por vídeo ainda não é medido\.$/)
     // os números da frase (fora a janela e a data) são os da legenda e da base
     const numeros = (b.frase.resto.replace(/dos últimos \d+ dias/, '').replace(/retrato de 30 dias/, '').replace(/\d{2}\/\d{2}/, '').match(/\d+/g) ?? []).map(Number)
     const nosDados = new Set([1, 6, 7, 14])
@@ -116,7 +116,7 @@ describe('criadorDoCanal: estados', () => {
     const c = contagem(videos.map(v => [v.id, null, false]), { coletaDoCanalDesdeMs: AGORA - 20 * DIA })
     const m = criadorDoCanal(entrada(videos, c))
     expect(m.celula.valor).toBe('nao_medido')
-    expect(m.bloco.frase.negrito).toBe('Ainda não dá para medir.')
+    expect(m.bloco.frase.negrito).toBe('')
     expect(m.bloco.frase.resto).toMatch(/fecha em \d{2}\/\d{2}/)
   })
   it('item d do Gio (trem 6), refeito no C2: vídeo anterior à coleta mas com retrato de 30 dias é o "1" da frase; nunca "Só 0 dos"', () => {
@@ -219,8 +219,8 @@ describe('criadorDoCanal: a conta', () => {
 
 const resp = (over: Partial<RespostasDoCriador> = {}): ParteLida<RespostasDoCriador> => ok({
   nivel: 'texto', total: 2, itens: [
-    { videoId: 'v0', texto: 'ótimo @ana', cortado: false, respostaTexto: 'valeu @…', respostaCortada: false, curtidas: 12, marco: 7, mencoesTrocadas: 2 },
-    { videoId: 'v1', texto: 'um', cortado: true, respostaTexto: 'dois', respostaCortada: false, curtidas: null, marco: null, mencoesTrocadas: 0 },
+    { videoId: 'v0', texto: 'ótimo @ana', cortado: false, publicadoEm: '2026-10-12T15:00:00.000Z', respostas: [{ texto: 'valeu @…', cortado: false, publicadoEm: '2026-10-12T16:00:00.000Z' }], curtidas: 12, marco: 7, mencoesTrocadas: 2 },
+    { videoId: 'v1', texto: 'um', cortado: true, publicadoEm: '2026-10-12T15:00:00.000Z', respostas: [{ texto: 'dois', cortado: false, publicadoEm: '2026-10-12T16:00:00.000Z' }], curtidas: null, marco: null, mencoesTrocadas: 0 },
   ], ...over,
 })
 
@@ -230,7 +230,7 @@ describe('a lista', () => {
   it('o vídeo mais recente primeiro, com título', () => {
     const l = listaDoCriador({ nome: 'Matt', resposta: resp(), videos, titulos, nBase: 6 })
     expect(l.tipo).toBe('itens')
-    if (l.tipo === 'itens') expect(l.itens.map(i => i.videoId)).toEqual(['v1', 'v0'])
+    if (l.tipo === 'itens') expect(l.grupos.map(g => g.videoId)).toEqual(['v1', 'v0'])
   })
   it('nível contagem: só o número e a frase de quem vê só a contagem, sem texto', () => {
     const l = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', itens: [] }), videos, titulos, nBase: 6 })
@@ -258,13 +258,24 @@ describe('a lista', () => {
     const { videos: vs, c } = quadro(14, 5)
     const bloco = criadorDoCanal(entrada(vs, c)).bloco
     const l = listaDoCriador({ nome: 'Matt', resposta: resp(), videos, titulos, nBase: bloco.nBase })
-    const html = renderToStaticMarkup(<CriadorResponde bloco={bloco} lista={l} canalId="c1" />)
+    const html = renderToStaticMarkup(<CriadorResponde bloco={bloco} lista={l} canalId="c1" criador={{ nome: 'Matt', avatar: null, ini: 'M', color: '#336699' }} />)
     expect(html).toContain(link.historico('v1', { from: 'canais', canal: 'c1' }).replace(/&/g, '&amp;'))
     expect(html).toContain('dir="auto"')
     expect(html).toContain('@…')
     expect(html.toLowerCase()).not.toMatch(/n[ãa]o respondeu/)
     expect(html).not.toMatch(/author|display_name|autor:/i)
     expect(html).toContain('id="criador"')
+  })
+  it('decisão 75, 8b: bloco medido e só a lista falhou, a lista leva a pastilha falhou e a frase "A leitura falhou:"', () => {
+    const { videos: vs, c } = quadro(14, 5)
+    const bloco = criadorDoCanal(entrada(vs, c)).bloco
+    const l = listaDoCriador({ nome: 'Matt', resposta: { lido: false, causa: 'erro_do_banco' } as ParteLida<RespostasDoCriador>, videos, titulos, nBase: bloco.nBase })
+    expect(bloco.tipo).not.toBe('nao_carregou')
+    const d = new DOMParser().parseFromString(renderToStaticMarkup(<CriadorResponde bloco={bloco} lista={l} canalId="c1" criador={{ nome: 'Matt', avatar: null, ini: 'M', color: '#336699' }} />), 'text/html')
+    const lista = d.querySelector('[data-lista-do-criador]')!
+    expect(lista.querySelector('.obs-au-falhou')).not.toBeNull()
+    expect(lista.textContent).toContain('A leitura falhou:')
+    expect(d.querySelector('[role="alert"]')).toBeNull()
   })
   it('as casas do bloco têm os mesmos vídeos da conta', () => {
     const { videos: vs, c } = quadro(14, 5)

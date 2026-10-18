@@ -290,4 +290,28 @@ describe('uploadVariant', () => {
     expect(linha!.title_text).toBe('Meu título')
     expect(linha).not.toHaveProperty('description_text')
   })
+
+  it('grava thumbnail_dhash da imagem enviada (16 hex)', async () => {
+    const sharp = (await import('sharp')).default
+    const png = await sharp({ create: { width: 1280, height: 720, channels: 3, background: '#c33' } }).png().toBuffer()
+    vi.mocked(put).mockResolvedValue({ url: 'https://blob/x.png', pathname: 'ab-test/test-1/B.png' } as never)
+    enqueueResult({ data: { id: 'test-1', status: 'draft' } })
+    enqueueResult({ data: [] })
+    enqueueResult({ data: { id: 'var-1' } })
+    const fd = new FormData()
+    fd.set('file', new File([new Uint8Array(png)], 'a.png', { type: 'image/png' }))
+    expect(await uploadVariant('test-1', fd)).toEqual({ ok: true, variantId: 'var-1' })
+    expect(primeiraEscrita('ab_test_variants', 'insert')!.thumbnail_dhash).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('falha do dHash não impede o envio: thumbnail_dhash fica nulo', async () => {
+    vi.mocked(put).mockResolvedValue({ url: 'https://blob/x.png', pathname: 'ab-test/test-1/B.png' } as never)
+    enqueueResult({ data: { id: 'test-1', status: 'draft' } })
+    enqueueResult({ data: [] })
+    enqueueResult({ data: { id: 'var-1' } })
+    const fd = new FormData()
+    fd.set('file', new File([new Uint8Array([1, 2, 3])], 'a.png', { type: 'image/png' }))
+    expect(await uploadVariant('test-1', fd)).toEqual({ ok: true, variantId: 'var-1' })
+    expect(primeiraEscrita('ab_test_variants', 'insert')!.thumbnail_dhash).toBeNull()
+  })
 })

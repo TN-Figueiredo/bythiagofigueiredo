@@ -24,7 +24,7 @@ export function LockCountdown({
   const cyclesRemaining = Math.max(0, totalCycles - cyclesCompleted)
 
   const startDate = createdAt
-    ? new Date(createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    ? new Date(createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'America/Sao_Paulo' })
     : null
 
   return (

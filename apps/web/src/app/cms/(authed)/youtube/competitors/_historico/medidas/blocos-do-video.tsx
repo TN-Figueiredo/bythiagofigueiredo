@@ -12,7 +12,7 @@ import { lerLeituraDoConjunto, type IObservatorioDaLeitura } from '../../_chrome
 import type { ForjaAsk, ForjaCancel } from '../../_chrome/forja-view-model'
 import type { PinAction } from '../../_chrome/pin-kit'
 import { Carregando } from '../../_chrome/comentarios/estados'
-import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { ComentariosDeDestaque, type ProvasResolvidas } from '../comentarios-de-destaque'
 import { EstourouEParou } from '../estourou-e-parou'
 import { HistoricoScreen } from '../historico-screen'
@@ -21,6 +21,7 @@ import { CartaoSubida } from './cartao-subida'
 import { CurvaPorIdade } from './curva-por-idade'
 import { lerMedidasDoVideo } from './ler-do-video'
 import { Horas72 } from './horas-72'
+import type { CriadorDoFio } from '../../_chrome/comentarios/fio-model'
 import { ListaDeMudancasHistorico } from './lista-de-mudancas'
 import { ResumoDoVideo } from './resumo'
 import { cabecalhoDoSaiu } from './saiu-model'
@@ -65,6 +66,13 @@ async function estourouDoConjunto(p: PropsBlocosDoVideo, sb: SupabaseClient, c: 
   return leitura ? <EstourouEParou leitura={leitura} /> : null
 }
 
+/** O canal do vídeo para o fio: foto, inicial e cor vêm do cabeçalho da página; sem cabeçalho, só o nome e a inicial com a cor padrão do canal. */
+function criadorDoVideo(view: PropsBlocosDoVideo['view'], nomeDoSite: string): CriadorDoFio {
+  const c = view.header?.chan
+  if (c) return { nome: c.name, avatar: c.avatar, ini: c.ini, color: c.color }
+  return { nome: nomeDoSite, avatar: null, ini: nomeDoSite.slice(0, 2).toUpperCase(), color: '#3B2F8F' }
+}
+
 export async function BlocosDoVideo(p: PropsBlocosDoVideo) {
   const comum = { onAskForja: p.onAskForja, onCancelForja: p.onCancelForja, onSyncChannel: p.onSyncChannel, onPin: p.onPin, onUnpin: p.onUnpin, pagerNaTrilha: p.pagerNaTrilha }
   const lidas = await lerMedidasDoVideo(p)
@@ -76,7 +84,7 @@ export async function BlocosDoVideo(p: PropsBlocosDoVideo) {
   const comentarios = p.provas === undefined ? null : (
     <Suspense fallback={<Carregando />}>
       <ComentariosDeDestaque sb={sb} siteId={p.siteId} provas={p.provas} videoId={p.video.id} agoraMs={p.agoraMs}
-        canaisDoSite={canais} canalNome={canais.get(p.video.ch)?.nome ?? ''}
+        canaisDoSite={canais} criador={criadorDoVideo(p.view, canais.get(p.video.ch)?.nome ?? '')}
         video={{ t0Ms, descobertoEmMs: descobertoMs, canalId: p.video.ch }} hrefFilaSaiu={p.linkSaiu?.href} />
     </Suspense>
   )
@@ -90,7 +98,7 @@ export async function BlocosDoVideo(p: PropsBlocosDoVideo) {
       {estourou}
       <Horas72 bloco={d.horas} />
       {/* a série não foi lida; o gráfico por dia vem do motor, só os acréscimos dele faltam */}
-      {d.serieLida ? null : <section className="hv-card" aria-label="Acréscimos do gráfico por dia" data-dias="nao_carregou"><NaoCarregou medida="os acréscimos do gráfico por dia (subida, saída do YouTube, forma por semana)" /></section>}
+      {d.serieLida ? null : <section className="hv-card" aria-label="Acréscimos do gráfico por dia" data-dias="nao_carregou"><PastilhaAusencia estado="falhou" motivo="os acréscimos do gráfico por dia (subida, saída do YouTube, forma por semana)" /></section>}
     </>
   )
   const depois = (

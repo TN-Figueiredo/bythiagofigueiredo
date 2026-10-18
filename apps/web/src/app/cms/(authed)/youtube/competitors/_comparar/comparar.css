@@ -244,7 +244,6 @@
 [data-obs-screen="comparar"] .so .so-barra { display: flex; height: 6px; margin-top: 4px; border-radius: 3px; overflow: hidden; background: rgba(120, 120, 120, 0.18); max-width: 220px; }
 [data-obs-screen="comparar"] .so .so-barra i { display: block; height: 100%; background: var(--lado-b); border-right: 1px solid var(--surface); }
 [data-obs-screen="comparar"] .so .so-cadeado { display: inline-flex; align-items: center; gap: 4px; }
-[data-obs-screen="comparar"] .so .so-erro { color: var(--warning-text); }
 
 /* A5 E5a T7 (mockup 17a): estado do lado, grupo Direção, primeiros dias, acerto e reação. Mesmas regras: literais, sem color-mix, sem z-index, texto >= 12px. */
 [data-obs-screen="comparar"] .cp-est{margin-top:6px;font-size:12.5px;min-width:0}

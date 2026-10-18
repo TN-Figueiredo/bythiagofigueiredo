@@ -393,15 +393,17 @@ describe('T8 os estados sem dado: 1, 2 e N canais, parado, série cheia, curta e
   for (const cenario of cenarios) {
     it(`cenário ${cenario}: a página abre, nenhum número é "0" no lugar de "não medido", nenhuma palavra interna aparece`, () => {
       const w = proprioWorld({ cenario })
-      const { view } = mountProprio({ world: w })
+      const { view } = mountProprio({ world: w, negativa: cenario === 'negado' ? 'sem_direito' : null })
       const txt = raiz().textContent ?? ''
       expect(txt).not.toMatch(/NaN|undefined|\bnull\b|L2|L3|lote|dataset|day_pt|Reporting|Analytics API/)
       for (const c of view.header.faixa) {
         const dd = [...raiz().querySelectorAll('dl[aria-label="Números do canal"] .nc')].find(e => e.querySelector('dt')!.textContent === c.label)!
         if (c.value == null) {
           // 13.3: a pastilha é só o quadradinho hachurado (sem texto); o motivo vem UMA vez, na frase sob a faixa
-          expect(dd.querySelector('.obs-ch-nm')!.textContent, c.key).toBe('')
-          expect(dd.querySelector('.obs-ch-nm')!.getAttribute('aria-label'), c.key).toBe('não medido')
+          // decisão 75: a forma segue o estado (negado = cadeado, erro = triângulo), com o rótulo no aria-label
+          const q = dd.querySelector('.obs-ch-nm, .obs-au-q')!
+          expect(q.textContent, c.key).toBe('')
+          expect(q.getAttribute('aria-label'), c.key).toBe(c.ausencia === 'restrito' ? 'restrito' : c.ausencia === 'falhou' ? 'falhou' : 'não medido')
           expect(c.missing, c.key).not.toBe('')
           expect(raiz().querySelector('.chead > .nm-fr')!.textContent, c.key).toBe(view.header.faixaMotivo)
         } else expect(norm(dd.querySelector('dd')!.textContent), c.key).toContain(c.value)
@@ -423,12 +425,13 @@ describe('T8 os estados sem dado: 1, 2 e N canais, parado, série cheia, curta e
   })
 
   it('negado: cada número privado diz "só quem edita o site vê este número" e o cartão "só quem edita vê"', () => {
-    mountProprio({ world: proprioWorld({ cenario: 'negado' }) })
-    // 13.3: dois quadradinhos (impressões e dias com impressão) e a frase UMA vez sob a faixa
-    expect(raiz().querySelectorAll('dl[aria-label="Números do canal"] .nm-q').length).toBe(2)
+    mountProprio({ world: proprioWorld({ cenario: 'negado' }), negativa: 'sem_direito' })
+    // 13.3: dois quadradinhos (impressões e dias com impressão) e a frase UMA vez sob a faixa; decisão 75: o quadradinho é o cadeado (restrito)
+    expect(raiz().querySelectorAll('dl[aria-label="Números do canal"] .obs-au-restrito').length).toBe(2)
+    expect(raiz().querySelectorAll('dl[aria-label="Números do canal"] .nm-q').length).toBe(0)
     expect(raiz().querySelectorAll('.chead > .nm-fr').length).toBe(1)
     expect(raiz().querySelector('.chead > .nm-fr')!.textContent).toBe('Só quem edita o site vê este número.')
-    for (const c of cartoes()) expect(c.querySelector('.cv-c.nd .obs-ch-nm')!.textContent).toBe('só quem edita vê')
+    for (const c of cartoes()) expect(c.querySelector('.cv-c.nd .obs-au-restrito')!.textContent).toBe('restrito')
   })
 
   it('erro de leitura: a tela abre (a página não cai) e diz "a leitura do alcance falhou agora; recarregue a página"', () => {

@@ -8,6 +8,7 @@
 import { Fragment, useId, useMemo, useRef, useState } from 'react'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { TaxaFaixa } from '../_proprio/taxa-faixa'
 import { buildTaxaFaixa } from '../_proprio/taxa-faixa-model'
 import { taxaComIntervalo } from '@/lib/youtube/observatorio/proprio/taxa'
@@ -49,6 +50,7 @@ function Cartao({ v, unico }: { v: SoSeuCanalCartao; unico: boolean }) {
         <ul>{INFO_SO_SEU_CANAL.itens.map(i => <li key={i.forte}><b>{i.forte}</b> {i.texto}</li>)}</ul>
       </Popover>
       <p className="so-lead">
+        {v.ausencia ? <PastilhaAusencia estado={v.ausencia} /> : null}
         {v.naoMedido ? <span className="obs-ch-nm so-nm" aria-hidden="true" /> : null}
         <span><Frase texto={v.frase} /></span>
       </p>
@@ -59,9 +61,9 @@ function Cartao({ v, unico }: { v: SoSeuCanalCartao; unico: boolean }) {
               <div className="so-rt">{l.rotulo}<small>{l.sub}</small></div>
               <div className="so-val">
                 {l.cadeado
-                  ? <span className="so-cadeado" role="img" aria-label="só para quem edita o site"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor" /><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.5" /></svg> <small className="so-nota">{l.nota}</small></span>
+                  ? <span className="so-cadeado"><PastilhaAusencia estado="restrito" /> <small className="so-nota">{l.nota}</small></span>
                   : l.estado === 'erro'
-                    ? <small className="so-nota so-erro" role="alert">{l.nota}</small>
+                    ? <span className="so-erro"><PastilhaAusencia estado="falhou" /> <small className="so-nota">{l.nota}</small></span>
                     : l.estado === 'em_revisao'
                       ? <small className="so-nota so-revisao" role="img" aria-label={l.rotuloLeitor}>{l.nota}</small>
                       : l.valor != null

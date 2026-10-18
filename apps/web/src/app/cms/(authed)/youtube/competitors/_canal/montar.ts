@@ -5,13 +5,13 @@ import { DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
 import { publicacoesDe } from '@/lib/youtube/observatorio/proprio/dias'
 import type { DiarioCanal, Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
-import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import type { LeituraPrivadaDoSite, MotivoSemLeitura } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { canalTemVideos } from '../_chrome/own-channels'
 import { openChannelPage, openObservatoryPage, type ChannelPage } from '../_chrome/page-data'
 import { buildMudancasView } from '../_mudancas/view-model'
 import { carregarExtrasProprio } from '../_proprio/carregar-extras'
-import { lerDadosDoCanal, lerDiarioLongo } from '../_proprio/dados'
+import { ausenciaDaProva, lerDadosDoCanal, lerDiarioLongo } from '../_proprio/dados'
 import { lerOrigem } from '../_proprio/dados-origem'
 import { lerTermosESites } from '../_proprio/dados-termos'
 import { buildOrigem, videosDaOrigem, type OrigemView } from '../_proprio/origem-model'
@@ -35,21 +35,23 @@ export async function assistidoDoCanal(p: PropsAssistidoDoCanal): Promise<Assist
 }
 
 /** A aba Origem do canal próprio (E5b T15/T17): a origem das views de TODOS os vídeos do canal. Sem prova de leitura nada é lido e o nível é "só o aviso". */
-export type PropsOrigemDoCanal = { canalId: string; ytIds: readonly string[]; publicacoes: ReadonlyMap<string, string | null>; maisAntiga: string | null; diaFinal: string | null; agora: number; leitura: LeituraPrivadaDoSite | null; podeEditar: boolean; n: (x: number) => string }
+export type PropsOrigemDoCanal = { canalId: string; ytIds: readonly string[]; publicacoes: ReadonlyMap<string, string | null>; maisAntiga: string | null; diaFinal: string | null; agora: number; leitura: LeituraPrivadaDoSite | null; negativa: MotivoSemLeitura | null; podeEditar: boolean; n: (x: number) => string }
 export async function origemDoCanal(p: PropsOrigemDoCanal): Promise<OrigemView> {
   const hojePt = dayPt(new Date(p.agora))
   const ate = p.diaFinal ?? addDays(hojePt, -3)
   const { ytIds, publicacoes, maisAntiga } = p
   const { de, diarioDesde } = janelaDaOrigemDoCanal({ ate, maisAntiga, ligadoEm: DIMENSOES_LIGADO_EM })
-  const NEGADO = { acesso: 'negado' } as const
-  const temLeitura = p.leitura != null
+  // decisão 75: sem leitura, só `sem_direito` é negado (o aviso); guarda caída é erro (o bloco único de erro), nunca o "você não vê"
+  const semLeitura = ausenciaDaProva({ leitura: p.leitura, edita: p.podeEditar, negativa: p.negativa })
+  const sem = semLeitura === 'ok' ? null : semLeitura
+  const temLeitura = sem === null
   const [origem, termos]: [Awaited<ReturnType<typeof lerOrigem>>, Privado<DetalheCanal>] = temLeitura
     ? await Promise.all([
       lerOrigem({ canalId: p.canalId, ytIds, de, ate, diarioDesde, publicacoes, agora: p.agora, prova: p.leitura }),
       lerTermosESites({ canalId: p.canalId, ytIds, de, ate, agora: p.agora, prova: p.leitura }),
     ])
-    : [NEGADO, NEGADO]
-  const nivel = nivelDaOrigem({ temLeitura, termos, podeEditar: p.podeEditar })
+    : [sem as NonNullable<typeof sem>, sem as NonNullable<typeof sem>]
+  const nivel = nivelDaOrigem({ temLeitura, termos, podeEditar: p.podeEditar, falhou: sem?.acesso === 'erro' })
   if (temLeitura && p.podeEditar && termos.acesso !== 'ok') {
     Sentry.captureMessage('observatório: quem edita não leu os termos da origem do canal', { level: 'warning', tags: { component: 'observatorio-proprio', step: 'origem-termos' }, extra: { acesso: termos.acesso } })
   }
@@ -112,10 +114,10 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
     const dados = await lerDadosDoCanal({ canalId: proprio.id, longosAcompanhados: ownYtIds, agora: now, leitura: leituraPrivada })
     // as posições precisam do conjunto do site: lido só neste ramo, com o diário do próprio canal já lido (sem segunda guarda, sem segunda leitura)
     const site = await openObservatoryPage()
-    const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { leitura: leituraPrivada, canalId: proprio.id, diario: dados.diario })
+    const extras = await carregarExtrasProprio(site.obs, site.siteId, now, undefined, { leitura: leituraPrivada, canalId: proprio.id, diario: dados.diario, negativa: pagina.negativa })
     const { posicao, concorrenteAcima } = posicaoDoSite(site.obs, proprio.id, extras)
     const hoje = dayPt(new Date(now))
-    const pv = buildProprioView(obs, proprio.id, sp, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1 })
+    const pv = buildProprioView(obs, proprio.id, sp, dados, { hoje, dm: dmDia, posicao, concorrenteAcima, muitosProprios: owns.itens.length > 1, negativa: pagina.negativa })
     if (pv) {
       const doCanal = obs.videos.filter(v => v.ch === proprio.id)
       const publicacoes = publicacoesDe(doCanal)
@@ -123,7 +125,7 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
         dados, hoje, dm: dmDia, posicao, posicaoItens: pv.header.posicaoItens, canalId: proprio.id,
         videos: pv.videos.videos.map(v => ({ id: v.id, ytId: v.ytId, title: v.title, thumb: v.thumbSrc })),
         concorrentes: concorrentesDoSite(site.obs, proprio.id),
-        publicacoes,
+        publicacoes, negativa: pagina.negativa,
       })
       const duracoes = new Map(doCanal.map(v => [v.ytId, v.dur ?? null]))
       const videosLongos = ownYtIds.map(ytId => ({ ytId, dur: duracoes.get(ytId) ?? null }))
@@ -132,7 +134,7 @@ export async function montarCanal(id: string, sp: Flat, opcoes: OpcoesDoMontarCa
       const periodosProps = diarioOk ? { canalId: proprio.id, ytIds: ownYtIds, videos: videosLongos, publicacoes, diario: diarioOk, agora: now, leitura: leituraPrivada } : null
       const origemProps = {
         canalId: proprio.id, ytIds: videosDaOrigem(obs, proprio.id), publicacoes, maisAntiga: publicacaoMaisAntiga(obs, proprio.id, ms => dayPt(new Date(ms))), n: obs.fmt.int,
-        diaFinal: diarioOk ? diarioOk.ultimoDia : null, agora: now, leitura: leituraPrivada, podeEditar: canEdit,
+        diaFinal: diarioOk ? diarioOk.ultimoDia : null, agora: now, leitura: leituraPrivada, negativa: pagina.negativa, podeEditar: canEdit,
       }
       return { tipo: 'proprio', pagina, obs, proprio, flat: sp, pv, comoEsta, periodosProps, origemProps, recente: recenteDe(obs), estado: sp, privado: privadoDoCanalProprio(proprio.id, dados, pagina.negativa) }
     }

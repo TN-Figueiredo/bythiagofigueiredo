@@ -27,8 +27,8 @@ const dadoDe = (w: MundoVideo): DadosDoVideo => {
 const ok = (w: MundoVideo, troca: Partial<DadosDoVideo> = {}): Privado<DadosDoVideo> => ({ acesso: 'ok', dado: { ...dadoDe(w), ...troca } })
 const W = mundoVideo({ mut: umaFaixa })
 const novoId = W.obs.videos.filter(v => v.ch === W.canalId).sort((a, b) => b.pub - a.pub)[0]!.id
-const montar = (w: MundoVideo = W, dados: Privado<DadosDoVideo> = ok(w), id = w.foco.id) =>
-  render(<div data-obs-screen="video-proprio"><VideoBlocos view={buildVideoBlocos({ obs: w.obs, videoId: id, dados, hoje: w.hoje, dm: dmDia })} /></div>)
+const montar = (w: MundoVideo = W, dados: Privado<DadosDoVideo> = ok(w), id = w.foco.id, negativa: 'sem_direito' | null = null) =>
+  render(<div data-obs-screen="video-proprio"><VideoBlocos view={buildVideoBlocos({ obs: w.obs, videoId: id, dados, hoje: w.hoje, dm: dmDia, negativa })} /></div>)
 const secao = (c: HTMLElement, h: string) => [...c.querySelectorAll('section')].find(s => s.querySelector('h2, h3')?.textContent?.startsWith(h))!
 const texto = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ')
 
@@ -259,14 +259,14 @@ describe('usuário só de leitura e leitura que falhou', () => {
     expect(container.querySelector('.vb-ctr, .vb-as, figure')).toBeNull()
   })
 
-  it('negado e erro: a nota única leva a pastilha do estado (C1: erro = "falhou", negado = nenhuma, nunca "não medido") e a frase do diário continua "não medido"', () => {
+  it('negado e erro: a nota única leva a pastilha do estado (decisão 75: erro = "falhou", negado com sem_direito = "restrito", nunca "não medido") e a frase do diário continua "não medido"', () => {
     for (const dados of [{ acesso: 'negado' } as const, { acesso: 'erro' } as const]) {
-      const { container } = montar(W, dados)
+      const { container } = montar(W, dados, W.foco.id, dados.acesso === 'negado' ? 'sem_direito' : null)
       const nota = container.querySelector('[data-privado-nota]')!
       const pastilha = nota.closest('.vb-nml')!
       expect(pastilha.querySelector('.obs-ch-nm'), dados.acesso).toBeNull()
-      if (dados.acesso === 'erro') expect(pastilha.querySelector('.vb-falhou')!.textContent).toBe('falhou')
-      else expect(pastilha.querySelector('.vb-falhou'), dados.acesso).toBeNull()
+      expect(pastilha.querySelector('.vb-falhou'), dados.acesso).toBeNull()
+      expect(pastilha.querySelector(dados.acesso === 'erro' ? '.obs-au-falhou' : '.obs-au-restrito')!.textContent).toBe(dados.acesso === 'erro' ? 'falhou' : 'restrito')
       const canal = secao(container, 'Este vídeo no canal')
       expect(canal.querySelector(':scope > .vb-nml .obs-ch-nm')!.textContent, dados.acesso).toBe('não medido')
       cleanup()

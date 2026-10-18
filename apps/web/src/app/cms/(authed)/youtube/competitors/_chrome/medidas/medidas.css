@@ -10,10 +10,8 @@
 [data-obs] .obs-md-dir-w{font-size:12.5px;color:var(--text);white-space:nowrap}
 [data-obs] .obs-md-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
-/* As quatro formas que nunca trocam de aparência: zero medido, não medido, ainda não existe, não carregou. */
+/* As quatro formas que nunca trocam de aparência: zero medido, não medido, ainda não existe (a falha é a pastilha falhou, em _chrome/ausencia). */
 [data-obs] .obs-md-ainda{display:inline-block;padding:1px 6px;border:1px dashed var(--muted);border-radius:4px;color:var(--muted);background:none}
-[data-obs] .obs-md-nc{display:inline-flex;gap:8px;align-items:center;padding:1px 6px;border:1.5px solid var(--danger,#C0392B);border-radius:4px;color:var(--text)}
-[data-obs] .obs-md-nc button{font:inherit;color:inherit;background:none;border:0;padding:0;text-decoration:underline;cursor:pointer}
 
 /* Estado do canal (pastilhas sob o nome). "Ativo" não tem pastilha. */
 [data-obs] .obs-md-est{display:grid;gap:3px;justify-items:start;min-width:0;max-width:228px}

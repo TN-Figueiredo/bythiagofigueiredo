@@ -23,36 +23,32 @@ export const FRASES = {
   abaACaminho: 'a caminho',
   abaParada: 'coleta parada',
   abaNaoComecou: 'coleta não começou',
-  abaNaoCarregou: 'não carregou',
+  abaNaoCarregou: 'a leitura falhou',
   // Motivos
   motivoCurtidos: 'Mais curtido',
   motivoCriador: 'Com o criador',
   motivoAcompanhado: 'Canal que você acompanha',
   motivoGrande: 'Canal grande',
-  seloSeuCanal: 'seu canal',
+  seloSeuCanal: 'Seu canal',
   voceComentou: 'Você comentou aqui',
-  seloCriador: 'criador',
+  seloCriador: 'Criador',
   // Legenda
   legendaCurtidos: (n: number) => (n === 1 ? '1 mais curtido' : `${n} mais curtidos`),
-  legendaCriador: (n: number, respondeu = 0) => `${n} com o criador${respondeu > 0 ? ` (ele respondeu a ${respondeu})` : ''}`,
+  legendaCriador: (n: number) => `${n} com o criador na conversa`,
   legendaAcompanhado: (n: number) => `${n} de canal que você acompanha`,
   legendaGrandeCurta: (n: number) => `${n} de canal grande`,
-  // Frases de abertura da lista (singular no 1)
-  abreTodos: (d: number, n: number) => `Com ${dias(d)}, guardamos ${n === 1 ? 'o único comentário do vídeo' : `todos os ${n} comentários do vídeo`}`,
-  abreDeTodos: (d: number, n: number, de: number) => `Com ${dias(d)}, guardamos ${n} de todos os ${de.toLocaleString('pt-BR')} comentários do vídeo`,
-  abreDosPrimeiros: (d: number, n: number, de: number) =>
-    `Com ${dias(d)}, guardamos ${n} dos ${de.toLocaleString('pt-BR')} primeiros comentários que o YouTube mostra, na ordem de relevância dele`,
-  rotuloDaCasa: (i: number, n: number, motivo: string, curtidas: number | null, d: number) =>
-    `Comentário ${i} de ${n}, ${motivo.toLowerCase()}${curtidas === null ? '' : `, ${curtidas === 1 ? '1 curtida' : `${curtidas.toLocaleString('pt-BR')} curtidas`} com ${dias(d)}`}`,
-  // Legenda por motivo: o rótulo já diz o motivo, o texto diz só quantos (sem repetir o motivo: Gio C5 menor M2).
-  legendaN: (n: number) => (n === 1 ? '1 comentário' : `${n} comentários`),
-  legendaNCriador: (n: number, respondeu = 0) => `${n === 1 ? '1 comentário' : `${n} comentários`}${respondeu > 0 ? (n === 1 ? ' (ele respondeu)' : ` (ele respondeu a ${respondeu} deles)`) : ''}`,
-  legendaNGrande: (n: number, ate: string) => `${n === 1 ? '1 comentário' : `${n} comentários`}, ${ate}`,
-  zeroN: '0 comentários',
-  zeroGrande: (ate: string) => `nenhum canal grande ${ate}`,
-  entreOs20: (n: number) => `entre os ${n} mais curtidos`,
-  entreOsMedidos: (n: number) => `entre os ${n} que deu para medir`,
-  entreOsDoVideo: 'entre os comentários do vídeo',
+  // Frase-resumo da lista (negrito + resto apagado). Singular quando é um só.
+  resumoRespondeu: (resp: number, n: number, d: number) =>
+    n === 1 ? `O criador respondeu ao único comentário guardado com ${dias(d)}.` : `O criador respondeu a ${resp} dos ${n} comentários guardados com ${dias(d)}.`,
+  resumoNaoVimos: (n: number, d: number) =>
+    n === 1 ? `Não vimos resposta do criador no único comentário guardado com ${dias(d)}.` : `Não vimos resposta do criador nos ${n} comentários guardados com ${dias(d)}.`,
+  resumoVideoTinha: (de: number) => `O vídeo tinha ${de.toLocaleString('pt-BR')}.`,
+  resumoLemos: (de: number) => `Lemos os ${de.toLocaleString('pt-BR')} primeiros por relevância.`,
+  barra: (n: number, de: number) => `${n} de ${de.toLocaleString('pt-BR')}`,
+  // Zeros, numa frase apagada (só do que existe como motivo opcional)
+  zerosAmbos: 'Nenhum de canal que você acompanha nem de canal grande.',
+  zeroAcompanhado: 'Nenhum de canal que você acompanha.',
+  zeroGrande: 'Nenhum de canal grande.',
   inscritosOcultos: (n: number) => (n === 1 ? '1 autor com inscritos ocultos' : `${n} autores com inscritos ocultos`),
   // Entrou e saiu
   entraram: (n: number, de: number, ate: number) => `${n} ${n === 1 ? 'entrou' : 'entraram'} nos 12 do dia ${de} ao dia ${ate}`,
@@ -61,12 +57,12 @@ export const FRASES = {
   primeiroRetrato: (proximo: number | null) =>
     proximo === null ? 'Este é o primeiro retrato.' : `Este é o primeiro retrato. O dia ${proximo} mostra quem entrou e quem saiu dos 12.`,
   // Lista
-  mostrarOutros: (n: number) => `Mostrar os outros ${n}`,
-  mostrarSoOsPrimeiros: (n: number) => `Mostrar só os ${n} primeiros`,
+  mostrarOutros: (n: number) => `Ver as outras ${n}`,
+  mostrarSoOsPrimeiros: 'Recolher',
   posicao: (i: number, de: number) => `${i} de ${de}`,
-  entrouNoDia: (d: number) => `entrou nos 12 no dia ${d}`,
+  entrouNoDia: (d: number) => `entrou no dia ${d}`,
   // Autor
-  espectador: 'Um espectador',
+  espectador: 'Espectador',
   autorReservado: 'Autor reservado',
   textoReservado: 'Texto reservado.',
   textoReservadoSub: 'Há um comentário aqui que você não vê.',
@@ -81,6 +77,9 @@ export const FRASES = {
   // Texto
   verTudo: 'Ver tudo',
   mostrarMenos: 'Mostrar menos',
+  /** Um verbo só para recolher, em toda a seção (fio, grupo, texto). */
+  recolher: 'Recolher',
+  verOutrasRespostas: (n: number) => (n === 1 ? 'Ver a outra resposta do criador' : `Ver as outras ${n} respostas do criador`),
   cortadoAos: 'cortado aos 2.000 caracteres',
   temEndereco: 'Este comentário tem um endereço. Aqui ele é só texto, não abre.',
   // Resposta do criador
@@ -111,8 +110,7 @@ export const FRASES = {
   // Faixas de nível
   faixaContagem:
     'Você vê quantos comentários há e como cada um evoluiu. O texto fica reservado a quem tem o direito “ver desempenho privado” ou edita o site; o nome e a foto, só a quem edita.',
-  faixaTexto:
-    'Você vê o texto, mas não o nome nem a foto de quem comentou. Nos primeiros 28 dias, isso é só de quem edita o site.',
+  faixaTexto: 'Nome e foto de quem comenta ficam ocultos. O criador aparece porque o canal é público.',
   // Estados sem lista
   zeroMedidoTitulo: (d: number) => `Com ${dias(d)}, nenhum comentário.`,
   zeroMedidoCorpo: (dm: string) => `O YouTube informou 0 comentários neste vídeo em ${dm}.`,
@@ -165,8 +163,11 @@ export const FRASES = {
     'Guardamos até 12 comentários por idade do vídeo.',
     'Eles vêm dos 100 primeiros que o YouTube mostra: até 4 com o criador, até 2 de destaque e o resto, os mais curtidos.',
     'As três idades (1, 7 e 30 dias) são retratos separados. “Fora dos 12” quer dizer que o comentário não estava entre os guardados naquele dia; não é zero curtidas.',
-    'O nome e a foto de quem comentou ficam guardados por 28 dias; depois disso o autor vira “Um espectador”.',
-    'Guardamos até 3 respostas do criador por comentário.',
+    'O nome e a foto de quem comentou ficam guardados por 28 dias; depois disso o autor vira “Espectador”. Quem só lê o texto nunca vê nome nem foto de quem comentou; só quem edita o site, e só nos primeiros 28 dias.',
+    'Guardamos até 3 respostas do criador por comentário. O YouTube mostra até 5 respostas por comentário.',
+    'Cada motivo diz por que o comentário está na lista: “Mais curtido” (entre os mais curtidos), “com o criador na conversa” (ele respondeu ou escreveu), “Canal que você acompanha” e “Canal grande” (canal com muitos inscritos que comentou).',
+    'Cada idade é um retrato: o que estava entre os 12 guardados naquele dia, não o que está no YouTube agora.',
+    'A régua compara as curtidas com o mais curtido desta lista, na idade da aba.',
     ...(mencoesTrocadas > 0 ? ['Menções a outras pessoas aparecem como “@…”: o nome delas fica escondido.'] : []),
     'Só as menções com @ ficam escondidas. Um nome escrito por extenso dentro do texto do comentário não é reconhecido e aparece como foi guardado.',
     'Cálculo do Observatório sobre dados públicos do YouTube.',

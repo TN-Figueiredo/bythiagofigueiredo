@@ -16,6 +16,7 @@ import { createFmt, type Fmt } from '@/lib/youtube/observatorio/fmt'
 import { createClock } from '@/lib/youtube/observatorio/time'
 import type { AlcanceVideo } from '@/lib/youtube/observatorio/proprio/dias'
 import { escalar, MIN_REGUA } from '../_chrome/regua/regua-model'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 import { foraDosGuardadosFrase } from './extras'
 import { durText, numNb, POUCO_VOLUME } from './formato'
 
@@ -79,6 +80,8 @@ export interface LinhaRegua {
   semRegua: string | null
   /** Quantos vídeos do canal ficam fora da conta por não terem o dado: "2 sem medida". null = nenhum (ou a leitura nem existe). */
   semMedida: string | null
+  /** Decisão 75: o estado de ausência quando `valor` é nulo (impressões: o do alcance; as demais: nao_medido). null = há valor ou zero medido. */
+  ausencia: EstadoAusencia | null
   /** A segunda linha do nome ("média dos últimos 28 dias"); null = sem ela. */
   sub: string | null
   /** Um traço por vídeo com o dado, do menor ao maior valor. Vazio quando não há régua. */
@@ -149,6 +152,8 @@ export interface EntradaReguas {
   periodoTexto: string | null
   /** Por que as impressões não foram lidas ("só quem edita o site vê as impressões"); sem ele, a frase é a de "impressões não medidas". Só vale com `alcanceLido: false`. */
   motivoImpressoes?: string
+  /** Decisão 75: o estado do alcance não lido (restrito / falhou / nao_medido). Ausente = nao_medido. Só vale com `alcanceLido: false`. */
+  ausenciaImpressoes?: EstadoAusencia | null
   /** As linhas "Views por dia" e "% assistido"; ausente = a régua tem só as seis linhas. */
   diario?: DiarioReguas
   hrefs: { vistos: string; imp: string }
@@ -319,12 +324,13 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     const trava = eu == null ? null : d.numero === 'vpd' ? a.diario?.naoPosicionaVpd ?? null : d.numero === 'assistido' ? a.diario?.naoPosicionaPct ?? null : null
     const pos = eu && !trava ? posicaoNoCanal(entradas, este.id) : null
     const href = pos == null ? null : d.numero === 'impressoes' ? a.hrefs.imp : d.numero === 'views' ? a.hrefs.vistos : null
+    const ausencia: EstadoAusencia | null = valor != null ? null : d.numero === 'impressoes' && !a.alcanceLido ? (a.ausenciaImpressoes ?? 'nao_medido') : 'nao_medido'
     const semRegua = eu == null ? semODado(d.numero) : trava ? trava : pos == null ? `poucos vídeos para comparar (${n})` : null
     const vazia = { tracos: [] as LinhaRegua['tracos'], min: null, max: null, medianaPct: null, comprimida: false }
 
     if (!eu || !pos) {
       const sr = eu ? `${nomeBaixo}: ${fala(d.numero, eu.x, eu.chave)}; ${semRegua}` : zeroMedido ? `${nomeBaixo}: zero medido; ${semRegua}` : `${nomeBaixo}: ${semRegua}`
-      return { numero: d.numero, grupo: d.grupo, nome: d.nome, sub: d.sub ?? null, valor, zeroMedido, pos: null, posTexto: null, semRegua, semMedida, ...vazia, neutro, href, sr }
+      return { numero: d.numero, grupo: d.grupo, nome: d.nome, ausencia, sub: d.sub ?? null, valor, zeroMedido, pos: null, posTexto: null, semRegua, semMedida, ...vazia, neutro, href, sr }
     }
 
     const xs = com.map(e => e.x)
@@ -342,7 +348,7 @@ export function buildReguas(a: EntradaReguas): ReguasView {
     const sr = `${pos.pos}º de ${pos.de}${baseTxt} em ${nomeBaixo}` + (neutro ? '' : `, ${FALA_TERCO[pos.terco]}`) + (pos.empates > 0 ? `, empate com ${pos.empates}` : '')
       + `; ${fala(d.numero, eu.x, eu.chave)}; no canal de ${min} a ${max}; mediana ${texto(d.numero, med)}`
     return {
-      numero: d.numero, grupo: d.grupo, nome: d.nome, sub: d.sub ?? null, valor, zeroMedido: false, pos, posTexto, semRegua, semMedida,
+      numero: d.numero, grupo: d.grupo, nome: d.nome, ausencia: null, sub: d.sub ?? null, valor, zeroMedido: false, pos, posTexto, semRegua, semMedida,
       tracos, min, max, medianaPct: es.pct(med), comprimida: es.comprimida, neutro, href, sr,
     }
   })

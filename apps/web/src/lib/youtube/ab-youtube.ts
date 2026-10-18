@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import { YouTubeApiError, erroDaResposta, erroDeRede } from '@/lib/youtube/youtube-api-error'
 
 export interface SetThumbnailResult {
   highUrl?: string
@@ -8,25 +9,29 @@ export async function setThumbnail(
   videoId: string,
   imageBuffer: Buffer,
   contentType: 'image/png' | 'image/jpeg',
-  accessToken: string
+  accessToken: string,
+  f: typeof fetch = fetch,
 ): Promise<SetThumbnailResult> {
   const url = `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': contentType,
-    },
-    body: imageBuffer as BodyInit,
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    const msg = `thumbnails.set failed: ${res.status}`
-    Sentry.captureException(new Error(msg), {
-      extra: { videoId, status: res.status, error: err },
+  let res: Response
+  try {
+    res = await f(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': contentType,
+      },
+      body: imageBuffer as BodyInit,
+      signal: AbortSignal.timeout(15_000),
     })
-    throw new Error(msg)
+  } catch (e) {
+    throw erroDeRede(e, 'thumbnails.set')
+  }
+  if (!res.ok) {
+    const erro = await erroDaResposta(res, 'thumbnails.set')
+    // Sem o corpo da resposta no Sentry: só status e reason.
+    Sentry.captureException(erro, { extra: { videoId, status: erro.status, reason: erro.reason } })
+    throw erro
   }
   const data = await res.json().catch(() => ({}))
   const highUrl: string | undefined = data?.items?.[0]?.high?.url ?? data?.items?.[0]?.default?.url
@@ -84,7 +89,8 @@ export async function fetchAnalyticsForDateRange(
 }
 
 export async function fetchVariantImageBuffer(
-  blobUrl: string
+  blobUrl: string,
+  f: typeof fetch = fetch,
 ): Promise<{ buffer: Buffer; contentType: 'image/png' | 'image/jpeg' }> {
   // Defense-in-depth: only allow known image hosts
   const allowed = [
@@ -104,10 +110,20 @@ export async function fetchVariantImageBuffer(
     throw new Error(`Invalid URL for image fetch: ${blobUrl}`)
   }
 
-  const res = await fetch(blobUrl, { signal: AbortSignal.timeout(15_000) })
-  if (!res.ok) throw new Error(`Failed to fetch variant image: ${res.status}`)
+  let res: Response
+  try {
+    res = await f(blobUrl, { signal: AbortSignal.timeout(15_000) })
+  } catch (e) {
+    throw erroDeRede(e, 'blob')
+  }
+  if (!res.ok) throw new YouTubeApiError(res.status, `blob_${res.status}`, 'blob')
   const ct = res.headers.get('content-type') ?? 'image/png'
   const contentType = ct.includes('jpeg') ? ('image/jpeg' as const) : ('image/png' as const)
-  const arrayBuffer = await res.arrayBuffer()
+  let arrayBuffer: ArrayBuffer
+  try {
+    arrayBuffer = await res.arrayBuffer()
+  } catch (e) {
+    throw erroDeRede(e, 'blob')
+  }
   return { buffer: Buffer.from(arrayBuffer), contentType }
 }

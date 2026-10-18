@@ -112,7 +112,7 @@ describe('BlocosDoVideo', () => {
     expect(el.props.erro).toBeFalsy()
     const antes = html(el.props.antesDoGrafico)
     expect(antes).toContain('Views por idade')
-    expect(antes).toContain('Não carregou')
+    expect(antes).toContain('falhou')
     expect(antes).toContain('data-dias="nao_carregou"')
     expect(html(el.props.depoisDoGrafico)).toContain('Mudanças deste vídeo')
   })

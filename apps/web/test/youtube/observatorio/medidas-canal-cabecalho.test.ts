@@ -1,5 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { CelulasDoCabecalho } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/celulas'
 import { celulasDoCabecalho, colunasDosPontinhos, formatoDoCanal, maisNumeros, type EntradaDoCabecalho } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/cabecalho-model'
 import { estadoDaPagina } from '@/app/cms/(authed)/youtube/competitors/_canal/medidas/estado-model'
 import { createFmt } from '@/lib/youtube/observatorio/fmt'
@@ -31,6 +34,9 @@ describe('as seis células', () => {
     const cs = celulasDoCabecalho(entrada({ medidas: null }))
     for (const k of ['direcao', 'estado', 'acerto', 'ritmo']) expect(por(cs, k).valor, k).toBe('nao_carregou')
     expect(por(cs, 'inscritos').valor).toBe('medido')
+    // decisão 75, 8a: a célula em erro é a pastilha falhou, sem botão
+    const h = renderToStaticMarkup(createElement(CelulasDoCabecalho, { celulas: cs }))
+    expect(h).toContain('obs-au-falhou'); expect(h).not.toContain('<button'); expect(h).not.toMatch(/não carregou/i)
   })
   it('inscritos ocultos: hachura com motivo, nunca 0', () => {
     const c = por(celulasDoCabecalho(entrada({ subs: null })), 'inscritos')
@@ -69,7 +75,7 @@ describe('as seis células', () => {
     expect(c.valor).toBe('nao_medido')
     expect(c.motivo?.trim().length ?? 0).toBeGreaterThan(0)
     const frase = fraseDoTopo({ estado, direcao: celulaDeDirecao(m3a(118, 100), null), formato: FMT, ritmo: null, acerto: null, parado: null, queda: null, ultimoVideo: { tipo: 'nenhum' }, hojeSP: HOJE } as unknown as Parameters<typeof fraseDoTopo>[0])
-    expect(frase.texto).not.toMatch(/Não carregou/)
+    expect(frase.texto).not.toMatch(/A leitura falhou/)
     const falhou = { ...m8('ativo'), estado: naoMedido('leitura_falhou') } as ReturnType<typeof m8>
     const e2 = estadoDaPagina(falhou, sync, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA)
     expect(e2.tipo).toBe('nao_carregou')
@@ -158,7 +164,7 @@ describe('Mais números', () => {
   })
   it('célula ausente vira "não carregou", nunca zero', () => {
     const mais = maisNumeros({ faixa: [], todos: [] })
-    for (const n of mais) { expect(n.valor).toBeNull(); expect(n.motivo).toBe('não carregou') }
+    for (const n of mais) { expect(n.valor).toBeNull(); expect(n.motivo).toBe('a leitura falhou') }
   })
 })
 void m8

@@ -13,6 +13,7 @@
  * - Os textos NÃO levam o símbolo (▲ ＝ ●): quem desenha escolhe por `tipo` (switch exaustivo) e põe o texto equivalente para
  *   leitor de tela.
  */
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 import { posicoes, conjuntoTexto, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
 import { escolherPrincipal, type LinhaPrincipal } from '../_chrome/principal'
 import type { CanalPack, CompararPack } from './pack'
@@ -84,7 +85,8 @@ export interface LinhaPar {
   relacao: Relacao | null // null: um lado não medido, ou linha sem relação (inscritos em 30 dias)
 }
 
-export interface ItemLeitura { simbolo: 'maior' | 'igual' | 'sem'; lado: 0 | 1 | null; texto: string }
+/** `ausencia` (decisão 75): só no item `sem`; o pior estado entre os lados sem número (falhou > restrito > não medido), para o quadradinho ter a forma certa. */
+export interface ItemLeitura { simbolo: 'maior' | 'igual' | 'sem'; lado: 0 | 1 | null; texto: string; ausencia?: EstadoAusencia }
 
 export interface ParView {
   a: CanalPack; b: CanalPack; cores: [CorLado, CorLado]
@@ -293,13 +295,14 @@ export function buildPar(pack: CompararPack, idA: string, idB: string): ParView 
     const iguais: string[] = []
     const falta: [string[], string[]] = [[], []]
     let semComo = 0
+    const estados = new Set<EstadoAusencia>()
 
     for (const l of linhas) {
       const m = META[l.id], [na, nb] = l.lados
       if (na.x == null || nb.x == null) {
         semComo++
-        if (na.x == null) falta[0].push(m.curto)
-        if (nb.x == null) falta[1].push(m.curto)
+        if (na.x == null) { falta[0].push(m.curto); estados.add(na.ausencia ?? 'nao_medido') }
+        if (nb.x == null) { falta[1].push(m.curto); estados.add(nb.ausencia ?? 'nao_medido') }
         continue
       }
       if (!m.naLeitura) continue
@@ -342,7 +345,7 @@ export function buildPar(pack: CompararPack, idA: string, idB: string): ParView 
         const n = falta[i]
         return `falta o dado ${voce(i) ? 'do seu canal' : `de ${lados[i].name}`} em ${n.length > 3 ? `${n.slice(0, 2).join(', ')} e mais ${n.length - 2}` : juntar(n)}`
       })
-      out.push({ simbolo: 'sem', lado: null, texto: `Sem como comparar ainda: ${numeros(semComo)} (${partes.join('; ')}).` })
+      out.push({ simbolo: 'sem', lado: null, texto: `Sem como comparar ainda: ${numeros(semComo)} (${partes.join('; ')}).`, ausencia: estados.has('falhou') ? 'falhou' : estados.has('restrito') ? 'restrito' : 'nao_medido' })
     }
     return out
   }

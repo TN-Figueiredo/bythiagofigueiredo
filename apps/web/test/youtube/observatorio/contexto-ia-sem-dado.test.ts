@@ -40,7 +40,8 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
   openObservatoryPage: async () => ({ siteId: SITE, now: W().obs.NOW, rows: {}, obs: W().obs, meuCanalLembrado: null, savedNiche: 'todos', extra: { canUnlock: true, podeEditar: true, legacy: [], bookmarked: new Set<string>() } }),
   lerMeuCanalLembrado: async () => null,
 }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', () => ({
+vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', async (orig) => ({
+  ausenciaDaProva: (await orig<typeof import('@/app/cms/(authed)/youtube/competitors/_proprio/dados')>()).ausenciaDaProva,
   acessoPrivado: async () => st.acesso,
   lerDadosDoCanal: async () => W().dados,
   lerDadosDoVideo: async () => {

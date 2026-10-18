@@ -17,6 +17,7 @@ import { nichoDoLink, type PosicaoItens, type PosicaoNoNicho } from './header-mo
 import { BACK_DO_TOP_IMP } from '../_historico/origem-canal'
 import { foraDosGuardadosFrase } from './extras'
 import { POUCO_VOLUME } from './formato'
+import { ausenciaDoAcesso, type EstadoAusencia, type NegativaPrivada } from '../_chrome/ausencia/estado'
 import { buildImpressoes, ERRO_ALCANCE, int, paradaEm, SEM_PERMISSAO, semRelatorioFrase, type ImpressoesView } from './impressoes-model'
 import { antesDaPublicacaoFrase } from './header-model'
 import { taxaDoCanal, viewsDoCanalPorDia } from './canal-agregados'
@@ -54,6 +55,8 @@ export interface TaxaBlocoView {
   frase: TrechoFrase[] | null
   faixa: TaxaFaixaView | null
   vazio: string | null
+  /** Decisão 75: o estado de ausência de `vazio`; null = não há `vazio`. */
+  vazioEstado: EstadoAusencia | null
   nota: string | null
 }
 
@@ -62,8 +65,12 @@ export interface ComoEstaView {
   recolhida: string
   /** A frase única do topo da seção aberta, calculada do volume. */
   frase: string
+  /** Decisão 75: o estado de ausência da `frase` do topo (null quando há número ou zero medido). */
+  fraseEstado: EstadoAusencia | null
   top: ComoEstaTop[]
   topVazio: string | null
+  /** Decisão 75: o estado de ausência de `topVazio` (null = não há `topVazio` ou é zero medido). */
+  topVazioEstado: EstadoAusencia | null
   /** Vídeos com impressões no relatório que não estão entre os guardados do canal (não têm cartão): o fato dito, sem a causa, nunca somado em silêncio. */
   topNota: string | null
   noNicho: ComoEstaNicho | null
@@ -76,6 +83,8 @@ export interface EntradaComoEsta {
   resumo: ResumoAlcance
   periodo: Periodo | null
   acesso: 'ok' | 'negado' | 'erro'
+  /** Por que o acesso foi negado (a da página). Ausente = não preenchida: negado vira `falhou`, nunca cadeado. */
+  negativa?: NegativaPrivada
   porVideo: ReadonlyMap<string, AlcanceVideo>
   videos: ReadonlyArray<{ id: string; ytId: string; title: string; thumb?: string | null }>
   posicao: PosicaoNoNicho | null
@@ -101,6 +110,17 @@ function estadoDe(a: EntradaComoEsta): Estado {
   if (a.resumo.diasLidos === 0 || a.resumo.imp == null) return 'nada-lido'
   if (a.resumo.imp === 0) return 'zero'
   return 'ok'
+}
+
+/** O estado de ausência de uma frase de vazio, pelo estado do alcance: negado→restrito só com `sem_direito`, erro→falhou, zero→null (zero medido). */
+function ausenciaDe(estado: Estado, a: EntradaComoEsta): EstadoAusencia | null {
+  switch (estado) {
+    case 'negado': return ausenciaDoAcesso('negado', a.negativa ?? null) ?? 'falhou'
+    case 'erro': return 'falhou'
+    case 'sem-relatorio': case 'nada-lido': return 'nao_medido'
+    case 'zero': case 'ok': return null
+    default: { const nunca: never = estado; return nunca }
+  }
 }
 
 const plural = (n: number, um: string, muitos: string): string => `${int(n)} ${n === 1 ? um : muitos}`
@@ -229,7 +249,7 @@ const NOTA_TAXA = 'Compare com os seus próprios vídeos e períodos, não com o
 /** O bloco da taxa: o valor, "X de Y", o intervalo e a faixa; sem taxa, só a frase do motivo. */
 function taxaBloco(estado: Estado, a: EntradaComoEsta): TaxaBlocoView {
   const titulo = 'Taxa de clique do canal'
-  const sem = (vazio: string): TaxaBlocoView => ({ titulo, frase: null, faixa: null, vazio, nota: null })
+  const sem = (vazio: string): TaxaBlocoView => ({ titulo, frase: null, faixa: null, vazio, vazioEstado: ausenciaDe(estado, a) ?? 'nao_medido', nota: null })
   switch (estado) {
     case 'negado': return sem('Só quem edita o site vê a taxa de clique.')
     case 'erro': return sem(ERRO_ALCANCE)
@@ -247,7 +267,7 @@ function taxaBloco(estado: Estado, a: EntradaComoEsta): TaxaBlocoView {
     { t: canalLargo(t) ? '. Ainda não dá para dizer se é alta ou baixa.' : '.' },
   ]
   const faixa = buildTaxaFaixa({ alvo: t, canal: null, alt: `Taxa de clique do canal: ${pctUm(t.taxa)}, intervalo de 95% de ${pctUm(t.lo)} a ${pctUm(t.hi)}` })
-  return { titulo, frase, faixa, vazio: null, nota: NOTA_TAXA }
+  return { titulo, frase, faixa, vazio: null, vazioEstado: null, nota: NOTA_TAXA }
 }
 
 export function buildComoEsta(a: EntradaComoEsta): ComoEstaView {
@@ -259,7 +279,9 @@ export function buildComoEsta(a: EntradaComoEsta): ComoEstaView {
   return {
     recolhida,
     frase: fraseDoTopo(estado, a),
+    fraseEstado: ausenciaDe(estado, a),
     ...topDe(estado, a),
+    topVazioEstado: topDe(estado, a).topVazio == null ? null : ausenciaDe(estado, a) ?? (estado === 'zero' ? null : 'nao_medido'),
     noNicho: a.posicaoItens
       ? {
         intro: a.posicaoItens.intro,
@@ -280,6 +302,8 @@ export function montarComoEsta(a: {
   videos: EntradaComoEsta['videos']; concorrentes: ReadonlyArray<OpcaoConcorrente>; canalId: string
   /** O dia da publicação de cada vídeo do canal (`publicacoesDe`): o total de cada um começa nele. OBRIGATÓRIO: sem ele o corte seria esquecido em silêncio. */
   publicacoes: PublicacoesPorYtId
+  /** A negativa que a página carrega; ausente = não preenchida (negado vira `falhou`). */
+  negativa?: NegativaPrivada
 }): { view: ComoEstaView; grafico: ImpressoesView; graficoViews: ImpressoesView } {
   const al = a.dados.alcance
   const lido = al.acesso === 'ok' ? montarDias(al.dado, { hoje: a.hoje }) : null
@@ -287,15 +311,15 @@ export function montarComoEsta(a: {
   const periodo = lido?.periodo ?? null
   const porVideo = al.acesso === 'ok' ? alcancePorVideo(al.dado, a.publicacoes) : new Map<string, AlcanceVideo>()
   const parouEm = al.acesso === 'ok' ? al.dado.ultimoRelatorio : null
-  const grafico = buildImpressoes(dias, periodo, { escopo: 'canal', alturaArea: ALTURA_CANAL, dm: a.dm, acesso: al.acesso, hoje: a.hoje, parouEm })
+  const grafico = buildImpressoes(dias, periodo, { escopo: 'canal', alturaArea: ALTURA_CANAL, dm: a.dm, acesso: al.acesso, hoje: a.hoje, parouEm, negativa: a.negativa })
   // views por dia, soma dos vídeos longos acompanhados: do diário, que tem o seu próprio acesso (e o seu próprio "dia mais novo")
   const ytIds = a.videos.map(v => v.ytId)
   const vs = viewsDoCanalPorDia(a.dados.diario, ytIds)
-  const graficoViews = buildImpressoes(vs.dias, vs.periodo, { escopo: 'canal', alturaArea: ALTURA_VIEWS, unidade: 'views', dm: a.dm, acesso: a.dados.diario.acesso, hoje: a.hoje })
+  const graficoViews = buildImpressoes(vs.dias, vs.periodo, { escopo: 'canal', alturaArea: ALTURA_VIEWS, unidade: 'views', dm: a.dm, acesso: a.dados.diario.acesso, hoje: a.hoje, negativa: a.negativa })
   // o corte dos 50 longos mais novos do diário: a soma não é do canal inteiro e o gráfico diz
   if (vs.foraDoTeto > 0) graficoViews.avisos.push(foraDaLeituraFrase(vs.foraDoTeto))
   const view = buildComoEsta({
-    resumo: resumir(dias), periodo, acesso: al.acesso, porVideo, videos: a.videos, posicao: a.posicao, posicaoItens: a.posicaoItens,
+    resumo: resumir(dias), periodo, acesso: al.acesso, negativa: a.negativa, porVideo, videos: a.videos, posicao: a.posicao, posicaoItens: a.posicaoItens,
     concorrentes: a.concorrentes, canalId: a.canalId, dm: a.dm, hoje: a.hoje, parouEm,
     antesDaPublicacao: al.acesso === 'ok' ? alcanceAntesDaPublicacao(al.dado, a.publicacoes) : undefined,
   })

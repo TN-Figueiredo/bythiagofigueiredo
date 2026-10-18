@@ -369,7 +369,7 @@ async function ler(sb: SupabaseClient, p: PedidoDeComentarios): Promise<Comentar
       .filter((f) => f.saiuDesde === null) // a resposta que saiu do YouTube nunca entra
       .sort((a, b) => (a.publicadoMs ?? 0) - (b.publicadoMs ?? 0) || Number(BigInt(a.id) - BigInt(b.id)))
       .slice(0, COMMENT_RULES.creatorRepliesMax)
-      .map((f) => ({ texto: passar(f.texto ?? ''), cortado: f.cortado }))
+      .map((f) => ({ texto: passar(f.texto ?? ''), cortado: f.cortado, publicadoEm: f.publicadoMs === null ? null : new Date(f.publicadoMs).toISOString() }))
     const texto = passar(c.texto ?? '')
     const autor = comIdentidade ?? (c.isCreator ? { tipo: 'criador' as const } : c.motivo === 'inscritos' ? { tipo: 'canal_grande' as const } : { tipo: 'espectador' as const })
     return { ...cartao, texto, cortado: c.cortado, publicadoEm: new Date(c.publicadoMs ?? 0).toISOString(), respostasDoCriador, autor, mencoesTrocadas: trocadas }

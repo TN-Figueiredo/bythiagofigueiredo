@@ -28,13 +28,13 @@ export async function permissoesDoSite(siteId: string): Promise<PermissoesDoSite
 
 /**
  * O acesso ao diário que a lista leu, por canal próprio, como o pacote o entende (E17 degrau 1, Tarefa 8a, emenda 1: D-I1). A lista só lê o diário
- * (views por dia): o motivo do `VpdCanal` diz se a leitura foi negada ou falhou. `negativa` nasce nula (a 8b a preenche): o empacotador lê nulo como
+ * (views por dia): o motivo do `VpdCanal` diz se a leitura foi negada ou falhou. `negativa` vem da guarda que leu o diário (`extras.negativa`, decisão 75): o empacotador lê nulo como
  * "não conferido", nunca como "sem o direito". Sem canal próprio no site: vazio (vira `na`, não `excluido`).
  */
 export function privadoDaLista(extras: ExtrasProprio | undefined): EstadoDoPrivado {
   const acessoPorCanal: EstadoDoPrivado['acessoPorCanal'] = {}
   for (const [id, v] of extras?.vpd ?? []) acessoPorCanal[id] = { diario: v.motivo === 'sem-acesso' ? 'negado' : v.motivo === 'leitura-falhou' ? 'erro' : 'ok' }
-  return { acessoPorCanal, negativa: null }
+  return { acessoPorCanal, negativa: extras?.negativa ?? null }
 }
 
 const one = (v: string | undefined): string | undefined => v

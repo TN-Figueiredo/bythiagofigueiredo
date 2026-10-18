@@ -78,8 +78,8 @@ export const FRASES_DAS_HORAS: Record<MotivoDeHoras, (c: ContextoDeHoras) => Fra
     longa: 'fora do normal do canal: ao vivo ou estreia',
   }),
   leitura_falhou: () => ({
-    curta: 'não carregou',
-    longa: 'não carregou: não deu para ler as horas deste vídeo',
+    curta: 'a leitura falhou',
+    longa: 'a leitura falhou: não deu para ler as horas deste vídeo',
   }),
   sem_contagem_no_fim_das_72_horas: (c) => ({
     curta: 'leitura parou antes das 72 horas',

@@ -79,7 +79,7 @@ export interface EntradaDoCriador {
 }
 
 const MAX_COMENTARIOS = 12
-const NC = 'não carregou'
+const NC = 'a leitura falhou'
 
 function vazio(valor: TipoDaCelulaDoCriador, texto: string): CelulaDoCriadorComDado {
   return { valor, base: texto, motivo: texto, k: null, n: null, pct: null }
@@ -110,7 +110,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   if (e.videos === null || e.contagem === null || !e.contagem.lido) {
     return {
       celula: vazio('nao_carregou', NC),
-      bloco: semCasas('nao_carregou', 'Não carregou:', ' não deu para ler os comentários deste canal agora.', NC),
+      bloco: semCasas('nao_carregou', 'A leitura falhou:', ' não deu para ler os comentários deste canal agora.', NC),
     }
   }
   const c = e.contagem.dados
@@ -130,7 +130,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   }
   const viva = tarefaViva({ ultimoOkMs: c.ultimoOkDaTarefaMs, primeiraExecucaoMs: c.primeiraExecucaoDaTarefaMs, toleranciaH: DEFINICAO_RETRATOS_COMENTARIOS.toleranciaVigiaH, agoraMs: e.agoraMs })
   if (viva.estado === 'nao_lida') {
-    return { celula: vazio('nao_carregou', NC), bloco: semCasas('nao_carregou', 'Não carregou:', ' não deu para saber se a coleta de comentários está rodando.', NC) }
+    return { celula: vazio('nao_carregou', NC), bloco: semCasas('nao_carregou', 'A leitura falhou:', ' não deu para saber se a coleta de comentários está rodando.', NC) }
   }
   if (viva.estado === 'parada') {
     const f = celulaDoCriador('parada')
@@ -196,7 +196,7 @@ export function criadorDoCanal(e: EntradaDoCriador): ModeloDoCriador {
   let curta: string
   let semColeta = false
   if (m.motivo === 'fecha_em' && m.fechaEm) {
-    frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${nBase} dos ${total} vídeos dos últimos ${janela} dias ${nBase === 1 ? 'já tem' : 'já têm'} o retrato de 30 dias; o primeiro dos outros fecha em ${dm(m.fechaEm)}.` }
+    frase = { negrito: '', resto: `Só ${nBase} dos ${total} vídeos dos últimos ${janela} dias ${nBase === 1 ? 'já tem' : 'já têm'} o retrato de 30 dias; o primeiro dos outros fecha em ${dm(m.fechaEm)}. Quanto ele responde por vídeo ainda não é medido.` }
     curta = `não medido: o primeiro retrato de 30 dias fecha em ${dm(m.fechaEm)}`
   } else if (m.motivo === 'poucos_videos') {
     frase = { negrito: 'Ainda não dá para medir.', resto: ` Só ${m.n ?? nBase} dos ${total} vídeos ${(m.n ?? nBase) === 1 ? 'tem' : 'têm'} retrato de 30 dias, e a conta pede pelo menos ${m.minimo ?? MEASURE_RULES.comments.minVideos}.` }

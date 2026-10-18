@@ -152,7 +152,7 @@ describe('E5a T21a, subida, mudanças e contagem por semana', () => {
     expect(semanal).not.toContain('obs-ch-nm')
   })
   it('mudanças: não lidas são "não carregou"; sem nenhuma, a frase com a data; a nota "fora dos 14 dias antes" só nos de fora', () => {
-    expect(html(<ListaDeMudancasHistorico lista={null} />)).toContain('Não carregou')
+    expect(html(<ListaDeMudancasHistorico lista={null} />)).toContain('falhou')
     const vazia = html(<ListaDeMudancasHistorico lista={listaDeMudancas([], { subidaDia: null, inicioDoHistorico: '2026-10-03' })} />)
     expect(vazia).toContain('Nenhuma mudança vista desde 03/10')
   })

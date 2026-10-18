@@ -14,6 +14,7 @@ import type { ExtrasDoCanal } from '@/lib/youtube/observatorio/medidas-telas/ler
 import { avisoDeContagem, aindaNaoExiste, primeiras24hDesde } from '@/lib/youtube/observatorio/medidas-telas/calendario'
 import { direcaoExibida, type SimboloDeDirecao } from '@/lib/youtube/observatorio/medidas-telas/direcao-exibida'
 import { FRASES, classeDoMotivo } from '@/lib/youtube/observatorio/medidas-telas/frases'
+import { ausenciaDoMotivoNaoMedido, type EstadoAusencia } from '../_chrome/ausencia/estado'
 import { celulaDeDirecao, FRASE_CANAL_PROPRIO } from '../_canais/direcao-model'
 import { estadoDaLinha, type EstadoDaLinha } from '../_canais/estado-model'
 
@@ -86,7 +87,8 @@ export const longos = (n: number): string => `${n} ${n === 1 ? 'longo' : 'longos
 /* ================================================================================================================== as formas de célula */
 
 export type Falta =
-  | { tipo: 'nao_medido'; motivo: MotivoNaoMedido; porque: string }
+  /** `ausencia`: decisão 75. As medidas do site são dos concorrentes (`proprio:false`): nunca `restrito`; `leitura_falhou`/`calculo_falhou` já viram `nao_carregou` (que desenha `falhou`). */
+  | { tipo: 'nao_medido'; motivo: MotivoNaoMedido; porque: string; ausencia: EstadoAusencia }
   | { tipo: 'nao_carregou' }
   | { tipo: 'canal_proprio'; porque: string }
 export type Ainda = { tipo: 'ainda_nao_existe'; existeEm: string }
@@ -149,8 +151,11 @@ function porque(m: Extract<Medida<unknown>, { estado: 'nao_medido' }>, o: { unid
 
 function falta(m: Extract<Medida<unknown>, { estado: 'nao_medido' }>, o?: { unidade?: string; idade?: 1 | 7 | 30 }): Falta {
   if (classeDoMotivo(m.motivo) === 'nao_carregou') return { tipo: 'nao_carregou' }
-  return { tipo: 'nao_medido', motivo: m.motivo, porque: porque(m, o) }
+  return { tipo: 'nao_medido', motivo: m.motivo, porque: porque(m, o), ausencia: ausDeConcorrente(m.motivo) }
 }
+
+/** As medidas do site são só dos concorrentes: nunca `restrito`. */
+const ausDeConcorrente = (m: MotivoNaoMedido): EstadoAusencia => ausenciaDoMotivoNaoMedido(m, { proprio: false })
 
 const PROPRIO: Falta = { tipo: 'canal_proprio', porque: FRASE_CANAL_PROPRIO }
 const NAO_CARREGOU: Falta = { tipo: 'nao_carregou' }
@@ -209,12 +214,12 @@ function contagemDe(l: MedidasDoCanalPack['longos']): CelulaContagem {
     const porque = l.cobertura.desde
       ? `os vídeos guardados deste canal só começam em ${dm(l.cobertura.desde)}; o período anterior ficaria incompleto`
       : 'ainda não há vídeos com data guardados deste canal'
-    return { tipo: 'nao_medido', motivo: 'leitura_comecou_depois', porque }
+    return { tipo: 'nao_medido', motivo: 'leitura_comecou_depois', porque, ausencia: ausDeConcorrente('leitura_comecou_depois') }
   }
   const min = 3
   if (l.recente < min && l.anterior < min) {
     const porque = l.recente === 0 && l.anterior === 0 ? 'nenhum longo nos dois períodos' : `${longos(l.recente)} contra ${l.anterior}; precisa de ${min} em um dos períodos`
-    return { tipo: 'nao_medido', motivo: 'poucos_videos', porque }
+    return { tipo: 'nao_medido', motivo: 'poucos_videos', porque, ausencia: ausDeConcorrente('poucos_videos') }
   }
   const d = l.recente - l.anterior
   const variacao = l.anterior > 0 ? d / l.anterior : d > 0 ? 1 : 0
@@ -258,7 +263,7 @@ export function medidasDoLado(c: { id: string; own: boolean; medidasDoLado?: Med
     }
   } else if (dirA.tipo === 'nao_carregou') a = NAO_CARREGOU
   else if (dirA.tipo === 'canal_proprio') a = PROPRIO
-  else a = { tipo: 'nao_medido', motivo: dirA.motivo, porque: m.m3a.estado === 'nao_medido' && !extras?.missingSince ? porque(m.m3a) : dirA.curta }
+  else a = { tipo: 'nao_medido', motivo: dirA.motivo, porque: m.m3a.estado === 'nao_medido' && !extras?.missingSince ? porque(m.m3a) : dirA.curta, ausencia: ausDeConcorrente(dirA.motivo) }
   return {
     id: c.id, proprio: false, naoCarregou: false, estado, ate, a,
     b: direcaoDeVideos(m.m3b, hojeSP, null),

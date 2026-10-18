@@ -1,3 +1,4 @@
+import type { RestoreStatus } from '@/lib/youtube/ab-restore'
 export const VARIANT_LABELS = ['B', 'C', 'D'] as const
 export type VariantLabel = (typeof VARIANT_LABELS)[number]
 
@@ -65,6 +66,10 @@ export interface AbTestRow {
   revert_expires_at: string | null
   drift_acknowledged_at: string | null
   applied_by: string | null
+  /** Retrato da restauração (jsonb cru; leitura tolerante por `paraRestoreStatus`). */
+  restore_status?: unknown
+  /** Contador de reivindicações de saída (CAS do diálogo de pausar/encerrar). */
+  restore_seq?: number
 }
 
 export interface VariantMetadata {
@@ -152,6 +157,8 @@ export interface VariantStats {
   label: string
   blob_url: string | null
   title_text: string | null
+  /** "LxA" em texto (ex.: "1280x720"); nulo = original de antes da T4 ou sem thumbnail guardada. */
+  dimensions?: string | null
   metadata: VariantMetadata
   is_original: boolean
   total_impressions: number
@@ -244,6 +251,8 @@ export interface AbTestResults {
   timeline: AbTestCycleRow[]
   data_freshness: string
   latestPolls?: AbTestPollRow[]
+  /** Id do vídeo no YouTube (`youtube_videos.youtube_video_id`), do join; nulo = vídeo não achado. */
+  youtubeId?: string | null
 }
 
 /* --- Chart variant hierarchy (Layer 1 redesign) --- */
@@ -405,6 +414,10 @@ export interface VariantDbEntry {
   label: DisplayLabel
   is_original: boolean
   blob_url: string | null
+  /** Título da variante; nulo = o do vídeo (original). */
+  title_text?: string | null
+  /** "LxA" em texto; só a original importa (aviso de baixa resolução). */
+  dimensions?: string | null
 }
 
 export interface AbTestBaseView {
@@ -427,6 +440,16 @@ export interface AbTestBaseView {
   gates: GateResult[]
   activeNow: DisplayLabel | null
   createdAt: string
+  /** Retrato da restauração já validado; nulo = mundo antigo ou ilegível (a página distingue pelo jsonb cru). */
+  restoreStatus: RestoreStatus | null
+  /** Id do vídeo no YouTube (link do Studio); nulo = sem link. */
+  youtubeVideoId: string | null
+  /** Variante do último ciclo fechado (a que estava no ar quando o teste saiu) e quando entrou. */
+  noArAntes: { label: DisplayLabel; desde: string | null } | null
+  /** Variante do ciclo aberto (no ar agora) e quando entrou; nulo = nenhum ciclo aberto. */
+  noArAgora?: { label: DisplayLabel; desde: string | null } | null
+  /** `restore_seq` no momento da leitura: a tela devolve como `seqVisto` ao pausar/encerrar (recusa se mudou em outra aba). */
+  restoreSeq: number
 }
 
 export interface AbTestActiveView extends AbTestBaseView {

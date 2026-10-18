@@ -5,7 +5,7 @@
  * (`fala` de cada ponto) dentro de `GraficoLegivel`. Componente de servidor.
  */
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
-import { NaoCarregou } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { BlocoAindaNaoExiste, BlocoNaoMedido, CabecaDoBloco } from './hv-pecas'
 import { Pares } from './pares'
 import { abrev, dm } from './formatos'
@@ -83,7 +83,7 @@ export function CurvaPorIdade({ bloco }: { bloco: BlocoDeIdade }) {
     return (
       <section className="hv-card" aria-labelledby="hIdade" data-bloco-estado="nao_carregou">
         <CabecaDoBloco id="hIdade" titulo={TITULO_DA_IDADE} info={INFO_DA_IDADE} rotuloDoInfo={ROT} />
-        <NaoCarregou medida="Views por idade" />
+        <PastilhaAusencia estado="falhou" motivo="Views por idade" />
         <p className="hv-fr hv-mut">{bloco.frase}</p>
       </section>
     )

@@ -1,8 +1,8 @@
-// Degrau "administrar o site" — teste A/B. Aplicar, forçar ou reverter vencedor
-// troca título/thumbnail no canal de verdade: só quem administra.
+// Degrau "administrar o site" — teste A/B. Deixar uma variante no ar, forçar rotação ou reverter
+// vencedor troca título/thumbnail no canal de verdade: só quem administra.
 //   (a) editora → negado, service client nem é criado, YouTube não é chamado;
 //   (b) org_admin → passa do guarda (os caminhos felizes completos estão em
-//       test/ab-p3-actions, test/ab-force-rotate e test/ab-actions-end);
+//       test/ab-p3-actions, test/ab-force-rotate, test/youtube/ab-p4a-chamadores e test/youtube/ab-settle);
 //   (c) erro da RPC de permissão → negado.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SessionWho, ServiceLog } from '../helpers/site-admin-session'
@@ -55,7 +55,6 @@ const isRefusal = (r: Res) => r.ok === false && /^Só quem administra o site pod
 
 const ALWAYS: Array<{ name: string; run: () => Promise<Res> }> = [
   { name: 'forceRotate', run: () => ab.forceRotate('test-1') },
-  { name: 'applyWinnerNow', run: () => ab.applyWinnerNow('test-1') },
   { name: 'revertWinner', run: () => ab.revertWinner('test-1') },
 ]
 
@@ -98,40 +97,51 @@ describe('degrau "administrar o site" — teste A/B', () => {
     })
   })
 
-  describe('endAbTest — só aplicar uma variante VENCEDORA é do degrau', () => {
-    const active = { id: 'v-b', status: 'active', site_id: 'site-1', youtube_video_id: 'vid-1', youtube_channel_id: 'ch-1', channel_account_id: 'acc-1', blob_url: 'https://blob.test/b.png', label: 'B' }
+  describe('endAbTest — só deixar uma VARIANTE no ar é do degrau', () => {
+    // A linha devolvida por toda leitura serve de variante original: id 'v-orig'.
+    const linha = { id: 'v-orig', status: 'active', site_id: 'site-1', youtube_video_id: 'vid-1', is_original: true }
+    const variante = { destino: 'variante', varianteId: 'v-b', seqVisto: 0 } as const
 
-    it('(a) editora + vencedor que NÃO é o original: negado, nada escrito, thumbnail não muda', async () => {
-      arrange('editor', { ...active, is_original: false })
-      const res = await ab.endAbTest('test-1', 'v-b')
+    it('(a) editora + variante que NÃO é a original: negado, nada escrito, YouTube não é chamado', async () => {
+      arrange('editor', linha)
+      const res = await ab.endAbTest('test-1', variante)
       expect(isRefusal(res)).toBe(true)
+      expect(sess.rpcCalls).toEqual(['can_admin_site_users'])
       expect(log.writes).toEqual([])
+      expect(log.rpcs).toEqual([])
       expect(yt.calls).toEqual([])
     })
 
-    it('(c) erro da RPC + vencedor não-original: negado, nada escrito', async () => {
-      arrange('rpc_error', { ...active, is_original: false })
-      const res = await ab.endAbTest('test-1', 'v-b')
-      expect(isRefusal(res)).toBe(true)
-      expect(log.writes).toEqual([])
-      expect(yt.calls).toEqual([])
+    it('(c) erro da RPC e sessão sem usuário + variante não-original: negado, nada escrito', async () => {
+      for (const who of ['rpc_error', 'anon'] as const) {
+        arrange(who, linha)
+        const res = await ab.endAbTest('test-1', variante)
+        // anon cai antes, na sessão ('unauthenticated'); rpc_error cai no degrau, com a frase da variante.
+        if (who === 'anon') expect(res).toMatchObject({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })
+        else expect(isRefusal(res)).toBe(true)
+        expect(log.writes).toEqual([])
+        expect(log.rpcs).toEqual([])
+        expect(yt.calls).toEqual([])
+      }
     })
 
-    it('(b) org_admin + vencedor não-original: aplica e encerra', async () => {
-      arrange('admin', { ...active, is_original: false })
-      const res = await ab.endAbTest('test-1', 'v-b')
+    it('(b) org_admin + variante não-original: passa do guarda e chega ao banco', async () => {
+      arrange('admin', linha)
+      const res = await ab.endAbTest('test-1', variante)
       expect(isRefusal(res)).toBe(false)
-      expect(log.writes.some((w) => w.table === 'ab_tests' && w.op === 'update')).toBe(true)
+      expect(sess.rpcCalls).toEqual(['can_admin_site_users'])
+      expect(log.clients).toBeGreaterThan(0)
     })
 
-    it('editora continua podendo encerrar restaurando o ORIGINAL (com ou sem winnerId)', async () => {
-      arrange('editor', { ...active, is_original: true })
-      expect(isRefusal(await ab.endAbTest('test-1', 'v-b'))).toBe(false)
-      expect(log.writes.some((w) => w.table === 'ab_tests' && w.op === 'update')).toBe(true)
+    it('editora continua podendo encerrar voltando ao ORIGINAL (destino original ou o id da original): nem pergunta pelo degrau', async () => {
+      arrange('editor', linha)
+      expect(isRefusal(await ab.endAbTest('test-1', { destino: 'variante', varianteId: 'v-orig', seqVisto: 0 }))).toBe(false)
+      expect(sess.rpcCalls).toEqual([])
 
-      arrange('editor', { ...active, is_original: true })
-      expect(isRefusal(await ab.endAbTest('test-1'))).toBe(false)
-      expect(sess.rpcCalls).toEqual([]) // sem vencedor nem pergunta pelo degrau
+      arrange('editor', linha)
+      expect(isRefusal(await ab.endAbTest('test-1', { destino: 'original', seqVisto: 0 }))).toBe(false)
+      expect(sess.rpcCalls).toEqual([])
+      expect(log.clients).toBeGreaterThan(0)
     })
   })
 
@@ -139,7 +149,6 @@ describe('degrau "administrar o site" — teste A/B', () => {
     arrange('editor', { id: 'test-1', status: 'active', site_id: 'site-1' })
     expect(isRefusal(await ab.pauseAbTest('test-1'))).toBe(false)
     expect(isRefusal(await ab.resumeAbTest('test-1'))).toBe(false)
-    expect(isRefusal(await ab.cancelGracePeriod('test-1'))).toBe(false)
     expect(sess.rpcCalls).toEqual([])
   })
 })

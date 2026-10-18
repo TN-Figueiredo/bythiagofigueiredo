@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { CHANNEL_LOCALES, channelLocaleDef, type ChannelLocale } from './channel-locales'
 import { isNicheSlug } from './observatorio/niche'
 import { showcaseChannels } from './showcase'
+import type { CampoNome } from './ab-restore'
 
 /* ------------------------------------------------------------------ slug */
 
@@ -121,6 +122,33 @@ export interface RemovalImpact {
   /** Linhas da coleta (metadados diários, relatórios, jobs, tentativas) que apontam para o canal. Maior que zero impede a remoção. */
   serieColetada: number
   blockers: RemovalBlocker[]
+  /**
+   * Restaurações do A/B que ficaram pendentes em vídeos do canal (emenda 39). Depois da remoção só o YouTube Studio corrige.
+   * `null` = a leitura falhou (nunca lista vazia no lugar de erro). Não bloqueia a remoção.
+   */
+  restauracoesPendentes: RestauracaoPendente[] | null
+}
+export type EstadoPendente = 'falhou' | 'desistiu' | 'em_andamento' | 'pulado_drift' | 'pulado_sem_original'
+export interface RestauracaoPendente {
+  testId: string
+  videoTitulo: string
+  campo: CampoNome
+  estado: EstadoPendente
+  /** "a variante B", "o original", "o título editado por fora" ou "não se sabe". */
+  noAr: string
+}
+export const RESTAURACOES_NAO_CONFERIDAS = 'Não foi possível conferir restaurações pendentes deste canal. Confira os testes A/B dele antes de remover.'
+/** Uma frase por restauração pendente. */
+export function restauracaoLinha(r: RestauracaoPendente): string {
+  const campo = r.campo === 'title' ? 'título' : 'thumbnail'
+  const artigo = r.campo === 'title' ? 'O' : 'A'
+  const fim = ' Depois da remoção, só o YouTube Studio corrige.'
+  const v = r.videoTitulo.trim() || '(sem título)'
+  if (r.noAr === 'não se sabe') return `Não se sabe o que está no ar ${r.campo === 'title' ? 'no título' : 'na thumbnail'} do vídeo ${v}.${fim}`
+  if (r.estado === 'pulado_drift') return `${artigo} ${campo} do vídeo ${v} foi editado por fora.${fim}`
+  // Voltando ao original e ainda em andamento: quase terminou, sem alarme.
+  if (r.estado === 'em_andamento' && r.noAr === 'o original') return `A restauração d${artigo === 'O' ? 'o' : 'a'} ${campo} do vídeo ${v} ainda está em andamento e deve terminar com o original. Se não terminar antes da remoção, só o YouTube Studio corrige.`
+  return `${artigo} ${campo} do vídeo ${v} ficou com ${r.noAr}.${fim}`
 }
 export type RemovalImpactResult = { ok: true; impact: RemovalImpact } | { ok: false; error: string }
 export type RemoveChannelResult =
@@ -167,6 +195,8 @@ export function parseRemovalRpc(raw: unknown): RemovalRpc {
       name: r.name, slug: r.slug, videos: r.videos, comments: r.comments, syncLogs: r.sync_logs, abTests: r.ab_tests, abDrafts: r.ab_drafts,
       analyses: r.analyses, tasks: r.tasks, notes: r.notes, notifications: r.notifications, connections: r.connections, pipelineLinks: r.pipeline_links,
       serieColetada: r.serie_coletada,
+      // preenchido pela action (leitura própria); aqui ainda não foi conferido
+      restauracoesPendentes: [],
       blockers: r.blockers.map(b => ({
         id: b.id, name: b.name, status: b.status, videoTitle: b.video_title,
         since: b.status === 'queued' ? null : b.status === 'paused' ? (b.paused_at ?? b.started_at) : b.started_at,

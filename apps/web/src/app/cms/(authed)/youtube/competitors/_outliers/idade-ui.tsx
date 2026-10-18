@@ -5,6 +5,7 @@
  */
 import '../_chrome/medidas/medidas.css'
 import { NaoMedido, ZeroMedido } from '../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import type { CelulaDeIdadeView, IdadeView } from './view-model'
 
 export function Selo() {
@@ -40,10 +41,7 @@ export function CelulaIdade({ c, idade }: { c: CelulaDeIdadeView; idade: 7 | 30 
   }
   return (
     <div data-cel={idade} data-estado="erro">
-      <span className="obs-out-er" role="img" aria-label={c.aria}>
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 15 14H1z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M8 6.5v3.4M8 11.6v.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-        não carregou
-      </span>
+      <PastilhaAusencia estado="falhou" motivo={c.aria.replace(/^falhou: /, '')} />
     </div>
   )
 }

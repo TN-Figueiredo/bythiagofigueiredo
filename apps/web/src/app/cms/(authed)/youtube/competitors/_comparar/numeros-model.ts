@@ -15,7 +15,9 @@
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { DAY } from '@/lib/youtube/observatorio/time'
 import { acima2x, durText, duracaoMediana, trocas30, viewsMediana, vpdText } from '../_canal/numeros'
-import { SEM_LEITURA, type ExtrasProprio } from '../_proprio/extras'
+import { SEM_LEITURA, SEM_LEITURA_NO_MAPA, type ExtrasProprio } from '../_proprio/extras'
+import { ausenciaDoVpdComNegativa, type EstadoAusencia } from '../_chrome/ausencia/estado'
+import type { MotivoSemVpd } from '@/lib/youtube/observatorio/proprio/vpd'
 import { baseVpdTexto, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
 
 export type NumeroId = 'inscritos' | 'inscritos30' | 'longosAcomp' | 'longos90' | 'ritmo' | 'diasUltimo' | 'medianaViews' | 'vpd' | 'vpdPorMil' | 'engajamento' | 'acima2x' | 'duracao' | 'trocas30'
@@ -27,7 +29,8 @@ export const NUMEROS: readonly NumeroId[] = ['inscritos', 'inscritos30', 'longos
 export const NO_NICHO: ReadonlySet<NumeroId> = new Set<NumeroId>(['inscritos', 'longosAcomp', 'longos90', 'medianaViews', 'vpd', 'vpdPorMil'])
 
 /** x null = não medido (com `motivo`); x 0 = zero medido. `texto` é o valor como a tela o escreve; `nota` é a segunda linha. */
-export interface Numero { x: number | null; texto: string | null; motivo: string | null; nota: string | null }
+/** `ausencia` (decisão 75): null ⇔ `x != null`. `restrito` só no canal próprio sem acesso às views por dia; os demais motivos são `nao_medido`; falha de leitura é `falhou`. */
+export interface Numero { x: number | null; texto: string | null; motivo: string | null; nota: string | null; ausencia: EstadoAusencia | null }
 
 /** Por que um número não foi medido. A frase sai de `motivoTexto`, um `switch` exaustivo: tipo novo sem frase não compila. */
 export type Motivo =
@@ -41,7 +44,7 @@ export type Motivo =
   | { k: 'semPercentual' }
   | { k: 'semViewsLongos' }
   /** Canal próprio sem views por dia: `texto` é o motivo de `motivoVpdTexto` (sem acesso, leitura falhou, sem coleta, coleta parou…). */
-  | { k: 'semVpdProprio'; texto: string }
+  | { k: 'semVpdProprio'; texto: string; motivo: MotivoSemVpd; ausencia: EstadoAusencia | null }
   /** Concorrente com longos acompanhados, mas ainda sem o 2º registro diário: o tempo resolve. */
   | { k: 'semDiarioConcorrente' }
   /** Concorrente sem nenhum longo acompanhado (só Shorts, ou nenhum longo no limite): esperar não resolve. A frase é a da lista de Canais. */
@@ -81,7 +84,7 @@ export function motivoTexto(m: Motivo): string {
 const EXEMPLOS: Record<Motivo['k'], Motivo> = {
   subsOcultos: { k: 'subsOcultos' }, subsZero: { k: 'subsZero' }, primeiraSync: { k: 'primeiraSync' }, semVideos: { k: 'semVideos' },
   semDataVideo: { k: 'semDataVideo' }, sem30: { k: 'sem30', falta: null }, semPercentual: { k: 'semPercentual' },
-  semViewsLongos: { k: 'semViewsLongos' }, semVpdProprio: { k: 'semVpdProprio', texto: motivoVpdTexto('sem-diario', { ultimoDia: null }, () => '') }, semDiarioConcorrente: { k: 'semDiarioConcorrente' },
+  semViewsLongos: { k: 'semViewsLongos' }, semVpdProprio: { k: 'semVpdProprio', texto: motivoVpdTexto('sem-diario', { ultimoDia: null }, () => ''), motivo: 'sem-diario', ausencia: 'nao_medido' }, semDiarioConcorrente: { k: 'semDiarioConcorrente' },
   semLongoAcompanhado: { k: 'semLongoAcompanhado' }, semMultiploProprioRecente: { k: 'semMultiploProprioRecente' }, invalido: { k: 'invalido' },
   semEngajamento: { k: 'semEngajamento' }, semMultiplo: { k: 'semMultiplo', proprio: false }, semDuracao: { k: 'semDuracao' }, trocasAbLab: { k: 'trocasAbLab' },
 }
@@ -99,9 +102,9 @@ export const MOTIVOS: readonly Motivo[] = [
  */
 function medido(x: number, texto: string, nota: string | null = null, podeSerNegativo = false): Numero {
   if (!Number.isFinite(x) || texto.trim() === '' || (x < 0 && !podeSerNegativo)) throw new Error(`número medido inválido: x=${x} texto="${texto}"`)
-  return { x, texto, motivo: null, nota }
+  return { x, texto, motivo: null, nota, ausencia: null }
 }
-const naoMedido = (m: Motivo): Numero => ({ x: null, texto: null, motivo: motivoTexto(m), nota: null })
+const naoMedido = (m: Motivo): Numero => ({ x: null, texto: null, motivo: motivoTexto(m), nota: null, ausencia: m.k === 'semVpdProprio' ? (m.ausencia ?? 'nao_medido') : m.k === 'invalido' ? 'falhou' : 'nao_medido' })
 
 /** Zero medido é "0"; qualquer outro valor, uma casa decimal. */
 const umaCasa = (v: number, dec1: (x: number) => string) => (v === 0 ? '0' : dec1(v))
@@ -185,12 +188,12 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
   // views por dia. Canal próprio: do diário (`extras`, janela de 28 dias do YouTube); sem `extras` o dado não foi lido (nunca um número). O
   // concorrente diz a janela dele na nota ("desde 03/10"): a linha põe lado a lado dois métodos e cada lado escreve o seu.
   const dm = extras?.dm ?? (() => '')
-  const proprio = () => extras?.vpd.get(ch.id) ?? SEM_LEITURA
+  const proprio = () => (extras ? extras.vpd.get(ch.id) ?? SEM_LEITURA_NO_MAPA : SEM_LEITURA)
   const notaConcorrente = SL.vpdMedian == null ? null : `views por dia ${SL.vpdWindow}, mediana de ${F.plural(SL.vpdN, 'longo', 'longos')}`
   /** O valor absoluto do canal próprio, ou o motivo de não haver. */
   const vpdProprio = (): { v: number; nota: string | null } | Numero => {
     const p = proprio()
-    if (p.valor == null) return naoMedido({ k: 'semVpdProprio', texto: motivoVpdTexto(p.motivo ?? 'sem-diario', p, dm) })
+    if (p.valor == null) return naoMedido({ k: 'semVpdProprio', texto: motivoVpdTexto(p.motivo ?? 'sem-diario', p, dm), motivo: p.motivo ?? 'sem-diario', ausencia: ausenciaDoVpdComNegativa(p.motivo ?? 'sem-diario', extras?.negativa ?? null) })
     return { v: p.valor, nota: baseVpdTexto(p, dm) }
   }
   const vpd = seguro('vpd', () => com(() => {

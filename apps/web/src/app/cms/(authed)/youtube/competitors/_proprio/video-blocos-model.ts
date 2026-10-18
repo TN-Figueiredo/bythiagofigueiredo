@@ -31,6 +31,7 @@ import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimens
 import type { DadosDoVideo, DiarioLongo } from './dados'
 import type { Nivel, OrigemView, PeriodoEntrada } from './origem-model'
 import { cliquesTexto, lerEstado } from './header-model'
+import { ausenciaDoAcesso, type EstadoAusencia, type NegativaPrivada } from '../_chrome/ausencia/estado'
 import { buildAssistidoPeriodos, type AssistidoPeriodosView } from './assistido-periodo-model'
 import { buildImpressoes, int, SEM_RELATORIO, semRelatorioFrase, type ImpressoesView } from './impressoes-model'
 import { buildReguas, type DiarioReguas, type ReguasView } from './reguas-model'
@@ -115,6 +116,8 @@ export interface VideoBlocosView {
   acesso: 'ok' | 'negado' | 'erro'
   /** negado / erro: a frase única que ocupa o lugar dos blocos privados; null = foram montados */
   nota: string | null
+  /** Decisão 75: o estado de ausência de `nota` (negado→restrito só com `sem_direito`, senão falhou; erro→falhou); null = os blocos foram montados. */
+  ausencia: EstadoAusencia | null
   views: BlocoViews | null
   impressoes: BlocoImpressoes | null
   assistido: BlocoAssistido | null
@@ -136,6 +139,8 @@ export interface EntradaBlocos {
   dm: (d: DiaYt) => string
   /** Para onde Enter e o segundo toque num traço da régua levam (preserva o `back=` da página); ausente = os traços não abrem nada. */
   hrefVideo?: (id: string) => string
+  /** Por que o acesso foi negado (a da página). Ausente = não preenchida: negado vira `falhou`, nunca cadeado (decisão 75). */
+  negativa?: NegativaPrivada
 }
 
 /* ---------------------------------------------------------------- frases fixas */
@@ -390,14 +395,16 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
   /* sem acesso ao dado privado: só a parte pública das réguas, e nenhuma conta com número privado */
   if (a.dados.acesso !== 'ok') {
     const negado = a.dados.acesso === 'negado'
+    const ausencia = ausenciaDoAcesso(a.dados.acesso, a.negativa ?? null) ?? 'falhou'
     const reguas = buildReguas({
       videoId, videos, porVideo: new Map(), alcanceLido: false, dias: { medidos: 0, semRelatorio: 0 }, periodoTexto: null, hrefs, hrefVideo: a.hrefVideo, fmt: F,
       motivoImpressoes: negado ? 'só quem edita o site vê as impressões' : 'a leitura das impressões falhou agora; recarregue a página',
+      ausenciaImpressoes: ausencia,
     })
     return {
-      acesso: negado ? 'negado' : 'erro', nota: negado ? NOTA_NEGADO : NOTA_ERRO, views: null, impressoes: null, assistido: null,
+      acesso: negado ? 'negado' : 'erro', nota: negado ? NOTA_NEGADO : NOTA_ERRO, ausencia, views: null, impressoes: null, assistido: null,
       // sem acesso ao dado privado: nenhum ponto, data ou número da curva (o estado diz só quem vê)
-      retencao: buildRetencaoView({ retencao: { acesso: negado ? 'negado' : 'erro' }, duracaoSeg: este.dur, dm }),
+      retencao: buildRetencaoView({ retencao: { acesso: negado ? 'negado' : 'erro' }, duracaoSeg: este.dur, dm, negativa: a.negativa }),
       canal: { reguas, notaDiario: negado ? NOTA_DIARIO_NEGADO : NOTA_DIARIO_ERRO }, ...fixos,
     }
   }
@@ -473,8 +480,8 @@ export function buildVideoBlocos(a: EntradaBlocos): VideoBlocosView {
     ...(diarioReguas ? { diario: diarioReguas } : {}),
   })
 
-  const retencao = buildRetencaoView({ retencao: a.dados.dado.retencao, duracaoSeg: este.dur, dm })
-  return { acesso: 'ok', nota: null, views, impressoes, assistido, retencao, canal: { reguas, notaDiario }, ...fixos }
+  const retencao = buildRetencaoView({ retencao: a.dados.dado.retencao, duracaoSeg: este.dur, dm, negativa: a.negativa })
+  return { acesso: 'ok', nota: null, ausencia: null, views, impressoes, assistido, retencao, canal: { reguas, notaDiario }, ...fixos }
 }
 
 
@@ -487,7 +494,7 @@ const dmy = (d: DiaYt): string => d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d
  * de onde saem o % do vídeo e o último dia; `longo` é o que `lerDiarioLongo` leu para os OUTROS vídeos do canal (`ytIds`, sem o vídeo da tela); nulo = o canal não tem diário.
  * O `comBuraco` de cada período vem de `totalDoPeriodo` e é nulo quando a cobertura não é conhecida. Nada daqui lança.
  */
-export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[]; diario: DiarioCanal; longo: Privado<DiarioLongo> | null }): AssistidoPeriodosView {
+export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[]; diario: DiarioCanal; longo: Privado<DiarioLongo> | null; negativa?: NegativaPrivada }): AssistidoPeriodosView {
   const base = { tela: 'video' as const, faixas: null, dm: (d: DiaYt) => d.slice(8, 10) + '/' + d.slice(5, 7), dmy }
   const semLeitura = (motivo: 'sem-acesso' | 'leitura-falhou' | 'sem-diario'): Record<PeriodoAssistido, NormalDoPeriodo> => ({
     inteiro: normalSemLeitura('inteiro', motivo), '90': normalSemLeitura('90', motivo), '28': normalSemLeitura('28', motivo),
@@ -497,7 +504,7 @@ export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[
   if (a.longo === null) return buildAssistidoPeriodos({ ...base, ...vazio, acesso: 'ok', normais: semLeitura('sem-diario') })
   if (a.longo.acesso !== 'ok') {
     const negado = a.longo.acesso === 'negado'
-    return buildAssistidoPeriodos({ ...base, ...vazio, acesso: negado ? 'negado' : 'erro', normais: semLeitura(negado ? 'sem-acesso' : 'leitura-falhou') })
+    return buildAssistidoPeriodos({ ...base, ...vazio, acesso: negado ? 'negado' : 'erro', negativa: a.negativa, normais: semLeitura(negado ? 'sem-acesso' : 'leitura-falhou') })
   }
   const ultimoDia = a.diario.ultimoDia
   const videoPct = assistidoDoVideo({ acesso: 'ok', dado: a.diario }, a.ytId).pct
@@ -539,8 +546,9 @@ export function buildAssistidoDoVideo(a: { ytId: string; ytIds: readonly string[
 export function ateDaOrigem(ultimoDia: DiaYt | null, hojePt: DiaYt): DiaYt { return ultimoDia ?? addDays(hojePt, -3) }
 
 /** O nível (4.5): sem prova de leitura, só o aviso; termos negados para quem a página sabe que NÃO edita, sem termos; o resto (inclusive erro, e negado para quem edita) é "tudo". */
-export function nivelDaOrigem(a: { temLeitura: boolean; termos: Privado<DetalheCanal>; podeEditar: boolean }): Nivel {
-  if (!a.temLeitura) return 'so-aviso'
+/** `falhou`: sem leitura porque a guarda de permissão caiu (decisão 75): o nível libera o bloco único de erro, nunca o aviso "você não vê". */
+export function nivelDaOrigem(a: { temLeitura: boolean; termos: Privado<DetalheCanal>; podeEditar: boolean; falhou?: boolean }): Nivel {
+  if (!a.temLeitura) return a.falhou ? 'tudo' : 'so-aviso'
   if (a.termos.acesso === 'negado' && !a.podeEditar) return 'sem-termos'
   return 'tudo'
 }

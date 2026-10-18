@@ -146,7 +146,7 @@ export function estadoDaLeituraPorHora(
   agoraMs: number,
 ): EstadoDaLeituraPorHora {
   // a linha de estado (a forma de erro é a de "parada")
-  if (h === null) return { tipo: 'nao_lida', texto: 'não carregou: leitura por hora' }
+  if (h === null) return { tipo: 'nao_lida', texto: 'a leitura por hora falhou' }
   if (h.primeiraHoraDoSiteMs === null) return { tipo: 'nao_comecou', texto: 'ainda não começou' }
   const viva = tarefaViva({ ultimoOkMs: h.ultimoOkDaTarefaMs, primeiraExecucaoMs: h.primeiraExecucaoDaTarefaMs, toleranciaH, agoraMs })
   if (viva.estado === 'parada') return { tipo: 'parada', texto: `parada desde ${dataEHoraSP(viva.desdeMs)}` }

@@ -85,6 +85,11 @@ function montar(tom: FraseDoTopo['tom'], glifo: Glifo, partes: Parte[], oracao: 
   return { tom, glifo, partes: todas, texto: todas.map((p) => p.t).join('') }
 }
 
+/** A falha total do canal: a frase do topo não afirma direção nem estado. Mesma condição da frase "A leitura falhou" abaixo. */
+export function topoFalhou(e: EntradaDaFrase): boolean {
+  return e.direcao === null || e.estado.tipo === 'nao_carregou'
+}
+
 export function fraseDoTopo(e: EntradaDaFrase): FraseDoTopo {
   const quem = e.formato.soShorts ? 'Short' : e.formato.doisFormatos ? 'vídeo longo' : 'vídeo'
   const ate = e.estado.ate ? dm(e.estado.ate) : null
@@ -92,8 +97,8 @@ export function fraseDoTopo(e: EntradaDaFrase): FraseDoTopo {
   const oracaoParada = oracaoDoUltimoVideo(e.ultimoVideo, { quem, ate })
 
   // as medidas não carregaram: a frase não afirma direção nem estado
-  if (e.direcao === null || e.estado.tipo === 'nao_carregou') {
-    return montar('eq', 'aviso', [{ t: 'Não carregou:', k: 'forte' }, { t: ' não deu para ler as medidas deste canal agora. Os números abaixo não valem.' }], null)
+  if (topoFalhou(e)) {
+    return montar('eq', 'aviso', [{ t: 'A leitura falhou:', k: 'forte' }, { t: ' não deu para ler as medidas deste canal agora. Os números abaixo não valem.' }], null)
   }
   switch (e.estado.tipo) {
     case 'nao_medido':
@@ -134,7 +139,7 @@ function fraseDeDirecao(e: EntradaDaFrase, oracao: string | null): FraseDoTopo {
   const r = e.ritmo
   const quemPubs = e.formato.soShorts ? 'Shorts' : e.formato.doisFormatos ? 'vídeos longos' : 'vídeos'
   if (d.tipo !== 'medido') {
-    if (d.tipo === 'nao_carregou') return montar('eq', 'aviso', [{ t: 'Não carregou:', k: 'forte' }, { t: ' a direção do canal não carregou agora.' }], oracao)
+    if (d.tipo === 'nao_carregou') return montar('eq', 'aviso', [{ t: 'A leitura falhou:', k: 'forte' }, { t: ' a leitura da direção do canal falhou agora.' }], oracao)
     // sem direção: "faltam N dias de registro (completa em dd/mm)"
     const p = d.tipo === 'nao_medido' && d.fechaEm ? progresso(56, d.fechaEm, e.hojeSP) : null
     const corpo = p

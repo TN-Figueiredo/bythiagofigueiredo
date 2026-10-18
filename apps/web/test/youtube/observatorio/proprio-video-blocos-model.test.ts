@@ -580,14 +580,14 @@ describe('buildAssistidoDoVideo (tela B)', () => {
     expect(JSON.stringify([negado, erro])).not.toMatch(/\d+%/)
   })
 
-  it('o diário inteiro passou do teto: o cartão do canal inteiro lê "não medido" e os de 90 e 28 dias continuam com número; falha do banco lê "não conseguimos ler"', () => {
+  it('o diário inteiro passou do teto: o cartão do canal inteiro lê "não medido" e os de 90 e 28 dias continuam com número; falha do banco lê "falhou"', () => {
     const teto = monta(longo({ inteiro: null, motivoInteiro: 'teto' }))
     expect(teto.cartoes.map(c => [c.id, c.valor])).toEqual([['inteiro', null], ['90', '53%'], ['28', '60%']])
     expect(teto.cartoes[0]).toMatchObject({ semNumero: 'não medido' })
     expect(JSON.stringify(teto)).toContain('o canal tem vídeos demais para esta tela ler de uma vez')
     expect(JSON.stringify(teto)).not.toContain('não sabemos se')
     const erro = monta(longo({ inteiro: null, motivoInteiro: 'erro' }))
-    expect(erro.cartoes[0]).toMatchObject({ valor: null, semNumero: 'não conseguimos ler' })
+    expect(erro.cartoes[0]).toMatchObject({ valor: null, semNumero: 'falhou' })
   })
 
   it('poucas views com a cobertura inteira diz "poucas views"; com a cobertura desconhecida diz "não medido", nunca "poucas views"', () => {
@@ -661,5 +661,38 @@ describe('E5b T16 (d): entrada pura de "De onde vêm as views"', () => {
     expect(contagensDeCobertura(limpo, [tudo])).toBeNull()
     const noventa = perFx('90', '90 dias', '2026-07-14', ATE, 3185, parado)
     expect(contagensDeCobertura(limpo, [tudo, noventa])).toEqual({ periodosComVideoForaOuParado: 1, blocosComContagem: 0 })
+  })
+})
+
+describe('decisão 75: a nota privada leva o estado de ausência (e o dado negado nunca vira zero)', () => {
+  const com = (dados: Privado<DadosDoVideo>, negativa?: 'sem_direito' | 'nao_foi_possivel_conferir' | null) => buildVideoBlocos({ ...entrada(W, dados), negativa })
+  it('negado com sem_direito → restrito na nota, na linha de impressões das réguas e na retenção', () => {
+    const b = com({ acesso: 'negado' }, 'sem_direito')
+    expect(b.ausencia).toBe('restrito')
+    expect(b.canal.reguas.linhas.find(l => l.numero === 'impressoes')!.ausencia).toBe('restrito')
+    expect(b.retencao.ausencia).toBe('restrito')
+  })
+  it('guarda caída ou negativa não preenchida → falhou em todos, nunca restrito', () => {
+    for (const n of ['nao_foi_possivel_conferir', null, undefined] as const) {
+      const b = com({ acesso: 'negado' }, n)
+      expect([b.ausencia, b.retencao.ausencia, b.canal.reguas.linhas.find(l => l.numero === 'impressoes')!.ausencia]).toEqual(['falhou', 'falhou', 'falhou'])
+    }
+  })
+  it('erro → falhou; ok → null', () => {
+    expect(com({ acesso: 'erro' }, 'sem_direito').ausencia).toBe('falhou')
+    expect(com(ok(W)).ausencia).toBeNull()
+  })
+  it('negado/erro sem dado: nenhum bloco privado, nenhum zero medido (A23)', () => {
+    for (const d of [{ acesso: 'negado' }, { acesso: 'erro' }] as const) {
+      const b = com(d, 'sem_direito')
+      expect(b).toMatchObject({ views: null, impressoes: null, assistido: null })
+      expect(b.canal.reguas.linhas.some(l => l.zeroMedido || l.valor === '0')).toBe(false)
+    }
+  })
+  it('o assistido por período do vídeo com sem-acesso: restrito só com sem_direito', () => {
+    const v = (negativa: 'sem_direito' | 'nao_foi_possivel_conferir' | null) => buildAssistidoDoVideo({ ytId: 'x', ytIds: ['x'], diario: { linhas: [], ultimoDia: null, ligadoEm: null } as unknown as DiarioCanal, longo: { acesso: 'negado' }, negativa })
+    expect(v('sem_direito').vazioEstado).toBe('restrito')
+    expect(v('nao_foi_possivel_conferir').vazioEstado).toBe('falhou')
+    expect(v(null).vazioEstado).toBe('falhou')
   })
 })

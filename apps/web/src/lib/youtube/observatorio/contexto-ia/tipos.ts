@@ -8,6 +8,9 @@ export type Celula =
   // `origem` é o caminho CONCRETO da folha no modelo, com o índice: 'pack.canais[2].numeros.medianaViews'
   | { papel: 'numero'; estado: 'medido' | 'zero_medido'; texto: string; x: number | null; origem: string }
   | { papel: 'numero'; estado: 'nao_medido'; motivo: string; origem: string }
+  // decisão 75: as mesmas palavras da pastilha da tela. `falhou` = a leitura ou a conferência de permissão falhou; `restrito` = acesso negado com certeza.
+  | { papel: 'numero'; estado: 'falhou'; motivo: string; origem: string }
+  | { papel: 'numero'; estado: 'restrito'; motivo: string; origem: string }
   | { papel: 'base' | 'rotulo'; texto: string; origem: string }
   | { papel: 'terceiros'; texto: string; origem: string } // uma linha só; sai neutralizado
 

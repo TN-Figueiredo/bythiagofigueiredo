@@ -88,7 +88,7 @@ export function buildMedidasDoPar(pack: CompararPack, idA: string, idB: string):
   if (semCarregar.length === 0) {
     if (nichosDiferentes) contexto = `Nichos diferentes (${a.nicheLabel ?? 'sem nicho'} e ${b.nicheLabel ?? 'sem nicho'}): a régua ordena cada canal dentro do próprio nicho, não diz quem é melhor.`
   } else if (semCarregar.length === 1) {
-    contexto = `Tamanho: sem comparação, os inscritos de ${semCarregar[0]!.nome} não carregaram.`
+    contexto = `Tamanho: sem comparação, a leitura dos inscritos de ${semCarregar[0]!.nome} falhou.`
   }
 
   return {

@@ -19,6 +19,7 @@ import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { AVISO_PARCIAL } from './empacotar-comparar'
+import { celulaAusente } from './celula-ausente'
 
 const JANELA = MEASURE_RULES.direction.windowDays
 
@@ -56,7 +57,7 @@ export interface DerivadoCanais {
 }
 export type ModeloCanais = CanaisView & { ri: RiView | null; derivado: DerivadoCanais }
 
-const NAO_CARREGOU = 'Não carregou'
+const NAO_CARREGOU = 'falhou' // a mesma palavra da pastilha da tela (decisão 75)
 const SEM_POSICAO = 'sem posição'
 
 /** As linhas da lista, na ordem da tela: as com medida e, sob o divisor, as sem. */
@@ -122,7 +123,7 @@ const LINHA = (r: string): Inventario => ({
   [`${r}.cells.cadence2.text`]: 'motivo', [`${r}.cells.cadence2.title`]: REP,
   ...Object.fromEntries(['vpd', 'vpd2'].flatMap((k) => [
     [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.big`, 'numero'], [`${r}.cells.${k}.abs`, 'numero'], [`${r}.cells.${k}.n`, 'numero'],
-    [`${r}.cells.${k}.weak`, CTRL], [`${r}.cells.${k}.tail`, 'base'], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.text`, 'motivo'], [`${r}.cells.${k}.falta`, CTRL],
+    [`${r}.cells.${k}.weak`, CTRL], [`${r}.cells.${k}.tail`, 'base'], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.text`, 'motivo'], [`${r}.cells.${k}.falta`, CTRL], [`${r}.cells.${k}.ausencia`, CTRL],
   ])),
   ...Object.fromEntries(['out', 'out2'].flatMap((k) => [
     [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.videoTitle`, 'terceiros'], [`${r}.cells.${k}.thumb`, IMG], [`${r}.cells.${k}.thumb.*`, IMG],
@@ -219,6 +220,9 @@ export const SEM_FOLHA_NA_MATRIZ_CANAIS: readonly string[] = [
   'list.unranked[].cells.out2.thumb',
   'list.unranked[].cells.out2.thumb.*',
   'list.ranked[].cells.vpd.falta',
+  'list.ranked[].cells.vpd.ausencia',
+  'list.ranked[].cells.vpd2.ausencia',
+  'list.unranked[].cells.vpd2.ausencia',
   'list.ranked[].cells.out.falta',
   'list.ranked[].semFormato.label',
   'list.ranked[].semFormato.tip',
@@ -309,9 +313,9 @@ function celulasDaLinha(l: Linha): Celula[] {
     dl.posicao !== null ? medido(dl.posicao, `${d}.posicao`) : naoMedido(dl.semPosicao, `${d}.semPosicao`),
     terceiros(r.name, `${p}.name`),
     dl.subsOcultos !== null ? naoMedido(dl.subsOcultos, `${d}.subsOcultos`) : medido(r.subs, `${p}.subs`),
-    dir.tipo === 'medido' ? medido(dir.texto, `${p}.direcao.texto`) : dir.tipo === 'nao_carregou' ? naoMedido(dl.direcaoNaoCarregou, `${d}.direcaoNaoCarregou`) : naoMedido(dir.longa, `${p}.direcao.longa`),
+    dir.tipo === 'medido' ? medido(dir.texto, `${p}.direcao.texto`) : dir.tipo === 'nao_carregou' ? celulaAusente('falhou', dl.direcaoNaoCarregou, `${d}.direcaoNaoCarregou`) : naoMedido(dir.longa, `${p}.direcao.longa`),
     ritmo,
-    c.vpd.kind === 'ok' ? medido(c.vpd.big, `${p}.cells.vpd.big`) : naoMedido(c.vpd.text, `${p}.cells.vpd.text`),
+    c.vpd.kind === 'ok' ? medido(c.vpd.big, `${p}.cells.vpd.big`) : celulaAusente(c.vpd.kind === 'na' ? c.vpd.ausencia : null, c.vpd.text, `${p}.cells.vpd.text`),
     c.out.kind === 'ok' ? medido(c.out.mult, `${p}.cells.out.mult`) : naoMedido(c.out.text, `${p}.cells.out.text`),
     c.swap.kind === 'ok' ? medido(String(c.swap.n), `${p}.cells.swap.n`) : naoMedido(c.swap.text, `${p}.cells.swap.text`),
     c.growth.kind === 'na' ? naoMedido(c.growth.text, `${p}.cells.growth.text`) : medido(c.growth.big, `${p}.cells.growth.big`),
@@ -354,7 +358,7 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
         const k = r.cells.cadence2!, v = r.cells.vpd2!, o = r.cells.out2!
         return [terceiros(r.name, `${p}.name`),
           k.kind === 'ok' ? medido(k.pw, `${p}.cells.cadence2.pw`) : naoMedido(k.text, `${p}.cells.cadence2.text`),
-          v.kind === 'ok' ? medido(v.big, `${p}.cells.vpd2.big`) : naoMedido(v.text, `${p}.cells.vpd2.text`),
+          v.kind === 'ok' ? medido(v.big, `${p}.cells.vpd2.big`) : celulaAusente(v.kind === 'na' ? v.ausencia : null, v.text, `${p}.cells.vpd2.text`),
           o.kind === 'ok' ? medido(o.mult, `${p}.cells.out2.mult`) : naoMedido(o.text, `${p}.cells.out2.text`)]
       }), privada))
     const shV = ls.filter(({ r }) => r.cells.vpd2?.kind === 'ok' && r.cells.vpd2.abs !== null)
@@ -399,7 +403,7 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
 function tabelasDoResumo(m: ModeloCanais): Tabela[] {
   const out: Tabela[] = []
   const { casas, filtros } = m.resumo
-  const num = (n: number | null, origem: string): Celula => (n === null ? naoMedido(m.derivado.naoCarregou, 'modelo.derivado.naoCarregou') : medido(String(n), origem))
+  const num = (n: number | null, origem: string): Celula => (n === null ? celulaAusente('falhou', m.derivado.naoCarregou, 'modelo.derivado.naoCarregou') : medido(String(n), origem))
   if (casas.length) out.push(tabelaFixa('canais-resumo-direcao', 'Quantos canais sobem, ficam como estão ou descem', nome0('tabela do resumo da direção'), ['Direção', 'Canais'],
     casas.map((c, i) => [rotulo(c.palavra, `modelo.resumo.casas[${i}].palavra`), num(c.n, `modelo.resumo.casas[${i}].n`)])))
   if (filtros.length) out.push(tabelaFixa('canais-resumo-estado', 'Quantos canais em cada estado', nome0('tabela do resumo do estado'), ['Estado', 'Canais'],

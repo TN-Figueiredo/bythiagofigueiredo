@@ -36,7 +36,10 @@ export interface PacoteSerializado {
   numeros: {
     medidos: number
     zerosMedidos: number
+    /** Soma de não medido, falhou e restrito (o registro de acesso lê só este). */
     naoMedidos: number
+    falhou: number
+    restrito: number
     /** Células medidas ou de zero medido em tabela privada; vai a `params.privado_medidos` do registro de acesso. */
     privadosMedidos: number
   }
@@ -77,6 +80,8 @@ const motivoDe = (motivo: string | null | undefined): string => {
 function textoDaCelula(c: Celula): string {
   if (c.papel === 'numero') {
     if (c.estado === 'nao_medido') return F.naoMedido(motivoDe(c.motivo))
+    if (c.estado === 'falhou') return F.falhou(motivoDe(c.motivo))
+    if (c.estado === 'restrito') return F.restrito(motivoDe(c.motivo))
     const t = naCelula(c.texto)
     return c.estado === 'zero_medido' ? F.zeroMedido(t) : t
   }
@@ -86,7 +91,7 @@ function textoDaCelula(c: Celula): string {
 /** O que a célula escreve no bloco estruturado: o mesmo texto, estado e motivo da tabela. */
 function valorDoJson(c: Celula): Record<string, unknown> {
   if (c.papel !== 'numero') return { texto: naCelula(c.texto) }
-  if (c.estado === 'nao_medido') return { estado: 'nao_medido', motivo: motivoDe(c.motivo) }
+  if (c.estado === 'nao_medido' || c.estado === 'falhou' || c.estado === 'restrito') return { estado: c.estado, motivo: motivoDe(c.motivo) }
   return typeof c.x === 'number' && Number.isFinite(c.x) ? { estado: c.estado, texto: naCelula(c.texto), x: c.x } : { estado: c.estado, texto: naCelula(c.texto) }
 }
 
@@ -103,19 +108,22 @@ function chavesUnicas(colunas: readonly string[]): string[] {
 const linhaDaTabela = (celulas: readonly string[]): string => `| ${celulas.join(' | ')} |`
 
 // ───────────────────────── contagens
-interface Contagem { medidos: number; zerosMedidos: number; naoMedidos: number; privadosMedidos: number }
+interface Contagem { medidos: number; zerosMedidos: number; naoMedidos: number; falhou: number; restrito: number; privadosMedidos: number }
 
 function contar(tabelas: readonly Tabela[]): Contagem {
-  const n: Contagem = { medidos: 0, zerosMedidos: 0, naoMedidos: 0, privadosMedidos: 0 }
+  const n: Contagem = { medidos: 0, zerosMedidos: 0, naoMedidos: 0, falhou: 0, restrito: 0, privadosMedidos: 0 }
   for (const t of tabelas) {
     for (const linha of t.linhas) {
       for (const c of linha) {
         if (c.papel !== 'numero') continue
-        if (c.estado === 'nao_medido') n.naoMedidos += 1
-        else {
-          if (c.estado === 'medido') n.medidos += 1
-          else n.zerosMedidos += 1
-          if (t.privada) n.privadosMedidos += 1
+        // switch fechado: um estado novo esquecido não compila (contaria como zero medido e como privado medido)
+        switch (c.estado) {
+          case 'nao_medido': n.naoMedidos += 1; break
+          case 'falhou': n.falhou += 1; break
+          case 'restrito': n.restrito += 1; break
+          case 'medido': n.medidos += 1; if (t.privada) n.privadosMedidos += 1; break
+          case 'zero_medido': n.zerosMedidos += 1; if (t.privada) n.privadosMedidos += 1; break
+          default: { const nunca: never = c; return nunca }
         }
       }
     }
@@ -222,13 +230,15 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
   validar(m)
 
   const n = contar(m.tabelas)
-  const total = n.medidos + n.zerosMedidos + n.naoMedidos
+  // `restrito` também é número que não veio: conta no total e no numerador do magro (`falhou` tem o aviso próprio, que vem antes)
+  const total = n.medidos + n.zerosMedidos + n.naoMedidos + n.restrito
   const hora = emSaoPaulo(c.geradoEm)
 
   // A primeira linha do pacote: tela vazia, ou "magra" (quase tudo não medido). "Medidos" aqui inclui o zero medido, que é resultado.
   let primeiraLinhaDeAviso: string | null = null
   if (m.vazio !== null) primeiraLinhaDeAviso = F.avisoVazio(motivoDe(m.vazio))
-  else if (total >= 1 && n.naoMedidos / total >= CONTEXTO_IA_RULES.magroAPartirDe) {
+  else if (n.falhou > 0) primeiraLinhaDeAviso = F.avisoFalha(n.falhou)
+  else if (total >= 1 && (n.naoMedidos + n.restrito) / total >= CONTEXTO_IA_RULES.magroAPartirDe) {
     primeiraLinhaDeAviso = F.avisoMagro(n.medidos + n.zerosMedidos, total, m.motivoDoMagro ? naCelula(m.motivoDoMagro) : null)
   }
 
@@ -283,7 +293,8 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
     janela: naCelula(m.janela),
     segmentos,
     tabelas: m.tabelas.map((t) => ({ id: t.id, titulo: naCelula(t.titulo), nomeNoCorte: t.nomeNoCorte, tipo: t.tipo })),
-    numeros: { medidos: n.medidos, zerosMedidos: n.zerosMedidos, naoMedidos: n.naoMedidos, privadosMedidos: n.privadosMedidos },
+    // `naoMedidos` soma falhou e restrito: o registro de acesso (contexto-ia-actions) segue com o mesmo nome e o mesmo schema
+    numeros: { medidos: n.medidos, zerosMedidos: n.zerosMedidos, naoMedidos: n.naoMedidos + n.falhou + n.restrito, falhou: n.falhou, restrito: n.restrito, privadosMedidos: n.privadosMedidos },
     privado: m.privado,
     comentarios: m.comentarios.estado === 'na' || m.comentarios.estado === 'nao_carregou'
       ? { estado: m.comentarios.estado }

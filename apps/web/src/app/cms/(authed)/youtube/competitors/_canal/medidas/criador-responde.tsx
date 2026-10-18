@@ -5,10 +5,13 @@
 import Link from 'next/link'
 import { link } from '@/lib/youtube/observatorio/links'
 import { RiInfo } from '../../_canais/ri-info'
-import { NaoCarregou, ZeroMedido } from '../../_chrome/medidas/marcas'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
+import type { CriadorDoFio } from '../../_chrome/comentarios/fio-model'
+import { ZeroMedido } from '../../_chrome/medidas/marcas'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import type { BlocoDoCriador, CasaDoCriador } from './criador-model'
 import type { ModeloDaLista } from './criador-lista-model'
+import { GrupoDoCriador } from './grupo-do-criador'
 import './canal-medidas.css'
 
 const ITENS_DO_INFO = [
@@ -21,33 +24,47 @@ const ITENS_DO_INFO = [
 
 const CLASSE: Record<CasaDoCriador, string> = { com: 'sim', sem: 'nao', espera: 'esp', sem_retrato: 'nm' }
 
-export function CriadorResponde({ bloco, lista, canalId }: { bloco: BlocoDoCriador; lista: ModeloDaLista | null; canalId?: string }) {
-  const semMedida = bloco.tipo === 'nao_medido' || bloco.tipo === 'nao_carregou' || bloco.tipo === 'desligados' || bloco.tipo === 'fora'
+/** O único lugar que desenha o estado do bloco, logo depois da frase do bloco (costura com a decisão 75). */
+function EstadoDoBloco({ bloco }: { bloco: BlocoDoCriador }) {
+  switch (bloco.tipo) {
+    case 'nao_medido':
+    case 'fora':
+    case 'desligados':
+      return <p className="pc-lc" data-estado-do-bloco><PastilhaAusencia estado="nao_medido" /></p>
+    case 'nao_carregou':
+      return <PastilhaAusencia estado="falhou" motivo="O que o criador respondeu" />
+    default:
+      return null
+  }
+}
+
+export function CriadorResponde({ bloco, lista, canalId, criador }: { bloco: BlocoDoCriador; lista: ModeloDaLista | null; canalId?: string; criador: CriadorDoFio }) {
+  const mostra = lista && !(bloco.semColeta && lista.tipo === 'vazia') ? lista : null
   return (
-    <section className="pc-sec" id="criador" aria-labelledby="hCri" data-criador={bloco.tipo}>
+    <section className="pc-sec cf-cq" id="criador" aria-labelledby="hCri" data-criador={bloco.tipo}>
       <div className="pc-sh">
-        <h2 id="hCri">O que o criador respondeu</h2>
+        <h2 id="hCri" data-valor>O que o criador respondeu</h2>
         <RiInfo titulo="as respostas do criador" itens={ITENS_DO_INFO} rotuloBotao="Como ler as respostas do criador" />
-        {semMedida && bloco.tipo !== 'nao_carregou' && bloco.pastilha ? <span className="obs-ch-nm">{bloco.pastilha}</span> : null}
       </div>
+      {mostra && mostra.tipo === 'itens' ? <p className="pc-fr2" data-frase-da-lista><span><b>{mostra.frase.negrito}</b>{mostra.frase.resto}</span></p> : null}
       <p className="pc-fr2" data-frase-do-bloco>
         {bloco.tipo === 'zero' ? <ZeroMedido /> : null}
-        <span><b>{bloco.frase.negrito}</b>{bloco.frase.resto}</span>
+        <span>{bloco.frase.negrito ? <b>{bloco.frase.negrito}</b> : null}{bloco.frase.resto}</span>
       </p>
-      {bloco.tipo === 'nao_carregou' ? <NaoCarregou medida="O que o criador respondeu" /> : null}
+      <EstadoDoBloco bloco={bloco} />
       {bloco.casas.length > 0 ? (
         <div className="pc-rqs" role="img" aria-label={`${bloco.casas.filter(c => c === 'com').length} de ${bloco.nBase} vídeos com resposta vista; ${bloco.casas.filter(c => c === 'espera').length} ainda esperando os 30 dias; ${bloco.casas.filter(c => c === 'sem_retrato').length} sem retrato de 30 dias`}>
           <span className="pc-rql">{bloco.casas.map((c, i) => <i key={i} className={`pc-rq ${CLASSE[c]}`} data-casa={c} />)}</span>
           <span className="pc-rqt">{bloco.legenda.map(l => <span key={l.texto} data-leg={l.chave}><i className={`pc-rq ${CLASSE[l.chave]}`} /> {l.texto}</span>)}</span>
         </div>
       ) : null}
-      {lista && !(bloco.semColeta && lista.tipo === 'vazia') ? <Lista m={lista} canalId={canalId} /> : null}
+      {mostra ? <Lista m={mostra} canalId={canalId} criador={criador} semPastilha={bloco.tipo === 'nao_carregou'} /> : null}
     </section>
   )
 }
 
-function Lista({ m, canalId }: { m: ModeloDaLista; canalId?: string }) {
-  if (m.tipo === 'nao_carregou') return <p className="pc-fr2" data-lista-do-criador><span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
+function Lista({ m, canalId, criador, semPastilha }: { m: ModeloDaLista; canalId?: string; criador: CriadorDoFio; semPastilha: boolean }) {
+  if (m.tipo === 'nao_carregou') return <p className="pc-fr2" data-lista-do-criador>{semPastilha ? null : <><PastilhaAusencia estado="falhou" motivo="lista de respostas do criador" />{' '}</>}<span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
   if (m.tipo === 'vazia') return <p className="pc-fr2" data-lista-do-criador><span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
   if (m.tipo === 'contagem') {
     return (
@@ -59,18 +76,21 @@ function Lista({ m, canalId }: { m: ModeloDaLista; canalId?: string }) {
   }
   return (
     <div data-lista-do-criador="itens">
-      <h3 className="pc-sub">{m.subtitulo}</h3>
-      <p className="pc-fr2"><span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
-      <ul className="pc-cm">
-        {m.itens.map((x, i) => (
-          <li key={i}>
-            <p className="pc-cmv"><Link href={link.historico(x.videoId, { from: 'canais', canal: canalId })}>{x.titulo}</Link>{x.curtidas ? ` · ${x.curtidas}` : ''}</p>
-            <div className="pc-cmb"><span className="pc-cma" aria-hidden="true">?</span><p dir="auto">{x.texto}{x.cortado ? ' …' : ''}</p></div>
-            <div className="pc-cmr"><span className="chip own">criador</span><p dir="auto">{x.respostaTexto}{x.respostaCortada ? ' …' : ''}</p></div>
-          </li>
+      <ul className="pc-grupos">
+        {m.grupos.map(g => (
+          <GrupoDoCriador key={g.videoId} fios={g.fios} criador={criador} cabeca={(
+            <div className="pc-grupo-cab">
+              <span className="pc-grupo-th" aria-hidden="true">
+                {g.thumb ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={g.thumb} alt="" width={64} height={36} loading="lazy" /> : null}
+              </span>
+              <div className="pc-grupo-tx">
+                <Link className="pc-grupo-tit" href={link.historico(g.videoId, { from: 'canais', canal: canalId })}>{g.titulo}</Link>
+                <span className="pc-grupo-n">{g.respostasDele}</span>
+              </div>
+            </div>
+          )} />
         ))}
       </ul>
-      {m.aMais > 0 ? <p className="pc-pgl">Mais {m.aMais} {m.aMais === 1 ? 'resposta guardada' : 'respostas guardadas'} não {m.aMais === 1 ? 'cabe' : 'cabem'} nesta lista.</p> : null}
     </div>
   )
 }

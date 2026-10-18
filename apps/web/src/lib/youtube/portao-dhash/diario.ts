@@ -12,6 +12,9 @@ export interface Medida {
   sondas: number; outras: number; semDado: number; lacunas: number
   /** ETag da hqdefault na sonda estável (o ETag numérico é o instante do upload, spike S1). Ausente em estados antigos. */
   etagNaEstavel?: string | null
+  /** Distância (bits) da primeira sonda (T+0) e a maior até 3 h da `desde`, contra a referência do alvo. Ausentes em estados antigos. */
+  distanciaT0?: number | null
+  maiorAte3h?: number | null
 }
 
 export interface Estado {
@@ -21,9 +24,17 @@ export interface Estado {
   trocaEm: number | null; devolucaoEm: number | null
   cotaGasta: number; tentativasDevolucao: number
   aparicao: Medida | null; volta: Medida | null
-  /** ETag da hqdefault lido antes da troca; a (ii) só passa se a volta estável tiver outro. Ausente em estados antigos. */
+  /** ETag CRU (como veio, ex. W/"1792001270") da hqdefault lido antes da troca. Só informativo: a (ii) compara o ETag do teste com o da volta (Y-7). */
   etagAntes?: string | null
+  /** Erro da sonda de antes da troca (Y-7), se ela lançou; null/ausente = a sonda respondeu. */
+  erroSondaAntes?: string | null
+  /** 'hq' = devolver-hq: o que sobe na devolução é original-hq.jpg (a hqdefault 480×360), não a maior cópia. Ausente = original-maior.jpg. */
+  modo?: 'hq'
 }
+
+/** Arquivo e sha256 da imagem que a devolução sobe. */
+export const arquivoDaOriginal = (e: Pick<Estado, 'modo' | 'original'>): { nome: string; sha256: string } =>
+  e.modo === 'hq' ? { nome: 'original-hq.jpg', sha256: e.original.sha256Hq } : { nome: 'original-maior.jpg', sha256: e.original.sha256 }
 
 export const sha256 = (b: Buffer): string => createHash('sha256').update(b).digest('hex')
 

@@ -3,9 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from '../helpers/db-seed'
 
-// A fase só fala com o YouTube se o original estiver no Blob; aqui ele está fora de propósito.
-vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
-vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+// T8: a fase pede settleOnAir, que usa o cliente de serviço e o token do canal. Aqui o cliente é o do banco de integração
+// e o token falha de propósito (nenhuma chamada ao YouTube): cada campo vira `falhou` com motivo `token`, e o banco encerra mesmo assim.
+const { cliente } = vi.hoisted(() => ({ cliente: { atual: null as unknown } }))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => cliente.atual }))
+vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn().mockRejectedValue(new Error('sem token')) }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdminsDetailed: vi.fn().mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] }) }))
 
 import { phaseEvaluateActiveTests } from '@/lib/youtube/ab-evaluate-phases'
 
@@ -13,6 +17,7 @@ const DIA = 24 * 3_600_000
 
 describe.skipIf(skipIfNoLocalDb())('ab-evaluate: duração máxima contra o banco', () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
+  cliente.atual = supabase
   let siteId: string
   let videoId: string
   let channelId: string
@@ -92,6 +97,7 @@ describe.skipIf(skipIfNoLocalDb())('ab-evaluate: duração máxima contra o banc
           winner_variant_id: variantes[1],
           grace_expires_at: new Date(Date.now() + DIA).toISOString(),
           confidence_at_completion: 0.97,
+          status_note: 'nova tentativa 2/3: sem permissão',
         })
         .eq('id', testeId)
       expect(eu).toBeNull()
@@ -114,26 +120,29 @@ describe.skipIf(skipIfNoLocalDb())('ab-evaluate: duração máxima contra o banc
     return count ?? 0
   }
 
-  it('thumbnail vencida: encerra só o active, fecha os ciclos, limpa vencedor e carência', async () => {
+  it('thumbnail vencida: encerra só o active, fecha os ciclos, limpa o vencedor sugerido', async () => {
     const { testeId } = await semearTeste({ tipo: 'thumbnail', diasNoAr: 15, ciclosAbertos: 2, vencedorSugerido: true })
     const r = await phaseEvaluateActiveTests(supabase as never)
     expect(r.resolved).toBeGreaterThanOrEqual(1)
-    expect(r.errors).toBeGreaterThanOrEqual(1) // original fora do Blob + variante que foi ao ar
+    expect(r.errors).toBeGreaterThanOrEqual(1) // o token falhou: a thumbnail não voltou ao original
     const t = await lerTeste(testeId)
     expect(t).toMatchObject({
       status: 'completed', completed_reason: 'inconclusive', confidence_at_completion: null,
-      winner_variant_id: null, grace_expires_at: null, winner_applied_at: null, applied_by: null,
+      winner_variant_id: null, winner_applied_at: null, applied_by: null, grace_expires_at: null, status_note: null,
     })
-    expect(t.status_note).toMatch(/original não restaurado/)
+    expect(t.restore_status).toMatchObject({ thumbnail: { estado: 'falhou', destino: 'original' } })
+    expect(t.restore_seq).toBe(1)
     expect(await contarCiclosAbertos(testeId)).toBe(0)
+    const { data: fechados } = await supabase.from('ab_test_cycles').select('end_reason').eq('test_id', testeId)
+    expect((fechados ?? []).map((c) => c.end_reason)).toEqual(['duracao_maxima', 'duracao_maxima'])
   })
 
-  it('teste de título vencido: encerra sem status_note', async () => {
+  it('teste de título vencido: encerra, com o campo título no retrato', async () => {
     const { testeId } = await semearTeste({ tipo: 'title', diasNoAr: 15, ciclosAbertos: 1 })
     expect((await phaseEvaluateActiveTests(supabase as never)).resolved).toBeGreaterThanOrEqual(1)
     const t = await lerTeste(testeId)
     expect(t.status).toBe('completed')
-    expect(t.status_note).toBeNull()
+    expect(t.restore_status).toMatchObject({ title: { destino: 'original' } })
   })
 
   it('teste com 3 dias não muda nenhuma linha', async () => {

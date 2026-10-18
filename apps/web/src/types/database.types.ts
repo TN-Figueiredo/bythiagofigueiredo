@@ -10725,6 +10725,43 @@ export type Database = {
       }
     }
     Functions: {
+      ab_resume_commit: {
+        Args: {
+          p_applied_metadata: Json
+          p_de: string
+          p_seq: number
+          p_test_id: string
+          p_variant_id: string
+        }
+        Returns: string
+      }
+      ab_rotate_commit: {
+        Args: {
+          p_applied_metadata: Json
+          p_cycle_number: number
+          p_likes?: number
+          p_seq: number
+          p_test_id: string
+          p_variant_id: string
+          p_views?: number
+        }
+        Returns: string
+      }
+      ab_settle_claim: {
+        Args: {
+          p_de: string[]
+          p_end_reason: string
+          p_extra?: Json
+          p_para: string
+          p_restore_status: Json
+          p_seq: number
+          p_test_id: string
+        }
+        Returns: {
+          claimed_seq: number
+          stamped_at: string
+        }[]
+      }
       apply_competitor_version_plan: {
         Args: { p_changes: Json; p_close: string[]; p_open: Json; p_video_id: string }
         Returns: Json
@@ -11152,15 +11189,6 @@ export type Database = {
       restore_playlist_snapshot: {
         Args: { p_mode?: string; p_playlist_id: string; p_snapshot_id: string }
         Returns: undefined
-      }
-      rotate_cycle: {
-        Args: {
-          p_applied_metadata?: Json
-          p_cycle_number: number
-          p_new_variant_id: string
-          p_test_id: string
-        }
-        Returns: string
       }
       save_research_foco_full: {
         Args: {

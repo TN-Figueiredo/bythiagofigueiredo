@@ -100,7 +100,7 @@ function linhaDoCanal(e: EntradaDaDirecao): LinhaDeDirecao {
   const base = { chave: 'canal' as const, nome: 'Views do canal inteiro', sub: SUB_CANAL, principal: true }
   const m3a = e.medidas?.m3a ?? null
   const c = celulaDeDirecao(m3a, null)
-  if (c.tipo === 'nao_carregou') return { estado: 'nao_carregou', ...base, motivo: 'a direção do canal não carregou' }
+  if (c.tipo === 'nao_carregou') return { estado: 'nao_carregou', ...base, motivo: 'a leitura da direção do canal falhou' }
   if (c.tipo === 'medido') {
     const aviso = c.avisoDeContagem ? `a janela ainda cruza a mudança de contagem de ${dm(MEASURE_RULES.countChange)}; fica limpa em ${dmy(c.avisoDeContagem.ate)}` : null
     return {
@@ -130,7 +130,7 @@ function casasDaQueda(janelas: number[] | null, existe: boolean): CasaDaQueda[] 
 
 export function quedaSustentada(e: EntradaDaDirecao): QuedaSustentada {
   const q = e.medidas?.m8.queda ?? null
-  if (q === null) return { estado: 'nao_carregou', casas: casasDaQueda(null, true), motivo: 'a queda sustentada não carregou' }
+  if (q === null) return { estado: 'nao_carregou', casas: casasDaQueda(null, true), motivo: 'a leitura da queda sustentada falhou' }
   if (q.estado === 'medido') {
     const casas = casasDaQueda(q.valor.janelas, true)
     return { estado: 'medida', casas, emQueda: casas.length === 3 && casas.every(c => c.estado === 'medida' && c.simbolo === 'desce') }
@@ -147,7 +147,7 @@ export function quedaSustentada(e: EntradaDaDirecao): QuedaSustentada {
 }
 
 function fraseDoBloco(e: EntradaDaDirecao, canal: LinhaDeDirecao): FraseDoBloco {
-  if (e.medidas === null) return { simbolo: null, negrito: 'Sem veredito:', resto: ' as medidas do canal não carregaram.' }
+  if (e.medidas === null) return { simbolo: null, negrito: 'Sem veredito:', resto: ' a leitura das medidas do canal falhou.' }
   if (canal.estado === 'medido') {
     return {
       simbolo: canal.simbolo, negrito: `${PALAVRA[canal.simbolo]} ${canal.texto} em ${JANELA} dias.`,
@@ -166,11 +166,11 @@ export function blocoDeDirecao(e: EntradaDaDirecao): BlocoDeDirecao {
   const m = e.medidas
   const hoje: LinhaDeDirecao = e.soShorts
     ? { estado: 'hachura', chave: 'hoje', nome: 'Vídeos novos, views de hoje', sub: SUB_HOJE, principal: false, motivo: 'este canal não tem vídeos longos' }
-    : m === null ? { estado: 'nao_carregou', chave: 'hoje', nome: 'Vídeos novos, views de hoje', sub: SUB_HOJE, principal: false, motivo: 'a leitura não carregou' }
+    : m === null ? { estado: 'nao_carregou', chave: 'hoje', nome: 'Vídeos novos, views de hoje', sub: SUB_HOJE, principal: false, motivo: 'a leitura falhou' }
     : linhaDeVideos('hoje', 'Vídeos novos, views de hoje', SUB_HOJE, m.porFormato.long.m3b, e, null, 0)
   const justa: LinhaDeDirecao = e.soShorts
     ? { estado: 'hachura', chave: 'justa', nome: 'Vídeos novos, leitura justa', sub: SUB_JUSTA, principal: false, motivo: 'este canal não tem vídeos longos' }
-    : m === null ? { estado: 'nao_carregou', chave: 'justa', nome: 'Vídeos novos, leitura justa', sub: SUB_JUSTA, principal: false, motivo: 'a leitura não carregou' }
+    : m === null ? { estado: 'nao_carregou', chave: 'justa', nome: 'Vídeos novos, leitura justa', sub: SUB_JUSTA, principal: false, motivo: 'a leitura falhou' }
     : linhaDeVideos('justa', 'Vídeos novos, leitura justa', SUB_JUSTA, m.porFormato.long.m3c, e, mesmaIdadeExisteEm(), TOTAL_JUSTA)
   return { frase: fraseDoBloco(e, canal), linhas: [canal, hoje, justa], queda: quedaSustentada(e) }
 }

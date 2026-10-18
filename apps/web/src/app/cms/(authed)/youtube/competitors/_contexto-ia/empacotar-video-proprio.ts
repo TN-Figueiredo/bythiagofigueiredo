@@ -54,7 +54,7 @@ export const INVENTARIO_VIDEO_PROPRIO: Inventario = {
   'header.viewer.*': IMG, // o visualizador abre num diálogo: versões e legendas das capas são dado privado e não entram (item 198)
   'header.semData': REP, // "sem data de publicação" já está na meta
   // os blocos
-  'blocos.acesso': CTRL, 'blocos.nota': 'base',
+  'blocos.acesso': CTRL, 'blocos.ausencia': CTRL, 'blocos.views.grafico.vazioEstado': CTRL, 'blocos.impressoes.grafico.vazioEstado': CTRL, 'blocos.retencao.ausencia': CTRL, 'blocos.canal.reguas.linhas[].ausencia': CTRL, 'blocos.nota': 'base',
   // objetos que são nulos quando a leitura privada não veio: a folha é o próprio nulo
   'blocos.views': CTRL, 'blocos.impressoes': CTRL, 'blocos.assistido': CTRL, 'blocos.views.grafico': CTRL, 'blocos.impressoes.grafico': CTRL, 'blocos.impressoes.taxa': CTRL,
   'blocos.assistido.marcas': CTRL, 'blocos.retencao.curva': CTRL, 'blocos.canal.reguas.linhas[].pos': CTRL,
@@ -69,7 +69,7 @@ export const INVENTARIO_VIDEO_PROPRIO: Inventario = {
   'blocos.assistido.pctTexto': REP, 'blocos.assistido.barraPct': APAR, 'blocos.assistido.normalPct': REP, 'blocos.assistido.normalTexto': REP,
   'blocos.assistido.marcaPct': APAR, 'blocos.assistido.rotuloAncora': APAR, 'blocos.assistido.contra': 'base', 'blocos.assistido.direcao': CTRL,
   'blocos.assistido.semNormal': 'base', 'blocos.assistido.marcas[]': APAR, 'blocos.assistido.alt': REP, 'blocos.assistido.metodo[]': 'base',
-  'blocos.retencao.estado': CTRL, 'blocos.retencao.rotulo': REP, // a etiqueta "não medido"/"falhou" da tela: a frase e o estado já dizem o mesmo
+  'blocos.retencao.estado': CTRL,
   'blocos.retencao.frase': 'base', 'blocos.retencao.partes[].t': REP, 'blocos.retencao.partes[].b': APAR,
   'blocos.retencao.metodo[]': 'base', 'blocos.retencao.saidas': 'base', 'blocos.retencao.revistos': 'base', 'blocos.retencao.aviso': 'base',
   'blocos.retencao.curva.pontos[].t': APAR, 'blocos.retencao.curva.pontos[].ratio': APAR, 'blocos.retencao.curva.eixo[]': APAR, 'blocos.retencao.curva.meioT': APAR,
@@ -127,8 +127,8 @@ function tabelasDasReguas(r: ReguasView, privada: boolean): Tabela[] {
     colunas: ['Medida', 'Valor', 'Posição'],
     linhas: dela.map(({ l, o }): Celula[] => [
       rot(l.nome, `${o}.nome`),
-      numero(l.valor, l.semRegua, `${o}.valor`, `${o}.semRegua`),
-      numero(l.posTexto, l.semRegua, `${o}.posTexto`, `${o}.semRegua`),
+      numero(l.valor, l.semRegua, `${o}.valor`, `${o}.semRegua`, l.ausencia),
+      numero(l.posTexto, l.semRegua, `${o}.posTexto`, `${o}.semRegua`, l.ausencia),
     ]),
   }]
   // a leitura por extenso só existe (na tela) quando a régua foi desenhada

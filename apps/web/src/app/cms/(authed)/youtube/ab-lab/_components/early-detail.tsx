@@ -7,9 +7,14 @@ import { EarlyHero } from './early-hero'
 import { EarlyVariantTable } from './early-variant-table'
 import type { EarlyCheckpoint } from './early-types'
 import { LayoutGrid } from 'lucide-react'
+import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
+import { AcoesDeSaida, useAvisoDePagina } from './acoes-de-saida'
 
 export interface EarlyDetailProps {
   view: AbTestActiveView
+  /** `endAbTest` e `pauseAbTest` com o id do teste, montadas na página (mesmas do ActiveDetail). */
+  encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
+  pausar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
 }
 
 /** Default checkpoints for early state — computed from view data. */
@@ -34,7 +39,8 @@ function buildCheckpoints(view: AbTestActiveView): EarlyCheckpoint[] {
   ]
 }
 
-export function EarlyDetail({ view }: EarlyDetailProps) {
+export function EarlyDetail({ view, encerrar, pausar }: EarlyDetailProps) {
+  const { setAviso } = useAvisoDePagina(view.id)
   const checkpoints = buildCheckpoints(view)
 
   // Build early variant table data from the view
@@ -62,6 +68,7 @@ export function EarlyDetail({ view }: EarlyDetailProps) {
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.cycles.done, total: view.durationDays }}
+          actions={<AcoesDeSaida view={view} encerrar={encerrar} pausar={pausar} onAviso={setAviso} />}
         />
       </div>
 

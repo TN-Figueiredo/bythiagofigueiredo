@@ -1,3 +1,5 @@
+import { CAMINHO_AVISO, CAMINHO_CADEADO } from '../_chrome/ausencia/glifos'
+
 /**
  * Os símbolos da origem das views (mockup 12, `ov.js`): traço de 14 px, sem emoji. Cada origem, aparelho e estado tem a sua forma,
  * para a tela se ler também em escala de cinza. Os caminhos são constantes do código (nada vem de dado), por isso entram como marcação fixa.
@@ -18,9 +20,9 @@ export const CAMINHOS = {
   inscritos: '<circle cx="5.4" cy="4.4" r="2.1"/><path d="M1.6 12c.3-2.4 1.7-3.6 3.8-3.6S8.9 9.6 9.2 12M9.6 6.6l1.4 1.4 2.4-2.6"/>',
   nao_inscritos: '<circle cx="7" cy="4.4" r="2.3"/><path d="M2.6 12.4c.4-2.6 2-3.9 4.4-3.9s4 1.3 4.4 3.9"/>',
   pais: '<circle cx="7" cy="7" r="5.2"/><path d="M1.8 7h10.4M7 1.8c-2 1.6-2 8.8 0 10.4M7 1.8c2 1.6 2 8.8 0 10.4"/>',
-  lock: '<rect x="2.6" y="6.2" width="8.8" height="6" rx="1.2"/><path d="M4.6 6.2V4.4a2.4 2.4 0 0 1 4.8 0v1.8M7 8.6v1.6"/>',
+  lock: CAMINHO_CADEADO,
   relogio: '<circle cx="7" cy="7" r="5.2"/><path d="M7 4v3.2l2 1.3"/>',
-  aviso: '<path d="M7 1.8 12.8 12H1.2Z"/><path d="M7 5.6v3M7 10.2v.1"/>',
+  aviso: CAMINHO_AVISO,
 } as const
 
 export type ChaveGlifo = keyof typeof CAMINHOS

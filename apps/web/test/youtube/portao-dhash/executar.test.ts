@@ -6,9 +6,10 @@ import path from 'node:path'
 import sharp from 'sharp'
 import { Diario, type Estado, type Fase, type Medida } from '@/lib/youtube/portao-dhash/diario'
 import { dhashComoHq, gerarImagemTeste } from '@/lib/youtube/portao-dhash/imagem'
-import { ensaio, valer, devolver, conferir, montarResultado, codigoDeFalha, type Deps } from '@/lib/youtube/portao-dhash/executar'
+import { ensaio, valer, devolver, conferir, medir, montarResultado, codigoDeFalha, type Deps } from '@/lib/youtube/portao-dhash/executar'
 import { PORTAO, Recusa } from '@/lib/youtube/portao-dhash/regras'
 import type { Escritor } from '@/lib/youtube/portao-dhash/youtube'
+import { createHash } from 'node:crypto'
 import { imagemSintetica, respostaImagem, fetchFalso } from './util'
 
 const H = 3_600_000
@@ -19,7 +20,7 @@ async function mundo(o: { atrasoMs: number; semMaxres?: boolean; maxresAntiga?: 
   const hq = await sharp(original).resize(480, 360, { fit: 'contain', background: '#000' }).jpeg().toBuffer()
   const sd = await sharp(original).resize(640, 480, { fit: 'contain', background: '#000' }).jpeg().toBuffer()
   const maxres = o.maxresAntiga ? await imagemSintetica(1280, 720, 9) : original
-  let t = 1_000_000
+  let t = 1_790_000_000_000
   const escritas: { em: number; bytes: Buffer }[] = []
   let falhasTroca = o.falhasTroca ?? 0, falhasDev = o.falhasDevolucao ?? 0
   const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'portao-'))
@@ -36,7 +37,7 @@ async function mundo(o: { atrasoMs: number; semMaxres?: boolean; maxresAntiga?: 
   }
   const visivelEscrita = () => [...escritas].reverse().find((e) => t >= e.em + o.atrasoMs)
   const visivel = () => visivelEscrita()?.bytes ?? original
-  const etagVisivel = () => { const v = visivelEscrita(); return v ? `e${v.em}-${escritas.indexOf(v)}` : 'e0' }
+  const etagVisivel = () => { const v = visivelEscrita(); return v ? `W/"${Math.floor(v.em / 1000)}"` : 'W/"1789999000"' }
   const d: Deps = {
     video: VIDEO, diario,
     f: fetchFalso({ ...(o.semMaxres ? {} : { maxresdefault: respostaImagem(maxres) }), sddefault: respostaImagem(sd), hqdefault: respostaImagem(hq) }),
@@ -363,5 +364,182 @@ describe('montarResultado', () => {
     const med: Medida = { motivo: 'teto', primeiraEm: null, estavelEm: null, distanciaNaEstavel: null, menorDistancia: 9, sondas: 10, outras: 10, semDado: 0, lacunas: 0 }
     e.aparicao = med
     expect(montarResultado(e)).toContain('FALHOU: a tolerância é decidida com o dono')
+  })
+})
+
+describe('devolver-hq', () => {
+  const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex')
+
+  it('vídeo com maxresdefault: recusa (código 2), zero chamadas de escrita e nada no disco', async () => {
+    const m = await mundo({ atrasoMs: 2 * H })
+    let s
+    try { s = await valer(m.d, false, true) } catch (err) { s = codigoDeFalha(m.d.diario, VIDEO, err) }
+    expect(s.codigo).toBe(2)
+    expect(m.d.escritor).not.toHaveBeenCalled()
+    expect(m.esc.definirThumb).not.toHaveBeenCalled()
+    expect(m.esc.conferirVideo).not.toHaveBeenCalled()
+    expect(fs.readdirSync(m.pasta)).toEqual([])
+  })
+
+  it('caminho feliz: a imagem devolvida é exatamente original-hq.jpg (sha256), cota 101, mede T+0 e até 3 h', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const s = await valer(m.d, false, true)
+    expect(s.codigo).toBe(0)
+    expect(m.escritas).toHaveLength(2)
+    const hq = m.d.diario.lerArquivo('original-hq.jpg')
+    expect(sha(m.escritas[1]!.bytes)).toBe(sha(hq))
+    expect(m.escritas[1]!.bytes.equals(m.d.diario.lerArquivo('original-maior.jpg'))).toBe(false) // a maior é a sddefault 640×480
+    const e = lerEstado(m.pasta)
+    expect(e.modo).toBe('hq')
+    expect(e.cotaGasta).toBe(101)
+    expect(e.fase).toBe('conferida')
+    expect(e.volta!.distanciaT0).toBeLessThanOrEqual(6)
+    expect(e.volta!.maiorAte3h).toBeLessThanOrEqual(6)
+    expect(e.volta!.sondas).toBeGreaterThanOrEqual(36) // continua sondando até 3 h (5 min cada) mesmo já estável
+    const r = fs.readFileSync(path.join(m.pasta, 'resultado.md'), 'utf8')
+    expect(r).toContain('(v) hqdefault servida contra original-hq.jpg: T+0')
+    expect(r).toContain('dentro de 6')
+  })
+
+  it('hqdefault que demora 1 h a voltar: é atraso, não deriva; (v) fica dentro de 6 (B1)', async () => {
+    const m = await mundo({ atrasoMs: 1 * H, semMaxres: true })
+    await valer(m.d, false, true)
+    const e = lerEstado(m.pasta)
+    expect(e.volta!.maiorAte3h).toBeLessThanOrEqual(6)
+    expect(e.volta!.distanciaT0).toBeLessThanOrEqual(6)
+    const r = fs.readFileSync(path.join(m.pasta, 'resultado.md'), 'utf8')
+    expect(r).toContain('dentro de 6')
+    expect(r).not.toContain('FORA de 6')
+  })
+
+  it('volta que serve uma imagem recodificada (leitura "outra", deriva real) continua FORA de 6 (B1)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const recodificada = await dhashComoHq(await imagemSintetica(1280, 720, 9))
+    m.d.sondar = async () => ({ dhash: m.escritas.length >= 2 ? recodificada : await dhashComoHq(m.escritas[0]?.bytes ?? m.original), etag: 'W/"1790000000"' })
+    await valer(m.d, false, true)
+    const e = lerEstado(m.pasta)
+    expect(e.volta!.maiorAte3h).toBeGreaterThan(6)
+    expect(fs.readFileSync(path.join(m.pasta, 'resultado.md'), 'utf8')).toContain('FORA de 6')
+  })
+
+  it('a API recusa 480×360 na devolução: depois das tentativas sobe original-maior.jpg e fica devolvida (D1)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const real = m.esc.definirThumb
+    m.esc.definirThumb = vi.fn(async (v: string, b: Buffer) => {
+      if ((await sharp(b).metadata()).width! < 640) throw Object.assign(new Error('YouTube respondeu 400 (imageDimensions)'), { status: 400 })
+      return real(v, b)
+    })
+    const s = await valer(m.d, false, true)
+    expect(s.codigo).toBe(0)
+    expect(m.escritas).toHaveLength(2)
+    expect(m.escritas[1]!.bytes.equals(m.d.diario.lerArquivo('original-maior.jpg'))).toBe(true)
+    const e = lerEstado(m.pasta)
+    expect(e.fase).toBe('conferida')
+    expect(e.tentativasDevolucao).toBe(PORTAO.tentativasDevolucao + 1)
+    expect(fs.readFileSync(path.join(m.pasta, 'registro.jsonl'), 'utf8')).toContain('devolucao_fallback_maior')
+  })
+
+  it('a API recusa os dois arquivos: código 3 e a mensagem cita original-hq.jpg e original-maior.jpg (D1)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const real = m.esc.definirThumb
+    m.esc.definirThumb = vi.fn(async (v: string, b: Buffer) => {
+      if (m.escritas.length >= 1) throw Object.assign(new Error('YouTube respondeu 400'), { status: 400 })
+      return real(v, b)
+    })
+    const s = await valer(m.d, false, true)
+    expect(s.codigo).toBe(3)
+    expect(s.mensagem).toContain('original-hq.jpg')
+    expect(s.mensagem).toContain('original-maior.jpg')
+    expect(lerEstado(m.pasta).fase).toBe('devolucao_falhou')
+  })
+
+  it('4xx definitivo na troca (hq): a troca nunca foi ao ar, não sobe o hq rebaixado e sai com código 1 (D2)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    m.esc.definirThumb = vi.fn(async () => { throw Object.assign(new Error('YouTube respondeu 400'), { status: 400 }) })
+    const s = await valer(m.d, false, true)
+    expect(s.codigo).toBe(1)
+    expect(m.esc.definirThumb).toHaveBeenCalledTimes(1)
+    expect(m.escritas).toHaveLength(0)
+  })
+
+  it('erro ambíguo na troca (hq, 503): continua devolvendo a original (D2)', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const real = m.esc.definirThumb
+    let primeira = true
+    m.esc.definirThumb = vi.fn(async (v: string, b: Buffer) => {
+      if (primeira) { primeira = false; throw Object.assign(new Error('YouTube respondeu 503'), { status: 503 }) }
+      return real(v, b)
+    })
+    await valer(m.d, false, true)
+    expect(m.esc.definirThumb).toHaveBeenCalledTimes(2)
+    expect(m.escritas).toHaveLength(1)
+    expect(sha(m.escritas[0]!.bytes)).toBe(sha(m.d.diario.lerArquivo('original-hq.jpg')))
+  })
+
+  it('devolver (retomada) de um estado hq sobe original-hq.jpg, não a maior', async () => {
+    const m = await mundo({ atrasoMs: 0, semMaxres: true })
+    const e = await semear(m, 'trocada')
+    const hq = m.d.diario.salvarUmaVez('original-hq.jpg', Buffer.from('hq-bytes'))
+    e.modo = 'hq'; e.original.sha256Hq = hq; m.d.diario.gravar(e)
+    await devolver(m.d)
+    expect(m.escritas[0]!.bytes.toString()).toBe('hq-bytes')
+  })
+})
+
+describe('medir', () => {
+  it('imprime uma linha por referência com a distância e dentro/fora de 6, sem escritor', async () => {
+    const m = await mundo({ atrasoMs: 0 })
+    const outra = await imagemSintetica(1280, 720, 9)
+    const hqDaOriginal = await sharp(m.original).resize(480, 360, { fit: 'contain', background: '#000' }).jpeg().toBuffer()
+    const arquivo = path.join(m.pasta, 'ref.jpg'); fs.writeFileSync(arquivo, outra)
+    const f = fetchFalso({ hqdefault: respostaImagem(hqDaOriginal), 'blob-ref': respostaImagem(m.original) })
+    const linhas: string[] = []
+    const s = await medir({ video: VIDEO, f, log: (l) => linhas.push(l) }, ['https://blob.example/blob-ref.jpg', arquivo], async (r) => (r.startsWith('http') ? Buffer.from(await (await f(r)).arrayBuffer()) : fs.readFileSync(r)))
+    expect(s.codigo).toBe(0)
+    expect(linhas).toHaveLength(2)
+    expect(linhas[0]).toMatch(/blob-ref\.jpg: distância \d+ bits: dentro de 6/)
+    expect(linhas[1]).toMatch(/ref\.jpg: distância \d+ bits: fora de 6/)
+    expect(m.d.escritor).not.toHaveBeenCalled()
+  })
+})
+
+describe('Y-7: ETag crua e (ii) pela ETag do teste contra a da volta', () => {
+  it('grava a ETag crua W/"1792001270" como veio e o erro da sonda de antes', async () => {
+    const m = await mundo({ atrasoMs: 2 * H })
+    const base = m.d.sondar
+    let n = 0
+    m.d.sondar = async (v) => (n++ === 0 ? { dhash: null, etag: 'W/"1792001270"' } : base(v))
+    await valer(m.d, false)
+    expect(lerEstado(m.pasta).etagAntes).toBe('W/"1792001270"')
+    const m2 = await mundo({ atrasoMs: 2 * H })
+    const base2 = m2.d.sondar
+    let k = 0
+    m2.d.sondar = async (v) => { if (k++ === 0) throw new Error('HEAD 503'); return base2(v) }
+    await valer(m2.d, false)
+    const e2 = lerEstado(m2.pasta)
+    expect(e2.etagAntes).toBeNull()
+    expect(e2.erroSondaAntes).toBe('HEAD 503')
+  })
+
+  async function resultadoCom(etagTeste: string, etagVolta: string, devolucaoEm = 1_792_000_000_000) {
+    const m = await mundo({ atrasoMs: 0 })
+    const e = await semear(m, 'conferida')
+    const base = { motivo: 'estavel' as const, primeiraEm: 1, estavelEm: 1, distanciaNaEstavel: 1, menorDistancia: 1, sondas: 3, outras: 0, semDado: 0, lacunas: 0 }
+    e.aparicao = { ...base, etagNaEstavel: etagTeste }
+    e.volta = { ...base, etagNaEstavel: etagVolta }
+    e.trocaEm = 1; e.devolucaoEm = devolucaoEm
+    return montarResultado(e).split('\n').find((l) => l.includes('(ii)'))!
+  }
+
+  it('volta numérica maior que a do teste e posterior à devolução: passou', async () => {
+    expect(await resultadoCom('W/"1792001270"', 'W/"1792009999"')).toContain('passou')
+  })
+  it('volta menor (ou igual) à do teste: sem conclusão', async () => {
+    expect(await resultadoCom('W/"1792001270"', 'W/"1792001000"')).toContain('sem conclusão')
+    expect(await resultadoCom('W/"1792001270"', 'W/"1792001270"')).toContain('sem conclusão')
+  })
+  it('volta anterior à devolução, ou não numérica: sem conclusão', async () => {
+    expect(await resultadoCom('W/"1792001270"', 'W/"1792001500"', 1_792_100_000_000)).toContain('sem conclusão')
+    expect(await resultadoCom('W/"1792001270"', 'abc')).toContain('sem conclusão')
   })
 })

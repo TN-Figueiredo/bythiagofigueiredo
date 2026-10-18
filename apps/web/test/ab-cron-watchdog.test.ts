@@ -26,8 +26,10 @@ function makeRequest(secret = 'test-secret') {
 
 function buildMockSupabase(activeTests: { site_id: string }[] | null, withOwner = true) {
   // Mock for ab_tests query: .from('ab_tests').select('site_id').eq('status', 'active')
-  const abTestsEq = vi.fn().mockReturnValue({ data: activeTests, error: null })
-  const abTestsSelect = vi.fn().mockReturnValue({ eq: abTestsEq })
+  // A fase de drift (T11) também lê ab_tests: com .or()/.in()/.is() ela encontra a lista vazia (nada a fazer aqui).
+  const vazio = { data: [], error: null }
+  const abTestsEq = vi.fn().mockReturnValue({ data: activeTests, error: null, in: () => ({ is: () => vazio }) })
+  const abTestsSelect = vi.fn().mockReturnValue({ eq: abTestsEq, or: () => vazio })
 
   // Donos: org_admin da organização raiz (getSiteOwners real sobre tabelas falsas).
   const owners = fakeOwnerClient(

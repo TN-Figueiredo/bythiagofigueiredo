@@ -35,6 +35,11 @@ export async function dhashOf(bytes: Buffer): Promise<string> {
   return hex
 }
 
+/** Spec 3.4: como o YouTube monta a hqdefault (480×360, faixas pretas). */
+export async function hqdefaultLike(bytes: Buffer): Promise<Buffer> {
+  return sharp(bytes).resize(480, 360, { fit: 'contain', background: '#000' }).jpeg().toBuffer()
+}
+
 const stripQuotes = (v: string) => v.replace(/^W\//, '').replace(/^"|"$/g, '')
 
 /** ETag "0" (48% of competitor videos, spike S1) carries no information → treated as no ETag. */
@@ -84,7 +89,7 @@ export function isNewThumb(prev: ThumbPrev | null, probe: ThumbProbe): boolean {
 const ARCHIVE_VARIANTS = ['maxresdefault', 'sddefault'] as const
 
 /** A maior cópia que o YouTube tiver (1280×720, senão 640×480); null quando só resta a hqdefault da sonda. */
-async function biggerCopy(probeUrl: string, f: typeof fetch): Promise<Buffer | null> {
+export async function biggerCopy(probeUrl: string, f: typeof fetch = fetch): Promise<Buffer | null> {
   for (const variant of ARCHIVE_VARIANTS) {
     try {
       const res = await f(probeUrl.replace(`/${VARIANT}.jpg`, `/${variant}.jpg`), { signal: AbortSignal.timeout(10_000) })

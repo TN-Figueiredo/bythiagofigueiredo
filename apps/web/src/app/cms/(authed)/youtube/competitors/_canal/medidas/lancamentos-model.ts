@@ -111,7 +111,7 @@ export function lancamentosDoCanal(o: EntradaDeLancamentos): ResultadoDeLancamen
   if (o.medidas === null || o.videos === null || o.marcas === null) return nc('a leitura dos vídeos ou das medidas falhou')
   if (o.serie === null) return nc('não deu para ler o dia a dia dos vídeos')
   const m2 = o.medidas.porFormato[f].m2
-  if (m2.estado === 'nao_medido' && classeDoMotivo(m2.motivo) === 'nao_carregou') return nc('a linha do normal não carregou')
+  if (m2.estado === 'nao_medido' && classeDoMotivo(m2.motivo) === 'nao_carregou') return nc('a leitura da linha do normal falhou')
 
   const todos = o.videos.filter(v => v.publishedAt !== null)
   const serie = o.serie

@@ -36,6 +36,7 @@ const linhasDoQuadro = (): Record<string, Linha[]> => ({
   competitor_video_comments: [
     ...[...COM, 'v100', 'v101'].map((id, i) => ({
       id: String(i + 1), site_id: 's', competitor_channel_id: 'c', video_id: id, parent_id: null, creator_replied: true, body: 'texto ' + id, body_truncated: false,
+      published_at: new Date(AGORA - 30 * DIA).toISOString(),
     })),
     ...[...COM, 'v100', 'v101'].map((id, i) => ({
       id: String(i + 501), site_id: 's', competitor_channel_id: 'c', video_id: id, parent_id: String(i + 1), creator_replied: false, body: 'resposta ' + id, body_truncated: false,
@@ -64,7 +65,7 @@ describe('I1: a lista tem os mesmos vídeos das casas com resposta vista', () =>
     expect(m.celula).toMatchObject({ k: 5, n: 14 })
     expect(r.respostas?.lido).toBe(true)
     const l = listaDoCriador({ nome: 'Matt', resposta: r.respostas, videos, titulos: new Map(), nBase: m.bloco.nBase })
-    expect(l.tipo === 'itens' ? l.itens.map(i => i.videoId).sort() : []).toEqual(COM)
+    expect(l.tipo === 'itens' ? l.grupos.map(g => g.videoId).sort() : []).toEqual(COM)
     expect(l.tipo === 'itens' ? l.nVideos : -1).toBe(m.bloco.casas.filter(x => x === 'com').length)
   })
   it('nível contagem: o total é só o dos 5 vídeos das casas, sem o Short nem o vídeo de 200 dias', async () => {

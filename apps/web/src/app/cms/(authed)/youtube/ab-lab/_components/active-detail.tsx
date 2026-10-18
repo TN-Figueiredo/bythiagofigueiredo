@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS, semImpressoes, liftVsA } from './ab-constants'
@@ -14,28 +14,31 @@ import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMomentUnified } from './click-moment-unified'
-import { forceRotate, applyWinnerNow, cancelGracePeriod, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
+import { forceRotate, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
-import { AbPauseDialog } from './ab-pause-dialog'
-import { AbEndTestDialog } from './ab-end-test-dialog'
+import { AcoesDeSaida, BTN_SAIDA, useAvisoDePagina } from './acoes-de-saida'
+import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
-  Pause, Square, Settings,
+  Settings,
   TrendingUp, RefreshCw, Filter, Zap,
 } from 'lucide-react'
 
 export interface ActiveDetailProps {
   view: AbTestActiveView
+  /** `endAbTest` com o id do teste, montada no server component da página (nunca importada aqui). */
+  encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
+  /** `pauseAbTest` com o id do teste, idem. */
+  pausar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
 }
 
-const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
+const BTN = BTN_SAIDA
 
-export function ActiveDetail({ view }: ActiveDetailProps) {
+export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
   const router = useRouter()
-  const [showPause, setShowPause] = useState(false)
-  const [showEnd, setShowEnd] = useState(false)
+  const { setAviso } = useAvisoDePagina(view.id)
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
   const canAdminSite = useCanAdminSite()
   const [driftBusy, setDriftBusy] = useState(false)
@@ -69,14 +72,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
 
   const actionButtons = (
     <>
-      <button type="button" onClick={() => setShowPause(true)} className={BTN}>
-        <Pause size={14} aria-hidden="true" />
-        Pausar
-      </button>
-      <button type="button" onClick={() => setShowEnd(true)} className={BTN}>
-        <Square size={14} aria-hidden="true" />
-        Encerrar
-      </button>
+      <AcoesDeSaida view={view} encerrar={encerrar} pausar={pausar} onAviso={setAviso} />
       {canAdminSite ? (
         <button
           type="button"
@@ -92,7 +88,7 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           Forçar rotação
         </button>
       ) : (
-        <AdminOnlyNote action="forçar rotação ou aplicar vencedor" className="text-cms-text-dim" />
+        <AdminOnlyNote action="forçar rotação" className="text-cms-text-dim" />
       )}
       <button type="button" aria-label="Configurações" className={BTN}>
         <Settings size={14} aria-hidden="true" />
@@ -117,43 +113,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
       </div>
 
       {/* ── Conditional Banners ── */}
-      {view.graceExpiresAt && !view.winnerAppliedAt && (
-        <div className="mx-0 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-medium text-amber-300">
-                Vencedor detectado — carência termina em{' '}
-                {Math.max(0, Math.ceil((new Date(view.graceExpiresAt).getTime() - Date.now()) / 3600000))}h
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {canAdminSite && (
-                <button
-                  onClick={async () => {
-                    const result = await applyWinnerNow(view.id)
-                    if (!result.ok) alert(result.error)
-                    else router.refresh()
-                  }}
-                  className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-500"
-                >
-                  Aplicar Agora
-                </button>
-              )}
-              <button
-                onClick={async () => {
-                  const result = await cancelGracePeriod(view.id)
-                  if (!result.ok) alert(result.error)
-                  else router.refresh()
-                }}
-                className="rounded bg-cms-surface-hover px-3 py-1.5 text-xs font-medium text-cms-text hover:bg-cms-surface-hover"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {view.status === 'paused' && view.statusNote === DRIFT_STATUS_NOTE && (
         <div
           className="drift-banner mx-0 mb-4 flex gap-[14px] py-[18px] px-[20px]"
@@ -361,21 +320,6 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
           leaderLabel={data.leader}
         />
       </div>
-
-      {showPause && (
-        <AbPauseDialog
-          testId={view.id}
-          onClose={() => setShowPause(false)}
-        />
-      )}
-      {showEnd && (
-        <AbEndTestDialog
-          testId={view.id}
-          variants={view.variantDb}
-          confidenceThreshold={view.confidenceTarget}
-          onClose={() => setShowEnd(false)}
-        />
-      )}
     </div>
   )
 }

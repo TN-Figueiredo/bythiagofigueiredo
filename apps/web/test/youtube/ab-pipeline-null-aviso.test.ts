@@ -20,6 +20,7 @@ vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn() }))
 
 import * as youtube from '@/lib/pipeline/services/youtube'
+import { projetarTeste } from '@/lib/pipeline/services/youtube'
 import { manageAbTest } from '@/lib/pipeline/mcp/services/ab-tests'
 import { registerResources } from '@/lib/pipeline/mcp/resources'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
@@ -48,11 +49,12 @@ function testeCompleto(over: Record<string, unknown> = {}): Record<string, unkno
     revert_expires_at: null, round_number: 4, site_id: SITE, source_pipeline_id: null, started_at: '2026-03-01T00:00:00.000Z',
     status: 'completed', status_note: null, test_type: 'thumbnail', updated_at: '2026-03-10T00:00:00.000Z',
     winner_applied_at: null, winner_variant_id: 'v1', youtube_video_id: 'yt1',
+    restore_status: null, restore_seq: 3,
     variants: [{ id: 'v1', label: 'B', is_original: false, blob_url: null, title_text: null, metadata: {}, sort_order: 1 }],
     cycles: [{
       applied_metadata: null, avd_seconds: 31, backfill_attempts: 2, backfill_status: 'confirmed', clicks: 15, created_at: '2026-03-01T00:00:00.000Z',
       ctr: 0.1, cycle_number: 1, ended_at: null, estimated_clicks: 14, estimated_ctr: 0.09, estimated_impressions: 140, estimated_revenue: 3.5,
-      id: 'c1', impressions: 150, likes: 7, started_at: '2026-03-01T00:00:00.000Z', subscribers_gained: 2, test_id: 't1', variant_id: 'v1', views: 80,
+      end_reason: null, id: 'c1', impressions: 150, likes: 7, started_at: '2026-03-01T00:00:00.000Z', subscribers_gained: 2, test_id: 't1', variant_id: 'v1', views: 80,
     }],
     tracked_links: [],
     ...over,
@@ -181,9 +183,12 @@ describe('getAbTest / listAbTests: lista fechada, campos de entrega null, aviso'
     sb = fakePostgrest(o)
     const { data } = await youtube.getAbTest(ctxOf(), 't1')
     expect(data).not.toHaveProperty('coluna_futura_do_teste')
+    expect(data).not.toHaveProperty('restore_seq') // interno
+    expect(data).toHaveProperty('restore_status') // sai cru
     expect((data.cycles as Record<string, unknown>[])[0]).not.toHaveProperty('coluna_futura_do_ciclo')
     const lista = await youtube.listAbTests(ctxOf(), {})
     expect(lista.data[0]).not.toHaveProperty('coluna_futura_do_teste')
+    expect(lista.data[0]).not.toHaveProperty('restore_seq')
   })
 
   it('listAbTests continua vetor, com aviso e nulls em cada item', async () => {
@@ -355,5 +360,77 @@ describe('leitura com erro lança DB_ERROR 500, nunca zero com aviso', () => {
   ])('%s', async (_nome, tabela, chamar) => {
     sb = fakePostgrest(falha(tabela))
     await expect(chamar()).rejects.toMatchObject({ code: 'DB_ERROR', status: 500 })
+  })
+})
+
+
+// ---- A/B P4a T12: restore_status, leitura e end_reason ----
+const campoFalhou = { estado: 'falhou', destino: 'original', em: '2026-10-12T08:02:00Z', forcado: false, escreveu: false, erro: { status: 403, reason: 'forbidden' }, attempts: 1 }
+const RS = { title: campoFalhou }
+
+describe('A/B P4a T12: restore_status, leitura e end_reason', () => {
+  it('P4a-I15: restore_status igual byte a byte em get_test (MCP), getAbTest (REST), list_tests (MCP) e listAbTests (REST); leitura igual; restore_seq fora', async () => {
+    const o = mundoUmTeste()
+    o.tables.ab_tests = [testeCompleto({ restore_status: RS, restore_seq: 3 })]
+    sb = fakePostgrest(o)
+    const rest = (await youtube.getAbTest(ctxOf(), 't1')).data
+    const listaRest = (await youtube.listAbTests(ctxOf(), {})).data
+    const mcp = await acao({ action: 'get_test', test_id: 't1' }) as Record<string, unknown>
+    const lista = await acao({ action: 'list_tests' }) as Record<string, unknown>[]
+    const nos4 = [mcp, doJson(rest), lista.find(t => t.id === 't1')!, doJson(listaRest.find(t => t.id === 't1'))] as Record<string, unknown>[]
+    for (const x of nos4) {
+      expect(JSON.stringify(x.restore_status)).toBe(JSON.stringify(RS))
+      expect('restore_seq' in x).toBe(false)
+      expect((x.leitura as { title: { tipo: string } }).title.tipo).toBe('final')
+    }
+    expect(JSON.stringify(nos4[0]!.leitura)).toBe(JSON.stringify(nos4[1]!.leitura))
+  })
+
+  it('restore_status nulo → restore_status null e leitura null (mundo antigo)', async () => {
+    sb = fakePostgrest(mundoUmTeste())
+    const x = (await youtube.getAbTest(ctxOf(), 't1')).data
+    expect(x.restore_status).toBeNull()
+    expect(x.leitura).toBeNull()
+  })
+
+  it('restore_status ilegível → leitura { ilegivel: true } (não vira nulo), restore_status sai cru', async () => {
+    const ruim = { title: { estado: 'inventado' } }
+    const o = mundoUmTeste()
+    o.tables.ab_tests = [testeCompleto({ restore_status: ruim })]
+    sb = fakePostgrest(o)
+    const x = (await youtube.getAbTest(ctxOf(), 't1')).data
+    expect(x.leitura).toEqual({ ilegivel: true })
+    expect(x.restore_status).toEqual(ruim)
+    expect(((await youtube.listAbTests(ctxOf(), {})).data[0] as unknown as Record<string, unknown>).leitura).toEqual({ ilegivel: true })
+  })
+
+  it('restore_status {} → leitura {} (passou pelo código novo, nada a mostrar)', async () => {
+    const o = mundoUmTeste()
+    o.tables.ab_tests = [testeCompleto({ restore_status: {} })]
+    sb = fakePostgrest(o)
+    const x = (await youtube.getAbTest(ctxOf(), 't1')).data
+    expect(x.restore_status).toEqual({})
+    expect(x.leitura).toEqual({})
+  })
+
+  it('ciclo traz end_reason; variante não traz thumbnail_dhash nem restore_seq (Y-P7)', async () => {
+    const o = mundoUmTeste()
+    const t = testeCompleto()
+    const base = (t.cycles as Record<string, unknown>[])[0]!
+    t.cycles = [{ ...base, id: 'c1', end_reason: 'rotacao' }, { ...base, id: 'c2', end_reason: null }]
+    t.variants = [{ id: 'v1', test_id: 't1', label: 'B', is_original: false, blob_url: null, blob_key: null, file_size_bytes: null, dimensions: null, title_text: null, metadata: {}, sort_order: 1, source_variant_id: null, created_at: '2026-03-01T00:00:00.000Z', thumbnail_dhash: 'abc123' }]
+    o.tables.ab_tests = [t]
+    sb = fakePostgrest(o)
+    const x = (await youtube.getAbTest(ctxOf(), 't1')).data
+    expect((x.cycles as Record<string, unknown>[]).map(c => c.end_reason)).toEqual(['rotacao', null])
+    for (const v of x.variants) expect('thumbnail_dhash' in v).toBe(false)
+  })
+
+  it('leitura usa o relógio injetado: o mesmo em_andamento é "em andamento" aos 3 min e "sem resposta" aos 6', () => {
+    const rs = { title: { estado: 'em_andamento', destino: 'original', em: '2026-10-12T08:00:00Z', forcado: false, escreveu: null, erro: null, attempts: 0 } }
+    const linha = { ...testeCompleto(), restore_status: rs }
+    const leitura = (agora: string) => (projetarTeste(linha, new Date(agora)).leitura as { title: { tipo: string } }).title.tipo
+    expect(leitura('2026-10-12T08:03:00Z')).toBe('em_andamento')
+    expect(leitura('2026-10-12T08:06:00Z')).toBe('sem_resposta')
   })
 })

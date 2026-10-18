@@ -46,12 +46,12 @@ const mockTest = {
 
 describe('AbPauseDialog', () => {
   it('renders with "Pausar teste" title', () => {
-    render(<AbPauseDialog testId={mockTest.id} onClose={vi.fn()} />)
+    render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
     expect(screen.getByRole('dialog', { name: 'Pausar teste' })).toBeTruthy()
   })
 
   it('shows explanation text about restoring original thumbnail', () => {
-    render(<AbPauseDialog testId={mockTest.id} onClose={vi.fn()} />)
+    render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
     expect(screen.getByText(/restaurar a thumbnail original/)).toBeTruthy()
     expect(screen.getByText(/dados coletados ficam preservados/)).toBeTruthy()
     expect(screen.getByText(/retomar a qualquer momento/)).toBeTruthy()
@@ -59,13 +59,13 @@ describe('AbPauseDialog', () => {
 
   it('cancel button calls onClose', () => {
     const onClose = vi.fn()
-    render(<AbPauseDialog testId={mockTest.id} onClose={onClose} />)
+    render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={onClose} />)
     fireEvent.click(screen.getByText('Cancelar'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('Pausar teste button renders', () => {
-    render(<AbPauseDialog testId={mockTest.id} onClose={vi.fn()} />)
+    render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
     const buttons = screen.getAllByText('Pausar teste')
     const pauseButton = buttons.find((el) => el.tagName === 'BUTTON')
     expect(pauseButton).toBeTruthy()
@@ -73,7 +73,7 @@ describe('AbPauseDialog', () => {
 
   it('clicking backdrop calls onClose', () => {
     const onClose = vi.fn()
-    const { container } = render(<AbPauseDialog testId={mockTest.id} onClose={onClose} />)
+    const { container } = render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={onClose} />)
     const backdrop = container.querySelector('[aria-hidden="true"]')!
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()

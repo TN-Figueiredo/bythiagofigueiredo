@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { brDec } from '@/lib/youtube/format'
 import { AbCreateWizard } from '../_components/ab-create-wizard'
 import type { WizardVideo } from '../_components/ab-create-wizard'
 import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
-import { Search, FlaskConical } from 'lucide-react'
+import { Search, FlaskConical, Info } from 'lucide-react'
+import { thumbReferenciaSegura } from './resolver'
 
 interface EligibleVideo {
   id: string
@@ -40,11 +41,13 @@ interface NewTestClientProps {
   eligibleVideos: EligibleVideo[]
   draftPrefill?: DraftPrefill
   competitorContext?: CompetitorContext
+  initialVideoId?: string
+  aviso?: string
 }
 
-export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, competitorContext }: NewTestClientProps) {
+export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, competitorContext, initialVideoId, aviso }: NewTestClientProps) {
   const router = useRouter()
-  const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(
+  const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(() =>
     draftPrefill
       ? {
           id: draftPrefill.videoId,
@@ -52,9 +55,19 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
           thumbnailUrl: draftPrefill.thumbnailUrl,
           sourcePipelineId: draftPrefill.sourcePipelineId,
         }
-      : null,
+      : (() => {
+          const v = initialVideoId ? eligibleVideos.find((e) => e.id === initialVideoId) : undefined
+          return v
+            ? { id: v.id, title: v.title, thumbnailUrl: v.thumbnailUrl, sourcePipelineId: v.sourcePipelineId }
+            : null
+        })(),
   )
   const [search, setSearch] = useState('')
+  // Região viva montada vazia e preenchida depois, para o leitor de tela anunciar.
+  const [avisoAnunciado, setAvisoAnunciado] = useState<string | null>(null)
+  useEffect(() => {
+    setAvisoAnunciado(aviso ?? null)
+  }, [aviso])
 
   if (selectedVideo) {
     return (
@@ -65,7 +78,14 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
         onClose={() => router.push('/cms/youtube/ab-lab')}
         onCreated={(testId) => router.push(`/cms/youtube/ab-lab/${testId}`)}
         existingDraftId={draftPrefill?.id}
-        prefill={draftPrefill ? { testType: draftPrefill.testType as import('@/lib/youtube/ab-types').TestType } : undefined}
+        prefill={
+          draftPrefill
+            ? { testType: draftPrefill.testType as import('@/lib/youtube/ab-types').TestType }
+            : competitorContext?.changeType
+              ? { testType: competitorContext.changeType }
+              : undefined
+        }
+        referencia={competitorContext ? <ReferenciaConcorrente contexto={competitorContext} /> : undefined}
       />
     )
   }
@@ -76,35 +96,21 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
       v.channelHandle.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const competitorLabel = competitorContext?.changeType === 'thumbnail'
-    ? 'thumbnail'
-    : competitorContext?.changeType === 'title'
-      ? 'titulo'
-      : null
-
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
-      {competitorContext && (
-        <div
-          className="mb-4 flex items-center gap-2 rounded-lg px-4 py-3 text-sm"
-          style={{
-            background: 'var(--accent-soft, rgba(232,130,60,0.1))',
-            border: '1px solid var(--accent-line, rgba(232,130,60,0.25))',
-            color: 'var(--text, #e5e0d8)',
-          }}
-        >
-          <FlaskConical size={15} style={{ flexShrink: 0, color: 'var(--accent, #e8823c)' }} aria-hidden="true" />
-          <span>
-            Inspirado por mudanca de{' '}
-            <b>{competitorLabel ?? 'concorrente'}</b>
-            {' '}de concorrente
-          </span>
-        </div>
-      )}
+      {competitorContext && <ReferenciaConcorrente contexto={competitorContext} />}
+      <div role="status">
+        {avisoAnunciado && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-cms-border bg-cms-accent-subtle px-4 py-3 text-sm text-cms-text">
+            <Info size={15} className="mt-0.5 shrink-0 text-cms-accent" aria-hidden="true" />
+            <span>{avisoAnunciado}</span>
+          </div>
+        )}
+      </div>
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-cms-text">Select a Video</h2>
+        <h2 className="text-lg font-semibold text-cms-text">Escolha um vídeo</h2>
         <p className="text-sm text-cms-text-muted mt-1">
-          Choose a video to create a new A/B test.
+          Escolha o vídeo em que você quer criar um teste A/B.
         </p>
       </div>
 
@@ -117,7 +123,7 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
         />
         <input
           type="text"
-          placeholder="Search videos..."
+          placeholder="Buscar vídeos..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full pl-9 pr-3 py-2 text-sm rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent"
@@ -128,7 +134,7 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
       <div className="space-y-2">
         {filtered.length === 0 && (
           <p className="text-sm text-cms-text-dim py-8 text-center">
-            {eligibleVideos.length === 0 ? 'No videos available.' : 'No videos match your search.'}
+            {eligibleVideos.length === 0 ? 'Nenhum vídeo disponível.' : 'Nenhum vídeo corresponde à busca.'}
           </p>
         )}
         {filtered.map((v) => (
@@ -156,7 +162,7 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-cms-text-dim text-xs">
-                  No thumb
+                  Sem thumb
                 </div>
               )}
             </div>
@@ -164,7 +170,7 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
               <p className="text-sm font-medium text-cms-text truncate">{v.title}</p>
               <p className="text-2xs text-cms-text-muted">{v.channelHandle}</p>
               {v.hasActiveTest && (
-                <p className="text-2xs text-amber-400 mt-0.5">Active test in progress</p>
+                <p className="text-2xs text-amber-400 mt-0.5">Teste ativo em andamento</p>
               )}
               {v.previousLift != null && (
                 <p className="text-2xs text-cms-text-dim mt-0.5">
@@ -183,8 +189,39 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
           onClick={() => router.push('/cms/youtube/ab-lab')}
           className="text-sm text-cms-text-muted hover:text-cms-text transition-colors"
         >
-          &larr; Back to A/B Lab
+          &larr; Voltar ao A/B Lab
         </button>
+      </div>
+    </div>
+  )
+}
+
+function ReferenciaConcorrente({ contexto }: { contexto: CompetitorContext }) {
+  const rotulo =
+    contexto.changeType === 'thumbnail' ? 'a thumbnail' : contexto.changeType === 'title' ? 'o título' : null
+  const thumb = thumbReferenciaSegura(contexto.competitorThumb)
+  return (
+    <div className="mb-4 flex items-start gap-3 rounded-lg border border-cms-border bg-cms-accent-subtle px-4 py-3 text-sm text-cms-text">
+      <FlaskConical size={15} className="mt-0.5 shrink-0 text-cms-accent" aria-hidden="true" />
+      {thumb && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={thumb}
+          alt=""
+          width={96}
+          height={54}
+          referrerPolicy="no-referrer"
+          className="h-[54px] w-24 shrink-0 rounded object-cover"
+        />
+      )}
+      <div className="min-w-0">
+        <p>
+          Referência: {rotulo ? <>um concorrente trocou <b>{rotulo}</b></> : 'mudança de um concorrente'}.
+          <span className="text-cms-text-muted"> Referência, não modelo.</span>
+        </p>
+        {contexto.competitorTitle && (
+          <p className="mt-1 text-cms-text-muted line-clamp-2">{contexto.competitorTitle}</p>
+        )}
       </div>
     </div>
   )

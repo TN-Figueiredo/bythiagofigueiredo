@@ -3,7 +3,7 @@
 // dos níveis que não os veem; o Cowork e os montadores não leem a tabela de comentários; a lista de leitores é fechada; a M11 recebe a
 // coleta do CANAL (não a do site).
 import { describe, expect, it, vi, beforeAll } from 'vitest'
-import { isValidElement, type ReactElement, type ReactNode } from 'react'
+import { isValidElement, cloneElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
@@ -66,7 +66,7 @@ async function saida(provas: ProvasDeQuemVe | null): Promise<{ html: string; jso
   const db = falsoComentarios(tabelas())
   const el = await ComentariosDeDestaque({
     sb: db.client as SupabaseClient, siteId: S, provas: Promise.resolve({ provas, permissaoFalhou: false }), videoId: V, agoraMs: AGORA,
-    canaisDoSite: new Map([[CANAL, { nome: 'Leo' }]]), video: { t0Ms: T0, descobertoEmMs: T0 + 2 * H, canalId: CANAL }, canalNome: 'Leo',
+    canaisDoSite: new Map([[CANAL, { nome: 'Leo' }]]), video: { t0Ms: T0, descobertoEmMs: T0 + 2 * H, canalId: CANAL }, criador: { nome: 'Leo', avatar: null, ini: 'L', color: '#336699' },
   })
   return { html: renderToStaticMarkup(el as ReactNode as ReactElement), json: carga(el) }
 }
@@ -85,6 +85,33 @@ describe('o que sai do servidor, por nível (sentinelas)', () => {
     const { html, json } = await saida(identidade)
     expect(html + json).toContain(SENT_NOME)
     expect(html + json).not.toContain(SENT_YT)
+  })
+})
+
+/** O que o RSC serializaria: expande os componentes de servidor e para nos de cliente (as props deles é que cruzam a fronteira). */
+const CLIENTES = new Set(['Abas', 'ListaDoPainel', 'InfoDica'])
+function expandir(n: ReactNode): ReactNode {
+  if (Array.isArray(n)) return n.map(expandir)
+  if (!isValidElement(n)) return n
+  const e = n as El
+  if (typeof e.type === 'function' && !CLIENTES.has((e.type as { name: string }).name)) return expandir((e.type as (p: unknown) => ReactNode)(e.props))
+  const props: Record<string, unknown> = {}
+  for (const k of ['children', 'cima']) if (k in e.props) props[k] = expandir(e.props[k] as ReactNode)
+  return cloneElement(e, props)
+}
+
+describe('I3 (Yannis): o texto de terceiro cruza a fronteira servidor→cliente uma vez só', () => {
+  it('cada sentinela de texto aparece exatamente 1 vez na carga do cliente, não 2', async () => {
+    const db = falsoComentarios(tabelas())
+    const el = await ComentariosDeDestaque({
+      sb: db.client as SupabaseClient, siteId: S, provas: Promise.resolve({ provas: texto, permissaoFalhou: false }), videoId: V, agoraMs: AGORA,
+      canaisDoSite: new Map([[CANAL, { nome: 'Leo' }]]), video: { t0Ms: T0, descobertoEmMs: T0 + 2 * H, canalId: CANAL }, criador: { nome: 'Leo', avatar: null, ini: 'L', color: '#336699' },
+    })
+    const cliente = carga(expandir(el as ReactNode))
+    for (const i of [1, 2, 3]) {
+      const ocs = cliente.split(SENT_TEXTO + i).length - 1
+      expect(ocs, `comentário ${i}: uma ocorrência, não duas`).toBe(1)
+    }
   })
 })
 

@@ -160,7 +160,7 @@ describe('os três elementos com as medidas em não carregou', () => {
     expect(cel).not.toContain('data-celula="inscritos"')
     const blocos = html(await BlocosDoCanal({ medidas, contexto }))
     for (const id of ['direcao', 'lancamentos', 'tempo', 'ritmo', 'criador']) expect(blocos).toContain(`id="${id}"`)
-    expect(blocos).toMatch(/Não carregou/i)
+    expect(blocos).toMatch(/obs-au-falhou/)
     expect(blocos).not.toMatch(/\b0 views ganhas\b/)
   })
   it('uma promessa que rejeita (defeito do carregador) também não derruba os elementos', async () => {
@@ -201,7 +201,7 @@ describe('o cabeçalho com a prop celulas', () => {
     cab(<EsqueletoDasCelulas />)
     const a = await tip()
     cleanup()
-    cab(<dl>{html(<span>Não carregou</span>)}</dl>)
+    cab(<dl>{html(<span>falhou</span>)}</dl>)
     expect(await tip()).toBe(a)
   })
   it('só Inscritos fica na faixa de antes; os quatro de "Mais números" trazem a base escrita', () => {
@@ -227,7 +227,7 @@ describe('a tela com as medidas em não carregou', () => {
     const r = render(
       <ToastProvider><div data-obs="">
         <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin leitura={null} actions={canalActions()}
-          topo={<p>Não carregou: as medidas</p>} celulas={<EsqueletoDasCelulas />} blocos={<EsqueletoDosBlocos />} />
+          topo={<p>A leitura falhou: as medidas</p>} celulas={<EsqueletoDasCelulas />} blocos={<EsqueletoDosBlocos />} />
       </div></ToastProvider>,
     )
     expect(r.container.querySelectorAll('ul.cv-grid > li.cv-card').length).toBeGreaterThan(0)

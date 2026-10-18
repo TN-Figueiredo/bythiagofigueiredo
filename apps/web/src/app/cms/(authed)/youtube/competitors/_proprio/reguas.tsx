@@ -9,6 +9,7 @@
  *
  * A frase só é verdadeira com a base ao lado (H17): `base`, `pouco` e o "N sem medida" de cada linha aparecem SEMPRE junto dela.
  */
+import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { HoverTip } from '../_chrome/flut/flut'
@@ -151,7 +152,7 @@ function Linha({ l, falar }: { l: LinhaRegua; falar: (s: string) => void }) {
     <td role="cell" className="vb-rg-v num">
       {l.zeroMedido
         ? <span className="obs-ch-zero">{l.valor}<span className="obs-ch-sr"> (zero medido)</span></span>
-        : l.valor != null ? l.valor : <span className="obs-ch-nm">não medido</span>}
+        : l.valor != null ? l.valor : l.ausencia === 'falhou' || l.ausencia === 'restrito' ? <PastilhaAusencia estado={l.ausencia} /> : <span className="obs-ch-nm">não medido</span>}
     </td>
   )
   const rodape = l.semMedida ? <small className="vb-rg-sm">{l.semMedida}</small> : null

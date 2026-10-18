@@ -103,6 +103,7 @@ function colunasDe(m: ModeloComparar): Record<string, Record<string, string | re
   return {
     ...linhas, ...privadas,
     ...medida('direcao'), ...medida('primeiros-dias'), ...medida('acerto'), ...medida('reacao'),
+    'alcance-sem-numero': { Canal: '.canal', Alcance: '.frase' },
     'estado-dos-canais': { Canal: COL_CANAL, Estado: '.pastilha' },
     'estado-dos-canais-detalhes': { Canal: COL_CANAL, Detalhe: ['.detalhes[0]', '.detalhes[1]', '.detalhes[2]', '.detalhes[3]'] },
     'direcao-leitura-principal': { 'Leitura principal': 'modelo.medidas.leituraPrincipal' },
@@ -375,7 +376,7 @@ describe('Comparar: o dado privado tem seis estados e o pacote nomeia os seis', 
     const m = await montar(proprioContraConcorrente({ eu: { acesso: 'negado', view: null } }, ESTADO_NEGADO, { vpd: null, vpdPorMil: null }), false)
     expect(privadoDe(m)).toMatchObject({ estado: 'excluido', motivo: 'sem_direito' })
     expect(tabelasPrivadas(m)).toEqual([])
-    expect(m.pacote.avisos).toContain(FRASE_NEGADO_CARTAO)
+    expect(m.pacote.avisos).toContain(`restrito: ${FRASE_NEGADO_CARTAO}`)
     expect(m.textoDoPacote).toContain('Não incluído: dado privado do canal')
     expect(m.textoDoPacote).toContain('não tem o direito de ver desempenho privado')
     expect(() => segmentar(m.pacote, CONTEXTO)).not.toThrow()
@@ -394,7 +395,7 @@ describe('Comparar: o dado privado tem seis estados e o pacote nomeia os seis', 
     const estado: EstadoDoPrivado = { acessoPorCanal: { eu: { diario: 'erro', alcance: 'erro' } }, negativa: 'sem_direito' }
     const m = await montar(proprioContraConcorrente({ eu: { acesso: 'erro', view: null } }, estado, { vpd: null, vpdPorMil: null }), false)
     expect(privadoDe(m)).toMatchObject({ estado: 'excluido', motivo: 'leitura_falhou' })
-    expect(m.pacote.avisos).toContain(FRASE_ERRO_CARTAO)
+    expect(m.pacote.avisos).toContain(`falhou: ${FRASE_ERRO_CARTAO}`)
   })
 
   it('mesmo canal, diário ok e alcance com erro, com tabela privada no pacote: incluido e o aviso de parcial', async () => {
@@ -403,7 +404,7 @@ describe('Comparar: o dado privado tem seis estados e o pacote nomeia os seis', 
     expect(privadoDe(m).estado).toBe('incluido')
     expect(tabelasPrivadas(m).map((t) => t.id)).toContain('privado-numero-a-numero')
     expect(m.pacote.avisos).toContain(AVISO_PARCIAL)
-    expect(m.pacote.avisos).toContain(FRASE_ERRO_CARTAO)
+    expect(m.pacote.avisos).toContain(`falhou: ${FRASE_ERRO_CARTAO}`)
   })
 
   it('mesmo canal, diário com erro e alcance com erro: excluido leitura_falhou', async () => {
@@ -507,5 +508,29 @@ describe('Comparar: provas por mutação (a paridade cai)', () => {
 describe('Comparar: a lista de números sem prova por igualdade direta está escrita', () => {
   it('SEM_PROVA_POR_IGUALDADE_DIRETA_COMPARAR é a lista dos caminhos com formatador no teste', () => {
     expect([...SEM_PROVA_POR_IGUALDADE_DIRETA_COMPARAR].sort()).toEqual(CRUAS.map((c) => c.caminho).sort())
+  })
+})
+
+describe('Comparar: o cartão "Só o seu canal mede" sem número diz a palavra da pastilha (decisão 75, Y4)', () => {
+  const celulasDoCartao = (m: Awaited<ReturnType<typeof montar>>) => m.pacote.tabelas.filter((t) => t.id === 'alcance-sem-numero').flatMap((t) => t.linhas.map((l) => l[1]!))
+  it('negado: `restrito`, nunca 0, e a frase do aviso leva a palavra', async () => {
+    const estado: EstadoDoPrivado = { acessoPorCanal: { eu: { diario: 'negado', alcance: 'negado' } }, negativa: 'sem_direito' }
+    const m = await montar(proprioContraConcorrente({ eu: { acesso: 'negado', view: null } }, estado, { vpd: null, vpdPorMil: null }), false)
+    expect(celulasDoCartao(m)).toEqual([expect.objectContaining({ papel: 'numero', estado: 'restrito', motivo: FRASE_NEGADO_CARTAO })])
+    expect(m.pacote.avisos).toContain(`restrito: ${FRASE_NEGADO_CARTAO}`)
+    expect(m.textoDoPacote).toContain(`restrito (${FRASE_NEGADO_CARTAO})`)
+  })
+  it('erro: `falhou`, a falha do cartão entra no aviso de falha da primeira linha', async () => {
+    const estado: EstadoDoPrivado = { acessoPorCanal: { eu: { diario: 'erro', alcance: 'erro' } }, negativa: null }
+    const m = await montar(proprioContraConcorrente({ eu: { acesso: 'erro', view: null } }, estado, { vpd: null, vpdPorMil: null }), false)
+    expect(celulasDoCartao(m)).toEqual([expect.objectContaining({ estado: 'falhou', motivo: FRASE_ERRO_CARTAO })])
+    expect(m.textoDoPacote).toContain(`falhou (${FRASE_ERRO_CARTAO})`)
+    expect(m.textoDoPacote).toMatch(/AVISO: \d+ números? não foi lido|AVISO: \d+ números não foram lidos/)
+  })
+  it('guarda caída (nao_foi_possivel_conferir, a leitura chega como erro): `falhou`, nunca `restrito`', async () => {
+    const estado: EstadoDoPrivado = { acessoPorCanal: { eu: { diario: 'erro', alcance: 'erro' } }, negativa: 'nao_foi_possivel_conferir' }
+    const m = await montar(proprioContraConcorrente({ eu: { acesso: 'erro', view: null } }, estado, { vpd: null, vpdPorMil: null }), false)
+    expect(celulasDoCartao(m).map((c) => (c as { estado: string }).estado)).toEqual(['falhou'])
+    expect(m.textoDoPacote).not.toContain('restrito (')
   })
 })

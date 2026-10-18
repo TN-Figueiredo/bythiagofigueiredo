@@ -8,6 +8,8 @@ vi.mock('@/lib/youtube/channel-account', async (orig) => ({
 import { NextRequest } from 'next/server'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
+const { fanOut } = vi.hoisted(() => ({ fanOut: vi.fn() }))
+vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdminsDetailed: fanOut }))
 vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: vi.fn() }))
 vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn().mockResolvedValue({ success: true }) }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn() }))
@@ -22,6 +24,11 @@ vi.mock('@/lib/cron-health', () => ({
   recordCronFailure: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+// T8: a 3ª falha PEDE settleOnAir(original, falha_api); o contrato dele está em ab-settle.test.ts.
+vi.mock('@/lib/youtube/ab-settle', async (orig) => {
+  const { settleOnAirFalso } = await import('./helpers/montar-saida-automatica')
+  return { ...(await orig<typeof import('@/lib/youtube/ab-settle')>()), settleOnAir: settleOnAirFalso }
+})
 
 import { GET } from '@/app/api/cron/ab-rotate/route'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -37,6 +44,10 @@ import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { recordCronSuccess } from '@/lib/cron-health'
 import * as Sentry from '@sentry/nextjs'
 import { fakeOwnerClient, rootOrgWithAdmin, OWNER_TABLES } from './helpers/fake-owner-db'
+import { cadeiaUpdate } from './helpers/cadeia-update'
+import { settleOnAirFalso } from './helpers/montar-saida-automatica'
+import { YouTubeApiError } from '@/lib/youtube/youtube-api-error'
+import type { FiltroRegistrado } from './helpers/cadeia-update'
 
 function createCronRequest(secret: string) {
   return new NextRequest(new URL('http://localhost:3000/api/cron/ab-rotate'), {
@@ -47,6 +58,8 @@ function createCronRequest(secret: string) {
 function makeTest(overrides: Record<string, unknown> = {}) {
   return {
     id: 'test-1',
+    name: 'Teste do Lab',
+    restore_seq: 0,
     youtube_video_id: 'db-video-1',
     site_id: 'site-1',
     status: 'active',
@@ -54,8 +67,8 @@ function makeTest(overrides: Record<string, unknown> = {}) {
     config: { rotation_pattern: 'abba' },
     original_title: 'Original Title',
     variants: [
-      { id: 'v1', sort_order: 0, blob_url: 'https://blob.example/thumb-a.jpg' },
-      { id: 'v2', sort_order: 1, blob_url: 'https://blob.example/thumb-b.jpg' },
+      { id: 'v1', sort_order: 0, blob_url: 'https://abc.public.blob.vercel-storage.com/thumb-a.jpg' },
+      { id: 'v2', sort_order: 1, blob_url: 'https://abc.public.blob.vercel-storage.com/thumb-b.jpg' },
     ],
     ...overrides,
   }
@@ -70,6 +83,12 @@ interface BuildMockOpts {
   channel?: { channel_id: string } | null
   /** false = sem org_admin na organização raiz. */
   withOwner?: boolean
+  /** Linhas devolvidas pela reivindicação (`[]` = outro escritor ganhou). */
+  reivindicadas?: Array<{ restore_seq: number }>
+  /** Retorno de ab_rotate_commit (nulo = reivindicação perdida depois da escrita). */
+  commit?: string | null
+  /** restore_seq que a releitura antes de cada escrita encontra (≠ 1 = alguém reivindicou no meio). */
+  seqNaReleitura?: number
 }
 
 function buildSupabaseMock(opts: BuildMockOpts = {}) {
@@ -81,10 +100,14 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     alreadyRotatedToday = false,
     channel = { channel_id: 'UCpt' },
     withOwner = true,
+    reivindicadas = [{ restore_seq: 1 }],
+    commit = 'ciclo-novo',
+    seqNaReleitura = 1,
   } = opts
   const owners = fakeOwnerClient(withOwner ? rootOrgWithAdmin('site-1') : {}, { 'owner-1': 'dono@x.com' })
 
-  const updateCalls: { table: string; data: unknown; filters: unknown[] }[] = []
+  const updateCalls: { table: string; data: unknown; filters: FiltroRegistrado[] }[] = []
+  const rpcCalls: { name: string; args: Record<string, unknown> }[] = []
   const insertCalls: { table: string; data: unknown }[] = []
   let cyclesSelectCallCount = 0
 
@@ -99,24 +122,14 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
             if (_val === 'queued') {
               return { not: vi.fn().mockReturnValue({ lte: vi.fn().mockResolvedValue({ data: queuedTests }) }) }
             }
-            return { data: tests }
+            // `{ data }` é a leitura dos ativos; `.single()` é a releitura de restore_seq antes de cada escrita.
+            return { data: tests, single: vi.fn().mockResolvedValue({ data: { restore_seq: seqNaReleitura, config: (tests[0] as { config?: unknown } | undefined)?.config }, error: null }) }
           }),
         }),
-        update: vi.fn((data: unknown) => {
-          const makeEqChain = (): Record<string, unknown> => {
-            const result = Promise.resolve({ data: null, error: null })
-            const eqFn = vi.fn((_col: string, _val: string) => {
-              updateCalls.push({ table, data, filters: [{ _col, _val }] })
-              return makeEqChain()
-            })
-            // Combine promise-like + chainable .eq()
-            return { eq: eqFn, then: result.then.bind(result), catch: result.catch.bind(result) }
-          }
-          return { eq: vi.fn((_col: string, _val: string) => {
-            updateCalls.push({ table, data, filters: [{ _col, _val }] })
-            return makeEqChain()
-          }) }
-        }),
+        update: vi.fn((data: unknown) => cadeiaUpdate(data, {
+          reivindicadas,
+          registrar: (r) => updateCalls.push({ table, data: r.data, filters: r.filtros }),
+        })),
       }
     }
 
@@ -147,7 +160,9 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
             is: vi.fn().mockResolvedValue({ data: null, error: null }),
           }),
         }),
-        select: vi.fn().mockImplementation(() => {
+        select: vi.fn().mockImplementation((cols?: string) => {
+          // Leitura do ciclo aberto no fecho (M-2): fora da paridade impar/par abaixo.
+          if (cols === 'started_at') return { eq: vi.fn().mockReturnValue({ is: vi.fn().mockReturnValue({ limit: vi.fn().mockReturnValue({ maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }) }) }) }) }
           cyclesSelectCallCount++
           if (cyclesSelectCallCount % 2 === 1) {
             // Odd calls = idempotency check (select('id').eq.gte.limit.maybeSingle)
@@ -203,17 +218,26 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
     }
   })
 
-  const client = { from: fromMock, rpc: owners.rpc, auth: owners.auth }
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    if (name === 'ab_rotate_commit') {
+      rpcCalls.push({ name, args })
+      return { data: commit, error: null }
+    }
+    return (owners.rpc as (n: string, a: Record<string, unknown>) => Promise<unknown>)(name, args)
+  })
+  const client = { from: fromMock, rpc, auth: owners.auth }
   ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
-  return { client, fromMock, updateCalls, insertCalls }
+  return { client, fromMock, updateCalls, insertCalls, rpcCalls }
 }
 
 beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'test-secret')
   vi.stubEnv('LINKS_SHORT_DOMAIN', 'go.test.com')
   vi.clearAllMocks()
+  settleOnAirFalso.mockResolvedValue({ resultado: 'feito', campos: {} })
   mockChannelAccountId.mockResolvedValue('UCpt')
+  fanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
   ;(preflightTokenCheck as ReturnType<typeof vi.fn>).mockResolvedValue({
     ok: true,
     accessToken: 'fresh-token-123',
@@ -267,7 +291,7 @@ describe('GET /api/cron/ab-rotate', () => {
 
     expect(body.processed).toBe(1)
     expect(fetchVariantImageBuffer).toHaveBeenCalledWith(
-      'https://blob.example/thumb-b.jpg'
+      'https://abc.public.blob.vercel-storage.com/thumb-b.jpg'
     )
     expect(setThumbnail).toHaveBeenCalledWith(
       'YT_VIDEO_123',
@@ -308,13 +332,13 @@ describe('GET /api/cron/ab-rotate', () => {
         {
           id: 'v1',
           sort_order: 0,
-          blob_url: 'https://blob.example/a.jpg',
+          blob_url: 'https://abc.public.blob.vercel-storage.com/a.jpg',
           title_text: 'Title A',
         },
         {
           id: 'v2',
           sort_order: 1,
-          blob_url: 'https://blob.example/b.jpg',
+          blob_url: 'https://abc.public.blob.vercel-storage.com/b.jpg',
           title_text: 'Title B',
         },
       ],
@@ -434,7 +458,7 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateVideoMetadata).not.toHaveBeenCalled()
   })
 
-  it('skips test and clears marker when write-ahead marker is stale (crash recovery)', async () => {
+  it('marcador velho (queda anterior): registra no Sentry, reivindica aceitando exatamente esse marcador e rotaciona', async () => {
     const test = makeTest({ last_applied_variant_id: 'variant-123' })
     const { updateCalls } = buildSupabaseMock({ tests: [test] })
 
@@ -442,15 +466,43 @@ describe('GET /api/cron/ab-rotate', () => {
     const res = await GET(req)
     const body = await res.json()
 
-    expect(body.processed).toBe(0)
-    expect(updateCalls).toContainEqual(
-      expect.objectContaining({
-        table: 'ab_tests',
-        data: { last_applied_variant_id: null },
-      }),
-    )
+    expect(body.processed).toBe(1)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('write-ahead marker'), 'warning')
+    const reivindicacao = updateCalls.find((c) => (c.data as Record<string, unknown>).restore_seq === 1)
+    expect(reivindicacao?.filters).toContainEqual({ col: 'last_applied_variant_id', op: 'eq', valor: 'variant-123' })
+    expect(setThumbnail).toHaveBeenCalled()
+  })
+
+  it('reivindicação sem linhas (outro escritor ganhou): não escreve no YouTube, não abre ciclo e não conta erro', async () => {
+    const test = makeTest()
+    const { rpcCalls } = buildSupabaseMock({ tests: [test], reivindicadas: [] })
+
+    const body = await (await GET(createCronRequest('test-secret'))).json()
+
+    expect(body).toMatchObject({ processed: 0, errors: 0 })
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
+    expect(rpcCalls).toHaveLength(0)
+  })
+
+  it('fecho devolve nulo (pausa entre a escrita e o fecho): sem erro de rotação, Sentry e aviso aos admins', async () => {
+    const test = makeTest()
+    buildSupabaseMock({ tests: [test], commit: null })
+
+    const body = await (await GET(createCronRequest('test-secret'))).json()
+
+    expect(body).toMatchObject({ processed: 0, errors: 0 })
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-rotate: reivindicação perdida depois da escrita', expect.anything())
+    expect(fanOut).toHaveBeenCalledWith(expect.objectContaining({ siteId: 'site-1', message: expect.stringContaining('a rotação e uma pausa se cruzaram') }))
+  })
+
+  it('o fecho vai para ab_rotate_commit com o seq reivindicado, a variante e o número do ciclo de escolha', async () => {
+    const test = makeTest()
+    const { rpcCalls } = buildSupabaseMock({ tests: [test], cycleCount: 3 })
+
+    await GET(createCronRequest('test-secret'))
+
+    expect(rpcCalls).toEqual([{ name: 'ab_rotate_commit', args: expect.objectContaining({ p_test_id: 'test-1', p_seq: 1, p_variant_id: 'v2', p_cycle_number: 4 }) }])
   })
 
   it('records cron health even with 0 active tests', async () => {
@@ -464,11 +516,11 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(recordCronSuccess).toHaveBeenCalledWith('ab-rotate', 'critical')
   })
 
-  it('does not clear write-ahead marker when YouTube API fails', async () => {
+  it('YouTube recusa sem escrever nada: limpa o marcador (com a guarda do seq) e soma a falha', async () => {
     const test = makeTest({ test_type: 'thumbnail' })
     const { updateCalls } = buildSupabaseMock({ tests: [test] })
     ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('YouTube API returned 401: token expired')
+      new YouTubeApiError(401, 'authError', 'thumbnails.set')
     )
 
     const req = createCronRequest('test-secret')
@@ -478,21 +530,17 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(body.errors).toBe(1)
     expect(body.processed).toBe(0)
 
-    // Write-ahead marker IS set (before YouTube call)
+    // Reivindicou antes de escrever (restore_seq + marcador)
     expect(updateCalls).toContainEqual(
       expect.objectContaining({
         table: 'ab_tests',
-        data: { last_applied_variant_id: 'v2' },
+        data: expect.objectContaining({ restore_seq: 1, last_applied_variant_id: 'v2' }),
       }),
     )
 
-    // Write-ahead marker is NOT cleared (failure path does not null it)
-    expect(updateCalls).not.toContainEqual(
-      expect.objectContaining({
-        table: 'ab_tests',
-        data: expect.objectContaining({ last_applied_variant_id: null }),
-      }),
-    )
+    // Y-D9: nada foi escrito, o marcador volta a nulo, só se o restore_seq ainda é o reivindicado
+    const limpeza = updateCalls.find((c) => JSON.stringify(c.data) === JSON.stringify({ last_applied_variant_id: null }))
+    expect(limpeza?.filters).toContainEqual({ col: 'restore_seq', op: 'eq', valor: 1 })
 
     // consecutive_failures incremented
     expect(updateCalls).toContainEqual(
@@ -551,7 +599,7 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateCalls).toContainEqual(
       expect.objectContaining({
         table: 'ab_tests',
-        data: { status: 'queued' },
+        data: { status: 'queued', queue_start_after: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/), config: { queue_start_failures: 1 } }, // Y-D5: nunca nulo
       }),
     )
     // Sentry captured the exception
@@ -587,7 +635,7 @@ describe('GET /api/cron/ab-rotate', () => {
     })
     const { updateCalls } = buildSupabaseMock({ tests: [test] })
     ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('YouTube API returned 401: token expired')
+      new YouTubeApiError(401, 'authError', 'thumbnails.set')
     )
 
     const req = createCronRequest('test-secret')
@@ -597,17 +645,12 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(body.errors).toBe(1)
     expect(body.processed).toBe(0)
 
-    // Test is paused with consecutive_failures: 3
-    expect(updateCalls).toContainEqual(
-      expect.objectContaining({
-        table: 'ab_tests',
-        data: expect.objectContaining({
-          status: 'paused',
-          status_note: expect.stringContaining('3 consecutive failures'),
-          config: expect.objectContaining({ consecutive_failures: 3 }),
-        }),
-      }),
-    )
+    // Terceira falha: a saída é PEDIDA a settleOnAir (volta ao original e pausa numa só reivindicação); a fase não grava a pausa
+    expect(settleOnAirFalso).toHaveBeenCalledTimes(1)
+    expect(settleOnAirFalso).toHaveBeenCalledWith('test-1', expect.objectContaining({
+      siteId: 'site-1', destino: { tipo: 'original' }, motivo: 'falha_api', consecutiveFailures: 3,
+    }))
+    expect(updateCalls.some((c) => (c.data as { status?: string }).status === 'paused')).toBe(false)
   })
 
   it('does not process queued tests with future queue_start_after', async () => {
@@ -657,20 +700,20 @@ describe('GET /api/cron/ab-rotate', () => {
     ).length).toBeGreaterThanOrEqual(2)
   })
 
-  it('records cycle even when metadata update fails in combo test', async () => {
+  it('combo: título falha depois da thumbnail → conta a falha, mantém o marcador e não abre ciclo', async () => {
     const test = makeTest({
       test_type: 'combo',
       variants: [
         {
           id: 'v1',
           sort_order: 0,
-          blob_url: 'https://blob.example/a.jpg',
+          blob_url: 'https://abc.public.blob.vercel-storage.com/a.jpg',
           title_text: 'Title A',
         },
         {
           id: 'v2',
           sort_order: 1,
-          blob_url: 'https://blob.example/b.jpg',
+          blob_url: 'https://abc.public.blob.vercel-storage.com/b.jpg',
           title_text: 'Title B',
         },
       ],
@@ -680,7 +723,7 @@ describe('GET /api/cron/ab-rotate', () => {
     // Thumbnail succeeds, metadata throws
     ;(setThumbnail as ReturnType<typeof vi.fn>).mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' })
     ;(updateVideoMetadata as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error('YouTube API returned 401: token expired')
+      new YouTubeApiError(401, 'authError', 'videos.update')
     )
 
     const req = createCronRequest('test-secret')
@@ -690,13 +733,14 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(body.errors).toBe(1)
     expect(body.processed).toBe(0)
 
-    // Write-ahead marker was set (before YouTube calls)
+    // Reivindicou antes de escrever; a escrita foi parcial (thumbnail ok, título não): o marcador FICA
     expect(updateCalls).toContainEqual(
       expect.objectContaining({
         table: 'ab_tests',
-        data: { last_applied_variant_id: 'v2' },
+        data: expect.objectContaining({ restore_seq: 1, last_applied_variant_id: 'v2' }),
       }),
     )
+    expect(updateCalls.some((c) => JSON.stringify(c.data) === JSON.stringify({ last_applied_variant_id: null }))).toBe(false)
 
     // consecutive_failures incremented
     expect(updateCalls).toContainEqual(

@@ -5,6 +5,7 @@
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { ZeroMedido } from '../../_chrome/medidas/marcas'
 import { RiInfo } from '../../_canais/ri-info'
+import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { dm } from './formatos'
 import type { BlocoDeRitmo, CartaoDeRitmo, CasaDaSemana, RaiaDeRitmo } from './ritmo-model'
 import './canal-medidas.css'
@@ -38,7 +39,7 @@ function Cartao({ c }: { c: CartaoDeRitmo }) {
     <li data-cartao={c.chave}>
       <span>{c.rotulo}</span>
       {c.valor.tipo === 'medido' ? <><b className="num">{c.valor.texto}</b>{c.valor.pequeno ? <small className="num">{c.valor.pequeno}</small> : null}</>
-        : c.valor.tipo === 'nao_carregou' ? <span className="obs-md-nc" role="alert"><span>Não carregou</span></span>
+        : c.valor.tipo === 'nao_carregou' ? <PastilhaAusencia estado="falhou" />
         : <span className="obs-ch-nm" title={c.valor.motivo}>não medido<span className="obs-md-sr">: {c.valor.motivo}</span></span>}
     </li>
   )
@@ -58,7 +59,7 @@ export function RitmoBloco({ bloco }: { bloco: BlocoDeRitmo }) {
   return (
     <section className="pc-sec" id="ritmo" aria-labelledby="hRit">
       <div className="pc-sh">
-        <h2 id="hRit">Ritmo e regularidade</h2>
+        <h2 id="hRit" data-valor>Ritmo e regularidade</h2>
         <RiInfo titulo="o ritmo e a regularidade" itens={itens} rotuloBotao="Como ler o ritmo e a regularidade" />
       </div>
       <p className="pc-fr2" data-frase-do-bloco><span><b>{bloco.frase.negrito}</b>{bloco.frase.resto}</span></p>

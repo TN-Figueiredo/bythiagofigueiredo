@@ -52,7 +52,7 @@ const viewsTxt = (n: number | null, exato: boolean): string => (n === null ? 'se
 /** A frase "Nos 14 dias antes, o canal mudou…" (só com subida). */
 function fraseAntes(mudancas: readonly MudancaNumerada[] | null, subidaDia: string): string {
   // mudanças não lidas nunca viram "nenhuma mudança"
-  if (mudancas === null) return ' Não carregou: não deu para ler as mudanças deste vídeo.'
+  if (mudancas === null) return ' A leitura falhou: não deu para ler as mudanças deste vídeo.'
   const antes = mudancas.filter((m) => dentroDosDiasAntes(m, subidaDia))
   const dias = MEASURE_RULES.rise.lookbackDays
   if (antes.length === 0) return ` Nenhuma mudança vista nos ${dias} dias antes.`
@@ -90,7 +90,7 @@ export function resumoDoVideo(e: EntradaDoResumo): Resumo {
   if (e.diasDeContagem === null && e.saiu === null && !e.semanal && e.idade.tipo !== 'nao_medido') {
     variante = 'nao_carregou'
     // a série não foi lida; o histórico existe, só não carregou (nunca "ainda não há histórico")
-    frase = `O vídeo tem ${viewsTxt(views, true)} views agora. O histórico por dia não carregou; recarregue a página.`
+    frase = `O vídeo tem ${viewsTxt(views, true)} views agora. A leitura do histórico por dia falhou; recarregue a página.`
   } else if (e.diasDeContagem === 0 && e.saiu === null && !e.semanal && e.idade.tipo !== 'nao_medido') {
     variante = 'vazio'
     frase = `O vídeo tem ${viewsTxt(views, true)} views agora. Ainda não há histórico: a primeira leitura por dia é às 12:00 de amanhã (horário de São Paulo).`

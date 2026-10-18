@@ -58,7 +58,7 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
   const PERMITIDOS = new Set([
     '@/lib/youtube/observatorio/contexto-ia/frases', '@/lib/youtube/observatorio/medidas/regras',
     '../_comparar/definicoes', '../_comparar/medidas-do-par', './modelo-medidas-comparar', '../_comparar/regua-da-linha', '../_comparar/so-seu-canal-model', '../_proprio/taxa-faixa-model', '../_proprio/retencao-model', '../_chrome/comentarios/frases', '../_canal/medidas/criador-do-canal', '../_canal/medidas/criador-model', '../_canal/medidas/criador-lista-model',
-    '../_canal/videos-model', '../_canal/lista',
+    '../_canal/videos-model', '../_canal/lista', './celula-ausente', '../_chrome/ausencia/estado',
     // TG: os modelos puros das medidas da página do canal (os mesmos que a tela usa)
     '../_canal/medidas/canal-derivado', '../_canal/medidas/cabecalho-model', '../_canal/medidas/estado-model', '../_canal/medidas/frase-do-topo', '../_canal/medidas/formatos',
     '../_canal/medidas/direcao-model', '../_canal/medidas/ritmo-model', '../_canal/medidas/lancamentos-model', '../_canal/medidas/linha-do-tempo-model',

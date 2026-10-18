@@ -16,8 +16,8 @@ const W = proprioWorld()
 const { posicao } = posicaoDoSite(W.obs, W.canalId)
 const HEADER = buildProprioHeader(W.obs, W.canalId, W.dados, { hoje: W.hoje, dm: W.dm, posicao, muitosProprios: false })!
 const VIDEOS = W.obs.videos.filter(x => x.ch === W.canalId).map(x => ({ id: x.id, ytId: x.ytId, title: x.title, thumb: null }))
-function montar(dados: DadosDoCanal = W.dados) {
-  const s = montarComoEsta({ dados, hoje: W.hoje, dm: W.dm, posicao, posicaoItens: HEADER.posicaoItens, videos: VIDEOS, concorrentes: concorrentesDoSite(W.obs, W.canalId), canalId: W.canalId, publicacoes: publicacoesDe(W.obs.videos.filter(x => x.ch === W.canalId)) })
+function montar(dados: DadosDoCanal = W.dados, negativa: 'sem_direito' | null = null) {
+  const s = montarComoEsta({ dados, negativa, hoje: W.hoje, dm: W.dm, posicao, posicaoItens: HEADER.posicaoItens, videos: VIDEOS, concorrentes: concorrentesDoSite(W.obs, W.canalId), canalId: W.canalId, publicacoes: publicacoesDe(W.obs.videos.filter(x => x.ch === W.canalId)) })
   return { ...s, ...render(<ComoEsta view={s.view} grafico={s.grafico} graficoViews={s.graficoViews} painel="1" canalId={W.canalId} />) }
 }
 const corpo = () => document.querySelector<HTMLElement>('.pn-b')!
@@ -44,9 +44,11 @@ describe('13.3 bloco "Taxa de clique do canal" na tela', () => {
     expect(dica.textContent).toContain('método de Wilson')
   })
   it('sem permissão ou sem relatório: só a frase do motivo; nenhum SVG da faixa, nenhuma nota', () => {
-    const { view } = montar({ alcance: { acesso: 'negado' }, diario: { acesso: 'negado' } })
+    const { view } = montar({ alcance: { acesso: 'negado' }, diario: { acesso: 'negado' } }, 'sem_direito')
     const bloco = within(corpo()).getByRole('region', { name: /Taxa de clique do canal/ })
-    expect(bloco.querySelector('.pn-vazio')!.textContent).toBe(view.taxa.vazio)
+    // decisão 75: a pastilha "restrito" (cadeado) vem antes da frase
+    expect(bloco.querySelector('.pn-vazio .obs-au-restrito')).not.toBeNull()
+    expect(bloco.querySelector('.pn-vazio')!.textContent).toBe('restrito ' + view.taxa.vazio)
     expect(bloco.querySelector('.tf')).toBeNull()
     expect(bloco.querySelector('.pn-nt')).toBeNull()
   })
@@ -67,11 +69,11 @@ describe('13.3 views por dia e "O que ainda não é medido"', () => {
     expect(corpo().textContent).not.toContain('desenho delas')
   })
   it('usuário só de leitura: nenhum dígito do dado privado em todo o corpo aberto (nem a taxa, nem as views)', () => {
-    montar({ alcance: { acesso: 'negado' }, diario: { acesso: 'negado' } })
+    montar({ alcance: { acesso: 'negado' }, diario: { acesso: 'negado' } }, 'sem_direito')
     const taxa = corpo().querySelector('.pn-taxa')!
     expect(taxa.textContent).not.toMatch(/\d/)
     const views = [...corpo().querySelectorAll('.pn-c .ic')][1]!
     expect(views.querySelector('svg.ic-svg')).toBeNull()
-    expect(views.textContent).toBe('Views por dia, soma dos vídeosSó quem edita o site vê as views.')
+    expect(views.textContent).toBe('Views por dia, soma dos vídeosrestrito Só quem edita o site vê as views.')
   })
 })

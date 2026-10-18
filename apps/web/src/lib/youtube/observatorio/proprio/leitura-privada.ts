@@ -44,7 +44,11 @@ Object.freeze(LeituraPrivadaDoSite)
 /** `sem_direito`: negação de verdade. `nao_foi_possivel_conferir`: não houve resposta confiável (nunca vira `sem_direito`). */
 export type MotivoSemLeitura = 'sem_direito' | 'nao_foi_possivel_conferir'
 /** `negativa` é null se, e só se, há leitura. `edita` só é true quando a guarda de edição aceitou. */
-export interface AcessoPrivado { leitura: LeituraPrivadaDoSite | null; edita: boolean; negativa: MotivoSemLeitura | null }
+export interface AcessoPrivado {
+  leitura: LeituraPrivadaDoSite | null; edita: boolean; negativa: MotivoSemLeitura | null
+  /** Decisão 75 (M4): a guarda de EDIÇÃO caiu, mas a de leitura concedeu. `edita:false` aqui não é "não pode editar": é "não deu para conferir". A tela mostra `falhou`, nunca o cadeado, no link do teste A/B. */
+  edicaoNaoConferida?: boolean
+}
 
 type MotivoSentry = 'guarda_falhou' | 'funcao_ausente_ou_erro' | 'resposta_inesperada'
 const TAGS = { component: 'observatorio-proprio', step: 'provar-leitura-privada' } as const
@@ -96,7 +100,8 @@ export async function provarAcessoPrivado(siteId: string): Promise<AcessoPrivado
     return semResposta
   }
   // prazo de 5 s (m-2 do portão de dados): se o banco travar, a página abre com `nao_foi_possivel_conferir`, não espera a função inteira
-  return perguntarDireito(userId, siteId, PRAZO_MS, avisar)
+  const r = await perguntarDireito(userId, siteId, PRAZO_MS, avisar)
+  return edicaoAvisou && r.leitura != null ? { ...r, edicaoNaoConferida: true } : r
 }
 
 /**

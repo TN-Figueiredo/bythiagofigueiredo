@@ -6,9 +6,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { Abas } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/abas'
 import { SecaoDeComentarios } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/secao'
 import { Cartao } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/cartao'
+import { enxugarCartao, enxugarLista } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/enxuto'
 import { EstadoDoPainel, Carregando } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/estados'
 import { ListaDoPainel } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/lista'
 import { estadoDeErro, secaoDeComentarios, type CartaoView, type ListaView } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/model'
+import type { CriadorDoFio } from '@/app/cms/(authed)/youtube/competitors/_chrome/comentarios/fio-model'
 import { OPCOES, cartao, dados, doze } from './comentarios-e5-secao-fixture'
 import type { Marco } from '@/lib/youtube/observatorio/comentarios/tipos'
 
@@ -26,7 +28,8 @@ const cartaoComTexto = (texto: string, o = {}): CartaoView => {
   if (p.kind !== 'lista') throw new Error('lista')
   return p.cartoes[0]!
 }
-const renderCartao = (v: CartaoView) => render(<ol><Cartao v={v} /></ol>)
+const CRIADOR: CriadorDoFio = { nome: 'Leo', avatar: 'https://yt3.ggpht.com/leo=s88', ini: 'L', color: '#336699' }
+const renderCartao = (v: CartaoView) => render(<ol><Cartao v={enxugarCartao(v)} criador={CRIADOR} /></ol>)
 
 describe('C2 · abas', () => {
   const abas = secaoDeComentarios(dados(), OPCOES).abas
@@ -66,54 +69,72 @@ describe('C2 · abas', () => {
 })
 
 describe('C2 · lista', () => {
-  it('cinco cartões por vez; o botão leva o foco ao primeiro revelado e volta', () => {
+  it('cinco fios por vez; o botão "Ver as outras 7" alterna para "Recolher" e o foco vai para o 6º fio', () => {
     const v = lista()
-    const { container } = render(<ListaDoPainel v={v} />)
-    const visiveis = () => [...container.querySelectorAll('li.cd-cartao')].filter(e => !e.hasAttribute('hidden'))
+    const { container } = render(<ListaDoPainel v={enxugarLista(v)} criador={CRIADOR} />)
+    expect(container.querySelector('.cd-fileira')).toBeNull()
+    expect(container.querySelector('.cd-casa')).toBeNull()
+    expect(container.querySelectorAll('li.cf')).toHaveLength(12)
+    const visiveis = () => [...container.querySelectorAll('li.cf')].filter(e => !e.hasAttribute('hidden'))
     expect(visiveis()).toHaveLength(5)
-    const mais = screen.getByRole('button', { name: 'Mostrar os outros 7' })
+    const mais = screen.getByRole('button', { name: 'Ver as outras 7' })
     expect(mais.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(mais)
     expect(visiveis()).toHaveLength(12)
     expect(document.activeElement?.id).toBe(v.cartoes[5]!.id)
-    const menos = screen.getByRole('button', { name: 'Mostrar só os 5 primeiros' })
+    const menos = screen.getByRole('button', { name: 'Recolher' })
     expect(menos.getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(menos)
     expect(visiveis()).toHaveLength(5)
   })
-  it('a casa da fileira leva ao cartão, mesmo escondido (e o foco vai nele)', () => {
+  it('o fio escondido ainda é alvo de foco (tabindex -1)', () => {
     const v = lista()
-    const { container } = render(<ListaDoPainel v={v} />)
+    const { container } = render(<ListaDoPainel v={enxugarLista(v)} criador={CRIADOR} />)
     const alvo = v.cartoes[9]!
     expect(container.querySelector(`#${alvo.id}`)!.hasAttribute('hidden')).toBe(true)
-    fireEvent.click(container.querySelector(`a[href="#${alvo.id}"]`)!)
-    expect(container.querySelector(`#${alvo.id}`)!.hasAttribute('hidden')).toBe(false)
-    expect(document.activeElement?.id).toBe(alvo.id)
     expect(container.querySelector(`#${alvo.id}`)!.getAttribute('tabindex')).toBe('-1')
   })
-  it('doze casas, cada uma com rótulo; as vazias são role=presentation', () => {
-    const pouco = secaoDeComentarios(dados({ comentarios: doze().slice(0, 9).map(c => ({ ...c, nosMarcos: [7] as Marco[] })) }), OPCOES).paineis[7]
-    if (pouco.kind !== 'lista') throw new Error('lista')
-    const { container } = render(<ListaDoPainel v={pouco} />)
-    const ol = container.querySelector('ol.cd-fileira')!
-    expect(ol.querySelectorAll('a')).toHaveLength(9)
-    expect(ol.querySelectorAll('li[role="presentation"]')).toHaveLength(3)
-    expect(ol.querySelector('a')!.getAttribute('aria-label')).toMatch(/^Comentário 1 de 9, /)
+  it('a legenda só tem os motivos que existem e os zeros vão numa frase apagada', () => {
+    const { container } = render(<ListaDoPainel v={enxugarLista(lista())} criador={CRIADOR} />)
+    expect([...container.querySelectorAll('.cd-leg')].map(e => e.textContent)).toEqual(['8 mais curtidos', '4 com o criador na conversa'])
+    expect(container.querySelector('.cd-zeros')!.textContent).toBe('Nenhum de canal que você acompanha nem de canal grande.')
   })
-  it('a frase-resumo, a barra e a legenda estão no DOM', () => {
-    render(<ListaDoPainel v={lista()} />)
-    expect(screen.getByText(/guardamos 12 dos 100 primeiros/)).toBeTruthy()
-    expect(screen.getAllByText('12 de 100').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('0 comentários').length).toBeGreaterThan(0)
+  it('o selo "Criador" aparece uma vez por resposta do criador vista (3 no fixture)', () => {
+    const { container } = render(<ListaDoPainel v={enxugarLista(lista())} criador={CRIADOR} />)
+    expect(container.querySelectorAll('.cf-selo')).toHaveLength(3)
   })
-  it('"Ver os N que saíram" abre os cartões dos que saíram', () => {
+  it('"Ver os N que saíram" abre os fios dos que saíram, com cf-saiu', () => {
     const cs = doze().map((c, i) => ({ ...c, nosMarcos: (i < 10 ? [1, 7] : [1]) as Marco[] }))
     const p = secaoDeComentarios(dados({ comentarios: cs }), OPCOES).paineis[7]
     if (p.kind !== 'lista') throw new Error('lista')
-    const { container } = render(<ListaDoPainel v={p} />)
+    const { container } = render(<ListaDoPainel v={enxugarLista(p)} criador={CRIADOR} />)
     expect(container.querySelector('.cd-cartoes-saidos')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Ver os 2 que saíram dos 12' }))
-    expect(container.querySelectorAll('.cd-cartoes-saidos li.cd-cartao')).toHaveLength(2)
+    const saidos = container.querySelectorAll('.cd-cartoes-saidos li.cf')
+    expect(saidos).toHaveLength(2)
+    for (const e of saidos) expect(e.className).toContain('cf-saiu')
+  })
+  it('"entrou no dia 7" aparece no fio que entrou', () => {
+    const cs = doze().map((c, i) => ({ ...c, nosMarcos: (i < 11 ? [1, 7] : [7]) as Marco[] }))
+    const p = secaoDeComentarios(dados({ comentarios: cs }), OPCOES).paineis[7]
+    if (p.kind !== 'lista') throw new Error('lista')
+    const { container } = render(<ListaDoPainel v={enxugarLista(p)} criador={CRIADOR} />)
+    expect(container.querySelector('.cf-entrou')!.textContent).toBe('entrou no dia 7')
+  })
+})
+
+describe('C2 · seção: a frase-resumo vem antes das abas', () => {
+  it('no DOM, a frase e a barra precedem o tablist; aba aberta mostra a frase da sua idade', () => {
+    const { container } = render(<SecaoDeComentarios v={secaoDeComentarios(dados(), OPCOES)} criador={CRIADOR} />)
+    const frase = container.querySelector('[data-frase-resumo]')!
+    const abas = container.querySelector('[role="tablist"]')!
+    expect(frase.compareDocumentPosition(abas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(frase.textContent).toMatch(/^Não vimos resposta|^O criador respondeu/)
+    const visiveis = () => [...container.querySelectorAll('[data-frase-resumo]')].filter((f) => !f.closest('[hidden]'))
+    expect(visiveis()).toHaveLength(1)
+    fireEvent.click(screen.getAllByRole('tab')[0]!)
+    expect(visiveis()).toHaveLength(1)
+    expect(visiveis()[0]!.textContent).toContain('com 1 dia')
   })
 })
 
@@ -122,26 +143,26 @@ describe('C2 · texto de terceiros no DOM', () => {
     const t = '<script>alert(1)</script> <b>negrito</b> <a href="https://x.example">clique</a> https://exemplo.example/tudo'
     const { container } = renderCartao(cartaoComTexto(t))
     expect(container.querySelector('script')).toBeNull()
-    expect(container.querySelector('.cd-texto a')).toBeNull()
-    expect(container.querySelector('.cd-texto b')).toBeNull()
-    expect(container.querySelector('.cd-texto')!.textContent).toBe(t)
+    expect(container.querySelector('.cf-txt a')).toBeNull()
+    expect(container.querySelector('.cf-txt b')).toBeNull()
+    expect(container.querySelector('.cf-txt')!.textContent).toBe(t)
     expect(container.querySelector('a[href^="http"]')).toBeNull()
     expect(screen.getByText('Este comentário tem um endereço. Aqui ele é só texto, não abre.')).toBeTruthy()
   })
   it('texto em árabe: dir="auto" no bloco', () => {
     const { container } = renderCartao(cartaoComTexto('فيديو رائع، شكراً'))
-    expect(container.querySelector('.cd-texto')!.getAttribute('dir')).toBe('auto')
+    expect(container.querySelector('.cf-txt')!.getAttribute('dir')).toBe('auto')
   })
   it('endereço longo: o bloco quebra em qualquer ponto (overflow-wrap) em vez de rolar', () => {
-    const css = readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_chrome/comentarios/comentarios.css'), 'utf8')
-    expect(css).toMatch(/\.cd-texto\{[^}]*overflow-wrap:anywhere/)
+    const css = readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_chrome/comentarios/fio.css'), 'utf8')
+    expect(css).toMatch(/\.cf-txt\{[^}]*overflow-wrap:anywhere/)
     const { container } = renderCartao(cartaoComTexto('https://exemplo.example/' + 'a'.repeat(200)))
-    expect(container.querySelector('.cd-texto')!.textContent!.length).toBeGreaterThan(200)
+    expect(container.querySelector('.cf-txt')!.textContent!.length).toBeGreaterThan(200)
   })
   it('2.000 caracteres: "cortado aos 2.000 caracteres" só com a marca do dado', () => {
     const longo = 'x'.repeat(2000)
     const a = renderCartao(cartaoComTexto(longo, { cortado: true }))
-    expect(a.container.querySelector('.cd-texto')!.textContent).toHaveLength(2000)
+    expect(a.container.querySelector('.cf-txt')!.textContent).toHaveLength(2000)
     expect(screen.getByText('cortado aos 2.000 caracteres')).toBeTruthy()
     cleanup()
     renderCartao(cartaoComTexto(longo, { cortado: false }))
@@ -150,7 +171,7 @@ describe('C2 · texto de terceiros no DOM', () => {
   it('emoji e quebras de linha chegam inteiros', () => {
     const t = '🔥🇻🇳❤️\nsegunda linha\n\nterceira 👏🏽'
     const { container } = renderCartao(cartaoComTexto(t))
-    expect(container.querySelector('.cd-texto')!.textContent).toBe(t)
+    expect(container.querySelector('.cf-txt')!.textContent).toBe(t)
   })
   it('"Ver tudo" só aparece se o texto passar de 4 linhas', () => {
     const alto = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(200)
@@ -159,7 +180,7 @@ describe('C2 · texto de terceiros no DOM', () => {
     const ver = screen.getByRole('button', { name: 'Ver tudo' })
     expect(ver.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(ver)
-    expect(screen.getByRole('button', { name: 'Mostrar menos' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Recolher' })).toBeTruthy()
     alto.mockRestore(); bx.mockRestore()
     cleanup()
     renderCartao(cartaoComTexto('curto'))
@@ -173,23 +194,23 @@ describe('C2 · cartão', () => {
     if (base.kind !== 'lista') throw new Error('lista')
     const { container } = renderCartao(base.cartoes[0]!)
     expect(screen.getByText('Texto reservado.')).toBeTruthy()
-    expect(screen.getByText('Autor reservado')).toBeTruthy()
+    expect(container.querySelector('.cf-nome')).toBeNull()
     expect(screen.getByText('O criador respondeu. O texto da resposta é reservado.')).toBeTruthy()
-    expect(container.querySelector('.cd-texto')).toBeNull()
+    expect(container.querySelector('.cf-txt')).toBeNull()
   })
-  it('curtidas nas três idades; "fora dos 12" e "fecha em" nunca como 0', () => {
-    const { container } = renderCartao(cartaoComTexto('x', { curtidas: { 1: 'fora_dos_12', 7: 9, 30: 'ainda_nao' } }))
-    const t = [...container.querySelectorAll('.cd-cur')].map(e => e.textContent)
-    expect(t[0]).toContain('fora dos 12')
-    expect(t[2]).toContain('fecha em 05/11')
-    expect(t.join(' ')).not.toMatch(/\b0\b/)
+  it('curtidas do marco do painel; "fora dos 12" nunca como 0', () => {
+    const fora = renderCartao(cartaoComTexto('x', { curtidas: { 1: 'ainda_nao', 7: 'fora_dos_12', 30: 'ainda_nao' } }))
+    expect(fora.container.querySelector('.cf-likes')!.textContent).toContain('fora dos 12')
+    cleanup()
+    const n = renderCartao(cartaoComTexto('x', { curtidas: { 1: 'fora_dos_12', 7: 9, 30: 'ainda_nao' } }))
+    expect(n.container.querySelector('.cf-likes')!.textContent).toContain('9 com 7 dias')
   })
   it('0 respostas escreve o zero medido; 62 respostas escreve o número', () => {
     const z = renderCartao(cartaoComTexto('x', { respostas: 0 }))
-    expect(z.container.querySelector('.cd-rodape .obs-ch-zero')!.textContent).toBe('0')
+    expect(z.container.querySelector('.cf-meta .obs-ch-zero')!.textContent).toBe('0')
     cleanup()
     const n = renderCartao(cartaoComTexto('x', { respostas: 62 }))
-    expect(n.container.querySelector('.cd-rodape')!.textContent).toBe('Publicado em 07/10 · 62 respostas')
+    expect(n.container.querySelector('.cf-meta')!.textContent).toContain('62 respostas')
   })
   it('saiu do YouTube: pastilha e o botão só com destino', () => {
     const v = cartaoComTexto('x', { saiuDoYouTubeDesde: '2026-10-13' })
@@ -197,7 +218,7 @@ describe('C2 · cartão', () => {
     expect(screen.getByText(/Não veio mais do YouTube desde hoje \(13\/10\)/)).toBeTruthy()
     expect(screen.queryByText('Ver na fila “Saíram do YouTube”')).toBeNull()
     cleanup()
-    render(<ol><Cartao v={v} hrefFilaSaiu="/cms/x" /></ol>)
+    render(<ol><Cartao v={enxugarCartao(v)} criador={CRIADOR} hrefFilaSaiu="/cms/x" /></ol>)
     expect(screen.getByText('Ver na fila “Saíram do YouTube”').getAttribute('href')).toBe('/cms/x')
   })
   it('as três formas da resposta do criador', () => {
@@ -234,7 +255,7 @@ describe('C2 · estados', () => {
 
 describe('C2 · seção montada', () => {
   it('título, ⓘ, abas e o painel aberto; sem texto de comentário no nível contagem', () => {
-    render(<SecaoDeComentarios v={secaoDeComentarios(dados(), OPCOES)} />)
+    render(<SecaoDeComentarios v={secaoDeComentarios(dados(), OPCOES)} criador={CRIADOR} />)
     expect(screen.getByRole('heading', { name: 'Comentários de destaque' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Como escolhemos os comentários' })).toBeTruthy()
     expect(screen.getAllByRole('tab')).toHaveLength(3)
@@ -247,11 +268,11 @@ describe('N10b · foto do autor', () => {
   it('a foto vem sem Referer, preguiçosa, e se quebrar cai na inicial do nome', () => {
     const v = cartaoComTexto('x', { autor: { tipo: 'com_identidade', nome: 'Ana', fotoUrl: 'https://exemplo.example/f.png', guardadaAte: '2026-11-01' } })
     const { container } = renderCartao(v)
-    const img = container.querySelector('img.cd-foto')
+    const img = container.querySelector('.cf-av img')
     expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer')
     expect(img?.getAttribute('loading')).toBe('lazy')
     fireEvent.error(img as Element)
     expect(container.querySelector('img')).toBeNull()
-    expect(container.querySelector('.cd-foto-inicial')?.textContent).toBe('A')
+    expect(container.querySelector('.cf-av[data-avatar="ini"] .ini')?.textContent).toBe('A')
   })
 })

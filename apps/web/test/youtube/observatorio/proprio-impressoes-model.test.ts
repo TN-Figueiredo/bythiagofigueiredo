@@ -627,3 +627,20 @@ describe('E5b T13: faixa de 7 casas', () => {
     expect(v.cedo?.frase).toContain('(faltam 6 dias)')
   })
 })
+
+describe('decisão 75: vazioEstado', () => {
+  it('negado com sem_direito → restrito; guarda caída ou sem negativa → falhou (nunca cadeado)', () => {
+    expect(buildImpressoes([], null, { ...O, acesso: 'negado', negativa: 'sem_direito' }).vazioEstado).toBe('restrito')
+    expect(buildImpressoes([], null, { ...O, acesso: 'negado', negativa: 'nao_foi_possivel_conferir' }).vazioEstado).toBe('falhou')
+    expect(buildImpressoes([], null, { ...O, acesso: 'negado' }).vazioEstado).toBe('falhou')
+    expect(buildImpressoes([], null, { ...O, acesso: 'negado', unidade: 'views', negativa: 'sem_direito' }).vazioEstado).toBe('restrito')
+  })
+  it('erro → falhou; sem relatório → nao_medido; com gráfico → null', () => {
+    expect(buildImpressoes([], null, { ...O, acesso: 'erro' }).vazioEstado).toBe('falhou')
+    expect(buildImpressoes([], null, O).vazioEstado).toBe('nao_medido')
+    const { dias, periodo: p } = montarDias(alcanceCheio('c', ['x'], HOJE), { hoje: HOJE })
+    const v = buildImpressoes(dias, p, O)
+    expect(v.vazio).toBeNull()
+    expect(v.vazioEstado).toBeNull()
+  })
+})

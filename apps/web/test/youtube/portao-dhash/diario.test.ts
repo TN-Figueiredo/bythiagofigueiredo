@@ -27,6 +27,14 @@ describe('Diario', () => {
     expect(d.ler()).toEqual(e)
     expect(fs.existsSync(path.join(pasta, 'estado.json.tmp'))).toBe(false)
   })
+  it('Y-7: a ETag crua W/"1792001270" volta do disco exatamente como foi gravada, com o erro da sonda de antes', () => {
+    const e = { ...estado(), etagAntes: 'W/"1792001270"', erroSondaAntes: null }
+    d.gravar(e)
+    expect(d.ler()!.etagAntes).toBe('W/"1792001270"')
+    expect(fs.readFileSync(path.join(pasta, 'estado.json'), 'utf8')).toContain('"etagAntes": "W/\\"1792001270\\""')
+    d.gravar({ ...e, etagAntes: null, erroSondaAntes: 'HEAD 503' })
+    expect(d.ler()!.erroSondaAntes).toBe('HEAD 503')
+  })
   it('salvarUmaVez devolve o sha256 e a segunda chamada lança EEXIST sem mudar os bytes', () => {
     const b = Buffer.from('original')
     expect(d.salvarUmaVez('o.jpg', b)).toBe(sha256(b))

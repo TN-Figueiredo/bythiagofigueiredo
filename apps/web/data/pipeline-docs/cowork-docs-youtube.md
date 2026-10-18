@@ -1742,6 +1742,29 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 - Lista (`list_tests`, `ab-tests`): continua um vetor; cada item tem os mesmos `null` e o seu próprio `aviso`
 - Painel (`ab-tests/dashboard`): `winRate` é `null` quando nenhum teste concluído conta
 
+### GET /ab-tests/:id e list_tests: `restore_status` e `leitura`
+
+Teste (`get_test`, `GET /api/pipeline/youtube/ab-tests/{id}`) e cada item da lista (`list_tests`, `GET /api/pipeline/youtube/ab-tests`) trazem o que aconteceu quando o teste saiu do ar (restauração do original ou da variante), igual no REST e no MCP:
+
+```json
+{
+  "restore_status": {
+    "title": { "estado": "falhou", "destino": "original", "em": "2026-10-12T08:02:00Z", "forcado": false, "escreveu": false, "erro": { "status": 403, "reason": "forbidden", "chamada": "videos.update" }, "attempts": 1 }
+  },
+  "leitura": { "title": { "tipo": "final", "estado": "falhou", "em": "2026-10-12T08:02:00Z", "destino": "original", "forcado": false, "motivo": null } }
+}
+```
+
+- `restore_status`: cru, como está no banco, com uma chave por campo (`title`, `thumbnail`). Forma de cada campo: `{ estado, destino, em, forcado, escreveu, motivo?, erro, attempts }`. `destino` é `original` ou o id da variante.
+- `estado` é um destes: `em_andamento`, `ok`, `falhou`, `pulado_sem_original`, `pulado_drift`, `desistiu`.
+- `erro` guarda só `status`, `reason` e `chamada` (`videos.list`, `videos.update`, `thumbnails.set`, `blob`) do YouTube, ou `{ motivo }` para aborto interno, ou o texto `interrompido` (posto pelo vigia). Nunca corpo de resposta.
+- `leitura`: a leitura pronta do `restore_status`, por campo, com três `tipo`: `em_andamento` (até 5 min desde `em`, 5:00 exato ainda é em andamento), `sem_resposta` (mais de 5 min sem fecho; `interrompido: true` passados 15 min ou quando o vigia já marcou `interrompido`) e `final` (os outros estados, com `estado`, `em`, `destino`, `forcado`, `motivo`). Prefira citar a `leitura` a refazer a conta.
+- `restore_status` nulo = o teste nunca passou pelo código novo da saída do ar (saiu antes de 10/2026 ou ainda está em andamento); nesse caso `leitura` é `null`. `{}` = passou e não há restauração a mostrar; `leitura` é `{}`.
+- Se o `restore_status` gravado não tem a forma esperada, `leitura` é `{ "ilegivel": true }` (diferente de `null`: não diga que é "mundo antigo").
+- `restore_seq` é interno e não aparece.
+- Ciclos (`cycles[]`, só em `get_test`) ganham `end_reason`: `null` (ciclo aberto ou anterior ao campo) ou um de seis valores: `pausa`, `encerrado`, `falha_api`, `duracao_maxima`, `drift`, `rotacao`.
+- As variantes saem por lista fechada de colunas, sem `thumbnail_dhash` (interno).
+
 ---
 
 ## Workflows de Referência

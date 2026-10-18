@@ -53,7 +53,7 @@ export function estadoDaPagina(
     return { tipo: 'pausado', pastilha: 'Coleta pausada', base: 'a coleta deste canal está pausada', ate }
   }
   if (m8 === null || (m8.estado.estado === 'nao_medido' && classeDoMotivo(m8.estado.motivo) === 'nao_carregou')) {
-    return { tipo: 'nao_carregou', pastilha: 'Não carregou', base: 'não carregou', ate }
+    return { tipo: 'nao_carregou', pastilha: 'falhou', base: 'falhou', ate }
   }
   if (m8.estado.estado !== 'medido') {
     // os dados carregaram e não há base para o estado: "não medido", nunca "não carregou"

@@ -53,7 +53,7 @@ export function estadoDaLinha(
     return { ...base, pastilha: 'canal_proprio', linha: 'O estado do seu canal não é medido aqui.' }
   }
   const extrasNaoLidos = extras === null
-  if (m8 === null) return { ...base, pastilha: 'nao_carregou', motivo: 'leitura_falhou', extrasNaoLidos, linha: 'Não carregou' }
+  if (m8 === null) return { ...base, pastilha: 'nao_carregou', motivo: 'leitura_falhou', extrasNaoLidos, linha: 'a leitura falhou' }
   const e = m8.estado
   // `missing_since` é coluna `date` (AAAA-MM-DD): é um dia de calendário, não um instante. Date.parse a leria como meia-noite UTC e São Paulo mostraria o dia anterior.
   const saiuEm = extras?.missingSince ? extras.missingSince.slice(0, 10) : null
@@ -72,7 +72,7 @@ export function estadoDaLinha(
     const m = e.motivo
     return {
       ...base, extrasNaoLidos, motivo: m, longa: FRASES[m]({}).longa, pastilha: classeDoMotivo(m) === 'nao_carregou' ? 'nao_carregou' : 'nao_medido',
-      linha: classeDoMotivo(m) === 'nao_carregou' ? 'Não carregou' : FRASES[m]({}).curta,
+      linha: classeDoMotivo(m) === 'nao_carregou' ? 'a leitura falhou' : FRASES[m]({}).curta,
     }
   }
   const queda = m8.queda

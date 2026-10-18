@@ -109,7 +109,7 @@ describe('A/B YouTube API helpers', () => {
 
       const mod = await import('@/lib/youtube/ab-youtube')
       await expect(mod.setThumbnail('V1', Buffer.from('x'), 'image/png', 'T'))
-        .rejects.toThrow('thumbnails.set failed: 400')
+        .rejects.toMatchObject({ status: 400, reason: 'desconhecido', chamada: 'thumbnails.set' })
 
       vi.unstubAllGlobals()
     })
@@ -155,7 +155,7 @@ describe('A/B YouTube API helpers', () => {
 
       const mod = await import('@/lib/youtube/ab-youtube')
       await expect(mod.fetchVariantImageBuffer('https://abc.public.blob.vercel-storage.com/missing.jpg'))
-        .rejects.toThrow('Failed to fetch variant image: 404')
+        .rejects.toMatchObject({ status: 404, reason: 'blob_404', chamada: 'blob' })
 
       vi.unstubAllGlobals()
     })

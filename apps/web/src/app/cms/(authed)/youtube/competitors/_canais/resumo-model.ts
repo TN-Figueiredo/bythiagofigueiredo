@@ -19,7 +19,7 @@ export function fraseDoResumo(dir: ResumoDeDirecao, c: ContagemDosFiltros): stri
   if (q.tipo === 'ainda_nao_existe') {
     out.push(`Em queda (${MEASURE_RULES.decline.windows} períodos de ${MEASURE_RULES.direction.windowDays} dias seguidos): só dá para medir a partir de ${dm(q.existeEm)}.`)
   } else if (q.tipo === 'nao_carregou') {
-    out.push('Em queda: não carregou.')
+    out.push('Em queda: a leitura falhou.')
   } else if (q.tipo === 'nao_medido') {
     out.push(`Em queda: não medido (${FRASES[q.motivo]({}, 'canais').curta}).`)
   } else if (q.canais === 0) {

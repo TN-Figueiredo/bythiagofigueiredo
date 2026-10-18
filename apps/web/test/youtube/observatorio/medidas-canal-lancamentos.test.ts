@@ -64,7 +64,7 @@ describe('Lançamentos: o modelo', () => {
   it('série não lida: o bloco diz não carregou, não o cartão de "nenhum vídeo"', () => {
     const r = lancamentosDoCanal(entrada(insumosCheios(), { serie: null }))
     expect(r.modelo.tipo).toBe('nao_carregou')
-    expect(html(entrada(insumosCheios(), { serie: null }))).toContain('Não carregou')
+    expect(html(entrada(insumosCheios(), { serie: null }))).toContain('falhou')
     expect(html(entrada(insumosCheios(), { serie: null }))).not.toContain('Nenhum vídeo longo')
   })
   it('medidas, vídeos ou marcas que não vieram: não carregou', () => {
@@ -192,7 +192,7 @@ describe('as 72 horas do canal', () => {
   it('leitura por hora que não carregou: não carregou, nunca "nenhum vídeo"', () => {
     const m = horasDoCanal({ ...base, horas: null })
     expect(m.tipo).toBe('nao_carregou')
-    expect(renderToStaticMarkup(createElement(HorasDoCanal, { modelo: m }))).toContain('Não carregou')
+    expect(renderToStaticMarkup(createElement(HorasDoCanal, { modelo: m }))).toContain('falhou')
   })
   it('leitura por hora parada há mais de 70 minutos: a frase avisa desde quando', () => {
     const m = horasDoCanal({ ...base, horas: horasDe(['v0', 'v1', 'v2', 'v3'], vs, { ultimoOkDaTarefaMs: AGORA_CHEIA - 5 * H }) })

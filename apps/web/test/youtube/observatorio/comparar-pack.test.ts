@@ -268,7 +268,7 @@ describe('o pacote como um todo', () => {
   it('um número em estado inesperado não derruba o pacote: vira "não medido" e UM aviso vai ao Sentry, com a pilha e os números afetados nos dados', () => {
     const w = world(ds => { ds.channels.find(c => c.id === CH)!.subs = Number.NaN })
     const p = buildCompararPack(w.obs)
-    expect(canal(p, CH).numeros.inscritos).toEqual({ x: null, texto: null, motivo: 'não foi possível calcular este número agora; recarregue a página', nota: null })
+    expect(canal(p, CH).numeros.inscritos).toEqual({ x: null, texto: null, motivo: 'não foi possível calcular este número agora; recarregue a página', nota: null, ausencia: 'falhou' })
     expect(canal(p, 'nate-herk').numeros.inscritos.x).not.toBeNull()
     expect(sentry.captureMessage).not.toHaveBeenCalled()
     expect(sentry.captureException).toHaveBeenCalledTimes(1)

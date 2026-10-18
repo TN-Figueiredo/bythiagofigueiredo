@@ -149,4 +149,24 @@ describe('SettingsDrawer', () => {
     expect(screen.getByText('Alerta de queda de CTR')).toBeTruthy()
     expect(screen.getByText('Resumo diário')).toBeTruthy()
   })
+
+  it('T18: fechar antes dos 500 ms salva a edição pendente', async () => {
+    vi.useFakeTimers()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    const { unmount } = render(<SettingsDrawer settings={defaultSettings} onSave={onSave} onClose={vi.fn()} />)
+    fireEvent.click(screen.getAllByRole('switch')[0]!)
+    expect(onSave).not.toHaveBeenCalled()
+    unmount()
+    expect(onSave).toHaveBeenCalledTimes(1)
+    await act(async () => { vi.advanceTimersByTime(600) })
+    expect(onSave).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
+  it('T18: fechar sem edição pendente não salva', () => {
+    const onSave = vi.fn()
+    const { unmount } = render(<SettingsDrawer settings={defaultSettings} onSave={onSave} onClose={vi.fn()} />)
+    unmount()
+    expect(onSave).not.toHaveBeenCalled()
+  })
 })

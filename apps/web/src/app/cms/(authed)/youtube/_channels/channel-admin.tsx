@@ -14,7 +14,7 @@ import { CHANNEL_LOCALES, channelLocaleDef, isChannelLocale, type ChannelLocale 
 import { NICHE_PALETTE } from '@/lib/youtube/observatorio/niche'
 import {
   CHANNEL_TEXT, LANGUAGE_CHANGE_LEAD, blockedLead, blockedTitle, blockerDetail, isChannelSlug, languageChangeTitle, nicheSlugOrNull, nicheUsage,
-  normalizeNicheLabel, removalConnectionLine, removalKeepLine, removalLines, removalTitle,
+  normalizeNicheLabel, removalConnectionLine, removalKeepLine, restauracaoLinha, RESTAURACOES_NAO_CONFERIDAS, removalLines, removalTitle,
   type AddChannelInput, type ChannelLookup, type LookupChannelResult, type NicheView, type RemovalBlocker, type RemovalImpact,
   type RemovalImpactResult, type RemoveChannelResult,
 } from '@/lib/youtube/channel-registry'
@@ -374,6 +374,12 @@ export function RemovalPanel({ channelId, name, removing, onImpact, onRemove, on
           </ul>
           <p className="mb-2 text-xs text-cms-text-muted"><b className="font-medium text-cms-text">{keep.strong}</b>{keep.rest}</p>
           {connection ? <p className="mb-2 text-xs text-cms-text-muted">{connection}</p> : null}
+          {impact.restauracoesPendentes === null ? <p data-restauracoes-nao-conferidas className="mb-2 text-xs text-cms-text-muted">{RESTAURACOES_NAO_CONFERIDAS}</p> : null}
+          {impact.restauracoesPendentes && impact.restauracoesPendentes.length > 0 ? (
+            <ul data-restauracoes-pendentes className="mb-2 text-xs text-cms-text">
+              {impact.restauracoesPendentes.map(r => <li key={`${r.testId}-${r.campo}`}>{restauracaoLinha(r)}</li>)}
+            </ul>
+          ) : null}
           <p className="text-xs text-cms-text-muted">All of it is removed at once, or nothing is. This cannot be undone.</p>
           <label htmlFor={`${uid}-c`} className="mt-3 block text-xs text-cms-text-muted">Type <strong className="mono text-cms-text">{impact.slug}</strong> to confirm</label>
           <input

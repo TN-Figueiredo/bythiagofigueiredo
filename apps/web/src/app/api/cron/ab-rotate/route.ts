@@ -11,10 +11,11 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   }
 
+  const inicio = Date.now()
   const supabase = getSupabaseServiceClient()
 
   const queueStarted = await phaseProcessQueue(supabase)
-  const { processed, errors } = await phaseRotateActiveTests(supabase)
+  const { processed, errors } = await phaseRotateActiveTests(supabase, inicio)
 
   if (errors === 0) {
     await recordCronSuccess('ab-rotate', 'critical')

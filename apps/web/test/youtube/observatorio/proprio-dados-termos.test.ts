@@ -43,9 +43,9 @@ describe('lerTermosESites', () => {
     expect(getSupabaseServiceClient).not.toHaveBeenCalled()
     expect(dim.lerDetalheDaOrigem).not.toHaveBeenCalled()
   })
-  it('a guarda de edição lança: negado, nada escapa', async () => {
+  it('a guarda de edição lança (guarda caída, decisão 75): erro, nunca negado/cadeado; nada escapa', async () => {
     vi.mocked(requireSiteScope).mockImplementation((async () => { throw new Error('guarda caiu') }) as never)
-    expect(await lerTermosESites(pedido())).toEqual({ acesso: 'negado' })
+    expect(await lerTermosESites(pedido())).toEqual({ acesso: 'erro' })
     expect(dim.lerDetalheDaOrigem).not.toHaveBeenCalled()
   })
   it('a guarda é chamada com o site do token, nunca com outro', async () => {

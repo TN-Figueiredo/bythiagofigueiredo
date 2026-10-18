@@ -4,10 +4,10 @@
  * `fraseDoTopo`, `celulasDoCabecalho`, `blocoDeDirecao`...: nenhuma conta nova) e deixa só texto, como a tela o escreve; as tabelas saem daí.
  * Dado ausente sai como "não medido"/"não carregou" com o motivo da tela, nunca como 0.
  */
+import { celulaAusente, NAO_CARREGOU_TELA } from './celula-ausente'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
-import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import { derivar, entradaDaFrase, type ContextoDoCanal } from '../_canal/medidas/canal-derivado'
 import { celulasDoCabecalho } from '../_canal/medidas/cabecalho-model'
 import { COM_FAIXA } from '../_canal/medidas/estado-model'
@@ -31,12 +31,12 @@ export interface CelulaDeMedidaIa {
   valor: string | null
   zero: boolean
   motivo: string | null
+  /** Pelo TIPO da célula do modelo (`nao_carregou`), nunca pelo texto do motivo: a pastilha da tela é `falhou`. */
+  falhou: boolean
   base: string
   aviso: string | null
 }
 
-/** O texto que a tela escreve quando a medida não chegou. */
-const NAO_CARREGOU_TELA = 'Não carregou'
 const NAO_MEDIDO_TELA = 'não medido'
 
 export interface DirecaoIa {
@@ -97,10 +97,8 @@ export interface ListaDoCriadorIa {
   frase: string
   /** O aviso de quem vê só a contagem (ou a permissão não conferida). */
   aviso: string | null
-  subtitulo: string | null
-  /** O título do vídeo, o comentário e a resposta do criador são texto de terceiros. */
-  itens: Array<{ titulo: string; curtidas: string | null; texto: string; resposta: string }>
-  aMais: string | null
+  /** O título do vídeo, o comentário e a resposta do criador são texto de terceiros. O pacote leva TODOS os fios (a tela esconde, o pacote não corta). */
+  grupos: Array<{ titulo: string; respostasDele: string; fios: Array<{ data: string | null; curtidas: string | null; texto: string; /** uma por linha: `dd/mm: texto`, ` …` quando cortada */ respostas: string }> }>
 }
 
 export interface CriadorIa {
@@ -134,7 +132,7 @@ function direcaoIa(b: BlocoDeDirecao): DirecaoIa {
         const numeros = l.base.tipo === 'views' ? `${l.base.recente} views contra ${l.base.anterior}` : `${l.base.recente} contra ${l.base.anterior} views (${l.base.n} vídeos no total)`
         return { chave: l.chave, nome: l.nome, sub: l.sub, valor: l.texto, motivo: null, numeros, avisos: [...(l.foraDaEscala ? [`${l.foraDaEscala === 'acima' ? 'ou mais' : 'ou menos'}, fora da escala`] : []), ...(l.aviso ? [l.aviso] : []), ...(l.dica ? [l.dica] : [])] }
       }
-      return { chave: l.chave, nome: l.nome, sub: l.sub, valor: null, motivo: l.motivo, numeros: l.estado === 'progresso' ? progressoDaTela(l.progresso, l.motivo) : null, avisos: [] }
+      return { chave: l.chave, nome: l.nome, sub: l.sub, valor: null, motivo: l.estado === 'nao_carregou' ? NAO_CARREGOU_TELA : l.motivo, numeros: l.estado === 'progresso' ? progressoDaTela(l.progresso, l.motivo) : null, avisos: [] }
     }),
     queda: {
       rotulo: 'Queda sustentada',
@@ -176,7 +174,7 @@ function ritmoIa(b: BlocoDeRitmo, semanas: number): RitmoIa {
 const UNIDADE: Record<string, string> = { ritmo: ' (por semana)' }
 
 function lancamentosIa(m: ModeloDeLancamentos): LancamentosIa {
-  if (m.tipo === 'nao_carregou') return { rotulo: 'Lançamentos', frase: null, motivo: m.motivo, videos: [], temNormal: false, normal: [], semPonto: null }
+  if (m.tipo === 'nao_carregou') return { rotulo: 'Lançamentos', frase: null, motivo: NAO_CARREGOU_TELA, videos: [], temNormal: false, normal: [], semPonto: null }
   if (m.tipo === 'vazio') return { rotulo: 'Lançamentos', frase: `${m.frase}${m.explicacao}`, motivo: null, videos: [], temNormal: false, normal: [], semPonto: null }
   return {
     rotulo: 'Lançamentos', frase: m.temNormal ? null : `${m.frase!.negrito}${m.frase!.resto}`, motivo: null, temNormal: m.temNormal,
@@ -187,7 +185,7 @@ function lancamentosIa(m: ModeloDeLancamentos): LancamentosIa {
 }
 
 function horasIa(m: ModeloDe72Horas): HorasIa {
-  if (m.tipo !== 'medido') return { rotulo: 'Primeiras 72 horas', frase: null, aviso: null, motivo: m.motivo, marcos: [] }
+  if (m.tipo !== 'medido') return { rotulo: 'Primeiras 72 horas', frase: null, aviso: null, motivo: m.tipo === 'nao_carregou' ? NAO_CARREGOU_TELA : m.motivo, marcos: [] }
   const h = (n: number): string => `${n} ${n === 1 ? 'hora' : 'horas'} depois de publicar`
   return {
     rotulo: 'Primeiras 72 horas', frase: `${m.frase.negrito}${m.frase.resto}`, aviso: m.aviso, motivo: null,
@@ -209,18 +207,23 @@ function tempoIa(t: LinhaDoTempo): LinhaDoTempoIa {
   }
 }
 
-const MAIS_RESPOSTAS = (n: number): string => `Mais ${n} ${n === 1 ? 'resposta guardada' : 'respostas guardadas'} não ${n === 1 ? 'cabe' : 'cabem'} nesta lista.`
-
 function listaIa(m: ModeloDaLista): ListaDoCriadorIa {
   const fr = (f: { negrito: string; resto: string }): string => `${f.negrito}${f.resto}`
   if (m.tipo === 'itens') {
+    // as datas vêm prontas do modelo da tela (`dmDeData`, fuso de São Paulo); o pacote não as recalcula
     return {
-      tipo: 'itens', frase: fr(m.frase), aviso: null, subtitulo: m.subtitulo, aMais: m.aMais > 0 ? MAIS_RESPOSTAS(m.aMais) : null,
-      itens: m.itens.map((x) => ({ titulo: x.titulo, curtidas: x.curtidas, texto: `${x.texto}${x.cortado ? ' …' : ''}`, resposta: `${x.respostaTexto}${x.respostaCortada ? ' …' : ''}` })),
+      tipo: 'itens', frase: fr(m.frase), aviso: null,
+      grupos: m.grupos.map((g) => ({
+        titulo: g.titulo, respostasDele: g.respostasDele,
+        fios: g.fios.map((f) => ({
+          data: f.raiz.data, curtidas: f.meta.curtidas, texto: `${f.raiz.texto ?? ''}${f.raiz.cortado ? ' …' : ''}`,
+          respostas: f.respostas.map((x) => `${x.data ? `${x.data}: ` : ''}${x.texto ?? ''}${x.cortado ? ' …' : ''}`).join('\n'),
+        })),
+      })),
     }
   }
   // sem texto de comentário em nenhum outro tipo (a contagem não o carrega)
-  return { tipo: m.tipo, frase: fr(m.frase), aviso: m.tipo === 'contagem' ? fr(m.aviso) : null, subtitulo: null, itens: [], aMais: null }
+  return { tipo: m.tipo, frase: fr(m.frase), aviso: m.tipo === 'contagem' ? fr(m.aviso) : null, grupos: [] }
 }
 
 /** O bloco do criador como a tela o escreve; sem leitura pedida, a frase e a pastilha da tela "não pedida". */
@@ -271,7 +274,7 @@ export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal, comentari
         else if (det.chave === 'ritmo') valor = det.porSemana
       }
       return {
-        chave: x.chave, rotulo: x.rotulo + (UNIDADE[x.chave] ?? ''), valor, zero: x.valor === 'zero', motivo: valor === null ? x.motivo : null, base: x.base,
+        chave: x.chave, rotulo: x.rotulo + (UNIDADE[x.chave] ?? ''), valor, zero: x.valor === 'zero', motivo: valor === null ? x.motivo : null, falhou: valor === null && x.valor === 'nao_carregou', base: x.base,
         // a mesma frase que a célula escreve (a data é a da mudança de contagem, não a do aviso)
         aviso: det.chave === 'direcao' && det.avisoAte ? `ainda cruza a mudança de ${dm(MEASURE_RULES.countChange)}` : null,
       }
@@ -286,7 +289,7 @@ const CTRL = { descartado: 'controle de tela' } as const
 export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
   'derivado.medidas.topo.faixa': 'base', 'derivado.medidas.topo.frase': 'terceiros', // a oração do último vídeo cita o título dele: entra como texto de terceiros
   'derivado.medidas.celulas[].chave': ID, 'derivado.medidas.celulas[].rotulo': 'rotulo', 'derivado.medidas.celulas[].valor': 'numero',
-  'derivado.medidas.celulas[].zero': CTRL, 'derivado.medidas.celulas[].motivo': 'motivo', 'derivado.medidas.celulas[].base': 'base', 'derivado.medidas.celulas[].aviso': 'base',
+  'derivado.medidas.celulas[].zero': CTRL, 'derivado.medidas.celulas[].falhou': CTRL, 'derivado.medidas.celulas[].motivo': 'motivo', 'derivado.medidas.celulas[].base': 'base', 'derivado.medidas.celulas[].aviso': 'base',
 
   // Direção
   'derivado.medidas.direcao.frase': 'base',
@@ -314,9 +317,9 @@ export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
   // O que o criador respondeu
   'derivado.medidas.criador.frase': 'terceiros', 'derivado.medidas.criador.pastilha': 'base', 'derivado.medidas.criador.legenda[]': 'base', 'derivado.medidas.criador.sem': 'rotulo',
   'derivado.medidas.criador.lista': CTRL, 'derivado.medidas.criador.lista.tipo': CTRL, 'derivado.medidas.criador.lista.frase': 'terceiros', 'derivado.medidas.criador.lista.aviso': 'base',
-  'derivado.medidas.criador.lista.subtitulo': 'base', 'derivado.medidas.criador.lista.aMais': 'base',
-  'derivado.medidas.criador.lista.itens[].titulo': 'terceiros', 'derivado.medidas.criador.lista.itens[].curtidas': 'base',
-  'derivado.medidas.criador.lista.itens[].texto': 'terceiros', 'derivado.medidas.criador.lista.itens[].resposta': 'terceiros',
+  'derivado.medidas.criador.lista.grupos[].titulo': 'terceiros', 'derivado.medidas.criador.lista.grupos[].respostasDele': 'base',
+  'derivado.medidas.criador.lista.grupos[].fios[].data': 'base', 'derivado.medidas.criador.lista.grupos[].fios[].curtidas': 'base',
+  'derivado.medidas.criador.lista.grupos[].fios[].texto': 'terceiros', 'derivado.medidas.criador.lista.grupos[].fios[].respostas': 'terceiros',
 
   // Ritmo
   'derivado.medidas.ritmo.frase': 'base',
@@ -336,7 +339,8 @@ const rotulo = (texto: string, origem: string): Celula => ({ papel: 'rotulo', te
 const base = (texto: string, origem: string): Celula => ({ papel: 'base', texto, origem })
 const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 const medido = (texto: string, origem: string, zero = false): Celula => (zero ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem } : { papel: 'numero', estado: 'medido', texto, x: null, origem })
-const naoMedido = (motivo: string | null, origem: string): Celula => ({ papel: 'numero', estado: 'nao_medido', motivo: motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem })
+// Decisão 75: a projeção marca pelo TIPO do modelo (`nao_carregou`) o bloco que não chegou com NAO_CARREGOU_TELA; no pacote isso é a célula `falhou`, nunca "não medido".
+const naoMedido = (motivo: string | null, origem: string): Celula => celulaAusente(motivo === NAO_CARREGOU_TELA ? 'falhou' : 'nao_medido', motivo, origem)
 
 const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
 
@@ -348,7 +352,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
     tabelas.push(tabelaFixa('canal-medidas-celulas', 'Direção, estado, acerto e ritmo do canal', 'direção, estado, acerto e ritmo', ['Medida', 'Valor', 'Base'],
       m.celulas.map((c, i) => [
         rotulo(c.rotulo, `${O}.celulas[${i}].rotulo`),
-        c.valor !== null ? medido(c.valor, `${O}.celulas[${i}].valor`, c.zero) : naoMedido(c.motivo, `${O}.celulas[${i}].motivo`),
+        c.valor !== null ? medido(c.valor, `${O}.celulas[${i}].valor`, c.zero) : celulaAusente(c.falhou ? 'falhou' : 'nao_medido', c.motivo, `${O}.celulas[${i}].motivo`),
         base(c.base, `${O}.celulas[${i}].base`),
       ])))
     const avisos = m.celulas.flatMap((c, i) => (c.aviso ? [[i, c.aviso] as const] : []))
@@ -435,22 +439,27 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
       linhas: tem.eventos.map((e, i) => [rotulo(e.dia, `${T}.eventos[${i}].dia`), terceiros(e.texto, `${T}.eventos[${i}].texto`)]) })
   }
   if (tem.raiasNaoCarregou.length) {
-    tabelas.push(tabelaFixa('canal-linha-do-tempo-raias', 'Linha do tempo: raias que não carregaram', 'raias da linha do tempo', ['Raia', 'Estado'],
+    tabelas.push(tabelaFixa('canal-linha-do-tempo-raias', 'Linha do tempo: raias em que a leitura falhou', 'raias da linha do tempo', ['Raia', 'Estado'],
       tem.raiasNaoCarregou.map((r, i) => [rotulo(r.nome, `${T}.raiasNaoCarregou[${i}].nome`), naoMedido(r.motivo, `${T}.raiasNaoCarregou[${i}].motivo`)])))
   }
   const K = `${O}.criador`
   const cri = m.criador
   tabelas.push({ id: 'canal-criador-frases', titulo: 'O que o criador respondeu: as frases do bloco e da lista', tipo: 'lista', nomeNoCorte: 'frases do criador', privada: false, colunas: ['Frase'],
-    linhas: [[terceiros(cri.frase, `${K}.frase`)], ...(cri.lista ? [[terceiros(cri.lista.frase, `${K}.lista.frase`)]] : [])] })
-  if (cri.lista && cri.lista.itens.length) {
+    linhas: [...(cri.lista ? [[terceiros(cri.lista.frase, `${K}.lista.frase`)]] : []), [terceiros(cri.frase, `${K}.frase`)]] })
+  if (cri.lista && cri.lista.grupos.length) {
+    // uma linha por fio, na ordem da tela (vídeo mais novo primeiro): o corte por degraus do pacote age sobre as linhas
     tabelas.push({ id: 'canal-criador-respostas', titulo: 'O que o criador respondeu: as respostas guardadas, do vídeo mais recente ao mais antigo', tipo: 'lista', nomeNoCorte: 'respostas do criador', privada: false,
-      colunas: ['Vídeo', 'Curtidas do comentário', 'Comentário', 'Resposta do criador'],
-      linhas: cri.lista.itens.map((x, i): Celula[] => [
-        terceiros(x.titulo, `${K}.lista.itens[${i}].titulo`), x.curtidas !== null ? base(x.curtidas, `${K}.lista.itens[${i}].curtidas`) : rotulo(cri.sem, `${K}.sem`),
-        terceiros(x.texto, `${K}.lista.itens[${i}].texto`), terceiros(x.resposta, `${K}.lista.itens[${i}].resposta`),
-      ]) })
+      colunas: ['Vídeo', 'Respostas dele no vídeo', 'Data', 'Curtidas do comentário', 'Comentário', 'Respostas do criador'],
+      linhas: cri.lista.grupos.flatMap((g, gi) => g.fios.map((f, fi): Celula[] => {
+        const F = `${K}.lista.grupos[${gi}]`
+        return [
+          terceiros(g.titulo, `${F}.titulo`), base(g.respostasDele, `${F}.respostasDele`), f.data !== null ? base(f.data, `${F}.fios[${fi}].data`) : rotulo(cri.sem, `${K}.sem`),
+          f.curtidas !== null ? base(f.curtidas, `${F}.fios[${fi}].curtidas`) : rotulo(cri.sem, `${K}.sem`),
+          terceiros(f.texto, `${F}.fios[${fi}].texto`), terceiros(f.respostas.split('\n').join(' · '), `${F}.fios[${fi}].respostas`),
+        ]
+      })) })
   }
-  const avisosDoCriador = [cri.pastilha, ...cri.legenda, cri.lista?.aviso ?? null, cri.lista?.subtitulo ?? null, cri.lista?.aMais ?? null].flatMap((x) => (x === null ? [] : [x]))
+  const avisosDoCriador = [cri.pastilha, ...cri.legenda, cri.lista?.aviso ?? null].flatMap((x) => (x === null ? [] : [x]))
   const avisosDoBloco = [...avisosDoCriador, lan.frase, lan.semPonto, hor.frase, hor.aviso, tem.frase, tem.motivo, tem.nota, tem.corte].flatMap((x) => (x === null ? [] : [x]))
   const ausentes = rit.raias.flatMap((r) => (r.ausente ? [r.ausente] : []))
   return { tabelas, avisos: [...(m.topo.faixa ? [m.topo.faixa] : []), dir.frase, ...(dir.queda.nota ? [dir.queda.nota] : []), rit.frase, ...ausentes, ...avisosDoBloco] }

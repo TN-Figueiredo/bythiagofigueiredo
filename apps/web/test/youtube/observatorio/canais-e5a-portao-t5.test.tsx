@@ -81,7 +81,7 @@ describe('portão T5: Yannis I1 e Phil M1, direção que não carregou não vira
     const v = vw({ medidas: null, filter: 'em-queda' })
     expect(v.resumo.vazio?.forma).toBe('ainda_nao_existe')
     expect(v.resumo.vazio?.apoio).not.toContain('0 canais')
-    expect(v.resumo.vazio?.apoio).toContain('não carregou')
+    expect(v.resumo.vazio?.apoio).toContain('falhou agora')
     expect(v.resumo.vazio?.acaoDescendo).toBe(false)
   })
 })
@@ -93,7 +93,7 @@ describe('portão T5: Yannis I2, falha total não vira "cálculo ainda não rodo
     expect(c.queda.tipo).toBe('nao_carregou')
     const frase = fraseDoResumo(resumoDeDirecao([]), c)
     expect(frase).not.toContain('não medido')
-    expect(frase).toContain('Em queda: não carregou')
+    expect(frase).toContain('Em queda: a leitura falhou')
   })
   it('sem nenhuma linha elegível: zero canais, e nunca um motivo inventado', () => {
     expect(contagemDosFiltros([], DEPOIS).queda).toEqual({ tipo: 'numero', emQueda: 0, quedaMedidaEm: 0, canais: 0 })
