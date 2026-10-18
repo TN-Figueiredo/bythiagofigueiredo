@@ -161,7 +161,7 @@ export type DetalheInsuficiente =
   | { motivo: 'titulo_nao_lido' }                                 // há leitura de miniatura, mas o título não foi lido
   | { motivo: 'poucas_leituras'; minimo: number; atual: number }  // votos de título
   | { motivo: 'janela_curta'; janelaMs: number; minimoMs: number; variantes: string[] }
-  | { motivo: 'span_ilegivel'; ilegiveis: number; rodadasSpan: number }   // N2: mais da metade do span é rodada longa ou em quarentena
+  | { motivo: 'span_ilegivel'; ilegiveis: number; rodadasSpan: number }   // N2: mais da metade do span é rodada longa ou em quarentena, ou nenhuma rodada do span tem >= 3 votos
 
 interface Base {
   versaoRegra: number

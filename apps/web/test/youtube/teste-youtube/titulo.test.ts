@@ -266,3 +266,25 @@ describe('classificarTitulo, sintético', () => {
     expect(classificar(ls, { escritasConhecidas: [{ em: INI, campo: 'titulo' }] }).contagem.rodadasEmQuarentena).toBeGreaterThan(0)
   })
 })
+
+describe('conserto r1: fração e span', () => {
+  it('C29.4 (D1): rodadas de 2 votos não têm base para a fração: insuficiente/span_ilegivel, não mistura_esparsa', () => {
+    const r = classificar(serie(['AB', 'AB', 'BA', 'AB', 'AB', 'BA']))
+    expect(r).toMatchObject({ estado: 'insuficiente', detalhe: { motivo: 'span_ilegivel', ilegiveis: 6, rodadasSpan: 6 } })
+    expect(r.contagem.rodadasMistasTitulo).toBe(6)
+  })
+
+  it('T13: a fração é medida no span das mistas, não no histórico inteiro (120 rodadas homogêneas antes)', () => {
+    const homogeneas = serie(Array(120).fill('AAA'))
+    const t0 = new Date(Date.parse(INI) + 120 * 6 * H).toISOString()
+    const nativas = serie(['ABB', 'BAB', 'ABB', 'BAB', 'ABB', 'BAB', 'ABB', 'BAB'], 6 * H, t0).map(l => ({ ...l, rodadaId: `m${l.rodadaId}` }))
+    expect(classificar([...homogeneas, ...nativas]).estado).toBe('provavel_teste')
+  })
+
+  it('fronteira de 30 min: janela exatamente igual a minJanelaMistaMs passa; 1 ms a mais não', () => {
+    const ls = serie(['ABB', 'BAB', 'ABB'])
+    const janela = 2 * 6 * H + 4000
+    expect(classificar(ls, { minJanelaMistaMs: janela }).estado).toBe('provavel_teste')
+    expect(classificar(ls, { minJanelaMistaMs: janela + 1 })).toMatchObject({ estado: 'insuficiente', detalhe: { motivo: 'janela_curta' } })
+  })
+})

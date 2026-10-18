@@ -170,7 +170,11 @@ export function classificarTitulo(ls: readonly LeituraPreparada[], o: LimiaresDe
 
   // Fração: mesmo filtro no numerador e no denominador
   const legiveis = noSpan.filter(r => !r.longa && !r.emQuarentena && r.votosValidos >= 3)
-  const fracao = legiveis.length === 0 ? 0 : legiveis.filter(r => r.mista).length / legiveis.length
+  if (legiveis.length === 0) {
+    // nenhuma rodada do span com >= 3 votos: a fração não tem base (não medido, nunca "esparso")
+    return { contagem, estado: 'insuficiente', detalhe: { motivo: 'span_ilegivel', ilegiveis: noSpan.length, rodadasSpan: noSpan.length } }
+  }
+  const fracao = legiveis.filter(r => r.mista).length / legiveis.length
   if (fracao < o.minFracaoRodadasMistas) return nada('mistura_esparsa')
 
   const textos = ordenarVariantes(ligados(aprovados))
