@@ -972,7 +972,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
           before: { thumb: thS ? art(thS.before) : null, title: tS ? String(tS.before) : null },
           after: { thumb: thS ? art(thS.after) : null, title: tS ? String(tS.after) : null },
         } : null,
-        thumbNote: thS ? `Horário da thumbnail detectado pela mudança do arquivo da imagem.${thS.revertTo ? ' Voltou a uma versão anterior: sinal de Testar e comparar (teste A/B do YouTube).' : ''}` : null,
+        thumbNote: thS ? `Horário da thumbnail detectado pela mudança do arquivo da imagem.${thS.revertTo ? ' Voltou a uma versão anterior: alternância de miniatura.' : ''}` : null,
         precNote: tS && tS.prec === '1d' ? `Antes de ${obs.SERIES_START_LABEL} a sincronização era diária às ${obs.SYNC.dailyBefore.replace(':00', 'h')}: a troca de título tem janela de 1 dia.` : null,
         effect: effView(obs, eff), sameNote, histHref: hist(v.id), ytUrl: v.url,
       }

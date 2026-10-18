@@ -58,8 +58,8 @@ describe('Mudanças: selos de reversão', () => {
   })
   it('A → B → A imediato mantém os dois textos de hoje, palavra por palavra', () => {
     const { ds } = loadFase4(), b = badges(createObservatory(ds), VID.closed)
-    expect(b[VID.closed + '/thumb/2']).toEqual(['Voltou à versão A depois de 2 dias e 6 horas com a alternativa. Compatível com Testar e comparar (teste A/B do YouTube, até 14 dias).'])
-    expect(b[VID.closed + '/thumb/1']).toEqual(['Esta versão foi revertida 2 dias e 6 horas depois. Compatível com Testar e comparar (teste A/B do YouTube).'])
+    expect(b[VID.closed + '/thumb/2']).toEqual(['Voltou à versão A depois de 2 dias e 6 horas com a alternativa. Alternância de miniatura (A → B → A em até 14 dias).'])
+    expect(b[VID.closed + '/thumb/1']).toEqual(['Esta versão foi revertida 2 dias e 6 horas depois. Alternância de miniatura (A → B → A em até 14 dias).'])
   })
   it('uma imagem só no intervalo que não é a anterior (linha repetida): singular', () => {
     const { ds } = loadFase4(), t = ds.now - 12 * DAY
@@ -68,7 +68,7 @@ describe('Mudanças: selos de reversão', () => {
   })
 })
 
-describe('Histórico: nota e ressalva "Testar e comparar"', () => {
+describe('Histórico: nota e ressalva da alternância de miniatura', () => {
   it('A → B → C → A: nenhuma nota "alternância típica" e nenhuma ressalva de alternância nas comparações', () => {
     const obs = abca(), v = buildHistoricoView(obs, VID.few, {})
     expect(thumbNotes(obs, VID.few)).toEqual([])
@@ -80,11 +80,43 @@ describe('Histórico: nota e ressalva "Testar e comparar"', () => {
   })
   it('A → B → A imediato: a nota de hoje continua, com o mesmo texto', () => {
     const { ds } = loadFase4()
-    expect(thumbNotes(createObservatory(ds), VID.closed)).toEqual(['A → B → A em 2 d 6 h: alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.'])
+    expect(thumbNotes(createObservatory(ds), VID.closed)).toEqual(['A → B → A em 2 d 6 h: Alternância de miniatura (A → B → A em até 14 dias). Não dá para saber a causa: o YouTube não informa se houve teste.'])
   })
   it('o oráculo de 02/10 não tem volta com imagens no meio: nenhum texto dele muda', () => {
     const obs = createObservatory(datasetFromOracle(loadOracle()))
     expect(obs.changes.filter(c => c.revertImmediate === false)).toEqual([])
-    expect(thumbNotes(obs, 'matt-opus55')).toEqual(['A → B → A em 10 h 35 min: alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.'])
+    expect(thumbNotes(obs, 'matt-opus55')).toEqual(['A → B → A em 10 h 35 min: Alternância de miniatura (A → B → A em até 14 dias). Não dá para saber a causa: o YouTube não informa se houve teste.'])
+  })
+})
+
+describe('S2: rótulo sem atribuir ao YouTube e volta tolerante à recompressão', () => {
+  const H16 = (n: number) => n.toString(16).padStart(16, '0')
+  const flip = (hex: string, bits: number) => H16(parseInt(hex, 16) ^ ((1 << bits) - 1))
+  const run = (a2: string, aKey = H16(0xabcdef)) => {
+    const { ds } = loadFase4(), t = ds.now - 12 * DAY
+    setThumbs(ds, VID.few, [[aKey], [H16(0xfffff0000), t], [a2, t + 5 * DAY]])
+    return createObservatory(ds)
+  }
+  const ALL = (obs: ReturnType<typeof createObservatory>) => [
+    ...Object.values(badges(obs, VID.few)).flat(), ...thumbNotes(obs, VID.few),
+    ...buildHistoricoView(obs, VID.few, {}).comparisons.flatMap(c => c.full?.caveats ?? []),
+  ].join(' ')
+  it('A → B → A em 5 dias: nenhum texto traz "Test & Compare" nem "Testar e comparar"', () => {
+    const obs = run(H16(0xabcdef)), txt = ALL(obs)
+    expect(txt).toMatch(/Alternância de miniatura/)
+    expect(txt).not.toMatch(/Test & Compare|Testar e comparar/)
+  })
+  it('A\' a 3 bits de A: voltou a uma versão anterior', () => {
+    const a = H16(0xabcdef), obs = run(flip(a, 3)), c = obs.change(VID.few + '/thumb/2')!
+    expect([c.revertTo, c.revertImmediate]).toEqual([a, true])
+  })
+  it('A\' a 7 bits de A: não volta', () => {
+    const obs = run(flip(H16(0xabcdef), 7)), c = obs.change(VID.few + '/thumb/2')!
+    expect(c.revertTo).toBeNull()
+  })
+  it('chave que não é dHash (letras): só igualdade exata, nada inventado', () => {
+    const { ds } = loadFase4(), t = ds.now - 12 * DAY
+    setThumbs(ds, VID.few, [['A'], ['B', t], ['C', t + DAY]])
+    expect(createObservatory(ds).change(VID.few + '/thumb/2')!.revertTo).toBeNull()
   })
 })

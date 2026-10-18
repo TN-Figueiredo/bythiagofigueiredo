@@ -1,29 +1,20 @@
 // apps/web/src/lib/youtube/thumb-fingerprint.ts
 import sharp from 'sharp'
 import { put } from '@vercel/blob'
+import { DHASH_MAX_SAME, hamming } from './thumb-hamming'
+
+export { DHASH_MAX_SAME, hamming }
 
 // Spike S1 (docs/superpowers/plans/2026-10-02-observatorio-spikes.md): 0 false flips in 13 min
 // with DHASH_MAX_SAME = 6; the smallest real rotation distance observed was 10. Still provisional
 // until the T+24h re-probe.
 const VARIANT = 'hqdefault'
-export const DHASH_MAX_SAME = 6
 
 export interface ThumbProbe { etag: string | null; lastModified: string | null; dhash: string | null; bytes: Buffer | null; url: string }
 export interface ThumbPrev { etag: string | null; dhash: string | null }
 
 export function thumbUrl(youtubeId: string): string {
   return `https://i.ytimg.com/vi/${encodeURIComponent(youtubeId)}/${VARIANT}.jpg`
-}
-
-export function hamming(a: string, b: string): number {
-  const len = Math.max(a.length, b.length)
-  const pa = a.padStart(len, '0'), pb = b.padStart(len, '0')
-  let n = 0
-  for (let i = 0; i < len; i++) {
-    let x = parseInt(pa[i]!, 16) ^ parseInt(pb[i]!, 16)
-    while (x) { n += x & 1; x >>= 1 }
-  }
-  return n
 }
 
 export async function dhashOf(bytes: Buffer): Promise<string> {

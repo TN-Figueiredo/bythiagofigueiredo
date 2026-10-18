@@ -3,6 +3,7 @@
  * text comes from the engine (changesIn, change, effect, caveats, titleDiff, diff, fmt, date, link). The screen only
  * draws what this returns; nothing is computed in the components.
  */
+import { ALTERNANCIA_ROTULO } from '@/lib/youtube/observatorio/rotulos'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { buildForjaView, forjaReadingView, groupsOf, type ForjaView } from '../_chrome/forja-view-model'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
@@ -311,14 +312,14 @@ function badges(obs: Observatory, c: ObsChange): Hero['badges'] {
   }
   const T = obs.RULES.testCompareMaxDays
   if (c.revertTo && c.type === 'thumb' && c.revertImmediate === false) {
-    // other images were on air in between: "com a alternativa" and "Testar e comparar" would not be true
+    // other images were on air in between: "com a alternativa" and "alternância de miniatura" would not be true
     const n = c.revertBetween ?? 0
     out.push({ kind: 'rev', text: 'A versão ' + thumbLetter(obs, c) + ' voltou ao ar depois de ' + durTxt(obs, c.cycleMs) + ', com ' + (n === 1 ? '1 outra imagem' : n + ' outras imagens') + ' no intervalo.' })
   } else if (c.revertTo) {
     out.push({ kind: 'rev', text: 'Voltou à versão ' + (c.type === 'thumb' ? thumbLetter(obs, c) : 'anterior') + ' depois de ' + durTxt(obs, c.cycleMs, c.prec !== 'min') + ' com a alternativa.'
-      + (c.testCompare ? ' Compatível com Testar e comparar (teste A/B do YouTube, até ' + T + ' dias).' : ' A alternativa ficou mais de ' + T + ' dias: não parece teste automático.') })
+      + (c.testCompare ? ' ' + ALTERNANCIA_ROTULO + '.' : ' A alternativa ficou mais de ' + T + ' dias: não parece alternância rápida.') })
   } else if (c.testCompare && c.nextLivedMs && c.revertedImmediate === true) {
-    out.push({ kind: 'rev', text: 'Esta versão foi revertida ' + durTxt(obs, c.nextLivedMs) + ' depois. Compatível com Testar e comparar (teste A/B do YouTube).' })
+    out.push({ kind: 'rev', text: 'Esta versão foi revertida ' + durTxt(obs, c.nextLivedMs) + ' depois. ' + ALTERNANCIA_ROTULO + '.' })
   }
   return out
 }

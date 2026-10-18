@@ -5,6 +5,7 @@ import { RULES } from './rules'
 import { FORMULA } from './catalog'
 import { diffLines, titleDiff, type LineDiff, type TitleDiff } from './text-diff'
 import type { EngineCtx } from './series'
+import { sameThumb } from '../thumb-hamming'
 
 export interface ObsChange {
   id: string; video: string; ch: string; niche: Niche | null; fmt: VideoFmt; type: 'title' | 'thumb' | 'desc'; typeLabel: string; idx: number; at: number
@@ -73,18 +74,19 @@ export function deriveChanges(ctx: EngineCtx): ObsChange[] {
         if (type === 'thumb') {
           c.before = { key: prev.key, art: prev.art }; c.after = { key: ver.key, art: ver.art }
           c.prevLivedMs = prev.last_seen - prev.first_seen; c.nextLivedMs = ver.last_seen - ver.first_seen
-          const earlier = arr.slice(0, i - 1).map(x => x.key)
-          c.revertTo = earlier.includes(ver.key) ? ver.key! : null
+          // Mesma imagem = igualdade ou Hamming <= DHASH_MAX_SAME (recompressão do YouTube); chave nula não inventa volta.
+          const earlierHit = arr.slice(0, i - 1).find(x => sameThumb(x.key, ver.key))
+          c.revertTo = earlierHit ? earlierHit.key! : null
           if (c.revertTo) {
-            const left = arr.slice(0, i).reverse().find(x => x.key === ver.key && x !== ver)
+            const left = arr.slice(0, i).reverse().find(x => sameThumb(x.key, ver.key) && x !== ver)
             const leftAt = left ? left.last_seen : null
             c.cycleMs = leftAt ? ver.first_seen - leftAt : null
             c.testCompare = c.cycleMs != null && c.cycleMs <= RULES.testCompareMaxDays * DAY
             // The production sentences about a return ("com a alternativa", "foi revertida", "A → B → A") are only true
             // when nothing else was on air in between. `left` is the previous period of the same image.
             const li = left ? arr.lastIndexOf(left) : -1
-            c.revertImmediate = arr[i - 2]!.key === ver.key
-            c.revertBetween = li < 0 ? 0 : new Set(arr.slice(li + 1, i).map(x => x.key)).size
+            c.revertImmediate = sameThumb(arr[i - 2]!.key, ver.key)
+            c.revertBetween = li < 0 ? 0 : arr.slice(li + 1, i).reduce<string[]>((u, x) => (u.some(k => sameThumb(k, x.key)) ? u : [...u, x.key!]), []).length
           }
         }
         if (type === 'desc') {
