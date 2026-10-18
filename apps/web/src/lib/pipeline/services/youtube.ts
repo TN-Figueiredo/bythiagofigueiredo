@@ -10,6 +10,7 @@ import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics-client'
 import type { Axis, VideoScoreInput, TrafficSources, TrendData, UnavailableAxis } from '@/lib/youtube/scoring-types'
 import { latestRow } from '@/lib/youtube/rolling-window'
+import { lerRestauracao, paraRestoreStatus, restoreStatusIlegivel, type CampoNome, type LeituraCampo } from '@/lib/youtube/ab-restore'
 import { ehVitoriaHumana, type TestType, type VariantMetadata } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
@@ -141,6 +142,10 @@ export interface AbTestListItem {
   consecutive_confident_evals: number | null
   result_metadata: AbResultMetadataSaida
   aviso: AvisoSemMetricaDeEntrega
+  /** Cru, como veio; nulo = o teste nunca passou pelo código novo da saída do ar. */
+  restore_status: Record<string, unknown> | null
+  /** Leitura da faixa; nula quando `restore_status` é nulo; `{ ilegivel: true }` quando não dá para ler. */
+  leitura: Partial<Record<CampoNome, LeituraCampo>> | { ilegivel: true } | null
   variants: Array<{
     id: string
     label: string
@@ -159,6 +164,8 @@ export interface AbTestDetail {
   consecutive_confident_evals: number | null
   result_metadata: AbResultMetadataSaida
   aviso: AvisoSemMetricaDeEntrega
+  restore_status: Record<string, unknown> | null
+  leitura: Partial<Record<CampoNome, LeituraCampo>> | { ilegivel: true } | null
   variants: Record<string, unknown>[]
   cycles: Record<string, unknown>[]
   tracked_links: Record<string, unknown>[]
@@ -992,6 +999,7 @@ const CAMPOS_DO_TESTE_QUE_SAEM_COMO_VIERAM = [
 const CAMPOS_DO_CICLO_QUE_SAEM_COMO_VIERAM = [
   'id', 'test_id', 'variant_id', 'cycle_number', 'started_at', 'ended_at', 'created_at', 'applied_metadata',
   'backfill_status', 'backfill_attempts', 'views', 'avd_seconds', 'likes', 'subscribers_gained', 'estimated_revenue',
+  'end_reason',
 ] as const
 
 const CAMPOS_DO_CICLO_DE_ENTREGA = ['impressions', 'clicks', 'ctr', 'estimated_impressions', 'estimated_clicks', 'estimated_ctr'] as const
@@ -1021,7 +1029,12 @@ function projetarCiclo(row: Record<string, unknown>): Record<string, unknown> {
   return out
 }
 
-function projetarTeste(row: Record<string, unknown>): Record<string, unknown> {
+/**
+ * `restore_status` sai cru, como veio; `leitura` é a leitura da faixa (`lerRestauracao`) com o relógio INJETADO.
+ * nulo = o teste nunca passou pelo código novo da saída do ar → `leitura` nula; ilegível → `{ ilegivel: true }`.
+ * `restore_seq` é interno e não sai (a lista fechada já o deixa de fora).
+ */
+export function projetarTeste(row: Record<string, unknown>, agora: Date): Record<string, unknown> {
   const meta = (row.result_metadata ?? null) as Record<string, unknown> | null
   const label = meta?.winner_label
   const out: Record<string, unknown> = copiar(row, CAMPOS_DO_TESTE_QUE_SAEM_COMO_VIERAM)
@@ -1035,6 +1048,9 @@ function projetarTeste(row: Record<string, unknown>): Record<string, unknown> {
   } satisfies AbResultMetadataSaida
   out.variants = ((row.variants ?? []) as Record<string, unknown>[]).map(projetarVariante)
   out.aviso = AVISO_SEM_METRICA_DE_ENTREGA
+  const bruto = row.restore_status ?? null
+  out.restore_status = bruto
+  out.leitura = restoreStatusIlegivel(bruto) ? { ilegivel: true } : lerRestauracao(paraRestoreStatus(bruto), agora)
   return out
 }
 
@@ -1061,7 +1077,8 @@ export async function listAbTests(
   const { data, error } = await query
   if (error) return err('DB_ERROR', 'Failed to load tests', 500)
 
-  return ok(((data ?? []) as Record<string, unknown>[]).map(projetarTeste) as unknown as AbTestListItem[])
+  const agora = new Date()
+  return ok(((data ?? []) as Record<string, unknown>[]).map(r => projetarTeste(r, agora)) as unknown as AbTestListItem[])
 }
 
 // ---------------------------------------------------------------------------
@@ -1089,7 +1106,7 @@ export async function getAbTest(
   if (error || !test) return err('NOT_FOUND', 'Test not found', 404)
 
   const row = test as Record<string, unknown>
-  const detail = projetarTeste(row)
+  const detail = projetarTeste(row, new Date())
   detail.cycles = ((row.cycles ?? []) as Record<string, unknown>[]).map(projetarCiclo)
   detail.tracked_links = []
   return ok(detail as unknown as AbTestDetail)
