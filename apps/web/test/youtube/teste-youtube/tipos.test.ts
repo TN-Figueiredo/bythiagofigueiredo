@@ -43,6 +43,13 @@ describe('leituraWatchSchema', () => {
     expect(leituraWatchSchema.safeParse(l).success).toBe(false)
   })
 
+  it('texto só de espaço, NBSP ou U+200B é recusado (título e oficial)', () => {
+    for (const t of [' ', '\u00A0', '\u200B', ' \u200B\u00A0 ']) {
+      expect(leituraWatchSchema.safeParse({ ...base(), titulosExibidos: [{ renderer: 'x', texto: t }] }).success).toBe(false)
+      expect(leituraWatchSchema.safeParse({ ...base(), tituloOficial: t }).success).toBe(false)
+    }
+  })
+
   it('C19: dhash exige http 200 e dimensões coerentes', () => {
     expect(leituraWatchSchema.safeParse(comMiniatura({ http: 404 })).success).toBe(false)
     expect(leituraWatchSchema.safeParse(comMiniatura({ largura: null, altura: null })).success).toBe(false)

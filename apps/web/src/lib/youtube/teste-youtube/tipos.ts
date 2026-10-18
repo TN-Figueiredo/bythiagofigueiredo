@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizarTitulo } from './normalizar-titulo'
 
 /** Versão da regra; vai junto de todo veredito e de todo desfecho para a S7 gravar e a S8 citar. Sobe a cada mudança de limiar ou de critério. */
 export const REGRA_TESTE_YOUTUBE_VERSAO = 1
@@ -15,7 +16,7 @@ export interface LeituraWatch {
    *  A regra confere a duração (`maxDuracaoRodadaMs`) em vez de confiar. */
   rodadaId: string
   origemRede: string | null         // 'vercel' | 'forja' | 'mac-casa' ...; null = não registrado
-  /** Idioma pedido (hl / Accept-Language). Títulos traduzidos pelo dono diferem por idioma: misturar idiomas seria "teste" falso.
+  /** Idioma SERVIDO (o hl/gl que a página devolveu), não o pedido. Títulos traduzidos pelo dono diferem por idioma: misturar idiomas seria "teste" falso.
    *  Obrigatório (não nulo) quando a leitura leu algum título. A coleta manda `hl=` e `gl=` explícitos na URL, não só Accept-Language. */
   idioma: string | null
   /** Código curto quando a leitura falhou ('http_429', 'consentimento', 'timeout', 'sem_initial_data' ...). null = leu.
@@ -43,6 +44,13 @@ export interface LeituraWatch {
 }
 
 const texto = z.string().min(1).max(500).nullable()
+/** Texto de título: recusa também o que a normalização esvazia (espaço, U+00A0, U+200B). */
+const textoTitulo = z
+  .string()
+  .min(1)
+  .max(500)
+  .refine(s => normalizarTitulo(s) !== '', 'título vazio após normalizar')
+  .nullable()
 const hex16 = z.string().regex(/^[0-9a-f]{16}$/).nullable()
 const dimensao = z.number().int().min(1).max(4096).nullable()
 
@@ -78,8 +86,8 @@ export const leituraWatchSchema = z
     origemRede: z.string().min(1).max(100).nullable(),
     idioma: z.string().min(1).max(35).nullable(),
     erro: z.string().regex(/^[a-z0-9_]{1,40}$/).nullable(),
-    tituloOficial: texto,
-    titulosExibidos: z.array(z.object({ renderer: z.string().min(1).max(100), texto })).max(10),
+    tituloOficial: textoTitulo,
+    titulosExibidos: z.array(z.object({ renderer: z.string().min(1).max(100), texto: textoTitulo })).max(10),
     miniaturas: z.array(miniaturaSchema).max(60),
   })
   .superRefine((l, ctx) => {
