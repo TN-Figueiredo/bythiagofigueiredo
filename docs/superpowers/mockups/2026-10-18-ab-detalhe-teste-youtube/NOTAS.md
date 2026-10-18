@@ -40,3 +40,7 @@ Aplicados todos os achados; sem `color-mix`, sem cor nova (só tokens já medido
 
 - Logan r2: 4b com 3 rodadas em todo lugar; prazo sem teto inventado.
 - Naksu r2: R2-1 resolvido para 3 (não 4, por causa do spec); R2-2 `.i{flex:none;min-width:44px}` a 390; R2-3 `&nbsp;` em "4 h" e "6 h".
+
+## Aprovação do dono
+
+18/10: "Parece bom pra mim" (visto no Opera). Libera: o código de tela da S9 quando S7 e S8 existirem (portão G4 cumprido para a S9). Não libera: deploy antes do E8 (G0).
