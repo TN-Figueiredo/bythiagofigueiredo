@@ -2,12 +2,15 @@
 // A4 Tarefa 10: a rota `canal/[id]` passa a seção "Como o canal está" para a página própria (`comoEsta` do ProprioScreen). Prova o que só a rota decide: o
 // `painel` vem da URL (`1`, `0` ou nenhum), o id que a seção recebe é o RESOLVIDO, o dado é o MESMO que o cabeçalho leu (uma leitura só), os concorrentes do
 // formulário vêm do conjunto do SITE, e sem permissão ou com a leitura falha nenhum número privado chega ao navegador nas props da seção.
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactElement } from 'react'
 import { DADOS, proprioWorld, semVideos, umCanal } from './proprio-fixture'
 import type { Dataset, UndatedVideo } from '@/lib/youtube/observatorio/types'
 import type { ChannelPage, ObservatoryPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
+/** Desembrulha o AbEntradasProvider (T8): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = (e: ReactElement): ReactElement => (e.type === AbEntradasProvider ? (e.props as { children: ReactElement }).children : e)
 
 const SEM_DATA: UndatedVideo = { id: 'u1', ytId: 'yt-u1', title: 'Sem data', url: 'https://youtu.be/yt-u1', isShort: false, dur: 600, views: 10, likes: 1, comments: 0, pinned: false, checkedAt: null }
 const w = proprioWorld() // o conjunto do SITE (openObservatoryPage)
@@ -59,7 +62,7 @@ type Secao = { key: string | null; type: { name?: string }; props: { view: { rec
 async function secaoDe(id: string, sp: Record<string, string | string[]> = {}) {
   const { default: CanalPage } = await import('@/app/cms/(authed)/youtube/competitors/canal/[id]/page')
   const el = (await CanalPage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(sp as Record<string, string>) })) as ReactElement<{ children: ReactElement<{ comoEsta?: Secao }> }>
-  return { el, secao: el.props.children.props.comoEsta }
+  return { el, secao: (semProvedor(el.props.children) as ReactElement<{ comoEsta?: Secao }>).props.comoEsta }
 }
 
 describe('T10 a rota monta a seção', () => {

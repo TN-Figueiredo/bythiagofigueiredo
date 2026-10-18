@@ -2,6 +2,7 @@
 // A4 Tarefa 9 (revisão da T8): dois casos de rota que faltavam em proprio-rota.test.ts. (1) O id de um canal próprio de OUTRO site: o carregador não o acha
 // (`obs` nulo) e a rota diz "Canal não encontrado" SEM tocar tabela privada nem o conjunto do site (M4). (2) M3: canal próprio só com vídeos sem data TEM página
 // (o mesmo critério `canalTemVideos` de todos os pontos): a rota monta a página própria, não a moldura "ainda não tem vídeos".
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactElement, ReactNode } from 'react'
 import { proprioWorld, umCanal } from './proprio-fixture'
@@ -9,6 +10,8 @@ import { link } from '@/lib/youtube/observatorio/links'
 import type { Dataset, UndatedVideo } from '@/lib/youtube/observatorio/types'
 import type { ChannelPage, ObservatoryPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
+/** Desembrulha o AbEntradasProvider (T8): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = (e: ReactElement): ReactElement => (e.type === AbEntradasProvider ? (e.props as { children: ReactElement }).children : e)
 
 const SEM_DATA: UndatedVideo = { id: 'u1', ytId: 'yt-u1', title: 'Sem data', url: 'https://youtu.be/yt-u1', isShort: false, dur: 600, views: 10, likes: 1, comments: 0, pinned: false, checkedAt: null }
 const w = proprioWorld()
@@ -56,7 +59,7 @@ async function rota(id: string) {
   const { default: CanalPage } = await import('@/app/cms/(authed)/youtube/competitors/canal/[id]/page')
   return (await CanalPage({ params: Promise.resolve({ id }), searchParams: Promise.resolve({}) })) as ReactElement<{ crumbs: Array<{ text: string; href?: string }>; children: ReactElement<Record<string, unknown>> }>
 }
-const nome = (el: ReactElement<{ children: ReactNode }>) => ((el.props.children as ReactElement).type as { name?: string }).name
+const nome = (el: ReactElement<{ children: ReactNode }>) => (semProvedor(el.props.children as ReactElement).type as { name?: string }).name
 
 beforeEach(() => { vi.clearAllMocks(); state.dados.mockImplementation(async () => w.dados) })
 

@@ -2,6 +2,7 @@
 // A4 Tarefa 8: a rota `canal/[id]` ramifica pelo dono do canal. Canal próprio com vídeos monta a página própria (sem redirecionar);
 // canal próprio sem vídeos é resolvido ANTES de qualquer leitura privada (D10); quem não edita o site abre a página com o token nulo;
 // o id que chega aos leitores é o RESOLVIDO do canal, nunca o texto da URL; o conjunto do site só é lido neste ramo.
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -21,6 +22,8 @@ import { link } from '@/lib/youtube/observatorio/links'
 import type { ChannelPage, ObservatoryPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
 import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+/** Desembrulha o AbEntradasProvider (T8): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = (e: ReactElement): ReactElement => (e.type === AbEntradasProvider ? (e.props as { children: ReactElement }).children : e)
 
 const w = proprioWorld() // o conjunto do SITE (openObservatoryPage)
 const wUm = proprioWorld({ mut: umCanal }) // o conjunto de UM canal (openChannelPage), como em produção: ownChannels() lança nele
@@ -80,7 +83,7 @@ async function rota(id: string, sp: Record<string, string> = {}) {
   const { default: CanalPage } = await import('@/app/cms/(authed)/youtube/competitors/canal/[id]/page')
   return (await CanalPage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(sp) })) as ReactElement<{ crumbs: Array<{ text: string; href?: string }>; owns: OwnMenu; children: ReactElement<Record<string, unknown>> }>
 }
-const filho = (el: ReactElement<{ children: ReactNode }>) => el.props.children as ReactElement<Record<string, unknown>>
+const filho = (el: ReactElement<{ children: ReactNode }>) => semProvedor(el.props.children as ReactElement) as ReactElement<Record<string, unknown>>
 const nome = (el: ReactElement<{ children: ReactNode }>) => (filho(el).type as { name?: string }).name
 
 beforeEach(() => { vi.clearAllMocks(); state.dados.mockImplementation(async () => w.dados); cenario() })

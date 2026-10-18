@@ -132,7 +132,7 @@
 #flut .canal-tip ul{margin:0;padding-left:16px;color:var(--muted);display:grid;gap:4px}
 #flut .canal-tip b{color:var(--text);font-weight:500}
 #flut .canal-tip p.m{margin:8px 0 0;color:var(--muted)}
-@media (pointer:coarse){#flut .canal-menu [role="menuitem"]{min-height:44px}}
+@media (pointer:coarse),(max-width:600px){#flut .canal-menu [role="menuitem"]{min-height:44px}}
 
 /* ---------------------------------------------------------------- aba Vídeos (spec 5.4 a 5.6; mockup canal.css r3 a r12) */
 [data-obs-screen="canal"] .cv-sec{margin-top:6px}

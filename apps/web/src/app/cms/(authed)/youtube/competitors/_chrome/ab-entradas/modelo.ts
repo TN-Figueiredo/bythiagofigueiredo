@@ -1,9 +1,11 @@
 // Decide, para cada entrada do vídeo próprio, entre `testar`, `ver` (teste aberto), `sem-dado` (frase) e nada.
 // Puro e importável por cliente: os módulos do leitor entram só como tipo.
-import { hrefNovoTesteProprio, type TipoTroca } from '@/lib/youtube/ab-referencia'
+import { hrefNovoTesteConcorrente, hrefNovoTesteProprio, thumbReferenciaSegura, type TipoTroca } from '@/lib/youtube/ab-referencia'
 import { isCertainShort } from '@/lib/youtube/short-classifier'
 import type { EstadoAusencia } from '../ausencia/estado'
 import type { VideoBlocosView } from '../../_proprio/video-blocos-model'
+import { ehProprio } from '../../_proprio/eh-proprio'
+import type { ChannelVideoView } from '../../_canal/videos-model'
 import type { Chip, TrocaView } from '../../_proprio/trocas-model'
 import type { ProprioVideoView } from '../../_proprio/videos-model'
 import type { TestesAbertos } from './testes-abertos'
@@ -81,4 +83,28 @@ export function entradaDaTroca(t: Pick<TrocaView, 'campo' | 'chip' | 'veioDeTest
   if (CHIPS_COM_MEDIDA.has(t.chip)) return { tipo: 'testar', href: hrefNovoTesteProprio(videoUuid, t.campo === 'thumb' ? 'thumbnail' : 'title') }
   if (CHIPS_SEM_MEDIDA_DEPOIS.has(t.chip)) return { tipo: 'sem-medida', frase: FRASE_SEM_MEDIDA }
   return null
+}
+
+export type ItemAb = { rotulo: string; href: string; curto?: string }
+export const ROTULO_IDEIA_THUMB = 'Testar uma ideia a partir desta thumbnail'
+export const ROTULO_IDEIA_TITULO = 'Testar uma ideia a partir deste título'
+
+/**
+ * Itens do menu ⋯ do cartão. `ab` nulo (reporter, fora do provedor) → []. Próprio: a mesma decisão do cabeçalho (sem frase: no menu o item não existe
+ * quando não há o que oferecer). Concorrente: título sempre; thumbnail só com imagem de origem permitida.
+ */
+export function itensDoMenu(v: ChannelVideoView, ab: AbEntradas | null): ItemAb[] {
+  if (!ab) return []
+  if (ehProprio(v)) {
+    const e = entradaDoProprio({ podeEditar: true, videoUuid: v.id, dur: v.dur, abertos: ab.abertos, semDado: semDadoDoCartao(v) })
+    if (e?.tipo === 'testar') return [{ rotulo: ROTULO_TESTAR, href: e.href }]
+    if (e?.tipo === 'ver') return [{ rotulo: e.rotulo, href: e.href, curto: e.curto }]
+    return []
+  }
+  const itens: ItemAb[] = []
+  if (thumbReferenciaSegura(v.thumbSrc)) {
+    itens.push({ rotulo: ROTULO_IDEIA_THUMB, href: hrefNovoTesteConcorrente({ tipo: 'thumbnail', thumb: v.thumbSrc, titulo: v.title, refVideoId: v.id }) })
+  }
+  itens.push({ rotulo: ROTULO_IDEIA_TITULO, href: hrefNovoTesteConcorrente({ tipo: 'title', thumb: null, titulo: v.title, refVideoId: v.id }) })
+  return itens
 }
