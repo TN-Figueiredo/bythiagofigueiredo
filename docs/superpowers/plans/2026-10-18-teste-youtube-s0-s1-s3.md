@@ -283,6 +283,7 @@ export function classificarTitulo(ls: readonly LeituraPreparada[], o: LimiaresDe
   - C22: 9 leituras em 3 rodadas, cada uma com as 5 entradas `hqdefault` (480×360 `106068cba7a3c3c8` e as 4 `sqp` da tabela §2.3) → `um_valor_so`
   - C23: dois dHash a 30 bits em `hqdefault|480x360` alternando em 3 rodadas por 2 h, ≥ 2 votos cada → `miniatura_variou`
   - I6 (limiar custom): dois dHash a 4 bits na mesma classe, ≥ 2 votos cada → padrão: `um_valor_so`; `{ dhashMaxSame: 3 }`: `miniatura_variou`
+  - Equivalência (condição a da A5): com `dhashMaxSame: 6` explícito (laço guloso local forçado, em um gancho de teste) e com o padrão (`thumbRepresentatives`), o agrupamento é o mesmo em entrada embaralhada (C21) e nas 5 entradas do C22; sem isso o ramo local deriva calado
   - dedupe: uma leitura com o mesmo dHash em 2 hosts conta 1 voto (`minVotosPorVariante` não é cumprido por ela só)
   - nenhuma leitura com miniatura → `nao_lido`; `validasMiniatura < 9` → `insuficiente`, `poucas_leituras`
 - [ ] **Step 3:** implementar (se o agrupamento exigir `thumbRepresentatives` com `sameThumb` fixo em 6, só usar com o limiar padrão); trocar o literal 6 de `resolverOpcoes` por `DHASH_MAX_SAME` (import de `./dhash`).
