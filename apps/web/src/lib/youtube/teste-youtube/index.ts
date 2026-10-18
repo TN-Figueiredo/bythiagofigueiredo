@@ -1,0 +1,5 @@
+export * from './tipos'
+export { normalizarTitulo } from './normalizar-titulo'
+export { mesmaImagem, IMAGEM_PADRAO_YT } from './imagem'
+export { detectarTesteYoutube } from './detectar'
+export { inferirDesfecho } from './desfecho'

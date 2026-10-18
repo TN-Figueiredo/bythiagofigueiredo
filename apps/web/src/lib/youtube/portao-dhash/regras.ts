@@ -1,5 +1,5 @@
 // Portão do dHash (P4-0 do A/B Lab, spec 3.4 e emenda 30). Números deste arquivo = o que o Yannis revisa.
-export const VIDEOS_APROVADOS = ['6jL-jeux_1Y', 'WDRy_uldCI8'] as const // dono, 14/10/2026: Lolzin D5 e reserva
+export const VIDEOS_APROVADOS = ['6jL-jeux_1Y', 'WDRy_uldCI8', 'Uy5_DPzoGi8'] as const // dono, 14/10/2026: Lolzin D5 e reserva; 18/10/2026: Uy5 (menos views, sem maxres) para o devolver-hq e o ensaio
 
 export const PORTAO = {
   intervaloMs: 5 * 60_000,          // sonda a cada 5 min (URL pública, cota zero)
