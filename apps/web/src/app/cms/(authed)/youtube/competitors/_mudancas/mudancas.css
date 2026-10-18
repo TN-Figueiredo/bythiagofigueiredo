@@ -349,3 +349,6 @@
 [data-obs-screen="mudancas"] .seqnote svg{flex:none;margin-top:1px}
 /* the date column holds the run line in two lines (mockup: 190 px). Only where the base grid is 160 / 340 px: from 1001 to 1180 px the 150 / 290 px adjustment above stays (R136) */
 @media (min-width:1181px){ [data-obs-screen="mudancas"] .chg{grid-template-columns:190px minmax(0,1fr) 340px} }
+
+[data-obs-screen="mudancas"] .fx-ab-sem{margin:6px 0 0 54px;font-size:12.5px;color:var(--muted)}
+@media (pointer:coarse),(max-width:900px){[data-obs-screen="mudancas"] .vid .acts a.ghost{min-height:44px;display:inline-flex;align-items:center}}

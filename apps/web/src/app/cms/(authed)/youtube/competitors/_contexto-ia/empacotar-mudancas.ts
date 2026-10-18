@@ -72,7 +72,7 @@ export const INVENTARIO_MUDANCAS: Inventario = {
   'heroes[].video.historyHref': END, 'heroes[].video.url': END, 'heroes[].video.channelHref': END,
   'heroes[].video.color': APAR, 'heroes[].video.ini': APAR, 'heroes[].video.avatar': IMG, 'heroes[].video.ink': APAR,
   'heroes[].video.niche': ID, 'heroes[].video.nicheLabel': 'rotulo', 'heroes[].video.meta[]': 'base', 'heroes[].video.syncNote': 'base',
-  'heroes[].video.pin*': CTRL, 'heroes[].video.observed': CTRL, 'heroes[].video.outNote': 'base',
+  'heroes[].video.own': CTRL, 'heroes[].video.pin*': CTRL, 'heroes[].video.observed': CTRL, 'heroes[].video.outNote': 'base',
   'heroes[].when.text': 'base', 'heroes[].when.prec': REP, 'heroes[].when.rel': 'base', 'heroes[].when.seq': 'base', 'heroes[].when.run': 'base',
   'heroes[].runNote': 'base', 'heroes[].revTag': CTRL, 'heroes[].badges[].kind': CTRL, 'heroes[].badges[].text': 'base',
 
