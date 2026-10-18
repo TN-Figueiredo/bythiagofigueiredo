@@ -1,4 +1,3 @@
-import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
@@ -7,6 +6,7 @@ import { DEFAULT_CHANNEL_LIMIT, UNLOCK_STEP } from '@/lib/youtube/competitor-slo
 import type { RetratosProprios } from '@/lib/youtube/observatorio/retratos-proprios'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
+import { podeEditarSite } from '../_chrome/ab-entradas/permissao'
 import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
 import { carregarExtrasProprio } from '../_proprio/carregar-extras'
 import type { ExtrasProprio } from '../_proprio/extras'
@@ -21,8 +21,7 @@ export interface PermissoesDoSite { canUnlock: boolean; podeEditar: boolean }
 
 /** "+25" is for admins only: can_admin_site_users() (super_admin / org_admin) (unlockMoreChannels checks it again). `podeEditar`: quem só lê vê a lista com as ações desligadas. */
 export async function permissoesDoSite(siteId: string): Promise<PermissoesDoSite> {
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) return { canUnlock: false, podeEditar: false }
+  if (!(await podeEditarSite(siteId))) return { canUnlock: false, podeEditar: false }
   return { canUnlock: await canAdminSiteUsers(siteId), podeEditar: true }
 }
 
