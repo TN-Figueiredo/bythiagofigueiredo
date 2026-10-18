@@ -19,6 +19,8 @@ import type { AssistidoPeriodosView } from '../_proprio/assistido-periodo-model'
 import { buildProprioVideoBase, canalProprioDoVideo, hrefDeOutroVideo } from '../_proprio/video-model'
 import { lerTrocas } from '../_proprio/dados-trocas'
 import { buildTrocas, trocasNoGrafico, type TrocasView } from '../_proprio/trocas-model'
+import { lerTestesAbertos } from '../_chrome/ab-entradas/ler-testes-abertos'
+import type { TestesAbertos } from '../_chrome/ab-entradas/testes-abertos'
 import { buildHistoricoView } from './view-model'
 
 /** Os três cartões de "% assistido por período" (tela B): lê o diário de 90 dias e o inteiro dos OUTROS vídeos do canal, DEPOIS do primeiro HTML. */
@@ -68,6 +70,8 @@ export type MontarVideo =
       periodosProps: PropsAssistidoDoVideo | null; origemProps: PropsOrigemDoVideo
       /** só com `{ trocas: true }` (a página); o pacote "Perguntar a uma IA" não o pede */
       trocas: TrocasView | null
+      /** Entradas do A/B: só com `{ trocas: true }` e quem edita; o pacote da IA não lê. `durSeg` é a duração pública (Short não tem entrada). */
+      abertos: TestesAbertos | null; durSeg: number | null; podeEditar: boolean
       recente: string | null; estado: Flat; privado: EstadoDoPrivado }
   | { tipo: 'concorrente'; pagina: Pagina; view: ReturnType<typeof buildHistoricoView>; recente: string | null; estado: Flat }
 
@@ -96,9 +100,11 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
     const acesso = await acessoPrivado(siteId)
     const leitura = acesso.leitura
     // as trocas (T16e): lidas DEPOIS da guarda de edição, com a mesma prova, em paralelo com o diário (não dependem dele); sem a opção (pacote da IA) nada é lido
-    const [dados, lidas] = await Promise.all([
+    // os testes abertos do A/B (entradas do cabeçalho e do Antes e depois): mesma opção, só quem edita, uuid RESOLVIDO (nunca o id bruto da rota)
+    const [dados, lidas, abertos] = await Promise.all([
       lerDadosDoVideo({ canalId: proprio.id, ytId: base.header.ytId, longosAcompanhados: longosAcompanhadosDe(obs, proprio.id), agora: now, leitura }),
       opcoes.trocas ? lerTrocas({ canalId: proprio.id, ytId: base.header.ytId, videoUuid: id, agora: now, prova: leitura }) : Promise.resolve(null),
+      opcoes.trocas && acesso.edita ? lerTestesAbertos(siteId, { videoUuid: base.header.id }) : Promise.resolve(null),
     ])
     const hoje = dayPt(new Date(now))
     let trocas: TrocasView | null = null
@@ -124,7 +130,7 @@ export async function montarVideo(id: string, sp: Flat, abrir: () => Promise<Pag
     }
     // `negativa` vem da MESMA resposta que decidiu a leitura (nunca de uma segunda chamada)
     const privado: EstadoDoPrivado = { acessoPorCanal: { [proprio.id]: { diario: dados.acesso, alcance: dados.acesso } }, negativa: acesso.negativa }
-    return { tipo: 'proprio', pagina, proprio, base, blocos, barra, periodosProps, origemProps, trocas, recente, estado: sp, privado }
+    return { tipo: 'proprio', pagina, proprio, base, blocos, barra, periodosProps, origemProps, trocas, abertos, durSeg: obs.video(id)?.dur ?? null, podeEditar: acesso.edita, recente, estado: sp, privado }
   }
   const formParam = parseNiche(sp.niche) ?? undefined
   // parseNiche checks the form; the engine says whether the niche exists (an unknown one is ignored: the saved niche, else Todos)

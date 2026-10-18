@@ -35,6 +35,8 @@
 
 [data-obs-screen="video-proprio"] .vp-a{display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap}
 
+[data-obs-screen="video-proprio"] .vp-ab-nota{margin:8px 0 0;font:400 12.5px/18px var(--font-sans),system-ui,sans-serif;color:var(--muted);max-width:60ch}
+
 @media (max-width:900px){
   [data-obs-screen="video-proprio"] .vp-h{grid-template-columns:minmax(0,1fr)}
   [data-obs-screen="video-proprio"] .vp-h img,[data-obs-screen="video-proprio"] .vp-sem-thumb{max-width:360px}

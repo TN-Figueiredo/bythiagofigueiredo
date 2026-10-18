@@ -23,6 +23,7 @@ import type { BlocoAssistido } from '../../_proprio/video-blocos-model'
 import { canalProprioDoVideo } from '../../_proprio/video-model'
 import { ProprioVideoScreen } from '../../_proprio/video-screen'
 import { AssistidoEsqueleto, VideoBlocos } from '../../_proprio/video-blocos'
+import { entradaDoProprio, semDadoDoVideo } from '../../_chrome/ab-entradas/modelo'
 import { LinhaDasTrocas, Trocas } from '../../_proprio/trocas'
 import * as Sentry from '@sentry/nextjs'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
@@ -79,10 +80,12 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
         <OrigemDoVideo {...m.origemProps} />
       </Suspense>
     )
+    // entrada do A/B: só quem edita; Short, restrito e falhou decidem dentro do modelo (reporter chega `null`)
+    const ab = m.podeEditar ? entradaDoProprio({ podeEditar: true, videoUuid: base.header.id, dur: m.durSeg, abertos: m.abertos, semDado: semDadoDoVideo(blocos) }) : null
     return (
       <TrailChrome crumbs={base.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={base.pager} naTrilha />}
         perguntarIa={{ tela: 'video-proprio', id: id, nomeDaTela: TELAS_IA['video-proprio'].nome, exemplos: TELAS_IA['video-proprio'].exemplos, onGerar: gerarPacoteIa }}>
-        <ProprioVideoScreen header={base.header} pager={base.pager} fromCanal={base.fromCanal}>
+        <ProprioVideoScreen header={base.header} pager={base.pager} fromCanal={base.fromCanal} ab={ab}>
           <VideoBlocos view={blocos} periodos={periodos} origem={origem} linhaTrocas={trocas ? <LinhaDasTrocas view={trocas} /> : undefined} trocas={trocas ? <Trocas view={trocas} /> : undefined} />
         </ProprioVideoScreen>
       </TrailChrome>
