@@ -100,18 +100,26 @@ export interface LeituraWatch {
    *  A regra confere a duração (`maxDuracaoRodadaMs`) em vez de confiar. */
   rodadaId: string
   origemRede: string | null         // 'vercel' | 'forja' | 'mac-casa' ...; null = não registrado
-  /** Idioma pedido (hl / Accept-Language). Títulos traduzidos pelo dono diferem por idioma: misturar idiomas seria "teste" falso.
-   *  Obrigatório (não nulo) quando a leitura leu algum título. A coleta manda `hl=` e `gl=` explícitos na URL, não só Accept-Language. */
+  /** Idioma SERVIDO: HL/GL lidos do ytcfg da página, nunca o pedido (pedido `pt-BR`, servido `pt`). Títulos traduzidos pelo dono diferem por idioma:
+   *  misturar idiomas seria "teste" falso. Sem ytcfg legível e com título lido = null, e a leitura é recusada e contada em `invalidas`.
+   *  A coleta manda `hl=` e `gl=` explícitos na URL, não só Accept-Language. */
   idioma: string | null
   /** Código curto quando a leitura falhou ('http_429', 'consentimento', 'timeout', 'sem_initial_data' ...). null = leu.
-   *  Leitura com erro nunca vota; os campos de dado vêm nulos ou vazios. */
+   *  Leitura com erro nunca vota; os campos de dado vêm nulos ou vazios. Toda tentativa grava linha, inclusive a que falhou
+   *  (sem linha de falha, a taxa de leituras válidas fica indefinida e a falha some em verde). */
   erro: string | null
   /** Título oficial = `videoDetails.title` (fallback `og:title`), já sem entidades HTML. NUNCA o `<title>` (traz " - YouTube"). null = não lido. */
   tituloOficial: string | null
+  /** De onde veio `tituloOficial`: 'videoDetails' | 'og_title'; null quando `tituloOficial` é null. Gravado junto pela S4 (o fallback não pode passar por videoDetails). */
+  titulo_oficial_fonte: 'videoDetails' | 'og_title' | null
   /** Um item por renderer procurado. texto null = o renderer NÃO estava na página (ausente); nunca "".
    *  Texto já sem entidades HTML e sem normalização (a regra normaliza). Para `videoPrimaryInfoRenderer` o texto é a
    *  concatenação de `title.runs[].text` (título com link ou hashtag vem partido em runs). */
   titulosExibidos: Array<{ renderer: string; texto: string | null }>
+  /** Quantas rendições `sqp` a watch listou para ESTE vídeo (só URLs `ytimg.com/vi/<youtubeVideoId>/`; sqp de outros vídeos, como recomendados, nunca entram). null = não contado.
+   *  Só a existência: nenhuma `sqp` é buscada nem entra em `miniaturas` (§8, pedido 4). */
+  rendicoesSqp: number | null
+  /** Só URLs `ytimg.com/vi/<youtubeVideoId>/`; as de outros vídeos nunca entram (a watch lista miniaturas de recomendados). */
   miniaturas: Array<{
     url: string
     host: string                    // i.ytimg.com, i1.ytimg.com ...
@@ -122,7 +130,8 @@ export interface LeituraWatch {
     http: number | null             // null = não buscada
     etag: string | null
     sha16: string | null            // 16 hex do SHA-256 dos bytes
-    /** 16 hex minúsculos, mesmo algoritmo de dhashOf (thumb-fingerprint.ts). Só com http 200; nunca do corpo de um 404. */
+    /** 16 hex minúsculos, mesmo algoritmo de dhashOf (thumb-fingerprint.ts). Só com http 200; nunca do corpo de um 404.
+     *  Nunca herdado de ETag igual: ETag igual a de leitura anterior = `dhash`, `largura` e `altura` nulos (a S4 decodifica a dimensão; dHash herdado nunca vai como lido). */
     dhash: string | null
   }>
 }
@@ -132,7 +141,7 @@ export interface LeituraWatch {
 
 - `youtubeVideoId` `/^[A-Za-z0-9_-]{11}$/`; `rodadaId` `min(1).max(200)`.
 - `lidaEm`: `z.string().datetime({ offset: true }).transform(s => new Date(s).toISOString())`. Aceita `Z`, `+00:00` (formato que o PostgREST devolve para `timestamptz`) e `-03:00`; recusa sem fuso. A saída é sempre UTC com `Z` e milissegundos. Toda comparação e ordenação da regra usa o **inteiro em ms** (`Date.parse` uma vez, ao validar), nunca texto: por texto, `"…16:42:56.5Z" < "…16:42:56Z"` (`.` < `Z`) mas no tempo é o contrário. Os campos de instante do veredito devolvem o ISO da leitura escolhida.
-- Textos `z.string().min(1).max(500).nullable()` (recusa `""`); `url` `max(2048)`; `titulosExibidos.max(10)`; `miniaturas.max(60)`; `erro` `/^[a-z0-9_]{1,40}$/` nullable.
+- Textos (`titulosExibidos[].texto` e `tituloOficial`): `z.string().max(500).refine(s => normalizarTitulo(s) !== '').nullable()`: recusa `""`, `"   "`, U+00A0 e U+200B (só espaço invisível não é título). O teste T1 afirma a recusa dos três. `url` `max(2048)`; `titulosExibidos.max(10)`; `miniaturas.max(60)` (o limite não muda: o filtro pelo id do vídeo é que impede estouro); `rendicoesSqp` inteiro 0–200 nullable; `titulo_oficial_fonte` nulo se e só se `tituloOficial` é nulo; `erro` `/^[a-z0-9_]{1,40}$/` nullable.
 - `dhash` e `sha16` `/^[0-9a-f]{16}$/` nullable; `http` inteiro 100–599 nullable; `largura`/`altura` inteiros 1–4096 nullable, nulos juntos.
 - `refine`: `dhash !== null ⇒ http === 200 && largura !== null`.
 - `refine`: `erro !== null ⇒ titulosExibidos.every(t => t.texto === null) && miniaturas.every(m => m.dhash === null)`.
@@ -256,12 +265,10 @@ export interface OpcoesDesfecho extends OpcoesDeteccao {
 
 Arquivos em `apps/web/src/lib/youtube/teste-youtube/`: `tipos.ts`, `normalizar-titulo.ts`, `imagem.ts`, `detectar.ts`, `desfecho.ts`, `index.ts` (reexporta o que a A5 e a S6–S8 usam). Sem banco, sem rede, sem `Date.now()` (o tempo vem das leituras e de `opts.agora`), sem `sharp`.
 
-**Dependência de `thumb-fingerprint.ts` (decidido: extrair por reexportação, primeiro commit da série).** `thumb-fingerprint.ts` importa `sharp` e `@vercel/blob` no topo [V]; a lib pura não pode puxar isso (C20 falharia por desenho, e um componente `'use client'` que importasse `normalizarTitulo` faria o `next build` empacotar `sharp`). Copiar é proibido pelo plano (§1.2, duas definições de `DHASH_MAX_SAME` divergem no primeiro ajuste). Diff exato:
+**Dependência de `thumb-fingerprint.ts` (decidido: extrair por reexportação, primeiro commit da série).** `thumb-fingerprint.ts` importa `sharp` e `@vercel/blob` no topo [V]; a lib pura não pode puxar isso (C20 falharia por desenho, e um componente `'use client'` que importasse `normalizarTitulo` faria o `next build` empacotar `sharp`). Copiar é proibido pelo plano (§1.2, duas definições de `DHASH_MAX_SAME` divergem no primeiro ajuste). **Emenda da rodada 4:** a S2 da A5 já entregou `apps/web/src/lib/youtube/thumb-hamming.ts` (sem `sharp`) com `DHASH_MAX_SAME = 6`, `hamming`, `sameThumb` e `thumbRepresentatives`; é a fonte única. Nada se extrai de `thumb-fingerprint.ts`.
 
-- Novo `apps/web/src/lib/youtube/dhash.ts` com `DHASH_MAX_SAME = 6` (com o comentário do spike S1, que está nas linhas 5–7 de `thumb-fingerprint.ts`) e `hamming` **copiado sem alteração**. Não consertar o `NaN → 0` aqui: mudaria o comportamento de `coleta/versoes-derivar.ts` (A5); a proteção fica no Zod e em `mesmaImagem`.
-- Em `thumb-fingerprint.ts`: apagar as linhas 5–7 (comentário do spike, movido para `dhash.ts`; ficaria órfão sobre `const VARIANT`), a linha 9 e as linhas 18–27; acrescentar `import { DHASH_MAX_SAME, hamming } from './dhash'` e `export { DHASH_MAX_SAME, hamming } from './dhash'`. Nenhum import existente muda (`portao-dhash/classificar.ts`, `portao-dhash/imagem.ts`, `coleta/versoes-derivar.ts`, o próprio `isNewThumb`). Colisão com a A5: baixa (as 4 últimas mudanças do arquivo são nossas; `origin/staging` não o altera).
-- Teste: `thumb-fingerprint.test.ts` continua verde sem mudança; um teste novo (C32b) afirma `tf.hamming === dhash.hamming` e `tf.DHASH_MAX_SAME === 6`.
-- Entrega: commit próprio (`refactor: hamming e DHASH_MAX_SAME em dhash.ts puro, reexportados`), primeiro da série, depois de `git fetch` e de a A5 ter enviado as entradas; mensagem curta à A5 antes ("nenhum import seu muda"). Desfaz-se com `git revert`.
+- `apps/web/src/lib/youtube/teste-youtube/dhash.ts` só reexporta de `@/lib/youtube/thumb-hamming` e nada mais.
+- Teste: C32b afirma `tf.hamming === dhash.hamming` e `tf.DHASH_MAX_SAME === 6`.
 
 **Desempate total (determinismo).** Toda ordenação "primeiro visto" usa a chave `(lidaEm em ms, rodadaId, índice do renderer em RENDERERS_TITULO, texto cru em ordem de code point)`. Sem isso, duas leituras no mesmo segundo com B em NFC e NFD devolveriam textos diferentes conforme a ordem de entrada.
 
@@ -276,6 +283,8 @@ Na ordem: `normalize('NFC')` (acento composto e decomposto viram o mesmo texto; 
 Devolve `incomparavel` se algum dHash é nulo ou fora de `/^[0-9a-f]{16}$/`; se `variante`, `largura` ou `altura` diferem ou algum é nulo (F8, F11: a classe de comparação é `variante|largura×altura`); ou se algum é a imagem padrão do YouTube (`hamming(d, IMAGEM_PADRAO_YT) ≤ dhashMaxSame`, com `IMAGEM_PADRAO_YT = '400e716969691648'`, F9). Senão, `mesma` se `hamming ≤ dhashMaxSame`, `diferente` acima.
 
 Tolerância: 6 (o valor vigente). Recompressão medida: 0–1 bit na mesma classe; menor rotação real do spike S1: 10; A × B do experimento: 30. Margem dos dois lados [V]. As rendições `sqp` (7 a 14 bits entre si) só não viram falso `diferente` porque cada tamanho é uma classe.
+
+**Limiar customizado (condição a da A5):** com `dhashMaxSame` diferente do padrão, `mesmaImagem` não delega a `sameThumb` (sem parâmetro de limiar): limiar customizado chama `hamming` direto (ainda da fonte única). **S6 e S7 nunca passam `dhashMaxSame`**: o veredito carrega `REGRA_TESTE_YOUTUBE_VERSAO`, não o limiar, e um registro gravado com limiar diferente deixaria de ser recalculável; a opção é de teste (I6). Dívida declarada: dois laços de agrupamento; gatilho: `thumbRepresentatives` ganhar parâmetro de limiar (então o laço local sai). **Teste de equivalência:** com limiar 6, o laço guloso local e `thumbRepresentatives` dão o mesmo agrupamento em entrada embaralhada (C21) e nas 5 entradas do C22 (T5 do plano).
 
 **Implementação (emenda da rodada 4):** `mesmaImagem` é invólucro de `sameThumb` de `thumb-hamming.ts`, não alias: guarda a classe `variante|largura×altura`, o hex minúsculo de 16 caracteres e a imagem cinza do 404, e só então delega a comparação; a fonte do limiar e do `hamming` é única.
 
@@ -429,12 +438,13 @@ Arquivos em `apps/web/test/youtube/teste-youtube/`. Fixture real (§2) onde o ca
 - **A5 (S4, S5) importa** `LeituraWatch`, `leituraWatchSchema`, `validarLeituras`, `RENDERERS_TITULO`, `detectarTesteYoutube`, `mesmaImagem` (serve também ao `revertTo` por Hamming da S2, se quiser a mesma regra de classe e imagem padrão) de `@/lib/youtube/teste-youtube`.
 - **Pedidos à A5 (a assinar):**
   1. Os 3 já aceitos: `texto` nulo = renderer ausente (nunca `""`); `dhash` hex minúsculo de 16 caracteres, igual a `dhashOf`; `rodadaId` opaco gerado pela coleta.
-  2. `largura` e `altura` decodificadas em cada miniatura; `erro` e `idioma` no tipo, com uma rodada = um só idioma e uma só origem, duração de poucos minutos, `rodadaId = uuid`; `hl=` e `gl=` explícitos na URL. **`idioma` = HL/GL servido (ytcfg), não o pedido** (emenda da rodada 4, contestação da A5 aceita: pedido `pt-BR`, servido `pt`).
+  2. Toda tentativa grava linha, inclusive a que falhou (`erro`); `titulo_oficial_fonte` gravado com `tituloOficial`. `largura` e `altura` decodificadas em cada miniatura; `erro` e `idioma` no tipo, com uma rodada = um só idioma e uma só origem, duração de poucos minutos, `rodadaId = uuid`; `hl=` e `gl=` explícitos na URL. **`idioma` = HL/GL servido (ytcfg), não o pedido** (emenda da rodada 4, contestação da A5 aceita: pedido `pt-BR`, servido `pt`).
   3. `tituloOficial` = `videoDetails.title` (fallback `og:title`), nunca `<title>`; `videoPrimaryInfoRenderer` = concatenação de `runs[].text`.
-  4. Para dHash, buscar só as URLs canônicas sem query (`/vi/<id>/<variante>.jpg`) e gravar das `sqp` só a existência: menos bytes e uma classe por variante.
+  4. Para dHash, buscar só as URLs canônicas sem query (`/vi/<id>/<variante>.jpg`) e gravar das `sqp` só a existência (`rendicoesSqp`): menos bytes e uma classe por variante. Filtrar as miniaturas pelo id do vídeo (`ytimg.com/vi/<youtubeVideoId>/`): a watch lista as de recomendados.
   5. **Requisito de coleta (D7; forma trocada pela emenda da rodada 4: a S4 grava `coleta_ate` sem depender da S7):** vídeo com veredito `provavel_teste` sem desfecho continua na coleta até `vencedor_provavel` ou até 30 dias após `ultimaVista` (4 rodadas × 3/dia pedem ≥ 1,5 dia depois do fim do teste para juntar 18 votos estáveis; sem isso o teste que começa perto do corte de 14 ou 30 dias nunca fecha).
-  6. **(Trocado pela emenda da rodada 4: hora-base espalhada por vídeo no lugar do jitter de ±20 min.)** Jitter na hora de início da rodada (E3, Phil): ± 20 min em torno do múltiplo de 6 h, para a propagação não ficar travada em fase com o período de uma ferramenta de terceiros (ferramenta com período divisor de 6 h trocando em fase com a rodada deixaria q efetivo = 1 e daria `provavel_teste` falso; chance de coincidir ~1–3 %).
-  7. **(Número e chave trocados pela emenda da rodada 4: gravação normalizada de ~290 B, ETag na chave da miniatura, retenção de 30 dias.)** Volume (aviso, não deste spec): `LeituraWatch` gravada como está custa ~2,2–2,4 KB por leitura com índice (a URL `sqp` é o grosso); a S4 deve gravar só `(variante, largura, altura, dhash)` quando muda e manter a leitura crua por pouco tempo fora de teste. A conta de V vídeos e do plano gratuito é da S4 (estimativa do Phil: ~1 GB/ano com 100 vídeos; V não medido).
+  6. **Hora-base espalhada por vídeo** (emenda da rodada 4, no lugar do jitter fixo de ±20 min em torno do múltiplo de 6 h): cada vídeo tem a sua hora-base dentro do período de 6 h, fixa e espalhada entre os vídeos, mais ±20 min sorteados por rodada (como no §12, item 6), para a rodada não ficar em fase com o período de uma ferramenta de terceiros (período divisor de 6 h trocando em fase deixaria q efetivo = 1 e daria `provavel_teste` falso; chance de coincidir ~1–3 %).
+  7. **Gravação normalizada de ~290 B por leitura** (emenda da rodada 4): a S4 grava `(variante, largura, altura, dhash)` com o ETag na chave da miniatura (só quando muda) e mantém a leitura crua por **30 dias** após o vídeo sair da coleta. A conta de V vídeos e do plano gratuito é da S4 (V não medido).
+- **S5 (A5, tela):** `insuficiente` com `motivo = 'span_ilegivel'` (emenda da rodada 4) significa "leituras longas demais ou perto de escritas nossas impedem a leitura do período": a S5 trata como "não deu para ler", nunca verde, nem "sem teste" nem "poucas leituras, aguarde". Mapa motivo → texto com `switch` exaustivo (`never` no `default`) e um teste de componente por motivo, incluindo `span_ilegivel`, que mostra `rodadasLongas` / `ilegiveis`. A guarda da S6 já bloqueia todo `insuficiente`.
 
 ---
 
@@ -454,7 +464,7 @@ Arquivos em `apps/web/test/youtube/teste-youtube/`. Fixture real (§2) onde o ca
 
 - **[V]:** F1–F11 (contas sobre os TSV, dHash recalculado com o algoritmo de produção e HTML lido pelo Phil às ~18:00); `hamming` devolve 0 (dois lados inválidos) ou o popcount do outro lado; `thumb-fingerprint.ts` importa `sharp` e `@vercel/blob`; Zod 3.25 no `apps/web` (`datetime()` sem `offset` recusa `+00:00`); testes do domínio em `apps/web/test/youtube/`; os 3 renderers e `videoDetails.title` sem sufixo.
 - **[H]:** que os 3 renderers concordem sempre (inferido da contagem 0/3); tempo de propagação de uma troca comum de título (base dos 30 min, da fração 0,4 e da quarentena de 60 min); que a divisão do YouTube seja estável e não adaptativa (base do desfecho); que o título oficial vire B quando B vence; que a imagem padrão do 404 seja a mesma para todo vídeo; que os seletores de variação difiram entre renderers; que a troca de **imagem** (não só a recompressão) deixe as bordas servindo a antiga (inferido de F7).
-- **Limite conhecido [H] (E3):** alternador por ferramenta cujo período divide 6 h e que troca em fase com a nossa rodada passa na fração (q efetivo = 1); mitigado pelo jitter do pedido 6 à A5. Discriminador opcional para a v2: no nativo 1/3 das rodadas mistas têm ordem não monotônica (ABA, BAB); a propagação é sempre monotônica. Divisão desigual do YouTube (menor variante < ~16 % do tráfego) faz q < 0,4 e dá falso `mistura_esparsa`: erro para o lado seguro (a S6 bloqueia por `rodadasMistasTitulo ≥ 1`).
+- **Limite conhecido [H] (E3):** alternador por ferramenta cujo período divide 6 h e que troca em fase com a nossa rodada passa na fração (q efetivo = 1); mitigado pela hora-base espalhada por vídeo (pedido 6 à A5). Discriminador opcional para a v2: no nativo 1/3 das rodadas mistas têm ordem não monotônica (ABA, BAB); a propagação é sempre monotônica. Divisão desigual do YouTube (menor variante < ~16 % do tráfego) faz q < 0,4 e dá falso `mistura_esparsa`: erro para o lado seguro (a S6 bloqueia por `rodadasMistasTitulo ≥ 1`).
 - **Conferência sem custo (não é portão):** na primeira troca comum de título do dono num vídeo próprio, sondar a watch (`sondar-paginas`) a cada 30 s por 1 h, só leitura, e anexar o resultado aqui com data (mede a propagação que sustenta 30 min, 0,4 e 60 min).
 - **Não conferi:** o HTML guardado (não foi); leitura logada ou na home; outro vídeo ou outra rede; leitura a partir do Vercel ou da forja (consentimento, 429, idioma pelo IP: P-V da A5); se as rendições `sqp` mudam de tamanho ou assinatura; o fim do teste; o volume real da S4. A medição da propagação de uma troca comum (Mac sonda a watch a cada 30 s por 2 h depois de o dono trocar o título de um vídeo próprio sem teste) fica **pendente**, fora deste spec (§12, recusados). O lote só com a lib pura pode ir ao staging antes do E8 do T19 (nada a chama, nenhuma rota, nenhuma migration); quem decide é o controlador com Hanna.
 
