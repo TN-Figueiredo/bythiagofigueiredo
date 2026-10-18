@@ -176,5 +176,9 @@ export async function rodarSonda(sb: SupabaseClient, agora: Date, f: typeof fetc
 
   const { error } = await sb.from('ab_test_sondas').upsert(linhas as unknown as Linha[], { onConflict: 'test_id,hora', ignoreDuplicates: true })
   if (error) return falha(`ab_test_sondas: ${error.message}`)
-  return { status: 'ok', testes: testes.length, gravadas: linhas.length, falhas: linhas.filter((l) => l.leitura_estado === 'falhou').length }
+  const falhadas = linhas.filter((l) => l.leitura_estado === 'falhou')
+  if (testes.length > 0 && falhadas.length === testes.length) {
+    return falha(`todas as ${testes.length} sondas falharam: ${[...new Set(falhadas.map((l) => String(l.erro)))].join(',')}`)
+  }
+  return { status: 'ok', testes: testes.length, gravadas: linhas.length, falhas: falhadas.length }
 }

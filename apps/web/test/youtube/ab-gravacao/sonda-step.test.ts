@@ -183,6 +183,36 @@ describe('rodarSonda', () => {
     expect(fb.upserts[0]!.linhas[0]).toMatchObject({ erro: 'imagem_invalida', leitura_estado: 'falhou' })
   })
 
+  it('D1: todas as leituras falharam: recordCronFailure e status error, linhas falhou gravadas', async () => {
+    const fb = criarFakeSb({ ab_tests: [teste('t1'), teste('t2', 'bcdefghijkl')] })
+    const { f } = criarFetch({ head: () => new Response(null, { status: 404 }) })
+    const r = await rodarSonda(fb.sb, agora, f)
+    expect(fb.upserts[0]!.linhas).toHaveLength(2)
+    expect(saude.recordCronFailure).toHaveBeenCalledTimes(1)
+    expect(saude.recordCronFailure).toHaveBeenCalledWith('ab-sonda-miniatura', expect.stringContaining('http_404'))
+    expect(r).toMatchObject({ status: 'error', health_written: true })
+  })
+
+  it('D1: um 404 e um que bate: status ok e sem falha de saúde', async () => {
+    const fb = criarFakeSb({ ab_tests: [teste('t1'), teste('t2', 'bcdefghijkl')], ab_test_variants: [variante('b', 't2', H.A)], ab_test_cycles: [cicloAberto('t2', 'b')] })
+    const { f } = criarFetch({
+      head: (u) => (u.includes('abcdefghijk') ? new Response(null, { status: 404 }) : new Response(null, { status: 200, headers: { etag: ETAG_UTIL } })),
+      get: () => png(H.A),
+    })
+    const r = await rodarSonda(fb.sb, agora, f)
+    expect(r).toMatchObject({ status: 'ok', testes: 2, falhas: 1 })
+    expect(saude.recordCronFailure).not.toHaveBeenCalled()
+  })
+
+  it('Y3: erro no upsert: falha registrada e status error', async () => {
+    const fb = criarFakeSb({ ab_tests: [teste('t1')] })
+    fb.erros.ab_test_sondas = 'boom'
+    const { f } = criarFetch({ get: () => png(H.A) })
+    const r = await rodarSonda(fb.sb, agora, f)
+    expect(r).toMatchObject({ status: 'error', health_written: true })
+    expect(saude.recordCronFailure).toHaveBeenCalledWith('ab-sonda-miniatura', expect.stringContaining('ab_test_sondas'))
+  })
+
   it('leitura com erro: falha registrada e nada gravado', async () => {
     const fb = criarFakeSb({ ab_tests: [teste('t1')] })
     fb.erros.ab_test_variants = 'boom'
