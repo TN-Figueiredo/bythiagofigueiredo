@@ -190,6 +190,18 @@ describe('montarRodadas', () => {
     expect(sem[0]!.mista).toBe(true)
   })
 
+  it('C28 estendido (D4): a quarentena é pelo intervalo da rodada, não pelo 1º voto', () => {
+    const w = [{ em: '2026-10-18T10:00:00Z', campo: 'titulo' as const }]
+    const q = (de: string, ate: string) =>
+      montarRodadas(prep([leitura({ em: de, rodada: 'q', titulo: 'A' }), leitura({ em: ate, rodada: 'q', titulo: 'B' })]), resolverOpcoes({ escritasConhecidas: w }))[0]!
+    // começa antes de em - 10 min e termina depois: toca a janela
+    expect(q('2026-10-18T09:48:00Z', '2026-10-18T09:52:00Z').emQuarentena).toBe(true)
+    expect(q('2026-10-18T09:48:00Z', '2026-10-18T09:52:00Z').mista).toBe(false)
+    // termina antes de em - 10 min: fora
+    expect(q('2026-10-18T09:44:00Z', '2026-10-18T09:49:00Z').emQuarentena).toBe(false)
+    expect(q('2026-10-18T09:44:00Z', '2026-10-18T09:49:00Z').mista).toBe(true)
+  })
+
   it('Review Focus 3: escrita de miniatura não põe título em quarentena', () => {
     const ls = [
       leitura({ em: '2026-10-18T09:58:00Z', rodada: 'q', titulo: 'A' }),

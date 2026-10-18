@@ -253,8 +253,20 @@ export const PADROES_DESFECHO = {
   maxIdadeColetaMs: 48 * 3_600_000,
 } as const
 
+/** Falha em voz alta: limiar NaN, infinito ou negativo desligaria uma guarda em silêncio (`x < NaN` é falso). */
+export function exigirLimiar(nome: string, valor: number | undefined): void {
+  if (valor === undefined) return
+  if (typeof valor !== 'number' || !Number.isFinite(valor) || valor < 0) throw new Error(`teste-youtube: opção ${nome} inválida (número finito >= 0)`)
+}
+
 export function resolverOpcoes(opts?: OpcoesDeteccao): LimiaresDeteccao {
   const o = opts ?? {}
+  for (const k of ['minLeituras', 'minVotosPorVariante', 'minRodadasMistas', 'minJanelaMistaMs', 'minFracaoRodadasMistas', 'maxDuracaoRodadaMs', 'maxVariantes', 'dhashMaxSame', 'quarentenaEscritaMs'] as const) {
+    exigirLimiar(k, o[k])
+  }
+  ;(o.escritasConhecidas ?? []).forEach((e, i) => {
+    if (typeof e?.em !== 'string' || !Number.isFinite(Date.parse(e.em))) throw new Error(`detectarTesteYoutube: escritasConhecidas[${i}].em inválido (ISO 8601)`)
+  })
   return {
     minLeituras: o.minLeituras ?? PADROES_DETECCAO.minLeituras,
     minVotosPorVariante: o.minVotosPorVariante ?? PADROES_DETECCAO.minVotosPorVariante,

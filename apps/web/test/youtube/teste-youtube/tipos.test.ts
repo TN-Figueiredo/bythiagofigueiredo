@@ -7,6 +7,9 @@ import {
   PADROES_DETECCAO,
   RENDERERS_TITULO,
 } from '@/lib/youtube/teste-youtube/tipos'
+import { detectarTesteYoutube } from '@/lib/youtube/teste-youtube/detectar'
+import { inferirDesfecho } from '@/lib/youtube/teste-youtube/desfecho'
+import { carregarQIg9 } from '../../fixtures/teste-youtube/qIg9a7vqcNo/carregar'
 import { leitura, VIDEO } from './sintetico'
 
 const base = () => leitura({ em: '2026-10-18T16:42:56.000Z', rodada: 'r0', titulo: 'Titulo A' })
@@ -140,5 +143,28 @@ describe('resolverOpcoes', () => {
   })
   it('padrão ausente (variável apagada) cai no padrão', () => {
     expect(resolverOpcoes({ minLeituras: undefined }).minLeituras).toBe(9)
+  })
+})
+
+describe('conserto r1: resolverOpcoes valida a entrada (B-2)', () => {
+  const ls = carregarQIg9().leituras
+  it('escritasConhecidas[].em ilegível lança em detectar e em inferirDesfecho', () => {
+    const ruim = [{ em: 'ontem', campo: 'titulo' as const }]
+    expect(() => detectarTesteYoutube(ls, { escritasConhecidas: ruim })).toThrow(/escritasConhecidas\[0\]\.em/)
+    expect(() => resolverOpcoes({ escritasConhecidas: [{ em: '2026-10-18T10:00:00Z', campo: 'titulo' }, ...ruim] })).toThrow(/escritasConhecidas\[1\]\.em/)
+    const antes = detectarTesteYoutube(ls)
+    expect(() => inferirDesfecho(antes, ls, { agora: '2026-10-19T00:00:00Z', escritasConhecidas: ruim })).toThrow(Error)
+  })
+  it('limiar numérico NaN, infinito ou negativo lança (NaN desligaria poucas_leituras em silêncio)', () => {
+    for (const k of ['minLeituras', 'minVotosPorVariante', 'minRodadasMistas', 'minJanelaMistaMs', 'minFracaoRodadasMistas', 'maxDuracaoRodadaMs', 'maxVariantes', 'dhashMaxSame', 'quarentenaEscritaMs'] as const) {
+      expect(() => resolverOpcoes({ [k]: Number.NaN })).toThrow(new RegExp(k))
+      expect(() => resolverOpcoes({ [k]: Number.POSITIVE_INFINITY })).toThrow(new RegExp(k))
+      expect(() => resolverOpcoes({ [k]: -1 })).toThrow(new RegExp(k))
+    }
+    expect(() => detectarTesteYoutube(ls, { minLeituras: Number.NaN })).toThrow(Error)
+  })
+  it('opções válidas e ausentes continuam valendo (zero é permitido)', () => {
+    expect(resolverOpcoes({ minLeituras: 0 }).minLeituras).toBe(0)
+    expect(resolverOpcoes().minLeituras).toBe(9)
   })
 })

@@ -3,7 +3,9 @@ import { normalizarTitulo } from './normalizar-titulo'
 import { prepararLeituras } from './preparar'
 import { tituloOficialMaisFrequente } from './titulo'
 import {
+  exigirLimiar,
   PADROES_DESFECHO,
+  resolverOpcoes,
   REGRA_TESTE_YOUTUBE_VERSAO,
   type Desfecho,
   type LeituraWatch,
@@ -17,6 +19,10 @@ type MotivoSemDado = Extract<Desfecho, { estado: 'sem_dado' }>['motivo']
 export function inferirDesfecho(antes: VereditoTesteYoutube, leiturasDepois: readonly LeituraWatch[], opts: OpcoesDesfecho): Desfecho {
   const agoraMs = typeof opts?.agora === 'string' ? Date.parse(opts.agora) : Number.NaN
   if (!Number.isFinite(agoraMs)) throw new Error('inferirDesfecho: opts.agora é obrigatório (ISO 8601)')
+  resolverOpcoes(opts) // valida escritasConhecidas e limiares antes de qualquer ramo
+  exigirLimiar('minLeiturasEstavel', opts.minLeiturasEstavel)
+  exigirLimiar('minJanelaEstavelMs', opts.minJanelaEstavelMs)
+  exigirLimiar('maxIdadeColetaMs', opts.maxIdadeColetaMs)
   const minLeiturasEstavel = opts.minLeiturasEstavel ?? PADROES_DESFECHO.minLeiturasEstavel
   const minJanelaEstavelMs = opts.minJanelaEstavelMs ?? PADROES_DESFECHO.minJanelaEstavelMs
   const maxIdadeColetaMs = opts.maxIdadeColetaMs ?? PADROES_DESFECHO.maxIdadeColetaMs
