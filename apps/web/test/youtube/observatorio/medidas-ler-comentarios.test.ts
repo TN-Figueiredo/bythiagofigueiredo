@@ -79,6 +79,22 @@ describe('o que devolve', () => {
     expect(r.dados.porVideo.get('a')).toEqual({ retrato7: 'ok', retrato30: 'sem_comentarios', algumComRespostaDoCriador: true, maiorCurtidas7: 90, maiorCurtidas30: 120 })
     expect(r.dados.porVideo.get('b')).toEqual({ retrato7: null, retrato30: 'desligados', algumComRespostaDoCriador: false, maiorCurtidas7: 5, maiorCurtidas30: null })
   })
+  it('F2-T1: a consulta de comentários pede só topo (is parent_id null); filhas em massa não atrapalham a leitura', async () => {
+    const filhas = Array.from({ length: 1000 }, (_, k) => comentario(5000 + k, 'a', { parent_id: 1, creator_replied: false }))
+    const { sb, consultas } = falsoPostgrest(mundo({
+      competitor_video_comment_snaps: [snap('a', 7, 'ok')],
+      competitor_video_comments: [comentario(1, 'a', { creator_replied: true }), comentario(2, 'b'), ...filhas],
+      competitor_video_comment_marks: [marca(1, 7, 10)],
+    }))
+    const r = await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)
+    expect(r.lido).toBe(true)
+    if (!r.lido) return
+    expect(r.dados.porVideo.get('a')?.algumComRespostaDoCriador).toBe(true)
+    expect(r.dados.porVideo.get('b')?.algumComRespostaDoCriador).toBe(false)
+    const q = consultas.filter((c) => c.tabela === 'competitor_video_comments')
+    expect(q.length).toBeGreaterThan(0)
+    for (const c of q) expect(c.filtros).toContainEqual({ op: 'is', coluna: 'parent_id', valor: null })
+  })
   it('tabelas vazias: lido, nenhum vídeo, coletaDesdeMs nulo', async () => {
     const { sb } = falsoPostgrest(mundo())
     expect(await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)).toEqual({ lido: true, dados: { coletaDesdeMs: null, porVideo: new Map() } })

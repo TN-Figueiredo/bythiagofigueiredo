@@ -4,6 +4,8 @@
 export const COMMENT_RULES = {
   version: 1,
   target: 12, creatorMax: 4, featuredMax: 2, pool: 100, creatorRepliesMax: 3,
+  // quantas respostas do criador a tela mostra; a coleta guarda até `creatorRepliesMax`. Sobe só com mockup (F2-tela)
+  creatorRepliesShown: 3,
   featuredLookup: 20, featuredMinSubs: 100_000, featuredMinRatio: 10,
   identityDays: 28, bodyMax: 2000,
   marks: [{ mark: 1, fromH: 24, untilH: 72 }, { mark: 7, fromH: 168, untilH: 240 }, { mark: 30, fromH: 720, untilH: 888 }],

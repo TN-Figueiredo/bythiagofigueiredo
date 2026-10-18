@@ -92,7 +92,7 @@ export async function lerInsumosDeComentarios(
         else if (s.mark === 30) e.retrato30 = statusDe(s.status)
       }
       const cs = await paginar((de, ate) => sb.from('competitor_video_comments').select('id, video_id, parent_id, creator_replied')
-        .eq('site_id', siteId).in('video_id', bloco).order('id').range(de, ate), max)
+        .eq('site_id', siteId).in('video_id', bloco).is('parent_id', null).order('id').range(de, ate), max)
       if (!cs.ok) return cs.falha
       const topo: number[] = []
       for (const c of cs.linhas) {

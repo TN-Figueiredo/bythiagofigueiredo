@@ -4,7 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type Linha = Record<string, unknown>
-export interface Consulta { tabela: string; colunas: string[]; filtros: Array<{ op: 'eq' | 'neq' | 'in' | 'gte' | 'lt'; coluna: string; valor: unknown }>; de: number | null; ate: number | null; ordem?: string[] }
+export interface Consulta { tabela: string; colunas: string[]; filtros: Array<{ op: 'eq' | 'neq' | 'in' | 'gte' | 'lt' | 'is'; coluna: string; valor: unknown }>; de: number | null; ate: number | null; ordem?: string[] }
 export interface FalsoOpcoes {
   /** Erro devolvido (no campo `error`) a toda consulta desta tabela. */
   erros?: Record<string, { code: string; message: string }>
@@ -27,6 +27,7 @@ export function falsoPostgrest(tabelas: Record<string, Linha[]>, op: FalsoOpcoes
       const b = {
         select(cols: string) { c.colunas = cols.split(',').map((x) => x.trim()).filter(Boolean); return b },
         eq(coluna: string, valor: unknown) { c.filtros.push({ op: 'eq', coluna, valor }); return b },
+        is(coluna: string, valor: null) { c.filtros.push({ op: 'is', coluna, valor }); return b },
         neq(coluna: string, valor: unknown) { c.filtros.push({ op: 'neq', coluna, valor }); return b },
         in(coluna: string, valor: unknown[]) { c.filtros.push({ op: 'in', coluna, valor }); return b },
         gte(coluna: string, valor: unknown) { c.filtros.push({ op: 'gte', coluna, valor }); return b },
@@ -51,6 +52,7 @@ export function falsoPostgrest(tabelas: Record<string, Linha[]>, op: FalsoOpcoes
           const v = l[f.coluna]
           if (f.op === 'eq') return v === f.valor
           if (f.op === 'neq') return v !== f.valor
+          if (f.op === 'is') return (v ?? null) === f.valor
           if (f.op === 'in') return Array.isArray(f.valor) && f.valor.includes(v)
           const a = comparavel(v), z = comparavel(f.valor)
           if (a === null || z === null) return false

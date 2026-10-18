@@ -64,6 +64,8 @@ export interface CartaoTexto extends CartaoBase {
   cortado: boolean
   publicadoEm: string
   respostasDoCriador: RespostaDoCriadorVista[]
+  /** Quantas respostas do criador estão guardadas (no ar), antes do corte por `COMMENT_RULES.creatorRepliesShown`. */
+  respostasDoCriadorGuardadas: number
   autor: AutorDoCartao
   /** Quantas menções (@…) foram trocadas pelo marcador no texto do comentário e nas respostas dele. */
   mencoesTrocadas: number
@@ -118,8 +120,10 @@ export interface RespostaDoCriador {
   cortado: boolean
   /** ISO do `published_at` do topo; `null` sem data. */
   publicadoEm: string | null
-  /** Até `COMMENT_RULES.creatorRepliesMax`, da mais antiga para a mais nova. */
+  /** Até `COMMENT_RULES.creatorRepliesShown`, da mais antiga para a mais nova. */
   respostas: Array<{ texto: string; cortado: boolean; publicadoEm: string | null }>
+  /** Quantas respostas do criador estão guardadas (no ar), antes do corte por `creatorRepliesShown`. */
+  respostasDoCriadorGuardadas: number
   /** Curtidas no marco mais recente que tem leitura; nulo se nenhuma. */
   curtidas: number | null
   marco: Marco | null

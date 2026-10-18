@@ -18,6 +18,9 @@ vi.mock('@tn-figueiredo/cms/login', () => ({
 vi.mock('next/headers', () => ({
   headers: async () => ({ get: () => null }),
 }))
+vi.mock('../../lib/auth/has-recovery-session', () => ({
+  hasRecoverySession: async () => true,
+}))
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
     rpc: vi.fn(async () => ({ data: null, error: null })),
@@ -66,8 +69,8 @@ describe('cms login pages', () => {
     expect(screen.getByTestId('cms-forgot-component')).toBeTruthy()
   })
 
-  it('mounts <CmsResetPassword>', () => {
-    render(<CmsResetPage />)
+  it('mounts <CmsResetPassword>', async () => {
+    render(await CmsResetPage())
     expect(screen.getByTestId('cms-reset-component')).toBeTruthy()
   })
 })

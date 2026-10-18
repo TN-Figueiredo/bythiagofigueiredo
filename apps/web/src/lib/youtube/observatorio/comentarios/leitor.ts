@@ -260,7 +260,7 @@ async function ler(sb: SupabaseClient, p: PedidoDeComentarios): Promise<Comentar
     comTempo((sinal) => sb.from('competitor_video_comment_snaps').select(COLUNAS_SNAP).eq('site_id', siteId).eq('video_id', p.videoId)
       .in('mark', [...MARCOS]).abortSignal(sinal)),
     comTempo((sinal) => sb.from('competitor_video_comments').select(colunas).eq('site_id', siteId).eq('video_id', p.videoId)
-      .limit(PAGINA).abortSignal(sinal)),
+      .or('parent_id.is.null,is_creator.eq.true').limit(PAGINA).abortSignal(sinal)),
     comTempo((sinal) => sb.from('competitor_video_comment_snaps').select('taken_at').eq('site_id', siteId)
       .order('taken_at', { ascending: true }).limit(1).abortSignal(sinal)),
     lerAgenda(sb),
@@ -279,7 +279,7 @@ async function ler(sb: SupabaseClient, p: PedidoDeComentarios): Promise<Comentar
   const topo = comentarios.filter((c) => c.parentId === null)
   const filhos = new Map<string, Comentario[]>()
   for (const c of comentarios) {
-    if (c.parentId === null) continue
+    if (c.parentId === null || !c.isCreator) continue // só resposta do criador; terceiro nunca entra (defesa em memória)
     const lista = filhos.get(c.parentId)
     if (lista === undefined) filhos.set(c.parentId, [c])
     else lista.push(c)
@@ -365,14 +365,15 @@ async function ler(sb: SupabaseClient, p: PedidoDeComentarios): Promise<Comentar
       trocadas += r.trocadas
       return r.texto
     }
-    const respostasDoCriador = (filhos.get(c.id) ?? [])
+    const doCriadorNoAr = (filhos.get(c.id) ?? [])
       .filter((f) => f.saiuDesde === null) // a resposta que saiu do YouTube nunca entra
       .sort((a, b) => (a.publicadoMs ?? 0) - (b.publicadoMs ?? 0) || Number(BigInt(a.id) - BigInt(b.id)))
-      .slice(0, COMMENT_RULES.creatorRepliesMax)
+    const respostasDoCriador = doCriadorNoAr
+      .slice(0, COMMENT_RULES.creatorRepliesShown)
       .map((f) => ({ texto: passar(f.texto ?? ''), cortado: f.cortado, publicadoEm: f.publicadoMs === null ? null : new Date(f.publicadoMs).toISOString() }))
     const texto = passar(c.texto ?? '')
     const autor = comIdentidade ?? (c.isCreator ? { tipo: 'criador' as const } : c.motivo === 'inscritos' ? { tipo: 'canal_grande' as const } : { tipo: 'espectador' as const })
-    return { ...cartao, texto, cortado: c.cortado, publicadoEm: new Date(c.publicadoMs ?? 0).toISOString(), respostasDoCriador, autor, mencoesTrocadas: trocadas }
+    return { ...cartao, texto, cortado: c.cortado, publicadoEm: new Date(c.publicadoMs ?? 0).toISOString(), respostasDoCriador, respostasDoCriadorGuardadas: doCriadorNoAr.length, autor, mencoesTrocadas: trocadas }
   }
 
   if (nivel === 'texto') {
