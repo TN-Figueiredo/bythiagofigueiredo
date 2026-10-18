@@ -116,7 +116,7 @@ for (const est of ESTADOS) {
     await abrir(page, t.url)
     await expect(page.locator('.faixa-rest')).toBeVisible()
     const app = await descrever(page, 'app')
-    await foto(page, nomeDaFoto('E9', est.id.toLowerCase(), info, tema))
+    await foto(page, nomeDaFoto('E9', est.id === 'F' ? 'f-r3' : est.id.toLowerCase(), info, tema))
 
     // sem placeholder estranho, sem botão, sem frase de nova tentativa (P4a)
     const corpo = await page.locator('.faixa-rest').innerText()
@@ -149,6 +149,8 @@ for (const est of ESTADOS) {
       expect(a.lbl).toBe(r.lbl)
       expect(a.resto).toBe(r.resto)
       expect(a.linhas).toEqual(r.linhas)
+      if (est.id === 'F') expect(app.tom, 'R3: faixa F âmbar (warn); a linha da thumbnail cinza vem da comparação com o mockup').toBe('warn')
+      if (est.id === 'F') expect(app.linhas.find((l) => /thumb/i.test(l.campo))?.tom, 'R3: linha da thumbnail em none (cinza)').toBe('none')
       expect(a.links).toEqual(r.links)
       expect(a.fine).toEqual(r.fine)
       // as horas que o teste controla saem exatamente como o fuso de São Paulo manda

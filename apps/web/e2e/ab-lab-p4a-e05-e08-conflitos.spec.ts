@@ -29,8 +29,9 @@ test.describe('admin', () => {
     const pausa = outra.getByRole('dialog', { name: 'Pausar teste' })
     await pausa.getByRole('button', { name: /^Pausar/ }).last().click()
     await expect.poll(async () => (await lerTeste(t.testId)).status, { timeout: 15_000 }).toBe('paused')
+    // o status vira paused ANTES das escritas no YouTube: espera as 2 escritas da pausa por condição antes de medir
+    await expect.poll(async () => (await estadoFalso()).escritas.length, { timeout: 20_000 }).toBe(2)
     const antes = await estadoFalso()
-    expect(antes.escritas.length, 'a pausa de B escreveu 2 vezes (título e thumbnail)').toBe(2)
     await outra.close()
 
     await dlg.getByRole('button', { name: 'Encerrar e ficar com B' }).click()
@@ -70,7 +71,10 @@ test.describe('admin', () => {
     await pausa.getByRole('button', { name: /^Pausar/ }).last().click()
     await expect(pausa.getByText('O teste mudou em outra aba. Reabra para decidir.')).toBeVisible({ timeout: 15_000 })
     await expect(pausa.getByRole('button', { name: 'Recarregar' })).toBeVisible()
-    await foto(page, nomeDaFoto('E5b', 'mudou-r2', info, tema))
+    await expect(pausa.getByRole('button', { name: 'Fechar', exact: true }).last(), 'R4: Fechar ao lado do Recarregar').toBeVisible()
+    const fundo = (l: import('@playwright/test').Locator) => l.evaluate((e) => getComputedStyle(e).backgroundColor)
+    expect(await fundo(pausa.getByRole('button', { name: 'Recarregar' })), 'Recarregar é o primário (fundo âmbar), Fechar não').not.toBe(await fundo(pausa.getByRole('button', { name: 'Fechar', exact: true }).last()))
+    await foto(page, nomeDaFoto('E5b', 'mudou-r3', info, tema))
     expect((await estadoFalso()).escritas, 'A não escreve depois do encerramento de B').toEqual(antes.escritas)
     expect((await lerTeste(t.testId)).status).toBe('completed')
     esperarLimpo(coleta, 'E5b')
