@@ -8,6 +8,8 @@
  */
 import type { MouseEvent } from 'react'
 import Link from 'next/link'
+import { useAbEntradas } from '../_chrome/ab-entradas/contexto'
+import { abRefDaTroca, ROTULO_IDEIA_NO_MEU_CANAL } from '../_chrome/ab-entradas/modelo'
 import type { CanalTrocasView, TrocaCard, TrocaView } from './trocas-model'
 
 const Swap = () => (
@@ -24,8 +26,12 @@ function Imagem({ src, alt }: { src: string | null; alt: string }) {
   return src ? <img className="ct-mini" src={src} alt={alt} width={96} height={54} loading="lazy" decoding="async" /> : null
 }
 
-function Linha({ t, multi, onAbrir }: { t: TrocaView; multi: boolean; onAbrir: (href: string) => void }) {
+function Linha({ t, multi, onAbrir, video }: { t: TrocaView; multi: boolean; onAbrir: (href: string) => void; video: { id: string; title: string } }) {
   const thumb = t.campo === 'Thumbnail trocada'
+  // só para quem edita (provedor nulo = nada); o `href` nasce AQUI, com os campos que a vista já tem (o modelo não ganha campo): `t.id` é o mesmo id do `troca=`
+  const ab = useAbEntradas()
+  // esta aba só existe no canal de concorrente: `own` é dito aqui, nunca inferido
+  const ref = ab ? abRefDaTroca({ tipo: thumb ? 'thumbnail' : 'title', own: false, thumbDepois: t.agora.thumb, tituloDepois: t.agora.texto, tituloDoVideo: video.title, refVideoId: video.id, refTroca: t.id }) : null
   return (
     <li className="ct-sw" data-troca={t.id} onClick={e => {
       if (!cliqueSimples(e) || (e.target as HTMLElement).closest('a,button')) return
@@ -47,6 +53,8 @@ function Linha({ t, multi, onAbrir }: { t: TrocaView; multi: boolean; onAbrir: (
             : t.agora.texto}</dd>
         </dl>
         <p className="ct-efeito"><b>No histórico, efeito em 7 dias:</b> {t.efeito}</p>
+        {ref?.tipo === 'testar' ? <a className="obs-ch-btn ct-ab" href={ref.href}>{ROTULO_IDEIA_NO_MEU_CANAL}</a> : null}
+        {ref?.tipo === 'sem-imagem' ? <p className="ct-ab-sem">{ref.frase}</p> : null}
       </div>
       {multi ? <Link prefetch={false} className="ct-rowgo" href={t.href} aria-label={t.hrefLabel}>Abrir nesta troca <Chev /></Link> : null}
     </li>
@@ -73,7 +81,7 @@ function Cartao({ c, onAmpliar, onAbrir }: { c: TrocaCard; onAmpliar: (c: TrocaC
         <Link prefetch={false} className="obs-ch-btn ct-go" href={c.href} aria-label={c.hrefLabel}>Abrir histórico do vídeo <Chev /></Link>
       </div>
       {multi ? <p className="ct-also">O botão abre o histórico do vídeo todo. Cada troca abaixo tem o seu link e abre o histórico já nela.</p> : null}
-      <ul className="ct-rows">{c.trocas.map(t => <Linha key={t.id} t={t} multi={multi} onAbrir={onAbrir} />)}</ul>
+      <ul className="ct-rows">{c.trocas.map(t => <Linha key={t.id} t={t} multi={multi} onAbrir={onAbrir} video={{ id: c.videoId, title: c.title }} />)}</ul>
     </li>
   )
 }
