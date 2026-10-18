@@ -1,0 +1,537 @@
+em	rotulo	host	variante	modo	http	etag	sha
+2026-10-18T16:37:32Z	base	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:37:33Z	base	i.ytimg.com	hqdefault	semcache	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:37:34Z	base	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:37:34Z	base	i.ytimg.com	mqdefault	semcache	200	"1567171355"	24633e36089266e2
+2026-10-18T16:37:35Z	base	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:37:36Z	base	i.ytimg.com	sddefault	semcache	200	"1567171355"	e43686df568b8182
+2026-10-18T16:37:38Z	base	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:37:39Z	base	i.ytimg.com	maxresdefault	semcache	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:37:40Z	base	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:37:41Z	base	i1.ytimg.com	hqdefault	semcache	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:37:42Z	base	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:37:43Z	base	i1.ytimg.com	mqdefault	semcache	200	"1567171355"	24633e36089266e2
+2026-10-18T16:37:44Z	base	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:37:45Z	base	i1.ytimg.com	sddefault	semcache	200	"1567171355"	e43686df568b8182
+2026-10-18T16:37:46Z	base	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:37:47Z	base	i1.ytimg.com	maxresdefault	semcache	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:37:48Z	base	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:37:49Z	base	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:37:49Z	base	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:37:50Z	base	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:37:51Z	base	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:37:52Z	base	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:37:53Z	base	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:37:54Z	base	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:38:19Z	base2	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:38:20Z	base2	i.ytimg.com	hqdefault	semcache	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:38:21Z	base2	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:38:21Z	base2	i.ytimg.com	mqdefault	semcache	200	"1567171355"	24633e36089266e2
+2026-10-18T16:38:22Z	base2	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:38:23Z	base2	i.ytimg.com	sddefault	semcache	200	"1567171355"	e43686df568b8182
+2026-10-18T16:38:25Z	base2	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:26Z	base2	i.ytimg.com	maxresdefault	semcache	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:27Z	base2	i.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:28Z	base2	i.ytimg.com	hq720	semcache	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:29Z	base2	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:38:30Z	base2	i1.ytimg.com	hqdefault	semcache	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:38:30Z	base2	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:38:31Z	base2	i1.ytimg.com	mqdefault	semcache	200	"1567171355"	24633e36089266e2
+2026-10-18T16:38:32Z	base2	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:38:33Z	base2	i1.ytimg.com	sddefault	semcache	200	"1567171355"	e43686df568b8182
+2026-10-18T16:38:34Z	base2	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:35Z	base2	i1.ytimg.com	maxresdefault	semcache	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:37Z	base2	i1.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:38Z	base2	i1.ytimg.com	hq720	semcache	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:39Z	base2	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:38:39Z	base2	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:38:40Z	base2	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:38:41Z	base2	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:38:42Z	base2	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:38:42Z	base2	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:38:44Z	base2	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:44Z	base2	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:38:46Z	base2	i9.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:38:46Z	base2	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T16:42:57Z	teste	i.ytimg.com	hqdefault	normal	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:42:58Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:42:59Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:43:00Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:43:02Z	teste	i.ytimg.com	sddefault	normal	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:43:03Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:43:04Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:43:06Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:43:07Z	teste	i.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:43:09Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:43:10Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:43:11Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:43:12Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:43:13Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:43:14Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:43:15Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:43:17Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:43:18Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:43:20Z	teste	i1.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:43:21Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:43:22Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:43:23Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:43:23Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:43:24Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:43:25Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:43:26Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:43:27Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:43:28Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:43:29Z	teste	i9.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:43:30Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T16:45:30Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:45:31Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:45:32Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:45:33Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:45:34Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:45:36Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:45:37Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:45:39Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:45:40Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:45:42Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:45:43Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:45:43Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:45:44Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:45:45Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:45:46Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:45:47Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:45:48Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:45:49Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:45:50Z	teste	i1.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:45:52Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:45:52Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:45:53Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:45:54Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:45:55Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:45:56Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:45:56Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:45:58Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:45:58Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:46:00Z	teste	i9.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:46:00Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T16:48:01Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:48:02Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:48:03Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:48:03Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:48:04Z	teste	i.ytimg.com	sddefault	normal	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:48:06Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:48:08Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:48:09Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:48:11Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:48:12Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:48:12Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:48:13Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:48:14Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:48:15Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:48:16Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:48:17Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:48:18Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:48:19Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:48:20Z	teste	i1.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:48:21Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:48:22Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:48:23Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:48:24Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:48:24Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:48:25Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:48:26Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:48:27Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:48:28Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:48:29Z	teste	i9.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:48:30Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T16:50:31Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:50:31Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:50:32Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:50:33Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:50:34Z	teste	i.ytimg.com	sddefault	normal	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:50:35Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:50:36Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:50:39Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:50:40Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:50:41Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:50:42Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:50:43Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:50:43Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:50:44Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:50:45Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:50:46Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:50:47Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:50:48Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:50:50Z	teste	i1.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:50:51Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:50:52Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:50:52Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:50:53Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:50:54Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:50:55Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:50:56Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:50:57Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:50:58Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:50:58Z	teste	i9.ytimg.com	hq720	normal	404		20e9aab22032d856
+2026-10-18T16:50:59Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T16:53:00Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:53:01Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:53:01Z	teste	i.ytimg.com	mqdefault	normal	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:53:02Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:53:03Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:53:04Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:53:05Z	teste	i.ytimg.com	maxresdefault	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:53:07Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:53:08Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:53:09Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:53:10Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:53:11Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:53:11Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:53:12Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:53:13Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:53:14Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:53:15Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:53:16Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:53:17Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:53:19Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:53:19Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:53:20Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:53:21Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:53:22Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:53:23Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:53:23Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:53:25Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:53:25Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:53:27Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:53:27Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T16:55:28Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:55:29Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:55:29Z	teste	i.ytimg.com	mqdefault	normal	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:55:30Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:55:31Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:55:32Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:55:33Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:55:35Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:55:36Z	teste	i.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:55:37Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:55:38Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:55:39Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:55:40Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:55:40Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:55:41Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:55:42Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:55:44Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:55:45Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:55:46Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:55:47Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:55:48Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:55:49Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:55:49Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:55:50Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:55:51Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:55:52Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:55:53Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:55:54Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:55:55Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:55:56Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T16:57:57Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:57:58Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:57:59Z	teste	i.ytimg.com	mqdefault	normal	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:57:59Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:58:00Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:58:01Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:58:03Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:58:04Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:58:05Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:58:06Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:58:07Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:58:08Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T16:58:08Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:58:09Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T16:58:10Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:58:11Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T16:58:13Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:58:14Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:58:15Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:58:16Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:58:17Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T16:58:18Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:58:19Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T16:58:20Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:58:21Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T16:58:22Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T16:58:23Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T16:58:24Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T16:58:25Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T16:58:26Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:00:27Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:00:28Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:00:29Z	teste	i.ytimg.com	mqdefault	normal	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:00:29Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:00:30Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:00:31Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:00:33Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:00:34Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:00:35Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:00:37Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:00:38Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:00:39Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:00:40Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:00:41Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:00:42Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:00:43Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:00:44Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:00:45Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:00:46Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:00:47Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:00:48Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:00:49Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:00:50Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:00:51Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:00:52Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:00:53Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:00:54Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:00:55Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:00:56Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:00:57Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:02:58Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:02:59Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:03:00Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:03:01Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:03:02Z	teste	i.ytimg.com	sddefault	normal	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:03:03Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:03:04Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:03:05Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:03:06Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:03:08Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:03:08Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:03:09Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:03:10Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:03:11Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:03:12Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:03:13Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:03:14Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:03:15Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:03:16Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:03:18Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:03:18Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:03:19Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:03:20Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:03:20Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:03:21Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:03:22Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:03:23Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:03:24Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:03:25Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:03:26Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:05:27Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:05:27Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:05:28Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:05:29Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:05:30Z	teste	i.ytimg.com	sddefault	normal	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:05:31Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:05:32Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:05:33Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:05:34Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:05:36Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:05:37Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:05:37Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:05:38Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:05:39Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:05:40Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:05:41Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:05:42Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:05:43Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:05:44Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:05:45Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:05:46Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:05:47Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:05:48Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:05:48Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:05:49Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:05:50Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:05:51Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:05:52Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:05:53Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:05:54Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:07:55Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:07:56Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:07:57Z	teste	i.ytimg.com	mqdefault	normal	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:07:58Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:07:59Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:08:00Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:08:01Z	teste	i.ytimg.com	maxresdefault	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:08:02Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:08:03Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:08:04Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:08:05Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:08:06Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:08:07Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:08:07Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:08:08Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:08:09Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:08:10Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:08:12Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:08:13Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:08:14Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:08:15Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:08:16Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:08:16Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:08:17Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:08:18Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:08:19Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:08:20Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:08:21Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:08:22Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:08:23Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:10:23Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:10:24Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:10:25Z	teste	i.ytimg.com	mqdefault	normal	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:10:26Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:10:26Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:10:27Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:10:29Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:10:30Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:10:31Z	teste	i.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:10:32Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:10:34Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:10:34Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:10:35Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:10:36Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:10:37Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:10:38Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:10:39Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:10:40Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:10:41Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:10:42Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:10:54Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:10:55Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:10:55Z	teste	i9.ytimg.com	mqdefault	normal	404		20e9aab22032d856
+2026-10-18T17:10:56Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:10:57Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:10:58Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:10:59Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:11:00Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:11:01Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:11:02Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:13:03Z	teste	i.ytimg.com	hqdefault	normal	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:13:04Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:13:04Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:13:05Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:13:06Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:13:07Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:13:08Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:13:09Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:13:11Z	teste	i.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:13:12Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:13:13Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:13:13Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:13:14Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:13:15Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:13:16Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:13:17Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:13:18Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:13:19Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:13:20Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:13:22Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:13:23Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:13:23Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:13:24Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:13:25Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:13:26Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:13:26Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:13:28Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:13:28Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:13:30Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:13:30Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:15:31Z	teste	i.ytimg.com	hqdefault	normal	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:15:32Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:15:33Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:15:34Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:15:35Z	teste	i.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:15:36Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:15:37Z	teste	i.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:15:38Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:15:39Z	teste	i.ytimg.com	hq720	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:15:41Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:15:42Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:15:42Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:15:43Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:15:44Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:15:45Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:15:46Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:15:47Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:15:49Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:15:50Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:15:51Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:15:52Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:15:53Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:15:54Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:15:54Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:15:55Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:15:56Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:15:58Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:15:59Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:16:00Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:16:01Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:18:02Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:18:03Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:18:04Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:18:05Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:18:06Z	teste	i.ytimg.com	sddefault	normal	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:18:07Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:18:08Z	teste	i.ytimg.com	maxresdefault	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:18:09Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:18:10Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:18:11Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:18:12Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:18:13Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:18:13Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:18:14Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:18:15Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:18:16Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:18:17Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:18:18Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:18:20Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:18:21Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:18:22Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:18:22Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:18:23Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:18:24Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:18:25Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:18:25Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:18:27Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:18:27Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:18:28Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:18:29Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:20:30Z	teste	i.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:20:31Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:20:31Z	teste	i.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:20:32Z	teste	i.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:20:33Z	teste	i.ytimg.com	sddefault	normal	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:20:34Z	teste	i.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:20:35Z	teste	i.ytimg.com	maxresdefault	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:20:36Z	teste	i.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:20:38Z	teste	i.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:20:39Z	teste	i.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:20:40Z	teste	i1.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:20:40Z	teste	i1.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:20:41Z	teste	i1.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:20:42Z	teste	i1.ytimg.com	mqdefault	semcache	200	"1792341745"	8d0db2b1bc69b7fb
+2026-10-18T17:20:43Z	teste	i1.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:20:44Z	teste	i1.ytimg.com	sddefault	semcache	200	"1792341745"	97d12164db9582f9
+2026-10-18T17:20:45Z	teste	i1.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:20:46Z	teste	i1.ytimg.com	maxresdefault	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:20:47Z	teste	i1.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:20:49Z	teste	i1.ytimg.com	hq720	semcache	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:20:51Z	teste	i9.ytimg.com	hqdefault	normal	200	"1567171355"	0e5ef92af432b723
+2026-10-18T17:20:52Z	teste	i9.ytimg.com	hqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:20:52Z	teste	i9.ytimg.com	mqdefault	normal	200	"1567171355"	24633e36089266e2
+2026-10-18T17:20:53Z	teste	i9.ytimg.com	mqdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:20:54Z	teste	i9.ytimg.com	sddefault	normal	200	"1567171355"	e43686df568b8182
+2026-10-18T17:20:55Z	teste	i9.ytimg.com	sddefault	semcache	404		20e9aab22032d856
+2026-10-18T17:20:56Z	teste	i9.ytimg.com	maxresdefault	normal	200	"1567171355"	d005c87e34fbaa72
+2026-10-18T17:20:57Z	teste	i9.ytimg.com	maxresdefault	semcache	404		20e9aab22032d856
+2026-10-18T17:20:58Z	teste	i9.ytimg.com	hq720	normal	200	"1792341745"	5f54340fc7442b54
+2026-10-18T17:20:58Z	teste	i9.ytimg.com	hq720	semcache	404		20e9aab22032d856
+2026-10-18T17:22:59Z	teste	i.ytimg.com	hqdefault	normal	200	"1792341745"	967c11a32fab846d
+2026-10-18T17:23:00Z	teste	i.ytimg.com	hqdefault	semcache	200	"1792341745"	967c11a32fab846d
