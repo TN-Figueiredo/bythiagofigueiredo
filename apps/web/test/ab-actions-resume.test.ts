@@ -137,7 +137,7 @@ describe('retomarTeste: validações antes de reivindicar', () => {
   it('guarda de conteúdo (T9 R1): variante da vez sem cópia no Blob -> não reivindica, não escreve', async () => {
     const { banco, yt, retomar } = await montar({ ajustar: (v) => { v[1]!.blob_url = 'https://i.ytimg.com/vi/yt-1/hqdefault.jpg' } })
     const r = await retomar()
-    expect(r).toMatchObject({ ok: false, resultado: 'erro', error: expect.stringContaining('sem arquivo da thumbnail no Blob') })
+    expect(r).toMatchObject({ ok: false, resultado: 'erro', error: expect.stringContaining('sem a imagem da thumbnail') })
     expect(yt.chamadas).toEqual([])
     expect(banco.teste()).toMatchObject({ status: 'paused', restore_seq: 3 })
   })

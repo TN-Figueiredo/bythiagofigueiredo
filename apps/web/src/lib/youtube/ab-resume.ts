@@ -15,7 +15,7 @@ import { avisarRotacaoCruzada, motivoVarianteSemConteudo } from '@/lib/youtube/a
 import { camposDoTeste, paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import type { CampoNome, CampoRestauracao, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { emAndamentoRecente, TETO_MS } from '@/lib/youtube/ab-settle'
-import { MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO } from '@/lib/youtube/ab-acao-saida'
+import { MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_VARIANTE_DA_VEZ, MSG_YOUTUBE_NAO_ACEITOU } from '@/lib/youtube/ab-acao-saida'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
@@ -114,15 +114,14 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
 
   const { count: totalCiclos } = await supabase.from('ab_test_cycles').select('id', { count: 'exact', head: true }).eq('test_id', testId)
   const indice = getNextVariantIndex(teste.config?.rotation_pattern ?? 'abba', variantes.length, totalCiclos ?? 0)
-  if (indice < 0 || indice >= variantes.length) return erro('Invalid variant rotation index')
+  if (indice < 0 || indice >= variantes.length) return erro(MSG_VARIANTE_DA_VEZ)
   const proxima = variantes[indice] as AbTestVariantRow
   const testType = (teste.test_type ?? 'thumbnail') as TestType
 
   // Guarda de conteúdo (T9 R1): variante sem cópia no Blob ou sem título não reivindica.
   const semConteudo = motivoVarianteSemConteudo(testType as 'thumbnail' | 'title' | 'combo', proxima, teste.original_title)
   if (semConteudo) {
-    // TEXTO-A-REVISAR (Logan, T17)
-    return erro(`A retomada não foi feita: a variante da vez está ${semConteudo}. Abra o teste e confira as variantes.`)
+    return erro(`O teste continua pausado: a variante da vez está ${semConteudo}. Corrija a variante e retome de novo.`)
   }
 
   // Falha de canal ou de token volta como resultado com a mensagem (o dono precisa saber que deve reconectar o canal).
@@ -194,8 +193,7 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
       .eq('id', testId)
       .eq('restore_seq', seq)
     if (erroGrava) throw new Error(`ab-resume: gravação do resultado da falha do teste ${testId}: ${erroGrava.message}`)
-    // TEXTO-A-REVISAR (Logan, T17)
-    return erro(aplicado.tempoEsgotado ? 'O YouTube demorou demais. Tente de novo.' : (aplicado.error ?? 'apply failed'))
+    return erro(aplicado.tempoEsgotado ? 'O YouTube demorou demais. Tente de novo.' : (aplicado.error ?? MSG_YOUTUBE_NAO_ACEITOU))
   }
 
   const { data: cicloId, error: erroFecho } = await supabase.rpc('ab_resume_commit', {

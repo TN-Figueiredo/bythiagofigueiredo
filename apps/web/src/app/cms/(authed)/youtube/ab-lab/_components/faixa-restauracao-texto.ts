@@ -207,8 +207,7 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
 export function faixaIlegivel(ctx: Pick<CtxFaixa, 'youtubeId'>): FaixaCompleta {
   return {
     tom: 'warn', icone: 'none', lbl: 'Atenção:',
-    // TEXTO-A-REVISAR: frase nova (T17, Logan); emenda 31 pede confirmação do dono ou da Hanna.
-    resumo: 'Não sabemos se voltou ao original. O registro da restauração não pôde ser lido.',
+    resumo: 'Não sabemos se o vídeo voltou ao original. O registro da restauração não pôde ser lido. Confira o título e a thumbnail no YouTube Studio.',
     linhas: [],
     linkStudio: ctx.youtubeId ? `https://studio.youtube.com/video/${ctx.youtubeId}/edit` : null,
     linkRotulo: ctx.youtubeId ? 'Abrir no YouTube Studio' : null,

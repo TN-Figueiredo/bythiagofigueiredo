@@ -57,7 +57,7 @@ export function focarFaixa(): () => void {
   return cancelar
 }
 
-/** TEXTO-A-REVISAR (T17, Logan): `forbidden` cru do servidor vira frase. */
+/** `forbidden` cru do servidor vira frase. */
 export function textoDoErro(r: { error: string }, verbo: 'encerrar' | 'pausar'): string {
   return r.error === 'forbidden' ? `Você não tem permissão para ${verbo} este teste.` : r.error
 }
@@ -152,10 +152,9 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
     if (expirou.current) return // a tela já disse "sem resposta"; recarregar mostra a verdade
     if (!montado.current && !(r.ok && r.resultado === 'feito') && !(!r.ok && r.resultado === 'ja_encerrado') && !(!r.ok && r.resultado === 'sem_permissao' && r.error === 'unauthenticated')) {
       // O diálogo já fechou: nada mudou no banco, mas o dono acha que encerrou. A página avisa.
-      // TEXTO-A-REVISAR (T17, Logan)
       onAviso?.(r.ok
-        ? 'O teste não foi encerrado: o título ou a thumbnail mudou no YouTube por fora. Abra Encerrar de novo para decidir.'
-        : `O teste não foi encerrado: ${textoDoErro(r, 'encerrar')}`)
+        ? 'O teste ainda não foi encerrado: o título ou a thumbnail foi alterado no YouTube por fora. Clique em Encerrar de novo para escolher o que fica no vídeo.'
+        : `O teste ainda não foi encerrado: ${textoDoErro(r, 'encerrar')}`)
       router.refresh()
       return
     }

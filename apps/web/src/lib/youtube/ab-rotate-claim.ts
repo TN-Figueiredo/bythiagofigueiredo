@@ -30,7 +30,7 @@ export function motivoVarianteSemConteudo(
   variante: Pick<AbTestVariantRow, 'blob_url' | 'title_text' | 'is_original'>,
   originalTitle: string | null,
 ): string | null {
-  if ((testType === 'thumbnail' || testType === 'combo') && !ehCopiaNoBlob(variante.blob_url)) return 'sem arquivo da thumbnail no Blob'
+  if ((testType === 'thumbnail' || testType === 'combo') && !ehCopiaNoBlob(variante.blob_url)) return 'sem a imagem da thumbnail'
   if (testType === 'title' || testType === 'combo') {
     const texto = variante.title_text?.trim() || (variante.is_original ? originalTitle?.trim() : '')
     if (!texto) return 'sem texto de título'
@@ -38,7 +38,7 @@ export function motivoVarianteSemConteudo(
   return null
 }
 
-/** Aviso ao dono: a rotação do dia foi pulada porque a variante da vez não tem o que escrever. TEXTO-A-REVISAR (Logan, T17). */
+/** Aviso ao dono: a rotação do dia foi pulada porque a variante da vez não tem o que escrever. */
 export async function avisarRotacaoSemConteudo(
   args: { testId: string; siteId: string; testName: string; motivo: string; variantId: string },
 ): Promise<void> {
@@ -51,9 +51,8 @@ export async function avisarRotacaoSemConteudo(
       domain: 'youtube',
       type: 'youtube.ab_restore_failed',
       priority: 1,
-      title: 'A/B: rotação pulada',
-      // TEXTO-A-REVISAR
-      message: `A rotação de hoje do teste "${args.testName}" não foi feita: a variante da vez está ${args.motivo}. Abra o teste e confira as variantes.`,
+      title: 'A/B: a rotação de hoje não foi feita',
+      message: `No teste "${args.testName}", a variante da vez está ${args.motivo}. O Lab pulou a rotação de hoje. Abra o teste e corrija a variante.`,
       dedupKey: `ab-rotate-sem-conteudo:${args.testId}:${new Date().toISOString().slice(0, 10)}`,
       actionHref: `/cms/youtube/ab-lab/${args.testId}`,
       payload: { testId: args.testId, variantId: args.variantId },
@@ -175,7 +174,6 @@ export async function aplicarRotacao(supabase: SupabaseClient, args: ArgsAplicar
     return {
       ok: false,
       motivo: 'youtube',
-      // TEXTO-A-REVISAR (Logan, T17)
       erro: aplicado.erroApi ?? new Error(aplicado.tempoEsgotado ? 'O YouTube demorou demais. Tente de novo.' : (aplicado.error ?? 'apply failed')),
       appliedThumbnail: aplicado.appliedThumbnail,
       appliedMetadata: aplicado.appliedMetadata,

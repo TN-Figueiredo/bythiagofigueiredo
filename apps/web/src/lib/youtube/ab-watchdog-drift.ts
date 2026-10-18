@@ -101,10 +101,9 @@ async function avisarDrift(supabase: SupabaseClient, t: TesteAtivo, resultado: E
       domain: 'youtube',
       priority: 1,
       title: DRIFT_STATUS_NOTE,
-      // TEXTO-A-REVISAR (T17)
       message: naoVoltou
-        ? 'O teste foi pausado automaticamente, mas a thumbnail original NÃO foi devolvida ao vídeo: a variante pode continuar no ar. Troque a thumbnail manualmente no YouTube Studio e depois acesse o teste para reconhecer a mudança.'
-        : 'O teste foi pausado automaticamente. Acesse o teste para reconhecer a mudança e retomar a rotação.',
+        ? 'O Lab pausou o teste porque a thumbnail foi trocada por fora e não conseguiu devolver a original: a variante pode continuar no ar. Troque a thumbnail no YouTube Studio e abra o teste para decidir.'
+        : 'O Lab pausou o teste porque a thumbnail foi trocada por fora. Abra o teste para decidir: reconhecer a mudança e retomar, ou encerrar.',
       action_href: `/cms/youtube/ab-lab/${t.id}`,
       dedup_key: `drift-${t.id}-${new Date().toISOString().slice(0, 10)}`,
     })

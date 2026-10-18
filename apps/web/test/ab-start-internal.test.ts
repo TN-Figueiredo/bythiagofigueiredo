@@ -383,7 +383,7 @@ describe('startAbTestInternal: escrita parcial, prazo e guarda de conteúdo (T10
   it('desvio 10: variante com blob_url que não é cópia no Blob (i.ytimg) -> recusa, nada reivindicado', async () => {
     const { banco, iniciar } = await montar({ primeiraB: true, ajustar: (v) => { v[1]!.blob_url = 'https://i.ytimg.com/vi/x/hqdefault.jpg' } })
     const r = await iniciar()
-    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('sem arquivo da thumbnail no Blob') })
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('sem a imagem da thumbnail') })
     expect(banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
   })
 })

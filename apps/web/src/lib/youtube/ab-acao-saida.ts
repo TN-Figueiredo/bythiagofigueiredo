@@ -3,6 +3,8 @@ import type { ResultadoSaida } from '@/lib/youtube/ab-settle'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 /** Frase única da recusa por tentativa em voo (F-D4). Usada por pausar, encerrar, reverter, retomar e forçar rotação. */
+export const MSG_VARIANTE_DA_VEZ = 'Não foi possível escolher a variante da vez. Atualize a página e tente de novo.'
+export const MSG_YOUTUBE_NAO_ACEITOU = 'O YouTube não aceitou a troca. Tente de novo; se repetir, confira o vídeo no YouTube Studio.'
 export const MSG_EM_ANDAMENTO = 'Outra tentativa está em andamento. Tente de novo em instantes.'
 export const MSG_SEM_PERMISSAO_VARIANTE = 'Só quem administra o site pode deixar uma variante no ar. Você pode voltar ao original.'
 export const MSG_JA_ENCERRADO = 'Este teste já não está neste estado. Atualize a página.'

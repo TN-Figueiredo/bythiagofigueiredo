@@ -36,7 +36,7 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_SEM_PERMISSAO_VARIANTE, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_SEM_PERMISSAO_VARIANTE, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
@@ -1001,7 +1001,7 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
   const pattern = (config?.rotation_pattern as 'abba' | 'round_robin' | 'random' | undefined) ?? 'abba'
   const nextIndex = getNextVariantIndex(pattern, variants.length, nextCycle)
   const nextVariant = variants[nextIndex]
-  if (!nextVariant) return { ok: false, resultado: 'erro', error: 'Invalid variant index' }
+  if (!nextVariant) return { ok: false, resultado: 'erro', error: MSG_VARIANTE_DA_VEZ }
 
   // Phil I-1: variante da vez sem arquivo no Blob / sem título não vai ao ar (antes de reivindicar).
   const semConteudo = motivoVarianteSemConteudo(((test.test_type as string) ?? 'thumbnail') as 'thumbnail' | 'title' | 'combo', nextVariant, test.original_title as string | null)
@@ -1009,8 +1009,7 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
     await avisarRotacaoSemConteudo({
       testId, siteId, testName: (test.name as string | null) ?? '', motivo: semConteudo, variantId: nextVariant.id,
     })
-    // TEXTO-A-REVISAR (Logan, T17)
-    return { ok: false, resultado: 'erro', error: `A rotação não foi feita: a variante da vez está ${semConteudo}. Abra o teste e confira as variantes.` }
+    return { ok: false, resultado: 'erro', error: `A rotação não foi feita: a variante da vez está ${semConteudo}. Abra o teste, corrija a variante e tente de novo.` }
   }
 
   // Reivindica a vez ANTES de escrever, como o cron; o marcador velho (queda anterior, mais antigo que

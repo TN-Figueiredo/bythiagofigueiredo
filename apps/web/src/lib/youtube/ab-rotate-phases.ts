@@ -48,7 +48,6 @@ async function adiarInicioDaFila(supabase: SupabaseClient, queued: TesteDaFila, 
     if (error) { Sentry.captureException(new Error(error.message), { extra: { testId: queued.id, context: 'fila-saida' } }); return }
     if (!data || data.length === 0) return
     await avisarFila(queued, {
-      // TEXTO-A-REVISAR (Logan, T17)
       title: 'A/B: o teste saiu da fila',
       message: `O teste "${queued.name ?? ''}" saiu da fila depois de ${MAX_TENTATIVAS_DA_FILA} tentativas (${motivo}). Ele continua como rascunho: abra o teste para corrigir e iniciar.`,
       dedupKey: `ab-queue-saiu:${queued.id}`,
@@ -70,7 +69,6 @@ async function adiarInicioDaFila(supabase: SupabaseClient, queued: TesteDaFila, 
   try {
     if (await claimAlert(supabase, `ab-queue:${queued.id}`, '1 day')) {
       await avisarFila(queued, {
-        // TEXTO-A-REVISAR (Logan, T17)
         title: 'A/B: o teste da fila não começou',
         message: `O teste "${queued.name ?? ''}" não conseguiu começar (${motivo}). O Lab tenta de novo amanhã.`,
         dedupKey: `ab-queue:${queued.id}:${new Date().toISOString().slice(0, 10)}`,

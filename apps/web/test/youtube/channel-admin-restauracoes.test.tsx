@@ -31,7 +31,7 @@ describe('RemovalPanel: restaurações pendentes', () => {
   })
   it('leitura falhou (null): "Não foi possível conferir…", e a prévia segue', async () => {
     painel(null)
-    await waitFor(() => expect(screen.getByText('Não foi possível conferir restaurações pendentes deste canal.')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Não foi possível conferir restaurações pendentes deste canal. Confira os testes A/B dele antes de remover.')).toBeTruthy())
     expect(screen.getByRole('button', { name: /Remove channel/ })).toBeTruthy()
   })
   it('zero pendentes: nenhum texto novo', async () => {

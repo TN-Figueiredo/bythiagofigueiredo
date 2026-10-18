@@ -65,7 +65,7 @@ describe('T14 ligação: faixa na página do teste', () => {
     await abrir(resultados('completed', { title: { estado: 'lixo' } }))
     expect(captureMessage).toHaveBeenCalledWith('restore_status ilegível', { extra: { testId: 't1' } })
     expect(faixa()).not.toBeNull()
-    expect(document.body.textContent).toContain('Não sabemos se voltou ao original.')
+    expect(document.body.textContent).toContain('Não sabemos se o vídeo voltou ao original.')
     expect(document.body.textContent).not.toMatch(/voltaram? ao original em/)
   })
   it('encerrado com falha: faixa de erro no topo, antes do detalhe', async () => {

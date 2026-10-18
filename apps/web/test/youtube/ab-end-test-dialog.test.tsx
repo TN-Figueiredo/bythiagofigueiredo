@@ -359,7 +359,7 @@ describe('T15 r1', () => {
     rerender(<div />) // o pai fechou e desmontou o diálogo
     await act(async () => { resolver(pc([{ campo: 'title', valor_atual: 'Por fora' }])) })
     expect(onAviso).toHaveBeenCalledTimes(1)
-    expect(onAviso.mock.calls[0]![0]).toMatch(/^O teste não foi encerrado: o título ou a thumbnail mudou no YouTube por fora/)
+    expect(onAviso.mock.calls[0]![0]).toMatch(/^O teste ainda não foi encerrado: o título ou a thumbnail foi alterado no YouTube por fora\. Clique em Encerrar de novo/)
     expect(router.refresh).toHaveBeenCalledTimes(1)
   })
 
@@ -370,7 +370,7 @@ describe('T15 r1', () => {
     await marcarB(); await clicarEncerrar()
     rerender(<div />)
     await act(async () => { resolver({ ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }) })
-    expect(onAviso).toHaveBeenCalledWith(`O teste não foi encerrado: ${MSG_EM_ANDAMENTO}`)
+    expect(onAviso).toHaveBeenCalledWith(`O teste ainda não foi encerrado: ${MSG_EM_ANDAMENTO}`)
     expect(router.refresh).toHaveBeenCalledTimes(1)
   })
 

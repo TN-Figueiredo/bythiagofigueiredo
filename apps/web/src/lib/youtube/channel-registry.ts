@@ -137,7 +137,7 @@ export interface RestauracaoPendente {
   /** "a variante B", "o original", "o título editado por fora" ou "não se sabe". */
   noAr: string
 }
-export const RESTAURACOES_NAO_CONFERIDAS = 'Não foi possível conferir restaurações pendentes deste canal.'
+export const RESTAURACOES_NAO_CONFERIDAS = 'Não foi possível conferir restaurações pendentes deste canal. Confira os testes A/B dele antes de remover.'
 /** Uma frase por restauração pendente. */
 export function restauracaoLinha(r: RestauracaoPendente): string {
   const campo = r.campo === 'title' ? 'título' : 'thumbnail'
