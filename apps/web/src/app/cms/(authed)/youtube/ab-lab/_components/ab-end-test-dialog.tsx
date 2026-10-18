@@ -27,7 +27,7 @@ export interface AbEndTestDialogProps {
   onAviso?: (texto: string) => void
 }
 
-type Fase = 'escolha' | 'enviando' | 'sem_resposta'
+type Fase = 'escolha' | 'enviando' | 'sem_resposta' | 'sessao_expirada'
 type Pendencia = Array<{ campo: CampoNome; valor_atual: string }>
 
 const ROTULO_CAMPO: Record<string, string> = { title: 'do título', thumbnail: 'da thumbnail' }
@@ -35,6 +35,23 @@ const ROTULO_CAMPO: Record<string, string> = { title: 'do título', thumbnail: '
 export function fraseDoAviso(campos: Array<'title' | 'thumbnail'>): string {
   const partes = (['title', 'thumbnail'] as const).filter(c => campos.includes(c)).map(c => ROTULO_CAMPO[c]!)
   return `Teste encerrado. O YouTube recusou a troca ${partes.join(' e ')}: veja o aviso no topo.`
+}
+
+/**
+ * Com o cookie de sessão apagado a server action recebe 307 para o login e o Next rejeita a chamada. Só a resposta
+ * "redirecionou" vale como sessão expirada; rede caída ou erro de verdade continuam "sem resposta".
+ */
+export async function sessaoExpirou(): Promise<boolean> {
+  try {
+    const r = await fetch(window.location.href, { method: 'HEAD', redirect: 'manual', cache: 'no-store' })
+    return r.type === 'opaqueredirect' || (r.status >= 300 && r.status < 400)
+  } catch {
+    return false
+  }
+}
+
+export function hrefDoLogin(): string {
+  return `/cms/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`
 }
 
 let cancelarFoco: (() => void) | null = null
@@ -143,8 +160,10 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
       r = await encerrar(destino)
     } catch {
       if (timer.current) clearTimeout(timer.current)
+      const expirada = await sessaoExpirou()
       voo.current = false
-      setFase('sem_resposta')
+      if (expirou.current) return
+      setFase(expirada ? 'sessao_expirada' : 'sem_resposta')
       return
     }
     if (timer.current) clearTimeout(timer.current)
@@ -225,7 +244,8 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
   useModalFocusTrap(ref, true, onFechar)
   const enviando = fase === 'enviando'
   const semResposta = fase === 'sem_resposta'
-  const travado = enviando || semResposta
+  const sessaoExpirada = fase === 'sessao_expirada'
+  const travado = enviando || semResposta || sessaoExpirada
   const rotuloBotao = enviando ? 'Encerrando…' : opcao ? `Encerrar e ficar com ${opcao.rotulo}` : 'Encerrar'
   const botaoOff = enviando || !opcao
   const desc = noArAgora.desde
@@ -287,12 +307,20 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
             {semResposta ? (
               <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Sem resposta</strong>Não sabemos se o encerramento foi feito. Recarregue a página para ver o resultado.</div></div>
             ) : null}
+            {sessaoExpirada ? (
+              <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Sessão expirada</strong>Sua sessão expirou. Entre de novo para encerrar o teste.</div></div>
+            ) : null}
             {erro ? (
               <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>{erro.titulo}</strong>{erro.texto}</div></div>
             ) : null}
           </div>
           <div className="etd-f">
-            {semResposta ? (
+            {sessaoExpirada ? (
+              <>
+                <a className="etd-btn pri" href={hrefDoLogin()}>Entrar de novo</a>
+                <button type="button" className="etd-btn" onClick={onFechar}>Fechar</button>
+              </>
+            ) : semResposta ? (
               <>
                 <button type="button" className="etd-btn pri" onClick={() => window.location.reload()}>Recarregar</button>
                 <button type="button" className="etd-btn" onClick={onFechar}>Fechar</button>

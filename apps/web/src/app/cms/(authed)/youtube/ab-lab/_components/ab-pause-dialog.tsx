@@ -84,8 +84,8 @@ export function AbPauseDialog({ pausar, onClose }: AbPauseDialogProps) {
           {/* Body */}
           <div className="py-[18px] px-[20px] space-y-[10px] text-[13px] text-cms-text-dim leading-[1.55]">
             <p className="m-0">Pausar vai restaurar a thumbnail original imediatamente.</p>
-            <p className="m-0">O ciclo atual sera fechado. Todos os dados coletados ficam preservados.</p>
-            <p className="m-0">Voce pode retomar a qualquer momento — o teste continua de onde parou.</p>
+            <p className="m-0">O ciclo atual será fechado. Todos os dados coletados ficam preservados.</p>
+            <p className="m-0">Você pode retomar a qualquer momento — o teste continua de onde parou.</p>
             {error && <p role="alert" className="m-0 text-cms-red">{error}</p>}
           </div>
 

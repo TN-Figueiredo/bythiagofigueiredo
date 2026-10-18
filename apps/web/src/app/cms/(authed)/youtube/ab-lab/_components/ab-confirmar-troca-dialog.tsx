@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
@@ -26,9 +26,8 @@ function Miniatura({ src, rotulo }: { src: string | null; rotulo: string }) {
 export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar }: AbConfirmarTrocaDialogProps) {
   const ref = useRef<HTMLDivElement>(null)
   const voltarRef = useRef<HTMLButtonElement>(null)
-  useModalFocusTrap(ref, true, onVoltar)
-  // Depois da armadilha de foco (que foca o 1º controle), o foco vai para "Voltar" (a opção segura).
-  useEffect(() => { voltarRef.current?.focus() }, [])
+  // O foco inicial é "Voltar" (a opção segura), não o 1º controle.
+  useModalFocusTrap(ref, true, onVoltar, voltarRef)
 
   const titulo = campos.find(c => c.campo === 'title')
   const thumb = campos.find(c => c.campo === 'thumbnail')

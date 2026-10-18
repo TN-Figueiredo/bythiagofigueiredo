@@ -135,12 +135,27 @@ describe('AbEndTestDialog: envio', () => {
     expect(screen.queryByRole('button', { name: /Encerrar/ })).toBeNull()
   })
 
+  it('D2: sessão expirada (a ação rejeita e a página redireciona) -> "Sessão expirada" com link ao login com next, não "Sem resposta"', async () => {
+    encerrar.mockRejectedValue(new Error('An unexpected response was received from the server.'))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ type: 'opaqueredirect', status: 0 }))
+    window.history.pushState({}, '', '/cms/youtube/ab-lab/abc?x=1')
+    render(<AbEndTestDialog {...props()} />)
+    await marcarB(); await clicarEncerrar()
+    expect(await screen.findByText('Sessão expirada')).toBeTruthy()
+    expect(screen.getByText('Sua sessão expirou. Entre de novo para encerrar o teste.')).toBeTruthy()
+    expect(screen.queryByText('Sem resposta')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Entrar de novo' }).getAttribute('href')).toBe(`/cms/login?next=${encodeURIComponent('/cms/youtube/ab-lab/abc?x=1')}`)
+    vi.unstubAllGlobals()
+  })
+
   it('rede caída (a ação rejeita) -> "Sem resposta", sem repetir Encerrar', async () => {
     encerrar.mockRejectedValue(new Error('rede'))
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
     render(<AbEndTestDialog {...props()} />)
     await marcarB(); await clicarEncerrar()
     expect(await screen.findByText('Sem resposta')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Encerrar e ficar/ })).toBeNull()
+    vi.unstubAllGlobals()
   })
 
   it('enviando: X e Esc seguem livres, Cancelar travado', async () => {

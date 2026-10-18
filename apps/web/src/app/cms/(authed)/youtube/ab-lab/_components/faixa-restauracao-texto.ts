@@ -121,9 +121,9 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
     }
     case 'pulado_drift':
       if (c.motivo === 'sem_base_de_comparacao') {
-        return mk('none', 'Não medida: sem imagem de referência para comparar.', undefined, {
+        return mk('warn', 'Não medida: sem imagem de referência para comparar.', undefined, {
           lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as variantes. Nada foi alterado.', papel: 'status', linkRotulo: STUDIO,
-        })
+        }, 'none')
       }
       return mk('warn', `Mantida como está no YouTube desde ${h}.`, h, {
         lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma variante deste teste: alguém editou por fora. Nada foi alterado.',
