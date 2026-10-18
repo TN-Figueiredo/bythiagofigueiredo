@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DHASH_MAX_SAME } from './dhash'
 import { normalizarTitulo } from './normalizar-titulo'
 
 /** Versão da regra; vai junto de todo veredito e de todo desfecho para a S7 gravar e a S8 citar. Sobe a cada mudança de limiar ou de critério. */
@@ -262,7 +263,7 @@ export function resolverOpcoes(opts?: OpcoesDeteccao): LimiaresDeteccao {
     minFracaoRodadasMistas: o.minFracaoRodadasMistas ?? PADROES_DETECCAO.minFracaoRodadasMistas,
     maxDuracaoRodadaMs: o.maxDuracaoRodadaMs ?? PADROES_DETECCAO.maxDuracaoRodadaMs,
     maxVariantes: o.maxVariantes ?? PADROES_DETECCAO.maxVariantes,
-    dhashMaxSame: o.dhashMaxSame ?? 6, // T5: trocar por DHASH_MAX_SAME
+    dhashMaxSame: o.dhashMaxSame ?? DHASH_MAX_SAME,
     escritasConhecidas: o.escritasConhecidas ?? [],
     quarentenaEscritaMs: o.quarentenaEscritaMs ?? PADROES_DETECCAO.quarentenaEscritaMs,
   }
