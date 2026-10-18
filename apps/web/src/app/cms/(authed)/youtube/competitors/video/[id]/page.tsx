@@ -86,7 +86,7 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
       <TrailChrome crumbs={base.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={base.pager} naTrilha />}
         perguntarIa={{ tela: 'video-proprio', id: id, nomeDaTela: TELAS_IA['video-proprio'].nome, exemplos: TELAS_IA['video-proprio'].exemplos, onGerar: gerarPacoteIa }}>
         <ProprioVideoScreen header={base.header} pager={base.pager} fromCanal={base.fromCanal} ab={ab}>
-          <VideoBlocos view={blocos} periodos={periodos} origem={origem} linhaTrocas={trocas ? <LinhaDasTrocas view={trocas} /> : undefined} trocas={trocas ? <Trocas view={trocas} /> : undefined} />
+          <VideoBlocos view={blocos} periodos={periodos} origem={origem} linhaTrocas={trocas ? <LinhaDasTrocas view={trocas} /> : undefined} trocas={trocas ? <Trocas view={trocas} ab={ab} videoUuid={base.header.id} /> : undefined} />
         </ProprioVideoScreen>
       </TrailChrome>
     )

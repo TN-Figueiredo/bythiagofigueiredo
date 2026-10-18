@@ -4,6 +4,7 @@ import { hrefNovoTesteProprio, type TipoTroca } from '@/lib/youtube/ab-referenci
 import { isCertainShort } from '@/lib/youtube/short-classifier'
 import type { EstadoAusencia } from '../ausencia/estado'
 import type { VideoBlocosView } from '../../_proprio/video-blocos-model'
+import type { Chip, TrocaView } from '../../_proprio/trocas-model'
 import type { ProprioVideoView } from '../../_proprio/videos-model'
 import type { TestesAbertos } from './testes-abertos'
 import type { AbEntradas } from './contexto'
@@ -60,4 +61,24 @@ export function valorAbEntradas(a: { podeEditar: boolean; abertos: TestesAbertos
   if (!a.podeEditar) return null
   if (a.abertos?.acesso === 'negado') return null
   return { podeEditar: true, abertos: a.abertos }
+}
+
+/** Troca com medida (subiu, caiu, sem diferença) ou ainda sem medida depois: só estes chips ganham entrada. */
+export const CHIPS_COM_MEDIDA: ReadonlySet<Chip> = new Set<Chip>(['subiu', 'caiu', 'sem-diferenca'])
+const CHIPS_SEM_MEDIDA_DEPOIS: ReadonlySet<Chip> = new Set<Chip>(['depois-nao-medido', 'ainda-nao-da'])
+export const FRASE_SEM_MEDIDA = 'Sem medida depois da troca, não há base para comparar.'
+/** Dica sob o botão do Antes e depois. Não promete "variante B vazia" (dívida do rascunho local do assistente) nem "esta troca como ponto de partida" (a URL leva só o tipo). */
+export const DICA_TROCA_PROPRIA = 'Abre o teste neste vídeo com o tipo desta troca já marcado.'
+
+/**
+ * Antes e depois do próprio. `ab` nulo, `sem-dado` ou `ver` → null (com `ver`, o aviso único no topo cuida); troca vinda de teste → null (o link
+ * "Abrir o teste A/B" já existe). Chips `antes-nao-medido`, `sem-antes` e `sem-dias` ficam em null (o chip já diz o motivo; a confirmar com o Logan).
+ */
+export function entradaDaTroca(t: Pick<TrocaView, 'campo' | 'chip' | 'veioDeTeste'>, ab: EntradaProprio | null, videoUuid: string):
+  | { tipo: 'testar'; href: string } | { tipo: 'sem-medida'; frase: string } | null {
+  if (!ab || ab.tipo !== 'testar') return null
+  if (t.veioDeTeste) return null
+  if (CHIPS_COM_MEDIDA.has(t.chip)) return { tipo: 'testar', href: hrefNovoTesteProprio(videoUuid, t.campo === 'thumb' ? 'thumbnail' : 'title') }
+  if (CHIPS_SEM_MEDIDA_DEPOIS.has(t.chip)) return { tipo: 'sem-medida', frase: FRASE_SEM_MEDIDA }
+  return null
 }

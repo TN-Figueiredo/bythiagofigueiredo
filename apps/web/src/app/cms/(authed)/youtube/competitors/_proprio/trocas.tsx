@@ -5,6 +5,7 @@
  */
 import { InfoDica } from './info-dica'
 import { FRASE_TESTE_RESTRITO, FRASE_TROCA_FALHOU, rotuloChip, simboloDoChip, type Chip, type LadoView, type TesteView, type TrocaView, type TrocasView } from './trocas-model'
+import { entradaDaTroca, DICA_TROCA_PROPRIA, ROTULO_TESTAR, type EntradaProprio } from '../_chrome/ab-entradas/modelo'
 import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import './trocas.css'
 
@@ -70,7 +71,8 @@ function LinhaTeste({ v }: { v: TesteView }) {
   )
 }
 
-function ItemTroca({ v }: { v: TrocaView }) {
+function ItemTroca({ v, ab, videoUuid }: { v: TrocaView; ab: EntradaProprio | null; videoUuid: string }) {
+  const entrada = entradaDaTroca(v, ab, videoUuid)
   return (
     <li className="tr-item tr-troca" data-chip={v.chip}>
       <div className="tr-item-cab">
@@ -84,11 +86,14 @@ function ItemTroca({ v }: { v: TrocaView }) {
       <p className="tr-frase">{v.ausencia === 'falhou' ? FRASE_TROCA_FALHOU : v.frase}</p>
       {v.antes || v.depois ? <div className="tr-lados">{v.antes ? <Lado l={v.antes} /> : null}{v.depois ? <Lado l={v.depois} /> : null}</div> : null}
       {v.notas.map((n, i) => <p key={i} className="tr-nota">{n}</p>)}
+      {entrada?.tipo === 'testar' ? <p className="tr-ab"><a className="tr-link" href={entrada.href}>{ROTULO_TESTAR}</a> <span className="tr-ab-dica">{DICA_TROCA_PROPRIA}</span></p> : null}
+      {entrada?.tipo === 'sem-medida' ? <p className="tr-nota">{entrada.frase}</p> : null}
     </li>
   )
 }
 
-export function Trocas({ view }: { view: TrocasView }) {
+/** `ab` vem da página (reporter, Short, restrito e falhou chegam `null` ou `sem-dado`); `videoUuid` é o uuid resolvido do vídeo. */
+export function Trocas({ view, ab = null, videoUuid = '' }: { view: TrocasView; ab?: EntradaProprio | null; videoUuid?: string }) {
   return (
     <section className="vb-sec tr-sec" aria-labelledby="tr-h">
       <div className="vb-h"><h2 id="tr-h">Trocas deste vídeo</h2><InfoDica titulo="Como as trocas são lidas" paragrafos={view.metodo} /></div>
@@ -103,6 +108,7 @@ export function Trocas({ view }: { view: TrocasView }) {
               <span className="tr-regua-ext">{view.regua.rotuloDe}</span><span className="tr-regua-ext">{view.regua.rotuloAte}</span>
             </div>
           ) : null}
+          {ab?.tipo === 'ver' ? <p className="tr-ab-aviso">Este vídeo já tem um teste aberto no A/B Lab. {ab.frase} <a className="tr-link" href={ab.href}>{ab.rotulo}</a></p> : null}
           {view.avisos.map((a, i) => <p key={i} className="tr-aviso">{a}</p>)}
           {view.reconstruida ? (
             <div className="tr-reconstruida">
@@ -115,7 +121,7 @@ export function Trocas({ view }: { view: TrocasView }) {
           ) : null}
           {view.zero ? <div className="tr-vazio">Nenhuma troca para listar.</div> : (
             <ol className="tr-lista">
-              {view.itens.map(it => (it.tipo === 'teste' ? <LinhaTeste key={'t' + it.v.id} v={it.v} /> : <ItemTroca key={'c' + it.v.n} v={it.v} />))}
+              {view.itens.map(it => (it.tipo === 'teste' ? <LinhaTeste key={'t' + it.v.id} v={it.v} /> : <ItemTroca key={'c' + it.v.n} v={it.v} ab={ab} videoUuid={videoUuid} />))}
             </ol>
           )}
         </>
