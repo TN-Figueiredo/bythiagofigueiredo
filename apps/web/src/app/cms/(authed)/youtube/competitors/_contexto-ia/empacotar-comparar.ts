@@ -19,6 +19,8 @@ import { buildMedidasDoPar } from '../_comparar/medidas-do-par'
 import { modeloDasMedidas, type CelulaDoModeloMedidas, type LinhaDoModeloMedidas, type ModeloMedidas } from './modelo-medidas-comparar'
 import { reguaDaLinha } from '../_comparar/regua-da-linha'
 import { buildSoSeuCanal, INFO_SO_SEU_CANAL, type SoSeuCanalCartao } from '../_comparar/so-seu-canal-model'
+import { celulaAusente } from './celula-ausente'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
@@ -42,6 +44,8 @@ export interface LinhaDoCartao {
   nota: string | null
   /** Só sem valor: a nota da linha, ou, sem nota, a frase do cartão. */
   motivo: string | null
+  /** Decisão 75: só sem valor; o estado do cartão (restrito no negado, falhou no erro), senão não medido. */
+  ausencia: EstadoAusencia | null
   fraco: boolean; aindaNaoDa: boolean
 }
 export interface CartaoDoModelo extends Omit<SoSeuCanalCartao, 'linhas'> { linhas: LinhaDoCartao[] }
@@ -84,6 +88,7 @@ export function modeloDeComparar(pack: CompararPack, par: ParView): ModeloCompar
       chave: l.chave, rotulo: l.rotulo, sub: l.sub, valor: l.valor,
       nota: l.valor === null ? null : l.nota,
       motivo: l.valor === null ? (l.nota ?? c.frase) : null,
+      ausencia: l.valor === null ? (c.ausencia ?? 'nao_medido') : null,
       fraco: l.fraco, aindaNaoDa: l.aindaNaoDa,
     })),
   }))
@@ -103,7 +108,7 @@ export function modeloDeComparar(pack: CompararPack, par: ParView): ModeloCompar
 
 // ───────────────────────── o inventário de folhas (item 160)
 const celulaDoInventario = (p: string): Inventario => ({
-  [`${p}.estado`]: { descartado: 'controle de tela' }, [`${p}.texto`]: 'numero', [`${p}.palavra`]: 'base', [`${p}.notas[]`]: 'base', [`${p}.motivo`]: 'motivo',
+  [`${p}.estado`]: { descartado: 'controle de tela' }, [`${p}.ausencia`]: { descartado: 'controle de tela' }, [`${p}.texto`]: 'numero', [`${p}.palavra`]: 'base', [`${p}.notas[]`]: 'base', [`${p}.motivo`]: 'motivo',
 })
 const linhaDoInventario = (p: string): Inventario => ({
   [`${p}[].titulo`]: 'rotulo', [`${p}[].notas[]`]: 'base', [`${p}[].relacao`]: 'base', ...celulaDoInventario(`${p}[].a`), ...celulaDoInventario(`${p}[].b`),
@@ -192,6 +197,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   'cartoes[].linhas[].motivo': 'motivo',
   'cartoes[].linhas[].fraco': { descartado: 'aparência' },
   'cartoes[].linhas[].aindaNaoDa': { descartado: 'controle de tela' },
+  'cartoes[].linhas[].ausencia': { descartado: 'controle de tela' },
 }
 
 /** Folhas de número cru: o componente escreve, o empacotador usa o MESMO texto por nome. O formato do vídeo e da publicação sai como rótulo. */
@@ -219,13 +225,13 @@ const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiro
 
 /** `origem` é o caminho do NÚMERO (`modelo.linhas[3].a`): o texto vem de `.texto`, o motivo de `.motivo`. */
 function celulaDoNumero(n: Numero, origem: string): Celula {
-  if (n.x === null || n.texto === null) return { papel: 'numero', estado: 'nao_medido', motivo: n.motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `${origem}.motivo` }
+  if (n.x === null || n.texto === null) return celulaAusente(n.ausencia, n.motivo, `${origem}.motivo`)
   if (n.x === 0) return { papel: 'numero', estado: 'zero_medido', texto: n.texto, x: 0, origem: `${origem}.texto` }
   return { papel: 'numero', estado: 'medido', texto: n.texto, x: n.x, origem: `${origem}.texto` }
 }
 
 function celulaDoCartao(l: LinhaDoCartao, origem: string): Celula {
-  if (l.valor === null) return { papel: 'numero', estado: 'nao_medido', motivo: l.motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `${origem}.motivo` }
+  if (l.valor === null) return celulaAusente(l.ausencia, l.motivo, `${origem}.motivo`)
   if (l.valor === '0') return { papel: 'numero', estado: 'zero_medido', texto: l.valor, x: 0, origem: `${origem}.valor` }
   return { papel: 'numero', estado: 'medido', texto: l.valor, x: null, origem: `${origem}.valor` }
 }
@@ -348,7 +354,7 @@ function tabelasDosCanais(m: ModeloComparar): Tabela[] {
 // ───────────────────────── as medidas novas (estado, Direção, primeiros dias, acerto, reação)
 /** Número de uma célula do modelo das medidas: texto (medido, ou "0" = zero medido) ou o motivo. */
 function celulaDaMedida(c: CelulaDoModeloMedidas, origem: string): Celula {
-  if (c.texto === null) return { papel: 'numero', estado: 'nao_medido', motivo: c.motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem: `${origem}.motivo` }
+  if (c.texto === null) return celulaAusente(c.ausencia, c.motivo, `${origem}.motivo`)
   return { papel: 'numero', estado: c.texto === '0' ? 'zero_medido' : 'medido', texto: c.texto, x: c.texto === '0' ? 0 : null, origem: `${origem}.texto` }
 }
 

@@ -25,12 +25,15 @@ import type { AssistidoPeriodosView } from '../_proprio/assistido-periodo-model'
 import type { BlocoView, GrupoView, LinhaView, OrigemView, SubListaView, CelulaFaixaOrigem, FaixaOrigem } from '../_proprio/origem-model'
 import { AGUARDANDO } from '../_canal/videos-model'
 import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
+import { celulaAusente } from './celula-ausente'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 import type { Destino, Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 
 // ───────────────────────── o modelo
 /** Uma coluna já resolvida: exatamente um dos dois é texto. */
-export interface MedidaDoVideo { texto: string | null; motivo: string | null }
+/** `estado`: decisão 75, o estado de ausência da tela (falhou, restrito); ausente = não medido. */
+export interface MedidaDoVideo { texto: string | null; motivo: string | null; estado?: EstadoAusencia | null }
 
 export interface ColunasDoVideo {
   ordem: string
@@ -74,7 +77,7 @@ export interface GrupoDoModelo extends Omit<GrupoView, 'blocos' | 'views' | 'fai
 }
 export interface OrigemDoModelo extends Omit<OrigemView, 'periodos'> { periodos: Array<{ id: string; rotulo: string; grupo: GrupoDoModelo }> }
 
-const medida = (texto: string | null, motivo: string): MedidaDoVideo => (texto !== null ? { texto, motivo: null } : { texto: null, motivo })
+const medida = (texto: string | null, motivo: string, estado: EstadoAusencia | null = null): MedidaDoVideo => (texto !== null ? { texto, motivo: null, estado: null } : { texto: null, motivo, estado })
 
 /** A palavra que a Lista escreve quando não há views/dia nem múltiplo (`tabela.tsx`, função `semMedida`). */
 const semMedidaDaLista = (v: ProprioVideoView): string =>
@@ -93,10 +96,11 @@ function colunasDe(v: ProprioVideoView, i: number): ColunasDoVideo {
     nivel: v.multWord,
     curtidas: medida(v.likesText, 'não medido'),
     comentarios: medida(v.commentsText, 'não medido'),
-    imp: v.impText !== null ? medida(v.impText, '') : v.semImpressao ? medida('0', '') : medida(null, v.impMissing ?? 'não medido'),
-    cliques: v.cliquesText !== null ? medida(v.cliquesText, '') : v.semImpressao ? medida('0', '') : medida(null, v.cliquesMissing ?? 'não medido'),
+    imp: v.impText !== null ? medida(v.impText, '') : v.semImpressao ? medida('0', '') : medida(null, v.impMissing ?? 'não medido', v.impEstado),
+    cliques: v.cliquesText !== null ? medida(v.cliquesText, '') : v.semImpressao ? medida('0', '') : medida(null, v.cliquesMissing ?? 'não medido', v.cliquesEstado),
     terceira: v.terceira === '' ? null : v.terceira,
-    vpdDiario: medida(v.vpdDiarioText, 'não medido'),
+    // só falhou e restrito carregam o motivo da leitura; o "não medido" segue sendo a palavra que a tela mostra (o texto longo vive nas notas do cartão)
+    vpdDiario: v.vpdDiarioEstado === 'falhou' || v.vpdDiarioEstado === 'restrito' ? medida(v.vpdDiarioText, v.vpdDiarioMissing ?? 'não medido', v.vpdDiarioEstado) : medida(v.vpdDiarioText, 'não medido'),
   }
 }
 
@@ -184,7 +188,7 @@ export function inventarioDeColunasDeGrafico(p: string): Inventario {
   }
 }
 
-export const MEDIDA = (c: string): Inventario => ({ [`${c}.texto`]: 'numero', [`${c}.motivo`]: 'motivo' })
+export const MEDIDA = (c: string): Inventario => ({ [`${c}.texto`]: 'numero', [`${c}.motivo`]: 'motivo', [`${c}.estado`]: CTRL })
 
 // ───────────────────────── os cartões de período e a aba Origem (Tarefa 8b)
 const PERIODOS_ASSISTIDO = ['inteiro', '90', '28'] as const
@@ -279,7 +283,7 @@ export const INVENTARIO_CANAL_PROPRIO: Inventario = {
   ...MEDIDA('videos.videos[].pacote.curtidas'), ...MEDIDA('videos.videos[].pacote.comentarios'),
   ...MEDIDA('videos.videos[].pacote.imp'), ...MEDIDA('videos.videos[].pacote.cliques'),
   'videos.videos[].pacote.terceira': 'base',
-  'videos.videos[].pacote.vpdDiario.texto': 'numero', 'videos.videos[].pacote.vpdDiario.motivo': 'base',
+  ...MEDIDA('videos.videos[].pacote.vpdDiario'),
   // a aba % assistido
   'retencao.estado': CTRL, 'retencao.titulo': 'rotulo', 'retencao.nota': 'base', 'retencao.vazio': 'base', 'retencao.semPercentual': 'base',
   // os cartões de período vêm de `buildAssistidoDoCanal`, montado pela PÁGINA fora de `ProprioView`: entram em `periodos` (Tarefa 8b); este campo é sempre nulo.
@@ -332,12 +336,12 @@ export const bas = (texto: string, origem: string): Celula => ({ papel: 'base', 
 export const ter = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 const ehZero = (texto: string): boolean => /^0(\s|$)/.test(texto)
 
-export function numero(texto: string | null, motivo: string | null, origemTexto: string, origemMotivo: string): Celula {
-  if (texto === null || texto === '') return { papel: 'numero', estado: 'nao_medido', motivo: motivo === null || motivo === '' ? A_TELA_NAO_INFORMA_O_MOTIVO : motivo, origem: origemMotivo }
+export function numero(texto: string | null, motivo: string | null, origemTexto: string, origemMotivo: string, estado: EstadoAusencia | null = null): Celula {
+  if (texto === null || texto === '') return celulaAusente(estado, motivo === null || motivo === '' ? A_TELA_NAO_INFORMA_O_MOTIVO : motivo, origemMotivo)
   return ehZero(texto) ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem: origemTexto } : { papel: 'numero', estado: 'medido', texto, x: null, origem: origemTexto }
 }
 
-export const daMedida = (m: MedidaDoVideo, o: string): Celula => numero(m.texto, m.motivo, `${o}.texto`, `${o}.motivo`)
+export const daMedida = (m: MedidaDoVideo, o: string): Celula => numero(m.texto, m.motivo, `${o}.texto`, `${o}.motivo`, m.estado ?? null)
 
 // ───────────────────────── as leituras privadas
 export type Acesso = 'ok' | 'negado' | 'erro'
@@ -355,7 +359,7 @@ const daLeitura = (key: string): 'alcance' | 'diario' | null =>
 
 // ───────────────────────── tabelas
 function linhaDoCabecalho(c: ProprioCell, o: string): Celula[] {
-  return [rot(c.label, `${o}.label`), numero(c.value, c.missing, `${o}.value`, c.missing ? `${o}.missing` : `${o}.value`), bas(c.base, `${o}.base`)]
+  return [rot(c.label, `${o}.label`), numero(c.value, c.missing, `${o}.value`, c.missing ? `${o}.missing` : `${o}.value`, c.ausencia), bas(c.base, `${o}.base`)]
 }
 
 function tabelasDoCabecalho(m: ModeloCanalProprio, privada: boolean, leitura: 'alcance' | 'diario' | null): Tabela[] {
@@ -457,7 +461,7 @@ function tabelaDeViewsDosVideos(m: ModeloCanalProprio): Tabela[] {
   return [{
     id: 'privado-views-por-dia-dos-videos', titulo: `Views por dia de cada vídeo${TITULO_PRIVADO}`, tipo: 'lista', nomeNoCorte: 'tabela de views por dia dos vídeos', privada: true,
     colunas: ['Vídeo', 'Views por dia'],
-    linhas: vs.map((v, i): Celula[] => [rot(v.pacote.ordem, `modelo.videos.videos[${i}].pacote.ordem`), v.pacote.vpdDiario.texto === null ? bas(v.pacote.vpdDiario.motivo ?? 'não medido', `modelo.videos.videos[${i}].pacote.vpdDiario.motivo`) : daMedida(v.pacote.vpdDiario, `modelo.videos.videos[${i}].pacote.vpdDiario`)]),
+    linhas: vs.map((v, i): Celula[] => [rot(v.pacote.ordem, `modelo.videos.videos[${i}].pacote.ordem`), daMedida(v.pacote.vpdDiario, `modelo.videos.videos[${i}].pacote.vpdDiario`)]),
   }]
 }
 
@@ -637,7 +641,7 @@ function tabelasDosPeriodos(m: ModeloCanalProprio): Tabela[] {
     // Revisto pelo Logan (17/10): títulos e colunas das tabelas de período e de origem abaixo.
     id: 'privado-assistido-por-periodo', titulo: `${TITULO_ASSISTIDO}${TITULO_PRIVADO}`, tipo: 'fixa', nomeNoCorte: 'tabela do % assistido por período', privada: true,
     colunas: ['Período', '% assistido', 'Legenda'],
-    linhas: v.cartoes.map((x, i): Celula[] => [rot(x.rotulo, `${c(i)}.rotulo`), numero(x.valor, x.semNumero, `${c(i)}.valor`, x.semNumero ? `${c(i)}.semNumero` : `${c(i)}.valor`), bas(x.legenda, `${c(i)}.legenda`)]),
+    linhas: v.cartoes.map((x, i): Celula[] => [rot(x.rotulo, `${c(i)}.rotulo`), numero(x.valor, x.semNumero, `${c(i)}.valor`, x.semNumero ? `${c(i)}.semNumero` : `${c(i)}.valor`, x.ausencia), bas(x.legenda, `${c(i)}.legenda`)]),
   })
   const setas = v.cartoes.flatMap((x, i): Celula[][] => (x.seta ? [[rot(x.rotulo, `${c(i)}.rotulo`), bas(x.seta.texto, `${c(i)}.seta.texto`)]] : []))
   if (setas.length) {
@@ -668,7 +672,7 @@ function tabelasDosPeriodos(m: ModeloCanalProprio): Tabela[] {
         const o = `modelo.periodos.conteudos.inteiro.tabela[${i}]`
         return [rot(f.rotulo, `${o}.rotulo`), ...PERIODOS_ASSISTIDO.flatMap((p): Celula[] => {
           const x = f.celulas[p]
-          return [numero(x.valor, x.semNumero, `${o}.celulas.${p}.valor`, x.semNumero ? `${o}.celulas.${p}.semNumero` : `${o}.celulas.${p}.valor`), bas(x.legenda, `${o}.celulas.${p}.legenda`)]
+          return [numero(x.valor, x.semNumero, `${o}.celulas.${p}.valor`, x.semNumero ? `${o}.celulas.${p}.semNumero` : `${o}.celulas.${p}.valor`, x.ausencia ?? null), bas(x.legenda, `${o}.celulas.${p}.legenda`)]
         })]
       }),
     })

@@ -127,8 +127,8 @@ function tabelasDasReguas(r: ReguasView, privada: boolean): Tabela[] {
     colunas: ['Medida', 'Valor', 'Posição'],
     linhas: dela.map(({ l, o }): Celula[] => [
       rot(l.nome, `${o}.nome`),
-      numero(l.valor, l.semRegua, `${o}.valor`, `${o}.semRegua`),
-      numero(l.posTexto, l.semRegua, `${o}.posTexto`, `${o}.semRegua`),
+      numero(l.valor, l.semRegua, `${o}.valor`, `${o}.semRegua`, l.ausencia),
+      numero(l.posTexto, l.semRegua, `${o}.posTexto`, `${o}.semRegua`, l.ausencia),
     ]),
   }]
   // a leitura por extenso só existe (na tela) quando a régua foi desenhada

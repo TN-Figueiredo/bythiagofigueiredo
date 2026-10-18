@@ -10,7 +10,7 @@ import { segmentar, type PacoteSerializado } from '@/lib/youtube/observatorio/co
 import * as F from '@/lib/youtube/observatorio/contexto-ia/frases'
 import type { Celula, PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import {
-  AGORA, CONTEXTO, SENTINELA, COMENTARIO_SENTINELA, medido, modeloCheio, modeloComComentarios, modeloComZero, modeloEstresse, modeloMagro,
+  base, AGORA, CONTEXTO, SENTINELA, COMENTARIO_SENTINELA, medido, modeloCheio, modeloComComentarios, modeloComZero, modeloEstresse, modeloMagro,
   modeloPrivadoExcluido, modeloPrivadoIncluido, modeloVazio, rotulo, terceiros,
 } from './contexto-ia-fixture'
 
@@ -22,6 +22,14 @@ const texto = (p: PacoteSerializado): string => p.segmentos.map((s) => s.texto).
 const linhas = (p: PacoteSerializado): string[] => texto(p).split('\n')
 const parte = (p: PacoteSerializado, n: number): string => p.segmentos.filter((s) => s.parte === n).map((s) => s.texto).join('\n')
 const seg = (m: PacoteModelo) => segmentar(m, CONTEXTO)
+/** Decisão 75: um modelo cheio com uma célula falhou e uma restrito no lugar de duas medidas. */
+function modeloComFalhaERestrito(): PacoteModelo {
+  const m = modeloCheio()
+  const linha = m.tabelas.find((t) => t.id === 'desempenho')!.linhas[0]!
+  linha[1] = { papel: 'numero', estado: 'falhou', motivo: 'a leitura falhou agora', origem: 'modelo.teste.falhou' }
+  linha[2] = { papel: 'numero', estado: 'restrito', motivo: 'sem direito às views por dia', origem: 'modelo.teste.restrito' }
+  return m
+}
 
 describe('as seis partes', () => {
   it('as partes 1 a 6 saem nesta ordem, uma vez cada', () => {
@@ -99,7 +107,7 @@ describe('vazio e magro', () => {
     expect(p.primeiraLinhaDeAviso).toBe('AVISO: esta tela ainda não tem nenhum número (nenhum canal acompanhado ainda). Não há o que ler aqui.')
     expect(linhas(p)[0]).toBe(p.primeiraLinhaDeAviso)
     expect(parte(p, 4)).toContain('(nenhuma tabela: nenhum canal acompanhado ainda)')
-    expect(p.numeros).toEqual({ medidos: 0, zerosMedidos: 0, naoMedidos: 0, privadosMedidos: 0 })
+    expect(p.numeros).toEqual({ medidos: 0, zerosMedidos: 0, naoMedidos: 0, privadosMedidos: 0, falhou: 0, restrito: 0 })
   })
 
   it('sem tabela e sem motivo: "a tela não informa o motivo", nunca motivo vazio', () => {
@@ -128,7 +136,7 @@ describe('vazio e magro', () => {
     expect(m.tabelas[0]?.linhas).toHaveLength(0)
     const p = seg(m)
     expect(p.primeiraLinhaDeAviso).toBeNull()
-    expect(p.numeros).toEqual({ medidos: 0, zerosMedidos: 0, naoMedidos: 0, privadosMedidos: 0 })
+    expect(p.numeros).toEqual({ medidos: 0, zerosMedidos: 0, naoMedidos: 0, privadosMedidos: 0, falhou: 0, restrito: 0 })
   })
 
   it('zero medido conta como medido, não como não medido', () => {
@@ -439,6 +447,9 @@ describe('frases.ts e o mockup versionado', () => {
     '- (nada em foco nesta tela)',
     '- Texto de comentários: a tela não conseguiu ler agora; não diga que o vídeo não tem comentários.',
     'não medido (',
+    'falhou (',
+    'restrito (',
+    ' agora; ',
     ' (zero medido)',
     'a tela não informa o motivo',
     ' · texto de terceiros]',
@@ -472,6 +483,7 @@ describe('frases.ts e o mockup versionado', () => {
       { ...modeloCheio(), foco: [], definicoes: [], avisos: [], naoMede: [] },
       modeloMagro(12), modeloVazio(), { ...modeloVazio(), vazio: null }, modeloComZero(), modeloPrivadoIncluido(false),
       modeloPrivadoExcluido('sem_direito'), modeloPrivadoExcluido('nao_conferido'), modeloPrivadoExcluido('leitura_falhou'),
+      modeloComFalhaERestrito(),
       modeloComComentarios('incluido'), modeloComComentarios('excluido'),
       { ...modeloComComentarios('excluido'), comentarios: { estado: 'excluido', quantos: 1 } },
       { ...modeloComComentarios('incluido'), comentarios: { estado: 'incluido', itens: [] } },
@@ -507,3 +519,34 @@ describe('frases.ts e o mockup versionado', () => {
   })
 })
 
+
+describe('decisão 75: falhou e restrito no pacote', () => {
+  const contar = (m: PacoteModelo) => seg(m).numeros
+  it('falhou e restrito saem com as palavras da tela, nunca como zero nem como "não medido"', () => {
+    const t = texto(seg(modeloComFalhaERestrito()))
+    expect(t).toContain('falhou (a leitura falhou agora)')
+    expect(t).toContain('restrito (sem direito às views por dia)')
+  })
+  it('contagem: falhou e restrito à parte; naoMedidos não os soma; nenhum vira zero ou privado medido', () => {
+    const base = contar(modeloCheio())
+    const n = contar(modeloComFalhaERestrito())
+    expect(n.falhou).toBe(1)
+    expect(n.restrito).toBe(base.restrito + 1)
+    expect(n.zerosMedidos).toBe(base.zerosMedidos)
+    expect(n.privadosMedidos).toBe(base.privadosMedidos)
+  })
+  it('com célula falhou a primeira linha de aviso é a de falha, não o aviso de magro', () => {
+    const p = seg(modeloComFalhaERestrito())
+    expect(p.primeiraLinhaDeAviso).toBe(F.avisoFalha(1))
+  })
+  it('dez células falhou: aviso de falha, zerosMedidos 0 e privadosMedidos 0', () => {
+    const m = modeloCheio()
+    const t = m.tabelas.find((x) => x.id === 'desempenho')!
+    t.linhas = Array.from({ length: 10 }, (_, i) => [rotulo(`r${i}`, `o.r${i}`), { papel: 'numero', estado: 'falhou', motivo: 'a leitura falhou agora', origem: `o.f${i}` }, base('x', `o.b${i}`), base('y', `o.c${i}`)])
+    const p = seg({ ...m, tabelas: [t] })
+    expect(p.primeiraLinhaDeAviso).toBe(F.avisoFalha(10))
+    expect(p.numeros.falhou).toBe(10)
+    expect(p.numeros.zerosMedidos).toBe(0)
+    expect(p.numeros.privadosMedidos).toBe(0)
+  })
+})

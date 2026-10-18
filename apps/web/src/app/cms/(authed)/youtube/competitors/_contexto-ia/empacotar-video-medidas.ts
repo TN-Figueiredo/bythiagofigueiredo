@@ -4,9 +4,9 @@
  * (nenhuma conta nova) e a leitura de "Estourou e parou" e deixa só texto, como a tela o escreve; as tabelas saem daí. Dado ausente sai como
  * "não medido"/"não carregou" com o motivo da tela, nunca como 0. Título e texto que o concorrente escreveu entram só como célula de terceiros.
  */
+import { celulaAusente, ehMotivoDeFalha } from './celula-ausente'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
-import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import { TEXTO_M10 } from '@/lib/youtube/observatorio/medidas-telas/texto-m10'
 import type { DerivadoDoVideo } from '../_historico/medidas/derivar-do-video'
 import { abrev } from '../_historico/medidas/formatos'
@@ -318,7 +318,8 @@ const rotulo = (texto: string, origem: string): Celula => ({ papel: 'rotulo', te
 const base = (texto: string, origem: string): Celula => ({ papel: 'base', texto, origem })
 const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 const medido = (texto: string, origem: string, zero = false): Celula => (zero ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem } : { papel: 'numero', estado: 'medido', texto, x: null, origem })
-const naoMedido = (motivo: string | null, origem: string): Celula => ({ papel: 'numero', estado: 'nao_medido', motivo: motivo ?? A_TELA_NAO_INFORMA_O_MOTIVO, origem })
+// Decisão 75: o modelo marca o bloco que não chegou com o motivo `falhou` (NAO_CARREGOU_TELA); no pacote isso é a célula `falhou`, nunca "não medido".
+const naoMedido = (motivo: string | null, origem: string): Celula => celulaAusente(ehMotivoDeFalha(motivo) ? 'falhou' : 'nao_medido', motivo, origem)
 const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
 const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
 

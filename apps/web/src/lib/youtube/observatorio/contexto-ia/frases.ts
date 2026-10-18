@@ -49,6 +49,12 @@ export const A_TELA_NAO_INFORMA_O_MOTIVO = 'a tela não informa o motivo' // nov
 // No lugar da mensagem técnica crua da coleta (portão do N3, Y2); a tela continua mostrando-a a quem administra.
 export const ERRO_DA_COLETA_SEM_DETALHE = 'erro na coleta; a causa não é enviada' // novo
 export const naoMedido = (motivo: string) => `não medido (${motivo})` // novo (o mockup escreve só "não medido" na célula)
+// decisão 75: as mesmas palavras da pastilha da tela (falhou = triângulo, restrito = cadeado)
+export const falhou = (motivo: string) => `falhou (${motivo})` // novo
+export const restrito = (motivo: string) => `restrito (${motivo})` // novo
+/** Primeira linha quando há números que a leitura não trouxe agora: vem antes do aviso de magro e não conta como falta de dado. */
+export const avisoFalha = (falhou: number) =>
+  `AVISO: ${falhou} ${falhou === 1 ? 'número não foi lido' : 'números não foram lidos'} agora; ${falhou === 1 ? 'não é zero nem falta de dado' : 'não são zero nem falta de dado'}. Os motivos estão na seção 4.` // novo
 export const zeroMedido = (texto: string) => `${texto} (zero medido)` // novo
 export const citado = (rotulo: string) => `[${rotulo} · texto de terceiros]` // novo
 
@@ -127,6 +133,9 @@ export const CATALOGO: readonly FraseDoCatalogo[] = [
   { id: 'recente-nulo', origem: 'novo', parte: 'segmentar', fragmentos: ['Dado mais recente: não medido (nenhuma sincronização registrada)'] },
   { id: 'foco-vazio', origem: 'novo', parte: 'segmentar', fragmentos: [FOCO_VAZIO] },
   { id: 'nao-medido', origem: 'novo', parte: 'segmentar', fragmentos: ['não medido ('] },
+  { id: 'falhou', origem: 'novo', parte: 'segmentar', fragmentos: ['falhou ('] },
+  { id: 'restrito', origem: 'novo', parte: 'segmentar', fragmentos: ['restrito ('] },
+  { id: 'aviso-falha', origem: 'novo', parte: 'segmentar', fragmentos: [' agora; '] },
   { id: 'zero-medido', origem: 'novo', parte: 'segmentar', fragmentos: [' (zero medido)'] },
   { id: 'erro-da-coleta', origem: 'novo', parte: 'mascarar', fragmentos: [ERRO_DA_COLETA_SEM_DETALHE] },
   { id: 'sem-motivo', origem: 'novo', parte: 'segmentar', fragmentos: [A_TELA_NAO_INFORMA_O_MOTIVO] },

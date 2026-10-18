@@ -208,7 +208,7 @@ describe('Canal, medidas: células de direção, estado, acerto e ritmo', () => 
   it('não carregou: nenhuma célula tem número, todas dizem "não carregou" e nenhuma é zero', async () => {
     const m = await montar({ canal: canalNaoCarregou() }, false)
     const t = m.pacote.tabelas.find((x) => x.id === 'canal-medidas-celulas')!
-    for (const l of t.linhas.filter((x) => x[0]!.texto !== 'Criador responde')) expect(l[1]).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: 'a leitura falhou' })
+    for (const l of t.linhas.filter((x) => x[0]!.texto !== 'Criador responde')) expect(l[1]).toMatchObject({ papel: 'numero', estado: 'falhou', motivo: 'a leitura falhou' })
     expect(m.textoDoPacote).not.toMatch(/\b0 de 0\b/)
   })
   it('poucos vídeos: o ritmo e o acerto dizem o motivo da tela como "não medido", nunca 0', async () => {
@@ -240,8 +240,8 @@ describe('Canal, medidas: Direção e Ritmo', () => {
   const tab = (m: Montado, id: string) => m.pacote.tabelas.find((t) => t.id === id)!
   it('não carregou: nenhuma leitura tem número e nenhuma semana é zero', async () => {
     const m = await montar({ canal: canalNaoCarregou() }, false)
-    for (const l of tab(m, 'canal-direcao').linhas) expect(l[1]).toMatchObject({ papel: 'numero', estado: 'nao_medido' })
-    for (const l of tab(m, 'canal-ritmo').linhas) expect(l[1]).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: 'falhou' })
+    for (const l of tab(m, 'canal-direcao').linhas) expect(l[1]).toMatchObject({ papel: 'numero', estado: 'falhou' })
+    for (const l of tab(m, 'canal-ritmo').linhas) expect(l[1]).toMatchObject({ papel: 'numero', estado: 'falhou', motivo: 'falhou' })
     expect(m.pacote.tabelas.some((t) => t.id === 'canal-ritmo-semanas')).toBe(false)
     expect(m.pacote.tabelas.some((t) => t.id === 'canal-ritmo-parado')).toBe(false)
   })
@@ -419,7 +419,7 @@ describe('Canal, criador: paridade com o bloco, a lista e a célula em cada esta
     const t = async (n: string) => (await montar(CASOS_CRIADOR.find(([x]) => x === n)![1](), false)).pacote.tabelas.find((x) => x.id === 'canal-medidas-celulas')!.linhas.find((l) => l[0]!.texto === 'Criador responde')![1]!
     expect(await t('respostas com texto (vários vídeos, uma cortada, sem curtida)')).toMatchObject({ papel: 'numero', estado: 'medido', texto: expect.stringMatching(/^\d+ de \d+( \(\d+%\))?$/) })
     expect(await t('zero medido: nenhuma resposta nos guardados')).toMatchObject({ papel: 'numero', estado: 'zero_medido', texto: expect.stringMatching(/^0 de \d+/) })
-    expect(await t('a contagem não carregou')).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: 'a leitura falhou' })
+    expect(await t('a contagem não carregou')).toMatchObject({ papel: 'numero', estado: 'falhou', motivo: 'a leitura falhou' })
     expect(await t('a coleta de comentários ainda não começou')).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: 'não medido: a coleta de comentários ainda não começou' })
     expect(await t('a coleta de comentários está parada')).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: 'não medido: a coleta de comentários está parada' })
     expect(await t('comentários desligados pelo canal')).toMatchObject({ papel: 'numero', estado: 'nao_medido', motivo: 'comentários desligados pelo canal' })

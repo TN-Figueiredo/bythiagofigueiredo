@@ -113,6 +113,7 @@ function violacoes(saida: string, regiao: string = saida): string[] {
   for (const u of regiao.match(URL_EXTERNA) ?? []) if (!DO_YOUTUBE.test(u)) v.push(`endereço externo ${u}`)
   if (saida.includes(SITE)) v.push('id do site')
   if (saida.includes(USUARIO)) v.push('id de usuário')
+  if (/n[ãa]o carregou|não carregaram/i.test(saida)) v.push('Não carregou (decisão 75: a palavra é falhou)')
   return v
 }
 
@@ -167,6 +168,8 @@ describe('a varredura de saída, por tela do registro', () => {
     expect(violacoes('https://loja.exemplo/p?ref=abc')).toEqual(['endereço externo https://loja.exemplo/p?ref=abc'])
     expect(violacoes('https://www.youtube.com/watch?v=abc')).toEqual([])
     expect(violacoes(SITE)).toContain('id do site')
+    expect(violacoes('Não carregou: o canal')).toHaveLength(1)
+    expect(violacoes('falhou (a leitura falhou agora) e restrito (sem direito)')).toEqual([])
   })
 
   it('tela de outro tipo para o mesmo id: canal com id de canal próprio e canal-proprio com id de concorrente dão nao_encontrado', async () => {

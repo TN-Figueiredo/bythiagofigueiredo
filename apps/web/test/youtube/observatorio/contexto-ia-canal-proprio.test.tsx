@@ -408,3 +408,20 @@ describe('7a: provas por mutação da paridade', () => {
 
 // os cenários não usados acima, só para o tipo
 export type _Cenario = CenarioDados
+
+describe('decisão 75: a célula ausente do canal próprio', () => {
+  it('restrito só com o estado restrito; erro vira falhou; sem estado segue não medido; nenhuma das três tem texto, x ou "0"', async () => {
+    const { numero } = await import('@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal-proprio')
+    const r = numero(null, 'sem direito às views por dia', 'o.texto', 'o.motivo', 'restrito')
+    const f = numero(null, 'a leitura falhou agora', 'o.texto', 'o.motivo', 'falhou')
+    const n = numero(null, 'não medido', 'o.texto', 'o.motivo')
+    expect(r).toMatchObject({ estado: 'restrito', motivo: 'sem direito às views por dia', origem: 'o.motivo' })
+    expect(f).toMatchObject({ estado: 'falhou', motivo: 'a leitura falhou agora' })
+    expect(n).toMatchObject({ estado: 'nao_medido' })
+    for (const c of [r, f, n]) {
+      expect(c).not.toHaveProperty('texto')
+      expect(c).not.toHaveProperty('x')
+      expect(JSON.stringify(c)).not.toContain('"0"')
+    }
+  })
+})

@@ -41,11 +41,13 @@ const textoDaFolha = (valor: ValorDeFolha | undefined, caminho: string, cruas: r
 }
 
 /** O texto que a célula carrega e que tem de ser igual ao da folha de origem: o texto, ou o motivo de quem não foi medido. */
-const textoDaCelula = (c: Celula): string => (c.papel === 'numero' && c.estado === 'nao_medido' ? c.motivo : c.texto)
+/** Decisão 75: `nao_medido`, `falhou` e `restrito` não têm texto, só motivo. */
+const semNumero = (c: Celula): c is Extract<Celula, { motivo: string }> => c.papel === 'numero' && (c.estado === 'nao_medido' || c.estado === 'falhou' || c.estado === 'restrito')
+const textoDaCelula = (c: Celula): string => (semNumero(c) ? c.motivo : (c as Extract<Celula, { texto: string }>).texto)
 
 function destinoCompativel(c: Celula, destino: Destino | undefined, daSerie: boolean): boolean {
   if (destino === undefined || typeof destino !== 'string') return false
-  if (c.papel === 'numero') return c.estado === 'nao_medido' ? destino === 'motivo' : destino === 'numero' || (daSerie && destino === 'serie')
+  if (c.papel === 'numero') return semNumero(c) ? destino === 'motivo' : destino === 'numero' || (daSerie && destino === 'serie')
   return destino === c.papel
 }
 
@@ -61,7 +63,7 @@ function lerJsonDoPacote(textoDoPacote: string): { medidas: Array<{ tabela: stri
 
 const esperadoNoJson = (c: Celula): Record<string, unknown> => {
   if (c.papel !== 'numero') return { texto: naCelula(c.texto) }
-  if (c.estado === 'nao_medido') return { estado: 'nao_medido', motivo: naCelula(c.motivo) }
+  if (semNumero(c)) return { estado: c.estado, motivo: naCelula(c.motivo) }
   return { estado: c.estado, texto: naCelula(c.texto) }
 }
 
@@ -234,7 +236,7 @@ export function provarQueExcluidoNaoVaza(incluido: PacoteModelo, textoDoExcluido
   for (const t of incluido.tabelas) {
     if (!t.privada) continue
     // rótulo e base ("01/10", "por dia") repetem-se nas tabelas públicas e dariam falso vazamento: só número e texto de terceiros
-    for (const linha of t.linhas) for (const c of linha) if (c.papel === 'numero' || c.papel === 'terceiros') privadas.push(textoDaCelulaPrivada(c))
+    for (const linha of t.linhas) for (const c of linha) if ((c.papel === 'numero' && !semNumero(c)) || c.papel === 'terceiros') privadas.push(textoDaCelulaPrivada(c)) // motivo de quem não tem número ("não medido", "falhou", "restrito") é palavra comum, não dado privado
   }
   for (const f of incluido.foco) if (f.privado) privadas.push(f.detalhe)
   for (const b of incluido.citados) if (b.privado) privadas.push(b.texto)
@@ -249,5 +251,5 @@ export function provarQueExcluidoNaoVaza(incluido: PacoteModelo, textoDoExcluido
 }
 
 function textoDaCelulaPrivada(c: Celula): string {
-  return c.papel === 'numero' ? (c.estado === 'nao_medido' ? c.motivo : c.texto) : c.texto
+  return semNumero(c) ? c.motivo : (c as Extract<Celula, { texto: string }>).texto
 }

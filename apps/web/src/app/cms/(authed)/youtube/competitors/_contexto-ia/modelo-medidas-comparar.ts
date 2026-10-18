@@ -11,6 +11,7 @@ import type {
 import { textoDaMarca } from '../_comparar/medidas-do-lado'
 import { TEXTO_LEITURAS_DIFERENTES, type MedidasDoPar } from '../_comparar/medidas-do-par'
 import type { RelacaoNova } from '../_comparar/relacao-do-par'
+import type { EstadoAusencia } from '../_chrome/ausencia/estado'
 import { direcaoExibida } from '@/lib/youtube/observatorio/medidas-telas/direcao-exibida'
 
 /** Uma célula de número: medida (`texto`) ou não (`motivo`). `palavra` e `notas` são as frases curtas sob o número. */
@@ -20,6 +21,8 @@ export interface CelulaDoModeloMedidas {
   palavra: string | null
   notas: string[]
   motivo: string | null
+  /** Decisão 75: o estado da falta (falhou, restrito, não medido); null com texto. */
+  ausencia: EstadoAusencia | null
 }
 export interface LinhaDoModeloMedidas {
   titulo: string
@@ -47,16 +50,16 @@ export interface ModeloMedidas {
 }
 
 const dm = (d: string): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-const sem = (motivo: string): CelulaDoModeloMedidas => ({ estado: 'nao_medido', texto: null, palavra: null, notas: [], motivo })
+const sem = (motivo: string, ausencia: EstadoAusencia = 'nao_medido'): CelulaDoModeloMedidas => ({ estado: 'nao_medido', texto: null, palavra: null, notas: [], motivo, ausencia })
 const medido = (texto: string, palavra: string | null = null, notas: Array<string | null> = []): CelulaDoModeloMedidas =>
-  ({ estado: 'medido', texto, palavra, notas: notas.filter((n): n is string => n !== null), motivo: null })
+  ({ estado: 'medido', texto, palavra, notas: notas.filter((n): n is string => n !== null), motivo: null, ausencia: null })
 
 function falta(c: Falta | Ainda): CelulaDoModeloMedidas {
   switch (c.tipo) {
-    case 'nao_carregou': return sem('falhou')
+    case 'nao_carregou': return sem('falhou', 'falhou')
     case 'canal_proprio': return sem(c.porque)
     case 'ainda_nao_existe': return sem(`só a partir de ${dm(c.existeEm)}`)
-    case 'nao_medido': return sem(c.porque)
+    case 'nao_medido': return sem(c.porque, c.ausencia)
     default: { const nunca: never = c; return nunca }
   }
 }
