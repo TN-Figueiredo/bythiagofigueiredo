@@ -4,7 +4,7 @@
  * (nenhuma conta nova) e a leitura de "Estourou e parou" e deixa só texto, como a tela o escreve; as tabelas saem daí. Dado ausente sai como
  * "não medido"/"não carregou" com o motivo da tela, nunca como 0. Título e texto que o concorrente escreveu entram só como célula de terceiros.
  */
-import { celulaAusente, ehMotivoDeFalha } from './celula-ausente'
+import { celulaAusente, NAO_CARREGOU_TELA } from './celula-ausente'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { TEXTO_M10 } from '@/lib/youtube/observatorio/medidas-telas/texto-m10'
@@ -18,7 +18,6 @@ import type { ListaDeMudancas } from '../_historico/medidas/mudancas-model'
 import { dataBR, fraseAindaSemLeitura, milhar, pct, REGRAS_DA_LEITURA as R, TEXTOS_NAO_CARREGOU, TITULO_AINDA_SEM_LEITURA, vezes, type Leitura } from '../_chrome/medidas/estourou-model'
 
 // ───────────────────────── a projeção: só texto, na ordem da tela
-const NAO_CARREGOU_TELA = 'falhou'
 const SEM = '—'
 
 export interface ResumoIa {
@@ -318,8 +317,8 @@ const rotulo = (texto: string, origem: string): Celula => ({ papel: 'rotulo', te
 const base = (texto: string, origem: string): Celula => ({ papel: 'base', texto, origem })
 const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 const medido = (texto: string, origem: string, zero = false): Celula => (zero ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem } : { papel: 'numero', estado: 'medido', texto, x: null, origem })
-// Decisão 75: o modelo marca o bloco que não chegou com o motivo `falhou` (NAO_CARREGOU_TELA); no pacote isso é a célula `falhou`, nunca "não medido".
-const naoMedido = (motivo: string | null, origem: string): Celula => celulaAusente(ehMotivoDeFalha(motivo) ? 'falhou' : 'nao_medido', motivo, origem)
+// Decisão 75: a projeção marca pelo TIPO do modelo (`nao_carregou`) o bloco que não chegou com NAO_CARREGOU_TELA; no pacote isso é a célula `falhou`, nunca "não medido".
+const naoMedido = (motivo: string | null, origem: string): Celula => celulaAusente(motivo === NAO_CARREGOU_TELA ? 'falhou' : 'nao_medido', motivo, origem)
 const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
 const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
 

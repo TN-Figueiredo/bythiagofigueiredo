@@ -326,3 +326,24 @@ describe('Canais: provas por mutação (a paridade cai)', () => {
 describe('Canais: lista de números sem prova por igualdade direta', () => {
   it('é vazia', () => { expect([...SEM_PROVA_POR_IGUALDADE_CANAIS_VAZIA]).toEqual([]) })
 })
+
+describe('Canais: a negativa percorre a cadeia até a célula (decisão 75, I-2)', () => {
+  const comNegativa = (negativa: 'sem_direito' | 'nao_foi_possivel_conferir'): Caso => ({
+    obs: OBS, sp: {}, extras: { ...extrasDe(OBS, 'sem-acesso'), negativa }, privado: privadoDe(OBS, 'negado', negativa),
+  })
+  const ausentes = async (c: Caso): Promise<string[]> => {
+    const m = await montar(c, false)
+    return m.pacote.tabelas.flatMap((t) => t.linhas.flat()).flatMap((x) => (x.papel === 'numero' && (x.estado === 'falhou' || x.estado === 'restrito') ? [x.estado] : []))
+  }
+  it('guarda caída (nao_foi_possivel_conferir): a célula de views por dia da linha própria sai `falhou (`, nunca `restrito (`', async () => {
+    const m = await montar(comNegativa('nao_foi_possivel_conferir'), false)
+    expect(m.textoDoPacote).toMatch(/falhou \(/)
+    expect(m.textoDoPacote).not.toMatch(/restrito \(/)
+    expect(await ausentes(comNegativa('nao_foi_possivel_conferir'))).not.toContain('restrito')
+  })
+  it('sem direito provado (sem_direito): a célula sai `restrito (`, sem número e sem 0', async () => {
+    const m = await montar(comNegativa('sem_direito'), false)
+    expect(m.textoDoPacote).toMatch(/restrito \(/)
+    expect(await ausentes(comNegativa('sem_direito'))).toContain('restrito')
+  })
+})

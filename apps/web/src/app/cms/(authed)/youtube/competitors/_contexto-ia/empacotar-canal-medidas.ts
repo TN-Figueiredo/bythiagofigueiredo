@@ -4,7 +4,7 @@
  * `fraseDoTopo`, `celulasDoCabecalho`, `blocoDeDirecao`...: nenhuma conta nova) e deixa só texto, como a tela o escreve; as tabelas saem daí.
  * Dado ausente sai como "não medido"/"não carregou" com o motivo da tela, nunca como 0.
  */
-import { celulaAusente, ehMotivoDeFalha } from './celula-ausente'
+import { celulaAusente, NAO_CARREGOU_TELA } from './celula-ausente'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { Celula, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
@@ -31,12 +31,12 @@ export interface CelulaDeMedidaIa {
   valor: string | null
   zero: boolean
   motivo: string | null
+  /** Pelo TIPO da célula do modelo (`nao_carregou`), nunca pelo texto do motivo: a pastilha da tela é `falhou`. */
+  falhou: boolean
   base: string
   aviso: string | null
 }
 
-/** O texto que a tela escreve quando a medida não chegou. */
-const NAO_CARREGOU_TELA = 'falhou'
 const NAO_MEDIDO_TELA = 'não medido'
 
 export interface DirecaoIa {
@@ -174,7 +174,7 @@ function ritmoIa(b: BlocoDeRitmo, semanas: number): RitmoIa {
 const UNIDADE: Record<string, string> = { ritmo: ' (por semana)' }
 
 function lancamentosIa(m: ModeloDeLancamentos): LancamentosIa {
-  if (m.tipo === 'nao_carregou') return { rotulo: 'Lançamentos', frase: null, motivo: m.motivo, videos: [], temNormal: false, normal: [], semPonto: null }
+  if (m.tipo === 'nao_carregou') return { rotulo: 'Lançamentos', frase: null, motivo: NAO_CARREGOU_TELA, videos: [], temNormal: false, normal: [], semPonto: null }
   if (m.tipo === 'vazio') return { rotulo: 'Lançamentos', frase: `${m.frase}${m.explicacao}`, motivo: null, videos: [], temNormal: false, normal: [], semPonto: null }
   return {
     rotulo: 'Lançamentos', frase: m.temNormal ? null : `${m.frase!.negrito}${m.frase!.resto}`, motivo: null, temNormal: m.temNormal,
@@ -185,7 +185,7 @@ function lancamentosIa(m: ModeloDeLancamentos): LancamentosIa {
 }
 
 function horasIa(m: ModeloDe72Horas): HorasIa {
-  if (m.tipo !== 'medido') return { rotulo: 'Primeiras 72 horas', frase: null, aviso: null, motivo: m.motivo, marcos: [] }
+  if (m.tipo !== 'medido') return { rotulo: 'Primeiras 72 horas', frase: null, aviso: null, motivo: m.tipo === 'nao_carregou' ? NAO_CARREGOU_TELA : m.motivo, marcos: [] }
   const h = (n: number): string => `${n} ${n === 1 ? 'hora' : 'horas'} depois de publicar`
   return {
     rotulo: 'Primeiras 72 horas', frase: `${m.frase.negrito}${m.frase.resto}`, aviso: m.aviso, motivo: null,
@@ -274,7 +274,7 @@ export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal, comentari
         else if (det.chave === 'ritmo') valor = det.porSemana
       }
       return {
-        chave: x.chave, rotulo: x.rotulo + (UNIDADE[x.chave] ?? ''), valor, zero: x.valor === 'zero', motivo: valor === null ? x.motivo : null, base: x.base,
+        chave: x.chave, rotulo: x.rotulo + (UNIDADE[x.chave] ?? ''), valor, zero: x.valor === 'zero', motivo: valor === null ? x.motivo : null, falhou: valor === null && x.valor === 'nao_carregou', base: x.base,
         // a mesma frase que a célula escreve (a data é a da mudança de contagem, não a do aviso)
         aviso: det.chave === 'direcao' && det.avisoAte ? `ainda cruza a mudança de ${dm(MEASURE_RULES.countChange)}` : null,
       }
@@ -289,7 +289,7 @@ const CTRL = { descartado: 'controle de tela' } as const
 export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
   'derivado.medidas.topo.faixa': 'base', 'derivado.medidas.topo.frase': 'terceiros', // a oração do último vídeo cita o título dele: entra como texto de terceiros
   'derivado.medidas.celulas[].chave': ID, 'derivado.medidas.celulas[].rotulo': 'rotulo', 'derivado.medidas.celulas[].valor': 'numero',
-  'derivado.medidas.celulas[].zero': CTRL, 'derivado.medidas.celulas[].motivo': 'motivo', 'derivado.medidas.celulas[].base': 'base', 'derivado.medidas.celulas[].aviso': 'base',
+  'derivado.medidas.celulas[].zero': CTRL, 'derivado.medidas.celulas[].falhou': CTRL, 'derivado.medidas.celulas[].motivo': 'motivo', 'derivado.medidas.celulas[].base': 'base', 'derivado.medidas.celulas[].aviso': 'base',
 
   // Direção
   'derivado.medidas.direcao.frase': 'base',
@@ -339,8 +339,8 @@ const rotulo = (texto: string, origem: string): Celula => ({ papel: 'rotulo', te
 const base = (texto: string, origem: string): Celula => ({ papel: 'base', texto, origem })
 const terceiros = (texto: string, origem: string): Celula => ({ papel: 'terceiros', texto, origem })
 const medido = (texto: string, origem: string, zero = false): Celula => (zero ? { papel: 'numero', estado: 'zero_medido', texto, x: 0, origem } : { papel: 'numero', estado: 'medido', texto, x: null, origem })
-// Decisão 75: o modelo marca o bloco que não chegou com o motivo `falhou` (NAO_CARREGOU_TELA); no pacote isso é a célula `falhou`, nunca "não medido".
-const naoMedido = (motivo: string | null, origem: string): Celula => celulaAusente(ehMotivoDeFalha(motivo) ? 'falhou' : 'nao_medido', motivo, origem)
+// Decisão 75: a projeção marca pelo TIPO do modelo (`nao_carregou`) o bloco que não chegou com NAO_CARREGOU_TELA; no pacote isso é a célula `falhou`, nunca "não medido".
+const naoMedido = (motivo: string | null, origem: string): Celula => celulaAusente(motivo === NAO_CARREGOU_TELA ? 'falhou' : 'nao_medido', motivo, origem)
 
 const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
 
@@ -352,7 +352,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
     tabelas.push(tabelaFixa('canal-medidas-celulas', 'Direção, estado, acerto e ritmo do canal', 'direção, estado, acerto e ritmo', ['Medida', 'Valor', 'Base'],
       m.celulas.map((c, i) => [
         rotulo(c.rotulo, `${O}.celulas[${i}].rotulo`),
-        c.valor !== null ? medido(c.valor, `${O}.celulas[${i}].valor`, c.zero) : naoMedido(c.motivo, `${O}.celulas[${i}].motivo`),
+        c.valor !== null ? medido(c.valor, `${O}.celulas[${i}].valor`, c.zero) : celulaAusente(c.falhou ? 'falhou' : 'nao_medido', c.motivo, `${O}.celulas[${i}].motivo`),
         base(c.base, `${O}.celulas[${i}].base`),
       ])))
     const avisos = m.celulas.flatMap((c, i) => (c.aviso ? [[i, c.aviso] as const] : []))

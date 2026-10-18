@@ -286,7 +286,7 @@ describe('Canal, medidas: Lançamentos, 72 horas e Linha do tempo', () => {
     const nao = await montar(CASOS.find(([n]) => n === '72 horas: leitura por hora não começou')![1](), false)
     expect(tab(nao, 'canal-horas')!.linhas[0]![1]).toMatchObject({ papel: 'numero', estado: 'nao_medido' })
     const fora = await montar({ canal: canalNaoCarregou() }, false)
-    expect(tab(fora, 'canal-horas')!.linhas[0]![1]).toMatchObject({ papel: 'numero', estado: 'nao_medido' })
+    expect(tab(fora, 'canal-horas')!.linhas[0]![1]).toMatchObject({ papel: 'numero', estado: 'falhou' })
   })
   it('72 horas com leitura parada: o aviso da tela vai nos avisos do pacote', async () => {
     const m = await montar(CASOS.find(([n]) => n === '72 horas: leitura por hora parada')![1](), false)
@@ -529,5 +529,23 @@ describe('Canal, criador: correções do parecer (I2, I4, M3, M5)', () => {
     expect(json).toHaveLength(5)
     for (const l of tabela) { expect(l.trimEnd().endsWith('|'), l.slice(-30)).toBe(true); for (const k of [0, 1, 2]) expect(l).toMatch(new RegExp(`Resp w0-\\d+-${k} `)) }
     for (const l of json) { expect(l.trimEnd().replace(/,$/, '').endsWith('}'), l.slice(-30)).toBe(true); expect(() => JSON.parse(l.trim().replace(/,$/, ''))).not.toThrow() }
+  })
+})
+
+describe('Canal, medidas: a falha nunca sai como "não medido" (decisão 75, I-1)', () => {
+  const tab = (m: Montado, id: string) => m.pacote.tabelas.find((t) => t.id === id)!
+  it('lançamentos e 72 horas que não carregaram saem `falhou`, não `nao_medido`', async () => {
+    const m = await montar({ canal: canalNaoCarregou() }, false)
+    expect(tab(m, 'canal-lancamentos-estado').linhas[0]![1]).toMatchObject({ estado: 'falhou' })
+    expect(tab(m, 'canal-horas').linhas[0]![1]).toMatchObject({ estado: 'falhou' })
+  })
+  it('rede: em nenhum estado da matriz há célula `nao_medido` cujo motivo fale de falha', async () => {
+    const casos: Caso[] = [...CASOS.map(([, c]) => c()), { canal: canalNaoCarregou() }]
+    for (const caso of casos) {
+      const m = await montar(caso, false)
+      for (const t of m.pacote.tabelas) for (const l of t.linhas) for (const c of l) {
+        if (c.papel === 'numero' && c.estado === 'nao_medido') expect(c.motivo, `${t.id}`).not.toMatch(/falh/i)
+      }
+    }
   })
 })

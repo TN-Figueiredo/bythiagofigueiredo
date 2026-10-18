@@ -7,6 +7,7 @@ import { act, fireEvent } from '@testing-library/react'
 import {
   destinoDe, folhas, generalizar, passosDaOrigem, resolverOrigem, semDestino, type Destino, type Inventario, type ValorDeFolha,
 } from '@/lib/youtube/observatorio/contexto-ia/inventario'
+import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto-ia/frases'
 import { naCelula } from '@/lib/youtube/observatorio/contexto-ia/terceiros'
 import type { Celula, PacoteModelo } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 
@@ -225,6 +226,9 @@ export async function expandirTela(raiz: HTMLElement): Promise<string> {
   return estados.join('\n')
 }
 
+/** Palavras de pastilha e motivos fixos que se repetem em qualquer pacote: não provam nada. Lista FIXA e exata; nunca "tudo que não tem número". */
+const MOTIVOS_GENERICOS: ReadonlySet<string> = new Set(['não medido', 'falhou', 'restrito', 'a leitura falhou', 'a leitura falhou agora', A_TELA_NAO_INFORMA_O_MOTIVO])
+
 /**
  * (E17 degrau 1, pendência F da revisão) A prova do "excluído não vaza": cada teste de tela com dado privado monta o pacote duas vezes,
  * `incluido` e `excluido`, e chama esta função. Toda cadeia privada do `incluido` (células de número e de terceiros de tabela privada, foco, bloco citado,
@@ -233,10 +237,14 @@ export async function expandirTela(raiz: HTMLElement): Promise<string> {
  */
 export function provarQueExcluidoNaoVaza(incluido: PacoteModelo, textoDoExcluido: string, jsonDoExcluido: string): void {
   const privadas: string[] = []
+  const publicos = new Set(incluido.tabelas.filter((t) => !t.privada).flatMap((t) => t.linhas.flat().map(textoDaCelulaPrivada)))
   for (const t of incluido.tabelas) {
     if (!t.privada) continue
-    // rótulo e base ("01/10", "por dia") repetem-se nas tabelas públicas e dariam falso vazamento: só número e texto de terceiros
-    for (const linha of t.linhas) for (const c of linha) if ((c.papel === 'numero' && !semNumero(c)) || c.papel === 'terceiros') privadas.push(textoDaCelulaPrivada(c)) // motivo de quem não tem número ("não medido", "falhou", "restrito") é palavra comum, não dado privado
+    // rótulo e base ("01/10", "por dia") repetem-se nas tabelas públicas e dariam falso vazamento: só número, motivo próprio e texto de terceiros.
+    // O motivo de célula sem número entra (pode levar número privado: "Com 37 views em 28 dias…"); fora só os motivos genéricos e o que a tabela pública já diz.
+    for (const linha of t.linhas) for (const c of linha) {
+      if (c.papel === 'terceiros' || (c.papel === 'numero' && (!semNumero(c) || (!MOTIVOS_GENERICOS.has(c.motivo) && !publicos.has(c.motivo))))) privadas.push(textoDaCelulaPrivada(c))
+    }
   }
   for (const f of incluido.foco) if (f.privado) privadas.push(f.detalhe)
   for (const b of incluido.citados) if (b.privado) privadas.push(b.texto)

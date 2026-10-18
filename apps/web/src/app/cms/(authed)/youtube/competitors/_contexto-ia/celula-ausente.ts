@@ -17,5 +17,5 @@ export function celulaAusente(estado: EstadoAusencia | null | undefined, motivo:
   }
 }
 
-/** Os modelos do canal e do vídeo de fora marcam a leitura que não chegou com estas duas frases (sem campo de estado); no pacote viram `falhou`. */
-export const ehMotivoDeFalha = (motivo: string | null): boolean => motivo === 'falhou' || motivo === 'a leitura falhou'
+/** O marcador que as projeções do canal e do vídeo de fora escrevem quando o TIPO do modelo é `nao_carregou` (nunca deduzido de frase). No pacote vira a célula `falhou`. */
+export const NAO_CARREGOU_TELA = 'falhou'

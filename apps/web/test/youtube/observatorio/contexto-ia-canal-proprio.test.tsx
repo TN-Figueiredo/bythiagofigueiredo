@@ -52,8 +52,8 @@ const PARADO = proprioWorld({ cenario: 'parado' })
 const NEGADO = proprioWorld({ cenario: 'negado' })
 const ERRO = proprioWorld({ cenario: 'erro' })
 
-function modeloDe(w: Mundo, sp: Record<string, string | undefined> = {}, extras: Parameters<typeof modeloDeCanalProprio>[2] = {}): ModeloCanalProprio {
-  const pv = viewDe(w, sp)
+function modeloDe(w: Mundo, sp: Record<string, string | undefined> = {}, extras: Parameters<typeof modeloDeCanalProprio>[2] = {}, negativa: 'sem_direito' | 'nao_foi_possivel_conferir' | null = null): ModeloCanalProprio {
+  const pv = viewDe(w, sp, { negativa })
   const { posicao } = posicaoDoSite(w.obs, w.canalId)
   const ce = montarComoEsta({
     dados: w.dados, hoje: w.hoje, dm: w.dm, posicao, posicaoItens: pv.header.posicaoItens, canalId: w.canalId,
@@ -423,5 +423,21 @@ describe('decisão 75: a célula ausente do canal próprio', () => {
       expect(c).not.toHaveProperty('x')
       expect(JSON.stringify(c)).not.toContain('"0"')
     }
+  })
+})
+
+describe('decisão 75: a negativa percorre a cadeia até a célula do pacote (I-2)', () => {
+  it('guarda caída (nao_foi_possivel_conferir): views por dia e % assistido saem `falhou (`, nunca `restrito (`', () => {
+    const p = empacotarCanalProprio(modeloDe(NEGADO, {}, {}, 'nao_foi_possivel_conferir'), lido(NEGADO.canalId))
+    const t = textoCompleto(p)
+    expect(t).toMatch(/falhou \(/)
+    expect(t).not.toMatch(/restrito \(/)
+  })
+  it('sem direito provado (sem_direito): a célula sai `restrito (`, sem texto, x nem "0"', () => {
+    const p = empacotarCanalProprio(modeloDe(NEGADO, {}, {}, 'sem_direito'), lido(NEGADO.canalId))
+    expect(textoCompleto(p)).toMatch(/restrito \(/)
+    const restritas = p.tabelas.flatMap((t) => t.linhas.flat()).filter((c) => c.papel === 'numero' && c.estado === 'restrito')
+    expect(restritas.length).toBeGreaterThan(0)
+    for (const c of restritas) { expect(c).not.toHaveProperty('texto'); expect(c).not.toHaveProperty('x') }
   })
 })

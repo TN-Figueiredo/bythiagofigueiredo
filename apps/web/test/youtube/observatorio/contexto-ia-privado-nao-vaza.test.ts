@@ -78,6 +78,17 @@ describe('excluído não vaza folha privada', () => {
     expect(() => provarQueExcluidoNaoVaza(inc, texto(vaza), JSON.stringify(vaza))).toThrow(/cadeia privada/)
   })
 
+  it('o motivo de célula sem número que carrega número privado entra na prova (regressão do desvio 1)', () => {
+    const m = modeloPrivadoIncluido(false)
+    const FRASE = 'Com 37 views em 28 dias não dá para posicionar este vídeo'
+    const comMotivo: PacoteModelo = { ...m, tabelas: m.tabelas.map((t) => (t.privada ? { ...t, linhas: [[{ papel: 'numero', estado: 'nao_medido', motivo: FRASE, origem: 'x' }]] } : t)) }
+    expect(() => provarQueExcluidoNaoVaza(comMotivo, FRASE, FRASE)).toThrow(/Com 37 views/)
+    for (const generico of ['falhou', 'restrito', 'não medido']) {
+      const gen: PacoteModelo = { ...m, tabelas: m.tabelas.map((t) => (t.privada ? { ...t, linhas: [[{ papel: 'numero', estado: 'nao_medido', motivo: generico, origem: 'x' }]] } : t)) }
+      expect(() => provarQueExcluidoNaoVaza(gen, generico, generico)).toThrow(/não provaria nada/)
+    }
+  })
+
   it('modelo sem nenhuma cadeia privada útil: a prova lança em vez de passar em verde', () => {
     const m = modeloPrivadoIncluido(false)
     const semUteis: PacoteModelo = { ...m, tabelas: m.tabelas.map((t) => (t.privada ? { ...t, linhas: [] } : t)) }

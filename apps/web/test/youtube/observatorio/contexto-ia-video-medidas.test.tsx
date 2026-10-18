@@ -382,3 +382,14 @@ describe('Vídeo, medidas: dado ausente, estados e terceiros', () => {
     expect(p.tabelas.some((t) => t.id.startsWith('video-'))).toBe(false)
   })
 })
+
+describe('Vídeo de fora, medidas: a falha nunca sai como "não medido" (decisão 75, I-1)', () => {
+  it('rede: em nenhum caso há célula `nao_medido` cujo motivo fale de falha', async () => {
+    for (const caso of CASOS) {
+      const m = await montar(caso, false)
+      for (const t of m.pacote.tabelas) for (const l of t.linhas) for (const c of l) {
+        if (c.papel === 'numero' && c.estado === 'nao_medido') expect(c.motivo, `${caso.nome} ${t.id}`).not.toMatch(/falh/i)
+      }
+    }
+  })
+})
