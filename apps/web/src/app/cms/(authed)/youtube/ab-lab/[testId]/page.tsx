@@ -1,3 +1,4 @@
+import { AvisoDePagina } from '../_components/acoes-de-saida'
 import { getTestResults, toDetailView } from '../queries'
 import { ActiveDetail } from '../_components/active-detail'
 import { WinnerDetail } from '../_components/winner-detail'
@@ -79,7 +80,7 @@ export default async function AbTestDetailPage({
 
   const mockMap = await getMockMap()
   const mockView = mockMap[testId]
-  if (mockView) return renderView(mockView)
+  if (mockView) return <><AvisoDePagina testId={testId} />{renderView(mockView)}</>
 
   const results = await getTestResults(testId)
   if (!results) notFound()
@@ -91,6 +92,7 @@ export default async function AbTestDetailPage({
     <>
       {faixa ? <FaixaRestauracao faixa={faixa} /> : null}
       {emAndamentoDesde ? <AtualizarEnquantoEmAndamento emAndamentoDesde={emAndamentoDesde} /> : null}
+      <AvisoDePagina testId={testId} />
       {renderView(view)}
     </>
   )

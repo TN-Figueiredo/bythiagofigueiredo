@@ -18,6 +18,7 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({ usePollStats: vi.fn(() => ({ data: null, loading: false })) }))
 vi.mock('@/app/cms/(authed)/youtube/_components/yt-portal', () => ({ YtPortal: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
 
+import { AvisoDePagina } from '@/app/cms/(authed)/youtube/ab-lab/_components/acoes-de-saida'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
 
 afterEach(() => { cleanup(); vi.useRealTimers() })
@@ -47,7 +48,7 @@ function view(): AbTestActiveView {
 describe('ActiveDetail abre o diálogo novo com a ação por prop', () => {
   it('Encerrar abre o diálogo com o que está no ar e o aviso de baixa resolução; a ação vem da prop', async () => {
     const encerrar = vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: { thumbnail: { estado: 'falhou' } } })
-    render(<ActiveDetail view={view()} encerrar={encerrar} pausar={vi.fn()} />)
+    render(<><AvisoDePagina testId="test-1" /><ActiveDetail view={view()} encerrar={encerrar} pausar={vi.fn()} /></>)
     await userEvent.click(screen.getByRole('button', { name: /^Encerrar$/ }))
     expect(screen.getByRole('dialog', { name: 'Encerrar teste' })).toBeTruthy()
     expect(screen.getByText('O original foi guardado em baixa resolução.')).toBeTruthy()
@@ -66,7 +67,7 @@ describe('ActiveDetail abre o diálogo novo com a ação por prop', () => {
   it('o aviso some sozinho em 6 s', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const encerrar = vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: { title: { estado: 'falhou' } } })
-    render(<ActiveDetail view={view()} encerrar={encerrar} pausar={vi.fn()} />)
+    render(<><AvisoDePagina testId="test-1" /><ActiveDetail view={view()} encerrar={encerrar} pausar={vi.fn()} /></>)
     await userEvent.click(screen.getByRole('button', { name: /^Encerrar$/ }))
     await userEvent.click(within(screen.getByRole('dialog')).getByLabelText(/Variante B/))
     await userEvent.click(screen.getByRole('button', { name: 'Encerrar e ficar com B' }))

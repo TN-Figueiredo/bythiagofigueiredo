@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { Pause, Square } from 'lucide-react'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
@@ -13,28 +13,49 @@ import './ab-end-test-dialog.css'
 export const BTN_SAIDA = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
 
 /**
- * Aviso de página (role="status") depois de um encerramento em que o YouTube recusou algum campo: 6 s, com fechar.
- * Compartilhado pelos detalhes que têm Encerrar (ativo e "teste começou").
+ * Aviso de página (role="status") depois de uma saída (encerrar/pausar) com recusa ou resultado "mudou": 6 s, com fechar.
+ * O estado vive num store de módulo, fora dos detalhes: o router.refresh() pode trocar ActiveDetail por WinnerDetail e o
+ * aviso sobrevive. Chaveado pelo id do teste para não vazar para outro. <AvisoDePagina /> é renderizado em page.tsx.
  */
-export function useAvisoDePagina() {
-  const [aviso, setAviso] = useState<string | null>(null)
-  useEffect(() => cancelarFocoDaFaixa, [])
+interface EstadoAviso { testId: string; texto: string }
+let estadoAviso: EstadoAviso | null = null
+const ouvintes = new Set<() => void>()
+function emitir() { ouvintes.forEach((l) => l()) }
+function assinar(l: () => void) { ouvintes.add(l); return () => { ouvintes.delete(l) } }
+
+export function definirAviso(testId: string, texto: string | null) {
+  estadoAviso = texto ? { testId, texto } : null
+  emitir()
+}
+
+export function AvisoDePagina({ testId }: { testId: string }) {
+  const atual = useSyncExternalStore(assinar, () => estadoAviso, () => null)
+  const texto = atual && atual.testId === testId ? atual.texto : null
   useEffect(() => {
-    if (!aviso) return
-    const t = setTimeout(() => setAviso(null), 6000)
+    // outro teste: descarta o aviso do anterior
+    if (estadoAviso && estadoAviso.testId !== testId) definirAviso(testId, null)
+  }, [testId])
+  useEffect(() => {
+    if (!texto) return
+    const t = setTimeout(() => definirAviso(testId, null), 6000)
     return () => clearTimeout(t)
-  }, [aviso])
-  const avisoNode = (
+  }, [texto, testId])
+  return (
     <div role="status" aria-live="polite">
-      {aviso ? (
+      {texto ? (
         <p className="etd-aviso">
-          <span>{aviso}</span>
-          <button type="button" onClick={() => setAviso(null)} aria-label="Fechar aviso">Fechar</button>
+          <span>{texto}</span>
+          <button type="button" onClick={() => definirAviso(testId, null)} aria-label="Fechar aviso">Fechar</button>
         </p>
       ) : null}
     </div>
   )
-  return { setAviso, avisoNode }
+}
+
+export function useAvisoDePagina(testId: string) {
+  useEffect(() => cancelarFocoDaFaixa, [])
+  const setAviso = useCallback((texto: string) => definirAviso(testId, texto), [testId])
+  return { setAviso }
 }
 
 export interface AcoesDeSaidaProps {

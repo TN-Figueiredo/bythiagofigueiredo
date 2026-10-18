@@ -40,7 +40,7 @@ function buildCheckpoints(view: AbTestActiveView): EarlyCheckpoint[] {
 }
 
 export function EarlyDetail({ view, encerrar, pausar }: EarlyDetailProps) {
-  const { setAviso, avisoNode } = useAvisoDePagina()
+  const { setAviso } = useAvisoDePagina(view.id)
   const checkpoints = buildCheckpoints(view)
 
   // Build early variant table data from the view
@@ -58,7 +58,6 @@ export function EarlyDetail({ view, encerrar, pausar }: EarlyDetailProps) {
 
   return (
     <div data-testid="early-detail" className="fade-in">
-      {avisoNode}
       {/* Header */}
       <div data-section="header" className="mb-[16px]">
         <DetailHeader

@@ -38,7 +38,7 @@ const BTN = BTN_SAIDA
 
 export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
   const router = useRouter()
-  const { setAviso, avisoNode } = useAvisoDePagina()
+  const { setAviso } = useAvisoDePagina(view.id)
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
   const canAdminSite = useCanAdminSite()
   const [driftBusy, setDriftBusy] = useState(false)
@@ -98,7 +98,6 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
 
   return (
     <div data-testid="active-detail">
-      {avisoNode}
       {/* ── Section 1: Header with inline actions ── */}
       <div data-section="header" className="mb-[16px]">
         <DetailHeader
