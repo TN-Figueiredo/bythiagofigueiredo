@@ -12,7 +12,7 @@ export const FRASES_FIXAS: Record<CodigoExecucao, string> = {
   prova_ilegivel: 'não foi possível ler a prova (banco)',
   inicio_nao_decidido: 'a data de início da coleta não foi decidida (COMMENT_SINCE); nada foi coletado',
   identidade_vencida: 'identidade de autores vencida e não apagada; a coleta parou até a anulação rodar',
-  identidade_invariante: 'a guarda da identidade está quebrada (prazo diferente de 28 dias, identidade de criador ou respostas de terceiros)',
+  identidade_invariante: 'a guarda da identidade está quebrada (prazo diferente de 28 dias, identidade de criador ou respostas de espectadores fora da regra)',
   lista_de_devidos_ilegivel: 'não foi possível ler a lista do que está devido; nada foi coletado',
   cadastro_ilegivel: 'não foi possível ler os canais acompanhados; nada foi coletado',
   cota_esgotada: 'a cota do YouTube acabou; ficaram retratos para o próximo disparo',
@@ -63,7 +63,7 @@ const COM_NUMEROS: Record<CodigoExecucao, (n: Numeros) => string | null> = {
     const K = num(n, 'respostas_de_terceiros')
     return N === null || M === null || K === null
       ? null
-      : `a guarda da identidade está quebrada (prazo diferente de 28 dias: ${N}; identidade de criador: ${M}; respostas de terceiros: ${K})`
+      : `a guarda da identidade está quebrada (prazo diferente de 28 dias: ${N}; identidade de criador: ${M}; respostas de espectadores fora da regra: ${K})`
   },
   lista_de_devidos_ilegivel: () => 'não foi possível ler a lista do que está devido. Nada foi coletado',
   cadastro_ilegivel: () => 'não foi possível ler os canais acompanhados. Nada foi coletado',

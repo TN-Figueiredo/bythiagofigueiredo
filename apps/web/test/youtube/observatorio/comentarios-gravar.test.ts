@@ -162,21 +162,37 @@ describe('lerDevidos', () => {
 
 // ───── lerGuardados e lerCadastro ─────
 describe('lerGuardados', () => {
-  it('a URL da consulta só tem video_id', async () => {
-    const { sb, chamadas } = criarSb(() => ok([{ youtube_comment_id: 'Ugx-a', parent_id: null }, { youtube_comment_id: 'Ugx-b', parent_id: 7 }]))
+  it('a URL da consulta só tem video_id; devolve id, is_creator e speaker_no', async () => {
+    const { sb, chamadas } = criarSb(() => ok([
+      { id: 1, youtube_comment_id: 'Ugx-a', parent_id: null, is_creator: false, speaker_no: null },
+      { id: 2, youtube_comment_id: 'Ugx-b', parent_id: 1, is_creator: false, speaker_no: 2 },
+      { id: 3, youtube_comment_id: 'Ugx-c', parent_id: 1, is_creator: true, speaker_no: null },
+    ]))
     const r = await lerGuardados(sb, 'video-uuid-1')
-    expect(r).toEqual([{ youtubeId: 'Ugx-a', topo: true }, { youtubeId: 'Ugx-b', topo: false }])
+    expect(r).toEqual([
+      { id: 1, youtubeId: 'Ugx-a', topo: true, paiId: null, isCreator: false, speakerNo: null },
+      { id: 2, youtubeId: 'Ugx-b', topo: false, paiId: 1, isCreator: false, speakerNo: 2 },
+      { id: 3, youtubeId: 'Ugx-c', topo: false, paiId: 1, isCreator: true, speakerNo: null },
+    ])
     expect(chamadas[0].nome).toBe('competitor_video_comments')
-    expect(chamadas[0].colunas).toBe('youtube_comment_id, parent_id')
+    expect(chamadas[0].colunas).toBe('id, youtube_comment_id, parent_id, is_creator, speaker_no')
     expect(chamadas[0].filtros.filter(([m]) => m !== 'limit')).toEqual([['eq', ['video_id', 'video-uuid-1']]])
   })
 
+  it('speaker_no que não é inteiro positivo vira nulo (linha ilegível), nunca número', async () => {
+    const linha = (n: unknown) => ({ id: 2, youtube_comment_id: 'Ugx-b', parent_id: 1, is_creator: false, speaker_no: n })
+    for (const ruim of [0, -1, 1.5, '2', NaN]) {
+      const r = await lerGuardados(criarSb(() => ok([linha(ruim)])).sb, 'v')
+      expect(r?.[0]?.speakerNo).toBeNull()
+    }
+  })
+
   it('1.000 linhas lança; erro de banco e linha ilegível dão nulo', async () => {
-    const mil = Array.from({ length: 1000 }, (_, i) => ({ youtube_comment_id: 'Ugx-' + i, parent_id: null }))
+    const mil = Array.from({ length: 1000 }, (_, i) => ({ id: i, youtube_comment_id: 'Ugx-' + i, parent_id: null, is_creator: false, speaker_no: null }))
     await expect(lerGuardados(criarSb(() => ok(mil)).sb, 'v')).rejects.toBeInstanceOf(ComentariosErro)
     expect(await lerGuardados(criarSb(() => falha('42501')).sb, 'v')).toBeNull()
     expect(await lerGuardados(criarSb(() => ok({})).sb, 'v')).toBeNull()
-    expect(await lerGuardados(criarSb(() => ok([{ youtube_comment_id: 5, parent_id: null }])).sb, 'v')).toBeNull()
+    expect(await lerGuardados(criarSb(() => ok([{ id: 1, youtube_comment_id: 5, parent_id: null, is_creator: false, speaker_no: null }])).sb, 'v')).toBeNull()
   })
 })
 
@@ -223,7 +239,7 @@ function pacoteOk(itens: unknown[], extra: Partial<Parameters<typeof montarPacot
 
 const SNAP_CHAVES = [
   'taken_at', 'from_h', 'until_h', 'status', 'error_reason', 'pool_size', 'pool_complete', 'video_comment_count', 'selected_count',
-  'featured_lookup_n', 'featured_unknown_n', 'rule_version', 'rule_params', 'units_used', 'pool_stats', 'identity_days', 'creator_replies_max',
+  'featured_lookup_n', 'featured_unknown_n', 'rule_version', 'rule_params', 'units_used', 'pool_stats', 'identity_days', 'creator_replies_max', 'third_party_replies_max',
 ].sort()
 const comentariosDe = (p: { comments: unknown[] }) => p.comments as Array<Record<string, unknown>>
 const snapDe = (p: { snap: unknown }) => p.snap as Record<string, unknown>
@@ -234,8 +250,8 @@ describe('montarPacote', () => {
     const s = snapDe(p)
     expect(Object.keys(s).sort()).toEqual(SNAP_CHAVES)
     expect(s).toMatchObject({ taken_at: TIRADO, from_h: 24, until_h: 72, status: 'ok', error_reason: null, pool_size: 2, pool_complete: true,
-      video_comment_count: 57, selected_count: 2, featured_lookup_n: 2, featured_unknown_n: 1, rule_version: 1, units_used: 3,
-      identity_days: 28, creator_replies_max: 3 })
+      video_comment_count: 57, selected_count: 2, featured_lookup_n: 2, featured_unknown_n: 1, rule_version: 2, units_used: 3,
+      identity_days: 28, creator_replies_max: 5, third_party_replies_max: 20 })
     expect(s).not.toHaveProperty('video_age_hours')
     expect(s.rule_params).toEqual(ruleParams())
     expect(JSON.stringify(s.rule_params)).toContain('"10m_mais",10000000')
@@ -350,7 +366,7 @@ describe('montarPacote', () => {
     expect(escolhidos.map((e) => e.conversa.id)).not.toContain('Ugx-sintetico-14')
     const p = montarPacote({
       devido: devido({ mark: 7 }), tiradoEm: TIRADO, estado: 'ok', lote, escolhidos,
-      guardados: [{ youtubeId: 'Ugx-sintetico-14', topo: true }], consulta: { n: 0, desconhecidos: 0 }, unidades: 2,
+      guardados: [{ id: 14, youtubeId: 'Ugx-sintetico-14', topo: true, paiId: null, isCreator: false, speakerNo: null }], consulta: { n: 0, desconhecidos: 0 }, unidades: 2,
     })
     const topo = comentariosDe(p).find((c) => c.youtube_comment_id === 'Ugx-sintetico-14')
     expect(topo).toMatchObject({ slot: null, relevance_rank: 14, via: 'lote', is_creator: false, likes: 1 })
@@ -575,3 +591,132 @@ describe('lerImpacto', () => {
   })
 })
 
+
+// ───── F2-coleta: respostas de espectadores ─────
+describe('montarPacote: respostas de espectadores (F2-coleta)', () => {
+  const SENT_CANAL_T = canal(777)
+  const SENT_FOTO_T = 'https://exemplo.invalid/foto/SENTINELA-FOTO-T.jpg'
+  const comCriador = (extra: Array<Record<string, unknown>>, o: Record<string, unknown> = {}) => conversa(1, {
+    curtidas: 50, respostas: [resposta('Ugx-sintetico-01', 1, { canalId: CANAL_DO_VIDEO }), ...extra], ...o,
+  })
+  const terceiros = (n: number) => Array.from({ length: n }, (_, i) => resposta('Ugx-sintetico-01', 10 + i, { canalId: canal(200 + i), texto: `Espectador ${i}` }))
+  const numeros = (ids: string[]) => new Map(ids.map((id, i) => [id, i + 1]))
+  const idsT = (n: number) => Array.from({ length: n }, (_, i) => `Ugx-sintetico-01.Resposta-sintetica-${10 + i}`)
+  const T = (p: { comments: unknown[] }) => comentariosDe(p).filter((c) => c.is_creator === false && c.parent_youtube_id !== null)
+
+  it('(a) fio com resposta do criador e 3 espectadores: 3 linhas com as chaves exatas, sem author', () => {
+    const p = pacoteOk([comCriador(terceiros(3))], { speakers: numeros(idsT(3)) })
+    const t = T(p)
+    expect(t).toHaveLength(3)
+    for (const l of t) {
+      expect(Object.keys(l).sort()).toEqual(['body', 'body_truncated', 'edited_at', 'is_creator', 'likes', 'parent_youtube_id', 'published_at', 'speaker_no', 'via', 'youtube_comment_id'])
+      expect(l).toMatchObject({ is_creator: false, via: 'lote', parent_youtube_id: 'Ugx-sintetico-01' })
+    }
+    expect(t.map((l) => l.speaker_no)).toEqual([1, 2, 3])
+  })
+
+  it('(b) fio sem resposta do criador: nenhuma linha de espectador', () => {
+    const p = pacoteOk([conversa(1, { respostas: terceiros(3) })], { speakers: numeros(idsT(3)) })
+    expect(T(p)).toHaveLength(0)
+  })
+
+  it('(c) guardado que veio no lote sem ser escolhido: os espectadores dele também saem', () => {
+    const itens = Array.from({ length: 14 }, (_, i) => conversa(i + 1, {
+      curtidas: 100 - i,
+      respostas: i < 4 ? [resposta(`Ugx-sintetico-${String(i + 1).padStart(2, '0')}`, 1, { canalId: CANAL_DO_VIDEO })] : undefined,
+    }))
+    itens[13] = conversa(14, { curtidas: 1, respostas: [resposta('Ugx-sintetico-14', 1, { canalId: CANAL_DO_VIDEO }), resposta('Ugx-sintetico-14', 2, { canalId: canal(300) })] })
+    const lote = loteDeItens(itens)
+    const escolhidos = selecionar(lote.conversas, new Map())
+    expect(escolhidos.map((e) => e.conversa.id)).not.toContain('Ugx-sintetico-14')
+    const id = 'Ugx-sintetico-14.Resposta-sintetica-02'
+    const p = montarPacote({
+      devido: devido({ mark: 7 }), tiradoEm: TIRADO, estado: 'ok', lote, escolhidos, consulta: { n: 0, desconhecidos: 0 }, unidades: 2,
+      guardados: [{ id: 14, youtubeId: 'Ugx-sintetico-14', topo: true, paiId: null, isCreator: false, speakerNo: null }], speakers: new Map([[id, 2]]),
+    })
+    expect(T(p).map((l) => l.youtube_comment_id)).toEqual([id])
+  })
+
+  it('(d) LGPD: nome, canal e foto do espectador não aparecem em lugar nenhum do pacote', () => {
+    const r = resposta('Ugx-sintetico-01', 10, { canalId: SENT_CANAL_T, nome: SENT_NOME_TERCEIRO, texto: SENT_TEXTO_TERCEIRO })
+    ;(r.snippet as Record<string, unknown>).authorProfileImageUrl = SENT_FOTO_T
+    const p = pacoteOk([comCriador([r])], { speakers: numeros(idsT(1)) })
+    expect(T(p)).toHaveLength(1)
+    const json = JSON.stringify(p)
+    for (const proibido of [SENT_NOME_TERCEIRO, SENT_CANAL_T, SENT_FOTO_T]) expect(json).not.toContain(proibido)
+    expect(json).toContain(SENT_TEXTO_TERCEIRO) // o texto vai; o resto não
+  })
+
+  it('(e) o snap traz creator_replies_max 5, third_party_replies_max 20 e rule_version 2; sem terceiros o máximo é 0', () => {
+    const p = pacoteOk([comCriador(terceiros(1))], { speakers: numeros(idsT(1)) })
+    expect(snapDe(p)).toMatchObject({ creator_replies_max: 5, third_party_replies_max: 20, rule_version: 2 })
+    const q = pacoteOk([comCriador(terceiros(1))], { speakers: numeros(idsT(1)), semTerceiros: true })
+    expect(snapDe(q).third_party_replies_max).toBe(0)
+    expect(T(q)).toHaveLength(0)
+  })
+
+  it('(e2) retrato sem terceiros grava o teto efetivo 0 no rule_params e marca terceiros_sem_numeracao no pool_stats', () => {
+    const q = pacoteOk([comCriador(terceiros(1))], { speakers: numeros(idsT(1)), semTerceiros: true, terceirosSemNumeracao: 2 })
+    expect((snapDe(q).rule_params as Record<string, unknown>).third_party_replies_max).toBe(0)
+    expect((snapDe(q).pool_stats as Record<string, unknown>).terceiros_sem_numeracao).toBe(2)
+    const p = pacoteOk([comCriador(terceiros(1))], { speakers: numeros(idsT(1)) })
+    expect((snapDe(p).rule_params as Record<string, unknown>).third_party_replies_max).toBe(20)
+    expect((snapDe(p).pool_stats as Record<string, unknown>).terceiros_sem_numeracao ?? 0).toBe(0)
+  })
+
+  it('(f) espectador sem número no mapa não sai', () => {
+    const ids = idsT(3)
+    const p = pacoteOk([comCriador(terceiros(3))], { speakers: new Map([[ids[0] as string, 1], [ids[2] as string, 2]]) })
+    expect(T(p).map((l) => l.youtube_comment_id)).toEqual([ids[0], ids[2]])
+  })
+
+  it('(g) menções trocadas por @…; resposta do criador não é alterada', () => {
+    const t = resposta('Ugx-sintetico-01', 10, { canalId: canal(200), texto: '@joao123 concordo' })
+    const c = resposta('Ugx-sintetico-01', 1, { canalId: CANAL_DO_VIDEO, texto: '@joao123 obrigado' })
+    const p = pacoteOk([conversa(1, { curtidas: 5, respostas: [c, t] })], { speakers: numeros(idsT(1)) })
+    expect(T(p)[0]).toMatchObject({ body: '@… concordo' })
+    expect(comentariosDe(p).find((x) => x.is_creator === true)).toMatchObject({ body: '@joao123 obrigado' })
+  })
+
+  it('(i) achado por id: espectador guardado perde a menção; resposta do criador e topo ficam intactos', () => {
+    const lote = loteDeItens([conversa(1)])
+    const base = { texto: '@joao123 oi', cortado: false, editadoEm: null, curtidas: 1, respostasTotal: null }
+    const porId = new Map([['T1', base], ['C1', base], ['TOPO', base]])
+    const p = montarPacote({
+      devido: devido({ mark: 7 }), tiradoEm: TIRADO, estado: 'ok', lote, escolhidos: [], consulta: { n: 0, desconhecidos: 0 }, unidades: 2,
+      guardados: [
+        { id: 1, youtubeId: 'TOPO', topo: true, paiId: null, isCreator: false, speakerNo: null },
+        { id: 2, youtubeId: 'T1', topo: false, paiId: 1, isCreator: false, speakerNo: 2 },
+        { id: 3, youtubeId: 'C1', topo: false, paiId: 1, isCreator: true, speakerNo: null },
+      ], porId,
+    })
+    const por = (id: string) => comentariosDe(p).find((c) => c.youtube_comment_id === id)
+    expect(por('T1')).toMatchObject({ via: 'id', body: '@… oi' })
+    expect(por('C1')).toMatchObject({ via: 'id', body: '@joao123 oi' })
+    expect(por('TOPO')).toMatchObject({ via: 'id', body: '@joao123 oi' })
+  })
+
+  it('(h) ordem: espectadores na ordem dos escolhidos, depois dos guardados; dentro do fio, da mais antiga à mais nova', () => {
+    const mais_nova = resposta('Ugx-sintetico-01', 30, { canalId: canal(230), publicadoEm: iso(T0 + 30 * H) })
+    const mais_antiga = resposta('Ugx-sintetico-01', 11, { canalId: canal(211), publicadoEm: iso(T0 + 11 * H) })
+    const p = pacoteOk([comCriador([mais_nova, mais_antiga])], {
+      speakers: new Map([['Ugx-sintetico-01.Resposta-sintetica-30', 2], ['Ugx-sintetico-01.Resposta-sintetica-11', 1]]),
+    })
+    expect(T(p).map((l) => l.youtube_comment_id)).toEqual(['Ugx-sintetico-01.Resposta-sintetica-11', 'Ugx-sintetico-01.Resposta-sintetica-30'])
+  })
+})
+
+describe('gravarRetrato: contagens de espectadores', () => {
+  const pacote = { snap: { from_h: 24, until_h: 72 }, comments: [], missing: [] }
+  it('aceita as cinco contagens novas e continua aceitando o resultado antigo', async () => {
+    const novo = { status: 'gravado', terceiros_novos: 2, terceiros_atualizados: 1, terceiros_apagados: 3, terceiros_fora_do_teto: 4, terceiros_sem_fio: 5 }
+    const a = await gravarRetrato(criarSb(() => ok(novo)).sb, 'v', 1, pacote)
+    expect(a).toMatchObject({ ok: true, resultado: { terceiros_novos: 2, terceiros_atualizados: 1, terceiros_apagados: 3, terceiros_fora_do_teto: 4, terceiros_sem_fio: 5 } })
+    const b = await gravarRetrato(criarSb(() => ok({ status: 'gravado', recebidos: 3 })).sb, 'v', 1, pacote)
+    expect(b).toMatchObject({ ok: true })
+    expect(b.ok && b.resultado.terceiros_novos).toBeUndefined()
+    const c = await gravarRetrato(criarSb(() => ok({ status: 'gravado', terceiros_novos: -1, terceiros_apagados: 1.5 })).sb, 'v', 1, pacote)
+    expect(c.ok && c.resultado.terceiros_novos).toBeUndefined()
+    expect(c.ok && c.resultado.terceiros_apagados).toBeUndefined()
+  })
+})

@@ -5,6 +5,7 @@ import {
 } from '@tn-figueiredo/auth-nextjs'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
+import { PasswordChangedNotice } from '../../_auth/password-changed-notice'
 import { AdminShell } from '@/components/admin/admin-shell'
 
 export default async function Layout({ children }: { children: ReactNode }) {
@@ -29,6 +30,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
 
   return (
     <AdminShell userEmail={user.email ?? ''}>
+      <PasswordChangedNotice />
       {children}
     </AdminShell>
   )

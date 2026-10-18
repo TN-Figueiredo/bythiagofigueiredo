@@ -1,12 +1,13 @@
 // A5 · E14: a fronteira TypeScript x SQL da coleta de comentários. Monta o pacote e chama as cinco funções do banco,
 // sem confiar em forma nenhuma de resposta e sem esperar para sempre (toda ida leva tempo máximo).
 //
-// DADO PESSOAL (LGPD): nome, id de canal e foto do autor vão SÓ para `author` de cada comentário (a tabela de identidade, que a
+// DADO PESSOAL (LGPD): nome, id de canal e foto do autor vão SÓ para `author` de cada comentário (nunca o de resposta de espectador) (a tabela de identidade, que a
 // anulação aos 28 dias limpa). O texto do comentário vai só para `body`. Nada disso entra em erro, log, nota nem Sentry:
 // o que sai daqui para fora é código de catálogo e número. O erro do banco (que pode citar a linha recusada) nunca é repassado.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { COMMENT_RULES, MOTIVOS, MOTIVOS_PASSAGEIROS, ruleParams } from './regras'
 import { ComentariosErro, codigoDe } from './erro'
+import { semMencoes } from './leitor-mencao'
 import type { AgregadosDoLote, Conversa, Devido, Escolhido, EstadoRetrato, Marco, Motivo, ProvaComentarios, RespostaVista } from './tipos'
 
 export type Json = string | number | boolean | null | Json[] | { [chave: string]: Json }
@@ -193,20 +194,37 @@ export async function lerDevidos(
 
 const PAGINA = 1000
 
+/** Um comentário já guardado do vídeo. `speakerNo` só existe em resposta de espectador (nulo = linha sem número legível). */
+export interface Guardado {
+  id: number
+  youtubeId: string
+  topo: boolean
+  paiId: number | null
+  isCreator: boolean
+  speakerNo: number | null
+}
+
 /**
  * Os comentários guardados do vídeo (uma página de 1.000). O filtro é o uuid NOSSO do vídeo, nunca um id de comentário.
  * Vir a página cheia é defeito (um vídeo guarda dezenas): lança. Erro do banco ou linha ilegível: nulo.
+ * `speaker_no` que não é inteiro positivo (nem nulo) vira nulo no resultado: o número ilegível nunca é usado para numerar.
  */
-export async function lerGuardados(sb: SupabaseClient, videoRowId: string): Promise<Array<{ youtubeId: string; topo: boolean }> | null> {
-  const r = await comTempo((sinal) => sb.from('competitor_video_comments').select('youtube_comment_id, parent_id')
+export async function lerGuardados(sb: SupabaseClient, videoRowId: string): Promise<Guardado[] | null> {
+  const r = await comTempo((sinal) => sb.from('competitor_video_comments').select('id, youtube_comment_id, parent_id, is_creator, speaker_no')
     .eq('video_id', videoRowId).limit(PAGINA).abortSignal(sinal))
   if ((r.error !== null && r.error !== undefined) || !Array.isArray(r.data)) return null
   if (r.data.length >= PAGINA) throw new ComentariosErro('resposta_ilegivel')
-  const saida: Array<{ youtubeId: string; topo: boolean }> = []
+  const saida: Guardado[] = []
   for (const linha of r.data) {
     if (!ehObj(linha) || typeof linha.youtube_comment_id !== 'string' || linha.youtube_comment_id === '') return null
+    if (typeof linha.id !== 'number' || typeof linha.is_creator !== 'boolean') return null
     if (linha.parent_id !== null && typeof linha.parent_id !== 'number') return null
-    saida.push({ youtubeId: linha.youtube_comment_id, topo: linha.parent_id === null })
+    const n = linha.speaker_no
+    const speakerNo = typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : null
+    saida.push({
+      id: linha.id, youtubeId: linha.youtube_comment_id, topo: linha.parent_id === null, paiId: linha.parent_id,
+      isCreator: linha.is_creator, speakerNo,
+    })
   }
   return saida
 }
@@ -244,7 +262,13 @@ export interface EntradaPacote {
   motivo?: Motivo
   lote?: { conversas: Conversa[]; descartadas: number; completo: boolean }
   escolhidos?: Escolhido[]
-  guardados?: Array<{ youtubeId: string; topo: boolean }>
+  guardados?: Guardado[]
+  /** F2-coleta: id da resposta de espectador -> número no fio (calculado em `coletar`, nunca a chave do autor). */
+  speakers?: ReadonlyMap<string, number>
+  /** F2-coleta: os guardados não foram lidos; o retrato sai sem terceiros e o snap manda `third_party_replies_max: 0`. */
+  semTerceiros?: boolean
+  /** F2-coleta: fios do pacote que perderam os terceiros por causa de `semTerceiros` (vai ao pool_stats). */
+  terceirosSemNumeracao?: number
   porId?: Map<string, { texto: string; cortado: boolean; editadoEm: string | null; curtidas: number | null; respostasTotal: number | null }>
   ausentes?: string[]
   consulta: { n: number | null; desconhecidos: number }
@@ -259,6 +283,14 @@ function autorDe(c: Conversa): Json {
   const { nome, canalId, foto } = c.autor
   if (nome === null && canalId === null && foto === null) return null
   return { display_name: nome, channel_id: canalId, avatar_url: foto }
+}
+
+/** Resposta de espectador: SEM `author` (LGPD 7c); o texto perde as menções (`@handle`) antes de sair daqui. */
+function respostaDeTerceiro(r: RespostaVista, paiId: string, speakerNo: number): Json {
+  return {
+    youtube_comment_id: r.id, parent_youtube_id: paiId, via: 'lote', body: semMencoes(r.texto).texto, body_truncated: r.cortado,
+    published_at: r.publicadoEm, edited_at: r.editadoEm, is_creator: false, likes: r.curtidas, speaker_no: speakerNo,
+  }
 }
 
 function respostaDoCriador(r: RespostaVista, paiId: string): Json {
@@ -293,12 +325,16 @@ export function montarPacote(p: EntradaPacote): Pacote {
     featured_lookup_n: p.consulta.n,
     featured_unknown_n: p.consulta.desconhecidos,
     rule_version: r.version,
-    rule_params: ruleParams(),
+    rule_params: p.semTerceiros === true ? { ...ruleParams(), third_party_replies_max: 0 } : ruleParams(),
     units_used: p.unidades,
     identity_days: r.identityDays,
     creator_replies_max: r.creatorRepliesMax,
+    third_party_replies_max: p.semTerceiros === true ? 0 : r.thirdPartyRepliesMax,
   }
-  if (ok && p.agregados !== undefined) snap.pool_stats = { ...p.agregados, conferencia_falhou: p.conferenciaFalhou === true }
+  if (ok && p.agregados !== undefined) snap.pool_stats = {
+    ...p.agregados, conferencia_falhou: p.conferenciaFalhou === true,
+    ...(p.semTerceiros === true ? { terceiros_sem_numeracao: p.terceirosSemNumeracao ?? 0 } : {}),
+  }
   if (!ok) return { snap, comments: [], missing: [] }
 
   const comments: Json[] = []
@@ -311,6 +347,17 @@ export function montarPacote(p: EntradaPacote): Pacote {
       if (resp.autorCanalId !== criador || vistos.has(resp.id)) continue
       vistos.add(resp.id)
       comments.push(respostaDoCriador(resp, c.id))
+    }
+    // espectadores: só em fio onde o criador respondeu, e só com número (sem número é defeito nosso: não sai)
+    if (p.semTerceiros === true || !c.respostasDoCriador.some((resp) => resp.autorCanalId === criador)) return
+    const ordenadas = c.respostasDeTerceiros
+      .map((resp, i) => ({ resp, i }))
+      .sort((a, b) => Date.parse(a.resp.publicadoEm) - Date.parse(b.resp.publicadoEm) || a.i - b.i)
+    for (const { resp } of ordenadas) {
+      const numero = p.speakers?.get(resp.id)
+      if (numero === undefined || vistos.has(resp.id)) continue
+      vistos.add(resp.id)
+      comments.push(respostaDeTerceiro(resp, c.id, numero))
     }
   }
 
@@ -345,12 +392,16 @@ export function montarPacote(p: EntradaPacote): Pacote {
   }
 
   // 3. os achados por id (marcos 7 e 30): o que veio no lote já saiu acima. Curtida não medida não vira zero: o item não é enviado.
+  const guardadoPorId = new Map((p.guardados ?? []).map((g) => [g.youtubeId, g]))
   for (const [id, v] of p.porId ?? []) {
     if (vistos.has(id)) continue
     vistos.add(id)
     if (v.curtidas === null) continue
+    // resposta de espectador achada por id também perde as menções (senão a conferência desfaz o conserto); criador e topo ficam intactos
+    const g = guardadoPorId.get(id)
+    const texto = g !== undefined && g.paiId !== null && !g.isCreator ? semMencoes(v.texto).texto : v.texto
     comments.push({
-      youtube_comment_id: id, parent_youtube_id: null, via: 'id', body: v.texto, body_truncated: v.cortado,
+      youtube_comment_id: id, parent_youtube_id: null, via: 'id', body: texto, body_truncated: v.cortado,
       edited_at: v.editadoEm, likes: v.curtidas, reply_count: null,
     })
   }
@@ -373,6 +424,11 @@ export interface ResultadoGravacao {
   achados_por_id?: number
   respostas_novas?: number
   respostas_atualizadas?: number
+  terceiros_novos?: number
+  terceiros_atualizados?: number
+  terceiros_apagados?: number
+  terceiros_fora_do_teto?: number
+  terceiros_sem_fio?: number
   identidades?: number
   leituras?: number
   ausentes?: number
@@ -382,6 +438,7 @@ export interface ResultadoGravacao {
 const STATUS_GRAVACAO: readonly string[] = ['gravado', 'ja_existe', 'video_ausente', 'fora_da_tolerancia']
 const CONTAGENS_GRAVACAO = [
   'recebidos', 'comentarios_novos', 'comentarios_atualizados', 'achados_por_id', 'respostas_novas', 'respostas_atualizadas',
+  'terceiros_novos', 'terceiros_atualizados', 'terceiros_apagados', 'terceiros_fora_do_teto', 'terceiros_sem_fio',
   'identidades', 'leituras', 'ausentes', 'ausentes_marcados', 'nao_gravados',
 ] as const
 

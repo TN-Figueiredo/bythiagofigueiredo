@@ -8,7 +8,8 @@ import { criarApi, type ApiComentarios } from './api'
 import { ComentariosErro, codigoDe } from './erro'
 import { agregadosDoLote, loteDe, porIdDe } from './normalizar'
 import { desconhecidos, destaqueDe, inscritosDe, quemConsultar } from './destaque'
-import { gravarRetrato, lerCadastro, lerDevidos, lerGuardados, lerProva, montarPacote } from './gravar'
+import { gravarRetrato, lerCadastro, lerDevidos, lerGuardados, lerProva, montarPacote, type Guardado } from './gravar'
+import { numerarEspectadores } from './espectadores'
 import { veredito } from './prova'
 import {
   CODIGOS_EXECUCAO, COMMENT_RULES, COMMENT_SINCE, MOTIVOS, MOTIVOS_PASSAGEIROS,
@@ -16,11 +17,10 @@ import {
 import { relatarComentarios } from './relato'
 import { selecionar } from './selecao'
 import type {
-  CodigoExecucao, Destaque, Devido, EstadoRetrato, Motivo, ProvaComentarios, TarefaCtx, TarefaSaida,
+  CodigoExecucao, Conversa, Destaque, Devido, EstadoRetrato, Motivo, ProvaComentarios, TarefaCtx, TarefaSaida,
 } from './tipos'
 
 type Cadastro = { acompanhados: Map<string, string>; proprios: Set<string> }
-type Guardado = { youtubeId: string; topo: boolean }
 type PorId = NonNullable<ReturnType<typeof porIdDe>>
 type Falha = 'leitura' | 'banco'
 
@@ -32,6 +32,8 @@ interface Placar {
   descartados: number; conferencias_falhas: number; conferencias_nao_feitas: number; consultas_de_autor_falhas: number
   ausentes_marcados: number; fora_da_tolerancia: number; erros_de_gravacao: number; inesperados: number; unidades: number
   ja_existe: number; video_ausente: number; falhas_passageiras: number; ms: number; vermelhos: number
+  terceiros_novos: number; terceiros_apagados: number; terceiros_fora_do_teto: number; terceiros_sem_fio: number
+  terceiros_sem_numeracao: number
 }
 
 function novoPlacar(): Placar {
@@ -39,7 +41,8 @@ function novoPlacar(): Placar {
     devidos: 0, feitos: 0, ficaram: 0, ok: 0, sem_comentarios: 0, desligados: 0, erros: 0, descartados: 0,
     conferencias_falhas: 0, conferencias_nao_feitas: 0, consultas_de_autor_falhas: 0, ausentes_marcados: 0,
     fora_da_tolerancia: 0, erros_de_gravacao: 0, inesperados: 0, unidades: 0, ja_existe: 0, video_ausente: 0,
-    falhas_passageiras: 0, ms: 0, vermelhos: 0,
+    falhas_passageiras: 0, ms: 0, vermelhos: 0, terceiros_novos: 0, terceiros_apagados: 0, terceiros_fora_do_teto: 0,
+    terceiros_sem_fio: 0, terceiros_sem_numeracao: 0,
   }
 }
 
@@ -51,6 +54,57 @@ function blocos<T>(lista: T[], tamanho: number): T[][] {
   const saida: T[][] = []
   for (let i = 0; i < lista.length; i += tamanho) saida.push(lista.slice(i, i + tamanho))
   return saida
+}
+
+/** As conversas que `montarPacote` leva com respostas: escolhidos e guardados que vieram no lote (as do criador no fio são pré-condição). */
+function conversasDoPacote(lote: Conversa[], escolhidos: string[], guardados: readonly Guardado[]): Conversa[] {
+  const ids = new Set(escolhidos)
+  for (const g of guardados) if (g.topo) ids.add(g.youtubeId)
+  return lote.filter((c) => ids.has(c.id))
+}
+
+function fiosComTerceiros(lote: Conversa[], escolhidos: string[]): number {
+  return conversasDoPacote(lote, escolhidos, [])
+    .filter((c) => c.respostasDoCriador.length > 0 && c.respostasDeTerceiros.length > 0).length
+}
+
+/** Numera os espectadores de cada fio do pacote (id da resposta -> número). O `authorChannelId` fica aqui dentro e não sai. */
+function numerarFios(
+  lote: Conversa[], escolhidos: string[], guardados: readonly Guardado[], criador: string,
+): Map<string, number> {
+  const topoPorYoutube = new Map<string, Guardado>()
+  const porPai = new Map<number, Guardado[]>()
+  for (const g of guardados) {
+    if (g.topo) topoPorYoutube.set(g.youtubeId, g)
+    else if (!g.isCreator && g.paiId !== null) porPai.set(g.paiId, [...(porPai.get(g.paiId) ?? []), g])
+  }
+  const saida = new Map<string, number>()
+  for (const c of conversasDoPacote(lote, escolhidos, guardados)) {
+    if (c.respostasDoCriador.length === 0) continue
+    const topo = topoPorYoutube.get(c.id)
+    const doFio = topo === undefined ? [] : porPai.get(topo.id) ?? []
+    const numeros = new Map<string, number>()
+    let maior = 0
+    for (const g of doFio) {
+      if (g.speakerNo === null) continue
+      numeros.set(g.youtubeId, g.speakerNo)
+      maior = Math.max(maior, g.speakerNo)
+    }
+    for (const n of numerarEspectadores(c, criador, numeros, maior)) saida.set(n.id, n.speakerNo)
+  }
+  return saida
+}
+
+/** Resposta de espectador de fio que sai sem número: defeito nosso (a função de numerar devolve todas). */
+function semNumero(
+  lote: Conversa[], escolhidos: string[], guardados: readonly Guardado[], speakers: ReadonlyMap<string, number>,
+): number {
+  let n = 0
+  for (const c of conversasDoPacote(lote, escolhidos, guardados)) {
+    if (c.respostasDoCriador.length === 0) continue
+    for (const r of c.respostasDeTerceiros) if (!speakers.has(r.id)) n += 1
+  }
+  return n
 }
 
 /** Só `ComentariosErro` vira resultado; qualquer outra coisa lançada é defeito e sobe (o laço conta como inesperado). */
@@ -231,6 +285,8 @@ export async function runRetratosComentarios(ctx: TarefaCtx): Promise<TarefaSaid
               for (const c of lote.conversas) {
                 vistos.add(c.id)
                 for (const resp of c.respostasDoCriador) vistos.add(resp.id)
+                // todo id de resposta visto no lote (criador e espectador, com ou sem criador no fio): não é conferido por id
+                for (const id of c.idsRespostasVistas) vistos.add(id)
               }
               const alvo = lidos.map((g) => g.youtubeId).filter((id) => !vistos.has(id))
               const todos = blocos(alvo, r.checkChunk)
@@ -269,6 +325,22 @@ export async function runRetratosComentarios(ctx: TarefaCtx): Promise<TarefaSaid
       return true
     }
 
+    // 9b. a numeração dos espectadores (só para os fios que vão no pacote e têm resposta do criador)
+    let speakers: Map<string, number> | undefined
+    let semTerceiros = false
+    let fiosSemNumero = 0
+    if (escolhidos !== undefined && lote !== undefined) {
+      if (d.storedN > 0 && guardados === undefined) {
+        // não li o que já está guardado: numerar poderia colidir com quem já falou; este retrato sai sem terceiros
+        semTerceiros = true
+        fiosSemNumero = fiosComTerceiros(lote.conversas, escolhidos.map((e) => e.conversa.id))
+        p.terceiros_sem_numeracao += fiosSemNumero
+      } else {
+        speakers = numerarFios(lote.conversas, escolhidos.map((e) => e.conversa.id), guardados ?? [], d.channelYoutubeId)
+        if (semNumero(lote.conversas, escolhidos.map((e) => e.conversa.id), guardados ?? [], speakers) > 0) p.inesperados += 1
+      }
+    }
+
     // 10. o pacote e a escrita
     const pacote = montarPacote({
       devido: d, tiradoEm: new Date(tirado).toISOString(), estado: sit.estado,
@@ -276,6 +348,8 @@ export async function runRetratosComentarios(ctx: TarefaCtx): Promise<TarefaSaid
       ...(lote !== undefined ? { lote } : {}),
       ...(escolhidos !== undefined ? { escolhidos } : {}),
       ...(guardados !== undefined ? { guardados } : {}),
+      ...(speakers !== undefined ? { speakers } : {}),
+      ...(semTerceiros ? { semTerceiros, terceirosSemNumeracao: fiosSemNumero } : {}),
       ...(achados.size > 0 ? { porId: achados } : {}),
       ausentes, consulta, ...(agregados !== undefined ? { agregados } : {}),
       conferenciaFalhou, unidades: api.unidades() - unidadesAntes,
@@ -298,7 +372,16 @@ export async function runRetratosComentarios(ctx: TarefaCtx): Promise<TarefaSaid
     if (res.status === 'video_ausente') { p.video_ausente += 1; return true }
     if (res.status === 'fora_da_tolerancia') { p.fora_da_tolerancia += 1; return true }
     p.feitos += 1
+    // função antiga do banco (sem `terceiros_novos`) com máximo > 0 e retrato ok: nada de zero verde, a execução fica vermelha
+    if (sit.estado === 'ok' && !semTerceiros && res.terceiros_novos === undefined) {
+      p.inesperados += 1
+      relatar('funcao_sem_f2', d.mark)
+    }
     p.ausentes_marcados += res.ausentes_marcados ?? 0
+    p.terceiros_novos += res.terceiros_novos ?? 0
+    p.terceiros_apagados += res.terceiros_apagados ?? 0
+    p.terceiros_fora_do_teto += res.terceiros_fora_do_teto ?? 0
+    p.terceiros_sem_fio += res.terceiros_sem_fio ?? 0
     const site = porSite.get(d.siteId)
     if (site !== undefined) site.retratos += 1
     if (sit.estado === 'ok') p.ok += 1

@@ -35,7 +35,7 @@ import { CODIGOS_EXECUCAO, COMMENT_RULES, WORST_END_FROM_T0_MS } from '@/lib/you
 import type { TarefaSaida } from '@/lib/youtube/observatorio/comentarios/tipos'
 import {
   CANAL_ACOMPANHADO, CANAL_DO_DONO, CANAL_DO_VIDEO, H, canal, canalComInscritos, comentarioPorId, conversa, corpoDeCanais,
-  corpoDeConversas, corpoPorId, iso, CORPO_DESLIGADOS,
+  corpoDeConversas, corpoPorId, iso, resposta, CORPO_DESLIGADOS,
 } from './comentarios-fixtures'
 
 // ───── o mundo falso ─────
@@ -86,7 +86,7 @@ function novoMundo(): Mundo {
     linhas: [],
     cadastro: () => ok([{ id: 'row-ch-1', channel_id: CANAL_ACOMPANHADO }]),
     guardados: () => ok([]),
-    apply: () => ok({ status: 'gravado', ausentes_marcados: 0 }),
+    apply: () => ok({ status: 'gravado', ausentes_marcados: 0, terceiros_novos: 0 }),
     quota: () => ok(null),
   }
 }
@@ -508,7 +508,8 @@ describe('o retrato do marco 1', () => {
 
 // ───── 11 a 13: a conferência por id ─────
 describe('marcos 7 e 30: a conferência dos guardados', () => {
-  const g = (id: string, topo = true): Record<string, unknown> => ({ youtube_comment_id: id, parent_id: topo ? null : 9 })
+  let seq = 0
+  const g = (id: string, topo = true): Record<string, unknown> => ({ id: ++seq, youtube_comment_id: id, parent_id: topo ? null : 9, is_creator: false, speaker_no: null })
   const lote3 = ['Ugx-sintetico-01', 'Ugx-sintetico-02', 'Ugx-sintetico-03']
 
   it('11. guardado fora do lote e achado por id entra sem posição; fora do lote e não achado vai para missing', async () => {
@@ -623,6 +624,121 @@ describe('marcos 7 e 30: a conferência dos guardados', () => {
   })
 })
 
+// ───── F2-coleta: respostas de espectadores ─────
+describe('respostas de espectadores (F2-coleta)', () => {
+  const PAI = 'Ugx-sintetico-01'
+  const idR = (n: number): string => `${PAI}.Resposta-sintetica-${String(n).padStart(2, '0')}`
+  const criador = (): Record<string, unknown> => resposta(PAI, 1, { canalId: CANAL_DO_VIDEO })
+  const espectador = (n: number, canalN: number): Record<string, unknown> => resposta(PAI, n, { canalId: canal(canalN), texto: `Espectador ${n}` })
+  const loteCom = (respostas: Array<Record<string, unknown>>): Roteiro => ({ rota }) => (rota === 'commentThreads'
+    ? okApi(corpoDeConversas([conversa(1, { curtidas: 99, respostas }), conversa(2, { curtidas: 90 }), conversa(3, { curtidas: 80 })]))
+    : padrao({ rota, params: new URLSearchParams(), n: 0 }))
+  const linhaBanco = (id: number, ytId: string, pai: number | null, extra: Record<string, unknown> = {}): Record<string, unknown> =>
+    ({ id, youtube_comment_id: ytId, parent_id: pai, is_creator: false, speaker_no: null, ...extra })
+  const terceirosDe = (e: ChamadaSb) => comentariosDe(e).filter((c) => c.is_creator === false && c.parent_youtube_id !== null)
+
+  it('marco 1 (sem guardados): numera com mapa vazio; o autor do topo é o 1, o primeiro espectador novo é o 2', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 1, stored_n: 0 }))
+    roteiro = loteCom([criador(), espectador(2, 202), espectador(3, 203)])
+    await rodar()
+    const e = sbDe('apply_competitor_comment_snap')[0] as ChamadaSb
+    expect(terceirosDe(e).map((c) => [c.youtube_comment_id, c.speaker_no])).toEqual([[idR(2), 2], [idR(3), 3]])
+    expect(snapDe(e).third_party_replies_max).toBe(COMMENT_RULES.thirdPartyRepliesMax)
+    expect(sbDe('competitor_video_comments')).toHaveLength(0)
+  })
+
+  it('marco 7: o número guardado é herdado e o novo segue o maior do fio (speaker_no lido do banco)', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 7, stored_n: 3 }))
+    mundo.guardados = () => ok([linhaBanco(100, PAI, null), linhaBanco(101, idR(2), 100, { speaker_no: 5 }), linhaBanco(102, idR(1), 100, { is_creator: true })])
+    roteiro = loteCom([criador(), espectador(2, 202), espectador(3, 203)])
+    const s = await rodar()
+    const e = sbDe('apply_competitor_comment_snap')[0] as ChamadaSb
+    expect(terceirosDe(e).map((c) => [c.youtube_comment_id, c.speaker_no])).toEqual([[idR(2), 5], [idR(3), 6]])
+    expect(s.numeros.terceiros_sem_numeracao).toBe(0)
+  })
+
+  it('marco 7 com 2 espectadores guardados que voltam no lote: nenhuma chamada por id e conferencias_nao_feitas igual', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 7, stored_n: 4 }))
+    mundo.guardados = () => ok([
+      linhaBanco(100, PAI, null), linhaBanco(101, idR(2), 100, { speaker_no: 2 }), linhaBanco(102, idR(3), 100, { speaker_no: 3 }),
+      linhaBanco(103, idR(1), 100, { is_creator: true }),
+    ])
+    roteiro = loteCom([criador(), espectador(2, 202), espectador(3, 203)])
+    const s = await rodar()
+    expect(doRota('comments')).toHaveLength(0)
+    expect(s.numeros.conferencias_nao_feitas).toBe(0)
+    expect(s.numeros.conferencias_falhas).toBe(0)
+  })
+
+  it('fio sem resposta do criador no lote: os 2 espectadores guardados que vieram não vão para a conferência por id', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 7, stored_n: 3 }))
+    mundo.guardados = () => ok([linhaBanco(100, PAI, null), linhaBanco(101, idR(2), 100, { speaker_no: 2 }), linhaBanco(102, idR(3), 100, { speaker_no: 3 })])
+    roteiro = loteCom([espectador(2, 202), espectador(3, 203)])
+    await rodar()
+    expect(doRota('comments')).toHaveLength(0)
+    const e = sbDe('apply_competitor_comment_snap')[0] as ChamadaSb
+    expect(terceirosDe(e)).toHaveLength(0)
+  })
+
+  it('guardados ilegíveis (stored_n > 0): nenhum espectador no pacote, third_party_replies_max 0, terceiros_sem_numeracao > 0', async () => {
+    for (const caso of [() => falha('XX000'), () => ok(Array.from({ length: 1000 }, (_, i) => linhaBanco(i, `G-${i}`, null)))]) {
+      chamadasSb = []; chamadasApi = []
+      mundo.linhas = lista(1, () => ({ mark: 7, stored_n: 3 }))
+      mundo.guardados = caso
+      roteiro = loteCom([criador(), espectador(2, 202), espectador(3, 203)])
+      const s = await rodar()
+      const e = sbDe('apply_competitor_comment_snap')[0] as ChamadaSb
+      expect(terceirosDe(e)).toHaveLength(0)
+      expect(snapDe(e).third_party_replies_max).toBe(0)
+      expect(s.numeros.terceiros_sem_numeracao).toBeGreaterThan(0)
+      // invariante: sem numeração só nasce de uma conferência que falhou (já contada e já vermelha quando sistêmica)
+      expect(s.numeros.conferencias_falhas).toBeGreaterThan(0)
+      expect((snapDe(e).pool_stats as Record<string, unknown>).terceiros_sem_numeracao).toBeGreaterThan(0)
+      expect((snapDe(e).rule_params as Record<string, unknown>).third_party_replies_max).toBe(0)
+      expect((snapDe(e).pool_stats as Record<string, unknown>).conferencia_falhou).toBe(true)
+      expect(comentariosDe(e).some((c) => c.is_creator === true)).toBe(true) // o resto do retrato sai como antes
+    }
+  })
+
+  it('as contagens do banco chegam a numeros', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 1 }))
+    mundo.apply = () => ok({ status: 'gravado', terceiros_novos: 2, terceiros_apagados: 1, terceiros_fora_do_teto: 4, terceiros_sem_fio: 1 })
+    const s = await rodar()
+    expect(s.numeros).toMatchObject({ terceiros_novos: 2, terceiros_apagados: 1, terceiros_fora_do_teto: 4, terceiros_sem_fio: 1, terceiros_sem_numeracao: 0 })
+  })
+
+  it('função antiga (resultado sem terceiros_novos) com máximo > 0 e retrato ok: execução vermelha, nunca zero verde', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 1 }))
+    mundo.apply = () => ok({ status: 'gravado', ausentes_marcados: 0 })
+    const s = comFrase(await rodar())
+    expect(s.numeros.inesperados).toBeGreaterThan(0)
+    expect(s.motivo).toBe('inesperado')
+  })
+
+  it('função antiga com máximo 0 (sem terceiros), ja_existe ou retrato que não é ok: chaves em zero e sem vermelho', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 7, stored_n: 3 }))
+    mundo.guardados = () => falha('XX000')
+    roteiro = loteCom([criador(), espectador(2, 202)])
+    mundo.apply = () => ok({ status: 'gravado' })
+    let s = comFrase(await rodar())
+    expect(s.numeros).toMatchObject({ inesperados: 0, terceiros_novos: 0, terceiros_apagados: 0, terceiros_fora_do_teto: 0, terceiros_sem_fio: 0 })
+    expect(s.motivo).not.toBe('inesperado')
+    mundo.linhas = lista(1, () => ({ mark: 1 }))
+    mundo.apply = () => ok({ status: 'ja_existe' })
+    s = comFrase(await rodar())
+    expect(s.numeros.inesperados).toBe(0)
+  })
+
+  it('pior caso: o marco 1 não faz ida nova ao banco nem à API por causa dos espectadores', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 1 }))
+    roteiro = loteCom([criador(), espectador(2, 202)])
+    await rodar()
+    expect(sbDe('competitor_video_comments')).toHaveLength(0)
+    expect(doRota('commentThreads')).toHaveLength(1)
+    expect(doRota('comments')).toHaveLength(0)
+  })
+})
+
 // ───── 14 a 17: tolerância, tetos de chamadas e de tempo ─────
 describe('tolerância e tetos', () => {
   it('14. retrato cujo tempo passou de 72 h entre a lista e a escrita não é gravado; o banco devolvendo fora_da_tolerancia conta e não é erro', async () => {
@@ -711,7 +827,7 @@ describe('tolerância e tetos', () => {
 
   it('17b. gravação que falha depois de a API responder: a cota gasta é registrada, o retrato não conta como feito, erro banco com o código só no relato', async () => {
     mundo.linhas = lista(2)
-    mundo.apply = (_a, n) => (n === 1 ? falha('23514', `Failing row contains (${SENT_TEXTO})`) : ok({ status: 'gravado' }))
+    mundo.apply = (_a, n) => (n === 1 ? falha('23514', `Failing row contains (${SENT_TEXTO})`) : ok({ status: 'gravado', terceiros_novos: 0 }))
     const s = comFrase(await rodar())
     expect(s.feitos).toBe(1)
     expect(s.numeros.erros_de_gravacao).toBe(1)
@@ -810,7 +926,7 @@ describe('falhas e estado da execução', () => {
 
   it('19d. conferência por id falha nas 3 tentadas: erro conferencia_falhou', async () => {
     mundo.linhas = lista(3, () => ({ mark: 7, stored_n: 2 }))
-    mundo.guardados = () => ok([{ youtube_comment_id: 'G-1', parent_id: null }, { youtube_comment_id: 'G-2', parent_id: null }])
+    mundo.guardados = () => ok([{ id: 1799, youtube_comment_id: 'G-1', parent_id: null, is_creator: false, speaker_no: null }, { id: 1252, youtube_comment_id: 'G-2', parent_id: null, is_creator: false, speaker_no: null }])
     roteiro = (c) => (c.rota === 'comments' ? erroApi(500, null) : padrao(c))
     const s = comFrase(await rodar())
     expect(s.status).toBe('erro')
@@ -881,7 +997,7 @@ describe('falhas e estado da execução', () => {
 
   it('21c. exceção fora do try por devido: a cota já gasta é gravada mesmo assim', async () => {
     mundo.linhas = lista(5)
-    mundo.apply = (_a, n) => { if (n === 2) clock.explode = true; return ok({ status: 'gravado' }) }
+    mundo.apply = (_a, n) => { if (n === 2) clock.explode = true; return ok({ status: 'gravado', terceiros_novos: 0 }) }
     await expect(rodar()).rejects.toThrow(TypeError)
     const cota = sbDe('youtube_quota_add')
     expect(cota).toHaveLength(1)
@@ -921,7 +1037,7 @@ describe('falhas e estado da execução', () => {
 
   it('22b2. a fila zerou mas uma gravação falhou (o retrato continua sem retrato): não é "atrasado" que se cobra duas vezes, e o erro é banco', async () => {
     mundo.linhas = lista(2)
-    mundo.apply = (_a, n) => (n === 1 ? falha('23514') : ok({ status: 'gravado' }))
+    mundo.apply = (_a, n) => (n === 1 ? falha('23514') : ok({ status: 'gravado', terceiros_novos: 0 }))
     mundo.provas = [PROVA, { ...PROVA, retratos_atrasados: 1 }]
     const s = comFrase(await rodar())
     expect(s.motivo).toBe('banco')
@@ -997,7 +1113,7 @@ describe('falhas e estado da execução', () => {
 describe('o que não é tocado e o que não vaza', () => {
   it('24. competitor_raw não é tocado; só as funções e tabelas do contrato são chamadas', async () => {
     mundo.linhas = lista(2, () => ({ mark: 7, stored_n: 1 }))
-    mundo.guardados = () => ok([{ youtube_comment_id: 'G-1', parent_id: null }])
+    mundo.guardados = () => ok([{ id: 1799, youtube_comment_id: 'G-1', parent_id: null, is_creator: false, speaker_no: null }])
     await rodar()
     const tabelas = new Set(chamadasSb.filter((c) => c.tipo === 'from').map((c) => c.nome))
     expect([...tabelas].sort()).toEqual(['competitor_channels', 'competitor_video_comments', 'youtube_channels'])
@@ -1116,7 +1232,7 @@ describe('23. HTTP de verdade dentro do SDK: as quatro rotas, nenhum envelope co
   it('as quatro rotas com o fetch global, erro HTTP em cada uma, JSON ilegível, falha de escrita e TypeError no laço', async () => {
     envelopes.length = 0
     const base = `http://127.0.0.1:${porta}/youtube/v3`
-    const guardados = [{ youtube_comment_id: SENT_ID, parent_id: null }, { youtube_comment_id: 'G-OUTRO', parent_id: null }]
+    const guardados = [{ id: 1424, youtube_comment_id: SENT_ID, parent_id: null, is_creator: false, speaker_no: null }, { id: 1295, youtube_comment_id: 'G-OUTRO', parent_id: null, is_creator: false, speaker_no: null }]
     const cenarios: Array<{ modo: string; marco?: number; escrita?: 'falha' }> = [
       { modo: 'normal' }, { modo: 'normal', marco: 7 }, { modo: 'vazio' },
       { modo: 'http:commentThreads' }, { modo: 'http:channels' }, { modo: 'http:comments', marco: 7 }, { modo: 'http:videos' }, { modo: 'json' },

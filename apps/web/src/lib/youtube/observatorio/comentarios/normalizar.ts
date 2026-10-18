@@ -1,5 +1,6 @@
 // A5 · E14: a resposta de commentThreads.list e de comments.list vira valor nosso. Puro: sem banco, sem rede.
-// Texto, nome e id de terceiros NUNCA vão a log, erro nem Sentry; as respostas de terceiros só deixam aqui o id do canal.
+// Texto, nome e id de terceiros NUNCA vão a log, erro nem Sentry; as respostas de terceiros só deixam aqui o id do canal (para destaque e
+// para numerar em `espectadores.ts`) e, em fio com resposta do criador, o texto.
 import { optCount, cleanText, sanitizeForDb } from '@/lib/youtube/competitor-capture'
 import { COMMENT_RULES } from './regras'
 import type { AgregadosDoLote, Conversa, RespostaVista } from './tipos'
@@ -91,6 +92,13 @@ export function conversaDe(item: unknown, posicao: number, canalDoVideo: string)
     .filter(({ v }) => v.autorCanalId !== null && v.autorCanalId === canalDoVideo)
     .sort((a, b) => Date.parse(a.v.publicadoEm) - Date.parse(b.v.publicadoEm) || a.i - b.i)
     .map(({ v }) => v)
+  // F2-coleta: o texto de espectador só é carregado em fio com resposta do criador vista (não se carrega o que não tem finalidade)
+  const respostasDeTerceiros = doCriadorTodas.length === 0 ? [] : vistas
+    .map((v, i) => ({ v, i }))
+    .filter(({ v }) => v.autorCanalId === null || v.autorCanalId !== canalDoVideo)
+    .sort((a, b) => Date.parse(a.v.publicadoEm) - Date.parse(b.v.publicadoEm) || a.i - b.i)
+    .map(({ v }) => v)
+  const prefixoForaDeOrdem = vistas.some((v, i) => i > 0 && Date.parse(v.publicadoEm) < Date.parse((vistas[i - 1] as RespostaVista).publicadoEm))
   const totalLido = contagem(snippet.totalReplyCount)
 
   let criadorRespondeu: boolean | null
@@ -108,6 +116,9 @@ export function conversaDe(item: unknown, posicao: number, canalDoVideo: string)
     criadorRespondeu,
     respostasDoCriador: doCriadorTodas.slice(0, COMMENT_RULES.creatorRepliesMax),
     canaisNasRespostas,
+    respostasDeTerceiros,
+    idsRespostasVistas: vistas.map(v => v.id),
+    prefixoForaDeOrdem,
   }
 }
 
@@ -152,7 +163,7 @@ export function agregadosDoLote(lote: { conversas: Conversa[]; descartadas: numb
   const cs = lote.conversas
   const a: AgregadosDoLote = {
     conversas: cs.length, descartadas: lote.descartadas, curtidas_soma: 0, respostas_soma: 0, do_criador: 0,
-    criador_respondeu_sim: 0, criador_respondeu_nao: 0, criador_respondeu_nao_se_sabe: 0, autores_distintos: 0, sem_canal: 0, nas_primeiras_24h: 0,
+    criador_respondeu_sim: 0, criador_respondeu_nao: 0, criador_respondeu_nao_se_sabe: 0, autores_distintos: 0, sem_canal: 0, nas_primeiras_24h: 0, prefixos_fora_de_ordem: 0,
   }
   const autores = new Set<string>()
   for (const c of cs) {
@@ -164,6 +175,7 @@ export function agregadosDoLote(lote: { conversas: Conversa[]; descartadas: numb
     else a.criador_respondeu_nao_se_sabe += 1
     if (c.autor.canalId === null) a.sem_canal += 1
     else autores.add(c.autor.canalId)
+    if (c.prefixoForaDeOrdem) a.prefixos_fora_de_ordem += 1
     if (Date.parse(c.publicadoEm) <= t0Ms + 24 * 3_600_000) a.nas_primeiras_24h += 1
   }
   a.autores_distintos = autores.size

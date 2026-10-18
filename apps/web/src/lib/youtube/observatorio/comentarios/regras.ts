@@ -2,8 +2,10 @@
 // Um lugar só: o banco, a coleta, a agenda e os testes leem estes números daqui.
 
 export const COMMENT_RULES = {
-  version: 1,
-  target: 12, creatorMax: 4, featuredMax: 2, pool: 100, creatorRepliesMax: 3,
+  version: 2,
+  target: 12, creatorMax: 4, featuredMax: 2, pool: 100, creatorRepliesMax: 5,
+  // F2-coleta: respostas de espectadores guardadas por vídeo (só em fio com resposta do criador). Casa com o `20` da migration (teste confere)
+  thirdPartyRepliesMax: 20,
   // quantas respostas do criador a tela mostra; a coleta guarda até `creatorRepliesMax`. Sobe só com mockup (F2-tela)
   creatorRepliesShown: 3,
   featuredLookup: 20, featuredMinSubs: 100_000, featuredMinRatio: 10,
@@ -58,14 +60,14 @@ export const CODIGOS_EXECUCAO = ['schema_ausente', 'prova_ilegivel', 'inicio_nao
  * Gravado com o retrato para que uma mudança de parâmetro não reescreva a leitura antiga. Só números e códigos de faixa.
  */
 export function ruleParams(): {
-  target: number; creator_max: number; featured_max: number; pool: number; creator_replies_max: number
+  target: number; creator_max: number; featured_max: number; pool: number; creator_replies_max: number; third_party_replies_max: number
   featured_lookup: number; featured_min_subs: number; featured_min_ratio: number
   body_max: number; check_chunk: number; check_blocks_max: number
   size_bands: Array<[string, number]>; ratio_bands: Array<[string, number]>
 } {
   const r = COMMENT_RULES
   return {
-    target: r.target, creator_max: r.creatorMax, featured_max: r.featuredMax, pool: r.pool, creator_replies_max: r.creatorRepliesMax,
+    target: r.target, creator_max: r.creatorMax, featured_max: r.featuredMax, pool: r.pool, creator_replies_max: r.creatorRepliesMax, third_party_replies_max: r.thirdPartyRepliesMax,
     featured_lookup: r.featuredLookup, featured_min_subs: r.featuredMinSubs, featured_min_ratio: r.featuredMinRatio,
     body_max: r.bodyMax, check_chunk: r.checkChunk, check_blocks_max: r.checkBlocksMax,
     size_bands: SIZE_BANDS.map(([k, v]): [string, number] => [k, v]),

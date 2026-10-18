@@ -6,6 +6,9 @@
 
 @source "../components";
 @source "../../lib";
+/* Telas de entrada dos pacotes: sem isto as classes text-[var(--auth-*)] nao existem no CSS */
+@source "../../../../node_modules/@tn-figueiredo/cms/dist/login";
+@source "../../../../node_modules/@tn-figueiredo/admin/dist/login";
 
 /* ══════════════════════════════════════════════════════════════
    CANONICAL TOKENS — single source of truth
@@ -284,6 +287,10 @@
   --theme-accent-hover:      #FF9A60;
   --theme-accent-subtle:     rgba(255, 130, 64, 0.12);
   --theme-cms-bg:            #1A1714;
+  --auth-field-border:       #8A7F69;
+  --auth-accent-solid:       #D1480F;
+  --auth-err-bg:             #2A1A1A;
+  --auth-err-fg:             #FCA5A5;
   --theme-cms-surface:       #221E1A;
   --theme-cms-surface-hover: #272219;
   --theme-cms-border:        #332D25;
@@ -407,6 +414,10 @@
   --theme-accent-hover:      #9A360D;
   --theme-accent-subtle:     rgba(185, 66, 16, 0.10);
   --theme-cms-bg:            #F7F1E8;
+  --auth-field-border:       #8A7F69;
+  --auth-accent-solid:       #B94210;
+  --auth-err-bg:             #FEE2E2;
+  --auth-err-fg:             #B91C1C;
   --theme-cms-surface:       #FBF6EC;
   --theme-cms-surface-hover: #F5EDD6;
   --theme-cms-border:        #CEBFA0;
@@ -759,3 +770,13 @@ textarea:focus-visible {
   }
 }
 
+
+/* ══ Telas de entrada (login, esqueci, reset) do CMS e do admin ══ */
+[style*="--auth-bg"] :focus-visible { outline: 2px solid var(--pb-accent); outline-offset: 2px; }
+[style*="--auth-bg"] [role="alert"] {
+  background: var(--auth-err-bg);
+  color: var(--auth-err-fg);
+  border: 1px solid var(--auth-err-fg);
+}
+[style*="--auth-bg"] button[type="submit"]:hover:not(:disabled) { filter: brightness(1.1); }
+[style*="--auth-bg"] input:not([type="checkbox"]) { min-height: 44px; }

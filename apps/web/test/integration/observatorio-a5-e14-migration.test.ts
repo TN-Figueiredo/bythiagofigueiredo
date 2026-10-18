@@ -858,7 +858,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
   const conversa = (id: string, o: Partial<Conversa> = {}): Conversa => ({
     id, posicao: 0, texto: 'texto de ' + id, cortado: false, publicadoEm: iso(NOW - 20 * H), editadoEm: null, curtidas: 10, respostasTotal: 2,
     autor: { nome: 'Autor ' + id, canalId: 'UC' + id, foto: 'https://img.invalid/' + id + '.jpg' }, doCriador: false, criadorRespondeu: null,
-    respostasDoCriador: [], canaisNasRespostas: [], ...o,
+    respostasDoCriador: [], canaisNasRespostas: [],
+    respostasDeTerceiros: [], idsRespostasVistas: [], prefixoForaDeOrdem: false, ...o,
   })
   const escolhido = (c: Conversa, grupo: Escolhido['grupo'] = 'curtidos', destaque: Escolhido['destaque'] = null): Escolhido => ({ conversa: c, grupo, destaque })
   const entrada = (devido: Devido, tiradoEm: number, o: Partial<EntradaPacote> = {}): EntradaPacote => ({
@@ -893,7 +894,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
     // pool_stats gravado como o TypeScript o monta
     const stats = (await q(pg, 'select pool_stats, rule_params, rule_version from public.competitor_video_comment_snaps where video_id = $1', [d.videoId]))[0]!
     expect(stats.pool_stats).toMatchObject({ conversas: 5, conferencia_falhou: false })
-    expect(stats.rule_version).toBe(1)
+    expect(stats.rule_version).toBe(COMMENT_RULES.version)
   })
 
   it('TS: lerCadastro devolve o mapa de canais acompanhados e o conjunto de canais próprios do site', async () => {
