@@ -100,7 +100,7 @@ export function DirecaoBloco({ bloco }: { bloco: BlocoDeDirecao }) {
   return (
     <section className="pc-sec" id="direcao" aria-labelledby="hDir">
       <div className="pc-sh">
-        <h2 id="hDir">Para onde o canal anda</h2>
+        <h2 id="hDir" data-valor>Para onde o canal anda</h2>
         <RiInfo titulo="a direção do canal" itens={itens} rotuloBotao="Como ler a direção do canal" />
       </div>
       <p className="pc-fr2" data-frase-do-bloco>

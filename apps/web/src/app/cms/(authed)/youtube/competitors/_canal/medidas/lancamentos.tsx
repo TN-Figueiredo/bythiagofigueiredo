@@ -100,7 +100,7 @@ export function Lancamentos({ modelo, horas }: { modelo: ModeloDeLancamentos; ho
   ]
   const cabeca = (
     <div className="pc-sh">
-      <h2 id="hLan">Lançamentos: como os vídeos novos começam</h2>
+      <h2 id="hLan" data-valor>Lançamentos: como os vídeos novos começam</h2>
       <RiInfo titulo="os lançamentos" itens={itens} rotuloBotao="Como ler os lançamentos" />
     </div>
   )

@@ -58,7 +58,7 @@ export function LinhaDoTempoBloco({ modelo }: { modelo: LinhaDoTempo }) {
   return (
     <section className="pc-sec" id="tempo" aria-labelledby="hTem">
       <div className="pc-sh">
-        <h2 id="hTem">Linha do tempo: views por dia e o que mudou</h2>
+        <h2 id="hTem" data-valor>Linha do tempo: views por dia e o que mudou</h2>
         <RiInfo titulo="a linha do tempo" itens={ITENS} rotuloBotao="Como ler a linha do tempo" />
       </div>
       <Miolo modelo={modelo} />

@@ -85,6 +85,11 @@ function montar(tom: FraseDoTopo['tom'], glifo: Glifo, partes: Parte[], oracao: 
   return { tom, glifo, partes: todas, texto: todas.map((p) => p.t).join('') }
 }
 
+/** A falha total do canal: a frase do topo não afirma direção nem estado. Mesma condição da frase "A leitura falhou" abaixo. */
+export function topoFalhou(e: EntradaDaFrase): boolean {
+  return e.direcao === null || e.estado.tipo === 'nao_carregou'
+}
+
 export function fraseDoTopo(e: EntradaDaFrase): FraseDoTopo {
   const quem = e.formato.soShorts ? 'Short' : e.formato.doisFormatos ? 'vídeo longo' : 'vídeo'
   const ate = e.estado.ate ? dm(e.estado.ate) : null
@@ -92,7 +97,7 @@ export function fraseDoTopo(e: EntradaDaFrase): FraseDoTopo {
   const oracaoParada = oracaoDoUltimoVideo(e.ultimoVideo, { quem, ate })
 
   // as medidas não carregaram: a frase não afirma direção nem estado
-  if (e.direcao === null || e.estado.tipo === 'nao_carregou') {
+  if (topoFalhou(e)) {
     return montar('eq', 'aviso', [{ t: 'A leitura falhou:', k: 'forte' }, { t: ' não deu para ler as medidas deste canal agora. Os números abaixo não valem.' }], null)
   }
   switch (e.estado.tipo) {

@@ -43,7 +43,7 @@ export function CriadorResponde({ bloco, lista, canalId, criador }: { bloco: Blo
   return (
     <section className="pc-sec cf-cq" id="criador" aria-labelledby="hCri" data-criador={bloco.tipo}>
       <div className="pc-sh">
-        <h2 id="hCri">O que o criador respondeu</h2>
+        <h2 id="hCri" data-valor>O que o criador respondeu</h2>
         <RiInfo titulo="as respostas do criador" itens={ITENS_DO_INFO} rotuloBotao="Como ler as respostas do criador" />
       </div>
       {mostra && mostra.tipo === 'itens' ? <p className="pc-fr2" data-frase-da-lista><span><b>{mostra.frase.negrito}</b>{mostra.frase.resto}</span></p> : null}
@@ -58,13 +58,13 @@ export function CriadorResponde({ bloco, lista, canalId, criador }: { bloco: Blo
           <span className="pc-rqt">{bloco.legenda.map(l => <span key={l.texto} data-leg={l.chave}><i className={`pc-rq ${CLASSE[l.chave]}`} /> {l.texto}</span>)}</span>
         </div>
       ) : null}
-      {mostra ? <Lista m={mostra} canalId={canalId} criador={criador} /> : null}
+      {mostra ? <Lista m={mostra} canalId={canalId} criador={criador} semPastilha={bloco.tipo === 'nao_carregou'} /> : null}
     </section>
   )
 }
 
-function Lista({ m, canalId, criador }: { m: ModeloDaLista; canalId?: string; criador: CriadorDoFio }) {
-  if (m.tipo === 'nao_carregou') return <p className="pc-fr2" data-lista-do-criador><span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
+function Lista({ m, canalId, criador, semPastilha }: { m: ModeloDaLista; canalId?: string; criador: CriadorDoFio; semPastilha: boolean }) {
+  if (m.tipo === 'nao_carregou') return <p className="pc-fr2" data-lista-do-criador>{semPastilha ? null : <><PastilhaAusencia estado="falhou" motivo="lista de respostas do criador" />{' '}</>}<span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
   if (m.tipo === 'vazia') return <p className="pc-fr2" data-lista-do-criador><span><b>{m.frase.negrito}</b>{m.frase.resto}</span></p>
   if (m.tipo === 'contagem') {
     return (

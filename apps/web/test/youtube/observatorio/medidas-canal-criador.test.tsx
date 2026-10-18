@@ -266,6 +266,17 @@ describe('a lista', () => {
     expect(html).not.toMatch(/author|display_name|autor:/i)
     expect(html).toContain('id="criador"')
   })
+  it('decisão 75, 8b: bloco medido e só a lista falhou, a lista leva a pastilha falhou e a frase "A leitura falhou:"', () => {
+    const { videos: vs, c } = quadro(14, 5)
+    const bloco = criadorDoCanal(entrada(vs, c)).bloco
+    const l = listaDoCriador({ nome: 'Matt', resposta: { lido: false, causa: 'erro_do_banco' } as ParteLida<RespostasDoCriador>, videos, titulos, nBase: bloco.nBase })
+    expect(bloco.tipo).not.toBe('nao_carregou')
+    const d = new DOMParser().parseFromString(renderToStaticMarkup(<CriadorResponde bloco={bloco} lista={l} canalId="c1" criador={{ nome: 'Matt', avatar: null, ini: 'M', color: '#336699' }} />), 'text/html')
+    const lista = d.querySelector('[data-lista-do-criador]')!
+    expect(lista.querySelector('.obs-au-falhou')).not.toBeNull()
+    expect(lista.textContent).toContain('A leitura falhou:')
+    expect(d.querySelector('[role="alert"]')).toBeNull()
+  })
   it('as casas do bloco têm os mesmos vídeos da conta', () => {
     const { videos: vs, c } = quadro(14, 5)
     const b = criadorDoCanal(entrada(vs, c)).bloco

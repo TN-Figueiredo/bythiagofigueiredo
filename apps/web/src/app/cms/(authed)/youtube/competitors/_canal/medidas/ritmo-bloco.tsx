@@ -59,7 +59,7 @@ export function RitmoBloco({ bloco }: { bloco: BlocoDeRitmo }) {
   return (
     <section className="pc-sec" id="ritmo" aria-labelledby="hRit">
       <div className="pc-sh">
-        <h2 id="hRit">Ritmo e regularidade</h2>
+        <h2 id="hRit" data-valor>Ritmo e regularidade</h2>
         <RiInfo titulo="o ritmo e a regularidade" itens={itens} rotuloBotao="Como ler o ritmo e a regularidade" />
       </div>
       <p className="pc-fr2" data-frase-do-bloco><span><b>{bloco.frase.negrito}</b>{bloco.frase.resto}</span></p>
