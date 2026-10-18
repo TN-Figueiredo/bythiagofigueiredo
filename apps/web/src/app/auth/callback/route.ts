@@ -41,6 +41,11 @@ export async function GET(request: Request) {
 
   const { error } = await supabase.auth.exchangeCodeForSession(code)
   if (error) {
+    // Recuperação de senha: link vencido/usado vai à tela de reset (estado "este link não vale mais"),
+    // não ao login com erro de Google.
+    if (new URL(next, url.origin).pathname.endsWith('/reset')) {
+      return NextResponse.redirect(`${url.origin}${next}`)
+    }
     return NextResponse.redirect(`${url.origin}${loginPath}?error=oauth_exchange_failed`)
   }
 

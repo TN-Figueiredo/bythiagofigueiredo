@@ -1,12 +1,9 @@
-'use client'
-import { AdminResetPassword } from '@tn-figueiredo/admin/login'
-import { resetPassword } from './actions'
+import { hasRecoverySession } from '@/lib/auth/has-recovery-session'
+import { ResetForm } from './reset-form'
 
-export default function Page() {
-  return (
-    <AdminResetPassword
-      actions={{ resetPassword }}
-      redirectAfterReset="/admin"
-    />
-  )
+export const dynamic = 'force-dynamic'
+
+export default async function Page() {
+  const canReset = await hasRecoverySession()
+  return <ResetForm canReset={canReset} />
 }

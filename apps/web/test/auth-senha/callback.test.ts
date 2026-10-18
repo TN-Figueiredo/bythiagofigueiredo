@@ -29,12 +29,20 @@ describe('auth/callback next', () => {
     expect(new URL(loc!).origin).toBe('https://site.test')
     expect(loc).not.toContain('evil.com')
   })
-  it('erro na troca volta ao login do CMS', async () => {
+  it('reset do CMS com link vencido vai à tela de reset, não ao login', async () => {
     exchange.mockResolvedValue({ error: new Error('x') })
-    expect(await call('code=x&next=/cms/reset')).toBe('https://site.test/cms/login?error=oauth_exchange_failed')
+    expect(await call('code=x&next=/cms/reset')).toBe('https://site.test/cms/reset')
   })
-  it('erro na troca do admin volta ao login do admin', async () => {
+  it('reset do admin com link vencido vai à tela de reset do admin', async () => {
     exchange.mockResolvedValue({ error: new Error('x') })
-    expect(await call('code=x&next=/admin/reset')).toBe('https://site.test/admin/login?error=oauth_exchange_failed')
+    expect(await call('code=x&next=/admin/reset')).toBe('https://site.test/admin/reset')
+  })
+  it('erro do Google no CMS volta ao login do CMS', async () => {
+    exchange.mockResolvedValue({ error: new Error('x') })
+    expect(await call('code=x&next=/cms')).toBe('https://site.test/cms/login?error=oauth_exchange_failed')
+  })
+  it('erro do Google no admin volta ao login do admin', async () => {
+    exchange.mockResolvedValue({ error: new Error('x') })
+    expect(await call('code=x&next=/admin')).toBe('https://site.test/admin/login?error=oauth_exchange_failed')
   })
 })

@@ -1,6 +1,7 @@
 import {
   createServerClient,
 } from '@tn-figueiredo/auth-nextjs'
+import { PasswordChangedNotice } from '../../_auth/password-changed-notice'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
@@ -101,6 +102,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
               settingsItem={CMS_SETTINGS_ITEM}
               badges={badges}
             >
+              <PasswordChangedNotice />
               <CmsTopbar />
               <SidebarBadges data={badgeData} />
               {children}
