@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detalhe do A/B com teste do YouTube (mockup S9)</title>
+<style>
+/* Mockup S9 (18/10/2026). Tokens copiados dos mockups aprovados (2026-10-17-ab-entradas). Só hex/rgba literais. Texto >= 12 px. Dados SINTÉTICOS.
+   Fontes: pilha do sistema (autocontido, sem rede). Estreito = container query no .frame. */
+*,*::before,*::after{box-sizing:border-box}
+:root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
+html{background:var(--pg)}
+body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--pgt);background:var(--pg)}
+.ctl{position:static;z-index:5;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;background:var(--pgs);border-bottom:1px solid var(--pgb)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--pgm)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #40382D;border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:34px;padding:0 12px;border:0;background:transparent;color:var(--pgm);cursor:pointer}
+.seg button[aria-pressed="true"]{background:#F5EFE6;color:#100E0C;font-weight:600}
+.wrap{max-width:1520px;margin:0 auto;padding:24px 16px 80px}
+h1{font:600 28px/1.2 Georgia,serif;margin:8px 0}
+.lede{max-width:74ch;color:var(--pgm);margin:0 0 20px}
+.figs{display:flex;flex-direction:column;gap:26px;align-items:flex-start;overflow-x:auto;max-width:100%}
+.fig{margin:0}.fig>figcaption{font-size:13px;color:var(--pgm);margin-bottom:8px}
+
+.frame{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--on-accent:#1A120A;--nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;--nm-fio:rgba(229,156,192,.14);
+  --warn:#F5B13D;--warn-bg:rgba(245,158,11,.10);--warn-line:#C98A1B;
+  --ok:#6FCF97;--ok-bg:rgba(111,207,151,.10);--ok-line:#3E8F63;
+  --yt:#9FB4C9;--yt-bg:rgba(159,180,201,.08);--yt-line:#6B8199;
+  --va:#FF8240;--vb:#6FA8DC;
+  background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;border:1px solid var(--border);border-radius:10px;padding:24px;font-size:14px}
+.frame[data-theme="light"]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--on-accent:#FFF8F1;--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--nm-fio:rgba(142,42,98,.10);
+  --warn:#7A4F00;--warn-bg:rgba(138,90,0,.09);--warn-line:#8A5A00;
+  --ok:#1E6B43;--ok-bg:rgba(30,107,67,.09);--ok-line:#3E8F63;
+  --yt:#34506B;--yt-bg:rgba(52,80,107,.07);--yt-line:#6B8199;
+  --va:#B8481A;--vb:#2B6DA8;color-scheme:light}
+.frame.w1440{width:1440px}.frame.w390{width:390px;padding:16px 12px}
+.frame :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.frame h2,.frame h3,.frame p{margin:0}
+.num{font-variant-numeric:tabular-nums;font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+.meta{font-size:12.5px;color:var(--muted)}
+.nm{display:inline-block;padding:1px 7px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);font:400 12px/16px Inter,system-ui,sans-serif;background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 13px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-2);color:var(--text);font:500 13px/18px Inter,system-ui,sans-serif;cursor:pointer}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.ghost{background:transparent}
+.btn[disabled]{color:var(--muted);border-style:dashed;cursor:not-allowed}
+@container (max-width:640px){.btn{min-height:44px}.i{width:44px!important;height:44px!important;flex:none;min-width:44px}}
+
+/* miniaturas sintéticas */
+.th{display:grid;place-items:center;border-radius:5px;color:rgba(255,255,255,.9);font:600 16px/1 Georgia,serif;flex:none;aspect-ratio:16/9;width:96px}
+.tA{background:linear-gradient(135deg,#C2562E,#E8A15A 60%,#F3D19A)}
+.tB{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+
+/* cabeçalho */
+.hd{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.hd .th{width:128px}
+.hd h2{font:600 19px/1.3 Georgia,serif;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ttl{flex:1;min-width:0}
+.crumb{font-size:12.5px;color:var(--muted)}
+/* selos: forma + texto, nunca só cor */
+.selo{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);white-space:nowrap}
+.selo svg{flex:none}
+.selo.lab{border-color:var(--accent);color:var(--accent)}
+.selo.yt{border:1px dashed var(--yt-line);color:var(--yt);background:var(--yt-bg)}
+.selo.warn{border-color:var(--warn-line);color:var(--warn);background:var(--warn-bg)}
+.selo.ok{border-color:var(--ok-line);color:var(--ok);background:var(--ok-bg)}
+.selo.unk{border:1px solid var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+
+/* frase-resumo */
+.sum{margin:18px 0 6px;font:600 21px/1.35 Georgia,serif;max-width:72ch;text-wrap:balance}
+.sum small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:4px}
+@container (max-width:640px){.sum{font-size:18px}}
+
+/* faixas de estado */
+.band{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-top:14px}
+.band .ic{flex:none;margin-top:2px}
+.band h3{font:600 14.5px/1.35 Inter,system-ui,sans-serif}
+.band p{font-size:13.5px;color:var(--muted);margin-top:2px;max-width:78ch}
+.band .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.band.warn{border-color:var(--warn-line);background:var(--warn-bg);border-left-width:4px}
+.band.unk{border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 8px,var(--nm-fio) 8px 10px);border-left-width:4px}
+.band.yt{border:1px dashed var(--yt-line);background:var(--yt-bg)}
+.band.ok{border-color:var(--ok-line);background:var(--ok-bg);border-left-width:4px}
+.band.calm{padding:8px 12px;align-items:center}
+.band.calm p{margin:0}
+
+/* secções */
+.sec{margin-top:24px}
+.sec>h3{font:600 15px/1.3 Inter,system-ui,sans-serif;display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.info{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--border-strong);background:transparent;color:var(--muted);font:600 12px/1 Inter,system-ui,sans-serif;cursor:pointer;position:relative}
+.info.i{}
+.tip{display:none;position:absolute;z-index:3;left:0;top:30px;width:min(340px,80vw);padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font:400 12.5px/1.45 Inter,system-ui,sans-serif;text-align:left;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.info[aria-expanded="true"] .tip{display:block}
+.tip b{font-weight:600}
+
+/* placar */
+.score{width:100%;border-collapse:collapse}
+.score th{font:500 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);text-align:right;padding:6px 10px;border-bottom:1px solid var(--border)}
+.score th:first-child,.score td:first-child{text-align:left}
+.score td{padding:10px;border-bottom:1px solid var(--border-subtle);text-align:right;vertical-align:middle}
+.score td:first-child{display:flex;gap:10px;align-items:center}
+.score .num{font-size:13.5px}
+.vchip{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:5px;font:700 13px/1 Inter,system-ui,sans-serif;color:#fff;flex:none}
+.vA{background:#B8481A}.vB{background:#2B6DA8}
+.vt{min-width:0}.vt b{display:block;font:600 13.5px/1.35 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:44ch}
+.lead{color:var(--ok);font-weight:600}
+.cards{display:none}
+@container (max-width:640px){
+ .score{display:none}.cards{display:grid;gap:10px}
+}
+.vcard{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--surface)}
+.vcard .top{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.vcard .top .vt b{white-space:normal}
+.grid6{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.grid6 div span{display:block;font-size:12px;color:var(--muted)}
+.grid6 div .num{font-size:14px}
+
+/* faixa de CTR */
+.rng{display:grid;grid-template-columns:34px 1fr;gap:10px 8px;align-items:center;max-width:760px}
+.track{position:relative;height:22px;background:var(--sunk);border:1px solid var(--border-subtle);border-radius:4px}
+.track .rg{position:absolute;top:5px;height:10px;border-radius:3px;opacity:.9}
+.track .pt{position:absolute;top:2px;width:3px;height:16px;border-radius:2px;background:var(--text)}
+.track.nmt{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px);border-color:var(--nm-line);display:flex;align-items:center;padding-left:8px;font-size:12px;color:var(--nm)}
+.axis{grid-column:2;display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+
+/* régua de volume */
+.ruler{max-width:760px}
+.rbar{position:relative;height:14px;background:var(--sunk);border:1px solid var(--border-subtle);border-radius:7px;overflow:hidden}
+.rbar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
+.rbar.nmb{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px);border-color:var(--nm-line)}
+.mark{position:relative;height:18px;font-size:12px;color:var(--muted)}
+.mark span{position:absolute;top:2px;transform:translateX(-50%);white-space:nowrap}
+.mark span:first-child{transform:none}.mark span:last-child{transform:translateX(-100%)}
+.mark span:only-child{transform:none;position:static}
+
+/* resultado do YouTube */
+.res{border:1px dashed var(--yt-line);background:var(--yt-bg);border-radius:10px;padding:16px}
+.res .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@container (max-width:640px){.res .pair{grid-template-columns:1fr}}
+.opt{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)}
+.opt.win{border:2px solid var(--ok-line)}
+.opt .row{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+.opt q{display:block;font:600 15px/1.4 Georgia,serif;quotes:none}
+.opt .meta{margin-top:6px}
+.share{height:10px;border-radius:5px;background:var(--sunk);border:1px solid var(--border-subtle);overflow:hidden;margin-top:8px}
+.share i{display:block;height:100%}
+.res .foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--muted)}
+.hist{margin-top:10px;font-size:12.5px;color:var(--muted)}
+.tl{max-width:760px;margin-top:6px}
+.tl .bar{display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid var(--border-subtle)}
+.tl .bar i{display:block;height:100%}
+.hide{display:none!important}
+.frz{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border:1px solid var(--border-strong);border-radius:999px;font:500 12px/18px Inter,system-ui,sans-serif;color:var(--muted);background:var(--surface)}
+.ask{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border-strong)}
+.ask p{color:var(--text)}
+.m4{display:flex;gap:4px;align-items:center;margin-top:8px;font-size:12.5px;color:var(--muted)}
+.m4 i{display:block;width:36px;height:10px;border-radius:3px;border:1px solid var(--nm-line);background:var(--sunk)}
+.m4 i.on{background:var(--nm)}.m4 span{margin-left:6px}
+.lnk{font:inherit;font-size:13.5px;color:var(--yt);background:none;border:0;padding:0 2px;min-height:24px;text-decoration:underline;cursor:pointer}
+@container (max-width:640px){.lnk{min-height:44px}}
+.band.calm .btn{margin-left:auto}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+</style></head><body>
+<div class="ctl">
+ <div class="grp">Estado do vídeo
+  <div class="seg" id="sEstado" role="group" aria-label="Estado">
+   <button data-v="1" aria-pressed="true">1 Nosso rodando</button><button data-v="2">2 YouTube detectado</button><button data-v="2b">2b Só miniatura</button><button data-v="3">3 YouTube terminou</button><button data-v="3b">3b Sem dado do título</button><button data-v="4a">4a Sem leitura</button><button data-v="4b">4b Insuficiente</button>
+  </div></div>
+ <div class="grp">Tema <div class="seg" id="sTema"><button data-v="dark" aria-pressed="true">Escuro</button><button data-v="light">Claro</button></div></div>
+</div>
+<div class="wrap">
+ <h1>Detalhe do teste no A/B Lab, com o teste nativo do YouTube</h1>
+ <p class="lede">Mesma tela em 1440 e 390 px. Troque o estado e o tema no topo. Dados sintéticos. Regra de leitura: hachura rosa = "não sabemos" (impressões, CTR, leitura do YouTube); tracejado azul-acinzentado = "do YouTube"; âmbar = a guarda está agindo; verde = vencedor, sempre com o ✓ e a palavra.</p>
+ <div class="figs">
+  <figure class="fig"><figcaption>Desktop 1440 px</figcaption><div class="frame w1440" id="f1440" data-theme="dark"></div></figure>
+  <figure class="fig"><figcaption>Celular 390 px</figcaption><div class="frame w390" id="f390" data-theme="dark"></div></figure>
+ </div>
+</div>
+<script>
+const I={
+ lab:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5 1h4M6 1v4L2 12h10L8 5V1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+ yt:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1.5" y="3" width="11" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/><path d="M6 5.5v3l2.6-1.5z" fill="currentColor"/></svg>',
+ stop:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M4 1.5h6L12.5 4v6L10 12.5H4L1.5 10V4z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 7h5" stroke="currentColor" stroke-width="1.6"/></svg>',
+ q:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.3 5.5c0-1 .8-1.6 1.7-1.6s1.7.6 1.7 1.5c0 1.2-1.7 1.2-1.7 2.4M7 10v.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+ ok:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ eq:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 5h9M2.5 9h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+ dot:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="3.5" fill="currentColor"/></svg>'
+};
+const NM='<span class="nm">não medido</span>';
+const NMV=(t)=>'<span class="nm">'+t+'</span>';
+function info(id,html){return '<button class="info i" type="button" aria-expanded="false" aria-label="Como foi calculado" data-info>ⓘ<span class="tip" role="note">'+html+'</span></button>'}
+const TA='5 - Como somos controlados - Consistência e Compromisso (Part 4)', TB='Consistência e Compromisso (Part 4)';
+const TEST_TITLE='Consistência e Compromisso (Part 4)';
+I.pause='<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M4.5 2.5v9M9.5 2.5v9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
+/* estado de interação do mockup (decisões do dono ficam registradas) */
+const S={rel:{},ask:{},conf:false,noTest:false};
+const frozen=v=>v==='1'?false:(v==='2b'?S.conf:true);
+const FRZ='Congelado em 17/10 (dia 9 de 14)';
+const frzTxt=v=>S.rel[v]?'Último dado em 17/10 (dia 9 de 14); o Lab retoma daqui':FRZ;
+
+function header(v){
+ const pausa=(x)=>S.rel[x]?'<span class="selo lab">'+I.lab+'Lab liberado por você</span>':'<span class="selo warn">'+I.stop+(x==='2'?'Lab pausado':'Lab pausado por segurança')+'</span>';
+ let selos={
+  '1':'<span class="selo lab">'+I.lab+'Teste do Lab rodando</span><span class="selo yt" title="Última leitura há 3 h">'+I.yt+'YouTube: nenhum teste visto</span>',
+  '2':pausa('2')+'<span class="selo yt">'+I.yt+'Provável teste do YouTube</span>',
+  '2b':(S.conf?'<span class="selo warn">'+I.stop+'Lab pausado</span>':'<span class="selo ok">'+I.lab+'Lab ativo</span>')+'<span class="selo unk">'+I.q+'Miniatura: só você sabe</span>',
+  '3':'<span class="selo yt">'+I.yt+'Teste do YouTube terminou</span><span class="selo lab">'+I.lab+'Lab livre</span>',
+  '3b':'<span class="selo yt">'+I.yt+'Teste do YouTube terminou</span><span class="selo unk">'+I.q+'Resultado sem dado</span>',
+  '4a':'<span class="selo unk">'+I.q+'Sem leitura</span>'+pausa('4a'),
+  '4b':'<span class="selo unk">'+I.q+'Leitura incompleta 2/3</span>'+pausa('4b')}[v];
+ return '<div class="hd"><div class="th tA">A</div><div class="ttl"><div class="crumb">A/B Lab / Vídeos / qIg9a7vqcNo</div><h2 title="'+TA+'">'+TA+'</h2><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">'+selos+'</div></div></div>';
+}
+
+function resumo(v){
+ const rel=['Lab liberado por decisão sua, sem leitura do YouTube.','Registrado em 18/10 às 14:20. Se houver teste do YouTube, os dois podem se atrapalhar. Você pode desfazer.'];
+ const t={
+  '1':['B lidera com 5,1% de clique contra 4,2% de A, em 18.400 impressões; ainda cabe empate.','Dia 9 de 14. O Lab não viu nenhum teste do YouTube neste vídeo (leitura de hoje, 14:20).'],
+  '2':S.rel['2']?['Lab liberado por decisão sua: você disse que isto não é teste do YouTube.',rel[1]]:['O YouTube parece estar testando dois títulos neste vídeo. O Lab parou de escrever para não estragar o teste.','Visto de fora, desde 16/10 às 14:20. O teste do Lab fica pausado e volta quando o do YouTube acabar.'],
+  '2b':S.conf?['Pausado a seu pedido: teste de miniatura do YouTube. Isto não altera o vídeo.','Registrado em 18/10 às 14:20. Desfazer volta o Lab a rodar.']:['Nenhum teste de título à vista, mas teste só de miniatura o Lab não consegue enxergar.','Se você ligou um teste do YouTube só com miniaturas no Studio, confirme abaixo e o Lab para de trocar a miniatura.'],
+  '3':['O YouTube terminou o teste: o título provável que ficou é B, “Consistência e Compromisso (Part 4)”.','Teste de 16/10 a 21/10. É uma leitura de fora, não um resultado oficial do Studio.'],
+  '3b':['O teste do YouTube terminou, mas não sabemos qual título ganhou.','Não conseguimos ler o título oficial depois do fim. Isto não quer dizer que não houve teste.'],
+  '4a':S.rel['4a']?rel:['Não conseguimos ler a página do vídeo no YouTube, então não sabemos se há teste em andamento.','Por segurança o Lab não escreve. Última leitura boa: 17/10 às 09:10, há 33 h.'],
+  '4b':S.rel['4b']?rel:['Poucas leituras para decidir se há teste do YouTube; o vídeo não está livre.','Vimos 2 rodadas de 3 leituras. Precisamos de pelo menos 3. Enquanto isso o Lab não escreve.']}[v];
+ return '<p class="sum">'+t[0]+'<small>'+t[1]+'</small></p>';
+}
+
+/* botão de liberar com consequência escrita e confirmação; decisão do dono, registrada */
+function liberar(v){
+ if(S.ask[v]) return '<div class="ask" role="group" aria-label="Confirmar liberação"><p class="meta" style="color:var(--text)"><b>Decisão sua, fica registrada.</b> Em 18/10 às 14:20 você libera o Lab neste vídeo sem leitura do YouTube. Se houver teste do YouTube, os dois podem se atrapalhar.</p><div class="acts"><button class="btn pri" type="button" data-rel="'+v+'">Confirmar: liberar o Lab</button><button class="btn ghost" type="button" data-askc="'+v+'">Cancelar</button></div></div>';
+ return '<button class="btn ghost" type="button" data-ask="'+v+'">'+(v==='2'?'Não é teste, liberar o Lab':'Sei que não há teste: liberar o Lab')+'</button>';
+}
+const relBand=(v)=>'<div class="band calm"><span class="ic">'+I.lab+'</span><p>Lab liberado por decisão sua em 18/10 às 14:20, sem leitura do YouTube. Fica registrado.</p><button class="btn ghost" type="button" data-undo="'+v+'">Desfazer</button></div>';
+
+function faixas(v){
+ if(v==='1') return '<div class="band yt calm"><span class="ic">'+I.yt+'</span><p>'+(S.noTest?'Você disse que não há teste de miniatura (18/10). ':'')+'Verificado há 3 h: nenhum teste do YouTube visto. A próxima leitura é às 18:00. <button class="lnk" type="button" data-go="2b">Ligou teste só de miniatura no Studio? Avisar o Lab</button></p></div>';
+ if(v==='2'){
+  if(S.rel['2']) return relBand('2');
+  return '<div class="band warn"><span class="ic">'+I.stop+'</span><div><h3>Provável teste de título do YouTube, visto de fora</h3><p>O título mostrado muda entre dois textos para pessoas diferentes ao mesmo tempo. O Lab não troca título nem miniatura enquanto isso, e não consegue iniciar teste novo neste vídeo.</p>'+
+  '<div class="acts"><button class="btn" type="button">Ver o que o Lab viu</button>'+(S.ask['2']?'':liberar('2'))+'</div>'+(S.ask['2']?liberar('2'):'')+'</div></div>';}
+ if(v==='2b'){
+  if(S.conf) return '<div class="band warn calm"><span class="ic">'+I.stop+'</span><p>Pausado a seu pedido (18/10 às 14:20): teste de miniatura do YouTube. O Lab não troca a miniatura deste vídeo e não desfaz nada do que está no ar.</p><button class="btn ghost" type="button" data-unconf>Desfazer</button></div>';
+  return '<div class="band unk"><span class="ic">'+I.q+'</span><div><h3>Teste só de miniatura: você decide</h3><p>O Lab não consegue ver teste só de miniatura por fora. Só você sabe se ligou no Studio. Ao confirmar, o Lab para de trocar a miniatura deste vídeo e não desfaz nada do que está no ar.</p>'+
+  '<div class="acts"><button class="btn pri" type="button" data-conf>Confirmar teste de miniatura</button><button class="btn ghost" type="button" data-notest>Não tenho teste de miniatura</button></div></div></div>';}
+ if(v==='3') return '<div class="band yt"><span class="ic">'+I.yt+'</span><div><h3>O Lab está livre para voltar</h3><p>O teste do YouTube acabou em 21/10. O teste do Lab fica como estava: 9.210 impressões por variante, parado no dia 9 de 14.</p><div class="acts"><button class="btn pri" type="button">Retomar do dia 9</button><button class="btn ghost" type="button">Começar teste novo</button></div></div></div>';
+ if(v==='3b') return '<div class="band unk"><span class="ic">'+I.q+'</span><div><h3>Sem dado do título oficial</h3><p>Lemos o vídeo 6 vezes depois do fim e nenhuma trouxe o título oficial. Vamos tentar de novo às 18:00.</p><div class="acts"><button class="btn" type="button">Tentar ler agora</button><button class="btn ghost" type="button">Informar o vencedor à mão</button></div></div></div>';
+ if(v==='4a'){
+  if(S.rel['4a']) return relBand('4a');
+  return '<div class="band unk"><span class="ic">'+I.q+'</span><div><h3>Sem leitura: o YouTube não respondeu</h3><p>Isto não é “sem teste”. A página do YouTube não respondeu nas últimas 6 tentativas. Até voltar, o Lab trata o vídeo como possivelmente em teste. Vamos tentar de novo às 18:00.</p>'+
+  '<div class="acts"><button class="btn" type="button">Tentar ler agora</button>'+(S.ask['4a']?'':liberar('4a'))+'</div>'+(S.ask['4a']?liberar('4a'):'<p class="hint">Se houver teste do YouTube, os dois podem se atrapalhar.</p>')+'</div></div>';}
+ if(S.rel['4b']) return relBand('4b');
+ return '<div class="band unk"><span class="ic">'+I.q+'</span><div><h3>Poucas leituras: 2 de 3 rodadas necessárias</h3><div class="m4" role="img" aria-label="2 de 3 rodadas necessárias"><i class="on"></i><i class="on"></i><i></i><span>2 de 3</span></div><p style="margin-top:8px">Com 2 rodadas não separamos “teste do YouTube” de “título mudou uma vez”. A próxima rodada é em 4&nbsp;h. Com 3 de 3, o Lab já sabe se há teste do YouTube. Se a leitura ainda não for clara, ele segue lendo a cada 6&nbsp;h e esta faixa mostra quantas rodadas faltam.</p>'+
+  '<div class="acts">'+(S.ask['4b']?'':liberar('4b'))+'</div>'+(S.ask['4b']?liberar('4b'):'<p class="hint">Se houver teste do YouTube, os dois podem se atrapalhar.</p>')+'</div></div>';
+}
+
+function placar(v){
+ const fz=frozen(v);
+ const rowsData=[
+  {l:'A',t:TA,imp:'9.210',cl:'387',ctr:'4,2%',ret:'41%',cls:'vA',x:'Original'},
+  {l:'B',t:TB,imp:'9.190',cl:'469',ctr:'5,1%',ret:null,cls:'vB',x:'Variante'}];
+ const cell=(x)=>'<span class="num">'+x+'</span>';
+ const ctrC=(r)=>'<span class="num '+(!fz&&r.l==='B'?'lead':'')+'">'+(!fz&&r.l==='B'?'▲ ':'')+r.ctr+'</span>';
+ const retC=(r)=>r.ret?cell(r.ret):nmT(r);
+ const nmT=(r)=>NMV(fz?'não medido':'coletando');
+ let why=fz?'Valores do último dia com o Lab rodando (17/10), guardados como estavam. Não chegam impressões novas atribuíveis enquanto o YouTube decide: o relatório diário não separa A de B. “Não medido” só aparece onde o YouTube não entregou o número; nunca é zero.'
+  :'Impressões e cliques vêm do relatório diário do YouTube (fuso do Pacífico). O dia da troca entre A e B fica fora da conta de cada variante. “Não medido” significa que o YouTube não entregou o número; nunca é zero.';
+ const th=(l)=>'<div class="th t'+l+'" style="width:64px;font-size:13px">'+l+'</div>';
+ let tb=rowsData.map(r=>'<tr><td>'+th(r.l)+'<span class="vchip '+r.cls+'">'+r.l+'</span><span class="vt"><b title="'+r.t+'">'+r.t+'</b><span class="meta">'+r.x+'</span></span></td><td>'+cell(r.imp)+'</td><td>'+cell(r.cl)+'</td><td>'+ctrC(r)+'</td><td>'+retC(r)+'</td></tr>').join('');
+ let cards=rowsData.map(r=>'<div class="vcard"><div class="top">'+th(r.l)+'<span class="vchip '+r.cls+'">'+r.l+'</span><span class="vt"><b>'+r.t+'</b><span class="meta">'+r.x+'</span></span></div><div class="grid6"><div><span>Impressões</span>'+cell(r.imp)+'</div><div><span>Cliques</span>'+cell(r.cl)+'</div><div><span>CTR</span>'+ctrC(r)+'</div><div><span>Retenção aos 30 s</span>'+retC(r)+'</div></div></div>').join('');
+ const lbl=fz?'<span class="frz">'+I.pause+frzTxt(v)+'</span>':'';
+ return '<div class="sec"><h3>Placar por variante '+info('p','<b>Como ler.</b> '+why+' CTR = cliques ÷ impressões da variante.')+lbl+'</h3>'+
+ '<table class="score"><thead><tr><th>Variante</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>Retenção 30 s</th></tr></thead><tbody>'+tb+'</tbody></table><div class="cards">'+cards+'</div></div>';
+}
+
+function ctr(v){
+ const fz=frozen(v);
+ const ca=fz?'var(--dim)':'var(--va)', cb=fz?'var(--dim)':'var(--vb)';
+ const r='<span class="vchip vA">A</span><div class="track"><i class="rg" style="left:30%;width:22%;background:'+ca+'"></i><i class="pt" style="left:40%"></i></div>'+
+  '<span class="vchip vB">B</span><div class="track"><i class="rg" style="left:42%;width:26%;background:'+cb+'"></i><i class="pt" style="left:54%"></i></div><div class="axis"><span>3%</span><span>4%</span><span>5%</span><span>6%</span><span>7%</span></div>';
+ const ex=fz?'<p class="meta" style="margin-top:8px">Congelado em 17/10: as faixas se sobrepunham entre 4,2% e 4,9%, ainda não dava para cravar.</p>':'<p class="meta" style="margin-top:8px">As faixas se sobrepõem entre 4,2% e 4,9%: ainda não dá para cravar. B lidera, mas cabe empate.</p>';
+ const lbl=fz?'<span class="frz">'+I.pause+frzTxt(v)+'</span>':'';
+ return '<div class="sec"><h3>Faixa provável de CTR '+info('f','<b>Método.</b> Intervalo de 95% por variante, só com os dias atribuíveis. Faixas que se sobrepõem = ainda não dá para cravar. Sem impressões, não há faixa; não desenhamos 0% nem p = 1.'+(fz?' Esta faixa é a do último dia com o Lab rodando e não muda enquanto o Lab está parado.':''))+lbl+'</h3><div class="rng">'+r+'</div>'+ex+'</div>';
+}
+
+function regua(v){
+ const fz=frozen(v);
+ const c1=fz?'var(--dim)':'var(--accent)', c2=fz?'var(--dim)':'var(--vb)';
+ const txt=(v==='3'||v==='3b')?'Teste do Lab parado no dia 9 de 14. Retomar ou começar outro':(S.rel[v]?'Lab liberado: o teste retoma do dia 9 de 14':'Pausado no dia 9 de 14: o relógio parou');
+ const body='<div class="ruler"><div class="rbar"><i style="width:64%;background:'+c1+'"></i></div><div class="mark"><span style="left:0">dia 0</span><span style="left:57%">piso: dia 8</span><span style="left:100%">teto: dia 14</span></div>'+
+  '<div class="rbar" style="margin-top:6px"><i style="width:92%;background:'+c2+'"></i></div><div class="mark"><span style="left:0">0</span><span style="left:92%">9.190 de 10.000 por variante</span></div>'+
+  (fz?'<p class="meta" style="margin-top:4px;display:flex;gap:6px;align-items:center">'+I.pause+txt+'</p>':'')+'</div>';
+ return '<div class="sec"><h3>Quanto falta '+info('r',fz?'<b>Regra v2.</b> A contagem de dias e de impressões só avança com o Lab rodando. Enquanto está pausado, o relógio do teste não conta; as barras ficam onde pararam.':'<b>Regra v2.</b> Mínimo de 8 dias com 2 variantes (12 com 3), teto de 14 dias, e volume mínimo de 10.000 impressões por variante. Sem volume até o teto = “inconclusivo por volume”, nunca vencedor.')+(fz?'<span class="frz">'+I.pause+frzTxt(v)+'</span>':'')+'</h3>'+body+'</div>';
+}
+
+function resultado(v){
+ if(v!=='3'&&v!=='3b') return '';
+ const semDado=v==='3b';
+ const optA='<div class="opt"><div class="row"><span class="vchip vA">A</span><span class="selo yt">'+I.yt+'Título original</span></div><q>'+TA+'</q><div class="share"><i style="width:48%;background:var(--va)"></i></div><p class="meta">Apareceu em 29 de 60 leituras (48%)</p></div>';
+ const optB='<div class="opt'+(semDado?'':' win')+'"><div class="row"><span class="vchip vB">B</span><span class="selo yt">'+I.yt+'Título alternativo</span>'+(semDado?'':'<span class="selo ok">'+I.ok+'Vencedor provável</span>')+'</div><q>'+TB+'</q><div class="share"><i style="width:52%;background:var(--vb)"></i></div><p class="meta">Apareceu em 31 de 60 leituras (52%)</p></div>';
+ let corpo;
+ if(semDado) corpo='<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="selo unk">'+I.q+'Vencedor: sem dado</span><span class="meta">Sem o título oficial depois do fim, qualquer palpite seria chute. Os dois títulos acima são o que vimos durante o teste.</span></div>';
+ else corpo='<div class="band ok" style="margin-top:12px"><span class="ic">'+I.ok+'</span><div><h3>B ficou: o título oficial hoje é igual a B</h3><p>18 leituras seguidas depois do fim mostram só B. É um vencedor provável, não um número do Studio.</p></div></div>';
+ return '<div class="sec"><h3>Resultado do YouTube '+info('y','<b>Método (regra v1).</b> Contamos o título mostrado a pessoas diferentes em 20 rodadas de 3 leituras. Vencedor provável = título oficial estável por 18 leituras após o fim. O resultado é recalculável: se a regra mudar, ele muda e a versão fica gravada. Esta é a leitura de fora; o Studio pode discordar.')+'<span class="selo yt">'+I.yt+'regra v1</span></h3>'+
+ '<div class="res"><div class="meta">16/10 14:20 a 21/10 09:10 (4 dias e 19 h). Visto de fora, sem acesso ao Studio.</div><div class="pair">'+optA+optB+'</div>'+corpo+
+ '<div class="foot"><button class="btn" type="button">Recalcular</button><span>Calculado em 22/10 às 10:05 com a regra v1.</span></div></div></div>';
+}
+
+function deteccao(v){
+ if(v!=='2') return '';
+ return '<div class="sec"><h3>O que o Lab viu '+info('d','<b>Método (regra v1).</b> 60 leituras em 20 rodadas de 3 leituras (3 formas de a página montar o título). Em 14 rodadas houve mistura dentro da mesma rodada: é isto que separa o teste do YouTube de quem troca título por tempo. Falso positivo custa só atraso; falso negativo estragaria dois testes.')+'</h3><div class="res"><div class="meta">Desde 16/10 às 14:20 · 20 rodadas · 14 com os dois títulos ao mesmo tempo</div><div class="pair">'+
+ '<div class="opt"><div class="row"><span class="vchip vA">A</span><span class="selo yt">'+I.yt+'Título A</span></div><q>'+TA+'</q><div class="share"><i style="width:48%;background:var(--va)"></i></div><p class="meta">29 de 60 leituras (48%)</p></div>'+
+ '<div class="opt"><div class="row"><span class="vchip vB">B</span><span class="selo yt">'+I.yt+'Título B</span></div><q>'+TB+'</q><div class="share"><i style="width:52%;background:var(--vb)"></i></div><p class="meta">31 de 60 leituras (52%)</p></div></div>'+
+ '<p class="meta" style="margin-top:10px">Proporção perto de 50/50: combina com a divisão do YouTube, não com troca por horário.</p></div></div>';
+}
+
+function render(v){
+ let h=header(v)+resumo(v)+faixas(v);
+ if(v==='2')h+=deteccao(v);
+ h+=resultado(v);
+ h+=placar(v)+ctr(v)+regua(v);
+ return h;
+}
+let estado='1',tema='dark';
+function setEstado(v){estado=v;document.querySelectorAll('#sEstado button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));paint()}
+function paint(){['f1440','f390'].forEach(id=>{const f=document.getElementById(id);f.dataset.theme=tema;f.innerHTML=render(estado)});
+ document.documentElement.dataset.theme=tema;bind()}
+function bind(){
+ document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const o=b.getAttribute('aria-expanded')==='true';document.querySelectorAll('[data-info]').forEach(x=>x.setAttribute('aria-expanded','false'));b.setAttribute('aria-expanded',o?'false':'true')}));
+ const on=(sel,fn)=>document.querySelectorAll(sel).forEach(b=>b.addEventListener('click',()=>fn(b)));
+ on('[data-conf]',()=>{S.conf=true;S.noTest=false;paint()});
+ on('[data-unconf]',()=>{S.conf=false;paint()});
+ on('[data-notest]',()=>{S.noTest=true;setEstado('1')});
+ on('[data-go]',b=>{S.noTest=false;setEstado(b.dataset.go)});
+ on('[data-ask]',b=>{S.ask[b.dataset.ask]=true;paint()});
+ on('[data-askc]',b=>{S.ask[b.dataset.askc]=false;paint()});
+ on('[data-rel]',b=>{const k=b.dataset.rel;S.ask[k]=false;S.rel[k]=true;paint()});
+ on('[data-undo]',b=>{S.rel[b.dataset.undo]=false;paint()});
+}
+document.addEventListener('click',()=>document.querySelectorAll('[data-info]').forEach(x=>x.setAttribute('aria-expanded','false')));
+function seg(id,set){const s=document.getElementById(id);s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;s.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));set(b.dataset.v);paint()})}
+seg('sEstado',v=>estado=v);seg('sTema',v=>tema=v);
+paint();
+</script></body></html>
