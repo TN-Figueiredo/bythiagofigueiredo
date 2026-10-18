@@ -44,3 +44,4 @@
   .faixa-rest .fr-row { grid-template-columns: 20px 1fr; }
   .faixa-rest .fr-d { grid-column: 2; }
 }
+.faixa-rest .fr-band:focus-visible { outline: 2px solid var(--color-cms-accent, #FF8240); outline-offset: 2px; }

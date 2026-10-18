@@ -155,6 +155,8 @@ export interface VariantStats {
   label: string
   blob_url: string | null
   title_text: string | null
+  /** "LxA" em texto (ex.: "1280x720"); nulo = original de antes da T4 ou sem thumbnail guardada. */
+  dimensions?: string | null
   metadata: VariantMetadata
   is_original: boolean
   total_impressions: number
@@ -410,6 +412,10 @@ export interface VariantDbEntry {
   label: DisplayLabel
   is_original: boolean
   blob_url: string | null
+  /** Título da variante; nulo = o do vídeo (original). */
+  title_text?: string | null
+  /** "LxA" em texto; só a original importa (aviso de baixa resolução). */
+  dimensions?: string | null
 }
 
 export interface AbTestBaseView {
@@ -438,6 +444,8 @@ export interface AbTestBaseView {
   youtubeVideoId: string | null
   /** Variante do último ciclo fechado (a que estava no ar quando o teste saiu) e quando entrou. */
   noArAntes: { label: DisplayLabel; desde: string | null } | null
+  /** Variante do ciclo aberto (no ar agora) e quando entrou; nulo = nenhum ciclo aberto. */
+  noArAgora?: { label: DisplayLabel; desde: string | null } | null
 }
 
 export interface AbTestActiveView extends AbTestBaseView {

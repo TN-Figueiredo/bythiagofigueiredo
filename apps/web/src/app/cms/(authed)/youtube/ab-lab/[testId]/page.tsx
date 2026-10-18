@@ -4,6 +4,7 @@ import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
 import { EarlyDetail } from '../_components/early-detail'
 import { notFound } from 'next/navigation'
+import { endAbTest, pauseAbTest } from '../actions'
 import * as Sentry from '@sentry/nextjs'
 import { FaixaRestauracao } from '../_components/faixa-restauracao'
 import { AtualizarEnquantoEmAndamento } from '../_components/atualizar-enquanto-em-andamento'
@@ -67,7 +68,10 @@ function isEarly(view: AbTestDetailView): view is AbTestActiveView {
 
 function renderView(view: AbTestDetailView) {
   if (isEarly(view)) return <EarlyDetail view={view} />
-  if (view.status !== 'completed') return <ActiveDetail view={view} />
+  if (view.status !== 'completed') {
+    const id = (view as AbTestActiveView).id
+    return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
+  }
   if (view.outcome === 'winner') return <WinnerDetail view={view} />
   return <PlayoffDetail view={view} />
 }

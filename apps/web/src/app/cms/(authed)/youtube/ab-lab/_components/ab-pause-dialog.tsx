@@ -2,17 +2,19 @@
 
 import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { pauseAbTest } from '../actions'
+import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
+import { focarFaixa } from './ab-end-test-dialog'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { Pause, X } from 'lucide-react'
 
 interface AbPauseDialogProps {
-  testId: string
+  /** Server action `pauseAbTest` já com o id do teste, montada no server component chamador. */
+  pausar: () => Promise<ResultadoAcaoSaida>
   onClose: () => void
 }
 
-export function AbPauseDialog({ testId, onClose }: AbPauseDialogProps) {
+export function AbPauseDialog({ pausar, onClose }: AbPauseDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -22,13 +24,24 @@ export function AbPauseDialog({ testId, onClose }: AbPauseDialogProps) {
 
   function handleConfirm() {
     startTransition(async () => {
-      const result = await pauseAbTest(testId)
-      if (!result.ok) {
-        setError(result.error)
+      let result: ResultadoAcaoSaida
+      try {
+        result = await pausar()
+      } catch {
+        setError('Sem resposta. Recarregue a página para ver o resultado.')
         return
       }
-      router.refresh()
-      onClose()
+      if (result.ok && result.resultado === 'feito') {
+        const recusado = Object.values(result.campos).some(c => c !== undefined && c.estado !== 'ok')
+        router.refresh()
+        onClose()
+        if (recusado) focarFaixa()
+        return
+      }
+      if (!result.ok && result.resultado === 'ja_encerrado') { router.refresh(); onClose(); return }
+      if (!result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') { router.push('/cms/login'); return }
+      // Recusa (em andamento, sem permissão, erro) fica escrita; o diálogo não fecha como se tivesse dado certo.
+      setError(result.ok ? 'Resposta inesperada. Recarregue a página para ver o resultado.' : result.error)
     })
   }
 

@@ -195,6 +195,7 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
       label: v.label,
       blob_url: v.blob_url,
       title_text: v.title_text,
+      dimensions: v.dimensions,
       metadata: v.metadata,
       is_original: v.is_original,
       total_impressions: 0,
@@ -1054,6 +1055,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     label: toDisplayLabel(v.label, v.is_original),
     is_original: v.is_original,
     blob_url: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
+    title_text: v.is_original ? (v.title_text ?? test.original_title ?? null) : v.title_text,
+    dimensions: v.dimensions ?? null,
   }))
 
   // Variante do último ciclo fechado: a que estava no ar quando o teste saiu (rótulo da faixa de restauração).
@@ -1085,6 +1088,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     restoreStatus: paraRestoreStatus(test.restore_status),
     youtubeVideoId: results.youtubeId ?? null,
     noArAntes,
+    noArAgora: openCycle && activeNow ? { label: activeNow, desde: openCycle.started_at ?? null } : null,
   }
 
   // Discriminate by status/outcome

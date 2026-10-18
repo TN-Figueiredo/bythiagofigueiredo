@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS, semImpressoes, liftVsA } from './ab-constants'
@@ -20,6 +20,9 @@ import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
 import { AbPauseDialog } from './ab-pause-dialog'
 import { AbEndTestDialog } from './ab-end-test-dialog'
+import { dadosDoDialogoEncerrar } from './encerrar-props'
+import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
+import './ab-end-test-dialog.css'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
   Pause, Square, Settings,
@@ -28,14 +31,25 @@ import {
 
 export interface ActiveDetailProps {
   view: AbTestActiveView
+  /** `endAbTest` com o id do teste, montada no server component da página (nunca importada aqui). */
+  encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
+  /** `pauseAbTest` com o id do teste, idem. */
+  pausar: () => Promise<ResultadoAcaoSaida>
 }
 
 const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
 
-export function ActiveDetail({ view }: ActiveDetailProps) {
+export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
   const router = useRouter()
   const [showPause, setShowPause] = useState(false)
   const [showEnd, setShowEnd] = useState(false)
+  // Aviso de página (role="status") depois de um encerramento em que o YouTube recusou algum campo: 6 s, com fechar.
+  const [aviso, setAviso] = useState<string | null>(null)
+  useEffect(() => {
+    if (!aviso) return
+    const t = setTimeout(() => setAviso(null), 6000)
+    return () => clearTimeout(t)
+  }, [aviso])
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
   const canAdminSite = useCanAdminSite()
   const [driftBusy, setDriftBusy] = useState(false)
@@ -102,6 +116,14 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
 
   return (
     <div data-testid="active-detail">
+      <div role="status" aria-live="polite">
+        {aviso ? (
+          <p className="etd-aviso">
+            <span>{aviso}</span>
+            <button type="button" onClick={() => setAviso(null)} aria-label="Fechar aviso">Fechar</button>
+          </p>
+        ) : null}
+      </div>
       {/* ── Section 1: Header with inline actions ── */}
       <div data-section="header" className="mb-[16px]">
         <DetailHeader
@@ -327,16 +349,19 @@ export function ActiveDetail({ view }: ActiveDetailProps) {
 
       {showPause && (
         <AbPauseDialog
-          testId={view.id}
+          pausar={pausar}
           onClose={() => setShowPause(false)}
         />
       )}
       {showEnd && (
         <AbEndTestDialog
-          testId={view.id}
-          variants={view.variantDb}
-          confidenceThreshold={view.confidenceTarget}
-          onClose={() => setShowEnd(false)}
+          aberto
+          onFechar={() => setShowEnd(false)}
+          testeNome={view.videoTitle}
+          {...dadosDoDialogoEncerrar(view)}
+          podeDeixarVariante={canAdminSite}
+          encerrar={encerrar}
+          onAviso={setAviso}
         />
       )}
     </div>

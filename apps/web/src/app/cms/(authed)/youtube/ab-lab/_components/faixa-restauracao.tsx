@@ -34,7 +34,7 @@ export function FaixaRestauracao({ faixa }: { faixa: Faixa }) {
   return (
     <div className="faixa-rest">
       <p className="fr-tz">Horários de São Paulo</p>
-      <div className={`fr-band ${faixa.tom}`} role={faixa.papel} aria-live={faixa.tom === 'busy' ? 'polite' : undefined} aria-label="Restauração do vídeo">
+      <div id="faixa-restauracao" tabIndex={-1} className={`fr-band ${faixa.tom}`} role={faixa.papel} aria-live={faixa.tom === 'busy' ? 'polite' : undefined} aria-label="Restauração do vídeo">
         <div className="fr-sum">
           <Icone tom={faixa.icone ?? faixa.tom} />
           <div><span className="fr-lbl">{faixa.lbl}</span> <span className="fr-rest">{faixa.resumo}</span></div>
