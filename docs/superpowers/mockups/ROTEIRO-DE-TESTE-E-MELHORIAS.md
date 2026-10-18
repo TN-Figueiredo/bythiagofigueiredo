@@ -1267,6 +1267,31 @@ Estado: **aprovada pelo dono no Opera em 14/10/2026** (código em `apps/web/src/
 12. O filtro "Com problema" conta também o canal em primeira busca, que ao mesmo tempo mostra "ainda buscando os vídeos". Separar `backfill` quando o oráculo puder mudar (Phil, M2).
 13. `e2e/auth.setup.ts` aceita `/admin/login` como sucesso e grava cookie vazio (Yannis, portão de 14/10; anterior a este lote).
 
+## D75. Erro e restrito deixam de ser "não medido" (decisão 75, 17/10/2026)
+
+Mockup: `docs/superpowers/mockups/2026-10-17-decisao-75-erro-e-restrito/index.html` (inventário em `INVENTARIO.md`). Prova automática: `apps/web/e2e/tests/cms/observatorio/decisao-75.spec.ts`. Estado: implementado em staging; **falta só a conferência pós-deploy abaixo**.
+
+### 1. O que a decisão promete
+Três palavras, três situações, nunca misturadas: **não medido** (o número não existe), **falhou** (existe, mas a leitura deu erro: tente de novo ou recarregue) e **restrito** (cadeado: o sistema TEM certeza de que quem está olhando não pode ver). O cadeado nunca aparece para quem edita o site.
+
+### 2. Roteiro de teste (Opera, produção, depois do deploy)
+1. **Como dono (edita):** abrir o seu canal, um vídeo seu e a tela Comparar com um canal seu. Esperado: números onde há dado, "não medido" só onde o dado não existe, **nenhum cadeado "restrito" em lugar nenhum**. Cadeado visto pelo dono = a guarda caiu para "negado" por engano (C1 não consertado): anotar tela e hora e avisar o Phil.
+2. **Como quem só lê (reporter), se existir uma conta assim:** as mesmas três telas mostram o cadeado com a palavra "restrito" nas células de views por dia, impressões, cliques, % assistido e retenção, e **nenhum número** nelas. Na lista de Canais, só a linha do canal próprio tem cadeado, na coluna de views por dia.
+3. **Canal de fora:** abrir um canal de fora e a página do vídeo dele: nenhuma frase "Não carregou". Se um bloco falhar de verdade, a pastilha diz "falhou" e a frase começa com "A leitura falhou:"; no canal de fora há o botão "Tentar de novo" (44 px de altura, um por bloco).
+4. **Cinza e Opera:** ligar o filtro de cinza do mockup (botão "Cinza") ou o do sistema e ver que as três pastilhas se distinguem sem cor: triângulo + "falhou", cadeado + "restrito", hachura + "não medido". Tema claro e escuro, 390 e 1440.
+5. **Como o "Tentar de novo" se comporta:** só dá para ver quando houver falha real (o e2e não consegue provocá-la sem criar gancho de falha no produto, que decidimos não criar). Gatilho para o Gio provar em navegador: a primeira falha real vista no Sentry com a tela aberta. Esperado: botão fica desabilitado e "tentando"; se falha de novo, a frase muda para "Falhou de novo"; se dá certo, o foco vai para o valor.
+
+### 3. Decisões e limites que você pode querer mudar
+- `calculo_falhou` é erro de código, não de leitura: o botão "Tentar de novo" sempre dá "Falhou de novo" nesse caso (Phil, M2). Isso é esperado e não é bug do botão.
+- Dimensionar C1: consulta ao Sentry pela tag `guarda_falhou`; quantas vezes por dia a guarda cai diz se o cadeado indevido é raro ou comum.
+- O cadeado só aparece quando o sistema tem certeza de que você não pode ver; os comentários do canal próprio ainda não leem essa regra (portão do Phil: `nao_pedido` ganha motivo próprio antes de qualquer tela ler comentários do canal próprio).
+
+### Melhorias futuras (não bloqueiam)
+1. `.dir` com `min-height:44px` para a linha não pular quando o "Tentar de novo" dá certo (Naksu R2.2).
+2. Reutilizar `BlocoComTentativa` no "Tentar de novo" da origem (`C/_proprio/origem-periodos.tsx:67`).
+3. Contraste da borda do restrito no tema claro medido a 6,4 a 6,8:1 no navegador (o mockup diz 7,13:1); continua acima de 3:1, mas o número do mockup não bate.
+4. Não verificados: Opera real, leitor de tela (a lista anuncia "restrito" uma vez por lista?), aparelho real, rede lenta real.
+
 ## AB-P4. Diálogo "O que fica no vídeo?" e faixa de restauração (A/B Lab P4a e P4b)
 
 Arquivo: `docs/superpowers/mockups/2026-10-14-ab-lab-p4-dialogo-e-faixa/index.html`. Estado: **aprovado pelo dono no Opera em 14/10/2026**, depois do acordo de Logan e Naksu (duas rodadas; achados em
