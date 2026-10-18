@@ -144,7 +144,7 @@ describe('lerRespostasDoCriador (E5a C1)', () => {
     if (!r.lido) throw new Error('esperava lido')
     expect(r.dados.itens).toEqual([{
       videoId: 'v1', texto: '@… adorei', cortado: false, publicadoEm: iso(AGORA - 5 * H),
-      respostas: [{ texto: 'valeu @…', cortado: false, publicadoEm: iso(AGORA - 5 * H) }], curtidas: 25, marco: 7, mencoesTrocadas: 2,
+      respostas: [{ texto: 'valeu @…', cortado: false, publicadoEm: iso(AGORA - 5 * H) }], respostasDoCriadorGuardadas: 1, curtidas: 25, marco: 7, mencoesTrocadas: 2,
     }])
   })
   it('T1: a consulta das respostas leva is(missing_since, null)', async () => {
@@ -170,6 +170,30 @@ describe('lerRespostasDoCriador (E5a C1)', () => {
     expect(it0?.respostas).toHaveLength(3)
     expect(it0?.publicadoEm).toBe(iso(AGORA - 5 * H))
     expect(it0?.mencoesTrocadas).toBe(2)
+  })
+  it('F2-T1: a consulta das respostas leva eq(is_creator, true) e linha filha de terceiro nunca entra', async () => {
+    const t = base()
+    t.competitor_video_comments = [
+      ...(t.competitor_video_comments ?? []),
+      coment(40, 'v1', { parent_id: 1, is_creator: false, body: 'TERCEIRO-' + SENT, published_at: iso(AGORA - 4 * H) }),
+    ]
+    const { r, db } = await pedir(provasTexto, {}, t)
+    for (const p of db.pedidos.filter((x) => x.ins.parent_id !== undefined)) expect(p.eqs.is_creator).toBe(true)
+    if (!r.lido) throw new Error('esperava lido')
+    expect(JSON.stringify(r)).not.toContain('TERCEIRO-')
+    expect(r.dados.itens[0]?.respostas).toHaveLength(1)
+    expect(r.dados.itens[0]?.respostasDoCriadorGuardadas).toBe(1)
+  })
+  it('F2-T1: com 5 respostas do criador mostra 3 e informa 5 guardadas', async () => {
+    const t = base()
+    t.competitor_video_comments = [
+      ...(t.competitor_video_comments ?? []),
+      ...[41, 42, 43, 44].map((id) => coment(id, 'v1', { parent_id: 1, is_creator: true, body: 'r' + id, published_at: iso(AGORA - (id - 30) * 60_000) })),
+    ]
+    const { r } = await pedir(provasTexto, {}, t)
+    if (!r.lido) throw new Error('esperava lido')
+    expect(r.dados.itens[0]?.respostas).toHaveLength(3)
+    expect(r.dados.itens[0]?.respostasDoCriadorGuardadas).toBe(5)
   })
   it('T1: as menções de todas as respostas somam em mencoesTrocadas', async () => {
     const t = base()

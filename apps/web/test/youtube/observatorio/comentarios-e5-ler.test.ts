@@ -202,7 +202,46 @@ describe('lerComentariosDeDestaque: o que cada cartão diz (E5a C1)', () => {
     t.competitor_video_comments = [...(t.competitor_video_comments ?? []), ...extra]
     const d = dados(await lerComentariosDeDestaque(falsoComentarios(t).client, pedido(provasTexto)))
     const c = (d.comentarios as CartaoTexto[])[1]
-    expect(c?.respostasDoCriador).toHaveLength(COMMENT_RULES.creatorRepliesMax)
+    expect(c?.respostasDoCriador).toHaveLength(COMMENT_RULES.creatorRepliesShown)
+  })
+  it('F2-T1 (a): a consulta de comentários do vídeo pede só topo e resposta do criador', async () => {
+    const db = falsoComentarios(base())
+    await lerComentariosDeDestaque(db.client, pedido(provasTexto))
+    const c = db.pedidos.find((x) => x.table === 'competitor_video_comments')
+    expect(c?.eqs.or).toBe('parent_id.is.null,is_creator.eq.true')
+  })
+  it('F2-T1 (b): linha de terceiro (parent_id, is_creator false) que o banco devolvesse nunca vira cartão nem conta como resposta', async () => {
+    const t = base()
+    t.competitor_video_comments = [
+      ...(t.competitor_video_comments ?? []),
+      coment(30, { parent_id: 2, is_creator: true, body: 'resp-criador-a', published_at: iso(T0 + 2 * H) }),
+      coment(31, { parent_id: 2, is_creator: false, body: 'TERCEIRO-SENTINELA', published_at: iso(T0 + 3 * H) }),
+    ]
+    for (const provas of [provasTexto, provasIdentidade]) {
+      const d = dados(await lerComentariosDeDestaque(falsoComentarios(t).client, pedido(provas)))
+      expect(JSON.stringify(d)).not.toContain('TERCEIRO-SENTINELA')
+      const c = (d.comentarios as CartaoTexto[])[1]
+      expect(c?.respostasDoCriador.length).toBe(2)
+      expect(c?.respostasDoCriadorGuardadas).toBe(2)
+    }
+  })
+  it('F2-T1 (c, e): com 5 respostas do criador o cartão mostra 3 e informa 5 guardadas', async () => {
+    const t = base()
+    t.competitor_video_comments = [
+      ...(t.competitor_video_comments ?? []),
+      ...[30, 31, 32, 33].map((id) => coment(id, { parent_id: 2, is_creator: true, body: 'r' + id, published_at: iso(T0 + (id - 20) * H) })),
+    ]
+    const d = dados(await lerComentariosDeDestaque(falsoComentarios(t).client, pedido(provasTexto)))
+    const c = (d.comentarios as CartaoTexto[])[1]
+    expect(c?.respostasDoCriador).toHaveLength(COMMENT_RULES.creatorRepliesShown)
+    expect(c?.respostasDoCriador.length).toBe(3)
+    expect(c?.respostasDoCriadorGuardadas).toBe(5)
+  })
+  it('F2-T1: a resposta do criador que saiu do YouTube não conta nas guardadas', async () => {
+    const t = base()
+    t.competitor_video_comments = [...(t.competitor_video_comments ?? []), coment(30, { parent_id: 2, is_creator: true, missing_since: '2026-10-12' })]
+    const d = dados(await lerComentariosDeDestaque(falsoComentarios(t).client, pedido(provasTexto)))
+    expect((d.comentarios as CartaoTexto[])[1]?.respostasDoCriadorGuardadas).toBe(1)
   })
   it('a lista é a do que foi escolhido em algum marco; comentário só lido por id (slot nulo) não entra', async () => {
     const t = base()

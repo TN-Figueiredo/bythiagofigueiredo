@@ -39,7 +39,7 @@ const linhasDoQuadro = (): Record<string, Linha[]> => ({
       published_at: new Date(AGORA - 30 * DIA).toISOString(),
     })),
     ...[...COM, 'v100', 'v101'].map((id, i) => ({
-      id: String(i + 501), site_id: 's', competitor_channel_id: 'c', video_id: id, parent_id: String(i + 1), creator_replied: false, body: 'resposta ' + id, body_truncated: false,
+      id: String(i + 501), site_id: 's', competitor_channel_id: 'c', video_id: id, parent_id: String(i + 1), is_creator: true, creator_replied: false, body: 'resposta ' + id, body_truncated: false,
       published_at: new Date(AGORA - 20 * DIA).toISOString(),
     })),
   ],

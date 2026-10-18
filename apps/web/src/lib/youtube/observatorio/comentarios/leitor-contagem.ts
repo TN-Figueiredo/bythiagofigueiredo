@@ -111,14 +111,15 @@ export async function lerRespostasDoCriador(
     }
     if (!comTexto) return { lido: true, dados: { nivel, total: totalContagem, itens: [] } }
 
-    // passo 2 (só com texto): as respostas presas, por `parent_id` em blocos de 150 topos (até 3 por topo)
+    // passo 2 (só com texto): as respostas presas, por `parent_id` em blocos de 150 topos (até `creatorRepliesShown` por topo)
     const respostas = new Map<string, Array<{ id: string; texto: string; cortado: boolean; publicadoMs: number }>>()
     for (const bloco of blocos(topos.map((t) => t.id))) {
-      const r = await comTempo((sinal) => sb.from('competitor_video_comments').select('id, parent_id, body, body_truncated, published_at')
-        .eq('site_id', siteId).eq('competitor_channel_id', p.channelId).in('parent_id', bloco).is('missing_since', null).limit(PAGINA).abortSignal(sinal))
+      const r = await comTempo((sinal) => sb.from('competitor_video_comments').select('id, parent_id, is_creator, body, body_truncated, published_at')
+        .eq('site_id', siteId).eq('competitor_channel_id', p.channelId).in('parent_id', bloco).eq('is_creator', true).is('missing_since', null).limit(PAGINA).abortSignal(sinal))
       const linhas = linhasDe(r)
       if (cortada(linhas)) throw new ForaDaForma()
       for (const x of linhas) {
+        if (x.is_creator !== true) continue // terceiro nunca entra (defesa em memória)
         const pai = idDe(x.parent_id)
         const nova = { id: idDe(x.id), texto: txt(x.body), cortado: bool(x.body_truncated), publicadoMs: msDe(x.published_at) }
         const lista = respostas.get(pai)
@@ -142,9 +143,9 @@ export async function lerRespostasDoCriador(
     const itens: RespostaDoCriador[] = []
     for (const t of topos) {
       // da mais antiga para a mais nova; empate por id NUMÉRICO (o id é string de bigint: '10' ordenaria antes de '9')
-      const filhas = (respostas.get(t.id) ?? [])
+      const guardadas = (respostas.get(t.id) ?? [])
         .sort((a, b) => a.publicadoMs - b.publicadoMs || Number(BigInt(a.id) - BigInt(b.id)))
-        .slice(0, COMMENT_RULES.creatorRepliesMax)
+      const filhas = guardadas.slice(0, COMMENT_RULES.creatorRepliesShown)
       if (filhas.length === 0) continue
       const a = semMencoes(t.texto)
       let trocadas = a.trocadas
@@ -155,7 +156,7 @@ export async function lerRespostasDoCriador(
       })
       const l = likes.get(t.id)
       itens.push({
-        videoId: t.videoId, texto: a.texto, cortado: t.cortado, publicadoEm: new Date(t.publicadoMs).toISOString(), respostas: rs,
+        videoId: t.videoId, texto: a.texto, cortado: t.cortado, publicadoEm: new Date(t.publicadoMs).toISOString(), respostas: rs, respostasDoCriadorGuardadas: guardadas.length,
         curtidas: l?.curtidas ?? null, marco: l?.marco ?? null, mencoesTrocadas: trocadas,
       })
     }
