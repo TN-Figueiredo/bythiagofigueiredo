@@ -4,6 +4,7 @@
 // sincronizações e o canal parado (a atual vira "última vista", o fim vira a última conferência, o tempo no ar vira "pelo menos").
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
+import { thumbRepresentatives } from '@/lib/youtube/thumb-hamming'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 
 export type SpanType = 'title' | 'thumb' | 'desc'
@@ -14,11 +15,15 @@ export const FEM: Record<SpanType, boolean> = { title: false, thumb: true, desc:
 /** A forma mínima de uma versão para a conta (os três tipos de versão do motor a têm). */
 export interface SpanVer { id: string; first_seen: number; last_seen: number; current: boolean; prec: string | null; window: [number, number] | null; seenSinceArchive?: boolean }
 
-/** A letra de cada imagem, na ordem em que aparece pela primeira vez: A, B, … (depois de Z, Z1, Z2…). A mesma imagem guarda a letra. */
+/** A letra de cada imagem, na ordem em que aparece pela primeira vez: A, B, … (depois de Z, Z1, Z2…). A mesma imagem guarda a letra, inclusive recomprimida (`thumbRepresentatives`). */
 export function imageLetters(thumbs: readonly { key: string }[]): Map<string, string> {
-  const keys = new Map<string, string>()
-  for (const t of thumbs) if (!keys.has(t.key)) { const k = keys.size; keys.set(t.key, k < 26 ? String.fromCharCode(65 + k) : 'Z' + (k - 25)) }
-  return keys
+  const rep = thumbRepresentatives(thumbs.map(t => t.key)), byRep = new Map<string, string>(), out = new Map<string, string>()
+  for (const t of thumbs) {
+    const r = rep.get(t.key)!
+    if (!byRep.has(r)) { const k = byRep.size; byRep.set(r, k < 26 ? String.fromCharCode(65 + k) : 'Z' + (k - 25)) }
+    out.set(t.key, byRep.get(r)!)
+  }
+  return out
 }
 
 /** O que a conta devolve para a versão `i` de `arr`. */

@@ -224,12 +224,12 @@ describe('resumo por imagem e grade recolhida (Task 7)', () => {
     fireEvent.blur(card)
     expect(card.classList.contains('target')).toBe(false)
   })
-  it('notas da sequência: thumbnails e títulos, com a ressalva; a nota "alternância típica" vem antes da grade', () => {
+  it('notas da sequência: thumbnails e títulos, com a ressalva; a nota "Alternância de miniatura" vem antes da grade', () => {
     const { root } = mount(VID.many)
     const th = root.querySelector<HTMLElement>('section[aria-labelledby="hv-thh"]')!
     expect(th.querySelector('.note.seq')!.textContent).toContain('Trocas em sequência: 12 trocas em 20 dias, encerrada em 04/11 (de 15/10 09:14 a 04/11 13:22).')
     expect(th.querySelector('.note.seq')!.textContent).toContain('Pode ser um teste; o YouTube não informa.')
-    const ab = [...th.querySelectorAll('.note')].find(n => /alternância típica/.test(n.textContent ?? ''))!
+    const ab = [...th.querySelectorAll('.note')].find(n => /Alternância de miniatura/.test(n.textContent ?? ''))!
     expect(ab.compareDocumentPosition(th.querySelector('#hv-film')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(root.querySelector('section[aria-labelledby="hv-tih"] .note.seq')!.textContent).toContain('3 trocas em 9 dias, ainda aberta')
     expect(root.querySelector('#hv-desc .note.seq')).toBeNull()

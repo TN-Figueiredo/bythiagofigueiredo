@@ -3,6 +3,7 @@
  * Pure: every text, date and number comes from the engine (obs.*); the components only map the abstract units
  * produced here (hours since publication, fractions of the y scale, percentages of the effect scale) to pixels.
  */
+import { ALTERNANCIA_ROTULO, ALTERNANCIA_RESSALVA } from '@/lib/youtube/observatorio/rotulos'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { EffectResult } from '@/lib/youtube/observatorio/effect'
@@ -710,7 +711,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const header = buildHeader()
   function buildHeader(): HeaderView {
     const vv = v!, m = vv.mult
-    const nT = titles.length, distinct = new Set(v!.thumbs.map(t => t.key)).size, nD = descs.length, back = sumAll.returned
+    const nT = titles.length, distinct = new Set(thumbKeys.values()).size, nD = descs.length, back = sumAll.returned
     const counts: HeaderView['counts'] = !observed ? [] : !changes.length ? [{ type: null, text: 'Nenhuma troca registrada' }] : [
       { type: 'title', text: F.plural(nT, 'título', 'títulos') },
       { type: 'thumb', text: thumbs.length > 1 ? distinct + ' thumbnails em ' + thumbs.length + ' períodos' + (back === 1 ? ' (uma voltou)' : back > 1 ? ' (' + back + ' voltaram)' : '') : thumbPreAt != null ? '1 thumbnail (vista desde ' + preLabel + ')' : F.plural(thumbs.length, 'thumbnail', 'thumbnails') },
@@ -749,7 +750,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   // The "A → B → A" note is only true for an immediate return (nothing else on air in between), and it follows the period filter.
   const tc = changes.filter(c => c.type === 'thumb' && c.testCompare && c.revertedBy && c.revertedImmediate && c.at >= t0)
   const thumbNotes: VersionsView['thumbs']['notes'] = []
-  if (tc.length) { const c = tc[0]!; const b = keyOf((c.before as { key: string }).key), a = keyOf((c.after as { key: string }).key); thumbNotes.push({ kind: 'ab', text: b + ' → ' + a + ' → ' + b + ' em ' + D.dur(c.cycleMs ?? 0) + ': alternância típica do Testar e comparar (teste A/B do YouTube). Compatível, não confirmado — o YouTube não informa o teste nem o vencedor.' }) }
+  if (tc.length) { const c = tc[0]!; const b = keyOf((c.before as { key: string }).key), a = keyOf((c.after as { key: string }).key); thumbNotes.push({ kind: 'ab', text: b + ' → ' + a + ' → ' + b + ' em ' + D.dur(c.cycleMs ?? 0) + ': ' + ALTERNANCIA_ROTULO + '. ' + ALTERNANCIA_RESSALVA }) }
   if (thumbPreAt != null) thumbNotes.push({ kind: 'warn', text: 'Thumbnail vista desde ' + preLabel + ', quando o arquivo de imagens começou. Trocas de thumbnail anteriores vinham de um método antigo (pela URL), que não é confiável, então não aparecem como troca.' })
   const dc = changes.filter(c => c.type === 'desc' && c.at >= t0), withText = dc.filter(c => c.diff)
   const nIn = (list: VersionView[]) => list.filter(x => x.inRange).length
@@ -766,7 +767,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const nThumbIn = nIn(thumbs), ofPeriod = cut ? ' do período' : ''
   const versions: VersionsView = {
     thumbs: {
-      src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' + (cut ? showing(thumbs) + '. Cada cartão traz o período inteiro da versão, mesmo a parte fora do filtro' : '') : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada',
+      src: thumbs.length > 1 ? new Set(thumbKeys.values()).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' + (cut ? showing(thumbs) + '. Cada cartão traz o período inteiro da versão, mesmo a parte fora do filtro' : '') : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada',
       cards: thumbs, notes: thumbNotes, runNote: runNote('thumb'),
       more: nThumbIn > HR.collapseAbove ? {
         keep: HR.collapseAbove, open: 'Ver todas (' + nThumbIn + ')', close: 'Mostrar só as ' + HR.collapseAbove + ' mais recentes',
@@ -931,7 +932,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       scaleTxt = 'escala ' + F.pct(lo / 100) + ' a ' + F.pct(hi / 100)
       const cDate = (t: string) => { const mm = String(t).match(/(\d{2})\/(\d{2})(?: (\d{2})(?::(\d{2})|h))?/); return mm ? +mm[2]! * 1e6 + +mm[1]! * 1e4 + +(mm[3] || 0) * 100 + +(mm[4] || 0) : 0 }
       const cav = (e.inconclusiveKind === 'troca-seguinte' ? [] : [...obs.caveats(e.id)]).sort((a, b) => cDate(a) - cDate(b))
-      if (q.group.some(g => g.testCompare && (g.revertImmediate || g.revertedImmediate))) cav.unshift('Alternância compatível com Testar e comparar (teste A/B do YouTube), não confirmada: o YouTube não informa o teste nem o vencedor.')
+      if (q.group.some(g => g.testCompare && (g.revertImmediate || g.revertedImmediate))) cav.unshift(ALTERNANCIA_ROTULO + '. ' + ALTERNANCIA_RESSALVA)
       full = {
         what: q.e2 ? 'Thumbnail ' + q.labs![0] : q.label,
         whatWhen: ', ' + c0.whenText + ' (' + partAgo(c0) + ')',

@@ -3,6 +3,7 @@
  * text comes from the engine (changesIn, change, effect, caveats, titleDiff, diff, fmt, date, link). The screen only
  * draws what this returns; nothing is computed in the components.
  */
+import { ALTERNANCIA_ROTULO } from '@/lib/youtube/observatorio/rotulos'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { buildForjaView, forjaReadingView, groupsOf, type ForjaView } from '../_chrome/forja-view-model'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
@@ -12,6 +13,7 @@ import { forjaOrder, parseNiche, type NicheScope } from '@/lib/youtube/observato
 import type { Fmt, Niche, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { runCardText, runDefinition } from '@/lib/youtube/observatorio/test-run'
+import { imageLetters } from '../_chrome/version-span'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 
 /* ------------------------------------------------------------------ public types */
@@ -274,8 +276,7 @@ function titleView(obs: Observatory, c: ObsChange): TitleView {
 }
 
 function thumbViews(obs: Observatory, c: ObsChange, v: ObsVideo): ThumbView[] {
-  const letters = new Map<string, string>()
-  for (const t of v.thumbs) if (!letters.has(t.key)) letters.set(t.key, String.fromCharCode(65 + letters.size))
+  const letters = imageLetters(v.thumbs) // mesmo representante do selo "Voltou à versão A" (S2)
   const D = obs.date
   const one = (id: string, role: ThumbView['role']): ThumbView => {
     const t = v.thumbs.find(x => x.id === id) as ThumbVersion | undefined
@@ -311,22 +312,19 @@ function badges(obs: Observatory, c: ObsChange): Hero['badges'] {
   }
   const T = obs.RULES.testCompareMaxDays
   if (c.revertTo && c.type === 'thumb' && c.revertImmediate === false) {
-    // other images were on air in between: "com a alternativa" and "Testar e comparar" would not be true
+    // other images were on air in between: "com a alternativa" and "alternância de miniatura" would not be true
     const n = c.revertBetween ?? 0
     out.push({ kind: 'rev', text: 'A versão ' + thumbLetter(obs, c) + ' voltou ao ar depois de ' + durTxt(obs, c.cycleMs) + ', com ' + (n === 1 ? '1 outra imagem' : n + ' outras imagens') + ' no intervalo.' })
   } else if (c.revertTo) {
     out.push({ kind: 'rev', text: 'Voltou à versão ' + (c.type === 'thumb' ? thumbLetter(obs, c) : 'anterior') + ' depois de ' + durTxt(obs, c.cycleMs, c.prec !== 'min') + ' com a alternativa.'
-      + (c.testCompare ? ' Compatível com Testar e comparar (teste A/B do YouTube, até ' + T + ' dias).' : ' A alternativa ficou mais de ' + T + ' dias: não parece teste automático.') })
+      + (c.testCompare ? ' ' + ALTERNANCIA_ROTULO + '.' : ' A alternativa ficou mais de ' + T + ' dias: não parece alternância rápida.') })
   } else if (c.testCompare && c.nextLivedMs && c.revertedImmediate === true) {
-    out.push({ kind: 'rev', text: 'Esta versão foi revertida ' + durTxt(obs, c.nextLivedMs) + ' depois. Compatível com Testar e comparar (teste A/B do YouTube).' })
+    out.push({ kind: 'rev', text: 'Esta versão foi revertida ' + durTxt(obs, c.nextLivedMs) + ' depois. ' + ALTERNANCIA_ROTULO + '.' })
   }
   return out
 }
 function thumbLetter(obs: Observatory, c: ObsChange): string {
-  const v = obs.video(c.video)!, keys: string[] = []
-  for (const t of v.thumbs) if (!keys.includes(t.key)) keys.push(t.key)
-  const i = keys.indexOf(String(c.revertTo))
-  return i < 0 ? 'anterior' : String.fromCharCode(65 + i)
+  return imageLetters(obs.video(c.video)!.thumbs).get(String(c.revertTo)) ?? 'anterior'
 }
 
 function sparkView(obs: Observatory, e: EffectResult): SparkView | null {
