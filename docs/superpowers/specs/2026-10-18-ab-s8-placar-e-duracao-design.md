@@ -160,8 +160,13 @@ Escreve **só** em `ab_test_dias`. Não escreve em `ab_tests`, nos ciclos nem no
   primeiro dia é o esperado.
 
 **Regravação:** uma linha com `final = false` é recalculada a cada dia. Vira `final = true` quando alcance e views
-estão em estado final (`medido`, `zero_medido`, `ausente_no_relatorio` depois de D+10, `nao_medido`), ou no D+10 (o
-que vier antes); no D+10, `aguardando` vira `nao_medido`. Relatório reescrito depois do `final` não muda o retrato.
+estão em estado final (`medido`, `zero_medido`, `ausente_no_relatorio` depois de D+10, `nao_medido`) **e** o dia está
+no D+10 (emenda r3, abaixo); no D+10, `aguardando` vira `nao_medido`.
+**Emenda r3:** `final` só vale no D+10 (`diffDias(day_pt, ontemPt) >= 10`): a A5 relê os últimos 10 dias do diário, então
+antes disso as views ainda mudam e o relatório pode ser reemitido. Estado final do alcance antes do D+10 (ex.:
+`expirado_sem_baixar` = `nao_medido`) vale para o **estado**, não para `final`. Exceções: teste apagado e linha aberta
+antiga demais para a janela de leitura são fechadas na hora. `motivo_nulo_meta` é recálculo da S8 com os ciclos só do
+teste, não o valor da A5. Relatório reescrito depois do `final` não muda o retrato.
 O bruto da A5 fica 90 dias após normalizado; depois disso o retrato é a única cópia do número da decisão.
 
 **Retenção e saída das duas tabelas novas (`ab_test_dias`, `ab_test_sondas`):** `site_id references sites(id) on
@@ -415,7 +420,7 @@ F1:
 - **C-3.** Com o T19 ativo, o `ab-retrato` grava uma linha por dia com ciclo no ar; um dia sem
   relatório fica `aguardando`, um dia com relatório vazio fica `zero_medido`, dois relatórios do mesmo dia (velho
   normalizado, novo `listado`) ficam `aguardando`, relatório não vazio sem a linha do vídeo fica
-  `ausente_no_relatorio`, `expirado_sem_baixar` fica `nao_medido` na hora (semente local com os casos). Confere: Phil.
+  `ausente_no_relatorio`, `expirado_sem_baixar` fica `nao_medido` na hora (o **estado**; `final` só no D+10, emenda r3 do §2.3) (semente local com os casos). Confere: Phil.
 - **C-3b.** Segunda rodada com alcance diferente não muda linha `final`; teste encerrado às 00:30 PT e 11 dias de
   rodadas (fake timers) deixam todas as linhas `final`; teste apagado fecha as linhas abertas como `nao_medido`;
   erro de leitura aborta sem escrever. Confere: Yannis.
@@ -517,3 +522,4 @@ F4:
 
 - r1 (18/10): 1º rascunho, Opus.
 - r2 (18/10): conserto da r1 de Phil e Yannis.
+- r3 (18/10, emenda do plano da F1): §2.3 e C-3 dizem que `final` só vale no D+10 e que `motivo_nulo_meta` é recálculo da S8.
