@@ -211,6 +211,13 @@ export async function semearTeste(o: OpcoesTeste, db = cliente()): Promise<Teste
   const patch: Record<string, unknown> = { last_applied_variant_id: ids[noAr] }
   if (o.restoreStatusCru !== undefined) patch.restore_status = o.restoreStatusCru
   else if (o.restoreStatus !== undefined) patch.restore_status = restoreStatusDe(o.restoreStatus, ids)
+  // L2 (Logan, T17 R2): o código real grava winner_variant_id + manual_winner ao encerrar com uma variante; sem isso a
+  // página cai no guarda "encerrado sem vencedor" e mostra o cartão ao lado de "Variante B aplicada".
+  if (o.status === 'completed' && o.restoreStatus && !o.completedReason) {
+    const destinos = [o.restoreStatus.title?.destino, o.restoreStatus.thumbnail?.destino]
+    const vencedora = destinos.find((d): d is 'B' | 'C' => d === 'B' || d === 'C')
+    if (vencedora) { patch.winner_variant_id = ids[vencedora]; patch.completed_reason = 'manual_winner' }
+  }
   const u = await db.from('ab_tests').update(patch).eq('id', t.data.id)
   if (u.error) throw new Error(`patch: ${u.error.message}`)
 
