@@ -491,3 +491,7 @@ Arquivos em `apps/web/test/youtube/teste-youtube/`. Fixture real (§2) onde o ca
 ### Decisões da conferência final (rodada 3, Yannis)
 
 - N1 e N2 aplicados pelo controlador: o numerador da fração usa o mesmo filtro de ≥ 3 votos do denominador; span com mais da metade de rodadas ilegíveis → `insuficiente`, `span_ilegivel` (C32). Phil (r3) mantém o ACORDO e pede medir `rodadasLongas` e `rodadasEmQuarentena` por teste depois do deploy.
+
+### Emenda de 18/10 (A5, conflito do dHash)
+
+A S2 da A5 (acordo de Phil e Yannis) cria `apps/web/src/lib/youtube/thumb-hamming.ts`, sem sharp, com `hamming`, `DHASH_MAX_SAME`, `sameThumb(a, b)` e `thumbRepresentatives(keys)` (com âncora). O `thumb-fingerprint.ts` passa a reexportar desse arquivo. **Substitui o diff de reexportação do §4:** `teste-youtube/dhash.ts` reexporta de `thumb-hamming.ts`; `mesmaImagem` é alias de `sameThumb` (uma fonte só); o agrupamento do §4.3 p.6 usa `thumbRepresentatives` se a semântica for a mesma (representante = primeiro visto, sem deriva por elos). A tarefa que toca o dHash espera a S2 chegar ao staging.
