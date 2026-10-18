@@ -8,6 +8,7 @@ cadeia.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => cadeia }))
 
 import { toDetailView } from '@/app/cms/(authed)/youtube/ab-lab/queries'
+import { faixaDaPagina } from '@/app/cms/(authed)/youtube/ab-lab/_components/faixa-da-pagina'
 import { makeTestRow } from '../helpers/ab-fixtures'
 import type { AbTestResults, AbTestCycleRow, VariantStats } from '@/lib/youtube/ab-types'
 
@@ -19,13 +20,17 @@ function ciclo(n: number, variantId: string, inicio: string, fim: string | null)
 }
 const RS = { title: { estado: 'ok', destino: 'original', em: '2026-10-12T08:02:00Z', forcado: false, escreveu: true, erro: null, attempts: 1 } }
 
-function resultados(restore: unknown, status: 'paused' | 'completed' = 'paused'): AbTestResults {
+const FK_UUID = '0b4c5f1e-9a7d-4e22-8c3b-1f6a2d9e7b10'
+const YT_ID = '6jL-jeux_1Y'
+
+function resultados(restore: unknown, status: 'paused' | 'completed' = 'paused', youtubeId: string | null = YT_ID): AbTestResults {
   return {
-    test: makeTestRow({ status, youtube_video_id: 'yt-abc', restore_status: restore }),
+    test: makeTestRow({ status, youtube_video_id: FK_UUID, restore_status: restore }),
     variants: [stats('v-a', 'original', true), stats('v-b', 'B', false), stats('v-c', 'C', false)],
     confidence: 0.5, is_significant: false, suggested_winner_id: null,
     timeline: [ciclo(0, 'v-a', '2026-10-01T10:00:00Z', '2026-10-02T10:00:00Z'), ciclo(1, 'v-c', '2026-10-07T08:00:00Z', '2026-10-08T08:00:00Z'), ciclo(2, 'v-b', '2026-10-09T08:00:00Z', null)],
     data_freshness: new Date().toISOString(),
+    youtubeId,
   } as AbTestResults
 }
 
@@ -33,7 +38,8 @@ describe('T14 ligação: o detalhe passa os campos da faixa', () => {
   it('restore_status legível, id do YouTube e variantes com rótulo (o id mapeia para a letra)', async () => {
     const v = await toDetailView(resultados(RS))
     expect(v.restoreStatus).toEqual({ title: { ...RS.title, escreveu: true, motivo: undefined } })
-    expect(v.youtubeVideoId).toBe('yt-abc')
+    expect(v.youtubeVideoId).toBe(YT_ID)
+    expect(v.youtubeVideoId).not.toBe(FK_UUID)
     expect(v.variantDb.map(x => [x.id, x.label])).toEqual([['v-a', 'A'], ['v-b', 'B'], ['v-c', 'C']])
   })
   it('nulo continua nulo; ilegível também vira nulo na view (a página distingue pelo jsonb cru)', async () => {
@@ -47,5 +53,19 @@ describe('T14 ligação: o detalhe passa os campos da faixa', () => {
   it('sem ciclo fechado, noArAntes é nulo', async () => {
     const r = resultados(RS); r.timeline = [ciclo(0, 'v-a', '2026-10-01T10:00:00Z', null)]
     expect((await toDetailView(r)).noArAntes).toBeNull()
+  })
+  it('o link do Studio usa o id do YouTube, não a FK uuid', async () => {
+    const v = await toDetailView(resultados({ title: { ...RS.title, estado: 'falhou', erro: 'x' } }))
+    const f = faixaDaPagina(v, { title: { ...RS.title, estado: 'falhou', erro: 'x' } }, new Date()).faixa
+    expect(f?.linkStudio).toBe(`https://studio.youtube.com/video/${YT_ID}/edit`)
+    expect(f?.linkStudio).not.toContain(FK_UUID)
+  })
+  it('vídeo não achado: youtubeVideoId nulo e a faixa sem link (ilegível também)', async () => {
+    const v = await toDetailView(resultados({ title: { estado: 'lixo' } }, 'paused', null))
+    expect(v.youtubeVideoId).toBeNull()
+    const f = faixaDaPagina(v, { title: { estado: 'lixo' } }, new Date())
+    expect(f.ilegivel).toBe(true)
+    expect(f.faixa?.linkStudio).toBeNull()
+    expect(f.faixa?.linkRotulo).toBeNull()
   })
 })
