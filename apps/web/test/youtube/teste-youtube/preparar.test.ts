@@ -105,7 +105,7 @@ describe('prepararLeituras', () => {
         em: '2026-10-18T10:00:00Z',
         rodada: 'a',
         renderers: [
-          { renderer: 'zzz', texto: 'B́' },
+          { renderer: 'zzz', texto: 'E\u0301' },
           { renderer: RENDERERS_TITULO[2], texto: 'É' },
           { renderer: RENDERERS_TITULO[0], texto: null },
         ],
