@@ -174,6 +174,22 @@ describe('rodarRetrato: testes fora da primeira leitura, apagados e notas (D2)',
     expect(saude.recordCronFailure).toHaveBeenCalledWith('ab-retrato', expect.stringContaining('rpc quebrou'))
   })
 
+  it('Y3: erro em fechar_antigas: falha registrada e status error', async () => {
+    const f = criarFakeSb({ ab_tests: [teste('t1')], ab_test_cycles: [ciclo('t1', ha(3))] })
+    f.erros['rpc:ab_test_dias_fechar_antigas'] = 'antigas quebrou'
+    const r = await rodarRetrato(f.sb, agora())
+    expect(r).toMatchObject({ status: 'error', health_written: true })
+    expect(saude.recordCronFailure).toHaveBeenCalledWith('ab-retrato', expect.stringContaining('ab_test_dias_fechar_antigas'))
+  })
+
+  it('Y3: erro em fechar_apagados: falha registrada e status error', async () => {
+    const f = criarFakeSb({ ab_test_dias: [aberta('sumiu', addDays(ontemPt(agora()), -3))] })
+    f.erros['rpc:ab_test_dias_fechar_apagados'] = 'apagados quebrou'
+    const r = await rodarRetrato(f.sb, agora())
+    expect(r).toMatchObject({ status: 'error', health_written: true })
+    expect(saude.recordCronFailure).toHaveBeenCalledWith('ab-retrato', expect.stringContaining('ab_test_dias_fechar_apagados'))
+  })
+
   it('mais de 500 linhas: apply em blocos de 500', async () => {
     const ts = Array.from({ length: 30 }, (_, i) => teste(`t${i}`, { started_at: ha(30) }))
     const cs = ts.map((t) => ciclo(t.id as string, ha(30)))
