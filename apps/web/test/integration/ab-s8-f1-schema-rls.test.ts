@@ -72,7 +72,7 @@ describe.skipIf(skipIfNoLocalDb())('S8-F1: RLS e funções das tabelas de grava�
     const testId = randomUUID(); testes.push(testId)
     const r = await sb.rpc('ab_test_dias_apply', { p_rows: [linha(testId, siteA, '2026-10-01', 1)] })
     if (r.error) throw new Error('cenario (apply): ' + r.error.message)
-    await pg.query(`insert into public.ab_test_sondas (test_id, hora, site_id, lida_em, leitura_estado) values ($1, '2026-10-01T10:00:00Z', $2, now(), 'bate')`, [testId, siteA])
+    await pg.query(`insert into public.ab_test_sondas (test_id, hora, site_id, youtube_video_id, lida_em, leitura_estado) values ($1, '2026-10-01T10:00:00Z', $2, 'abcdefghijk', now(), 'bate')`, [testId, siteA])
     return { siteA, siteB, testId, users }
   }
 
@@ -130,7 +130,7 @@ describe.skipIf(skipIfNoLocalDb())('S8-F1: RLS e funções das tabelas de grava�
     const ins: Record<Tabela, string> = {
       ab_test_dias: `insert into public.ab_test_dias (test_id, day_pt, site_id, youtube_video_id, regra_duracao, segundos_do_dia, ciclos, alcance_estado, views_estado, retratado_em)
         values (gen_random_uuid(), current_date, $1, 'abcdefghijk', 'v1', 86400, '[{}]'::jsonb, 'medido', 'medido', now())`,
-      ab_test_sondas: `insert into public.ab_test_sondas (test_id, hora, site_id, lida_em, leitura_estado) values (gen_random_uuid(), now(), $1, now(), 'bate')`,
+      ab_test_sondas: `insert into public.ab_test_sondas (test_id, hora, site_id, youtube_video_id, lida_em, leitura_estado) values (gen_random_uuid(), now(), $1, 'abcdefghijk', now(), 'bate')`,
     }
     for (const t of TABELAS) {
       for (const who of ['editor', 'leitor', 'sem', 'editorB'] as const) {
