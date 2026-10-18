@@ -205,7 +205,7 @@ O `provavel_teste` continua olhando 14 dias (`v14`): um teste nativo real pede �
 | Situação | Fase 1 grava | Fase 2 decide |
 |---|---|---|
 | S4 sem migration (`42P01`) | tarefa `parcial`, `schema_ausente`; nenhuma avaliação | `avaliacao_velha`: bloqueia o início; rotação adia |
-| Coleta desligada (`OBS_WATCH_READ` ≠ `on`) | `sem_rodada_nova` depois de 7 h | bloqueia `sem_leitura` |
+| Coleta desligada (`OBS_WATCH_READ` ≠ `on`) | `sem_rodada_nova` depois de `FRESCOR_MAX_MS` | bloqueia o início; rotação adia (`sem_leitura`) |
 | Registrador desligado (`AB_NATIVO_REGISTRO` ≠ `on`) | nada | `avaliacao_velha`: bloqueia. Por isso a fase 2 só sobe com a fase 1 ligada (C-17) |
 | Todas as leituras com erro (429, consentimento) | avaliação `sem_leitura`, `comErro = N` | bloqueia `sem_leitura` |
 | Layout mudou (renderers somem) | `insuficiente`, `titulo_nao_lido` | bloqueia `insuficiente` |
@@ -321,7 +321,7 @@ Na mesma migration: `ab_test_cycles_end_reason_check` + `teste_youtube`; `ab_tes
 2. **C-10a** (integração, banco 54422, antes do push): tabela de casos aceitos pelo CHECK antigo, nos dois ramos e em cada `end_reason` e cada estado de `restore_status`, passa no novo; o novo aceita `teste_youtube`/`pulado_teste_youtube` e recusa valor desconhecido.
 3. **Conferência em produção antes do `db:push:prod`** (leitura): `select count(*) from ab_tests where not (<expressão nova>)` = 0 e o mesmo em `ab_test_cycles` com o CHECK novo. Diferente de 0 = não empurra.
 
-**RLS** (padrão da E14/E18 e do GUC-spoof): nas três tabelas, `select` com `can_edit_site(site_id)` (nunca `can_view_row`); sem policy de escrita (só `service_role`, depois de `requireSiteAdmin`/`canAdminSite` nas ações); `revoke all from anon`; `revoke insert, update, delete, truncate from authenticated`; `drop policy if exists` antes de cada `create policy`. A `view` é `security_invoker = true` e herda a RLS de `ab_tests`/`ab_test_cycles`. Idempotência: `if not exists`, `create or replace`, `drop constraint if exists`.
+**RLS** (padrão da E14/E18 e do GUC-spoof): nas três tabelas, `select` com `can_edit_site(site_id)` (nunca `can_view_row`); sem policy de escrita (só `service_role`, depois de `requireSiteAdmin`/`canAdminSite` nas ações); `revoke all from anon`; `revoke insert, update, delete, truncate from authenticated`; `drop policy if exists` antes de cada `create policy`. Idempotência: `if not exists`, `create or replace`, `drop constraint if exists`.
 
 ### 7.4 Fila única
 
