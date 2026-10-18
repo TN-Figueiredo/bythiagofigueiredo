@@ -702,3 +702,7 @@ Decisão do dono ("Vamos seguir com a recomendação"); pareceres de Phil e Yann
 | Yannis C3 e Phil A4 (D7 sem objeto no Vercel) | §8.1, §18 D7 (suspensa; 17 CHECKs) |
 | Phil A5 (volume cai) | §1, §8.3 (245 B, ~0,43 MB/dia, ~19 MB), §11, C9 |
 | Reabertura | §12 e C2 (Data API vendo o braço B em 19/10) |
+
+### Registro do plano (desvios 1 e 8, pedido de Yannis na r1 do plano)
+- Desvio 1: `yt_watch_prova(p_agora, p_coleta_ligada, p_candidatos_esperados integer)`; `candidatos_esperados` vem das consultas da conciliação, e com `null` o `sem_alvos` sai `null`.
+- Desvio 8: a C7 usa `yt_watch_prova(now(), true, null)`, a assinatura real.
