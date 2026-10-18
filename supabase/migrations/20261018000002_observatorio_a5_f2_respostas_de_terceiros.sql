@@ -253,6 +253,12 @@ begin
       from inp i
      where c.video_id = p_video and c.youtube_comment_id = i.youtube_comment_id and c.parent_id is not null
        and c.is_creator = i.is_creator -- F2: nunca troca o lado; speaker_no não está no set (número congelado)
+       -- F2: terceiro só é atualizado se o fio ainda tem criador presente (ou o criador volta neste mesmo lote); senão o (g) o apaga
+       -- e o (f) o conta em terceiros_sem_fio, e ele contaria duas vezes em nao_gravados
+       and (c.is_creator or exists (select 1 from public.competitor_video_comments k
+                                     where k.parent_id = c.parent_id and k.is_creator
+                                       and (k.missing_since is null
+                                            or exists (select 1 from inp j where j.is_creator and j.youtube_comment_id = k.youtube_comment_id))))
     returning c.id, c.youtube_comment_id, c.is_creator
   ), mk as (
     insert into public.competitor_video_comment_marks as m (comment_id, mark, site_id, likes, reply_count, relevance_rank, slot)
@@ -386,6 +392,8 @@ begin
     returning 1
   )
   select (select count(*) from ins), (select count(*) from mk), (select count(*) from novo), (select count(*) from inp) into n1, n2, n3, n4;
+  -- v_terc_fora = n3 - n1 também contaria a linha pulada por `on conflict do nothing`; hoje isso só ocorre em corrida,
+  -- e o pg_advisory_xact_lock por (vídeo, marco) impede a corrida. Se a trava sair, esta igualdade deixa de valer.
   v_terc_novos := n1; v_leituras := v_leituras + n2; v_terc_fora := n3 - n1; v_terc_sem_fio := n4 - n3;
 
   v_ignorados := v_recebidos - (v_novos + v_atualizados + v_por_id + v_resp_novas + v_resp_atualizadas
@@ -557,6 +565,7 @@ declare
   v_todos bigint[];
   v_marcas bigint;
   v_autores bigint;
+  v_conta bigint;
   v_rows jsonb;
   v_lotes bigint;
 begin
@@ -585,6 +594,9 @@ begin
    where k.id = any(v_alvo) or k.parent_id = any(v_alvo);
   select count(*) into v_marcas from public.competitor_video_comment_marks m where m.comment_id = any(v_todos);
   select count(*) into v_autores from public.competitor_video_comment_authors a where a.comment_id = any(v_todos);
+  -- F2: "comentários apagados" não conta respostas de espectador (elas entram só em rows_deleted)
+  select count(*) into v_conta from public.competitor_video_comments k
+   where k.id = any(v_todos) and (k.parent_id is null or k.is_creator);
   v_rows := jsonb_build_object('competitor_video_comments', cardinality(v_todos),
                                'competitor_video_comment_marks', v_marcas,
                                'competitor_video_comment_authors', v_autores);
@@ -623,14 +635,14 @@ begin
 
   insert into public.audit_log (actor_user_id, action, resource_type, resource_id, org_id, site_id, after_data, ip, user_agent)
   select p_actor, 'competitor_missing_purge', 'competitor_comment_group', p_channel, s.org_id, p_site,
-         jsonb_build_object('kind', 'comentario', 'comentarios', cardinality(v_todos), 'rows_deleted', v_rows),
+         jsonb_build_object('kind', 'comentario', 'comentarios', v_conta, 'rows_deleted', v_rows),
          p_ip::inet, nullif(p_ua, '')
     from public.sites s where s.id = p_site;
   if not found then
     raise exception 'competitor_comments_purge: site sem linha (auditoria não gravada)';
   end if;
 
-  return jsonb_build_object('status', 'apagado', 'comentarios', cardinality(v_todos), 'rows_deleted', v_rows,
+  return jsonb_build_object('status', 'apagado', 'comentarios', v_conta, 'rows_deleted', v_rows,
                             'lotes_exportados', v_lotes);
 end $$;
 

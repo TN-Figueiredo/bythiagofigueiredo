@@ -350,11 +350,31 @@ describe.skipIf(skipIfNoLocalDb())('A5 F2-coleta: respostas de espectadores, SQL
     expect(prev).toMatchObject({ status: 'ok', encontrados: 1, respostas: 1 })
     expect((prev.rows as Record<string, number>).competitor_video_comments).toBe(4)
     const r = (await q('select public.competitor_comments_purge($1::uuid, $2::uuid, $3::bigint[], $4::uuid, null, null) as r', [c.site, c.canal, [topoId], admin]))[0]!.r as Linha
-    expect(r).toMatchObject({ status: 'apagado', comentarios: 4 })
+    expect(r).toMatchObject({ status: 'apagado', comentarios: 2 }) // topo + resposta do criador; os 2 espectadores só entram em rows_deleted
     expect((r.rows_deleted as Record<string, number>).competitor_video_comments).toBe(4)
     expect((await q('select count(*)::int as n from public.competitor_video_comments where video_id = $1', [c.video]))[0]!.n).toBe(0)
     const ids = (await q(`select youtube_id from public.competitor_removed_items where site_id = $1 and kind = 'comentario' order by youtube_id`, [c.site])).map((x) => x.youtube_id)
     expect(ids).toEqual(['r13', 't13'])
+  })
+
+  it('18. Yannis M1: a trava do passo (c): id guardado como resposta do criador que chega como espectador não troca de lado', async () => {
+    const c = await cena()
+    await fio(c, '18')
+    const r = await grava(c.video, 7, snapDe(7), [resp('r18', 't18', { is_creator: false, speaker_no: 4, body: 'texto trocado' })])
+    expect(r).toMatchObject({ terceiros_atualizados: 0, respostas_atualizadas: 0 })
+    expect(await linha(c.video, 'r18')).toMatchObject({ is_creator: true, speaker_no: null, body: 'resposta r18' })
+  })
+
+  it('19. Phil M1: terceiro de fio cujo criador foi purgado conta uma vez só (sem_fio), não em atualizados nem em nao_gravados negativo', async () => {
+    const c = await cena()
+    await fio(c, '19', {}, [terc('x1', 't19', 1)])
+    await q(`insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted)
+      values ($1, 'comentario', 'r19', $2, $3, '{}'::jsonb)`, [c.site, c.canal, randomUUID()])
+    await q(`delete from public.competitor_video_comments where video_id = $1 and youtube_comment_id = 'r19'`, [c.video])
+    const r = await grava(c.video, 7, snapDe(7), [topo('t19'), resp('r19', 't19'), terc('x1', 't19', 1)])
+    expect(r).toMatchObject({ terceiros_atualizados: 0, terceiros_sem_fio: 1 })
+    expect(Number(r.nao_gravados)).toBeGreaterThanOrEqual(0)
+    expect(await terceirosDe(c.video)).toHaveLength(0)
   })
 
   // ───────────────────────── 14, 15: achado por id e autor forjado ─────────────────────────
