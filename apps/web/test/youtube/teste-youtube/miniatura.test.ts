@@ -193,3 +193,20 @@ describe('conserto r1: miniatura', () => {
     expect(sinaisFracos(prep(monta('xy')), resolverOpcoes())).toEqual(sinaisFracos(prep(monta('yx')), resolverOpcoes()))
   })
 })
+
+describe('fechamento do lote: sinaisFracos', () => {
+  it('N8: dois reenvios no mesmo instante saem em ordem de variante, não de aparição', () => {
+    const m = (variante: string, etag: string) => mini(variante, '106068c9a7a3c3c8', { etag })
+    // mq aparece antes de hq no Map de variantes; o instante do 2º ETag é o mesmo nas duas
+    const ls = [
+      video(0, [m('mqdefault', '"1792341745"')]),
+      video(1, [m('hqdefault', '"1792341745"')]),
+      video(2, [m('mqdefault', '"1792341800"')]),
+      video(3, [m('hqdefault', '"1792341800"')]),
+    ]
+    expect(sinaisFracos(prep(ls), resolverOpcoes())).toEqual([
+      { tipo: 'reenvio_mesma_imagem', em: '2026-10-18T16:43:20.000Z', variante: 'hqdefault' },
+      { tipo: 'reenvio_mesma_imagem', em: '2026-10-18T16:43:20.000Z', variante: 'mqdefault' },
+    ])
+  })
+})

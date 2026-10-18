@@ -288,3 +288,39 @@ describe('conserto r1: fração e span', () => {
     expect(classificar(ls, { minJanelaMistaMs: janela + 1 })).toMatchObject({ estado: 'insuficiente', detalhe: { motivo: 'janela_curta' } })
   })
 })
+
+describe('fechamento do lote: contagem por votantes e janelas (R2-3, R2-4, R2-5)', () => {
+  const R = RENDERERS_TITULO
+  const naoVota = (em: string, rodada: string) =>
+    leitura({ em, rodada, renderers: [{ renderer: R[0], texto: 'Titulo X' }, { renderer: R[1], texto: 'Titulo Y' }] })
+  const vota = (em: string, rodada: string, texto: string) => leitura({ em, rodada, titulo: texto })
+  const min = (ms: number) => new Date(Date.parse(INI) + ms * 60_000).toISOString()
+
+  it('T15: 12 leituras com título lido e só 6 votantes: poucas_leituras (atual 6), não um veredito', () => {
+    const ls = Array.from({ length: 12 }, (_, i) => (i % 2 === 0 ? vota(min(i), `r${i}`, T.A) : naoVota(min(i), `r${i}`)))
+    const r = classificar(ls)
+    expect(r).toMatchObject({ estado: 'insuficiente', detalhe: { motivo: 'poucas_leituras', minimo: 9, atual: 6 } })
+    expect(r.contagem.validasTitulo).toBe(12)
+  })
+
+  it('T15: 10 leituras com título lido e nenhuma votante: poucas_leituras (atual 0), sem exceção', () => {
+    const ls = Array.from({ length: 10 }, (_, i) => naoVota(min(i), `r${i}`))
+    expect(classificar(ls)).toMatchObject({ estado: 'insuficiente', detalhe: { motivo: 'poucas_leituras', atual: 0 } })
+  })
+
+  it('T19: primeiraVista é a 1ª rodada dos pares APROVADOS; um par curto (A/C, 5 min) 10 h antes não conta', () => {
+    const curto = serie(['ACC', 'ACC'], 5 * 60_000, INI).map(l => ({ ...l, rodadaId: `c${l.rodadaId}` }))
+    const t10 = new Date(Date.parse(INI) + 10 * H).toISOString()
+    const longo = serie(['ABB', 'BAB', 'ABB', 'BAB'], 40 * 60_000, t10, T).map(l => ({ ...l, rodadaId: `l${l.rodadaId}` }))
+    const r = classificar([...curto, ...longo])
+    if (r.estado !== 'provavel_teste') throw new Error(`estado ${r.estado}`)
+    expect(r.variantes).toEqual([T.A, T.B])
+    expect(r.primeiraVista).toBe(t10)
+  })
+
+  it('T11: a janela do par conta só votantes: votos em 28 min com leitura sem voto em cada ponta (31 min no total) = janela_curta', () => {
+    const r1 = [naoVota(min(0), 'a'), ...[1, 2, 3, 4, 5, 6].map((m, i) => vota(min(m), 'a', i % 2 === 0 ? T.A : T.B))]
+    const r2 = [...[24, 25, 26, 27, 28, 29].map((m, i) => vota(min(m), 'b', i % 2 === 0 ? T.A : T.B)), naoVota(min(31), 'b')]
+    expect(classificar([...r1, ...r2])).toMatchObject({ estado: 'insuficiente', detalhe: { motivo: 'janela_curta', janelaMs: 28 * 60_000 } })
+  })
+})

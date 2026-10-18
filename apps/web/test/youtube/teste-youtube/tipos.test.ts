@@ -168,3 +168,12 @@ describe('conserto r1: resolverOpcoes valida a entrada (B-2)', () => {
     expect(resolverOpcoes().minLeituras).toBe(9)
   })
 })
+
+describe('fechamento do lote: escritasConhecidas[].em exige fuso (R2-2)', () => {
+  it('ISO sem Z nem deslocamento lança; com Z ou ±hh:mm passa', () => {
+    expect(() => resolverOpcoes({ escritasConhecidas: [{ em: '2026-10-18T10:00:00', campo: 'titulo' }] })).toThrow(/escritasConhecidas\[0\]\.em/)
+    expect(() => resolverOpcoes({ escritasConhecidas: [{ em: '2026-10-18T10:00:00.000', campo: 'titulo' }] })).toThrow(/escritasConhecidas\[0\]\.em/)
+    expect(() => resolverOpcoes({ escritasConhecidas: [{ em: '2026-10-18T10:00:00Z', campo: 'titulo' }] })).not.toThrow()
+    expect(() => resolverOpcoes({ escritasConhecidas: [{ em: '2026-10-18T10:00:00-03:00', campo: 'titulo' }] })).not.toThrow()
+  })
+})

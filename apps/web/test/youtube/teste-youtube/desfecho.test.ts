@@ -192,3 +192,51 @@ describe('conserto r1: desfecho', () => {
     expect(desfecho(ls)).toEqual({ estado: 'vencedor_provavel', vencedor: TITULO_B, leiturasDescartadas: 0, versaoRegra: v })
   })
 })
+
+describe('fechamento do lote: desfecho', () => {
+  const T0 = ULTIMA + H
+  const um = (i: number, ms: number, texto: string, extra: { idioma?: string; oficial?: string | null } = {}) =>
+    leitura({ em: new Date(ms).toISOString(), rodada: `w${i}`, titulo: texto, oficial: extra.oficial === undefined ? TITULO_B : extra.oficial, ...(extra.idioma ? { idioma: extra.idioma } : {}) })
+  const seq = (n: number, texto: string, inicio: number, passo: number, extra: { idioma?: string; oficial?: string | null } = {}, base = 0) =>
+    Array.from({ length: n }, (_, i) => um(base + i, inicio + i * passo, texto, extra))
+  const venc = (vencedor: string, leiturasDescartadas = 0) => ({ estado: 'vencedor_provavel', vencedor, leiturasDescartadas, versaoRegra: v })
+
+  it('F17: o oficial vem do sufixo: 30 A (oficial A) e depois 24 B (oficial B) = vencedor B, não oficial_diverge', () => {
+    const ls = [...seq(30, TITULO_A, T0, 10 * 60_000, { oficial: TITULO_A }), ...seq(24, TITULO_B, T0 + 6 * H, 70 * 60_000, { oficial: TITULO_B }, 100)]
+    expect(desfecho(ls)).toEqual(venc(TITULO_B, 30))
+  })
+
+  it('F17b: oficial só fora do sufixo (A antes, nulo no sufixo B): oficial_nao_lido, não oficial_diverge', () => {
+    const ls = [...seq(30, TITULO_A, T0, 10 * 60_000, { oficial: TITULO_A }), ...seq(24, TITULO_B, T0 + 6 * H, 70 * 60_000, { oficial: null }, 100)]
+    expect(desfecho(ls)).toEqual({ estado: 'sem_dado', motivo: 'oficial_nao_lido', versaoRegra: v })
+  })
+
+  it('F6: oficial decomposto (NFD) e com espaço no fim vale como o voto normalizado', () => {
+    expect(desfecho(comOficial(bLongo(), TITULO_B.normalize('NFD') + '  '))).toEqual(venc(TITULO_B))
+  })
+
+  it('F10: vencedor é a variante canônica do antes, não o texto cru da 1ª leitura (espaço no fim)', () => {
+    const ls = bLongo()
+    ls[0] = { ...ls[0]!, titulosExibidos: ls[0]!.titulosExibidos.map(t => ({ ...t, texto: TITULO_B + ' ' })) }
+    expect(desfecho(ls)).toEqual(venc(TITULO_B))
+  })
+
+  it('F7b: leitura sem voto antes de ultimaVista já é janelas_sobrepostas (a janela olha todas as leituras)', () => {
+    const ls = [...bLongo(), leitura({ em: new Date(ULTIMA - 1000).toISOString(), rodada: 'nv', renderers: [{ renderer: 'videoPrimaryInfoRenderer', texto: 'X' }, { renderer: 'playerOverlayVideoDetailsRenderer', texto: 'Y' }] })]
+    expect(desfecho(ls)).toEqual({ estado: 'sem_dado', motivo: 'janelas_sobrepostas', versaoRegra: v })
+  })
+
+  it('empate de idioma: vale o da 1ª leitura votante pelo desempate; embaralhar a entrada não muda', () => {
+    const en = seq(18, TITULO_B, T0, (24 * H) / 17, { idioma: 'en', oficial: TITULO_B })
+    const pt = seq(18, TITULO_A, T0 + 1000, (24 * H) / 17, { idioma: 'pt-BR', oficial: TITULO_A }, 100)
+    const todas = [...en, ...pt]
+    const esperado = desfecho(todas)
+    expect(esperado).toEqual(venc(TITULO_B))
+    expect(desfecho([...todas].reverse())).toEqual(esperado)
+    const pares = todas.map((l, i) => [(i * 7919) % 36, l] as const).sort((a, b) => a[0] - b[0]).map(x => x[1])
+    expect(desfecho(pares)).toEqual(esperado)
+    // se o outro idioma abrir a série, ele passa a ser a referência
+    const ptPrimeiro = [...seq(18, TITULO_A, T0 - 1000, (24 * H) / 17, { idioma: 'pt-BR', oficial: TITULO_A }, 100), ...en]
+    expect(desfecho(ptPrimeiro)).toEqual(venc(TITULO_A))
+  })
+})

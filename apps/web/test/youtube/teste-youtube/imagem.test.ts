@@ -74,3 +74,14 @@ describe('instanteDoEtag', () => {
     expect(instanteDoEtag('"12345678"')).toBeNull()
   })
 })
+
+describe('fechamento do lote: guardas de imagem e etag', () => {
+  it('I7: duas imagens sem dimensão e com o mesmo dHash são incomparáveis (a guarda nula vale por si)', () => {
+    expect(mesmaImagem(hq('106068c9a7a3c3c8', null, null), hq('106068c9a7a3c3c8', null, null))).toBe('incomparavel')
+  })
+
+  it('I5: ETag de 12 e 13 dígitos não é instante de envio (null, não uma data absurda)', () => {
+    expect(instanteDoEtag('"179234174500"')).toBeNull()
+    expect(instanteDoEtag('"1792341745000"')).toBeNull()
+  })
+})
