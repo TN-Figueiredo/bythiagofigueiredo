@@ -1,6 +1,6 @@
 import { RULES } from './rules'
 
-// [PERGUNTA AO DONO] pergunta 10 do plano conjunto (.superpowers/sdd/ab-lab/2026-10-18-nativo-vs-nosso/plano-conjunto.md):
+// Decisão do dono (18/10, "sim a todas as recomendações"), pergunta 10 do plano conjunto (.superpowers/sdd/ab-lab/2026-10-18-nativo-vs-nosso/plano-conjunto.md, seção 9):
 // o teste nativo do YouTube divide ao mesmo tempo e não alterna por tempo; A -> B -> A em poucos dias é só o que se vê,
 // sem atribuir ao YouTube. Este é o único ponto onde o texto mora. O campo interno `testCompare` mantém o nome.
 export const ALTERNANCIA_DIAS = RULES.testCompareMaxDays

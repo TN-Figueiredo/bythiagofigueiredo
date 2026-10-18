@@ -5,7 +5,7 @@ import { RULES } from './rules'
 import { FORMULA } from './catalog'
 import { diffLines, titleDiff, type LineDiff, type TitleDiff } from './text-diff'
 import type { EngineCtx } from './series'
-import { sameThumb } from '../thumb-hamming'
+import { thumbRepresentatives } from '../thumb-hamming'
 
 export interface ObsChange {
   id: string; video: string; ch: string; niche: Niche | null; fmt: VideoFmt; type: 'title' | 'thumb' | 'desc'; typeLabel: string; idx: number; at: number
@@ -72,21 +72,23 @@ export function deriveChanges(ctx: EngineCtx): ObsChange[] {
         c.agoText = win ? 'vista pela 1ª vez ' + date.ago(c.at) : date.ago(c.at)
         if (type === 'title') { c.before = prev.text; c.after = ver.text }
         if (type === 'thumb') {
+          const rep = thumbRepresentatives(arr.map(x => x.key).filter((k): k is string => k != null))
+          const same = (x: string | null | undefined, y: string | null | undefined) => x != null && y != null && rep.has(x) && rep.get(x) === rep.get(y)
           c.before = { key: prev.key, art: prev.art }; c.after = { key: ver.key, art: ver.art }
           c.prevLivedMs = prev.last_seen - prev.first_seen; c.nextLivedMs = ver.last_seen - ver.first_seen
           // Mesma imagem = igualdade ou Hamming <= DHASH_MAX_SAME (recompressão do YouTube); chave nula não inventa volta.
-          const earlierHit = arr.slice(0, i - 1).find(x => sameThumb(x.key, ver.key))
+          const earlierHit = arr.slice(0, i - 1).find(x => same(x.key, ver.key))
           c.revertTo = earlierHit ? earlierHit.key! : null
           if (c.revertTo) {
-            const left = arr.slice(0, i).reverse().find(x => sameThumb(x.key, ver.key) && x !== ver)
+            const left = arr.slice(0, i).reverse().find(x => same(x.key, ver.key) && x !== ver)
             const leftAt = left ? left.last_seen : null
             c.cycleMs = leftAt ? ver.first_seen - leftAt : null
             c.testCompare = c.cycleMs != null && c.cycleMs <= RULES.testCompareMaxDays * DAY
             // The production sentences about a return ("com a alternativa", "foi revertida", "A → B → A") are only true
             // when nothing else was on air in between. `left` is the previous period of the same image.
             const li = left ? arr.lastIndexOf(left) : -1
-            c.revertImmediate = sameThumb(arr[i - 2]!.key, ver.key)
-            c.revertBetween = li < 0 ? 0 : arr.slice(li + 1, i).reduce<string[]>((u, x) => (u.some(k => sameThumb(k, x.key)) ? u : [...u, x.key!]), []).length
+            c.revertImmediate = same(arr[i - 2]!.key, ver.key)
+            c.revertBetween = li < 0 ? 0 : new Set(arr.slice(li + 1, i).map(x => (x.key != null ? rep.get(x.key) : null) ?? x.key)).size
           }
         }
         if (type === 'desc') {

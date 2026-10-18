@@ -767,7 +767,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const nThumbIn = nIn(thumbs), ofPeriod = cut ? ' do período' : ''
   const versions: VersionsView = {
     thumbs: {
-      src: thumbs.length > 1 ? new Set(v.thumbs.map(t => t.key)).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' + (cut ? showing(thumbs) + '. Cada cartão traz o período inteiro da versão, mesmo a parte fora do filtro' : '') : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada',
+      src: thumbs.length > 1 ? new Set(thumbKeys.values()).size + ' imagens em ' + thumbs.length + ' períodos, em ordem' + (cut ? showing(thumbs) + '. Cada cartão traz o período inteiro da versão, mesmo a parte fora do filtro' : '') : thumbs.length ? 'sem troca vista' : 'Nenhuma thumbnail registrada',
       cards: thumbs, notes: thumbNotes, runNote: runNote('thumb'),
       more: nThumbIn > HR.collapseAbove ? {
         keep: HR.collapseAbove, open: 'Ver todas (' + nThumbIn + ')', close: 'Mostrar só as ' + HR.collapseAbove + ' mais recentes',

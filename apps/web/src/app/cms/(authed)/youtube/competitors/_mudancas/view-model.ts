@@ -13,6 +13,7 @@ import { forjaOrder, parseNiche, type NicheScope } from '@/lib/youtube/observato
 import type { Fmt, Niche, ObsVideo, ThumbVersion } from '@/lib/youtube/observatorio/types'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { runCardText, runDefinition } from '@/lib/youtube/observatorio/test-run'
+import { imageLetters } from '../_chrome/version-span'
 import { pinViewOf, type PinView } from '../_chrome/pin-view'
 
 /* ------------------------------------------------------------------ public types */
@@ -324,10 +325,7 @@ function badges(obs: Observatory, c: ObsChange): Hero['badges'] {
   return out
 }
 function thumbLetter(obs: Observatory, c: ObsChange): string {
-  const v = obs.video(c.video)!, keys: string[] = []
-  for (const t of v.thumbs) if (!keys.includes(t.key)) keys.push(t.key)
-  const i = keys.indexOf(String(c.revertTo))
-  return i < 0 ? 'anterior' : String.fromCharCode(65 + i)
+  return imageLetters(obs.video(c.video)!.thumbs).get(String(c.revertTo)) ?? 'anterior'
 }
 
 function sparkView(obs: Observatory, e: EffectResult): SparkView | null {

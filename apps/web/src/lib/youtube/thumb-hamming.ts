@@ -26,3 +26,22 @@ export function sameThumb(a: string | null | undefined, b: string | null | undef
   if (a === b) return true
   return DHASH_RE.test(a) && DHASH_RE.test(b) && hamming(a, b) <= DHASH_MAX_SAME
 }
+
+/**
+ * Representante único de miniatura: cada chave vira o representante da PRIMEIRA chave anterior (na ordem de chegada) que
+ * `sameThumb` reconhece, ou ela mesma se não houver. `sameThumb` não é transitivo (A~A', A'~A'' mas A!~A''); a regra
+ * encadeia: A'' cai em A', que já é A, então os três são uma imagem só. Uma imagem que não é parecida com NENHUMA
+ * anterior abre representante novo. Motor (changes.ts) e telas (letras, "N imagens") usam este mapa, para o selo
+ * "Voltou à versão A" e a letra do cartão não se contradizerem.
+ * Nota: sha256 truncado (dHash nulo) tem o formato de dHash; falso "mesma imagem" ~4,5e-12 por par, aceito.
+ */
+export function thumbRepresentatives(keys: readonly string[]): Map<string, string> {
+  const rep = new Map<string, string>(), seen: string[] = []
+  for (const k of keys) {
+    if (rep.has(k)) continue
+    const hit = seen.find(r => sameThumb(r, k))
+    rep.set(k, hit === undefined ? k : rep.get(hit)!)
+    seen.push(k)
+  }
+  return rep
+}

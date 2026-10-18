@@ -6,6 +6,9 @@ import { loadFase4, setThumbs, VID, DAY, H } from './fase4-world'
 import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildHistoricoView } from '@/app/cms/(authed)/youtube/competitors/_historico/view-model'
+import { thumbRepresentatives } from '@/lib/youtube/thumb-hamming'
+import { imageLetters } from '@/app/cms/(authed)/youtube/competitors/_chrome/version-span'
+import { viewerOfVideo } from '@/app/cms/(authed)/youtube/competitors/_chrome/thumb-viewer/thumb-viewer-versions'
 import { buildMudancasView } from '@/app/cms/(authed)/youtube/competitors/_mudancas/view-model'
 
 /** A → B → C → A: A is back after 3 days, with B and C on air in between. */
@@ -118,5 +121,40 @@ describe('S2: rótulo sem atribuir ao YouTube e volta tolerante à recompressão
     const { ds } = loadFase4(), t = ds.now - 12 * DAY
     setThumbs(ds, VID.few, [['A'], ['B', t], ['C', t + DAY]])
     expect(createObservatory(ds).change(VID.few + '/thumb/2')!.revertTo).toBeNull()
+  })
+})
+
+describe('S2: a mesma imagem recomprimida guarda a letra e a contagem (representante único)', () => {
+  const H16 = (n: number) => n.toString(16).padStart(16, '0')
+  const flip = (hex: string, bits: number) => H16(parseInt(hex, 16) ^ ((1 << bits) - 1))
+  const A = H16(0xabcdef), B = H16(0xfffff0000)
+  const world = (a2: string) => {
+    const { ds } = loadFase4(), t = ds.now - 12 * DAY
+    setThumbs(ds, VID.few, [[A], [B, t], [a2, t + 5 * DAY]])
+    return createObservatory(ds)
+  }
+  it('A, B, A\' (3 bits): letras A, B, A; "2 imagens em 3 períodos"; selo "Voltou à versão A"; visor rotula "Thumbnail A"', () => {
+    const a2 = flip(A, 3), obs = world(a2), v = obs.video(VID.few)!
+    expect(v.thumbs.map(t => imageLetters(v.thumbs).get(t.key))).toEqual(['A', 'B', 'A'])
+    expect(buildHistoricoView(obs, VID.few, { range: 'tudo' }).versions!.thumbs.src).toMatch(/^2 imagens em 3 períodos/)
+    expect(badges(obs, VID.few)[VID.few + '/thumb/2'].join(' ')).toMatch(/Voltou à versão A /)
+    const ch = obs.channels.find(c => c.id === v.ch)!
+    expect(viewerOfVideo(obs, v, ch, 't', null)!.versions.map(x => x.label)).toEqual(['Thumbnail A', 'Thumbnail B', 'Thumbnail A'])
+  })
+  it('A, B, A\' (7 bits): letra C e "3 imagens" (comportamento de sempre)', () => {
+    const obs = world(flip(A, 7)), v = obs.video(VID.few)!
+    expect(v.thumbs.map(t => imageLetters(v.thumbs).get(t.key))).toEqual(['A', 'B', 'C'])
+    expect(buildHistoricoView(obs, VID.few, { range: 'tudo' }).versions!.thumbs.src).toMatch(/^3 imagens em 3 períodos/)
+  })
+  it('regra encadeada: A, A\'(5), A\'\'(10 de A, 5 de A\') => os três são A; uma imagem sem parecida abre letra nova', () => {
+    const a1 = flip(A, 5), a2 = H16(parseInt(a1, 16) ^ (0b11111 << 5)), far = H16(0x123456789abc)
+    const r = thumbRepresentatives([A, a1, a2, far])
+    expect(r.get(a2)).toBe(A)
+    expect([r.get(A), r.get(a1), r.get(far)]).toEqual([A, A, far])
+    expect(thumbRepresentatives(['x', 'y', 'x', null as never].slice(0, 3))).toEqual(new Map([['x', 'x'], ['y', 'y']]))
+  })
+  it('não transitivo: x=0, y=0x3f, z=0xfc0 (y e z a 12 bits) => z cai em x, que é o 1º que o reconhece', () => {
+    const [x, y, z] = [H16(0), H16(0x3f), H16(0xfc0)], r = thumbRepresentatives([x, y, z])
+    expect([r.get(y), r.get(z)]).toEqual([x, x])
   })
 })
