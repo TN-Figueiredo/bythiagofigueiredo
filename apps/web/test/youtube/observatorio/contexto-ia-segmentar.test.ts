@@ -564,3 +564,13 @@ describe('decisão 75: falhou e restrito no pacote', () => {
     expect(p.numeros.privadosMedidos).toBe(0)
   })
 })
+
+describe('palavras da pastilha sem repetir (Yannis R2-1)', () => {
+  it('motivo igual à palavra sai só a palavra; motivo longo sai entre parênteses', () => {
+    expect(F.falhou('falhou')).toBe('falhou')
+    expect(F.restrito('restrito')).toBe('restrito')
+    expect(F.naoMedido('não medido')).toBe('não medido')
+    expect(F.falhou('a leitura dos vídeos ou das medidas falhou')).toBe('falhou (a leitura dos vídeos ou das medidas falhou)')
+    expect(F.restrito('só quem edita vê o alcance')).toBe('restrito (só quem edita vê o alcance)')
+  })
+})

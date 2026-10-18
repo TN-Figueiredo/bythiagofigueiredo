@@ -21,7 +21,7 @@ export function SecaoDeComentarios({ v, criador, hrefFilaSaiu }: { v: SecaoView;
       <h2 id="cd-titulo" className="cd-titulo">{v.titulo}</h2>
       <InfoDica titulo={v.info.titulo} rotulo={v.info.rotulo} paragrafos={v.info.paragrafos} />
       {v.faixa ? <p className="cd-faixa">{v.faixa}</p> : null}
-      <Abas abas={v.abas} abertaInicial={v.aberta} cima={MARCOS_DA_TELA.map(m => { const p = v.paineis[m]; return p.kind === 'lista' ? <ResumoDaLista v={p} /> : null })}>
+      <Abas abas={v.abas} abertaInicial={v.aberta} cima={MARCOS_DA_TELA.map(m => { const p = v.paineis[m]; return p.kind === 'lista' ? <ResumoDaLista key={m} v={p} /> : null })}>
         {MARCOS_DA_TELA.map(m => <Painel key={m} v={v.paineis[m]} criador={criador} hrefFilaSaiu={hrefFilaSaiu} />)}
       </Abas>
       <p className="cd-nota">{v.fonte}</p>

@@ -50,9 +50,9 @@ export const A_TELA_NAO_INFORMA_O_MOTIVO = 'a tela não informa o motivo' // nov
 export const ERRO_DA_COLETA_SEM_DETALHE = 'erro na coleta; a causa não é enviada' // novo
 // a célula cujo motivo é só a palavra da pastilha não a repete: "não medido", nunca "não medido (não medido)"
 export const naoMedido = (motivo: string) => (motivo === 'não medido' ? motivo : `não medido (${motivo})`) // novo (o mockup escreve só "não medido" na célula)
-// decisão 75: as mesmas palavras da pastilha da tela (falhou = triângulo, restrito = cadeado)
-export const falhou = (motivo: string) => `falhou (${motivo})` // novo
-export const restrito = (motivo: string) => `restrito (${motivo})` // novo
+// decisão 75: as mesmas palavras da pastilha da tela (falhou = triângulo, restrito = cadeado), sem repetir a palavra como no naoMedido
+export const falhou = (motivo: string) => (motivo === 'falhou' ? motivo : `falhou (${motivo})`) // novo
+export const restrito = (motivo: string) => (motivo === 'restrito' ? motivo : `restrito (${motivo})`) // novo
 /** Primeira linha quando há números que a leitura não trouxe agora: vem antes do aviso de magro e não conta como falta de dado. */
 export const avisoFalha = (falhou: number) =>
   `AVISO: ${falhou} ${falhou === 1 ? 'número não foi lido' : 'números não foram lidos'} agora; ${falhou === 1 ? 'não é zero nem falta de dado' : 'não são zero nem falta de dado'}. Os motivos estão na seção 4.` // novo
