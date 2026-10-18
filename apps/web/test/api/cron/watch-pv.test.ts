@@ -163,18 +163,25 @@ describe('executarPv (relógio falso)', () => {
     const out = await executarPv(relogio(9000).deps)
     expect(out.cortado).toBe('fase1')
   })
-  it('fase 2 começa com fase 1 acabando em ~195 s', async () => {
-    const r = relogio(1000)
+  it('fase 1 terminando em ~207 s ainda faz a fase 2 (começa entre 200 e 235 s)', async () => {
+    const r = relogio(1400)
     const out = await executarPv(r.deps)
+    expect(out.fase1.rodadas.length).toBe(10)
     expect(out.fase2.lidas).toBeGreaterThan(0)
-    expect(r.stats().inicios[30]!).toBeLessThanOrEqual(200_000)
+    const ini = r.stats().inicios[30]!
+    expect(ini).toBeGreaterThan(200_000)
+    expect(ini).toBeLessThanOrEqual(235_000)
   })
-  it('fase 2 pulada quando a fase 1 acaba depois de 200 s (~204 s)', async () => {
-    const r = relogio(1300)
-    const out = await executarPv(r.deps)
-    expect(out.fase2.lidas).toBe(0)
+  it('fase 2 iniciada depois de 200 s é cortada em 270 s', async () => {
+    const r = relogio(1400, undefined)
+    // leituras da fase 2 lentas: relógio avança 10 s só a partir da 31a leitura
+    let n = 0
+    const base = r.deps.fetch
+    const deps = { ...r.deps, fetch: (async (...a: Parameters<typeof fetch>) => { n++; const res = await base(...a); if (n > 30) await r.deps.dormir(9000); return res }) as typeof fetch }
+    const out = await executarPv(deps)
+    expect(out.fase2.lidas).toBeGreaterThan(0)
     expect(out.cortado).toBe('fase2')
-    expect(r.stats().n).toBe(30)
+    expect(Math.max(...r.stats().inicios)).toBeLessThan(270_000)
   })
   it('braço ? para página sem renderers e rodada [?, B, B] não é mista; não importa nada de banco', async () => {
     const r = relogio(500, (n) => (n % 3 === 1 ? 'sem renderers' : PAGINA_B))

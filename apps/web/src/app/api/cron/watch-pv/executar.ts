@@ -6,10 +6,10 @@ export const LEITURAS_POR_RODADA = 3
 export const PAUSA_ENTRE_LEITURAS_MS = 1_500
 export const PAUSA_ENTRE_RODADAS_MS = 15_000
 export const RODADA_NAO_COMECA_APOS_MS = 200_000
-export const FASE2_NAO_COMECA_APOS_MS = 200_000
+export const FASE2_NAO_COMECA_APOS_MS = 235_000
 export const LEITURA_NAO_COMECA_APOS_MS = 270_000
 /** Depois desta data a rota se desativa sozinha (cada chamada faz 78 requisições ao YouTube). */
-export const VALIDA_ATE = Date.parse('2026-10-22T00:00:00Z')
+export const VALIDA_ATE = Date.parse('2026-10-21T13:00:00Z')
 export const CONCORRENCIA_RAJADA = 3
 export const PASSADAS = 3
 export const TIMEOUT_LEITURA_MS = 10_000
