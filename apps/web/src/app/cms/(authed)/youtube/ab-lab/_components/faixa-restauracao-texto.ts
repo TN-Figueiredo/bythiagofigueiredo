@@ -55,6 +55,8 @@ interface Item {
   linkRotulo: string | null
   ajuda: string | null
   fine: boolean
+  /** Tom que este campo impõe à faixa quando difere do da linha (F: linha cinza, faixa âmbar). */
+  tomFaixa?: Exclude<Tom, 'ok' | 'none'>
 }
 
 const ESCRITA = new Set(['videos.update', 'thumbnails.set'])
@@ -121,9 +123,10 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
     }
     case 'pulado_drift':
       if (c.motivo === 'sem_base_de_comparacao') {
-        return mk('warn', 'Não medida: sem imagem de referência para comparar.', undefined, {
+        return mk('none', 'Não medida: sem imagem de referência para comparar.', undefined, {
           lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as variantes. Nada foi alterado.', papel: 'status', linkRotulo: STUDIO,
-        }, 'none')
+          tomFaixa: 'warn',
+        })
       }
       return mk('warn', `Mantida como está no YouTube desde ${h}.`, h, {
         lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma variante deste teste: alguém editou por fora. Nada foi alterado.',
@@ -182,13 +185,16 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
     return { tom: 'ok', okline: `${k0 === 'title' ? 'O título voltou' : 'A thumbnail voltou'} ao original em ${h}.` }
   }
 
-  const pior = itens.reduce((a, b) => (PESO[b.i.linha.tom] > PESO[a.i.linha.tom] ? b : a))
+  const tomDe = (x: (typeof itens)[number]): Tom => x.i.tomFaixa ?? x.i.linha.tom
+  const pior = itens.reduce((a, b) => (PESO[tomDe(b)] > PESO[tomDe(a)] ? b : a))
   const comLink = itens.find(x => x.i.linkRotulo !== null)
-  const tom = pior.i.linha.tom as Exclude<Tom, 'ok'>
+  const tom = tomDe(pior) as Exclude<Tom, 'ok'>
+  // Com tomFaixa, o ícone da faixa mantém a forma da linha (F: círculo tracejado em âmbar).
+  const icone = pior.i.linha.icone ?? (pior.i.tomFaixa ? pior.i.linha.tom : undefined)
   const resumo = tom === 'busy' ? frasesBusy(campos) : pior.i.resumo
   return {
     tom,
-    ...(pior.i.linha.icone ? { icone: pior.i.linha.icone } : {}),
+    ...(icone ? { icone } : {}),
     lbl: pior.i.lbl,
     resumo,
     linhas: itens.map(x => x.i.linha),

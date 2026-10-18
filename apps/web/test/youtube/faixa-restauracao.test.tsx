@@ -147,7 +147,7 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
       tom: 'warn', icone: 'none', lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as variantes. Nada foi alterado.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
-        { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'warn', icone: 'none', texto: 'Não medida: sem imagem de referência para comparar.' },
+        { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'none', texto: 'Não medida: sem imagem de referência para comparar.' },
       ],
       linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: null, papel: 'status',
     })
