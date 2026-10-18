@@ -512,3 +512,65 @@ describe('varredura 7: em produção a lista, a prova e a rotina valem para todo
     expect(usaSiteIdNoCtx.sort()).toEqual(['anular.ts', 'coletar.ts'])
   })
 })
+
+// ───────────────────────── 8 (F2-coleta): respostas de espectadores, LGPD ─────────────────────────
+// (O plano chama esta de "varredura 6"; o número 6 já era a do texto do dono.)
+describe('varredura 8: resposta de espectador sem identidade, sem chave de canal fora de onde numera, texto sem menção', () => {
+  /** O corpo de `function nome(...) { ... }` (comentários fora), achado por contagem de chaves sobre a estrutura. */
+  function corpoDe(src: string, nomeFn: string): string | null {
+    const l = ler2(src)
+    const ini = l.soEstrutura.search(new RegExp('function\\s+' + nomeFn + '\\s*\\('))
+    if (ini < 0) return null
+    const abre = l.soEstrutura.indexOf('{', l.soEstrutura.indexOf(')', ini))
+    let prof = 0
+    for (let i = abre; i < l.soEstrutura.length; i++) {
+      if (l.soEstrutura[i] === '{') prof++
+      else if (l.soEstrutura[i] === '}' && --prof === 0) return l.semComentarios.slice(abre, i + 1)
+    }
+    return null
+  }
+  const PROIBIDOS_NO_CORPO = /\bauthor\b|display_name|channel_id|avatar_url|autorCanalId/
+  const CHAVE_DO_AUTOR = /autorCanalId/
+  const PERMITIDOS_AUTOR_CANAL = ['espectadores.ts', 'gravar.ts', 'normalizar.ts', 'tipos.ts']
+  const gravar = (): string => ler(join(COMENTARIOS, 'gravar.ts'))
+
+  it('o detector enxerga: lista de arquivos não vazia e corpo de respostaDeTerceiro achado', () => {
+    expect(doComentarios().length).toBeGreaterThan(0)
+    expect(corpoDe(gravar(), 'respostaDeTerceiro')).not.toBeNull()
+    expect(corpoDe('function a(x) { return { b: { c: 1 } } }\nfunction z() {}', 'a')).toBe('{ return { b: { c: 1 } } }')
+  })
+  it('(a) o corpo de respostaDeTerceiro não cita author, display_name, channel_id, avatar_url nem autorCanalId', () => {
+    const corpo = corpoDe(gravar(), 'respostaDeTerceiro') as string
+    expect(PROIBIDOS_NO_CORPO.test(corpo)).toBe(false)
+    // exemplo ruim
+    expect(PROIBIDOS_NO_CORPO.test('{ return { author: { display_name: r.nome } } }')).toBe(true)
+    expect(PROIBIDOS_NO_CORPO.test('{ return { x: r.autorCanalId } }')).toBe(true)
+  })
+  it('(b) autorCanalId só em normalizar, espectadores, tipos e gravar (só para conferir a resposta do CRIADOR, nunca dentro de respostaDeTerceiro): nunca em coletar, relato, leitores nem fora de comentarios/', () => {
+    const quem = [...doComentarios(), ...todoSrc().filter((f) => !f.startsWith(COMENTARIOS))]
+      .filter((f) => CHAVE_DO_AUTOR.test(ler2(ler(f)).semComentarios)).map((f) => (f.startsWith(COMENTARIOS) ? nome(f) : rel(f)))
+    expect([...new Set(quem)].sort()).toEqual(PERMITIDOS_AUTOR_CANAL)
+    expect(CHAVE_DO_AUTOR.test(ler2('const x = r.autorCanalId').semComentarios)).toBe(true) // exemplo ruim
+  })
+  it('(d) respostaDeTerceiro passa o texto por semMencoes', () => {
+    const corpo = corpoDe(gravar(), 'respostaDeTerceiro') as string
+    expect(/semMencoes\(\s*r\.texto\s*\)/.test(corpo)).toBe(true)
+    expect(/semMencoes\(/.test('{ return { body: r.texto } }')).toBe(false) // exemplo ruim
+  })
+  it('(e) a linha via: id de espectador também passa por semMencoes (montarPacote)', () => {
+    const corpo = corpoDe(gravar(), 'montarPacote') as string
+    const i = corpo.indexOf("via: 'id'")
+    expect(i).toBeGreaterThan(0)
+    const antes = corpo.slice(Math.max(0, i - 700), i)
+    expect(/semMencoes\(v\.texto\)/.test(antes)).toBe(true)
+    const ruim = "const texto = v.texto\n comments.push({ via: 'id', body: texto })"
+    expect(/semMencoes\(v\.texto\)/.test(ruim.slice(0, ruim.indexOf("via: 'id'")))).toBe(false) // exemplo ruim: sem a chamada antes do via
+  })
+  it('(c) nenhum arquivo fora de comentarios/ cita speaker_no (a lista permitida muda com a tela da F2)', () => {
+    const fora = todoSrc().filter((f) => !f.startsWith(COMENTARIOS))
+    expect(fora.length).toBeGreaterThan(0)
+    const culpados = fora.filter((f) => /speaker_no|speakerNo/.test(ler2(ler(f)).semComentarios)).map(rel)
+    expect(culpados).toEqual([])
+    expect(/speaker_no|speakerNo/.test('select speaker_no')).toBe(true) // exemplo ruim
+  })
+})
