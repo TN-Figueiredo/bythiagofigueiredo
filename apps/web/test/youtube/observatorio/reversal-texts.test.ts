@@ -137,6 +137,8 @@ describe('S2: a mesma imagem recomprimida guarda a letra e a contagem (represent
     const a2 = flip(A, 3), obs = world(a2), v = obs.video(VID.few)!
     expect(v.thumbs.map(t => imageLetters(v.thumbs).get(t.key))).toEqual(['A', 'B', 'A'])
     expect(buildHistoricoView(obs, VID.few, { range: 'tudo' }).versions!.thumbs.src).toMatch(/^2 imagens em 3 períodos/)
+    // cabeçalho conta pelo mesmo representante (Yannis R2-1)
+    expect(buildHistoricoView(obs, VID.few, { range: 'tudo' }).header!.counts.find(c => c.type === 'thumb')!.text).toMatch(/^2 thumbnails em 3 períodos/)
     expect(badges(obs, VID.few)[VID.few + '/thumb/2'].join(' ')).toMatch(/Voltou à versão A /)
     const ch = obs.channels.find(c => c.id === v.ch)!
     expect(viewerOfVideo(obs, v, ch, 't', null)!.versions.map(x => x.label)).toEqual(['Thumbnail A', 'Thumbnail B', 'Thumbnail A'])
@@ -146,11 +148,15 @@ describe('S2: a mesma imagem recomprimida guarda a letra e a contagem (represent
     expect(v.thumbs.map(t => imageLetters(v.thumbs).get(t.key))).toEqual(['A', 'B', 'C'])
     expect(buildHistoricoView(obs, VID.few, { range: 'tudo' }).versions!.thumbs.src).toMatch(/^3 imagens em 3 períodos/)
   })
-  it('regra encadeada: A, A\'(5), A\'\'(10 de A, 5 de A\') => os três são A; uma imagem sem parecida abre letra nova', () => {
+  it('âncora: A, A\'(5), A\'\'(10 de A, 5 de A\') => A\' é A, A\'\' abre imagem nova (sem deriva por elos); imagem distante também', () => {
     const a1 = flip(A, 5), a2 = H16(parseInt(a1, 16) ^ (0b11111 << 5)), far = H16(0x123456789abc)
     const r = thumbRepresentatives([A, a1, a2, far])
-    expect(r.get(a2)).toBe(A)
+    expect(r.get(a2)).toBe(a2)
     expect([r.get(A), r.get(a1), r.get(far)]).toEqual([A, A, far])
+    // recompressão repetida (2 + 2 bits) continua sendo A
+    const c1 = flip(A, 2), c2 = H16(parseInt(c1, 16) ^ (0b11 << 20))
+    const rc = thumbRepresentatives([A, c1, c2])
+    expect([rc.get(c1), rc.get(c2)]).toEqual([A, A])
     expect(thumbRepresentatives(['x', 'y', 'x', null as never].slice(0, 3))).toEqual(new Map([['x', 'x'], ['y', 'y']]))
   })
   it('não transitivo: x=0, y=0x3f, z=0xfc0 (y e z a 12 bits) => z cai em x, que é o 1º que o reconhece', () => {

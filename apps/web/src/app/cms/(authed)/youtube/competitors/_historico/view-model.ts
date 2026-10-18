@@ -711,7 +711,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
   const header = buildHeader()
   function buildHeader(): HeaderView {
     const vv = v!, m = vv.mult
-    const nT = titles.length, distinct = new Set(v!.thumbs.map(t => t.key)).size, nD = descs.length, back = sumAll.returned
+    const nT = titles.length, distinct = new Set(thumbKeys.values()).size, nD = descs.length, back = sumAll.returned
     const counts: HeaderView['counts'] = !observed ? [] : !changes.length ? [{ type: null, text: 'Nenhuma troca registrada' }] : [
       { type: 'title', text: F.plural(nT, 'título', 'títulos') },
       { type: 'thumb', text: thumbs.length > 1 ? distinct + ' thumbnails em ' + thumbs.length + ' períodos' + (back === 1 ? ' (uma voltou)' : back > 1 ? ' (' + back + ' voltaram)' : '') : thumbPreAt != null ? '1 thumbnail (vista desde ' + preLabel + ')' : F.plural(thumbs.length, 'thumbnail', 'thumbnails') },

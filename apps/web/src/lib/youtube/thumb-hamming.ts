@@ -28,10 +28,12 @@ export function sameThumb(a: string | null | undefined, b: string | null | undef
 }
 
 /**
- * Representante único de miniatura: cada chave vira o representante da PRIMEIRA chave anterior (na ordem de chegada) que
- * `sameThumb` reconhece, ou ela mesma se não houver. `sameThumb` não é transitivo (A~A', A'~A'' mas A!~A''); a regra
- * encadeia: A'' cai em A', que já é A, então os três são uma imagem só. Uma imagem que não é parecida com NENHUMA
- * anterior abre representante novo. Motor (changes.ts) e telas (letras, "N imagens") usam este mapa, para o selo
+ * Representante único de miniatura, com âncora: cada chave é comparada só com os REPRESENTANTES já abertos (na ordem de
+ * chegada) e cai no primeiro que `sameThumb` reconhece; senão abre representante novo. Todo membro fica a no máximo
+ * DHASH_MAX_SAME bits do seu representante, então elos não acumulam deriva: A'' a 10 bits de A (via A' a 5) é imagem
+ * nova, porque o spike S1 mediu 10 bits como a menor distância entre imagens de fato diferentes. A recompressão do
+ * YouTube (0-2 bits, repetida <= 4) continua caindo em A. Erro que sobra: um falso "não voltou", o lado seguro
+ * (decisão de 18/10 entre Phil, que pediu a âncora, e Yannis, que aceitava a regra encadeada). Motor (changes.ts) e telas (letras, "N imagens") usam este mapa, para o selo
  * "Voltou à versão A" e a letra do cartão não se contradizerem.
  * Nota: sha256 truncado (dHash nulo) tem o formato de dHash; falso "mesma imagem" ~4,5e-12 por par, aceito.
  */
@@ -40,8 +42,8 @@ export function thumbRepresentatives(keys: readonly string[]): Map<string, strin
   for (const k of keys) {
     if (rep.has(k)) continue
     const hit = seen.find(r => sameThumb(r, k))
-    rep.set(k, hit === undefined ? k : rep.get(hit)!)
-    seen.push(k)
+    rep.set(k, hit ?? k)
+    if (hit === undefined) seen.push(k)
   }
   return rep
 }
