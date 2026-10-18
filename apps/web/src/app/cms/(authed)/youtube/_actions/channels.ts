@@ -311,7 +311,7 @@ async function lerRestauracoesPendentes(sb: SupabaseClient, siteId: string, chan
       .or(`restore_status->title->>estado.${EM_LISTA},restore_status->thumbnail->>estado.${EM_LISTA}`)
     if (error || !Array.isArray(data)) return null
     const out: RestauracaoPendente[] = []
-    for (const row of data as unknown as Array<Record<string, unknown>>) {
+    for (const row of data as Array<Record<string, unknown>>) {
       const testId = String(row.id)
       const tipo = row.test_type === 'title' || row.test_type === 'combo' ? row.test_type : 'thumbnail'
       const video = Array.isArray(row.youtube_videos) ? row.youtube_videos[0] : row.youtube_videos
