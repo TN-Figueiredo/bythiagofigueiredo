@@ -12,8 +12,13 @@ import { converterInterrompido, paraRestoreStatus } from '@/lib/youtube/ab-resto
 import type { CampoNome, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 
-/** Corte para NOVAS sondas; a rota tem 60 s (`maxDuration`). */
-export const ORCAMENTO_VIGIA_MS = 45_000
+/**
+ * Corte para NOVAS sondas; a rota tem 60 s (`maxDuration`). Conta: 60 - 40 (pior teste: HEAD 10 s + GET 15 s da sonda
+ * + 15 s do Blob da variante, em série dentro de um teste) - 5 (`recordCron` e resposta) = 15 s. Além do corte, os
+ * `fetch` da sonda e do Blob param em `inicio + FIM_DAS_LEITURAS_MS`, para o `recordCron` sempre rodar.
+ */
+export const ORCAMENTO_VIGIA_MS = 15_000
+export const FIM_DAS_LEITURAS_MS = 50_000
 /**
  * F-D3: com `prazo = inicio + 55 s`, uma saída iniciada aos 15 s da rota ainda tem 40 s (>= 25 s da escrita + latência).
  * Depois disso o drift detectado vira `adiados` (o próximo vigia, 10 h depois, tenta de novo) em vez de começar uma
@@ -58,7 +63,11 @@ async function converterInterrompidos(supabase: SupabaseClient, agora: Date, r: 
     .or('restore_status->title->>estado.eq.em_andamento,restore_status->thumbnail->>estado.eq.em_andamento'), 'interrompidos')
   for (const t of testes) {
     const rs = paraRestoreStatus(t.restore_status)
-    if (!rs) continue
+    if (!rs) { // o `.or()` achou pelo jsonb cru: ilegível com em_andamento nunca converte; não pode ficar mudo
+      r.falhas++
+      Sentry.captureMessage('ab-watchdog: restore_status ilegível', { extra: { testId: t.id } })
+      continue
+    }
     const novo: RestoreStatus = { ...rs }
     const convertidos: RestoreStatus = {}
     for (const campo of CAMPOS) {
@@ -85,7 +94,7 @@ async function avisarDrift(supabase: SupabaseClient, t: TesteAtivo, resultado: E
   if (owners.length === 0) { r.semDestinatario = true; logSemDestinatario('ab-watchdog:drift', t.site_id) }
   const naoVoltou = resultado.campos.thumbnail?.estado === 'falhou'
   for (const owner of owners) {
-    await createNotification({
+    const res = await createNotification({
       site_id: t.site_id,
       user_id: owner.userId,
       type: 'youtube.drift_detected',
@@ -99,6 +108,10 @@ async function avisarDrift(supabase: SupabaseClient, t: TesteAtivo, resultado: E
       action_href: `/cms/youtube/ab-lab/${t.id}`,
       dedup_key: `drift-${t.id}-${new Date().toISOString().slice(0, 10)}`,
     })
+    if (!res.success) { // suppressed com success é dedupe legítimo
+      r.falhas++
+      Sentry.captureMessage('ab-watchdog: aviso de drift não gravado', { extra: { testId: t.id, erro: res.error } })
+    }
   }
 }
 
@@ -125,16 +138,28 @@ async function detectarDrift(
     ? new Map(ler<VarianteLinha>(await supabase.from('ab_test_variants').select('id, blob_url, thumbnail_dhash').in('id', variantIds), 'variantes').map((v) => [v.id, v]))
     : new Map<string, VarianteLinha>()
   const settle = portas.settle ?? settleOnAir
+  // Só a sonda e o Blob: o settle tem o `prazo` dele. Sem isso uma leitura lenta passa dos 60 s e some do cron_health.
+  const fLeitura: typeof fetch = (u, i) => {
+    const limite = AbortSignal.timeout(Math.max(0, relogio.inicio + FIM_DAS_LEITURAS_MS - relogio.agora()))
+    return f(u, { ...i, signal: i?.signal ? AbortSignal.any([i.signal, limite]) : limite })
+  }
 
   const verificar = async (t: TesteAtivo): Promise<void> => {
     const ciclo = ciclos.get(t.id)
     const youtubeId = videos.get(t.youtube_video_id)
-    if (!ciclo || !youtubeId) return
+    if (!ciclo || !youtubeId) { // ativo com marcador nulo e sem ciclo aberto/sem vídeo: estado que não deveria existir
+      r.falhas++
+      Sentry.captureMessage('ab-watchdog: teste ativo sem ciclo aberto/sem vídeo', { extra: { testId: t.id, temCiclo: !!ciclo, temVideo: !!youtubeId } })
+      return
+    }
     if (relogio.agora() - new Date(ciclo.started_at).getTime() < CICLO_MINIMO_MS) return
     try {
-      const probe = await probeThumb(youtubeId, null, f) // falha nunca é "sem drift"
       const variante = variantes.get(ciclo.variant_id)
-      const base = variante ? (await dhashDasVariantes(supabase, [variante], f)).get(variante.id) : undefined
+      const [probe, bases] = await Promise.all([ // falha da sonda nunca é "sem drift"
+        probeThumb(youtubeId, null, fLeitura),
+        variante ? dhashDasVariantes(supabase, [variante], fLeitura) : Promise.resolve(undefined),
+      ])
+      const base = variante ? bases?.get(variante.id) : undefined
       if (!probe.dhash || base?.tipo !== 'ok') { r.falhas++; return }
       r.verificados++
       if (hamming(probe.dhash, base.dhash) <= DHASH_MAX_SAME) return
@@ -171,6 +196,11 @@ export async function faseDriftEInterrompidos(
     r.falhas++
     Sentry.captureException(e, { tags: { area: 'ab-watchdog', fase: 'interrompidos' } })
   }
-  await detectarDrift(supabase, relogio, f, limite, portas, r)
+  try {
+    await detectarDrift(supabase, relogio, f, limite, portas, r)
+  } catch (e) { // erro de leitura não pode apagar o que a conversão já gravou da resposta
+    r.falhas++
+    Sentry.captureException(e, { tags: { area: 'ab-watchdog', fase: 'drift' } })
+  }
   return r
 }
