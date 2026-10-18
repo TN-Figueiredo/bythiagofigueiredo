@@ -86,4 +86,28 @@ describe('AbPauseDialog', () => {
     expect(await screen.findByText('Você não tem permissão para pausar este teste.')).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/forbidden/)
   })
+
+  it('R4: sessão expirada (a ação rejeita e a página redireciona) -> frase e link ao login com next', async () => {
+    const pausar = vi.fn().mockRejectedValue(new Error('An unexpected response was received from the server.'))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ type: 'opaqueredirect', status: 0 }))
+    window.history.pushState({}, '', '/cms/youtube/ab-lab/abc?x=1')
+    render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
+    expect(await screen.findByText('Sua sessão expirou. Entre de novo para pausar o teste.')).toBeTruthy()
+    expect(screen.queryByText(/Sem resposta/)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Entrar de novo' }).getAttribute('href')).toBe(`/cms/login?next=${encodeURIComponent('/cms/youtube/ab-lab/abc?x=1')}`)
+    expect(screen.getAllByRole('button', { name: 'Fechar' })).toHaveLength(2)
+    vi.unstubAllGlobals()
+  })
+
+  it('R4: mudou -> frase no lugar do corpo, Recarregar primário e Fechar', async () => {
+    const pausar = vi.fn().mockResolvedValue({ ok: false, resultado: 'mudou', error: 'x' })
+    render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
+    expect(await screen.findByText('O teste mudou em outra aba. Reabra para decidir.')).toBeTruthy()
+    expect(screen.queryByText(/restaurar a thumbnail original/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Recarregar' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Fechar' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
+  })
 })

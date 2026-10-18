@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
-import { focarFaixa, textoDoErro } from './ab-end-test-dialog'
+import { focarFaixa, textoDoErro, sessaoExpirou, hrefDoLogin } from './ab-end-test-dialog'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { Pause, X } from 'lucide-react'
@@ -20,7 +20,9 @@ export function AbPauseDialog({ pausar, seqVisto, onClose }: AbPauseDialogProps)
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [mudou, setMudou] = useState(false)
+  const [fase, setFase] = useState<'escolha' | 'sessao_expirada' | 'mudou'>('escolha')
+  const mudou = fase === 'mudou'
+  const sessaoExpirada = fase === 'sessao_expirada'
   const dialogRef = useRef<HTMLDivElement>(null)
 
   useModalFocusTrap(dialogRef, true, onClose)
@@ -31,6 +33,7 @@ export function AbPauseDialog({ pausar, seqVisto, onClose }: AbPauseDialogProps)
       try {
         result = await pausar(seqVisto)
       } catch {
+        if (await sessaoExpirou()) { setFase('sessao_expirada'); return }
         setError('Sem resposta. Recarregue a página para ver o resultado.')
         return
       }
@@ -41,9 +44,9 @@ export function AbPauseDialog({ pausar, seqVisto, onClose }: AbPauseDialogProps)
         if (recusado) focarFaixa()
         return
       }
-      if (!result.ok && result.resultado === 'mudou') { setMudou(true); setError(result.error); return }
+      if (!result.ok && result.resultado === 'mudou') { setFase('mudou'); setError(null); return }
       if (!result.ok && result.resultado === 'ja_encerrado') { router.refresh(); onClose(); return }
-      if (!result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') { router.push('/cms/login'); return }
+      if (!result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') { setFase('sessao_expirada'); return }
       // Recusa (em andamento, sem permissão, erro) fica escrita; o diálogo não fecha como se tivesse dado certo.
       setError(result.ok ? 'Resposta inesperada. Recarregue a página para ver o resultado.' : textoDoErro(result, 'pausar'))
     })
@@ -87,38 +90,57 @@ export function AbPauseDialog({ pausar, seqVisto, onClose }: AbPauseDialogProps)
 
           {/* Body */}
           <div className="py-[18px] px-[20px] space-y-[10px] text-[13px] text-cms-text-dim leading-[1.55]">
-            <p className="m-0">Pausar vai restaurar a thumbnail original imediatamente.</p>
-            <p className="m-0">O ciclo atual será fechado. Todos os dados coletados ficam preservados.</p>
-            <p className="m-0">Você pode retomar a qualquer momento — o teste continua de onde parou.</p>
-            {error && <p role="alert" className="m-0 text-cms-red">{error}</p>}
+            {sessaoExpirada ? (
+              <p role="alert" className="m-0 text-cms-red">Sua sessão expirou. Entre de novo para pausar o teste.</p>
+            ) : mudou ? (
+              <p role="alert" className="m-0 text-cms-red">O teste mudou em outra aba. Reabra para decidir.</p>
+            ) : (
+              <>
+              <p className="m-0">Pausar vai restaurar a thumbnail original imediatamente.</p>
+              <p className="m-0">O ciclo atual será fechado. Todos os dados coletados ficam preservados.</p>
+              <p className="m-0">Você pode retomar a qualquer momento — o teste continua de onde parou.</p>
+              </>
+            )}
+            {error && !mudou && !sessaoExpirada && <p role="alert" className="m-0 text-cms-red">{error}</p>}
           </div>
 
           {/* Footer */}
           <div className="flex items-center justify-end gap-[10px] py-[14px] px-[20px] border-t border-cms-border">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isPending}
-              className="btn sm"
-            >
-              Cancelar
-            </button>
-            {mudou ? (
-              <button type="button" onClick={() => window.location.reload()} className="btn sm">Recarregar</button>
+            {sessaoExpirada ? (
+              <>
+                <a href={hrefDoLogin()} className="btn sm" style={{
+                background: 'var(--cms-amber, #d97706)',
+                color: '#1A120A',
+                borderColor: 'transparent',
+              }}>Entrar de novo</a>
+                <button type="button" onClick={onClose} className="btn sm">Fechar</button>
+              </>
+            ) : mudou ? (
+              <>
+                <button type="button" onClick={() => window.location.reload()} className="btn sm" style={{
+                background: 'var(--cms-amber, #d97706)',
+                color: '#1A120A',
+                borderColor: 'transparent',
+              }}>Recarregar</button>
+                <button type="button" onClick={onClose} className="btn sm">Fechar</button>
+              </>
             ) : (
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={isPending}
-              className="btn sm"
-              style={{
+              <>
+                <button type="button" onClick={onClose} disabled={isPending} className="btn sm">Cancelar</button>
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={isPending}
+                  className="btn sm"
+                  style={{
                 background: 'var(--cms-amber, #d97706)',
                 color: '#1A120A',
                 borderColor: 'transparent',
               }}
-            >
-              {isPending ? 'Pausando...' : 'Pausar teste'}
-            </button>
+                >
+                  {isPending ? 'Pausando...' : 'Pausar teste'}
+                </button>
+              </>
             )}
           </div>
         </div>
