@@ -1,3 +1,4 @@
+// Cópia congelada do contar.ts da rota do P-V (removida na T14); só serve de referência para os testes de paridade.
 /**
  * Contagem pura de uma página de watch (portão P-V da S4). Sem rede, sem espera, sem regex com `.*?` sobre o corpo.
  * Rota temporária: sai no lote da S4 (Tarefa 14 do plano).

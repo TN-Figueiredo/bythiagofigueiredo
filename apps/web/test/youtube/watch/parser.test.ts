@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { extrairDaWatch, normalizarIdioma, jsonApos } from '@/lib/youtube/watch/parser'
 import { RENDERERS_TITULO } from '@/lib/youtube/teste-youtube'
-import { contarPagina } from '@/app/api/cron/watch-pv/contar'
+import { contarPagina } from '../../fixtures/watch-html/contar-pv'
 import {
   PAGINA_A, PAGINA_B, semInitialData, semYtcfg, comPlayability, comHL, rendererCom, layoutNovo, semVideoDetails,
   corpoConsentimento, corpoRoboSemTitulo, jogadorBloqueadoDoVercel, loginRequiredForaDoPlayability,

@@ -7,7 +7,7 @@ import {
   PAGINA_A, PAGINA_B, comPlayability, jogadorBloqueadoDoVercel, layoutNovo, loginRequiredForaDoPlayability,
   rendererCom, semInitialData, semVideoDetails,
 } from '../../fixtures/watch-html/derivar'
-import { contarPagina } from '@/app/api/cron/watch-pv/contar'
+import { contarPagina } from '../../fixtures/watch-html/contar-pv'
 
 const DIR = process.env.WATCH_FIXTURES_DIR ?? join(__dirname, '../../fixtures/watch-html')
 const VISITOR = /visitor_?data\\?"\s*:\s*\\?"(?!X\b)/i
