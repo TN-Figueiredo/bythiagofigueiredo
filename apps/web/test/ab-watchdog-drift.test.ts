@@ -1,6 +1,7 @@
 // @vitest-environment node
 // P4a T11: o vigia (drift pela imagem e conversão do em_andamento interrompido).
 // Banco falso único + YouTubeFalso (só `fetch`); o settleOnAir roda de verdade, salvo onde o teste só quer ver a chamada.
+import * as Sentry from '@sentry/nextjs'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { AGORA, BLOB, IMG, ONTEM, SITE, criarBanco, servicoAtual } from './helpers/banco-ab'
@@ -19,7 +20,7 @@ vi.mock('@/lib/notifications/get-site-owners', async (orig) => ({ ...(await orig
 vi.mock('@/lib/cron-health', () => ({ getCronHealth, recordCronFailure, recordCronSuccess }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => servicoAtual.cliente }))
 
-import { faseDriftEInterrompidos, NAO_INICIA_SETTLE_DEPOIS_MS, ORCAMENTO_VIGIA_MS } from '@/lib/youtube/ab-watchdog-drift'
+import { faseDriftEInterrompidos, FIM_DAS_LEITURAS_MS, NAO_INICIA_SETTLE_DEPOIS_MS, ORCAMENTO_VIGIA_MS } from '@/lib/youtube/ab-watchdog-drift'
 import { emParalelo } from '@/lib/util/em-paralelo'
 import { SEM_DESTINATARIO } from '@/lib/notifications/get-site-owners'
 import { GET } from '@/app/api/cron/ab-watchdog/route'
@@ -69,6 +70,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(AGORA)
   fanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
+  createNotification.mockResolvedValue({ success: true })
   ensureFreshToken.mockResolvedValue({ accessToken: 'tok' })
   getOwners.mockResolvedValue([{ userId: 'owner-1', email: 'dono@x.com' }])
   process.env.CRON_SECRET = 's'
@@ -100,17 +102,40 @@ describe('emParalelo', () => {
 })
 
 describe('P4a-I18: orçamento do vigia', () => {
-  it('relógio que anda 12 s por teste, 6 testes, um de cada vez → 4 verificados, 2 adiados (corte aos 45 s)', async () => {
+  it('relógio que anda 12 s por teste, 6 testes, um de cada vez → 2 verificados (início aos 0 e 12 s), 4 adiados (corte aos 15 s)', async () => {
     const { banco, yt, relogio } = montar({ total: 6, avancaPorChamada: 6_000 })
     const r = await faseDriftEInterrompidos(banco.supabase, relogio, yt.fetch, 1)
-    expect(ORCAMENTO_VIGIA_MS).toBe(45_000)
-    expect(r).toMatchObject({ verificados: 4, adiados: 2, pausados: 0, falhas: 0 })
+    expect(ORCAMENTO_VIGIA_MS).toBe(15_000)
+    expect(r).toMatchObject({ verificados: 2, adiados: 4, pausados: 0, falhas: 0 })
   })
 
-  it('o limite padrão é 4 em voo: 6 testes de 12 s no mesmo relógio compartilhado deixam 2 para depois', async () => {
+  it('Y-DEVE1: o segundo teste começa aos 14 s (ainda inicia) e não começa aos 16 s (adiados)', async () => {
+    const aos14 = montar({ total: 2, avancaPorChamada: 7_000 })
+    expect(await faseDriftEInterrompidos(aos14.banco.supabase, aos14.relogio, aos14.yt.fetch, 1)).toMatchObject({ verificados: 2, adiados: 0 })
+    const aos16 = montar({ total: 2, avancaPorChamada: 8_000 })
+    expect(await faseDriftEInterrompidos(aos16.banco.supabase, aos16.relogio, aos16.yt.fetch, 1)).toMatchObject({ verificados: 1, adiados: 1 })
+  })
+
+  it('Y-DEVE1: o fetch da sonda e o do Blob da variante levam um sinal que aborta em início + 50 s (o recordCron sempre roda)', async () => {
+    expect(FIM_DAS_LEITURAS_MS).toBe(50_000)
+    const m = montar({ avancaPorChamada: 40_000, ajustar: (vs) => { vs[0]!.thumbnail_dhash = null } })
+    m.avancar(14_000)
+    const sinais: Array<{ url: string; metodo: string; sinal: AbortSignal | undefined }> = []
+    const espiao = ((u: RequestInfo | URL, i?: RequestInit) => { sinais.push({ url: String(u), metodo: i?.method ?? 'GET', sinal: i?.signal ?? undefined }); return m.yt.fetch(u, i) }) as typeof fetch
+    await faseDriftEInterrompidos(m.banco.supabase, m.relogio, espiao)
+    await new Promise((res) => setTimeout(res, 20)) // AbortSignal.timeout usa o relógio real
+    const get = sinais.find((x) => x.url.includes('hqdefault') && x.metodo === 'GET')
+    const blob = sinais.find((x) => x.url.includes('blob.vercel-storage'))
+    expect(get && blob).toBeTruthy()
+    // o relógio andou 40 s na primeira chamada: a sonda (GET) e o Blob nascem passados de início + 50 s, e o sinal ainda é o deles
+    expect(get!.sinal!.aborted).toBe(true)
+    expect(blob!.sinal!.aborted).toBe(true)
+  })
+
+  it('o limite padrão é 4 em voo: 6 testes de 20 s no mesmo relógio compartilhado deixam 4 para depois', async () => {
     const { banco, yt, relogio } = montar({ total: 6, avancaPorChamada: 10_000 })
     const r = await faseDriftEInterrompidos(banco.supabase, relogio, yt.fetch)
-    expect(r).toMatchObject({ verificados: 4, adiados: 2 })
+    expect(r).toMatchObject({ verificados: 2, adiados: 4 })
   })
 })
 
@@ -153,6 +178,16 @@ describe('23: drift pela imagem', () => {
     expect(yt.escritas()).toEqual([])
     expect(banco.cicloFechado(0)).toMatchObject({ end_reason: 'drift' })
     expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({ type: 'youtube.drift_detected', user_id: 'owner-1', site_id: SITE, action_href: '/cms/youtube/ab-lab/teste-1' }))
+  })
+
+  it('desvio 4 (spec 3.3 linha 2): a imagem de OUTRA variante nossa no ar → pausa e o original é reescrito (escreve o destino), com aviso', async () => {
+    const { banco, yt, relogio } = montar({ noAr: IMG.B })
+    const r = await faseDriftEInterrompidos(banco.supabase, relogio, yt.fetch)
+    expect(r).toMatchObject({ verificados: 1, pausados: 1, falhas: 0 })
+    expect(banco.teste().status).toBe('paused')
+    expect(banco.teste().restore_status).toMatchObject({ thumbnail: { estado: 'ok', destino: 'original', escreveu: true } })
+    expect(yt.escritas()).toEqual(['thumbnails.set'])
+    expect(createNotification).toHaveBeenCalledWith(expect.objectContaining({ type: 'youtube.drift_detected' }))
   })
 
   it('combo: o título volta ao original e a thumbnail fica pulado_drift', async () => {
@@ -219,6 +254,37 @@ describe('23: drift pela imagem', () => {
     expect(a.banco.teste().status).toBe('active')
     const b = montar({ noAr: IMG.B, ajustar: (vs) => { Object.assign(vs[0]!, { thumbnail_dhash: null, blob_url: 'https://abc.public.blob.vercel-storage.com/sumiu.jpg' }) } })
     expect(await faseDriftEInterrompidos(b.banco.supabase, b.relogio, b.yt.fetch)).toMatchObject({ verificados: 0, pausados: 0, falhas: 1 })
+  })
+
+  it('Y-DEVE2: o aviso de drift que não gravou ({ success: false }) é falha do cron e vai ao Sentry; o teste fica pausado', async () => {
+    createNotification.mockResolvedValue({ success: false, error: 'x' })
+    const { banco, yt, relogio } = montar({ noAr: IMG_C })
+    const r = await faseDriftEInterrompidos(banco.supabase, relogio, yt.fetch)
+    expect(r).toMatchObject({ pausados: 1, falhas: 1 })
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-watchdog: aviso de drift não gravado', expect.anything())
+    expect(banco.teste().status).toBe('paused')
+  })
+
+  it('Y-DEVE2: dedupe legítimo ({ success: true, suppressed }) não é falha', async () => {
+    createNotification.mockResolvedValue({ success: true, suppressed: true })
+    const { banco, yt, relogio } = montar({ noAr: IMG_C })
+    expect(await faseDriftEInterrompidos(banco.supabase, relogio, yt.fetch)).toMatchObject({ pausados: 1, falhas: 0 })
+  })
+
+  it('Phil D-3: teste ativo sem ciclo aberto, ou sem vídeo, é falha (com Sentry), não "nada a verificar"', async () => {
+    const a = montar({ semCiclos: true })
+    expect(await faseDriftEInterrompidos(a.banco.supabase, a.relogio, a.yt.fetch)).toMatchObject({ verificados: 0, falhas: 1 })
+    const b = montar()
+    b.banco.setTeste({ youtube_video_id: 'sumiu' })
+    expect(await faseDriftEInterrompidos(b.banco.supabase, b.relogio, b.yt.fetch)).toMatchObject({ verificados: 0, falhas: 1 })
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it('Yannis PODE 4: erro de leitura do drift não apaga o que a conversão já fez: interrompidos fica, falhas 1', async () => {
+    const m = montar({ status: 'completed', restoreStatus: { thumbnail: andamento(16) }, extras: [{ id: 'T2', status: 'active' }] })
+    const original = m.banco.supabase.from.bind(m.banco.supabase)
+    const sb = { ...m.banco.supabase, rpc: m.banco.supabase.rpc.bind(m.banco.supabase), from: (t: string) => { if (t === 'ab_test_cycles') throw new Error('queda'); return original(t) } } as unknown as typeof m.banco.supabase
+    expect(await faseDriftEInterrompidos(sb, m.relogio, m.yt.fetch)).toMatchObject({ interrompidos: 1, falhas: 1 })
   })
 
   it('sem YOUTUBE_API_KEY a fase roda (a regra não depende mais da chave)', async () => {
@@ -305,6 +371,16 @@ describe('interrompidos (32 D1)', () => {
     expect(fanOut).not.toHaveBeenCalled()
   })
 
+  it('Phil D-2: restore_status ilegível com em_andamento é falha (com Sentry), a linha fica intocada', async () => {
+    const m = montar({ status: 'completed', restoreStatus: { thumbnail: { estado: 'em_andamento', em: 'x' } } })
+    const antes = structuredClone(m.banco.teste().restore_status)
+    const r = await faseDriftEInterrompidos(m.banco.supabase, m.relogio, m.yt.fetch)
+    expect(r).toMatchObject({ falhas: 1, interrompidos: 0 })
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-watchdog: restore_status ilegível', expect.anything())
+    expect(m.banco.teste().restore_status).toEqual(antes)
+    expect(m.banco.teste().restore_seq).toBe(0)
+  })
+
   it('D14: falhou de ontem NÃO gera aviso hoje, nem amanhã (sem lembrete diário)', async () => {
     const m = montar({ status: 'completed', restoreStatus: { thumbnail: falhouAntigo() } })
     await faseDriftEInterrompidos(m.banco.supabase, m.relogio, m.yt.fetch)
@@ -365,14 +441,14 @@ describe('a rota', () => {
     expect(m.banco.teste().status).toBe('active')
   })
 
-  it('P4a-I18 (rota): 6 testes, o relógio da rota passa de 45 s → adiados 2 na resposta e recordCronFailure', async () => {
+  it('P4a-I18 (rota): 6 testes, o relógio da rota passa de 15 s → adiados 4 na resposta e recordCronFailure', async () => {
     const m = montar({ total: 6 })
     const yt = new YouTubeFalso({ titulo: 'Título A', thumb: IMG.A, blobs: {}, relogio: { avancar: (ms) => vi.setSystemTime(new Date(Date.now() + ms)) }, avancaPorChamada: 10_000 })
     vi.stubGlobal('fetch', yt.fetch)
     servicoAtual.cliente = clienteDaRota(m.banco).cliente
     const j = await (await GET(pedido())).json()
-    expect(j.drift).toMatchObject({ verificados: 4 })
-    expect(j.adiados).toBe(2)
+    expect(j.drift).toMatchObject({ verificados: 2 })
+    expect(j.adiados).toBe(4)
     expect(recordCronFailure).toHaveBeenCalled()
     expect(j.status).not.toBe('ok')
   })
