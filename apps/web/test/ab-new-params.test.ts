@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
+import { hrefNovoTesteConcorrente, thumbDoVideoDeReferencia } from '../src/lib/youtube/ab-referencia'
 import { lerParamsNovoTeste, canalDaReferencia } from '../src/app/cms/(authed)/youtube/ab-lab/new/params'
 
 const U = '0b4c1e6a-1111-4222-8333-444455556666'
@@ -53,5 +54,17 @@ describe('canalDaReferencia (Foco 5)', () => {
   it('lixo', () => {
     expect(canalDaReferencia(null, 's1')).toBeNull()
     expect(canalDaReferencia({ video_id: 'x' }, 's1')).toBeNull()
+  })
+})
+
+describe('ida e volta Observatório → ab-lab/new com uuid real (Phil M-4)', () => {
+  it('o href gerado, lido por lerParamsNovoTeste, devolve a mesma imagem amarrada ao vídeo', () => {
+    const id = '21e80fef-6acf-56e1-8fb0-a495876a2a8c'
+    const blob = `https://x.public.blob.vercel-storage.com/observatorio/thumbs/${id}/0.jpg`
+    const href = hrefNovoTesteConcorrente({ tipo: 'thumbnail', thumb: blob, titulo: 'T', refVideoId: id, refTroca: `${id}/thumb/1` })
+    const q = Object.fromEntries(new URL(href, 'https://x').searchParams)
+    const ref = lerParamsNovoTeste(q).referencia!
+    expect(ref.refVideoId).toBe(id)
+    expect(thumbDoVideoDeReferencia(ref.thumb, ref.refVideoId, null)).toBe(blob)
   })
 })

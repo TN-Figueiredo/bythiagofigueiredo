@@ -52,6 +52,8 @@ describe('abRefDaTroca (modelo)', () => {
     const r = abRefDaTroca({ ...base, tipo: 'title', thumbDepois: null })
     expect(new URL((r as { href: string }).href, 'https://x').searchParams.get('competitorTitle')).toBe('Novo')
     expect(abRefDaTroca({ ...base, own: true })).toBeNull()
+    expect(abRefDaTroca({ ...base, desfaz: true })).toBeNull()
+    expect(abRefDaTroca({ ...base, desfaz: true, tipo: 'title' })).toBeNull()
     expect(abRefDaTroca({ ...base, tipo: null })).toBeNull()
     expect(abRefDaTroca({ ...base, tipo: 'title', tituloDepois: null })).toBeNull()
   })

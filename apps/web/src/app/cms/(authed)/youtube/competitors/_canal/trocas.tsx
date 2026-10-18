@@ -31,7 +31,7 @@ function Linha({ t, multi, onAbrir, video }: { t: TrocaView; multi: boolean; onA
   // só para quem edita (provedor nulo = nada); o `href` nasce AQUI, com os campos que a vista já tem (o modelo não ganha campo): `t.id` é o mesmo id do `troca=`
   const ab = useAbEntradas()
   // esta aba só existe no canal de concorrente: `own` é dito aqui, nunca inferido
-  const ref = ab ? abRefDaTroca({ tipo: thumb ? 'thumbnail' : 'title', own: false, thumbDepois: t.agora.thumb, tituloDepois: t.agora.texto, tituloDoVideo: video.title, refVideoId: video.id, refTroca: t.id }) : null
+  const ref = ab ? abRefDaTroca({ tipo: thumb ? 'thumbnail' : 'title', own: false, desfaz: t.desfaz, thumbDepois: t.agora.thumb, tituloDepois: t.agora.texto, tituloDoVideo: video.title, refVideoId: video.id, refTroca: t.id }) : null
   return (
     <li className="ct-sw" data-troca={t.id} onClick={e => {
       if (!cliqueSimples(e) || (e.target as HTMLElement).closest('a,button')) return

@@ -8,7 +8,7 @@ import { createClock } from '@/lib/youtube/observatorio/time'
 import { porVideo, TETO_ABERTOS, type TestesAbertos } from './testes-abertos'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const COLUNAS = 'id, youtube_video_id, test_type, status, started_at, paused_at, created_at, config'
+const COLUNAS = 'id, youtube_video_id, test_type, status, started_at, paused_at, created_at'
 const clock = createClock(0, 0, 0)
 /** dd/mm em America/Sao_Paulo (o mesmo formatador do Observatório). */
 const dmSp = (iso: string): string => clock.dm(Date.parse(iso))
@@ -24,7 +24,8 @@ export async function lerTestesAbertos(siteId: string, so?: { videoUuid: string 
   try {
     const guarda = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
     if (!guarda.ok) return { acesso: 'negado' }
-  } catch {
+  } catch (e) {
+    Sentry.captureException(e, { level: 'warning', extra: { siteId, onde: 'ab-entradas: guarda de edição lançou' } })
     return { acesso: 'negado' }
   }
   try {

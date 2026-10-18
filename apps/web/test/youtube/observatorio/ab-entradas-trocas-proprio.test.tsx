@@ -40,7 +40,7 @@ describe('entradaDaTroca (modelo)', () => {
     expect(entradaDaTroca({ ...t, veioDeTeste: true }, TESTAR, UUID)).toBeNull()
     expect(entradaDaTroca(t, null, UUID)).toBeNull()
     expect(entradaDaTroca(t, { tipo: 'sem-dado', frase: 'x' }, UUID)).toBeNull()
-    expect(entradaDaTroca(t, { tipo: 'ver', href: '/h', rotulo: 'Ver teste', frase: 'f', curto: 'c' }, UUID)).toBeNull()
+    expect(entradaDaTroca(t, { tipo: 'ver', href: '/h', rotulo: 'Ver teste', frase: 'f', curto: 'c', aviso: 'a' }, UUID)).toBeNull()
   })
 })
 
@@ -87,11 +87,11 @@ describe('Antes e depois do próprio: tela', () => {
   it('vídeo em teste: um aviso único no topo, nenhum botão por troca', () => {
     const ver = entradaDoProprio({
       podeEditar: true, videoUuid: UUID, dur: 600, semDado: null,
-      abertos: { acesso: 'ok', porVideo: { [UUID]: { href: '/cms/youtube/ab-lab/t9', rotulo: 'Ver teste', frase: 'Teste de thumbnail em andamento desde 10/10.', curto: 'em andamento' } } } as unknown as TestesAbertos,
+      abertos: { acesso: 'ok', porVideo: { [UUID]: { href: '/cms/youtube/ab-lab/t9', rotulo: 'Ver teste', frase: 'Teste de thumbnail em andamento desde 10/10.', curto: 'em andamento', aviso: 'Este vídeo já tem um teste em andamento desde 10/10.' } } } as unknown as TestesAbertos,
     })
     const { container } = tela(medida(), ver)
     const aviso = container.querySelector('.tr-ab-aviso')!
-    expect(aviso.textContent).toContain('Este vídeo já tem um teste aberto no A/B Lab. Teste de thumbnail em andamento desde 10/10.')
+    expect(aviso.textContent).toContain('Este vídeo já tem um teste em andamento desde 10/10.')
     expect(aviso.querySelectorAll('a')).toHaveLength(1)
     expect(botoes(container)).toHaveLength(0)
   })

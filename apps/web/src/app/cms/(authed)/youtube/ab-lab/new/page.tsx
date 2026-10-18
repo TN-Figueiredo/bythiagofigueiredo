@@ -21,7 +21,7 @@ async function contextoDaReferencia(
   referencia: NonNullable<ReturnType<typeof lerParamsNovoTeste>['referencia']>,
   siteId: string,
 ): Promise<CompetitorContext> {
-  const vazio: CompetitorContext = { ...referencia, thumb: null, canal: null, hrefOrigem: null, thumbSubstituta: null }
+  const vazio: CompetitorContext = { ...referencia, thumb: null, titulo: null, canal: null, hrefOrigem: null, thumbSubstituta: null }
   if (!referencia.refVideoId) return vazio
   // Consulta escopada ao site: o cliente de serviço ignora RLS.
   const { data, error } = await getSupabaseServiceClient()

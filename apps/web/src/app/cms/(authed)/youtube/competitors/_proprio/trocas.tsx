@@ -108,7 +108,7 @@ export function Trocas({ view, ab = null, videoUuid = '' }: { view: TrocasView; 
               <span className="tr-regua-ext">{view.regua.rotuloDe}</span><span className="tr-regua-ext">{view.regua.rotuloAte}</span>
             </div>
           ) : null}
-          {ab?.tipo === 'ver' ? <p className="tr-ab-aviso">Este vídeo já tem um teste aberto no A/B Lab. {ab.frase} <a className="tr-link" href={ab.href}>{ab.rotulo}</a></p> : null}
+          {ab?.tipo === 'ver' ? <p className="tr-ab-aviso">{ab.aviso} <a className="tr-link" href={ab.href}>{ab.rotulo}</a></p> : null}
           {view.avisos.map((a, i) => <p key={i} className="tr-aviso">{a}</p>)}
           {view.reconstruida ? (
             <div className="tr-reconstruida">

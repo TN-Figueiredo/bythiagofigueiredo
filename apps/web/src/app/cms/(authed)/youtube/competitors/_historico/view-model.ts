@@ -191,6 +191,8 @@ export interface ComparisonView {
    * (título). Primitivos neutros, sem `href`; nunca a última versão do vídeo (em A→B→A seria a original restaurada).
    */
   depoisThumb: string | null; depoisTitulo: string | null
+  /** A primeira troca do grupo desfaz outra (A→B→A): sem entrada do A/B. */
+  depoisDesfaz: boolean
   inRange: boolean
 }
 export interface CompareView {
@@ -962,6 +964,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       runLines: [...new Map(q.group.filter(g => g.testRun).map(g => [g.testRun!.id, g.testRun!])).values()].map(r => cap(runCardText(r)) + '. ' + RUN_CAVEAT),
       depoisThumb: c0.type === 'thumb' ? thumbs.find(t => t.id === c0.toId)?.thumb?.src ?? null : null,
       depoisTitulo: c0.type === 'title' ? String(c0.after) : null,
+      depoisDesfaz: !!c0.revertTo,
       inRange: !cut || q.group.some(g => g.at >= t0),
     }
   })

@@ -64,6 +64,12 @@ describe('cartões de Mudanças: entrada do A/B', () => {
     expect(g.botao()).toBeNull()
     expect(g.sem()!.textContent).toBe(FRASE_SEM_IMAGEM)
   })
+  it('cartão com thumb sem imagem e título: o botão do título vence a frase "sem imagem" (Yannis M1)', () => {
+    const hs = heroes(mundo(i => (i === 1 ? null : BLOB(i))))
+    const g = grupo([hero(hs, 'thumb/1'), hero(hs, 'title/1')], EDITOR)
+    expect(q(g.botao()!).get('changeType')).toBe('title')
+    expect(g.sem()).toBeNull()
+  })
   it('descrição: nada', () => {
     const g = grupo([hero(heroes(mundo()), 'desc/1')], EDITOR)
     expect(g.botao()).toBeNull(); expect(g.sem()).toBeNull()

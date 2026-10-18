@@ -94,7 +94,7 @@ export const INVENTARIO_CANAL: Inventario = {
   'trocas.cards[].contagem': 'base', 'trocas.cards[].href': END, 'trocas.cards[].hrefLabel': REP,
   'trocas.cards[].trocas[].id': ID, 'trocas.cards[].trocas[].campo': 'rotulo', 'trocas.cards[].trocas[].quando': 'base', 'trocas.cards[].trocas[].quandoTitle': REP,
   'trocas.cards[].trocas[].iso': REP, 'trocas.cards[].trocas[].antes.texto': 'terceiros', 'trocas.cards[].trocas[].antes.thumb': IMG,
-  'trocas.cards[].trocas[].antes.semArquivo': CTRL, 'trocas.cards[].trocas[].agora.texto': 'terceiros', 'trocas.cards[].trocas[].agora.thumb': IMG,
+  'trocas.cards[].trocas[].antes.semArquivo': CTRL, 'trocas.cards[].trocas[].desfaz': CTRL, 'trocas.cards[].trocas[].agora.texto': 'terceiros', 'trocas.cards[].trocas[].agora.thumb': IMG,
   'trocas.cards[].trocas[].efeito': 'base', 'trocas.cards[].trocas[].href': END, 'trocas.cards[].trocas[].hrefLabel': REP,
 
   // o estado da URL e a trilha

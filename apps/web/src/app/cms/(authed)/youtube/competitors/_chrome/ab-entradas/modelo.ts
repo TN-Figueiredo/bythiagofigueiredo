@@ -21,7 +21,7 @@ export const FRASE_SEM_DADO: Record<'restrito' | 'falhou', string> = {
 
 export type EntradaProprio =
   | { tipo: 'testar'; href: string }
-  | { tipo: 'ver'; href: string; rotulo: string; frase: string; curto: string }
+  | { tipo: 'ver'; href: string; rotulo: string; frase: string; curto: string; aviso: string }
   | { tipo: 'sem-dado'; frase: string }
 
 export function entradaDoProprio(a: {
@@ -34,11 +34,12 @@ export function entradaDoProprio(a: {
 }): EntradaProprio | null {
   if (!a.podeEditar) return null
   // A MESMA função de createAbTest: o destino recusa Short, então a entrada some (sem botão nem frase).
-  if (isCertainShort(a.dur)) return null
+  // Duração nula vale 0 (Short) lá, então vale aqui também (Phil I-1).
+  if (isCertainShort(a.dur ?? 0)) return null
   if (a.abertos?.acesso === 'negado') return null
   if (a.abertos?.acesso === 'ok') {
     const t = a.abertos.porVideo[a.videoUuid]
-    if (t) return { tipo: 'ver', href: t.href, rotulo: t.rotulo, frase: t.frase, curto: t.curto }
+    if (t) return { tipo: 'ver', href: t.href, rotulo: t.rotulo, frase: t.frase, curto: t.curto, aviso: t.aviso }
   }
   if (a.semDado === 'restrito' || a.semDado === 'falhou') return { tipo: 'sem-dado', frase: FRASE_SEM_DADO[a.semDado] }
   return { tipo: 'testar', href: hrefNovoTesteProprio(a.videoUuid, a.tipo) }
@@ -118,8 +119,9 @@ export const ROTULO_IDEIA_NO_MEU_CANAL = 'Testar uma ideia no meu canal'
  * A medida não entra (decisão 2 do dono: troca "não medido" mantém o botão). O estado `sem-imagem` é frase sem botão (a imagem substituta de P1 vale só na faixa de `ab-lab/new`).
  * Título sem texto aproveitável → null (não há ideia a levar).
  */
-export function abRefDaTroca(p: { tipo: TipoTroca | null; own: boolean; thumbDepois: string | null; tituloDepois: string | null; tituloDoVideo: string; refVideoId: string; refTroca: string }): AbRefTroca | null {
-  if (p.own || p.tipo == null) return null
+export function abRefDaTroca(p: { tipo: TipoTroca | null; own: boolean; desfaz?: boolean; thumbDepois: string | null; tituloDepois: string | null; tituloDoVideo: string; refVideoId: string; refTroca: string }): AbRefTroca | null {
+  // troca que DESFAZ outra (A→B→A): o "Depois" é a versão restaurada, não uma ideia nova (Yannis I1)
+  if (p.own || p.desfaz || p.tipo == null) return null
   const refTroca = refTrocaValida(p.refTroca)
   if (p.tipo === 'thumbnail') {
     const thumb = thumbReferenciaSegura(p.thumbDepois)

@@ -23,6 +23,8 @@ export interface TrocaView {
   /** Título: os dois textos. Thumbnail: a imagem, ou `semArquivo` quando ela não foi arquivada (nunca uma imagem inventada). */
   antes: { texto: string | null; thumb: string | null; semArquivo: boolean }
   agora: { texto: string | null; thumb: string | null }
+  /** A troca desfaz outra (A→B→A): sem entrada do A/B. */
+  desfaz: boolean
   efeito: string
   /** O Histórico do vídeo já nesta troca. */
   href: string
@@ -105,6 +107,7 @@ export function buildCanalTrocas(obs: Observatory, channelId: string): CanalTroc
         iso: new Date(c.at).toISOString(),
         antes: { texto: titulo ? String(c.before) : null, thumb: antesThumb, semArquivo: !titulo && antesThumb == null },
         agora: { texto: titulo ? String(c.after) : null, thumb: titulo ? null : versaoThumb(c.toId) },
+        desfaz: !!c.revertTo,
         efeito: effLine(obs, obs.effect(c.id)),
         href: hrefDe(videoId, i, c.id),
         hrefLabel: `Abrir o histórico do vídeo na troca de ${titulo ? 'título' : 'thumbnail'} de ${D.dm(c.at)}: ${title}`,

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { hrefListaAb, hrefTesteAb } from '@/lib/youtube/ab-referencia'
 
 export type EstadoAberto = 'andamento' | 'pausado' | 'fila' | 'rascunho'
-export interface TesteAbertoView { id: string; estado: EstadoAberto; href: string; rotulo: string; frase: string; curto: string }
+export interface TesteAbertoView { id: string; estado: EstadoAberto; href: string; rotulo: string; frase: string; curto: string; aviso: string }
 export type TestesAbertos = { acesso: 'ok'; porVideo: Record<string, TesteAbertoView> } | { acesso: 'erro' } | { acesso: 'negado' }
 export const TETO_ABERTOS = 500
 
@@ -42,17 +42,17 @@ export function testeAbertoDe(row: unknown, dm: (iso: string) => string): TesteA
   switch (l.status) {
     case 'active': {
       const d = dataDe(l.started_at, dm)
-      return { id: l.id, estado: 'andamento', href, rotulo: ROTULO_VER_TESTE, curto: 'em andamento', frase: d ? `Teste ${tipo} em andamento desde ${d}.` : `Teste ${tipo} em andamento.` }
+      return { id: l.id, estado: 'andamento', href, rotulo: ROTULO_VER_TESTE, curto: 'em andamento', frase: d ? `Teste ${tipo} em andamento desde ${d}.` : `Teste ${tipo} em andamento.`, aviso: d ? `Este vídeo já tem um teste em andamento desde ${d}.` : 'Este vídeo já tem um teste em andamento.' }
     }
     case 'paused': {
       const d = dataDe(l.paused_at, dm)
-      return { id: l.id, estado: 'pausado', href, rotulo: ROTULO_VER_TESTE, curto: 'pausado', frase: d ? `Teste ${tipo} pausado desde ${d}.` : `Teste ${tipo} pausado.` }
+      return { id: l.id, estado: 'pausado', href, rotulo: ROTULO_VER_TESTE, curto: 'pausado', frase: d ? `Teste ${tipo} pausado desde ${d}.` : `Teste ${tipo} pausado.`, aviso: d ? `Este vídeo já tem um teste pausado desde ${d}.` : 'Este vídeo já tem um teste pausado.' }
     }
     case 'queued':
-      return { id: l.id, estado: 'fila', href, rotulo: ROTULO_VER_TESTE, curto: 'na fila', frase: `Teste ${tipo} na fila do A/B Lab.` }
+      return { id: l.id, estado: 'fila', href, rotulo: ROTULO_VER_TESTE, curto: 'na fila', frase: `Teste ${tipo} na fila do A/B Lab.`, aviso: 'Este vídeo já tem um teste na fila do A/B Lab.' }
     case 'draft': {
       const d = dataDe(l.created_at, dm)
-      return { id: l.id, estado: 'rascunho', href: hrefListaAb(), rotulo: ROTULO_RASCUNHO, curto: 'rascunho', frase: d ? `Rascunho de teste aberto no A/B Lab desde ${d}.` : 'Rascunho de teste aberto no A/B Lab.' }
+      return { id: l.id, estado: 'rascunho', href: hrefListaAb(), rotulo: ROTULO_RASCUNHO, curto: 'rascunho', frase: d ? `Rascunho de teste aberto no A/B Lab desde ${d}.` : 'Rascunho de teste aberto no A/B Lab.', aviso: d ? `Este vídeo já tem um rascunho de teste desde ${d}.` : 'Este vídeo já tem um rascunho de teste.' }
     }
   }
 }

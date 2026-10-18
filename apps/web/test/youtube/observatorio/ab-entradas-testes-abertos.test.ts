@@ -5,12 +5,13 @@ const m = vi.hoisted(() => ({
   guarda: vi.fn(),
   from: vi.fn(),
   captureMessage: vi.fn(),
+  captureException: vi.fn(),
   calls: [] as string[][],
   resultado: { data: [] as unknown[], error: null as null | { code?: string; message: string } },
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: m.guarda }))
-vi.mock('@sentry/nextjs', () => ({ captureMessage: m.captureMessage }))
+vi.mock('@sentry/nextjs', () => ({ captureMessage: m.captureMessage, captureException: m.captureException }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: m.from }) }))
 
 import { testeAbertoDe, porVideo, TETO_ABERTOS } from '../../../src/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/testes-abertos'
@@ -29,7 +30,7 @@ const row = (o: Record<string, unknown> = {}) => ({
 
 describe('testeAbertoDe', () => {
   it('active com data', () => {
-    expect(testeAbertoDe(row(), dm)).toEqual({ id: 't1', estado: 'andamento', href: '/cms/youtube/ab-lab/t1', rotulo: 'Ver teste', curto: 'em andamento', frase: 'Teste de thumbnail em andamento desde 18/10.' })
+    expect(testeAbertoDe(row(), dm)).toEqual({ id: 't1', estado: 'andamento', href: '/cms/youtube/ab-lab/t1', rotulo: 'Ver teste', curto: 'em andamento', frase: 'Teste de thumbnail em andamento desde 18/10.', aviso: 'Este vídeo já tem um teste em andamento desde 18/10.' })
   })
   it('active sem started_at ou inválido: sem data (Foco 3)', () => {
     expect(testeAbertoDe(row({ started_at: null }), dm)?.frase).toBe('Teste de thumbnail em andamento.')
@@ -48,7 +49,7 @@ describe('testeAbertoDe', () => {
     expect(testeAbertoDe(row({ status: 'queued', test_type: 'description' }), dm)).toMatchObject({ estado: 'fila', curto: 'na fila', rotulo: 'Ver teste', href: '/cms/youtube/ab-lab/t1', frase: 'Teste A/B na fila do A/B Lab.' })
   })
   it('draft aponta para a lista e tem rótulo próprio', () => {
-    expect(testeAbertoDe(row({ status: 'draft' }), dm)).toEqual({ id: 't1', estado: 'rascunho', href: '/cms/youtube/ab-lab', rotulo: 'Rascunho no A/B Lab', curto: 'rascunho', frase: 'Rascunho de teste aberto no A/B Lab desde 10/10.' })
+    expect(testeAbertoDe(row({ status: 'draft' }), dm)).toEqual({ id: 't1', estado: 'rascunho', href: '/cms/youtube/ab-lab', rotulo: 'Rascunho no A/B Lab', curto: 'rascunho', frase: 'Rascunho de teste aberto no A/B Lab desde 10/10.', aviso: 'Este vídeo já tem um rascunho de teste desde 10/10.' })
     expect(testeAbertoDe(row({ status: 'draft', created_at: null }), dm)?.frase).toBe('Rascunho de teste aberto no A/B Lab.')
   })
   it('config como {} e como null; linha completed ou ruim: null', () => {
@@ -89,7 +90,7 @@ function cliente() {
 }
 
 beforeEach(() => {
-  m.guarda.mockReset(); m.from.mockReset(); m.captureMessage.mockReset()
+  m.guarda.mockReset(); m.from.mockReset(); m.captureMessage.mockReset(); m.captureException.mockReset()
   m.guarda.mockResolvedValue({ ok: true })
   m.resultado = { data: [row()], error: null }
   cliente()
@@ -117,11 +118,18 @@ describe('lerTestesAbertos', () => {
     m.guarda.mockRejectedValue(new Error('x'))
     expect(await lerTestesAbertos('s1')).toEqual({ acesso: 'negado' })
     expect(m.from).not.toHaveBeenCalled()
+    expect(m.captureException).toHaveBeenCalledTimes(1)
   })
   it('uuid inválido: ok vazio, sem consulta e sem Sentry', async () => {
     expect(await lerTestesAbertos('s1', { videoUuid: 'dQw4w9WgXcQ' })).toEqual({ acesso: 'ok', porVideo: {} })
     expect(m.from).not.toHaveBeenCalled()
     expect(m.captureMessage).not.toHaveBeenCalled()
+  })
+  it('um aviso exato por estado (decisão b)', () => {
+    expect(testeAbertoDe(row({ status: 'active', started_at: null }), dm)?.aviso).toBe('Este vídeo já tem um teste em andamento.')
+    expect(testeAbertoDe(row({ status: 'paused', paused_at: '2026-10-14T15:00:00Z' }), dm)?.aviso).toBe('Este vídeo já tem um teste pausado desde 14/10.')
+    expect(testeAbertoDe(row({ status: 'queued' }), dm)?.aviso).toBe('Este vídeo já tem um teste na fila do A/B Lab.')
+    expect(testeAbertoDe(row({ status: 'draft', created_at: null }), dm)?.aviso).toBe('Este vídeo já tem um rascunho de teste.')
   })
   it('501 linhas: erro e um aviso ao Sentry, sem título nem URL', async () => {
     m.resultado = { data: Array.from({ length: TETO_ABERTOS + 1 }, (_, i) => row({ id: `t${i}`, youtube_video_id: `v${i}` })), error: null }

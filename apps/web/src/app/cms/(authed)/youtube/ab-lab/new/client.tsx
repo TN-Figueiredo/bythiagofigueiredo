@@ -34,6 +34,7 @@ export interface CompetitorContext extends ReferenciaPedida {
   canal: string | null
   hrefOrigem: string | null
   /** thumbOriginalYtimg(ytId) quando a thumb da URL não vale; só o servidor monta */
+  // Sem desenho ainda: o estado P1 (imagem substituta) espera mockup (it.todo em ab-new-client.test.tsx). Calculado no servidor, não renderizado.
   thumbSubstituta: string | null
 }
 
@@ -253,7 +254,7 @@ function ReferenciaConcorrente({ contexto, recolhida, onAlternar }: { contexto: 
               ))}
             <p className="mt-1 text-cms-text-muted">{TEXTO_REF.aviso}</p>
             {contexto.hrefOrigem && (
-              <a href={contexto.hrefOrigem} className="mt-1 inline-block text-cms-accent underline">
+              <a href={contexto.hrefOrigem} className="mt-1 inline-block text-cms-text underline">
                 {contexto.refTroca ? TEXTO_REF.verTroca : TEXTO_REF.verVideo}
               </a>
             )}

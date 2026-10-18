@@ -16,9 +16,9 @@ describe('entradaDoProprio', () => {
     expect(entradaDoProprio({ ...base, dur: 45 })).toBeNull()
     expect(entradaDoProprio({ ...base, dur: 45, semDado: 'restrito' })).toBeNull()
   })
-  it('61 s e duração desconhecida: testar', () => {
+  it('61 s: testar; duração desconhecida: nada (a regra de createAbTest, dur ?? 0)', () => {
     expect(entradaDoProprio({ ...base, dur: 61 })?.tipo).toBe('testar')
-    expect(entradaDoProprio({ ...base, dur: null })?.tipo).toBe('testar')
+    expect(entradaDoProprio({ ...base, dur: null })).toBeNull()
   })
   it('abertos negado: nada', () => expect(entradaDoProprio({ ...base, abertos: { acesso: 'negado' } })).toBeNull())
   it('teste aberto: ver, e vence o sem dado', () => {

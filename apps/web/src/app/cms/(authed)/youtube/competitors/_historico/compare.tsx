@@ -42,7 +42,7 @@ export interface AbVideo { id: string; title: string; own: boolean }
 function Detail({ p, onDescLink, zoomOf, abVideo }: { p: ComparisonView; onDescLink: () => void; zoomOf?: ZoomOf; abVideo?: AbVideo | null }) {
   // só aparece para quem edita (provedor nulo = nada); o `href` é calculado AQUI, nunca no modelo que o pacote "Perguntar a uma IA" também monta
   const ab = useAbEntradas()
-  const ref = ab && abVideo ? abRefDaTroca({ tipo: tipoDaLane(p.field), own: abVideo.own, thumbDepois: p.depoisThumb, tituloDepois: p.depoisTitulo, tituloDoVideo: abVideo.title, refVideoId: abVideo.id, refTroca: p.changeId }) : null
+  const ref = ab && abVideo ? abRefDaTroca({ tipo: tipoDaLane(p.field), own: abVideo.own, desfaz: p.depoisDesfaz, thumbDepois: p.depoisThumb, tituloDepois: p.depoisTitulo, tituloDoVideo: abVideo.title, refVideoId: abVideo.id, refTroca: p.changeId }) : null
   return (
     <>
       {p.ba ? (

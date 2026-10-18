@@ -45,7 +45,7 @@ describe('aba Trocas do canal: entrada do A/B', () => {
   it('thumb com imagem: botão com competitorThumb = a imagem "Agora", refVideoId = o vídeo do cartão, refTroca = o id da troca', () => {
     const m = montar(comBlob, EDITOR)
     let n = 0
-    for (const c of m.view.trocas!.cards) for (const t of c.trocas.filter(x => x.campo === 'Thumbnail trocada' && x.agora.thumb)) {
+    for (const c of m.view.trocas!.cards) for (const t of c.trocas.filter(x => x.campo === 'Thumbnail trocada' && x.agora.thumb && !x.desfaz)) {
       const li = m.container.querySelector(`li.ct-sw[data-troca="${t.id}"]`)!
       const a = li.querySelector<HTMLAnchorElement>('a.ct-ab')!
       expect(a.textContent).toBe('Testar uma ideia no meu canal')
@@ -59,7 +59,7 @@ describe('aba Trocas do canal: entrada do A/B', () => {
   it('título: botão com o título "Agora" da troca', () => {
     const m = montar(comBlob, EDITOR)
     let n = 0
-    for (const c of m.view.trocas!.cards) for (const t of c.trocas.filter(x => x.campo === 'Título trocado')) {
+    for (const c of m.view.trocas!.cards) for (const t of c.trocas.filter(x => x.campo === 'Título trocado' && !x.desfaz)) {
       const p = params(m.container.querySelector(`li.ct-sw[data-troca="${t.id}"] a.ct-ab`)!)
       expect([p.get('changeType'), p.get('competitorTitle'), p.get('refVideoId')]).toEqual(['title', t.agora.texto, c.videoId])
       n++
@@ -68,7 +68,7 @@ describe('aba Trocas do canal: entrada do A/B', () => {
   })
   it('thumb sem imagem arquivada: a frase e nenhum botão; o título segue com botão', () => {
     const m = montar(semBlob, EDITOR)
-    const sem = m.view.trocas!.cards.flatMap(c => c.trocas).filter(t => t.campo === 'Thumbnail trocada')
+    const sem = m.view.trocas!.cards.flatMap(c => c.trocas).filter(t => t.campo === 'Thumbnail trocada' && !t.desfaz)
     expect(sem.length).toBeGreaterThan(0)
     for (const t of sem) {
       const li = m.container.querySelector(`li.ct-sw[data-troca="${t.id}"]`)!
@@ -76,6 +76,17 @@ describe('aba Trocas do canal: entrada do A/B', () => {
       expect(li.querySelector('.ct-ab-sem')!.textContent).toBe(FRASE_SEM_IMAGEM)
     }
     expect(m.container.querySelectorAll('li.ct-sw a.ct-ab').length).toBeGreaterThan(0)
+  })
+  it('troca que desfaz outra (A→B→A): nem botão nem frase; a que foi desfeita segue com botão', () => {
+    const m = montar(comBlob, EDITOR)
+    const todas = m.view.trocas!.cards.flatMap(c => c.trocas)
+    const desfeitas = todas.filter(t => t.desfaz)
+    expect(desfeitas.length).toBeGreaterThan(0)
+    for (const t of desfeitas) {
+      const li = m.container.querySelector(`li.ct-sw[data-troca="${t.id}"]`)!
+      expect(li.querySelector('.ct-ab, .ct-ab-sem')).toBeNull()
+    }
+    expect(m.container.querySelectorAll('li.ct-sw a.ct-ab').length).toBe(todas.filter(t => !t.desfaz && (t.campo === 'Título trocado' || t.agora.thumb)).length)
   })
   it('reporter (provedor null): nem botão nem frase', () => {
     const m = montar(comBlob, null)
