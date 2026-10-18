@@ -126,3 +126,38 @@ describe('detectarTesteYoutube', () => {
     }
   })
 })
+
+describe('conserto r1: campos do veredito público (D2, D3, D8, D9, D10)', () => {
+  const rd = (id: string, horaMin: string[], titulo: string) =>
+    horaMin.map(hm => leitura({ em: `2026-10-18T${hm}Z`, rodada: id, titulo, video: VIDEO_ID }))
+
+  it('primeiraMistura do C1 é a 1ª leitura da 1ª rodada mista', () => {
+    expect(detectarTesteYoutube(fix).contagem.primeiraMistura).toBe('2026-10-18T16:42:56.000Z')
+  })
+
+  it('rodadasLongas e rodadasEmQuarentena chegam à contagem; valorUnico e o motivo do título também', () => {
+    const ls = [
+      ...rd('longa', ['10:00:00', '10:20:00'], 'Titulo A'),
+      ...rd('quar', ['12:00:00', '12:01:00', '12:02:00'], 'Titulo A'),
+      ...rd('n1', ['14:00:00', '14:00:02', '14:00:04'], 'Titulo A'),
+      ...rd('n2', ['15:00:00', '15:00:02', '15:00:04'], 'Titulo A'),
+      ...rd('n3', ['16:00:00', '16:00:02', '16:00:04'], 'Titulo A'),
+    ]
+    const v = detectarTesteYoutube(ls, { escritasConhecidas: [{ em: '2026-10-18T12:00:00Z', campo: 'titulo' }] })
+    expect(v.contagem).toMatchObject({ rodadasLongas: 1, rodadasEmQuarentena: 1, primeiraMistura: null })
+    if (v.estado !== 'nada_visivel') throw new Error(`estado ${v.estado}`)
+    expect(v.motivo).toBe('um_valor_so')
+    expect(v.valorUnico).toEqual({ titulo: 'Titulo A' })
+    expect(v.porCampo.titulo).toEqual({ estado: 'nada_visivel', motivo: 'um_valor_so' })
+  })
+
+  it('o motivo por campo acompanha o do título em troca_sem_mistura e em poucas_leituras', () => {
+    const troca = [
+      ...rd('a1', ['10:00:00', '10:00:02', '10:00:04'], 'Titulo A'),
+      ...rd('a2', ['11:00:00', '11:00:02', '11:00:04'], 'Titulo A'),
+      ...rd('b1', ['12:00:00', '12:00:02', '12:00:04'], 'Titulo B'),
+    ]
+    expect(detectarTesteYoutube(troca).porCampo.titulo).toEqual({ estado: 'nada_visivel', motivo: 'troca_sem_mistura' })
+    expect(detectarTesteYoutube(troca.slice(0, 3)).porCampo.titulo).toEqual({ estado: 'insuficiente', motivo: 'poucas_leituras' })
+  })
+})
