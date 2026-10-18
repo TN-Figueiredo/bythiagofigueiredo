@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 const FOCUSABLE_SELECTOR =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -10,6 +10,10 @@ export function useModalFocusTrap(
   open: boolean,
   onClose: () => void,
 ) {
+  // onClose num ref: um pai que re-renderiza com função nova não pode refazer a armadilha (e arrancar o foco).
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose })
+
   useEffect(() => {
     if (!open) return
     const dialog = dialogRef.current
@@ -22,7 +26,7 @@ export function useModalFocusTrap(
     focusable?.focus()
 
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') { onClose(); return }
+      if (e.key === 'Escape') { onCloseRef.current(); return }
       if (e.key !== 'Tab') return
       const focusableEls = dialog!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
       const first = focusableEls[0]
@@ -39,5 +43,5 @@ export function useModalFocusTrap(
         previouslyFocused.focus()
       }
     }
-  }, [open, onClose, dialogRef])
+  }, [open, dialogRef])
 }

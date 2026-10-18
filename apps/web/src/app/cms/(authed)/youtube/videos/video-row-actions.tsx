@@ -409,10 +409,19 @@ export function VideoContextMenu({ videoId, isShort, abTest }: VideoContextMenuP
       const result = action === 'pause'
         ? await pauseAbTest(abTest.id)
         : await endAbTest(abTest.id, { destino: 'original' }) // Y-D6: o destino explícito vale até o Logan decidir (T17)
-      if (result.ok) {
-        toast.success(action === 'pause' ? 'Teste pausado.' : 'Teste encerrado.')
+      if (result.ok && result.resultado === 'feito') {
+        const recusado = Object.values(result.campos).some(c => c !== undefined && c.estado !== 'ok')
+        if (recusado) {
+          // TEXTO-A-REVISAR (T17, Logan): o YouTube recusou a troca; a faixa de aviso vive no detalhe do teste.
+          toast.error(`${action === 'pause' ? 'Teste pausado.' : 'Teste encerrado.'} O YouTube recusou a troca: veja o aviso no detalhe do teste.`)
+        } else {
+          toast.success(action === 'pause' ? 'Teste pausado.' : 'Teste encerrado.')
+        }
         router.refresh()
         closeMenu()
+      } else if (result.ok) {
+        toast.error('Resposta inesperada. Recarregue a página para ver o resultado.')
+        setConfirmAction(null)
       } else {
         toast.error(result.error)
         setConfirmAction(null)

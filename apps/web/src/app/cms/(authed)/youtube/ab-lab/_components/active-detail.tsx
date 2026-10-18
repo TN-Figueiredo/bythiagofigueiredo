@@ -19,7 +19,7 @@ import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
 import { AbPauseDialog } from './ab-pause-dialog'
-import { AbEndTestDialog } from './ab-end-test-dialog'
+import { AbEndTestDialog, cancelarFocoDaFaixa } from './ab-end-test-dialog'
 import { dadosDoDialogoEncerrar } from './encerrar-props'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import './ab-end-test-dialog.css'
@@ -45,6 +45,7 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
   const [showEnd, setShowEnd] = useState(false)
   // Aviso de página (role="status") depois de um encerramento em que o YouTube recusou algum campo: 6 s, com fechar.
   const [aviso, setAviso] = useState<string | null>(null)
+  useEffect(() => cancelarFocoDaFaixa, [])
   useEffect(() => {
     if (!aviso) return
     const t = setTimeout(() => setAviso(null), 6000)

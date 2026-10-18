@@ -37,14 +37,29 @@ export function fraseDoAviso(campos: Array<'title' | 'thumbnail'>): string {
   return `Teste encerrado. O YouTube recusou a troca ${partes.join(' e ')}: veja o aviso no topo.`
 }
 
+let cancelarFoco: (() => void) | null = null
+
+/** Cancela os temporizadores pendentes de `focarFaixa` (unmount do dono do foco, fim de teste). */
+export function cancelarFocoDaFaixa() {
+  cancelarFoco?.()
+  cancelarFoco = null
+}
+
 /** Leva o foco à faixa de restauração assim que ela existir (o refresh traz a faixa do servidor). */
-export function focarFaixa() {
-  for (const ms of [150, 600, 1500]) {
-    setTimeout(() => {
-      const el = document.getElementById('faixa-restauracao')
-      if (el && document.activeElement !== el) el.focus()
-    }, ms)
-  }
+export function focarFaixa(): () => void {
+  cancelarFocoDaFaixa()
+  const timers = [150, 600, 1500].map(ms => setTimeout(() => {
+    const el = document.getElementById('faixa-restauracao')
+    if (el && document.activeElement !== el) el.focus()
+  }, ms))
+  const cancelar = () => { for (const t of timers) clearTimeout(t) }
+  cancelarFoco = cancelar
+  return cancelar
+}
+
+/** TEXTO-A-REVISAR (T17, Logan): `forbidden` cru do servidor vira frase. */
+export function textoDoErro(r: { error: string }, verbo: 'encerrar' | 'pausar'): string {
+  return r.error === 'forbidden' ? `Você não tem permissão para ${verbo} este teste.` : r.error
 }
 
 function Miniatura({ src }: { src: string | null }) {
@@ -92,6 +107,11 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const expirou = useRef(false)
   const opener = useRef<HTMLElement | null>(null)
+  const montado = useRef(true)
+  useEffect(() => {
+    montado.current = true
+    return () => { montado.current = false }
+  }, [])
 
   // Guarda quem abriu: o foco volta a ele ao fechar, mesmo depois de passar pelo diálogo de confirmação.
   useEffect(() => {
@@ -130,6 +150,15 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
     if (timer.current) clearTimeout(timer.current)
     voo.current = false
     if (expirou.current) return // a tela já disse "sem resposta"; recarregar mostra a verdade
+    if (!montado.current && !(r.ok && r.resultado === 'feito') && !(!r.ok && r.resultado === 'ja_encerrado') && !(!r.ok && r.resultado === 'sem_permissao' && r.error === 'unauthenticated')) {
+      // O diálogo já fechou: nada mudou no banco, mas o dono acha que encerrou. A página avisa.
+      // TEXTO-A-REVISAR (T17, Logan)
+      onAviso?.(r.ok
+        ? 'O teste não foi encerrado: o título ou a thumbnail mudou no YouTube por fora. Abra Encerrar de novo para decidir.'
+        : `O teste não foi encerrado: ${textoDoErro(r, 'encerrar')}`)
+      router.refresh()
+      return
+    }
     if (r.ok && r.resultado === 'precisa_confirmar') {
       setFase('escolha')
       setPendencia(r.campos)
@@ -151,7 +180,7 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
     setFase('escolha')
     if (r.resultado === 'ja_encerrado') { router.refresh(); onFechar(); return }
     if (r.resultado === 'sem_permissao' && r.error === 'unauthenticated') { router.push('/cms/login'); return }
-    setErro({ titulo: 'Não foi possível encerrar', texto: r.error })
+    setErro({ titulo: 'Não foi possível encerrar', texto: textoDoErro(r, 'encerrar') })
   }, [opcao, encerrar, router, onFechar, onAviso])
 
   if (!aberto) return null

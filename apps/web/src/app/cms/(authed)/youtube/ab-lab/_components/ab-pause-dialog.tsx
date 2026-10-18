@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
-import { focarFaixa } from './ab-end-test-dialog'
+import { focarFaixa, textoDoErro } from './ab-end-test-dialog'
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { Pause, X } from 'lucide-react'
@@ -41,7 +41,7 @@ export function AbPauseDialog({ pausar, onClose }: AbPauseDialogProps) {
       if (!result.ok && result.resultado === 'ja_encerrado') { router.refresh(); onClose(); return }
       if (!result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') { router.push('/cms/login'); return }
       // Recusa (em andamento, sem permissão, erro) fica escrita; o diálogo não fecha como se tivesse dado certo.
-      setError(result.ok ? 'Resposta inesperada. Recarregue a página para ver o resultado.' : result.error)
+      setError(result.ok ? 'Resposta inesperada. Recarregue a página para ver o resultado.' : textoDoErro(result, 'pausar'))
     })
   }
 
