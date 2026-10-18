@@ -44,22 +44,22 @@ beforeEach(() => {
 
 describe('P4a T7: chamadores humanos', () => {
   it('pauseAbTest chama settleOnAir(original, pausa) depois de requireEditAccess, com o siteId da sessão', async () => {
-    const r = await pauseAbTest('t1')
+    const r = await pauseAbTest('t1', 7)
     expect(requireSiteScope).toHaveBeenCalled()
-    expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE_DA_SESSAO, destino: { tipo: 'original' }, motivo: 'pausa', humano: true })
+    expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE_DA_SESSAO, destino: { tipo: 'original' }, motivo: 'pausa', humano: true, seqEsperado: 7 })
     expect(r).toEqual({ ok: true, resultado: 'feito', campos: CAMPOS })
     expect(denyUnlessSiteAdmin).not.toHaveBeenCalled()
   })
 
   it('sessão expirada vira sem_permissao e não chama settleOnAir', async () => {
     requireSiteScope.mockResolvedValueOnce({ ok: false, reason: 'unauthenticated' })
-    expect(await pauseAbTest('t1')).toEqual({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })
+    expect(await pauseAbTest('t1', 7)).toEqual({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })
     expect(settle).not.toHaveBeenCalled()
   })
 
   it('sessão expirada em endAbTest e revertWinner vira sem_permissao e não chama settleOnAir', async () => {
     requireSiteScope.mockResolvedValueOnce({ ok: false, reason: 'unauthenticated' })
-    expect(await endAbTest('t1', { destino: 'original' })).toEqual({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })
+    expect(await endAbTest('t1', { destino: 'original', seqVisto: 7 })).toEqual({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })
     requireSiteScope.mockResolvedValueOnce({ ok: false, reason: 'forbidden' })
     expect(await revertWinner('t1')).toEqual({ ok: false, resultado: 'sem_permissao', error: 'forbidden' })
     expect(settle).not.toHaveBeenCalled()
@@ -67,13 +67,13 @@ describe('P4a T7: chamadores humanos', () => {
 
   it('endAbTest com variante exige site admin; sem permissão → sem_permissao com a frase, sem chamar settleOnAir', async () => {
     denyUnlessSiteAdmin.mockResolvedValueOnce({ ok: false, error: 'x' })
-    const r = await endAbTest('t1', { destino: 'variante', varianteId: 'B' })
+    const r = await endAbTest('t1', { destino: 'variante', varianteId: 'B', seqVisto: 7 })
     expect(r).toEqual({ ok: false, resultado: 'sem_permissao', error: 'Só quem administra o site pode deixar uma variante no ar. Você pode voltar ao original.' })
     expect(settle).not.toHaveBeenCalled()
   })
 
   it('endAbTest com variante não original e admin → destino variante', async () => {
-    await endAbTest('t1', { destino: 'variante', varianteId: 'B' })
+    await endAbTest('t1', { destino: 'variante', varianteId: 'B', seqVisto: 7 })
     expect(varianteOriginalId).toHaveBeenCalledWith('t1', SITE_DA_SESSAO)
     expect(denyUnlessSiteAdmin).toHaveBeenCalledWith(SITE_DA_SESSAO, expect.any(String))
     expect(settle).toHaveBeenCalledWith('t1', expect.objectContaining({ siteId: SITE_DA_SESSAO, destino: { tipo: 'variante', id: 'B' }, motivo: 'encerrado', humano: true }))
@@ -81,44 +81,73 @@ describe('P4a T7: chamadores humanos', () => {
 
   it('endAbTest com o id da variante original → destino original, sem exigir site admin (17)', async () => {
     varianteOriginalId.mockResolvedValue('A')
-    await endAbTest('t1', { destino: 'variante', varianteId: 'A' })
+    await endAbTest('t1', { destino: 'variante', varianteId: 'A', seqVisto: 7 })
     expect(denyUnlessSiteAdmin).not.toHaveBeenCalled()
     expect(settle).toHaveBeenCalledWith('t1', expect.objectContaining({ destino: { tipo: 'original' }, motivo: 'encerrado' }))
   })
 
   it('endAbTest destino original não exige site admin', async () => {
-    await endAbTest('t1', { destino: 'original' })
+    await endAbTest('t1', { destino: 'original', seqVisto: 7 })
     expect(denyUnlessSiteAdmin).not.toHaveBeenCalled()
     expect(settle).toHaveBeenCalledWith('t1', expect.objectContaining({ destino: { tipo: 'original' } }))
   })
 
   it('endAbTest repassa forcar só quando veio', async () => {
-    await endAbTest('t1', { destino: 'variante', varianteId: 'B' })
+    await endAbTest('t1', { destino: 'variante', varianteId: 'B', seqVisto: 7 })
     expect(settle.mock.calls[0][1]).not.toHaveProperty('forcar')
-    await endAbTest('t1', { destino: 'variante', varianteId: 'B', forcar: true })
+    await endAbTest('t1', { destino: 'variante', varianteId: 'B', forcar: true, seqVisto: 7 })
     expect(settle.mock.calls[1][1]).toMatchObject({ forcar: true })
+  })
+
+  describe('D3: CAS pelo que a tela viu (seqVisto)', () => {
+    it('pauseAbTest e endAbTest repassam seqVisto como seqEsperado ao settleOnAir', async () => {
+      await pauseAbTest('t1', 3)
+      expect(settle.mock.calls[0][1]).toMatchObject({ seqEsperado: 3, humano: true })
+      await endAbTest('t1', { destino: 'original', seqVisto: 9 })
+      expect(settle.mock.calls[1][1]).toMatchObject({ seqEsperado: 9, motivo: 'encerrado' })
+      await endAbTest('t1', { destino: 'variante', varianteId: 'B', seqVisto: 11 })
+      expect(settle.mock.calls[2][1]).toMatchObject({ seqEsperado: 11 })
+    })
+
+    it('encerrar recusado depois de uma pausa em outra aba: resultado mudou, frase exata, sem revalidar', async () => {
+      settle.mockResolvedValueOnce({ resultado: 'mudou', campos: null })
+      expect(await endAbTest('t1', { destino: 'original', seqVisto: 4 })).toEqual({ ok: false, resultado: 'mudou', error: 'O teste mudou em outra aba. Reabra para decidir.' })
+      expect(revalidateTag).not.toHaveBeenCalled()
+    })
+
+    it('pausar recusado depois de um encerrar em outra aba: resultado mudou', async () => {
+      settle.mockResolvedValueOnce({ resultado: 'mudou', campos: null })
+      expect(await pauseAbTest('t1', 4)).toEqual({ ok: false, resultado: 'mudou', error: 'O teste mudou em outra aba. Reabra para decidir.' })
+    })
+
+    it('seqVisto ausente, negativo ou fracionário: erro, settleOnAir não roda', async () => {
+      expect(await pauseAbTest('t1', undefined as unknown as number)).toMatchObject({ ok: false, resultado: 'erro' })
+      expect(await pauseAbTest('t1', -1)).toMatchObject({ ok: false, resultado: 'erro' })
+      expect(await endAbTest('t1', { destino: 'original', seqVisto: 1.5 })).toMatchObject({ ok: false, resultado: 'erro' })
+      expect(settle).not.toHaveBeenCalled()
+    })
   })
 
   it('precisa_confirmar sobe como ok:true com os campos', async () => {
     const campos = [{ campo: 'titulo', valor_atual: 'x' }]
     settle.mockResolvedValueOnce({ resultado: 'precisa_confirmar', campos })
-    expect(await endAbTest('t1', { destino: 'variante', varianteId: 'B' })).toEqual({ ok: true, resultado: 'precisa_confirmar', campos })
+    expect(await endAbTest('t1', { destino: 'variante', varianteId: 'B', seqVisto: 7 })).toEqual({ ok: true, resultado: 'precisa_confirmar', campos })
   })
 
   it('em_andamento vira ok:false com a frase exata', async () => {
     settle.mockResolvedValueOnce({ resultado: 'em_andamento', campos: null })
-    expect(await pauseAbTest('t1')).toEqual({ ok: false, resultado: 'em_andamento', error: 'Outra tentativa está em andamento. Tente de novo em instantes.' })
+    expect(await pauseAbTest('t1', 7)).toEqual({ ok: false, resultado: 'em_andamento', error: 'Outra tentativa está em andamento. Tente de novo em instantes.' })
     expect(MSG_EM_ANDAMENTO).toBe('Outra tentativa está em andamento. Tente de novo em instantes.')
   })
 
   it('ja_encerrado vira ok:false resultado ja_encerrado', async () => {
     settle.mockResolvedValueOnce({ resultado: 'ja_encerrado', campos: null })
-    expect(await endAbTest('t1', { destino: 'original' })).toMatchObject({ ok: false, resultado: 'ja_encerrado' })
+    expect(await endAbTest('t1', { destino: 'original', seqVisto: 7 })).toMatchObject({ ok: false, resultado: 'ja_encerrado' })
   })
 
   it('Y-D2: destino_invalido vira ok:false resultado erro', async () => {
     settle.mockResolvedValueOnce({ resultado: 'destino_invalido', campos: null })
-    expect(await endAbTest('t1', { destino: 'variante', varianteId: 'X' })).toEqual({ ok: false, resultado: 'erro', error: 'Variante inválida para este teste.' })
+    expect(await endAbTest('t1', { destino: 'variante', varianteId: 'X', seqVisto: 7 })).toEqual({ ok: false, resultado: 'erro', error: 'Variante inválida para este teste.' })
   })
 
   it('revertWinner mantém denyUnlessSiteAdmin e chama settleOnAir(original, reverter)', async () => {
@@ -158,8 +187,8 @@ describe('P4a T7: chamadores humanos', () => {
 
   describe('depois de sair do ar (concluirSaida)', () => {
     const chamadas = [
-      ['pauseAbTest', () => pauseAbTest('t1')],
-      ['endAbTest', () => endAbTest('t1', { destino: 'original' })],
+      ['pauseAbTest', () => pauseAbTest('t1', 7)],
+      ['endAbTest', () => endAbTest('t1', { destino: 'original', seqVisto: 7 })],
       ['revertWinner', () => revertWinner('t1')],
     ] as const
 

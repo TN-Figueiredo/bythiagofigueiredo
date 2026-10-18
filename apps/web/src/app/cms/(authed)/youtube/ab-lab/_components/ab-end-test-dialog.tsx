@@ -23,11 +23,13 @@ export interface AbEndTestDialogProps {
   podeDeixarVariante: boolean
   /** Server action `endAbTest` já com o id do teste, montada no server component chamador. */
   encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
+  /** `restore_seq` que a tela leu ao abrir; a action recusa se o teste mudou desde então (D3). */
+  seqVisto: number
   /** Aviso de página (role="status", 6 s) quando o teste encerrou mas o YouTube recusou algum campo. */
   onAviso?: (texto: string) => void
 }
 
-type Fase = 'escolha' | 'enviando' | 'sem_resposta' | 'sessao_expirada'
+type Fase = 'escolha' | 'enviando' | 'sem_resposta' | 'sessao_expirada' | 'mudou'
 type Pendencia = Array<{ campo: CampoNome; valor_atual: string }>
 
 const ROTULO_CAMPO: Record<string, string> = { title: 'do título', thumbnail: 'da thumbnail' }
@@ -114,7 +116,7 @@ const ICONE_AR = (
 )
 
 export function AbEndTestDialog(props: AbEndTestDialogProps) {
-  const { aberto, onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeixarVariante, encerrar, onAviso } = props
+  const { aberto, onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeixarVariante, encerrar, seqVisto, onAviso } = props
   const router = useRouter()
   const [escolhida, setEscolhida] = useState<string | null>(null)
   const [fase, setFase] = useState<Fase>('escolha')
@@ -153,8 +155,8 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
     setFase('enviando')
     timer.current = setTimeout(() => { expirou.current = true; setFase('sem_resposta') }, ESPERA_SEM_RESPOSTA_MS)
     const destino: OpcaoEncerrar = opcao.isOriginal
-      ? { destino: 'original' }
-      : forcar ? { destino: 'variante', varianteId: opcao.id, forcar: true } : { destino: 'variante', varianteId: opcao.id }
+      ? { destino: 'original', seqVisto }
+      : forcar ? { destino: 'variante', varianteId: opcao.id, forcar: true, seqVisto } : { destino: 'variante', varianteId: opcao.id, seqVisto }
     let r: ResultadoAcaoSaida
     try {
       r = await encerrar(destino)
@@ -169,7 +171,7 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
     if (timer.current) clearTimeout(timer.current)
     voo.current = false
     if (expirou.current) return // a tela já disse "sem resposta"; recarregar mostra a verdade
-    if (!montado.current && !(r.ok && r.resultado === 'feito') && !(!r.ok && r.resultado === 'ja_encerrado') && !(!r.ok && r.resultado === 'sem_permissao' && r.error === 'unauthenticated')) {
+    if (!montado.current && !(r.ok && r.resultado === 'feito') && !(!r.ok && r.resultado === 'ja_encerrado') && !(!r.ok && r.resultado === 'mudou') && !(!r.ok && r.resultado === 'sem_permissao' && r.error === 'unauthenticated')) {
       // O diálogo já fechou: nada mudou no banco, mas o dono acha que encerrou. A página avisa.
       onAviso?.(r.ok
         ? 'O teste ainda não foi encerrado: o título ou a thumbnail foi alterado no YouTube por fora. Clique em Encerrar de novo para escolher o que fica no vídeo.'
@@ -195,11 +197,12 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
       }
       return
     }
+    if (r.resultado === 'mudou') { setFase('mudou'); return }
     setFase('escolha')
     if (r.resultado === 'ja_encerrado') { router.refresh(); onFechar(); return }
     if (r.resultado === 'sem_permissao' && r.error === 'unauthenticated') { router.push('/cms/login'); return }
     setErro({ titulo: 'Não foi possível encerrar', texto: textoDoErro(r, 'encerrar') })
-  }, [opcao, encerrar, router, onFechar, onAviso])
+  }, [opcao, encerrar, seqVisto, router, onFechar, onAviso])
 
   if (!aberto) return null
 
@@ -245,7 +248,8 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
   const enviando = fase === 'enviando'
   const semResposta = fase === 'sem_resposta'
   const sessaoExpirada = fase === 'sessao_expirada'
-  const travado = enviando || semResposta || sessaoExpirada
+  const mudou = fase === 'mudou'
+  const travado = enviando || semResposta || sessaoExpirada || mudou
   const rotuloBotao = enviando ? 'Encerrando…' : opcao ? `Encerrar e ficar com ${opcao.rotulo}` : 'Encerrar'
   const botaoOff = enviando || !opcao
   const desc = noArAgora.desde
@@ -310,6 +314,9 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
             {sessaoExpirada ? (
               <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Sessão expirada</strong>Sua sessão expirou. Entre de novo para encerrar o teste.</div></div>
             ) : null}
+            {mudou ? (
+              <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>O teste mudou em outra aba.</strong>Reabra para decidir.</div></div>
+            ) : null}
             {erro ? (
               <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>{erro.titulo}</strong>{erro.texto}</div></div>
             ) : null}
@@ -318,6 +325,11 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
             {sessaoExpirada ? (
               <>
                 <a className="etd-btn pri" href={hrefDoLogin()}>Entrar de novo</a>
+                <button type="button" className="etd-btn" onClick={onFechar}>Fechar</button>
+              </>
+            ) : mudou ? (
+              <>
+                <button type="button" className="etd-btn pri" onClick={() => window.location.reload()}>Recarregar</button>
                 <button type="button" className="etd-btn" onClick={onFechar}>Fechar</button>
               </>
             ) : semResposta ? (

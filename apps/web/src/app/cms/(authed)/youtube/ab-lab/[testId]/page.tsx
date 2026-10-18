@@ -8,6 +8,7 @@ import { endAbTest, pauseAbTest } from '../actions'
 import * as Sentry from '@sentry/nextjs'
 import { FaixaRestauracao } from '../_components/faixa-restauracao'
 import { AtualizarEnquantoEmAndamento } from '../_components/atualizar-enquanto-em-andamento'
+import { isEarly } from '../_components/is-early'
 import { faixaDaPagina } from '../_components/faixa-da-pagina'
 import type { Metadata } from 'next'
 import type { AbTestDetailView, AbTestActiveView } from '@/lib/youtube/ab-types'
@@ -59,17 +60,10 @@ async function getMockMap(): Promise<Record<string, AbTestDetailView>> {
   }
 }
 
-/** Test is in early state when no cycles completed and confidence < 5%. */
-function isEarly(view: AbTestDetailView): view is AbTestActiveView {
-  if (view.status === 'completed') return false
-  const active = view as AbTestActiveView
-  return active.cycles.done < 1 && active.confirmedData.confidence < 5
-}
-
 function renderView(view: AbTestDetailView) {
-  if (isEarly(view)) return <EarlyDetail view={view} />
   if (view.status !== 'completed') {
     const id = (view as AbTestActiveView).id
+    if (isEarly(view)) return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
     return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
   }
   if (view.outcome === 'winner') return <WinnerDetail view={view} />

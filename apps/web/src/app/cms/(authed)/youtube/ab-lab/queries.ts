@@ -1086,6 +1086,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     activeNow,
     createdAt: test.created_at,
     restoreStatus: paraRestoreStatus(test.restore_status),
+    restoreSeq: test.restore_seq ?? 0,
     youtubeVideoId: results.youtubeId ?? null,
     noArAntes,
     noArAgora: openCycle && activeNow ? { label: activeNow, desde: openCycle.started_at ?? null } : null,

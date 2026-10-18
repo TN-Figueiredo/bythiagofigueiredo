@@ -36,7 +36,7 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_SEM_PERMISSAO_VARIANTE, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
@@ -667,14 +667,16 @@ export async function startAbTest(
 // pauseAbTest
 // ---------------------------------------------------------------------------
 
-export async function pauseAbTest(testId: string): Promise<ResultadoAcaoSaida> {
+export async function pauseAbTest(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
     return recusaDeSessao(e)
   }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true }))
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true, seqEsperado: seq.data }))
 }
 
 // ---------------------------------------------------------------------------
@@ -736,6 +738,9 @@ export async function endAbTest(testId: string, opcao: OpcaoEncerrar): Promise<R
     return recusaDeSessao(e)
   }
 
+  const seq = seqVistoSchema.safeParse(opcao.seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+
   let destino: OpcoesSaida['destino'] = ORIGINAL
   if (opcao.destino === 'variante') {
     // O id da variante original equivale a "voltar ao original" e segue com a editora (17).
@@ -749,7 +754,7 @@ export async function endAbTest(testId: string, opcao: OpcaoEncerrar): Promise<R
     }
   }
   const forcar = opcao.destino === 'variante' && opcao.forcar !== undefined ? { forcar: opcao.forcar } : {}
-  return concluirSaida(settleOnAir(testId, { siteId, destino, motivo: 'encerrado', humano: true, ...forcar }))
+  return concluirSaida(settleOnAir(testId, { siteId, destino, motivo: 'encerrado', humano: true, seqEsperado: seq.data, ...forcar }))
 }
 
 // ---------------------------------------------------------------------------

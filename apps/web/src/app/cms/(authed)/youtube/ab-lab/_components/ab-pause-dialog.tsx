@@ -10,14 +10,17 @@ import { Pause, X } from 'lucide-react'
 
 interface AbPauseDialogProps {
   /** Server action `pauseAbTest` já com o id do teste, montada no server component chamador. */
-  pausar: () => Promise<ResultadoAcaoSaida>
+  pausar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
+  /** `restore_seq` que a tela leu ao abrir; a action recusa se o teste mudou desde então (D3). */
+  seqVisto: number
   onClose: () => void
 }
 
-export function AbPauseDialog({ pausar, onClose }: AbPauseDialogProps) {
+export function AbPauseDialog({ pausar, seqVisto, onClose }: AbPauseDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [mudou, setMudou] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
 
   useModalFocusTrap(dialogRef, true, onClose)
@@ -26,7 +29,7 @@ export function AbPauseDialog({ pausar, onClose }: AbPauseDialogProps) {
     startTransition(async () => {
       let result: ResultadoAcaoSaida
       try {
-        result = await pausar()
+        result = await pausar(seqVisto)
       } catch {
         setError('Sem resposta. Recarregue a página para ver o resultado.')
         return
@@ -38,6 +41,7 @@ export function AbPauseDialog({ pausar, onClose }: AbPauseDialogProps) {
         if (recusado) focarFaixa()
         return
       }
+      if (!result.ok && result.resultado === 'mudou') { setMudou(true); setError(result.error); return }
       if (!result.ok && result.resultado === 'ja_encerrado') { router.refresh(); onClose(); return }
       if (!result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') { router.push('/cms/login'); return }
       // Recusa (em andamento, sem permissão, erro) fica escrita; o diálogo não fecha como se tivesse dado certo.
@@ -99,6 +103,9 @@ export function AbPauseDialog({ pausar, onClose }: AbPauseDialogProps) {
             >
               Cancelar
             </button>
+            {mudou ? (
+              <button type="button" onClick={() => window.location.reload()} className="btn sm">Recarregar</button>
+            ) : (
             <button
               type="button"
               onClick={handleConfirm}
@@ -112,6 +119,7 @@ export function AbPauseDialog({ pausar, onClose }: AbPauseDialogProps) {
             >
               {isPending ? 'Pausando...' : 'Pausar teste'}
             </button>
+            )}
           </div>
         </div>
       </div>

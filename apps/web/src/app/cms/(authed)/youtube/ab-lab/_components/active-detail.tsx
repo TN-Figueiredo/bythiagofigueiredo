@@ -18,14 +18,11 @@ import { forceRotate, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
-import { AbPauseDialog } from './ab-pause-dialog'
-import { AbEndTestDialog, cancelarFocoDaFaixa } from './ab-end-test-dialog'
-import { dadosDoDialogoEncerrar } from './encerrar-props'
+import { AcoesDeSaida, BTN_SAIDA, useAvisoDePagina } from './acoes-de-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
-import './ab-end-test-dialog.css'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
-  Pause, Square, Settings,
+  Settings,
   TrendingUp, RefreshCw, Filter, Zap,
 } from 'lucide-react'
 
@@ -34,23 +31,14 @@ export interface ActiveDetailProps {
   /** `endAbTest` com o id do teste, montada no server component da página (nunca importada aqui). */
   encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
   /** `pauseAbTest` com o id do teste, idem. */
-  pausar: () => Promise<ResultadoAcaoSaida>
+  pausar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
 }
 
-const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
+const BTN = BTN_SAIDA
 
 export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
   const router = useRouter()
-  const [showPause, setShowPause] = useState(false)
-  const [showEnd, setShowEnd] = useState(false)
-  // Aviso de página (role="status") depois de um encerramento em que o YouTube recusou algum campo: 6 s, com fechar.
-  const [aviso, setAviso] = useState<string | null>(null)
-  useEffect(() => cancelarFocoDaFaixa, [])
-  useEffect(() => {
-    if (!aviso) return
-    const t = setTimeout(() => setAviso(null), 6000)
-    return () => clearTimeout(t)
-  }, [aviso])
+  const { setAviso, avisoNode } = useAvisoDePagina()
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
   const canAdminSite = useCanAdminSite()
   const [driftBusy, setDriftBusy] = useState(false)
@@ -84,14 +72,7 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
 
   const actionButtons = (
     <>
-      <button type="button" onClick={() => setShowPause(true)} className={BTN}>
-        <Pause size={14} aria-hidden="true" />
-        Pausar
-      </button>
-      <button type="button" onClick={() => setShowEnd(true)} className={BTN}>
-        <Square size={14} aria-hidden="true" />
-        Encerrar
-      </button>
+      <AcoesDeSaida view={view} encerrar={encerrar} pausar={pausar} onAviso={setAviso} />
       {canAdminSite ? (
         <button
           type="button"
@@ -117,14 +98,7 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
 
   return (
     <div data-testid="active-detail">
-      <div role="status" aria-live="polite">
-        {aviso ? (
-          <p className="etd-aviso">
-            <span>{aviso}</span>
-            <button type="button" onClick={() => setAviso(null)} aria-label="Fechar aviso">Fechar</button>
-          </p>
-        ) : null}
-      </div>
+      {avisoNode}
       {/* ── Section 1: Header with inline actions ── */}
       <div data-section="header" className="mb-[16px]">
         <DetailHeader
@@ -347,24 +321,6 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
           leaderLabel={data.leader}
         />
       </div>
-
-      {showPause && (
-        <AbPauseDialog
-          pausar={pausar}
-          onClose={() => setShowPause(false)}
-        />
-      )}
-      {showEnd && (
-        <AbEndTestDialog
-          aberto
-          onFechar={() => setShowEnd(false)}
-          testeNome={view.videoTitle}
-          {...dadosDoDialogoEncerrar(view)}
-          podeDeixarVariante={canAdminSite}
-          encerrar={encerrar}
-          onAviso={setAviso}
-        />
-      )}
     </div>
   )
 }

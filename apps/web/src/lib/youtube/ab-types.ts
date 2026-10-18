@@ -68,6 +68,8 @@ export interface AbTestRow {
   applied_by: string | null
   /** Retrato da restauração (jsonb cru; leitura tolerante por `paraRestoreStatus`). */
   restore_status?: unknown
+  /** Contador de reivindicações de saída (CAS do diálogo de pausar/encerrar). */
+  restore_seq?: number
 }
 
 export interface VariantMetadata {
@@ -446,6 +448,8 @@ export interface AbTestBaseView {
   noArAntes: { label: DisplayLabel; desde: string | null } | null
   /** Variante do ciclo aberto (no ar agora) e quando entrou; nulo = nenhum ciclo aberto. */
   noArAgora?: { label: DisplayLabel; desde: string | null } | null
+  /** `restore_seq` no momento da leitura: a tela devolve como `seqVisto` ao pausar/encerrar (recusa se mudou em outra aba). */
+  restoreSeq: number
 }
 
 export interface AbTestActiveView extends AbTestBaseView {

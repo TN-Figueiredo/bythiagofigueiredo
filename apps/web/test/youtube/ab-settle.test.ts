@@ -349,6 +349,13 @@ describe('settleOnAir: ordem e corridas (3.2, 22, P4a-I1, I3)', () => {
     const r = await settleOnAir(banco.testId, op('drift', { seqEsperado: banco.teste().restore_seq - 1 }), portas)
     expect(r.resultado).toBe('em_andamento'); expect(banco.teste().restore_seq).toBe(0)
   })
+  it('D3: seqEsperado diferente em ação humana → mudou (não reivindica, zero escrita); sem humano segue em_andamento', async () => {
+    const { banco, yt, portas, op } = await preparar({ status: 'paused', testType: 'thumbnail', noAr: { dhash: H.A } })
+    const r = await settleOnAir(banco.testId, op('encerrado', { humano: true, seqEsperado: banco.teste().restore_seq - 1 }), portas)
+    expect(r.resultado).toBe('mudou'); expect(banco.teste().restore_seq).toBe(0); expect(yt.escritas()).toEqual([])
+    const ok = await settleOnAir(banco.testId, op('encerrado', { humano: true, seqEsperado: banco.teste().restore_seq }), portas)
+    expect(ok.resultado).toBe('feito')
+  })
   it('F-D3: relógio falso, escrita que começaria com menos de 25 s de folga (aos 36 s com prazo de 55 s) → os DOIS campos tempo_esgotado, zero escrita', async () => {
     const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título B', dhash: H.B }, relogioAvancaPorChamada: 12_000 })
     await settleOnAir(banco.testId, op('pausa', { prazo: portas.agora().getTime() + 55_000 }), portas)

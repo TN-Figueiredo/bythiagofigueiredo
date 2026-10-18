@@ -100,7 +100,7 @@ describe('degrau "administrar o site" — teste A/B', () => {
   describe('endAbTest — só deixar uma VARIANTE no ar é do degrau', () => {
     // A linha devolvida por toda leitura serve de variante original: id 'v-orig'.
     const linha = { id: 'v-orig', status: 'active', site_id: 'site-1', youtube_video_id: 'vid-1', is_original: true }
-    const variante = { destino: 'variante', varianteId: 'v-b' } as const
+    const variante = { destino: 'variante', varianteId: 'v-b', seqVisto: 0 } as const
 
     it('(a) editora + variante que NÃO é a original: negado, nada escrito, YouTube não é chamado', async () => {
       arrange('editor', linha)
@@ -135,11 +135,11 @@ describe('degrau "administrar o site" — teste A/B', () => {
 
     it('editora continua podendo encerrar voltando ao ORIGINAL (destino original ou o id da original): nem pergunta pelo degrau', async () => {
       arrange('editor', linha)
-      expect(isRefusal(await ab.endAbTest('test-1', { destino: 'variante', varianteId: 'v-orig' }))).toBe(false)
+      expect(isRefusal(await ab.endAbTest('test-1', { destino: 'variante', varianteId: 'v-orig', seqVisto: 0 }))).toBe(false)
       expect(sess.rpcCalls).toEqual([])
 
       arrange('editor', linha)
-      expect(isRefusal(await ab.endAbTest('test-1', { destino: 'original' }))).toBe(false)
+      expect(isRefusal(await ab.endAbTest('test-1', { destino: 'original', seqVisto: 0 }))).toBe(false)
       expect(sess.rpcCalls).toEqual([])
       expect(log.clients).toBeGreaterThan(0)
     })

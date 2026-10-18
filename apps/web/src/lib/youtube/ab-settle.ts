@@ -40,6 +40,7 @@ export type ResultadoSaida =
   | { resultado: 'ja_encerrado'; campos: RestoreStatus | null }
   | { resultado: 'em_andamento'; campos: RestoreStatus | null }
   | { resultado: 'destino_invalido'; campos: null }
+  | { resultado: 'mudou'; campos: RestoreStatus | null } // seqEsperado de uma tela humana não bate: o teste mudou desde a abertura
 
 export interface VarianteRetrato {
   id: string
@@ -456,7 +457,7 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   // Validações, todas antes do passo 0b e da reivindicação.
   const destino = destinoNormalizado(op.destino, r.variantes)
   if (destino === null) return { resultado: 'destino_invalido', campos: null }
-  if (op.seqEsperado !== undefined && op.seqEsperado !== r.restore_seq) return { resultado: 'em_andamento', campos: r.restore_status } // Y-D13
+  if (op.seqEsperado !== undefined && op.seqEsperado !== r.restore_seq) return { resultado: op.humano ? 'mudou' : 'em_andamento', campos: r.restore_status } // Y-D13; D3: a tela humana recebe 'mudou'
   if (emAndamentoRecente(r.restore_status, agora)) return { resultado: 'em_andamento', campos: r.restore_status } // F-D4
   const caminho = caminhoDe(op, destino)
   if (!tipoConhecido(r.test_type) || !caminho.de.includes(r.status)) return { resultado: 'ja_encerrado', campos: r.restore_status }
