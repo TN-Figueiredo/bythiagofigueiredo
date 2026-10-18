@@ -12,6 +12,7 @@ export interface FakeSb {
   lidas: Array<{ tabela: string; de: number }>
   rpcs: Array<{ nome: string; args: Record<string, unknown> }>
   rpcRetorno: Record<string, unknown>
+  upserts: Array<{ tabela: string; linhas: Linha[]; opcoes: unknown }>
   /** consultas lógicas = primeira página de cada leitura */
   consultasLogicas: () => number
 }
@@ -24,6 +25,7 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
     lidas: [],
     rpcs: [],
     rpcRetorno: {},
+    upserts: [],
     consultasLogicas: () => f.lidas.filter((l) => l.de === 0).length,
   }
   const from = (tabela: string) => {
@@ -32,6 +34,11 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
     let usouOr = false
     const q: Record<string, unknown> = {}
     q.select = () => q
+    q.upsert = (linhas: Linha[], opcoes: unknown) => {
+      f.upserts.push({ tabela, linhas, opcoes })
+      if (f.erros[`upsert:${tabela}`]) return Promise.resolve({ data: null, error: { message: f.erros[`upsert:${tabela}`] } })
+      return Promise.resolve({ data: null, error: null })
+    }
     q.eq = (c: string, v: unknown) => { filtros.push((l) => l[c] === v); return q }
     q.is = (c: string, v: unknown) => { filtros.push((l) => (l[c] ?? null) === v); return q }
     q.in = (c: string, vs: unknown[]) => { filtros.push((l) => vs.includes(l[c])); return q }
