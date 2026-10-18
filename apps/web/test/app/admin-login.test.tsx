@@ -33,6 +33,9 @@ vi.mock('../../src/app/admin/forgot/actions', () => ({
 vi.mock('../../src/app/admin/reset/actions', () => ({
   resetPassword: vi.fn(),
 }))
+vi.mock('../../lib/auth/has-recovery-session', () => ({
+  hasRecoverySession: vi.fn(async () => true),
+}))
 
 import AdminLoginPage from '../../src/app/admin/login/page'
 import AdminForgotPage from '../../src/app/admin/forgot/page'
@@ -64,8 +67,8 @@ describe('admin login pages', () => {
     expect(screen.getByTestId('admin-forgot-component')).toBeTruthy()
   })
 
-  it('mounts <AdminResetPassword>', () => {
-    render(<AdminResetPage />)
+  it('mounts <AdminResetPassword>', async () => {
+    render(await AdminResetPage())
     expect(screen.getByTestId('admin-reset-component')).toBeTruthy()
   })
 })
