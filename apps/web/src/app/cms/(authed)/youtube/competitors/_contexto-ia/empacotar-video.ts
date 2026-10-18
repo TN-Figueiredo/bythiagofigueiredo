@@ -124,6 +124,8 @@ export const INVENTARIO_VIDEO: Inventario = {
   'comparisons[].descLink': CTRL, 'comparisons[].windows': GEO, 'comparisons[].windows.*': GEO, 'comparisons[].windows.*[]': GEO,
   'comparisons[].field': CTRL, 'comparisons[].situation': CTRL, 'comparisons[].label': 'base', 'comparisons[].when': 'base', 'comparisons[].statusLine': 'base',
   'comparisons[].runLines[]': 'base', 'comparisons[].inRange': CTRL,
+  // entrada do A/B Lab (T9a): a imagem e o título do "Depois" da primeira troca só alimentam o href do botão, que o pacote não leva
+  'comparisons[].depoisThumb': IMG, 'comparisons[].depoisTitulo': CTRL,
   defaultPair: CTRL, arrival: CTRL, 'arrival.*': REP, compareEmpty: 'base',
   'compare.mode': CTRL, 'compare.sum': REP, 'compare.sum[]*': REP, 'compare.scope': REP, 'compare.total': REP, 'compare.fields[]*': CTRL, 'compare.situations[]*': CTRL,
 

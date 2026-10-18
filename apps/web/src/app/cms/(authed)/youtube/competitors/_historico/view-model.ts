@@ -186,6 +186,11 @@ export interface ComparisonView {
   field: LaneType; situation: Situation; label: string; when: string; statusLine: string
   /** "Parte de 5 trocas em sequência em 9 dias. Pode ser um teste; o YouTube não informa." (one per run of the group). */
   runLines: string[]
+  /**
+   * O "Depois" da PRIMEIRA troca do grupo (`c0`), para a entrada do A/B Lab: a imagem arquivada da versão `c0.toId` (thumbnail) e o título `c0.after`
+   * (título). Primitivos neutros, sem `href`; nunca a última versão do vídeo (em A→B→A seria a original restaurada).
+   */
+  depoisThumb: string | null; depoisTitulo: string | null
   inRange: boolean
 }
 export interface CompareView {
@@ -955,6 +960,8 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
       ba, nobase, full, descLink: c0.type === 'desc' && !!c0.diff, windows,
       field: c0.type, situation: situationOf(e), label: q.label, when: c0.whenText, statusLine: statusLine(obs, e),
       runLines: [...new Map(q.group.filter(g => g.testRun).map(g => [g.testRun!.id, g.testRun!])).values()].map(r => cap(runCardText(r)) + '. ' + RUN_CAVEAT),
+      depoisThumb: c0.type === 'thumb' ? thumbs.find(t => t.id === c0.toId)?.thumb?.src ?? null : null,
+      depoisTitulo: c0.type === 'title' ? String(c0.after) : null,
       inRange: !cut || q.group.some(g => g.at >= t0),
     }
   })

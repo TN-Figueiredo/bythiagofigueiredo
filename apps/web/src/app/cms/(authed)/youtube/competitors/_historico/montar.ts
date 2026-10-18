@@ -63,7 +63,8 @@ export async function origemDoVideo(p: PropsOrigemDoVideo): Promise<OrigemView> 
 }
 
 type Flat = Record<string, string | undefined>
-type Pagina = ObservatoryPage<undefined>
+/** `extra` = `podeEditarSite` (a página do vídeo de concorrente o pede); `undefined` (o pacote da IA, que não passa o `abrir`) vale `false`. */
+type Pagina = ObservatoryPage<boolean | undefined>
 type Base = NonNullable<ReturnType<typeof buildProprioVideoBase>>
 export type MontarVideo =
   | { tipo: 'proprio'; pagina: Pagina; proprio: { id: string }; base: Base; blocos: ReturnType<typeof buildVideoBlocos>; barra: BlocoAssistido | null

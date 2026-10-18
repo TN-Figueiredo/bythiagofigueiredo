@@ -1,6 +1,6 @@
 // Decide, para cada entrada do vídeo próprio, entre `testar`, `ver` (teste aberto), `sem-dado` (frase) e nada.
 // Puro e importável por cliente: os módulos do leitor entram só como tipo.
-import { hrefNovoTesteConcorrente, hrefNovoTesteProprio, thumbReferenciaSegura, type TipoTroca } from '@/lib/youtube/ab-referencia'
+import { hrefNovoTesteConcorrente, hrefNovoTesteProprio, refTrocaValida, thumbReferenciaSegura, tituloReferencia, type TipoTroca } from '@/lib/youtube/ab-referencia'
 import { isCertainShort } from '@/lib/youtube/short-classifier'
 import type { EstadoAusencia } from '../ausencia/estado'
 import type { VideoBlocosView } from '../../_proprio/video-blocos-model'
@@ -107,4 +107,25 @@ export function itensDoMenu(v: ChannelVideoView, ab: AbEntradas | null): ItemAb[
   }
   itens.push({ rotulo: ROTULO_IDEIA_TITULO, href: hrefNovoTesteConcorrente({ tipo: 'title', thumb: null, titulo: v.title, refVideoId: v.id }) })
   return itens
+}
+
+export type AbRefTroca = { tipo: 'testar'; href: string } | { tipo: 'sem-imagem'; frase: string }
+export const FRASE_SEM_IMAGEM = 'Sem imagem guardada desta troca: não há o que usar de referência.'
+export const ROTULO_IDEIA_NO_MEU_CANAL = 'Testar uma ideia no meu canal'
+
+/**
+ * Troca de concorrente → entrada do A/B Lab. `own` é explícito (vídeo de canal próprio → null: a entrada dele é o Antes e depois). Descrição → null.
+ * A medida não entra (decisão 2 do dono: troca "não medido" mantém o botão). O estado `sem-imagem` é frase sem botão (a imagem substituta de P1 vale só na faixa de `ab-lab/new`).
+ * Título sem texto aproveitável → null (não há ideia a levar).
+ */
+export function abRefDaTroca(p: { tipo: TipoTroca | null; own: boolean; thumbDepois: string | null; tituloDepois: string | null; tituloDoVideo: string; refVideoId: string; refTroca: string }): AbRefTroca | null {
+  if (p.own || p.tipo == null) return null
+  const refTroca = refTrocaValida(p.refTroca)
+  if (p.tipo === 'thumbnail') {
+    const thumb = thumbReferenciaSegura(p.thumbDepois)
+    if (!thumb) return { tipo: 'sem-imagem', frase: FRASE_SEM_IMAGEM }
+    return { tipo: 'testar', href: hrefNovoTesteConcorrente({ tipo: 'thumbnail', thumb, titulo: p.tituloDoVideo, refVideoId: p.refVideoId, refTroca }) }
+  }
+  if (!tituloReferencia(p.tituloDepois)) return null
+  return { tipo: 'testar', href: hrefNovoTesteConcorrente({ tipo: 'title', thumb: null, titulo: p.tituloDepois, refVideoId: p.refVideoId, refTroca }) }
 }

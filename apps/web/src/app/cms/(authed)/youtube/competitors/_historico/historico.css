@@ -679,3 +679,6 @@
 [data-obs-screen="historico"] .lm-sk > i{display:block;height:92px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2)}
 [data-obs-screen="historico"] .lm-sk .lm-fr{align-items:center}
 @media (prefers-reduced-motion:reduce){[data-obs-screen="historico"] .lm *{animation:none!important;transition:none!important}}
+
+[data-obs-screen="historico"] .hv-ab{margin:10px 0 0}
+@media (pointer:coarse),(max-width:900px){[data-obs-screen="historico"] .hv-ab .btn{min-height:44px}}
