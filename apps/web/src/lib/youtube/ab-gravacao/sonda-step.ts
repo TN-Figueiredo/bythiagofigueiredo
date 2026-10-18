@@ -20,7 +20,6 @@ export type ResultadoSonda =
   | { status: 'ok'; testes: number; gravadas: number; falhas: number }
   | { status: 'error'; error: string; health_written: true }
 
-type Linha = Record<string, unknown>
 
 interface TesteAtivo { id: string; site_id: string; youtube_videos: { youtube_video_id: string } | Array<{ youtube_video_id: string }> }
 interface Variante { id: string; test_id: string; thumbnail_dhash: string | null; blob_url: string | null }
@@ -174,7 +173,7 @@ export async function rodarSonda(sb: SupabaseClient, agora: Date, f: typeof fetc
     }
   })
 
-  const { error } = await sb.from('ab_test_sondas').upsert(linhas as unknown as Linha[], { onConflict: 'test_id,hora', ignoreDuplicates: true })
+  const { error } = await sb.from('ab_test_sondas').upsert(linhas, { onConflict: 'test_id,hora', ignoreDuplicates: true })
   if (error) return falha(`ab_test_sondas: ${error.message}`)
   const falhadas = linhas.filter((l) => l.leitura_estado === 'falhou')
   if (testes.length > 0 && falhadas.length === testes.length) {
