@@ -158,3 +158,38 @@ describe('contagem e dedupe', () => {
     expect(cls(ls)).toEqual({ estado: { estado: 'insuficiente', motivo: 'poucas_leituras' }, validasMiniatura: 8 })
   })
 })
+
+describe('conserto r1: miniatura', () => {
+  const CINZA = '400e716969691648'
+  const X = '0000000000000000'
+  const Y = '000000000000001f'
+  const Z = '00000000000003ff'
+  const host2 = (m: Mini): Mini => ({ ...m, host: 'i9.ytimg.com', url: m.url.replace('i.ytimg.com', 'i9.ytimg.com') })
+
+  it('C8 estendido (N2): o cinza do 404 em várias leituras nunca vota, ao lado de uma A legítima', () => {
+    const cinzas = Array.from({ length: 4 }, (_, i) => video(i, [mini('hqdefault', CINZA)]))
+    const as = Array.from({ length: 9 }, (_, i) => video(10 + i, [mini('hqdefault', A480)]))
+    expect(cls([...cinzas, ...as]).estado).toEqual({ estado: 'nada_visivel', motivo: 'um_valor_so' })
+  })
+
+  it('D2: só o cinza do 404 em 12 leituras não tem nenhum voto: insuficiente, nunca um_valor_so', () => {
+    const ls = Array.from({ length: 12 }, (_, i) => video(i, [mini('hqdefault', CINZA)]))
+    const r = cls(ls)
+    expect(r.estado).toEqual({ estado: 'insuficiente', motivo: 'poucas_leituras' })
+    expect(r.validasMiniatura).toBe(12)
+  })
+
+  it('D3: a ordem das miniaturas dentro da leitura não muda o veredito nem os sinais', () => {
+    const monta = (ordem: 'xy' | 'yx') => {
+      const x = mini('hqdefault', X, { etag: '"1000000001"' })
+      const y = host2(mini('hqdefault', Y, { etag: '"1000000002"' }))
+      const primeira = video(0, ordem === 'xy' ? [x, y] : [y, x])
+      const resto = Array.from({ length: 11 }, (_, i) => video(i + 1, [mini('hqdefault', i % 2 === 0 ? Z : X)]))
+      return [primeira, ...resto]
+    }
+    const a = cls(monta('xy'))
+    const b = cls(monta('yx'))
+    expect(a).toEqual(b)
+    expect(sinaisFracos(prep(monta('xy')), resolverOpcoes())).toEqual(sinaisFracos(prep(monta('yx')), resolverOpcoes()))
+  })
+})

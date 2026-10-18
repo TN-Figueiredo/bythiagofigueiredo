@@ -41,7 +41,10 @@ interface Voto {
 /** Votos utilizáveis na ordem do desempate das leituras, com o grupo (representante) já resolvido por classe. */
 function agrupar(ls: readonly LeituraPreparada[], o: LimiaresDeteccao) {
   const porLeitura: Voto[][] = ls.map(p =>
-    p.l.miniaturas.filter(m => utilizavel(m, o)).map(m => ({ classe: classeDe(m) as string, variante: m.variante, dhash: m.dhash as string, etag: m.etag })),
+    p.l.miniaturas
+      .filter(m => utilizavel(m, o))
+      .sort((a, b) => compararCodePoint(classeDe(a) as string, classeDe(b) as string) || compararCodePoint(a.dhash as string, b.dhash as string) || compararCodePoint(a.variante, b.variante))
+      .map(m => ({ classe: classeDe(m) as string, variante: m.variante, dhash: m.dhash as string, etag: m.etag })),
   )
   const chavesPorClasse = new Map<string, string[]>()
   for (const vs of porLeitura) {
@@ -77,6 +80,7 @@ export function classificarMiniatura(ls: readonly LeituraPreparada[], o: Limiare
       votos.set(v.classe, porGrupo)
     }
   }
+  if (votos.size === 0) return { estado: { estado: 'insuficiente', motivo: 'poucas_leituras' }, validasMiniatura } // só o cinza do 404: nenhum voto
   for (const porGrupo of votos.values()) {
     if ([...porGrupo.values()].filter(n => n >= o.minVotosPorVariante).length >= 2) {
       return { estado: { estado: 'nada_visivel', motivo: 'miniatura_variou' }, validasMiniatura }
