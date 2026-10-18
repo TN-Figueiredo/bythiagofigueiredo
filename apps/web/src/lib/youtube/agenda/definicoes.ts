@@ -188,6 +188,27 @@ export const DEFINICAO_PLAYLISTS_SEMANAIS: Definicao = {
   },
 }
 
+/**
+ * `leitura_watch` (A5 S4): lê a página `watch` anônima de cada vídeo devido, 3 leituras por rodada, e grava numa chamada só. Leve, depois das leves diárias
+ * (`ordem 5.9`) e antes das pesadas. **`ligaCom: 'OBS_WATCH_READ'`**: só `on` liga (deploy desligado; liga depois da migration e do P-V, longe das 05:00 SP).
+ * `comecaAteMs` é o das leves (a tarefa tem a sua própria guarda de 70 s); `fimAteMs: 88_000` é a guarda dura, dentro do teto de 90 s das leves.
+ */
+export const DEFINICAO_LEITURA_WATCH: Definicao = {
+  nome: 'leitura_watch', rotulo: 'leitura das páginas do YouTube', ordem: 5.9, peso: 'leve', periodo: 'hora',
+  tetoTentativas: 3, toleranciaVigiaH: 2, naoTerminouVermelhoEm: 6,
+  comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 88_000, ligaCom: 'OBS_WATCH_READ',
+  motivos: {
+    bloqueado: 'o YouTube bloqueou as leituras (consentimento, robô ou limite); o próximo disparo tenta de novo',
+    leitura_bloqueada: 'mais da metade das leituras da página do YouTube falhou',
+    layout_mudou: 'a página do YouTube mudou: os títulos não foram encontrados',
+    gravacao_falhou: 'não foi possível gravar as leituras da página do YouTube',
+    sem_alvos: 'há vídeos na janela, mas nenhum entrou na coleta',
+    sobrou: 'ficaram vídeos para o próximo disparo',
+    extensao_falhou: 'a avaliação de teste falhou em algum vídeo',
+    lista_falhou: 'não foi possível montar a lista de vídeos',
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
@@ -195,7 +216,7 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {

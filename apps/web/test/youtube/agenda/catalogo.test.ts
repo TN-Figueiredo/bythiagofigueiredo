@@ -10,6 +10,7 @@ import {
 } from '@/lib/youtube/agenda/relogio'
 import { BATCH_BUDGET_MS, WEEKLY_DEADLINE_MS, COMPETITORS_MAX_DURATION_S, RECORD_RESERVE_MS, CHANNEL_CALL_WORST_MS, WEEKLY_CALL_WORST_MS } from '@/lib/youtube/competitor-sync-batch'
 import { RULES } from '@/lib/youtube/observatorio/rules'
+import { COMMENT_RULES } from '@/lib/youtube/observatorio/comentarios/regras'
 
 const guardado = { a: process.env.OBS_AGENDA, t: process.env.OBS_AGENDA_TASKS_OFF }
 beforeEach(() => { delete process.env.OBS_AGENDA; delete process.env.OBS_AGENDA_TASKS_OFF })
@@ -166,12 +167,12 @@ describe('RULES.hourly', () => {
 })
 
 describe('a lista única de definições (o catálogo e o vigia leem a mesma)', () => {
-  it('são nove, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'playlists_semanais', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
-    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.5, 5.7, 6, 7, 8])
+  it('são dez, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
+    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.5, 5.7, 5.9, 6, 7, 8])
     expect(DEFINICOES_COMENTARIOS.map(d => d.nome)).toEqual(['anular_identidade', 'retratos_comentarios'])
     expect(DEFINICOES.length).toBe(3)
-    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 4) // + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3)
+    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 5) // + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4)
   })
   it('as duas da E14, valor por valor', () => {
     const por = (n: string) => TODAS_AS_DEFINICOES.find(d => d.nome === n)!
@@ -241,5 +242,35 @@ describe('marcas_de_idade (A5 E4, T11): a posição é por relação, nunca por 
       if (d.peso === 'pesada') expect(pos(d.nome), d.nome).toBeGreaterThan(pos(m.nome))
     }
     expect(m.ordem).toBe(5.5)
+  })
+})
+
+describe('A10 leitura_watch no catálogo (A5 S4)', () => {
+  const alvoDoCatalogo = CATALOGO.map(t => ({ nome: t.nome, ligaCom: t.ligaCom }))
+  it('variável apagada: desligada; só o valor exato "on" liga', () => {
+    const env: NodeJS.ProcessEnv = {}
+    delete env.OBS_WATCH_READ
+    expect(tarefasDesligadas(env, alvoDoCatalogo).desligadas.has('leitura_watch')).toBe(true)
+    expect(tarefasDesligadas({ OBS_WATCH_READ: 'ON' }, alvoDoCatalogo).desligadas.has('leitura_watch')).toBe(true)
+    expect(tarefasDesligadas({ OBS_WATCH_READ: '1' }, alvoDoCatalogo).desligadas.has('leitura_watch')).toBe(true)
+    expect(tarefasDesligadas({ OBS_WATCH_READ: 'on' }, alvoDoCatalogo).desligadas.has('leitura_watch')).toBe(false)
+  })
+  it('a definição, valor por valor', () => {
+    const d = TODAS_AS_DEFINICOES.find(x => x.nome === 'leitura_watch')!
+    expect(d).toMatchObject({ rotulo: 'leitura das páginas do YouTube', ordem: 5.9, peso: 'leve', periodo: 'hora', tetoTentativas: 3, toleranciaVigiaH: 2, naoTerminouVermelhoEm: 6,
+      comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 88_000, ligaCom: 'OBS_WATCH_READ' })
+    expect(d.nuncaDesliga).toBeUndefined()
+    expect(Object.keys(d.motivos).sort()).toEqual(['bloqueado', 'extensao_falhou', 'gravacao_falhou', 'layout_mudou', 'leitura_bloqueada', 'lista_falhou', 'sem_alvos', 'sobrou'])
+  })
+  it('fimAteMs cabe no teto das leves e a soma horária + 30 s + margem fica antes da coleta de comentários', () => {
+    const d = TODAS_AS_DEFINICOES.find(x => x.nome === 'leitura_watch')!
+    expect(d.fimAteMs).toBeLessThanOrEqual(LEVE_FIM_MS)
+    expect(HORARIA_FIM_MS + 30_000 + 5_000).toBeLessThan(COMMENT_RULES.startsByMs)
+  })
+  it('o catálogo tem a tarefa depois das leves diárias e antes das pesadas, com devidaPeloDado', () => {
+    const nomes = CATALOGO.map(t => t.nome)
+    expect(nomes.indexOf('leitura_watch')).toBeGreaterThan(nomes.indexOf('playlists_semanais'))
+    expect(nomes.indexOf('leitura_watch')).toBeLessThan(nomes.indexOf('sincronizar_canais'))
+    expect(CATALOGO.find(t => t.nome === 'leitura_watch')!.devidaPeloDado?.({ linhas: null, agora: () => 0 })).toBe(true)
   })
 })
