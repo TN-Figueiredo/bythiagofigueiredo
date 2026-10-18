@@ -194,7 +194,7 @@ describe('frases', () => {
     }
     // cada número distinto aparece na frase, na chave certa
     expect(fraseDe('identidade_invariante', { identidade_prazo_errado: 11, identidade_de_criador: 22, respostas_de_terceiros: 33 }))
-      .toBe('a guarda da identidade está quebrada (prazo diferente de 28 dias: 11; identidade de criador: 22; respostas de terceiros: 33)')
+      .toBe('a guarda da identidade está quebrada (prazo diferente de 28 dias: 11; identidade de criador: 22; respostas de espectadores fora da regra: 33)')
     expect(fraseDe('identidade_vencida', { identidade_vencida: 4 }))
       .toBe('identidade de autores vencida e não apagada: 4. A coleta parou até a rotina de anulação rodar')
     expect(fraseDe('cota_esgotada', { ficaram: 17 })).toBe('a cota do YouTube acabou; 17 retratos ficaram para o próximo disparo')

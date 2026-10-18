@@ -223,7 +223,7 @@ describe('veredito', () => {
     for (const v of Object.values(r.numeros)) expect(Number.isFinite(v)).toBe(true)
     expect('primeira_coleta_ms' in r.numeros).toBe(false)
     expect('ultima_coleta_ms' in r.numeros).toBe(false)
-    expect(fraseDe('identidade_invariante', r.numeros)).toContain('prazo diferente de 28 dias: 1; identidade de criador: 2; respostas de terceiros: 3')
+    expect(fraseDe('identidade_invariante', r.numeros)).toContain('prazo diferente de 28 dias: 1; identidade de criador: 2; respostas de espectadores fora da regra: 3')
     // com so: identidade, só as quatro chaves da identidade
     expect(Object.keys(veredito(ZERO, { filaZerada: true, so: 'identidade' }).numeros).sort())
       .toEqual(['identidade_de_criador', 'identidade_prazo_errado', 'identidade_vencida', 'respostas_de_terceiros'])
@@ -421,7 +421,7 @@ describe('anular (runAnularIdentidade)', () => {
       const s = await rodar(sb)
       expect(s.status, JSON.stringify(parcial)).toBe('erro')
       expect(s.motivo).toBe('identidade_invariante')
-      expect(fraseDe('identidade_invariante', s.numeros)).toMatch(/^a guarda da identidade está quebrada \(prazo diferente de 28 dias: \d+; identidade de criador: \d+; respostas de terceiros: \d+\)$/)
+      expect(fraseDe('identidade_invariante', s.numeros)).toMatch(/^a guarda da identidade está quebrada \(prazo diferente de 28 dias: \d+; identidade de criador: \d+; respostas de espectadores fora da regra: \d+\)$/)
     }
   })
 
