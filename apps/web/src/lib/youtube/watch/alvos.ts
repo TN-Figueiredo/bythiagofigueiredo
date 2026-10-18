@@ -10,7 +10,7 @@ import { BANCO_MS } from '@/lib/youtube/agenda/relogio'
 import type { CausaDaFalha, Lido } from '@/lib/youtube/agenda/tipos'
 import { ErroDeLeitura, lerCandidatos, relatarSeguro, type RelatarHoraria } from '@/lib/youtube/horaria/gravar'
 import type { CandConcorrente, CandProprio } from '@/lib/youtube/horaria/lista'
-import { faixaMenosCheia } from './rodada'
+import { faixaMenosCheia, hash32 } from './rodada'
 
 export const INCLUIR_SHORTS = true
 /** D2 = sim (dono, 18/10): os próprios com mais de 14 dias entram a 1 rodada por dia. */
@@ -38,16 +38,6 @@ export interface AlvoAtivo {
 }
 
 export const chaveAlvo = (siteId: string, ytId: string): string => `${siteId}|${ytId}`
-
-/** O mesmo FNV-1a de `rodada.ts` (lá é privado); só decide o deslocamento dentro do dia. */
-function hash32(s: string): number {
-  let h = 0x811c9dc5
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 0x01000193) >>> 0
-  }
-  return h >>> 0
-}
 
 const instante = (s: string | null): number | null => {
   if (s === null || s === '') return null
