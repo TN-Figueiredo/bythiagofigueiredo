@@ -50,6 +50,22 @@ describe('leituraWatchSchema', () => {
     }
   })
 
+  it('rendicoesSqp: nulo é aceito, inteiro 0-200 também, fora disso não', () => {
+    expect(base().rendicoesSqp).toBeNull()
+    expect(leituraWatchSchema.safeParse(base()).success).toBe(true)
+    expect(leituraWatchSchema.safeParse({ ...base(), rendicoesSqp: 8 }).success).toBe(true)
+    expect(leituraWatchSchema.safeParse({ ...base(), rendicoesSqp: 0 }).success).toBe(true)
+    expect(leituraWatchSchema.safeParse({ ...base(), rendicoesSqp: 201 }).success).toBe(false)
+    expect(leituraWatchSchema.safeParse({ ...base(), rendicoesSqp: -1 }).success).toBe(false)
+    expect(leituraWatchSchema.safeParse({ ...base(), rendicoesSqp: 1.5 }).success).toBe(false)
+  })
+
+  it('titulo_oficial_fonte nulo se e só se tituloOficial é nulo', () => {
+    expect(leituraWatchSchema.safeParse({ ...base(), tituloOficial: 'X', titulo_oficial_fonte: null }).success).toBe(false)
+    expect(leituraWatchSchema.safeParse({ ...base(), tituloOficial: null, titulo_oficial_fonte: 'og_title' }).success).toBe(false)
+    expect(leituraWatchSchema.safeParse({ ...base(), tituloOficial: 'X', titulo_oficial_fonte: 'og_title' }).success).toBe(true)
+  })
+
   it('C19: dhash exige http 200 e dimensões coerentes', () => {
     expect(leituraWatchSchema.safeParse(comMiniatura({ http: 404 })).success).toBe(false)
     expect(leituraWatchSchema.safeParse(comMiniatura({ largura: null, altura: null })).success).toBe(false)

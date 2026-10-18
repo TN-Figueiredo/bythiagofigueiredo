@@ -24,10 +24,16 @@ export interface LeituraWatch {
   erro: string | null
   /** Título oficial = `videoDetails.title` (fallback `og:title`), já sem entidades HTML. NUNCA o `<title>` (traz " - YouTube"). null = não lido. */
   tituloOficial: string | null
+  /** De onde veio `tituloOficial`: 'videoDetails' | 'og_title'; null quando `tituloOficial` é null. Gravado junto pela S4 (o fallback não pode passar por videoDetails). */
+  titulo_oficial_fonte: 'videoDetails' | 'og_title' | null
   /** Um item por renderer procurado. texto null = o renderer NÃO estava na página (ausente); nunca "".
    *  Texto já sem entidades HTML e sem normalização (a regra normaliza). Para `videoPrimaryInfoRenderer` o texto é a
    *  concatenação de `title.runs[].text` (título com link ou hashtag vem partido em runs). */
   titulosExibidos: Array<{ renderer: string; texto: string | null }>
+  /** Quantas rendições `sqp` a watch listou para ESTE vídeo (só URLs `ytimg.com/vi/<youtubeVideoId>/`; sqp de outros vídeos, como recomendados, nunca entram). null = não contado.
+   *  Só a existência: nenhuma `sqp` é buscada nem entra em `miniaturas` (§8, pedido 4). */
+  rendicoesSqp: number | null
+  /** Só URLs `ytimg.com/vi/<youtubeVideoId>/`; as de outros vídeos nunca entram (a watch lista miniaturas de recomendados). */
   miniaturas: Array<{
     url: string
     host: string                    // i.ytimg.com, i1.ytimg.com ...
@@ -87,10 +93,15 @@ export const leituraWatchSchema = z
     idioma: z.string().min(1).max(35).nullable(),
     erro: z.string().regex(/^[a-z0-9_]{1,40}$/).nullable(),
     tituloOficial: textoTitulo,
+    titulo_oficial_fonte: z.enum(['videoDetails', 'og_title']).nullable(),
+    rendicoesSqp: z.number().int().min(0).max(200).nullable(),
     titulosExibidos: z.array(z.object({ renderer: z.string().min(1).max(100), texto: textoTitulo })).max(10),
     miniaturas: z.array(miniaturaSchema).max(60),
   })
   .superRefine((l, ctx) => {
+    if ((l.titulo_oficial_fonte === null) !== (l.tituloOficial === null)) {
+      ctx.addIssue({ code: 'custom', message: 'titulo_oficial_fonte é nulo se e só se tituloOficial é nulo' })
+    }
     if (l.erro !== null) {
       if (!l.titulosExibidos.every(t => t.texto === null) || !l.miniaturas.every(m => m.dhash === null)) {
         ctx.addIssue({ code: 'custom', message: 'leitura com erro não traz dado' })

@@ -27,6 +27,8 @@ export function leitura(p: ParamsLeitura): LeituraWatch {
     idioma: p.idioma === undefined ? 'pt-BR' : p.idioma,
     erro: p.erro ?? null,
     tituloOficial: p.oficial ?? null,
+    titulo_oficial_fonte: p.oficial != null ? 'videoDetails' : null,
+    rendicoesSqp: null,
     titulosExibidos: titulos,
     miniaturas: p.miniaturas ?? [],
   }
