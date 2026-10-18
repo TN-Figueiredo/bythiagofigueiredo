@@ -4,7 +4,7 @@ import { inferirDesfecho } from '@/lib/youtube/teste-youtube/desfecho'
 import { detectarTesteYoutube } from '@/lib/youtube/teste-youtube/detectar'
 import { REGRA_TESTE_YOUTUBE_VERSAO, type LeituraWatch, type OpcoesDesfecho } from '@/lib/youtube/teste-youtube/tipos'
 import { carregarQIg9, TITULO_A, TITULO_B } from '../../fixtures/teste-youtube/qIg9a7vqcNo/carregar'
-import { rodadas } from './sintetico'
+import { leitura, rodadas } from './sintetico'
 
 const H = 3_600_000
 const antes = detectarTesteYoutube(carregarQIg9().leituras)
@@ -141,5 +141,54 @@ describe('inferirDesfecho', () => {
     // @ts-expect-error opts.agora é obrigatório no tipo
     expect(() => inferirDesfecho(antes, [], {})).toThrow(Error)
     expect(() => inferirDesfecho(antes, [], { agora: 'ontem' })).toThrow(Error)
+  })
+})
+
+describe('conserto r1: desfecho', () => {
+  const mk = (isoMs: number, i: number, titulo: string, extra: { idioma?: string } = {}) =>
+    leitura({ em: new Date(isoMs).toISOString(), rodada: `z${i}`, titulo, oficial: TITULO_B, ...extra })
+  const T0 = ULTIMA + H
+  const nB = (n: number, spanMs: number, passo?: number): LeituraWatch[] =>
+    Array.from({ length: n }, (_, i) => mk(T0 + (i === n - 1 ? spanMs : i * (passo ?? 1000)), i, TITULO_B))
+  const em = (extra: Partial<OpcoesDesfecho>, ls: LeituraWatch[]) => inferirDesfecho(antes, ls, opts(ls, extra))
+
+  it('F3: 24 votos B em 12 min (sonda de 30 s) não fecham vencedor: a guarda de 24 h vale', () => {
+    const ls = comOficial(rodadas({ inicio: INICIO, intervaloMs: 90_000, padroes: Array(8).fill('BBB'), textos: TEXTOS, passoLeituraMs: 30_000 }), TITULO_B)
+    expect(desfecho(ls)).toEqual({ estado: 'em_andamento', motivo: 'estavel_curto', versaoRegra: v })
+  })
+
+  it('fronteiras: 18 votos e 24 h exatas fecham; 17 votos ou 24 h menos 1 ms não', () => {
+    expect(em({}, nB(18, 24 * H)).estado).toBe('vencedor_provavel')
+    expect(em({}, nB(18, 24 * H - 1))).toEqual({ estado: 'em_andamento', motivo: 'estavel_curto', versaoRegra: v })
+    expect(em({}, nB(17, 30 * H))).toEqual({ estado: 'em_andamento', motivo: 'estavel_curto', versaoRegra: v })
+  })
+
+  it('fronteira de 48 h: exatas ainda é em andamento; 1 ms a mais é coleta_encerrada', () => {
+    const ls = nB(6, 1000)
+    const ult = ultimoMs(ls)
+    expect(inferirDesfecho(antes, ls, { agora: new Date(ult + 48 * H).toISOString() })).toEqual({ estado: 'em_andamento', motivo: 'estavel_curto', versaoRegra: v })
+    expect(inferirDesfecho(antes, ls, { agora: new Date(ult + 48 * H + 1).toISOString() })).toEqual({ estado: 'sem_dado', motivo: 'coleta_encerrada', versaoRegra: v })
+  })
+
+  it('F15: 1ª leitura há 73 h e a última há 1 h (poucos votos): em andamento, a idade é da ÚLTIMA leitura', () => {
+    const ls = [...nB(3, 1000), ...nB(3, 1000).map((l, i) => ({ ...l, rodadaId: `y${i}`, lidaEm: new Date(T0 + 72 * H + i * 1000).toISOString() }))]
+    expect(desfecho(ls)).toEqual({ estado: 'em_andamento', motivo: 'estavel_curto', versaoRegra: v })
+  })
+
+  it('F12 (C14 mista na quarentena): com 12 votos, as escritas nossas chegam ao ramo 7; sem elas é teste_visivel, com elas depois_ambiguo', () => {
+    const ls = comOficial(gerar(['ABB', 'ABB', 'BBB', 'BBB'], 40 * 60_000, INICIO), TITULO_B)
+    const escritas = [{ em: INICIO, campo: 'titulo' as const }]
+    expect(desfecho(ls)).toEqual({ estado: 'em_andamento', motivo: 'teste_visivel', versaoRegra: v })
+    expect(desfecho(ls, { escritasConhecidas: escritas })).toEqual({ estado: 'sem_dado', motivo: 'depois_ambiguo', versaoRegra: v })
+  })
+
+  it('D-3: leitura de outro idioma não vota: 24 B + 1 leitura en no fim ainda é vencedor, sem descartar', () => {
+    const ls = [...bLongo(), mk(ultimoMs(bLongo()) + H, 99, 'B in English', { idioma: 'en' })]
+    expect(desfecho(ls)).toEqual({ estado: 'vencedor_provavel', vencedor: TITULO_B, leiturasDescartadas: 0, versaoRegra: v })
+  })
+
+  it('D-3: o idioma de referência é o mais frequente entre os votantes', () => {
+    const ls = [mk(T0 - 1000, 98, 'A in English', { idioma: 'en' }), ...bLongo()]
+    expect(desfecho(ls)).toEqual({ estado: 'vencedor_provavel', vencedor: TITULO_B, leiturasDescartadas: 0, versaoRegra: v })
   })
 })

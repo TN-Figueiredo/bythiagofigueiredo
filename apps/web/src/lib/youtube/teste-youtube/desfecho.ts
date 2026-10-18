@@ -35,8 +35,14 @@ export function inferirDesfecho(antes: VereditoTesteYoutube, leiturasDepois: rea
 
   // 2
   const prep = prepararLeituras(leiturasDepois)
-  const votantes = prep.leituras.filter(p => p.voto !== null)
-  if (votantes.length === 0) return semDado('depois_sem_leitura')
+  const comVoto = prep.leituras.filter(p => p.voto !== null)
+  if (comVoto.length === 0) return semDado('depois_sem_leitura')
+  // §4.4 p.4: leitura de outro idioma não vota; o de referência é o mais frequente entre os votantes (empate: o da 1ª pelo desempate)
+  const porIdioma = new Map<string | null, number>()
+  for (const p of comVoto) porIdioma.set(p.l.idioma, (porIdioma.get(p.l.idioma) ?? 0) + 1)
+  let idiomaRef = comVoto[0]!.l.idioma
+  for (const [idioma, n] of porIdioma) if (n > (porIdioma.get(idiomaRef) ?? 0)) idiomaRef = idioma
+  const votantes = comVoto.filter(p => p.l.idioma === idiomaRef)
 
   // 3
   if (prep.leituras[0]!.ms <= Date.parse(antes.ultimaVista)) return semDado('janelas_sobrepostas')
