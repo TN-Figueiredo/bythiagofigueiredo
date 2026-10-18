@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('../src/app/cms/(authed)/youtube/ab-lab/_components/ab-create-wizard', () => ({
@@ -63,5 +63,60 @@ describe('NewTestClient', () => {
       <NewTestClient {...base} initialVideoId="u1" competitorContext={ctx({ tipo: 'thumbnail', thumb: 'https://i.ytimg.com/vi/a/hq.jpg' })} />,
     )
     expect(container.querySelector('img')?.getAttribute('src')).toBe('https://i.ytimg.com/vi/a/hq.jpg')
+  })
+
+  describe('faixa de referência (T3)', () => {
+    const thumb = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg'
+    const mont = (o: Partial<import('../src/app/cms/(authed)/youtube/ab-lab/new/client').CompetitorContext>) =>
+      render(<NewTestClient {...base} initialVideoId="u1" competitorContext={ctx(o)} />)
+    it('thumbnail com troca', () => {
+      const { container } = mont({ tipo: 'thumbnail', thumb, titulo: 'Tit', canal: 'Fulano', refTroca: 'c1', hrefOrigem: '/o' })
+      const img = container.querySelector('img')!
+      expect(img.getAttribute('width')).toBe('96')
+      expect(img.getAttribute('height')).toBe('54')
+      expect(img.getAttribute('alt')).toBe('')
+      expect(img.getAttribute('referrerpolicy')).toBe('no-referrer')
+      expect(screen.getByText('Referência · Fulano trocou a thumbnail')).toBeTruthy()
+      expect(screen.getByText('Tit').className).toContain('line-clamp-2')
+      expect(screen.getByText('Referência, não modelo.')).toBeTruthy()
+      expect(screen.getByText('Ver a troca').getAttribute('href')).toBe('/o')
+      expect(screen.getByRole('button', { name: 'Recolher' }).getAttribute('aria-expanded')).toBe('true')
+    })
+    it('título: sem img, citado em font-serif', () => {
+      const { container } = mont({ tipo: 'title', titulo: 'Meu título', canal: 'Fulano', refTroca: 'c1' })
+      expect(container.querySelector('img')).toBeNull()
+      expect(screen.getByText('Referência · Fulano trocou o título')).toBeTruthy()
+      expect(screen.getByText('Meu título').className).toContain('font-serif')
+    })
+    it('sem refTroca (veio do menu)', () => {
+      mont({ tipo: 'thumbnail', canal: 'Fulano', hrefOrigem: '/v' })
+      expect(screen.getByText('Referência · thumbnail de Fulano')).toBeTruthy()
+      expect(screen.getByText('Ver o vídeo').getAttribute('href')).toBe('/v')
+      cleanup()
+      mont({ tipo: 'title', canal: 'Fulano' })
+      expect(screen.getByText('Referência · título de Fulano')).toBeTruthy()
+    })
+    it('canal nulo: "um concorrente" e sem link', () => {
+      mont({ tipo: 'title', refTroca: 'c1', canal: null, hrefOrigem: null })
+      expect(screen.getByText('Referência · um concorrente trocou o título')).toBeTruthy()
+      expect(screen.queryByText('Ver a troca')).toBeNull()
+    })
+    it('recolher e reabrir mostra o mesmo conteúdo', () => {
+      mont({ tipo: 'title', titulo: 'Meu título', canal: 'Fulano', refTroca: 'c1' })
+      fireEvent.click(screen.getByRole('button', { name: 'Recolher' }))
+      const b = screen.getByRole('button', { name: 'Mostrar referência' })
+      expect(b.getAttribute('aria-expanded')).toBe('false')
+      expect(screen.queryByText('Meu título')).toBeNull()
+      expect(screen.getByText('Referência · Fulano trocou o título')).toBeTruthy()
+      fireEvent.click(b)
+      expect(screen.getByText('Meu título')).toBeTruthy()
+    })
+    it('erro da imagem (404 do Blob) tira o <img> quebrado', () => {
+      const { container } = mont({ tipo: 'thumbnail', thumb, canal: 'Fulano' })
+      fireEvent.error(container.querySelector('img')!)
+      expect(container.querySelector('img')).toBeNull()
+    })
+    it.todo('sem imagem guardada: imagem substituta (thumbnail original + selo numérico) ou quadro neutro 96x54, depois do mockup ajustado (Logan/Naksu), decisão P1')
+    it.todo('404 do Blob com thumbSubstituta cai na substituta; se a substituta falhar, quadro neutro')
   })
 })
