@@ -2,6 +2,7 @@
 // I-4 (revisão da Tarefa 10): o DESTINO do botão "Comparar com o meu canal" do cabeçalho do concorrente. A página (Server Component) decide
 // `compararHref` a partir de `owns.principal` (`escolherPrincipal`, 11c: a escolha do dono, ou o canal próprio de publicação mais recente; empate: a ordem do motor). Os testes do cabeçalho só recebem a
 // string pronta; aqui a página roda de verdade (mocks só nas leituras) com 0, 1 e 2 canais próprios, inclusive o maior sem vídeos.
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import type { ReactElement } from 'react'
@@ -24,6 +25,8 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn() }))
 
 import CanalPage from '@/app/cms/(authed)/youtube/competitors/canal/[id]/page'
+/** Desembrulha o AbEntradasProvider (T8/T9a): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = <T,>(e: T): T => ((e as { type?: unknown }).type === AbEntradasProvider ? (e as { props: { children: T } }).props.children : e)
 
 const FMT = { subs: (n: number) => String(n) }
 const AGORA = Date.UTC(2026, 9, 24, 18, 0, 0), DIA = 86_400_000
@@ -33,7 +36,7 @@ async function compararHrefDaPagina(rows: Linha[], lembrado: string | null = nul
   const owns = ownMenuFromRows(rows.map(l => ({ ...l, ultimo: l.ultimo === undefined ? (l.videos > 0 ? AGORA - 5 * DIA : null) : l.ultimo })), FMT, { lembrado, agora: AGORA })
   mocks.openChannelPage.mockResolvedValue({ siteId: 's1', now: 0, obs, canEdit: true, owns })
   const el = (await CanalPage({ params: Promise.resolve({ id: chId }), searchParams: Promise.resolve({}) })) as ReactElement<{ children: ReactElement<{ compararHref?: string | null }> }>
-  return { href: el.props.children.props.compararHref, chId, itens: owns.itens.length }
+  return { href: semProvedor(el.props.children).props.compararHref, chId, itens: owns.itens.length }
 }
 
 beforeEach(() => { mocks.openChannelPage.mockReset(); mocks.openObservatoryPage.mockReset() })

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { screen, within, cleanup, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -26,6 +27,8 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn() }))
 
 import CanalPage from '@/app/cms/(authed)/youtube/competitors/canal/[id]/page'
+/** Desembrulha o AbEntradasProvider (T8/T9a): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = <T,>(e: T): T => ((e as { type?: unknown }).type === AbEntradasProvider ? (e as { props: { children: T } }).props.children : e)
 
 const URL0 = '/cms/youtube/competitors/canal/matt-wolfe'
 const norm = (s: string | null | undefined) => (s ?? '').replace(/[\s ]+/g, ' ').trim()
@@ -39,7 +42,7 @@ async function paginaLeitura(mut?: Mut, tab = 'leitura'): Promise<ReactNode> {
   mocks.openChannelPage.mockResolvedValue({ siteId: 's1', now: 0, obs, canEdit: true, owns: { itens: [], principal: null, listaHref: '/cms/youtube/competitors' } })
   mocks.openObservatoryPage.mockResolvedValue({ siteId: 's1', now: 0, obs, rows: {}, savedNiche: 'todos', extra: undefined })
   const el = (await CanalPage({ params: Promise.resolve({ id: chId }), searchParams: Promise.resolve({ tab }) })) as ReactElement<{ children: ReactElement<{ leitura: ReactNode }> }>
-  return el.props.children.props.leitura
+  return semProvedor(el.props.children).props.leitura
 }
 async function montaLeitura(mut?: Mut) {
   const leitura = await paginaLeitura(mut)

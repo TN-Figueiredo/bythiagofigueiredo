@@ -8,6 +8,7 @@
 //    o que o payload RSC serializa: props dos client components, inclusive a faixa de taxa), nem em `metadata`; o cliente de serviço nunca é criado e
 //    nenhuma consulta privada é feita;
 //  - canal inexistente e canal de concorrente nunca tocam o dado privado.
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -20,6 +21,8 @@ import type { Dataset } from '@/lib/youtube/observatorio/types'
 import { temSentinela } from './proprio-video-fixture'
 import { primeiroProprio, proprioWorld } from './proprio-fixture'
 import { urlDoTeste } from './proprio-mount'
+/** Desembrulha o AbEntradasProvider (T8/T9a): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = <T,>(e: T): T => ((e as { type?: unknown }).type === AbEntradasProvider ? (e as { props: { children: T } }).props.children : e)
 
 const S = '9d1a7c3e-0000-4000-8000-000000000001'
 const CANAL = '3f2b8c1e-5a47-4d0e-9b1c-7e6a2d4f8a10'
@@ -200,7 +203,8 @@ describe('13.3 segurança do canal próprio: quem edita × quem só lê', () => 
       for (const a of achados(SENTINELAS, html(), texto())) vistos.add(a)
       expect(db.trips.length).toBeGreaterThan(0)
       expect(servico.criado).toBeGreaterThanOrEqual(1)
-      expect(guarda.chamadas).toBe(1)
+      // + a guarda de edição que mora DENTRO de `lerTestesAbertos` (entradas do A/B, T8): uma ida a mais por visita ao canal próprio de quem edita, declarada no plano
+      expect(guarda.chamadas).toBe(2)
       cleanup()
     }
     expect([...vistos].sort()).toEqual(SENTINELAS.map(x => `${x.grupo}: ${x.nome}`).sort())
@@ -249,7 +253,8 @@ describe('13.3 segurança do canal próprio: quem edita × quem só lê', () => 
 
   it('E5b T17: quem só lê o site abre a aba Origem em "só o aviso": os nós da origem e dos cartões, resolvidos, não têm sentinela (nem o termo, nem o endereço), nenhum leitor roda e o cliente de serviço não é criado', async () => {
     guarda.ok = false
-    const moldura = (await rota(w.canalId, { tab: 'origem' })) as { props: { children: { props: { origem?: { props: { children: { type: unknown; props: unknown } } }; periodos?: unknown } } } }
+    const moldura0 = (await rota(w.canalId, { tab: 'origem' })) as { props: { children: { props: { origem?: { props: { children: { type: unknown; props: unknown } } }; periodos?: unknown } } } }
+    const moldura = { props: { children: semProvedor(moldura0.props.children) } }
     expect(moldura.props.children.props.periodos).toBeUndefined()   // diário negado: os cartões da Retenção nem existem
     const no = moldura.props.children.props.origem!.props.children
     render(await (no.type as (p: unknown) => Promise<ReactNode>)(no.props))

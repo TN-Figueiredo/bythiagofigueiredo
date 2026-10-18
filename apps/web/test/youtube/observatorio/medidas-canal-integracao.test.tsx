@@ -4,6 +4,7 @@
  * depois de `view` e antes de `canAdminSiteUsers`, os três elementos recebem a MESMA promessa, cada um no seu Suspense com o esqueleto de reserva, e
  * nenhum lança quando as medidas não carregam. O cabeçalho: o ⓘ só lista o que está na tela.
  */
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -45,6 +46,8 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn() }))
 
 import CanalPage from '@/app/cms/(authed)/youtube/competitors/canal/[id]/page'
+/** Desembrulha o AbEntradasProvider (T8/T9a): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = <T,>(e: T): T => ((e as { type?: unknown }).type === AbEntradasProvider ? (e as { props: { children: T } }).props.children : e)
 
 const AGORA = Date.UTC(2026, 9, 24, 18, 0, 0)
 type Tela = ReactElement<{ children: ReactElement<{ topo: ReactElement; celulas: ReactElement; blocos: ReactElement; view: { header: { id: string; name: string } } }> }>
@@ -53,7 +56,7 @@ async function abrir(id?: string) {
   const { obs, chId } = canalWorld()
   mocks.openChannelPage.mockResolvedValue({ siteId: 's1', now: AGORA, obs, canEdit: true, owns: ownMenuFromRows([], { subs: String }, { lembrado: null, agora: AGORA }) })
   const el = (await CanalPage({ params: Promise.resolve({ id: id ?? chId }), searchParams: Promise.resolve({}) })) as Tela
-  return { el, chId, obs, tela: el.props.children }
+  return { el, chId, obs, tela: semProvedor(el.props.children) }
 }
 const promessaDe = (s: ReactElement): unknown => (s.props as { children: ReactElement<{ medidas: unknown }> }).children.props.medidas
 const fallbackDe = (s: ReactElement): ReactElement => (s.props as { fallback: ReactElement }).fallback
