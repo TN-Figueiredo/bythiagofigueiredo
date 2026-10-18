@@ -1,6 +1,6 @@
 // P4a-E12 (texto hostil), E14 (varredura de texto proibido; caminho "Ver Detalhes" na lista de vídeos), E15 (alvo de toque e foco visível).
 import { test, expect, type Page } from '@playwright/test'
-import { limpar } from './ab-lab-p4a-suporte/semente'
+import { limpar, lerTeste } from './ab-lab-p4a-suporte/semente'
 import { AUTH, abrir, botaoEncerrar, dialogoEncerrar, esperarLimpo, foto, nomeDaFoto, preparar, temaDoProjeto, larguraDoProjeto } from './ab-lab-p4a-suporte/comum'
 
 test.use({ storageState: AUTH.admin })
@@ -143,11 +143,55 @@ test('E15: alvo de toque >= 44 px no X e nos botões do diálogo e foco visível
   esperarLimpo(coleta, 'E15')
 })
 
-test('E-extra: teste ativo ainda sem ciclo fechado (tela inicial) tem como encerrar?', async ({ page, context, baseURL }, info) => {
+test('E-extra/D6a: teste no começo (sem ciclo fechado) tem Encerrar e Pausar, e Pausar funciona: abre o detalhe com Retomar e sem Pausar', async ({ page, context, baseURL }, info) => {
   const tema = temaDoProjeto(info)
-  const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `Eextra ${info.project.name}`, status: 'active', ciclosFechados: 0 })
+  const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `D6a ${info.project.name}`, status: 'active', ciclosFechados: 0 })
   await abrir(page, t.url)
-  await foto(page, nomeDaFoto('Eextra', 'sem-ciclo-fechado', info, tema))
-  await expect(botaoEncerrar(page), 'o dono consegue encerrar um teste recém-criado').toBeVisible()
-  esperarLimpo(coleta, 'E-extra')
+  await expect(page.getByTestId('early-detail')).toBeVisible()
+  await foto(page, nomeDaFoto('D6', 'comeco-com-botoes-r2', info, tema))
+  await expect(botaoEncerrar(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Pausar', exact: true }).click()
+  const pausa = page.getByRole('dialog', { name: 'Pausar teste' })
+  await pausa.getByRole('button', { name: /^Pausar/ }).last().click()
+  await expect.poll(async () => (await lerTeste(t.testId)).status, { timeout: 15_000 }).toBe('paused')
+  await expect(page.getByRole('button', { name: /Retomar Teste/ })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toHaveCount(0)
+  await foto(page, nomeDaFoto('D6', 'pausado-no-comeco-r2', info, tema))
+  esperarLimpo(coleta, 'D6a')
+})
+
+test('D6b: Encerrar no começo do teste funciona (original) e grava completed', async ({ page, context, baseURL }, info) => {
+  const tema = temaDoProjeto(info)
+  const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `D6b ${info.project.name}`, status: 'active', ciclosFechados: 0 })
+  await abrir(page, t.url)
+  await botaoEncerrar(page).click()
+  const dlg = dialogoEncerrar(page)
+  await dlg.getByRole('radio', { name: 'A (original)' }).check()
+  await dlg.getByRole('button', { name: /^Encerrar e ficar com A/ }).click()
+  await expect.poll(async () => (await lerTeste(t.testId)).status, { timeout: 20_000 }).toBe('completed')
+  esperarLimpo(coleta, 'D6b')
+})
+
+test('D6c: teste pausado no 1o dia (sem ciclo fechado) abre o detalhe com Retomar, sem Pausar, com Encerrar', async ({ page, context, baseURL }, info) => {
+  const tema = temaDoProjeto(info)
+  const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `D6c ${info.project.name}`, status: 'paused', ciclosFechados: 0 })
+  await abrir(page, t.url)
+  await expect(page.getByRole('button', { name: /Retomar Teste/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toHaveCount(0)
+  await expect(botaoEncerrar(page)).toBeVisible()
+  await foto(page, nomeDaFoto('D6', 'pausado-1o-dia-r2', info, tema))
+  esperarLimpo(coleta, 'D6c')
+})
+
+test('L2: teste encerrado com a variante B no ar não mostra "Encerrado sem vencedor" junto de "Variante B aplicada"', async ({ page, context, baseURL }, info) => {
+  const tema = temaDoProjeto(info)
+  const em = new Date(Date.now() - 3 * 86_400_000).toISOString()
+  const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `L2 ${info.project.name}`, status: 'completed', restoreStatus: { title: { estado: 'ok', destino: 'B', em }, thumbnail: { estado: 'ok', destino: 'B', em } } })
+  await abrir(page, t.url)
+  const corpo = await page.locator('body').innerText()
+  info.annotations.push({ type: 'trechos', description: JSON.stringify(corpo.match(/Encerrado sem vencedor|Variante B aplicada|sem vencedor[^\n]*/g)) })
+  await foto(page, nomeDaFoto('L2', 'b-aplicada-r2', info, tema))
+  expect(corpo).not.toMatch(/Encerrado sem vencedor/)
+  esperarLimpo(coleta, 'L2')
 })

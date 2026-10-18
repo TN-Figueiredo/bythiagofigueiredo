@@ -16,9 +16,9 @@ async function escolherB(page: import('@playwright/test').Page) {
 test.describe('admin', () => {
   test.use({ storageState: AUTH.admin })
 
-  test('E5: A abre o diálogo, B pausa o mesmo teste, A confirma: nada é escrito sobre a pausa, A vê mensagem ou estado novo', async ({ page, context, baseURL }, info) => {
+  test('E5: A abre Encerrar, B pausa, A confirma: resultado "mudou" (frase, Recarregar), ZERO escrita nova no YouTube, status segue paused', async ({ page, context, baseURL }, info) => {
     const tema = temaDoProjeto(info)
-    const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `E5 ${info.project.name}`, status: 'active' })
+    const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `E5 ${info.project.name}`, status: 'active' }, { naoEsperadas: [/409/] })
     await abrir(page, t.url)
     const dlg = await escolherB(page)
 
@@ -30,48 +30,72 @@ test.describe('admin', () => {
     await pausa.getByRole('button', { name: /^Pausar/ }).last().click()
     await expect.poll(async () => (await lerTeste(t.testId)).status, { timeout: 15_000 }).toBe('paused')
     const antes = await estadoFalso()
+    expect(antes.escritas.length, 'a pausa de B escreveu 2 vezes (título e thumbnail)').toBe(2)
     await outra.close()
 
     await dlg.getByRole('button', { name: 'Encerrar e ficar com B' }).click()
-    await page.waitForTimeout(2500)
+    await expect(dlg.getByText('O teste mudou em outra aba.')).toBeVisible({ timeout: 15_000 })
+    await expect(dlg.getByText('Reabra para decidir.')).toBeVisible()
+    await expect(dlg.getByRole('button', { name: 'Recarregar' })).toBeVisible()
+    await expect(dlg.getByRole('button', { name: /^Encerrar e ficar com/ })).toHaveCount(0)
+    await foto(page, nomeDaFoto('E5', 'mudou-r2', info, tema))
     const depois = await estadoFalso()
     const linha = await lerTeste(t.testId)
-    const texto = await page.locator('body').innerText()
-    info.annotations.push({ type: 'observado', description: JSON.stringify({ status: linha.status, escritasAntes: antes.escritas, escritasDepois: depois.escritas, dialogoAberto: await dlg.isVisible().catch(() => false), trecho: texto.match(/Outra tentativa[^\n]*|Não foi possível[^\n]*|ja_encerrado[^\n]*/)?.[0] ?? null }) })
-    await foto(page, nomeDaFoto('E5', 'depois-da-pausa', info, tema))
-    // Critério: A não escreve sobre a pausa de B. O teste pausado, se encerrado por A, não pode ter escrito o YouTube duas vezes.
-    expect(linha.status === 'paused' || linha.status === 'completed').toBe(true)
-    // Aceite estrito (P4a-E5): com a pausa já gravada, A recebe a mensagem de tentativa em andamento / estado novo e NADA é escrito.
-    expect(depois.escritas, 'A não escreve sobre a pausa de B').toEqual(antes.escritas)
+    expect(depois.escritas, 'A não escreve nada sobre a pausa de B').toEqual(antes.escritas)
+    expect(linha.status).toBe('paused')
     esperarLimpo(coleta, 'E5')
   })
 
-  test('E6: sessão expirada com o diálogo aberto: redireciona ao login ou avisa, e o estado do teste fica intocado', async ({ page, context, baseURL }, info) => {
+  test('E5b (inverso): A abre Pausar, B encerra, A confirma: "mudou" no diálogo de pausa, Recarregar, nada escrito depois, status completed', async ({ page, context, baseURL }, info) => {
+    const tema = temaDoProjeto(info)
+    const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `E5b ${info.project.name}`, status: 'active' }, { naoEsperadas: [/409/] })
+    await abrir(page, t.url)
+    await page.getByRole('button', { name: 'Pausar', exact: true }).click()
+    const pausa = page.getByRole('dialog', { name: 'Pausar teste' })
+    await expect(pausa).toBeVisible()
+
+    const outra = await context.newPage()
+    await outra.goto(t.url)
+    await outra.waitForLoadState('networkidle')
+    await botaoEncerrar(outra).click()
+    const d2 = dialogoEncerrar(outra)
+    await d2.getByRole('radio', { name: 'Variante B' }).check()
+    await d2.getByRole('button', { name: 'Encerrar e ficar com B' }).click()
+    await expect.poll(async () => (await lerTeste(t.testId)).status, { timeout: 20_000 }).toBe('completed')
+    // o status vira completed ANTES das escritas no YouTube (a faixa lê em_andamento nesse intervalo): espera as 2 escritas de B antes de medir
+    await expect.poll(async () => (await estadoFalso()).escritas.length, { timeout: 20_000 }).toBe(2)
+    const antes = await estadoFalso()
+    await outra.close()
+
+    await pausa.getByRole('button', { name: /^Pausar/ }).last().click()
+    await expect(pausa.getByText('O teste mudou em outra aba. Reabra para decidir.')).toBeVisible({ timeout: 15_000 })
+    await expect(pausa.getByRole('button', { name: 'Recarregar' })).toBeVisible()
+    await foto(page, nomeDaFoto('E5b', 'mudou-r2', info, tema))
+    expect((await estadoFalso()).escritas, 'A não escreve depois do encerramento de B').toEqual(antes.escritas)
+    expect((await lerTeste(t.testId)).status).toBe('completed')
+    esperarLimpo(coleta, 'E5b')
+  })
+
+  test('E6: sessão expirada com o diálogo aberto: fase "Sessão expirada" com a frase e o link "Entrar de novo" para /cms/login?next=, estado do teste intocado', async ({ page, context, baseURL }, info) => {
     const tema = temaDoProjeto(info)
     const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `E6 ${info.project.name}`, status: 'active' }, { naoEsperadas: [/\/cms\/login/, /401/, /307/] })
     await abrir(page, t.url)
     const dlg = await escolherB(page)
     const antes = await lerTeste(t.testId)
-    const cookies = await context.cookies()
-    const sessao = cookies.filter((c) => /^sb-/.test(c.name))
+    const sessao = (await context.cookies()).filter((c) => /^sb-/.test(c.name))
     expect(sessao.length, 'há cookie de sessão para apagar').toBeGreaterThan(0)
     await context.clearCookies({ name: /^sb-/ })
-    const trocas: string[] = []
-    page.on('response', (r) => { if (r.request().headers()['next-action']) trocas.push(`${r.request().method()} ${r.status()} ${r.url().replace(baseURL!, '')} ${r.headers()['location'] ?? ''}`) })
     await dlg.getByRole('button', { name: 'Encerrar e ficar com B' }).click()
-    await page.waitForTimeout(3000)
-    info.annotations.push({ type: 'rede', description: JSON.stringify(trocas) })
-    const url = page.url()
-    const texto = await page.locator('body').innerText()
-    const depois = await lerTeste(t.testId)
+    await expect(dlg.getByText('Sessão expirada')).toBeVisible({ timeout: 15_000 })
+    await expect(dlg.getByText('Sua sessão expirou. Entre de novo para encerrar o teste.')).toBeVisible()
+    const entrar = dlg.getByRole('link', { name: 'Entrar de novo' })
+    await expect(entrar).toBeVisible()
+    expect(await entrar.getAttribute('href')).toMatch(/^\/cms\/login\?next=/)
+    await expect(dlg.getByText('Sem resposta')).toHaveCount(0)
+    await foto(page, nomeDaFoto('E6', 'sessao-expirada-r2', info, tema))
     const yt = await estadoFalso()
-    info.annotations.push({ type: 'observado', description: JSON.stringify({ url, status: depois.status, escritas: yt.escritas, trecho: texto.match(/Sessão expirada[^\n]*|Não foi possível[^\n]*|Entrar[^\n]*/)?.[0] ?? null }) })
-    await foto(page, nomeDaFoto('E6', 'sessao-expirada', info, tema))
-    expect(depois.status, 'estado do teste intocado').toBe(antes.status)
+    expect((await lerTeste(t.testId)).status, 'estado do teste intocado').toBe(antes.status)
     expect(yt.escritas, 'nada escrito no YouTube').toEqual([])
-    const login = /\/cms\/login/.test(url) || /sess[ãa]o expirada/i.test(texto)
-    expect(login, `redirecionou ao login ou disse "Sessão expirada" (url=${url})`).toBe(true)
-    expect(texto).not.toMatch(/^Encerrado$/m)
     void coleta
   })
 
@@ -107,7 +131,8 @@ test.describe('admin', () => {
     await alerta.getByRole('button', { name: 'Trocar pelo título de B e encerrar' }).click()
     await expect.poll(async () => (await lerTeste(t.testId)).status, { timeout: 20_000 }).toBe('completed')
     expect(corpos.at(-1)).toMatch(/true/)
-    expect((await estadoFalso()).titulo).toBe(TITULOS.B)
+    // completed é gravado antes da escrita no YouTube: espera o título chegar (spec, não produto)
+    await expect.poll(async () => (await estadoFalso()).titulo, { timeout: 20_000 }).toBe(TITULOS.B)
     esperarLimpo(coleta, 'E7a')
   })
 
@@ -144,7 +169,16 @@ test.describe('admin', () => {
     expect(caixa!.y, 'o diálogo cabe na janela (topo)').toBeGreaterThanOrEqual(0)
     expect(caixa!.y + caixa!.height, 'o diálogo cabe na janela (base)').toBeLessThanOrEqual(page.viewportSize()!.height + 1)
     if (larguraDoProjeto(info) === 390) expect(['auto', 'scroll']).toContain(medidas.overflowY)
-    await foto(page, nomeDaFoto('E7', 'os-dois', info, tema))
+    // B2: nenhum elemento fixo da página (barra inferior) cobre o rodapé do diálogo: o ponto central de cada botão pertence ao diálogo.
+    const cobertos = await alerta.evaluate((el) => [...el.querySelectorAll('button, a')].map((b) => {
+      const r = b.getBoundingClientRect(); const x = r.left + r.width / 2; const y = r.top + r.height / 2
+      const topo = document.elementFromPoint(x, y)
+      return { nome: (b.textContent ?? '').trim().slice(0, 30), visivel: r.bottom <= innerHeight + 1 && r.top >= 0, doDialogo: !!topo && el.contains(topo) }
+    }))
+    const fixos = await page.evaluate(() => [...document.querySelectorAll('body *')].filter((e) => getComputedStyle(e).position === 'fixed').map((e) => ({ el: `${e.tagName}.${(e.getAttribute('class') ?? '').slice(0, 30)}`, z: getComputedStyle(e).zIndex, topo: Math.round(e.getBoundingClientRect().top), alto: Math.round(e.getBoundingClientRect().height) })))
+    info.annotations.push({ type: 'B2', description: JSON.stringify({ cobertos, fixos }) })
+    expect(cobertos.filter((c) => !c.doDialogo || !c.visivel), 'botões do rodapé visíveis e não cobertos').toEqual([])
+    await foto(page, nomeDaFoto('E7', 'os-dois-r2', info, tema))
     esperarLimpo(coleta, 'E7c')
   })
 })
@@ -184,7 +218,7 @@ test.describe('editor (sem administrar o site)', () => {
     const antes = (await estadoFalso()).escritas.length
     const p = pedidos[0]!
     info.annotations.push({ type: 'corpo-original', description: p.corpo.slice(0, 600) })
-    const corpo = p.corpo.split(t.testId).join(t2.testId).replace('{"destino":"original"}', `{"destino":"variante","varianteId":"${t2.varB}"}`)
+    const corpo = p.corpo.split(t.testId).join(t2.testId).replace(/\{"destino":"original"(,"seqVisto":\d+)?\}/, (_m, seq) => `{"destino":"variante","varianteId":"${t2.varB}"${seq ?? ''}}`)
     expect(corpo).toContain(t2.varB)
     const h: Record<string, string> = {}
     for (const k of ['next-action', 'content-type', 'accept', 'next-router-state-tree', 'next-url']) if (p.headers[k]) h[k] = p.headers[k]!
