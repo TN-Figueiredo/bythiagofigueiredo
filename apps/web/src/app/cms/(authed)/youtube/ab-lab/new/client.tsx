@@ -7,7 +7,8 @@ import { AbCreateWizard } from '../_components/ab-create-wizard'
 import type { WizardVideo } from '../_components/ab-create-wizard'
 import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
 import { Search, FlaskConical, Info } from 'lucide-react'
-import { thumbReferenciaSegura } from './resolver'
+import type { ReferenciaPedida } from './params'
+import type { TipoTroca } from '@/lib/youtube/ab-referencia'
 
 interface EligibleVideo {
   id: string
@@ -29,10 +30,11 @@ interface DraftPrefill {
   sourcePipelineId: string | null
 }
 
-export interface CompetitorContext {
-  changeType?: 'thumbnail' | 'title'
-  competitorThumb?: string
-  competitorTitle?: string
+export interface CompetitorContext extends ReferenciaPedida {
+  canal: string | null
+  hrefOrigem: string | null
+  /** thumbOriginalYtimg(ytId) quando a thumb da URL não vale; só o servidor monta */
+  thumbSubstituta: string | null
 }
 
 interface NewTestClientProps {
@@ -41,11 +43,13 @@ interface NewTestClientProps {
   eligibleVideos: EligibleVideo[]
   draftPrefill?: DraftPrefill
   competitorContext?: CompetitorContext
+  /** Tipo pedido na URL (com ou sem referência); pré-marca o assistente sem levar thumb nem título. */
+  tipoInicial?: TipoTroca | null
   initialVideoId?: string
   aviso?: string
 }
 
-export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, competitorContext, initialVideoId, aviso }: NewTestClientProps) {
+export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, competitorContext, tipoInicial, initialVideoId, aviso }: NewTestClientProps) {
   const router = useRouter()
   const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(() =>
     draftPrefill
@@ -81,8 +85,8 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
         prefill={
           draftPrefill
             ? { testType: draftPrefill.testType as import('@/lib/youtube/ab-types').TestType }
-            : competitorContext?.changeType
-              ? { testType: competitorContext.changeType }
+            : tipoInicial
+              ? { testType: tipoInicial }
               : undefined
         }
         referencia={competitorContext ? <ReferenciaConcorrente contexto={competitorContext} /> : undefined}
@@ -197,9 +201,8 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
 }
 
 function ReferenciaConcorrente({ contexto }: { contexto: CompetitorContext }) {
-  const rotulo =
-    contexto.changeType === 'thumbnail' ? 'a thumbnail' : contexto.changeType === 'title' ? 'o título' : null
-  const thumb = thumbReferenciaSegura(contexto.competitorThumb)
+  const rotulo = contexto.tipo === 'thumbnail' ? 'a thumbnail' : 'o título'
+  const thumb = contexto.thumb
   return (
     <div className="mb-4 flex items-start gap-3 rounded-lg border border-cms-border bg-cms-accent-subtle px-4 py-3 text-sm text-cms-text">
       <FlaskConical size={15} className="mt-0.5 shrink-0 text-cms-accent" aria-hidden="true" />
@@ -219,8 +222,8 @@ function ReferenciaConcorrente({ contexto }: { contexto: CompetitorContext }) {
           Referência: {rotulo ? <>um concorrente trocou <b>{rotulo}</b></> : 'mudança de um concorrente'}.
           <span className="text-cms-text-muted"> Referência, não modelo.</span>
         </p>
-        {contexto.competitorTitle && (
-          <p className="mt-1 text-cms-text-muted line-clamp-2">{contexto.competitorTitle}</p>
+        {contexto.titulo && (
+          <p className="mt-1 text-cms-text-muted line-clamp-2">{contexto.titulo}</p>
         )}
       </div>
     </div>
