@@ -63,7 +63,7 @@ describe('rodarSonda', () => {
     const fb = criarFakeSb({ ab_tests: [teste('t1')], ab_test_variants: [variante('a', 't1', H.A), variante('b', 't1', H.B)] })
     const { f } = criarFetch({ head: () => { throw new DOMException('x', 'TimeoutError') } })
     const r = await rodarSonda(fb.sb, agora, f)
-    expect(r).toMatchObject({ status: 'ok', gravadas: 1, falhas: 1 })
+    expect(r).toMatchObject({ status: 'error', health_written: true })
     expect(fb.upserts[0]!.linhas[0]).toMatchObject({ http: null, erro: 'timeout', leitura_estado: 'falhou' })
   })
 
