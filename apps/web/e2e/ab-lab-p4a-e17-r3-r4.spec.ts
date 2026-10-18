@@ -51,14 +51,7 @@ test('E5c: A confirma Encerrar, fecha o diálogo (Esc) com a action em voo, B j�
 test('E5d: A confirma Pausar, fecha o diálogo (Esc) com a action em voo, B já tinha encerrado: aviso na página, página atualizada, nada escrito depois', async ({ page, context, baseURL }, info) => {
   const tema = temaDoProjeto(info)
   const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `E5d ${info.project.name}`, status: 'active' }, { naoEsperadas: [/409/] })
-  // O aviso é de curta vida neste cenário: o refresh troca o detalhe ativo pelo de teste encerrado e o estado do aviso some junto (achado do R3).
-  // Por isso o spec afirma que ele APARECEU (observador de DOM) e que a página foi atualizada, não que ele permanece.
-  await page.addInitScript(() => {
-    const w = window as unknown as { __avisoVisto: boolean }
-    w.__avisoVisto = false
-    new MutationObserver(() => { if (document.body && /mudou em outra aba antes de pausar/.test(document.body.innerText)) w.__avisoVisto = true })
-      .observe(document, { childList: true, subtree: true, characterData: true })
-  })
+  // T18 R2: o aviso mora em <AvisoDePagina> (page.tsx), que sobrevive à troca ActiveDetail -> WinnerDetail/PlayoffDetail no refresh.
   await abrir(page, t.url)
   await page.getByRole('button', { name: 'Pausar', exact: true }).click()
   const pausa = page.getByRole('dialog', { name: 'Pausar teste' })
@@ -81,8 +74,10 @@ test('E5d: A confirma Pausar, fecha o diálogo (Esc) com a action em voo, B já 
   await page.keyboard.press('Escape')
   await expect(pausa).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Pausar', exact: true }), 'refresh: teste encerrado não tem Pausar').toHaveCount(0, { timeout: 15_000 })
-  expect(await page.evaluate(() => (window as unknown as { __avisoVisto: boolean }).__avisoVisto), 'o aviso "mudou ... antes de pausar" chegou a ser exibido').toBe(true)
-  await foto(page, nomeDaFoto('E5d', 'aviso-fechado-r3', info, tema))
+  const aviso = page.getByText('O teste mudou em outra aba antes de pausar. Nada foi alterado.')
+  await expect(aviso, 'o aviso PERMANECE depois do refresh (até 6 s)').toBeVisible()
+  await foto(page, nomeDaFoto('E5d', 'aviso-fechado-r4', info, tema))
+  await expect(aviso, 'e some sozinho depois dos 6 s').toBeHidden({ timeout: 9_000 })
   expect((await estadoFalso()).escritas).toEqual(antes.escritas)
   expect((await lerTeste(t.testId)).status).toBe('completed')
   esperarLimpo(coleta, 'E5d')
