@@ -13,6 +13,8 @@ import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { paraLinhas, type LinhaLeitura, type LinhaThumb } from '@/lib/youtube/watch/expansor'
 import type { ResultadoLeitor } from '@/lib/youtube/watch/leitor'
+import type { AlvoAtivo } from '@/lib/youtube/watch/alvos'
+import { gravarComDegrau, type PayloadDisparo } from '@/lib/youtube/watch/gravar'
 import { mulberry32, gerar } from '../fixtures/watch-html/gerador'
 import { CASOS_RECUSADOS, leituraValida, thumbValida } from '../fixtures/watch-html/casos-recusados'
 
@@ -122,7 +124,42 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4: yt_watch_* (banco local)', () => {
       expect(await n(`select count(*)::int as n from public.yt_watch_readings where site_id = $1 and erro = 'fora_do_formato'`, [site])).toBe(fora)
     })
 
-    // B1 (16 leituras com 1 inválida -> degrau): é da T12 (usa gravarComDegrau); a T12 acrescenta o caso aqui.
+    it('16 leituras com 1 inválida injetada sem passar por linhaCabeNoBanco: o RPC único falha (classe 23), o degrau grava as 15 e a inválida recebe proxima_rodada_em + 20 min', async () => {
+      const site = await novoSite()
+      const ids = Array.from({ length: 16 }, (_, i) => 'dg' + String(i).padStart(9, '0'))
+      const antes = new Date(Date.now() - 60_000)
+      const alvos: AlvoAtivo[] = []
+      for (const [i, yt] of ids.entries()) {
+        const r = await pg.query(
+          `insert into public.yt_watch_alvos (site_id, youtube_video_id, tipo, motivo_ate, coleta_ate, hora_base_min, proxima_rodada_em)
+           values ($1, $2, 'concorrente', 'janela_concorrente', now() + interval '10 days', $3, $4) returning id`,
+          [site, yt, i, antes.toISOString()],
+        )
+        alvos.push({ id: Number(r.rows[0].id), siteId: site, ytId: yt, horaBaseMin: i, rodadasPorDia: 4, proximaRodadaEm: antes.toISOString(),
+          coletaAte: new Date(Date.now() + 10 * 86_400_000).toISOString(), motivoAte: 'janela_concorrente', extensoesCurtas: 0, indisponivelSeguidas: 0, rodadas: 0, temTesteNosso: false })
+      }
+      const ruim = 7
+      const leituras: LinhaLeitura[] = ids.map((yt, i) => ({
+        ...leituraValida(), site_id: site, youtube_video_id: yt, rodada_id: randomUUID(), ...(i === ruim ? { http: 99 } : {}),
+      }))
+      const payload: PayloadDisparo = { thumbs: [], leituras, alvos: alvos.map(a => ({ id: a.id, rodadas_mais: 1, ultima_rodada_em: antes.toISOString() })) }
+
+      const direto = await sb.rpc('yt_watch_gravar_disparo', { p: payload })
+      expect(direto.error?.code?.startsWith('23')).toBe(true)
+      expect(await contar('yt_watch_readings', site)).toBe(0)
+
+      const r = await gravarComDegrau(sb, payload, { agora: Date.now, ateMs: Date.now() + 83_000, alvos })
+      expect(r).toMatchObject({ ok: false, degrau: true })
+      expect(await contar('yt_watch_readings', site)).toBe(15)
+      expect(await n(`select count(*)::int as n from public.yt_watch_readings where site_id = $1 and youtube_video_id = $2`, [site, ids[ruim]])).toBe(0)
+      expect(await n(`select count(*)::int as n from public.yt_watch_alvos where site_id = $1 and rodadas = 1`, [site])).toBe(15)
+      const a = (await pg.query(`select rodadas, proxima_rodada_em from public.yt_watch_alvos where id = $1`, [alvos[ruim]!.id])).rows[0]
+      expect(a.rodadas).toBe(0)
+      const delta = new Date(a.proxima_rodada_em).getTime() - antes.getTime()
+      expect(delta).toBeGreaterThanOrEqual(20 * 60_000)
+      expect(delta).toBeLessThanOrEqual(23 * 60_000)
+    })
+
 
     it('um lote de 10 com 1 fora_do_formato grava as 10', async () => {
       const site = await novoSite()
