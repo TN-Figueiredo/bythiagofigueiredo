@@ -93,5 +93,15 @@ describe('diasDoTeste', () => {
     const r = diasDoTeste([ciclo({ id: 'c1', started_at: noInicio(d(6)) })], { ...TESTE, status: 'paused', paused_at: noInicio(d(4)) }, ontem, d(40))
     expect(r).toEqual([d(6), d(5), d(4)])
   })
+  it('Y1: teste active com paused_at velho: o ciclo aberto vai até ontem (regra de fimEfetivo)', () => {
+    const r = diasDoTeste([
+      ciclo({ id: 'c1', started_at: noInicio(d(20)), ended_at: noInicio(d(15)) }),
+      ciclo({ id: 'c2', started_at: noInicio(d(5)) })], { ...TESTE, status: 'active', paused_at: noInicio(d(15)) }, ontem, d(40))
+    expect(r).toEqual(expect.arrayContaining([d(5), d(4), d(3), d(2), d(1), d(0)]))
+  })
+  it('Y1: teste paused sem completed_at corta no paused_at', () => {
+    const r = diasDoTeste([ciclo({ id: 'c1', started_at: noInicio(d(6)) })], { ...TESTE, status: 'paused', paused_at: noInicio(d(4)), completed_at: null }, ontem, d(40))
+    expect(r).toEqual([d(6), d(5), d(4)])
+  })
   it('sem ciclos, lista vazia', () => expect(diasDoTeste([], TESTE, ontem, d(40))).toEqual([]))
 })

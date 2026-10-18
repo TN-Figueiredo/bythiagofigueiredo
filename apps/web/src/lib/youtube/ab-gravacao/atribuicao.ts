@@ -36,14 +36,17 @@ export function atribuirDia(i: { testId: string; day: DiaPt; meta: MetaDoDia | n
 
 /**
  * Dias do Pacífico com sobreposição > 0 de algum ciclo, entre `desde` e `ontem` (nunca hoje, nunca antes de `desde`).
- * Ciclo aberto vai até completed_at ?? paused_at do teste; sem nenhum dos dois, até `ontem`.
+ * Ciclo aberto segue fimEfetivo (depende do status do teste); sem nenhum dos dois, até `ontem`.
  */
 export function diasDoTeste(ciclos: AbCycle[], teste: AbTest, ontem: DiaPt, desde: DiaPt): DiaPt[] {
-  const fimDoTeste = teste.completed_at ?? teste.paused_at
-  const faixas = ciclos.map(c => ({
-    ini: Date.parse(c.started_at),
-    fim: c.ended_at ? Date.parse(c.ended_at) : fimDoTeste ? Date.parse(fimDoTeste) : Number.POSITIVE_INFINITY,
-  })).filter(f => Number.isFinite(f.ini))
+  // Mesma regra de fimEfetivo (ab-seconds.ts): teste ativo não para no paused_at; sem data de parada, vai até ontem.
+  const parou = teste.status === 'active' ? null
+    : teste.status === 'completed' || teste.status === 'archived'
+      ? (teste.completed_at ?? teste.paused_at) : (teste.paused_at ?? teste.completed_at)
+  const faixas = ciclos.map(c => {
+    const ini = Date.parse(c.started_at)
+    return { ini, fim: c.ended_at ? Date.parse(c.ended_at) : parou ? Math.max(ini, Date.parse(parou)) : Number.POSITIVE_INFINITY }
+  }).filter(f => Number.isFinite(f.ini))
   if (faixas.length === 0) return []
   const primeiro = dayPt(new Date(Math.min(...faixas.map(f => f.ini))))
   let d = diffDias(primeiro, desde) > 0 ? desde : primeiro
