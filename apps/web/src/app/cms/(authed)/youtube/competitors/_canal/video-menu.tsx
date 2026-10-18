@@ -9,6 +9,8 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
 import { PinMessage, usePinControl } from '../_chrome/pin-kit'
+import { itensDoMenu } from '../_chrome/ab-entradas/modelo'
+import { useAbEntradas } from '../_chrome/ab-entradas/contexto'
 import { ehProprio } from '../_proprio/eh-proprio'
 import type { ChannelVideoView } from './videos-model'
 
@@ -32,6 +34,7 @@ function Itens({ v, onAmpliar, onTrocas, onPin, pinLabel, pinBusy }: {
     // Tab / Shift+Tab: a camada flutuante costura o menu de volta ao botão ⋯ (flut/store.ts)
   }
   const trocas = v.swaps > 0
+  const ab = itensDoMenu(v, useAbEntradas())
   return (
     <div ref={ref} onKeyDown={onKey}>
       {v.notas.length ? (
@@ -46,6 +49,10 @@ function Itens({ v, onAmpliar, onTrocas, onPin, pinLabel, pinBusy }: {
           <span>Ver trocas</span><small>{trocas ? `${v.swaps} em 30 d` : 'nenhuma em 30 d'}</small>
         </button>
       )}
+      {ab.length ? <hr /> : null}
+      {ab.map(i => (
+        <a key={i.rotulo} role="menuitem" tabIndex={-1} href={i.href}>{i.curto ? <><span>{i.rotulo}</span><small>{i.curto}</small></> : i.rotulo}</a>
+      ))}
     </div>
   )
 }

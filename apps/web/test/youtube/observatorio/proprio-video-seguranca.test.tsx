@@ -83,7 +83,8 @@ describe('13.4 segurança do vídeo próprio: quem edita × quem só lê', () =>
     // um cliente para o alcance, o diário e a retenção (`lerDadosDoVideo`) e, depois do primeiro HTML, outro para os cartões de período (`lerDiarioLongo`, no `Suspense`)
     expect(servico.criado).toBeGreaterThanOrEqual(1); expect(servico.criado).toBeLessThanOrEqual(5)
     // a guarda de leitura (1) e, só quando a origem é lida, a de edição dos termos (dentro de `lerTermosESites`)
-    expect(guarda.chamadas).toBeGreaterThanOrEqual(1); expect(guarda.chamadas).toBeLessThanOrEqual(2)
+    // + a guarda de edição que mora DENTRO de `lerTestesAbertos` (entradas do A/B, T6): uma ida a mais, declarada no plano
+    expect(guarda.chamadas).toBeGreaterThanOrEqual(1); expect(guarda.chamadas).toBeLessThanOrEqual(3)
   })
 
   it('controle positivo da tela B: o nó `periodos` da rota é um Suspense com o esqueleto, e o componente assíncrono dentro dele devolve os três cartões de % assistido por período com a leitura do diário longo', async () => {

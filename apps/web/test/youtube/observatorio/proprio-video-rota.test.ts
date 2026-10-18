@@ -2,6 +2,7 @@
 // A4 Tarefa 11: a rota `video/[id]` ramifica pelo dono do canal do vídeo, decidido no SERVIDOR a partir do canal resolvido (nunca de parâmetro da URL).
 // Vídeo de canal próprio abre a tela nova; vídeo de concorrente continua abrindo o Histórico, sem tocar o dado privado; id desconhecido continua
 // "Vídeo não encontrado" na moldura (status 200); quem só lê o site abre a página sem os números privados.
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Suspense, type ReactElement, type ReactNode } from 'react'
 import * as Sentry from '@sentry/nextjs'
@@ -19,6 +20,8 @@ import type { OrigemLida } from '@/app/cms/(authed)/youtube/competitors/_proprio
 import type { DetalheCanal } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
 import type { Privado } from '@/lib/youtube/observatorio/proprio/tipos'
 import type { VideoBlocosView } from '@/app/cms/(authed)/youtube/competitors/_proprio/video-blocos-model'
+/** Desembrulha o AbEntradasProvider (T8/T9a): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = <T,>(e: T): T => ((e as { type?: unknown }).type === AbEntradasProvider ? (e as { props: { children: T } }).props.children : e)
 
 const w = proprioWorld({
   mut: ds => {
@@ -96,7 +99,7 @@ async function rota(id: string, sp: Record<string, string> = {}) {
   const { default: VideoPage } = await import('@/app/cms/(authed)/youtube/competitors/video/[id]/page')
   return (await VideoPage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(sp) })) as Moldura
 }
-const filho = (el: Moldura) => { const c = el.props.children as ReactElement<{ fallback?: ReactElement }>; return (c.type === Suspense ? c.props.fallback : c) as Moldura['props']['children'] } // concorrente: a tela vem num Suspense (21c); a reserva leva a mesma view
+const filho = (el: Moldura) => { const c = semProvedor(el.props.children) as ReactElement<{ fallback?: ReactElement }>; return (c.type === Suspense ? c.props.fallback : c) as Moldura['props']['children'] } // concorrente: a tela vem num Suspense (21c); a reserva leva a mesma view
 /** O modelo dos blocos que a rota monta no servidor e entrega ao `VideoBlocos` (a única coisa privada que desce). */
 const blocos = (el: Moldura): VideoBlocosView => (filho(el).props.children as ReactElement<{ view: VideoBlocosView }>).props.view
 const nome = (el: Moldura) => (filho(el).type as { name?: string }).name

@@ -3,12 +3,15 @@
  * E17 degrau 1, Tarefa 8b: `montarCanal` e `montarVideo` devolvem o MESMO modelo que a página entrega ao componente, o `tipo` certo, as entradas dos
  * cartões de período e da origem, e o estado do dado privado (acesso cru por leitura, `negativa` da MESMA resposta que decidiu a leitura).
  */
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactElement } from 'react'
 import { proprioWorld, semVideos, umCanal, primeiroProprio } from './proprio-fixture'
 import type { ChannelPage } from '@/app/cms/(authed)/youtube/competitors/_chrome/page-data'
 import type { LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import type { OwnMenu } from '@/app/cms/(authed)/youtube/competitors/_chrome/own-menu'
+/** Desembrulha o AbEntradasProvider (T8): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = (e: ReactElement): ReactElement => (e.type === AbEntradasProvider ? (e.props as { children: ReactElement }).children : e)
 
 const w = proprioWorld()
 const wUm = proprioWorld({ mut: umCanal })
@@ -109,7 +112,7 @@ describe('montarCanal', () => {
     const { montarCanal } = await import(`${R}/_canal/montar`)
     const el = (await Page({ params: Promise.resolve({ id: w.canalId }), searchParams: Promise.resolve({ sort: 'imp' }) })) as ReactElement<{ children: ReactElement<{ view: unknown }> }>
     const m = await montarCanal(w.canalId, { sort: 'imp' })
-    expect(m.tipo === 'proprio' && el.props.children.props.view).toEqual(m.tipo === 'proprio' && m.pv)
+    expect(m.tipo === 'proprio' && (semProvedor(el.props.children) as ReactElement<{ view: unknown }>).props.view).toEqual(m.tipo === 'proprio' && m.pv)
   })
 })
 

@@ -32,3 +32,7 @@
 .tr-vazio,.tr-bloqueio{padding:10px 12px;border:1.5px solid var(--tr-borda);border-radius:6px;font-size:13px}
 .tr-bloqueio{border-style:double;border-width:4px}
 .tr-bloqueio p,.tr-atraso p{margin:2px 0}
+
+.tr-ab{margin:8px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:13px}
+.tr-ab-dica{font-size:12px;color:var(--muted)}
+.tr-ab-aviso{margin:8px 0;padding:8px 10px;border-left:3px solid var(--tr-borda);font-size:13px}

@@ -9,6 +9,9 @@ import type { Situation } from './many-versions'
 import { HIcon, TYPE_COLOR, type HIconName } from './icons'
 import { Thumb, type ThumbZoom } from './thumb'
 import { RichText } from '../_mudancas/rich'
+import { useAbEntradas } from '../_chrome/ab-entradas/contexto'
+import { abRefDaTroca, ROTULO_IDEIA_NO_MEU_CANAL } from '../_chrome/ab-entradas/modelo'
+import { tipoDaLane } from '@/lib/youtube/ab-referencia'
 
 const STATUS_ICON = (s: string): HIconName | null =>
   ['neutro', 'ganhou', 'perdeu', 'inconclusivo', 'aguardando', 'sem-serie', 'sem-antes'].includes(s) ? (s as HIconName) : null
@@ -33,7 +36,13 @@ function Side({ s, zoomOf }: { s: BaSide; zoomOf?: ZoomOf }) {
   )
 }
 
-function Detail({ p, onDescLink, zoomOf }: { p: ComparisonView; onDescLink: () => void; zoomOf?: ZoomOf }) {
+/** O vídeo desta tela, para a entrada do A/B Lab: `own` é dito por quem chama (este Histórico só desenha vídeo de concorrente). */
+export interface AbVideo { id: string; title: string; own: boolean }
+
+function Detail({ p, onDescLink, zoomOf, abVideo }: { p: ComparisonView; onDescLink: () => void; zoomOf?: ZoomOf; abVideo?: AbVideo | null }) {
+  // só aparece para quem edita (provedor nulo = nada); o `href` é calculado AQUI, nunca no modelo que o pacote "Perguntar a uma IA" também monta
+  const ab = useAbEntradas()
+  const ref = ab && abVideo ? abRefDaTroca({ tipo: tipoDaLane(p.field), own: abVideo.own, desfaz: p.depoisDesfaz, thumbDepois: p.depoisThumb, tituloDepois: p.depoisTitulo, tituloDoVideo: abVideo.title, refVideoId: abVideo.id, refTroca: p.changeId }) : null
   return (
     <>
       {p.ba ? (
@@ -44,12 +53,14 @@ function Detail({ p, onDescLink, zoomOf }: { p: ComparisonView; onDescLink: () =
       {p.nobase ? <div className="nobase" data-nobase=""><strong>{p.nobase.strong}</strong>{p.nobase.text}</div> : null}
       {p.full ? <Full p={p} /> : null}
       {p.runLines.map((t, i) => <p key={i} className="seqline"><HIcon name="ab" /><span>{t}</span></p>)}
+      {ref?.tipo === 'testar' ? <p className="src hv-ab"><a className="btn" href={ref.href}>{ROTULO_IDEIA_NO_MEU_CANAL}</a></p> : null}
+      {ref?.tipo === 'sem-imagem' ? <p className="src hv-ab-sem">{ref.frase}</p> : null}
       {p.descLink ? <p className="src"><a className="inl" href="#hv-desc" onClick={e => { e.preventDefault(); onDescLink() }}>Ver comparação linha a linha</a></p> : null}
     </>
   )
 }
 
-export function Compare({ comparisons, compare, selected, empty, onSelect, onDescLink, filter = NO_FILTER, onFilter, onWholeVideo, arrival = null, zoomOf }: {
+export function Compare({ comparisons, compare, selected, empty, onSelect, onDescLink, filter = NO_FILTER, onFilter, onWholeVideo, arrival = null, zoomOf, abVideo = null }: {
   comparisons: ComparisonView[]; compare: CompareView; selected: string | null; empty: string | null
   onSelect: (k: string) => void; onDescLink: () => void
   /** List mode: the two filters (state lives in the screen: a marker of a filtered-out change clears them). */
@@ -60,6 +71,8 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
   arrival?: { pairK: string; line: string } | null
   /** The viewer trigger of a side's thumbnail (spec 6.3, trigger 2); absent = the thumbnails are plain images. */
   zoomOf?: ZoomOf
+  /** O vídeo para a entrada do A/B Lab (só decide algo com o `AbEntradasProvider` em volta). */
+  abVideo?: AbVideo | null
 }) {
   const list = useRef<HTMLUListElement>(null)
   const all = comparisons.filter(c => c.inRange)
@@ -105,7 +118,7 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
                 )
               })}
             </div>
-            <Detail p={p} onDescLink={onDescLink} zoomOf={zoomOf} />
+            <Detail p={p} onDescLink={onDescLink} zoomOf={zoomOf} abVideo={abVideo} />
           </>
         )}
       </section>
@@ -180,7 +193,7 @@ export function Compare({ comparisons, compare, selected, empty, onSelect, onDes
                 )
               })}
             </ul>
-            <div className="cdet" id="hv-cdet" role="region" aria-label="Troca selecionada"><Detail p={p} onDescLink={onDescLink} zoomOf={zoomOf} /></div>
+            <div className="cdet" id="hv-cdet" role="region" aria-label="Troca selecionada"><Detail p={p} onDescLink={onDescLink} zoomOf={zoomOf} abVideo={abVideo} /></div>
           </>
         )}
       </div>

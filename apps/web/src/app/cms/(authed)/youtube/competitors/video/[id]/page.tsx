@@ -23,13 +23,16 @@ import type { BlocoAssistido } from '../../_proprio/video-blocos-model'
 import { canalProprioDoVideo } from '../../_proprio/video-model'
 import { ProprioVideoScreen } from '../../_proprio/video-screen'
 import { AssistidoEsqueleto, VideoBlocos } from '../../_proprio/video-blocos'
+import { AbEntradasProvider } from '../../_chrome/ab-entradas/contexto'
+import { podeEditarSite } from '../../_chrome/ab-entradas/permissao'
+import { entradaDoProprio, semDadoDoVideo, valorAbEntradas } from '../../_chrome/ab-entradas/modelo'
 import { LinhaDasTrocas, Trocas } from '../../_proprio/trocas'
 import * as Sentry from '@sentry/nextjs'
 import { askForjaReading, cancelForjaReading } from '../../forja-actions'
 import { pinVideo, unpinVideo, syncCompetitorNow } from '../../actions'
 
 /** A página e o título pedem o mesmo conjunto: `cache` do React junta as duas chamadas da MESMA requisição em uma leitura só. */
-const abrirPagina = cache(() => openObservatoryPage())
+const abrirPagina = cache(() => openObservatoryPage(podeEditarSite))
 
 /** O dono do canal do vídeo decide também a aba do navegador: "Vídeo" para o próprio, "Histórico do vídeo" para o resto (o título do concorrente não mudou). */
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -79,11 +82,13 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
         <OrigemDoVideo {...m.origemProps} />
       </Suspense>
     )
+    // entrada do A/B: só quem edita; Short, restrito e falhou decidem dentro do modelo (reporter chega `null`)
+    const ab = m.podeEditar ? entradaDoProprio({ podeEditar: true, videoUuid: base.header.id, dur: m.durSeg, abertos: m.abertos, semDado: semDadoDoVideo(blocos) }) : null
     return (
       <TrailChrome crumbs={base.crumbs} owns={ownMenuOf(obs, meuCanalLembrado)} aside={<Pager pager={base.pager} naTrilha />}
         perguntarIa={{ tela: 'video-proprio', id: id, nomeDaTela: TELAS_IA['video-proprio'].nome, exemplos: TELAS_IA['video-proprio'].exemplos, onGerar: gerarPacoteIa }}>
-        <ProprioVideoScreen header={base.header} pager={base.pager} fromCanal={base.fromCanal}>
-          <VideoBlocos view={blocos} periodos={periodos} origem={origem} linhaTrocas={trocas ? <LinhaDasTrocas view={trocas} /> : undefined} trocas={trocas ? <Trocas view={trocas} /> : undefined} />
+        <ProprioVideoScreen header={base.header} pager={base.pager} fromCanal={base.fromCanal} ab={ab}>
+          <VideoBlocos view={blocos} periodos={periodos} origem={origem} linhaTrocas={trocas ? <LinhaDasTrocas view={trocas} /> : undefined} trocas={trocas ? <Trocas view={trocas} ab={ab} videoUuid={base.header.id} /> : undefined} />
         </ProprioVideoScreen>
       </TrailChrome>
     )
@@ -115,7 +120,7 @@ export default async function HistoricoPage({ params, searchParams }: { params: 
   return (
     <TrailChrome crumbs={historicoTrail(view.crumbs)} owns={ownMenuOf(obs, meuCanalLembrado)} aside={view.pager ? <Pager pager={view.pager} naTrilha /> : undefined}
       perguntarIa={view.notFound ? undefined : { tela: 'video', id, nomeDaTela: TELAS_IA['video'].nome, exemplos: TELAS_IA['video'].exemplos, onGerar: gerarPacoteIa }}>
-      {tela}
+      <AbEntradasProvider valor={valorAbEntradas({ podeEditar: m.pagina.extra === true, abertos: null })}>{tela}</AbEntradasProvider>
     </TrailChrome>
   )
 }

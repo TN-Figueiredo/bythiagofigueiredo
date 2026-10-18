@@ -20,6 +20,9 @@ import { Origem } from '../../_proprio/origem'
 import { OrigemEsqueleto } from '../../_proprio/origem-esqueleto'
 import { ComoEsta } from '../../_proprio/como-esta'
 import { ProprioScreen, ProprioSemVideos } from '../../_proprio/proprio-screen'
+import { AbEntradasProvider } from '../../_chrome/ab-entradas/contexto'
+import { lerTestesAbertos } from '../../_chrome/ab-entradas/ler-testes-abertos'
+import { valorAbEntradas } from '../../_chrome/ab-entradas/modelo'
 import { ReadingCard } from '../../_mudancas/reading-card'
 // As classes do cartão de leitura moram em mudancas.css, presas a [data-obs-screen="mudancas"]; a A2 troca o cartão e promove as classes.
 import '../../_mudancas/mudancas.css'
@@ -73,10 +76,16 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
         <OrigemDoCanal {...m.origemProps} />
       </Suspense>
     )
+    // entradas do A/B: UMA leitura por página, em série depois de `montarCanal` (a página só existe depois dele), só se o canal é próprio e quem vê edita
+    // (reporter nunca lê; a guarda de edição repete DENTRO do leitor). Custo declarado: uma ida a mais ao banco por visita.
+    const abertos = m.pagina.canEdit ? await lerTestesAbertos(m.pagina.siteId) : null
+    const ab = valorAbEntradas({ podeEditar: m.pagina.canEdit, abertos })
     return (
       <TrailChrome crumbs={[{ text: 'Canais', href: link.canais() }, { text: proprio.name }]} owns={owns} atual={proprio.id}
         perguntarIa={{ tela: 'canal-proprio', id: id, nomeDaTela: TELAS_IA['canal-proprio'].nome, exemplos: TELAS_IA['canal-proprio'].exemplos, onGerar: gerarPacoteIa }}>
-        <ProprioScreen view={pv} periodos={periodos} origem={origem} comoEsta={<ComoEsta key={proprio.id} view={view} grafico={grafico} graficoViews={graficoViews} painel={painelDe(m.flat.painel)} canalId={proprio.id} />} />
+        <AbEntradasProvider valor={ab}>
+          <ProprioScreen view={pv} periodos={periodos} origem={origem} comoEsta={<ComoEsta key={proprio.id} view={view} grafico={grafico} graficoViews={graficoViews} painel={painelDe(m.flat.painel)} canalId={proprio.id} />} />
+        </AbEntradasProvider>
       </TrailChrome>
     )
   }
@@ -98,9 +107,11 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
   return (
     <TrailChrome crumbs={[{ text: view.origemText, href: view.canaisHref }, { text: view.header.name }]} owns={owns}
       perguntarIa={{ tela: 'canal', id: id, nomeDaTela: TELAS_IA['canal'].nome, exemplos: TELAS_IA['canal'].exemplos, onGerar: gerarPacoteIa }}>
+      <AbEntradasProvider valor={valorAbEntradas({ podeEditar: m.pagina.canEdit, abertos: null })}>
       <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={leitura} compararHref={owns.principal ? link.comparar(owns.principal.id, id) : null}
         topo={topo} celulas={celulas} blocos={blocos}
         actions={{ onSyncOne: syncCompetitorNow, onRemove: removeCompetitorChannel, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
+      </AbEntradasProvider>
     </TrailChrome>
   )
 }

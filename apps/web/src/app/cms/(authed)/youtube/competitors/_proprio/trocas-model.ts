@@ -42,6 +42,8 @@ export interface TrocaView {
   de: ImagemTroca
   para: ImagemTroca
   origem: { chip: string; frase: string; teste: { href: string } | 'sem-acesso' | 'falhou' | null }
+  /** A troca veio de um teste (id de teste na versão ou origem `ab_lab`). Vem do DADO da troca, nunca de `origem.teste`, cujo link some quando a leitura do A/B falha, é negada ou o teste saiu do teto. */
+  veioDeTeste: boolean
   chip: Chip
   rotuloChip: string
   /** Decisão 75: `falhou` quando o chip é `leitura-falhou`; null nos demais (nenhum outro chip é ausência de leitura). */
@@ -348,7 +350,7 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
     } else { desconhecida = true; if (t.origem === 'cms') diag.origemCms++; else if (t.origem !== 'nao_se_sabe') diag.estadoInesperado++ }
 
     const bruta: TrocaView = {
-      n, campo, dia, quando: e.dmy(dia), de: img(anterior), para: img(t), origem: { chip: origemChip, frase: origemFrase, teste: hrefTeste },
+      n, campo, dia, quando: e.dmy(dia), de: img(anterior), para: img(t), origem: { chip: origemChip, frase: origemFrase, teste: hrefTeste }, veioDeTeste: t.abTestId != null || t.origem === 'ab_lab',
       chip: 'origem-nao-sabida', rotuloChip: ROTULO['origem-nao-sabida'], ausencia: null, frase: '', antes: null, depois: null, notas: [],
     }
     if (desconhecida) {

@@ -50,18 +50,8 @@ export function filtroBuscaVideo(pedido: string): string | null {
   return null
 }
 
-/** Só mostra imagem de referência vinda da URL se o host for o do YouTube ou o Blob do projeto. */
-export function thumbReferenciaSegura(url: string | undefined): string | null {
-  if (!url) return null
-  try {
-    const u = new URL(url)
-    if (u.protocol !== 'https:') return null
-    const h = u.hostname
-    if (h === 'i.ytimg.com' || h.endsWith('.public.blob.vercel-storage.com')) {
-      return `https://${h}${u.pathname}`
-    }
-    return null
-  } catch {
-    return null
-  }
-}
+/**
+ * A regra da imagem de referência mora em `lib/youtube/ab-referencia` (módulo puro, importável por cliente).
+ * O curinga do Blob aceita qualquer loja `*.public.blob.vercel-storage.com`, não só a do projeto: dívida declarada.
+ */
+export { thumbReferenciaSegura } from '@/lib/youtube/ab-referencia'

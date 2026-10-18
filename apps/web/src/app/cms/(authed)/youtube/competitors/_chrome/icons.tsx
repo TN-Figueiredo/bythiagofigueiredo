@@ -29,5 +29,6 @@ export const Icon = {
   next: () => S(<path d="m9 18 6-6-6-6" />),
   ext: () => S(<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />),
   download: () => S(<path d="M12 4v11M7 11l5 5 5-5M5 20h14" />),
+  flask: () => S(<><path d="M9 3h6M10 3v6L4.5 19a1 1 0 0 0 .9 1.5h13.2a1 1 0 0 0 .9-1.5L14 9V3" /><path d="M7.5 15h9" /></>),
   compare: () => S(<><rect x="3" y="5" width="8" height="14" rx="1" /><rect x="13" y="5" width="8" height="14" rx="1" /></>),
 }

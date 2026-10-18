@@ -16,6 +16,8 @@ import { Icon } from '../_chrome/icons'
 import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
 import { lembrarUltimoVideo, renovarUltimoVideo } from '../_chrome/ultimo-video'
 import { marcarPagerUsado, tomarPagerUsado, videoDoHref } from '../_historico/pager-usado'
+import type { EntradaProprio } from '../_chrome/ab-entradas/modelo'
+import { ROTULO_TESTAR } from '../_chrome/ab-entradas/modelo'
 import type { PagerView } from '../_historico/view-model'
 import type { CelulaVideo, ProprioVideoHeader } from './video-model'
 import '../_canal/canal.css'
@@ -36,12 +38,14 @@ function Celula({ c }: { c: CelulaVideo }) {
   )
 }
 
-export function ProprioVideoScreen({ header, pager, fromCanal, children }: {
+export function ProprioVideoScreen({ header, pager, fromCanal, ab, children }: {
   header: ProprioVideoHeader
   /** O mesmo paginador que a página pôs na trilha: aqui só para os atalhos [ e ] e o anúncio. */
   pager: PagerView | null
   /** O id do canal quando a pessoa veio da página dele: o último vídeo visto é guardado para o Voltar pôr o foco no cartão. */
   fromCanal: string | null
+  /** Entrada do A/B decidida na página (reporter, Short e leitura sem direito chegam `null`): a tela só desenha. */
+  ab?: EntradaProprio | null
   children?: ReactNode
 }) {
   const root = useRef<HTMLDivElement>(null)
@@ -131,7 +135,10 @@ export function ProprioVideoScreen({ header, pager, fromCanal, children }: {
           <div className="vp-a">
             <a className="obs-ch-btn" href={header.url} target="_blank" rel="noopener noreferrer">Abrir no YouTube<ExtIcon /><span className="obs-ch-sr"> (abre em nova aba)</span></a>
             {viewer ? <button type="button" className="obs-ch-btn" onClick={e => ampliar(e.currentTarget)}>Ampliar thumbnail</button> : null}
+            {ab?.tipo === 'testar' ? <a className="obs-ch-btn" href={ab.href}>{Icon.flask()}{ROTULO_TESTAR}</a> : null}
+            {ab?.tipo === 'ver' ? <a className="obs-ch-btn" href={ab.href}>{ab.rotulo}</a> : null}
           </div>
+          {ab?.tipo === 'ver' || ab?.tipo === 'sem-dado' ? <p className="vp-ab-nota">{ab.frase}</p> : null}
         </div>
       </header>
       {children}

@@ -12,6 +12,9 @@ import { DescDiff } from './desc-diff'
 import { EffectPanel } from './effect-panel'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { PinButton, PinMessage, PinChips } from '../_chrome/pin-kit'
+import { useAbEntradas } from '../_chrome/ab-entradas/contexto'
+import { abRefDaTroca, ROTULO_IDEIA_NO_MEU_CANAL, type AbRefTroca } from '../_chrome/ab-entradas/modelo'
+import { tipoDaLane } from '@/lib/youtube/ab-referencia'
 
 const KIND_ICON: Record<Hero['type'], IconName> = { title: 'title', thumb: 'image', desc: 'text' }
 
@@ -46,6 +49,20 @@ function ChangeRow({ h, swipe, onSwipe, effect }: { h: Hero; swipe: SwipeState; 
 }
 
 /**
+ * Entrada do A/B Lab de uma troca de Mudanças. Fonte (Phil R1): o "Depois" (`toId`) do próprio change e o título `after` dele, nunca a última versão
+ * restaurada do vídeo. `own` vem do canal (explícito). O `href` nasce aqui, no componente, e não no modelo que o pacote "Perguntar a uma IA" também monta.
+ */
+function abRefDoHero(h: Hero): AbRefTroca | null {
+  // uma troca de thumbnail que DESFAZ outra (o "Depois" é a versão restaurada) não leva ideia nova: a referência é a troca que a antecedeu (Foco 7, A→B→A)
+  const desfaz = !!h.thumbs?.some(t => t.role === 'Depois' && t.back)
+  return abRefDaTroca({
+    tipo: tipoDaLane(h.type), own: h.video.own, desfaz,
+    thumbDepois: h.thumbs?.find(t => t.role === 'Depois')?.src ?? null, tituloDepois: h.title?.afterText ?? null,
+    tituloDoVideo: h.video.title, refVideoId: h.video.id, refTroca: h.id,
+  })
+}
+
+/**
  * `shared` = this video shows in more than one card of the list (sorted by effect): the pin control then names the
  * card's change too, so every control has a unique accessible name. The control's key is the card's first change.
  */
@@ -54,6 +71,11 @@ export function VideoGroup({ heroes, swipeOf, onSwipe, shared }: { heroes: Hero[
   const revTag = heroes.length === 1 && first.revTag
   const runNote = heroes.find(h => h.when.run && h.runNote)?.runNote ?? null
   const pin = v.pin ? (shared ? { ...v.pin, title: v.title + ' (' + first.typeLabel + ', ' + first.when.text + ')' } : v.pin) : null
+  // a entrada do A/B Lab fica no cabeçalho do cartão e leva a primeira troca do cartão que tem o que levar (título ou thumbnail; descrição não)
+  const abOn = useAbEntradas() !== null
+  // prefere uma troca com botão: a frase "sem imagem" de uma não esconde o botão de outra do mesmo cartão (Yannis M1)
+  const refs = abOn ? heroes.map(abRefDoHero) : []
+  const ab = refs.find(r => r?.tipo === 'testar') ?? refs.find(r => r !== null) ?? null
   const rows = heroes.map(h => <ChangeRow key={h.id} h={h} swipe={swipeOf(h)} onSwipe={onSwipe} effect={v.observed} />)
   return (
     <article className="vid" data-video={v.id}>
@@ -76,10 +98,12 @@ export function VideoGroup({ heroes, swipeOf, onSwipe, shared }: { heroes: Hero[
         <div className="acts">
           {pin ? <PinButton pin={pin} k={first.id} className="ghost" /> : null}
           <Link className="ghost" href={v.historyHref} aria-label={'Ver histórico do vídeo: ' + v.title}><Ic name="history" />Ver histórico do vídeo</Link>
+          {ab?.tipo === 'testar' ? <a className="ghost" href={ab.href}>{ROTULO_IDEIA_NO_MEU_CANAL}</a> : null}
           <a className="ghost" href={v.url} target="_blank" rel="noopener noreferrer" aria-label={'Abrir no YouTube: ' + v.title}><Ic name="external" />Abrir no YouTube</a>
         </div>
       </header>
       {pin ? <div className="fx-row"><PinMessage k={first.id} /></div> : null}
+      {ab?.tipo === 'sem-imagem' ? <p className="fx-ab-sem">{ab.frase}</p> : null}
       {v.observed ? rows : <div className="fx-grid">{rows}</div>}
     </article>
   )

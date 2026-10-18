@@ -413,7 +413,8 @@ export function HistoricoScreen({ view, onAskForja, onCancelForja, onSyncChannel
               {estourou ?? null}
               {view.imageSummary ? <ImageSummary sum={view.imageSummary} active={hl?.label ?? null} pinned={pinImg} onHover={l => setHover(l ? { type: 'thumb', i: -1, ev: null, label: l } : null)} onPin={pinImage} /> : null}
               <Compare comparisons={view.comparisons} compare={view.compare} selected={pairK} empty={view.compareEmpty} onSelect={setPairK} onDescLink={openDesc}
-                filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} arrival={view.arrival} zoomOf={zoomOf} />
+                filter={flt} onFilter={setFlt} onWholeVideo={() => onRange('tudo')} arrival={view.arrival} zoomOf={zoomOf}
+                abVideo={view.video ? { id: view.video.id, title: view.video.title, own: false } : null} />
               {cartao}
               {view.versions ? <Versions versions={view.versions} hl={hl} onHl={onHl} expanded={expanded} onToggle={() => setExpanded(e => !e)} target={target} onTargetBlur={() => setTarget(null)} zoomOf={zoomOf} /> : null}
             </>

@@ -3,15 +3,20 @@
  * E17 degrau 1, Tarefa 8a: a MESMA função monta a tela e o pacote. Para cada página que o passo 0 não toca, o modelo que a página entrega
  * ao componente (lido do elemento que ela devolve) é igual, por `toEqual`, ao que `montar…` devolve com os mesmos parâmetros.
  */
+import { AbEntradasProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactElement } from 'react'
 import { a3World } from './a3-fixture'
+/** Desembrulha o AbEntradasProvider (T8/T9a): a página põe o provedor entre a moldura e a tela. */
+const semProvedor = <T,>(e: T): T => ((e as { type?: unknown }).type === AbEntradasProvider ? (e as { props: { children: T } }).props.children : e)
 
 const W = a3World()
 const abrir = vi.hoisted(() => vi.fn())
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({ openObservatoryPage: abrir, lerMeuCanalLembrado: async () => null }))
+vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/permissao', () => ({ podeEditarSite: async () => false }))
 const lerExtras = vi.hoisted(() => vi.fn(async () => undefined))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras', () => ({
   carregarProprioDaComparacao: async () => ({ extras: undefined, soSeuCanal: {} }),
@@ -55,7 +60,7 @@ describe('montarMudancas', () => {
       const { montarMudancas } = await import(`${R}/_mudancas/montar`)
       const el = (await Page({ searchParams: Promise.resolve(sp) })) as El
       const m = await montarMudancas(sp)
-      expect(el.props.children.props.view).toEqual(m.view)
+      expect((semProvedor(el.props.children) as ReactElement<{ view: unknown }>).props.view).toEqual(m.view)
       expect(m.estado.niche).toBeTruthy()
     })
   }
