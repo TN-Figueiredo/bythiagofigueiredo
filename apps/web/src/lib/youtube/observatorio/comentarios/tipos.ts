@@ -34,6 +34,12 @@ export interface Conversa {
   criadorRespondeu: boolean | null
   respostasDoCriador: RespostaVista[]
   canaisNasRespostas: string[]
+  /** F2-coleta: respostas de espectadores, da mais antiga à mais nova, SÓ quando há resposta do criador vista. `autorCanalId` só em memória. */
+  respostasDeTerceiros: RespostaVista[]
+  /** F2-coleta: o id de TODAS as respostas vistas no lote (criador e espectadores), sem texto: é o "visto no lote" da ausência. */
+  idsRespostasVistas: string[]
+  /** F2-coleta: as respostas vieram fora da ordem de `publishedAt` (alimenta `prefixos_fora_de_ordem`; indício, não prova). */
+  prefixoForaDeOrdem: boolean
 }
 
 export interface Destaque {
@@ -104,6 +110,8 @@ export interface AgregadosDoLote {
   autores_distintos: number
   sem_canal: number
   nas_primeiras_24h: number
+  /** F2-coleta: fios cujas respostas vieram fora da ordem de `publishedAt`. */
+  prefixos_fora_de_ordem: number
 }
 
 export interface TarefaCtx {

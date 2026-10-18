@@ -50,6 +50,7 @@ describe('conversaDe', () => {
       publicadoEm: iso(T0 + 3 * H), editadoEm: null, curtidas: 42, respostasTotal: 0,
       autor: { nome: 'Autor Inventado 3', canalId: canal(103), foto: 'https://exemplo.invalid/foto/3.jpg' },
       doCriador: false, criadorRespondeu: false, respostasDoCriador: [], canaisNasRespostas: [],
+      respostasDeTerceiros: [], idsRespostasVistas: [], prefixoForaDeOrdem: false,
     })
   })
   it('editadoEm preenchido só quando updatedAt difere de publishedAt', () => {
@@ -80,13 +81,13 @@ describe('conversaDe', () => {
     expect(c.doCriador).toBe(true)
     expect(c.autor.canalId).toBe(CANAL_DO_VIDEO)
   })
-  it('6. no máximo 3 respostas do criador, as mais antigas primeiro', () => {
+  it('6. no máximo creatorRepliesMax (5) respostas do criador, as mais antigas primeiro', () => {
     const pai = 'Ugx-sintetico-13'
-    // fora de ordem de propósito: as datas decidem
-    const rs = [5, 2, 4, 1, 3].map(n => resposta(pai, n, { canalId: CANAL_DO_VIDEO }))
-    const c = ok(conversa(13, { totalReplyCount: 5, respostas: rs }))
+    // fora de ordem de propósito: as datas decidem; 6 respostas, a mais nova fica de fora
+    const rs = [5, 2, 6, 4, 1, 3].map(n => resposta(pai, n, { canalId: CANAL_DO_VIDEO }))
+    const c = ok(conversa(13, { totalReplyCount: 6, respostas: rs }))
     expect(c.respostasDoCriador).toHaveLength(COMMENT_RULES.creatorRepliesMax)
-    expect(c.respostasDoCriador.map(r => r.publicadoEm)).toEqual([1, 2, 3].map(n => iso(T0 + n * H)))
+    expect(c.respostasDoCriador.map(r => r.publicadoEm)).toEqual([1, 2, 3, 4, 5].map(n => iso(T0 + n * H)))
   })
   it('7. descarta conversa sem id, sem likeCount, com likeCount "abc", sem publishedAt, com publishedAt "ontem", sem texto', () => {
     const ruins = [
@@ -157,17 +158,29 @@ describe('conversaDe', () => {
     const c = ok(conversa(15, { totalReplyCount: 2, respostas: rs }))
     expect(c.respostasDoCriador).toHaveLength(1)
   })
-  it('15. nenhuma resposta de terceiro tem texto ou nome na saída; o id do canal dele fica em canaisNasRespostas', () => {
+  it('15. fio SEM resposta do criador: nenhuma resposta de terceiro tem texto ou nome na saída; o id do canal dele fica em canaisNasRespostas', () => {
     const pai = 'Ugx-sintetico-16'
     const rs = [
       resposta(pai, 1, { texto: SENT_TEXTO_TERCEIRO, nome: SENT_NOME_TERCEIRO, canalId: CANAL_ACOMPANHADO }),
-      resposta(pai, 2, { canalId: CANAL_DO_VIDEO, texto: 'Resposta do criador inventada' }),
       resposta(pai, 3, { canalId: CANAL_ACOMPANHADO }),
       resposta(pai, 4, { canalId: 'sem-chave' }),
     ]
-    const c = ok(conversa(16, { totalReplyCount: 4, respostas: rs }))
+    const c = ok(conversa(16, { totalReplyCount: 3, respostas: rs }))
     const json = JSON.stringify(c)
     expect(json).not.toContain(SENT_TEXTO_TERCEIRO)
+    expect(json).not.toContain(SENT_NOME_TERCEIRO)
+    expect(c.canaisNasRespostas.sort()).toEqual([CANAL_ACOMPANHADO])
+    expect(c.respostasDoCriador).toEqual([])
+  })
+  it('15b. fio COM resposta do criador (F2): o texto do espectador é carregado, o nome nunca; o canal fica só em canaisNasRespostas e autorCanalId', () => {
+    const pai = 'Ugx-sintetico-17'
+    const rs = [
+      resposta(pai, 1, { texto: SENT_TEXTO_TERCEIRO, nome: SENT_NOME_TERCEIRO, canalId: CANAL_ACOMPANHADO }),
+      resposta(pai, 2, { canalId: CANAL_DO_VIDEO, texto: 'Resposta do criador inventada' }),
+    ]
+    const c = ok(conversa(17, { totalReplyCount: 2, respostas: rs }))
+    const json = JSON.stringify(c)
+    expect(json).toContain(SENT_TEXTO_TERCEIRO)
     expect(json).not.toContain(SENT_NOME_TERCEIRO)
     expect(c.canaisNasRespostas.sort()).toEqual([CANAL_ACOMPANHADO, CANAL_DO_VIDEO].sort())
     for (const r of c.respostasDoCriador) expect(r.autorCanalId).toBe(CANAL_DO_VIDEO)
@@ -266,14 +279,14 @@ describe('agregadosDoLote', () => {
     const l = loteDe(corpoDeConversas(itens), CANAL_DO_VIDEO)!
     return l
   }
-  it('17. 5 conversas conhecidas dão as 13 chaves certas', () => {
+  it('17. 5 conversas conhecidas dão as 14 chaves certas', () => {
     const a = agregadosDoLote(lote(), T0)
     expect(a).toEqual({
       conversas: 5, descartadas: 1, curtidas_soma: 100, curtidas_max: 40, curtidas_mediana: 20,
       respostas_soma: 8, do_criador: 1, criador_respondeu_sim: 1, criador_respondeu_nao: 2, criador_respondeu_nao_se_sabe: 2,
-      autores_distintos: 3, sem_canal: 1, nas_primeiras_24h: 4,
+      autores_distintos: 3, sem_canal: 1, nas_primeiras_24h: 4, prefixos_fora_de_ordem: 0,
     })
-    expect(Object.keys(a)).toHaveLength(13)
+    expect(Object.keys(a)).toHaveLength(14)
   })
   it('mediana com quantidade par é a média dos dois do meio', () => {
     const l = loteDe(corpoDeConversas([conversa(1, { curtidas: 1 }), conversa(2, { curtidas: 4 })]), CANAL_DO_VIDEO)!
@@ -283,7 +296,7 @@ describe('agregadosDoLote', () => {
     const a = agregadosDoLote({ conversas: [], descartadas: 0 }, T0)
     expect(a).toEqual({
       conversas: 0, descartadas: 0, curtidas_soma: 0, respostas_soma: 0, do_criador: 0, criador_respondeu_sim: 0, criador_respondeu_nao: 0,
-      criador_respondeu_nao_se_sabe: 0, autores_distintos: 0, sem_canal: 0, nas_primeiras_24h: 0,
+      criador_respondeu_nao_se_sabe: 0, autores_distintos: 0, sem_canal: 0, nas_primeiras_24h: 0, prefixos_fora_de_ordem: 0,
     })
     expect('curtidas_max' in a).toBe(false)
     expect('curtidas_mediana' in a).toBe(false)
@@ -297,5 +310,47 @@ describe('agregadosDoLote', () => {
     const json = JSON.stringify(a)
     for (const s of [SENT_TEXTO_TOPO, SENT_NOME, SENT_TEXTO_TERCEIRO, SENT_NOME_TERCEIRO, SENT_ID_TOPO, canal(301), CANAL_ACOMPANHADO]) expect(json).not.toContain(s)
     for (const v of Object.values(a)) expect(typeof v).toBe('number')
+  })
+})
+
+describe('F2-coleta: respostas de espectadores na normalização', () => {
+  const pai = 'Ugx-sintetico-40'
+  it('(a) fio com 2 do criador e 3 de espectadores: os 3 em respostasDeTerceiros, da mais antiga à mais nova, com o canal só em memória', () => {
+    const rs = [
+      resposta(pai, 4, { canalId: canal(204) }), resposta(pai, 1, { canalId: CANAL_DO_VIDEO }), resposta(pai, 3, { canalId: canal(203) }),
+      resposta(pai, 2, { canalId: CANAL_DO_VIDEO }), resposta(pai, 5, { canalId: canal(205) }),
+    ]
+    const c = ok(conversa(40, { totalReplyCount: 5, respostas: rs }))
+    expect(c.respostasDoCriador).toHaveLength(2)
+    expect(c.respostasDeTerceiros.map(r => r.publicadoEm)).toEqual([3, 4, 5].map(n => iso(T0 + n * H)))
+    expect(c.respostasDeTerceiros.map(r => r.autorCanalId)).toEqual([canal(203), canal(204), canal(205)])
+  })
+  it('(b) fio sem resposta do criador vista: nenhum texto de espectador é carregado', () => {
+    const c = ok(conversa(41, { totalReplyCount: 2, respostas: [resposta(pai, 1), resposta(pai, 2)] }))
+    expect(c.respostasDeTerceiros).toEqual([])
+  })
+  it('(c) 5 respostas do criador: as 5 ficam', () => {
+    const rs = [1, 2, 3, 4, 5].map(n => resposta(pai, n, { canalId: CANAL_DO_VIDEO }))
+    expect(ok(conversa(42, { totalReplyCount: 5, respostas: rs })).respostasDoCriador).toHaveLength(5)
+  })
+  it('(d) resposta de espectador sem authorChannelId entra com autorCanalId nulo', () => {
+    const rs = [resposta(pai, 1, { canalId: CANAL_DO_VIDEO }), resposta(pai, 2, { canalId: 'sem-chave' })]
+    const c = ok(conversa(43, { totalReplyCount: 2, respostas: rs }))
+    expect(c.respostasDeTerceiros).toHaveLength(1)
+    expect(c.respostasDeTerceiros[0]!.autorCanalId).toBeNull()
+  })
+  it('(e) prefixos_fora_de_ordem conta o fio cujas respostas vieram fora da ordem de publishedAt (indício, não prova)', () => {
+    const emOrdem = conversa(44, { totalReplyCount: 3, respostas: [1, 2, 3].map(n => resposta('Ugx-sintetico-44', n)) })
+    const fora = conversa(45, { totalReplyCount: 3, respostas: [1, 3, 2].map(n => resposta('Ugx-sintetico-45', n)) })
+    const iguais = conversa(46, { totalReplyCount: 2, respostas: [resposta('Ugx-sintetico-46', 1, { publicadoEm: iso(T0 + H) }), resposta('Ugx-sintetico-46', 2, { publicadoEm: iso(T0 + H) })] })
+    const l = loteDe(corpoDeConversas([emOrdem, fora, iguais]), CANAL_DO_VIDEO)!
+    expect(agregadosDoLote(l, T0).prefixos_fora_de_ordem).toBe(1)
+  })
+  it('(f) idsRespostasVistas traz o id de TODAS as respostas vistas, com ou sem resposta do criador, e nada mais', () => {
+    const sem = ok(conversa(47, { totalReplyCount: 2, respostas: [resposta('Ugx-sintetico-47', 1), resposta('Ugx-sintetico-47', 2)] }))
+    expect(sem.idsRespostasVistas).toEqual(['Ugx-sintetico-47.Resposta-sintetica-01', 'Ugx-sintetico-47.Resposta-sintetica-02'])
+    const com = ok(conversa(48, { totalReplyCount: 2, respostas: [resposta('Ugx-sintetico-48', 1, { canalId: CANAL_DO_VIDEO }), resposta('Ugx-sintetico-48', 2)] }))
+    expect(com.idsRespostasVistas).toHaveLength(2)
+    expect(new Set(com.idsRespostasVistas).size).toBe(2)
   })
 })

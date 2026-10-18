@@ -234,8 +234,8 @@ describe('montarPacote', () => {
     const s = snapDe(p)
     expect(Object.keys(s).sort()).toEqual(SNAP_CHAVES)
     expect(s).toMatchObject({ taken_at: TIRADO, from_h: 24, until_h: 72, status: 'ok', error_reason: null, pool_size: 2, pool_complete: true,
-      video_comment_count: 57, selected_count: 2, featured_lookup_n: 2, featured_unknown_n: 1, rule_version: 1, units_used: 3,
-      identity_days: 28, creator_replies_max: 3 })
+      video_comment_count: 57, selected_count: 2, featured_lookup_n: 2, featured_unknown_n: 1, rule_version: 2, units_used: 3,
+      identity_days: 28, creator_replies_max: 5 })
     expect(s).not.toHaveProperty('video_age_hours')
     expect(s.rule_params).toEqual(ruleParams())
     expect(JSON.stringify(s.rule_params)).toContain('"10m_mais",10000000')

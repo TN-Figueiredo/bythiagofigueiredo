@@ -30,7 +30,8 @@ function conv(id: string, o: Partial<Conversa> = {}): Conversa {
   return {
     id, posicao: 0, texto: 'texto inventado ' + id, cortado: false, publicadoEm: '2020-01-01T00:00:00Z', editadoEm: null,
     curtidas: 10, respostasTotal: 0, autor: { nome: null, canalId: null, foto: null },
-    doCriador: false, criadorRespondeu: false, respostasDoCriador: [], canaisNasRespostas: [], ...o,
+    doCriador: false, criadorRespondeu: false, respostasDoCriador: [], canaisNasRespostas: [],
+    respostasDeTerceiros: [], idsRespostasVistas: [], prefixoForaDeOrdem: false, ...o,
   }
 }
 

@@ -1,6 +1,8 @@
 // @vitest-environment node
 // A5 · E14, Tarefa 2: regras, tipos, erro, ordem e frases dos comentários de destaque.
 import { describe, expect, it } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import {
   COMMENT_RULES, COMMENT_SINCE, WORST_SNAP_MS, WORST_END_FROM_T0_MS, MOTIVOS, MOTIVOS_PASSAGEIROS,
   MOTIVOS_PERDA_ACEITA, CODIGOS_EXECUCAO, SIZE_BANDS, RATIO_BANDS, ruleParams,
@@ -56,6 +58,28 @@ describe('regras dos comentários', () => {
     else expect(v === null || v === 'a_decidir').toBe(true)
   })
 
+  it('F2: regras v2 (5 do criador guardadas, 20 de espectadores, 3 exibidas) e ruleParams com o teto dos espectadores', () => {
+    expect(COMMENT_RULES.version).toBe(2)
+    expect(COMMENT_RULES.creatorRepliesMax).toBe(5)
+    expect(COMMENT_RULES.thirdPartyRepliesMax).toBe(20)
+    expect(COMMENT_RULES.creatorRepliesShown).toBe(3)
+    expect(ruleParams()).toMatchObject({ creator_replies_max: 5, third_party_replies_max: 20 })
+    // nenhuma chamada nova: o pior caso de um retrato e do fim da execução é o de antes
+    expect(WORST_SNAP_MS).toBe(40_000)
+    expect(WORST_END_FROM_T0_MS).toBe(225_000)
+  })
+
+  it('F2: os dois 20 da migration (limite de third_party_replies_max e excesso na prova) são o thirdPartyRepliesMax', () => {
+    const dir = fileURLToPath(new URL('../../../../../supabase/migrations/', import.meta.url))
+    const nome = readdirSync(dir).find((f) => f.endsWith('_observatorio_a5_f2_respostas_de_terceiros.sql'))
+    expect(nome, 'migration da F2-coleta').toBeDefined()
+    const sql = readFileSync(dir + nome, 'utf8')
+    const n = COMMENT_RULES.thirdPartyRepliesMax
+    expect(sql).toMatch(new RegExp(`v_third_max < 0 or v_third_max > ${n}\\b`))
+    expect(sql).toMatch(new RegExp(`having count\\(\\*\\) > ${n}\\b`))
+    expect(sql).toMatch(new RegExp(`sum\\(x\\.n - ${n}\\)`))
+  })
+
   it('ruleParams devolve tetos, lote, destaque e faixas, sem texto livre', () => {
     const p = ruleParams()
     expect(p).toMatchObject({ target: 12, creator_max: 4, featured_max: 2, pool: 100, featured_lookup: 20, featured_min_subs: 100_000, featured_min_ratio: 10 })
@@ -69,6 +93,7 @@ function conv(id: string, curtidas: number, respostasTotal: number, posicao: num
   return {
     id, posicao, texto: 't', cortado: false, publicadoEm: '2026-01-01T00:00:00Z', editadoEm: null, curtidas, respostasTotal,
     autor: { nome: null, canalId: null, foto: null }, doCriador: false, criadorRespondeu: null, respostasDoCriador: [], canaisNasRespostas: [],
+    respostasDeTerceiros: [], idsRespostasVistas: [], prefixoForaDeOrdem: false,
   }
 }
 
