@@ -32,6 +32,7 @@ import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
+import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -1051,6 +1052,13 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     blob_url: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
   }))
 
+  // Variante do último ciclo fechado: a que estava no ar quando o teste saiu (rótulo da faixa de restauração).
+  const ultimoFechado = results.timeline.filter(c => c.ended_at !== null).sort((a, b) => b.cycle_number - a.cycle_number)[0]
+  const varNoAr = ultimoFechado ? results.variants.find(v => v.variant_id === ultimoFechado.variant_id) : undefined
+  const noArAntes = ultimoFechado && varNoAr
+    ? { label: toDisplayLabel(varNoAr.label, varNoAr.is_original), desde: ultimoFechado.started_at ?? null }
+    : null
+
   const base = {
     id: test.id,
     videoTitle: test.original_title ?? test.name,
@@ -1070,6 +1078,9 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     gates,
     activeNow,
     createdAt: test.created_at,
+    restoreStatus: paraRestoreStatus(test.restore_status),
+    youtubeVideoId: test.youtube_video_id,
+    noArAntes,
   }
 
   // Discriminate by status/outcome

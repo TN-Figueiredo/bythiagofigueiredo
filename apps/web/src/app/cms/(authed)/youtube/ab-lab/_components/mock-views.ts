@@ -67,6 +67,7 @@ const BASE = {
 }
 
 export const MOCK_WINNER: AbTestWinnerView = {
+  restoreStatus: null, youtubeVideoId: 'mock-video', noArAntes: null,
   ...BASE,
   status: 'completed',
   outcome: 'winner',
@@ -95,6 +96,7 @@ export const MOCK_WINNER: AbTestWinnerView = {
 }
 
 export const MOCK_PLAYOFF: AbTestPlayoffView = {
+  restoreStatus: null, youtubeVideoId: 'mock-video', noArAntes: null,
   ...BASE,
   status: 'completed',
   outcome: 'playoff',
@@ -128,6 +130,7 @@ export const MOCK_PLAYOFF: AbTestPlayoffView = {
 }
 
 export const MOCK_WINNER_MINIMAL: AbTestWinnerView = {
+  restoreStatus: null, youtubeVideoId: 'mock-video', noArAntes: null,
   id: 'mock-minimal-id',
   videoTitle: 'Test',
   flag: 'thumbnail',
@@ -182,6 +185,7 @@ export const MOCK_WINNER_MINIMAL: AbTestWinnerView = {
 }
 
 export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
+  restoreStatus: null, youtubeVideoId: 'mock-video', noArAntes: null,
   id: 'mock-playoff-minimal-id',
   videoTitle: 'Test curto',
   flag: 'title',
@@ -221,6 +225,7 @@ export const MOCK_PLAYOFF_MINIMAL: AbTestPlayoffView = {
 }
 
 export const MOCK_EARLY: AbTestActiveView = {
+  restoreStatus: null, youtubeVideoId: 'mock-video', noArAntes: null,
   id: 'mock-early-id',
   videoTitle: '🇻🇳 Morei 1 Mês no Vietnã por R$800 — Vale a Pena?',
   flag: 'thumbnail',
@@ -267,6 +272,7 @@ export const MOCK_EARLY: AbTestActiveView = {
 }
 
 export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
+  restoreStatus: null, youtubeVideoId: 'mock-video', noArAntes: null,
   id: 'mock-active-minimal-id',
   videoTitle: 'Test rápido',
   flag: 'title',
@@ -313,6 +319,7 @@ export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
 }
 
 export const MOCK_ACTIVE: AbTestActiveView = {
+  restoreStatus: null, youtubeVideoId: 'mock-video', noArAntes: null,
   ...BASE,
   status: 'active',
   flag: 'combo',

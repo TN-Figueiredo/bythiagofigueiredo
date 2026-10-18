@@ -1,3 +1,4 @@
+import type { RestoreStatus } from '@/lib/youtube/ab-restore'
 export const VARIANT_LABELS = ['B', 'C', 'D'] as const
 export type VariantLabel = (typeof VARIANT_LABELS)[number]
 
@@ -65,6 +66,8 @@ export interface AbTestRow {
   revert_expires_at: string | null
   drift_acknowledged_at: string | null
   applied_by: string | null
+  /** Retrato da restauração (jsonb cru; leitura tolerante por `paraRestoreStatus`). */
+  restore_status?: unknown
 }
 
 export interface VariantMetadata {
@@ -427,6 +430,12 @@ export interface AbTestBaseView {
   gates: GateResult[]
   activeNow: DisplayLabel | null
   createdAt: string
+  /** Retrato da restauração já validado; nulo = mundo antigo ou ilegível (a página distingue pelo jsonb cru). */
+  restoreStatus: RestoreStatus | null
+  /** Id do vídeo no YouTube (link do Studio). */
+  youtubeVideoId: string
+  /** Variante do último ciclo fechado (a que estava no ar quando o teste saiu) e quando entrou. */
+  noArAntes: { label: DisplayLabel; desde: string | null } | null
 }
 
 export interface AbTestActiveView extends AbTestBaseView {

@@ -198,3 +198,18 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
     papel: pior.i.papel,
   }
 }
+
+/**
+ * Retrato gravado que não passa pela validação (`restoreStatusIlegivel`): não afirmamos nada além de
+ * "não sabemos" (texto de A3, F-D10 — o YouTube não recusou nada), com o link do Studio.
+ */
+export function faixaIlegivel(ctx: Pick<CtxFaixa, 'youtubeId'>): FaixaCompleta {
+  return {
+    tom: 'warn', icone: 'none', lbl: 'Atenção:',
+    resumo: 'Não sabemos se voltou ao original. O registro da restauração não pôde ser lido.',
+    linhas: [],
+    linkStudio: `https://studio.youtube.com/video/${ctx.youtubeId}/edit`,
+    linkRotulo: 'Abrir no YouTube Studio',
+    ajuda: null, fine: null, papel: 'status',
+  }
+}

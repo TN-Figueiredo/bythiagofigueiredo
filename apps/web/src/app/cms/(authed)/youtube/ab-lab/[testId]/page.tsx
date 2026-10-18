@@ -4,6 +4,10 @@ import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
 import { EarlyDetail } from '../_components/early-detail'
 import { notFound } from 'next/navigation'
+import * as Sentry from '@sentry/nextjs'
+import { FaixaRestauracao } from '../_components/faixa-restauracao'
+import { AtualizarEnquantoEmAndamento } from '../_components/atualizar-enquanto-em-andamento'
+import { faixaDaPagina } from '../_components/faixa-da-pagina'
 import type { Metadata } from 'next'
 import type { AbTestDetailView, AbTestActiveView } from '@/lib/youtube/ab-types'
 
@@ -82,5 +86,14 @@ export default async function AbTestDetailPage({
   const results = await getTestResults(testId)
   if (!results) notFound()
 
-  return renderView(await toDetailView(results))
+  const view = await toDetailView(results)
+  const { faixa, emAndamentoDesde, ilegivel } = faixaDaPagina(view, results.test.restore_status, new Date())
+  if (ilegivel) Sentry.captureMessage('restore_status ilegível', { extra: { testId } })
+  return (
+    <>
+      {faixa ? <FaixaRestauracao faixa={faixa} /> : null}
+      {emAndamentoDesde ? <AtualizarEnquantoEmAndamento emAndamentoDesde={emAndamentoDesde} /> : null}
+      {renderView(view)}
+    </>
+  )
 }
