@@ -160,4 +160,13 @@ describe('conserto r1: campos do veredito público (D2, D3, D8, D9, D10)', () =>
     expect(detectarTesteYoutube(troca).porCampo.titulo).toEqual({ estado: 'nada_visivel', motivo: 'troca_sem_mistura' })
     expect(detectarTesteYoutube(troca.slice(0, 3)).porCampo.titulo).toEqual({ estado: 'insuficiente', motivo: 'poucas_leituras' })
   })
+
+  it('o motivo por campo de insuficiente também acompanha o título (span_ilegivel)', () => {
+    const ab = ['AB', 'AB', 'BA', 'AB', 'AB', 'BA'].flatMap((p, i) =>
+      [...p].map((l, j) => leitura({ em: new Date(Date.parse('2026-10-10T00:00:00Z') + i * 6 * 3_600_000 + j * 2000).toISOString(), rodada: `s${i}`, titulo: l === 'A' ? 'Titulo A' : 'Titulo B', video: VIDEO_ID })),
+    )
+    const v = detectarTesteYoutube(ab)
+    expect(v.estado).toBe('insuficiente')
+    expect(v.porCampo.titulo).toEqual({ estado: 'insuficiente', motivo: 'span_ilegivel' })
+  })
 })
