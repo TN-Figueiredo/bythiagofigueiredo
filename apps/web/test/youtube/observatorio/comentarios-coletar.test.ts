@@ -86,7 +86,7 @@ function novoMundo(): Mundo {
     linhas: [],
     cadastro: () => ok([{ id: 'row-ch-1', channel_id: CANAL_ACOMPANHADO }]),
     guardados: () => ok([]),
-    apply: () => ok({ status: 'gravado', ausentes_marcados: 0 }),
+    apply: () => ok({ status: 'gravado', ausentes_marcados: 0, terceiros_novos: 0 }),
     quota: () => ok(null),
   }
 }
@@ -691,6 +691,10 @@ describe('respostas de espectadores (F2-coleta)', () => {
       expect(terceirosDe(e)).toHaveLength(0)
       expect(snapDe(e).third_party_replies_max).toBe(0)
       expect(s.numeros.terceiros_sem_numeracao).toBeGreaterThan(0)
+      // invariante: sem numeração só nasce de uma conferência que falhou (já contada e já vermelha quando sistêmica)
+      expect(s.numeros.conferencias_falhas).toBeGreaterThan(0)
+      expect((snapDe(e).pool_stats as Record<string, unknown>).terceiros_sem_numeracao).toBeGreaterThan(0)
+      expect((snapDe(e).rule_params as Record<string, unknown>).third_party_replies_max).toBe(0)
       expect((snapDe(e).pool_stats as Record<string, unknown>).conferencia_falhou).toBe(true)
       expect(comentariosDe(e).some((c) => c.is_creator === true)).toBe(true) // o resto do retrato sai como antes
     }
@@ -703,10 +707,26 @@ describe('respostas de espectadores (F2-coleta)', () => {
     expect(s.numeros).toMatchObject({ terceiros_novos: 2, terceiros_apagados: 1, terceiros_fora_do_teto: 4, terceiros_sem_fio: 1, terceiros_sem_numeracao: 0 })
   })
 
-  it('sem as contagens no resultado (função antiga): numeros traz as chaves em zero', async () => {
+  it('função antiga (resultado sem terceiros_novos) com máximo > 0 e retrato ok: execução vermelha, nunca zero verde', async () => {
     mundo.linhas = lista(1, () => ({ mark: 1 }))
-    const s = await rodar()
-    expect(s.numeros).toMatchObject({ terceiros_novos: 0, terceiros_apagados: 0, terceiros_fora_do_teto: 0, terceiros_sem_fio: 0, terceiros_sem_numeracao: 0 })
+    mundo.apply = () => ok({ status: 'gravado', ausentes_marcados: 0 })
+    const s = comFrase(await rodar())
+    expect(s.numeros.inesperados).toBeGreaterThan(0)
+    expect(s.motivo).toBe('inesperado')
+  })
+
+  it('função antiga com máximo 0 (sem terceiros), ja_existe ou retrato que não é ok: chaves em zero e sem vermelho', async () => {
+    mundo.linhas = lista(1, () => ({ mark: 7, stored_n: 3 }))
+    mundo.guardados = () => falha('XX000')
+    roteiro = loteCom([criador(), espectador(2, 202)])
+    mundo.apply = () => ok({ status: 'gravado' })
+    let s = comFrase(await rodar())
+    expect(s.numeros).toMatchObject({ inesperados: 0, terceiros_novos: 0, terceiros_apagados: 0, terceiros_fora_do_teto: 0, terceiros_sem_fio: 0 })
+    expect(s.motivo).not.toBe('inesperado')
+    mundo.linhas = lista(1, () => ({ mark: 1 }))
+    mundo.apply = () => ok({ status: 'ja_existe' })
+    s = comFrase(await rodar())
+    expect(s.numeros.inesperados).toBe(0)
   })
 
   it('pior caso: o marco 1 não faz ida nova ao banco nem à API por causa dos espectadores', async () => {
@@ -807,7 +827,7 @@ describe('tolerância e tetos', () => {
 
   it('17b. gravação que falha depois de a API responder: a cota gasta é registrada, o retrato não conta como feito, erro banco com o código só no relato', async () => {
     mundo.linhas = lista(2)
-    mundo.apply = (_a, n) => (n === 1 ? falha('23514', `Failing row contains (${SENT_TEXTO})`) : ok({ status: 'gravado' }))
+    mundo.apply = (_a, n) => (n === 1 ? falha('23514', `Failing row contains (${SENT_TEXTO})`) : ok({ status: 'gravado', terceiros_novos: 0 }))
     const s = comFrase(await rodar())
     expect(s.feitos).toBe(1)
     expect(s.numeros.erros_de_gravacao).toBe(1)
@@ -977,7 +997,7 @@ describe('falhas e estado da execução', () => {
 
   it('21c. exceção fora do try por devido: a cota já gasta é gravada mesmo assim', async () => {
     mundo.linhas = lista(5)
-    mundo.apply = (_a, n) => { if (n === 2) clock.explode = true; return ok({ status: 'gravado' }) }
+    mundo.apply = (_a, n) => { if (n === 2) clock.explode = true; return ok({ status: 'gravado', terceiros_novos: 0 }) }
     await expect(rodar()).rejects.toThrow(TypeError)
     const cota = sbDe('youtube_quota_add')
     expect(cota).toHaveLength(1)
@@ -1017,7 +1037,7 @@ describe('falhas e estado da execução', () => {
 
   it('22b2. a fila zerou mas uma gravação falhou (o retrato continua sem retrato): não é "atrasado" que se cobra duas vezes, e o erro é banco', async () => {
     mundo.linhas = lista(2)
-    mundo.apply = (_a, n) => (n === 1 ? falha('23514') : ok({ status: 'gravado' }))
+    mundo.apply = (_a, n) => (n === 1 ? falha('23514') : ok({ status: 'gravado', terceiros_novos: 0 }))
     mundo.provas = [PROVA, { ...PROVA, retratos_atrasados: 1 }]
     const s = comFrase(await rodar())
     expect(s.motivo).toBe('banco')

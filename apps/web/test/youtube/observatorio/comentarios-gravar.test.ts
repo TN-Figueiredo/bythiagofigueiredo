@@ -655,6 +655,15 @@ describe('montarPacote: respostas de espectadores (F2-coleta)', () => {
     expect(T(q)).toHaveLength(0)
   })
 
+  it('(e2) retrato sem terceiros grava o teto efetivo 0 no rule_params e marca terceiros_sem_numeracao no pool_stats', () => {
+    const q = pacoteOk([comCriador(terceiros(1))], { speakers: numeros(idsT(1)), semTerceiros: true, terceirosSemNumeracao: 2 })
+    expect((snapDe(q).rule_params as Record<string, unknown>).third_party_replies_max).toBe(0)
+    expect((snapDe(q).pool_stats as Record<string, unknown>).terceiros_sem_numeracao).toBe(2)
+    const p = pacoteOk([comCriador(terceiros(1))], { speakers: numeros(idsT(1)) })
+    expect((snapDe(p).rule_params as Record<string, unknown>).third_party_replies_max).toBe(20)
+    expect((snapDe(p).pool_stats as Record<string, unknown>).terceiros_sem_numeracao ?? 0).toBe(0)
+  })
+
   it('(f) espectador sem número no mapa não sai', () => {
     const ids = idsT(3)
     const p = pacoteOk([comCriador(terceiros(3))], { speakers: new Map([[ids[0] as string, 1], [ids[2] as string, 2]]) })

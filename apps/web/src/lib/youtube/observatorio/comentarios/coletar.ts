@@ -328,11 +328,13 @@ export async function runRetratosComentarios(ctx: TarefaCtx): Promise<TarefaSaid
     // 9b. a numeração dos espectadores (só para os fios que vão no pacote e têm resposta do criador)
     let speakers: Map<string, number> | undefined
     let semTerceiros = false
+    let fiosSemNumero = 0
     if (escolhidos !== undefined && lote !== undefined) {
       if (d.storedN > 0 && guardados === undefined) {
         // não li o que já está guardado: numerar poderia colidir com quem já falou; este retrato sai sem terceiros
         semTerceiros = true
-        p.terceiros_sem_numeracao += fiosComTerceiros(lote.conversas, escolhidos.map((e) => e.conversa.id))
+        fiosSemNumero = fiosComTerceiros(lote.conversas, escolhidos.map((e) => e.conversa.id))
+        p.terceiros_sem_numeracao += fiosSemNumero
       } else {
         speakers = numerarFios(lote.conversas, escolhidos.map((e) => e.conversa.id), guardados ?? [], d.channelYoutubeId)
         if (semNumero(lote.conversas, escolhidos.map((e) => e.conversa.id), guardados ?? [], speakers) > 0) p.inesperados += 1
@@ -347,7 +349,7 @@ export async function runRetratosComentarios(ctx: TarefaCtx): Promise<TarefaSaid
       ...(escolhidos !== undefined ? { escolhidos } : {}),
       ...(guardados !== undefined ? { guardados } : {}),
       ...(speakers !== undefined ? { speakers } : {}),
-      ...(semTerceiros ? { semTerceiros } : {}),
+      ...(semTerceiros ? { semTerceiros, terceirosSemNumeracao: fiosSemNumero } : {}),
       ...(achados.size > 0 ? { porId: achados } : {}),
       ausentes, consulta, ...(agregados !== undefined ? { agregados } : {}),
       conferenciaFalhou, unidades: api.unidades() - unidadesAntes,
@@ -370,6 +372,11 @@ export async function runRetratosComentarios(ctx: TarefaCtx): Promise<TarefaSaid
     if (res.status === 'video_ausente') { p.video_ausente += 1; return true }
     if (res.status === 'fora_da_tolerancia') { p.fora_da_tolerancia += 1; return true }
     p.feitos += 1
+    // função antiga do banco (sem `terceiros_novos`) com máximo > 0 e retrato ok: nada de zero verde, a execução fica vermelha
+    if (sit.estado === 'ok' && !semTerceiros && res.terceiros_novos === undefined) {
+      p.inesperados += 1
+      relatar('funcao_sem_f2', d.mark)
+    }
     p.ausentes_marcados += res.ausentes_marcados ?? 0
     p.terceiros_novos += res.terceiros_novos ?? 0
     p.terceiros_apagados += res.terceiros_apagados ?? 0

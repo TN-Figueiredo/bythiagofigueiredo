@@ -267,6 +267,8 @@ export interface EntradaPacote {
   speakers?: ReadonlyMap<string, number>
   /** F2-coleta: os guardados não foram lidos; o retrato sai sem terceiros e o snap manda `third_party_replies_max: 0`. */
   semTerceiros?: boolean
+  /** F2-coleta: fios do pacote que perderam os terceiros por causa de `semTerceiros` (vai ao pool_stats). */
+  terceirosSemNumeracao?: number
   porId?: Map<string, { texto: string; cortado: boolean; editadoEm: string | null; curtidas: number | null; respostasTotal: number | null }>
   ausentes?: string[]
   consulta: { n: number | null; desconhecidos: number }
@@ -323,13 +325,16 @@ export function montarPacote(p: EntradaPacote): Pacote {
     featured_lookup_n: p.consulta.n,
     featured_unknown_n: p.consulta.desconhecidos,
     rule_version: r.version,
-    rule_params: ruleParams(),
+    rule_params: p.semTerceiros === true ? { ...ruleParams(), third_party_replies_max: 0 } : ruleParams(),
     units_used: p.unidades,
     identity_days: r.identityDays,
     creator_replies_max: r.creatorRepliesMax,
     third_party_replies_max: p.semTerceiros === true ? 0 : r.thirdPartyRepliesMax,
   }
-  if (ok && p.agregados !== undefined) snap.pool_stats = { ...p.agregados, conferencia_falhou: p.conferenciaFalhou === true }
+  if (ok && p.agregados !== undefined) snap.pool_stats = {
+    ...p.agregados, conferencia_falhou: p.conferenciaFalhou === true,
+    ...(p.semTerceiros === true ? { terceiros_sem_numeracao: p.terceirosSemNumeracao ?? 0 } : {}),
+  }
   if (!ok) return { snap, comments: [], missing: [] }
 
   const comments: Json[] = []
