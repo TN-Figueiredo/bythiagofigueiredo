@@ -132,6 +132,21 @@ describe.skipIf(skipIfNoLocalDb())('ab-tests title integration', () => {
       expect(error).not.toBeNull()
       expect(error!.message).toMatch(/check|violates|constraint/i)
     })
+
+    it('o banco recusa test_type = description (Migration A)', async () => {
+      const { error } = await supabase
+        .from('ab_tests')
+        .insert({
+          site_id: siteId,
+          youtube_video_id: videoId,
+          name: 'Description Type Test',
+          test_type: 'description',
+          config: {},
+          original_thumbnail_url: 'https://example.com/thumb.jpg',
+        })
+
+      expect(error?.code).toBe('23514') // check_violation
+    })
   })
 
   // ─────────────────────────────────────────────────────────────────────────────

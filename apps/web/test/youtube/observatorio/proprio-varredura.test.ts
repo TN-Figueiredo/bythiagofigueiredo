@@ -60,8 +60,13 @@ const DOZE = [
   'yt_own_video_retention', 'yt_own_video_dim_daily', 'yt_own_video_traffic_detail_daily', 'yt_own_video_reach_dim_daily',
   'yt_own_video_versions', 'yt_own_versions_state', 'competitor_video_comments', 'competitor_video_comment_marks',
 ] as const
-/** Gravadores que LEEM uma das doze só para gravar (deduplicar, achar o que falta): não mostram nada a ninguém. Lista fechada. */
-const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts'])
+/**
+ * Gravadores que LEEM uma das doze só para gravar (deduplicar, achar o que falta): não mostram nada a ninguém. Lista fechada.
+ * `ab-gravacao/retrato-step.ts` (A/B S8-F1, cron `ab-retrato`, cliente de serviço) copia o dia por variante para `ab_test_dias`,
+ * cuja RLS é `can_edit_site`, mais estrita que `can_view_private_site` (que é edição OU visualizador privado). Quem ler
+ * `ab_test_dias` numa tela (F2–F4) não herda esta isenção.
+ */
+const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts'])
 /**
  * PONTO PARA PORTÃO (E9, noite 15/10): dois pontos da fila "Saíram do YouTube" consultam `competitor_video_comments` SEM `leituraValida`.
  * Ambos já estão atrás da guarda de EDIÇÃO do site e usam o cliente de serviço com o site em todo filtro; nenhum recebe o token de leitura
