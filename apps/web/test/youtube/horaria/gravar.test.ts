@@ -183,6 +183,24 @@ describe('lerCandidatos', () => {
     expect(idasEm(b, 'competitor_videos', 'select')[0]?.filtros).toContain('or:published_at')
   })
 
+  it('A9: sem a janela pede 14 dias e com 30 pede 30 (o or() leva o corte)', async () => {
+    const pedidos: string[] = []
+    const sb = {
+      from: () => {
+        const q: Record<string, unknown> = {}
+        for (const n of ['select', 'order', 'range', 'abortSignal']) q[n] = () => q
+        q.or = (expr: string) => { pedidos.push(expr); return q }
+        q.then = (ok: (r: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(ok)
+        return q
+      },
+    } as never as SupabaseClient
+    await lerCandidatos(sb, AGORA)
+    await lerCandidatos(sb, AGORA, undefined, 30)
+    const corte = (e: string | undefined): number => Date.parse(/published_at\.gt\.([^,]+),/.exec(e ?? '')?.[1] ?? '')
+    expect(Math.round((AGORA - corte(pedidos[0])) / DIA)).toBe(14)
+    expect(Math.round((AGORA - corte(pedidos[2])) / DIA)).toBe(30)
+  })
+
   it('(A5 E10) o select dos candidatos pede collection_paused_at do canal (o banco falso não confere colunas)', async () => {
     const b = criarBanco()
     await lerCandidatos(b.sb, AGORA)

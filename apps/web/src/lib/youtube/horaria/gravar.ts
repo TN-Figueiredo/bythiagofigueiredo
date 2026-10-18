@@ -141,8 +141,9 @@ export async function lerCandidatos(
   sb: SupabaseClient,
   agoraMs: number,
   relatar?: RelatarHoraria,
+  janelaDias: number = RULES.hourly.ageDays,
 ): Promise<{ conc: CandConcorrente[]; prop: CandProprio[] }> {
-  const corte = new Date(agoraMs - RULES.hourly.ageDays * DIA_MS).toISOString()
+  const corte = new Date(agoraMs - janelaDias * DIA_MS).toISOString()
   const [conc, prop] = await Promise.all([
     paginar(
       (de, ate) => sb.from('competitor_videos').select(COLUNAS_CONCORRENTE).or(janelaComNulo(corte, 'discovered_at'))
