@@ -230,14 +230,15 @@ export function segmentar(m: PacoteModelo, c: ContextoDoPacote): PacoteSerializa
   validar(m)
 
   const n = contar(m.tabelas)
-  const total = n.medidos + n.zerosMedidos + n.naoMedidos
+  // `restrito` também é número que não veio: conta no total e no numerador do magro (`falhou` tem o aviso próprio, que vem antes)
+  const total = n.medidos + n.zerosMedidos + n.naoMedidos + n.restrito
   const hora = emSaoPaulo(c.geradoEm)
 
   // A primeira linha do pacote: tela vazia, ou "magra" (quase tudo não medido). "Medidos" aqui inclui o zero medido, que é resultado.
   let primeiraLinhaDeAviso: string | null = null
   if (m.vazio !== null) primeiraLinhaDeAviso = F.avisoVazio(motivoDe(m.vazio))
   else if (n.falhou > 0) primeiraLinhaDeAviso = F.avisoFalha(n.falhou)
-  else if (total >= 1 && n.naoMedidos / total >= CONTEXTO_IA_RULES.magroAPartirDe) {
+  else if (total >= 1 && (n.naoMedidos + n.restrito) / total >= CONTEXTO_IA_RULES.magroAPartirDe) {
     primeiraLinhaDeAviso = F.avisoMagro(n.medidos + n.zerosMedidos, total, m.motivoDoMagro ? naCelula(m.motivoDoMagro) : null)
   }
 

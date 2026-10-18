@@ -99,7 +99,7 @@ function colunasDe(v: ProprioVideoView, i: number): ColunasDoVideo {
     imp: v.impText !== null ? medida(v.impText, '') : v.semImpressao ? medida('0', '') : medida(null, v.impMissing ?? 'não medido', v.impEstado),
     cliques: v.cliquesText !== null ? medida(v.cliquesText, '') : v.semImpressao ? medida('0', '') : medida(null, v.cliquesMissing ?? 'não medido', v.cliquesEstado),
     terceira: v.terceira === '' ? null : v.terceira,
-    // só falhou e restrito carregam o motivo da leitura; o "não medido" segue sendo a palavra que a tela mostra (o texto longo vive nas notas do cartão)
+    // só falhou e restrito carregam o motivo da leitura; o "não medido" segue sendo a palavra que a tela mostra (o texto longo vive nas notas do cartão, que a tela não expõe na coluna: a paridade (c) proíbe o pacote de dizer mais que ela)
     vpdDiario: v.vpdDiarioEstado === 'falhou' || v.vpdDiarioEstado === 'restrito' ? medida(v.vpdDiarioText, v.vpdDiarioMissing ?? 'não medido', v.vpdDiarioEstado) : medida(v.vpdDiarioText, 'não medido'),
   }
 }

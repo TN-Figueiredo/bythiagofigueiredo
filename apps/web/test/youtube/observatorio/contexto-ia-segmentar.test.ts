@@ -527,13 +527,27 @@ describe('decisão 75: falhou e restrito no pacote', () => {
     expect(t).toContain('falhou (a leitura falhou agora)')
     expect(t).toContain('restrito (sem direito às views por dia)')
   })
-  it('contagem: falhou e restrito à parte; naoMedidos não os soma; nenhum vira zero ou privado medido', () => {
+  it('contagem: falhou e restrito à parte e somados em naoMedidos (o registro de acesso); nenhum vira zero ou privado medido', () => {
     const base = contar(modeloCheio())
     const n = contar(modeloComFalhaERestrito())
     expect(n.falhou).toBe(1)
     expect(n.restrito).toBe(base.restrito + 1)
+    expect(n.naoMedidos).toBe(base.naoMedidos + 2) // a soma é o que o registro lê; sem ela o `nao_medidos` subconta
     expect(n.zerosMedidos).toBe(base.zerosMedidos)
     expect(n.privadosMedidos).toBe(base.privadosMedidos)
+  })
+  it('célula não medida cujo motivo é só a palavra da pastilha sai "não medido", sem repetir "não medido (não medido)"', () => {
+    const m = modeloCheio()
+    m.tabelas.find((x) => x.id === 'desempenho')!.linhas[0]![1] = { papel: 'numero', estado: 'nao_medido', motivo: 'não medido', origem: 'modelo.teste.nm' }
+    const t = texto(seg(m))
+    expect(t).not.toContain('não medido (não medido)')
+    expect(t).toContain('| não medido |')
+  })
+  it('magro conta restrito: 2 medidos e 14 restritos dão o aviso de magro (antes saíam do total e o aviso sumia)', () => {
+    const m = modeloMagro(0, 16)
+    const t = m.tabelas[0]!
+    t.linhas = t.linhas.map((l, i) => (i < 2 ? l : [l[0]!, { papel: 'numero', estado: 'restrito', motivo: 'sem direito às views por dia', origem: `pack.m[${i}].v` }]))
+    expect(seg(m).primeiraLinhaDeAviso).toMatch(/^AVISO: quase tudo nesta tela está não medido \(2 de 16 números\)/)
   })
   it('com célula falhou a primeira linha de aviso é a de falha, não o aviso de magro', () => {
     const p = seg(modeloComFalhaERestrito())

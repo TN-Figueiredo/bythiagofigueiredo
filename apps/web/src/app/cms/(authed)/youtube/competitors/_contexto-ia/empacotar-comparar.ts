@@ -186,7 +186,7 @@ export const INVENTARIO_COMPARAR: Inventario = {
   // o cartão "Só o seu canal mede" (dado privado do canal)
   'cartoes[].id': { descartado: 'identificador' },
   'cartoes[].canal': 'rotulo',
-  'cartoes[].frase': 'base', 'cartoes[].ausencia': { descartado: 'controle de tela' },
+  'cartoes[].frase': 'motivo', 'cartoes[].ausencia': { descartado: 'controle de tela' },
   'cartoes[].naoMedido': { descartado: 'controle de tela' },
   'cartoes[].taxa': { descartado: 'repetido' }, 'cartoes[].taxa.*': { descartado: 'repetido' }, // cliques, impressões e taxa: as linhas do cartão
   'cartoes[].linhas[].chave': { descartado: 'identificador' },
@@ -465,6 +465,7 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
   const avisosPrivados: string[] = []
   const avisos: string[] = [AVISO_FREQUENCIA, modelo.rodape, ...(modelo.medidas?.contexto ? [modelo.medidas.contexto] : [])]
   let cartoesLidos = 0
+  const ausentesDoCartao: Celula[][] = []
   for (const [k, , c] of proprios) {
     const achado = cartaoDe(c.id)
     if (!achado) continue
@@ -473,11 +474,17 @@ export function empacotarComparar(modelo: ModeloComparar | null, privado: Estado
       avisosPrivados.push(achado.cartao.frase)
       cartoesLidos += 1
     } else {
-      avisos.push(achado.cartao.frase) // a frase do motivo (negado ou falhou) é texto do site, não dado privado
+      // a frase do motivo (negado ou falhou) é texto do site, não dado privado; a palavra da pastilha vem do estado (restrito/falhou), nunca do texto
+      const ausencia: EstadoAusencia = achado.cartao.ausencia ?? 'nao_medido'
+      avisos.push(`${ausencia === 'nao_medido' ? 'não medido' : ausencia}: ${achado.cartao.frase}`)
+      ausentesDoCartao.push([rotulo(achado.cartao.canal, `modelo.cartoes[${achado.k}].canal`), celulaAusente(ausencia, achado.cartao.frase, `modelo.cartoes[${achado.k}].frase`)])
     }
   }
 
-  const publicas = [...tabelasDasLinhas(modelo, indicesPublicos, false), ...tabelasDasMedidas(modelo), ...tabelasDosCanais(modelo)]
+  const cartaoAusente: Tabela[] = ausentesDoCartao.length
+    ? [{ id: 'alcance-sem-numero', titulo: 'Só o seu canal mede: o que não chegou', tipo: 'fixa', nomeNoCorte: 'alcance que não chegou', privada: false, colunas: ['Canal', 'Alcance'], linhas: ausentesDoCartao }]
+    : []
+  const publicas = [...tabelasDasLinhas(modelo, indicesPublicos, false), ...tabelasDasMedidas(modelo), ...tabelasDosCanais(modelo), ...cartaoAusente]
   const leitura: Tabela[] = modelo.leitura.length
     ? [{
       id: 'leitura-rapida', titulo: 'Leitura rápida', tipo: 'fixa', nomeNoCorte: 'leitura rápida', privada: false, colunas: ['Leitura'],

@@ -48,7 +48,8 @@ export const nenhumaTabela = (motivo: string) => `(nenhuma tabela: ${motivo})` /
 export const A_TELA_NAO_INFORMA_O_MOTIVO = 'a tela não informa o motivo' // novo
 // No lugar da mensagem técnica crua da coleta (portão do N3, Y2); a tela continua mostrando-a a quem administra.
 export const ERRO_DA_COLETA_SEM_DETALHE = 'erro na coleta; a causa não é enviada' // novo
-export const naoMedido = (motivo: string) => `não medido (${motivo})` // novo (o mockup escreve só "não medido" na célula)
+// a célula cujo motivo é só a palavra da pastilha não a repete: "não medido", nunca "não medido (não medido)"
+export const naoMedido = (motivo: string) => (motivo === 'não medido' ? motivo : `não medido (${motivo})`) // novo (o mockup escreve só "não medido" na célula)
 // decisão 75: as mesmas palavras da pastilha da tela (falhou = triângulo, restrito = cadeado)
 export const falhou = (motivo: string) => `falhou (${motivo})` // novo
 export const restrito = (motivo: string) => `restrito (${motivo})` // novo
