@@ -12,7 +12,7 @@ vi.mock('@/app/cms/(authed)/youtube/_components/yt-portal', () => ({
   YtPortal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-import { AbEndTestDialog, fraseDoAviso, type AbEndTestDialogProps } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-end-test-dialog'
+import { AbEndTestDialog, fraseDoAviso, cancelarFocoDaFaixa, type AbEndTestDialogProps } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-end-test-dialog'
 import { dadosDoDialogoEncerrar, originalBaixaResolucao } from '@/app/cms/(authed)/youtube/ab-lab/_components/encerrar-props'
 
 const MSG_EM_ANDAMENTO = 'Outra tentativa está em andamento. Tente de novo em instantes.'
@@ -42,7 +42,7 @@ beforeEach(() => {
   onAviso = vi.fn()
   router.refresh.mockClear(); router.push.mockClear()
 })
-afterEach(() => { cleanup(); vi.useRealTimers() })
+afterEach(() => { cleanup(); cancelarFocoDaFaixa(); vi.useRealTimers() })
 
 describe('AbEndTestDialog: escolha', () => {
   it('E1: nenhuma opção marcada, botão aria-disabled com "Escolha uma opção."; clicar não chama encerrar', async () => {
@@ -316,4 +316,105 @@ describe('guarda do Opera', () => {
       expect(readFileSync(join(dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/color-mix\s*\(/)
     })
   }
+})
+
+
+// ---- Tarefa 15, rodada 1 (Yannis D1, D3, D4, D5, P1) ----
+import { useState as useStateR1 } from 'react'
+
+describe('T15 r1', () => {
+  const pc = (campos: Array<{ campo: 'title' | 'thumbnail'; valor_atual: string }>): ResultadoAcaoSaida =>
+    ({ ok: true, resultado: 'precisa_confirmar', campos })
+
+  /** Pai que re-renderiza (como o poll de 60 s) passando `onFechar` novo a cada render. */
+  function Pai({ expor }: { expor: (bump: () => void) => void }) {
+    const [n, setN] = useStateR1(0)
+    expor(() => setN(x => x + 1))
+    void n
+    return <AbEndTestDialog {...props({ onFechar: () => { onFechar() } })} />
+  }
+
+  it('D1: re-render do pai com onFechar novo não tira o foco da opção B nem de "Voltar"', async () => {
+    let bump: () => void = () => {}
+    render(<Pai expor={b => { bump = b }} />)
+    await marcarB()
+    const radio = screen.getByLabelText(/Variante B/)
+    radio.focus()
+    act(() => bump())
+    expect(document.activeElement).toBe(radio)
+    encerrar.mockResolvedValueOnce(pc([{ campo: 'title', valor_atual: 'Por fora' }]))
+    await clicarEncerrar()
+    const d = await screen.findByRole('alertdialog')
+    const voltar = within(d).getByRole('button', { name: 'Voltar' })
+    expect(document.activeElement).toBe(voltar)
+    act(() => bump())
+    expect(document.activeElement).toBe(voltar)
+  })
+
+  it('D3: fechar no meio e o servidor devolver precisa_confirmar -> aviso de página e refresh', async () => {
+    let resolver: (r: ResultadoAcaoSaida) => void = () => {}
+    encerrar.mockReturnValue(new Promise<ResultadoAcaoSaida>(res => { resolver = res }))
+    const { rerender } = render(<AbEndTestDialog {...props()} />)
+    await marcarB(); await clicarEncerrar()
+    rerender(<div />) // o pai fechou e desmontou o diálogo
+    await act(async () => { resolver(pc([{ campo: 'title', valor_atual: 'Por fora' }])) })
+    expect(onAviso).toHaveBeenCalledTimes(1)
+    expect(onAviso.mock.calls[0]![0]).toMatch(/^O teste não foi encerrado: o título ou a thumbnail mudou no YouTube por fora/)
+    expect(router.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('D3: fechar no meio e vir em_andamento -> aviso com a mensagem do servidor', async () => {
+    let resolver: (r: ResultadoAcaoSaida) => void = () => {}
+    encerrar.mockReturnValue(new Promise<ResultadoAcaoSaida>(res => { resolver = res }))
+    const { rerender } = render(<AbEndTestDialog {...props()} />)
+    await marcarB(); await clicarEncerrar()
+    rerender(<div />)
+    await act(async () => { resolver({ ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }) })
+    expect(onAviso).toHaveBeenCalledWith(`O teste não foi encerrado: ${MSG_EM_ANDAMENTO}`)
+    expect(router.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('D3: fechar no meio e vir feito ok -> sem aviso de "não encerrado"', async () => {
+    let resolver: (r: ResultadoAcaoSaida) => void = () => {}
+    encerrar.mockReturnValue(new Promise<ResultadoAcaoSaida>(res => { resolver = res }))
+    const { rerender } = render(<AbEndTestDialog {...props()} />)
+    await marcarB(); await clicarEncerrar()
+    rerender(<div />)
+    await act(async () => { resolver(feito({ title: { estado: 'ok' } })) })
+    expect(onAviso).not.toHaveBeenCalled()
+  })
+
+  it('D4: forbidden cru não aparece; frase em pt-BR, sem ida ao login', async () => {
+    encerrar.mockResolvedValue({ ok: false, resultado: 'sem_permissao', error: 'forbidden' })
+    render(<AbEndTestDialog {...props()} />)
+    await marcarB(); await clicarEncerrar()
+    expect(await screen.findByText('Você não tem permissão para encerrar este teste.')).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/forbidden/)
+    expect(router.push).not.toHaveBeenCalled()
+  })
+
+  it('D5: sem_permissao com a frase de variante vai ao alert, não ao login, e o diálogo segue aberto', async () => {
+    const frase = 'Só quem administra o site pode deixar uma variante no ar.'
+    encerrar.mockResolvedValue({ ok: false, resultado: 'sem_permissao', error: frase })
+    render(<AbEndTestDialog {...props()} />)
+    await marcarB(); await clicarEncerrar()
+    expect((await screen.findByRole('alert')).textContent).toContain(frase)
+    expect(router.push).not.toHaveBeenCalled()
+    expect(onFechar).not.toHaveBeenCalled()
+  })
+
+  it('P1: resposta que chega depois dos 45 s é ignorada (sem fechar, sem refresh, "Sem resposta" fica)', async () => {
+    vi.useFakeTimers()
+    let resolver: (r: ResultadoAcaoSaida) => void = () => {}
+    encerrar.mockReturnValue(new Promise<ResultadoAcaoSaida>(res => { resolver = res }))
+    render(<AbEndTestDialog {...props()} />)
+    fireEvent.click(screen.getByLabelText(/Variante B/))
+    fireEvent.click(screen.getByRole('button', { name: 'Encerrar e ficar com B' }))
+    await act(async () => { vi.advanceTimersByTime(45_001) })
+    expect(screen.getByText('Sem resposta')).toBeTruthy()
+    await act(async () => { resolver(feito({ title: { estado: 'ok' } })) })
+    expect(onFechar).not.toHaveBeenCalled()
+    expect(router.refresh).not.toHaveBeenCalled()
+    expect(screen.getByText('Sem resposta')).toBeTruthy()
+  })
 })

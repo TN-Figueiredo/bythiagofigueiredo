@@ -78,4 +78,12 @@ describe('AbPauseDialog', () => {
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('D4: forbidden cru vira frase em pt-BR', async () => {
+    const pausar = vi.fn().mockResolvedValue({ ok: false, resultado: 'sem_permissao', error: 'forbidden' })
+    render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
+    expect(await screen.findByText('Você não tem permissão para pausar este teste.')).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/forbidden/)
+  })
 })
