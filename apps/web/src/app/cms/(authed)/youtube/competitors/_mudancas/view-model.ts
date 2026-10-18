@@ -276,8 +276,7 @@ function titleView(obs: Observatory, c: ObsChange): TitleView {
 }
 
 function thumbViews(obs: Observatory, c: ObsChange, v: ObsVideo): ThumbView[] {
-  const letters = new Map<string, string>()
-  for (const t of v.thumbs) if (!letters.has(t.key)) letters.set(t.key, String.fromCharCode(65 + letters.size))
+  const letters = imageLetters(v.thumbs) // mesmo representante do selo "Voltou à versão A" (S2)
   const D = obs.date
   const one = (id: string, role: ThumbView['role']): ThumbView => {
     const t = v.thumbs.find(x => x.id === id) as ThumbVersion | undefined

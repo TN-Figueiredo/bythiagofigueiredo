@@ -140,6 +140,9 @@ describe('S2: a mesma imagem recomprimida guarda a letra e a contagem (represent
     // cabeçalho conta pelo mesmo representante (Yannis R2-1)
     expect(buildHistoricoView(obs, VID.few, { range: 'tudo' }).header!.counts.find(c => c.type === 'thumb')!.text).toMatch(/^2 thumbnails em 3 períodos/)
     expect(badges(obs, VID.few)[VID.few + '/thumb/2'].join(' ')).toMatch(/Voltou à versão A /)
+    // cartão de Mudanças: o "Depois" leva a mesma letra do selo (Gio D1)
+    const hero = buildMudancasView(obs, { video: VID.few, win: '90' }, new Set()).heroes.find(h => h.id === VID.few + '/thumb/2')!
+    expect(hero.thumbs!.map(t => t.role + ':' + t.label)).toEqual(['Antes:B', 'Depois:A'])
     const ch = obs.channels.find(c => c.id === v.ch)!
     expect(viewerOfVideo(obs, v, ch, 't', null)!.versions.map(x => x.label)).toEqual(['Thumbnail A', 'Thumbnail B', 'Thumbnail A'])
   })
