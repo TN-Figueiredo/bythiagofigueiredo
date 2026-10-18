@@ -110,6 +110,7 @@
 - **Reavaliação:** a avaliação com erro **não conta** como a última para o critério "devido": o vídeo é devido de novo no disparo seguinte (um timeout de banco de 1 s não pode bloquear a guarda por 6 h). Para não gravar 24 linhas iguais por dia, erro repetido com o mesmo código **atualiza `avaliada_em` da última linha de erro** em vez de inserir, e no máximo uma tentativa por hora por vídeo.
 - Erro de opção é falha do chamador (r5): não vira `erro` de leitura.
 - **Estado da tarefa na agenda (nada de falha em verde):** 1 ou mais vídeos com erro → `parcial`, motivo `video_falhou`, `detalhe.falhas`. Todos com erro → `erro`. Zero candidatos (nenhum alvo próprio ativo e nenhum teste nosso aberto) → `parcial`, `sem_candidatos`. Alvo sem `youtube_videos` correspondente (sem `video_id` não há onde gravar) → contado em `sem_video`, nunca some.
+- **Emenda (r2 do plano, 18/10, ok do Phil):** `naoTerminouVermelhoEm = 3` (não 6) na definição da tarefa. O contador `unfinished_n` é por linha de período; com `periodo 'hora'` e disparo `*/20` chega no máximo a 3 (igual a `leitura_horaria`, `definicoes.ts:20`); com 6 o vigia nunca acenderia.
 
 ---
 
@@ -445,3 +446,4 @@ Vitest (`// @vitest-environment node`) salvo indicação. Dono do teste entre pa
 ## Registro de revisões
 
 - **r2 (18/10): conserto da r1 de Phil e Yannis.** Aplicados todos os bloqueios e "deveria" dos dois (Phil B1–B4, D1–D7; Yannis B1, D1–D9) e as notas (Phil N1–N10, Yannis N1–N5). Pontos de decisão do controlador: `FRESCOR_MAX_MS = 8 h 40` (maior entre a conta 8 h 20, Phil 8 h e Yannis 8 h 40); `devidaPeloDado: () => true`; adiar em vez de pausar por motivo passageiro (> 24 h pausa; Q3 com teto de 72 h); portão C-17b de propagação; `ab_test_restores` no lugar da view; CHECKs com prova de superconjunto.
+- **r2 do plano (18/10):** §5.5 recebe a emenda `naoTerminouVermelhoEm 3` (era 6), com o ok do Phil (`definicoes.ts:20`).
