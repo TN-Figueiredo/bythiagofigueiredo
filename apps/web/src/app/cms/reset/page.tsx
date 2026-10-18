@@ -1,12 +1,9 @@
-'use client'
-import { CmsResetPassword } from '@tn-figueiredo/cms/login'
-import { resetPassword } from './actions'
+import { hasRecoverySession } from '@/lib/auth/has-recovery-session'
+import { ResetForm } from './reset-form'
 
-export default function Page() {
-  return (
-    <CmsResetPassword
-      actions={{ resetPassword }}
-      redirectTo="/cms"
-    />
-  )
+export const dynamic = 'force-dynamic'
+
+export default async function Page() {
+  const canReset = await hasRecoverySession()
+  return <ResetForm canReset={canReset} />
 }

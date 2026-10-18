@@ -15,6 +15,6 @@ export async function forgotPassword(
     email: input.email,
     turnstileToken: input.turnstileToken,
     appUrl: process.env.NEXT_PUBLIC_APP_URL ?? '',
-    resetPath: '/admin/reset',
+    resetPath: '/auth/callback?next=/admin/reset',
   })
 }
