@@ -159,12 +159,15 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
 
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('*')
+    .select('*, youtube_videos(youtube_video_id)')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
 
   if (testError || !test) return null
+  // `ab_tests.youtube_video_id` é a FK (uuid); o id do YouTube vem do join com `youtube_videos`.
+  const videoJoin = (test as { youtube_videos?: { youtube_video_id?: string | null } | Array<{ youtube_video_id?: string | null }> | null }).youtube_videos
+  const youtubeId = (Array.isArray(videoJoin) ? videoJoin[0] : videoJoin)?.youtube_video_id ?? null
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
@@ -256,6 +259,7 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     timeline: allCycles,
     data_freshness: new Date().toISOString(),
     latestPolls,
+    youtubeId,
   } as AbTestResults
 }
 
@@ -1079,7 +1083,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     activeNow,
     createdAt: test.created_at,
     restoreStatus: paraRestoreStatus(test.restore_status),
-    youtubeVideoId: test.youtube_video_id,
+    youtubeVideoId: results.youtubeId ?? null,
     noArAntes,
   }
 

@@ -28,7 +28,8 @@ export interface CtxFaixa {
   noArAntes: string
   /** Hora em que a variante `noArAntes` entrou no ar (início do último ciclo fechado); nulo = desconhecida. */
   noArDesde: string | null
-  youtubeId: string
+  /** Nulo = vídeo não achado: a faixa sai sem link do Studio. */
+  youtubeId: string | null
 }
 
 const NAO_DISPENSA = 'Este aviso ainda não pode ser dispensado.'
@@ -191,7 +192,7 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
     lbl: pior.i.lbl,
     resumo,
     linhas: itens.map(x => x.i.linha),
-    linkStudio: comLink ? `https://studio.youtube.com/video/${ctx.youtubeId}/edit` : null,
+    linkStudio: comLink && ctx.youtubeId ? `https://studio.youtube.com/video/${ctx.youtubeId}/edit` : null,
     linkRotulo: comLink?.i.linkRotulo ?? null,
     ajuda: pior.i.ajuda,
     fine: itens.some(x => x.i.fine) ? NAO_DISPENSA : null,
@@ -206,10 +207,11 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
 export function faixaIlegivel(ctx: Pick<CtxFaixa, 'youtubeId'>): FaixaCompleta {
   return {
     tom: 'warn', icone: 'none', lbl: 'Atenção:',
+    // TEXTO-A-REVISAR: frase nova (T17, Logan); emenda 31 pede confirmação do dono ou da Hanna.
     resumo: 'Não sabemos se voltou ao original. O registro da restauração não pôde ser lido.',
     linhas: [],
-    linkStudio: `https://studio.youtube.com/video/${ctx.youtubeId}/edit`,
-    linkRotulo: 'Abrir no YouTube Studio',
+    linkStudio: ctx.youtubeId ? `https://studio.youtube.com/video/${ctx.youtubeId}/edit` : null,
+    linkRotulo: ctx.youtubeId ? 'Abrir no YouTube Studio' : null,
     ajuda: null, fine: null, papel: 'status',
   }
 }

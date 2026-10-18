@@ -247,6 +247,8 @@ export interface AbTestResults {
   timeline: AbTestCycleRow[]
   data_freshness: string
   latestPolls?: AbTestPollRow[]
+  /** Id do vídeo no YouTube (`youtube_videos.youtube_video_id`), do join; nulo = vídeo não achado. */
+  youtubeId?: string | null
 }
 
 /* --- Chart variant hierarchy (Layer 1 redesign) --- */
@@ -432,8 +434,8 @@ export interface AbTestBaseView {
   createdAt: string
   /** Retrato da restauração já validado; nulo = mundo antigo ou ilegível (a página distingue pelo jsonb cru). */
   restoreStatus: RestoreStatus | null
-  /** Id do vídeo no YouTube (link do Studio). */
-  youtubeVideoId: string
+  /** Id do vídeo no YouTube (link do Studio); nulo = sem link. */
+  youtubeVideoId: string | null
   /** Variante do último ciclo fechado (a que estava no ar quando o teste saiu) e quando entrou. */
   noArAntes: { label: DisplayLabel; desde: string | null } | null
 }
