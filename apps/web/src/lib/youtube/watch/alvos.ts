@@ -45,6 +45,9 @@ const instante = (s: string | null): number | null => {
   return Number.isFinite(ms) ? ms : null
 }
 
+// O CHECK de yt_watch_alvos exige 11 caracteres; um id torto no p_candidatos abortaria a conciliação inteira (23514).
+const ID_YT = /^[A-Za-z0-9_-]{11}$/
+
 export function montarCandidatos(
   conc: readonly CandConcorrente[],
   prop: readonly CandProprio[],
@@ -83,6 +86,7 @@ export function montarCandidatos(
   const maxColeta = new Map<string, number>()
   const maxRitmo = new Map<string, 1 | 4>()
   for (const c of todos) {
+    if (!ID_YT.test(c.ytId)) continue
     const k = chaveAlvo(c.siteId, c.ytId)
     const ms = Date.parse(c.coletaAte)
     maxColeta.set(k, Math.max(maxColeta.get(k) ?? 0, ms))

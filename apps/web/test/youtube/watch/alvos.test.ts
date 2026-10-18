@@ -97,6 +97,10 @@ const testeBanco = (n: number, status: string, criado: number, atualizado: numbe
 })
 
 describe('montarCandidatos', () => {
+  it('id fora do formato de 11 caracteres fica fora (não aborta a conciliação no CHECK)', () => {
+    const r = montarCandidatos([conc(1), conc(2, { ytId: 'pinold1' }), conc(3, { ytId: 'v123456789012' })], [], [{ siteId: SITE, ytId: 'curto' }], null, AGORA)
+    expect(r.map((c) => c.ytId)).toEqual([yt(1)])
+  })
   it('Short entra quando INCLUIR_SHORTS (o vídeo não é filtrado por duração)', () => {
     expect(INCLUIR_SHORTS).toBe(true)
     const r = montarCandidatos([conc(1)], [], [], null, AGORA)
