@@ -159,13 +159,13 @@ describe('lerCandidatos', () => {
     const b = criarBanco()
     semear(b, 'competitor_videos', [{
       id: 'u1', video_id: 'yt1', competitor_channel_id: 'c1', published_at: iso(AGORA - 2 * H), discovered_at: iso(AGORA - H),
-      live_broadcast_content: 'none', missing_since: null, competitor_channels: { site_id: 's1', missing_since: iso(AGORA - H), collection_paused_at: null },
+      live_broadcast_content: 'none', missing_since: null, is_short: true, competitor_channels: { site_id: 's1', missing_since: iso(AGORA - H), collection_paused_at: null },
     }])
     semear(b, 'youtube_videos', [{ id: 'up1', youtube_video_id: 'ytp1', channel_id: 'd1', site_id: 's1', published_at: iso(AGORA - 3 * H), created_at: iso(AGORA - 2 * H) }])
     const { conc, prop } = await lerCandidatos(b.sb, AGORA)
     expect(conc).toEqual([{
       id: 'u1', ytId: 'yt1', canalId: 'c1', siteId: 's1', publishedAt: iso(AGORA - 2 * H), discoveredAt: iso(AGORA - H),
-      lbc: 'none', missingSince: null, canalAusente: true, canalPausado: false,
+      lbc: 'none', missingSince: null, isShort: true, canalAusente: true, canalPausado: false,
     }])
     expect(prop).toEqual([{ id: 'up1', ytId: 'ytp1', canalId: 'd1', siteId: 's1', publishedAt: iso(AGORA - 3 * H), createdAt: iso(AGORA - 2 * H) }])
   })
@@ -181,6 +181,24 @@ describe('lerCandidatos', () => {
     expect(b.idas.some(i => i.tabela === 'yt_own_video_meta_daily')).toBe(false)
     // a janela é `published_at > corte` OU `published_at nulo` com descoberta dentro da janela: o nulo precisa chegar a montarLista
     expect(idasEm(b, 'competitor_videos', 'select')[0]?.filtros).toContain('or:published_at')
+  })
+
+  it('A9: sem a janela pede 14 dias e com 30 pede 30 (o or() leva o corte)', async () => {
+    const pedidos: string[] = []
+    const sb = {
+      from: () => {
+        const q: Record<string, unknown> = {}
+        for (const n of ['select', 'order', 'range', 'abortSignal']) q[n] = () => q
+        q.or = (expr: string) => { pedidos.push(expr); return q }
+        q.then = (ok: (r: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(ok)
+        return q
+      },
+    } as never as SupabaseClient
+    await lerCandidatos(sb, AGORA)
+    await lerCandidatos(sb, AGORA, undefined, 30)
+    const corte = (e: string | undefined): number => Date.parse(/published_at\.gt\.([^,]+),/.exec(e ?? '')?.[1] ?? '')
+    expect(Math.round((AGORA - corte(pedidos[0])) / DIA)).toBe(14)
+    expect(Math.round((AGORA - corte(pedidos[2])) / DIA)).toBe(30)
   })
 
   it('(A5 E10) o select dos candidatos pede collection_paused_at do canal (o banco falso não confere colunas)', async () => {

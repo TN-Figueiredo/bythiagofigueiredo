@@ -13,7 +13,7 @@ import { resumoTecnico } from './motivos'
  * limpa o assunto na hora do envio. Aqui o texto de fora (rótulo, frase) só é limpo de controles e cortado, e NÃO escapado de novo
  * (escapar duas vezes mostraria `&amp;` ao dono).
  */
-export type ChaveAviso = 'leitura_horaria_parada' | 'tarefa_esgotada' | 'banco_no_limite' | 'coleta_pausada_esquecida'
+export type ChaveAviso = 'leitura_horaria_parada' | 'tarefa_esgotada' | 'banco_no_limite' | 'coleta_pausada_esquecida' | 'leitura_watch_vermelha'
 /**
  * `frase` vem do veredito ou de `fraseDoMotivo`: frase fixa e números. `tarefa` é o rótulo da tarefa. `periodo` (A5 E10) é a janela da trava de
  * repetição: o dia de São Paulo (o padrão, a chave de sempre), a semana ISO de São Paulo ou o mês.
@@ -75,6 +75,11 @@ function textoDe(a: Aviso, onde: string): { title: string; message: string } {
       return {
         title: 'Há canal com a coleta pausada há muito tempo',
         message: frase + '. Remova o canal ou retome a coleta. Confira o Observatório no CMS, em ' + onde + '.',
+      }
+    case 'leitura_watch_vermelha':
+      return {
+        title: 'A leitura das páginas do YouTube está com problema',
+        message: frase + '. As leituras perdidas não são recuperadas. Confira a coleta no CMS, em ' + onde + '.',
       }
   }
 }

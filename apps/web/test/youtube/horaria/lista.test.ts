@@ -32,6 +32,7 @@ function conc(over: Partial<CandConcorrente> = {}): CandConcorrente {
     missingSince: null,
     canalAusente: false,
     canalPausado: false,
+    isShort: false,
     ...over,
   }
 }

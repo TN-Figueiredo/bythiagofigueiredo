@@ -100,6 +100,8 @@ interface LinhaConcorrente {
   discovered_at: string | null
   live_broadcast_content: string | null
   missing_since: string | null
+  /** A coluna é pedida na consulta (o PostgREST erra se ela não existir); `undefined` só em dublê de teste. */
+  is_short?: boolean | null
   competitor_channels: { site_id: string; missing_since: string | null; collection_paused_at: string | null }
 }
 interface LinhaProprio {
@@ -117,12 +119,12 @@ const eCanalEmbutido = (x: unknown): x is LinhaConcorrente['competitor_channels'
 const eLinhaConcorrente = (x: unknown): x is LinhaConcorrente =>
   isRec(x) && typeof x.id === 'string' && typeof x.video_id === 'string' && typeof x.competitor_channel_id === 'string'
   && textoOuNulo(x.published_at) && textoOuNulo(x.discovered_at) && textoOuNulo(x.live_broadcast_content)
-  && textoOuNulo(x.missing_since) && eCanalEmbutido(x.competitor_channels)
+  && textoOuNulo(x.missing_since) && (x.is_short === undefined || x.is_short === null || typeof x.is_short === 'boolean') && eCanalEmbutido(x.competitor_channels)
 const eLinhaProprio = (x: unknown): x is LinhaProprio =>
   isRec(x) && typeof x.id === 'string' && typeof x.youtube_video_id === 'string' && typeof x.channel_id === 'string'
   && typeof x.site_id === 'string' && textoOuNulo(x.published_at) && typeof x.created_at === 'string'
 
-const COLUNAS_CONCORRENTE: string = 'id, video_id, competitor_channel_id, published_at, discovered_at, live_broadcast_content, missing_since, competitor_channels!inner(site_id, missing_since, collection_paused_at)'
+const COLUNAS_CONCORRENTE: string = 'id, video_id, competitor_channel_id, published_at, discovered_at, live_broadcast_content, missing_since, is_short, competitor_channels!inner(site_id, missing_since, collection_paused_at)'
 const COLUNAS_PROPRIO: string = 'id, youtube_video_id, channel_id, site_id, published_at, created_at'
 
 /**
@@ -141,8 +143,9 @@ export async function lerCandidatos(
   sb: SupabaseClient,
   agoraMs: number,
   relatar?: RelatarHoraria,
+  janelaDias: number = RULES.hourly.ageDays,
 ): Promise<{ conc: CandConcorrente[]; prop: CandProprio[] }> {
-  const corte = new Date(agoraMs - RULES.hourly.ageDays * DIA_MS).toISOString()
+  const corte = new Date(agoraMs - janelaDias * DIA_MS).toISOString()
   const [conc, prop] = await Promise.all([
     paginar(
       (de, ate) => sb.from('competitor_videos').select(COLUNAS_CONCORRENTE).or(janelaComNulo(corte, 'discovered_at'))
@@ -159,7 +162,7 @@ export async function lerCandidatos(
     conc: conc.map(v => ({
       id: v.id, ytId: v.video_id, canalId: v.competitor_channel_id, siteId: v.competitor_channels.site_id,
       publishedAt: v.published_at, discoveredAt: v.discovered_at, lbc: v.live_broadcast_content,
-      missingSince: v.missing_since, canalAusente: v.competitor_channels.missing_since !== null,
+      missingSince: v.missing_since, isShort: v.is_short ?? null, canalAusente: v.competitor_channels.missing_since !== null,
       canalPausado: v.competitor_channels.collection_paused_at !== null,
     })),
     prop: prop.map(v => ({

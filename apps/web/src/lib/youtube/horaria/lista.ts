@@ -22,6 +22,8 @@ export interface CandConcorrente {
   canalAusente: boolean
   /** (A5 E10) A coleta do canal está pausada: o vídeo não é lido. */
   canalPausado: boolean
+  /** `competitor_videos.is_short`; nulo = duração desconhecida (a watch não o filtra). */
+  isShort: boolean | null
 }
 
 export interface CandProprio {

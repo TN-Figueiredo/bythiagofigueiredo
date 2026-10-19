@@ -35,13 +35,13 @@
 |---|---|---|---|---|---|
 | **D1** | Push e promoção da rota do P-V (Tarefa 1), com o envio que leva os 28 commits do A/B hoje em `origin/main..origin/staging` | A rota vai ao ar e o P-V roda em 20/10 | Sem rota não há P-V. Sem P-V até 21/10 12:22 UTC, o resultado é "inconclusivo", que vale como não passou, e a coleta vai para a forja (§13 do spec) | Tarefa 1b, passo 4 (a T1 já está feita). Pedir até **19/10 12:00 UTC** para caber no alvo de 20/10 09:00 | Spec §12: pedir já. A sessão do A/B já deu ok para a opção (a) (ver Tarefa 1b, passo 5); só o push espera o dono |
 | **D2** | Próprios antigos (os 35 vídeos do canal, como o qIg9 de 2019) entram a 1 rodada/dia? | Tarefa 9, ramo D2-sim: uma 4ª consulta (`youtube_videos` inteiro), `motivo_ate = 'proprio_antigo'`, `rodadas_por_dia = 1`, `coleta_ate = agora + 1 d` renovada a cada conciliação, hora-base em 0..1439 (`proximaRodada` com período de 24 h), mais um caso em A5 e um em B6. Custo: +35 rodadas/dia (+105 leituras, ~34 KB/dia), e a capacidade fica em 1.152 / 743 = **1,55×** | Tarefa 9 sem a 4ª consulta; nada mais muda. O caso que originou a frente (o qIg9) só é lido enquanto tiver teste nosso. Capacidade: 1.152 / 708 = **1,63×** | Tarefa 9, passo 5 (só esse passo espera; as outras tarefas seguem) | Phil: incluir. Hanna leva ao dono |
-| **D7** | Gravar `view_count bigint` (o `videoDetails.viewCount` da mesma página)? | Tarefa 11, o ramo D7: o parser extrai `viewCount`, o envelope `ResultadoLeitor` ganha `viewCount: number \| null`, `paraLinhas` grava a coluna, e a migration ganha 1 coluna e 1 CHECK (diff no Apêndice A.2; o C6 passa a **18** CHECKs). Custo: +8 B/linha, ~14 KB/dia | A Tarefa 11 não roda e a migration fica como no Apêndice A.1 (o C6 continua em **17**) | Antes do `db:new` (Tarefa 10, passo 1); prazo duro **29/10** (C5) | Phil: sim (o dono prefere gravar mais do que usa) |
+| **D7** | ~~Gravar `view_count bigint`~~ | **SUSPENSA (r3, decisão do dono 18/10, emenda do P-V):** no Vercel o `videoDetails` não vem (player bloqueado, 0/156 leituras), então a coluna ficaria 100 % nula. Sem Tarefa 11, sem Apêndice A.2, sem coluna e sem CHECK: o C6 fica em **17** CHECKs | — | — | Phil e Yannis (emenda): suspender; retomar se a coleta for à forja ou se a Data API for a fonte |
 
 O schema do Apêndice A.1 já aceita os dois lados de D2 (`rodadas_por_dia in (1,4)`, `hora_base_min` 0..1439, `motivo_ate` com `proprio_antigo`). Assim, D2 não segura a migration: só muda o código da conciliação. Este plano assume um ponto que não é decisão: o CHECK aceitar um valor que talvez nunca seja usado.
 
 ## 2. O que é do dono
 
-- **D1, D2, D7** (acima).
+- **D1, D2** (acima; a D7 está suspensa).
 - **`db:push:prod`** da migration `observatorio_a5_s4_leitura_watch`, que o agente roda depois do portão (memória: "rodar eu mesmo sempre que der"). A fila é: Migration A do A/B, depois **esta**, depois `ab_native_tests`. Prazo **29/10 23:59 UTC** (C5). A partir de 30/10 não há dia de migration.
 - **Variáveis no Vercel** (Production): `OBS_WATCH_READ=on` só depois da migration aplicada e do P-V aprovado, **longe das 05:00 SP** (das 08:00 UTC). O agente prepara o comando e o dono confirma.
 - **C8:** a página de uso do Vercel no D+1 (só o dono enxerga o painel).
@@ -72,7 +72,7 @@ O schema do Apêndice A.1 já aceita os dois lados de D2 (`rodadas_por_dia in (1
 - **Aceite de capacidade:** `72 × K(INICIO_LEVE_P90_S = 10) = 1.152 ≥ 1,5 × demanda`. A demanda é 708 (1,63×) ou 743 com D2 (1,55×). O teste usa `DEMANDA_RODADAS_DIA` derivado de V = 177 (+35 com D2). O gatilho de replanejar é a **demanda medida** pela prova (`demanda_rodadas_dia = sum(rodadas_por_dia)` dos alvos ativos, extensões incluídas) **> 768 rodadas/dia** (razão < 1,5), ou `alvos_atrasados > 0` em 2 provas seguidas. Refeita com as parcelas (Phil I10): V ≤ 192 sem D2 e sem extensões; V ≤ 183 com D2; com ~10 extensões a razão de hoje é **1,54×**, não 1,63×, e com D2 + extensões fica em **1,47×**. "V > 185" não tem instrumento e sai do plano.
 - **Idas ao banco por disparo:** 1 (alvos), mais 3 (candidatos: 2 de `lerCandidatos` e 1 de testes; +1 com D2), mais 1 (`yt_watch_conciliar`), mais 1 (devidos), mais até 4 da extensão (paginadas, ≤ 1 página cada em regime), mais 1 (`yt_watch_gravar_disparo`). São **≤ 11**, e nenhuma começa depois de 83 s.
 - **Rede:** 177 × 12 × 310 KB ≈ 660 MB/dia de HTML, mais 708 × 11 KB ≈ 8 MB de miniatura. **Cota do Google: 0.**
-- **Banco:** 2.124 leituras/dia × 320 B ≈ 0,68 MB/dia; ~30 MB em regime (45 d). Miniaturas < 0,1 MB.
+- **Banco:** 2.124 leituras/dia × ~245 B (Vercel, sem título oficial nem fonte, r3) ≈ 0,52 MB/dia; ~23 MB em regime (45 d; 30 MB se a coleta for à forja, 320 B). Miniaturas < 0,1 MB.
 - **Poda:** lote de 5.000, até 3 lotes por execução. Uma saída típica (~6 alvos/dia × ~360 leituras) ≈ 2.200 linhas/dia, o que dá 1 lote.
 
 ## 5. Quando o dado não existe
@@ -132,8 +132,8 @@ O schema do Apêndice A.1 já aceita os dois lados de D2 (`rodadas_por_dia in (1
 | 7 Expansor + porta pura | `lib/youtube/watch/expansor.ts`, `lib/youtube/watch/puro.ts`, `test/fixtures/watch-html/casos-recusados.ts`, `test/youtube/watch/{expansor,puro-grafo}.test.ts` | 6, 8 | 4 |
 | 8 Rodada | `lib/youtube/watch/rodada.ts`, `test/youtube/watch/rodada.test.ts` | 1–7 | — |
 | 9 Candidatos e conciliação | `lib/youtube/horaria/gravar.ts` (só `lerCandidatos`), `lib/youtube/watch/alvos.ts`, `test/youtube/horaria/gravar.test.ts`, `test/youtube/watch/alvos.test.ts` | 10, 11 | 8, D2 (passo 5) |
-| 10 Migration + integração | `supabase/migrations/<ts>_observatorio_a5_s4_leitura_watch.sql`, `test/integration/a5-s4-watch-{schema,rls,poda-prova,conciliar}.test.ts` | 9 | C5, D7, 7 |
-| 11 Ramo D7 (só se sim) | `parser.ts`, `leitor.ts`, `expansor.ts` e os testes deles | — | D7 = sim; antes da 10 |
+| 10 Migration + integração | `supabase/migrations/<ts>_observatorio_a5_s4_leitura_watch.sql`, `test/integration/a5-s4-watch-{schema,rls,poda-prova,conciliar}.test.ts` | 9 | C5, 7 |
+| 11 ~~Ramo D7~~ | **Suspensa (r3).** Não roda | — | — |
 | 12 Disparo + tarefa `leitura_watch` | `lib/youtube/watch/{disparo,gravar,extensao}.ts`, `agenda/tarefas/leitura-watch.ts`, `agenda/definicoes.ts`, `agenda/catalogo.ts`, `docs/ops/env-vars.md`, testes `test/youtube/watch/{disparo,gravar,extensao}.test.ts`, `test/youtube/agenda/{leitura-watch-tarefa,catalogo}.test.ts` | 13 (arquivos diferentes, salvo `definicoes.ts`/`catalogo.ts`: a 13 entra depois) | 6, 7, 8, 9 |
 | 13 Poda + prova + aviso | `agenda/tarefas/poda-leituras-watch.ts`, `agenda/definicoes.ts`, `agenda/catalogo.ts`, `agenda/aviso.ts`, `test/youtube/agenda/{poda-leituras-watch,aviso}.test.ts` | — | 9, 10, 12 |
 | 14 Remover a rota do P-V | apaga `app/api/cron/watch-pv/*` (4 arquivos) e `test/api/cron/watch-pv.test.ts`, cria `test/api/cron/watch-pv-removida.test.ts` | 12, 13 | veredito do P-V escrito (C4) |
@@ -187,13 +187,13 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
 **Arquivos:**
 - Criar: `.superpowers/sdd/a5/tc/pv-rodar.sh`. Lê `CRON_SECRET` de `apps/web/.env.local` sem ecoar e o manda por `-H @arquivo-temporário` (modo 600, apagado no fim), nunca na linha de comando (fica visível no `ps`; Phil I3). Faz `curl -sS -m 330 -D pv-<UTC>.hdr -H @<tmp> "https://bythiagofigueiredo.com/api/cron/watch-pv?v=qIg9a7vqcNo" -o pv-<UTC>.json` (`-m 330`: o cliente espera mais do que a função vive; Phil I1 e Yannis I1). Com `--fumaca`, chama com `v=xxxxxxxxxxx` e espera **400**. **Depois** que o `curl` termina (garante a rodada `:21` gravada; Yannis I3), copia as **9 últimas** linhas com `$2=="hora" && $3=="watch"` de `~/portao-dhash/nativo-qIg9a7vqcNo/titulos.tsv` para `pv-<UTC>-mac.tsv` (cada rodada tem 3 linhas `watch`; Phil I4).
 - Criar: `.superpowers/sdd/a5/tc/pv-avaliar.mjs` (Node, sem dependência), que lê 1 ou 2 pares `.json` + `-mac.tsv` e imprime a tabela do §12 com cada critério e o veredito. Grava `pv-veredito.md` (com `VERCEL_REGION`, `x-vercel-id`, o `ua` e o `cortado` de cada execução). Regras:
-  - **Denominadores fixos** (30 leituras na fase 1, 48 na fase 2; Phil I5): a leitura que falta conta como falha (não 200, sem renderers, sem `oficial`). `fase2: null` → a execução não passa.
+  - **Denominadores fixos** (30 leituras na fase 1, 48 na fase 2; Phil I5): a leitura que falta conta como falha (não 200, sem renderers; r3: a leitura que falta não conta como "oficial ausente sem bloqueio", mas já reprova pelo denominador de HTTP e renderers). `fase2: null` → a execução não passa.
   - **Mac por rodada:** agrupa as linhas pelo mesmo minuto e usa `B = $5 > 0`; o inconclusivo exige as **3** últimas rodadas sem B (Phil I4).
-  - **Desfechos:** `passa` (as **duas** execuções passam); `forja` (qualquer critério do §12 reprovado — mistas < 4 com o Mac vendo B, bloqueio > 2, HTTP 200 < 28/30, renderers < 28/30, `HL`/`GL` ≠ `pt`/`BR` em alguma leitura, título oficial ausente em alguma —, exceto o controle do Mac); `inconclusivo` (o Mac sem B nas 3 últimas rodadas, ou só uma execução válida até o prazo); `invalida` (execução com `cortado ≠ false` ou `fase2.lidas < 48`: não conta como uma das duas e pode ser repetida em outra `HH:22`; Yannis I3).
+  - **Desfechos:** `passa` (as **duas** execuções passam); `forja` (qualquer critério do §12 reprovado — mistas < 4 com o Mac vendo B, bloqueio > 2, HTTP 200 < 28/30, renderers < 28/30, `HL`/`GL` ≠ `pt`/`BR` em alguma leitura, **oficial ausente sem `jogadorBloqueado` em alguma leitura (r3: o critério antigo "oficial 30/30" foi emendado; oficial ausente com `jogadorBloqueado` é aceito)** —, exceto o controle do Mac); `inconclusivo` (o Mac sem B nas 3 últimas rodadas, ou só uma execução válida até o prazo); `invalida` (execução com `cortado ≠ false` ou `fase2.lidas < 48`: não conta como uma das duas e pode ser repetida em outra `HH:22`; Yannis I3).
   - **Capacidade medida (Yannis I4 + Phil M3):** imprime `s_por_video = fase2.paredeMs / 16` (1,2 s é a **hipótese**; o veredito é a razão `≥ 1,5`, que só cai abaixo disso com s > 1,69 s, K < 16; entre 1,2 s e 1,69 s só imprime; sem os 3 s fixos, porque a fase 2 não faz miniatura nem banco), `K_medido = min(16, ⌊27 / s_por_video⌋)` e `razão = 72 × K_medido / DEMANDA` (708). Razão < 1,5 não é `forja` automática: o controlador replaneja com `segundosPorVideo` medido (concorrência 4, ou Shorts fora). Escreve no §3 do plano "1,2 s/vídeo [H] → confirmado ou refutado".
 - Criar: `.superpowers/sdd/a5/tc/pv-roteiro.md` (o passo a passo abaixo).
 
-- [ ] **Passo 1: Teste do avaliador** (`node pv-avaliar.mjs --autoteste`): com JSON sintéticos embutidos: 28/30 com 200 e 4/10 mistas dá `passa`; 3/10 mistas com o Mac vendo B dá `forja`; 3 bloqueios na fase 1 dá `forja`; 3 bloqueios em 48 na fase 2 dá `forja`; o Mac sem B nas 3 rodadas dá `inconclusivo`; **as 2 últimas rodadas do Mac A-A-A e a 3ª com B → não é `inconclusivo`**; 27/30 HTTP 200 dá `forja`; 1 leitura com `hl 'en'` dá `forja`; 1 sem título oficial dá `forja`; `cortado 'fase2_cortada'` dá `invalida`; **22 leituras boas na fase 1 (8 faltando) → não passa**; `fase2 null` → não passa; `paredeMs 32000` (2,0 s/vídeo) → linha "capacidade 1,32× < 1,5×". Rodar `node pv-avaliar.mjs --autoteste > $SAIDA/t2.txt 2>&1; tail -3 $SAIDA/t2.txt`. Esperado: `13/13`.
+- [ ] **Passo 1: Teste do avaliador** (`node pv-avaliar.mjs --autoteste`): com JSON sintéticos embutidos: 28/30 com 200 e 4/10 mistas dá `passa`; 3/10 mistas com o Mac vendo B dá `forja`; 3 bloqueios na fase 1 dá `forja`; 3 bloqueios em 48 na fase 2 dá `forja`; o Mac sem B nas 3 rodadas dá `inconclusivo`; **as 2 últimas rodadas do Mac A-A-A e a 3ª com B → não é `inconclusivo`**; 27/30 HTTP 200 dá `forja`; 1 leitura com `hl 'en'` dá `forja`; 1 oficial ausente **sem** bloqueio dá `forja` (fase 1; e outro caso na fase 2); **oficial ausente com bloqueio em 30/30 e 48/48 dá `passa` (r3)**; `cortado 'fase2_cortada'` dá `invalida`; **22 leituras boas na fase 1 (8 faltando) → não passa**; `fase2 null` → não passa; `paredeMs 32000` (2,0 s/vídeo) → linha "capacidade 1,32× < 1,5×". Rodar `node pv-avaliar.mjs --autoteste > $SAIDA/t2.txt 2>&1; tail -3 $SAIDA/t2.txt`. Esperado: `15/15` (r3: 13 originais, com o caso do oficial ajustado, mais os 2 novos).
 - [ ] **Passo 2: Escrever `pv-rodar.sh` e `pv-roteiro.md`.** O roteiro:
   0. Antes de tudo (Phil §8): `bash .superpowers/sdd/a5/tc/pv-rodar.sh --fumaca` → 400 (prova o segredo); `awk -F'\t' '$2=="hora" && $3=="watch"' titulos.tsv | tail -9` → 3 rodadas, ao menos 1 com `$5 > 0`.
   1. C1 antes: `pgrep -fl sondar-paginas.sh` e a rodada `:21` com B nas últimas 3 h. Se a sonda estiver morta, rearmar como na C1 do spec.
@@ -203,6 +203,7 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
   5. Última hora útil: **21/10 12:22 UTC**. Sem as duas execuções até lá, o veredito é inconclusivo e a coleta vai para a forja, escrito assim.
   6. Se a rajada reprovar e a fase 1 passar: perguntar ao controlador se re-roda com concorrência 1 (§12, "se a rajada reprovar"). Essa nova rodada exige mudar `CONCORRENCIA_RAJADA` na rota, o que é um novo envio, e só vale se 10 vídeos × 72 ≥ 1,5 × demanda. Com a demanda de hoje (708), 720 < 1.062, **não fecha**, então a coleta vai para a forja. Observação (Yannis M3): a rota fica inerte sozinha depois de 21/10 13:00 UTC (410), então um re-envio também teria de mexer nessa data.
 - [ ] **Passo 3:** sem commit no repositório. É ledger do controlador em `.superpowers/` (o controlador decide).
+- [x] **Passo 4 (r3, emenda do P-V, FEITO 18/10):** `pv-avaliar.mjs` ganhou o critério emendado (conta `oficial === false && jogadorBloqueado === false` na fase 1 e na fase 2, imprime as duas contagens; autoteste 15/15) e a reavaliação das execuções 21:22Z e 22:22Z foi anexada a `pv-veredito.md` ("Reavaliação com o critério emendado (r5)"): **passa, 0/78 nas duas**, mistas 8/10, capacidade 1,63×. Sem nova execução do P-V.
 
 **Pronto quando:** o autoteste passa e o roteiro está escrito. **Executado quando:** existe `pv-veredito.md` com o desfecho.
 
@@ -211,7 +212,7 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
 **Arquivos:**
 - Criar: `apps/web/test/fixtures/watch-html/recortar.mjs`: recebe o HTML bruto e devolve só os blocos `var ytInitialData = …;`, `var ytInitialPlayerResponse = …;`, o `ytcfg.set({…})` que tem `"HL"` e a `<meta property="og:title">`. Troca o valor de `VISITOR_DATA`/`visitorData` e de `"remoteHost"` por `"X"`.
 - Criar: `watch-185033-1.html` (A) e `watch-185036-2.html` (B), gerados de `~/portao-dhash/nativo-qIg9a7vqcNo/html/`.
-- Criar: `apps/web/test/fixtures/watch-html/derivar.ts`: as funções que derivam as sintéticas do A2 a partir da página A: `semInitialData`, `comPlayability(status, motivo)`, `comHL(hl, gl)`, `semYtcfg`, `rendererCom(texto)`, `layoutNovo`, `corpoConsentimento`, `corpoRoboSemTitulo`, `semVideoDetails`.
+- Criar: `apps/web/test/fixtures/watch-html/derivar.ts`: as funções que derivam as sintéticas do A2 a partir da página A: `semInitialData`, `comPlayability(status, motivo)`, `comHL(hl, gl)`, `semYtcfg`, `rendererCom(texto)`, `layoutNovo`, `corpoConsentimento`, `corpoRoboSemTitulo`, `semVideoDetails`, **`jogadorBloqueadoDoVercel` (r3: `LOGIN_REQUIRED` com os 3 renderers, sem `videoDetails` e sem a meta `og:title`, o formato medido no P-V; a fixture que o parser, o leitor e a A11 usam para o Vercel)**.
 - Teste: `apps/web/test/youtube/watch/fixtures-sem-ip.test.ts`
 
 - [ ] **Passo 1: Teste que falha.** `nenhuma fixture em watch-html tem visitorData, remoteHost ou IP`: varre o diretório e exige zero ocorrências de `/visitor_?data"\s*:\s*"(?!X")/i`, de `/"remoteHost"\s*:\s*"(?!X")/i`, de IPv6 `/[0-9a-f]{1,4}(:[0-9a-f]{0,4}){5,7}|::[0-9a-f]{1,4}/i` (com a lista de exceções escrita no teste, se a versão do cliente casar) e de IPv4 só no valor de `remoteHost`. Também `o recortador tira o IP de uma página bruta`: uma string sintética com `"remoteHost":"2804:abcd::1"` passa por `recortar()` e sai com `"X"`.
@@ -255,7 +256,7 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
   - `&amp; vira &`.
   - `sem videoDetails usa og:title` (via `semVideoDetails`): fonte `og_title`.
   - `sqp de outro vídeo não conta` (insere uma URL `ytimg.com/vi/OUTRO1234567/…?sqp=`): continua 4.
-  - A2: `corpoConsentimento` → `consentimento`; `corpoRoboSemTitulo` → `verificacao_robo`; `comPlayability('LOGIN_REQUIRED', robô)` com renderers → `erro null`, títulos lidos, `jogadorBloqueado true`; `comPlayability('UNPLAYABLE')` com `layoutNovo` → `indisponivel`; `semInitialData` → `sem_initial_data`; `comHL('es-419','BR')` → `'es-419'`; `comHL('pt','BR')` → `'pt-BR'`; `comHL('pt', null)` → `'pt'`; `comHL('xx_YY','ZZ')` → `null` e, com título, `sem_idioma`; `semYtcfg` com título → `sem_idioma`; `rendererCom(' ')`, `rendererCom(' ')` e `rendererCom('​')` → `texto null`; `layoutNovo` (os 3 renderers somem, `ytInitialData` presente) → `erro null` e os 3 textos `null`.
+  - A2: `corpoConsentimento` → `consentimento`; `corpoRoboSemTitulo` → `verificacao_robo`; `comPlayability('LOGIN_REQUIRED', robô)` com renderers → `erro null`, títulos lidos, `jogadorBloqueado true`; **`jogadorBloqueadoDoVercel` (r3, Phil C4 e Yannis C2) → `erro null`, os 3 títulos exibidos lidos, `tituloOficial null`, `titulo_oficial_fonte null`, `jogadorBloqueado true`, idioma `pt-BR`; e `jogadorBloqueado` é `LOGIN_REQUIRED` + renderers ≥ 1, sem olhar o motivo (a mesma fixture com outro texto de motivo continua `true`); o `contar.ts` do P-V e o `extrairDaWatch` dão o mesmo booleano sobre as mesmas fixtures**; `comPlayability('UNPLAYABLE')` com `layoutNovo` → `indisponivel`; `semInitialData` → `sem_initial_data`; `comHL('es-419','BR')` → `'es-419'`; `comHL('pt','BR')` → `'pt-BR'`; `comHL('pt', null)` → `'pt'`; `comHL('xx_YY','ZZ')` → `null` e, com título, `sem_idioma`; `semYtcfg` com título → `sem_idioma`; `rendererCom(' ')`, `rendererCom(' ')` e `rendererCom('​')` → `texto null`; `layoutNovo` (os 3 renderers somem, `ytInitialData` presente) → `erro null` e os 3 textos `null`.
   - `erro ≠ null ⇒ titulosExibidos todos null e tituloOficial null` (canonização na fonte).
   - `HTML de 2 MB sem marcador termina em < 50 ms` (guarda contra regex catastrófica).
 - [ ] **Passo 2:** rodar e ver falhar: `npx vitest run test/youtube/watch/parser.test.ts > $SAIDA/t4.txt 2>&1; …`.
@@ -336,7 +337,7 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
   - A7 `ida e volta`: um gerador à mão com `rng` semeado (mulberry32, semente 20261018) produz 500 `ResultadoLeitor` no domínio do leitor (0 ou 1 miniatura, os renderers de `RENDERERS_TITULO`). Para cada um, `leiturasDoBanco([comoBanco(paraLinhas(r))], thumbs)` dá `[r.leitura]` (`toEqual`), e `jogador_bloqueado`, `http` e `versao_leitor === VERSAO_LEITOR` voltam pelas colunas.
   - A7 `miniatura só na leitura que a buscou`: uma rodada com 3 leituras, só a 1ª com `miniatura_id` → as outras 2 com `miniaturas []`.
   - A7 `fixture do A/B`: `carregarQIg9().leituras`, passadas por `paraLinhas` e `leiturasDoBanco` (com as 6 miniaturas da fixture reduzidas à 1ª, regra do expansor), dão o mesmo `campos.titulo` de `detectarTesteYoutube` que a fixture direta, e `contagem.rodadasMistasTitulo === 13`. A miniatura é afirmada à parte: o estado é `nao_lido` ou `um_valor_so`.
-  - A11 `linha envenenada`: 300 `LeituraWatch` válidas no Zod, inclusive `erro` com `tituloOficial`, idioma `es-419`, etag de 150 e variante de 30 → toda saída de `paraLinhas` passa em `linhaCabeNoBanco`; quem não passaria vira `fora_do_formato`.
+  - A11 `linha envenenada`: 300 `LeituraWatch` válidas no Zod, inclusive `erro` com `tituloOficial`, idioma `es-419`, etag de 150 e variante de 30 → toda saída de `paraLinhas` passa em `linhaCabeNoBanco`; quem não passaria vira `fora_do_formato`. **r3 (Phil C4):** a linha da fixture `jogadorBloqueadoDoVercel` (oficial e fonte nulos, `jogador_bloqueado true`, `erro null`) cabe em `linhaCabeNoBanco`.
   - `casos-recusados`: para cada caso da tabela (`''`, `'   '`, dHash maiúsculo, dHash de 15, erro com título, `largura` sem `altura`, `titulos_divergentes` sem `texto`, com `'null'` string e com renderer vazio, idioma `pt_BR`, `renderers_presentes 8`, `rendicoes_sqp 201`, `etag ''`, `variante 'HQ'`) → `linhaCabeNoBanco` ou `thumbCabeNoBanco` dá `false`.
   - `leiturasDoBanco` conta como `invalidas` uma linha que o Zod do contrato recusa, sem lançar.
   - A13 `puro-grafo.test.ts`: `vi.mock('sharp', …)`, `vi.mock('@vercel/blob', …)` e `vi.mock('@supabase/supabase-js', …)` lançam ao carregar; `await import('@/lib/youtube/watch/puro')` resolve.
@@ -415,10 +416,10 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
 ### Tarefa 10: Migration e testes de integração
 
 **Arquivos:**
-- Criar via `npm run db:new observatorio_a5_s4_leitura_watch`: `supabase/migrations/<ts>_observatorio_a5_s4_leitura_watch.sql`, com o conteúdo do **Apêndice A.1** (mais o A.2 se D7 = sim).
+- Criar via `npm run db:new observatorio_a5_s4_leitura_watch`: `supabase/migrations/<ts>_observatorio_a5_s4_leitura_watch.sql`, com o conteúdo do **Apêndice A.1** (r3: sem o A.2; a D7 está suspensa).
 - Testes: `apps/web/test/integration/a5-s4-watch-schema.test.ts` (B1, B3), `a5-s4-watch-rls.test.ts` (B2), `a5-s4-watch-poda-prova.test.ts` (B4, B5), `a5-s4-watch-conciliar.test.ts` (B6).
 
-- [ ] **Passo 1: Fila (C5).** `git -C $W fetch origin staging && git -C $W log --oneline origin/staging -- supabase/migrations | head -5`. A Migration A do A/B tem de estar lá. Avisar a sessão do A/B ("a S4 vai criar a migration agora") e anotar em `.superpowers/sdd/a5/fila-do-db-push.md`. Confirmar D7. Sem a Migration A: perguntar ao A/B; sem resposta até 27/10, levar ao dono com a recomendação da Hanna.
+- [ ] **Passo 1: Fila (C5).** `git -C $W fetch origin staging && git -C $W log --oneline origin/staging -- supabase/migrations | head -5`. A Migration A do A/B tem de estar lá. Avisar a sessão do A/B ("a S4 vai criar a migration agora") e anotar em `.superpowers/sdd/a5/fila-do-db-push.md`. (D7 suspensa na r3: nada a confirmar.) Sem a Migration A: perguntar ao A/B; sem resposta até 27/10, levar ao dono com a recomendação da Hanna.
 - [ ] **Passo 2:** `cd $W && npm run db:new observatorio_a5_s4_leitura_watch` e colar o Apêndice A.1 (+ A.2). Antes de colar: se o P-V deu `K_medido < 16`, trocar `v_k` no `yt_watch_prova` (r2 Phil m2).
 - [ ] **Passo 3: Aplicar no banco local** (só `bythiago_int`): `psql postgresql://postgres:postgres@127.0.0.1:54422/postgres -v ON_ERROR_STOP=1 -f supabase/migrations/<ts>_….sql > $SAIDA/t10-mig.txt 2>&1`, duas vezes (idempotência). A segunda só pode trazer NOTICE.
 - [ ] **Passo 4: Testes de integração que falham antes do passo 3 e passam depois.** Cada caso cria o próprio site com `seedSite` e limpa no fim.
@@ -431,14 +432,11 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
   - B6 (acréscimos da r1): (Phil I6) 2ª conciliação com o payload **montado por `montarCandidatos` + `conciliar`**, não à mão, contra um alvo já existente → sem erro, `atualizados 1`; (Phil M5) duplicata `teste_nosso` + `janela_propria` no mesmo `p_candidatos` → vence o `coleta_ate` máximo; (Phil M6) alvo reativado ganha `ativo_desde` novo e não acende `rodadas_faltando` na prova seguinte; (Phil N1, r2) alvo 1/dia com 1 leitura em 24 h que vira 4/dia → `ativo_desde = p_agora` e a prova seguinte não acende `rodadas_faltando` (`menos_de_3_rodadas_24h` não sobe por causa dele); (D2 = sim) `antigo com teste → 4/dia; teste acaba → 1/dia`.
   - B6: `ab_tests` + `youtube_videos` semeados → o alvo nasce com o id de 11 caracteres; `draft` com 6 leituras `indisponivel` continua ativo; alvo saído há 10 d com teste novo → ativo e devido; `draft` com mais de 30 d fica fora; `indisponivel` dentro dos 30 d, com 3 conciliações seguidas → continua saído, com `rodadas` e `indisponivel_seguidas` iguais; com teste → reativa; `removido` cujo vídeo voltou a `competitor_videos` → reativa.
 - [ ] **Passo 5:** rodar os 4 arquivos em série (`--no-file-parallelism`), saída em `$SAIDA/t10-int.txt`. Esperado: tudo verde.
-- [ ] **Passo 6:** C6 local: `select count(*) from pg_constraint where conrelid = 'public.yt_watch_readings'::regclass and contype = 'c'` → **17** (18 com D7). Commit: `feat: migration da S4 (yt_watch_*) e testes de integração`. O `db:push:prod` **não** é feito aqui: vai no envio, depois do portão.
+- [ ] **Passo 6:** C6 local: `select count(*) from pg_constraint where conrelid = 'public.yt_watch_readings'::regclass and contype = 'c'` → **17**. Commit: `feat: migration da S4 (yt_watch_*) e testes de integração`. O `db:push:prod` **não** é feito aqui: vai no envio, depois do portão.
 
-### Tarefa 11: Ramo D7 (só se o dono disser sim)
+### Tarefa 11: ~~Ramo D7~~ (SUSPENSA na r3)
 
-**Arquivos:** `parser.ts`, `leitor.ts`, `expansor.ts` e os 3 testes deles; a migration recebe o diff do Apêndice A.2 na Tarefa 10.
-- [ ] **Passo 1: Testes que falham:** `viewCount da fixture A é inteiro > 0`; `viewCount ausente → null`; `viewCount '12,345' (forma inesperada) → null`; `ResultadoLeitor.viewCount` presente; `paraLinhas grava view_count`; o espelho recusa `view_count -1`.
-- [ ] **Passo 2:** `ExtracaoWatch.viewCount: number | null` (de `videoDetails.viewCount`, só dígitos, `Number.isSafeInteger`), `ResultadoLeitor.viewCount`, `LinhaLeitura.view_count`. **Fora do contrato `LeituraWatch`.**
-- [ ] **Passo 3:** passar. Commit: `feat: view_count da watch (D7)`.
+Não roda. A D7 (`view_count`) foi suspensa pelo dono em 18/10 (emenda do P-V): o Vercel não recebe `videoDetails`, então a coluna ficaria 100 % nula. Sem passos, sem commit, sem o Apêndice A.2. Retomada: se a coleta for à forja (onde o `videoDetails` volta) ou a Data API for a fonte (§8.1 do spec).
 
 ### Tarefa 12: Disparo e tarefa `leitura_watch`
 
@@ -487,7 +485,7 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
 **Interfaces:**
 - `DEFINICAO_PODA_LEITURAS_WATCH`: `nome 'poda_leituras_watch'`, `rotulo 'poda das leituras da página do YouTube'`, `ordem 5.3`, `peso 'leve'`, `periodo 'dia'`, `aPartirDaHoraSP 5`, `tetoTentativas 12`, `toleranciaVigiaH 36`, `naoTerminouVermelhoEm null`, `comecaAteMs LEVE_COMECA_ATE_MS`, `fimAteMs 85_000`, **sem `ligaCom`**. `motivos`: `banco_falhou: 'o banco falhou ao podar as leituras da página do YouTube'`, `prova_falhou: 'não foi possível conferir a saúde da leitura das páginas do YouTube'`, `sobrou: 'ficaram leituras vencidas para o dia seguinte'`.
 - `rodar`: guarda (`42P01` → `parcial schema_ausente`) → até 3 × `rpc('yt_watch_poda', { p_agora, p_lote: 5000 })` enquanto `sobrou` e houver tempo → `conciliar`, só para ler (é preciso `candidatosEsperados` e `sites`: chamar `montarCandidatos` com as mesmas consultas, **sem** o RPC de conciliação; extrair `lerCandidatosDaWatch(sb, agora)` em `alvos.ts`, que as duas usam) → `rpc('yt_watch_prova', { p_agora, p_coleta_ligada: process.env.OBS_WATCH_READ === 'on', p_candidatos_esperados })`. **Se `lerCandidatosDaWatch` falhar, `p_candidatos_esperados = null` (nunca 0) e `detalhe.candidatos_falhou = 1`; a poda continua `ok`** (Phil I9: um 0 apagaria o `sem_alvos` no dia em que a lista está quebrada). O detalhe também grava `folga_capacidade = capacidade_razao` da prova (Yannis M5). Com algum motivo `true`, `avisarDono` com `chave 'leitura_watch_vermelha'` para cada site em `sites ∪ site_id de c.linhas`, e `frase` montada de `FRASE_PROVA` (abaixo). O motivo novo `capacidade_curta` (demanda medida > 768 rodadas/dia; Phil I10) entra nos motivos que acendem o aviso, com a coleta ligada. Devolve `ok` (ou `parcial sobrou`) com `detalhe` = os números da prova (`coleta_desde` e `primeira_leitura` viram horas) mais `prova_vermelha_<motivo>: 1`. O motivo vermelho **não muda o estado**.
-- `FRASE_PROVA`: `leitura_bloqueada → 'mais da metade das leituras falhou nas últimas 24 horas'`, `layout_mudou → 'mais de 20% das leituras não acharam o título'`, `rodadas_faltando → '<n> vídeos sem as 3 rodadas do dia ou com rodada atrasada'`, `sem_alvos → 'há <n> vídeos na janela e só <m> na coleta'`, `capacidade_curta → 'a demanda é de <n> rodadas por dia, perto do limite de 1.152; tire os Shorts da coleta antes de perder rodadas'`, juntadas por `'; '`.
+- `FRASE_PROVA`: `leitura_bloqueada → 'mais da metade das leituras falhou nas últimas 24 horas'`, `layout_mudou → 'mais de 20% das leituras não acharam o título'`, `rodadas_faltando → '<n> vídeos sem as 3 rodadas do dia ou com rodada atrasada'`, `sem_alvos → 'há <n> vídeos na janela e só <m> na coleta'`, `oficial_sumiu → 'mais de 20% das leituras sem título oficial vieram sem o player bloqueado: o layout da página pode ter mudado'` (r3), `capacidade_curta → 'a demanda é de <n> rodadas por dia, perto do limite de 1.152; tire os Shorts da coleta antes de perder rodadas'`, juntadas por `'; '`.
 - `aviso.ts` `textoDe`: `case 'leitura_watch_vermelha': title 'A leitura das páginas do YouTube está com problema'`, `message frase + '. As leituras perdidas não são recuperadas. Confira a coleta no CMS, em ' + onde + '.'`.
 
 - [ ] **Passo 1: Testes que falham:**
@@ -497,6 +495,7 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
   - `zero alvos e candidatos > 0 → aviso vai para o site dos candidatos`.
   - Phil I9: `leitura dos candidatos falha → o RPC da prova recebe null, nunca 0; poda ok; detalhe.candidatos_falhou = 1`.
   - Phil I10 / Yannis M5: `prova com capacidade_curta → aviso; detalhe.folga_capacidade presente`.
+  - **r3 (emenda do P-V):** `prova com sem_oficial_sem_bloqueio_24h / leituras_sem_erro_24h > 20 % e coleta madura → motivo oficial_sumiu e aviso com a frase`; `100 % das leituras com jogador_bloqueado e oficial nulo → nenhum aviso` (o estado normal do Vercel); `delete process.env.OBS_WATCH_READ` → motivo `null`.
   - `RPC da prova lança → erro prova_falhou`; `poda devolve sobrou 3 vezes → parcial sobrou`; `42P01 → parcial schema_ausente`.
   - `aviso.test.ts`: `leitura_watch_vermelha tem título e mensagem próprios`; `frase com <tag> não é escapada duas vezes`.
 - [ ] **Passos 2–4:** falhar, implementar e passar (`> $SAIDA/t13.txt`). Commit: `feat: poda e prova diária das leituras da watch, aviso leitura_watch_vermelha`.
@@ -515,8 +514,11 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
 
   | Quando (UTC) | Check | Onde está o como | Feito |
   |---|---|---|---|
-  | M + 0 (logo após o push) | C6: RLS nas 3 tabelas e **17** CHECKs (18 com D7) | plano S4 §11 Q6 | |
+  | M + 0 (logo após o push) | C6: RLS nas 3 tabelas e **17** CHECKs | plano S4 §11 Q6 | |
   | D0 + 1 d, 12:00 | C7, C7+, C7++, C7+++ (D+1 da coleta) | spec §16; plano §11 Q7 | |
+  | D0 + 1 d e D0 + 7 d, 12:00 | **C7-bis (r3): linha de base do bloqueio** (`sem_of_sem_bloq = 0`, `bloq` perto de `sem_erro`, `com_renderers` perto de `sem_erro`) e o gatilho da forja do spec §13 | spec §16 C7-bis | |
+  | 19/10, 12:30 | C2 (spec §16): título da Data API do qIg9 só A; se aparecer B, **reabre a emenda do P-V** | spec §16 C2 | |
+  | ~21/10 17:45 + 1ª captura seguinte | título final do qIg9 na Data API = o vencedor (Phil, §4 do parecer da emenda); sem isso, `oficial_diverge` em todo desfecho | `.superpowers/sdd/a5/tc/parecer-emenda-pv-phil.md` §4 | |
   | D0 + 1 d, 12:00 | C8: custo no Vercel (painel; dono) | spec §16 C8 | |
   | D0 + 1 d, depois das 08:00 | C11: a poda rodou | spec §16 C11 | |
   | D0 + 3 d, 12:00 | C7+++ de novo (reativação) | spec §16 | |
@@ -556,8 +558,8 @@ Os caminhos `lib/…`, `app/…` e `test/…` são relativos a `apps/web/src/` (
   `select percentile_disc(array[0.5,0.9,0.99]) within group (order by d), max(d), count(*) from (select extract(epoch from started_at - (date_trunc('hour', started_at) + (floor(extract(minute from started_at)/20)*20) * interval '1 minute')) d from competitor_agenda_runs where task = 'leitura_horaria' and started_at > now() - interval '7 days') x;` deu `{50.12, 51.01, 53.53}`, máx 59,56 e n = 117. Por tarefa (`group by task`): todas começam entre 49,6 e 54,9 s.
 - **Q2 (rodada):** os 15 ids. `select v.youtube_video_id from youtube_videos v join lateral (select privacy_status from yt_own_video_meta_daily x where x.youtube_video_id = v.youtube_video_id and x.privacy_status is not null order by day_pt desc limit 1) m on true where m.privacy_status = 'public' and v.youtube_video_id <> 'qIg9a7vqcNo' and not exists (select 1 from ab_tests t where t.youtube_video_id = v.id and t.status not in ('completed','archived')) order by v.published_at desc nulls last limit 15;`
 - **Q3 (rodada):** V, com a contagem de concorrentes com ≤ 30 d (filtrados por canal), sem Shorts, próprios com ≤ 14 d e próprios no total. Resultado: 176, 125, 0 e 35.
-- **Q4 (rodada no banco local, `begin … rollback`, duas vezes):** o Apêndice A.1. Saída em `.superpowers/sdd/a5/tc/saida/s4-prova-saida.txt` (cópia do scratchpad). Resultados: RLS `true` nas 3; **17** CHECKs em `yt_watch_readings`; conciliar (3 inseridos, 1 `removido`, o `teste_nosso` venceu a duplicata); `indisponivel` não reativa por janela; `removido` + `janela_concorrente` reativa; a miniatura repetida (nulos) fez `vistas 2`; os 3 `23514` esperados; `es-419` aceito; prova desligada → motivos `null`; ligada sem execução → `null`; madura → `rodadas_faltando true`; religada há 2 h → `null`; zero alvos → `sem_alvos true`; poda com `reter_ate` → 0; lote 2 → `sobrou true`; o resto apagou leitura, miniatura e alvo. A variante D7 (A.2) também rodou: **18** CHECKs e `view_count` gravado.
-- **Q6 (C6, depois do push):** `select relname, relrowsecurity from pg_class where relname in ('yt_watch_alvos','yt_watch_thumbs','yt_watch_readings');` → 3 linhas `true`; `select count(*) from pg_constraint where conrelid = 'public.yt_watch_readings'::regclass and contype = 'c';` → 17 (18 com D7).
+- **Q4 (rodada no banco local, `begin … rollback`, duas vezes):** o Apêndice A.1. Saída em `.superpowers/sdd/a5/tc/saida/s4-prova-saida.txt` (cópia do scratchpad). Resultados: RLS `true` nas 3; **17** CHECKs em `yt_watch_readings`; conciliar (3 inseridos, 1 `removido`, o `teste_nosso` venceu a duplicata); `indisponivel` não reativa por janela; `removido` + `janela_concorrente` reativa; a miniatura repetida (nulos) fez `vistas 2`; os 3 `23514` esperados; `es-419` aceito; prova desligada → motivos `null`; ligada sem execução → `null`; madura → `rodadas_faltando true`; religada há 2 h → `null`; zero alvos → `sem_alvos true`; poda com `reter_ate` → 0; lote 2 → `sobrou true`; o resto apagou leitura, miniatura e alvo. (A variante D7 rodou na r2 com 18 CHECKs; suspensa na r3.) **r3:** refazer a Q4 com `sem_oficial_sem_bloqueio_24h` e `oficial_sumiu` na prova (`jogador_bloqueado` com oficial nulo não acende; oficial nulo sem bloqueio em > 20 % das leituras sem erro acende).
+- **Q6 (C6, depois do push):** `select relname, relrowsecurity from pg_class where relname in ('yt_watch_alvos','yt_watch_thumbs','yt_watch_readings');` → 3 linhas `true`; `select count(*) from pg_constraint where conrelid = 'public.yt_watch_readings'::regclass and contype = 'c';` → 17.
 - **Q7 (C7, D+1):** a consulta da C7 do spec, com `select public.yt_watch_prova(now(), true, null);`.
 
 ## 12. Onde está cada item de aceite
@@ -877,12 +879,13 @@ language plpgsql stable security invoker set search_path = '' as $$
 declare
   v_desde timestamptz; v_primeira timestamptz;
   v_ativos integer; v_atrasados integer; v_menos integer;
-  v_l integer; v_ind integer; v_err integer; v_semt integer; v_jog integer; v_fora integer; v_idi integer; v_rod integer; v_longas integer;
+  v_l integer; v_ind integer; v_err integer; v_semt integer; v_soc integer; v_jog integer; v_fora integer; v_idi integer; v_rod integer; v_longas integer;
   v_por_erro jsonb; v_madura boolean; v_den numeric;
-  m_bloq boolean; m_layout boolean; m_rod boolean; m_alvos boolean; m_cap boolean;
+  m_bloq boolean; m_layout boolean; m_rod boolean; m_alvos boolean; m_cap boolean; m_oficial boolean;
   v_demanda integer; v_razao numeric; v_conc30 integer;
   -- r2 Phil m2: capacidade = disparos/dia x K; trocar K ANTES do db:new se o P-V medir K < 16
   v_disparos constant integer := 72; v_k constant integer := 16; v_capacidade constant integer := v_disparos * v_k;
+begin
   -- início da era contínua atual da leitura_watch: a última execução sem outra nas 6 h anteriores
   select max(started_at) into v_desde from (
     select started_at, lag(started_at) over (order by started_at) as ant
@@ -904,10 +907,11 @@ declare
   select count(*), count(*) filter (where erro = 'indisponivel'),
          count(*) filter (where erro is not null and erro <> 'indisponivel'),
          count(*) filter (where erro is null and renderers_presentes = 0 and titulos_divergentes is null),
+         count(*) filter (where erro is null and titulo_oficial is null and not jogador_bloqueado and (titulo_exibido is not null or titulos_divergentes is not null)),  -- r3: oficial ausente sem bloqueio (r3b Phil: leitura de teste conta)
          count(*) filter (where jogador_bloqueado), count(*) filter (where erro = 'fora_do_formato'),
          count(*) filter (where erro is null and idioma is not null and idioma <> 'pt-BR'),
          count(distinct rodada_id)
-    into v_l, v_ind, v_err, v_semt, v_jog, v_fora, v_idi, v_rod
+    into v_l, v_ind, v_err, v_semt, v_soc, v_jog, v_fora, v_idi, v_rod
     from public.yt_watch_readings where lida_em > p_agora - interval '24 hours' and lida_em <= p_agora;
 
   select count(*) into v_longas from (
@@ -931,9 +935,10 @@ declare
     m_bloq := (v_l - v_ind) >= 30 and v_err::numeric / (v_l - v_ind) > 0.5;
     v_den := v_l - v_err - v_ind;
     m_layout := v_den > 0 and v_semt::numeric / v_den > 0.2;
+    m_oficial := v_den > 0 and v_soc::numeric / v_den > 0.2;  -- r3: v_den = leituras sem erro
     m_rod := v_menos > 0 or v_atrasados > 0;
   end if;
-  if coalesce(p_coleta_ligada, false) and v_demanda is not null then m_cap := v_demanda * 1.5 > v_capacidade;  -- r2: mesma conta da razão sem arredondar (769 -> true com razão 1,50 na tela) end if;
+  if coalesce(p_coleta_ligada, false) and v_demanda is not null then m_cap := v_demanda * 1.5 > v_capacidade; end if;  -- r2: mesma conta da razão sem arredondar (769 -> true com razão 1,50 na tela)
   if coalesce(p_coleta_ligada, false) and p_candidatos_esperados is not null and v_desde is not null then
     if p_candidatos_esperados > 0 and v_ativos = 0 then m_alvos := true;
     elsif v_madura then m_alvos := p_candidatos_esperados > 0 and v_ativos < 0.5 * p_candidatos_esperados;
@@ -943,30 +948,19 @@ declare
   return jsonb_build_object(
     'candidatos_esperados', p_candidatos_esperados, 'alvos_ativos', v_ativos, 'alvos_atrasados', v_atrasados,
     'menos_de_3_rodadas_24h', v_menos, 'leituras_24h', v_l, 'indisponiveis_24h', v_ind, 'com_erro_24h', v_err,
-    'sem_titulo_24h', v_semt, 'jogador_bloqueado_24h', v_jog, 'fora_do_formato_24h', v_fora, 'idioma_diferente_24h', v_idi,
+    'sem_titulo_24h', v_semt, 'sem_oficial_sem_bloqueio_24h', v_soc, 'jogador_bloqueado_24h', v_jog, 'fora_do_formato_24h', v_fora, 'idioma_diferente_24h', v_idi,
     'rodadas_24h', v_rod, 'rodadas_longas_24h', v_longas, 'por_erro', v_por_erro,
     'primeira_leitura', v_primeira, 'coleta_desde', v_desde,
     'demanda_rodadas_dia', v_demanda, 'capacidade_razao', v_razao, 'capacidade_rodadas_dia', v_capacidade, 'concorrentes_30d', v_conc30,
-    'motivos', jsonb_build_object('leitura_bloqueada', m_bloq, 'layout_mudou', m_layout, 'rodadas_faltando', m_rod, 'sem_alvos', m_alvos, 'capacidade_curta', m_cap));
+    'motivos', jsonb_build_object('leitura_bloqueada', m_bloq, 'layout_mudou', m_layout, 'rodadas_faltando', m_rod, 'sem_alvos', m_alvos, 'capacidade_curta', m_cap, 'oficial_sumiu', m_oficial));
 end $$;
 revoke all on function public.yt_watch_prova(timestamptz, boolean, integer) from public, anon, authenticated;
 grant execute on function public.yt_watch_prova(timestamptz, boolean, integer) to service_role;
 ```
 
-## Apêndice A.2: diff do ramo D7 (só se o dono disser sim; rodado no local, 18 CHECKs)
+## Apêndice A.2: ~~diff do ramo D7~~ (SUSPENSO na r3)
 
-```diff
-@@ yt_watch_readings
-   jogador_bloqueado boolean not null default false,
-+  view_count bigint check (view_count is null or view_count >= 0),
-@@ yt_watch_gravar_disparo: insert
--     titulo_oficial_fonte, titulo_exibido, renderers_presentes, titulos_divergentes, rendicoes_sqp, jogador_bloqueado, miniatura_id)
-+     titulo_oficial_fonte, titulo_exibido, renderers_presentes, titulos_divergentes, rendicoes_sqp, jogador_bloqueado, view_count, miniatura_id)
--         coalesce(x.jogador_bloqueado, false),
-+         coalesce(x.jogador_bloqueado, false), x.view_count,
--      titulos_divergentes jsonb, rendicoes_sqp smallint, jogador_bloqueado boolean, thumb_k integer);
-+      titulos_divergentes jsonb, rendicoes_sqp smallint, jogador_bloqueado boolean, view_count bigint, thumb_k integer);
-```
+Removido: a D7 está suspensa (§1). A migration é só o Apêndice A.1 (17 CHECKs em `yt_watch_readings`).
 
 ---
 
@@ -1019,3 +1013,26 @@ Revisões: `.superpowers/sdd/a5/tc/revisao-plano-s4-phil-r2.md` e `revisao-plano
 | Yannis I-r2-1 (fase 2 só com ≤ 200 s) | T1b passo 1: 235 s, teto 270 s, teste (v) com a fase 1 em ~210 s; T2: `curl -m 330` |
 | Yannis M-r2-1 (1,2 s como critério) | T2: hipótese, veredito é razão ≥ 1,5 |
 | Validade da rota | 21/10 13:00 UTC, 410 só depois da autenticação (T1b passo 1; 401 sem Bearer continua) |
+
+## Registro r3 (emenda do P-V, 18/10)
+
+Decisão do dono ("Vamos seguir com a recomendação"); pareceres `.superpowers/sdd/a5/tc/parecer-emenda-pv-{phil,yannis}.md`. Spec: "Registro r5".
+
+| Achado | Onde entrou |
+|---|---|
+| Phil C1 (critério: oficial ausente só com bloqueio) | T2 (critério, autoteste 15/15, passo 4 feito), `pv-avaliar.mjs`, `pv-veredito.md` (passa, 0/78 nas duas) |
+| Phil A2 (definição de `jogadorBloqueado`) | T4 (A2: sem olhar o motivo; `contar.ts` e `extrairDaWatch` iguais) |
+| Phil C2 (contador na prova) | Apêndice A.1 (`sem_oficial_sem_bloqueio_24h`, motivo `oficial_sumiu`), T13 (testes e `FRASE_PROVA`), Q4 |
+| Phil C3 e Yannis C1 (S4 não injeta a Data API; oficial é da S7) | spec §5.3 e §12; nada no código da S4 |
+| Phil C4 e Yannis C2 (fixture no formato medido) | T3 (`jogadorBloqueadoDoVercel`), T4 (A2), T7 (A11) |
+| Phil C4 e Yannis C4 (gatilho da forja, C7-bis) | T15 (C7-bis em D+1 e D+7, C2 de 19/10, título final do qIg9), spec §13 |
+| Yannis C3 e Phil A4 (D7) | §1, §8, T10, T11 e Apêndice A.2 suspensos; 17 CHECKs |
+| Phil A5 (volume) | §4 (245 B, ~0,52 MB/dia, ~23 MB) |
+| Defeito achado ao aplicar | Apêndice A.1: o `end if;` do `m_cap` estava depois do comentário `--` na mesma linha (o Postgres o ignoraria); movido para antes do comentário. Refazer a Q4 |
+
+## Registro r3b (re-revisão da emenda)
+- **Phil, crítico:** faltava o `begin` de `yt_watch_prova` depois do `declare` (Apêndice A.1); já estava no HEAD. Corrigido.
+- **Phil, importante:** `sem_oficial_sem_bloqueio_24h` passa a contar também a leitura de teste: `(titulo_exibido is not null or titulos_divergentes is not null)`.
+- **Yannis, menores, que entram na T3/T4:**
+  - a fixture A2 traz `LOGIN_REQUIRED` fora do `playabilityStatus` e afirma a regra escolhida;
+  - o teste do booleano `jogadorBloqueado` cobre uma página com um renderer só, fora dos 3 do P-V.
