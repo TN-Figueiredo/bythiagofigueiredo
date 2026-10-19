@@ -70,6 +70,8 @@ const PADROES = [
   '/api/pipeline/youtube/ab-tests/[id]/variants',
   '/api/pipeline/youtube/ab-tests/dashboard',
   '/api/pipeline/youtube/ab-tests/learnings',
+  '/api/pipeline/youtube/ab-tests/native',
+  '/api/pipeline/youtube/ab-tests/native/[id]',
   '/api/pipeline/youtube/ab-tests/suggestions',
   '/api/pipeline/youtube/analytics/demographics',
   '/api/pipeline/youtube/analytics/grades',

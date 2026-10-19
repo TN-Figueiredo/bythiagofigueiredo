@@ -324,7 +324,7 @@ describe('o prompt e o registro', () => {
     expect(ent('/api/pipeline/youtube/competitors/channels').summary).toContain('profile')
     expect(ent('/api/pipeline/youtube/competitors/channels').summary).toContain('measures')
     const dominio = dominios.find(d => d.domain === 'youtube')!
-    expect(dominio.endpoint_count).toBe(34)
-    expect(dominio.endpoints.length).toBe(34)
+    expect(dominio.endpoint_count).toBe(36)
+    expect(dominio.endpoints.length).toBe(36)
   })
 })

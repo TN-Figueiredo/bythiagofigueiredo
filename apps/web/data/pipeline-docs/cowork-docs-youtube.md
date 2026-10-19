@@ -1683,6 +1683,88 @@ Retorna histórico completo de testes A/B para um vídeo específico.
 
 ---
 
+### GET /api/pipeline/youtube/ab-tests/native
+
+Lista os registros do teste nativo do YouTube (Test & Compare) detectados pelo site. É só leitura: o registro nasce sozinho (tarefa `registro_teste_nativo`), nunca por esta rota.
+
+**Auth:** read
+
+**Query:**
+- `video_id` (opcional): id do YouTube de 11 caracteres (o mesmo de `get_history`); formato inválido devolve 400 `VALIDATION_ERROR`
+- `estado` (opcional): `em_andamento`, `encerrado`, `sem_desfecho` ou `descartado`; outro valor devolve 400 `VALIDATION_ERROR`
+
+**Response 200:**
+```json
+{
+  "data": {
+    "testes": [
+      {
+        "id": "uuid",
+        "youtube_video_id": "qIg9a7vqcNo",
+        "origem": "detectado",
+        "campos": ["titulo"],
+        "estado": "em_andamento",
+        "variantes_titulo": ["Título A", "Título B"],
+        "votos_titulo": { "0": 29, "1": 31 },
+        "titulo_oficial": null,
+        "primeira_vista": "2026-10-18T10:00:00+00:00",
+        "ultima_vista": "2026-10-18T12:00:00+00:00",
+        "desfecho": { "estado": null, "motivo": null, "em": null, "versao_regra": null },
+        "vencedor": null,
+        "evidencia_rodadas": 12,
+        "evidencia_cortada": false,
+        "versao_regra": 1
+      }
+    ]
+  }
+}
+```
+
+**Notas:**
+- Mais recentes primeiro, no máximo 100, sempre do site da chave
+- `titulo_oficial` é `null` por enquanto (a leitura anônima não vê o título oficial); um registro encerrado sem vencedor (`sem_desfecho`, motivo `oficial_nao_lido`) é normal, não é erro
+- `vencedor` só vem preenchido quando a fonte é a regra ou o dono
+
+---
+
+### GET /api/pipeline/youtube/ab-tests/native/{id}
+
+Um registro do teste nativo (`id` é o UUID do registro) e as últimas 20 avaliações do vídeo, da mais nova para a mais velha.
+
+**Auth:** read
+
+**Response 200:**
+```json
+{
+  "data": {
+    "teste": { "id": "uuid", "youtube_video_id": "qIg9a7vqcNo", "estado": "em_andamento", "...": "mesmos campos da lista" },
+    "avaliacoes": [
+      {
+        "avaliada_em": "2026-10-18T13:00:00+00:00",
+        "estado_14": "provavel_teste",
+        "estado_48": "provavel_teste",
+        "motivo_14": null,
+        "mistas_48": 2,
+        "mistas_48_fora_quarentena": 1,
+        "min_desde_escrita": [90],
+        "erro": null,
+        "retroativa": false,
+        "aviso": null
+      }
+    ]
+  }
+}
+```
+
+**Notas:**
+- `id` que não é UUID devolve 400; inexistente ou de outro site devolve 404
+- Estado `sem_leitura` (avaliação) nunca quer dizer sem teste: quer dizer que ainda não há leitura suficiente da página de exibição
+- `estado_14`/`estado_48` são avaliações, não o desfecho; quem diz o desfecho é `teste.desfecho`
+
+**Via MCP:** `manage_ab_test` com `action: list_native` (filtros `video_id`, `estado`) e `action: get_native` (`test_id`). Devolvem o mesmo objeto das rotas.
+
+---
+
 ## Thumbnail Library
 
 Endpoints para a biblioteca de thumbnails.
@@ -1814,6 +1896,7 @@ Workflow de otimização de vídeos existentes via analytics e A/B testing:
 5. [Criar A/B test via CMS wizard]
 6. GET  /api/pipeline/youtube/ab-tests/dashboard      → acompanhar programa de testes
 7. GET  /api/pipeline/youtube/ab-tests/{id}/history   → histórico de testes do vídeo
+8. GET  /api/pipeline/youtube/ab-tests/native         → testes nativos do YouTube detectados (somente leitura)
 ```
 
 **Via MCP:**

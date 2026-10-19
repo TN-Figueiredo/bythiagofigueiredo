@@ -26,6 +26,12 @@ const DIRS = ['src/lib/pipeline', 'src/app/api/pipeline']
  *    regenerado desde então. Sai desta lista quando os tipos forem regenerados.
  */
 const KNOWN_STALE_TYPES = new Set(['content_pipeline_history.changed_by_key_id'])
+/**
+ * Tabelas inteiras da migration do registro do teste nativo (S7 fase 1), que ainda não está
+ * aplicada nem tipada: `database.types.ts` é regenerado depois do `db push`. Qualquer coluna delas
+ * passa; sai desta lista quando os tipos forem regenerados.
+ */
+const TABELAS_AINDA_SEM_TIPOS = new Set(['ab_native_tests', 'ab_native_avaliacoes'])
 
 describe('MCP + serviços do pipeline: esquema', () => {
   const { refs } = auditDirs(WEB, DIRS)
@@ -45,6 +51,7 @@ describe('MCP + serviços do pipeline: esquema', () => {
   it('toda tabela, coluna e RPC consultada existe em database.types.ts', () => {
     const missing = refs
       .filter(r => !r.exists && !r.kind.startsWith('embed:'))
+      .filter(r => !TABELAS_AINDA_SEM_TIPOS.has(r.table))
       .filter(r => !KNOWN_STALE_TYPES.has(r.column ? `${r.table}.${r.column}` : r.table))
       .map(r => `${r.file}:${r.line}  ${r.table}${r.column ? `.${r.column}` : ''}  (${r.kind})`)
     expect([...new Set(missing)]).toEqual([])
@@ -56,6 +63,13 @@ describe('MCP + serviços do pipeline: esquema', () => {
       const [t, c] = e.split('.') as [string, string]
       // se a coluna já está nos tipos, a exceção virou morta: apague-a da lista
       expect(schema.get(t)?.columns.has(c), `${e} já existe em database.types.ts: remova a exceção`).toBe(false)
+    }
+  })
+
+  it('as tabelas sem tipos ainda não estão em database.types.ts (senão a exceção virou morta)', () => {
+    const { schema } = loadSchema(join(WEB, 'src/types/database.types.ts'))
+    for (const t of TABELAS_AINDA_SEM_TIPOS) {
+      expect(schema.has(t), `${t} já existe em database.types.ts: remova a exceção`).toBe(false)
     }
   })
 

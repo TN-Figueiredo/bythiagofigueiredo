@@ -166,7 +166,7 @@ const YOUTUBE: CapabilityDomain = {
   description: 'Channel intelligence, video performance analysis, and title and thumbnail A/B testing.',
   suggest_when: 'YouTube analytics, performance review, A/B test management, video optimization',
   docs: '/api/pipeline/docs/youtube',
-  endpoint_count: 34,
+  endpoint_count: 36,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/youtube/channels', summary: 'List own YouTube channels (id, slug, locale, niche) in registration order — accepts read, intelligence, write or admin', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/intelligence', summary: 'Get channel intelligence snapshot — accepts intelligence, write or admin', auth: 'intelligence' },
@@ -188,6 +188,8 @@ const YOUTUBE: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/:id', summary: 'Get A/B test details with variants and cycles', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/:id/funnel', summary: 'Get funnel metrics per variant', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/:id/history', summary: 'Get test history for a video by youtube_video_id', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/youtube/ab-tests/native', summary: 'List native YouTube test records (Test & Compare) for the site; filters video_id (11-char YouTube id) and estado', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/youtube/ab-tests/native/:id', summary: 'Get one native test record with its last 20 evaluations', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-performance', summary: 'Aggregate winning patterns from completed tests', auth: 'read' },
     { method: 'POST', path: '/api/pipeline/youtube/ab-tests/:id/variants', summary: 'Batch upsert variants (B, C, D) for a draft test (description_text only null; text → 422)', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/ab-tests/:id/variants', summary: 'List all variants for a test ordered by sort_order', auth: 'read' },
