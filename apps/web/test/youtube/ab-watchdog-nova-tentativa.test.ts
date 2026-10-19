@@ -140,7 +140,7 @@ describe('avisos da fase nova', () => {
     const { sb, relogio } = montar(falhou({ attempts: 2 }))
     const r = await faseNovaTentativa(sb, relogio, undefined, 4, { tentar: feito(falhou({ estado: 'desistiu', attempts: 3, motivo: 'tres_falhas' })) })
     expect(r.desistiram).toBe(1)
-    const arg = fanOut.mock.calls.map((c) => c[0] as { dedupKey: string; message: string }).find((a) => a.dedupKey === 'ab-restore-desistiu:teste-1:thumbnail')
+    const arg = fanOut.mock.calls.map((c) => c[0] as { dedupKey: string; message: string }).find((a) => a.dedupKey.startsWith('ab-restore-desistiu:teste-1:thumbnail:'))
     expect(arg?.message).toContain('falhou 3 vezes e parou')
   })
 
@@ -157,7 +157,7 @@ describe('avisos da fase nova', () => {
     expect(r.falhas).toBe(1)
     expect(tentar).toHaveBeenCalledTimes(1)
     const arg = fanOut.mock.calls[0]![0] as { dedupKey: string; message: string }
-    expect(arg.dedupKey).toBe('ab-restore-desistiu:teste-1:thumbnail')
+    expect(arg.dedupKey.startsWith('ab-restore-desistiu:teste-1:thumbnail:')).toBe(true) // leva o `em` da corrente
     expect(arg.message).toContain('Não consegui saber para qual versão devolver')
   })
 

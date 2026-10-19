@@ -21,6 +21,7 @@ import { faseDriftEInterrompidos } from '@/lib/youtube/ab-watchdog-drift'
 import { faseNovaTentativa } from '@/lib/youtube/ab-watchdog-nova-tentativa'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
 import { claimAlert } from '@/lib/ops/alert-state'
+import { dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
 
 const HORA = 3_600_000
 const iso = (deltaMs: number) => new Date(Date.now() + deltaMs).toISOString()
@@ -172,7 +173,7 @@ describe.skipIf(skipIfNoLocalDb())('P4b T4: a fase nova do vigia no banco real',
     const b = await faseNovaTentativa(db, relogio(), yt.fetch)
     expect(b).toMatchObject({ tentadas: 1, desistiram: 1 })
     expect((await teste(t)).restore_status).toMatchObject({ title: { estado: 'desistiu', motivo: 'tres_falhas', attempts: 3 } })
-    expect(chaves()).toContain(`ab-restore-desistiu:${t.testId}:title`)
+    expect(chaves().some((k) => k.startsWith(`ab-restore-desistiu:${t.testId}:title:`))).toBe(true)
     expect(mensagens().some((m) => m.includes('falhou 3 vezes e parou'))).toBe(true)
   })
 
@@ -205,7 +206,7 @@ describe.skipIf(skipIfNoLocalDb())('P4b T4: a fase nova do vigia no banco real',
     const r = await faseNovaTentativa(db, relogio(), yt.fetch)
     expect(r.falhas).toBe(1)
     expect((await teste(t)).restore_status).toMatchObject({ title: { estado: 'desistiu', motivo: 'destino_invalido' }, thumbnail: { estado: 'desistiu', motivo: 'destino_invalido' } })
-    expect(chaves()).toContain(`ab-restore-desistiu:${t.testId}:title`)
+    expect(chaves().some((k) => k.startsWith(`ab-restore-desistiu:${t.testId}:title:`))).toBe(true)
     expect(await claimAlert(db, `ab-restore-desistiu:${t.testId}:thumbnail`, '3650 days')).toBe(false) // um envio só, as duas chaves gastas
     expect(fanOut).toHaveBeenCalledTimes(1)
     expect(mensagens().some((m) => m.includes('Não consegui saber para qual versão devolver'))).toBe(true)
@@ -218,7 +219,7 @@ describe.skipIf(skipIfNoLocalDb())('P4b T4: a fase nova do vigia no banco real',
     const r = await faseDriftEInterrompidos(db, relogio(), yt.fetch)
     expect(r.interrompidos).toBeGreaterThanOrEqual(1)
     expect((await teste(t)).restore_status).toMatchObject({ title: { estado: 'desistiu', motivo: 'tres_falhas', attempts: 3 } })
-    const minhas = chaves().filter((k) => k === `ab-restore-desistiu:${t.testId}:title`)
+    const minhas = chaves().filter((k) => k.startsWith(`ab-restore-desistiu:${t.testId}:title:`))
     expect(minhas).toHaveLength(1)
     expect(mensagens().some((m) => m.includes('falhou 3 vezes e parou'))).toBe(true)
   })
@@ -233,5 +234,85 @@ describe.skipIf(skipIfNoLocalDb())('P4b T4: a fase nova do vigia no banco real',
     expect(ids).toContain(a.testId)
     expect(ids).toContain(b.testId)
     expect(ids).not.toContain(c.testId)
+  })
+})
+
+describe.skipIf(skipIfNoLocalDb())('P4b T5: retryRestore e dismissRestore no banco real', () => {
+  const db = clienteServico()
+  const fanOut = vi.mocked(fanOutToSiteAdminsDetailed)
+  let yt: YouTubeFalso
+  let portas: Partial<PortasSaida>
+
+  async function semear(testType: 'title' | 'combo', status: string, restoreStatus: unknown | ((t: Semente) => unknown), seq = 1): Promise<Semente> {
+    const t = await semearTesteAb({ status: 'active', cicloAberto: null, testType })
+    await db.from('ab_test_variants').update({ title_text: 'Título A' }).eq('id', t.varA)
+    await db.from('ab_test_variants').update({ title_text: 'Título B' }).eq('id', t.varB)
+    const r = await db.from('ab_tests').update({ original_title: 'Título A', status, restore_seq: seq, restore_status: typeof restoreStatus === 'function' ? restoreStatus(t) : restoreStatus }).eq('id', t.testId)
+    if (r.error) throw new Error(`semear: ${r.error.message}`)
+    return t
+  }
+  const teste = async (t: Semente) => (await db.from('ab_tests').select('status, restore_seq, restore_status, winner_applied_at').eq('id', t.testId).single()).data!
+  const relogio = () => ({ agora: () => Date.now(), inicio: Date.now() })
+  const desistiuDe = (t: Semente) => fanOut.mock.calls.map((c) => c[0] as { dedupKey: string }).filter((a) => a.dedupKey.startsWith(`ab-restore-desistiu:${t.testId}:title`))
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    fanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
+    await db.from('ab_tests').update({ restore_status: {} }).or('restore_status->title->>estado.eq.falhou,restore_status->thumbnail->>estado.eq.falhou')
+    yt = new YouTubeFalso({ thumb: await imagemComDhash(H.A), titulo: 'Título B', blobs: {} })
+    portas = { supabase: db, fetch: yt.fetch, agora: () => new Date(), token: async () => 'tok', autoImportWinner: async () => {} }
+  })
+
+  it('dismiss: o CHECK aceita {} e o gatilho não grava linha nova em ab_test_restores', async () => {
+    const t = await semear('title', 'completed', { title: campo() })
+    const antes = (await db.from('ab_test_restores').select('seq').eq('test_id', t.testId)).data!.length
+    const r = await dispensarCampos(db, t.testId, t.siteId, ['title'], 1)
+    expect(r.resultado).toBe('feito')
+    expect(await teste(t)).toMatchObject({ restore_status: {}, restore_seq: 2 })
+    expect((await db.from('ab_test_restores').select('seq').eq('test_id', t.testId)).data!.length).toBe(antes)
+    const aud = (await db.from('audit_log').select('action, resource_id, after_data').eq('resource_id', t.testId).eq('action', 'ab_restore_dismissed')).data!
+    expect(aud).toHaveLength(1)
+    expect(aud[0]!.after_data).toMatchObject({ campos: ['title'], restore_seq: 1 })
+  })
+
+  it('dismiss com seq velho: mudou e nada muda', async () => {
+    const t = await semear('title', 'completed', { title: campo() }, 3)
+    expect((await dispensarCampos(db, t.testId, t.siteId, ['title'], 1)).resultado).toBe('mudou')
+    expect(await teste(t)).toMatchObject({ restore_seq: 3, restore_status: { title: { estado: 'falhou' } } })
+  })
+
+  it('retry de desistiu/tres_falhas com destino variante: reivindica com attempts 0, o YouTube aceita, ok e winner_applied_at gravado (P4b-I6)', async () => {
+    const t = await semear('title', 'completed', (x) => ({ title: campo({ estado: 'desistiu', motivo: 'tres_falhas', attempts: 3, destino: x.varB }) }), 4)
+    yt.titulo = 'Título A'
+    const r = await tentarAgora(db, t.testId, t.siteId, 4, portas)
+    expect(r.resultado).toBe('feito')
+    const depois = await teste(t)
+    expect(depois.restore_status).toMatchObject({ title: { estado: 'ok', attempts: 0 } })
+    expect(depois.winner_applied_at).not.toBeNull()
+    expect(yt.escritas()).toEqual(['videos.update'])
+  })
+
+  it('retry com seq velho: mudou, nenhuma escrita', async () => {
+    const t = await semear('title', 'completed', { title: campo() }, 4)
+    expect((await tentarAgora(db, t.testId, t.siteId, 2, portas)).resultado).toBe('mudou')
+    expect(yt.escritas()).toEqual([])
+  })
+
+  it('F7/Y-5: desistiu → retry → falhou → vigia 2x → desistiu: dois envios de "parou" no total', async () => {
+    const t = await semear('title', 'completed', { title: campo({ estado: 'desistiu', motivo: 'tres_falhas', attempts: 3 }) }, 4)
+    // 1º "parou": quem leva o campo a desistiu avisa (aqui, o aviso da corrente que acabou de parar)
+    const { avisarNovaTentativa } = await import('@/lib/youtube/ab-restore-avisos')
+    const lerRs = async () => (await teste(t)).restore_status as never
+    expect(await avisarNovaTentativa(db, { id: t.testId, site_id: t.siteId, name: 'T' }, await lerRs(), null)).toBe('enviado')
+    // Tentar agora: falha (attempts 1)
+    yt.recusar('videos.update', 403, 'forbidden')
+    expect((await tentarAgora(db, t.testId, t.siteId, 4, portas)).resultado).toBe('feito')
+    expect((await teste(t)).restore_status).toMatchObject({ title: { estado: 'falhou', attempts: 1 } })
+    // vigia 2x: falhou/2, depois desistiu/tres_falhas/3
+    await faseNovaTentativa(db, relogio(), yt.fetch)
+    await faseNovaTentativa(db, relogio(), yt.fetch)
+    expect((await teste(t)).restore_status).toMatchObject({ title: { estado: 'desistiu', motivo: 'tres_falhas', attempts: 3 } })
+    expect(desistiuDe(t)).toHaveLength(2)
+    expect(new Set(desistiuDe(t).map((a) => a.dedupKey)).size).toBe(2) // chaves do fan-out distintas: o índice único não engole o segundo
   })
 })

@@ -39,7 +39,7 @@ function ler<T>(r: { data: unknown; error: { message: string } | null }, context
 }
 
 /** Rótulo da variante que ficou no ar, só quando se sabe que a escrita não aconteceu (S3 do Phil). */
-async function rotuloNoAr(supabase: SupabaseClient, t: TesteLido, campos: RestoreStatus, tentados: CampoNome[]): Promise<string | null> {
+export async function rotuloNoAr(supabase: SupabaseClient, t: { id: string; site_id: string }, campos: RestoreStatus, tentados: CampoNome[]): Promise<string | null> {
   const quem = tentados.find((c) => campos[c]?.estado === 'falhou' || campos[c]?.estado === 'desistiu')
   if (!quem || campos[quem]?.escreveu !== false) return null
   const retrato = await lerRetratoPadrao(supabase, t.id, t.site_id)

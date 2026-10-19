@@ -510,7 +510,7 @@ describe('avisarRestauracao (P-4, Y-P3)', () => {
     expect(await avisarRestauracao(banco.supabase, teste(5), rs('desistiu', ['title'], 'novo_teste'))).toBe('repetido')
     expect(avisos.enviados()).toHaveLength(1)
     expect(avisos.enviados()[0]).toMatchObject({
-      dedupKey: 'ab-restore-desistiu:teste-1:title', priority: 3,
+      dedupKey: expect.stringMatching(/^ab-restore-desistiu:teste-1:title:/), priority: 3,
       message: 'Outro teste começou no vídeo do teste "Teste do Lab". O Lab não vai mais tentar restaurar o título.',
     })
   })

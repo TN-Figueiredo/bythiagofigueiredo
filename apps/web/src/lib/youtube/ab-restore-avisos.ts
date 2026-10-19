@@ -89,7 +89,10 @@ async function avisarDesistencias(supabase: SupabaseClient, teste: { id: string;
   }
   for (const [motivo, campos] of porMotivo) {
     const chaves = campos.map((campo) => `ab-restore-desistiu:${teste.id}:${campo}`)
-    await enviar(chaves, { priority: 3, title: 'A/B: o Lab parou de restaurar o vídeo', message: fraseDeDesistencia(teste.name, motivo, campos, noAr), campo: campos })
+    // dedup_key de notifications é único para sempre: a chave do fan-out leva o `em` da corrente que parou, senão o
+    // "parou" seguinte do mesmo campo (depois de "Tentar agora") sairia suprimido. Na mesma corrente o `em` não muda.
+    const dedupKey = `${chaves[0]}:${rs[campos[0]!]!.em}`
+    await enviar(chaves, { priority: 3, title: 'A/B: o Lab parou de restaurar o vídeo', message: fraseDeDesistencia(teste.name, motivo, campos, noAr), campo: campos, dedupKey })
   }
 }
 

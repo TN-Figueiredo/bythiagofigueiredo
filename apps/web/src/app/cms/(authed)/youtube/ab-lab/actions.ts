@@ -41,6 +41,9 @@ import {
   MSG_EM_ANDAMENTO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
+import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
+import { camposPendentes, paraRestoreStatus } from '@/lib/youtube/ab-restore'
+import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
 /** Guarda a maior cópia da original no Blob (P4a): url, dHash como o YouTube serve e dimensões. */
@@ -1097,6 +1100,60 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
 
 // ---------------------------------------------------------------------------
 // revertWinner — volta ao original (janela de 7 dias), por settleOnAir
+// ---------------------------------------------------------------------------
+// retryRestore / dismissRestore (P4b): "Tentar agora" e "Já corrigi no YouTube"
+// ---------------------------------------------------------------------------
+
+const CamposSchema = z.array(z.enum(['title', 'thumbnail'])).min(1).max(2)
+
+/**
+ * Permissão por destino: 'original' = a de encerrar (editora); variante = administrar o site. Devolve a recusa, ou null.
+ * Teste que não é do site ou sem campo pendente segue: o corpo responde `ja_encerrado`.
+ */
+async function recusaPorDestino(siteId: string, testId: string, campos: CampoNome[]): Promise<ResultadoAcaoSaida | null> {
+  const destino = await destinoDosCampos(getSupabaseServiceClient(), testId, siteId, campos)
+  if (destino === 'variante' && (await denyUnlessSiteAdmin(siteId, 'tentar de novo ou dispensar a restauração de uma variante'))) {
+    return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }
+  }
+  return null
+}
+
+export async function retryRestore(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return recusaDeSessao(e)
+  }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+
+  const supabase = getSupabaseServiceClient()
+  const { data } = await supabase.from('ab_tests').select('restore_status').eq('id', testId).eq('site_id', siteId).maybeSingle()
+  const pendentes = camposPendentes(paraRestoreStatus((data as { restore_status?: unknown } | null)?.restore_status), 'humano')
+  const recusa = await recusaPorDestino(siteId, testId, pendentes)
+  if (recusa) return recusa
+  return concluirSaida(tentarAgora(supabase, testId, siteId, seq.data))
+}
+
+export async function dismissRestore(testId: string, campos: CampoNome[], seqVisto: number): Promise<ResultadoAcaoSaida> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return recusaDeSessao(e)
+  }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  const lista = CamposSchema.safeParse(campos)
+  if (!seq.success || !lista.success || new Set(lista.data).size !== lista.data.length) {
+    return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  }
+  const recusa = await recusaPorDestino(siteId, testId, lista.data)
+  if (recusa) return recusa
+  return concluirSaida(dispensarCampos(getSupabaseServiceClient(), testId, siteId, lista.data, seq.data))
+}
+
+
 // ---------------------------------------------------------------------------
 
 export async function revertWinner(testId: string): Promise<ResultadoAcaoSaida> {
