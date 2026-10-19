@@ -78,6 +78,8 @@ export interface ObsChannel {
   undated: UndatedVideo[]
   /** `youtube_video_count` do concorrente (quantos vídeos o canal tem no YouTube). Ausente/null = não informado; o canal próprio não tem. */
   youtubeVideoCount?: number | null
+  /** `published_at` do canal no YouTube (ms). Ausente/null = não informado; o ritmo não encurta a janela por ele. */
+  createdMs?: number | null
   sync: ChannelSync; activity: { state: 'ativo' | 'parado'; pausedDays?: number }
   lastIdx: number | null; snapshots: ChannelSnapshot[]
   /** Derived by the engine (Task 17). */
