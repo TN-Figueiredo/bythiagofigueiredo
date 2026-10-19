@@ -88,6 +88,39 @@ describe('bloco Ritmo: dado ausente', () => {
   })
 })
 
+describe('bloco Ritmo: semanas antes da base (Yannis I-2)', () => {
+  const antes = (b: ReturnType<typeof blocoDeRitmo>) => b.raias.map(r => r.casas.map((c, i) => (c.estado === 'nao_lida' ? i : -1)).filter(i => i >= 0))
+  it('canal de 81 dias: a semana mais antiga não existia ("—", nunca zero); "X de 12" e o período em dias', () => {
+    const vs = [3, 10, 17, 24, 31, 38, 45, 52].map((d, i) => pub('n' + i, d))
+    const e = entrada(vs)
+    const m = e.medidas!
+    const criadoEmMs = AGORA - 81 * DIA
+    const e2: EntradaDoRitmo = { ...e, medidas: { ...m, baseDoRitmo: { criadoEmMs, coberturaDesdeMs: null }, porFormato: { ...m.porFormato, long: { ...m.porFormato.long, m6: ritmoReal(vs.map(v => baseDaIdade(v)!), { agoraMs: AGORA, criadoEmMs, coberturaDesdeMs: null }) } } } }
+    const b = blocoDeRitmo(e2)
+    expect(b.raias[0]!.casas[0]).toMatchObject({ estado: 'nao_lida', por: 'antes da criação do canal' })
+    expect(b.raias[0]!.casas[1]!.estado).not.toBe('nao_lida')
+    expect(antes(b)[0]).toEqual([0])
+    expect(b.semanasLidas).toBe(12)
+    expect(b.periodo).toBe('81 dias, desde a criação')
+    expect(b.cartoes.find(c => c.chave === 'semanas')!.valor).toMatchObject({ tipo: 'medido', texto: expect.stringMatching(/ de 12$/) })
+    expect(html(e2)).toContain('há 81 dias, desde a criação')
+  })
+  it('lista cortada: as semanas antes dos vídeos guardados são "—" com a causa certa', () => {
+    const vs = [3, 10, 17, 24, 31, 38].map((d, i) => pub('c' + i, d))
+    const e = entrada(vs)
+    const b = blocoDeRitmo({ ...e, medidas: { ...e.medidas!, baseDoRitmo: { criadoEmMs: null, coberturaDesdeMs: AGORA - 40 * DIA } } })
+    const c0 = b.raias[0]!.casas[0]!
+    expect(c0).toMatchObject({ estado: 'nao_lida', por: 'antes dos vídeos guardados' })
+    expect(antes(b)[0]!.length).toBeGreaterThanOrEqual(7)
+    expect(b.periodo).toBe('40 dias guardados')
+  })
+  it('sem corte (base cheia): 13 semanas, nenhuma casa fora da base', () => {
+    const b = blocoDeRitmo(entrada(seis))
+    expect(antes(b)[0]).toEqual([])
+    expect(b.periodo).toBe('13 semanas')
+  })
+})
+
 describe('bloco Ritmo: limite sempre inteiro na tela', () => {
   it('limite fracionário (48,000277…) sai "48", na régua e no aria-label, nunca o float cru', () => {
     const e = entrada(seis, { estado: ativo(48.000277777777775, 14) })
@@ -120,7 +153,7 @@ describe('bloco Ritmo: fronteiras e frases', () => {
     expect(b.raias[0]!.casas.find(c => c.estado === 'com')).toMatchObject({ n: 1 })
     const h = html(entrada(seis))
     expect(h).toContain('obs-ch-zero')
-    expect(h).toContain('aria-label="Publicações por semana, Longos, das 13 últimas semanas"')
+    expect(h).toContain('aria-label="Publicações por semana, Longos, 13 semanas"')
   })
   it('canal só de Shorts: a raia de cima é de Shorts, as frases dizem "um Short" e a de longos diz que não há', () => {
     const vs = [3, 10, 17, 24, 31].map((d, i) => pub('s' + i, d, { isShort: true, durationSeconds: 30 }))
@@ -128,11 +161,11 @@ describe('bloco Ritmo: fronteiras e frases', () => {
     expect(b.raias[0]!.rotulo).toBe('Shorts')
     expect(b.frase.negrito).toBe('Publica um Short a cada 7 dias.')
     expect(b.raias[1]).toMatchObject({ rotulo: 'Longos', ausente: true })
-    expect(html(entrada(vs))).toContain('nenhum vídeo longo nas 13 semanas')
+    expect(html(entrada(vs))).toContain('nenhum vídeo longo em 13 semanas')
   })
-  it('raia de Shorts toda zero vira uma linha só: "nenhum Short nas 13 semanas"', () => {
+  it('raia de Shorts toda zero vira uma linha só: "nenhum Short em 13 semanas"', () => {
     const h = html(entrada(seis))
-    expect(h).toContain('nenhum Short nas 13 semanas')
+    expect(h).toContain('nenhum Short em 13 semanas')
     expect(h).not.toContain('aria-label="Publicações por semana, Shorts')
   })
   it('a conta "4 × o intervalo" só aparece acima de 28; o rótulo leva "(longo ou Short)" com os dois formatos', () => {

@@ -27,16 +27,18 @@ const casa = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',')
  */
 export function notaDoRitmo(o: { corte: 'criacao' | 'cobertura' | null; dias: number | null; abaixoDoPiso: boolean; semanasDaRegra: number }): NotaDoRitmo | null {
   if (o.corte === null) return null
-  const d = o.dias == null ? null : Math.round(o.dias)
-  const sem = d == null ? null : casa(d / 7)
   const regra = o.semanasDaRegra * 7
+  const semPiso = PISO_RITMO_DIAS / 7
+  // Arredonda para a tela, mas nunca para a borda da própria regra: 27,6 d no piso não vira "28 dias, menos de 28", 90,7 d não vira "91, não 91".
+  const teto = o.abaixoDoPiso ? PISO_RITMO_DIAS - 1 : regra - 1
+  const d = o.dias == null ? null : Math.min(Math.round(o.dias), teto)
+  const sem = d == null ? null : casa(d / 7)
   if (o.abaixoDoPiso) {
-    const semPiso = PISO_RITMO_DIAS / 7
     const tem = o.corte === 'criacao'
       ? (d == null ? 'O canal tem menos de' : `O canal tem ${d} dias de vida, menos de`)
       : (d == null ? 'Os vídeos guardados cobrem menos de' : `Os vídeos guardados cobrem só ${d} dias, menos de`)
     return {
-      tipo: 'piso', corte: o.corte, sufixo: `canal com menos de ${semPiso} sem`, titulo: 'Ainda não dá para medir',
+      tipo: 'piso', corte: o.corte, sufixo: o.corte === 'criacao' ? `canal com menos de ${semPiso} sem` : `guardados cobrem menos de ${semPiso} sem`, titulo: 'Ainda não dá para medir',
       causa: `${tem} ${PISO_RITMO_DIAS} dias (${semPiso} semanas). Com uma base assim curta o ritmo oscila demais para valer como número, então mostramos "—". Os vídeos já aparecem no gráfico.`,
       frase: `Menos de ${semPiso} semanas de base${d == null ? '' : ` (${d} dias)`}: o ritmo ainda não é medido.`,
     }
@@ -45,8 +47,8 @@ export function notaDoRitmo(o: { corte: 'criacao' | 'cobertura' | null; dias: nu
   return {
     tipo: 'base', corte: o.corte, sufixo: `· sobre ${d} d`, titulo: `Ritmo sobre ${d} dias, não ${regra}`,
     causa: o.corte === 'criacao'
-      ? `O canal existe há ${d} dias. O ritmo é o número de vídeos longos dividido por essas ${sem} semanas. As semanas antes da criação não existiam e não entram na conta.`
-      : `Só os vídeos mais recentes deste canal estão guardados, e eles cobrem ${d} dias. O ritmo é o número de vídeos longos dividido por essas ${sem} semanas. Antes disso o canal pode ter publicado, mas não guardamos.`,
+      ? `O canal existe há ${d} dias. O ritmo é o número de vídeos publicados dividido por essas ${sem} semanas. As semanas antes da criação não existiam e não entram na conta.`
+      : `Só os vídeos mais recentes deste canal estão guardados, e eles cobrem ${d} dias. O ritmo é o número de vídeos publicados dividido por essas ${sem} semanas. Antes disso o canal pode ter publicado, mas não guardamos.`,
     frase: o.corte === 'criacao' ? `Contado sobre ${d} dias, desde a criação do canal.` : `Contado sobre ${d} dias: só os vídeos mais recentes foram guardados.`,
   }
 }

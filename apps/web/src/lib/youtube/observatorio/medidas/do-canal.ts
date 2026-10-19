@@ -90,6 +90,8 @@ export interface MedidasDoCanal {
   m3a: Medida<ValorDirecaoCanal>
   m8: M8DoCanal
   porVideo: Map<string, MedidasDoVideo>
+  /** A base do ritmo (criação do canal, cobertura da lista cortada): a mesma das M6, para o bloco desenhar as semanas fora dela. */
+  baseDoRitmo?: { criadoEmMs: number | null; coberturaDesdeMs: number | null }
   falhas: Array<{ medida: string; classe: string }>
 }
 
@@ -396,5 +398,5 @@ export function medidasDoCanal(i: Insumos, o: { agoraMs: number }): MedidasDoCan
     }
   }
 
-  return { porFormato: { long: longo(), short: porFormato('short') }, m3a, m8, porVideo, falhas: c.falhas }
+  return { porFormato: { long: longo(), short: porFormato('short') }, m3a, m8, porVideo, baseDoRitmo, falhas: c.falhas }
 }

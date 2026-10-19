@@ -2,6 +2,7 @@
 // A nota do ritmo na tela (mockup de 19/10): sufixo "· sobre N d" e ⓘ na lista, no cabeçalho do canal e no Comparar; a faixa "fora do
 // período" diferente do zero; "—" no canal novo; textos de 13 semanas ligados à base real. Dado sintético.
 import { describe, it, expect, beforeEach } from 'vitest'
+import { NotaRitmoReserva } from '@/app/cms/(authed)/youtube/competitors/_chrome/nota-ritmo'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { a3World } from './a3-fixture'
 import { buildCanaisView } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
@@ -124,6 +125,62 @@ describe('nota do ritmo: a lista', () => {
   })
 })
 
+describe('nota do ritmo: causa certa e bordas (Yannis I-1, M-1, M-2)', () => {
+  it('piso por cobertura: o sufixo diz "guardados cobrem", nunca "canal com"; por criação segue "canal com"', () => {
+    const cob = notaDoRitmo({ corte: 'cobertura', dias: 20, abaixoDoPiso: true, semanasDaRegra: 13 })!
+    expect(cob.sufixo).toBe('guardados cobrem menos de 4 sem')
+    expect(cob.sufixo).not.toContain('canal com')
+    expect(notaDoRitmo({ corte: 'criacao', dias: 20, abaixoDoPiso: true, semanasDaRegra: 13 })!.sufixo).toBe('canal com menos de 4 sem')
+  })
+  it('arredondamento nas bordas não contradiz a regra', () => {
+    expect(notaDoRitmo({ corte: 'criacao', dias: 27.6, abaixoDoPiso: true, semanasDaRegra: 13 })!.causa).toContain('27 dias de vida, menos de 28')
+    expect(notaDoRitmo({ corte: 'criacao', dias: 90.7, abaixoDoPiso: false, semanasDaRegra: 13 })!.titulo).toBe('Ritmo sobre 90 dias, não 91')
+  })
+  it('a causa não diz "longos": o número do Comparar soma os dois formatos', () => {
+    expect(notaDoRitmo({ corte: 'criacao', dias: 81, abaixoDoPiso: false, semanasDaRegra: 13 })!.causa).not.toContain('longos')
+    expect(notaDoRitmo({ corte: 'cobertura', dias: 81, abaixoDoPiso: false, semanasDaRegra: 13 })!.causa).not.toContain('longos')
+  })
+})
+
+describe('nota do ritmo: a caixa do ⓘ (Naksu N2, N3, N6; Yannis M-3, M-4)', () => {
+  const abrir = () => {
+    render(<CadenceView c={ok(nota81, SEMANAS)} />)
+    const b = screen.getByRole('button', { name: /Ritmo sobre 81 dias/ })
+    fireEvent.click(b)
+    expect(b.getAttribute('aria-expanded')).toBe('true')
+    return b
+  }
+  it('fecha ao rolar (inclusive rolagem interna, em captura)', () => {
+    const b = abrir()
+    fireEvent.scroll(window)
+    expect(b.getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('.obs-nr-p')!.hasAttribute('hidden')).toBe(true)
+  })
+  it('fecha ao redimensionar', () => {
+    const b = abrir()
+    fireEvent(window, new Event('resize'))
+    expect(b.getAttribute('aria-expanded')).toBe('false')
+  })
+  it('fecha com clique fora, mas não com clique dentro da caixa', () => {
+    const b = abrir()
+    fireEvent.pointerDown(document.querySelector('.obs-nr-p')!)
+    expect(b.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.pointerDown(document.body)
+    expect(b.getAttribute('aria-expanded')).toBe('false')
+  })
+  it('a reserva tem a largura do sufixo E a do ⓘ', () => {
+    const { container } = render(<NotaRitmoReserva />)
+    expect(container.querySelector('.obs-nr.ph .obs-nr-t')).not.toBeNull()
+    expect(container.querySelector('.obs-nr.ph .obs-nr-i')).not.toBeNull()
+    expect(container.querySelector('button')).toBeNull() // reserva não é foco
+  })
+  it('o hover do ⓘ não usa o mesmo fundo da linha em hover', () => {
+    const css = readFileSync('src/app/cms/(authed)/youtube/competitors/_chrome/nota-ritmo.css', 'utf8')
+    expect(css).not.toMatch(/\.obs-nr-i:hover\{[^}]*surface-hover/)
+    expect(css).toContain('margin:-10px -12px -10px -10px')
+  })
+})
+
 describe('nota do ritmo: o gráfico', () => {
   it('uma faixa tracejada para as semanas consecutivas fora do período, de forma diferente do zero', () => {
     const w = [FORA, FORA, { long: 0, short: 0 }, { long: 1, short: 0 }, ...Array.from({ length: 9 }, () => ({ long: 0, short: 0 }))] as Array<{ long: number | null; short: number | null }>
@@ -138,6 +195,16 @@ describe('nota do ritmo: o gráfico', () => {
     expect(zero.getAttribute('height')).toBe('2') // traço de 2 px
     expect(zero.getAttribute('stroke-dasharray')).toBeNull()
     expect(container.querySelector('svg')!.getAttribute('aria-label')).toContain('2 semanas fora do período')
+  })
+  it('a barra de Short não leva opacity (2,5:1 no tema claro) e o id da hachura não tem ":"', () => {
+    const w = [FORA, { long: 1, short: 2 }, ...Array.from({ length: 11 }, () => ({ long: 0, short: 0 }))] as Array<{ long: number | null; short: number | null }>
+    const { container } = render(<Strip cell={ok(nota81, w)} />)
+    const curta = container.querySelector('rect[fill="var(--strip-short)"]')!
+    expect(curta).not.toBeNull()
+    expect(curta.hasAttribute('opacity')).toBe(false)
+    const id = container.querySelector('pattern')!.getAttribute('id')!
+    expect(id).toMatch(/^[A-Za-z][\w-]*$/)
+    expect(container.querySelector('rect[data-fora]')!.getAttribute('fill')).toBe(`url(#${id})`)
   })
   it('sem semana fora do período não há faixa nem definição de hachura', () => {
     const { container } = render(<Strip cell={ok(null, SEMANAS.map(s => (s.long === null ? { long: 0, short: 0 } : s)))} />)
