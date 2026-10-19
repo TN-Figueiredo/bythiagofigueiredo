@@ -66,6 +66,8 @@ describe('os empacotadores só importam valor de módulos sem "use client"', () 
     '../_historico/medidas/formatos', '../_chrome/medidas/estourou-model', '@/lib/youtube/observatorio/medidas-telas/texto-m10',
     // E5a: menções trocadas por marcador, módulo puro (sem server-only) separado do leitor-nivel por causa do portão do Phil I-1
     '@/lib/youtube/observatorio/comentarios/leitor-mencao',
+    // A5 F2: frase fixa do canal agendado para guardar, módulo puro que a tela também usa
+    '../_canais/remover-model',
   ])
   const empacotadores = arquivos(join(C, '_contexto-ia'), /^empacotar-.*\.ts$/)
   it('há treze empacotadores', () => { expect(empacotadores).toHaveLength(13) })
