@@ -227,3 +227,25 @@ describe('bloco Ritmo: semana fora do período (Gio D7)', () => {
     expect(html.match(/pc-cs nm/g)?.length).toBe(1)
   })
 })
+
+describe('bloco Ritmo: frase e legenda do fora do período (D7b)', () => {
+  const vs = [3, 10, 17, 24, 31, 38].map((d, i) => pub('f' + i, d))
+  const com = (b: { criadoEmMs: number | null; coberturaDesdeMs: number | null }) => { const e = entrada(vs); return { ...e, medidas: { ...e.medidas!, baseDoRitmo: b } } }
+  it('sem semana fora: nenhuma frase nem legenda', () => {
+    const e = entrada(seis)
+    expect(blocoDeRitmo(e).foraDoPeriodo).toBeNull()
+    expect(html(e)).not.toContain('data-fora-do-periodo')
+    expect(html(e)).not.toContain('data-legenda-fora')
+  })
+  it('1 semana fora, canal novo: singular e "o canal ainda não existia"', () => {
+    const e = com({ criadoEmMs: AGORA - 81 * DIA, coberturaDesdeMs: null })
+    expect(blocoDeRitmo(e).foraDoPeriodo).toBe('A semana mais antiga está fora do período: o canal ainda não existia. Não é semana sem vídeo.')
+    const h = html(e)
+    expect(h).toContain('data-fora-do-periodo')
+    expect(h).toContain('data-legenda-fora')
+  })
+  it('N semanas fora, lista cortada: plural e "os vídeos guardados não chegam até lá"', () => {
+    const f = blocoDeRitmo(com({ criadoEmMs: null, coberturaDesdeMs: AGORA - 40 * DIA })).foraDoPeriodo!
+    expect(f).toMatch(/^\d+ semanas mais antigas estão fora do período: os vídeos guardados não chegam até lá\. Não é semana sem vídeo\.$/)
+  })
+})
