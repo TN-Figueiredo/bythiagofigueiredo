@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { releaseAlert } from '@/lib/ops/alert-state'
 import { camposPendentes, paraRestoreStatus, podeDispensar } from '@/lib/youtube/ab-restore'
@@ -77,8 +78,8 @@ export async function tentarAgora(supabase: SupabaseClient, testId: string, site
   }
   if (res.resultado === 'feito' && antes) {
     const tentados = camposPendentes(rsAntes, 'humano')
-    const noAr = await rotuloNoAr(supabase, { id: antes.id, site_id: antes.site_id }, res.campos, tentados).catch(() => null)
-    await avisarNovaTentativa(supabase, { id: antes.id, site_id: antes.site_id, name: antes.name }, res.campos, noAr).catch(() => undefined)
+    const noAr = await rotuloNoAr(supabase, { id: antes.id, site_id: antes.site_id }, res.campos, tentados).catch((e: unknown) => { Sentry.captureException(e, { tags: { area: 'ab-restore-acoes' } }); return null })
+    await avisarNovaTentativa(supabase, { id: antes.id, site_id: antes.site_id, name: antes.name }, res.campos, noAr).catch((e: unknown) => { Sentry.captureException(e, { tags: { area: 'ab-restore-acoes' } }); return undefined })
   }
   return res
 }

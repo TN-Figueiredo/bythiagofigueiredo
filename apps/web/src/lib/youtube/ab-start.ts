@@ -74,11 +74,16 @@ async function reivindicarRestoreStatus(supabase: SupabaseClient, testId: string
 async function resolverPendenciasDoVideo(
   supabase: SupabaseClient, siteId: string, testId: string, internalVideoId: string, agora: Date,
 ): Promise<'segue' | 'em_andamento'> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('ab_tests')
     .select('id, site_id, name, restore_seq, restore_status')
     .eq('site_id', siteId)
     .eq('youtube_video_id', internalVideoId)
+  if (error) {
+    // Y-A7: sem ler os outros testes não há como saber se há escrita em voo (Y-2): recusa, não segue.
+    Sentry.captureException(new Error(`ab-start: leitura dos testes do vídeo: ${error.message}`), { tags: { area: 'ab-start' }, extra: { testId } })
+    return 'em_andamento'
+  }
   type Outro = { id: string; site_id: string; name: string | null; restore_seq: number; restore_status: unknown }
   const outros = ((data ?? []) as Outro[]).filter((o) => o.id !== testId)
   // Y-2 (P4b): escrita de outro teste do vídeo em voo (em_andamento há menos de INTERROMPIDO_MIN) = recusa ANTES de

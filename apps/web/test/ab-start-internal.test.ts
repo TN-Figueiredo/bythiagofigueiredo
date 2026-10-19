@@ -300,6 +300,29 @@ describe('startAbTestInternal: testes anteriores do mesmo vídeo (Y-5)', () => {
     expect(yt.escritas()).toEqual([])
     expect(banco.ciclos()).toHaveLength(0)
   })
+  it('Y-A7: a leitura dos outros testes do vídeo falha -> start recusa (não falha aberto), nada escrito', async () => {
+    const { banco, yt, iniciar } = await montar()
+    const from = banco.supabase.from.bind(banco.supabase)
+    ;(banco.supabase as unknown as { from: unknown }).from = (tabela: string) => {
+      const base = from(tabela as never) as unknown as { select: (c?: string) => unknown }
+      if (tabela !== 'ab_tests') return base
+      return new Proxy(base, { get(alvo, prop, recv) {
+        if (prop !== 'select') return Reflect.get(alvo, prop, recv)
+        return (cols?: string) => {
+          if (cols !== 'id, site_id, name, restore_seq, restore_status') return alvo.select(cols)
+          const q: Record<string, unknown> = {}
+          q.eq = () => q
+          q.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message: 'banco caiu' } }).then(ok)
+          return q
+        }
+      } })
+    }
+    const r = await iniciar()
+    expect(r).toEqual({ ok: false, error: MSG_EM_ANDAMENTO })
+    expect(banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
+    expect(yt.escritas()).toEqual([])
+    expect(Sentry.captureException).toHaveBeenCalled()
+  })
   it('P4b: ab-start converte o interrompido com a conta de tentativas (attempts 2 -> desistiu/tres_falhas, depois novo_teste não sobrescreve o motivo)', async () => {
     const t1 = T1({ restore_status: { thumbnail: campo({ estado: 'em_andamento', em: antes(16 * MINUTO), attempts: 2, escreveu: null }) } })
     const { banco, iniciar } = await montar({ extras: [t1] })

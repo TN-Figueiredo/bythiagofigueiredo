@@ -25,6 +25,9 @@ const teste = { id: 't1', site_id: 's1', name: 'Teste' }
 const parou = (em: string): RestoreStatus => ({ thumbnail: { estado: 'desistiu', destino: 'original', em, forcado: false, escreveu: false, erro: null, attempts: 3, motivo: 'tres_falhas' } })
 const chave = 'ab-restore-desistiu:t1:thumbnail'
 
+const falhouRs = (): RestoreStatus => ({ title: { estado: 'falhou', destino: 'original', em: '2026-10-19T10:00:00.000Z', forcado: false, escreveu: false, erro: null, attempts: 1 } })
+const okRs = (): RestoreStatus => ({ title: { estado: 'ok', destino: 'original', em: '2026-10-19T10:05:00.000Z', forcado: false, escreveu: true, erro: null, attempts: 0 } })
+
 beforeEach(() => { gastas.clear(); chaves.clear(); fanOut.mockClear() })
 
 describe('aviso de desistiu em correntes seguidas (herança da T4)', () => {
@@ -42,5 +45,19 @@ describe('aviso de desistiu em correntes seguidas (herança da T4)', () => {
   it('sem a liberação, o replay da mesma corrente segue mudo mesmo com a chave do fan-out nova', async () => {
     await avisarNovaTentativa(sb, teste, parou('2026-10-19T10:00:00.000Z'), null)
     expect(await avisarNovaTentativa(sb, teste, parou('2026-10-19T10:00:00.000Z'), null)).toBe('repetido')
+  })
+})
+
+describe('aviso diário de falhou (P-5)', () => {
+  it('ok libera a chave e um falhou novo na MESMA hora UTC ainda avisa (o dedupKey é por envio, não por hora)', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-10-19T10:01:00.000Z'))
+      expect(await avisarNovaTentativa(sb, teste, falhouRs(), null)).toBe('enviado')
+      vi.setSystemTime(new Date('2026-10-19T10:20:00.000Z'))
+      await avisarNovaTentativa(sb, teste, okRs(), null) // sem falhou: libera ab-restore:t1
+      vi.setSystemTime(new Date('2026-10-19T10:40:00.000Z'))
+      expect(await avisarNovaTentativa(sb, teste, falhouRs(), null)).toBe('enviado')
+    } finally { vi.useRealTimers() }
   })
 })

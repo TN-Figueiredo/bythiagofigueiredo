@@ -52,7 +52,7 @@ describe('faseNovaTentativa', () => {
   it('relógio falso: 6 testes, limite 4, cada tentativa anda 8 s: tentadas 4 (0 s), adiados 2 (depois de 16 s)', async () => {
     const extras = Array.from({ length: 5 }, (_, i) => ({ id: `t${i + 2}`, status: 'completed', youtube_video_id: `v${i + 2}`, restore_status: falhou() }))
     const { sb, relogio, avancar } = montar(falhou(), { extras })
-    const tentar = vi.fn<Tentar>(async () => { await Promise.resolve(); avancar(8_000); return { resultado: 'em_andamento', campos: null } })
+    const tentar = vi.fn<Tentar>(async () => { await Promise.resolve(); avancar(8_000); return { resultado: 'feito', campos: falhou() } })
     const r = await faseNovaTentativa(sb, relogio, undefined, 4, { tentar })
     expect(r).toMatchObject({ tentadas: 4, adiados: 2 })
     expect(tentar).toHaveBeenCalledTimes(4)
@@ -65,6 +65,17 @@ describe('faseNovaTentativa', () => {
     expect(tentar).toHaveBeenCalledTimes(1)
     expect(tentar.mock.calls[0]![1]).toMatchObject({ origem: 'vigia', prazo: INICIO + 55_000, seqEsperado: 0, siteId: 'site-1' })
     expect(r).toMatchObject({ tentadas: 1, falharam: 1, ok: 0 })
+  })
+
+  it('Y-A8: em_andamento, mudou e ja_encerrado (outro escritor) não contam como tentada', async () => {
+    for (const resultado of ['em_andamento', 'mudou', 'ja_encerrado'] as const) {
+      const { sb, relogio } = montar(falhou())
+      const tentar = vi.fn<Tentar>(async () => ({ resultado, campos: null }))
+      const r = await faseNovaTentativa(sb, relogio, undefined, 4, { tentar })
+      expect(tentar).toHaveBeenCalledTimes(1)
+      expect(r.tentadas).toBe(0)
+      expect(r.ok + r.falharam + r.desistiram + r.pulados + r.falhas).toBe(0)
+    }
   })
 
   it('outro teste active no mesmo vídeo: ignorados 1, tentar não é chamado (P4b-I10)', async () => {

@@ -89,13 +89,15 @@ export async function faseNovaTentativa(
   }
 
   const tentarUm = async ({ t, pend }: { t: TesteLido; pend: CampoNome[] }): Promise<void> => {
-    r.tentadas++
+    let contou = false
+    const contar = (): void => { if (!contou) { contou = true; r.tentadas++ } }
     try {
       const res = await tentar(t.id, {
         siteId: t.site_id, origem: 'vigia', prazo: relogio.inicio + PRAZO_DA_ROTA_MS, seqEsperado: t.restore_seq,
       }, { supabase, fetch: f })
       if (res.resultado === 'outro_teste') { r.ignorados.outro_teste++; return }
       if (res.resultado === 'destino_invalido') {
+        contar()
         r.falhas++
         const rs = paraRestoreStatus(t.restore_status)!
         const desistidos: RestoreStatus = {}
@@ -105,7 +107,8 @@ export async function faseNovaTentativa(
         if (aviso === 'falha_de_envio') r.falhas++
         return
       }
-      if (res.resultado !== 'feito') return // em_andamento, ja_encerrado, mudou: outro escritor é o dono, sem contador
+      if (res.resultado !== 'feito') return // em_andamento, ja_encerrado, mudou: outro escritor é o dono; não conta como tentada (Y-A8)
+      contar()
       const campos = res.campos
       const tentados = pend.filter((c) => campos[c])
       const estados = tentados.map((c) => campos[c]!.estado)
@@ -120,6 +123,7 @@ export async function faseNovaTentativa(
       if (aviso === 'sem_destinatario') r.semDestinatario++
       if (aviso === 'falha_de_envio') r.falhas++
     } catch (e) {
+      contar()
       r.falhas++
       Sentry.captureException(e, { tags: { area: 'ab-watchdog', fase: 'nova-tentativa' }, extra: { testId: t.id } })
     }

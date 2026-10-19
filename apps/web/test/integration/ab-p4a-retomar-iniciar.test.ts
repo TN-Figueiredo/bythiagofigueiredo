@@ -184,5 +184,5 @@ describe.skipIf(skipIfNoLocalDb())('P4a T10 r1: retomar e iniciar no banco real'
     expect(r).toEqual({ ok: false, error: 'Outra tentativa está em andamento. Tente de novo em instantes.' })
     expect(await teste(t2)).toMatchObject({ status: 'draft', restore_seq: 0 })
     expect(yt.escritas()).toHaveLength(1)
-  })
+  }, 20_000) // ~25 idas ao banco (duas sementes, novaTentativa e start): com os outros arquivos de integração em paralelo passa dos 5 s padrão
 })

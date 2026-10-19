@@ -133,7 +133,7 @@ export async function avisarNovaTentativa(
       // dedup_key de notifications é único para sempre: o aviso repetido precisa de chave própria por envio.
       await enviar([chave], {
         priority: 1, title: 'A/B: o vídeo não voltou ao combinado', message: fraseDeFalha(teste.name, campo, rs[campo]!), campo: [campo],
-        dedupKey: `${chave}:${new Date().toISOString().slice(0, 13)}`,
+        dedupKey: `${chave}:${new Date().toISOString()}`, // P-5: único por envio; o freio é o claimAlert de 20 h
       })
     }
   } else {

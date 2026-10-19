@@ -366,6 +366,8 @@ async function restaurarCampos(
     const vencida = vigia.cotaVencida(c)
     // Erro de cota (ainda dentro da janela): só o erro muda; em, forcado e attempts ficam (F5 do Phil).
     if (erroDeCota(erro) && !vencida) return { ...campo, em: ant.em, forcado: ant.forcado, attempts: ant.attempts }
+    // Y-A4: sem tempo para tentar não é tentativa: nada foi pedido ao YouTube, então não gasta uma das 3.
+    if (erro !== null && typeof erro === 'object' && 'motivo' in erro && erro.motivo === 'tempo_esgotado') return { ...campo, em: ant.em, forcado: ant.forcado, attempts: ant.attempts }
     const prox = proximoDoVigia(ant.attempts, erro, vencida)
     return { ...campo, estado: prox.estado, attempts: prox.attempts, ...(prox.motivo ? { motivo: prox.motivo } : {}) }
   }
@@ -577,12 +579,13 @@ export interface OpcoesNovaTentativa {
 const ABERTOS_NO_VIDEO = ['draft', 'queued', 'active', 'paused']
 
 /** Destino que nenhuma tentativa conseguiria cumprir: o vigia dá o campo por encerrado (F4), uma vez, guardado por restore_seq. */
-async function desistirPorDestino(portas: PortasSaida, r: Retrato, rs: RestoreStatus, pend: CampoNome[]): Promise<void> {
+async function desistirPorDestino(portas: PortasSaida, r: Retrato, rs: RestoreStatus, pend: CampoNome[]): Promise<boolean> {
   const novo: RestoreStatus = { ...rs }
   for (const c of pend) novo[c] = { ...rs[c]!, estado: 'desistiu', motivo: 'destino_invalido' }
-  const { error } = await portas.supabase.from('ab_tests')
+  const { data, error } = await portas.supabase.from('ab_tests')
     .update({ restore_seq: r.restore_seq + 1, restore_status: novo }).eq('id', r.id).eq('restore_seq', r.restore_seq).select('id')
   if (error) throw new Error(`ab-settle: destino inválido do teste ${r.id}: ${error.message}`)
+  return ((data ?? []) as unknown[]).length > 0 // false = perdeu o CAS: outro escritor é o dono, nada foi desistido
 }
 
 export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: Partial<PortasSaida> = {}): Promise<ResultadoSaida> {
@@ -606,13 +609,13 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
   const alvos = new Set(pend.map((c) => rs0[c]!.destino))
   if (alvos.size !== 1) {
     Sentry.captureMessage('ab-nova-tentativa: destinos divergentes', { extra: { testId } })
-    if (op.origem === 'vigia') await desistirPorDestino(portas, r, rs0, pend)
+    if (op.origem === 'vigia' && !(await desistirPorDestino(portas, r, rs0, pend))) return { resultado: 'em_andamento', campos: null }
     return { resultado: 'destino_invalido', campos: null }
   }
   const alvo = [...alvos][0]!
   const destino = destinoNormalizado(alvo === 'original' ? { tipo: 'original' } : { tipo: 'variante', id: alvo }, r.variantes)
   if (destino === null) {
-    if (op.origem === 'vigia') await desistirPorDestino(portas, r, rs0, pend)
+    if (op.origem === 'vigia' && !(await desistirPorDestino(portas, r, rs0, pend))) return { resultado: 'em_andamento', campos: null }
     return { resultado: 'destino_invalido', campos: null }
   }
 

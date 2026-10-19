@@ -777,6 +777,21 @@ describe('novaTentativa', () => {
     expect(c.banco.teste().restore_seq).toBe(1)
     expect((await novaTentativa(c.banco.testId, VIGIA, c.portas)).resultado).toBe('ja_encerrado') // uma vez só
   })
+  it('Y-A7: destino_invalido pelo vigia, mas outro escritor mudou o restore_seq -> em_andamento, campo intacto (perdeu o CAS)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', anterior: { title: falhou({ destino: 'Z' }) } })
+    const velho = await c.banco.retratoAntigo()
+    c.banco.incrementarSeq() // o banco já está um restore_seq à frente do retrato lido
+    const r = await novaTentativa(c.banco.testId, VIGIA, { ...c.portas, lerRetrato: async () => velho })
+    expect(r.resultado).toBe('em_andamento')
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou' })
+  })
+  it('Y-A4: vigia sem tempo para escrever (tempo_esgotado) não gasta tentativa: falhou com o attempts, o em e o forcado de antes; sem chamada de escrita', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou({ attempts: 2 }) } })
+    const antes = structuredClone(c.banco.teste().restore_status.title!)
+    await novaTentativa(c.banco.testId, { ...VIGIA, prazo: T0 + 1_000 }, c.portas)
+    expect(c.yt.escritas()).toEqual([])
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', attempts: 2, em: antes.em, forcado: antes.forcado, erro: { motivo: 'tempo_esgotado' } })
+  })
   it('active → ja_encerrado; sem pendente → ja_encerrado', async () => {
     const a = await preparar({ status: 'active', testType: 'title', anterior: { title: falhou() } })
     expect((await novaTentativa(a.banco.testId, VIGIA, a.portas)).resultado).toBe('ja_encerrado')
