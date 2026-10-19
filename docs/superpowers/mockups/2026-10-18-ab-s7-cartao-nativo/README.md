@@ -33,3 +33,12 @@ Chave nova no topo: "Antes do sem leitura" (era provável / nunca houve sinal), 
 - S7-4/A8 (foco): o mockup restaura o foco após render e Esc fecha o ⓘ. Na tela real, atualizar estado sem remontar o cartão.
 - ⓘ ancorado ao cartão (30 px de folga nos dois lados a 390). S7-7: "Liberado" agora é selo verde com ✓. S7-6: bordas dos botões e do ⓘ em --btn-line (>= 3:1 contra a superfície).
 Medido em Playwright (1500 px, 390 px): sem rolagem horizontal, sem erro de console nos 5 estados.
+
+## Rodada 3 (18/10/2026, espaçamento)
+Causa raiz: o reset `.frame h2,.frame h3,.frame p{margin:0}` (especificidade 0,1,1) anulava as margens de `.sum`, `.hint`, `.cap`, `.gline`. Agora é `:where(.frame) :is(h2,h3,p){margin:0}` e os `style="margin-top"` inline saíram do script.
+- Escala única 4/8/12/16/24/32: nota/dica a 8 do que explica; dentro do grupo 12; entre grupos 16; entre seções 24 (cabeçalho -> frase-resumo). Valores 6/7/9/10/13/14/18 trocados pelo degrau mais próximo. Padding do cartão 16 (390) e 24 (>=641).
+- 390 px: botões em coluna, largura total, gap 8; `.far` com `flex-basis:auto` e 16 acima (8 de gap + 16 = 24 do primário). Pílula Pausado/Liberado em linha própria a 390 (`margin-right:8` no desktop); `.lnk` como flex com 4 acima, sem inflar o parágrafo.
+- Logan: dica do estado 1 sem "O Lab já está parado." (repetia o resumo); dica a 8 dos botões, guarda a 16; estado 5, dois `.meta` seguidos a 8.
+- Divergências: gap dos botões empilhados a 390, Naksu 12 e Logan 8; vale 8 (brief), compensado pelos 16 do `.far`. Px segue a Naksu; agrupamento e texto, o Logan.
+- Medido em Playwright (1440 e 390, escuro e claro, 5 estados + 2 variantes do 5): sem rolagem horizontal, 0 erros de console, folgas entre irmãos só em 4/8/12/16/24/32 (exceções esperadas: linhas da tabela da guarda coladas por borda de 1 px e botões lado a lado no desktop). Capturas: `r3-shots/final_*.png`.
+- Pendente: o S9 (`ab-detalhe-teste-youtube/index.html`, linha 43) tem o mesmo reset; não mexido.
