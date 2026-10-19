@@ -17,10 +17,10 @@ function Voce({ r, view }: { r: CanaisRow; view: CanaisView }) {
 function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }) {
   const c = r.cells, todos = view.fmt === 'todos'
   return (
-    <article role="listitem" className={'card ' + (r.own ? 'you' : '')} data-id={r.id} tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}>
+    <article role="listitem" className={'card ' + (r.own ? 'you' : '') + (r.agendado ? ' agd' : '')} data-id={r.id} tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}>
       {r.numero ? <span className="cp num" data-testid="canais-p">{r.numero.pos}º{r.numero.empate ? ' · empate' : ''}</span>
         : <span className="cp num" data-testid="canais-p"><span className="sr">sem posição</span></span>}
-      <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
+      <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} agendado={{ ocupado: h.desfazendo(r.id), onDesfazer: () => h.desfazer(r.id), onCopiar: () => h.copiarPedido(r.id) }} />
       <Voce r={r} view={view} />
       <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><div className="obs-cn-dirv"><DirecaoValor r={r} cartao /></div></div></div>
       <div><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} dica={r.dicas.cadence} dica2={r.dicas.cadence2} /></div>

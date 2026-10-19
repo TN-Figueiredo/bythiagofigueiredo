@@ -36,9 +36,10 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) 
 vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-site', () => ({ carregarMedidasDoSite: async () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/chrome-server', () => ({ ObservatoryChromeServer: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
-  addChannelFromCanais: vi.fn(), removeCompetitorChannel: vi.fn(), syncCompetitorNow: vi.fn(), unlockMoreChannels: vi.fn(),
+  addChannelFromCanais: vi.fn(), pedirRemocaoCanal: vi.fn(), desfazerRemocaoCanal: vi.fn(), apagarCanalSemGuardarAction: vi.fn(), syncCompetitorNow: vi.fn(), unlockMoreChannels: vi.fn(),
   pinVideo: vi.fn(), unpinVideo: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
 }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_canais/meu-email', () => ({ meuEmailDoSite: async () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn(), setOwnChannelNiche: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/forja-actions', () => ({ askForjaReading: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/carregar-extras', () => ({ carregarExtrasProprio: async () => undefined }))
@@ -166,7 +167,7 @@ describe('R5: a página', () => {
 const ok = async () => ({ ok: true })
 function mount(ri: RiView | undefined, props: Partial<CanaisScreenProps> = {}) {
   const view = buildCanaisView(obsCheio, { niche: 'todos', limit: 75, fmt: 'longos' })
-  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={view} ri={ri} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
+  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={view} ri={ri} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 const riDe = () => buildRiView(obsCheio, { agoraMs: obsCheio.NOW, niche: 'todos', fmt: 'long', meuCanalLembrado: null, retratosProprios: new Map() }).view
 

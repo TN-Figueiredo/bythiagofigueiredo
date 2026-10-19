@@ -44,7 +44,7 @@ const viewDe = (obs: Observatory = w.obs): CanaisView => buildCanaisView(obs, { 
 const linhas = (v: CanaisView) => [...v.list.ranked, ...v.list.unranked]
 const montar = () => render(
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs="">
-    <CanaisScreen view={viewDe()} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
+    <CanaisScreen view={viewDe()} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
   </div></ChromeSyncContext.Provider></ToastProvider>,
 )
 const tr = (c: HTMLElement, id: string) => c.querySelector<HTMLElement>(`tbody tr.row[data-id="${id}"]`)!

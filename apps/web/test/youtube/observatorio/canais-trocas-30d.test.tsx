@@ -32,7 +32,7 @@ const byId = (v: CanaisView, id: string) => all(v).find(r => r.id === id)!
 const ok = async () => ({ ok: true })
 const mount = (v: CanaisView) => render(
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div>
-    <CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
+    <CanaisScreen view={v} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
   </div></ChromeSyncContext.Provider></ToastProvider>,
 )
 afterEach(() => { document.getElementById('flut')?.remove() })

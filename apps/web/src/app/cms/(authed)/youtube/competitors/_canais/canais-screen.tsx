@@ -17,7 +17,9 @@ import type { pedirRemocaoCanal, apagarCanalSemGuardarAction, desfazerRemocaoCan
 import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView, type DirecaoFiltro } from './view-model'
 import { FMT_LEMBRADO, FMT_PADRAO, anuncioFmt, parseCanaisFmt, type CanaisFmt } from './formato'
 import { useToast } from '../_chrome/toasts'
-import { TXT, toastApagadoCorpo } from './remover-model'
+import { TXT, pedidoAoAgente, toastApagadoCorpo } from './remover-model'
+import { useDesfazer } from './use-desfazer'
+import { lerRemovido } from './removido-flag'
 import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
 import { ChannelCards } from './channel-cards'
@@ -49,6 +51,8 @@ export interface CanaisScreenProps {
   onPedir: typeof pedirRemocaoCanal
   onApagar: typeof apagarCanalSemGuardarAction
   onDesfazer: typeof desfazerRemocaoCanal
+  /** O e-mail de quem usa a tela, para o texto do pedido ao agente (D8); null = o texto pede para completar. */
+  meuEmail?: string | null
   onUnlock: () => Promise<{ ok: boolean; error?: string }>
   onSetNiche: (id: string, niche: Niche) => Promise<{ ok: boolean }>
   /** Niche of an own channel (server action setOwnChannelNiche): another table, so another action. */
@@ -130,7 +134,7 @@ function BarraDeOrdem({ sort, dir, onSort }: { sort: CanaisSort; dir: 'asc' | 'd
   )
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false, ri }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, meuEmail = null, somenteLeitura = false, ri }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -299,16 +303,45 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   }
   const askRemove = (id: string, from: HTMLElement | null) => {
     const r = rowOf(id) ?? (panel?.id === id ? { name: panel.name } : null); if (!r) return
+    if (rowOf(id)?.agendado) return // já agendado: o Desfazer vem antes (D6)
     returnFocus.current = from ?? document.activeElement as HTMLElement | null
     setMenu(null); setConfirm({ id, name: r.name })
   }
-  // transitório até a Tarefa 8: o toast com Desfazer e o foco chegam com a lista
-  void onDesfazer
+  const { desfazer, ocupados: desfazendoIds } = useDesfazer(onDesfazer as never, () => router.refresh())
+  const copiarPedido = async (r: { name: string }) => {
+    const texto = pedidoAoAgente(r.name, meuEmail)
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('sem área de transferência')
+      await navigator.clipboard.writeText(texto)
+      toast('ok', TXT.pedidoCopiadoTitulo, TXT.pedidoCopiadoCorpo)
+    } catch {
+      toast('warn', 'Não deu para copiar', 'O navegador bloqueou a área de transferência. Selecione o texto abaixo e copie com ⌘C.', { selectable: texto })
+    }
+  }
+  /** U5: depois de fechar a janela o foco vai ao título da página (o botão que a abriu deixou de existir ou mudou de lugar). */
+  const [focoTitulo, setFocoTitulo] = useState(0)
+  /** O pedido veio da gaveta: o foco volta ao título da gaveta (que passa a mostrar o aviso), não ao da página. */
+  const focoGaveta = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focoTitulo) return
+    const g = focoGaveta.current && document.getElementById(`cn-d-${focoGaveta.current}`)
+    focoGaveta.current = null
+    if (g) { g.focus({ preventScroll: true }); return }
+    const raiz = telaRef.current
+    const titulo = [...(raiz?.closest('[data-obs]') ?? document).querySelectorAll<HTMLElement>('h1, h2')].find(x => !raiz?.contains(x)) ?? raiz
+    if (titulo) { if (!titulo.hasAttribute('tabindex')) titulo.setAttribute('tabindex', '-1'); titulo.focus({ preventScroll: true }) }
+  }, [focoTitulo])
+  // D13: o canal apagado na página do canal chega aqui pelo estado do navegador (não pela URL); o toast sai uma vez
+  useEffect(() => {
+    const d = lerRemovido()
+    if (d) toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(d.nome, { videos: d.videos, ...(d.registros !== undefined ? { registros: d.registros } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const concluir = (d: Desfecho) => {
     if (!confirm) return
     const { id, name } = confirm
-    setConfirm(null)
-    if (d.caminho === 'guardar') toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo)
+    focoGaveta.current = d.caminho === 'guardar' && panel?.id === id && returnFocus.current?.closest('.cn-drawer') ? id : null
+    setConfirm(null); setFocoTitulo(n => n + 1)
+    if (d.caminho === 'guardar') toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo, { acoes: [{ rotulo: 'Desfazer', onClick: () => { void desfazer(id, name) } }] })
     else {
       toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(name, { videos: d.videos, ...(d.registrosDiarios !== undefined ? { registros: d.registrosDiarios } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
       if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
@@ -406,6 +439,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
     somenteLeitura,
     open: openRow, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
     menu: id => { if (menu === id) closeMenu(true); else setMenu(id) },
+    desfazer: id => { const r = rowOf(id); if (r) void desfazer(id, r.name) }, copiarPedido: id => { const r = rowOf(id); if (r) void copiarPedido(r) }, desfazendo: id => desfazendoIds.has(id),
     retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu, selected: panel?.id ?? null,
     irAte, reg: (id, el) => { if (el) linhasRef.current.set(id, el); else linhasRef.current.delete(id) },
   }

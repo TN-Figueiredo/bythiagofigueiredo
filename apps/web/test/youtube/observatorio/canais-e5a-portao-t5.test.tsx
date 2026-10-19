@@ -33,7 +33,7 @@ const concorrentes = obs.channels.filter(c => !c.own).map(c => c.id)
 const rowsOf = (v: ReturnType<typeof buildCanaisView>) => [...v.list.ranked, ...v.list.unranked]
 const vw = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p })
 const ok = async () => ({ ok: true })
-const mount = (p: Partial<CanaisParams> = {}) => render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={vw(p)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
+const mount = (p: Partial<CanaisParams> = {}) => render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={vw(p)} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
 const HOJE = spDateOf(obs.NOW)
 const DEPOIS = '2026-12-20'
 const EX = EXTRAS_OK

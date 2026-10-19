@@ -8,6 +8,7 @@ import { useEffect, useRef, type KeyboardEvent } from 'react'
 import type { CanaisRow } from './view-model'
 import { useCanAdminSite, siteAdminOnlyText } from '@/lib/cms/site-admin-context'
 import { Popover } from '../_chrome/flut/flut'
+import { TXT } from './remover-model'
 
 /** The ⋯ button of a channel in whichever view is on screen (table row or card). */
 export const rowMenuButton = (id: string) => document.querySelector<HTMLElement>(`[data-obs-screen="canais"] [data-menu="${CSS.escape(id)}"]`)
@@ -43,7 +44,10 @@ export function RowMenu({ row, onClose, onOpen, onSync, onYoutube, onCopy, onRem
         <button type="button" role="menuitem" onClick={onYoutube}>Abrir no YouTube</button>
         <button type="button" role="menuitem" onClick={onCopy}><span className="cw">Copiar pedido para o Cowork</span></button>
         <hr />
-        {canAdminSite
+        {canAdminSite && row.agendado
+          // F2: o canal já está agendado. O item fica à vista (com o motivo escrito, não só no title) e não faz nada: o Desfazer está na linha.
+          ? <div role="menuitem" aria-disabled="true" className="del dis" title={TXT.itemJaAgendado}><span>Remover canal…</span><small>{TXT.itemJaAgendado}</small></div>
+          : canAdminSite
           ? <button type="button" role="menuitem" className="del" onClick={onRemove}>Remover canal…</button>
           : <p role="note" data-testid="admin-only-note" style={{ margin: 0, padding: '6px 12px', maxWidth: 220, fontSize: 11, lineHeight: 1.35, color: 'var(--muted)' }}>{siteAdminOnlyText('remover um canal')}</p>}
       </div>
