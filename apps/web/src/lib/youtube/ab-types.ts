@@ -306,6 +306,8 @@ export interface AbTestCardView {
   type: TestType
   status: AbTestStatus
   dayOf: number
+  /** Duração prevista em dias (config.max_duration_days); ausente = padrão. */
+  durationDays?: number
   confidence: number | null
   lift: number | null
   leader: DisplayLabel

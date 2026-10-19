@@ -33,6 +33,7 @@ import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-comp
 import { toDisplayLabel, variantColor } from './_components/ab-constants'
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
+import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -429,11 +430,8 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   // Nenhuma tela os mostra (o banco não é tocado); o card cai na frase fixa.
   const lift: number | null = null
 
-  // dayOf: days since started_at (use completed_at for finished tests)
-  const endTime = test.completed_at ? new Date(test.completed_at).getTime() : Date.now()
-  const dayOf = test.started_at
-    ? Math.floor((endTime - new Date(test.started_at).getTime()) / 86400000)
-    : 0
+  // dayOf: dias corridos desde started_at (completed_at nos encerrados); conta única em ab-dia-do-teste
+  const dayOf = diaDoTeste(test.started_at, test.completed_at, new Date()) ?? 0
 
   const confidence: number | null = null
 
@@ -454,6 +452,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     type: test.test_type,
     status: test.status,
     dayOf,
+    durationDays: duracaoPrevista(test.config),
     confidence,
     lift,
     leader: leaderLabel,

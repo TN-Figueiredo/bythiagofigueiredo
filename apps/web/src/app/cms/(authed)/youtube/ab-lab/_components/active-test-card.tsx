@@ -4,6 +4,7 @@ import type React from 'react'
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS, SEM_MEDICAO_CURTA } from './ab-constants'
 import { VChip, Badge, TypeBadge } from './ab-primitives'
+import { duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
 import { ChevronRight, Swords, Clock } from 'lucide-react'
 
 export interface ActiveTestCardProps {
@@ -49,7 +50,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
             </Badge>
           ) : (
             <Badge tone="green" dot>
-              Dia {test.dayOf}/{test.dayOf + Math.max(0, 14 - test.dayOf)}
+              Dia {test.dayOf}/{Math.max(test.dayOf, duracaoPrevista({ max_duration_days: test.durationDays }))}
             </Badge>
           )}
           {cycleHealthDot(test.cycleStartedAt)}
