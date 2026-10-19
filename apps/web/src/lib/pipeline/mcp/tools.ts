@@ -722,7 +722,7 @@ const SearchContentShape = {
 // ---- 17. youtube_observatory ----
 export const YoutubeObservatoryShape = {
   action: z.enum(['list_channels', 'get_changes', 'get_outliers', 'get_insights'])
-    .describe('list_channels: tracked competitor channels. get_changes: recent title/thumbnail/description changes. get_outliers: videos with a multiplier of 2x or more vs the channel. get_insights: aggregated competitor intelligence.'),
+    .describe('list_channels: tracked competitor channels, each with its profile (perfil) and channel measures (medidas: rhythm, hit rate, direction...); a measure marked nao_medido comes with a reason and a sentence (frase): cite the frase as is, never read it as zero. get_changes: recent title/thumbnail/description changes. get_outliers: videos with a multiplier of 2x or more vs the channel. get_insights: aggregated competitor intelligence.'),
   type: z.enum(['all', 'title', 'thumbnail', 'description']).optional()
     .describe('get_changes: only this kind of change (default all)'),
   bookmarked: z.boolean().optional()
