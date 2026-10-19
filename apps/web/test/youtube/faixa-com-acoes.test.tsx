@@ -9,9 +9,9 @@ import { MSG_EM_ANDAMENTO, type ResultadoAcaoSaida } from '@/lib/youtube/ab-acao
 const refresh = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
 const definirAviso = vi.fn()
-vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/acoes-de-saida', () => ({
+vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/acoes-de-saida', async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
   definirAviso: (...a: unknown[]) => definirAviso(...a),
-  BTN_SAIDA: 'btn-saida',
 }))
 
 beforeEach(() => { refresh.mockClear(); definirAviso.mockClear() })
@@ -46,6 +46,17 @@ describe('FaixaComAcoes: aparência dos botões', () => {
     const pri = screen.getByRole('button', { name: 'Tentar agora' })
     expect(pri.className).not.toMatch(/(^|\s)(hover:)?text-white/)
     expect(pri.className).toContain('--cms-on-accent')
+  })
+
+  it('classe final: primário sem text-cms-text-dim; secundário com text-cms-text (sobre a faixa) e sem a dim; transição válida', () => {
+    montar(C, ctx)
+    const pri = screen.getByRole('button', { name: 'Tentar agora' })
+    const sec = screen.getByRole('button', { name: /Já corrigi/ })
+    expect(pri.className.split(/\s+/)).not.toContain('text-cms-text-dim')
+    expect(pri.className.split(/\s+/)).not.toContain('hover:text-cms-text')
+    expect(sec.className.split(/\s+/)).not.toContain('text-cms-text-dim')
+    expect(sec.className.split(/\s+/)).toContain('text-cms-text')
+    for (const b of [pri, sec]) expect(b.className).not.toContain('transition-[0.15s]')
   })
 })
 

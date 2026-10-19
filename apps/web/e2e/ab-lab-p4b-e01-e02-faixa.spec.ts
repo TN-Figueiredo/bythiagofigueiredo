@@ -147,6 +147,44 @@ async function ler(page: Page): Promise<Lido> {
   })
 }
 
+/** Contraste MEDIDO no navegador: cor do texto e fundo composto (sobe pelos ancestrais até o opaco) de cada botão da faixa. */
+async function medirBotoes(page: Page): Promise<Array<{ nome: string; cor: string; corEsperada: string | null; fundo: string; razao: number }>> {
+  return page.evaluate(() => {
+    const rgba = (c: string): number[] => { const m = c.match(/[\d.]+/g)!.map(Number); return [m[0]!, m[1]!, m[2]!, m[3] ?? 1] }
+    const sobre = (f: number[], b: number[]): number[] => [0, 1, 2].map((i) => f[i]! * f[3]! + b[i]! * (1 - f[3]!)).concat([1])
+    const lum = (c: number[]): number => { const [r, g, b] = c.slice(0, 3).map((v) => { const x = v! / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }); return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! }
+    const fundoDe = (el: Element): number[] => {
+      const cadeia: number[][] = []
+      for (let e: Element | null = el; e; e = e.parentElement) cadeia.push(rgba(getComputedStyle(e).backgroundColor))
+      let acc = [255, 255, 255, 1]
+      for (const c of cadeia.reverse()) acc = sobre(c, acc)
+      return acc
+    }
+    const sonda = document.createElement('span')
+    sonda.style.color = 'var(--cms-on-accent, #1A120A)'
+    document.body.appendChild(sonda)
+    const onAccent = getComputedStyle(sonda).color
+    sonda.remove()
+    return [...document.querySelectorAll('.faixa-rest button')].map((b) => {
+      const cor = getComputedStyle(b).color
+      const fundo = fundoDe(b)
+      const t = rgba(cor)
+      const L1 = lum(t), L2 = lum(fundo)
+      return { nome: (b.textContent ?? '').trim(), cor, corEsperada: (b.textContent ?? '').includes('Tentar agora') ? onAccent : null, fundo: `rgb(${fundo.slice(0, 3).map(Math.round).join(', ')})`, razao: Math.round(((Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)) * 100) / 100 }
+    })
+  })
+}
+
+async function conferirBotoes(page: Page, info: TestInfo, rotulo: string): Promise<void> {
+  await page.waitForTimeout(400) // a transição de 0,15 s dos botões termina antes da medida e da captura
+  const medidas = await medirBotoes(page)
+  info.annotations.push({ type: 'contraste-botoes', description: JSON.stringify(medidas) })
+  for (const m of medidas) {
+    if (m.corEsperada) expect(m.cor, `${rotulo}: cor do texto de "${m.nome}" é a do --cms-on-accent`).toBe(m.corEsperada)
+    expect(m.razao, `${rotulo}: contraste de "${m.nome}" (${m.cor} sobre ${m.fundo})`).toBeGreaterThanOrEqual(4.5)
+  }
+}
+
 async function fotoFaixa(page: Page, estado: string, info: TestInfo, tema: Tema): Promise<string> {
   const dir = process.env.AB_P4B_SHOTS ?? path.join(SHOTS, '..', 'p4b-implementado-shots')
   fs.mkdirSync(dir, { recursive: true })
@@ -198,6 +236,7 @@ for (const est of ESTADOS) {
     await abrir(page, t.url)
     await expect(page.locator('.faixa-rest')).toBeVisible()
     conferir(await ler(page), est.esperado(c), `E1 ${est.id}`, t.youtubeId)
+    await conferirBotoes(page, info, `E1 ${est.id}`)
     await semInvasaoHorizontal(page, `E1 ${est.id}`)
     await fotoFaixa(page, est.id.toLowerCase(), info, tema)
     esperarLimpo(coleta, `E1 ${est.id}`)

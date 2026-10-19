@@ -6,7 +6,7 @@ import type { CampoNome } from '@/lib/youtube/ab-restore'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import type { Faixa } from './faixa-restauracao-texto'
 import { FaixaRestauracao } from './faixa-restauracao'
-import { BTN_SAIDA, definirAviso } from './acoes-de-saida'
+import { BTN_BASE, definirAviso } from './acoes-de-saida'
 
 export interface FaixaComAcoesProps {
   testId: string
@@ -22,8 +22,9 @@ export interface FaixaComAcoesProps {
 
 // Texto escuro do produto (--cms-on-accent) sobre o laranja: 7,5:1; o branco dava 2,5:1.
 const DESABILITADO = 'disabled:opacity-50 disabled:cursor-not-allowed'
-const BTN_PRI = `${BTN_SAIDA} bg-cms-accent text-[var(--cms-on-accent,#1A120A)] hover:text-[var(--cms-on-accent,#1A120A)] ${DESABILITADO} [@media(pointer:coarse)]:min-h-[44px]`
-const BTN = `${BTN_SAIDA} ${DESABILITADO} [@media(pointer:coarse)]:min-h-[44px]`
+const BTN_PRI = `${BTN_BASE} bg-cms-accent text-[var(--cms-on-accent,#1A120A)] hover:text-[var(--cms-on-accent,#1A120A)] ${DESABILITADO} [@media(pointer:coarse)]:min-h-[44px]`
+// Secundário sobre a faixa colorida: text-cms-text (a dim ficava em 4,1 a 4,4:1 sobre a faixa de erro).
+const BTN = `${BTN_BASE} text-cms-text ${DESABILITADO} [@media(pointer:coarse)]:min-h-[44px]`
 
 /** Ilha cliente da faixa: os botões "Tentar agora" e "Já corrigi no YouTube" (P4b). Sem permissão, nenhum botão. */
 export function FaixaComAcoes({ testId, faixa, faixaTentando, seqVisto, tentar, dispensar }: FaixaComAcoesProps) {

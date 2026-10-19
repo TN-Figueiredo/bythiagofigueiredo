@@ -10,7 +10,9 @@ import { AbEndTestDialog, cancelarFocoDaFaixa } from './ab-end-test-dialog'
 import { dadosDoDialogoEncerrar } from './encerrar-props'
 import './ab-end-test-dialog.css'
 
-export const BTN_SAIDA = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
+/** Base dos botões de saída, sem cor de texto: quem monta escolhe a cor (duas utilidades de cor na mesma classe: a ordem do CSS decide, e a dim vencia o on-accent). */
+export const BTN_BASE = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-colors duration-150 tracking-[-0.01em] focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
+export const BTN_SAIDA = `${BTN_BASE} text-cms-text-dim hover:text-cms-text`
 
 /**
  * Aviso de página (role="status") depois de uma saída (encerrar/pausar) com recusa ou resultado "mudou": 6 s (ou fixo até o dono fechar, para avisos que pedem ação), com fechar.
