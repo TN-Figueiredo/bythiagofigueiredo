@@ -13,9 +13,11 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
+import type { pedirRemocaoCanal, apagarCanalSemGuardarAction, desfazerRemocaoCanal } from '../actions'
 import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView, type DirecaoFiltro } from './view-model'
 import { FMT_LEMBRADO, FMT_PADRAO, anuncioFmt, parseCanaisFmt, type CanaisFmt } from './formato'
 import { useToast } from '../_chrome/toasts'
+import { TXT, toastApagadoCorpo } from './remover-model'
 import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
 import { ChannelCards } from './channel-cards'
@@ -23,7 +25,7 @@ import { ChannelDrawer, type DrawerShell } from './channel-drawer'
 import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
-import { RemoveDialog, type ImpactAnswer } from './remove-dialog'
+import { RemoveDialog, type Desfecho, type ImpactAnswer } from './remove-dialog'
 import { AddChannelForm, type AddFn } from './add-channel-form'
 import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
@@ -44,7 +46,9 @@ export interface CanaisScreenProps {
   /** site_users.role ∈ {super_admin, org_admin}, decided on the server. */
   canUnlock: boolean
   onAdd: AddFn
-  onRemove: (id: string) => Promise<{ ok: boolean; error?: string }>
+  onPedir: typeof pedirRemocaoCanal
+  onApagar: typeof apagarCanalSemGuardarAction
+  onDesfazer: typeof desfazerRemocaoCanal
   onUnlock: () => Promise<{ ok: boolean; error?: string }>
   onSetNiche: (id: string, niche: Niche) => Promise<{ ok: boolean }>
   /** Niche of an own channel (server action setOwnChannelNiche): another table, so another action. */
@@ -126,7 +130,7 @@ function BarraDeOrdem({ sort, dir, onSort }: { sort: CanaisSort; dir: 'asc' | 'd
   )
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false, ri }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false, ri }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -147,6 +151,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const [confirm, setConfirm] = useState<null | { id: string; name: string }>(null)
   const [local, setLocal] = useState<Record<string, LocalSync>>({})
   const returnFocus = useRef<HTMLElement | null>(null)
+  /** Há envio em curso na janela de remover: o Esc daqui não pode fechá-la (I-4). */
+  const bloqueado = useRef(false)
   const closeRef = useRef<HTMLButtonElement | null>(null)
 
   const urlWith = useCallback((set: Record<string, string | null>) => {
@@ -233,7 +239,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (confirm) { closeConfirm(); return }
+      if (confirm) { if (!bloqueado.current) closeConfirm(); return }
       if (addOpen) { closeAdd(); return }
       if (nicheOpen) { closeNiche(); return }
       if (panel) closeDrawer()
@@ -296,16 +302,20 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     returnFocus.current = from ?? document.activeElement as HTMLElement | null
     setMenu(null); setConfirm({ id, name: r.name })
   }
-  const doRemove = async () => {
+  // transitório até a Tarefa 8: o toast com Desfazer e o foco chegam com a lista
+  void onDesfazer
+  const concluir = (d: Desfecho) => {
     if (!confirm) return
     const { id, name } = confirm
     setConfirm(null)
-    const res = await onRemove(id)
-    if (!res.ok) { toast('bad', 'Não deu para remover o canal', res.error ?? `${name} continua no observatório.`); return }
-    toast('ok', `${name} removido`, 'O canal saiu do observatório e os dados coletados dele foram apagados.')
-    if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
+    if (d.caminho === 'guardar') toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo)
+    else {
+      toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(name, { videos: d.videos, ...(d.registrosDiarios !== undefined ? { registros: d.registrosDiarios } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
+      if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
+    }
     router.refresh()
   }
+  const conferir = () => { setConfirm(null); router.refresh() }
   const unlock = async () => {
     const res = await onUnlock()
     if (!res.ok) { toast('bad', 'Não deu para destravar vagas', res.error === 'forbidden' ? 'Só administradores destravam vagas.' : res.error ?? ''); return }
@@ -601,7 +611,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           onRemove={() => askRemove(menuRow.id, rowMenuButton(menuRow.id))} />
       ) : null}
 
-      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
+      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onPedir={onPedir} onApagar={onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} trap={trapTab} /> : null}
 
       {addOpen ? (
         <AddChannelForm view={view} onAdd={onAdd} onClose={closeAdd} trap={trapTab}

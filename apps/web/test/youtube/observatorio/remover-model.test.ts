@@ -127,10 +127,10 @@ describe('frases (M3.7, M3.8)', () => {
     expect(desfeitoCorpo('X', false)).toBe('A remoção de X foi cancelada. O canal continua pausado, como estava antes.')
   })
   it('toastApagadoCorpo usa todos os números e omite o que faltou', () => {
-    const c = toastApagadoCorpo('Ryan', { videos: 340, dias: 12, leituras: 48 })
+    const c = toastApagadoCorpo('Ryan', { videos: 340, registros: 4000, leituras: 48 })
     expect(c).toContain('48 leituras')
-    expect(c).toContain('12 dias de registros')
-    expect(c).toBe('Ryan saiu, sem cópia: 340 vídeos, 12 dias de registros e 48 leituras. A vaga foi liberada. A ação foi registrada.')
+    expect(c).toContain('4.000 registros diários')
+    expect(c).toBe('Ryan saiu, sem cópia: 340 vídeos, 4.000 registros diários e 48 leituras. A vaga foi liberada. A ação foi registrada.')
     const so = toastApagadoCorpo('Ryan', { videos: 340 })
     expect(so).toBe('Ryan saiu, sem cópia: 340 vídeos. A vaga foi liberada. A ação foi registrada.')
     expect(so).not.toMatch(/\b0\b/)

@@ -18,7 +18,9 @@ export const PRAZO_ACAO_MS = 30_000
 
 export type CodigoTela = CodigoE10 | 'leitura' | 'itens_na_fila' | 'inesperado' | 'demorou_demais'
 
-const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
+/** Milhar com ponto (pt-BR), sem depender do ICU do ambiente. */
+export const milhar = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+const plural = (n: number, um: string, varios: string) => `${milhar(n)} ${n === 1 ? um : varios}`
 
 export const TXT = {
   pergunta: 'Por que você quer remover?',
@@ -44,8 +46,8 @@ export const TXT = {
   toastApagadoTitulo: 'Apagado',
   subVideos: (versoes: number) => `com ${plural(versoes, 'versão', 'versões')} de título, thumbnail e descrição`,
   subDias: 'views diárias dos vídeos',
-  subLeituras: 'feitas para vídeos deste canal (inclui as da página de vídeo)',
-  subLeiturasExtra: 'e fotos e alvos da página de vídeo',
+  subLeituras: 'feitas para vídeos deste canal, inclusive as da página de vídeo',
+  subLeiturasExtra: ', mais as fotos e os alvos da página de vídeo',
   subFixados: (fixados: number, trocas: number) => `${plural(fixados, 'vídeo fixado', 'vídeos fixados')} e ${plural(trocas, 'troca', 'trocas')} no swipe file`,
   irParaCanais: 'Ir para Canais',
   toastAgendadoTitulo: 'Coleta parada. Agendado para guardar no NAS.',
@@ -139,10 +141,14 @@ export function desfeitoCorpo(nome: string, despausado: boolean): string {
     : `A remoção de ${nome} foi cancelada. O canal continua pausado, como estava antes.`
 }
 
-/** Os números vêm do retorno da F1; o que faltou é omitido da frase (nunca escreve 0 no lugar). */
-export function toastApagadoCorpo(nome: string, d: { videos: number; dias?: number; leituras?: number }): string {
+/**
+ * Os números vêm do retorno da F1 (linhas apagadas, contadas pelo banco); o que faltou é omitido da frase (nunca escreve 0 no lugar).
+ * "Registros diários" são LINHAS de `competitor_video_daily` (o que o `audit_log` guarda), não "dias": a janela conta dias distintos, o
+ * retorno da F1 só tem linhas, e dar a um o rótulo do outro seria mentir no número.
+ */
+export function toastApagadoCorpo(nome: string, d: { videos: number; registros?: number; leituras?: number }): string {
   const itens = [plural(d.videos, 'vídeo', 'vídeos')]
-  if (d.dias !== undefined) itens.push(`${d.dias} ${d.dias === 1 ? 'dia' : 'dias'} de registros`)
+  if (d.registros !== undefined) itens.push(plural(d.registros, 'registro diário', 'registros diários'))
   if (d.leituras !== undefined) itens.push(plural(d.leituras, 'leitura', 'leituras'))
   const lista = itens.length === 1 ? itens[0]! : `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}`
   return `${nome} saiu, sem cópia: ${lista}. A vaga foi liberada. A ação foi registrada.`
