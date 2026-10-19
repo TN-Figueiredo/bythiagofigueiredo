@@ -334,11 +334,11 @@ begin
          jsonb_build_object('channel_id', v_c.channel_id, 'channel_name', v_c.channel_name),
          jsonb_build_object('batch', v_batch, 'arquivos', v_arquivos, 'linhas', v_linhas,
                             'miniaturas_no_blob', cardinality(v_urls), 'featured_refs_cleared', v_featured, 'featured_refs', v_refs,
-                            'watch', jsonb_build_object('leituras', v_n_l, 'miniaturas', v_n_t, 'alvos', v_n_a))
+                            'watch', jsonb_build_object('readings', v_n_l, 'thumbs', v_n_t, 'alvos', v_n_a))
     from public.sites s where s.id = p_site;
   return jsonb_build_object('status', 'removido', 'batch', v_batch, 'arquivos', v_arquivos, 'linhas', v_linhas,
                             'blob_urls', to_jsonb(v_urls), 'featured_refs_cleared', v_featured,
-                            'watch', jsonb_build_object('leituras', v_n_l, 'miniaturas', v_n_t, 'alvos', v_n_a));
+                            'watch', jsonb_build_object('readings', v_n_l, 'thumbs', v_n_t, 'alvos', v_n_a));
 end $$;
 
 -- A.5 Pausar um canal tira os alvos dele da fila da watch (cobre toda via de pausa: CLI, pedido de remoção, futuras).
@@ -546,7 +546,7 @@ immutable
 parallel safe
 set search_path = ''
 as $$
-  select lower(pg_catalog.btrim(pg_catalog.regexp_replace(p_nome, '[\s\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]+', ' ', 'g')))
+  select lower(pg_catalog.btrim(pg_catalog.regexp_replace(p_nome, '[ \t\n\r\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]+', ' ', 'g')))
 $$;
 
 -- C.3 Apagar sem guardar. Uma transação: tudo ou nada.
@@ -699,7 +699,7 @@ begin
      or v_n_a <> coalesce((v_antes ->> 'yt_watch_alvos')::bigint, 0) then
     raise exception 'E10:apagou_alem_do_arquivo: watch leituras=% miniaturas=% alvos=%', v_n_l, v_n_t, v_n_a using errcode = 'P0001';
   end if;
-  v_watch := jsonb_build_object('leituras', v_n_l, 'miniaturas', v_n_t, 'alvos', v_n_a);
+  v_watch := jsonb_build_object('readings', v_n_l, 'thumbs', v_n_t, 'alvos', v_n_a);
   -- as três chaves da watch existem SEMPRE (zero quando nada foi apagado): quem lê não distingue "0" de "não medido"
   v_rows := v_rows || jsonb_build_object('yt_watch_readings', v_n_l, 'yt_watch_thumbs', v_n_t, 'yt_watch_alvos', v_n_a);
 
@@ -780,7 +780,7 @@ begin
 end $$;
 
 -- C.6 Só a contagem da watch de um canal (a janela do botão não pode usar .in() com muitos ids: estoura a URL). Somente leitura.
-create or replace function public.competitor_channel_watch_counts(p_site uuid, p_channel uuid)
+create or replace function public.competitor_channel_removal_extra(p_site uuid, p_channel uuid)
 returns jsonb
 language plpgsql
 stable
@@ -791,7 +791,7 @@ declare
   v_yt text[];
 begin
   if p_site is null or p_channel is null then
-    raise exception 'E10:parametro_nulo: competitor_channel_watch_counts' using errcode = '22023';
+    raise exception 'E10:parametro_nulo: competitor_channel_removal_extra' using errcode = '22023';
   end if;
   perform 1 from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;
   if not found then
@@ -799,8 +799,8 @@ begin
   end if;
   select coalesce(array_agg(v.video_id), '{}'::text[]) into v_yt from public.competitor_videos v where v.competitor_channel_id = p_channel;
   return jsonb_build_object(
-    'leituras', (select count(*) from public.yt_watch_readings r where r.site_id = p_site and r.youtube_video_id = any(v_yt)),
-    'miniaturas', (select count(*) from public.yt_watch_thumbs t where t.site_id = p_site and t.youtube_video_id = any(v_yt)),
+    'readings', (select count(*) from public.yt_watch_readings r where r.site_id = p_site and r.youtube_video_id = any(v_yt)),
+    'thumbs', (select count(*) from public.yt_watch_thumbs t where t.site_id = p_site and t.youtube_video_id = any(v_yt)),
     'alvos', (select count(*) from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt)));
 end $$;
 
@@ -819,7 +819,7 @@ begin
     'public.competitor_channel_delete_unarchived(uuid, uuid, uuid, text, text)',
     'public.obs_unarchived_watch_sweep(timestamptz)',
     'public.obs_unarchived_blobs_done(uuid, bigint, text[])',
-    'public.competitor_channel_watch_counts(uuid, uuid)',
+    'public.competitor_channel_removal_extra(uuid, uuid)',
     'public.obs_nome_normalizado(text)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
