@@ -10,10 +10,11 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vites
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { travarS4, destravarS4 } from '../helpers/a5-s4-trava'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
-vi.setConfig({ testTimeout: 60_000 })
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 300_000 })
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const HORA = 3_600_000
@@ -52,6 +53,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B4/B5: poda e prova (banco local)', ()
   beforeAll(async () => {
     sb = getSupabaseServiceClient()
     pg = new Client({ connectionString: PG_URL }); await pg.connect()
+    await travarS4(pg)
     site = (await seedSite(sb, { siteSlug: 's4pp-' + randomUUID(), siteName: 'S4 poda/prova' })).siteId; sites.push(site)
   })
   beforeEach(async () => { AGORA = Date.now(); await limpar() })
@@ -60,7 +62,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B4/B5: poda e prova (banco local)', ()
       await limpar()
       await comRepeticao(`delete from public.competitor_channels where site_id = any($1::uuid[])`, [sites])
       await comRepeticao('delete from public.sites where id = any($1::uuid[])', [sites])
-    } finally { await pg.end() }
+    } finally { await destravarS4(pg); await pg.end() }
   })
 
   const ytId = (i: number): string => String(i).padStart(11, '0')

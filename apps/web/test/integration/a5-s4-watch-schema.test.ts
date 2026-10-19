@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { travarS4, destravarS4 } from '../helpers/a5-s4-trava'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { paraLinhas, type LinhaLeitura, type LinhaThumb } from '@/lib/youtube/watch/expansor'
@@ -18,7 +19,7 @@ import { gravarComDegrau, type PayloadDisparo } from '@/lib/youtube/watch/gravar
 import { mulberry32, gerar } from '../fixtures/watch-html/gerador'
 import { CASOS_RECUSADOS, leituraValida, thumbValida } from '../fixtures/watch-html/casos-recusados'
 
-vi.setConfig({ testTimeout: 120_000 })
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 300_000 })
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const COLUNAS_LEITURA = ['site_id', 'youtube_video_id', 'lida_em', 'rodada_id', 'origem_rede', 'versao_leitor', 'http', 'erro', 'idioma', 'titulo_oficial',
@@ -33,6 +34,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4: yt_watch_* (banco local)', () => {
   beforeAll(async () => {
     sb = getSupabaseServiceClient()
     pg = new Client({ connectionString: PG_URL }); await pg.connect()
+    await travarS4(pg)
   })
   afterAll(async () => {
     try {
@@ -42,7 +44,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4: yt_watch_* (banco local)', () => {
           await new Promise(r => setTimeout(r, 150 * (i + 1)))
         }
       }
-    } finally { await pg.end() }
+    } finally { await destravarS4(pg); await pg.end() }
   })
 
   async function novoSite(): Promise<string> {
@@ -198,6 +200,26 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4: yt_watch_* (banco local)', () => {
       const a = (await pg.query('select rodadas, ultima_rodada_em from public.yt_watch_alvos where id = $1', [id])).rows[0]
       expect(a.rodadas).toBe(0)
       expect(a.ultima_rodada_em).toBeNull()
+    })
+
+    it('alvo que saiu entre a leitura e a gravação: a leitura é gravada e o alvo não é reaberto (alvos 0)', async () => {
+      const site = await novoSite()
+      const id = await alvo(site, 'qIg9a7vqcNo')
+      await pg.query(`update public.yt_watch_alvos set saiu_em = now(), saiu_por = 'janela' where id = $1`, [id])
+      const antes = (await pg.query('select proxima_rodada_em from public.yt_watch_alvos where id = $1', [id])).rows[0].proxima_rodada_em
+      const p = {
+        thumbs: [],
+        leituras: [{ ...leituraValida(), site_id: site }],
+        alvos: [{ id, rodadas_mais: 1, ultima_rodada_em: '2026-10-18T12:00:00.000Z', proxima_rodada_em: '2026-10-19T12:00:00.000Z' }],
+      }
+      const r = await sb.rpc('yt_watch_gravar_disparo', { p })
+      expect(r.error).toBeNull()
+      expect(r.data).toMatchObject({ leituras: 1, alvos: 0 })
+      const a = (await pg.query('select rodadas, saiu_em, proxima_rodada_em from public.yt_watch_alvos where id = $1', [id])).rows[0]
+      expect(a.rodadas).toBe(0)
+      expect(a.saiu_em).not.toBeNull()
+      expect(new Date(a.proxima_rodada_em).getTime()).toBe(new Date(antes).getTime())
+      expect(await contar('yt_watch_readings', site)).toBe(1)
     })
 
     it('a mesma miniatura 2 vezes: 1 linha com vistas 2, as duas leituras apontam para ela', async () => {

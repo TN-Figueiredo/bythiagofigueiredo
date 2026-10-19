@@ -9,11 +9,12 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { travarS4, destravarS4 } from '../helpers/a5-s4-trava'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { leituraValida, thumbValida } from '../fixtures/watch-html/casos-recusados'
 
-vi.setConfig({ testTimeout: 60_000 })
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 300_000 })
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const TABELAS = ['yt_watch_alvos', 'yt_watch_thumbs', 'yt_watch_readings'] as const
@@ -43,6 +44,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B2: RLS de yt_watch_* (banco local, GU
   beforeAll(async () => {
     sb = getSupabaseServiceClient()
     pg = new Client({ connectionString: PG_URL }); await pg.connect()
+    await travarS4(pg)
     siteA = (await seedSite(sb, { siteSlug: 's4rls-' + randomUUID(), siteName: 'S4 RLS' })).siteId; sites.push(siteA)
     siteB = (await seedSite(sb, { siteSlug: 's4rls-' + randomUUID(), siteName: 'S4 RLS' })).siteId; sites.push(siteB)
     for (const id of Object.values(users)) {
@@ -66,7 +68,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B2: RLS de yt_watch_* (banco local, GU
       if (sites.length > 0) await comRepeticao('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
       if (usuarios.length > 0) await comRepeticao('delete from auth.users where id = any($1::uuid[])', [usuarios])
       if (sites.length > 0) await comRepeticao('delete from public.sites where id = any($1::uuid[])', [sites]) // cascade apaga yt_watch_*
-    } finally { await pg.end() }
+    } finally { await destravarS4(pg); await pg.end() }
   })
 
   /** Lê como `who` numa transação desfeita, com o GUC app.site_id forjado (papel anon/authenticated, sem superusuário). */
