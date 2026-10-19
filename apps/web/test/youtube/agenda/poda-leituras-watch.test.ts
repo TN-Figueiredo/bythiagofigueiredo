@@ -165,6 +165,12 @@ describe('poda_leituras_watch', () => {
     expect(await rodarPodaLeiturasWatch(c)).toMatchObject({ estado: 'parcial', motivo: 'schema_ausente' })
     expect(chamadas).toHaveLength(0)
   })
+  it('M4: guarda de schema que não conseguiu conferir: erro banco_falhou, sem RPC', async () => {
+    mocks.schema.mockResolvedValueOnce({ tipo: 'nao_conferido', texto: 'x', codigo: '08006' })
+    const { c, chamadas } = contexto()
+    expect(await rodarPodaLeiturasWatch(c)).toMatchObject({ estado: 'erro', motivo: 'banco_falhou' })
+    expect(chamadas).toHaveLength(0)
+  })
   it('42P01 no RPC da poda: parcial schema_ausente', async () => {
     const { c } = contexto({ poda: [{ data: null, error: { code: '42P01' } }] })
     expect(await rodarPodaLeiturasWatch(c)).toMatchObject({ estado: 'parcial', motivo: 'schema_ausente' })

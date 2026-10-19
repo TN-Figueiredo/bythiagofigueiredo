@@ -195,7 +195,8 @@ export const DEFINICAO_PLAYLISTS_SEMANAIS: Definicao = {
  */
 export const DEFINICAO_LEITURA_WATCH: Definicao = {
   nome: 'leitura_watch', rotulo: 'leitura das páginas do YouTube', ordem: 5.9, peso: 'leve', periodo: 'hora',
-  tetoTentativas: 3, toleranciaVigiaH: 2, naoTerminouVermelhoEm: 6,
+  // 3 = a hora inteira sem terminar (período 'hora' tem 3 disparos): o 6 antigo nunca acendia. No dia da ligação o vermelho é esperado.
+  tetoTentativas: 3, toleranciaVigiaH: 2, naoTerminouVermelhoEm: 3,
   comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 88_000, ligaCom: 'OBS_WATCH_READ',
   motivos: {
     bloqueado: 'o YouTube bloqueou as leituras (consentimento, robô ou limite); o próximo disparo tenta de novo',

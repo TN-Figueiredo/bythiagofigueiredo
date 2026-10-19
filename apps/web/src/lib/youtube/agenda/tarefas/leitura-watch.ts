@@ -49,7 +49,7 @@ export async function rodarLeituraWatch(c: ContextoTarefa, deps: DepsLeituraWatc
 
   const conc = await conciliar(c.sb, c.agora(), relatarAgenda)
   if (!('valor' in conc)) return semFeito('erro', 'lista_falhou')
-  const { candidatosEsperados, alvosAtivos, testesVivos } = conc.valor
+  const { candidatosEsperados, alvosAtivos, testesVivos, idsDescartados } = conc.valor
 
   const k = kAgora(decorrido, RODADA.kMax)
   if (c.agora() >= fimBanco) return semFeito('parcial', 'sobrou')
@@ -61,7 +61,7 @@ export async function rodarLeituraWatch(c: ContextoTarefa, deps: DepsLeituraWatc
 
   const vazias: Passadas = { resultados: new Map(), disjuntor: false, tentativas: 0 }
   if (devidos.length === 0) {
-    return estadoDoDisparo(vazias, { sobraram, extensaoFalhou: 0, gravou: true, candidatosEsperados, alvosAtivos, devidos: 0, inicioMs: decorrido })
+    return estadoDoDisparo(vazias, { sobraram, extensaoFalhou: 0, gravou: true, candidatosEsperados, alvosAtivos, devidos: 0, inicioMs: decorrido, idsDescartados })
   }
 
   const passadas = await lerPassadas(devidos, (yt, o) => ler(yt, { ...o, agora: c.agora }), {
@@ -95,7 +95,7 @@ export async function rodarLeituraWatch(c: ContextoTarefa, deps: DepsLeituraWatc
   const g = await gravarComDegrau(c.sb, payload, { agora: c.agora, ateMs: fimBanco, alvos: devidos })
   return estadoDoDisparo(passadas, {
     sobraram, extensaoFalhou: ext.falharam, gravou: g.ok, candidatosEsperados, alvosAtivos, foraDoFormato: g.foraDoFormato,
-    devidos: devidos.length, inicioMs: decorrido,
+    devidos: devidos.length, inicioMs: decorrido, idsDescartados,
   })
 }
 

@@ -62,6 +62,21 @@ describe('A8 lerPassadas e disjuntor', () => {
       expect(estadoDoDisparo(p, extra)).toMatchObject({ estado: 'erro', motivo: 'bloqueado' })
     })
   }
+  it('M2: ler que lança vira erro rede daquela tentativa e as outras leituras seguem', async () => {
+    let n = 0
+    const ler = async (id: string): Promise<ResultadoLeitor> => { if (++n === 2) throw new TypeError('boom'); return res(id, null) }
+    const p = await lerPassadas(alvos(3), ler, base)
+    const todas = [...p.resultados.values()].flat()
+    expect(todas).toHaveLength(9)
+    expect(todas.filter(r => r.leitura.erro === 'rede')).toHaveLength(1)
+    expect(todas.filter(r => r.leitura.erro === null)).toHaveLength(8)
+  })
+  it('Phil/M1: sobrou só prova que sobrou algum: deixadas null e detalhe.sobrou_algum 1; nada sobrou: deixadas 0', () => {
+    const boa = passadas(2, 3, null)
+    expect(estadoDoDisparo(boa, { ...extra, sobraram: 1 })).toMatchObject({ deixadas: null, detalhe: { sobrou_algum: 1 } })
+    expect(estadoDoDisparo(boa, extra)).toMatchObject({ deixadas: 0, detalhe: { sobrou_algum: 0 } })
+    expect(estadoDoDisparo(boa, { ...extra, idsDescartados: 2 }).detalhe).toMatchObject({ ids_descartados: 2 })
+  })
   it('sem bloqueio: 3 passadas por alvo, um rodadaId por alvo', async () => {
     const vistos: Array<[string, string]> = []
     const p = await lerPassadas(alvos(3), async (id, o) => { vistos.push([id, o.rodadaId]); return res(id, null) }, base)
@@ -136,12 +151,12 @@ describe('A8 estadoDoDisparo', () => {
     const boa = passadas(2, 3, null)
     expect(estadoDoDisparo(boa, { ...extra, alvosAtivos: 0, extensaoFalhou: 1, sobraram: 2 }).motivo).toBe('sem_alvos')
     expect(estadoDoDisparo(boa, { ...extra, extensaoFalhou: 1, sobraram: 2 }).motivo).toBe('extensao_falhou')
-    expect(estadoDoDisparo(boa, { ...extra, sobraram: 2 })).toMatchObject({ estado: 'parcial', motivo: 'sobrou', deixadas: 2 })
+    expect(estadoDoDisparo(boa, { ...extra, sobraram: 2 })).toMatchObject({ estado: 'parcial', motivo: 'sobrou', deixadas: null })
     expect(estadoDoDisparo(boa, extra)).toMatchObject({ estado: 'ok', feitas: 6 })
   })
   it('detalhe leva só números', () => {
     const d = estadoDoDisparo(passadas(2, 3, null), { ...extra, devidos: 2, inicioMs: 4000 }).detalhe
-    expect(Object.keys(d ?? {}).sort()).toEqual(['alvos_ativos', 'candidatos_esperados', 'com_erro', 'devidos', 'fora_do_formato', 'inicio_ms', 'jogador_bloqueado', 'lidas', 'sem_titulo', 'sobraram'])
+    expect(Object.keys(d ?? {}).sort()).toEqual(['alvos_ativos', 'candidatos_esperados', 'com_erro', 'devidos', 'fora_do_formato', 'inicio_ms', 'jogador_bloqueado', 'lidas', 'sem_titulo', 'sobrou_algum'])
     for (const v of Object.values(d ?? {})) expect(typeof v).toBe('number')
   })
 })

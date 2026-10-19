@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  montarCandidatos, lerTestesVivos, conciliar, lerDevidos, marcarTesteNosso, PROPRIOS_ANTIGOS, INCLUIR_SHORTS, chaveAlvo,
+  montarCandidatos, montarCandidatosContando, lerTestesVivos, conciliar, lerDevidos, marcarTesteNosso, PROPRIOS_ANTIGOS, INCLUIR_SHORTS, chaveAlvo,
   type AlvoAtivo, type TesteVivo,
 } from '@/lib/youtube/watch/alvos'
 import type { CandConcorrente, CandProprio } from '@/lib/youtube/horaria/lista'
@@ -100,6 +100,11 @@ describe('montarCandidatos', () => {
   it('id fora do formato de 11 caracteres fica fora (não aborta a conciliação no CHECK)', () => {
     const r = montarCandidatos([conc(1), conc(2, { ytId: 'pinold1' }), conc(3, { ytId: 'v123456789012' })], [], [{ siteId: SITE, ytId: 'curto' }], null, AGORA)
     expect(r.map((c) => c.ytId)).toEqual([yt(1)])
+  })
+  it('Phil: montarCandidatosContando conta os ids fora do formato que descartou', () => {
+    const r = montarCandidatosContando([conc(1), conc(2, { ytId: 'pinold1' }), conc(3, { ytId: 'v123456789012' })], [], [{ siteId: SITE, ytId: 'curto' }], null, AGORA)
+    expect(r.candidatos.map(c => c.ytId)).toEqual([yt(1)])
+    expect(r.descartados).toBe(3)
   })
   it('Short entra por padrão (INCLUIR_SHORTS = true) e com incluirShorts = true', () => {
     expect(INCLUIR_SHORTS).toBe(true)

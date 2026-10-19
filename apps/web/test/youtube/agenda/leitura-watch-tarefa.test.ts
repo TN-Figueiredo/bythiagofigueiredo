@@ -37,8 +37,8 @@ function contexto(inicio = 0) {
   const c: ContextoTarefa = { t0: T0, agora: () => state.agora, apiKey: '', sb, linhas: null }
   return { c, state, rpcs }
 }
-const conc = (o: Partial<{ candidatosEsperados: number; alvosAtivos: number }> = {}) =>
-  ({ valor: { candidatosEsperados: 3, alvosAtivos: 3, inseridos: 0, removidos: 0, sites: [SITE], testesVivos: new Set<string>(), ...o } })
+const conc = (o: Partial<{ candidatosEsperados: number; alvosAtivos: number; idsDescartados: number }> = {}) =>
+  ({ valor: { candidatosEsperados: 3, alvosAtivos: 3, inseridos: 0, removidos: 0, sites: [SITE], testesVivos: new Set<string>(), idsDescartados: 0, ...o } })
 
 beforeEach(() => {
   mocks.schema.mockReset().mockResolvedValue(null)
@@ -112,7 +112,8 @@ describe('leitura_watch: tarefa', () => {
     const { c, state, rpcs } = contexto(60_000)
     const r = await rodarLeituraWatch(c, deps(async id => { state.agora += 1; return res(id, null, state.agora) }))
     expect(mocks.lerDevidos.mock.calls[0]![2]).toBe(6)
-    expect(r).toMatchObject({ estado: 'parcial', motivo: 'sobrou', deixadas: 1 })
+    expect(r).toMatchObject({ estado: 'parcial', motivo: 'sobrou', deixadas: null })
+    expect(r.detalhe).toMatchObject({ sobrou_algum: 1 })
     expect(rpcs[0]!.p.leituras).toHaveLength(15)
   })
   it('I1: nenhuma leitura nova começa depois de t0 + 70 s e a gravação ainda acontece antes de 83 s', async () => {
@@ -124,6 +125,18 @@ describe('leitura_watch: tarefa', () => {
     expect(r.motivo).not.toBe('passou_do_tempo')
     expect(rpcs).toHaveLength(1)
     expect(rpcs[0]!.p.leituras).toHaveLength(3)
+  })
+  it('M4: guarda de schema que não conseguiu conferir: erro schema_nao_conferido, sem conciliar nem ler', async () => {
+    mocks.schema.mockResolvedValue({ tipo: 'nao_conferido', texto: 'x', codigo: '08006' })
+    const ler = vi.fn()
+    expect(await rodarLeituraWatch(contexto().c, deps(ler))).toMatchObject({ estado: 'erro', motivo: 'schema_nao_conferido', feitas: 0 })
+    expect(mocks.conciliar).not.toHaveBeenCalled()
+    expect(ler).not.toHaveBeenCalled()
+  })
+  it('Phil: os ids descartados pelo filtro de 11 caracteres vão ao detalhe', async () => {
+    mocks.conciliar.mockResolvedValue(conc({ idsDescartados: 3 }))
+    const r = await rodarLeituraWatch(contexto().c, deps(async id => res(id, null, T0)))
+    expect(r.detalhe).toMatchObject({ ids_descartados: 3 })
   })
   it('gravação que falha por timeout: erro gravacao_falhou', async () => {
     const { c } = contexto()

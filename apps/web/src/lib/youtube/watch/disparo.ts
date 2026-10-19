@@ -6,6 +6,7 @@ import type { ResultadoTarefa } from '@/lib/youtube/agenda/tipos'
 import type { AlvoAtivo } from './alvos'
 import type { AtualizacaoAlvo } from './gravar'
 import type { OpcoesLeitor, ResultadoLeitor } from './leitor'
+import { RENDERERS_TITULO } from '@/lib/youtube/teste-youtube/tipos'
 import { CODIGOS_BLOQUEIO } from './parser'
 import { proximaRodada, RODADA } from './rodada'
 
@@ -25,6 +26,24 @@ const FOLGA_MS = 8_000
 
 const ehBloqueio = (erro: string | null): boolean => erro !== null && [...CODIGOS_BLOQUEIO].some(c => c === erro)
 const temTitulo = (r: ResultadoLeitor): boolean => r.leitura.erro === null && r.leitura.titulosExibidos.some(t => t.texto !== null)
+
+/** `ler` não deve lançar; se lançar, a tentativa vira `erro 'rede'` e o disparo segue com as outras leituras. */
+async function lerSemLancar(
+  ler: (ytId: string, o: OpcoesLeitor) => Promise<ResultadoLeitor>, ytId: string, opcoes: OpcoesLeitor, agoraMs: number,
+): Promise<ResultadoLeitor> {
+  try {
+    return await ler(ytId, opcoes)
+  } catch {
+    return {
+      leitura: {
+        youtubeVideoId: ytId, lidaEm: new Date(agoraMs).toISOString(), rodadaId: opcoes.rodadaId, origemRede: opcoes.origemRede, idioma: null,
+        erro: 'rede', tituloOficial: null, titulo_oficial_fonte: null, rendicoesSqp: null,
+        titulosExibidos: RENDERERS_TITULO.map(renderer => ({ renderer, texto: null })), miniaturas: [],
+      },
+      http: null, jogadorBloqueado: false,
+    }
+  }
+}
 
 export async function lerPassadas(
   alvos: readonly AlvoAtivo[],
@@ -52,7 +71,8 @@ export async function lerPassadas(
         tentativas++
         // O timeout nunca passa do que resta: uma leitura lenta não leva a passada além do teto (ateMs + folga de 8 s).
         const timeoutMs = Math.max(MIN_TIMEOUT_MS, Math.min(TIMEOUT_PADRAO_MS, o.ateMs + FOLGA_MS - o.agora()))
-        const r = await ler(alvo.ytId, { rodadaId: rodadaDe.get(alvo.id) ?? o.novoUuid(), origemRede: o.origemRede, sondarMiniatura: sondar, timeoutMs })
+        const opcoes: OpcoesLeitor = { rodadaId: rodadaDe.get(alvo.id) ?? o.novoUuid(), origemRede: o.origemRede, sondarMiniatura: sondar, timeoutMs }
+        const r = await lerSemLancar(ler, alvo.ytId, opcoes, o.agora())
         resultados.set(alvo.id, [...(resultados.get(alvo.id) ?? []), r])
         if (ehBloqueio(r.leitura.erro)) bloqueios++
       }
@@ -66,7 +86,7 @@ export function estadoDoDisparo(
   p: Passadas,
   extra: {
     sobraram: number; extensaoFalhou: number; gravou: boolean; candidatosEsperados: number; alvosAtivos: number
-    foraDoFormato?: number; devidos?: number; inicioMs?: number
+    foraDoFormato?: number; devidos?: number; inicioMs?: number; idsDescartados?: number
   },
 ): ResultadoTarefa {
   const todas = [...p.resultados.values()].flat()
@@ -77,10 +97,12 @@ export function estadoDoDisparo(
     lidas: todas.length, com_erro: comErro, sem_titulo: semTitulo,
     jogador_bloqueado: todas.filter(r => r.jogadorBloqueado).length,
     fora_do_formato: extra.foraDoFormato ?? todas.filter(r => r.leitura.erro === 'fora_do_formato').length,
-    devidos: extra.devidos ?? p.resultados.size, sobraram: extra.sobraram, alvos_ativos: extra.alvosAtivos,
+    devidos: extra.devidos ?? p.resultados.size, sobrou_algum: extra.sobraram > 0 ? 1 : 0, alvos_ativos: extra.alvosAtivos,
     candidatos_esperados: extra.candidatosEsperados, inicio_ms: extra.inicioMs ?? 0,
   }
-  const base = { feitas, deixadas: extra.sobraram, detalhe }
+  if (extra.idsDescartados !== undefined) detalhe.ids_descartados = extra.idsDescartados
+  // `sobraram` é 0 ou 1 (o pedido é K + 1): só se sabe que sobrou, não quantos. Contagem falsa nunca vai ao dono.
+  const base = { feitas, deixadas: extra.sobraram > 0 ? null : 0, detalhe }
 
   // leitura_bloqueada: indisponivel é propriedade do vídeo, fora do numerador e do denominador.
   const validas = todas.filter(r => r.leitura.erro !== 'indisponivel')

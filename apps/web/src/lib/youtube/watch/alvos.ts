@@ -232,6 +232,8 @@ export interface ResumoConciliar {
   candidatosEsperados: number; alvosAtivos: number; inseridos: number; removidos: number; sites: string[]
   /** Chave `site|yt` dos testes vivos lidos NESTE disparo (Phil I7): é daqui, não do `motivo_ate`, que sai `temTesteNosso`. */
   testesVivos: Set<string>
+  /** Ids que o filtro de 11 caracteres jogou fora neste disparo (nunca em silêncio). */
+  idsDescartados: number
 }
 
 const inteiro = (x: unknown): number | null => (typeof x === 'number' && Number.isInteger(x) && x >= 0 ? x : null)
@@ -249,7 +251,7 @@ export async function conciliar(sb: SupabaseClient, agoraMs: number, relatar?: R
   }
   const lidos = await lerCandidatosDaWatch(sb, agoraMs, relatar)
   if (!('valor' in lidos)) return lidos
-  const { candidatos, testesVivos } = lidos.valor
+  const { candidatos, testesVivos, idsDescartados } = lidos.valor
   const horaDe = new Map<string, number>()
   const horasAtivas: number[] = []
   for (const a of existentes) {
@@ -293,6 +295,7 @@ export async function conciliar(sb: SupabaseClient, agoraMs: number, relatar?: R
       removidos: inteiro(resposta.removidos) ?? 0,
       sites: [...new Set(candidatos.map(c => c.siteId))],
       testesVivos,
+      idsDescartados,
     },
   }
 }
@@ -336,7 +339,7 @@ export function marcarTesteNosso(alvos: readonly AlvoAtivo[], testesVivos: Reado
 /** Os candidatos esperados agora (concorrentes, próprios, testes vivos e antigos) e os testes vivos lidos no mesmo passo. */
 export async function lerCandidatosDaWatch(
   sb: SupabaseClient, agoraMs: number, relatar?: RelatarHoraria,
-): Promise<Lido<{ candidatos: Candidato[]; testesVivos: Set<string> }>> {
+): Promise<Lido<{ candidatos: Candidato[]; testesVivos: Set<string>; idsDescartados: number }>> {
   try {
     const [c, t, a] = await Promise.all([
       lerCandidatos(sb, agoraMs, relatar, JANELA_CONCORRENTE_DIAS),
@@ -344,9 +347,11 @@ export async function lerCandidatosDaWatch(
       PROPRIOS_ANTIGOS ? lerAntigos(sb, agoraMs) : Promise.resolve(null),
     ])
     if (!('valor' in t)) return t
+    const montados = montarCandidatosContando(c.conc, c.prop, t.valor, a, agoraMs)
     return {
       valor: {
-        candidatos: montarCandidatos(c.conc, c.prop, t.valor, a, agoraMs),
+        candidatos: montados.candidatos,
+        idsDescartados: montados.descartados,
         testesVivos: new Set(t.valor.map(x => chaveAlvo(x.siteId, x.ytId))),
       },
     }

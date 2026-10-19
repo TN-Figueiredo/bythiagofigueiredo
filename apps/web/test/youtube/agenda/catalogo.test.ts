@@ -257,7 +257,7 @@ describe('A10 leitura_watch no catálogo (A5 S4)', () => {
   })
   it('a definição, valor por valor', () => {
     const d = TODAS_AS_DEFINICOES.find(x => x.nome === 'leitura_watch')!
-    expect(d).toMatchObject({ rotulo: 'leitura das páginas do YouTube', ordem: 5.9, peso: 'leve', periodo: 'hora', tetoTentativas: 3, toleranciaVigiaH: 2, naoTerminouVermelhoEm: 6,
+    expect(d).toMatchObject({ rotulo: 'leitura das páginas do YouTube', ordem: 5.9, peso: 'leve', periodo: 'hora', tetoTentativas: 3, toleranciaVigiaH: 2, naoTerminouVermelhoEm: 3,
       comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 88_000, ligaCom: 'OBS_WATCH_READ' })
     expect(d.nuncaDesliga).toBeUndefined()
     expect(Object.keys(d.motivos).sort()).toEqual(['bloqueado', 'extensao_falhou', 'gravacao_falhou', 'layout_mudou', 'leitura_bloqueada', 'lista_falhou', 'sem_alvos', 'sobrou'])
