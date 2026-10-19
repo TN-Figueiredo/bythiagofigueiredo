@@ -206,7 +206,7 @@ describe('falhas da lista (dado ausente nunca vira lista vazia)', () => {
   })
   it('zero alvos devolve total 0 (não é falha)', async () => {
     const r = await devidosDe(cenario({}))
-    expect(r).toEqual({ devidos: [], semVideo: 0, antigosFora: 0, total: 0, candidatosTotal: 0 })
+    expect(r).toEqual({ devidos: [], semVideo: 0, semVideoAntigos: 0, antigosFora: 0, total: 0, candidatosTotal: 0 })
   })
 })
 

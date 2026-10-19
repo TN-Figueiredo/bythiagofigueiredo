@@ -241,6 +241,7 @@ export const DEFINICAO_REGISTRO_TESTE_NATIVO: Definicao = {
     sobrou: 'ficaram vídeos para o próximo disparo',
     lista_falhou: 'não foi possível montar a lista de vídeos',
     gravacao_falhou: 'não foi possível gravar a avaliação',
+    sem_video: 'há vídeo próprio acompanhado há mais de um dia que não está na tabela de vídeos',
   },
 }
 

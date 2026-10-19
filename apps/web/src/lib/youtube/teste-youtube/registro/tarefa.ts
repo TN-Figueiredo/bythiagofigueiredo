@@ -121,7 +121,7 @@ export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): 
     if (lista.causa === 'erro_do_banco' && lista.codigo === '42P01') return semFeito('parcial', 'schema_ausente')
     return semFeito('parcial', 'lista_falhou')
   }
-  const { devidos, semVideo, antigosFora, total, candidatosTotal } = lista.valor
+  const { devidos, semVideo, semVideoAntigos, antigosFora, total, candidatosTotal } = lista.valor
 
   const cont: Contagem = {
     avaliados: 0, criados: 0, atualizados: 0, encerrados: 0, encerradosOficialNaoLido: 0, reproduzidos: 0, reproducaoJaFeita: 0,
@@ -138,7 +138,9 @@ export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): 
 
   if (devidos.length === 0) {
     podadas = await podar(c, inicio, fimDuro)
-    return { estado: 'ok', feitas: 0, deixadas: 0, detalhe: detalheDe(0, { sem_candidatos: 1 }) }
+    const detalhe = detalheDe(0, { sem_candidatos: 1 })
+    // alvo ativo há > 24 h sem `youtube_videos` nunca vira `ok` calado (Y3, Review Focus 2)
+    return semVideoAntigos > 0 ? { estado: 'parcial', feitas: 0, deixadas: 0, motivo: 'sem_video', detalhe } : { estado: 'ok', feitas: 0, deixadas: 0, detalhe }
   }
 
   // até 8 por disparo, no máximo 2 de reprodução do passado de alvo que saiu (nível 5)
@@ -182,6 +184,7 @@ export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): 
     return { estado: cont.falhas >= comecaram ? 'erro' : 'parcial', feitas: cont.avaliados, deixadas: sobrou, motivo, detalhe: detalheDe(sobrou) }
   }
   if (sobrou > 0) return { estado: 'parcial', feitas: cont.avaliados, deixadas: sobrou, motivo: 'sobrou', detalhe: detalheDe(sobrou) }
+  if (semVideoAntigos > 0) return { estado: 'parcial', feitas: cont.avaliados, deixadas: 0, motivo: 'sem_video', detalhe: detalheDe(0) }
   return { estado: 'ok', feitas: cont.avaliados, deixadas: 0, detalhe: detalheDe(0) }
 }
 

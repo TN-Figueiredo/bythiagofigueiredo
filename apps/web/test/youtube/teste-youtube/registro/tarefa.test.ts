@@ -74,6 +74,20 @@ describe('C-8c estado', () => {
     const r = await rodarRegistro(c(b.sb), opcoes)
     expect(r.detalhe).toMatchObject({ sem_video: 1, sem_candidatos: 1 })
   })
+  it('Y3/G-3: alvo ativo há mais de 24 h sem youtube_videos: parcial sem_video, mesmo com outros vídeos em dia', async () => {
+    const b = mundo([{ n: 1, semVideo: true }])
+    const r = await rodarRegistro(contexto().c(b.sb), opcoes)
+    expect(r).toMatchObject({ estado: 'parcial', motivo: 'sem_video' })
+    const b2 = mundo([{ n: 1, semVideo: true }, { n: 2, leituras: mistura(30 * MIN, 18, 'AAB', yt(2)), avaliacoes: [evalOk(2, 1002, 600)] }])
+    expect(await rodarRegistro(contexto().c(b2.sb), opcoes)).toMatchObject({ estado: 'parcial', motivo: 'sem_video', feitas: 1 })
+  })
+  it('Y3/G-3: alvo ativo há menos de 24 h sem youtube_videos ainda não chegou: ok', async () => {
+    const b = mundo([{ n: 1, semVideo: true }])
+    tab(b, 'yt_watch_alvos')[0]!.ativo_desde = iso(T0 - 2 * H)
+    const r = await rodarRegistro(contexto().c(b.sb), opcoes)
+    expect(r).toMatchObject({ estado: 'ok' })
+    expect(r.detalhe).toMatchObject({ sem_video: 1 })
+  })
   it('erro em 1 de 2 vídeos: parcial video_falhou; em todos: erro', async () => {
     const um = mundo([
       { n: 1, avaliacoes: [evalOk(1, 1001, 600)], leituras: mistura(30 * MIN) },

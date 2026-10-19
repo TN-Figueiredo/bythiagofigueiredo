@@ -290,7 +290,7 @@ describe('registro_teste_nativo no catálogo (S7 fase 1)', () => {
     expect(d()).toMatchObject({ rotulo: 'registro do teste do YouTube', ordem: 5.95, peso: 'leve', periodo: 'hora', tetoTentativas: 3, toleranciaVigiaH: 3, naoTerminouVermelhoEm: 3,
       comecaAteMs: 60_000, fimAteMs: 88_000, ligaCom: 'AB_NATIVO_REGISTRO' })
     expect(d().nuncaDesliga).toBeUndefined()
-    expect(Object.keys(d().motivos).sort()).toEqual(['gravacao_falhou', 'lista_falhou', 'sobrou', 'video_falhou'])
+    expect(Object.keys(d().motivos).sort()).toEqual(['gravacao_falhou', 'lista_falhou', 'sem_video', 'sobrou', 'video_falhou'])
   })
   it('ordem 5.9 < 5.95 < 6 e fimAteMs dentro do teto das leves', () => {
     const o = (n: string): number => TODAS_AS_DEFINICOES.find(x => x.nome === n)!.ordem

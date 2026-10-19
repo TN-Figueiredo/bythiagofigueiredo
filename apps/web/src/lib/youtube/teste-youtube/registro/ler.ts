@@ -167,7 +167,7 @@ function decidir(e: Entrada, u: UltimasAvaliacoes, agoraMs: number): { motivo: C
   return null
 }
 
-export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promise<Lido<{ devidos: Candidato[]; semVideo: number; antigosFora: number; total: number; candidatosTotal: number }>> {
+export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promise<Lido<{ devidos: Candidato[]; semVideo: number; semVideoAntigos: number; antigosFora: number; total: number; candidatosTotal: number }>> {
   try {
     const corteSaida = new Date(agoraMs - RETENCAO_S4_MS).toISOString()
     const alvos = await paginar<LinhaAlvo>('alvos próprios',
@@ -203,10 +203,17 @@ export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promis
     const abertoPorVideo = new Map(abertos.map(a => [a.video_id, a]))
     const universo = new Map<string, Entrada>()
     let semVideo = 0
+    let semVideoAntigos = 0
     let antigosFora = 0
     for (const a of alvos) {
       const v = videos.get(`${a.site_id}|${a.youtube_video_id}`)
-      if (v === undefined) { semVideo++; continue }
+      if (v === undefined) {
+        semVideo++
+        // alvo ativo há mais de 24 h sem `youtube_videos`: defeito de junção ou sincronização parada, não vídeo recém-criado (Y3)
+        const desde = ms(a.ativo_desde)
+        if (a.saiu_em === null && desde !== null && agoraMs - desde > DIA_MS) semVideoAntigos++
+        continue
+      }
       const aberto = abertoPorVideo.get(v.id) ?? null
       const testeNosso = comTeste.has(v.id)
       if (a.saiu_em === null && a.rodadas_por_dia === 1 && !testeNosso && aberto === null) { antigosFora++; continue }
@@ -260,7 +267,7 @@ export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promis
       })
     }
     devidos.sort((a, b) => a.prioridade - b.prioridade || em(a.ultimaRodadaEm) - em(b.ultimaRodadaEm) || (a.ytId < b.ytId ? -1 : a.ytId > b.ytId ? 1 : 0))
-    return { valor: { devidos, semVideo, antigosFora, total: alvos.length, candidatosTotal: universo.size } }
+    return { valor: { devidos, semVideo, semVideoAntigos, antigosFora, total: alvos.length, candidatosTotal: universo.size } }
   } catch (e) {
     return comoLido(e)
   }
