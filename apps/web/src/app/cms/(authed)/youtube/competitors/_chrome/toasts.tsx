@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Icon } from './icons'
 
 export type ToastKind = '' | 'ok' | 'warn' | 'bad' | 'forja'
-export interface ToastOpts { more?: string; selectable?: string }
+export interface ToastOpts { more?: string; selectable?: string; /** botões abaixo do texto; o toast com ação não sai sozinho (clicar fecha) */ acoes?: Array<{ rotulo: string; onClick: () => void }> }
 interface ToastItem { id: number; kind: ToastKind; title: string; text: string; opts: ToastOpts }
 type ToastFn = (kind: ToastKind, title: string, text: string, opts?: ToastOpts) => void
 
@@ -41,7 +41,7 @@ function Toast({ item, onClose }: { item: ToastItem; onClose: () => void }) {
   const back = useRef<HTMLElement | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const left = useRef(TOAST_MS), since = useRef(0)
-  const sticky = !!item.opts.selectable
+  const sticky = !!item.opts.selectable || !!item.opts.acoes?.length
   const close = useCallback(() => {
     const had = !!ref.current && ref.current.contains(document.activeElement)
     if (timer.current) clearTimeout(timer.current)
@@ -84,6 +84,11 @@ function Toast({ item, onClose }: { item: ToastItem; onClose: () => void }) {
         <b>{item.title}</b>
         <span>{item.text}</span>
         {item.opts.more ? <span className="obs-ch-tl">{item.opts.more}</span> : null}
+        {item.opts.acoes?.length ? (
+          <div className="obs-ch-toast-acoes">
+            {item.opts.acoes.map(a => <button key={a.rotulo} type="button" className="obs-ch-btn obs-ch-small" onClick={() => { a.onClick(); close() }}>{a.rotulo}</button>)}
+          </div>
+        ) : null}
         {item.opts.selectable ? <textarea className="obs-ch-copy" readOnly rows={3} aria-label="Texto do pedido para copiar" defaultValue={item.opts.selectable} /> : null}
       </div>
       <div className="obs-ch-toast-acts">

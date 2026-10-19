@@ -69,6 +69,7 @@
 [data-obs] .obs-ch-btn[aria-disabled="true"]{cursor:progress;color:var(--muted)}
 [data-obs] .obs-ch-btn.obs-ch-ghost{background:transparent;border-color:transparent;color:var(--muted)}
 [data-obs] .obs-ch-btn.obs-ch-ghost:hover{background:var(--surface-hover);color:var(--text)}
+[data-obs] .obs-ch-btn.obs-ch-small{min-height:32px;padding:0 10px;font-size:12.5px}
 [data-obs] .obs-ch-btn.obs-ch-icon{width:34px;min-width:34px;padding:0;justify-content:center}
 /* forja buttons (Task 35 fills the header segment; tokens and classes are ready) */
 [data-obs] .obs-ch-btn.obs-ch-forja{border-color:var(--forja-line);color:var(--forja);background:transparent}
@@ -166,6 +167,8 @@
 [data-obs] .obs-ch-toast b{font-weight:600;font-size:13px;display:block}
 [data-obs] .obs-ch-toast span{font-size:12.5px;color:var(--muted)}
 [data-obs] .obs-ch-toast .obs-ch-tl{display:block;margin-top:4px}
+[data-obs] .obs-ch-toast-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+@media (max-width:600px){[data-obs] .obs-ch-toast-acoes .obs-ch-btn{min-height:44px}}
 [data-obs] .obs-ch-toast-acts{display:flex;gap:6px;align-items:center}
 [data-obs] .obs-ch-toast-x{width:32px;min-width:32px;height:32px;min-height:32px;padding:0}
 [data-obs] .obs-ch-toast-x svg{width:14px;height:14px;margin:0;color:var(--muted)}
