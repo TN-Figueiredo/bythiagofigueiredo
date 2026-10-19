@@ -224,14 +224,6 @@ describe('addCompetitorChannel', () => {
   })
 })
 
-describe('removeCompetitorChannel', () => {
-  it('sem permissão: não remove nem invalida', async () => {
-    setup({ own: null, existing: null, inserted: [], deleted: [{ id: 'c1' }] }, undefined, { ok: false, reason: 'forbidden' })
-    expect(await (await actions()).removeCompetitorChannel('c1')).toEqual({ ok: false })
-    expect(revalidateTag).not.toHaveBeenCalled()
-  })
-})
-
 describe('A5 E9 T7: addCompetitorChannel e o canal que o dono apagou', () => {
   const env = process.env.YOUTUBE_API_KEY
   beforeEach(() => { process.env.YOUTUBE_API_KEY = 'k' })

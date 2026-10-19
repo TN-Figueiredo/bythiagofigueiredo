@@ -81,49 +81,6 @@ async function apagarNoBlob(apagar: string[], deps: DepsDoBlob, baixa: (bloco: s
   return apagadas
 }
 
-type Remocao =
-  | { ok: true; lote: string; linhas: number; miniaturasPendentes: number; foraDoPrefixo: number }
-  | { ok: false; codigo: CodigoE10; frase: string }
-
-export async function removerCanalArquivado(
-  sb: SupabaseClient,
-  e: { siteId: string; canalId: string; actorId: string },
-  deps: DepsDoBlob = {},
-): Promise<Remocao> {
-  const falha = (codigo: CodigoE10): Remocao => ({ ok: false, codigo, frase: FRASES_E10[codigo] })
-  let data: unknown
-  try {
-    const r = await sb.rpc('competitor_channel_remove_archived', { p_site: e.siteId, p_channel: e.canalId, p_actor: e.actorId })
-    if (r.error) {
-      const codigo = codigoE10(r.error)
-      if (codigo === 'inesperado') relatar('remocao_inesperada', {})
-      return falha(codigo)
-    }
-    data = r.data
-  } catch {
-    relatar('remocao_excecao', {})
-    return falha('inesperado')
-  }
-  if (!ehObjeto(data) || data.status !== 'removido' || typeof data.batch !== 'string') {
-    relatar('resposta_invalida', {})
-    return falha('inesperado')
-  }
-  const lote = data.batch
-  const linhas = Number(data.linhas)
-  const urls = Array.isArray(data.blob_urls) ? data.blob_urls.filter((u): u is string => typeof u === 'string') : []
-  const { apagar, fora } = soMiniaturasDoObservatorio(urls)
-  if (fora.length > 0) relatar('miniaturas_fora_do_prefixo', { fora: fora.length })
-  const apagadas = await apagarNoBlob(apagar, deps, async bloco => {
-    try {
-      const b = await sb.rpc('obs_archive_blobs_done', { p_site: e.siteId, p_batch: lote, p_channel_ref: e.canalId, p_urls: bloco })
-      if (b.error) relatar('baixa_da_pendencia_falhou', { bloco: bloco.length })
-    } catch {
-      relatar('baixa_da_pendencia_falhou', { bloco: bloco.length })
-    }
-  })
-  return { ok: true, lote, linhas: Number.isFinite(linhas) ? linhas : 0, miniaturasPendentes: urls.length - apagadas, foraDoPrefixo: fora.length }
-}
-
 type Falha = { ok: false; codigo: CodigoE10; frase: string }
 const falhaDe = (codigo: CodigoE10): Falha => ({ ok: false, codigo, frase: FRASES_E10[codigo] })
 
@@ -152,7 +109,7 @@ export async function apagarCanalSemGuardar(
   sb: SupabaseClient,
   e: { siteId: string; canalId: string; actorId: string; nomeDigitado: string; motivo: string },
   deps: DepsDoBlob = {},
-): Promise<{ ok: true; videos: number; miniaturasPendentes: number; foraDoPrefixo: number } | Falha> {
+): Promise<{ ok: true; videos: number; miniaturasPendentes: number; foraDoPrefixo: number; registrosDiarios?: number; leituras?: number } | Falha> {
   const r = await chamar(sb, 'competitor_channel_delete_unarchived', {
     p_site: e.siteId, p_channel: e.canalId, p_actor: e.actorId, p_confirm_name: e.nomeDigitado, p_motivo: e.motivo,
   })
@@ -175,7 +132,18 @@ export async function apagarCanalSemGuardar(
       relatar('baixa_da_pendencia_falhou', { bloco: bloco.length })
     }
   })
-  return { ok: true, videos: Number.isFinite(videos) ? videos : 0, miniaturasPendentes: urls.length - apagadas, foraDoPrefixo: fora.length }
+  // F2: o que a F1 contou ao apagar, para o toast (nunca a contagem de antes). `linhas` só traz as tabelas com algo apagado, então chave ausente é zero
+  // de verdade; mas resposta sem `linhas` (ou sem `watch.readings`) deixa o campo AUSENTE, nunca 0.
+  const cont = (x: unknown): number | undefined => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? x : undefined)
+  const linhas = ehObjeto(data.linhas) ? data.linhas : null
+  const registrosDiarios = linhas ? cont(linhas.competitor_video_daily ?? 0) : undefined
+  const daForja = linhas ? cont(linhas.competitor_readings ?? 0) : undefined
+  const daWatch = ehObjeto(data.watch) ? cont(data.watch.readings) : undefined
+  const leituras = daForja !== undefined && daWatch !== undefined ? daForja + daWatch : undefined
+  return {
+    ok: true, videos: Number.isFinite(videos) ? videos : 0, miniaturasPendentes: urls.length - apagadas, foraDoPrefixo: fora.length,
+    ...(registrosDiarios !== undefined ? { registrosDiarios } : {}), ...(leituras !== undefined ? { leituras } : {}),
+  }
 }
 
 /** Caminho 2: o dono pediu a remoção (pausa na hora, a vaga é liberada, pode ser desfeita). */
