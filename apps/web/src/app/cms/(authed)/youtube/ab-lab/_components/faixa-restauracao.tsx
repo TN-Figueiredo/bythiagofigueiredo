@@ -22,7 +22,7 @@ function TextoComHora({ linha }: { linha: LinhaFaixa }) {
   return <>{texto.slice(0, i)}<b>{hora}</b>{texto.slice(i + hora.length)}</>
 }
 
-export function FaixaRestauracao({ faixa }: { faixa: Faixa }) {
+export function FaixaRestauracao({ faixa, children }: { faixa: Faixa; children?: ReactNode }) {
   if (faixa.tom === 'ok') {
     return (
       <div className="faixa-rest">
@@ -53,6 +53,7 @@ export function FaixaRestauracao({ faixa }: { faixa: Faixa }) {
           <div><a className="fr-lnk" href={faixa.linkStudio} target="_blank" rel="noopener noreferrer">{faixa.linkRotulo ?? 'Abrir no YouTube Studio'}</a></div>
         ) : null}
         {faixa.fine ? <p className="fr-fine">{faixa.fine}</p> : null}
+        {children}
       </div>
     </div>
   )

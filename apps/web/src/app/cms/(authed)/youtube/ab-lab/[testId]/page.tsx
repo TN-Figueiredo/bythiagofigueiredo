@@ -5,9 +5,10 @@ import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
 import { EarlyDetail } from '../_components/early-detail'
 import { notFound } from 'next/navigation'
-import { endAbTest, pauseAbTest } from '../actions'
+import { endAbTest, pauseAbTest, retryRestore, dismissRestore } from '../actions'
 import * as Sentry from '@sentry/nextjs'
-import { FaixaRestauracao } from '../_components/faixa-restauracao'
+import { FaixaComAcoes } from '../_components/faixa-com-acoes'
+import { carregarDadosDaFaixa } from '../_components/faixa-dados'
 import { AtualizarEnquantoEmAndamento } from '../_components/atualizar-enquanto-em-andamento'
 import { isEarly } from '../_components/is-early'
 import { faixaDaPagina } from '../_components/faixa-da-pagina'
@@ -86,11 +87,17 @@ export default async function AbTestDetailPage({
   if (!results) notFound()
 
   const view = await toDetailView(results)
-  const { faixa, emAndamentoDesde, ilegivel } = faixaDaPagina(view, results.test.restore_status, new Date())
+  const dados = await carregarDadosDaFaixa(results.test, view.restoreStatus)
+  const { faixa, faixaTentando, emAndamentoDesde, ilegivel } = faixaDaPagina(view, results.test.restore_status, new Date(), dados)
   if (ilegivel) Sentry.captureMessage('restore_status ilegível', { extra: { testId } })
   return (
     <>
-      {faixa ? <FaixaRestauracao faixa={faixa} /> : null}
+      {faixa ? (
+        <FaixaComAcoes
+          testId={testId} faixa={faixa} faixaTentando={faixaTentando} seqVisto={view.restoreSeq}
+          tentar={retryRestore.bind(null, testId)} dispensar={dismissRestore.bind(null, testId)}
+        />
+      ) : null}
       {emAndamentoDesde ? <AtualizarEnquantoEmAndamento emAndamentoDesde={emAndamentoDesde} /> : null}
       <AvisoDePagina testId={testId} />
       {renderView(view)}
