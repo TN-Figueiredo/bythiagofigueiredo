@@ -21,7 +21,9 @@ const okAct = async () => ({ ok: true })
 function actions(over: Partial<CanalActions> = {}): CanalActions {
   return {
     onSyncOne: vi.fn(async (_id: string) => ({ ok: true })),
-    onRemove: vi.fn(async (_id: string) => ({ ok: true })),
+    onPedir: vi.fn(async (_id: string) => ({ ok: true as const, jaPedido: false })),
+    onDesfazer: vi.fn(async (_id: string) => ({ ok: true as const, naoPedido: false, despausado: true })),
+    onApagar: vi.fn(async (_id: string, _nome: string) => ({ ok: true as const, videos: 3 })),
     onRemovalImpact: vi.fn(async (_id: string) => ({ ok: false as const })),
     onSetNiche: vi.fn(async (_id: string, _n: string | null) => ({ ok: true })),
     onPin: vi.fn(async () => ({ ok: true as const })),
@@ -270,7 +272,7 @@ describe('cabeçalho do canal', () => {
     expect(screen.getByRole('dialog', { name: /Remover/ })).toBeTruthy()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: /Remover/ })).toBeNull()
-    expect(a.onRemove).not.toHaveBeenCalled()
+    expect(a.onPedir).not.toHaveBeenCalled()
   })
 
   it('"Comparar com o meu canal" (o lugar que a A1 reservou, D4) existe quando o servidor manda o destino, ao lado de "Abrir no YouTube", e some sem ele', () => {
@@ -293,9 +295,10 @@ describe('cabeçalho do canal', () => {
     expect(onSetNiche).toHaveBeenCalledWith(view.header.id, other.id)
   })
 
-  it('"Remover canal…" abre o diálogo, confirma com o id e volta para Canais; Cancelar só fecha', async () => {
+  it('"Remover canal…" abre a janela, o caminho guardar chama onPedir com o id e a página fica (aviso depois do refresh); Cancelar só fecha', async () => {
     const user = userEvent.setup()
-    const a = actions()
+    const impact = { name: 'X', videos: 3, pinned: 0, versions: 3, dailyDays: 1, bookmarks: 0, readings: 0, watch: { readings: 0, thumbs: 0, alvos: 0 } }
+    const a = actions({ onRemovalImpact: vi.fn(async (_id: string) => ({ ok: true as const, impact, semGuardar: { pode: true as const } })) })
     const { view } = mount({ act: a })
     const openDlg = async () => {
       await user.click(screen.getByRole('button', { name: 'Ações do canal' }))
@@ -306,11 +309,12 @@ describe('cabeçalho do canal', () => {
     expect(a.onRemovalImpact).toHaveBeenCalledWith(view.header.id)
     await user.click(within(dlg).getByRole('button', { name: 'Cancelar' }))
     expect(screen.queryByRole('dialog', { name: /Remover/ })).toBeNull()
-    expect(a.onRemove).not.toHaveBeenCalled()
+    expect(a.onPedir).not.toHaveBeenCalled()
     await openDlg()
-    await user.click(within(screen.getByRole('dialog', { name: /Remover/ })).getByRole('button', { name: 'Remover canal' }))
-    expect(a.onRemove).toHaveBeenCalledWith(view.header.id)
+    await user.click(await within(screen.getByRole('dialog', { name: /Remover/ })).findByRole('button', { name: 'Parar coleta e agendar guarda no NAS' }))
+    expect(a.onPedir).toHaveBeenCalledWith(view.header.id)
     await act(async () => {})
-    expect(replace).toHaveBeenCalledWith(link.canais())
+    expect(refresh).toHaveBeenCalled()
+    expect(push).not.toHaveBeenCalled()
   })
 })

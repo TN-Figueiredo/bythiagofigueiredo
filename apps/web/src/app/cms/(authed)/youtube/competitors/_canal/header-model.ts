@@ -11,6 +11,7 @@ import type { ObsChannel } from '@/lib/youtube/observatorio/types'
 import { SEM_MENSAGEM } from '@/lib/youtube/observatorio/channels'
 import { WD } from '@/lib/youtube/observatorio/time'
 import { vpdText, durText, viewsMediana, duracaoMediana, trocas30 as contarTrocas30, acima2x as contarAcima2x } from './numeros'
+import { idadeDoAgendado } from '../_canais/remover-model'
 
 /** "há N dias" do último vídeo: dias completos de 24 h (`daysAgo`, a mesma regra de `ageDays` e do ponteiro do Ritmo); abaixo de 2 dias a hora, como no resto. */
 export const diasDesde = (D: { daysAgo(ms: number): number; ago(ms: number): string }, ms: number): string => {
@@ -33,6 +34,8 @@ export interface CanalHeaderView {
     at: string | null
     /** O trecho de `text` que diz esse instante (o que vai dentro do <time>), ou null */
     atText: string | null }
+  /** F2 do Remover canal: o pedido de guarda no NAS ainda não concluído; o cabeçalho mostra o aviso (sem botão). null = normal. */
+  agendado: { idade: string } | null
   counts: { total: number; tracked: number; pinnedOld: number; older: number; undated: number }
   /** A linha de resultado à direita das abas: "133 vídeos: 61 longos, 71 Shorts, 1 com formato não confirmado." */
   result: string
@@ -264,6 +267,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
     niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, handle: ch.handle ? ch.handle : null, url: ch.url,
     faixa: [subs, growth30, ritmo, vpd, engajamento, acima2x],
     todos: [trocas30, vpdPorMil, vpdShorts, engShorts, multTipico, maiorMult, ultimoVideo, habito, duracaoMedianaCell, viewsSomadas, medianaViews, tema],
+    agendado: ch.removalRequestedAt ? { idade: idadeDoAgendado(ch.removalRequestedAt, obs.NOW) } : null,
     sync, counts, result, backfill: backfill ? ch.sync.backfill : null,
   }
 }

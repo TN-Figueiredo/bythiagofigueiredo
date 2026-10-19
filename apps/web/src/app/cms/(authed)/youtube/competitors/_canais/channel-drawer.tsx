@@ -14,7 +14,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { CanaisRow, DrawerTab, DrawerView, EffectView, SwapCard, ViewsText } from './view-model'
 import type { Niche } from '@/lib/youtube/observatorio/types'
-import { Ic, ThumbView } from './cells'
+import { AvisoAgendado, Ic, ThumbView } from './cells'
 import { NicheSelect } from './niche-editor'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { PinButton, PinMessage } from '../_chrome/pin-kit'
@@ -76,7 +76,7 @@ function Card({ c }: { c: SwapCard }) {
 }
 
 /** What the list already knows of a channel: the drawer's head while its content is on the way. */
-export type DrawerShell = Pick<CanaisRow, 'id' | 'name' | 'color' | 'ini' | 'avatar' | 'own' | 'niche' | 'lang' | 'handle' | 'url' | 'subs'>
+export type DrawerShell = Pick<CanaisRow, 'id' | 'name' | 'color' | 'ini' | 'avatar' | 'own' | 'niche' | 'lang' | 'handle' | 'url' | 'subs' | 'agendado'>
 const isFull = (d: DrawerView | DrawerShell): d is DrawerView => 'stats' in d
 
 export interface ChannelDrawerProps {
@@ -110,7 +110,7 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
         <div className="row1">
           <ChannelAvatar as="div" src={d.avatar} ini={d.ini} color={d.color} />
           <div style={{ minWidth: 0 }}>
-            <h3 id={nameId}>{d.name}</h3>
+            <h3 id={nameId} tabIndex={-1}>{d.name}</h3>
             <div className="meta">
               {d.own ? <span className="youtag">seu canal</span> : null}
               {d.own && d.lang ? <abbr className="langtag" title={d.lang.title}>{d.lang.code}</abbr> : null}
@@ -122,6 +122,7 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
           </div>
           <button type="button" className="more close" aria-label="Fechar detalhes do canal" onClick={onClose} ref={closeRef}><Ic n="close" /></button>
         </div>
+        {d.agendado ? <AvisoAgendado idade={d.agendado.idade} /> : null}
         {full ? null : <div className="dstats wait" aria-hidden="true"><div /><div /><div /><div /><div /></div>}
         {full ? <div className="dstats">
           {full.stats.map(s => (
@@ -149,7 +150,7 @@ export function ChannelDrawer({ d, modal, upnextHref, onClose, onRemove, onNiche
       )}
       {full ? <FullBody d={full} tab={tab} upnextHref={upnextHref} forjaSlot={forjaSlot} /> : null}
       <div className="dfoot">
-        {d.own ? <span /> : canAdminSite ? (
+        {d.own || d.agendado ? <span /> : canAdminSite ? (
           <button type="button" className="btn small ghost icon" aria-label="Remover canal…" title="Remover canal…" onClick={e => onRemove(e.currentTarget)}><Ic n="trash" /></button>
         ) : (
           <span role="note" data-testid="admin-only-note" style={{ fontSize: 11, lineHeight: 1.35, color: 'var(--muted)' }}>{siteAdminOnlyText('remover um canal')}</span>
