@@ -45,6 +45,8 @@ const ok = async () => ({ ok: true })
 
 const { obs: OBS, owns: OWNS } = a3World()
 const vazio = a3World((ds) => { ds.channels = []; ds.videos = [] })
+/** Um concorrente agendado para guardar no NAS há 2 dias (F2 do Remover canal). */
+const agendado = a3World((ds) => { const c = ds.channels.find((x) => !x.own)!; c.removalRequestedAt = new Date(ds.now - 2 * 86_400_000).toISOString() })
 const semProprios = a3World((ds) => { ds.channels = ds.channels.filter((c) => !c.own); ds.videos = ds.videos.filter((v) => ds.channels.some((c) => c.id === v.ch)) })
 
 /** O diário privado de cada canal próprio, como `carregarExtrasProprio` o entrega. */
@@ -109,7 +111,7 @@ const TAB = (pre: string): Record<string, Record<string, string | readonly strin
   [`${pre}canais-shorts-views-por-dia`]: { Canal: '.name', 'Views por dia dos Shorts, valor absoluto': '.cells.vpd2.abs', 'Vídeos na base dos Shorts': '.cells.vpd2.n' },
   [`${pre}canais-shorts`]: { Canal: '.name', 'Ritmo dos Shorts': ['.cells.cadence2.pw', '.cells.cadence2.text'], 'Views por dia dos Shorts': ['.cells.vpd2.big', '.cells.vpd2.text'], 'Outliers dos Shorts': ['.cells.out2.mult', '.cells.out2.text'] },
   [`${pre}canais-estado`]: { Canal: '.name', Estado: ['.estado.linha', '.estado.apoio', '.estado.quedaLinha'] },
-  [`${pre}canais-notas`]: { Canal: '.name', Nota: ['.semPagina', '.semMedidaTexto', '.cells.cadence.sub', '.cells.cadence.paused', '.cells.vpd.tail', '.cells.out.weak', '.cells.out.upnext', '.cells.out.vs', '.cells.swap.last', '.ressalva', '.ressalva2', '.cells.cadence2.sub', '.cells.cadence2.paused', '.cells.out2.weak', '.cells.out2.upnext', '.cells.growth.cap', '.cells.sync.cov', '.cells.sync.msg', '.semFormato.label', '.semFormato.tip'] },
+  [`${pre}canais-notas`]: { Canal: '.name', Nota: ['.semPagina', '.semMedidaTexto', '.cells.cadence.sub', '.cells.cadence.paused', '.cells.vpd.tail', '.cells.out.weak', '.cells.out.upnext', '.cells.out.vs', '.cells.swap.last', '.ressalva', '.ressalva2', '.cells.cadence2.sub', '.cells.cadence2.paused', '.cells.out2.weak', '.cells.out2.upnext', '.cells.growth.cap', '.cells.sync.cov', '.cells.sync.msg', '.semFormato.label', '.semFormato.tip', '.agendado'] },
   [`${pre}canais-dicas`]: { Canal: '.name', Dica: ['.dicas.subs', '.dicas.vpd', '.dicas.cadence', '.dicas.out', '.dicas.swap', '.dicas.growth', '.dicas.direcao', '.dicas.sync', '.dicas.vpd2', '.dicas.cadence2', '.dicas.out2'] },
 })
 const COLUNAS = {
@@ -144,6 +146,7 @@ const MATRIZ: Array<[string, Caso]> = [
   ['diário negado', { obs: OBS, sp: {}, extras: extrasDe(OBS, 'sem-acesso'), privado: privadoDe(OBS, 'negado', 'sem_direito') }],
   ['diário com falha', { obs: OBS, sp: {}, extras: extrasDe(OBS, 'leitura-falhou'), privado: privadoDe(OBS, 'erro') }],
   ['sem o diário nesta tela', { obs: OBS, sp: {}, privado: privadoDe(OBS, 'negado', 'nao_foi_possivel_conferir') }],
+  ['canal agendado para guardar no NAS', { obs: agendado.obs, sp: {}, extras: extrasDe(agendado.obs), privado: privadoDe(agendado.obs, 'ok') }],
   ['sem canal próprio', { obs: semProprios.obs, sp: {}, privado: { acessoPorCanal: {}, negativa: null } }],
   ['filtro de estado: em queda (vazio explicado)', lido({ filter: 'em-queda' })],
   ['filtro de estado: problemas', lido({ filter: 'problemas' })],
@@ -181,6 +184,12 @@ describe('Canais: paridade em cada estado da matriz', () => {
     expect(MATRIZ.every(([, c]) => c.sp.channel === undefined)).toBe(true)
   })
 
+  it('canal agendado: o pacote diz a frase fixa com a data (DD/MM), não a idade relativa', async () => {
+    const m = await montar({ obs: agendado.obs, sp: {}, extras: extrasDe(agendado.obs), privado: privadoDe(agendado.obs, 'ok') }, false)
+    const d = new Date(agendado.obs.NOW - 2 * 86_400_000).toISOString()
+    expect(m.textoDoPacote).toContain(`agendado para guardar desde ${d.slice(8, 10)}/${d.slice(5, 7)}; coleta parada, números congelados`)
+    expect(m.textoDoPacote).not.toContain('agendado há')
+  })
   it('a tabela de canais leva as linhas da lista, na ordem da tela', async () => {
     const m = await montar(lido({ sort: 'subs' }), false)
     const ids = [...m.modelo.list.ranked, ...m.modelo.list.unranked].map((r) => r.name)

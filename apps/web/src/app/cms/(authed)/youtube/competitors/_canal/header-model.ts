@@ -35,7 +35,7 @@ export interface CanalHeaderView {
     /** O trecho de `text` que diz esse instante (o que vai dentro do <time>), ou null */
     atText: string | null }
   /** F2 do Remover canal: o pedido de guarda no NAS ainda não concluído; o cabeçalho mostra o aviso (sem botão). null = normal. */
-  agendado: { idade: string } | null
+  agendado: { idade: string; desde: string } | null
   counts: { total: number; tracked: number; pinnedOld: number; older: number; undated: number }
   /** A linha de resultado à direita das abas: "133 vídeos: 61 longos, 71 Shorts, 1 com formato não confirmado." */
   result: string
@@ -267,7 +267,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
     niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, handle: ch.handle ? ch.handle : null, url: ch.url,
     faixa: [subs, growth30, ritmo, vpd, engajamento, acima2x],
     todos: [trocas30, vpdPorMil, vpdShorts, engShorts, multTipico, maiorMult, ultimoVideo, habito, duracaoMedianaCell, viewsSomadas, medianaViews, tema],
-    agendado: ch.removalRequestedAt ? { idade: idadeDoAgendado(ch.removalRequestedAt, obs.NOW) } : null,
+    agendado: ch.removalRequestedAt ? { idade: idadeDoAgendado(ch.removalRequestedAt, obs.NOW), desde: ch.removalRequestedAt } : null,
     sync, counts, result, backfill: backfill ? ch.sync.backfill : null,
   }
 }

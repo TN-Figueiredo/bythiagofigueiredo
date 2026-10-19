@@ -27,7 +27,7 @@ const SIZER_SUB = TXT.subVideos(99_999)
 const LINHAS = [
   { k: 'videos', um: 'vídeo', varios: 'vídeos', nenhum: 'nenhum' },
   { k: 'dias', um: 'dia de registros', varios: 'dias de registros', nenhum: 'nenhum' },
-  { k: 'leituras', um: 'leitura da forja', varios: 'leituras da forja', nenhum: 'nenhuma' },
+  { k: 'leituras', um: 'leitura da forja e da página de vídeo', varios: 'leituras da forja e da página de vídeo', nenhum: 'nenhuma' },
   { k: 'itens', um: 'item fixado ou salvo', varios: 'itens fixados ou salvos', nenhum: 'nenhum' },
 ] as const
 type ChaveLinha = (typeof LINHAS)[number]['k']
@@ -101,6 +101,8 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const incerto = fase === 'incerto'
   const comErro = fase === 'erro'
 
+  /** Depois de um erro/incerto: sem contagem em mãos, volta a `falha_contagem` (com "Contar de novo"), nunca a um `pronto` sem números. */
+  const faseDepoisDoErro: Fase = impacto ? 'pronto' : 'falha_contagem'
   const sair = (f: Fase) => { setFase(f); onBloqueioRef.current(false) }
   const enviar = async () => {
     if (emVoo.current || btn.desabilitado) return
@@ -146,10 +148,11 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
     trap(e)
   }
 
-  const escolherGuardar = () => { setCaminho('guardar'); setErro(null); setFase('pronto') }
+  const escolherGuardar = () => { setCaminho('guardar'); setErro(null); setFase(faseDepoisDoErro) }
 
   const contando = fase === 'contando'
-  const mostrarFalha = fase === 'falha_contagem'
+  // sem contagem em mãos, um erro/incerto não esconde a falha: o "Contar de novo" continua à vista (Yannis M-2)
+  const mostrarFalha = fase === 'falha_contagem' || ((fase === 'erro' || fase === 'incerto') && impacto === null)
   const status = contando ? TXT.contando
     : enviando ? (caminho === 'apagar' ? `Apagando ${name}. Aguarde.` : `Parando a coleta de ${name}. Aguarde.`)
       : mostrarFalha ? TXT.falhaTitulo : ''
@@ -167,14 +170,14 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
           <legend>{TXT.pergunta}</legend>
           <label className="opt">
             <input ref={radioGuardar} type="radio" name={`${uid}-motivo`} value="guardar" checked={caminho === 'guardar'} disabled={enviando}
-              onChange={() => { setCaminho('guardar'); setErro(null); if (fase === 'erro' || fase === 'incerto') setFase('pronto') }} />
+              onChange={() => { setCaminho('guardar'); setErro(null); if (fase === 'erro' || fase === 'incerto') setFase(faseDepoisDoErro) }} />
             <b>{TXT.guardarTitulo}</b>
             <small>{TXT.guardarSub}</small>
           </label>
           <label className={'opt' + (apagarLiberado.ativa ? '' : ' off')}>
             <input type="radio" name={`${uid}-motivo`} value="apagar" checked={caminho === 'apagar'} disabled={!apagarLiberado.ativa || enviando}
               aria-describedby={apagarLiberado.ativa ? undefined : ids.why}
-              onChange={() => { setCaminho('apagar'); setErro(null); if (fase === 'erro' || fase === 'incerto') setFase('pronto') }} />
+              onChange={() => { setCaminho('apagar'); setErro(null); if (fase === 'erro' || fase === 'incerto') setFase(faseDepoisDoErro) }} />
             <b>{TXT.apagarTitulo}</b>
             <small>{TXT.apagarSub}</small>
             {apagarLiberado.ativa ? null : <span className="why" id={ids.why}><PinIcon name="err" /><span>{apagarLiberado.porque}</span></span>}

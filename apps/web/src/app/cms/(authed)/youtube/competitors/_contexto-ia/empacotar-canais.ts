@@ -20,6 +20,7 @@ import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventar
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { AVISO_PARCIAL } from './empacotar-comparar'
 import { celulaAusente } from './celula-ausente'
+import { fraseAgendadoIa } from '../_canais/remover-model'
 
 const JANELA = MEASURE_RULES.direction.windowDays
 
@@ -38,6 +39,8 @@ export interface DerivadoLinha {
   /** Em "Todos" a tela escreve a ressalva de dado velho sem a vírgula do começo; nulo = sem ressalva. */
   ressalva: string | null
   ressalva2: string | null
+  /** O canal agendado para guardar no NAS: a frase fixa com a data (DD/MM); nulo = canal normal. */
+  agendado: string | null
 }
 /** Das seções Referências e Inscritos: a pílula "sem medida" vira o motivo do número; a pílula "provisória" vira a situação da linha. */
 export interface DerivadoRiLinha { motivo: string | null; situacao: string | null }
@@ -78,6 +81,7 @@ export function modeloDeCanais(view: CanaisView, ri: RiView | null): ModeloCanai
     direcaoNaoCarregou: r.direcao.tipo === 'nao_carregou' ? NAO_CARREGOU : null,
     ressalva: r.cells.vpd.kind === 'ok' && r.cells.vpd.tail ? r.cells.vpd.tail.replace(/^,\s*/, '') : null,
     ressalva2: r.cells.vpd2?.kind === 'ok' && r.cells.vpd2.tail ? r.cells.vpd2.tail.replace(/^,\s*/, '') : null,
+    agendado: r.agendado ? fraseAgendadoIa(r.agendado.desde) : null,
   })
   const dePilula = (p: RiPilula | null): DerivadoRiLinha => ({ motivo: p?.tipo === 'nm' ? p.texto : null, situacao: p?.tipo === 'prov' ? p.texto : null })
   const R = ri?.referencias.estado === 'ok' ? ri.referencias : null, I = ri?.inscritos.estado === 'ok' ? ri.inscritos : null
@@ -106,8 +110,8 @@ const LINHA = (r: string): Inventario => ({
   [`${r}.growth`]: REP, [`${r}.growthTitle`]: REP, [`${r}.sync.*`]: REP,
   [`${r}.color`]: APAR, [`${r}.ini`]: APAR, [`${r}.avatar`]: IMG, [`${r}.subs`]: 'numero', [`${r}.subsTip`]: REP, [`${r}.url`]: END, [`${r}.handle`]: 'terceiros',
   [`${r}.backfill`]: CTRL, [`${r}.paused`]: CTRL,
-  // F2 do Remover canal: o canal agendado para guardar no NAS. A idade é estado da tela (lista), fora do pacote por ora
-  [`${r}.agendado`]: CTRL, [`${r}.agendado.*`]: CTRL,
+  // F2 do Remover canal: o canal agendado para guardar no NAS; o pacote leva a frase fixa com a data (`derivado...agendado`)
+  [`${r}.agendado`]: CTRL, [`${r}.agendado.*`]: REP,
   [`${r}.direcao.tipo`]: CTRL, [`${r}.direcao.pct`]: REP, [`${r}.direcao.simbolo`]: CTRL, [`${r}.direcao.texto`]: 'numero',
   [`${r}.direcao.ganhoRecente`]: REP, [`${r}.direcao.ganhoAnterior`]: REP, [`${r}.direcao.foraDaEscala`]: APAR, [`${r}.direcao.fracao`]: APAR,
   [`${r}.direcao.avisoDeContagem`]: REP, [`${r}.direcao.curta`]: REP, [`${r}.direcao.motivo`]: CTRL, [`${r}.direcao.longa`]: 'motivo',
@@ -144,7 +148,7 @@ const LINHA = (r: string): Inventario => ({
 })
 
 const DER = (r: string): Inventario => ({
-  [`${r}.posicao`]: 'numero', [`${r}.semPosicao`]: 'motivo', [`${r}.nicho`]: 'rotulo', [`${r}.subsOcultos`]: 'motivo', [`${r}.direcaoNaoCarregou`]: 'motivo', [`${r}.ressalva`]: 'base', [`${r}.ressalva2`]: 'base',
+  [`${r}.posicao`]: 'numero', [`${r}.semPosicao`]: 'motivo', [`${r}.nicho`]: 'rotulo', [`${r}.subsOcultos`]: 'motivo', [`${r}.direcaoNaoCarregou`]: 'motivo', [`${r}.ressalva`]: 'base', [`${r}.ressalva2`]: 'base', [`${r}.agendado`]: 'base',
 })
 
 const RI_SECAO = (r: string, linha: 'ref' | 'ins'): Inventario => ({
@@ -383,6 +387,7 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
       [c.cadence.kind === 'ok' ? c.cadence.sub : null, `${p}.cells.cadence.sub`], [c.cadence.kind === 'ok' ? c.cadence.paused : null, `${p}.cells.cadence.paused`],
       [c.vpd.kind === 'ok' && !todos ? c.vpd.tail : null, `${p}.cells.vpd.tail`], [c.vpd.kind === 'ok' && todos ? dl.ressalva : null, `${dp}.ressalva`],
       [c.out.kind === 'na' ? c.out.weak : null, `${p}.cells.out.weak`], [c.out.kind === 'na' ? c.out.upnext : null, `${p}.cells.out.upnext`],
+      [dl.agendado, `${dp}.agendado`],
       [c.growth.kind === 'na' ? null : c.growth.cap, `${p}.cells.growth.cap`], [c.out.kind === 'ok' && !todos ? c.out.vs : null, `${p}.cells.out.vs`], [c.swap.kind === 'ok' ? c.swap.last : null, `${p}.cells.swap.last`],
       [c.sync.cov, `${p}.cells.sync.cov`], [c.sync.msg, `${p}.cells.sync.msg`], [r.semFormato?.label, `${p}.semFormato.label`], [r.semFormato?.tip, `${p}.semFormato.tip`],
       ...(todos ? [

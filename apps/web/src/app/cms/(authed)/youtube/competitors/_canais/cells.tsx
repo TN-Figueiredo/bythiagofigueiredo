@@ -15,7 +15,7 @@ import { NicheSelect } from './niche-editor'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { usePrefetchOnIntent } from './use-prefetch-on-intent'
-import { TXT } from './remover-model'
+import { TXT, fraseAgendadoIa } from './remover-model'
 
 const P: Record<string, ReactNode> = {
   wait: <path d="M4 1.5h8M4 14.5h8M5 1.5c0 3 6 3.5 6 6.5s-6 3.5-6 6.5M11 1.5c0 3-6 3.5-6 6.5s6 3.5 6 6.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />,
@@ -250,14 +250,14 @@ export interface AgendadoAcoes { ocupado: boolean; onDesfazer: () => void; onCop
  * O canal que o dono mandou guardar no NAS e o agente ainda não guardou. Mostra o selo, há quanto tempo, e (só para quem administra o site) o
  * Desfazer e o pedido ao agente. A forma é própria (borda e fundo na linha, selo com relógio): nunca só cor.
  */
-export function LinhaAgendada({ nome, idade, podeAdministrar, ocupado, onDesfazer, onCopiar }: { nome: string; idade: string; podeAdministrar: boolean; ocupado: boolean; onDesfazer: () => void; onCopiar: () => void }) {
+export function LinhaAgendada({ nome, idade, desde, podeAdministrar, ocupado, onDesfazer, onCopiar }: { nome: string; idade: string; /** ISO do pedido: a data absoluta, para o leitor de tela e o pacote de IA. */ desde: string; podeAdministrar: boolean; ocupado: boolean; onDesfazer: () => void; onCopiar: () => void }) {
   return (
     <div className="agd-corpo" data-agendado="">
       <span className="agd-selo">
         <svg className="ico" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>
         {TXT.selo}
       </span>
-      <span className="agd-txt">{TXT.aguardando} · {idade}</span>
+      <span className="agd-txt">{TXT.aguardando} · {idade}<span className="sr"> ({fraseAgendadoIa(desde)})</span></span>
       {podeAdministrar ? (
         <span className="agd-acoes">
           <button type="button" className="btn small" aria-busy={ocupado || undefined} aria-label={`Desfazer a remoção de ${nome}`} onClick={onDesfazer}>Desfazer</button>
@@ -269,7 +269,7 @@ export function LinhaAgendada({ nome, idade, podeAdministrar, ocupado, onDesfaze
 }
 
 /** O aviso dos detalhes (gaveta e página do canal) do canal agendado: só informa, sem botão (decisão do dono). O Desfazer fica na lista de Canais. */
-export function AvisoAgendado({ idade }: { idade: string }) {
+export function AvisoAgendado({ idade, desde }: { idade: string; desde?: string }) {
   return (
     <div className="agd-aviso" role="status" data-agendado-aviso="">
       <span className="agd-selo">
@@ -277,10 +277,13 @@ export function AvisoAgendado({ idade }: { idade: string }) {
         {TXT.selo}
       </span>
       <p>{TXT.avisoDetalhes}</p>
-      <span className="agd-idade">{idade}</span>
+      <span className="agd-idade">{idade}{desde ? <span className="sr"> ({fraseAgendadoIa(desde)})</span> : null}</span>
     </div>
   )
 }
+
+/** Sem as ações da tela-mãe o selo aparece sem botões (a prop `podeAdministrar` fica falsa): nada mudo na tela. */
+const SEM_ACAO = () => undefined
 
 export function ChCell({ r, ctx, onOpen, onNiche, agendado }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void; agendado?: AgendadoAcoes }) {
   // "Administrar o site" step: the niche of an OWN channel is part of its identity (admins only); it shows as text.
@@ -311,7 +314,7 @@ export function ChCell({ r, ctx, onOpen, onNiche, agendado }: { r: CanaisRow; ct
           <Dica texto={r.dicas.subs}>{r.subsOculto ? <span className="obs-ch-nm" data-subs-ocultos="">{r.subs}</span> : <span className="num">{r.subs}</span>}</Dica>
         </div>
         <EstadoLinha r={r} />
-        {r.agendado ? <LinhaAgendada nome={r.name} idade={r.agendado.idade} podeAdministrar={canAdminSite} ocupado={agendado?.ocupado ?? false} onDesfazer={agendado?.onDesfazer ?? (() => {})} onCopiar={agendado?.onCopiar ?? (() => {})} /> : null}
+        {r.agendado ? <LinhaAgendada nome={r.name} idade={r.agendado.idade} desde={r.agendado.desde} podeAdministrar={canAdminSite && agendado != null} ocupado={agendado?.ocupado ?? false} onDesfazer={agendado?.onDesfazer ?? SEM_ACAO} onCopiar={agendado?.onCopiar ?? SEM_ACAO} /> : null}
         {r.semPagina ? <div className="sub sempg" id={`sempg-${ctx}-${r.id}`}>{r.semPagina}</div> : null}
         {r.semFormato ? (
           <div className="sub semfmt" data-sem-formato="">

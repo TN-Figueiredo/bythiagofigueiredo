@@ -19,6 +19,7 @@ import { A_TELA_NAO_INFORMA_O_MOTIVO } from '@/lib/youtube/observatorio/contexto
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 import type { BlocoCitado, Celula, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { citadosDaForjaDe, inventarioDaForja, tabelaDaForjaDe } from './empacotar-mudancas'
+import { fraseAgendadoIa } from '../_canais/remover-model'
 import { INVENTARIO_MEDIDAS_CANAL, tabelasDeMedidas, type MedidasIa } from './empacotar-canal-medidas'
 
 // ───────────────────────── o modelo
@@ -29,6 +30,8 @@ export interface DerivadoCanal {
   leitura: { forja: MudancasView['forja']; forjaCard: MudancasView['forjaCard'] } | null
   /** Os blocos de medida da tela (topo, células, blocos), já em texto; nulo = as medidas não foram pedidas a este empacotador. */
   medidas: MedidasIa | null
+  /** O canal agendado para guardar no NAS: a frase fixa com a data (DD/MM); nulo = canal normal. */
+  agendado: string | null
 }
 export type ModeloCanal = CanalView & { derivado: DerivadoCanal }
 
@@ -49,6 +52,7 @@ export function modeloDeCanal(view: CanalView, leituraMv: MudancasView | null, m
       cardsDeTrocas,
       leitura: view.state.tab === 'leitura' && leituraMv ? { forja: leituraMv.forja, forjaCard: leituraMv.forjaCard } : null,
       medidas,
+      agendado: view.header.agendado ? fraseAgendadoIa(view.header.agendado.desde) : null,
     },
   }
 }
@@ -71,8 +75,8 @@ export const INVENTARIO_CANAL: Inventario = {
   'header.niche': ID, 'header.nicheLabel': 'rotulo', 'header.handle': REP, 'header.url': END,
   ...CELULA('header.faixa'), ...CELULA('header.todos'),
   'header.sync.tone': APAR, 'header.sync.text': 'base', 'header.sync.banner': 'base', 'header.sync.at': REP, 'header.sync.atText': REP,
-  // F2 do Remover canal: o aviso do canal agendado (estado da tela, sem botão), fora do pacote por ora
-  'header.agendado': CTRL, 'header.agendado.idade': CTRL,
+  // F2 do Remover canal: o aviso do canal agendado (estado da tela, sem botão), o pacote leva a frase fixa com a data (`derivado.agendado`)
+  'header.agendado': CTRL, 'header.agendado.idade': REP, 'header.agendado.desde': REP, 'derivado.agendado': 'base',
   'header.counts.total': REP, 'header.counts.tracked': REP, 'header.counts.pinnedOld': REP, 'header.counts.older': REP, 'header.counts.undated': REP,
   'header.result': 'base', 'header.backfill': CTRL, 'header.backfill.done': REP, 'header.backfill.total': REP,
 
@@ -116,7 +120,7 @@ export const INVENTARIO_CANAL: Inventario = {
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste (cada uma tem teste sintético próprio quando importa). */
 export const SEM_FOLHA_NA_MATRIZ_CANAL: readonly string[] = [
-  'header.backfill.done', 'header.backfill.total', 'header.agendado.idade', 'videos.videos[].pin', 'videos.videos[].viewer', 'origem', 'origem.*',
+  'header.backfill.done', 'header.backfill.total', 'header.agendado.idade', 'header.agendado.desde', 'videos.videos[].pin', 'videos.videos[].viewer', 'origem', 'origem.*',
   'derivado.leitura.forja.card.lines[]', 'derivado.leitura.forja.niches[].reading.moreItems[]', 'derivado.leitura.forja.niches[].reading.siteNotes[]',
   'derivado.leitura.forja.reading', 'derivado.leitura.forjaCard.shorts.text', 'derivado.leitura.forjaCard.shorts.href', 'derivado.leitura.forjaCard.confirm',
   // as folhas dos blocos de medida têm matriz própria (`contexto-ia-canal-medidas.test.tsx`)
@@ -214,7 +218,7 @@ function tabelasDeTrocas(m: ModeloCanal): Tabela[] {
 const presentes = (xs: ReadonlyArray<string | null | undefined>): string[] => xs.filter((x): x is string => typeof x === 'string' && x !== '')
 
 function avisosDe(m: ModeloCanal, daMedida: string[]): string[] {
-  const out = presentes([m.header.sync.text, m.header.sync.banner, ...daMedida])
+  const out = presentes([m.header.sync.text, m.header.sync.banner, m.derivado.agendado, ...daMedida])
   const t = m.state
   if (t.tab === 'videos') {
     out.push(...presentes([m.videos.nota, m.videos.semVideos, m.derivado.lista.vazio?.text, m.derivado.lista.mais?.frase]))

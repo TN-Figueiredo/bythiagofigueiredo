@@ -307,7 +307,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
     returnFocus.current = from ?? document.activeElement as HTMLElement | null
     setMenu(null); setConfirm({ id, name: r.name })
   }
-  const { desfazer, ocupados: desfazendoIds } = useDesfazer(onDesfazer as never, () => router.refresh())
+  const { desfazer, ocupados: desfazendoIds } = useDesfazer(onDesfazer, () => router.refresh())
   const copiarPedido = async (r: { name: string }) => {
     const texto = pedidoAoAgente(r.name, meuEmail)
     try {
@@ -322,11 +322,16 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   const [focoTitulo, setFocoTitulo] = useState(0)
   /** O pedido veio da gaveta: o foco volta ao título da gaveta (que passa a mostrar o aviso), não ao da página. */
   const focoGaveta = useRef<string | null>(null)
+  /** U5: depois de guardar na lista, o foco volta ao ⋯ da mesma linha (a linha continua na lista, agora agendada). */
+  const focoLinha = useRef<string | null>(null)
   useEffect(() => {
     if (!focoTitulo) return
     const g = focoGaveta.current && document.getElementById(`cn-d-${focoGaveta.current}`)
     focoGaveta.current = null
-    if (g) { g.focus({ preventScroll: true }); return }
+    if (g) { g.focus({ preventScroll: true }); focoLinha.current = null; return }
+    const idLinha = focoLinha.current; focoLinha.current = null
+    const menuDaLinha = idLinha ? rowMenuButton(idLinha) : null
+    if (menuDaLinha) { menuDaLinha.focus({ preventScroll: true }); return }
     const raiz = telaRef.current
     const titulo = [...(raiz?.closest('[data-obs]') ?? document).querySelectorAll<HTMLElement>('h1, h2')].find(x => !raiz?.contains(x)) ?? raiz
     if (titulo) { if (!titulo.hasAttribute('tabindex')) titulo.setAttribute('tabindex', '-1'); titulo.focus({ preventScroll: true }) }
@@ -340,10 +345,11 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
     if (!confirm) return
     const { id, name } = confirm
     focoGaveta.current = d.caminho === 'guardar' && panel?.id === id && returnFocus.current?.closest('.cn-drawer') ? id : null
+    focoLinha.current = d.caminho === 'guardar' && !focoGaveta.current ? id : null
     setConfirm(null); setFocoTitulo(n => n + 1)
     if (d.caminho === 'guardar') toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo, { acoes: [{ rotulo: 'Desfazer', onClick: () => { void desfazer(id, name) } }] })
     else {
-      toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(name, { videos: d.videos, ...(d.registrosDiarios !== undefined ? { registros: d.registrosDiarios } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
+      toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(name, { videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
       if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
     }
     router.refresh()

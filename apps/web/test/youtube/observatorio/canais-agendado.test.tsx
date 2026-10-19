@@ -165,7 +165,7 @@ describe('Canais · canal agendado', () => {
     await act(async () => {})
   }
 
-  it('L8.6 guardar: a janela fecha, o toast traz Desfazer (mesmo fluxo do botão da linha), a lista atualiza e o foco vai ao título', async () => {
+  it('L8.6 guardar: a janela fecha, o toast traz Desfazer (mesmo fluxo do botão da linha), a lista atualiza e o foco vai ao ⋯ da mesma linha (U5)', async () => {
     const user = userEvent.setup()
     const { onDesfazer } = montar()
     await abrirRemover(user)
@@ -174,7 +174,7 @@ describe('Canais · canal agendado', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(screen.getByText(TXT.toastAgendadoTitulo)).toBeTruthy()
     expect(refresh).toHaveBeenCalled()
-    expect(document.activeElement?.textContent).toBe('Canais')
+    expect(document.activeElement).toBe(within(tr(normalId)).getByRole('button', { name: /^Mais ações/ }))
     await user.click([...document.querySelectorAll('.obs-ch-toast-acoes button')].find(b => b.textContent === 'Desfazer')!)
     expect(onDesfazer).toHaveBeenCalledWith(normalId)
   })
@@ -190,16 +190,16 @@ describe('Canais · canal agendado', () => {
     await act(async () => {})
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(screen.getByText(TXT.toastApagadoTitulo)).toBeTruthy()
-    expect(document.body.textContent).toContain(`${nome} saiu, sem cópia: 340 vídeos, 1.208 registros diários e 48 leituras.`)
+    expect(document.body.textContent).toContain(`${nome} saiu, sem cópia: 340 vídeos e 48 leituras.`)
     expect(refresh).toHaveBeenCalled()
     expect(document.activeElement?.textContent).toBe('Canais')
   })
 
   it('L8.9 o aviso "apagado" da página do canal vem do estado do navegador (não da URL), uma vez', () => {
-    marcarRemovido({ nome: 'Canal X', videos: 12, registros: 340 })
+    marcarRemovido({ nome: 'Canal X', videos: 12, leituras: 340 })
     montar()
     expect(screen.getByText(TXT.toastApagadoTitulo)).toBeTruthy()
-    expect(document.body.textContent).toContain('Canal X saiu, sem cópia: 12 vídeos e 340 registros diários.')
+    expect(document.body.textContent).toContain('Canal X saiu, sem cópia: 12 vídeos e 340 leituras.')
     expect(sessionStorage.getItem('obs-canal-removido')).toBeNull()
   })
 

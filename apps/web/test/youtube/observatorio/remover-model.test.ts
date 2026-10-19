@@ -2,8 +2,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   MOTIVO, TXT, opcaoApagar, nomeConfere, botaoPrincipal, idadeDoAgendado, pedidoAoAgente, fraseDoErro, codigoPassageiro,
-  desfeitoCorpo, toastApagadoCorpo, normalizarNome, type Fase,
+  desfeitoCorpo, toastApagadoCorpo, normalizarNome, fraseAgendadoIa, type Fase,
 } from '@/app/cms/(authed)/youtube/competitors/_canais/remover-model'
+import { CASOS_NOME } from '../../helpers/casos-nome'
 
 describe('opcaoApagar (M3.1)', () => {
   it('sem contagem ou com a contagem falhada: precisa da contagem', () => {
@@ -49,27 +50,14 @@ describe('MOTIVO (M3.3)', () => {
   })
 })
 
-/** Tabela única de paridade com `obs_nome_normalizado` do banco. */
-export const CASOS_NOME: Array<[string, string, boolean]> = [
-  ['  Ryan Otis ', 'Ryan Otis', true],
-  ['Ryan Otis\u00a0', 'Ryan Otis', true],
-  ['Ryan\u00a0Otis', 'Ryan Otis', true],
-  ['\tRyan Otis', 'Ryan Otis', true],
-  ['ryan otis', 'Ryan Otis', true],
-  ['RYAN OTIS', 'Ryan Otis', true],
-  ['Ryan  Otis', 'Ryan Otis', true],
-  ['\ufeffRyan Otis', 'Ryan Otis', true],
-  ['ÉDEN', 'Éden', true],
-  ['SÃO', 'são', true],
-  ['Eden', 'Éden', false],
-  ['Sao', 'São', false],
-  ['ryan otic', 'Ryan Otis', false],
-  ['', '', false],
-  ['   ', '', false],
-]
 describe('nomeConfere (M3.4, paridade com o banco)', () => {
   it.each(CASOS_NOME)('%j x %j = %s', (d, n, esperado) => {
     expect(nomeConfere(d, n)).toBe(esperado)
+  })
+  it('caractere de largura zero some, não vira espaço (F1 r2)', () => {
+    expect(normalizarNome('Ca\u200bnal')).toBe('canal')
+    expect(normalizarNome('Ca\u2060nal\ufeff')).toBe('canal')
+    expect(normalizarNome('A\u2003B')).toBe('a b')
   })
   it('a normalização é a do banco: espaços Unicode viram um, pontas saem, caixa baixa', () => {
     expect(normalizarNome('\u2003A\u3000 B\u00a0')).toBe('a b')
@@ -119,18 +107,24 @@ describe('frases (M3.7, M3.8)', () => {
     expect(fraseDoErro('sem_direito', 'F', 'guardar')).toEqual({ titulo: TXT.erroGuardarTitulo, corpo: 'Nada mudou. F' })
   })
   it('codigoPassageiro', () => {
-    for (const c of ['leitura', 'inesperado', 'demorou_demais'] as const) expect(codigoPassageiro(c)).toBe(true)
+    for (const c of ['leitura', 'inesperado'] as const) expect(codigoPassageiro(c)).toBe(true)
     for (const c of ['sem_direito', 'saiu_do_youtube', 'itens_na_fila', 'canal_nao_encontrado'] as const) expect(codigoPassageiro(c)).toBe(false)
+  })
+  it('fraseAgendadoIa: frase fixa com a data DD/MM, nunca idade relativa', () => {
+    expect(fraseAgendadoIa('2026-10-12T15:00:00.000Z')).toBe('agendado para guardar desde 12/10; coleta parada, números congelados')
+  })
+  it('fraseDoErro: nenhum código do estouro diz "Nada mudou"', () => {
+    expect(fraseDoErro('sem-resposta', undefined, 'guardar').corpo).not.toMatch(/Nada mudou/)
   })
   it('desfeitoCorpo (U3)', () => {
     expect(desfeitoCorpo('X', true)).toBe('A coleta de X foi retomada e a remoção foi cancelada.')
     expect(desfeitoCorpo('X', false)).toBe('A remoção de X foi cancelada. O canal continua pausado, como estava antes.')
   })
   it('toastApagadoCorpo usa todos os números e omite o que faltou', () => {
-    const c = toastApagadoCorpo('Ryan', { videos: 340, registros: 4000, leituras: 48 })
+    const c = toastApagadoCorpo('Ryan', { videos: 340, leituras: 48 })
     expect(c).toContain('48 leituras')
-    expect(c).toContain('4.000 registros diários')
-    expect(c).toBe('Ryan saiu, sem cópia: 340 vídeos, 4.000 registros diários e 48 leituras. A vaga foi liberada. A ação foi registrada.')
+    expect(c).not.toContain('registros diários')
+    expect(c).toBe('Ryan saiu, sem cópia: 340 vídeos e 48 leituras. A vaga foi liberada. A ação foi registrada.')
     const so = toastApagadoCorpo('Ryan', { videos: 340 })
     expect(so).toBe('Ryan saiu, sem cópia: 340 vídeos. A vaga foi liberada. A ação foi registrada.')
     expect(so).not.toMatch(/\b0\b/)
