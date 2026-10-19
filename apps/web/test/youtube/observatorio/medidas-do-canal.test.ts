@@ -161,7 +161,7 @@ describe('parte não lida e parte não pedida', () => {
 describe('canal com a coleta pausada', () => {
   it('lerCanal devolve collectionPausedAt e o montador o entrega a estadoDoCanal', () => {
     const i = insumosCheios()
-    const r = rodar({ ...i, canal: { lido: true, dados: { id: 'c1', siteId: 's1', collectionPausedAt: new Date(AGORA_CHEIA - 3 * DAY).toISOString(), missingSince: null } } })
+    const r = rodar({ ...i, canal: { lido: true, dados: { id: 'c1', siteId: 's1', collectionPausedAt: new Date(AGORA_CHEIA - 3 * DAY).toISOString(), missingSince: null, criadoEmMs: null, totalNoYoutube: null, limiteDeVideos: null } } })
     expect(r.m8.estado).toMatchObject({ estado: 'medido', valor: 'pausado' })
     expect(r.m8.parado).toMatchObject({ motivo: 'coleta_pausada' })
     expect(r.m8.queda).toMatchObject({ motivo: 'coleta_pausada' })

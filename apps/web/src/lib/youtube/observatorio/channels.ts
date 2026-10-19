@@ -2,7 +2,7 @@
 import { computeSlots, type ChannelSlots } from '../competitor-slots-math'
 import { RULES, DEFAULT_AGES } from './rules'
 import { median } from './stats'
-import { inicioDoRitmo, listaCortada } from './medidas/ritmo'
+import { inicioDoRitmo, baseDoRitmo, PISO_RITMO_DIAS } from './medidas/ritmo'
 import { DAY, H, WD } from './time'
 import { changesIn } from './changes'
 import { outliers, median7 } from './outliers'
@@ -73,18 +73,32 @@ export function problemPhrase(ctx: EngineCtx, ch: ObsChannel): string | null {
   return 'erro desde ' + clock.dmhm(s.errorSince || s.last) + ' · última sincronização boa ' + clock.dmhm(s.last) + ' · ' + problemLabel(ctx, ch)
 }
 
+/**
+ * O texto da base real do ritmo (a tela não pode dizer "13 semanas" quando a base é outra). Sem corte, as 13 semanas da regra.
+ * TODO Logan: rótulo final (só texto; marca, cor e desenho esperam o mockup).
+ */
+export function baseDoRitmoTexto(k: { corte: 'criacao' | 'cobertura' | null; diasBase: number }, semanasDaRegra: number): { media: string; periodo: string } {
+  if (k.corte === 'criacao') return { media: `média desde a criação, ${k.diasBase} dias`, periodo: `${k.diasBase} dias, desde a criação` }
+  if (k.corte === 'cobertura') return { media: `média dos ${k.diasBase} dias guardados`, periodo: `${k.diasBase} dias guardados` }
+  return { media: `média de ${semanasDaRegra} semanas`, periodo: `${semanasDaRegra} semanas` }
+}
+
 export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') {
   const { clock } = ctx, NOW = clock.now
   const ch = ctx.CH.get(channelId)!
   const W = RULES.habit.weeks
-  // Mesma regra do ritmo das medidas (parecer Phil 19/10): a janela começa no max(13 semanas, criação, mais antigo guardado de lista cortada).
-  const cortada = listaCortada({ guardados: ch.videos.length + ch.undated.length, totalNoYoutube: ch.youtubeVideoCount ?? null, limiteDeVideos: ch.video_limit })
-  const oldest = ch.videos.length ? Math.min(...ch.videos.map(v => v.pub)) : null
-  const base = inicioDoRitmo({ agoraMs: NOW, semanasDaRegra: W, criadoEmMs: ch.createdMs ?? null, coberturaDesdeMs: cortada ? oldest : null })
+  // Mesma regra do ritmo das medidas (parecer Phil 19/10): a janela começa no max(13 semanas, criação, cobertura da lista cortada).
+  const lb = baseDoRitmo({
+    publicacoesMs: ch.videos.map(v => v.pub), criadoEmMs: ch.createdMs ?? null, guardados: ch.videos.length + ch.undated.length,
+    totalNoYoutube: ch.youtubeVideoCount ?? null, limiteDeVideos: ch.video_limit, proprio: ch.own === true,
+  })
+  const base = inicioDoRitmo({ agoraMs: NOW, semanasDaRegra: W, criadoEmMs: lb.criadoEmMs, coberturaDesdeMs: lb.coberturaDesdeMs })
   const from = NOW - W * 7 * DAY
   const vs = ch.videos.filter(v => v.fmt === fmtId && v.pub > from && v.pub >= base.inicioMs)
-  const weeks = Array.from({ length: W }, (_, w) => { const a = from + w * 7 * DAY, b = a + 7 * DAY; return { from: a, to: b, n: vs.filter(v => v.pub > a && v.pub <= b).length } })
-  const pw = Math.round(vs.length / Math.max(base.semanas, 4) * 10) / 10
+  // semana inteira antes do início da base (criação/cobertura) não é "zero publicações": é fora do período (n: null)
+  const weeks = Array.from({ length: W }, (_, w) => { const a = from + w * 7 * DAY, b = a + 7 * DAY; return { from: a, to: b, n: b <= base.inicioMs ? null : vs.filter(v => v.pub > a && v.pub <= b).length } })
+  // abaixo do piso de dias não há taxa (mesma regra da API: canal_novo / ritmo_parcial)
+  const pw = base.dias < PISO_RITMO_DIAS ? null : Math.round(vs.length / base.semanas * 10) / 10
   const pairs: Record<string, number> = {}
   vs.forEach(v => { const p = clock.parts(v.pub), k = p.dow + '|' + p.h; pairs[k] = (pairs[k] || 0) + 1 })
   const best = Object.entries(pairs).sort((a, b) => b[1] - a[1])[0]
@@ -96,7 +110,9 @@ export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') 
   const last = ch.videos.filter(v => v.fmt === fmtId)[0] || null
   const partial = ch.sync.state === 'backfill', fetchedSince = partial && ch.videos.length ? ch.videos[ch.videos.length - 1]!.pub : null
   return {
-    channel: channelId, fmt: fmtId, weeks, pw, n: vs.length, habit, lastUpload: last ? last.pub : null, lastUploadAgo: last ? clock.ago(last.pub) : null,
+    channel: channelId, fmt: fmtId, weeks, pw, n: vs.length,
+    // TODO Logan: rótulo final (a tela passa a dizer a base real do período)
+    semanas: Math.round(base.semanas * 100) / 100, diasBase: Math.round(base.dias), corte: base.corte, habit, lastUpload: last ? last.pub : null, lastUploadAgo: last ? clock.ago(last.pub) : null,
     partial, fetchedSince,
     partialText: partial ? 'ritmo parcial: só os ' + (ch.sync.backfill ? ch.sync.backfill.done : ch.videos.length) + ' vídeos mais recentes foram buscados' + (fetchedSince != null ? ' (desde ' + clock.dmOrDmy(fetchedSince) + ')' : '') : null,
   }

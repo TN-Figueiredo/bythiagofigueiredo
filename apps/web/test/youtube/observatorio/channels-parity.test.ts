@@ -5,6 +5,9 @@ import { loadOracle, datasetFromOracle } from './oracle'
 import { createObservatory } from '@/lib/youtube/observatorio'
 const O = loadOracle(), P = createObservatory(datasetFromOracle(loadOracle()))
 const J = (x: unknown) => JSON.parse(JSON.stringify(x))
+// Parecer Yannis 19/10 (I-3): cadence() devolve a base real do período (semanas, diasBase, corte), que o mockup (13 semanas fixas) não tem.
+const BASE_DECLARADA = ['semanas', 'diasBase', 'corte'] as const
+const semBase = (c: unknown) => Object.fromEntries(Object.entries(J(c) as Record<string, unknown>).filter(([k]) => !(BASE_DECLARADA as readonly string[]).includes(k)))
 // bestOutlier.video is the whole video: the oracle's carries mockup-only fields (thumb, target, showcase) the input dataset does not.
 // A5 2ª leva T1 (D1, D1b): growth30 é declaradamente diferente do mockup em campos novos (contagens das pontas, dias de registro, fechaEm, limiteArred)
 // e no TEXTO do arredondamento (a doc oficial diz que o YouTube corta para baixo; a regra passou a 2 passos). Os NÚMEROS (abs, pct, from, to, unit) seguem comparados.
@@ -14,10 +17,10 @@ const stripVideo = (st: Record<string, unknown>) => { const b = st.bestOutlier a
 const ids: string[] = O.channels.map((c: { id: string }) => c.id)
 describe('channels parity with dados.js', () => {
   for (const f of ['long', 'short'] as const) {
-    it.each(ids)(`cadence %s ${f}`, id => { expect(J(P.cadence(id, f))).toEqual(J(O.cadence(id, f))) })
+    it.each(ids)(`cadence %s ${f}`, id => { expect(semBase(P.cadence(id, f))).toEqual(J(O.cadence(id, f))) })
     it.each(ids)(`channelStats %s ${f}`, id => { expect(J(stripVideo(P.channelStats(id, f)))).toEqual(J(stripVideo(O.channelStats(id, f)))) })
   }
-  it.each(ids)('cadence default format %s', id => { expect(J(P.cadence(id))).toEqual(J(O.cadence(id))) })
+  it.each(ids)('cadence default format %s', id => { expect(semBase(P.cadence(id))).toEqual(J(O.cadence(id))) })
   it.each(ids)('sync labels %s', id => {
     const p = P.channel(id)!, o = O.channel(id)
     expect(p.sync.problemPhrase).toBe(o.sync.problemPhrase)

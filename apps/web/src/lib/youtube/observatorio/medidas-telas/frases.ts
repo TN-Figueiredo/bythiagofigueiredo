@@ -33,7 +33,10 @@ const CURTAS: Record<MotivoNaoMedido, (c: ContextoDaFrase) => string> = {
   aguardando_calculo: () => 'ainda não calculado',
   poucos_videos: c => comNumeros(c, (n, min) => `só ${n} de ${min} vídeos`, 'poucos vídeos para medir'),
   poucas_publicacoes: c => comNumeros(c, (n, min) => `só ${n} de ${min} publicações`, 'poucas publicações para medir'),
-  ritmo_parcial: () => 'menos de 4 semanas de canal',
+  // TODO Logan: rótulo final
+  ritmo_parcial: () => 'ritmo de parte do período',
+  // TODO Logan: rótulo final
+  canal_novo: () => 'menos de 4 semanas de canal',
   sem_publicacao: () => 'sem data de publicação',
   sem_registro_recente: () => 'sem leitura recente',
   sem_registro_na_borda: c => (c.desde ? `sem leitura em ${dm(c.desde)}` : 'sem leitura num dos dias'),
@@ -85,8 +88,8 @@ export function fraseDaNota(n: Nota): string {
     case 'so_curtidas': return 'Só as curtidas entram: os comentários estão desligados.'
     case 'so_comentarios': return 'Só os comentários entram: as curtidas estão ocultas.'
     case 'serie_semanal': return 'A contagem é semanal, não dia a dia.'
-    case 'canal_mais_novo_que_a_janela': return `Canal mais novo que a janela: o ritmo conta desde a criação, ${n.dias} d.`
-    case 'cobertura_curta': return `Só os vídeos mais recentes estão guardados: o ritmo conta os últimos ${n.dias} d.`
+    case 'canal_mais_novo_que_a_janela': return `Canal mais novo que a janela: o ritmo conta desde a criação, em ${dm(n.desde)} (${n.dias} d).`
+    case 'cobertura_curta': return `Só os vídeos mais recentes estão guardados: o ritmo conta desde ${dm(n.desde)} (${n.dias} d).`
     case 'agendado_fora': return `${plural(n.n, 'vídeo agendado', 'vídeos agendados')} fora da conta.`
   }
 }

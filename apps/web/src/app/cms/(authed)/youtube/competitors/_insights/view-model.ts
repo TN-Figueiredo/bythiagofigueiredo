@@ -356,7 +356,7 @@ function cadenceSection(obs: Observatory, niche: Niche, fmt: VideoFmt): CadenceS
         title: 'último upload: ' + DT.weekdayShort(all[0]!.pub) + ' ' + DT.dm(all[0]!.pub) + ' ' + DT.hm(all[0]!.pub) + (syncOff ? ' · sem sincronização desde ' + DT.dm(sy.last!) + ' ' + DT.hm(sy.last!) + ', pode haver upload que ainda não vimos' : ''),
         srNote: syncOff ? ' (sem sincronização recente; pode haver upload não visto)' : null }
     return {
-      ...head, none: null, noneSub: null, pace: F.dec1(cad.pw), partial: cad.partial, habit: cad.habit.text, costuma: cad.habit.costuma,
+      ...head, none: null, noneSub: null, pace: cad.pw == null ? '—' : F.dec1(cad.pw), partial: cad.partial, habit: cad.habit.text, costuma: cad.habit.costuma,
       outLink: nOut ? { href: obs.link.outliers({ fmt, channel: ch.id }), text: (nOut === 1 ? 'Ver o outlier' : 'Ver os ' + nOut + ' outliers') + ' do canal', n: nOut } : { href: null, text: 'nenhum outlier em 90 dias', n: 0 },
       ticks, hatches, last,
       aria: ch.name + ': ' + cad.n + ' uploads em ' + W + ' semanas, ' + cad.habit.text + ', último ' + lastAge + (cad.partial && cad.partialText ? '. ' + cad.partialText : '') + (warn ? ', ' + warn : ''),

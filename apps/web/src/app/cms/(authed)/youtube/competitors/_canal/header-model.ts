@@ -6,6 +6,7 @@
  * Não chama nada que agregue entre canais (o conjunto de um canal lança nisso): só `channel`, `videos`, `channelStats`,
  * `cadence`, `changesIn`, `fmt`, `date`, `RULES`, `nicheLabel`, `median` e `theme`.
  */
+import { baseDoRitmoTexto } from '@/lib/youtube/observatorio/channels'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChannel } from '@/lib/youtube/observatorio/types'
 import { SEM_MENSAGEM } from '@/lib/youtube/observatorio/channels'
@@ -113,6 +114,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   const ch: ObsChannel | undefined = obs.channel(channelId)
   if (!ch) return null
   const F = obs.fmt, D = obs.date, R = obs.RULES
+  const pwTxt = (x: number | null) => (x == null ? '—' : F.dec1(x))
   const vids = obs.videos.filter(v => v.ch === ch.id)
   const trackedOf = (f: 'long' | 'short') => vids.filter(v => v.tracked && v.fmt === f)
   const recent = (f: 'long' | 'short') => trackedOf(f).filter(v => v.ageDays <= 90)
@@ -129,8 +131,8 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   const growth30 = celulaCrescimento30(obs, ch, SL.growth30, cell)
 
   const ritmo = cell('ritmo', 'longos + Shorts por semana', {
-    value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`, missing: '',
-    base: `longos + Shorts por semana, média de ${R.habit.weeks} semanas (${noun(kl.n, 'longo', 'longos')}, ${noun(ks.n, 'Short', 'Shorts')})`,
+    value: `${pwTxt(kl.pw)} + ${pwTxt(ks.pw)}`, missing: '',
+    base: `longos + Shorts por semana, ${baseDoRitmoTexto(kl, R.habit.weeks).media} (${noun(kl.n, 'longo', 'longos')}, ${noun(ks.n, 'Short', 'Shorts')})`,
   })
 
   const vpdOf = (f: 'long' | 'short', S: typeof SL, word: string, one: string) => cell(f === 'long' ? 'vpd' : 'vpdShorts', `views/dia nos ${word}`, {

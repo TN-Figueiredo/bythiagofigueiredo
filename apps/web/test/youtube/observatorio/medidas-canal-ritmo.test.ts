@@ -23,7 +23,7 @@ function entrada(vs: VideoLido[], o: Partial<EntradaDoRitmo> = {}): EntradaDoRit
   const fmt = formatoDoCanal(vs)
   const quais = (f: 'long' | 'short') => vs.filter(v => v.isShort === (f === 'short')).map(v => baseDaIdade(v)!)
   const m = medidasFalsas({})
-  const real = (f: 'long' | 'short') => ritmoReal(quais(f), { agoraMs: AGORA, parcial: false })
+  const real = (f: 'long' | 'short') => ritmoReal(quais(f), { agoraMs: AGORA, criadoEmMs: null, coberturaDesdeMs: null })
   const medidas = { ...m, porFormato: { long: { ...m.porFormato.long, m6: real('long') }, short: { ...m.porFormato.short, m6: real('short') } } }
   return { medidas, videos: vs, formato: fmt, estado: ativo(), ultimaLeituraMs: AGORA - 600_000, agoraMs: AGORA, hojeSP: HOJE, ...o }
 }
@@ -81,6 +81,10 @@ describe('bloco Ritmo: dado ausente', () => {
     expect(b.frase.negrito).toBe('Ritmo parcial:')
     expect(b.ponteiro?.pelaBusca).toBe(true)
     expect(html(e)).toContain('pelo que já foi buscado')
+    // Phil I-2: o canal em primeira busca pode ter anos; a frase não diz que "o canal tem menos de quatro semanas"
+    const linhas = b.cartoes.map(c => JSON.stringify(c.valor)).join(' ')
+    expect(linhas).not.toContain('menos de quatro semanas')
+    expect(linhas).toContain('ainda não cobriu todos os vídeos')
   })
 })
 

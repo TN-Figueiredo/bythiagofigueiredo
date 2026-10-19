@@ -142,6 +142,16 @@ describe('Ritmo', () => {
   })
 })
 
+describe('Ritmo de canal mais novo que a janela (Phil I-1)', () => {
+  it('o DNA (81 dias, 12 casas): sem fração, sem "semanas com leitura", e diz a idade do canal', () => {
+    const m6 = ritmo(0.43, 4, { semanas: 12, dias: 81, notas: [{ tipo: 'canal_mais_novo_que_a_janela', dias: 81, desde: '2026-07-30' }] })
+    const base = por(celulasDoCabecalho(entrada({ medidas: medidasFalsas({ m6 }) })), 'ritmo').base as string
+    expect(base).toBe('com um longo em 4 de 12 semanas (canal com 81 dias)')
+    expect(base).not.toMatch(/\d\.\d{3,}/)
+    expect(base).not.toMatch(/com leitura/)
+  })
+})
+
 describe('formato do canal', () => {
   it('só Shorts, os dois ou só longos', () => {
     expect(formatoDoCanal([videoLido('a', { isShort: true })])).toMatchObject({ fmt: 'short', soShorts: true })
