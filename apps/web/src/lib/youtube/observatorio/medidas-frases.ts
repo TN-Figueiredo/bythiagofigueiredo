@@ -43,7 +43,9 @@ export const FRASES_DE_MOTIVO: Record<MotivoNaoMedido, (c: ContextoDaFrase) => s
   poucos_videos: c => comNumeros(c, (n, min) => `há ${n} ${n === 1 ? 'vídeo' : 'vídeos'} na janela e a medida pede ${min}`, 'há poucos vídeos na janela para medir'),
   poucas_publicacoes: c => comNumeros(c, (n, min) => `há ${n} ${n === 1 ? 'publicação' : 'publicações'} na janela e a medida pede ${min}`, 'há poucas publicações na janela para medir o ritmo'),
   // TODO Logan: rótulo final
-  ritmo_parcial: () => 'o canal tem menos de quatro semanas, então ainda não há base para medir o ritmo',
+  ritmo_parcial: () => 'os vídeos guardados cobrem menos de quatro semanas, então o ritmo é parcial',
+  // TODO Logan: rótulo final
+  canal_novo: () => 'o canal tem menos de quatro semanas, então ainda não há base para medir o ritmo',
   sem_publicacao: () => 'o vídeo não tem data de publicação para a idade ser contada',
   sem_registro_recente: () => 'o último registro do canal é mais antigo que ontem',
   sem_registro_na_borda: c => (c.desde ? `falta o registro do canal no dia ${dataBR(c.desde)}` : 'falta o registro do canal em um dos dias da comparação'),

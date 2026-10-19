@@ -39,6 +39,8 @@ export type Motivo =
   | { k: 'primeiraSync' }
   | { k: 'semVideos' }
   | { k: 'semDataVideo' }
+  /** Menos de 28 dias de base (canal novo ou lista guardada curta): a taxa por semana seria ruído (mesma regra da API). */
+  | { k: 'semBaseDeRitmo' }
   /** `falta`: o que o motor diz que falta para a segunda contagem ("faltam 12 d (primeira contagem 24/10)"); null = nenhuma contagem a citar. */
   | { k: 'sem30'; falta: string | null }
   | { k: 'semPercentual' }
@@ -65,6 +67,7 @@ export function motivoTexto(m: Motivo): string {
     case 'primeiraSync': return 'a primeira sincronização ainda não terminou'
     case 'semVideos': return 'sem vídeos'
     case 'semDataVideo': return 'nenhum vídeo com data de publicação'
+    case 'semBaseDeRitmo': return 'menos de quatro semanas de base para medir o ritmo' // TODO Logan: rótulo final
     case 'sem30': return m.falta == null ? 'sem contagem de 30 dias atrás' : `sem contagem de 30 dias atrás: ${m.falta}`
     case 'semPercentual': return 'sem percentual: o canal não tinha inscritos na contagem anterior'
     case 'semViewsLongos': return 'nenhum longo com contagem de views'
@@ -83,7 +86,7 @@ export function motivoTexto(m: Motivo): string {
 
 const EXEMPLOS: Record<Motivo['k'], Motivo> = {
   subsOcultos: { k: 'subsOcultos' }, subsZero: { k: 'subsZero' }, primeiraSync: { k: 'primeiraSync' }, semVideos: { k: 'semVideos' },
-  semDataVideo: { k: 'semDataVideo' }, sem30: { k: 'sem30', falta: null }, semPercentual: { k: 'semPercentual' },
+  semDataVideo: { k: 'semDataVideo' }, semBaseDeRitmo: { k: 'semBaseDeRitmo' }, sem30: { k: 'sem30', falta: null }, semPercentual: { k: 'semPercentual' },
   semViewsLongos: { k: 'semViewsLongos' }, semVpdProprio: { k: 'semVpdProprio', texto: motivoVpdTexto('sem-diario', { ultimoDia: null }, () => ''), motivo: 'sem-diario', ausencia: 'nao_medido' }, semDiarioConcorrente: { k: 'semDiarioConcorrente' },
   semLongoAcompanhado: { k: 'semLongoAcompanhado' }, semMultiploProprioRecente: { k: 'semMultiploProprioRecente' }, invalido: { k: 'invalido' },
   semEngajamento: { k: 'semEngajamento' }, semMultiplo: { k: 'semMultiplo', proprio: false }, semDuracao: { k: 'semDuracao' }, trocasAbLab: { k: 'trocasAbLab' },
@@ -167,8 +170,12 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
     // só vídeos sem data: o ritmo mediria "0 + 0" onde o site não sabe quando ninguém publicou (mesma guarda de `longos90`)
     if (vids.length === 0) return naoMedido({ k: 'semDataVideo' })
     const kl = obs.cadence(ch.id, 'long'), ks = obs.cadence(ch.id, 'short'), sem = obs.RULES.habit.weeks
+    // a base real do período (criação ou cobertura da lista), não as 13 semanas fixas
+    if (kl.pw == null || ks.pw == null) return naoMedido({ k: 'semBaseDeRitmo' })
+    // TODO Logan: rótulo final
+    const periodo = kl.corte === null ? `${sem} semanas` : `${kl.diasBase} dias`
     return medido(Math.round((kl.pw + ks.pw) * 10) / 10, `${umaCasa(kl.pw, F.dec1)} + ${umaCasa(ks.pw, F.dec1)}`,
-      `${F.plural(kl.n, 'longo', 'longos')} e ${F.plural(ks.n, 'Short', 'Shorts')} em ${sem} semanas`)
+      `${F.plural(kl.n, 'longo', 'longos')} e ${F.plural(ks.n, 'Short', 'Shorts')} em ${periodo}`)
   }))
 
   const diasUltimo = seguro('diasUltimo', () => com(() => {

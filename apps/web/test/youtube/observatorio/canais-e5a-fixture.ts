@@ -51,7 +51,7 @@ export function medidasDoOraculo(obs: Pick<Observatory, 'channels' | 'videos' | 
   for (const c of obs.channels) {
     if (c.own) continue
     const pubs = obs.videos.filter(v => v.ch === c.id).map(v => v.pub)
-    const r = ritmo(pubs, { agoraMs: obs.NOW })
+    const r = ritmo(pubs, { agoraMs: obs.NOW, criadoEmMs: null, coberturaDesdeMs: null })
     const e = estadoDoCanal({
       missingSince: null, ultimaPublicacaoMs: pubs.length ? Math.max(...pubs) : null, intervaloMedianoDias: r.estado === 'medido' ? r.valor.intervaloMedianoDias : null,
       retratos: [], hojeSP: spDateOf(obs.NOW), agoraMs: obs.NOW, collectionPausedAt: null,

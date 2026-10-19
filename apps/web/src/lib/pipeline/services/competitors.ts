@@ -103,7 +103,7 @@ export interface CompetitorInsightsData {
   cadence: Array<{
     channel_name: string
     channel_id: string
-    freq: number
+    freq: number | null
     window: string
     last_upload_days: number
   }>

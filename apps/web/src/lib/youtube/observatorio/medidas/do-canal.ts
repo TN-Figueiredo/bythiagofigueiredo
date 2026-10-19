@@ -14,7 +14,7 @@ import {
 } from './direcao'
 import { estadoDoCanal, type EstadoDoCanal } from './estado-canal'
 import { taxaDeAcerto, type ValorAcerto, type VideoParaAcerto } from './acerto'
-import { ritmo, listaCortada, type ValorRitmo } from './ritmo'
+import { ritmo, baseDoRitmo as baseDoRitmoDe, type ValorRitmo } from './ritmo'
 import { engajamentoDoCanal, engajamentoDoVideo, type ValorEngajamento, type VideoParaEngajamento } from './engajamento'
 import { mudouCapitulos, subidasDoVideo, type MudancaDoVideo, type Subida } from './subida'
 import { picoSemCauda, type ValorPico } from './pico'
@@ -236,9 +236,10 @@ export function medidasDoCanal(i: Insumos, o: { agoraMs: number }): MedidasDoCan
   // Base do ritmo (parecer Phil 19/10): criação do canal e, se a lista foi cortada, o mais antigo guardado (qualquer formato, sem agendado).
   const baseDoRitmo = ((): { criadoEmMs: number | null; coberturaDesdeMs: number | null } => {
     if (canalLido === null || videosLidos === null) return { criadoEmMs: null, coberturaDesdeMs: null }
-    const todas = publicacoes(null)
-    const cortada = listaCortada({ guardados: videosLidos.length, totalNoYoutube: canalLido.totalNoYoutube, limiteDeVideos: canalLido.limiteDeVideos })
-    return { criadoEmMs: canalLido.criadoEmMs, coberturaDesdeMs: cortada && todas.length ? Math.min(...todas) : null }
+    return baseDoRitmoDe({
+      publicacoesMs: publicacoes(null), criadoEmMs: canalLido.criadoEmMs, guardados: videosLidos.length,
+      totalNoYoutube: canalLido.totalNoYoutube, limiteDeVideos: canalLido.limiteDeVideos,
+    })
   })()
 
   const m8 = ((): M8DoCanal => {

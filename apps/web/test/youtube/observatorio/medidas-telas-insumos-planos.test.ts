@@ -15,7 +15,7 @@ describe('E5a T2: insumos planos', () => {
   })
   it('aplanar e remontar: ida e volta igual, com Map vazio e partes não lidas', () => {
     const i: Insumos = {
-      canal: { lido: true, dados: { id: 'c', siteId: 's', collectionPausedAt: null, missingSince: null } },
+      canal: { lido: true, dados: { id: 'c', siteId: 's', collectionPausedAt: null, missingSince: null, criadoEmMs: null, totalNoYoutube: null, limiteDeVideos: null } },
       videos: { lido: true, dados: [] },
       marcas: { lido: true, dados: { marcas: new Map(), faltas: new Map() } },
       retratos: { lido: false, causa: 'erro_do_banco' },

@@ -3,6 +3,7 @@
 import type { ProvasDeQuemVe } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import type { Fmt } from '@/lib/youtube/observatorio/fmt'
 import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 import type { CanalInteiro } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-canal'
 import { spDateOf } from '@/lib/youtube/observatorio/time'
@@ -68,7 +69,14 @@ export function entradaDaFrase(ctx: ContextoDoCanal, d: CanalDerivado): EntradaD
     estado: d.estado,
     direcao: m === null ? null : celulaDeDirecao(m.m3a, { missingSince: null, subscribersHidden: null, lastOkSyncedAt: null }, { semVideos: ctx.semVideos }),
     formato: d.formato,
-    ritmo: m6 && m6.estado === 'medido' ? { porSemana: m6.valor.porSemana, semanasLidas: m6.valor.semanas, semanasComPublicacao: m6.valor.semanasComPublicacao } : null,
+    ritmo: m6 && m6.estado === 'medido'
+      ? {
+        porSemana: m6.valor.porSemana, n: m6.n, semanasLidas: MEASURE_RULES.rhythm.weeks, semanasComPublicacao: m6.valor.semanasComPublicacao,
+        // o período encurtado por criação ou cobertura, em dias (as `semanas` da medida não são "semanas com leitura")
+        base: m6.notas.some(x => x.tipo === 'canal_mais_novo_que_a_janela') ? { tipo: 'criacao', dias: m6.valor.dias }
+          : m6.notas.some(x => x.tipo === 'cobertura_curta') ? { tipo: 'cobertura', dias: m6.valor.dias } : null,
+      }
+      : null,
     acerto: m4 && m4.estado === 'medido' ? { k: m4.valor.acertos, n: m4.valor.total } : null,
     // o intervalo habitual só se sabe quando o limite passou do piso de 28 dias (limite = 4 x o intervalo mediano)
     parado: par ? { dias: par.dias, ultimaEm: spDateOf(par.ultimaEm), costumava: par.limite > 28 ? par.limite / 4 : null } : null,

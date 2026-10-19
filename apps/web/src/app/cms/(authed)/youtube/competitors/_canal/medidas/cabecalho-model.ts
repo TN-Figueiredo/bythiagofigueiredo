@@ -129,7 +129,8 @@ export function celulasDoCabecalho(o: EntradaDoCabecalho): CelulaDoCabecalho[] {
     const lidas = o.semanasLidas ?? m6.valor.semanas
     const base = lidas < m6.valor.semanas
       ? `${m6.valor.semanasComPublicacao} de ${lidas} semanas com leitura`
-      : `com ${quemRitmo} em ${m6.valor.semanasComPublicacao} de ${m6.valor.semanas} semanas`
+      // TODO Logan: rótulo final
+      : `com ${quemRitmo} em ${m6.valor.semanasComPublicacao} de ${m6.valor.semanas} semanas${m6.notas.some(x => x.tipo === 'canal_mais_novo_que_a_janela') ? ` (canal com ${m6.valor.dias} dias)` : m6.notas.some(x => x.tipo === 'cobertura_curta') ? ` (${m6.valor.dias} dias guardados)` : ''}`
     out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: 'medido', base, motivo: null, detalhe: { chave: 'ritmo', porSemana: dec1(m6.valor.porSemana) } })
   }
 

@@ -14,12 +14,12 @@ export type Nota =
   | { tipo: 'so_comentarios' }
   | { tipo: 'serie_semanal' }
   | { tipo: 'agendado_fora'; n: number }
-  | { tipo: 'canal_mais_novo_que_a_janela'; dias: number }
-  | { tipo: 'cobertura_curta'; dias: number }
+  | { tipo: 'canal_mais_novo_que_a_janela'; dias: number; desde: string }
+  | { tipo: 'cobertura_curta'; dias: number; desde: string }
 
 export const MOTIVOS_NAO_MEDIDO = [
   'leitura_comecou_depois', 'descoberto_tarde', 'leitura_parou_antes', 'leituras_distantes', 'sem_leitura', 'views_ocultas',
-  'fecha_em', 'aguardando_calculo', 'poucos_videos', 'poucas_publicacoes', 'ritmo_parcial', 'sem_publicacao',
+  'fecha_em', 'aguardando_calculo', 'poucos_videos', 'poucas_publicacoes', 'ritmo_parcial', 'canal_novo', 'sem_publicacao',
   'sem_registro_recente', 'sem_registro_na_borda', 'pouco_registro', 'janela_cruza_mudanca_de_contagem', 'contagem_recuou',
   'base_zero', 'poucas_views', 'poucas_curtidas', 'sem_v30', 'idade_menor_que_90', 'ao_vivo_ou_estreia', 'formato_nao_confirmado',
   'sem_reacao_publica', 'curtidas_ocultas', 'retrato_ausente', 'sem_multiplo', 'serie_nao_pedida', 'serie_diaria_incompleta',

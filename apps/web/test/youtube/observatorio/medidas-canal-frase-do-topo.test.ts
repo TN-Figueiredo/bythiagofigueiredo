@@ -11,7 +11,7 @@ const sync = { state: 'ok' as const, last: AGORA - 3_600_000, errorSince: null }
 const ativo = (): EstadoDaPagina => estadoDaPagina(m8('ativo'), sync, { missingSince: null, doisFormatos: false }, null, HOJE, AGORA)
 const dir = (r: number, a: number, janela = J) => celulaDeDirecao(m3a(r, a, janela), null)
 const base = (o: Partial<EntradaDaFrase> = {}): EntradaDaFrase => ({
-  estado: ativo(), direcao: dir(118, 100), formato: FMT, ritmo: { porSemana: 1.7, semanasLidas: 13, semanasComPublicacao: 11 },
+  estado: ativo(), direcao: dir(118, 100), formato: FMT, ritmo: { porSemana: 1.7, n: 22, semanasLidas: 13, semanasComPublicacao: 11, base: null },
   acerto: { k: 3, n: 20 }, parado: null, queda: null, ultimoVideo: { tipo: 'nenhum' }, hojeSP: HOJE, ...o,
 })
 const ULT_PERTO: UltimoVideo = { tipo: 'medido', v: { tipo: 'faixa', titulo: 'Tokyo em 3 dias', dia: 1, razao: 1.4 } }
@@ -36,13 +36,21 @@ describe('frase do topo', () => {
   })
   it('menos de 56 dias: "Ainda não dá para dizer…" com a data da medida', () => {
     const d = celulaDeDirecao(naoMedido('pouco_registro', { fechaEm: '2026-11-12', n: 26 }), null)
-    const f = fraseDoTopo(base({ direcao: d, ritmo: { porSemana: 2 / 13, semanasLidas: 13, semanasComPublicacao: 2 } }))
+    const f = fraseDoTopo(base({ direcao: d, ritmo: { porSemana: 2 / 13, n: 2, semanasLidas: 13, semanasComPublicacao: 2, base: null } }))
     expect(f.texto).toMatch(/^Ainda não dá para dizer para onde o canal anda: faltam \d+ dias de registro \(completa em 12\/11\)\. Ele publicou 2 vídeos longos nas últimas 13 semanas\./)
   })
   it('canal novo com semanas sem leitura: "nas N semanas com leitura"', () => {
     const d = celulaDeDirecao(naoMedido('pouco_registro', { fechaEm: '2026-11-12' }), null)
-    const f = fraseDoTopo(base({ direcao: d, ritmo: { porSemana: 0.5, semanasLidas: 5, semanasComPublicacao: 2 } }))
+    const f = fraseDoTopo(base({ direcao: d, ritmo: { porSemana: 0.5, n: 3, semanasLidas: 5, semanasComPublicacao: 2, base: null } }))
     expect(f.texto).toContain('nas 5 semanas com leitura.')
+  })
+  it('canal criado há 81 dias (DNA): "desde a criação do canal (81 dias)", com o n real e sem fração nem "com leitura"', () => {
+    const d = celulaDeDirecao(naoMedido('pouco_registro', { fechaEm: '2026-11-12' }), null)
+    const f = fraseDoTopo(base({ direcao: d, ritmo: { porSemana: 0.432, n: 5, semanasLidas: 13, semanasComPublicacao: 5, base: { tipo: 'criacao', dias: 81 } } }))
+    expect(f.texto).toContain('Ele publicou 5 vídeos longos desde a criação do canal (81 dias).')
+    expect(f.texto).not.toMatch(/com leitura|\d\.\d{3,}/)
+    const g = fraseDoTopo(base({ direcao: d, ritmo: { porSemana: 1.05, n: 11, semanasLidas: 13, semanasComPublicacao: 9, base: { tipo: 'cobertura', dias: 73 } } }))
+    expect(g.texto).toContain('Ele publicou 11 vídeos longos nos 73 dias guardados.')
   })
   it('medidas não carregaram: a frase não afirma direção nem estado', () => {
     const f = fraseDoTopo(base({ direcao: null }))

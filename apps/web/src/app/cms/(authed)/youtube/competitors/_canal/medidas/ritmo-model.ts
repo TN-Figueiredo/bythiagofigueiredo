@@ -158,7 +158,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     | { tipo: 'nao_carregou' }
   let e6: Estado6
   if (parou) e6 = { tipo: 'nao_medido', motivo: `não medido: sem leitura desde ${ate ? dm(ate) : 'a última leitura'}`, tom: 'sem_leitura' }
-  else if (parcial) e6 = { tipo: 'nao_medido', motivo: FRASES.ritmo_parcial({}, 'canal').longa, tom: 'parcial' }
+  else if (parcial) e6 = { tipo: 'nao_medido', motivo: 'a coleta do canal ainda não cobriu todos os vídeos, então o ritmo é parcial', tom: 'parcial' }
   else if (m6.estado === 'nao_medido') {
     const mt = motivoDe(m6)
     e6 = mt.carregou ? { tipo: 'nao_medido', motivo: mt.longa, tom: 'sem_base' } : { tipo: 'nao_carregou' }

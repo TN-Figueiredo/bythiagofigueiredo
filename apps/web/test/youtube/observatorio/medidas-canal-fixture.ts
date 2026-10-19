@@ -4,7 +4,7 @@ import type { ValorAcerto } from '@/lib/youtube/observatorio/medidas/acerto'
 import type { ValorDirecaoCanal } from '@/lib/youtube/observatorio/medidas/direcao'
 import type { ValorRitmo } from '@/lib/youtube/observatorio/medidas/ritmo'
 import type { EstadoDoCanal } from '@/lib/youtube/observatorio/medidas/estado-canal'
-import { medido, naoMedido, type Medida } from '@/lib/youtube/observatorio/medidas/tipos'
+import { medido, naoMedido, type Medida, type Nota } from '@/lib/youtube/observatorio/medidas/tipos'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 
 export const HOJE = '2026-10-17'
@@ -19,8 +19,9 @@ export function m3a(recente: number, anterior: number, janela = J): Medida<Valor
 export function acerto(k: number, total: number, fracassos = 0): Medida<ValorAcerto> {
   return medido({ acertos: k, fracassos, total, pctAcerto: total >= 10 ? k / total : null, pctFracasso: total >= 10 ? fracassos / total : null }, total, J)
 }
-export function ritmo(porSemana: number, comPub: number): Medida<ValorRitmo> {
-  return medido({ porSemana, intervaloMedianoDias: 4, semanasComPublicacao: comPub, semanas: 13, maiorBuracoDias: 20 }, 13, J)
+export function ritmo(porSemana: number, comPub: number, o: { semanas?: number; dias?: number; notas?: Nota[] } = {}): Medida<ValorRitmo> {
+  const semanas = o.semanas ?? 13, dias = o.dias ?? 91
+  return medido({ porSemana, intervaloMedianoDias: 4, semanasComPublicacao: comPub, semanas, semanasContadas: dias / 7, dias, maiorBuracoDias: 20 }, 13, J, o.notas ?? [])
 }
 export function m8(estado: EstadoDoCanal, extra: { dias?: number; limite?: number; ultimaEm?: number; queda?: number[] } = {}): MedidasDoCanal['m8'] {
   return {

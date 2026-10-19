@@ -11,7 +11,7 @@ import type { Fmt, Niche, ObsChannel, ObsVideo, SyncState } from '@/lib/youtube/
 import type { OutlierItem } from '@/lib/youtube/observatorio/outliers'
 import type { ObsChange } from '@/lib/youtube/observatorio/changes'
 import type { MultiplierResult } from '@/lib/youtube/observatorio/multiplier'
-import { crescimento30, humanizeSyncError, type ChannelStats, type Crescimento30 } from '@/lib/youtube/observatorio/channels'
+import { baseDoRitmoTexto, crescimento30, humanizeSyncError, type ChannelStats, type Crescimento30 } from '@/lib/youtube/observatorio/channels'
 import { retratoVelho } from '@/lib/youtube/observatorio/inscritos-28d'
 import type { RetratosProprios } from '@/lib/youtube/observatorio/retratos-proprios'
 import { buildForjaView, type ForjaView } from '../_chrome/forja-view-model'
@@ -296,6 +296,7 @@ export function nicheOptions(obs: Observatory): NicheOption[] {
  */
 export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: ExtrasProprio): CanaisView {
   const D = obs.date, F = obs.fmt, R = obs.RULES
+  const pwTxt = (x: number | null) => (x == null ? '—' : F.dec1(x))
   const escrita: Escrita = { num: v => F.int(v), dec1: v => F.dec1(v), dm: t => D.dm(t), agora: obs.NOW }
   // `filtro` é o que a pessoa escolheu (Todos, Longos, Shorts); `fmt` é o formato que ordena e posiciona (Todos ordena pelos longos)
   const fmtLido = parseCanaisFmt(p.fmt)
@@ -484,8 +485,9 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     }
     const k = f === 'long' ? kl : ks, other = f === 'long' ? ks : kl
     return {
-      kind: 'ok', weeks: kl.weeks.map((w, i) => ({ long: w.n, short: ks.weeks[i]?.n ?? 0 })),
-      label: `${kl.n} vídeos longos e ${ks.n} Shorts nas últimas 13 semanas`, pw: F.dec1(k.pw), unit: `${wordOf(f)}/sem`,
+      kind: 'ok', // TODO Logan: semana antes da criação/cobertura (n nulo) hoje desenha como vazia; o desenho final espera o mockup
+      weeks: kl.weeks.map((w, i) => ({ long: w.n ?? 0, short: ks.weeks[i]?.n ?? 0 })),
+      label: `${kl.n} vídeos longos e ${ks.n} Shorts ${kl.corte === null ? 'nas últimas 13 semanas' : `em ${baseDoRitmoTexto(kl, R.habit.weeks).periodo}`}`, pw: pwTxt(k.pw), unit: `${wordOf(f)}/sem`,
       // em "Todos" a outra medida mora na segunda linha da célula: a frase "e N Shorts/sem" seria a mesma coisa duas vezes
       sub: empty ? 'nenhum em 13 semanas' : !second && paradoDe(c) === 'nao_carregou' ? 'a leitura falhou' : todos || paradoDe(c) === 'sim' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
       paused: !second && !empty && paradoDe(c) === 'sim' && diasParado(c) != null ? `Parado: ${ultimaDoParado(c) != null ? `último vídeo em ${D.dm(ultimaDoParado(c)!)}, ` : ''}${nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : null,
@@ -679,7 +681,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? (canalTemVideos(obs, c.id) ? ownChannelHref(c.id) : null) : obs.link.canal(c.id),
       semPagina: c.own && !canalTemVideos(obs, c.id) ? SEM_PAGINA_LINHA : null,
       comparar: !c.own && principal ? { href: obs.link.comparar(principal.id, c.id), label: candidatosN > 1 ? `Comparar ${c.name} com o meu canal (${principal.name})` : `Comparar ${c.name} com o meu canal` } : null,
-      lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
+      lang: c.own ? langChip(c.lang, many) : null, pw: pwTxt(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
       outliers: { n: outN, href: obs.link.outliers({ channel: c.id, fmt }) },
       changes: { n: c.own ? 0 : obs.changesIn({ channel: c.id }).length, href: obs.link.mudancas({ channel: c.id }) },
       growth: growth.kind === 'na' ? growth.text : growth.big, growthTitle: growth.kind === 'na' ? growth.title : growth.cap,
@@ -931,7 +933,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       const vAbs = S.vpdMedian != null ? vpdAbs(S.vpdMedian) : '—', vRel = S.perMilSubs != null ? vpdAbs(S.perMilSubs) : '—', g = S.growth30
       const until = c.sync.state !== 'ok' && g.to != null ? ', até ' + D.dmhm(g.to) : ''
       statsV = [
-        { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`,
+        { label: `Ritmo, 13${NB}sem`, labelTitle: null, value: `${pwTxt(kl.pw)} + ${pwTxt(ks.pw)}`,
           sub: paradoDe(c) === 'sim' ? `Parado: último vídeo ${diasParado(c) == null ? 'há muito tempo' : nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : paradoDe(c) === 'nao_carregou' ? 'a leitura falhou' : 'longos + Shorts por semana', subTitle: null, subWeak: paradoDe(c) === 'sim', ...(paradoDe(c) === 'nao_carregou' ? { subErro: true } : {}) },
         { label: `Views/dia, ${fmt === 'long' ? 'longos' : 'Shorts'}`, labelTitle: null, value: rel ? vRel : vAbs,
           sub: S.vpdMedian == null ? (c.own ? 'sem views diárias do seu canal' : videosOf(c.id).some(x => x.fmt === fmt && x.tracked) ? 'Aguardando o 2º registro diário.' : `sem vídeos desde ${obs.SERIES_START_LABEL}`) : `${rel ? `por mil inscritos (${vAbs}/dia)` : `mediana (${vRel} por mil insc.)`}, ${NEQ(S.vpdN)}, ${S.vpdWindow}${st}`, subTitle: null, subWeak: false },
