@@ -21,6 +21,8 @@ export interface ChannelRow {
   id: string; channel_id: string; channel_name: string; thumbnail_url: string | null; subscriber_count: number | null; niche: string | null
   video_limit: number; youtube_video_count: number | null; sync_status: string; sync_error: string | null; sync_error_since: string | null
   last_ok_synced_at: string | null; last_synced_at: string | null; full_sync_completed_at: string | null; added_at: string | null
+  /** F1 do Remover canal: remoção pedida (agendada); a coluna pode faltar em fixtures antigas. */
+  removal_requested_at?: string | null
 }
 export interface OwnChannelRow { id: string; channel_id: string; name: string; handle: string; subscriber_count: number; last_synced_at: string | null; locale?: string | null; created_at?: string | null; niche?: string | null; thumbnail_url?: string | null }
 export interface VideoRow {
@@ -97,7 +99,7 @@ export interface SiteScope {
 }
 
 /* ------------------------------------------------------------------ constants */
-const CHANNEL_COLS = 'id, channel_id, channel_name, thumbnail_url, subscriber_count, niche, video_limit, youtube_video_count, sync_status, sync_error, sync_error_since, last_ok_synced_at, last_synced_at, full_sync_completed_at, added_at'
+const CHANNEL_COLS = 'id, channel_id, channel_name, thumbnail_url, subscriber_count, niche, video_limit, youtube_video_count, sync_status, sync_error, sync_error_since, last_ok_synced_at, last_synced_at, full_sync_completed_at, added_at, removal_requested_at'
 export const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at, series_tier'
 /** A5 (E2). As colunas de uma faixa no tempo (competitor_video_tier_spans). */
 export const SPAN_COLS = 'video_id, from_date, to_date, tier'
@@ -344,6 +346,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       lastIdx: state === 'backfill' ? null : lastIdx,
       snapshots, undated, youtubeVideoCount: c.youtube_video_count,
       ...(omitted.has(c.id) ? { weeklyOmitted: true } : {}),
+      removalRequestedAt: c.removal_requested_at ?? null,
     })
   }
 

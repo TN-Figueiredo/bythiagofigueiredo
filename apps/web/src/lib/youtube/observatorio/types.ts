@@ -84,6 +84,8 @@ export interface ObsChannel {
   statusLabel?: string; syncAgeHours?: number
   /** A5 (E2). A série dos não observados não coube no pacote em cache e ficou de fora (pack.ts). */
   weeklyOmitted?: boolean
+  /** F1 do Remover canal: quando o dono pediu a remoção ("agendado para ser apagado"); o canal não ocupa vaga. Ausente/nulo = normal. */
+  removalRequestedAt?: string | null
 }
 /** A video of the data a reading was made from (dados.js:937 baseAt), frozen with the reading. */
 export interface ReadingBaseVideo { id: string; ch: string; title: string; theme: string | null; formulas: string[]; mult: number; weak: boolean; method?: string | null; n?: number }
