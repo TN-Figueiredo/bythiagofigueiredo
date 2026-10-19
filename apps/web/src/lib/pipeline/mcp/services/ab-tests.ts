@@ -12,6 +12,7 @@ import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import type { VariantInput } from '@/lib/pipeline/services/youtube'
 import * as youtube from '@/lib/pipeline/services/youtube'
+import * as nativo from '@/lib/pipeline/services/youtube-native'
 import { DESCRICAO_FORA_DO_TESTE, pedeDescricao } from '@/lib/youtube/ab-schemas'
 import { toMcpError, toMcpSuccess } from '../errors'
 
@@ -185,10 +186,25 @@ export async function manageAbTest(params: Params): Promise<CallToolResult> {
         return toMcpSuccess(result.data)
       }
 
+      case 'list_native': {
+        const result = await nativo.listNativeTests(buildCtx(), {
+          youtubeVideoId: params.video_id as string | undefined,
+          estado: params.estado as string | undefined,
+        })
+        return toMcpSuccess(result.data)
+      }
+
+      case 'get_native': {
+        const testId = params.test_id as string | undefined
+        if (!testId) return toMcpError({ code: 'VALIDATION_ERROR', message: 'test_id is required for get_native' })
+        const result = await nativo.getNativeTest(buildCtx(), testId)
+        return toMcpSuccess(result.data)
+      }
+
       default:
         return toMcpError({
           code: 'VALIDATION_ERROR',
-          message: `Unknown action "${action ?? '(missing)'}". Supported: list_tests, get_test, get_funnel, get_performance, get_intelligence, list_variants, upsert_variants, delete_variant, submit_intelligence, claim_task, get_learnings, get_suggestions, get_dashboard, get_history`,
+          message: `Unknown action "${action ?? '(missing)'}". Supported: list_tests, get_test, get_funnel, get_performance, get_intelligence, list_variants, upsert_variants, delete_variant, submit_intelligence, claim_task, get_learnings, get_suggestions, get_dashboard, get_history, list_native, get_native`,
         })
     }
   } catch (error) {

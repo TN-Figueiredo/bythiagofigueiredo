@@ -167,12 +167,12 @@ describe('RULES.hourly', () => {
 })
 
 describe('a lista única de definições (o catálogo e o vigia leem a mesma)', () => {
-  it('são onze, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
-    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.3, 5.5, 5.7, 5.9, 6, 7, 8])
+  it('são doze, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
+    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.3, 5.5, 5.7, 5.9, 5.95, 6, 7, 8])
     expect(DEFINICOES_COMENTARIOS.map(d => d.nome)).toEqual(['anular_identidade', 'retratos_comentarios'])
     expect(DEFINICOES.length).toBe(3)
-    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 6) // + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4) + poda_leituras_watch (A5 S4)
+    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 7) // + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4) + poda_leituras_watch (A5 S4) + registro_teste_nativo (S7 fase 1)
   })
   it('as duas da E14, valor por valor', () => {
     const por = (n: string) => TODAS_AS_DEFINICOES.find(d => d.nome === n)!
@@ -272,6 +272,45 @@ describe('A10 leitura_watch no catálogo (A5 S4)', () => {
     expect(nomes.indexOf('leitura_watch')).toBeGreaterThan(nomes.indexOf('playlists_semanais'))
     expect(nomes.indexOf('leitura_watch')).toBeLessThan(nomes.indexOf('sincronizar_canais'))
     expect(CATALOGO.find(t => t.nome === 'leitura_watch')!.devidaPeloDado?.({ linhas: null, agora: () => 0 })).toBe(true)
+  })
+})
+
+describe('registro_teste_nativo no catálogo (S7 fase 1)', () => {
+  const alvoDoCatalogo = CATALOGO.map(t => ({ nome: t.nome, ligaCom: t.ligaCom }))
+  const d = (): (typeof TODAS_AS_DEFINICOES)[number] => TODAS_AS_DEFINICOES.find(x => x.nome === 'registro_teste_nativo')!
+  it('variável apagada: desligada; só o valor exato "on" liga', () => {
+    const env: NodeJS.ProcessEnv = {}
+    delete env.AB_NATIVO_REGISTRO
+    expect(tarefasDesligadas(env, alvoDoCatalogo).desligadas.has('registro_teste_nativo')).toBe(true)
+    expect(tarefasDesligadas({ AB_NATIVO_REGISTRO: 'ON' }, alvoDoCatalogo).desligadas.has('registro_teste_nativo')).toBe(true)
+    expect(tarefasDesligadas({ AB_NATIVO_REGISTRO: '1' }, alvoDoCatalogo).desligadas.has('registro_teste_nativo')).toBe(true)
+    expect(tarefasDesligadas({ AB_NATIVO_REGISTRO: 'on' }, alvoDoCatalogo).desligadas.has('registro_teste_nativo')).toBe(false)
+  })
+  it('a definição, valor por valor', () => {
+    expect(d()).toMatchObject({ rotulo: 'registro do teste do YouTube', ordem: 5.95, peso: 'leve', periodo: 'hora', tetoTentativas: 3, toleranciaVigiaH: 3, naoTerminouVermelhoEm: 3,
+      comecaAteMs: 60_000, fimAteMs: 88_000, ligaCom: 'AB_NATIVO_REGISTRO' })
+    expect(d().nuncaDesliga).toBeUndefined()
+    expect(Object.keys(d().motivos).sort()).toEqual(['gravacao_falhou', 'lista_falhou', 'sem_video', 'sobrou', 'video_falhou'])
+  })
+  it('ordem 5.9 < 5.95 < 6 e fimAteMs dentro do teto das leves', () => {
+    const o = (n: string): number => TODAS_AS_DEFINICOES.find(x => x.nome === n)!.ordem
+    expect(o('leitura_watch')).toBeLessThan(o('registro_teste_nativo'))
+    expect(o('registro_teste_nativo')).toBeLessThan(o('sincronizar_canais'))
+    expect(d().fimAteMs).toBeLessThanOrEqual(LEVE_FIM_MS)
+  })
+  it('a soma horária + 30 s da watch + 30 s do registrador fica antes da coleta de comentários', () => {
+    expect(HORARIA_FIM_MS + 30_000 + 30_000).toBeLessThan(COMMENT_RULES.startsByMs)
+  })
+  it('naoTerminouVermelhoEm cabe nos disparos do período: para toda tarefa de período hora, no máximo 3 (o contador é por linha de período)', () => {
+    for (const x of TODAS_AS_DEFINICOES.filter(y => y.periodo === 'hora')) {
+      if (x.naoTerminouVermelhoEm !== null) expect(x.naoTerminouVermelhoEm, x.nome).toBeLessThanOrEqual(3)
+    }
+  })
+  it('o catálogo tem a tarefa depois da leitura_watch, antes das pesadas, com devidaPeloDado sempre verdadeira', () => {
+    const nomes = CATALOGO.map(t => t.nome)
+    expect(nomes.indexOf('registro_teste_nativo')).toBe(nomes.indexOf('leitura_watch') + 1)
+    expect(nomes.indexOf('registro_teste_nativo')).toBeLessThan(nomes.indexOf('sincronizar_canais'))
+    expect(CATALOGO.find(t => t.nome === 'registro_teste_nativo')!.devidaPeloDado?.({ linhas: null, agora: () => 0 })).toBe(true)
   })
 })
 

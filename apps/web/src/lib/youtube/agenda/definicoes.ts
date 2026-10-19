@@ -226,6 +226,25 @@ export const DEFINICAO_PODA_LEITURAS_WATCH: Definicao = {
   },
 }
 
+/**
+ * `registro_teste_nativo` (S7 fase 1): lê as leituras da watch dos vídeos próprios devidos, roda a regra do teste nativo do YouTube e grava o registro e a avaliação
+ * (`ab_native_tests`, `ab_native_avaliacoes`). Leve, a cada disparo (`devidaPeloDado` sempre verdadeira; o que é devido sai da lista), **depois** da `leitura_watch` (`5.9`).
+ * **`ligaCom: 'AB_NATIVO_REGISTRO'`**: só `on` liga. `naoTerminouVermelhoEm 3`: o contador é por linha de período; com `periodo 'hora'` e disparo a cada 20 min chega a 3 no máximo.
+ * `comecaAteMs` e `fimAteMs` iguais aos da leitura da watch (a tarefa tem prazo próprio de 30 s e nenhuma ida ao banco depois de `t0 + 83 s`).
+ */
+export const DEFINICAO_REGISTRO_TESTE_NATIVO: Definicao = {
+  nome: 'registro_teste_nativo', rotulo: 'registro do teste do YouTube', ordem: 5.95, peso: 'leve', periodo: 'hora',
+  tetoTentativas: 3, toleranciaVigiaH: 3, naoTerminouVermelhoEm: 3,
+  comecaAteMs: 60_000, fimAteMs: 88_000, ligaCom: 'AB_NATIVO_REGISTRO',
+  motivos: {
+    video_falhou: 'a avaliação de teste do YouTube falhou em algum vídeo',
+    sobrou: 'ficaram vídeos para o próximo disparo',
+    lista_falhou: 'não foi possível montar a lista de vídeos',
+    gravacao_falhou: 'não foi possível gravar a avaliação',
+    sem_video: 'há vídeo próprio acompanhado há mais de um dia que não está na tabela de vídeos',
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
@@ -233,7 +252,7 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_PODA_LEITURAS_WATCH].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_PODA_LEITURAS_WATCH].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {
