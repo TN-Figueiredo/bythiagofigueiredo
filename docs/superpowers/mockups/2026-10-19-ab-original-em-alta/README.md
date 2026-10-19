@@ -19,11 +19,11 @@ No passo Variantes do assistente, logo acima do cartão A, só para os tipos thu
 ## Decisões (1, 3, 4 e 6 aprovadas pelo dono com a recomendação)
 1. Limite de "baixa". Posição do desenho: largura até 480 avisa (regra do diálogo de encerrar). Posição do Logan: aviso sempre que a pública tiver menos de 1280 de largura, pois 480×360 e 640×480 são 4:3 com faixa preta e a 640×480 passaria calada. **Recomendo a do Logan** (o mockup já a mostra); o diálogo de encerrar segue a regra do Phil até ele dizer se alinha. Falta conferir com dois vídeos reais do canal se `sddefault` vem sempre com faixa preta.
 2. Enviar original é obrigatório quando a pública < 1280 (dono, 19/10): sem envio, não inicia.
-3. Mínimo no envio: 1280 de largura quando a pública é baixa (consequência da regra do dono; com a pública em alta, 640); 1280×720 como ideal no texto.
+3. Mínimo no envio: 1280 com a pública baixa (dono 19/10); com a pública em alta, 640; 1280×720 como ideal no texto.
 4. Trocar a original só com teste pausado ou rascunho (trocar no ar muda a base do experimento). Logan concorda.
 5. "Remover e usar a pública" só com a pública em alta (dono, 19/10).
 6. Limite do YouTube lido como 2 MB e JPG, PNG, GIF; a recusa ao guardar tem mensagem própria (E). Logan concorda.
-7. **Decisão nova para o dono:** teste antigo com a original baixa: retomar livre com aviso (recomendado: não prender teste em curso por regra nova; custo: volta borrada a cada troca) × Retomar bloqueado até enviar. H mostra as duas lado a lado.
+7. Decidido pelo dono 19/10: retomar livre com aviso (teste antigo com a original baixa não fica preso por regra nova; custo: volta borrada a cada troca). H mostra esse caminho.
 
 ## O que testar no Opera
 - Escuro e claro: selo e faixa de aviso se leem sem depender só da cor.
