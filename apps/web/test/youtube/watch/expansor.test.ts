@@ -43,6 +43,30 @@ describe('A7 expansor', () => {
     })
   })
 
+  describe('FU-S4-1: marcas bidi na comparação de títulos', () => {
+    const base = () => gerar(mulberry32(11), 1)[0]!
+    const com = (textos: string[]): ResultadoLeitor => {
+      const r = base()
+      return { ...r, leitura: { ...r.leitura, erro: null, idioma: 'pt-BR', miniaturas: [], titulosExibidos: RENDERERS_TITULO.map((renderer, i) => ({ renderer, texto: textos[i] ?? textos[0]! })) } }
+    }
+    it('2U3QbV2VoI0: só as marcas 202A/202C diferem, exibido sai sem elas', () => {
+      const p = paraLinhas(com(['Oi \u202A@Estevam\u202C', 'Oi @Estevam', 'Oi \u202A@Estevam\u202C']), SITE_TESTE, 1)
+      expect(p.leitura.titulo_exibido).toBe('Oi @Estevam')
+      expect(p.leitura.titulos_divergentes).toBeNull()
+      expect(linhaCabeNoBanco(p.leitura)).toBe(true)
+    })
+    it.each([['200E/200F', '\u200E', '\u200F'], ['202A-202E', '\u202A', '\u202E'], ['2066-2069', '\u2066', '\u2069']])('faixa %s é ignorada', (_n, a, b) => {
+      const p = paraLinhas(com([`x${a}y${b}z`, 'xyz', 'xyz']), SITE_TESTE, 1)
+      expect(p.leitura.titulo_exibido).toBe('xyz')
+      expect(p.leitura.titulos_divergentes).toBeNull()
+    })
+    it('divergência real continua nula, com os textos brutos', () => {
+      const p = paraLinhas(com(['A\u202Cx', 'B', 'A']), SITE_TESTE, 1)
+      expect(p.leitura.titulo_exibido).toBeNull()
+      expect(p.leitura.titulos_divergentes?.map(d => d.texto)).toContain('A\u202Cx')
+    })
+  })
+
   it('miniatura só na leitura que a buscou', () => {
     const [a, b, c] = gerar(mulberry32(7), 3).map(r => ({ ...r, leitura: { ...r.leitura, erro: null, titulosExibidos: RENDERERS_TITULO.map(renderer => ({ renderer, texto: 'T' })), idioma: 'pt-BR' } }))
     const com = { ...a!, leitura: { ...a!.leitura, miniaturas: [{ url: `https://i.ytimg.com/vi/${ID}/hqdefault.jpg`, host: 'i.ytimg.com', variante: 'hqdefault', largura: 480, altura: 360, http: 200, etag: null, sha16: null, dhash: HEX }] } }

@@ -105,6 +105,10 @@ interface Titulos {
   mascara: number
 }
 
+/** Marcas de direção de texto (LRM/RLM, embeddings/overrides, isolates): o YouTube as põe em volta de @menções em alguns renderers. */
+const MARCAS_BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g
+const semMarcasBidi = (t: string): string => t.replace(MARCAS_BIDI, '')
+
 function titulosDe(l: LeituraWatch): Titulos {
   if (l.erro !== null) return { exibido: null, divergentes: null, mascara: 0 }
   const lista: readonly string[] = RENDERERS_TITULO
@@ -114,8 +118,9 @@ function titulosDe(l: LeituraWatch): Titulos {
   })
   const foraDaLista = l.titulosExibidos.some(t => !lista.includes(t.renderer))
   const textos = l.titulosExibidos.filter(t => lista.includes(t.renderer) && t.texto !== null).map(t => t.texto)
-  const todosIguais = textos.every(t => t === textos[0])
-  if (!foraDaLista && todosIguais) return { exibido: textos[0] ?? null, divergentes: null, mascara }
+  const normalizados = textos.map(t => semMarcasBidi(t ?? ''))
+  const todosIguais = normalizados.every(t => t === normalizados[0])
+  if (!foraDaLista && todosIguais) return { exibido: normalizados[0] ?? null, divergentes: null, mascara }
   return { exibido: null, divergentes: l.titulosExibidos.map(t => ({ renderer: t.renderer, texto: t.texto })), mascara }
 }
 
