@@ -1,7 +1,8 @@
-/** §4.1: NFC, tira invisíveis (mantém ZWJ), colapsa espaços Unicode, trim. Não mexe em caixa, acento, emoji nem entidade. */
+/** §4.1: NFC, tira invisíveis (mantém ZWJ) e marcas bidi (as mesmas que a leitura da watch tira, FU-S4-1), colapsa espaços Unicode, trim. Não mexe em caixa, acento, emoji nem entidade. */
 export function normalizarTitulo(s: string): string {
   return s
     .normalize('NFC')
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '')
     .replace(/[​﻿⁠︎️]/g, '')
     .replace(/[\s  ]+/g, ' ')
     .trim()
