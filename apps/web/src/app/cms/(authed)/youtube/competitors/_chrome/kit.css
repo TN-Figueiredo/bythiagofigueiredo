@@ -31,8 +31,8 @@
 [data-obs-screen="canal"] .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 [data-obs-screen="canal"] .btn{min-height:36px;padding:0 14px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-weight:500;font-size:13.5px;white-space:nowrap;text-decoration:none}
 [data-obs-screen="canal"] .btn:hover{background:var(--surface-hover)}
-[data-obs-screen="canal"] .btn.danger{background:#B42318;border-color:#B42318;color:#fff}
-[data-obs-screen="canal"] .btn.danger:hover{background:#9A1D14}
+[data-obs-screen="canal"] .btn.danger{background:var(--dg-bg);border-color:var(--dg-line);color:var(--dg-fg)}
+[data-obs-screen="canal"] .btn.danger:hover{background:var(--dg-bg-hover)}
 [data-obs-screen="canal"] .modal{position:fixed;inset:0;z-index:var(--z-modal);display:none;place-items:center;background:rgba(0,0,0,.5);padding:16px}
 [data-obs-screen="canal"] .modal.on{display:grid}
 [data-obs-screen="canal"] .modal .box{width:min(440px,100%);background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow);padding:20px}
@@ -54,4 +54,5 @@
 [data-obs-screen="canal"] .modal .fx-msg{margin:0 0 12px}
 [data-obs-screen="canal"] .modal .fx-remove .acts{position:sticky;bottom:0;margin:0 -20px;padding:12px 20px 20px;background:var(--surface);border-top:1px solid var(--border-subtle)}
 [data-obs-screen="canal"] .modal .btn[aria-disabled="true"],[data-obs-screen="canal"] .modal .btn[aria-disabled="true"]:hover,[data-obs-screen="canal"] .modal .btn[aria-disabled="true"]:active{cursor:not-allowed;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted)}
+[data-obs-screen="canal"] .btn.danger[aria-disabled="true"],[data-obs-screen="canal"] .btn.danger[aria-disabled="true"]:hover,[data-obs-screen="canal"] .btn.danger[aria-disabled="true"]:active{border-color:var(--dg-line);color:var(--dg-fg);background:transparent;border-style:dashed;opacity:.8}
 @media (pointer:coarse){[data-obs-screen="canal"] .modal .fx-remove .acts .btn.btn{min-height:44px}}
