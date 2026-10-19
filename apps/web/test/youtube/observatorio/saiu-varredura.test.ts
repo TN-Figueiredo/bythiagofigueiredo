@@ -52,6 +52,7 @@ const FUNCOES_QUE_APAGAM: Record<string, string> = {
   competitor_comment_identity_purge: '9.2 linha 3/6: a identidade do autor vence em 30 dias (LGPD); não apaga texto nem série',
   competitor_agenda_lease_release: '9.2 linha 3: estado de execução da agenda (MG10); solta o arrendamento',
   competitor_channel_remove_archived: '9.2 linha 2 · E10 MG6: remoção de canal com lote de arquivo confirmado',
+  competitor_channel_delete_unarchived: 'F1 Remover canal: o dono apagou sem guardar um canal com até 30 dias (entrou por engano), com nome digitado e contagens conferidas',
   apply_competitor_comment_snap: 'A5 F2-coleta 7d: resposta de espectador ausente, ou de fio sem resposta do criador, é apagada na mesma transação (nunca passa pela fila nem por competitor_removed_items)',
   competitor_marks_apply: '9.2 · E4 MG4: apaga só de competitor_video_marks e competitor_video_mark_misses, regravando a decisão da própria tarefa',
 }

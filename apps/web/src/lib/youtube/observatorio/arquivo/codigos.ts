@@ -14,12 +14,14 @@ export type CodigoE10 =
   | 'lote_nao_confirmado' | 'despausado_depois_do_export' | 'banco_difere_do_manifesto' | 'tabela_sem_export' | 'sobrou_linha'
   | 'sem_direito' | 'pausa_recente' | 'sincronizando' | 'lote_ja_apagado' | 'pausa_sem_remendo' | 'parametro_nulo'
   | 'schema_ausente' | 'apagou_alem_do_arquivo' | 'inesperado'
+  | 'canal_antigo' | 'nome_nao_confere' | 'video_compartilhado' | 'saiu_do_youtube' | 'sem_vaga'
 
 /** Os códigos que o banco (MG6) levanta com `E10:<codigo>:`. `demorou_demais`, `schema_ausente` e `inesperado` nascem do código do erro, nunca da mensagem. */
 const DO_BANCO: ReadonlySet<string> = new Set<CodigoE10>([
   'forja_em_andamento', 'canal_nao_encontrado', 'nao_pausado', 'sem_lote', 'lote_nao_conferido', 'lote_nao_confirmado',
   'despausado_depois_do_export', 'banco_difere_do_manifesto', 'tabela_sem_export', 'sobrou_linha', 'sem_direito', 'pausa_recente',
   'sincronizando', 'lote_ja_apagado', 'pausa_sem_remendo', 'parametro_nulo', 'apagou_alem_do_arquivo',
+  'canal_antigo', 'nome_nao_confere', 'video_compartilhado', 'saiu_do_youtube', 'sem_vaga',
 ])
 
 const MENSAGEM_E10 = /^E10:([a-z_]+):/
@@ -49,7 +51,7 @@ export const FRASES_E10: Record<CodigoE10, string> = {
   despausado_depois_do_export: 'A coleta deste canal foi retomada depois da exportação, então ela deixou de valer. Exporte de novo.',
   banco_difere_do_manifesto: 'O banco mudou depois da exportação: há dado que o arquivo não tem. Nada foi apagado. Exporte de novo.',
   tabela_sem_export: 'Existe uma tabela do canal que a exportação ainda não cobre. Nada foi apagado.',
-  sobrou_linha: 'Depois de apagar, sobrou dado do canal em alguma tabela. A operação foi desfeita e nada foi apagado.',
+  sobrou_linha: 'Depois de apagar, sobrou dado do canal em alguma tabela. A operação foi desfeita e nada foi apagado. Tente de novo em alguns minutos.',
   sem_direito: 'Só quem administra o site pode fazer isto.',
   pausa_recente: `A coleta foi pausada há pouco. Espere ${RULES.pause.minMinutesBeforeExport} minutos depois de pausar antes de exportar.`,
   sincronizando: 'O canal está sendo sincronizado agora. Espere terminar e tente de novo.',
@@ -58,5 +60,10 @@ export const FRASES_E10: Record<CodigoE10, string> = {
   parametro_nulo: 'Faltou um dado no pedido. Nada foi feito.',
   schema_ausente: 'A migration da exportação ainda não foi aplicada neste banco. Nada foi feito.',
   apagou_alem_do_arquivo: 'Ao apagar, o banco contou mais linhas do que as da exportação, ou não conseguiu contar. A operação foi desfeita e nada foi apagado.',
+  canal_antigo: `Este canal foi adicionado há mais de ${RULES.removal.semGuardarAteDias} dias. Para tirá-lo, use "guardar no NAS".`,
+  nome_nao_confere: 'O nome digitado não é o nome do canal. Nada foi apagado.',
+  video_compartilhado: 'Um vídeo deste canal também é acompanhado por outro canal ou por um teste nosso. Nada foi apagado.',
+  saiu_do_youtube: 'Este canal saiu do YouTube: responda na aba Saíram do YouTube.',
+  sem_vaga: 'Não há vaga para este canal voltar. Remova outro canal antes de desfazer.',
   inesperado: 'Algo inesperado aconteceu e nada foi apagado. A causa foi registrada; tente de novo mais tarde.',
 }
