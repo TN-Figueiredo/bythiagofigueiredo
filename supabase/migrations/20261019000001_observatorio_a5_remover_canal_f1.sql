@@ -24,6 +24,40 @@ begin
   end if;
 end $$;
 
+-- A.0 (Phil C-1, 19/10) As quatro funções da coleta precisam conhecer a pausa. A 20261018000002 recriou competitor_comment_health sem o
+-- remendo da MG6 §10, e a pausa (de que o pedido de remoção depende) recusa com pausa_sem_remendo. Cópia literal do bloco da MG6 §10: idempotente.
+do $$
+declare
+  r record;
+  v_def text;
+  v_n integer;
+begin
+  for r in
+    select * from (values
+      ('public.competitor_series_health(uuid,timestamptz)',
+       'or v.missing_since is not null or c.missing_since is not null',
+       'or v.missing_since is not null or c.missing_since is not null or public.competitor_channel_pause_covers(c.id, p_now, interval ''3 days'')'),
+      ('public.competitor_hourly_health(uuid,timestamptz,integer,integer)',
+       'and v.missing_since is null and c.missing_since is null',
+       'and v.missing_since is null and c.missing_since is null and not public.competitor_channel_pause_covers(c.id, p_now, interval ''26 hours'')'),
+      ('public.competitor_comment_due(timestamptz,jsonb,interval,integer,text[],interval,timestamptz,uuid)',
+       'and v.missing_since is null and c.missing_since is null and v.published_at is not null',
+       'and v.missing_since is null and c.missing_since is null and not public.competitor_channel_pause_covers(c.id, p_now, interval ''0'') and v.published_at is not null'),
+      ('public.competitor_comment_health(uuid,timestamptz,jsonb,integer,interval,timestamptz)',
+       'and v.missing_since is null and c.missing_since is null and v.published_at is not null',
+       'and v.missing_since is null and c.missing_since is null and not public.competitor_channel_pause_covers(c.id, p_now, interval ''7 days'') and v.published_at is not null')
+    ) as t(assinatura, ancora, troca)
+  loop
+    v_def := pg_catalog.pg_get_functiondef(r.assinatura::regprocedure);
+    continue when v_def like '%competitor_channel_pause_covers%';
+    v_n := (length(v_def) - length(replace(v_def, r.ancora, ''))) / length(r.ancora);
+    if v_n <> 1 then
+      raise exception 'MG6: a âncora do remendo aparece % vez(es) em % (esperado: 1). O corpo da função mudou: conferir antes de aplicar.', v_n, r.assinatura;
+    end if;
+    execute replace(v_def, r.ancora, r.troca);
+  end loop;
+end $$;
+
 -- ═══════════════════════════ §A. yt_watch_* no arquivo, remoção arquivada e pausa ═══════════════════════════
 
 -- A.1 Guarda do registro: o instalado tem de ser as 27 da X3 (ou as 30, reaplicação).
@@ -381,12 +415,15 @@ alter table public.competitor_channels add column if not exists removal_requeste
 alter table public.competitor_channels add column if not exists removal_requested_by uuid;
 alter table public.competitor_channels add column if not exists removal_was_paused boolean;
 alter table public.competitor_channels add column if not exists removal_reason text;
+-- (Phil C-2) reter_ate de cada alvo ANTES do pedido (id do alvo -> valor), para o Desfazer e a recarga devolverem a retenção da prova de A/B
+alter table public.competitor_channels add column if not exists removal_reter_antes jsonb;
 
 alter table public.competitor_channels drop constraint if exists competitor_channels_removal_par;
 alter table public.competitor_channels add constraint competitor_channels_removal_par check (
   (removal_requested_at is null) = (removal_requested_by is null)
   and (removal_requested_at is null) = (removal_was_paused is null)
-  and (removal_requested_at is null) = (removal_reason is null));
+  and (removal_requested_at is null) = (removal_reason is null)
+  and (removal_requested_at is null) = (removal_reter_antes is null));
 alter table public.competitor_channels drop constraint if exists competitor_channels_removal_reason_forma;
 alter table public.competitor_channels add constraint competitor_channels_removal_reason_forma check (
   removal_reason is null or removal_reason ~ '^[a-z_]{1,40}$');
@@ -406,6 +443,7 @@ declare
   v_now timestamptz := pg_catalog.clock_timestamp();
   v_ret integer;
   v_paused timestamptz;
+  v_prev jsonb;
 begin
   if p_site is null or p_channel is null or p_by is null or p_motivo is null or p_motivo !~ '^[a-z_]{1,40}$' then
     raise exception 'E10:parametro_nulo: competitor_channel_request_removal' using errcode = '22023';
@@ -436,8 +474,13 @@ begin
   if not v_was then
     perform public.competitor_channel_pause(p_site, p_channel, p_by);
   end if;
+  select coalesce(jsonb_object_agg(a.id::text, a.reter_ate), '{}'::jsonb) into v_prev
+    from public.yt_watch_alvos a
+   where a.site_id = p_site and a.tipo = 'concorrente' and a.reter_ate is not null
+     and a.youtube_video_id in (select v.video_id from public.competitor_videos v where v.competitor_channel_id = p_channel);
   update public.competitor_channels c
-     set removal_requested_at = v_now, removal_requested_by = p_by, removal_was_paused = v_was, removal_reason = p_motivo
+     set removal_requested_at = v_now, removal_requested_by = p_by, removal_was_paused = v_was, removal_reason = p_motivo,
+         removal_reter_antes = v_prev
    where c.id = p_channel and c.site_id = p_site
   returning c.collection_paused_at into v_paused;
   -- o pedido segura a poda: sem isso a yt_watch_poda apaga a watch 30 dias depois da pausa e o export sai sem ela
@@ -474,7 +517,7 @@ begin
   if not public.obs_archive_is_site_admin(p_site, p_by) then
     raise exception 'E10:sem_direito: só quem administra o site desfaz a remoção de um canal' using errcode = '42501';
   end if;
-  select c.removal_requested_at, c.removal_was_paused into v_c
+  select c.removal_requested_at, c.removal_was_paused, c.removal_reter_antes into v_c
     from public.competitor_channels c
    where c.id = p_channel and c.site_id = p_site
      for update;
@@ -490,9 +533,9 @@ begin
     raise exception 'E10:sem_vaga: não há vaga para este canal voltar' using errcode = 'P0001';
   end if;
   update public.competitor_channels c
-     set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null
+     set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null, removal_reter_antes = null
    where c.id = p_channel and c.site_id = p_site;
-  update public.yt_watch_alvos a set reter_ate = null
+  update public.yt_watch_alvos a set reter_ate = (v_c.removal_reter_antes ->> a.id::text)::timestamptz
    where a.site_id = p_site and a.tipo = 'concorrente' and a.reter_ate = 'infinity'
      and a.youtube_video_id in (select v.video_id from public.competitor_videos v where v.competitor_channel_id = p_channel);
   if not v_c.removal_was_paused then
@@ -546,7 +589,9 @@ immutable
 parallel safe
 set search_path = ''
 as $$
-  select lower(pg_catalog.btrim(pg_catalog.regexp_replace(p_nome, '[ \t\n\r\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]+', ' ', 'g')))
+  select lower(pg_catalog.btrim(pg_catalog.regexp_replace(
+    pg_catalog.regexp_replace(p_nome, '[\u200b\u2060\ufeff]', '', 'g'),
+    '[ \t\n\r\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+', ' ', 'g')))
 $$;
 
 -- C.3 Apagar sem guardar. Uma transação: tudo ou nada.
@@ -572,6 +617,8 @@ declare
   v_n_a bigint := 0;
   v_watch jsonb;
   v_id bigint;
+  v_featured integer;
+  v_refs jsonb;
   v_now timestamptz := pg_catalog.clock_timestamp();
 begin
   if p_site is null or p_channel is null or p_actor is null or p_confirm_name is null or btrim(p_confirm_name) = ''
@@ -640,6 +687,13 @@ begin
     join pg_catalog.pg_namespace n on n.oid = c.relnamespace
     left join pg_catalog.pg_stat_xact_user_tables s on s.relid = c.oid
    where n.nspname = 'public';
+
+  -- (Phil I-1) a FK featured_channel_id zera o campo em comentários de OUTROS canais; o n_tup_del não vê update, então o rastro vai ao audit
+  select count(*) into v_featured from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
+  select coalesce(jsonb_agg(jsonb_build_object('comment_id', k.id, 'video_id', k.video_id, 'channel_ref', k.competitor_channel_id) order by k.id), '[]'::jsonb) into v_refs
+    from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
 
   -- a watch não está no fecho de cascata: apaga explicitamente, antes do canal
   perform 1 from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt) for update;
@@ -717,11 +771,13 @@ begin
   select p_actor, 'observatorio_canal_apagado_sem_arquivo', 'competitor_channel', p_channel, s.org_id, p_site,
          jsonb_build_object('channel_id', v_c.channel_id, 'channel_name', v_c.channel_name, 'added_at', v_c.added_at),
          jsonb_build_object('motivo', p_motivo, 'videos', cardinality(v_yt), 'rows_deleted', v_rows, 'watch', v_watch,
-                            'miniaturas_no_blob', cardinality(v_urls), 'deletion_id', v_id)
+                            'miniaturas_no_blob', cardinality(v_urls), 'deletion_id', v_id,
+                            'featured_refs_cleared', v_featured, 'featured_refs', v_refs)
     from public.sites s where s.id = p_site;
 
   return jsonb_build_object('status', 'apagado', 'deletion_id', v_id, 'videos', cardinality(v_yt), 'linhas', v_rows,
-                            'watch', v_watch, 'blob_urls', to_jsonb(v_urls));
+                            'watch', v_watch, 'blob_urls', to_jsonb(v_urls),
+                            'featured_refs_cleared', v_featured, 'featured_refs', v_refs);
 end $$;
 
 -- C.4 A leitura que um disparo em voo gravou depois do apagamento (yt_watch_gravar_disparo não confere o alvo e a poda só alcança
@@ -740,7 +796,7 @@ begin
   if p_agora is null then
     raise exception 'E10:parametro_nulo: obs_unarchived_watch_sweep' using errcode = '22023';
   end if;
-  for d in select * from public.obs_unarchived_deletions u where u.deleted_at > p_agora - interval '2 days' order by u.id loop
+  for d in select * from public.obs_unarchived_deletions u where u.deleted_at > p_agora - interval '7 days' order by u.id loop
     delete from public.yt_watch_readings r
      where r.site_id = d.site_id and r.youtube_video_id = any(d.youtube_video_ids)
        and not exists (select 1 from public.yt_watch_alvos a where a.site_id = r.site_id and a.youtube_video_id = r.youtube_video_id)
@@ -756,6 +812,13 @@ begin
     get diagnostics v_n = row_count;
     v_total := v_total + v_n;
   end loop;
+  -- (Phil M-1) guarda diária: 'infinity' órfão (canal do pedido apagado por outra via) nunca seria podado
+  update public.yt_watch_alvos a set reter_ate = null
+   where a.tipo = 'concorrente' and a.reter_ate = 'infinity'
+     and not exists (select 1 from public.competitor_videos v join public.competitor_channels c on c.id = v.competitor_channel_id
+                      where c.site_id = a.site_id and v.video_id = a.youtube_video_id and c.removal_requested_at is not null);
+  get diagnostics v_n = row_count;
+  v_total := v_total + v_n;
   return v_total;
 end $$;
 
@@ -825,4 +888,13 @@ begin
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
   end loop;
+end $$;
+
+-- (Phil C-1) falha a migration inteira em vez de subir um botão morto
+do $$ begin
+  if exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public' and p.proname in ('competitor_series_health','competitor_hourly_health','competitor_comment_due','competitor_comment_health')
+                and p.prosrc not like '%competitor_channel_pause_covers%') then
+    raise exception 'F1: alguma função da coleta não conhece a pausa';
+  end if;
 end $$;

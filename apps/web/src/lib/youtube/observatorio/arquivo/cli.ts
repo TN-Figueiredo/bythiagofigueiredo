@@ -223,7 +223,14 @@ export const TABELAS_COM_IDENTIDADE: readonly string[] = [
  * conta de vagas. Depois do `\copy` do canal, as quatro colunas voltam a nulo (o CSV tem as colunas, então elas não podem sair do `\copy`).
  */
 const ZERAR_PEDIDO = (canal: string): string =>
-  `update public.competitor_channels set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null where id = '${canal}' and removal_requested_at is not null;`
+  `update public.competitor_channels set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null, removal_reter_antes = null where id = '${canal}' and removal_requested_at is not null;`
+
+/**
+ * (Phil C-2) O CSV do alvo exportado durante o pedido traz `reter_ate = infinity`, que a poda nunca alcançaria. Devolve o valor guardado no pedido
+ * (`removal_reter_antes`, por id do alvo) ANTES de zerar a coluna; tem de rodar depois de todos os `\copy`.
+ */
+const DEVOLVER_RETENCAO = (canal: string): string =>
+  `update public.yt_watch_alvos a set reter_ate = (c.removal_reter_antes ->> a.id::text)::timestamptz from public.competitor_channels c where c.id = '${canal}' and a.site_id = c.site_id and a.tipo = 'concorrente' and a.reter_ate = 'infinity' and a.youtube_video_id in (select v.video_id from public.competitor_videos v where v.competitor_channel_id = c.id);`
 
 /**
  * O caminho dentro de `from program '...'`: caminho comum fica como está; com espaço, aspa ou qualquer caractere do shell, vai entre aspas do shell
@@ -242,7 +249,8 @@ export function comandosDeRecarga(m: Manifesto, pasta: string): string[] {
     `\\copy public.${a.tabela} (${a.colunas.map(x => `"${x.nome}"`).join(', ')}) from program 'gzip -dc ${caminhoNoPrograma(`${pasta}/${a.caminho}`)}' csv header`)
   const carregadas = [...new Set(m.arquivos.map(a => a.tabela))].filter(t => TABELAS_COM_IDENTIDADE.includes(t))
   const ajustes = carregadas.map(t => `select setval(pg_get_serial_sequence('public.${t}', 'id'), greatest((select max(id) from public.${t}), (select last_value from public.${t}_id_seq)));`)
-  const zerar = m.arquivos.some(a => a.tabela === 'competitor_channels') ? [ZERAR_PEDIDO(m.canal.id)] : []
+  const comCanal = m.arquivos.some(a => a.tabela === 'competitor_channels')
+  const zerar = comCanal ? [...(m.arquivos.some(a => a.tabela === 'yt_watch_alvos') ? [DEVOLVER_RETENCAO(m.canal.id)] : []), ZERAR_PEDIDO(m.canal.id)] : []
   return [...copias, ...zerar, ...ajustes]
 }
 
@@ -305,12 +313,18 @@ async function pausarOuDespausar(c: Extract<Comando, { nome: 'pausar' | 'despaus
 const hoje = (d: DepsDoComando): string => d.agora().toISOString().slice(0, 10)
 
 async function exportar(c: Extract<Comando, { nome: 'exportar' }>, d: DepsDoComando, sql: ClienteSql, site: string): Promise<Saida> {
+  const { codigoDoExport: _c, ...saida } = await exportarDetalhado(c, d, sql, site)
+  return saida
+}
+
+/** Como `exportar`, mas devolve também o código da recusa (o `pedidos` escolhe a opção que destrava o pedido). */
+async function exportarDetalhado(c: Extract<Comando, { nome: 'exportar' }>, d: DepsDoComando, sql: ClienteSql, site: string): Promise<Saida & { codigoDoExport?: string }> {
   const lote = c.lote ?? nomeDoLote(c.canal, hoje(d))
   const r = await exportarCanal({
     sql, disco: d.disco, baixar: d.baixar, pastaRaiz: c.pasta, lote, siteId: site, canalId: c.canal,
     aceitarMiniaturasAusentes: c.aceitarMiniaturasAusentes, refazer: c.refazer, porIdade: false, agora: d.agora, versaoDoScript: d.versaoDoScript,
   })
-  if (!r.ok) return recusado(r.frase, ...(r.detalhe ?? []).map(x => `  ${x}`))
+  if (!r.ok) return { ...recusado(r.frase, ...(r.detalhe ?? []).map(x => `  ${x}`)), codigoDoExport: r.codigo }
   return feito(
     `exportação ${r.lote} registrada: ${r.arquivos} arquivo(s), ${r.linhas} registro(s), ${r.miniaturas} miniatura(s)` + (r.miniaturasAusentes > 0 ? `, ${r.miniaturasAusentes} ausente(s)` : ''),
     `pasta: ${c.pasta.replace(/\/+$/, '')}/${r.lote}`, 'próximo passo: conferir',
@@ -381,12 +395,19 @@ async function remover(c: Extract<Comando, { nome: 'remover' }>, d: DepsDoComand
 // ───────────────────────── remoções pedidas no CMS (F1 do Remover canal) ─────────────────────────
 
 const DESFEITO = 'o pedido foi desfeito no CMS; nada foi apagado'
+const SUMIU = 'o canal já foi apagado pelo CMS (sem guardar); nada a fazer aqui'
 
 /** O pedido ainda está de pé? Com `travar`, `for update` na transação aberta: serializa com o `cancel_removal` (sem janela entre o teste e o uso). */
-async function pedidoDesfeito(sql: ClienteSql, site: string, canal: string, travar: boolean): Promise<boolean> {
+async function estadoDoPedido(sql: ClienteSql, site: string, canal: string, travar: boolean): Promise<'de_pe' | 'desfeito' | 'sumiu'> {
   const r = await sql.query(
     `select removal_requested_at from public.competitor_channels where id = $1 and site_id = $2${travar ? ' for update' : ''}`, [canal, site])
-  return r.rows[0]?.removal_requested_at === null || r.rows[0]?.removal_requested_at === undefined
+  if (r.rows[0] === undefined) return 'sumiu'
+  return r.rows[0].removal_requested_at === null || r.rows[0].removal_requested_at === undefined ? 'desfeito' : 'de_pe'
+}
+
+/** Verdadeiro se o pedido não está mais de pé (desfeito, ou o canal já foi apagado). */
+async function pedidoDesfeito(sql: ClienteSql, site: string, canal: string, travar: boolean): Promise<boolean> {
+  return (await estadoDoPedido(sql, site, canal, travar)) !== 'de_pe'
 }
 
 type PassoCalculado = ReturnType<typeof passoDaRemocao> & { lote: string | null }
@@ -408,6 +429,11 @@ async function passoDoPedido(sql: ClienteSql, site: string, p: Record<string, un
     lote: lote ? { exportadoEm: exp, conferidoEm: lote.conferido === true ? exp : null, confirmadoEm: lote.confirmado === true ? exp : null, fechadoEm: null } : null,
   }, agoraMs)
   return { ...passo, lote: lote ? texto(lote.batch) : null }
+}
+
+/** Argumento de linha de comando que o dono cola no shell: comum fica como está, o resto vai entre aspas simples. */
+function aspasDoDono(v: string): string {
+  return /^[A-Za-z0-9_./@:+=,-]+$/.test(v) ? v : `'${v.replace(/'/g, `'\\''`)}'`
 }
 
 function rotuloDoPasso(p: ReturnType<typeof passoDaRemocao>): string {
@@ -443,7 +469,8 @@ async function pedidos(c: Extract<Comando, { nome: 'pedidos' }>, d: DepsDoComand
         const r = await umPedido(c, d, sql, site, p)
         if (r.codigo !== 0) {
           falhou = true
-          linhas = (await pedidoDesfeito(sql, site, texto(p.id), false)) ? [DESFEITO] : r.saida
+          const est = await estadoDoPedido(sql, site, texto(p.id), false)
+          linhas = est === 'desfeito' ? [DESFEITO] : est === 'sumiu' ? [SUMIU] : r.saida
         } else linhas = r.saida
       } catch (e) {
         falhou = true
@@ -464,8 +491,12 @@ async function umPedido(c: Extract<Comando, { nome: 'pedidos' }>, d: DepsDoComan
     case 'esperar': return feito(rotuloDoPasso(dado))
     case 'exportar': {
       const lote = nomeDoLote(canal, hoje(d))
-      const e = (await exportar({ nome: 'exportar', canal, lote, pasta: c.pasta, refazer: false, aceitarMiniaturasAusentes: false, site }, d, sql, site))
-      if (e.codigo !== 0) return e
+      const e = (await exportarDetalhado({ nome: 'exportar', canal, lote, pasta: c.pasta, refazer: false, aceitarMiniaturasAusentes: false, site }, d, sql, site))
+      if (e.codigo !== 0) {
+        // (Yannis I-1) o pedido não fica preso: o dono recebe o comando pronto. `--refazer` nunca é ligado sozinho (a pasta pode ser de um lote já apagado)
+        const opcao = e.codigoDoExport === 'pasta_nao_vazia' ? ' --refazer' : e.codigoDoExport === 'miniaturas_ausentes' ? ' --aceitar-miniaturas-ausentes' : ''
+        return recusado(...e.saida, `rode: npx tsx scripts/obs-arquivo.ts exportar --canal ${canal} --pasta ${aspasDoDono(c.pasta)}${opcao}`)
+      }
       const v = await conferir({ nome: 'conferir', canal, lote, pasta: c.pasta, site }, d, sql, site)
       if (v.codigo !== 0) return recusado(...e.saida.slice(0, 1), ...v.saida)
       const proximo = c.destino !== null

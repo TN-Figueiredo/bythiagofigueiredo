@@ -50,9 +50,9 @@ export function soMiniaturasDoObservatorio(urls: string[]): { apagar: string[]; 
   return { apagar, fora }
 }
 
-function relatar(motivo: string, contagens: Record<string, number>): void {
-  // só o motivo e contagens: nunca URL, token nem mensagem de erro
-  Sentry.captureMessage(`arquivo_remover: ${motivo}`, { level: 'warning', tags: { component: 'observatorio-arquivo', motivo }, extra: contagens })
+function relatar(motivo: string, contagens: Record<string, number>, tags: Record<string, string> = {}): void {
+  // só o motivo, o nome da função do banco (`fn`) e contagens: nunca URL, token nem mensagem de erro
+  Sentry.captureMessage(`arquivo_remover: ${motivo}`, { level: 'warning', tags: { component: 'observatorio-arquivo', motivo, ...tags }, extra: contagens })
 }
 
 /**
@@ -133,12 +133,12 @@ async function chamar(sb: SupabaseClient, fn: string, args: Record<string, unkno
     const r = await sb.rpc(fn, args)
     if (r.error) {
       const codigo = codigoE10(r.error)
-      if (codigo === 'inesperado') relatar('chamada_inesperada', {})
+      if (codigo === 'inesperado') relatar('chamada_inesperada', {}, { fn })
       return falhaDe(codigo)
     }
     return { data: r.data }
   } catch {
-    relatar('chamada_excecao', {})
+    relatar('chamada_excecao', {}, { fn })
     return falhaDe('inesperado')
   }
 }
@@ -248,7 +248,7 @@ export async function retentarMiniaturasPendentes(
           const urls = Array.isArray(l.blob_urls_pending) ? l.blob_urls_pending.filter((u): u is string => typeof u === 'string') : []
           if (urls.length > 0) itens.push({ urls, baixa: (u: string[]) => Promise.resolve(sb.rpc('obs_unarchived_blobs_done', { p_site: String(l.site_id), p_id: Number(l.id), p_urls: u })) })
         }
-      }
+      } else relatar('leitura_sem_arquivo_falhou', {}) // (Yannis I-2) o PostgREST devolve `error` sem lançar: não pode falhar em verde
     } catch { relatar('leitura_sem_arquivo_falhou', {}) }
 
     const fim = o.agoraMs + o.prazoMs

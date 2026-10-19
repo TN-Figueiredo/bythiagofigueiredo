@@ -177,4 +177,34 @@ describe('pedidos', () => {
     await rodar(cmd('pedidos --por d@e.co'), deps(b.sql))
     expect(b.chamadas.some(x => /pg_advisory_unlock/.test(x))).toBe(true)
   })
+
+  it('C6.10 (Yannis I-1) exportar recusado com pasta_nao_vazia: imprime o comando pronto com --refazer e o uuid do canal', async () => {
+    exportarCanal.mockResolvedValue({ ok: false, codigo: 'pasta_nao_vazia', frase: 'A pasta da exportação já existe e não está vazia. Use --refazer para exportar de novo.' })
+    const r = await rodar(cmd('pedidos --por d@e.co'), deps(banco(base([pedido()], null)).sql))
+    expect(r.codigo).toBe(1)
+    expect(txt(r)).toContain(`rode: npx tsx scripts/obs-arquivo.ts exportar --canal ${CANAL} --pasta /home/dono/Workspace/arquivo-observatorio --refazer`)
+    expect(conferirLote).not.toHaveBeenCalled()
+  })
+
+  it('C6.11 (Yannis I-1) miniaturas_ausentes leva --aceitar-miniaturas-ausentes; outro código não leva opção nenhuma', async () => {
+    exportarCanal.mockResolvedValueOnce({ ok: false, codigo: 'miniaturas_ausentes', frase: 'Há miniaturas que não existem mais.' })
+    const a = await rodar(cmd('pedidos --por d@e.co'), deps(banco(base([pedido()], null)).sql))
+    expect(txt(a)).toMatch(new RegExp(`exportar --canal ${CANAL} --pasta \\S+ --aceitar-miniaturas-ausentes$`, 'm'))
+    exportarCanal.mockResolvedValueOnce({ ok: false, codigo: 'forja_em_andamento', frase: 'A forja está em andamento.' })
+    const b = await rodar(cmd('pedidos --por d@e.co'), deps(banco(base([pedido()], null)).sql))
+    expect(txt(b)).toMatch(new RegExp(`exportar --canal ${CANAL} --pasta \\S+$`, 'm'))
+    expect(txt(b)).not.toContain('--refazer')
+  })
+
+  it('C6.12 (Yannis M-2) canal que sumiu no meio do comando: a frase diz que foi apagado pelo CMS, não que o pedido foi desfeito', async () => {
+    const b = banco(base([pedido()], loteDe({ conferido: true, confirmado: true }), [
+      [/for update/, () => []],
+      [/select channel_name from public\.competitor_channels/, () => [{ channel_name: 'Canal Um' }]],
+      [/select batch from public\.obs_archive_batches/, () => [{ batch: LOTE }]],
+      [/removal_requested_at from public\.competitor_channels where id = \$1 and site_id = \$2$/, () => []],
+    ]))
+    const r = await rodar(cmd('pedidos --por d@e.co'), deps(b.sql))
+    expect(txt(r)).toContain('já foi apagado')
+    expect(b.chamadas.some(x => /remove_archived/.test(x))).toBe(false)
+  })
 })

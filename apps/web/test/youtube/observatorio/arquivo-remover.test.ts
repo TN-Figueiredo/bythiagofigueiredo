@@ -342,5 +342,27 @@ describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemo
     expect(chamadas.find(c => c.fn === 'obs_archive_blobs_done')?.args).toMatchObject({ p_urls: [url(1), url(2)] })
     expect(chamadas.find(c => c.fn === 'obs_unarchived_blobs_done')?.args).toEqual({ p_site: SITE, p_id: 7, p_urls: [url(3)] })
   })
+
+  it('(Yannis I-2) erro na leitura de obs_unarchived_deletions é relatado e as miniaturas dos lotes seguem sendo apagadas', async () => {
+    const base = falso({ obs_archive_blobs_done: { data: 0, error: null } }, [{ site_id: SITE, batch: 'a', channel_ref: CANAL, blob_urls_pending: [url(1)] }])
+    const deFora = base.sb.from.bind(base.sb)
+    const sb = {
+      rpc: base.sb.rpc.bind(base.sb),
+      from: (t: string) => (t === 'obs_unarchived_deletions'
+        ? (() => { const c: Record<string, unknown> = {}; for (const m of ['select', 'eq', 'order', 'not', 'limit']) c[m] = () => c; c.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message: 'x' } }).then(ok); return c })()
+        : deFora(t)),
+    } as unknown as SupabaseClient
+    const apagar = vi.fn(async () => undefined)
+    const r = await retentarMiniaturasPendentes(sb, { agoraMs: Date.now(), maximo: 5, prazoMs: 60_000 }, { apagarDoBlob: apagar })
+    expect(r).toEqual({ apagadas: 1, pendentes: 0, foraDoPrefixo: 0 })
+    expect(captureMessage.mock.calls.map(c => c[0])).toContain('arquivo_remover: leitura_sem_arquivo_falhou')
+  })
+
+  it('(Yannis M-5) a chamada inesperada diz qual função do banco falhou', async () => {
+    const { sb } = falso({ competitor_channel_request_removal: { data: null, error: { message: 'boom', code: 'XX000' } } })
+    await pedirRemocao(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR, motivo: 'entrou_por_engano' })
+    const c = captureMessage.mock.calls.find(x => x[0] === 'arquivo_remover: chamada_inesperada')
+    expect(c?.[1]).toMatchObject({ tags: { fn: 'competitor_channel_request_removal' } })
+  })
 })
 

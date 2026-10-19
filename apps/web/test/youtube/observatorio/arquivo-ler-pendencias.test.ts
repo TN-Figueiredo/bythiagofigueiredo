@@ -13,23 +13,23 @@ const SEGREDO = 'segredo-da-mensagem-do-banco'
 type Resposta = { data?: unknown; error?: { message: string; code?: string } | null } | null
 interface Falso { sb: SupabaseClient; lotes: { colunas: string; filtros: unknown[][]; limite: number | null; ordem: unknown[] | null }[]; rpcs: string[] }
 
-function falso(o: { rpc: Resposta | Error; lotes: Resposta | Error }): Falso {
+function falso(o: { rpc: Resposta | Error; lotes: Resposta | Error; sem?: Resposta | Error }): Falso {
   const lotes: Falso['lotes'] = []
   const rpcs: string[] = []
   const entrega = (r: Resposta | Error) => (r instanceof Error ? Promise.reject(r) : Promise.resolve(r))
   const sb = {
     rpc: (nome: string) => { rpcs.push(nome); return { abortSignal: (s: AbortSignal) => { expect(s).toBeInstanceOf(AbortSignal); return entrega(o.rpc) } } },
     from: (tabela: string) => {
-      expect(tabela).toBe('obs_archive_batches')
+      expect(['obs_archive_batches', 'obs_unarchived_deletions']).toContain(tabela)
       const c = { colunas: '', filtros: [] as unknown[][], limite: null as number | null, ordem: null as unknown[] | null }
-      lotes.push(c)
+      if (tabela === 'obs_archive_batches') lotes.push(c)
       const b = {
         select: (cols: string) => { c.colunas = cols; return b },
         eq: (...a: unknown[]) => { c.filtros.push(['eq', ...a]); return b },
         not: (...a: unknown[]) => { c.filtros.push(['not', ...a]); return b },
         order: (...a: unknown[]) => { c.ordem = a; return b },
         limit: (n: number) => { c.limite = n; return b },
-        abortSignal: (s: AbortSignal) => { expect(s).toBeInstanceOf(AbortSignal); return entrega(o.lotes) },
+        abortSignal: (s: AbortSignal) => { expect(s).toBeInstanceOf(AbortSignal); return entrega(tabela === 'obs_archive_batches' ? o.lotes : (o.sem ?? { data: [], error: null })) },
       }
       return b
     },
@@ -39,6 +39,16 @@ function falso(o: { rpc: Resposta | Error; lotes: Resposta | Error }): Falso {
 const removidoHa = (dias: number, urls: string[]) => ({ deleted_at: new Date(AGORA - dias * DIA_MS).toISOString(), blob_urls_pending: urls })
 
 describe('A5 E10 T3: lerPendenciasDoArquivo', () => {
+  it('F1 (Yannis I-2): pendência só em obs_unarchived_deletions entra no total e na idade; erro de leitura vira porque', async () => {
+    const r = await lerPendenciasDoArquivo(falso({ rpc: { data: [], error: null }, lotes: { data: [removidoHa(1, ['a'])], error: null }, sem: { data: [removidoHa(6, ['b', 'c'])], error: null } }).sb, AGORA)
+    expect(r.miniaturas).toEqual({ valor: { urls: 3, lotes: 2, diasDaMaisAntiga: 6 } })
+    const so = await lerPendenciasDoArquivo(falso({ rpc: { data: [], error: null }, lotes: { data: [], error: null }, sem: { data: [removidoHa(4, ['x'])], error: null } }).sb, AGORA)
+    expect(so.miniaturas).toEqual({ valor: { urls: 1, lotes: 1, diasDaMaisAntiga: 4 } })
+    const ruim = await lerPendenciasDoArquivo(falso({ rpc: { data: [], error: null }, lotes: { data: [], error: null }, sem: { data: null, error: { message: SEGREDO } } }).sb, AGORA)
+    expect('porque' in ruim.miniaturas).toBe(true)
+    expect(JSON.stringify(ruim)).not.toContain(SEGREDO)
+  })
+
   it('nada pendente: semExport vazio e zero miniaturas (e a consulta pede só lote de canal removido)', async () => {
     const f = falso({ rpc: { data: [], error: null }, lotes: { data: [], error: null } })
     const r = await lerPendenciasDoArquivo(f.sb, AGORA)
