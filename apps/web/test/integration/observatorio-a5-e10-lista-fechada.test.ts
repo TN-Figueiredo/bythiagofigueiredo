@@ -68,6 +68,10 @@ const LISTA: Par[] = [
   { funcao: 'yt_own_meta_cover_set', tabela: 'yt_own_video_coverage', linha: '202 (MG17a: funde dias na cobertura)', disparo: 'coleta' },
   // fase de manutenção, M1 (pedido 8; disparo: cron; classe: estado de execução): `20261014000001_manutencao_m1_podas_execucao.sql`, aplicada no `bythiago_int` fora de transação.
   { funcao: 'yt_own_collection_attempts_purge', tabela: 'yt_own_collection_attempts', linha: 'manutenção, pedido 8 (estado de execução)', disparo: 'cron' },
+  // S4 (T&C-coleta): `20261018000005_observatorio_a5_s4_leitura_watch.sql`; tarefa poda_leituras_watch (alvo saído há 31 d, salvo reter_ate; miniatura órfã)
+  { funcao: 'yt_watch_poda', tabela: 'yt_watch_alvos', linha: 'S4 §9 (poda dos alvos saídos)', disparo: 'agenda' },
+  { funcao: 'yt_watch_poda', tabela: 'yt_watch_readings', linha: 'S4 §9 (leituras dos alvos saídos)', disparo: 'agenda' },
+  { funcao: 'yt_watch_poda', tabela: 'yt_watch_thumbs', linha: 'S4 §9 (miniaturas órfãs)', disparo: 'agenda' },
 ]
 
 /** Item 78: nenhuma série, versão, texto de comentário ou bruto sai por cron nem por idade. */
