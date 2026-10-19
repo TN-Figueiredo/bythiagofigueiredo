@@ -130,13 +130,14 @@ export function CadenceView({ c, c2, dica, dica2, reservar }: { c: CadenceCell; 
               ? <span className="obs-ch-nm" data-k="pw" role="img" aria-label="não medido">—</span>
               : <><span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span></>}
           </Dica>
-          {c.nota ? <> <NotaRitmo nota={c.nota} /></> : reservar ? <> <NotaRitmoReserva /></> : null}
+          {c.nota ? <> <NotaRitmo nota={c.nota} soIcone={c.nota.tipo === 'piso'} /></> : reservar ? <> <NotaRitmoReserva /></> : null}
         </span>
         {c2 ? (
           <span className="fm"><Dica texto={dica2 ?? dica}>{c2.kind === 'ok'
             ? <><span className="num">{c2.pw}</span> <span className="u">{c2.unit}</span></>
             : <span className="nd">{c2.text}</span>}</Dica></span>
         ) : null}
+        {c.nota?.tipo === 'piso' ? <small className="obs-nr-cap" data-nota-cap>{c.nota.sufixo}</small> : null}
         {c.paused ? <span className="paused"><Ic n="pause" /><span>{c.paused}</span></span> : c.sub ? <small>{c.sub}</small> : null}
       </div>
     </div>

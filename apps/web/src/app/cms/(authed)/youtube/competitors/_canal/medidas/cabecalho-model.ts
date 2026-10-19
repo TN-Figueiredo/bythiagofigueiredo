@@ -128,7 +128,7 @@ export function celulasDoCabecalho(o: EntradaDoCabecalho): CelulaDoCabecalho[] {
   } else if (m6.estado === 'nao_medido') {
     const mt = motivoDe(m6)
     out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: mt.carregou ? 'nao_medido' : 'nao_carregou', base: mt.carregou ? mt.longa : NAO_CARREGOU, motivo: mt.carregou ? mt.longa : NAO_CARREGOU,
-      detalhe: { chave: 'ritmo', porSemana: '', nota: mt.carregou && (m6.motivo === 'canal_novo' || m6.motivo === 'ritmo_parcial') ? notaDoRitmo({ corte: m6.motivo === 'canal_novo' ? 'criacao' : 'cobertura', dias: null, abaixoDoPiso: true, semanasDaRegra: MEASURE_RULES.rhythm.weeks }) : null } })
+      detalhe: { chave: 'ritmo', porSemana: '', nota: mt.carregou && (m6.motivo === 'canal_novo' || m6.motivo === 'ritmo_parcial') ? notaDoRitmo({ corte: m6.motivo === 'canal_novo' ? 'criacao' : 'cobertura', dias: m6.notas.find(x => x.tipo === 'canal_mais_novo_que_a_janela' || x.tipo === 'cobertura_curta')?.dias ?? null, abaixoDoPiso: true, semanasDaRegra: MEASURE_RULES.rhythm.weeks }) : null } })
   } else {
     const lidas = o.semanasLidas ?? m6.valor.semanas
     const base = lidas < m6.valor.semanas

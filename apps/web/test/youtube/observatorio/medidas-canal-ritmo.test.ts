@@ -218,3 +218,12 @@ describe('a (Gio): Ritmo a 390 px', () => {
     expect(css).toMatch(/\.pc-par \.pc-rp\{margin-top:24px\}/)
   })
 })
+
+describe('bloco Ritmo: semana fora do período (Gio D7)', () => {
+  it('a casa antes da criação leva `fora` e a faixa tracejada, não o "não medido"', () => {
+    const html = renderToStaticMarkup(createElement(RitmoBloco, { bloco: { frase: { negrito: '', resto: '' }, periodo: '20 dias', eixoFim: 'hoje', ponteiro: null, cartoes: [], raias: [{ rotulo: 'Longos', ausente: false, casas: [{ estado: 'nao_lida', por: 'antes da criação do canal', fora: true }, { estado: 'nao_lida', por: 'ainda não buscada' }] }] } as unknown as Parameters<typeof RitmoBloco>[0]['bloco'] }))
+    expect(html).toContain('pc-cs fora')
+    expect(html).toContain('fora do período: antes da criação do canal')
+    expect(html.match(/pc-cs nm/g)?.length).toBe(1)
+  })
+})

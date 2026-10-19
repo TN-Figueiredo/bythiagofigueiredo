@@ -605,3 +605,6 @@
 /* L6: o "?" da Direção desce para a linha de baixo em vez de fixar a coluna em 157 px; a barra de progresso da Sincronização acompanha a célula (tinha 150 px fixos). */
 [data-obs-screen="canais"]:not(.drawer-open) .tablebox .obs-cn-dirv{flex-wrap:wrap}
 [data-obs-screen="canais"] .tablebox .sync .pbar{width:100%;max-width:150px}
+
+/* D1 (Gio): a nota longa do canal novo mora na linha de legenda, quebra em até duas linhas e nunca alarga a coluna */
+[data-obs-screen="canais"] .cad .v small.obs-nr-cap{display:block;max-width:150px;white-space:normal;color:var(--warning-text);font-weight:600}

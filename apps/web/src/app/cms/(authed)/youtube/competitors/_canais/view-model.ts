@@ -493,7 +493,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
       nota: second ? null : kl.nota,
       label: `${kl.n} vídeos longos e ${ks.n} Shorts ${kl.corte === null ? 'nas últimas 13 semanas' : `em ${baseDoRitmoTexto(kl, R.habit.weeks).periodo}`}`, pw: pwTxt(k.pw), unit: `${wordOf(f)}/sem`,
       // em "Todos" a outra medida mora na segunda linha da célula: a frase "e N Shorts/sem" seria a mesma coisa duas vezes
-      sub: empty ? `nenhum em ${baseDoRitmoTexto(kl, R.habit.weeks).periodo}` : !second && paradoDe(c) === 'nao_carregou' ? 'a leitura falhou' : todos || paradoDe(c) === 'sim' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
+      sub: empty ? `nenhum em ${baseDoRitmoTexto(kl, R.habit.weeks).periodo}` : !second && paradoDe(c) === 'nao_carregou' ? 'a leitura falhou' : todos || paradoDe(c) === 'sim' || second ? null : other.pw ? `e ${F.dec1(other.pw)} ${wordOf(f === 'long' ? 'short' : 'long')}/sem` : other.pw === null ? null : `sem ${wordOf(f === 'long' ? 'short' : 'long')}`,
       paused: !second && !empty && paradoDe(c) === 'sim' && diasParado(c) != null ? `Parado: ${ultimaDoParado(c) != null ? `último vídeo em ${D.dm(ultimaDoParado(c)!)}, ` : ''}${nb(`há ${diasParado(c)} ${diasParado(c) === 1 ? 'dia' : 'dias'}`)}` : null,
     }
   }
@@ -620,7 +620,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const kl = obs.cadence(c.id, 'long'), ks = obs.cadence(c.id, 'short')
     const ultimo = Math.max(kl.lastUpload ?? -Infinity, ks.lastUpload ?? -Infinity)
     const dicaCad = (cell: CadenceCell): string | null => cell.kind === 'na' ? cell.title : dicaRitmo({
-      longos: kl.n, shorts: ks.n, ultimoHaDias: Number.isFinite(ultimo) ? Math.max(0, Math.floor((obs.NOW - ultimo) / obs.DAY)) : null, partialText: kl.partial ? kl.partialText : null,
+      longos: kl.n, shorts: ks.n, ultimoHaDias: Number.isFinite(ultimo) ? Math.max(0, Math.floor((obs.NOW - ultimo) / obs.DAY)) : null, partialText: kl.partial ? kl.partialText : null, periodo: kl.corte === null ? undefined : baseDoRitmoTexto(kl, R.habit.weeks).periodo,
     })
     const dicaVpd = (cell: VpdCell, SS: CStats, f: Fmt): string | null => {
       if (cell.kind === 'na') return cell.title

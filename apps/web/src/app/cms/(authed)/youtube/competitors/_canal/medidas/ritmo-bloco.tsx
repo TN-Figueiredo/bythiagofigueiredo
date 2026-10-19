@@ -11,6 +11,9 @@ import type { BlocoDeRitmo, CartaoDeRitmo, CasaDaSemana, RaiaDeRitmo } from './r
 import './canal-medidas.css'
 
 function Casa({ c }: { c: CasaDaSemana }) {
+  if (c.estado === 'nao_lida' && c.fora) {
+    return <li className="pc-cs fora" title={c.por}><span className="obs-md-sr">fora do período: {c.por}</span></li>
+  }
   if (c.estado === 'nao_lida') {
     return <li className="pc-cs nm" title={c.por}><span className="pc-nmg" aria-hidden="true">—</span><span className="obs-md-sr">não medido: {c.por}</span></li>
   }
