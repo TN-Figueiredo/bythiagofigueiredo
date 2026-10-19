@@ -260,7 +260,7 @@ que os arquivos já usam. O que não muda é a lista de afirmações.
   - `paraRestoreStatus` aceita `pulado_teste_youtube` como `estado` (só leitura; F10).
   - `export function erroDeCota(erro: ErroGravado): boolean` — objeto com `reason` em `REASONS_DE_COTA`.
   - `export function proximoDoVigia(anterior: number, erro: ErroGravado, cotaVencida?: boolean): { estado: 'falhou' | 'desistiu'; attempts: number; motivo: 'tres_falhas' | null }` — cota e `!cotaVencida`: `{ falhou, anterior, null }`; senão `n = anterior + 1`; `n >= MAX_TENTATIVAS` → `{ desistiu, n, 'tres_falhas' }`; senão `{ falhou, n, null }`. `cotaVencida` = `agora − âncora > 72 h` (a cota conta como falha para a corrente acabar).
-  - `export function camposPendentes(rs: RestoreStatus | null, origem: 'vigia' | 'humano'): CampoNome[]` — vigia: campos em `falhou`; humano: `falhou` ou (`desistiu` e `motivo !== 'novo_teste'`); ordem `title`, `thumbnail`. `pulado_teste_youtube` nunca é pendente.
+  - `export function camposPendentes(rs: RestoreStatus | null, origem: 'vigia' | 'humano'): CampoNome[]` — vigia: campos em `falhou`; humano: `falhou` ou (`desistiu` e `motivo` fora de `novo_teste` e `destino_invalido`; N1 do Phil: o "Tentar agora" recusaria sempre); ordem `title`, `thumbnail`. `pulado_teste_youtube` nunca é pendente.
   - `export function podeDispensar(c: CampoRestauracao): boolean` — `falhou`, `desistiu`, `pulado_drift`, `pulado_sem_original` (não `pulado_teste_youtube`: a fase 2 da S6/S7 decide).
 - Produces (em `Y/ab-vigia-horario.ts`, sem import de servidor):
   - `export const HORAS_DO_VIGIA_UTC = [10, 20] as const`
@@ -304,6 +304,7 @@ describe('simAindaVale', () => {
   it('em ilegível não vale', () => expect(simAindaVale({ ...c(1), em: 'x' }, new Date(T0))).toBe(false))
 })
 describe('camposPendentes', () => {
+  it('humano: desistiu/destino_invalido não é pendente (N1)', () => { /* camposPendentes({ title: desistiuDestinoInvalido }, 'humano') → [] */ })
   it('vigia: só falhou', () => expect(camposPendentes({ title: falhou, thumbnail: desistiuTres }, 'vigia')).toEqual(['title']))
   it('humano: falhou e desistiu, menos novo_teste', () => {
     expect(camposPendentes({ title: falhou, thumbnail: desistiuTres }, 'humano')).toEqual(['title', 'thumbnail'])
@@ -354,7 +355,7 @@ Ordem de `novaTentativa` (cada linha é uma decisão; o corpo é do executor):
 4. `status === 'paused'` e destino não `'original'` → `ja_encerrado` (retomada que não terminou: nunca escrever rumo à variante num teste pausado).
 5. Y-5: existe outro teste do mesmo `site_id` e `youtube_video_id`, `id <> testId`, em `draft/queued/active/paused` → `outro_teste`.
 6. `forcar = pend.every(c => simAindaVale(rs[c], agora, inicioDoSim(historico[c])))`, com `historico[c]` = `select em, forcado from ab_test_restores where test_id = $1 and campo = $2 order by seq desc limit 10` (uma consulta por campo pendente; Y-3).
-7. Reivindica: `ab_settle_claim` com `p_de: [status]`, `p_para: status`, `p_end_reason: null`, `p_extra: {}`, `p_restore_status = { ...rs, [c em pend]: em_andamento }`, `attempts` do `em_andamento` = `origem === 'humano' ? 0 : rs[c].attempts`. Zero linhas → mesma releitura de `:496-501`. Se `origem = 'humano'` e algum pendente estava `desistiu`, `releaseAlert('ab-restore-desistiu:<id>:<campo>')` (quem chama, Tarefa 5, faz; F7/Y-5).
+7. Reivindica: `ab_settle_claim` com `p_de: [status]`, `p_para: status`, `p_end_reason: null`, `p_extra: {}`, `p_restore_status = { ...rs, [c em pend]: em_andamento }`, `attempts` do `em_andamento` = `origem === 'humano' ? 0 : rs[c].attempts`, e **`forcado: forcar`** (o calculado no passo 6; R-2 do Yannis: se o `em_andamento` morrer, o campo convertido mantém o `forcado` e a cadeia do "sim" não quebra; a P4a grava `op.forcar === true`, `ab-settle.ts:487`). Teste: `vigia forçando, tentar trava → campo convertido mantém forcado true`. Zero linhas → mesma releitura de `:496-501`. Se `origem = 'humano'` e algum pendente estava `desistiu`, `releaseAlert('ab-restore-desistiu:<id>:<campo>')` (quem chama, Tarefa 5, faz; F7/Y-5).
 8. `restaurarCampos(portas, r, pend, destino, contexto, forcar, seq, prazo, anterior)` com a política: `origem = 'vigia'` e estado `falhou` → `proximoDoVigia(rs[c].attempts, erro, cotaVencida)` decide `estado`/`attempts`/`motivo`; **erro de cota (não vencida): o campo é regravado com o `em`, o `forcado` e o `attempts` de antes (só o `erro` muda; F5)**; `origem = 'humano'` e `falhou` → `attempts: 1` (já é assim); demais estados (`ok`, `pulado_*`) usam `anterior(c)`.
 9. `final = { ...rs, ...resultadoDosPend }`. Vencedor: `tudoOk` sobre `camposDoTeste(test_type)` em `final`. Destino variante e `tudoOk` → grava `winner_applied_at`, `applied_by = 'manual'`, `revert_expires_at` e chama `autoImportWinner` só se `r.winner_applied_at === null` (Y-12). Destino `'original'`, `r.winner_applied_at !== null` e `tudoOk` → limpa os três (reversão que tinha falhado). Grava com `where restore_seq = seq`.
 10. Não avisa: quem chama avisa (vigia: Tarefa 4; ações: Tarefa 5). Devolve `{ resultado: 'feito', campos: final }`.
@@ -409,7 +410,7 @@ Destino divergente/inválido com `origem = 'vigia'`: antes de devolver `destino_
 
 **Files:**
 - Create: `Y/ab-watchdog-nova-tentativa.ts`
-- Modify: `Y/ab-restore-avisos.ts` (`avisarNovaTentativa`; `fraseDeDesistencia` ganha `tres_falhas` e `antes_da_nova_tentativa`)
+- Modify: `Y/ab-restore-avisos.ts` (`avisarNovaTentativa`; `fraseDeDesistencia` ganha `tres_falhas`, `antes_da_nova_tentativa` e `destino_invalido` ("não consegui saber para qual versão devolver; confira no YouTube Studio", `// TEXTO-A-REVISAR`); o default deixa de ser "o vídeo não foi encontrado": vira ramo explícito de `video_inexistente`; N1)
 - Modify: `apps/web/src/app/api/cron/ab-watchdog/route.ts:92-120`
 - Test: **novo** `T/youtube/ab-watchdog-nova-tentativa.test.ts`, `T/ab-cron-watchdog.test.ts` (casos novos), `T/integration/ab-p4b-nova-tentativa.test.ts` (casos novos)
 
@@ -429,7 +430,7 @@ Regras da fase (o corpo é do executor):
 - Leitura 2 (uma só, `in`, montando um `Map<video, Set<id>>`; nada de `find` dentro do laço): testes abertos (`draft/queued/active/paused`) dos `youtube_video_id` lidos, **excluindo o próprio `id`** (S2 do Phil: `paused` com destino original, sem outro teste, é tentado); teste com outro aberto no mesmo vídeo → `ignorados.outro_teste++`, sem chamar `tentar`.
 - `restore_status` ilegível (`paraRestoreStatus` nulo) → `falhas++` e Sentry, sem tentar; `paused` com destino variante → `ignorados.pausado_variante++`.
 - `emParalelo(itens, limite, tentarUm, () => relogio.agora() - relogio.inicio >= NAO_INICIA_SETTLE_DEPOIS_MS)`; `adiados` vem dele.
-- `tentarUm`: `tentadas++`; `tentar(id, { siteId, origem: 'vigia', prazo: relogio.inicio + PRAZO_DA_ROTA_MS, seqEsperado: restore_seq }, { supabase, fetch: f })`. `feito` com algum `desistiu`/`tres_falhas` → `desistiram++`; senão com algum `falhou` → `falharam++` (e `cota++` se o erro foi de cota); senão se algum campo terminou `pulado_*` → `pulados++` (Y-10: `pulado_drift` não é `ok`); senão `ok++`; `outro_teste` → `ignorados.outro_teste++`; outro resultado → contado em `falhas` só se for `destino_invalido`, senão ignorado sem contador; exceção → `falhas++` + Sentry. Depois de `feito`: `avisarNovaTentativa(..., noAr)` com `noAr` = rótulo da variante do último ciclo **só se essa variante não for a original e o campo tiver `escreveu === false`**; senão `null` e a frase neutra (S3 do Phil); `sem_destinatario` → `semDestinatario++`; `falha_de_envio` → `falhas++`.
+- `tentarUm`: `tentadas++`; `tentar(id, { siteId, origem: 'vigia', prazo: relogio.inicio + PRAZO_DA_ROTA_MS, seqEsperado: restore_seq }, { supabase, fetch: f })`. `feito` com algum `desistiu`/`tres_falhas` → `desistiram++`; senão com algum `falhou` → `falharam++` (e `cota++` se o erro foi de cota); senão se algum campo terminou `pulado_*` → `pulados++` (Y-10: `pulado_drift` não é `ok`); senão `ok++`; `outro_teste` → `ignorados.outro_teste++`; `destino_invalido` → `falhas++` e **`avisarRestauracao` para cada campo recém-`desistiu`/`destino_invalido`** (chave `ab-restore-desistiu:<id>:<campo>`, frase nova; N1 do Phil: sem isso o Lab para mudo); outro resultado → ignorado sem contador; exceção → `falhas++` + Sentry. Depois de `feito`: `avisarNovaTentativa(..., noAr)` com `noAr` = rótulo da variante do último ciclo **só se essa variante não for a original e o campo tiver `escreveu === false`**; senão `null` e a frase neutra (S3 do Phil); `sem_destinatario` → `semDestinatario++`; `falha_de_envio` → `falhas++`.
 - `avisarNovaTentativa`: há `falhou` → `claimAlert(supabase, 'ab-restore:<id>', '20 hours')` e, se reivindicou, um envio com `fraseDeFalha` do primeiro campo em `falhou` (texto existente); não há `falhou` → `releaseAlert(supabase, 'ab-restore:<id>')`; campos `desistiu`/`tres_falhas` → chave `ab-restore-desistiu:<id>:<campo>` (janela de 10 anos, como `:83`) e `fraseDeDesistencia(..., 'tres_falhas', campos, noAr)`, prioridade 3. Mesmo tratamento de `sem_destinatario`/`falha_de_envio` e de liberação de chave que `avisarRestauracao` (`:49-68`).
 - Rota (Y-6): `converterInterrompidos` roda **fora e antes** das duas fases (a fase nova precisa ler o resultado dele); depois `const [drift, nt] = await Promise.all([faseDrift(...).catch(...), faseNovaTentativa(getSupabaseServiceClient(), { agora: Date.now, inicio }).catch(e => { Sentry…; return { ...ZERO, falhas: 1 } })])`, cada uma com `catch` próprio (emenda 37). `atencao` passa a incluir `nt.falhas > 0 || nt.adiados > 0 || nt.semDestinatario > 0`; a mensagem de `recordCronFailure` ganha `; nova tentativa: falhas X, adiados Y, sem destinatário Z, cota C; duracao_ms D`; `semDestinatario += nt.semDestinatario`; a resposta ganha, numa linha própria depois de `drift`: `nova_tentativa: { tentadas, ok, falharam, desistiram, pulados, cota, ignorados: { outro_teste, pausado_variante }, adiados, sem_destinatario }` **sempre**, e `duracao_ms = Date.now() - inicio`; antes de responder, `console.log('[ab-watchdog] resumo', JSON.stringify({ duracao_ms, drift, nova_tentativa, avisos }))` (F3).
 
@@ -447,7 +448,7 @@ Regras da fase (o corpo é do executor):
 - [ ] **Passo 3:** rodar os três arquivos → FAIL nos novos.
 - [ ] **Passo 4:** implementar.
 - [ ] **Passo 5:** rodar → PASS.
-- [ ] **Passo 6: integração** (casos novos em `ab-p4b-nova-tentativa.test.ts`): `P4b-I1 inteiro: completed com thumbnail falhou attempts 1; faseNovaTentativa duas vezes (relógio de 10:00 e de 20:00 UTC) com o YouTube recusando → depois da 1ª attempts 2 e 1 chamada de escrita; depois da 2ª desistiu/tres_falhas com 3, e o fanOut recebeu a chave ab-restore-desistiu:<id>:thumbnail`; `P4b-I10: T1 completed falhou forcado true e T2 active no mesmo vídeo → nenhuma escrita, T1 igual`; `dois "parou" em correntes seguidas = dois envios (desistiu → retryRestore falha → vigia 2× → desistiu: o fanOut recebe a chave duas vezes; F7/Y-5)`; `o .or() do PostgREST real acha falhou em title e em thumbnail e não acha active`. Comando de integração → PASS.
+- [ ] **Passo 6: integração** (casos novos em `ab-p4b-nova-tentativa.test.ts`): `P4b-I1 inteiro: completed com thumbnail falhou attempts 1; faseNovaTentativa duas vezes (relógio de 10:00 e de 20:00 UTC) com o YouTube recusando → depois da 1ª attempts 2 e 1 chamada de escrita; depois da 2ª desistiu/tres_falhas com 3, e o fanOut recebeu a chave ab-restore-desistiu:<id>:thumbnail`; `P4b-I10: T1 completed falhou forcado true e T2 active no mesmo vídeo → nenhuma escrita, T1 igual`; `dois "parou" em correntes seguidas = dois envios (desistiu → retryRestore falha → vigia 2× → desistiu: o fanOut recebe a chave duas vezes; F7/Y-5)`; `N1: vigia com destinos divergentes → o fanOut recebe a chave ab-restore-desistiu:<id>:<campo> e a frase de destino_invalido`; `N2: converterInterrompidos converte em desistiu/tres_falhas (campo com attempts 2) → o fanOut recebe a chave e a frase de tres_falhas, uma vez`; `o .or() do PostgREST real acha falhou em title e em thumbnail e não acha active`. Comando de integração → PASS.
 - [ ] **Passo 7:** lista do A/B, `tsc`; commit `feat: P4b, fase nova do vigia (nova tentativa, desistiu na terceira, aviso diário)`.
 
 ### Tarefa 5: as ações `retryRestore` e `dismissRestore`
@@ -534,23 +535,24 @@ retirar `motivo`, com `restore_seq + 1`. Mesma forma do corte, idempotente.
 **Interfaces:**
 - Consumes: `proximaVerificacao`, `vigiaAtrasado` (Tarefa 2), `simAindaVale`, `camposPendentes`, `podeDispensar`, `MAX_TENTATIVAS`.
 - Produces:
-  - `CtxFaixa` ganha `vigiaUltimaExecucao: string | null`, `podeAdministrar: boolean` e `bloqueio: 'outro_teste' | 'pausado_variante' | null` (F4/Y-4).
+  - `CtxFaixa` ganha `vigiaUltimaExecucao: string | null`, `podeAdministrar: boolean` e `bloqueio: 'outro_teste' | 'pausado_variante' | null` (F4/Y-4) e **`inicioDoSim: Partial<Record<CampoNome, string | null>>`** (R-1 do Yannis: a página lê `select em, forcado from ab_test_restores … order by seq desc limit 10` só para o campo `falhou` com `forcado = true` e passa `inicioDoSim(linhas)`).
   - `FaixaCompleta` ganha `acoes: { tentar: boolean; dispensar: CampoNome[]; motivoSemBotao: string | null }` (`FaixaOk` não tem).
   - `export function faixaTentando(rs: RestoreStatus, ctx: CtxFaixa): Faixa | null` — a faixa com os campos de `camposPendentes(rs, 'humano')` trocados por `em_andamento` com `em = ctx.agora` (o que a tela mostra enquanto "Tentar agora" corre: P4b-E1).
 
 Frases (cópia do mockup, estados C, D, D2, H, I; `h` = `horaSP(c.em)`, `hp` = `HH:MM` de `proximaVerificacao(agora)` em SP, `n = c.attempts + 1`):
 - `falhou` (C e D2): `` `O YouTube recusou em ${h}. Nova tentativa automática por volta das ${hp} (horário de São Paulo), tentativa ${n} de 3.` ``
-- `falhou` com `simAindaVale` (D): `` `O YouTube recusou em ${h}. Nova tentativa automática por volta das ${hp} (horário de São Paulo), sem perguntar de novo: ela repete a troca que você confirmou.` ``
+- `falhou` com `simAindaVale(campo, agora, ctx.inicioDoSim[c])` (D; o mesmo critério do vigia, R-1): `` `O YouTube recusou em ${h}. Nova tentativa automática por volta das ${hp} (horário de São Paulo), sem perguntar de novo: ela repete a troca que você confirmou.` ``
 - `bloqueio` ≠ nulo (nas frases de `falhou`): sem hora e sem "tentativa N de 3"; no lugar: `Sem nova tentativa automática enquanto outro teste estiver aberto neste vídeo.` (para `pausado_variante`: `Sem nova tentativa automática enquanto este teste estiver pausado.`) `// TEXTO-A-REVISAR`. O "Tentar agora" continua e recusa com `MSG_OUTRO_TESTE`.
 - vigia atrasado: o trecho `por volta das ${hp} (horário de São Paulo)` vira `na próxima verificação` (nota do mockup C).
 - `falhou` sem erro de escrita (hoje cai em `semResposta`, `:105`): mantém a frase de A3 e acrescenta ` Nova tentativa automática …` com a mesma regra. `// TEXTO-A-REVISAR` (composição de frases aprovadas).
 - `desistiu`/`tres_falhas` (H): `lbl: 'Erro:'`, `resumo: `a restauração falhou 3 vezes e parou. ${cap} no ar ainda é ${o} da variante ${ctx.noArAntes}.``, linha `` `Última recusa do YouTube em ${h}. Não haverá nova tentativa automática.` ``, tom `err`, link do Studio.
 - `desistiu`/`antes_da_nova_tentativa` (sem mockup): `lbl: 'Sem nova tentativa:'`, `resumo: 'a restauração falhou antes da nova tentativa automática existir. Confira no YouTube Studio.'`, linha `` `Não foi restaurado. Parou em ${h}.` ``, tom `none`, link. `// TEXTO-A-REVISAR`
+- `desistiu`/`destino_invalido` (N1 do Phil): `lbl: 'Sem nova tentativa:'`, `resumo: 'não consegui saber para qual versão devolver. Confira no YouTube Studio.'`, linha `` `Parou em ${h}. Não haverá nova tentativa automática.` ``, **aviso** (tom `warn`, nunca `err`), link do Studio; **sem "Tentar agora"** (`acoes.tentar` falso, porque o motivo está fora de `camposPendentes('humano')`); o dispensar vale. `// TEXTO-A-REVISAR`
 - Sem permissão (I): destino variante e `!podeAdministrar` → `acoes = { tentar: false, dispensar: [], motivoSemBotao: 'Só quem administra o site pode tentar de novo ou dispensar este aviso.' }`.
 - `fine` (`NAO_DISPENSA`) some de todos os estados.
 - `acoes.tentar` = existe campo em `camposPendentes(rs, 'humano')`; `acoes.dispensar` = campos com `podeDispensar`.
 
-- [ ] **Passo 1: testes que falham:** `C: "tentativa 2 de 3" com attempts 1 e "07:00" com agora 08:00 UTC`; `C às 12:00 UTC → "17:00"`; `attempts 2 → "tentativa 3 de 3"`; `cota (attempts igual) → N igual`; `vigia atrasado → "na próxima verificação" e nenhuma hora`; `D com em de 47 h → frase "sem perguntar de novo"; com 49 h → frase de D2`; `H só com desistiu/tres_falhas, nunca com falhou attempts 2` (P4b-E2, nível do texto); `I sem admin → acoes vazias e motivoSemBotao`; `pulado_drift → dispensar ['thumbnail'], tentar false`; `desistiu/novo_teste → tentar false, dispensar com o campo`; `nenhuma faixa da P4b contém "Este aviso ainda não pode ser dispensado."`; `falhou + bloqueio outro_teste → nenhuma hora e nenhum "tentativa N de 3"` (F4/Y-4); `pulado_teste_youtube → sem botão, texto neutro, sem quebrar o switch exaustivo` (F10); `faixaTentando de C → tom busy e "Voltando ao original…"` (frase de A1, `frasesBusy`).
+- [ ] **Passo 1: testes que falham:** `C: "tentativa 2 de 3" com attempts 1 e "07:00" com agora 08:00 UTC`; `C às 12:00 UTC → "17:00"`; `attempts 2 → "tentativa 3 de 3"`; `cota (attempts igual) → N igual`; `vigia atrasado → "na próxima verificação" e nenhuma hora`; `D com em de 47 h → frase "sem perguntar de novo"; com 49 h → frase de D2`; `R-1: falhou, forcado, em de 1 h, inicioDoSim de 50 h → frase de D2 (tentativa N de 3), não a de D`; `N1: desistiu/destino_invalido → aviso, sem "Tentar agora", sem a frase de "vídeo não encontrado"`; `H só com desistiu/tres_falhas, nunca com falhou attempts 2` (P4b-E2, nível do texto); `I sem admin → acoes vazias e motivoSemBotao`; `pulado_drift → dispensar ['thumbnail'], tentar false`; `desistiu/novo_teste → tentar false, dispensar com o campo`; `nenhuma faixa da P4b contém "Este aviso ainda não pode ser dispensado."`; `falhou + bloqueio outro_teste → nenhuma hora e nenhum "tentativa N de 3"` (F4/Y-4); `pulado_teste_youtube → sem botão, texto neutro, sem quebrar o switch exaustivo` (F10); `faixaTentando de C → tom busy e "Voltando ao original…"` (frase de A1, `frasesBusy`).
 - [ ] **Passo 2:** rodar → FAIL. **Passo 3:** implementar. **Passo 4:** rodar → PASS.
 - [ ] **Passo 5:** lista do A/B, `tsc`; commit `feat: P4b, texto da faixa com nova tentativa, 3 falhas e permissão`.
 
@@ -687,6 +689,7 @@ nada de URL de imagem que o pacote "Perguntar a uma IA" monta).
      Custo: um push a mais (4 builds). Ganho: os consertos do assistente e a coleta da referência não esperam dias.
    - **Opção 2: um envio só.** Tudo junto depois da Tarefa 12. Custo: a coleta de `config.referencia` e os quatro
      consertos esperam a Parte A inteira. Vale se a A ficar pronta no mesmo dia que a B.
+   **Conferência de duplicatas no B1 (H8, condição do Phil e do Yannis; só `select`, o dono roda antes do push):** vídeos com mais de um teste em `draft/queued/active/paused` (`select video_id, count(*) from ab_tests where status in ('draft','queued','active','paused') group by 1 having count(*) > 1`); esperado 0, resultado salvo no ledger. Se não for 0, o B1 não sai. O índice `ab_tests_one_active_per_video` cobre só `draft/active/paused` (`20260517000001_ab_testing.sql:32-34`); a barreira da Tarefa 13 cobre o uso normal.
    Em qualquer opção, o passo 3 em diante vale para a **Parte A**; o B1 só faz push, CI e promoção (itens 5 a 7 sem a migration).
 3. **Revisões fechadas** (Tarefa 12), textos fechados e respondidos pelo dono (Tarefa 10), capturas aprovadas (Tarefa 11).
 4. **Leitura de produção (H4: pode rodar já, antes do E8, e repete no dia; o dono roda, o agente prepara
@@ -697,7 +700,7 @@ nada de URL de imagem que o pacote "Perguntar a uma IA" monta).
        or restore_status->'thumbnail'->>'estado' in ('falhou','em_andamento');
    ```
    Esperado: `active` com `falhou` = 0; `em_andamento` com mais de 15 min = 0 (se houver, o vigia converteria em `falhou`
-   "novo" depois do deploy; entram no corte com a mesma conversão). Salvar no ledger a **lista fechada** `id, campo,
+   "novo" depois do deploy; o corte pula essas linhas, então **não se corta com `em_andamento` aberto**: o dono refaz a leitura até dar 0; N3 do Phil). Salvar no ledger a **lista fechada** `id, campo,
    estado, em, attempts` e a **conta esperada** (F9).
 5. **Ordem do envio da Parte A (F2 do Phil, inverte a ordem anterior):** primeiro **push a `staging`, CI verde e
    promoção da P4b ao `main`**; **logo depois, a migration do corte**, ambos a mais de 30 min de 10:00 e 20:00 UTC.
@@ -790,6 +793,8 @@ hora ou dispensa o aviso se já corrigiu no Studio".
   a cota preserva `em`/`forcado`/`attempts` (Phil F5), com teto de 72 h. Resta: pelo "Tentar agora" o dono renova
   clicando, de propósito. Desvio do spec ("a partir do `em` do campo"): a âncora vem do histórico; o spec 32 k deve
   ganhar a frase (pendência do controlador).
+- **Janela residual do start (R-3 do Yannis, dívida declarada):** a recusa da Tarefa 9 lê o `em_andamento` antes de reivindicar `draft → active`; um vigia que passou pelo passo 5 antes de o T2 existir e reivindica entre a leitura e a reivindicação do start ainda escreve a original por baixo do T2. Milissegundos, dono único; risco: uma escrita errada de thumbnail, uma vez. Gatilho para pagar: segundo caso visto; a reivindicação do start passa a conferir `restore_seq` do teste anterior.
+- **Cadeia do "sim" entre paradas (R-4 do Yannis):** pausar/retomar/parar de novo no mesmo teste sem linha `ok` ou `forcado false` entre as duas faz a âncora do "sim" velho valer para o novo (`dispensar` e `retomar` não geram linha); o vigia pode não forçar quando o dono acabou de dizer sim. Lado seguro, sem dano; registrar junto da nota do spec 32 k.
 - **Fase 2 da S6/S7:** se ela entrar antes deste lote, a `novaTentativa` precisa do passe da guarda (item 6 do envio);
   se entrar depois, ela acrescenta o gancho. Quem chegar segundo faz.
 - **Sobreposição de avisos:** a falha original avisa por `restore_seq` (P4a) e a primeira nova tentativa no mesmo dia
@@ -802,7 +807,7 @@ hora ou dispensa o aviso se já corrigiu no Studio".
 
 | Item | Motivo |
 |---|---|
-| H8 (Hanna): índice único com `queued` | Sem parecer do Phil sobre o índice (a F-* dele não o cita). Recriar `ab_tests_one_active_per_video` com `queued` exige migration e falha ao criar se já existir um `queued` com `draft`/`active` no mesmo vídeo; o B1 deixaria de ser "sem migration" e entraria na fila do banco. A barreira da Tarefa 13 (ação + consulta do picker) cobre o uso normal; a corrida de dois cliques simultâneos fica sem trava de banco. **Decisão do dono/Phil:** se quiser a trava, nova tarefa com `npm run db:new` (precisa de leitura prévia de produção por duplicatas). Aviso A5 1 fica atendido só na camada de aplicação. |
+| (H8 saiu daqui na r2) | Virou condição escrita: ver "Condições do acordo (r2)" abaixo e a conferência do B1 (Seção 4, item 2). |
 | Y-11 (Yannis): unificar o "dia do teste" | Aplicado como passo 0 da Tarefa 15 (Logan/Hanna decidem qual número é a verdade antes de unificar); o plano não decide. |
 | Aviso em dobro no 1º dia (Yannis, dívida) | Já declarado em Riscos; o Logan pode juntar os textos (backlog da Hanna, gatilho: o dono reclamar). |
 | Consulta Y-5 repetida (fase + `novaTentativa`) | Aceito pelo Yannis (n pequeno); gatilho: mais de 100 testes pendentes. |
@@ -810,6 +815,10 @@ hora ou dispensa o aviso se já corrigiu no Studio".
 | Índice para a consulta da fase (Phil) | Tabela de dezenas de linhas; revisitar com mais de 10 mil testes. |
 | Botões pelo Cowork (Q4), rascunho por id (A5 4), curinga do Blob (A5 7), "Continuar/Passo 2 de 3" (A5 9) | Q4/Q5 e backlog da Hanna, com gatilho. |
 | Roteiro (linha 14) e aceite 5.2 | Edição do controlador (arquivos fora deste worktree/em mudança por outra sessão); listados nas seções 4 e 5. |
+
+## Condições do acordo (r2)
+
+- **H8 (índice com `queued`):** a próxima migration que tocar `ab_tests` (qualquer motivo) recria `ab_tests_one_active_per_video` incluindo `queued`, precedida da leitura de duplicatas acima (esperado 0). Gatilho antecipado: segundo teste criado sobre vídeo com `queued`. Até lá, a trava é a barreira da Tarefa 13 e o índice atual no ponto que escreve no YouTube (ativação).
 
 ## Registro de revisões
 
@@ -837,3 +846,15 @@ hora ou dispensa o aviso se já corrigiu no Studio".
 | H6 (horas e roteiro) | Seção 5 (nova estimativa 17 a 26,5 h); pendência do roteiro |
 | H8 (índice com `queued`) | "Não aplicado" (precisa de decisão e, se entrar, de migration) |
 | Y-11 (dia do teste) | Tarefa 15, passo 0 |
+
+**r2 (18/10, condições do acordo: Phil 92, Yannis 92):**
+
+| Achado | Onde entrou |
+|---|---|
+| Yannis R-1 (faixa D lê o `em` do campo, o vigia lê a âncora) | Tarefa 7 (`CtxFaixa.inicioDoSim`, `simAindaVale` com 3º argumento, teste `em` 1 h / âncora 50 h → D2) |
+| Yannis R-2 (`forcado` do `em_andamento`) | Tarefa 3, passo 7 (`forcado: forcar`, teste) |
+| Yannis R-3, R-4 | Riscos (janela residual do start; cadeia entre paradas) |
+| Phil N1 (`destino_invalido` mudo, frase errada, botão que recusa) | Tarefa 2 (`camposPendentes('humano')` exclui, teste); Tarefa 4 (`fraseDeDesistencia`, aviso no `tentarUm`, teste); Tarefa 7 (frase de aviso, `acoes.tentar` falso, teste) |
+| Phil N2 (interrompido → `desistiu` avisa uma vez) | Tarefa 4, passo 6 (integração) |
+| Phil N3 (corte e `em_andamento`) | Seção 4, item 4 (não se corta com `em_andamento` aberto) |
+| H8 (índice com `queued`) | Seção 4, item 2 (conferência no B1); "Condições do acordo (r2)"; saiu de "Não aplicado" |
