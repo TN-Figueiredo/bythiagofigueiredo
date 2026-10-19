@@ -55,6 +55,8 @@ export interface BlocoDeRitmo {
   semanasLidas: number
   /** O período do bloco: 13 semanas cheias ou, com corte (criação/cobertura), os dias da base. */
   periodo: string
+  /** Semanas fora do período (antes da criação / dos vídeos guardados): a frase sob o título; nulo sem nenhuma. */
+  foraDoPeriodo?: string | null
 }
 
 export interface EntradaDoRitmo {
@@ -232,8 +234,12 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     )
   }
 
+  const nFora = raiaPrincipal.casas.filter(c => c.estado === 'nao_lida' && c.fora === true).length
+  const foraDoPeriodo = nFora === 0 ? null
+    : `${nFora === 1 ? 'A semana mais antiga está' : `${nFora} semanas mais antigas estão`} fora do período: ${base.corte === 'cobertura' ? 'os vídeos guardados não chegam até lá' : 'o canal ainda não existia'}. Não é semana sem vídeo.`
+
   return {
-    frase, semanasLidas, periodo,
+    frase, semanasLidas, periodo, foraDoPeriodo,
     raias: [raiaPrincipal, raiaOutra],
     eixoFim: parou && ate ? `semana de ${dm(ate)}` : 'esta semana',
     ponteiro, cartoes,
