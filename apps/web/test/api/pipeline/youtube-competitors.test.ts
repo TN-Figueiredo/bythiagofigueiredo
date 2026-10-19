@@ -545,6 +545,31 @@ describe('listCompetitorOutliers', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('getCompetitorInsights', () => {
+  it('canal novo: freq nulo (nunca 0) com o motivo canal_novo; canal antigo mantém a taxa e motivo nulo', async () => {
+    const dia = 864e5
+    const novo = makeChannel(CH_ID_1, 'Novinho', { published_at: new Date(Date.now() - 10 * dia).toISOString() })
+    const antigo = makeChannel(CH_ID_2, 'Veterano', { published_at: new Date(Date.now() - 900 * dia).toISOString() })
+    const vids = [
+      ...[2, 4, 6].map((d, i) => makeVideo(CH_ID_1, i, { title: `Novo ${i}`, published_at: new Date(Date.now() - d * dia).toISOString() })),
+      ...[3, 10, 17, 24, 31, 38].map((d, i) => makeVideo(CH_ID_2, i + 10, { title: `Velho ${i}`, published_at: new Date(Date.now() - d * dia).toISOString() })),
+    ]
+    const sb = buildSupabase({
+      competitor_channels: [{ data: [novo, antigo], error: null }],
+      competitor_videos: [{ data: vids, error: null }],
+      youtube_videos: [{ data: [], error: null }],
+    })
+    const { cadence } = (await getCompetitorInsights(ctx(sb))).data
+    const n = cadence.find(c => c.channel_name === 'Novinho')!
+    const v = cadence.find(c => c.channel_name === 'Veterano')!
+    expect(n.freq).toBeNull()
+    expect(n.freq).not.toBe(0)
+    expect(n.freq_motivo).toBe('canal_novo')
+    expect(v.freq).toBeGreaterThan(0)
+    expect(v.freq_motivo).toBeNull()
+    // de ponta a ponta: o nulo e o motivo sobrevivem à serialização da resposta
+    expect(JSON.parse(JSON.stringify(n))).toMatchObject({ freq: null, freq_motivo: 'canal_novo' })
+  })
+
   it('returns all insight sections', async () => {
     const ch = makeChannel(CH_ID_1, 'TravelBR')
     // Use many low-view base videos so median stays low, making high-view ones outliers
