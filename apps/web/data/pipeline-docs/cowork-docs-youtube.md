@@ -720,11 +720,11 @@ Lista os canais concorrentes monitorados do site, com os números de hoje, o per
                 "valor": {
                   "acertos": 3,
                   "fracassos": 2,
-                  "total": 11,
+                  "total": 8,
                   "pctAcerto": null,
                   "pctFracasso": null
                 },
-                "n": 11,
+                "n": 8,
                 "janela": {
                   "de": null,
                   "ate": null,
@@ -790,6 +790,7 @@ Lista os canais concorrentes monitorados do site, com os números de hoje, o per
 - `avg_engagement` e `subscriber_count` podem ser `null` (o canal oculta o contador, ou o YouTube não devolveu): trate como "sem contagem".
 - Dentro de `perfil` com `estado: "lido"`, `null` em `handle` ou `pais` quer dizer que o YouTube não informou. `lido_em` é a última leitura boa do canal e pode ser posterior à leitura do perfil. `criado_em` nulo quer dizer "não informado, ou ainda não gravado".
 - `perfil` com `estado: "nao_lido"` não traz `handle`, `pais` nem `criado_em`, e traz `frase`: cite a frase e não estime o valor. Os outros motivos possíveis são `tabela_ausente`, `erro_do_banco` e `cortado`.
+- Em `taxa_de_acerto` medida, `pctAcerto` e `pctFracasso` vêm `null` quando o canal tem poucos vídeos na conta (`total` abaixo do mínimo que o código usa para dar percentual): use `acertos`, `fracassos` e `total` em contagem e não calcule o percentual por conta própria.
 - O recurso MCP `pipeline://youtube/competitors/channels` lê a tabela direto e não traz `perfil`; os números do perfil vêm desta rota e da ferramenta `youtube_observatory` (ação `list_channels`). O recurso MCP `pipeline://youtube/competitors/outliers` devolve **mudanças marcadas**, não vídeos fora da curva; para os vídeos, use a rota `outliers` ou a ação `get_outliers` da ferramenta.
 - A lista traz só concorrentes; o seu canal não está nela.
 
