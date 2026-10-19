@@ -10,14 +10,16 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Niche } from '@/lib/youtube/observatorio/niche'
 import { link, type CanalTab } from '@/lib/youtube/observatorio/links'
-import type { syncCompetitorNow, pedirRemocaoCanal, apagarCanalSemGuardarAction, getCompetitorRemovalImpactAction } from '../actions'
+import type { syncCompetitorNow, pedirRemocaoCanal, desfazerRemocaoCanal, apagarCanalSemGuardarAction, getCompetitorRemovalImpactAction } from '../actions'
 import type { setChannelNiche } from '../niche-actions'
 import { Icon } from '../_chrome/icons'
 import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
 import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
-import { TXT, toastApagadoCorpo } from '../_canais/remover-model'
+import { TXT } from '../_canais/remover-model'
+import { useDesfazer } from '../_canais/use-desfazer'
+import { marcarRemovido } from '../_canais/removido-flag'
 import type { Desfecho } from '../_canais/remove-dialog'
 import { chegouPelaTrilha, esquecerUltimoVideo, lembrarSaida, lerUltimoVideo, type UltimoVideo } from '../_chrome/ultimo-video'
 import { descartarGatilhoSeNaoVoltou, lerGatilho } from '../_chrome/gatilho-volta'
@@ -47,6 +49,7 @@ import './canal.css'
 export interface CanalActions {
   onSyncOne: typeof syncCompetitorNow
   onPedir: typeof pedirRemocaoCanal
+  onDesfazer: typeof desfazerRemocaoCanal
   onApagar: typeof apagarCanalSemGuardarAction
   onRemovalImpact: typeof getCompetitorRemovalImpactAction
   onSetNiche: typeof setChannelNiche
@@ -508,12 +511,26 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   })
-  // transitório até a Tarefa 9: o aviso no cabeçalho e o foco chegam com a página do canal
+  const { desfazer } = useDesfazer(actions.onDesfazer as never, () => router.refresh())
+  /** U5: depois de fechar a janela o foco vai ao título da página (o botão que a abriu mudou de lugar; o aviso aparece logo abaixo). */
+  const [focoTitulo, setFocoTitulo] = useState(0)
+  useEffect(() => {
+    if (!focoTitulo) return
+    const t = raiz.current?.querySelector<HTMLElement>('header.chead h1')
+    if (t) { if (!t.hasAttribute('tabindex')) t.setAttribute('tabindex', '-1'); t.focus({ preventScroll: true }) }
+  }, [focoTitulo])
   const concluir = (d: Desfecho) => {
     setConfirm(false)
-    if (d.caminho === 'guardar') { toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo); router.refresh(); return }
-    toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(h.name, { videos: d.videos, ...(d.registrosDiarios !== undefined ? { registros: d.registrosDiarios } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
-    router.replace(link.canais())
+    if (d.caminho === 'guardar') {
+      // fica na página: o aviso aparece no cabeçalho depois do refresh
+      setFocoTitulo(n => n + 1)
+      toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo, { acoes: [{ rotulo: 'Desfazer', onClick: () => { void desfazer(h.id, h.name) } }] })
+      router.refresh()
+      return
+    }
+    // apagar: a página deixa de existir. O toast sai na lista, pelo estado do navegador (não pela URL: link forjado não afirma "apagado")
+    marcarRemovido({ nome: h.name, videos: d.videos, ...(d.registrosDiarios !== undefined ? { registros: d.registrosDiarios } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) })
+    router.push(link.canais())
   }
   const conferir = () => { setConfirm(false); router.refresh() }
 

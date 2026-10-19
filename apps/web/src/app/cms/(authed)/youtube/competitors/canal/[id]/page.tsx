@@ -12,7 +12,7 @@ import { canalNaoCarregou } from '../../_canal/medidas/canal-derivado-async'
 import { EsqueletoDasCelulas, EsqueletoDosBlocos, EsqueletoDoTopo } from '../../_canal/medidas/esqueleto'
 import { assistidoDoCanal, montarCanal, origemDoCanal, type PropsAssistidoDoCanal, type PropsOrigemDoCanal } from '../../_canal/montar'
 import { nicheOptions } from '../../_canais/view-model'
-import { pedirRemocaoCanal, apagarCanalSemGuardarAction, syncCompetitorNow, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from '../../actions'
+import { pedirRemocaoCanal, desfazerRemocaoCanal, apagarCanalSemGuardarAction, syncCompetitorNow, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from '../../actions'
 import { setChannelNiche } from '../../niche-actions'
 import { AssistidoPeriodos } from '../../_proprio/assistido-periodos'
 import { AssistidoEsqueleto } from '../../_proprio/video-blocos'
@@ -110,7 +110,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
       <AbEntradasProvider valor={valorAbEntradas({ podeEditar: m.pagina.canEdit, abertos: null })}>
       <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={leitura} compararHref={owns.principal ? link.comparar(owns.principal.id, id) : null}
         topo={topo} celulas={celulas} blocos={blocos}
-        actions={{ onSyncOne: syncCompetitorNow, onPedir: pedirRemocaoCanal, onApagar: apagarCanalSemGuardarAction, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
+        actions={{ onSyncOne: syncCompetitorNow, onPedir: pedirRemocaoCanal, onDesfazer: desfazerRemocaoCanal, onApagar: apagarCanalSemGuardarAction, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
       </AbEntradasProvider>
     </TrailChrome>
   )
