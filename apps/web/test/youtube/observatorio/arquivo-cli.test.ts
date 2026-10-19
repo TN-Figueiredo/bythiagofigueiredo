@@ -419,6 +419,7 @@ describe('A5 E10 revisão Yannis M5: nome de canal sem caractere de controle no 
       [/from public\.obs_archive_batches b/, () => [
         { batch: 'lote-aberto', channel_ref: CANAL, canal: sujo, exportado_em: '2026-10-13', arquivos: '5', conferido: false, confirmado: false, apagado: false, encerrado: null, canal_existe: true },
       ]],
+      [/removal_requested_at is not null/, () => []],
       [/from public\.obs_db_size_daily/, () => []],
     ])
     const r = await rodar(cmd(`estado --pasta /arq`), dinheiro({ sql: m.sql }))
@@ -440,6 +441,7 @@ describe('A5 E10 T7: estado', () => {
         { batch: 'lote-desistido', channel_ref: CANAL, canal: 'Canal sintético', exportado_em: '2026-10-11', arquivos: '5', conferido: false, confirmado: false, apagado: false, encerrado: 'despausado', canal_existe: true },
         { batch: 'lote-orfao', channel_ref: 'x', canal: 'Sumiu', exportado_em: '2026-10-10', arquivos: '5', conferido: true, confirmado: true, apagado: false, encerrado: null, canal_existe: false },
       ]],
+      [/removal_requested_at is not null/, () => []],
       [/from public\.obs_db_size_daily/, () => []],
     ])
     const r = await rodar(cmd(`estado --pasta /arq`), dinheiro({ sql: m.sql }))
