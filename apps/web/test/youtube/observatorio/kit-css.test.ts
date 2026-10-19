@@ -99,6 +99,10 @@ const DIALOGO: string[] = [
   ' .modal p.fx-never', ' .modal .fx-msg', ' .modal .fx-remove .acts',
   ' .modal .btn[aria-disabled="true"]', ' .modal .btn[aria-disabled="true"]:hover', ' .modal .btn[aria-disabled="true"]:active',
   ' .btn.danger[aria-disabled="true"]',
+  ' .modal .fld', ' .modal .fld input', ' .modal .fld input:focus', ' .modal .hint', ' .modal .hint.good', ' .btn.busy',
+  ' .modal .rm-why', ' .modal .rm-why legend', ' .modal .opt', ' .modal .opt:has(input:checked)', ' .modal .opt:has(input:focus-visible)',
+  ' .modal .opt input', ' .modal .opt b', ' .modal .opt small', ' .modal .opt.off', ' .modal .opt.off b', ' .modal .opt.off input',
+  ' .modal .why', ' .modal .why .fx-i', ' .modal .rm-lead', ' .modal .rm-lead.after', ' .modal .fx-msg .code', ' .modal .fx-msg .btn',
 ]
 describe('Observatório · kit promovido', () => {
   const kit = parse(css('_chrome/kit.css'))

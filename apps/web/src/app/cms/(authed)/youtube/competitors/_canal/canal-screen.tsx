@@ -10,13 +10,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Niche } from '@/lib/youtube/observatorio/niche'
 import { link, type CanalTab } from '@/lib/youtube/observatorio/links'
-import type { syncCompetitorNow, removeCompetitorChannel, getCompetitorRemovalImpactAction } from '../actions'
+import type { syncCompetitorNow, pedirRemocaoCanal, apagarCanalSemGuardarAction, getCompetitorRemovalImpactAction } from '../actions'
 import type { setChannelNiche } from '../niche-actions'
 import { Icon } from '../_chrome/icons'
 import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
 import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
+import { TXT, toastApagadoCorpo } from '../_canais/remover-model'
+import type { Desfecho } from '../_canais/remove-dialog'
 import { chegouPelaTrilha, esquecerUltimoVideo, lembrarSaida, lerUltimoVideo, type UltimoVideo } from '../_chrome/ultimo-video'
 import { descartarGatilhoSeNaoVoltou, lerGatilho } from '../_chrome/gatilho-volta'
 import { RemoveDialog } from '../_canais/remove-dialog'
@@ -44,7 +46,8 @@ import './canal.css'
 
 export interface CanalActions {
   onSyncOne: typeof syncCompetitorNow
-  onRemove: typeof removeCompetitorChannel
+  onPedir: typeof pedirRemocaoCanal
+  onApagar: typeof apagarCanalSemGuardarAction
   onRemovalImpact: typeof getCompetitorRemovalImpactAction
   onSetNiche: typeof setChannelNiche
   onPin: PinAction
@@ -495,22 +498,24 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     router.refresh()
   }
 
+  /** Há envio em curso na janela de remover: o Esc daqui não pode fechá-la (I-4). */
+  const bloqueado = useRef(false)
   const closeConfirm = () => { setConfirm(false); requestAnimationFrame(() => menuBtn.current?.focus()) }
   // Esc fecha o diálogo de remoção (aria-modal), como em Canais.
   useEffect(() => {
     if (!confirm) return
-    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') closeConfirm() }
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !bloqueado.current) closeConfirm() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   })
-  const doRemove = async () => {
+  // transitório até a Tarefa 9: o aviso no cabeçalho e o foco chegam com a página do canal
+  const concluir = (d: Desfecho) => {
     setConfirm(false)
-    let res: { ok: boolean; error?: string } = { ok: false }
-    try { res = await actions.onRemove(h.id) } catch { res = { ok: false } }
-    if (!res.ok) { toast('bad', 'Não deu para remover o canal', res.error ?? `${h.name} continua no observatório.`); return }
-    toast('ok', `${h.name} removido`, 'O canal saiu do observatório e os dados coletados dele foram apagados.')
+    if (d.caminho === 'guardar') { toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo); router.refresh(); return }
+    toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(h.name, { videos: d.videos, ...(d.registrosDiarios !== undefined ? { registros: d.registrosDiarios } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
     router.replace(link.canais())
   }
+  const conferir = () => { setConfirm(false); router.refresh() }
 
   return (
     <NicheOptionsContext.Provider value={niches}>
@@ -531,7 +536,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
           ) : null}
           {state.tab === 'leitura' ? leitura : null}
           {viewerNode}
-          {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
+          {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onPedir={actions.onPedir} onApagar={actions.onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} trap={trapTab} /> : null}
         </div>
       </NichePendingContext.Provider>
     </NicheOptionsContext.Provider>
