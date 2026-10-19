@@ -26,7 +26,7 @@ describe('unlockMoreChannels', () => {
       getSupabaseServiceClient: () => ({
         from: (t: string) => t === 'competitor_settings'
           ? { upsert, select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { channel_limit: 75 } }) }) }) }
-          : { select: () => ({ eq: async () => ({ count: 10, data: [] }) }) },
+          : { select: () => ({ eq: () => ({ is: async () => ({ count: 10, data: [] }) }) }) },
       }),
     }))
     const { unlockMoreChannels } = await import('@/app/cms/(authed)/youtube/competitors/actions')
@@ -51,5 +51,31 @@ describe('unlockMoreChannels', () => {
     expect(upsert).toHaveBeenCalledTimes(1)
     const [row] = upsert.mock.calls[0] as unknown as [{ site_id: string; channel_limit: number; updated_by: string }]
     expect(row).toMatchObject({ site_id: 's1', channel_limit: 75 + UNLOCK_STEP, updated_by: 'u1' })
+  })
+})
+
+describe('getChannelSlots (F1 Remover canal)', () => {
+  it('S5.1 conta só canais sem pedido de remoção (filtra removal_requested_at is null)', async () => {
+    vi.resetModules()
+    const is = vi.fn(async () => ({ count: 7 }))
+    const eq = vi.fn(() => ({ is }))
+    vi.doMock('@/lib/supabase/service', () => ({
+      getSupabaseServiceClient: () => ({ from: (t: string) => t === 'competitor_settings'
+        ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }
+        : { select: () => ({ eq }) } }),
+    }))
+    const { getChannelSlots } = await import('@/lib/youtube/competitor-slots')
+    expect(await getChannelSlots('s1')).toEqual({ used: 7, limit: 75, free: 68 })
+    expect(eq).toHaveBeenCalledWith('site_id', 's1')
+    expect(is).toHaveBeenCalledWith('removal_requested_at', null)
+  })
+  it('S5.4 o 75 da migration (Desfazer checa vaga) é o mesmo de DEFAULT_CHANNEL_LIMIT e RULES.channelLimit', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const { RULES } = await import('@/lib/youtube/observatorio/rules')
+    const sql = readFileSync(resolve(__dirname, '../../../../supabase/migrations/20261019000001_observatorio_a5_remover_canal_f1.sql'), 'utf8')
+    const m = /s\.channel_limit from public\.competitor_settings s where s\.site_id = p_site\), (\d+)\)/.exec(sql)
+    expect(Number(m?.[1])).toBe(DEFAULT_CHANNEL_LIMIT)
+    expect(RULES.channelLimit).toBe(DEFAULT_CHANNEL_LIMIT)
   })
 })

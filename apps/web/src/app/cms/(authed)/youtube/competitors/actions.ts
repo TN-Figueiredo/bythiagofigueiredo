@@ -105,12 +105,14 @@ export async function addCompetitorChannel(
 
   const { data: existing } = await supabase
     .from('competitor_channels')
-    .select('id, niche, channel_name')
+    .select('id, niche, channel_name, removal_requested_at')
     .eq('site_id', siteId)
     .eq('channel_id', ytId)
     .maybeSingle()
 
   if (existing) {
+    // F1 do Remover canal: o pedido aberto é conferido ANTES da conta de vagas e do insert (sem segunda linha nem chave única crua)
+    if (existing.removal_requested_at) return { ok: false, error: 'Este canal está agendado para ser apagado. Use Desfazer para mantê-lo.' }
     const en = existing.niche as string | null
     const known = defs ?? BUILTIN_NICHES
     const n = en != null && known.some(d => d.id === en) ? ` (${nicheLabel(known, en)})` : ''

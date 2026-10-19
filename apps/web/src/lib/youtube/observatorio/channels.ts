@@ -224,10 +224,10 @@ export function channelStats(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'lo
 /** The shape channelStats() returns: single source for the view-models and insights. */
 export type ChannelStats = ReturnType<typeof channelStats>
 
-/** Competitors only (the own channel never takes a slot); the formula is computeSlots, shared with the actions. */
+/** Competitors only (the own channel never takes a slot; a channel with a removal requested frees its slot at once, F1); the formula is computeSlots, shared with the actions. */
 export function channelSlots(ctx: EngineCtx, limit: number): ChannelSlots {
   assertSiteScope(ctx, 'channelSlots')
-  return computeSlots(ctx.ds.channels.filter(c => !c.own).length, limit)
+  return computeSlots(ctx.ds.channels.filter(c => !c.own && !c.removalRequestedAt).length, limit)
 }
 
 /** @internal mockup parity only; product uses syncResultToast */

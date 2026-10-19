@@ -731,3 +731,12 @@ describe('fixados do canal: a contagem da tela usa a base do banco (A4)', () => 
     expect(rowsToDataset(rows({ channels: [channel()] }), NOW).channels[0]!.pinnedCount).toBe(0)
   })
 })
+
+describe('F1 Remover canal: pedido de remoção libera a vaga (S5.2)', () => {
+  it('canal com removal_requested_at não conta em channelSlots; sem pedido conta; o canal segue no dataset', () => {
+    const ds = rowsToDataset(rows({ channels: [channel({ id: 'a', channel_id: 'UCa' }), channel({ id: 'b', channel_id: 'UCb', removal_requested_at: iso(NOW - H) })] }), NOW)
+    expect(ds.channels.find(c => c.id === 'b')?.removalRequestedAt).toBe(iso(NOW - H))
+    expect(ds.channels.find(c => c.id === 'a')?.removalRequestedAt ?? null).toBeNull()
+    expect(createObservatory(ds).channelSlots()).toEqual({ used: 1, limit: 75, free: 74 })
+  })
+})
