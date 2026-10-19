@@ -17,9 +17,9 @@ No passo Variantes do assistente, logo acima do cartão A, só para os tipos thu
 - H. Detalhe do teste: "Original guardada" com origem e resolução; testes antigos com pública baixa mostram o aviso e "Enviar original" (só com o teste pausado ou rascunho).
 
 ## Decisões (1, 3, 4 e 6 aprovadas pelo dono com a recomendação)
-1. Limite de "baixa". Posição do desenho: largura até 480 avisa (regra do diálogo de encerrar). Posição do Logan: aviso sempre que a pública tiver menos de 1280 de largura, pois 480×360 e 640×480 são 4:3 com faixa preta e a 640×480 passaria calada. **Recomendo a do Logan** (o mockup já a mostra); o diálogo de encerrar segue a regra do Phil até ele dizer se alinha. Falta conferir com dois vídeos reais do canal se `sddefault` vem sempre com faixa preta.
+1. Limite de "baixa". Posição do desenho: largura até 480 avisa (regra do diálogo de encerrar). Posição do Logan: aviso sempre que a pública tiver menos de 1280 de largura, pois 480×360 e 640×480 são 4:3 com faixa preta e a 640×480 passaria calada. **Recomendo a do Logan** (o mockup já a mostra); o diálogo de encerrar alinha a 1280 (Phil e Logan, 19/10). Falta conferir com dois vídeos reais do canal se `sddefault` vem sempre com faixa preta.
 2. Enviar original é obrigatório quando a pública < 1280 (dono, 19/10): sem envio, não inicia.
-3. Mínimo no envio: 1280 com a pública baixa (dono 19/10); com a pública em alta, 640; 1280×720 como ideal no texto.
+3. Mínimo no envio: 1280 sempre, com a pública baixa ou alta (dono 19/10 e ruling do controlador); 1280×720 como ideal no texto.
 4. Trocar a original só com teste pausado ou rascunho (trocar no ar muda a base do experimento). Logan concorda.
 5. "Remover e usar a pública" só com a pública em alta (dono, 19/10).
 6. Limite do YouTube lido como 2 MB e JPG, PNG, GIF; a recusa ao guardar tem mensagem própria (E). Logan concorda.
