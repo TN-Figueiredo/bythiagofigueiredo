@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { M2_BLOCO_11 } from './m2'
 import { lerSqlDaX3, lerX3Registro } from './x3-sql'
+import { lerSqlDaF1 } from './f1-sql'
 
 export const MG6_FIXTURE = fileURLToPath(new URL('../fixtures/sql/a5-e10-mg6.sql', import.meta.url))
 
@@ -43,6 +44,9 @@ export async function garantirMg6(c: Client): Promise<void> {
   // `E10_COM_X3=1` aplica a migration da X3 inteira na transação (rodar a pasta da E10 com a X3 presente, plano X3 T2 passo 5).
   if (process.env.E10_COM_X3 === '1') await c.query(lerSqlDaX3())
   else if ((await c.query(`select to_regclass('public.competitor_playlists') as t`)).rows[0]?.t) await c.query(lerX3Registro())
+  // A5 F1 (Remover canal): a MG6 reaplicada recria o registro e a remoção arquivada sem a watch; com a S4 e a F1 presentes, a F1 volta a valer.
+  const f1 = lerSqlDaF1()
+  if (f1 !== null && (await c.query(`select to_regclass('public.yt_watch_readings') is not null and to_regclass('public.competitor_channel_sections') is not null as ok`)).rows[0]?.ok) await c.query(f1)
 }
 
 /**
@@ -158,7 +162,7 @@ export async function criarVideo(c: Client, canal: string, diasAtras: number): P
   return (await q1(c,
     `insert into public.competitor_videos (competitor_channel_id, video_id, title, published_at, discovered_at, view_count)
      values ($1, $2, 'sintético', now() - make_interval(days => $3), now() - make_interval(days => $3), 10) returning id`,
-    [canal, 'e10' + randomUUID().replace(/-/g, '').slice(0, 10), diasAtras])).id as string
+    [canal, 'e10' + randomUUID().replace(/-/g, '').slice(0, 8), diasAtras])).id as string
 }
 
 /** Uma linha em quase toda tabela do registro para o vídeo (e o canal). Datas relativas a hoje. */
@@ -177,7 +181,7 @@ export async function semearDadosDoVideo(c: Client, site: string, canal: string,
 }
 
 /** `semX3`: os testes da própria X3 semeiam as tabelas de playlists à mão e não querem a semente padrão delas. */
-export async function semearCena(c: Client, opcoes: { semX3?: boolean } = {}): Promise<Cena> {
+export async function semearCena(c: Client, opcoes: { semX3?: boolean; semWatch?: boolean } = {}): Promise<Cena> {
   const { org, site } = await criarSite(c)
   const admin = await criarUsuario(c)
   const comum = await criarUsuario(c)
@@ -200,6 +204,7 @@ export async function semearCena(c: Client, opcoes: { semX3?: boolean } = {}): P
      values ($1, $2, $3, $4, 'comentário de B que aponta para A', false, now() - interval '1 day', now() - interval '1 day', now(), $5) returning id`,
     [site, canalB, videoB, 'cm' + randomUUID().replace(/-/g, '').slice(0, 10), canalA])).id as string
   await semearRestoDoFecho(c, { site, canalA, canalB, videoA, videoB, comentarioA: cA, comentarioB: cB }, opcoes.semX3 === true)
+  if (opcoes.semWatch !== true) await semearWatchBase(c, site, [videoA, videoB])
   return { org, site, admin, comum, canalA, canalB, videoA, videoA2, videoB, comentarioDeBQueApontaParaA: cB }
 }
 
@@ -335,4 +340,40 @@ export async function tabelasComIdentidade(c: Client): Promise<string[]> {
       where a.attidentity <> '' or pg_get_expr(d.adbin, d.adrelid) like 'nextval(%'
       order by 1`)
   return r.rows.map((x: { nome: string }) => x.nome)
+}
+
+// ───────────────────────── a watch (S4) ─────────────────────────
+
+/** Um alvo ativo, uma miniatura e uma leitura por vídeo (linha de `competitor_videos.id`); só quando as tabelas da S4 existem. */
+export async function semearWatchBase(c: Client, site: string, videos: string[]): Promise<void> {
+  if (!(await c.query(`select to_regclass('public.yt_watch_readings') as t`)).rows[0]?.t) return
+  for (const v of videos) {
+    const yt = (await q1(c, `select video_id from public.competitor_videos where id = $1`, [v])).video_id as string
+    await semearWatchDoVideo(c, site, yt, { leituras: 1, miniaturas: 1, alvo: true })
+  }
+}
+
+/** Semeia a watch de um vídeo do YouTube (id de 11 caracteres). Devolve os ids das leituras. */
+export async function semearWatchDoVideo(c: Client, site: string, yt: string, o: { leituras: number; miniaturas: number; alvo: boolean; tipo?: 'concorrente' | 'proprio' }): Promise<{ leituras: number[]; miniaturas: number[] }> {
+  if (o.alvo) {
+    await c.query(
+      `insert into public.yt_watch_alvos (site_id, youtube_video_id, tipo, motivo_ate, coleta_ate, hora_base_min, proxima_rodada_em)
+       values ($1, $2, $3, $4, now() + interval '20 days', 60, now() + interval '1 hour')`,
+      [site, yt, o.tipo ?? 'concorrente', (o.tipo ?? 'concorrente') === 'concorrente' ? 'janela_concorrente' : 'janela_propria'])
+  }
+  const miniaturas: number[] = []
+  for (let i = 0; i < o.miniaturas; i++) {
+    miniaturas.push((await q1(c,
+      `insert into public.yt_watch_thumbs (site_id, youtube_video_id, host, variante, http, primeira_vista, ultima_vista)
+       values ($1, $2, 'i.ytimg.com', $3, 200, now() - interval '2 days', now() - interval '1 day') returning id`,
+      [site, yt, 'v' + i])).id as number)
+  }
+  const leituras: number[] = []
+  for (let i = 0; i < o.leituras; i++) {
+    leituras.push((await q1(c,
+      `insert into public.yt_watch_readings (site_id, youtube_video_id, lida_em, rodada_id, origem_rede, versao_leitor, http, idioma, titulo_oficial, titulo_oficial_fonte, renderers_presentes, miniatura_id)
+       values ($1, $2, now() - make_interval(hours => $3), $4, 'vercel', 1, 200, 'pt', 'Título', 'videoDetails', 0, $5) returning id`,
+      [site, yt, 20 - i, randomUUID(), i === 0 && miniaturas.length > 0 ? miniaturas[0] : null])).id as number)
+  }
+  return { leituras, miniaturas }
 }

@@ -107,12 +107,12 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 2: E10 com as tabelas de playli
   }
   const linhasDe = (canal: string) => escalar<number>(pg, `select coalesce(sum(row_count), 0)::int from public.obs_archive_channel_counts($1) where table_name = any($2::text[])`, [canal, CINCO])
 
-  it('garantirX3 e depois garantirMg6 de novo: o registro volta a 27 e obs_archive_uncovered() é vazio', async () => {
+  it('garantirX3 e depois garantirMg6 de novo: o registro volta a 30 e obs_archive_uncovered() é vazio', async () => {
     await emTransacaoComX3(pg, async () => {
       const { garantirMg6 } = await import('../helpers/mg6')
       await garantirMg6(pg)
       expect(await escalar<unknown>(pg, `select public.obs_archive_uncovered()`)).toEqual([])
-      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)).toBe(27)
+      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)).toBe(30)
     })
   })
 
@@ -217,11 +217,11 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 2: E10 com as tabelas de playli
     }
   })
 
-  it('garantirX3 aplicada e garantirMg6 reaplicada em seguida: 27 linhas e obs_archive_uncovered() vazio', async () => {
+  it('garantirX3 aplicada e garantirMg6 reaplicada em seguida: 30 linhas e obs_archive_uncovered() vazio', async () => {
     await emTransacaoComX3(pg, async () => {
       const { garantirMg6 } = await import('../helpers/mg6')
       await garantirMg6(pg)
-      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)).toBe(27)
+      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)).toBe(30)
       expect(await escalar<unknown>(pg, `select public.obs_archive_uncovered()`)).toEqual([])
     })
   })

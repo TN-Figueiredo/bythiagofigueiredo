@@ -42,6 +42,16 @@ const LISTA: Par[] = [
   // MG6 (esta etapa)
   { funcao: 'competitor_channel_remove_archived', tabela: 'competitor_channels', linha: '2', disparo: 'dono' },
   { funcao: 'obs_archive_register', tabela: 'obs_archive_batches', linha: '15', disparo: 'dono' },
+  // F1 (Remover canal): a watch do canal removido, e a limpeza do que um disparo em voo gravou depois
+  { funcao: 'competitor_channel_remove_archived', tabela: 'yt_watch_readings', linha: 'F1 Remover canal: leituras da watch do canal removido, depois de exportadas e conferidas', disparo: 'dono' },
+  { funcao: 'competitor_channel_remove_archived', tabela: 'yt_watch_thumbs', linha: 'F1 Remover canal: miniaturas da watch do canal removido, depois de exportadas e conferidas', disparo: 'dono' },
+  { funcao: 'competitor_channel_remove_archived', tabela: 'yt_watch_alvos', linha: 'F1 Remover canal: alvos da watch do canal removido, depois de exportados e conferidos', disparo: 'dono' },
+  { funcao: 'obs_unarchived_watch_sweep', tabela: 'yt_watch_readings', linha: 'F1: varre a leitura que um disparo em voo gravou depois de apagar sem guardar', disparo: 'cron' },
+  { funcao: 'obs_unarchived_watch_sweep', tabela: 'yt_watch_thumbs', linha: 'F1: varre a miniatura que um disparo em voo gravou depois de apagar sem guardar', disparo: 'cron' },
+  { funcao: 'competitor_channel_delete_unarchived', tabela: 'yt_watch_readings', linha: 'F1: o dono apagou sem guardar um canal com até 30 dias (entrou por engano)', disparo: 'dono' },
+  { funcao: 'competitor_channel_delete_unarchived', tabela: 'yt_watch_thumbs', linha: 'F1: o dono apagou sem guardar um canal com até 30 dias (entrou por engano)', disparo: 'dono' },
+  { funcao: 'competitor_channel_delete_unarchived', tabela: 'yt_watch_alvos', linha: 'F1: o dono apagou sem guardar um canal com até 30 dias (entrou por engano)', disparo: 'dono' },
+  { funcao: 'competitor_channel_delete_unarchived', tabela: 'competitor_channels', linha: 'F1: o dono apagou sem guardar um canal com até 30 dias (entrou por engano)', disparo: 'dono' },
   // MG18 (E9, fila "Saíram do YouTube"): só o dono manda apagar, depois de ver a contagem do que há guardado; o resto cai por cascata de chave estrangeira
   { funcao: 'competitor_video_purge', tabela: 'competitor_videos', linha: 'E9: o dono mandou apagar o vídeo que saiu do YouTube (a cascata leva série, versões e comentários dele)', disparo: 'dono' },
   { funcao: 'competitor_channel_purge', tabela: 'competitor_channels', linha: 'E9: o dono mandou apagar o canal que saiu do YouTube', disparo: 'dono' },
@@ -156,6 +166,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 T10: a lista fechada do que apaga (ca
         { funcao: 'yt_own_collection_attempts_purge', sql: `select public.yt_own_collection_attempts_purge(90, 5000, 20, ${daqui24})` },
         { funcao: 'competitor_comment_identity_purge', sql: `select public.competitor_comment_identity_purge(null)` },
         { funcao: 'yt_reporting_blobs_purge', sql: `select public.yt_reporting_blobs_purge(array['x'])` },
+        { funcao: 'obs_unarchived_watch_sweep', sql: `select public.obs_unarchived_watch_sweep(${daqui24})` },
       ]
       const cronDaLista = LISTA.filter(p => p.disparo === 'cron').map(p => p.funcao)
       expect(chamadas.filter(c => cronDaLista.includes(c.funcao)).length, 'toda função de cron da lista tem chamada neste teste').toBeGreaterThan(0)

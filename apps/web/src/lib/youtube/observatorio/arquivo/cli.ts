@@ -209,8 +209,15 @@ async function comandosRecarga(c: Extract<Comando, { nome: 'comandos-recarga' }>
  */
 export const TABELAS_COM_IDENTIDADE: readonly string[] = [
   'competitor_channel_sections', 'competitor_collection_pauses', 'competitor_field_versions', 'competitor_playlist_versions', 'competitor_raw',
-  'competitor_video_comments',
+  'competitor_video_comments', 'yt_watch_alvos', 'yt_watch_readings', 'yt_watch_thumbs',
 ]
+
+/**
+ * (F1 do Remover canal, Phil M-4) O estado "remoção pedida" não volta com a recarga: o canal restaurado não nasce "agendado" nem fora da
+ * conta de vagas. Depois do `\copy` do canal, as quatro colunas voltam a nulo (o CSV tem as colunas, então elas não podem sair do `\copy`).
+ */
+const ZERAR_PEDIDO = (canal: string): string =>
+  `update public.competitor_channels set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null where id = '${canal}' and removal_requested_at is not null;`
 
 /**
  * O caminho dentro de `from program '...'`: caminho comum fica como está; com espaço, aspa ou qualquer caractere do shell, vai entre aspas do shell
@@ -229,7 +236,8 @@ export function comandosDeRecarga(m: Manifesto, pasta: string): string[] {
     `\\copy public.${a.tabela} (${a.colunas.map(x => `"${x.nome}"`).join(', ')}) from program 'gzip -dc ${caminhoNoPrograma(`${pasta}/${a.caminho}`)}' csv header`)
   const carregadas = [...new Set(m.arquivos.map(a => a.tabela))].filter(t => TABELAS_COM_IDENTIDADE.includes(t))
   const ajustes = carregadas.map(t => `select setval(pg_get_serial_sequence('public.${t}', 'id'), greatest((select max(id) from public.${t}), (select last_value from public.${t}_id_seq)));`)
-  return [...copias, ...ajustes]
+  const zerar = m.arquivos.some(a => a.tabela === 'competitor_channels') ? [ZERAR_PEDIDO(m.canal.id)] : []
+  return [...copias, ...zerar, ...ajustes]
 }
 
 // ───────────────────────── com o banco ─────────────────────────

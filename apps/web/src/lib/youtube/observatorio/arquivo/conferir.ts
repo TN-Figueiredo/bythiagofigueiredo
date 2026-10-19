@@ -13,7 +13,7 @@ import { ehArquivoDoSistema } from './sistema'
 import { lerCsv, CsvInvalido } from './csv'
 import { validarManifesto, textoDoSha256, type Manifesto } from './manifesto'
 import {
-  abrirLeitura, fechar, consultaDoArquivo, lerCsvDoBanco, colunasDaExpressao, lerRegistro, lerMiniaturasDoBanco, type ClienteSql, type EntradaDoRegistro,
+  abrirLeitura, fechar, consultaDoArquivo, lerCsvDoBanco, colunasDaExpressao, colunasDaSoma, lerRegistro, lerMiniaturasDoBanco, type ClienteSql, type EntradaDoRegistro,
 } from './sessao'
 import type { Disco } from './exportar'
 
@@ -117,12 +117,12 @@ export async function conferirLote(o: { sql: ClienteSql; disco: Disco; pastaRaiz
       if (lido.linhas.length !== a.linhas) ruim.push(`${a.caminho}: ${lido.linhas.length} registro(s) no arquivo, ${a.linhas} no manifesto`)
       csvs.set(a.caminho, { sha256: csvSha, linhas: lido.linhas.length, soma: null })
       // a soma só se confere onde o registro diz qual coluna soma
-      const coluna = colunasDaExpressao(entradas.find(x => x.tabela === a.tabela)?.soma ?? null)?.[0] ?? null
-      if (a.soma !== null && coluna !== null) {
-        const i = lido.colunas.indexOf(coluna)
-        if (i < 0) { ruim.push(`${a.caminho}: a coluna somada não está no arquivo`); continue }
+      const colunasSoma = colunasDaSoma(entradas.find(x => x.tabela === a.tabela)?.soma ?? null)
+      if (a.soma !== null && colunasSoma !== null) {
+        const idx = colunasSoma.map(c => lido.colunas.indexOf(c))
+        if (idx.some(i => i < 0)) { ruim.push(`${a.caminho}: a coluna somada não está no arquivo`); continue }
         let total = BigInt(0)
-        for (const l of lido.linhas) { const v = l[i]; if (v !== null && v !== undefined) total += BigInt(v) }
+        for (const l of lido.linhas) for (const i of idx) { const v = l[i]; if (v !== null && v !== undefined) total += BigInt(v) }
         if (total.toString() !== a.soma) ruim.push(`${a.caminho}: soma ${total.toString()} no arquivo, ${a.soma} no manifesto`)
       }
     } catch (err) {
