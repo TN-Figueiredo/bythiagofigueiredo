@@ -249,14 +249,16 @@ test('E1 tentando: ao clicar, a faixa vira "em andamento", os botões ficam desa
   const l = await ler(page)
   expect(l.tom).toBe('busy')
   expect(l.lbl).toBe('Voltando ao original…')
-  expect(l.resumo).toBe('Título e thumbnail estão sendo trocados no YouTube.')
+  expect(l.resumo).toBe('O título está sendo trocado no YouTube.')
   expect(l.linhas[0]!.campo).toBe('Título')
   expect(l.linhas[0]!.texto).toMatch(/^Trocando desde \d\d\/\d\d \d\d:\d\d\.$/)
   expect(l.botoes.length).toBe(2)
   for (const b of l.botoes) { expect(b.desabilitado, `${b.nome} desabilitado enquanto corre`).toBe(true); expect(b.busy).toBe('true') }
   // Medida (sem afirmar): a aparência dos botões enquanto desabilitados, para a Naksu.
+  await page.waitForTimeout(400) // transição de 0,15 s dos botões
   const estilo = await page.evaluate(() => [...document.querySelectorAll('.faixa-rest button')].map((b) => { const s = getComputedStyle(b); return { nome: b.textContent, opacidade: s.opacity, cursor: s.cursor, cor: s.color, fundo: s.backgroundColor } }))
   info.annotations.push({ type: 'estilo-desabilitado', description: JSON.stringify(estilo) })
+  for (const e of estilo) { expect(Number(e.opacidade), `${e.nome} opacidade`).toBeLessThan(1); expect(e.cursor, `${e.nome} cursor`).toBe('not-allowed') }
   await semInvasaoHorizontal(page, 'E1 tentando')
   await fotoFaixa(page, 'tentando', info, tema)
   // termina: faixa de sucesso, sem botões
