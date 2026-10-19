@@ -49,6 +49,12 @@ function listaEm(txt: string): string[] {
   return txt.replace(/^\(|\)$/g, '').split(',').map(s => s.replace(/^"|"$/g, ''))
 }
 
+/** Colunas anuláveis que o banco devolve como null quando o insert não as traz. */
+export const PADROES: Record<string, Linha> = {
+  ab_native_tests: { desfecho_estado: null, desfecho_motivo: null, desfecho_versao_regra: null, desfecho_em: null, vencedor_titulo: null, vencedor_fonte: null, encerrado_em: null, descartado_em: null, titulo_oficial: null, miniatura_a: null, evidencia_cortada: false },
+  ab_native_avaliacoes: { ate_lida_em: null, motivo_14: null, estado_48: null, mistas_48: null, mistas_48_fora_quarentena: null, min_desde_escrita: null, contagem: null, escritas: null, registro_id: null, erro: null, aviso: null, retroativa: false },
+}
+
 export function criarBanco(tabelas: Record<string, Linha[]>, o: OpcoesBanco = {}) {
   const pedidos: Pedido[] = []
   const rpcChamadas: Array<{ nome: string; args: Record<string, unknown> }> = []
@@ -76,7 +82,8 @@ export function criarBanco(tabelas: Record<string, Linha[]>, o: OpcoesBanco = {}
     q.delete = () => { p.op = 'delete'; return q }
     q.upsert = (x: Linha | Linha[]) => { p.op = 'upsert'; payload = x; return q }
     const filtro = (nome: string, args: unknown[], t: Teste): unknown => { p.filtros.push(`${nome}:${args.map(String).join(',')}`); testes.push(t); return q }
-    q.eq = (c: string, v: unknown) => filtro('eq', [c, v], l => (l[c] ?? null) !== null && cmp(l[c], v) === 0)
+    // texto contra texto é comparado byte a byte (o CAS do `updated_at` tem microssegundos que `Date.parse` perderia)
+    q.eq = (c: string, v: unknown) => filtro('eq', [c, v], l => (l[c] ?? null) !== null && (typeof l[c] === 'string' && typeof v === 'string' ? l[c] === v : cmp(l[c], v) === 0))
     q.neq = (c: string, v: unknown) => filtro('neq', [c, v], l => cmp(l[c], v) !== 0)
     q.is = (c: string, v: null) => filtro('is', [c, v], l => (l[c] === null || l[c] === undefined) === (v === null))
     q.in = (c: string, vs: unknown[]) => filtro('in', [c, vs.join('|')], l => vs.some(v => cmp(l[c], v) === 0 && l[c] !== null))
@@ -122,7 +129,7 @@ export function criarBanco(tabelas: Record<string, Linha[]>, o: OpcoesBanco = {}
         return { data: r.map(x => ({ ...x })), error: null, count: p.count ? total : null }
       }
       if (p.op === 'insert' || p.op === 'upsert') {
-        const novas = (Array.isArray(payload) ? payload : [payload as Linha]).map(x => ({ id: `id-${++seq}`, ...x, updated_at: carimbo() }))
+        const novas = (Array.isArray(payload) ? payload : [payload as Linha]).map(x => ({ id: `id-${++seq}`, ...(PADROES[tabela] ?? {}), ...x, updated_at: carimbo() }))
         if (tabela === 'ab_native_tests') {
           for (const n of novas) {
             if (n.estado === 'em_andamento' && rows().some(x => x.estado === 'em_andamento' && x.site_id === n.site_id && x.video_id === n.video_id)) {

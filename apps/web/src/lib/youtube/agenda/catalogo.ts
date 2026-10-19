@@ -11,10 +11,11 @@ import { podaAcessoIa } from './tarefas/poda-acesso-ia'
 import { playlistsSemanais } from './tarefas/playlists-semanais'
 import { leituraWatch } from './tarefas/leitura-watch'
 import { podaLeiturasWatch } from './tarefas/poda-leituras-watch'
+import { registroTesteNativo } from './tarefas/registro-teste-nativo'
 
 // As definições, o interruptor e a lista única moram em `definicoes.ts` (módulo leve, que o vigia importa sem a coleta); daqui saem as mesmas.
 export {
-  DEFINICOES, DEFINICOES_COMENTARIOS, TODAS_AS_DEFINICOES, DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_PODA_LEITURAS_WATCH,
+  DEFINICOES, DEFINICOES_COMENTARIOS, TODAS_AS_DEFINICOES, DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_PODA_LEITURAS_WATCH,
   agendaLigada, notaDoInterruptorDaAgenda, tarefasDesligadas,
 } from './definicoes'
 export type { Definicao } from './definicoes'
@@ -45,6 +46,7 @@ export const CATALOGO: readonly Tarefa[] = [
   marcasDeIdade,
   playlistsSemanais,
   leituraWatch,
+  registroTesteNativo,
   { ...definicao('sincronizar_canais'), ...sincronizarCanais },
   retratosComentarios,
   { ...definicao('serie_semanal'), ...serieSemanal },

@@ -163,7 +163,7 @@ function decidir(e: Entrada, u: UltimasAvaliacoes, agoraMs: number): { motivo: C
   return null
 }
 
-export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promise<Lido<{ devidos: Candidato[]; semVideo: number; antigosFora: number; total: number }>> {
+export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promise<Lido<{ devidos: Candidato[]; semVideo: number; antigosFora: number; total: number; candidatosTotal: number }>> {
   try {
     const corteSaida = new Date(agoraMs - RETENCAO_S4_MS).toISOString()
     const alvos = await paginar<LinhaAlvo>('alvos próprios',
@@ -252,7 +252,19 @@ export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promis
       })
     }
     devidos.sort((a, b) => a.prioridade - b.prioridade || em(a.ultimaRodadaEm) - em(b.ultimaRodadaEm) || (a.ytId < b.ytId ? -1 : a.ytId > b.ytId ? 1 : 0))
-    return { valor: { devidos, semVideo, antigosFora, total: alvos.length } }
+    return { valor: { devidos, semVideo, antigosFora, total: alvos.length, candidatosTotal: universo.size } }
+  } catch (e) {
+    return comoLido(e)
+  }
+}
+
+/** O registro `em_andamento` do vídeo (uuid), ou null. Usado para reler depois de `23505` ou de um CAS perdido. */
+export async function lerAberto(sb: SupabaseClient, videoId: string): Promise<Lido<RegistroAberto | null>> {
+  try {
+    const linhas = await paginar<LinhaNativo>('registro aberto',
+      (de, ate) => sb.from('ab_native_tests').select(COLUNAS_NATIVO).eq('video_id', videoId).eq('estado', 'em_andamento').order('id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
+      eLinhaNativo)
+    return { valor: linhas[0] === undefined ? null : abertoDe(linhas[0]) }
   } catch (e) {
     return comoLido(e)
   }
