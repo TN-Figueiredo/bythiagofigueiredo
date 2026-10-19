@@ -13,33 +13,35 @@ import './ab-end-test-dialog.css'
 export const BTN_SAIDA = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
 
 /**
- * Aviso de página (role="status") depois de uma saída (encerrar/pausar) com recusa ou resultado "mudou": 6 s, com fechar.
+ * Aviso de página (role="status") depois de uma saída (encerrar/pausar) com recusa ou resultado "mudou": 6 s (ou fixo até o dono fechar, para avisos que pedem ação), com fechar.
  * O estado vive num store de módulo, fora dos detalhes: o router.refresh() pode trocar ActiveDetail por WinnerDetail e o
  * aviso sobrevive. Chaveado pelo id do teste para não vazar para outro. <AvisoDePagina /> é renderizado em page.tsx.
  */
-interface EstadoAviso { testId: string; texto: string }
+export interface OpcoesAviso { fixo?: boolean }
+interface EstadoAviso { testId: string; texto: string; fixo: boolean }
 let estadoAviso: EstadoAviso | null = null
 const ouvintes = new Set<() => void>()
 function emitir() { ouvintes.forEach((l) => l()) }
 function assinar(l: () => void) { ouvintes.add(l); return () => { ouvintes.delete(l) } }
 
-export function definirAviso(testId: string, texto: string | null) {
-  estadoAviso = texto ? { testId, texto } : null
+export function definirAviso(testId: string, texto: string | null, opcoes?: OpcoesAviso) {
+  estadoAviso = texto ? { testId, texto, fixo: opcoes?.fixo === true } : null
   emitir()
 }
 
 export function AvisoDePagina({ testId }: { testId: string }) {
   const atual = useSyncExternalStore(assinar, () => estadoAviso, () => null)
   const texto = atual && atual.testId === testId ? atual.texto : null
+  const fixo = atual && atual.testId === testId ? atual.fixo : false
   useEffect(() => {
     // outro teste: descarta o aviso do anterior
     if (estadoAviso && estadoAviso.testId !== testId) definirAviso(testId, null)
   }, [testId])
   useEffect(() => {
-    if (!texto) return
+    if (!texto || fixo) return
     const t = setTimeout(() => definirAviso(testId, null), 6000)
     return () => clearTimeout(t)
-  }, [texto, testId])
+  }, [texto, fixo, testId])
   return (
     <div role="status" aria-live="polite">
       {texto ? (
@@ -54,7 +56,7 @@ export function AvisoDePagina({ testId }: { testId: string }) {
 
 export function useAvisoDePagina(testId: string) {
   useEffect(() => cancelarFocoDaFaixa, [])
-  const setAviso = useCallback((texto: string) => definirAviso(testId, texto), [testId])
+  const setAviso = useCallback((texto: string, opcoes?: OpcoesAviso) => definirAviso(testId, texto, opcoes), [testId])
   return { setAviso }
 }
 
@@ -64,7 +66,7 @@ export interface AcoesDeSaidaProps {
   encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
   /** `pauseAbTest` com o id do teste, idem; recebe o `seqVisto`. */
   pausar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
-  onAviso: (texto: string) => void
+  onAviso: (texto: string, opcoes?: OpcoesAviso) => void
 }
 
 /** Botões Pausar e Encerrar (Pausar some com o teste já pausado) e seus diálogos: o mesmo bloco nos dois detalhes. */

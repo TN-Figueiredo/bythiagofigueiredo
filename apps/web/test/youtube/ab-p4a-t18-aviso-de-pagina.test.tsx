@@ -33,6 +33,15 @@ describe('AvisoDePagina', () => {
     act(() => { vi.advanceTimersByTime(6_100) })
     expect(screen.queryByText('Pausado por outro')).toBeNull()
   })
+  it('aviso fixo não some em 6 s e fecha no botão', () => {
+    vi.useFakeTimers()
+    render(<AvisoDePagina testId="t1" />)
+    act(() => { definirAviso('t1', 'Recarregue a página', { fixo: true }) })
+    act(() => { vi.advanceTimersByTime(60_000) })
+    expect(screen.getByText('Recarregue a página')).toBeTruthy()
+    act(() => { screen.getByLabelText('Fechar aviso').click() })
+    expect(screen.queryByText('Recarregue a página')).toBeNull()
+  })
   it('não aparece em outro teste', () => {
     const { rerender } = render(<Pagina id="t1" ativo />)
     act(() => { screen.getByText('dispara').click() })
