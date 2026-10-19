@@ -33,10 +33,8 @@ const CURTAS: Record<MotivoNaoMedido, (c: ContextoDaFrase) => string> = {
   aguardando_calculo: () => 'ainda não calculado',
   poucos_videos: c => comNumeros(c, (n, min) => `só ${n} de ${min} vídeos`, 'poucos vídeos para medir'),
   poucas_publicacoes: c => comNumeros(c, (n, min) => `só ${n} de ${min} publicações`, 'poucas publicações para medir'),
-  // TODO Logan: rótulo final
-  ritmo_parcial: () => 'ritmo de parte do período',
-  // TODO Logan: rótulo final
-  canal_novo: () => 'menos de 4 semanas de canal',
+  ritmo_parcial: () => 'guardados cobrem menos de 4 sem',
+  canal_novo: () => 'canal com menos de 4 sem',
   sem_publicacao: () => 'sem data de publicação',
   sem_registro_recente: () => 'sem leitura recente',
   sem_registro_na_borda: c => (c.desde ? `sem leitura em ${dm(c.desde)}` : 'sem leitura num dos dias'),

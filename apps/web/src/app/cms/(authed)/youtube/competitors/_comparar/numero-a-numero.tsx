@@ -8,6 +8,7 @@
 import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { useMemo, useRef, useState, useId, type CSSProperties, type ReactNode } from 'react'
 import { Popover } from '../_chrome/flut/flut'
+import { NotaRitmo } from '../_chrome/nota-ritmo'
 import { Icon } from '../_chrome/icons'
 import { ReguaNicho } from '../_chrome/regua/regua-nicho'
 import type { ReguaView } from '../_chrome/regua/regua-model'
@@ -48,15 +49,16 @@ function Celula({ n, pos, classe, cor }: { n: Numero; pos: LinhaPar['pos'][numbe
     return (
       <td role="cell" className={`nd ${classe}`} style={vars(cor)}>
         <Rotulo lado={lado} />
-        {n.ausencia === 'falhou' || n.ausencia === 'restrito' ? <PastilhaAusencia estado={n.ausencia} /> : <span className="obs-ch-nm">não medido</span>}
-        <small className="why">{n.motivo}</small>
+        {n.ausencia === 'falhou' || n.ausencia === 'restrito' ? <PastilhaAusencia estado={n.ausencia} /> : n.ritmoNota ? <span className="obs-ch-nm" role="img" aria-label="não medido">—</span> : <span className="obs-ch-nm">não medido</span>}
+        {n.ritmoNota ? <> <NotaRitmo nota={n.ritmoNota} /></> : null}
+        {n.ritmoNota ? null : <small className="why">{n.motivo}</small>}
       </td>
     )
   }
   return (
     <td role="cell" className={classe} style={vars(cor)}>
       <Rotulo lado={lado} />
-      <span className="v1 num">{n.texto}</span>
+      <span className="v1 num">{n.texto}</span>{n.ritmoNota ? <> <NotaRitmo nota={n.ritmoNota} /></> : null}
       {pos ? <small className="pos">{pos.texto}</small> : null}
       {pos?.geral ? <small className="pos geral">{pos.geral}</small> : null}
       {n.nota ? <small className="sub">{n.nota}</small> : null}

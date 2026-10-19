@@ -149,7 +149,6 @@ function fraseDeDirecao(e: EntradaDaFrase, oracao: string | null): FraseDoTopo {
     if (r) {
       const n = r.n
       const quem = e.formato.soShorts ? ptn(n, 'Short', 'Shorts') : ptn(n, 'vídeo longo', 'vídeos longos')
-      // TODO Logan: rótulo final
       pubs = r.base ? ` Ele publicou ${quem} ${r.base.tipo === 'criacao' ? `desde a criação do canal (${ptn(r.base.dias, 'dia', 'dias')})` : `nos ${ptn(r.base.dias, 'dia', 'dias')} guardados`}.`
         : r.semanasLidas < 13 ? ` Ele publicou ${quem} nas ${ptn(r.semanasLidas, 'semana', 'semanas')} com leitura.` : ` Ele publicou ${quem} nas últimas 13 semanas.`
     }
