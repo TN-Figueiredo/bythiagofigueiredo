@@ -209,7 +209,7 @@ describe.skipIf(skipIfNoLocalDb())('P4b T4: a fase nova do vigia no banco real',
     expect(chaves().some((k) => k.startsWith(`ab-restore-desistiu:${t.testId}:title:`))).toBe(true)
     expect(await claimAlert(db, `ab-restore-desistiu:${t.testId}:thumbnail`, '3650 days')).toBe(false) // um envio só, as duas chaves gastas
     expect(fanOut).toHaveBeenCalledTimes(1)
-    expect(mensagens().some((m) => m.includes('Não consegui saber para qual versão devolver'))).toBe(true)
+    expect(mensagens().some((m) => m.includes('O Lab não soube para qual versão devolver'))).toBe(true)
     expect(yt.escritas()).toEqual([])
     expect((await faseNovaTentativa(db, relogio(), yt.fetch)).tentadas).toBe(0) // não se repete para sempre
   })
