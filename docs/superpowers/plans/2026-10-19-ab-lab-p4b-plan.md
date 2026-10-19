@@ -858,3 +858,7 @@ hora ou dispensa o aviso se já corrigiu no Studio".
 | Phil N2 (interrompido → `desistiu` avisa uma vez) | Tarefa 4, passo 6 (integração) |
 | Phil N3 (corte e `em_andamento`) | Seção 4, item 4 (não se corta com `em_andamento` aberto) |
 | H8 (índice com `queued`) | Seção 4, item 2 (conferência no B1); "Condições do acordo (r2)"; saiu de "Não aplicado" |
+
+## Decisões do dono (19/10 ~01:35 UTC)
+
+"Sim pra tudo", pela recomendação: **Q1** sim, corte dos `falhou` antigos por migration de dado, depois da promoção (ordem do Phil). **Q2** sim, Logan fecha as frases e o dono aprova em bloco. **Q3** Parte B em envio próprio (B1) logo depois do E8 (recomendação da Hanna). **Q4** botões pelo Cowork: não agora. **Q5** avisos 4 e 7 da A5 ficam fora, com gatilho. Plano com acordo de Phil (92) e Yannis (92) na r2. Libera executar a partir do E8 (G0); nada vai ao ar antes.
