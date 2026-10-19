@@ -126,6 +126,15 @@ describe('sonda de miniatura', () => {
     expect(r.leitura.miniaturas).toHaveLength(1)
     expect(leituraWatchSchema.safeParse(r.leitura).success).toBe(true)
   })
+  it('I1: com menos de 1 s do prazo sobrando depois da página, a miniatura não é sondada', async () => {
+    const f = comSonda([resp(PAGINA_A())])
+    let t = 0
+    const agora = (): number => { t += 4_600; return t }
+    const r = await lerWatchSemCookie(ID, base({ fetchImpl: f, sondarMiniatura: true, timeoutMs: 5_000, agora }))
+    expect(r.leitura.erro).toBeNull()
+    expect(r.leitura.miniaturas).toEqual([])
+    expect(vi.mocked(f).mock.calls.every(([u]) => !String(u).includes('ytimg.com'))).toBe(true)
+  })
   it('429 na 1ª e 200 na 2ª', async () => {
     const f = comSonda([resp('x', 429), resp(PAGINA_A())])
     const a = await lerWatchSemCookie(ID, base({ fetchImpl: f, sondarMiniatura: true }))

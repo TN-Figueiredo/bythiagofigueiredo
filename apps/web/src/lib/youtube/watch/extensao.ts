@@ -42,10 +42,11 @@ const eLinhaThumb = (x: unknown): x is LinhaThumbBanco =>
 interface Resposta { data: unknown; error: unknown; count?: number | null }
 
 /** Lê tudo, página a página. `null` = não deu para confiar (erro, forma, ou soma diferente do `count`). */
-async function lerTudo<T>(pagina: (de: number, ate: number) => PromiseLike<Resposta>, guarda: (x: unknown) => x is T, conferirCount: boolean): Promise<T[] | null> {
+async function lerTudo<T>(pagina: (de: number, ate: number) => PromiseLike<Resposta>, guarda: (x: unknown) => x is T, conferirCount: boolean, estourou: () => boolean): Promise<T[] | null> {
   const out: T[] = []
   let total: number | null = null
   for (let p = 0; p < MAX_PAGINAS; p++) {
+    if (estourou()) return null
     let r: Resposta
     try { r = await pagina(p * PAGINA, p * PAGINA + PAGINA - 1) } catch { return null }
     if (r.error || !Array.isArray(r.data) || !r.data.every(guarda)) return null
@@ -61,12 +62,12 @@ async function lerTudo<T>(pagina: (de: number, ate: number) => PromiseLike<Respo
   return out
 }
 
-async function leiturasDoVideo(sb: SupabaseClient, a: AlvoAtivo): Promise<LeituraWatch[] | null> {
+async function leiturasDoVideo(sb: SupabaseClient, a: AlvoAtivo, estourou: () => boolean): Promise<LeituraWatch[] | null> {
   const desde = new Date(Date.parse(a.coletaAte) - 30 * DIA_MS).toISOString()
   const linhas = await lerTudo<LinhaLeituraBanco>(
     (de, ate) => sb.from('yt_watch_readings').select(COLUNAS_LEITURA, { count: 'exact' }).eq('site_id', a.siteId).eq('youtube_video_id', a.ytId)
       .gte('lida_em', desde).order('lida_em').order('id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
-    eLinhaLeitura, true,
+    eLinhaLeitura, true, estourou,
   )
   if (linhas === null) return null
   let thumbs: LinhaThumbBanco[] = []
@@ -74,7 +75,7 @@ async function leiturasDoVideo(sb: SupabaseClient, a: AlvoAtivo): Promise<Leitur
     const t = await lerTudo<LinhaThumbBanco>(
       (de, ate) => sb.from('yt_watch_thumbs').select(COLUNAS_THUMB).eq('site_id', a.siteId).eq('youtube_video_id', a.ytId)
         .order('id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
-      eLinhaThumb, false,
+      eLinhaThumb, false, estourou,
     )
     if (t === null) return null
     thumbs = t
@@ -107,8 +108,9 @@ export async function avaliarExtensoes(
 
   await Promise.all(elegiveis.map(async a => {
     if (relogio() >= ateMs) return
-    const doBanco = await leiturasDoVideo(sb, a)
-    if (doBanco === null) { falharam++; return }
+    const doBanco = await leiturasDoVideo(sb, a, () => relogio() >= ateMs)
+    // Sem tempo não é falha: o vídeo só não foi avaliado (e portanto não sai por janela).
+    if (doBanco === null) { if (relogio() < ateMs) falharam++; return }
     const juntas = [...doBanco, ...(novas.get(a.id) ?? []).map(r => r.leitura)]
     try {
       const v = detectar(juntas)

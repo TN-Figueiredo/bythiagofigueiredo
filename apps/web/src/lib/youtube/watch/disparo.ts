@@ -19,6 +19,9 @@ const BLOQUEIOS_PARA_PARAR = 3
 const INDISPONIVEIS_PARA_SAIR = 4
 const MIN_TENTATIVAS = 6
 const MIN_VIDEOS = 3
+const TIMEOUT_PADRAO_MS = 10_000
+const MIN_TIMEOUT_MS = 1_000
+const FOLGA_MS = 8_000
 
 const ehBloqueio = (erro: string | null): boolean => erro !== null && [...CODIGOS_BLOQUEIO].some(c => c === erro)
 const temTitulo = (r: ResultadoLeitor): boolean => r.leitura.erro === null && r.leitura.titulosExibidos.some(t => t.texto !== null)
@@ -40,14 +43,16 @@ export async function lerPassadas(
     let proximo = 0
     const trabalhador = async (): Promise<void> => {
       for (;;) {
-        if (parou()) return
+        if (parou() || o.agora() >= o.ateMs) return
         const i = proximo++
         const alvo = alvos[i]
         if (alvo === undefined) return
         const anteriores = resultados.get(alvo.id) ?? []
         const sondar = passada === 1 || !anteriores.some(r => r.leitura.erro === null)
         tentativas++
-        const r = await ler(alvo.ytId, { rodadaId: rodadaDe.get(alvo.id) ?? o.novoUuid(), origemRede: o.origemRede, sondarMiniatura: sondar })
+        // O timeout nunca passa do que resta: uma leitura lenta não leva a passada além do teto (ateMs + folga de 8 s).
+        const timeoutMs = Math.max(MIN_TIMEOUT_MS, Math.min(TIMEOUT_PADRAO_MS, o.ateMs + FOLGA_MS - o.agora()))
+        const r = await ler(alvo.ytId, { rodadaId: rodadaDe.get(alvo.id) ?? o.novoUuid(), origemRede: o.origemRede, sondarMiniatura: sondar, timeoutMs })
         resultados.set(alvo.id, [...(resultados.get(alvo.id) ?? []), r])
         if (ehBloqueio(r.leitura.erro)) bloqueios++
       }

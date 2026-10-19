@@ -35,6 +35,21 @@ function passadas(n: number, por: number, erro: string | null, comTitulo = true)
 }
 
 describe('A8 lerPassadas e disjuntor', () => {
+  it('I1: 16 leituras em timeout com relógio falso fecham dentro do teto (ateMs + 1 leitura) e o timeout passado é o que resta', async () => {
+    let relogio = AGORA
+    const timeouts: number[] = []
+    const ler = async (id: string, o: OpcoesLeitor): Promise<ResultadoLeitor> => {
+      timeouts.push(o.timeoutMs ?? -1)
+      relogio += 10_000 / 3
+      return res(id, 'timeout')
+    }
+    const ateMs = AGORA + 27_000
+    const p = await lerPassadas(alvos(16), ler, { ...base, agora: () => relogio, ateMs })
+    expect(relogio - AGORA).toBeLessThanOrEqual(27_000 + 10_000)
+    expect(p.tentativas).toBeLessThan(16)
+    expect(timeouts.every(t => t >= 1_000 && t <= 10_000)).toBe(true)
+    expect(Math.min(...timeouts)).toBeLessThan(10_000)
+  })
   for (const codigo of ['http_429', 'consentimento', 'verificacao_robo']) {
     it(`3 respostas ${codigo} param as leituras novas: erro bloqueado, as feitas ficam`, async () => {
       let chamadas = 0

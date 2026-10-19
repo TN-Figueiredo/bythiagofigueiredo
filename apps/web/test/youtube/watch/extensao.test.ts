@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import type { AlvoAtivo } from '@/lib/youtube/watch/alvos'
 import { avaliarExtensoes, juntarAtualizacoes, saidasPorJanela } from '@/lib/youtube/watch/extensao'
 import type { ResultadoLeitor } from '@/lib/youtube/watch/leitor'
@@ -95,6 +95,21 @@ describe('A12 avaliarExtensoes', () => {
     const r = await avaliarExtensoes(banco(() => []).sb, [vencido, vivo], novasDe(1, 2), AGORA, ate, deps)
     expect(r.avaliados).toEqual(new Set([1, 2]))
     expect(saidasPorJanela([vencido, vivo], r, AGORA)).toEqual([{ id: 1, saiu_em: iso(AGORA), saiu_por: 'janela' }])
+  })
+  it('M3: o relógio é conferido entre páginas: passou de ateMs, o vídeo não é avaliado (nem falha, nem sai por janela)', async () => {
+    const todas = Array.from({ length: 2500 }, (_, i) => linha(1, AGORA - HORA, 'T', i))
+    const b = banco(() => todas)
+    let t = AGORA + 80_000
+    const relogio = (): number => t
+    const sb = { from: (tabela: string) => { t += 2_000; return (b.sb as { from: (x: string) => unknown }).from(tabela) } } as never
+    const detectar = vi.fn(detectarTesteYoutube)
+    const vencido = alvo(1, { coletaAte: iso(AGORA - HORA) })
+    const r = await avaliarExtensoes(sb, [vencido], novasDe(1), AGORA, ate, { relogio, detectar })
+    expect(detectar).not.toHaveBeenCalled()
+    expect(r.avaliados.size).toBe(0)
+    expect(r.falharam).toBe(0)
+    expect(b.pedidos.filter(p => p.tabela === 'yt_watch_readings')).toHaveLength(2)
+    expect(saidasPorJanela([vencido], r, AGORA)).toEqual([])
   })
   it('detectar lança em 1 de 3: os outros 2 são avaliados e falharam 1', async () => {
     const r = await avaliarExtensoes(banco(() => []).sb, [alvo(1), alvo(2), alvo(3)], novasDe(1, 2, 3), AGORA, ate, {

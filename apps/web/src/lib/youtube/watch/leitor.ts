@@ -74,11 +74,19 @@ function ehTempo(e: unknown, sinal: AbortSignal): boolean {
   return typeof e === 'object' && e !== null && 'name' in e && (e.name === 'AbortError' || e.name === 'TimeoutError')
 }
 
+/** A miniatura dura no máximo o que resta do prazo da leitura (e 5 s); com menos de 1 s de sobra, não se sonda. */
+async function miniaturaDentroDoPrazo(ytId: string, f: typeof fetch, restanteMs: number): Promise<LeituraWatch['miniaturas']> {
+  if (restanteMs < 1_000) return []
+  return [await sondarMiniatura(ytId, f, Math.min(5_000, restanteMs))]
+}
+
 export async function lerWatchSemCookie(ytId: string, opts: OpcoesLeitor): Promise<ResultadoLeitor> {
   validarOpcoes(ytId, opts)
   const f = opts.fetchImpl ?? fetch
   const agora = opts.agora ?? Date.now
-  const sinal = AbortSignal.timeout(opts.timeoutMs ?? 10_000)
+  const timeoutTotal = opts.timeoutMs ?? 10_000
+  const sinal = AbortSignal.timeout(timeoutTotal)
+  const inicioMs = agora()
 
   const falha = (erro: CodigoErroWatch, http: number | null, sqp: number | null = null): ResultadoLeitor =>
     ({ leitura: leituraDeErro(ytId, opts, agora(), erro, sqp), http, jogadorBloqueado: false })
@@ -118,7 +126,7 @@ export async function lerWatchSemCookie(ytId: string, opts: OpcoesLeitor): Promi
       titulo_oficial_fonte: ex.titulo_oficial_fonte,
       rendicoesSqp: ex.rendicoesSqp,
       titulosExibidos: ex.titulosExibidos,
-      miniaturas: opts.sondarMiniatura === true ? [await sondarMiniatura(ytId, f)] : [],
+      miniaturas: opts.sondarMiniatura === true ? await miniaturaDentroDoPrazo(ytId, f, timeoutTotal - (agora() - inicioMs)) : [],
     }
     const ok = leituraWatchSchema.safeParse(bruta)
     if (!ok.success) return falha('parser', status)

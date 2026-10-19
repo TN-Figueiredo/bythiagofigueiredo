@@ -115,6 +115,16 @@ describe('leitura_watch: tarefa', () => {
     expect(r).toMatchObject({ estado: 'parcial', motivo: 'sobrou', deixadas: 1 })
     expect(rpcs[0]!.p.leituras).toHaveLength(15)
   })
+  it('I1: nenhuma leitura nova começa depois de t0 + 70 s e a gravação ainda acontece antes de 83 s', async () => {
+    mocks.lerDevidos.mockImplementation(async (_sb: unknown, _agora: number, limite: number) => ({ valor: Array.from({ length: limite }, (_, i) => alvo(i + 1)) }))
+    const { c, state, rpcs } = contexto(55_000)
+    const ler = vi.fn(async (id: string) => { state.agora += 6_000; return res(id, 'timeout', state.agora) })
+    const r = await rodarLeituraWatch(c, deps(ler))
+    expect(ler).toHaveBeenCalledTimes(3)
+    expect(r.motivo).not.toBe('passou_do_tempo')
+    expect(rpcs).toHaveLength(1)
+    expect(rpcs[0]!.p.leituras).toHaveLength(3)
+  })
   it('gravação que falha por timeout: erro gravacao_falhou', async () => {
     const { c } = contexto()
     ;(c as { sb: unknown }).sb = { rpc: () => ({ abortSignal: () => Promise.reject(new Error('t')) }) }

@@ -65,7 +65,7 @@ export async function rodarLeituraWatch(c: ContextoTarefa, deps: DepsLeituraWatc
   }
 
   const passadas = await lerPassadas(devidos, (yt, o) => ler(yt, { ...o, agora: c.agora }), {
-    origemRede: ORIGEM_REDE, agora: c.agora, ateMs: inicio + ORCAMENTO_PROPRIO_MS - FIXOS_MS, novoUuid,
+    origemRede: ORIGEM_REDE, agora: c.agora, ateMs: Math.min(inicio + ORCAMENTO_PROPRIO_MS - FIXOS_MS, c.t0 + COMECA_ATE_MS), novoUuid,
   })
 
   const siteDe = new Map(devidos.map(a => [a.id, a.siteId]))
