@@ -31,7 +31,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_mudancas/swipe-rows', async ori
   return { ...m, loadSwipeRows: async () => ({ legacy: [], bookmarked: new Set<string>() }) }
 })
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
-  toggleChangeBookmark: vi.fn(), pinVideo: vi.fn(), unpinVideo: vi.fn(), addChannelFromCanais: vi.fn(), removeCompetitorChannel: vi.fn(), syncCompetitorNow: vi.fn(),
+  toggleChangeBookmark: vi.fn(), pinVideo: vi.fn(), unpinVideo: vi.fn(), addChannelFromCanais: vi.fn(), pedirRemocaoCanal: vi.fn(), desfazerRemocaoCanal: vi.fn(), apagarCanalSemGuardarAction: vi.fn(), syncCompetitorNow: vi.fn(),
   unlockMoreChannels: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn(), setOwnChannelNiche: vi.fn() }))

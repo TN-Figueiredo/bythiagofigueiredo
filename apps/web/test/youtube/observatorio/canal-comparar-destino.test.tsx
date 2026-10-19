@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({ openChannelPage: vi.fn(), openObservatoryPage:
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => mocks)
 vi.mock('@/lib/youtube/competitor-admin', () => ({ canAdminSiteUsers: async () => true }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
-  removeCompetitorChannel: vi.fn(), syncCompetitorNow: vi.fn(), pinVideo: vi.fn(), unpinVideo: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
+  pedirRemocaoCanal: vi.fn(), desfazerRemocaoCanal: vi.fn(), apagarCanalSemGuardarAction: vi.fn(), syncCompetitorNow: vi.fn(), pinVideo: vi.fn(), unpinVideo: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn() }))
 

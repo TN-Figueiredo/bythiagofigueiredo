@@ -71,6 +71,8 @@ export const INVENTARIO_CANAL: Inventario = {
   'header.niche': ID, 'header.nicheLabel': 'rotulo', 'header.handle': REP, 'header.url': END,
   ...CELULA('header.faixa'), ...CELULA('header.todos'),
   'header.sync.tone': APAR, 'header.sync.text': 'base', 'header.sync.banner': 'base', 'header.sync.at': REP, 'header.sync.atText': REP,
+  // F2 do Remover canal: o aviso do canal agendado (estado da tela, sem botão), fora do pacote por ora
+  'header.agendado': CTRL, 'header.agendado.idade': CTRL,
   'header.counts.total': REP, 'header.counts.tracked': REP, 'header.counts.pinnedOld': REP, 'header.counts.older': REP, 'header.counts.undated': REP,
   'header.result': 'base', 'header.backfill': CTRL, 'header.backfill.done': REP, 'header.backfill.total': REP,
 
@@ -114,7 +116,7 @@ export const INVENTARIO_CANAL: Inventario = {
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste (cada uma tem teste sintético próprio quando importa). */
 export const SEM_FOLHA_NA_MATRIZ_CANAL: readonly string[] = [
-  'header.backfill.done', 'header.backfill.total', 'videos.videos[].pin', 'videos.videos[].viewer', 'origem', 'origem.*',
+  'header.backfill.done', 'header.backfill.total', 'header.agendado.idade', 'videos.videos[].pin', 'videos.videos[].viewer', 'origem', 'origem.*',
   'derivado.leitura.forja.card.lines[]', 'derivado.leitura.forja.niches[].reading.moreItems[]', 'derivado.leitura.forja.niches[].reading.siteNotes[]',
   'derivado.leitura.forja.reading', 'derivado.leitura.forjaCard.shorts.text', 'derivado.leitura.forjaCard.shorts.href', 'derivado.leitura.forjaCard.confirm',
   // as folhas dos blocos de medida têm matriz própria (`contexto-ia-canal-medidas.test.tsx`)
