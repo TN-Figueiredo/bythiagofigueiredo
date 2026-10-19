@@ -281,8 +281,8 @@ type Aplicado = 'ok' | 'cas' | 'unico'
 
 async function aplicarAcao(c: ContextoTarefa, cand: Candidato, acao: AcaoRegistro, agoraIso: string): Promise<Aplicado> {
   const sb = c.sb
-  const inserir = async (n: NovoRegistro): Promise<Aplicado> => {
-    ida(c)
+  const inserir = async (n: NovoRegistro, conferido = false): Promise<Aplicado> => {
+    if (!conferido) ida(c)
     const r = await sb.from('ab_native_tests').insert({
       id: n.id, site_id: cand.siteId, video_id: cand.videoId, youtube_video_id: cand.ytId, estado: 'em_andamento', ...colunasDoNovo(n),
     }).abortSignal(AbortSignal.timeout(BANCO_MS))
@@ -302,9 +302,11 @@ async function aplicarAcao(c: ContextoTarefa, cand: Candidato, acao: AcaoRegistr
     case 'desfecho': return atualizar(acao.id, acao.lido, colunasDoDesfecho(acao.desfecho, agoraIso))
     case 'encerrar': return atualizar(acao.id, acao.lido, colunasDoFim(acao.fim))
     case 'encerrar_e_criar': {
+      // as duas idas cabem juntas ou nenhuma começa: o teto não pode cair entre o fechamento do antigo e o insert do novo (Y5)
+      if (c.agora() + 2 * BANCO_MS >= c.t0 + BANCO_ATE_MS) throw new SemTempo()
       const a = await atualizar(acao.id, acao.lido, colunasDoFim(acao.fim))
       if (a !== 'ok') return a
-      return inserir(acao.novo)
+      return inserir(acao.novo, true)
     }
   }
 }

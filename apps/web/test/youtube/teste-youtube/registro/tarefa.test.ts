@@ -220,6 +220,26 @@ describe('leituras que a validação recusa (Y2)', () => {
   })
 })
 
+describe('encerrar_e_criar e o teto de tempo (Y5)', () => {
+  const antigo = (): Linha => registroSemente(1, 'db-1', { ultima_vista: iso(T0 - 15 * 24 * H) })
+  it('sem folga para as duas idas: nenhuma escrita (o antigo segue aberto)', async () => {
+    const { c } = contexto(75_000) // t0 + 75 s: a 1ª ida cabe, as duas (2 x 5 s) passam de t0 + 83 s
+    const b = mundo([{ n: 1, leituras: mistura(30 * MIN, 18, 'AAD'), avaliacoes: [evalOk(1, 1001, 600)], aberto: antigo() }])
+    await rodarRegistro(c(b.sb), opcoes)
+    expect(tab(b, 'ab_native_tests').find(x => x.id === 'db-1')).toMatchObject({ estado: 'em_andamento' })
+    expect(tab(b, 'ab_native_tests')).toHaveLength(1)
+  })
+  it('o relógio passa de t0 + 83 s entre o fechamento e o insert: as duas escritas acontecem mesmo assim', async () => {
+    const { c, state } = contexto(70_000)
+    const b = mundo([{ n: 1, leituras: mistura(30 * MIN, 18, 'AAD'), avaliacoes: [evalOk(1, 1001, 600)], aberto: antigo() }], {
+      aoEscrever: (t, op) => { if (t === 'ab_native_tests' && op === 'update') state.agora = T0 + 84_000 },
+    })
+    await rodarRegistro(c(b.sb), opcoes)
+    expect(tab(b, 'ab_native_tests').find(x => x.id === 'db-1')).toMatchObject({ estado: 'sem_desfecho', desfecho_motivo: 'teste_novo' })
+    expect(tab(b, 'ab_native_tests').filter(x => x.estado === 'em_andamento')).toHaveLength(1)
+  })
+})
+
 describe('registro nas avaliações seguintes (C-2, C-4)', () => {
   const base = (extra: Partial<VideoCfg> = {}): VideoCfg => ({ n: 1, leituras: mistura(30 * MIN), avaliacoes: [evalOk(1, 1001, 600)], ...extra })
 
