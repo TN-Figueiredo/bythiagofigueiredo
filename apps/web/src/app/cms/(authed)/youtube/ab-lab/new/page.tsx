@@ -2,6 +2,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { getAbSiteSettings, getEligibleVideosForPicker, getAbDraftById } from '../queries'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { NewTestClient } from './client'
+import { redirect } from 'next/navigation'
 import * as Sentry from '@sentry/nextjs'
 import { filtroBuscaVideo, resolverVideoPedido } from './resolver'
 import type { CompetitorContext } from './client'
@@ -51,7 +52,15 @@ export default async function NewAbTestPage({ searchParams }: Props) {
   const draftId = params.draft
 
   // A leitura do canal da referência vem DEPOIS da guarda de edição (getAbSiteSettings), não em paralelo com ela.
+  // Reporter (sem edição) vai para /cms: a lista do A/B Lab também exige edição e cairia no error.tsx; autenticação segue o fluxo de antes.
   const settingsP = getAbSiteSettings()
+  settingsP.catch(() => undefined)
+  try {
+    await settingsP
+  } catch (e) {
+    if (e instanceof Error && e.message === 'forbidden') redirect('/cms')
+    throw e
+  }
   const [settings, eligibleVideos, draftData, competitorContext] = await Promise.all([
     settingsP,
     getEligibleVideosForPicker(),

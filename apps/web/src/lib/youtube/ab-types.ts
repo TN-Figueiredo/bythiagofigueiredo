@@ -138,12 +138,20 @@ export interface AbTestWithVariants extends AbTestRow {
   total_cycles: number
 }
 
+export interface ReferenciaDoTeste {
+  refVideoId: string | null
+  refTroca: string | null
+  tipo: 'thumbnail' | 'title'
+}
+
 export interface AbTestCreateInput {
   site_id: string
   youtube_video_id: string
   name: string
   test_type?: TestType
   config?: Partial<AbTestConfig>
+  /** Vídeo do concorrente de onde o assistente foi aberto (aviso A5 3). Só ids; sem título nem URL de imagem. */
+  referencia?: ReferenciaDoTeste
 }
 
 export interface CreateVariantInput {
@@ -298,6 +306,8 @@ export interface AbTestCardView {
   type: TestType
   status: AbTestStatus
   dayOf: number
+  /** Duração prevista em dias (config.max_duration_days); ausente = padrão. */
+  durationDays?: number
   confidence: number | null
   lift: number | null
   leader: DisplayLabel
@@ -433,6 +443,8 @@ export interface AbTestBaseView {
   daily: Record<DisplayLabel, number[]>
   abbaSeq: DisplayLabel[]
   cycles: { total: number; done: number }
+  /** Dia corrido do teste (mesma conta da lista e do cartão); ciclos são outra grandeza (`cycles`). */
+  dayOf: number
   durationDays: number
   confidenceTarget: number
   totalRounds: number

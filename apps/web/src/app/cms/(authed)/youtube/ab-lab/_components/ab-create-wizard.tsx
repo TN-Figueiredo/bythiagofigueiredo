@@ -23,7 +23,7 @@ import {
 } from '../actions'
 import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
-import type { TestType, DisplayLabel, AbTestSiteSettings } from '@/lib/youtube/ab-types'
+import type { TestType, DisplayLabel, AbTestSiteSettings, ReferenciaDoTeste } from '@/lib/youtube/ab-types'
 import { YtPortal } from '../../_components/yt-portal'
 
 /* ------------------------------------------------------------------ */
@@ -64,6 +64,8 @@ interface Props {
   existingDraftId?: string
   /** Referência (ex.: de concorrente) mostrada junto do passo das variantes */
   referencia?: React.ReactNode
+  /** Ids do vídeo do concorrente, gravados em config.referencia ao criar o teste */
+  referenciaDados?: ReferenciaDoTeste
 }
 
 /* ------------------------------------------------------------------ */
@@ -250,14 +252,16 @@ function stepIsValid(step: number, state: WizardState): boolean {
 /*  AbCreateWizard                                                     */
 /* ------------------------------------------------------------------ */
 
-export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, prefill, existingDraftId, referencia }: Props) {
+export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, prefill, existingDraftId, referencia, referenciaDados }: Props) {
   const continuingDraft = Boolean(existingDraftId && prefill?.draftVariants && prefill.draftVariants.length > 1)
 
   // When continuing a DB draft, ignore stale localStorage
   if (continuingDraft) clearDraft(video.id)
-  const saved = continuingDraft ? null : loadDraft(video.id)
+  const draftLocal = continuingDraft ? null : loadDraft(video.id)
 
   const prefillType = tipoValido(prefill?.testType)
+  // Com tipo pedido pelo prefill, o rascunho local só vale se for do mesmo tipo; senão é ignorado
+  const saved = prefill?.testType && draftLocal?.type !== prefill.testType ? null : draftLocal
   const savedType = tipoValido(saved?.type)
   // Rascunho com tipo antigo volta ao passo "tipo" (nunca segue com tipo nulo ou inválido)
   const tipoInvalido = Boolean((prefill?.testType && !prefillType) || (saved?.type && !savedType))
@@ -356,6 +360,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         name: video.title,
         test_type: testType,
         config: wizardConfigToAbConfig(state.config),
+        ...(referenciaDados ? { referencia: referenciaDados } : {}),
       })
 
       if (result.ok && result.id) {
@@ -367,7 +372,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         dispatch({ type: 'SET_ERROR', error: result.error ?? 'Failed to create draft' })
       }
     })
-  }, [state.draftTestId, state.config, siteId, video.id, video.title])
+  }, [state.draftTestId, state.config, siteId, video.id, video.title, referenciaDados])
 
   // --- Cowork briefing handler ---
   const handleCoworkClick = useCallback(async () => {
@@ -398,6 +403,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
           name: video.title,
           test_type: state.type!,
           config: wizardConfigToAbConfig(state.config),
+          ...(referenciaDados ? { referencia: referenciaDados } : {}),
         })
         if (!result.ok || !result.id) {
           dispatch({ type: 'SET_ERROR', error: result.error ?? 'Failed to create test' })
@@ -487,7 +493,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         onClose()
       }
     })
-  }, [state.draftTestId, state.type, state.variants, state.config, siteId, video.id, video.title, onCreated, onClose])
+  }, [state.draftTestId, state.type, state.variants, state.config, siteId, video.id, video.title, referenciaDados, onCreated, onClose])
 
   // --- Step navigation helpers ---
   const canAdvance = stepIsValid(state.step, state)

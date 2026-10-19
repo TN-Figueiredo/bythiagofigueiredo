@@ -9,6 +9,8 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Database } from '@/types/database.types'
+import { z } from 'zod'
+import { refTrocaValida } from '@/lib/youtube/ab-referencia'
 import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type {
   AbTestCreateInput,
@@ -88,6 +90,20 @@ async function requireEditAccess(): Promise<string> {
   return siteId
 }
 
+const UUID_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const ReferenciaSchema = z.object({
+  refVideoId: z.string().regex(UUID_REF).nullable(),
+  refTroca: z.string().nullable(),
+  tipo: z.enum(['thumbnail', 'title']),
+})
+
+/** Só os três campos; qualquer coisa fora do formato descarta a referência (o teste nasce sem ela). */
+function referenciaValida(r: unknown): { refVideoId: string | null; refTroca: string | null; tipo: 'thumbnail' | 'title' } | null {
+  const p = ReferenciaSchema.safeParse(r)
+  if (!p.success) return null
+  return { refVideoId: p.data.refVideoId, refTroca: refTrocaValida(p.data.refTroca), tipo: p.data.tipo }
+}
+
 // ---------------------------------------------------------------------------
 // createAbTest
 // ---------------------------------------------------------------------------
@@ -121,34 +137,56 @@ export async function createAbTest(
     .single()
 
   if (videoError || !video) {
-    return { ok: false, error: 'Video not found' }
+    return { ok: false, error: 'Vídeo não encontrado.' } // TEXTO-A-REVISAR
   }
 
   // Reject Shorts
   if (isCertainShort(video.duration_seconds ?? 0)) {
-    return { ok: false, error: 'Shorts (≤ 60s) are not eligible for A/B tests' }
+    return { ok: false, error: 'Shorts (até 60 s) não entram no A/B Lab.' } // TEXTO-A-REVISAR
   }
 
   if (!video.thumbnail_hq_url) {
-    return { ok: false, error: 'Video has no thumbnail — sync first' }
+    return { ok: false, error: 'Este vídeo ainda não tem thumbnail no Lab. Sincronize os vídeos e tente de novo.' } // TEXTO-A-REVISAR
   }
 
-  // Check for existing active/draft/paused test on the same video
+  // Check for existing active/draft/paused/queued test on the same video
   const { data: existing } = await supabase
     .from('ab_tests')
     .select('id')
     .eq('youtube_video_id', input.youtube_video_id)
     .eq('site_id', siteId)
-    .in('status', ['draft', 'active', 'paused'])
+    .in('status', ['draft', 'active', 'paused', 'queued'])
     .limit(1)
     .maybeSingle()
 
   if (existing) {
-    return { ok: false, error: 'An active, paused or draft test already exists for this video' }
+    return { ok: false, error: 'Já existe um teste aberto, pausado, na fila ou em rascunho para este vídeo.' } // TEXTO-A-REVISAR
   }
 
   // Merge config with defaults
-  const config = { ...AB_TEST_CONFIG_DEFAULTS, ...(input.config ?? {}) }
+  let referencia = input.referencia === undefined ? null : referenciaValida(input.referencia)
+  if (referencia?.refVideoId) {
+    // O servidor não confia no uuid do cliente: o vídeo tem de existir neste site (1 leitura por chave primária).
+    const { data: refVideo, error: refErr } = await supabase
+      .from('competitor_videos')
+      .select('id, competitor_channels!inner(site_id)')
+      .eq('id', referencia.refVideoId)
+      .eq('competitor_channels.site_id', siteId)
+      .maybeSingle()
+    if (refErr) {
+      // Falha transitória não faz perder dado: grava como veio.
+      Sentry.captureMessage('createAbTest: falha ao conferir o vídeo da referência', { level: 'warning', extra: { siteId, code: refErr.code } })
+    } else if (!refVideo) {
+      referencia = { refVideoId: null, refTroca: null, tipo: referencia.tipo }
+    }
+  }
+  // `referencia` do cliente dentro de `config` nunca entra: só a validada acima.
+  const { referencia: _referenciaDoCliente, ...configDoCliente } = (input.config ?? {}) as Record<string, unknown>
+  const config = {
+    ...AB_TEST_CONFIG_DEFAULTS,
+    ...configDoCliente,
+    ...(referencia ? { referencia } : {}),
+  }
 
   // Capture original metadata for title/desc/combo tests
   let originalTitle: string | null = null

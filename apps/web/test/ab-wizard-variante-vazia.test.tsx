@@ -32,9 +32,7 @@ describe('variante B nasce vazia (T3)', () => {
     expect((screen.getByRole('button', { name: /Próximo/ }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  // A sessão do A/B é dona do assistente: hoje o rascunho local de OUTRO tipo vence o prefill e traz a variante B preenchida.
-  // Quando o assistente for consertado, este caso passa a falhar como `it.fails` e deve virar `it`.
-  it.fails('rascunho local de outro tipo para o mesmo vídeo não preenche a variante B (Yannis I2; avisar a sessão do A/B)', () => {
+  it('rascunho local de outro tipo para o mesmo vídeo não preenche a variante B (Yannis I2; avisar a sessão do A/B)', () => {
     localStorage.setItem('ab-wizard-draft-vid-1', JSON.stringify({
       step: 2, type: 'title',
       variants: [
@@ -45,5 +43,18 @@ describe('variante B nasce vazia (T3)', () => {
     }))
     montar('thumbnail')
     expect((screen.getByRole('button', { name: /Próximo/ }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('rascunho local do MESMO tipo continua restaurado', () => {
+    localStorage.setItem('ab-wizard-draft-vid-1', JSON.stringify({
+      step: 2, type: 'title',
+      variants: [
+        { label: 'A', isOriginal: true, thumbUrl: null, titleText: 'Meu vídeo' },
+        { label: 'B', isOriginal: false, thumbUrl: null, titleText: 'Texto antigo' },
+      ],
+      config: initWizardConfig(settings), hypothesis: '', savedAt: Date.now(),
+    }))
+    montar('title')
+    expect((screen.getByRole('button', { name: /Próximo/ }) as HTMLButtonElement).disabled).toBe(false)
   })
 })

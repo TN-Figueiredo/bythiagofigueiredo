@@ -4,8 +4,8 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('../src/app/cms/(authed)/youtube/ab-lab/_components/ab-create-wizard', () => ({
-  AbCreateWizard: (p: { video: { id: string }; referencia?: React.ReactNode; prefill?: unknown }) => (
-    <div data-testid="wizard" data-video={p.video.id} data-prefill={JSON.stringify(p.prefill ?? null)}>{p.referencia}</div>
+  AbCreateWizard: (p: { video: { id: string }; referencia?: React.ReactNode; prefill?: unknown; referenciaDados?: unknown }) => (
+    <div data-testid="wizard" data-video={p.video.id} data-prefill={JSON.stringify(p.prefill ?? null)} data-ref={JSON.stringify(p.referenciaDados ?? null)}>{p.referencia}</div>
   ),
 }))
 
@@ -33,6 +33,15 @@ describe('NewTestClient', () => {
   it('com referência o prefill continua só com testType', () => {
     render(<NewTestClient {...base} initialVideoId="u1" tipoInicial="title" competitorContext={{ tipo: 'title', thumb: null, titulo: 'T', refVideoId: null, refTroca: null, canal: null, hrefOrigem: null, thumbSubstituta: null }} />)
     expect(JSON.parse(screen.getByTestId('wizard').getAttribute('data-prefill')!)).toEqual({ testType: 'title' })
+  })
+  it('assistente aberto pelo Observatório envia a referência (três campos) ao createAbTest', () => {
+    const rid = '123e4567-e89b-12d3-a456-426614174000'
+    render(<NewTestClient {...base} initialVideoId="u1" tipoInicial="title" competitorContext={{ tipo: 'title', thumb: null, titulo: 'T', refVideoId: rid, refTroca: 'abc:1', canal: 'c', hrefOrigem: null, thumbSubstituta: null }} />)
+    expect(JSON.parse(screen.getByTestId('wizard').getAttribute('data-ref')!)).toEqual({ refVideoId: rid, refTroca: 'abc:1', tipo: 'title' })
+  })
+  it('sem competitorContext não há referência', () => {
+    render(<NewTestClient {...base} initialVideoId="u1" />)
+    expect(JSON.parse(screen.getByTestId('wizard').getAttribute('data-ref')!)).toBeNull()
   })
   it('sem tipoInicial não há prefill', () => {
     render(<NewTestClient {...base} initialVideoId="u1" />)
