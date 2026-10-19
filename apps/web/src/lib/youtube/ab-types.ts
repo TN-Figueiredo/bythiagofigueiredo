@@ -443,6 +443,8 @@ export interface AbTestBaseView {
   daily: Record<DisplayLabel, number[]>
   abbaSeq: DisplayLabel[]
   cycles: { total: number; done: number }
+  /** Dia corrido do teste (mesma conta da lista e do cartão); ciclos são outra grandeza (`cycles`). */
+  dayOf: number
   durationDays: number
   confidenceTarget: number
   totalRounds: number

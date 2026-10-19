@@ -67,7 +67,7 @@ export function EarlyDetail({ view, encerrar, pausar }: EarlyDetailProps) {
           roundNumber={1}
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
-          dayInfo={{ dayOf: view.cycles.done, total: view.durationDays }}
+          dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
           actions={<AcoesDeSaida view={view} encerrar={encerrar} pausar={pausar} onAviso={setAviso} />}
         />
       </div>
@@ -75,8 +75,8 @@ export function EarlyDetail({ view, encerrar, pausar }: EarlyDetailProps) {
       {/* Early Band */}
       <div className="mb-[16px]">
         <EarlyBand
-          dayOf={view.cycles.done}
-          totalDays={view.durationDays}
+          dayOf={view.dayOf}
+          totalDays={Math.max(view.dayOf, view.durationDays)}
         />
       </div>
 

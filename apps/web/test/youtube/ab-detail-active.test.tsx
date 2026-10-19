@@ -63,6 +63,7 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
     daily: { A: [5.0, 5.1, 4.9], B: [6.0, 6.5, 7.0] } as Record<DisplayLabel, number[]>,
     abbaSeq: ['A', 'B', 'B', 'A', 'A', 'B'] as DisplayLabel[],
     cycles: { total: 6, done: 4 },
+    dayOf: 4,
     durationDays: 14,
     confidenceTarget: 0.95,
     totalRounds: 1,

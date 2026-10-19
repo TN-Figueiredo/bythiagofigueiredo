@@ -107,7 +107,7 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
           roundNumber={1}
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
-          dayInfo={{ dayOf: view.cycles.done, total: view.durationDays }}
+          dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
           actions={actionButtons}
         />
       </div>
@@ -161,8 +161,8 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
       {/* ── Section 2: Lock Countdown ── */}
       <div data-section="lock-countdown" className="mb-[16px]">
         <LockCountdown
-          dayOf={view.cycles.done}
-          durationDays={view.durationDays}
+          dayOf={view.dayOf}
+          durationDays={Math.max(view.dayOf, view.durationDays)}
           confidence={data.confidence}
           confidenceTarget={view.confidenceTarget * 100}
           cyclesCompleted={view.cycles.done}

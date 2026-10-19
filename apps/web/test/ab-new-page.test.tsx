@@ -38,10 +38,10 @@ describe('page ab-lab/new', () => {
     await expect(roda({ ref: 'competitor', changeType: 'title', competitorTitle: 'X', refVideoId: R })).rejects.toThrow('negado')
     expect(m.cliente).not.toHaveBeenCalled()
   })
-  it('reporter (forbidden) volta à lista do A/B Lab em vez de cair no error.tsx', async () => {
+  it('reporter (forbidden) vai para /cms (a lista também exige edição) em vez de cair no error.tsx', async () => {
     m.settings.mockRejectedValue(new Error('forbidden'))
-    await expect(roda({})).rejects.toThrow('NEXT_REDIRECT:/cms/youtube/ab-lab')
-    expect(redir).toHaveBeenCalledWith('/cms/youtube/ab-lab')
+    await expect(roda({})).rejects.toThrow('NEXT_REDIRECT:/cms')
+    expect(redir).toHaveBeenCalledWith('/cms')
   })
   it('(b) changeType sem ref: tipoInicial chega e não há competitorContext', async () => {
     const p = await roda({ videoId: 'v1', changeType: 'title' })
