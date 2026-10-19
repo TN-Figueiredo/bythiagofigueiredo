@@ -20,8 +20,10 @@ export interface FaixaComAcoesProps {
   dispensar: (campos: CampoNome[], seqVisto: number) => Promise<ResultadoAcaoSaida>
 }
 
-const BTN_PRI = `${BTN_SAIDA} bg-cms-accent text-white hover:text-white [@media(pointer:coarse)]:min-h-[44px]`
-const BTN = `${BTN_SAIDA} [@media(pointer:coarse)]:min-h-[44px]`
+// Texto escuro do produto (--cms-on-accent) sobre o laranja: 7,5:1; o branco dava 2,5:1.
+const DESABILITADO = 'disabled:opacity-50 disabled:cursor-not-allowed'
+const BTN_PRI = `${BTN_SAIDA} bg-cms-accent text-[var(--cms-on-accent,#1A120A)] hover:text-[var(--cms-on-accent,#1A120A)] ${DESABILITADO} [@media(pointer:coarse)]:min-h-[44px]`
+const BTN = `${BTN_SAIDA} ${DESABILITADO} [@media(pointer:coarse)]:min-h-[44px]`
 
 /** Ilha cliente da faixa: os botões "Tentar agora" e "Já corrigi no YouTube" (P4b). Sem permissão, nenhum botão. */
 export function FaixaComAcoes({ testId, faixa, faixaTentando, seqVisto, tentar, dispensar }: FaixaComAcoesProps) {

@@ -36,6 +36,19 @@ function montar(rs: RestoreStatus, c: CtxFaixa, over: Partial<Parameters<typeof 
   return { tentar, dispensar }
 }
 
+describe('FaixaComAcoes: aparência dos botões', () => {
+  it('desabilitado tem opacidade reduzida e cursor not-allowed; texto do primário não é branco', () => {
+    montar(C, ctx)
+    for (const b of screen.getAllByRole('button')) {
+      expect(b.className).toContain('disabled:opacity-')
+      expect(b.className).toContain('disabled:cursor-not-allowed')
+    }
+    const pri = screen.getByRole('button', { name: 'Tentar agora' })
+    expect(pri.className).not.toMatch(/(^|\s)(hover:)?text-white/)
+    expect(pri.className).toContain('--cms-on-accent')
+  })
+})
+
 describe('FaixaComAcoes', () => {
   it('C mostra "Tentar agora" e "Já corrigi no YouTube: dispensar aviso"', () => {
     montar(C, ctx)

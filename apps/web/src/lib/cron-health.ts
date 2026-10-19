@@ -56,7 +56,7 @@ export async function getCronHealth(cronName: string) {
     .from('cron_health')
     .select('*')
     .eq('cron_name', cronName)
-    .single()
+    .maybeSingle()
 
   if (error) {
     console.error(`[cron-health] Failed to get health for ${cronName}:`, error)

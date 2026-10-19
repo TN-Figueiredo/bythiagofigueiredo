@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { montarFaixa, faixaTentando, type Faixa, type FaixaCompleta, type CtxFaixa } from '@/app/cms/(authed)/youtube/ab-lab/_components/faixa-restauracao-texto'
 import type { CampoRestauracao, RestoreStatus } from '@/lib/youtube/ab-restore'
 
@@ -154,12 +154,35 @@ describe('P4b: faixaTentando', () => {
     const f = completa(faixaTentando(falhou(), ctx))
     expect(f.tom).toBe('busy')
     expect(f.lbl).toBe('Voltando ao original…')
-    expect(f.resumo).toBe('Título e thumbnail estão sendo trocados no YouTube.')
+    expect(f.resumo).toBe('O título está sendo trocado no YouTube.')
     expect(f.linhas[0].texto).toBe('Trocando desde 12/10 05:00.')
     expect(f.acoes.tentar).toBe(false)
+  })
+  it('frase nomeia só os campos em tentativa: título, thumbnail ou ambos', () => {
+    const t = faixaTentando({ title: campo({ estado: 'falhou', erro: recusa }), thumbnail: campo({}) }, ctx)
+    expect(completa(t).resumo).toBe('O título está sendo trocado no YouTube.')
+    const th = faixaTentando({ title: campo({}), thumbnail: campo({ estado: 'falhou', erro: recusa }) }, ctx)
+    expect(completa(th).resumo).toBe('A thumbnail está sendo trocada no YouTube.')
+    const ambos = faixaTentando({ title: campo({ estado: 'falhou', erro: recusa }), thumbnail: campo({ estado: 'falhou', erro: recusa }) }, ctx)
+    expect(completa(ambos).resumo).toBe('Título e thumbnail estão sendo trocados no YouTube.')
   })
   it('sem campo pendente → faixa normal', () => {
     const rs: RestoreStatus = { title: campo({}) }
     expect(faixaTentando(rs, ctx)).toEqual(montarFaixa(rs, ctx))
+  })
+})
+
+describe('P4b: hora prometida da nova tentativa (relógio do servidor)', () => {
+  afterEach(() => { vi.useRealTimers() })
+  it.each([
+    ['2026-10-12T08:00:00Z', '07:00'],
+    ['2026-10-12T12:00:00Z', '17:00'],
+    ['2026-10-12T23:00:00Z', '07:00'],
+  ])('relógio %s → "por volta das %s"', (instante, hora) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(instante))
+    const ultima = new Date(Date.now() - 3_600_000).toISOString() // vigia em dia
+    const f = completa(montarFaixa(falhou(), { ...ctx, agora: new Date(), vigiaUltimaExecucao: ultima }))
+    expect(f.linhas[0].texto).toContain(`por volta das ${hora} (horário de São Paulo)`)
   })
 })

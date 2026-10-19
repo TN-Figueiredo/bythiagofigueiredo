@@ -251,7 +251,7 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
   const tom = tomDe(pior) as Exclude<Tom, 'ok'>
   // Com tomFaixa, o ícone da faixa mantém a forma da linha (F: círculo tracejado em âmbar).
   const icone = pior.i.linha.icone ?? (pior.i.tomFaixa ? pior.i.linha.tom : undefined)
-  const resumo = tom === 'busy' ? frasesBusy(campos) : pior.i.resumo
+  const resumo = tom === 'busy' ? frasesBusy(itens.filter(x => x.i.linha.tom === 'busy').map(x => x.k)) : pior.i.resumo
   return {
     tom,
     ...(icone ? { icone } : {}),

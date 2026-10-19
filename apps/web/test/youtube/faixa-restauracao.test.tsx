@@ -54,7 +54,7 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
   })
   it('A2', () => {
     expect(montarFaixa(SEMENTES.A2, ctx)).toMatchObject({
-      tom: 'busy', lbl: 'Trocando pela variante B…', resumo: 'Título e thumbnail estão sendo trocados no YouTube.',
+      tom: 'busy', lbl: 'Trocando pela variante B…', resumo: 'O título está sendo trocado no YouTube.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'busy', texto: 'Trocando desde 12/10 05:58.', hora: '12/10 05:58' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Variante B aplicada em 12/10 05:58.', hora: '12/10 05:58' },
