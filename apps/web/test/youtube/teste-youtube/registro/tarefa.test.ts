@@ -144,6 +144,23 @@ describe('reprodução do passado (primeira avaliação)', () => {
   })
 })
 
+describe('registro aberto sem avaliação (Y1, P1, G-1)', () => {
+  it('aberto antigo, zero avaliações e mistura nova: sem ab_native_reproduzir, o antigo fecha teste_novo e nasce 1 novo', async () => {
+    const aberto = registroSemente(1, 'db-1', { ultima_vista: iso(T0 - 15 * 24 * H) })
+    const b = mundo([{ n: 1, leituras: mistura(30 * MIN, 18, 'AAD'), aberto }])
+    const { c, state } = contexto()
+    const r = await rodarRegistro(c(b.sb), opcoes)
+    expect(b.rpcChamadas.filter(x => x.nome === 'ab_native_reproduzir')).toHaveLength(0)
+    expect(tab(b, 'ab_native_tests').find(x => x.id === 'db-1')).toMatchObject({ estado: 'sem_desfecho', desfecho_motivo: 'teste_novo' })
+    expect(tab(b, 'ab_native_tests').filter(x => x.estado === 'em_andamento')).toHaveLength(1)
+    expect(r.estado).toBe('ok')
+    ir(state, 20 * MIN)
+    const r2 = await rodarRegistro(c(b.sb), opcoes)
+    expect(r2.estado).toBe('ok')
+    expect(tab(b, 'ab_native_tests').filter(x => x.estado === 'em_andamento')).toHaveLength(1)
+  })
+})
+
 describe('registro nas avaliações seguintes (C-2, C-4)', () => {
   const base = (extra: Partial<VideoCfg> = {}): VideoCfg => ({ n: 1, leituras: mistura(30 * MIN), avaliacoes: [evalOk(1, 1001, 600)], ...extra })
 

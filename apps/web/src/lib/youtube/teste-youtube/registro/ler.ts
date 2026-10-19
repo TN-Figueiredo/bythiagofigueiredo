@@ -149,6 +149,8 @@ function decidir(e: Entrada, u: UltimasAvaliacoes, agoraMs: number): { motivo: C
   const erroEm = ms(u.ultimoErroEm)
   if (erroEm !== null && erroEm > em(u.ultimaOkEm) && agoraMs - erroEm < RETENTATIVA_ERRO_MS) return null
 
+  // registro aberto sem avaliação: a reprodução não conhece o aberto do banco (23505 em laço); segue pelo caminho ao vivo, com CAS
+  if (!u.alguma && e.aberto !== null) return { motivo: 'registro_aberto', prioridade: nivel(2) }
   if (!u.alguma) return { motivo: 'reproduzir', prioridade: nivel(ativo ? 3 : 5) }
   if (ultimaRodada !== null && em(ultimaRodada) > em(u.ultimaOkEm)) return { motivo: e.testeNosso ? 'teste_nosso' : 'rodada_nova', prioridade: nivel(3) }
   const ultimaEm = ms(u.ultimaEm)

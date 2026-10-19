@@ -112,6 +112,9 @@ export function mundo(videos: VideoCfg[], o: OpcoesMundo = {}) {
         if (o.reproduzirRetorna !== undefined) return { data: o.reproduzirRetorna, error: null }
         const video = a.p_video as string
         if ((tabelas.ab_native_avaliacoes ?? []).some(x => x.video_id === video && x.estado_14 !== 'erro')) return { data: 0, error: null }
+        // índice único parcial `ab_native_tests_um_aberto`: o INSERT de um 2º `em_andamento` do vídeo aborta a RPC inteira
+        const jaAberto = (tabelas.ab_native_tests ?? []).some(x => x.video_id === video && x.estado === 'em_andamento')
+        if (jaAberto && (a.p_registros as Linha[]).some(r => r.estado === 'em_andamento')) return { data: null, error: { code: '23505' } }
         for (const r of a.p_registros as Linha[]) (tabelas.ab_native_tests ??= []).push({ ...(PADROES.ab_native_tests ?? {}), site_id: a.p_site, video_id: video, created_at: iso(T0), updated_at: iso(T0), ...r })
         const avs = [...(a.p_avaliacoes as Linha[])].sort((p, q) => Date.parse(p.avaliada_em as string) - Date.parse(q.avaliada_em as string))
         for (const av of avs) (tabelas.ab_native_avaliacoes ??= []).push({ id: ++seq, ...(PADROES.ab_native_avaliacoes ?? {}), site_id: a.p_site, video_id: video, ...av })

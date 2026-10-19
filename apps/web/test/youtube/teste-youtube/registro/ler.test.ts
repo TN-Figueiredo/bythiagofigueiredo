@@ -99,6 +99,14 @@ describe('prioridade (§1 item 3)', () => {
   })
 })
 
+describe('registro aberto sem avaliação (Y1, P1, G-1)', () => {
+  it('vídeo com aberto e alguma=false não vai para reproduzir: vai para registro_aberto', async () => {
+    const r = await devidosDe(cenario({ 1: { aberto: {}, ultimas: { alguma: false, ultimaHaMin: null, okHaMin: null, id: null } } }))
+    expect(r.devidos).toHaveLength(1)
+    expect(r.devidos[0]).toMatchObject({ motivo: 'registro_aberto', prioridade: 2 })
+  })
+})
+
 describe('alvos', () => {
   it('alvo sem youtube_videos conta em semVideo e fica fora de devidos', async () => {
     const r = await devidosDe(cenario({ 1: { semVideo: true }, 2: { ultimaRodadaHaMin: 5, ultimas: { okHaMin: 90 } } }))
