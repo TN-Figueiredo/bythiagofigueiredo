@@ -12,7 +12,7 @@ const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@12
 const FUNCOES = [
   'public.competitor_channel_request_removal(uuid, uuid, uuid, text)', 'public.competitor_channel_cancel_removal(uuid, uuid, uuid)',
   'public.competitor_channel_delete_unarchived(uuid, uuid, uuid, text, text)', 'public.obs_unarchived_blobs_done(uuid, bigint, text[])',
-  'public.obs_unarchived_watch_sweep(timestamptz)', 'public.competitor_channel_watch_counts(uuid, uuid)', 'public.obs_f1_video_compartilhado(uuid, uuid)',
+  'public.obs_unarchived_watch_sweep(timestamptz)', 'public.competitor_channel_removal_extra(uuid, uuid)', 'public.obs_f1_video_compartilhado(uuid, uuid)',
   'public.competitor_channel_pause_stops_watch()', 'public.obs_nome_normalizado(text)',
 ]
 

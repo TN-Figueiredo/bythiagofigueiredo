@@ -63,7 +63,7 @@ describe.skipIf(skipIfNoLocalDb())('F1 §A: yt_watch no arquivo, remoção arqui
       await exportarConferirConfirmar(pg, c, c.canalA, 'lote-f1-b13')
       const r = (await q1(pg, `select public.competitor_channel_remove_archived($1, $2, $3) as r`, [c.site, c.canalA, c.admin])).r as { status: string; watch: Record<string, number> }
       expect(r.status).toBe('removido')
-      expect(r.watch).toEqual({ leituras: 3, miniaturas: 1, alvos: 1 })
+      expect(r.watch).toEqual({ readings: 3, thumbs: 1, alvos: 1 })
       expect(await contaWatch(c.site, ytA)).toEqual({ l: 0, t: 0, a: 0 })
       expect(await contaWatch(c.site, ytB)).toEqual({ l: 1, t: 0, a: 1 })
     })
@@ -362,7 +362,7 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
       expect(await escalar<number>(pg, `select count(*)::int from public.yt_watch_readings where site_id = $1 and youtube_video_id = $2`, [c.site, ytB])).toBe(1)
       const a = await q1(pg, `select before_data, after_data from public.audit_log where site_id = $1 and action = 'observatorio_canal_apagado_sem_arquivo'`, [c.site])
       expect(a.before_data).toMatchObject({ channel_name: 'Canal de teste' })
-      expect(a.after_data).toMatchObject({ motivo: 'entrou_por_engano', watch: { leituras: 3, miniaturas: 1, alvos: 1 } })
+      expect(a.after_data).toMatchObject({ motivo: 'entrou_por_engano', watch: { readings: 3, thumbs: 1, alvos: 1 } })
     })
   })
 
@@ -373,7 +373,7 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
       const r = (await q1(pg, `select public.competitor_channel_delete_unarchived($1, $2, $3, 'Sem watch', 'outro') as r`, [c.site, c.canalA, c.admin])).r as {
         videos: number; linhas: Record<string, number>; watch: Record<string, number>; blob_urls: string[] }
       expect(r.videos).toBe(2)
-      expect(r.watch).toEqual({ leituras: 0, miniaturas: 0, alvos: 0 })
+      expect(r.watch).toEqual({ readings: 0, thumbs: 0, alvos: 0 })
       expect(r.linhas).toMatchObject({ yt_watch_readings: 0, yt_watch_thumbs: 0, yt_watch_alvos: 0 })
       expect(r.linhas.competitor_videos).toBe(2)
     })
@@ -431,6 +431,9 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
       const n = (t: string) => escalar<string>(pg, `select public.obs_nome_normalizado($1)`, [t])
       expect(await n('  Canal\u00a0\u00a0de\u2009teste\u00a0')).toBe('canal de teste')
       expect(await n('São')).toBe('são')
+      expect(await n('SÃO')).toBe('são')
+      expect(await n('\ufeffSão')).toBe('são')
+      expect(await n('A\u00a0\u00a0B')).toBe('a b')
       expect(await n('A\u0007')).toBe('a\u0007')
       expect(await escalar<string>(pg, `select provolatile::text from pg_proc where proname = 'obs_nome_normalizado'`)).toBe('i')
     })
@@ -516,12 +519,12 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
   it('B3.10 contagem da watch por canal (janela): três números, canal de outro site recusa', async () => {
     await emTransacao(pg, async () => {
       const { c } = await cena()
-      const r = (await q1(pg, `select public.competitor_channel_watch_counts($1, $2) as r`, [c.site, c.canalA])).r
-      expect(r).toEqual({ leituras: 3, miniaturas: 1, alvos: 1 })
-      const vazio = (await q1(pg, `select public.competitor_channel_watch_counts($1, $2) as r`, [c.site, c.canalB])).r
-      expect(vazio).toEqual({ leituras: 1, miniaturas: 0, alvos: 1 })
+      const r = (await q1(pg, `select public.competitor_channel_removal_extra($1, $2) as r`, [c.site, c.canalA])).r
+      expect(r).toEqual({ readings: 3, thumbs: 1, alvos: 1 })
+      const vazio = (await q1(pg, `select public.competitor_channel_removal_extra($1, $2) as r`, [c.site, c.canalB])).r
+      expect(vazio).toEqual({ readings: 1, thumbs: 0, alvos: 1 })
       const outro = await semearCena(pg)
-      const t = await tenta(pg, `select public.competitor_channel_watch_counts($1, $2)`, [outro.site, c.canalA])
+      const t = await tenta(pg, `select public.competitor_channel_removal_extra($1, $2)`, [outro.site, c.canalA])
       expect(erro(t)).toBe('canal_nao_encontrado')
     })
   })
