@@ -40,6 +40,7 @@ import { contagemDosFiltros, estadoDaLinha, linhaNoFiltro, type ContagemDosFiltr
 import { fraseDoResumo } from './resumo-model'
 import { ausenciaDoVpdComNegativa, type EstadoAusencia } from '../_chrome/ausencia/estado'
 import { dicaCrescimento, dicaDirecao, dicaInscritos, dicaOutliers, dicaRitmo, dicaSync, dicaTrocas, dicaViewsDia, type Escrita } from './dicas-model'
+import { idadeDoAgendado } from './remover-model'
 import { passoDoYouTube } from '@/lib/youtube/observatorio/inscritos-28d'
 
 const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
@@ -86,6 +87,8 @@ export interface CanaisRow {
   growth: string; growthTitle: string
   sync: { label: string; phrase: string | null; state: SyncState }
   own: boolean
+  /** F2 do Remover canal: o concorrente com a remoção pedida ("agendado para guardar"); null = normal. Canal próprio é sempre null. */
+  agendado: { desde: string; idade: string } | null
   /** A página do canal: do concorrente e do canal próprio COM vídeos (`canalTemVideos`). null = canal próprio sem vídeos (sem página, 16.8; `semPagina` diz por quê). */
   href: string | null
   /** Só canal próprio SEM vídeos (sem página, 16.8): o motivo de a linha não abrir nada. O nome vira texto (não botão) e a linha diz isto. */
@@ -161,6 +164,8 @@ export interface LinkN { n: number; key: string; href: string; text: string }
 export interface DrawerView {
   id: string; tab: DrawerTab; own: boolean; backfill: boolean; name: string; color: string; ini: string; avatar: string | null; niche: Niche | null
   lang: LangChip | null
+  /** F2 do Remover canal: o aviso da gaveta (sem botão); null = canal normal ou próprio. */
+  agendado: { idade: string } | null
   handle: string; url: string; subsText: string; cov: string
   stats: Array<{ label: string; labelTitle: string | null; value: string; sub: string; subTitle: string | null; subWeak: boolean; /** A sub-linha é a forma de erro da seção 4.2 ("a leitura falhou"), nunca texto fraco. */ subErro?: boolean }>
   swaps: { count: number; intro: string; note: string | null; cards: SwapCard[]; link: LinkN | null }
@@ -173,7 +178,7 @@ export interface DrawerView {
 }
 
 export interface CanaisView {
-  slots: { used: number; limit: number; free: number; text: string; fullText: string | null; tip: string; nearFull: boolean; unlockText: string; unlockDone: string }
+  slots: { used: number; limit: number; free: number; agendados: number; text: string; fullText: string | null; tip: string; nearFull: boolean; unlockText: string; unlockDone: string }
   scale: 'per-mil' | 'abs'; layout: 'table' | 'cards'
   /** O filtro de formato. A URL o traz sempre (`fmtNaUrl`); sem ele o servidor desenha Longos e o navegador grava o lembrado. */
   fmt: CanaisFmt; fmtNaUrl: boolean
@@ -417,8 +422,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
 
   /* ---------------------------------------------------------------- slots */
   const { used, limit, free } = obs.channelSlots(p.limit)
+  const agendados = obs.channels.filter(c => !c.own && c.removalRequestedAt).length
   const slots = {
-    used, limit, free, text: `${used} de ${limit} canais`,
+    used, limit, free, agendados,
+    text: `${used} de ${limit} canais${agendados ? ` · ${agendados} ${agendados === 1 ? 'agendado' : 'agendados'} para guardar` : ''}`,
     fullText: free === 0 ? `Sem vagas: ${used} de ${limit} concorrentes. Remova um canal para adicionar outro.` : null,
     tip: `Até ${limit} concorrentes acompanhados; ${T.slot}. ${free ? (free === 1 ? 'Sobra 1 vaga.' : `Sobram ${free} vagas.`) : 'Sem vagas: para acompanhar outro, remova um.'}`,
     nearFull: free <= 5, unlockText: `Destravar mais ${p.unlockStep ?? 25} vagas`, unlockDone: `Mais ${p.unlockStep ?? 25} vagas disponíveis.`,
@@ -653,6 +660,10 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     }
   }
 
+  /** O pedido de remoção do concorrente, com a idade pelo relógio do motor (o mesmo da tela); canal próprio nunca. */
+  function agendadoDe(c: ObsChannel): { desde: string; idade: string } | null {
+    return !c.own && c.removalRequestedAt ? { desde: c.removalRequestedAt, idade: idadeDoAgendado(c.removalRequestedAt, obs.NOW) } : null
+  }
   function rowOf(c: ObsChannel): CanaisRow {
     const S = stats(c.id), bf = isBf(c), empty = ownLongEmpty(c) && fmt === 'long'
     const k = obs.cadence(c.id, fmt)
@@ -676,7 +687,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     const outN = obs.outliers({ channel: c.id, fmt, includeOwn: c.own }).count
     const valor = valoresOf(c), numero = numMap.get(c.id) ?? null, pos = temPosicao(sort) ? numero : null
     return {
-      id: c.id, name: c.name, niche: c.niche, own: c.own, href: c.own ? (canalTemVideos(obs, c.id) ? ownChannelHref(c.id) : null) : obs.link.canal(c.id),
+      id: c.id, name: c.name, niche: c.niche, own: c.own, agendado: agendadoDe(c), href: c.own ? (canalTemVideos(obs, c.id) ? ownChannelHref(c.id) : null) : obs.link.canal(c.id),
       semPagina: c.own && !canalTemVideos(obs, c.id) ? SEM_PAGINA_LINHA : null,
       comparar: !c.own && principal ? { href: obs.link.comparar(principal.id, c.id), label: candidatosN > 1 ? `Comparar ${c.name} com o meu canal (${principal.name})` : `Comparar ${c.name} com o meu canal` } : null,
       lang: c.own ? langChip(c.lang, many) : null, pw: F.dec1(k.pw), vpd: vpd.kind === 'ok' ? vpd.big : vpd.text,
@@ -1024,7 +1035,7 @@ export function buildCanaisView(obs: Observatory, p: CanaisParams, extras?: Extr
     }
     const tab: DrawerTab = p.tab === 'videos' || p.tab === 'outliers' ? p.tab : 'trocas'
     return {
-      id: c.id, tab, own: c.own, backfill: bf, name: c.name, color: c.color, ini: c.ini, avatar: c.avatar ?? null, niche: c.niche, lang: c.own ? langChip(c.lang, many) : null, handle: c.handle, url: c.url,
+      id: c.id, tab, own: c.own, backfill: bf, name: c.name, color: c.color, ini: c.ini, avatar: c.avatar ?? null, niche: c.niche, lang: c.own ? langChip(c.lang, many) : null, agendado: ((a) => a ? { idade: a.idade } : null)(agendadoDe(c)), handle: c.handle, url: c.url,
       subsText: c.subs == null ? 'inscritos ocultos pelo canal' : `${subsTxt(c.subs)} inscritos, arredondado pelo YouTube a 3 algarismos`, cov, stats: statsV,
       swaps: {
         count: list.length,
