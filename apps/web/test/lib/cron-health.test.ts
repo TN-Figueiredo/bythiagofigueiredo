@@ -101,7 +101,7 @@ describe('getCronHealth', () => {
     }
     mockSelect.mockReturnValueOnce({
       eq: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({ data: healthRow, error: null }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: healthRow, error: null }),
       }),
     })
 
@@ -113,13 +113,13 @@ describe('getCronHealth', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     mockSelect.mockReturnValueOnce({
       eq: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116', message: 'not found' } }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       }),
     })
 
     const result = await getCronHealth('nonexistent')
     expect(result).toBeNull()
-    expect(consoleSpy).toHaveBeenCalled()
+    expect(consoleSpy).not.toHaveBeenCalled()
     consoleSpy.mockRestore()
   })
 })
