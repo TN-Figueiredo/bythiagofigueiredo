@@ -25,6 +25,8 @@ export function faixaDaPagina(view: AbTestBaseView, bruto: unknown, agora: Date)
   const rotuloDe = (id: string) => view.variantDb.find(v => v.id === id)?.label ?? id
   const faixa = montarFaixa(rs, {
     agora, rotulo: rotuloDe, noArAntes: view.noArAntes?.label ?? 'A', noArDesde: view.noArAntes?.desde ?? null, youtubeId: view.youtubeVideoId,
+    // Provisório até a Tarefa 8 (a página passa os valores reais).
+    vigiaUltimaExecucao: null, podeAdministrar: false, bloqueio: null, inicioDoSim: {},
   })
   return { faixa, emAndamentoDesde, ilegivel: false }
 }

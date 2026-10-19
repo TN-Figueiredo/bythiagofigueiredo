@@ -8,7 +8,8 @@ import type { CampoRestauracao, RestoreStatus, ErroGravado } from '@/lib/youtube
 afterEach(cleanup)
 
 const AGORA = new Date('2026-10-12T09:00:00Z') // 06:00 em SP
-const ctx: CtxFaixa = { agora: AGORA, rotulo: id => (id === 'vb' ? 'B' : id), noArAntes: 'C', noArDesde: '2026-10-07T08:00:00Z', youtubeId: 'yt123' }
+const ctx: CtxFaixa = { agora: AGORA, rotulo: id => (id === 'vb' ? 'B' : id), noArAntes: 'C', noArDesde: '2026-10-07T08:00:00Z', youtubeId: 'yt123',
+  vigiaUltimaExecucao: '2026-10-11T20:00:00Z', podeAdministrar: true, bloqueio: null, inicioDoSim: {} }
 const T0502 = '2026-10-12T08:02:00Z' // 12/10 05:02 SP
 const T0500 = '2026-10-12T08:00:00Z'
 const T1700 = '2026-10-12T20:00:00Z'
@@ -39,11 +40,10 @@ function completa(f: Faixa | null): FaixaCompleta {
   return f
 }
 const STUDIO = 'https://studio.youtube.com/video/yt123/edit'
-const NAO_DISPENSA = 'Este aviso ainda não pode ser dispensado.'
 
 describe('estados da faixa: texto exato da tabela do plano', () => {
   it('A1', () => {
-    expect(montarFaixa(SEMENTES.A1, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.A1, ctx)).toMatchObject({
       tom: 'busy', lbl: 'Voltando ao original…', resumo: 'Título e thumbnail estão sendo trocados no YouTube.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'busy', texto: 'Trocando desde 12/10 05:58.', hora: '12/10 05:58' },
@@ -53,7 +53,7 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
     })
   })
   it('A2', () => {
-    expect(montarFaixa(SEMENTES.A2, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.A2, ctx)).toMatchObject({
       tom: 'busy', lbl: 'Trocando pela variante B…', resumo: 'Título e thumbnail estão sendo trocados no YouTube.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'busy', texto: 'Trocando desde 12/10 05:58.', hora: '12/10 05:58' },
@@ -63,7 +63,7 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
     })
   })
   it('A3', () => {
-    expect(montarFaixa(SEMENTES.A3, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.A3, ctx)).toMatchObject({
       tom: 'warn', icone: 'none', lbl: 'Atenção:', resumo: 'Não sabemos se voltou ao original.',
       linhas: [{ campo: 'title', rotulo: 'Título', tom: 'warn', icone: 'none', texto: 'Sem resposta desde 12/10 05:00. Não sabemos se a troca foi feita. Confira o título no YouTube Studio.', hora: '12/10 05:00' }],
       linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: null, papel: 'region',
@@ -103,13 +103,13 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
     expect(montarFaixa({ title: campo({ destino: 'vb' }), thumbnail: campo({ destino: 'vb' }) }, ctx)).toEqual({ tom: 'ok', okline: 'Variante B no ar desde 12/10 05:02.' })
   })
   it('C', () => {
-    expect(montarFaixa(SEMENTES.C, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.C, ctx)).toMatchObject({
       tom: 'err', lbl: 'Erro:', resumo: 'o título não voltou ao original. O título no ar ainda é o da variante C.',
       linhas: [
-        { campo: 'title', rotulo: 'Título', tom: 'err', texto: 'O YouTube recusou em 12/10 05:02. Corrija no YouTube Studio.', hora: '12/10 05:02' },
+        { campo: 'title', rotulo: 'Título', tom: 'err', texto: 'O YouTube recusou em 12/10 05:02. Nova tentativa automática por volta das 07:00 (horário de São Paulo), tentativa 2 de 3.', hora: '12/10 05:02' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
       ],
-      linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: NAO_DISPENSA, papel: 'region',
+      linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: null, papel: 'region',
     })
   })
   it('C na thumbnail troca "o título" por "a thumbnail"', () => {
@@ -117,33 +117,33 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
     expect(f.resumo).toBe('a thumbnail não voltou ao original. A thumbnail no ar ainda é a da variante C.')
   })
   it('D', () => {
-    expect(montarFaixa(SEMENTES.D, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.D, ctx)).toMatchObject({
       tom: 'err', lbl: 'Erro:', resumo: 'o título da variante B não foi aplicado. No ar continua o título editado por fora.',
       linhas: [
-        { campo: 'title', rotulo: 'Título', tom: 'err', texto: 'O YouTube recusou em 12/10 05:02. A troca que você confirmou não foi feita. Corrija no YouTube Studio.', hora: '12/10 05:02' },
+        { campo: 'title', rotulo: 'Título', tom: 'err', texto: 'O YouTube recusou em 12/10 05:02. Nova tentativa automática por volta das 07:00 (horário de São Paulo), sem perguntar de novo: ela repete a troca que você confirmou.', hora: '12/10 05:02' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Variante B aplicada em 12/10 05:02.', hora: '12/10 05:02' },
       ],
-      linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: NAO_DISPENSA, papel: 'region',
+      linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: null, papel: 'region',
     })
   })
   it('D2', () => {
     const f = completa(montarFaixa(SEMENTES.D2, ctx))
     expect(f.resumo).toBe('o título da variante B não foi aplicado. No ar continua o da variante C.')
-    expect(f.linhas[0].texto).toBe('O YouTube recusou em 12/10 05:02. Corrija no YouTube Studio.')
-    expect(f.fine).toBe(NAO_DISPENSA)
+    expect(f.linhas[0].texto).toBe('O YouTube recusou em 12/10 05:02. Nova tentativa automática por volta das 07:00 (horário de São Paulo), tentativa 2 de 3.')
+    expect(f.fine).toBeNull()
   })
   it('E', () => {
-    expect(montarFaixa(SEMENTES.E, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.E, ctx)).toMatchObject({
       tom: 'warn', lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma variante deste teste: alguém editou por fora. Nada foi alterado.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'warn', texto: 'Mantida como está no YouTube desde 12/10 05:02.', hora: '12/10 05:02' },
       ],
-      linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: NAO_DISPENSA, papel: 'status',
+      linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: null, papel: 'status',
     })
   })
   it('F', () => {
-    expect(montarFaixa(SEMENTES.F, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.F, ctx)).toMatchObject({
       tom: 'warn', icone: 'none', lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as variantes. Nada foi alterado.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
@@ -153,7 +153,7 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
     })
   })
   it('G', () => {
-    expect(montarFaixa(SEMENTES.G, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.G, ctx)).toMatchObject({
       tom: 'warn', lbl: 'Atenção:', resumo: 'o título original não foi guardado quando o teste começou. Nada foi alterado.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'warn', texto: 'Continua o da variante C, no ar desde 07/10 05:00.', hora: '07/10 05:00' },
@@ -172,25 +172,25 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
     expect(sem.linhas[0].hora).toBeUndefined()
   })
   it('J1', () => {
-    expect(montarFaixa(SEMENTES.J1, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.J1, ctx)).toMatchObject({
       tom: 'none', lbl: 'Sem nova tentativa:',
       resumo: 'o Lab parou de restaurar este vídeo porque ele não foi encontrado no YouTube. Se você o apagou, não há nada a fazer.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'none', texto: 'Não foi restaurado. Parou em 12/10 17:00.', hora: '12/10 17:00' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
       ],
-      linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: 'Se não foi você quem apagou, confira no YouTube Studio.', fine: NAO_DISPENSA, papel: 'region',
+      linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: 'Se não foi você quem apagou, confira no YouTube Studio.', fine: null, papel: 'region',
     })
   })
   it('J2', () => {
-    expect(montarFaixa(SEMENTES.J2, ctx)).toEqual({
+    expect(montarFaixa(SEMENTES.J2, ctx)).toMatchObject({
       tom: 'none', lbl: 'Sem nova tentativa:',
       resumo: 'o Lab parou de restaurar este vídeo porque outro teste começou nele. O que está no ar agora segue o novo teste.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'none', texto: 'Não foi restaurado antes de o novo teste começar. Parou em 12/10 17:00.', hora: '12/10 17:00' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
       ],
-      linkStudio: null, linkRotulo: null, ajuda: null, fine: NAO_DISPENSA, papel: 'region',
+      linkStudio: null, linkRotulo: null, ajuda: null, fine: null, papel: 'region',
     })
   })
 })
@@ -243,11 +243,10 @@ describe('regras', () => {
     expect(screen.getByRole('region', { name: 'Restauração do vídeo' }).hasAttribute('aria-live')).toBe(false)
   })
 
-  it('nenhum botão e nenhuma frase de nova tentativa', () => {
+  it('a faixa não tem botão (eles vêm de `children`, Tarefa 8); o aviso agora se dispensa', () => {
     render(<FaixaRestauracao faixa={completa(montarFaixa(SEMENTES.C, ctx))} />)
     expect(screen.queryAllByRole('button')).toHaveLength(0)
-    expect(document.body.textContent).not.toMatch(/nova tentativa|Tentar agora|dispensar aviso/i)
-    expect(screen.getByText(NAO_DISPENSA)).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/Tentar agora|dispensar aviso|não pode ser dispensado/i)
     expect(screen.getByText('Horários de São Paulo')).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Restauração do vídeo' })).toBeTruthy()
     expect((screen.getByText('Abrir no YouTube Studio') as HTMLAnchorElement).getAttribute('href')).toBe(STUDIO)

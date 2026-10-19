@@ -1,4 +1,8 @@
-import { lerCampoDeRestauracao, type CampoNome, type CampoRestauracao, type RestoreStatus } from '@/lib/youtube/ab-restore'
+import {
+  camposPendentes, lerCampoDeRestauracao, MAX_TENTATIVAS, podeDispensar, simAindaVale,
+  type CampoNome, type CampoRestauracao, type RestoreStatus,
+} from '@/lib/youtube/ab-restore'
+import { proximaVerificacao, vigiaAtrasado } from '@/lib/youtube/ab-vigia-horario'
 
 export type Tom = 'busy' | 'warn' | 'err' | 'ok' | 'none'
 export interface LinhaFaixa { campo: CampoNome; rotulo: 'Título' | 'Thumbnail'; tom: Tom; /** Forma do ícone quando difere da do tom (A3: círculo tracejado em âmbar). */ icone?: Tom; texto: string; hora?: string }
@@ -13,9 +17,17 @@ export interface FaixaCompleta {
   linkRotulo: string | null
   /** Frase de ajuda antes do link (só J1). */
   ajuda: string | null
-  /** "Este aviso ainda não pode ser dispensado." quando o estado pede. */
+  /** Sempre nulo desde a P4b (o aviso agora se dispensa); o campo fica para o componente. */
   fine: string | null
   papel: 'region' | 'status' | 'alert'
+  /** Botões que a faixa oferece (P4b). */
+  acoes: AcoesFaixa
+}
+export interface AcoesFaixa {
+  tentar: boolean
+  dispensar: CampoNome[]
+  /** Por que não há botão quando o motivo é falta de permissão (mockup I); nulo nos demais casos. */
+  motivoSemBotao: string | null
 }
 export interface FaixaOk { tom: 'ok'; okline: string }
 export type Faixa = FaixaCompleta | FaixaOk
@@ -30,9 +42,16 @@ export interface CtxFaixa {
   noArDesde: string | null
   /** Nulo = vídeo não achado: a faixa sai sem link do Studio. */
   youtubeId: string | null
+  /** Última execução do vigia (`cron_health`); nulo = nunca rodou ou desconhecida (conta como atrasado). */
+  vigiaUltimaExecucao: string | null
+  /** Pode administrar o site (necessário para destino variante). */
+  podeAdministrar: boolean
+  /** Por que o vigia não vai tentar sozinho (F4/Y-4); nulo = vai. */
+  bloqueio: 'outro_teste' | 'pausado_variante' | null
+  /** Início do "sim" por campo (R-1): `inicioDoSim(linhas do histórico)`; ausente = o `em` do campo. */
+  inicioDoSim: Partial<Record<CampoNome, string | null>>
 }
 
-const NAO_DISPENSA = 'Este aviso ainda não pode ser dispensado.'
 const PESO: Record<Tom, number> = { err: 4, warn: 3, none: 2, busy: 1, ok: 0 }
 const ROTULO: Record<CampoNome, 'Título' | 'Thumbnail'> = { title: 'Título', thumbnail: 'Thumbnail' }
 
@@ -54,7 +73,6 @@ interface Item {
   papel: 'region' | 'status'
   linkRotulo: string | null
   ajuda: string | null
-  fine: boolean
   /** Tom que este campo impõe à faixa quando difere do da linha (F: linha cinza, faixa âmbar). */
   tomFaixa?: Exclude<Tom, 'ok' | 'none'>
 }
@@ -67,6 +85,23 @@ function erroDeEscrita(c: CampoRestauracao): boolean {
 
 const STUDIO = 'Abrir no YouTube Studio'
 
+function horaMinutoSP(d: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d)
+}
+
+/** Frase de nova tentativa do vigia (C, D, D2 e bloqueio). */
+function fraseNovaTentativa(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): string {
+  // TEXTO-A-REVISAR
+  if (ctx.bloqueio === 'outro_teste') return 'Sem nova tentativa automática enquanto outro teste estiver aberto neste vídeo.'
+  // TEXTO-A-REVISAR
+  if (ctx.bloqueio === 'pausado_variante') return 'Sem nova tentativa automática enquanto este teste estiver pausado.'
+  const quando = vigiaAtrasado(ctx.vigiaUltimaExecucao, ctx.agora)
+    ? 'na próxima verificação'
+    : `por volta das ${horaMinutoSP(proximaVerificacao(ctx.agora))} (horário de São Paulo)`
+  if (simAindaVale(c, ctx.agora, ctx.inicioDoSim[campo])) return `Nova tentativa automática ${quando}, sem perguntar de novo: ela repete a troca que você confirmou.`
+  return `Nova tentativa automática ${quando}, tentativa ${c.attempts + 1} de ${MAX_TENTATIVAS}.`
+}
+
 function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item {
   const f = ROTULO[campo]
   const leitura = lerCampoDeRestauracao(c, ctx.agora)
@@ -74,7 +109,7 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
   const o = eTitulo ? 'o' : 'a'
   const nome = eTitulo ? 'título' : 'thumbnail'
   const variante = c.destino === 'original' ? null : ctx.rotulo(c.destino)
-  const base = { linkRotulo: null, ajuda: null, fine: false, papel: 'region' as const }
+  const base = { linkRotulo: null, ajuda: null, papel: 'region' as const }
   const mk = (tom: Tom, texto: string, hora: string | undefined, rest: Partial<Item> & Pick<Item, 'lbl' | 'resumo'>, icone?: Tom): Item =>
     ({ ...base, ...rest, linha: { campo, rotulo: f, tom, ...(icone ? { icone } : {}), texto, ...(hora ? { hora } : {}) } })
 
@@ -95,32 +130,43 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
     }, 'none')
   }
 
-  if (leitura.tipo === 'sem_resposta') return semResposta(leitura.desde)
+  if (leitura.tipo === 'sem_resposta') {
+    const sr = semResposta(leitura.desde)
+    if (c.estado !== 'falhou') return sr
+    // TEXTO-A-REVISAR (composição de frases aprovadas: A3 + nova tentativa)
+    return { ...sr, linha: { ...sr.linha, texto: `${sr.linha.texto} ${fraseNovaTentativa(campo, c, ctx)}` } }
+  }
 
   const h = horaSP(c.em)
   switch (c.estado) {
     case 'ok':
       return mk('ok', variante ? `Variante ${variante} aplicada em ${h}.` : `Voltou ao original em ${h}.`, h, { lbl: '', resumo: '' })
     case 'falhou': {
-      if (!erroDeEscrita(c)) return semResposta(c.em)
+      const nova = fraseNovaTentativa(campo, c, ctx)
+      if (!erroDeEscrita(c)) return semResposta(c.em) // inalcançável: `lerCampoDeRestauracao` já devolve sem_resposta
       const cap = eTitulo ? 'O título' : 'A thumbnail'
+      const linha = `O YouTube recusou em ${h}. ${nova}`
       if (!variante) {
-        return mk('err', `O YouTube recusou em ${h}. Corrija no YouTube Studio.`, h, {
+        return mk('err', linha, h, {
           lbl: 'Erro:',
           resumo: `${o} ${nome} não voltou ao original. ${cap} no ar ainda é ${o} da variante ${ctx.noArAntes}.`,
-          linkRotulo: STUDIO, fine: true,
+          linkRotulo: STUDIO,
         })
       }
-      return mk('err', c.forcado
-        ? `O YouTube recusou em ${h}. A troca que você confirmou não foi feita. Corrija no YouTube Studio.`
-        : `O YouTube recusou em ${h}. Corrija no YouTube Studio.`, h, {
+      return mk('err', linha, h, {
         lbl: 'Erro:',
         resumo: c.forcado
           ? `${o} ${nome} da variante ${variante} não foi aplicad${eTitulo ? 'o' : 'a'}. No ar continua ${o} ${nome} editad${eTitulo ? 'o' : 'a'} por fora.`
           : `${o} ${nome} da variante ${variante} não foi aplicad${eTitulo ? 'o' : 'a'}. No ar continua ${o} da variante ${ctx.noArAntes}.`,
-        linkRotulo: STUDIO, fine: true,
+        linkRotulo: STUDIO,
       })
     }
+    case 'pulado_teste_youtube':
+      // Só leitura (F10): quem escreve é a fase 2 da S6/S7. Texto neutro, sem botão.
+      // TEXTO-A-REVISAR
+      return mk('none', `Não alterado pelo Lab. Registrado em ${h}.`, h, {
+        lbl: 'Atenção:', resumo: 'o teste nativo do YouTube cuida deste campo. Nada foi alterado.', papel: 'status',
+      })
     case 'pulado_drift':
       if (c.motivo === 'sem_base_de_comparacao') {
         return mk('none', 'Não medida: sem imagem de referência para comparar.', undefined, {
@@ -130,7 +176,7 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
       }
       return mk('warn', `Mantida como está no YouTube desde ${h}.`, h, {
         lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma variante deste teste: alguém editou por fora. Nada foi alterado.',
-        papel: 'status', linkRotulo: STUDIO, fine: true,
+        papel: 'status', linkRotulo: STUDIO,
       })
     case 'pulado_sem_original': {
       // A hora é a de quando a variante entrou no ar, nunca a do campo; sem ela, a frase sai sem hora.
@@ -145,14 +191,34 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
         return mk('none', `Não foi restaurado. Parou em ${h}.`, h, {
           lbl: 'Sem nova tentativa:',
           resumo: 'o Lab parou de restaurar este vídeo porque ele não foi encontrado no YouTube. Se você o apagou, não há nada a fazer.',
-          ajuda: 'Se não foi você quem apagou, confira no YouTube Studio.', linkRotulo: STUDIO, fine: true,
+          ajuda: 'Se não foi você quem apagou, confira no YouTube Studio.', linkRotulo: STUDIO,
+        })
+      }
+      if (c.motivo === 'tres_falhas') {
+        const cap = eTitulo ? 'O título' : 'A thumbnail'
+        return mk('err', `Última recusa do YouTube em ${h}. Não haverá nova tentativa automática.`, h, {
+          lbl: 'Erro:', resumo: `a restauração falhou ${MAX_TENTATIVAS} vezes e parou. ${cap} no ar ainda é ${o} da variante ${ctx.noArAntes}.`,
+          linkRotulo: STUDIO,
+        })
+      }
+      if (c.motivo === 'antes_da_nova_tentativa') {
+        // TEXTO-A-REVISAR
+        return mk('none', `Não foi restaurado. Parou em ${h}.`, h, {
+          lbl: 'Sem nova tentativa:', resumo: 'a restauração falhou antes da nova tentativa automática existir. Confira no YouTube Studio.',
+          linkRotulo: STUDIO,
+        })
+      }
+      if (c.motivo === 'destino_invalido') {
+        // TEXTO-A-REVISAR
+        return mk('warn', `Parou em ${h}. Não haverá nova tentativa automática.`, h, {
+          lbl: 'Sem nova tentativa:', resumo: 'não consegui saber para qual versão devolver. Confira no YouTube Studio.',
+          linkRotulo: STUDIO,
         })
       }
       if (c.motivo === 'novo_teste') {
         return mk('none', `Não foi restaurado antes de o novo teste começar. Parou em ${h}.`, h, {
           lbl: 'Sem nova tentativa:',
           resumo: 'o Lab parou de restaurar este vídeo porque outro teste começou nele. O que está no ar agora segue o novo teste.',
-          fine: true,
         })
       }
       return semResposta(c.em) // motivo desconhecido: não afirmamos nada além de "não sabemos"
@@ -201,9 +267,35 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
     linkStudio: comLink && ctx.youtubeId ? `https://studio.youtube.com/video/${ctx.youtubeId}/edit` : null,
     linkRotulo: comLink?.i.linkRotulo ?? null,
     ajuda: pior.i.ajuda,
-    fine: itens.some(x => x.i.fine) ? NAO_DISPENSA : null,
+    fine: null,
     papel: pior.i.papel,
+    acoes: acoesDaFaixa(rs, ctx),
   }
+}
+
+const SEM_PERMISSAO = 'Só quem administra o site pode tentar de novo ou dispensar este aviso.'
+
+function acoesDaFaixa(rs: RestoreStatus, ctx: CtxFaixa): AcoesFaixa {
+  const pendentes = camposPendentes(rs, 'humano')
+  const dispensar = (['title', 'thumbnail'] as const).filter(k => { const c = rs[k]; return c !== undefined && podeDispensar(c) })
+  const comAcao = new Set<CampoNome>([...pendentes, ...dispensar])
+  const exigeAdmin = [...comAcao].some(k => rs[k]?.destino !== 'original')
+  // TEXTO-A-REVISAR (motivoSemBotao: texto do mockup I, mantido aqui literal)
+  if (exigeAdmin && !ctx.podeAdministrar) return { tentar: false, dispensar: [], motivoSemBotao: SEM_PERMISSAO }
+  return { tentar: pendentes.length > 0, dispensar, motivoSemBotao: null }
+}
+
+/** A faixa enquanto "Tentar agora" corre (P4b-E1): os campos pendentes viram `em_andamento` agora. */
+export function faixaTentando(rs: RestoreStatus, ctx: CtxFaixa): Faixa | null {
+  const agora = ctx.agora.toISOString()
+  const pendentes = camposPendentes(rs, 'humano')
+  if (pendentes.length === 0) return montarFaixa(rs, ctx)
+  const tentando: RestoreStatus = { ...rs }
+  for (const k of pendentes) {
+    const c = rs[k]
+    if (c) tentando[k] = { ...c, estado: 'em_andamento', em: agora, escreveu: null, erro: null }
+  }
+  return montarFaixa(tentando, ctx)
 }
 
 /**
@@ -218,5 +310,6 @@ export function faixaIlegivel(ctx: Pick<CtxFaixa, 'youtubeId'>): FaixaCompleta {
     linkStudio: ctx.youtubeId ? `https://studio.youtube.com/video/${ctx.youtubeId}/edit` : null,
     linkRotulo: ctx.youtubeId ? 'Abrir no YouTube Studio' : null,
     ajuda: null, fine: null, papel: 'status',
+    acoes: { tentar: false, dispensar: [], motivoSemBotao: null },
   }
 }
