@@ -1,8 +1,8 @@
-# A/B Lab: original em alta resolução (plano de implementação, r1)
+# A/B Lab: original em alta resolução (plano de implementação, r2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Escrito em 19/10/2026. 1º rascunho (Opus), antes do portão de Phil, Yannis e Gio. O dono aprovou o mockup e as decisões
+Escrito em 19/10/2026. r2 (Sonnet) sobre a r1 (`a5d7d33eb`) com os achados de Phil e Yannis; ver "Decisões da r2" no fim. Antes do portão de Gio e da re-revisão. O dono aprovou o mockup e as decisões
 1 a 7; **não** liberou executar nem enviar. O 5º caso de D (D13) espera o dono e está isolado na Tarefa 19.
 
 **Goal:** o dono envia o arquivo original da thumbnail (1280 de largura ou mais, 16:9, até 2 MB); ele vira a A que
@@ -19,7 +19,7 @@ restauração ganha a reserva pública quando a enviada some do Blob.
 **Tech Stack:** Next.js 16 (rota `nodejs`, server actions), TypeScript estrito, sharp 0.35.5, Vercel Blob, Supabase
 (Postgres 17; integração no `bythiago_int` 54421/54422), Vitest, Playwright (Gio).
 
-**Spec:** `docs/superpowers/specs/2026-10-19-ab-original-em-alta-design.md` (r5, `c4fe4dc97`); a seção "Para o
+**Spec:** `docs/superpowers/specs/2026-10-19-ab-original-em-alta-design.md` (r6, emenda do plano r2); a seção "Para o
 plano" virou as tarefas marcadas `[PP-n]`. Mockup aprovado: `docs/superpowers/mockups/2026-10-19-ab-original-em-alta/`
 (`index.html` + `README.md`, `85f6fe105`; capturas `shots/r4-*.png`). Decisões do dono:
 `.superpowers/sdd/ab-lab/original-em-alta/decisoes-dono.md`.
@@ -184,13 +184,14 @@ it('encerrar: selo com nulo, 0, 480 e 1279; sem selo com 1280', () => {
 
 - [ ] **Passo 1: testes de integração que falham** (`describe.skipIf(skipIfNoLocalDb())`; semente com `semearTesteAb` de `T/helpers/db-seed.ts`):
   - `ab_garantir em teste sem linhas cria uma publica/aceito/backfill/status draft e aponta os dois ids; 2ª chamada devolve o mesmo id e count = 1` (critério 19).
-  - `duas conexões pg simultâneas (Promise.all de dois clientes pg com begin; select ab_garantir...; commit) → uma linha só` (19b).
+  - `intercalação forçada: A begin; select ab_garantir(t) (sem commit); B dispara ab_garantir(t); B não resolveu em 300 ms; A commit; B devolve o mesmo id; count = 1` (19b, Y R1-8). Um Promise.all de duas transações curtas não serve: costuma rodar uma depois da outra e passa sem a trava. Rodar o teste uma vez contra a função sem o `for update` e anotar no ledger que ele falhou.
   - `dimensions '480x360' → largura 480, altura 360, copia_publica 'hqdefault'; dimensions NULL → largura/altura nulas, copia_publica nula; blob fora do Vercel Blob → blob_url mantida` (critério 20, Review Focus 5).
   - `depois do backfill, todo thumbnail/combo tem original_publica_id = original_vigente_id numa linha publica com blob_url, dhash e dimensões iguais às da variante original` (critério 2).
   - `teste 'title' → devolve null e não insere`.
   - `criado_em = ab_tests.created_at`; `original_vigente_id` já preenchido não muda.
   - RLS (padrão de `observatorio-a5-e10-rls.test.ts`): como `authenticated` sem `can_edit_site` e com `set_config('app.site_id', <site>, true)` → 0 linhas; editor do site → lê; `has_function_privilege('authenticated', 'public.ab_garantir_original_publica(uuid)', 'execute')` = false; `has_table_privilege('authenticated', 'public.ab_test_originais', 'insert')` = false (critério 1).
   - `migration reaplicada sobre si mesma não falha e não duplica linhas de backfill`.
+  - Os checks recusam (P menor 7): insert `recusado` com `blob_url` → `23514`; `aceito` com `motivo_recusa` → `23514`; `largura = 0` → `23514`.
 - [ ] **Passo 2:** comando de integração → FAIL.
 - [ ] **Passo 3:** escrever em `M` os passos 1 a 4 da seção 3 do spec, em `begin; ... commit;`, e no fim o backfill: `select public.ab_garantir_original_publica(id) from public.ab_tests where test_type in ('thumbnail','combo') and original_publica_id is null;`. Aplicar no `bythiago_int` (seção 3) e regenerar os tipos.
 - [ ] **Passo 4:** integração → PASS; `tsc` → 0.
@@ -203,7 +204,7 @@ it('encerrar: selo com nulo, 0, 480 e 1279; sem selo com 1280', () => {
 - Create: `T/integration/ab-original-funcoes.test.ts`
 
 **Interfaces:**
-- Produces: `ab_aplicar_original(p_test_id uuid, p_original_id uuid, p_restore_seq integer default null) returns text` (`'ok' | 'status' | 'nao_pertence'`); `ab_registrar_original(p_test_id uuid, p_linha jsonb, p_aplicar boolean, p_restore_seq integer default null) returns jsonb` (`{ resultado: 'ok' | 'status' | 'nao_pertence' | 'recusado', original_id: uuid | null, blob_url: text | null }`). Chaves aceitas em `p_linha`: as colunas da tabela menos `id`, `site_id`, `test_id`, `substituida_em`, `ausente_desde` (ignoradas).
+- Produces: `ab_aplicar_original(p_test_id uuid, p_original_id uuid, p_restore_seq integer default null) returns text` (`'ok' | 'status' | 'nao_pertence'`); `ab_registrar_original(p_test_id uuid, p_linha jsonb, p_aplicar boolean, p_restore_seq integer default null, p_so_publica boolean default false) returns jsonb` (`{ resultado: 'ok' | 'status' | 'nao_pertence' | 'recusado', original_id: uuid | null, blob_url: text | null }`). Chaves aceitas em `p_linha`: as colunas da tabela menos `id`, `site_id`, `test_id`, `substituida_em`, `ausente_desde` (ignoradas) e `status_do_teste` (sobrescrito pelo status do teste lido sob o `for update`, P C3). `p_so_publica` (spec 3 passo 5, Y R1-1): exige `origem = 'publica'`, `p_aplicar` e `p_restore_seq`, senão `raise`; insere, põe `substituida_em = now()` na pública anterior e aponta só `original_publica_id`. Com origem `enviada` e aplicação `ok`, a função remove `queue_start_failures` do `config` (Y R1-6).
 
 - [ ] **Passo 1: testes que falham:**
   - `aplicar em draft: vigente troca, substituida_em da anterior preenchida, da nova nula; variante is_original recebe blob_url, blob_key, dimensions 'LxA', thumbnail_dhash, file_size_bytes; original_thumbnail_url igual`.
@@ -217,6 +218,9 @@ it('encerrar: selo com nulo, 0, 480 e 1279; sem selo com 1280', () => {
   - `JSON com test_id/site_id de outro teste → gravados os de p_test_id` (19b).
   - `enviar, voltar à pública (aplicar publica), ler: substituida_em da pública nula, da enviada preenchida` (19b).
   - `corrida: conexão A begin + update status = 'active' sem commit; conexão B aplicar → espera; A commit; B → 'status'`.
+  - `JSON com status_do_teste 'draft' em teste active com p_restore_seq → linha com 'active'; em teste paused → 'paused'` (P C3).
+  - `p_so_publica com vigente enviada: muda só original_publica_id, a variante e original_thumbnail_url intocadas, substituida_em da pública velha preenchida, vigente intocada; p_so_publica com origem enviada → raise; sem p_restore_seq → raise` (Y R1-1).
+  - `enviada aceita com config {queue_start_failures: 3, rotacao: 'x'} → depois do registro config sem a chave e com rotacao intacta; linha publica não mexe no config` (Y R1-6).
   - `has_function_privilege('authenticated', ..., 'execute')` = false para as duas.
 - [ ] **Passo 2:** integração → FAIL.
 - [ ] **Passo 3:** implementar em `M` (a lógica de aplicar numa função interna chamada pelas duas, para não duplicar); reaplicar no `bythiago_int`; regenerar tipos.
@@ -240,7 +244,7 @@ it('encerrar: selo com nulo, 0, 480 e 1279; sem selo com 1280', () => {
   - `pai com ausente_desde → cópia nula`.
   - `delete do pai → ponteiros do filho intactos`; `aplicar a pública no filho (pública alta) → 'ok'`.
   - `dois create_playoff_test do mesmo pai em duas conexões pg → nenhum deadlock (os dois terminam em < 5 s; um pode falhar pela regra de hoje, nenhum com 40P01)` [PP-5].
-  - Grep de guarda no teste: o texto de `M` não contém `select \*` dentro de `create_playoff_test` (lê o arquivo e afirma).
+  - Grep de guarda no teste: o texto de `M` não contém `select \*` dentro de `create_playoff_test` (lê o arquivo e afirma); **e, no corpo de `create_playoff_test`, a chamada a `ab_garantir_original_publica` vem antes do `insert into public.ab_tests`** (Y M-6: o deadlock não se força de fora, a ordem do texto é a prova).
 - [ ] **Passo 2:** integração → FAIL.
 - [ ] **Passo 3:** implementar com lista de colunas explícita; `ab_garantir_original_publica(p_parent)` como primeira instrução.
 - [ ] **Passo 4:** integração das Tarefas 2–4 → PASS; reaplicar `M` duas vezes seguidas sem erro.
@@ -250,23 +254,26 @@ it('encerrar: selo com nulo, 0, 480 e 1279; sem selo com 1280', () => {
 
 **Files:**
 - Create: `Y/ab-original-leitura.ts`, `T/youtube/ab-original-leitura.test.ts`
-- Modify: `Y/thumb-fingerprint.ts` (nova `biggerCopyComOrigem`), `Y/ab-variant-dhash.ts:79-92`, `AB/actions.ts` (`createAbTest` :121, `batchStartTests` :~1421, nova `obterOriginalDoTeste`), `AB/queries.ts` (`lerOriginalDoTeste`; lista e detalhe com `SELECT_ORIGINAIS`), testes `T/ab-actions-create.test.ts`, `T/youtube/ab-variant-dhash.test.ts`
+- Modify: `Y/thumb-fingerprint.ts` (nova `biggerCopyComOrigem`), `Y/ab-variant-dhash.ts:79-92`, `AB/actions.ts` (`createAbTest` :121, `batchStartTests` :~1421, `updateAbTestType` :309-347, nova `obterOriginalDoTeste`), `AB/queries.ts` (`lerOriginalDoTeste`; lista e detalhe com `SELECT_ORIGINAIS`), testes `T/ab-actions-create.test.ts`, `T/youtube/ab-variant-dhash.test.ts`
 
 **Interfaces:**
 - Produces:
   - `type CopiaPublica = 'maxresdefault' | 'sddefault' | 'hqdefault'`; `biggerCopyComOrigem(probeUrl, f?): Promise<{ bytes: Buffer; copia: CopiaPublica } | null>` (`biggerCopy` passa a delegar a ela).
   - `guardarOriginalMaior(...)`: `Promise<{ url: string; pathname: string; dhash: string; largura: number | null; altura: number | null; bytes: number; sha256: string; copia: CopiaPublica }>`.
-  - `linhaDaPublica(g: Awaited<ReturnType<typeof guardarOriginalMaior>>): Record<string, unknown>` (JSON de `p_linha`: `origem 'publica'`, `registro 'captura'`, `status_do_teste 'draft'`, `formato_recebido/guardado 'jpeg'`, `sha256_recebido = sha256_guardado`, `bytes_* `, `copia_publica`), em `Y/ab-original-leitura.ts`.
+  - `linhaDaPublica(g: Awaited<ReturnType<typeof guardarOriginalMaior>>): Record<string, unknown>` (JSON de `p_linha`: `origem 'publica'`, `registro 'captura'`, `formato_recebido/guardado 'jpeg'`, `sha256_recebido = sha256_guardado`, `bytes_* `, `copia_publica`), em `Y/ab-original-leitura.ts`.
   - `interface IOriginalDoTeste` exatamente como o spec 6.1; `montarOriginalDoTeste(t: { status: string; test_type: string }, vigente: LinhaOriginal | null, publica: LinhaOriginal | null, userId: string | null): IOriginalDoTeste | null` (null para `title`); `type LinhaOriginal = { id; origem; largura; altura; bytes_guardados; blob_url; criado_em; enviado_por; nome_arquivo; ausente_desde; dhash }`; `SELECT_ORIGINAIS = 'vigente:ab_test_originais!ab_tests_original_vigente_id_fkey(...), publica:ab_test_originais!ab_tests_original_publica_id_fkey(...)'` (nome da FK conferido nos tipos gerados).
   - `lerOriginalDoTeste(testId: string): Promise<IOriginalDoTeste | null>` em `AB/queries.ts` (site do contexto; chama `ab_garantir_original_publica` se `original_publica_id` é nulo).
   - Server action `obterOriginalDoTeste(testId: string): Promise<IOriginalDoTeste | null>` em `AB/actions.ts` (com `requireEditUser`).
-  - `createAbTest` devolve também `original: IOriginalDoTeste | null`.
+  - `createAbTest` devolve também `original: IOriginalDoTeste | null`; `updateAbTestType` também (Y R1-3).
+  - `linhaDaPublica` não manda `status_do_teste` (a função grava o status real, P C3).
 
 - [ ] **Passo 1: testes que falham:**
   - `montarOriginalDoTeste`: pública 480×360 e vigente = pública → `publicaBaixa true, origem 'publica', podeUsarPublica false`; enviada vigente + pública 1280 + `paused` → `podeTrocar true, podeUsarPublica true`; mesma em `active` → `podeTrocar false, podeUsarPublica false`; `enviado_por = userId` → `enviadaPorMim true`; `ausente_desde` preenchido → `ausente true`; `test_type 'title'` → `null`; `publica.url` nunca é a URL da enviada.
   - `guardarOriginalMaior` sem `width` no metadata → `largura null` (não 0); a cópia `sddefault` → `copia 'sddefault'`; a queda para a hq → `'hqdefault'`.
-  - `createAbTest` (mock de supabase): chama `rpc('ab_registrar_original', { p_test_id, p_linha: objectContaining({ origem: 'publica', registro: 'captura', copia_publica }), p_aplicar: true })` depois do insert das variantes; RPC com erro → apaga o teste (como hoje) e devolve o erro de hoje; `thumbnail_hq_url` fora do YouTube → chama `ab_garantir_original_publica` em vez do registro.
-  - `batchStartTests`: a mesma chamada por teste criado.
+  - `createAbTest` (mock de supabase): **só para `thumbnail`/`combo`** (Y R1-3) chama `rpc('ab_registrar_original', { p_test_id, p_linha: objectContaining({ origem: 'publica', registro: 'captura', copia_publica }), p_aplicar: true })` depois do insert das variantes; RPC com erro → apaga o teste **e o blob da pública (`del(guardada.url)`, P menor 2)** e devolve o erro de hoje; `thumbnail_hq_url` fora do YouTube → chama `ab_garantir_original_publica` em vez do registro; teste `title` → nenhuma das duas RPCs.
+  - `dimensions` com `largura` nula grava `null`, não `'nullxnull'` (`largura && altura ? \`${largura}x${altura}\` : null`, P menor 1 e Y M-2), em `createAbTest` e `batchStartTests`.
+  - `batchStartTests`: a mesma chamada por teste criado (só `thumbnail`/`combo`); RPC com erro → apaga o teste e o blob e `continue`, como na falha de captura (Y M-2).
+  - `updateAbTestType` de `title` para `thumbnail` com pública 480 → chama `ab_garantir_original_publica` e devolve `original.publicaBaixa true`; para `title` → `original null` (Y R1-3).
 - [ ] **Passo 2:** `npx vitest run test/youtube/ab-original-leitura.test.ts test/youtube/ab-variant-dhash.test.ts test/ab-actions-create.test.ts` → FAIL.
 - [ ] **Passo 3:** implementar. A gravação direta de `blob_url/thumbnail_dhash/dimensions` na variante original em `createAbTest`/`batchStartTests` continua no insert (é a mesma pública); a RPC aponta os ids e grava a linha.
 - [ ] **Passo 4:** comandos da seção 3 → PASS.
@@ -343,15 +350,17 @@ Textos de `mensagemDaRecusa` (MB com uma casa e vírgula, `(bytes / 1024 / 1024)
 - [ ] **Passo 4:** → PASS.
 - [ ] **Passo 5:** commit `feat: validação e limpeza do arquivo da original`.
 
-### Tarefa 8: medição do mozjpeg em 12 Mpx e o `maxDuration` [PP-1]
+### Tarefa 8: prova do pior caso do mozjpeg; `maxDuration = 60` [PP-1]
 
 **Files:**
 - Create: `apps/web/scripts/medir-original-mozjpeg.ts` (não vai ao build; fora de `src/`)
 - Modify: ledger
 
-- [ ] **Passo 1:** script gera um JPEG 4000×3000 com EXIF+GPS e orientação 6 (força reencode) e um 4000×2250 com orientação 1 e XMP (força `sem_metadados`), roda `validarArquivoDaOriginal` 5× cada e imprime p50 e máximo em ms e o caminho usado. Rodar: `cd W/apps/web && npx tsx scripts/medir-original-mozjpeg.ts > /tmp/oea-mozjpeg.log 2>&1`.
-- [ ] **Passo 2:** critério de saída: máximo do reencode × 3 (margem para a CPU da Vercel, mais lenta que o M-series) arredondado para cima em múltiplos de 5 s, com piso 10 s e teto 60 s = `maxDuration` da rota. Se o máximo × 3 passar de 60 s: parar e levar ao controlador (a escada vira q90 → q85, decisão do spec). Anotar os números e o valor escolhido no ledger.
-- [ ] **Passo 3:** commit `chore: medição do mozjpeg da original` (script + ledger).
+`maxDuration` é **60 s, fixo** (convenção do repositório: 14 rotas; é teto, não custa nada em cobrança por uso; cobre também o corpo de 2 MB numa conexão lenta). Esta tarefa é uma **prova**, não um cálculo do valor, e **não para o plano por ruído** (ruling do controlador, P C2 × Y R1-5).
+
+- [ ] **Passo 1:** script gera o **pior caso real**: JPEG 5333×3000 (16 Mpx, o `LIMITE_PIXELS`), **afirmado ≤ 2 MB** (`assert`), orientação 6, conteúdo calibrado (ruído com blur 4) para que q95 **e** q90 estourem 2 MB e a escada rode inteira (q95, q90, q85), mais `dhashDosBytes`. `sharp.concurrency(1)`, 5 rodadas, rodando `validarArquivoDaOriginal` inteira. Imprime p50, máximo, caminho usado e a máquina. Rodar: `cd W/apps/web && npx tsx scripts/medir-original-mozjpeg.ts > /tmp/oea-mozjpeg.log 2>&1`. Não usar ruído cru de 4000×3000 > 2 MB: o passo 4 o recusa antes do processamento (Y R1-5, 25 a 28 s sem sentido).
+- [ ] **Passo 2:** critério: **máximo ≤ 20 s** (um terço do teto de 60 s; Phil mediu 6,0 a 6,2 s a 16 Mpx no M4 Pro, ×3 ≈ 18,6 s para a Vercel). Acima disso, levar ao controlador com os números. Anotar no ledger a máquina, a concorrência e os números.
+- [ ] **Passo 3:** commit `chore: prova do pior caso do mozjpeg da original` (script + ledger).
 
 ### Tarefa 9: orquestração do envio (`enviarOriginal`)
 
@@ -375,13 +384,15 @@ export interface PortasEnvio {
 export type RespostaEnvio =
   | { ok: true; original: IOriginalDoTeste }
   | { ok: false; status: 404 | 409 | 413 | 422 | 503; motivo: MotivoRecusa | 'nao_encontrado' | 'tipo'; mensagem: string; largura?: number; altura?: number; bytes?: number }
-export function enviarOriginal(p: PortasEnvio, a: { siteId: string; orgId: string | null; userId: string; testId: string; arquivo: { nome: string; bytes: Buffer } }): Promise<RespostaEnvio>
-export function lerTesteParaEnvio(supabase: SupabaseClient, siteId: string, testId: string): Promise<{ id; status; test_type; site_id; config; vigente: LinhaOriginal & { sha256_recebido: string | null }; publica: LinhaOriginal } | null>
-export function registrarRecusaAntesDoCorpo(p: PortasEnvio, t: { id: string; status: string }, contentLength: number, nome: string | null): Promise<void>  // passo 3(b): bytes_recebidos = Math.min(Number.isFinite(n) ? n : 0, 2_147_483_647)
-export function voltarParaPublica(p: PortasEnvio, a: { siteId: string; orgId: string | null; userId: string; testId: string }): Promise<RespostaEnvio>
+export type TesteParaEnvio = { id: string; status: string; test_type: string; site_id: string; config: Record<string, unknown>; vigente: LinhaOriginal & { sha256_recebido: string | null }; publica: LinhaOriginal }
+// Única leitura do teste (Y R1-7): 404 nao_encontrado, 422 tipo (sem linha), status fora de draft|paused|queued → grava A linha recusado/status_do_teste e devolve 409. A rota e voltarParaPublica chamam esta função; nenhuma outra camada relê ou regrava.
+export function prepararEnvio(p: PortasEnvio, a: { siteId: string; userId: string; testId: string; nomeArquivo: string | null }): Promise<{ teste: TesteParaEnvio } | RespostaEnvio>
+export function enviarOriginal(p: PortasEnvio, a: { siteId: string; orgId: string | null; userId: string; teste: TesteParaEnvio; arquivo: { nome: string; bytes: Buffer } }): Promise<RespostaEnvio>  // recebe o teste já lido; o status real é rechecado pela função SQL sob a trava
+export function registrarRecusaAntesDoCorpo(p: PortasEnvio, t: { id: string; site_id: string }, contentLength: number, nome: string | null): Promise<void>  // passo 3(b): só número finito (P menor 6); bytes_recebidos = Math.min(contentLength, 2_147_483_647)
+export function voltarParaPublica(p: PortasEnvio, a: { siteId: string; orgId: string | null; userId: string; testId: string }): Promise<RespostaEnvio>  // usa prepararEnvio
 ```
 
-Ordem em `enviarOriginal` (spec 4.3, passos 1, 2, 4, 4b, 5–9, 11–13): teste lido no site (ausente → 404 `nao_encontrado`; `title` → 422 `tipo`, sem linha); status fora de `draft|paused|queued` → linha `recusado/status_do_teste` (p_aplicar false) e 409; `bytes.length > MAX_BYTES` → linha `tamanho` com `bytes_recebidos` e 413; `sha256 = computeContentHash(bytes)`; vigente `enviada` com `sha256_recebido === sha256` → `ok` sem linha, sem `validar`, sem `put`; `validar`; recusa → linha `recusado` com tudo o que foi medido (`largura`, `altura`, `formato_recebido`, `bytes_*`, `dhash`, `dhash_distancia_publica`, `largura_publica`, `nome_arquivo`, `status_do_teste`, `enviado_por`) e 422 (`tamanho` 413); `put('ab-originals/<testId>/enviada-<sha256.slice(0,16)>.<jpg|png>', ..., { access: 'public', addRandomSuffix: true, contentType })` (falha → linha `armazenamento` e 503); `try { rpc ab_registrar_original(p_aplicar true) } catch { await del(url).catch(Sentry.captureException); throw }`; resultado ≠ `ok` → `del(retorno.blob_url)` e 409 `status_do_teste`; `ok` → remove `config.queue_start_failures` (update `config = config - 'queue_start_failures'` por `.eq('id')`), `revalidar()`, `auditar` (falha só vai ao log), devolve `lerOriginalDoTeste`.
+Ordem (spec 4.3, passos 1, 2, 4, 4b, 5–9, 11–13). `prepararEnvio` faz o passo 1 e 2 (teste lido no site: ausente → 404 `nao_encontrado`; `title` → 422 `tipo`, sem linha; status fora de `draft|paused|queued` → **a** linha `recusado/status_do_teste` (p_aplicar false) e 409). `enviarOriginal` começa em `bytes.length > MAX_BYTES` → linha `tamanho` com `bytes_recebidos` e 413; `sha256 = computeContentHash(bytes)`; vigente `enviada` com `sha256_recebido === sha256` **e `ausente_desde == null`** (P B1) → `ok` sem linha, sem `validar`, sem `put` (vigente ausente segue pela validação e pelo `put`: é a saída de "Envie de novo"); `validar`; recusa → linha `recusado` com tudo o que foi medido (`largura`, `altura`, `formato_recebido`, `bytes_*`, `dhash`, `dhash_distancia_publica`, `largura_publica`, `nome_arquivo`, `status_do_teste`, `enviado_por`) e 422 (`tamanho` 413); `put('ab-originals/<testId>/enviada-<sha256.slice(0,16)>.<jpg|png>', ..., { access: 'public', addRandomSuffix: true, contentType })` (falha → linha `armazenamento` e 503); `try { rpc ab_registrar_original(p_aplicar true) } catch { await del(url).catch(Sentry.captureException); throw }`; resultado ≠ `ok` → `del(retorno.blob_url)` e 409 `status_do_teste`; `ok` → (a remoção de `config.queue_start_failures` é da função SQL, Tarefa 3; o app não escreve `config`) `revalidar()`, `auditar` (falha só vai ao log), devolve `lerOriginalDoTeste`.
 
 `voltarParaPublica`: `publicaBaixa(publica.largura)` → 409 (D5); status fora → 409; `rpc ab_aplicar_original(testId, original_publica_id)` → `ok`, auditar `ab_original_publica_restaurada`; não apaga blob.
 
@@ -392,10 +403,12 @@ Ordem em `enviarOriginal` (spec 4.3, passos 1, 2, 4, 4b, 5–9, 11–13): teste 
   - `JPEG idêntico à pública 480×360 com vigente publica → pequeno, não ok` (Y R4-2).
   - `rpc lança → del com a URL do put e erro relançado`; `rpc devolve status → del com retorno.blob_url, 409` (critério 19).
   - `put lança → linha armazenamento, 503, sem del`.
-  - `ok remove queue_start_failures do config` [PP-5]; `auditar lança → resposta continua ok`.
+  - `ok chama a rpc e não faz nenhum update em ab_tests` (a remoção de `queue_start_failures` é provada na Tarefa 3) [PP-5]; `auditar lança → resposta continua ok`.
+  - `vigente enviada com ausente_desde preenchido + mesmo arquivo → validar e put chamados, rpc com p_aplicar true, resposta com original.ausente === false` (P B1).
+  - `status fora com prepararEnvio → exatamente uma linha recusado/status_do_teste e 409; enviarOriginal não relê o teste` (Y R1-7).
   - `nenhuma chamada a googleapis.com durante o envio` (critério 15).
   - `voltarParaPublica com pública baixa → 409; com pública 1280 e enviada vigente → ok e podeUsarPublica false na leitura` (critério 9).
-  - `registrarRecusaAntesDoCorpo com 99999999999 → bytes_recebidos 2147483647; com NaN → 0`.
+  - `registrarRecusaAntesDoCorpo com 99999999999 → bytes_recebidos 2147483647` (a função só recebe número finito; o caso Content-Length ausente/inválido é da rota, Tarefa 10).
 - [ ] **Passo 2:** `npx vitest run test/youtube/ab-original-enviar.test.ts` → FAIL.
 - [ ] **Passo 3:** implementar.
 - [ ] **Passo 4:** → PASS; seção 3.
@@ -408,16 +421,17 @@ Ordem em `enviarOriginal` (spec 4.3, passos 1, 2, 4, 4b, 5–9, 11–13): teste 
 
 **Interfaces:**
 - Consumes: Tarefa 9; `assertSameOriginFetch` (`apps/web/src/lib/oauth/origin.ts:117`), `getSiteContext`, `requireSiteScope`.
-- Produces: `POST /api/youtube/ab-tests/{id}/original` (multipart, campo `file`) e `DELETE` no mesmo caminho; `export const runtime = 'nodejs'`, `dynamic = 'force-dynamic'`, `maxDuration` = valor da Tarefa 8. Resposta 200 `{ ok: true, original }`; recusa `{ ok: false, motivo, mensagem, largura?, altura?, bytes? }` com o status de `RespostaEnvio`.
+- Produces: `POST /api/youtube/ab-tests/{id}/original` (multipart, campo `file`) e `DELETE` no mesmo caminho; `export const runtime = 'nodejs'`, `dynamic = 'force-dynamic'`, `maxDuration = 60` (Tarefa 8 é a prova). Resposta 200 `{ ok: true, original }`; recusa `{ ok: false, motivo, mensagem, largura?, altura?, bytes? }` com o status de `RespostaEnvio`.
 
-Ordem no topo dos dois métodos (spec 4.2): `assertSameOriginFetch(req)` (403 sem tocar em mais nada) → `getSiteContext()` + `requireSiteScope({ area: 'cms', siteId, mode: 'edit' })` (403) → `lerTesteParaEnvio` (404/422/409 de status antes do 413) → `Content-Length > MAX_BYTES + 64 * 1024` → `registrarRecusaAntesDoCorpo` e 413 JSON sem chamar `formData()` → `formData()` → `enviarOriginal`.
+Ordem no topo dos dois métodos (spec 4.2): `assertSameOriginFetch(req)` (403 sem tocar em mais nada) → `getSiteContext()` + `requireSiteScope({ area: 'cms', siteId, mode: 'edit' })` (403) → `prepararEnvio` (404/422/409 de status, que já grava a linha, antes do 413) → `Content-Length` numérico finito `> MAX_BYTES + 64 * 1024` → `registrarRecusaAntesDoCorpo` e 413 JSON sem chamar `formData()` (ausente ou inválido: segue para `formData()` sem linha antes do corpo, P menor 6) → `try { formData() } catch` → 400 `{ ok:false, motivo:'rede' }` sem linha e sem Sentry (cancelamento do cliente, Y M-3); campo `file` ausente ou não-`File` → 400 `ilegivel` sem linha → `enviarOriginal({ teste, … })`.
 
 - [ ] **Passo 1: testes que falham** (`requireSiteScope` simulado, como `T/ab-poll-stats-route.test.ts`; critério 8):
   - `sec-fetch-site: same-site → 403, requireSiteScope e put não chamados`.
   - `reporter (insufficient_access) → 403`; `teste de outro site → 404`.
   - `Content-Length 3000000 → 413 JSON { ok:false, motivo:'tamanho', bytes:3000000 }, formData não chamado, linha recusado`.
   - `Content-Length 99999999999 → 413 JSON e bytes_recebidos 2147483647`.
-  - `teste active com Content-Length 3000000 → 409 (status ganha do 413)`.
+  - `teste active com Content-Length 3000000 → 409 (status ganha do 413) e exatamente uma chamada de registro com status_do_teste` (Y R1-7).
+  - `Content-Length ausente ou 'abc' → segue para formData, nenhuma linha antes do corpo`; `formData lança (abort) → 400 rede, sem linha, Sentry não chamado`; `file ausente ou string → 400 ilegivel, sem linha` (Y M-3, P menor 6).
   - `POST válido → 200 com original`; `DELETE com pública baixa → 409`.
 - [ ] **Passo 2:** `npx vitest run test/ab-original-route.test.ts` → FAIL.
 - [ ] **Passo 3:** implementar (a rota só costura; nenhuma regra nova aqui). A porta `auditar` é o insert direto em `audit_log` como `Y/ab-restore-acoes.ts:53-58` (`actor_user_id`, `org_id`, `site_id`, `action`, `resource_type: 'ab_test'`, `resource_id`, `after_data` sem URL do Blob); o nome do arquivo passa por `sanitizeFilename` e corta em 120 caracteres antes de `enviarOriginal`.
@@ -432,11 +446,11 @@ Ordem no topo dos dois métodos (spec 4.2): `assertSameOriginFetch(req)` (403 se
 
 **Interfaces:**
 - Consumes: Tarefas 1, 3, 5.
-- Produces: `startAbTestInternal(...): Promise<{ ok: boolean; error?: string; codigo?: 'original_baixa' | 'original_ausente' }>`; `PortasInicio` ganha `sondar?: (ytId: string) => Promise<ThumbProbe>` (padrão `probeThumb(ytId, null)`), `consultarBlob?: (url: string) => Promise<'ok' | 'ausente' | 'erro'>` (padrão `head` de `@vercel/blob`; `BlobNotFoundError` → `ausente`), `guardar?: typeof guardarOriginalMaior`. Constantes de texto exportadas: `MSG_ORIGINAL_BAIXA = 'Envie a original em alta resolução (1280 de largura ou mais) para iniciar o teste.'`, `MSG_ORIGINAL_AUSENTE_INICIO = 'A original enviada não está mais guardada. Envie de novo para iniciar.'`, `MSG_THUMB_MUDOU = 'A thumbnail do vídeo mudou no YouTube depois do envio da original. Confira a thumbnail atual e envie a original de novo.'`.
+- Produces: `startAbTestInternal(...): Promise<{ ok: boolean; error?: string; codigo?: 'original_baixa' | 'original_ausente' }>`; `PortasInicio` ganha `sondar?: (ytId: string) => Promise<ThumbProbe>` (padrão `probeThumb(ytId, null)`), `consultarBlob?: (url: string) => Promise<'ok' | 'ausente' | 'erro'>` (padrão `head` de `@vercel/blob`; `BlobNotFoundError` → `ausente`), `guardar?: typeof guardarOriginalMaior`, `medirBlob?: (url: string) => Promise<string | null>` (padrão `dhashDoArquivo`, Blob cota 0), `del?: typeof import('@vercel/blob').del`. A sonda da guarda é **guardada e reusada no passo 2** (uma ida ao ytimg por início, Y M-4). Constantes de texto exportadas: `MSG_ORIGINAL_BAIXA = 'Envie a original em alta resolução (1280 de largura ou mais) para iniciar o teste.'`, `MSG_ORIGINAL_AUSENTE_INICIO = 'A original enviada não está mais guardada. Envie de novo para iniciar.'`, `MSG_THUMB_MUDOU = 'A thumbnail do vídeo mudou no YouTube depois do envio da original. Confira a thumbnail atual e envie a original de novo.'`.
 
-Regras (spec 5.2): a leitura do teste passa a trazer `original_vigente_id, original_publica_id, parent_test_id` e as duas linhas (`SELECT_ORIGINAIS`); `comThumb` sobe para antes da reivindicação. Com `comThumb`: `original_publica_id` nulo → `rpc ab_garantir_original_publica` e relê. Vigente `enviada` → `consultarBlob`: `ausente` → `update ab_test_originais set ausente_desde = now() where id = vigente and ausente_desde is null` e `{ ok:false, error: MSG_ORIGINAL_AUSENTE_INICIO, codigo: 'original_ausente' }`; `erro` → "Não foi possível ler a thumbnail atual do vídeo. Tente de novo." Pública baixa, vigente `publica` e `parent_test_id` nulo → `sondar`: sem `dhash` → "Tente de novo" (texto acima); `hamming(sonda.dhash, publica.dhash) > DHASH_MAX_SAME` → segue; igual (ou `publica.dhash` nulo e a sonda veio) → `{ ok:false, error: MSG_ORIGINAL_BAIXA, codigo: 'original_baixa' }`, nenhuma escrita.
+Regras (spec 5.2): a leitura do teste passa a trazer `original_vigente_id, original_publica_id, parent_test_id` e as duas linhas (`SELECT_ORIGINAIS`); `comThumb` sobe para antes da reivindicação. Com `comThumb`: `original_publica_id` nulo → `rpc ab_garantir_original_publica` e relê. Vigente `enviada` → `consultarBlob`: `ausente` → `update ab_test_originais set ausente_desde = now() where id = vigente and ausente_desde is null` e `{ ok:false, error: MSG_ORIGINAL_AUSENTE_INICIO, codigo: 'original_ausente' }`; `erro` → "Não foi possível ler a thumbnail atual do vídeo. Tente de novo." Pública baixa, vigente `publica` e `parent_test_id` nulo → `sondar`: sem `dhash` → "Tente de novo" (texto acima); `hamming(sonda.dhash, publica.dhash) > DHASH_MAX_SAME` → segue; igual → `{ ok:false, error: MSG_ORIGINAL_BAIXA, codigo: 'original_baixa' }`, nenhuma escrita. **`publica.dhash` nulo não recusa** (Y R1-2; o spec 5.2 só recusa com dHash igual): segue para a reivindicação e o passo 2 captura, mede e decide.
 
-Passo 2: base = `publica.dhash`. Vigente `publica` e mudou (ou base nula) → `guardar`, `rpc ab_registrar_original(testId, linhaDaPublica(g), true, seq)`; resultado ≠ `ok` → `desfazer(MSG_EM_ANDAMENTO)`; `publicaBaixa(g.largura)` e `parent_test_id` nulo → `desfazer(MSG_ORIGINAL_BAIXA)`. Vigente `enviada` e mudou → `desfazer(MSG_THUMB_MUDOU)`, sem `guardar`. **Decisão do plano (o spec não cobre):** vigente `enviada` com `publica.dhash` nulo compara contra `vigente.dhash`; os dois nulos → segue sem regravar. O `update` direto de `ab_test_variants` (:333-337) e `patchTeste.original_thumbnail_url` saem.
+Passo 2: base = `publica.dhash`. Vigente `publica` e mudou (ou base nula) → `guardar`, `try { rpc ab_registrar_original(testId, linhaDaPublica(g), true, seq) } catch { await del(g.url).catch(Sentry.captureException); throw }`; resultado ≠ `ok` → `del(retorno.blob_url)` (P C4) e `desfazer(MSG_EM_ANDAMENTO)`; `publicaBaixa(g.largura)` e `parent_test_id` nulo → `desfazer(MSG_ORIGINAL_BAIXA)`. Vigente `enviada` e mudou → `guardar` e `ab_registrar_original(testId, linhaDaPublica(g), true, seq, p_so_publica => true)` (mesmo `try/del`), depois `desfazer(MSG_THUMB_MUDOU)` (Y R1-1: o reenvio passa a comparar com a pública nova e o `DELETE` vale se ela for alta). **Decisão do plano (o spec cobre em 5.2, r6):** vigente `enviada` com `publica.dhash` nulo mede primeiro a pública guardada (`medirBlob(publica.blob_url)`, P menor 3) e só sem base compara contra `vigente.dhash`; os dois nulos → segue sem regravar; registrar no ledger. O `update` direto de `ab_test_variants` (:333-337) e `patchTeste.original_thumbnail_url` saem.
 
 - [ ] **Passo 1: testes que falham** (critérios 10, 10b, 10c, 11, 12; Review Focus 3):
   - `pública 480×360, sem enviada, sonda igual → codigo original_baixa, status draft, nenhum update`.
@@ -448,6 +462,11 @@ Passo 2: base = `publica.dhash`. Vigente `publica` e mudou (ou base nula) → `g
   - `original_publica_id nulo → ab_garantir chamado antes da guarda`.
   - `registrar devolve 'status' → desfaz com MSG_EM_ANDAMENTO`.
   - `teste title → nenhuma das chamadas novas`.
+  - `pública sem dHash nem dimensões, sonda com dHash → chega ao passo 2; guardar devolve 1280 → active; devolve 480 → draft com MSG_ORIGINAL_BAIXA e a linha nova gravada` (Y R1-2).
+  - `enviada vigente e no ar diferente → guardar chamado uma vez, registrar com p_so_publica true, desfaz com MSG_THUMB_MUDOU; um 2º início com a enviada igual ao no-ar novo → active` (Y R1-1).
+  - `registrar devolve 'status' → del chamado com retorno.blob_url antes do desfazer; registrar lança → del com g.url e erro relançado` (P C4).
+  - `enviada vigente, publica.dhash nulo, no-ar igual à enviada → active; diferente → desfaz com MSG_THUMB_MUDOU; publica.dhash medido do Blob tem prioridade sobre vigente.dhash` (Y M-1, P menor 3).
+  - `a guarda e o passo 2 sondam o ytimg uma vez só` (Y M-4).
 - [ ] **Passo 2:** `npx vitest run test/ab-start-internal.test.ts` → FAIL.
 - [ ] **Passo 3:** implementar.
 - [ ] **Passo 4:** → PASS; seção 3 (os testes antigos do passo 2 que esperam o `update` da variante mudam para esperar a RPC, no mesmo commit).
@@ -472,11 +491,13 @@ Passo 2: base = `publica.dhash`. Vigente `publica` e mudou (ou base nula) → `g
 ### Tarefa 13: restauração com reserva quando a enviada some (D11, settle)
 
 **Files:**
-- Modify: `Y/ab-settle.ts` (`Retrato`, `lerRetratoPadrao` :197, `fonteDoOriginal` :107 e os três usos :260, :304, :407, `restaurarCampos` :404-417), `Y/ab-restore.ts` (lista comentada de `motivo`), `Y/ab-restore-avisos.ts`
-- Test: `T/youtube/ab-settle.test.ts`, `T/youtube/ab-watchdog-nova-tentativa.test.ts`
+- Modify: `Y/ab-settle.ts` (`Retrato`, `lerRetratoPadrao` :197, `fonteDoOriginal` :107 e os três usos :260, :304, :407, `restaurarCampos` :404-417), `Y/ab-restore.ts` (lista comentada de `motivo`), `Y/ab-restore-avisos.ts`, `Y/ab-variant-dhash.ts` (`dhashDasVariantes` :62-73), `Y/ab-watchdog-drift.ts:159` (repassa o id)
+- Test: `T/youtube/ab-settle.test.ts`, `T/youtube/ab-variant-dhash.test.ts`, `T/youtube/ab-watchdog-nova-tentativa.test.ts`
 
 **Interfaces:**
 - Produces: `Retrato.original?: { vigenteId: string | null; vigenteOrigem: 'publica' | 'enviada' | null; reservaUrl: string | null }` (opcional: retratos falsos antigos seguem válidos); `fonteDoOriginal(r): { principal: string | null; reserva: string | null }` (reserva só com vigente `enviada`, `ehCopiaNoBlob` e ≠ principal); `export const MOTIVO_ORIGINAL_AUSENTE = 'original_enviada_ausente'`; `avisarOriginalAusente(supabase, t: { id; site_id; name }): Promise<void>` em `ab-restore-avisos.ts` (`claimAlert(supabase, 'ab-original-ausente:<id>', '30 days')`; mensagem: `'A original enviada do teste "<nome>" não está mais guardada. O vídeo voltou para a cópia pública. Abra o teste e envie a original de novo.'`).
+
+Regra (C1 de Phil): `dhashDasVariantes`, ao preencher o dHash da variante `is_original`, grava também `update ab_test_originais set dhash = $1 where id = <original_vigente_id> and dhash is null and blob_url = <url medida>` (a mesma guarda F-P7); o chamador passa `original_vigente_id` (`Retrato.original.vigenteId` no settle; a leitura do teste no vigia). Sem isso a variante e a linha divergem e a próxima aplicação apaga o dHash medido.
 
 Regra: em `restaurarCampos`, destino `original`: `fetchVariantImageBuffer(principal)`; `YouTubeApiError` com `chamada === 'blob'` e `status === 404` e `reserva` → lê a reserva e escreve; campo `montar(c, { estado: 'ok', escreveu: true, motivo: MOTIVO_ORIGINAL_AUSENTE })`; marca `ausente_desde` (`.is('ausente_desde', null)`); `Sentry.captureMessage(..., 'warning')`; `avisarOriginalAusente` (falha só vai ao Sentry). Sem reserva: o comportamento de hoje (`falhou`).
 
@@ -487,6 +508,7 @@ Regra: em `restaurarCampos`, destino `original`: `fetchVariantImageBuffer(princi
   - `vigente publica 404 → falhou (sem reserva, a mesma URL)`.
   - `nova tentativa do vigia com enviada 404 → usa a reserva` (em `ab-watchdog-nova-tentativa.test.ts`).
   - `lerRetratoPadrao traz original com vigenteOrigem e reservaUrl`.
+  - `variante original e linha vigente sem dHash → depois do settle as duas têm o mesmo dHash; linha com blob_url diferente não é tocada; linha com dHash já preenchido não muda` (P C1).
 - [ ] **Passo 2:** `npx vitest run test/youtube/ab-settle.test.ts test/youtube/ab-watchdog-nova-tentativa.test.ts` → FAIL.
 - [ ] **Passo 3:** implementar.
 - [ ] **Passo 4:** → PASS; seção 3.
@@ -557,9 +579,9 @@ export function enviarOriginalXhr(testId: string, arquivo: File, onProgresso: (p
 export function removerOriginalFetch(testId: string): Promise<{ ok: true; original: IOriginalDoTeste } | { ok: false; recusa: RecusaDaOriginal }>
 ```
 
-Regras: `podeAvancarComOriginal` = tipo `title` → `true`; senão `!(original?.publicaBaixa && original.origem !== 'enviada') && envioOriginal.fase !== 'enviando'`. `CANCELADO` volta a `parado` e zera `arquivo` (mockup: "Cancelar envio" volta a B sem o arquivo); `CAIU` guarda o `arquivo` para "Tentar de novo". `enviarOriginalXhr`: recusa `file.size > MAX_BYTES` antes de abrir o XHR (texto `tamanho` com `bytesRecebidos`); 413 sem JSON → `tamanho`; `onerror`/`ontimeout` → `rede`; corpo JSON → como veio. O `File` nunca vai a `saveDraft`. Os dois `stepIsValid(2, …)` e o "Iniciar teste" (passo 4) passam a exigir `podeAvancarComOriginal`.
+Regras: `podeAvancarComOriginal` = tipo `title` → `true`; tipo de imagem com `original === null` → `false` (esperando a leitura), com `motivoDoBloqueio` "Conferindo a original do vídeo…" e, se a leitura falhou, mensagem com "Tentar de novo" (Y R1-3b/c); senão `!(original.publicaBaixa && original.origem !== 'enviada') && envioOriginal.fase !== 'enviando'`. `CANCELADO` volta a `parado` e zera `arquivo` (mockup: "Cancelar envio" volta a B sem o arquivo); `CAIU` guarda o `arquivo` para "Tentar de novo". `enviarOriginalXhr`: recusa `file.size > MAX_BYTES` antes de abrir o XHR (texto `tamanho` com `bytesRecebidos`); 413 sem JSON → `tamanho`; `onerror`/`ontimeout` → `rede`; corpo JSON → como veio. **`xhr.timeout = 70_000` (`maxDuration` 60 s + 10 s, P C2)** para a tela não declarar "caiu" com o servidor ainda trabalhando. O `File` nunca vai a `saveDraft`. Os dois `stepIsValid(2, …)` e o "Iniciar teste" (passo 4) passam a exigir `podeAvancarComOriginal`.
 
-- [ ] **Passo 1: testes que falham:** `stepIsValid(2) falso com pública baixa e origem publica; verdadeiro com enviada; falso durante 'enviando'; title ignora`; `CANCELADO zera arquivo e volta a parado`; `CAIU guarda o arquivo`; `FIM põe a original e volta a parado`; `XHR: 2,5 MB recusado sem abrir conexão; 413 sem JSON → tamanho; erro de rede → rede; progresso chega ao callback; cancelar chama abort`; Review Focus 2: `depois de CAIU, SET_ORIGINAL com origem enviada (releitura) → stepIsValid verdadeiro`.
+- [ ] **Passo 1: testes que falham:** `stepIsValid(2) falso com pública baixa e origem publica; verdadeiro com enviada; falso durante 'enviando'; falso com tipo de imagem e original null; title ignora`; `CANCELADO zera arquivo e volta a parado`; `CAIU guarda o arquivo`; `FIM põe a original e volta a parado`; `XHR: 2,5 MB recusado sem abrir conexão; 413 sem JSON → tamanho; erro de rede → rede; progresso chega ao callback; cancelar chama abort`; Review Focus 2: `depois de CAIU, SET_ORIGINAL com origem enviada (releitura) → stepIsValid verdadeiro`.
 - [ ] **Passo 2:** `npx vitest run test/youtube/ab-envio-original-reducer.test.ts test/youtube/ab-original-xhr.test.ts test/youtube/ab-wizard-reducer.test.tsx` → FAIL.
 - [ ] **Passo 3:** implementar; o reducer inline delega as ações novas a `reduzirEnvioOriginal`.
 - [ ] **Passo 4:** → PASS.
@@ -568,8 +590,8 @@ Regras: `podeAvancarComOriginal` = tipo `title` → `true`; senão `!(original?.
 ### Tarefa 17: telas do assistente (A–G)
 
 **Files:**
-- Create: `AB/_components/original-do-teste.tsx`, `T/youtube/ab-original-do-teste.test.tsx` (`// @vitest-environment jsdom`)
-- Modify: `AB/_components/step-variantes.tsx` (bloco acima do cartão A, só `thumbnail`/`combo`), `AB/_components/step-revisar.tsx` (linha "Original para restaurar", "Iniciar teste" com `aria-disabled` + motivo + "Enviar original"), `AB/_components/ab-create-wizard.tsx` (despacha `SET_ORIGINAL` a partir de `createAbTest` e, em F, de `obterOriginalDoTeste(existingDraftId)` no carregamento; foco na área ao voltar de G)
+- Create: `AB/_components/original-do-teste.tsx`, `T/youtube/ab-original-do-teste.test.tsx` e `T/ab-wizard-original.test.tsx` (`// @vitest-environment jsdom`)
+- Modify: `AB/_components/step-variantes.tsx` (bloco acima do cartão A, só `thumbnail`/`combo`), `AB/_components/step-revisar.tsx` (linha "Original para restaurar", "Iniciar teste" com `aria-disabled` + motivo + "Enviar original"), `AB/_components/ab-create-wizard.tsx` (despacha `SET_ORIGINAL` a partir de `createAbTest`, de `updateAbTestType` (troca de tipo do rascunho, Y R1-3b) e, em F, de `obterOriginalDoTeste(existingDraftId)` no carregamento; foco na área ao voltar de G; **`goNext` e `handleSubmit(true)` checam `podeAvancarComOriginal`**: o Próximo usa `aria-disabled`, então o `onClick` dispara, Y R1-4)
 
 **Interfaces:**
 - Consumes: Tarefa 16.
@@ -578,6 +600,8 @@ Regras: `podeAvancarComOriginal` = tipo `title` → `true`; senão `!(original?.
 Desenho e textos: os do mockup aprovado (`index.html`, estados A–H), com as trocas do spec 6.2: E3 cobre `ilegivel` e `armazenamento` com os textos da Tarefa 7 e o fecho "Sem a original guardada, o teste não inicia."; E2 com a pública baixa: "O envio de <nome> parou. A original não foi guardada, e o teste só inicia com ela. Tente de novo."; D usa `recusa.mensagem` do servidor (sem prefixo). Tokens com rgba/hex literais (sem `color-mix`), botões 36 px (44 px a ≤ 480 px), área de envio `label` de `input type=file` com mínimo de 120 px e foco visível; "Escolher arquivo" a ≤ 480 px. Ao cancelar ou cair: `obterOriginalDoTeste` e `SET_ORIGINAL` (se o servidor terminou, mostra C).
 
 - [ ] **Passo 1: testes que falham:** `pública 1280 → A com link "Enviar original"`; `pública baixa → B com "Arquivo original (obrigatório)", Próximo aria-disabled com motivo visível`; `enviada → C com "Não será usada"/"Será usada"; pública baixa só "Trocar arquivo"; pública alta também "Remover e usar a pública"`; `recusa → D com a mensagem do servidor`; `enviando → barra e "Cancelar envio"`; `caiu → "Tentar de novo" reenvia o mesmo File`; `F: existingDraftId com enviada → abre em C`; `G: Iniciar aria-disabled, "Enviar original" leva ao passo 2 e foca a área`; `teste title → bloco ausente e linha de G ausente`; nenhum "undefined" no DOM.
+  - **Wizard real (Y R1-4)**, no padrão de `test/ab-wizard-variante-vazia.test.tsx` (`vi.mock` de `actions`; atravessa o `stepIsValid` inline que vai para produção): `createAbTest` devolve `original.publicaBaixa = true`, `origem 'publica'`: (i) Próximo com `aria-disabled="true"` e o motivo visível; (ii) clicar não muda de passo; (iii) no passo 4, "Ativar teste" não chama `startAbTest`; (iv) depois do envio aceito (XHR simulado), o Próximo libera. Troca de tipo `title` → `thumbnail` com pública 480 → Próximo bloqueado até `updateAbTestType` devolver `original`.
+  - **Abort tardio no componente (Y M-5, Review Focus 2):** XHR simulado com `onerror` e `obterOriginalDoTeste` devolvendo `enviada` → mostra C.
 - [ ] **Passo 2:** `npx vitest run test/youtube/ab-original-do-teste.test.tsx test/youtube/ab-step-variantes.test.tsx` → FAIL.
 - [ ] **Passo 3:** implementar.
 - [ ] **Passo 4:** → PASS; seção 3.
@@ -639,16 +663,43 @@ Depende do dono enviar um arquivo-mestre de uma thumbnail do canal (pedido feito
 1. Ordem do CLAUDE.md: **migration antes do código**. Numa árvore em dia com `origin/staging`: conferir que o carimbo de `M` é posterior à última migration de `origin/staging` (se não, `npm run db:new ab_original_em_alta` de novo e mover o corpo; `cmp` idêntico); reservar a vez na fila `.superpowers/sdd/a5/fila-do-db-push.md`.
 2. Antes do push, leitura de produção (só `select`, `supabase db query --linked`): `select count(*) from ab_tests where test_type in ('thumbnail','combo')` e as três originais de hoje (ids e `dimensions`) no ledger.
 3. `npm run db:push:prod` (depois do portão; o agente roda, memória "comando do dono"); tipos já gerados na Tarefa 2 conferidos contra produção (`npx supabase gen types typescript --linked` sem diff).
-4. Conferências logo depois da migration (spec seção 3 passo 7): `original_publica_id is null` em `thumbnail`/`combo` = 0; `registro = 'backfill'` = 3; variante original × vigente com `blob_url` ou `dhash` divergentes = 0 linhas; `resultado = 'recusado' and blob_url is not null` = 0.
-5. Push a `staging` (≤ 3 por dia, crédito da Vercel até 27/10), CI verde, promoção ao `main` na janela combinada; **repetir a conferência 4** depois do deploy da Vercel (a janela entre migration e código deixa o `createAbTest` antigo criar teste sem linha; `ab_garantir_original_publica` cobre na leitura, a conferência prova).
+4. Conferências logo depois da migration (spec seção 3 passo 7): `original_publica_id is null` em `thumbnail`/`combo` = 0; `registro = 'backfill'` = o `count(*)` de `thumbnail`/`combo` lido no passo 2 (não 3: contam também playoffs, testes fora do ytimg e criados na janela, P menor 4); variante original × vigente com `blob_url` ou `dhash` divergentes = 0 linhas; `resultado = 'recusado' and blob_url is not null` = 0.
+5. Push a `staging` (≤ 3 por dia, crédito da Vercel até 27/10), CI verde, promoção ao `main` na janela combinada; **repetir a conferência 4** depois do deploy da Vercel (a janela entre migration e código deixa o `createAbTest` antigo criar teste sem linha; `ab_garantir_original_publica` cobre na leitura, a conferência prova). Se a conferência de divergência variante × vigente der > 0 (o passo 2 antigo regravou a variante e não a linha, P menor 5), rodar só nesses ids: `update ab_test_originais o set blob_url = v.blob_url, dhash = v.thumbnail_dhash, largura = split_part(v.dimensions,'x',1)::int, altura = split_part(v.dimensions,'x',2)::int from ab_tests t join ab_test_variants v on v.test_id = t.id and v.is_original where o.id = t.original_vigente_id and o.registro = 'backfill' and o.origem = 'publica' and v.dimensions ~ '^[1-9][0-9]*x[1-9][0-9]*$' and (o.blob_url is distinct from v.blob_url or o.dhash is distinct from v.thumbnail_dhash)` e conferir de novo = 0.
 6. Semente da referência do Cowork (Tarefa 15). `PIPELINE_COWORK_KEY`: só a permanente.
 7. Ledger: "envio da original: verificado em produção só por leitura; primeiro envio real pelo dono pendente".
 
 ## 6. Riscos
 
 - **D13 depende do dono** (Tarefa 19). Sem ela, uma imagem diferente vira a A do experimento e fica no ar depois do teste. Com ela, um arquivo-mestre com distância > 6 seria recusado: a Tarefa 21 mede antes.
-- **`maxDuration`** fixado por medição local × 3 (Tarefa 8); a CPU real da Vercel não foi medida. Se a rota estourar, o envio cai em E2 (a tela relê e mostra a verdade do servidor); o `del` do órfão não roda se o processo morre.
-- **Decisão do plano fora do spec** (Tarefa 11): vigente `enviada` com `publica.dhash` nulo compara contra `vigente.dhash`. Afeta só testes legados sem dHash (1 de 3 em produção tem).
+- **`maxDuration = 60`** fixo; a Tarefa 8 prova ≤ 20 s no pior caso local (16 Mpx, escada inteira); a CPU real da Vercel não foi medida (a margem 3× cobre). Se a rota estourar, o envio cai em E2 (a tela relê e mostra a verdade do servidor); o `del` do órfão não roda se o processo morre.
+- **Decisão do plano fora do spec** (Tarefa 11): vigente `enviada` com `publica.dhash` nulo compara contra `vigente.dhash`, depois de medir a pública guardada no Blob (r2). Afeta só testes legados sem dHash (1 de 3 em produção tem).
 - **Reducer duplicado** (`ab-create-wizard.tsx` inline e `Y/ab-wizard-reducer.ts`): os dois `stepIsValid` chamam `podeAvancarComOriginal`; a unificação fica fora deste lote.
 - **Captura sem `ytimg`** (`createAbTest` com `thumbnail_hq_url` de outra origem): a linha nasce com `registro = 'backfill'`, não `captura`; declarado.
 - Herdados do spec (seção 10): corrida troca × restauração em teste pausado, blob órfão se o processo morre entre `put` e `catch`, PNG de paleta que cresce, COM em JPEG que vai intacto, blobs substituídos não apagados.
+
+---
+
+## 7. Decisões da r2
+
+Achados de Phil (P) e Yannis (Y) sobre a r1 (`a5d7d33eb`). Ruling do controlador: `maxDuration` fixo em 60 s (Y R1-5), a Tarefa 8 vira prova de pior caso ≤ 20 s (P C2) sem parar o plano por ruído; spec r6 leva B1 e R1-1. A Tarefa 19 (D13, aguarda o dono) segue isolada e intocada.
+
+| Achado | Tarefa | Como ficou |
+|---|---|---|
+| P B1 reenvio com a enviada ausente | 9 (e spec 4.3 4b) | Idempotência exige `ausente_desde == null`; teste de reenvio com ausente |
+| P C1 dHash medido só na variante | 13 | `dhashDasVariantes` grava também na linha vigente (guarda `dhash is null` e `blob_url`) |
+| P C2 / Y R1-5 `maxDuration` | 8, 10, 16 | 60 s fixo; Tarefa 8 prova pior caso ≤ 20 s; XHR com `timeout` de 70 s |
+| P C3 `status_do_teste` da pública | 3, 5 | A função sobrescreve com o status lido; `linhaDaPublica` não manda o campo |
+| P C4 blob órfão no passo 2 | 11 | `try/del` e `del(retorno.blob_url)` |
+| P menores 1, 2 e Y M-2 | 5 | `dimensions` nulo; `del` do blob no rollback; lote apaga e continua |
+| P menor 3 | 11 | Mede a pública guardada antes de comparar com a enviada |
+| P menores 4 e 5 | 5 (seção) | Contagem esperada de `backfill` lida antes; conserto da janela migration → código |
+| P menor 6 | 9, 10 | `registrarRecusaAntesDoCorpo` só com número finito; Content-Length inválido segue ao corpo |
+| P menor 7 | 2 | Testes de `23514` nos checks |
+| Y R1-1 beco sem saída (spec r6) | 3, 11 | `p_so_publica`; passo 2 atualiza só a pública e desfaz |
+| Y R1-2 pública sem dHash | 11 | Guarda não recusa; passo 2 decide |
+| Y R1-3 tipo `title` e troca de tipo | 5, 16, 17 | RPC só para imagem; `updateAbTestType` devolve `original`; `original null` bloqueia |
+| Y R1-4 testes na cópia morta | 17 | Teste do wizard real; `goNext` e `handleSubmit(true)` checam o predicado |
+| Y R1-6 `queue_start_failures` | 3, 9 | Remoção dentro de `ab_registrar_original`; o app não escreve `config` |
+| Y R1-7 leitura dupla do teste | 9, 10 | `prepararEnvio` única; a linha de status é gravada uma vez |
+| Y R1-8 teste de concorrência fraco | 2 | Intercalação forçada; rodar contra a função sem trava |
+| Y M-1, M-3, M-4, M-5, M-6 | 11, 10, 11, 17, 4 | Testes do legado `enviada`; `formData` com `catch`; sonda única; abort tardio no componente; guarda textual da ordem do playoff |
