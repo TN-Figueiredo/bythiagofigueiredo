@@ -137,30 +137,30 @@ export async function createAbTest(
     .single()
 
   if (videoError || !video) {
-    return { ok: false, error: 'Video not found' }
+    return { ok: false, error: 'Vídeo não encontrado.' } // TEXTO-A-REVISAR
   }
 
   // Reject Shorts
   if (isCertainShort(video.duration_seconds ?? 0)) {
-    return { ok: false, error: 'Shorts (≤ 60s) are not eligible for A/B tests' }
+    return { ok: false, error: 'Shorts (até 60 s) não entram no A/B Lab.' } // TEXTO-A-REVISAR
   }
 
   if (!video.thumbnail_hq_url) {
-    return { ok: false, error: 'Video has no thumbnail — sync first' }
+    return { ok: false, error: 'Este vídeo ainda não tem thumbnail no Lab. Sincronize os vídeos e tente de novo.' } // TEXTO-A-REVISAR
   }
 
-  // Check for existing active/draft/paused test on the same video
+  // Check for existing active/draft/paused/queued test on the same video
   const { data: existing } = await supabase
     .from('ab_tests')
     .select('id')
     .eq('youtube_video_id', input.youtube_video_id)
     .eq('site_id', siteId)
-    .in('status', ['draft', 'active', 'paused'])
+    .in('status', ['draft', 'active', 'paused', 'queued'])
     .limit(1)
     .maybeSingle()
 
   if (existing) {
-    return { ok: false, error: 'An active, paused or draft test already exists for this video' }
+    return { ok: false, error: 'Já existe um teste aberto, pausado, na fila ou em rascunho para este vídeo.' } // TEXTO-A-REVISAR
   }
 
   // Merge config with defaults

@@ -321,7 +321,7 @@ export async function getEligibleVideosForPicker(): Promise<Array<{
   for (const t of (tests ?? [])) {
     const vid = t.youtube_video_id as string
     const existing = testMap.get(vid)
-    const isActive = ['draft', 'active', 'paused'].includes(t.status as string)
+    const isActive = ['draft', 'active', 'paused', 'queued'].includes(t.status as string)
     // P2: lift gravado pelo avaliador automático não aparece mais em tela nenhuma.
     const lift: number | null = null
 

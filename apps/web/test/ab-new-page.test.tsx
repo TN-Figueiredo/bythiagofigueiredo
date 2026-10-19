@@ -10,6 +10,8 @@ vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/queries', () => ({ getAbSiteSettings: m.settings, getEligibleVideosForPicker: m.eligible, getAbDraftById: m.draft }))
 vi.mock('../src/app/cms/(authed)/youtube/ab-lab/queries', () => ({ getAbSiteSettings: m.settings, getEligibleVideosForPicker: m.eligible, getAbDraftById: m.draft }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { m.cliente(); return cadeia } }))
+const redir = vi.hoisted(() => vi.fn((u: string) => { throw new Error('NEXT_REDIRECT:' + u) }))
+vi.mock('next/navigation', () => ({ redirect: redir }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('../src/app/cms/(authed)/youtube/ab-lab/new/client', () => ({ NewTestClient: (p: Record<string, unknown>) => { m.props.push(p); return null } }))
 vi.mock('../src/app/cms/(authed)/youtube/ab-lab/new/video-fora', () => ({ lerVideoForaDosCem: m.foraDosCem }))
@@ -35,6 +37,11 @@ describe('page ab-lab/new', () => {
     m.settings.mockRejectedValue(new Error('negado'))
     await expect(roda({ ref: 'competitor', changeType: 'title', competitorTitle: 'X', refVideoId: R })).rejects.toThrow('negado')
     expect(m.cliente).not.toHaveBeenCalled()
+  })
+  it('reporter (forbidden) volta à lista do A/B Lab em vez de cair no error.tsx', async () => {
+    m.settings.mockRejectedValue(new Error('forbidden'))
+    await expect(roda({})).rejects.toThrow('NEXT_REDIRECT:/cms/youtube/ab-lab')
+    expect(redir).toHaveBeenCalledWith('/cms/youtube/ab-lab')
   })
   it('(b) changeType sem ref: tipoInicial chega e não há competitorContext', async () => {
     const p = await roda({ videoId: 'v1', changeType: 'title' })
