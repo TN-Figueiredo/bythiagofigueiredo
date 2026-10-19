@@ -2,6 +2,7 @@
 import { computeSlots, type ChannelSlots } from '../competitor-slots-math'
 import { RULES, DEFAULT_AGES } from './rules'
 import { median } from './stats'
+import { inicioDoRitmo, listaCortada } from './medidas/ritmo'
 import { DAY, H, WD } from './time'
 import { changesIn } from './changes'
 import { outliers, median7 } from './outliers'
@@ -75,10 +76,15 @@ export function problemPhrase(ctx: EngineCtx, ch: ObsChannel): string | null {
 export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') {
   const { clock } = ctx, NOW = clock.now
   const ch = ctx.CH.get(channelId)!
-  const W = RULES.habit.weeks, from = NOW - W * 7 * DAY
-  const vs = ch.videos.filter(v => v.fmt === fmtId && v.pub > from)
+  const W = RULES.habit.weeks
+  // Mesma regra do ritmo das medidas (parecer Phil 19/10): a janela começa no max(13 semanas, criação, mais antigo guardado de lista cortada).
+  const cortada = listaCortada({ guardados: ch.videos.length + ch.undated.length, totalNoYoutube: ch.youtubeVideoCount ?? null, limiteDeVideos: ch.video_limit })
+  const oldest = ch.videos.length ? Math.min(...ch.videos.map(v => v.pub)) : null
+  const base = inicioDoRitmo({ agoraMs: NOW, semanasDaRegra: W, criadoEmMs: ch.createdMs ?? null, coberturaDesdeMs: cortada ? oldest : null })
+  const from = NOW - W * 7 * DAY
+  const vs = ch.videos.filter(v => v.fmt === fmtId && v.pub > from && v.pub >= base.inicioMs)
   const weeks = Array.from({ length: W }, (_, w) => { const a = from + w * 7 * DAY, b = a + 7 * DAY; return { from: a, to: b, n: vs.filter(v => v.pub > a && v.pub <= b).length } })
-  const pw = Math.round(vs.length / W * 10) / 10
+  const pw = Math.round(vs.length / Math.max(base.semanas, 4) * 10) / 10
   const pairs: Record<string, number> = {}
   vs.forEach(v => { const p = clock.parts(v.pub), k = p.dow + '|' + p.h; pairs[k] = (pairs[k] || 0) + 1 })
   const best = Object.entries(pairs).sort((a, b) => b[1] - a[1])[0]

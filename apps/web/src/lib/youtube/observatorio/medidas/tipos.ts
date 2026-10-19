@@ -14,6 +14,8 @@ export type Nota =
   | { tipo: 'so_comentarios' }
   | { tipo: 'serie_semanal' }
   | { tipo: 'agendado_fora'; n: number }
+  | { tipo: 'canal_mais_novo_que_a_janela'; dias: number }
+  | { tipo: 'cobertura_curta'; dias: number }
 
 export const MOTIVOS_NAO_MEDIDO = [
   'leitura_comecou_depois', 'descoberto_tarde', 'leitura_parou_antes', 'leituras_distantes', 'sem_leitura', 'views_ocultas',

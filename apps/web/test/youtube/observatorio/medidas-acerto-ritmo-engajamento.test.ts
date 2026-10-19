@@ -53,35 +53,66 @@ describe('M4: taxa de acerto', () => {
 describe('M6: ritmo', () => {
   const pubs = (n: number, passoDias = 7, inicioDias = 1) => Array.from({ length: n }, (_, j) => AGORA - (inicioDias + j * passoDias) * DAY)
   it('4 publicações mede, 3 não', () => {
-    expect(ritmo(pubs(4, 7), { agoraMs: AGORA, parcial: false }).estado).toBe('medido')
-    expect(ritmo(pubs(3, 7), { agoraMs: AGORA, parcial: false })).toMatchObject({ motivo: 'poucas_publicacoes', n: 3, minimo: 4 })
+    expect(ritmo(pubs(4, 7), { agoraMs: AGORA }).estado).toBe('medido')
+    expect(ritmo(pubs(3, 7), { agoraMs: AGORA })).toMatchObject({ motivo: 'poucas_publicacoes', n: 3, minimo: 4 })
   })
   // (revisão Yannis 14/10, M-3) publicação exatamente no limite de 91 dias não cria uma 14ª semana
   it('14 publicações a cada 7 dias, a mais antiga exatamente 91 dias atrás: no máximo 13 semanas com publicação', () => {
-    const r = ritmo(pubs(14, 7, 0), { agoraMs: AGORA, parcial: false })
+    const r = ritmo(pubs(14, 7, 0), { agoraMs: AGORA })
     expect(r.estado === 'medido' && r.valor.semanasComPublicacao).toBe(13)
     expect(r.estado === 'medido' && r.valor.semanas).toBe(13)
   })
   it('conta à mão: a cada 7 dias', () => {
-    const r = ritmo(pubs(13, 7), { agoraMs: AGORA, parcial: false })
+    const r = ritmo(pubs(13, 7), { agoraMs: AGORA })
     expect(r).toMatchObject({ estado: 'medido', valor: { porSemana: 1, intervaloMedianoDias: 7, semanasComPublicacao: 13, semanas: 13, maiorBuracoDias: 7 } })
   })
   it('maior buraco inclui o trecho da última publicação até agora', () => {
     const ps = [AGORA - 40 * DAY, AGORA - 47 * DAY, AGORA - 54 * DAY, AGORA - 61 * DAY]
-    const r = ritmo(ps, { agoraMs: AGORA, parcial: false })
+    const r = ritmo(ps, { agoraMs: AGORA })
     expect(r).toMatchObject({ valor: { maiorBuracoDias: 40 } })
   })
   it('o buraco olha 26 semanas, o ritmo 13', () => {
     const ps = [...pubs(5, 7), AGORA - 150 * DAY]
-    const r = ritmo(ps, { agoraMs: AGORA, parcial: false })
+    const r = ritmo(ps, { agoraMs: AGORA })
     expect(r).toMatchObject({ valor: { maiorBuracoDias: expect.any(Number) } })
     expect(r.estado === 'medido' && r.valor.maiorBuracoDias).toBeCloseTo(150 - 29, 5)
   })
-  it('ritmo parcial', () => {
-    expect(ritmo(pubs(13, 7), { agoraMs: AGORA, parcial: true })).toMatchObject({ motivo: 'ritmo_parcial' })
+  // Parecer Phil 19/10 (C-1): a janela começa no max(agora - 91 d, criação, mais antigo guardado de lista cortada).
+  const em = (dias: number) => AGORA - dias * DAY
+  it('DNA: canal criado há 81 dias, 5 publicações: 5 / 11,57 semanas, nota e janela de 81 dias', () => {
+    const r = ritmo(pubs(5, 7, 1), { agoraMs: AGORA, criadoEmMs: em(81) })
+    expect(r.estado === 'medido' && r.valor.porSemana).toBeCloseTo(5 / (81 / 7), 6)
+    expect(r.estado === 'medido' && r.janela.dias).toBe(81)
+    expect(r.notas).toContainEqual({ tipo: 'canal_mais_novo_que_a_janela', dias: 81 })
+  })
+  it('Estevam: lista cortada com cobertura a 73 dias, 11 longos: 11 / 10,43 semanas e nota de cobertura', () => {
+    const r = ritmo(pubs(11, 6, 1), { agoraMs: AGORA, coberturaDesdeMs: em(73) })
+    expect(r.estado === 'medido' && r.valor.porSemana).toBeCloseTo(11 / (73 / 7), 6)
+    expect(r.estado === 'medido' && r.janela.dias).toBe(73)
+    expect(r.notas).toContainEqual({ tipo: 'cobertura_curta', dias: 73 })
+  })
+  it('canal antigo com lista completa: n / 13, sem nota (regressão)', () => {
+    const r = ritmo(pubs(13, 7), { agoraMs: AGORA, criadoEmMs: em(2000), coberturaDesdeMs: null })
+    expect(r.estado === 'medido' && r.valor.porSemana).toBe(1)
+    expect(r.estado === 'medido' && r.janela.dias).toBe(91)
+    expect(r.notas).toEqual([])
+  })
+  it('criado há 20 dias: abaixo do piso de 4 semanas, ritmo_parcial', () => {
+    expect(ritmo(pubs(5, 3, 1), { agoraMs: AGORA, criadoEmMs: em(20) })).toMatchObject({ estado: 'nao_medido', motivo: 'ritmo_parcial' })
+  })
+  it('criação nula: janela de 91 dias sem nota (ausência não encurta nem inventa)', () => {
+    const r = ritmo(pubs(13, 7), { agoraMs: AGORA, criadoEmMs: null, coberturaDesdeMs: null })
+    expect(r.estado === 'medido' && r.janela.dias).toBe(91)
+    expect(r.notas).toEqual([])
+  })
+  it('criação exatamente a 91 dias: sem nota, sem 14ª semana', () => {
+    const r = ritmo(pubs(14, 7, 0), { agoraMs: AGORA, criadoEmMs: em(91) })
+    expect(r.estado === 'medido' && r.valor.semanasComPublicacao).toBe(13)
+    expect(r.estado === 'medido' && r.janela.dias).toBe(91)
+    expect(r.notas).toEqual([])
   })
   it('lista vazia', () => {
-    expect(ritmo([], { agoraMs: AGORA, parcial: false })).toMatchObject({ motivo: 'poucas_publicacoes', n: 0 })
+    expect(ritmo([], { agoraMs: AGORA })).toMatchObject({ motivo: 'poucas_publicacoes', n: 0 })
   })
 })
 

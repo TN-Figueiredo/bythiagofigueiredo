@@ -56,7 +56,7 @@ describe('lerCanal e a ausência de dado', () => {
   it('lerCanal devolve collectionPausedAt (e coluna ausente é schema_ausente, nunca nulo calado)', async () => {
     const pausa = iso(AGORA - 1e8)
     const { sb } = falsoPostgrest({ competitor_channels: [{ id: CANAL, site_id: SITE, collection_paused_at: pausa, missing_since: '2026-09-01' }] })
-    expect(await lerCanal(sb, E)).toEqual({ lido: true, dados: { id: CANAL, siteId: SITE, collectionPausedAt: pausa, missingSince: '2026-09-01' } })
+    expect(await lerCanal(sb, E)).toEqual({ lido: true, dados: { id: CANAL, siteId: SITE, collectionPausedAt: pausa, missingSince: '2026-09-01', criadoEmMs: null, totalNoYoutube: null, limiteDeVideos: null } })
     const { sb: sb2 } = falsoPostgrest({ competitor_channels: canais() }, { colunasAusentes: { competitor_channels: ['collection_paused_at'] } })
     expect(await lerCanal(sb2, E)).toEqual({ lido: false, causa: 'schema_ausente' })
   })
