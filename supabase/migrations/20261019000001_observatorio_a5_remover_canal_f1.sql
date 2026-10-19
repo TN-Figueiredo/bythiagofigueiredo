@@ -537,6 +537,18 @@ alter table public.obs_archive_batches drop constraint if exists obs_archive_bat
 alter table public.obs_archive_batches add constraint obs_archive_batches_closed_reason_check
   check (closed_reason in ('despausado', 'substituido', 'canal_apagado', 'apagado_sem_arquivo'));
 
+-- C.2b A regra da confirmação do nome, para a tela espelhar: espaços de qualquer tipo (inclusive NBSP e espaços Unicode) viram um espaço,
+-- pontas aparadas, caixa ignorada, acento preservado ("São" <> "Sao"). Caractere de controle NÃO é espaço: continua diferente.
+create or replace function public.obs_nome_normalizado(p_nome text)
+returns text
+language sql
+immutable
+parallel safe
+set search_path = ''
+as $$
+  select lower(pg_catalog.btrim(pg_catalog.regexp_replace(p_nome, '[\s\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]+', ' ', 'g')))
+$$;
+
 -- C.3 Apagar sem guardar. Uma transação: tudo ou nada.
 create or replace function public.competitor_channel_delete_unarchived(
   p_site uuid, p_channel uuid, p_actor uuid, p_confirm_name text, p_motivo text)
@@ -582,8 +594,8 @@ begin
   if v_c.added_at is null or v_now - v_c.added_at > make_interval(days => v_max_dias) then
     raise exception 'E10:canal_antigo: canal com mais de % dias não se apaga sem guardar', v_max_dias using errcode = 'P0001';
   end if;
-  -- maiúscula e minúscula valem igual (mockup aprovado em 19/10); espaço nas pontas e caractere de controle não
-  if lower(btrim(p_confirm_name)) is distinct from lower(btrim(v_c.channel_name)) then
+  -- maiúscula e minúscula valem igual (mockup aprovado em 19/10); espaço de qualquer tipo é normalizado; caractere de controle não
+  if public.obs_nome_normalizado(p_confirm_name) is distinct from public.obs_nome_normalizado(v_c.channel_name) then
     raise exception 'E10:nome_nao_confere: o nome digitado não é o nome do canal' using errcode = 'P0001';
   end if;
 
@@ -807,7 +819,8 @@ begin
     'public.competitor_channel_delete_unarchived(uuid, uuid, uuid, text, text)',
     'public.obs_unarchived_watch_sweep(timestamptz)',
     'public.obs_unarchived_blobs_done(uuid, bigint, text[])',
-    'public.competitor_channel_watch_counts(uuid, uuid)'
+    'public.competitor_channel_watch_counts(uuid, uuid)',
+    'public.obs_nome_normalizado(text)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
