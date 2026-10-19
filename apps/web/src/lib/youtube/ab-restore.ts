@@ -1,5 +1,7 @@
 import { z } from 'zod'
-import { REASONS_DE_COTA } from '@/lib/youtube/youtube-api-error'
+
+// 403 do Blob não é cota; cota esgotada tem tratamento próprio. Mora aqui (folha) para não haver import circular com youtube-api-error (Y-A6).
+export const REASONS_DE_COTA: readonly string[] = ['quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded']
 
 export type CampoNome = 'title' | 'thumbnail'
 // 'pulado_teste_youtube': só leitura nesta entrega (quem escreve é a fase 2 da S6/S7; o CHECK de produção já aceita).
@@ -125,6 +127,8 @@ export function restoreStatusIlegivel(v: unknown): boolean {
 // ---- P4b: regras puras da nova tentativa ----
 
 export const MAX_TENTATIVAS = 3
+/** Quantas linhas do histórico a âncora do "sim" lê (as duas consultas e `inicioDoSim`). */
+export const LIMITE_DA_CADEIA = 10
 export const JANELA_DO_SIM_MS = 48 * 3_600_000
 
 export type MotivoDesistencia = 'video_inexistente' | 'novo_teste' | 'tres_falhas' | 'antes_da_nova_tentativa' | 'destino_invalido'
@@ -136,6 +140,8 @@ export function inicioDoSim(linhas: ReadonlyArray<{ em: string; forcado: boolean
     if (!l.forcado) break
     ancora = l.em
   }
+  // Y-A2: cadeia cheia e toda forçada = o primeiro "sim" ficou além da leitura; a âncora andaria. Erra para o lado seguro: vencido.
+  if (linhas.length >= LIMITE_DA_CADEIA && linhas.every((l) => l.forcado)) return new Date(0).toISOString()
   return ancora
 }
 

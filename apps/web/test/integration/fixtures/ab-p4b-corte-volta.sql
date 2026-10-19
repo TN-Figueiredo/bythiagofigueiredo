@@ -11,6 +11,8 @@ update public.ab_tests t set
     from jsonb_each(t.restore_status) as e(k, v)
   )
 where t.restore_status is not null
+  -- P-3: mesmo filtro do corte
+  and t.status <> 'active'
   and (
     (t.restore_status -> 'title' ->> 'estado' = 'desistiu' and t.restore_status -> 'title' ->> 'motivo' = 'antes_da_nova_tentativa')
     or (t.restore_status -> 'thumbnail' ->> 'estado' = 'desistiu' and t.restore_status -> 'thumbnail' ->> 'motivo' = 'antes_da_nova_tentativa')

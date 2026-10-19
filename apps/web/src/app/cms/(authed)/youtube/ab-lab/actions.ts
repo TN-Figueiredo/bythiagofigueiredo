@@ -38,11 +38,10 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
-import { camposPendentes, paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
@@ -84,6 +83,14 @@ async function concluirSaida(saida: Promise<ResultadoSaida>): Promise<ResultadoA
   const out = traduzirSaida(r)
   if (out.ok && out.resultado === 'feito') invalidarTelasDoAbLab()
   return out
+}
+
+/** Como requireEditAccess, mas também devolve quem agiu (para o rastro em audit_log). */
+async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return { siteId, userId: res.user.id }
 }
 
 async function requireEditAccess(): Promise<string> {
@@ -1108,13 +1115,13 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
 
 const CamposSchema = z.array(z.enum(['title', 'thumbnail'])).min(1).max(2)
 
-/**
- * Permissão por destino: 'original' = a de encerrar (editora); variante = administrar o site. Devolve a recusa, ou null.
- * Teste que não é do site ou sem campo pendente segue: o corpo responde `ja_encerrado`.
- */
+const MSG_NEGA_VARIANTE = 'tentar de novo ou dispensar a restauração de uma variante'
+
+/** Permissão por destino do "Dispensar": nulo = pode; teste/campo ausente = `ja_encerrado` (nada a dispensar); variante exige administrar. */
 async function recusaPorDestino(siteId: string, testId: string, campos: CampoNome[]): Promise<ResultadoAcaoSaida | null> {
   const destino = await destinoDosCampos(getSupabaseServiceClient(), testId, siteId, campos)
-  if (destino === 'variante' && (await denyUnlessSiteAdmin(siteId, 'tentar de novo ou dispensar a restauração de uma variante'))) {
+  if (destino === null) return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+  if (destino === 'variante' && (await denyUnlessSiteAdmin(siteId, MSG_NEGA_VARIANTE))) {
     return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }
   }
   return null
@@ -1123,25 +1130,24 @@ async function recusaPorDestino(siteId: string, testId: string, campos: CampoNom
 export async function retryRestore(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
-    siteId = await requireEditAccess()
+    siteId = (await requireEditUser()).siteId
   } catch (e) {
     return recusaDeSessao(e)
   }
   const seq = seqVistoSchema.safeParse(seqVisto)
   if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
 
-  const supabase = getSupabaseServiceClient()
-  const { data } = await supabase.from('ab_tests').select('restore_status').eq('id', testId).eq('site_id', siteId).maybeSingle()
-  const pendentes = camposPendentes(paraRestoreStatus((data as { restore_status?: unknown } | null)?.restore_status), 'humano')
-  const recusa = await recusaPorDestino(siteId, testId, pendentes)
-  if (recusa) return recusa
-  return concluirSaida(tentarAgora(supabase, testId, siteId, seq.data))
+  // Y-A1: a permissão é decidida por novaTentativa sobre o destino do retrato que ela mesma reivindica (nunca por uma leitura à parte).
+  const autorizar = async (destino: 'original' | 'variante'): Promise<boolean> =>
+    destino === 'original' || !(await denyUnlessSiteAdmin(siteId, MSG_NEGA_VARIANTE))
+  return concluirSaida(tentarAgora(getSupabaseServiceClient(), testId, siteId, seq.data, undefined, autorizar))
 }
 
 export async function dismissRestore(testId: string, campos: CampoNome[], seqVisto: number): Promise<ResultadoAcaoSaida> {
   let siteId: string
+  let userId: string
   try {
-    siteId = await requireEditAccess()
+    ;({ siteId, userId } = await requireEditUser())
   } catch (e) {
     return recusaDeSessao(e)
   }
@@ -1150,9 +1156,16 @@ export async function dismissRestore(testId: string, campos: CampoNome[], seqVis
   if (!seq.success || !lista.success || new Set(lista.data).size !== lista.data.length) {
     return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
   }
-  const recusa = await recusaPorDestino(siteId, testId, lista.data)
-  if (recusa) return recusa
-  return concluirSaida(dispensarCampos(getSupabaseServiceClient(), testId, siteId, lista.data, seq.data))
+  try {
+    const recusa = await recusaPorDestino(siteId, testId, lista.data)
+    if (recusa) return recusa
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-acao-saida' } })
+    return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
+  }
+  let orgId: string | null = null
+  try { orgId = (await getSiteContext()).orgId ?? null } catch { /* sem org: a linha de auditoria leva site_id */ }
+  return concluirSaida(dispensarCampos(getSupabaseServiceClient(), testId, siteId, lista.data, seq.data, { userId, orgId }))
 }
 
 

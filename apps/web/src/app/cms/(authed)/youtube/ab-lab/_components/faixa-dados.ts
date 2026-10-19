@@ -1,7 +1,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireSiteAdminScope } from '@/lib/cms/auth-guards'
 import { getCronHealth } from '@/lib/cron-health'
-import { inicioDoSim, camposPendentes, type CampoNome, type RestoreStatus } from '@/lib/youtube/ab-restore'
+import { LIMITE_DA_CADEIA, inicioDoSim, camposPendentes, type CampoNome, type RestoreStatus } from '@/lib/youtube/ab-restore'
 import type { DadosDaFaixa } from './faixa-da-pagina'
 
 const ABERTOS = ['draft', 'queued', 'active', 'paused']
@@ -25,7 +25,7 @@ export async function carregarDadosDaFaixa(test: TesteDaFaixa, rs: RestoreStatus
   const bloqueio = temOutro ? 'outro_teste' : test.status === 'paused' && variante ? 'pausado_variante' : null
   const inicio: Partial<Record<CampoNome, string | null>> = {}
   for (const c of camposPendentes(rs, 'humano')) {
-    const h = await supabase.from('ab_test_restores').select('em, forcado').eq('test_id', test.id).eq('campo', c).order('seq', { ascending: false }).limit(10)
+    const h = await supabase.from('ab_test_restores').select('em, forcado').eq('test_id', test.id).eq('campo', c).order('seq', { ascending: false }).limit(LIMITE_DA_CADEIA)
     inicio[c] = h.error ? null : inicioDoSim((h.data ?? []) as Array<{ em: string; forcado: boolean }>)
   }
   const ultima = (saude as { updated_at?: string | null } | null)?.updated_at ?? null

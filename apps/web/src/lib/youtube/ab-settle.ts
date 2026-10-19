@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
-import { camposDoTeste, camposPendentes, erroDeCota, inicioDoSim, paraRestoreStatus, proximaDoInterrompido, proximoDoVigia, simAindaVale } from '@/lib/youtube/ab-restore'
+import { LIMITE_DA_CADEIA, camposDoTeste, camposPendentes, erroDeCota, inicioDoSim, paraRestoreStatus, proximaDoInterrompido, proximoDoVigia, simAindaVale } from '@/lib/youtube/ab-restore'
 import type { CampoNome, CampoRestauracao, ErroGravado, EstadoCampo, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { decidirCampo, ultimaEscritaDoApp } from '@/lib/youtube/ab-settle-decidir'
 import type { Decisao, EntradaThumb, EntradaTitulo } from '@/lib/youtube/ab-settle-decidir'
@@ -41,6 +41,7 @@ export type ResultadoSaida =
   | { resultado: 'em_andamento'; campos: RestoreStatus | null }
   | { resultado: 'destino_invalido'; campos: null }
   | { resultado: 'outro_teste'; campos: RestoreStatus | null } // P4b Y-5: outro teste aberto no mesmo vídeo; o Lab não escreve
+  | { resultado: 'sem_permissao'; campos: RestoreStatus | null } // P4b Y-A1: `autorizar` recusou o destino do retrato reivindicado
   | { resultado: 'mudou'; campos: RestoreStatus | null } // seqEsperado de uma tela humana não bate: o teste mudou desde a abertura
 
 export interface VarianteRetrato {
@@ -569,6 +570,8 @@ export interface OpcoesNovaTentativa {
   origem: 'vigia' | 'humano'
   prazo?: number // epoch ms absoluto
   seqEsperado?: number
+  /** Y-A1: decide a permissão sobre o destino do MESMO retrato que será reivindicado (a reivindicação exige o restore_seq dele). Lançar = recusar. */
+  autorizar?: (destino: 'original' | 'variante') => Promise<boolean>
 }
 
 const ABERTOS_NO_VIDEO = ['draft', 'queued', 'active', 'paused']
@@ -613,6 +616,8 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
     return { resultado: 'destino_invalido', campos: null }
   }
 
+  if (op.autorizar && !(await op.autorizar(destino === 'original' ? 'original' : 'variante'))) return { resultado: 'sem_permissao', campos: r.restore_status }
+
   // 4. retomada que não terminou: nunca escrever rumo à variante num teste pausado
   if (r.status === 'paused' && destino !== 'original') return { resultado: 'ja_encerrado', campos: r.restore_status }
 
@@ -625,7 +630,7 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
   // 6. o "sim" repetido: 48 h desde o primeiro forcado da cadeia (Y-3)
   const ancora: Partial<Record<CampoNome, string | null>> = {}
   for (const c of pend) {
-    const h = await portas.supabase.from('ab_test_restores').select('em, forcado').eq('test_id', testId).eq('campo', c).order('seq', { ascending: false }).limit(10)
+    const h = await portas.supabase.from('ab_test_restores').select('em, forcado').eq('test_id', testId).eq('campo', c).order('seq', { ascending: false }).limit(LIMITE_DA_CADEIA)
     if (h.error) throw new Error(`ab-settle: histórico de ${c} do teste ${testId}: ${h.error.message}`)
     ancora[c] = inicioDoSim((h.data ?? []) as Array<{ em: string; forcado: boolean }>)
   }

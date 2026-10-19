@@ -60,6 +60,13 @@ describe('inicioDoSim (Y-3)', () => {
   it('cadeia quebrada por forcado false → a âncora é a linha depois da quebra', () => {
     expect(inicioDoSim([{ em: h(1), forcado: true }, { em: h(25), forcado: true }, { em: h(30), forcado: false }, { em: h(50), forcado: true }])).toBe(h(25))
   })
+  it('Y-A2: 10 linhas, todas forçadas (cadeia cheia) → âncora antiga, "sim" vencido; 9 linhas → a 9ª', () => {
+    const dez = Array.from({ length: 10 }, (_, i) => ({ em: h(i + 1), forcado: true }))
+    const campo = { estado: 'falhou', destino: 'B', em: h(1), forcado: true, escreveu: false, erro: null, attempts: 1 } as never
+    expect(simAindaVale(campo, new Date(), inicioDoSim(dez))).toBe(false)
+    expect(inicioDoSim(dez.slice(0, 9))).toBe(h(9))
+    expect(inicioDoSim([...dez.slice(0, 9), { em: h(10), forcado: false }])).toBe(h(9))
+  })
   it('primeira linha com forcado false → null', () => expect(inicioDoSim([{ em: h(1), forcado: false }, { em: h(2), forcado: true }])).toBeNull())
   it('sem linha → null (simAindaVale usa o em do campo)', () => expect(inicioDoSim([])).toBeNull())
   it('simAindaVale com âncora de 50 h e campo.em de 1 h → false', () => {

@@ -35,6 +35,7 @@ export function traduzirSaida(r: ResultadoSaida): ResultadoAcaoSaida {
     case 'mudou': return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
     case 'em_andamento': return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
     case 'ja_encerrado': return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+    case 'sem_permissao': return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }
     case 'outro_teste': return { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }
     case 'destino_invalido': return { ok: false, resultado: 'erro', error: MSG_DESTINO_INVALIDO } // Y-D2
   }

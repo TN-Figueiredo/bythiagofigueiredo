@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { semearTesteAb, clienteServico } from '../helpers/db-seed'
+import { semearTesteAb, clienteServico, insertAuthUser } from '../helpers/db-seed'
 import { YouTubeFalso, imagemComDhash, H } from '../helpers/youtube-falso'
 
 // P4b T3: novaTentativa contra o bythiago_int. Reais: ab_settle_claim, o CHECK do restore_status, o gatilho do
@@ -266,18 +266,20 @@ describe.skipIf(skipIfNoLocalDb())('P4b T5: retryRestore e dismissRestore no ban
   it('dismiss: o CHECK aceita {} e o gatilho não grava linha nova em ab_test_restores', async () => {
     const t = await semear('title', 'completed', { title: campo() })
     const antes = (await db.from('ab_test_restores').select('seq').eq('test_id', t.testId)).data!.length
-    const r = await dispensarCampos(db, t.testId, t.siteId, ['title'], 1)
+    const ator = await insertAuthUser(`p4b-dispensa-${t.testId}@test.local`)
+    const r = await dispensarCampos(db, t.testId, t.siteId, ['title'], 1, { userId: ator, orgId: null })
     expect(r.resultado).toBe('feito')
     expect(await teste(t)).toMatchObject({ restore_status: {}, restore_seq: 2 })
     expect((await db.from('ab_test_restores').select('seq').eq('test_id', t.testId)).data!.length).toBe(antes)
-    const aud = (await db.from('audit_log').select('action, resource_id, after_data').eq('resource_id', t.testId).eq('action', 'ab_restore_dismissed')).data!
+    const aud = (await db.from('audit_log').select('action, resource_id, after_data, actor_user_id').eq('resource_id', t.testId).eq('action', 'ab_restore_dismissed')).data!
     expect(aud).toHaveLength(1)
-    expect(aud[0]!.after_data).toMatchObject({ campos: ['title'], restore_seq: 1 })
+    expect(aud[0]!.after_data).toMatchObject({ campos: ['title'], restore_seq: 1, restore_seq_novo: 2 })
+    expect(aud[0]!.actor_user_id).toBe(ator) // Y-A3
   })
 
   it('dismiss com seq velho: mudou e nada muda', async () => {
     const t = await semear('title', 'completed', { title: campo() }, 3)
-    expect((await dispensarCampos(db, t.testId, t.siteId, ['title'], 1)).resultado).toBe('mudou')
+    expect((await dispensarCampos(db, t.testId, t.siteId, ['title'], 1, { userId: '00000000-0000-0000-0000-000000000001', orgId: null })).resultado).toBe('mudou')
     expect(await teste(t)).toMatchObject({ restore_seq: 3, restore_status: { title: { estado: 'falhou' } } })
   })
 

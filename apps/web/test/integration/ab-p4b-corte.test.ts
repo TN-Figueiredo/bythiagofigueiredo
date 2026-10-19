@@ -33,9 +33,9 @@ async function rodar(arquivo: string): Promise<void> {
 describe.skipIf(skipIfNoLocalDb())('P4b T6: corte do falhou anterior ao deploy', () => {
   const db = clienteServico()
 
-  async function semear(restoreStatus: unknown, seq = 1) {
+  async function semear(restoreStatus: unknown, seq = 1, status = 'completed') {
     const t = await semearTesteAb({ status: 'active', cicloAberto: null, testType: 'combo' })
-    const r = await db.from('ab_tests').update({ status: 'completed', restore_seq: seq, restore_status: restoreStatus }).eq('id', t.testId)
+    const r = await db.from('ab_tests').update({ status, restore_seq: seq, restore_status: restoreStatus }).eq('id', t.testId)
     if (r.error) throw new Error(`semear: ${r.error.message}`)
     semeados.push(t.testId)
     return t
@@ -55,6 +55,16 @@ describe.skipIf(skipIfNoLocalDb())('P4b T6: corte do falhou anterior ao deploy',
     expect(depois.restore_seq).toBe(antes.restore_seq + 1)
     const l = await linhas(t.testId)
     expect(l.at(-1)).toMatchObject({ seq: 2, campo: 'title', estado: 'desistiu' })
+  })
+
+  it('P-3: teste active com falhou fica intacto no corte e na volta (o vigia nunca toca active)', async () => {
+    const t = await semear({ title: campo() }, 1, 'active')
+    const volta = await semear({ title: campo({ estado: 'desistiu', motivo: 'antes_da_nova_tentativa' }) }, 1, 'active')
+    const antes = await ler(t.testId); const antesVolta = await ler(volta.testId)
+    await rodar('ab-p4b-corte.sql')
+    await rodar('ab-p4b-corte-volta.sql')
+    expect(await ler(t.testId)).toEqual(antes)
+    expect(await ler(volta.testId)).toEqual(antesVolta)
   })
 
   it('restore_status null, {} e só ok → não mudam (restore_seq igual)', async () => {
