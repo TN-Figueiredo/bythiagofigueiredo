@@ -103,7 +103,10 @@ export interface CompetitorInsightsData {
   cadence: Array<{
     channel_name: string
     channel_id: string
+    /** Vídeos longos por semana; `null` = sem taxa (nunca 0): veja `freq_motivo`. */
     freq: number | null
+    /** Por que `freq` é nulo: `canal_novo` (criado há menos de 28 dias) ou `ritmo_parcial` (coleta cobre menos de 28 dias). `null` quando há `freq`. */
+    freq_motivo: 'canal_novo' | 'ritmo_parcial' | null
     window: string
     last_upload_days: number
   }>
@@ -471,6 +474,7 @@ export async function getCompetitorInsights(
       channel_name: ch.channel_name,
       channel_id: ch.channel_id,
       freq: cad.pw,
+      freq_motivo: cad.pw === null ? (cad.corte === 'criacao' ? 'canal_novo' as const : 'ritmo_parcial' as const) : null,
       window: cad.habit.costuma ? `${BR_DAY_NAMES[(cad.habit.dow! + 6) % 7]} ${cad.habit.hour}h` : '—',
       last_upload_days: cad.lastUpload != null ? Math.floor((obs.NOW - cad.lastUpload) / 86_400_000) : -1,
     }

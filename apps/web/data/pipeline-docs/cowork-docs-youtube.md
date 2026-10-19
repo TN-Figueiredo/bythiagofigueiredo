@@ -706,6 +706,8 @@ Lista os canais concorrentes monitorados do site, com os números de hoje, o per
                   "intervaloMedianoDias": 7.5,
                   "semanasComPublicacao": 10,
                   "semanas": 13,
+                  "semanasContadas": 13,
+                  "dias": 91,
                   "maiorBuracoDias": 16
                 },
                 "n": 11,
@@ -797,6 +799,11 @@ Lista os canais concorrentes monitorados do site, com os números de hoje, o per
 #### Medidas por canal (`medidas`)
 
 Cada canal traz `medidas` com as mesmas nove medidas, sempre: `direcao_do_canal`; `estado_do_canal` (com `parado` e `queda`); e, para `long` e `short` dentro de `por_formato`, `direcao_dos_videos_novos`, `ritmo` e `taxa_de_acerto`. Nenhuma é omitida: o que não foi medido vem como `nao_medido`.
+
+**Ritmo (`ritmo`) e a base do período:**
+- `semanas` é inteiro (o número de casas semanais da base, arredondado para cima); `semanasContadas` é a base real em semanas, fracionada (é ela que divide as publicações em `porSemana`); `dias` é a base em dias. Sem corte, a base é a janela cheia da regra.
+- A base encolhe quando o canal é mais novo que a janela ou quando a coleta guardou menos que isso. Nesses casos `medidas.ritmo.notas` traz `canal_mais_novo_que_a_janela` (base desde a criação do canal) ou `cobertura_curta` (a coleta guardada só cobre os últimos dias da lista cortada); as duas trazem `dias` e `desde` (data de São Paulo, `AAAA-MM-DD`, de onde a base começa). Cite a base ("média desde 2026-09-20") e não diga que são as semanas da janela cheia.
+- Base abaixo do piso de dias da regra não gera taxa: o ritmo vem `nao_medido` com `motivo: "canal_novo"` (a base foi cortada pela criação do canal) ou `motivo: "ritmo_parcial"` (cortada pela cobertura da coleta). Com a base no piso ou acima, a taxa volta, junto com a nota.
 
 **Como ler uma medida:**
 - `estado: "medido"` traz `valor`, `n` (quantos itens entraram na conta), `janela` (datas de São Paulo) e, quando houver, `notas`.
@@ -1022,6 +1029,7 @@ Retorna insights agregados de todos os canais concorrentes monitorados.
         "channelId": "uuid",
         "color": "#60A5FA",
         "freq": 2.3,
+        "freq_motivo": null,
         "window": "last 90 days",
         "videos": [
           { "title": "Video Title", "viewCount": 15000, "publishedAt": "2026-05-25T10:00:00Z" }
@@ -1063,7 +1071,7 @@ Retorna insights agregados de todos os canais concorrentes monitorados.
 - `gaps`: tópicos que concorrentes cobrem e nós não (`weCover: false`)
 - `formulas`: padrões de título que performam acima da mediana (com `multiplier`)
 - `play`: a jogada da semana — combinação tópico + fórmula + timing de maior impacto
-- `cadence`: frequência de upload por concorrente (vídeos longos/semana nas últimas 13 semanas); `window` = hábito "Dia Hh" em São Paulo quando o canal costuma publicar no mesmo dia e hora (3+ vídeos e 30%+ deles), senão `—`
+- `cadence`: frequência de upload por concorrente (vídeos longos/semana, média sobre a base real: 13 semanas, ou menos se o canal é mais novo ou a coleta cobre menos). `freq` é `null` (nunca 0) quando a base tem menos de 28 dias, e `freq_motivo` diz por quê: `canal_novo` (canal criado há menos de 28 dias) ou `ritmo_parcial` (coleta cobre menos de 28 dias); com `freq` presente, `freq_motivo` é `null`. Não escreva "0 vídeos por semana" para `freq: null`; `window` = hábito "Dia Hh" em São Paulo quando o canal costuma publicar no mesmo dia e hora (3+ vídeos e 30%+ deles), senão `—`
 - Zeros e `-1` que são falta (o corpo não muda; só a leitura): `last_upload_days: -1` quer dizer **sem data conhecida**, não um número de dias. `engagement_rate: 0` pode ser falta de leitura, não uma taxa medida.
 
 ---
