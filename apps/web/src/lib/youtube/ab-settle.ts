@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
-import { camposDoTeste, paraRestoreStatus } from '@/lib/youtube/ab-restore'
+import { camposDoTeste, camposPendentes, erroDeCota, inicioDoSim, paraRestoreStatus, proximaDoInterrompido, proximoDoVigia, simAindaVale } from '@/lib/youtube/ab-restore'
 import type { CampoNome, CampoRestauracao, ErroGravado, EstadoCampo, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { decidirCampo, ultimaEscritaDoApp } from '@/lib/youtube/ab-settle-decidir'
 import type { Decisao, EntradaThumb, EntradaTitulo } from '@/lib/youtube/ab-settle-decidir'
@@ -40,6 +40,7 @@ export type ResultadoSaida =
   | { resultado: 'ja_encerrado'; campos: RestoreStatus | null }
   | { resultado: 'em_andamento'; campos: RestoreStatus | null }
   | { resultado: 'destino_invalido'; campos: null }
+  | { resultado: 'outro_teste'; campos: RestoreStatus | null } // P4b Y-5: outro teste aberto no mesmo vídeo; o Lab não escreve
   | { resultado: 'mudou'; campos: RestoreStatus | null } // seqEsperado de uma tela humana não bate: o teste mudou desde a abertura
 
 export interface VarianteRetrato {
@@ -48,6 +49,7 @@ export interface VarianteRetrato {
   blob_url: string | null
   title_text: string | null
   thumbnail_dhash: string | null
+  label?: string
 }
 
 export interface Retrato {
@@ -66,6 +68,7 @@ export interface Retrato {
   youtube_video_id: string // id INTERNO de youtube_videos
   variantes: VarianteRetrato[]
   inicioUltimoCiclo: string | null
+  varianteUltimoCiclo?: string | null
 }
 
 export interface PortasSaida {
@@ -83,6 +86,7 @@ export const TETO_MS = 55_000 // F-D3: ações humanas e crons que não passam `
 export const MARGEM_ESCRITA_MS = 25_000 // 20 s da escrita + 5 s do passo 4 e do aviso
 const RECENTE_MS = 2 * 60_000 // F-D4: 60 s do teto da função + folga
 const REVERT_MS = 7 * 86_400_000
+const JANELA_DA_COTA_MS = 72 * 3_600_000 // cota que dura mais que isso desde a âncora do "sim" conta como falha
 
 /**
  * Só uma URL do Blob é cópia imutável. A do i.ytimg.com serve o que está no ar AGORA, não o original
@@ -199,8 +203,8 @@ export async function lerRetratoPadrao(supabase: SupabaseClient, testId: string,
   if (error) throw new Error(`ab-settle: retrato do teste ${testId}: ${error.message}`)
   if (!t) return null
   const [vs, cs] = await Promise.all([
-    supabase.from('ab_test_variants').select('id, is_original, blob_url, title_text, thumbnail_dhash').eq('test_id', testId),
-    supabase.from('ab_test_cycles').select('started_at').eq('test_id', testId).order('cycle_number', { ascending: false }).limit(1),
+    supabase.from('ab_test_variants').select('id, is_original, blob_url, title_text, thumbnail_dhash, label').eq('test_id', testId),
+    supabase.from('ab_test_cycles').select('started_at, variant_id').eq('test_id', testId).order('cycle_number', { ascending: false }).limit(1),
   ])
   if (vs.error) throw new Error(`ab-settle: variantes do teste ${testId}: ${vs.error.message}`)
   if (cs.error) throw new Error(`ab-settle: ciclos do teste ${testId}: ${cs.error.message}`)
@@ -210,6 +214,7 @@ export async function lerRetratoPadrao(supabase: SupabaseClient, testId: string,
     restore_status: paraRestoreStatus(fila.restore_status),
     variantes: (vs.data ?? []) as VarianteRetrato[],
     inicioUltimoCiclo: ((cs.data ?? []) as Array<{ started_at: string | null }>)[0]?.started_at ?? null,
+    varianteUltimoCiclo: ((cs.data ?? []) as Array<{ variant_id: string | null }>)[0]?.variant_id ?? null,
   }
 }
 
@@ -325,6 +330,8 @@ function classificar(e: unknown): { erro: ErroGravado; escreveu: boolean | null 
   throw e
 }
 
+interface PoliticaVigia { cotaVencida: (c: CampoNome) => boolean }
+
 interface Base { destino: string; forcado: boolean; anterior: number }
 
 /**
@@ -345,11 +352,24 @@ async function restaurarCampos(
   portas: PortasSaida, r: Retrato, campos: CampoNome[], destino: Destino,
   contexto: (c: CampoNome) => { ultimaEscrita: Date | null; marcador: string | null },
   forcar: boolean, seq: number, prazo: number,
+  anterior: (c: CampoNome) => number, // Y-8: attempts dos estados finais ok/pulado_*: 0 no caminho humano, o da reivindicação no do vigia
+  vigia?: PoliticaVigia,
 ): Promise<RestoreStatus | { perdeu: true; parcial: RestoreStatus }> {
   const final: RestoreStatus = {}
-  const base = (c: CampoNome): Base => ({ destino: nomeDoDestino(destino), forcado: forcar, anterior: r.restore_status?.[c]?.attempts ?? 0 })
+  const base = (c: CampoNome): Base => ({ destino: nomeDoDestino(destino), forcado: forcar, anterior: anterior(c) })
+  const montar = (c: CampoNome, p: Parameters<typeof montarCampo>[2]): CampoRestauracao => {
+    const campo = montarCampo(base(c), portas.agora(), p)
+    const ant = r.restore_status?.[c]
+    if (!vigia || !ant || p.estado !== 'falhou') return campo
+    const erro = p.erro ?? null
+    const vencida = vigia.cotaVencida(c)
+    // Erro de cota (ainda dentro da janela): só o erro muda; em, forcado e attempts ficam (F5 do Phil).
+    if (erroDeCota(erro) && !vencida) return { ...campo, em: ant.em, forcado: ant.forcado, attempts: ant.attempts }
+    const prox = proximoDoVigia(ant.attempts, erro, vencida)
+    return { ...campo, estado: prox.estado, attempts: prox.attempts, ...(prox.motivo ? { motivo: prox.motivo } : {}) }
+  }
   const todosFalharam = (erro: ErroGravado) => {
-    for (const c of campos) final[c] = montarCampo(base(c), portas.agora(), { estado: 'falhou', escreveu: false, erro })
+    for (const c of campos) final[c] = montar(c, { estado: 'falhou', escreveu: false, erro })
     return final
   }
 
@@ -367,16 +387,14 @@ async function restaurarCampos(
 
   for (const c of campos) { // em série: título antes da thumbnail
     const d = decisoes[c]
-    const b = base(c)
-    const agora = () => portas.agora()
-    if (d.acao === 'ok_sem_escrever') { final[c] = montarCampo(b, agora(), { estado: 'ok', escreveu: false }); continue }
-    if (d.acao === 'pular') { final[c] = montarCampo(b, agora(), { estado: d.estado, escreveu: false, motivo: d.motivo }); continue }
-    if (d.acao === 'desistir') { final[c] = montarCampo(b, agora(), { estado: 'desistiu', escreveu: false, motivo: d.motivo }); continue }
-    if (d.acao === 'falhar') { final[c] = montarCampo(b, agora(), { estado: 'falhou', escreveu: false, erro: d.erro }); continue }
+    if (d.acao === 'ok_sem_escrever') { final[c] = montar(c, { estado: 'ok', escreveu: false }); continue }
+    if (d.acao === 'pular') { final[c] = montar(c, { estado: d.estado, escreveu: false, motivo: d.motivo }); continue }
+    if (d.acao === 'desistir') { final[c] = montar(c, { estado: 'desistiu', escreveu: false, motivo: d.motivo }); continue }
+    if (d.acao === 'falhar') { final[c] = montar(c, { estado: 'falhou', escreveu: false, erro: d.erro }); continue }
 
     // escrever: (a) prazo, (b) leitura do Blob (thumbnail), (c) releitura de restore_seq COLADA na escrita, (d) escrita
     if (prazo - portas.agora().getTime() < MARGEM_ESCRITA_MS) {
-      final[c] = montarCampo(b, agora(), { estado: 'falhou', escreveu: false, erro: { motivo: 'tempo_esgotado' } })
+      final[c] = montar(c, { estado: 'falhou', escreveu: false, erro: { motivo: 'tempo_esgotado' } })
       continue
     }
     try {
@@ -403,10 +421,10 @@ async function restaurarCampos(
       } else if (imagem) {
         await setThumbnail(acesso.youtubeId, imagem.buffer, imagem.contentType, acesso.token, portas.fetch)
       }
-      final[c] = montarCampo(b, agora(), { estado: 'ok', escreveu: true })
+      final[c] = montar(c, { estado: 'ok', escreveu: true })
     } catch (e) {
       const k = classificar(e)
-      final[c] = montarCampo(b, agora(), { estado: 'falhou', escreveu: k.escreveu, erro: k.erro })
+      final[c] = montar(c, { estado: 'falhou', escreveu: k.escreveu, erro: k.erro })
     }
   }
   return final
@@ -441,6 +459,22 @@ async function gravarResultado(
     Sentry.captureMessage('ab-settle: resultado perdido', { extra: { testId: r.id, seq, restoreStatus: final } })
   }
   return { gravou, vencedorAplicado: gravou && vencedorAplicado }
+}
+
+/**
+ * PODE-1: campo em_andamento que chegou até aqui (a validação já recusou os de menos de 2 min) conta como
+ * interrompido antes de a reivindicação o sobrescrever. Só banco (não usa ab_settle_claim: ele zera o marcador da rotação).
+ */
+async function converterEmAndamentoVelho(portas: PortasSaida, r: Retrato, rs: RestoreStatus | null = r.restore_status): Promise<{ seq: number; rs: RestoreStatus | null } | 'perdeu'> {
+  const velhos = (['title', 'thumbnail'] as const).filter((c) => rs?.[c]?.estado === 'em_andamento')
+  if (!rs || velhos.length === 0) return { seq: r.restore_seq, rs }
+  const novo: RestoreStatus = { ...rs }
+  for (const c of velhos) novo[c] = proximaDoInterrompido(rs[c]!)
+  const { data, error } = await portas.supabase.from('ab_tests')
+    .update({ restore_seq: r.restore_seq + 1, restore_status: novo }).eq('id', r.id).eq('restore_seq', r.restore_seq).select('id')
+  if (error) throw new Error(`ab-settle: converter em_andamento velho do teste ${r.id}: ${error.message}`)
+  if (((data ?? []) as unknown[]).length === 0) return 'perdeu'
+  return { seq: r.restore_seq + 1, rs: novo }
 }
 
 // ---------------------------------------------------------------------------
@@ -482,13 +516,17 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
     } catch { /* o passo 3 decide */ }
   }
 
+  // PODE-1: em_andamento velho (já com >= 2 min) conta a tentativa antes de ser sobrescrito.
+  const conv = await converterEmAndamentoVelho(portas, r)
+  if (conv === 'perdeu') return { resultado: 'em_andamento', campos: null }
+
   // Passo 1: reivindica.
   const inicial: RestoreStatus = Object.fromEntries(campos.map((c) => [c, {
     estado: 'em_andamento', destino: nomeDoDestino(destino), forcado: op.forcar === true, escreveu: null, erro: null,
-    em: agora.toISOString(), attempts: r.restore_status?.[c]?.attempts ?? 0,
+    em: agora.toISOString(), attempts: 0, // abre corrente: nasce com 0
   }]))
   const claim = await portas.supabase.rpc('ab_settle_claim', {
-    p_test_id: testId, p_seq: r.restore_seq, p_de: caminho.de, p_para: caminho.para,
+    p_test_id: testId, p_seq: conv.seq, p_de: caminho.de, p_para: caminho.para,
     p_end_reason: caminho.endReason, p_restore_status: inicial, p_extra: caminho.extra,
   })
   if (claim.error) throw new Error(`ab-settle: ab_settle_claim: ${claim.error.message}`)
@@ -501,7 +539,7 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   }
 
   // Passos 2 e 3: só erro CONHECIDO vira falhou; o resto relança e o campo fica em_andamento para o vigia.
-  const final = await restaurarCampos(portas, r, campos, destino, contexto, op.forcar === true, seq, prazo)
+  const final = await restaurarCampos(portas, r, campos, destino, contexto, op.forcar === true, seq, prazo, () => 0)
   if ('perdeu' in final) {
     // Outro escritor é dono do restore_status; mas escrita já aceita no YouTube não pode ficar sem rastro.
     if (campos.some((c) => final.parcial[c] && final.parcial[c]!.escreveu !== false)) {
@@ -520,4 +558,143 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   const aviso = await avisarRestauracao(portas.supabase, { id: r.id, site_id: r.site_id, name: r.name, restore_seq: seq }, final)
     .catch((e: unknown) => { Sentry.captureException(e, { tags: { area: 'ab-settle' } }); return undefined })
   return { resultado: 'feito', campos: final, ...(aviso ? { aviso } : {}) }
+}
+
+// ---------------------------------------------------------------------------
+// novaTentativa (P4b): repete só os campos pendentes (falhou; e, a pedido humano, desistiu)
+// ---------------------------------------------------------------------------
+
+export interface OpcoesNovaTentativa {
+  siteId: string
+  origem: 'vigia' | 'humano'
+  prazo?: number // epoch ms absoluto
+  seqEsperado?: number
+}
+
+const ABERTOS_NO_VIDEO = ['draft', 'queued', 'active', 'paused']
+
+/** Destino que nenhuma tentativa conseguiria cumprir: o vigia dá o campo por encerrado (F4), uma vez, guardado por restore_seq. */
+async function desistirPorDestino(portas: PortasSaida, r: Retrato, rs: RestoreStatus, pend: CampoNome[]): Promise<void> {
+  const novo: RestoreStatus = { ...rs }
+  for (const c of pend) novo[c] = { ...rs[c]!, estado: 'desistiu', motivo: 'destino_invalido' }
+  const { error } = await portas.supabase.from('ab_tests')
+    .update({ restore_seq: r.restore_seq + 1, restore_status: novo }).eq('id', r.id).eq('restore_seq', r.restore_seq).select('id')
+  if (error) throw new Error(`ab-settle: destino inválido do teste ${r.id}: ${error.message}`)
+}
+
+export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: Partial<PortasSaida> = {}): Promise<ResultadoSaida> {
+  const portas = portasPadrao(p)
+  const agora = portas.agora()
+  const prazo = op.prazo ?? agora.getTime() + TETO_MS
+  const r = await (p.lerRetrato ?? ((id: string, site: string) => lerRetratoPadrao(portas.supabase, id, site)))(testId, op.siteId)
+  if (!r) return { resultado: 'ja_encerrado', campos: null }
+
+  // 1. validações
+  if (op.seqEsperado !== undefined && op.seqEsperado !== r.restore_seq) return { resultado: op.origem === 'humano' ? 'mudou' : 'em_andamento', campos: r.restore_status }
+  if (emAndamentoRecente(r.restore_status, agora)) return { resultado: 'em_andamento', campos: r.restore_status }
+
+  // 2. estado e pendentes
+  if (r.status === 'active' || !tipoConhecido(r.test_type)) return { resultado: 'ja_encerrado', campos: r.restore_status }
+  const rs0 = r.restore_status
+  const pend = camposPendentes(rs0, op.origem)
+  if (!rs0 || pend.length === 0) return { resultado: 'ja_encerrado', campos: r.restore_status }
+
+  // 3. destino
+  const alvos = new Set(pend.map((c) => rs0[c]!.destino))
+  if (alvos.size !== 1) {
+    Sentry.captureMessage('ab-nova-tentativa: destinos divergentes', { extra: { testId } })
+    if (op.origem === 'vigia') await desistirPorDestino(portas, r, rs0, pend)
+    return { resultado: 'destino_invalido', campos: null }
+  }
+  const alvo = [...alvos][0]!
+  const destino = destinoNormalizado(alvo === 'original' ? { tipo: 'original' } : { tipo: 'variante', id: alvo }, r.variantes)
+  if (destino === null) {
+    if (op.origem === 'vigia') await desistirPorDestino(portas, r, rs0, pend)
+    return { resultado: 'destino_invalido', campos: null }
+  }
+
+  // 4. retomada que não terminou: nunca escrever rumo à variante num teste pausado
+  if (r.status === 'paused' && destino !== 'original') return { resultado: 'ja_encerrado', campos: r.restore_status }
+
+  // 5. Y-5: outro teste aberto no mesmo vídeo
+  const outro = await portas.supabase.from('ab_tests').select('id')
+    .eq('site_id', r.site_id).eq('youtube_video_id', r.youtube_video_id).neq('id', testId).in('status', ABERTOS_NO_VIDEO).limit(1)
+  if (outro.error) throw new Error(`ab-settle: outro teste do vídeo ${r.youtube_video_id}: ${outro.error.message}`)
+  if (((outro.data ?? []) as unknown[]).length > 0) return { resultado: 'outro_teste', campos: r.restore_status }
+
+  // 6. o "sim" repetido: 48 h desde o primeiro forcado da cadeia (Y-3)
+  const ancora: Partial<Record<CampoNome, string | null>> = {}
+  for (const c of pend) {
+    const h = await portas.supabase.from('ab_test_restores').select('em, forcado').eq('test_id', testId).eq('campo', c).order('seq', { ascending: false }).limit(10)
+    if (h.error) throw new Error(`ab-settle: histórico de ${c} do teste ${testId}: ${h.error.message}`)
+    ancora[c] = inicioDoSim((h.data ?? []) as Array<{ em: string; forcado: boolean }>)
+  }
+  const forcar = pend.every((c) => simAindaVale(rs0[c]!, agora, ancora[c]))
+  const cotaVencida = (c: CampoNome) => agora.getTime() - Date.parse(ancora[c] ?? rs0[c]!.em) >= JANELA_DA_COTA_MS
+
+  // PODE-1 e 7. reivindica
+  const conv = await converterEmAndamentoVelho(portas, r)
+  if (conv === 'perdeu') return { resultado: 'em_andamento', campos: null }
+  const rs = conv.rs ?? rs0
+  const inicial: RestoreStatus = { ...rs }
+  for (const c of pend) {
+    inicial[c] = {
+      estado: 'em_andamento', destino: nomeDoDestino(destino), forcado: forcar, escreveu: null, erro: null,
+      em: agora.toISOString(), attempts: op.origem === 'humano' ? 0 : rs0[c]!.attempts,
+    }
+  }
+  const claim = await portas.supabase.rpc('ab_settle_claim', {
+    p_test_id: testId, p_seq: conv.seq, p_de: [r.status], p_para: r.status,
+    p_end_reason: null, p_restore_status: inicial, p_extra: {},
+  })
+  if (claim.error) throw new Error(`ab-settle: ab_settle_claim: ${claim.error.message}`)
+  const seq = (claim.data as Array<{ claimed_seq: number }> | null)?.[0]?.claimed_seq
+  if (seq === undefined) {
+    const { data, error } = await portas.supabase.from('ab_tests').select('status').eq('id', testId).maybeSingle()
+    if (error) throw new Error(`ab-settle: status do teste ${testId}: ${(error as { message: string }).message}`)
+    const status = (data as { status: string } | null)?.status
+    return status === r.status ? { resultado: 'em_andamento', campos: null } : { resultado: 'ja_encerrado', campos: null }
+  }
+
+  // 8. tenta só os pendentes
+  const contexto = (c: CampoNome) => ({
+    ultimaEscrita: ultimaEscritaDoApp({ inicioUltimoCiclo: r.inicioUltimoCiclo, restoreStatus: r.restore_status, winnerAppliedAt: r.winner_applied_at }, c),
+    marcador: r.last_applied_variant_id,
+  })
+  const parcial = await restaurarCampos(
+    portas, { ...r, restore_status: rs }, pend, destino, contexto, forcar, seq, prazo,
+    op.origem === 'humano' ? () => 0 : (c) => rs0[c]!.attempts,
+    op.origem === 'vigia' ? { cotaVencida } : undefined,
+  )
+  if ('perdeu' in parcial) {
+    if (pend.some((c) => parcial.parcial[c] && parcial.parcial[c]!.escreveu !== false)) {
+      Sentry.captureMessage('ab-settle: resultado perdido', { extra: { testId: r.id, seq, restoreStatus: parcial.parcial } })
+    }
+    return { resultado: 'em_andamento', campos: null }
+  }
+
+  // 9. grava e decide o vencedor
+  const final: RestoreStatus = { ...rs, ...parcial }
+  const tudoOk = camposDoTeste(r.test_type).every((c) => final[c]?.estado === 'ok')
+  const patch: Record<string, unknown> = { restore_status: final }
+  let vencedorAplicado = false
+  if (destino !== 'original' && tudoOk) {
+    vencedorAplicado = true
+    Object.assign(patch, {
+      winner_applied_at: agora.toISOString(), applied_by: 'manual',
+      revert_expires_at: new Date(agora.getTime() + REVERT_MS).toISOString(),
+    })
+  } else if (destino === 'original' && r.winner_applied_at !== null && tudoOk) {
+    Object.assign(patch, { winner_applied_at: null, revert_expires_at: null, applied_by: null })
+  }
+  const { data, error } = await portas.supabase.from('ab_tests').update(patch).eq('id', r.id).eq('restore_seq', seq).select('id')
+  if (error) throw new Error(`ab-settle: gravar resultado do teste ${r.id}: ${error.message}`)
+  if (((data ?? []) as unknown[]).length === 0) {
+    Sentry.captureMessage('ab-settle: resultado perdido', { extra: { testId: r.id, seq, restoreStatus: final } })
+    return { resultado: 'em_andamento', campos: null }
+  }
+  if (vencedorAplicado && r.winner_applied_at === null) { // Y-12: só na primeira aplicação
+    await portas.autoImportWinner(testId, r.site_id).catch((e: unknown) => Sentry.captureException(e, { tags: { area: 'ab-settle' } }))
+  }
+  return { resultado: 'feito', campos: final }
 }

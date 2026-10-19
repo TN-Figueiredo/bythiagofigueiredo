@@ -11,6 +11,7 @@ export const MSG_SEM_PERMISSAO_VARIANTE = 'Só quem administra o site pode deixa
 export const MSG_JA_ENCERRADO = 'Este teste já não está neste estado. Atualize a página.'
 export const MSG_MUDOU = 'O teste mudou em outra aba. Reabra para decidir.'
 export const MSG_PEDIDO_INVALIDO = 'Pedido inválido. Recarregue a página e tente de novo.'
+export const MSG_OUTRO_TESTE = 'Outro teste está aberto neste vídeo. O Lab não mexe neste enquanto ele estiver aberto.' // TEXTO-A-REVISAR
 export const MSG_DESTINO_INVALIDO = 'Variante inválida para este teste.'
 
 /** Contrato do diálogo "O que fica no vídeo?" (Tarefa 15). */
@@ -34,6 +35,7 @@ export function traduzirSaida(r: ResultadoSaida): ResultadoAcaoSaida {
     case 'mudou': return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
     case 'em_andamento': return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
     case 'ja_encerrado': return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+    case 'outro_teste': return { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }
     case 'destino_invalido': return { ok: false, resultado: 'erro', error: MSG_DESTINO_INVALIDO } // Y-D2
   }
 }
