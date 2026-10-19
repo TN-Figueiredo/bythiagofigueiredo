@@ -36,19 +36,48 @@ function montar(rs: RestoreStatus, c: CtxFaixa, over: Partial<Parameters<typeof 
   return { tentar, dispensar }
 }
 
-describe('FaixaComAcoes: aparência dos botões', () => {
-  it('desabilitado tem opacidade reduzida e cursor not-allowed; texto do primário não é branco', () => {
+describe('FaixaComAcoes: aparência dos botões (r3)', () => {
+  it('desabilitado: secundário em superfície neutra legível; primário sem opacidade, cursor progress; texto do primário não é branco no escuro e é #FFF8F0 no claro', () => {
     montar(C, ctx)
-    for (const b of screen.getAllByRole('button')) {
-      expect(b.className).toContain('disabled:opacity-')
-      expect(b.className).toContain('disabled:cursor-not-allowed')
-    }
     const pri = screen.getByRole('button', { name: 'Tentar agora' })
+    const sec = screen.getByRole('button', { name: /Já corrigi/ })
+    expect(sec.className).toContain('disabled:cursor-not-allowed')
+    expect(sec.className).toContain('disabled:opacity-100')
+    expect(sec.className).toContain('disabled:bg-cms-surface-hover')
+    expect(sec.className).toContain('disabled:border-cms-border')
+    expect(sec.className).toContain('[[data-theme=dark]_&]:disabled:border-[rgba(146,136,113,.45)]')
+    expect(sec.className).not.toMatch(/disabled:opacity-50/)
+    expect(pri.className).toContain('disabled:cursor-progress')
+    expect(pri.className).toContain('disabled:opacity-100')
     expect(pri.className).not.toMatch(/(^|\s)(hover:)?text-white/)
-    expect(pri.className).toContain('--cms-on-accent')
+    expect(pri.className).toContain('text-[#1A120A]')
+    expect(pri.className).toContain('[[data-theme=light]_&]:text-[#FFF8F0]')
+    expect(pri.className).not.toContain('--cms-on-accent')
   })
 
-  it('classe final: primário sem text-cms-text-dim; secundário com text-cms-text (sobre a faixa) e sem a dim; transição válida', () => {
+  it('botões da faixa: 36 px (py-[7px] leading-5 min-h-[36px] px-4 text-[13px]), borda --btn-ctl, 44 px em toque', () => {
+    montar(C, ctx)
+    for (const b of screen.getAllByRole('button')) {
+      const c = b.className.split(/\s+/)
+      for (const k of ['py-[7px]', 'leading-5', 'px-4', 'text-[13px]', 'gap-2', 'min-h-[36px]', '[@media(pointer:coarse)]:min-h-[44px]']) expect(c).toContain(k)
+      expect(c).not.toContain('py-[6px]')
+      expect(c).not.toContain('border-cms-border')
+    }
+    const pri = screen.getByRole('button', { name: 'Tentar agora' })
+    expect(pri.className).toContain('border-pb-accent')
+    expect(pri.className).toContain('bg-pb-accent')
+    expect(pri.className).not.toContain('bg-cms-accent')
+  })
+
+  it('BTN_SAIDA (Pausar/Encerrar) mantém o tamanho antigo e ganha só a borda --btn-ctl', async () => {
+    const { BTN_SAIDA, BTN_BASE } = await import('@/app/cms/(authed)/youtube/ab-lab/_components/acoes-de-saida')
+    expect(BTN_BASE).toContain('border-[color:var(--btn-ctl)]')
+    expect(BTN_BASE).not.toContain('border-cms-border')
+    expect(BTN_SAIDA).toContain('py-[6px]')
+    expect(BTN_SAIDA).toContain('text-[12.5px]')
+  })
+
+  it('classe final: primário sem text-cms-text-dim; secundário com text-cms-text; transição válida', () => {
     montar(C, ctx)
     const pri = screen.getByRole('button', { name: 'Tentar agora' })
     const sec = screen.getByRole('button', { name: /Já corrigi/ })
@@ -57,6 +86,45 @@ describe('FaixaComAcoes: aparência dos botões', () => {
     expect(sec.className.split(/\s+/)).not.toContain('text-cms-text-dim')
     expect(sec.className.split(/\s+/)).toContain('text-cms-text')
     for (const b of [pri, sec]) expect(b.className).not.toContain('transition-[0.15s]')
+  })
+
+  it('link, nota e botões no mesmo .fr-acoes, na ordem; botões em .fr-botoes', () => {
+    montar(C, ctx)
+    const acoes = document.querySelector('.fr-acoes')!
+    expect(acoes).toBeTruthy()
+    const botoes = acoes.querySelector('.fr-botoes')!
+    expect(botoes.querySelectorAll('button')).toHaveLength(2)
+    expect(acoes.querySelector('a.fr-lnk')).toBeTruthy()
+    expect(botoes.className).not.toContain('mt-2')
+    expect(acoes.firstElementChild?.tagName).toBe('A')
+  })
+
+  it('sem permissão: a frase fica dentro do .fr-acoes, junto do link', () => {
+    const rs: RestoreStatus = { title: campo({ estado: 'falhou', destino: 'vb', erro: recusa }), thumbnail: campo({ destino: 'vb' }) }
+    montar(rs, { ...ctx, podeAdministrar: false })
+    const frase = screen.getByText('Só quem administra o site pode tentar de novo ou dispensar este aviso.')
+    expect(frase.closest('.fr-acoes')).toBeTruthy()
+  })
+
+  it('"Tentando…" no primário durante a chamada, com aria-busy e cursor-progress', async () => {
+    let solta!: (r: ResultadoAcaoSaida) => void
+    const tentar = vi.fn(() => new Promise<ResultadoAcaoSaida>(r => { solta = r }))
+    montar(C, ctx, { tentar })
+    fireEvent.click(screen.getByRole('button', { name: 'Tentar agora' }))
+    const b = await screen.findByRole('button', { name: 'Tentando…' })
+    expect(b.getAttribute('aria-busy')).toBe('true')
+    expect(b.className).toContain('disabled:cursor-progress')
+    expect(screen.queryByRole('button', { name: 'Tentar agora' })).toBeNull()
+    await act(async () => { solta(OK) })
+  })
+
+  it('dispensar em curso: primário continua "Tentar agora"', async () => {
+    let solta!: (r: ResultadoAcaoSaida) => void
+    const dispensar = vi.fn(() => new Promise<ResultadoAcaoSaida>(r => { solta = r }))
+    montar(C, ctx, { dispensar })
+    fireEvent.click(screen.getByRole('button', { name: /Já corrigi/ }))
+    expect(await screen.findByRole('button', { name: 'Tentar agora' })).toBeTruthy()
+    await act(async () => { solta(OK) })
   })
 })
 

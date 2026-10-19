@@ -20,11 +20,14 @@ export interface FaixaComAcoesProps {
   dispensar: (campos: CampoNome[], seqVisto: number) => Promise<ResultadoAcaoSaida>
 }
 
-// Texto escuro do produto (--cms-on-accent) sobre o laranja: 7,5:1; o branco dava 2,5:1.
-const DESABILITADO = 'disabled:opacity-50 disabled:cursor-not-allowed'
-const BTN_PRI = `${BTN_BASE} bg-cms-accent text-[var(--cms-on-accent,#1A120A)] hover:text-[var(--cms-on-accent,#1A120A)] ${DESABILITADO} [@media(pointer:coarse)]:min-h-[44px]`
-// Secundário sobre a faixa colorida: text-cms-text (a dim ficava em 4,1 a 4,4:1 sobre a faixa de erro).
-const BTN = `${BTN_BASE} text-cms-text ${DESABILITADO} [@media(pointer:coarse)]:min-h-[44px]`
+// Faixa: 36 px (py-[7px] leading-5), 13 px, px-4 (mockup r3). Pausar/Encerrar (BTN_SAIDA) não mudam de tamanho.
+const BTN_FAIXA = BTN_BASE
+  .replace('py-[6px] px-[11px] text-[12.5px]', 'min-h-[36px] py-[7px] px-4 text-[13px] leading-5')
+  .replace('gap-[7px]', 'gap-2') + ' [@media(pointer:coarse)]:min-h-[44px]'
+// Primário: fundo --pb-accent (#FF8240 no escuro, #B94210 no claro, como o mockup); texto escuro (7,5:1 sobre o laranja); no tema claro #FFF8F0 (5,18:1 sobre #B94210). Borda = fundo.
+const BTN_PRI = `${BTN_FAIXA.replace('border-[color:var(--btn-ctl)]', 'border-pb-accent')} bg-pb-accent text-[#1A120A] hover:text-[#1A120A] [[data-theme=light]_&]:text-[#FFF8F0] [[data-theme=light]_&]:hover:text-[#FFF8F0] disabled:cursor-progress disabled:opacity-100`
+// Secundário sobre a faixa colorida: text-cms-text. Desabilitado: superfície neutra legível (sem 50% de opacidade).
+const BTN = `${BTN_FAIXA} text-cms-text disabled:cursor-not-allowed disabled:opacity-100 disabled:bg-cms-surface-hover disabled:text-cms-text-muted disabled:border-cms-border [[data-theme=dark]_&]:disabled:border-[rgba(146,136,113,.45)]`
 
 /** Ilha cliente da faixa: os botões "Tentar agora" e "Já corrigi no YouTube" (P4b). Sem permissão, nenhum botão. */
 export function FaixaComAcoes({ testId, faixa, faixaTentando, seqVisto, tentar, dispensar }: FaixaComAcoesProps) {
@@ -55,12 +58,13 @@ export function FaixaComAcoes({ testId, faixa, faixaTentando, seqVisto, tentar, 
   const mostrada = tentando && faixaTentando ? faixaTentando : faixa
   return (
     <FaixaRestauracao faixa={mostrada}>
-      {acoes && acoes.motivoSemBotao ? <p className="fr-fine">{acoes.motivoSemBotao}</p> : null}
+      {acoes && (acoes.motivoSemBotao || acoes.tentar || acoes.dispensar.length > 0) ? <>
+      {acoes.motivoSemBotao ? <p className="fr-fine">{acoes.motivoSemBotao}</p> : null}
       {acoes && (acoes.tentar || acoes.dispensar.length > 0) ? (
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="fr-botoes">
           {acoes.tentar ? (
             <button type="button" className={BTN_PRI} disabled={ocupado} aria-busy={ocupado} onClick={() => rodar(() => tentar(seqVisto), true)}>
-              Tentar agora
+              {tentando ? 'Tentando…' : 'Tentar agora'}
             </button>
           ) : null}
           {acoes.dispensar.length > 0 ? (
@@ -70,6 +74,7 @@ export function FaixaComAcoes({ testId, faixa, faixaTentando, seqVisto, tentar, 
           ) : null}
         </div>
       ) : null}
+      </> : null}
     </FaixaRestauracao>
   )
 }

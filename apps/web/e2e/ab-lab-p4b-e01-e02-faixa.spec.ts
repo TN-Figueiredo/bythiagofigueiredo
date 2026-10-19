@@ -6,7 +6,7 @@ import { test, expect, type Page, type TestInfo } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { limpar, horaSpManual, instanteSp, minAtras, lerTeste, estadoFalso, ctl, TITULOS, type RsSemente, type CampoRs } from './ab-lab-p4a-suporte/semente'
-import { AUTH, SHOTS, abrir, esperarLimpo, nomeDaFoto, preparar, temaDoProjeto, type Tema } from './ab-lab-p4a-suporte/comum'
+import { AUTH, SHOTS, abrir, esperarLimpo, larguraDoProjeto, nomeDaFoto, preparar, temaDoProjeto, type Tema } from './ab-lab-p4a-suporte/comum'
 import { auditoriaDaDispensa, guardarVigia, msAteAViradaDoVigia, proximaVigiaSp, vigiaAusente, vigiaFresco } from './ab-lab-p4a-suporte/semente-p4b'
 
 test.use({ storageState: AUTH.admin })
@@ -160,11 +160,8 @@ async function medirBotoes(page: Page): Promise<Array<{ nome: string; cor: strin
       for (const c of cadeia.reverse()) acc = sobre(c, acc)
       return acc
     }
-    const sonda = document.createElement('span')
-    sonda.style.color = 'var(--cms-on-accent, #1A120A)'
-    document.body.appendChild(sonda)
-    const onAccent = getComputedStyle(sonda).color
-    sonda.remove()
+    const claro = document.documentElement.getAttribute('data-theme') === 'light'
+    const onAccent = claro ? 'rgb(255, 248, 240)' : 'rgb(26, 18, 10)'
     return [...document.querySelectorAll('.faixa-rest button')].map((b) => {
       const cor = getComputedStyle(b).color
       const fundo = fundoDe(b)
@@ -175,8 +172,50 @@ async function medirBotoes(page: Page): Promise<Array<{ nome: string; cor: strin
   })
 }
 
+/** Geometria e cores MEDIDAS ao vivo (r3): altura 36/44, gap 12 entre link e botões, borda --btn-ctl, contraste da borda >= 3:1. */
+async function medirGeometria(page: Page) {
+  return page.evaluate(() => {
+    const rgba = (c: string): number[] => { const m = c.match(/[\d.]+/g)!.map(Number); return [m[0]!, m[1]!, m[2]!, m[3] ?? 1] }
+    const sobre = (f: number[], b: number[]): number[] => [0, 1, 2].map((i) => f[i]! * f[3]! + b[i]! * (1 - f[3]!)).concat([1])
+    const lum = (c: number[]): number => { const [r, g, b] = c.slice(0, 3).map((v) => { const x = v! / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }); return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! }
+    const fundoDe = (el: Element): number[] => { const cadeia: number[][] = []; for (let e: Element | null = el; e; e = e.parentElement) cadeia.push(rgba(getComputedStyle(e).backgroundColor)); let acc = [255, 255, 255, 1]; for (const c of cadeia.reverse()) acc = sobre(c, acc); return acc }
+    const razao = (a: number[], b: number[]): number => Math.round(((Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)) * 100) / 100
+    const link = document.querySelector('.faixa-rest .fr-lnk')?.getBoundingClientRect()
+    const bs = [...document.querySelectorAll<HTMLElement>('.faixa-rest .fr-botoes button')]
+    const b0 = bs[0]?.getBoundingClientRect()
+    const band = document.querySelector('.fr-band')!
+    const cs = getComputedStyle(band)
+    return {
+      tema: document.documentElement.getAttribute('data-theme'),
+      botoes: bs.map((b) => { const s = getComputedStyle(b); const bg = fundoDe(b.parentElement!); const primario = (b.textContent ?? '').match(/Tentar|Tentando/) !== null
+        return { nome: (b.textContent ?? '').trim(), altura: b.getBoundingClientRect().height, largura: b.getBoundingClientRect().width, larguraPai: b.parentElement!.getBoundingClientRect().width, borda: s.borderTopColor, bordaLarg: s.borderTopWidth, razaoBorda: razao(rgba(s.borderTopColor), bg), primario } }),
+      gapLinkBotoes: link && b0 ? Math.round((b0.top - link.bottom) * 100) / 100 : null,
+      alturaLink: link ? link.height : null,
+      padding: [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft],
+      bordaEsq: cs.borderLeftWidth,
+      fundoFaixa: cs.backgroundColor,
+    }
+  })
+}
+
 async function conferirBotoes(page: Page, info: TestInfo, rotulo: string): Promise<void> {
   await page.waitForTimeout(400) // a transição de 0,15 s dos botões termina antes da medida e da captura
+  const g = await medirGeometria(page)
+  info.annotations.push({ type: 'geometria-botoes', description: JSON.stringify(g) })
+  const estreito = larguraDoProjeto(info) === 390
+  for (const b of g.botoes) {
+    expect(b.altura, `${rotulo}: altura de "${b.nome}"`).toBe(estreito ? 44 : 36)
+    if (estreito) expect(b.largura, `${rotulo}: "${b.nome}" na largura toda a 390 px`).toBe(b.larguraPai)
+    expect(b.bordaLarg, `${rotulo}: borda de 1 px`).toBe('1px')
+    if (!b.primario) {
+      expect(b.borda, `${rotulo}: borda --btn-ctl no ${g.tema}`).toBe(g.tema === 'light' ? 'rgb(117, 106, 81)' : 'rgb(146, 136, 113)')
+      expect(b.razaoBorda, `${rotulo}: borda de "${b.nome}" >= 3:1 contra a faixa`).toBeGreaterThanOrEqual(3)
+    }
+  }
+  if (g.gapLinkBotoes !== null) expect(g.gapLinkBotoes, `${rotulo}: gap link a botões`).toBe(12)
+  if (g.alturaLink !== null) expect(g.alturaLink, `${rotulo}: link`).toBeGreaterThanOrEqual(24)
+  expect(g.padding, `${rotulo}: padding 16 em volta`).toEqual(['16px', '16px', '16px', '16px'])
+  expect(g.bordaEsq, `${rotulo}: trilho de 4 px`).toBe('4px')
   const medidas = await medirBotoes(page)
   info.annotations.push({ type: 'contraste-botoes', description: JSON.stringify(medidas) })
   for (const m of medidas) {
@@ -297,7 +336,15 @@ test('E1 tentando: ao clicar, a faixa vira "em andamento", os botões ficam desa
   await page.waitForTimeout(400) // transição de 0,15 s dos botões
   const estilo = await page.evaluate(() => [...document.querySelectorAll('.faixa-rest button')].map((b) => { const s = getComputedStyle(b); return { nome: b.textContent, opacidade: s.opacity, cursor: s.cursor, cor: s.color, fundo: s.backgroundColor } }))
   info.annotations.push({ type: 'estilo-desabilitado', description: JSON.stringify(estilo) })
-  for (const e of estilo) { expect(Number(e.opacidade), `${e.nome} opacidade`).toBeLessThan(1); expect(e.cursor, `${e.nome} cursor`).toBe('not-allowed') }
+  // r3: nada de 50% de opacidade. Primário laranja cheio "Tentando…" (cursor progress); secundário em superfície neutra (not-allowed).
+  expect(l.botoes.map((b) => b.nome)).toContain('Tentando…')
+  for (const e of estilo) { expect(Number(e.opacidade), `${e.nome} opacidade`).toBe(1); expect(e.cursor, `${e.nome} cursor`).toBe((e.nome ?? '').includes('Tentando') ? 'progress' : 'not-allowed') }
+  const gt = await medirGeometria(page)
+  info.annotations.push({ type: 'geometria-tentando', description: JSON.stringify(gt) })
+  const sec = gt.botoes.find((b) => !b.primario)!
+  expect(sec.borda, 'borda do desabilitado').toBe(gt.tema === 'dark' ? 'rgba(146, 136, 113, 0.45)' : 'rgb(206, 191, 160)')
+  for (const b of gt.botoes) expect(b.altura, 'altura em tentando').toBe(larguraDoProjeto(info) === 390 ? 44 : 36)
+  for (const m of await medirBotoes(page)) expect(m.razao, `tentando: contraste de "${m.nome}"`).toBeGreaterThanOrEqual(4.5)
   await semInvasaoHorizontal(page, 'E1 tentando')
   await fotoFaixa(page, 'tentando', info, tema)
   // termina: faixa de sucesso, sem botões
