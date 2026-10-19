@@ -126,6 +126,21 @@ describe('desfecho do registro aberto', () => {
     expect(acao.lido).toBe(ab.updatedAt)
   })
 
+  // emenda r5 da S4: o player do datacenter nega o título oficial, a S4 grava tituloOficial sempre nulo
+  it('C-7g: oficial nulo (S4 real) e sufixo estável: encerra sem_desfecho por oficial_nao_lido, sem vencedor, e não reabre', () => {
+    const ab = aberto()
+    const depois = soB(fimMistura + 2 * H, 18).map(l => ({ ...l, tituloOficial: null, titulo_oficial_fonte: null }))
+    const todas = [...mistura, ...depois]
+    const agora = iso(ultima(depois) + H)
+    const { acao } = avaliarVideo(entrada({ leituras: todas, agora, aberto: ab }))
+    if (acao.tipo !== 'encerrar') throw new Error(`veio ${acao.tipo}`)
+    expect(acao.fim.estado).toBe('sem_desfecho')
+    expect(acao.fim.desfechoMotivo).toBe('oficial_nao_lido')
+    expect(acao.fim.vencedorTitulo).toBeNull()
+    const de = avaliarVideo(entrada({ leituras: todas, agora, fechamentos: { encerradoEm: acao.fim.encerradoEm, descartadoEm: null } })).acao
+    expect(de.tipo).toBe('nada')
+  })
+
   it('C-7b: v14 ainda provável e sufixo estável: encerra mesmo assim (ordem fixa)', () => {
     const ab = aberto()
     const depois = soB(fimMistura + 2 * H, 18)

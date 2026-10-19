@@ -102,6 +102,11 @@ export function decidirRegistro(
   if (desfecho?.estado === 'vencedor_provavel') {
     return { acao: { tipo: 'encerrar', id: aberto.id, lido: aberto.updatedAt, fim: fimDe('encerrado', 'vencedor_provavel', 'vencedor_provavel', desfecho.versaoRegra, desfecho.vencedor, ctx.agora) }, aviso: null }
   }
+  // (a'') sufixo estável sem título oficial (a S4 grava `tituloOficial` sempre nulo, emenda r5): o teste acabou, mas quem
+  // venceu vem da Data API (fase 2). Sem este ramo o registro ficaria `em_andamento` para sempre (falha em verde).
+  if (desfecho?.estado === 'sem_dado' && desfecho.motivo === 'oficial_nao_lido') {
+    return { acao: { tipo: 'encerrar', id: aberto.id, lido: aberto.updatedAt, fim: fimDe('sem_desfecho', 'sem_dado', 'oficial_nao_lido', desfecho.versaoRegra, null, ctx.agora) }, aviso: null }
+  }
   // (b) órfão: nenhuma leitura votante depois da última vista há mais de maxIdadeColetaMs
   if (aberto.ultimaVista !== null && ctx.ultimaVotanteDepoisMs === null && agoraMs - Date.parse(aberto.ultimaVista) > PADROES_DESFECHO.maxIdadeColetaMs) {
     return { acao: { tipo: 'encerrar', id: aberto.id, lido: aberto.updatedAt, fim: fimDe('sem_desfecho', 'sem_dado', 'sem_leitura_depois', REGRA_TESTE_YOUTUBE_VERSAO, null, ctx.agora) }, aviso: null }

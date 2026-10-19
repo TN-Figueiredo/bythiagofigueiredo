@@ -53,6 +53,18 @@ describe('reproduzirPassado', () => {
     expect(r.avaliacoes.at(-1)!.retroativa).toBe(false)
   })
 
+  it('oficial nulo (S4 real): o teste acabado no passado fecha sem_desfecho por oficial_nao_lido, sem vencedor', () => {
+    const inicio = Date.parse('2026-10-01T00:00:00Z')
+    const mistura = rodadas({ inicio: iso(inicio), intervaloMs: 4 * H, padroes: Array.from({ length: 18 }, () => 'AAB'), textos })
+    const fim = ultima(mistura)
+    const soB = Array.from({ length: 20 }, (_, i) => leitura({ em: iso(fim + 2 * H + i * 90 * 60_000), rodada: `b${i}`, titulo: textos.B }))
+    const r = reproduzirPassado([...mistura, ...soB], [], iso(ultima(soB) + H), idsDeterministicos())
+    expect(r.registros).toHaveLength(1)
+    expect(r.registros[0]!.fim?.estado).toBe('sem_desfecho')
+    expect(r.registros[0]!.fim?.desfechoMotivo).toBe('oficial_nao_lido')
+    expect(r.registros[0]!.fim?.vencedorTitulo).toBeNull()
+  })
+
   it('pureza: duas chamadas com o mesmo novoId determinístico dão o mesmo resultado', () => {
     const a = reproduzirPassado(leituras, [], agora, idsDeterministicos())
     const b = reproduzirPassado(leituras, [], agora, idsDeterministicos())
