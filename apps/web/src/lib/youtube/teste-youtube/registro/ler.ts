@@ -110,8 +110,10 @@ const eLinhaNativo = (x: unknown): x is LinhaNativo =>
   isRec(x) && typeof x.id === 'string' && typeof x.site_id === 'string' && typeof x.video_id === 'string' && typeof x.youtube_video_id === 'string'
   && typeof x.updated_at === 'string' && (x.origem === 'detectado' || x.origem === 'confirmado') && Array.isArray(x.campos) && Array.isArray(x.evidencia)
   && textoOuNulo(x.primeira_vista) && textoOuNulo(x.ultima_vista) && textoOuNulo(x.desfecho_estado) && textoOuNulo(x.desfecho_motivo)
-interface LinhaFechada { video_id: string; estado: string; encerrado_em: string | null; descartado_em: string | null }
-const eLinhaFechada = (x: unknown): x is LinhaFechada => isRec(x) && typeof x.video_id === 'string' && typeof x.estado === 'string' && textoOuNulo(x.encerrado_em) && textoOuNulo(x.descartado_em)
+interface LinhaFechada { video_id: string; estado: string; encerrado_em: string | null; descartado_em: string | null; ultima_vista: string | null; desfecho_motivo: string | null }
+const eLinhaFechada = (x: unknown): x is LinhaFechada =>
+  isRec(x) && typeof x.video_id === 'string' && typeof x.estado === 'string' && textoOuNulo(x.encerrado_em) && textoOuNulo(x.descartado_em)
+  && textoOuNulo(x.ultima_vista) && textoOuNulo(x.desfecho_motivo)
 
 const COLUNAS_NATIVO = 'id, site_id, video_id, youtube_video_id, estado, origem, campos, variantes_titulo, votos_titulo, primeira_vista, ultima_vista, veredito, evidencia, desfecho_estado, desfecho_motivo, updated_at'
 
@@ -218,11 +220,15 @@ export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promis
     const fechados = new Map<string, Fechamentos>()
     for (const lote of lotes(todos, LOTE_UUIDS)) {
       const linhas = await paginar<LinhaFechada>('registros fechados',
-        (de, ate) => sb.from('ab_native_tests').select('video_id, estado, encerrado_em, descartado_em').in('video_id', lote).in('estado', ['encerrado', 'sem_desfecho', 'descartado']).order('created_at', { ascending: false }).order('id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
+        (de, ate) => sb.from('ab_native_tests').select('video_id, estado, encerrado_em, descartado_em, ultima_vista, desfecho_motivo').in('video_id', lote).in('estado', ['encerrado', 'sem_desfecho', 'descartado']).order('created_at', { ascending: false }).order('id').range(de, ate).abortSignal(AbortSignal.timeout(BANCO_MS)),
         eLinhaFechada)
       for (const l of linhas) {
         const f = fechados.get(l.video_id) ?? { encerradoEm: null, descartadoEm: null }
-        if (l.encerrado_em !== null && em(l.encerrado_em) > em(f.encerradoEm)) f.encerradoEm = l.encerrado_em
+        // `teste_novo`: o fechamento e a criação do novo são dois pedidos. O corte vai na última vista do antigo (não em `encerrado_em`),
+        // para que a falha do 2º pedido não apague o começo do teste novo (P2). `+1 ms`: a leitura de `ultima_vista` é do antigo.
+        const ultimaMs = ms(l.ultima_vista)
+        const encerrado = l.estado === 'sem_desfecho' && l.desfecho_motivo === 'teste_novo' && ultimaMs !== null ? new Date(ultimaMs + 1).toISOString() : l.encerrado_em
+        if (encerrado !== null && em(encerrado) > em(f.encerradoEm)) f.encerradoEm = encerrado
         if (l.descartado_em !== null && em(l.descartado_em) > em(f.descartadoEm)) f.descartadoEm = l.descartado_em
         fechados.set(l.video_id, f)
       }

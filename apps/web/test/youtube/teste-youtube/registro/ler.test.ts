@@ -46,7 +46,7 @@ function cenario(videos: Record<number, Cfg>, extra: { falhar?: Parameters<typeo
       })
     }
     if (c.fechado) {
-      nativos.push({ id: `f${n}`, site_id: SITE, video_id: vid(n), youtube_video_id: yt(n), estado: 'encerrado', encerrado_em: iso(AGORA - c.fechado.encerradoHaMin * MIN), descartado_em: null, created_at: iso(AGORA - 9 * HORA) })
+      nativos.push({ id: `f${n}`, site_id: SITE, video_id: vid(n), youtube_video_id: yt(n), estado: 'encerrado', encerrado_em: iso(AGORA - c.fechado.encerradoHaMin * MIN), descartado_em: null, ultima_vista: null, desfecho_motivo: null, created_at: iso(AGORA - 9 * HORA) })
     }
     const u = c.ultimas ?? {}
     const t = (m: number | null | undefined): string | null => (m === null || m === undefined ? null : iso(AGORA - m * MIN))
@@ -167,6 +167,15 @@ describe('devido (§5.2)', () => {
     expect((await devidosDe(cenario({ 1: { ultimaRodadaHaMin: 1, ultimas: { okHaMin: 20 } } }))).devidos[0]!.motivo).toBe('rodada_nova')
     expect((await devidosDe(cenario({ 1: { ultimaRodadaHaMin: 30, ultimas: { okHaMin: 20 } } }))).devidos).toEqual([])
     expect((await devidosDe(cenario({ 1: { ultimaRodadaHaMin: 20, ultimas: { okHaMin: 20 } } }))).devidos).toEqual([])
+  })
+  it('fechamento teste_novo corta em ultima_vista + 1 ms, não em encerrado_em (P2); os demais seguem em encerrado_em', async () => {
+    const b = cenario({ 1: { ultimaRodadaHaMin: 5, ultimas: { okHaMin: 90 } }, 2: { ultimaRodadaHaMin: 5, ultimas: { okHaMin: 90 } } })
+    const nativos = b.tabelas.ab_native_tests!
+    nativos.push({ id: 'n1', site_id: SITE, video_id: vid(1), youtube_video_id: yt(1), estado: 'sem_desfecho', desfecho_motivo: 'teste_novo', ultima_vista: iso(AGORA - 20 * HORA), encerrado_em: iso(AGORA - 10 * MIN), descartado_em: null, created_at: iso(AGORA - 30 * HORA) })
+    nativos.push({ id: 'n2', site_id: SITE, video_id: vid(2), youtube_video_id: yt(2), estado: 'sem_desfecho', desfecho_motivo: 'coleta_encerrada', ultima_vista: iso(AGORA - 20 * HORA), encerrado_em: iso(AGORA - 10 * MIN), descartado_em: null, created_at: iso(AGORA - 30 * HORA) })
+    const r = await devidosDe(b)
+    expect(r.devidos.find(d => d.videoId === vid(1))!.fechamentos.encerradoEm).toBe(iso(AGORA - 20 * HORA + 1))
+    expect(r.devidos.find(d => d.videoId === vid(2))!.fechamentos.encerradoEm).toBe(iso(AGORA - 10 * MIN))
   })
   it('fechamentos chegam ao candidato', async () => {
     const r = await devidosDe(cenario({ 1: { ultimaRodadaHaMin: 1, ultimas: { okHaMin: 20 }, fechado: { encerradoHaMin: 300 } } }))

@@ -161,6 +161,31 @@ describe('registro aberto sem avaliação (Y1, P1, G-1)', () => {
   })
 })
 
+describe('encerrar_e_criar partido ao meio (P2)', () => {
+  it('o insert do novo falha depois do update que fecha o antigo: o disparo seguinte cria o novo com a mesma primeira_vista e a mesma evidência', async () => {
+    const antigo = (): Linha => registroSemente(1, 'db-1', { ultima_vista: iso(T0 - 15 * 24 * H) })
+    const ref = mundo([{ n: 1, leituras: mistura(30 * MIN, 18, 'AAD'), avaliacoes: [evalOk(1, 1001, 600)], aberto: antigo() }])
+    await rodarRegistro(contexto().c(ref.sb), opcoes)
+    const esperado = tab(ref, 'ab_native_tests').find(x => x.estado === 'em_andamento')!
+
+    let falhou = false
+    const b = mundo([{ n: 1, leituras: mistura(30 * MIN, 18, 'AAD'), avaliacoes: [evalOk(1, 1001, 600)], aberto: antigo() }], {
+      falhar: p => { if (!falhou && p.tabela === 'ab_native_tests' && p.op === 'insert') { falhou = true; return { code: 'XX000' } } return null },
+    })
+    const { c, state } = contexto()
+    await rodarRegistro(c(b.sb), opcoes)
+    expect(falhou).toBe(true)
+    expect(tab(b, 'ab_native_tests').find(x => x.id === 'db-1')).toMatchObject({ estado: 'sem_desfecho', desfecho_motivo: 'teste_novo' })
+    expect(tab(b, 'ab_native_tests').filter(x => x.estado === 'em_andamento')).toHaveLength(0)
+    ir(state, 60 * MIN)
+    await rodarRegistro(c(b.sb), opcoes)
+    const novo = tab(b, 'ab_native_tests').filter(x => x.estado === 'em_andamento')
+    expect(novo).toHaveLength(1)
+    expect(novo[0]!.primeira_vista).toBe(esperado.primeira_vista)
+    expect(JSON.stringify(novo[0]!.evidencia)).toBe(JSON.stringify(esperado.evidencia))
+  })
+})
+
 describe('registro nas avaliações seguintes (C-2, C-4)', () => {
   const base = (extra: Partial<VideoCfg> = {}): VideoCfg => ({ n: 1, leituras: mistura(30 * MIN), avaliacoes: [evalOk(1, 1001, 600)], ...extra })
 
