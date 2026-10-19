@@ -76,7 +76,7 @@ export function ThumbView({ t, lg }: { t: Thumb | null; lg?: boolean }) {
  */
 export function Strip({ cell }: { cell: CadenceCell }) {
   const W = 130, H = 30
-  const hat = useId()
+  const hat = 'hat' + useId().replace(/[^a-zA-Z0-9_-]/g, '')
   if (cell.kind === 'na') return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">{Array.from({ length: 13 }, (_, i) => <rect key={i} x={i * 10 + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />)}</svg>
   )
@@ -98,7 +98,7 @@ export function Strip({ cell }: { cell: CadenceCell }) {
         return (
           <g key={i}>
             {long ? <rect x={x} y={H - hl} width={5} height={hl} rx={1} fill="var(--strip-long)" /> : null}
-            {short ? <rect x={x + 6} y={H - hs} width={3} height={hs} rx={1} fill="var(--strip-short)" opacity={0.6} /> : null}
+            {short ? <rect x={x + 6} y={H - hs} width={3} height={hs} rx={1} fill="var(--strip-short)" /> : null}
           </g>
         )
       })}

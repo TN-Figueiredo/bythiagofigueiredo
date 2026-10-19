@@ -25,8 +25,16 @@ export function NotaRitmo({ nota, className }: { nota: NotaDoRitmo; className?: 
       p.style.top = `${r.bottom + 6}px`
     }
     const fora = (e: PointerEvent) => { if (raiz.current && !raiz.current.contains(e.target as Node)) setAberta(false) }
+    // A caixa é `fixed`, calculada ao abrir: rolar (a página ou a tabela na horizontal) ou redimensionar a descolaria do ⓘ. Fechar é mais barato que reposicionar.
+    const fechar = () => setAberta(false)
     document.addEventListener('pointerdown', fora)
-    return () => document.removeEventListener('pointerdown', fora)
+    window.addEventListener('scroll', fechar, true)
+    window.addEventListener('resize', fechar)
+    return () => {
+      document.removeEventListener('pointerdown', fora)
+      window.removeEventListener('scroll', fechar, true)
+      window.removeEventListener('resize', fechar)
+    }
   }, [aberta])
 
   return (
@@ -45,5 +53,5 @@ export function NotaRitmo({ nota, className }: { nota: NotaDoRitmo; className?: 
 
 /** A coluna do sufixo reservada numa linha sem nota, enquanto alguma linha à vista tem: os números ficam alinhados. */
 export function NotaRitmoReserva() {
-  return <span className="obs-nr ph" aria-hidden="true"><span className="obs-nr-t">· sobre 000 d</span></span>
+  return <span className="obs-nr ph" aria-hidden="true"><span className="obs-nr-t">· sobre 000 d</span><span className="obs-nr-i" /></span>
 }
