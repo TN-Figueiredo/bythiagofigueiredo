@@ -50,8 +50,8 @@
 [data-obs-screen="canais"] .dhead .handle{color:var(--text);text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px;min-height:32px;display:inline-flex;align-items:center}
 [data-obs-screen="canais"] .forjastate{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 [data-obs-screen="canais"] .forjastate b{color:var(--forja);font-weight:600}
-[data-obs-screen="canais"] .btn.danger{background:#B42318;border-color:#B42318;color:#fff}
-[data-obs-screen="canais"] .btn.danger:hover{background:#9A1D14}
+[data-obs-screen="canais"] .btn.danger{background:var(--dg-bg);border-color:var(--dg-line);color:var(--dg-fg)}
+[data-obs-screen="canais"] .btn.danger:hover{background:var(--dg-bg-hover)}
 [data-obs-screen="canais"] .quota{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:2px}
 [data-obs-screen="canais"] .tip{position:relative;display:inline-grid;place-items:center;width:32px;height:32px;margin:-8px -8px -8px -6px;cursor:help;flex:none;background:none;border:0;padding:0;vertical-align:middle}
 [data-obs-screen="canais"] .tip::before{content:"?";display:grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--border-strong);color:var(--muted);font-size:10px;font-weight:700}
@@ -371,6 +371,7 @@
 [data-obs-screen="canais"] .modal .fx-msg{margin:0 0 12px}
 [data-obs-screen="canais"] .modal .fx-remove .acts{position:sticky;bottom:0;margin:0 -20px;padding:12px 20px 20px;background:var(--surface);border-top:1px solid var(--border-subtle)}
 [data-obs-screen="canais"] .modal .btn[aria-disabled="true"],[data-obs-screen="canais"] .modal .btn[aria-disabled="true"]:hover,[data-obs-screen="canais"] .modal .btn[aria-disabled="true"]:active{cursor:not-allowed;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted)}
+[data-obs-screen="canais"] .btn.danger[aria-disabled="true"],[data-obs-screen="canais"] .btn.danger[aria-disabled="true"]:hover,[data-obs-screen="canais"] .btn.danger[aria-disabled="true"]:active{border-color:var(--dg-line);color:var(--dg-fg);background:transparent;border-style:dashed;opacity:.8}
 @media (pointer:coarse){[data-obs-screen="canais"] .modal .fx-remove .acts .btn.btn{min-height:44px}}
 
 /* ============================================================ A3.1: filtro de formato (Todos | Longos | Shorts), forma de M/canais.css (rodada 12) */

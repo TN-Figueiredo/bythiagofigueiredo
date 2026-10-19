@@ -98,6 +98,7 @@ const DIALOGO: string[] = [
   ' :is(.fx-loss,.fx-lossz) b', ' :is(.fx-loss,.fx-lossz) b.fx-wait', ' :is(.fx-loss,.fx-lossz) span span',
   ' .modal p.fx-never', ' .modal .fx-msg', ' .modal .fx-remove .acts',
   ' .modal .btn[aria-disabled="true"]', ' .modal .btn[aria-disabled="true"]:hover', ' .modal .btn[aria-disabled="true"]:active',
+  ' .btn.danger[aria-disabled="true"]',
 ]
 describe('Observatório · kit promovido', () => {
   const kit = parse(css('_chrome/kit.css'))
