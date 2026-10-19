@@ -118,9 +118,12 @@ const LINHA = (r: string): Inventario => ({
   [`${r}.cells.cadence.kind`]: CTRL, [`${r}.cells.cadence.weeks[].*`]: APAR,
   [`${r}.cells.cadence.label`]: REP, [`${r}.cells.cadence.pw`]: 'numero', [`${r}.cells.cadence.unit`]: 'rotulo', [`${r}.cells.cadence.sub`]: 'base', [`${r}.cells.cadence.paused`]: 'base',
   [`${r}.cells.cadence.text`]: 'motivo', [`${r}.cells.cadence.title`]: REP,
+  // a nota do ritmo (base menor que 13 semanas, ou canal abaixo do piso): o sufixo e a causa do ⓘ vão à tabela de notas
+  [`${r}.cells.cadence.nota`]: CTRL, [`${r}.cells.cadence.nota.tipo`]: CTRL, [`${r}.cells.cadence.nota.corte`]: CTRL,
+  [`${r}.cells.cadence.nota.sufixo`]: 'base', [`${r}.cells.cadence.nota.causa`]: 'base', [`${r}.cells.cadence.nota.titulo`]: REP, [`${r}.cells.cadence.nota.frase`]: REP,
   [`${r}.cells.cadence2.kind`]: CTRL, [`${r}.cells.cadence2.weeks[].*`]: APAR,
   [`${r}.cells.cadence2.label`]: REP, [`${r}.cells.cadence2.pw`]: 'numero', [`${r}.cells.cadence2.unit`]: 'rotulo', [`${r}.cells.cadence2.sub`]: 'base', [`${r}.cells.cadence2.paused`]: 'base',
-  [`${r}.cells.cadence2.text`]: 'motivo', [`${r}.cells.cadence2.title`]: REP,
+  [`${r}.cells.cadence2.text`]: 'motivo', [`${r}.cells.cadence2.title`]: REP, [`${r}.cells.cadence2.nota`]: CTRL,
   ...Object.fromEntries(['vpd', 'vpd2'].flatMap((k) => [
     [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.big`, 'numero'], [`${r}.cells.${k}.abs`, 'numero'], [`${r}.cells.${k}.n`, 'numero'],
     [`${r}.cells.${k}.weak`, CTRL], [`${r}.cells.${k}.tail`, 'base'], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.text`, 'motivo'], [`${r}.cells.${k}.falta`, CTRL], [`${r}.cells.${k}.ausencia`, CTRL],
@@ -199,6 +202,8 @@ export const INVENTARIO_CANAIS: Inventario = {
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste (cada uma tem teste sintético próprio quando importa). */
 export const SEM_FOLHA_NA_MATRIZ_CANAIS: readonly string[] = [
+  // a nota da segunda medida de "Todos" é sempre null (a nota é do canal, não do formato)
+  'list.unranked[].cells.cadence2.nota',
   'list.ranked[].valor',
   'list.ranked[].numero',
   'list.ranked[].cells.vpd',
@@ -377,6 +382,7 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
     const itens: Array<[string | null | undefined, string]> = [
       [r.semPagina, `${p}.semPagina`], [r.semMedidaTexto, `${p}.semMedidaTexto`],
       [c.cadence.kind === 'ok' ? c.cadence.sub : null, `${p}.cells.cadence.sub`], [c.cadence.kind === 'ok' ? c.cadence.paused : null, `${p}.cells.cadence.paused`],
+      [c.cadence.kind === 'ok' ? c.cadence.nota?.sufixo : null, `${p}.cells.cadence.nota.sufixo`], [c.cadence.kind === 'ok' ? c.cadence.nota?.causa : null, `${p}.cells.cadence.nota.causa`],
       [c.vpd.kind === 'ok' && !todos ? c.vpd.tail : null, `${p}.cells.vpd.tail`], [c.vpd.kind === 'ok' && todos ? dl.ressalva : null, `${dp}.ressalva`],
       [c.out.kind === 'na' ? c.out.weak : null, `${p}.cells.out.weak`], [c.out.kind === 'na' ? c.out.upnext : null, `${p}.cells.out.upnext`],
       [c.growth.kind === 'na' ? null : c.growth.cap, `${p}.cells.growth.cap`], [c.out.kind === 'ok' && !todos ? c.out.vs : null, `${p}.cells.out.vs`], [c.swap.kind === 'ok' ? c.swap.last : null, `${p}.cells.swap.last`],

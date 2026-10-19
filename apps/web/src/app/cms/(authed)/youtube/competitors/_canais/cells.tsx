@@ -15,6 +15,7 @@ import { NicheSelect } from './niche-editor'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { usePrefetchOnIntent } from './use-prefetch-on-intent'
+import { NotaRitmo, NotaRitmoReserva } from '../_chrome/nota-ritmo'
 
 const P: Record<string, ReactNode> = {
   wait: <path d="M4 1.5h8M4 14.5h8M5 1.5c0 3 6 3.5 6 6.5s-6 3.5-6 6.5M11 1.5c0 3-6 3.5-6 6.5s6 3.5 6 6.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />,
@@ -68,22 +69,36 @@ export function ThumbView({ t, lg }: { t: Thumb | null; lg?: boolean }) {
   )
 }
 
-/** 13-week strip: long bars and Short bars per week (geometry only; the counts come from the engine). */
+/**
+ * 13-week strip: long bars and Short bars per week (geometry only; the counts come from the engine). Semana fora do período (antes da
+ * criação ou da cobertura guardada, `long === null`) NÃO é semana sem vídeo: as consecutivas viram UMA faixa tracejada de altura cheia,
+ * de forma diferente do traço de 2 px do zero.
+ */
 export function Strip({ cell }: { cell: CadenceCell }) {
   const W = 130, H = 30
+  const hat = useId()
   if (cell.kind === 'na') return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">{Array.from({ length: 13 }, (_, i) => <rect key={i} x={i * 10 + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />)}</svg>
   )
+  const fora = cell.weeks.filter(w => w.long === null).length
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={cell.label}>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={fora ? `${cell.label}; ${fora === 1 ? '1 semana fora' : `${fora} semanas fora`} do período` : cell.label}>
+      {fora ? <defs><pattern id={hat} width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="var(--out-line)" strokeWidth="1" /></pattern></defs> : null}
       {cell.weeks.map((w, i) => {
         const x = i * 10
-        if (!w.long && !w.short) return <rect key={i} x={x + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />
-        const hl = Math.min(w.long, 5) * 5.2, hs = Math.min(w.short, 6) * 2.2
+        if (w.long === null) {
+          if (i > 0 && cell.weeks[i - 1]!.long === null) return null // já coberta pela faixa que começou antes
+          let j = i
+          while (cell.weeks[j + 1]?.long === null) j++
+          return <rect key={i} data-fora="" x={x + 0.5} y={1} width={(j - i) * 10 + 9} height={H - 2} rx={1.5} fill={`url(#${hat})`} stroke="var(--out-line)" strokeWidth={1} strokeDasharray="3 2" />
+        }
+        const long = w.long, short = w.short ?? 0
+        if (!long && !short) return <rect key={i} data-zero="" x={x + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />
+        const hl = Math.min(long, 5) * 5.2, hs = Math.min(short, 6) * 2.2
         return (
           <g key={i}>
-            {w.long ? <rect x={x} y={H - hl} width={5} height={hl} rx={1} fill="var(--strip-long)" /> : null}
-            {w.short ? <rect x={x + 6} y={H - hs} width={3} height={hs} rx={1} fill="var(--strip-short)" opacity={0.6} /> : null}
+            {long ? <rect x={x} y={H - hl} width={5} height={hl} rx={1} fill="var(--strip-long)" /> : null}
+            {short ? <rect x={x + 6} y={H - hs} width={3} height={hs} rx={1} fill="var(--strip-short)" opacity={0.6} /> : null}
           </g>
         )
       })}
@@ -99,14 +114,24 @@ function Fm({ label, visible, children }: { label: string; visible?: boolean; ch
   return <span className="fm">{visible ? <span className="fl">{label}</span> : <span className="sr">{label}: </span>}{children}</span>
 }
 
-export function CadenceView({ c, c2, dica, dica2 }: { c: CadenceCell; c2?: CadenceCell; dica?: string | null; dica2?: string | null }) {
+/** Alguma linha à vista tem a nota do ritmo? Só então as outras reservam a coluna do sufixo (calcule sobre as linhas na tela, não sobre o total). */
+export const algumaNotaDoRitmo = (rows: ReadonlyArray<{ cells: { cadence: CadenceCell } }>): boolean => rows.some(r => r.cells.cadence.kind === 'ok' && r.cells.cadence.nota !== null)
+
+export function CadenceView({ c, c2, dica, dica2, reservar }: { c: CadenceCell; c2?: CadenceCell; dica?: string | null; dica2?: string | null; reservar?: boolean }) {
   if (c.kind === 'na') return <div className="cad"><Strip cell={c} /><Dica texto={dica}><span className="na" style={{ maxWidth: 150 }}>{c.text}</span></Dica></div>
   return (
     <div className="cad">
       <Strip cell={c} />
       <div className="v">
         {/* a unidade ("longos/sem", "Shorts/sem") já rotula cada medida */}
-        <span className={c2 ? 'fm' : undefined}><Dica texto={dica}><span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span></Dica></span>
+        <span className={c2 ? 'fm' : undefined}>
+          <Dica texto={dica}>
+            {c.nota?.tipo === 'piso'
+              ? <span className="obs-ch-nm" data-k="pw" role="img" aria-label="não medido">—</span>
+              : <><span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span></>}
+          </Dica>
+          {c.nota ? <> <NotaRitmo nota={c.nota} /></> : reservar ? <> <NotaRitmoReserva /></> : null}
+        </span>
         {c2 ? (
           <span className="fm"><Dica texto={dica2 ?? dica}>{c2.kind === 'ok'
             ? <><span className="num">{c2.pw}</span> <span className="u">{c2.unit}</span></>

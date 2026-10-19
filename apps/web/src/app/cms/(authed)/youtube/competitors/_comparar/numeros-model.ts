@@ -17,6 +17,7 @@ import { DAY } from '@/lib/youtube/observatorio/time'
 import { acima2x, durText, duracaoMediana, trocas30, viewsMediana, vpdText } from '../_canal/numeros'
 import { SEM_LEITURA, SEM_LEITURA_NO_MAPA, type ExtrasProprio } from '../_proprio/extras'
 import { ausenciaDoVpdComNegativa, type EstadoAusencia } from '../_chrome/ausencia/estado'
+import type { NotaDoRitmo } from '@/lib/youtube/observatorio/ritmo-nota'
 import type { MotivoSemVpd } from '@/lib/youtube/observatorio/proprio/vpd'
 import { baseVpdTexto, motivoVpdTexto } from '@/lib/youtube/observatorio/proprio/vpd'
 
@@ -30,7 +31,11 @@ export const NO_NICHO: ReadonlySet<NumeroId> = new Set<NumeroId>(['inscritos', '
 
 /** x null = não medido (com `motivo`); x 0 = zero medido. `texto` é o valor como a tela o escreve; `nota` é a segunda linha. */
 /** `ausencia` (decisão 75): null ⇔ `x != null`. `restrito` só no canal próprio sem acesso às views por dia; os demais motivos são `nao_medido`; falha de leitura é `falhou`. */
-export interface Numero { x: number | null; texto: string | null; motivo: string | null; nota: string | null; ausencia: EstadoAusencia | null }
+export interface Numero {
+  x: number | null; texto: string | null; motivo: string | null; nota: string | null; ausencia: EstadoAusencia | null
+  /** Só no ritmo: a base menor que as 13 semanas (sufixo âmbar + ⓘ ao lado do valor) ou o canal abaixo do piso. */
+  ritmoNota?: NotaDoRitmo | null
+}
 
 /** Por que um número não foi medido. A frase sai de `motivoTexto`, um `switch` exaustivo: tipo novo sem frase não compila. */
 export type Motivo =
@@ -67,7 +72,7 @@ export function motivoTexto(m: Motivo): string {
     case 'primeiraSync': return 'a primeira sincronização ainda não terminou'
     case 'semVideos': return 'sem vídeos'
     case 'semDataVideo': return 'nenhum vídeo com data de publicação'
-    case 'semBaseDeRitmo': return 'menos de quatro semanas de base para medir o ritmo' // TODO Logan: rótulo final
+    case 'semBaseDeRitmo': return 'canal com menos de 4 sem'
     case 'sem30': return m.falta == null ? 'sem contagem de 30 dias atrás' : `sem contagem de 30 dias atrás: ${m.falta}`
     case 'semPercentual': return 'sem percentual: o canal não tinha inscritos na contagem anterior'
     case 'semViewsLongos': return 'nenhum longo com contagem de views'
@@ -171,11 +176,11 @@ export function numerosDoCanal(obs: Observatory, channelId: string, avisar?: (a:
     if (vids.length === 0) return naoMedido({ k: 'semDataVideo' })
     const kl = obs.cadence(ch.id, 'long'), ks = obs.cadence(ch.id, 'short'), sem = obs.RULES.habit.weeks
     // a base real do período (criação ou cobertura da lista), não as 13 semanas fixas
-    if (kl.pw == null || ks.pw == null) return naoMedido({ k: 'semBaseDeRitmo' })
-    // TODO Logan: rótulo final
+    if (kl.pw == null || ks.pw == null) return { ...naoMedido({ k: 'semBaseDeRitmo' }), ritmoNota: kl.nota }
     const periodo = kl.corte === null ? `${sem} semanas` : `${kl.diasBase} dias`
-    return medido(Math.round((kl.pw + ks.pw) * 10) / 10, `${umaCasa(kl.pw, F.dec1)} + ${umaCasa(ks.pw, F.dec1)}`,
+    const m = medido(Math.round((kl.pw + ks.pw) * 10) / 10, `${umaCasa(kl.pw, F.dec1)} + ${umaCasa(ks.pw, F.dec1)}`,
       `${F.plural(kl.n, 'longo', 'longos')} e ${F.plural(ks.n, 'Short', 'Shorts')} em ${periodo}`)
+    return kl.nota ? { ...m, ritmoNota: kl.nota } : m
   }))
 
   const diasUltimo = seguro('diasUltimo', () => com(() => {

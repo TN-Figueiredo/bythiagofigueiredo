@@ -45,6 +45,14 @@ const ok = async () => ({ ok: true })
 
 const { obs: OBS, owns: OWNS } = a3World()
 const vazio = a3World((ds) => { ds.channels = []; ds.videos = [] })
+// um concorrente de 81 dias (base menor que as 13 semanas) e outro de 18 (abaixo do piso): a nota do ritmo aparece na tela e no pacote
+const comNota = a3World((ds) => {
+  const alvos = ds.channels.filter((c) => !c.own)
+  for (const [c, dias] of [[alvos[0]!, 81], [alvos[1]!, 18]] as const) {
+    c.createdMs = ds.now - dias * 86_400_000
+    ds.videos = ds.videos.filter((v) => v.ch !== c.id || v.ageDays <= dias) // nenhum vídeo guardado é mais velho que o canal
+  }
+})
 const semProprios = a3World((ds) => { ds.channels = ds.channels.filter((c) => !c.own); ds.videos = ds.videos.filter((v) => ds.channels.some((c) => c.id === v.ch)) })
 
 /** O diário privado de cada canal próprio, como `carregarExtrasProprio` o entrega. */
@@ -109,7 +117,7 @@ const TAB = (pre: string): Record<string, Record<string, string | readonly strin
   [`${pre}canais-shorts-views-por-dia`]: { Canal: '.name', 'Views por dia dos Shorts, valor absoluto': '.cells.vpd2.abs', 'Vídeos na base dos Shorts': '.cells.vpd2.n' },
   [`${pre}canais-shorts`]: { Canal: '.name', 'Ritmo dos Shorts': ['.cells.cadence2.pw', '.cells.cadence2.text'], 'Views por dia dos Shorts': ['.cells.vpd2.big', '.cells.vpd2.text'], 'Outliers dos Shorts': ['.cells.out2.mult', '.cells.out2.text'] },
   [`${pre}canais-estado`]: { Canal: '.name', Estado: ['.estado.linha', '.estado.apoio', '.estado.quedaLinha'] },
-  [`${pre}canais-notas`]: { Canal: '.name', Nota: ['.semPagina', '.semMedidaTexto', '.cells.cadence.sub', '.cells.cadence.paused', '.cells.vpd.tail', '.cells.out.weak', '.cells.out.upnext', '.cells.out.vs', '.cells.swap.last', '.ressalva', '.ressalva2', '.cells.cadence2.sub', '.cells.cadence2.paused', '.cells.out2.weak', '.cells.out2.upnext', '.cells.growth.cap', '.cells.sync.cov', '.cells.sync.msg', '.semFormato.label', '.semFormato.tip'] },
+  [`${pre}canais-notas`]: { Canal: '.name', Nota: ['.semPagina', '.semMedidaTexto', '.cells.cadence.sub', '.cells.cadence.paused', '.cells.cadence.nota.sufixo', '.cells.cadence.nota.causa', '.cells.vpd.tail', '.cells.out.weak', '.cells.out.upnext', '.cells.out.vs', '.cells.swap.last', '.ressalva', '.ressalva2', '.cells.cadence2.sub', '.cells.cadence2.paused', '.cells.out2.weak', '.cells.out2.upnext', '.cells.growth.cap', '.cells.sync.cov', '.cells.sync.msg', '.semFormato.label', '.semFormato.tip'] },
   [`${pre}canais-dicas`]: { Canal: '.name', Dica: ['.dicas.subs', '.dicas.vpd', '.dicas.cadence', '.dicas.out', '.dicas.swap', '.dicas.growth', '.dicas.direcao', '.dicas.sync', '.dicas.vpd2', '.dicas.cadence2', '.dicas.out2'] },
 })
 const COLUNAS = {
@@ -149,6 +157,7 @@ const MATRIZ: Array<[string, Caso]> = [
   ['filtro de estado: problemas', lido({ filter: 'problemas' })],
   ['filtro de direção: descendo (vazio explicado)', lido({ direcao: 'desce' })],
   ['nenhum canal acompanhado', { obs: vazio.obs, sp: {}, privado: { acessoPorCanal: {}, negativa: null } }],
+  ['canais com a nota do ritmo (base curta e canal novo)', { obs: comNota.obs, sp: {}, extras: extrasDe(comNota.obs), privado: privadoDe(comNota.obs, 'ok') }],
   ['referências por faixa e inscritos em absoluto', lido({}, { ri: { ordr: 'faixa', ordi: 'abs', aba: 'ins' } })],
 ]
 

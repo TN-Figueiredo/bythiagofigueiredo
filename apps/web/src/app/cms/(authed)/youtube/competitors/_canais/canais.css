@@ -10,7 +10,7 @@
   --travel:var(--viagem);--travel-subtle:rgba(91,191,138,.13);--ai:var(--ia);--ai-subtle:rgba(110,168,254,.14);
   --youtag-bg:rgba(255,130,64,.12);--youtag-text:#FF9A60;--youtag-border:transparent;
   --you:#FF8240;--you-row:#251E18;--you-cell:#2A2018;
-  --strip-long:#E9DFCF;--strip-short:#C29A5B;--strip-empty:#7A6E5D;
+  --strip-long:#E9DFCF;--strip-short:#C29A5B;--strip-empty:#7A6E5D;--out-line:#8C8068;
 }
 @media (max-width:768px){[data-obs-screen="canais"]{--obs-topbar-h:48px}}
 [data-theme="light"] [data-obs-screen="canais"]{
@@ -18,7 +18,7 @@
   --travel-subtle:rgba(17,105,47,.08);--ai-subtle:rgba(29,78,216,.07);
   --youtag-bg:transparent;--youtag-text:#9A3A12;--youtag-border:#9A3A12;
   --you:#9A3A12;--you-row:#FAF0E6;--you-cell:#F8EBDF;
-  --strip-long:#3A3127;--strip-short:#A86E22;--strip-empty:#968872;
+  --strip-long:#3A3127;--strip-short:#8F5A16;--strip-empty:#968872;--out-line:#8A7C62;
 }
 [data-obs-screen="canais"] *{box-sizing:border-box}
 [data-obs-screen="canais"]{color:var(--text);font:14px/1.45 Inter,system-ui,sans-serif}

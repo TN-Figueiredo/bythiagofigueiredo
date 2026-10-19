@@ -3,6 +3,7 @@ import { computeSlots, type ChannelSlots } from '../competitor-slots-math'
 import { RULES, DEFAULT_AGES } from './rules'
 import { median } from './stats'
 import { inicioDoRitmo, baseDoRitmo, PISO_RITMO_DIAS } from './medidas/ritmo'
+import { notaDoRitmo } from './ritmo-nota'
 import { DAY, H, WD } from './time'
 import { changesIn } from './changes'
 import { outliers, median7 } from './outliers'
@@ -75,12 +76,12 @@ export function problemPhrase(ctx: EngineCtx, ch: ObsChannel): string | null {
 
 /**
  * O texto da base real do ritmo (a tela não pode dizer "13 semanas" quando a base é outra). Sem corte, as 13 semanas da regra.
- * TODO Logan: rótulo final (só texto; marca, cor e desenho esperam o mockup).
+ * `curto` é o rótulo de cabeçalho ("13 sem" / "81 d"). A nota de relance e o ⓘ vêm de `notaDoRitmo` (ritmo-nota.ts).
  */
-export function baseDoRitmoTexto(k: { corte: 'criacao' | 'cobertura' | null; diasBase: number }, semanasDaRegra: number): { media: string; periodo: string } {
-  if (k.corte === 'criacao') return { media: `média desde a criação, ${k.diasBase} dias`, periodo: `${k.diasBase} dias, desde a criação` }
-  if (k.corte === 'cobertura') return { media: `média dos ${k.diasBase} dias guardados`, periodo: `${k.diasBase} dias guardados` }
-  return { media: `média de ${semanasDaRegra} semanas`, periodo: `${semanasDaRegra} semanas` }
+export function baseDoRitmoTexto(k: { corte: 'criacao' | 'cobertura' | null; diasBase: number }, semanasDaRegra: number): { media: string; periodo: string; curto: string } {
+  if (k.corte === 'criacao') return { media: `média desde a criação, ${k.diasBase} dias`, periodo: `${k.diasBase} dias, desde a criação`, curto: `${k.diasBase} d` }
+  if (k.corte === 'cobertura') return { media: `média dos ${k.diasBase} dias guardados`, periodo: `${k.diasBase} dias guardados`, curto: `${k.diasBase} d` }
+  return { media: `média de ${semanasDaRegra} semanas`, periodo: `${semanasDaRegra} semanas`, curto: `${semanasDaRegra} sem` }
 }
 
 export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') {
@@ -111,8 +112,8 @@ export function cadence(ctx: EngineCtx, channelId: string, fmtId: Fmt = 'long') 
   const partial = ch.sync.state === 'backfill', fetchedSince = partial && ch.videos.length ? ch.videos[ch.videos.length - 1]!.pub : null
   return {
     channel: channelId, fmt: fmtId, weeks, pw, n: vs.length,
-    // TODO Logan: rótulo final (a tela passa a dizer a base real do período)
-    semanas: Math.round(base.semanas * 100) / 100, diasBase: Math.round(base.dias), corte: base.corte, habit, lastUpload: last ? last.pub : null, lastUploadAgo: last ? clock.ago(last.pub) : null,
+    semanas: Math.round(base.semanas * 100) / 100, diasBase: Math.round(base.dias), corte: base.corte,
+    nota: notaDoRitmo({ corte: base.corte, dias: base.dias, abaixoDoPiso: pw === null, semanasDaRegra: W }), habit, lastUpload: last ? last.pub : null, lastUploadAgo: last ? clock.ago(last.pub) : null,
     partial, fetchedSince,
     partialText: partial ? 'ritmo parcial: só os ' + (ch.sync.backfill ? ch.sync.backfill.done : ch.videos.length) + ' vídeos mais recentes foram buscados' + (fetchedSince != null ? ' (desde ' + clock.dmOrDmy(fetchedSince) + ')' : '') : null,
   }

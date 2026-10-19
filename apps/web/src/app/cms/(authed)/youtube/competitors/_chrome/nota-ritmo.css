@@ -1,0 +1,10 @@
+/* A nota do ritmo: sufixo âmbar + ⓘ. Sem color-mix; --warning-text é o token do chrome. */
+.obs-nr{display:inline-flex;align-items:center;gap:2px;color:var(--warning-text);font:600 12px/1.3 Inter,system-ui,sans-serif;white-space:nowrap}
+.obs-nr.ph{visibility:hidden}
+.obs-nr-i{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:-4px -2px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}
+.obs-nr-i:hover{background:var(--surface-hover)}
+.obs-nr-i:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.obs-nr-p{position:fixed;z-index:var(--z-flutuante);box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:400 12.5px/1.45 Inter,system-ui,sans-serif;white-space:normal;box-shadow:0 6px 24px rgba(0,0,0,.28)}
+.obs-nr-p[hidden]{display:none}
+.obs-nr-p b{display:block;margin-bottom:4px;font-weight:600}
+@media (max-width:600px),(pointer:coarse){.obs-nr-i{width:44px;height:44px;margin:-14px -12px -14px -10px}}

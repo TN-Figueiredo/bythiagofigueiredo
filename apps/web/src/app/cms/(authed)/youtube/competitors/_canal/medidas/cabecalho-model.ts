@@ -6,6 +6,8 @@ import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
 import type { Formato, Medida } from '@/lib/youtube/observatorio/medidas/tipos'
 import { FRASES, classeDoMotivo } from '@/lib/youtube/observatorio/medidas-telas/frases'
 import { celulaDeDirecao, type CelulaDeDirecao } from '@/app/cms/(authed)/youtube/competitors/_canais/direcao-model'
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+import { notaDoRitmo, type NotaDoRitmo } from '@/lib/youtube/observatorio/ritmo-nota'
 import { dec1 } from './formatos'
 import type { EstadoDaPagina } from './estado-model'
 import type { CanalHeaderView, NumCell } from '../header-model'
@@ -28,7 +30,8 @@ export type DetalheDaCelula =
   | { chave: 'direcao'; direcao: CelulaDeDirecao; avisoAte: string | null }
   | { chave: 'estado'; estado: EstadoDaPagina }
   | { chave: 'acerto'; k: number; n: number; pct: number | null; pontos: Array<'a' | 'm' | 'f'>; colunas: number; soNumero: boolean }
-  | { chave: 'ritmo'; porSemana: string }
+  /** `nota`: a base menor que as 13 semanas ou o canal abaixo do piso (sufixo âmbar + ⓘ); null quando a base é a da regra. */
+  | { chave: 'ritmo'; porSemana: string; nota: NotaDoRitmo | null }
   | { chave: 'criador'; k: number | null; n: number | null; pct: number | null }
 
 export interface CelulaDoCabecalho {
@@ -121,17 +124,17 @@ export function celulasDoCabecalho(o: EntradaDoCabecalho): CelulaDoCabecalho[] {
   const m6 = semDado ? null : (med.porFormato[o.formato.fmt] as PorFormato).m6
   const quemRitmo = o.formato.soShorts ? 'um Short' : 'um longo'
   if (m6 === null) {
-    out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: 'nao_carregou', base: NAO_CARREGOU, motivo: NAO_CARREGOU, detalhe: { chave: 'ritmo', porSemana: '' } })
+    out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: 'nao_carregou', base: NAO_CARREGOU, motivo: NAO_CARREGOU, detalhe: { chave: 'ritmo', porSemana: '', nota: null } })
   } else if (m6.estado === 'nao_medido') {
     const mt = motivoDe(m6)
-    out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: mt.carregou ? 'nao_medido' : 'nao_carregou', base: mt.carregou ? mt.longa : NAO_CARREGOU, motivo: mt.carregou ? mt.longa : NAO_CARREGOU, detalhe: { chave: 'ritmo', porSemana: '' } })
+    out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: mt.carregou ? 'nao_medido' : 'nao_carregou', base: mt.carregou ? mt.longa : NAO_CARREGOU, motivo: mt.carregou ? mt.longa : NAO_CARREGOU,
+      detalhe: { chave: 'ritmo', porSemana: '', nota: mt.carregou && (m6.motivo === 'canal_novo' || m6.motivo === 'ritmo_parcial') ? notaDoRitmo({ corte: m6.motivo === 'canal_novo' ? 'criacao' : 'cobertura', dias: null, abaixoDoPiso: true, semanasDaRegra: MEASURE_RULES.rhythm.weeks }) : null } })
   } else {
     const lidas = o.semanasLidas ?? m6.valor.semanas
     const base = lidas < m6.valor.semanas
       ? `${m6.valor.semanasComPublicacao} de ${lidas} semanas com leitura`
-      // TODO Logan: rótulo final
       : `com ${quemRitmo} em ${m6.valor.semanasComPublicacao} de ${m6.valor.semanas} semanas${m6.notas.some(x => x.tipo === 'canal_mais_novo_que_a_janela') ? ` (canal com ${m6.valor.dias} dias)` : m6.notas.some(x => x.tipo === 'cobertura_curta') ? ` (${m6.valor.dias} dias guardados)` : ''}`
-    out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: 'medido', base, motivo: null, detalhe: { chave: 'ritmo', porSemana: dec1(m6.valor.porSemana) } })
+    out.push({ chave: 'ritmo', rotulo: 'Ritmo', valor: 'medido', base, motivo: null, detalhe: { chave: 'ritmo', porSemana: dec1(m6.valor.porSemana), nota: notaDoRitmo({ corte: m6.notas.some(x => x.tipo === 'canal_mais_novo_que_a_janela') ? 'criacao' : m6.notas.some(x => x.tipo === 'cobertura_curta') ? 'cobertura' : null, dias: m6.valor.dias, abaixoDoPiso: false, semanasDaRegra: MEASURE_RULES.rhythm.weeks }) } })
   }
 
   // 6. Criador responde (C4: a célula vem de `criadorDoCanal`; sem ela, a leitura não foi pedida)

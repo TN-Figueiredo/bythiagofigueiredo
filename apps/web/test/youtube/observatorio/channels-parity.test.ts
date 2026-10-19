@@ -6,7 +6,7 @@ import { createObservatory } from '@/lib/youtube/observatorio'
 const O = loadOracle(), P = createObservatory(datasetFromOracle(loadOracle()))
 const J = (x: unknown) => JSON.parse(JSON.stringify(x))
 // Parecer Yannis 19/10 (I-3): cadence() devolve a base real do período (semanas, diasBase, corte), que o mockup (13 semanas fixas) não tem.
-const BASE_DECLARADA = ['semanas', 'diasBase', 'corte'] as const
+const BASE_DECLARADA = ['semanas', 'diasBase', 'corte', 'nota'] as const
 const semBase = (c: unknown) => Object.fromEntries(Object.entries(J(c) as Record<string, unknown>).filter(([k]) => !(BASE_DECLARADA as readonly string[]).includes(k)))
 // bestOutlier.video is the whole video: the oracle's carries mockup-only fields (thumb, target, showcase) the input dataset does not.
 // A5 2ª leva T1 (D1, D1b): growth30 é declaradamente diferente do mockup em campos novos (contagens das pontas, dias de registro, fechaEm, limiteArred)

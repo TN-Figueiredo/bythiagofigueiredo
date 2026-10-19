@@ -142,7 +142,16 @@ describe('E5a T0b: o retrato antes dos números', () => {
         Object.values(r).forEach(diasCompletos)
       }
     }
-    diasCompletos(atual); diasCompletos(novo)
+    // Nota do ritmo (19/10): a célula de cadência ganhou o campo `nota`, null enquanto a base é a cheia de 13 semanas; só o campo novo sai da comparação.
+    const semNotaNula = (o: unknown): void => {
+      if (Array.isArray(o)) { o.forEach(semNotaNula); return }
+      if (o && typeof o === 'object') {
+        const r = o as Record<string, unknown>
+        if (r.kind === 'ok' && 'weeks' in r && r.nota === null) delete r.nota
+        Object.values(r).forEach(semNotaNula)
+      }
+    }
+    diasCompletos(atual); diasCompletos(novo); semNotaNula(atual)
     expect(soNumeroDoCrescimento(atual)).toEqual(soNumeroDoCrescimento(novo))
   })
 
