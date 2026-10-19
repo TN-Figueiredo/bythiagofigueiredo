@@ -364,5 +364,12 @@ describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemo
     const c = captureMessage.mock.calls.find(x => x[0] === 'arquivo_remover: chamada_inesperada')
     expect(c?.[1]).toMatchObject({ tags: { fn: 'competitor_channel_request_removal' } })
   })
+
+  it('(Yannis N9) a chamada que lança diz qual função do banco lançou (tag fn de chamada_excecao)', async () => {
+    const { sb } = falso({ competitor_channel_request_removal: () => { throw new Error('rede caiu') } })
+    await pedirRemocao(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR, motivo: 'entrou_por_engano' })
+    const c = captureMessage.mock.calls.find(x => x[0] === 'arquivo_remover: chamada_excecao')
+    expect(c?.[1]).toMatchObject({ tags: { fn: 'competitor_channel_request_removal' } })
+  })
 })
 

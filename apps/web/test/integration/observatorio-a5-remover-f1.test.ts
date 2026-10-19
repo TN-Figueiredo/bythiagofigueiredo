@@ -5,7 +5,7 @@
  *   npx vitest run test/integration/observatorio-a5-remover-f1.test.ts --no-file-parallelism
  * Cada caso abre uma transação (MG6 + F1 reaplicadas) e termina em `rollback`.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
@@ -15,6 +15,9 @@ import {
   emTransacao, semearCena, pausarEEnvelhecer, registrar, exportarConferirConfirmar, q1, escalar, tenta, codigoE10, criarCanal, criarVideo, criarUsuario,
   semearWatchDoVideo, type Cena,
 } from '../helpers/mg6'
+
+// B1.4b e B3.3 passam de 5 s no banco local sob carga (pedido do Phil)
+vi.setConfig({ testTimeout: 20_000 })
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
