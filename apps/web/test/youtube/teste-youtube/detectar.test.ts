@@ -34,7 +34,7 @@ describe('detectarTesteYoutube', () => {
     expect(c1.variantes.titulo[0]).toBe(TITULO_A)
     expect(c1.porCampo.titulo).toEqual({ estado: 'provavel_teste' })
     expect(c1.porCampo.miniatura).toEqual({ estado: 'nada_visivel', motivo: 'um_valor_so' })
-    expect(c1.versaoRegra).toBe(1)
+    expect(c1.versaoRegra).toBe(2)
     expect(c1.tituloOficial).toBe(TITULO_A)
     expect(c1.contagem.recebidas).toBe(60)
     expect(c1.contagem.invalidas).toBe(0)

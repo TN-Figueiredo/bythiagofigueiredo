@@ -61,7 +61,7 @@ describe('qIg9 (teste nativo real)', () => {
     expect(n.evidencia).toHaveLength(20)
     expect(n.evidencia.filter(e => e.mista)).toHaveLength(13)
     expect(n.evidenciaCortada).toBe(false)
-    expect(n.versaoRegra).toBe(1)
+    expect(n.versaoRegra).toBe(2)
     expect(avaliacao.estado14).toBe('provavel_teste')
     expect(avaliacao.registroId).toBe(n.id)
     expect(avaliacao.mistas48).not.toBeNull()
@@ -122,7 +122,7 @@ describe('desfecho do registro aberto', () => {
     if (acao.tipo !== 'encerrar') throw new Error(`veio ${acao.tipo}`)
     expect(acao.fim.estado).toBe('encerrado')
     expect(acao.fim.vencedorTitulo).toBe(textos.B)
-    expect(acao.fim.desfechoVersaoRegra).toBe(1)
+    expect(acao.fim.desfechoVersaoRegra).toBe(2)
     expect(acao.lido).toBe(ab.updatedAt)
   })
 
@@ -277,7 +277,7 @@ describe('a avaliação sempre sai', () => {
     expect(avaliacao.estado14).toBe('sem_leitura')
     expect(avaliacao.ateLidaEm).toBeNull()
     expect(avaliacao.registroId).toBeNull()
-    expect(avaliacao.versaoRegra).toBe(1)
+    expect(avaliacao.versaoRegra).toBe(2)
     expect(avaliacao.erro).toBeNull()
   })
   it('ate_lida_em é a maior lidaEm recebida; escritas = quantas foram passadas', () => {

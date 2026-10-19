@@ -86,7 +86,7 @@ Dono: A/B. A A5 importa; pedido de mudança vai por mensagem. Os 3 pedidos da A5
 
 ```ts
 /** Versão da regra; vai junto de todo veredito e de todo desfecho para a S7 gravar e a S8 citar. Sobe a cada mudança de limiar ou de critério. */
-export const REGRA_TESTE_YOUTUBE_VERSAO = 1
+export const REGRA_TESTE_YOUTUBE_VERSAO = 2 // v2 (19/10): §4.1 tira marcas bidi (FU-S4-1)
 
 /** Os renderers em que o título exibido foi visto variar em 18/10. A coleta pode mandar outros; a regra aceita qualquer nome. */
 export const RENDERERS_TITULO = ['videoPrimaryInfoRenderer', 'playerOverlayVideoDetailsRenderer', 'videoTitleHeaderViewModel'] as const
