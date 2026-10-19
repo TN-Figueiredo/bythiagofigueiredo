@@ -78,6 +78,18 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: RLS das tabelas do registro do teste 
   }
   const ler = (who: Who, t: string, guc?: string): Promise<Resultado> => como(who, `select 1 from public.${t} where site_id = $1`, [siteA], guc)
 
+  it('authenticated só tem SELECT nas três tabelas (sem TRIGGER, REFERENCES, escrita) - Y1', async () => {
+    for (const t of TABELAS) {
+      for (const priv of ['INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) {
+        for (const role of ['authenticated', 'anon']) {
+          const r = await pg.query(`select has_table_privilege($1, $2, $3) as x`, [role, 'public.' + t, priv])
+          expect(r.rows[0].x, `${role} ${priv} ${t}`).toBe(false)
+        }
+      }
+      expect((await pg.query(`select has_table_privilege('authenticated', $1, 'SELECT') as x`, ['public.' + t])).rows[0].x, t).toBe(true)
+    }
+  })
+
   it('policy de leitura usa can_edit_site, nunca o GUC', async () => {
     const pol = await pg.query(`select tablename, qual, cmd from pg_policies where schemaname = 'public' and tablename = any($1) order by 1`, [TABELAS])
     expect(pol.rows).toHaveLength(3)

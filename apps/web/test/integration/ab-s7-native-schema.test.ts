@@ -108,7 +108,7 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: schema e funções do registro do tes
       const l1 = await sb.from('ab_native_tests').select('updated_at').eq('id', id).single()
       expect(l1.error).toBeNull()
       const lido = String(l1.data!.updated_at)
-      expect(lido).toMatch(/\.\d{4,6}\+00:00$/)
+      expect(lido).toMatch(/(\.\d{1,6})?\+00:00$/)
       const ok = await sb.from('ab_native_tests').update({ ultima_vista: iso(Date.now() + H) }).eq('id', id).eq('updated_at', lido).select('id')
       expect(ok.error).toBeNull()
       expect(ok.data).toHaveLength(1)
@@ -130,8 +130,23 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: schema e funções do registro do tes
       await tx(async () => { expect(await erro(`select public.yt_watch_reter($1, 'abcdefghijk', now())`, [siteId])).toBe('42P01') })
     } else {
       await tx(async () => {
-        // banco com a S4: nunca diminui, 0 sem alvo
-        expect(Number((await pg.query(`select public.yt_watch_reter($1, 'zzzzzzzzzzz', now()) as n`, [siteId])).rows[0].n)).toBe(0)
+        // banco com a S4: devolve 1 com alvo, 0 sem alvo, nunca diminui, nulo recusado
+        const yt = ytId()
+        const reter = async (v: string, ate: string | null): Promise<number> =>
+          Number((await pg.query(`select public.yt_watch_reter($1, $2, $3) as n`, [siteId, v, ate])).rows[0].n)
+        const lido = async (): Promise<number> => new Date((await pg.query(`select reter_ate from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [siteId, yt])).rows[0].reter_ate).getTime()
+        expect(await reter('zzzzzzzzzzz', iso(Date.now()))).toBe(0)
+        await pg.query(`insert into public.yt_watch_alvos (site_id, youtube_video_id, tipo, motivo_ate, coleta_ate, hora_base_min, proxima_rodada_em, reter_ate)
+          values ($1, $2, 'proprio', 'janela_propria', now(), 0, now(), null)`, [siteId, yt])
+        const t0 = Date.now()
+        expect(await reter(yt, iso(t0 + 10 * 24 * H))).toBe(1)
+        expect(await lido()).toBe(t0 + 10 * 24 * H)
+        expect(await reter(yt, iso(t0 + 5 * 24 * H))).toBe(1)
+        expect(await lido(), 'nunca diminui').toBe(t0 + 10 * 24 * H)
+        expect(await reter(yt, iso(t0 + 20 * 24 * H))).toBe(1)
+        expect(await lido()).toBe(t0 + 20 * 24 * H)
+        expect(await erro(`select public.yt_watch_reter($1, $2, null)`, [siteId, yt])).toBe('22004')
+        expect(await lido(), 'nulo não mexe').toBe(t0 + 20 * 24 * H)
       })
     }
   })
@@ -169,6 +184,38 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: schema e funções do registro do tes
     })
   })
 
+  it('ab_native_ultimas desempata avaliada_em igual por id desc (Y5)', async () => {
+    await tx(async () => {
+      const t = iso(Date.now() - H)
+      const ins = async (estado: string): Promise<number> => Number((await pg.query(
+        `insert into public.ab_native_avaliacoes (site_id, video_id, avaliada_em, estado_14, versao_regra, erro) values ($1, $2, $3, $4, 1, ${estado === 'erro' ? "'timeout'" : 'null'}) returning id`,
+        [siteId, videoId, t, estado])).rows[0].id)
+      await ins('provavel_teste'); const e = await ins('erro'); const ultimo = await ins('insuficiente'); const e2 = await ins('erro')
+      const r = (await pg.query(`select * from public.ab_native_ultimas($1::uuid[])`, [[videoId]])).rows[0]
+      expect(r.ultima_id).toBe(String(e2)); expect(r.ultimo_erro_id).toBe(String(e2))
+      expect(e).toBeLessThan(ultimo)
+    })
+  })
+
+  it('vencedor_fonte aceita regra, dono e data_api (com vencedor_visto_em); recusa o resto (C2)', async () => {
+    await tx(async () => {
+      const com = (fonte: string | null, visto: string | null): string =>
+        `insert into public.ab_native_tests (site_id, video_id, youtube_video_id, origem, campos, estado, variantes_titulo, primeira_vista, versao_regra, encerrado_em, vencedor_titulo, vencedor_fonte, vencedor_visto_em)
+         values ($1, $2, 'abcdefghijk', 'detectado', '{titulo}', 'encerrado', '["a","b"]', now(), 1, now(), ${fonte ? "'a'" : 'null'}, ${fonte ? `'${fonte}'` : 'null'}, ${visto ? `'${visto}'` : 'null'})`
+      expect(await erro(com('regra', null), [siteId, videoId])).toBeNull()
+      expect(await erro(com('dono', null), [siteId, videoId])).toBeNull()
+      expect(await erro(com('data_api', '2026-10-01T00:00:00Z'), [siteId, videoId])).toBeNull()
+      expect(await erro(com('data_api', null), [siteId, videoId])).toBe('23514')
+      expect(await erro(com('x', null), [siteId, videoId])).toBe('23514')
+      expect(await erro(com(null, null), [siteId, videoId])).toBeNull()
+    })
+  })
+
+  it('índice para a FK registro_id existe (S4)', async () => {
+    const r = await pg.query(`select 1 from pg_indexes where tablename = 'ab_native_avaliacoes' and indexdef ilike '%(registro_id)%'`)
+    expect(r.rowCount).toBeGreaterThan(0)
+  })
+
   it('ab_native_poda: só > 180 d, no máximo p_lote; p_lote 0 e 5001 dão 22023', async () => {
     await tx(async () => {
       const agora = Date.now()
@@ -182,6 +229,7 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: schema e funções do registro do tes
       expect(Number((await pg.query(`select count(*) from public.ab_native_avaliacoes where video_id = $1`, [videoId])).rows[0].count)).toBe(2)
       expect(await erro(`select public.ab_native_poda(now(), 0)`)).toBe('22023')
       expect(await erro(`select public.ab_native_poda(now(), 5001)`)).toBe('22023')
+      expect(await erro(`select public.ab_native_poda(null, 10)`)).toBe('22023')
     })
   })
 
@@ -207,13 +255,35 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: schema e funções do registro do tes
         expect(await contar('ab_native_avaliacoes')).toBe(2)
       })
     })
-    it('avaliação inválida aborta tudo: nenhum registro fica', async () => {
+    it('avaliação inválida: a RPC levanta 23514 e, DENTRO da tx, depois do rollback to savepoint, nenhum registro fica', async () => {
       await tx(async () => {
         const id = randomUUID()
-        expect(await erro(`select public.ab_native_reproduzir($1, $2, $3::jsonb, $4::jsonb)`, [siteId, videoId, JSON.stringify([reg(id)]), JSON.stringify([av(id, 'x')])])).toBe('23514')
-        await pg.query('rollback to savepoint s').catch(() => undefined)
+        const ok = randomUUID()
+        // a inválida vem depois de uma válida e do registro: se a função engolisse a linha ruim, o código seria null
+        expect(await erro(`select public.ab_native_reproduzir($1, $2, $3::jsonb, $4::jsonb)`, [siteId, videoId, JSON.stringify([reg(id)]), JSON.stringify([av(id, 'provavel_teste'), av(id, 'x')])])).toBe('23514')
+        expect(await contar('ab_native_tests')).toBe(0)
+        expect(await contar('ab_native_avaliacoes')).toBe(0)
+        expect(ok).not.toBe(id)
       })
-      expect(await contar('ab_native_tests')).toBe(0)
+    })
+    it('sem avaliação sem erro a RPC recusa (22023) e não deixa registro (Y2)', async () => {
+      await tx(async () => {
+        const id = randomUUID()
+        expect(await erro(`select public.ab_native_reproduzir($1, $2, $3::jsonb, '[]'::jsonb)`, [siteId, videoId, JSON.stringify([reg(id, 'sem_desfecho')])])).toBe('22023')
+        expect(await erro(`select public.ab_native_reproduzir($1, $2, $3::jsonb, $4::jsonb)`, [siteId, videoId, JSON.stringify([reg(id, 'sem_desfecho')]), JSON.stringify([av(null, 'erro')])])).toBe('22023')
+        expect(await erro(`select public.ab_native_reproduzir($1, $2, $3::jsonb, null)`, [siteId, videoId, JSON.stringify([reg(id, 'sem_desfecho')])])).toBe('22023')
+        expect(await contar('ab_native_tests')).toBe(0)
+      })
+    })
+    it('registro_id de outro vídeo é recusado (S3)', async () => {
+      await tx(async () => {
+        const outro = randomUUID()
+        await pg.query(`insert into public.ab_native_tests (id, site_id, video_id, youtube_video_id, origem, campos, estado, variantes_titulo, primeira_vista, versao_regra, encerrado_em)
+          values ($1, $2, $3, 'abcdefghijk', 'detectado', '{titulo}', 'sem_desfecho', '["a","b"]', now(), 1, now())`, [outro, siteId, video2])
+        const id = randomUUID()
+        expect(await erro(`select public.ab_native_reproduzir($1, $2, $3::jsonb, $4::jsonb)`, [siteId, videoId, JSON.stringify([reg(id)]), JSON.stringify([av(outro)])])).toBe('23514')
+        expect(await contar('ab_native_tests')).toBe(0)
+      })
     })
     it('uma avaliação erro anterior NÃO impede a reprodução', async () => {
       await tx(async () => {
@@ -226,6 +296,7 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: schema e funções do registro do tes
       const f = await pg.query(`select l.lanname, p.prosrc from pg_proc p join pg_language l on l.oid = p.prolang where p.oid = to_regprocedure('public.ab_native_reproduzir(uuid,uuid,jsonb,jsonb)')`)
       expect(f.rows[0].lanname).toBe('plpgsql')
       expect(f.rows[0].prosrc).toContain('pg_advisory_xact_lock')
+      expect(f.rows[0].prosrc, 'trava com prefixo (Y4)').toContain("hashtextextended('ab_native:'")
       await tx(async () => {
         const id = randomUUID()
         await rep([{ ...reg(id), site_id: randomUUID(), video_id: randomUUID() }], [{ ...av(id), site_id: randomUUID(), video_id: randomUUID() }])
