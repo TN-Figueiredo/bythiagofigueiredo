@@ -9,6 +9,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { lerSqlDaF1 } from '../helpers/f1-sql'
+import { colunasDaSoma } from '../../src/lib/youtube/observatorio/arquivo/sessao'
 import {
   emTransacao, semearCena, pausarEEnvelhecer, registrar, exportarConferirConfirmar, q1, escalar, tenta, codigoE10, criarCanal, criarVideo, criarUsuario,
   semearWatchDoVideo, type Cena,
@@ -317,6 +319,28 @@ describe.skipIf(skipIfNoLocalDb())('F1 §B: remoção pedida e Desfazer', () => 
       expect(await n(ytA)).toBe(0)
     })
   })
+
+  it('B2.9 (Phil C-2) o Desfazer devolve o reter_ate anterior de cada alvo; a prova de A/B sobrevive à poda', async () => {
+    await emTransacao(pg, async () => {
+      const c = await semearCena(pg, { semWatch: true })
+      const ytA = await ytDe(c.videoA)
+      const ytA2 = await ytDe(c.videoA2)
+      await semearWatchDoVideo(pg, c.site, ytA, { leituras: 5, miniaturas: 0, alvo: true })
+      await semearWatchDoVideo(pg, c.site, ytA2, { leituras: 1, miniaturas: 0, alvo: true })
+      await pg.query(`update public.yt_watch_alvos set saiu_em = now() - interval '40 days', saiu_por = 'janela', reter_ate = now() + interval '100 days' where site_id = $1 and youtube_video_id = $2`, [c.site, ytA])
+      await pg.query(`update public.yt_watch_alvos set saiu_em = now() - interval '40 days', saiu_por = 'janela' where site_id = $1 and youtube_video_id = $2`, [c.site, ytA2])
+      const antes = (await q1(pg, `select reter_ate::text as r from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, ytA])).r as string
+      await pedir(c, c.canalA)
+      expect(await escalar<string>(pg, `select reter_ate::text from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, ytA])).toBe('infinity')
+      expect(await escalar<number>(pg, `select (select count(*) from jsonb_object_keys(removal_reter_antes))::int from public.competitor_channels where id = $1`, [c.canalA])).toBe(1)
+      await cancelar(c, c.canalA)
+      expect(await escalar<string>(pg, `select reter_ate::text from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, ytA])).toBe(antes)
+      expect(await escalar<string | null>(pg, `select reter_ate::text from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, ytA2])).toBeNull() // controle: sem retenção antes, nulo depois
+      expect((await canal(c.canalA)).removal_reter_antes).toBeNull()
+      await pg.query(`select public.yt_watch_poda(now(), 1000)`)
+      expect(await escalar<number>(pg, `select count(*)::int from public.yt_watch_readings where site_id = $1 and youtube_video_id = $2`, [c.site, ytA])).toBe(5)
+    })
+  })
 })
 
 describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
@@ -391,10 +415,10 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
     expect(src).toMatch(/current_setting\('track_counts'\) <> 'on'[\s\S]*apagou_alem_do_arquivo/)
   })
 
-  it('B3.2 30 dias: 31 dias recusa, 30 dias menos 1 minuto apaga', async () => {
+  it('B3.2 30 dias: 30 dias + 1 min recusa, 30 dias menos 1 minuto apaga', async () => {
     await emTransacao(pg, async () => {
       const { c } = await cena()
-      await pg.query(`update public.competitor_channels set added_at = now() - interval '31 days' where id = $1`, [c.canalA])
+      await pg.query(`update public.competitor_channels set added_at = now() - (interval '30 days' + interval '1 minute') where id = $1`, [c.canalA])
       expect(erro(await apagar(c, c.canalA, 'Canal de teste'))).toBe('canal_antigo')
       expect(await escalar<number>(pg, `select count(*)::int from public.competitor_channels where id = $1`, [c.canalA])).toBe(1)
       await pg.query(`update public.competitor_channels set added_at = now() - (interval '30 days' - interval '1 minute') where id = $1`, [c.canalA])
@@ -512,7 +536,7 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
       const { c, ytA } = await cena()
       expect((await apagar(c, c.canalA, 'Canal de teste')).ok).toBe(true)
       await semearWatchDoVideo(pg, c.site, ytA, { leituras: 1, miniaturas: 0, alvo: false })
-      expect(await escalar<number>(pg, `select public.obs_unarchived_watch_sweep(now() + interval '3 days')`)).toBe(0)
+      expect(await escalar<number>(pg, `select public.obs_unarchived_watch_sweep(now() + interval '8 days')`)).toBe(0)
     })
   })
 
@@ -526,6 +550,43 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
       const outro = await semearCena(pg)
       const t = await tenta(pg, `select public.competitor_channel_removal_extra($1, $2)`, [outro.site, c.canalA])
       expect(erro(t)).toBe('canal_nao_encontrado')
+    })
+  })
+
+  it('B3.11 (Phil I-1) o canal apagado sem guardar deixa rastro das referências "destaque" de outros canais', async () => {
+    await emTransacao(pg, async () => {
+      const { c } = await cena()
+      expect((await apagar(c, c.canalA, 'Canal de teste')).ok).toBe(true)
+      const a = (await q1(pg, `select after_data from public.audit_log where site_id = $1 and action = 'observatorio_canal_apagado_sem_arquivo'`, [c.site])).after_data as { featured_refs_cleared: number; featured_refs: { comment_id: string }[] }
+      expect(a.featured_refs_cleared).toBe(1)
+      expect(a.featured_refs).toHaveLength(1)
+      expect(String(a.featured_refs[0].comment_id)).toBe(String(c.comentarioDeBQueApontaParaA))
+    })
+  })
+
+  it('B3.12 (Phil M-1) a varredura solta o infinity órfão; alvo de canal com pedido aberto continua infinity', async () => {
+    await emTransacao(pg, async () => {
+      const c = await semearCena(pg, { semWatch: true })
+      const ytA = await ytDe(c.videoA)
+      const ytB = await ytDe(c.videoB)
+      await semearWatchDoVideo(pg, c.site, ytA, { leituras: 1, miniaturas: 0, alvo: true })
+      await semearWatchDoVideo(pg, c.site, ytB, { leituras: 1, miniaturas: 0, alvo: true })
+      await pg.query(`select public.competitor_channel_request_removal($1, $2, $3, 'entrou_por_engano')`, [c.site, c.canalA, c.admin])
+      await pg.query(`select public.competitor_channel_request_removal($1, $2, $3, 'entrou_por_engano')`, [c.site, c.canalB, c.admin])
+      // o canal A some por outra via, sem passar pelo Desfazer
+      await pg.query(`delete from public.competitor_channels where id = $1`, [c.canalA])
+      expect(await escalar<number>(pg, `select public.obs_unarchived_watch_sweep(now())`)).toBe(1)
+      expect(await escalar<string | null>(pg, `select reter_ate::text from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, ytA])).toBeNull()
+      expect(await escalar<string>(pg, `select reter_ate::text from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, ytB])).toBe('infinity')
+    })
+  })
+
+  it('B3.13 (Phil M-3) caractere de largura zero some; não vira espaço', async () => {
+    await emTransacao(pg, async () => {
+      const n = (t: string) => escalar<string>(pg, `select public.obs_nome_normalizado($1)`, [t])
+      expect(await n('Ca\u200bnal')).toBe('canal')
+      expect(await n('Ca\u2060nal\ufeff')).toBe('canal')
+      expect(await n('A\u2003B')).toBe('a b')
     })
   })
 })
@@ -548,6 +609,51 @@ describe.skipIf(skipIfNoLocalDb())('F1 §E: E9 x watch (prova da decisão P6, se
       expect(await escalar<number>(pg, `select count(*)::int from public.yt_watch_readings where site_id = $1 and youtube_video_id = $2`, [c.site, yt])).toBe(2)
       await pg.query(`select public.yt_watch_poda(now() + interval '31 days', 1000)`)
       expect(await escalar<number>(pg, `select count(*)::int from public.yt_watch_readings where site_id = $1 and youtube_video_id = $2`, [c.site, yt])).toBe(0)
+    })
+  })
+})
+
+describe.skipIf(skipIfNoLocalDb())('F1 · C-1 pausa no schema real e M-4 colunas da soma', () => {
+  let pg: Client
+  beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })
+  afterAll(async () => { try { await pg.query('rollback') } catch { /* nada aberto */ } await pg.end() })
+
+  const semRemendo = () => escalar<number>(pg,
+    `select count(*)::int from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname in ('competitor_series_health','competitor_hourly_health','competitor_comment_due','competitor_comment_health')
+        and p.prosrc not like '%competitor_channel_pause_covers%'`)
+
+  it('B2.0 (Phil C-1) SÓ a F1 aplicada (sem reaplicar a MG6): as 4 funções conhecem a pausa e o pedido de remoção passa', async () => {
+    const f1 = lerSqlDaF1()
+    expect(f1).not.toBeNull()
+    await pg.query('begin')
+    try {
+      await pg.query(f1 as string)
+      expect(await semRemendo()).toBe(0)
+      const c = await semearCena(pg, { semWatch: true })
+      const r = (await q1(pg, `select public.competitor_channel_request_removal($1, $2, $3, 'entrou_por_engano') as r`, [c.site, c.canalA, c.admin])).r as { status: string }
+      expect(r.status).toBe('pedido')
+    } finally {
+      await pg.query('rollback')
+    }
+  })
+
+  it('Q2 o banco instalado (dentro da transação, com a F1) não tem função da coleta sem o remendo da pausa', async () => {
+    await emTransacao(pg, async () => { expect(await semRemendo()).toBe(0) })
+  })
+
+  it('B1.9 (Yannis M-4 / Phil M-4) toda coluna de soma composta (a + b) no registro é NOT NULL (uma só coluna anulável é igual nos dois lados)', async () => {
+    await emTransacao(pg, async () => {
+      const reg = (await pg.query(`select table_name, sum_sql from public.obs_archive_registry() where sum_sql is not null`)).rows as { table_name: string; sum_sql: string }[]
+      expect(reg.length).toBeGreaterThan(0)
+      for (const e of reg) {
+        const cols = e.sum_sql.includes('+') ? colunasDaSoma(e.sum_sql) : null
+        if (cols === null) continue
+        for (const col of cols) {
+          const nul = await escalar<string>(pg, `select is_nullable from information_schema.columns where table_schema = 'public' and table_name = $1 and column_name = $2`, [e.table_name, col])
+          expect(nul, `${e.table_name}.${col}`).toBe('NO')
+        }
+      }
     })
   })
 })

@@ -17,7 +17,7 @@ function rows(o: Partial<ObservatoryRows> = {}): ObservatoryRows {
 const channel = (o: Partial<ChannelRow> = {}): ChannelRow => ({
   id: 'ch1', channel_id: 'UC1', channel_name: 'Canal Um', thumbnail_url: null, subscriber_count: 1000, niche: 'viagem', video_limit: 50,
   youtube_video_count: 300, sync_status: 'idle', sync_error: null, sync_error_since: null, last_ok_synced_at: iso(NOW - 2 * H), last_synced_at: iso(NOW - 2 * H),
-  full_sync_completed_at: null, added_at: iso(sp('2026-09-01T10:00:00')), ...o,
+  full_sync_completed_at: null, added_at: iso(sp('2026-09-01T10:00:00')), removal_requested_at: null, ...o,
 })
 const video = (o: Partial<VideoRow> = {}): VideoRow => ({
   id: 'v1', competitor_channel_id: 'ch1', video_id: 'yt1', title: 'Um título', view_count: 1000, like_count: 10, comment_count: 1, duration_seconds: 600,

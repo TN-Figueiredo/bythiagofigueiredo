@@ -19,7 +19,7 @@ type Parte<T> = { valor: T } | { porque: CausaDaFalha }
 export interface PendenciasDoArquivo {
   /** `obs_archive_uncovered()`; só nomes que casam com `^[a-z0-9_]+$` (o resto vira "(nome ilegível)", um por nome). */
   semExport: Parte<string[]>
-  /** `obs_archive_batches` de `competitor_channels`, apagados, com `blob_urls_pending` não vazio. */
+  /** `obs_archive_batches` de `competitor_channels` (apagados) e `obs_unarchived_deletions`, com `blob_urls_pending` não vazio. */
   miniaturas: Parte<{ urls: number; lotes: number; diasDaMaisAntiga: number | null }>
 }
 
@@ -37,12 +37,15 @@ async function lerSemExport(sb: SupabaseClient): Promise<Parte<string[]>> {
   }
 }
 
-async function lerMiniaturas(sb: SupabaseClient, agoraMs: number): Promise<Parte<{ urls: number; lotes: number; diasDaMaisAntiga: number | null }>> {
+type Linhas = { data: unknown[] } | { porque: CausaDaFalha }
+
+/** Lê as linhas com miniatura pendente de uma das duas tabelas (lote exportado ou apagamento sem guardar); falha sozinha, nunca como lista vazia. */
+async function lerLinhas(sb: SupabaseClient, tabela: 'obs_archive_batches' | 'obs_unarchived_deletions'): Promise<Linhas> {
   try {
-    const res: { data?: unknown; error?: unknown } | null | undefined = await sb
-      .from('obs_archive_batches')
-      .select('deleted_at, blob_urls_pending')
-      .eq('table_name', 'competitor_channels')
+    let q = sb.from(tabela).select('deleted_at, blob_urls_pending')
+    // (Yannis I-2) o apagamento sem guardar também alimenta o alerta de "miniatura pendente há mais de N dias"
+    if (tabela === 'obs_archive_batches') q = q.eq('table_name', 'competitor_channels')
+    const res: { data?: unknown; error?: unknown } | null | undefined = await q
       .not('deleted_at', 'is', null)
       .not('blob_urls_pending', 'is', null)
       .not('blob_urls_pending', 'eq', '{}')
@@ -53,22 +56,29 @@ async function lerMiniaturas(sb: SupabaseClient, agoraMs: number): Promise<Parte
     if (typeof res !== 'object' || res === null) return { porque: 'forma_invalida' }
     if (res.error) return { porque: causaDoErro(res.error) }
     if (!Array.isArray(res.data)) return { porque: 'forma_invalida' }
-    let urls = 0
-    let lotes = 0
-    let maisAntiga: number | null = null
-    for (const l of res.data) {
-      // a consulta já exclui o lote que não foi apagado; se vier, não é miniatura de canal removido
-      if (!ehObjeto(l) || l.deleted_at === null || !Array.isArray(l.blob_urls_pending) || l.blob_urls_pending.length === 0) continue
-      const quando = typeof l.deleted_at === 'string' ? Date.parse(l.deleted_at) : Number.NaN
-      if (!Number.isFinite(quando)) return { porque: 'forma_invalida' }
-      urls += l.blob_urls_pending.length
-      lotes++
-      maisAntiga = maisAntiga === null ? quando : Math.min(maisAntiga, quando)
-    }
-    return { valor: { urls, lotes, diasDaMaisAntiga: maisAntiga === null ? null : Math.max(0, Math.floor((agoraMs - maisAntiga) / DIA_MS)) } }
+    return { data: res.data }
   } catch (err) {
     return { porque: causaDoErro(err) }
   }
+}
+
+async function lerMiniaturas(sb: SupabaseClient, agoraMs: number): Promise<Parte<{ urls: number; lotes: number; diasDaMaisAntiga: number | null }>> {
+  const [lotesDoArquivo, semArquivo] = await Promise.all([lerLinhas(sb, 'obs_archive_batches'), lerLinhas(sb, 'obs_unarchived_deletions')])
+  if ('porque' in lotesDoArquivo) return { porque: lotesDoArquivo.porque }
+  if ('porque' in semArquivo) return { porque: semArquivo.porque }
+  let urls = 0
+  let lotes = 0
+  let maisAntiga: number | null = null
+  for (const l of [...lotesDoArquivo.data, ...semArquivo.data]) {
+    // a consulta já exclui o lote que não foi apagado; se vier, não é miniatura de canal removido
+    if (!ehObjeto(l) || l.deleted_at === null || !Array.isArray(l.blob_urls_pending) || l.blob_urls_pending.length === 0) continue
+    const quando = typeof l.deleted_at === 'string' ? Date.parse(l.deleted_at) : Number.NaN
+    if (!Number.isFinite(quando)) return { porque: 'forma_invalida' }
+    urls += l.blob_urls_pending.length
+    lotes++
+    maisAntiga = maisAntiga === null ? quando : Math.min(maisAntiga, quando)
+  }
+  return { valor: { urls, lotes, diasDaMaisAntiga: maisAntiga === null ? null : Math.max(0, Math.floor((agoraMs - maisAntiga) / DIA_MS)) } }
 }
 
 export async function lerPendenciasDoArquivo(sb: SupabaseClient, agoraMs: number): Promise<PendenciasDoArquivo> {

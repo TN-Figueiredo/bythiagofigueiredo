@@ -155,7 +155,7 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
   })
 
   /** Uma pasta exportada de verdade (com os falsos) que inclui tabelas de identidade (`id` gerado) e a tarefa antes da leitura. */
-  async function pastaComIdentidade() {
+  async function pastaComIdentidade(extras: string[] = []) {
     const tabelas = tabelasPadrao()
     const umaLinha = (): TabelaFalsa => ({
       colunas: [{ nome: 'id', tipo: 'bigint', nulo: false }], filtro: 't.id = $1', periodo: null, soma: null, ordem: 't.id', linhas: [{ id: '7' }],
@@ -165,6 +165,7 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     tabelas.competitor_readings = umaLinha()
     tabelas.competitor_field_versions = umaLinha()
     tabelas.competitor_raw = umaLinha()
+    for (const t of extras) tabelas[t] = umaLinha()
     const b = bancoFalso({ urls: [], tabelas })
     const d = discoFalso()
     const { exportarCanal } = await import('@/lib/youtube/observatorio/arquivo/exportar')
@@ -215,9 +216,23 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
     const i = r.saida.findIndex(l => l.startsWith('update public.competitor_channels'))
     expect(i).toBeGreaterThan(0)
-    expect(r.saida[i]).toBe(`update public.competitor_channels set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null where id = '${CANAL}' and removal_requested_at is not null;`)
+    expect(r.saida[i]).toBe(`update public.competitor_channels set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null, removal_reter_antes = null where id = '${CANAL}' and removal_requested_at is not null;`)
     expect(r.saida.slice(0, i).every(l => l.startsWith('\\copy'))).toBe(true)
     expect(r.saida.slice(i + 1).every(l => l.startsWith('select setval'))).toBe(true)
+  })
+
+  it('C1.2 (Phil C-2) a recarga devolve o reter_ate guardado no pedido, depois do \\copy de yt_watch_alvos e antes de zerar o pedido', async () => {
+    const d = await pastaComIdentidade(['yt_watch_alvos'])
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    expect(r.codigo).toBe(0)
+    const iCopia = r.saida.findIndex(l => l.startsWith('\\copy public.yt_watch_alvos'))
+    const iDevolve = r.saida.findIndex(l => l.startsWith('update public.yt_watch_alvos a set reter_ate = (c.removal_reter_antes'))
+    const iZera = r.saida.findIndex(l => l.startsWith('update public.competitor_channels set removal_requested_at = null'))
+    expect(iCopia).toBeGreaterThan(-1)
+    expect(iDevolve).toBeGreaterThan(iCopia)
+    expect(iZera).toBeGreaterThan(iDevolve)
+    expect(r.saida[iDevolve]).toContain(`where c.id = '${CANAL}'`)
+    expect(r.saida[iDevolve]).toContain(`a.reter_ate = 'infinity'`)
   })
 
   it('comandos-recarga sem tabela de identidade no manifesto não imprime ajuste algum', async () => {

@@ -23,7 +23,7 @@ export interface ChannelRow {
   last_ok_synced_at: string | null; last_synced_at: string | null; full_sync_completed_at: string | null; added_at: string | null
   published_at?: string | null
   /** F1 do Remover canal: remoção pedida (agendada); a coluna pode faltar em fixtures antigas. */
-  removal_requested_at?: string | null
+  removal_requested_at: string | null
 }
 export interface OwnChannelRow { id: string; channel_id: string; name: string; handle: string; subscriber_count: number; last_synced_at: string | null; locale?: string | null; created_at?: string | null; niche?: string | null; thumbnail_url?: string | null }
 export interface VideoRow {
@@ -347,7 +347,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       lastIdx: state === 'backfill' ? null : lastIdx,
       snapshots, undated, youtubeVideoCount: c.youtube_video_count, createdMs: ms(c.published_at ?? null),
       ...(omitted.has(c.id) ? { weeklyOmitted: true } : {}),
-      removalRequestedAt: c.removal_requested_at ?? null,
+      removalRequestedAt: c.removal_requested_at,
     })
   }
 
