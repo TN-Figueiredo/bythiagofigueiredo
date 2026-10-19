@@ -19,7 +19,7 @@ const canais = (): Linha[] => [
 ]
 const video = (id: string, canal = CANAL): Linha => ({ id, competitor_channel_id: canal })
 const snap = (video_id: string, mark: number, status: string, site_id = SITE, canal = CANAL, taken_at = T): Linha => ({ video_id, mark, status, site_id, competitor_channel_id: canal, taken_at })
-const comentario = (id: number, video_id: string, o: Partial<Linha> = {}): Linha => ({ id, video_id, site_id: SITE, parent_id: null, creator_replied: null, body: 'TEXTO-PROIBIDO', ...o })
+const comentario = (id: number, video_id: string, o: Partial<Linha> = {}): Linha => ({ id, video_id, site_id: SITE, parent_id: null, creator_replied: null, is_creator: false, body: 'TEXTO-PROIBIDO', ...o })
 const marca = (comment_id: number, mark: number, likes: number, site_id = SITE): Linha => ({ comment_id, mark, likes, site_id })
 
 const mundo = (extra: Record<string, Linha[]> = {}): Record<string, Linha[]> => ({
