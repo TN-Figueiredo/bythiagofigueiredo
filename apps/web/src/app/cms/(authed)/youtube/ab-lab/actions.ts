@@ -9,6 +9,8 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import type { Database } from '@/types/database.types'
+import { z } from 'zod'
+import { refTrocaValida } from '@/lib/youtube/ab-referencia'
 import { AB_TEST_CONFIG_DEFAULTS, VARIANT_LABELS } from '@/lib/youtube/ab-types'
 import type {
   AbTestCreateInput,
@@ -88,6 +90,20 @@ async function requireEditAccess(): Promise<string> {
   return siteId
 }
 
+const UUID_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const ReferenciaSchema = z.object({
+  refVideoId: z.string().regex(UUID_REF).nullable(),
+  refTroca: z.string().nullable(),
+  tipo: z.enum(['thumbnail', 'title']),
+})
+
+/** Só os três campos; qualquer coisa fora do formato descarta a referência (o teste nasce sem ela). */
+function referenciaValida(r: unknown): { refVideoId: string | null; refTroca: string | null; tipo: 'thumbnail' | 'title' } | null {
+  const p = ReferenciaSchema.safeParse(r)
+  if (!p.success) return null
+  return { refVideoId: p.data.refVideoId, refTroca: refTrocaValida(p.data.refTroca), tipo: p.data.tipo }
+}
+
 // ---------------------------------------------------------------------------
 // createAbTest
 // ---------------------------------------------------------------------------
@@ -148,7 +164,12 @@ export async function createAbTest(
   }
 
   // Merge config with defaults
-  const config = { ...AB_TEST_CONFIG_DEFAULTS, ...(input.config ?? {}) }
+  const referencia = input.referencia === undefined ? null : referenciaValida(input.referencia)
+  const config = {
+    ...AB_TEST_CONFIG_DEFAULTS,
+    ...(input.config ?? {}),
+    ...(referencia ? { referencia } : {}),
+  }
 
   // Capture original metadata for title/desc/combo tests
   let originalTitle: string | null = null

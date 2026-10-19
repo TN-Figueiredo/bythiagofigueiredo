@@ -93,6 +93,7 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
               ? { testType: tipoInicial }
               : undefined
         }
+        referenciaDados={competitorContext ? { refVideoId: competitorContext.refVideoId, refTroca: competitorContext.refTroca, tipo: competitorContext.tipo } : undefined}
         referencia={competitorContext ? <ReferenciaConcorrente contexto={competitorContext} recolhida={recolhida} onAlternar={alternarRef} /> : undefined}
       />
     )

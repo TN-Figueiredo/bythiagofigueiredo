@@ -138,12 +138,20 @@ export interface AbTestWithVariants extends AbTestRow {
   total_cycles: number
 }
 
+export interface ReferenciaDoTeste {
+  refVideoId: string | null
+  refTroca: string | null
+  tipo: 'thumbnail' | 'title'
+}
+
 export interface AbTestCreateInput {
   site_id: string
   youtube_video_id: string
   name: string
   test_type?: TestType
   config?: Partial<AbTestConfig>
+  /** Vídeo do concorrente de onde o assistente foi aberto (aviso A5 3). Só ids; sem título nem URL de imagem. */
+  referencia?: ReferenciaDoTeste
 }
 
 export interface CreateVariantInput {

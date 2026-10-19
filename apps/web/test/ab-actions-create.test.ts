@@ -247,6 +247,36 @@ describe('createAbTest', () => {
     expect(put).toHaveBeenCalled()
   })
 
+  describe('referência do concorrente (aviso A5 3)', () => {
+    const REF_ID = '123e4567-e89b-12d3-a456-426614174000'
+    const configGravado = (calls: { table: string; data: unknown }[]) =>
+      (calls.find(c => c.table === 'ab_tests')!.data as { config: Record<string, unknown> }).config
+
+    it('referencia válida grava config.referencia com os três campos', async () => {
+      const { insertCalls } = buildSupabaseMock()
+      const r = await createAbTest(makeInput({ referencia: { refVideoId: REF_ID, refTroca: 'abc:1', tipo: 'title' } }))
+      expect(r.ok).toBe(true)
+      expect(configGravado(insertCalls).referencia).toEqual({ refVideoId: REF_ID, refTroca: 'abc:1', tipo: 'title' })
+    })
+
+    it('campo extra é gravado sem ele; uuid inválido descarta a referência; teste criado nos dois', async () => {
+      const a = buildSupabaseMock()
+      const extra = { refVideoId: REF_ID, refTroca: null, tipo: 'thumbnail', titulo: 'x', url: 'https://i.ytimg.com/a.jpg' }
+      expect((await createAbTest(makeInput({ referencia: extra as never }))).ok).toBe(true)
+      expect(configGravado(a.insertCalls).referencia).toEqual({ refVideoId: REF_ID, refTroca: null, tipo: 'thumbnail' })
+
+      const b = buildSupabaseMock()
+      expect((await createAbTest(makeInput({ referencia: { refVideoId: 'nao-e-uuid', refTroca: null, tipo: 'title' } }))).ok).toBe(true)
+      expect(configGravado(b.insertCalls)).not.toHaveProperty('referencia')
+    })
+
+    it('sem referencia o config não tem a chave', async () => {
+      const { insertCalls } = buildSupabaseMock()
+      await createAbTest(makeInput())
+      expect(configGravado(insertCalls)).not.toHaveProperty('referencia')
+    })
+  })
+
   it('rejects Shorts (≤60s)', async () => {
     buildSupabaseMock({
       video: {
