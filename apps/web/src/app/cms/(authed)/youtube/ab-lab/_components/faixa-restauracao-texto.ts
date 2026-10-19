@@ -91,9 +91,7 @@ function horaMinutoSP(d: Date): string {
 
 /** Frase de nova tentativa do vigia (C, D, D2 e bloqueio). */
 function fraseNovaTentativa(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): string {
-  // TEXTO-A-REVISAR
-  if (ctx.bloqueio === 'outro_teste') return 'Sem nova tentativa automática enquanto outro teste estiver aberto neste vídeo.'
-  // TEXTO-A-REVISAR
+  if (ctx.bloqueio === 'outro_teste') return 'Sem nova tentativa automática enquanto outro teste estiver em andamento neste vídeo.'
   if (ctx.bloqueio === 'pausado_variante') return 'Sem nova tentativa automática enquanto este teste estiver pausado.'
   const quando = vigiaAtrasado(ctx.vigiaUltimaExecucao, ctx.agora)
     ? 'na próxima verificação'
@@ -133,7 +131,6 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
   if (leitura.tipo === 'sem_resposta') {
     const sr = semResposta(leitura.desde)
     if (c.estado !== 'falhou') return sr
-    // TEXTO-A-REVISAR (composição de frases aprovadas: A3 + nova tentativa)
     return { ...sr, linha: { ...sr.linha, texto: `${sr.linha.texto} ${fraseNovaTentativa(campo, c, ctx)}` } }
   }
 
@@ -163,9 +160,8 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
     }
     case 'pulado_teste_youtube':
       // Só leitura (F10): quem escreve é a fase 2 da S6/S7. Texto neutro, sem botão.
-      // TEXTO-A-REVISAR
-      return mk('none', `Não alterado pelo Lab. Registrado em ${h}.`, h, {
-        lbl: 'Atenção:', resumo: 'o teste nativo do YouTube cuida deste campo. Nada foi alterado.', papel: 'status',
+      return mk('none', `Mantid${o} como está no YouTube desde ${h}.`, h, {
+        lbl: 'Atenção:', resumo: `o teste do próprio YouTube cuida d${o} ${nome}. O Lab não alterou nada.`, papel: 'status',
       })
     case 'pulado_drift':
       if (c.motivo === 'sem_base_de_comparacao') {
@@ -202,16 +198,14 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
         })
       }
       if (c.motivo === 'antes_da_nova_tentativa') {
-        // TEXTO-A-REVISAR
-        return mk('none', `Não foi restaurado. Parou em ${h}.`, h, {
-          lbl: 'Sem nova tentativa:', resumo: 'a restauração falhou antes da nova tentativa automática existir. Confira no YouTube Studio.',
+        return mk('warn', `Parou em ${h}. Não haverá nova tentativa automática.`, h, {
+          lbl: 'Sem nova tentativa:', resumo: `a restauração d${o} ${nome} falhou e o Lab não vai tentar de novo. Confira no YouTube Studio.`,
           linkRotulo: STUDIO,
         })
       }
       if (c.motivo === 'destino_invalido') {
-        // TEXTO-A-REVISAR
         return mk('warn', `Parou em ${h}. Não haverá nova tentativa automática.`, h, {
-          lbl: 'Sem nova tentativa:', resumo: 'não consegui saber para qual versão devolver. Confira no YouTube Studio.',
+          lbl: 'Sem nova tentativa:', resumo: `o Lab não soube para qual versão devolver ${o} ${nome}. Confira no YouTube Studio e corrija se precisar.`,
           linkRotulo: STUDIO,
         })
       }
@@ -280,7 +274,7 @@ function acoesDaFaixa(rs: RestoreStatus, ctx: CtxFaixa): AcoesFaixa {
   const dispensar = (['title', 'thumbnail'] as const).filter(k => { const c = rs[k]; return c !== undefined && podeDispensar(c) })
   const comAcao = new Set<CampoNome>([...pendentes, ...dispensar])
   const exigeAdmin = [...comAcao].some(k => rs[k]?.destino !== 'original')
-  // TEXTO-A-REVISAR (motivoSemBotao: texto do mockup I, mantido aqui literal)
+  // motivoSemBotao: texto do mockup I, mantido aqui literal
   if (exigeAdmin && !ctx.podeAdministrar) return { tentar: false, dispensar: [], motivoSemBotao: SEM_PERMISSAO }
   return { tentar: pendentes.length > 0, dispensar, motivoSemBotao: null }
 }

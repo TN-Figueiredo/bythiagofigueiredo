@@ -132,7 +132,7 @@ describe('AbPauseDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
     unmount()
     await act(async () => { resolver({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' }) })
-    expect(onAviso).toHaveBeenCalledWith('Sua sessão expirou antes de pausar. Nada foi alterado.')
+    expect(onAviso).toHaveBeenCalledWith('Sua sessão expirou e o teste não foi pausado. Entre de novo e pause outra vez.', { fixo: true })
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 

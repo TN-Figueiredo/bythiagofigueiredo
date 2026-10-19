@@ -63,7 +63,7 @@ describe('P4b: frases de nova tentativa', () => {
   })
   it('bloqueio: nenhuma hora e nenhum "tentativa N de 3"; acoes.tentar segue', () => {
     const a = completa(montarFaixa(falhou(), { ...ctx, bloqueio: 'outro_teste' }))
-    expect(a.linhas[0].texto).toContain('Sem nova tentativa automática enquanto outro teste estiver aberto neste vídeo.')
+    expect(a.linhas[0].texto).toContain('Sem nova tentativa automática enquanto outro teste estiver em andamento neste vídeo.')
     expect(a.linhas[0].texto).not.toMatch(/por volta|tentativa \d de 3|\d\d:\d\d \(/)
     expect(a.acoes.tentar).toBe(true)
     const p = completa(montarFaixa(falhou(), { ...ctx, bloqueio: 'pausado_variante' }))
@@ -90,8 +90,8 @@ describe('P4b: desistiu', () => {
   })
   it('antes_da_nova_tentativa', () => {
     const f = completa(montarFaixa(des('antes_da_nova_tentativa'), ctx))
-    expect(f).toMatchObject({ tom: 'none', lbl: 'Sem nova tentativa:', resumo: 'a restauração falhou antes da nova tentativa automática existir. Confira no YouTube Studio.', fine: null })
-    expect(f.linhas[0].texto).toBe('Não foi restaurado. Parou em 12/10 01:02.')
+    expect(f).toMatchObject({ tom: 'warn', lbl: 'Sem nova tentativa:', resumo: expect.stringMatching(/^a restauração d[oa] (título|thumbnail) falhou e o Lab não vai tentar de novo\. Confira no YouTube Studio\.$/), fine: null })
+    expect(f.linhas[0].texto).toBe('Parou em 12/10 01:02. Não haverá nova tentativa automática.')
     expect(f.linkStudio).not.toBeNull()
     expect(f.acoes.tentar).toBe(true)
   })
@@ -99,7 +99,7 @@ describe('P4b: desistiu', () => {
     const f = completa(montarFaixa(des('destino_invalido'), ctx))
     expect(f.tom).toBe('warn')
     expect(f.lbl).toBe('Sem nova tentativa:')
-    expect(f.resumo).toBe('não consegui saber para qual versão devolver. Confira no YouTube Studio.')
+    expect(f.resumo).toMatch(/^o Lab não soube para qual versão devolver (o título|a thumbnail)\. Confira no YouTube Studio e corrija se precisar\.$/)
     expect(f.linhas[0].texto).toBe('Parou em 12/10 01:02. Não haverá nova tentativa automática.')
     expect(f.linhas[0].tom).toBe('warn')
     expect(f.linkStudio).not.toBeNull()

@@ -169,7 +169,7 @@ describe('avisos da fase nova', () => {
     expect(tentar).toHaveBeenCalledTimes(1)
     const arg = fanOut.mock.calls[0]![0] as { dedupKey: string; message: string }
     expect(arg.dedupKey.startsWith('ab-restore-desistiu:teste-1:thumbnail:')).toBe(true) // leva o `em` da corrente
-    expect(arg.message).toContain('Não consegui saber para qual versão devolver')
+    expect(arg.message).toContain('O Lab não soube para qual versão devolver')
   })
 
   it('noAr: variante no ar e escreveu false cita a variante; original ou escreveu não-false: frase neutra (S3)', async () => {
@@ -181,11 +181,11 @@ describe('avisos da fase nova', () => {
     const b = montar(falhou({ attempts: 2 }))
     b.banco.ciclos()[0]!.variant_id = 'B'
     await faseNovaTentativa(b.sb, b.relogio, undefined, 4, { tentar: feito(falhou({ estado: 'desistiu', attempts: 3, motivo: 'tres_falhas', escreveu: true })) })
-    expect((fanOut.mock.calls[0]![0] as { message: string }).message).toContain('No ar continua o que estava antes.')
+    expect((fanOut.mock.calls[0]![0] as { message: string }).message).toContain('No ar continua o que estava no vídeo antes da restauração.')
     fanOut.mockClear()
     const c = montar(falhou({ attempts: 2 }))
     await faseNovaTentativa(c.sb, c.relogio, undefined, 4, { tentar: feito(falhou({ estado: 'desistiu', attempts: 3, motivo: 'tres_falhas', escreveu: false })) })
-    expect((fanOut.mock.calls[0]![0] as { message: string }).message).toContain('No ar continua o que estava antes.') // ciclo na original
+    expect((fanOut.mock.calls[0]![0] as { message: string }).message).toContain('No ar continua o que estava no vídeo antes da restauração.') // ciclo na original
   })
 
   it('fraseDeDesistencia: ramo explícito de video_inexistente e frase neutra para o resto', () => {

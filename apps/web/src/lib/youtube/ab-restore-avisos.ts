@@ -29,7 +29,7 @@ function oQue(campos: CampoNome[]): string {
   return campos[0] === 'title' ? 'o título' : 'a thumbnail'
 }
 
-/** Texto de `desistiu`, literal (Logan). Motivos da P4b: `tres_falhas`, `destino_invalido` (TEXTO-A-REVISAR). */
+/** Texto de `desistiu`, literal (Logan). Motivos da P4b: `tres_falhas`, `destino_invalido`. */
 export function fraseDeDesistencia(nome: string, motivo: string | null | undefined, campos: CampoNome[], noAr?: string | null): string {
   const resto = `O Lab não vai mais tentar restaurar ${oQue(campos)}.`
   switch (motivo) {
@@ -37,10 +37,10 @@ export function fraseDeDesistencia(nome: string, motivo: string | null | undefin
       return `Outro teste começou no vídeo do teste "${nome}". ${resto}`
     case 'video_inexistente':
       return `O vídeo do teste "${nome}" não foi encontrado no YouTube. ${resto}`
-    case 'tres_falhas': // TEXTO-A-REVISAR
-      return `A restauração do teste "${nome}" falhou 3 vezes e parou. ${noAr ? `No ar continua a variante ${noAr}.` : 'No ar continua o que estava antes.'} Corrija no YouTube Studio.`
-    case 'destino_invalido': // TEXTO-A-REVISAR
-      return `Não consegui saber para qual versão devolver o vídeo do teste "${nome}"; confira no YouTube Studio. ${resto}`
+    case 'tres_falhas':
+      return `A restauração do teste "${nome}" falhou 3 vezes e parou. ${noAr ? `No ar continua a variante ${noAr}.` : 'No ar continua o que estava no vídeo antes da restauração.'} Corrija no YouTube Studio.`
+    case 'destino_invalido':
+      return `O Lab não soube para qual versão devolver o vídeo do teste "${nome}". Confira no YouTube Studio. ${resto}`
     default: // antes_da_nova_tentativa e futuros: neutro, sem afirmar o que não se sabe
       return `O Lab parou de restaurar o vídeo do teste "${nome}". ${resto}`
   }

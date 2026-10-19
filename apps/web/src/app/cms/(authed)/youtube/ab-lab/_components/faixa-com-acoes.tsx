@@ -39,7 +39,7 @@ export function FaixaComAcoes({ testId, faixa, faixaTentando, seqVisto, tentar, 
       const r = await chamada()
       if (!r.ok) definirAviso(testId, r.error)
     } catch {
-      definirAviso(testId, 'Não foi possível concluir agora. Atualize a página e tente de novo.') // TEXTO-A-REVISAR
+      definirAviso(testId, 'Sem resposta. Não sabemos se a ação foi feita. Recarregue a página para ver o estado.', { fixo: true })
     } finally {
       trava.current = false
       setOcupado(false)

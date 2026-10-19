@@ -59,7 +59,7 @@ export async function getVideoTestHistory(
 export type { OpcaoEncerrar, ResultadoAcaoSaida }
 
 /** Frase provisória da exceção inesperada em settleOnAir (T17: Logan fecha). */
-const MSG_FALHA_SAIDA = 'Não foi possível concluir agora. Atualize a página e confira o estado do teste.'
+const MSG_FALHA_SAIDA = 'Não foi possível concluir agora. Recarregue a página e confira o estado do teste.'
 
 function invalidarTelasDoAbLab(): void {
   revalidateTag('youtube', { expire: 0 })
@@ -147,16 +147,16 @@ export async function createAbTest(
     .single()
 
   if (videoError || !video) {
-    return { ok: false, error: 'Vídeo não encontrado.' } // TEXTO-A-REVISAR
+    return { ok: false, error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' }
   }
 
   // Reject Shorts
   if (isCertainShort(video.duration_seconds ?? 0)) {
-    return { ok: false, error: 'Shorts (até 60 s) não entram no A/B Lab.' } // TEXTO-A-REVISAR
+    return { ok: false, error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' }
   }
 
   if (!video.thumbnail_hq_url) {
-    return { ok: false, error: 'Este vídeo ainda não tem thumbnail no Lab. Sincronize os vídeos e tente de novo.' } // TEXTO-A-REVISAR
+    return { ok: false, error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' }
   }
 
   // Check for existing active/draft/paused/queued test on the same video
@@ -170,7 +170,7 @@ export async function createAbTest(
     .maybeSingle()
 
   if (existing) {
-    return { ok: false, error: 'Já existe um teste aberto, pausado, na fila ou em rascunho para este vídeo.' } // TEXTO-A-REVISAR
+    return { ok: false, error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.' }
   }
 
   // Merge config with defaults

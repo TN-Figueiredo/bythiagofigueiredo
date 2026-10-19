@@ -345,7 +345,7 @@ describe('createAbTest', () => {
 
     const result = await createAbTest(makeInput())
 
-    expect(result).toEqual({ ok: false, error: 'Shorts (até 60 s) não entram no A/B Lab.' })
+    expect(result).toEqual({ ok: false, error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' })
     // Should NOT have attempted to preserve thumbnail or insert
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(put).not.toHaveBeenCalled()
@@ -360,7 +360,7 @@ describe('createAbTest', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: 'Já existe um teste aberto, pausado, na fila ou em rascunho para este vídeo.',
+      error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.',
     })
     expect(put).not.toHaveBeenCalled()
   })
@@ -369,7 +369,7 @@ describe('createAbTest', () => {
     const { insertCalls, statusFiltrados } = buildSupabaseMock({ existingTest: { id: 'fila-1' } })
     const result = await createAbTest(makeInput())
     expect(statusFiltrados[0]).toEqual(expect.arrayContaining(['draft', 'active', 'paused', 'queued']))
-    expect(result).toEqual({ ok: false, error: 'Já existe um teste aberto, pausado, na fila ou em rascunho para este vídeo.' })
+    expect(result).toEqual({ ok: false, error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.' })
     expect(insertCalls).toHaveLength(0)
     expect(put).not.toHaveBeenCalled()
   })
@@ -377,7 +377,7 @@ describe('createAbTest', () => {
   it('vídeo sem thumbnail: frase em português', async () => {
     buildSupabaseMock({ video: { id: 'video-1', duration_seconds: 600, thumbnail_hq_url: null } })
     const result = await createAbTest(makeInput())
-    expect(result).toEqual({ ok: false, error: 'Este vídeo ainda não tem thumbnail no Lab. Sincronize os vídeos e tente de novo.' })
+    expect(result).toEqual({ ok: false, error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' })
   })
 
   it('creates original variant with blob_url matching test original_thumbnail_url', async () => {
@@ -445,7 +445,7 @@ describe('createAbTest', () => {
 
     const result = await createAbTest(makeInput())
 
-    expect(result).toEqual({ ok: false, error: 'Vídeo não encontrado.' })
+    expect(result).toEqual({ ok: false, error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' })
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(put).not.toHaveBeenCalled()
   })
