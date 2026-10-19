@@ -9,6 +9,7 @@
  */
 import { codigoE10, FRASES_E10, type CodigoE10 } from './codigos'
 import { conferirLote } from './conferir'
+import { passoDaRemocao } from './passo-da-remocao'
 import { exportarCanal, NOME_DE_LOTE, type Disco } from './exportar'
 import { nomeDoLote, validarManifesto, type Manifesto } from './manifesto'
 import type { Baixar } from './miniaturas'
@@ -28,6 +29,7 @@ export type Comando =
   | { nome: 'confirmar-nas'; canal: string; lote: string; por: string; site: string | null }
   | { nome: 'remover'; canal: string; por: string; site: string | null; pasta: string }
   | { nome: 'comandos-recarga'; lote: string; pasta: string }
+  | { nome: 'pedidos'; por: string; site: string | null; pasta: string; destino: string | null }
 
 export const USO = [
   'uso: npx tsx scripts/obs-arquivo.ts <comando> [opções]',
@@ -39,12 +41,13 @@ export const USO = [
   '  comandos-nas     --lote <nome> --destino <usuario@host:/caminho> [--pasta <raiz>]   (só imprime)',
   '  confirmar-nas    --canal <uuid> --lote <nome> --por <e-mail> [--site <uuid>]',
   '  remover          --canal <uuid> --por <e-mail> [--site <uuid>]',
+  '  pedidos          --por <e-mail> [--site <uuid>] [--pasta <raiz>] [--destino <usuario@host:/caminho>]   (remoções pedidas no CMS)',
   '  comandos-recarga --lote <nome> [--pasta <raiz>]                                    (só imprime)',
   'ambiente: OBS_ARQUIVO_DB_URL (conexão direta ao banco; o .env.local nunca é lido)',
 ]
 
 /** Os subcomandos que falam com o banco; os outros dois só imprimem. */
-const COM_BANCO = new Set(['estado', 'pausar', 'despausar', 'exportar', 'conferir', 'confirmar-nas', 'remover'])
+const COM_BANCO = new Set(['estado', 'pausar', 'despausar', 'exportar', 'conferir', 'confirmar-nas', 'remover', 'pedidos'])
 const OPCOES: Record<string, { valor: string[]; bandeira: string[]; obrigatorias: string[] }> = {
   estado: { valor: ['site', 'pasta'], bandeira: [], obrigatorias: [] },
   pausar: { valor: ['canal', 'por', 'site'], bandeira: [], obrigatorias: ['canal', 'por'] },
@@ -54,6 +57,7 @@ const OPCOES: Record<string, { valor: string[]; bandeira: string[]; obrigatorias
   'comandos-nas': { valor: ['lote', 'destino', 'pasta'], bandeira: [], obrigatorias: ['lote', 'destino'] },
   'confirmar-nas': { valor: ['canal', 'lote', 'por', 'site'], bandeira: [], obrigatorias: ['canal', 'lote', 'por'] },
   remover: { valor: ['canal', 'por', 'site', 'pasta'], bandeira: [], obrigatorias: ['canal', 'por'] },
+  pedidos: { valor: ['por', 'site', 'pasta', 'destino'], bandeira: [], obrigatorias: ['por'] },
   'comandos-recarga': { valor: ['lote', 'pasta'], bandeira: [], obrigatorias: ['lote'] },
 }
 
@@ -93,7 +97,7 @@ export function interpretar(argv: string[], env: NodeJS.ProcessEnv): Comando | {
   const por = valores.get('por')
   if (por !== undefined && !EMAIL.test(por)) return { erro: '--por precisa ser um e-mail' }
   const pasta = valores.get('pasta') ?? pastaPadrao(env)
-  if (pasta === null && ['estado', 'exportar', 'conferir', 'comandos-nas', 'remover', 'comandos-recarga'].includes(sub)) return { erro: 'sem --pasta e sem HOME: diga onde fica a pasta das exportações' }
+  if (pasta === null && ['estado', 'exportar', 'conferir', 'comandos-nas', 'remover', 'comandos-recarga', 'pedidos'].includes(sub)) return { erro: 'sem --pasta e sem HOME: diga onde fica a pasta das exportações' }
   const destino = valores.get('destino')
   if (destino !== undefined && !DESTINO.test(destino)) return { erro: '--destino precisa ser usuario@host:/caminho' }
 
@@ -105,6 +109,7 @@ export function interpretar(argv: string[], env: NodeJS.ProcessEnv): Comando | {
     case 'comandos-nas': return { nome: 'comandos-nas', lote: lote!, destino: destino!, pasta: pasta! }
     case 'confirmar-nas': return { nome: 'confirmar-nas', canal: canal!, lote: lote!, por: por!, site }
     case 'remover': return { nome: 'remover', canal: canal!, por: por!, site, pasta: pasta! }
+    case 'pedidos': return { nome: 'pedidos', por: por!, site, pasta: pasta!, destino: destino ?? null }
     default: return { nome: 'comandos-recarga', lote: lote!, pasta: pasta! }
   }
 }
@@ -168,6 +173,7 @@ export async function rodar(c: Comando, d: DepsDoComando): Promise<Saida> {
       case 'conferir': return await conferir(c, d, sql, s.site)
       case 'confirmar-nas': return await confirmarNas(c, d, sql, s.site)
       case 'remover': return await remover(c, d, sql, s.site)
+      case 'pedidos': return await pedidos(c, d, sql, s.site)
     }
   } catch (e) {
     // nenhuma mensagem do banco sai daqui: só a frase do código
@@ -248,6 +254,13 @@ async function estado(c: Extract<Comando, { nome: 'estado' }>, d: DepsDoComando,
     `select id, channel_name, collection_paused_at::text as desde from public.competitor_channels where site_id = $1 and collection_paused_at is not null order by collection_paused_at`, [site])
   saida.push(`canais com a coleta pausada: ${pausados.rows.length}`)
   for (const p of pausados.rows) saida.push(`  ${texto(p.id)}  ${limpo(p.channel_name)}  desde ${texto(p.desde)}`)
+  const pedidas = await sql.query(
+    `select id, channel_name, removal_requested_at::text as pedida_em, collection_paused_at::text as pausada_em from public.competitor_channels where site_id = $1 and removal_requested_at is not null order by removal_requested_at`, [site])
+  saida.push(`remoções pedidas: ${pedidas.rows.length}`)
+  for (const p of pedidas.rows) {
+    const passo = await passoDoPedido(sql, site, p, d.agora().getTime())
+    saida.push(`  ${texto(p.id)}  ${limpo(p.channel_name)}  pedida em ${texto(p.pedida_em)}: ${rotuloDoPasso(passo)}`)
+  }
   const lotes = await sql.query(
     `select b.batch, b.channel_ref, max(b.channel_label) as canal, min(b.exported_at)::text as exportado_em, count(*) as arquivos,
             bool_and(b.verified_at is not null) as conferido, bool_and(b.nas_confirmed_at is not null) as confirmado, bool_and(b.deleted_at is not null) as apagado,
@@ -310,7 +323,7 @@ async function conferir(c: Extract<Comando, { nome: 'conferir' }>, d: DepsDoComa
   return feito(`exportação ${c.lote} conferida: ${r.arquivos} arquivo(s), ${r.miniaturas} miniatura(s)`, 'próximo passo: copiar para o NAS (comandos-nas) e confirmar (confirmar-nas)')
 }
 
-async function confirmarNas(c: Extract<Comando, { nome: 'confirmar-nas' }>, d: DepsDoComando, sql: ClienteSql, site: string): Promise<Saida> {
+async function confirmarNas(c: Extract<Comando, { nome: 'confirmar-nas' }>, d: DepsDoComando, sql: ClienteSql, site: string, doPedido = false): Promise<Saida> {
   if (!d.ehTerminal) return recusado('confirmar a cópia no NAS só se faz num terminal: a confirmação é digitada por você')
   const u = await resolverUsuario(sql, c.por)
   if ('erro' in u) return invalido(u.erro)
@@ -318,6 +331,7 @@ async function confirmarNas(c: Extract<Comando, { nome: 'confirmar-nas' }>, d: D
   if (digitado !== c.lote) return recusado('o nome digitado não é o da exportação; nada foi confirmado')
   try {
     await sql.query('begin')
+    if (doPedido && (await pedidoDesfeito(sql, site, c.canal, true))) { await sql.query('rollback'); return recusado(DESFEITO) }
     const r = (await sql.query('select public.obs_archive_confirm_nas($1, $2, $3, $4) as r', [site, c.lote, c.canal, u.id])).rows[0]?.r as Record<string, unknown> | undefined
     await sql.query('commit')
     return feito(`cópia no NAS confirmada: ${texto(r?.arquivos)} arquivo(s)`, 'próximo passo: remover o canal (pelo CMS ou pelo comando remover)')
@@ -327,7 +341,7 @@ async function confirmarNas(c: Extract<Comando, { nome: 'confirmar-nas' }>, d: D
   }
 }
 
-async function remover(c: Extract<Comando, { nome: 'remover' }>, d: DepsDoComando, sql: ClienteSql, site: string): Promise<Saida> {
+async function remover(c: Extract<Comando, { nome: 'remover' }>, d: DepsDoComando, sql: ClienteSql, site: string, doPedido = false): Promise<Saida> {
   if (!d.ehTerminal) return recusado('remover só se faz num terminal: a remoção é digitada por você') // nenhuma transação foi aberta
   const u = await resolverUsuario(sql, c.por)
   if ('erro' in u) return invalido(u.erro)
@@ -343,6 +357,7 @@ async function remover(c: Extract<Comando, { nome: 'remover' }>, d: DepsDoComand
   try {
     await sql.query('begin')
     await sql.query(`set local statement_timeout = '10min'`)
+    if (doPedido && (await pedidoDesfeito(sql, site, c.canal, true))) { await sql.query('rollback'); return recusado(DESFEITO) }
     const r = (await sql.query('select public.competitor_channel_remove_archived($1, $2, $3) as r', [site, c.canal, u.id])).rows[0]?.r as Record<string, unknown> | undefined
     if (!r || r.status !== 'removido') { await sql.query('rollback'); return recusado(frase('inesperado')) }
     if (texto(r.batch) !== nome) {
@@ -360,5 +375,110 @@ async function remover(c: Extract<Comando, { nome: 'remover' }>, d: DepsDoComand
     await sql.query('rollback').catch(() => undefined)
     const cod = erroDoBanco(e)
     return recusado(frase(cod), ...(cod === 'demorou_demais' ? ['nada foi apagado'] : []))
+  }
+}
+
+// ───────────────────────── remoções pedidas no CMS (F1 do Remover canal) ─────────────────────────
+
+const DESFEITO = 'o pedido foi desfeito no CMS; nada foi apagado'
+
+/** O pedido ainda está de pé? Com `travar`, `for update` na transação aberta: serializa com o `cancel_removal` (sem janela entre o teste e o uso). */
+async function pedidoDesfeito(sql: ClienteSql, site: string, canal: string, travar: boolean): Promise<boolean> {
+  const r = await sql.query(
+    `select removal_requested_at from public.competitor_channels where id = $1 and site_id = $2${travar ? ' for update' : ''}`, [canal, site])
+  return r.rows[0]?.removal_requested_at === null || r.rows[0]?.removal_requested_at === undefined
+}
+
+type PassoCalculado = ReturnType<typeof passoDaRemocao> & { lote: string | null }
+
+/** O lote que vale para a pausa atual (aberto e exportado depois dela) e o passo que a regra única manda dar. */
+async function passoDoPedido(sql: ClienteSql, site: string, p: Record<string, unknown>, agoraMs: number): Promise<PassoCalculado> {
+  const pausadoEm = typeof p.pausada_em === 'string' ? p.pausada_em : null
+  let lote: Record<string, unknown> | undefined
+  if (pausadoEm !== null) {
+    lote = (await sql.query(
+      `select b.batch, min(b.exported_at)::text as exportado_em, bool_and(b.verified_at is not null) as conferido, bool_and(b.nas_confirmed_at is not null) as confirmado
+         from public.obs_archive_batches b
+        where b.site_id = $1 and b.channel_ref = $2 and b.deleted_at is null and b.closed_at is null and b.exported_at >= $3
+        group by b.batch order by min(b.exported_at) desc, b.batch desc limit 1`, [site, texto(p.id), pausadoEm])).rows[0]
+  }
+  const exp = lote ? texto(lote.exportado_em) : ''
+  const passo = passoDaRemocao({
+    pausadoEm,
+    lote: lote ? { exportadoEm: exp, conferidoEm: lote.conferido === true ? exp : null, confirmadoEm: lote.confirmado === true ? exp : null, fechadoEm: null } : null,
+  }, agoraMs)
+  return { ...passo, lote: lote ? texto(lote.batch) : null }
+}
+
+function rotuloDoPasso(p: ReturnType<typeof passoDaRemocao>): string {
+  switch (p.passo) {
+    case 'esperar': return `espere ${p.minutos ?? 0} min para exportar`
+    case 'exportar': return 'falta exportar'
+    case 'conferir': return 'falta conferir'
+    case 'copiar_e_confirmar': return 'falta copiar para o NAS e confirmar'
+    case 'remover': return 'pronto para remover'
+  }
+}
+
+async function pedidos(c: Extract<Comando, { nome: 'pedidos' }>, d: DepsDoComando, sql: ClienteSql, site: string): Promise<Saida> {
+  const u = await resolverUsuario(sql, c.por)
+  if ('erro' in u) return invalido(u.erro)
+  if (!(await administra(sql, site, u.id))) return recusado(frase('sem_direito'))
+  const trava = 'obs-arquivo:pedidos:' + site
+  // lock de SESSÃO: o CLI usa a conexão direta ao banco, nunca o pooler em modo transação
+  if ((await sql.query('select pg_try_advisory_lock(hashtextextended($1, 0)) as ok', [trava])).rows[0]?.ok !== true) {
+    return recusado('outro terminal está processando os pedidos deste site')
+  }
+  try {
+    const lista = (await sql.query(
+      `select id, channel_name, removal_requested_at::text as pedida_em, collection_paused_at::text as pausada_em
+         from public.competitor_channels where site_id = $1 and removal_requested_at is not null order by removal_requested_at`, [site])).rows
+    if (lista.length === 0) return feito('nenhuma remoção pedida')
+    const saida: string[] = []
+    let falhou = false
+    for (const p of lista) {
+      const nome = limpo(p.channel_name)
+      let linhas: string[]
+      try {
+        const r = await umPedido(c, d, sql, site, p)
+        if (r.codigo !== 0) {
+          falhou = true
+          linhas = (await pedidoDesfeito(sql, site, texto(p.id), false)) ? [DESFEITO] : r.saida
+        } else linhas = r.saida
+      } catch (e) {
+        falhou = true
+        linhas = [frase(erroDoBanco(e))]
+      }
+      linhas.forEach((l, i) => saida.push(i === 0 ? `canal ${nome}: ${l}` : `  ${l}`))
+    }
+    return falhou ? recusado(...saida) : feito(...saida)
+  } finally {
+    await sql.query('select pg_advisory_unlock(hashtextextended($1, 0))', [trava]).catch(() => undefined)
+  }
+}
+
+async function umPedido(c: Extract<Comando, { nome: 'pedidos' }>, d: DepsDoComando, sql: ClienteSql, site: string, p: Record<string, unknown>): Promise<Saida> {
+  const canal = texto(p.id)
+  const dado = await passoDoPedido(sql, site, p, d.agora().getTime())
+  switch (dado.passo) {
+    case 'esperar': return feito(rotuloDoPasso(dado))
+    case 'exportar': {
+      const lote = nomeDoLote(canal, hoje(d))
+      const e = (await exportar({ nome: 'exportar', canal, lote, pasta: c.pasta, refazer: false, aceitarMiniaturasAusentes: false, site }, d, sql, site))
+      if (e.codigo !== 0) return e
+      const v = await conferir({ nome: 'conferir', canal, lote, pasta: c.pasta, site }, d, sql, site)
+      if (v.codigo !== 0) return recusado(...e.saida.slice(0, 1), ...v.saida)
+      const proximo = c.destino !== null
+        ? comandosNas({ nome: 'comandos-nas', lote, destino: c.destino, pasta: c.pasta }).saida
+        : ['próximo passo: copiar para o NAS (rode de novo com --destino)']
+      return feito(e.saida[0]!, v.saida[0]!, ...proximo)
+    }
+    case 'conferir': return await conferir({ nome: 'conferir', canal, lote: dado.lote!, pasta: c.pasta, site }, d, sql, site)
+    case 'copiar_e_confirmar':
+      if (!d.ehTerminal) return recusado('falta digitar: rode num terminal')
+      return await confirmarNas({ nome: 'confirmar-nas', canal, lote: dado.lote!, por: c.por, site }, d, sql, site, true)
+    case 'remover':
+      if (!d.ehTerminal) return recusado('falta digitar: rode num terminal')
+      return await remover({ nome: 'remover', canal, por: c.por, site, pasta: c.pasta }, d, sql, site, true)
   }
 }
