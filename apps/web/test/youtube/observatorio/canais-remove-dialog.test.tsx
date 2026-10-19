@@ -53,7 +53,7 @@ describe('RemoveDialog · contando e pronto', () => {
     expect(m.rows()).toEqual([
       '340vídeoscom 1.208 versões de título, thumbnail e descrição',
       '12dias de registrosviews diárias dos vídeos',
-      '48leituras da forjafeitas para vídeos deste canal, inclusive as da página de vídeo',
+      '48leituras da forja e da página de vídeofeitas para vídeos deste canal, inclusive as da página de vídeo',
       '5itens fixados ou salvos2 vídeos fixados e 3 trocas no swipe file',
     ])
     expect(document.activeElement).toBe(m.radio('guardar'))
@@ -69,7 +69,7 @@ describe('RemoveDialog · contando e pronto', () => {
   it('zeros de verdade: "nenhuma" e sem explicação; a linha continua (a altura é reservada)', async () => {
     const m = mount({ impact: async () => ({ ok: true, impact: { ...IMPACT, readings: 0, watch: { readings: 0, thumbs: 0, alvos: 0 } }, semGuardar: { pode: true } }) })
     await act(async () => {})
-    expect(m.rows()[2]).toBe('nenhumaleitura da forja')
+    expect(m.rows()[2]).toBe('nenhumaleitura da forja e da página de vídeo')
     expect(m.container.querySelectorAll('.fx-loss li')).toHaveLength(4)
   })
 
@@ -295,6 +295,16 @@ describe('RemoveDialog · envio', () => {
     expect(alerta).toContain(TXT.erroGuardarCorpo)
     await act(async () => { fireEvent.click(m.btn('Tentar de novo')) })
     expect(pedir).toHaveBeenCalledTimes(2)
+  })
+
+  it('M-2: contagem falhou e o guardar deu erro: "Contar de novo" continua à vista', async () => {
+    const pedir = vi.fn(async () => ({ ok: false as const, codigo: 'leitura', frase: 'f' }))
+    const m = mount({ impact: async () => ({ ok: false }), pedir })
+    await act(async () => {})
+    await act(async () => { fireEvent.click(m.btn('Parar coleta e agendar guarda no NAS')) })
+    expect(m.container.textContent).toContain(TXT.erroGuardarTitulo)
+    expect(m.btn('Contar de novo')).toBeTruthy()
+    expect(m.rows()).toEqual([])
   })
 
   it.each(['sem_direito', 'saiu_do_youtube'])('D5.9b erro-b permanente (%s): "Nada mudou." + frase, só Fechar', async codigo => {

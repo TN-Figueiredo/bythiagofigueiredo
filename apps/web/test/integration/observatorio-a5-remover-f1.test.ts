@@ -10,6 +10,7 @@ import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { lerSqlDaF1 } from '../helpers/f1-sql'
+import { CASOS_NOME } from '../helpers/casos-nome'
 import { colunasDaSoma } from '../../src/lib/youtube/observatorio/arquivo/sessao'
 import {
   emTransacao, semearCena, pausarEEnvelhecer, registrar, exportarConferirConfirmar, q1, escalar, tenta, codigoE10, criarCanal, criarVideo, criarUsuario,
@@ -450,6 +451,16 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
       await pg.query(`update public.competitor_channels set channel_name = 'São Paulo' where id = $1`, [c.canalA])
       expect(erro(await apagar(c, c.canalA, 'Sao Paulo'))).toBe('nome_nao_confere')
       expect((await apagar(c, c.canalA, 'são paulo')).ok).toBe(true)
+    })
+  })
+
+  it('B3.3c a tabela da tela (CASOS_NOME) dá o mesmo veredito no banco', async () => {
+    await emTransacao(pg, async () => {
+      for (const [digitado, nome, esperado] of CASOS_NOME) {
+        const d = await escalar<string>(pg, `select public.obs_nome_normalizado($1)`, [digitado])
+        const n = await escalar<string>(pg, `select public.obs_nome_normalizado($1)`, [nome])
+        expect(d !== '' && d === n, `${JSON.stringify(digitado)} x ${JSON.stringify(nome)}`).toBe(esperado)
+      }
     })
   })
 

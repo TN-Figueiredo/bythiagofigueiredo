@@ -117,7 +117,7 @@ export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHr
         {nova ? <MaisNumeros numeros={maisNumeros(h)} /> : null}
       </div>
 
-      {h.agendado ? <AvisoAgendado idade={h.agendado.idade} /> : null}
+      {h.agendado ? <AvisoAgendado idade={h.agendado.idade} desde={h.agendado.desde} /> : null}
 
       <div className="lrow">
         <p className={'l3' + tone}>

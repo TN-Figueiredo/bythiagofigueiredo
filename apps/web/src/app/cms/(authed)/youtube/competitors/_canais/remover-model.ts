@@ -16,7 +16,7 @@ export type Fase = 'contando' | 'pronto' | 'falha_contagem' | 'enviando' | 'ince
 export const PRAZO_CONTAGEM_MS = 10_000
 export const PRAZO_ACAO_MS = 30_000
 
-export type CodigoTela = CodigoE10 | 'leitura' | 'itens_na_fila' | 'inesperado' | 'demorou_demais'
+export type CodigoTela = CodigoE10 | 'leitura' | 'itens_na_fila' | 'inesperado'
 
 /** Milhar com ponto (pt-BR), sem depender do ICU do ambiente. */
 export const milhar = (n: number): string => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')
@@ -77,9 +77,10 @@ export function opcaoApagar(e: { fase: Fase; semGuardar: SemGuardar | null }): {
  * Espelho de `obs_nome_normalizado` (banco): classe EXPLÍCITA de espaços (nunca `\s`, que difere entre JS e Postgres), um espaço simples,
  * pontas aparadas, caixa ignorada, acento preservado. A mesma classe vale nos dois lados.
  */
-const ESPACOS = /[ \t\n\r\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]+/g
+const INVISIVEIS = /[\u200b\u2060\ufeff]/g
+const ESPACOS = /[ \t\n\r\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+/g
 export function normalizarNome(s: string): string {
-  return s.replace(ESPACOS, ' ').replace(/^ +| +$/g, '').toLowerCase()
+  return s.replace(INVISIVEIS, '').replace(ESPACOS, ' ').replace(/^ +| +$/g, '').toLowerCase()
 }
 export function nomeConfere(digitado: string, nome: string): boolean {
   const d = normalizarNome(digitado)
@@ -106,6 +107,11 @@ export function idadeDoAgendado(desdeIso: string, agoraMs: number): string {
   return dias === 1 ? 'agendado há 1 dia' : `agendado há ${dias} dias`
 }
 
+/** A frase do pacote de IA para o canal agendado: fixa, com a data do pedido (DD/MM), nunca a idade relativa. */
+export function fraseAgendadoIa(desdeIso: string): string {
+  return `agendado para guardar desde ${desdeIso.slice(8, 10)}/${desdeIso.slice(5, 7)}; coleta parada, números congelados`
+}
+
 export function pedidoAoAgente(nome: string, email: string | null): string {
   return [
     'Peço que rode, no repositório bythiagofigueiredo:',
@@ -116,7 +122,7 @@ export function pedidoAoAgente(nome: string, email: string | null): string {
 
 /** Códigos que podem passar sozinhos: tentar de novo faz sentido. Os outros são permanentes (a frase diz o que fazer). */
 export function codigoPassageiro(c: CodigoTela | 'sem-resposta'): boolean {
-  return c === 'leitura' || c === 'inesperado' || c === 'demorou_demais'
+  return c === 'leitura' || c === 'inesperado'
 }
 
 const FRASE_LEITURA = 'Não deu para conferir o canal agora. Nada mudou. Tente de novo.'
@@ -143,12 +149,11 @@ export function desfeitoCorpo(nome: string, despausado: boolean): string {
 
 /**
  * Os números vêm do retorno da F1 (linhas apagadas, contadas pelo banco); o que faltou é omitido da frase (nunca escreve 0 no lugar).
- * "Registros diários" são LINHAS de `competitor_video_daily` (o que o `audit_log` guarda), não "dias": a janela conta dias distintos, o
- * retorno da F1 só tem linhas, e dar a um o rótulo do outro seria mentir no número.
+ * As linhas de `competitor_video_daily` NÃO entram no toast: a janela conta dias distintos e o retorno da F1 só tem linhas, então os dois
+ * números da mesma tabela divergiriam. As linhas seguem no `audit_log`.
  */
-export function toastApagadoCorpo(nome: string, d: { videos: number; registros?: number; leituras?: number }): string {
+export function toastApagadoCorpo(nome: string, d: { videos: number; leituras?: number }): string {
   const itens = [plural(d.videos, 'vídeo', 'vídeos')]
-  if (d.registros !== undefined) itens.push(plural(d.registros, 'registro diário', 'registros diários'))
   if (d.leituras !== undefined) itens.push(plural(d.leituras, 'leitura', 'leituras'))
   const lista = itens.length === 1 ? itens[0]! : `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}`
   return `${nome} saiu, sem cópia: ${lista}. A vaga foi liberada. A ação foi registrada.`

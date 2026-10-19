@@ -511,9 +511,20 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   })
-  const { desfazer } = useDesfazer(actions.onDesfazer as never, () => router.refresh())
+  const { desfazer } = useDesfazer(actions.onDesfazer, () => router.refresh())
   /** U5: depois de fechar a janela o foco vai ao título da página (o botão que a abriu mudou de lugar; o aviso aparece logo abaixo). */
   const [focoTitulo, setFocoTitulo] = useState(0)
+  /** N3 (Logan): depois de guardar, o foco vai ao aviso "Agendado"; ele só existe depois do refresh, então o efeito espera por `h.agendado`. */
+  const focoAviso = useRef(false)
+  const agendadoMontado = h.agendado != null
+  useEffect(() => {
+    if (!focoAviso.current || !agendadoMontado) return
+    const a = raiz.current?.querySelector<HTMLElement>('[data-agendado-aviso]')
+    if (!a) return
+    focoAviso.current = false
+    if (!a.hasAttribute('tabindex')) a.setAttribute('tabindex', '-1')
+    a.focus({ preventScroll: true })
+  }, [agendadoMontado, focoTitulo])
   useEffect(() => {
     if (!focoTitulo) return
     const t = raiz.current?.querySelector<HTMLElement>('header.chead h1')
@@ -523,13 +534,13 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     setConfirm(false)
     if (d.caminho === 'guardar') {
       // fica na página: o aviso aparece no cabeçalho depois do refresh
-      setFocoTitulo(n => n + 1)
+      focoAviso.current = true; setFocoTitulo(n => n + 1)
       toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo, { acoes: [{ rotulo: 'Desfazer', onClick: () => { void desfazer(h.id, h.name) } }] })
       router.refresh()
       return
     }
     // apagar: a página deixa de existir. O toast sai na lista, pelo estado do navegador (não pela URL: link forjado não afirma "apagado")
-    marcarRemovido({ nome: h.name, videos: d.videos, ...(d.registrosDiarios !== undefined ? { registros: d.registrosDiarios } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) })
+    marcarRemovido({ nome: h.name, videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) })
     router.push(link.canais())
   }
   const conferir = () => { setConfirm(false); router.refresh() }

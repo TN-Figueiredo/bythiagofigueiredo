@@ -125,6 +125,7 @@ const MATRIZ: Array<[string, Params, Mut?]> = [
   ['Leitura sem nicho', { tab: 'leitura' }, semNicho],
   ['primeira sincronização', {}, (ds, id) => { ds.channels.find((c) => c.id === id)!.sync.state = 'backfill' }],
   ['sincronização atrasada', {}, (ds, id) => { ds.channels.find((c) => c.id === id)!.sync.state = 'atrasado' }],
+  ['canal agendado para guardar no NAS', {}, (ds, id) => { ds.channels.find((c) => c.id === id)!.removalRequestedAt = new Date(ds.now - 2 * 86_400_000).toISOString() }],
   ['sincronização com erro', { tab: 'trocas' }, (ds, id) => { const s = ds.channels.find((c) => c.id === id)!.sync; s.state = 'erro'; s.msg = 'quota'; s.errorSince = ds.now - 36e5 }],
 ]
 

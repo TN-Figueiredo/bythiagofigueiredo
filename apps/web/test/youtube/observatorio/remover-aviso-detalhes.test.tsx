@@ -136,7 +136,7 @@ describe('detalhes · canal agendado', () => {
     expect(act.onApagar).toHaveBeenCalled()
     expect(push).toHaveBeenCalledWith(link.canais())
     expect(String(push.mock.calls[0]![0])).not.toContain('removido')
-    expect(lerRemovido()).toEqual({ nome: m.view.header.name, videos: 3, registros: 9, leituras: 2 })
+    expect(lerRemovido()).toEqual({ nome: m.view.header.name, videos: 3, leituras: 2 })
     expect(lerRemovido()).toBeNull()
   })
 })
