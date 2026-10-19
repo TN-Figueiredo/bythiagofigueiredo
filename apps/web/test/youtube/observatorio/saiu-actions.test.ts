@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * A5 · E9, Tarefa 9: as ações da fila (`_saiu/actions.ts`), os dados da página (`_saiu/dados.ts`) e a recusa de `removeCompetitorChannel`.
+ * A5 · E9, Tarefa 9: as ações da fila (`_saiu/actions.ts`), os dados da página (`_saiu/dados.ts`) e a recusa de `pedirRemocaoCanal` e `apagarCanalSemGuardarAction` (trava E9, migrada da antiga `removeCompetitorChannel`).
  * Quem não administra NUNCA chega ao cliente de serviço (o mock registra a criação); o site vem do contexto, nunca do corpo.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -69,7 +69,7 @@ function montar(o: Opcoes = {}): Registro {
   vi.doMock('@/lib/youtube/observatorio/saiu/contar', () => ({ contarFila: async () => 7 }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: vi.fn() }))
   vi.doMock('@/lib/youtube/competitor-sync-guard', () => ({ syncSchemaBlock: async () => null }))
-  vi.doMock('@/lib/youtube/observatorio/arquivo/remover', () => ({ removerCanalArquivado: async () => { r.ordem.push('remover'); return { ok: true, lote: 'l', linhas: 1, miniaturasPendentes: 0, foraDoPrefixo: 0 } } }))
+  vi.doMock('@/lib/youtube/observatorio/arquivo/remover', () => ({ pedirRemocao: async () => { r.ordem.push('remover'); return { ok: true, jaPedido: false } }, cancelarRemocao: async () => ({ ok: true, naoPedido: false, despausado: true }), apagarCanalSemGuardar: async () => { r.ordem.push('remover'); return { ok: true, videos: 1, miniaturasPendentes: 0, foraDoPrefixo: 0 } } }))
   return r
 }
 const acoes = async () => await import('@/app/cms/(authed)/youtube/competitors/_saiu/actions')
@@ -223,17 +223,17 @@ describe('A5 E9 T9: dados da página', () => {
   })
 })
 
-describe('A5 E9 T9: removeCompetitorChannel recusa o que é da fila', () => {
+describe('A5 E9 T9: a trava E9 vale para pedir e apagar sem guardar', () => {
   it('remover canal que está na fila recusa com a frase', async () => {
     const r = montar({ canal: { missing_since: '2026-10-10' } })
-    expect(await (await competitors()).removeCompetitorChannel(UUID)).toEqual({ ok: false, error: 'Este canal saiu do YouTube: responda na aba Saíram do YouTube.' })
+    expect(await (await competitors()).pedirRemocaoCanal(UUID)).toEqual({ ok: false, codigo: 'saiu_do_youtube', frase: 'Este canal saiu do YouTube: responda na aba Saíram do YouTube.' })
     expect(r.ordem).not.toContain('remover')
     expect(r.tags).toEqual([])
   })
 
-  it('canal no ar segue como antes (chama a remoção da E10)', async () => {
+  it('canal no ar segue como antes (chama o pedido da F1)', async () => {
     const r = montar()
-    expect(await (await competitors()).removeCompetitorChannel(UUID)).toEqual({ ok: true })
+    expect(await (await competitors()).pedirRemocaoCanal(UUID)).toEqual({ ok: true, jaPedido: false })
     expect(r.ordem).toContain('remover')
     // m-4 (portão 14/10): as duas contagens só olham os itens SEM decisão; sem o filtro, o mantido bloquearia a remoção
     for (const t of ['competitor_videos', 'competitor_video_comments']) {
@@ -244,33 +244,39 @@ describe('A5 E9 T9: removeCompetitorChannel recusa o que é da fila', () => {
 
   it('leitura que falha não apaga', async () => {
     const r = montar({ falhaNaLeituraDoCanal: true })
-    expect(await (await competitors()).removeCompetitorChannel(UUID)).toEqual({ ok: false })
+    expect(await (await competitors()).pedirRemocaoCanal(UUID)).toEqual({ ok: false, codigo: 'leitura', frase: 'Não deu para conferir o canal agora. Nada mudou. Tente de novo.' })
     expect(r.ordem).not.toContain('remover')
   })
 
   it('remover canal no ar com 2 vídeos e 1 comentário esperando recusa com "3 itens"', async () => {
     const r = montar({ videosEsperando: 2, comentariosEsperando: 1 })
-    expect(await (await competitors()).removeCompetitorChannel(UUID)).toEqual({ ok: false, error: 'Este canal tem 3 itens esperando resposta na aba Saíram do YouTube: responda primeiro.' })
+    expect(await (await competitors()).pedirRemocaoCanal(UUID)).toEqual({ ok: false, codigo: 'itens_na_fila', frase: 'Este canal tem 3 itens esperando resposta na aba Saíram do YouTube: responda primeiro.' })
     expect(r.ordem).not.toContain('remover')
   })
 
   it('canal no ar só com item mantido é removido como antes (a contagem só olha os sem decisão)', async () => {
     const r = montar({ videosEsperando: 0, comentariosEsperando: 0 })
-    expect(await (await competitors()).removeCompetitorChannel(UUID)).toEqual({ ok: true })
+    expect(await (await competitors()).pedirRemocaoCanal(UUID)).toEqual({ ok: true, jaPedido: false })
     expect(r.ordem).toContain('remover')
   })
 
   it('contagem que falha não apaga', async () => {
     for (const o of [{ videosEsperando: null }, { comentariosEsperando: null }] as const) {
       const r = montar(o)
-      expect(await (await competitors()).removeCompetitorChannel(UUID)).toEqual({ ok: false })
+      expect(await (await competitors()).pedirRemocaoCanal(UUID)).toEqual({ ok: false, codigo: 'leitura', frase: 'Não deu para conferir o canal agora. Nada mudou. Tente de novo.' })
       expect(r.ordem).not.toContain('remover')
     }
   })
 
+  it('apagar sem guardar passa pela mesma trava e não chama a F1', async () => {
+    const r = montar({ canal: { missing_since: '2026-10-10' } })
+    expect(await (await competitors()).apagarCanalSemGuardarAction(UUID, 'X')).toMatchObject({ ok: false, codigo: 'saiu_do_youtube' })
+    expect(r.ordem).not.toContain('remover')
+  })
+
   it('sem administrar: nada é lido', async () => {
     const r = montar({ admin: false })
-    const x = await (await competitors()).removeCompetitorChannel(UUID)
+    const x = await (await competitors()).pedirRemocaoCanal(UUID)
     expect(x.ok).toBe(false)
     expect(r.ordem).not.toContain('service')
   })

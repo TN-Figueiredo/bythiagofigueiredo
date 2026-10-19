@@ -1,5 +1,5 @@
 // @vitest-environment node
-/** A5 · E10, Tarefa 11b: `removeCompetitorChannel` passa só por `removerCanalArquivado`; canal pausado nas ações de sincronização. */
+/** A5 · E10, Tarefa 11b: canal pausado nas ações de sincronização (a remoção em si mudou na F2 e tem `remover-actions.test.ts`). */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -30,7 +30,7 @@ function carregar() {
   vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
   vi.doMock('@/lib/youtube/competitor-sync', () => ({ syncCompetitorChannel: syncMock }))
   vi.doMock('@/lib/youtube/competitor-sync-guard', () => ({ syncSchemaBlock: async () => null }))
-  vi.doMock('@/lib/youtube/observatorio/arquivo/remover', () => ({ removerCanalArquivado: remover }))
+  vi.doMock('@/lib/youtube/observatorio/arquivo/remover', () => ({ pedirRemocao: remover, cancelarRemocao: remover, apagarCanalSemGuardar: remover }))
   vi.doMock('@/lib/supabase/service', () => ({
     getSupabaseServiceClient: () => {
       ordem.push('cliente')
@@ -50,40 +50,6 @@ function carregar() {
 beforeEach(() => {
   remover.mockReset(); revalidateTag.mockClear(); syncMock.mockReset(); negado = null; pausadoNaLinha = false; linhasAlteradas = [{ id: 'c1' }]
   process.env.YOUTUBE_API_KEY = 'k'
-})
-
-describe('removeCompetitorChannel (E10 T11b)', () => {
-  it('sem administrar o site: recusa antes de criar o cliente de serviço', async () => {
-    negado = { ok: false, error: 'Só quem administra o site pode remover.' }
-    const a = await carregar()
-    expect(await a.removeCompetitorChannel('c1')).toEqual(negado)
-    expect(ordem).toEqual(['guarda'])
-    expect(remover).not.toHaveBeenCalled()
-  })
-  it('canal sem lote: a frase diz o que falta e nada é apagado nem invalidado', async () => {
-    remover.mockResolvedValue({ ok: false, codigo: 'sem_lote', frase: 'frase longa do agente' })
-    const a = await carregar()
-    expect(await a.removeCompetitorChannel('c1')).toEqual({ ok: false, error: 'Antes de remover, é preciso exportar este canal. Peça ao agente.' })
-    expect(revalidateTag).not.toHaveBeenCalled()
-  })
-  it('canal com lote confirmado: remove com o usuário da sessão e invalida o cache', async () => {
-    remover.mockResolvedValue({ ok: true, lote: 'l1', linhas: 3, miniaturasPendentes: 0, foraDoPrefixo: 0 })
-    const a = await carregar()
-    expect(await a.removeCompetitorChannel('c1')).toEqual({ ok: true })
-    expect(remover.mock.calls[0]![1]).toEqual({ siteId: 's1', canalId: 'c1', actorId: 'u1' })
-    expect(revalidateTag.mock.calls).toEqual([['observatorio:s1', { expire: 0 }]])
-  })
-  it('removido no banco com miniaturas ainda pendentes: a tela recebe ok (o canal já saiu) e o cache é invalidado', async () => {
-    remover.mockResolvedValue({ ok: true, lote: 'l1', linhas: 3, miniaturasPendentes: 4000, foraDoPrefixo: 0 })
-    const a = await carregar()
-    expect(await a.removeCompetitorChannel('c1')).toEqual({ ok: true })
-    expect(revalidateTag).toHaveBeenCalledTimes(1)
-  })
-  it('o delete direto não existe mais', () => {
-    const t = readFileSync(resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/actions.ts'), 'utf8')
-    expect(t).not.toMatch(/from\('competitor_channels'\)\s*\.delete\(/)
-    expect(t).toContain('removerCanalArquivado(')
-  })
 })
 
 describe('canal pausado nas ações de sincronização (E10 T11b)', () => {

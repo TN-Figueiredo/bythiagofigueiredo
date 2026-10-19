@@ -5,7 +5,7 @@ import type { ObsSearchParams } from './_chrome/resolve-niche'
 import { CanaisScreen } from './_canais/canais-screen'
 import { competitorChannelRedirect, legacyTabRedirect } from './_canais/legacy'
 import { montarCanais } from './_canais/montar'
-import { addChannelFromCanais, removeCompetitorChannel, syncCompetitorNow, unlockMoreChannels, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from './actions'
+import { addChannelFromCanais, pedirRemocaoCanal, apagarCanalSemGuardarAction, desfazerRemocaoCanal, syncCompetitorNow, unlockMoreChannels, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from './actions'
 import { setChannelNiche, setOwnChannelNiche } from './niche-actions'
 import { askForjaReading } from './forja-actions'
 
@@ -31,7 +31,7 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
         view={view} ri={ri} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar}
-        onAdd={addChannelFromCanais} onRemove={removeCompetitorChannel} onUnlock={unlockMoreChannels}
+        onAdd={addChannelFromCanais} onPedir={pedirRemocaoCanal} onApagar={apagarCanalSemGuardarAction} onDesfazer={desfazerRemocaoCanal} onUnlock={unlockMoreChannels}
         onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
         onPin={pinVideo} onUnpin={unpinVideo} onRemovalImpact={getCompetitorRemovalImpactAction}
       />
