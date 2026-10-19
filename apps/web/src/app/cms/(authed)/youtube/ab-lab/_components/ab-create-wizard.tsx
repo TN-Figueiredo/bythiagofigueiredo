@@ -257,9 +257,11 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
 
   // When continuing a DB draft, ignore stale localStorage
   if (continuingDraft) clearDraft(video.id)
-  const saved = continuingDraft ? null : loadDraft(video.id)
+  const draftLocal = continuingDraft ? null : loadDraft(video.id)
 
   const prefillType = tipoValido(prefill?.testType)
+  // Com tipo pedido pelo prefill, o rascunho local só vale se for do mesmo tipo; senão é ignorado
+  const saved = prefill?.testType && draftLocal?.type !== prefill.testType ? null : draftLocal
   const savedType = tipoValido(saved?.type)
   // Rascunho com tipo antigo volta ao passo "tipo" (nunca segue com tipo nulo ou inválido)
   const tipoInvalido = Boolean((prefill?.testType && !prefillType) || (saved?.type && !savedType))
