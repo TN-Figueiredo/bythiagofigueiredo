@@ -31,7 +31,7 @@ const obs = createObservatory(datasetFromOracle(loadOracle()))
 const vw = (p: Partial<CanaisParams> = {}, o = obs) => buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'longos', ...p })
 const ok = async () => ({ ok: true })
 function mount(p: Partial<CanaisParams> = {}, o = obs, props: Partial<CanaisScreenProps> = {}) {
-  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={vw(p, o)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
+  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={vw(p, o)} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 /** Passa o mouse na dica e devolve o texto que ela abre. */
 async function dica(tip: Element): Promise<string> {
@@ -129,7 +129,7 @@ describe('lote rápido: consertos da revisão do Yannis e do Gio (14/10)', () =>
     const a = mount({ medidas: medidas() })
     expect(spy).not.toHaveBeenCalled()
     const v = vw({ medidas: medidas(), direcao: 'sobe' })
-    a.rerender(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
+    a.rerender(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={v} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
     return a
   }
   it('ao ligar a direção, rola até o bloco do resumo (início), suave; com movimento reduzido, sem animação', () => {
@@ -159,7 +159,7 @@ describe('lote rápido: consertos da revisão do Yannis e do Gio (14/10)', () =>
   it('abrir a página já com a direção ligada, e limpar o filtro, não rolam', () => {
     const a = mount({ medidas: medidas(), direcao: 'sobe' })
     expect(spy).not.toHaveBeenCalled()
-    a.rerender(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={vw({ medidas: medidas() })} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
+    a.rerender(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={vw({ medidas: medidas() })} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
     expect(spy).not.toHaveBeenCalled()
   })
   it('"limpar" tira os dois filtros da URL', async () => {

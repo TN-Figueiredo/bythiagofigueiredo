@@ -32,7 +32,7 @@ const view = (p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 't
 const ok = async () => ({ ok: true })
 function mount(props: Partial<CanaisScreenProps> = {}, p: Partial<CanaisParams> = {}, running = false) {
   // the screen lives inside the chrome, which owns the toasts
-  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div><CanaisScreen view={view(p)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
+  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div><CanaisScreen view={view(p)} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 /** Every "Ver os N…" link must say the count its destination shows. */
 function destCounts() {
@@ -223,17 +223,17 @@ describe('CanaisScreen', () => {
     await user.tab()
     expect(document.activeElement).toBe(f[0])
   })
-  it('removing asks first, saying what is deleted, then calls the action', async () => {
+  it('removing asks first (the reason and the count), then calls the action of the chosen path', async () => {
     const user = userEvent.setup()
-    const onRemove = vi.fn(async () => ({ ok: true }))
-    mount({ onRemove })
+    const onPedir = vi.fn(async () => ({ ok: true, jaPedido: false }))
+    const impact = { name: 'Luke Damant', videos: 10, pinned: 0, versions: 12, dailyDays: 3, bookmarks: 0, readings: 1, watch: { readings: 0, thumbs: 0, alvos: 0 } }
+    mount({ onPedir, onRemovalImpact: async () => ({ ok: true, impact, semGuardar: { pode: false, porque: 'antigo' } }) })
     await user.click(screen.getByRole('button', { name: 'Mais ações para Luke Damant' }))
     await user.click(screen.getByRole('menuitem', { name: 'Remover canal…' }))
     const dlg = screen.getByRole('dialog', { name: 'Remover Luke Damant?' })
-    // the dialog of the 2026-10-06 mockup (it counts what is deleted); without the count action it says it could not count
-    expect(within(dlg).getByText('Não dá para desfazer: se você adicionar o canal de novo, a coleta recomeça do zero e este histórico não volta.')).toBeInTheDocument()
-    await user.click(within(dlg).getByRole('button', { name: 'Remover canal' }))
-    expect(onRemove).toHaveBeenCalledWith('luke-damant')
+    expect(within(dlg).getByText('Por que você quer remover?')).toBeInTheDocument()
+    await user.click(await within(dlg).findByRole('button', { name: 'Parar coleta e agendar guarda no NAS' }))
+    expect(onPedir).toHaveBeenCalledWith('luke-damant')
     await waitFor(() => expect(refresh).toHaveBeenCalled())
   })
   it('changing a niche calls the action', async () => {
@@ -444,7 +444,7 @@ const obsOf = (preset: OwnPreset) => { let o = engines.get(preset); if (!o) { o 
 function mountOwns(preset: OwnPreset, props: Partial<CanaisScreenProps> = {}, p: Partial<CanaisParams> = {}, gaveta = false) {
   const base = buildCanaisView(obsOf(preset), { niche: 'todos', limit: 75, fmt: 'longos', ...p })
   const v = gaveta ? comGavetaNoProprio(base) : base   // A4: a gaveta só abre por clique na linha SINTÉTICA (canais-gaveta-helper.ts)
-  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div><CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
+  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div><CanaisScreen view={v} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 const toastTitle = (t: string) => screen.findByText(t, { selector: '.obs-ch-toast b' })
 
@@ -511,7 +511,7 @@ describe('CanaisScreen — Seus canais', () => {
     ds.channels = ds.channels.filter(c => !c.own); ds.videos = ds.videos.filter(x => !owns.has(x.ch))
     const o = createObservatory(ds)
     for (const layout of ['table', 'cards']) {
-      const { container, unmount } = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'longos', layout })} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
+      const { container, unmount } = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={buildCanaisView(o, { niche: 'todos', limit: 75, fmt: 'longos', layout })} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
       expect(container.querySelector('[data-own-block]')).toBeNull()
       expect(container.querySelector('.you')).toBeNull()
       expect(noJunkText(container)).toEqual([])

@@ -13,6 +13,8 @@ const JANELA = MEASURE_RULES.direction.windowDays
 
 export interface RowHandlers {
   open: (id: string) => void; niche: (r: CanaisRow, n: Niche, ctx: string) => void; menu: (id: string) => void
+  /** Canal agendado (F2 do Remover canal): Desfazer, copiar o pedido ao agente, e se o Desfazer da linha está em voo. */
+  desfazer: (id: string) => void; copiarPedido: (id: string) => void; desfazendo: (id: string) => boolean
   retry: (id: string) => void; remove: (id: string, from: HTMLElement | null) => void
   local: (id: string) => LocalSync; roundRunning: boolean; upnextHref: string; menuFor: string | null; selected: string | null
   /** Rola até a linha (ou o cartão) do canal e põe o foco nela; com a busca escondendo a linha, limpa a busca antes. */
@@ -66,11 +68,11 @@ export function CompararLink({ r, texto }: { r: CanaisRow; texto: string }) {
 function Row({ r, h, todos, comparar, reservar }: { r: CanaisRow; h: RowHandlers; todos: boolean; comparar: boolean; reservar: boolean }) {
   const c = r.cells
   return (
-    <tr className={`row obs-cn-row ${r.own ? 'you' : ''} ${h.selected === r.id ? 'sel' : ''}`} data-id={r.id}
+    <tr className={`row obs-cn-row ${r.own ? 'you' : ''} ${r.agendado ? 'agd' : ''} ${h.selected === r.id ? 'sel' : ''}`} data-id={r.id}
       tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}
       onClick={e => { if (!(e.target as HTMLElement).closest(`select,button,a,.tip,.${CELULA_DICA_CLASSE}`)) h.open(r.id) }}>
       <PosCell r={r} />
-      <td><ChCell r={r} ctx="row" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'row')} /></td>
+      <td><ChCell r={r} ctx="row" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'row')} agendado={{ ocupado: h.desfazendo(r.id), onDesfazer: () => h.desfazer(r.id), onCopiar: () => h.copiarPedido(r.id) }} /></td>
       <td className="dir" data-col="direcao"><span className="sr">Direção: </span><div className="obs-cn-dirv"><DirecaoValor r={r} /></div></td>
       <td data-col="active"><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} dica={r.dicas.cadence} dica2={r.dicas.cadence2} reservar={reservar} /></td>
       <td data-col="vpd" className={todos ? 'r dois' : 'r'}><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} dica={r.dicas.vpd} dica2={r.dicas.vpd2} /></td>

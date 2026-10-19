@@ -40,7 +40,7 @@ const comWorldEmpate = () => a3World(ds => {
 })
 function montar(p: Partial<CanaisParams> = {}, obs: Observatory = a3World().obs) {
   const v = buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', medidas: medidasDoMotor(obs), ...p })
-  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
+  return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={v} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 
 describe('tela da numeração', () => {

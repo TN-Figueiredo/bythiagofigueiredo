@@ -629,3 +629,21 @@
 
 /* D1 (Gio): a nota longa do canal novo mora na linha de legenda, quebra em até duas linhas e nunca alarga a coluna */
 [data-obs-screen="canais"] .cad .v small.obs-nr-cap{display:block;max-width:150px;white-space:normal;color:var(--warning-text);font-weight:600}
+/* F2 do Remover canal: o canal agendado para guardar no NAS. Forma própria (borda à esquerda + fundo + selo com relógio), nunca só cor. */
+[data-obs-screen="canais"] tr.row.agd > td:first-child{box-shadow:inset 3px 0 0 var(--warning-text)}
+[data-obs-screen="canais"] tr.row.agd > td{background:var(--warn-subtle)}
+[data-obs-screen="canais"] .card.agd{border-left:3px solid var(--warning-text);background:var(--warn-subtle)}
+[data-obs-screen="canais"] .agd-corpo{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:6px;white-space:normal}
+[data-obs-screen="canais"] .agd-selo{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--warning-text);border:1px solid var(--warning-text);border-radius:999px;padding:1px 8px}
+[data-obs-screen="canais"] .agd-txt{font-size:12px;color:var(--muted);min-width:0;overflow-wrap:anywhere}
+[data-obs-screen="canais"] .agd-acoes{display:flex;flex-wrap:wrap;gap:6px}
+[data-obs-screen="canais"] .agd-acoes .btn{flex:none;white-space:nowrap}
+[data-obs-screen="canais"] .agd-acoes .btn[aria-busy="true"]{opacity:.6;cursor:progress}
+[data-obs-screen="canais"] .agd .nmbtn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:600px){[data-obs-screen="canais"] .agd .agd-acoes .btn{min-height:44px}}
+#flut .cn-menu [role="menuitem"].dis{display:flex;flex-direction:column;gap:2px;padding:6px 12px;color:var(--muted);cursor:not-allowed}
+#flut .cn-menu [role="menuitem"].dis small{font-size:11px;line-height:1.3}
+/* F2 do Remover canal: o aviso do canal agendado na gaveta. Sem botão; a forma (borda + selo) carrega o sentido. */
+[data-obs-screen="canais"] .agd-aviso{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin:8px 0;padding:8px 10px;border-left:3px solid var(--warning-text);background:var(--warn-subtle);border-radius:4px;white-space:normal}
+[data-obs-screen="canais"] .agd-aviso p{margin:0;font-size:12.5px;line-height:1.4;color:var(--text)}
+[data-obs-screen="canais"] .agd-idade{font-size:12px;color:var(--muted)}

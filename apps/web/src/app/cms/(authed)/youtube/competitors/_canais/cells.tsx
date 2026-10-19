@@ -16,6 +16,7 @@ import type { Niche } from '@/lib/youtube/observatorio/types'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { usePrefetchOnIntent } from './use-prefetch-on-intent'
 import { NotaRitmo, NotaRitmoReserva } from '../_chrome/nota-ritmo'
+import { TXT } from './remover-model'
 
 const P: Record<string, ReactNode> = {
   wait: <path d="M4 1.5h8M4 14.5h8M5 1.5c0 3 6 3.5 6 6.5s-6 3.5-6 6.5M11 1.5c0 3-6 3.5-6 6.5s6 3.5 6 6.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />,
@@ -268,7 +269,46 @@ export function SyncView({ c, local, onRetry, onRemove, somenteLeitura = false, 
  * an own channel's name is still the button that opens the drawer. An own channel takes two .sub lines: "seu canal" + niche,
  * then subscribers.
  */
-export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void }) {
+/** Ações do canal agendado dentro da célula do canal (lista e cartão); ausente = só o selo e a idade. */
+export interface AgendadoAcoes { ocupado: boolean; onDesfazer: () => void; onCopiar: () => void }
+
+/**
+ * O canal que o dono mandou guardar no NAS e o agente ainda não guardou. Mostra o selo, há quanto tempo, e (só para quem administra o site) o
+ * Desfazer e o pedido ao agente. A forma é própria (borda e fundo na linha, selo com relógio): nunca só cor.
+ */
+export function LinhaAgendada({ nome, idade, podeAdministrar, ocupado, onDesfazer, onCopiar }: { nome: string; idade: string; podeAdministrar: boolean; ocupado: boolean; onDesfazer: () => void; onCopiar: () => void }) {
+  return (
+    <div className="agd-corpo" data-agendado="">
+      <span className="agd-selo">
+        <svg className="ico" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>
+        {TXT.selo}
+      </span>
+      <span className="agd-txt">{TXT.aguardando} · {idade}</span>
+      {podeAdministrar ? (
+        <span className="agd-acoes">
+          <button type="button" className="btn small" aria-busy={ocupado || undefined} aria-label={`Desfazer a remoção de ${nome}`} onClick={onDesfazer}>Desfazer</button>
+          <button type="button" className="btn small" onClick={onCopiar}>Copiar pedido ao agente</button>
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+/** O aviso dos detalhes (gaveta e página do canal) do canal agendado: só informa, sem botão (decisão do dono). O Desfazer fica na lista de Canais. */
+export function AvisoAgendado({ idade }: { idade: string }) {
+  return (
+    <div className="agd-aviso" role="status" data-agendado-aviso="">
+      <span className="agd-selo">
+        <svg className="ico" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>
+        {TXT.selo}
+      </span>
+      <p>{TXT.avisoDetalhes}</p>
+      <span className="agd-idade">{idade}</span>
+    </div>
+  )
+}
+
+export function ChCell({ r, ctx, onOpen, onNiche, agendado }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void; agendado?: AgendadoAcoes }) {
   // "Administrar o site" step: the niche of an OWN channel is part of its identity (admins only); it shows as text.
   const canAdminSite = useCanAdminSite()
   const intent = usePrefetchOnIntent(r.href)
@@ -297,6 +337,7 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
           <Dica texto={r.dicas.subs}>{r.subsOculto ? <span className="obs-ch-nm" data-subs-ocultos="">{r.subs}</span> : <span className="num">{r.subs}</span>}</Dica>
         </div>
         <EstadoLinha r={r} />
+        {r.agendado ? <LinhaAgendada nome={r.name} idade={r.agendado.idade} podeAdministrar={canAdminSite} ocupado={agendado?.ocupado ?? false} onDesfazer={agendado?.onDesfazer ?? (() => {})} onCopiar={agendado?.onCopiar ?? (() => {})} /> : null}
         {r.semPagina ? <div className="sub sempg" id={`sempg-${ctx}-${r.id}`}>{r.semPagina}</div> : null}
         {r.semFormato ? (
           <div className="sub semfmt" data-sem-formato="">

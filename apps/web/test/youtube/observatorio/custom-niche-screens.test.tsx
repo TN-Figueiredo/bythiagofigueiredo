@@ -51,7 +51,7 @@ const canais = (o = obs3, p: Partial<CanaisParams> = {}) => buildCanaisView(o, {
 const ok = async () => ({ ok: true })
 function mountCanais(o = obs3, p: Partial<CanaisParams> = {}, props: Partial<CanaisScreenProps> = {}) {
   return render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div>
-    <CanaisScreen view={canais(o, p)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
+    <CanaisScreen view={canais(o, p)} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} {...props} /></div></ChromeSyncContext.Provider></ToastProvider>)
 }
 const mountChrome = (o = obs3, niche = 'todos', props: Partial<Parameters<typeof ObservatoryChrome>[0]> = {}) =>
   render(<ObservatoryChrome view={buildChromeView(o, { tab: 'canais', niche })} {...props}><div>tela</div></ObservatoryChrome>)

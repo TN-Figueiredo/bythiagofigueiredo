@@ -77,7 +77,7 @@ function mundo(c: Caso) {
 async function textoDaTela(c: Caso): Promise<string> {
   const { view, ri } = mundo(c)
   const r = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs="">
-    <CanaisScreen view={view} ri={ri} canUnlock onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
+    <CanaisScreen view={view} ri={ri} canUnlock onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
   </div></ChromeSyncContext.Provider></ToastProvider>)
   let t = await expandirTela(r.container as HTMLElement)
   // as dicas das células só existem no documento enquanto o mouse está em cima: passa por cada uma e junta o texto da caixa flutuante
