@@ -159,13 +159,13 @@ describe('lerCandidatos', () => {
     const b = criarBanco()
     semear(b, 'competitor_videos', [{
       id: 'u1', video_id: 'yt1', competitor_channel_id: 'c1', published_at: iso(AGORA - 2 * H), discovered_at: iso(AGORA - H),
-      live_broadcast_content: 'none', missing_since: null, competitor_channels: { site_id: 's1', missing_since: iso(AGORA - H), collection_paused_at: null },
+      live_broadcast_content: 'none', missing_since: null, is_short: true, competitor_channels: { site_id: 's1', missing_since: iso(AGORA - H), collection_paused_at: null },
     }])
     semear(b, 'youtube_videos', [{ id: 'up1', youtube_video_id: 'ytp1', channel_id: 'd1', site_id: 's1', published_at: iso(AGORA - 3 * H), created_at: iso(AGORA - 2 * H) }])
     const { conc, prop } = await lerCandidatos(b.sb, AGORA)
     expect(conc).toEqual([{
       id: 'u1', ytId: 'yt1', canalId: 'c1', siteId: 's1', publishedAt: iso(AGORA - 2 * H), discoveredAt: iso(AGORA - H),
-      lbc: 'none', missingSince: null, canalAusente: true, canalPausado: false,
+      lbc: 'none', missingSince: null, isShort: true, canalAusente: true, canalPausado: false,
     }])
     expect(prop).toEqual([{ id: 'up1', ytId: 'ytp1', canalId: 'd1', siteId: 's1', publishedAt: iso(AGORA - 3 * H), createdAt: iso(AGORA - 2 * H) }])
   })

@@ -48,15 +48,18 @@ const instante = (s: string | null): number | null => {
 // O CHECK de yt_watch_alvos exige 11 caracteres; um id torto no p_candidatos abortaria a conciliação inteira (23514).
 const ID_YT = /^[A-Za-z0-9_-]{11}$/
 
-export function montarCandidatos(
+/** Mesma montagem de `montarCandidatos`, mais a contagem dos ids que o filtro de 11 caracteres jogou fora (nunca em silêncio). */
+export function montarCandidatosContando(
   conc: readonly CandConcorrente[],
   prop: readonly CandProprio[],
   testes: readonly TesteVivo[],
   antigos: readonly CandProprio[] | null,
   agoraMs: number,
-): Candidato[] {
+  incluirShorts: boolean = INCLUIR_SHORTS,
+): { candidatos: Candidato[]; descartados: number } {
   const todos: Candidato[] = []
   for (const c of conc) {
+    if (!incluirShorts && c.isShort === true) continue
     const ms = instante(c.publishedAt)
     if (ms === null || ms > agoraMs) continue
     if (agoraMs - ms > JANELA_CONCORRENTE_DIAS * DIA_MS) continue
@@ -85,8 +88,9 @@ export function montarCandidatos(
   const porChave = new Map<string, Candidato>()
   const maxColeta = new Map<string, number>()
   const maxRitmo = new Map<string, 1 | 4>()
+  let descartados = 0
   for (const c of todos) {
-    if (!ID_YT.test(c.ytId)) continue
+    if (!ID_YT.test(c.ytId)) { descartados++; continue }
     const k = chaveAlvo(c.siteId, c.ytId)
     const ms = Date.parse(c.coletaAte)
     maxColeta.set(k, Math.max(maxColeta.get(k) ?? 0, ms))
@@ -98,9 +102,21 @@ export function montarCandidatos(
       : atual.motivoAte === 'teste_nosso' ? false : ms > Date.parse(atual.coletaAte)
     if (vence) porChave.set(k, c)
   }
-  return [...porChave.entries()].map(([k, c]) => ({
+  const candidatos = [...porChave.entries()].map(([k, c]) => ({
     ...c, coletaAte: new Date(maxColeta.get(k) ?? Date.parse(c.coletaAte)).toISOString(), rodadasPorDia: maxRitmo.get(k) ?? c.rodadasPorDia,
   }))
+  return { candidatos, descartados }
+}
+
+export function montarCandidatos(
+  conc: readonly CandConcorrente[],
+  prop: readonly CandProprio[],
+  testes: readonly TesteVivo[],
+  antigos: readonly CandProprio[] | null,
+  agoraMs: number,
+  incluirShorts: boolean = INCLUIR_SHORTS,
+): Candidato[] {
+  return montarCandidatosContando(conc, prop, testes, antigos, agoraMs, incluirShorts).candidatos
 }
 
 // ─────────────────────────── leituras do banco ───────────────────────────

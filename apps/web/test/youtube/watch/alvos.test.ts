@@ -18,7 +18,7 @@ const yt = (n: number): string => `v${String(n).padStart(10, '0')}`
 
 function conc(n: number, o: Partial<CandConcorrente> = {}): CandConcorrente {
   return { id: `u${n}`, ytId: yt(n), canalId: 'c1', siteId: SITE, publishedAt: iso(AGORA - 2 * DIA), discoveredAt: null, lbc: null,
-    missingSince: null, canalAusente: false, canalPausado: false, ...o }
+    missingSince: null, canalAusente: false, canalPausado: false, isShort: false, ...o }
 }
 function prop(n: number, o: Partial<CandProprio> = {}): CandProprio {
   return { id: `p${n}`, ytId: yt(n), canalId: 'd1', siteId: SITE, publishedAt: iso(AGORA - 2 * DIA), createdAt: iso(AGORA - 2 * DIA), ...o }
@@ -101,11 +101,16 @@ describe('montarCandidatos', () => {
     const r = montarCandidatos([conc(1), conc(2, { ytId: 'pinold1' }), conc(3, { ytId: 'v123456789012' })], [], [{ siteId: SITE, ytId: 'curto' }], null, AGORA)
     expect(r.map((c) => c.ytId)).toEqual([yt(1)])
   })
-  it('Short entra quando INCLUIR_SHORTS (o vídeo não é filtrado por duração)', () => {
+  it('Short entra por padrão (INCLUIR_SHORTS = true) e com incluirShorts = true', () => {
     expect(INCLUIR_SHORTS).toBe(true)
-    const r = montarCandidatos([conc(1)], [], [], null, AGORA)
-    expect(r).toHaveLength(1)
+    const r = montarCandidatos([conc(1), conc(2, { isShort: true })], [], [], null, AGORA)
+    expect(r.map(c => c.ytId).sort()).toEqual([yt(1), yt(2)])
     expect(r[0]).toMatchObject({ tipo: 'concorrente', motivoAte: 'janela_concorrente', rodadasPorDia: 4, coletaAte: iso(AGORA - 2 * DIA + 30 * DIA) })
+    expect(montarCandidatos([conc(2, { isShort: true })], [], [], null, AGORA, true)).toHaveLength(1)
+  })
+  it('incluirShorts = false tira o Short; is_short nulo (duração desconhecida) fica', () => {
+    const r = montarCandidatos([conc(1), conc(2, { isShort: true }), conc(3, { isShort: null })], [], [], null, AGORA, false)
+    expect(r.map(c => c.ytId).sort()).toEqual([yt(1), yt(3)])
   })
   it('canal pausado, canal ausente, vídeo ausente e publishedAt nulo ficam fora', () => {
     const r = montarCandidatos([
