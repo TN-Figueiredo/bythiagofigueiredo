@@ -22,7 +22,7 @@ const PODA_LOTE = 500
 const PODA_FOLGA_MS = 3_000
 
 /** Códigos curtos de erro por vídeo (§5.5). Entram em `ab_native_avaliacoes.erro` (check `^[a-z0-9_]{1,40}$`). */
-type CodigoErro = 'opcao_invalida' | 'escrita_sem_fuso' | 'paginacao' | 'banco' | 'corrida' | 'excecao'
+type CodigoErro = 'opcao_invalida' | 'escrita_sem_fuso' | 'paginacao' | 'banco' | 'corrida' | 'excecao' | 'leitura_invalida'
 
 class ErroRegistro extends Error {
   constructor(readonly codigo: CodigoErro, readonly gravacao: boolean = false) { super(codigo) }
@@ -45,7 +45,7 @@ export interface OpcoesRegistro { novoId?: () => string }
 interface Contagem {
   avaliados: number; criados: number; atualizados: number; encerrados: number; encerradosOficialNaoLido: number; reproduzidos: number; reproducaoJaFeita: number
   retencaoSemAlvo: number; retencaoSemRpc: number; retencaoFalhou: number; casPerdido: number; variantesDemais: number; falhas: number; falhasDeGravacao: number
-  erroRegravado: number
+  erroRegravado: number; leiturasInvalidas: number
 }
 
 // ───────────────────────── serialização para as colunas ─────────────────────────
@@ -125,7 +125,7 @@ export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): 
 
   const cont: Contagem = {
     avaliados: 0, criados: 0, atualizados: 0, encerrados: 0, encerradosOficialNaoLido: 0, reproduzidos: 0, reproducaoJaFeita: 0,
-    retencaoSemAlvo: 0, retencaoSemRpc: 0, retencaoFalhou: 0, casPerdido: 0, variantesDemais: 0, falhas: 0, falhasDeGravacao: 0, erroRegravado: 0,
+    retencaoSemAlvo: 0, retencaoSemRpc: 0, retencaoFalhou: 0, casPerdido: 0, variantesDemais: 0, falhas: 0, falhasDeGravacao: 0, erroRegravado: 0, leiturasInvalidas: 0,
   }
   let podadas = 0
   const detalheDe = (sobrou: number, extra: Record<string, number> = {}): Record<string, number> => ({
@@ -133,7 +133,7 @@ export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): 
     encerrados: cont.encerrados, encerrados_oficial_nao_lido: cont.encerradosOficialNaoLido, sem_video: semVideo, antigos_fora: antigosFora, sobrou,
     reproduzidos: cont.reproduzidos, reproducao_ja_feita: cont.reproducaoJaFeita, retencao_sem_alvo: cont.retencaoSemAlvo, retencao_sem_rpc: cont.retencaoSemRpc,
     retencao_falhou: cont.retencaoFalhou, cas_perdido: cont.casPerdido, variantes_demais: cont.variantesDemais, falhas: cont.falhas,
-    erros_regravados: cont.erroRegravado, podadas, inicio_ms: inicio - c.t0, ...extra,
+    erros_regravados: cont.erroRegravado, leituras_invalidas: cont.leiturasInvalidas, podadas, inicio_ms: inicio - c.t0, ...extra,
   })
 
   if (devidos.length === 0) {
@@ -226,6 +226,10 @@ async function processar(c: ContextoTarefa, cand: Candidato, inicio: number, fim
   const lidas = await lerLeiturasPaginadas(sb, cand.ytId, cand.siteId, desde, t0Leitura)
   if (!('valor' in lidas)) throw new ErroRegistro(lidas.causa === 'forma_invalida' ? 'paginacao' : 'banco')
   const leituras: LeituraWatch[] = lidas.valor.leituras
+  // a validação recusou linhas: nunca em silêncio. Se recusou TODAS (a S4 mudou a forma), o vídeo falha com código próprio (Y2).
+  const { invalidas } = lidas.valor
+  if (invalidas > 0 && leituras.length === 0) throw new ErroRegistro('leitura_invalida')
+  cont.leiturasInvalidas += invalidas
 
   let escritas: EscritaConhecida[] = []
   if (leituras.length > 0) {

@@ -186,6 +186,26 @@ describe('encerrar_e_criar partido ao meio (P2)', () => {
   })
 })
 
+describe('leituras que a validação recusa (Y2)', () => {
+  const semIdioma = (b: ReturnType<typeof mundo>, quantas: number): void => {
+    for (const l of tab(b, 'yt_watch_readings').slice(0, quantas)) l.idioma = null // título lido sem idioma: a regra recusa a linha
+  }
+  it('100% inválidas: a avaliação sai erro leitura_invalida e a tarefa fica parcial/erro video_falhou', async () => {
+    const b = mundo([{ n: 1, leituras: mistura(30 * MIN), avaliacoes: [evalOk(1, 1001, 600)] }])
+    semIdioma(b, 10_000)
+    const r = await rodarRegistro(contexto().c(b.sb), opcoes)
+    expect(r).toMatchObject({ estado: 'erro', motivo: 'video_falhou' })
+    expect(tab(b, 'ab_native_avaliacoes').find(a => a.estado_14 === 'erro')).toMatchObject({ erro: 'leitura_invalida' })
+  })
+  it('1 inválida entre as demais: ok e detalhe.leituras_invalidas 1', async () => {
+    const b = mundo([{ n: 1, leituras: mistura(30 * MIN), avaliacoes: [evalOk(1, 1001, 600)] }])
+    semIdioma(b, 1)
+    const r = await rodarRegistro(contexto().c(b.sb), opcoes)
+    expect(r.estado).toBe('ok')
+    expect(r.detalhe).toMatchObject({ leituras_invalidas: 1 })
+  })
+})
+
 describe('registro nas avaliações seguintes (C-2, C-4)', () => {
   const base = (extra: Partial<VideoCfg> = {}): VideoCfg => ({ n: 1, leituras: mistura(30 * MIN), avaliacoes: [evalOk(1, 1001, 600)], ...extra })
 
