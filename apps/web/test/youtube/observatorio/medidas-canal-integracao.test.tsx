@@ -41,7 +41,7 @@ vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-canal', () => ({ c
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => mocks.servico() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: (...a: unknown[]) => mocks.sentry(...a), captureMessage: vi.fn() }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
-  removeCompetitorChannel: vi.fn(), syncCompetitorNow: vi.fn(), pinVideo: vi.fn(), unpinVideo: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
+  pedirRemocaoCanal: vi.fn(), desfazerRemocaoCanal: vi.fn(), apagarCanalSemGuardarAction: vi.fn(), syncCompetitorNow: vi.fn(), pinVideo: vi.fn(), unpinVideo: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn() }))
 

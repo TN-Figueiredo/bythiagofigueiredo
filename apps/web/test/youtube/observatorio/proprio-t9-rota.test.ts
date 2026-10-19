@@ -47,7 +47,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/trail-chrome', () => ({ 
 vi.mock('@/app/cms/(authed)/youtube/competitors/_canal/canal-screen', () => ({ CanalScreen: () => null, CanalNotFound: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/proprio-screen', () => ({ ProprioScreen: () => null, ProprioSemVideos: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
-  removeCompetitorChannel: vi.fn(), syncCompetitorNow: vi.fn(), pinVideo: vi.fn(), unpinVideo: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
+  pedirRemocaoCanal: vi.fn(), desfazerRemocaoCanal: vi.fn(), apagarCanalSemGuardarAction: vi.fn(), syncCompetitorNow: vi.fn(), pinVideo: vi.fn(), unpinVideo: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn() }))
 

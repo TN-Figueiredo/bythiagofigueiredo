@@ -20,7 +20,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({
 vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/chrome-server', () => ({ ObservatoryChromeServer: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_canais/canais-screen', () => ({ CanaisScreen: () => null }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/actions', () => ({
-  addChannelFromCanais: vi.fn(), removeCompetitorChannel: vi.fn(), syncCompetitorNow: vi.fn(), unlockMoreChannels: vi.fn(),
+  addChannelFromCanais: vi.fn(), pedirRemocaoCanal: vi.fn(), desfazerRemocaoCanal: vi.fn(), apagarCanalSemGuardarAction: vi.fn(), syncCompetitorNow: vi.fn(), unlockMoreChannels: vi.fn(),
   pinVideo: vi.fn(), unpinVideo: vi.fn(), getCompetitorRemovalImpactAction: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/niche-actions', () => ({ setChannelNiche: vi.fn(), setOwnChannelNiche: vi.fn() }))

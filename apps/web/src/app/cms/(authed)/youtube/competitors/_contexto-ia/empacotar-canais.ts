@@ -106,6 +106,8 @@ const LINHA = (r: string): Inventario => ({
   [`${r}.growth`]: REP, [`${r}.growthTitle`]: REP, [`${r}.sync.*`]: REP,
   [`${r}.color`]: APAR, [`${r}.ini`]: APAR, [`${r}.avatar`]: IMG, [`${r}.subs`]: 'numero', [`${r}.subsTip`]: REP, [`${r}.url`]: END, [`${r}.handle`]: 'terceiros',
   [`${r}.backfill`]: CTRL, [`${r}.paused`]: CTRL,
+  // F2 do Remover canal: o canal agendado para guardar no NAS. A idade é estado da tela (lista), fora do pacote por ora
+  [`${r}.agendado`]: CTRL, [`${r}.agendado.*`]: CTRL,
   [`${r}.direcao.tipo`]: CTRL, [`${r}.direcao.pct`]: REP, [`${r}.direcao.simbolo`]: CTRL, [`${r}.direcao.texto`]: 'numero',
   [`${r}.direcao.ganhoRecente`]: REP, [`${r}.direcao.ganhoAnterior`]: REP, [`${r}.direcao.foraDaEscala`]: APAR, [`${r}.direcao.fracao`]: APAR,
   [`${r}.direcao.avisoDeContagem`]: REP, [`${r}.direcao.curta`]: REP, [`${r}.direcao.motivo`]: CTRL, [`${r}.direcao.longa`]: 'motivo',
@@ -167,7 +169,7 @@ export const INVENTARIO_CANAIS: Inventario = {
   'derivado.ri.referencias[].motivo': 'motivo', 'derivado.ri.referencias[].situacao': 'base', 'derivado.ri.inscritos[].motivo': 'motivo', 'derivado.ri.inscritos[].situacao': 'base',
   'derivado.ri.fraseReferencias': 'base', 'derivado.ri.fraseInscritos': 'base',
   // o topo do modelo da tela
-  'slots.used': REP, 'slots.limit': REP, 'slots.free': REP, 'slots.text': 'base', 'slots.fullText': 'base', 'slots.tip': 'base', 'slots.nearFull': CTRL, 'slots.unlockText': CTRL, 'slots.unlockDone': CTRL,
+  'slots.used': REP, 'slots.limit': REP, 'slots.free': REP, 'slots.agendados': REP, 'slots.text': 'base', 'slots.fullText': 'base', 'slots.tip': 'base', 'slots.nearFull': CTRL, 'slots.unlockText': CTRL, 'slots.unlockDone': CTRL,
   scale: CTRL, layout: CTRL, fmt: CTRL, fmtNaUrl: CTRL, fmtNota: 'base', 'fmtCab': CTRL, 'fmtCab.dois': 'base', 'fmtCab.ordenado': 'base',
   sort: CTRL, dir: CTRL, sortNote: 'base', vpdUnit: 'base', 'ordem.coluna': REP, 'ordem.sentido': REP, 'ordem.empate': REP,
   faixaSemPosicao: CTRL, 'faixaSemPosicao.linha1': 'base', 'faixaSemPosicao.linha2': 'base',
@@ -199,6 +201,8 @@ export const INVENTARIO_CANAIS: Inventario = {
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste (cada uma tem teste sintético próprio quando importa). */
 export const SEM_FOLHA_NA_MATRIZ_CANAIS: readonly string[] = [
+  'list.ranked[].agendado.*',
+  'list.unranked[].agendado.*',
   'list.ranked[].valor',
   'list.ranked[].numero',
   'list.ranked[].cells.vpd',
