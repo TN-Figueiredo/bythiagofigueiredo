@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 
 vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
@@ -121,6 +121,31 @@ describe('AbPauseDialog', () => {
     unmount()
     await act(async () => { resolver({ ok: false, resultado: 'mudou', error: 'x' }) })
     expect(onAviso).toHaveBeenCalledWith('O teste mudou em outra aba antes de pausar. Nada foi alterado.')
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+  it('P4b T9: unauthenticated com o diálogo já fechado -> aviso de página e refresh', async () => {
+    refresh.mockClear()
+    let resolver!: (r: unknown) => void
+    const pausar = vi.fn().mockReturnValue(new Promise(res => { resolver = res }))
+    const onAviso = vi.fn()
+    const { unmount } = render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
+    unmount()
+    await act(async () => { resolver({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' }) })
+    expect(onAviso).toHaveBeenCalledWith('Sua sessão expirou antes de pausar. Nada foi alterado.')
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('P4b T9: a action lança com o diálogo já fechado -> aviso de página e refresh', async () => {
+    refresh.mockClear()
+    let rejeitar!: (e: unknown) => void
+    const pausar = vi.fn().mockReturnValue(new Promise((_, rej) => { rejeitar = rej }))
+    const onAviso = vi.fn()
+    const { unmount } = render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
+    unmount()
+    await act(async () => { rejeitar(new Error('rede')) })
+    await waitFor(() => expect(onAviso).toHaveBeenCalledTimes(1))
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 })

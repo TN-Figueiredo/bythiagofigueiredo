@@ -748,20 +748,22 @@ export async function acknowledgeAbTestDrift(
 // resumeAbTest
 // ---------------------------------------------------------------------------
 
-export async function resumeAbTest(testId: string): Promise<ResultadoAcaoSaida> {
+export async function resumeAbTest(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
     return recusaDeSessao(e)
   }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
   // O corpo mora em lib/youtube/ab-resume.ts: as portas injetáveis (banco, relógio, token, leitura) não podem ser
   // parâmetro de uma server action (todo parâmetro vem da rede).
   const r = await retomarTeste(testId, siteId, {
     supabase: getSupabaseServiceClient(),
     agora: () => new Date(),
     token: async (sid, canal) => (await ensureFreshToken(sid, 'youtube', canal)).accessToken,
-  })
+  }, seq.data)
   // A reivindicação já mexeu no teste (restore_seq, restore_status): qualquer desfecho depois dela invalida as telas.
   if (r.ok || r.resultado === 'erro' || r.resultado === 'em_andamento') invalidarTelasDoAbLab()
   return r
@@ -1156,7 +1158,7 @@ export async function dismissRestore(testId: string, campos: CampoNome[], seqVis
 
 // ---------------------------------------------------------------------------
 
-export async function revertWinner(testId: string): Promise<ResultadoAcaoSaida> {
+export async function revertWinner(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
   // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
   // service client; falha fechado.
   const siteIdDaTela = (await getSiteContext()).siteId
@@ -1168,7 +1170,9 @@ export async function revertWinner(testId: string): Promise<ResultadoAcaoSaida> 
   } catch (e) {
     return recusaDeSessao(e)
   }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true }))
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true, seqEsperado: seq.data }))
 }
 
 // ---------------------------------------------------------------------------

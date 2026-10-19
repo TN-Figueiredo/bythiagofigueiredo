@@ -12,10 +12,10 @@ import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { applyVariantToYouTube, antesDeEscreverPorSeq } from '@/lib/youtube/ab-apply'
 import { avisarRotacaoCruzada, motivoVarianteSemConteudo } from '@/lib/youtube/ab-rotate-claim'
-import { camposDoTeste, paraRestoreStatus } from '@/lib/youtube/ab-restore'
+import { camposDoTeste, paraRestoreStatus, proximaDoInterrompido } from '@/lib/youtube/ab-restore'
 import type { CampoNome, CampoRestauracao, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { emAndamentoRecente, TETO_MS } from '@/lib/youtube/ab-settle'
-import { MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_VARIANTE_DA_VEZ, MSG_YOUTUBE_NAO_ACEITOU } from '@/lib/youtube/ab-acao-saida'
+import { MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_VARIANTE_DA_VEZ, MSG_YOUTUBE_NAO_ACEITOU } from '@/lib/youtube/ab-acao-saida'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE } from '@/lib/youtube/ab-schemas'
@@ -86,11 +86,16 @@ export function restoreStatusDaFalha(
   return saida
 }
 
-export async function retomarTeste(testId: string, siteId: string, portas: PortasRetomar): Promise<ResultadoAcaoSaida> {
+/**
+ * `seqVisto` (P4b T9, Y-5): o `restore_seq` que a tela leu; diferente do atual = `mudou`, nada lido além do retrato,
+ * nada escrito. Omitido só por chamadores sem tela (testes do corpo).
+ */
+export async function retomarTeste(testId: string, siteId: string, portas: PortasRetomar, seqVisto?: number): Promise<ResultadoAcaoSaida> {
   const { supabase } = portas
   const prazo = portas.agora().getTime() + TETO_MS // F-D3: ação humana, início + 55 s
   const teste = await (portas.lerRetrato ?? ((t, s) => lerPadrao(supabase, t, s)))(testId, siteId)
   if (!teste) return erro('Test not found')
+  if (seqVisto !== undefined && seqVisto !== teste.restore_seq) return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
   if (teste.status !== 'paused') return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
   const tipoRecusado = recusaTipoForaDeUso(teste.test_type)
   if (tipoRecusado) return erro(tipoRecusado)
@@ -100,10 +105,32 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
 
   // Retrato anterior, em memória (F-P10): restore_status ilegível conta como "sem retrato" para a conta, mas o valor
   // bruto é o que se regrava numa falha sem escrita.
-  const anteriorBruto = teste.restore_status ?? null
-  const anterior = paraRestoreStatus(anteriorBruto)
+  let anteriorBruto = teste.restore_status ?? null
+  let anterior = paraRestoreStatus(anteriorBruto)
+  let seqAtual = teste.restore_seq
   // F-D4: tentativa em voo há menos de 2 min (60 s do teto da função + folga) -> recusa, sem reivindicar.
   if (emAndamentoRecente(anterior, portas.agora())) return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
+
+  // PODE-1: campo em_andamento que chegou até aqui (a validação acima já recusou os de menos de 2 min) conta como
+  // interrompido ANTES de a reivindicação o sobrescrever: uma reivindicação própria, uma linha no histórico.
+  const velhos = anterior ? (['title', 'thumbnail'] as const).filter((c) => anterior?.[c]?.estado === 'em_andamento') : []
+  if (anterior && velhos.length > 0) {
+    const convertido: RestoreStatus = { ...anterior }
+    for (const c of velhos) convertido[c] = proximaDoInterrompido(anterior[c]!)
+    const { data: conv, error: erroConv } = await supabase
+      .from('ab_tests')
+      .update({ restore_seq: seqAtual + 1, restore_status: convertido })
+      .eq('id', testId)
+      .eq('site_id', siteId)
+      .eq('status', 'paused')
+      .eq('restore_seq', seqAtual)
+      .select('restore_seq')
+    if (erroConv) throw new Error(`ab-resume: converter em_andamento velho do teste ${testId}: ${erroConv.message}`)
+    if (((conv ?? []) as unknown[]).length === 0) return outroEscritorGanhou(supabase, testId)
+    seqAtual += 1
+    anterior = convertido
+    anteriorBruto = convertido
+  }
 
   const { data: variantes } = await supabase
     .from('ab_test_variants')
@@ -143,16 +170,16 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
   const reivindicado: RestoreStatus = { ...(anterior ?? {}) }
   const attemptsAnterior: Partial<Record<CampoNome, number>> = {}
   for (const c of campos) {
-    attemptsAnterior[c] = anterior?.[c]?.attempts ?? 0
-    reivindicado[c] = { estado: 'em_andamento', destino: proxima.id, em: emIso, forcado: false, escreveu: null, erro: null, attempts: attemptsAnterior[c]! }
+    attemptsAnterior[c] = 0 // a retomada abre corrente: nasce com 0 (e o `ok` de uma falha parcial também)
+    reivindicado[c] = { estado: 'em_andamento', destino: proxima.id, em: emIso, forcado: false, escreveu: null, erro: null, attempts: 0 }
   }
   const { data: linhas, error: erroClaim } = await supabase
     .from('ab_tests')
-    .update({ restore_seq: teste.restore_seq + 1, restore_status: reivindicado })
+    .update({ restore_seq: seqAtual + 1, restore_status: reivindicado })
     .eq('id', testId)
     .eq('site_id', siteId)
     .eq('status', 'paused')
-    .eq('restore_seq', teste.restore_seq)
+    .eq('restore_seq', seqAtual)
     .select('restore_seq')
   if (erroClaim) throw new Error(`ab-resume: reivindicação do teste ${testId}: ${erroClaim.message}`)
   const seq = (linhas as Array<{ restore_seq: number }> | null)?.[0]?.restore_seq

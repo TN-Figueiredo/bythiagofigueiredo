@@ -16,6 +16,7 @@ vi.mock('@/lib/youtube/channel-account', async (orig) => ({
 
 import { retomarTeste } from '@/lib/youtube/ab-resume'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import { novaTentativa } from '@/lib/youtube/ab-settle'
 
 const BLOB = (v: string) => `https://t10.public.blob.vercel-storage.com/${v}.png`
 const MIN = 60_000
@@ -137,5 +138,51 @@ describe.skipIf(skipIfNoLocalDb())('P4a T10 r1: retomar e iniciar no banco real'
     expect(await teste({ ...t2, testId: t1!.id })).toMatchObject({ restore_seq: 5 })
     expect(await teste(t2)).toMatchObject({ status: 'active', restore_seq: 1, restore_status: {} })
     expect((await ciclos(t2)).filter((c) => c.ended_at === null)).toEqual([expect.objectContaining({ cycle_number: 0, variant_id: t2.varA })])
+  })
+  it('P4b T9 PODE-1: retomar com thumbnail em_andamento de 3 min -> ab_test_restores ganha falhou/escreveu null com o em antigo; teste active', async () => {
+    const t = await pausado('thumbnail')
+    const emAntigo = iso(-3 * MIN)
+    await db.from('ab_tests').update({
+      restore_seq: 4, restore_status: { thumbnail: { estado: 'em_andamento', destino: 'original', em: emAntigo, forcado: false, escreveu: null, erro: null, attempts: 0 } },
+    }).eq('id', t.testId)
+    const r = await retomar(t)
+    expect(r).toMatchObject({ ok: true })
+    const linhas = await restores(t)
+    const conv = linhas.find((l) => l.estado === 'falhou')
+    expect(conv).toMatchObject({ campo: 'thumbnail', escreveu: null })
+    expect(new Date(conv!.em as string).toISOString()).toBe(emAntigo)
+    expect(await teste(t)).toMatchObject({ status: 'active', restore_status: {} })
+  })
+
+  it('P4b T9 Y-2: novaTentativa em voo (YouTube segura a escrita) + startAbTestInternal no mesmo vídeo -> start recusa; uma escrita só', async () => {
+    const t1 = await semearTesteAb({ status: 'active', cicloAberto: null, testType: 'title' })
+    await db.from('ab_test_variants').update({ title_text: 'Título A' }).eq('id', t1.varA)
+    await db.from('ab_test_variants').update({ title_text: 'Título B' }).eq('id', t1.varB)
+    await db.from('ab_tests').update({
+      original_title: 'Título A', status: 'completed', restore_seq: 1,
+      restore_status: { title: { estado: 'falhou', destino: 'original', em: iso(-60 * MIN), forcado: false, escreveu: false, erro: { status: 403, reason: 'forbidden', chamada: 'videos.update' }, attempts: 1 } },
+    }).eq('id', t1.testId)
+    const { youtube_video_id: video } = (await q<{ youtube_video_id: string }>('select youtube_video_id from ab_tests where id = $1', [t1.testId]))[0]!
+
+    yt = new YouTubeFalso({ thumb: await imagemComDhash(H.A), titulo: 'Título B', blobs: {} }) // a variante está no ar: a nova tentativa precisa escrever o original
+    let soltar!: () => void
+    const preso = new Promise<void>((res) => { soltar = res })
+    let chegou!: () => void
+    const naEscrita = new Promise<void>((res) => { chegou = res })
+    yt.antesDeEscrever(async () => { chegou(); await preso })
+    const emVoo = novaTentativa(t1.testId, { siteId: t1.siteId, origem: 'vigia' },
+      { supabase: db, fetch: yt.fetch, agora: () => new Date(), token: async () => 'tok', autoImportWinner: async () => {} })
+    await naEscrita
+    // O rascunho do mesmo vídeo nasce DEPOIS de a escrita estar em voo (antes, a nova tentativa mesma recusaria: outro teste aberto).
+    const t2 = await semearTesteAb({ status: 'draft', cicloAberto: null })
+    await db.from('ab_test_variants').update({ blob_url: BLOB('A'), thumbnail_dhash: H.A }).eq('id', t2.varA)
+    await db.from('ab_test_variants').update({ blob_url: BLOB('B'), thumbnail_dhash: H.B }).eq('id', t2.varB)
+    await db.from('ab_tests').update({ original_title: 'Título A', youtube_video_id: video, site_id: t1.siteId }).eq('id', t2.testId)
+    const r = await startAbTestInternal(t2.testId, t1.siteId, { supabase: db, agora: () => new Date() })
+    soltar()
+    await emVoo
+    expect(r).toEqual({ ok: false, error: 'Outra tentativa está em andamento. Tente de novo em instantes.' })
+    expect(await teste(t2)).toMatchObject({ status: 'draft', restore_seq: 0 })
+    expect(yt.escritas()).toHaveLength(1)
   })
 })

@@ -40,7 +40,15 @@ export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDia
       try {
         result = await pausar(seqVisto)
       } catch {
-        if (await sessaoExpirou()) { setFase('sessao_expirada'); return }
+        const expirada = await sessaoExpirou()
+        if (!montado.current) { // P4b T9: o diálogo já fechou; a página diz o que aconteceu
+          onAviso?.(expirada
+            ? 'Sua sessão expirou antes de pausar. Nada foi alterado.' // TEXTO-A-REVISAR
+            : 'Sem resposta ao pausar. Recarregue a página para ver o resultado.') // TEXTO-A-REVISAR
+          router.refresh()
+          return
+        }
+        if (expirada) { setFase('sessao_expirada'); return }
         setError('Sem resposta. Recarregue a página para ver o resultado.')
         return
       }
@@ -58,6 +66,11 @@ export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDia
       }
       if (!result.ok && result.resultado === 'mudou') { setFase('mudou'); setError(null); return }
       if (!result.ok && result.resultado === 'ja_encerrado') { router.refresh(); onClose(); return }
+      if (!montado.current && !result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') {
+        onAviso?.('Sua sessão expirou antes de pausar. Nada foi alterado.') // TEXTO-A-REVISAR
+        router.refresh()
+        return
+      }
       if (!result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') { setFase('sessao_expirada'); return }
       // Recusa (em andamento, sem permissão, erro) fica escrita; o diálogo não fecha como se tivesse dado certo.
       setError(result.ok ? 'Resposta inesperada. Recarregue a página para ver o resultado.' : textoDoErro(result, 'pausar'))

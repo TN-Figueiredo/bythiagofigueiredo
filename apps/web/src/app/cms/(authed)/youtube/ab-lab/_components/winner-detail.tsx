@@ -88,7 +88,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
               <button
                 onClick={async () => {
                   if (!confirm('Reverter para o original? Isso desfaz a aplicação do vencedor no YouTube.')) return
-                  const result = await revertWinner(view.id)
+                  const result = await revertWinner(view.id, view.restoreSeq)
                   if (!result.ok) alert(result.error)
                   else router.refresh()
                 }}

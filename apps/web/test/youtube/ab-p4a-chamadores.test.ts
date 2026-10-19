@@ -61,7 +61,7 @@ describe('P4a T7: chamadores humanos', () => {
     requireSiteScope.mockResolvedValueOnce({ ok: false, reason: 'unauthenticated' })
     expect(await endAbTest('t1', { destino: 'original', seqVisto: 7 })).toEqual({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })
     requireSiteScope.mockResolvedValueOnce({ ok: false, reason: 'forbidden' })
-    expect(await revertWinner('t1')).toEqual({ ok: false, resultado: 'sem_permissao', error: 'forbidden' })
+    expect(await revertWinner('t1', 7)).toEqual({ ok: false, resultado: 'sem_permissao', error: 'forbidden' })
     expect(settle).not.toHaveBeenCalled()
   })
 
@@ -151,14 +151,22 @@ describe('P4a T7: chamadores humanos', () => {
   })
 
   it('revertWinner mantém denyUnlessSiteAdmin e chama settleOnAir(original, reverter)', async () => {
-    await revertWinner('t1')
+    await revertWinner('t1', 7)
     expect(denyUnlessSiteAdmin).toHaveBeenCalledWith(SITE_DA_SESSAO, expect.any(String))
-    expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE_DA_SESSAO, destino: { tipo: 'original' }, motivo: 'reverter', humano: true })
+    expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE_DA_SESSAO, destino: { tipo: 'original' }, motivo: 'reverter', humano: true, seqEsperado: 7 })
   })
 
   it('revertWinner sem admin → sem_permissao, sem settleOnAir', async () => {
     denyUnlessSiteAdmin.mockResolvedValueOnce({ ok: false, error: 'Só admin.' })
-    expect(await revertWinner('t1')).toEqual({ ok: false, resultado: 'sem_permissao', error: 'Só admin.' })
+    expect(await revertWinner('t1', 7)).toEqual({ ok: false, resultado: 'sem_permissao', error: 'Só admin.' })
+    expect(settle).not.toHaveBeenCalled()
+  })
+
+  it('P4b T9: revertWinner com seqVisto velho -> mudou (frase exata); seqVisto inválido -> erro sem settleOnAir', async () => {
+    settle.mockResolvedValueOnce({ resultado: 'mudou', campos: null })
+    expect(await revertWinner('t1', 6)).toEqual({ ok: false, resultado: 'mudou', error: 'O teste mudou em outra aba. Reabra para decidir.' })
+    settle.mockClear()
+    expect(await revertWinner('t1', -3)).toMatchObject({ ok: false, resultado: 'erro' })
     expect(settle).not.toHaveBeenCalled()
   })
 
@@ -189,7 +197,7 @@ describe('P4a T7: chamadores humanos', () => {
     const chamadas = [
       ['pauseAbTest', () => pauseAbTest('t1', 7)],
       ['endAbTest', () => endAbTest('t1', { destino: 'original', seqVisto: 7 })],
-      ['revertWinner', () => revertWinner('t1')],
+      ['revertWinner', () => revertWinner('t1', 7)],
     ] as const
 
     it.each(chamadas)('DEVE-1: %s com feito revalida a tag youtube e a tela do A/B Lab', async (_n, run) => {
