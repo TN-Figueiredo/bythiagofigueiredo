@@ -111,7 +111,7 @@ describe('nota do ritmo: a lista', () => {
     const nm = document.querySelector('[data-k="pw"]')!
     expect(nm.textContent).toBe('—')
     expect(nm.getAttribute('aria-label')).toBe('não medido')
-    expect(document.querySelector('.obs-nr-t')!.textContent).toBe('canal com menos de 4 sem')
+    expect(document.querySelector('[data-nota-cap]')!.textContent).toBe('canal com menos de 4 sem')
     expect(document.querySelector('.u')).toBeNull()
   })
   it('a coluna do sufixo só é reservada quando alguma linha à vista tem nota', () => {
@@ -251,5 +251,46 @@ describe('nota do ritmo: o Comparar', () => {
     expect(n.x).toBeNull()
     expect(n.motivo).toBe('canal com menos de 4 sem')
     expect(n.ritmoNota).toMatchObject({ tipo: 'piso' })
+  })
+})
+
+describe('nota do ritmo: consertos do Gio (r3)', () => {
+  const piso = notaDoRitmo({ corte: 'criacao', dias: 20, abaixoDoPiso: true, semanasDaRegra: 13 })
+  it('D1: a nota longa do canal novo vai para a linha de legenda; ao lado do número fica só o ⓘ', () => {
+    render(<CadenceView c={{ ...ok(piso, SEMANAS), pw: '—' }} />)
+    expect(document.querySelector('.obs-nr .obs-nr-t')).toBeNull()
+    expect(document.querySelector('[data-nota-cap]')!.textContent).toBe('canal com menos de 4 sem')
+    const css = readFileSync('src/app/cms/(authed)/youtube/competitors/_canais/canais.css', 'utf8')
+    expect(css).toMatch(/small\.obs-nr-cap\{[^}]*white-space:normal/)
+    const css2 = readFileSync('src/app/cms/(authed)/youtube/competitors/_chrome/nota-ritmo.css', 'utf8')
+    expect(css2).toMatch(/data-nota-ritmo="piso"\]\{white-space:normal/)
+  })
+  it('D2: o nulo do piso não vira "sem Shorts" (canal de 20 dias com Shorts)', () => {
+    const w = mundo(20)
+    const v = buildCanaisView(w.obs, { niche: 'todos', limit: 75, fmt: 'longos' })
+    const r = [...v.list.ranked, ...v.list.unranked].find(x => x.id === CH)!
+    const c = r.cells.cadence
+    if (c.kind !== 'ok') throw new Error('esperava ok')
+    expect(c.nota?.tipo).toBe('piso')
+    expect(w.obs.cadence(CH, 'short').pw).toBeNull()
+    expect(c.sub ?? '').not.toMatch(/sem Shorts/)
+  })
+  it('D5: a dica do ritmo diz a base real, não "13 semanas", num canal de 20 dias', () => {
+    const w = mundo(20)
+    const v = buildCanaisView(w.obs, { niche: 'todos', limit: 75, fmt: 'longos' })
+    const r = [...v.list.ranked, ...v.list.unranked].find(x => x.id === CH)!
+    const d = r.dicas.cadence
+    expect(d).toMatch(/^Em 2\d dias, desde a criação/)
+    expect(d).not.toContain('13 semanas')
+  })
+  it('D6: Tab para fora fecha o ⓘ; Tab para dentro da caixa mantém', () => {
+    render(<><CadenceView c={ok(nota81, SEMANAS)} /><button>fora</button></>)
+    const b = screen.getByRole('button', { name: /Ritmo sobre 81 dias/ })
+    fireEvent.click(b)
+    expect(b.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.blur(b, { relatedTarget: document.querySelector('.obs-nr-p') })
+    expect(b.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.blur(b, { relatedTarget: screen.getByRole('button', { name: 'fora' }) })
+    expect(b.getAttribute('aria-expanded')).toBe('false')
   })
 })

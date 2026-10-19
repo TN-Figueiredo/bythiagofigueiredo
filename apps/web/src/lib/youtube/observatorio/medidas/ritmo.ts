@@ -79,7 +79,11 @@ export function ritmo(publicacoesMs: readonly number[], o: { agoraMs: number; cr
   const ini = inicioDoRitmo({ agoraMs: o.agoraMs, semanasDaRegra, criadoEmMs: o.criadoEmMs, coberturaDesdeMs: o.coberturaDesdeMs })
   const validas = publicacoesMs.filter(t => Number.isFinite(t) && t <= o.agoraMs).sort((a, b) => a - b)
   const naJanela = validas.filter(t => t >= ini.inicioMs)
-  if (ini.dias < PISO_RITMO_DIAS) return naoMedido(ini.corte === 'criacao' ? 'canal_novo' : 'ritmo_parcial')
+  // os dias da base viajam na nota (a tela os escreve: "O canal tem 20 dias de vida"); o número continua nulo
+  if (ini.dias < PISO_RITMO_DIAS) {
+    const dias = Math.round(ini.dias), desde = spDateOf(ini.inicioMs)
+    return naoMedido(ini.corte === 'criacao' ? 'canal_novo' : 'ritmo_parcial', { notas: [ini.corte === 'criacao' ? { tipo: 'canal_mais_novo_que_a_janela', dias, desde } : { tipo: 'cobertura_curta', dias, desde }] })
+  }
   const minimo = MEASURE_RULES.rhythm.minPosts
   if (naJanela.length < minimo) return naoMedido('poucas_publicacoes', { n: naJanela.length, minimo })
   const intervalos = naJanela.slice(1).map((t, i) => (t - naJanela[i]!) / DAY)

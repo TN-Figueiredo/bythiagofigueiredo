@@ -20,7 +20,7 @@ const SEMANAS = MEASURE_RULES.rhythm.weeks
 export type CasaDaSemana =
   | { estado: 'com'; n: number; fracao: number }
   | { estado: 'zero' }
-  | { estado: 'nao_lida'; por: string }
+  | { estado: 'nao_lida'; por: string; /** antes da criação / dos vídeos guardados: fora do período, não "não medido" */ fora?: true }
 
 export interface RaiaDeRitmo { rotulo: 'Longos' | 'Shorts'; casas: CasaDaSemana[]; semNenhum: boolean; ausente: boolean }
 
@@ -96,12 +96,12 @@ function raia(rotulo: 'Longos' | 'Shorts', f: Formato, pubs: readonly Pub[], o: 
   const casas: CasaDaSemana[] = []
   for (let i = SEMANAS - 1; i >= 0; i--) {
     const fim = o.agoraMs - i * SEMANA
-    let por: string | null = null
+    let por: string | null = null, fora = false
     // Antes da criação do canal (ou dos vídeos guardados, em lista cortada) a semana não existe na base: nunca é zero.
-    if (base.corte !== null && fim <= base.inicioMs) por = base.corte === 'criacao' ? 'antes da criação do canal' : 'antes dos vídeos guardados'
+    if (base.corte !== null && fim <= base.inicioMs) { por = base.corte === 'criacao' ? 'antes da criação do canal' : 'antes dos vídeos guardados'; fora = true }
     else if (semLeituraParou(o.estado) && o.ultimaLeituraMs !== null && fim > o.ultimaLeituraMs) por = `sem leitura desde ${dm(spDateOf(o.ultimaLeituraMs))}`
     else if (o.estado.tipo === 'primeira_busca' && primeiraPubMs !== null && fim < primeiraPubMs) por = 'ainda não buscada'
-    if (por !== null) { casas.push({ estado: 'nao_lida', por }); continue }
+    if (por !== null) { casas.push(fora ? { estado: 'nao_lida', por, fora: true } : { estado: 'nao_lida', por }); continue }
     const n = contagem[i] ?? 0
     casas.push(n === 0 ? { estado: 'zero' } : { estado: 'com', n, fracao: n / mx })
   }

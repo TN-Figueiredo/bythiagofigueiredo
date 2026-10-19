@@ -8,7 +8,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { NotaDoRitmo } from '@/lib/youtube/observatorio/ritmo-nota'
 import './nota-ritmo.css'
 
-export function NotaRitmo({ nota, className }: { nota: NotaDoRitmo; className?: string }) {
+export function NotaRitmo({ nota, className, soIcone }: { nota: NotaDoRitmo; className?: string; /** o sufixo vai para a linha de legenda de quem chama (lista): só o ⓘ fica ao lado do número */ soIcone?: boolean }) {
   const id = useId()
   const [aberta, setAberta] = useState(false)
   const botao = useRef<HTMLButtonElement>(null)
@@ -40,13 +40,14 @@ export function NotaRitmo({ nota, className }: { nota: NotaDoRitmo; className?: 
   return (
     <span
       ref={raiz} className={`obs-nr${className ? ' ' + className : ''}`} data-nota-ritmo={nota.tipo}
+      onBlur={e => { if (aberta && !raiz.current?.contains(e.relatedTarget as Node | null)) setAberta(false) }}
       onKeyDown={e => { if (e.key === 'Escape' && aberta) { e.stopPropagation(); setAberta(false); botao.current?.focus() } }}
     >
-      <span className="obs-nr-t">{nota.sufixo}</span>
+      {soIcone ? null : <span className="obs-nr-t">{nota.sufixo}</span>}
       <button ref={botao} type="button" className="obs-nr-i" aria-expanded={aberta} aria-controls={id} aria-label={`Por que: ${nota.titulo}`} onClick={() => setAberta(a => !a)}>
         <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.2" /><path d="M8 7.2v4M8 4.8v.1" strokeLinecap="round" /></svg>
       </button>
-      <span ref={caixa} id={id} className="obs-nr-p" role="note" hidden={!aberta}><b>{nota.titulo}</b>{nota.causa}</span>
+      <span ref={caixa} id={id} className="obs-nr-p" role="note" tabIndex={-1} hidden={!aberta}><b>{nota.titulo}</b>{nota.causa}</span>
     </span>
   )
 }
