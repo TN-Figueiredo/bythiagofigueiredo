@@ -41,7 +41,7 @@ export interface ResultadoDrift {
 export interface RelogioDoVigia { agora: () => number; inicio: number }
 
 /** Portas só para teste; em produção valem os padrões. */
-export interface PortasDoVigia { settle?: typeof settleOnAir }
+export interface PortasDoVigia { settle?: typeof settleOnAir; semInterrompidos?: boolean /* a rota já converteu antes das fases (P4b Y-6) */ }
 
 interface TesteAtivo { id: string; site_id: string; test_type: string; youtube_video_id: string; restore_seq: number }
 interface Ciclo { test_id: string; variant_id: string; started_at: string }
@@ -181,6 +181,16 @@ async function detectarDrift(
   r.adiados += adiados
 }
 
+/** Conversão do `em_andamento` interrompido com o catch próprio: um defeito aqui não pode deixar o teste ativo sem a checagem de drift. */
+export async function converterInterrompidosDoVigia(supabase: SupabaseClient, relogio: RelogioDoVigia, r: ResultadoDrift): Promise<void> {
+  try {
+    await converterInterrompidos(supabase, new Date(relogio.agora()), r)
+  } catch (e) {
+    r.falhas++
+    Sentry.captureException(e, { tags: { area: 'ab-watchdog', fase: 'interrompidos' } })
+  }
+}
+
 export async function faseDriftEInterrompidos(
   supabase: SupabaseClient,
   relogio: RelogioDoVigia,
@@ -189,12 +199,7 @@ export async function faseDriftEInterrompidos(
   portas: PortasDoVigia = {},
 ): Promise<ResultadoDrift> {
   const r: ResultadoDrift = { verificados: 0, pausados: 0, falhas: 0, adiados: 0, interrompidos: 0, semDestinatario: false }
-  try {
-    await converterInterrompidos(supabase, new Date(relogio.agora()), r)
-  } catch (e) { // um defeito aqui não pode deixar o teste ativo sem a checagem de drift
-    r.falhas++
-    Sentry.captureException(e, { tags: { area: 'ab-watchdog', fase: 'interrompidos' } })
-  }
+  if (!portas.semInterrompidos) await converterInterrompidosDoVigia(supabase, relogio, r)
   try {
     await detectarDrift(supabase, relogio, f, limite, portas, r)
   } catch (e) { // erro de leitura não pode apagar o que a conversão já gravou da resposta

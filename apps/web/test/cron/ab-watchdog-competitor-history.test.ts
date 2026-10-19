@@ -8,7 +8,7 @@ let ausentes: string[] = []
 function chain(table: string): Record<string, unknown> {
   const c: Record<string, unknown> = {}
   const self = () => c
-  for (const m of ['select', 'eq', 'lt', 'gt', 'in', 'is', 'not', 'or', 'order', 'range', 'limit', 'update', 'insert', 'upsert', 'maybeSingle', 'single']) c[m] = vi.fn(self)
+  for (const m of ['select', 'eq', 'neq', 'lt', 'gt', 'in', 'is', 'not', 'or', 'order', 'range', 'limit', 'update', 'insert', 'upsert', 'maybeSingle', 'single']) c[m] = vi.fn(self)
   c.delete = vi.fn(() => { deletes.push(table); return c })
   c.then = (r: (v: { data: unknown[]; error: null; count: number }) => unknown) => {
     const rows = table === 'competitor_channels' ? ausentes.map(id => ({ id })) : []
