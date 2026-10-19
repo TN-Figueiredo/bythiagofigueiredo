@@ -77,7 +77,7 @@ describe('canal: o criador respondeu, por vídeo', () => {
     const { container } = desenhar(bloco, lista)
     const frase = container.querySelector('[data-frase-da-lista]')!
     expect(frase.compareDocumentPosition(container.querySelector('.pc-rqs')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(frase.textContent).toBe('Matt respondeu a 3 comentários guardados, em 2 vídeos.')
+    expect(frase.textContent).toBe('Matt respondeu a 3 comentários guardados de espectadores, em 2 vídeos.')
     expect([...container.querySelectorAll('.pc-grupo-n')].map(n => n.textContent)).toEqual(['1 resposta dele', '2 respostas dele'])
   })
 

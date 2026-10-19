@@ -40,6 +40,7 @@ export async function lerContagemDeRespostas(
         const r = await comTempo((sinal) => {
           let q = sb.from('competitor_video_comments').select('id, video_id').eq('site_id', p.siteId)
             .eq('competitor_channel_id', p.channelId).in('video_id', bloco).is('parent_id', null).eq('creator_replied', true)
+            .eq('is_creator', false) // o fio cuja raiz é do criador (fixado, auto-resposta) não é resposta a espectador (FU-CANAL-CRIADOR)
           if (marcado !== null) q = q.gt('id', marcado)
           return q.order('id', { ascending: true }).limit(PAGINA).abortSignal(sinal)
         })
@@ -75,7 +76,8 @@ export async function lerContagemDeRespostas(
 
 /**
  * A lista "O que o criador respondeu": o comentário, a resposta presa, as curtidas no marco mais recente que existir e o vídeo.
- * No nível `contagem` devolve só o número de itens. NÃO consulta a tabela de identidade em nível nenhum: o autor é sempre "um espectador",
+ * No nível `contagem` devolve só o número de itens. NÃO consulta a tabela de identidade em nível nenhum: o autor é sempre "um espectador"
+ * porque o fio cuja raiz é do criador é filtrado no banco por `is_creator` (coluna da linha),
  * e por isso a troca de menções vale para todo texto, em todo nível.
  */
 export async function lerRespostasDoCriador(
@@ -96,6 +98,7 @@ export async function lerRespostasDoCriador(
         const r = await comTempo((sinal) => {
           let q = sb.from('competitor_video_comments').select(colunas).eq('site_id', siteId)
             .eq('competitor_channel_id', p.channelId).in('video_id', bloco).is('parent_id', null).eq('creator_replied', true)
+            .eq('is_creator', false) // coluna da própria linha (a tabela de identidade continua intocada): a raiz é sempre de espectador
             .is('missing_since', null) // comentário que saiu do YouTube nunca entra (nem na tela, nem no pacote da IA)
           if (marcado !== null) q = q.gt('id', marcado)
           return q.order('id', { ascending: true }).limit(PAGINA).abortSignal(sinal)
