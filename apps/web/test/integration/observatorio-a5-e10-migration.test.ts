@@ -79,9 +79,10 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
       expect([v1.tabelas_rls, v1.policies, v1.colunas, v1.so_service_role, v1.remendadas, v1.remendadas_com_grant, v1.bruto_sem_delete, v1.privilegio_indevido])
         .toEqual([3, 3, 2, 17, 4, 4, true, false])
       expect(await escalar<string[]>(pg, `select public.obs_archive_uncovered()`)).toEqual([])
-      // 22 da MG6; 27 quando a X3 está presente no banco da transação (E10_COM_X3=1 ou aplicada de vez)
+      // 22 da MG6; 27 quando a X3 está presente no banco da transação (E10_COM_X3=1 ou aplicada de vez); 30 com a F1 do Remover canal
       const comX3 = (await escalar<string | null>(pg, `select to_regclass('public.competitor_playlists')::text`)) !== null
-      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)).toBe(comX3 ? 27 : 22)
+      const comF1 = (await escalar<string | null>(pg, `select to_regclass('public.obs_unarchived_deletions')::text`)) !== null
+      expect(await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)).toBe(comF1 ? 30 : comX3 ? 27 : 22)
       const ausentes = await pg.query(`select r.table_name from public.obs_archive_registry() r where to_regclass('public.' || r.table_name) is null`)
       for (const l of ausentes.rows as { table_name: string }[]) expect(DE_OUTRAS_ETAPAS).toContain(l.table_name)
     })

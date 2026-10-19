@@ -146,12 +146,12 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     const d = await pastaComManifesto()
     const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
     expect(r.codigo).toBe(0)
-    expect(r.saida).toHaveLength(4)
+    expect(r.saida).toHaveLength(5) // 4 \copy + o update que zera o pedido de remoção do canal (F1)
     expect(r.saida[0]).toBe(`\\copy public.competitor_channels ("id", "channel_name") from program 'gzip -dc /arquivo/${LOTE}/competitor_channels/${CANAL}/unico.csv.gz' csv header`)
     const ordem = r.saida.map(l => /public\.(\w+)/.exec(l)![1])
     expect(ordem.indexOf('competitor_channels')).toBeLessThan(ordem.indexOf('competitor_videos'))
     expect(ordem.indexOf('competitor_videos')).toBeLessThan(ordem.indexOf('competitor_video_daily'))
-    for (const l of r.saida) expect(l).toMatch(/^\\copy public\.\w+ \(("\w+"(, )?)+\) from program 'gzip -dc [^']+' csv header$/)
+    for (const l of r.saida.filter(x => !x.startsWith('update '))) expect(l).toMatch(/^\\copy public\.\w+ \(("\w+"(, )?)+\) from program 'gzip -dc [^']+' csv header$/)
   })
 
   /** Uma pasta exportada de verdade (com os falsos) que inclui tabelas de identidade (`id` gerado) e a tarefa antes da leitura. */
@@ -184,7 +184,7 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
       `select setval(pg_get_serial_sequence('public.competitor_field_versions', 'id'), greatest((select max(id) from public.competitor_field_versions), (select last_value from public.competitor_field_versions_id_seq)));`,
       `select setval(pg_get_serial_sequence('public.competitor_raw', 'id'), greatest((select max(id) from public.competitor_raw), (select last_value from public.competitor_raw_id_seq)));`,
     ])
-    expect(copias.length + ajustes.length).toBe(r.saida.length)
+    expect(copias.length + ajustes.length + 1).toBe(r.saida.length) // +1: o update que zera o pedido de remoção (F1)
     expect(r.saida.slice(0, copias.length)).toEqual(copias) // nenhum ajuste no meio dos \\copy: o máximo só vale com tudo carregado
     // a ordem do manifesto (a do registro) é a ordem impressa: a tarefa vem antes da leitura que aponta para ela
     const ordem = copias.map(l => /public\.(\w+)/.exec(l)![1])
@@ -208,6 +208,16 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
       const literal = /from program '(.*)' csv header$/.exec(l)![1]!.replace(/''/g, `'`)
       expect(literal).toBe(`gzip -dc '${caminho.replace(/'/g, `'\\''`)}'`)
     }
+  })
+
+  it('C1.1 comandos-recarga zera as quatro colunas de remoção pedida do canal, depois dos \\copy e antes dos ajustes (F1, Phil M-4)', async () => {
+    const d = await pastaComIdentidade()
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    const i = r.saida.findIndex(l => l.startsWith('update public.competitor_channels'))
+    expect(i).toBeGreaterThan(0)
+    expect(r.saida[i]).toBe(`update public.competitor_channels set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null where id = '${CANAL}' and removal_requested_at is not null;`)
+    expect(r.saida.slice(0, i).every(l => l.startsWith('\\copy'))).toBe(true)
+    expect(r.saida.slice(i + 1).every(l => l.startsWith('select setval'))).toBe(true)
   })
 
   it('comandos-recarga sem tabela de identidade no manifesto não imprime ajuste algum', async () => {

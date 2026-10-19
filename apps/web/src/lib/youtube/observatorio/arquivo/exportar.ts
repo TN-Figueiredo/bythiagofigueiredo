@@ -21,7 +21,7 @@ import {
 } from './manifesto'
 import { baixarMiniaturas, type Baixar } from './miniaturas'
 import {
-  abrirLeitura, fechar, consultaDoArquivo, lerCsvDoBanco, colunasDaExpressao, lerRegistro, lerExcluidas, tabelaExiste, lerColunasDaTabela,
+  abrirLeitura, fechar, consultaDoArquivo, lerCsvDoBanco, colunasDaExpressao, colunasDaSoma, lerRegistro, lerExcluidas, tabelaExiste, lerColunasDaTabela,
   lerContagens, lerMiniaturasDoBanco, type ClienteSql,
 } from './sessao'
 
@@ -201,7 +201,7 @@ export async function exportarCanal(o: {
     for (const e of registro) {
       const colunas = colunasPorTabela.get(e.tabela)
       if (!colunas) continue
-      const colunaDaSoma = colunasDaExpressao(e.soma)?.[0] ?? null
+      const colunaDaSoma = colunasDaSoma(e.soma)
       for (const k of contagens.filter(x => x.tabela === e.tabela)) {
         const unico = e.periodo === null
         const periodo = unico ? 'unico' : k.inicio.slice(0, 7)
