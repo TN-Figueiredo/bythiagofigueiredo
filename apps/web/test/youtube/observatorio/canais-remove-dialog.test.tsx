@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // apps/web/test/youtube/observatorio/canais-remove-dialog.test.tsx
 // F2 do Remover canal, T5: a janela com o motivo e os estados do mockup aprovado (19/10).
+import { StrictMode } from 'react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, act, fireEvent, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -260,7 +261,7 @@ describe('RemoveDialog · envio', () => {
   })
 
   it('D5.9 erro-a: a frase do servidor, o código pequeno e "Escolher guardar no NAS" marca (b)', async () => {
-    const apagar = vi.fn(async () => ({ ok: false as const, codigo: 'video_compartilhado', frase: 'FRASE DO CATÁLOGO' }))
+    const apagar = vi.fn(async () => ({ ok: false as const, codigo: 'nome_nao_confere', frase: 'FRASE DO CATÁLOGO' }))
     const m = mount({ apagar })
     await act(async () => {})
     fireEvent.click(m.radio('apagar'))
@@ -269,7 +270,7 @@ describe('RemoveDialog · envio', () => {
     const alerta = m.q('[role="alert"]').textContent!
     expect(alerta).toContain('Nada foi apagado.')
     expect(alerta).toContain('FRASE DO CATÁLOGO')
-    expect(alerta).toContain('código: video_compartilhado')
+    expect(alerta).toContain('código: nome_nao_confere')
     fireEvent.click(m.btn('Escolher guardar no NAS'))
     expect(m.radio('guardar').checked).toBe(true)
     expect(m.container.querySelector('[role="alert"]')).toBeNull()
@@ -328,3 +329,58 @@ describe('RemoveDialog · teclado', () => {
   })
 })
 void ({} as Pedir)
+
+describe('RemoveDialog · rodada 3 do Gio', () => {
+  const props = (o: { impact: () => Promise<ImpactAnswer>; apagar?: ReturnType<typeof vi.fn>; copiar?: () => void }) => ({
+    id: 'c1', name: 'Ryan Otis', onImpact: o.impact,
+    onPedir: (async () => ({ ok: true as const, jaPedido: false })) as never,
+    onApagar: (o.apagar ?? (async () => ({ ok: true as const, videos: 1 }))) as never,
+    onCancel: vi.fn(), onDone: vi.fn(), onConferir: vi.fn(), onBloqueio: vi.fn(), onCopiarPedido: o.copiar, trap: () => {},
+  })
+
+  it('C1: o erro sobrevive à troca de identidade de onImpact (revalidação) e não recontaconta', async () => {
+    const apagar = vi.fn(async () => ({ ok: false as const, codigo: 'nome_nao_confere', frase: 'F' }))
+    const impact1 = vi.fn(async () => PODE)
+    const r = render(<RemoveDialog {...props({ impact: impact1, apagar })} />)
+    await act(async () => {})
+    fireEvent.click(r.container.querySelector('input[value="apagar"]')!)
+    fireEvent.change(r.container.querySelector('.fld input')!, { target: { value: 'Ryan Otis' } })
+    await act(async () => { fireEvent.click([...r.container.querySelectorAll('button')].find(b => b.textContent === 'Apagar sem guardar')!) })
+    expect(r.container.querySelector('[role="alert"]')).not.toBeNull()
+    const impact2 = vi.fn(async () => PODE)
+    r.rerender(<RemoveDialog {...props({ impact: impact2, apagar })} />)
+    await act(async () => {})
+    expect(impact2).not.toHaveBeenCalled()
+    expect(r.container.querySelector('[role="alert"]')!.textContent).toContain('Nada foi apagado.')
+  })
+
+  it('I5: sob StrictMode o sucesso chama onDone (a ref vivo volta a true na montagem)', async () => {
+    const p = props({ impact: async () => PODE })
+    const r = render(<StrictMode><RemoveDialog {...p} /></StrictMode>)
+    await act(async () => {})
+    await act(async () => { fireEvent.click([...r.container.querySelectorAll('button')].find(b => /Parar coleta/.test(b.textContent ?? ''))!) })
+    expect(p.onDone).toHaveBeenCalledWith({ caminho: 'guardar', jaPedido: false })
+  })
+
+  it('I6: video_compartilhado em apagar não oferece guardar; diz que nada mudou e oferece copiar o pedido', async () => {
+    const apagar = vi.fn(async () => ({ ok: false as const, codigo: 'video_compartilhado', frase: 'FRASE' }))
+    const copiar = vi.fn()
+    const r = render(<RemoveDialog {...props({ impact: async () => PODE, apagar, copiar })} />)
+    await act(async () => {})
+    fireEvent.click(r.container.querySelector('input[value="apagar"]')!)
+    fireEvent.change(r.container.querySelector('.fld input')!, { target: { value: 'Ryan Otis' } })
+    await act(async () => { fireEvent.click([...r.container.querySelectorAll('button')].find(b => b.textContent === 'Apagar sem guardar')!) })
+    const txt = r.container.textContent!
+    expect(txt).not.toContain('Escolher guardar no NAS')
+    expect(r.container.querySelector('[role="alert"]')!.textContent).toMatch(/Nada mudou/)
+    fireEvent.click([...r.container.querySelectorAll('button')].find(b => b.textContent === 'Copiar pedido ao agente')!)
+    expect(copiar).toHaveBeenCalled()
+  })
+
+  it('I1: contando, a opção de apagar fica desligada sem a frase de falha', () => {
+    const d = deferred<ImpactAnswer>()
+    const r = render(<RemoveDialog {...props({ impact: () => d.p })} />)
+    expect(r.container.querySelector('.why')).toBeNull()
+    expect((r.container.querySelector('input[value="apagar"]') as HTMLInputElement).disabled).toBe(true)
+  })
+})

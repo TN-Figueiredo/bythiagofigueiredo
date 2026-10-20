@@ -43,6 +43,7 @@ export const TXT = {
   erroGuardarTitulo: 'Não deu para pausar o canal.',
   erroGuardarCorpo: 'Nada mudou: ele continua sendo coletado e ocupando a vaga. Tente de novo. Se falhar outra vez, mostre o código ao agente.',
   erroApagarTitulo: 'Nada foi apagado.',
+  compartilhadoProximo: 'Guardar no NAS também não é possível por este motivo. Nada mudou: o canal continua sendo coletado. Copie o pedido e leve ao agente.',
   toastApagadoTitulo: 'Apagado',
   subVideos: (versoes: number) => `com ${plural(versoes, 'versão', 'versões')} de título, thumbnail e descrição`,
   subDias: 'views diárias dos vídeos',
@@ -64,6 +65,8 @@ export const TXT = {
 
 /** Quando a opção "apagar sem guardar" está desligada, e por quê (a frase fica visível, ligada por aria-describedby). */
 export function opcaoApagar(e: { fase: Fase; semGuardar: SemGuardar | null }): { ativa: true } | { ativa: false; porque: string } {
+  // contando: desligada sem frase de falha (a contagem ainda vem; a caixa não pode mudar de altura, I1)
+  if (e.fase === 'contando') return { ativa: false, porque: '' }
   if (e.fase === 'falha_contagem' || e.semGuardar === null) return { ativa: false, porque: 'Precisa da contagem para apagar sem guardar.' }
   const s = e.semGuardar
   if (s.pode) return { ativa: true }
@@ -131,6 +134,9 @@ const FRASE_LEITURA = 'Não deu para conferir o canal agora. Nada mudou. Tente d
 export function fraseDoErro(codigo: CodigoTela | 'sem-resposta', frase?: string, caminho: Caminho = 'apagar'): { titulo: string; corpo: string } {
   if (codigo === 'sem-resposta') {
     return { titulo: TXT.incertoTitulo, corpo: caminho === 'guardar' ? TXT.incertoGuardarCorpo : TXT.incertoApagarCorpo }
+  }
+  if (caminho === 'apagar' && codigo === 'video_compartilhado') {
+    return { titulo: TXT.erroApagarTitulo, corpo: `${frase ?? FRASES_E10.video_compartilhado} ${TXT.compartilhadoProximo}` }
   }
   const f = frase ?? (codigo in FRASES_E10 ? FRASES_E10[codigo as CodigoE10] : FRASE_LEITURA)
   if (caminho === 'guardar') {

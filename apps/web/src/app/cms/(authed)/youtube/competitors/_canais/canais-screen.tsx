@@ -237,7 +237,14 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   const closeAdd = () => { setAddClosed(true); go({ add: null }, { add: false }) }
   const closeNiche = () => { setNicheClosed(true); go({ nicheEditor: null }) }
   const closeMenu = (focus: boolean) => { const id = menu; setMenu(null); if (focus && id) rowMenuButton(id)?.focus() }
-  const closeConfirm = () => { setConfirm(null); returnFocus.current?.focus() }
+  const focarAoFechar = useRef(false)
+  const closeConfirm = () => { focarAoFechar.current = true; setConfirm(null) }
+  // o foco só volta depois que o `inert` do fundo saiu (o navegador ignora foco em subárvore inerte): I3
+  useEffect(() => {
+    if (confirm || !focarAoFechar.current) return
+    focarAoFechar.current = false
+    returnFocus.current?.focus()
+  }, [confirm])
 
   // Esc closes the topmost layer (canais.html keydown). The row menu is not here: the floating layer closes it first and returns the focus.
   useEffect(() => {
@@ -580,6 +587,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
             <span className="spacer" />
             <span className="quota">
               <span className="num" data-k="nCh">{s.used}</span>{' '}de{' '}<span className="num" data-k="nLim">{s.limit}</span>{' '}canais
+              {s.agendados ? <span data-k="agendados">{s.text.slice(`${s.used} de ${s.limit} canais`.length)}</span> : null}
               <Tip label="Sobre o limite de canais" left>{s.tip}</Tip>
             </span>
             {canUnlock && s.nearFull ? <button type="button" className="btn small" onClick={() => { void unlock() }}>{s.unlockText}</button> : null}
@@ -651,7 +659,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
           onRemove={() => askRemove(menuRow.id, rowMenuButton(menuRow.id))} />
       ) : null}
 
-      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onPedir={onPedir} onApagar={onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} trap={trapTab} /> : null}
+      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onPedir={onPedir} onApagar={onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} onCopiarPedido={() => { void copiarPedido({ name: confirm.name }) }} trap={trapTab} /> : null}
 
       {addOpen ? (
         <AddChannelForm view={view} onAdd={onAdd} onClose={closeAdd} trap={trapTab}
