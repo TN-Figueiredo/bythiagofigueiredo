@@ -48,3 +48,13 @@ describe('F2 · tokens do vermelho', () => {
     for (const s of [CHROME, CANAIS, KIT]) expect(s).not.toMatch(/color-mix\s*\(/)
   })
 })
+
+describe('I2: botão bloqueado no claro', () => {
+  it('o bloqueado usa o vermelho de texto do tema claro (contraste), em kit.css e canais.css', async () => {
+    const { readFileSync } = await import('node:fs')
+    const dir = 'src/app/cms/(authed)/youtube/competitors/'
+    for (const [f, scr] of [['_chrome/kit.css', 'canal'], ['_canais/canais.css', 'canais']]) {
+      expect(readFileSync(dir + f, 'utf8')).toContain(`[data-theme="light"] [data-obs-screen="${scr}"] .btn.danger[aria-disabled="true"]{--dg-fg:var(--danger-text)}`)
+    }
+  })
+})

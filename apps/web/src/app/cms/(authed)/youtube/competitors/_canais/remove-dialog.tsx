@@ -42,7 +42,7 @@ function subDe(k: ChaveLinha, m: CompetitorRemovalImpact | null): string {
   return m ? TXT.subFixados(m.pinned, m.bookmarks) : TXT.subFixados(99, 99)
 }
 
-export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, onDone, onConferir, onBloqueio, trap }: {
+export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, onDone, onConferir, onBloqueio, onCopiarPedido, trap }: {
   id: string; name: string
   /** Server action getCompetitorRemovalImpactAction, por props. Ausente = a contagem não pode ser pedida. */
   onImpact?: (id: string) => Promise<ImpactAnswer>
@@ -55,6 +55,8 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   onConferir: () => void
   /** Avisa a tela-mãe que há envio em curso (o Esc dela não pode fechar a janela). */
   onBloqueio: (bloqueado: boolean) => void
+  /** "Copiar pedido ao agente": o próximo passo quando a F1 também recusaria guardar (I6). */
+  onCopiarPedido?: () => void
   trap: (e: KeyboardEvent<HTMLDivElement>) => void
 }) {
   const uid = useId()
@@ -73,14 +75,18 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const onBloqueioRef = useRef(onBloqueio)
   onBloqueioRef.current = onBloqueio
   const vivo = useRef(true)
+  // a identidade de onImpact muda a cada revalidação da página: ela não pode reiniciar a contagem (C1)
+  const onImpactRef = useRef(onImpact)
+  onImpactRef.current = onImpact
 
   const contar = useCallback(() => {
     const tok = ++tokContagem.current
     setFase('contando')
     const timer = setTimeout(() => { if (tok === tokContagem.current) { tokContagem.current++; setFase('falha_contagem') } }, PRAZO_CONTAGEM_MS)
     const falhar = () => { if (tok === tokContagem.current) { tokContagem.current++; clearTimeout(timer); setFase('falha_contagem') } }
-    if (!onImpact) { falhar(); return () => clearTimeout(timer) }
-    onImpact(id).then(r => {
+    const pedir = onImpactRef.current
+    if (!pedir) { falhar(); return () => clearTimeout(timer) }
+    pedir(id).then(r => {
       if (tok !== tokContagem.current) return // resposta tardia: ignorada
       clearTimeout(timer)
       if (!r.ok) { falhar(); return }
@@ -88,11 +94,11 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
       setImpacto(r.impact); setSemGuardar(r.semGuardar); setFase('pronto')
     }).catch(falhar)
     return () => clearTimeout(timer)
-  }, [id, onImpact])
+  }, [id])
 
   useEffect(() => contar(), [contar])
   useEffect(() => { radioGuardar.current?.focus() }, [])
-  useEffect(() => () => { vivo.current = false; if (timerAcao.current) clearTimeout(timerAcao.current); onBloqueioRef.current(false) }, [])
+  useEffect(() => { vivo.current = true; return () => { vivo.current = false; if (timerAcao.current) clearTimeout(timerAcao.current); onBloqueioRef.current(false) } }, [])
 
   const apagarLiberado = opcaoApagar({ fase, semGuardar })
   const nomeOk = nomeConfere(nome, name)
@@ -159,6 +165,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const nums = impacto ? numerosDe(impacto) : null
   const lead = caminho === 'guardar' ? TXT.leadGuardar : TXT.leadApagar
   const frase = erro ? fraseDoErro(erro.codigo, erro.frase, erro.caminho) : null
+  const semSaidaGuardar = erro?.caminho === 'apagar' && erro.codigo === 'video_compartilhado' // a F1 também recusaria guardar (I6)
   const passageiroGuardar = erro?.caminho === 'guardar' && codigoPassageiro(erro.codigo)
 
   return (
@@ -176,11 +183,11 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
           </label>
           <label className={'opt' + (apagarLiberado.ativa ? '' : ' off')}>
             <input type="radio" name={`${uid}-motivo`} value="apagar" checked={caminho === 'apagar'} disabled={!apagarLiberado.ativa || enviando}
-              aria-describedby={apagarLiberado.ativa ? undefined : ids.why}
+              aria-describedby={apagarLiberado.ativa || !apagarLiberado.porque ? undefined : ids.why}
               onChange={() => { setCaminho('apagar'); setErro(null); if (fase === 'erro' || fase === 'incerto') setFase(faseDepoisDoErro) }} />
             <b>{TXT.apagarTitulo}</b>
             <small>{TXT.apagarSub}</small>
-            {apagarLiberado.ativa ? null : <span className="why" id={ids.why}><PinIcon name="err" /><span>{apagarLiberado.porque}</span></span>}
+            {apagarLiberado.ativa || !apagarLiberado.porque ? null : <span className="why" id={ids.why}><PinIcon name="err" /><span>{apagarLiberado.porque}</span></span>}
           </label>
         </fieldset>
 
@@ -244,7 +251,9 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
           ) : comErro && erro?.caminho === 'apagar' ? (
             <>
               <button type="button" className="btn" onClick={onCancel}>Fechar</button>
-              <button type="button" className="btn primary" onClick={escolherGuardar}>Escolher guardar no NAS</button>
+              {semSaidaGuardar
+                ? (onCopiarPedido ? <button type="button" className="btn primary" onClick={onCopiarPedido}>Copiar pedido ao agente</button> : null)
+                : <button type="button" className="btn primary" onClick={escolherGuardar}>Escolher guardar no NAS</button>}
             </>
           ) : comErro && erro?.caminho === 'guardar' ? (
             <>

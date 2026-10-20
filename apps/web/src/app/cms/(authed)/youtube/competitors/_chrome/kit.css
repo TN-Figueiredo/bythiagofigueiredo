@@ -55,6 +55,7 @@
 [data-obs-screen="canal"] .modal .fx-remove .acts{position:sticky;bottom:0;margin:0 -20px;padding:12px 20px 20px;background:var(--surface);border-top:1px solid var(--border-subtle)}
 [data-obs-screen="canal"] .modal .btn[aria-disabled="true"],[data-obs-screen="canal"] .modal .btn[aria-disabled="true"]:hover,[data-obs-screen="canal"] .modal .btn[aria-disabled="true"]:active{cursor:not-allowed;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted)}
 [data-obs-screen="canal"] .btn.danger[aria-disabled="true"],[data-obs-screen="canal"] .btn.danger[aria-disabled="true"]:hover,[data-obs-screen="canal"] .btn.danger[aria-disabled="true"]:active{border-color:var(--dg-line);color:var(--dg-fg);background:transparent;border-style:dashed;opacity:.8}
+[data-theme="light"] [data-obs-screen="canal"] .btn.danger[aria-disabled="true"]{--dg-fg:var(--danger-text)}
 @media (pointer:coarse){[data-obs-screen="canal"] .modal .fx-remove .acts .btn.btn{min-height:44px}}
 [data-obs-screen="canal"] .modal .fld{display:flex;flex-direction:column;gap:5px;margin-top:12px;font-size:13px;color:var(--muted)}
 [data-obs-screen="canal"] .modal .fld input{min-height:36px;border:1px solid var(--border-strong);border-radius:7px;background:var(--bg);color:var(--text);padding:0 10px;font-size:14px}

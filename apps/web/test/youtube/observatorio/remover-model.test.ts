@@ -10,7 +10,8 @@ describe('opcaoApagar (M3.1)', () => {
   it('sem contagem ou com a contagem falhada: precisa da contagem', () => {
     const f = 'Precisa da contagem para apagar sem guardar.'
     expect(opcaoApagar({ fase: 'falha_contagem', semGuardar: { pode: true } })).toEqual({ ativa: false, porque: f })
-    expect(opcaoApagar({ fase: 'contando', semGuardar: null })).toEqual({ ativa: false, porque: f })
+    expect(opcaoApagar({ fase: 'contando', semGuardar: null })).toEqual({ ativa: false, porque: '' }) // sem frase de falha enquanto conta (I1)
+    expect(opcaoApagar({ fase: 'pronto', semGuardar: null })).toEqual({ ativa: false, porque: f })
   })
   it('antigo diz os meses (1 mês no singular)', () => {
     expect(opcaoApagar({ fase: 'pronto', semGuardar: { pode: false, porque: 'antigo', meses: 7 } })).toEqual({ ativa: false, porque: 'Este canal tem 7 meses de histórico. Para não perder tudo por engano, use "Guardar no NAS".' })
@@ -93,7 +94,9 @@ describe('pedidoAoAgente (M3.6)', () => {
 
 describe('frases (M3.7, M3.8)', () => {
   it('erro permanente do apagar mostra a frase recebida', () => {
-    expect(fraseDoErro('video_compartilhado', 'F')).toEqual({ titulo: 'Nada foi apagado.', corpo: 'F' })
+    expect(fraseDoErro('nome_nao_confere', 'F')).toEqual({ titulo: 'Nada foi apagado.', corpo: 'F' })
+    // I6: com o vídeo compartilhado, guardar também é recusado; a frase diz o próximo passo
+    expect(fraseDoErro('video_compartilhado', 'F')).toEqual({ titulo: 'Nada foi apagado.', corpo: `F ${TXT.compartilhadoProximo}` })
   })
   it('sem resposta: as duas variantes, sem "Nada mudou" nem "Apagado"', () => {
     const a = fraseDoErro('sem-resposta'), b = fraseDoErro('sem-resposta', undefined, 'guardar')
