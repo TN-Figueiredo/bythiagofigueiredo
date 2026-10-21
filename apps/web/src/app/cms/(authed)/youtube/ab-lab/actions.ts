@@ -558,6 +558,24 @@ export async function cleanupDraftVariants(
   return { ok: true }
 }
 
+/** D12: só leitura da original guardada do rascunho; o assistente avisa, nunca bloqueia. Erro ou ambiguidade = ok:false. */
+export async function lerDimensoesDaOriginal(
+  testId: string,
+): Promise<{ ok: true; dimensions: string | null; medida: boolean } | { ok: false }> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false } }
+  const supabase = getSupabaseServiceClient()
+  const { data: test, error: eTeste } = await supabase
+    .from('ab_tests').select('id').eq('id', testId).eq('site_id', siteId).maybeSingle()
+  if (eTeste || !test) return { ok: false }
+  const { data: originais, error: eVar } = await supabase
+    .from('ab_test_variants').select('dimensions, thumbnail_dhash')
+    .eq('test_id', testId).eq('is_original', true).limit(2)
+  if (eVar || !originais || originais.length > 1) return { ok: false }
+  const original = originais[0]
+  return { ok: true, dimensions: original?.dimensions ?? null, medida: original?.thumbnail_dhash != null }
+}
+
 // ---------------------------------------------------------------------------
 // pullPipelineThumbnails
 // ---------------------------------------------------------------------------
