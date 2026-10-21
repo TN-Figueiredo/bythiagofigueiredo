@@ -89,5 +89,13 @@ Decisão do dono (21/10): não existe "Meu canal não tem o Teste e compare". A 
 - **C7 Termos só internos que vazam ao dono no spec/Cowork:** `nativo`, `detectado`, `ficha`, `variante`, `indício` sozinho. No Cowork e no e-mail, usar os termos da tela.
 - **C8 `status_note`/`reason`/`learning`** exibem texto livre; não podem carregar rótulo novo fora deste glossário (decisão r9: log da flag vai ao `audit_log`).
 
+## 9. Troca observada em concorrente (r11, spec §5.8)
+
+| Termo na tela / Cowork | Definição (1 linha) | Evitar |
+|---|---|---|
+| **troca observada** | O concorrente mudou a miniatura ou o título e a mudança ficou (A depois B). Pode ser edição manual; não afirma teste. | "teste do concorrente", "teste nativo observado" |
+| **possível teste do YouTube** | A versão original voltou depois da nova (A, B, A na mesma janela): indício de teste, não prova. Só vira "teste" na tela depois do aceite (spec §7). | "teste nativo observado", "teste do concorrente", "venceu" |
+| **sem troca vista** / **não medido** | Sonda leu o vídeo (8 rodadas ou mais, recente) e nada mudou / a sonda não leu o bastante. Nunca "não testou". | "0 versões", "sem teste" |
+
 ## 8. Não verificado
 Só li spec e README/NOTAS e fiz busca textual nos HTML; não abri os mockups no navegador nem revi o M2 (ainda não existe). O texto exato de botões em `index.html` pode diferir dos READMEs; a conferência de cada tela é tarefa do M2.
