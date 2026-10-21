@@ -28,4 +28,4 @@ Spec: `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` (partes 00 a 06).
 
 **Brief comum aos redatores:** `.superpowers/sdd/manutencao-nas/brief-planos.md`.
 
-**Nota de 21/10 (M2):** o rascunho `supabase/rascunhos/m2.sql` (bloco 11b) passou a partir do corpo da F1 do Remover canal (`20261021000002`, md5 `7f556c5ff664bd0eb1dade3f53c50568`, igual ao de produção) e aplica só a guarda por folhas; o bloco 11 (`obs_archive_uncovered`, `obs_db_size_record`) não foi tocado pela F1. Commit: ver `git log -- supabase/rascunhos/m2.sql`.
+**Nota de 21/10 (M2):** o rascunho `supabase/rascunhos/m2.sql` (bloco 11b) passou a partir do corpo da F1 do Remover canal (`20261021000002`, md5 `7f556c5ff664bd0eb1dade3f53c50568`, igual ao de produção) e aplica só a guarda por folhas; o bloco 11 (`obs_archive_uncovered`, `obs_db_size_record`) não foi tocado pela F1. Commit: ver `git log -- supabase/rascunhos/m2.sql`. ORDEM: aplicar DEPOIS da F1 do Remover canal (20261021000002). Sem a F1, o 11b recusa (M2:competitor_channel_remove_archived_divergente). Reaplicar a F1 depois da M2 desfaz a guarda por folhas.

@@ -4,6 +4,7 @@
 -- Spec: docs/superpowers/specs/2026-10-13-fase-manutencao-nas/02 §10.2. Plano: docs/superpowers/plans/2026-10-14-manutencao-nas-m2-particoes.md
 -- Idempotente: a conversão sai sem fazer nada se a tabela já é particionada; o resto é create-or-replace / if not exists.
 -- O que acontece sem dado: tabela vazia ganha partições do mês corrente a 12 à frente. Erro: a conversão inteira desfaz.
+-- ORDEM: aplicar DEPOIS da F1 do Remover canal (20261021000002). Sem a F1, o 11b recusa (M2:competitor_channel_remove_archived_divergente). Reaplicar a F1 depois da M2 desfaz a guarda por folhas.
 -- =============================================================================
 set local lock_timeout = '5s';
 
