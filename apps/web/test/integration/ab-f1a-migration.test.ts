@@ -123,7 +123,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T1: migration (colunas, CHECKs, ab_
   it('(b2) venceu_nova sem variante_vencedora é recusada pelo banco (Phil m7)', async () => {
     await tx(async () => {
       expect(await erro(`insert into public.ab_native_tests (site_id, video_id, youtube_video_id, origem, campos, estado, confirmado_em, variantes, resposta_dono, respondido_em)
-        values ($1, $2, 'abcdefghijk', 'confirmado', '{titulo}', 'encerrado', now(), $3::jsonb, 'venceu_nova', now())`, [siteId, videoId, FICHA2])).toBe('23514')
+        values ($1, $2, 'abcdefghijk', 'confirmado', '{titulo}', 'em_andamento', now(), $3::jsonb, 'venceu_nova', now())`, [siteId, videoId, FICHA2])).toBe('23514')
     })
   })
 
