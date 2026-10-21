@@ -38,7 +38,7 @@ export interface OpcoesSaida {
 }
 
 export type ResultadoSaida =
-  | { resultado: 'feito'; campos: RestoreStatus; aviso?: ResultadoAviso } // aviso: 'sem_destinatario'/'falha_de_envio' sobem ao chamador (Y-P3)
+  | { resultado: 'feito'; campos: RestoreStatus; aviso?: ResultadoAviso; pausadoPorTesteYoutube?: true } // aviso: 'sem_destinatario'/'falha_de_envio' sobem ao chamador (Y-P3)
   | { resultado: 'precisa_confirmar'; campos: Array<{ campo: CampoNome; valor_atual: string }> }
   | { resultado: 'ja_encerrado'; campos: RestoreStatus | null }
   | { resultado: 'em_andamento'; campos: RestoreStatus | null }
@@ -518,7 +518,7 @@ async function gravarPuladoDefinitivo(portas: PortasSaida, r: Retrato, campos: C
     const status = (data as { status: string } | null)?.status
     return status && ['active', 'paused'].includes(status) ? { resultado: 'em_andamento', campos: null } : { resultado: 'ja_encerrado', campos: null }
   }
-  return { resultado: 'feito', campos: final }
+  return { resultado: 'feito', campos: final, pausadoPorTesteYoutube: true } // pausa sem escrita: os chamadores não a tratam como a saída pedida
 }
 
 export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<PortasSaida> = {}): Promise<ResultadoSaida> {
@@ -565,7 +565,11 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
         return pergunta ? [{ campo: c, valor_atual: valorAtual(c, leitura, acesso) }] : []
       })
       if (perguntar.length) return { resultado: 'precisa_confirmar', campos: perguntar }
-    } catch { /* o passo 3 decide */ }
+    } catch {
+      // Depois de pulado_teste_youtube, sem a leitura o passo 3 poderia escrever o original sobre uma variante nossa no ar: pergunta em vez de seguir.
+      if (aposTesteYoutube) return { resultado: 'precisa_confirmar', campos: campos.map((c) => ({ campo: c, valor_atual: '' })) }
+      /* o passo 3 decide */
+    }
   }
 
   // PODE-1: em_andamento velho (já com >= 2 min) conta a tentativa antes de ser sobrescrito.
