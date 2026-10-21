@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { DIA_MS, URGENTE_DIAS, VALIDADE_DIAS, ordenarFila, perdaCobertaPorCriterios, registroDeVencimento, venceEm } from '@/lib/youtube/coleta/fila-relatorios'
+import { DIA_MS, FAIXA_1, URGENTE_DIAS, VALIDADE_DIAS, ordenarFila, perdaCobertaPorCriterios, registroDeVencimento, venceEm } from '@/lib/youtube/coleta/fila-relatorios'
 
 // A função é pura: recebe o "agora" por parâmetro e nunca lê o relógio.
 const AGORA = Date.UTC(2026, 9, 7, 12, 0, 0)
@@ -25,7 +25,7 @@ describe('venceEm', () => {
 describe('ordenarFila', () => {
   it('entre os que não são de alcance, quem vence primeiro vai primeiro, mesmo criado depois e de tipo de menor prioridade', () => {
     // basic de histórico criado há 10 dias vence em 20; tráfego corrente criado há 20 dias vence em 40.
-    expect(ordem([item('trafego-corrente', 'channel_traffic_source_a3', 20), item('basic-historico', 'channel_basic_a3', 10, true)]))
+    expect(ordem([item('trafego-corrente', 'channel_device_os_a3', 20), item('basic-historico', 'channel_basic_a3', 10, true)]))
       .toEqual(['basic-historico', 'trafego-corrente'])
   })
 
@@ -105,5 +105,36 @@ describe('E20: registro de vencimento (MG13)', () => {
     expect(perdaCobertaPorCriterios(p, AGORA)).toBe(false)
     expect(perdaCobertaPorCriterios({ ...p, expired_at: new Date(AGORA).toISOString() }, AGORA)).toBe(true)
     expect(perdaCobertaPorCriterios({ ...p, expired_at: new Date(AGORA - 15 * DIA_MS).toISOString() }, AGORA)).toBe(false)
+  })
+})
+
+describe('faixa 1 com o detalhe da origem (F0-a)', () => {
+  it('FAIXA_1 é o alcance mais traffic_source', () => {
+    expect(FAIXA_1).toEqual(['channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3'])
+  })
+
+  it('traffic_source corrente passa na frente de histórico de outro tipo que vence antes', () => {
+    // device histórico criado há 10 dias vence em 20; traffic corrente criado há 5 dias vence em 55.
+    expect(ordem([item('device', 'channel_device_os_a3', 10, true), item('traffic', 'channel_traffic_source_a3', 5, false)]))
+      .toEqual(['traffic', 'device'])
+  })
+
+  it('urgente continua na frente do traffic', () => {
+    // demographics histórico criado há 24 dias vence em 6.
+    expect(ordem([item('traffic', 'channel_traffic_source_a3', 5, false), item('urgente', 'channel_demographics_a1', 24, true)]))
+      .toEqual(['urgente', 'traffic'])
+  })
+
+  it('alcance e traffic na mesma faixa desempatam por vencimento', () => {
+    expect(ordem([item('reach', 'channel_reach_basic_a1', 1, false), item('traffic', 'channel_traffic_source_a3', 10, false)]))
+      .toEqual(['traffic', 'reach'])
+    expect(ordem([item('traffic', 'channel_traffic_source_a3', 1, false), item('reach', 'channel_reach_basic_a1', 10, false)]))
+      .toEqual(['reach', 'traffic'])
+  })
+
+  it('traffic histórico (vence em 30) passa na frente de reach_basic corrente (vence em 60)', () => {
+    // Efeito transitório: com o canal novo, ~30 históricos de traffic_source passam à frente do alcance corrente (hoje 2 canais).
+    expect(ordem([item('reach', 'channel_reach_basic_a1', 0, false), item('traffic', 'channel_traffic_source_a3', 0, true)]))
+      .toEqual(['traffic', 'reach'])
   })
 })
