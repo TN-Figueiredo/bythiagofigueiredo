@@ -33,6 +33,7 @@ vi.mock('@/lib/youtube/coleta/alerts', () => ({ avisarEntrada: vi.fn(), avisarSa
 import { rodarColeta } from '@/lib/youtube/coleta'
 import { criarRelogio } from '@/lib/youtube/coleta/clock'
 import { REPORT_TYPES_ENABLED } from '@/lib/youtube/reporting/types'
+import { criterioOrcamento } from '@/lib/youtube/coleta/criteria'
 import { comE11Padrao, fakeSupabase, semearCobertura, type Row } from './fake-supabase'
 
 const AGORA = new Date('2026-10-07T12:00:00.000Z')
@@ -166,5 +167,19 @@ describe('orçamento, com os passos de verdade', () => {
     expect(db.rpcCalls.filter(c => c.name === 'yt_own_dim_prova')).toEqual([])
     expect(depois.resumo.e11).toBeUndefined()
     expect(depois.falhas).toEqual([])
+  })
+})
+
+describe('orçamento: sem_videos (F0-b, regressão)', () => {
+  it('uma tentativa sem_videos nos últimos 14 dias nunca vira falta de orçamento', async () => {
+    const dia = (n: number) => new Date(AGORA.getTime() - n * 86_400_000).toISOString().slice(0, 10)
+    const db = fakeSupabase({
+      yt_own_collection_attempts: ['meta', 'diario'].flatMap(kind => [0, 1, 2].map(n => (
+        { scope_type: 'canal', scope_id: 'ch-1', kind, outcome: 'sem_videos', attempt_day: dia(n), channel_id: 'ch-1', site_id: 'site-1', attempts: 1 }
+      ))),
+    })
+    const ctx = { supabase: db.client, falhas: [] as string[] }
+    await criterioOrcamento(ctx, ['meta', 'diario'])
+    expect(ctx.falhas).toEqual([])
   })
 })

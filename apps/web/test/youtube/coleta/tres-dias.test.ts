@@ -286,7 +286,10 @@ describe('três dias seguidos, passos e critérios de verdade', () => {
     expect(porStatus(db, SEM_VIDEO.id, 'vazio')).toBe((TOTAL_HISTORICO + N_JOBS) / 2)
     // Uma linha de metadados por vídeo por dia, nos três dias; nenhuma tentativa diferente de ok em dia nenhum.
     expect(db.tables.yt_own_video_meta_daily).toHaveLength(9)
-    expect((db.tables.yt_own_collection_attempts ?? []).filter(t => t.outcome !== 'ok')).toEqual([])
+    // A única exceção é o canal sem vídeo, que ganha `sem_videos` em meta e diário (F0-b): 2 kinds x 3 dias, nunca falha.
+    const naoOk = (db.tables.yt_own_collection_attempts ?? []).filter(t => t.outcome !== 'ok')
+    expect(naoOk.filter(t => !(t.outcome === 'sem_videos' && t.scope_type === 'canal' && t.scope_id === SEM_VIDEO.id))).toEqual([])
+    expect(naoOk).toHaveLength(6)
     expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
   })
 

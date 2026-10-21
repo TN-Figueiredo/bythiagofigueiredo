@@ -228,11 +228,13 @@ describe('passoDiario: gravação pela função', () => {
     expect(resumo.com_buraco).toBe(1)
   })
 
-  it('vídeo sem published_at não entra; canal sem vídeos não gera tentativa', async () => {
+  it('vídeo sem published_at não entra; o canal sem vídeo elegível ganha só sem_videos (F0-b)', async () => {
     const db = bd([v(1, null)])
     await passoDiario(ctxDe(db))
     expect(diarioDoVideo).not.toHaveBeenCalled()
-    expect(db.tables.yt_own_collection_attempts ?? []).toHaveLength(0)
+    const ts = db.tables.yt_own_collection_attempts ?? []
+    expect(ts).toHaveLength(1)
+    expect(ts[0]).toMatchObject({ scope_type: 'canal', scope_id: 'ch-1', kind: 'diario', outcome: 'sem_videos' })
   })
 
   it('canal com sync desligado é ignorado', async () => {
@@ -598,5 +600,36 @@ describe('passoDiario: banco', () => {
     ])
     await passoDiario(ctxDe(db))
     expect(diarioDoVideo).toHaveBeenCalledWith(expect.objectContaining({ inicio: addDays(HOJE, -10) }))
+  })
+})
+
+describe('passoDiario: canal sem vídeos (F0-b)', () => {
+  const vazio = { ...canal, id: 'ch-2', channel_id: 'UC2', name: 'Canal Vazio' }
+  const doVazio = (db: FakeDb) => (db.tables.yt_own_collection_attempts ?? []).filter(r => r.scope_id === 'ch-2' && r.kind === 'diario')
+
+  it('canal ativo com 0 vídeos: uma tentativa sem_videos, sem token; o canal com vídeos segue gravando ok', async () => {
+    const db = bd([v(1)])
+    const ctx = { ...ctxDe(db), channels: [{ ...canal }, { ...vazio }] }
+    await passoDiario(ctx)
+    expect(doVazio(db)).toEqual([expect.objectContaining({ scope_type: 'canal', kind: 'diario', outcome: 'sem_videos' })])
+    expect(tentativa(db, 'video', 'yt1')?.outcome).toBe('ok')
+    expect(vi.mocked(ensureFreshToken).mock.calls.every(c => JSON.stringify(c).includes('UC2') === false)).toBe(true)
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('canal desligado e sem vídeos continua fora do diário: nenhuma tentativa (P-M1)', async () => {
+    const db = bd([])
+    const ctx = { ...ctxDe(db), channels: [{ ...vazio, sync_enabled: false }] }
+    await passoDiario(ctx)
+    expect(db.tables.yt_own_collection_attempts ?? []).toHaveLength(0)
+  })
+
+  it('lote no teto (1.000 vídeos): nenhum canal ganha sem_videos; o fora do lote fica nao_alcancado_orcamento (P4)', async () => {
+    const muitos = Array.from({ length: 1000 }, (_, i) => v(i + 1))
+    const db = bd(muitos)
+    const ctx = { ...ctxDe(db), channels: [{ ...canal }, { ...vazio }] }
+    await passoDiario(ctx)
+    expect((db.tables.yt_own_collection_attempts ?? []).some(r => r.outcome === 'sem_videos')).toBe(false)
+    expect(doVazio(db).map(r => r.outcome)).toEqual(['nao_alcancado_orcamento'])
   })
 })

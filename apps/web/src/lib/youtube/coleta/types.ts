@@ -4,7 +4,7 @@ import type { AttemptKind } from './kinds'
 
 export const OUTCOMES = [
   'ok', 'sem_dado_na_janela', 'video_novo', 'sem_conexao', 'sem_autorizacao',
-  'erro_http', 'nao_alcancado_orcamento', 'schema_ausente',
+  'erro_http', 'nao_alcancado_orcamento', 'schema_ausente', 'sem_videos',
 ] as const
 export type Outcome = (typeof OUTCOMES)[number]
 export { COLLECTION_KINDS } from './kinds'
