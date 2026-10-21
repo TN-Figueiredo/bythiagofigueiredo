@@ -258,7 +258,7 @@ describe('passoRelatorios: baixar', () => {
 
   it('o teto de downloads cabe no teto de tempo do passo, pela medida de produção: mexer num exige refazer a conta', () => {
     const MS_POR_DOWNLOAD = 900   // pior medida: 36,0 s para listar 8 jobs e baixar 40 (execução de 11/10/2026)
-    const MS_LISTAGEM = 20_000    // reserva para listar 26 jobs, 4 em paralelo
+    const MS_LISTAGEM = 20_000    // reserva para listar 38 jobs (19 tipos x 2 canais), 4 em paralelo; D+1: conferir ms_listar <= 20000
     expect(MAX_DOWNLOADS * MS_POR_DOWNLOAD + MS_LISTAGEM).toBeLessThanOrEqual(TETOS_MS.relatorios)
   })
 

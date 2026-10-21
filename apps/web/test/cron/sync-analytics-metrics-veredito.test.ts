@@ -676,30 +676,56 @@ describe('F0-c: modo parcial', () => {
     expect(recordCronFailure).toHaveBeenCalledWith(PARCIAL, 'erro de banco ao ler youtube_channels')
   })
 
-  it('Phil P2b: parcial sem baixar nada com fila: vermelho; fila vazia: verde', async () => {
+  it('Phil P2b: parcial sem gravar nada com fila: vermelho; fila vazia: verde', async () => {
     banco()
-    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { baixados: 0, parou_por_limite: true, pendentes: 12 } } }))
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { gravados: 0, baixados: 0, vazios: 0, parou_por_limite: true, pendentes: 12 } } }))
     await GET(pedidoCom(`?passos=${LISTA}`) as never)
-    expect(recordCronFailure).toHaveBeenCalledWith(PARCIAL, 'relatórios: a parcial não baixou nada com 12 na fila')
+    expect(recordCronFailure).toHaveBeenCalledWith(PARCIAL, 'relatórios: a parcial não gravou nenhum relatório com 12 pendente(s)')
     vi.clearAllMocks()
     banco()
-    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { baixados: 0, parou_por_limite: true, pendentes: 0 } } }))
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { gravados: 0, baixados: 0, vazios: 0, parou_por_limite: true, pendentes: 0 } } }))
     await GET(pedidoCom(`?passos=${LISTA}`) as never)
     expect(recordCronFailure).not.toHaveBeenCalled()
     expect(recordCronSuccess).toHaveBeenCalledWith(PARCIAL)
   })
 
-  it('parcial com baixados=0, sem parou_por_limite e 5 na fila: vermelho; baixados>0: verde', async () => {
+  it('parcial com gravados=0 e 5 na fila: vermelho; gravados>0: verde', async () => {
     banco()
-    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { baixados: 0, parou_por_limite: false, pendentes: 5 } } }))
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { gravados: 0, baixados: 0, parou_por_limite: false, pendentes: 5 } } }))
     await GET(pedidoCom(`?passos=${LISTA}`) as never)
-    expect(recordCronFailure).toHaveBeenCalledWith(PARCIAL, 'relatórios: a parcial não baixou nada com 5 na fila')
+    expect(recordCronFailure).toHaveBeenCalledWith(PARCIAL, 'relatórios: a parcial não gravou nenhum relatório com 5 pendente(s)')
     vi.clearAllMocks()
     banco()
-    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { baixados: 3, parou_por_limite: false, pendentes: 5 } } }))
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { gravados: 3, baixados: 3, parou_por_limite: false, pendentes: 5 } } }))
     await GET(pedidoCom(`?passos=${LISTA}`) as never)
     expect(recordCronFailure).not.toHaveBeenCalled()
     expect(recordCronSuccess).toHaveBeenCalledWith(PARCIAL)
+  })
+
+  it('Phil B1: só relatórios vazios (baixados=0, gravados>0) com fila: verde', async () => {
+    banco()
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { baixados: 0, vazios: 40, gravados: 40, pendentes: 200 } } }))
+    await GET(pedidoCom(`?passos=${LISTA}`) as never)
+    expect(recordCronFailure).not.toHaveBeenCalled()
+    expect(recordCronSuccess).toHaveBeenCalledWith(PARCIAL)
+  })
+
+  it('Yannis I-1: saída sem tempo (sem baixados nem gravados válidos, pendentes>0): vermelho', async () => {
+    banco()
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { gravados: 0, pendentes: 2, sem_tempo: true } } }))
+    await GET(pedidoCom(`?passos=${LISTA}`) as never)
+    expect(recordCronFailure).toHaveBeenCalledWith(PARCIAL, 'relatórios: a parcial não gravou nenhum relatório com 2 pendente(s)')
+    vi.clearAllMocks()
+    banco()
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { pendentes: 2, sem_tempo: true } } }))
+    await GET(pedidoCom(`?passos=${LISTA}`) as never)
+    expect(recordCronFailure).toHaveBeenCalled()
+  })
+
+  it('Yannis M-5: a parcial válida responde status "parcial", não no_channels', async () => {
+    banco()
+    const res = await GET(pedidoCom(`?passos=${LISTA}`) as never)
+    expect((await res.json()).status).toBe('parcial')
   })
 
   it('completo (sem passos) não aplica a regra: baixados=0 com fila continua verde', async () => {

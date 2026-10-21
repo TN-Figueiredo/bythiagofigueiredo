@@ -482,9 +482,11 @@ export async function GET(req: NextRequest) {
 
   // Phil P2b: a parcial existe para baixar relatórios; ela rodar e não baixar nada com fila é vermelho, não verde.
   if (passos) {
-    const rel = (depois.resto.relatorios ?? antes.resto.relatorios) as { baixados?: unknown; parou_por_limite?: unknown; pendentes?: unknown } | undefined
-    if (rel && rel.baixados === 0 && typeof rel.pendentes === 'number' && rel.pendentes > 0) {
-      pushUnico(falhas, `relatórios: a parcial não baixou nada com ${rel.pendentes} na fila`)
+    const rel = (depois.resto.relatorios ?? antes.resto.relatorios) as { gravados?: unknown; pendentes?: unknown } | undefined
+    // `gravados` = baixados + vazios (relatório vazio é baixado, só sem linhas); `baixados` conta só os com linhas.
+    // Saída sem tempo vem sem `gravados` e com `pendentes` = canais: também é "rodou e não fez nada".
+    if (rel && typeof rel.pendentes === 'number' && rel.pendentes > 0 && !(typeof rel.gravados === 'number' && rel.gravados > 0)) {
+      pushUnico(falhas, `relatórios: a parcial não gravou nenhum relatório com ${rel.pendentes} pendente(s)`)
     }
   }
 
@@ -522,7 +524,9 @@ export async function GET(req: NextRequest) {
     acao_do_dono: acaoDoDono,
     ...(falhas.length > 0 && { falhas }),
   }
-  const corpo = lista.length === 0
+  const corpo = passos
+    ? { status: 'parcial', passos: [...passos], ...extras }
+    : lista.length === 0
     ? { status: 'no_channels', ...extras }
     : {
         synced: antiga?.synced ?? 0,
