@@ -64,7 +64,7 @@ export interface EntradaDaFrase {
   /** Nulo = as medidas não carregaram. */
   direcao: CelulaDeDirecao | null
   formato: FormatoDoCanal
-  ritmo: { porSemana: number; semanasLidas: number; semanasComPublicacao: number } | null
+  ritmo: { porSemana: number; n: number; semanasLidas: number; semanasComPublicacao: number; base: { tipo: 'criacao' | 'cobertura'; dias: number } | null } | null
   /** Acerto "k de n" (vídeos recentes), nulo se não medido. */
   acerto: { k: number; n: number } | null
   /** Parado: dias, data (AAAA-MM-DD) do último vídeo, intervalo habitual em dias (ou nulo). */
@@ -147,9 +147,10 @@ function fraseDeDirecao(e: EntradaDaFrase, oracao: string | null): FraseDoTopo {
       : ` ${d.tipo === 'nao_medido' ? d.longa : ''}`
     let pubs = ''
     if (r) {
-      const n = Math.round(r.porSemana * 13)
+      const n = r.n
       const quem = e.formato.soShorts ? ptn(n, 'Short', 'Shorts') : ptn(n, 'vídeo longo', 'vídeos longos')
-      pubs = r.semanasLidas < 13 ? ` Ele publicou ${quem} nas ${ptn(r.semanasLidas, 'semana', 'semanas')} com leitura.` : ` Ele publicou ${quem} nas últimas 13 semanas.`
+      pubs = r.base ? ` Ele publicou ${quem} ${r.base.tipo === 'criacao' ? `desde a criação do canal (${ptn(r.base.dias, 'dia', 'dias')})` : `nos ${ptn(r.base.dias, 'dia', 'dias')} guardados`}.`
+        : r.semanasLidas < 13 ? ` Ele publicou ${quem} nas ${ptn(r.semanasLidas, 'semana', 'semanas')} com leitura.` : ` Ele publicou ${quem} nas últimas 13 semanas.`
     }
     return montar('eq', 'interr', [{ t: 'Ainda não dá para dizer para onde o canal anda:', k: 'forte' }, { t: `${corpo}${pubs}` }], oracao)
   }

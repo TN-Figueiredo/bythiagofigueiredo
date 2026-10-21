@@ -125,4 +125,34 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
       expect(await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)).toBe(antes)
     } finally { await pg.query('rollback') }
   })
+
+  it('bloco 11b: a M2 sobre a F1 NÃO desfaz a F1 (a watch, a trava de vídeo compartilhado e o campo watch do retorno continuam) e acrescenta só a guarda por folhas', async () => {
+    await emTx(async () => {
+      const src = await escalar<string>(pg, `select prosrc from pg_proc where oid = 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure`)
+      for (const trecho of ['obs_f1_video_compartilhado', 'yt_watch_readings', 'yt_watch_thumbs', 'yt_watch_alvos', 'E10:sobrou_linha: watch', "'watch', jsonb_build_object('readings'", 'pg_partition_tree']) {
+        expect(src, `trecho da F1 ausente depois da M2: ${trecho}`).toContain(trecho)
+      }
+      const c = await semearCena(pg)
+      await exportarConferirConfirmar(pg, c, c.canalA, 'lote-m2-f1')
+      const r = await escalar<{ status: string; watch: Record<string, number> }>(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
+      expect(r.status).toBe('removido')
+      expect(Object.keys(r.watch).sort()).toEqual(['alvos', 'readings', 'thumbs'])
+    })
+  })
+
+  it('bloco 11b: um corpo quase igual ao da F1 (uma linha a mais) também recusa: o hash é do corpo inteiro, não de um trecho', async () => {
+    await pg.query('begin')
+    try {
+      await garantirMg6(pg)
+      const def = await escalar<string>(pg, `select pg_get_functiondef('public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure)`)
+      expect(def).toContain('obs_f1_video_compartilhado')
+      expect(def).not.toContain('pg_partition_tree')
+      await pg.query(def.replace('v_now timestamptz := pg_catalog.clock_timestamp();', 'v_now timestamptz := pg_catalog.clock_timestamp(); -- mutante'))
+      await pg.query('savepoint s')
+      const r = await tenta(pg, M2_SQL)
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/M2:competitor_channel_remove_archived_divergente/)
+      await pg.query('rollback to savepoint s')
+    } finally { await pg.query('rollback') }
+  })
 })

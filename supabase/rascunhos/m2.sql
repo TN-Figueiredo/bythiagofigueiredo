@@ -4,6 +4,7 @@
 -- Spec: docs/superpowers/specs/2026-10-13-fase-manutencao-nas/02 §10.2. Plano: docs/superpowers/plans/2026-10-14-manutencao-nas-m2-particoes.md
 -- Idempotente: a conversão sai sem fazer nada se a tabela já é particionada; o resto é create-or-replace / if not exists.
 -- O que acontece sem dado: tabela vazia ganha partições do mês corrente a 12 à frente. Erro: a conversão inteira desfaz.
+-- ORDEM: aplicar DEPOIS da F1 do Remover canal (20261021000002). Sem a F1, o 11b recusa (M2:competitor_channel_remove_archived_divergente). Reaplicar a F1 depois da M2 desfaz a guarda por folhas.
 -- =============================================================================
 set local lock_timeout = '5s';
 
@@ -590,9 +591,9 @@ declare
 begin
   select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure('public.competitor_channel_remove_archived(uuid,uuid,uuid)');
   if v_src is not null and v_src !~ 'pg_partition_tree' then
-    if pg_catalog.md5(v_src) <> '467d3bc3c887af98196c8e415780d40b' then
+    if pg_catalog.md5(v_src) <> '7f556c5ff664bd0eb1dade3f53c50568' then
       raise exception 'M2:competitor_channel_remove_archived_divergente' using errcode = 'P0001',
-        detail = 'o corpo instalado não é o da fixture de 14/10: copiar o corpo instalado com a guarda por folhas para esta migration';
+        detail = 'o corpo instalado não é o da F1 de 21/10 (20261021000002): copiar o corpo instalado com a guarda por folhas para esta migration';
     end if;
     execute $f$
 create or replace function public.competitor_channel_remove_archived(p_site uuid, p_channel uuid, p_actor uuid)
@@ -610,6 +611,10 @@ declare
   v_arquivos integer;
   v_featured integer;
   v_refs jsonb;       -- (revisão Phil 14/10, I-5) quais comentários de OUTROS canais destacavam este: o set null os zera, o rastro fica no audit_log
+  v_yt text[];        -- F1: ids de YouTube dos vídeos do canal (chave das yt_watch_*)
+  v_n_l bigint := 0;  -- F1: linhas da watch apagadas
+  v_n_t bigint := 0;
+  v_n_a bigint := 0;
   v_base jsonb;       -- (revisão Phil 14/10, I-2; M2 11b: soma das folhas da partição) n_tup_del de cada tabela do fecho de cascata, antes do delete
   v_t record;
   v_now timestamptz := pg_catalog.clock_timestamp();
@@ -643,6 +648,8 @@ begin
   end if;
   perform public.obs_archive_guard(p_site, v_batch, p_channel, 'confirmado');
   perform 1 from public.competitor_videos v where v.competitor_channel_id = p_channel for update;
+  -- F1 (1/3): vídeo que outro canal do site ou um teste nosso também acompanha não se apaga com este canal
+  perform public.obs_f1_video_compartilhado(p_site, p_channel);
   if to_regclass('public.competitor_video_comments') is not null then
     perform 1 from public.competitor_video_comments k
       where k.competitor_channel_id = p_channel
@@ -659,6 +666,26 @@ begin
     from public.competitor_video_versions x
     join public.competitor_videos v on v.id = x.video_id
    where v.competitor_channel_id = p_channel and x.thumb_blob_url is not null;
+  -- F1 (2/3): a watch não está no fecho de cascata: apaga explicitamente, ANTES do canal, e compara linha a linha com o lote
+  select coalesce(array_agg(v.video_id), '{}'::text[]) into v_yt from public.competitor_videos v where v.competitor_channel_id = p_channel;
+  perform 1 from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt) for update;
+  delete from public.yt_watch_readings r where r.site_id = p_site and r.youtube_video_id = any(v_yt);
+  get diagnostics v_n_l = row_count;
+  delete from public.yt_watch_thumbs t where t.site_id = p_site and t.youtube_video_id = any(v_yt);
+  get diagnostics v_n_t = row_count;
+  delete from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt);
+  get diagnostics v_n_a = row_count;
+  for v_t in
+    select x.nome, x.apagadas,
+           coalesce((select sum(b.row_count) from public.obs_archive_batches b
+                      where b.site_id = p_site and b.batch = v_batch and b.channel_ref = p_channel::text
+                        and b.table_name = x.nome and b.deleted_at is null), 0) as arquivadas
+      from (values ('yt_watch_readings', v_n_l), ('yt_watch_thumbs', v_n_t), ('yt_watch_alvos', v_n_a)) x (nome, apagadas)
+  loop
+    if v_t.apagadas <> v_t.arquivadas then
+      raise exception 'E10:apagou_alem_do_arquivo: % apagadas=% arquivadas=%', v_t.nome, v_t.apagadas, v_t.arquivadas using errcode = 'P0001';
+    end if;
+  end loop;
   select count(*) into v_featured from public.competitor_video_comments k
    where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
   select coalesce(jsonb_agg(jsonb_build_object('comment_id', k.id, 'video_id', k.video_id, 'channel_ref', k.competitor_channel_id) order by k.id), '[]'::jsonb) into v_refs
@@ -718,6 +745,12 @@ begin
   if exists (select 1 from public.obs_archive_channel_counts(p_channel)) then
     raise exception 'E10:sobrou_linha: uma tabela do registro não apaga em cascata' using errcode = 'P0001';
   end if;
+  -- F1 (3/3): nada da watch sobra para os vídeos do canal
+  if exists (select 1 from public.yt_watch_readings r where r.site_id = p_site and r.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.yt_watch_thumbs t where t.site_id = p_site and t.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt)) then
+    raise exception 'E10:sobrou_linha: watch' using errcode = 'P0001';
+  end if;
   update public.obs_archive_batches b
      set deleted_at = v_now, rows_deleted = b.row_count,
          blob_urls_pending = case when b.table_name = 'competitor_channels' then v_urls else b.blob_urls_pending end
@@ -730,10 +763,12 @@ begin
   select p_actor, 'observatorio_canal_removido_com_arquivo', 'competitor_channel', p_channel, s.org_id, p_site,
          jsonb_build_object('channel_id', v_c.channel_id, 'channel_name', v_c.channel_name),
          jsonb_build_object('batch', v_batch, 'arquivos', v_arquivos, 'linhas', v_linhas,
-                            'miniaturas_no_blob', cardinality(v_urls), 'featured_refs_cleared', v_featured, 'featured_refs', v_refs)
+                            'miniaturas_no_blob', cardinality(v_urls), 'featured_refs_cleared', v_featured, 'featured_refs', v_refs,
+                            'watch', jsonb_build_object('readings', v_n_l, 'thumbs', v_n_t, 'alvos', v_n_a))
     from public.sites s where s.id = p_site;
   return jsonb_build_object('status', 'removido', 'batch', v_batch, 'arquivos', v_arquivos, 'linhas', v_linhas,
-                            'blob_urls', to_jsonb(v_urls), 'featured_refs_cleared', v_featured);
+                            'blob_urls', to_jsonb(v_urls), 'featured_refs_cleared', v_featured,
+                            'watch', jsonb_build_object('readings', v_n_l, 'thumbs', v_n_t, 'alvos', v_n_a));
 end $b$;
 $f$;
     revoke all on function public.competitor_channel_remove_archived(uuid, uuid, uuid) from public, anon, authenticated;

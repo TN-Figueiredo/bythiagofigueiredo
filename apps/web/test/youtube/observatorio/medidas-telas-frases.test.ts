@@ -16,7 +16,7 @@ const VAZIO: ContextoDaFrase = {}
 
 describe('frases das telas (E5a T1)', () => {
   it('todo motivo da E4 tem frase curta e longa não vazias', () => {
-    expect(MOTIVOS_NAO_MEDIDO).toHaveLength(36)
+    expect(MOTIVOS_NAO_MEDIDO).toHaveLength(37)
     for (const m of MOTIVOS_NAO_MEDIDO) for (const c of [VAZIO, CHEIO]) {
       const f = FRASES[m](c)
       expect(f.curta.length, m).toBeGreaterThan(3); expect(f.longa.length, m).toBeGreaterThan(15)

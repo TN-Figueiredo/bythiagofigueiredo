@@ -15,6 +15,8 @@ import { NicheSelect } from './niche-editor'
 import type { Niche } from '@/lib/youtube/observatorio/types'
 import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { usePrefetchOnIntent } from './use-prefetch-on-intent'
+import { NotaRitmo, NotaRitmoReserva } from '../_chrome/nota-ritmo'
+import { TXT, fraseAgendadoIa } from './remover-model'
 
 const P: Record<string, ReactNode> = {
   wait: <path d="M4 1.5h8M4 14.5h8M5 1.5c0 3 6 3.5 6 6.5s-6 3.5-6 6.5M11 1.5c0 3-6 3.5-6 6.5s6 3.5 6 6.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />,
@@ -68,22 +70,36 @@ export function ThumbView({ t, lg }: { t: Thumb | null; lg?: boolean }) {
   )
 }
 
-/** 13-week strip: long bars and Short bars per week (geometry only; the counts come from the engine). */
+/**
+ * 13-week strip: long bars and Short bars per week (geometry only; the counts come from the engine). Semana fora do período (antes da
+ * criação ou da cobertura guardada, `long === null`) NÃO é semana sem vídeo: as consecutivas viram UMA faixa tracejada de altura cheia,
+ * de forma diferente do traço de 2 px do zero.
+ */
 export function Strip({ cell }: { cell: CadenceCell }) {
   const W = 130, H = 30
+  const hat = 'hat' + useId().replace(/[^a-zA-Z0-9_-]/g, '')
   if (cell.kind === 'na') return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">{Array.from({ length: 13 }, (_, i) => <rect key={i} x={i * 10 + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />)}</svg>
   )
+  const fora = cell.weeks.filter(w => w.long === null).length
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={cell.label}>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={fora ? `${cell.label}; ${fora === 1 ? '1 semana fora' : `${fora} semanas fora`} do período` : cell.label}>
+      {fora ? <defs><pattern id={hat} width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="var(--out-line)" strokeWidth="1" /></pattern></defs> : null}
       {cell.weeks.map((w, i) => {
         const x = i * 10
-        if (!w.long && !w.short) return <rect key={i} x={x + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />
-        const hl = Math.min(w.long, 5) * 5.2, hs = Math.min(w.short, 6) * 2.2
+        if (w.long === null) {
+          if (i > 0 && cell.weeks[i - 1]!.long === null) return null // já coberta pela faixa que começou antes
+          let j = i
+          while (cell.weeks[j + 1]?.long === null) j++
+          return <rect key={i} data-fora="" x={x + 0.5} y={1} width={(j - i) * 10 + 9} height={H - 2} rx={1.5} fill={`url(#${hat})`} stroke="var(--out-line)" strokeWidth={1} strokeDasharray="3 2" />
+        }
+        const long = w.long, short = w.short ?? 0
+        if (!long && !short) return <rect key={i} data-zero="" x={x + 3} y={H - 2} width={3} height={2} fill="var(--strip-empty)" />
+        const hl = Math.min(long, 5) * 5.2, hs = Math.min(short, 6) * 2.2
         return (
           <g key={i}>
-            {w.long ? <rect x={x} y={H - hl} width={5} height={hl} rx={1} fill="var(--strip-long)" /> : null}
-            {w.short ? <rect x={x + 6} y={H - hs} width={3} height={hs} rx={1} fill="var(--strip-short)" opacity={0.6} /> : null}
+            {long ? <rect x={x} y={H - hl} width={5} height={hl} rx={1} fill="var(--strip-long)" /> : null}
+            {short ? <rect x={x + 6} y={H - hs} width={3} height={hs} rx={1} fill="var(--strip-short)" /> : null}
           </g>
         )
       })}
@@ -99,19 +115,30 @@ function Fm({ label, visible, children }: { label: string; visible?: boolean; ch
   return <span className="fm">{visible ? <span className="fl">{label}</span> : <span className="sr">{label}: </span>}{children}</span>
 }
 
-export function CadenceView({ c, c2, dica, dica2 }: { c: CadenceCell; c2?: CadenceCell; dica?: string | null; dica2?: string | null }) {
+/** Alguma linha à vista tem a nota do ritmo? Só então as outras reservam a coluna do sufixo (calcule sobre as linhas na tela, não sobre o total). */
+export const algumaNotaDoRitmo = (rows: ReadonlyArray<{ cells: { cadence: CadenceCell } }>): boolean => rows.some(r => r.cells.cadence.kind === 'ok' && r.cells.cadence.nota !== null)
+
+export function CadenceView({ c, c2, dica, dica2, reservar }: { c: CadenceCell; c2?: CadenceCell; dica?: string | null; dica2?: string | null; reservar?: boolean }) {
   if (c.kind === 'na') return <div className="cad"><Strip cell={c} /><Dica texto={dica}><span className="na" style={{ maxWidth: 150 }}>{c.text}</span></Dica></div>
   return (
     <div className="cad">
       <Strip cell={c} />
       <div className="v">
         {/* a unidade ("longos/sem", "Shorts/sem") já rotula cada medida */}
-        <span className={c2 ? 'fm' : undefined}><Dica texto={dica}><span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span></Dica></span>
+        <span className={c2 ? 'fm' : undefined}>
+          <Dica texto={dica}>
+            {c.nota?.tipo === 'piso'
+              ? <span className="obs-ch-nm" data-k="pw" role="img" aria-label="não medido">—</span>
+              : <><span className="num big" data-k="pw">{c.pw}</span> <span className="u">{c.unit}</span></>}
+          </Dica>
+          {c.nota ? <> <NotaRitmo nota={c.nota} soIcone={c.nota.tipo === 'piso'} /></> : reservar ? <> <NotaRitmoReserva /></> : null}
+        </span>
         {c2 ? (
           <span className="fm"><Dica texto={dica2 ?? dica}>{c2.kind === 'ok'
             ? <><span className="num">{c2.pw}</span> <span className="u">{c2.unit}</span></>
             : <span className="nd">{c2.text}</span>}</Dica></span>
         ) : null}
+        {c.nota?.tipo === 'piso' ? <small className="obs-nr-cap" data-nota-cap>{c.nota.sufixo}</small> : null}
         {c.paused ? <span className="paused"><Ic n="pause" /><span>{c.paused}</span></span> : c.sub ? <small>{c.sub}</small> : null}
       </div>
     </div>
@@ -242,7 +269,49 @@ export function SyncView({ c, local, onRetry, onRemove, somenteLeitura = false, 
  * an own channel's name is still the button that opens the drawer. An own channel takes two .sub lines: "seu canal" + niche,
  * then subscribers.
  */
-export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void }) {
+/** Ações do canal agendado dentro da célula do canal (lista e cartão); ausente = só o selo e a idade. */
+export interface AgendadoAcoes { ocupado: boolean; onDesfazer: () => void; onCopiar: () => void }
+
+/**
+ * O canal que o dono mandou guardar no NAS e o agente ainda não guardou. Mostra o selo, há quanto tempo, e (só para quem administra o site) o
+ * Desfazer e o pedido ao agente. A forma é própria (borda e fundo na linha, selo com relógio): nunca só cor.
+ */
+export function LinhaAgendada({ nome, idade, desde, podeAdministrar, ocupado, onDesfazer, onCopiar }: { nome: string; idade: string; /** ISO do pedido: a data absoluta, para o leitor de tela e o pacote de IA. */ desde: string; podeAdministrar: boolean; ocupado: boolean; onDesfazer: () => void; onCopiar: () => void }) {
+  return (
+    <div className="agd-corpo" data-agendado="">
+      <span className="agd-selo">
+        <svg className="ico" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>
+        {TXT.selo}
+      </span>
+      <span className="agd-txt">{TXT.aguardando} · {idade}<span className="sr"> ({fraseAgendadoIa(desde)})</span></span>
+      {podeAdministrar ? (
+        <span className="agd-acoes">
+          <button type="button" className="btn small" aria-busy={ocupado || undefined} aria-label={`Desfazer a remoção de ${nome}`} onClick={onDesfazer}>Desfazer</button>
+          <button type="button" className="btn small" onClick={onCopiar}>Copiar pedido ao agente</button>
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+/** O aviso dos detalhes (gaveta e página do canal) do canal agendado: só informa, sem botão (decisão do dono). O Desfazer fica na lista de Canais. */
+export function AvisoAgendado({ idade, desde }: { idade: string; desde?: string }) {
+  return (
+    <div className="agd-aviso" role="status" data-agendado-aviso="">
+      <span className="agd-selo">
+        <svg className="ico" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>
+        {TXT.selo}
+      </span>
+      <p>{TXT.avisoDetalhes}</p>
+      <span className="agd-idade">{idade}{desde ? <span className="sr"> ({fraseAgendadoIa(desde)})</span> : null}</span>
+    </div>
+  )
+}
+
+/** Sem as ações da tela-mãe o selo aparece sem botões (a prop `podeAdministrar` fica falsa): nada mudo na tela. */
+const SEM_ACAO = () => undefined
+
+export function ChCell({ r, ctx, onOpen, onNiche, agendado }: { r: CanaisRow; ctx: string; onOpen: () => void; onNiche: (n: Niche) => void; agendado?: AgendadoAcoes }) {
   // "Administrar o site" step: the niche of an OWN channel is part of its identity (admins only); it shows as text.
   const canAdminSite = useCanAdminSite()
   const intent = usePrefetchOnIntent(r.href)
@@ -271,6 +340,7 @@ export function ChCell({ r, ctx, onOpen, onNiche }: { r: CanaisRow; ctx: string;
           <Dica texto={r.dicas.subs}>{r.subsOculto ? <span className="obs-ch-nm" data-subs-ocultos="">{r.subs}</span> : <span className="num">{r.subs}</span>}</Dica>
         </div>
         <EstadoLinha r={r} />
+        {r.agendado ? <LinhaAgendada nome={r.name} idade={r.agendado.idade} desde={r.agendado.desde} podeAdministrar={canAdminSite && agendado != null} ocupado={agendado?.ocupado ?? false} onDesfazer={agendado?.onDesfazer ?? SEM_ACAO} onCopiar={agendado?.onCopiar ?? SEM_ACAO} /> : null}
         {r.semPagina ? <div className="sub sempg" id={`sempg-${ctx}-${r.id}`}>{r.semPagina}</div> : null}
         {r.semFormato ? (
           <div className="sub semfmt" data-sem-formato="">

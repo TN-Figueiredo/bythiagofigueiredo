@@ -270,3 +270,47 @@ describe('lerRespostasDoCriador (E5a C1)', () => {
     expect(r.lido).toBe(false)
   })
 })
+
+describe('FU-CANAL-CRIADOR: o fio cuja raiz é do criador não conta nem lista', () => {
+  // v1: espectador respondido (id 1) + raiz do criador com auto-resposta (id 5, 6); v2: só espectador sem resposta (id 3); v3: só o fio do criador
+  const fixture = (): Record<string, Linha[]> => {
+    const t = base()
+    t.competitor_video_comment_snaps = [...(t.competitor_video_comment_snaps ?? []), snap('v3', 30)]
+    t.competitor_video_comments = [
+      ...(t.competitor_video_comments ?? []),
+      coment(5, 'v1', { is_creator: true, creator_replied: true, body: 'FIXADO-' + SENT }),
+      coment(6, 'v1', { parent_id: 5, is_creator: true, body: 'auto-resposta' }),
+      coment(7, 'v3', { is_creator: true, creator_replied: true, body: 'FIXADO3-' + SENT }),
+      coment(8, 'v3', { parent_id: 7, is_creator: true, body: 'auto-resposta 3' }),
+    ]
+    return t
+  }
+  it('lista: sai o fio do criador; total = itens; a consulta do passo 1 leva is_creator=false', async () => {
+    const db = falsoComentarios(fixture())
+    const r = await lerRespostasDoCriador(db.client, { siteDaGuarda: S, provas: provasTexto, channelId: CANAL, videoIds: ['v1', 'v2', 'v3'] })
+    if (!r.lido) throw new Error('esperava lido')
+    expect(r.dados.itens).toHaveLength(1)
+    expect(r.dados.total).toBe(r.dados.itens.length)
+    expect(JSON.stringify(r)).not.toContain('FIXADO')
+    const topo = db.pedidos.filter((x) => x.table === 'competitor_video_comments' && x.eqs['parent_id:is'] === null)
+    expect(topo.length).toBeGreaterThan(0)
+    for (const p of topo) expect(p.eqs.is_creator).toBe(false)
+  })
+  it('contagem: mesmo número, sem texto', async () => {
+    const db = falsoComentarios(fixture())
+    const r = await lerRespostasDoCriador(db.client, { siteDaGuarda: S, provas: null, channelId: CANAL, videoIds: ['v1', 'v2', 'v3'] })
+    if (!r.lido) throw new Error('esperava lido')
+    expect(r.dados.nivel).toBe('contagem')
+    expect(r.dados.total).toBe(1)
+    for (const p of db.pedidos.filter((x) => x.table === 'competitor_video_comments')) expect(p.eqs.is_creator).toBe(false)
+  })
+  it('M11: vídeo só com o fio do criador = sem; vídeo com espectador respondido = com', async () => {
+    const db = falsoComentarios(fixture())
+    const r = await lerContagemDeRespostas(db.client, { siteId: S, channelId: CANAL, videoIds: ['v1', 'v2', 'v3'] })
+    if (!r.lido) throw new Error('esperava lido')
+    expect(r.dados.porVideo.get('v1')?.algumComRespostaDoCriador).toBe(true)
+    expect(r.dados.porVideo.get('v2')?.algumComRespostaDoCriador).toBe(false)
+    expect(r.dados.porVideo.get('v3')?.algumComRespostaDoCriador).toBe(false)
+    expect(db.pedidos.find((p) => p.table === 'competitor_video_comments')?.eqs.is_creator).toBe(false)
+  })
+})

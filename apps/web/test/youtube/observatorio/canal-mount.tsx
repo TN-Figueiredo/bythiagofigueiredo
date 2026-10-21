@@ -12,7 +12,9 @@ import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/to
 export function canalActions(over: Partial<CanalActions> = {}): CanalActions {
   return {
     onSyncOne: vi.fn(async (_id: string) => ({ ok: true })),
-    onRemove: vi.fn(async (_id: string) => ({ ok: true })),
+    onPedir: vi.fn(async (_id: string) => ({ ok: true as const, jaPedido: false })),
+    onDesfazer: vi.fn(async (_id: string) => ({ ok: true as const, naoPedido: false, despausado: true })),
+    onApagar: vi.fn(async (_id: string, _nome: string) => ({ ok: true as const, videos: 3 })),
     onRemovalImpact: vi.fn(async (_id: string) => ({ ok: false as const })),
     onSetNiche: vi.fn(async (_id: string, _n: string | null) => ({ ok: true })),
     onPin: vi.fn(async () => ({ ok: true as const })),

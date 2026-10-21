@@ -10,13 +10,17 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Niche } from '@/lib/youtube/observatorio/niche'
 import { link, type CanalTab } from '@/lib/youtube/observatorio/links'
-import type { syncCompetitorNow, removeCompetitorChannel, getCompetitorRemovalImpactAction } from '../actions'
+import type { syncCompetitorNow, pedirRemocaoCanal, desfazerRemocaoCanal, apagarCanalSemGuardarAction, getCompetitorRemovalImpactAction } from '../actions'
 import type { setChannelNiche } from '../niche-actions'
 import { Icon } from '../_chrome/icons'
 import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
 import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
+import { TXT } from '../_canais/remover-model'
+import { useDesfazer } from '../_canais/use-desfazer'
+import { marcarRemovido } from '../_canais/removido-flag'
+import type { Desfecho } from '../_canais/remove-dialog'
 import { chegouPelaTrilha, esquecerUltimoVideo, lembrarSaida, lerUltimoVideo, type UltimoVideo } from '../_chrome/ultimo-video'
 import { descartarGatilhoSeNaoVoltou, lerGatilho } from '../_chrome/gatilho-volta'
 import { RemoveDialog } from '../_canais/remove-dialog'
@@ -44,7 +48,9 @@ import './canal.css'
 
 export interface CanalActions {
   onSyncOne: typeof syncCompetitorNow
-  onRemove: typeof removeCompetitorChannel
+  onPedir: typeof pedirRemocaoCanal
+  onDesfazer: typeof desfazerRemocaoCanal
+  onApagar: typeof apagarCanalSemGuardarAction
   onRemovalImpact: typeof getCompetitorRemovalImpactAction
   onSetNiche: typeof setChannelNiche
   onPin: PinAction
@@ -495,22 +501,49 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
     router.refresh()
   }
 
+  /** Há envio em curso na janela de remover: o Esc daqui não pode fechá-la (I-4). */
+  const bloqueado = useRef(false)
   const closeConfirm = () => { setConfirm(false); requestAnimationFrame(() => menuBtn.current?.focus()) }
   // Esc fecha o diálogo de remoção (aria-modal), como em Canais.
   useEffect(() => {
     if (!confirm) return
-    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') closeConfirm() }
+    const onKey = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !bloqueado.current) closeConfirm() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   })
-  const doRemove = async () => {
+  const { desfazer } = useDesfazer(actions.onDesfazer, () => router.refresh())
+  /** U5: depois de fechar a janela o foco vai ao título da página (o botão que a abriu mudou de lugar; o aviso aparece logo abaixo). */
+  const [focoTitulo, setFocoTitulo] = useState(0)
+  /** N3 (Logan): depois de guardar, o foco vai ao aviso "Agendado"; ele só existe depois do refresh, então o efeito espera por `h.agendado`. */
+  const focoAviso = useRef(false)
+  const agendadoMontado = h.agendado != null
+  useEffect(() => {
+    if (!focoAviso.current || !agendadoMontado) return
+    const a = raiz.current?.querySelector<HTMLElement>('[data-agendado-aviso]')
+    if (!a) return
+    focoAviso.current = false
+    if (!a.hasAttribute('tabindex')) a.setAttribute('tabindex', '-1')
+    a.focus({ preventScroll: true })
+  }, [agendadoMontado, focoTitulo])
+  useEffect(() => {
+    if (!focoTitulo) return
+    const t = raiz.current?.querySelector<HTMLElement>('header.chead h1')
+    if (t) { if (!t.hasAttribute('tabindex')) t.setAttribute('tabindex', '-1'); t.focus({ preventScroll: true }) }
+  }, [focoTitulo])
+  const concluir = (d: Desfecho) => {
     setConfirm(false)
-    let res: { ok: boolean; error?: string } = { ok: false }
-    try { res = await actions.onRemove(h.id) } catch { res = { ok: false } }
-    if (!res.ok) { toast('bad', 'Não deu para remover o canal', res.error ?? `${h.name} continua no observatório.`); return }
-    toast('ok', `${h.name} removido`, 'O canal saiu do observatório e os dados coletados dele foram apagados.')
-    router.replace(link.canais())
+    if (d.caminho === 'guardar') {
+      // fica na página: o aviso aparece no cabeçalho depois do refresh
+      focoAviso.current = true; setFocoTitulo(n => n + 1)
+      toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo, { acoes: [{ rotulo: 'Desfazer', onClick: () => { void desfazer(h.id, h.name) } }] })
+      router.refresh()
+      return
+    }
+    // apagar: a página deixa de existir. O toast sai na lista, pelo estado do navegador (não pela URL: link forjado não afirma "apagado")
+    marcarRemovido({ nome: h.name, videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) })
+    router.push(link.canais())
   }
+  const conferir = () => { setConfirm(false); router.refresh() }
 
   return (
     <NicheOptionsContext.Provider value={niches}>
@@ -531,7 +564,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
           ) : null}
           {state.tab === 'leitura' ? leitura : null}
           {viewerNode}
-          {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
+          {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onPedir={actions.onPedir} onApagar={actions.onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} trap={trapTab} /> : null}
         </div>
       </NichePendingContext.Provider>
     </NicheOptionsContext.Provider>

@@ -25,6 +25,7 @@ const ehObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !
 const ehNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const numOuNulo = (v: unknown): number | null => (ehNum(v) ? v : null)
 const txtOuNulo = (v: unknown): string | null => (typeof v === 'string' ? v : null)
+const msOuNulo = (v: unknown): number | null => { if (typeof v !== 'string') return null; const t = Date.parse(v); return Number.isFinite(t) ? t : null }
 const boolOuNulo = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null)
 const msDe = (v: unknown): number | null => {
   if (typeof v !== 'string') return null
@@ -70,11 +71,19 @@ interface Escopo extends OpcoesDeLeitura { siteId: string; channelId: string }
 
 // ───── o canal ─────
 
-export interface CanalLido { id: string; siteId: string; collectionPausedAt: string | null; missingSince: string | null }
+export interface CanalLido {
+  id: string; siteId: string; collectionPausedAt: string | null; missingSince: string | null
+  /** `published_at` do canal no YouTube, em ms. Nulo = o YouTube não informou. */
+  criadoEmMs: number | null
+  /** `youtube_video_count`: quantos vídeos o canal tem no YouTube. Nulo = não se sabe. */
+  totalNoYoutube: number | null
+  /** `video_limit`: até quantos vídeos guardamos. Nulo = não se sabe. */
+  limiteDeVideos: number | null
+}
 
 export async function lerCanal(sb: SupabaseClient, o: Escopo): Promise<Parte<CanalLido>> {
   try {
-    const r = await sb.from('competitor_channels').select('id, site_id, collection_paused_at, missing_since')
+    const r = await sb.from('competitor_channels').select('id, site_id, collection_paused_at, missing_since, published_at, youtube_video_count, video_limit')
       .eq('id', o.channelId).eq('site_id', o.siteId)
     if (r.error !== null && r.error !== undefined) return naoLido(causaDoErro(r.error))
     const linha: unknown = Array.isArray(r.data) ? r.data[0] : undefined
@@ -82,6 +91,7 @@ export async function lerCanal(sb: SupabaseClient, o: Escopo): Promise<Parte<Can
     return lido({
       id: linha.id, siteId: typeof linha.site_id === 'string' ? linha.site_id : o.siteId,
       collectionPausedAt: txtOuNulo(linha.collection_paused_at), missingSince: txtOuNulo(linha.missing_since),
+      criadoEmMs: msOuNulo(linha.published_at), totalNoYoutube: numOuNulo(linha.youtube_video_count), limiteDeVideos: numOuNulo(linha.video_limit),
     })
   } catch {
     return naoLido('erro_do_banco')

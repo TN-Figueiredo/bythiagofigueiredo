@@ -146,16 +146,16 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     const d = await pastaComManifesto()
     const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
     expect(r.codigo).toBe(0)
-    expect(r.saida).toHaveLength(4)
+    expect(r.saida).toHaveLength(5) // 4 \copy + o update que zera o pedido de remoção do canal (F1)
     expect(r.saida[0]).toBe(`\\copy public.competitor_channels ("id", "channel_name") from program 'gzip -dc /arquivo/${LOTE}/competitor_channels/${CANAL}/unico.csv.gz' csv header`)
     const ordem = r.saida.map(l => /public\.(\w+)/.exec(l)![1])
     expect(ordem.indexOf('competitor_channels')).toBeLessThan(ordem.indexOf('competitor_videos'))
     expect(ordem.indexOf('competitor_videos')).toBeLessThan(ordem.indexOf('competitor_video_daily'))
-    for (const l of r.saida) expect(l).toMatch(/^\\copy public\.\w+ \(("\w+"(, )?)+\) from program 'gzip -dc [^']+' csv header$/)
+    for (const l of r.saida.filter(x => !x.startsWith('update '))) expect(l).toMatch(/^\\copy public\.\w+ \(("\w+"(, )?)+\) from program 'gzip -dc [^']+' csv header$/)
   })
 
   /** Uma pasta exportada de verdade (com os falsos) que inclui tabelas de identidade (`id` gerado) e a tarefa antes da leitura. */
-  async function pastaComIdentidade() {
+  async function pastaComIdentidade(extras: string[] = []) {
     const tabelas = tabelasPadrao()
     const umaLinha = (): TabelaFalsa => ({
       colunas: [{ nome: 'id', tipo: 'bigint', nulo: false }], filtro: 't.id = $1', periodo: null, soma: null, ordem: 't.id', linhas: [{ id: '7' }],
@@ -165,6 +165,7 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     tabelas.competitor_readings = umaLinha()
     tabelas.competitor_field_versions = umaLinha()
     tabelas.competitor_raw = umaLinha()
+    for (const t of extras) tabelas[t] = umaLinha()
     const b = bancoFalso({ urls: [], tabelas })
     const d = discoFalso()
     const { exportarCanal } = await import('@/lib/youtube/observatorio/arquivo/exportar')
@@ -184,7 +185,7 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
       `select setval(pg_get_serial_sequence('public.competitor_field_versions', 'id'), greatest((select max(id) from public.competitor_field_versions), (select last_value from public.competitor_field_versions_id_seq)));`,
       `select setval(pg_get_serial_sequence('public.competitor_raw', 'id'), greatest((select max(id) from public.competitor_raw), (select last_value from public.competitor_raw_id_seq)));`,
     ])
-    expect(copias.length + ajustes.length).toBe(r.saida.length)
+    expect(copias.length + ajustes.length + 1).toBe(r.saida.length) // +1: o update que zera o pedido de remoção (F1)
     expect(r.saida.slice(0, copias.length)).toEqual(copias) // nenhum ajuste no meio dos \\copy: o máximo só vale com tudo carregado
     // a ordem do manifesto (a do registro) é a ordem impressa: a tarefa vem antes da leitura que aponta para ela
     const ordem = copias.map(l => /public\.(\w+)/.exec(l)![1])
@@ -208,6 +209,30 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
       const literal = /from program '(.*)' csv header$/.exec(l)![1]!.replace(/''/g, `'`)
       expect(literal).toBe(`gzip -dc '${caminho.replace(/'/g, `'\\''`)}'`)
     }
+  })
+
+  it('C1.1 comandos-recarga zera as quatro colunas de remoção pedida do canal, depois dos \\copy e antes dos ajustes (F1, Phil M-4)', async () => {
+    const d = await pastaComIdentidade()
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    const i = r.saida.findIndex(l => l.startsWith('update public.competitor_channels'))
+    expect(i).toBeGreaterThan(0)
+    expect(r.saida[i]).toBe(`update public.competitor_channels set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null, removal_reter_antes = null where id = '${CANAL}' and removal_requested_at is not null;`)
+    expect(r.saida.slice(0, i).every(l => l.startsWith('\\copy'))).toBe(true)
+    expect(r.saida.slice(i + 1).every(l => l.startsWith('select setval'))).toBe(true)
+  })
+
+  it('C1.2 (Phil C-2) a recarga devolve o reter_ate guardado no pedido, depois do \\copy de yt_watch_alvos e antes de zerar o pedido', async () => {
+    const d = await pastaComIdentidade(['yt_watch_alvos'])
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    expect(r.codigo).toBe(0)
+    const iCopia = r.saida.findIndex(l => l.startsWith('\\copy public.yt_watch_alvos'))
+    const iDevolve = r.saida.findIndex(l => l.startsWith('update public.yt_watch_alvos a set reter_ate = (c.removal_reter_antes'))
+    const iZera = r.saida.findIndex(l => l.startsWith('update public.competitor_channels set removal_requested_at = null'))
+    expect(iCopia).toBeGreaterThan(-1)
+    expect(iDevolve).toBeGreaterThan(iCopia)
+    expect(iZera).toBeGreaterThan(iDevolve)
+    expect(r.saida[iDevolve]).toContain(`where c.id = '${CANAL}'`)
+    expect(r.saida[iDevolve]).toContain(`a.reter_ate = 'infinity'`)
   })
 
   it('comandos-recarga sem tabela de identidade no manifesto não imprime ajuste algum', async () => {
@@ -409,6 +434,7 @@ describe('A5 E10 revisão Yannis M5: nome de canal sem caractere de controle no 
       [/from public\.obs_archive_batches b/, () => [
         { batch: 'lote-aberto', channel_ref: CANAL, canal: sujo, exportado_em: '2026-10-13', arquivos: '5', conferido: false, confirmado: false, apagado: false, encerrado: null, canal_existe: true },
       ]],
+      [/removal_requested_at is not null/, () => []],
       [/from public\.obs_db_size_daily/, () => []],
     ])
     const r = await rodar(cmd(`estado --pasta /arq`), dinheiro({ sql: m.sql }))
@@ -430,6 +456,7 @@ describe('A5 E10 T7: estado', () => {
         { batch: 'lote-desistido', channel_ref: CANAL, canal: 'Canal sintético', exportado_em: '2026-10-11', arquivos: '5', conferido: false, confirmado: false, apagado: false, encerrado: 'despausado', canal_existe: true },
         { batch: 'lote-orfao', channel_ref: 'x', canal: 'Sumiu', exportado_em: '2026-10-10', arquivos: '5', conferido: true, confirmado: true, apagado: false, encerrado: null, canal_existe: false },
       ]],
+      [/removal_requested_at is not null/, () => []],
       [/from public\.obs_db_size_daily/, () => []],
     ])
     const r = await rodar(cmd(`estado --pasta /arq`), dinheiro({ sql: m.sql }))

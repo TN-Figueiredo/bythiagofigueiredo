@@ -66,9 +66,13 @@ describe('item 71: a última definição das duas funções da E10 sabe de parti
     expect(regra71(pastaFalsa({ '20990101000001_boa.sql': boa }))).toEqual([])
     expect(regra71(pastaFalsa({ '20990101000001_boa.sql': boa, '20990101000002_mg15.sql': quebrada }))).toHaveLength(2)
   })
-  it('M2_BLOCO_11 contém as três funções e não converte', () => {
-    for (const f of ['obs_archive_uncovered', 'obs_db_size_record', 'competitor_channel_remove_archived']) expect(M2_BLOCO_11).toContain(f)
+  it('M2_BLOCO_11 contém as duas funções da E10 e não converte; a de remoção vem no 11b, só na M2 inteira (parte da F1)', () => {
+    for (const f of ['obs_archive_uncovered', 'obs_db_size_record']) expect(M2_BLOCO_11).toContain(f)
+    expect(M2_BLOCO_11).not.toContain('competitor_channel_remove_archived(')
     expect(M2_BLOCO_11).not.toContain('obs_part.converter(')
+    const b11b = M2_SQL.slice(M2_SQL.indexOf('-- 11b. '))
+    expect(b11b).toContain('competitor_channel_remove_archived')
+    expect(b11b).toContain('pg_partition_tree')
   })
   it('sem definição nenhuma não acusa', () => { expect(regra71(pastaFalsa({ '20990101000001_x.sql': 'select 1;' }))).toEqual([]) })
 })

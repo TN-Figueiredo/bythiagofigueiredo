@@ -15,6 +15,7 @@
   --tier-mid:#38BDF8;--tier-high:#A78BFA;--tier-top:#E0735C;--youtube:#FF3333;
   --warn-subtle:rgba(245,158,11,.12);--danger-subtle:rgba(239,68,68,.12);--ok-subtle:rgba(34,197,94,.12);
   --shadow:0 12px 32px rgba(0,0,0,.45);
+  --dg-bg:#432A27;--dg-bg-hover:#53332F;--dg-line:#F26B6B;--dg-fg:#FFB9B3;--toast-bg:#2D1B19;--toast-line:#F26B6B;
   --drawer-w:404px;
   color-scheme:dark;
 }
@@ -29,6 +30,7 @@
   --tier-mid:#0369A1;--tier-high:#6D28D9;--tier-top:#B4452F;
   --warn-subtle:rgba(180,83,9,.10);--danger-subtle:rgba(180,35,24,.08);--ok-subtle:rgba(17,105,47,.10);
   --shadow:0 12px 32px rgba(60,40,10,.14);
+  --dg-bg:#B42318;--dg-bg-hover:#9A1D14;--dg-line:#B42318;--dg-fg:#FFFFFF;--toast-bg:#FDF0EE;--toast-line:#B42318;
   color-scheme:light;
 }
 
@@ -67,6 +69,7 @@
 [data-obs] .obs-ch-btn[aria-disabled="true"]{cursor:progress;color:var(--muted)}
 [data-obs] .obs-ch-btn.obs-ch-ghost{background:transparent;border-color:transparent;color:var(--muted)}
 [data-obs] .obs-ch-btn.obs-ch-ghost:hover{background:var(--surface-hover);color:var(--text)}
+[data-obs] .obs-ch-btn.obs-ch-small{min-height:32px;padding:0 10px;font-size:12.5px}
 [data-obs] .obs-ch-btn.obs-ch-icon{width:34px;min-width:34px;padding:0;justify-content:center}
 /* forja buttons (Task 35 fills the header segment; tokens and classes are ready) */
 [data-obs] .obs-ch-btn.obs-ch-forja{border-color:var(--forja-line);color:var(--forja);background:transparent}
@@ -157,13 +160,15 @@
 [data-obs] .obs-ch-toast.obs-ch-forja>svg{color:var(--forja)}
 [data-obs] .obs-ch-toast.obs-ch-ok{border-left-color:var(--success)}
 [data-obs] .obs-ch-toast.obs-ch-ok>svg{color:var(--success)}
-[data-obs] .obs-ch-toast.obs-ch-bad{border-left-color:var(--danger)}
+[data-obs] .obs-ch-toast.obs-ch-bad{background:var(--toast-bg);border-color:var(--toast-line)}
 [data-obs] .obs-ch-toast.obs-ch-bad>svg{color:var(--danger)}
 [data-obs] .obs-ch-toast.obs-ch-warn{border-left-color:var(--warning)}
 [data-obs] .obs-ch-toast.obs-ch-warn>svg{color:var(--warning)}
 [data-obs] .obs-ch-toast b{font-weight:600;font-size:13px;display:block}
 [data-obs] .obs-ch-toast span{font-size:12.5px;color:var(--muted)}
 [data-obs] .obs-ch-toast .obs-ch-tl{display:block;margin-top:4px}
+[data-obs] .obs-ch-toast-acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+@media (max-width:600px){[data-obs] .obs-ch-toast-acoes .obs-ch-btn{min-height:44px}}
 [data-obs] .obs-ch-toast-acts{display:flex;gap:6px;align-items:center}
 [data-obs] .obs-ch-toast-x{width:32px;min-width:32px;height:32px;min-height:32px;padding:0}
 [data-obs] .obs-ch-toast-x svg{width:14px;height:14px;margin:0;color:var(--muted)}

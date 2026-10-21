@@ -95,6 +95,15 @@ describe('os exemplos do documento têm as chaves do que o código devolve', () 
     expect(chaves(exemplo)).toEqual(chaves(real))
   })
 
+  it('a descrição de list_channels cita perfil, medidas e a frase', async () => {
+    const { YoutubeObservatoryShape } = await import('@/lib/pipeline/mcp/tools')
+    const d = YoutubeObservatoryShape.action.description ?? ''
+    expect(d).toMatch(/perfil/)
+    expect(d).toMatch(/medidas/)
+    expect(d).toMatch(/nao_medido/)
+    expect(d).toMatch(/frase/)
+  })
+
   it('há blocos JSON para comparar', () => {
     const validos = blocosJson(CHANNELS).concat(blocosJson(CHANGES))
     expect(validos.length).toBeGreaterThanOrEqual(4)

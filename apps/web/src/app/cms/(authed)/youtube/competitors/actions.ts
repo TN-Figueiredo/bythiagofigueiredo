@@ -8,13 +8,14 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
-import { getCompetitorRemovalImpact, type CompetitorRemovalImpact } from '@/lib/youtube/competitor-removal-impact'
+import { getCompetitorRemovalImpact, semGuardarDe, type CompetitorRemovalImpact, type SemGuardar } from '@/lib/youtube/competitor-removal-impact'
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { syncSchemaBlock } from '@/lib/youtube/competitor-sync-guard'
 import { canalApagado, registrarVoltaDoCanal } from '@/lib/youtube/competitor-removed'
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
-import { removerCanalArquivado } from '@/lib/youtube/observatorio/arquivo/remover'
+import { pedirRemocao, cancelarRemocao, apagarCanalSemGuardar } from '@/lib/youtube/observatorio/arquivo/remover'
+import { FRASES_E10 } from '@/lib/youtube/observatorio/arquivo/codigos'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -25,6 +26,7 @@ import { RULES } from '@/lib/youtube/observatorio/rules'
 import type { PinResult } from './pin-result'
 import type { SyncNowResult } from './_chrome/view-model'
 import { parseChannelInput } from './_canais/channel-input'
+import { MOTIVO, type CodigoTela } from './_canais/remover-model'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -39,8 +41,6 @@ async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
   if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
   return { siteId, userId: res.user.id }
 }
-
-const SEM_LOTE_NA_TELA = 'Antes de remover, é preciso exportar este canal. Peça ao agente.'
 
 /** (A5 E10) a frase de quando a coleta do canal está pausada (a trava do sync não toma canal pausado). */
 const FRASE_PAUSADA = 'A coleta deste canal está pausada, então não dá para fazer isto agora.'
@@ -105,12 +105,14 @@ export async function addCompetitorChannel(
 
   const { data: existing } = await supabase
     .from('competitor_channels')
-    .select('id, niche, channel_name')
+    .select('id, niche, channel_name, removal_requested_at')
     .eq('site_id', siteId)
     .eq('channel_id', ytId)
     .maybeSingle()
 
   if (existing) {
+    // F1 do Remover canal: o pedido aberto é conferido ANTES da conta de vagas e do insert (sem segunda linha nem chave única crua)
+    if (existing.removal_requested_at) return { ok: false, error: 'Este canal está agendado para ser apagado. Use Desfazer para mantê-lo.' }
     const en = existing.niche as string | null
     const known = defs ?? BUILTIN_NICHES
     const n = en != null && known.some(d => d.id === en) ? ` (${nicheLabel(known, en)})` : ''
@@ -187,25 +189,23 @@ export async function addChannelFromCanais(input: { channel: string; niche: Nich
   return { ok: res.ok, ...(res.error ? { error: res.error } : {}), ...(res.title ? { title: res.title } : {}), ...(res.aviso ? { aviso: res.aviso } : {}) }
 }
 
-export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean; error?: string }> {
-  // "Administrar o site" step: the channel's videos, versions and records go with it (cascade), for good.
-  // Asked first, before any service client; fails closed.
-  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, 'remover um canal concorrente do Observatório')
-  if (denied) return denied
-  let siteId: string
-  let userId: string
-  try { ({ siteId, userId } = await requireEditUser()) } catch { return { ok: false } }
+/** O que as 3 actions de remoção devolvem: a recusa traz o CÓDIGO e a frase do catálogo (nunca texto do banco). */
+export type RespostaRemocao<T> = ({ ok: true } & T) | { ok: false; codigo: CodigoTela; frase: string }
 
-  const supabase = getSupabaseServiceClient()
+const FRASE_LEITURA = 'Não deu para conferir o canal agora. Nada mudou. Tente de novo.'
+const recusa = (codigo: CodigoTela, frase: string): { ok: false; codigo: CodigoTela; frase: string } => ({ ok: false, codigo, frase })
 
-  // (A5 E9 T9) o canal que saiu do YouTube, ou que tem vídeo/comentário esperando resposta, é respondido na aba "Saíram do YouTube": remover por
-  // aqui apagaria sem Blob, sem registro e sem auditoria. Leitura que falha: não apaga sem saber.
+/**
+ * (A5 E9 T9) o canal que saiu do YouTube, ou que tem vídeo/comentário esperando resposta, é respondido na aba "Saíram do YouTube": remover por
+ * aqui apagaria sem Blob, sem registro e sem auditoria. Leitura que falha: não remove sem saber. null = pode seguir.
+ */
+async function travaDoSaiu(supabase: ReturnType<typeof getSupabaseServiceClient>, siteId: string, id: string): Promise<{ ok: false; codigo: CodigoTela; frase: string } | null> {
   try {
     const canal = await supabase.from('competitor_channels').select('id, missing_since').eq('id', id).eq('site_id', siteId).limit(1)
-    if (canal.error || !Array.isArray(canal.data)) return { ok: false }
+    if (canal.error || !Array.isArray(canal.data)) return recusa('leitura', FRASE_LEITURA)
     const linha: unknown = canal.data[0]
     if (typeof linha === 'object' && linha !== null && (linha as Record<string, unknown>).missing_since != null) {
-      return { ok: false, error: 'Este canal saiu do YouTube: responda na aba Saíram do YouTube.' }
+      return recusa('saiu_do_youtube', FRASES_E10.saiu_do_youtube)
     }
     const [videos, comentarios] = await Promise.all([
       supabase.from('competitor_videos').select('id, competitor_channels!inner(site_id)', { count: 'exact', head: true })
@@ -213,24 +213,85 @@ export async function removeCompetitorChannel(id: string): Promise<{ ok: boolean
       supabase.from('competitor_video_comments').select('id', { count: 'exact', head: true })
         .eq('site_id', siteId).eq('competitor_channel_id', id).not('missing_since', 'is', null).is('removal_decision', null),
     ])
-    if (videos.error || comentarios.error || videos.count === null || comentarios.count === null) return { ok: false }
+    if (videos.error || comentarios.error || videos.count === null || comentarios.count === null) return recusa('leitura', FRASE_LEITURA)
     const esperando = videos.count + comentarios.count
     if (esperando > 0) {
-      return { ok: false, error: `Este canal tem ${esperando} ${esperando === 1 ? 'item esperando' : 'itens esperando'} resposta na aba Saíram do YouTube: responda primeiro.` }
+      return recusa('itens_na_fila', `Este canal tem ${esperando} ${esperando === 1 ? 'item esperando' : 'itens esperando'} resposta na aba Saíram do YouTube: responda primeiro.`)
     }
   } catch {
-    return { ok: false }
+    return recusa('leitura', FRASE_LEITURA)
   }
+  return null
+}
 
-  // (A5 E10) a remoção só passa pela função do banco: ela exige a exportação conferida e confirmada, grava o lote e só aceita quem
-  // administra a organização (`sem_direito`); uma linha de outro site ou um id que não existe volta como falha com frase fixa
-  const r = await removerCanalArquivado(supabase, { siteId, canalId: id, actorId: userId })
-  // sem_lote: a frase longa é a do agente (CLI); o aviso da tela é a versão curta do Logan (cabe em 2 linhas do toast)
-  if (!r.ok) return { ok: false, error: r.codigo === 'sem_lote' ? SEM_LOTE_NA_TELA : r.frase }
-  // the channel's videos, versions and records went with it (cascade): its cached rows must not outlive it
+/**
+ * A guarda das 3 actions de remoção: administrar o site (antes de qualquer cliente de serviço, falha fechada), id válido, e o ator da sessão.
+ * Devolve a recusa pronta ou o que a action precisa.
+ */
+async function guardaDaRemocao(id: string, acao: string): Promise<{ ok: false; codigo: CodigoTela; frase: string } | { ok: true; siteId: string; userId: string }> {
+  const denied = await denyUnlessSiteAdmin((await getSiteContext()).siteId, acao)
+  if (denied) return recusa('sem_direito', denied.error)
+  if (typeof id !== 'string' || !UUID_RE.test(id)) return recusa('leitura', FRASE_LEITURA)
+  try {
+    const { siteId, userId } = await requireEditUser()
+    return { ok: true, siteId, userId }
+  } catch {
+    return recusa('sem_direito', FRASES_E10.sem_direito)
+  }
+}
+
+/** Depois de qualquer chamada à F1 (sucesso, falha ou exceção) o pacote em cache de 15 min não pode sobreviver: a lista leria a linha velha. */
+function soltarCache(siteId: string): void {
   invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
-  return { ok: true }
+}
+
+/** Caminho 2 do "Remover canal": pausa na hora, libera a vaga e agenda o histórico para o NAS. O comando do agente termina o serviço. */
+export async function pedirRemocaoCanal(id: string): Promise<RespostaRemocao<{ jaPedido: boolean }>> {
+  const g = await guardaDaRemocao(id, 'agendar a guarda de um canal concorrente no NAS')
+  if (!g.ok) return g
+  const supabase = getSupabaseServiceClient()
+  const trava = await travaDoSaiu(supabase, g.siteId, id)
+  if (trava) return trava
+  try {
+    const r = await pedirRemocao(supabase, { siteId: g.siteId, canalId: id, actorId: g.userId, motivo: MOTIVO.guardar })
+    return r.ok ? { ok: true, jaPedido: r.jaPedido } : recusa(r.codigo, r.frase)
+  } finally {
+    soltarCache(g.siteId)
+  }
+}
+
+/** Desfazer: escrita condicional na F1 (`nao_pedido` e `canal_nao_encontrado` são respostas normais para a tela). Não passa pela trava do "saiu". */
+export async function desfazerRemocaoCanal(id: string): Promise<RespostaRemocao<{ naoPedido: boolean; despausado: boolean }>> {
+  const g = await guardaDaRemocao(id, 'desfazer a remoção de um canal concorrente')
+  if (!g.ok) return g
+  const supabase = getSupabaseServiceClient()
+  try {
+    const r = await cancelarRemocao(supabase, { siteId: g.siteId, canalId: id, actorId: g.userId })
+    return r.ok ? { ok: true, naoPedido: r.naoPedido, despausado: r.despausado } : recusa(r.codigo, r.frase)
+  } finally {
+    soltarCache(g.siteId)
+  }
+}
+
+/** Caminho 1: apaga já e sem cópia (só canal com até 30 dias; o banco confere o nome e a idade). Os números do toast vêm do que o banco apagou. */
+export async function apagarCanalSemGuardarAction(
+  id: string,
+  nomeDigitado: string,
+): Promise<RespostaRemocao<{ videos: number; leituras?: number; registrosDiarios?: number }>> {
+  const g = await guardaDaRemocao(id, 'apagar um canal concorrente sem guardar')
+  if (!g.ok) return g
+  const supabase = getSupabaseServiceClient()
+  const trava = await travaDoSaiu(supabase, g.siteId, id)
+  if (trava) return trava
+  try {
+    // o nome vai como foi digitado: quem apara e normaliza é o banco (`obs_nome_normalizado`)
+    const r = await apagarCanalSemGuardar(supabase, { siteId: g.siteId, canalId: id, actorId: g.userId, nomeDigitado: String(nomeDigitado ?? ''), motivo: MOTIVO.apagar })
+    if (!r.ok) return recusa(r.codigo, r.frase)
+    return { ok: true, videos: r.videos, ...(r.leituras !== undefined ? { leituras: r.leituras } : {}), ...(r.registrosDiarios !== undefined ? { registrosDiarios: r.registrosDiarios } : {}) }
+  } finally {
+    soltarCache(g.siteId)
+  }
 }
 
 export async function syncCompetitorNow(channelRowId: string): Promise<{ ok: boolean; error?: string; result?: { videosChecked: number; changesDetected: number } }> {
@@ -575,12 +636,12 @@ export async function unpinVideo(videoId: string): Promise<PinResult> {
  * What "Remover canal" would delete, for the confirmation dialog. `ok: false` covers no access, a channel of another
  * site and a failed count: the dialog then says it could not count, it never shows zeros.
  */
-export async function getCompetitorRemovalImpactAction(channelRowId: string): Promise<{ ok: true; impact: CompetitorRemovalImpact } | { ok: false }> {
+export async function getCompetitorRemovalImpactAction(channelRowId: string): Promise<{ ok: true; impact: CompetitorRemovalImpact; semGuardar: SemGuardar } | { ok: false }> {
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
   if (typeof channelRowId !== 'string' || !UUID_RE.test(channelRowId)) return { ok: false }
   try {
-    const impact = await getCompetitorRemovalImpact(siteId, channelRowId)
-    return impact ? { ok: true, impact } : { ok: false }
+    const r = await getCompetitorRemovalImpact(siteId, channelRowId)
+    return r ? { ok: true, impact: r.impact, semGuardar: semGuardarDe(r.addedAt, Date.now(), RULES.removal.semGuardarAteDias) } : { ok: false }
   } catch { return { ok: false } }
 }

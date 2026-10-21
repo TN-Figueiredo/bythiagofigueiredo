@@ -7,6 +7,7 @@ import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { Direcao } from '../../_chrome/medidas/direcao'
 import { ZeroMedido } from '../../_chrome/medidas/marcas'
 import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
+import { NotaRitmo } from '../../_chrome/nota-ritmo'
 import { dm } from './formatos'
 import type { CelulaDoCabecalho } from './cabecalho-model'
 import './canal-medidas.css'
@@ -16,7 +17,11 @@ const PASTILHA_GLIFO: Record<string, string> = { ativo: '✓', parado: '⏸', em
 
 function Valor({ c }: { c: CelulaDoCabecalho }) {
   if (c.valor === 'nao_carregou') return <PastilhaAusencia estado="falhou" />
-  if (c.valor === 'nao_medido') return <span className="obs-ch-nm">{c.chave === 'estado' ? 'não confirmado' : 'não medido'}</span>
+  if (c.valor === 'nao_medido') {
+    // canal novo (abaixo do piso): "—" no estado "não medido", e a nota do ritmo ao lado
+    if (c.detalhe.chave === 'ritmo' && c.detalhe.nota) return <><span className="obs-ch-nm" role="img" aria-label="não medido">—</span> <NotaRitmo nota={c.detalhe.nota} /></>
+    return <span className="obs-ch-nm">{c.chave === 'estado' ? 'não confirmado' : 'não medido'}</span>
+  }
   const d = c.detalhe
   switch (d.chave) {
     case 'inscritos':
@@ -39,7 +44,7 @@ function Valor({ c }: { c: CelulaDoCabecalho }) {
         : <><b className="num">{d.k} de {d.n}</b>{pc}</>
     }
     case 'ritmo':
-      return <><b className="num">{d.porSemana}</b><span className="un">por semana</span></>
+      return <><b className="num">{d.porSemana}</b><span className="un">por semana</span>{d.nota ? <> <NotaRitmo nota={d.nota} /></> : null}</>
     case 'criador': {
       if (d.k === null || d.n === null) return null
       const pc = d.pct === null ? null : <span className="pc-pc"> ({d.pct}%)</span>

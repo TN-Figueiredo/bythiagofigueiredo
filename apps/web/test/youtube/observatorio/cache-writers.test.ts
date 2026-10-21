@@ -19,7 +19,7 @@ const CACHED = 'competitor_videos|competitor_video_versions|competitor_video_dai
 const WRITES = new RegExp(`from\\('(?:${CACHED})'\\)\\s*\\.(?:insert|update|upsert|delete)\\(|rpc\\('(?:apply_competitor_version_plan|pin_competitor_video|competitor_video_purge|competitor_channel_purge|competitor_missing_keep)'|from\\('competitor_channels'\\)\\s*\\.delete\\(`)
 /**
  * The sync itself (its callers invalidate), the prune of snapshots older than 365 d (outside the 90 d read; `lib/youtube/competitor-snapshot-prune.ts`, called by the watchdog),
- * and the actions (pin, unpin, remove channel), which invalidate themselves.
+ * and the actions (pin, unpin, pedir/desfazer/apagar canal), which invalidate themselves.
  */
 const KNOWN_WRITERS = ['lib/youtube/competitor-sync.ts', 'lib/youtube/short-backfill.ts', 'lib/youtube/competitor-snapshot-prune.ts', 'lib/youtube/observatorio/saiu/responder.ts', ACTIONS]
 const RUNS_SYNC = /from '@\/lib\/youtube\/competitor-sync(?:-batch)?'/
@@ -48,7 +48,8 @@ describe('quem escreve no que o Observatório guarda em cache', () => {
     const text = ALL.find(f => f.file === ACTIONS)!.text
     const count = (re: RegExp) => (text.match(re) ?? []).length
     expect(count(/await syncCompetitorChannel\(/g)).toBe(4)
-    expect(count(/invalidateObservatory\(siteId\)/g)).toBe(5) // the four syncs + remove channel
+    expect(count(/invalidateObservatory\(siteId\)/g)).toBe(5) // the four syncs + `soltarCache` (pedir, desfazer e apagar sem guardar chamam-no num finally)
+    expect(count(/soltarCache\(g\.siteId\)/g)).toBe(3)
     // pin (one write, also when already pinned) and unpin (the write, and the already-unpinned answer)
     expect(count(/rpc\('pin_competitor_video'/g)).toBe(1)
     expect(count(/from\('competitor_videos'\)\.update\(/g)).toBe(1)

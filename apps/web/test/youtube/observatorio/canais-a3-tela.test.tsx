@@ -34,7 +34,7 @@ const tree = (v: CanaisView, extra?: { titulo?: boolean; main?: boolean }) => {
     <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome="">
       {extra?.titulo ? <h2>Canais</h2> : null}
       <button type="button" aria-label="Mais ações">⋯</button></div>
-      <CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
+      <CanaisScreen view={v} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
     </div></ChromeSyncContext.Provider></ToastProvider>
   )
   return extra?.main ? <main style={{ overflowY: 'auto' }}>{tela}</main> : tela

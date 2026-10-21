@@ -80,6 +80,8 @@ function arrange(who: SessionWho) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Nenhum caso pode sair para a rede: o setInstagramToken (b) passava do guarda e chamava a Graph API de verdade (timeout de 5 s intermitente).
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 400 })))
   for (const k of ENV_KEYS) savedEnv[k] = process.env[k]
   process.env.SOCIAL_MASTER_KEY = MASTER
   process.env.INSTAGRAM_APP_ID = 'ig-app'

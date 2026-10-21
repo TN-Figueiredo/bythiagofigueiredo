@@ -14,7 +14,7 @@ import * as remover from '@/lib/youtube/observatorio/arquivo/remover'
 import * as codigos from '@/lib/youtube/observatorio/arquivo/codigos'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 
-const { removerCanalArquivado, soMiniaturasDoObservatorio, retentarMiniaturasPendentes, PREFIXO_DAS_MINIATURAS } = remover
+const { soMiniaturasDoObservatorio, retentarMiniaturasPendentes, PREFIXO_DAS_MINIATURAS, apagarCanalSemGuardar, pedirRemocao, cancelarRemocao } = remover
 
 const SITE = '11111111-1111-4111-8111-111111111111'
 const CANAL = '22222222-2222-4222-8222-222222222222'
@@ -25,7 +25,7 @@ const url = (n: number): string => `${BASE}observatorio/thumbs/v${n}/h${n}.jpg`
 interface Chamada { fn: string; args: Record<string, unknown> }
 type Resp = { data?: unknown; error?: { message: string; code?: string } | null }
 
-function falso(respostas: Record<string, Resp | ((a: Record<string, unknown>) => Resp)>, lotes: unknown[] = []): { sb: SupabaseClient; chamadas: Chamada[] } {
+function falso(respostas: Record<string, Resp | ((a: Record<string, unknown>) => Resp)>, lotes: unknown[] = [], semArquivo: unknown[] = []): { sb: SupabaseClient; chamadas: Chamada[] } {
   const chamadas: Chamada[] = []
   const sb = {
     rpc: async (fn: string, args: Record<string, unknown>) => {
@@ -38,12 +38,13 @@ function falso(respostas: Record<string, Resp | ((a: Record<string, unknown>) =>
       const cadeia: Record<string, unknown> = {}
       let teto = Infinity
       let semVazios = false
+      const fonte = tabela === 'obs_unarchived_deletions' ? semArquivo : lotes
       for (const m of ['select', 'eq', 'order']) cadeia[m] = () => cadeia
       cadeia.not = (col: string, op: string, val: unknown) => { if (col === 'blob_urls_pending' && op === 'eq' && val === '{}') semVazios = true; return cadeia }
       cadeia.limit = (n: number) => { teto = n; return cadeia }
       // aplica o que o banco aplicaria: sem os `{}` (se pedido) e depois o teto
       cadeia.then = (ok: (v: unknown) => unknown) => {
-        const linhas = (lotes as Array<{ blob_urls_pending?: unknown[] }>).filter(l => !semVazios || (l.blob_urls_pending?.length ?? 0) > 0).slice(0, teto)
+        const linhas = (fonte as Array<{ blob_urls_pending?: unknown[] }>).filter(l => !semVazios || (l.blob_urls_pending?.length ?? 0) > 0).slice(0, teto)
         return Promise.resolve({ data: linhas, error: null }).then(ok)
       }
       return cadeia
@@ -52,65 +53,19 @@ function falso(respostas: Record<string, Resp | ((a: Record<string, unknown>) =>
   return { sb: sb as unknown as SupabaseClient, chamadas }
 }
 
-const removido = (urls: string[]): Resp => ({ data: { status: 'removido', batch: 'canal-22222222-2026-10-14', arquivos: 5, linhas: 40, blob_urls: urls, featured_refs_cleared: 0 }, error: null })
 
 beforeEach(() => { captureMessage.mockReset(); captureException.mockReset(); delete process.env.OBS_E2E; process.env.BLOB_READ_WRITE_TOKEN = 'tok' })
 afterEach(() => { vi.useRealTimers(); delete process.env.OBS_E2E; delete process.env.BLOB_READ_WRITE_TOKEN })
 
-describe('A5 E10 T11a: removerCanalArquivado', () => {
-  it('remover reexporta o catálogo de codigos.ts', () => {
-    expect(remover.codigoE10).toBe(codigos.codigoE10)
-    expect(remover.FRASES_E10).toBe(codigos.FRASES_E10)
-  })
-
-  it('os três ids vão para a função', async () => {
-    const { sb, chamadas } = falso({ competitor_channel_remove_archived: removido([]) })
-    await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR })
-    expect(chamadas[0]).toEqual({ fn: 'competitor_channel_remove_archived', args: { p_site: SITE, p_channel: CANAL, p_actor: ATOR } })
-  })
-
-  it('removido: o Blob é chamado com as URLs e a pendência é baixada', async () => {
-    const urls = [url(1), url(2)]
-    const { sb, chamadas } = falso({ competitor_channel_remove_archived: removido(urls), obs_archive_blobs_done: { data: 0, error: null } })
-    const apagar = vi.fn(async () => undefined)
-    const r = await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR }, { apagarDoBlob: apagar })
-    expect(r).toEqual({ ok: true, lote: 'canal-22222222-2026-10-14', linhas: 40, miniaturasPendentes: 0, foraDoPrefixo: 0 })
-    expect(apagar).toHaveBeenCalledWith(urls)
-    expect(chamadas.find(c => c.fn === 'obs_archive_blobs_done')?.args).toEqual({ p_site: SITE, p_batch: 'canal-22222222-2026-10-14', p_channel_ref: CANAL, p_urls: urls })
-  })
-
-  it('o Blob falha: ok continua true e miniaturasPendentes diz quantas; o Sentry recebe só a contagem', async () => {
-    const { sb, chamadas } = falso({ competitor_channel_remove_archived: removido([url(1), url(2), url(3)]) })
-    const apagar = vi.fn(async () => { throw new Error('token-secreto-do-blob') })
-    const r = await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR }, { apagarDoBlob: apagar })
-    expect(r).toMatchObject({ ok: true, miniaturasPendentes: 3 })
-    expect(chamadas.some(c => c.fn === 'obs_archive_blobs_done')).toBe(false)
-    expect(JSON.stringify([captureMessage.mock.calls, captureException.mock.calls])).not.toContain('token-secreto-do-blob')
-    expect(captureMessage).toHaveBeenCalled()
-  })
-
-  it('sem URLs: o Blob não é chamado', async () => {
-    const { sb } = falso({ competitor_channel_remove_archived: removido([]) })
-    const apagar = vi.fn(async () => undefined)
-    await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR }, { apagarDoBlob: apagar })
-    expect(apagar).not.toHaveBeenCalled()
-  })
-
-  it('URL de outro prefixo não vai ao Blob, fica na pendência e é contada (inclui prefixo no meio do caminho)', async () => {
-    const intrusas = [`${BASE}outro/arquivo.jpg`, `${BASE}x/observatorio/thumbs/v/h.jpg`, 'não é url', `${BASE}observatorio/thumbs/../segredo.jpg`]
-    const { sb } = falso({ competitor_channel_remove_archived: removido([url(1), ...intrusas]), obs_archive_blobs_done: { data: 4, error: null } })
-    const apagar = vi.fn(async () => undefined)
-    const r = await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR }, { apagarDoBlob: apagar })
-    expect(apagar).toHaveBeenCalledTimes(1)
-    expect(apagar).toHaveBeenCalledWith([url(1)])
-    expect(r).toMatchObject({ ok: true, foraDoPrefixo: 4, miniaturasPendentes: 4 })
-  })
+describe('Blob da remoção (laço comum aos dois caminhos, exercitado por apagarCanalSemGuardar)', () => {
+  const apagadoCom = (urls: string[]): Resp => ({ data: { status: 'apagado', deletion_id: 9, videos: 2, linhas: {}, watch: { readings: 0, thumbs: 0, alvos: 0 }, blob_urls: urls }, error: null })
+  const e = { siteId: SITE, canalId: CANAL, actorId: ATOR, nomeDigitado: 'Canal X', motivo: 'entrou_por_engano' }
 
   it('apaga em blocos de 100', async () => {
     const urls = Array.from({ length: 250 }, (_, i) => url(i))
-    const { sb } = falso({ competitor_channel_remove_archived: removido(urls), obs_archive_blobs_done: { data: 0, error: null } })
+    const { sb } = falso({ competitor_channel_delete_unarchived: apagadoCom(urls), obs_unarchived_blobs_done: { data: 0, error: null } })
     const apagar = vi.fn(async (_u: string[]) => undefined)
-    await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR }, { apagarDoBlob: apagar })
+    await apagarCanalSemGuardar(sb, e, { apagarDoBlob: apagar })
     expect(apagar.mock.calls.map(c => c[0].length)).toEqual([100, 100, 50])
   })
 
@@ -118,55 +73,29 @@ describe('A5 E10 T11a: removerCanalArquivado', () => {
     vi.useFakeTimers()
     vi.setSystemTime(2_000_000)
     const urls = Array.from({ length: 3000 }, (_, i) => url(i))
-    const { sb, chamadas } = falso({ competitor_channel_remove_archived: removido(urls), obs_archive_blobs_done: { data: 0, error: null } })
+    const { sb, chamadas } = falso({ competitor_channel_delete_unarchived: apagadoCom(urls), obs_unarchived_blobs_done: { data: 0, error: null } })
     const apagar = vi.fn(async (_u: string[]) => { vi.setSystemTime(Date.now() + 1_000) })
-    const r = await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR }, { apagarDoBlob: apagar, prazoMs: 5_000, agora: () => Date.now() })
+    const r = await apagarCanalSemGuardar(sb, e, { apagarDoBlob: apagar, prazoMs: 5_000, agora: () => Date.now() })
     expect(r).toMatchObject({ ok: true })
     expect(apagar).toHaveBeenCalledTimes(5)
     expect(r.ok && r.miniaturasPendentes).toBe(3000 - 500)
-    expect(chamadas.filter(c => c.fn === 'obs_archive_blobs_done')).toHaveLength(5)
+    expect(chamadas.filter(c => c.fn === 'obs_unarchived_blobs_done')).toHaveLength(5)
   })
 
   it('o padrão do prazo é 15 s', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(2_000_000)
     const urls = Array.from({ length: 3000 }, (_, i) => url(i))
-    const { sb } = falso({ competitor_channel_remove_archived: removido(urls), obs_archive_blobs_done: { data: 0, error: null } })
+    const { sb } = falso({ competitor_channel_delete_unarchived: apagadoCom(urls), obs_unarchived_blobs_done: { data: 0, error: null } })
     const apagar = vi.fn(async (_u: string[]) => { vi.setSystemTime(Date.now() + 1_000) })
-    await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR }, { apagarDoBlob: apagar })
+    await apagarCanalSemGuardar(sb, e, { apagarDoBlob: apagar })
     expect(apagar).toHaveBeenCalledTimes(15)
   })
 
   it('57014 vira demorou_demais e a frase diz que nada foi apagado', async () => {
-    const { sb } = falso({ competitor_channel_remove_archived: { data: null, error: { message: 'canceling statement', code: '57014' } } })
-    const r = await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR })
+    const { sb } = falso({ competitor_channel_delete_unarchived: { data: null, error: { message: 'canceling statement', code: '57014' } } })
+    const r = await apagarCanalSemGuardar(sb, e)
     expect(r).toMatchObject({ ok: false, codigo: 'demorou_demais' })
-    if (!r.ok) expect(r.frase).toMatch(/nada foi apagado/)
-  })
-
-  it('erro do banco com código conhecido: a frase vem do catálogo, sem pedaço da mensagem', async () => {
-    const { sb } = falso({ competitor_channel_remove_archived: { data: null, error: { message: 'E10:banco_difere_do_manifesto: competitor_video_daily 2026-10 banco=3 arquivo=2', code: 'P0001' } } })
-    const r = await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR })
-    expect(r).toMatchObject({ ok: false, codigo: 'banco_difere_do_manifesto' })
-    if (!r.ok) expect(r.frase).not.toContain('competitor_video_daily')
-  })
-
-  it('resposta nula ou sem status "removido" é inesperado (nunca ok: true)', async () => {
-    for (const data of [null, {}, { status: 'outro' }, 'removido']) {
-      const { sb } = falso({ competitor_channel_remove_archived: { data, error: null } })
-      const r = await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR })
-      expect(r).toMatchObject({ ok: false, codigo: 'inesperado' })
-    }
-  })
-
-  it('OBS_E2E=1: nenhuma chamada ao Blob e a pendência fica', async () => {
-    process.env.OBS_E2E = '1'
-    const { sb, chamadas } = falso({ competitor_channel_remove_archived: removido([url(1)]) })
-    const apagar = vi.fn(async () => undefined)
-    const r = await removerCanalArquivado(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR }, { apagarDoBlob: apagar })
-    expect(apagar).not.toHaveBeenCalled()
-    expect(chamadas.some(c => c.fn === 'obs_archive_blobs_done')).toBe(false)
-    expect(r).toMatchObject({ ok: true, miniaturasPendentes: 1 })
   })
 
   it('soMiniaturasDoObservatorio decide pelo caminho da URL, não por includes', () => {
@@ -262,3 +191,129 @@ describe('A5 E10 T11a: retentarMiniaturasPendentes', () => {
     expect(r).toHaveProperty('porque')
   })
 })
+
+describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemocao', () => {
+  const apagado = (urls: string[]): Resp => ({ data: { status: 'apagado', deletion_id: 9, videos: 2, linhas: {}, watch: { readings: 0, thumbs: 0, alvos: 0 }, blob_urls: urls }, error: null })
+  const e = { siteId: SITE, canalId: CANAL, actorId: ATOR, nomeDigitado: 'Canal X', motivo: 'entrou_por_engano' }
+
+  it('apagarCanalSemGuardar chama a função, apaga as 2 miniaturas do prefixo e dá a baixa pela RPC nova', async () => {
+    const fora = `${BASE}outro/a.jpg`
+    const { sb, chamadas } = falso({ competitor_channel_delete_unarchived: apagado([url(1), url(2), fora]), obs_unarchived_blobs_done: { data: 1, error: null } })
+    const apagar = vi.fn(async () => undefined)
+    const r = await apagarCanalSemGuardar(sb, e, { apagarDoBlob: apagar })
+    expect(chamadas[0]).toEqual({ fn: 'competitor_channel_delete_unarchived', args: { p_site: SITE, p_channel: CANAL, p_actor: ATOR, p_confirm_name: 'Canal X', p_motivo: 'entrou_por_engano' } })
+    expect(apagar).toHaveBeenCalledWith([url(1), url(2)])
+    expect(chamadas.find(c => c.fn === 'obs_unarchived_blobs_done')?.args).toEqual({ p_site: SITE, p_id: 9, p_urls: [url(1), url(2)] })
+    expect(r).toEqual({ ok: true, videos: 2, miniaturasPendentes: 1, foraDoPrefixo: 1, registrosDiarios: 0, leituras: 0 })
+  })
+
+  it('F2: devolve o que a F1 contou ao apagar (leituras da forja + da watch, registros diários); chave ausente em linhas é zero', async () => {
+    const { sb } = falso({ competitor_channel_delete_unarchived: { data: { status: 'apagado', deletion_id: 9, videos: 340, linhas: { competitor_readings: 48, competitor_video_daily: 4000 }, watch: { readings: 20, thumbs: 4, alvos: 2 }, blob_urls: [] }, error: null } })
+    expect(await apagarCanalSemGuardar(sb, e)).toMatchObject({ ok: true, videos: 340, leituras: 68, registrosDiarios: 4000 })
+    const sem = falso({ competitor_channel_delete_unarchived: { data: { status: 'apagado', deletion_id: 9, videos: 1, linhas: {}, watch: { readings: 0, thumbs: 0, alvos: 0 }, blob_urls: [] }, error: null } })
+    expect(await apagarCanalSemGuardar(sem.sb, e)).toMatchObject({ leituras: 0, registrosDiarios: 0 })
+  })
+
+  it('F2: resposta sem linhas ou sem watch deixa os campos AUSENTES, nunca 0', async () => {
+    const { sb } = falso({ competitor_channel_delete_unarchived: { data: { status: 'apagado', deletion_id: 9, videos: 5, blob_urls: [] }, error: null } })
+    const r = await apagarCanalSemGuardar(sb, e)
+    expect(r).toEqual({ ok: true, videos: 5, miniaturasPendentes: 0, foraDoPrefixo: 0 })
+    const meio = falso({ competitor_channel_delete_unarchived: { data: { status: 'apagado', deletion_id: 9, videos: 5, linhas: { competitor_video_daily: 3 }, blob_urls: [] }, error: null } })
+    const m = await apagarCanalSemGuardar(meio.sb, e)
+    expect(m).toEqual({ ok: true, videos: 5, miniaturasPendentes: 0, foraDoPrefixo: 0, registrosDiarios: 3 })
+  })
+
+  it('nome_nao_confere vira falha com a frase e não chama o Blob', async () => {
+    const { sb } = falso({ competitor_channel_delete_unarchived: { data: null, error: { message: 'E10:nome_nao_confere: x', code: 'P0001' } } })
+    const apagar = vi.fn(async () => undefined)
+    const r = await apagarCanalSemGuardar(sb, e, { apagarDoBlob: apagar })
+    expect(r).toEqual({ ok: false, codigo: 'nome_nao_confere', frase: codigos.FRASES_E10.nome_nao_confere })
+    expect(apagar).not.toHaveBeenCalled()
+  })
+
+  it('OBS_E2E=1: o Blob não é tocado e as pendências ficam', async () => {
+    process.env.OBS_E2E = '1'
+    const { sb, chamadas } = falso({ competitor_channel_delete_unarchived: apagado([url(1)]) })
+    const apagar = vi.fn(async () => undefined)
+    const r = await apagarCanalSemGuardar(sb, e, { apagarDoBlob: apagar })
+    expect(apagar).not.toHaveBeenCalled()
+    expect(r).toMatchObject({ ok: true, miniaturasPendentes: 1 })
+    expect(chamadas.some(c => c.fn === 'obs_unarchived_blobs_done')).toBe(false)
+  })
+
+  it('resposta inválida é inesperado', async () => {
+    const { sb } = falso({ competitor_channel_delete_unarchived: { data: { status: 'x' }, error: null } })
+    expect(await apagarCanalSemGuardar(sb, e)).toMatchObject({ ok: false, codigo: 'inesperado' })
+  })
+
+  it('pedirRemocao leva o motivo e mapeia status para jaPedido', async () => {
+    const a = falso({ competitor_channel_request_removal: { data: { status: 'pedido' }, error: null } })
+    expect(await pedirRemocao(a.sb, { siteId: SITE, canalId: CANAL, actorId: ATOR, motivo: 'm' })).toEqual({ ok: true, jaPedido: false })
+    expect(a.chamadas[0]).toEqual({ fn: 'competitor_channel_request_removal', args: { p_site: SITE, p_channel: CANAL, p_by: ATOR, p_motivo: 'm' } })
+    const b = falso({ competitor_channel_request_removal: { data: { status: 'ja_pedido' }, error: null } })
+    expect(await pedirRemocao(b.sb, { siteId: SITE, canalId: CANAL, actorId: ATOR, motivo: 'm' })).toEqual({ ok: true, jaPedido: true })
+  })
+
+  it('cancelarRemocao mapeia naoPedido e despausado; sem_vaga volta com a frase', async () => {
+    const a = falso({ competitor_channel_cancel_removal: { data: { status: 'cancelado', despausado: true }, error: null } })
+    expect(await cancelarRemocao(a.sb, { siteId: SITE, canalId: CANAL, actorId: ATOR })).toEqual({ ok: true, naoPedido: false, despausado: true })
+    const b = falso({ competitor_channel_cancel_removal: { data: { status: 'nao_pedido', despausado: false }, error: null } })
+    expect(await cancelarRemocao(b.sb, { siteId: SITE, canalId: CANAL, actorId: ATOR })).toEqual({ ok: true, naoPedido: true, despausado: false })
+    const c = falso({ competitor_channel_cancel_removal: { data: null, error: { message: 'E10:sem_vaga: x', code: 'P0001' } } })
+    expect(await cancelarRemocao(c.sb, { siteId: SITE, canalId: CANAL, actorId: ATOR })).toEqual({ ok: false, codigo: 'sem_vaga', frase: codigos.FRASES_E10.sem_vaga })
+  })
+
+  it('cancelarRemocao com canal já removido devolve a frase da página velha', async () => {
+    const { sb } = falso({ competitor_channel_cancel_removal: { data: null, error: { message: 'E10:canal_nao_encontrado: x', code: 'P0002' } } })
+    expect(await cancelarRemocao(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR })).toEqual({ ok: false, codigo: 'canal_nao_encontrado', frase: 'Este canal já foi removido. Atualize a página.' })
+  })
+
+  it('retentarMiniaturasPendentes chama o sweep uma vez, sem mexer no máximo', async () => {
+    const { sb, chamadas } = falso({ obs_archive_blobs_done: { data: 0, error: null } }, [{ site_id: SITE, batch: 'a', channel_ref: CANAL, blob_urls_pending: [url(1)] }])
+    const agoraMs = Date.now()
+    const r = await retentarMiniaturasPendentes(sb, { agoraMs, maximo: 5, prazoMs: 60_000 }, { apagarDoBlob: async () => undefined })
+    expect(chamadas.filter(c => c.fn === 'obs_unarchived_watch_sweep')).toEqual([{ fn: 'obs_unarchived_watch_sweep', args: { p_agora: new Date(agoraMs).toISOString() } }])
+    expect(r).toEqual({ apagadas: 1, pendentes: 0, foraDoPrefixo: 0 })
+  })
+
+  it('retentarMiniaturasPendentes junta as duas tabelas no mesmo máximo e dá a baixa de cada uma pela sua RPC', async () => {
+    const { sb, chamadas } = falso({ obs_archive_blobs_done: { data: 0, error: null }, obs_unarchived_blobs_done: { data: 0, error: null } },
+      [{ site_id: SITE, batch: 'a', channel_ref: CANAL, blob_urls_pending: [url(1), url(2)] }],
+      [{ id: 7, site_id: SITE, blob_urls_pending: [url(3), url(4)] }])
+    const apagar = vi.fn(async () => undefined)
+    const r = await retentarMiniaturasPendentes(sb, { agoraMs: Date.now(), maximo: 3, prazoMs: 60_000 }, { apagarDoBlob: apagar })
+    expect(r).toEqual({ apagadas: 3, pendentes: 1, foraDoPrefixo: 0 })
+    expect(chamadas.find(c => c.fn === 'obs_archive_blobs_done')?.args).toMatchObject({ p_urls: [url(1), url(2)] })
+    expect(chamadas.find(c => c.fn === 'obs_unarchived_blobs_done')?.args).toEqual({ p_site: SITE, p_id: 7, p_urls: [url(3)] })
+  })
+
+  it('(Yannis I-2) erro na leitura de obs_unarchived_deletions é relatado e as miniaturas dos lotes seguem sendo apagadas', async () => {
+    const base = falso({ obs_archive_blobs_done: { data: 0, error: null } }, [{ site_id: SITE, batch: 'a', channel_ref: CANAL, blob_urls_pending: [url(1)] }])
+    const deFora = base.sb.from.bind(base.sb)
+    const sb = {
+      rpc: base.sb.rpc.bind(base.sb),
+      from: (t: string) => (t === 'obs_unarchived_deletions'
+        ? (() => { const c: Record<string, unknown> = {}; for (const m of ['select', 'eq', 'order', 'not', 'limit']) c[m] = () => c; c.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message: 'x' } }).then(ok); return c })()
+        : deFora(t)),
+    } as unknown as SupabaseClient
+    const apagar = vi.fn(async () => undefined)
+    const r = await retentarMiniaturasPendentes(sb, { agoraMs: Date.now(), maximo: 5, prazoMs: 60_000 }, { apagarDoBlob: apagar })
+    expect(r).toEqual({ apagadas: 1, pendentes: 0, foraDoPrefixo: 0 })
+    expect(captureMessage.mock.calls.map(c => c[0])).toContain('arquivo_remover: leitura_sem_arquivo_falhou')
+  })
+
+  it('(Yannis M-5) a chamada inesperada diz qual função do banco falhou', async () => {
+    const { sb } = falso({ competitor_channel_request_removal: { data: null, error: { message: 'boom', code: 'XX000' } } })
+    await pedirRemocao(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR, motivo: 'entrou_por_engano' })
+    const c = captureMessage.mock.calls.find(x => x[0] === 'arquivo_remover: chamada_inesperada')
+    expect(c?.[1]).toMatchObject({ tags: { fn: 'competitor_channel_request_removal' } })
+  })
+
+  it('(Yannis N9) a chamada que lança diz qual função do banco lançou (tag fn de chamada_excecao)', async () => {
+    const { sb } = falso({ competitor_channel_request_removal: () => { throw new Error('rede caiu') } })
+    await pedirRemocao(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR, motivo: 'entrou_por_engano' })
+    const c = captureMessage.mock.calls.find(x => x[0] === 'arquivo_remover: chamada_excecao')
+    expect(c?.[1]).toMatchObject({ tags: { fn: 'competitor_channel_request_removal' } })
+  })
+})
+

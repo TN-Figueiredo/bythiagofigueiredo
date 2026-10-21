@@ -19,7 +19,7 @@ const canais = (): Linha[] => [
 ]
 const video = (id: string, canal = CANAL): Linha => ({ id, competitor_channel_id: canal })
 const snap = (video_id: string, mark: number, status: string, site_id = SITE, canal = CANAL, taken_at = T): Linha => ({ video_id, mark, status, site_id, competitor_channel_id: canal, taken_at })
-const comentario = (id: number, video_id: string, o: Partial<Linha> = {}): Linha => ({ id, video_id, site_id: SITE, parent_id: null, creator_replied: null, body: 'TEXTO-PROIBIDO', ...o })
+const comentario = (id: number, video_id: string, o: Partial<Linha> = {}): Linha => ({ id, video_id, site_id: SITE, parent_id: null, creator_replied: null, is_creator: false, body: 'TEXTO-PROIBIDO', ...o })
 const marca = (comment_id: number, mark: number, likes: number, site_id = SITE): Linha => ({ comment_id, mark, likes, site_id })
 
 const mundo = (extra: Record<string, Linha[]> = {}): Record<string, Linha[]> => ({
@@ -66,6 +66,15 @@ describe('o token', () => {
 })
 
 describe('o que devolve', () => {
+  it('resposta do próprio criador (is_creator) na raiz não conta como resposta do criador do canal', async () => {
+    const { sb } = falsoPostgrest(mundo({
+      competitor_video_comments: [comentario(1, 'a', { creator_replied: true, is_creator: true })],
+    }))
+    const r = await lerInsumosDeComentarios(sb, await leituraDe(SITE), pedido)
+    expect(r.lido).toBe(true)
+    if (!r.lido) return
+    expect(r.dados.porVideo.get('a')?.algumComRespostaDoCriador).toBe(false)
+  })
   it('retratos de 7 e 30, resposta do criador e a maior curtida de comentário de topo por marco', async () => {
     const { sb } = falsoPostgrest(mundo({
       competitor_video_comment_snaps: [snap('a', 7, 'ok'), snap('a', 30, 'sem_comentarios', SITE, CANAL, '2026-08-05T00:00:00.000Z'), snap('b', 30, 'desligados'), snap('a', 0, 'ok')],

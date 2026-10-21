@@ -14,16 +14,17 @@ export const M2_EM_MIGRATION = false
 export const M2_SQL: string = readFileSync(M2_SQL_CAMINHO, 'utf8')
 
 /**
- * O bloco 11 da M2 (pedidos 1 e 3 da E10), sozinho. A fixture da MG6 (cópia byte a byte da migration em produção) recria
+ * O bloco 11 da M2 (pedidos 1 e 3 da E10), sozinho, SEM o 11b (a guarda por folhas parte do corpo da F1, não do da MG6: quem aplica a MG6
+ * recebe o 11b só pela M2 inteira, depois da F1). A fixture da MG6 (cópia byte a byte da migration em produção) recria
  * `obs_archive_uncovered` e `obs_db_size_record` sem saber de partição; quem a reaplica (`garantirMg6`, da E10) roda este bloco
  * logo depois, na mesma transação. Inofensivo antes da conversão das séries.
  */
 function bloco11(sql: string): string {
   const i = sql.indexOf('-- 11. ')
-  const f = sql.indexOf('-- 12. ')
-  if (i < 0 || f < 0 || f < i || sql.indexOf('-- 11. ', i + 1) >= 0 || sql.indexOf('-- 12. ', f + 1) >= 0) throw new Error('M2: marcadores do bloco 11 ausentes, repetidos ou fora de ordem')
+  const f = sql.indexOf('-- 11b. ')
+  if (i < 0 || f < 0 || f < i || sql.indexOf('-- 11. ', i + 1) >= 0 || sql.indexOf('-- 11b. ', f + 1) >= 0) throw new Error('M2: marcadores do bloco 11 ausentes, repetidos ou fora de ordem')
   const b = sql.slice(i, f)
-  if (/obs_part\.converter\(/.test(b) || !/competitor_channel_remove_archived/.test(b)) throw new Error('M2: bloco 11 com conteúdo inesperado')
+  if (/obs_part\.converter\(/.test(b) || !/obs_db_size_record/.test(b) || /competitor_channel_remove_archived\(/.test(b)) throw new Error('M2: bloco 11 com conteúdo inesperado')
   return b
 }
 export const M2_BLOCO_11: string = bloco11(M2_SQL)

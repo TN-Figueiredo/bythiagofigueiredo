@@ -245,11 +245,11 @@ describe('a lista', () => {
     if (l.tipo === 'contagem') {
       const t = l.frase.negrito + l.frase.resto
       expect(t).not.toMatch(/respondeu a 0/)
-      expect(t).toContain('Nenhuma resposta dele nos comentários guardados até agora.')
+      expect(t).toContain('Nenhuma resposta dele a comentários de espectadores guardados até agora.')
       expect(t).toContain('ele pode ter respondido a outros')
     }
     const um = listaDoCriador({ nome: 'Matt', resposta: resp({ nivel: 'contagem', total: 1, itens: [] }), videos, titulos, nBase: 6 })
-    if (um.tipo === 'contagem') expect(um.frase.negrito).toBe('Matt respondeu a 1 comentário guardados.'.replace('guardados', 'guardado'))
+    if (um.tipo === 'contagem') expect(um.frase.negrito).toBe('Matt respondeu a 1 comentário guardado de espectador.')
   })
   it('lista falhou: não carregou', () => {
     expect(listaDoCriador({ nome: 'M', resposta: { lido: false, causa: 'erro_do_banco' } as ParteLida<RespostasDoCriador>, videos, titulos, nBase: 6 }).tipo).toBe('nao_carregou')

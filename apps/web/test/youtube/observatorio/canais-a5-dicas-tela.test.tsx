@@ -35,7 +35,7 @@ beforeAll(() => {
 const ok = async () => ({ ok: true })
 function montar(p: Partial<CanaisParams> = {}, obs: Observatory = a3World().obs, onSyncOne: (id: string) => Promise<{ ok: boolean }> = ok) {
   const v = buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', medidas: medidasDoMotor(obs), ...p })
-  const r = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={onSyncOne} /></div></ChromeSyncContext.Provider></ToastProvider>)
+  const r = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><CanaisScreen view={v} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={onSyncOne} /></div></ChromeSyncContext.Provider></ToastProvider>)
   return { ...r, v }
 }
 const linhaDeConcorrente = (v: ReturnType<typeof montar>['v']) => {

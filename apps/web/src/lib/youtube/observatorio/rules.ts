@@ -63,6 +63,8 @@ export const RULES = {
   dbSize: { limitMb: 500, yellowPct: 70, redPct: 85, redDaysToLimit: 90, trendMinDays: 14, trendWindowDays: 28, readingDayStartHourSP: 5, unmeasuredRedHours: 72 },
   // Pausa esquecida (dias) e espera mínima entre pausar e exportar (minutos; o banco confere o mesmo número no registro).
   pause: { forgottenDays: 7, minMinutesBeforeExport: 6 },
+  // "Remover canal" (A5, F1): até quantos dias depois de adicionado um canal pode ser apagado SEM guardar. O banco tem o mesmo 30 (v_max_dias); um teste confere.
+  removal: { semGuardarAteDias: 30 },
   // Miniaturas pendentes no Blob (alerta em dias, tentativas por dia) e quanto vale a sugestão de arquivar (dias).
   archive: { blobPendingAlertDays: 3, blobRetryMaxPerDay: 200, suggestionFreshDays: 7 },
   // Versões do vídeo próprio (A5, E18): limiar do antes e depois, janela e regra do retoque. O número mora em proprio-versoes/regras.ts.

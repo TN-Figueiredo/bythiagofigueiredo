@@ -31,8 +31,8 @@ export function dicaViewsDia(f: { mediana: number | null; n: number; desde: stri
   return t
 }
 
-export function dicaRitmo(f: { longos: number; shorts: number; ultimoHaDias: number | null; partialText: string | null }): string {
-  let t = `Em 13 semanas: ${f.longos} ${f.longos === 1 ? 'vídeo longo' : 'vídeos longos'} e ${f.shorts} ${f.shorts === 1 ? 'Short' : 'Shorts'}.`
+export function dicaRitmo(f: { longos: number; shorts: number; ultimoHaDias: number | null; partialText: string | null; periodo?: string }): string {
+  let t = `Em ${f.periodo ?? '13 semanas'}: ${f.longos} ${f.longos === 1 ? 'vídeo longo' : 'vídeos longos'} e ${f.shorts} ${f.shorts === 1 ? 'Short' : 'Shorts'}.`
   if (f.ultimoHaDias != null) t += f.ultimoHaDias === 0 ? ' Último vídeo hoje.' : ` Último vídeo há ${f.ultimoHaDias} ${f.ultimoHaDias === 1 ? 'dia' : 'dias'}.`
   if (f.partialText) t += ` ${f.partialText}`
   return t

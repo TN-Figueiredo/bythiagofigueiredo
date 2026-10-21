@@ -14,7 +14,7 @@ import {
 } from './direcao'
 import { estadoDoCanal, type EstadoDoCanal } from './estado-canal'
 import { taxaDeAcerto, type ValorAcerto, type VideoParaAcerto } from './acerto'
-import { ritmo, type ValorRitmo } from './ritmo'
+import { ritmo, baseDoRitmo as baseDoRitmoDe, type ValorRitmo } from './ritmo'
 import { engajamentoDoCanal, engajamentoDoVideo, type ValorEngajamento, type VideoParaEngajamento } from './engajamento'
 import { mudouCapitulos, subidasDoVideo, type MudancaDoVideo, type Subida } from './subida'
 import { picoSemCauda, type ValorPico } from './pico'
@@ -90,6 +90,8 @@ export interface MedidasDoCanal {
   m3a: Medida<ValorDirecaoCanal>
   m8: M8DoCanal
   porVideo: Map<string, MedidasDoVideo>
+  /** A base do ritmo (criação do canal, cobertura da lista cortada): a mesma das M6, para o bloco desenhar as semanas fora dela. */
+  baseDoRitmo?: { criadoEmMs: number | null; coberturaDesdeMs: number | null }
   falhas: Array<{ medida: string; classe: string }>
 }
 
@@ -233,11 +235,20 @@ export function medidasDoCanal(i: Insumos, o: { agoraMs: number }): MedidasDoCan
   const publicacoes = (f: Formato | null): number[] =>
     prontos.filter((p) => p.v.liveBroadcastContent !== 'upcoming' && p.baseMs !== null && (f === null || p.formato === f)).map((p) => p.baseMs as number)
 
+  // Base do ritmo (parecer Phil 19/10): criação do canal e, se a lista foi cortada, o mais antigo guardado (qualquer formato, sem agendado).
+  const baseDoRitmo = ((): { criadoEmMs: number | null; coberturaDesdeMs: number | null } => {
+    if (canalLido === null || videosLidos === null) return { criadoEmMs: null, coberturaDesdeMs: null }
+    return baseDoRitmoDe({
+      publicacoesMs: publicacoes(null), criadoEmMs: canalLido.criadoEmMs, guardados: videosLidos.length,
+      totalNoYoutube: canalLido.totalNoYoutube, limiteDeVideos: canalLido.limiteDeVideos,
+    })
+  })()
+
   const m8 = ((): M8DoCanal => {
     if (canalLido === null || videosLidos === null) return { estado: falhou(), parado: falhou(), queda: falhou() }
     const todas = publicacoes(null)
     try {
-      const intervalo = ritmo(todas, { agoraMs, parcial: false })
+      const intervalo = ritmo(todas, { agoraMs, ...baseDoRitmo })
       const r = estadoDoCanal({
         missingSince: canalLido.missingSince,
         ultimaPublicacaoMs: todas.length ? Math.max(...todas) : null,
@@ -359,7 +370,7 @@ export function medidasDoCanal(i: Insumos, o: { agoraMs: number }): MedidasDoCan
           formato: p.formato, idadeDias: p.idadeDias, multiplo: mult.get(p.v.id)?.valor ?? null, baseFraca: mult.get(p.v.id)?.baseFraca ?? false, agendadoOuNoAr: p.agendadoOuNoAr,
         })), { formato: f }))
     })()
-    const m6 = seguro(c, 'm6', () => ritmo(publicacoes(f), { agoraMs, parcial: false }))
+    const m6 = seguro(c, 'm6', () => ritmo(publicacoes(f), { agoraMs, ...baseDoRitmo }))
     const m7c = marcasLidas === null ? falhou() : seguro(c, 'm7_canal', () => engajamentoDoCanal(
       prontos.filter((p) => p.baseMs !== null).map((p): VideoParaEngajamento => ({ formato: p.formato, wasLive: p.v.wasLive, agendadoOuNoAr: p.agendadoOuNoAr, engajamento: m7De(p) })),
       { formato: f, agoraMs }))
@@ -387,5 +398,5 @@ export function medidasDoCanal(i: Insumos, o: { agoraMs: number }): MedidasDoCan
     }
   }
 
-  return { porFormato: { long: longo(), short: porFormato('short') }, m3a, m8, porVideo, falhas: c.falhas }
+  return { porFormato: { long: longo(), short: porFormato('short') }, m3a, m8, porVideo, baseDoRitmo, falhas: c.falhas }
 }

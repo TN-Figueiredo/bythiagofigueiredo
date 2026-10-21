@@ -13,6 +13,7 @@ import { ChannelAvatar } from '../_chrome/channel-avatar'
 import { Popover } from '../_chrome/flut/flut'
 import { Icon } from '../_chrome/icons'
 import { NicheSelect } from '../_canais/niche-editor'
+import { AvisoAgendado } from '../_canais/cells'
 import { cliqueSimples } from '../_chrome/clique-simples'
 import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import type { CanalHeaderView, NumCell } from './header-model'
@@ -37,7 +38,7 @@ export function Cell({ c }: { c: NumCell }) {
 }
 
 /** Itens do menu ⋯: setas, Home e End andam entre eles; o primeiro recebe o foco ao abrir (padrão menu button). */
-function MenuItems({ syncing, canAdmin, onSync, onRemove }: { syncing: boolean; canAdmin: boolean; onSync: () => void; onRemove: () => void }) {
+function MenuItems({ syncing, canAdmin, agendado, onSync, onRemove }: { syncing: boolean; canAdmin: boolean; agendado: boolean; onSync: () => void; onRemove: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => { ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true }) }, [])
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -53,7 +54,7 @@ function MenuItems({ syncing, canAdmin, onSync, onRemove }: { syncing: boolean; 
   return (
     <div ref={ref} onKeyDown={onKey}>
       <button type="button" role="menuitem" aria-disabled={syncing ? true : undefined} onClick={() => { if (!syncing) onSync() }}>Sincronizar só este canal</button>
-      {canAdmin ? (
+      {canAdmin && agendado ? null : canAdmin ? (
         <>
           <hr />
           <button type="button" role="menuitem" className="del" onClick={onRemove}>Remover canal…</button>
@@ -102,7 +103,7 @@ export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHr
           {Icon.dots()}
         </button>
         <Popover open={menu} anchor={() => menuBtnRef.current} onClose={() => setMenu(false)} role="menu" label="Ações do canal" className="canal-menu" align="fim" gap={4}>
-          <MenuItems syncing={syncing} canAdmin={canAdmin}
+          <MenuItems syncing={syncing} canAdmin={canAdmin} agendado={h.agendado != null}
             onSync={() => { setMenu(false); menuBtnRef.current?.focus(); onSync() }}
             onRemove={() => { setMenu(false); onAskRemove() }} />
         </Popover>
@@ -115,6 +116,8 @@ export function CanalHeader({ h, nums, syncing, canAdmin, menuBtnRef, compararHr
         {celulas}
         {nova ? <MaisNumeros numeros={maisNumeros(h)} /> : null}
       </div>
+
+      {h.agendado ? <AvisoAgendado idade={h.agendado.idade} desde={h.agendado.desde} /> : null}
 
       <div className="lrow">
         <p className={'l3' + tone}>

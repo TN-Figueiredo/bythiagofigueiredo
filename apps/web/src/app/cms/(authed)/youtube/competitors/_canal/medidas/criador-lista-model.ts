@@ -1,5 +1,5 @@
-// E5a Tarefa C4: a lista "O que o criador respondeu". Puro. NUNCA traz nome de autor (o autor é sempre "um espectador": o leitor nem consulta
-// a tabela de identidade) e nunca escreve "não respondeu". No nível `contagem` não há texto: só o número e a frase de quem vê só a contagem.
+// E5a Tarefa C4: a lista "O que o criador respondeu". Puro. NUNCA traz nome de autor (o autor é sempre "um espectador": o leitor filtrou o fio
+// do criador por `is_creator` e nem consulta a tabela de identidade) e nunca escreve "não respondeu". No nível `contagem` não há texto: só o número e a frase de quem vê só a contagem.
 // Agrupa por vídeo (o mais novo primeiro) e desenha cada comentário como um fio único (a mesma peça do vídeo). Datas de fala por `dmDeData` (fuso de SP).
 import type { ParteLida, RespostasDoCriador } from '@/lib/youtube/observatorio/comentarios/leitor-tipos'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
@@ -58,12 +58,12 @@ export function listaDoCriador(e: {
     return {
       tipo: 'contagem', total: r.total, aviso: e.permissaoFalhou ? { negrito: FRASES.permissaoNaoConferida, resto: '' } : FRASE_SO_CONTAGEM,
       frase: r.total === 0
-        ? { negrito: 'Nenhuma resposta dele nos comentários guardados até agora.', resto: ` Guardamos até ${MAX_COMENTARIOS_GUARDADOS} comentários por vídeo; ele pode ter respondido a outros.` }
-        : { negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário guardado', 'comentários guardados')}.`, resto: '' },
+        ? { negrito: 'Nenhuma resposta dele a comentários de espectadores guardados até agora.', resto: ` Guardamos até ${MAX_COMENTARIOS_GUARDADOS} comentários por vídeo; ele pode ter respondido a outros.` }
+        : { negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário guardado de espectador', 'comentários guardados de espectadores')}.`, resto: '' },
     }
   }
   if (r.itens.length === 0) {
-    return { tipo: 'vazia', frase: { negrito: 'Nenhuma resposta dele nos comentários guardados até agora.', resto: ` Guardamos até ${MAX_COMENTARIOS_GUARDADOS} comentários por vídeo; ele pode ter respondido a outros.` } }
+    return { tipo: 'vazia', frase: { negrito: 'Nenhuma resposta dele a comentários de espectadores guardados até agora.', resto: ` Guardamos até ${MAX_COMENTARIOS_GUARDADOS} comentários por vídeo; ele pode ter respondido a outros.` } }
   }
   const pub = new Map((e.videos ?? []).map(v => [v.id, baseDaIdade(v) ?? 0]))
   const ordenados = r.itens.map((x, i) => ({ x, i })).sort((a, b) => (pub.get(b.x.videoId) ?? 0) - (pub.get(a.x.videoId) ?? 0) || a.i - b.i).map(o => o.x)
@@ -93,6 +93,6 @@ export function listaDoCriador(e: {
   const videos = grupos.length
   return {
     tipo: 'itens', total: r.total, nVideos: videos, grupos,
-    frase: { negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário guardado', 'comentários guardados')}, em ${ptn(videos, 'vídeo', 'vídeos')}.`, resto: '' },
+    frase: { negrito: `${e.nome} respondeu a ${ptn(r.total, 'comentário guardado de espectador', 'comentários guardados de espectadores')}, em ${ptn(videos, 'vídeo', 'vídeos')}.`, resto: '' },
   }
 }

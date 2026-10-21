@@ -5,9 +5,10 @@ import type { ObsSearchParams } from './_chrome/resolve-niche'
 import { CanaisScreen } from './_canais/canais-screen'
 import { competitorChannelRedirect, legacyTabRedirect } from './_canais/legacy'
 import { montarCanais } from './_canais/montar'
-import { addChannelFromCanais, removeCompetitorChannel, syncCompetitorNow, unlockMoreChannels, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from './actions'
+import { addChannelFromCanais, pedirRemocaoCanal, apagarCanalSemGuardarAction, desfazerRemocaoCanal, syncCompetitorNow, unlockMoreChannels, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from './actions'
 import { setChannelNiche, setOwnChannelNiche } from './niche-actions'
 import { askForjaReading } from './forja-actions'
+import { meuEmailDoSite } from './_canais/meu-email'
 
 export const metadata = { title: 'Competidores' }
 export const dynamic = 'force-dynamic'
@@ -25,13 +26,17 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   for (const [k, v] of Object.entries(sp ?? {})) flat[k] = one(v)
   // a channel with a page (a competitor, or an own channel with videos) is sent there; an own channel without videos opens the list with no panel.
   // O redirecionamento roda logo depois de abrir o conjunto e antes de qualquer leitura privada (montarCanais, aoAbrir).
-  const { pagina: { obs, meuCanalLembrado, extra: permissoes }, view, ri } = await montarCanais(flat, { aoAbrir: o => competitorChannelRedirect(o, flat.channel) })
+  // O e-mail da sessão (só para admin) é lido em paralelo com a montagem; o redirecionamento de `aoAbrir` continua antes de qualquer leitura privada.
+  const meuEmailP = meuEmailDoSite()
+  const [{ pagina: { obs, meuCanalLembrado, extra: permissoes }, view, ri }, meuEmail] = await Promise.all([
+    montarCanais(flat, { aoAbrir: o => competitorChannelRedirect(o, flat.channel) }), meuEmailP,
+  ])
   return (
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
-        view={view} ri={ri} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar}
-        onAdd={addChannelFromCanais} onRemove={removeCompetitorChannel} onUnlock={unlockMoreChannels}
+        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar}
+        onAdd={addChannelFromCanais} onPedir={pedirRemocaoCanal} onApagar={apagarCanalSemGuardarAction} onDesfazer={desfazerRemocaoCanal} onUnlock={unlockMoreChannels}
         onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
         onPin={pinVideo} onUnpin={unpinVideo} onRemovalImpact={getCompetitorRemovalImpactAction}
       />

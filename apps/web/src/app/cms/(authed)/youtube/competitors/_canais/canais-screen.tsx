@@ -13,9 +13,13 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import type { Niche } from '@/lib/youtube/observatorio/types'
+import type { pedirRemocaoCanal, apagarCanalSemGuardarAction, desfazerRemocaoCanal } from '../actions'
 import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView, type DirecaoFiltro } from './view-model'
 import { FMT_LEMBRADO, FMT_PADRAO, anuncioFmt, parseCanaisFmt, type CanaisFmt } from './formato'
 import { useToast } from '../_chrome/toasts'
+import { TXT, pedidoAoAgente, toastApagadoCorpo } from './remover-model'
+import { useDesfazer } from './use-desfazer'
+import { lerRemovido } from './removido-flag'
 import { useChromeSync } from '../_chrome/sync-context'
 import { ChannelTable, type RowHandlers } from './channel-table'
 import { ChannelCards } from './channel-cards'
@@ -23,7 +27,7 @@ import { ChannelDrawer, type DrawerShell } from './channel-drawer'
 import { DrawerForjaBox, DrawerForjaFoot } from './drawer-forja'
 import type { ForjaAsk } from '../_chrome/forja-view-model'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
-import { RemoveDialog, type ImpactAnswer } from './remove-dialog'
+import { RemoveDialog, type Desfecho, type ImpactAnswer } from './remove-dialog'
 import { AddChannelForm, type AddFn } from './add-channel-form'
 import { RowMenu, rowMenuButton } from './row-menu'
 import { NicheEditorDialog, NicheOptionsContext, NichePendingContext, type NichePending } from './niche-editor'
@@ -44,7 +48,11 @@ export interface CanaisScreenProps {
   /** site_users.role ∈ {super_admin, org_admin}, decided on the server. */
   canUnlock: boolean
   onAdd: AddFn
-  onRemove: (id: string) => Promise<{ ok: boolean; error?: string }>
+  onPedir: typeof pedirRemocaoCanal
+  onApagar: typeof apagarCanalSemGuardarAction
+  onDesfazer: typeof desfazerRemocaoCanal
+  /** O e-mail de quem usa a tela, para o texto do pedido ao agente (D8); null = o texto pede para completar. */
+  meuEmail?: string | null
   onUnlock: () => Promise<{ ok: boolean; error?: string }>
   onSetNiche: (id: string, niche: Niche) => Promise<{ ok: boolean }>
   /** Niche of an own channel (server action setOwnChannelNiche): another table, so another action. */
@@ -126,7 +134,7 @@ function BarraDeOrdem({ sort, dir, onSort }: { sort: CanaisSort; dir: 'asc' | 'd
   )
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, somenteLeitura = false, ri }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, meuEmail = null, somenteLeitura = false, ri }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -147,6 +155,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const [confirm, setConfirm] = useState<null | { id: string; name: string }>(null)
   const [local, setLocal] = useState<Record<string, LocalSync>>({})
   const returnFocus = useRef<HTMLElement | null>(null)
+  /** Há envio em curso na janela de remover: o Esc daqui não pode fechá-la (I-4). */
+  const bloqueado = useRef(false)
   const closeRef = useRef<HTMLButtonElement | null>(null)
 
   const urlWith = useCallback((set: Record<string, string | null>) => {
@@ -227,13 +237,20 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   const closeAdd = () => { setAddClosed(true); go({ add: null }, { add: false }) }
   const closeNiche = () => { setNicheClosed(true); go({ nicheEditor: null }) }
   const closeMenu = (focus: boolean) => { const id = menu; setMenu(null); if (focus && id) rowMenuButton(id)?.focus() }
-  const closeConfirm = () => { setConfirm(null); returnFocus.current?.focus() }
+  const focarAoFechar = useRef(false)
+  const closeConfirm = () => { focarAoFechar.current = true; setConfirm(null) }
+  // o foco só volta depois que o `inert` do fundo saiu (o navegador ignora foco em subárvore inerte): I3
+  useEffect(() => {
+    if (confirm || !focarAoFechar.current) return
+    focarAoFechar.current = false
+    returnFocus.current?.focus()
+  }, [confirm])
 
   // Esc closes the topmost layer (canais.html keydown). The row menu is not here: the floating layer closes it first and returns the focus.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (confirm) { closeConfirm(); return }
+      if (confirm) { if (!bloqueado.current) closeConfirm(); return }
       if (addOpen) { closeAdd(); return }
       if (nicheOpen) { closeNiche(); return }
       if (panel) closeDrawer()
@@ -293,19 +310,58 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
   }
   const askRemove = (id: string, from: HTMLElement | null) => {
     const r = rowOf(id) ?? (panel?.id === id ? { name: panel.name } : null); if (!r) return
+    if (rowOf(id)?.agendado) return // já agendado: o Desfazer vem antes (D6)
     returnFocus.current = from ?? document.activeElement as HTMLElement | null
     setMenu(null); setConfirm({ id, name: r.name })
   }
-  const doRemove = async () => {
+  const { desfazer, ocupados: desfazendoIds } = useDesfazer(onDesfazer, () => router.refresh())
+  const copiarPedido = async (r: { name: string }) => {
+    const texto = pedidoAoAgente(r.name, meuEmail)
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('sem área de transferência')
+      await navigator.clipboard.writeText(texto)
+      toast('ok', TXT.pedidoCopiadoTitulo, TXT.pedidoCopiadoCorpo)
+    } catch {
+      toast('warn', 'Não deu para copiar', 'O navegador bloqueou a área de transferência. Selecione o texto abaixo e copie com ⌘C.', { selectable: texto })
+    }
+  }
+  /** U5: depois de fechar a janela o foco vai ao título da página (o botão que a abriu deixou de existir ou mudou de lugar). */
+  const [focoTitulo, setFocoTitulo] = useState(0)
+  /** O pedido veio da gaveta: o foco volta ao título da gaveta (que passa a mostrar o aviso), não ao da página. */
+  const focoGaveta = useRef<string | null>(null)
+  /** U5: depois de guardar na lista, o foco volta ao ⋯ da mesma linha (a linha continua na lista, agora agendada). */
+  const focoLinha = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focoTitulo) return
+    const g = focoGaveta.current && document.getElementById(`cn-d-${focoGaveta.current}`)
+    focoGaveta.current = null
+    if (g) { g.focus({ preventScroll: true }); focoLinha.current = null; return }
+    const idLinha = focoLinha.current; focoLinha.current = null
+    const menuDaLinha = idLinha ? rowMenuButton(idLinha) : null
+    if (menuDaLinha) { menuDaLinha.focus({ preventScroll: true }); return }
+    const raiz = telaRef.current
+    const titulo = [...(raiz?.closest('[data-obs]') ?? document).querySelectorAll<HTMLElement>('h1, h2')].find(x => !raiz?.contains(x)) ?? raiz
+    if (titulo) { if (!titulo.hasAttribute('tabindex')) titulo.setAttribute('tabindex', '-1'); titulo.focus({ preventScroll: true }) }
+  }, [focoTitulo])
+  // D13: o canal apagado na página do canal chega aqui pelo estado do navegador (não pela URL); o toast sai uma vez
+  useEffect(() => {
+    const d = lerRemovido()
+    if (d) toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(d.nome, { videos: d.videos, ...(d.registros !== undefined ? { registros: d.registros } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const concluir = (d: Desfecho) => {
     if (!confirm) return
     const { id, name } = confirm
-    setConfirm(null)
-    const res = await onRemove(id)
-    if (!res.ok) { toast('bad', 'Não deu para remover o canal', res.error ?? `${name} continua no observatório.`); return }
-    toast('ok', `${name} removido`, 'O canal saiu do observatório e os dados coletados dele foram apagados.')
-    if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
+    focoGaveta.current = d.caminho === 'guardar' && panel?.id === id && returnFocus.current?.closest('.cn-drawer') ? id : null
+    focoLinha.current = d.caminho === 'guardar' && !focoGaveta.current ? id : null
+    setConfirm(null); setFocoTitulo(n => n + 1)
+    if (d.caminho === 'guardar') toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo, { acoes: [{ rotulo: 'Desfazer', onClick: () => { void desfazer(id, name) } }] })
+    else {
+      toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(name, { videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
+      if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
+    }
     router.refresh()
   }
+  const conferir = () => { setConfirm(null); router.refresh() }
   const unlock = async () => {
     const res = await onUnlock()
     if (!res.ok) { toast('bad', 'Não deu para destravar vagas', res.error === 'forbidden' ? 'Só administradores destravam vagas.' : res.error ?? ''); return }
@@ -396,6 +452,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
     somenteLeitura,
     open: openRow, niche: (r, n, ctx) => { void setNiche(r, n, ctx) },
     menu: id => { if (menu === id) closeMenu(true); else setMenu(id) },
+    desfazer: id => { const r = rowOf(id); if (r) void desfazer(id, r.name) }, copiarPedido: id => { const r = rowOf(id); if (r) void copiarPedido(r) }, desfazendo: id => desfazendoIds.has(id),
     retry: id => { void syncOne(id) }, remove: askRemove, local: id => local[id], roundRunning: running, upnextHref: UPNEXT, menuFor: menu, selected: panel?.id ?? null,
     irAte, reg: (id, el) => { if (el) linhasRef.current.set(id, el); else linhasRef.current.delete(id) },
   }
@@ -530,6 +587,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
             <span className="spacer" />
             <span className="quota">
               <span className="num" data-k="nCh">{s.used}</span>{' '}de{' '}<span className="num" data-k="nLim">{s.limit}</span>{' '}canais
+              {s.agendados ? <span data-k="agendados">{s.text.slice(`${s.used} de ${s.limit} canais`.length)}</span> : null}
               <Tip label="Sobre o limite de canais" left>{s.tip}</Tip>
             </span>
             {canUnlock && s.nearFull ? <button type="button" className="btn small" onClick={() => { void unlock() }}>{s.unlockText}</button> : null}
@@ -601,7 +659,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onRemove, onUnlock, onSet
           onRemove={() => askRemove(menuRow.id, rowMenuButton(menuRow.id))} />
       ) : null}
 
-      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onCancel={closeConfirm} onConfirm={() => { void doRemove() }} trap={trapTab} /> : null}
+      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onPedir={onPedir} onApagar={onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} onCopiarPedido={() => { void copiarPedido({ name: confirm.name }) }} trap={trapTab} /> : null}
 
       {addOpen ? (
         <AddChannelForm view={view} onAdd={onAdd} onClose={closeAdd} trap={trapTab}

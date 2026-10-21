@@ -1265,6 +1265,14 @@ describe('rodarColeta: passo de versões (E18 T7)', () => {
     return rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes', ...extra }).then(r => ({ r, db }))
   }
 
+  it('1b. o passo recebe um prazo de 10 s (passava de 5 s em 20/10: "sem tempo"): com 5 s o prazo acabaria antes de 7 s', async () => {
+    delete process.env.YT_OWN_STEPS_OFF
+    await rodar()
+    const folga = vi.mocked(passoVersoes).mock.calls[0]![0].deadline - Date.now()
+    expect(folga).toBeGreaterThan(7_000)
+    expect(folga).toBeLessThanOrEqual(10_000)
+  })
+
   it('1. sem a variável (apagada): o passo roda na fase antes e o resumo traz dias_derivados', async () => {
     delete process.env.YT_OWN_STEPS_OFF
     const { r } = await rodar()

@@ -17,6 +17,7 @@ import './canal-medidas.css'
 const ITENS_DO_INFO = [
   `Base: vídeos longos publicados nos últimos ${MEASURE_RULES.comments.windowDays} dias que já têm retrato de 30 dias dos comentários (cerca de 12 comentários por vídeo, escolhidos pelo YouTube).`,
   `Conta: em quantos desses vídeos vimos pelo menos uma resposta do criador. Percentual só com ${MEASURE_RULES.comments.pctFromN} vídeos ou mais; menos de ${MEASURE_RULES.comments.minVideos}, não medido.`,
+  'Não entram o comentário dele nem as respostas dentro do fio que ele mesmo abriu.',
   'O retrato de 30 dias é tirado entre o 30º e o 37º dia de vida do vídeo; por isso já existe para vídeos que tinham essa idade quando a coleta começou.',
   'Piso: só vemos as respostas entre os comentários guardados; onde não vimos resposta, ele pode ter respondido fora dos comentários guardados.',
   'Cálculo do Observatório sobre dados públicos do YouTube. O texto dos comentários é de terceiros e aparece como veio; endereço dentro dele é texto, nunca link.',

@@ -40,6 +40,9 @@ const UUID = '11111111-1111-4111-8111-111111111111'
 type Res = { ok: boolean; error?: string }
 const isRefusal = (r: Res) => r.ok === false && /^Só quem administra o site pode /.test(r.error ?? '')
 
+/** As actions de remoção devolvem `{ ok: false, codigo, frase }`; o degrau confere a frase de recusa. */
+const comoRes = async (p: Promise<{ ok: true } | { ok: false; frase: string }>): Promise<Res> => { const r = await p; return r.ok ? { ok: true } : { ok: false, error: r.frase } }
+
 interface Case { name: string; run: () => Promise<Res>; adminDid: () => boolean }
 const RESTRICTED: Case[] = [
   {
@@ -58,10 +61,20 @@ const RESTRICTED: Case[] = [
     adminDid: () => log.writes.some((w) => w.table === 'youtube_channels' && w.op === 'update'),
   },
   {
-    name: 'removeCompetitorChannel',
-    // (A5 E10) a remoção vai pela função do banco (exportação conferida), não por delete direto
-    run: () => { log.rpcData = { status: 'removido', batch: 'lote-1', linhas: 1, blob_urls: [] }; return competitors.removeCompetitorChannel(UUID) },
-    adminDid: () => log.rpcs.includes('competitor_channel_remove_archived'),
+    name: 'pedirRemocaoCanal',
+    // (F2) a janela agenda a guarda pela função do banco (a vaga sai na hora); o comando do agente termina o serviço
+    run: () => { log.rpcData = { status: 'pedido' }; return comoRes(competitors.pedirRemocaoCanal(UUID)) },
+    adminDid: () => log.rpcs.includes('competitor_channel_request_removal'),
+  },
+  {
+    name: 'desfazerRemocaoCanal',
+    run: () => { log.rpcData = { status: 'cancelado', despausado: true }; return comoRes(competitors.desfazerRemocaoCanal(UUID)) },
+    adminDid: () => log.rpcs.includes('competitor_channel_cancel_removal'),
+  },
+  {
+    name: 'apagarCanalSemGuardarAction',
+    run: () => { log.rpcData = { status: 'apagado', deletion_id: 1, videos: 0, blob_urls: [] }; return comoRes(competitors.apagarCanalSemGuardarAction(UUID, 'Canal X')) },
+    adminDid: () => log.rpcs.includes('competitor_channel_delete_unarchived'),
   },
 ]
 
@@ -94,7 +107,7 @@ describe('degrau "administrar o site" — canais', () => {
       const res = await c.run()
       expect(isRefusal(res)).toBe(false)
       expect(c.adminDid()).toBe(true)
-      if (c.name === 'removeCompetitorChannel') expect(cache.invalidated).toBe(1)
+      if (/Remocao|SemGuardar/.test(c.name)) expect(cache.invalidated).toBe(1)
     })
 
     it('(c) erro da RPC de permissão e sessão sem usuário: negado, nada tocado', async () => {

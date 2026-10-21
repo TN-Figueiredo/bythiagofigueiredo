@@ -157,7 +157,7 @@ export function insumosCheios(): Insumos {
   mudancas.set('v4', [{ campo: 'titulo', em: AGORA_CHEIA - 30 * D, valueText: null }])
   const retratos: RetratoDoCanal[] = Array.from({ length: 120 }, (_, k) => ({ dia: new Date(Date.parse(HOJE_CHEIA + 'T00:00:00Z') - (120 - k) * D).toISOString().slice(0, 10), views: viewsDoRetrato(k) }))
   return {
-    canal: { lido: true, dados: { id: 'c1', siteId: 's1', collectionPausedAt: null, missingSince: null } },
+    canal: { lido: true, dados: { id: 'c1', siteId: 's1', collectionPausedAt: null, missingSince: null, criadoEmMs: null, totalNoYoutube: null, limiteDeVideos: null } },
     videos: { lido: true, dados: vs.map((x) => x.video) },
     marcas: { lido: true, dados: { marcas, faltas: new Map() } },
     retratos: { lido: true, dados: retratos },

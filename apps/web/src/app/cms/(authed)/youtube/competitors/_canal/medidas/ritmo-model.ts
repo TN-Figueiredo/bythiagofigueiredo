@@ -4,7 +4,8 @@
 import type { MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
 import { baseDaIdade } from '@/lib/youtube/observatorio/medidas/m1'
 import type { VideoLido } from '@/lib/youtube/observatorio/medidas/ler'
-import type { ValorRitmo } from '@/lib/youtube/observatorio/medidas/ritmo'
+import { inicioDoRitmo, type InicioDoRitmo, type ValorRitmo } from '@/lib/youtube/observatorio/medidas/ritmo'
+import { baseDoRitmoTexto } from '@/lib/youtube/observatorio/channels'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import type { Formato, Medida } from '@/lib/youtube/observatorio/medidas/tipos'
 import { FRASES, classeDoMotivo } from '@/lib/youtube/observatorio/medidas-telas/frases'
@@ -19,7 +20,7 @@ const SEMANAS = MEASURE_RULES.rhythm.weeks
 export type CasaDaSemana =
   | { estado: 'com'; n: number; fracao: number }
   | { estado: 'zero' }
-  | { estado: 'nao_lida'; por: string }
+  | { estado: 'nao_lida'; por: string; /** antes da criação / dos vídeos guardados: fora do período, não "não medido" */ fora?: true }
 
 export interface RaiaDeRitmo { rotulo: 'Longos' | 'Shorts'; casas: CasaDaSemana[]; semNenhum: boolean; ausente: boolean }
 
@@ -52,6 +53,10 @@ export interface BlocoDeRitmo {
   ponteiro: PonteiroDeRitmo | null
   cartoes: CartaoDeRitmo[]
   semanasLidas: number
+  /** O período do bloco: 13 semanas cheias ou, com corte (criação/cobertura), os dias da base. */
+  periodo: string
+  /** Semanas fora do período (antes da criação / dos vídeos guardados): a frase sob o título; nulo sem nenhuma. */
+  foraDoPeriodo?: string | null
 }
 
 export interface EntradaDoRitmo {
@@ -82,7 +87,7 @@ const publicacoes = (videos: readonly VideoLido[]): Pub[] => {
 const umDia = (x: number): string => dec1(x).replace(/,0$/, '')
 const semLeituraParou = (e: EstadoDaPagina): boolean => e.tipo === 'erro' || e.tipo === 'saiu' || e.tipo === 'pausado'
 
-function raia(rotulo: 'Longos' | 'Shorts', f: Formato, pubs: readonly Pub[], o: EntradaDoRitmo, primeiraPubMs: number | null): RaiaDeRitmo {
+function raia(rotulo: 'Longos' | 'Shorts', f: Formato, pubs: readonly Pub[], o: EntradaDoRitmo, primeiraPubMs: number | null, base: InicioDoRitmo): RaiaDeRitmo {
   const contagem = new Array<number>(SEMANAS).fill(0)
   for (const p of pubs) {
     if (p.formato !== f || p.ms > o.agoraMs) continue
@@ -93,10 +98,12 @@ function raia(rotulo: 'Longos' | 'Shorts', f: Formato, pubs: readonly Pub[], o: 
   const casas: CasaDaSemana[] = []
   for (let i = SEMANAS - 1; i >= 0; i--) {
     const fim = o.agoraMs - i * SEMANA
-    let por: string | null = null
-    if (semLeituraParou(o.estado) && o.ultimaLeituraMs !== null && fim > o.ultimaLeituraMs) por = `sem leitura desde ${dm(spDateOf(o.ultimaLeituraMs))}`
+    let por: string | null = null, fora = false
+    // Antes da criação do canal (ou dos vídeos guardados, em lista cortada) a semana não existe na base: nunca é zero.
+    if (base.corte !== null && fim <= base.inicioMs) { por = base.corte === 'criacao' ? 'antes da criação do canal' : 'antes dos vídeos guardados'; fora = true }
+    else if (semLeituraParou(o.estado) && o.ultimaLeituraMs !== null && fim > o.ultimaLeituraMs) por = `sem leitura desde ${dm(spDateOf(o.ultimaLeituraMs))}`
     else if (o.estado.tipo === 'primeira_busca' && primeiraPubMs !== null && fim < primeiraPubMs) por = 'ainda não buscada'
-    if (por !== null) { casas.push({ estado: 'nao_lida', por }); continue }
+    if (por !== null) { casas.push(fora ? { estado: 'nao_lida', por, fora: true } : { estado: 'nao_lida', por }); continue }
     const n = contagem[i] ?? 0
     casas.push(n === 0 ? { estado: 'zero' } : { estado: 'com', n, fracao: n / mx })
   }
@@ -132,7 +139,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     const nc: ValorDoCartao = { tipo: 'nao_carregou' }
     return {
       frase: { negrito: 'A leitura falhou:', resto: ' não deu para ler os vídeos ou as medidas. Nada aqui vale como zero.', tom: 'nao_carregou' },
-      raias: [], eixoFim: 'esta semana', ponteiro: null, semanasLidas: 0,
+      raias: [], eixoFim: 'esta semana', ponteiro: null, semanasLidas: 0, periodo: `${SEMANAS} semanas`,
       cartoes: [
         { chave: 'intervalo', rotulo: 'Intervalo típico (valor do meio)', valor: nc },
         { chave: 'semanas', rotulo: `Semanas com ${nome.um}`, valor: nc },
@@ -142,8 +149,11 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
   }
   const pubs = publicacoes(o.videos)
   const primeiraPubMs = pubs.length ? Math.min(...pubs.map(p => p.ms)) : null
-  const raiaPrincipal = raia(principal, o.formato.fmt, pubs, o, primeiraPubMs)
-  const raiaOutra = raia(outro, o.formato.fmt === 'long' ? 'short' : 'long', pubs, o, primeiraPubMs)
+  const b0 = m.baseDoRitmo ?? { criadoEmMs: null, coberturaDesdeMs: null }
+  const base = inicioDoRitmo({ agoraMs: o.agoraMs, semanasDaRegra: SEMANAS, criadoEmMs: b0.criadoEmMs, coberturaDesdeMs: b0.coberturaDesdeMs })
+  const periodo = baseDoRitmoTexto({ corte: base.corte, diasBase: Math.round(base.dias) }, SEMANAS).periodo
+  const raiaPrincipal = raia(principal, o.formato.fmt, pubs, o, primeiraPubMs, base)
+  const raiaOutra = raia(outro, o.formato.fmt === 'long' ? 'short' : 'long', pubs, o, primeiraPubMs, base)
   const semanasLidas = raiaPrincipal.casas.filter(c => c.estado !== 'nao_lida').length
   const parou = semLeituraParou(o.estado)
   const ate = o.ultimaLeituraMs !== null ? spDateOf(o.ultimaLeituraMs) : null
@@ -158,7 +168,7 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     | { tipo: 'nao_carregou' }
   let e6: Estado6
   if (parou) e6 = { tipo: 'nao_medido', motivo: `não medido: sem leitura desde ${ate ? dm(ate) : 'a última leitura'}`, tom: 'sem_leitura' }
-  else if (parcial) e6 = { tipo: 'nao_medido', motivo: FRASES.ritmo_parcial({}, 'canal').longa, tom: 'parcial' }
+  else if (parcial) e6 = { tipo: 'nao_medido', motivo: 'a coleta do canal ainda não cobriu todos os vídeos, então o ritmo é parcial', tom: 'parcial' }
   else if (m6.estado === 'nao_medido') {
     const mt = motivoDe(m6)
     e6 = mt.carregou ? { tipo: 'nao_medido', motivo: mt.longa, tom: 'sem_base' } : { tipo: 'nao_carregou' }
@@ -224,8 +234,12 @@ export function blocoDeRitmo(o: EntradaDoRitmo): BlocoDeRitmo {
     )
   }
 
+  const nFora = raiaPrincipal.casas.filter(c => c.estado === 'nao_lida' && c.fora === true).length
+  const foraDoPeriodo = nFora === 0 ? null
+    : `${nFora === 1 ? 'A semana mais antiga está' : `${nFora} semanas mais antigas estão`} fora do período: ${base.corte === 'cobertura' ? 'os vídeos guardados não chegam até lá' : 'o canal ainda não existia'}. Não é semana sem vídeo.`
+
   return {
-    frase, semanasLidas,
+    frase, semanasLidas, periodo, foraDoPeriodo,
     raias: [raiaPrincipal, raiaOutra],
     eixoFim: parou && ate ? `semana de ${dm(ate)}` : 'esta semana',
     ponteiro, cartoes,

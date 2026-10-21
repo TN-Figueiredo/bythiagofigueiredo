@@ -20,6 +20,7 @@ import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventar
 import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { AVISO_PARCIAL } from './empacotar-comparar'
 import { celulaAusente } from './celula-ausente'
+import { fraseAgendadoIa } from '../_canais/remover-model'
 
 const JANELA = MEASURE_RULES.direction.windowDays
 
@@ -38,6 +39,8 @@ export interface DerivadoLinha {
   /** Em "Todos" a tela escreve a ressalva de dado velho sem a vírgula do começo; nulo = sem ressalva. */
   ressalva: string | null
   ressalva2: string | null
+  /** O canal agendado para guardar no NAS: a frase fixa com a data (DD/MM); nulo = canal normal. */
+  agendado: string | null
 }
 /** Das seções Referências e Inscritos: a pílula "sem medida" vira o motivo do número; a pílula "provisória" vira a situação da linha. */
 export interface DerivadoRiLinha { motivo: string | null; situacao: string | null }
@@ -78,6 +81,7 @@ export function modeloDeCanais(view: CanaisView, ri: RiView | null): ModeloCanai
     direcaoNaoCarregou: r.direcao.tipo === 'nao_carregou' ? NAO_CARREGOU : null,
     ressalva: r.cells.vpd.kind === 'ok' && r.cells.vpd.tail ? r.cells.vpd.tail.replace(/^,\s*/, '') : null,
     ressalva2: r.cells.vpd2?.kind === 'ok' && r.cells.vpd2.tail ? r.cells.vpd2.tail.replace(/^,\s*/, '') : null,
+    agendado: r.agendado ? fraseAgendadoIa(r.agendado.desde) : null,
   })
   const dePilula = (p: RiPilula | null): DerivadoRiLinha => ({ motivo: p?.tipo === 'nm' ? p.texto : null, situacao: p?.tipo === 'prov' ? p.texto : null })
   const R = ri?.referencias.estado === 'ok' ? ri.referencias : null, I = ri?.inscritos.estado === 'ok' ? ri.inscritos : null
@@ -106,6 +110,8 @@ const LINHA = (r: string): Inventario => ({
   [`${r}.growth`]: REP, [`${r}.growthTitle`]: REP, [`${r}.sync.*`]: REP,
   [`${r}.color`]: APAR, [`${r}.ini`]: APAR, [`${r}.avatar`]: IMG, [`${r}.subs`]: 'numero', [`${r}.subsTip`]: REP, [`${r}.url`]: END, [`${r}.handle`]: 'terceiros',
   [`${r}.backfill`]: CTRL, [`${r}.paused`]: CTRL,
+  // F2 do Remover canal: o canal agendado para guardar no NAS; o pacote leva a frase fixa com a data (`derivado...agendado`)
+  [`${r}.agendado`]: CTRL, [`${r}.agendado.*`]: REP,
   [`${r}.direcao.tipo`]: CTRL, [`${r}.direcao.pct`]: REP, [`${r}.direcao.simbolo`]: CTRL, [`${r}.direcao.texto`]: 'numero',
   [`${r}.direcao.ganhoRecente`]: REP, [`${r}.direcao.ganhoAnterior`]: REP, [`${r}.direcao.foraDaEscala`]: APAR, [`${r}.direcao.fracao`]: APAR,
   [`${r}.direcao.avisoDeContagem`]: REP, [`${r}.direcao.curta`]: REP, [`${r}.direcao.motivo`]: CTRL, [`${r}.direcao.longa`]: 'motivo',
@@ -118,9 +124,12 @@ const LINHA = (r: string): Inventario => ({
   [`${r}.cells.cadence.kind`]: CTRL, [`${r}.cells.cadence.weeks[].*`]: APAR,
   [`${r}.cells.cadence.label`]: REP, [`${r}.cells.cadence.pw`]: 'numero', [`${r}.cells.cadence.unit`]: 'rotulo', [`${r}.cells.cadence.sub`]: 'base', [`${r}.cells.cadence.paused`]: 'base',
   [`${r}.cells.cadence.text`]: 'motivo', [`${r}.cells.cadence.title`]: REP,
+  // a nota do ritmo (base menor que 13 semanas, ou canal abaixo do piso): o sufixo e a causa do ⓘ vão à tabela de notas
+  [`${r}.cells.cadence.nota`]: CTRL, [`${r}.cells.cadence.nota.tipo`]: CTRL, [`${r}.cells.cadence.nota.corte`]: CTRL,
+  [`${r}.cells.cadence.nota.sufixo`]: 'base', [`${r}.cells.cadence.nota.causa`]: 'base', [`${r}.cells.cadence.nota.titulo`]: REP, [`${r}.cells.cadence.nota.frase`]: REP,
   [`${r}.cells.cadence2.kind`]: CTRL, [`${r}.cells.cadence2.weeks[].*`]: APAR,
   [`${r}.cells.cadence2.label`]: REP, [`${r}.cells.cadence2.pw`]: 'numero', [`${r}.cells.cadence2.unit`]: 'rotulo', [`${r}.cells.cadence2.sub`]: 'base', [`${r}.cells.cadence2.paused`]: 'base',
-  [`${r}.cells.cadence2.text`]: 'motivo', [`${r}.cells.cadence2.title`]: REP,
+  [`${r}.cells.cadence2.text`]: 'motivo', [`${r}.cells.cadence2.title`]: REP, [`${r}.cells.cadence2.nota`]: CTRL,
   ...Object.fromEntries(['vpd', 'vpd2'].flatMap((k) => [
     [`${r}.cells.${k}`, CTRL], [`${r}.cells.${k}.kind`, CTRL], [`${r}.cells.${k}.big`, 'numero'], [`${r}.cells.${k}.abs`, 'numero'], [`${r}.cells.${k}.n`, 'numero'],
     [`${r}.cells.${k}.weak`, CTRL], [`${r}.cells.${k}.tail`, 'base'], [`${r}.cells.${k}.title`, REP], [`${r}.cells.${k}.text`, 'motivo'], [`${r}.cells.${k}.falta`, CTRL], [`${r}.cells.${k}.ausencia`, CTRL],
@@ -142,7 +151,7 @@ const LINHA = (r: string): Inventario => ({
 })
 
 const DER = (r: string): Inventario => ({
-  [`${r}.posicao`]: 'numero', [`${r}.semPosicao`]: 'motivo', [`${r}.nicho`]: 'rotulo', [`${r}.subsOcultos`]: 'motivo', [`${r}.direcaoNaoCarregou`]: 'motivo', [`${r}.ressalva`]: 'base', [`${r}.ressalva2`]: 'base',
+  [`${r}.posicao`]: 'numero', [`${r}.semPosicao`]: 'motivo', [`${r}.nicho`]: 'rotulo', [`${r}.subsOcultos`]: 'motivo', [`${r}.direcaoNaoCarregou`]: 'motivo', [`${r}.ressalva`]: 'base', [`${r}.ressalva2`]: 'base', [`${r}.agendado`]: 'base',
 })
 
 const RI_SECAO = (r: string, linha: 'ref' | 'ins'): Inventario => ({
@@ -167,7 +176,7 @@ export const INVENTARIO_CANAIS: Inventario = {
   'derivado.ri.referencias[].motivo': 'motivo', 'derivado.ri.referencias[].situacao': 'base', 'derivado.ri.inscritos[].motivo': 'motivo', 'derivado.ri.inscritos[].situacao': 'base',
   'derivado.ri.fraseReferencias': 'base', 'derivado.ri.fraseInscritos': 'base',
   // o topo do modelo da tela
-  'slots.used': REP, 'slots.limit': REP, 'slots.free': REP, 'slots.text': 'base', 'slots.fullText': 'base', 'slots.tip': 'base', 'slots.nearFull': CTRL, 'slots.unlockText': CTRL, 'slots.unlockDone': CTRL,
+  'slots.used': REP, 'slots.limit': REP, 'slots.free': REP, 'slots.agendados': REP, 'slots.text': 'base', 'slots.fullText': 'base', 'slots.tip': 'base', 'slots.nearFull': CTRL, 'slots.unlockText': CTRL, 'slots.unlockDone': CTRL,
   scale: CTRL, layout: CTRL, fmt: CTRL, fmtNaUrl: CTRL, fmtNota: 'base', 'fmtCab': CTRL, 'fmtCab.dois': 'base', 'fmtCab.ordenado': 'base',
   sort: CTRL, dir: CTRL, sortNote: 'base', vpdUnit: 'base', 'ordem.coluna': REP, 'ordem.sentido': REP, 'ordem.empate': REP,
   faixaSemPosicao: CTRL, 'faixaSemPosicao.linha1': 'base', 'faixaSemPosicao.linha2': 'base',
@@ -199,6 +208,10 @@ export const INVENTARIO_CANAIS: Inventario = {
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste (cada uma tem teste sintético próprio quando importa). */
 export const SEM_FOLHA_NA_MATRIZ_CANAIS: readonly string[] = [
+  // a nota da segunda medida de "Todos" é sempre null (a nota é do canal, não do formato)
+  'list.unranked[].cells.cadence2.nota',
+  'list.ranked[].agendado.*',
+  'list.unranked[].agendado.*',
   'list.ranked[].valor',
   'list.ranked[].numero',
   'list.ranked[].cells.vpd',
@@ -377,8 +390,10 @@ function tabelasDasLinhas(modelo: ModeloCanais, ls: Linha[], privada: boolean): 
     const itens: Array<[string | null | undefined, string]> = [
       [r.semPagina, `${p}.semPagina`], [r.semMedidaTexto, `${p}.semMedidaTexto`],
       [c.cadence.kind === 'ok' ? c.cadence.sub : null, `${p}.cells.cadence.sub`], [c.cadence.kind === 'ok' ? c.cadence.paused : null, `${p}.cells.cadence.paused`],
+      [c.cadence.kind === 'ok' ? c.cadence.nota?.sufixo : null, `${p}.cells.cadence.nota.sufixo`], [c.cadence.kind === 'ok' ? c.cadence.nota?.causa : null, `${p}.cells.cadence.nota.causa`],
       [c.vpd.kind === 'ok' && !todos ? c.vpd.tail : null, `${p}.cells.vpd.tail`], [c.vpd.kind === 'ok' && todos ? dl.ressalva : null, `${dp}.ressalva`],
       [c.out.kind === 'na' ? c.out.weak : null, `${p}.cells.out.weak`], [c.out.kind === 'na' ? c.out.upnext : null, `${p}.cells.out.upnext`],
+      [dl.agendado, `${dp}.agendado`],
       [c.growth.kind === 'na' ? null : c.growth.cap, `${p}.cells.growth.cap`], [c.out.kind === 'ok' && !todos ? c.out.vs : null, `${p}.cells.out.vs`], [c.swap.kind === 'ok' ? c.swap.last : null, `${p}.cells.swap.last`],
       [c.sync.cov, `${p}.cells.sync.cov`], [c.sync.msg, `${p}.cells.sync.msg`], [r.semFormato?.label, `${p}.semFormato.label`], [r.semFormato?.tip, `${p}.semFormato.tip`],
       ...(todos ? [

@@ -91,7 +91,7 @@ export async function lerInsumosDeComentarios(
         if (s.mark === 7) e.retrato7 = statusDe(s.status)
         else if (s.mark === 30) e.retrato30 = statusDe(s.status)
       }
-      const cs = await paginar((de, ate) => sb.from('competitor_video_comments').select('id, video_id, parent_id, creator_replied')
+      const cs = await paginar((de, ate) => sb.from('competitor_video_comments').select('id, video_id, parent_id, creator_replied, is_creator')
         .eq('site_id', siteId).in('video_id', bloco).is('parent_id', null).order('id').range(de, ate), max)
       if (!cs.ok) return cs.falha
       const topo: number[] = []
@@ -99,7 +99,7 @@ export async function lerInsumosDeComentarios(
         if (typeof c.id !== 'number' || typeof c.video_id !== 'string' || c.parent_id !== null) continue
         donoDoComentario.set(c.id, c.video_id)
         topo.push(c.id)
-        if (c.creator_replied === true) entrada(c.video_id).algumComRespostaDoCriador = true
+        if (c.creator_replied === true && c.is_creator === false) entrada(c.video_id).algumComRespostaDoCriador = true
         else entrada(c.video_id)
       }
       // As curtidas de comentário de topo, por marco. `competitor_video_comment_marks` não tem `video_id`: o filtro é pelo id do comentário.

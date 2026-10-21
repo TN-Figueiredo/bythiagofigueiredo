@@ -99,6 +99,12 @@ describe('addCompetitorChannel', () => {
     setup({ own: null, existing: { id: 'c1', niche: 'ia', channel_name: 'Matt Wolfe' }, inserted: [] })
     expect(await (await load())(UC)).toEqual({ ok: false, error: 'Matt Wolfe já está no observatório (IA).' })
   })
+  it('S5.3 canal com remoção pedida: recusa antes das vagas e do insert, com a frase do Desfazer', async () => {
+    const db: Db = { own: null, existing: { id: 'c1', niche: 'ia', channel_name: 'Matt Wolfe', removal_requested_at: '2026-10-19T10:00:00Z' }, inserted: [] }
+    setup(db, { used: 75, limit: 75, free: 0 })
+    expect(await (await load())(UC)).toEqual({ ok: false, error: 'Este canal está agendado para ser apagado. Use Desfazer para mantê-lo.' })
+    expect(db.inserted).toEqual([])
+  })
   it('the own channel is rejected (singular with one own channel)', async () => {
     setup({ own: [{ id: 'o1', channel_id: UC }], existing: null, inserted: [] })
     expect((await (await load())(UC)).error).toBe('Esse é o seu canal: ele já aparece na tabela e não ocupa vaga.')
@@ -215,14 +221,6 @@ describe('addCompetitorChannel', () => {
     setup(db, undefined, { ok: false, reason: 'forbidden' })
     expect(await (await load())(UC)).toEqual({ ok: false, error: 'forbidden' })
     expect(db.inserted).toEqual([])
-  })
-})
-
-describe('removeCompetitorChannel', () => {
-  it('sem permissão: não remove nem invalida', async () => {
-    setup({ own: null, existing: null, inserted: [], deleted: [{ id: 'c1' }] }, undefined, { ok: false, reason: 'forbidden' })
-    expect(await (await actions()).removeCompetitorChannel('c1')).toEqual({ ok: false })
-    expect(revalidateTag).not.toHaveBeenCalled()
   })
 })
 

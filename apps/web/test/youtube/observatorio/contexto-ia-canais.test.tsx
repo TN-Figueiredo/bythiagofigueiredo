@@ -45,6 +45,16 @@ const ok = async () => ({ ok: true })
 
 const { obs: OBS, owns: OWNS } = a3World()
 const vazio = a3World((ds) => { ds.channels = []; ds.videos = [] })
+// um concorrente de 81 dias (base menor que as 13 semanas) e outro de 18 (abaixo do piso): a nota do ritmo aparece na tela e no pacote
+const comNota = a3World((ds) => {
+  const alvos = ds.channels.filter((c) => !c.own)
+  for (const [c, dias] of [[alvos[0]!, 81], [alvos[1]!, 18]] as const) {
+    c.createdMs = ds.now - dias * 86_400_000
+    ds.videos = ds.videos.filter((v) => v.ch !== c.id || v.ageDays <= dias) // nenhum vídeo guardado é mais velho que o canal
+  }
+})
+/** Um concorrente agendado para guardar no NAS há 2 dias (F2 do Remover canal). */
+const agendado = a3World((ds) => { const c = ds.channels.find((x) => !x.own)!; c.removalRequestedAt = new Date(ds.now - 2 * 86_400_000).toISOString() })
 const semProprios = a3World((ds) => { ds.channels = ds.channels.filter((c) => !c.own); ds.videos = ds.videos.filter((v) => ds.channels.some((c) => c.id === v.ch)) })
 
 /** O diário privado de cada canal próprio, como `carregarExtrasProprio` o entrega. */
@@ -69,7 +79,7 @@ function mundo(c: Caso) {
 async function textoDaTela(c: Caso): Promise<string> {
   const { view, ri } = mundo(c)
   const r = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs="">
-    <CanaisScreen view={view} ri={ri} canUnlock onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
+    <CanaisScreen view={view} ri={ri} canUnlock onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
   </div></ChromeSyncContext.Provider></ToastProvider>)
   let t = await expandirTela(r.container as HTMLElement)
   // as dicas das células só existem no documento enquanto o mouse está em cima: passa por cada uma e junta o texto da caixa flutuante
@@ -109,7 +119,7 @@ const TAB = (pre: string): Record<string, Record<string, string | readonly strin
   [`${pre}canais-shorts-views-por-dia`]: { Canal: '.name', 'Views por dia dos Shorts, valor absoluto': '.cells.vpd2.abs', 'Vídeos na base dos Shorts': '.cells.vpd2.n' },
   [`${pre}canais-shorts`]: { Canal: '.name', 'Ritmo dos Shorts': ['.cells.cadence2.pw', '.cells.cadence2.text'], 'Views por dia dos Shorts': ['.cells.vpd2.big', '.cells.vpd2.text'], 'Outliers dos Shorts': ['.cells.out2.mult', '.cells.out2.text'] },
   [`${pre}canais-estado`]: { Canal: '.name', Estado: ['.estado.linha', '.estado.apoio', '.estado.quedaLinha'] },
-  [`${pre}canais-notas`]: { Canal: '.name', Nota: ['.semPagina', '.semMedidaTexto', '.cells.cadence.sub', '.cells.cadence.paused', '.cells.vpd.tail', '.cells.out.weak', '.cells.out.upnext', '.cells.out.vs', '.cells.swap.last', '.ressalva', '.ressalva2', '.cells.cadence2.sub', '.cells.cadence2.paused', '.cells.out2.weak', '.cells.out2.upnext', '.cells.growth.cap', '.cells.sync.cov', '.cells.sync.msg', '.semFormato.label', '.semFormato.tip'] },
+  [`${pre}canais-notas`]: { Canal: '.name', Nota: ['.semPagina', '.semMedidaTexto', '.cells.cadence.sub', '.cells.cadence.paused', '.cells.cadence.nota.sufixo', '.cells.cadence.nota.causa', '.cells.vpd.tail', '.cells.out.weak', '.cells.out.upnext', '.cells.out.vs', '.cells.swap.last', '.ressalva', '.ressalva2', '.cells.cadence2.sub', '.cells.cadence2.paused', '.cells.out2.weak', '.cells.out2.upnext', '.cells.growth.cap', '.cells.sync.cov', '.cells.sync.msg', '.semFormato.label', '.semFormato.tip', '.agendado'] },
   [`${pre}canais-dicas`]: { Canal: '.name', Dica: ['.dicas.subs', '.dicas.vpd', '.dicas.cadence', '.dicas.out', '.dicas.swap', '.dicas.growth', '.dicas.direcao', '.dicas.sync', '.dicas.vpd2', '.dicas.cadence2', '.dicas.out2'] },
 })
 const COLUNAS = {
@@ -144,11 +154,13 @@ const MATRIZ: Array<[string, Caso]> = [
   ['diário negado', { obs: OBS, sp: {}, extras: extrasDe(OBS, 'sem-acesso'), privado: privadoDe(OBS, 'negado', 'sem_direito') }],
   ['diário com falha', { obs: OBS, sp: {}, extras: extrasDe(OBS, 'leitura-falhou'), privado: privadoDe(OBS, 'erro') }],
   ['sem o diário nesta tela', { obs: OBS, sp: {}, privado: privadoDe(OBS, 'negado', 'nao_foi_possivel_conferir') }],
+  ['canal agendado para guardar no NAS', { obs: agendado.obs, sp: {}, extras: extrasDe(agendado.obs), privado: privadoDe(agendado.obs, 'ok') }],
   ['sem canal próprio', { obs: semProprios.obs, sp: {}, privado: { acessoPorCanal: {}, negativa: null } }],
   ['filtro de estado: em queda (vazio explicado)', lido({ filter: 'em-queda' })],
   ['filtro de estado: problemas', lido({ filter: 'problemas' })],
   ['filtro de direção: descendo (vazio explicado)', lido({ direcao: 'desce' })],
   ['nenhum canal acompanhado', { obs: vazio.obs, sp: {}, privado: { acessoPorCanal: {}, negativa: null } }],
+  ['canais com a nota do ritmo (base curta e canal novo)', { obs: comNota.obs, sp: {}, extras: extrasDe(comNota.obs), privado: privadoDe(comNota.obs, 'ok') }],
   ['referências por faixa e inscritos em absoluto', lido({}, { ri: { ordr: 'faixa', ordi: 'abs', aba: 'ins' } })],
 ]
 
@@ -181,6 +193,12 @@ describe('Canais: paridade em cada estado da matriz', () => {
     expect(MATRIZ.every(([, c]) => c.sp.channel === undefined)).toBe(true)
   })
 
+  it('canal agendado: o pacote diz a frase fixa com a data (DD/MM), não a idade relativa', async () => {
+    const m = await montar({ obs: agendado.obs, sp: {}, extras: extrasDe(agendado.obs), privado: privadoDe(agendado.obs, 'ok') }, false)
+    const d = new Date(agendado.obs.NOW - 2 * 86_400_000).toISOString()
+    expect(m.textoDoPacote).toContain(`agendado para guardar desde ${d.slice(8, 10)}/${d.slice(5, 7)}; coleta parada, números congelados`)
+    expect(m.textoDoPacote).not.toContain('agendado há')
+  })
   it('a tabela de canais leva as linhas da lista, na ordem da tela', async () => {
     const m = await montar(lido({ sort: 'subs' }), false)
     const ids = [...m.modelo.list.ranked, ...m.modelo.list.unranked].map((r) => r.name)

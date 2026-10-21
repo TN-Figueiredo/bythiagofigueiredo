@@ -53,10 +53,19 @@ describe('lerCanal e a ausência de dado', () => {
     expect(v).toEqual({ lido: false, causa: 'erro_do_banco' })
     expect(JSON.stringify(v)).not.toContain(SENT)
   })
+  it('lerCanal lê a base do ritmo: published_at em ms, youtube_video_count e video_limit (nulos continuam nulos, nunca zero)', async () => {
+    const criado = '2026-07-30T20:45:53.719739+00:00'
+    const { sb } = falsoPostgrest({ competitor_channels: [{ id: CANAL, site_id: SITE, collection_paused_at: null, missing_since: null, published_at: criado, youtube_video_count: 6, video_limit: 50 }] })
+    const r = await lerCanal(sb, E)
+    expect(r.lido && r.dados).toMatchObject({ criadoEmMs: Date.parse(criado), totalNoYoutube: 6, limiteDeVideos: 50 })
+    const { sb: sb2 } = falsoPostgrest({ competitor_channels: [{ id: CANAL, site_id: SITE, collection_paused_at: null, missing_since: null, published_at: 'lixo', youtube_video_count: null, video_limit: '50' }] })
+    const r2 = await lerCanal(sb2, E)
+    expect(r2.lido && r2.dados).toMatchObject({ criadoEmMs: null, totalNoYoutube: null, limiteDeVideos: null })
+  })
   it('lerCanal devolve collectionPausedAt (e coluna ausente é schema_ausente, nunca nulo calado)', async () => {
     const pausa = iso(AGORA - 1e8)
     const { sb } = falsoPostgrest({ competitor_channels: [{ id: CANAL, site_id: SITE, collection_paused_at: pausa, missing_since: '2026-09-01' }] })
-    expect(await lerCanal(sb, E)).toEqual({ lido: true, dados: { id: CANAL, siteId: SITE, collectionPausedAt: pausa, missingSince: '2026-09-01' } })
+    expect(await lerCanal(sb, E)).toEqual({ lido: true, dados: { id: CANAL, siteId: SITE, collectionPausedAt: pausa, missingSince: '2026-09-01', criadoEmMs: null, totalNoYoutube: null, limiteDeVideos: null } })
     const { sb: sb2 } = falsoPostgrest({ competitor_channels: canais() }, { colunasAusentes: { competitor_channels: ['collection_paused_at'] } })
     expect(await lerCanal(sb2, E)).toEqual({ lido: false, causa: 'schema_ausente' })
   })

@@ -24,7 +24,7 @@ export const MOTIVO_GUARDA_CAIDA = 'não deu para conferir a permissão agora'
 const MAPA: Record<MotivoNaoMedido, EstadoAusencia> = {
   leitura_comecou_depois: 'nao_medido', descoberto_tarde: 'nao_medido', leitura_parou_antes: 'nao_medido', leituras_distantes: 'nao_medido',
   sem_leitura: 'nao_medido', views_ocultas: 'nao_medido', fecha_em: 'nao_medido', aguardando_calculo: 'nao_medido', poucos_videos: 'nao_medido',
-  poucas_publicacoes: 'nao_medido', ritmo_parcial: 'nao_medido', sem_publicacao: 'nao_medido', sem_registro_recente: 'nao_medido',
+  poucas_publicacoes: 'nao_medido', ritmo_parcial: 'nao_medido', canal_novo: 'nao_medido', sem_publicacao: 'nao_medido', sem_registro_recente: 'nao_medido',
   sem_registro_na_borda: 'nao_medido', pouco_registro: 'nao_medido', janela_cruza_mudanca_de_contagem: 'nao_medido', contagem_recuou: 'nao_medido',
   base_zero: 'nao_medido', poucas_views: 'nao_medido', poucas_curtidas: 'nao_medido', sem_v30: 'nao_medido', idade_menor_que_90: 'nao_medido',
   ao_vivo_ou_estreia: 'nao_medido', formato_nao_confirmado: 'nao_medido', sem_reacao_publica: 'nao_medido', curtidas_ocultas: 'nao_medido',

@@ -11,6 +11,9 @@ import type { BlocoDeRitmo, CartaoDeRitmo, CasaDaSemana, RaiaDeRitmo } from './r
 import './canal-medidas.css'
 
 function Casa({ c }: { c: CasaDaSemana }) {
+  if (c.estado === 'nao_lida' && c.fora) {
+    return <li className="pc-cs fora" title={c.por}><span className="obs-md-sr">fora do período: {c.por}</span></li>
+  }
   if (c.estado === 'nao_lida') {
     return <li className="pc-cs nm" title={c.por}><span className="pc-nmg" aria-hidden="true">—</span><span className="obs-md-sr">não medido: {c.por}</span></li>
   }
@@ -20,14 +23,14 @@ function Casa({ c }: { c: CasaDaSemana }) {
   return <li className="pc-cs com"><b className="num">{c.n}</b><span className="pc-csb" style={{ height: `${Math.round(6 + 34 * c.fracao)}px` }} /></li>
 }
 
-function Raia({ r }: { r: RaiaDeRitmo }) {
+function Raia({ r, periodo }: { r: RaiaDeRitmo; periodo: string }) {
   if (r.ausente) {
-    return <div className="pc-sem"><b className="pc-semr">{r.rotulo}</b><p className="pc-semz"><ZeroMedido />{r.rotulo === 'Longos' ? 'nenhum vídeo longo' : 'nenhum Short'} nas {MEASURE_RULES.rhythm.weeks} semanas</p></div>
+    return <div className="pc-sem"><b className="pc-semr">{r.rotulo}</b><p className="pc-semz"><ZeroMedido />{r.rotulo === 'Longos' ? 'nenhum vídeo longo' : 'nenhum Short'} em {periodo}</p></div>
   }
   return (
     <div className="pc-sem">
       <b className="pc-semr">{r.rotulo}</b>
-      <ol className="pc-cs-l" aria-label={`Publicações por semana, ${r.rotulo}, das ${MEASURE_RULES.rhythm.weeks} últimas semanas`}>
+      <ol className="pc-cs-l" aria-label={`Publicações por semana, ${r.rotulo}, ${periodo}`}>
         {r.casas.map((c, i) => <Casa key={i} c={c} />)}
       </ol>
     </div>
@@ -48,7 +51,7 @@ function Cartao({ c }: { c: CartaoDeRitmo }) {
 export function RitmoBloco({ bloco }: { bloco: BlocoDeRitmo }) {
   const n = MEASURE_RULES.rhythm.weeks
   const itens = [
-    'Casas: uma por semana, das 13 últimas, com o número de publicações do formato da raia; caixa vazada com 0 é semana medida sem publicação; hachura com “—” é semana não medida (ainda não buscada, ou que termina depois da última leitura).',
+    'Casas: uma por semana do período (13 semanas, ou menos quando o canal é mais novo ou só os vídeos mais recentes foram guardados), com o número de publicações do formato da raia; caixa vazada com 0 é semana medida sem publicação; hachura com “—” é semana não medida (ainda não buscada, ou que termina depois da última leitura); faixa tracejada é semana fora do período (antes da criação do canal ou dos vídeos guardados), que não é semana sem vídeo.',
     `Intervalo típico: mediana dos dias entre uma publicação e a seguinte, no formato principal, nas últimas ${n} semanas.`,
     'Semanas com publicação: quantas das semanas lidas tiveram pelo menos um vídeo do formato principal. O outro formato aparece na raia de baixo e não entra nesta conta.',
     `Maior buraco: o maior intervalo entre duas publicações do formato principal nas últimas ${MEASURE_RULES.rhythm.gapWeeks} semanas; conta também o intervalo ainda aberto.`,
@@ -63,11 +66,13 @@ export function RitmoBloco({ bloco }: { bloco: BlocoDeRitmo }) {
         <RiInfo titulo="o ritmo e a regularidade" itens={itens} rotuloBotao="Como ler o ritmo e a regularidade" />
       </div>
       <p className="pc-fr2" data-frase-do-bloco><span><b>{bloco.frase.negrito}</b>{bloco.frase.resto}</span></p>
+      {bloco.foraDoPeriodo ? <p className="pc-fora-fr" data-fora-do-periodo>{bloco.foraDoPeriodo}</p> : null}
       {bloco.raias.length > 0 ? (
         <div className="pc-sems">
-          <p className="pc-rola" data-rola>Arraste para o lado para ver as {n} semanas.</p>
-          {bloco.raias.map(r => <Raia key={r.rotulo} r={r} />)}
-          <p className="pc-eixo"><span>há {n} semanas</span><span>{bloco.eixoFim}</span></p>
+          <p className="pc-rola" data-rola>Arraste para o lado para ver o período ({bloco.periodo}).</p>
+          {bloco.raias.map(r => <Raia key={r.rotulo} r={r} periodo={bloco.periodo} />)}
+          <p className="pc-eixo"><span>há {bloco.periodo}</span><span>{bloco.eixoFim}</span></p>
+          {bloco.foraDoPeriodo ? <p className="pc-fora-leg" data-legenda-fora><i aria-hidden="true" />fora do período</p> : null}
         </div>
       ) : null}
       {p ? (

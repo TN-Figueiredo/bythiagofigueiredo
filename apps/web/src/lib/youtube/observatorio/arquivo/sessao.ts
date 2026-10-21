@@ -70,7 +70,7 @@ export interface CsvLido {
  */
 export async function lerCsvDoBanco(
   sql: ClienteSql,
-  o: { consulta: string; parametros: unknown[]; colunas: string[]; colunaDaSoma: string | null; colunasDeOrdem: string[] | null; nomeDoCursor?: string },
+  o: { consulta: string; parametros: unknown[]; colunas: string[]; colunaDaSoma: string | string[] | null; colunasDeOrdem: string[] | null; nomeDoCursor?: string },
 ): Promise<CsvLido> {
   const cursor = o.nomeDoCursor ?? 'arquivo_cursor'
   if (!IDENT.test(cursor)) throw new Error('nome de cursor inválido')
@@ -97,9 +97,11 @@ export async function lerCsvDoBanco(
       ultima = r.rows[r.rows.length - 1]!
       if (soma !== null && o.colunaDaSoma !== null) {
         for (const row of r.rows) {
-          const v = row[o.colunaDaSoma]
-          if (v === null || v === undefined) continue
-          soma += paraBigInt(v, o.colunaDaSoma)
+          for (const nome of Array.isArray(o.colunaDaSoma) ? o.colunaDaSoma : [o.colunaDaSoma]) {
+            const v = row[nome]
+            if (v === null || v === undefined) continue
+            soma += paraBigInt(v, nome)
+          }
         }
       }
     }
@@ -123,6 +125,21 @@ function textoOuNulo(v: unknown, coluna: string): string | null {
 function paraBigInt(v: unknown, coluna: string): bigint {
   if (typeof v !== 'string' || !/^-?\d+$/.test(v)) throw new Error(`a coluna ${coluna} não é um inteiro somável`)
   return BigInt(v)
+}
+
+/**
+ * As colunas de uma soma de controle: `t.a` ou `t.a + t.b` (colunas não nulas: sum(a + b) = sum(a) + sum(b)); nulo se não for assim.
+ * (F1 do Remover canal) a watch usa `t.id + t.vistas` para pegar a troca de uma linha por outra no mesmo mês e a contagem de vistas.
+ */
+export function colunasDaSoma(expressao: string | null): string[] | null {
+  if (expressao === null) return null
+  const out: string[] = []
+  for (const p of expressao.split('+').map(x => x.trim())) {
+    const m = /^t\.([a-z0-9_]+)$/.exec(p)
+    if (!m) return null
+    out.push(m[1]!)
+  }
+  return out
 }
 
 /** As colunas simples de uma expressão `t.a` ou `t.a, t.b`; nulo se alguma não for assim. */

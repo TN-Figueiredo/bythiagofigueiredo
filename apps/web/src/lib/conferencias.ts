@@ -121,7 +121,7 @@ export function conferenciasE6P2(deploy: string | null): Conferencia[] {
 // `null` até o controlador preenchê-las no commit do dia (Tarefas 13, 14 e 15). Enquanto for `null`, as entradas NÃO existem (nada vence,
 // nada deixa o cron vermelho). Os ids não colidem com os de `e6-p3-` nem com `e8-`.
 /** Dia de São Paulo (AAAA-MM-DD) em que o código da cobertura de metadados foi promovido a `main` (a MG17a já estava aplicada). `null` = ainda não. */
-export const E18P2_COBERTURA_DEPLOY: string | null = null
+export const E18P2_COBERTURA_DEPLOY: string | null = '2026-10-16'
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG16 (soltar o backup do diário). `null` = ainda não aplicada. */
 export const E6_P4_APLICADA: string | null = null
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG17 (a dieta de yt_own_video_meta_daily). `null` = ainda não aplicada. */
@@ -135,10 +135,12 @@ export function conferenciasE18P2Cobertura(deploy: string | null): Conferencia[]
   if (!dataReal(deploy)) {
     return [{ id: 'e18p2-cob-deploy-invalido', etapa: 'E18', data: '1970-01-01', responsavel: 'agente', onde: `E18P2_COBERTURA_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção do código a main) ou null`, feitaEm: null }]
   }
-  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e18p2-cob-${id}`, etapa: 'E18', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e18p2/progress.md: ${onde}`, feitaEm: null })
+  // `feitaEm` só vale para a promoção REAL (16/10/2026): d0 e d1 conferidas em 21/10 pelas execuções de 17 e 18/10 (cobertura ok = canais = 1, descobertas 0,
+  // cobertos_sem_linha 0, metadados 15,0 e 16,1 s); d7 e d14 ficam por fazer (houve a nota `metadados:` de 20/10).
+  const e = (id: string, mais: number, onde: string, feitaEm: string | null = null): Conferencia => ({ id: `e18p2-cob-${id}`, etapa: 'E18', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e18p2/progress.md: ${onde}`, feitaEm: deploy === '2026-10-16' ? feitaEm : null })
   return [
-    e('d0', 0, 'D: VA1 a VA4 no ledger; `resumo.metadados.cobertura` da primeira execução com `ok` = `canais` e `descobertas` 0'),
-    e('d1', 1, 'D + 1: segunda execução igual; `ms_passos.metadados` sem salto (anotar); `resumo.versoes.cobertos_sem_linha` 0'),
+    e('d0', 0, 'D: VA1 a VA4 no ledger; `resumo.metadados.cobertura` da primeira execução com `ok` = `canais` e `descobertas` 0', '2026-10-21'),
+    e('d1', 1, 'D + 1: segunda execução igual; `ms_passos.metadados` sem salto (anotar); `resumo.versoes.cobertos_sem_linha` 0', '2026-10-21'),
     e('d7', 7, 'D + 7: CP13 em 0; K1 em 0; nenhuma nota `metadados:` nova'),
     e('d14', 14, 'D + 14: CP14: é o gatilho do portão D (junto do D + 14 do plano E18)'),
   ]
@@ -327,13 +329,13 @@ const PLANO_E4 = 'docs/superpowers/plans/2026-10-13-a5-e4-medidas-e-marcas-plan.
 
 const BASE: readonly Conferencia[] = [
   { id: 'i7-k6-d3', etapa: 'E1', data: '2026-10-19', responsavel: 'agente', onde: 'parecer .superpowers/sdd/a5-e1-e2/portao-final-dados.md I-7: K6 de novo com as partes novas; fechadas acima de 5% → tirar a parte que gira (decisão do dono 16/10)', feitaEm: null },
-  { id: 'e19-d1', etapa: 'E19', data: '2026-10-13', responsavel: 'agente', onde: `${PLANO_E19}: contagem do dia 0 por chave, painel do CMS e /admin/audit sem as linhas, tamanho de audit_log (base: 204.800 bytes, 140 linhas)`, feitaEm: null },
+  { id: 'e19-d1', etapa: 'E19', data: '2026-10-13', responsavel: 'agente', onde: `${PLANO_E19}: contagem do dia 0 por chave, painel do CMS e /admin/audit sem as linhas, tamanho de audit_log (base: 204.800 bytes, 140 linhas)`, feitaEm: '2026-10-21' },
   { id: 'e20-segundo-cron', etapa: 'E20', data: '2026-10-14', responsavel: 'agente', onde: `${PLANO_E20}: resumo do segundo cron depois do envio (consulta B do runbook da coleta): guarda.blobs_guardados_antes é número, baixados_sem_bruto = 0, conferencias_vencidas = [], ms_total e ms_passos.guarda; conta exata blobs_guardados = antes + baixados + vazios`, feitaEm: null },
   { id: 'e12-d3', etapa: 'E12', data: '2026-10-16', responsavel: 'agente', onde: `${PLANO_E12}: D+3: quais dos 9 tipos novos o YouTube gera (consulta C, zero relatórios de um tipo é "não ok"), maior_lido_por_tipo contra os tetos (um tipo recusado por tamanho só tem conserto enquanto o arquivo existe na origem) e ms_passos.relatorios`, feitaEm: null },
   { id: 'e7-l1-d7', etapa: 'E7', data: '2026-10-19', responsavel: 'agente', onde: `${PLANO_E7}: a P-5 de novo (chaves e rotas da semana; anotar se forja (so leitura) leu channels ou changes e levar ao dono com a pergunta 8; zero linhas de cowork-permanent depois do veredito da E19 não quer dizer que ninguém usou) e a segunda consulta da P-2 com 7 dias de dado: máximo diário < 100 mudanças dos campos que saem e soma de 7 dias seguidos < 100; senão a continuação da leitura (4.3) abre como conserto e vai ao dono`, feitaEm: null },
   { id: 'e12-d7', etapa: 'E12', data: '2026-10-20', responsavel: 'agente', onde: `${PLANO_E12}: D+7: a mesma leitura do D+3 (acao_do_dono não notifica ninguém: esta e a do D+3 são a única vigilância de um tipo que nunca gerou); pendentes caindo 70 ou mais por dia; item 97, três execuções seguidas`, feitaEm: null },
   { id: 'e11-religar-ou-retirar', etapa: 'E11', data: '2026-10-20', responsavel: 'agente', onde: 'docs/superpowers/plans/2026-10-12-a5-e11-canal-proprio-em-tabelas-plan.md, Tarefas 13 e 14; pareceres .superpowers/sdd/a5/r1-portao-dados.md (seção 3) e r1-portao-software.md: a E11 foi a main DESLIGADA em 14/10 (YT_OWN_STEPS_OFF=dimensoes,normalizadores na Vercel). Desligada, o critério dos passos desligados deixa o cron vermelho na 8ª execução seguida (21/10, 12:00 UTC). Até 20/10: fazer o ensaio com a API real (Tarefa 13) e religar pelo commit da Tarefa 14, ou retirar a E11 do cron', feitaEm: null },
-  { id: 'e19-veredito', etapa: 'E19', data: '2026-10-20', responsavel: 'agente', onde: `${PLANO_E19}: lista e veredito da janela, 7 dias medidos e um com tarefa da forja concluída; busca no Sentry (action:leitura_registro tipo:gravacao) antes`, feitaEm: null },
+  { id: 'e19-veredito', etapa: 'E19', data: '2026-10-20', responsavel: 'agente', onde: `${PLANO_E19}: lista e veredito da janela, 7 dias medidos e um com tarefa da forja concluída; busca no Sentry (action:leitura_registro tipo:gravacao) antes`, feitaEm: '2026-10-21' },
   { id: 'e7-l2-d7', etapa: 'E7', data: '2026-10-21', responsavel: 'agente', onde: `${PLANO_E7}: os dois comandos do Lote 2 de novo (indisponiveis não subiu sem causa; leitura_falhou = 0); select count(*) from public.competitor_channels (só leitura) contra o gatilho de canais da Tarefa 15; select count(*) from public.competitor_field_versions: abaixo de 200.000 (esperado 6 a 10 mil), acima disso abrir o pedido de índice (site_id, first_seen_at desc) do Apêndice A; passou o gatilho, size_download acima de 80.000 ou evento e7.resposta_da_ferramenta_grande no Sentry: abrir a dívida 2 e levar ao dono`, feitaEm: null },
   { id: 'e20-tamanho-d8', etapa: 'E20', data: '2026-10-21', responsavel: 'agente', onde: `${PLANO_E20}: tamanho das duas tabelas, primeira medida (também é o D+8 da E12: fila zerada, tamanho por tipo)`, feitaEm: null },
   { id: 'e12-d9', etapa: 'E12', data: '2026-10-22', responsavel: 'agente', onde: `${PLANO_E12}: D+9: tipo que gerou histórico e parou de gerar diário (o cron deve estar vermelho: runbook da coleta, seção 10); consulta C`, feitaEm: null },

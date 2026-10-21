@@ -6,15 +6,21 @@
  */
 import type { Client } from 'pg'
 import { iniciarComMg6 } from './mg6'
-import { lerSqlDaX3 } from './x3-sql'
+import { lerSqlDaX3, lerX3Registro } from './x3-sql'
+import { lerSqlDaF1 } from './f1-sql'
 
 export { caminhoDaX3, lerSqlDaX3, lerX3Registro } from './x3-sql'
 
 /** Aplica a migration da X3 na transação aberta (2 vezes: a segunda prova a idempotência). Depois de `garantirMg6`. */
 export async function garantirX3(c: Client): Promise<void> {
   const sql = lerSqlDaX3()
+  // A5 F1: com a F1 aplicada por `garantirMg6` o registro tem 30 entradas e a guarda da X3 recusa; volta a 27 e reaplica a F1 no fim.
+  const comF1 = (await c.query(`select to_regclass('public.obs_unarchived_deletions') as t`)).rows[0]?.t
+  if (comF1) await c.query(lerX3Registro())
   await c.query(sql)
   await c.query(sql)
+  const f1 = lerSqlDaF1()
+  if (comF1 && f1 !== null) await c.query(f1)
 }
 
 /** `begin` + MG6 + X3; o chamador termina com `rollback`. */

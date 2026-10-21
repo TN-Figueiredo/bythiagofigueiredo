@@ -7,6 +7,7 @@
  * Reaproveita o cabeçalho do concorrente (`_canal/header-model.ts`): a célula, os inscritos, os inscritos em 30 dias e a linha
  * de sincronização são as mesmas funções; as views por dia saem de `vpdText`, como na lista e na comparação.
  */
+import { baseDoRitmoTexto } from '@/lib/youtube/observatorio/channels'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChannel, ObsVideo } from '@/lib/youtube/observatorio/types'
 import { conjuntoTexto, type Conjunto, type Posicao } from '@/lib/youtube/observatorio/posicao'
@@ -151,6 +152,7 @@ export function buildProprioHeader(
   const ch: ObsChannel | undefined = obs.channel(canalId)
   if (!ch || !ch.own) return null
   const F: Fmt = obs.fmt, D = obs.date, R = obs.RULES, { dm } = o
+  const pwTxt = (x: number | null) => (x == null ? '—' : F.dec1(x))
   const noun = (n: number, one: string, many: string) => F.plural(n, one, many)
   const base0: MakeCell = makeCell(false, R.weakBase)
   /** A célula com os campos do canal próprio em estado neutro; `x` acerta o que a célula tem de seu. */
@@ -309,8 +311,8 @@ export function buildProprioHeader(
   // zero medido (nenhum vídeo em 13 semanas) é um VALOR, "parado", e não "não medido": a célula não usa o estilo do dado ausente
   const parado = kl.n + ks.n === 0
   const ritmo = cell('ritmo', 'longos + Shorts por semana', {
-    value: parado ? `parado: nenhum em ${R.habit.weeks} semanas` : `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`, missing: '',
-    base: `longos + Shorts por semana, média de ${R.habit.weeks} semanas (${noun(kl.n, 'longo', 'longos')}, ${noun(ks.n, 'Short', 'Shorts')})`,
+    value: parado ? `parado: nenhum em ${R.habit.weeks} semanas` : `${pwTxt(kl.pw)} + ${pwTxt(ks.pw)}`, missing: '',
+    base: `longos + Shorts por semana, ${baseDoRitmoTexto(kl, R.habit.weeks).media} (${noun(kl.n, 'longo', 'longos')}, ${noun(ks.n, 'Short', 'Shorts')})`,
   })
 
   const vpdVideo = cell('vpdVideo', 'views/dia por vídeo', {

@@ -6,11 +6,13 @@
  * Não chama nada que agregue entre canais (o conjunto de um canal lança nisso): só `channel`, `videos`, `channelStats`,
  * `cadence`, `changesIn`, `fmt`, `date`, `RULES`, `nicheLabel`, `median` e `theme`.
  */
+import { baseDoRitmoTexto } from '@/lib/youtube/observatorio/channels'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import type { ObsChannel } from '@/lib/youtube/observatorio/types'
 import { SEM_MENSAGEM } from '@/lib/youtube/observatorio/channels'
 import { WD } from '@/lib/youtube/observatorio/time'
 import { vpdText, durText, viewsMediana, duracaoMediana, trocas30 as contarTrocas30, acima2x as contarAcima2x } from './numeros'
+import { idadeDoAgendado } from '../_canais/remover-model'
 
 /** "há N dias" do último vídeo: dias completos de 24 h (`daysAgo`, a mesma regra de `ageDays` e do ponteiro do Ritmo); abaixo de 2 dias a hora, como no resto. */
 export const diasDesde = (D: { daysAgo(ms: number): number; ago(ms: number): string }, ms: number): string => {
@@ -33,6 +35,8 @@ export interface CanalHeaderView {
     at: string | null
     /** O trecho de `text` que diz esse instante (o que vai dentro do <time>), ou null */
     atText: string | null }
+  /** F2 do Remover canal: o pedido de guarda no NAS ainda não concluído; o cabeçalho mostra o aviso (sem botão). null = normal. */
+  agendado: { idade: string; desde: string } | null
   counts: { total: number; tracked: number; pinnedOld: number; older: number; undated: number }
   /** A linha de resultado à direita das abas: "133 vídeos: 61 longos, 71 Shorts, 1 com formato não confirmado." */
   result: string
@@ -113,6 +117,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   const ch: ObsChannel | undefined = obs.channel(channelId)
   if (!ch) return null
   const F = obs.fmt, D = obs.date, R = obs.RULES
+  const pwTxt = (x: number | null) => (x == null ? '—' : F.dec1(x))
   const vids = obs.videos.filter(v => v.ch === ch.id)
   const trackedOf = (f: 'long' | 'short') => vids.filter(v => v.tracked && v.fmt === f)
   const recent = (f: 'long' | 'short') => trackedOf(f).filter(v => v.ageDays <= 90)
@@ -129,8 +134,8 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
   const growth30 = celulaCrescimento30(obs, ch, SL.growth30, cell)
 
   const ritmo = cell('ritmo', 'longos + Shorts por semana', {
-    value: `${F.dec1(kl.pw)} + ${F.dec1(ks.pw)}`, missing: '',
-    base: `longos + Shorts por semana, média de ${R.habit.weeks} semanas (${noun(kl.n, 'longo', 'longos')}, ${noun(ks.n, 'Short', 'Shorts')})`,
+    value: `${pwTxt(kl.pw)} + ${pwTxt(ks.pw)}`, missing: '',
+    base: `longos + Shorts por semana, ${baseDoRitmoTexto(kl, R.habit.weeks).media} (${noun(kl.n, 'longo', 'longos')}, ${noun(ks.n, 'Short', 'Shorts')})`,
   })
 
   const vpdOf = (f: 'long' | 'short', S: typeof SL, word: string, one: string) => cell(f === 'long' ? 'vpd' : 'vpdShorts', `views/dia nos ${word}`, {
@@ -264,6 +269,7 @@ export function buildCanalHeader(obs: Observatory, channelId: string): CanalHead
     niche: ch.niche, nicheLabel: ch.niche ? obs.nicheLabel(ch.niche) : null, handle: ch.handle ? ch.handle : null, url: ch.url,
     faixa: [subs, growth30, ritmo, vpd, engajamento, acima2x],
     todos: [trocas30, vpdPorMil, vpdShorts, engShorts, multTipico, maiorMult, ultimoVideo, habito, duracaoMedianaCell, viewsSomadas, medianaViews, tema],
+    agendado: ch.removalRequestedAt ? { idade: idadeDoAgendado(ch.removalRequestedAt, obs.NOW), desde: ch.removalRequestedAt } : null,
     sync, counts, result, backfill: backfill ? ch.sync.backfill : null,
   }
 }

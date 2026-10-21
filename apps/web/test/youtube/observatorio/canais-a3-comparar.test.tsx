@@ -35,7 +35,7 @@ const ok = async () => ({ ok: true })
 const view = (obs: Observatory, p: Partial<CanaisParams> = {}) => buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p })
 const tree = (v: CanaisView) => (
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome=""><button type="button" aria-label="Mais ações">⋯</button></div>
-    <CanaisScreen view={v} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
+    <CanaisScreen view={v} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
   </div></ChromeSyncContext.Provider></ToastProvider>
 )
 const mount = (obs: Observatory, p: Partial<CanaisParams> = {}) => { search = `fmt=longos${p.layout ? '&layout=' + p.layout : ''}`; return render(tree(view(obs, p))) }

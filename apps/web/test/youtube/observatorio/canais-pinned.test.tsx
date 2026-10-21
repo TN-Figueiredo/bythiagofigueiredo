@@ -29,7 +29,7 @@ function mount(n: number, props: Partial<CanaisScreenProps> = {}) {
   const { obs, picks } = build(n)
   const view = buildCanaisView(obs, { niche: 'todos', limit: 75, channel: CH, tab: 'videos' })
   const r = render(<ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs=""><div data-obs-chrome="" />
-    <CanaisScreen view={view} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} onPin={async () => ({ ok: true })} onUnpin={async () => ({ ok: true })} {...props} />
+    <CanaisScreen view={view} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} onPin={async () => ({ ok: true })} onUnpin={async () => ({ ok: true })} {...props} />
   </div></ChromeSyncContext.Provider></ToastProvider>)
   return { ...r, obs, picks, view, list: () => r.container.querySelector<HTMLElement>('#fixados')! }
 }

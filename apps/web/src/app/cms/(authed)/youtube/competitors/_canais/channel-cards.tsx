@@ -1,7 +1,7 @@
 'use client'
 /** Cards view of Canais (port of canais.html card()). */
 import type { CanaisRow, CanaisView } from './view-model'
-import { CadenceView, ChCell, DirecaoValor, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
+import { algumaNotaDoRitmo, CadenceView, ChCell, DirecaoValor, GrowthView, OutView, SwapView, SyncView, VpdView } from './cells'
 import { fraseDoCartao, motivoTexto } from './posicao-model'
 import { CompararLink, type RowHandlers } from './channel-table'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
@@ -14,16 +14,16 @@ function Voce({ r, view }: { r: CanaisRow; view: CanaisView }) {
   return frase ? <p className="voce">{frase}</p> : null
 }
 
-function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }) {
+function Card({ r, h, view, reservar }: { r: CanaisRow; h: RowHandlers; view: CanaisView; reservar: boolean }) {
   const c = r.cells, todos = view.fmt === 'todos'
   return (
-    <article role="listitem" className={'card ' + (r.own ? 'you' : '')} data-id={r.id} tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}>
+    <article role="listitem" className={'card ' + (r.own ? 'you' : '') + (r.agendado ? ' agd' : '')} data-id={r.id} tabIndex={r.own ? -1 : undefined} ref={r.own ? el => h.reg(r.id, el) : undefined}>
       {r.numero ? <span className="cp num" data-testid="canais-p">{r.numero.pos}º{r.numero.empate ? ' · empate' : ''}</span>
         : <span className="cp num" data-testid="canais-p"><span className="sr">sem posição</span></span>}
-      <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} />
+      <ChCell r={r} ctx="card" onOpen={() => h.open(r.id)} onNiche={n => h.niche(r, n, 'card')} agendado={{ ocupado: h.desfazendo(r.id), onDesfazer: () => h.desfazer(r.id), onCopiar: () => h.copiarPedido(r.id) }} />
       <Voce r={r} view={view} />
       <div className="kv"><div><div className="l">Direção, views {JANELA} dias × {JANELA} anteriores</div><div className="obs-cn-dirv"><DirecaoValor r={r} cartao /></div></div></div>
-      <div><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} dica={r.dicas.cadence} dica2={r.dicas.cadence2} /></div>
+      <div><CadenceView c={c.cadence} c2={todos ? c.cadence2 : undefined} dica={r.dicas.cadence} dica2={r.dicas.cadence2} reservar={reservar} /></div>
       <div className="kv">
         <div><div className="l">Views/dia, {view.scale === 'per-mil' ? 'por mil inscritos' : 'mediana'}</div><VpdView c={c.vpd} c2={todos ? c.vpd2 : undefined} visible dica={r.dicas.vpd} dica2={r.dicas.vpd2} /></div>
         <div><div className="l">Crescimento, 30{' '}d</div><div className="grow"><GrowthView c={c.growth} dica={r.dicas.growth} /></div></div>
@@ -41,12 +41,13 @@ function Card({ r, h, view }: { r: CanaisRow; h: RowHandlers; view: CanaisView }
 
 export function ChannelCards({ view, ranked, unranked, semMedidaN, buscando, h, empty, busy }: { view: CanaisView; ranked: CanaisRow[]; unranked: CanaisRow[]; /** O número do divisor "sem medida": o da lista inteira, não o da página. */ semMedidaN: number; buscando: boolean; h: RowHandlers; empty: React.ReactNode; busy?: boolean }) {
   const semConcorrente = buscando ? ranked.length + unranked.length === 0 : !ranked.some(r => !r.own) && !unranked.some(r => !r.own)
+  const reservar = algumaNotaDoRitmo([...ranked, ...unranked])
   return (
     <div className="cards" role="list" aria-label="Canais acompanhados" aria-busy={busy || undefined}>
-      {ranked.map(r => <Card key={r.id} r={r} h={h} view={view} />)}
+      {ranked.map(r => <Card key={r.id} r={r} h={h} view={view} reservar={reservar} />)}
       {view.list.divisor && unranked.length
         ? <div className="cardsep" role="listitem" data-divisor=""><strong>{view.list.divisor.titulo.replace(/\(\d+\)$/, `(${semMedidaN})`)}</strong> <small>{view.list.divisor.nota}</small></div> : null}
-      {unranked.map(r => <Card key={r.id} r={r} h={h} view={view} />)}
+      {unranked.map(r => <Card key={r.id} r={r} h={h} view={view} reservar={reservar} />)}
       {semConcorrente ? <div className="cardsep" role="listitem">{empty}</div> : null}
     </div>
   )

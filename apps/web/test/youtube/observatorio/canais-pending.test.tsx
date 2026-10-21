@@ -35,7 +35,7 @@ const ok = async () => ({ ok: true })
 const view = (p: Partial<CanaisParams> = {}) => comGavetaNoProprio(buildCanaisView(obs, { niche: 'todos', limit: 75, fmt: 'longos', ...p }))
 const tree = (p: Partial<CanaisParams> = {}) => (
   <ToastProvider><ChromeSyncContext.Provider value={{ running: false }}><div data-obs="">
-    <CanaisScreen view={view(p)} canUnlock={false} onAdd={ok} onRemove={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
+    <CanaisScreen view={view(p)} canUnlock={false} onAdd={ok} onPedir={ok} onApagar={ok} onDesfazer={ok} onUnlock={ok} onSetNiche={ok} onSetOwnNiche={ok} onSyncOne={ok} />
   </div></ChromeSyncContext.Provider></ToastProvider>
 )
 const root = () => document.querySelector<HTMLElement>('[data-obs-screen="canais"]')!
