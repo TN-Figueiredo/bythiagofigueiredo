@@ -70,3 +70,7 @@ No passo Variantes do assistente, logo acima do cartão A, só para os tipos thu
 - A 390 px: área de envio com 120 px, botões em coluna de 44 px, nada corta.
 - Teclado: Tab chega à área de envio (contorno laranja) e aos links.
 - Ler as mensagens de D, E e F e dizer se cada uma diz o que fazer.
+
+## r3 (21/10 16:20): pedido do dono no Opera
+- Tema claro: banner com fundo gelo `#F4F7F8` e borda `#DCE3E6` (era verde-claro com texto escuro, que o dono não gostou); o verde fica só no ícone e na palavra. Escuro sem mudança. Token novo para a T1b: `--cms-ban-bg` / `--cms-ban-bd` (claro gelo; escuro `rgba(34,197,94,.08)` / transparente).
+- Dono aprovou o resto do M1 ("tirando isso parece bom").
