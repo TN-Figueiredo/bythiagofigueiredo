@@ -4,7 +4,7 @@ import { z } from 'zod'
 export const REASONS_DE_COTA: readonly string[] = ['quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded']
 
 export type CampoNome = 'title' | 'thumbnail'
-// 'pulado_teste_youtube': só leitura nesta entrega (quem escreve é a fase 2 da S6/S7; o CHECK de produção já aceita).
+// 'pulado_teste_youtube': escrito pela F1a-dado (settleOnAir, motivo 'teste_youtube'); o CHECK de produção já aceita.
 export type EstadoCampo = 'em_andamento' | 'ok' | 'falhou' | 'pulado_sem_original' | 'pulado_drift' | 'desistiu' | 'pulado_teste_youtube'
 
 // Onde o erro aconteceu: a faixa só afirma "o YouTube recusou" para chamada de escrita (F-D10).
