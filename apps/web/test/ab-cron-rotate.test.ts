@@ -654,6 +654,15 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateCalls.some((c) => (c.data as { status?: string }).status === 'paused')).toBe(false)
   })
 
+  it('3ª falha convertida em pausa por teste do YouTube: Sentry info com o testId, sem pausa extra (Phil C1)', async () => {
+    const test = makeTest({ test_type: 'thumbnail', config: { rotation_pattern: 'abba', consecutive_failures: 2 } })
+    buildSupabaseMock({ tests: [test] })
+    ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValue(new YouTubeApiError(401, 'authError', 'thumbnails.set'))
+    settleOnAirFalso.mockResolvedValueOnce({ resultado: 'feito', campos: {}, pausadoPorTesteYoutube: true })
+    await GET(createCronRequest('test-secret'))
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('convertida em pausa por teste do YouTube'), expect.objectContaining({ level: 'info', extra: { testId: 'test-1' } }))
+  })
+
   it('does not process queued tests with future queue_start_after', async () => {
     // The query uses .lte('queue_start_after', now), so future tests are NOT returned by DB
     buildSupabaseMock({ queuedTests: [], tests: [] })

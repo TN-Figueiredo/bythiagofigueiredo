@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type PontoDaGuarda = 'rotacao' | 'start' | 'retomar' | 'forcar' | 'fila'
+export type PontoDaGuarda = 'rotacao' | 'start' | 'retomar' | 'forcar' | 'fila' | 'playoff'
 
 /**
  * Modo `log` da flag AB_PAUSA_POR_DETECTADO: mede quantas vezes a guarda pausaria por linha só detectada. Nunca toca `status_note`

@@ -71,6 +71,7 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient, inicioD
       evaluated++
       // ja_encerrado / em_andamento: outro escritor é dono do teste; nada a fazer aqui.
       if (saida.resultado !== 'feito') continue
+      if (saida.pausadoPorTesteYoutube) continue // pausado pela guarda do teste do YouTube: o teste não foi resolvido
       resolved++
       // Campo que não voltou ao original deixa a variante no ar: o cron fica vermelho nesse dia (S-C7).
       const naoVoltou = Object.values(saida.campos).some((c) => c?.estado === 'falhou' || c?.estado === 'desistiu')
