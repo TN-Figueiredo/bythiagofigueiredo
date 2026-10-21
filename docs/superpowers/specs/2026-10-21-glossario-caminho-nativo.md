@@ -1,5 +1,7 @@
 # Glossário de rótulos do caminho nativo (Logan, 21/10/2026)
 
+> r17 (21/10): alinhado aos mockups M2 e M3 aprovados e à decisão do dono sobre "Candidatos" (fora do N).
+
 Vale para M1, M2, M4, Cowork e e-mail. Regra geral: um conceito, um nome, em toda tela. Texto ao dono em português simples; termo interno (`detectado`, `nativo`, `ficha`) nunca aparece como rótulo sem a definição abaixo.
 Fontes: spec `2026-10-21-sugestoes-do-nicho-e-ab-nativo-design.md` (§5, §6, r6 a r9); mockups S7 r3 (`2026-10-18-ab-s7-cartao-nativo`), S9 (`2026-10-18-ab-detalhe-teste-youtube`) e M1 r3 (`bythiago-ab-s7/.../2026-10-19-ab-original-em-alta`).
 Decisão do dono (21/10): não existe "Meu canal não tem o Teste e compare". A escolha nativo × nosso é **manual, por vídeo**.
@@ -10,7 +12,7 @@ Decisão do dono (21/10): não existe "Meu canal não tem o Teste e compare". A 
 |---|---|---|---|
 | **teste do YouTube** | O teste que o dono liga no Studio (título e/ou miniatura); o YouTube divide o público e mede. | Ficha, cartão S7, selos, lembrete, e-mail, Cowork | Teste e compare (só como nome oficial no ⓘ, 1 vez: "teste do YouTube, no Studio chamado Teste e compare"), "teste nativo" (jargão interno), "Test & Compare" (já banido na S9 A7c) |
 | **nosso teste** | O teste que o nosso Lab roda alternando título/miniatura por tempo. | A/B Lab, placar, lote, Cowork | "teste interno", "A/B do Lab", "teste manual" |
-| **Prefiro outro caminho** | Botão pequeno que troca o caminho pré-escolhido, sempre disponível, por vídeo. | Linha do vídeo e ficha | "Meu canal não tem o Teste e compare" (cancelado), qualquer opção por canal |
+| **Prefiro outro caminho** | Botão pequeno que troca o caminho pré-escolhido, por vídeo. **Some** onde o outro caminho não existe: Short, kids, 18+ e estreia/live (M2 aprovado). | Linha do vídeo e ficha | "Meu canal não tem o Teste e compare" (cancelado), qualquer opção por canal |
 | **caminho sugerido: X** + motivo de 1 linha | O sistema pré-escolhe e diz por quê ("Short: o Studio não oferece o teste"). | Linha do vídeo | Escolha calada; "recomendado" sem motivo |
 | **formato não confirmado** | Ainda não sabemos se é Short/kids; mostra os dois caminhos, cada um com o motivo. | Linha do vídeo | "desconhecido", "erro de formato", "indisponível" |
 
@@ -35,8 +37,9 @@ Decisão do dono (21/10): não existe "Meu canal não tem o Teste e compare". A 
 | **Já iniciei** | Botão da ficha: "iniciei o teste no Studio"; confirma e registra. Se havia linha detectada, confirma a mesma. | Ficha, pergunta da volta do Studio | "Iniciado", "Concluí", "Enviei" |
 | **Você iniciou no Studio?** | Pergunta única ao voltar à aba ou reabrir ficha enviada sem marcador. Respostas: **Já iniciei** / **Ainda não**. | Ficha | "Confirmar início" |
 | **Liberar o Lab** | Consequência escrita antes do clique: "o Lab volta a trocar título/miniatura neste vídeo". Em 2 toques, fica registrado. | Faixa do S7/S9 | "Desbloquear", "Retomar" (retomar é outra ação) |
+| **Pausar e voltar a original** | Primário do nosso teste rodando na ficha (2 toques); **Abrir no Studio** só aparece depois da original restaurada. | Ficha | "Parar", "Cancelar teste" |
 | **Lab pausado** / **Lab liberado** | Estado do nosso teste neste vídeo; causa sempre escrita ("pausado porque há teste no Studio, volta em dd/mm"). | Selo, linha, faixa | "Pausado por segurança" sozinho (S9 4a/4b: acrescentar a causa); "bloqueado", "congelado" (só "Congelado em dd/mm" no placar) |
-| **Retomar do dia N** | Continua o nosso teste do ponto em que parou. | Cartão fim de teste | "Reiniciar" (reinicia do zero) |
+| **Retomar do dia N** | Continua o nosso teste do ponto em que parou. Data de retomada: início + 14 dias + 2 de fechamento. | Cartão fim de teste | "Reiniciar" (reinicia do zero) |
 
 ## 4. Ficha e resultado
 
@@ -49,11 +52,11 @@ Decisão do dono (21/10): não existe "Meu canal não tem o Teste e compare". A 
 | **Lembrar no computador** → depois **"Lembrete enviado em dd/mm"** | Notificação para o próprio dono abrir a ficha no desktop. | Ficha (celular) | "Enviar para mim", "Agendar" |
 | **versão** (A, B, C) | Cada alternativa testada; a **original é a versão A**. Só "versão" ao dono. | Todas as telas do dono | "variante" (interno, só código e spec), "opção", "criativo" |
 | **original** | A versão A, a atual do vídeo antes do teste. | Ficha, placar | "controle", "baseline" |
-| **Qual ficou no ar?** | Pergunta do dia 14 sobre o teste do YouTube; botões: **Venceu a nova** / **Ficou igual** / **Inconclusivo** / **Não vi**. Com 3 versões: "Qual?" com miniaturas. | Notificação, e-mail, linha do vídeo | "Vencedor?", "Resultado do teste", "Avalie" |
+| **Qual versão venceu no Studio?** | Pergunta única do dia 14 sobre o teste do YouTube (M2 aprovado); um botão por versão, original incluída: **A (original) ficou** / **B venceu** (com 3 versões, também C), mais **Ficou igual** / **Inconclusivo** / **Não vi**. Sem primário, ordem fixa. A 390, versões em coluna. | Notificação, e-mail, linha do vídeo | "Vencedor?", "Resultado do teste", "Avalie", "Qual ficou no ar?" (nome antigo) |
 | **Ficou no ar: B** | Fato registrado: qual versão está no vídeo ao fim. Nunca "vencedora" para o nosso teste. | S7 estado 3, resumo | "Vencedor provável", "Vencedora", "Ganhou" (ver conflito C1) |
 | **resultado oficial só no Studio** | Frase fixa no ⓘ: o número oficial nunca é nosso. | ⓘ | "Resultado final", "oficial" no selo |
 | **Lembrete do dia 14** | Aviso de que o prazo do teste venceu; só para teste confirmado. | Sino, e-mail, linha | "Alerta", "Pendência" |
-| **conflito: "O YouTube indicou X; você disse Y"** | Quando a resposta do dono difere do que lemos; mostra os dois, não escolhe. | Detalhe | "Divergência", "Inconsistência" |
+| **conflito: "No ar, lido pelo Lab em dd/mm: X" / "Você disse: Y"** | Quando a resposta do dono difere do que lemos (M2 aprovado: o Lab só lê o título no ar); mostra os dois, não escolhe. Selo: **Respostas diferentes**. | Detalhe | "O YouTube indicou X" (afirma mais que o dado), "Divergência", "Inconsistência" |
 
 ## 5. Original em alta (M1, D12)
 
@@ -71,12 +74,14 @@ Decisão do dono (21/10): não existe "Meu canal não tem o Teste e compare". A 
 
 | Termo | Definição | Onde | Evitar |
 |---|---|---|---|
-| **Sugestões (N)** | Lista única; N = "…" enquanto carrega, nunca 0. | Competidores, A/B Lab | "Candidatos a teste", "Sugeridos para testar" (nomes antigos) |
-| **meu vídeo caiu / concorrente bombou / destino esquentou / candidato** | Os 4 chips de origem, sempre com símbolo. | Linha da sugestão | "alerta", "oportunidade", "trending" |
+| **Sugestões (N)** | Lista só de sinais do nicho (`destino`, `parecido`); N = "…" enquanto carrega, "?" no erro, nunca 0 falso; mesmo N no sino, na lista e no Cowork. Página própria; no A/B Lab, bloco com 3 linhas e "Ver todas (N)". | Competidores, A/B Lab | "Candidatos a teste" como nome da lista |
+| **Candidatos (fora da contagem)** | Bloco irmão no A/B Lab com o lote atual ("Iniciar Lote"), regra própria de `getSuggestedVideos`; **não entra no N**. Decisão do dono 21/10. | A/B Lab | "Sugestões" para este bloco, "Sugeridos para testar" (nome antigo) |
+| **Destino esquentou / Concorrente bombou** | Os 2 chips de origem da lista (M3 aprovado), símbolo + palavra, mesma cor. "Meu vídeo caiu" e "candidato" não são chips da lista. | Linha da sugestão | "alerta", "oportunidade", "trending" |
 | **teste registrado** (de concorrente) | Teste do YouTube que **vimos** em vídeo de terceiro; só leitura, nunca vira ação nem pré-preenche imagem. | Competidores | "teste do concorrente" (soa como nosso), "A/B do canal X" |
 | **pode ajudar** | Verbo das ações sugeridas. | Sugestões | "vai ajudar", "garante", "aumenta" |
 | **análise e ideias, não cópia** | Rótulo fixo da leitura da thumbnail de terceiro. | Painel da ação 2 | "Gerar", "Copiar estilo", "Recriar" |
-| **dispensar** + motivo: "não é para mim" / "já tratei" / "depois" (7 dias) | Ação secundária. | Linha | "Ocultar", "Excluir" |
+| **Dispensar** + motivo, 1:1 com o enum: destino **Lugar errado** / **Não me interessa \| Já fiz**; parecido **Não é parecido** / **Não me interessa \| Já fiz**. "Já fiz" grava dispensa, nunca "feito". Grava na hora, faixa de 5 s, sem Desfazer; sem "Depois". | Ação secundária. | Linha | "Ocultar", "Excluir", "não é para mim", "já tratei", "depois" |
+| **Abrir o vídeo do concorrente** / **Abrir seus N vídeos sobre X** / **Abrir suas playlists** | Primário da linha, segue os vídeos seus de hoje (`proprios_agora`); sem número medido: "Abrir seus vídeos". | Linha | "Anotar como pauta" (fora da F3, backlog), verbo que prometa o que o produto não faz |
 
 ## 7. Conflitos entre telas aprovadas e o spec
 
