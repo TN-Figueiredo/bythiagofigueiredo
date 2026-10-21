@@ -75,6 +75,13 @@ describe.skipIf(skipIfNoLocalDb())('F0 sugestões: sem_videos, escopo da execuç
     })
   })
 
+  it('escopo: a coluna tem comentário que avisa os leitores', async () => {
+    await dentro(async () => {
+      const r = await q1(pg, `select col_description('public.yt_own_collection_runs'::regclass, (select attnum from pg_attribute where attrelid = 'public.yt_own_collection_runs'::regclass and attname = 'escopo')) as c`)
+      expect(String(r.c)).toMatch(/completo/)
+    })
+  })
+
   async function semear(site: string, ch: string): Promise<void> {
     const linha = (src: string, detail: string, vid: string) => pg.query(
       `insert into public.yt_own_video_traffic_detail_daily

@@ -33,6 +33,7 @@ begin
       check (escopo in ('completo','parcial'));
   end if;
 end $$;
+comment on column public.yt_own_collection_runs.escopo is 'completo = execução diária das 12:00 UTC (todos os passos); parcial = ?passos= às 00:07 UTC (jobs, relatorios, alcance, normalizadores); vigias de saúde da coleta filtram escopo = ''completo''';
 
 -- Termos de pesquisa (F0-e); zero job. source_type '5' = ORIGEM_DE_BUSCA (apps/web/src/lib/youtube/reporting/codigos.ts).
 -- detail = '' é "sem termo" (abaixo do limiar do YouTube), nunca um termo vazio. Vazia enquanto a F0-a não andar não é defeito.
