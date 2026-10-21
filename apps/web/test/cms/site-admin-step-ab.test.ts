@@ -44,7 +44,7 @@ vi.mock('@/lib/youtube/channel-account', () => ({
   CHANNEL_NOT_IDENTIFIED_MESSAGE: 'canal não identificado',
 }))
 vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() }))
-vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 import * as ab from '@/app/cms/(authed)/youtube/ab-lab/actions'
 import { resetServiceLog, hadEffect } from '../helpers/site-admin-session'
