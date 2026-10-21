@@ -65,7 +65,7 @@ export async function criterioDesligados(ctx: CriterioDesligadosCtx, desligados:
   let res: { data?: unknown; error?: { code?: string | null; message?: string | null } | null } | null
   try {
     res = await comPrazo(
-      Promise.resolve(supabase.from(TABELA).select('ran_at, resumo').order('ran_at', { ascending: false }).limit(EXECUCOES_LIDAS)),
+      Promise.resolve(supabase.from(TABELA).select('ran_at, resumo').eq('escopo', 'completo').order('ran_at', { ascending: false }).limit(EXECUCOES_LIDAS)),
       prazo,
     )
   } catch {

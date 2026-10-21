@@ -16,7 +16,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { evaluateCron, buildCronHealthReport, groupCronSchedules, aggregateStatus, type ICronHealthRow, type ICronHealthItem } from '@/lib/ops/cron-health-report'
+import { parsePassos } from '@/lib/youtube/coleta/passos-parciais'
+import { resolveCronName, evaluateCron, buildCronHealthReport, groupCronSchedules, aggregateStatus, type ICronHealthRow, type ICronHealthItem } from '@/lib/ops/cron-health-report'
 import vercelConfig from '../../../vercel.json'
 import type { ItemAgenda } from '@/lib/youtube/agenda/saude'
 
@@ -195,5 +196,32 @@ describe('o vigia carrega a leitura da agenda por import estático', () => {
     expect(fonte).not.toMatch(/import\s*\(/)
     expect(fonte).toMatch(/^import \{[^}]*lerAgendaDoVigia[^}]*\} from '@\/lib\/youtube\/agenda\/saude'/m)
     expect(fonte).not.toContain('leitura_da_agenda')
+  })
+})
+
+describe('F0-c: entrada parcial da coleta', () => {
+  it('resolveCronName do caminho com passos devolve o nome parcial; sem passos, o completo', () => {
+    expect(resolveCronName('/api/cron/sync-analytics-metrics?passos=jobs,relatorios')).toBe('sync-analytics-metrics-parcial')
+    expect(resolveCronName('/api/cron/sync-analytics-metrics')).toBe('sync-analytics-metrics')
+  })
+
+  it('o vercel.json real tem as duas chaves, com os horários certos', () => {
+    const g = groupCronSchedules(vercelConfig.crons)
+    expect(g.get('sync-analytics-metrics')).toEqual(['0 12 * * *'])
+    expect(g.get('sync-analytics-metrics-parcial')).toEqual(['7 0 * * *'])
+  })
+
+  it('toda entrada do vercel.json com passos passa em parsePassos', () => {
+    const com = vercelConfig.crons.filter(c => c.path.includes('passos'))
+    expect(com.length).toBeGreaterThan(0)
+    for (const c of com) expect(parsePassos(new URL(c.path, 'http://x').searchParams.get('passos')).ok).toBe(true)
+  })
+
+  it('desfazer: sem a linha da parcial, a chave some e o vigia não a avalia', () => {
+    const sem = vercelConfig.crons.filter(c => !c.path.includes('passos'))
+    expect(groupCronSchedules(sem).has('sync-analytics-metrics-parcial')).toBe(false)
+    expect(groupCronSchedules(sem).has('sync-analytics-metrics')).toBe(true)
+    const rel = buildCronHealthReport([], AGORA)
+    expect(rel.crons.some(c => c.name === 'sync-analytics-metrics-parcial')).toBe(true)
   })
 })

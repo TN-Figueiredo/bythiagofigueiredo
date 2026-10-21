@@ -662,6 +662,7 @@ describe('E11 no cron, passos e critérios de verdade', () => {
     const db2 = banco(VIDEOS_ANTIGOS)
     db2.tables.yt_own_collection_runs = Array.from({ length: 7 }, (_, i) => ({
       ran_at: new Date(DIA_1.getTime() - (i + 1) * 3_600_000).toISOString(),
+      escopo: 'completo',
       resumo: { dimensoes: { desligado: true }, normalizadores: { desligado: true } },
     }))
     const d = await rodarDia(db2, DIA_1)
@@ -762,6 +763,7 @@ describe('E8 no cron, passo e critério de verdade', () => {
     const db = banco(VIDEOS_ANTIGOS)
     db.tables.yt_own_collection_runs = Array.from({ length: 7 }, (_, i) => ({
       ran_at: new Date(DIA_1.getTime() - (i + 1) * 3_600_000).toISOString(),
+      escopo: 'completo',
       resumo: { retencao: { desligado: true } },
     }))
     const d = await rodarDia(db, DIA_1)
