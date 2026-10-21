@@ -49,7 +49,7 @@ Sem migration, sem envio de arquivo, sem rota nova de escrita, **sem bloquear o 
 |---|---|
 | `Y/ab-original-resolucao.ts` (novo) | `LARGURA_ALTA`, `publicaBaixa`, `dimensoesDeTexto`, `textoAvisoOriginalBaixa`, `AvisoOriginal`, `AVISO_INDISPONIVEL` (puras); textos da r5 (T1c) |
 | `Y/ab-start.ts` (T1c) | `:317-321` regrava a original também quando a guardada é baixa; `dimensions` entra no select (`:222`) e em `VarianteInicio` (`:169`) |
-| `apps/web/src/app/globals.css` (T1b passo 7) | tokens `--cms-green-text/-icon`, `--cms-amber-text/-soft/-line` por tema |
+| `apps/web/src/app/globals.css` (T1b passo 7) | tokens `--cms-green-text/-icon`, `--cms-amber-text/-soft/-line`, `--cms-ban-bg/-bd` por tema |
 | `AB/_components/encerrar-props.ts` | `originalBaixaResolucao` passa a usar a regra única |
 | `AB/actions.ts` | `lerDimensoesDaOriginal(testId)` (server action, só leitura; devolve `dimensions` e `medida`) |
 | `AB/_components/use-aviso-original.ts` (novo) | hook que **recebe** a action por parâmetro e devolve 3 estados: `'pendente' \| null \| AvisoOriginal`; tempo-limite de 8 s (T1c) |
@@ -498,6 +498,8 @@ describe('useAvisoOriginal', () => {
 | `--cms-amber-text` | `#FBBF24` | `#7A4E00` | texto e ícone do selo "Baixa resolução" |
 | `--cms-amber-soft` | `rgba(251,191,36,.12)` | `rgba(245,158,11,.14)` | fundo do selo |
 | `--cms-amber-line` | `rgba(245,158,11,.5)` | `rgba(160,100,0,.55)` | borda do selo |
+| `--cms-ban-bg` | `rgba(34,197,94,.08)` | `#F4F7F8` | fundo do banner do passo Revisar (dono 21/10 16:16: no claro, gelo em vez de verde-claro; mockup r3 `e6d802ebd`) |
+| `--cms-ban-bd` | `transparent` | `#DCE3E6` | borda do banner (só no claro) |
 
 Neutro: tokens que já existem, `--theme-cms-text-dim` na borda tracejada e `--cms-surface-3` no fundo/esqueleto. **Proibido** `Badge tone="amber"` (o `--cms-amber` do produto é `#f59e0b` nos dois temas: 1,83:1 no claro), `*-subtle` (usa sintaxe de cor relativa, da família do `color-mix()` que o Opera do dono mostrou transparente) e `color-mix()`; só hex/rgba literal. Teste: acrescentar em `T/cms/ab-step-revisar.test.tsx` um caso que lê o fonte (`fs.readFileSync` de `step-revisar.tsx`) e afirma que **não** contém `#4ade80`, `#22c55e`, `tone="amber"`, `-subtle` nem `color-mix(`.
 - [ ] **Passo 6: casos do componente**, em `T/cms/ab-step-revisar.test.tsx` (acrescentar; reaproveita a montagem e os mocks do arquivo; `base` = as props que o arquivo já usa). **Asserções trocadas** em relação à r4: `Pronto para iniciar.` some do arquivo e dos testes (vira os dois títulos novos); o caso "leitura falhou" ganha a frase nova; o "sem aviso" ganha o esqueleto.
