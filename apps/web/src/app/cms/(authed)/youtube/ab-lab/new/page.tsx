@@ -13,6 +13,7 @@ import { link } from '@/lib/youtube/observatorio/links'
 
 export const metadata = { title: 'Novo Teste: A/B Lab' }
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // o Ativar roda startAbTest nesta rota (teto de 55 s), como em ab-lab/page.tsx
 
 interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>

@@ -9,6 +9,7 @@
 
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from './ab-schemas'
 import * as Sentry from '@sentry/nextjs'
+import { del } from '@vercel/blob'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
@@ -317,10 +318,27 @@ export async function startAbTestInternal(
       const sonda = await probeThumb(youtubeVideoId, null)
       if (!sonda.dhash) return await desfazer('Não foi possível ler a thumbnail atual do vídeo. Tente de novo.')
       const guardado = original?.thumbnail_dhash ?? null
-      const originalBaixa = publicaBaixa(dimensoesDeTexto(original?.dimensions)?.largura ?? 0)   // r5 B1: nula, 0x0, ilegível ou < 1280
-      if (guardado === null || originalBaixa || hamming(guardado, sonda.dhash) > DHASH_MAX_SAME) {
+      const larguraGuardada = dimensoesDeTexto(original?.dimensions)?.largura ?? 0
+      const originalBaixa = publicaBaixa(larguraGuardada)   // r5 B1: nula, 0x0, ilegível ou < 1280
+      if (guardado === null || hamming(guardado, sonda.dhash) > DHASH_MAX_SAME) {
+        // A original mudou: a cópia nova é obrigatória (falha recusa o início, como antes do B1).
         guardada = await guardarOriginalMaior(youtubeVideoId, testId)
         patchTeste.original_thumbnail_url = guardada.url
+      } else if (originalBaixa) {
+        // Só baixa: é melhoria, nunca recusa o início (D12). Só troca se a cópia nova for mais larga.
+        try {
+          const nova = await guardarOriginalMaior(youtubeVideoId, testId)
+          if (nova.largura > larguraGuardada) {
+            guardada = nova
+            patchTeste.original_thumbnail_url = nova.url
+          } else {
+            try { await del(nova.url) } catch (e) {
+              Sentry.captureException(e, { tags: { area: 'ab-start', etapa: 'b1-apagar-copia' }, extra: { testId } })
+            }
+          }
+        } catch (e) {
+          Sentry.captureException(e, { tags: { area: 'ab-start', etapa: 'b1-regravar' }, extra: { testId } })
+        }
       }
     }
   } catch (e) {

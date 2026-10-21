@@ -59,10 +59,15 @@ describe('useAvisoOriginal', () => {
   })
   it('trocar o rascunho mostra pendente, nunca o aviso do anterior (Logan L7, Phil menor 3)', async () => {
     ler.mockResolvedValueOnce({ ok: true, dimensions: '480x360', medida: true })
-    const h = renderHook(({ id }) => useAvisoOriginal(ler, id, 'thumbnail', true), { initialProps: { id: 'a' } })
+    const vistos: EstadoAviso[] = []
+    const h = renderHook(({ id }) => { const v = useAvisoOriginal(ler, id, 'thumbnail', true); vistos.push(v); return v }, { initialProps: { id: 'a' } })
     await waitFor(() => expect(obj(h.result.current)?.kind).toBe('baixa'))
     ler.mockReturnValueOnce(new Promise(() => {}))
+    const n = vistos.length
     h.rerender({ id: 'b' })
+    // todo quadro renderizado depois da troca (inclusive o intermediário, antes do efeito) é pendente
+    expect(vistos.slice(n).length).toBeGreaterThan(0)
+    expect(vistos.slice(n).every((v) => v === 'pendente')).toBe(true)
     expect(h.result.current).toBe('pendente')
   })
 
@@ -95,12 +100,13 @@ describe('useAvisoOriginal', () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
       expect(obj(h.result.current)?.kind).toBe('baixa')
     })
-    it('erro fecha o desfecho: depois dele, resposta ok tardia é ignorada', async () => {
+    it('tempo-limite vence e depois chega ok:false: continua indisponível e não volta a pendente', async () => {
       vi.useFakeTimers()
-      let rej!: (e: Error) => void
-      ler.mockReturnValueOnce(new Promise((_, r) => { rej = r }))
+      ler.mockReturnValueOnce(new Promise((r) => setTimeout(() => r({ ok: false }), 9000)))
       const h = renderHook(() => useAvisoOriginal(ler, 'tl4', 'thumbnail', true))
-      await act(async () => { rej(new Error('rede')) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(TEMPO_LIMITE_LEITURA_MS) })
+      expect(obj(h.result.current)?.kind).toBe('indisponivel')
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
       expect(obj(h.result.current)?.kind).toBe('indisponivel')
     })
     it('resposta em 100 ms cancela o timer: depois de 10 s o aviso continua intacto', async () => {

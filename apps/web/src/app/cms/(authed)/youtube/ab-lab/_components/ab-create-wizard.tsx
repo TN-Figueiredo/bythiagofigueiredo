@@ -309,11 +309,14 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   }, [video.id, state])
 
   const [isPending, startTransition] = useTransition()
-  const dialogRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDivElement | null>(null)
+  // A leitura da original só começa depois que o diálogo (portal) está no DOM: ver use-aviso-original.ts
+  const [dialogoMontado, setDialogoMontado] = useState(false)
+  const refDialogo = useCallback((el: HTMLDivElement | null) => { dialogRef.current = el; setDialogoMontado(el !== null) }, [])
   const [libraryPickerFor, setLibraryPickerFor] = useState<number | null>(null)
   const [libraryEntries, setLibraryEntries] = useState<Awaited<ReturnType<typeof fetchLibraryEntries>> | null>(null)
   // D12: aviso de original baixa; só leitura, não valida passo nem envia
-  const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', state.step >= LEITURA_A_PARTIR_DO_PASSO)
+  const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step >= LEITURA_A_PARTIR_DO_PASSO && !state.isLaunching)
 
   // --- Escape key ---
   useEffect(() => {
@@ -582,7 +585,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
       onClick={state.isLaunching ? undefined : onClose}
     >
       <div
-        ref={dialogRef}
+        ref={refDialogo}
         role="dialog"
         aria-modal="true"
         aria-label="Novo Teste A/B"

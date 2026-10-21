@@ -78,4 +78,11 @@ describe('passo Revisar: aviso da original (D12)', () => {
     await Promise.resolve()
     expect(ler).not.toHaveBeenCalled()
   })
+  it('A1: a leitura só dispara com o diálogo (portal) já no DOM, para não atrasar a montagem atrás da fila de actions', async () => {
+    let dialogoNoDom: boolean | null = null
+    ler.mockImplementationOnce(() => { dialogoNoDom = document.querySelector('[role="dialog"]') !== null; return new Promise(() => {}) })
+    montar()
+    await waitFor(() => expect(ler).toHaveBeenCalledTimes(1))
+    expect(dialogoNoDom).toBe(true)
+  })
 })
