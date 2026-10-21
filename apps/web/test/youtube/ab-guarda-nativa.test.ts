@@ -23,6 +23,7 @@ vi.mock('@/lib/youtube/ab-settle', async (orig) => {
   return { ...(await orig<typeof import('@/lib/youtube/ab-settle')>()), settleOnAir: settleOnAirFalso }
 })
 
+import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { retomarTeste } from '@/lib/youtube/ab-resume'
 import { phaseProcessQueue, phaseRotateActiveTests } from '@/lib/youtube/ab-rotate-phases'
@@ -85,6 +86,25 @@ describe('rotação do cron', () => {
     const m = montarRotacao({ nativas: [nativa()] })
     m.banco.ciclos().push({ id: 'hoje', test_id: 'teste-1', cycle_number: 5, variant_id: 'B', started_at: AGORA.toISOString(), ended_at: null })
     await phaseRotateActiveTests(m.banco.supabase)
+    expect(m.banco.auditoria()).toEqual([])
+  })
+
+  it('log: reivindicação perdida para um disparo concorrente não anota (Yannis M2)', async () => {
+    vi.stubEnv('AB_PAUSA_POR_DETECTADO', 'log')
+    const m = montarRotacao({ nativas: [nativa()] })
+    const original = m.banco.supabase
+    const sb = {
+      ...original, rpc: original.rpc.bind(original),
+      from: (t: string) => {
+        const b = original.from(t) as unknown as { update: (...a: unknown[]) => unknown }
+        if (t !== 'ab_tests') return b
+        const u = b.update.bind(b)
+        b.update = (...a: unknown[]) => { m.banco.setTeste({ restore_seq: 99 }); return u(...a) } // o outro disparo ganhou a vez
+        return b
+      },
+    } as unknown as typeof original
+    servicoAtual.cliente = sb
+    await phaseRotateActiveTests(sb)
     expect(m.banco.auditoria()).toEqual([])
   })
 
@@ -264,6 +284,28 @@ describe('startAbTestInternal e a fila', () => {
     banco.setTeste({ test_type: 'thumbnail' })
     await phaseProcessQueue(banco.supabase)
     expect((banco.teste().config as { queue_start_failures: number }).queue_start_failures).toBe(3)
+  })
+})
+
+describe('modo log só anota onde a escrita sairia (Phil M1 / Yannis M1)', () => {
+  it('retomar com drift não reconhecido: recusa e não anota', async () => {
+    vi.stubEnv('AB_PAUSA_POR_DETECTADO', 'log')
+    const banco = criarBanco({ status: 'paused', restoreSeq: 3, nativas: [nativa()] })
+    banco.setTeste({ paused_at: AGORA.toISOString(), status_note: DRIFT_STATUS_NOTE, drift_acknowledged_at: null })
+    servicoAtual.cliente = banco.supabase
+    const r = await retomarTeste('teste-1', SITE, { supabase: banco.supabase, agora: () => AGORA, token: async () => 'tok' })
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('Drift não reconhecido') })
+    expect(banco.auditoria()).toEqual([])
+  })
+
+  it('start com variante sem imagem: recusa e não anota', async () => {
+    vi.stubEnv('AB_PAUSA_POR_DETECTADO', 'log')
+    const banco = criarBanco({ status: 'draft', semCiclos: true, restoreSeq: 0, nativas: [nativa()] })
+    for (const v of banco.variantes()) if (!v.is_original) (v as unknown as { blob_url: string | null }).blob_url = null
+    servicoAtual.cliente = banco.supabase
+    const r = await startAbTestInternal('teste-1', SITE, { supabase: banco.supabase })
+    expect(r.ok).toBe(false)
+    expect(banco.auditoria()).toEqual([])
   })
 })
 

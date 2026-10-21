@@ -283,6 +283,12 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 1, resolved: 1, errors: 1 })
   })
 
+  it('pausa convertida pela guarda do teste do YouTube não conta como resolvida (Phil C1)', async () => {
+    settle.mockResolvedValueOnce({ resultado: 'feito', campos: { thumbnail: { estado: 'pulado_teste_youtube' } }, pausadoPorTesteYoutube: true })
+    const { supabase } = clienteCom([testeAtivo({ diasNoAr: 15 })])
+    expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
+  })
+
   it('campo desistiu também deixa o cron vermelho; pulado_drift e pulado_sem_original não', async () => {
     settle.mockResolvedValueOnce({ resultado: 'feito', campos: { thumbnail: { estado: 'desistiu' } } })
     expect((await phaseEvaluateActiveTests(clienteCom([testeAtivo({ diasNoAr: 15 })]).supabase)).errors).toBe(1)

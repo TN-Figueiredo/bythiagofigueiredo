@@ -185,7 +185,7 @@ export interface PortasInicio {
   supabase: SupabaseClient
   agora: () => Date
   /** Quem chama a partir da fila marca 'fila' (só muda o `ponto` do rastro do modo `log`). */
-  pontoDaGuarda?: 'start' | 'fila'
+  pontoDaGuarda?: 'start' | 'fila' | 'playoff'
 }
 
 /**
@@ -222,10 +222,6 @@ export async function startAbTestInternal(
   if (pedeDescricao({ test_type: test.test_type })) return { ok: false, error: DESCRICAO_FORA_DO_TESTE.message }
   if (!TestTypeSchema.safeParse(test.test_type).success) return { ok: false, error: 'Tipo de teste desconhecido' }
   const testType = test.test_type as TestType
-
-  // Guarda do teste do YouTube (F1a-dado): teste nativo em andamento no vídeo recusa o início, sem escrever (a fila adia sem gastar tentativa).
-  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: portas.pontoDaGuarda ?? 'start' })
-  if (!guarda.seguir) return { ok: false, error: guarda.motivo, codigo: guarda.codigo, ...(guarda.nativeTestId ? { nativeTestId: guarda.nativeTestId } : {}) }
 
   // 2. Fetch variants.
   const { data: variants, error: variantsError } = await supabase
@@ -285,6 +281,10 @@ export async function startAbTestInternal(
   if ((await resolverPendenciasDoVideo(supabase, siteId, testId, test.youtube_video_id as string, agora())) === 'em_andamento') {
     return { ok: false, error: MSG_EM_ANDAMENTO }
   }
+
+  // Guarda do teste do YouTube (F1a-dado): teste nativo em andamento no vídeo recusa o início, sem escrever; depois das validações e antes da reivindicação, para o modo `log` só anotar onde a escrita sairia (a fila adia sem gastar tentativa).
+  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: portas.pontoDaGuarda ?? 'start' })
+  if (!guarda.seguir) return { ok: false, error: guarda.motivo, codigo: guarda.codigo, ...(guarda.nativeTestId ? { nativeTestId: guarda.nativeTestId } : {}) }
 
   // (1) Reivindica draft -> active. `restore_status` nunca fica nulo depois da P4a (F-P3): o supabase-js não faz
   // `coalesce` em coluna, então grava o valor lido (ou {}) sob a guarda de restore_seq, que é equivalente.

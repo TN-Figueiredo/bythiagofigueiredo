@@ -100,12 +100,12 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
   if (teste.status !== 'paused') return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
   const tipoRecusado = recusaTipoForaDeUso(teste.test_type)
   if (tipoRecusado) return erro(tipoRecusado)
-  // Guarda do teste do YouTube (F1a-dado): retomar escreveria no vídeo; teste nativo em andamento recusa.
-  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: teste.youtube_video_id, ponto: 'retomar' })
-  if (!guarda.seguir) return erro(guarda.motivo)
   if (teste.status_note === DRIFT_STATUS_NOTE && !teste.drift_acknowledged_at) {
     return erro('Drift não reconhecido. Reconheça a mudança antes de retomar o teste.')
   }
+  // Guarda do teste do YouTube (F1a-dado; depois das recusas sem escrita, para o modo `log` só anotar onde a escrita sairia): retomar escreveria no vídeo; teste nativo em andamento recusa.
+  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: teste.youtube_video_id, ponto: 'retomar' })
+  if (!guarda.seguir) return erro(guarda.motivo)
 
   // Retrato anterior, em memória (F-P10): restore_status ilegível conta como "sem retrato" para a conta, mas o valor
   // bruto é o que se regrava numa falha sem escrita.

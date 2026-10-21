@@ -228,6 +228,8 @@ async function contarFalhaDaRotacao(
       })
       if (saida.resultado !== 'feito') {
         Sentry.captureMessage('ab-rotate: pausa por falha não feita', { extra: { testId: test.id, resultado: saida.resultado } })
+      } else if (saida.pausadoPorTesteYoutube) {
+        Sentry.captureMessage('ab-rotate: pausa por falha convertida em pausa por teste do YouTube', { level: 'info', extra: { testId: test.id } })
       }
       return
     }
@@ -278,7 +280,11 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
   const modoGuarda = modoPausaPorDetectado()
   const guardaPorSite = new Map<string, Awaited<ReturnType<typeof bloqueadoComRetentativa>>>()
   const idsPorSite = new Map<string, string[]>()
-  for (const t of tests) idsPorSite.set(t.site_id as string, [...(idsPorSite.get(t.site_id as string) ?? []), t.youtube_video_id as string])
+  for (const t of tests) {
+    const lista = idsPorSite.get(t.site_id as string)
+    if (lista) lista.push(t.youtube_video_id as string)
+    else idsPorSite.set(t.site_id as string, [t.youtube_video_id as string])
+  }
   for (const [siteId, ids] of idsPorSite) {
     const g = await bloqueadoComRetentativa(supabase, siteId, ids)
     guardaPorSite.set(siteId, g)
@@ -414,15 +420,15 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
         continue
       }
 
-      // Modo `log`: a escrita vai sair e a guarda `on` pausaria; anota uma vez, só aqui (rotação disparada de novo no dia nem chega).
-      if (decisao.acao === 'seguir_e_anotar') {
-        await anotarPausaDetectado(supabase, { siteId: test.site_id, orgId: null, testId: test.id, videoId: test.youtube_video_id as string, nativeTestId: decisao.nativeTestId, ponto: 'rotacao' })
-      }
-
       // Reivindica a vez ANTES de escrever (restore_seq + 1 e marcador); zero linhas = outro escritor ganhou.
       const seq = await reivindicarRotacao(supabase, test.id, test.restore_seq as number, nextVariant.id, marcadorLido)
       if (seq === null) continue
       seqReivindicado = seq
+
+      // Modo `log`: a escrita vai sair e a guarda `on` pausaria; anota uma vez, só depois da reivindicação (disparo duplicado concorrente que perdeu não anota).
+      if (decisao.acao === 'seguir_e_anotar') {
+        await anotarPausaDetectado(supabase, { siteId: test.site_id, orgId: null, testId: test.id, videoId: test.youtube_video_id as string, nativeTestId: decisao.nativeTestId, ponto: 'rotacao' })
+      }
 
       const resultado = await aplicarRotacao(supabase, {
         testId: test.id,
