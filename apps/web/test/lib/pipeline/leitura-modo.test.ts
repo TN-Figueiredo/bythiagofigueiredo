@@ -5,11 +5,11 @@ import { ACAO_AVISO, ACAO_RECUSA, ACOES_DE_LEITURA, RECURSO_CHAVE } from '@/lib/
 
 // Review Focus 4 (E19): o lote 1 sobe em modo aviso. Trocar para 'recusa' é o commit 2 e tem de mexer neste teste.
 describe('leitura-modo (valor publicado)', () => {
-  it('o modo publicado é aviso, sem janela fechada e sem conferência', () => {
+  it('lote 2: modo recusa, com a conferência de 48 horas marcada', () => {
     const c = modoLeitura()
-    expect(c.modo).toBe('aviso')
-    expect(c.controleFechadoEm).toBeNull()
-    expect(c.conferenciaAte).toBeNull()
+    expect(c.modo).toBe('recusa')
+    expect(c.conferenciaAte).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+    expect(c.controleFechadoEm).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(c.avisoDesde).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
   it('as ações e o recurso de leitura são os esperados', () => {
