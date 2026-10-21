@@ -8,6 +8,8 @@ const NULO: Pick<Formato, 'kids' | 'adulto' | 'aoVivo'> = { kids: null, adulto: 
 /** `duration_seconds` acima disto é vídeo longo com certeza (mesma regra de `shortSemSonda`). */
 const DURACAO_MAXIMA_DE_SHORT_S = 180
 const LOTE = 100
+/** `ab_lab_formato_atual` em lotes: o PostgREST corta em `max_rows` = 1000 sem avisar. */
+const LOTE_RPC = 500
 
 const obj = (x: unknown): Record<string, unknown> | null =>
   typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null
@@ -38,10 +40,12 @@ export interface FormatoLido { formato: Formato; temBruto: boolean }
 async function lerFormatosComOrigem(sb: SupabaseClient, siteId: string, videos: { id: string; ytId: string }[]): Promise<Map<string, FormatoLido>> {
   const saida = new Map<string, FormatoLido>()
   if (videos.length === 0) return saida
-  const { data, error } = await sb.rpc('ab_lab_formato_atual', { p_site: siteId, p_ids: videos.map((v) => v.ytId) })
-  if (error) throw new Error(`ab_lab_formato_atual: ${error.message}`)
   const porYt = new Map<string, LinhaFormato>()
-  for (const l of (Array.isArray(data) ? data : [])) if (ehLinha(l)) porYt.set(l.youtube_video_id, l)
+  for (let i = 0; i < videos.length; i += LOTE_RPC) {
+    const { data, error } = await sb.rpc('ab_lab_formato_atual', { p_site: siteId, p_ids: videos.slice(i, i + LOTE_RPC).map((v) => v.ytId) })
+    if (error) throw new Error(`ab_lab_formato_atual: ${error.message}`)
+    for (const l of (Array.isArray(data) ? data : [])) if (ehLinha(l)) porYt.set(l.youtube_video_id, l)
+  }
 
   for (const v of videos) {
     const l = porYt.get(v.ytId)

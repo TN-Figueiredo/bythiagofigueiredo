@@ -2,6 +2,7 @@
 // linha ainda não tem veredito (em_andamento, ou sem_desfecho sem `vencedor_fonte`). Com veredito de outra fonte guardam-se as duas.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
 import { VarianteFichaSchema, type VarianteFicha } from './ficha'
 
 export type RespostaDono = 'venceu_nova' | 'venceu_original' | 'ficou_igual' | 'inconclusivo' | 'nao_vi'
@@ -52,7 +53,7 @@ export function patchDaResposta(r: RespostaDono, n: number | null, variantes: Va
   }
 }
 
-export type ErroResponder = 'nao_encontrado' | 'nao_respondivel' | 'ja_respondido' | 'variante_invalida' | 'estado_mudou' | string
+export type ErroResponder = 'nao_encontrado' | 'nao_respondivel' | 'ja_respondido' | 'variante_invalida' | 'estado_mudou' | 'falha_escrita'
 export type ResultadoResponder =
   | { ok: true; conflito: { youtube: string; dono: string } | null }
   | { ok: false; erro: ErroResponder }
@@ -61,6 +62,8 @@ interface Params {
   sb: SupabaseClient
   siteId: string
   userId: string
+  /** Para a linha de auditoria; sem org, a linha leva só `site_id`. */
+  orgId?: string | null
   registroId: string
   /** `updated_at` que a tela viu (CAS da 1ª tentativa). */
   lido: string
@@ -69,10 +72,10 @@ interface Params {
   agora: Date
 }
 interface Linha {
-  id: string; estado: string; resposta_dono: string | null; vencedor_fonte: string | null; vencedor_titulo: string | null
+  id: string; estado: string; desfecho_motivo: string | null; resposta_dono: string | null; vencedor_fonte: string | null; vencedor_titulo: string | null
   confirmado_em: string | null; variantes: unknown; variantes_titulo: unknown; updated_at: string
 }
-const COLUNAS = 'id, estado, resposta_dono, vencedor_fonte, vencedor_titulo, confirmado_em, variantes, variantes_titulo, updated_at'
+const COLUNAS = 'id, estado, desfecho_motivo, resposta_dono, vencedor_fonte, vencedor_titulo, confirmado_em, variantes, variantes_titulo, updated_at'
 
 function variantesDaLinha(l: Linha): VariantesDaResposta | null {
   if (l.variantes !== null && l.variantes !== undefined) {
@@ -104,14 +107,20 @@ export async function responderDia14(p: Params): Promise<ResultadoResponder> {
     const payload: Record<string, unknown> = { ...patch.sempre, respondido_em: p.agora.toISOString() }
     if (elegivel) {
       Object.assign(payload, patch.seEmAndamento)
+      // `teste_novo` é o motivo que o registrador usa para cortar a janela do teste seguinte: a resposta do dono não o troca.
+      if (l.desfecho_motivo === 'teste_novo') delete payload.desfecho_motivo
       if (l.estado === 'em_andamento') Object.assign(payload, { encerrado_em: p.agora.toISOString(), desfecho_em: p.agora.toISOString() })
     }
     const { data, error } = await p.sb.from('ab_native_tests').update(payload)
       .eq('id', p.registroId).eq('site_id', p.siteId).eq('updated_at', cas)
       .or('resposta_dono.is.null,resposta_dono.eq.sem_resposta')
       .select('id')
-    if (error) return { ok: false, erro: error.message }
+    if (error) {
+      Sentry.captureException(new Error(`ab_native_tests: ${error.message}`), { tags: { area: 'ab-nativo' }, extra: { registroId: p.registroId } })
+      return { ok: false, erro: 'falha_escrita' }
+    }
     if ((data as unknown[] | null)?.length) {
+      await registrarRastro(p, l)
       await expirarLembrete(p)
       if (elegivel || l.vencedor_fonte === null) return { ok: true, conflito: null }
       const dono = typeof patch.seEmAndamento.vencedor_titulo === 'string'
@@ -130,8 +139,27 @@ async function expirarLembrete(p: Params): Promise<void> {
   try {
     const { error } = await p.sb.from('notifications').update({ expired_at: p.agora.toISOString() })
       .eq('site_id', p.siteId).eq('domain', 'youtube').eq('dedup_key', `lembrete-nativo:${p.registroId}`).is('expired_at', null)
-    if (error) console.error('[ab-nativo] expirar lembrete-nativo', error.message)
+    if (error) avisarLembrete(p, error.message)
   } catch (e) {
-    console.error('[ab-nativo] expirar lembrete-nativo', e instanceof Error ? e.message : e)
+    avisarLembrete(p, e instanceof Error ? e.message : String(e))
+  }
+}
+
+function avisarLembrete(p: Params, msg: string): void {
+  console.error('[ab-nativo] expirar lembrete-nativo', msg)
+  Sentry.captureMessage('expirar lembrete-nativo falhou', { level: 'warning', tags: { area: 'ab-nativo' }, extra: { registroId: p.registroId } })
+}
+
+/** Quem respondeu: só ids, a resposta e o estado anterior. Falha vai ao log e não desfaz a resposta (mesmo molde de `descartar.ts`). */
+async function registrarRastro(p: Params, l: Linha): Promise<void> {
+  try {
+    const aud = await p.sb.from('audit_log').insert({
+      actor_user_id: p.userId, org_id: p.orgId ?? null, site_id: p.siteId,
+      action: 'ab_native_respondido', resource_type: 'ab_native_test', resource_id: p.registroId,
+      after_data: { registro_id: p.registroId, resposta_dono: p.resposta, variante_vencedora: p.n, estado_anterior: l.estado },
+    })
+    if (aud?.error) console.error('[ab-nativo] audit_log da resposta', aud.error.message)
+  } catch (e) {
+    console.error('[ab-nativo] audit_log da resposta', e instanceof Error ? e.message : e)
   }
 }

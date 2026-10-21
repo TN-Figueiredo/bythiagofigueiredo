@@ -45,7 +45,7 @@ describe.skipIf(skipIfNoLocalDb())('guarda do teste do YouTube na rotação (ban
     const ins = await db.from('ab_native_tests').insert({
       site_id: t.siteId, video_id: await videoDoTeste(), youtube_video_id: 'abcdefghijk', origem: confirmado ? 'confirmado' : 'detectado',
       campos: ['titulo'], estado: 'em_andamento', confirmado_em: confirmado ? new Date().toISOString() : null,
-      ...(confirmado ? {} : { variantes_titulo: ['a', 'b'], primeira_vista: new Date().toISOString(), versao_regra: 1 }),
+      ...(confirmado ? {} : { variantes_titulo: ['a', 'b'], primeira_vista: new Date(Date.now() - 3_600_000).toISOString(), versao_regra: 1 }),
     })
     expect(ins.error).toBeNull()
   }

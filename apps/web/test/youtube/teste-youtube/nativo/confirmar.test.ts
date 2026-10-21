@@ -1,4 +1,5 @@
 // @vitest-environment node
+import * as Sentry from '@sentry/nextjs'
 import { describe, it, expect, vi } from 'vitest'
 import { confirmarTesteNoStudio } from '@/lib/youtube/teste-youtube/nativo/confirmar'
 import { ORIGINAL } from '@/lib/youtube/ab-settle'
@@ -52,6 +53,12 @@ describe('confirmarTesteNoStudio: "Confirmar" do cartão S7 (marcador)', () => {
     expect(filas.ab_native_tests).toHaveLength(0)
   })
 
+  it('o update do Confirmar leva o predicado confirmado_em is null além do CAS (Phil m1)', async () => {
+    const r = roteiro({ ab_native_tests: [ok([REG]), ok(null)], ab_tests: [ok([])] })
+    await confirmarTesteNoStudio({ ...base, sb: r.sb, origem, settle: vi.fn() })
+    expect(r.chamadas[0]!.metodos).toContain('is("confirmado_em",null)')
+  })
+
   it('CAS perdido porque o registrador encerrou: estado_mudou', async () => {
     const { sb } = roteiro({ ab_native_tests: [ok([]), ok({ id: 'r1', video_id: 'v1', estado: 'encerrado', confirmado_em: null, updated_at: 'x' })] })
     expect(await confirmarTesteNoStudio({ ...base, sb, origem, settle: vi.fn() })).toEqual({ ok: false, erro: 'estado_mudou', registroId: 'r1' })
@@ -78,6 +85,12 @@ describe('confirmarTesteNoStudio: "Já iniciei" (ficha)', () => {
     const { sb } = roteiro({ 'rpc:ab_native_iniciar': [ok({ ok: true, registro_id: 'r1', confirmou_detectado: false })], ab_native_tests: [ok(REG)], ab_tests: [ok([{ id: 't1' }])] })
     const settle = vi.fn().mockResolvedValue({ resultado: 'feito', campos: {} })
     expect(await confirmarTesteNoStudio({ ...base, sb, origem, settle })).toEqual({ ok: true, registroId: 'r1', pausados: ['t1'], naoPausados: [] })
+  })
+  it('releitura do registro falha depois do RPC: aviso e Sentry (Yannis M6)', async () => {
+    const { sb } = roteiro({ 'rpc:ab_native_iniciar': [ok({ ok: true, registro_id: 'r1' })], ab_native_tests: [{ data: null, error: { message: 'queda' } }] })
+    const r = await confirmarTesteNoStudio({ ...base, sb, origem, settle: vi.fn() })
+    expect(r).toMatchObject({ ok: true, registroId: 'r1', aviso: expect.any(String) })
+    expect(Sentry.captureException).toHaveBeenCalled()
   })
   it('ja_iniciada: idempotente, tenta a pausa de novo', async () => {
     const { sb } = roteiro({ 'rpc:ab_native_iniciar': [ok({ ok: true, ja_iniciada: true, registro_id: 'r1' })], ab_native_tests: [ok(REG)], ab_tests: [ok([])] })
