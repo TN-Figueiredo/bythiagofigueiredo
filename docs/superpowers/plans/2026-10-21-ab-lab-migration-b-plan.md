@@ -189,9 +189,9 @@ só ela usa), `apps/web/src/app/api/cron/ab-evaluate/route.ts` (`:6,23`, o campo
 `apps/web/test/youtube/ab-evaluate-phases.test.ts` (`:42` e o `describe` `:388-404...`).
 
 - [ ] **Passo 1 (vermelho):** `git grep -n phaseAutoStartPlayoffs -- apps | wc -l` → hoje > 0. Escrever primeiro, em
-  `test/ab-cron-evaluate.test.ts`, a asserção de que o JSON de resposta da rota **não** tem a chave `playoffs` (falha hoje).
+  `test/ab-cron-evaluate.test.ts`, `expect(body).not.toHaveProperty('playoffs_started')` sobre o JSON de resposta da rota (a chave real, `route.ts:71`; falha hoje).
 - [ ] **Passo 2:** apagar a função e seus imports exclusivos; na rota, tirar a chamada `phaseAutoStartPlayoffs(supabase)`
-  e o campo `playoffs` do resultado e dos logs; nos testes, tirar o mock da fase, o `describe` dela e as expectativas
+  o campo `playoffs_started` do resultado e dos logs, e `totalErrors = evaluation.errors` (sem o termo `playoffs.errors`, `route.ts:42`); `test/ab-cron-evaluate.test.ts:12` (`phaseAutoStartPlayoffs: fases.playoffs`) sai junto; nos testes, tirar o mock da fase, o `describe` dela e as expectativas
   da fase. Conferir antes por `git grep` se algo mais lê o campo `playoffs` do resultado do cron (painel, docs):
   anotar no ledger o que achar. As telas de playoff ficam.
 - [ ] **Passo 3 (verde):** `git grep -n phaseAutoStartPlayoffs -- apps | wc -l` → `0`;
@@ -398,9 +398,9 @@ tabela e a função **ainda existem** (nenhum teste pode ter aplicado a B de ver
 colunas de verdade ali). Local: `npx vitest run test/integration/ab-migration-b.test.ts`; no CI já é
 `--no-file-parallelism`.
 
-- [ ] **Passo 1: teste que falha.** `describe.skipIf(skipIfNoLocalDb())('Migration B (fixture)')`:
+- [ ] **Passo 1: teste que falha.** `describe.skipIf(skipIfNoLocalDb())('Migration B (fixture)')`. **Toda semente com `original_description` fixa `created_at` explicitamente antes de 15/10 (a guarda R7 aborta o que nasce depois); o `aplicar duas vezes` herda a semente do caso 1:**
   - `'banco sem bloqueio: somem as duas colunas, a tabela e a função; ab_tests e ab_test_variants ficam'`: semente de 1
-    teste `completed` com 2 variantes (`original_description = 'x'`); `aplicar` → `colunaExiste(ab_tests, original_description)`
+    teste `completed` com 2 variantes (`original_description = 'x'`, `created_at = '2026-10-01'`); `aplicar` → `colunaExiste(ab_tests, original_description)`
     `false`, `colunaExiste(ab_test_variants, description_text)` `false`, `tabelaExiste(ab_test_tracked_links)` `false`,
     `funcoes(create_playoff_test)` `0`, `select count(*) from ab_test_variants` `2`, e
     `insert into ab_test_variants (test_id, label, is_original, sort_order)` funciona.
@@ -535,12 +535,13 @@ colunas de verdade ali). Local: `npx vitest run test/integration/ab-migration-b.
   no 54322 nem em produção; as três tabelas não usam tipo próprio nem default com função, então `pre-data` + `data`
   restaura num banco vazio, e FKs e policies, que ficam no `post-data`, se pulam):
   ```bash
+  psql postgresql://postgres:postgres@127.0.0.1:54422/postgres -c "drop database if exists ab_mb_ensaio"
   psql postgresql://postgres:postgres@127.0.0.1:54422/postgres -c "create database ab_mb_ensaio"
   pg_restore --section=pre-data --section=data --no-owner --no-acl -d postgresql://postgres:postgres@127.0.0.1:54422/ab_mb_ensaio ~/Backups/ab-lab/ab-antes-da-migration-b.dump
   psql postgresql://postgres:postgres@127.0.0.1:54422/ab_mb_ensaio -c "select (select count(*) from public.ab_tests) t, (select count(original_description) from public.ab_tests) o, (select count(*) from public.ab_test_variants) v"
   psql postgresql://postgres:postgres@127.0.0.1:54422/postgres -c "drop database ab_mb_ensaio"
   ```
-  Esperado: `t` e `v` iguais ao G5 (3 e 7), `o = 2`. Saída no ledger. O `drop database` roda mesmo se o `select` falhar.
+  Esperado: `t` e `v` iguais ao G5 (3 e 7), `o = 2`. Saída no ledger. O passo é reexecutável (o `drop database if exists` da primeira linha limpa rodada interrompida). O `pg_restore` pode imprimir `schema "public" already exists` em `pre-data`: esperado, ignorável; vale o `select`, não o código de saída. O `drop database` final roda mesmo se o `select` falhar.
 - [ ] **Passo 5: o arquivo.** Em `W`: `git fetch origin && git rebase origin/staging`; maior carimbo de `origin/staging`
   e das árvores ativas (`ls ~/Workspace/wt-*/supabase/migrations ~/Workspace/bythiago-*/supabase/migrations 2>/dev/null | grep -E '^[0-9]{14}' | sort | tail -1`);
   se houver número reservado na fila maior que esse, esperar o arquivo dele chegar a `origin/staging` (regra da F0).
@@ -634,6 +635,7 @@ colunas de verdade ali). Local: `npx vitest run test/integration/ab-migration-b.
 | Coluna já apagada | `v_tem_desc`/`v_tem_orig` falsos; o `execute` não roda; `drop column if exists` |
 | Sobrecarga de `create_playoff_test` | aborta com a assinatura na mensagem |
 | Lock por mais de 5 s (inclusive `tracked_links`, lida pelo `go.*`) | `55P03`; nada muda; tenta-se noutra janela. Enquanto espera, `/go/*` fica na fila por até 5 s |
+| Deadlock (`40P01`) ou lock negado (`55P03`) na B | aborto limpo, sem perda de dado (rollback inteiro); repetir na próxima janela; o script do dono imprime o código de erro |
 | Outro terminal empurra a B junto | a B roda com as mesmas guardas; o `pg_dump` já existe; o controlador confere o D+0 assim que vir |
 | `pg_dump` vazio ou sem as três tabelas | sem `db:new` (passo 4) |
 | CI vermelho no envio 2 | não se aplica; o defeito é corrigido em `W`; nada em produção |
@@ -692,3 +694,8 @@ Revisão r1: Phil 84, Yannis 84, ambos "aprovado com ressalvas". Rulings do cont
 (sondado: o `drop table` pede esse modo). Vale **`access exclusive`**, no mesmo `lock` das outras duas tabelas, porque o
 modo menor não tira a espera do fim. (2) Onde conferir o deploy de reserva: Yannis no G0, o ruling também depois da
 aplicação; vale **os dois**. (3) Teste de lock em `tracked_links`: entra como linha do `it.each`, não como teste à parte.
+
+## Fecho da r2: Phil 93, Yannis 90; N1/N2 dos dois aplicados
+
+- Yannis N1: semente com `original_description` fixa `created_at` antes de 15/10 (Tarefa 4). Yannis N2: asserção `not.toHaveProperty('playoffs_started')` e `totalErrors` sem `playoffs.errors` (Tarefa 1b).
+- Phil N1: passo 4b reexecutável (`drop database if exists`, aviso `schema "public" already exists` ignorável). Phil N2: `40P01` e `55P03` = aborto limpo (seção 6).
