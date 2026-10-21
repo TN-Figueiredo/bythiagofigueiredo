@@ -1,14 +1,14 @@
-# A/B Lab: original em alta resolução (plano de implementação, r4, escopo D12)
+# A/B Lab: original em alta resolução (plano de implementação, r5, escopo D12)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Escrito em 21/10/2026. r4 (Sonnet) corrige a r3 conforme as revisões de Phil (84), Yannis (86) e Logan (74), ver "Decisões da r4" no fim. r3 (Opus) sobre a r2 (`b8236eed9`, 22 tarefas), reduzida pela **decisão D12 do dono (21/10 12:35)**, registrada na §5.7 e na linha D12 de `/Users/figueiredo/Workspace/bythiagofigueiredo/docs/superpowers/specs/2026-10-21-sugestoes-do-nicho-e-ab-nativo-design.md`. O texto integral da r2 vive em `git show b8236eed9:docs/superpowers/plans/2026-10-19-ab-original-em-alta-plan.md` e continua neste arquivo, resumido, no apêndice "Congeladas (D12)". Esta r4 **não** autoriza executar nem pushar: precisa de nova revisão de Phil, Yannis e Logan e do portão normal.
+Escrito em 21/10/2026. **r5 (Sonnet, 21/10 tarde): emenda pós-M1** conforme os pareceres de Logan (70, re-revisão 93) e Naksu (84, re-revisão 94) sobre o mockup M1 r2 (`docs/superpowers/mockups/2026-10-19-ab-original-em-alta/`, seção "M1 (atual)", commit `d49aca338`): tarefa nova **T1c** (ajusta o código já feito em `10fb16929` e `d523f7d06` e regrava a original baixa no início do teste), passos 5–9 da T1b reescritos, ver "Decisões da r5" (§9). r4 (Sonnet) corrige a r3 conforme as revisões de Phil (84), Yannis (86) e Logan (74), ver "Decisões da r4" no fim. r3 (Opus) sobre a r2 (`b8236eed9`, 22 tarefas), reduzida pela **decisão D12 do dono (21/10 12:35)**, registrada na §5.7 e na linha D12 de `/Users/figueiredo/Workspace/bythiagofigueiredo/docs/superpowers/specs/2026-10-21-sugestoes-do-nicho-e-ab-nativo-design.md`. O texto integral da r2 vive em `git show b8236eed9:docs/superpowers/plans/2026-10-19-ab-original-em-alta-plan.md` e continua neste arquivo, resumido, no apêndice "Congeladas (D12)". Esta r5 **não** autoriza executar nem pushar: precisa de nova revisão de Yannis (B1 e tempo-limite) e Logan (textos) e do portão normal.
 
 ## Escopo D12
 
 | | O que | Estado |
 |---|---|---|
-| **FICA** | T0 (linha de base), T1 (regra única 1280: `originalBaixaResolucao`, testes de fronteira 1279/1280, diálogo de encerrar), **T1b nova** (aviso antes de iniciar o teste no assistente quando a original guardada tem largura < 1280), T20 reduzida (prova local) | ativas |
+| **FICA** | T0 (linha de base), T1 (regra única 1280: `originalBaixaResolucao`, testes de fronteira 1279/1280, diálogo de encerrar), **T1b** (aviso antes de iniciar o teste no assistente quando a original guardada tem largura < 1280; passos 1–4 já feitos), **T1c nova** (ajuste pós-M1 do código da T1b e regravação da original baixa no início), T20 reduzida (prova local) | ativas |
 | **CONGELA** | T2 a T18, T19 (5º caso de D) e T21 (medição com o arquivo-mestre) | apêndice |
 
 Sem migration, sem envio de arquivo, sem rota nova de escrita, **sem bloquear o início** (a bola do Short: ver Riscos).
@@ -35,9 +35,11 @@ Sem migration, sem envio de arquivo, sem rota nova de escrita, **sem bloquear o 
 
 1. **Short ou vídeo sem `maxres`:** o aviso aparece e o teste inicia mesmo assim (Tarefa 1b, teste "não bloqueia").
 2. **`dimensions` nula (original não medida; 2 dos 3 testes de produção têm `blob_url` fora do Blob e `dimensions` nulo):** selo e texto próprios "Resolução não medida", nunca "baixa"; `0x0`/ilegível **com** a original já medida (dHash presente) é "Baixa resolução" sem número (Tarefa 1b).
-3. **A leitura falha, lança, devolve mais de uma original ou demora:** erro/ambiguidade vira a linha neutra "Não consegui conferir a resolução da original agora."; demora não mostra nada; nunca o aviso de "baixa", nenhum bloqueio, nenhum "undefined" na tela.
+3. **A leitura falha, lança, devolve mais de uma original ou demora:** erro/ambiguidade vira a linha neutra "Não consegui conferir a resolução da original agora. Isso não impede de ativar."; **demora mostra o esqueleto e o banner "Pronto para ativar." (nunca "Tudo pronto."), e passados 8 s vira a mesma linha neutra** (r5); nunca o aviso de "baixa", nenhum bloqueio, nenhum "undefined" na tela.
 4. **1279 avisa, 1280 não**, nos dois lugares (diálogo e aviso), pela mesma função.
-5. **O aviso não empurra o veredito:** fica abaixo do banner, que vira "Pronto para iniciar."; a leitura começa ao entrar em Variantes.
+5. **O aviso não empurra o veredito:** fica abaixo do banner, que vira "Pronto para ativar, com um aviso abaixo." (baixa, não medida) ou "Pronto para ativar." (falhou, lendo); "Tudo pronto." só com a leitura em alta ou tipo só título; a leitura começa ao entrar em Variantes (`state.step >= 2`, r5).
+6. **A saída do aviso é verdadeira (B1, r5):** trocar a thumbnail no YouTube pela mesma arte em 1280 px, com dHash igual, **regrava** a original no início do teste (T1c, teste "dHash igual e 480x360").
+7. **Cor por tema (Naksu, r5):** palavra do veredito, ícone e selo usam os tokens novos; nunca `#4ade80`/`Badge tone="amber"` no claro.
 
 ---
 
@@ -45,13 +47,16 @@ Sem migration, sem envio de arquivo, sem rota nova de escrita, **sem bloquear o 
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `Y/ab-original-resolucao.ts` (novo) | `LARGURA_ALTA`, `publicaBaixa`, `dimensoesDeTexto`, `textoAvisoOriginalBaixa`, `AvisoOriginal`, `AVISO_INDISPONIVEL` (puras) |
+| `Y/ab-original-resolucao.ts` (novo) | `LARGURA_ALTA`, `publicaBaixa`, `dimensoesDeTexto`, `textoAvisoOriginalBaixa`, `AvisoOriginal`, `AVISO_INDISPONIVEL` (puras); textos da r5 (T1c) |
+| `Y/ab-start.ts` (T1c) | `:317-321` regrava a original também quando a guardada é baixa; `dimensions` entra no select (`:222`) e em `VarianteInicio` (`:169`) |
+| `apps/web/src/app/globals.css` (T1b passo 7) | tokens `--cms-green-text/-icon`, `--cms-amber-text/-soft/-line` por tema |
 | `AB/_components/encerrar-props.ts` | `originalBaixaResolucao` passa a usar a regra única |
 | `AB/actions.ts` | `lerDimensoesDaOriginal(testId)` (server action, só leitura; devolve `dimensions` e `medida`) |
-| `AB/_components/use-aviso-original.ts` (novo) | hook que **recebe** a action por parâmetro e devolve `AvisoOriginal \| null` |
-| `AB/_components/step-revisar.tsx` | prop `avisoOriginal`, título "Pronto para iniciar." e a faixa abaixo do banner |
+| `AB/_components/use-aviso-original.ts` (novo) | hook que **recebe** a action por parâmetro e devolve 3 estados: `'pendente' \| null \| AvisoOriginal`; tempo-limite de 8 s (T1c) |
+| `AB/_components/step-revisar.tsx` | prop `avisoOriginal`, título do banner por estado, esqueleto, `AvisoResolucao` abaixo do banner, tokens de cor |
 | `AB/_components/ab-create-wizard.tsx` | importa a action, a passa ao hook e passa o resultado ao `StepRevisar` |
 | `T/ab-wizard-aviso-original.test.tsx` (novo) | prova no assistente que o aviso não bloqueia e que a prop está ligada |
+| `T/ab-start-internal.test.ts` (T1c, acrescentar) | original guardada baixa com dHash igual regrava |
 
 ## 2. Fatos conferidos no código (W, `2d85f30c3`, em dia com `origin/staging` de 21/10)
 
@@ -153,9 +158,130 @@ e em `encerrar-props.ts` o corpo vira `return publicaBaixa(dimensoesDeTexto(dime
 - [ ] **Passo 4:** mesmo comando → PASS; rodar os dois comandos da seção 3 (a expectativa antiga de 640×480 sem selo, se existir em `T/`, muda no mesmo commit: `grep -rn "640x480" T/youtube/ab-end-test-dialog.test.tsx`).
 - [ ] **Passo 5:** commit `feat: regra única de baixa resolução da original (1280)`, caminhos explícitos dos 4 arquivos.
 
-### Tarefa 1b: aviso antes de iniciar o teste quando a original guardada é baixa (nova, r4)
+### Tarefa 1c: ajuste pós-M1 do código da T1b e regravação da original baixa (nova, r5)
 
-O aviso aparece no passo Revisar do assistente (`step-revisar.tsx`), **logo abaixo do banner de veredito** (que passa a dizer "Pronto para iniciar." quando há aviso), antes do resumo. É a última tela antes de "Ativar teste". Não toca `step-variantes.tsx` (o envio que moraria lá está congelado). Só para `thumbnail` e `combo`.
+**Quando:** depois dos passos 1–4 da T1b (feitos: `10fb16929`, `d523f7d06`, com os textos **antigos** e o hook de 2 estados) e **antes** dos passos 5–9. Fonte: `.superpowers/sdd/ab-lab/original-em-alta/revisao-m1-logan.md` (B1, C1, C2, C4, C5, M1) e `revisao-m1-naksu.md` (C4 iii), textos copiados letra por letra de `docs/superpowers/mockups/2026-10-19-ab-original-em-alta/index.html` (r2, objeto `E`, linhas ~202-239).
+
+**Fatos conferidos em W (HEAD `d49aca338`):** `ab-start.ts:317-321` só regrava a original quando `guardado === null || hamming(guardado, sonda.dhash) > DHASH_MAX_SAME`; mesma arte em 1280 px tem o mesmo dHash e **não** regrava. O `select` das variantes (`ab-start.ts:222`) e `VarianteInicio` (`:169`) **não trazem `dimensions`**: a condição nova precisa dos dois. O hook de `d523f7d06` tem 2 estados (`AvisoOriginal | null`, `null` = pendente e alta juntos) e `type: string`.
+
+**Files:**
+- Modify: `Y/ab-start.ts`, `Y/ab-original-resolucao.ts`, `AB/_components/use-aviso-original.ts`
+- Test (ajustar/acrescentar): `T/ab-start-internal.test.ts`, `T/youtube/ab-original-resolucao.test.ts`, `T/youtube/ab-aviso-original-baixa.test.tsx`
+
+- [ ] **Passo 1: teste B1 (falha)**, em `T/ab-start-internal.test.ts`, no `describe('startAbTestInternal: o original é relido depois da reivindicação')` (:~202), junto do caso 24. Estender `montar` com a opção `dimensoesOriginal?: string` (grava `dimensions` na variante `is_original` do banco falso; confirmar que o `select` do falso devolve a coluna) e usar uma `thumb` cujo dHash seja o guardado (`H.A`, sem `thumb: ...H.C`):
+
+```ts
+it('B1: original guardada baixa (480x360) com dHash igual -> regrava a original (a mesma arte em 1280 px resolve)', async () => {
+  const { banco, iniciar } = await montar({ testType: 'thumbnail', dimensoesOriginal: '480x360' })
+  const antesBlob = banco.variantes()[0]!.blob_url
+  expect((await iniciar()).ok).toBe(true)
+  expect(put).toHaveBeenCalledTimes(1)
+  const a = banco.variantes()[0]!
+  expect(a.blob_url).not.toBe(antesBlob)
+  expect(banco.teste().original_thumbnail_url).toBe(a.blob_url)
+  expect(a.dimensions).not.toBe('480x360')
+})
+it('B1: original guardada em alta (1280x720) com dHash igual -> nenhuma cópia nova (o caso "nada mudou" continua)', async () => {
+  const { banco, iniciar } = await montar({ testType: 'thumbnail', dimensoesOriginal: '1280x720' })
+  await iniciar()
+  expect(put).not.toHaveBeenCalled()
+  expect(banco.variantes()[0]).toMatchObject({ blob_url: BLOB('A'), thumbnail_dhash: H.A })
+})
+it('B1: dimensions nula com dHash guardado e igual -> regrava (nulo/ilegível é "baixa" na régua única)', async () => {
+  const { banco, iniciar } = await montar({ testType: 'thumbnail' })   // fixture padrão: dimensions null
+  await iniciar()
+  expect(put).toHaveBeenCalledTimes(1)
+})
+```
+
+(O caso "nada mudou" existente, :~215, usa `dimensions: null` no fixture e esperaria `put` não chamado: **passa a ser o 3º caso acima**. Trocar a fixture padrão desse teste para `dimensoesOriginal: '1280x720'` e manter a asserção. Listar no commit.)
+- [ ] **Passo 2: implementar B1** em `Y/ab-start.ts`: importar `{ dimensoesDeTexto, publicaBaixa }` de `./ab-original-resolucao`; acrescentar `dimensions: string | null` a `VarianteInicio` (:169) e `dimensions` ao `select` (:222). Trocar o `if` (:319-321) por:
+
+```ts
+const guardado = original?.thumbnail_dhash ?? null
+const originalBaixa = publicaBaixa(dimensoesDeTexto(original?.dimensions)?.largura ?? 0)   // r5 B1: nula, 0x0, ilegível ou < 1280
+if (guardado === null || originalBaixa || hamming(guardado, sonda.dhash) > DHASH_MAX_SAME) {
+  guardada = await guardarOriginalMaior(youtubeVideoId, testId)
+  patchTeste.original_thumbnail_url = guardada.url
+}
+```
+
+Custo (Yannis confirma): uma leitura+gravação a mais no Blob só quando a guardada é baixa, e só no início de teste de `thumbnail`/`combo`; `guardarOriginalMaior` cai para a `hqdefault` quando não há `maxres`/`sddefault`, então um Short sem 1280 regrava a mesma 480×360 (idempotente, sem dano, uma cópia a mais no Blob por início). O aviso **continua** na tela depois da troca no YouTube (lê só o guardado); por isso o texto da saída diz "mesmo que este aviso continue aqui" (T1c passo 3). Sem migration.
+- [ ] **Passo 3: textos da r5 (testes primeiro, falham)**, em `T/youtube/ab-original-resolucao.test.ts`. **Asserções trocadas** (as de `d523f7d06`):
+
+| Caso | Antes | Depois (r5) |
+|---|---|---|
+| baixa, com número | contém `ative assim mesmo` | contém `Sem uma maior, pode ativar assim mesmo.` e `o teste guarda a nova ao ativar, mesmo que este aviso continue aqui` |
+| baixa, sem número (nula, `0x0`, lixo) | `é de baixa resolução (mínimo 1280 px de largura)` | `está abaixo do mínimo de 1280 px de largura` (C4) |
+| não medida | `ainda não foi medida` (e o texto antigo da guarda) | contém `ainda não foi medida; o teste mede ao ativar`, `Se a thumbnail do vídeo no YouTube tem 1280 px de largura ou mais, pode ativar` e `troque-a no YouTube antes de ativar`; **não** contém `baixa resolução`, `ative assim mesmo`, `undefined`, `null`, `NaN` (C1) |
+| `AVISO_INDISPONIVEL` | `texto: 'Não consegui conferir a resolução da original agora.'` | `texto: 'Não consegui conferir a resolução da original agora. Isso não impede de ativar.'` (M1) |
+
+Textos novos em `Y/ab-original-resolucao.ts`, **letra por letra** (do mockup r2; o tipo `AvisoOriginal` e o literal de `texto` do `indisponivel` mudam junto):
+
+```ts
+const CAUDA_AVISO = 'o vídeo voltaria borrado a cada troca e ficaria assim depois do teste.'   // sem mudança
+const SAIDA_AVISO = `Para evitar, troque no YouTube a thumbnail do vídeo por uma de ${LARGURA_ALTA} px ou mais e depois ative: o teste guarda a nova ao ativar, mesmo que este aviso continue aqui. Sem uma maior, pode ativar assim mesmo.`
+const TEXTO_NAO_MEDIDA = `A resolução da original ainda não foi medida; o teste mede ao ativar. Se a thumbnail do vídeo no YouTube tem ${LARGURA_ALTA} px de largura ou mais, pode ativar. Se tem menos, o vídeo voltaria borrado a cada troca: troque-a no YouTube antes de ativar.`
+// baixa com número:  `A original guardada tem só ${L}×${A}: ${CAUDA_AVISO} ${SAIDA_AVISO}`
+// baixa sem número:  `A original guardada está abaixo do mínimo de ${LARGURA_ALTA} px de largura: ${CAUDA_AVISO} ${SAIDA_AVISO}`
+// indisponível:      'Não consegui conferir a resolução da original agora. Isso não impede de ativar.'
+```
+
+Textos do banner e da nota (usados na T1b passo 7), com função pura exportada e testada aqui para o componente só consumir:
+
+```ts
+export type EstadoAviso = 'pendente' | null | AvisoOriginal   // pendente = leitura em andamento; null = alta ou tipo só título
+export function tituloDoBanner(aviso: EstadoAviso | undefined): string {
+  if (aviso === undefined || aviso === null) return 'Tudo pronto.'
+  if (aviso === 'pendente' || aviso.kind === 'indisponivel') return 'Pronto para ativar.'
+  return 'Pronto para ativar, com um aviso abaixo.'
+}
+export const NOTA_ATIVAR = 'Clique em Ativar teste para começar. As variantes passam a rotacionar na hora.'
+```
+
+Teste de `tituloDoBanner`: `undefined`/`null` → `Tudo pronto.`; `'pendente'` e `AVISO_INDISPONIVEL` → `Pronto para ativar.`; `textoAvisoOriginalBaixa('480x360', true)` e `textoAvisoOriginalBaixa(null, false)` → `Pronto para ativar, com um aviso abaixo.`.
+- [ ] **Passo 4: hook de 3 estados e tempo-limite (testes primeiro, falham)**, em `T/youtube/ab-aviso-original-baixa.test.tsx`. Valor do tempo-limite: **`TEMPO_LIMITE_LEITURA_MS = 8000`** (proposta; a leitura são 2 consultas simples por rascunho, normalmente < 1 s; 8 s cobre a rede ruim de fora do país sem deixar o esqueleto cinza para sempre; Yannis confirma). Asserções trocadas e acrescentadas:
+  - Em todos os casos antigos que esperavam `null` por **pendente** ou por **alta**, separar: alta (`1280x720`) → `null` **depois** da resposta; enquanto a promessa não volta → `'pendente'`.
+  - `L7` (trocar o rascunho): depois de `rerender({ id: 'b' })` com a leitura pendurada, `result.current` é `'pendente'` (antes: `null`).
+  - Tipo `title`, passo inativo ou sem rascunho: `result.current` é `null` e `ler` não é chamada (não aplica; o banner mostra "Tudo pronto." e o passo Revisar de teste só de título não lê).
+  - **Novo, com `vi.useFakeTimers()`**: leitura que nunca volta (`new Promise(() => {})`): em 7999 ms `result.current` é `'pendente'`; em 8000 ms vira `AVISO_INDISPONIVEL` (`kind: 'indisponivel'`).
+  - **Novo**: resposta tardia (resolve em 9 s com `480x360`) **não** sobrescreve o `indisponivel` já mostrado (o primeiro desfecho vence; o `ok:false` tardio idem).
+  - **Novo**: resposta em 100 ms cancela o timer (`vi.getTimerCount()` é 0 depois dela) e o aviso fica.
+  - Rodar com `vi.useRealTimers()` no `afterEach`.
+
+  Implementação (`use-aviso-original.ts`; o parâmetro `type` volta a ser `TestType | null` só se o tipo já existir no hook; senão manter `string`, como está):
+
+```ts
+export const TEMPO_LIMITE_LEITURA_MS = 8000
+export type EstadoAviso = 'pendente' | null | AvisoOriginal   // (importado de ab-original-resolucao; não redefinir aqui)
+
+export function useAvisoOriginal(ler, draftTestId, type, ativo): EstadoAviso {
+  const aplica = ativo && !!draftTestId && (type === 'thumbnail' || type === 'combo')
+  const [aviso, setAviso] = useState<EstadoAviso>('pendente')
+  useEffect(() => {
+    setAviso('pendente')   // L7: nunca mostrar o aviso do rascunho anterior; e "pendente" é um estado, não "nada"
+    if (!aplica || !draftTestId) return
+    let aberto = true
+    const termina = (a: AvisoOriginal | null) => { if (aberto) { aberto = false; clearTimeout(timer); setAviso(a) } }
+    const timer = setTimeout(() => termina(AVISO_INDISPONIVEL), TEMPO_LIMITE_LEITURA_MS)
+    try {
+      Promise.resolve(ler(draftTestId)).then(
+        (r) => termina(r.ok ? textoAvisoOriginalBaixa(r.dimensions, r.medida) : AVISO_INDISPONIVEL),
+        () => termina(AVISO_INDISPONIVEL),
+      )
+    } catch { termina(AVISO_INDISPONIVEL) }
+    return () => { aberto = false; clearTimeout(timer) }
+  }, [aplica, draftTestId, ler])
+  return aplica ? aviso : null
+}
+```
+
+(`termina` guarda `aberto`, então o primeiro desfecho vence e a resposta tardia some; `timer` é declarado antes de `termina` ser chamado de forma assíncrona, e como `const` aparece depois da arrow, ordenar o código para declarar `timer` com `let` antes se o lint reclamar.)
+- [ ] **Passo 5:** os três arquivos de teste → PASS; `tsc` 0. Commit `feat: regrava a original baixa no início do teste e textos pós-M1 do aviso (D12, r5)`, caminhos explícitos: `Y/ab-start.ts`, `Y/ab-original-resolucao.ts`, `use-aviso-original.ts` e os 3 testes.
+
+### Tarefa 1b: aviso antes de iniciar o teste quando a original guardada é baixa (nova, r4; passos 5–9 reescritos na r5)
+
+O aviso aparece no passo Revisar do assistente (`step-revisar.tsx`), **logo abaixo do banner de veredito** (cujo título muda por estado, ver T1c e `tituloDoBanner`), antes do resumo. É a última tela antes de "Ativar teste". Não toca `step-variantes.tsx` (o envio que moraria lá está congelado). Só para `thumbnail` e `combo`.
 
 **Decisões (ver "Decisões da r4"):** três estados, nunca confundidos. (1) **Medida e baixa** (largura < 1280, ou `dimensions` nula/`0x0`/ilegível com a original já guardada e com dHash): selo "Baixa resolução", texto com ou sem número. (2) **Não medida** (`thumbnail_dhash` nulo na original, ou original ausente): selo neutro "Resolução não medida" e texto próprio, porque o início do teste (`ab-start.ts:316-337`) regrava a maior cópia e mede; **nunca** afirmar "baixa" sem medida. (3) **Leitura falhou** (erro ou mais de uma original): linha neutra "Não consegui conferir a resolução da original agora." Em nenhum dos três o aviso bloqueia.
 
@@ -165,14 +291,7 @@ O aviso aparece no passo Revisar do assistente (`step-revisar.tsx`), **logo abai
 - Test (acrescentar): `T/youtube/ab-original-resolucao.test.ts`, `T/cms/ab-step-revisar.test.tsx` (os casos do componente moram aqui, onde o `StepRevisar` já é montado com os mocks de `lucide-react` e `click-moment`)
 - Test (ajustar mocks): `T/ab-wizard-variante-vazia.test.tsx:5-8` e `T/ab-wizard-referencia.test.tsx:8-10`
 
-**Texto (do mockup, estado B, com as adaptações marcadas; Logan aprovou o lugar e pediu os ajustes abaixo):**
-- Cauda comum: `o vídeo voltaria borrado a cada troca e ficaria assim depois do teste.`
-- Saída comum (Logan L3; diz o que fazer e que não bloqueia): `Para evitar, troque a thumbnail do vídeo no YouTube por uma de 1280 px ou mais antes de ativar; ou ative assim mesmo.`
-- Medida e baixa, com número: `A original guardada tem só ${L}×${A}: <cauda> <saída>` Selo `Baixa resolução` (âmbar).
-- Medida e baixa, sem número (nula, `0x0`, ilegível, mas já guardada): `A original guardada é de baixa resolução (mínimo 1280 px de largura): <cauda> <saída>` Selo `Baixa resolução` (âmbar).
-- Não medida (Phil P1 + Logan L2): `A resolução da original ainda não foi medida. Ao ativar, o teste guarda a maior cópia que o YouTube tiver; se ela tiver menos de 1280 px de largura, o vídeo voltaria borrado a cada troca. <saída>` Selo `Resolução não medida` (tom neutro, cinza; cor estável de "não medido").
-- Leitura falhou: `Não consegui conferir a resolução da original agora.` Sem selo, texto cinza.
-- Em todos: "mínimo 1280 px de largura" com unidade (Logan L6). O diálogo de encerrar continua com "Baixa resolução" para nulo/ilegível (depois do início a linha está medida; é outro momento). Registrar a diferença nas decisões.
+**Texto (r5):** vigora o do mockup M1 r2, copiado letra por letra na **T1c passo 3** (saída com "o teste guarda a nova ao ativar, mesmo que este aviso continue aqui"; não medida com "o teste mede ao ativar"; 1b com "abaixo do mínimo de 1280 px de largura"; leitura falhou com "Isso não impede de ativar."). Os passos 1 e 4 abaixo e o código dos passos 1–4 são o **histórico** do que `10fb16929`/`d523f7d06` entregaram: as asserções e textos que a T1c troca estão na tabela do passo 3 dela. A diferença para o diálogo de encerrar (que segue "Baixa resolução" para nulo/ilegível, porque depois do início a linha está medida) continua registrada nas decisões.
 
 - [ ] **Passo 1: teste da função de texto (falha)**, em `T/youtube/ab-original-resolucao.test.ts`:
 
@@ -342,39 +461,67 @@ describe('useAvisoOriginal', () => {
 })
 ```
 
-- [ ] **Passo 5: casos do componente**, em `T/cms/ab-step-revisar.test.tsx` (acrescentar; reaproveita a montagem e os mocks do arquivo; `base` = as props que o arquivo já usa):
+- [ ] **Passo 5: tokens de cor por tema (Naksu C1-C3; testes não dependem de cor)**, em `apps/web/src/app/globals.css`, dentro dos blocos `[data-theme="dark"]` (:255) e `[data-theme="light"]` (:384), junto das demais `--cms-*`. Valores do README do mockup r2:
+
+| Token | Escuro | Claro | Uso |
+|---|---|---|---|
+| `--cms-green-text` | `#4ADE80` | `#126B35` | palavra do veredito (5,75:1 no claro; o `#4ade80` fixo dava 1,52:1) |
+| `--cms-green-icon` | `#22C55E` | `#15803D` | ícone do banner (4,37:1; era 1,98:1) |
+| `--cms-amber-text` | `#FBBF24` | `#7A4E00` | texto e ícone do selo "Baixa resolução" |
+| `--cms-amber-soft` | `rgba(251,191,36,.12)` | `rgba(245,158,11,.14)` | fundo do selo |
+| `--cms-amber-line` | `rgba(245,158,11,.5)` | `rgba(160,100,0,.55)` | borda do selo |
+
+Neutro: tokens que já existem, `--theme-cms-text-dim` na borda tracejada e `--cms-surface-3` no fundo/esqueleto. **Proibido** `Badge tone="amber"` (o `--cms-amber` do produto é `#f59e0b` nos dois temas: 1,83:1 no claro), `*-subtle` (usa sintaxe de cor relativa, da família do `color-mix()` que o Opera do dono mostrou transparente) e `color-mix()`; só hex/rgba literal. Teste: acrescentar em `T/cms/ab-step-revisar.test.tsx` um caso que lê o fonte (`fs.readFileSync` de `step-revisar.tsx`) e afirma que **não** contém `#4ade80`, `#22c55e`, `tone="amber"`, `-subtle` nem `color-mix(`.
+- [ ] **Passo 6: casos do componente**, em `T/cms/ab-step-revisar.test.tsx` (acrescentar; reaproveita a montagem e os mocks do arquivo; `base` = as props que o arquivo já usa). **Asserções trocadas** em relação à r4: `Pronto para iniciar.` some do arquivo e dos testes (vira os dois títulos novos); o caso "leitura falhou" ganha a frase nova; o "sem aviso" ganha o esqueleto.
 
 ```tsx
 import { textoAvisoOriginalBaixa, AVISO_INDISPONIVEL } from '@/lib/youtube/ab-original-resolucao'
 
-describe('StepRevisar: aviso da original (D12)', () => {
-  it('baixa: faixa com selo âmbar abaixo do banner, que vira "Pronto para iniciar."', () => {
+describe('StepRevisar: aviso da original (D12, r5)', () => {
+  it('baixa: faixa com selo abaixo do banner; título "Pronto para ativar, com um aviso abaixo."', () => {
     render(<StepRevisar {...base} avisoOriginal={textoAvisoOriginalBaixa('480x360', true)} />)
     expect(screen.getByRole('status').textContent).toContain('480×360')
     expect(screen.getByText('Baixa resolução')).toBeTruthy()
-    expect(screen.getByText('Pronto para iniciar.')).toBeTruthy()
+    expect(screen.getByText('Pronto para ativar, com um aviso abaixo.')).toBeTruthy()
     expect(screen.queryByText('Tudo pronto.')).toBeNull()
+    expect(screen.queryByText(/Pronto para iniciar/)).toBeNull()
   })
   it('a faixa vem DEPOIS do banner no DOM (Logan L1)', () => {
     render(<StepRevisar {...base} avisoOriginal={textoAvisoOriginalBaixa('480x360', true)} />)
-    const banner = screen.getByText('Pronto para iniciar.')
+    const banner = screen.getByText('Pronto para ativar, com um aviso abaixo.')
     const faixa = screen.getByRole('status')
     expect(banner.compareDocumentPosition(faixa) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
-  it('não medida: selo "Resolução não medida", sem "Baixa resolução"', () => {
+  it('não medida: selo "Resolução não medida" e título com aviso, sem "Baixa resolução"', () => {
     render(<StepRevisar {...base} avisoOriginal={textoAvisoOriginalBaixa(null, false)} />)
     expect(screen.getByText('Resolução não medida')).toBeTruthy()
+    expect(screen.getByText('Pronto para ativar, com um aviso abaixo.')).toBeTruthy()
     expect(screen.queryByText('Baixa resolução')).toBeNull()
   })
-  it('leitura falhou: linha neutra, sem selo', () => {
+  it('leitura falhou: linha neutra, sem selo, título "Pronto para ativar."', () => {
     render(<StepRevisar {...base} avisoOriginal={AVISO_INDISPONIVEL} />)
-    expect(screen.getByRole('status').textContent).toBe('Não consegui conferir a resolução da original agora.')
+    expect(screen.getByRole('status').textContent).toBe('Não consegui conferir a resolução da original agora. Isso não impede de ativar.')
+    expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
     expect(screen.queryByText('Baixa resolução')).toBeNull()
   })
-  it('sem aviso (null ou ausente): nada na tela e o banner segue "Tudo pronto."', () => {
+  it('C5: leitura pendente: "Pronto para ativar.", esqueleto com aria-busy, nenhum role=status, nunca "Tudo pronto."', () => {
+    const { container } = render(<StepRevisar {...base} avisoOriginal="pendente" />)
+    expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
+    expect(screen.queryByText('Tudo pronto.')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+    const esqueleto = container.querySelector('[aria-busy="true"]') as HTMLElement
+    expect(esqueleto).toBeTruthy()
+    expect(esqueleto.querySelector('[class*="h-5"]')).toBeTruthy()   // 20 px
+  })
+  it('role="status" entra junto com o conteúdo, nunca vazio (Naksu S3)', () => {
+    render(<StepRevisar {...base} avisoOriginal={textoAvisoOriginalBaixa('480x360', true)} />)
+    expect(screen.getByRole('status').textContent?.length).toBeGreaterThan(20)
+  })
+  it('sem aviso (null ou ausente): nada na tela e o banner segue "Tudo pronto."; nota "para começar"', () => {
     const { unmount } = render(<StepRevisar {...base} avisoOriginal={null} />)
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.getByText('Tudo pronto.')).toBeTruthy()
+    expect(screen.getByText(/Clique em/).textContent).toContain('para começar')
     unmount()
     render(<StepRevisar {...base} />)
     expect(screen.queryByRole('status')).toBeNull()
@@ -382,8 +529,8 @@ describe('StepRevisar: aviso da original (D12)', () => {
 })
 ```
 
-(Antes de acrescentar, conferir que o arquivo não tem outro `role="status"`; Logan conferiu que `step-revisar.tsx` não tem.)
-- [ ] **Passo 6: teste do assistente que prova "não bloqueia" e a fiação da prop (Yannis I1)**, `T/ab-wizard-aviso-original.test.tsx`, no molde de `T/ab-wizard-variante-vazia.test.tsx` (mesmo `vi.mock` de actions, acrescentando `lerDimensoesDaOriginal`, o mesmo stub de `localStorage` e o mesmo `video`):
+(Antes de acrescentar, conferir que o arquivo não tem outro `role="status"`; Logan conferiu que `step-revisar.tsx` não tem. A nota do rodapé existe em `step-revisar.tsx`; trocar `iniciar` por `começar` e usar `NOTA_ATIVAR` da T1c.)
+- [ ] **Passo 7: teste do assistente que prova "não bloqueia", a fiação da prop e o passo 2 (Yannis I1, Logan C3)**, `T/ab-wizard-aviso-original.test.tsx`, no molde de `T/ab-wizard-variante-vazia.test.tsx` (mesmo `vi.mock` de actions, acrescentando `lerDimensoesDaOriginal`, o mesmo stub de `localStorage` e o mesmo `video`):
 
 ```tsx
 // @vitest-environment jsdom
@@ -410,11 +557,14 @@ it('passo Revisar: aviso aparece, lido pelo rascunho, e Ativar teste segue habil
   fireEvent.click(ativar)
   await waitFor(() => expect(start).toHaveBeenCalledWith('d1'))
 })
-it('leitura pendurada: botões habilitados enquanto ela não volta, sem aviso', () => {
+it('leitura pendurada: botões habilitados, esqueleto e "Pronto para ativar." (nunca "Tudo pronto."), sem role=status', () => {
   ler.mockReturnValueOnce(new Promise(() => {}))
-  montar()
+  const { container } = montar()
   expect((screen.getByRole('button', { name: /Ativar teste/ }) as HTMLButtonElement).disabled).toBe(false)
+  expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
+  expect(screen.queryByText('Tudo pronto.')).toBeNull()
   expect(screen.queryByRole('status')).toBeNull()
+  expect(container.querySelector('[aria-busy="true"]')).toBeTruthy()
 })
 it('leitura que falha: linha neutra e Ativar teste habilitado', async () => {
   ler.mockResolvedValueOnce({ ok: false })
@@ -422,64 +572,43 @@ it('leitura que falha: linha neutra e Ativar teste habilitado', async () => {
   await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Não consegui conferir'))
   expect((screen.getByRole('button', { name: /Ativar teste/ }) as HTMLButtonElement).disabled).toBe(false)
 })
+it('C3: a leitura começa ao entrar em Variantes (passo 2), não só no Revisar', async () => {
+  ler.mockResolvedValue({ ok: true, dimensions: '1280x720', medida: true })
+  // abre no passo 2 (prefill sem existingDraftId e sem rascunho salvo: step inicial 2, `ab-create-wizard.tsx:289`) com draftTestId já definido
+  render(<AbCreateWizard video={video} siteId="s" settings={{} as never}
+    onClose={vi.fn()} onCreated={vi.fn()} prefill={{ ...prefill, draftTestId: 'd2' } as never} existingDraftId="d2" initialStep={2} />)
+  await waitFor(() => expect(ler).toHaveBeenCalledWith('d2'))
+})
 ```
 
-(Com `existingDraftId` e `draftVariants.length > 1`, `continuingDraft` é verdadeiro e o assistente abre direto no passo 4 (`ab-create-wizard.tsx:256,285`). A variante B com `thumbUrl` http não dispara upload. Este teste mata dois mutantes que o `grep` do diff não pega: a leitura embrulhada em `startTransition` (o `isPending` desabilitaria os botões, `:675`/`:683`) e a prop esquecida no `<StepRevisar>`.)
-- [ ] **Passo 7:** `npx vitest run` dos arquivos novos e alterados → FAIL. Implementar:
+(Com `existingDraftId` e `draftVariants.length > 1`, `continuingDraft` é verdadeiro e o assistente abre direto no passo 4 (`ab-create-wizard.tsx:256,285`). A variante B com `thumbUrl` http não dispara upload. Este teste mata os mutantes que o `grep` do diff não pega: a leitura embrulhada em `startTransition` (o `isPending` desabilitaria os botões, `:675`/`:683`), a prop esquecida no `<StepRevisar>` e o `step >= 3`. **O 4º caso (C3) é o frágil:** `initialStep` não existe; o executor escolhe o jeito mais barato de montar o assistente no passo 2 (por exemplo, montar no passo 4 e clicar `Voltar` duas vezes e depois conferir que `ler` foi chamada **uma vez só**, sem nova chamada ao voltar a 2 e a 3; ou assertar `ler` chamada no `step 2` com o `StepRail`). Se nenhum jeito for barato, trocar por teste do hook: `renderHook(() => useAvisoOriginal(ler, 'd', 'thumbnail', true))` com `ativo = step >= 2` extraído para `const LEITURA_A_PARTIR_DO_PASSO = 2` exportado de `use-aviso-original.ts` e um teste que afirma o valor `2`.)
+- [ ] **Passo 8:** `npx vitest run` dos arquivos novos e alterados → FAIL. Implementar:
 
-`AB/_components/use-aviso-original.ts` (o hook **recebe** a action; o assistente a importa, o hook não):
+`AB/_components/use-aviso-original.ts`: **já existe** (T1b passo 4 + T1c passo 4). Acrescentar `export const LEITURA_A_PARTIR_DO_PASSO = 2` (Variantes; trilho Tipo 0, Ideias 1, Variantes 2, Config 3, Revisar 4, `ab-create-wizard.tsx:76` e `:235`).
 
-```ts
-'use client'
-import { useEffect, useState } from 'react'
-import { textoAvisoOriginalBaixa, AVISO_INDISPONIVEL, type AvisoOriginal } from '@/lib/youtube/ab-original-resolucao'
-import type { TestType } from '@/lib/youtube/ab-types'
-
-export type LerDimensoes = (testId: string) => Promise<
-  { ok: true; dimensions: string | null; medida: boolean } | { ok: false }
->
-
-/** D12: aviso (ou null). Falha na leitura = linha neutra, nunca "baixa", nunca bloqueia. */
-export function useAvisoOriginal(
-  ler: LerDimensoes, testId: string | null, type: TestType | null, ativo: boolean,
-): AvisoOriginal | null {
-  const [aviso, setAviso] = useState<AvisoOriginal | null>(null)
-  useEffect(() => {
-    setAviso(null)   // Logan L7: nunca mostrar o aviso do rascunho anterior
-    if (!ativo || !testId || (type !== 'thumbnail' && type !== 'combo')) return
-    let vivo = true
-    Promise.resolve()
-      .then(() => ler(testId))   // um throw síncrono também cai no catch
-      .then(r => { if (vivo) setAviso(r.ok ? textoAvisoOriginalBaixa(r.dimensions, r.medida) : AVISO_INDISPONIVEL) })
-      .catch(() => { if (vivo) setAviso(AVISO_INDISPONIVEL) })
-    return () => { vivo = false }
-  }, [ler, testId, type, ativo])
-  return aviso
-}
-```
-
-`step-revisar.tsx`: em `StepRevisarProps` (:21-26) acrescentar `avisoOriginal?: AvisoOriginal | null`; desestruturar. Trocar o título do banner (:~144): `{avisoOriginal ? 'Pronto para iniciar.' : 'Tudo pronto.'}`. **Logo depois do `</div>` do banner** (:~147) e antes do resumo:
+`step-revisar.tsx`: em `StepRevisarProps` (:21-26) acrescentar `avisoOriginal?: EstadoAviso`; desestruturar. Banner (:137-149): o ícone `CheckCircle` troca `style={{ color: '#22c55e' }}` por `className="... text-[var(--cms-green-icon)]"` (`'pendente'`: `text-cms-text-muted`, S1 da Naksu: ícone neutro, sem verde antes da resposta); a palavra troca `style={{ color: '#4ade80' }}` por `text-[var(--cms-green-text)]` (em `'pendente'`: `text-cms-text`, sem verde) e o texto vira `{tituloDoBanner(avisoOriginal)}`; o resumo (`summaryText`) troca `text-cms-text-muted` por `text-cms-text` (Naksu M1: 4,30:1 no escuro, defeito que já existe, uma classe). Nota do rodapé (`Clique em Ativar teste para iniciar...`) vira `{NOTA_ATIVAR}`. **Logo depois do banner** e antes do resumo:
 
 ```tsx
-{avisoOriginal ? (
+{avisoOriginal === 'pendente' ? (
+  <div aria-busy="true" aria-label="Lendo a resolução da original">
+    <span className="block h-5 w-3/5 rounded bg-cms-surface-3 motion-safe:animate-pulse" />
+  </div>
+) : avisoOriginal ? (
   avisoOriginal.kind === 'indisponivel' ? (
     <p role="status" className="m-0 text-[12.5px] text-cms-text-muted">{avisoOriginal.texto}</p>
   ) : (
-    <div role="status" className="flex items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-3 py-2 text-[12.5px] text-cms-text">
-      <Badge tone={avisoOriginal.kind === 'baixa' ? 'amber' : 'neutral'}>{avisoOriginal.selo}</Badge>
-      <span>{avisoOriginal.texto}</span>
-    </div>
+    <AvisoResolucao aviso={avisoOriginal} />
   )
 ) : null}
 ```
 
-(`tone` `amber` e `neutral` existem em `./ab-primitives.tsx:32-39`; sem cor nova nem `color-mix()`. Naksu confere contraste do âmbar nos dois temas e o tamanho 12.5 px.)
+`AvisoResolucao` (no mesmo arquivo ou em `ab-primitives.tsx`; **recebe o aviso por prop**, o sujeito do selo vem de `aviso.kind`, não de `Badge`): `<div role="status" className="grid justify-items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[12.5px] leading-[1.55] text-cms-text">` com o selo `<span className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-px text-[12px] font-semibold leading-5" ...>`: para `baixa`, ícone triângulo (lucide `AlertTriangle`, 14 px) e `style` com `color: var(--cms-amber-text)`, `borderColor: var(--cms-amber-line)`, `background: var(--cms-amber-soft)` (borda contínua); para `nao-medida`, ícone círculo tracejado com interrogação (`CircleHelp`, 14 px, ou SVG do mockup), cor `text-cms-text-muted`, borda `1px dashed var(--theme-cms-text-dim)`, fundo `bg-cms-surface-3` (tracejado: o selo se distingue sem cor). O texto numa `<p className="m-0 max-w-[78ch]">`. O `role="status"` **entra junto com o conteúdo** (o `div` só é renderizado com o texto pronto; nunca um `role="status"` vazio que se preenche depois, Naksu S3). Esqueleto: 20 px (`h-5`), 60% da largura, sem animação com `prefers-reduced-motion` (`motion-safe:`), sem `role="status"`. Teste dos mocks de `lucide-react` em `ab-step-revisar.test.tsx`: **acrescentar** `AlertTriangle` e `CircleHelp` (ou os nomes usados) ao mock, que hoje só tem os ícones atuais; conferir antes.
 
-`ab-create-wizard.tsx`: **o assistente** importa `lerDimensoesDaOriginal` de `../actions` (já importa 8 actions por aí, `:14-23`; dívida existente, registrada nos Riscos) e `useAvisoOriginal`. Depois de `useState` do `libraryPickerFor` (:~309): `const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type, state.step >= 3)` (Logan L4: a leitura começa ao entrar em Variantes, para estar pronta ao chegar no Revisar; **conferir no código que o passo 3 é Variantes e o 4 é Revisar** antes de fixar o `>= 3`). No `<StepRevisar ... />` (:~555-567) passar `avisoOriginal={avisoOriginal}`. **Não** alterar `stepIsValid` (:240-249), `goNext`, `handleSubmit` (:391) nem os botões (:~674-682).
+`ab-create-wizard.tsx`: **o assistente** importa `lerDimensoesDaOriginal` de `../actions` (já importa 8 actions por aí, `:14-23`; dívida existente, registrada nos Riscos) e `useAvisoOriginal`. Depois de `useState` do `libraryPickerFor` (:~309): `const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type, state.step >= LEITURA_A_PARTIR_DO_PASSO)` (Logan C3: **passo 2 = Variantes**; a linha `is_original` já existe desde `createAbTest` ao escolher o tipo, `actions.ts:286`, então ler em Variantes não espera nada; o tempo de montar as variantes cobre a leitura numa conexão ruim, e em Config, passo 3, a janela seria de segundos). No `<StepRevisar ... />` (:~555-567) passar `avisoOriginal={avisoOriginal}`. **Não** alterar `stepIsValid` (:240-249), `goNext`, `handleSubmit` (:391) nem os botões (:~674-682).
 
 **Ajuste obrigatório dos mocks existentes (custo do hook injetado):** o assistente passa a ler o binding `lerDimensoesDaOriginal` a cada render, e o vitest lança quando falta export num mock de fábrica. Acrescentar `lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false }))` ao `vi.mock` de `T/ab-wizard-variante-vazia.test.tsx:5-8` e de `T/ab-wizard-referencia.test.tsx:8-10`, e a **qualquer outro** teste que renderize o `AbCreateWizard` real: `grep -rln "AbCreateWizard" apps/web/test` e abrir cada um que tenha `vi.mock` da `actions`.
-- [ ] **Passo 8:** os arquivos novos e alterados → PASS; depois a seção 3 inteira (suíte `test/youtube test/cms/ab- test/ab-` e `tsc` 0). Conferir no diff que `stepIsValid` e `handleSubmit` não mudaram: `git diff -U0 -- '<AB>/_components/ab-create-wizard.tsx' | grep -E "stepIsValid|handleSubmit|startAbTest"` → vazio (o teste do passo 6 é a prova de comportamento; o `grep` é só o cinto).
-- [ ] **Passo 9:** commit `feat: aviso de original baixa antes de iniciar o teste (D12)`, caminhos explícitos dos 13 arquivos (os 4 de código, `use-aviso-original.ts`, e os 7 de teste: `ab-original-resolucao`, `ab-aviso-original-baixa`, `ab-ler-dimensoes-da-original`, `ab-step-revisar`, `ab-wizard-aviso-original`, `ab-wizard-variante-vazia`, `ab-wizard-referencia`, `cms/ab-create-wizard-restore` (Yannis N2: mocka as actions com o assistente real; acrescentar `lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false }))` ao mock da linha 6); mais qualquer mock ajustado no passo 7).
+- [ ] **Passo 9:** os arquivos novos e alterados → PASS; depois a seção 3 inteira (suíte `test/youtube test/cms/ab- test/ab-` e `tsc` 0). Conferir no diff que `stepIsValid` e `handleSubmit` não mudaram: `git diff -U0 -- '<AB>/_components/ab-create-wizard.tsx' | grep -E "stepIsValid|handleSubmit|startAbTest"` → vazio (o teste do passo 7 é a prova de comportamento; o `grep` é só o cinto).
+- [ ] **Passo 10:** commit `feat: aviso de original baixa antes de iniciar o teste (D12)`, caminhos explícitos: os de código (`step-revisar.tsx`, `ab-create-wizard.tsx`, `use-aviso-original.ts`, `actions.ts`, `ab-original-resolucao.ts`, `globals.css`) e os de teste (`ab-original-resolucao`, `ab-aviso-original-baixa`, `ab-ler-dimensoes-da-original`, `ab-step-revisar`, `ab-wizard-aviso-original`, `ab-wizard-variante-vazia`, `ab-wizard-referencia`, `cms/ab-create-wizard-restore` (Yannis N2: mocka as actions com o assistente real; acrescentar `lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false }))` ao mock da linha 6); mais qualquer mock ajustado no passo 8). `ab-start.ts` e seu teste já saíram no commit da T1c.
 
 **Paridade Cowork/MCP (registro, sem tarefa):** fora. `manage_ab_test` não tem ação de iniciar (`tools.ts:665`), então não há "antes de iniciar" no MCP; o Cowork só edita variantes de rascunho. Não mexer em `apps/web/src/lib/pipeline/` nem em `cowork-docs-youtube.md` (sem rota nem campo novo). Se um dia o MCP ganhar `start`, o aviso entra na resposta junto do descongelo (T15 do apêndice).
 
@@ -490,20 +619,21 @@ export function useAvisoOriginal(
 **Files:** capturas em `.superpowers/sdd/ab-lab/original-em-alta/prova-shots/` (Gio).
 
 - [ ] **Passo 1:** `cd W/apps/web && npx vitest run test/youtube test/cms/ab- test/ab- > /tmp/oea-suite.log 2>&1; tail -30 /tmp/oea-suite.log` e `npx tsc --noEmit -p . > /tmp/oea-tsc.log 2>&1; grep -c "error TS" /tmp/oea-tsc.log`. Esperado: 0 falhas, 0 `error TS`; só falhas no contexto. Em background se passar de 4 min. **Sem** `next build` obrigatório (o Vercel faz; CLAUDE.md) e sem integração (não há SQL).
-- [ ] **Passo 2 (Gio, navegador, Sonnet):** CMS local autenticado (`docs/ops/runbook-cms-e2e-local.md`), vídeo de semente cujo rascunho tem a original `480x360`, outro `1280x720`, outro com `dimensions` nula e sem dHash (não medida): abrir o assistente até Revisar a 1440 e 390, claro e escuro. Esperado: `480x360` com banner "Pronto para iniciar.", faixa abaixo dele e selo "Baixa resolução"; `1280x720` sem faixa e com "Tudo pronto."; não medida com selo neutro "Resolução não medida" e o texto "ainda não foi medida" (nunca "baixa"); depois de ativar a não medida, o diálogo "O que fica no vídeo?" mostra a medida real; o aviso já está na tela ao chegar (sem salto de layout visível); "Salvar rascunho" e "Ativar teste" habilitados em todos; `scrollWidth` = largura a 390; nenhum "undefined"/"null" no DOM. Abrir o diálogo "O que fica no vídeo?" de um teste com original `640x480`: selo "Baixa resolução". Veredito em texto no ledger.
+- [ ] **Passo 2 (Gio, navegador, Sonnet):** CMS local autenticado (`docs/ops/runbook-cms-e2e-local.md`), vídeo de semente cujo rascunho tem a original `480x360`, outro `1280x720`, outro com `dimensions` nula e sem dHash (não medida): abrir o assistente até Revisar a 1440 e 390, claro e escuro. Esperado: `480x360` com banner "Pronto para ativar, com um aviso abaixo.", faixa abaixo dele e selo "Baixa resolução" (âmbar legível nos dois temas: texto `#7A4E00` no claro); `1280x720` sem faixa e com "Tudo pronto." (verde `#126B35` legível no claro); não medida com selo neutro tracejado "Resolução não medida" e o texto "ainda não foi medida; o teste mede ao ativar" (nunca "baixa"); leitura com a rede estrangulada: esqueleto de 20 px, banner "Pronto para ativar.", e passados 8 s a linha "Não consegui conferir... Isso não impede de ativar."; **B1 de ponta a ponta: no vídeo de semente com original `480x360`, trocar a thumbnail do vídeo (de teste) no YouTube pela mesma arte em 1280 px, ativar, e conferir que a original guardada passou a `1280x720` (diálogo "O que fica no vídeo?")**; depois de ativar a não medida, o diálogo "O que fica no vídeo?" mostra a medida real; o aviso já está na tela ao chegar (sem salto de layout visível); "Salvar rascunho" e "Ativar teste" habilitados em todos; `scrollWidth` = largura a 390; nenhum "undefined"/"null" no DOM. Abrir o diálogo "O que fica no vídeo?" de um teste com original `640x480`: selo "Baixa resolução". Veredito em texto no ledger.
 - [ ] **Passo 3:** sonda dos Shorts, **só leitura, sem criar rascunho** (criar rascunho chama `guardarOriginalMaior` e grava no Blob, `ab-variant-dhash.ts:85`): para cada um dos 2 Shorts reais, `for q in maxresdefault hq720 sddefault hqdefault; do curl -s -o /tmp/s-$q.jpg -w "$q %{http_code} " "https://i.ytimg.com/vi/<id>/$q.jpg"; sips -g pixelWidth -g pixelHeight /tmp/s-$q.jpg; done` e anotar o `http_code` e a LxA de cada; **só vale resposta 200** (Phil M1: em 404 o ytimg devolve um placeholder 120×90, que o `sips` mede como se fosse a imagem); a primeira com 200 é o que `guardarOriginalMaior` guardaria. Registrar no roteiro (`docs/superpowers/plans/2026-10-14-ab-lab-roteiro-e-horas.md`) como subnúmero de 21 (§5.7), não só no ledger. É o dado do gatilho de descongelar. Opcional, só se o dono autorizar leitura em produção: `select v.dimensions, count(*) from ab_test_variants v join ab_tests t on t.id=v.test_id where v.is_original group by 1 order by 2 desc;`.
 
 ---
 
 ## 5. Portão e envio
 
-**Portão (antes de qualquer push):** Phil, Yannis e Logan revisam esta r4; Gio faz a T20. Conserta-se até haver acordo (sem BLOQUEIA/CORRIGE aberto). Logan confere os textos novos (T1b).
+**Portão (antes de qualquer push):** Yannis (B1, tempo-limite) e Logan (textos) revisam a emenda da r5, Naksu confere os tokens na captura da execução; Gio faz a T20. (A r4 foi aprovada por Phil 93, Yannis 93, Logan 90.) Conserta-se até haver acordo (sem BLOQUEIA/CORRIGE aberto). Logan confere os textos novos (T1b).
 
 **Envio:** junto do próximo push com código do lote `lote/ab-p4b-a`; **sem migration**, logo sem `db:push:prod` e sem fila de DB; nenhum push só deste plano; ≤ 3 pushes de staging/dia (crédito da Vercel). CI verde depois do push.
 
 ## 6. Riscos
 
 - **Short sem `maxres` 1280** (o risco que congelou a T11): o aviso aparece e o teste inicia; é por isso que o aviso não bloqueia. A sonda da T20 passo 3 mede quantos Shorts caem aqui.
+- **(r5) A saída "troque no YouTube e ative" agora funciona:** a T1c regrava a original quando a guardada é baixa, mesmo com dHash igual (B1). Custo: uma cópia a mais no Blob por início de teste com original baixa; um Short sem `maxres` regrava a mesma 480×360 (idempotente). O aviso continua na tela depois da troca (lê só o guardado) e o texto diz isso.
 - **Aviso para quem só tem uma saída:** sem o envio, o dono lê o aviso e pode ignorá-lo ("ative assim mesmo") ou **trocar a thumbnail no YouTube antes de ativar**: o início do teste guarda a nova cópia quando o dHash difere (`ab-start.ts:316-337`), então **não** é preciso recriar o rascunho (Phil P1). Aceito pela D12 (informar, não bloquear); o envio volta no descongelo.
 - **`dimensions` nula não é "baixa":** só fica nula quando `thumbnail_hq_url` é nula ou fora de `ytimg|ggpht|googleusercontent` (`AB/actions.ts:249-259`), e então o dHash também é nulo; o início regrava a maior cópia e mede. Por isso o estado "Resolução não medida" existe e a T1b nunca afirma "baixa" sem `medida` (Phil P1).
 - **Aviso lido uma vez:** se o dono trocar a thumbnail no YouTube com o assistente aberto, o aviso fica com o valor velho; sem dano (não bloqueia, e o início guarda a nova). Sem código (Phil P4).
@@ -543,9 +673,9 @@ Conserto de r3 conforme `revisao-plano-r3-{phil,yannis,logan}.md` (84, 86, 74) e
 | Action devolve `medida = thumbnail_dhash != null` e falha em erro ou em 2 originais | calar erro virava aviso falso (Phil P2, Yannis I3); sem índice único por `is_original` |
 | Texto "não medida" diz que o início guarda a maior cópia, sem alarme; selo neutro "Resolução não medida" | Logan L2 ajustado à realidade de Phil P1 |
 | Leitura que falha: linha neutra "Não consegui conferir a resolução da original agora."; nunca "baixa" | Logan L5; substitui a decisão r3 "falha não avisa" |
-| Aviso abaixo do banner; título "Pronto para iniciar." quando há aviso | Logan L1 (tela dizia duas coisas opostas) |
+| Aviso abaixo do banner; título "Pronto para iniciar." quando há aviso (**r5: "Pronto para ativar..." por estado**) | Logan L1 (tela dizia duas coisas opostas) |
 | Texto termina com a saída "troque a thumbnail... antes de ativar; ou ative assim mesmo" | Logan L3; "antes de ativar" e não "criar de novo" porque o início guarda a nova (Phil P1) |
-| Leitura começa em `step >= 3` | Logan L4: aviso pronto ao chegar no Revisar; conferir a numeração dos passos no código |
+| Leitura começa em `step >= 3` (**corrigido na r5: `>= 2`**, Variantes é o passo 2) | Logan L4: aviso pronto ao chegar no Revisar; a conferência da numeração mostrou o erro |
 | "mínimo 1280 px de largura" com unidade | Logan L6 |
 | `setAviso(null)` no início do efeito | Logan L7 |
 | Hook recebe a action por parâmetro (`ler`), com `Promise.resolve().then` | regra do CLAUDE.md (server action só por prop/callback) e throw síncrono (Yannis M1); ajusta os 2 mocks de assistente |
@@ -556,6 +686,28 @@ Conserto de r3 conforme `revisao-plano-r3-{phil,yannis,logan}.md` (84, 86, 74) e
 | Sonda dos Shorts só leitura (`curl` + `sips`), sem rascunho; registrada no roteiro como subnúmero de 21 | Phil P3: criar rascunho grava no Blob |
 | Riscos: troca de thumbnail com o assistente aberto; frase "recriar o rascunho" corrigida | Phil P4 e P1 |
 | Diálogo de encerrar mantém "Baixa resolução" para nulo/ilegível | depois do início a linha está medida; é outro momento |
+
+## 9. Decisões da r5
+
+Emenda pós-M1 conforme `revisao-m1-logan.md` (70, re-revisão 93) e `revisao-m1-naksu.md` (84, re-revisão 94), mockup M1 r2 (`d49aca338`). Código da T1/T1b passos 1–4 já commitado (`10fb16929`, `d523f7d06`) com os textos antigos: a **T1c** o ajusta.
+
+| Decisão | Por quê |
+|---|---|
+| **T1c nova** (entre os passos 4 e 5 da T1b); passos 5–9 da T1b reescritos (viram 5–10) | o código feito precisa dos textos novos, do hook de 3 estados e do B1 antes da tela |
+| **B1:** `ab-start.ts:317-321` regrava a original também quando a guardada é baixa (`publicaBaixa(dimensoesDeTexto(original?.dimensions)?.largura ?? 0)`); `dimensions` entra no select (`:222`) e em `VarianteInicio` (`:169`), que **não traziam** a coluna | sem isso a saída do aviso ("troque no YouTube e ative") é falsa: mesma arte em 1280 px tem o mesmo dHash e não regrava (Logan B1, falha em verde); Yannis confirma o custo (uma cópia a mais no Blob só quando baixa) |
+| Teste B1: dHash igual + `480x360` regrava; dHash igual + `1280x720` não; `dimensions` nula com dHash igual regrava | o caso "nada mudou" existente passa a usar `1280x720` na fixture |
+| Textos C1 (não medida), C2 (títulos do banner e nota "para começar"), C4 (1b "abaixo do mínimo de 1280 px de largura"), M1 (falhou: "Isso não impede de ativar."), B1 (saída) copiados **letra por letra** do mockup r2; `tituloDoBanner` e `NOTA_ATIVAR` puras e testadas | o componente só consome; sem texto inventado |
+| Banner: "Tudo pronto." só com leitura em alta ou tipo só título; "Pronto para ativar." (falhou, lendo); "Pronto para ativar, com um aviso abaixo." (baixa, não medida) | Logan C2/C5: dois verbos, e verde de relance escondia o âmbar |
+| Leitura em `state.step >= 2` (`LEITURA_A_PARTIR_DO_PASSO = 2`), plano corrigido (a r4 dizia 3) | Logan C3: trilho Tipo 0, Ideias 1, Variantes 2, Config 3, Revisar 4 (`ab-create-wizard.tsx:76`, `:235`); a linha `is_original` existe desde a escolha do tipo (`actions.ts:286`) |
+| Hook de 3 estados `'pendente' \| null \| AvisoOriginal`; `null` = alta ou não se aplica | Logan C5: pendente e alta não podem ser o mesmo valor |
+| **Tempo-limite do esqueleto: 8 s** (`TEMPO_LIMITE_LEITURA_MS`), vira `indisponivel`; primeiro desfecho vence, resposta tardia ignorada; teste com fake timers (7999 pendente, 8000 indisponível, tardia ignorada, resposta cancela o timer) | Naksu C4 iii, Logan sugestão 2; 8 s é proposta (2 consultas simples, normalmente < 1 s; rede ruim de fora do país), Yannis confirma |
+| Tokens `--cms-green-text/-icon`, `--cms-amber-text/-soft/-line` por tema em `globals.css` (valores do README do mockup) | Naksu C1/C2: `#4ade80` fixo dava 1,52:1 no claro, `--cms-amber` 1,83:1 |
+| Selo **não** usa `Badge tone="amber"`: `AvisoResolucao` recebe o aviso por prop, ícone (triângulo / círculo tracejado com "?"), rgba literal; sem `*-subtle` nem `color-mix()` | Naksu C2/C3 (Opera); teste de fonte proíbe as cores e classes velhas |
+| Esqueleto 20 px (`h-5`, 60%, `bg-cms-surface-3`), `aria-busy="true"`, `motion-safe:animate-pulse`, sem `role="status"`; `role="status"` só com o conteúdo pronto | Naksu C4 ii, S3; a faixa entra sem salto grande porque a leitura começa no passo 2 |
+| "Lendo": ícone do banner neutro e palavra em cor de texto | Naksu S1 (verde antes da resposta afirmaria "pronto") |
+| Resumo do banner em `text-cms-text` | Naksu M1 (4,30:1 no escuro) |
+| Fora: nota de 11 px e título de variante de 10 px (Naksu M2), refazer a leitura ao entrar no passo 4 (Logan M1 opcional) | dívida existente / sem custo-benefício; registrados, não feitos |
+| T20 ganha o B1 de ponta a ponta, o esqueleto sob rede lenta e o contraste nos dois temas | itens que Logan e Naksu declararam não verificados |
 
 ---
 
