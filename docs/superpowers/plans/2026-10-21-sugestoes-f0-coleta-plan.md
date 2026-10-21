@@ -96,7 +96,7 @@ aqui: `review-r4-e-plano-f0-phil.md` e `review-r4-e-plano-f0-yannis.md` (esta ro
    chave desconhecida de `tentativas` como sujeira (precedente: a MG15 só aceitava `ok`, `sem_dado_na_janela`, `video_novo`).
    Esperado: nenhum vermelho novo. Teste na Tarefa 4.
 5. **Completo vermelho e parcial verde no mesmo dia** (ou o inverso): o vigia continua vendo o completo vermelho, e um
-   parcial que não roda há 26 h acende pelo próprio nome. Teste na Tarefa 7 (rota) e na Tarefa 7 (`resolveCronName`).
+   parcial que não roda acende pelo próprio nome. Teste na Tarefa 7 (rota) e na Tarefa 7 (`resolveCronName`).
 
 ---
 
