@@ -10039,6 +10039,7 @@ export type Database = {
       yt_own_collection_runs: {
         Row: {
           acao_do_dono: string[]
+          escopo: string
           falhas: string[]
           id: number
           ms_existente: number
@@ -10049,6 +10050,7 @@ export type Database = {
         }
         Insert: {
           acao_do_dono?: string[]
+          escopo?: string
           falhas?: string[]
           id?: never
           ms_existente: number
@@ -10059,6 +10061,7 @@ export type Database = {
         }
         Update: {
           acao_do_dono?: string[]
+          escopo?: string
           falhas?: string[]
           id?: never
           ms_existente?: number
