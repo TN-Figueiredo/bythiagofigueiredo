@@ -200,71 +200,11 @@ export type Database = {
           },
         ]
       }
-      ab_test_tracked_links: {
-        Row: {
-          ab_test_id: string
-          created_at: string
-          id: string
-          link_id: string
-          short_code: string
-          template_name: string
-          variant_id: string
-        }
-        Insert: {
-          ab_test_id: string
-          created_at?: string
-          id?: string
-          link_id: string
-          short_code: string
-          template_name: string
-          variant_id: string
-        }
-        Update: {
-          ab_test_id?: string
-          created_at?: string
-          id?: string
-          link_id?: string
-          short_code?: string
-          template_name?: string
-          variant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_test_tracked_links_ab_test_id_fkey"
-            columns: ["ab_test_id"]
-            isOneToOne: false
-            referencedRelation: "ab_tests"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_test_tracked_links_link_id_fkey"
-            columns: ["link_id"]
-            isOneToOne: false
-            referencedRelation: "link_summary_v2"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_test_tracked_links_link_id_fkey"
-            columns: ["link_id"]
-            isOneToOne: false
-            referencedRelation: "tracked_links"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_test_tracked_links_variant_id_fkey"
-            columns: ["variant_id"]
-            isOneToOne: false
-            referencedRelation: "ab_test_variants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ab_test_variants: {
         Row: {
           blob_key: string | null
           blob_url: string | null
           created_at: string
-          description_text: string | null
           dimensions: string | null
           file_size_bytes: number | null
           id: string
@@ -281,7 +221,6 @@ export type Database = {
           blob_key?: string | null
           blob_url?: string | null
           created_at?: string
-          description_text?: string | null
           dimensions?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -298,7 +237,6 @@ export type Database = {
           blob_key?: string | null
           blob_url?: string | null
           created_at?: string
-          description_text?: string | null
           dimensions?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -344,7 +282,6 @@ export type Database = {
           last_applied_variant_id: string | null
           last_apply_error: string | null
           name: string
-          original_description: string | null
           original_thumbnail_url: string
           original_title: string | null
           parent_test_id: string | null
@@ -383,7 +320,6 @@ export type Database = {
           last_applied_variant_id?: string | null
           last_apply_error?: string | null
           name: string
-          original_description?: string | null
           original_thumbnail_url: string
           original_title?: string | null
           parent_test_id?: string | null
@@ -422,7 +358,6 @@ export type Database = {
           last_applied_variant_id?: string | null
           last_apply_error?: string | null
           name?: string
-          original_description?: string | null
           original_thumbnail_url?: string
           original_title?: string | null
           parent_test_id?: string | null
@@ -10900,14 +10835,6 @@ export type Database = {
       create_monthly_partitions: {
         Args: { p_months_ahead?: number }
         Returns: undefined
-      }
-      create_playoff_test: {
-        Args: {
-          p_cooldown_hours?: number
-          p_parent_test_id: string
-          p_variant_ids: string[]
-        }
-        Returns: string
       }
       create_waitlist_with_translation: {
         Args: {
