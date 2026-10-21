@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { inferirObservado, inferirObservadoDetalhe, type LeituraObs, type ThumbObs } from '@/lib/youtube/teste-youtube/observados/inferir'
-import { agoraEm, DH_A, DH_A2, DH_B, DH_C, DH_D, leitura, PUB, sequencia, thumb } from './fabrica'
+import { agoraEm, DH_A, DH_A2, DH_B, DH_C, DH_D, leitura, PUB, rodadas, sequencia, thumb } from './fabrica'
 
 const T0 = 30 // primeira leitura, depois da carência de 24 h
 const porTitulo = (r: string): Partial<LeituraObs> => ({ tituloOficial: 'Titulo ' + r })
@@ -138,6 +138,14 @@ describe('inferirObservado: miniatura', () => {
     expect(r.observados).toEqual([])
     expect(r.indeterminadas).toBe(1)
   })
+  it('fronteira: distância exatamente 10 é troca (não indeterminada); 9 é indeterminada', () => {
+    const dez = miniaturas(['A', 'A', 'X', 'X'], { A: DH_A, X: '00000000000003ff' }, T0 + 30)
+    expect(dez.observados).toHaveLength(1)
+    expect(dez.indeterminadas).toBe(0)
+    const nove = miniaturas(['A', 'A', 'X', 'X'], { A: DH_A, X: '00000000000001ff' }, T0 + 30)
+    expect(nove.observados).toEqual([])
+    expect(nove.indeterminadas).toBe(1)
+  })
   it('mesma imagem em hqdefault e maxresdefault -> 0 trocas (só a variante dominante conta)', () => {
     const r = miniaturas(['A', 'A', 'A', 'B', 'B'], DH, T0 + 30, (t, i) => (i >= 3 ? { ...t, variante: 'hqdefault' } : t))
     expect(r.observados).toEqual([])
@@ -161,5 +169,52 @@ describe('inferirObservado: miniatura', () => {
     })
     const out = inferirObservado({ ...base, leituras: ls, thumbsPorId: thumbs, agoraMs: agoraEm(30 + 8 * 6 + 1) })
     expect(out.map(o => [o.campo, o.ficouEstado])).toEqual([['titulo', 'em_andamento'], ['miniatura', 'estavel']])
+  })
+})
+
+describe('inferirObservado: a versão só vale se vista em >= 2 RODADAS distintas (Phil C1 = Yannis I2)', () => {
+  const tit = (itens: string[], agoraH = T0 + 80) => inferirObservado({ ...base, leituras: rodadas(T0, itens, (l) => porTitulo(l)), thumbsPorId: new Map(), agoraMs: agoraEm(agoraH) })
+  it('B nas 3 passadas de UMA rodada só (blip de espectador) -> nenhuma troca', () => {
+    expect(tit(['AAA', 'AAA', 'BBB', 'AAA', 'AAA', 'AAA'])).toEqual([])
+    expect(tit(['AAA', 'BBB', 'AAA'])).toEqual([])
+  })
+  it('passadas A,B,B | A,A,A | A,A,A -> nenhuma linha (B não passa de uma rodada)', () => {
+    expect(tit(['ABB', 'AAA', 'AAA'])).toEqual([])
+  })
+  it('A,A,A | A,A,A | B,B,B | B,B,B -> 1 troca sequencial (cada versão em 2 rodadas)', () => {
+    const out = tit(['AAA', 'AAA', 'BBB', 'BBB'])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ tipoTroca: 'sequencial', nVersoes: 2 })
+    expect(out[0]!.trocas.map(t => t.leituras)).toEqual([6, 6]) // `leituras` continua contando leituras
+  })
+  it('A,A,A | B,B,B | B,B,B: a versão inicial vista numa rodada só não qualifica (conservador) -> nenhuma linha', () => {
+    expect(tit(['AAA', 'BBB', 'BBB'])).toEqual([])
+  })
+  it('rodada mista (A,B,A) entre rodadas de A não forma versão', () => {
+    expect(tit(['AAA', 'ABA', 'AAA'])).toEqual([])
+  })
+  it('mesma regra na miniatura: B em uma rodada só -> nenhuma; em duas -> 1 troca', () => {
+    const mk = (itens: string[]) => {
+      const thumbs = new Map<number, ThumbObs>([[1, thumb(1, DH_A)], [2, thumb(2, DH_B)]])
+      const ls = rodadas(T0, itens, (l) => ({ tituloOficial: null, tituloFonte: null, miniaturaId: l === 'A' ? 1 : 2 }))
+      return inferirObservadoDetalhe({ ...base, leituras: ls, thumbsPorId: thumbs, agoraMs: agoraEm(T0 + 80) }).observados
+    }
+    expect(mk(['AAA', 'BBB', 'AAA', 'AAA'])).toEqual([])
+    expect(mk(['AAA', 'AAA', 'BBB', 'BBB'])).toHaveLength(1)
+  })
+})
+
+describe('inferirObservadoDetalhe: rodadas válidas por campo (Phil C2)', () => {
+  it('conta rodadas distintas com leitura válida, por campo', () => {
+    const ls = rodadas(T0, ['AAA', 'AAA', 'AAA', 'AAA'], (l) => porTitulo(l))
+    const r = inferirObservadoDetalhe({ ...base, leituras: ls, thumbsPorId: new Map(), agoraMs: agoraEm(T0 + 40) })
+    expect(r.validasTitulo).toBe(4)
+    expect(r.validasMiniatura).toBe(0) // título lido, nenhum dhash
+  })
+  it('todas as leituras com erro, bloqueadas ou antes da carência -> zero nos dois campos', () => {
+    const ls = rodadas(T0, ['AAA', 'AAA', 'AAA'], (l) => ({ ...porTitulo(l), erro: 'timeout' }))
+    expect(inferirObservadoDetalhe({ ...base, leituras: ls, thumbsPorId: new Map(), agoraMs: agoraEm(T0 + 40) })).toMatchObject({ validasTitulo: 0, validasMiniatura: 0 })
+    const cedo = rodadas(2, ['AAA', 'AAA'], (l) => porTitulo(l))
+    expect(inferirObservadoDetalhe({ ...base, leituras: cedo, thumbsPorId: new Map(), agoraMs: agoraEm(T0 + 40) })).toMatchObject({ validasTitulo: 0 })
   })
 })

@@ -12,11 +12,15 @@ export const ESTAVEL_SPAN_H = 12
 export const FRESCOR_H = 9
 export const TETO_CORRIDAS = 20
 export const TETO_BYTES_CORRIDA = 1000
-export const MIN_LEITURAS_CORRIDA = 2
+/** Uma versão só vale se vista em >= 2 RODADAS distintas (`rodada_id`): as 3 passadas de uma rodada são minutos, não persistência (Phil C1). */
+export const MIN_RODADAS_CORRIDA = 2
+/** Abaixo disto de rodadas válidas num campo, "sem troca vista" é "não medido" (Phil C2). */
+export const VALIDAS_MIN_MEDIDO = 2 * MIN_RODADAS_CORRIDA
 const H = 3_600_000
 
 export interface LeituraObs {
   id: number
+  rodadaId: string
   lidaEm: string
   http: number | null
   erro: string | null
@@ -60,9 +64,15 @@ export interface EntradaObs {
   alvoSaiu: boolean
   saiuPor?: string
 }
-export interface ResultadoObs { observados: Observado[]; indeterminadas: number }
+export interface ResultadoObs {
+  observados: Observado[]
+  indeterminadas: number
+  /** Rodadas distintas com leitura válida (depois da carência) que alimentaram cada campo. 0 = o campo nunca foi lido. */
+  validasTitulo: number
+  validasMiniatura: number
+}
 
-interface Ponto { tMs: number; iso: string; key: string; ref: string }
+interface Ponto { tMs: number; iso: string; key: string; ref: string; rodadaId: string }
 interface Corrida { key: string; ref: string; pontos: Ponto[] }
 
 const valida = (l: LeituraObs): boolean => l.http === 200 && l.erro === null && !l.jogadorBloqueado
@@ -98,6 +108,8 @@ function versoesDeMiniatura(dhashes: readonly string[]): Map<string, string> {
   return new Map(unicos.map(d => [d, raiz(d)]))
 }
 
+const rodadasDe = (pontos: readonly Ponto[]): number => new Set(pontos.map(p => p.rodadaId)).size
+
 function corridas(pontos: readonly Ponto[]): Corrida[] {
   const out: Corrida[] = []
   for (const p of pontos) {
@@ -122,12 +134,10 @@ function inferirCampo(campo: CampoObs, pontosTodos: readonly Ponto[], e: Entrada
   const pontos = [...pontosTodos].sort((a, b) => a.tMs - b.tMs)
   if (pontos.length < 2) return null
   const runs = corridas(pontos)
-  const ultima = runs.at(-1)!
-  // corrida de 1 leitura (blip) só vale se for a mais recente (fica `em_andamento`); as demais são descartadas
-  const ultimaPendente = ultima.pontos.length < MIN_LEITURAS_CORRIDA
+  // corrida vista em 1 rodada só (blip) é descartada, mesmo com 3 passadas; a mais recente nessa condição só pesa na estabilidade (abaixo)
   const qualificadas: Corrida[] = []
   for (const r of runs) {
-    if (r.pontos.length < MIN_LEITURAS_CORRIDA) continue // blip (ou a corrida recente de 1 leitura, tratada em `ultimaPendente`)
+    if (rodadasDe(r.pontos) < MIN_RODADAS_CORRIDA) continue
     const ant = qualificadas.at(-1)
     if (ant && ant.key === r.key) ant.pontos.push(...r.pontos) // as vizinhas iguais, separadas por um blip, se unem
     else qualificadas.push({ key: r.key, ref: r.ref, pontos: [...r.pontos] })
@@ -137,14 +147,13 @@ function inferirCampo(campo: CampoObs, pontosTodos: readonly Ponto[], e: Entrada
   const distintas = [...new Set(chaves)]
   const alternada = chaves.length > distintas.length
   const ficouRun = qualificadas.at(-1)!
-  const pendenteDiferente = ultimaPendente && ultima.key !== ficouRun.key
 
   const refMs = e.alvoSaiu ? pontos.at(-1)!.tMs : e.agoraMs
   const janela = pontos.filter(p => p.tMs >= refMs - ESTAVEL_JANELA_H * H)
   const todasIguais = janela.length > 0 && janela.every(p => p.key === ficouRun.key)
   const span = ficouRun.pontos.at(-1)!.tMs - ficouRun.pontos[0]!.tMs
   const fresca = e.alvoSaiu || e.agoraMs - pontos.at(-1)!.tMs < FRESCOR_H * H
-  const estavel = !pendenteDiferente && todasIguais && span > ESTAVEL_SPAN_H * H && fresca
+  const estavel = todasIguais && span > ESTAVEL_SPAN_H * H && fresca
   let ficouEstado: FicouEstado = estavel ? 'estavel' : 'em_andamento'
   let motivo: string | null = null
   if (!estavel && e.alvoSaiu) { ficouEstado = 'sem_desfecho'; motivo = (e.saiuPor ?? 'saiu').replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 40) || 'saiu' }
@@ -179,7 +188,7 @@ export function inferirObservadoDetalhe(e: EntradaObs): ResultadoObs {
   const grupo = maioria(comTitulo, l => `${l.tituloFonte}|${l.idioma ?? ''}`, l => Date.parse(l.lidaEm))
   const pontosTitulo: Ponto[] = comTitulo.filter(l => `${l.tituloFonte}|${l.idioma ?? ''}` === grupo).map(l => {
     const t = normalizarTitulo(l.tituloOficial!)
-    return { tMs: Date.parse(l.lidaEm), iso: new Date(l.lidaEm).toISOString(), key: t, ref: t }
+    return { tMs: Date.parse(l.lidaEm), iso: new Date(l.lidaEm).toISOString(), key: t, ref: t, rodadaId: l.rodadaId }
   })
   const titulo = inferirCampo('titulo', pontosTitulo, e)
   if (titulo) out.push(titulo)
@@ -194,7 +203,7 @@ export function inferirObservadoDetalhe(e: EntradaObs): ResultadoObs {
   const mapa = versoesDeMiniatura(daVariante.map(x => x.t.dhash!))
   const pontosMini: Ponto[] = daVariante.map(x => {
     const rep = mapa.get(x.t.dhash!)!
-    return { tMs: Date.parse(x.l.lidaEm), iso: new Date(x.l.lidaEm).toISOString(), key: rep, ref: rep }
+    return { tMs: Date.parse(x.l.lidaEm), iso: new Date(x.l.lidaEm).toISOString(), key: rep, ref: rep, rodadaId: x.l.rodadaId }
   })
   const ordenados = [...daVariante].sort((a, b) => Date.parse(a.l.lidaEm) - Date.parse(b.l.lidaEm))
   for (let i = 1; i < ordenados.length; i++) {
@@ -203,7 +212,7 @@ export function inferirObservadoDetalhe(e: EntradaObs): ResultadoObs {
   }
   const miniatura = inferirCampo('miniatura', pontosMini, e)
   if (miniatura) out.push(miniatura)
-  return { observados: out, indeterminadas }
+  return { observados: out, indeterminadas, validasTitulo: rodadasDe(pontosTitulo), validasMiniatura: rodadasDe(pontosMini) }
 }
 
 export function inferirObservado(e: EntradaObs): Observado[] {

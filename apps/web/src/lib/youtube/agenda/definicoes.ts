@@ -242,6 +242,8 @@ export const DEFINICAO_REGISTRO_TESTE_NATIVO: Definicao = {
     lista_falhou: 'não foi possível montar a lista de vídeos',
     gravacao_falhou: 'não foi possível gravar a avaliação',
     sem_video: 'há vídeo próprio acompanhado há mais de um dia que não está na tabela de vídeos',
+    observados_falhou: 'a leitura das trocas dos concorrentes falhou (o registro dos vídeos próprios terminou)',
+    observados_schema_ausente: 'as tabelas das trocas observadas dos concorrentes não existem: aplicar a migration',
   },
 }
 

@@ -5,7 +5,7 @@ import { schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { BANCO_MS } from '@/lib/youtube/agenda/relogio'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
 import { modoTrocasConcorrente } from './flag'
-import { inferirObservadoDetalhe, type LeituraObs, type ThumbObs } from './inferir'
+import { inferirObservadoDetalhe, VALIDAS_MIN_MEDIDO, type LeituraObs, type ThumbObs } from './inferir'
 import { chaveAlvo, MAX_OBSERVADOS_POR_DISPARO, MIN_SOBRA_MS, selecionarAlvos, type AlvoObs, type CursorObs } from './selecao'
 
 const PAGINA = 1000
@@ -19,21 +19,21 @@ export interface ResultadoPasso {
   /** false = flag off: nada foi lido nem escrito. */
   ativo: boolean
   detalhe: Record<string, number>
-  /** `observados_falhou` | `observados_schema_ausente`: o registrador vira `parcial`, nunca `erro`. */
+  /** `observados_falhou` | `observados_schema_ausente` (passo inteiro, nunca um alvo só): o registrador vira `parcial`, nunca `erro`. */
   motivo: 'observados_falhou' | 'observados_schema_ausente' | null
 }
 
-export interface OpcoesPasso { env?: NodeJS.ProcessEnv; fimDuroMs: number; maxAlvos?: number }
+export interface OpcoesPasso { env?: NodeJS.ProcessEnv; fimDuroMs: number; maxAlvos?: number; varreduraLote?: number }
 
 class SemTempo extends Error {}
 
 interface Contadores {
   obs_avaliados: number; obs_trocas: number; obs_falhou: number; obs_sem_tempo: number; obs_indeterminadas: number; obs_sem_publicacao: number
-  obs_devidos: number; obs_fechados: number; obs_ignorados: number; obs_podadas: number; obs_sem_sobra: number
+  obs_devidos: number; obs_fechados: number; obs_ignorados: number; obs_podadas: number; obs_sem_sobra: number; obs_sem_leitura_valida: number
 }
 const novoDetalhe = (): Contadores => ({
   obs_avaliados: 0, obs_trocas: 0, obs_falhou: 0, obs_sem_tempo: 0, obs_indeterminadas: 0, obs_sem_publicacao: 0,
-  obs_devidos: 0, obs_fechados: 0, obs_ignorados: 0, obs_podadas: 0, obs_sem_sobra: 0,
+  obs_devidos: 0, obs_fechados: 0, obs_ignorados: 0, obs_podadas: 0, obs_sem_sobra: 0, obs_sem_leitura_valida: 0,
 })
 
 /**
@@ -49,7 +49,8 @@ export async function rodarObservados(c: ContextoTarefa, o: OpcoesPasso): Promis
     const falha = await schemaTablesReady(c.sb, [['MG-T13', [['ab_native_observados', 'id'], ['ab_native_obs_cursor', 'site_id']]]], { signal: AbortSignal.timeout(BANCO_MS) })
     if (falha !== null) return { ativo: true, detalhe: { ...d }, motivo: falha.tipo === 'ausente' ? 'observados_schema_ausente' : 'observados_falhou' }
     await passo(c, o, d)
-    return { ativo: true, detalhe: { ...d }, motivo: d.obs_falhou > 0 ? 'observados_falhou' : null }
+    // falha de UM alvo (ou da varredura) fica no detalhe (`obs_falhou`) e no Sentry: reservar `parcial` ao passo inteiro (lista, schema, exceção)
+    return { ativo: true, detalhe: { ...d }, motivo: null }
   } catch (e) {
     if (e instanceof SemTempo) { d.obs_sem_tempo++; return { ativo: true, detalhe: { ...d }, motivo: null } }
     Sentry.captureMessage('observados: passo falhou: ' + (e instanceof Error ? e.name : typeof e), { level: 'warning', tags: { area: 'ab-observados' } })
@@ -90,8 +91,15 @@ async function passo(c: ContextoTarefa, o: OpcoesPasso, d: Contadores): Promise<
     const siteId = texto(a.site_id), ytId = texto(a.youtube_video_id), rodadas = inteiro(a.rodadas)
     return siteId && ytId && rodadas !== null ? [{ siteId, ytId, rodadas, ultimaRodadaEm: texto(a.ultima_rodada_em), saiuEm: texto(a.saiu_em), saiuPor: texto(a.saiu_por) }] : []
   })
-  const cursoresBrutos = await paginado(c, fim, sb => sb.from('ab_native_obs_cursor')
-    .select('site_id,youtube_video_id,avaliado_ate_rodada,avaliado_em', { count: 'exact' }).order('youtube_video_id', { ascending: true }))
+  // só os cursores dos alvos (lotes de 100 ids): O(alvos), não O(cursores de 365 d)
+  const cursoresBrutos: Linha[] = []
+  const idsAlvo = [...new Set(alvos.map(a => a.ytId))].sort()
+  for (let i = 0; i < idsAlvo.length; i += LOTE_VIDEOS) {
+    const lote = idsAlvo.slice(i, i + LOTE_VIDEOS)
+    cursoresBrutos.push(...await paginado(c, fim, sb => sb.from('ab_native_obs_cursor')
+      .select('site_id,youtube_video_id,avaliado_ate_rodada,avaliado_em,avaliado_motivo', { count: 'exact' }).in('youtube_video_id', lote)
+      .order('site_id', { ascending: true }).order('youtube_video_id', { ascending: true })))
+  }
   const cursores: CursorObs[] = cursoresBrutos.flatMap(k => {
     const siteId = texto(k.site_id), ytId = texto(k.youtube_video_id), ate = inteiro(k.avaliado_ate_rodada), em = texto(k.avaliado_em)
     return siteId && ytId && ate !== null && em ? [{ siteId, ytId, avaliadoAteRodada: ate, avaliadoEm: em }] : []
@@ -104,7 +112,7 @@ async function passo(c: ContextoTarefa, o: OpcoesPasso, d: Contadores): Promise<
 
   // 3) varredura: linha em_andamento cujo alvo saiu ou já foi podado fecha como sem_desfecho
   try {
-    await varrer(c, fim, alvos, d)
+    await varrer(c, fim, alvos, d, o.varreduraLote ?? VARREDURA_LOTE)
   } catch (e) {
     if (e instanceof SemTempo) throw e
     d.obs_falhou++ // a varredura falhar não impede a avaliação
@@ -130,7 +138,7 @@ async function passo(c: ContextoTarefa, o: OpcoesPasso, d: Contadores): Promise<
   // 5) poda (365 d), com o tempo que sobrar
   if (c.agora() + MIN_SOBRA_MS <= fim) {
     try {
-      const r = await c.sb.rpc('ab_native_obs_poda', { p_agora: new Date(c.agora()).toISOString(), p_lote: PODA_LOTE }).abortSignal(AbortSignal.timeout(BANCO_MS))
+      const r = await c.sb.rpc('obs_native_poda', { p_agora: new Date(c.agora()).toISOString(), p_lote: PODA_LOTE }).abortSignal(AbortSignal.timeout(BANCO_MS))
       if (!r.error && typeof r.data === 'number') d.obs_podadas = r.data
     } catch { /* a poda é manutenção: falhar não reprova o passo */ }
   }
@@ -165,9 +173,10 @@ async function publicacoes(c: ContextoTarefa, fim: number, alvos: readonly AlvoO
   return out
 }
 
-async function varrer(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[], d: Contadores): Promise<void> {
+async function varrer(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[], d: Contadores, lote: number): Promise<void> {
   ida(c, fim)
-  const r = await c.sb.from('ab_native_observados').select('id,site_id,youtube_video_id').eq('ficou_estado', 'em_andamento').order('id', { ascending: true }).limit(VARREDURA_LOTE).abortSignal(AbortSignal.timeout(BANCO_MS))
+  const r = await c.sb.from('ab_native_observados').select('id,site_id,youtube_video_id').eq('ficou_estado', 'em_andamento')
+    .order('ultima_atualizacao_em', { ascending: true }).order('id', { ascending: true }).limit(lote) // a linha de alvo vivo é regravada a cada avaliação e vai para o fim; a de alvo que saiu fica parada e vem primeiro.abortSignal(AbortSignal.timeout(BANCO_MS))
   if (r.error || !Array.isArray(r.data)) throw new Error('varredura')
   const porChave = new Map(alvos.map(a => [chaveAlvo(a.siteId, a.ytId), a]))
   for (const l of r.data as Linha[]) {
@@ -184,10 +193,10 @@ async function varrer(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[],
 
 async function avaliar(c: ContextoTarefa, fim: number, a: AlvoObs, publicadoEm: string | null, d: Contadores): Promise<void> {
   const agora = (): string => new Date(c.agora()).toISOString()
-  const gravarCursor = async (motivo: 'ok' | 'sem_publicacao'): Promise<void> => {
+  const gravarCursor = async (motivo: 'ok' | 'sem_publicacao', validas: { titulo: number; miniatura: number } = { titulo: 0, miniatura: 0 }): Promise<void> => {
     ida(c, fim)
     const r = await c.sb.from('ab_native_obs_cursor').upsert(
-      { site_id: a.siteId, youtube_video_id: a.ytId, avaliado_ate_rodada: a.rodadas, avaliado_em: agora(), avaliado_motivo: motivo },
+      { site_id: a.siteId, youtube_video_id: a.ytId, avaliado_ate_rodada: a.rodadas, avaliado_em: agora(), avaliado_motivo: motivo, validas_titulo: validas.titulo, validas_miniatura: validas.miniatura },
       { onConflict: 'site_id,youtube_video_id' },
     ).abortSignal(AbortSignal.timeout(BANCO_MS))
     if (r.error) throw new Error('cursor')
@@ -196,12 +205,12 @@ async function avaliar(c: ContextoTarefa, fim: number, a: AlvoObs, publicadoEm: 
 
   // `a.rodadas` foi lida ANTES das leituras (Phil N8): uma rodada inserida no meio fica para o próximo disparo
   const lidas = await paginado(c, fim, sb => sb.from('yt_watch_readings')
-    .select('id,lida_em,http,erro,jogador_bloqueado,idioma,titulo_oficial,titulo_oficial_fonte,miniatura_id', { count: 'exact' })
+    .select('id,rodada_id,lida_em,http,erro,jogador_bloqueado,idioma,titulo_oficial,titulo_oficial_fonte,miniatura_id', { count: 'exact' })
     .eq('site_id', a.siteId).eq('youtube_video_id', a.ytId).order('lida_em', { ascending: true }).order('id', { ascending: true }))
   const leituras: LeituraObs[] = lidas.flatMap(l => {
-    const id = inteiro(l.id), lidaEm = texto(l.lida_em)
-    return id !== null && lidaEm ? [{
-      id, lidaEm, http: inteiro(l.http), erro: texto(l.erro), jogadorBloqueado: l.jogador_bloqueado === true, idioma: texto(l.idioma),
+    const id = inteiro(l.id), lidaEm = texto(l.lida_em), rodadaId = texto(l.rodada_id)
+    return id !== null && lidaEm && rodadaId ? [{
+      id, rodadaId, lidaEm, http: inteiro(l.http), erro: texto(l.erro), jogadorBloqueado: l.jogador_bloqueado === true, idioma: texto(l.idioma),
       tituloOficial: texto(l.titulo_oficial), tituloFonte: texto(l.titulo_oficial_fonte), miniaturaId: inteiro(l.miniatura_id),
     }] : []
   })
@@ -230,6 +239,7 @@ async function avaliar(c: ContextoTarefa, fim: number, a: AlvoObs, publicadoEm: 
     if (w.error) throw new Error('observados')
     d.obs_trocas += r.observados.length
   }
-  await gravarCursor('ok')
+  await gravarCursor('ok', { titulo: r.validasTitulo, miniatura: r.validasMiniatura })
+  if (r.validasTitulo < VALIDAS_MIN_MEDIDO || r.validasMiniatura < VALIDAS_MIN_MEDIDO) d.obs_sem_leitura_valida++ // "não medido" em algum campo: a F2 não mostra "sem troca vista"
   d.obs_avaliados++
 }

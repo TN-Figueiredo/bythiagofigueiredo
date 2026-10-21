@@ -15,7 +15,7 @@ export const DH_D = '0f0f0f0f0f0f0f0f'
 let seq = 0
 export function leitura(h: number, o: Partial<LeituraObs> = {}): LeituraObs {
   return {
-    id: ++seq, lidaEm: aposPub(h), http: 200, erro: null, jogadorBloqueado: false, idioma: 'pt',
+    id: ++seq, rodadaId: `r${seq}`, lidaEm: aposPub(h), http: 200, erro: null, jogadorBloqueado: false, idioma: 'pt',
     tituloOficial: 'Titulo A', tituloFonte: 'videoDetails', miniaturaId: null, ...o,
   }
 }
@@ -25,4 +25,12 @@ export function thumb(id: number, dhash: string | null, o: Partial<ThumbObs> = {
 /** Sequência de leituras a cada 6 h a partir de `h0`, com o rótulo dado por posição. */
 export function sequencia(h0: number, rotulos: readonly string[], f: (r: string, h: number) => Partial<LeituraObs>): LeituraObs[] {
   return rotulos.map((r, i) => leitura(h0 + i * 6, f(r, h0 + i * 6)))
+}
+
+/**
+ * Rodadas de 3 passadas (5 min entre elas) a cada 6 h a partir de `h0`: cada item é uma rodada, uma letra por passada ('AAB' = A, A, B).
+ * Cada rodada tem o seu `rodada_id`. `f` traduz a letra em campos da leitura.
+ */
+export function rodadas(h0: number, itens: readonly string[], f: (letra: string) => Partial<LeituraObs>): LeituraObs[] {
+  return itens.flatMap((passadas, r) => [...passadas].map((letra, k) => leitura(h0 + r * 6 + k * (5 / 60), { rodadaId: `rod${h0}-${r}`, ...f(letra) })))
 }

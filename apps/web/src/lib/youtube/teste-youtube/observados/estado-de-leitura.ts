@@ -1,4 +1,4 @@
-import type { CampoObs } from './inferir'
+import { VALIDAS_MIN_MEDIDO, type CampoObs } from './inferir'
 
 /** Os três estados por campo que a F2 lê (§5.8, "Quando o dado não existe"). A ausência de linha nunca vira "0 versões" nem "não testou". */
 export type EstadoDeLeitura = 'com_troca' | 'sem_troca_vista' | 'nao_medido'
@@ -6,7 +6,8 @@ export type EstadoDeLeitura = 'com_troca' | 'sem_troca_vista' | 'nao_medido'
 export const RODADAS_MIN_MEDIDO = 8
 
 export interface AlvoLido { rodadas: number; ultimaRodadaEm: string | null }
-export interface CursorLido { avaliadoAteRodada: number; avaliadoEm: string; motivo: string }
+/** `validas*`: rodadas distintas com leitura válida do campo na última avaliação (0 = o campo nunca foi lido). */
+export interface CursorLido { avaliadoAteRodada: number; avaliadoEm: string; motivo: string; validasTitulo: number; validasMiniatura: number }
 export interface EntradaEstado {
   /** `OBS_TROCAS_CONCORRENTE` ligada. Desligada, nada é lido como "sem troca vista" (cursor antigo de quando esteve ligada não vale). */
   flagLigada: boolean
@@ -26,6 +27,8 @@ export function estadoDeLeitura(e: EntradaEstado, campo: CampoObs): EstadoDeLeit
   if (!alvo || alvo.rodadas < RODADAS_MIN_MEDIDO || alvo.ultimaRodadaEm === null) return 'nao_medido'
   if (e.agoraMs - Date.parse(alvo.ultimaRodadaEm) > e.frescorMs) return 'nao_medido'
   if (!cursor || cursor.motivo !== 'ok') return 'nao_medido'
+  // falha em verde: cursor `ok` com a sonda cega (bloqueio, erro) NÃO é "sem troca vista"; o campo precisa ter sido lido em rodadas suficientes
+  if ((campo === 'titulo' ? cursor.validasTitulo : cursor.validasMiniatura) < VALIDAS_MIN_MEDIDO) return 'nao_medido'
   const emDia = cursor.avaliadoAteRodada >= alvo.rodadas - 1 || e.agoraMs - Date.parse(cursor.avaliadoEm) <= e.frescorMs
   return emDia ? 'sem_troca_vista' : 'nao_medido'
 }

@@ -92,9 +92,16 @@ const LISTA: Par[] = [
   { funcao: 'yt_watch_poda', tabela: 'yt_watch_alvos', linha: 'S4 §9 (poda dos alvos saídos)', disparo: 'agenda' },
   { funcao: 'yt_watch_poda', tabela: 'yt_watch_readings', linha: 'S4 §9 (leituras dos alvos saídos)', disparo: 'agenda' },
   { funcao: 'yt_watch_poda', tabela: 'yt_watch_thumbs', linha: 'S4 §9 (miniaturas órfãs)', disparo: 'agenda' },
-  // T13 (F1a-dado): trocas observadas nos concorrentes. A remoção do canal apaga as duas depois de exportadas e conferidas. A poda de 365 d (`ab_native_obs_poda`, prefixo `ab_`) fica fora desta varredura, que só olha `competitor_|yt_|youtube_channel_|obs_`.
+  // T13 (F1a-dado): trocas observadas nos concorrentes. A remoção do canal apaga as duas depois de exportadas e conferidas.
   { funcao: 'competitor_channel_remove_archived', tabela: 'ab_native_observados', linha: 'T13: trocas observadas do canal removido, depois de exportadas e conferidas', disparo: 'dono' },
   { funcao: 'competitor_channel_remove_archived', tabela: 'ab_native_obs_cursor', linha: 'T13: cursor do canal removido, depois de exportado e conferido', disparo: 'dono' },
+  { funcao: 'competitor_channel_delete_unarchived', tabela: 'ab_native_observados', linha: 'T13: o dono apagou sem guardar um canal com até 30 dias; as trocas observadas dele saem junto', disparo: 'dono' },
+  { funcao: 'competitor_channel_delete_unarchived', tabela: 'ab_native_obs_cursor', linha: 'T13: idem, o cursor', disparo: 'dono' },
+  { funcao: 'obs_unarchived_watch_sweep', tabela: 'ab_native_observados', linha: 'T13: varre a troca observada que um disparo em voo gravou depois de apagar sem guardar', disparo: 'cron' },
+  { funcao: 'obs_unarchived_watch_sweep', tabela: 'ab_native_obs_cursor', linha: 'T13: varre o cursor que um disparo em voo gravou depois de apagar sem guardar', disparo: 'cron' },
+  // a poda por idade é SÓ do cursor (365 d, estado de execução); a troca observada não envelhece (decisão do controlador: coletar mais dado do que usa) e só sai quando o vídeo some (órfã)
+  { funcao: 'obs_native_poda', tabela: 'ab_native_obs_cursor', linha: 'T13: cursor, estado de execução: 365 d após avaliado_em, e as linhas órfãs (vídeo sem alvo e sem competitor_videos no site)', disparo: 'agenda' },
+  { funcao: 'obs_native_poda', tabela: 'ab_native_observados', linha: 'T13: SÓ as linhas órfãs (canal apagado sem guardar); nunca por idade, a troca observada é guardada para sempre', disparo: 'agenda' },
 ]
 
 /** Item 78: nenhuma série, versão, texto de comentário ou bruto sai por cron nem por idade. */
