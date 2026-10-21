@@ -17,6 +17,8 @@ import { Client } from 'pg'
 import { garantirX3 } from '../helpers/x3'
 import { TABELAS_COM_IDENTIDADE } from '@/lib/youtube/observatorio/arquivo/cli'
 import { randomUUID } from 'node:crypto'
+import { readFileSync, readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import {
   MG6_FIXTURE, emTransacao, tenta, codigoE10, q1, escalar, semearCena, criarSite, criarUsuario, criarCanal, criarVideo,
@@ -710,6 +712,11 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 Tarefa 1: a MG6, função por funçã
   it('a lista fixa de tabelas com identidade do comando de recarga bate com o catálogo', async () => {
     await dentro(async () => {
       await garantirX3(pg) // A5 X3: as duas tabelas novas com identidade só existem com a X3 (aplicada só dentro da transação)
+      // T13: `ab_native_observados` (identidade) entra no registro pela migration `..._registro`, aplicada aqui por cima da F1 reaplicada
+      for (const suf of ['_ab_native_observados.sql', '_ab_native_observados_registro.sql']) {
+        const dir = fileURLToPath(new URL('../../../../supabase/migrations/', import.meta.url))
+        await pg.query(readFileSync(dir + readdirSync(dir).filter(f => f.endsWith(suf))[0], 'utf8'))
+      }
       expect(await tabelasComIdentidade(pg)).toEqual([...TABELAS_COM_IDENTIDADE].sort())
     })
   })
