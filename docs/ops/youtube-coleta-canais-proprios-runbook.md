@@ -5,7 +5,7 @@ Ledgers: `.superpowers/sdd/2026-10-07-coleta-l1a-plan/progress.md`, `.superpower
 
 Em produção desde: a data da promoção entra no ledger, não aqui. O L2 depende da migration `20261009000001`; se ela ainda não foi aplicada, o cron fica vermelho com `schema_ausente` (seção 6) até o dono rodar `npm run db:push:prod`.
 
-Tudo roda dentro do cron `sync-analytics-metrics`, uma vez por dia às 12:00 UTC (09:00 em São Paulo). Não há cron novo nem variável de ambiente nova.
+Tudo roda dentro do cron `sync-analytics-metrics`, às 12:00 UTC (09:00 em São Paulo, execução completa) e, desde a F0 das sugestões, também às 00:07 UTC (execução parcial: jobs, relatórios, alcance e normalizadores; seção 19). Não há cron novo nem variável de ambiente nova.
 
 **Este sistema falha em verde.** Um passo sem dado termina sem erro. Ao investigar, olhe primeiro se a linha existe, depois se houve erro.
 
@@ -54,7 +54,7 @@ Ainda **não** existe: a retenção (lote L3).
 - Tetos: metadados 30 s, jobs 20 s, **relatórios 120 s**, alcance 20 s, diário 50 s. Cada chamada ao Google tem no máximo 15 s; até 4 em paralelo.
 - A soma dos tetos é 240 s; com 30 s de reserva para a parte antiga (medida: 20 a 24 s) fecha os 270 s. `clock.test.ts` trava essa conta: mexer num teto quebra o teste até a conta ser refeita.
 - Ordem: metadados, jobs (fase "antes"), a parte antiga (analytics por janela), **contagem de abertura dos brutos**, relatórios, **conferência da guarda do bruto**, **alcance**, critérios de relatórios, **diário**, critérios do L2 e demais critérios (fase "depois"). A guarda (MG13, E20) tem prazo próprio, fora dos tetos dos passos: a contagem de abertura corta em 3 s e a conferência do fim em 8 s; no caso normal o tempo dela sai da folga do alcance e do diário, e só soma ao total se o relógio já estiver no fim (pior caso: 270 s + 3 s + 8 s antes da cauda dos critérios; o tempo real fica em `ms_passos.guarda`, abertura mais fim: conferir depois do envio). O alcance roda antes dos critérios de relatórios de propósito: um cabeçalho inesperado achado hoje já deixa o cron vermelho hoje.
-- No máximo **100 downloads de relatório por execução**, um por vez. Medida de produção (09 a 12/10/2026): até 0,90 s por download; 100 downloads mais a listagem de 26 jobs cabem nos 120 s (`reports-step.test.ts` trava a conta). Bater nesse teto é normal e **não é falha** enquanto a fila estiver caindo: `coleta.relatorios.pendentes` diz quantos ficaram e `coleta.relatorios.vence_primeiro_em_dias` diz em quantos dias vence o primeiro deles (`null` = nada ficou para trás). `ms_listar` e `ms_baixar` dão o tempo de cada parte. A fila dos 9 tipos novos (cerca de 558 relatórios de histórico) esvazia em cerca de 9 execuções.
+- No máximo **100 downloads de relatório por execução**, um por vez. Medida de produção (09 a 12/10/2026): até 0,90 s por download; 100 downloads mais a listagem de 38 jobs (19 tipos x 2 canais) cabem nos 120 s (`reports-step.test.ts` trava a conta). Bater nesse teto é normal e **não é falha** enquanto a fila estiver caindo: `coleta.relatorios.pendentes` diz quantos ficaram e `coleta.relatorios.vence_primeiro_em_dias` diz em quantos dias vence o primeiro deles (`null` = nada ficou para trás). `ms_listar` e `ms_baixar` dão o tempo de cada parte. A fila dos 9 tipos novos (cerca de 558 relatórios de histórico) esvazia em cerca de 9 execuções.
 - **Ordem da fila** (`coleta/fila-relatorios.ts`): primeiro o que vence na origem em até 7 dias, de qualquer tipo; depois os de alcance; depois o resto, pelo vencimento. O arquivo vence 60 dias depois de gerado, ou 30 se for de histórico (`is_backfill`).
 - Só o **relógio** produz `nao_alcancado_orcamento`. O teto de 100 não. Três execuções seguidas sem alcançar um canal viram a nota `orçamento: N escopo(s) de relatorio sem alcançar nas 3 últimas tentativas`; aí a conta do teto de downloads precisa ser refeita (o teste obriga).
 - No máximo **200 relatórios normalizados por execução** (passo `alcance`, do mais velho para o mais novo). O que passa disso fica para o dia seguinte e aparece em `coleta.alcance.pendentes`.
@@ -105,7 +105,7 @@ Rodar à mão é seguro: os passos são idempotentes no dia (a segunda execuçã
 A resposta não precisa mais ser guardada à mão: cada execução que chega ao veredito grava uma linha em `yt_own_collection_runs`.
 
 ```bash
-npx supabase db query --linked "select ran_at, ms_total, ms_existente, ms_passos, falhas, acao_do_dono from yt_own_collection_runs order by ran_at desc limit 5"
+npx supabase db query --linked "select ran_at, escopo, ms_total, ms_existente, ms_passos, falhas, acao_do_dono from yt_own_collection_runs order by ran_at desc limit 5"
 ```
 
 Para o resumo inteiro de uma execução, troque as colunas por `resumo`. As linhas de mais de 90 dias são apagadas pelo próprio cron.
@@ -1016,8 +1016,9 @@ e, **junto**, ponha `normalized_at = null` nos OUTROS relatórios do mesmo canal
 ### Entrada parcial do cron
 - `vercel.json` tem uma segunda entrada: `/api/cron/sync-analytics-metrics?passos=jobs,relatorios,alcance,normalizadores`, às `7 0 * * *`. Roda só esses quatro passos (nada de `parteAntiga`, `metadados`, `versoes`, `diario`, `dimensoes`, `retencao`) para baixar mais relatórios por dia.
 - Veredito próprio: `cron_health` com nome `sync-analytics-metrics-parcial` (nunca `sync-analytics-metrics`); a linha de `yt_own_collection_runs` leva `escopo = 'parcial'`. Na parcial não rodam `voltarAOk`, as conferências vencidas nem `semVideosCadastrados`.
-- Fica **vermelha** quando baixa 0 relatórios com a fila não vazia. `passos` inválido, vazio, em outra caixa ou repetido: HTTP 400, e `recordCronFailure('sync-analytics-metrics-parcial', 'passos inválidos: ...')` deixa o vigia vermelho.
-- **Desligar:** tirar a linha do `vercel.json` e fazer deploy. Não há variável de ambiente. Regra de saída: se `baixados` da parcial < 30 no D+2, a linha sai e a capacidade volta a 59/dia.
+- Fica **vermelha** quando grava 0 relatórios (`gravados`; relatório vazio conta) com a fila não vazia, inclusive na saída sem tempo. `passos` inválido, vazio, em outra caixa ou repetido: HTTP 400, e `recordCronFailure('sync-analytics-metrics-parcial', 'passos inválidos: ...')` deixa o vigia vermelho.
+- **Desligar:** tirar a linha do `vercel.json` e fazer deploy. Não há variável de ambiente. Regra de saída: se `gravados` da parcial (baixados + vazios) < 30 no D+2, a linha sai e a capacidade volta a 59/dia.
+- Desde a parcial há duas linhas por dia em `yt_own_collection_runs` (00:07 e 12:00 UTC); contas "por execução" e a retenção de 90 dias contam 2/dia.
 - **Consulta manual de "última execução" de `yt_own_collection_runs` leva `escopo = 'completo'`** (a conferência de versões lê `resumo.versoes` da execução das 12:00; a parcial não tem esse campo). A coluna `escopo` é `'completo'` por padrão.
 
 ### Critério do invariante
@@ -1031,4 +1032,4 @@ Motivo em `yt_own_collection_attempts.outcome`: o canal não tem vídeo cadastra
 Termos de pesquisa (F0-e), sem job novo. Vazia **não é defeito** antes da F0-a: só enche depois que os relatórios de pesquisa entram na coleta.
 
 ### Playlists (C6) e conferência D+10
-Os 6 tipos `playlist_*_a2` estão em `REPORT_TYPES_ENABLED` (só bruto, sem normalizador). Conferência em D+10: zero `expirado_sem_baixar` em `report_type_id like 'playlist%'` e zero `listado` com idade > 7 dias. Tipo que o YouTube nunca gera para o canal cai em `acao_do_dono` ("nunca gerou relatório"), não em vermelho.
+Os 6 tipos `playlist_*_a2` estão em `REPORT_TYPES_ENABLED` (só bruto, sem normalizador). Conferência do `listado` em D+1/D+2: o total cai pelo menos `gravados do dia − 38` e `downloaded_at` do dia (completo + parcial) ≥ 100 em D+2 (não recortar "anterior a P": as playlists novas vencem antes dos correntes antigos). `ms_listar` das duas execuções ≤ 20.000. Conferência em D+10: zero `expirado_sem_baixar` em `report_type_id like 'playlist%'` e zero `listado` com idade > 7 dias. Tipo que o YouTube nunca gera para o canal cai em `acao_do_dono` ("nunca gerou relatório"), não em vermelho.

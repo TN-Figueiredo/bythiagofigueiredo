@@ -64,9 +64,9 @@ aqui: `review-r4-e-plano-f0-phil.md` e `review-r4-e-plano-f0-yannis.md` (esta ro
   reservado), CI verde, depois `db:push:prod` pelo dono; **push B** = Tarefas 3 a 9 (com C6). O arquivo só chega a `origin/staging` pelo push A,
   por isso não há "um só" push. O ledger da Tarefa 2 registra o hash do push A e o resultado de `select version from supabase_migrations.schema_migrations order by 1 desc limit 3`.
   Se o orçamento de builds (3 pushes/dia/terminal) não couber, o push A vai no dia anterior, junto de qualquer push que a A5 já faça em `staging`.
-- **Capacidade de download (Phil N1, r3):** **capacidade/dia = baixados do completo + baixados do parcial** (`downloaded_at` por dia, soma das duas
+- **Capacidade de download (Phil N1, r3):** **capacidade/dia = relatórios gravados (`downloaded_at`) do completo + do parcial** (`downloaded_at` por dia, soma das duas
   execuções), **média de D+1 a D+3**. "Parcial" aqui é a segunda entrada do cron; o completo sozinho rende ≈ 59/dia. Toda regra que diz "capacidade" usa este número.
-- **Regra de saída da parcial (Phil N1, r3):** se `baixados` da parcial < 30 no D+2, a entrada sai do `vercel.json` (§7 "Desfazer"), anota-se capacidade = 59
+- **Regra de saída da parcial (Phil N1, r3):** se `gravados` da parcial (baixados + vazios; `resumo->'relatorios'->>'gravados'` da linha `escopo = 'parcial'`) < 30 no D+2, a entrada sai do `vercel.json` (§7 "Desfazer"), anota-se capacidade = 59
   no ledger e o **portão do canal novo fica fechado** até haver plano de capacidade (sem isso a parcial fica vermelha todo dia com a fila > 0: alarme eterno).
 - **Nenhuma chamada nova à Analytics nem à Data API** na F0. O modo parcial **não** chama `parteAntiga`, `metadados`,
   `versoes`, `diario`, `dimensoes` nem `retencao`.
@@ -386,7 +386,7 @@ Produces o nome `sync-analytics-metrics-parcial` em `cron_health`; a rota usa `s
   - `passos=desconhecido` (autorizado) → 400, zero leitura de tabela de coleta e `recordCronFailure('sync-analytics-metrics-parcial', 'passos inválidos: …')` com a lista truncada em 80 (P-I1). Sem `Authorization` continua 401 antes de tudo, sem gravar nada. `?passos=jobs&passos=diario` (repetido) → 400.
   - configuração: para toda entrada do `vercel.json` real cujo `path` tenha `passos`, `parsePassos(new URL(path, 'http://x').searchParams.get('passos')).ok === true`.
   - `groupCronSchedules`: tirando a linha da parcial do `vercel.json`, a chave `sync-analytics-metrics-parcial` some e o vigia para de avaliá-la (é o "desfazer" da §5).
-  - (Phil P2b) parcial com o passo de relatórios devolvendo `baixados = 0` e `parou_por_limite = true` com fila `listado` > 0: grava em `falhas` "relatórios: a parcial não baixou nada com N na fila" e `recordCronFailure('sync-analytics-metrics-parcial')`; com fila vazia, verde.
+  - (Phil P2b) parcial com o passo de relatórios devolvendo `gravados = 0` (ou sem a chave, como na saída sem tempo) e `pendentes` > 0, com fila `listado` > 0: grava em `falhas` "relatórios: a parcial não gravou nenhum relatório com N pendente(s)" e `recordCronFailure('sync-analytics-metrics-parcial')`; com fila vazia, verde.
   - `passos=jobs,relatorios,alcance,normalizadores` → `parteAntiga` e o cliente da Analytics não são chamados; `coletar`
     recebe `passos`; insert em `yt_own_collection_runs` com `escopo: 'parcial'` e `resumo.passos` = lista; `recordCronSuccess('sync-analytics-metrics-parcial')`.
   - falha na parcial → `recordCronFailure('sync-analytics-metrics-parcial', …)`; nunca o nome do completo.
@@ -459,14 +459,14 @@ que a entrada parcial **não** tem variável; desligar = tirar a linha do `verce
 
 | Quando | O quê | Esperado |
 |---|---|---|
-| D+1 e D+2 da promoção | `cron_health` tem `sync-analytics-metrics-parcial` com `last_success_at` depois das 00:07 UTC; linha `escopo='parcial'` sem nota de Analytics; `resumo->'relatorios'->>'baixados'` da parcial; `downloaded_at` por dia (completo + parcial); `listado` com `create_time` **anterior a P** (exclui o histórico das playlists) | parcial `baixados` ≥ 30; total por dia ≥ 100 em D+2 (2 execuções); `listado` anterior a P cai ≥ 80/dia; senão o **ramo de saída** (Global Constraints) é executado e registrado |
+| D+1 e D+2 da promoção | `cron_health` tem `sync-analytics-metrics-parcial` com `last_success_at` depois das 00:07 UTC; linha `escopo='parcial'` sem nota de Analytics; `resumo->'relatorios'->>'gravados'` da parcial e `ms_listar` das duas execuções; `downloaded_at` por dia (completo + parcial); `count(*) where status='listado'` (total, anotado no ledger em D0, D+1 e D+2) | parcial `gravados` ≥ 30; total por dia ≥ 100 em D+2 (2 execuções); `listado` **total** cai pelo menos `gravados do dia − 38` (38 = relatórios novos/dia, 19 tipos × 2 canais; sem recorte "anterior a P": a fila por vencimento põe as playlists novas na frente dos correntes antigos); `ms_listar` ≤ 20.000 (senão refazer `MS_LISTAGEM`/`MAX_DOWNLOADS`); senão o **ramo de saída** (Global Constraints) é executado e registrado |
 | D+3, por canal conectado | faixa 1 (alcance e `traffic_source`) com `create_time`/`end_time` recentes (>= now() − 4 d); tentativa de `meta` e `diario` no dia; relatório **listado** (qualquer status) por tipo e canal com `create_time >= now() − 4 d` (prova que o job está vivo; Yannis P-M5) | 1 por canal; `ok`, `sem_dado_na_janela` ou `sem_videos` |
 | Data prevista (escrita no ledger no D+2) | `listado` com `create_time < now() − 7 d` = 0, e os tipos restantes com relatório `baixado`/`vazio` e `create_time >= now() − 4 d` por canal | 0; todos |
 | D+10 (limite duro do histórico das playlists) | `expirado_sem_baixar` em `playlist%` | 0 |
 
    **Data prevista (Phil N2):** uma só, calculada no D+2 como `P + backlog ÷ (capacidade medida − 38)` (38 = relatórios novos por dia); com parcial rendendo ~118/dia cai em P+7 a P+8, com só 59/dia em ~P+27 (sem perda: o corrente vale 60 dias), caso em que vale o ramo de saída. Não há mais "D+7" nem "31/10" fixos.
 
-   **Teste de vermelho (Phil P2b):** parcial sem download com fila não vazia fecha vermelha; o plano não aceita "parcial verde com 0 baixados".
+   **Teste de vermelho (Phil P2b):** parcial sem gravar nenhum relatório (`gravados` 0 ou ausente) com fila não vazia fecha vermelha; só vazios (`baixados` 0, `gravados` > 0) fecha verde; o plano não aceita "parcial verde sem gravar nada".
 
 ## 5. Riscos
 
@@ -478,7 +478,7 @@ que a entrada parcial **não** tem variável; desligar = tirar a linha do `verce
 | CHECK de `outcome` com outro nome em produção | o `do $$` da migration recusa e nada muda (Tarefa 1 já avisa antes) |
 | Dono desliga a coleta de um canal e vê vermelho | é o invariante pedido (D3); o texto diz a saída; desconectar resolve |
 | Leitor futuro de `yt_own_collection_runs` esquece `escopo` | comentário na coluna e no runbook; a Tarefa 7 testa o único leitor que conta execuções |
-| Parcial leva 429 e não baixa nada | vermelho com fila não vazia (T7) e conferência D+1/D+2 de `baixados` ≥ 30 |
+| Parcial leva 429 e não baixa nada | vermelho com fila não vazia (T7) e conferência D+1/D+2 de `gravados` ≥ 30 |
 | Erro de digitação em `passos` no `vercel.json` | falha gravada sob o nome parcial e teste do `vercel.json` real (P-I1) |
 | Migration da F0 e da A5 com o mesmo número | fixture primeiro, `db:new` só depois da A5 em `origin/staging`, número reservado, `uniq -d` (P-B1) |
 | Tipos `playlist_*` nunca gerados para o canal | o critério existente manda para `acao_do_dono`, não vermelho (`criteria.ts`, bloco `paradosBruto`, marca nula) |
