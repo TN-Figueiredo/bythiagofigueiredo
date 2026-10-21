@@ -1010,3 +1010,25 @@ e, **junto**, ponha `normalized_at = null` nos OUTROS relatórios do mesmo canal
 | `recusado_pelo_banco` | o banco recusou a gravação | ler o erro no log do cron; geralmente migration faltando (MG7) ou restrição violada |
 
 **Volta.** Acrescentar `dimensoes,normalizadores` ao valor ATUAL de `YT_OWN_STEPS_OFF` (ex.: `versoes,dimensoes,normalizadores` enquanto a E18 estiver desligada), nunca substituir a lista, e redeploy de produção (ou reverter o commit). As tabelas ficam. Refazer a normalização: `normalized_at = null` nos relatórios dos dois tipos.
+
+## 19. Entrada parcial, invariante de conexão e `sem_videos` (sugestões F0)
+
+### Entrada parcial do cron
+- `vercel.json` tem uma segunda entrada: `/api/cron/sync-analytics-metrics?passos=jobs,relatorios,alcance,normalizadores`, às `7 0 * * *`. Roda só esses quatro passos (nada de `parteAntiga`, `metadados`, `versoes`, `diario`, `dimensoes`, `retencao`) para baixar mais relatórios por dia.
+- Veredito próprio: `cron_health` com nome `sync-analytics-metrics-parcial` (nunca `sync-analytics-metrics`); a linha de `yt_own_collection_runs` leva `escopo = 'parcial'`. Na parcial não rodam `voltarAOk`, as conferências vencidas nem `semVideosCadastrados`.
+- Fica **vermelha** quando baixa 0 relatórios com a fila não vazia. `passos` inválido, vazio, em outra caixa ou repetido: HTTP 400, e `recordCronFailure('sync-analytics-metrics-parcial', 'passos inválidos: ...')` deixa o vigia vermelho.
+- **Desligar:** tirar a linha do `vercel.json` e fazer deploy. Não há variável de ambiente. Regra de saída: se `baixados` da parcial < 30 no D+2, a linha sai e a capacidade volta a 59/dia.
+- **Consulta manual de "última execução" de `yt_own_collection_runs` leva `escopo = 'completo'`** (a conferência de versões lê `resumo.versoes` da execução das 12:00; a parcial não tem esse campo). A coluna `escopo` é `'completo'` por padrão.
+
+### Critério do invariante
+Canal próprio **conectado** (`social_connections` com `provider = 'youtube'`, `account_id = youtube_channels.channel_id`, mesmo `site_id`, `revoked_at is null`, `collection_status <> 'reautorizar'`) com `sync_enabled = false` deixa o cron vermelho e entra em `acao_do_dono`: `coleta: <nome> está conectado com a coleta desligada; ligue a coleta ou desconecte o canal`.
+- **O que o dono faz:** ligar a coleta do canal (`sync_enabled = true`) ou desconectá-lo em `/cms/social/accounts`. Desligar de propósito passa a ser desconectar.
+
+### `sem_videos`
+Motivo em `yt_own_collection_attempts.outcome`: o canal não tem vídeo cadastrado. Uma tentativa por canal e dia (`scope_type = 'canal'`, kinds `meta` e `diario`). Nunca conta como falha, atraso ou orçamento. Canal vazio de verdade não gera nota; canal com vídeos no YouTube e nenhum cadastrado segue a nota da seção 5.
+
+### Visão `yt_own_search_terms`
+Termos de pesquisa (F0-e), sem job novo. Vazia **não é defeito** antes da F0-a: só enche depois que os relatórios de pesquisa entram na coleta.
+
+### Playlists (C6) e conferência D+10
+Os 6 tipos `playlist_*_a2` estão em `REPORT_TYPES_ENABLED` (só bruto, sem normalizador). Conferência em D+10: zero `expirado_sem_baixar` em `report_type_id like 'playlist%'` e zero `listado` com idade > 7 dias. Tipo que o YouTube nunca gera para o canal cai em `acao_do_dono` ("nunca gerou relatório"), não em vermelho.
