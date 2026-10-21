@@ -44,7 +44,7 @@ Ordem da fila: `docs/superpowers/specs/2026-10-18-ab-s6-s7-guarda-e-nativo-desig
 - A fila do banco é uma só (`fila-do-db-push.md`). A B **arma a fila** (emenda 35): enquanto o arquivo existir sem estar
   aplicado, ninguém cria nem aplica outra migration. **A fila armada tem fim:** envio 2 no máximo 2 h antes da janela,
   no mesmo dia; B abortada cuja causa não some em 24 h → `git revert` do arquivo (seção 5). O número tem de ser maior que todos os de `origin/staging` **e** de
-  todas as árvores ativas. Hoje já há `20261021000003` reservado pela F0 das sugestões.
+  todas as árvores ativas. Hoje já há `20261021000003` reservado pela F0 das sugestões. Em 21/10 23h, `20261021000004` ficou reservado pela F1a-dado (wt-f1a-dado); a Migration B usa `20261021000005` ou maior.
 - A B **não depende** das tarefas congeladas T2-T19 e T21 do "original em alta"
   (`docs/superpowers/plans/2026-10-19-ab-original-em-alta-plan.md`, D12) e não muda nenhum arquivo delas.
 - TypeScript sem `any` e sem `as unknown as`. Commits `tipo: descrição` por lista de arquivos. Nunca `git stash`, nem
