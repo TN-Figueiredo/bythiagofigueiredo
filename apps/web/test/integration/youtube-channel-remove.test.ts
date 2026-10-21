@@ -82,7 +82,7 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
     ]).select('id'))
     const done = await addTest(siteId, v1, 'Encerrado', 'completed', new Date(Date.now() - 10 * 864e5).toISOString())
     const archived = await addTest(siteId, v2, 'Arquivado', 'archived')
-    // o teste encerrado como ele existe em produção: vencedor, um ciclo por variante, polls, link rastreado, playoff
+    // o teste encerrado como ele existe em produção: vencedor, um ciclo por variante, polls, playoff
     const variants = must(await sb.from('ab_test_variants').insert([{ test_id: done, label: 'A', is_original: true }, { test_id: done, label: 'B', is_original: false }]).select('id, label'))
     const [va, vb] = [variants.find(v => v.label === 'A')!.id as string, variants.find(v => v.label === 'B')!.id as string]
     must(await sb.from('ab_tests').update({ winner_variant_id: vb, last_applied_variant_id: vb, completed_at: new Date().toISOString(), completed_reason: 'manual_winner' }).eq('id', done).select('id'))
@@ -91,8 +91,6 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
       { test_id: done, variant_id: vb, cycle_number: 2, started_at: new Date(Date.now() - 8 * 864e5).toISOString(), ended_at: new Date(Date.now() - 7 * 864e5).toISOString() },
     ]).select('id'))
     must(await sb.from('ab_test_polls').insert([{ test_id: done, variant_id: va, views: 10 }, { test_id: done, variant_id: vb, views: 20 }]).select('id'))
-    const link = must(await sb.from('tracked_links').insert({ site_id: siteId, code: `rm${run}${n()}`, destination_url: 'https://example.com' }).select('id').single()).id as string
-    must(await sb.from('ab_test_tracked_links').insert({ ab_test_id: done, variant_id: vb, link_id: link, template_name: 'desc', short_code: `rm${run}${seq}` }).select('id'))
     // playoff: um teste encerrado filho do primeiro, no mesmo vídeo, com variante copiada da vencedora
     const playoff = await addTest(siteId, v1, 'Playoff', 'completed', new Date(Date.now() - 5 * 864e5).toISOString())
     must(await sb.from('ab_tests').update({ parent_test_id: done, round_number: 2 }).eq('id', playoff).select('id'))
@@ -162,7 +160,7 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
     expect((await sb.from('youtube_channels').select('id').eq('id', ch.id)).data).toEqual([])
   })
 
-  it('remove o canal com tudo — teste encerrado COM vencedor, ciclos, polls, link rastreado e playoff; notificações do canal somem; o item do pipeline e a notificação do site ficam', async () => {
+  it('remove o canal com tudo — teste encerrado COM vencedor, ciclos, polls e playoff; notificações do canal somem; o item do pipeline e a notificação do site ficam', async () => {
     const { ch, v1, v2, pipeline, done } = await fullChannel(siteA, `@tudo${run}`)
     const siteWide = must(await sb.from('yt_notifications').insert({ site_id: siteA, type: 'trending_viral', priority: 3, title: 't', message: 'm', dedup_key: `s-${run}-${n()}` }).select('id').single()).id as string
     const before = (await sb.from('yt_notifications').select('id', { count: 'exact', head: true }).eq('site_id', siteA)).count ?? 0
@@ -172,7 +170,6 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
     expect(await counts(ch.id as string, [v1, v2])).toEqual({ channel: 0, videos: 0, comments: 0, logs: 0, tests: 0, cycles: 0, analyses: 0, tasks: 0, notes: 0, analytics: 0, grades: 0, alerts: 0, notifications: 0 })
     expect((await sb.from('ab_test_cycles').select('id').eq('test_id', done)).data).toEqual([])
     expect((await sb.from('ab_test_polls').select('id').eq('test_id', done)).data).toEqual([])
-    expect((await sb.from('ab_test_tracked_links').select('id').eq('ab_test_id', done)).data).toEqual([])
     const after = (await sb.from('yt_notifications').select('id', { count: 'exact', head: true }).eq('site_id', siteA)).count ?? 0
     expect(before - after).toBe(3)
     expect((await sb.from('yt_notifications').select('id').eq('id', siteWide)).data).toHaveLength(1)

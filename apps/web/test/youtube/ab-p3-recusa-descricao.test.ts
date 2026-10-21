@@ -171,12 +171,12 @@ describe('P3: a descrição não participa do teste', () => {
   it('getAbTest entrega tracked_links: []', async () => {
     const o = mundo()
     o.tables.ab_tests![0]!.id = TEST_ID
-    sb = fakePostgrest({ ...o, fail: q => { if (q.table === 'ab_test_tracked_links') throw new Error('leu ab_test_tracked_links'); return null } })
+    sb = fakePostgrest(o)
     const detail = (await youtube.getAbTest(ctxLeitura(), TEST_ID)).data
     expect(detail.tracked_links).toEqual([])
   })
 
-  it('getAbTestFunnel não lê ab_test_tracked_links e entrega link_clicks null, per_link [] e link_clicks_window null', async () => {
+  it('getAbTestFunnel entrega link_clicks null, per_link [] e link_clicks_window null', async () => {
     sb = fakePostgrest({
       tables: {
         sites: [{ id: SITE }],
@@ -184,7 +184,7 @@ describe('P3: a descrição não participa do teste', () => {
         ab_test_cycles: [{ test_id: 't1', variant_id: 'v1', impressions: 150, clicks: 15 }],
       },
       columns: { ab_tests: ['id', 'site_id', 'started_at', 'completed_at'], ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks'] },
-      fail: q => { if (q.table === 'ab_test_tracked_links' || q.table === 'link_clicks' || q.table === 'tracked_links') throw new Error(`leu ${q.table}`); return null },
+      fail: q => { if (q.table === 'link_clicks' || q.table === 'tracked_links') throw new Error(`leu ${q.table}`); return null },
     })
     const { data } = await youtube.getAbTestFunnel(ctxLeitura(), 't1')
     expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, clicks: null, link_clicks: null }])

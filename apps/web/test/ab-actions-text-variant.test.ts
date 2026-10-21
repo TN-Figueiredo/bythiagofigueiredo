@@ -204,7 +204,6 @@ describe('createTextVariant', () => {
     const linha = primeiraEscrita('ab_test_variants', 'insert')!
     expect(linha).not.toHaveProperty('description_text')
     expect(linha.title_text).toBe('T')
-    expect(primeiraEscrita('ab_test_tracked_links', 'insert')).toBeUndefined()
     expect(vi.mocked(ensureTrackedLink)).not.toHaveBeenCalled()
   })
 })
