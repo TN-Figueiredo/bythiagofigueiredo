@@ -1,8 +1,8 @@
-# A/B Lab: original em alta resolução (plano de implementação, r5, escopo D12)
+# A/B Lab: original em alta resolução (plano de implementação, r6, escopo D12)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Escrito em 21/10/2026. **r5 (Sonnet, 21/10 tarde): emenda pós-M1** conforme os pareceres de Logan (70, re-revisão 93) e Naksu (84, re-revisão 94) sobre o mockup M1 r2 (`docs/superpowers/mockups/2026-10-19-ab-original-em-alta/`, seção "M1 (atual)", commit `d49aca338`): tarefa nova **T1c** (ajusta o código já feito em `10fb16929` e `d523f7d06` e regrava a original baixa no início do teste), passos 5–9 da T1b reescritos, ver "Decisões da r5" (§9). r4 (Sonnet) corrige a r3 conforme as revisões de Phil (84), Yannis (86) e Logan (74), ver "Decisões da r4" no fim. r3 (Opus) sobre a r2 (`b8236eed9`, 22 tarefas), reduzida pela **decisão D12 do dono (21/10 12:35)**, registrada na §5.7 e na linha D12 de `/Users/figueiredo/Workspace/bythiagofigueiredo/docs/superpowers/specs/2026-10-21-sugestoes-do-nicho-e-ab-nativo-design.md`. O texto integral da r2 vive em `git show b8236eed9:docs/superpowers/plans/2026-10-19-ab-original-em-alta-plan.md` e continua neste arquivo, resumido, no apêndice "Congeladas (D12)". Esta r5 **não** autoriza executar nem pushar: precisa de nova revisão de Yannis (B1 e tempo-limite) e Logan (textos) e do portão normal.
+Escrito em 21/10/2026. **r6 (Sonnet, 21/10 noite): conserto da r5** conforme `revisao-plano-r5-phil.md` (86) e `revisao-plano-r5-yannis.md` (84): fixture compartilhada com `dimensions: '1280x720'`, teste B1 com imagem 1280x720 de verdade, hook sem "Tudo pronto." sem leitura e com resposta `ok` tardia vencendo o tempo-limite, teste C3 sem `initialStep`, riscos do Blob e espera do `maxres` na T20; ver "Decisões da r6" (§10). **r5 (Sonnet, 21/10 tarde): emenda pós-M1** conforme os pareceres de Logan (70, re-revisão 93) e Naksu (84, re-revisão 94) sobre o mockup M1 r2 (`docs/superpowers/mockups/2026-10-19-ab-original-em-alta/`, seção "M1 (atual)", commit `d49aca338`): tarefa nova **T1c** (ajusta o código já feito em `10fb16929` e `d523f7d06` e regrava a original baixa no início do teste), passos 5–9 da T1b reescritos, ver "Decisões da r5" (§9). r4 (Sonnet) corrige a r3 conforme as revisões de Phil (84), Yannis (86) e Logan (74), ver "Decisões da r4" no fim. r3 (Opus) sobre a r2 (`b8236eed9`, 22 tarefas), reduzida pela **decisão D12 do dono (21/10 12:35)**, registrada na §5.7 e na linha D12 de `/Users/figueiredo/Workspace/bythiagofigueiredo/docs/superpowers/specs/2026-10-21-sugestoes-do-nicho-e-ab-nativo-design.md`. O texto integral da r2 vive em `git show b8236eed9:docs/superpowers/plans/2026-10-19-ab-original-em-alta-plan.md` e continua neste arquivo, resumido, no apêndice "Congeladas (D12)". Esta r5 **não** autoriza executar nem pushar: precisa de nova revisão de Yannis (B1 e tempo-limite) e Logan (textos) e do portão normal.
 
 ## Escopo D12
 
@@ -168,33 +168,43 @@ e em `encerrar-props.ts` o corpo vira `return publicaBaixa(dimensoesDeTexto(dime
 - Modify: `Y/ab-start.ts`, `Y/ab-original-resolucao.ts`, `AB/_components/use-aviso-original.ts`
 - Test (ajustar/acrescentar): `T/ab-start-internal.test.ts`, `T/youtube/ab-original-resolucao.test.ts`, `T/youtube/ab-aviso-original-baixa.test.tsx`
 
-- [ ] **Passo 1: teste B1 (falha)**, em `T/ab-start-internal.test.ts`, no `describe('startAbTestInternal: o original é relido depois da reivindicação')` (:~202), junto do caso 24. Estender `montar` com a opção `dimensoesOriginal?: string` (grava `dimensions` na variante `is_original` do banco falso; confirmar que o `select` do falso devolve a coluna) e usar uma `thumb` cujo dHash seja o guardado (`H.A`, sem `thumb: ...H.C`):
+- [ ] **Passo 1: fixture e teste B1 (falha)**. **Fixture primeiro (r6, Phil C1 e Yannis C1):** em `T/helpers/banco-ab.ts:88` acrescentar `dimensions: '1280x720'` à variante `A` (um lugar só). Sem isso `dimensions` indefinido vira "baixa" na régua única e **todo** início de thumbnail/combo dos arquivos que usam `criarBanco` (`ab-start-internal`, `youtube/start-concorrente` com `put: vi.fn()` sem retorno, `youtube/ab-fila-inicio` sem mock de `@vercel/blob`, `ab-actions-resume`, `ab-rotate-*`, `ab-watchdog-*`, `ab-evaluate-duracao-maxima`, `montar-saida-automatica`) passaria a regravar e quebraria por razão errada. **Não** criar a opção `dimensoesOriginal`: os casos baixa e nulo usam o `ajustar` que `montar` já repassa (`ajustar: (v) => { v[0]!.dimensions = '480x360' }` e `... = null`); o falso devolve a linha inteira em qualquer `select` (`banco-ab.ts:31`), então a coluna chega sem mais ajuste. Nenhuma asserção de teste que não seja o caso 24/"nada mudou" pode ser afrouxada.
+
+Helper novo em `T/helpers/youtube-falso.ts`, ao lado de `imagemComDhash` (:21, que serve 450x360 e por isso **não prova** a saída): `imagemGrande(hex)`, mesmo corpo de `imagemComDhash` com `.resize(1280, 720, { kernel: 'nearest' })` ao final (o dHash fica igual porque o resize é `nearest` sobre a grade 9x8). Em `T/ab-start-internal.test.ts`, no `describe('startAbTestInternal: o original é relido depois da reivindicação')` (:~202), junto do caso 24:
 
 ```ts
-it('B1: original guardada baixa (480x360) com dHash igual -> regrava a original (a mesma arte em 1280 px resolve)', async () => {
-  const { banco, iniciar } = await montar({ testType: 'thumbnail', dimensoesOriginal: '480x360' })
+it('B1: original guardada baixa (480x360), dHash igual e a thumbnail do YouTube agora 1280x720 -> regrava, mede 1280x720 e o aviso some', async () => {
+  const { banco, iniciar } = await montar({ testType: 'thumbnail', thumb: await imagemGrande(H.A), ajustar: (v) => { v[0]!.dimensions = '480x360' } })
   const antesBlob = banco.variantes()[0]!.blob_url
   expect((await iniciar()).ok).toBe(true)
   expect(put).toHaveBeenCalledTimes(1)
   const a = banco.variantes()[0]!
   expect(a.blob_url).not.toBe(antesBlob)
   expect(banco.teste().original_thumbnail_url).toBe(a.blob_url)
-  expect(a.dimensions).not.toBe('480x360')
+  expect(a.dimensions).toBe('1280x720')
+  expect(hamming(a.thumbnail_dhash!, H.A)).toBeLessThanOrEqual(DHASH_MAX_SAME)
+  expect(textoAvisoOriginalBaixa(a.dimensions, true)).toBeNull()   // o aviso some
 })
-it('B1: original guardada em alta (1280x720) com dHash igual -> nenhuma cópia nova (o caso "nada mudou" continua)', async () => {
-  const { banco, iniciar } = await montar({ testType: 'thumbnail', dimensoesOriginal: '1280x720' })
+it('B1b: Short sem maxres (o falso serve 450x360) -> regrava uma vez, fica 450x360, sem erro (idempotente, ainda baixa)', async () => {
+  const { banco, iniciar } = await montar({ testType: 'thumbnail', ajustar: (v) => { v[0]!.dimensions = '480x360' } })
+  expect((await iniciar()).ok).toBe(true)
+  expect(put).toHaveBeenCalledTimes(1)
+  expect(banco.variantes()[0]!.dimensions).toBe('450x360')
+})
+it('B1: original guardada em alta (1280x720, fixture padrão) com dHash igual -> nenhuma cópia nova (o caso "nada mudou" continua)', async () => {
+  const { banco, iniciar } = await montar({ testType: 'thumbnail' })
   await iniciar()
   expect(put).not.toHaveBeenCalled()
   expect(banco.variantes()[0]).toMatchObject({ blob_url: BLOB('A'), thumbnail_dhash: H.A })
 })
 it('B1: dimensions nula com dHash guardado e igual -> regrava (nulo/ilegível é "baixa" na régua única)', async () => {
-  const { banco, iniciar } = await montar({ testType: 'thumbnail' })   // fixture padrão: dimensions null
+  const { iniciar } = await montar({ testType: 'thumbnail', ajustar: (v) => { v[0]!.dimensions = null } })
   await iniciar()
   expect(put).toHaveBeenCalledTimes(1)
 })
 ```
 
-(O caso "nada mudou" existente, :~215, usa `dimensions: null` no fixture e esperaria `put` não chamado: **passa a ser o 3º caso acima**. Trocar a fixture padrão desse teste para `dimensoesOriginal: '1280x720'` e manter a asserção. Listar no commit.)
+(O caso "nada mudou" existente, :~215, passa a ser o 3º caso acima e a fixture padrão já tem `1280x720`; listar no commit. Importar `hamming`, `DHASH_MAX_SAME` e `textoAvisoOriginalBaixa` se o arquivo ainda não os importa.)
 - [ ] **Passo 2: implementar B1** em `Y/ab-start.ts`: importar `{ dimensoesDeTexto, publicaBaixa }` de `./ab-original-resolucao`; acrescentar `dimensions: string | null` a `VarianteInicio` (:169) e `dimensions` ao `select` (:222). Trocar o `if` (:319-321) por:
 
 ```ts
@@ -206,7 +216,7 @@ if (guardado === null || originalBaixa || hamming(guardado, sonda.dhash) > DHASH
 }
 ```
 
-Custo (Yannis confirma): uma leitura+gravação a mais no Blob só quando a guardada é baixa, e só no início de teste de `thumbnail`/`combo`; `guardarOriginalMaior` cai para a `hqdefault` quando não há `maxres`/`sddefault`, então um Short sem 1280 regrava a mesma 480×360 (idempotente, sem dano, uma cópia a mais no Blob por início). O aviso **continua** na tela depois da troca no YouTube (lê só o guardado); por isso o texto da saída diz "mesmo que este aviso continue aqui" (T1c passo 3). Sem migration.
+Custo (Phil e Yannis conferiram; ver Riscos): uma leitura+gravação a mais no Blob só quando a guardada é baixa, e só no início de teste de `thumbnail`/`combo`; `guardarOriginalMaior` cai para a `hqdefault` quando não há `maxres`/`sddefault`, então um Short sem 1280 regrava a mesma 480×360 (idempotente, sem dano, uma cópia a mais no Blob por início). O aviso **continua** na tela depois da troca no YouTube (lê só o guardado); por isso o texto da saída diz "mesmo que este aviso continue aqui" (T1c passo 3). Sem migration.
 - [ ] **Passo 3: textos da r5 (testes primeiro, falham)**, em `T/youtube/ab-original-resolucao.test.ts`. **Asserções trocadas** (as de `d523f7d06`):
 
 | Caso | Antes | Depois (r5) |
@@ -243,41 +253,55 @@ Teste de `tituloDoBanner`: `undefined`/`null` → `Tudo pronto.`; `'pendente'` e
 - [ ] **Passo 4: hook de 3 estados e tempo-limite (testes primeiro, falham)**, em `T/youtube/ab-aviso-original-baixa.test.tsx`. Valor do tempo-limite: **`TEMPO_LIMITE_LEITURA_MS = 8000`** (proposta; a leitura são 2 consultas simples por rascunho, normalmente < 1 s; 8 s cobre a rede ruim de fora do país sem deixar o esqueleto cinza para sempre; Yannis confirma). Asserções trocadas e acrescentadas:
   - Em todos os casos antigos que esperavam `null` por **pendente** ou por **alta**, separar: alta (`1280x720`) → `null` **depois** da resposta; enquanto a promessa não volta → `'pendente'`.
   - `L7` (trocar o rascunho): depois de `rerender({ id: 'b' })` com a leitura pendurada, `result.current` é `'pendente'` (antes: `null`).
-  - Tipo `title`, passo inativo ou sem rascunho: `result.current` é `null` e `ler` não é chamada (não aplica; o banner mostra "Tudo pronto." e o passo Revisar de teste só de título não lê).
+  - Tipo `title` ou passo inativo: `result.current` é `null` e `ler` não é chamada (não aplica; o banner mostra "Tudo pronto.").
+  - **Novo (r6, Yannis C3):** thumbnail/combo, `ativo` e **sem rascunho** (`draftTestId = null`): `renderHook(() => useAvisoOriginal(ler, null, 'thumbnail', true))` devolve `kind: 'nao-medida'` (aviso "não medida", verdadeiro: a original ainda nem foi guardada) e `ler` **não** é chamada. Nunca "Tudo pronto." sem ter lido. (Caminho real: `prefill.testType` sem `existingDraftId`, o rascunho só nasce em `handleSubmit`.)
   - **Novo, com `vi.useFakeTimers()`**: leitura que nunca volta (`new Promise(() => {})`): em 7999 ms `result.current` é `'pendente'`; em 8000 ms vira `AVISO_INDISPONIVEL` (`kind: 'indisponivel'`).
-  - **Novo**: resposta tardia (resolve em 9 s com `480x360`) **não** sobrescreve o `indisponivel` já mostrado (o primeiro desfecho vence; o `ok:false` tardio idem).
-  - **Novo**: resposta em 100 ms cancela o timer (`vi.getTimerCount()` é 0 depois dela) e o aviso fica.
+  - **Novo (r6, Phil C2 e Yannis C5):** o `indisponivel` vindo **só do tempo** é provisório. Leitura que resolve em 9 s com `480x360`, depois do timer: `result.current` passa de `indisponivel` a `kind: 'baixa'`. Só erro (`ok:false` ou throw) fecha o desfecho; **mantido**: `ok:false` tardio **não** sobrescreve um resultado já bom.
+  - **Novo**: resposta em 100 ms cancela o timer: depois dela, `await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })` e o aviso continua intacto (**não** afirmar `vi.getTimerCount() === 0`: React e `act` agendam timers próprios). Com fake timers, nada de `waitFor` (trava): usar `act` e `advanceTimersByTimeAsync`.
+  - **Novo (Phil menor 3):** trocar `draftTestId` não mostra o aviso do rascunho anterior nem por um quadro (o estado guarda `{ id, valor }`).
   - Rodar com `vi.useRealTimers()` no `afterEach`.
 
   Implementação (`use-aviso-original.ts`; o parâmetro `type` volta a ser `TestType | null` só se o tipo já existir no hook; senão manter `string`, como está):
 
 ```ts
-export const TEMPO_LIMITE_LEITURA_MS = 8000
-export type EstadoAviso = 'pendente' | null | AvisoOriginal   // (importado de ab-original-resolucao; não redefinir aqui)
+export const TEMPO_LIMITE_LEITURA_MS = 8000   // limite do esqueleto, não teto de custo (r6: não decide com perda)
+// EstadoAviso é importado de ab-original-resolucao; não redefinir aqui.
 
 export function useAvisoOriginal(ler, draftTestId, type, ativo): EstadoAviso {
-  const aplica = ativo && !!draftTestId && (type === 'thumbnail' || type === 'combo')
-  const [aviso, setAviso] = useState<EstadoAviso>('pendente')
+  const tipoLe = type === 'thumbnail' || type === 'combo'
+  const aplica = ativo && tipoLe
+  const [lido, setLido] = useState<{ id: string | null; valor: EstadoAviso }>({ id: null, valor: 'pendente' })
   useEffect(() => {
-    setAviso('pendente')   // L7: nunca mostrar o aviso do rascunho anterior; e "pendente" é um estado, não "nada"
     if (!aplica || !draftTestId) return
-    let aberto = true
-    const termina = (a: AvisoOriginal | null) => { if (aberto) { aberto = false; clearTimeout(timer); setAviso(a) } }
-    const timer = setTimeout(() => termina(AVISO_INDISPONIVEL), TEMPO_LIMITE_LEITURA_MS)
+    const id = draftTestId
+    setLido({ id, valor: 'pendente' })   // L7: nunca mostrar o aviso do rascunho anterior
+    let cancelado = false
+    let resolvido = false   // só uma resposta real (ok ou erro) resolve; o tempo não
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const resolve = (valor: AvisoOriginal | null) => {
+      if (cancelado || resolvido) return
+      resolvido = true
+      clearTimeout(timer)
+      setLido({ id, valor })
+    }
+    // o tempo-limite só mostra o placeholder; uma resposta ok tardia o substitui (r6, Phil C2)
+    timer = setTimeout(() => { if (!cancelado && !resolvido) setLido({ id, valor: AVISO_INDISPONIVEL }) }, TEMPO_LIMITE_LEITURA_MS)
     try {
-      Promise.resolve(ler(draftTestId)).then(
-        (r) => termina(r.ok ? textoAvisoOriginalBaixa(r.dimensions, r.medida) : AVISO_INDISPONIVEL),
-        () => termina(AVISO_INDISPONIVEL),
+      Promise.resolve(ler(id)).then(
+        (r) => resolve(r.ok ? textoAvisoOriginalBaixa(r.dimensions, r.medida) : AVISO_INDISPONIVEL),
+        () => resolve(AVISO_INDISPONIVEL),
       )
-    } catch { termina(AVISO_INDISPONIVEL) }
-    return () => { aberto = false; clearTimeout(timer) }
+    } catch { resolve(AVISO_INDISPONIVEL) }
+    return () => { cancelado = true; clearTimeout(timer) }
   }, [aplica, draftTestId, ler])
-  return aplica ? aviso : null
+  if (!aplica) return null                                         // tipo só título ou passo inativo
+  if (!draftTestId) return textoAvisoOriginalBaixa(null, false)    // sem rascunho: "não medida", nunca "Tudo pronto." sem ler (r6, Yannis C3)
+  return lido.id === draftTestId ? lido.valor : 'pendente'          // sem quadro de cena velha (Phil menor 3)
 }
 ```
 
-(`termina` guarda `aberto`, então o primeiro desfecho vence e a resposta tardia some; `timer` é declarado antes de `termina` ser chamado de forma assíncrona, e como `const` aparece depois da arrow, ordenar o código para declarar `timer` com `let` antes se o lint reclamar.)
-- [ ] **Passo 5:** os três arquivos de teste → PASS; `tsc` 0. Commit `feat: regrava a original baixa no início do teste e textos pós-M1 do aviso (D12, r5)`, caminhos explícitos: `Y/ab-start.ts`, `Y/ab-original-resolucao.ts`, `use-aviso-original.ts` e os 3 testes.
+(r6: `resolve` guarda `cancelado` e `resolvido`, então o erro fecha e a resposta `ok` posterior ao timer ainda grava; `timer` é `let` declarado antes de uso; `EstadoAviso` vive só em `ab-original-resolucao.ts`.)
+- [ ] **Passo 5 (prova, r6):** os três arquivos de teste → PASS; `tsc` 0. Como o B1 muda o comportamento da fixture compartilhada, rodar também, sem alterar asserção de teste algum fora do caso 24/"nada mudou": `cd W/apps/web && npx vitest run test/ab- test/youtube test/pipeline > /tmp/oea-t1c.log 2>&1; tail -30 /tmp/oea-t1c.log` e, com o banco local de integração (`bythiago_int`, portas 54421/54422; `npm run db:start` conforme `reference_banco_local_integracao`), `HAS_LOCAL_DB=1 npx vitest run test/integration/ab-p4a-retomar-iniciar.test.ts` (tem `thumbnail_dhash` e **só roda com `HAS_LOCAL_DB`: a CI não pega**). Commit `feat: regrava a original baixa no início do teste e textos pós-M1 do aviso (D12, r5)`, caminhos explícitos: `Y/ab-start.ts`, `Y/ab-original-resolucao.ts`, `use-aviso-original.ts`, `T/helpers/banco-ab.ts`, `T/helpers/youtube-falso.ts` e os testes tocados (listar no commit).
 
 ### Tarefa 1b: aviso antes de iniciar o teste quando a original guardada é baixa (nova, r4; passos 5–9 reescritos na r5)
 
@@ -444,10 +468,14 @@ describe('useAvisoOriginal', () => {
     const c = renderHook(() => useAvisoOriginal(ler, 't5b', 'thumbnail', true))
     await waitFor(() => expect(c.result.current?.kind).toBe('indisponivel'))
   })
-  it('tipo title, passo inativo ou sem rascunho não lê', () => {
+  it('tipo title ou passo inativo não lê', () => {
     renderHook(() => useAvisoOriginal(ler, 't6', 'title', true))
     renderHook(() => useAvisoOriginal(ler, 't7', 'thumbnail', false))
-    renderHook(() => useAvisoOriginal(ler, null, 'thumbnail', true))   // rascunho só local (sem draftTestId): sem leitura, sem aviso
+    expect(ler).not.toHaveBeenCalled()
+  })
+  it('thumbnail sem rascunho: aviso "não medida", sem leitura (r6)', () => {
+    const h = renderHook(() => useAvisoOriginal(ler, null, 'thumbnail', true))
+    expect(h.result.current).toMatchObject({ kind: 'nao-medida' })
     expect(ler).not.toHaveBeenCalled()
   })
   it('trocar o rascunho limpa o aviso antigo antes da nova resposta (Logan L7)', async () => {
@@ -572,16 +600,26 @@ it('leitura que falha: linha neutra e Ativar teste habilitado', async () => {
   await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Não consegui conferir'))
   expect((screen.getByRole('button', { name: /Ativar teste/ }) as HTMLButtonElement).disabled).toBe(false)
 })
-it('C3: a leitura começa ao entrar em Variantes (passo 2), não só no Revisar', async () => {
+it('C3: abre direto em Variantes (passo 2) e já lê a original', async () => {
+  // r6: sem prop nova. step inicial = prefillType || existingDraftId ? 2 : 0 (ab-create-wizard.tsx:289) quando NÃO é continuingDraft
+  // (continuingDraft exige draftVariants.length > 1, :256); draftTestId vem só de existingDraftId (:296). localStorage limpo no beforeEach (senão saved.step manda).
   ler.mockResolvedValue({ ok: true, dimensions: '1280x720', medida: true })
-  // abre no passo 2 (prefill sem existingDraftId e sem rascunho salvo: step inicial 2, `ab-create-wizard.tsx:289`) com draftTestId já definido
   render(<AbCreateWizard video={video} siteId="s" settings={{} as never}
-    onClose={vi.fn()} onCreated={vi.fn()} prefill={{ ...prefill, draftTestId: 'd2' } as never} existingDraftId="d2" initialStep={2} />)
+    onClose={vi.fn()} onCreated={vi.fn()} prefill={{ testType: 'thumbnail' } as never} existingDraftId="d2" />)
   await waitFor(() => expect(ler).toHaveBeenCalledWith('d2'))
+  expect(ler).toHaveBeenCalledTimes(1)
+})
+it('C3b: no passo 1 a leitura não começa', async () => {
+  // localStorage com { type: 'thumbnail', step: 1 }, mesmo formato do stub de ab-wizard-variante-vazia; sem prefill.testType
+  window.localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({ type: 'thumbnail', step: 1 }))   // usar a chave/formato do stub de ab-wizard-variante-vazia
+  render(<AbCreateWizard video={video} siteId="s" settings={{} as never}
+    onClose={vi.fn()} onCreated={vi.fn()} prefill={{} as never} existingDraftId="d2" />)
+  await Promise.resolve()
+  expect(ler).not.toHaveBeenCalled()
 })
 ```
 
-(Com `existingDraftId` e `draftVariants.length > 1`, `continuingDraft` é verdadeiro e o assistente abre direto no passo 4 (`ab-create-wizard.tsx:256,285`). A variante B com `thumbUrl` http não dispara upload. Este teste mata os mutantes que o `grep` do diff não pega: a leitura embrulhada em `startTransition` (o `isPending` desabilitaria os botões, `:675`/`:683`), a prop esquecida no `<StepRevisar>` e o `step >= 3`. **O 4º caso (C3) é o frágil:** `initialStep` não existe; o executor escolhe o jeito mais barato de montar o assistente no passo 2 (por exemplo, montar no passo 4 e clicar `Voltar` duas vezes e depois conferir que `ler` foi chamada **uma vez só**, sem nova chamada ao voltar a 2 e a 3; ou assertar `ler` chamada no `step 2` com o `StepRail`). Se nenhum jeito for barato, trocar por teste do hook: `renderHook(() => useAvisoOriginal(ler, 'd', 'thumbnail', true))` com `ativo = step >= 2` extraído para `const LEITURA_A_PARTIR_DO_PASSO = 2` exportado de `use-aviso-original.ts` e um teste que afirma o valor `2`.)
+(Com `existingDraftId` e `draftVariants.length > 1`, `continuingDraft` é verdadeiro e o assistente abre direto no passo 4 (`ab-create-wizard.tsx:256,285`); por isso o caso C3 não passa variantes. A variante B com `thumbUrl` http não dispara upload. Estes testes matam os mutantes que o `grep` do diff não pega: a leitura embrulhada em `startTransition` (o `isPending` desabilitaria os botões, `:675`/`:683`), a prop esquecida no `<StepRevisar>`, o `step >= 3`/`>= 4` (C3 falha: `ler` nunca é chamada no passo 2) e o `>= 1` (C3b falha). `initialStep` **não existe** em `Props`. O teste do hook com `ativo=false` (`ler` não chamada; `rerender({ ativo: true })`, chamada uma vez) é a reserva barata. `LEITURA_A_PARTIR_DO_PASSO` fica exportada como cinto, **sem** teste que afirma o valor `2` (espelharia a implementação).)
 - [ ] **Passo 8:** `npx vitest run` dos arquivos novos e alterados → FAIL. Implementar:
 
 `AB/_components/use-aviso-original.ts`: **já existe** (T1b passo 4 + T1c passo 4). Acrescentar `export const LEITURA_A_PARTIR_DO_PASSO = 2` (Variantes; trilho Tipo 0, Ideias 1, Variantes 2, Config 3, Revisar 4, `ab-create-wizard.tsx:76` e `:235`).
@@ -619,14 +657,14 @@ it('C3: a leitura começa ao entrar em Variantes (passo 2), não só no Revisar'
 **Files:** capturas em `.superpowers/sdd/ab-lab/original-em-alta/prova-shots/` (Gio).
 
 - [ ] **Passo 1:** `cd W/apps/web && npx vitest run test/youtube test/cms/ab- test/ab- > /tmp/oea-suite.log 2>&1; tail -30 /tmp/oea-suite.log` e `npx tsc --noEmit -p . > /tmp/oea-tsc.log 2>&1; grep -c "error TS" /tmp/oea-tsc.log`. Esperado: 0 falhas, 0 `error TS`; só falhas no contexto. Em background se passar de 4 min. **Sem** `next build` obrigatório (o Vercel faz; CLAUDE.md) e sem integração (não há SQL).
-- [ ] **Passo 2 (Gio, navegador, Sonnet):** CMS local autenticado (`docs/ops/runbook-cms-e2e-local.md`), vídeo de semente cujo rascunho tem a original `480x360`, outro `1280x720`, outro com `dimensions` nula e sem dHash (não medida): abrir o assistente até Revisar a 1440 e 390, claro e escuro. Esperado: `480x360` com banner "Pronto para ativar, com um aviso abaixo.", faixa abaixo dele e selo "Baixa resolução" (âmbar legível nos dois temas: texto `#7A4E00` no claro); `1280x720` sem faixa e com "Tudo pronto." (verde `#126B35` legível no claro); não medida com selo neutro tracejado "Resolução não medida" e o texto "ainda não foi medida; o teste mede ao ativar" (nunca "baixa"); leitura com a rede estrangulada: esqueleto de 20 px, banner "Pronto para ativar.", e passados 8 s a linha "Não consegui conferir... Isso não impede de ativar."; **B1 de ponta a ponta: no vídeo de semente com original `480x360`, trocar a thumbnail do vídeo (de teste) no YouTube pela mesma arte em 1280 px, ativar, e conferir que a original guardada passou a `1280x720` (diálogo "O que fica no vídeo?")**; depois de ativar a não medida, o diálogo "O que fica no vídeo?" mostra a medida real; o aviso já está na tela ao chegar (sem salto de layout visível); "Salvar rascunho" e "Ativar teste" habilitados em todos; `scrollWidth` = largura a 390; nenhum "undefined"/"null" no DOM. Abrir o diálogo "O que fica no vídeo?" de um teste com original `640x480`: selo "Baixa resolução". Veredito em texto no ledger.
+- [ ] **Passo 2 (Gio, navegador, Sonnet):** CMS local autenticado (`docs/ops/runbook-cms-e2e-local.md`), vídeo de semente cujo rascunho tem a original `480x360`, outro `1280x720`, outro com `dimensions` nula e sem dHash (não medida): abrir o assistente até Revisar a 1440 e 390, claro e escuro. Esperado: `480x360` com banner "Pronto para ativar, com um aviso abaixo.", faixa abaixo dele e selo "Baixa resolução" (âmbar legível nos dois temas: texto `#7A4E00` no claro); `1280x720` sem faixa e com "Tudo pronto." (verde `#126B35` legível no claro); não medida com selo neutro tracejado "Resolução não medida" e o texto "ainda não foi medida; o teste mede ao ativar" (nunca "baixa"); leitura com a rede estrangulada: esqueleto de 20 px, banner "Pronto para ativar.", e passados 8 s a linha "Não consegui conferir... Isso não impede de ativar."; **B1 de ponta a ponta: no vídeo de semente com original `480x360`, trocar a thumbnail do vídeo (de teste) no YouTube pela mesma arte em 1280 px, **esperar o `maxresdefault` responder 200** (`curl -sI https://i.ytimg.com/vi/<id>/maxresdefault.jpg`; logo após a troca o CDN pode servir 404 por minutos e cair em `sddefault` 640x480, e então o B1 regrava mas o aviso continua), ativar, conferir que o tempo do "Ativar" com regravação cabe no `prazo` já em uso, e conferir que a original guardada passou a `1280x720` (diálogo "O que fica no vídeo?"); no banco local/prod de teste: `select id, dimensions, thumbnail_dhash from ab_test_variants where is_original and test_id = '<teste da T20>'` dá `1280x720`**; depois de ativar a não medida, o diálogo "O que fica no vídeo?" mostra a medida real; o aviso já está na tela ao chegar (sem salto de layout visível); "Salvar rascunho" e "Ativar teste" habilitados em todos; `scrollWidth` = largura a 390; nenhum "undefined"/"null" no DOM. Abrir o diálogo "O que fica no vídeo?" de um teste com original `640x480`: selo "Baixa resolução". Veredito em texto no ledger.
 - [ ] **Passo 3:** sonda dos Shorts, **só leitura, sem criar rascunho** (criar rascunho chama `guardarOriginalMaior` e grava no Blob, `ab-variant-dhash.ts:85`): para cada um dos 2 Shorts reais, `for q in maxresdefault hq720 sddefault hqdefault; do curl -s -o /tmp/s-$q.jpg -w "$q %{http_code} " "https://i.ytimg.com/vi/<id>/$q.jpg"; sips -g pixelWidth -g pixelHeight /tmp/s-$q.jpg; done` e anotar o `http_code` e a LxA de cada; **só vale resposta 200** (Phil M1: em 404 o ytimg devolve um placeholder 120×90, que o `sips` mede como se fosse a imagem); a primeira com 200 é o que `guardarOriginalMaior` guardaria. Registrar no roteiro (`docs/superpowers/plans/2026-10-14-ab-lab-roteiro-e-horas.md`) como subnúmero de 21 (§5.7), não só no ledger. É o dado do gatilho de descongelar. Opcional, só se o dono autorizar leitura em produção: `select v.dimensions, count(*) from ab_test_variants v join ab_tests t on t.id=v.test_id where v.is_original group by 1 order by 2 desc;`.
 
 ---
 
 ## 5. Portão e envio
 
-**Portão (antes de qualquer push):** Yannis (B1, tempo-limite) e Logan (textos) revisam a emenda da r5, Naksu confere os tokens na captura da execução; Gio faz a T20. (A r4 foi aprovada por Phil 93, Yannis 93, Logan 90.) Conserta-se até haver acordo (sem BLOQUEIA/CORRIGE aberto). Logan confere os textos novos (T1b).
+**Portão (antes de qualquer push; r6: Phil e Yannis reconferem só o diff da r6):** Yannis (B1, tempo-limite) e Logan (textos) revisam a emenda da r5, Naksu confere os tokens na captura da execução; Gio faz a T20. (A r4 foi aprovada por Phil 93, Yannis 93, Logan 90.) Conserta-se até haver acordo (sem BLOQUEIA/CORRIGE aberto). Logan confere os textos novos (T1b).
 
 **Envio:** junto do próximo push com código do lote `lote/ab-p4b-a`; **sem migration**, logo sem `db:push:prod` e sem fila de DB; nenhum push só deste plano; ≤ 3 pushes de staging/dia (crédito da Vercel). CI verde depois do push.
 
@@ -634,10 +672,13 @@ it('C3: a leitura começa ao entrar em Variantes (passo 2), não só no Revisar'
 
 - **Short sem `maxres` 1280** (o risco que congelou a T11): o aviso aparece e o teste inicia; é por isso que o aviso não bloqueia. A sonda da T20 passo 3 mede quantos Shorts caem aqui.
 - **(r5) A saída "troque no YouTube e ative" agora funciona:** a T1c regrava a original quando a guardada é baixa, mesmo com dHash igual (B1). Custo: uma cópia a mais no Blob por início de teste com original baixa; um Short sem `maxres` regrava a mesma 480×360 (idempotente). O aviso continua na tela depois da troca (lê só o guardado) e o texto diz isso.
+- **(r6) B1 custa 1 `put` extra no Blob por início com original baixa, e a cópia antiga fica órfã:** nada apaga `ab-originals/*` (o único `del` de variante é `ab-draft-cleanup/route.ts:79-93`, que lê o `blob_url` **atual**; a carência de 7/30 dias do Blob não cobre esse prefixo); `source_variant_id` e rodadas (`parent_test_id`) podem apontar a mesma URL, então **não** se apaga no B1. Teto **estimado, não medido** (1280x720 JPEG 100-250 KB): ~3 inícios/semana, 1,33 `put` cada (1 retentativa em 3) = ~208 cópias/ano = ~52 MB/ano; com 3x mais canais ~156 MB/ano. Cabe com folga. **Dívida com gatilho:** mais de 1.000 objetos ou 100 MB no prefixo `ab-originals/` -> tarefa separada de varredura que lista o prefixo, compara com `blob_url` e `original_thumbnail_url` vivos e apaga com carência de 30 dias (Phil define). Short sem `maxres` regrava a mesma 480x360 a cada início (idempotente).
+- **(r6) A promessa "o teste guarda a nova ao ativar" pode falhar logo após a troca:** `biggerCopy` pede `maxresdefault` e depois `sddefault` (`thumb-fingerprint.ts:83`); com `maxres` 404 por minutos o B1 regrava 640x480 e o aviso continua. A T20 espera o `maxres` 200 antes de ativar.
+- **(r6) Resposta lenta da leitura:** server actions do Next executam em fila por cliente; a leitura vai primeiro porque dispara ao entrar no passo 2, antes de qualquer upload de variante; mover o gatilho para depois pode estourar os 8 s sem rede ruim. O teste C3 guarda a fiação. O `indisponivel` por tempo é provisório: resposta `ok` tardia o substitui.
 - **Aviso para quem só tem uma saída:** sem o envio, o dono lê o aviso e pode ignorá-lo ("ative assim mesmo") ou **trocar a thumbnail no YouTube antes de ativar**: o início do teste guarda a nova cópia quando o dHash difere (`ab-start.ts:316-337`), então **não** é preciso recriar o rascunho (Phil P1). Aceito pela D12 (informar, não bloquear); o envio volta no descongelo.
 - **`dimensions` nula não é "baixa":** só fica nula quando `thumbnail_hq_url` é nula ou fora de `ytimg|ggpht|googleusercontent` (`AB/actions.ts:249-259`), e então o dHash também é nulo; o início regrava a maior cópia e mede. Por isso o estado "Resolução não medida" existe e a T1b nunca afirma "baixa" sem `medida` (Phil P1).
 - **Aviso lido uma vez:** se o dono trocar a thumbnail no YouTube com o assistente aberto, o aviso fica com o valor velho; sem dano (não bloqueia, e o início guarda a nova). Sem código (Phil P4).
-- **Rascunho só local, sem `draftTestId`, no passo 4:** sem leitura e sem aviso; o teste nasce no clique de Ativar; o diálogo de encerrar mostra o selo no fim. Coberto pelo teste do hook "sem rascunho não lê" (`testId = null`). Gatilho: T17 descongelada (Yannis M2).
+- **Rascunho só local, sem `draftTestId` (r6: agora mostra "não medida", não "Tudo pronto."):** sem leitura; o teste nasce no clique de Ativar; o diálogo de encerrar mostra o selo no fim. Coberto pelo teste do hook "thumbnail sem rascunho" (`testId = null`). Gatilho: T17 descongelada (Yannis M2).
 - **Dívida existente:** o assistente importa 9 server actions direto (8 antes da T1b), contra o CLAUDE.md. O hook novo já recebe a função por parâmetro; o assistente é o único ponto de importação. Gatilho de quitar: próximo refactor do assistente ou incidente de bundle (Yannis M1).
 - **Sem índice único de original por teste** (`ab_test_variants`, só `(test_id, label)`): duas originais com rótulos diferentes tornam a leitura ambígua; a action devolve `ok:false` e o aviso vira a linha neutra. Gatilho: descongelo da T2.
 - **`dimensions` mente para a `hqdefault`:** `guardarOriginalMaior` cai para a `hqdefault` 480×360 quando `maxres` e `sddefault` não existem; o aviso mede o que foi guardado, não o que o YouTube tem de melhor. Correto para o objetivo (a original que volta é a guardada).
@@ -708,6 +749,20 @@ Emenda pós-M1 conforme `revisao-m1-logan.md` (70, re-revisão 93) e `revisao-m1
 | Resumo do banner em `text-cms-text` | Naksu M1 (4,30:1 no escuro) |
 | Fora: nota de 11 px e título de variante de 10 px (Naksu M2), refazer a leitura ao entrar no passo 4 (Logan M1 opcional) | dívida existente / sem custo-benefício; registrados, não feitos |
 | T20 ganha o B1 de ponta a ponta, o esqueleto sob rede lenta e o contraste nos dois temas | itens que Logan e Naksu declararam não verificados |
+
+## 10. Decisões da r6
+
+Conserto da r5 conforme `revisao-plano-r5-phil.md` (86) e `revisao-plano-r5-yannis.md` (84); nenhum BLOQUEIA.
+
+| Decisão | Por quê |
+|---|---|
+| Fixture `banco-ab.ts:88` ganha `dimensions: '1280x720'` na linha A; casos baixa/nulo via `ajustar`; opção `dimensoesOriginal` descartada; suíte `test/ab- test/youtube test/pipeline` e integração `ab-p4a-retomar-iniciar` com `HAS_LOCAL_DB` (`bythiago_int`) no passo de prova | Phil C1, Yannis C1: sem isso todo início de thumbnail/combo nos 10 arquivos que usam `criarBanco` regrava e quebra por razão errada; a integração a CI não pega |
+| Teste B1 serve imagem 1280x720 com o mesmo dHash (`imagemGrande`) e afirma `'1280x720'` e que o aviso some; caso B1b do Short (450x360, idempotente) | Yannis C2: `imagemComDhash` serve 450x360 e o teste passava sem provar a saída |
+| Hook: thumbnail/combo sem rascunho devolve "não medida", nunca "Tudo pronto." sem ler | Yannis C3 (falha em verde) |
+| Hook: erro fecha; resposta `ok` tardia substitui o `indisponivel` do tempo; teste sem `getTimerCount() === 0`; 8 s mantido | Phil C2, Yannis C5: informação nova vale mais que o placeholder |
+| Hook guarda `{ id, valor }` | Phil menor 3: sem quadro de cena velha |
+| C3: `existingDraftId="d2"` + `prefill.testType='thumbnail'` + localStorage vazio lê `d2` no passo 2; C3b no passo 1 não lê; sem `initialStep`; sem teste do valor `2` | Phil C3, Yannis C4 |
+| Riscos: 1 `put` extra por início com original baixa, cópia antiga órfã, teto estimado, dívida com gatilho; T20 espera `maxres` 200 antes de ativar | Phil menor 1 e 2, Yannis dívida |
 
 ---
 
