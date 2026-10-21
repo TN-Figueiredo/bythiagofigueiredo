@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { settleOnAir, novaTentativa, ORIGINAL, NOTA_TESTE_YOUTUBE } from '@/lib/youtube/ab-settle'
+import { settleOnAir, novaTentativa, ORIGINAL, NOTA_TESTE_YOUTUBE, TEXTO_SEM_LEITURA } from '@/lib/youtube/ab-settle'
 import type { Retrato, PortasSaida } from '@/lib/youtube/ab-settle'
 import type { RestoreStatus } from '@/lib/youtube/ab-restore'
 import { camposPendentes } from '@/lib/youtube/ab-restore'
@@ -164,7 +164,8 @@ describe('(k) passo 0b depois de pulado_teste_youtube (Yannis C3)', () => {
     lerSnippetMock.mockRejectedValue(new Error('5xx passageiro'))
     const m = montar(retrato({ test_type: 'title', status: 'paused', restore_status: pulado }))
     const res = await settleOnAir('t1', op, comToken(m))
-    expect(res.resultado).toBe('precisa_confirmar')
+    expect(res).toEqual({ resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: TEXTO_SEM_LEITURA }] })
+    expect(TEXTO_SEM_LEITURA.length).toBeGreaterThan(0)
     expect(m.rpc).not.toHaveBeenCalled()
   })
 
