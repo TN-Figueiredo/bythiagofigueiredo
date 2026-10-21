@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lista de sugestões (mockup M3 r1)</title>
+<title>Lista de sugestões (mockup M3 r2)</title>
 <style>
-/* Mockup M3 r1 (21/10/2026). Mesma família do S7 r3, M1 e M2: tokens, selos, faixas e escala 4/8/12/16/24/32 copiados do M2 r2.
+/* Mockup M3 r2 (21/10/2026). Mesma família do S7 r3, M1 e M2: tokens, selos, faixas e escala 4/8/12/16/24/32 copiados do M2 r2.
    Novo só: --lado-n (chip de origem do nicho) e a régua.  Só hex/rgba literais; nenhum color-mix(). Texto >= 12 px. Dados SINTÉTICOS. */
 *,*::before,*::after{box-sizing:border-box}
 :root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
@@ -77,7 +77,7 @@ body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-se
 .tE{background:linear-gradient(135deg,#24423A,#4E8C78 60%,#A9D8C4)}
 .tF{background:linear-gradient(135deg,#4A2430,#9C4A5E 60%,#E3A7B5)}
 .th.short{aspect-ratio:9/16;width:51px}
-.th.fail{background:repeating-linear-gradient(135deg,var(--surface-2) 0 8px,var(--sunk) 8px 12px);border:1px dashed var(--err-line);color:var(--err);font:500 12px/1.3 Inter,system-ui,sans-serif;text-align:center;padding:6px}
+.th.fail{background:repeating-linear-gradient(135deg,var(--surface-2) 0 8px,var(--sunk) 8px 12px);border:1px dashed var(--border-strong);color:var(--dim);font:500 12px/1.3 Inter,system-ui,sans-serif;text-align:center;padding:6px}
 
 /* selos: forma + símbolo + palavra, nunca só cor (S7 r3) */
 .selo{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);white-space:nowrap;color:var(--text)}
@@ -128,6 +128,7 @@ body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-se
 .col>.band{margin-top:16px}
 /* filtro (só com N > 8) */
 .flt{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.srow .errl span{flex:1 1 200px;min-width:0}
 .flt button{font:500 13px/18px Inter,system-ui,sans-serif;min-height:36px;padding:0 12px;border:1px solid var(--btn-line);border-radius:999px;background:transparent;color:var(--text);cursor:pointer;font-variant-numeric:tabular-nums}
 .flt button[aria-pressed="true"]{background:var(--surface-2);box-shadow:inset 0 0 0 2px var(--text);font-weight:600}
 @container (max-width:640px){.flt button{min-height:44px;flex:1 1 auto}}
@@ -136,24 +137,34 @@ body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-se
 .srow{display:grid;grid-template-columns:96px minmax(0,1fr) 248px;gap:16px;padding:16px;border-bottom:1px solid var(--border-subtle);min-height:96px;align-items:start}
 .srow:last-child{border-bottom:0}
 .srow.noth{grid-template-columns:minmax(0,1fr) 248px}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;border:1px solid var(--ln-line);background:var(--ln-bg);color:var(--ln);font:600 12px/18px Inter,system-ui,sans-serif;white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:4px;border:1px solid var(--ln-line);background:var(--ln-bg);color:var(--ln);font:600 12px/18px Inter,system-ui,sans-serif;white-space:nowrap}
 .chip svg{flex:none}
 .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.srow h4{font:600 15px/1.4 Inter,system-ui,sans-serif;margin-top:8px;overflow-wrap:anywhere}
-.srow h4 button{all:unset;cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-@container (max-width:640px){.srow h4 button{min-height:44px}}
-.srow h4 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.pux{font-size:13px;color:var(--muted);margin-top:4px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.pux q{quotes:"“" "”";color:var(--text)}
-.rg{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.srow h4{font:600 15px/1.4 Inter,system-ui,sans-serif;margin-top:8px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pux{display:flex;min-width:0;font-size:13px;color:var(--muted);margin-top:4px}
+.pux .pl{flex:none;margin-right:4px}
+.pux q{quotes:"\201C" "\201D";color:var(--text);flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pux .pc{flex:0 1 auto;max-width:45%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rg{display:flex;align-items:center;gap:12px;margin-top:12px}
 .rg svg{flex:none;display:block}
-.rg .v{font-size:13.5px;color:var(--muted)}
+.rg .v{flex:1 1 0;min-width:0;font-size:13.5px;color:var(--muted)}
 .rg .v b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.venm,.vsr{display:none}
+.vs{margin:0;display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);flex:1;min-width:0}
+.vs svg{flex:none;margin-top:2px}
+.vs b{color:var(--text);font-weight:600}
+.det{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 4px;background:none;border:0;color:var(--yt);font:500 13px/18px Inter,system-ui,sans-serif;cursor:pointer;flex:none}
+.det svg{transition:transform .15s}
+.det[aria-expanded="true"] svg{transform:rotate(180deg)}
+@media (prefers-reduced-motion:reduce){.det svg{transition:none}}
 .alv{display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:13.5px;color:var(--muted);max-width:70ch}
 .alv svg{flex:none;margin-top:3px}
 .alv b{color:var(--text);font-weight:600}
 .ra{display:flex;flex-direction:column;align-items:stretch;gap:24px}
 .ra .btn{width:100%}
+.ra .btn.pri,.ra .btn.ol{height:auto;padding-top:8px;padding-bottom:8px}
+.ra .btn.dis{border-color:transparent;width:auto;align-self:flex-end;color:var(--muted);text-decoration:underline;font-weight:400}
+.ra .btn.dis[aria-expanded="true"]{border:1px solid var(--text);text-decoration:none;color:var(--text)}
 .ra .more{display:none}
 .dsp{grid-column:1 / -1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--sunk)}
 .dsp p{font:600 13.5px/1.35 Inter,system-ui,sans-serif;margin-right:4px}
@@ -168,9 +179,12 @@ body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-se
 .done b{font-weight:600}
 .srow .errl{grid-column:1 / -1;margin-top:0;align-items:center;flex-wrap:wrap}
 .vmore{display:flex;justify-content:center;padding:12px;border-top:1px solid var(--border-subtle)}
-.sk-row{display:grid;grid-template-columns:96px minmax(0,1fr) 248px;gap:16px;padding:16px;border-bottom:1px solid var(--border-subtle);min-height:132px}
+.skel{display:block;background:var(--skel);border-radius:4px}
+@media (prefers-reduced-motion:no-preference){.skel{animation:skp 1.6s ease-in-out infinite}@keyframes skp{50%{opacity:.55}}}
+.sk-row{display:grid;grid-template-columns:96px minmax(0,1fr) 248px;gap:16px;padding:16px;border-bottom:1px solid var(--border-subtle);min-height:209px}
+.sk-row .skra{display:flex;flex-direction:column;gap:24px}
 /* vazio: um contêiner */
-.vz{display:flex;gap:16px;align-items:flex-start;margin-top:16px;padding:24px;min-height:160px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.vz{display:flex;gap:16px;align-items:flex-start;margin-top:16px;padding:24px;min-height:120px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
 .vz .vic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-strong);color:var(--dim)}
 .vz.ok .vic{color:var(--ok);border-color:var(--ok-line)}
 .vz.prob{border-color:var(--warn-line);border-left-width:4px;background:var(--warn-bg)}
@@ -199,14 +213,21 @@ body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-se
 @container (max-width:640px){
  .srow,.srow.noth{grid-template-columns:minmax(0,1fr);gap:0;padding:12px;min-height:0}
  .srow .th,.srow .pux,.srow .alv.desk{display:none}
- .srow.open .pux,.srow.open .alv.desk{display:-webkit-box;display:flex}
- .srow.open .pux{display:-webkit-box}
- .srow.open h4 button{-webkit-line-clamp:unset;display:block}
+ .srow.open .th{display:grid;width:100%;max-width:160px;margin:8px 0}
+ .srow.open .pux{display:block}
+ .srow.open .pux q,.srow.open .pux .pc{white-space:normal;overflow:visible;max-width:none;display:inline}
+ .srow.open .pux .pl{margin-right:4px}
+ .srow h4.tg{cursor:pointer}
+ .srow.open h4{-webkit-line-clamp:unset;display:block}
+ .srow .top{flex-wrap:nowrap}
+ .srow .ven1{display:none}
+ .venm{display:block;margin-top:8px}
+ .vsr{display:flex;align-items:center;gap:8px;margin-top:8px}
  .ra{flex-direction:row;gap:24px;margin-top:12px}
  .ra .btn.pri,.ra .btn.ol{flex:1}
  .ra .dis{display:none}
  .ra .more{display:inline-flex;width:44px;min-width:44px;flex:none;padding:0}
- .dsp{margin-top:12px}
+ .dsp{margin-top:12px;gap:16px}
  .dsp .btn{flex:1 1 140px}
  .dsp .sep{display:none}
  .dsp .lnk{margin-left:0}
@@ -217,7 +238,7 @@ body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-se
  .info{margin-top:12px}
  .info dl{grid-template-columns:minmax(0,1fr)}
  .info dd{margin-bottom:6px}
- .sk-row{grid-template-columns:minmax(0,1fr);min-height:196px;padding:12px}
+ .sk-row{grid-template-columns:minmax(0,1fr);min-height:259px;padding:12px}
  .sk-row .skth,.sk-row .skra{display:none}
  .vz{padding:16px;gap:12px}
  .vz .acts .btn{flex:1 1 160px}
@@ -249,6 +270,7 @@ const I={
  calm:'<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
  wait:'<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 5v4.2l2.8 1.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
  q:'<svg width="18" height="18" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.3 5.5c0-1 .8-1.6 1.7-1.6s1.7.6 1.7 1.5c0 1.2-1.7 1.2-1.7 2.4M7 10v.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+ chev:'<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
  vid:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1.5" y="3" width="11" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 5.5v3l2.6-1.5z" fill="currentColor"/></svg>'
 };
 I.ok18=I.ok.replace(/width="14" height="14"/,'width="18" height="18"');
@@ -273,7 +295,7 @@ const LUG=['Vietnã','Japão','Peru','Marrocos','Colômbia','Tailândia','Chile'
 const PAR=['Lisboa','Paris','Cusco','Bangkok','Roma','Istambul','Atacama','Medellín','Hanói','Petra','Kyoto','Cartagena'];
 const THS=['tA','tB','tC','tD','tE','tF'];
 function quarenta(){const a=[];let k=0;
- LUG.forEach((l,i)=>a.push({id:'q'+(k++),kind:'destino',lugar:l,acao:i%3===0?'video_novo':(i%7===3?'playlist':'titulo_descricao'),mult:+(14.8-i*0.33).toFixed(1),pts:[14.8-i*0.33,4.2],nv:2+(i%4),nc:2+(i%3),prop:i%3===0?0:1+(i%4),th:THS[i%6],titulo:'Roteiro de 10 dias em '+l+' gastando pouco',canal:['Mochila Barata','Rota Leve','Diário de Bordo','Mundo a Pé'][i%4],ven:i===26?1:null,surgiu:'1'+(i%9)+'/10',vence:'1'+(i%9)+'/11'}));
+ LUG.forEach((l,i)=>a.push({id:'q'+(k++),kind:'destino',lugar:l,acao:i%3===0?'video_novo':(i%7===3?'playlist':'titulo_descricao'),mult:+(14.8-i*0.33).toFixed(1),pts:[14.8-i*0.33,4.2],nv:2+(i%4),nc:2+(i%3),prop:(i%3===0&&i!==9)?0:1+(i%4),th:THS[i%6],titulo:'Roteiro de 10 dias em '+l+' gastando pouco',canal:['Mochila Barata','Rota Leve','Diário de Bordo','Mundo a Pé'][i%4],ven:i===26?1:null,surgiu:'1'+(i%9)+'/10',vence:'1'+(i%9)+'/11'}));
  PAR.forEach((l,i)=>a.push({id:'q'+(k++),kind:'parecido',lugar:l,acao:'titulo_descricao',mult:+(13.9-i*0.7).toFixed(1),pts:[13.9-i*0.7],nv:1,nc:1,prop:1+(i%3),th:THS[(i+2)%6],titulo:l+' em 3 dias: o que eu faria diferente',canal:['Mundo a Pé','Rota Leve'][i%2],mesmo:i%2===0,fnc:i===4,surgiu:'2'+(i%2)+'/10',vence:'2'+(i%2)+'/11'}));
  return a.sort((x,y)=>y.mult-x.mult)}
 const Q40=quarenta();
@@ -285,17 +307,31 @@ const SEMPROP=[
 /* ---------- peças ---------- */
 const MOT={destino:[['lugar_errado','Lugar errado'],['nao_interessa','Não me interessa']],parecido:[['nao_e_parecido','Não é parecido'],['nao_interessa','Não me interessa']]};
 const MLAB={lugar_errado:'lugar errado',nao_interessa:'não me interessa',nao_e_parecido:'não é parecido',ja_fiz:'já fiz'};
-const PRI={video_novo:['Abrir o vídeo do concorrente',I.ext],titulo_descricao:['Abrir seus vídeos',''],playlist:['Abrir suas playlists','']};
+/* Logan C2: rótulo e botão seguem proprios_agora (leitura de hoje), não a ação gravada no nascimento. Emenda pendente na T8 da F2: ação derivada de proprios_agora na leitura. */
+function priOf(it,o){
+ if(it.acao==='playlist')return ['Abrir suas playlists',''];
+ if(o.alvNm)return ['Abrir seus vídeos',''];
+ const n=it.prop;
+ if(it.kind==='destino'){if(n===0)return ['Abrir o vídeo do concorrente',I.ext];return [n===1?'Abrir seu vídeo sobre '+esc(it.lugar):'Abrir seus '+n+' vídeos sobre '+esc(it.lugar),'']}
+ return [n===1?'Abrir seu vídeo parecido':'Abrir seus '+n+' vídeos parecidos','']}
+function vsTxt(it,o){
+ const dt='<span class="dt"> (cálculo de hoje, '+R.calc+')</span>';
+ if(o.alvNm)return '<span class="nm">não medido</span> vídeos seus sobre '+esc(it.lugar);
+ if(it.kind==='parecido')return 'Parecido com <b class="num">'+it.prop+'</b> '+(it.prop===1?'vídeo seu':'vídeos seus')+(it.fnc?' <span class="nm">formato não confirmado</span>':'')+dt;
+ if(it.semCanal)return 'Seu canal não tinha vídeo no cálculo de hoje'+dt.replace('(cálculo de hoje, '+R.calc+')','');
+ if(it.prop===0)return 'Nenhum vídeo seu sobre '+esc(it.lugar)+dt;
+ return '<b class="num">'+it.prop+'</b> '+(it.prop===1?'vídeo seu':'vídeos seus')+' sobre '+esc(it.lugar)+dt}
 function chip(k){return k==='destino'?'<span class="chip">'+I.pin+'Destino esquentou</span>':'<span class="chip">'+I.flame+'Concorrente bombou</span>'}
 function regua(m){
  const x0=8,x1=152,lx=v=>x0+Math.log(Math.min(Math.max(v,1),20))/Math.log(20)*(x1-x0),t=lx(R.lim),x=lx(m),over=m>20;
  const mk=over?'<path d="M'+(x1-7)+' 3l9 7-9 7z" style="fill:var(--text)"/>':'<circle cx="'+x.toFixed(1)+'" cy="10" r="6" style="fill:var(--text);stroke:var(--surface);stroke-width:2"/>';
- return '<svg width="160" height="34" viewBox="0 0 160 34" role="img" aria-label="'+f1(m)+' vezes o normal do canal; o limiar da regra é '+R.lim+' vezes">'+
-  '<line x1="'+x0+'" y1="10" x2="'+x1+'" y2="10" style="stroke:var(--border-strong);stroke-width:4;stroke-linecap:round"/>'+
-  '<line x1="'+t.toFixed(1)+'" y1="2" x2="'+t.toFixed(1)+'" y2="18" style="stroke:var(--muted);stroke-width:2"/>'+mk+
-  '<text x="'+x0+'" y="31" style="fill:var(--muted);font:400 12px Inter,system-ui,sans-serif" text-anchor="start">1×</text>'+
-  '<text x="'+t.toFixed(1)+'" y="31" style="fill:var(--muted);font:400 12px Inter,system-ui,sans-serif" text-anchor="middle">'+R.lim+'×</text>'+
-  '<text x="'+x1+'" y="31" style="fill:var(--muted);font:400 12px Inter,system-ui,sans-serif" text-anchor="end">20×'+(over?'+':'')+'</text></svg>'}
+ return '<svg width="160" height="36" viewBox="0 0 160 36" role="img" aria-label="'+f1(m)+' vezes o normal do canal; o traço marca a regra de '+R.lim+' vezes">'+
+  '<line x1="'+x0+'" y1="10" x2="'+x1+'" y2="10" style="stroke:var(--btn-line);stroke-width:4;stroke-linecap:round"/>'+mk+
+  '<line x1="'+t.toFixed(1)+'" y1="0" x2="'+t.toFixed(1)+'" y2="20" style="stroke:var(--surface);stroke-width:4"/>'+
+  '<line x1="'+t.toFixed(1)+'" y1="0" x2="'+t.toFixed(1)+'" y2="20" style="stroke:var(--text);stroke-width:2"/>'+
+  '<text x="'+x0+'" y="32" style="fill:var(--muted);font:400 12px Inter,system-ui,sans-serif" text-anchor="start">1×</text>'+
+  '<text x="'+t.toFixed(1)+'" y="32" style="fill:var(--text);font:600 12px Inter,system-ui,sans-serif" text-anchor="middle">regra '+R.lim+'×</text>'+
+  '<text x="'+x1+'" y="32" style="fill:var(--muted);font:400 12px Inter,system-ui,sans-serif" text-anchor="end">20×'+(over?'+':'')+'</text></svg>'}
 function h4txt(it){
  if(it.kind==='destino')return it.nv===1?'Um vídeo sobre '+esc(it.lugar)+' passou de '+R.lim+'× o normal do canal':it.nv+' vídeos sobre '+esc(it.lugar)+', de '+it.nc+' canais, passaram do normal nos últimos 14 dias';
  return 'Um vídeo de tema parecido com um seu passou do normal'+(it.mesmo?', no mesmo lugar ('+esc(it.lugar)+')':' (lugar diferente: '+esc(it.lugar)+')')}
@@ -308,29 +344,33 @@ function alvos(it,o){
 function row(it,i,o){
  o=o||{};const done=S.done[it.id];
  if(done)return '<div class="done" role="status">'+I.ok+'<span>'+(done==='ja_fiz'?'<b>Marcada como já feita.</b> Não volta nos próximos 30 dias.':'<b>Dispensada: '+MLAB[done]+'.</b> Não volta nos próximos 30 dias.')+'</span></div>';
- const pri=PRI[it.acao],first=i===0&&!o.noPri,open=S.open===it.id,exp=S.exp===it.id,info=S.info===it.id;
+ const pri=priOf(it,o),first=o.firstId!==undefined?it.id===o.firstId:(i===0&&!o.noPri),open=S.open===it.id,exp=S.exp===it.id,info=S.info===it.id,m=S.w==='390';
  const th=o.noth?'':(it.th==='fail'?'<div class="th fail">Miniatura indisponível</div>':'<div class="th '+it.th+'" aria-hidden="true">'+esc(it.lugar.slice(0,2))+'</div>');
- const ven=it.ven&&it.ven<=3?'<span class="selo mute">'+I.late+'vence em '+it.ven+(it.ven===1?' dia':' dias')+'</span>':'';
+ const vtxt=it.ven&&it.ven<=3?'vence em '+it.ven+(it.ven===1?' dia':' dias'):'';
+ const ven=vtxt?'<span class="selo mute ven1">'+I.late+vtxt+'</span>':'';
+ const venm=vtxt?'<p class="venm"><span class="selo mute">'+I.late+vtxt+'</span></p>':'';
+ const ht=h4txt(it);
  let h='<div class="srow'+(o.noth?' noth':'')+(exp?' open':'')+'" tabindex="-1" data-row="'+it.id+'">'+th+'<div>'+
   '<div class="top">'+chip(it.kind)+ven+'<span class="vm">'+f1(it.mult)+'×</span></div>'+
-  '<h4><button data-exp="'+it.id+'" aria-expanded="'+exp+'">'+h4txt(it)+'</button></h4>'+
-  (o.noTit?'':'<p class="pux">Puxado por <q>'+esc(it.titulo)+'</q>, de '+esc(it.canal)+'</p>')+
-  '<div class="rg">'+regua(it.mult)+'<span class="v"><b>'+f1(it.mult)+'×</b> o normal do canal'+(it.nv>1?', o mais alto de '+it.nv:'')+'</span><button class="ib" data-info="'+it.id+'" aria-expanded="'+info+'" aria-label="Como esta sugestão foi calculada">i</button></div>'+
-  alvos(it,o)+'</div>'+
+  (m?'<h4 class="tg" data-exp="'+it.id+'">'+ht+'</h4>':'<h4>'+ht+'</h4>')+
+  (o.noTit?'':'<p class="pux"><span class="pl">Puxado por</span><q>'+esc(it.titulo)+'</q><span class="pc">, de '+esc(it.canal)+'</span></p>')+
+  '<div class="rg">'+regua(it.mult)+'<button class="ib" data-info="'+it.id+'" aria-expanded="'+info+'" aria-label="Como esta sugestão foi calculada">i</button><span class="v"><b>'+f1(it.mult)+'×</b> o normal do canal'+(it.nv>1?', o mais alto de '+it.nv:'')+'</span></div>'+
+  venm+alvos(it,o)+
+  '<div class="vsr"><p class="vs">'+I.vid+'<span>'+vsTxt(it,o)+'</span></p><button class="det" data-exp="'+it.id+'" aria-expanded="'+exp+'">Detalhes'+I.chev+'</button></div></div>'+
   '<div class="ra"><button class="btn '+(first?'pri':'ol')+'" data-k="p-'+it.id+'">'+pri[1]+pri[0]+'</button>'+
   '<button class="btn ghost dis" data-dis="'+it.id+'" aria-expanded="'+open+'">Dispensar</button>'+
   '<button class="btn ghost more" data-dis="'+it.id+'" aria-expanded="'+open+'" aria-label="Dispensar: escolher motivo">'+I.dots+'</button></div>';
  if(info)h+='<div class="info"><h5>Como esta sugestão foi calculada</h5><dl>'+
   '<dt>Vídeos que puxaram</dt><dd>'+it.pts.map(p=>f1(p)+'×').join(', ').replace(/, ([^,]*)$/,' e $1')+'</dd>'+
   '<dt>Medida</dt><dd>views por dia na 1ª semana ÷ mediana do canal no mesmo formato</dd>'+
-  '<dt>Limiar</dt><dd>'+R.lim+'× (regra sinais-v1, provisória)</dd>'+
+  '<dt>Para virar sugestão</dt><dd>vídeos de 2 canais acima do normal, ou um só acima de '+R.lim+'× (regra sinais-v1, provisória)</dd>'+
   '<dt>Surgiu</dt><dd>'+it.surgiu+'; vence em '+it.vence+'</dd>'+
   '<dt>Leitura</dt><dd>Pode ajudar. É associação, não causa.</dd></dl></div>';
  if(open)h+='<div class="dsp" role="group" aria-label="Motivo para dispensar"><p>Por que dispensar?</p>'+
   MOT[it.kind].map(m=>'<button class="btn" data-mot="'+m[0]+'" data-id="'+it.id+'">'+m[1]+'</button>').join('')+
   '<span class="sep" aria-hidden="true"></span><button class="btn" data-mot="ja_fiz" data-id="'+it.id+'">Já fiz</button>'+
   '<button class="lnk" data-cancel="'+it.id+'">Cancelar</button></div>';
- if(o.erroId===it.id)h+='<p class="errl" role="alert">'+I.warn+'<span><b>Não salvou:</b> sem conexão. A sugestão continua aberta.</span><button class="btn" data-retry="1">Tentar de novo</button></p>';
+ if(o.erroId===it.id){const ml=(MLAB[o.erroMot]||'');h+='<p class="errl" role="alert">'+I.warn+'<span><b>Não salvou “'+ml.charAt(0).toUpperCase()+ml.slice(1)+'”:</b> sem conexão. A sugestão continua aberta.</span><button class="btn" data-retry="1">Tentar de novo “'+ml.charAt(0).toUpperCase()+ml.slice(1)+'”</button></p>'}
  return h+'</div>'}
 function resumo(items){
  const n=items.length,d=items.filter(x=>x.kind==='destino'),p=n-d.length,nm=d.map(x=>x.lugar);
@@ -345,18 +385,22 @@ function sum(t,s){return '<p class="sum">'+t+(s?'<small>'+s+'</small>':'')+'</p>
 function lista(items,o){
  o=o||{};const live=items.filter(x=>!S.done[x.id]);let fl=items;
  if(S.f!=='todas')fl=items.filter(x=>x.kind===S.f);
- const flt=items.length>8?'<div class="flt" role="group" aria-label="Filtrar por origem">'+[['todas','Todas',items.length],['destino','Destinos',items.filter(x=>x.kind==='destino').length],['parecido','Concorrentes',items.filter(x=>x.kind==='parecido').length]].map(b=>'<button data-f="'+b[0]+'" aria-pressed="'+(S.f===b[0])+'">'+b[1]+' ('+b[2]+')</button>').join('')+'</div>':'';
+ const oo=Object.assign({},o,{firstId:(fl.find(x=>!S.done[x.id])||{id:''}).id});
+ let more='';if(S.w==='390'&&fl.length>10&&!S.more){more='<div class="vmore"><button class="btn" data-more="1">Mostrar mais ('+(fl.length-10)+')</button></div>';fl=fl.slice(0,10)}
+ const rows=fl.map((x,i)=>row(x,i,oo)).join('');
+ const cn=k=>live.filter(x=>k==='todas'||x.kind===k).length;
+ const flt=items.length>8?'<div class="flt" role="group" aria-label="Filtrar por origem">'+[['todas','Todas',cn('todas')],['destino','Destinos',cn('destino')],['parecido','Concorrentes',cn('parecido')]].map(b=>'<button data-f="'+b[0]+'" aria-pressed="'+(S.f===b[0])+'">'+b[1]+' ('+b[2]+')</button>').join('')+'</div>':'';
  return '<div class="col">'+head({n:o.n!==undefined?o.n:live.length,velho:o.velho,fresh:o.fresh})+sum(live.length?resumo(live):'Nenhuma sugestão aberta.',o.sub||'Da mais forte para a mais fraca.')+(o.band||'')+flt+
-  '<div class="sl">'+fl.map((x,i)=>row(x,i,o)).join('')+'</div></div>'}
-function sk(){return '<div class="sk-row" aria-hidden="true"><span class="skel skth" style="width:96px;aspect-ratio:16/9"></span><div><span class="skel" style="width:132px;height:20px"></span><span class="skel" style="width:85%;height:16px;margin-top:12px"></span><span class="skel" style="width:60%;height:16px;margin-top:8px"></span><span class="skel" style="width:160px;height:22px;margin-top:16px"></span></div><div class="skra"><span class="skel" style="width:100%;height:36px"></span><span class="skel" style="width:100%;height:36px;margin-top:24px"></span></div></div>'}
+  '<div class="sl">'+rows+more+'</div></div>'}
+function sk(){return '<div class="sk-row" aria-hidden="true"><span class="skel skth" style="width:96px;aspect-ratio:16/9"></span><div><span class="skel" style="width:132px;height:20px"></span><span class="skel" style="width:85%;height:16px;margin-top:12px"></span><span class="skel" style="width:60%;height:16px;margin-top:8px"></span><span class="skel" style="width:160px;height:22px;margin-top:16px"></span></div><div class="skra"><span class="skel" style="width:100%;height:36px"></span><span class="skel" style="width:100%;height:36px"></span></div></div>'}
 function vazio(o){
  return '<div class="col">'+head({n:o.n===undefined?0:o.n,fresh:o.fresh})+sum(o.top)+
-  '<div class="vz '+(o.fam||'')+'"'+(o.fam==='prob'?' role="status"':'')+'><span class="vic"'+(o.fam==='nm'?' style="color:var(--nm);border-color:var(--nm-line)"':'')+'>'+o.ic+'</span><div><h3>'+o.h+'</h3><p>'+o.p+'</p>'+(o.acts?'<div class="acts">'+o.acts+'</div>':'')+'</div></div></div>'}
+  '<div class="vz '+(o.fam==='nm'?'fam-nm':(o.fam||''))+'"'+(o.fam==='prob'?' role="status"':'')+'><span class="vic"'+(o.fam==='nm'?' style="color:var(--nm);border-color:var(--nm-line)"':'')+'>'+o.ic+'</span><div><h3>'+o.h+'</h3><p>'+o.p+'</p>'+(o.acts?'<div class="acts">'+o.acts+'</div>':'')+'</div></div></div>'}
 const NM='<span class="nm">não medido</span>';
 
 /* ---------- estados ---------- */
 const st={
- lista:()=>({h:lista(BASE),x:'Caso mais provável: 3 sugestões, a 1ª é um destino <b>sem vídeo seu</b> (primário "Abrir o vídeo do concorrente"). Laranja só na linha 1; as outras em contorno. Clique em Dispensar, num motivo, no ⓘ, no filtro. A 390, toque no texto da linha para ver alvos.'}),
+ lista:()=>({h:lista(BASE),x:'Caso mais provável: 3 sugestões, a 1ª é um destino <b>sem vídeo seu</b> (primário "Abrir o vídeo do concorrente"). Laranja só na linha 1; as outras em contorno. Clique em Dispensar, num motivo, no ⓘ, no filtro. A 390, a linha mostra sempre os vídeos seus e o botão "Detalhes" (ou o título) abre puxado por e miniatura. Rótulo e botão seguem a contagem de hoje.'}),
  'um-item':()=>({h:lista(BASE.slice(0,1)),x:'Uma sugestão. Sem filtro (só com N &gt; 8).'}),
  'quarenta':()=>({h:lista(Q40),x:'40 sugestões: o filtro por origem aparece (N &gt; 8) e vai na URL (<code>&amp;filtro=</code>). A frase-resumo cita no máximo 2 nomes e "+N". Uma linha vence em 1 dia.'}),
  'titulo-longo':()=>({h:lista(LONGO),x:'Hostil: lugar longo, título de 100 caracteres com emoji, canal de 50, mult 48,3× (marcador na borda, "20×+"), 7 vídeos, miniatura que falhou. Abra o ⓘ da 1ª linha.'}),
@@ -366,7 +410,7 @@ const st={
  'dispensar-aberto':()=>({h:lista(BASE),x:'2º toque: motivos do tipo na própria linha, "Já fiz" separado por um traço. Cada motivo grava na hora. Esc ou Cancelar fecham e devolvem o foco ao Dispensar.'}),
  'dispensada':()=>({h:lista(BASE),x:'Gravado: faixa "Dispensada" por 5 s (aqui fixa), N e frase-resumo caem depois da confirmação do servidor; o foco vai à linha seguinte. Sem Desfazer (a função de reabrir é da F3).'}),
  'ja-fiz':()=>({h:lista(BASE),x:'"Já fiz" grava dispensa com motivo <code>ja_fiz</code>, nunca <code>feito</code> (Phil); verbo e faixa próprios.'}),
- 'nao-salvou':()=>({h:lista(BASE,{erroId:'s2'}),x:'Rede caída ao dispensar: a linha volta com o erro e "Tentar de novo". N não mudou.'}),
+ 'nao-salvou':()=>({h:lista(BASE,{erroId:'s2',erroMot:'lugar_errado'}),x:'Rede caída ao dispensar: a linha volta com o erro e "Tentar de novo". N não mudou.'}),
  carregando:()=>({h:'<div class="col">'+head({n:'…',fresh:'Lendo…'})+'<p class="sum" aria-busy="true"><span class="skel" style="width:min(420px,100%);height:24px"></span></p><div class="sl" aria-busy="true" aria-label="Carregando sugestões">'+sk()+sk()+sk()+'</div></div>',x:'N "…" (nunca 0), 3 esqueletos com a forma da linha; sem pulsar com movimento reduzido.'}),
  erro:()=>({h:vazio({n:'?',fresh:'Leitura falhou às 09:14',top:'Não deu para ler as sugestões.',fam:'prob',ic:I.warn18,h:'A leitura falhou: tempo esgotado.',p:'Nada foi perdido. O número volta quando a leitura der certo.',acts:'<button class="btn">Tentar de novo</button>'}).replace('class="vz prob" role="status"','class="vz prob" role="alert"'),x:'Erro sem lista anterior: N "?", ⚠ e "Tentar de novo" (role=alert).'}),
  'erro-com-lista':()=>({h:lista(BASE,{band:'<div class="band err" role="alert">'+'<span class="ic">'+I.warn+'</span><div><h3>Não deu para atualizar a lista.</h3><p>Esta é a lista lida às 09:14.</p><div class="acts"><button class="btn">Tentar de novo</button></div></div></div>',fresh:'Lida às 09:14'}),x:'Erro com lista antiga: faixa de erro, a lista anterior segue utilizável.'}),
@@ -410,7 +454,7 @@ const E=[
  ['Contexto',[['ctx-ablab','Bloco no A/B Lab + Candidatos'],['ctx-ablab-velho','Bloco no A/B Lab, dados velhos'],['ctx-competidores','Botão em Competidores']]]
 ];
 const KEYS=[].concat(...E.map(g=>g[1].map(x=>x[0])));const LABEL={};E.forEach(g=>g[1].forEach(x=>LABEL[x[0]]=x[1]));
-const S={e:'lista',tema:'dark',w:'1440',f:'todas',open:null,done:{},exp:null,info:null};
+const S={e:'lista',tema:'dark',w:'1440',f:'todas',open:null,done:{},exp:null,info:null,more:false};
 
 const fr=document.getElementById('fr');
 function render(key){
@@ -420,11 +464,11 @@ function render(key){
  document.getElementById('expl').innerHTML='<b>'+(LABEL[S.e]||'')+'.</b> '+d.x;
  document.getElementById('selE').value=KEYS.includes(S.e)?S.e:'';
  [['sTema',S.tema],['sLarg',S.w]].forEach(p=>document.querySelectorAll('#'+p[0]+' button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===p[1])));
- try{history.replaceState(null,'','?estado='+S.e+'&tema='+S.tema+'&largura='+S.w+(S.f!=='todas'?'&filtro='+S.f:''))}catch(e){}
+ try{history.replaceState(null,'','?estado='+S.e+'&tema='+S.tema+'&largura='+S.w+(S.f!=='todas'?'&filtro='+S.f:'')+(S.more?'&mais=1':''))}catch(e){}
  if(key){const t=[...fr.querySelectorAll(key)].find(e=>e.offsetParent!==null);if(t)t.focus()}
 }
 const PRE={'info-aberto':()=>{S.info='s1'},'dispensar-aberto':()=>{S.open='s2'},'dispensada':()=>{S.done={s2:'lugar_errado'}},'ja-fiz':()=>{S.done={s2:'ja_fiz'}}};
-function reset(){S.open=null;S.done={};S.exp=null;S.info=null;S.f='todas';if(PRE[S.e])PRE[S.e]()}
+function reset(){S.open=null;S.done={};S.exp=null;S.info=null;S.f='todas';S.more=false;if(PRE[S.e])PRE[S.e]()}
 const sE=document.getElementById('selE');
 E.forEach(g=>{const og=document.createElement('optgroup');og.label=g[0];g[1].forEach(x=>{const o=document.createElement('option');o.value=x[0];o.textContent=x[1];og.appendChild(o)});sE.appendChild(og)});
 sE.addEventListener('change',()=>{S.e=sE.value;reset();render()});
@@ -438,7 +482,8 @@ document.addEventListener('click',ev=>{
  const m=ev.target.closest('[data-mot]');if(m){const id=m.dataset.id;S.done[id]=m.dataset.mot;S.open=null;
   const rows=[...fr.querySelectorAll('[data-row]')].map(r=>r.dataset.row);const nx=rows[rows.indexOf(id)+1];render(nx?'[data-row="'+nx+'"]':null);return}
  const inf=ev.target.closest('[data-info]');if(inf){const id=inf.dataset.info;S.info=S.info===id?null:id;S.open=null;render('[data-info="'+id+'"]');return}
- const x=ev.target.closest('[data-exp]');if(x){const id=x.dataset.exp;S.exp=S.exp===id?null:id;render('[data-exp="'+id+'"]');return}
+ const mm=ev.target.closest('[data-more]');if(mm){S.more=true;render('[data-more]');return}
+ const x=ev.target.closest('[data-exp]');if(x){const id=x.dataset.exp;S.exp=S.exp===id?null:id;render('button[data-exp="'+id+'"]');return}
 });
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&(S.open||S.info)){const id=S.open||S.info,was=S.open;S.open=null;S.info=null;render(was?'[data-dis="'+id+'"]':'[data-info="'+id+'"]')}});
 const q=new URLSearchParams(location.search);
@@ -447,5 +492,6 @@ if(['dark','light'].includes(q.get('tema')))S.tema=q.get('tema');
 if(['1440','390'].includes(q.get('largura')))S.w=q.get('largura');
 reset();
 if(['destino','parecido'].includes(q.get('filtro')))S.f=q.get('filtro');
+if(q.get('mais')==='1')S.more=true;
 render();
 </script></body></html>

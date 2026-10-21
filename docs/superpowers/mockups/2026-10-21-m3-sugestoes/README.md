@@ -1,8 +1,26 @@
-# Mockup M3 r1: lista "Sugestões (N)" (21/10)
+# Mockup M3 r2 (consertos da r1): lista "Sugestões (N)" (21/10)
 
 Abrir: `open -a Opera index.html`. Seletor no topo: **Estado** (agrupado), **Tema** e **Largura** (1440 ou 390). A URL aceita `?estado=<chave>&tema=dark|light&largura=1440|390` (mesmo padrão do M2) e `&filtro=destino|parecido` no estado `quarenta`. Os botões funcionam: Dispensar abre os motivos, cada motivo grava, Cancelar e Esc fecham, ⓘ abre o método, o filtro filtra; a 390, tocar no texto da linha mostra "puxado por" e os vídeos seus. Dados sintéticos.
 
 Base: S7 r3, M1 e M2 r2 (tokens, selos, faixas, `nm` "não medido", escala 4/8/12/16/24/32, Georgia nos títulos), copiados do M2 sem identidade nova. Novos só `--ln`/`--ln-line`/`--ln-bg` (o `--lado-n` da Naksu: `#D9C08F` escuro, `#6B5320` claro) e a régua. Nenhum `color-mix()`.
+
+## r2: o que mudou (item da revisão r1 → conserto)
+- **Naksu B1 (bloqueia), título do `vazio-sem-lugar` cortado a 390:** o contêiner usava a classe `nm` do selo (nowrap, 12 px, rosa). Agora `fam-nm`, só o ícone é rosa. Medido: o h3 quebra em 2 linhas (45 px) em `--text`.
+- **Naksu C1, esqueleto:** `.skel` existe (bloco, `--skel`, pulso só com `prefers-reduced-motion:no-preference`); `sk-row` com a altura da linha real: 209 px a 1440 (real 207 a 227) e 259 px a 390 (real 259 a 305).
+- **Naksu C2 + Logan C3, régua:** traço desenhado depois do marcador, 0 a 20, 2 px `--text` com contorno de 1 px `--surface`; trilha em `--btn-line` (≥ 3:1); o traço se chama "regra 5×" (também no `aria-label`). No ⓘ, "Limiar" virou "Para virar sugestão: vídeos de 2 canais acima do normal, ou um só acima de 5×".
+- **Naksu C3, puxado por:** título e ", de canal" em partes próprias, cada uma com reticências; o canal não some. Aberta a 390, quebra normal.
+- **Naksu C4, selo "vence em":** a 390 sai da linha do chip (que não quebra mais) e vai para baixo da régua.
+- **Naksu C5, Dispensar:** a 1440 é botão de texto sublinhado, cor `--muted`, sem borda; o primário/contorno mantém a caixa.
+- **Naksu C6, ⓘ:** logo depois da régua, antes do texto; o texto quebra no espaço dele (linha sem salto de 40 px).
+- **Naksu C7 + Logan C1, 390:** a miniatura aparece na linha aberta; a linha recolhida mostra sempre os vídeos seus ("Nenhum vídeo seu sobre Vietnã", "2 vídeos seus sobre Japão", "Parecido com 1 vídeo seu", ou "não medido") e o botão "Detalhes ▾" (44 px, gira ao abrir) abre "puxado por" e miniatura; tocar no título também abre. A data do cálculo só aparece aberta. Custo: a linha recolhida passou de ~208 para ~259 px a 390 (Detalhes tem 44 px); Logan estimava +20.
+- **Logan C2, botão e rótulo:** seguem `proprios_agora` (leitura de hoje), não a `acao` gravada: sem vídeo seu "Abrir o vídeo do concorrente"; com N, "Abrir seus N vídeos sobre Japão" / "Abrir seu vídeo sobre X" / "Abrir seus N vídeos parecidos"; `playlist` não muda; "não medido" cai no genérico "Abrir seus vídeos" (sem número a prometer). O destino é a lista de vídeos filtrada pelos ids de `proprios_agora`. No `quarenta`, a 10ª linha tem `acao=video_novo` gravada mas 1 vídeo seu hoje: o botão segue a contagem. **Emenda pendente na T8 da F2: ação derivada de `proprios_agora` na leitura** (Yannis confere).
+- **Logan C4, filtro:** os contadores contam só as linhas abertas (mesma conta do N do cabeçalho); caem ao dispensar.
+- **Logan S1:** o laranja vai para a primeira linha aberta ao gravar. **S2:** a 390, motivos a 16 px um do outro. **S3:** a 1440 o título é texto (sem parada de Tab); só a 390 ele abre. **S4:** a 390, `quarenta` mostra 10 e "Mostrar mais (30)" (`&mais=1` na URL). **S5:** "Não salvou “Lugar errado”" e "Tentar de novo “Lugar errado”".
+- **Naksu S1:** chip de origem com raio de 4 px (o selo de aviso segue pílula). **S3:** miniatura que falhou em `--dim`/`--border-strong`, sem vermelho.
+- Logan para a Naksu: `nao-salvou` a 390 sem o ⚠ sozinho; `.vz` com `min-height` de 120 px (sobravam ~90 px).
+- **Não feito:** Naksu S2 (filtro fixo no topo): o `.stage` do mockup cria o contêiner de rolagem e o `sticky` não apareceria; fica para a tela real.
+
+Reverificado com Playwright headless (68 estados-largura-tema, sem abrir o navegador do dono): sem erro de script nem "undefined"/"NaN"; `scrollWidth` 390 em todos; todo botão visível a 390 com 44 px ou mais; todo texto com fundo sólido ≥ 4,5:1; nenhuma fonte abaixo de 12 px; zero `color-mix()`. Capturas novas em `shots/` (17 estados × 2 temas × 2 larguras). Não verificado: Opera real, leitor de tela, aparelho real.
 
 ## Decisões aplicadas (direção r2 de Logan e Naksu + respostas de Phil, Yannis e Hanna)
 - Uma lista, só `niche_signals` (`destino`, `parecido`); mesmo N do sino e do Cowork. Página própria; bloco no A/B Lab; botão em Competidores que nunca some (N "…" ao carregar, "?" no erro, nunca 0 falso).
