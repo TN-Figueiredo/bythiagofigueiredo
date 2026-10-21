@@ -73,7 +73,7 @@ describe('getChannelSlots (F1 Remover canal)', () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
     const { RULES } = await import('@/lib/youtube/observatorio/rules')
-    const sql = readFileSync(resolve(__dirname, '../../../../supabase/migrations/20261019000001_observatorio_a5_remover_canal_f1.sql'), 'utf8')
+    const sql = readFileSync(resolve(__dirname, '../../../../supabase/migrations/20261021000002_observatorio_a5_remover_canal_f1.sql'), 'utf8')
     const m = /s\.channel_limit from public\.competitor_settings s where s\.site_id = p_site\), (\d+)\)/.exec(sql)
     expect(Number(m?.[1])).toBe(DEFAULT_CHANNEL_LIMIT)
     expect(RULES.channelLimit).toBe(DEFAULT_CHANNEL_LIMIT)
