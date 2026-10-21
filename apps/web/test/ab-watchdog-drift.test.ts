@@ -237,6 +237,15 @@ describe('23: drift pela imagem', () => {
     expect(createNotification).not.toHaveBeenCalled()
   })
 
+  it('pausa convertida pela guarda do teste do YouTube: sem aviso de drift, contador próprio (Phil C1)', async () => {
+    const { banco, yt, relogio } = montar({ noAr: IMG.B })
+    const settle = vi.fn().mockResolvedValue({ resultado: 'feito', campos: { thumbnail: { estado: 'pulado_teste_youtube' } }, pausadoPorTesteYoutube: true })
+    const r = await faseDriftEInterrompidos(banco.supabase, relogio, yt.fetch, 4, { settle })
+    expect(r).toMatchObject({ pausados: 0, pausadosPorTesteYoutube: 1, falhas: 0 })
+    expect(createNotification).not.toHaveBeenCalled()
+    expect(fanOut).not.toHaveBeenCalled()
+  })
+
   it('ciclo com menos de 3 h é pulado; com 3 h exatas é verificado', async () => {
     const novo = montar({ noAr: IMG.B })
     novo.banco.cicloAberto()!.started_at = iso(3 * 3_600_000 - 1)

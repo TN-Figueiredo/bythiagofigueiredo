@@ -78,7 +78,7 @@ function buildMockSupabase(activeTests: { site_id: string }[] | null, withOwner 
   return { from, rpc: owners.rpc, auth: owners.auth }
 }
 
-const driftVazio = (p: Partial<ResultadoDrift> = {}): ResultadoDrift => ({ verificados: 0, pausados: 0, falhas: 0, adiados: 0, interrompidos: 0, semDestinatario: false, ...p })
+const driftVazio = (p: Partial<ResultadoDrift> = {}): ResultadoDrift => ({ verificados: 0, pausados: 0, pausadosPorTesteYoutube: 0, falhas: 0, adiados: 0, interrompidos: 0, semDestinatario: false, ...p })
 
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -333,7 +333,7 @@ describe('ab-watchdog: fase nova (P4b T4)', () => {
     expect(body.status).toBe('ok')
     expect(body.nova_tentativa).toEqual({
       tentadas: 0, ok: 0, falharam: 0, desistiram: 0, pulados: 0, cota: 0,
-      ignorados: { outro_teste: 0, pausado_variante: 0 }, adiados: 0, sem_destinatario: 0,
+      ignorados: { outro_teste: 0, pausado_variante: 0, teste_youtube: 0 }, adiados: 0, sem_destinatario: 0,
     })
     expect(recordCronFailure).not.toHaveBeenCalled()
   })

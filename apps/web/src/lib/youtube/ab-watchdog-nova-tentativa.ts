@@ -15,7 +15,7 @@ export interface ResultadoNovaTentativa {
   desistiram: number
   pulados: number
   cota: number
-  ignorados: { outro_teste: number; pausado_variante: number }
+  ignorados: { outro_teste: number; pausado_variante: number; teste_youtube: number }
   adiados: number
   falhas: number
   semDestinatario: number
@@ -30,7 +30,7 @@ const CAMPOS: CampoNome[] = ['title', 'thumbnail']
 
 export const zeroNovaTentativa = (): ResultadoNovaTentativa => ({
   tentadas: 0, ok: 0, falharam: 0, desistiram: 0, pulados: 0, cota: 0,
-  ignorados: { outro_teste: 0, pausado_variante: 0 }, adiados: 0, falhas: 0, semDestinatario: 0,
+  ignorados: { outro_teste: 0, pausado_variante: 0, teste_youtube: 0 }, adiados: 0, falhas: 0, semDestinatario: 0,
 })
 
 function ler<T>(r: { data: unknown; error: { message: string } | null }, contexto: string): T[] {
@@ -96,6 +96,7 @@ export async function faseNovaTentativa(
         siteId: t.site_id, origem: 'vigia', prazo: relogio.inicio + PRAZO_DA_ROTA_MS, seqEsperado: t.restore_seq,
       }, { supabase, fetch: f })
       if (res.resultado === 'outro_teste') { r.ignorados.outro_teste++; return }
+      if (res.resultado === 'teste_youtube') { r.ignorados.teste_youtube++; return } // teste do YouTube em andamento: não escreve, mas fica visível no resumo
       if (res.resultado === 'destino_invalido') {
         contar()
         r.falhas++

@@ -160,6 +160,14 @@ describe('(k) passo 0b depois de pulado_teste_youtube (Yannis C3)', () => {
     expect(m.rpc).not.toHaveBeenCalled()
   })
 
+  it('leitura do passo 0b falha: não escreve o original; pergunta, sem reivindicar (Yannis M4)', async () => {
+    lerSnippetMock.mockRejectedValue(new Error('5xx passageiro'))
+    const m = montar(retrato({ test_type: 'title', status: 'paused', restore_status: pulado }))
+    const res = await settleOnAir('t1', op, comToken(m))
+    expect(res.resultado).toBe('precisa_confirmar')
+    expect(m.rpc).not.toHaveBeenCalled()
+  })
+
   it('com forcar: não pergunta (segue para a reivindicação)', async () => {
     noAr('Título B')
     const m = montar(retrato({ test_type: 'title', status: 'paused', restore_status: pulado }))
@@ -183,7 +191,7 @@ describe('guarda de linha confirmada dentro de settleOnAir e novaTentativa (T6, 
   it.each(['pausa', 'falha_api', 'drift', 'duracao_maxima'] as const)('%s com linha confirmada: zero escrita, teste fica paused/pulado_teste_youtube', async (motivo) => {
     const m = montar(retrato(), { nativas: confirmada })
     const res = await settleOnAir('t1', op(motivo), m.portas)
-    expect(res.resultado).toBe('feito')
+    expect(res).toMatchObject({ resultado: 'feito', pausadoPorTesteYoutube: true }) // Phil C1: o chamador distingue a pausa convertida
     expect(m.rpc.mock.calls[0]![1]).toMatchObject({ p_para: 'paused', p_end_reason: 'teste_youtube' })
     expect(m.token).not.toHaveBeenCalled(); expect(m.fetchFn).not.toHaveBeenCalled()
   })
