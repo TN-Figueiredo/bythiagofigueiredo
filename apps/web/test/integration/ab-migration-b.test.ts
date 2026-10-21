@@ -49,7 +49,7 @@ async function catalogo(c: Client) {
 const ANTES = { orig: true, desc: true, links: true, fn: 1 }
 const DEPOIS = { orig: false, desc: false, links: false, fn: 0 }
 
-describe.skipIf(skipIfNoLocalDb())('Migration B (fixture)', () => {
+describe.skipIf(skipIfNoLocalDb())('Migration B (fixture)', { timeout: 30_000 }, () => {
   let siteId = ''
   let channelId = ''
   let videoId = ''
@@ -74,15 +74,17 @@ describe.skipIf(skipIfNoLocalDb())('Migration B (fixture)', () => {
       if (!jaMigrado) expect(await catalogo(c)).toEqual(ANTES)
     } finally { await c.end() }
     const db = clienteServico()
-    await db.from('youtube_videos').delete().eq('id', videoId)
-    await db.from('youtube_channels').delete().eq('id', channelId)
-    await db.from('sites').delete().eq('id', siteId)
+    const r1 = await db.from('youtube_videos').delete().eq('id', videoId)
+    const r2 = await db.from('youtube_channels').delete().eq('id', channelId)
+    const r3 = await db.from('sites').delete().eq('id', siteId)
+    expect([r1.error, r2.error, r3.error]).toEqual([null, null, null])
   })
 
   async function emTransacao(fn: (c: Client) => Promise<void>, preparar = true): Promise<void> {
     const c = await conectar()
     try {
       await c.query('begin')
+      await c.query(`set local lock_timeout = '10s'`)
       if (preparar) {
         await c.query(SQL_PRE)
         await c.query('truncate public.ab_tests cascade')

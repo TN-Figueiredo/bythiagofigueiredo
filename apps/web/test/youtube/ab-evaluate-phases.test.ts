@@ -22,7 +22,6 @@ vi.mock('@/lib/youtube/notification-service', () => ({
   })),
 }))
 vi.mock('@/lib/youtube/analytics-sync', () => ({ getIsoWeek: vi.fn(() => '2026-W22') }))
-vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 // T8: a duração máxima é um PEDIDO a settleOnAir (o contrato dele está em ab-settle.test.ts; o caminho real, em ab-evaluate-duracao-maxima.test.ts).

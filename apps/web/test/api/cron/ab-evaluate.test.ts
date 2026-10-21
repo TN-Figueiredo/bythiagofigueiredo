@@ -65,10 +65,6 @@ vi.mock('@sentry/nextjs', () => ({
 }))
 
 
-vi.mock('@/lib/youtube/ab-start', () => ({
-  startAbTestInternal: vi.fn().mockResolvedValue({ ok: false }),
-}))
-
 vi.mock('@/lib/cron-health', () => ({
   recordCronSuccess: vi.fn(),
   recordCronFailure: vi.fn(),
