@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-Escrito em 21/10/2026 (Opus, 1º rascunho); **r2** (Sonnet) conserta a 1ª revisão de Phil (84, sem acordo: P1 e P2) e Yannis (76, sem acordo: P-B1, P-B2, P-I1 a P-I3). **Libera:** revisão de Phil e Yannis deste plano. **Não libera:** execução,
+Escrito em 21/10/2026 (Opus, 1º rascunho); **r3** (Sonnet) aplica a emenda final de Phil (N1 a N4) e Yannis (N1, M1 a M5) sobre a r2, sem tocar o spec (os dois já deram acordo nele); **r2** (Sonnet) conserta a 1ª revisão de Phil (84, sem acordo: P1 e P2) e Yannis (76, sem acordo: P-B1, P-B2, P-I1 a P-I3). **Libera:** revisão de Phil e Yannis deste plano. **Não libera:** execução,
 migration em produção, push nem promoção; isso vem do "pode" do dono depois do acordo dos dois.
 
 **Goal:** a partir da implantação, todo canal próprio conectado (parado, sem vídeos ou novo) tem os 13 jobs da Reporting
@@ -32,12 +32,21 @@ aqui: `review-r4-e-plano-f0-phil.md` e `review-r4-e-plano-f0-yannis.md` (esta ro
 
 ## Global Constraints
 
-- **Calendário da A5 (Yannis P-B2, r2; a regra da r1 nunca abria):** a A5 **não toca** `C/**`, `reporting/**`, `R`,
-  `vercel.json` nem `cron-health-report.ts` (conferido: `git diff --name-only origin/main...HEAD | grep -E "coleta|reporting|sync-analytics|vercel.json|cron-health|agenda/definicoes|outliers"` vazio em `wt-a5-pacote` e `wt-a5-rc2`).
-  As Tarefas 3 a 9 **começam** quando `git diff --name-only origin/main...<HEAD de cada worktree ativo da A5>` não
-  tocar nenhum desses caminhos, com o resultado colado no ledger (hoje a interseção é vazia: podem andar já, em `W`).
-  **O que espera a promoção da A5 é só o push** (orçamento de builds e promoção combinados). No dia do push: `git fetch`,
-  rebase de `W`, refazer os `git grep` da §2 (corrigir números de linha no ledger) e rodar a suíte inteira.
+- **Calendário da A5 (Yannis P-B2 e M4, Phil N4, r3):** a regra compara os **arquivos que a F0 edita**, não o diretório.
+  Lista dos arquivos da F0 (os de `C/**`, `reporting/**`, `R`, `vercel.json`, `cron-health-report.ts` e os testes das Tarefas 2 a 9):
+  `comm -12 <(git diff --name-only origin/staging...<HEAD do worktree> | sort) <(arquivos da F0 | sort)` tem de sair vazio, e o
+  resultado vai colado no ledger. "Worktree ativo da A5" = o que tem commit fora de `origin/staging` (`git cherry origin/staging <HEAD>`
+  não vazio) **e** atividade nos últimos 3 dias; o ledger lista os worktrees considerados ativos e os descartados, com o motivo
+  (hoje `wt-noite-L2`, `wt-e11-t14` e `wt-mg15` estão parados há 5 dias e entram como descartados até prova em contrário).
+  **Estado de 21/10:** `wt-a5-pacote` (HEAD `b6d35f906`) toca `coleta/versoes-step.ts`, `test/youtube/coleta/versoes-step.test.ts`
+  e `test/youtube/coleta/index.test.ts` (8 linhas num `describe` das versões, teto do passo de 5 s para 10 s; o spec §7 já previa).
+  A F0 edita `index.test.ts` (Tarefas 5 e 6) mas **não** `versoes-step.ts`; logo só `index.test.ts` intersecta.
+  **O que fazer quando há interseção:** se é só inserção em outro `describe` do mesmo arquivo de teste, a Tarefa segue e o rebase
+  do dia do push resolve (o ledger registra os dois `describe`); se é o mesmo arquivo de código ou o mesmo `describe`, a Tarefa
+  daquele arquivo espera o push da A5 e a decisão é do Yannis. O teto de 10 s das versões é do completo; a parcial não roda `versoes`,
+  então o orçamento de 270 s dela não muda. **O que espera a promoção da A5 é só o push** (orçamento de builds e promoção
+  combinados). No dia do push: `git fetch`, rebase de `W`, refazer os `git grep` da §2 (corrigir números de linha no ledger) e
+  rodar a suíte inteira.
 - **Migration (Yannis P-B1, r2): o SQL nasce como fixture; o número só se cria depois.** O `db:new` pega a maior migration
   **da árvore** e soma 1, e a A5 tem `20261021000002_observatorio_a5_remover_canal_f1.sql` (em `origin/staging` `caa7a8f47` desde
   o `fetch` de 21/10, ainda fora de `origin/main`); criar a nossa antes faria uma delas sumir em silêncio no `db:push:prod`
@@ -51,7 +60,14 @@ aqui: `review-r4-e-plano-f0-phil.md` e `review-r4-e-plano-f0-yannis.md` (esta ro
   (4) nada vai a produção antes de o arquivo estar em `origin/staging`, porque ninguém enxerga um número que só existe no
   nosso worktree; (5) verificação: `ls supabase/migrations | cut -c1-14 | sort | uniq -d` vazio em `W` depois do rebase.
   Nunca no checkout principal (está atrás).
-- **Migration antes do código** que a usa: a da Tarefa 2 vai a produção (já em `origin/staging`) antes do push das Tarefas 4 e 7.
+- **Migration antes do código, em dois pushes (Yannis N1, r3):** **push A** = Tarefa 2 sozinha (fixture, teste e a migration com o número
+  reservado), CI verde, depois `db:push:prod` pelo dono; **push B** = Tarefas 3 a 9 (com C6). O arquivo só chega a `origin/staging` pelo push A,
+  por isso não há "um só" push. O ledger da Tarefa 2 registra o hash do push A e o resultado de `select version from supabase_migrations.schema_migrations order by 1 desc limit 3`.
+  Se o orçamento de builds (3 pushes/dia/terminal) não couber, o push A vai no dia anterior, junto de qualquer push que a A5 já faça em `staging`.
+- **Capacidade de download (Phil N1, r3):** **capacidade/dia = baixados do completo + baixados do parcial** (`downloaded_at` por dia, soma das duas
+  execuções), **média de D+1 a D+3**. "Parcial" aqui é a segunda entrada do cron; o completo sozinho rende ≈ 59/dia. Toda regra que diz "capacidade" usa este número.
+- **Regra de saída da parcial (Phil N1, r3):** se `baixados` da parcial < 30 no D+2, a entrada sai do `vercel.json` (§7 "Desfazer"), anota-se capacidade = 59
+  no ledger e o **portão do canal novo fica fechado** até haver plano de capacidade (sem isso a parcial fica vermelha todo dia com a fila > 0: alarme eterno).
 - **Nenhuma chamada nova à Analytics nem à Data API** na F0. O modo parcial **não** chama `parteAntiga`, `metadados`,
   `versoes`, `diario`, `dimensoes` nem `retencao`.
 - **Veredito separado (Yannis B1):** a execução parcial grava `cron_health` como `sync-analytics-metrics-parcial`;
@@ -125,7 +141,7 @@ aqui: `review-r4-e-plano-f0-phil.md` e `review-r4-e-plano-f0-yannis.md` (esta ro
 
 Números de linha abaixo valem para hoje e serão refeitos no dia do push (Global Constraints).
 
-- **Divergências deliberadas do spec (Yannis P-M7, S-M2):** (1) o nome do cron é `sync-analytics-metrics-parcial` (hífen) e o limiar é o mecanismo genérico do vigia (`resolveCronName`, tolerância de metade do intervalo, `cron-health-report.ts:218-222`), não "`:parcial`/26 h" do spec r3/r4; (2) T3 e a tabela de eventos vazia ficam na F2 (§6; Phil P8, o spec r5 moveu a linha); (3) C6 vira código no mesmo push (spec r5).
+- **Divergências deliberadas do spec (Yannis P-M7, S-M2):** (1) o nome do cron é `sync-analytics-metrics-parcial` (hífen) e o limiar é o mecanismo genérico do vigia (`resolveCronName`, tolerância de metade do intervalo, `cron-health-report.ts:218-222`), não "`:parcial`/26 h" do spec r3/r4; (2) T3 e a tabela de eventos vazia ficam na F2 (§6; Phil P8, o spec r5 moveu a linha); (3) C6 vira código no mesmo push (spec r5); (4) `PASSOS_LIGADOS` continua constante global e o modo parcial entra como `ctx.passos` (`rodaParcial`), equivalente e menor que o "vira parâmetro" do spec F0-c (2) (Yannis M3, r3; o spec pode ganhar uma frase, sem mudar o acordo).
 
 - `C/fila-relatorios.ts:57-58`: `faixa = venceEm − agora ≤ URGENTE_DIAS ? 0 : ALCANCE.includes(tipo) ? 1 : 2`, com
   `ALCANCE = REACH_TYPES`. Dentro da faixa, vencimento crescente (causa dos 16 dias, spec §2.1).
@@ -192,7 +208,7 @@ Números de linha abaixo valem para hoje e serão refeitos no dia do push (Globa
   select source_type, count(*), count(*) filter (where detail = '') as vazios
     from public.yt_own_video_traffic_detail_daily group by 1 order by 2 desc;
   select count(*) filter (where status = 'listado') as listado,
-         count(*) filter (where status = 'listado' and create_time < now() - interval '7 days') as listado_7d
+         count(*) filter (where status = 'listado' and create_time < (now() at time zone 'UTC') - interval '7 days') as listado_7d
     from public.yt_reporting_reports;
   select c.name, c.sync_enabled, c.collection_status, (s.id is not null) as conectado
     from public.youtube_channels c
@@ -201,11 +217,13 @@ Números de linha abaixo valem para hoje e serão refeitos no dia do push (Globa
   -- capacidade e fila (Phil P1/P2): pendentes por is_backfill e downloads por dia
   select is_backfill, count(*) as pendentes, min(create_time) as mais_antigo
     from public.yt_reporting_reports where status = 'listado' group by 1;
-  select date_trunc('day', downloaded_at)::date as dia, count(*) as baixados
+  select (downloaded_at at time zone 'UTC')::date as dia, count(*) as baixados
     from public.yt_reporting_reports where downloaded_at > now() - interval '10 days' group by 1 order by 1;
   ```
   (os nomes de coluna das duas últimas vêm de `f0b.sql` do Phil, no scratchpad da revisão; conferir antes de rodar.)
-  Com o resultado, escrever no ledger a **conta das playlists**: Σ histórico pendente (incl. +360 das playlists) ÷ download/dia ≤ dias até o vencimento mais próximo − 7.
+  **Regra do vencimento (Phil N3):** vence em `create_time + 30 d` se `is_backfill = true` (histórico) e `create_time + 60 d` se corrente
+  (`VALIDADE_DIAS` em `fila-relatorios.ts`); todos os dias em **UTC** (`at time zone 'UTC'`, como no `f0b.sql`; o fuso da sessão não vale).
+  Com o resultado, escrever no ledger a **conta das playlists**: Σ histórico pendente (incl. +360 das playlists) ÷ download/dia ≤ dias até o vencimento mais próximo − 7 (hoje 8,8 ≤ ~20).
   Esperado: um CHECK de `outcome`, nome `yt_own_collection_attempts_outcome_check`; 6 tipos `playlist_*` `desativado`;
   código de pesquisa (`'5'` ou `'YT_SEARCH'`); os 2 canais `conectado = true`, `sync_enabled = true`. Divergência: parar e
   avisar o controlador antes da Tarefa 2.
@@ -253,8 +271,8 @@ Números de linha abaixo valem para hoje e serão refeitos no dia do push (Globa
   só os caminhos da tarefa.
 - [ ] **Passo 6: migration real (só quando o Global Constraints "Migration" permitir):** `git fetch`; confirmar a migration da A5 em `origin/staging`;
   escolher o número; `npm run db:new sugestoes_f0_coleta`; copiar a fixture para o arquivo gerado (`cmp` igual); reservar o número em
-  `.superpowers/sdd/a5/fila-do-db-push.md`; `ls supabase/migrations | cut -c1-14 | sort | uniq -d` vazio; commit. O `db:push:prod` é depois
-  do acordo da Tarefa 10 e com o arquivo em `origin/staging`.
+  `.superpowers/sdd/a5/fila-do-db-push.md`; `ls supabase/migrations | cut -c1-14 | sort | uniq -d` vazio; commit. O **push A** (só esta tarefa) sai quando o dono liberar e o CI fica verde; o `db:push:prod` é depois,
+  pelo dono, com o arquivo já em `origin/staging` (Yannis N1).
 
 ### Tarefa 3: fila com o detalhe da origem na faixa 1 (F0-a)
 
@@ -291,7 +309,7 @@ Números de linha abaixo valem para hoje e serão refeitos no dia do push (Globa
   - (Yannis P-M1) canal desligado e sem vídeos: o `meta` recebe **todos** os canais (`meta-step.ts:187`), então grava `sem_videos` em `meta`; o diário não (`diario-step.ts:78`). O teste afirma os dois comportamentos.
   - (Yannis P-M2) integração: vídeo publicado hoje num canal antes vazio com tentativa `sem_videos` de `meta` no dia — `yt_own_versions_prova` (`20261014000008:314-318`) não pode tratá-la como motivo de título ausente além do desenhado.
   - `grep -rn "'ok', 'sem_dado_na_janela'" C/` lista os leitores de chave de tentativa; para cada um que trate chave
-    desconhecida como erro, um caso com `sem_videos` que afirma "sem vermelho" (Review Focus 4).
+    desconhecida como erro, um caso com `sem_videos` que afirma "sem vermelho" (Review Focus 4). **O resultado do `grep` (leitores e se falham com chave desconhecida) vai ao ledger** (Yannis M5; alimenta o "desfazer" da §7).
 - [ ] **Passo 2:** rodar → falha.
 - [ ] **Passo 3:** no lugar do `continue`, `await registrarTentativa(ctx, { ...tCanal, outcome: 'sem_videos' })` e
   `continue` (nos dois passos), só se a leitura não bateu no teto. No diário o canal desligado continua fora (o invariante da Tarefa 5 é que cobra isso); no meta ele entra (P-M1).
@@ -333,7 +351,7 @@ Números de linha abaixo valem para hoje e serão refeitos no dia do push (Globa
 - Produces `ColetaCtx.passos?: ReadonlySet<PassoParcial>`. Regra dentro de `executar`: com `passos` presente roda só o
   passo listado **e** os critérios que são dele (`jobs` → `criterioJobsEmErro` e `criterioConectadoDesligado`;
   `relatorios` → guarda de abertura e fim, `criteriosRelatorios`; `alcance` e `normalizadores` → só o passo);
-  `criterioOrcamento` recebe só os kinds dos passos que rodaram; `voltarAOk` **não** roda (P6). Pulados:
+  `criterioOrcamento` recebe só os kinds dos passos que rodaram, pela constante `KINDS_DO_PASSO` em `passos-parciais.ts` (`jobs`→`sondagem`; `relatorios` e `alcance`→`relatorio`; `normalizadores`→`normalizador_trafego`, `normalizador_alcance_dim`; Yannis M1); `voltarAOk` **não** roda (P6). Pulados:
   metadados, versões, diário, dimensões, retenção, L2, cobertura, E11, desligados, critério de metadados.
 
 - [ ] **Passo 1: testes que falham:**
@@ -344,6 +362,7 @@ Números de linha abaixo valem para hoje e serão refeitos no dia do push (Globa
     retenção, `criteriosL2`, `criteriosE11`, `criterioDesligados`, `criterioMetadados`.
   - sem `passos`: o mesmo conjunto de chamadas de hoje (regressão, Yannis M6).
   - (P-I2) com `YT_OWN_STEPS_OFF=normalizadores` e `passos={normalizadores}`: `passoNormalizadores` não é chamado e `resumo.normalizadores` não vira `{desligado:true}` na linha parcial; com a variável apagada (`delete process.env.YT_OWN_STEPS_OFF`), roda.
+  - (Yannis M1) `criterioOrcamento` chamado na parcial recebe só os kinds de `KINDS_DO_PASSO` dos passos listados (sem `diario` nem `dimensoes`): a parcial não fica vermelha por `nao_alcancado_orcamento` de passo que só o completo grava.
   - (P6) canal em `reautorizar` marcado pela Analytics + parcial com Reporting autorizada: `voltarAOk` não é chamado e o canal continua `reautorizar`.
 - [ ] **Passo 2:** rodar → falha.
 - [ ] **Passo 3 (Yannis P-I2, P-I1 do tsc):** duas funções, não uma fórmula. `rodaParcial(p: PassoParcial) = !ctx.passos || ctx.passos.has(p)`.
@@ -372,14 +391,15 @@ Produces o nome `sync-analytics-metrics-parcial` em `cron_health`; a rota usa `s
     recebe `passos`; insert em `yt_own_collection_runs` com `escopo: 'parcial'` e `resumo.passos` = lista; `recordCronSuccess('sync-analytics-metrics-parcial')`.
   - falha na parcial → `recordCronFailure('sync-analytics-metrics-parcial', …)`; nunca o nome do completo.
   - sem `passos` → `escopo: 'completo'` e `recordCron*('sync-analytics-metrics')` (regressão).
-  - a leitura de canais que falha na parcial grava a falha sob o nome parcial.
+  - (Yannis M2) parcial com a leitura `from('youtube_channels')` da rota lançando **ainda roda** (a rota pula essa leitura com `passos`, porque só `parteAntiga` a usa; a coleta lê os canais por conta própria).
+  - a falha de leitura de canais **dentro da coleta** na parcial grava a falha sob o nome parcial.
   - `resolveCronName` do caminho com `?passos=` → nome parcial; `groupCronSchedules` com o `vercel.json` real tem as duas
     chaves, `sync-analytics-metrics` (`0 12 * * *`) e `sync-analytics-metrics-parcial` (`7 0 * * *`) (Review Focus 5).
   - `criterioDesligados`: 7 execuções completas com o passo desligado e 7 parciais intercaladas → o vermelho sai na 8ª
     completa, como hoje (Review Focus 2). A leitura filtra `.eq('escopo', 'completo')`.
 - [ ] **Passo 2:** rodar → falha.
 - [ ] **Passo 3:** na rota: `parsePassos` logo depois da autorização; `const nomeCron = passos ? 'sync-analytics-metrics-parcial' : 'sync-analytics-metrics'`
-  em todo `recordCron*`; com `passos`, pular `parteAntiga` (inclusive a nota "all N channels returned an empty
+  em todo `recordCron*`; com `passos`, pular a leitura de `youtube_channels where sync_enabled` da rota e `parteAntiga` (inclusive a nota "all N channels returned an empty
   analytics report"); `escopo` e `resumo.passos` no insert; a poda de 90 dias continua. `vercel.json`:
   `{ "path": "/api/cron/sync-analytics-metrics?passos=jobs,relatorios,alcance,normalizadores", "schedule": "7 0 * * *" }`
   (00:07 UTC, fora dos minutos 0, 5, 15, 20 e 30 já ocupados). `resolveCronName`: caso `sync-analytics-metrics` com
@@ -414,7 +434,7 @@ que a entrada parcial **não** tem variável; desligar = tirar a linha do `verce
   testes que contam 13 tipos passam a 19; aceite "19 tipos". **Portão por conta**, refeita com o número do dia antes do push
   (consulta de pendentes por `is_backfill` e downloads por dia da Tarefa 1): Σ histórico pendente ÷ download/dia ≤ dias até o
   vencimento mais próximo − 7, escrita no ledger. Se não couber, o commit fica fora do push desse dia. Conferência **D+10**:
-  zero `expirado_sem_baixar` em `playlist%` e `listado` com idade > 7 dias = 0.
+  zero `expirado_sem_baixar` em `playlist%`; `listado` com idade > 7 dias = 0 na data prevista do §4 (Phil N2).
 - [ ] **Passo 4: commit** `docs: runbook da coleta com a entrada parcial, o invariante e sem_videos (F0)`.
 
 ### Tarefa 10: revisão do lote
@@ -425,25 +445,26 @@ que a entrada parcial **não** tem variável; desligar = tirar a linha do `verce
 ## 4. Envio
 
 1. **Agora (21/10), sem push:** Tarefas 1 e 2 (SQL como fixture) em `W`. As Tarefas 3 a 9 também podem andar em `W` desde que a
-   interseção de arquivos com a A5 esteja vazia (Global Constraints). Nada em produção.
-2. **Migration:** Passo 6 da Tarefa 2 só depois de a migration da A5 estar em `origin/staging` (confirmada em 21/10: `caa7a8f47`)
-   e de o número estar reservado em `fila-do-db-push.md`. Só aditiva (CHECK ampliado, coluna com padrão, visão): qualquer hora
-   fora das janelas do vigia. O `db:push:prod` é do dono e só com o arquivo em `origin/staging`.
-3. **Dia do push (depois da promoção da A5 de 22/10):** `git fetch`, rebase de `W`, refazer os `git grep` da §2, suíte inteira,
-   `uniq -d` de prefixos de migration vazio.
-4. **Portões:** Tarefa 10 com acordo; `db:push:prod` da migration **antes** do push; pre-commit verde; conta das playlists escrita.
-5. **Push a `staging`** (um só, juntando 3 a 9 incl. C6; conta no teto de 3 pushes/dia/terminal até 27/10), CI verde.
+   interseção de **arquivos** com a A5 esteja vazia (Global Constraints). Nada em produção.
+2. **Push A (Tarefa 2 sozinha)**, depois de a migration da A5 estar em `origin/staging` (confirmada em 21/10: `caa7a8f47`) e de o número estar
+   reservado em `fila-do-db-push.md`: fixture, teste e migration, CI verde. Só aditiva (CHECK ampliado, coluna com padrão, visão): qualquer hora
+   fora das janelas do vigia. Hash do push A no ledger.
+3. **`db:push:prod` da migration, pelo dono**, com o arquivo já em `origin/staging` (vem do push A); resultado de `schema_migrations` no ledger.
+4. **Dia do push B (depois da promoção da A5 de 22/10):** `git fetch`, rebase de `W`, refazer os `git grep` da §2, suíte inteira, `uniq -d` de
+   prefixos de migration vazio. Portões: Tarefa 10 com acordo; migration já aplicada (item 3); pre-commit verde; conta das playlists escrita.
+5. **Push B a `staging`** = Tarefas 3 a 9 incl. C6 (conta no teto de 3 pushes/dia/terminal até 27/10, somando o push A), CI verde.
 6. **Promoção:** 23/10 é da A5 (T9 da E19); a F0 entra nela **só** se combinada com a A5 até a véspera; senão 24/10, sozinha.
-7. **Antes de conectar o 1º canal novo (Phil P2c):** conta no ledger com a capacidade medida em (D+1/D+2): capacidade/dia ≥ 1,3 × (canais × 19).
-8. **Conferências datadas** (Phil, só `select`, resultados no ledger):
+7. **Antes de conectar o 1º canal novo (Phil P2c e N1):** capacidade/dia (definida nas Global Constraints: completo + parcial, média de D+1 a D+3) ≥ 1,3 × (canais × 19), escrita no ledger (49 para 2 canais, 99 para 4); senão o portão fica fechado.
+8. **Conferências datadas** (Phil, só `select`, resultados no ledger; P = instante do deploy do push B):
 
 | Quando | O quê | Esperado |
 |---|---|---|
-| D+1 e D+2 da promoção | `cron_health` tem `sync-analytics-metrics-parcial` com `last_success_at` depois das 00:07 UTC; linha `escopo='parcial'` sem nota de Analytics; `resumo->'relatorios'->>'baixados'` e `listado` total | `baixados` ≥ 30; `listado` cai ≥ 80/dia enquanto houver fila; valor real = capacidade medida |
+| D+1 e D+2 da promoção | `cron_health` tem `sync-analytics-metrics-parcial` com `last_success_at` depois das 00:07 UTC; linha `escopo='parcial'` sem nota de Analytics; `resumo->'relatorios'->>'baixados'` da parcial; `downloaded_at` por dia (completo + parcial); `listado` com `create_time` **anterior a P** (exclui o histórico das playlists) | parcial `baixados` ≥ 30; total por dia ≥ 100 em D+2 (2 execuções); `listado` anterior a P cai ≥ 80/dia; senão o **ramo de saída** (Global Constraints) é executado e registrado |
 | D+3, por canal conectado | faixa 1 (alcance e `traffic_source`) com `create_time`/`end_time` recentes (>= now() − 4 d); tentativa de `meta` e `diario` no dia; relatório **listado** (qualquer status) por tipo e canal com `create_time >= now() − 4 d` (prova que o job está vivo; Yannis P-M5) | 1 por canal; `ok`, `sem_dado_na_janela` ou `sem_videos` |
-| dia seguinte a `listado_7d = 0` e 31/10 | os tipos restantes com relatório `baixado`/`vazio` e `create_time >= now() − 4 d` por canal (os 157 históricos da faixa 2 só escoam por volta de 31/10) | todos |
-| D+7 | `listado` com `create_time < now() − 7 d` | 0 |
-| D+10 | `expirado_sem_baixar` em `playlist%`; `listado` > 7 d | 0; 0 |
+| Data prevista (escrita no ledger no D+2) | `listado` com `create_time < now() − 7 d` = 0, e os tipos restantes com relatório `baixado`/`vazio` e `create_time >= now() − 4 d` por canal | 0; todos |
+| D+10 (limite duro do histórico das playlists) | `expirado_sem_baixar` em `playlist%` | 0 |
+
+   **Data prevista (Phil N2):** uma só, calculada no D+2 como `P + backlog ÷ (capacidade medida − 38)` (38 = relatórios novos por dia); com parcial rendendo ~118/dia cai em P+7 a P+8, com só 59/dia em ~P+27 (sem perda: o corrente vale 60 dias), caso em que vale o ramo de saída. Não há mais "D+7" nem "31/10" fixos.
 
    **Teste de vermelho (Phil P2b):** parcial sem download com fila não vazia fecha vermelha; o plano não aceita "parcial verde com 0 baixados".
 
@@ -477,7 +498,7 @@ que a entrada parcial **não** tem variável; desligar = tirar a linha do `verce
 | Só a coleta parcial | tirar a linha do `vercel.json`; a chave `sync-analytics-metrics-parcial` some do `groupCronSchedules` e o vigia para de avaliá-la (teste da Tarefa 7) |
 | Só as playlists (C6) | tirar os 6 ids de `REPORT_TYPES_ENABLED` e voltar os testes a 13; os jobs criados ficam no YouTube sem prejuízo |
 | CHECK de `outcome` (só se preciso) | `delete from yt_own_collection_attempts where outcome = 'sem_videos'` **antes** de recriar a lista antiga, senão o `add constraint` falha na validação |
-| Migration já em produção e código que cai | nada a fazer no banco |
+| Migration já em produção e código que cai | nada a fazer no banco, **salvo** se o `grep` da Tarefa 4 achou leitor que falha com chave desconhecida: então `delete from yt_own_collection_attempts where outcome = 'sem_videos'` entra junto do revert (Yannis M5) |
 
 ## 8. Achados não aplicados
 
