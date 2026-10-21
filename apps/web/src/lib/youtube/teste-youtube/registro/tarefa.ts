@@ -11,6 +11,7 @@ import { escritasDoApp } from './escritas'
 import { lerAberto, lerCandidatos, lerEscritas, lerLeiturasPaginadas, type Candidato } from './ler'
 import { avaliarVideo, corteDaJanela } from './registrar'
 import { reproduzirPassado, type Reproducao } from './reproduzir'
+import { rodarObservados } from '../observados/passo'
 import type { AcaoRegistro, Encerramento, NovaAvaliacao, NovoRegistro, RegistroAberto } from './tipos'
 
 const MAX_VIDEOS = 8
@@ -95,6 +96,25 @@ function linhaDeReproducaoRegistro(n: NovoRegistro & { fim: Encerramento | null 
   return { id: n.id, youtube_video_id: ytId, ...colunasDoNovo(n), ...(n.fim === null ? { estado: 'em_andamento' } : colunasDoFim(n.fim)) }
 }
 
+/**
+ * `registro_teste_nativo`: os próprios primeiro (30 s próprios, nada depois de `t0 + 83 s`) e, DEPOIS, o observador dos concorrentes (T13, §5.8),
+ * atrás de `OBS_TROCAS_CONCORRENTE` (padrão off: nenhuma leitura, nenhuma escrita, o resultado sai idêntico). Só roda se sobrar >= 10 s; a falha dele vira
+ * `parcial` com motivo `observados_falhou` e NUNCA reprova a tarefa dos próprios nem os `avisos_pendentes`.
+ */
+export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): Promise<ResultadoTarefa> {
+  const proprios = await rodarRegistroProprios(c, o)
+  let obs: Awaited<ReturnType<typeof rodarObservados>>
+  try {
+    obs = await rodarObservados(c, { fimDuroMs: c.t0 + BANCO_ATE_MS })
+  } catch {
+    obs = { ativo: true, detalhe: { obs_falhou: 1 }, motivo: 'observados_falhou' } // o passo já se isola; isto é o cinto
+  }
+  if (!obs.ativo) return proprios
+  const detalhe = { ...(proprios.detalhe ?? {}), ...obs.detalhe }
+  if (obs.motivo !== null && proprios.estado === 'ok') return { ...proprios, estado: 'parcial', motivo: obs.motivo, detalhe }
+  return { ...proprios, detalhe }
+}
+
 const semFeito = (estado: ResultadoTarefa['estado'], motivo: string, detalhe?: Record<string, number>): ResultadoTarefa =>
   ({ estado, feitas: 0, deixadas: null, motivo, ...(detalhe ? { detalhe } : {}) })
 
@@ -103,7 +123,7 @@ const semFeito = (estado: ResultadoTarefa['estado'], motivo: string, detalhe?: R
  * Só escreve em `ab_native_tests`, `ab_native_avaliacoes` e nas RPCs `yt_watch_reter`, `ab_native_poda` e `ab_native_reproduzir`.
  * 30 s próprios; nenhuma ida ao banco começa depois de `t0 + 83 s`.
  */
-export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): Promise<ResultadoTarefa> {
+async function rodarRegistroProprios(c: ContextoTarefa, o: OpcoesRegistro = {}): Promise<ResultadoTarefa> {
   const novoId = o.novoId ?? randomUUID
   const sb = c.sb
   const inicio = c.agora()
