@@ -11,6 +11,7 @@ import { registrarTentativa } from './attempts'
 import { voltarAOk } from './autorizacao'
 import { passoAlcance } from './alcance-step'
 import { TETOS_DE_FIM_MS, TETOS_MS, restante, type Relogio } from './clock'
+import { criterioConectadoDesligado } from './criteria-conectados'
 import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRelatorios } from './criteria'
 import { criterioDesligados } from './criteria-desligados'
 import { criterioCobertura } from './criteria-cobertura'
@@ -197,6 +198,13 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
         falhou('jobs', e)
       }
     }
+    // F0-b: canal conectado com a coleta desligada. Sem condição de passo (a Tarefa 6 liga ao passo `jobs`).
+    let conectadosDesligados: string[] = []
+    try {
+      conectadosDesligados = await criterioConectadoDesligado({ supabase: ctx.supabase, falhas, channels })
+    } catch (e) {
+      falhou('conectados', e)
+    }
     let semVideos: string[] = []
     try {
       semVideos = await semVideosCadastrados()
@@ -207,6 +215,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
       ...((resumo.jobs as Partial<JobsResumo> | undefined)?.acao_do_dono ?? []),
       ...emReautorizar().map(c => `${c.name}: reautorizar`),
       ...semVideos,
+      ...conectadosDesligados,
     ])]
     resumo.reautorizar = emReautorizar().map(c => c.id)
     resumo.autorizados = [...autorizados]

@@ -11,6 +11,7 @@ vi.mock('@/lib/youtube/coleta/criteria-l2', () => ({ criteriosL2: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/dimensoes-step', () => ({ passoDimensoes: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/normalizadores-step', () => ({ passoNormalizadores: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-e11', () => ({ criteriosE11: vi.fn() }))
+vi.mock('@/lib/youtube/coleta/criteria-conectados', () => ({ criterioConectadoDesligado: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-desligados', () => ({ criterioDesligados: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/retencao-step', () => ({ passoRetencao: vi.fn() }))
 vi.mock('@/lib/youtube/coleta/criteria-retencao', () => ({ criteriosRetencao: vi.fn() }))
@@ -39,6 +40,7 @@ import { criteriosE11 } from '@/lib/youtube/coleta/criteria-e11'
 import { criterioDesligados } from '@/lib/youtube/coleta/criteria-desligados'
 import { passoRetencao, type RetencaoResumo } from '@/lib/youtube/coleta/retencao-step'
 import { criteriosRetencao } from '@/lib/youtube/coleta/criteria-retencao'
+import { criterioConectadoDesligado } from '@/lib/youtube/coleta/criteria-conectados'
 import { criterioCobertura } from '@/lib/youtube/coleta/criteria-cobertura'
 import { passoVersoes, type VersoesResumo } from '@/lib/youtube/coleta/versoes-step'
 import { ontemPt } from '@/lib/youtube/coleta/day-pt'
@@ -95,6 +97,7 @@ beforeEach(() => {
   vi.mocked(passoNormalizadores).mockResolvedValue(normResumo({ gravados: 2 }))
   vi.mocked(criteriosE11).mockResolvedValue({ provas: {}, avaliados: ['dimensoes', 'normalizadores'], desligados: [] })
   vi.mocked(criterioDesligados).mockResolvedValue([])
+  vi.mocked(criterioConectadoDesligado).mockResolvedValue([])
   vi.mocked(passoRetencao).mockResolvedValue(retResumo({ gravados: 3 }))
   vi.mocked(criteriosRetencao).mockResolvedValue(undefined)
   vi.mocked(criterioCobertura).mockResolvedValue({ acaoDoDono: [] })
@@ -124,6 +127,17 @@ describe('rodarColeta', () => {
     expect(passoRelatorios).not.toHaveBeenCalled()
     expect(r.falhas).toEqual([])
     expect(r.resumo).toMatchObject({ metadados: { gravados: 35 }, jobs: { acao_do_dono: ['Canal Um: sem_acesso'] }, acao_do_dono: ['Canal Um: sem_acesso'] })
+  })
+
+  it('fase antes: chama criterioConectadoDesligado e junta o retorno em acao_do_dono', async () => {
+    const nota = 'coleta: Canal Um está conectado com a coleta desligada; ligue a coleta ou desconecte o canal'
+    vi.mocked(criterioConectadoDesligado).mockResolvedValue([nota])
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes' })
+    expect(criterioConectadoDesligado).toHaveBeenCalledTimes(1)
+    const c = vi.mocked(criterioConectadoDesligado).mock.calls[0]![0]
+    expect(c.channels.map(x => x.id)).toEqual(['ch-1', 'ch-2'])
+    expect(r.resumo.acao_do_dono).toEqual(['Canal Um: sem_acesso', nota])
   })
 
   it('fase depois: roda relatórios com 120 s, junta perdidos e atrasados, e confere o orçamento', async () => {
