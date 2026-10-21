@@ -47,6 +47,14 @@ describe('rodarAvisos', () => {
     expect(upd).toContain('lembrete_notificado_em')
   })
 
+  it('título do lembrete: início há 14 d 23 h diz "Faz 14 dias" (piso, não teto)', async () => {
+    const fan = vi.fn().mockResolvedValue(fanOk)
+    const ini = dias(14 + 23 / 24)
+    const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ primeira_vista: ini, confirmado_em: ini })]), ok([{ id: 'r1' }])] })
+    await rodarAvisos(ctx(r.sb), { fanOut: fan })
+    expect(fan).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringContaining('Faz 14 dias') }))
+  })
+
   it('detectado não confirmado e descartado: nenhuma notificação', async () => {
     const fan = vi.fn()
     const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ confirmado_em: null }), linha({ id: 'r2', estado: 'descartado' })])] })
