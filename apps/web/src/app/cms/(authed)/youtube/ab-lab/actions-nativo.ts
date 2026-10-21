@@ -7,6 +7,8 @@ import { z } from 'zod'
 import { requireEditUser } from '@/lib/youtube/ab-lab-acesso'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { confirmarTesteNoStudio, type ResultadoConfirmar } from '@/lib/youtube/teste-youtube/nativo/confirmar'
+import { descartarDetectado, type ResultadoDescartar } from '@/lib/youtube/teste-youtube/nativo/descartar'
+import { getSiteContext } from '@/lib/cms/site-context'
 import {
   abrirFichaCore, salvarFichaCore, marcarStudioAbertoCore, lembrarNoComputadorCore,
   type FichaLida, type FichaRascunho, type ResultadoLembrar,
@@ -89,4 +91,18 @@ export async function confirmarDetectado(registroId: string, lido: string): Prom
   try {
     return await confirmarTesteNoStudio({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, origem: { registroId, lido } })
   } catch (e) { return { ...falha(e, 'confirmarDetectado'), erro: 'falha' } }
+}
+
+export type ResultadoAcaoDescartar = ResultadoDescartar | { ok: false; erro: 'sem_permissao' | 'pedido_invalido' | 'falha'; error: string }
+
+/** "Não é teste / Liberar o Lab": `lido` é o `updated_at` que a tela viu (CAS). */
+export async function naoETeste(registroId: string, lido: string): Promise<ResultadoAcaoDescartar> {
+  const a = await acesso()
+  if ('ok' in a) return { ok: false, erro: 'sem_permissao', error: a.error }
+  if (!Id.safeParse(registroId).success || !Lido.safeParse(lido).success) return { ok: false, erro: 'pedido_invalido', error: MSG_PEDIDO_INVALIDO }
+  let orgId: string | null = null
+  try { orgId = (await getSiteContext()).orgId ?? null } catch { /* sem org: a linha de auditoria leva site_id */ }
+  try {
+    return await descartarDetectado({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, orgId, registroId, lido })
+  } catch (e) { return { ...falha(e, 'naoETeste'), erro: 'falha' } }
 }

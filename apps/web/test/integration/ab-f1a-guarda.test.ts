@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { semearTesteAb, clienteServico } from '../helpers/db-seed'
+import { semearTesteAb, clienteServico, insertAuthUser } from '../helpers/db-seed'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 const servico = vi.hoisted(() => ({ cliente: null as unknown }))
@@ -10,9 +10,11 @@ vi.mock('@/lib/youtube/ab-preflight', () => ({ preflightTokenCheck: () => { thro
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { phaseRotateActiveTests } from '@/lib/youtube/ab-rotate-phases'
 import { NOTA_TESTE_YOUTUBE } from '@/lib/youtube/ab-settle'
+import { retomarTeste } from '@/lib/youtube/ab-resume'
+import { MOTIVO_RECUSA_NATIVO } from '@/lib/youtube/teste-youtube/nativo/guarda'
+import { descartarDetectado } from '@/lib/youtube/teste-youtube/nativo/descartar'
 
 // Rotação real contra o banco: com a flag `on`, linha detectada pausa sem escrever e sem tocar no YouTube.
-// O trecho "Não é teste -> retomar aceita" entra com a Tarefa 10 (envio 1b).
 describe.skipIf(skipIfNoLocalDb())('guarda do teste do YouTube na rotação (banco)', () => {
   beforeAll(() => { vi.stubEnv('AB_PAUSA_POR_DETECTADO', 'on'); servico.cliente = clienteServico() })
   afterAll(() => { vi.unstubAllEnvs() })
@@ -72,5 +74,23 @@ describe.skipIf(skipIfNoLocalDb())('guarda do teste do YouTube na rotação (ban
     const r = await phaseRotateActiveTests(soDoMeuSite())
     expect(r.errors).toBe(1) // o preflight falso lança: prova que passou pela guarda
     expect((await clienteServico().from('ab_tests').select('status').eq('id', t.testId).single()).data?.status).toBe('active')
+  })
+  it('"Não é teste": retomar recusa antes do descarte e passa da guarda depois (para na porta do token)', async () => {
+    const db = clienteServico()
+    await db.from('ab_tests').update({ status: 'paused', status_note: null, test_type: 'title', original_title: 'Original' }).eq('id', t.testId)
+    await db.from('ab_test_variants').update({ title_text: 'Titulo' }).eq('test_id', t.testId)
+    await semear(false)
+    const token = vi.fn(async () => { throw new Error('token-chamado') })
+    const portas = { supabase: clienteServico(), agora: () => new Date(), token }
+    const antes = await retomarTeste(t.testId, t.siteId, portas)
+    expect(antes).toMatchObject({ ok: false, error: MOTIVO_RECUSA_NATIVO })
+    expect(token).not.toHaveBeenCalled()
+
+    const linha = await db.from('ab_native_tests').select('id, updated_at').eq('site_id', t.siteId).single()
+    const d = await descartarDetectado({ sb: db, siteId: t.siteId, userId: await insertAuthUser(`descarte-${t.testId}@f1a.test`), orgId: null, registroId: linha.data!.id as string, lido: linha.data!.updated_at as string })
+    expect(d).toEqual({ ok: true })
+    const depois = await retomarTeste(t.testId, t.siteId, portas)
+    expect(depois.ok === false && depois.error).not.toBe(MOTIVO_RECUSA_NATIVO)
+    expect(token).toHaveBeenCalled()
   })
 })
