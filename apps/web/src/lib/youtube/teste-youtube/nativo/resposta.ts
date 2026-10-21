@@ -1,0 +1,137 @@
+// Resposta do dia 14 (§5.3): o dono diz o que viu no Studio. Aditiva: `sempre` grava a resposta; `seEmAndamento` só entra se a
+// linha ainda não tem veredito (em_andamento, ou sem_desfecho sem `vencedor_fonte`). Com veredito de outra fonte guardam-se as duas.
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { z } from 'zod'
+import { VarianteFichaSchema, type VarianteFicha } from './ficha'
+
+export type RespostaDono = 'venceu_nova' | 'venceu_original' | 'ficou_igual' | 'inconclusivo' | 'nao_vi'
+export const MOTIVO_RESPOSTA_DO_DONO = 'resposta_do_dono'
+export type VariantesDaResposta = { itens: VarianteFicha[]; origem: 'ficha' | 'derivada' }
+export type PatchDaResposta =
+  | { sempre: Record<string, unknown>; seEmAndamento: Record<string, unknown> }
+  | { erro: 'variante_invalida' }
+
+/** Linha `detectado` confirmada pelo "Confirmar" (sem ficha): `variantes` é nulo; monta `{n, tipo titulo, titulo}` de `variantes_titulo`. */
+export function derivadasDeVariantesTitulo(variantesTitulo: unknown): VarianteFicha[] | null {
+  const t = z.array(z.string().trim().min(1)).min(1).max(3).safeParse(variantesTitulo)
+  if (!t.success) return null
+  return t.data.map((titulo, i) => ({ n: i + 1, tipo: 'titulo' as const, titulo }))
+}
+
+export function patchDaResposta(r: RespostaDono, n: number | null, variantes: VariantesDaResposta | null): PatchDaResposta {
+  const base = { resposta_dono: r }
+  const encerra = (desfecho_estado: string, estado: string, extra: Record<string, unknown>) => ({
+    estado, desfecho_estado, desfecho_motivo: MOTIVO_RESPOSTA_DO_DONO, ...extra,
+  })
+  if (r === 'venceu_nova') {
+    if (!variantes || n === null || !Number.isInteger(n) || n < 1 || n > 3) return { erro: 'variante_invalida' }
+    let titulo: string | null
+    if (variantes.origem === 'derivada') {
+      const v = variantes.itens[n - 1]
+      if (!v) return { erro: 'variante_invalida' }
+      titulo = v.titulo ?? null
+    } else {
+      // O original (n = 1) não é "a nova".
+      if (n < 2) return { erro: 'variante_invalida' }
+      const v = variantes.itens.find((x) => x.n === n)
+      if (!v) return { erro: 'variante_invalida' }
+      titulo = v.titulo ?? null
+    }
+    return { sempre: { ...base, variante_vencedora: n }, seEmAndamento: encerra('vencedor_provavel', 'encerrado', { vencedor_titulo: titulo, vencedor_fonte: 'dono' }) }
+  }
+  if (r === 'venceu_original') {
+    if (!variantes || variantes.origem !== 'ficha') return { erro: 'variante_invalida' }
+    const v = variantes.itens.find((x) => x.n === 1)
+    if (!v) return { erro: 'variante_invalida' }
+    return { sempre: { ...base, variante_vencedora: 1 }, seEmAndamento: encerra('vencedor_provavel', 'encerrado', { vencedor_titulo: v.titulo ?? null, vencedor_fonte: 'dono' }) }
+  }
+  const semVencedor = { vencedor_titulo: null, vencedor_fonte: null }
+  return {
+    sempre: { ...base, variante_vencedora: null },
+    seEmAndamento: encerra('sem_dado', r === 'nao_vi' ? 'sem_desfecho' : 'encerrado', semVencedor),
+  }
+}
+
+export type ErroResponder = 'nao_encontrado' | 'nao_respondivel' | 'ja_respondido' | 'variante_invalida' | 'estado_mudou' | string
+export type ResultadoResponder =
+  | { ok: true; conflito: { youtube: string; dono: string } | null }
+  | { ok: false; erro: ErroResponder }
+
+interface Params {
+  sb: SupabaseClient
+  siteId: string
+  userId: string
+  registroId: string
+  /** `updated_at` que a tela viu (CAS da 1ª tentativa). */
+  lido: string
+  resposta: RespostaDono
+  n: number | null
+  agora: Date
+}
+interface Linha {
+  id: string; estado: string; resposta_dono: string | null; vencedor_fonte: string | null; vencedor_titulo: string | null
+  confirmado_em: string | null; variantes: unknown; variantes_titulo: unknown; updated_at: string
+}
+const COLUNAS = 'id, estado, resposta_dono, vencedor_fonte, vencedor_titulo, confirmado_em, variantes, variantes_titulo, updated_at'
+
+function variantesDaLinha(l: Linha): VariantesDaResposta | null {
+  if (l.variantes !== null && l.variantes !== undefined) {
+    const f = z.array(VarianteFichaSchema).safeParse(l.variantes)
+    return f.success && f.data.length > 0 ? { itens: f.data, origem: 'ficha' } : null
+  }
+  const d = derivadasDeVariantesTitulo(l.variantes_titulo)
+  return d ? { itens: d, origem: 'derivada' } : null
+}
+
+async function lerLinha(p: Params): Promise<Linha | null> {
+  const { data, error } = await p.sb.from('ab_native_tests').select(COLUNAS).eq('id', p.registroId).eq('site_id', p.siteId).maybeSingle()
+  if (error) throw new Error(`ab_native_tests: ${error.message}`)
+  return (data as Linha | null) ?? null
+}
+
+export async function responderDia14(p: Params): Promise<ResultadoResponder> {
+  let cas = p.lido
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    const l = await lerLinha(p)
+    if (!l) return { ok: false, erro: 'nao_encontrado' }
+    if (tentativa > 0) cas = l.updated_at // perdeu a 1ª: reavalia sobre a linha recém-lida
+    if (l.estado === 'descartado' || l.confirmado_em === null) return { ok: false, erro: 'nao_respondivel' }
+    if (l.resposta_dono !== null && l.resposta_dono !== 'sem_resposta') return { ok: false, erro: 'ja_respondido' }
+    const patch = patchDaResposta(p.resposta, p.n, variantesDaLinha(l))
+    if ('erro' in patch) return { ok: false, erro: patch.erro }
+
+    const elegivel = l.estado === 'em_andamento' || (l.estado === 'sem_desfecho' && l.vencedor_fonte === null)
+    const payload: Record<string, unknown> = { ...patch.sempre, respondido_em: p.agora.toISOString() }
+    if (elegivel) {
+      Object.assign(payload, patch.seEmAndamento)
+      if (l.estado === 'em_andamento') Object.assign(payload, { encerrado_em: p.agora.toISOString(), desfecho_em: p.agora.toISOString() })
+    }
+    const { data, error } = await p.sb.from('ab_native_tests').update(payload)
+      .eq('id', p.registroId).eq('site_id', p.siteId).eq('updated_at', cas)
+      .or('resposta_dono.is.null,resposta_dono.eq.sem_resposta')
+      .select('id')
+    if (error) return { ok: false, erro: error.message }
+    if ((data as unknown[] | null)?.length) {
+      await expirarLembrete(p)
+      if (elegivel || l.vencedor_fonte === null) return { ok: true, conflito: null }
+      const dono = typeof patch.seEmAndamento.vencedor_titulo === 'string'
+        ? patch.seEmAndamento.vencedor_titulo
+        : (p.n !== null && p.resposta.startsWith('venceu') ? `variante ${p.resposta === 'venceu_original' ? 1 : p.n}` : p.resposta)
+      const youtube = l.vencedor_titulo ?? 'sem título'
+      if (patch.seEmAndamento.vencedor_fonte === 'dono' && patch.seEmAndamento.vencedor_titulo === l.vencedor_titulo) return { ok: true, conflito: null }
+      return { ok: true, conflito: { youtube, dono } }
+    }
+  }
+  return { ok: false, erro: 'estado_mudou' }
+}
+
+/** Resolvida a pergunta, o lembrete sai do contador do sino. Falha vai ao log: a resposta já está gravada. */
+async function expirarLembrete(p: Params): Promise<void> {
+  try {
+    const { error } = await p.sb.from('notifications').update({ expired_at: p.agora.toISOString() })
+      .eq('site_id', p.siteId).eq('domain', 'youtube').eq('dedup_key', `lembrete-nativo:${p.registroId}`).is('expired_at', null)
+    if (error) console.error('[ab-nativo] expirar lembrete-nativo', error.message)
+  } catch (e) {
+    console.error('[ab-nativo] expirar lembrete-nativo', e instanceof Error ? e.message : e)
+  }
+}

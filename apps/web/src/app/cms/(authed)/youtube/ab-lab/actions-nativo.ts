@@ -8,6 +8,7 @@ import { requireEditUser } from '@/lib/youtube/ab-lab-acesso'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { confirmarTesteNoStudio, type ResultadoConfirmar } from '@/lib/youtube/teste-youtube/nativo/confirmar'
 import { descartarDetectado, type ResultadoDescartar } from '@/lib/youtube/teste-youtube/nativo/descartar'
+import { responderDia14, type ResultadoResponder } from '@/lib/youtube/teste-youtube/nativo/resposta'
 import { getSiteContext } from '@/lib/cms/site-context'
 import {
   abrirFichaCore, salvarFichaCore, marcarStudioAbertoCore, lembrarNoComputadorCore,
@@ -105,4 +106,24 @@ export async function naoETeste(registroId: string, lido: string): Promise<Resul
   try {
     return await descartarDetectado({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, orgId, registroId, lido })
   } catch (e) { return { ...falha(e, 'naoETeste'), erro: 'falha' } }
+}
+
+const PedidoResposta = z.object({
+  registroId: z.string().uuid(),
+  lido: z.string().min(1).max(64),
+  resposta: z.enum(['venceu_nova', 'venceu_original', 'ficou_igual', 'inconclusivo', 'nao_vi']),
+  n: z.number().int().min(1).max(3).nullable(),
+}).strict()
+export type PedidoRespostaDia14 = z.infer<typeof PedidoResposta>
+export type ResultadoAcaoResponder = ResultadoResponder | { ok: false; erro: 'sem_permissao' | 'pedido_invalido' | 'falha'; error: string }
+
+/** Resposta do dia 14 ("Venceu a nova", "Ficou igual", ...). `lido` é o `updated_at` que a tela viu (CAS). */
+export async function responderTesteDoYouTube(pedido: PedidoRespostaDia14): Promise<ResultadoAcaoResponder> {
+  const a = await acesso()
+  if ('ok' in a) return { ok: false, erro: 'sem_permissao', error: a.error }
+  const v = PedidoResposta.safeParse(pedido)
+  if (!v.success) return { ok: false, erro: 'pedido_invalido', error: MSG_PEDIDO_INVALIDO }
+  try {
+    return await responderDia14({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, ...v.data, agora: new Date() })
+  } catch (e) { return { ...falha(e, 'responderTesteDoYouTube'), erro: 'falha' } }
 }
