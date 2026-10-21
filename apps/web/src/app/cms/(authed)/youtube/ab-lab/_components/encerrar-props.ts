@@ -1,4 +1,5 @@
 import type { AbTestBaseView } from '@/lib/youtube/ab-types'
+import { publicaBaixa, dimensoesDeTexto } from '@/lib/youtube/ab-original-resolucao'
 
 /** Props de dados do diálogo "O que fica no vídeo?" montadas a partir da visão do teste (Tarefa 15). */
 export interface OpcaoDoDialogo {
@@ -15,13 +16,9 @@ export interface DadosDoDialogoEncerrar {
   originalBaixaResolucao: boolean
 }
 
-/**
- * Ruling do Phil (T15): `dimensions` é TEXT "1280x720". Largura <= 480 avisa; nulo ou ilegível também avisa
- * (originais de antes da T4 e sem thumbnail_hq_url são hq 480x360).
- */
+/** D1/D12: largura < 1280 (ou ilegível) avisa; mesma régua do aviso do assistente. */
 export function originalBaixaResolucao(dimensions: string | null | undefined): boolean {
-  const m = /^(\d+)x(\d+)$/.exec(dimensions ?? '')
-  return m ? Number(m[1]) <= 480 : true
+  return publicaBaixa(dimensoesDeTexto(dimensions)?.largura ?? null)
 }
 
 /** "07/10 05:00" no fuso de São Paulo; vazio quando a data falta ou é inválida. */
