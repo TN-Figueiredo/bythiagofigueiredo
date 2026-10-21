@@ -81,7 +81,7 @@ const semMais = (): Promise<never> => new Promise<never>(() => undefined)
 
 describe('passoVersoes', () => {
   it('constantes do contrato', () => {
-    expect(TETO_VERSOES_MS).toBe(5_000)
+    expect(TETO_VERSOES_MS).toBe(10_000)
     expect(MAX_DIAS_POR_EXECUCAO).toBe(30)
   })
 

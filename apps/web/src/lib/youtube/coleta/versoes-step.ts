@@ -16,7 +16,7 @@ import {
 import { fatosDoDia, videosCobertosSemLinha, type IntervaloMeta } from './versoes-fatos-cobertura'
 import { atribuirOrigem, FOLGA_REGISTRO_MS, type CicloAb, type LeituraAb, type RestauroAb, type TesteAb } from './versoes-origem'
 
-export const TETO_VERSOES_MS = 5_000
+export const TETO_VERSOES_MS = 10_000
 export const MAX_DIAS_POR_EXECUCAO = 30
 /** Teto de linhas lidas por consulta paginada (linhas diárias, correntes, texto de descrição, privacidade). */
 export const TETO_LINHAS_VERSOES = 20_000
