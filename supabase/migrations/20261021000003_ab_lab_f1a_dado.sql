@@ -182,4 +182,22 @@ revoke all on function public.ab_native_iniciar(uuid, uuid, uuid) from public, a
 grant execute on function public.ab_native_ficha_abrir(uuid, uuid, uuid) to service_role;
 grant execute on function public.ab_native_iniciar(uuid, uuid, uuid) to service_role;
 
+-- Formato atual do vídeo para o roteador nativo × nosso (§5.1): o bruto MAIS NOVO e o `is_short` do dia mais recente, por vídeo, numa ida.
+-- RPC (não `.in` + ordenação no cliente): o PostgREST corta em `max_rows` = 1000 e as versões velhas do bruto engoliriam a nova.
+-- Uma linha por id pedido (raw e is_short nulos = sem dado). Usa o índice idx_yt_own_video_state_raw_video.
+create or replace function public.ab_lab_formato_atual(p_site uuid, p_ids text[])
+returns table (youtube_video_id text, raw jsonb, is_short boolean)
+language sql stable security invoker set search_path = '' as $$
+  select u.yt, r.raw, m.is_short
+    from unnest(p_ids) as u(yt)
+    left join lateral (select s.raw from public.yt_own_video_state_raw s
+                        where s.site_id = p_site and s.youtube_video_id = u.yt
+                        order by s.observed_at desc, s.id desc limit 1) r on true
+    left join lateral (select d.is_short from public.yt_own_video_meta_daily d
+                        where d.site_id = p_site and d.youtube_video_id = u.yt
+                        order by d.day_pt desc limit 1) m on true;
+$$;
+revoke all on function public.ab_lab_formato_atual(uuid, text[]) from public, anon, authenticated;
+grant execute on function public.ab_lab_formato_atual(uuid, text[]) to service_role;
+
 reset lock_timeout;
