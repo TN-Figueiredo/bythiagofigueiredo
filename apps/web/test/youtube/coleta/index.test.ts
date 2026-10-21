@@ -1369,3 +1369,87 @@ describe('rodarColeta: passo de versões (E18 T7)', () => {
     expect(r.falhas.some(f => f.includes('atraso'))).toBe(false)
   })
 })
+
+describe('rodarColeta: modo parcial (F0-c, passos)', () => {
+  const lanca = (nome: string) => () => { throw new Error(`${nome} não devia ser chamado`) }
+  const passosDe = (...p: Array<'jobs' | 'relatorios' | 'alcance' | 'normalizadores'>) => new Set(p)
+  const canalReaut = () => fakeSupabase({ youtube_channels: [{ ...canais[0]!, collection_status: 'reautorizar', video_count: null }] })
+
+  it('antes com {jobs}: roda jobs e seus critérios, não chama metadados nem versões', async () => {
+    vi.mocked(passoMetadados).mockImplementation(lanca('metadados') as never)
+    vi.mocked(passoVersoes).mockImplementation(lanca('versoes') as never)
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes', passos: passosDe('jobs') })
+    expect(passoJobs).toHaveBeenCalledTimes(1)
+    expect(criterioJobsEmErro).toHaveBeenCalledTimes(1)
+    expect(criterioConectadoDesligado).toHaveBeenCalledTimes(1)
+    expect(r.falhas).toEqual([])
+  })
+
+  it('antes com {relatorios}: nem jobs nem criterioConectadoDesligado', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'antes', passos: passosDe('relatorios') })
+    expect(passoJobs).not.toHaveBeenCalled()
+    expect(criterioJobsEmErro).not.toHaveBeenCalled()
+    expect(criterioConectadoDesligado).not.toHaveBeenCalled()
+  })
+
+  it('depois com {relatorios, alcance, normalizadores}: pula diário, dimensões, retenção e critérios de fim', async () => {
+    for (const f of [passoDiario, passoDimensoes, passoRetencao, criteriosL2, criteriosE11, criterioDesligados, criterioMetadados, criterioCobertura, criteriosRetencao]) {
+      vi.mocked(f as never).mockImplementation(lanca('pulado') as never)
+    }
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', passos: passosDe('relatorios', 'alcance', 'normalizadores') })
+    expect(passoRelatorios).toHaveBeenCalledTimes(1)
+    expect(passoAlcance).toHaveBeenCalledTimes(1)
+    expect(passoNormalizadores).toHaveBeenCalledTimes(1)
+    expect(criteriosRelatorios).toHaveBeenCalledTimes(1)
+    expect(r.falhas).toEqual([])
+  })
+
+  it('depois com {alcance}: não baixa relatórios nem roda criteriosRelatorios', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', passos: passosDe('alcance') })
+    expect(passoRelatorios).not.toHaveBeenCalled()
+    expect(criteriosRelatorios).not.toHaveBeenCalled()
+    expect(passoAlcance).toHaveBeenCalledTimes(1)
+    expect(passoNormalizadores).not.toHaveBeenCalled()
+  })
+
+  it('sem passos (regressão): o conjunto completo de chamadas', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
+    for (const f of [passoRelatorios, passoAlcance, passoDiario, passoDimensoes, passoNormalizadores, passoRetencao, criteriosRelatorios, criteriosL2, criteriosE11, criterioDesligados, criterioMetadados, criterioCobertura, criteriosRetencao, criterioOrcamento]) {
+      expect(f).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('P-I2: YT_OWN_STEPS_OFF=normalizadores com {normalizadores}: não roda e não marca desligado; apagada, roda', async () => {
+    process.env.YT_OWN_STEPS_OFF = 'normalizadores'
+    const db = fakeSupabase({ youtube_channels: canais })
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', passos: passosDe('normalizadores') })
+    expect(passoNormalizadores).not.toHaveBeenCalled()
+    expect(r.resumo.normalizadores).toBeUndefined()
+    delete process.env.YT_OWN_STEPS_OFF
+    const r2 = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', passos: passosDe('normalizadores') })
+    expect(passoNormalizadores).toHaveBeenCalledTimes(1)
+    expect(r2.resumo.normalizadores).toBeDefined()
+  })
+
+  it('M1: criterioOrcamento na parcial recebe só os kinds dos passos listados', async () => {
+    const db = fakeSupabase({ youtube_channels: canais })
+    await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', passos: passosDe('relatorios', 'normalizadores') })
+    const kinds = vi.mocked(criterioOrcamento).mock.calls[0]![1] as string[]
+    expect([...kinds].sort()).toEqual(['normalizador_alcance_dim', 'normalizador_trafego', 'relatorio'])
+    expect(kinds).not.toContain('diario')
+    expect(kinds).not.toContain('dimensoes')
+  })
+
+  it('P6: parcial com Reporting autorizada não devolve reautorizar a ok', async () => {
+    const db = canalReaut()
+    const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', passos: passosDe('relatorios'), autorizadosAntes: ['ch-1'] })
+    expect(db.tables.youtube_channels![0]!.collection_status).toBe('reautorizar')
+    expect(db.writes.filter(w => w.table === 'youtube_channels')).toEqual([])
+    expect(r.resumo.reautorizar).toEqual(['ch-1'])
+  })
+})
