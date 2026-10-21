@@ -69,7 +69,7 @@ describe('resumeAbTest (a action)', () => {
   it('P4a-I6 (i): retomar com escrita ok -> active, restore_status {} (não nulo), um ciclo aberto com cycle_number = max + 1; invalida as telas', async () => {
     const { banco, yt } = await montar()
     const maxAntes = Math.max(...banco.ciclos().map((c) => Number(c.cycle_number)))
-    const r = await resumeAbTest('teste-1')
+    const r = await resumeAbTest('teste-1', 3)
     expect(r).toMatchObject({ ok: true, resultado: 'feito' })
     expect(banco.teste()).toMatchObject({ status: 'active', paused_at: null })
     expect(banco.teste().restore_status).toEqual({})
@@ -83,25 +83,25 @@ describe('resumeAbTest (a action)', () => {
   it('sessão sem permissão: sem_permissao, nada lido nem escrito', async () => {
     const { banco, yt } = await montar()
     requireSiteScope.mockResolvedValue({ ok: false, reason: 'forbidden' })
-    const r = await resumeAbTest('teste-1')
+    const r = await resumeAbTest('teste-1', 3)
     expect(r).toMatchObject({ ok: false, resultado: 'sem_permissao' })
     expect(yt.chamadas).toEqual([])
     expect(banco.teste()).toMatchObject({ status: 'paused', restore_seq: 3 })
     expect(revalidatePath).not.toHaveBeenCalled()
   })
   it('a action ignora o que a rede mandar além do testId (sem portas injetáveis)', () => {
-    expect(resumeAbTest.length).toBe(1)
+    expect(resumeAbTest.length).toBe(2)
   })
   it('falha tratada invalida as telas (o teste foi reivindicado e regravado)', async () => {
     const { yt } = await montar()
     yt.recusar('thumbnails.set', 403, 'forbidden')
-    const r = await resumeAbTest('teste-1')
+    const r = await resumeAbTest('teste-1', 3)
     expect(r).toMatchObject({ ok: false, resultado: 'erro' })
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
   })
   it('recusa antes da reivindicação (não está pausado) não invalida as telas', async () => {
     await montar({ status: 'active' })
-    const r = await resumeAbTest('teste-1')
+    const r = await resumeAbTest('teste-1', 3)
     expect(r).toMatchObject({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
     expect(revalidatePath).not.toHaveBeenCalled()
   })
@@ -173,14 +173,14 @@ describe('retomarTeste: validações antes de reivindicar', () => {
 })
 
 describe('retomarTeste: reivindicação mantendo paused', () => {
-  it('durante a escrita o teste segue paused, com restore_seq + 1 e o campo em_andamento (destino = variante, em = agora, attempts anterior)', async () => {
+  it('durante a escrita o teste segue paused, com restore_seq + 1 e o campo em_andamento (destino = variante, em = agora, attempts 0: a retomada abre corrente)', async () => {
     const { banco, yt, retomar } = await montar({ restoreStatus: { thumbnail: antigo({ attempts: 2 }) } })
     let visto: Fila | null = null
     yt.antesDeEscrever(() => { visto = structuredClone(banco.teste()) })
     await retomar()
     expect(visto).toMatchObject({ status: 'paused', restore_seq: 4 })
     expect((visto as unknown as Fila).restore_status).toEqual({
-      thumbnail: { estado: 'em_andamento', destino: 'B', em: AGORA.toISOString(), forcado: false, escreveu: null, erro: null, attempts: 2 },
+      thumbnail: { estado: 'em_andamento', destino: 'B', em: AGORA.toISOString(), forcado: false, escreveu: null, erro: null, attempts: 0 },
     })
   })
   it('combo: os dois campos entram em em_andamento na reivindicação', async () => {
@@ -361,5 +361,36 @@ describe('retomarTeste: prazo (F-D3, Yannis DEVE 3) e falha de canal/token (DEVE
     expect(r).toMatchObject({ ok: false, resultado: 'erro', error: expect.stringMatching(/token expired/) })
     expect(yt.escritas()).toEqual([])
     expect(banco.teste().restore_seq).toBe(seq)
+  })
+})
+
+describe('P4b T9: seqVisto e PODE-1 no retomar', () => {
+  it('Y-5: retomar com seqVisto velho -> mudou, nada escrito nem reivindicado', async () => {
+    const { banco, yt } = await montar()
+    const r = await resumeAbTest('teste-1', 2)
+    expect(r).toMatchObject({ ok: false, resultado: 'mudou' })
+    expect(yt.chamadas).toEqual([])
+    expect(banco.teste()).toMatchObject({ status: 'paused', restore_seq: 3 })
+    expect(revalidatePath).not.toHaveBeenCalled()
+  })
+  it('seqVisto inválido (não inteiro) -> erro, nada lido', async () => {
+    const { yt } = await montar()
+    expect(await resumeAbTest('teste-1', -1)).toMatchObject({ ok: false, resultado: 'erro' })
+    expect(yt.chamadas).toEqual([])
+  })
+  it('PODE-1: thumbnail em_andamento de 3 min conta como interrompido (falhou/1) antes da reivindicação; a falha da escrita não regrava o em_andamento', async () => {
+    const { banco, yt, retomar } = await montar({ restoreStatus: { thumbnail: antigo({ estado: 'em_andamento', em: new Date(AGORA.getTime() - 3 * MINUTO).toISOString(), escreveu: null }) } })
+    yt.recusar('thumbnails.set', 403, 'forbidden')
+    const r = await retomar()
+    expect(r).toMatchObject({ ok: false, resultado: 'erro' })
+    expect(banco.teste().restore_seq).toBe(5) // 3 + conversão + reivindicação
+    expect((banco.teste().restore_status as Record<string, Fila>).thumbnail).toMatchObject({ estado: 'falhou', erro: 'interrompido', attempts: 1, escreveu: null })
+  })
+  it('a reivindicação do retomar abre corrente: attempts 0 (não herda o do campo anterior)', async () => {
+    const { banco, retomar } = await montar({ restoreStatus: { thumbnail: antigo({ estado: 'falhou', attempts: 2, escreveu: false }) } })
+    let visto: unknown
+    banco.antesDaReleitura(() => { visto = JSON.parse(JSON.stringify(banco.teste().restore_status)) })
+    await retomar()
+    expect(visto).toMatchObject({ thumbnail: { estado: 'em_andamento', attempts: 0 } })
   })
 })

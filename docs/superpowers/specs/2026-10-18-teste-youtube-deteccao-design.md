@@ -86,7 +86,7 @@ Dono: A/B. A A5 importa; pedido de mudança vai por mensagem. Os 3 pedidos da A5
 
 ```ts
 /** Versão da regra; vai junto de todo veredito e de todo desfecho para a S7 gravar e a S8 citar. Sobe a cada mudança de limiar ou de critério. */
-export const REGRA_TESTE_YOUTUBE_VERSAO = 1
+export const REGRA_TESTE_YOUTUBE_VERSAO = 2 // v2 (19/10): §4.1 tira marcas bidi (FU-S4-1)
 
 /** Os renderers em que o título exibido foi visto variar em 18/10. A coleta pode mandar outros; a regra aceita qualquer nome. */
 export const RENDERERS_TITULO = ['videoPrimaryInfoRenderer', 'playerOverlayVideoDetailsRenderer', 'videoTitleHeaderViewModel'] as const
@@ -282,7 +282,7 @@ Arquivos em `apps/web/src/lib/youtube/teste-youtube/`: `tipos.ts`, `normalizar-t
 
 ### 4.1 `normalizarTitulo(s: string): string`
 
-Na ordem: `normalize('NFC')` (acento composto e decomposto viram o mesmo texto; "Consistência" com `ê` em U+00EA ou `e`+U+0302); remove U+200B, U+FEFF, U+2060 e os seletores de variação U+FE0E/U+FE0F (um renderer pode mandar o emoji com ou sem seletor) [H: diferença real entre renderers não observada]; **mantém** U+200D (une emojis compostos; tirar quebraria a família 👨‍👩‍👧 em três); troca toda sequência de espaço Unicode (`\s` + U+00A0, U+202F) por um espaço; `trim`.
+Na ordem: `normalize('NFC')` (acento composto e decomposto viram o mesmo texto; "Consistência" com `ê` em U+00EA ou `e`+U+0302); remove U+200B, U+FEFF, U+2060 e os seletores de variação U+FE0E/U+FE0F (um renderer pode mandar o emoji com ou sem seletor) [H: diferença real entre renderers não observada]; *(emenda 19/10, FU-S4-1)* remove as marcas bidi U+200E, U+200F, U+202A–U+202E e U+2066–U+2069 (medido: no `2U3QbV2VoI0` os renderers diferiam só por U+202A/U+202C em volta de `@Estevam`; a leitura da watch tira as mesmas faixas desde `versao_leitor` 2, e os dois lados normalizam igual); **mantém** U+200D (une emojis compostos; tirar quebraria a família 👨‍👩‍👧 em três); troca toda sequência de espaço Unicode (`\s` + U+00A0, U+202F) por um espaço; `trim`.
 
 **Não** faz: minúsculas (o dono pode testar "Part 4" × "PART 4"; é variante real), tirar acento, tirar emoji, decodificar entidade HTML (é da coleta, §3). Igualdade só por texto normalizado; o texto devolvido em `variantes` é o primeiro visto pela chave de desempate, sem normalização.
 

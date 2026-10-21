@@ -73,14 +73,27 @@ async function reivindicarRestoreStatus(supabase: SupabaseClient, testId: string
  */
 async function resolverPendenciasDoVideo(
   supabase: SupabaseClient, siteId: string, testId: string, internalVideoId: string, agora: Date,
-): Promise<void> {
-  const { data } = await supabase
+): Promise<'segue' | 'em_andamento'> {
+  const { data, error } = await supabase
     .from('ab_tests')
     .select('id, site_id, name, restore_seq, restore_status')
     .eq('site_id', siteId)
     .eq('youtube_video_id', internalVideoId)
+  if (error) {
+    // Y-A7: sem ler os outros testes não há como saber se há escrita em voo (Y-2): recusa, não segue.
+    Sentry.captureException(new Error(`ab-start: leitura dos testes do vídeo: ${error.message}`), { tags: { area: 'ab-start' }, extra: { testId } })
+    return 'em_andamento'
+  }
   type Outro = { id: string; site_id: string; name: string | null; restore_seq: number; restore_status: unknown }
-  for (const outro of ((data ?? []) as Outro[]).filter((o) => o.id !== testId)) {
+  const outros = ((data ?? []) as Outro[]).filter((o) => o.id !== testId)
+  // Y-2 (P4b): escrita de outro teste do vídeo em voo (em_andamento há menos de INTERROMPIDO_MIN) = recusa ANTES de
+  // mexer em qualquer coisa; começar agora escreveria por cima dela.
+  const emVoo = outros.some((o) => {
+    const rs = paraRestoreStatus(o.restore_status)
+    return CAMPOS_DO_VIDEO.some((c) => rs?.[c]?.estado === 'em_andamento' && converterInterrompido(rs[c]!, agora) === null)
+  })
+  if (emVoo) return 'em_andamento'
+  for (const outro of outros) {
     try {
       let rs = paraRestoreStatus(outro.restore_status)
       if (!rs) continue
@@ -116,6 +129,7 @@ async function resolverPendenciasDoVideo(
       Sentry.captureException(e, { tags: { area: 'ab-start' }, extra: { testId, outroTesteId: outro.id, context: 'pendencias-do-video' } })
     }
   }
+  return 'segue'
 }
 
 // ---------------------------------------------------------------------------
@@ -257,7 +271,9 @@ export async function startAbTestInternal(
   }
 
   // (0b) Pendências de outros testes do mesmo vídeo (só banco; roda sempre).
-  await resolverPendenciasDoVideo(supabase, siteId, testId, test.youtube_video_id as string, agora())
+  if ((await resolverPendenciasDoVideo(supabase, siteId, testId, test.youtube_video_id as string, agora())) === 'em_andamento') {
+    return { ok: false, error: MSG_EM_ANDAMENTO }
+  }
 
   // (1) Reivindica draft -> active. `restore_status` nunca fica nulo depois da P4a (F-P3): o supabase-js não faz
   // `coalesce` em coluna, então grava o valor lido (ou {}) sob a guarda de restore_seq, que é equivalente.

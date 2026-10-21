@@ -290,6 +290,46 @@ describe('startAbTestInternal: testes anteriores do mesmo vídeo (Y-5)', () => {
     expect(banco.outro('teste-0').restore_seq).toBe(5)
     expect((banco.outro('teste-0').restore_status as Record<string, Fila>).thumbnail).toMatchObject({ estado: 'desistiu', motivo: 'novo_teste', attempts: 1 })
   })
+  it('P4b Y-2: outro teste do vídeo com thumbnail em_andamento de 30 s -> start recusa com MSG_EM_ANDAMENTO, nada escrito', async () => {
+    const voo = campo({ estado: 'em_andamento', em: antes(30_000), escreveu: null })
+    const { banco, yt, iniciar } = await montar({ extras: [T1({ restore_status: { thumbnail: voo } })] })
+    const r = await iniciar()
+    expect(r).toEqual({ ok: false, error: MSG_EM_ANDAMENTO })
+    expect(banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
+    expect(banco.outro('teste-0')).toMatchObject({ restore_seq: 3, restore_status: { thumbnail: voo } })
+    expect(yt.escritas()).toEqual([])
+    expect(banco.ciclos()).toHaveLength(0)
+  })
+  it('Y-A7: a leitura dos outros testes do vídeo falha -> start recusa (não falha aberto), nada escrito', async () => {
+    const { banco, yt, iniciar } = await montar()
+    const from = banco.supabase.from.bind(banco.supabase)
+    ;(banco.supabase as unknown as { from: unknown }).from = (tabela: string) => {
+      const base = from(tabela as never) as unknown as { select: (c?: string) => unknown }
+      if (tabela !== 'ab_tests') return base
+      return new Proxy(base, { get(alvo, prop, recv) {
+        if (prop !== 'select') return Reflect.get(alvo, prop, recv)
+        return (cols?: string) => {
+          if (cols !== 'id, site_id, name, restore_seq, restore_status') return alvo.select(cols)
+          const q: Record<string, unknown> = {}
+          q.eq = () => q
+          q.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message: 'banco caiu' } }).then(ok)
+          return q
+        }
+      } })
+    }
+    const r = await iniciar()
+    expect(r).toEqual({ ok: false, error: MSG_EM_ANDAMENTO })
+    expect(banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
+    expect(yt.escritas()).toEqual([])
+    expect(Sentry.captureException).toHaveBeenCalled()
+  })
+  it('P4b: ab-start converte o interrompido com a conta de tentativas (attempts 2 -> desistiu/tres_falhas, depois novo_teste não sobrescreve o motivo)', async () => {
+    const t1 = T1({ restore_status: { thumbnail: campo({ estado: 'em_andamento', em: antes(16 * MINUTO), attempts: 2, escreveu: null }) } })
+    const { banco, iniciar } = await montar({ extras: [t1] })
+    await iniciar()
+    expect(banco.restores().map((r) => [r.seq, r.estado])).toEqual([[4, 'desistiu']])
+    expect((banco.outro('teste-0').restore_status as Record<string, Fila>).thumbnail).toMatchObject({ estado: 'desistiu', motivo: 'tres_falhas', attempts: 3 })
+  })
   it('campo em_andamento há 10 min (ainda dentro dos 15) não é tocado', async () => {
     const parado = campo({ estado: 'em_andamento', em: antes(10 * MINUTO), escreveu: null })
     const { banco, iniciar } = await montar({ extras: [T1({ restore_status: { thumbnail: parado } })] })

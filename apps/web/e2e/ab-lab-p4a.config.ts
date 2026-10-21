@@ -21,7 +21,7 @@ const base = { ...devices['Desktop Chrome'], baseURL: `http://localhost:${PORTA}
 
 export default defineConfig({
   testDir: './',
-  testMatch: ['ab-lab-p4a-*.spec.ts', 'fixtures/auth.setup.ts'],
+  testMatch: ['ab-lab-p4[ab]-*.spec.ts', 'fixtures/auth.setup.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -32,9 +32,9 @@ export default defineConfig({
   globalSetup: './fixtures/global-setup.ts',
   projects: [
     { name: 'setup', testMatch: /auth\.setup\.ts/, use: { ...base, baseURL: `http://localhost:${PORTA}` } },
-    { name: 'sp-1440', testMatch: /ab-lab-p4a-.*\.spec\.ts/, dependencies: ['setup'], use: { ...base, viewport: { width: 1440, height: 900 }, timezoneId: 'America/Sao_Paulo', locale: 'pt-BR' } },
-    { name: 'sp-390', testMatch: /ab-lab-p4a-.*\.spec\.ts/, dependencies: ['setup'], use: { ...base, viewport: { width: 390, height: 844 }, timezoneId: 'America/Sao_Paulo', locale: 'pt-BR', isMobile: false, hasTouch: true } },
-    { name: 'tokyo-1440', testMatch: /ab-lab-p4a-.*\.spec\.ts/, dependencies: ['setup'], use: { ...base, viewport: { width: 1440, height: 900 }, timezoneId: 'Asia/Tokyo', locale: 'pt-BR' } },
-    { name: 'tokyo-390', testMatch: /ab-lab-p4a-.*\.spec\.ts/, dependencies: ['setup'], use: { ...base, viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Tokyo', locale: 'pt-BR', hasTouch: true } },
+    { name: 'sp-1440', testMatch: /ab-lab-p4[ab]-.*\.spec\.ts/, dependencies: ['setup'], use: { ...base, viewport: { width: 1440, height: 900 }, timezoneId: 'America/Sao_Paulo', locale: 'pt-BR' } },
+    { name: 'sp-390', testMatch: /ab-lab-p4[ab]-.*\.spec\.ts/, dependencies: ['setup'], use: { ...base, viewport: { width: 390, height: 844 }, timezoneId: 'America/Sao_Paulo', locale: 'pt-BR', isMobile: false, hasTouch: true } },
+    { name: 'tokyo-1440', testMatch: /ab-lab-p4[ab]-.*\.spec\.ts/, dependencies: ['setup'], use: { ...base, viewport: { width: 1440, height: 900 }, timezoneId: 'Asia/Tokyo', locale: 'pt-BR' } },
+    { name: 'tokyo-390', testMatch: /ab-lab-p4[ab]-.*\.spec\.ts/, dependencies: ['setup'], use: { ...base, viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Tokyo', locale: 'pt-BR', hasTouch: true } },
   ],
 })

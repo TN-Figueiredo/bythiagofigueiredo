@@ -1,7 +1,11 @@
 import { z } from 'zod'
 
+// 403 do Blob não é cota; cota esgotada tem tratamento próprio. Mora aqui (folha) para não haver import circular com youtube-api-error (Y-A6).
+export const REASONS_DE_COTA: readonly string[] = ['quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded']
+
 export type CampoNome = 'title' | 'thumbnail'
-export type EstadoCampo = 'em_andamento' | 'ok' | 'falhou' | 'pulado_sem_original' | 'pulado_drift' | 'desistiu'
+// 'pulado_teste_youtube': só leitura nesta entrega (quem escreve é a fase 2 da S6/S7; o CHECK de produção já aceita).
+export type EstadoCampo = 'em_andamento' | 'ok' | 'falhou' | 'pulado_sem_original' | 'pulado_drift' | 'desistiu' | 'pulado_teste_youtube'
 
 // Onde o erro aconteceu: a faixa só afirma "o YouTube recusou" para chamada de escrita (F-D10).
 export const CHAMADAS_YOUTUBE = ['videos.list', 'videos.update', 'thumbnails.set', 'blob'] as const
@@ -71,7 +75,7 @@ export function lerCampoDeRestauracao(campo: CampoRestauracao, agora: Date): Lei
 export function converterInterrompido(campo: CampoRestauracao, agora: Date): CampoRestauracao | null {
   if (campo.estado !== 'em_andamento') return null
   if (!(idadeEmMin(campo.em, agora) > INTERROMPIDO_MIN)) return null
-  return { ...campo, estado: 'falhou', erro: 'interrompido', attempts: 1, escreveu: null }
+  return proximaDoInterrompido(campo)
 }
 
 export function lerRestauracao(rs: RestoreStatus | null, agora: Date): Partial<Record<CampoNome, LeituraCampo>> | null {
@@ -99,7 +103,7 @@ export function truncarErro(e: ErroGravado): ErroGravado {
 }
 
 const Campo = z.object({
-  estado: z.enum(['em_andamento', 'ok', 'falhou', 'pulado_sem_original', 'pulado_drift', 'desistiu']),
+  estado: z.enum(['em_andamento', 'ok', 'falhou', 'pulado_sem_original', 'pulado_drift', 'desistiu', 'pulado_teste_youtube']),
   destino: z.string().min(1),
   em: z.string().refine(x => Number.isFinite(Date.parse(x))),
   forcado: z.boolean(),
@@ -118,4 +122,69 @@ export function paraRestoreStatus(v: unknown): RestoreStatus | null {
 
 export function restoreStatusIlegivel(v: unknown): boolean {
   return v !== null && v !== undefined && !Rs.safeParse(v).success
+}
+
+// ---- P4b: regras puras da nova tentativa ----
+
+export const MAX_TENTATIVAS = 3
+/** Quantas linhas do histórico a âncora do "sim" lê (as duas consultas e `inicioDoSim`). */
+export const LIMITE_DA_CADEIA = 10
+export const JANELA_DO_SIM_MS = 48 * 3_600_000
+
+export type MotivoDesistencia = 'video_inexistente' | 'novo_teste' | 'tres_falhas' | 'antes_da_nova_tentativa' | 'destino_invalido'
+
+/** `linhas` por seq decrescente (a mais nova primeiro): devolve o `em` mais antigo da sequência inicial de forcado = true. */
+export function inicioDoSim(linhas: ReadonlyArray<{ em: string; forcado: boolean }>): string | null {
+  let ancora: string | null = null
+  for (const l of linhas) {
+    if (!l.forcado) break
+    ancora = l.em
+  }
+  // Y-A2: cadeia cheia e toda forçada = o primeiro "sim" ficou além da leitura; a âncora andaria. Erra para o lado seguro: vencido.
+  if (linhas.length >= LIMITE_DA_CADEIA && linhas.every((l) => l.forcado)) return new Date(0).toISOString()
+  return ancora
+}
+
+export function simAindaVale(campo: CampoRestauracao, agora: Date, inicio?: string | null): boolean {
+  if (campo.forcado !== true) return false
+  const t = Date.parse(inicio ?? campo.em)
+  if (!Number.isFinite(t)) return false
+  return agora.getTime() - t < JANELA_DO_SIM_MS
+}
+
+export function erroDeCota(erro: ErroGravado): boolean {
+  return erro !== null && typeof erro === 'object' && 'reason' in erro && REASONS_DE_COTA.includes(erro.reason)
+}
+
+export function proximoDoVigia(
+  anterior: number,
+  erro: ErroGravado,
+  cotaVencida = false,
+): { estado: 'falhou' | 'desistiu'; attempts: number; motivo: 'tres_falhas' | null } {
+  if (erroDeCota(erro) && !cotaVencida) return { estado: 'falhou', attempts: anterior, motivo: null }
+  const n = anterior + 1
+  if (n >= MAX_TENTATIVAS) return { estado: 'desistiu', attempts: n, motivo: 'tres_falhas' }
+  return { estado: 'falhou', attempts: n, motivo: null }
+}
+
+/** Interrompido conta como falha (F1/Y-1): attempts = max(1, p.attempts). */
+export function proximaDoInterrompido(campo: CampoRestauracao): CampoRestauracao {
+  const p = proximoDoVigia(campo.attempts, 'interrompido')
+  return { ...campo, estado: p.estado, erro: 'interrompido', attempts: Math.max(1, p.attempts), escreveu: null, ...(p.motivo ? { motivo: p.motivo } : {}) }
+}
+
+export function camposPendentes(rs: RestoreStatus | null, origem: 'vigia' | 'humano'): CampoNome[] {
+  if (rs === null) return []
+  const out: CampoNome[] = []
+  for (const k of ['title', 'thumbnail'] as const) {
+    const c = rs[k]
+    if (!c) continue
+    if (c.estado === 'falhou') out.push(k)
+    else if (origem === 'humano' && c.estado === 'desistiu' && c.motivo !== 'novo_teste' && c.motivo !== 'destino_invalido') out.push(k)
+  }
+  return out
+}
+
+export function podeDispensar(c: CampoRestauracao): boolean {
+  return c.estado === 'falhou' || c.estado === 'desistiu' || c.estado === 'pulado_drift' || c.estado === 'pulado_sem_original'
 }

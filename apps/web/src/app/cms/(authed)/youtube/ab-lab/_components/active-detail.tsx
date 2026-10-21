@@ -133,7 +133,7 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
             setDriftBusy(true)
             const ack = await acknowledgeAbTestDrift(view.id)
             if (!ack.ok) { alert(ack.error); setDriftBusy(false); return }
-            const res = await resumeAbTest(view.id)
+            const res = await resumeAbTest(view.id, view.restoreSeq)
             if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); router.refresh(); return }
             router.refresh()
           }} className="btn primary sm shrink-0 self-center" style={{ whiteSpace: 'nowrap' }}>
@@ -148,7 +148,7 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
             <p className="text-sm font-medium text-blue-300">Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.</p>
             <button disabled={driftBusy} onClick={async () => {
               setDriftBusy(true)
-              const res = await resumeAbTest(view.id)
+              const res = await resumeAbTest(view.id, view.restoreSeq)
               if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); return }
               router.refresh()
             }} className="shrink-0 rounded-md bg-blue-500 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-400 disabled:opacity-50">

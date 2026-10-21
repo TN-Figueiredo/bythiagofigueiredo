@@ -1,7 +1,7 @@
 // Parser da página watch (A5 S4, Tarefa 4). Texto de terceiros: indexOf + varredura de chaves, nunca regex `.*?` sobre o corpo.
 import { RENDERERS_TITULO, normalizarTitulo } from '@/lib/youtube/teste-youtube'
 
-export const VERSAO_LEITOR = 1
+export const VERSAO_LEITOR = 2
 
 export type CodigoErroWatch =
   | 'http_429' | 'http_4xx' | 'http_5xx' | 'consentimento' | 'redirecionado' | 'verificacao_robo'

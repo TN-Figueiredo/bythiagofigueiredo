@@ -4,13 +4,14 @@ import type { ResultadoSaida } from '@/lib/youtube/ab-settle'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 /** Frase única da recusa por tentativa em voo (F-D4). Usada por pausar, encerrar, reverter, retomar e forçar rotação. */
-export const MSG_VARIANTE_DA_VEZ = 'Não foi possível escolher a variante da vez. Atualize a página e tente de novo.'
+export const MSG_VARIANTE_DA_VEZ = 'Não foi possível escolher a variante da vez. Recarregue a página e tente de novo.'
 export const MSG_YOUTUBE_NAO_ACEITOU = 'O YouTube não aceitou a troca. Tente de novo; se repetir, confira o vídeo no YouTube Studio.'
 export const MSG_EM_ANDAMENTO = 'Outra tentativa está em andamento. Tente de novo em instantes.'
 export const MSG_SEM_PERMISSAO_VARIANTE = 'Só quem administra o site pode deixar uma variante no ar. Você pode voltar ao original.'
-export const MSG_JA_ENCERRADO = 'Este teste já não está neste estado. Atualize a página.'
+export const MSG_JA_ENCERRADO = 'Este teste já não está neste estado. Recarregue a página.'
 export const MSG_MUDOU = 'O teste mudou em outra aba. Reabra para decidir.'
 export const MSG_PEDIDO_INVALIDO = 'Pedido inválido. Recarregue a página e tente de novo.'
+export const MSG_OUTRO_TESTE = 'Outro teste está em andamento neste vídeo. O Lab não troca título nem thumbnail daqui enquanto ele durar.'
 export const MSG_DESTINO_INVALIDO = 'Variante inválida para este teste.'
 
 /** Contrato do diálogo "O que fica no vídeo?" (Tarefa 15). */
@@ -34,6 +35,8 @@ export function traduzirSaida(r: ResultadoSaida): ResultadoAcaoSaida {
     case 'mudou': return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
     case 'em_andamento': return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
     case 'ja_encerrado': return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+    case 'sem_permissao': return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }
+    case 'outro_teste': return { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }
     case 'destino_invalido': return { ok: false, resultado: 'erro', error: MSG_DESTINO_INVALIDO } // Y-D2
   }
 }

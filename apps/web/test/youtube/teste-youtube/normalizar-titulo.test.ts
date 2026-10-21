@@ -22,6 +22,12 @@ describe('normalizarTitulo', () => {
     expect(normalizarTitulo('a﻿b')).toBe('ab')
     expect(normalizarTitulo('a⁠b')).toBe('ab')
   })
+  it('marcas bidi saem (LRM/RLM, embeddings/overrides, isolates), como na leitura da watch', () => {
+    expect(normalizarTitulo('com \u202A@Estevam\u202C na Tailândia')).toBe('com @Estevam na Tailândia')
+    expect(normalizarTitulo('a\u200Eb\u200Fc')).toBe('abc')
+    expect(normalizarTitulo('\u202Bx\u202D\u202Ey')).toBe('xy')
+    expect(normalizarTitulo('\u2066a\u2067b\u2068c\u2069')).toBe('abc')
+  })
   it('ZWJ é preservado (família)', () => {
     const familia = '\u{1F468}‍\u{1F469}‍\u{1F467}'
     expect(normalizarTitulo(familia)).toBe(familia)

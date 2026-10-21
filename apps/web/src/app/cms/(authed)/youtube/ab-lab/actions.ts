@@ -38,9 +38,11 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
+import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
+import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
 /** Guarda a maior cópia da original no Blob (P4a): url, dHash como o YouTube serve e dimensões. */
@@ -57,7 +59,7 @@ export async function getVideoTestHistory(
 export type { OpcaoEncerrar, ResultadoAcaoSaida }
 
 /** Frase provisória da exceção inesperada em settleOnAir (T17: Logan fecha). */
-const MSG_FALHA_SAIDA = 'Não foi possível concluir agora. Atualize a página e confira o estado do teste.'
+const MSG_FALHA_SAIDA = 'Não foi possível concluir agora. Recarregue a página e confira o estado do teste.'
 
 function invalidarTelasDoAbLab(): void {
   revalidateTag('youtube', { expire: 0 })
@@ -81,6 +83,14 @@ async function concluirSaida(saida: Promise<ResultadoSaida>): Promise<ResultadoA
   const out = traduzirSaida(r)
   if (out.ok && out.resultado === 'feito') invalidarTelasDoAbLab()
   return out
+}
+
+/** Como requireEditAccess, mas também devolve quem agiu (para o rastro em audit_log). */
+async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
+  const { siteId } = await getSiteContext()
+  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
+  return { siteId, userId: res.user.id }
 }
 
 async function requireEditAccess(): Promise<string> {
@@ -137,16 +147,16 @@ export async function createAbTest(
     .single()
 
   if (videoError || !video) {
-    return { ok: false, error: 'Vídeo não encontrado.' } // TEXTO-A-REVISAR
+    return { ok: false, error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' }
   }
 
   // Reject Shorts
   if (isCertainShort(video.duration_seconds ?? 0)) {
-    return { ok: false, error: 'Shorts (até 60 s) não entram no A/B Lab.' } // TEXTO-A-REVISAR
+    return { ok: false, error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' }
   }
 
   if (!video.thumbnail_hq_url) {
-    return { ok: false, error: 'Este vídeo ainda não tem thumbnail no Lab. Sincronize os vídeos e tente de novo.' } // TEXTO-A-REVISAR
+    return { ok: false, error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' }
   }
 
   // Check for existing active/draft/paused/queued test on the same video
@@ -160,7 +170,7 @@ export async function createAbTest(
     .maybeSingle()
 
   if (existing) {
-    return { ok: false, error: 'Já existe um teste aberto, pausado, na fila ou em rascunho para este vídeo.' } // TEXTO-A-REVISAR
+    return { ok: false, error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.' }
   }
 
   // Merge config with defaults
@@ -745,20 +755,22 @@ export async function acknowledgeAbTestDrift(
 // resumeAbTest
 // ---------------------------------------------------------------------------
 
-export async function resumeAbTest(testId: string): Promise<ResultadoAcaoSaida> {
+export async function resumeAbTest(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
   } catch (e) {
     return recusaDeSessao(e)
   }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
   // O corpo mora em lib/youtube/ab-resume.ts: as portas injetáveis (banco, relógio, token, leitura) não podem ser
   // parâmetro de uma server action (todo parâmetro vem da rede).
   const r = await retomarTeste(testId, siteId, {
     supabase: getSupabaseServiceClient(),
     agora: () => new Date(),
     token: async (sid, canal) => (await ensureFreshToken(sid, 'youtube', canal)).accessToken,
-  })
+  }, seq.data)
   // A reivindicação já mexeu no teste (restore_seq, restore_status): qualquer desfecho depois dela invalida as telas.
   if (r.ok || r.resultado === 'erro' || r.resultado === 'em_andamento') invalidarTelasDoAbLab()
   return r
@@ -1098,8 +1110,68 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
 // ---------------------------------------------------------------------------
 // revertWinner — volta ao original (janela de 7 dias), por settleOnAir
 // ---------------------------------------------------------------------------
+// retryRestore / dismissRestore (P4b): "Tentar agora" e "Já corrigi no YouTube"
+// ---------------------------------------------------------------------------
 
-export async function revertWinner(testId: string): Promise<ResultadoAcaoSaida> {
+const CamposSchema = z.array(z.enum(['title', 'thumbnail'])).min(1).max(2)
+
+const MSG_NEGA_VARIANTE = 'tentar de novo ou dispensar a restauração de uma variante'
+
+/** Permissão por destino do "Dispensar": nulo = pode; teste/campo ausente = `ja_encerrado` (nada a dispensar); variante exige administrar. */
+async function recusaPorDestino(siteId: string, testId: string, campos: CampoNome[]): Promise<ResultadoAcaoSaida | null> {
+  const destino = await destinoDosCampos(getSupabaseServiceClient(), testId, siteId, campos)
+  if (destino === null) return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+  if (destino === 'variante' && (await denyUnlessSiteAdmin(siteId, MSG_NEGA_VARIANTE))) {
+    return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }
+  }
+  return null
+}
+
+export async function retryRestore(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
+  let siteId: string
+  try {
+    siteId = (await requireEditUser()).siteId
+  } catch (e) {
+    return recusaDeSessao(e)
+  }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+
+  // Y-A1: a permissão é decidida por novaTentativa sobre o destino do retrato que ela mesma reivindica (nunca por uma leitura à parte).
+  const autorizar = async (destino: 'original' | 'variante'): Promise<boolean> =>
+    destino === 'original' || !(await denyUnlessSiteAdmin(siteId, MSG_NEGA_VARIANTE))
+  return concluirSaida(tentarAgora(getSupabaseServiceClient(), testId, siteId, seq.data, undefined, autorizar))
+}
+
+export async function dismissRestore(testId: string, campos: CampoNome[], seqVisto: number): Promise<ResultadoAcaoSaida> {
+  let siteId: string
+  let userId: string
+  try {
+    ;({ siteId, userId } = await requireEditUser())
+  } catch (e) {
+    return recusaDeSessao(e)
+  }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  const lista = CamposSchema.safeParse(campos)
+  if (!seq.success || !lista.success || new Set(lista.data).size !== lista.data.length) {
+    return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  }
+  try {
+    const recusa = await recusaPorDestino(siteId, testId, lista.data)
+    if (recusa) return recusa
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-acao-saida' } })
+    return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
+  }
+  let orgId: string | null = null
+  try { orgId = (await getSiteContext()).orgId ?? null } catch { /* sem org: a linha de auditoria leva site_id */ }
+  return concluirSaida(dispensarCampos(getSupabaseServiceClient(), testId, siteId, lista.data, seq.data, { userId, orgId }))
+}
+
+
+// ---------------------------------------------------------------------------
+
+export async function revertWinner(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
   // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
   // service client; falha fechado.
   const siteIdDaTela = (await getSiteContext()).siteId
@@ -1111,7 +1183,9 @@ export async function revertWinner(testId: string): Promise<ResultadoAcaoSaida> 
   } catch (e) {
     return recusaDeSessao(e)
   }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true }))
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true, seqEsperado: seq.data }))
 }
 
 // ---------------------------------------------------------------------------

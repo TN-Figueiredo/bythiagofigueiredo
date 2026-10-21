@@ -1,10 +1,11 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { settleOnAir, ORIGINAL, destinoNormalizado, lerRetratoPadrao } from '@/lib/youtube/ab-settle'
+import { settleOnAir, novaTentativa, ORIGINAL, destinoNormalizado, lerRetratoPadrao } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, MotivoSaida, Retrato } from '@/lib/youtube/ab-settle'
 import { avisarRestauracao } from '@/lib/youtube/ab-restore-avisos'
-import type { RestoreStatus } from '@/lib/youtube/ab-restore'
+import { converterInterrompido } from '@/lib/youtube/ab-restore'
+import type { CampoRestauracao, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { ErroConhecido } from '@/lib/youtube/youtube-api-error'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { dhashOf, hamming } from '@/lib/youtube/thumb-fingerprint'
@@ -36,17 +37,19 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown }> {
   private ordenar: { col: string; asc: boolean } | null = null
   private limite = Infinity
   private devolve = false
-  constructor(private readonly linhas: Fila[], private readonly aoReler: () => void) {}
+  constructor(private readonly linhas: Fila[], private readonly aoReler: () => void, private readonly aoGravar?: (patch: Fila) => void) {}
   select(cols?: string) { if (cols === 'restore_seq') this.aoReler(); this.devolve = true; return this }
   update(patch: Fila) { this.modo = 'update'; this.patch = patch; return this }
   delete() { this.modo = 'delete'; return this }
   eq(col: string, v: unknown) { this.filtros.push((f) => f[col] === v); return this }
+  neq(col: string, v: unknown) { this.filtros.push((f) => f[col] !== v); return this }
+  in(col: string, vs: unknown[]) { this.filtros.push((f) => vs.includes(f[col])); return this }
   is(col: string, v: unknown) { this.filtros.push((f) => f[col] === v); return this }
   order(col: string, o?: { ascending?: boolean }) { this.ordenar = { col, asc: o?.ascending !== false }; return this }
   limit(n: number) { this.limite = n; return this }
   private executar(): Fila[] {
     let hit = this.linhas.filter((f) => this.filtros.every((g) => g(f)))
-    if (this.modo === 'update') hit.forEach((f) => Object.assign(f, this.patch))
+    if (this.modo === 'update') { hit.forEach((f) => Object.assign(f, this.patch)); this.aoGravar?.(structuredClone(this.patch)) }
     if (this.modo === 'delete') { hit.forEach((f) => this.linhas.splice(this.linhas.indexOf(f), 1)); return [] }
     if (this.ordenar) { const { col, asc } = this.ordenar; hit = [...hit].sort((a, b) => (Number(a[col]) - Number(b[col])) * (asc ? 1 : -1)) }
     return hit.slice(0, this.limite).map((f) => structuredClone(f))
@@ -58,12 +61,13 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown }> {
   }
 }
 
-function criarBanco(rel: { t: number }, inicial: { teste: Fila; variantes: Fila[]; ciclos: Fila[]; video: Fila }) {
+function criarBanco(rel: { t: number }, inicial: { teste: Fila; variantes: Fila[]; ciclos: Fila[]; video: Fila; outros?: Fila[]; restores?: Fila[] }) {
   const tabelas: Record<string, Fila[]> = {
-    ab_tests: [inicial.teste], ab_test_variants: inicial.variantes, ab_test_cycles: inicial.ciclos,
-    youtube_videos: [inicial.video], ops_alert_state: [],
+    ab_tests: [inicial.teste, ...(inicial.outros ?? [])], ab_test_variants: inicial.variantes, ab_test_cycles: inicial.ciclos,
+    youtube_videos: [inicial.video], ops_alert_state: [], ab_test_restores: inicial.restores ?? [],
   }
   const log: string[] = []
+  const atualizacoes: Array<{ tabela: string; patch: Fila }> = []
   let claimed = false
   let queda: Error | null = null
   const ganchosReleitura: Array<() => void> = []
@@ -71,7 +75,7 @@ function criarBanco(rel: { t: number }, inicial: { teste: Fila; variantes: Fila[
   const supabase = {
     from(tabela: string) {
       if (queda && claimed && tabela === 'ab_tests') throw queda
-      return new Consulta(tabelas[tabela]!, () => { log.push('releitura'); ganchosReleitura.forEach((g) => g()) })
+      return new Consulta(tabelas[tabela]!, () => { log.push('releitura'); ganchosReleitura.forEach((g) => g()) }, (patch) => atualizacoes.push({ tabela, patch }))
     },
     rpc(nome: string, a: Record<string, unknown>) {
       if (nome === 'ops_alert_claim') {
@@ -96,25 +100,27 @@ function criarBanco(rel: { t: number }, inicial: { teste: Fila; variantes: Fila[
     },
   } as unknown as SupabaseClient
   return {
-    supabase, testId: String(inicial.teste.id), log, teste,
+    supabase, testId: String(inicial.teste.id), log, teste, atualizacoes,
     setTeste: (p: Fila) => Object.assign(tabelas.ab_tests[0]!, p),
     variante: (id: string) => tabelas.ab_test_variants.find((v) => v.id === id) as Fila,
     cicloFechado: () => tabelas.ab_test_cycles.find((c) => c.ended_at != null) as Fila,
     incrementarSeq: () => { teste().restore_seq += 1 },
     antesDaReleitura: (g: () => void) => { ganchosReleitura.push(g) },
-    lancarDepoisDoClaim: (e: Error) => { queda = e },
+    lancarDepoisDoClaim: (e: Error | null) => { queda = e },
     retratoAntigo: () => lerRetratoPadrao(supabase, String(inicial.teste.id), SITE),
   }
 }
 
 // ---------------------------------------------------------------------------
-interface CampoAnterior { estado?: string; attempts?: number; segundosAtras?: number }
+interface CampoAnterior { estado?: string; attempts?: number; segundosAtras?: number; forcado?: boolean; destino?: string; erro?: unknown; motivo?: string; escreveu?: boolean | null }
 interface Opcoes {
   status?: string; testType?: 'thumbnail' | 'title' | 'combo' | 'description'
   noAr?: { titulo?: string; dhash?: string }
   anterior?: { title?: CampoAnterior; thumbnail?: CampoAnterior }
   inicioUltimoCiclo?: '2 dias atrás'; originalTitle?: string | null
   vencedor?: 'B'; reversivel?: boolean; token?: 'recusado'; canal?: 'nao_identificado'
+  /** Histórico (ab_test_restores), horas atrás, da mais nova para a mais antiga. */ historico?: Array<{ campo: 'title' | 'thumbnail'; horasAtras: number; forcado: boolean }>
+  outros?: Fila[]
   videoApagado?: boolean; originalThumbnailUrl?: string | null; variantes?: { A?: Fila; B?: Fila }; relogioAvancaPorChamada?: number
 }
 
@@ -122,8 +128,8 @@ function montar(o: Opcoes = {}) {
   const rel = { t: T0 }
   const iso = (ms: number) => new Date(ms).toISOString()
   const anterior = o.anterior && Object.fromEntries(Object.entries(o.anterior).map(([c, a]) => [c, {
-    estado: a.estado ?? 'ok', destino: 'original', forcado: false, escreveu: true, erro: null, attempts: a.attempts ?? 0,
-    em: iso(T0 - (a.segundosAtras ?? 86_400) * 1000),
+    estado: a.estado ?? 'ok', destino: a.destino ?? 'original', forcado: a.forcado ?? false, escreveu: a.escreveu === undefined ? true : a.escreveu, erro: a.erro ?? null, attempts: a.attempts ?? 0,
+    em: iso(T0 - (a.segundosAtras ?? 86_400) * 1000), ...(a.motivo ? { motivo: a.motivo } : {}),
   }]))
   const teste: Fila = {
     id: 'teste-1', site_id: SITE, name: 'Teste do Lab', test_type: o.testType ?? 'combo', status: o.status ?? 'active', restore_seq: 0,
@@ -140,7 +146,8 @@ function montar(o: Opcoes = {}) {
   ]
   const ciclos: Fila[] = [{ test_id: 'teste-1', cycle_number: 0, started_at: iso(T0 - (o.inicioUltimoCiclo ? 2 * 86_400_000 : 3_600_000)), ended_at: null }]
   const video: Fila = { id: 'video-interno', site_id: SITE, youtube_video_id: 'yt-1', youtube_channels: o.canal ? null : { channel_id: 'UC1', name: 'Canal' } }
-  const banco = criarBanco(rel, { teste, variantes, ciclos, video })
+  const restores: Fila[] = (o.historico ?? []).map((h, i) => ({ test_id: 'teste-1', campo: h.campo, seq: 100 - i, forcado: h.forcado, em: iso(T0 - h.horasAtras * 3_600_000) }))
+  const banco = criarBanco(rel, { teste, variantes, ciclos, video, outros: o.outros, restores })
   const noAr = o.noAr?.dhash ?? H.B
   const yt = new YouTubeFalso({
     titulo: o.noAr?.titulo ?? 'Título B', thumb: Buffer.alloc(0), videoApagado: o.videoApagado, relogio: { avancar: (ms) => { rel.t += ms } },
@@ -313,11 +320,11 @@ describe('settleOnAir: ordem e corridas (3.2, 22, P4a-I1, I3)', () => {
     const { banco, portas, op } = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'x', dhash: H.A } })
     expect((await settleOnAir(banco.testId, op('pausa'), portas)).resultado).toBe('ja_encerrado')
   })
-  it('P4a-I3 (Y-D12): o banco cai depois do passo 1 → em_andamento com forcado, em, attempts do anterior; a exceção sobe', async () => {
+  it('P4a-I3 (Y-D12): o banco cai depois do passo 1 → em_andamento com forcado, em e attempts 0 (a reivindicação abre corrente); a exceção sobe', async () => {
     const { banco, portas, op } = await preparar({ status: 'active', testType: 'combo', anterior: { title: { attempts: 2 } } })
     banco.lancarDepoisDoClaim(new Error('banco caiu'))        // lança na primeira leitura de ab_tests depois do claim (a releitura de restore_seq)
     await expect(settleOnAir(banco.testId, op('pausa'), portas)).rejects.toThrow('banco caiu')
-    expect(banco.teste().restore_status.title).toMatchObject({ estado: 'em_andamento', forcado: false, attempts: 2 })
+    expect(banco.teste().restore_status.title).toMatchObject({ estado: 'em_andamento', forcado: false, attempts: 0 })
     expect(banco.teste().restore_status.title!.em).toBeTruthy()
   })
   it('DEVE-2: combo, título escrito e imagem com host bloqueado → título ok/escreveu true, thumbnail falhou/erro_interno/escreveu false, Sentry uma vez', async () => {
@@ -503,7 +510,7 @@ describe('avisarRestauracao (P-4, Y-P3)', () => {
     expect(await avisarRestauracao(banco.supabase, teste(5), rs('desistiu', ['title'], 'novo_teste'))).toBe('repetido')
     expect(avisos.enviados()).toHaveLength(1)
     expect(avisos.enviados()[0]).toMatchObject({
-      dedupKey: 'ab-restore-desistiu:teste-1:title', priority: 3,
+      dedupKey: expect.stringMatching(/^ab-restore-desistiu:teste-1:title:/), priority: 3,
       message: 'Outro teste começou no vídeo do teste "Teste do Lab". O Lab não vai mais tentar restaurar o título.',
     })
   })
@@ -658,5 +665,241 @@ describe('Tarefa 6, rodada 1 (consertos dos pareceres)', () => {
       expect(await avisarRestauracao(banco.supabase, teste, rs())).toBe('repetido')
       expect(fanOut).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// P4b, Tarefa 3: novaTentativa
+// ---------------------------------------------------------------------------
+const ERRO = { status: 403, reason: 'forbidden', chamada: 'videos.update' } as const
+const VIGIA = { siteId: SITE, origem: 'vigia' } as const
+const HUMANO = { siteId: SITE, origem: 'humano' } as const
+const H1 = 3_600
+const falhou = (extra: CampoAnterior = {}): CampoAnterior => ({ estado: 'falhou', attempts: 1, erro: ERRO, escreveu: false, segundosAtras: 600, ...extra })
+
+describe('novaTentativa', () => {
+  it('vigia, attempts 1, YouTube recusa 403 → falhou com 2; mesmo teste de novo → desistiu/tres_falhas com 3 (P4b-I1)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou() } })
+    c.yt.recusar('videos.update', 403, 'forbidden')
+    expect((await novaTentativa(c.banco.testId, VIGIA, c.portas)).resultado).toBe('feito')
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', attempts: 2 })
+    expect(c.banco.teste().status).toBe('completed')
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'desistiu', motivo: 'tres_falhas', attempts: 3 })
+  })
+  it('vigia, quotaExceeded → falhou com o attempts, o em e o forcado de antes (P4b-I2)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou({ attempts: 2 }) } })
+    const antes = structuredClone(c.banco.teste().restore_status.title!)
+    c.yt.recusar('videos.update', 403, 'quotaExceeded')
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', attempts: 2, em: antes.em, forcado: antes.forcado, erro: { reason: 'quotaExceeded' } })
+  })
+  it('forcado true com em de 47 h e título editado por fora → escreve; com 49 h → pulado_drift sem escrever (P4b-I3)', async () => {
+    const dentro = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: falhou({ forcado: true, destino: 'B', segundosAtras: 47 * H1 }) } })
+    await novaTentativa(dentro.banco.testId, VIGIA, dentro.portas)
+    expect(dentro.yt.escritas()).toEqual(['videos.update'])
+    expect(dentro.banco.teste().restore_status.title).toMatchObject({ estado: 'ok', forcado: true })
+    const fora = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: falhou({ forcado: true, destino: 'B', segundosAtras: 49 * H1 }) } })
+    await novaTentativa(fora.banco.testId, VIGIA, fora.portas)
+    expect(fora.yt.escritas()).toEqual([])
+    expect(fora.banco.teste().restore_status.title).toMatchObject({ estado: 'pulado_drift', attempts: 1 })
+  })
+  it('humano, campo desistiu/tres_falhas → reivindicação com attempts 0; falha → falhou com 1', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou({ estado: 'desistiu', motivo: 'tres_falhas', attempts: 3 }) } })
+    c.yt.recusar('videos.update', 403, 'forbidden')
+    let vistos = -1
+    c.yt.antesDeEscrever(() => { vistos = c.banco.teste().restore_status.title!.attempts as number })
+    await novaTentativa(c.banco.testId, HUMANO, c.portas)
+    expect(vistos).toBe(0)
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', attempts: 1 })
+  })
+  it('humano, desistiu attempts 3, YouTube acerta → ok com attempts 0 (Y-8)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou({ estado: 'desistiu', motivo: 'tres_falhas', attempts: 3 }) } })
+    await novaTentativa(c.banco.testId, HUMANO, c.portas)
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'ok', attempts: 0 })
+  })
+  it('combo: só o campo pendente é tentado; vencedor só depois de o título dar ok', async () => {
+    const c = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A' }, anterior: { title: falhou({ destino: 'B', attempts: 0 }), thumbnail: { estado: 'ok', destino: 'B', attempts: 0 } } })
+    const thumbAntes = structuredClone(c.banco.teste().restore_status.thumbnail)
+    c.yt.recusar('videos.update', 403, 'forbidden')
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.banco.teste().winner_applied_at).toBeNull()
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', attempts: 1 })
+    expect(c.banco.teste().restore_status.thumbnail).toEqual(thumbAntes)
+    expect(c.yt.chamadas).not.toContain('thumbnails.set')
+    c.yt.recusar('videos.update', 200, 'ok') // 2xx: o YouTube aceita
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.yt.escritas()).toEqual(['videos.update', 'videos.update'])
+    expect(c.yt.chamadas).not.toContain('thumbnails.set')
+    expect(c.banco.teste().winner_applied_at).not.toBeNull()
+  })
+  it('retry acerta o último campo de destino variante → winner_applied_at, applied_by manual, revert +7 d; autoImportWinner 1 vez; sem pendente → ja_encerrado (P4b-I6)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título A' }, anterior: { title: falhou({ destino: 'B' }) } })
+    expect((await novaTentativa(c.banco.testId, HUMANO, c.portas)).resultado).toBe('feito')
+    const t = c.banco.teste()
+    expect(t).toMatchObject({ applied_by: 'manual' })
+    expect(new Date(t.winner_applied_at!).getTime()).toBe(c.portas.agora().getTime())
+    expect(new Date(t.revert_expires_at!).getTime() - c.portas.agora().getTime()).toBe(7 * 86_400_000)
+    expect(c.portas.autoImportWinner).toHaveBeenCalledTimes(1)
+    expect((await novaTentativa(c.banco.testId, HUMANO, c.portas)).resultado).toBe('ja_encerrado')
+    expect(c.portas.autoImportWinner).toHaveBeenCalledTimes(1)
+  })
+  it('reversão que falhou e acerta → winner_applied_at, revert_expires_at e applied_by nulos', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: true, anterior: { title: falhou({ destino: 'original' }) } })
+    c.banco.setTeste({ applied_by: 'manual' })
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.banco.teste()).toMatchObject({ winner_applied_at: null, revert_expires_at: null, applied_by: null })
+  })
+  it('paused com destino variante → ja_encerrado, zero chamadas de escrita', async () => {
+    const c = await preparar({ status: 'paused', testType: 'title', noAr: { titulo: 'Título A' }, anterior: { title: falhou({ destino: 'B' }) } })
+    expect((await novaTentativa(c.banco.testId, VIGIA, c.portas)).resultado).toBe('ja_encerrado')
+    expect(c.yt.escritas()).toEqual([]); expect(c.banco.teste().restore_seq).toBe(0)
+  })
+  it('outro teste draft no mesmo vídeo → outro_teste, zero escrita (P4b-I10)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou() },
+      outros: [{ id: 'outro', site_id: SITE, youtube_video_id: 'video-interno', status: 'draft', restore_seq: 0 }] })
+    expect((await novaTentativa(c.banco.testId, VIGIA, c.portas)).resultado).toBe('outro_teste')
+    expect(c.yt.escritas()).toEqual([]); expect(c.banco.teste().restore_seq).toBe(0)
+    c.banco.setTeste({}); // outro teste concluído não bloqueia
+  })
+  it('destinos divergentes → destino_invalido e Sentry.captureMessage', async () => {
+    const c = await preparar({ status: 'completed', testType: 'combo', anterior: { title: falhou({ destino: 'original' }), thumbnail: falhou({ destino: 'B' }) } })
+    const r = await novaTentativa(c.banco.testId, HUMANO, c.portas)
+    expect(r.resultado).toBe('destino_invalido')
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-nova-tentativa: destinos divergentes', expect.anything())
+    expect(c.yt.escritas()).toEqual([])
+  })
+  it('destino_invalido pelo vigia → campo desistiu/destino_invalido, zero escrita no YouTube', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', anterior: { title: falhou({ destino: 'Z' }) } })
+    expect((await novaTentativa(c.banco.testId, VIGIA, c.portas)).resultado).toBe('destino_invalido')
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'desistiu', motivo: 'destino_invalido' })
+    expect(c.yt.chamadas).toEqual([])
+    expect(c.banco.teste().restore_seq).toBe(1)
+    expect((await novaTentativa(c.banco.testId, VIGIA, c.portas)).resultado).toBe('ja_encerrado') // uma vez só
+  })
+  it('Y-A7: destino_invalido pelo vigia, mas outro escritor mudou o restore_seq -> em_andamento, campo intacto (perdeu o CAS)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', anterior: { title: falhou({ destino: 'Z' }) } })
+    const velho = await c.banco.retratoAntigo()
+    c.banco.incrementarSeq() // o banco já está um restore_seq à frente do retrato lido
+    const r = await novaTentativa(c.banco.testId, VIGIA, { ...c.portas, lerRetrato: async () => velho })
+    expect(r.resultado).toBe('em_andamento')
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou' })
+  })
+  it('Y-A4: vigia sem tempo para escrever (tempo_esgotado) não gasta tentativa: falhou com o attempts, o em e o forcado de antes; sem chamada de escrita', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou({ attempts: 2 }) } })
+    const antes = structuredClone(c.banco.teste().restore_status.title!)
+    await novaTentativa(c.banco.testId, { ...VIGIA, prazo: T0 + 1_000 }, c.portas)
+    expect(c.yt.escritas()).toEqual([])
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', attempts: 2, em: antes.em, forcado: antes.forcado, erro: { motivo: 'tempo_esgotado' } })
+  })
+  it('active → ja_encerrado; sem pendente → ja_encerrado', async () => {
+    const a = await preparar({ status: 'active', testType: 'title', anterior: { title: falhou() } })
+    expect((await novaTentativa(a.banco.testId, VIGIA, a.portas)).resultado).toBe('ja_encerrado')
+    const b = await preparar({ status: 'completed', testType: 'title', anterior: { title: { estado: 'ok' } } })
+    expect((await novaTentativa(b.banco.testId, VIGIA, b.portas)).resultado).toBe('ja_encerrado')
+    expect(a.yt.escritas()).toEqual([]); expect(b.yt.escritas()).toEqual([])
+  })
+  it('interrompido conta (F1/Y-1): vigia com attempts 2, escrita trava → em_andamento com 2; a conversão seguinte dá desistiu/tres_falhas com 3 e o vigia não tenta de novo', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou({ attempts: 2 }) } })
+    c.banco.lancarDepoisDoClaim(new Error('trava'))
+    await expect(novaTentativa(c.banco.testId, VIGIA, c.portas)).rejects.toThrow('trava')
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'em_andamento', attempts: 2 })
+    c.banco.lancarDepoisDoClaim(null)
+    c.rel.t += 20 * 60_000
+    const convertido = converterInterrompido(c.banco.teste().restore_status.title as unknown as CampoRestauracao, c.portas.agora())!
+    c.banco.setTeste({ restore_seq: 5, restore_status: { title: convertido } })
+    expect(convertido).toMatchObject({ estado: 'desistiu', motivo: 'tres_falhas', attempts: 3, erro: 'interrompido' })
+    const escritas = c.yt.escritas().length
+    expect((await novaTentativa(c.banco.testId, VIGIA, c.portas)).resultado).toBe('ja_encerrado')
+    expect(c.yt.escritas().length).toBe(escritas)
+  })
+  it('vigia forçando, a escrita trava → o campo convertido mantém forcado true (R-2)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: falhou({ forcado: true, destino: 'B' }) } })
+    c.banco.lancarDepoisDoClaim(new Error('trava'))
+    await expect(novaTentativa(c.banco.testId, VIGIA, c.portas)).rejects.toThrow('trava')
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'em_andamento', forcado: true })
+  })
+  it('settleOnAir num teste com restore_status.thumbnail.attempts 2 → em_andamento com attempts 0', async () => {
+    const c = await preparar({ status: 'active', testType: 'thumbnail', anterior: { thumbnail: falhou({ attempts: 2 }) } })
+    c.banco.lancarDepoisDoClaim(new Error('banco caiu'))
+    await expect(settleOnAir(c.banco.testId, c.op('pausa'), c.portas)).rejects.toThrow('banco caiu')
+    expect(c.banco.teste().restore_status.thumbnail).toMatchObject({ estado: 'em_andamento', attempts: 0 })
+  })
+  it('cota (Phil F5): forcado true, em de 40 h, cota → em, forcado e attempts iguais; 10 h depois (50 h) não força', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: falhou({ forcado: true, destino: 'B', attempts: 1, segundosAtras: 40 * H1 }) } })
+    const antes = structuredClone(c.banco.teste().restore_status.title!)
+    c.yt.recusar('videos.update', 403, 'quotaExceeded')
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', em: antes.em, forcado: true, attempts: 1 })
+    c.rel.t += 10 * 3_600_000
+    const escritas = c.yt.escritas().length
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.yt.escritas().length).toBe(escritas)
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'pulado_drift' })
+  })
+  it('cota que dura mais de 72 h desde a âncora conta como falha', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou({ attempts: 1, segundosAtras: 73 * H1 }) } })
+    c.yt.recusar('videos.update', 403, 'quotaExceeded')
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou', attempts: 2 })
+  })
+  it('cadeia (Y-3): histórico com forcado há 50 h e 1 h, campo.em de 1 h → não força; sem histórico usa o em do campo', async () => {
+    const campo = falhou({ forcado: true, destino: 'B', segundosAtras: H1 })
+    const com = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: campo },
+      historico: [{ campo: 'title', horasAtras: 1, forcado: true }, { campo: 'title', horasAtras: 50, forcado: true }] })
+    await novaTentativa(com.banco.testId, VIGIA, com.portas)
+    expect(com.yt.escritas()).toEqual([]); expect(com.banco.teste().restore_status.title).toMatchObject({ estado: 'pulado_drift' })
+    const sem = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: campo } })
+    await novaTentativa(sem.banco.testId, VIGIA, sem.portas)
+    expect(sem.yt.escritas()).toEqual(['videos.update'])
+    const quebrada = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: campo },
+      historico: [{ campo: 'title', horasAtras: 1, forcado: true }, { campo: 'title', horasAtras: 30, forcado: false }, { campo: 'title', horasAtras: 90, forcado: true }] })
+    await novaTentativa(quebrada.banco.testId, VIGIA, quebrada.portas)
+    expect(quebrada.yt.escritas()).toEqual(['videos.update']) // forcado = false quebra a cadeia: a âncora é o 1 h
+  })
+  it('Y-A2: cadeia cheia (10 linhas forçadas recentes) conta como "sim" vencido: não força, pulado_drift', async () => {
+    const campo = falhou({ forcado: true, destino: 'B', segundosAtras: H1 })
+    const dez = Array.from({ length: 10 }, (_, i) => ({ campo: 'title' as const, horasAtras: i + 1, forcado: true }))
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: campo }, historico: dez })
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.yt.escritas()).toEqual([])
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'pulado_drift' })
+    const nove = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado' }, anterior: { title: campo }, historico: dez.slice(0, 9) })
+    await novaTentativa(nove.banco.testId, VIGIA, nove.portas)
+    expect(nove.yt.escritas()).toEqual(['videos.update']) // 9 linhas: a cadeia não está cheia, âncora na 9ª (9 h)
+  })
+  it('Y-A1: autorizar recebe o destino do retrato reivindicado; false → sem_permissao, zero claim e zero escrita', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título A' }, anterior: { title: falhou({ destino: 'B' }) } })
+    const autorizar = vi.fn(async () => false)
+    const r = await novaTentativa(c.banco.testId, { ...HUMANO, autorizar }, c.portas)
+    expect(r.resultado).toBe('sem_permissao')
+    expect(autorizar).toHaveBeenCalledWith('variante')
+    expect(c.yt.escritas()).toEqual([]); expect(c.banco.teste().restore_seq).toBe(0)
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'falhou' })
+    const ok = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, anterior: { title: falhou() } })
+    const aut2 = vi.fn(async () => true)
+    expect((await novaTentativa(ok.banco.testId, { ...HUMANO, autorizar: aut2 }, ok.portas)).resultado).toBe('feito')
+    expect(aut2).toHaveBeenCalledWith('original')
+  })
+  it('Y-A5: winner_applied_at já preenchido, destino variante, retry acerta → autoImportWinner 0 vezes (Y-12)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título A' }, vencedor: 'B', reversivel: true, anterior: { title: falhou({ destino: 'B' }) } })
+    expect((await novaTentativa(c.banco.testId, HUMANO, c.portas)).resultado).toBe('feito')
+    expect(c.banco.teste().restore_status.title).toMatchObject({ estado: 'ok' })
+    expect(c.portas.autoImportWinner).not.toHaveBeenCalled()
+  })
+  it('combo title falhou + thumbnail pulado_teste_youtube → só o título é tentado (F10)', async () => {
+    const c = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título B' }, anterior: { title: falhou(), thumbnail: { estado: 'pulado_teste_youtube', attempts: 0 } } })
+    const thumbAntes = structuredClone(c.banco.teste().restore_status.thumbnail)
+    await novaTentativa(c.banco.testId, VIGIA, c.portas)
+    expect(c.yt.escritas()).toEqual(['videos.update'])
+    expect(c.banco.teste().restore_status.thumbnail).toEqual(thumbAntes)
+  })
+  it('PODE-1: settleOnAir com thumbnail em_andamento de 3 min → um update converte em falhou/interrompido com o em antigo; a reivindicação usa restore_seq + 2 no fim', async () => {
+    const c = await preparar({ status: 'paused', testType: 'thumbnail', noAr: { dhash: H.A }, anterior: { thumbnail: { estado: 'em_andamento', segundosAtras: 180, escreveu: null } } })
+    const em = c.banco.teste().restore_status.thumbnail!.em
+    await settleOnAir(c.banco.testId, c.op('encerrado'), c.portas)
+    const conv = c.banco.atualizacoes.find((u) => u.tabela === 'ab_tests' && u.patch.restore_seq === 1)
+    expect((conv!.patch.restore_status as RestoreStatus).thumbnail).toMatchObject({ estado: 'falhou', erro: 'interrompido', escreveu: null, em, attempts: 1 })
+    expect(c.banco.teste().restore_seq).toBe(2)
   })
 })

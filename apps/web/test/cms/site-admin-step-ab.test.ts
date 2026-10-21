@@ -55,7 +55,7 @@ const isRefusal = (r: Res) => r.ok === false && /^Só quem administra o site pod
 
 const ALWAYS: Array<{ name: string; run: () => Promise<Res> }> = [
   { name: 'forceRotate', run: () => ab.forceRotate('test-1') },
-  { name: 'revertWinner', run: () => ab.revertWinner('test-1') },
+  { name: 'revertWinner', run: () => ab.revertWinner('test-1', 0) },
 ]
 
 function arrange(who: SessionWho, row: Record<string, unknown> = {}) {

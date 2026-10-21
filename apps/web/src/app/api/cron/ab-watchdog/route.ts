@@ -3,8 +3,10 @@ import { getCronHealth, recordCronSuccess, recordCronFailure } from '@/lib/cron-
 import { createNotification } from '@/lib/notifications/create'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteOwners, logSemDestinatario, SEM_DESTINATARIO } from '@/lib/notifications/get-site-owners'
-import { faseDriftEInterrompidos } from '@/lib/youtube/ab-watchdog-drift'
+import { converterInterrompidosDoVigia, faseDriftEInterrompidos } from '@/lib/youtube/ab-watchdog-drift'
 import type { ResultadoDrift } from '@/lib/youtube/ab-watchdog-drift'
+import { faseNovaTentativa, zeroNovaTentativa } from '@/lib/youtube/ab-watchdog-nova-tentativa'
+import type { ResultadoNovaTentativa } from '@/lib/youtube/ab-watchdog-nova-tentativa'
 import { podarRetratosDeCanal } from '@/lib/youtube/competitor-snapshot-prune'
 import * as Sentry from '@sentry/nextjs'
 
@@ -89,34 +91,65 @@ export async function GET(req: NextRequest) {
     const podaRetratos = await podarRetratosDeCanal(pruneClient, Date.now())
     if (!podaRetratos.ok) console.error('[ab-watchdog] snapshot prune skipped:', podaRetratos.motivo)
 
-    // Drift pela imagem e conversão do `em_andamento` interrompido (P4a T11). Depois das podas (custo zero, não
-    // dependem desta fase). Acumulada, não lançada: a morte por tempo não passa pelo catch, então a fase se limita sozinha.
-    const drift: ResultadoDrift = await faseDriftEInterrompidos(getSupabaseServiceClient(), { agora: Date.now, inicio })
-      .catch((e: unknown): ResultadoDrift => {
-        Sentry.captureException(e, { extra: { context: 'ab-watchdog-drift' } })
-        return { verificados: 0, pausados: 0, falhas: 1, adiados: 0, interrompidos: 0, semDestinatario: false }
-      })
+    // Conversão do `em_andamento` interrompido (só banco): fora e antes das duas fases, a nova tentativa lê o resultado dela (Y-6).
+    const drift: ResultadoDrift = { verificados: 0, pausados: 0, falhas: 0, adiados: 0, interrompidos: 0, semDestinatario: false }
+    await converterInterrompidosDoVigia(getSupabaseServiceClient(), { agora: Date.now, inicio }, drift)
+
+    // Drift (só testes `active`) e nova tentativa (só `status <> 'active'`) têm conjuntos disjuntos: rodam em paralelo,
+    // cada uma com o próprio catch (emenda 37). Acumuladas, não lançadas: a morte por tempo não passa pelo catch.
+    const [driftFase, nt] = await Promise.all([
+      faseDriftEInterrompidos(getSupabaseServiceClient(), { agora: Date.now, inicio }, undefined, undefined, { semInterrompidos: true })
+        .catch((e: unknown): ResultadoDrift => {
+          Sentry.captureException(e, { extra: { context: 'ab-watchdog-drift' } })
+          return { verificados: 0, pausados: 0, falhas: 1, adiados: 0, interrompidos: 0, semDestinatario: false }
+        }),
+      faseNovaTentativa(getSupabaseServiceClient(), { agora: Date.now, inicio })
+        .catch((e: unknown): ResultadoNovaTentativa => {
+          Sentry.captureException(e, { extra: { context: 'ab-watchdog-nova-tentativa' } })
+          return { ...zeroNovaTentativa(), falhas: 1 }
+        }),
+    ])
+    drift.verificados += driftFase.verificados
+    drift.pausados += driftFase.pausados
+    drift.falhas += driftFase.falhas
+    drift.adiados += driftFase.adiados
+    drift.interrompidos += driftFase.interrompidos
+    drift.semDestinatario = drift.semDestinatario || driftFase.semDestinatario
     if (drift.semDestinatario) semDestinatario++
-    const atencao = drift.falhas > 0 || drift.adiados > 0 || drift.semDestinatario
+    semDestinatario += nt.semDestinatario
+    const duracaoMs = Date.now() - inicio
+    const atencao = drift.falhas > 0 || drift.adiados > 0 || drift.semDestinatario || nt.falhas > 0 || nt.adiados > 0 || nt.semDestinatario > 0
     if (atencao) {
-      await recordCronFailure('ab-watchdog', `drift: falhas ${drift.falhas}, adiados ${drift.adiados}${drift.semDestinatario ? ', sem destinatário' : ''}`)
+      await recordCronFailure('ab-watchdog', `drift: falhas ${drift.falhas}, adiados ${drift.adiados}${drift.semDestinatario ? ', sem destinatário' : ''}; nova tentativa: falhas ${nt.falhas}, adiados ${nt.adiados}, sem destinatário ${nt.semDestinatario}, cota ${nt.cota}; duracao_ms ${duracaoMs}`)
     } else {
       await recordCronSuccess('ab-watchdog', 'info')
     }
+
+    const driftResposta = { verificados: drift.verificados, pausados: drift.pausados, falhas: drift.falhas }
+    // Sempre presente, inclusive com zeros (P4b-I9): a ausência não pode ser lida como "nada a fazer".
+    const novaTentativaResposta = {
+      tentadas: nt.tentadas, ok: nt.ok, falharam: nt.falharam, desistiram: nt.desistiram, pulados: nt.pulados, cota: nt.cota,
+      ignorados: nt.ignorados, adiados: nt.adiados, [SEM_DESTINATARIO]: nt.semDestinatario,
+    }
+    const avisos = {
+      enviados: avisosEnviados,
+      // Havia aviso a dar e ninguém a quem dar: não é "ok" mudo.
+      ...(semDestinatario > 0 ? { [SEM_DESTINATARIO]: semDestinatario } : {}),
+    }
+    // A coluna cron_health.duration_ms não existe (F3): a conferência de produção lê esta linha.
+    console.log('[ab-watchdog] resumo', JSON.stringify({ duracao_ms: duracaoMs, drift: driftResposta, nova_tentativa: novaTentativaResposta, avisos }))
 
     return Response.json({
       status: atencao ? 'atencao' : 'ok',
       rotate_healthy: !!rotateRanToday,
       poda_retratos: podaRetratos,
       last_rotate: rotateHealth?.last_success_at ?? null,
-      drift: { verificados: drift.verificados, pausados: drift.pausados, falhas: drift.falhas },
+      drift: driftResposta,
+      nova_tentativa: novaTentativaResposta,
+      duracao_ms: duracaoMs,
       ...(drift.adiados > 0 ? { adiados: drift.adiados } : {}),
       ...(drift.interrompidos > 0 ? { interrompidos: drift.interrompidos } : {}),
-      avisos: {
-        enviados: avisosEnviados,
-        // Havia aviso a dar e ninguém a quem dar: não é "ok" mudo.
-        ...(semDestinatario > 0 ? { [SEM_DESTINATARIO]: semDestinatario } : {}),
-      },
+      avisos,
     })
   } catch (err) {
     Sentry.captureException(err, { extra: { context: 'ab-watchdog' } })

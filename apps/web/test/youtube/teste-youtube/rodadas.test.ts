@@ -64,6 +64,6 @@ describe('rodadasDeTitulo', () => {
   })
 
   it('versao da regra nao muda', () => {
-    expect(REGRA_TESTE_YOUTUBE_VERSAO).toBe(1)
+    expect(REGRA_TESTE_YOUTUBE_VERSAO).toBe(2)
   })
 })

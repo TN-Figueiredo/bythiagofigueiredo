@@ -20,4 +20,4 @@ export SOCIAL_MASTER_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456
 export YOUTUBE_API_KEY=falso BLOB_READ_WRITE_TOKEN=falso GOOGLE_CLIENT_ID=falso GOOGLE_CLIENT_SECRET=falso
 export YT_MOCK_URL=http://127.0.0.1:3098
 export NODE_OPTIONS="--require $(pwd)/e2e/ab-lab-p4a-suporte/yt-preload.cjs"
-exec npx next dev -p ${PORTA} > "$LOG" 2>&1
+exec npx next dev ${AB_P4B_BUNDLER:+--${AB_P4B_BUNDLER}} -p ${PORTA} > "$LOG" 2>&1

@@ -1,5 +1,6 @@
 'use client'
 
+import type { OpcoesAviso } from './acoes-de-saida'
 import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
@@ -15,7 +16,7 @@ interface AbPauseDialogProps {
   seqVisto: number
   onClose: () => void
   /** Aviso de página para o que acontece depois de o diálogo fechar. */
-  onAviso?: (texto: string) => void
+  onAviso?: (texto: string, opcoes?: OpcoesAviso) => void
 }
 
 export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDialogProps) {
@@ -40,7 +41,15 @@ export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDia
       try {
         result = await pausar(seqVisto)
       } catch {
-        if (await sessaoExpirou()) { setFase('sessao_expirada'); return }
+        const expirada = await sessaoExpirou()
+        if (!montado.current) { // P4b T9: o diálogo já fechou; a página diz o que aconteceu
+          onAviso?.(expirada
+            ? 'Sua sessão expirou. Não sabemos se o teste foi pausado: entre de novo e confira.'
+            : 'Sem resposta ao pausar. Não sabemos se o teste foi pausado. Recarregue a página para ver o resultado.', { fixo: true })
+          router.refresh()
+          return
+        }
+        if (expirada) { setFase('sessao_expirada'); return }
         setError('Sem resposta. Recarregue a página para ver o resultado.')
         return
       }
@@ -58,6 +67,11 @@ export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDia
       }
       if (!result.ok && result.resultado === 'mudou') { setFase('mudou'); setError(null); return }
       if (!result.ok && result.resultado === 'ja_encerrado') { router.refresh(); onClose(); return }
+      if (!montado.current && !result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') {
+        onAviso?.('Sua sessão expirou e o teste não foi pausado. Entre de novo e pause outra vez.', { fixo: true })
+        router.refresh()
+        return
+      }
       if (!result.ok && result.resultado === 'sem_permissao' && result.error === 'unauthenticated') { setFase('sessao_expirada'); return }
       // Recusa (em andamento, sem permissão, erro) fica escrita; o diálogo não fecha como se tivesse dado certo.
       setError(result.ok ? 'Resposta inesperada. Recarregue a página para ver o resultado.' : textoDoErro(result, 'pausar'))
