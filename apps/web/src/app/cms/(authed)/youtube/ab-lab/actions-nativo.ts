@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { requireEditUser } from '@/lib/youtube/ab-lab-acesso'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { confirmarTesteNoStudio, type ResultadoConfirmar } from '@/lib/youtube/teste-youtube/nativo/confirmar'
 import {
   abrirFichaCore, salvarFichaCore, marcarStudioAbertoCore, lembrarNoComputadorCore,
   type FichaLida, type FichaRascunho, type ResultadoLembrar,
@@ -66,4 +67,26 @@ export async function lembrarNoComputador(fichaId: string): Promise<ResultadoLem
   try {
     return await lembrarNoComputadorCore({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, fichaId })
   } catch (e) { return falha(e, 'lembrarNoComputador') }
+}
+
+export type ResultadoAcaoConfirmar = ResultadoConfirmar | { ok: false; erro: 'sem_permissao' | 'pedido_invalido' | 'falha'; error: string }
+
+/** "Já iniciei": ficha -> registro confirmado e pausa do nosso sem escrever no YouTube. */
+export async function jaIniciei(fichaId: string): Promise<ResultadoAcaoConfirmar> {
+  const a = await acesso()
+  if ('ok' in a) return { ok: false, erro: 'sem_permissao', error: a.error }
+  if (!Id.safeParse(fichaId).success) return { ok: false, erro: 'pedido_invalido', error: MSG_PEDIDO_INVALIDO }
+  try {
+    return await confirmarTesteNoStudio({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, origem: { fichaId } })
+  } catch (e) { return { ...falha(e, 'jaIniciei'), erro: 'falha' } }
+}
+
+/** "Confirmar" do cartão S7 (estado 1): `lido` é o `updated_at` que a tela viu (CAS). */
+export async function confirmarDetectado(registroId: string, lido: string): Promise<ResultadoAcaoConfirmar> {
+  const a = await acesso()
+  if ('ok' in a) return { ok: false, erro: 'sem_permissao', error: a.error }
+  if (!Id.safeParse(registroId).success || !Lido.safeParse(lido).success) return { ok: false, erro: 'pedido_invalido', error: MSG_PEDIDO_INVALIDO }
+  try {
+    return await confirmarTesteNoStudio({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, origem: { registroId, lido } })
+  } catch (e) { return { ...falha(e, 'confirmarDetectado'), erro: 'falha' } }
 }
