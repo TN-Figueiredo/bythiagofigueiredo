@@ -14,10 +14,10 @@ export interface ConfigLeitura {
 }
 
 const CONFIG: ConfigLeitura = {
-  modo: 'aviso',
+  modo: 'recusa',
   avisoDesde: '2026-10-12',   // data do envio do lote 1; o controlador a confere no dia do envio
-  controleFechadoEm: null,
-  conferenciaAte: null,
+  controleFechadoEm: '2026-10-21',   // dia do veredito (ledger a5-e19, 21/10)
+  conferenciaAte: '2026-10-25T13:00:00.000Z',   // envio 23/10 ~12:30 UTC + 48 h (Task 10)
 }
 
 export function modoLeitura(): ConfigLeitura {
