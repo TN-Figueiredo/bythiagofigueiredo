@@ -308,7 +308,7 @@ describe('lerAgendaDoVigia', () => {
 
 describe('o vigia enxerga as nove tarefas (as duas da E14, a medida do banco e as marcas de idade inclusive)', () => {
   const HORAS = (n: number) => iso(AGORA - n * H)
-  const TODAS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+  const TODAS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
 
   it('o padrão do vigia são as nove, na ordem do catálogo', () => {
     expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(TODAS)
@@ -523,7 +523,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
 
   it('/api/health com tarefa atrasada: degraded, nomeada; com OBS_AGENDA=off: tudo desligada e status não muda', async () => {
     mock.mockReturnValue(sbDasRotas(() => Promise.resolve(respostaDaAgenda({
-      leitura_horaria: iso(Date.now() - 5 * H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H), poda_leituras_watch: iso(Date.now() - H), leitura_watch: iso(Date.now() - H), registro_teste_nativo: iso(Date.now() - H),
+      leitura_horaria: iso(Date.now() - 5 * H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H), poda_leituras_watch: iso(Date.now() - H), leitura_watch: iso(Date.now() - H), registro_teste_nativo: iso(Date.now() - H), avisos_pendentes: iso(Date.now() - H),
     }, iso(Date.now() - 30 * H)))) as never)
     const res = await healthGET(reqHealth())
     const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }> }
@@ -540,7 +540,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
   it('/api/health com a anulação parada: degraded e agenda:anular_identidade nomeada', async () => {
     mock.mockReturnValue(sbDasRotas(() => Promise.resolve(respostaDaAgenda({
       leitura_horaria: iso(Date.now() - H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H),
-      retratos_comentarios: iso(Date.now() - H), tamanho_do_banco: iso(Date.now() - H), marcas_de_idade: iso(Date.now() - H), playlists_semanais: iso(Date.now() - H), poda_leituras_watch: iso(Date.now() - H), leitura_watch: iso(Date.now() - H), registro_teste_nativo: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
+      retratos_comentarios: iso(Date.now() - H), tamanho_do_banco: iso(Date.now() - H), marcas_de_idade: iso(Date.now() - H), playlists_semanais: iso(Date.now() - H), poda_leituras_watch: iso(Date.now() - H), leitura_watch: iso(Date.now() - H), registro_teste_nativo: iso(Date.now() - H), avisos_pendentes: iso(Date.now() - H), anular_identidade: iso(Date.now() - 40 * H),
     }, iso(Date.now() - 60 * H)))) as never)
     const res = await healthGET(reqHealth())
     const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }> }
@@ -572,7 +572,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
     const push = vi.fn((_u: unknown, _i?: unknown) => Promise.resolve(new Response(null, { status: 200 })))
     vi.stubGlobal('fetch', push)
     mock.mockReturnValue(sbDasRotas(() => Promise.resolve(respostaDaAgenda({
-      leitura_horaria: iso(Date.now() - 5 * H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H), poda_leituras_watch: iso(Date.now() - H), leitura_watch: iso(Date.now() - H), registro_teste_nativo: iso(Date.now() - H),
+      leitura_horaria: iso(Date.now() - 5 * H), sincronizar_canais: iso(Date.now() - H), serie_semanal: iso(Date.now() - H), poda_leituras_watch: iso(Date.now() - H), leitura_watch: iso(Date.now() - H), registro_teste_nativo: iso(Date.now() - H), avisos_pendentes: iso(Date.now() - H),
     }, iso(Date.now() - 30 * H)))) as never)
     const corpo = await (await watchdogGET(reqWatchdog())).json() as { status: string; lateNames?: string[] }
     expect(corpo.status).toBe('degraded')

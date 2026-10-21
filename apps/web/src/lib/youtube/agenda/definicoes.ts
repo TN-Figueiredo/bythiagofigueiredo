@@ -245,6 +245,25 @@ export const DEFINICAO_REGISTRO_TESTE_NATIVO: Definicao = {
   },
 }
 
+/**
+ * `avisos_pendentes` (F1a-dado, T12): o lembrete do dia 14 (e-mail, uma vez por dono) e o fechamento por silêncio (`sem_resposta`) dos testes do YouTube confirmados.
+ * Leve, a partir das 09:00 de São Paulo, uma vez ao dia. **Sem `ligaCom`** (o recuo natural do registrador, `off`, deixaria a linha confirmada sem lembrete nem
+ * fechamento; o desligamento operacional é `OBS_AGENDA_TASKS_OFF`): sem linha devida a tarefa não faz nada. O código mora em `agenda/tarefas/avisos-pendentes.ts`.
+ * `ordem: 5.96` (depois do registro, antes das pesadas).
+ */
+export const DEFINICAO_AVISOS_PENDENTES: Definicao = {
+  nome: 'avisos_pendentes', rotulo: 'avisos do teste do YouTube', ordem: 5.96, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 9,
+  tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
+  comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000,
+  motivos: {
+    leitura_falhou: 'não foi possível ler os testes do YouTube para avisar',
+    lembrete_falhou: 'o lembrete do dia 14 não saiu e será tentado de novo',
+    lembrete_desistiu: 'o lembrete do dia 14 falhou três vezes e foi abandonado (o teste fecha por silêncio)',
+    fechamento_falhou: 'não foi possível fechar um teste sem resposta',
+    sobrou: 'ficaram testes para o próximo disparo',
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
@@ -252,7 +271,7 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_PODA_LEITURAS_WATCH].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_AVISOS_PENDENTES, DEFINICAO_PODA_LEITURAS_WATCH].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {
