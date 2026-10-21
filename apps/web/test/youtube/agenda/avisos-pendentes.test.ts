@@ -2,13 +2,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { rodarAvisos } from '@/lib/youtube/agenda/tarefas/avisos-pendentes'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
+import * as Sentry from '@sentry/nextjs'
 import { roteiro, ok, type Res } from '../../helpers/banco-roteirizado'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 const AGORA = Date.parse('2026-12-20T12:00:00.000Z')
 const dias = (n: number): string => new Date(AGORA - n * 86_400_000).toISOString()
-const ctx = (sb: ContextoTarefa['sb']): ContextoTarefa => ({ t0: AGORA, agora: () => AGORA, apiKey: '', sb, linhas: null })
+const ctx = (sb: ContextoTarefa['sb'], em: number = AGORA): ContextoTarefa => ({ t0: em, agora: () => em, apiKey: '', sb, linhas: null })
 const linha = (o: Record<string, unknown> = {}) => ({
   id: 'r1', site_id: 's1', youtube_video_id: 'abcdefghijk', estado: 'em_andamento', primeira_vista: dias(14), confirmado_em: dias(14), created_at: dias(30),
   resposta_dono: null, lembrete_notificado_em: null, notificacao_falhou_em: null, notificacao_tentativas: 0, updated_at: dias(1), ...o,
@@ -66,7 +67,7 @@ describe('rodarAvisos', () => {
   it('3ª falha: grava notificacao_falhou_em e a tarefa fica em erro', async () => {
     const fan = vi.fn().mockResolvedValue({ ...fanOk, errors: ['x'] })
     const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 2 })]), ok([{ id: 'r1' }])] })
-    const out = await rodarAvisos(ctx(r.sb), { fanOut: fan })
+    const out = await rodarAvisos(ctx(r.sb, AGORA + 2 * 86_400_000), { fanOut: fan })
     expect(out).toMatchObject({ estado: 'erro', motivo: 'lembrete_desistiu' })
     const upd = r.chamadas.filter((c) => c.alvo === 'ab_native_tests').at(-1)!.metodos.join(' ')
     expect(upd).toContain('notificacao_falhou_em')
@@ -112,5 +113,90 @@ describe('rodarAvisos', () => {
   it('falha de leitura: parcial com leitura_falhou', async () => {
     const r = roteiro({ ab_native_tests: [ok([]), erroBanco('57014')] })
     expect(await rodarAvisos(ctx(r.sb), { fanOut: vi.fn() })).toMatchObject({ estado: 'parcial', motivo: 'leitura_falhou' })
+  })
+
+  it('C1: tentativa já gasta hoje fica de fora (não tenta, não conta), com lembrete_espera', async () => {
+    const fan = vi.fn()
+    const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 1 })])] })
+    const out = await rodarAvisos(ctx(r.sb), { fanOut: fan })
+    expect(out).toMatchObject({ estado: 'ok', detalhe: { lembrete_espera: 1, lembrete_falhou: 0 } })
+    expect(fan).not.toHaveBeenCalled()
+    expect(r.chamadas.filter((c) => c.alvo === 'ab_native_tests')).toHaveLength(2)
+  })
+
+  it('C1: falha nos dias 14 e 15 e sucesso no 16 grava lembrete_notificado_em no 16, sem fechar', async () => {
+    const dia = 86_400_000
+    const fanF = vi.fn().mockResolvedValue(fanZero)
+    const r1 = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([{ id: 'r1' }])] })
+    expect(await rodarAvisos(ctx(r1.sb), { fanOut: fanF })).toMatchObject({ motivo: 'lembrete_falhou' })
+    const r2 = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 1 })]), ok([{ id: 'r1' }])] })
+    expect(await rodarAvisos(ctx(r2.sb, AGORA + dia), { fanOut: fanF })).toMatchObject({ motivo: 'lembrete_falhou' })
+    expect(r2.chamadas.at(-1)!.metodos.join(' ')).toContain('"notificacao_tentativas":2')
+    const fanOkF = vi.fn().mockResolvedValue(fanOk)
+    const r3 = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 2 })]), ok([{ id: 'r1' }])] })
+    expect(await rodarAvisos(ctx(r3.sb, AGORA + 2 * dia), { fanOut: fanOkF })).toMatchObject({ estado: 'ok', detalhe: { lembrados: 1, fechados: 0 } })
+    expect(r3.chamadas.at(-1)!.metodos.join(' ')).toContain('lembrete_notificado_em')
+  })
+
+  it('C1: três falhas em três dias gravam falhou_em só na 3ª e avisam o Sentry', async () => {
+    vi.mocked(Sentry.captureMessage).mockClear()
+    const fan = vi.fn().mockResolvedValue(fanZero)
+    const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 2 })]), ok([{ id: 'r1' }])] })
+    const out = await rodarAvisos(ctx(r.sb, AGORA + 2 * 86_400_000), { fanOut: fan })
+    expect(out).toMatchObject({ estado: 'erro', motivo: 'lembrete_desistiu' })
+    expect(r.chamadas.at(-1)!.metodos.join(' ')).toContain('notificacao_falhou_em')
+    expect(vi.mocked(Sentry.captureMessage).mock.calls.some((c) => String(c[0]).includes('abandonado'))).toBe(true)
+  })
+
+  it('M1: lembrete saiu mas a gravação falhou: motivo próprio, lembrados 0', async () => {
+    const r = roteiro({ ab_native_tests: [ok([]), ok([linha()]), erroBanco('XX000')] })
+    const out = await rodarAvisos(ctx(r.sb), { fanOut: vi.fn().mockResolvedValue(fanOk) })
+    expect(out).toMatchObject({ estado: 'parcial', motivo: 'lembrete_nao_gravado', detalhe: { lembrados: 0, lembrete_nao_gravado: 1, fechamento_falhou: 0 } })
+  })
+
+  it('M1: update que volta 0 linhas não conta como lembrado', async () => {
+    const r = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([])] })
+    const out = await rodarAvisos(ctx(r.sb), { fanOut: vi.fn().mockResolvedValue(fanOk) })
+    expect(out.detalhe).toMatchObject({ lembrados: 0 })
+  })
+
+  it('M2: a leitura filtra linhas pendentes e ordena', async () => {
+    const r = roteiro({ ab_native_tests: [ok([]), ok([])] })
+    await rodarAvisos(ctx(r.sb), { fanOut: vi.fn() })
+    const m = r.chamadas.filter((c) => c.alvo === 'ab_native_tests')[1]!.metodos.join(' ')
+    expect(m).toContain('or("estado.eq.em_andamento,and(lembrete_notificado_em.is.null,notificacao_falhou_em.is.null)")')
+    expect(m).toContain('order("created_at"')
+  })
+
+  it('M2: leitura no teto de 500 linhas: parcial com sobrou e no_teto', async () => {
+    const muitas = Array.from({ length: 500 }, (_, i) => linha({ id: `x${i}`, confirmado_em: dias(1), primeira_vista: dias(1) }))
+    const r = roteiro({ ab_native_tests: [ok([]), ok(muitas)] })
+    expect(await rodarAvisos(ctx(r.sb), { fanOut: vi.fn() })).toMatchObject({ estado: 'parcial', motivo: 'sobrou', detalhe: { no_teto: 1 } })
+  })
+
+  it('M3: o título leva os dias reais desde o início', async () => {
+    const fan = vi.fn().mockResolvedValue(fanOk)
+    const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ primeira_vista: dias(20), confirmado_em: dias(0) })]), ok([{ id: 'r1' }])] })
+    await rodarAvisos(ctx(r.sb), { fanOut: fan })
+    expect(fan.mock.calls[0]![0].title).toContain('20 dias')
+    expect(fan.mock.calls[0]![0].title).not.toContain('14')
+  })
+
+  it('envio repetido: segundo disparo recebe suppressed, mesmo dedup, e grava lembrado', async () => {
+    const fan = vi.fn().mockResolvedValueOnce(fanZero.total ? fanZero : { ...fanOk, errors: ['x'] }).mockResolvedValueOnce({ total: 1, sent: 0, suppressed: 1, errors: [] })
+    const r1 = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([{ id: 'r1' }])] })
+    await rodarAvisos(ctx(r1.sb), { fanOut: fan })
+    const r2 = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 1 })]), ok([{ id: 'r1' }])] })
+    const out = await rodarAvisos(ctx(r2.sb, AGORA + 86_400_000), { fanOut: fan })
+    expect(out).toMatchObject({ estado: 'ok', detalhe: { lembrados: 1 } })
+    expect(fan.mock.calls[0]![0].dedupKey).toBe(fan.mock.calls[1]![0].dedupKey)
+  })
+
+  it('reenvio no mesmo minuto: dois disparos sobre as mesmas linhas, o segundo suppressed grava uma vez cada', async () => {
+    const fan = vi.fn().mockResolvedValueOnce(fanOk).mockResolvedValueOnce({ total: 1, sent: 0, suppressed: 1, errors: [] })
+    const r1 = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([{ id: 'r1' }])] })
+    const r2 = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([])] })
+    expect(await rodarAvisos(ctx(r1.sb), { fanOut: fan })).toMatchObject({ detalhe: { lembrados: 1 } })
+    expect(await rodarAvisos(ctx(r2.sb), { fanOut: fan })).toMatchObject({ estado: 'ok', detalhe: { lembrados: 0 } })
   })
 })
