@@ -483,7 +483,7 @@ export async function GET(req: NextRequest) {
   // Phil P2b: a parcial existe para baixar relatórios; ela rodar e não baixar nada com fila é vermelho, não verde.
   if (passos) {
     const rel = (depois.resto.relatorios ?? antes.resto.relatorios) as { baixados?: unknown; parou_por_limite?: unknown; pendentes?: unknown } | undefined
-    if (rel && rel.baixados === 0 && rel.parou_por_limite === true && typeof rel.pendentes === 'number' && rel.pendentes > 0) {
+    if (rel && rel.baixados === 0 && typeof rel.pendentes === 'number' && rel.pendentes > 0) {
       pushUnico(falhas, `relatórios: a parcial não baixou nada com ${rel.pendentes} na fila`)
     }
   }

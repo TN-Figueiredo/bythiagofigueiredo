@@ -688,4 +688,25 @@ describe('F0-c: modo parcial', () => {
     expect(recordCronFailure).not.toHaveBeenCalled()
     expect(recordCronSuccess).toHaveBeenCalledWith(PARCIAL)
   })
+
+  it('parcial com baixados=0, sem parou_por_limite e 5 na fila: vermelho; baixados>0: verde', async () => {
+    banco()
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { baixados: 0, parou_por_limite: false, pendentes: 5 } } }))
+    await GET(pedidoCom(`?passos=${LISTA}`) as never)
+    expect(recordCronFailure).toHaveBeenCalledWith(PARCIAL, 'relatórios: a parcial não baixou nada com 5 na fila')
+    vi.clearAllMocks()
+    banco()
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { baixados: 3, parou_por_limite: false, pendentes: 5 } } }))
+    await GET(pedidoCom(`?passos=${LISTA}`) as never)
+    expect(recordCronFailure).not.toHaveBeenCalled()
+    expect(recordCronSuccess).toHaveBeenCalledWith(PARCIAL)
+  })
+
+  it('completo (sem passos) não aplica a regra: baixados=0 com fila continua verde', async () => {
+    banco()
+    vi.mocked(rodarColeta).mockImplementation(async () => ({ falhas: [], resumo: { relatorios: { baixados: 0, parou_por_limite: false, pendentes: 5 } } }))
+    await GET(pedido() as never)
+    expect(recordCronFailure).not.toHaveBeenCalled()
+    expect(recordCronSuccess).toHaveBeenCalledWith('sync-analytics-metrics')
+  })
 })
