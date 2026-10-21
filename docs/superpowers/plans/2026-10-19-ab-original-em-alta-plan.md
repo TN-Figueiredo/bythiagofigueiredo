@@ -323,13 +323,13 @@ export function useAvisoOriginal(testId: string | null, type: TestType | null, a
 ```tsx
 {avisoOriginalBaixa ? (
   <div role="status" className="flex items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-3 py-2 text-[12.5px] text-cms-text">
-    <Badge tone="warn">Baixa resolução</Badge>
+    <Badge tone="amber">Baixa resolução</Badge>
     <span>{avisoOriginalBaixa}</span>
   </div>
 ) : null}
 ```
 
-(conferir em `./ab-primitives` os `tone` aceitos pelo `Badge`; se `warn` não existir, usar o tom de aviso existente, sem criar cor nova; cor de carga estrutural em `rgba`/hex, nunca `color-mix()`.)
+(`tone="amber"` existe em `./ab-primitives.tsx:32-39`; sem cor nova nem `color-mix()`.)
 
 `ab-create-wizard.tsx`: importar `useAvisoOriginal` e `lerDimensoesDaOriginal` **não** (só o hook); depois de `useState` do `libraryPickerFor` (:~309) acrescentar `const avisoOriginalBaixa = useAvisoOriginal(state.draftTestId, state.type, state.step === 4)`; no `<StepRevisar ... />` (:~555-567) passar `avisoOriginalBaixa={avisoOriginalBaixa}`. **Não** alterar `stepIsValid` (:240-249), `goNext`, `handleSubmit` (:391) nem os botões (:~674-682).
 - [ ] **Passo 6:** os três arquivos de teste → PASS; seção 3 inteira (tsc 0). Conferir no diff que `stepIsValid` e `handleSubmit` não mudaram: `git diff -U0 -- '<AB>/_components/ab-create-wizard.tsx' | grep -E "stepIsValid|handleSubmit|startAbTest"` → vazio.
