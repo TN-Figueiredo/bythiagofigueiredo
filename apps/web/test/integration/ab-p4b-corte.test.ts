@@ -25,7 +25,7 @@ async function rodar(arquivo: string): Promise<void> {
   const texto = sql(arquivo)
   if (!texto.includes(ALVO)) throw new Error('ponto de injeção ausente no SQL')
   const escopo = texto.replace(ALVO, `where t.id in (${semeados.map((i) => `'${i}'`).join(',')}) and t.restore_status is not null`)
-  const c = new Client({ connectionString: process.env.SUPABASE_DB_URL })
+  const c = new Client({ connectionString: process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
   await c.connect()
   try { await c.query(escopo) } finally { await c.end() }
 }
