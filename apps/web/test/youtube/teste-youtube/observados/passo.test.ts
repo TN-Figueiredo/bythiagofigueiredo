@@ -35,7 +35,7 @@ function mundo(n: number, o: { troca?: number[]; publicado?: Record<number, stri
     t.yt_watch_thumbs!.push({ id: i * 10 + 1, site_id: SITE, youtube_video_id: yt(i), variante: 'maxresdefault', http: 200, dhash: DH_B, largura: 1280, altura: 720 })
     for (let k = 0; k < 9; k++) {
       const b = troca && k >= 2
-      t.yt_watch_readings!.push({ id: ++rid, site_id: SITE, youtube_video_id: yt(i), lida_em: iso(PUB.getTime() + (30 + k * 6) * H), http: 200, erro: null, jogador_bloqueado: false, idioma: 'pt', titulo_oficial: 'T', titulo_oficial_fonte: 'videoDetails', miniatura_id: i * 10 + (b ? 1 : 0) })
+      t.yt_watch_readings!.push({ id: ++rid, site_id: SITE, youtube_video_id: yt(i), rodada_id: `rod-${i}-${k}`, lida_em: iso(PUB.getTime() + (30 + k * 6) * H), http: 200, erro: null, jogador_bloqueado: false, idioma: 'pt', titulo_oficial: 'T', titulo_oficial_fonte: 'videoDetails', miniatura_id: i * 10 + (b ? 1 : 0) })
     }
   }
   return t
@@ -75,7 +75,7 @@ describe('passo (flag on)', () => {
     expect(t.ab_native_observados).toHaveLength(1)
     expect(t.ab_native_observados![0]).toMatchObject({ youtube_video_id: yt(1), campo: 'miniatura', tipo_troca: 'sequencial', n_versoes: 2, ficou_estado: 'em_andamento' }) // sonda parada há > 9 h: nunca estável
     expect(t.ab_native_obs_cursor).toHaveLength(3)
-    expect(t.ab_native_obs_cursor![0]).toMatchObject({ avaliado_ate_rodada: 40, avaliado_motivo: 'ok' })
+    expect(t.ab_native_obs_cursor![0]).toMatchObject({ avaliado_ate_rodada: 40, avaliado_motivo: 'ok', validas_titulo: 9, validas_miniatura: 9 }) // rodadas válidas por campo (Phil C2)
   })
   it('2º disparo sem rodada nova: zero leituras de yt_watch_readings, com 3 alvos sem troca e nenhuma linha', async () => {
     const t = mundo(3)
@@ -106,14 +106,51 @@ describe('passo (flag on)', () => {
     expect(t.ab_native_obs_cursor!.find(c => c.youtube_video_id === yt(1))).toMatchObject({ avaliado_motivo: 'sem_publicacao' })
     expect(t.ab_native_observados!.map(o => o.youtube_video_id)).toEqual([yt(2)])
   })
-  it('mesmo vídeo em dois canais do site: uma avaliação, publicação mínima', async () => {
-    const t = mundo(1, { troca: [1] })
+  it('mesmo vídeo em dois canais do site: uma avaliação, e a publicação MÍNIMA decide a carência', async () => {
+    const t = mundo(1, { troca: [1] }) // leituras de 30 h a 78 h depois do PUB; a troca aparece desde a 3ª (42 h)
     t.competitor_channels!.push({ id: 'ch2', site_id: SITE, removal_requested_at: null })
-    t.competitor_videos!.push({ video_id: yt(1), competitor_channel_id: 'ch2', published_at: iso(PUB.getTime() + 5 * H) })
+    // o canal que publicou DEPOIS vem primeiro na lista: com carência de 24 h a partir de PUB + 40 h só sobram B,B,B (nenhuma troca)
+    t.competitor_videos = [{ video_id: yt(1), competitor_channel_id: 'ch2', published_at: iso(PUB.getTime() + 40 * H) }, ...t.competitor_videos!]
     const b = criarBanco(t)
     const r = await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON })
-    expect(r.detalhe).toMatchObject({ obs_avaliados: 1 })
+    expect(r.detalhe).toMatchObject({ obs_avaliados: 1, obs_trocas: 1 })
     expect(t.ab_native_obs_cursor).toHaveLength(1)
+  })
+  it('contagem do banco diferente das linhas lidas (max_rows = 1000 cortando em silêncio): o alvo falha, SEM cursor', async () => {
+    const t = mundo(1, { troca: [1] })
+    const b = criarBanco(t)
+    const original = b.sb as unknown as { from: (n: string) => Record<string, unknown> }
+    const from = original.from.bind(original)
+    original.from = (n: string) => {
+      const q = from(n)
+      if (n !== 'yt_watch_readings') return q
+      const range = q.range as (a: number, b: number) => PromiseLike<{ data: unknown[]; error: unknown; count: number | null }>
+      q.range = (a: number, z: number) => ({ then: (ok: (r: unknown) => unknown, er: (e: unknown) => unknown) => Promise.resolve(range(a, z)).then(r => ({ ...r, count: 1500 })).then(ok, er) })
+      return q
+    }
+    const r = await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON })
+    expect(r.detalhe).toMatchObject({ obs_falhou: 1, obs_avaliados: 0 })
+    expect(t.ab_native_obs_cursor).toHaveLength(0)
+    expect(t.ab_native_observados).toHaveLength(0)
+  })
+  it('alvo sem nenhuma leitura válida (sonda bloqueada): cursor ok com validas 0, e o detalhe conta obs_sem_leitura_valida', async () => {
+    const t = mundo(2)
+    for (const l of t.yt_watch_readings!) if (l.youtube_video_id === yt(1)) { l.erro = 'bloqueado'; l.http = 429 }
+    const b = criarBanco(t)
+    const r = await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON })
+    expect(r.detalhe).toMatchObject({ obs_avaliados: 2, obs_sem_leitura_valida: 1 })
+    expect(t.ab_native_obs_cursor!.find(c => c.youtube_video_id === yt(1))).toMatchObject({ avaliado_motivo: 'ok', validas_titulo: 0, validas_miniatura: 0 })
+    expect(t.ab_native_obs_cursor!.find(c => c.youtube_video_id === yt(2))).toMatchObject({ validas_titulo: 9 })
+  })
+  it('lê só os cursores dos alvos (em lotes de 100), nunca o cursor inteiro (Yannis M6)', async () => {
+    const t = mundo(120)
+    t.ab_native_obs_cursor!.push({ site_id: SITE, youtube_video_id: 'zzzzzzzzzzz', avaliado_ate_rodada: 1, avaliado_em: iso(T0), avaliado_motivo: 'ok', validas_titulo: 0, validas_miniatura: 0 })
+    const b = criarBanco(t)
+    await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON })
+    const lidos = b.pedidos.filter(p => p.tabela === 'ab_native_obs_cursor' && p.op === 'select')
+    expect(lidos).toHaveLength(2) // 120 alvos = 2 lotes
+    for (const p of lidos) expect(p.filtros.some(f => f.startsWith('in:youtube_video_id'))).toBe(true)
+    expect(lidos.flatMap(p => p.filtros).join('|')).not.toContain('zzzzzzzzzzz')
   })
   it('canal com remoção pedida é ignorado (sem cursor, sem leitura do bruto)', async () => {
     const t = mundo(2, { troca: [1, 2] })
@@ -138,12 +175,12 @@ describe('passo (flag on)', () => {
     await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON })
     expect(t.ab_native_obs_cursor![0]).toMatchObject({ avaliado_ate_rodada: 40 })
   })
-  it('falha de gravação de um alvo: obs_falhou, SEM cursor, os demais seguem; motivo observados_falhou e Sentry', async () => {
+  it('falha de gravação de UM alvo: obs_falhou no detalhe e Sentry, SEM cursor, os demais seguem; o registro continua ok (motivo só para o passo inteiro)', async () => {
     const t = mundo(2, { troca: [1, 2] })
     let falhou = false
     const b = criarBanco(t, { falhar: p => { if (p.tabela === 'ab_native_observados' && p.op === 'upsert' && !falhou) { falhou = true; return { code: '23514' } } return null } })
     const r = await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON })
-    expect(r.motivo).toBe('observados_falhou')
+    expect(r.motivo).toBeNull()
     expect(r.detalhe).toMatchObject({ obs_falhou: 1, obs_avaliados: 1 })
     expect(t.ab_native_obs_cursor!.map(c => c.youtube_video_id)).toEqual([yt(2)])
     expect(mocks.sentry).toHaveBeenCalled()
@@ -184,8 +221,26 @@ describe('passo (flag on)', () => {
     expect(r.detalhe).toMatchObject({ obs_fechados: 2 })
     expect(t.ab_native_observados!.map(o => [o.ficou_estado, o.motivo])).toEqual([['sem_desfecho', 'janela'], ['sem_desfecho', 'alvo_podado']])
   })
+  it('varredura: lê as linhas mais antigas primeiro (ultima_atualizacao_em), então com lote 2 a linha do alvo que saiu fecha no 1º disparo (Yannis M2)', async () => {
+    const t = mundo(3)
+    t.yt_watch_alvos![2]!.saiu_em = iso(T0 - H); t.yt_watch_alvos![2]!.saiu_por = 'janela'
+    const linha = (id: number, ytId: string, ate: string): Linha => ({ id, site_id: SITE, youtube_video_id: ytId, campo: 'titulo', ficou_estado: 'em_andamento', motivo: null, ultima_atualizacao_em: ate })
+    // alvos vivos 1 e 2 (regravados há pouco) têm id MENOR; o alvo 3 (saiu) tem o id maior e a data mais velha
+    t.ab_native_observados!.push(linha(1, yt(1), iso(T0 - 60_000)), linha(2, yt(2), iso(T0 - 30_000)), linha(3, yt(3), iso(T0 - 20 * H)))
+    const b = criarBanco(t)
+    await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON, varreduraLote: 2 })
+    expect(t.ab_native_observados!.find(o => o.id === 3)).toMatchObject({ ficou_estado: 'sem_desfecho', motivo: 'janela' })
+  })
+  it('varredura com CAS: uma linha que outra avaliação tornou estavel entre a leitura e o update NÃO é sobrescrita', async () => {
+    const t = mundo(1)
+    t.yt_watch_alvos![0]!.saiu_em = iso(T0 - H); t.yt_watch_alvos![0]!.saiu_por = 'janela'
+    t.ab_native_observados!.push({ id: 1, site_id: SITE, youtube_video_id: yt(1), campo: 'titulo', ficou_estado: 'em_andamento', motivo: null, ultima_atualizacao_em: iso(T0 - H) })
+    const b = criarBanco(t, { falhar: p => { if (p.tabela === 'ab_native_observados' && p.op === 'update') t.ab_native_observados![0]!.ficou_estado = 'estavel'; return null } })
+    await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON })
+    expect(t.ab_native_observados![0]).toMatchObject({ ficou_estado: 'estavel', motivo: null })
+  })
   it('a poda roda no fim com o tempo que sobra', async () => {
-    const b = criarBanco(mundo(1), { rpcs: { ab_native_obs_poda: () => ({ data: 7, error: null }) } })
+    const b = criarBanco(mundo(1), { rpcs: { obs_native_poda: () => ({ data: 7, error: null }) } })
     const r = await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON })
     expect(r.detalhe.obs_podadas).toBe(7)
     expect(b.rpcChamadas[0]!.args).toMatchObject({ p_lote: 500 })

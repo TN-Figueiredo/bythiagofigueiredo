@@ -49,7 +49,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T13: tabelas das trocas observadas'
     const r = await pg.query(`select relname, relrowsecurity from pg_class where oid = any(array['public.ab_native_observados'::regclass, 'public.ab_native_obs_cursor'::regclass])`)
     expect(r.rows.map(x => [x.relname, x.relrowsecurity]).sort()).toEqual([['ab_native_obs_cursor', true], ['ab_native_observados', true]])
     expect((await pg.query(`select attidentity from pg_attribute where attrelid = 'public.ab_native_observados'::regclass and attname = 'id'`)).rows[0].attidentity).toBe('a')
-    expect(await pg.query(`select to_regprocedure('public.ab_native_obs_poda(timestamptz,integer)') as f`).then(x => x.rows[0].f)).not.toBeNull()
+    expect(await pg.query(`select to_regprocedure('public.obs_native_poda(timestamptz,integer)') as f`).then(x => x.rows[0].f)).not.toBeNull()
   })
 
   it('CHECKs: campo, tipo, n_versoes >= 2, até 20 corridas, sem_desfecho exige motivo, id do YouTube', async () => {
@@ -66,6 +66,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T13: tabelas das trocas observadas'
       expect(await ins({ estado: 'sem_desfecho', motivo: 'janela' })).toBeNull()
       expect(await ins({ yt: 'curto', campo: 'miniatura' })).toBe('23514')
       expect(await ins({ estado: 'talvez' })).toBe('23514')
+      expect(await erro(INS.replace("'troca_observada'", "'teste_do_youtube'"), [siteId, YT, 'titulo', 'sequencial', '[]', 2, 'em_andamento', null])).toBe('23514') // veredito fechado (Phil M5)
     })
   })
 
@@ -74,6 +75,17 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T13: tabelas das trocas observadas'
       expect(await ins({ campo: 'titulo' })).toBeNull()
       expect(await ins({ campo: 'miniatura' })).toBeNull()
       expect(await ins({ campo: 'titulo' })).toBe('23505')
+    })
+  })
+
+  it('cursor: chave primária (site, vídeo) e rodadas válidas por campo com default 0 (Phil M5, C2)', async () => {
+    await tx(async () => {
+      const pk = await pg.query(`select a.attname from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+        where i.indrelid = 'public.ab_native_obs_cursor'::regclass and i.indisprimary order by a.attname`)
+      expect(pk.rows.map(r => r.attname)).toEqual(['site_id', 'youtube_video_id'])
+      await pg.query(`insert into public.ab_native_obs_cursor (site_id, youtube_video_id, avaliado_ate_rodada, avaliado_em, avaliado_motivo) values ($1, $2, 3, now(), 'ok')`, [siteId, YT])
+      expect((await pg.query(`select validas_titulo, validas_miniatura from public.ab_native_obs_cursor where site_id = $1`, [siteId])).rows[0]).toEqual({ validas_titulo: 0, validas_miniatura: 0 })
+      expect(await erro(`update public.ab_native_obs_cursor set validas_titulo = -1 where site_id = $1`, [siteId])).toBe('23514')
     })
   })
 
@@ -101,22 +113,41 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T13: tabelas das trocas observadas'
     })
   })
 
-  it('poda: 365 d após ultima_atualizacao_em / avaliado_em, em lote; lote inválido recusa; só service_role executa', async () => {
+  it('poda (obs_native_poda): só o CURSOR envelhece (365 d, em lote); a troca observada de vídeo vivo fica para sempre; lote inválido recusa; só service_role executa', async () => {
     await tx(async () => {
-      await ins({ yt: 'aaaaaaaaaaa' }); await ins({ yt: 'bbbbbbbbbbb' }); await ins({ yt: 'ccccccccccc' })
-      await pg.query(`update public.ab_native_observados set ultima_atualizacao_em = now() - interval '366 days' where site_id = $1 and youtube_video_id in ('aaaaaaaaaaa','bbbbbbbbbbb')`, [siteId])
-      await pg.query(`update public.ab_native_observados set ultima_atualizacao_em = now() - interval '364 days' where site_id = $1 and youtube_video_id = 'ccccccccccc'`, [siteId])
+      // vivos: têm alvo na watch. Sem alvo nem competitor_videos o vídeo é órfão (testado abaixo).
+      for (const yt of ['aaaaaaaaaaa', 'bbbbbbbbbbb', 'ccccccccccc']) {
+        await pg.query(`insert into public.yt_watch_alvos (site_id, youtube_video_id, tipo, motivo_ate, coleta_ate, hora_base_min, proxima_rodada_em)
+          values ($1, $2, 'concorrente', 'janela_concorrente', now() + interval '20 days', 60, now() + interval '1 hour')`, [siteId, yt])
+        await ins({ yt })
+      }
+      await pg.query(`update public.ab_native_observados set ultima_atualizacao_em = now() - interval '900 days' where site_id = $1`, [siteId])
       await pg.query(`insert into public.ab_native_obs_cursor (site_id, youtube_video_id, avaliado_ate_rodada, avaliado_em, avaliado_motivo)
-        values ($1, 'aaaaaaaaaaa', 1, now() - interval '400 days', 'ok'), ($1, 'ccccccccccc', 1, now(), 'ok')`, [siteId])
-      const n1 = (await pg.query(`select public.ab_native_obs_poda(now(), 1) n`)).rows[0].n
-      expect(n1).toBe(2) // 1 de cada tabela, lote 1
-      const n2 = (await pg.query(`select public.ab_native_obs_poda(now(), 10) n`)).rows[0].n
+        values ($1, 'aaaaaaaaaaa', 1, now() - interval '400 days', 'ok'), ($1, 'bbbbbbbbbbb', 1, now() - interval '366 days', 'ok'), ($1, 'ccccccccccc', 1, now() - interval '364 days', 'ok')`, [siteId])
+      const n1 = (await pg.query(`select public.obs_native_poda(now(), 1) n`)).rows[0].n
+      expect(n1).toBe(1) // lote 1: um cursor
+      const n2 = (await pg.query(`select public.obs_native_poda(now(), 10) n`)).rows[0].n
       expect(n2).toBe(1)
-      expect((await pg.query(`select youtube_video_id from public.ab_native_observados where site_id = $1`, [siteId])).rows.map(r => r.youtube_video_id)).toEqual(['ccccccccccc'])
       expect((await pg.query(`select youtube_video_id from public.ab_native_obs_cursor where site_id = $1`, [siteId])).rows.map(r => r.youtube_video_id)).toEqual(['ccccccccccc'])
-      expect(await erro(`select public.ab_native_obs_poda(now(), 0)`)).toBe('22023')
-      expect(await erro(`select public.ab_native_obs_poda(null, 5)`)).toBe('22023')
-      expect((await pg.query(`select has_function_privilege('service_role', 'public.ab_native_obs_poda(timestamptz,integer)', 'execute') s, has_function_privilege('authenticated', 'public.ab_native_obs_poda(timestamptz,integer)', 'execute') a, has_function_privilege('anon', 'public.ab_native_obs_poda(timestamptz,integer)', 'execute') n`)).rows[0]).toEqual({ s: true, a: false, n: false })
+      expect((await pg.query(`select count(*)::int n from public.ab_native_observados where site_id = $1`, [siteId])).rows[0].n).toBe(3) // 900 dias e continuam
+      expect(await erro(`select public.obs_native_poda(now(), 0)`)).toBe('22023')
+      expect(await erro(`select public.obs_native_poda(null, 5)`)).toBe('22023')
+      expect((await pg.query(`select has_function_privilege('service_role', 'public.obs_native_poda(timestamptz,integer)', 'execute') s, has_function_privilege('authenticated', 'public.obs_native_poda(timestamptz,integer)', 'execute') a, has_function_privilege('anon', 'public.obs_native_poda(timestamptz,integer)', 'execute') n`)).rows[0]).toEqual({ s: true, a: false, n: false })
+    })
+  })
+
+  it('poda: varre as linhas ÓRFÃS das duas tabelas (vídeo sem alvo e sem competitor_videos); vídeo vivo (alvo ou competitor_videos) é poupado (Phil c / Yannis I4)', async () => {
+    await tx(async () => {
+      await pg.query(`insert into public.yt_watch_alvos (site_id, youtube_video_id, tipo, motivo_ate, coleta_ate, hora_base_min, proxima_rodada_em)
+        values ($1, 'aaaaaaaaaaa', 'concorrente', 'janela_concorrente', now() + interval '20 days', 60, now() + interval '1 hour')`, [siteId])
+      for (const yt of ['aaaaaaaaaaa', 'bbbbbbbbbbb']) {
+        await ins({ yt })
+        await pg.query(`insert into public.ab_native_obs_cursor (site_id, youtube_video_id, avaliado_ate_rodada, avaliado_em, avaliado_motivo) values ($1, $2, 1, now(), 'ok')`, [siteId, yt])
+      }
+      const n = (await pg.query(`select public.obs_native_poda(now(), 10) n`)).rows[0].n
+      expect(n).toBe(2) // bbbbbbbbbbb: 1 troca + 1 cursor
+      expect((await pg.query(`select youtube_video_id from public.ab_native_observados where site_id = $1`, [siteId])).rows.map(r => r.youtube_video_id)).toEqual(['aaaaaaaaaaa'])
+      expect((await pg.query(`select youtube_video_id from public.ab_native_obs_cursor where site_id = $1`, [siteId])).rows.map(r => r.youtube_video_id)).toEqual(['aaaaaaaaaaa'])
     })
   })
 

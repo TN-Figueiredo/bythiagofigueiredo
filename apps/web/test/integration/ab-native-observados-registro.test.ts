@@ -147,10 +147,87 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T13: registro de purga e remoção 
   it('as privilégios das duas funções recriadas: só service_role executa', async () => {
     await emTransacao(pg, async () => {
       await aplicar()
-      for (const f of ['public.obs_archive_registry()', 'public.competitor_channel_remove_archived(uuid,uuid,uuid)']) {
+      for (const f of ['public.obs_archive_registry()', 'public.competitor_channel_remove_archived(uuid,uuid,uuid)', 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)', 'public.obs_unarchived_watch_sweep(timestamptz)']) {
         const r = (await pg.query(`select has_function_privilege('service_role', $1, 'execute') s, has_function_privilege('authenticated', $1, 'execute') a, has_function_privilege('anon', $1, 'execute') n`, [f])).rows[0]
         expect(r, f).toEqual({ s: true, a: false, n: false })
       }
+    })
+  })
+
+  const apagarSemGuardar = (c: Cena) =>
+    tenta(pg, `select public.competitor_channel_delete_unarchived($1, $2, $3, 'Canal de teste', 'entrou_por_engano') as r`, [c.site, c.canalA, c.admin])
+  const preparaApagar = async (c: Cena) => {
+    await pg.query(`update public.competitor_channels set added_at = now() - interval '10 days', channel_name = 'Canal de teste' where id = $1`, [c.canalA])
+  }
+
+  it('apagar sem guardar (Phil C4 / Yannis I4): apaga as trocas observadas e o cursor do canal; o controle fica; rows_deleted traz as duas chaves', async () => {
+    await emTransacao(pg, async () => {
+      await aplicar()
+      const { c, ytA, ytB } = await cena()
+      await preparaApagar(c)
+      const t = await apagarSemGuardar(c)
+      expect(t.ok, t.ok ? '' : t.message).toBe(true)
+      if (!t.ok) return
+      const r = t.rows[0]!.r as { linhas: Record<string, number> }
+      expect(r.linhas).toMatchObject({ ab_native_observados: 1, ab_native_obs_cursor: 1 })
+      expect(await conta(c.site, ytA)).toEqual({ o: 0, k: 0 })
+      expect(await conta(c.site, ytB)).toEqual({ o: 1, k: 1 })
+    })
+  })
+
+  it('apagar sem guardar sem as tabelas novas no retorno: canal sem linha observada devolve as duas chaves com zero', async () => {
+    await emTransacao(pg, async () => {
+      await aplicar()
+      const c = await semearCena(pg, { semWatch: true })
+      await preparaApagar(c)
+      const t = await apagarSemGuardar(c)
+      expect(t.ok, t.ok ? '' : t.message).toBe(true)
+      if (t.ok) expect((t.rows[0]!.r as { linhas: Record<string, number> }).linhas).toMatchObject({ ab_native_observados: 0, ab_native_obs_cursor: 0 })
+    })
+  })
+
+  it('a varredura do disparo em voo (obs_unarchived_watch_sweep) apaga o cursor/troca gravado DEPOIS do apagamento, e poupa o vídeo que voltou', async () => {
+    await emTransacao(pg, async () => {
+      await aplicar()
+      const { c, ytA } = await cena()
+      await preparaApagar(c)
+      expect((await apagarSemGuardar(c)).ok).toBe(true)
+      const grava = async (): Promise<void> => {
+        await pg.query(`insert into public.ab_native_observados (site_id, youtube_video_id, campo, tipo_troca, veredito, versao_regra, trocas, n_versoes, ficou, ficou_estado, primeira_troca_em)
+          values ($1, $2, 'titulo', 'sequencial', 'troca_observada', 1, '[{"v":0},{"v":1}]', 2, '{"titulo":"x"}', 'em_andamento', now()) on conflict do nothing`, [c.site, ytA])
+        await pg.query(`insert into public.ab_native_obs_cursor (site_id, youtube_video_id, avaliado_ate_rodada, avaliado_em, avaliado_motivo) values ($1, $2, 9, now(), 'ok') on conflict do nothing`, [c.site, ytA])
+      }
+      await grava()
+      await pg.query(`select public.obs_unarchived_watch_sweep(now())`)
+      expect(await conta(c.site, ytA)).toEqual({ o: 0, k: 0 })
+      // o vídeo voltou (competitor_videos em outro canal do site): a varredura poupa
+      await grava()
+      await pg.query(`insert into public.competitor_videos (competitor_channel_id, video_id, title, published_at, discovered_at) values ($1, $2, 'volta', now(), now())`, [c.canalB, ytA])
+      await pg.query(`select public.obs_unarchived_watch_sweep(now())`)
+      expect(await conta(c.site, ytA)).toEqual({ o: 1, k: 1 })
+    })
+  })
+
+  it('a guarda de md5 (Yannis M3): função emendada depois da F1 recusa a migration em vez de desfazer a emenda; a F1 pura e a já migrada passam', async () => {
+    for (const [fn, ancora] of [
+      ['competitor_channel_remove_archived(uuid,uuid,uuid)', 'begin\n  if p_site'],
+      ['competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)', 'begin\n  if p_site'],
+      ['obs_unarchived_watch_sweep(timestamptz)', 'begin\n  if p_agora'],
+    ] as const) {
+      await emTransacao(pg, async () => {
+        await pg.query(sqlDe('_ab_native_observados.sql'))
+        const def = await escalar<string>(pg, `select pg_get_functiondef('public.${fn}'::regprocedure)`)
+        const emendada = def.replace(ancora.replace('\\n', '\n'), ancora.replace('\\n', '\n').replace('begin\n', 'begin\n  -- emenda de outra frente\n'))
+        expect(emendada).not.toBe(def)
+        await pg.query(emendada)
+        const t = await tenta(pg, sqlDe('_ab_native_observados_registro.sql'))
+        expect(t.ok, fn).toBe(false)
+        if (!t.ok) expect(t.message).toMatch(/emendada depois da F1/)
+      })
+    }
+    await emTransacao(pg, async () => {
+      await pg.query(sqlDe('_ab_native_observados.sql'))
+      expect((await tenta(pg, sqlDe('_ab_native_observados_registro.sql'))).ok).toBe(true)
     })
   })
 })
