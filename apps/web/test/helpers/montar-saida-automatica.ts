@@ -21,12 +21,17 @@ export interface OpcoesRotacao {
   testType?: 'thumbnail' | 'title' | 'combo'
   /** YouTubeApiError → o YouTubeFalso recusa a chamada com esse status/reason; outro Error → o banco lança na leitura de ciclos. */
   erroApi?: YouTubeApiError | Error
+  /** F1a-dado: linhas de `ab_native_tests`, outros testes e vídeos de outro site. */
+  nativas?: OpcoesBanco['nativas']
+  extras?: OpcoesBanco['extras']
+  videos?: OpcoesBanco['videos']
 }
 
 export function montarRotacao(o: OpcoesRotacao = {}) {
   const banco = criarBanco({
     testType: o.testType ?? 'thumbnail',
     config: { rotation_pattern: 'abba', ...(o.consecutiveFailures !== undefined ? { consecutive_failures: o.consecutiveFailures } : {}) },
+    ...(o.nativas ? { nativas: o.nativas } : {}), ...(o.extras ? { extras: o.extras } : {}), ...(o.videos ? { videos: o.videos } : {}),
   })
   const yt = new YouTubeFalso({ titulo: 'Título A', thumb: IMG.A, blobs: { [BLOB('A')]: IMG.A, [BLOB('B')]: IMG.B } })
   vi.stubGlobal('fetch', yt.fetch)

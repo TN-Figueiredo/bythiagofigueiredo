@@ -32,6 +32,7 @@ import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
+import { guardaDoPonto } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { retomarTeste, recusaTipoForaDeUso } from '@/lib/youtube/ab-resume'
 import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
@@ -1038,6 +1039,10 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
   if (!test) return { ok: false, resultado: 'erro', error: 'Test not found or not active' }
   const tipoRecusado = recusaTipoForaDeUso(test.test_type)
   if (tipoRecusado) return { ok: false, resultado: 'erro', error: tipoRecusado }
+
+  // Guarda do teste do YouTube (F1a-dado): forçar a rotação escreve no vídeo; teste nativo em andamento recusa.
+  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: 'forcar' })
+  if (!guarda.seguir) return { ok: false, resultado: 'erro', error: guarda.motivo }
 
   // Resolve channel for correct token
   const { data: video } = await supabase

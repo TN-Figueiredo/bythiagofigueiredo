@@ -12,6 +12,10 @@ export type DecisaoGuarda =
 /** Dias depois do lembrete enviado antes de fechar por silêncio (r2, Phil I2). */
 export const MARGEM_FECHAMENTO_DIAS = 2
 
+/** Texto provisório (o Logan fecha sem mockup, §7). */
+export const MOTIVO_RECUSA_NATIVO = 'Há um teste do YouTube em andamento neste vídeo. Espere o resultado ou encerre o teste no Studio.'
+export const MOTIVO_GUARDA_FALHOU = 'Não foi possível conferir o teste do YouTube. Tente de novo em instantes.'
+
 const PAGINA = 1000
 const MAX_PAGINAS = 60
 const LOTE_UUIDS = 100
@@ -22,13 +26,16 @@ const ehLinha = (x: unknown): x is LinhaAberta => {
   return typeof r.id === 'string' && typeof r.video_id === 'string' && typeof r.updated_at === 'string' && (r.confirmado_em === null || typeof r.confirmado_em === 'string')
 }
 
+/** Rede ou 5xx (ou status ausente) vale uma segunda tentativa; 4xx não. */
+const transitorioPorStatus = (status: number | undefined): boolean => status === undefined || status === 0 || status >= 500
+
 /**
  * Uma consulta (em lotes de 100 ids, paginada) às linhas abertas do site para os vídeos pedidos. UM SITE por chamada:
  * quem tem testes de vários sites agrupa e chama uma vez por site. Erro do banco = `{ ok: false }`, nunca mapa vazio (falha fechada).
  */
 export async function bloqueadoPorTesteNativo(
   sb: SupabaseClient, siteId: string, videoIds: readonly string[],
-): Promise<{ ok: true; linhas: Map<string, LinhaAberta> } | { ok: false; erro: string }> {
+): Promise<{ ok: true; linhas: Map<string, LinhaAberta> } | { ok: false; erro: string; transitorio: boolean }> {
   const linhas = new Map<string, LinhaAberta>()
   const ids = [...new Set(videoIds)]
   try {
@@ -40,17 +47,17 @@ export async function bloqueadoPorTesteNativo(
           .eq('site_id', siteId).eq('estado', 'em_andamento').in('video_id', lote)
           .order('id', { ascending: true })
           .range(p * PAGINA, p * PAGINA + PAGINA - 1)
-        if (r.error) return { ok: false, erro: `leitura de ab_native_tests falhou: ${r.error.message}` }
+        if (r.error) return { ok: false, erro: `leitura de ab_native_tests falhou: ${r.error.message}`, transitorio: transitorioPorStatus((r as { status?: number }).status) }
         const dados = (r.data ?? []) as unknown[]
         for (const d of dados) {
-          if (!ehLinha(d)) return { ok: false, erro: 'linha de ab_native_tests em formato inesperado' }
+          if (!ehLinha(d)) return { ok: false, erro: 'linha de ab_native_tests em formato inesperado', transitorio: false }
           linhas.set(d.video_id, d)
         }
         if (dados.length < PAGINA) break
       }
     }
   } catch (e) {
-    return { ok: false, erro: `leitura de ab_native_tests lançou: ${e instanceof Error ? e.message : String(e)}` }
+    return { ok: false, erro: `leitura de ab_native_tests lançou: ${e instanceof Error ? e.message : String(e)}`, transitorio: true }
   }
   return { ok: true, linhas }
 }
@@ -71,4 +78,24 @@ export function inicioDoTeste(r: { primeira_vista: string | null; confirmado_em:
     .map((x) => Date.parse(x))
     .filter((n) => Number.isFinite(n))
   return new Date(cands.length ? Math.min(...cands) : Date.parse(r.created_at))
+}
+
+/** `bloqueadoPorTesteNativo` com UMA tentativa extra imediata, só para erro transitório (rede/5xx): a rotação roda 1×/dia (Yannis M14). */
+export async function bloqueadoComRetentativa(
+  sb: SupabaseClient, siteId: string, videoIds: readonly string[],
+): Promise<{ ok: true; linhas: Map<string, LinhaAberta> } | { ok: false; erro: string; transitorio: boolean }> {
+  const r = await bloqueadoPorTesteNativo(sb, siteId, videoIds)
+  if (!r.ok && r.transitorio) return bloqueadoPorTesteNativo(sb, siteId, videoIds)
+  return r
+}
+
+/**
+ * Linha CONFIRMADA e aberta do vídeo (sem flag: vale em todo ponto de escrita do nosso teste). `null` = nenhuma.
+ * Falha lança (o chamador falha fechado). Há no máximo uma linha aberta por (site, vídeo) (índice único), então a confirmação lê-se em memória.
+ */
+export async function lerLinhaConfirmada(sb: SupabaseClient, siteId: string, videoId: string): Promise<LinhaAberta | null> {
+  const r = await bloqueadoComRetentativa(sb, siteId, [videoId])
+  if (!r.ok) throw new Error(`guarda do teste do YouTube: ${r.erro}`)
+  const l = r.linhas.get(videoId)
+  return l && l.confirmado_em !== null ? l : null
 }

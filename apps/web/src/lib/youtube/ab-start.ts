@@ -7,6 +7,8 @@
  * exposing internal functions to the network.
  */
 
+import { guardaDoPonto } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
+import type { CodigoRecusaNativa } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from './ab-schemas'
 import * as Sentry from '@sentry/nextjs'
 import { del } from '@vercel/blob'
@@ -182,6 +184,8 @@ interface VarianteInicio {
 export interface PortasInicio {
   supabase: SupabaseClient
   agora: () => Date
+  /** Quem chama a partir da fila marca 'fila' (só muda o `ponto` do rastro do modo `log`). */
+  pontoDaGuarda?: 'start' | 'fila'
 }
 
 /**
@@ -200,7 +204,7 @@ export async function startAbTestInternal(
   testId: string,
   siteId: string,
   portas: Partial<PortasInicio> = {},
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; codigo?: CodigoRecusaNativa; nativeTestId?: string }> {
   const supabase = portas.supabase ?? getSupabaseServiceClient()
   const agora = portas.agora ?? (() => new Date())
   const prazo = agora().getTime() + TETO_MS // F-D3: ação humana (e cron da fila), início + 55 s
@@ -218,6 +222,10 @@ export async function startAbTestInternal(
   if (pedeDescricao({ test_type: test.test_type })) return { ok: false, error: DESCRICAO_FORA_DO_TESTE.message }
   if (!TestTypeSchema.safeParse(test.test_type).success) return { ok: false, error: 'Tipo de teste desconhecido' }
   const testType = test.test_type as TestType
+
+  // Guarda do teste do YouTube (F1a-dado): teste nativo em andamento no vídeo recusa o início, sem escrever (a fila adia sem gastar tentativa).
+  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: portas.pontoDaGuarda ?? 'start' })
+  if (!guarda.seguir) return { ok: false, error: guarda.motivo, codigo: guarda.codigo, ...(guarda.nativeTestId ? { nativeTestId: guarda.nativeTestId } : {}) }
 
   // 2. Fetch variants.
   const { data: variants, error: variantsError } = await supabase

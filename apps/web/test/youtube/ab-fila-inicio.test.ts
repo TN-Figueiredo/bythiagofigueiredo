@@ -35,7 +35,7 @@ describe('phaseProcessQueue', () => {
     const banco = fila()
     iniciar.mockImplementation(async () => { banco.setTeste({ status: 'active' }); return { ok: true } })
     expect(await phaseProcessQueue(banco.supabase)).toBe(1)
-    expect(iniciar).toHaveBeenCalledWith('teste-1', 'site-1')
+    expect(iniciar).toHaveBeenCalledWith('teste-1', 'site-1', { pontoDaGuarda: 'fila' })
     expect(fanOut).not.toHaveBeenCalled()
   })
   it('fila (Y-D5): start falhou -> queued com queue_start_after = 00:00 UTC do dia seguinte (NÃO nulo) e um aviso; started não conta', async () => {
