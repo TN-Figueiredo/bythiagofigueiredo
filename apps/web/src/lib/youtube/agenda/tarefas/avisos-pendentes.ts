@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
-import { devidosDoFechamento, devidosDoLembrete, type LinhaAviso } from '@/lib/youtube/teste-youtube/nativo/avisos'
+import { devidosDoFechamento, devidosDoLembrete, diasDesdeOInicio, emEsperaDoLembrete, type LinhaAviso } from '@/lib/youtube/teste-youtube/nativo/avisos'
 import { DEFINICAO_AVISOS_PENDENTES } from '../definicoes'
 import type { ContextoTarefa, ResultadoTarefa, Tarefa } from '../tipos'
 
@@ -30,6 +30,7 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
 
   const lido = await sb.from('ab_native_tests').select(COLUNAS)
     .not('confirmado_em', 'is', null).is('resposta_dono', null).in('estado', ['em_andamento', 'encerrado', 'sem_desfecho'])
+    .or('estado.eq.em_andamento,and(lembrete_notificado_em.is.null,notificacao_falhou_em.is.null)')
     .order('created_at', { ascending: true }).limit(LIMITE_LINHAS)
   if (lido.error) return semFeito('parcial', 'leitura_falhou')
   const linhas = (lido.data ?? []) as Linha[]
@@ -38,8 +39,9 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
   const porId = new Map(linhas.map((l) => [l.id, l]))
   const paraLembrar = devidosDoLembrete(linhas, agora)
   const paraFechar = devidosDoFechamento(linhas, agora)
+  const noTeto = linhas.length >= LIMITE_LINHAS
 
-  const n = { lembrados: 0, fechados: 0, lembrete_falhou: 0, lembrete_desistiu: 0, fechamento_falhou: 0, cas_perdido: 0, sem_tempo: 0 }
+  const n = { lembrados: 0, fechados: 0, lembrete_falhou: 0, lembrete_desistiu: 0, lembrete_nao_gravado: 0, lembrete_espera: emEsperaDoLembrete(linhas, agora), no_teto: noTeto ? 1 : 0, fechamento_falhou: 0, cas_perdido: 0, sem_tempo: 0 }
   const semTempo = (): boolean => c.agora() >= c.t0 + BANCO_ATE_MS
 
   for (const id of paraLembrar) {
@@ -49,7 +51,7 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
     try {
       const fan = await fanOut({
         siteId: l.site_id, domain: 'youtube', type: 'youtube.native_lembrete', priority: 3,
-        title: 'Faz 14 dias do teste no YouTube: qual versão ficou?',
+        title: `Faz ${diasDesdeOInicio(l, agora)} dias do teste no YouTube: qual versão ficou?`,
         message: 'Abra o A/B Lab e conte o que você viu no Studio.',
         dedupKey: `lembrete-nativo:${l.id}`, payload: { registro_id: l.id },
         actionHref: `/cms/youtube/ab-lab?video=${l.youtube_video_id}`,
@@ -62,8 +64,8 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
     if (enviado) {
       const r = await sb.from('ab_native_tests').update({ lembrete_notificado_em: agora.toISOString() })
         .eq('id', l.id).eq('site_id', l.site_id).is('lembrete_notificado_em', null).select('id')
-      if (r.error) { n.fechamento_falhou++; continue } // saiu, mas não gravou: o dedup segura o reenvio
-      n.lembrados++
+      if (r.error) { n.lembrete_nao_gravado++; continue } // saiu, mas não gravou: o dedup segura o reenvio
+      if ((r.data as unknown[] | null)?.length) n.lembrados++
       continue
     }
     const tentativas = (l.notificacao_tentativas ?? 0) + 1
@@ -71,7 +73,10 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
     const r = await sb.from('ab_native_tests').update({ notificacao_tentativas: tentativas, ...(desistiu ? { notificacao_falhou_em: agora.toISOString() } : {}) })
       .eq('id', l.id).eq('site_id', l.site_id).is('lembrete_notificado_em', null).select('id')
     if (r.error) Sentry.captureMessage('avisos_pendentes: tentativa não gravada', { level: 'warning', tags: { area: 'ab-nativo' } })
-    if (desistiu) n.lembrete_desistiu++
+    if (desistiu) {
+      n.lembrete_desistiu++
+      Sentry.captureMessage('avisos_pendentes: lembrete do dia 14 abandonado', { level: 'error', tags: { area: 'ab-nativo' }, extra: { registro_id: l.id } })
+    }
     else n.lembrete_falhou++
   }
 
@@ -94,8 +99,9 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
   const base = { feitas: n.lembrados + n.fechados, deixadas: n.sem_tempo, detalhe }
   if (n.lembrete_desistiu > 0) return { estado: 'erro', motivo: 'lembrete_desistiu', ...base }
   if (n.lembrete_falhou > 0) return { estado: 'parcial', motivo: 'lembrete_falhou', ...base }
+  if (n.lembrete_nao_gravado > 0) return { estado: 'parcial', motivo: 'lembrete_nao_gravado', ...base }
   if (n.fechamento_falhou > 0) return { estado: 'parcial', motivo: 'fechamento_falhou', ...base }
-  if (n.sem_tempo > 0) return { estado: 'parcial', motivo: 'sobrou', ...base }
+  if (n.sem_tempo > 0 || noTeto) return { estado: 'parcial', motivo: 'sobrou', ...base }
   return { estado: 'ok', ...base }
 }
 

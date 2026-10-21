@@ -247,7 +247,7 @@ export const DEFINICAO_REGISTRO_TESTE_NATIVO: Definicao = {
 
 /**
  * `avisos_pendentes` (F1a-dado, T12): o lembrete do dia 14 (e-mail, uma vez por dono) e o fechamento por silêncio (`sem_resposta`) dos testes do YouTube confirmados.
- * Leve, a partir das 09:00 de São Paulo, uma vez ao dia. **Sem `ligaCom`** (o recuo natural do registrador, `off`, deixaria a linha confirmada sem lembrete nem
+ * Leve, a partir das 09:00 de São Paulo; roda a cada disparo e o espaçamento é do dado (no máximo uma tentativa de lembrete por dia, contada de max(início + 14 d, confirmação)). **Sem `ligaCom`** (o recuo natural do registrador, `off`, deixaria a linha confirmada sem lembrete nem
  * fechamento; o desligamento operacional é `OBS_AGENDA_TASKS_OFF`): sem linha devida a tarefa não faz nada. O código mora em `agenda/tarefas/avisos-pendentes.ts`.
  * `ordem: 5.96` (depois do registro, antes das pesadas).
  */
@@ -259,6 +259,7 @@ export const DEFINICAO_AVISOS_PENDENTES: Definicao = {
     leitura_falhou: 'não foi possível ler os testes do YouTube para avisar',
     lembrete_falhou: 'o lembrete do dia 14 não saiu e será tentado de novo',
     lembrete_desistiu: 'o lembrete do dia 14 falhou três vezes e foi abandonado (o teste fecha por silêncio)',
+    lembrete_nao_gravado: 'o lembrete saiu, mas o registro de envio não foi gravado; será conferido no próximo disparo',
     fechamento_falhou: 'não foi possível fechar um teste sem resposta',
     sobrou: 'ficaram testes para o próximo disparo',
   },
