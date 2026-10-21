@@ -387,8 +387,7 @@ describe('StepRevisar: aviso da original (D12)', () => {
 
 ```tsx
 // @vitest-environment jsdom
-const ler = vi.fn()
-const start = vi.fn(async () => ({ ok: true }))
+const { ler, start } = vi.hoisted(() => ({ ler: vi.fn(), start: vi.fn(async () => ({ ok: true })) }))  // Yannis N1: vi.mock é içado antes de const
 vi.mock('../src/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   createAbTest: vi.fn(), uploadVariant: vi.fn(), startAbTest: start, createTextVariant: vi.fn(),
   updateAbTestType: vi.fn(), cleanupDraftVariants: vi.fn(async () => ({ ok: true })), fetchAbBriefingData: vi.fn(),
@@ -480,7 +479,7 @@ export function useAvisoOriginal(
 
 **Ajuste obrigatório dos mocks existentes (custo do hook injetado):** o assistente passa a ler o binding `lerDimensoesDaOriginal` a cada render, e o vitest lança quando falta export num mock de fábrica. Acrescentar `lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false }))` ao `vi.mock` de `T/ab-wizard-variante-vazia.test.tsx:5-8` e de `T/ab-wizard-referencia.test.tsx:8-10`, e a **qualquer outro** teste que renderize o `AbCreateWizard` real: `grep -rln "AbCreateWizard" apps/web/test` e abrir cada um que tenha `vi.mock` da `actions`.
 - [ ] **Passo 8:** os arquivos novos e alterados → PASS; depois a seção 3 inteira (suíte `test/youtube test/cms/ab- test/ab-` e `tsc` 0). Conferir no diff que `stepIsValid` e `handleSubmit` não mudaram: `git diff -U0 -- '<AB>/_components/ab-create-wizard.tsx' | grep -E "stepIsValid|handleSubmit|startAbTest"` → vazio (o teste do passo 6 é a prova de comportamento; o `grep` é só o cinto).
-- [ ] **Passo 9:** commit `feat: aviso de original baixa antes de iniciar o teste (D12)`, caminhos explícitos dos 12 arquivos (os 4 de código, `use-aviso-original.ts`, e os 7 de teste: `ab-original-resolucao`, `ab-aviso-original-baixa`, `ab-ler-dimensoes-da-original`, `ab-step-revisar`, `ab-wizard-aviso-original`, `ab-wizard-variante-vazia`, `ab-wizard-referencia`; mais qualquer mock ajustado no passo 7).
+- [ ] **Passo 9:** commit `feat: aviso de original baixa antes de iniciar o teste (D12)`, caminhos explícitos dos 13 arquivos (os 4 de código, `use-aviso-original.ts`, e os 7 de teste: `ab-original-resolucao`, `ab-aviso-original-baixa`, `ab-ler-dimensoes-da-original`, `ab-step-revisar`, `ab-wizard-aviso-original`, `ab-wizard-variante-vazia`, `ab-wizard-referencia`, `cms/ab-create-wizard-restore` (Yannis N2: mocka as actions com o assistente real; acrescentar `lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false }))` ao mock da linha 6); mais qualquer mock ajustado no passo 7).
 
 **Paridade Cowork/MCP (registro, sem tarefa):** fora. `manage_ab_test` não tem ação de iniciar (`tools.ts:665`), então não há "antes de iniciar" no MCP; o Cowork só edita variantes de rascunho. Não mexer em `apps/web/src/lib/pipeline/` nem em `cowork-docs-youtube.md` (sem rota nem campo novo). Se um dia o MCP ganhar `start`, o aviso entra na resposta junto do descongelo (T15 do apêndice).
 
@@ -492,7 +491,7 @@ export function useAvisoOriginal(
 
 - [ ] **Passo 1:** `cd W/apps/web && npx vitest run test/youtube test/cms/ab- test/ab- > /tmp/oea-suite.log 2>&1; tail -30 /tmp/oea-suite.log` e `npx tsc --noEmit -p . > /tmp/oea-tsc.log 2>&1; grep -c "error TS" /tmp/oea-tsc.log`. Esperado: 0 falhas, 0 `error TS`; só falhas no contexto. Em background se passar de 4 min. **Sem** `next build` obrigatório (o Vercel faz; CLAUDE.md) e sem integração (não há SQL).
 - [ ] **Passo 2 (Gio, navegador, Sonnet):** CMS local autenticado (`docs/ops/runbook-cms-e2e-local.md`), vídeo de semente cujo rascunho tem a original `480x360`, outro `1280x720`, outro com `dimensions` nula e sem dHash (não medida): abrir o assistente até Revisar a 1440 e 390, claro e escuro. Esperado: `480x360` com banner "Pronto para iniciar.", faixa abaixo dele e selo "Baixa resolução"; `1280x720` sem faixa e com "Tudo pronto."; não medida com selo neutro "Resolução não medida" e o texto "ainda não foi medida" (nunca "baixa"); depois de ativar a não medida, o diálogo "O que fica no vídeo?" mostra a medida real; o aviso já está na tela ao chegar (sem salto de layout visível); "Salvar rascunho" e "Ativar teste" habilitados em todos; `scrollWidth` = largura a 390; nenhum "undefined"/"null" no DOM. Abrir o diálogo "O que fica no vídeo?" de um teste com original `640x480`: selo "Baixa resolução". Veredito em texto no ledger.
-- [ ] **Passo 3:** sonda dos Shorts, **só leitura, sem criar rascunho** (criar rascunho chama `guardarOriginalMaior` e grava no Blob, `ab-variant-dhash.ts:85`): para cada um dos 2 Shorts reais, `for q in maxresdefault sddefault hqdefault; do curl -s -o /tmp/s-$q.jpg -w "$q %{http_code} " "https://i.ytimg.com/vi/<id>/$q.jpg"; sips -g pixelWidth -g pixelHeight /tmp/s-$q.jpg; done` e anotar o `http_code` e a LxA de cada; a primeira com 200 é o que `guardarOriginalMaior` guardaria. Registrar no roteiro (`docs/superpowers/plans/2026-10-14-ab-lab-roteiro-e-horas.md`) como subnúmero de 21 (§5.7), não só no ledger. É o dado do gatilho de descongelar. Opcional, só se o dono autorizar leitura em produção: `select v.dimensions, count(*) from ab_test_variants v join ab_tests t on t.id=v.test_id where v.is_original group by 1 order by 2 desc;`.
+- [ ] **Passo 3:** sonda dos Shorts, **só leitura, sem criar rascunho** (criar rascunho chama `guardarOriginalMaior` e grava no Blob, `ab-variant-dhash.ts:85`): para cada um dos 2 Shorts reais, `for q in maxresdefault hq720 sddefault hqdefault; do curl -s -o /tmp/s-$q.jpg -w "$q %{http_code} " "https://i.ytimg.com/vi/<id>/$q.jpg"; sips -g pixelWidth -g pixelHeight /tmp/s-$q.jpg; done` e anotar o `http_code` e a LxA de cada; **só vale resposta 200** (Phil M1: em 404 o ytimg devolve um placeholder 120×90, que o `sips` mede como se fosse a imagem); a primeira com 200 é o que `guardarOriginalMaior` guardaria. Registrar no roteiro (`docs/superpowers/plans/2026-10-14-ab-lab-roteiro-e-horas.md`) como subnúmero de 21 (§5.7), não só no ledger. É o dado do gatilho de descongelar. Opcional, só se o dono autorizar leitura em produção: `select v.dimensions, count(*) from ab_test_variants v join ab_tests t on t.id=v.test_id where v.is_original group by 1 order by 2 desc;`.
 
 ---
 
@@ -585,3 +584,6 @@ Gatilho de descongelar (§5.7): o dono rodar o primeiro teste nosso em vídeo lo
 | 18 | ficha do teste (H) |
 | 19 | 5º caso de D, "não é a mesma imagem" (D13), aguarda o dono |
 | 21 | medição com o arquivo-mestre real do dono (distância dHash) |
+
+### Fecho da r4 (controlador, 21/10)
+Re-revisão: Phil 93, Yannis 93, Logan 90 — todos ≥ 90, nada bloqueia. Aplicados no fecho: Yannis N1 (`vi.hoisted`), N2 (mock do `ab-create-wizard-restore`), N3 (13 arquivos); Phil M1 (`hq720` e só 200 na sonda). Aceitos sem ação: Logan N1/N2, Phil M2 (já em Riscos). Divergência `.limit(2)`: os três dão razão ao redator. Pendente fora do plano: contraste do âmbar nos dois temas (Naksu, na captura da execução).
