@@ -311,6 +311,14 @@
   /* AB Lab design tokens */
   --cms-bg-side: #100E0B;
   --cms-surface-3: #262219;
+  /* Original em alta (D12): aviso do passo Revisar */
+  --cms-green-text: #4ADE80;
+  --cms-green-icon: #22C55E;
+  --cms-amber-text: #FBBF24;
+  --cms-amber-soft: rgba(251,191,36,.12);
+  --cms-amber-line: rgba(245,158,11,.5);
+  --cms-ban-bg: rgba(34,197,94,.08);
+  --cms-ban-bd: transparent;
   --cms-cowork: #9B93F6;
   --cms-cowork-subtle: rgba(110,99,242,.15);
 
@@ -432,6 +440,14 @@
   /* AB Lab design tokens — light */
   --cms-bg-side: #EDE5D5;
   --cms-surface-3: #E8DFC9;
+  /* Original em alta (D12): aviso do passo Revisar */
+  --cms-green-text: #126B35;
+  --cms-green-icon: #15803D;
+  --cms-amber-text: #7A4E00;
+  --cms-amber-soft: rgba(245,158,11,.14);
+  --cms-amber-line: rgba(160,100,0,.55);
+  --cms-ban-bg: #F4F7F8;
+  --cms-ban-bd: #DCE3E6;
   --cms-cowork: #5B4FD9;
   --cms-cowork-subtle: rgba(91,79,217,.10);
 

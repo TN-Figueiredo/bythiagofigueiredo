@@ -20,7 +20,9 @@ import {
   cleanupDraftVariants,
   fetchAbBriefingData,
   fetchLibraryEntries,
+  lerDimensoesDaOriginal,
 } from '../actions'
+import { useAvisoOriginal, LEITURA_A_PARTIR_DO_PASSO } from './use-aviso-original'
 import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings, ReferenciaDoTeste } from '@/lib/youtube/ab-types'
@@ -310,6 +312,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   const dialogRef = useRef<HTMLDivElement>(null)
   const [libraryPickerFor, setLibraryPickerFor] = useState<number | null>(null)
   const [libraryEntries, setLibraryEntries] = useState<Awaited<ReturnType<typeof fetchLibraryEntries>> | null>(null)
+  // D12: aviso de original baixa; só leitura, não valida passo nem envia
+  const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', state.step >= LEITURA_A_PARTIR_DO_PASSO)
 
   // --- Escape key ---
   useEffect(() => {
@@ -562,6 +566,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
             }))}
             config={state.config}
             videoTitle={state.videoTitle}
+            avisoOriginal={avisoOriginal}
           />
         )
       default:
