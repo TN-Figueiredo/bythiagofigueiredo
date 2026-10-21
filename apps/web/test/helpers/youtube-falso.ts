@@ -20,6 +20,18 @@ export async function imagemComDhash(hex: string): Promise<Buffer> {
   return sharp(px, { raw: { width: 9, height: 8, channels: 1 } }).resize(450, 360, { kernel: 'nearest' }).png().toBuffer()
 }
 
+/** Mesma arte de `imagemComDhash` em 1280x720 (resize `nearest`: o dHash não muda); prova a saída do aviso de original baixa. */
+export async function imagemGrande(hex: string): Promise<Buffer> {
+  const px = Buffer.alloc(9 * 8)
+  for (let y = 0; y < 8; y++) {
+    const bits = hex.slice(2 * y, 2 * y + 2).split('').map((d) => parseInt(d, 16).toString(2).padStart(4, '0')).join('')
+    let v = 130
+    px[y * 9] = v
+    for (let x = 0; x < 8; x++) { v += bits[x] === '1' ? -12 : 12; px[y * 9 + x + 1] = v }
+  }
+  return sharp(px, { raw: { width: 9, height: 8, channels: 1 } }).resize(1280, 720, { kernel: 'nearest' }).png().toBuffer()
+}
+
 export const H = { A: 'f0f0f0f0f0f0f0f0', B: '00ff00ff00ff00ff', C: 'aaaaaaaaaaaaaaaa' } as const
 
 export interface OpcoesYouTubeFalso {

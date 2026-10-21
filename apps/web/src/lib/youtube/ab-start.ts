@@ -24,6 +24,7 @@ import { avisarRestauracao } from '@/lib/youtube/ab-restore-avisos'
 import { lerSnippet } from '@/lib/youtube/ab-metadata'
 import { guardarOriginalMaior } from '@/lib/youtube/ab-variant-dhash'
 import { DHASH_MAX_SAME, hamming, probeThumb } from '@/lib/youtube/thumb-fingerprint'
+import { dimensoesDeTexto, publicaBaixa } from '@/lib/youtube/ab-original-resolucao'
 import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
 import type { AppliedMetadata, TestType } from '@/lib/youtube/ab-types'
 
@@ -173,6 +174,7 @@ interface VarianteInicio {
   blob_url: string | null
   title_text: string | null
   thumbnail_dhash: string | null
+  dimensions: string | null
   sort_order: number
 }
 
@@ -219,7 +221,7 @@ export async function startAbTestInternal(
   // 2. Fetch variants.
   const { data: variants, error: variantsError } = await supabase
     .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, title_text, thumbnail_dhash, sort_order')
+    .select('id, label, is_original, blob_url, title_text, thumbnail_dhash, dimensions, sort_order')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -315,7 +317,8 @@ export async function startAbTestInternal(
       const sonda = await probeThumb(youtubeVideoId, null)
       if (!sonda.dhash) return await desfazer('Não foi possível ler a thumbnail atual do vídeo. Tente de novo.')
       const guardado = original?.thumbnail_dhash ?? null
-      if (guardado === null || hamming(guardado, sonda.dhash) > DHASH_MAX_SAME) {
+      const originalBaixa = publicaBaixa(dimensoesDeTexto(original?.dimensions)?.largura ?? 0)   // r5 B1: nula, 0x0, ilegível ou < 1280
+      if (guardado === null || originalBaixa || hamming(guardado, sonda.dhash) > DHASH_MAX_SAME) {
         guardada = await guardarOriginalMaior(youtubeVideoId, testId)
         patchTeste.original_thumbnail_url = guardada.url
       }

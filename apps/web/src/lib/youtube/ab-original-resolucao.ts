@@ -16,14 +16,15 @@ export function dimensoesDeTexto(d: string | null | undefined): { largura: numbe
 export type AvisoOriginal =
   | { kind: 'baixa'; selo: 'Baixa resolução'; texto: string }
   | { kind: 'nao-medida'; selo: 'Resolução não medida'; texto: string }
-  | { kind: 'indisponivel'; selo: null; texto: 'Não consegui conferir a resolução da original agora.' }
+  | { kind: 'indisponivel'; selo: null; texto: 'Não consegui conferir a resolução da original agora. Isso não impede de ativar.' }
 
 export const AVISO_INDISPONIVEL: AvisoOriginal = {
-  kind: 'indisponivel', selo: null, texto: 'Não consegui conferir a resolução da original agora.',
+  kind: 'indisponivel', selo: null, texto: 'Não consegui conferir a resolução da original agora. Isso não impede de ativar.',
 }
 
 const CAUDA_AVISO = 'o vídeo voltaria borrado a cada troca e ficaria assim depois do teste.'
-const SAIDA_AVISO = `Para evitar, troque a thumbnail do vídeo no YouTube por uma de ${LARGURA_ALTA} px ou mais antes de ativar; ou ative assim mesmo.`
+const SAIDA_AVISO = `Para evitar, troque no YouTube a thumbnail do vídeo por uma de ${LARGURA_ALTA} px ou mais e depois ative: o teste guarda a nova ao ativar, mesmo que este aviso continue aqui. Sem uma maior, pode ativar assim mesmo.`
+const TEXTO_NAO_MEDIDA = `A resolução da original ainda não foi medida; o teste mede ao ativar. Se a thumbnail do vídeo no YouTube tem ${LARGURA_ALTA} px de largura ou mais, pode ativar. Se tem menos, o vídeo voltaria borrado a cada troca: troque-a no YouTube antes de ativar.`
 
 /**
  * Aviso do passo Revisar (D12). null = original em alta, nada a dizer. Nunca bloqueia.
@@ -39,13 +40,23 @@ export function textoAvisoOriginalBaixa(
   if (!medida) {
     return {
       kind: 'nao-medida', selo: 'Resolução não medida',
-      texto: `A resolução da original ainda não foi medida. Ao ativar, o teste guarda a maior cópia que o YouTube tiver; se ela tiver menos de ${LARGURA_ALTA} px de largura, o vídeo voltaria borrado a cada troca. ${SAIDA_AVISO}`,
+      texto: TEXTO_NAO_MEDIDA,
     }
   }
   return {
     kind: 'baixa', selo: 'Baixa resolução',
     texto: dim
       ? `A original guardada tem só ${dim.largura}×${dim.altura}: ${CAUDA_AVISO} ${SAIDA_AVISO}`
-      : `A original guardada é de baixa resolução (mínimo ${LARGURA_ALTA} px de largura): ${CAUDA_AVISO} ${SAIDA_AVISO}`,
+      : `A original guardada está abaixo do mínimo de ${LARGURA_ALTA} px de largura: ${CAUDA_AVISO} ${SAIDA_AVISO}`,
   }
 }
+
+export type EstadoAviso = 'pendente' | null | AvisoOriginal   // pendente = leitura em andamento; null = alta ou tipo só título
+
+export function tituloDoBanner(aviso: EstadoAviso | undefined): string {
+  if (aviso === undefined || aviso === null) return 'Tudo pronto.'
+  if (aviso === 'pendente' || aviso.kind === 'indisponivel') return 'Pronto para ativar.'
+  return 'Pronto para ativar, com um aviso abaixo.'
+}
+
+export const NOTA_ATIVAR = 'Clique em Ativar teste para começar. As variantes passam a rotacionar na hora.'

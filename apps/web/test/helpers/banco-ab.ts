@@ -85,7 +85,7 @@ export function criarBanco(o: OpcoesBanco = {}) {
     created_at: new Date(AGORA.getTime() - (o.diasNoAr ?? 3) * 86_400_000).toISOString(),
   }
   const variantes: Fila[] = [
-    { id: 'A', test_id: 'teste-1', label: 'original', sort_order: 0, is_original: true, blob_url: BLOB('A'), title_text: 'Título A', thumbnail_dhash: H.A },
+    { id: 'A', test_id: 'teste-1', label: 'original', sort_order: 0, is_original: true, blob_url: BLOB('A'), title_text: 'Título A', thumbnail_dhash: H.A, dimensions: '1280x720' },
     { id: 'B', test_id: 'teste-1', label: 'B', sort_order: 1, is_original: false, blob_url: BLOB('B'), title_text: 'Título B', thumbnail_dhash: H.B },
   ]
   o.ajustar?.(variantes)

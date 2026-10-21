@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { LARGURA_ALTA, publicaBaixa, dimensoesDeTexto, textoAvisoOriginalBaixa, AVISO_INDISPONIVEL } from '@/lib/youtube/ab-original-resolucao'
+import { LARGURA_ALTA, publicaBaixa, dimensoesDeTexto, textoAvisoOriginalBaixa, AVISO_INDISPONIVEL, tituloDoBanner, NOTA_ATIVAR } from '@/lib/youtube/ab-original-resolucao'
 import { originalBaixaResolucao } from '@/app/cms/(authed)/youtube/ab-lab/_components/encerrar-props'
 
 describe('regra única de baixa resolução', () => {
@@ -36,14 +36,15 @@ describe('textoAvisoOriginalBaixa(dimensions, medida)', () => {
     expect(a?.kind).toBe('baixa')
     expect(a?.selo).toBe('Baixa resolução')
     expect(a?.texto).toContain('A original guardada tem só 1279×719: o vídeo voltaria borrado a cada troca e ficaria assim depois do teste.')
-    expect(a?.texto).toContain('ative assim mesmo')
+    expect(a?.texto).toContain('Sem uma maior, pode ativar assim mesmo.')
+    expect(a?.texto).toContain('o teste guarda a nova ao ativar, mesmo que este aviso continue aqui')
     expect(textoAvisoOriginalBaixa('480x360', true)?.texto).toContain('480×360')
   })
   it('medida mas ilegível (nula, 0x0, lixo): baixa, sem número, sem "undefined"/"null"/"NaN"', () => {
     for (const d of [null, undefined, '', '0x0', 'lixo']) {
       const a = textoAvisoOriginalBaixa(d, true)
       expect(a?.kind).toBe('baixa')
-      expect(a?.texto).toContain('é de baixa resolução (mínimo 1280 px de largura)')
+      expect(a?.texto).toContain('está abaixo do mínimo de 1280 px de largura')
       expect(a?.texto).not.toMatch(/undefined|null|NaN/)
     }
   })
@@ -52,11 +53,31 @@ describe('textoAvisoOriginalBaixa(dimensions, medida)', () => {
       const a = textoAvisoOriginalBaixa(d, false)
       expect(a?.kind).toBe('nao-medida')
       expect(a?.selo).toBe('Resolução não medida')
-      expect(a?.texto).toContain('ainda não foi medida')
-      expect(a?.texto).not.toMatch(/baixa resolução|undefined|null|NaN/i)
+      expect(a?.texto).toContain('ainda não foi medida; o teste mede ao ativar')
+      expect(a?.texto).toContain('Se a thumbnail do vídeo no YouTube tem 1280 px de largura ou mais, pode ativar')
+      expect(a?.texto).toContain('troque-a no YouTube antes de ativar')
+      expect(a?.texto).not.toMatch(/baixa resolução|ative assim mesmo|undefined|null|NaN/i)
     }
   })
   it('a linha de leitura que falhou é neutra e fixa', () => {
-    expect(AVISO_INDISPONIVEL).toEqual({ kind: 'indisponivel', selo: null, texto: 'Não consegui conferir a resolução da original agora.' })
+    expect(AVISO_INDISPONIVEL).toEqual({ kind: 'indisponivel', selo: null, texto: 'Não consegui conferir a resolução da original agora. Isso não impede de ativar.' })
+  })
+})
+
+describe('tituloDoBanner e NOTA_ATIVAR', () => {
+  it('Tudo pronto só sem aviso (undefined ou null)', () => {
+    expect(tituloDoBanner(undefined)).toBe('Tudo pronto.')
+    expect(tituloDoBanner(null)).toBe('Tudo pronto.')
+  })
+  it('pendente e leitura que falhou: "Pronto para ativar."', () => {
+    expect(tituloDoBanner('pendente')).toBe('Pronto para ativar.')
+    expect(tituloDoBanner(AVISO_INDISPONIVEL)).toBe('Pronto para ativar.')
+  })
+  it('baixa e não medida: "Pronto para ativar, com um aviso abaixo."', () => {
+    expect(tituloDoBanner(textoAvisoOriginalBaixa('480x360', true))).toBe('Pronto para ativar, com um aviso abaixo.')
+    expect(tituloDoBanner(textoAvisoOriginalBaixa(null, false))).toBe('Pronto para ativar, com um aviso abaixo.')
+  })
+  it('a nota diz "para começar"', () => {
+    expect(NOTA_ATIVAR).toBe('Clique em Ativar teste para começar. As variantes passam a rotacionar na hora.')
   })
 })
