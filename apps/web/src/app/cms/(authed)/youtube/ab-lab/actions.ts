@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { requireEditUser } from '@/lib/youtube/ab-lab-acesso'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -84,14 +85,6 @@ async function concluirSaida(saida: Promise<ResultadoSaida>): Promise<ResultadoA
   const out = traduzirSaida(r)
   if (out.ok && out.resultado === 'feito') invalidarTelasDoAbLab()
   return out
-}
-
-/** Como requireEditAccess, mas também devolve quem agiu (para o rastro em audit_log). */
-async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
-  const { siteId } = await getSiteContext()
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  return { siteId, userId: res.user.id }
 }
 
 async function requireEditAccess(): Promise<string> {
