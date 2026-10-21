@@ -1445,6 +1445,17 @@ describe('rodarColeta: modo parcial (F0-c, passos)', () => {
     expect(kinds).not.toContain('dimensoes')
   })
 
+  it('conferência vencida há mais de DIAS_ATE_O_VERMELHO: a parcial não ganha a falha nem o campo; o completo ganha (F0-c)', async () => {
+    const data = new Date(AGORA.getTime() - 9 * 86_400_000).toISOString().slice(0, 10)
+    conferenciasDeTeste.push({ id: 'de-9-dias', etapa: 'ET', data, responsavel: 'agente', onde: 'plano', feitaEm: null })
+    const db = fakeSupabase({ youtube_channels: canais })
+    const parcial = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', passos: passosDe('relatorios') })
+    expect(parcial.falhas.some(f => f.includes('conferências vencidas'))).toBe(false)
+    expect(parcial.resumo).not.toHaveProperty('conferencias_vencidas')
+    const completo = await rodarColeta({ supabase: fakeSupabase({ youtube_channels: canais }).client, relogio: criarRelogio(), fase: 'depois' })
+    expect(completo.falhas.some(f => f.includes('conferências vencidas'))).toBe(true)
+  })
+
   it('P6: parcial com Reporting autorizada não devolve reautorizar a ok', async () => {
     const db = canalReaut()
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois', passos: passosDe('relatorios'), autorizadosAntes: ['ch-1'] })
