@@ -72,7 +72,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T9: "Já iniciei" e "Confirmar" (ba
   const detectada = async (): Promise<{ id: string; updated_at: string }> => {
     const r = await clienteServico().from('ab_native_tests').insert({
       site_id: t.siteId, video_id: videoId, youtube_video_id: ytId.slice(0, 11).padEnd(11, 'x'), origem: 'detectado', campos: ['titulo'], estado: 'em_andamento',
-      variantes_titulo: ['a', 'b'], primeira_vista: new Date().toISOString(), versao_regra: 1,
+      variantes_titulo: ['a', 'b'], primeira_vista: new Date(Date.now() - 3_600_000).toISOString(), versao_regra: 1,
     }).select('id, updated_at').single()
     expect(r.error).toBeNull()
     return r.data as { id: string; updated_at: string }
@@ -138,7 +138,12 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T9: "Já iniciei" e "Confirmar" (ba
     const d = await detectada()
     expect(await confirmarDetectado(d.id, d.updated_at)).toMatchObject({ ok: true })
     expect(await confirmarDetectado(d.id, d.updated_at)).toEqual({ ok: false, erro: 'ja_confirmado', registroId: d.id })
-    const d2 = await clienteServico().from('ab_native_tests').insert({ site_id: t.siteId, video_id: videoId, youtube_video_id: 'abcdefghijk', origem: 'detectado', campos: ['titulo'], estado: 'encerrado', encerrado_em: new Date().toISOString(), variantes_titulo: ['a', 'b'], primeira_vista: new Date().toISOString(), versao_regra: 1 }).select('id, updated_at').single()
+    // 2º toque com o `updated_at` ATUAL (outra aba recarregada): só o predicado `confirmado_em is null` recusa, o CAS passaria (Phil m1, Yannis C2).
+    const depois1 = (await clienteServico().from('ab_native_tests').select('confirmado_em, confirmado_por, updated_at').eq('id', d.id).single()).data!
+    expect(await confirmarDetectado(d.id, depois1.updated_at as string)).toEqual({ ok: false, erro: 'ja_confirmado', registroId: d.id })
+    const depois2 = (await clienteServico().from('ab_native_tests').select('confirmado_em, confirmado_por').eq('id', d.id).single()).data!
+    expect(depois2).toEqual({ confirmado_em: depois1.confirmado_em, confirmado_por: depois1.confirmado_por })
+    const d2 = await clienteServico().from('ab_native_tests').insert({ site_id: t.siteId, video_id: videoId, youtube_video_id: 'abcdefghijk', origem: 'detectado', campos: ['titulo'], estado: 'encerrado', encerrado_em: new Date().toISOString(), variantes_titulo: ['a', 'b'], primeira_vista: new Date(Date.now() - 3_600_000).toISOString(), versao_regra: 1 }).select('id, updated_at').single()
     const siteOriginal = ctx.siteId
     ctx.siteId = randomUUID()
     try { expect(await confirmarDetectado(d2.data!.id as string, d2.data!.updated_at as string)).toEqual({ ok: false, erro: 'nao_encontrada' }) } finally { ctx.siteId = siteOriginal }

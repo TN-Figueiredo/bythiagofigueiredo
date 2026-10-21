@@ -123,7 +123,9 @@ export async function responderTesteDoYouTube(pedido: PedidoRespostaDia14): Prom
   if ('ok' in a) return { ok: false, erro: 'sem_permissao', error: a.error }
   const v = PedidoResposta.safeParse(pedido)
   if (!v.success) return { ok: false, erro: 'pedido_invalido', error: MSG_PEDIDO_INVALIDO }
+  let orgId: string | null = null
+  try { orgId = (await getSiteContext()).orgId ?? null } catch { /* sem org: a linha de auditoria leva site_id */ }
   try {
-    return await responderDia14({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, ...v.data, agora: new Date() })
+    return await responderDia14({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, orgId, ...v.data, agora: new Date() })
   } catch (e) { return { ...falha(e, 'responderTesteDoYouTube'), erro: 'falha' } }
 }

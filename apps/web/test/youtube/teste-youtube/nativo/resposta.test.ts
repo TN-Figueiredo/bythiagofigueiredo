@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { derivadasDeVariantesTitulo, patchDaResposta, responderDia14, type RespostaDono } from '@/lib/youtube/teste-youtube/nativo/resposta'
 import type { VarianteFicha } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import { roteiro, ok } from '../../../helpers/banco-roteirizado'
+import * as Sentry from '@sentry/nextjs'
+
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 const img = (n: number) => ({ url: `https://x.public.blob.vercel-storage.com/${n}.jpg`, sha256: 'a'.repeat(64), largura: 1280, altura: 720 })
 const comTitulos: VarianteFicha[] = [{ n: 1, tipo: 'titulo', titulo: 'Original' }, { n: 2, tipo: 'titulo', titulo: 'Nova' }, { n: 3, tipo: 'combo', titulo: 'Outra', imagem: img(3) }]
@@ -75,12 +78,12 @@ const AGORA = new Date('2026-10-21T12:00:00.000Z')
 const base = { siteId: 's1', userId: 'u1', registroId: 'r1', lido: 'L0', agora: AGORA }
 const linha = (o: Record<string, unknown> = {}) => ok({
   id: 'r1', estado: 'em_andamento', resposta_dono: null, vencedor_fonte: null, vencedor_titulo: null, confirmado_em: '2026-10-01T00:00:00+00:00',
-  variantes: comTitulos, variantes_titulo: null, updated_at: 'L0', ...o,
+  desfecho_motivo: null, variantes: comTitulos, variantes_titulo: null, updated_at: 'L0', ...o,
 })
 
 describe('responderDia14', () => {
   it('em_andamento + venceu_nova: um update com sempre + seEmAndamento + encerrado_em, CAS e guarda de resposta; expira o lembrete', async () => {
-    const r = roteiro({ ab_native_tests: [linha(), ok([{ id: 'r1' }])], notifications: [ok(null)] })
+    const r = roteiro({ ab_native_tests: [linha(), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
     expect(await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: true, conflito: null })
     const upd = r.chamadas[1]!.metodos.join(' ')
     expect(upd).toContain('"resposta_dono":"venceu_nova"')
@@ -96,7 +99,7 @@ describe('responderDia14', () => {
   })
 
   it('sem_desfecho sem fonte: vira encerrado/vencedor_provavel e mantém encerrado_em', async () => {
-    const r = roteiro({ ab_native_tests: [linha({ estado: 'sem_desfecho', resposta_dono: 'sem_resposta' }), ok([{ id: 'r1' }])], notifications: [ok(null)] })
+    const r = roteiro({ ab_native_tests: [linha({ estado: 'sem_desfecho', resposta_dono: 'sem_resposta' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
     expect(await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_original', n: null })).toEqual({ ok: true, conflito: null })
     const upd = r.chamadas[1]!.metodos.join(' ')
     expect(upd).toContain('"estado":"encerrado"')
@@ -104,7 +107,7 @@ describe('responderDia14', () => {
   })
 
   it('vencedor_fonte presente (data_api): guarda só a resposta e devolve conflito', async () => {
-    const r = roteiro({ ab_native_tests: [linha({ estado: 'encerrado', vencedor_fonte: 'data_api', vencedor_titulo: 'Original' }), ok([{ id: 'r1' }])], notifications: [ok(null)] })
+    const r = roteiro({ ab_native_tests: [linha({ estado: 'encerrado', vencedor_fonte: 'data_api', vencedor_titulo: 'Original' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
     const res = await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })
     expect(res).toEqual({ ok: true, conflito: { youtube: 'Original', dono: 'Nova' } })
     const upd = r.chamadas[1]!.metodos.join(' ')
@@ -114,13 +117,13 @@ describe('responderDia14', () => {
   })
 
   it('encerrado sem veredito (ficou_igual do registrador): só a resposta, sem conflito', async () => {
-    const r = roteiro({ ab_native_tests: [linha({ estado: 'encerrado' }), ok([{ id: 'r1' }])], notifications: [ok(null)] })
+    const r = roteiro({ ab_native_tests: [linha({ estado: 'encerrado' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
     expect(await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: true, conflito: null })
     expect(r.chamadas[1]!.metodos.join(' ')).not.toContain('"estado"')
   })
 
   it('linha derivada (detectado confirmado, sem ficha): "Venceu a nova" n=2 grava o 2º título', async () => {
-    const r = roteiro({ ab_native_tests: [linha({ variantes: null, variantes_titulo: ['A', 'B'] }), ok([{ id: 'r1' }])], notifications: [ok(null)] })
+    const r = roteiro({ ab_native_tests: [linha({ variantes: null, variantes_titulo: ['A', 'B'] }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
     expect(await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: true, conflito: null })
     expect(r.chamadas[1]!.metodos.join(' ')).toContain('"vencedor_titulo":"B"')
   })
@@ -137,7 +140,7 @@ describe('responderDia14', () => {
   })
 
   it('CAS perdido por evidência: relê uma vez, reavalia a elegibilidade e grava', async () => {
-    const r = roteiro({ ab_native_tests: [linha(), ok([]), linha({ estado: 'encerrado', vencedor_fonte: 'data_api', vencedor_titulo: 'Original', updated_at: 'L1' }), ok([{ id: 'r1' }])], notifications: [ok(null)] })
+    const r = roteiro({ ab_native_tests: [linha(), ok([]), linha({ estado: 'encerrado', vencedor_fonte: 'data_api', vencedor_titulo: 'Original', updated_at: 'L1' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
     const res = await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })
     expect(res).toEqual({ ok: true, conflito: { youtube: 'Original', dono: 'Nova' } })
     expect(r.chamadas[3]!.metodos).toContain('eq("updated_at","L1")')
@@ -154,9 +157,10 @@ describe('responderDia14', () => {
     expect(await responderDia14({ ...base, sb: d.sb, resposta: 'nao_vi', n: null })).toEqual({ ok: false, erro: 'nao_respondivel' })
   })
 
-  it('erro de escrita volta como { ok: false }, e a notificação não é tocada', async () => {
+  it('erro de escrita volta como falha_escrita (sem texto cru do banco), vai ao Sentry, e a notificação não é tocada', async () => {
     const r = roteiro({ ab_native_tests: [linha(), { data: null, error: { message: 'queda' } }] })
-    expect(await responderDia14({ ...base, sb: r.sb, resposta: 'nao_vi', n: null })).toEqual({ ok: false, erro: 'queda' })
+    expect(await responderDia14({ ...base, sb: r.sb, resposta: 'nao_vi', n: null })).toEqual({ ok: false, erro: 'falha_escrita' })
+    expect(Sentry.captureException).toHaveBeenCalled()
     expect(r.chamadas.some((c) => c.alvo === 'notifications')).toBe(false)
   })
 
@@ -165,5 +169,39 @@ describe('responderDia14', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     expect(await responderDia14({ ...base, sb: r.sb, resposta: 'nao_vi', n: null })).toEqual({ ok: true, conflito: null })
     expect(log).toHaveBeenCalled(); log.mockRestore()
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('expirar lembrete-nativo falhou', expect.objectContaining({ level: 'warning' }))
+  })
+
+  it('sem_desfecho COM vencedor_fonte de outro lado (data_api): conflito, estado e veredito intactos (Yannis C1)', async () => {
+    const r = roteiro({ ab_native_tests: [linha({ estado: 'sem_desfecho', vencedor_fonte: 'data_api', vencedor_titulo: 'Original' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    const res = await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })
+    expect(res).toEqual({ ok: true, conflito: { youtube: 'Original', dono: 'Nova' } })
+    const upd = r.chamadas[1]!.metodos.join(' ')
+    expect(upd).not.toContain('"estado"')
+    expect(upd).not.toContain('"vencedor_fonte"')
+    expect(upd).not.toContain('"vencedor_titulo"')
+  })
+
+  it('sem_desfecho/teste_novo: a resposta não troca desfecho_motivo (Phil C1) mas encerra e marca o dono', async () => {
+    const r = roteiro({ ab_native_tests: [linha({ estado: 'sem_desfecho', desfecho_motivo: 'teste_novo' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    expect(await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: true, conflito: null })
+    const upd = r.chamadas[1]!.metodos.join(' ')
+    expect(upd).not.toContain('desfecho_motivo')
+    expect(upd).toContain('"estado":"encerrado"')
+    expect(upd).toContain('"vencedor_fonte":"dono"')
+    expect(upd).toContain('"resposta_dono":"venceu_nova"')
+  })
+
+  it('grava o rastro de quem respondeu em audit_log (Phil m3); falha do audit não desfaz a resposta', async () => {
+    const r = roteiro({ ab_native_tests: [linha(), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [{ data: null, error: { message: 'queda' } }] })
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    expect(await responderDia14({ ...base, orgId: 'o1', sb: r.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: true, conflito: null })
+    log.mockRestore()
+    const a = r.chamadas.find((c) => c.alvo === 'audit_log')!
+    const m = a.metodos.join(' ')
+    expect(m).toContain('"action":"ab_native_respondido"')
+    expect(m).toContain('"actor_user_id":"u1"')
+    expect(m).toContain('"resposta_dono":"venceu_nova"')
+    expect(m).toContain('"estado_anterior":"em_andamento"')
   })
 })

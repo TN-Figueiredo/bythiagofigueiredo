@@ -177,6 +177,12 @@ describe('devido (§5.2)', () => {
     expect(r.devidos.find(d => d.videoId === vid(1))!.fechamentos.encerradoEm).toBe(iso(AGORA - 20 * HORA + 1))
     expect(r.devidos.find(d => d.videoId === vid(2))!.fechamentos.encerradoEm).toBe(iso(AGORA - 10 * MIN))
   })
+  it('teste_novo respondido depois pelo dono (estado encerrado) continua cortando em ultima_vista + 1 ms (Phil C1)', async () => {
+    const b = cenario({ 1: { ultimaRodadaHaMin: 5, ultimas: { okHaMin: 90 } } })
+    b.tabelas.ab_native_tests!.push({ id: 'n1', site_id: SITE, video_id: vid(1), youtube_video_id: yt(1), estado: 'encerrado', desfecho_motivo: 'teste_novo', ultima_vista: iso(AGORA - 20 * HORA), encerrado_em: iso(AGORA - 10 * MIN), descartado_em: null, created_at: iso(AGORA - 30 * HORA) })
+    const r = await devidosDe(b)
+    expect(r.devidos[0]!.fechamentos.encerradoEm).toBe(iso(AGORA - 20 * HORA + 1))
+  })
   it('fechamentos chegam ao candidato', async () => {
     const r = await devidosDe(cenario({ 1: { ultimaRodadaHaMin: 1, ultimas: { okHaMin: 20 }, fechado: { encerradoHaMin: 300 } } }))
     expect(r.devidos[0]!.fechamentos).toEqual({ encerradoEm: iso(AGORA - 300 * MIN), descartadoEm: null })

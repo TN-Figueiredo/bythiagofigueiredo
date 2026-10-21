@@ -81,6 +81,9 @@ export async function confirmarTesteNoStudio(p: Params): Promise<ResultadoConfir
     }
     const registroId = String(r.registro_id)
     const { data: reg, error: e2 } = await p.sb.from('ab_native_tests').select('id, video_id').eq('id', registroId).eq('site_id', p.siteId).maybeSingle()
+    if (e2 || !reg) {
+      Sentry.captureException(new Error(`ab_native_tests: ${e2?.message ?? 'registro iniciado não encontrado'}`), { tags: { area: 'ab-nativo' }, extra: { registroId } })
+    }
     if (e2 || !reg) return { ok: true, registroId, pausados: [], naoPausados: [], aviso: AVISO_PAUSA_NAO_CONCLUIDA }
     return pausarOsNossos(p, (reg as RegistroLido).video_id, registroId)
   }

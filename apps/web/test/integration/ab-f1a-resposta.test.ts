@@ -96,7 +96,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T11: resposta do dia 14 (banco)', (
   })
 
   it('detectado confirmado sem ficha, variantes_titulo [A,B]: n=2 grava o 2º título; n=1 grava o 1º', async () => {
-    const mk = () => confirmada({ origem: 'detectado', variantes: null, variantes_titulo: ['A', 'B'], primeira_vista: new Date().toISOString(), versao_regra: 1 })
+    const mk = () => confirmada({ origem: 'detectado', variantes: null, variantes_titulo: ['A', 'B'], primeira_vista: new Date(Date.now() - 3_600_000).toISOString(), versao_regra: 1 })
     const a = await mk()
     expect(await resp(a, 'venceu_nova', 2)).toEqual({ ok: true, conflito: null })
     expect(await linha(a.id)).toMatchObject({ vencedor_titulo: 'B', vencedor_fonte: 'dono', variante_vencedora: 2 })
@@ -129,6 +129,29 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T11: resposta do dia 14 (banco)', (
     const r = await resp(a, 'venceu_nova', 2)
     expect(r).toEqual({ ok: true, conflito: { youtube: 'Original', dono: 'Nova' } })
     expect(await linha(a.id)).toMatchObject({ resposta_dono: 'venceu_nova', variante_vencedora: 2, vencedor_titulo: 'Original', vencedor_fonte: 'data_api', estado: 'encerrado' })
+  })
+
+  it('sem_desfecho COM vencedor_fonte (data_api) e título: conflito, estado e veredito intactos (Phil m2, Yannis C1)', async () => {
+    const agora = new Date().toISOString()
+    const a = await confirmada({ estado: 'sem_desfecho', encerrado_em: agora, desfecho_estado: 'sem_dado', desfecho_motivo: 'oficial_nao_lido', vencedor_titulo: 'Original', vencedor_fonte: 'data_api', vencedor_visto_em: agora })
+    expect(await resp(a, 'venceu_nova', 2)).toEqual({ ok: true, conflito: { youtube: 'Original', dono: 'Nova' } })
+    expect(await linha(a.id)).toMatchObject({ estado: 'sem_desfecho', desfecho_estado: 'sem_dado', desfecho_motivo: 'oficial_nao_lido', resposta_dono: 'venceu_nova', variante_vencedora: 2, vencedor_titulo: 'Original', vencedor_fonte: 'data_api' })
+  })
+
+  it('resposta tardia em sem_desfecho/teste_novo: o desfecho_motivo fica (o registrador corta a janela por ele) (Phil C1)', async () => {
+    const T = new Date(Date.now() - 5 * 86_400_000)
+    const a = await confirmada({ origem: 'detectado', variantes: null, variantes_titulo: ['Original', 'Nova'], primeira_vista: new Date(T.getTime() - 3_600_000).toISOString(), ultima_vista: T.toISOString(), versao_regra: 1,
+      estado: 'sem_desfecho', desfecho_estado: 'sem_dado', desfecho_motivo: 'teste_novo', encerrado_em: new Date(T.getTime() + 2 * 3_600_000).toISOString() })
+    expect(await resp(a, 'venceu_nova', 2)).toEqual({ ok: true, conflito: null })
+    expect(await linha(a.id)).toMatchObject({ estado: 'encerrado', desfecho_motivo: 'teste_novo', resposta_dono: 'venceu_nova', vencedor_fonte: 'dono', vencedor_titulo: 'Nova' })
+  })
+
+  it('a resposta deixa rastro em audit_log (quem, resposta, estado anterior) (Phil m3)', async () => {
+    const a = await confirmada()
+    expect(await resp(a, 'ficou_igual')).toEqual({ ok: true, conflito: null })
+    const r = await pg.query(`select actor_user_id, site_id, after_data from public.audit_log where action = 'ab_native_respondido' and resource_id = $1`, [a.id])
+    expect(r.rows).toHaveLength(1)
+    expect(r.rows[0]).toMatchObject({ actor_user_id: ctx.userId, site_id: siteId, after_data: { registro_id: a.id, resposta_dono: 'ficou_igual', estado_anterior: 'em_andamento' } })
   })
 
   it('duas respostas seguidas: a 2ª devolve ja_respondido e a linha fica igual à da 1ª', async () => {
@@ -167,7 +190,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T11: resposta do dia 14 (banco)', (
 
   it('detectada não confirmada e linha de outro site não são respondíveis', async () => {
     const d = await clienteServico().from('ab_native_tests').insert({
-      ...base(), origem: 'detectado', estado: 'em_andamento', variantes_titulo: ['A', 'B'], primeira_vista: new Date().toISOString(), versao_regra: 1,
+      ...base(), origem: 'detectado', estado: 'em_andamento', variantes_titulo: ['A', 'B'], primeira_vista: new Date(Date.now() - 3_600_000).toISOString(), versao_regra: 1,
     }).select('id, updated_at').single()
     expect(await resp(d.data as { id: string; updated_at: string }, 'nao_vi')).toEqual({ ok: false, erro: 'nao_respondivel' })
     await pg.query('delete from public.ab_native_tests where video_id = $1', [videoId])

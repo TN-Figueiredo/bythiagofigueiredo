@@ -59,6 +59,17 @@ describe('lerFormatos', () => {
     expect(m.get('u3')).toEqual({ isShort: false, kids: false, adulto: null, aoVivo: null })
     expect(m.get('u4')).toEqual({ isShort: null, kids: false, adulto: null, aoVivo: null })
   })
+  it('1001 vídeos => o RPC vai em lotes de 500 (3 idas), nenhum id perdido (Phil m5)', async () => {
+    const videos = Array.from({ length: 1001 }, (_, i) => ({ id: `u${i}`, ytId: `yt${i}` }))
+    const tamanhos: number[] = []
+    const sb = {
+      rpc: (_n: string, a: { p_ids: string[] }) => { tamanhos.push(a.p_ids.length); return Promise.resolve({ data: a.p_ids.map((y) => ({ youtube_video_id: y, raw: null, is_short: false })), error: null }) },
+    } as unknown as SupabaseClient
+    const m = await lerFormatos(sb, 's1', videos)
+    expect(tamanhos).toEqual([500, 500, 1])
+    expect(m.size).toBe(1001)
+    expect(m.get('u1000')!.isShort).toBe(false)
+  })
   it('todos com is_short conhecido: uma ida só (sem consulta de duração)', async () => {
     const videos = [{ id: 'u1', ytId: 'a' }, { id: 'u2', ytId: 'b' }]
     const { sb, idas } = falso(videos.map((v) => ({ youtube_video_id: v.ytId, raw: null, is_short: false })), [])
