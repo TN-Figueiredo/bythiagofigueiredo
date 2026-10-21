@@ -121,7 +121,7 @@ export function conferenciasE6P2(deploy: string | null): Conferencia[] {
 // `null` até o controlador preenchê-las no commit do dia (Tarefas 13, 14 e 15). Enquanto for `null`, as entradas NÃO existem (nada vence,
 // nada deixa o cron vermelho). Os ids não colidem com os de `e6-p3-` nem com `e8-`.
 /** Dia de São Paulo (AAAA-MM-DD) em que o código da cobertura de metadados foi promovido a `main` (a MG17a já estava aplicada). `null` = ainda não. */
-export const E18P2_COBERTURA_DEPLOY: string | null = null
+export const E18P2_COBERTURA_DEPLOY: string | null = '2026-10-16'
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG16 (soltar o backup do diário). `null` = ainda não aplicada. */
 export const E6_P4_APLICADA: string | null = null
 /** Dia de São Paulo (AAAA-MM-DD) em que o dono aplicou a MG17 (a dieta de yt_own_video_meta_daily). `null` = ainda não aplicada. */
@@ -135,10 +135,12 @@ export function conferenciasE18P2Cobertura(deploy: string | null): Conferencia[]
   if (!dataReal(deploy)) {
     return [{ id: 'e18p2-cob-deploy-invalido', etapa: 'E18', data: '1970-01-01', responsavel: 'agente', onde: `E18P2_COBERTURA_DEPLOY (apps/web/src/lib/conferencias.ts) está malformada: "${deploy}". Corrigir para AAAA-MM-DD (dia de São Paulo da promoção do código a main) ou null`, feitaEm: null }]
   }
-  const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e18p2-cob-${id}`, etapa: 'E18', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e18p2/progress.md: ${onde}`, feitaEm: null })
+  // `feitaEm` só vale para a promoção REAL (16/10/2026): d0 e d1 conferidas em 21/10 pelas execuções de 17 e 18/10 (cobertura ok = canais = 1, descobertas 0,
+  // cobertos_sem_linha 0, metadados 15,0 e 16,1 s); d7 e d14 ficam por fazer (houve a nota `metadados:` de 20/10).
+  const e = (id: string, mais: number, onde: string, feitaEm: string | null = null): Conferencia => ({ id: `e18p2-cob-${id}`, etapa: 'E18', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_P4} (seção 7 e seção 11); anotar o resultado em .superpowers/sdd/a5-e18p2/progress.md: ${onde}`, feitaEm: deploy === '2026-10-16' ? feitaEm : null })
   return [
-    e('d0', 0, 'D: VA1 a VA4 no ledger; `resumo.metadados.cobertura` da primeira execução com `ok` = `canais` e `descobertas` 0'),
-    e('d1', 1, 'D + 1: segunda execução igual; `ms_passos.metadados` sem salto (anotar); `resumo.versoes.cobertos_sem_linha` 0'),
+    e('d0', 0, 'D: VA1 a VA4 no ledger; `resumo.metadados.cobertura` da primeira execução com `ok` = `canais` e `descobertas` 0', '2026-10-21'),
+    e('d1', 1, 'D + 1: segunda execução igual; `ms_passos.metadados` sem salto (anotar); `resumo.versoes.cobertos_sem_linha` 0', '2026-10-21'),
     e('d7', 7, 'D + 7: CP13 em 0; K1 em 0; nenhuma nota `metadados:` nova'),
     e('d14', 14, 'D + 14: CP14: é o gatilho do portão D (junto do D + 14 do plano E18)'),
   ]
