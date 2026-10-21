@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lista de sugestões (mockup M3 r1)</title>
+<style>
+/* Mockup M3 r1 (21/10/2026). Mesma família do S7 r3, M1 e M2: tokens, selos, faixas e escala 4/8/12/16/24/32 copiados do M2 r2.
+   Novo só: --lado-n (chip de origem do nicho) e a régua.  Só hex/rgba literais; nenhum color-mix(). Texto >= 12 px. Dados SINTÉTICOS. */
+*,*::before,*::after{box-sizing:border-box}
+:root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
+html{background:var(--pg)}
+body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--pgt);background:var(--pg)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;background:var(--pgs);border-bottom:1px solid var(--pgb)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--pgm);flex-wrap:wrap;min-width:0;max-width:100%}
+#selE{width:min(420px,calc(100vw - 90px))}
+.grp select{min-width:0;font:inherit;font-size:13px;min-height:34px;max-width:min(420px,100%);padding:0 8px;border:1px solid #40382D;border-radius:6px;background:#16130F;color:var(--pgt)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #40382D;border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:34px;padding:0 12px;border:0;background:transparent;color:var(--pgm);cursor:pointer}
+.seg button[aria-pressed="true"]{background:#F5EFE6;color:#100E0C;font-weight:600}
+.ctl :focus-visible{outline:2px solid #FF8240;outline-offset:2px}
+.wrap{max-width:1520px;margin:0 auto;padding:16px 16px 80px}
+.expl{max-width:96ch;color:var(--pgm);font-size:13px;margin:0 0 16px}
+.expl b{color:var(--pgt);font-weight:600}
+.stage{overflow-x:auto;max-width:100%}
+@media (max-width:440px){.wrap{padding:12px 0 80px}.expl{padding:0 16px}.frame.w390{border-radius:0;border-left:0;border-right:0}}
+
+.frame{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;--btn-line:#7D7260;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--on-accent:#1A120A;--nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;--nm-fio:rgba(229,156,192,.14);
+  --warn:#F5B13D;--warn-bg:rgba(245,158,11,.10);--warn-line:#C98A1B;
+  --ok:#6FCF97;--ok-bg:rgba(111,207,151,.10);--ok-line:#3E8F63;
+  --yt:#9FB4C9;--yt-bg:rgba(159,180,201,.08);--yt-line:#6B8199;--yt-solid:rgba(159,180,201,.16);
+  --err:#F4A097;--err-line:#B85A50;
+  --va:#FF8240;--vb:#6FA8DC;--vc:#B79CF2;
+  --skel:#2E2822;--ln:#D9C08F;--ln-line:#8C7748;--ln-bg:rgba(217,192,143,.08);
+  background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;border:1px solid var(--border);border-radius:10px;padding:24px;font-size:14px;position:relative}
+.frame[data-theme="light"]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;--btn-line:#8A7C62;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--on-accent:#FFF8F1;--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--nm-fio:rgba(142,42,98,.10);
+  --warn:#7A4F00;--warn-bg:rgba(138,90,0,.09);--warn-line:#8A5A00;
+  --ok:#1E6B43;--ok-bg:rgba(30,107,67,.09);--ok-line:#3E8F63;
+  --yt:#34506B;--yt-bg:rgba(52,80,107,.07);--yt-line:#6B8199;--yt-solid:rgba(52,80,107,.09);
+  --err:#9E2A1E;--err-line:#B85A50;
+  --va:#B8481A;--vb:#2B6DA8;--vc:#6B4BB8;
+  --skel:#E7DECF;--ln:#6B5320;--ln-line:#9C8452;--ln-bg:rgba(107,83,32,.07);color-scheme:light}
+.frame.w1440{width:1440px}.frame.w390{width:390px;padding:16px 12px}
+.frame :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+:where(.frame) :is(h1,h2,h3,h4,p,ol,ul){margin:0}
+.num{font-variant-numeric:tabular-nums}
+.meta{font-size:12.5px;color:var(--muted)}
+.nm{display:inline-block;padding:1px 7px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);font:400 12px/16px Inter,system-ui,sans-serif;background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 12px;border:1px solid var(--btn-line);border-radius:6px;background:var(--surface-2);color:var(--text);font:500 13px/18px Inter,system-ui,sans-serif;cursor:pointer;text-align:center}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.ghost{background:transparent}
+.btn[aria-expanded="true"]:not(.pri){border:2px solid var(--text);background:var(--surface-2);font-weight:600}
+.btn[disabled]{color:var(--muted);border-style:dashed;cursor:not-allowed;background:transparent}
+.lnk{font:inherit;font-size:13.5px;color:var(--yt);background:none;border:0;padding:0 2px;min-height:24px;text-decoration:underline;cursor:pointer;text-align:left}
+@container (max-width:640px){.btn{min-height:44px}.lnk{min-height:44px}}
+
+/* página */
+.pg-crumb{font-size:12.5px;color:var(--muted)}
+.pg-h{font:600 24px/1.25 Georgia,serif;margin-top:4px}
+.sum{margin:16px 0 0;font:600 21px/1.35 Georgia,serif;max-width:72ch;text-wrap:balance}
+.sum small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:4px}
+@container (max-width:640px){.pg-h{font-size:20px}.sum{font-size:18px}}
+.col{max-width:1040px}
+.list{max-width:1120px}
+
+/* miniaturas sintéticas */
+.th{display:grid;place-items:center;border-radius:5px;color:rgba(255,255,255,.92);font:600 16px/1 Georgia,serif;flex:none;aspect-ratio:16/9;width:96px}
+.tA{background:linear-gradient(135deg,#C2562E,#E8A15A 60%,#F3D19A)}
+.tB{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+.tC{background:linear-gradient(135deg,#3E2A78,#7A5BC9 60%,#C9B6F2)}
+.tD{background:linear-gradient(135deg,#5A3B1E,#A7743F 60%,#E3C08E)}
+.tE{background:linear-gradient(135deg,#24423A,#4E8C78 60%,#A9D8C4)}
+.tF{background:linear-gradient(135deg,#4A2430,#9C4A5E 60%,#E3A7B5)}
+.th.short{aspect-ratio:9/16;width:51px}
+.th.fail{background:repeating-linear-gradient(135deg,var(--surface-2) 0 8px,var(--sunk) 8px 12px);border:1px dashed var(--err-line);color:var(--err);font:500 12px/1.3 Inter,system-ui,sans-serif;text-align:center;padding:6px}
+
+/* selos: forma + símbolo + palavra, nunca só cor (S7 r3) */
+.selo{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);white-space:nowrap;color:var(--text)}
+.selo svg{flex:none}
+.selo.lab{border-color:var(--accent);color:var(--accent)}
+.selo.yt{border:1px dashed var(--yt-line);color:var(--yt);background:var(--yt-bg)}
+.selo.yts{border:1px solid var(--yt-line);color:var(--yt);background:var(--yt-solid)}
+.selo.warn{border-color:var(--warn-line);color:var(--warn);background:var(--warn-bg)}
+.selo.ok{border-color:var(--ok-line);color:var(--ok);background:var(--ok-bg)}
+.selo.unk{border:1px solid var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.selo.dim{border-color:var(--border-strong);color:var(--dim)}
+.selo.mute{border-color:var(--border-strong);color:var(--muted);font-weight:500}
+
+/* faixas (S7 r3) */
+.band{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface)}
+.band .ic{flex:none;margin-top:2px}
+.band h3{font:600 14.5px/1.35 Inter,system-ui,sans-serif}
+.band p{font-size:13.5px;color:var(--muted);margin-top:2px;max-width:78ch}
+.band .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.band.warn{border-color:var(--warn-line);background:var(--warn-bg);border-left-width:4px}
+.band.warn .ic{color:var(--warn)}
+.band.yt{border:1px dashed var(--yt-line);background:var(--yt-bg)}
+.band.yt .ic{color:var(--yt)}
+.band.ok{border-color:var(--ok-line);background:var(--ok-bg);border-left-width:4px}
+.band.ok .ic{color:var(--ok)}
+.band.lab{border-color:var(--accent);border-left-width:4px}
+.band.lab .ic{color:var(--accent)}
+.band.err{border-color:var(--err-line);border-left-width:4px}
+.band.err .ic,.band.err h3{color:var(--err)}
+.band>div{min-width:0;flex:1}
+.ask{margin-top:12px;padding:12px;border:1px solid var(--warn-line);border-radius:8px;background:var(--warn-bg)}
+.ask p{color:var(--text);font-size:13.5px}
+.ask .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.errl{display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:13.5px;color:var(--err)}
+.errl svg{flex:none;margin-top:3px}
+.errl span{color:var(--text)}
+.errl b{color:var(--err)}
+
+/* ---------- M3: lista de sugestões ---------- */
+.hide{display:none!important}
+.col{max-width:880px}
+.phd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px 24px;flex-wrap:wrap}
+.phd h1{display:flex;align-items:baseline;gap:10px;font:600 24px/1.25 Georgia,serif;margin-top:4px}
+.cnt{display:inline-grid;place-items:center;min-width:3ch;padding:0 8px;height:26px;border:1px solid var(--btn-line);border-radius:999px;font:600 14px/1 Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums;color:var(--text)}
+.fresh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.ib{display:inline-grid;place-items:center;width:28px;height:28px;border:1px solid var(--border-strong);border-radius:50%;background:transparent;color:var(--muted);font:600 12.5px/1 Georgia,serif;cursor:pointer;flex:none}
+@container (max-width:640px){.ib{width:44px;height:44px}.phd h1{font-size:20px}}
+.col>.band{margin-top:16px}
+/* filtro (só com N > 8) */
+.flt{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.flt button{font:500 13px/18px Inter,system-ui,sans-serif;min-height:36px;padding:0 12px;border:1px solid var(--btn-line);border-radius:999px;background:transparent;color:var(--text);cursor:pointer;font-variant-numeric:tabular-nums}
+.flt button[aria-pressed="true"]{background:var(--surface-2);box-shadow:inset 0 0 0 2px var(--text);font-weight:600}
+@container (max-width:640px){.flt button{min-height:44px;flex:1 1 auto}}
+/* lista */
+.sl{margin-top:16px;border:1px solid var(--border);border-radius:10px;background:var(--surface);overflow:hidden}
+.srow{display:grid;grid-template-columns:96px minmax(0,1fr) 248px;gap:16px;padding:16px;border-bottom:1px solid var(--border-subtle);min-height:96px;align-items:start}
+.srow:last-child{border-bottom:0}
+.srow.noth{grid-template-columns:minmax(0,1fr) 248px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;border:1px solid var(--ln-line);background:var(--ln-bg);color:var(--ln);font:600 12px/18px Inter,system-ui,sans-serif;white-space:nowrap}
+.chip svg{flex:none}
+.top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.srow h4{font:600 15px/1.4 Inter,system-ui,sans-serif;margin-top:8px;overflow-wrap:anywhere}
+.srow h4 button{all:unset;cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@container (max-width:640px){.srow h4 button{min-height:44px}}
+.srow h4 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pux{font-size:13px;color:var(--muted);margin-top:4px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.pux q{quotes:"“" "”";color:var(--text)}
+.rg{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.rg svg{flex:none;display:block}
+.rg .v{font-size:13.5px;color:var(--muted)}
+.rg .v b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.alv{display:flex;gap:8px;align-items:flex-start;margin-top:8px;font-size:13.5px;color:var(--muted);max-width:70ch}
+.alv svg{flex:none;margin-top:3px}
+.alv b{color:var(--text);font-weight:600}
+.ra{display:flex;flex-direction:column;align-items:stretch;gap:24px}
+.ra .btn{width:100%}
+.ra .more{display:none}
+.dsp{grid-column:1 / -1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--sunk)}
+.dsp p{font:600 13.5px/1.35 Inter,system-ui,sans-serif;margin-right:4px}
+.dsp .sep{width:1px;align-self:stretch;background:var(--border-strong);margin:0 4px}
+.dsp .lnk{margin-left:auto}
+.info{grid-column:1 / -1;padding:12px 16px;border:1px solid var(--border-strong);border-radius:8px;background:var(--sunk);font-size:13.5px;color:var(--muted)}
+.info h5{font:600 13.5px/1.35 Inter,system-ui,sans-serif;color:var(--text)}
+.info dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 16px;margin:8px 0 0}
+.info dt{color:var(--muted)}.info dd{margin:0;color:var(--text);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.done{display:flex;gap:10px;align-items:center;min-height:44px;padding:8px 16px;border-bottom:1px solid var(--border-subtle);border-left:4px solid var(--ok-line);background:var(--ok-bg);font-size:13.5px}
+.done svg{color:var(--ok);flex:none}
+.done b{font-weight:600}
+.srow .errl{grid-column:1 / -1;margin-top:0;align-items:center;flex-wrap:wrap}
+.vmore{display:flex;justify-content:center;padding:12px;border-top:1px solid var(--border-subtle)}
+.sk-row{display:grid;grid-template-columns:96px minmax(0,1fr) 248px;gap:16px;padding:16px;border-bottom:1px solid var(--border-subtle);min-height:132px}
+/* vazio: um contêiner */
+.vz{display:flex;gap:16px;align-items:flex-start;margin-top:16px;padding:24px;min-height:160px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.vz .vic{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;border:1px solid var(--border-strong);color:var(--dim)}
+.vz.ok .vic{color:var(--ok);border-color:var(--ok-line)}
+.vz.prob{border-color:var(--warn-line);border-left-width:4px;background:var(--warn-bg)}
+.vz.prob .vic{color:var(--warn);border-color:var(--warn-line)}
+.vz>div{min-width:0}
+.vz h3{font:600 16px/1.4 Inter,system-ui,sans-serif}
+.vz p{font-size:13.5px;color:var(--muted);margin-top:6px;max-width:68ch}
+.vz p b{color:var(--text);font-variant-numeric:tabular-nums}
+.vz .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+/* contexto: A/B Lab e Competidores */
+.ctxh{font:600 17px/1.35 Georgia,serif;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.blkc{margin-top:24px;border:1px solid var(--border);border-radius:10px;background:var(--bg);padding:16px}
+.blkc .sl{margin-top:12px}
+.blkc>.meta{margin-top:4px}
+.cand{display:grid;grid-template-columns:24px 96px minmax(0,1fr);gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border-subtle)}
+.cand:last-of-type{border-bottom:0}
+.cand input{width:20px;height:20px;accent-color:var(--text)}
+.cand b{font:600 13.5px/1.35 Inter,system-ui,sans-serif;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mockbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 16px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.mockbar .meta{flex:1 1 200px}
+.sbtn{position:relative}
+.sbtn .cnt{height:22px;font-size:12.5px;border-color:var(--btn-line)}
+.sbtn .w{color:var(--warn);display:inline-flex}
+.gridc{display:grid;gap:12px;margin-top:16px}
+.gridc .meta{margin-bottom:4px}
+@container (max-width:640px){
+ .srow,.srow.noth{grid-template-columns:minmax(0,1fr);gap:0;padding:12px;min-height:0}
+ .srow .th,.srow .pux,.srow .alv.desk{display:none}
+ .srow.open .pux,.srow.open .alv.desk{display:-webkit-box;display:flex}
+ .srow.open .pux{display:-webkit-box}
+ .srow.open h4 button{-webkit-line-clamp:unset;display:block}
+ .ra{flex-direction:row;gap:24px;margin-top:12px}
+ .ra .btn.pri,.ra .btn.ol{flex:1}
+ .ra .dis{display:none}
+ .ra .more{display:inline-flex;width:44px;min-width:44px;flex:none;padding:0}
+ .dsp{margin-top:12px}
+ .dsp .btn{flex:1 1 140px}
+ .dsp .sep{display:none}
+ .dsp .lnk{margin-left:0}
+ .dsp p{flex:1 1 100%}
+ .rg .v{display:none}
+ .rg{margin-top:8px}
+ .phd{align-items:center}
+ .info{margin-top:12px}
+ .info dl{grid-template-columns:minmax(0,1fr)}
+ .info dd{margin-bottom:6px}
+ .sk-row{grid-template-columns:minmax(0,1fr);min-height:196px;padding:12px}
+ .sk-row .skth,.sk-row .skra{display:none}
+ .vz{padding:16px;gap:12px}
+ .vz .acts .btn{flex:1 1 160px}
+ .cand{grid-template-columns:24px minmax(0,1fr)}.cand .th{display:none}
+ .blkc{padding:12px}
+}
+.srow .top .vm{display:none}
+@container (max-width:640px){.srow .top .vm{display:inline;font:600 13px/18px Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums;margin-left:auto}}
+</style></head><body>
+<div class="ctl" role="group" aria-label="Controles do mockup">
+ <div class="grp"><label for="selE">Estado</label><select id="selE"></select></div>
+ <div class="grp">Tema <div class="seg" id="sTema" role="group" aria-label="Tema"><button data-v="dark">Escuro</button><button data-v="light">Claro</button></div></div>
+ <div class="grp">Largura <div class="seg" id="sLarg" role="group" aria-label="Largura do quadro"><button data-v="1440">1440</button><button data-v="390">390</button></div></div>
+</div>
+<div class="wrap">
+ <p class="expl" id="expl" aria-live="polite"></p>
+ <div class="stage"><div class="frame w1440" id="fr" data-theme="dark"></div></div>
+</div>
+<script>
+const I={
+ ok:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ warn:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1.8l5.6 10H1.4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 5.6v3M7 10.2v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ ext:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8 2h4v4M12 2L6.5 7.5M10.5 8.5V12H2V3.5h3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ bell:'<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 11V7a4 4 0 018 0v4l1.2 1.5H2.8zM6.5 14a1.6 1.6 0 003 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+ late:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3.5 1.5h7M3.5 12.5h7M4 1.5c0 3 3 3.5 3 5.5S4 10.5 4 12.5M10 1.5c0 3-3 3.5-3 5.5s3 3.5 3 5.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+ pin:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.5 13s-4-4.2-4-7.2a4 4 0 018 0c0 3-4 7.2-4 7.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><circle cx="5.5" cy="5.8" r="1.4" fill="currentColor"/><path d="M9.5 4.5l3-3M10 1.5h2.5V4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ flame:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 13c-2.6 0-4.3-1.8-4.3-4.2 0-2.6 2.2-3.8 2.6-6.3 1.6.9 2.4 2.4 2.3 3.9.6-.4 1-1.1 1.1-1.9 1.4 1.1 2.6 2.6 2.6 4.4C11.3 11.2 9.6 13 7 13z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+ dots:'<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="4" cy="9" r="1.6" fill="currentColor"/><circle cx="9" cy="9" r="1.6" fill="currentColor"/><circle cx="14" cy="9" r="1.6" fill="currentColor"/></svg>',
+ calm:'<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+ wait:'<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 5v4.2l2.8 1.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ q:'<svg width="18" height="18" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.3 5.5c0-1 .8-1.6 1.7-1.6s1.7.6 1.7 1.5c0 1.2-1.7 1.2-1.7 2.4M7 10v.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+ vid:'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1.5" y="3" width="11" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M6 5.5v3l2.6-1.5z" fill="currentColor"/></svg>'
+};
+I.ok18=I.ok.replace(/width="14" height="14"/,'width="18" height="18"');
+I.warn18=I.warn.replace(/width="14" height="14"/,'width="18" height="18"');
+
+/* regra: constantes lidas de REGRA_SINAIS no produto (aqui sintéticas) */
+const R={lim:5,nMin:8,piso:'2.000',hora:'07:00',calc:'07:02'};
+const f1=n=>n.toFixed(1).replace('.',',');
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+/* ---------- dados sintéticos ---------- */
+const BASE=[
+ {id:'s1',kind:'destino',lugar:'Vietnã',acao:'video_novo',mult:8.4,pts:[8.4,6.1,5.3],nv:3,nc:2,prop:0,th:'tE',titulo:'48 horas em Hanói gastando pouco',canal:'Mochila Barata',surgiu:'18/10',vence:'17/11'},
+ {id:'s2',kind:'destino',lugar:'Japão',acao:'titulo_descricao',mult:6.1,pts:[6.1,3.4],nv:2,nc:2,prop:2,th:'tA',titulo:'Quanto custa 15 dias no Japão em 2026',canal:'Rota Leve',surgiu:'20/10',vence:'19/11'},
+ {id:'s3',kind:'parecido',lugar:'Lisboa',acao:'titulo_descricao',mult:5.2,pts:[5.2],nv:1,nc:1,prop:1,th:'tB',titulo:'Lisboa a pé: o roteiro que ninguém faz',canal:'Diário de Bordo',ven:2,fnc:true,mesmo:true,surgiu:'21/09',vence:'23/10'}
+];
+const LONGO=[
+ {id:'l1',kind:'destino',lugar:'São Tomé e Príncipe',acao:'titulo_descricao',mult:48.3,pts:[48.3,12.0,9.7,7.7,6.2,5.9,5.1],nv:7,nc:5,prop:3,th:'fail',titulo:'🌴 Fui pra São Tomé e Príncipe com R$ 3.000 e isso aconteceu (o país mais vazio da África), parte 2',canal:'Viajando Barato pelo Mundo com a Família Ferreira',surgiu:'19/10',vence:'18/11'},
+ {id:'l2',kind:'parecido',lugar:'Bósnia e Herzegovina',acao:'titulo_descricao',mult:11.6,pts:[11.6],nv:1,nc:1,prop:3,th:'tF',titulo:'Sarajevo e Mostar em 4 dias: o roteiro completo, com custos, ônibus, hostels e onde comer 🇧🇦',canal:'Do Outro Lado do Mapa',mesmo:false,surgiu:'21/10',vence:'20/11'}
+];
+const LUG=['Vietnã','Japão','Peru','Marrocos','Colômbia','Tailândia','Chile','Índia','Grécia','Egito','Bolívia','Turquia','Indonésia','Argentina','Croácia','Jordânia','Islândia','México','Nepal','Uruguai','Albânia','Camboja','Geórgia','Filipinas','Laos','Equador','Quênia','Escócia'];
+const PAR=['Lisboa','Paris','Cusco','Bangkok','Roma','Istambul','Atacama','Medellín','Hanói','Petra','Kyoto','Cartagena'];
+const THS=['tA','tB','tC','tD','tE','tF'];
+function quarenta(){const a=[];let k=0;
+ LUG.forEach((l,i)=>a.push({id:'q'+(k++),kind:'destino',lugar:l,acao:i%3===0?'video_novo':(i%7===3?'playlist':'titulo_descricao'),mult:+(14.8-i*0.33).toFixed(1),pts:[14.8-i*0.33,4.2],nv:2+(i%4),nc:2+(i%3),prop:i%3===0?0:1+(i%4),th:THS[i%6],titulo:'Roteiro de 10 dias em '+l+' gastando pouco',canal:['Mochila Barata','Rota Leve','Diário de Bordo','Mundo a Pé'][i%4],ven:i===26?1:null,surgiu:'1'+(i%9)+'/10',vence:'1'+(i%9)+'/11'}));
+ PAR.forEach((l,i)=>a.push({id:'q'+(k++),kind:'parecido',lugar:l,acao:'titulo_descricao',mult:+(13.9-i*0.7).toFixed(1),pts:[13.9-i*0.7],nv:1,nc:1,prop:1+(i%3),th:THS[(i+2)%6],titulo:l+' em 3 dias: o que eu faria diferente',canal:['Mundo a Pé','Rota Leve'][i%2],mesmo:i%2===0,fnc:i===4,surgiu:'2'+(i%2)+'/10',vence:'2'+(i%2)+'/11'}));
+ return a.sort((x,y)=>y.mult-x.mult)}
+const Q40=quarenta();
+const SEMPROP=[
+ {id:'p1',kind:'destino',lugar:'Vietnã',acao:'video_novo',mult:8.4,pts:[8.4,6.1,5.3],nv:3,nc:2,prop:0,semCanal:true,th:'tE',titulo:'48 horas em Hanói gastando pouco',canal:'Mochila Barata',surgiu:'18/10',vence:'17/11'},
+ {id:'p2',kind:'destino',lugar:'Peru',acao:'video_novo',mult:5.6,pts:[5.6,4.0],nv:2,nc:2,prop:0,semCanal:true,th:'tD',titulo:'Machu Picchu sem agência: passo a passo',canal:'Rota Leve',surgiu:'20/10',vence:'19/11'}
+];
+
+/* ---------- peças ---------- */
+const MOT={destino:[['lugar_errado','Lugar errado'],['nao_interessa','Não me interessa']],parecido:[['nao_e_parecido','Não é parecido'],['nao_interessa','Não me interessa']]};
+const MLAB={lugar_errado:'lugar errado',nao_interessa:'não me interessa',nao_e_parecido:'não é parecido',ja_fiz:'já fiz'};
+const PRI={video_novo:['Abrir o vídeo do concorrente',I.ext],titulo_descricao:['Abrir seus vídeos',''],playlist:['Abrir suas playlists','']};
+function chip(k){return k==='destino'?'<span class="chip">'+I.pin+'Destino esquentou</span>':'<span class="chip">'+I.flame+'Concorrente bombou</span>'}
+function regua(m){
+ const x0=8,x1=152,lx=v=>x0+Math.log(Math.min(Math.max(v,1),20))/Math.log(20)*(x1-x0),t=lx(R.lim),x=lx(m),over=m>20;
+ const mk=over?'<path d="M'+(x1-7)+' 3l9 7-9 7z" style="fill:var(--text)"/>':'<circle cx="'+x.toFixed(1)+'" cy="10" r="6" style="fill:var(--text);stroke:var(--surface);stroke-width:2"/>';
+ return '<svg width="160" height="34" viewBox="0 0 160 34" role="img" aria-label="'+f1(m)+' vezes o normal do canal; o limiar da regra é '+R.lim+' vezes">'+
+  '<line x1="'+x0+'" y1="10" x2="'+x1+'" y2="10" style="stroke:var(--border-strong);stroke-width:4;stroke-linecap:round"/>'+
+  '<line x1="'+t.toFixed(1)+'" y1="2" x2="'+t.toFixed(1)+'" y2="18" style="stroke:var(--muted);stroke-width:2"/>'+mk+
+  '<text x="'+x0+'" y="31" style="fill:var(--muted);font:400 12px Inter,system-ui,sans-serif" text-anchor="start">1×</text>'+
+  '<text x="'+t.toFixed(1)+'" y="31" style="fill:var(--muted);font:400 12px Inter,system-ui,sans-serif" text-anchor="middle">'+R.lim+'×</text>'+
+  '<text x="'+x1+'" y="31" style="fill:var(--muted);font:400 12px Inter,system-ui,sans-serif" text-anchor="end">20×'+(over?'+':'')+'</text></svg>'}
+function h4txt(it){
+ if(it.kind==='destino')return it.nv===1?'Um vídeo sobre '+esc(it.lugar)+' passou de '+R.lim+'× o normal do canal':it.nv+' vídeos sobre '+esc(it.lugar)+', de '+it.nc+' canais, passaram do normal nos últimos 14 dias';
+ return 'Um vídeo de tema parecido com um seu passou do normal'+(it.mesmo?', no mesmo lugar ('+esc(it.lugar)+')':' (lugar diferente: '+esc(it.lugar)+')')}
+function alvos(it,o){
+ if(o.alvNm)return '<p class="alv desk">'+I.vid+'<span><span class="nm">não medido</span> Não temos como confirmar quantos vídeos seus citam '+esc(it.lugar)+'.</span></p>';
+ if(it.kind==='parecido')return '<p class="alv desk">'+I.vid+'<span>Parecido com <b class="num">'+it.prop+'</b> '+(it.prop===1?'vídeo seu':'vídeos seus')+(it.fnc?' <span class="nm">formato não confirmado</span>':'')+' (cálculo de hoje, '+R.calc+').</span></p>';
+ if(it.semCanal)return '<p class="alv desk">'+I.vid+'<span>Seu canal não tinha vídeo no cálculo de hoje ('+R.calc+').</span></p>';
+ if(it.prop===0)return '<p class="alv desk">'+I.vid+'<span>Nenhum vídeo seu cita '+esc(it.lugar)+' (cálculo de hoje, '+R.calc+').</span></p>';
+ return '<p class="alv desk">'+I.vid+'<span>Seus vídeos sobre '+esc(it.lugar)+': <b class="num">'+it.prop+'</b> no cálculo de hoje ('+R.calc+').</span></p>'}
+function row(it,i,o){
+ o=o||{};const done=S.done[it.id];
+ if(done)return '<div class="done" role="status">'+I.ok+'<span>'+(done==='ja_fiz'?'<b>Marcada como já feita.</b> Não volta nos próximos 30 dias.':'<b>Dispensada: '+MLAB[done]+'.</b> Não volta nos próximos 30 dias.')+'</span></div>';
+ const pri=PRI[it.acao],first=i===0&&!o.noPri,open=S.open===it.id,exp=S.exp===it.id,info=S.info===it.id;
+ const th=o.noth?'':(it.th==='fail'?'<div class="th fail">Miniatura indisponível</div>':'<div class="th '+it.th+'" aria-hidden="true">'+esc(it.lugar.slice(0,2))+'</div>');
+ const ven=it.ven&&it.ven<=3?'<span class="selo mute">'+I.late+'vence em '+it.ven+(it.ven===1?' dia':' dias')+'</span>':'';
+ let h='<div class="srow'+(o.noth?' noth':'')+(exp?' open':'')+'" tabindex="-1" data-row="'+it.id+'">'+th+'<div>'+
+  '<div class="top">'+chip(it.kind)+ven+'<span class="vm">'+f1(it.mult)+'×</span></div>'+
+  '<h4><button data-exp="'+it.id+'" aria-expanded="'+exp+'">'+h4txt(it)+'</button></h4>'+
+  (o.noTit?'':'<p class="pux">Puxado por <q>'+esc(it.titulo)+'</q>, de '+esc(it.canal)+'</p>')+
+  '<div class="rg">'+regua(it.mult)+'<span class="v"><b>'+f1(it.mult)+'×</b> o normal do canal'+(it.nv>1?', o mais alto de '+it.nv:'')+'</span><button class="ib" data-info="'+it.id+'" aria-expanded="'+info+'" aria-label="Como esta sugestão foi calculada">i</button></div>'+
+  alvos(it,o)+'</div>'+
+  '<div class="ra"><button class="btn '+(first?'pri':'ol')+'" data-k="p-'+it.id+'">'+pri[1]+pri[0]+'</button>'+
+  '<button class="btn ghost dis" data-dis="'+it.id+'" aria-expanded="'+open+'">Dispensar</button>'+
+  '<button class="btn ghost more" data-dis="'+it.id+'" aria-expanded="'+open+'" aria-label="Dispensar: escolher motivo">'+I.dots+'</button></div>';
+ if(info)h+='<div class="info"><h5>Como esta sugestão foi calculada</h5><dl>'+
+  '<dt>Vídeos que puxaram</dt><dd>'+it.pts.map(p=>f1(p)+'×').join(', ').replace(/, ([^,]*)$/,' e $1')+'</dd>'+
+  '<dt>Medida</dt><dd>views por dia na 1ª semana ÷ mediana do canal no mesmo formato</dd>'+
+  '<dt>Limiar</dt><dd>'+R.lim+'× (regra sinais-v1, provisória)</dd>'+
+  '<dt>Surgiu</dt><dd>'+it.surgiu+'; vence em '+it.vence+'</dd>'+
+  '<dt>Leitura</dt><dd>Pode ajudar. É associação, não causa.</dd></dl></div>';
+ if(open)h+='<div class="dsp" role="group" aria-label="Motivo para dispensar"><p>Por que dispensar?</p>'+
+  MOT[it.kind].map(m=>'<button class="btn" data-mot="'+m[0]+'" data-id="'+it.id+'">'+m[1]+'</button>').join('')+
+  '<span class="sep" aria-hidden="true"></span><button class="btn" data-mot="ja_fiz" data-id="'+it.id+'">Já fiz</button>'+
+  '<button class="lnk" data-cancel="'+it.id+'">Cancelar</button></div>';
+ if(o.erroId===it.id)h+='<p class="errl" role="alert">'+I.warn+'<span><b>Não salvou:</b> sem conexão. A sugestão continua aberta.</span><button class="btn" data-retry="1">Tentar de novo</button></p>';
+ return h+'</div>'}
+function resumo(items){
+ const n=items.length,d=items.filter(x=>x.kind==='destino'),p=n-d.length,nm=d.map(x=>x.lugar);
+ const ln=d.length===0?'':d.length===1?' ('+esc(nm[0])+')':d.length===2?' ('+esc(nm[0])+' e '+esc(nm[1])+')':' ('+esc(nm[0])+', '+esc(nm[1])+' e +'+(d.length-2)+')';
+ const parts=[];if(d.length)parts.push(d.length+(d.length===1?' destino':' destinos')+ln);if(p)parts.push(p+(p===1?' concorrente':' concorrentes'));
+ return n+(n===1?' sugestão: ':' sugestões: ')+parts.join(', ')+'.'}
+function head(o){
+ const fr=o.fresh!==undefined?o.fresh:'Calculado hoje às '+R.calc;
+ return '<p class="pg-crumb">YouTube › Competidores</p><div class="phd"><h1>Sugestões <span class="cnt" aria-label="'+o.n+' sugestões">'+o.n+'</span></h1>'+
+  '<div class="fresh">'+(o.velho?'<span class="selo warn">'+I.warn+'Dados velhos</span>':'')+'<span>'+fr+'</span><button class="ib" aria-label="Como as sugestões são calculadas">i</button></div></div>'}
+function sum(t,s){return '<p class="sum">'+t+(s?'<small>'+s+'</small>':'')+'</p>'}
+function lista(items,o){
+ o=o||{};const live=items.filter(x=>!S.done[x.id]);let fl=items;
+ if(S.f!=='todas')fl=items.filter(x=>x.kind===S.f);
+ const flt=items.length>8?'<div class="flt" role="group" aria-label="Filtrar por origem">'+[['todas','Todas',items.length],['destino','Destinos',items.filter(x=>x.kind==='destino').length],['parecido','Concorrentes',items.filter(x=>x.kind==='parecido').length]].map(b=>'<button data-f="'+b[0]+'" aria-pressed="'+(S.f===b[0])+'">'+b[1]+' ('+b[2]+')</button>').join('')+'</div>':'';
+ return '<div class="col">'+head({n:o.n!==undefined?o.n:live.length,velho:o.velho,fresh:o.fresh})+sum(live.length?resumo(live):'Nenhuma sugestão aberta.',o.sub||'Da mais forte para a mais fraca.')+(o.band||'')+flt+
+  '<div class="sl">'+fl.map((x,i)=>row(x,i,o)).join('')+'</div></div>'}
+function sk(){return '<div class="sk-row" aria-hidden="true"><span class="skel skth" style="width:96px;aspect-ratio:16/9"></span><div><span class="skel" style="width:132px;height:20px"></span><span class="skel" style="width:85%;height:16px;margin-top:12px"></span><span class="skel" style="width:60%;height:16px;margin-top:8px"></span><span class="skel" style="width:160px;height:22px;margin-top:16px"></span></div><div class="skra"><span class="skel" style="width:100%;height:36px"></span><span class="skel" style="width:100%;height:36px;margin-top:24px"></span></div></div>'}
+function vazio(o){
+ return '<div class="col">'+head({n:o.n===undefined?0:o.n,fresh:o.fresh})+sum(o.top)+
+  '<div class="vz '+(o.fam||'')+'"'+(o.fam==='prob'?' role="status"':'')+'><span class="vic"'+(o.fam==='nm'?' style="color:var(--nm);border-color:var(--nm-line)"':'')+'>'+o.ic+'</span><div><h3>'+o.h+'</h3><p>'+o.p+'</p>'+(o.acts?'<div class="acts">'+o.acts+'</div>':'')+'</div></div></div>'}
+const NM='<span class="nm">não medido</span>';
+
+/* ---------- estados ---------- */
+const st={
+ lista:()=>({h:lista(BASE),x:'Caso mais provável: 3 sugestões, a 1ª é um destino <b>sem vídeo seu</b> (primário "Abrir o vídeo do concorrente"). Laranja só na linha 1; as outras em contorno. Clique em Dispensar, num motivo, no ⓘ, no filtro. A 390, toque no texto da linha para ver alvos.'}),
+ 'um-item':()=>({h:lista(BASE.slice(0,1)),x:'Uma sugestão. Sem filtro (só com N &gt; 8).'}),
+ 'quarenta':()=>({h:lista(Q40),x:'40 sugestões: o filtro por origem aparece (N &gt; 8) e vai na URL (<code>&amp;filtro=</code>). A frase-resumo cita no máximo 2 nomes e "+N". Uma linha vence em 1 dia.'}),
+ 'titulo-longo':()=>({h:lista(LONGO),x:'Hostil: lugar longo, título de 100 caracteres com emoji, canal de 50, mult 48,3× (marcador na borda, "20×+"), 7 vídeos, miniatura que falhou. Abra o ⓘ da 1ª linha.'}),
+ 'sem-video-proprio':()=>({h:lista(SEMPROP,{sub:'Seu canal não tinha vídeo no cálculo de hoje: só aparecem destinos, porque "concorrente bombou" compara com um vídeo seu.'}),x:'Site sem vídeo próprio (<code>contagens.proprios = 0</code>): todo destino vira "Abrir o vídeo do concorrente"; parecido não nasce.'}),
+ 'alvos-nao-medido':()=>({h:lista(BASE.slice(1,2),{alvNm:true}),x:'Sem <code>video_lugares</code> do site: a contagem de vídeos seus é "não medido", nunca 0.'}),
+ 'info-aberto':()=>({h:lista(BASE),x:'ⓘ aberto na linha: pontos, medida, limiar, datas e "associação, não causa". Nada disso fica na linha fechada.'}),
+ 'dispensar-aberto':()=>({h:lista(BASE),x:'2º toque: motivos do tipo na própria linha, "Já fiz" separado por um traço. Cada motivo grava na hora. Esc ou Cancelar fecham e devolvem o foco ao Dispensar.'}),
+ 'dispensada':()=>({h:lista(BASE),x:'Gravado: faixa "Dispensada" por 5 s (aqui fixa), N e frase-resumo caem depois da confirmação do servidor; o foco vai à linha seguinte. Sem Desfazer (a função de reabrir é da F3).'}),
+ 'ja-fiz':()=>({h:lista(BASE),x:'"Já fiz" grava dispensa com motivo <code>ja_fiz</code>, nunca <code>feito</code> (Phil); verbo e faixa próprios.'}),
+ 'nao-salvou':()=>({h:lista(BASE,{erroId:'s2'}),x:'Rede caída ao dispensar: a linha volta com o erro e "Tentar de novo". N não mudou.'}),
+ carregando:()=>({h:'<div class="col">'+head({n:'…',fresh:'Lendo…'})+'<p class="sum" aria-busy="true"><span class="skel" style="width:min(420px,100%);height:24px"></span></p><div class="sl" aria-busy="true" aria-label="Carregando sugestões">'+sk()+sk()+sk()+'</div></div>',x:'N "…" (nunca 0), 3 esqueletos com a forma da linha; sem pulsar com movimento reduzido.'}),
+ erro:()=>({h:vazio({n:'?',fresh:'Leitura falhou às 09:14',top:'Não deu para ler as sugestões.',fam:'prob',ic:I.warn18,h:'A leitura falhou: tempo esgotado.',p:'Nada foi perdido. O número volta quando a leitura der certo.',acts:'<button class="btn">Tentar de novo</button>'}).replace('class="vz prob" role="status"','class="vz prob" role="alert"'),x:'Erro sem lista anterior: N "?", ⚠ e "Tentar de novo" (role=alert).'}),
+ 'erro-com-lista':()=>({h:lista(BASE,{band:'<div class="band err" role="alert">'+'<span class="ic">'+I.warn+'</span><div><h3>Não deu para atualizar a lista.</h3><p>Esta é a lista lida às 09:14.</p><div class="acts"><button class="btn">Tentar de novo</button></div></div></div>',fresh:'Lida às 09:14'}),x:'Erro com lista antiga: faixa de erro, a lista anterior segue utilizável.'}),
+ desatualizado:()=>({h:lista(BASE,{velho:true,fresh:'Calculado em 19/10, 07:02',band:'<div class="band warn" role="status"><span class="ic">'+I.warn+'</span><div><h3>As sugestões não são recalculadas desde 19/10, 07:02.</h3><p>A lista abaixo é a do último cálculo. <button class="lnk">Ver a coleta em Competidores</button></p></div></div>'}),x:'Mais de 36 h sem cálculo: selo ⚠ no cabeçalho (e no badge do botão e do bloco, ver "Contexto"), faixa única, lista sem esmaecer.'}),
+ 'sino-saiu':()=>({h:lista(BASE.slice(0,2),{band:'<div class="band"><span class="ic" style="color:var(--muted)">'+I.bell+'</span><div><h3>Algumas sugestões do aviso já saíram da lista.</h3><p>Foram dispensadas ou venceram depois do aviso.</p></div></div>'}),x:'Vindo do sino com N maior que o da lista: faixa genérica, sem id nem data.'}),
+ 'vazio-tudo-respondido':()=>({h:vazio({top:'Nenhuma sugestão aberta.',fam:'ok',ic:I.ok18,h:'As últimas sugestões já saíram da lista.',p:'<b>7</b> saíram nos últimos 30 dias: dispensadas por você ou vencidas. Novas aparecem quando o nicho mexer.'}),x:'<code>tudo-respondido</code>: família "resolvido" (✓), número de <code>respondidos_30d</code>.'}),
+ 'vazio-nunca-calculado':()=>({h:vazio({top:'As sugestões ainda não foram calculadas.',fresh:'Nunca calculado',fam:'wait',ic:I.wait,h:'Ainda não houve cálculo.',p:'O 1º cálculo roda depois das 07:00 de amanhã (Brasília), ou na próxima rodada da agenda se hoje falhou.'}),x:'<code>nunca-calculado</code>, ligado e depois das 07:00 SP. Hora lida da constante; nenhum número.'}),
+ 'vazio-nunca-antes7':()=>({h:vazio({top:'As sugestões ainda não foram calculadas.',fresh:'Nunca calculado',fam:'wait',ic:I.wait,h:'Ainda não houve cálculo.',p:'O 1º cálculo roda hoje depois das 07:00 (Brasília).'}),x:'<code>nunca-calculado</code>, ligado e antes das 07:00 SP.'}),
+ 'vazio-nunca-desligado':()=>({h:vazio({top:'As sugestões ainda não foram calculadas.',fresh:'Nunca calculado',fam:'wait',ic:I.wait,h:'O cálculo das sugestões ainda não foi ligado.',p:'Quando for ligado, o 1º cálculo roda depois das 07:00 (Brasília).'}),x:'<code>nunca-calculado</code> com <code>calculoLigado = false</code> (único estado em que a tela fala em ligar).'}),
+ 'vazio-sem-historico':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'wait',ic:I.wait,h:'Ainda não há canais acompanhados.',p:'<b>0</b> canais em Competidores. As sugestões nascem dos vídeos deles.',acts:'<button class="btn pri">Adicionar canais</button>'}),x:'<code>sem-historico</code>: "ainda não começou" (◷); o único laranja da tela é o convite a agir.'}),
+ 'vazio-sem-terceiro-outlier':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'',ic:I.calm,h:'Nenhum vídeo dos canais acompanhados passou do normal.',p:'Olhamos <b>14</b> canais hoje. Dia calmo é comum.'}),x:'<code>sem-terceiro-outlier</code>: "calmo" (○), número de <code>canais_total</code>.'}),
+ 'vazio-abaixo-do-minimo':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'',ic:I.calm,h:'Os vídeos acima do normal ainda não bastam para virar sugestão.',p:'<b>3</b> são de canais com menos de '+R.nMin+' vídeos medidos e <b>2</b> ficaram abaixo de '+R.piso+' views na 1ª semana.'}),x:'<code>abaixo-do-minimo</code>: <code>sem_n_minimo</code> + <code>abaixo_do_piso</code>; mínimo e piso lidos de REGRA_SINAIS.'}),
+ 'vazio-sem-lugar':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'nm',ic:I.q,h:'Os vídeos acima do normal não citam um lugar que a gente reconheça.',p:'<b>4</b> de <b>6</b> vídeos acima do normal ficaram sem lugar.<br><span class="nm" style="margin-top:8px">lugar não medido</span>'}),x:'<code>sem-lugar</code>: lacuna de dado, com o selo "não medido" do sistema (rosa hachurado).'}),
+ 'vazio-sem-grupo':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'',ic:I.calm,h:'Há 3 vídeos acima do normal, mas nenhum forma sugestão agora.',p:'Um destino precisa de vídeos de 2 canais, ou de um só acima de '+R.lim+'×.'}),x:'<code>sem-grupo</code>, frase neutra com <code>outliers_total</code>.'}),
+ 'vazio-sem-grupo-um-canal':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'',ic:I.calm,h:'Há 3 vídeos acima do normal, todos de um só canal.',p:'Um destino precisa de vídeos de 2 canais, ou de um só acima de '+R.lim+'×.'}),x:'<code>sem-grupo</code> com <code>canais_com_outlier = 1</code> (Phil).'}),
+ 'vazio-sem-grupo-ancora':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'ok',ic:I.ok18,h:'Os 3 vídeos acima do normal já entraram em sugestões anteriores.',p:'Nada novo para sugerir sobre eles.'}),x:'<code>sem-grupo</code> com <code>outliers_ancora = outliers_total</code> (Phil).'}),
+ 'vazio-sync-atrasado':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'prob',ic:I.warn18,h:'A coleta dos canais está atrasada.',p:'<b>12</b> de <b>14</b> canais sem coleta recente. As sugestões voltam quando a coleta andar.',acts:'<button class="btn">Ver a coleta em Competidores</button>'}),x:'<code>sync-atrasado</code>: "problema" (⚠ âmbar, role=status), com saída para Competidores.'}),
+ 'vazio-sem-contagem':()=>({h:vazio({top:'Nenhuma sugestão agora.',fam:'',ic:I.calm,h:'Os vídeos acima do normal ainda não bastam para virar sugestão.',p:'Quantos são de canais com pouco histórico: '+NM+'. Abaixo de '+R.piso+' views na 1ª semana: '+NM+'.'}),x:'Chave ausente em <code>contagens</code>: "não medido", nunca 0.'}),
+ 'ctx-ablab':()=>({h:ablab(false),x:'Bloco no A/B Lab: 3 primeiras e "Ver todas (5)" (página própria). Ao lado, <b>Candidatos (fora da contagem)</b> com o lote atual: recomendação da Hanna, <b>pendente do dono, padrão sim</b>. O lote fica em contorno: o laranja da tela é da linha 1.'}),
+ 'ctx-ablab-velho':()=>({h:ablab(true),x:'Bloco do A/B Lab com dados velhos: selo ⚠ no cabeçalho do bloco.'}),
+ 'ctx-competidores':()=>({h:comp(),x:'Botão "Sugestões (N)" em Competidores nos 5 estados do número. Nunca some, inclusive com 0.'})
+};
+function ablab(velho){
+ const it=BASE.concat([SEMPROP[1]]).concat([Q40[5]]);
+ return '<p class="pg-crumb">YouTube</p><h1 class="pg-h">A/B Lab</h1>'+
+ '<section class="blkc" aria-labelledby="bs"><div class="phd"><h2 class="ctxh" id="bs">Sugestões <span class="cnt">5</span></h2><div class="fresh">'+(velho?'<span class="selo warn">'+I.warn+'Dados velhos</span><span>Calculado em 19/10, 07:02</span>':'<span>Calculado hoje às '+R.calc+'</span>')+'</div></div>'+
+ '<p class="meta" style="margin-top:4px">'+resumo(it)+'</p><div class="sl">'+it.slice(0,3).map((x,i)=>row(x,i)).join('')+'<div class="vmore"><button class="btn ghost">Ver todas (5)</button></div></div></section>'+
+ '<section class="blkc" aria-labelledby="bc"><h2 class="ctxh" id="bc">Candidatos (fora da contagem)</h2><p class="meta">Vídeos seus com 1.000 views ou mais, publicados há mais de 14 dias e sem teste nos últimos 60 dias. Não entram no número de Sugestões.</p>'+
+ [['tC','Chiang Mai em 5 dias: templos, mercado e custos',true],['tD','Cusco e Vale Sagrado sem agência',true],['tF','Como eu acho voo barato para a Ásia',false]].map(c=>'<label class="cand"><input type="checkbox"'+(c[2]?' checked':'')+'><span class="th '+c[0]+'" aria-hidden="true">'+c[1].slice(0,2)+'</span><b>'+c[1]+'</b></label>').join('')+
+ '<div class="bacts"><button class="btn">Iniciar Lote (2)</button></div></section>'}
+function comp(){
+ const b=(n,w)=>'<button class="btn sbtn">Sugestões <span class="cnt">'+n+'</span>'+(w?'<span class="w" aria-label="dados velhos">'+I.warn+'</span>':'')+'</button>';
+ return '<p class="pg-crumb">YouTube</p><h1 class="pg-h">Competidores</h1><div class="gridc">'+
+  [['Com sugestões',b(3)],['Carregando: "…", nunca 0',b('…')],['Zero medido: o botão fica',b(0)],['Erro ao ler: "?"',b('?')],['Dados velhos: selo ⚠ no badge',b(3,true)]].map(r=>'<div class="mockbar"><span class="meta">'+r[0]+'</span>'+r[1]+'</div>').join('')+'</div>'}
+
+const E=[
+ ['Lista',[['lista','Lista: caso comum (3)'],['um-item','1 sugestão'],['quarenta','40 sugestões, com filtro'],['titulo-longo','Hostil: textos longos, 48×'],['sem-video-proprio','Site sem vídeo próprio'],['alvos-nao-medido','Vídeos seus: não medido'],['info-aberto','ⓘ aberto na linha']]],
+ ['Dispensar',[['dispensar-aberto','Motivos abertos'],['dispensada','Dispensada'],['ja-fiz','Já fiz'],['nao-salvou','Não salvou (sem conexão)']]],
+ ['Leitura',[['carregando','Carregando'],['erro','Erro sem lista'],['erro-com-lista','Erro com lista antiga'],['desatualizado','Dados velhos (> 36 h)'],['sino-saiu','Vindo do sino: itens saíram']]],
+ ['Vazio (motivoVazio)',[['vazio-tudo-respondido','tudo-respondido'],['vazio-nunca-calculado','nunca-calculado (depois das 07:00)'],['vazio-nunca-antes7','nunca-calculado (antes das 07:00)'],['vazio-nunca-desligado','nunca-calculado (desligado)'],['vazio-sem-historico','sem-historico'],['vazio-sem-terceiro-outlier','sem-terceiro-outlier'],['vazio-abaixo-do-minimo','abaixo-do-minimo'],['vazio-sem-lugar','sem-lugar'],['vazio-sem-grupo','sem-grupo'],['vazio-sem-grupo-um-canal','sem-grupo: só 1 canal'],['vazio-sem-grupo-ancora','sem-grupo: já respondidos'],['vazio-sync-atrasado','sync-atrasado'],['vazio-sem-contagem','contagem ausente: não medido']]],
+ ['Contexto',[['ctx-ablab','Bloco no A/B Lab + Candidatos'],['ctx-ablab-velho','Bloco no A/B Lab, dados velhos'],['ctx-competidores','Botão em Competidores']]]
+];
+const KEYS=[].concat(...E.map(g=>g[1].map(x=>x[0])));const LABEL={};E.forEach(g=>g[1].forEach(x=>LABEL[x[0]]=x[1]));
+const S={e:'lista',tema:'dark',w:'1440',f:'todas',open:null,done:{},exp:null,info:null};
+
+const fr=document.getElementById('fr');
+function render(key){
+ const def=st[S.e]||st.lista,d=def();
+ fr.innerHTML=d.h;fr.dataset.theme=S.tema;fr.className='frame w'+S.w;
+ document.body.style.background=S.tema==='light'?'#E9E2D6':'';
+ document.getElementById('expl').innerHTML='<b>'+(LABEL[S.e]||'')+'.</b> '+d.x;
+ document.getElementById('selE').value=KEYS.includes(S.e)?S.e:'';
+ [['sTema',S.tema],['sLarg',S.w]].forEach(p=>document.querySelectorAll('#'+p[0]+' button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===p[1])));
+ try{history.replaceState(null,'','?estado='+S.e+'&tema='+S.tema+'&largura='+S.w+(S.f!=='todas'?'&filtro='+S.f:''))}catch(e){}
+ if(key){const t=[...fr.querySelectorAll(key)].find(e=>e.offsetParent!==null);if(t)t.focus()}
+}
+const PRE={'info-aberto':()=>{S.info='s1'},'dispensar-aberto':()=>{S.open='s2'},'dispensada':()=>{S.done={s2:'lugar_errado'}},'ja-fiz':()=>{S.done={s2:'ja_fiz'}}};
+function reset(){S.open=null;S.done={};S.exp=null;S.info=null;S.f='todas';if(PRE[S.e])PRE[S.e]()}
+const sE=document.getElementById('selE');
+E.forEach(g=>{const og=document.createElement('optgroup');og.label=g[0];g[1].forEach(x=>{const o=document.createElement('option');o.value=x[0];o.textContent=x[1];og.appendChild(o)});sE.appendChild(og)});
+sE.addEventListener('change',()=>{S.e=sE.value;reset();render()});
+document.addEventListener('click',ev=>{
+ const t=ev.target.closest('#sTema button');if(t){S.tema=t.dataset.v;render();return}
+ const w=ev.target.closest('#sLarg button');if(w){S.w=w.dataset.v;render();return}
+ if(!ev.target.closest('.frame'))return;
+ const f=ev.target.closest('[data-f]');if(f){S.f=f.dataset.f;render('[data-f="'+S.f+'"]');return}
+ const ds=ev.target.closest('[data-dis]');if(ds){const id=ds.dataset.dis;S.open=S.open===id?null:id;S.info=null;render(S.open?'[data-id="'+id+'"]':null);return}
+ const c=ev.target.closest('[data-cancel]');if(c){const id=c.dataset.cancel;S.open=null;render('[data-dis="'+id+'"]');return}
+ const m=ev.target.closest('[data-mot]');if(m){const id=m.dataset.id;S.done[id]=m.dataset.mot;S.open=null;
+  const rows=[...fr.querySelectorAll('[data-row]')].map(r=>r.dataset.row);const nx=rows[rows.indexOf(id)+1];render(nx?'[data-row="'+nx+'"]':null);return}
+ const inf=ev.target.closest('[data-info]');if(inf){const id=inf.dataset.info;S.info=S.info===id?null:id;S.open=null;render('[data-info="'+id+'"]');return}
+ const x=ev.target.closest('[data-exp]');if(x){const id=x.dataset.exp;S.exp=S.exp===id?null:id;render('[data-exp="'+id+'"]');return}
+});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&(S.open||S.info)){const id=S.open||S.info,was=S.open;S.open=null;S.info=null;render(was?'[data-dis="'+id+'"]':'[data-info="'+id+'"]')}});
+const q=new URLSearchParams(location.search);
+if(q.get('estado')&&st[q.get('estado')])S.e=q.get('estado');
+if(['dark','light'].includes(q.get('tema')))S.tema=q.get('tema');
+if(['1440','390'].includes(q.get('largura')))S.w=q.get('largura');
+reset();
+if(['destino','parecido'].includes(q.get('filtro')))S.f=q.get('filtro');
+render();
+</script></body></html>
