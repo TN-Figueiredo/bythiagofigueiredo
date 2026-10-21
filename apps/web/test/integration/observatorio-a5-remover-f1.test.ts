@@ -642,6 +642,13 @@ describe.skipIf(skipIfNoLocalDb())('F1 · C-1 pausa no schema real e M-4 colunas
     expect(f1).not.toBeNull()
     await pg.query('begin')
     try {
+      // T13: o banco de integração pode ter o registro de 32 entradas (migration das trocas observadas); a F1 só aceita 27 ou 30 de partida.
+      // Aqui, e só dentro da transação, o registro volta a 30 para modelar "a F1 aplicada sobre o que havia antes".
+      if ((await escalar<number>(pg, `select count(*)::int from public.obs_archive_registry()`)) === 32) {
+        await pg.query(`alter function public.obs_archive_registry() rename to obs_archive_registry_32`)
+        await pg.query(`create function public.obs_archive_registry() returns table(table_name text, filter_sql text, period_sql text, sum_sql text, order_sql text)
+          language sql stable set search_path = '' as $$ select * from public.obs_archive_registry_32() r where r.table_name not in ('ab_native_observados', 'ab_native_obs_cursor') $$`)
+      }
       await pg.query(f1 as string)
       expect(await semRemendo()).toBe(0)
       const c = await semearCena(pg, { semWatch: true })

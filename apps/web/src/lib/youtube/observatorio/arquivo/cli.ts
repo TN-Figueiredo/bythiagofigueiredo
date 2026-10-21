@@ -215,7 +215,7 @@ async function comandosRecarga(c: Extract<Comando, { nome: 'comandos-recarga' }>
  */
 export const TABELAS_COM_IDENTIDADE: readonly string[] = [
   'competitor_channel_sections', 'competitor_collection_pauses', 'competitor_field_versions', 'competitor_playlist_versions', 'competitor_raw',
-  'competitor_video_comments', 'yt_watch_alvos', 'yt_watch_readings', 'yt_watch_thumbs',
+  'competitor_video_comments', 'yt_watch_alvos', 'yt_watch_readings', 'yt_watch_thumbs', 'ab_native_observados',
 ]
 
 /**
