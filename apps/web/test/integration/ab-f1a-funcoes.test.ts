@@ -208,6 +208,52 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T2: funções da ficha e do "Já in
     expect(await contar(`select count(*) n from public.ab_native_tests where video_id = $1 and estado = 'em_andamento'`, [v.id])).toBe(0)
   })
 
+  it('ficha sem o original (n=1) ou título faltando numa ficha de título: ficha_incompleta (original/titulo) (Yannis M4)', async () => {
+    const v = await video()
+    const semOriginal = JSON.stringify([{ n: 2, tipo: 'titulo', titulo: 'A' }, { n: 3, tipo: 'titulo', titulo: 'B' }])
+    expect(await iniciar(await semearFicha(v.id, { variantes: semOriginal }))).toEqual({ erro: 'ficha_incompleta', motivo: 'original' })
+    const v2 = await video()
+    const semTitulo = JSON.stringify([{ n: 1, tipo: 'titulo', titulo: 'O' }, { n: 2, tipo: 'titulo' }])
+    expect(await iniciar(await semearFicha(v2.id, { variantes: semTitulo }))).toEqual({ erro: 'ficha_incompleta', motivo: 'titulo' })
+    const v3 = await video()
+    const soMiniatura = JSON.stringify([{ n: 1, tipo: 'miniatura' }, { n: 2, tipo: 'miniatura' }])
+    expect(await iniciar(await semearFicha(v3.id, { campos: '{miniatura}', variantes: soMiniatura }))).toMatchObject({ ok: true })
+    expect(await contar(`select count(*) n from public.ab_native_tests where video_id = any($1::uuid[]) and variantes is not null`, [[v.id, v2.id]])).toBe(0)
+  })
+
+  it('duplo toque concorrente em "Já iniciei": o lock da ficha faz a 2ª ver ja_iniciada, e há um registro só (Yannis M1)', async () => {
+    const v = await video()
+    const f = await semearFicha(v.id)
+    const a = await conexao(); const b = await conexao()
+    await a.query('begin')
+    const r1 = (await a.query(`select public.ab_native_iniciar($1, $2, $3) as r`, [siteId, f, usuario])).rows[0].r
+    expect(r1).toMatchObject({ ok: true })
+    const pidB = Number((await b.query('select pg_backend_pid() p')).rows[0].p)
+    const pendente = iniciar(f, b)
+    let esperando = false
+    for (let i = 0; i < 50 && !esperando; i++) {
+      esperando = ((await pg.query(`select 1 from pg_stat_activity where wait_event_type = 'Lock' and pid = $1`, [pidB])).rowCount ?? 0) > 0
+      if (!esperando) await new Promise((r) => setTimeout(r, 100))
+    }
+    expect(esperando).toBe(true)
+    await a.query('commit')
+    expect(await pendente).toEqual({ ok: true, ja_iniciada: true, registro_id: r1.registro_id })
+    expect(await contar(`select count(*) n from public.ab_native_tests where video_id = $1`, [v.id])).toBe(1)
+  })
+
+  it('a expiração do ficha-lembrar: é do site da chamada (não toca notificação de outro site com a mesma chave) (Yannis M3)', async () => {
+    const v = await video()
+    const f = await semearFicha(v.id)
+    const k = `ficha-lembrar:${f}`
+    for (const s of [siteId, outroSite]) {
+      await pg.query(`insert into public.notifications (site_id, user_id, type, domain, priority, title, dedup_key) values ($1, $2, 'youtube.native_ficha_lembrar', 'youtube', 3, 'x', $3)`, [s, usuario, k])
+    }
+    expect(await iniciar(f)).toMatchObject({ ok: true })
+    const r = await pg.query(`select site_id, expired_at from public.notifications where dedup_key = $1`, [k])
+    expect(r.rows.find((x) => x.site_id === siteId).expired_at).not.toBeNull()
+    expect(r.rows.find((x) => x.site_id === outroSite).expired_at).toBeNull()
+  })
+
   it('privilégios: só service_role executa', async () => {
     for (const fn of ['public.ab_native_ficha_abrir(uuid,uuid,uuid)', 'public.ab_native_iniciar(uuid,uuid,uuid)']) {
       for (const role of ['authenticated', 'anon', 'public']) {

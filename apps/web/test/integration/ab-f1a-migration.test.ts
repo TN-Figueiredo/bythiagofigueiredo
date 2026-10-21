@@ -8,6 +8,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -115,6 +117,23 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T1: migration (colunas, CHECKs, ab_
       expect(await tenta({ resposta: 'sem_resposta', respondido: true })).toBe('23514')
       expect(await tenta({ resposta: 'nao_vi', respondido: false })).toBe('23514')
       expect(await tenta({ resposta: 'sem_resposta', respondido: false })).toBeNull()
+    })
+  })
+
+  it('(b2) venceu_nova sem variante_vencedora é recusada pelo banco (Phil m7)', async () => {
+    await tx(async () => {
+      expect(await erro(`insert into public.ab_native_tests (site_id, video_id, youtube_video_id, origem, campos, estado, confirmado_em, variantes, resposta_dono, respondido_em)
+        values ($1, $2, 'abcdefghijk', 'confirmado', '{titulo}', 'encerrado', now(), $3::jsonb, 'venceu_nova', now())`, [siteId, videoId, FICHA2])).toBe('23514')
+    })
+  })
+
+  it('(a2) check3 que sobra por definição diferente derruba a migration alto, em vez de passar calado (Yannis M2)', async () => {
+    const sql = readFileSync(resolve(__dirname, '../../../../supabase/migrations/20261021000004_ab_lab_f1a_dado.sql'), 'utf8')
+    await tx(async () => {
+      await pg.query('alter table public.ab_native_tests add constraint f1a_check3_disfarcado check (((vencedor_titulo is null) = (vencedor_fonte is null)) and true) not valid')
+      await pg.query('savepoint m')
+      await expect(pg.query(sql)).rejects.toThrow(/check3/)
+      await pg.query('rollback to savepoint m')
     })
   })
 

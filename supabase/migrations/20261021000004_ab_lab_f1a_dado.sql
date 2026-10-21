@@ -24,6 +24,11 @@ begin
   loop
     execute format('alter table public.ab_native_tests drop constraint %I', c.conname);
   end loop;
+  -- Falha alto no deploy se a definição não bateu (outra versão do Postgres): o CHECK velho não pode ficar calado.
+  if exists (select 1 from pg_constraint where conrelid = 'public.ab_native_tests'::regclass and contype = 'c'
+              and pg_get_constraintdef(oid) ilike '%vencedor_titulo IS NULL%=%vencedor_fonte IS NULL%') then
+    raise exception 'check3 (vencedor_titulo/vencedor_fonte) nao removido';
+  end if;
 end $$;
 
 do $$ begin
@@ -41,6 +46,10 @@ do $$ begin
         (resposta_dono = 'venceu_nova' and (
           (variantes is null and variante_vencedora between 1 and 3) or (variantes is not null and variante_vencedora between 2 and 3)))
         or (resposta_dono = 'venceu_original' and variantes is not null and variante_vencedora = 1)));
+  end if;
+  if not exists (select 1 from pg_constraint where conrelid = 'public.ab_native_tests'::regclass and conname = 'ab_native_tests_venceu_nova_com_variante') then
+    alter table public.ab_native_tests add constraint ab_native_tests_venceu_nova_com_variante
+      check (resposta_dono is distinct from 'venceu_nova' or variante_vencedora is not null);
   end if;
   if not exists (select 1 from pg_constraint where conrelid = 'public.ab_native_tests'::regclass and conname = 'ab_native_tests_respondido_em_do_dono') then
     alter table public.ab_native_tests add constraint ab_native_tests_respondido_em_do_dono
@@ -105,7 +114,7 @@ begin
     returning f.id
   loop
     update public.notifications n set expired_at = now()
-     where n.domain = 'youtube' and n.dedup_key = 'ficha-lembrar:' || d::text and n.expired_at is null;
+     where n.site_id = p_site and n.domain = 'youtube' and n.dedup_key = 'ficha-lembrar:' || d::text and n.expired_at is null;
   end loop;
 
   insert into public.ab_native_fichas (site_id, video_id, criada_por)
@@ -114,12 +123,20 @@ begin
 
   select * into r from public.ab_native_fichas f
    where f.site_id = p_site and f.video_id = p_video and f.registro_id is null and f.descartada_em is null;
+  if r.id is null then
+    -- Outra aba vinculou a ficha entre o insert e o select: repete uma vez.
+    insert into public.ab_native_fichas (site_id, video_id, criada_por)
+    values (p_site, p_video, p_usuario)
+    on conflict (site_id, video_id) where registro_id is null and descartada_em is null do nothing;
+    select * into r from public.ab_native_fichas f
+     where f.site_id = p_site and f.video_id = p_video and f.registro_id is null and f.descartada_em is null;
+  end if;
   return r;
 end $$;
 
 -- "Já iniciei": ficha -> registro `em_andamento` confirmado, atômico. Retornos (jsonb):
 --   {ok, registro_id, confirmou_detectado} | {ok, ja_iniciada, registro_id} | {erro: nao_encontrada}
---   | {erro: ficha_incompleta, motivo: variantes|campos} | {erro: ja_ha_teste_em_andamento, registro_id} | {erro: estado_mudou}
+--   | {erro: ficha_incompleta, motivo: variantes|campos|original|titulo} | {erro: ja_ha_teste_em_andamento, registro_id} | {erro: estado_mudou}
 create or replace function public.ab_native_iniciar(p_site uuid, p_ficha uuid, p_usuario uuid)
 returns jsonb
 language plpgsql security invoker set search_path = '' as $$
@@ -138,6 +155,12 @@ begin
   if f.descartada_em is not null then return jsonb_build_object('erro', 'estado_mudou'); end if;
   if jsonb_array_length(f.variantes) < 2 then return jsonb_build_object('erro', 'ficha_incompleta', 'motivo', 'variantes'); end if;
   if cardinality(f.campos) not between 1 and 2 then return jsonb_build_object('erro', 'ficha_incompleta', 'motivo', 'campos'); end if;
+  if not exists (select 1 from jsonb_array_elements(f.variantes) e where (e->>'n')::int = 1) then
+    return jsonb_build_object('erro', 'ficha_incompleta', 'motivo', 'original');
+  end if;
+  if 'titulo' = any(f.campos) and exists (select 1 from jsonb_array_elements(f.variantes) e where coalesce(e->>'titulo', '') = '') then
+    return jsonb_build_object('erro', 'ficha_incompleta', 'motivo', 'titulo');
+  end if;
 
   select v.youtube_video_id into v_yt from public.youtube_videos v where v.id = f.video_id and v.site_id = p_site;
   if v_yt is null then return jsonb_build_object('erro', 'nao_encontrada'); end if;
@@ -172,7 +195,7 @@ begin
   -- 4: vincula (o `unique` em registro_id segura a dupla vinculação); 5: o lembrete da ficha sai do sino.
   update public.ab_native_fichas x set registro_id = r_id where x.id = p_ficha;
   update public.notifications n set expired_at = now()
-   where n.domain = 'youtube' and n.dedup_key = 'ficha-lembrar:' || p_ficha::text and n.expired_at is null;
+   where n.site_id = p_site and n.domain = 'youtube' and n.dedup_key = 'ficha-lembrar:' || p_ficha::text and n.expired_at is null;
 
   return jsonb_build_object('ok', true, 'registro_id', r_id, 'confirmou_detectado', coalesce(era_detectada, false));
 end $$;
