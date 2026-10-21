@@ -15,6 +15,8 @@ vi.mock('@/lib/social/token-refresh', async (orig) => ({
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({ recordCronSuccess: vi.fn(), recordCronFailure: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+// Hermético: a lista real de conferências envelhece com o relógio e mudaria a nota (e19-d1 em 21/10).
+vi.mock('@/lib/conferencias', async (orig) => ({ ...(await orig<typeof import('@/lib/conferencias')>()), CONFERENCIAS: [] }))
 // O guarda ehMetadadosAntes é o de verdade: a rota decide com ele o que repassa à fase 'depois'.
 vi.mock('@/lib/youtube/coleta', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/coleta')>()),
