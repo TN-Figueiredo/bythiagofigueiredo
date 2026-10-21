@@ -371,9 +371,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se�
     })
   })
 
-  it('o registro do export tem 27 linhas, as 22 primeiras iguais às da MG6, e obs_archive_uncovered() é vazio', async () => {
+  it('o registro do export tem 30 linhas (a F1 acrescenta as 3 da watch), as 22 primeiras iguais às da MG6, depois as 5 da X3 e as 3 da F1, e obs_archive_uncovered() é vazio', async () => {
     await emTransacaoComX3(pg, async () => {
-      expect(await n(`select count(*)::int from public.obs_archive_registry()`)).toBe(27)
+      expect(await n(`select count(*)::int from public.obs_archive_registry()`)).toBe(30)
       expect(await escalar<unknown>(pg, `select public.obs_archive_uncovered()`)).toEqual([])
       const ordem = `select table_name, filter_sql, period_sql, sum_sql, order_sql from public.obs_archive_registry()`
       const x3 = (await pg.query(ordem)).rows as Array<Record<string, unknown>>
@@ -385,7 +385,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se�
       const mg6 = (await pg.query(ordem)).rows as Array<Record<string, unknown>>
       expect(mg6).toHaveLength(22)
       expect(x3.slice(0, 22)).toEqual(mg6)
-      expect(x3.slice(22).map(r => r.table_name)).toEqual(CINCO)
+      expect(x3.slice(22).map(r => r.table_name)).toEqual([...CINCO, 'yt_watch_alvos', 'yt_watch_thumbs', 'yt_watch_readings'])
       // o helper termina com rollback; reabre para o finally não falhar
       await pg.query('rollback')
       await pg.query('begin')
@@ -433,7 +433,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se�
   it('idempotência: aplicar de novo não falha nem muda o registro', async () => {
     await emTransacaoComX3(pg, async () => {
       await garantirX3(pg)
-      expect(await n(`select count(*)::int from public.obs_archive_registry()`)).toBe(27)
+      expect(await n(`select count(*)::int from public.obs_archive_registry()`)).toBe(30)
     })
   })
 })
