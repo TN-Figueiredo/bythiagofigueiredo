@@ -68,7 +68,7 @@ Ordem da fila: `docs/superpowers/specs/2026-10-18-ab-s6-s7-guarda-e-nativo-desig
 4. **Lock ocupado por um cron ou pelo `go.*`** (a sonda roda no minuto 15; `/go/<code>` lê `tracked_links` a cada clique).
    Com `lock_timeout` de 5 s a B falha e não muda nada. O `drop table` de `ab_test_tracked_links` pede `ACCESS EXCLUSIVE`
    em `tracked_links` (remove os gatilhos da FK; sondado por Yannis), então o `lock` do início já inclui `tracked_links`:
-   se falhar, falha cedo. Enquanto a B espera, os `/go/*` ficam na fila por até 5 s; depois da concessão são
+   se falhar, falha cedo. Enquanto a B espera, os `/go/*` ficam na fila por até 5 s por tabela (pior caso, 4 locks em série: ~20 s, com `ab_tests` presa); depois da concessão são
    milissegundos. Teste: Tarefa 4, casos "lock" (`ab_test_variants` e `tracked_links`).
 5. **Rollback da Vercel depois da B.** Deploy anterior a `55ea62df6` grava `original_description` e lê
    `ab_test_tracked_links`, e quebra. Os deploys de `55ea62df6` em diante não citam esses objetos em tempo de execução
@@ -634,7 +634,7 @@ colunas de verdade ali). Local: `npx vitest run test/integration/ab-migration-b.
 | `ab_test_tracked_links` já não existe (B aplicada antes) | as guardas pulam essa parte; `drop ... if exists`; sem erro |
 | Coluna já apagada | `v_tem_desc`/`v_tem_orig` falsos; o `execute` não roda; `drop column if exists` |
 | Sobrecarga de `create_playoff_test` | aborta com a assinatura na mensagem |
-| Lock por mais de 5 s (inclusive `tracked_links`, lida pelo `go.*`) | `55P03`; nada muda; tenta-se noutra janela. Enquanto espera, `/go/*` fica na fila por até 5 s |
+| Lock por mais de 5 s (inclusive `tracked_links`, lida pelo `go.*`) | `55P03`; nada muda; tenta-se noutra janela. Enquanto espera, `/go/*` fica na fila por até 5 s por tabela (pior caso ~20 s) |
 | Deadlock (`40P01`) ou lock negado (`55P03`) na B | aborto limpo, sem perda de dado (rollback inteiro); repetir na próxima janela; o script do dono imprime o código de erro |
 | Outro terminal empurra a B junto | a B roda com as mesmas guardas; o `pg_dump` já existe; o controlador confere o D+0 assim que vir |
 | `pg_dump` vazio ou sem as três tabelas | sem `db:new` (passo 4) |
