@@ -43,6 +43,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T1: migration (colunas, CHECKs, ab_
       await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
       await pg.query('delete from public.youtube_videos where site_id = $1', [siteId])
       await pg.query('delete from public.youtube_channels where site_id = $1', [siteId])
+      await pg.query('delete from public.audit_log where site_id = $1', [siteId])
       await pg.query('delete from public.sites where id = $1', [siteId])
     } finally {
       await pg.end()
