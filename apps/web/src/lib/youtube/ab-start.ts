@@ -254,6 +254,10 @@ export async function startAbTestInternal(
     if (semConteudo) return { ok: false, error: `O teste não começou: a variante ${firstVariant.label} está ${semConteudo}. Corrija a variante e inicie de novo.` }
   }
 
+  // Guarda do teste do YouTube (F1a-dado): teste nativo em andamento no vídeo recusa o início, sem escrever; depois das validações, antes do canal/token e do passo 0b (que escreve no banco) e da reivindicação, para o modo `log` só anotar onde a escrita sairia (a fila adia sem gastar tentativa).
+  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: portas.pontoDaGuarda ?? 'start' })
+  if (!guarda.seguir) return { ok: false, error: guarda.motivo, codigo: guarda.codigo, ...(guarda.nativeTestId ? { nativeTestId: guarda.nativeTestId } : {}) }
+
   // 4. Canal e token (só leitura): falha aqui não toca em nada.
   let accessToken: string
   let youtubeVideoId: string
@@ -281,10 +285,6 @@ export async function startAbTestInternal(
   if ((await resolverPendenciasDoVideo(supabase, siteId, testId, test.youtube_video_id as string, agora())) === 'em_andamento') {
     return { ok: false, error: MSG_EM_ANDAMENTO }
   }
-
-  // Guarda do teste do YouTube (F1a-dado): teste nativo em andamento no vídeo recusa o início, sem escrever; depois das validações e antes da reivindicação, para o modo `log` só anotar onde a escrita sairia (a fila adia sem gastar tentativa).
-  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: portas.pontoDaGuarda ?? 'start' })
-  if (!guarda.seguir) return { ok: false, error: guarda.motivo, codigo: guarda.codigo, ...(guarda.nativeTestId ? { nativeTestId: guarda.nativeTestId } : {}) }
 
   // (1) Reivindica draft -> active. `restore_status` nunca fica nulo depois da P4a (F-P3): o supabase-js não faz
   // `coalesce` em coluna, então grava o valor lido (ou {}) sob a guarda de restore_seq, que é equivalente.

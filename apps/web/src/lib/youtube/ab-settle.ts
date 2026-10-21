@@ -23,6 +23,8 @@ import { ErroConhecido, YouTubeApiError, paraErroGravado } from '@/lib/youtube/y
 export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'drift' | 'teste_youtube'
 /** Nota do teste pausado por haver teste do YouTube em andamento (F1a-dado): pausa definitiva, sem escrever no YouTube. */
 export const NOTA_TESTE_YOUTUBE = 'Em teste no Studio: pausado sem escrever no YouTube'
+/** Valor mostrado no diálogo de confirmação quando a leitura do título no YouTube falhou (a thumbnail sem leitura mostra o espaço reservado). */
+export const TEXTO_SEM_LEITURA = 'Não deu para conferir o título agora; tente de novo.'
 export const ORIGINAL = { tipo: 'original' } as const
 
 export interface OpcoesSaida {
@@ -567,7 +569,7 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
       if (perguntar.length) return { resultado: 'precisa_confirmar', campos: perguntar }
     } catch {
       // Depois de pulado_teste_youtube, sem a leitura o passo 3 poderia escrever o original sobre uma variante nossa no ar: pergunta em vez de seguir.
-      if (aposTesteYoutube) return { resultado: 'precisa_confirmar', campos: campos.map((c) => ({ campo: c, valor_atual: '' })) }
+      if (aposTesteYoutube) return { resultado: 'precisa_confirmar', campos: campos.map((c) => ({ campo: c, valor_atual: c === 'title' ? TEXTO_SEM_LEITURA : '' })) }
       /* o passo 3 decide */
     }
   }
