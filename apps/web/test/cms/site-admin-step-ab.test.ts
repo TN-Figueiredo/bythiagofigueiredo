@@ -34,7 +34,6 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
   fetchVariantImageBuffer: async () => ({ buffer: Buffer.from('x'), contentType: 'image/png' }),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: async () => { yt.calls.push('updateVideoMetadata') } }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn(() => ({ title: 't', description: 'd' })) }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn(() => 0) }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: async () => ({ accessToken: 't' }) }))
 vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))

@@ -54,9 +54,6 @@ vi.mock('@/lib/youtube/ab-metadata', () => ({
   updateVideoMetadata: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/youtube/ab-templates', () => ({
-  resolveTemplates: vi.fn((text: string) => text),
-}))
 
 const mockPreflightTokenCheck = vi.fn().mockResolvedValue({ ok: true, accessToken: 'tok-mock' })
 vi.mock('@/lib/youtube/ab-preflight', () => ({

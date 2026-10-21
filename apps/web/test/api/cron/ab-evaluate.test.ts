@@ -38,9 +38,6 @@ vi.mock('@/lib/youtube/ab-metadata', () => ({
   updateVideoMetadata: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/youtube/ab-templates', () => ({
-  resolveTemplates: vi.fn((text: string) => text),
-}))
 
 vi.mock('@/lib/youtube/ab-preflight', () => ({
   preflightTokenCheck: vi.fn().mockResolvedValue({ ok: true, accessToken: 'tok-mock' }),
@@ -67,10 +64,6 @@ vi.mock('@sentry/nextjs', () => ({
   setTag: vi.fn(),
 }))
 
-vi.mock('@/lib/youtube/ab-playoff', () => ({
-  checkPlayoffEligibility: vi.fn().mockReturnValue({ eligible: false }),
-  selectPlayoffVariants: vi.fn().mockReturnValue(null),
-}))
 
 vi.mock('@/lib/youtube/ab-start', () => ({
   startAbTestInternal: vi.fn().mockResolvedValue({ ok: false }),

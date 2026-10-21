@@ -13,9 +13,6 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
 vi.mock('@/lib/youtube/ab-metadata', () => ({
   updateVideoMetadata: vi.fn().mockResolvedValue(undefined),
 }))
-vi.mock('@/lib/youtube/ab-templates', () => ({
-  resolveTemplates: vi.fn((desc: string) => desc),
-}))
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({ select: () => ({ eq: () => Promise.resolve({ data: [] }) }) }),

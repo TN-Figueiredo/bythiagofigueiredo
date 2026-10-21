@@ -12,7 +12,6 @@ vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-statistics', () => ({ calculateBayesianConfidence: vi.fn() }))
 vi.mock('@/lib/youtube/ab-youtube', () => ({ setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }), fetchVariantImageBuffer: vi.fn() }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/ab-preflight', () => ({
   preflightTokenCheck: vi.fn(() => ({ ok: true, accessToken: 'token-retry' })),
 }))
@@ -23,10 +22,6 @@ vi.mock('@/lib/youtube/notification-service', () => ({
   })),
 }))
 vi.mock('@/lib/youtube/analytics-sync', () => ({ getIsoWeek: vi.fn(() => '2026-W22') }))
-vi.mock('@/lib/youtube/ab-playoff', () => ({
-  checkPlayoffEligibility: vi.fn(() => ({ eligible: false })),
-  selectPlayoffVariants: vi.fn(() => null),
-}))
 vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -45,7 +40,6 @@ import * as Sentry from '@sentry/nextjs'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { fetchVariantImageBuffer, setThumbnail } from '@/lib/youtube/ab-youtube'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { settleOnAirFalso as settle } from '../helpers/montar-saida-automatica'
@@ -234,7 +228,6 @@ beforeEach(() => {
   ;(fetchVariantImageBuffer as ReturnType<typeof vi.fn>).mockResolvedValue({
     buffer: Buffer.from('x'), contentType: 'image/jpeg',
   })
-  ;(resolveTemplates as ReturnType<typeof vi.fn>).mockImplementation((text: string) => text)
   settle.mockReset()
   settle.mockResolvedValue({ resultado: 'feito', campos: { thumbnail: { estado: 'ok' } } })
 })
