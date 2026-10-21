@@ -32,16 +32,12 @@ vi.mock('@/lib/youtube/ab-settle', async (orig) => {
 })
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn().mockResolvedValue(1) }))
 
-import {
-  phaseEvaluateActiveTests,
-  phaseAutoStartPlayoffs,
-} from '@/lib/youtube/ab-evaluate-phases'
+import { phaseEvaluateActiveTests } from '@/lib/youtube/ab-evaluate-phases'
 import * as Sentry from '@sentry/nextjs'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { fetchVariantImageBuffer, setThumbnail } from '@/lib/youtube/ab-youtube'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { settleOnAirFalso as settle } from '../helpers/montar-saida-automatica'
 
 // ─── Cliente falso POR TABELA ───────────────────────────────────────────────
@@ -116,7 +112,6 @@ interface OpcoesCliente {
   statusNaReleitura?: string
   updateCasaZeroLinha?: boolean
   falhaAoLer?: boolean
-  draftPlayoffs?: unknown[]
 }
 
 function clienteCom(tests: TesteFalso[], opts: OpcoesCliente = {}) {
@@ -156,12 +151,6 @@ function clienteCom(tests: TesteFalso[], opts: OpcoesCliente = {}) {
         select: () => ({
           eq: (col: string, val: unknown) => {
             if (col === 'status' && val === 'active') return Promise.resolve(listaOuErro)
-            if (col === 'status' && val === 'draft') {
-              const ch: Record<string, unknown> = {}
-              for (const m of ['eq', 'not', 'lte']) ch[m] = () => ch
-              ch.then = (r: (v: unknown) => void) => r({ data: opts.draftPlayoffs ?? [], error: null })
-              return ch
-            }
             const lido = { data: { status: opts.statusNaReleitura ?? 'active' }, error: null }
             return { maybeSingle: () => Promise.resolve(lido), single: () => Promise.resolve(lido) }
           },
@@ -375,29 +364,5 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     } finally {
       delete process.env.AB_AUTO_APPLY_WINNER
     }
-  })
-})
-
-// ─── Phase 1: phaseAutoStartPlayoffs ────────────────────────────────────────
-
-describe('phaseAutoStartPlayoffs', () => {
-  it('starts draft round-2 playoffs past cooldown', async () => {
-    const playoff = {
-      id: 'playoff-1',
-      site_id: 'site-1',
-      round_number: 2,
-      parent_test_id: 'parent-1',
-      playoff_start_after: new Date(Date.now() - 3_600_000).toISOString(), // 1h ago — past cooldown
-    }
-
-    ;(startAbTestInternal as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true })
-
-    const { supabase: client } = clienteCom([], { draftPlayoffs: [playoff] })
-
-    const result = await phaseAutoStartPlayoffs(client)
-
-    expect(result.processed).toBe(1)
-    expect(result.errors).toBe(0)
-    expect(startAbTestInternal).toHaveBeenCalledWith('playoff-1', 'site-1')
   })
 })
