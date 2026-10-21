@@ -17,6 +17,7 @@ import type { ResultadoAviso } from '@/lib/youtube/ab-restore-avisos'
 import { resolveVideoChannel, resolveYouTubeVideoId } from '@/lib/youtube/ab-video-context'
 import { probeThumb, thumbUrl } from '@/lib/youtube/thumb-fingerprint'
 import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
+import { MOTIVO_RECUSA_NATIVO, lerLinhaConfirmada } from '@/lib/youtube/teste-youtube/nativo/guarda'
 import { ErroConhecido, YouTubeApiError, paraErroGravado } from '@/lib/youtube/youtube-api-error'
 
 export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'drift' | 'teste_youtube'
@@ -44,6 +45,7 @@ export type ResultadoSaida =
   | { resultado: 'destino_invalido'; campos: null }
   | { resultado: 'outro_teste'; campos: RestoreStatus | null } // P4b Y-5: outro teste aberto no mesmo vídeo; o Lab não escreve
   | { resultado: 'sem_permissao'; campos: RestoreStatus | null } // P4b Y-A1: `autorizar` recusou o destino do retrato reivindicado
+  | { resultado: 'teste_youtube'; motivo: string; campos: null } // F1a-dado: teste do YouTube confirmado em andamento no vídeo; o Lab não escreve
   | { resultado: 'mudou'; campos: RestoreStatus | null } // seqEsperado de uma tela humana não bate: o teste mudou desde a abertura
 
 export interface VarianteRetrato {
@@ -90,6 +92,7 @@ export const TETO_MS = 55_000 // F-D3: ações humanas e crons que não passam `
 export const MARGEM_ESCRITA_MS = 25_000 // 20 s da escrita + 5 s do passo 4 e do aviso
 const RECENTE_MS = 2 * 60_000 // F-D4: 60 s do teto da função + folga
 const REVERT_MS = 7 * 86_400_000
+const MOTIVOS_QUE_PAUSAM_SEM_ESCREVER: readonly MotivoSaida[] = ['pausa', 'falha_api', 'drift', 'duracao_maxima']
 const JANELA_DA_COTA_MS = 72 * 3_600_000 // cota que dura mais que isso desde a âncora do "sim" conta como falha
 
 /**
@@ -535,6 +538,11 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (op.motivo === 'reverter' && !reversaoAberta(r, agora)) return { resultado: 'ja_encerrado', campos: r.restore_status }
 
   const campos = camposDoTeste(r.test_type)
+  // Guarda do teste do YouTube confirmado (F1a-dado, Yannis C2; sem flag): ponto único de escrita do nosso teste. Dispensada quando o motivo já é `teste_youtube`.
+  if (op.motivo !== 'teste_youtube' && (await lerLinhaConfirmada(portas.supabase, r.site_id, r.youtube_video_id)) !== null) {
+    if (MOTIVOS_QUE_PAUSAM_SEM_ESCREVER.includes(op.motivo)) return gravarPuladoDefinitivo(portas, r, campos, agora)
+    return { resultado: 'teste_youtube', motivo: MOTIVO_RECUSA_NATIVO, campos: null }
+  }
   // Há teste do YouTube em andamento: pausa definitiva SEM escrever (antes de token, leitura e passo 0b).
   if (op.motivo === 'teste_youtube') return gravarPuladoDefinitivo(portas, r, campos, agora)
   // Saindo de uma pausa por teste do YouTube: a nota de guarda não vira razão do encerramento.
@@ -645,6 +653,9 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
   const rs0 = r.restore_status
   const pend = camposPendentes(rs0, op.origem)
   if (!rs0 || pend.length === 0) return { resultado: 'ja_encerrado', campos: r.restore_status }
+
+  // Guarda do teste do YouTube confirmado (F1a-dado, Yannis C2): nova tentativa escreveria no vídeo.
+  if ((await lerLinhaConfirmada(portas.supabase, r.site_id, r.youtube_video_id)) !== null) return { resultado: 'teste_youtube', motivo: MOTIVO_RECUSA_NATIVO, campos: null }
 
   // 3. destino
   const alvos = new Set(pend.map((c) => rs0[c]!.destino))

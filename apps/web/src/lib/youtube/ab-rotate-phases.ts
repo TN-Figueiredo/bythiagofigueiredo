@@ -8,6 +8,9 @@ import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admin
 import { claimAlert } from '@/lib/ops/alert-state'
 import { getSiteOwners, logSemDestinatario } from '@/lib/notifications/get-site-owners'
 import { CHANNEL_NOT_IDENTIFIED_MESSAGE, channelAccountIdForVideo } from '@/lib/youtube/channel-account'
+import { anotarPausaDetectado } from '@/lib/youtube/teste-youtube/nativo/anotar-log'
+import { modoPausaPorDetectado } from '@/lib/youtube/teste-youtube/nativo/flag'
+import { bloqueadoComRetentativa, decidirGuarda } from '@/lib/youtube/teste-youtube/nativo/guarda'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { ORIGINAL, settleOnAir } from '@/lib/youtube/ab-settle'
 import { YouTubeApiError, contaParaFalhas, ehCotaEsgotada } from '@/lib/youtube/youtube-api-error'
@@ -79,6 +82,36 @@ async function adiarInicioDaFila(supabase: SupabaseClient, queued: TesteDaFila, 
   }
 }
 
+/**
+ * Recusa pela guarda do teste do YouTube (F1a-dado): adia para amanhã SEM gastar tentativa (`queue_start_failures` fica),
+ * senão uma espera de 14 dias mataria o teste da fila em 7. O aviso sai uma vez por par (teste, registro nativo).
+ */
+async function adiarSemContar(supabase: SupabaseClient, queued: TesteDaFila, motivo: string, nativeTestId: string | undefined): Promise<void> {
+  const lido = queued.queue_start_after ? Date.parse(queued.queue_start_after) : Number.NaN
+  const base = Math.max(Number.isNaN(lido) ? 0 : lido, Date.now())
+  const amanha = Math.floor((base + UM_DIA_MS) / UM_DIA_MS) * UM_DIA_MS
+  const { data, error } = await supabase
+    .from('ab_tests')
+    .update({ status: 'queued', queue_start_after: new Date(amanha).toISOString(), status_note: motivo })
+    .eq('id', queued.id)
+    .eq('status', 'draft')
+    .select('id')
+  if (error) { Sentry.captureException(new Error(error.message), { extra: { testId: queued.id, context: 'fila-adiamento-nativo' } }); return }
+  if (!data || data.length === 0) return
+  if (!nativeTestId) return // guarda sem conferir: só Sentry (já registrado), sem aviso ao dono
+  try {
+    if (await claimAlert(supabase, `ab-queue-nativo:${queued.id}:${nativeTestId}`, '30 days')) {
+      await avisarFila(queued, {
+        title: 'A/B: o teste da fila está esperando',
+        message: `O teste "${queued.name ?? ''}" espera: ${motivo} O Lab tenta de novo amanhã.`,
+        dedupKey: `ab-queue-nativo:${queued.id}:${nativeTestId}`,
+      })
+    }
+  } catch (e) {
+    Sentry.captureException(e, { extra: { testId: queued.id, context: 'aviso-fila-nativo' } })
+  }
+}
+
 async function avisarFila(queued: TesteDaFila, a: { title: string; message: string; dedupKey: string }): Promise<void> {
   try {
     await fanOutToSiteAdminsDetailed({
@@ -120,9 +153,11 @@ export async function phaseProcessQueue(supabase: SupabaseClient): Promise<numbe
       }
       if (!pego || pego.length === 0) continue // outro processo pegou
 
-      const result = await startAbTestInternal(queued.id, queued.site_id)
+      const result = await startAbTestInternal(queued.id, queued.site_id, { pontoDaGuarda: 'fila' })
       if (result?.ok) {
         started++
+      } else if (result?.codigo) {
+        await adiarSemContar(supabase, queued, result.error ?? 'teste do YouTube em andamento', result.nativeTestId)
       } else {
         await adiarInicioDaFila(supabase, queued, result?.error ?? 'motivo desconhecido')
       }
@@ -238,6 +273,18 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
   let processed = 0
   let errors = 0
 
+  // Guarda do teste do YouTube (F1a-dado): uma consulta por site, ANTES do laço (um site por chamada: Yannis C8). Falha fechada:
+  // consulta que falha (já com a tentativa extra de rede/5xx) = os testes daquele site pulam o ciclo sem escrever.
+  const modoGuarda = modoPausaPorDetectado()
+  const guardaPorSite = new Map<string, Awaited<ReturnType<typeof bloqueadoComRetentativa>>>()
+  const idsPorSite = new Map<string, string[]>()
+  for (const t of tests) idsPorSite.set(t.site_id as string, [...(idsPorSite.get(t.site_id as string) ?? []), t.youtube_video_id as string])
+  for (const [siteId, ids] of idsPorSite) {
+    const g = await bloqueadoComRetentativa(supabase, siteId, ids)
+    guardaPorSite.set(siteId, g)
+    if (!g.ok) Sentry.captureException(new Error(`ab-rotate: guarda do teste do YouTube não conferiu o site ${siteId}: ${g.erro}`), { tags: { cron: 'ab-rotate', area: 'ab-guarda-nativa' }, extra: { siteId } })
+  }
+
   for (const test of tests) {
     const restante = inicioDaFuncao + CORTE_DA_ROTACAO_MS - Date.now()
     if (restante < ROTACAO_MAXIMA_MS) {
@@ -302,6 +349,19 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
         )
       }
 
+      // Guarda do teste do YouTube: depois de todayCycle, do marcador em voo e do filtro de tipo, antes de qualquer escrita.
+      const guarda = guardaPorSite.get(test.site_id as string)
+      if (!guarda || !guarda.ok) { errors++; continue } // falha fechada: não conferiu, não escreve; o cron fica vermelho
+      const decisao = decidirGuarda(guarda.linhas.get(test.youtube_video_id as string), modoGuarda)
+      if (decisao.acao === 'pausar_sem_escrever') {
+        const saida = await settleOnAir(test.id, {
+          siteId: test.site_id, destino: ORIGINAL, motivo: 'teste_youtube', seqEsperado: test.restore_seq as number,
+          prazo: Math.min(Date.now() + 55_000, inicioDaFuncao + PRAZO_FIM_DA_ROTA_MS),
+        })
+        if (saida.resultado !== 'feito') Sentry.captureMessage('ab-rotate: pausa por teste do YouTube não feita', { extra: { testId: test.id, resultado: saida.resultado } })
+        continue
+      }
+
       // Resolve the YouTube channel_id to use the correct OAuth token
       // O canal dono do vídeo (filtro de site; erro de banco lança, não vira "canal não identificado").
       const channelAccountId = await channelAccountIdForVideo(supabase, test.site_id, test.youtube_video_id)
@@ -352,6 +412,11 @@ export async function phaseRotateActiveTests(supabase: SupabaseClient, inicioDaF
           testId: test.id, siteId: test.site_id, testName: (test.name as string | null) ?? '', motivo: semConteudo, variantId: nextVariant.id,
         })
         continue
+      }
+
+      // Modo `log`: a escrita vai sair e a guarda `on` pausaria; anota uma vez, só aqui (rotação disparada de novo no dia nem chega).
+      if (decisao.acao === 'seguir_e_anotar') {
+        await anotarPausaDetectado(supabase, { siteId: test.site_id, orgId: null, testId: test.id, videoId: test.youtube_video_id as string, nativeTestId: decisao.nativeTestId, ponto: 'rotacao' })
       }
 
       // Reivindica a vez ANTES de escrever (restore_seq + 1 e marcador); zero linhas = outro escritor ganhou.

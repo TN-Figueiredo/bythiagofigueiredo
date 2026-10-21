@@ -8,6 +8,7 @@
  * fecha por `ab_resume_commit` (uma transação). Falha tratada grava o resultado por campo (nunca "voltou ao original"
  * com escrita parcial); morte sem tratamento deixa o campo `em_andamento` com destino = variante e o vigia converte.
  */
+import { guardaDoPonto } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { applyVariantToYouTube, antesDeEscreverPorSeq } from '@/lib/youtube/ab-apply'
@@ -99,6 +100,9 @@ export async function retomarTeste(testId: string, siteId: string, portas: Porta
   if (teste.status !== 'paused') return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
   const tipoRecusado = recusaTipoForaDeUso(teste.test_type)
   if (tipoRecusado) return erro(tipoRecusado)
+  // Guarda do teste do YouTube (F1a-dado): retomar escreveria no vídeo; teste nativo em andamento recusa.
+  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: teste.youtube_video_id, ponto: 'retomar' })
+  if (!guarda.seguir) return erro(guarda.motivo)
   if (teste.status_note === DRIFT_STATUS_NOTE && !teste.drift_acknowledged_at) {
     return erro('Drift não reconhecido. Reconheça a mudança antes de retomar o teste.')
   }

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Degrau "administrar o site": estes testes rodam como quem administra (o dono).
 // A recusa da editora e o erro da RPC ficam em test/cms/site-admin-step-*.test.ts.
+const { guardaDoPonto } = vi.hoisted(() => ({ guardaDoPonto: vi.fn() }))
+vi.mock('@/lib/youtube/teste-youtube/nativo/aplicar-guarda', () => ({ guardaDoPonto }))
 vi.mock('@/lib/cms/auth-guards', () => ({
   requireSiteAdminScope: async () => ({ ok: true, user: { id: 'user-1' } }),
   denyUnlessSiteAdmin: async () => null,
@@ -206,6 +208,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
 beforeEach(() => {
   vi.stubEnv('LINKS_SHORT_DOMAIN', 'go.test.com')
   vi.clearAllMocks()
+  guardaDoPonto.mockResolvedValue({ seguir: true })
   fanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
   ;(setThumbnail as ReturnType<typeof vi.fn>).mockReset().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' })
   ;(updateVideoMetadata as ReturnType<typeof vi.fn>).mockReset()
@@ -223,6 +226,27 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+})
+
+describe('forceRotate: guarda do teste do YouTube (F1a-dado)', () => {
+  it('guarda recusa (linha confirmada, ou detectada com a flag on): erro com o motivo, sem token, sem reivindicar e sem escrever', async () => {
+    const m = buildSupabaseMock({ test: makeTest() })
+    guardaDoPonto.mockResolvedValue({ seguir: false, codigo: 'teste_youtube', motivo: 'Há um teste do YouTube em andamento neste vídeo.' })
+    const result = await forceRotate('test-1')
+    expect(result).toEqual({ ok: false, resultado: 'erro', error: 'Há um teste do YouTube em andamento neste vídeo.' })
+    expect(guardaDoPonto).toHaveBeenCalledWith(expect.anything(), { siteId: 'site-1', testId: 'test-1', videoId: 'db-video-1', ponto: 'forcar' })
+    expect(preflightTokenCheck).not.toHaveBeenCalled()
+    expect(setThumbnail).not.toHaveBeenCalled()
+    expect(m.updateCalls).toEqual([])
+    expect(m.rpcCalls).toEqual([])
+  })
+
+  it('guarda sem conferir (falha fechada): também recusa', async () => {
+    buildSupabaseMock({ test: makeTest() })
+    guardaDoPonto.mockResolvedValue({ seguir: false, codigo: 'guarda_falhou', motivo: 'Não foi possível conferir o teste do YouTube.' })
+    expect(await forceRotate('test-1')).toMatchObject({ ok: false, error: 'Não foi possível conferir o teste do YouTube.' })
+    expect(setThumbnail).not.toHaveBeenCalled()
+  })
 })
 
 describe('forceRotate', () => {

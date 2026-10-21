@@ -22,10 +22,11 @@ export type Fila = Record<string, unknown>
 // ---------------------------------------------------------------------------
 class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: number }> {
   private filtros: Array<(f: Fila) => boolean> = []
-  private modo: 'select' | 'update' | 'delete' = 'select'
+  private modo: 'select' | 'update' | 'delete' | 'insert' = 'select'
   private patch: Fila = {}
   private ordenar: { col: string; asc: boolean } | null = null
   private limite = Infinity
+  private deslocamento = 0
   private contar = false
   constructor(private readonly linhas: Fila[], private readonly aoReler: () => void, private readonly unir?: (f: Fila) => Fila, private readonly aoAtualizar?: (antes: Fila, depois: Fila) => void) {}
   select(cols?: string, o?: { count?: string; head?: boolean }) {
@@ -35,6 +36,9 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   }
   update(patch: Fila) { this.modo = 'update'; this.patch = patch; return this }
   delete() { this.modo = 'delete'; return this }
+  insert(linha: Fila) { this.modo = 'insert'; this.patch = linha; return this }
+  /** Paginação por intervalo (a guarda do teste do YouTube lê por `range`). */
+  range(de: number, ate: number) { this.deslocamento = de; this.limite = ate - de + 1; return this }
   eq(col: string, v: unknown) { this.filtros.push((f) => f[col] === v); return this }
   is(col: string, v: unknown) { this.filtros.push((f) => (f[col] ?? null) === v); return this }
   in(col: string, vs: unknown[]) { this.filtros.push((f) => vs.includes(f[col])); return this }
@@ -54,10 +58,11 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   limit(n: number) { this.limite = n; return this }
   private executar(): Fila[] {
     let hit = this.linhas.filter((f) => this.filtros.every((g) => g(f)))
+    if (this.modo === 'insert') { this.linhas.push(structuredClone(this.patch)); return [structuredClone(this.patch)] }
     if (this.modo === 'delete') { for (const f of hit) this.linhas.splice(this.linhas.indexOf(f), 1); return [] }
     if (this.modo === 'update') hit.forEach((f) => { const antes = structuredClone(f); Object.assign(f, this.patch); this.aoAtualizar?.(antes, f) })
     if (this.ordenar) { const { col, asc } = this.ordenar; hit = [...hit].sort((a, b) => (String(a[col]) < String(b[col]) ? -1 : 1) * (asc ? 1 : -1)) }
-    return hit.slice(0, this.limite).map((f) => structuredClone(this.unir ? this.unir(f) : f))
+    return hit.slice(this.deslocamento, this.deslocamento + this.limite).map((f) => structuredClone(this.unir ? this.unir(f) : f))
   }
   single() { const h = this.executar(); return Promise.resolve(h[0] ? { data: h[0], error: null } : { data: null, error: { code: 'PGRST116', message: 'sem linha' } }) }
   maybeSingle() { return Promise.resolve({ data: this.executar()[0] ?? null, error: null }) }
@@ -72,6 +77,8 @@ export interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; resto
   /** Sem ciclo aberto (rascunho). */ semCiclos?: boolean
   restoreStatus?: unknown
   /** Outros testes do mesmo vídeo (campos sobrescrevem o modelo). */ extras?: Fila[]
+  /** Vídeos a mais em `youtube_videos` (outro site). */ videos?: Fila[]
+  /** Linhas de `ab_native_tests` (a guarda do teste do YouTube, F1a-dado); sem elas a tabela existe vazia. */ nativas?: Fila[]
 }
 
 export function criarBanco(o: OpcoesBanco = {}) {
@@ -93,8 +100,8 @@ export function criarBanco(o: OpcoesBanco = {}) {
     ab_tests: [teste, ...(o.extras ?? []).map((e) => ({ ...structuredClone(teste), restore_status: null, ...e }))], ab_test_variants: variantes,
     ab_test_cycles: o.semCiclos ? [] : [{ id: 'c0', test_id: 'teste-1', cycle_number: 0, variant_id: 'A', started_at: ONTEM, ended_at: null, end_reason: null }],
     ab_test_restores: [],
-    ab_test_polls: [], youtube_videos: [{ id: 'video-interno', site_id: SITE, youtube_video_id: 'yt-1', channel_id: 'ch-1', youtube_channels: { channel_id: 'UC1', name: 'Canal' } }],
-    ops_alert_state: [],
+    ab_test_polls: [], youtube_videos: [{ id: 'video-interno', site_id: SITE, youtube_video_id: 'yt-1', channel_id: 'ch-1', youtube_channels: { channel_id: 'UC1', name: 'Canal' } }, ...(o.videos ?? [])],
+    ops_alert_state: [], ab_native_tests: o.nativas ?? [], audit_log: [], sites: [{ id: SITE, org_id: null }],
   }
   for (let i = 0; i < (o.ciclosFechados ?? 0); i++) tabelas.ab_test_cycles!.unshift({ id: `f${i}`, test_id: 'teste-1', cycle_number: -1 - i, variant_id: 'A', started_at: ONTEM, ended_at: ONTEM, end_reason: 'rotacao' })
   const ganchos: Array<() => void> = []
@@ -173,6 +180,7 @@ export function criarBanco(o: OpcoesBanco = {}) {
     cicloAberto: () => tabelas.ab_test_cycles!.find((c) => c.ended_at == null),
     cicloFechado: (i: number) => tabelas.ab_test_cycles!.filter((c) => c.ended_at != null)[i],
     restores: () => tabelas.ab_test_restores!,
+    nativas: () => tabelas.ab_native_tests!, auditoria: () => tabelas.audit_log!,
     outro: (id: string) => tabelas.ab_tests!.find((f) => f.id === id) as Fila,
     rpcLanca: (nome: string, e: Error) => { lancam.set(nome, e) },
     setPoll: (p: Fila) => { tabelas.ab_test_polls!.push({ test_id: 'teste-1', polled_at: AGORA.toISOString(), ...p }) },

@@ -1,10 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { settleOnAir, ORIGINAL, NOTA_TESTE_YOUTUBE } from '@/lib/youtube/ab-settle'
+import { settleOnAir, novaTentativa, ORIGINAL, NOTA_TESTE_YOUTUBE } from '@/lib/youtube/ab-settle'
 import type { Retrato, PortasSaida } from '@/lib/youtube/ab-settle'
 import type { RestoreStatus } from '@/lib/youtube/ab-restore'
 import { camposPendentes } from '@/lib/youtube/ab-restore'
+import { fakeSupabase } from '../helpers/fake-supabase'
+import type { Row } from '../helpers/fake-supabase'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 const { lerSnippetMock } = vi.hoisted(() => ({ lerSnippetMock: vi.fn() }))
@@ -35,9 +37,10 @@ function retrato(o: Partial<Retrato> = {}): Retrato {
   }
 }
 
-function montar(r: Retrato, opts: { claimVazio?: boolean; statusDepois?: string; lerYoutube?: () => never } = {}) {
+function montar(r: Retrato, opts: { claimVazio?: boolean; statusDepois?: string; nativas?: Row[]; falhaNativas?: boolean } = {}) {
+  const nativas = fakeSupabase({ ab_native_tests: opts.nativas ?? [] }, opts.falhaNativas ? { failOn: 'ab_native_tests' } : {})
   const rpc = vi.fn(async (_n: string, a: Record<string, unknown>) => (opts.claimVazio ? { data: [], error: null } : { data: [{ claimed_seq: Number(a.p_seq) + 1 }], error: null }))
-  const from = vi.fn(() => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { status: opts.statusDepois ?? 'completed' }, error: null }) }) }) }))
+  const from = vi.fn((tabela: string) => tabela === 'ab_native_tests' ? nativas.client.from(tabela) : ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { status: opts.statusDepois ?? 'completed' }, error: null }) }) }) }))
   const proibida = (nome: string) => vi.fn(() => { throw new Error(`porta proibida: ${nome}`) })
   const token = proibida('token')
   const fetchFn = proibida('fetch')
@@ -49,7 +52,7 @@ function montar(r: Retrato, opts: { claimVazio?: boolean; statusDepois?: string;
     lerRetrato: async () => r,
   } satisfies Partial<PortasSaida>
   const op = { siteId: SITE, destino: ORIGINAL, motivo: 'teste_youtube' as const }
-  return { rpc, from, token, fetchFn, portas, op }
+  return { rpc, from, token, fetchFn, portas, op, nativas }
 }
 
 describe('settleOnAir motivo teste_youtube', () => {
@@ -169,5 +172,75 @@ describe('(k) passo 0b depois de pulado_teste_youtube (Yannis C3)', () => {
     const m = montar(retrato({ test_type: 'title', status: 'paused', restore_status: { title: campo('ok') } as unknown as RestoreStatus }))
     await settleOnAir('t1', op, comToken(m)).catch(() => undefined)
     expect(m.rpc).toHaveBeenCalled()
+  })
+})
+
+describe('guarda de linha confirmada dentro de settleOnAir e novaTentativa (T6, Yannis C2; sem flag)', () => {
+  const confirmada = [{ id: 'n1', site_id: SITE, video_id: 'v-int', estado: 'em_andamento', confirmado_em: '2026-10-20T00:00:00Z', updated_at: '2026-10-20T00:00:00Z' }]
+  const detectada = [{ ...confirmada[0]!, confirmado_em: null }]
+  const op = (motivo: 'pausa' | 'falha_api' | 'drift' | 'duracao_maxima' | 'encerrado' | 'reverter') => ({ siteId: SITE, destino: ORIGINAL, motivo })
+
+  it.each(['pausa', 'falha_api', 'drift', 'duracao_maxima'] as const)('%s com linha confirmada: zero escrita, teste fica paused/pulado_teste_youtube', async (motivo) => {
+    const m = montar(retrato(), { nativas: confirmada })
+    const res = await settleOnAir('t1', op(motivo), m.portas)
+    expect(res.resultado).toBe('feito')
+    expect(m.rpc.mock.calls[0]![1]).toMatchObject({ p_para: 'paused', p_end_reason: 'teste_youtube' })
+    expect(m.token).not.toHaveBeenCalled(); expect(m.fetchFn).not.toHaveBeenCalled()
+  })
+
+  it.each(['encerrado', 'reverter'] as const)('%s com linha confirmada: recusa com o motivo, sem reivindicar', async (motivo) => {
+    const m = montar(retrato({ winner_applied_at: T0.toISOString(), revert_expires_at: new Date(T0.getTime() + 86_400_000).toISOString(), status: motivo === 'reverter' ? 'completed' : 'active' }), { nativas: confirmada })
+    const res = await settleOnAir('t1', op(motivo), m.portas)
+    expect(res).toMatchObject({ resultado: 'teste_youtube', motivo: expect.stringContaining('teste do YouTube') })
+    expect(m.rpc).not.toHaveBeenCalled()
+  })
+
+  it('linha só detectada, nos modos off/log/on: a guarda de settle é só de confirmada (sem recusa)', async () => {
+    const m = montar(retrato(), { nativas: detectada })
+    const res = await settleOnAir('t1', op('pausa'), { ...m.portas, token: (async () => { throw new Error('sem YouTube') }) as PortasSaida['token'] }).catch(() => ({ resultado: 'lancou' }))
+    expect(res.resultado).not.toBe('teste_youtube')
+    expect(m.rpc.mock.calls[0]![1]).toMatchObject({ p_end_reason: 'pausa' }) // seguiu o caminho de sempre
+  })
+
+  it('sem linha: comportamento atual (reivindica o caminho pedido)', async () => {
+    const m = montar(retrato())
+    await settleOnAir('t1', op('encerrado'), { ...m.portas, token: (async () => { throw new Error('sem YouTube') }) as PortasSaida['token'] }).catch(() => undefined)
+    expect(m.rpc.mock.calls[0]![1]).toMatchObject({ p_end_reason: 'encerrado' })
+  })
+
+  it('erro na leitura: settleOnAir lança (falha fechada), nada gravado', async () => {
+    const m = montar(retrato(), { falhaNativas: true })
+    await expect(settleOnAir('t1', op('pausa'), m.portas)).rejects.toThrow(/guarda do teste do YouTube/)
+    expect(m.rpc).not.toHaveBeenCalled()
+  })
+
+  it('a leitura é dispensada quando o motivo já é teste_youtube', async () => {
+    const m = montar(retrato(), { falhaNativas: true })
+    expect((await settleOnAir('t1', { siteId: SITE, destino: ORIGINAL, motivo: 'teste_youtube' }, m.portas)).resultado).toBe('feito')
+    expect(m.nativas.trips).toEqual([])
+  })
+
+  it('erro transitório (rede) na leitura: uma tentativa extra; 4xx não repete', async () => {
+    let chamadas = 0
+    const base = montar(retrato())
+    const falho = (status: number) => ({ from: () => { chamadas++; const q: Record<string, unknown> = {}; for (const k of ['select', 'eq', 'in', 'order']) q[k] = () => q; q.range = async () => ({ data: null, error: { message: 'x', code: 'X' }, status }); return q } })
+    const p5 = { ...base.portas, supabase: { ...(base.portas.supabase as object), ...falho(503) } as unknown as SupabaseClient }
+    await expect(settleOnAir('t1', op('pausa'), p5)).rejects.toThrow()
+    expect(chamadas).toBe(2)
+    chamadas = 0
+    const p4 = { ...base.portas, supabase: { ...(base.portas.supabase as object), ...falho(400) } as unknown as SupabaseClient }
+    await expect(settleOnAir('t1', op('pausa'), p4)).rejects.toThrow()
+    expect(chamadas).toBe(1)
+  })
+
+  it('novaTentativa (vigia) com linha confirmada: recusa, nada reivindicado; sem linha segue adiante', async () => {
+    const rs = { title: campo('falhou', { escreveu: false, attempts: 1 }) } as unknown as RestoreStatus
+    const m = montar(retrato({ status: 'paused', restore_status: rs, test_type: 'title' }), { nativas: confirmada })
+    const res = await novaTentativa('t1', { siteId: SITE, origem: 'vigia' }, m.portas)
+    expect(res).toMatchObject({ resultado: 'teste_youtube', motivo: expect.stringContaining('teste do YouTube') })
+    expect(m.rpc).not.toHaveBeenCalled()
+    const livre = montar(retrato({ status: 'paused', restore_status: rs, test_type: 'title' }))
+    const r2 = await novaTentativa('t1', { siteId: SITE, origem: 'vigia' }, livre.portas).catch(() => ({ resultado: 'seguiu' }))
+    expect(r2.resultado).not.toBe('teste_youtube')
   })
 })
