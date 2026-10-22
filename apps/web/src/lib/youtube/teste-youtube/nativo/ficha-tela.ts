@@ -2,7 +2,7 @@
 // A cópia vive em `frases.ts`; os componentes (T6-T9) só desenham o que `vistaDaFicha` decide.
 import type { FichaLida } from './ficha'
 import type { ResultadoAcaoConfirmar, ResultadoAcaoDescartar, ResultadoAcaoResponder } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
-import { FRASES, dataCurta } from './frases'
+import { FRASES } from './frases'
 
 /** Vencida ⇔ inatividade > 14 d, com inatividade = greatest(criada_em, atualizada_em, studio_aberto_em, lembrar_em) (spec §5.3). */
 export const INATIVIDADE_DESCARTE_MS = 14 * 24 * 3600 * 1000
