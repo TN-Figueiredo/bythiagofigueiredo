@@ -31,6 +31,8 @@ export interface MetaResumo extends StepResumo {
   sem_privacidade: number
   /** Linhas gravadas nesta execução cujo `is_short` ficou nulo (duração desconhecida ou sonda sem confirmação). */
   sem_is_short: number
+  /** Tempo (ms) de cada fase: leituras antes do laço (inclui estado próprio), captura pela Data API e laço por vídeo. Ausente se o passo saiu antes. */
+  ms_fases?: { leituras: number; captura: number; laco: number }
   /** A5 E18 P2: a cobertura do dia (yt_own_meta_cover). Ausente = o passo parou antes e não avaliou. */
   cobertura?: CoberturaMetaResumo
 }
@@ -177,6 +179,8 @@ async function capturarThumb(ctx: StepCtx, v: VideoRow, ant: Anterior | null, f:
 export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
   const agora = new Date()
   const day = ontemPt(agora)
+  const t0 = Date.now()
+  let msCaptura = 0
   const A = boundsAnalytics(day)
   const R = boundsReporting(day)
   const resumo: MetaResumo = { gravados: 0, tentativas: {}, pendentes: 0, day_pt: day, dias_sem_meta: {}, sem_privacidade: 0, sem_is_short: 0 }
@@ -219,6 +223,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
   const prazoCaptura = Math.min(ctx.deadline, Date.now() + TETO_CAPTURA_MS)
   const ctxCaptura: StepCtx = { ...ctx, deadline: prazoCaptura }
   const fCaptura = fetchComPrazo(prazoCaptura)
+  const tCaptura0 = Date.now()
   const captura = new Map<string, VideoCapturado>()
   /** `youtube_channels.id` cuja videos.list respondeu: só para esses "ausente da resposta" quer dizer alguma coisa. */
   const respondeu = new Set<string>()
@@ -267,6 +272,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       await registrarTentativa(ctx, { ...tCanal, outcome: 'erro_http', http_status: e instanceof DataApiError ? e.status : null, error: causa })
     }
   }
+
+  msCaptura = Date.now() - tCaptura0
 
   // X1 + X5: o que a mesma resposta trouxe e não vira coluna do dia. Nunca lança. Roda em série ANTES das linhas do dia e sem prazo próprio (1 RPC + 1 upsert por 200 vídeos, <1 s com ~70 vídeos, dentro do teto do passo); com o banco lento ele consome o teto de metadados.
   if (captura.size > 0) {
@@ -354,6 +361,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
   const thumbFalhas = new Map<string, number>()
   const capturedAt = agora.toISOString()
 
+  const tLaco0 = Date.now()
+  resumo.ms_fases = { leituras: Math.max(0, tLaco0 - t0 - msCaptura), captura: msCaptura, laco: 0 }
   await emParalelo(fila, PARALELO, async (v) => {
     const base = { site_id: v.site_id, scope_type: 'video' as const, scope_id: v.youtube_video_id, channel_id: v.channel_id }
     try {
@@ -502,6 +511,7 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       await registrarTentativa(ctx, { ...base, kind: 'meta', outcome: 'erro_http', error: describeCronCause(e) })
     }
   })
+  resumo.ms_fases.laco = Date.now() - tLaco0
 
   // Sonda de Shorts (61 a 180 s), só depois de todas as linhas gravadas: o que estava no ar não volta, a
   // classificação sim. Sem confirmação, is_short fica nulo e o vídeo é sondado de novo no dia seguinte.
