@@ -58,10 +58,15 @@ describe('semente-v1', () => {
   it('tamanho e ambíguos', () => {
     expect(semente.lugares.filter((l) => l.nivel === 'pais').length).toBeGreaterThanOrEqual(220)
     expect(semente.lugares.filter((l) => l.nivel === 'local').length).toBeGreaterThanOrEqual(100)
-    const amb = [...new Set(linhas.filter((l) => l.ambiguo).map((l) => l.alias_norm))].sort()
-    expect(amb).toEqual(
-      ['natal', 'porto', 'lima', 'cuba', 'salvador', 'belem', 'vitoria', 'georgia', 'jordan', 'chad', 'turkey'].sort(),
-    )
+    const amb = new Set(linhas.filter((l) => l.ambiguo).map((l) => l.alias_norm))
+    const obrigatorios = [
+      'natal', 'porto', 'lima', 'cuba', 'salvador', 'belem', 'vitoria', 'georgia', 'jordan', 'chad', 'turkey',
+      'peru', 'reuniao', 'reunion', 'ira', 'oma', 'male', 'jersey', 'guinea', 'bermuda', 'bermudas',
+      'malta', 'granada', 'formosa', 'dominica', 'gana', 'eau',
+    ]
+    for (const a of obrigatorios) expect(amb.has(a), a).toBe(true)
+    expect(ind.porAlias.has('rio')).toBe(false)
+    expect(ind.porAlias.get('machu picchu')?.slug).toBe('local:pe-cusco')
     expect(ind.porAlias.get('turquia')).toEqual({ slug: 'pais:TR', ambiguo: false, pais: 'TR' })
     expect(ind.porAlias.get('turkiye')?.ambiguo).toBe(false)
   })
@@ -96,8 +101,8 @@ describe('extrairLugares', () => {
     expect(ex('Tailândia, Vietnã, Camboja e Laos').chaves).toEqual(['pais:TH', 'pais:VN', 'pais:KH'])
   })
   it('título antes de tags antes de descrição', () => {
-    const r = ex('Japão', { tags: ['Peru'], descricaoInicio: 'Chile' })
-    expect(r.chaves).toEqual(['pais:JP', 'pais:PE', 'pais:CL'])
+    const r = ex('Japão', { tags: ['Argentina'], descricaoInicio: 'Chile' })
+    expect(r.chaves).toEqual(['pais:JP', 'pais:AR', 'pais:CL'])
   })
   it('ambíguo em pt com preposição; em inglês não', () => {
     expect(ex('Viagem em Natal').chaves).toEqual(['local:br-natal', 'pais:BR'])
@@ -144,6 +149,16 @@ describe('extrairLugares', () => {
     'Turkey day dinner',
     'Salvador Sobral canta',
     'Receita de ceia de Natal',
+    'Peru assado de Natal',
+    'Reunião de família',
+    'Ira de Deus',
+    'no Natal com a família',
+    'Vitória do time na final',
+    'Malta de amigos',
+    'Granada de mão',
+    'Rio de lágrimas',
+    'Passei no Porto',
+    'Fui na Vitória',
   ])('negativo: %s', (t) => {
     expect(ex(t).chaves).toEqual([])
   })

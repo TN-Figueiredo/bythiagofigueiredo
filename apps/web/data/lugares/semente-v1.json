@@ -728,7 +728,7 @@
    "aliases": [
     {
      "alias": "Dominica",
-     "ambiguo": false
+     "ambiguo": true
     }
    ]
   },
@@ -987,7 +987,7 @@
    "aliases": [
     {
      "alias": "Gana",
-     "ambiguo": false
+     "ambiguo": true
     },
     {
      "alias": "Ghana",
@@ -1021,7 +1021,7 @@
    "aliases": [
     {
      "alias": "Granada",
-     "ambiguo": false
+     "ambiguo": true
     },
     {
      "alias": "Grenada",
@@ -1051,7 +1051,7 @@
     },
     {
      "alias": "Guinea",
-     "ambiguo": false
+     "ambiguo": true
     }
    ]
   },
@@ -1189,7 +1189,7 @@
    "aliases": [
     {
      "alias": "Irã",
-     "ambiguo": false
+     "ambiguo": true
     },
     {
      "alias": "Iran",
@@ -1620,7 +1620,7 @@
    "aliases": [
     {
      "alias": "Malta",
-     "ambiguo": false
+     "ambiguo": true
     }
    ]
   },
@@ -1968,7 +1968,7 @@
    "aliases": [
     {
      "alias": "Omã",
-     "ambiguo": false
+     "ambiguo": true
     },
     {
      "alias": "Oman",
@@ -2065,7 +2065,7 @@
    "aliases": [
     {
      "alias": "Peru",
-     "ambiguo": false
+     "ambiguo": true
     }
    ]
   },
@@ -2591,7 +2591,7 @@
     },
     {
      "alias": "Formosa",
-     "ambiguo": false
+     "ambiguo": true
     }
    ]
   },
@@ -2793,7 +2793,7 @@
     },
     {
      "alias": "EAU",
-     "ambiguo": false
+     "ambiguo": true
     },
     {
      "alias": "UAE",
@@ -3133,11 +3133,11 @@
    "aliases": [
     {
      "alias": "Bermudas",
-     "ambiguo": false
+     "ambiguo": true
     },
     {
      "alias": "Bermuda",
-     "ambiguo": false
+     "ambiguo": true
     }
    ]
   },
@@ -3178,7 +3178,7 @@
    "aliases": [
     {
      "alias": "Jersey",
-     "ambiguo": false
+     "ambiguo": true
     }
    ]
   },
@@ -3339,11 +3339,11 @@
    "aliases": [
     {
      "alias": "Reunião",
-     "ambiguo": false
+     "ambiguo": true
     },
     {
      "alias": "Reunion",
-     "ambiguo": false
+     "ambiguo": true
     }
    ]
   },
@@ -4801,10 +4801,6 @@
    "nivel": "local",
    "aliases": [
     {
-     "alias": "Machu Picchu",
-     "ambiguo": false
-    },
-    {
      "alias": "Lima",
      "ambiguo": true
     }
@@ -4821,6 +4817,10 @@
     },
     {
      "alias": "Cuzco",
+     "ambiguo": false
+    },
+    {
+     "alias": "Machu Picchu",
      "ambiguo": false
     }
    ]
@@ -4965,7 +4965,7 @@
      "ambiguo": false
     },
     {
-     "alias": "Rio",
+     "alias": "Rio de Janeiro Brasil",
      "ambiguo": false
     }
    ]
@@ -5179,12 +5179,12 @@
    "nivel": "local",
    "aliases": [
     {
-     "alias": "Malé",
+     "alias": "Male Maldivas",
      "ambiguo": false
     },
     {
-     "alias": "Male Maldivas",
-     "ambiguo": false
+     "alias": "Malé",
+     "ambiguo": true
     }
    ]
   },

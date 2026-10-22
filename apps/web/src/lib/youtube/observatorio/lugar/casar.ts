@@ -21,7 +21,7 @@ export interface EntradaDeLugar {
 
 const MAX_PAISES = 3
 const DESCRICAO_MAX = 300
-const PREPOSICOES_PT = new Set(['em', 'na', 'no'])
+const PREPOSICOES_PT = new Set(['em'])
 // Ambíguos em inglês: "in|to" não basta como segundo sinal (Yannis M8).
 const AMBIGUOS_EN = new Set(['georgia', 'jordan', 'chad', 'turkey'])
 
