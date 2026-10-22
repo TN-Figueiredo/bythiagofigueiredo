@@ -190,6 +190,23 @@ describe('faixa 0b: nosso teste rodando', () => {
     expect(studioBtn()?.disabled).toBe(false)
   })
 
+  it('D-3: depois do retry, a chave "conferido" usa o restoreSeq novo e a faixa não volta ao remontar', async () => {
+    const a = acoesMock()
+    const pausado: NossoT = { ...NOSSO, restoreSeq: 0, status: 'paused', restoreStatus: { title: { estado: 'falhou', erro: { status: 503, reason: 'x' } } } }
+    a.retryRestore.mockResolvedValue({ ok: true, resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: 'x' }] })
+    const m = montar(duas(), { nosso: pausado, a })
+    await clicar(FRASES.ficha.tentarDeNovo)
+    expect(m.aoAtualizar).toHaveBeenCalled() // a recarga traz o seq que o retry avançou
+    m.trocarNosso({ ...pausado, restoreSeq: 1, restoreStatus: null })
+    await clicar(FRASES.ficha.conferiESeguir)
+    expect(window.sessionStorage.getItem(`ab-conferido:${NOSSO.testId}:1`)).toBe('1')
+    expect(window.sessionStorage.getItem(`ab-conferido:${NOSSO.testId}:0`)).toBeNull()
+    cleanup()
+    montar(duas(), { nosso: { ...pausado, restoreSeq: 1, restoreStatus: null } })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(studioBtn()?.disabled).toBe(false)
+  })
+
   it('M-1: "A original já está no YouTube, seguir" sobrevive à recarga (sessionStorage, por teste e restoreSeq)', async () => {
     montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: null } })
     await clicar(FRASES.ficha.conferiESeguir)

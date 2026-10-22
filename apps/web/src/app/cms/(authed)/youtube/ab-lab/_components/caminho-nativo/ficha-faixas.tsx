@@ -134,7 +134,7 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
         recarregar?.() // a pausa já reivindicou o teste e avançou `restore_seq`: a linha recarregada traz o valor atual
       } else if (r.ok) {
         // Só a pausa tem "Trocar mesmo assim" (`forcar`); o retry não tem caminho de forçar: leva à saída "A original já está no YouTube, seguir" (I-1).
-        if (ehRetry) setMotivo('conferir')
+        if (ehRetry) { setMotivo('conferir'); recarregar?.() } // o retry avançou `restore_seq` no banco: a chave de "conferido" tem de usar o seq novo
         else setParaConfirmar(r.campos)
       } else if (r.resultado === 'em_andamento') {
         setNosso((n) => (n ? { ...n, originalDeVolta: 'restaurando', status: 'paused' } : n))

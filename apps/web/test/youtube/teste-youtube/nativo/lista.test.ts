@@ -170,13 +170,13 @@ describe('resumoDaLista', () => {
     expect(r.frase).toBe('Dois vídeos esperam a sua resposta: um passou do prazo, um terminou hoje.')
     expect(r.apoio).toBe('Dois em teste no Studio, um em preparo. O Lab está pausado em dois deles.')
   })
-  it('I-3: o detectado (sem confirmação) não entra em "em teste no Studio"; vai em "com teste detectado, ainda sem confirmar"', () => {
+  it('I-3: o detectado (sem confirmação) não entra em "em teste no Studio"; vai em "parece haver teste no Studio em N vídeos"', () => {
     const r = resumoDaLista(g(
       linha({ id: 'a', estado: 'sem_resposta', registro: regLinha(2) }),
       linha({ id: 'c', estado: 'em_teste_studio', registro: { ...regLinha(2), confirmadoEm: null, primeiraVista: ant(2 * D) } }),
       linha({ id: 'd', estado: 'em_teste_studio', registro: regLinha(2) }),
     ))
-    expect(r.apoio).toBe('Um em teste no Studio, um com teste detectado, ainda sem confirmar.')
+    expect(r.apoio).toBe('Um em teste no Studio, parece haver teste no Studio em um vídeo.')
   })
   it('nada espera: frase de D-7 e apoio com N em teste ou em preparo', () => {
     const r = resumoDaLista(g(

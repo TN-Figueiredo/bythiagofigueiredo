@@ -49,7 +49,7 @@ export const FRASES = {
       return `${capitalizar(videos(espera))} ${verbo} a sua resposta${detalhe}.`
     },
     emTesteNoStudio: (n: number): string => `${porExtenso(n)} em teste no Studio`,
-    detectados: (n: number): string => `${porExtenso(n)} com teste detectado, ainda sem confirmar`,
+    detectados: (n: number): string => `parece haver teste no Studio em ${n === 1 ? 'um vídeo' : `${porExtenso(n)} vídeos`}`,
     emPreparo: (n: number): string => `${porExtenso(n)} em preparo`,
     labPausadoDeles: (n: number): string => `O Lab está pausado em ${porExtenso(n)} deles.`,
     maisComResultadoPronto: (n: number): string =>

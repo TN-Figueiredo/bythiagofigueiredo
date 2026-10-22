@@ -29,10 +29,10 @@ describe('Gio F-5: ficha carregando como no mockup', () => {
 })
 
 describe('Gio F-2: o esqueleto da lista tem altura fixa, com ou sem cabeçalhos de grupo', () => {
-  it('Naksu U-3: a altura vem do número de linhas (128 px larga, 220 px estreita), sem altura de região nem linhas esticadas', () => {
+  it('Naksu U-3: a altura vem do número de linhas (149 px larga, 265 px estreita), sem altura de região nem linhas esticadas', () => {
     const l = css('lista-caminho.css')
-    expect(l).toMatch(/\[data-skel-linha\] \{ flex: none; height: 128px;/)
-    expect(l).toMatch(/@container \(max-width: 640px\) \{ \.cn-lsk \[data-skel-linha\] \{ height: 220px; \} \}/)
+    expect(l).toMatch(/\[data-skel-linha\] \{ flex: none; height: 149px;/)
+    expect(l).toMatch(/@container \(max-width: 640px\) \{ \.cn-lsk \[data-skel-linha\] \{ height: 265px; \} \}/)
     expect(l).not.toMatch(/--cn-hs/)
     expect(l).not.toMatch(/flex: 1 1 0/)
     expect(css('caminho-nativo.css')).not.toMatch(/--cn-hs/)
