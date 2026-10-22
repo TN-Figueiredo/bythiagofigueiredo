@@ -53,6 +53,11 @@ export function mesclar(ficha: FichaLida, alterados: Alterados): FichaRascunho {
 /** O que vai ao servidor: sem a n=1 (título e imagem da A são do servidor). */
 const paraServidor = (r: FichaRascunho): FichaRascunho => ({ campos: r.campos, variantes: r.variantes.filter((v) => v.n !== 1) })
 
+/** Mesma regra do servidor: conta depois de `trim()`. */
+const contaTitulo = (t: string): number => contarCaracteresDoTitulo(t.trim())
+const ehErroDeRede = (e: unknown): boolean =>
+  (typeof navigator !== 'undefined' && navigator.onLine === false) || e instanceof TypeError || /fetch|network|offline|load failed/i.test(e instanceof Error ? e.message : '')
+
 const iguais = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 
 export interface FichaGravada {
@@ -95,6 +100,12 @@ export function useFichaGravada(inicial: FichaLida, acoes: AcoesGravacao): Ficha
     const proximo = { ...alteradosRef.current, [chaveDe(a)]: a }
     alteradosRef.current = proximo
     setAlterados(proximo)
+    // A recusa por título longo some quando nenhum título passa mais do limite.
+    if (a.atributo === 'titulo' && contaTitulo(a.valor) <= LIMITE_TITULO
+      && !mesclar(fichaRef.current, proximo).variantes.some((v) => v.titulo !== undefined && contaTitulo(v.titulo) > LIMITE_TITULO)) {
+      setStatus((s) => (s === 'recusado' ? 'salvo' : s))
+      setMensagem((m) => (m === FRASES.ficha.tituloAcima(LIMITE_TITULO) ? null : m))
+    }
   }, [])
 
   const salvarAgora = useCallback(async (): Promise<boolean> => {
@@ -104,11 +115,12 @@ export function useFichaGravada(inicial: FichaLida, acoes: AcoesGravacao): Ficha
       if (Object.keys(alteradosRef.current).length === 0) return true
     }
     setStatus('salvando')
-    const r = await executar<{ ok: boolean }>(async (lido) => {
+    let conflitou = false
+    const gravar = async (lido: string): Promise<{ ok: boolean; conflito?: boolean; ficha?: FichaLida }> => {
       const alt = alteradosRef.current
       if (Object.keys(alt).length === 0) return { ok: true }
       const rasc = mesclar(fichaRef.current, alt)
-      if (rasc.variantes.some((v) => v.titulo !== undefined && contarCaracteresDoTitulo(v.titulo) > LIMITE_TITULO)) {
+      if (rasc.variantes.some((v) => v.titulo !== undefined && contaTitulo(v.titulo) > LIMITE_TITULO)) {
         setStatus('recusado'); setMensagem(FRASES.ficha.tituloAcima(LIMITE_TITULO))
         return { ok: false }
       }
@@ -116,8 +128,8 @@ export function useFichaGravada(inicial: FichaLida, acoes: AcoesGravacao): Ficha
       let res: ResultadoAcaoFicha
       try {
         res = await acoesRef.current.salvarFicha(fichaRef.current.id, lido, paraServidor(rasc))
-      } catch {
-        setStatus('sem_conexao'); setMensagem(null)
+      } catch (e) {
+        if (ehErroDeRede(e)) { setStatus('sem_conexao'); setMensagem(null) } else { setStatus('recusado'); setMensagem(FRASES.ficha.erroServidor) }
         return { ok: false }
       }
       if (res.ok) {
@@ -127,16 +139,19 @@ export function useFichaGravada(inicial: FichaLida, acoes: AcoesGravacao): Ficha
         }
         alteradosRef.current = resto
         setAlterados(resto)
-        setStatus('salvo'); setMensagem(null)
+        setStatus('salvo'); setMensagem(conflitou ? FRASES.mudouEmOutroLugar : null)
         return { ok: true, ficha: res.ficha }
       }
       if (res.fichaAtual) {
-        setStatus('mudou'); setMensagem(FRASES.mudouEmOutroLugar)
-        return { ok: false, ficha: res.fichaAtual }
+        setStatus('mudou'); setMensagem(conflitou ? FRASES.ficha.naoSalvoConflito : FRASES.mudouEmOutroLugar)
+        return { ok: false, conflito: true, ficha: res.fichaAtual }
       }
       setStatus('recusado'); setMensagem(FRASES.ficha.erroSalvar)
       return { ok: false }
-    })
+    }
+    let r = await executar<{ ok: boolean; conflito?: boolean }>(gravar)
+    // CAS perdido: a ficha atual já foi adotada; UMA nova tentativa com o que o dono digitou (não gira se o outro aparelho grava sem parar).
+    if (r.conflito) { conflitou = true; setStatus('salvando'); r = await executar<{ ok: boolean; conflito?: boolean }>(gravar) }
     return r.ok
   }, [executar])
 
