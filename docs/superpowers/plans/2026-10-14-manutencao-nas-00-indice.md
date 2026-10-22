@@ -27,3 +27,5 @@ Spec: `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` (partes 00 a 06).
 **Revisão de cada plano** (regra do dono): Phil (dados) e Yannis (software) no fim de cada plano, antes de ele voltar ao dono; conserta-se até haver acordo.
 
 **Brief comum aos redatores:** `.superpowers/sdd/manutencao-nas/brief-planos.md`.
+
+**Nota da F1a-dado (T13, 22/10):** a guarda de md5 de `remove_archived` na M2 (`supabase/rascunhos/m2.sql`) vai RECUSAR depois da migration 20261021000007, que recria as quatro funções (registro, remove_archived, delete_unarchived, sweep) com as tabelas `ab_native_observados` e `ab_native_obs_cursor`. Quem fizer a M2 copia o corpo da 0007 (não o da 0002) como base e atualiza o md5.
