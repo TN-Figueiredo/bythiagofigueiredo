@@ -3,12 +3,14 @@
 // por isso esta casca cliente os fornece à `ListaCaminho` que o servidor monta.
 // `painel` vista 'ficha' = `FichaTeste` (T8; blocos de Studio/confirmar/lembrar entram pelos `encaixes`, T9a/T9b);
 // vista 's7' = cartão S7 (T10, ainda provisório); `responder` = "Responder" do dia 14 (T10b).
-import { useEffect, useRef, useState, type ReactElement } from 'react'
+import { useContext, useEffect, useRef, useState, type ReactElement } from 'react'
 import type { FichaLida } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { FaixaCaminho } from './faixa-caminho'
-import { FichaTeste, type EncaixesFicha, type FichaTesteProps } from './ficha-teste'
+import type { EncaixesFicha, FichaTesteProps } from './ficha-teste'
+import { FichaComStudio, type AcoesFichaStudio } from './ficha-com-studio'
+import { ContextoAssistente } from './assistente-contexto'
 import { ListaCaminho, type AcoesCaminho, type ListaCaminhoProps, type SlotPainel } from './lista-caminho'
 
 type Estado = { t: 'carregando' } | { t: 'erro' } | { t: 'ok'; ficha: FichaLida }
@@ -20,6 +22,7 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
   const [est, setEst] = useState<Estado>({ t: 'carregando' })
   const [tentativa, setTentativa] = useState(0)
   const raiz = useRef<HTMLDivElement>(null)
+  const ctrl = useContext(ContextoAssistente)
 
   useEffect(() => {
     let vivo = true
@@ -52,9 +55,11 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
   if (est.t === 'ok') {
     return (
       <div ref={raiz}>
-        <FichaTeste
-          key={est.ficha.id} linha={l} inicial={est.ficha} acoes={acoes} fechar={fechar} encaixes={encaixes} entrada={entrada}
+        <FichaComStudio
+          key={est.ficha.id} linha={l} inicial={est.ficha} acoes={acoes as AcoesFichaStudio} fechar={fechar} encaixes={encaixes} entrada={entrada}
           aoRecomecar={(nova) => setEst({ t: 'ok', ficha: nova })}
+          aoRegistrar={ctrl.atualizar}
+          aoAtualizar={() => { ctrl.atualizar(); setTentativa((x) => x + 1) }}
         />
       </div>
     )
