@@ -2,10 +2,11 @@
 // Núcleo com portas (cliente de banco e `createNotification` injetáveis); a action fina vive em `ab-lab/actions-nativo.ts`.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
-import { eUrlDaFicha } from '@/lib/youtube/teste-youtube/nativo/imagem-ficha'
+import { eUrlDaFicha } from '@/lib/youtube/teste-youtube/nativo/ficha-url'
 import { contarCaracteresDoTitulo, LIMITE_TITULO } from '@/lib/youtube/teste-youtube/nativo/titulo'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { createNotification } from '@/lib/notifications/create'
+import { INATIVIDADE_DESCARTE_MS, ultimaAtividade } from '@/lib/youtube/teste-youtube/nativo/ficha-tela'
 
 /** Janela de "ficha enviada": o Studio aberto ou o lembrete pedido nos últimos 14 dias. */
 export const JANELA_FICHA_ENVIADA_DIAS = 14
@@ -79,21 +80,103 @@ export async function abrirFichaCore(p: Base & { userId: string; videoId: string
   return { ok: true, ficha: derivarFicha(linha, hoje(p)) }
 }
 
+/**
+ * Título da versão A (`n=1`), resolvido no servidor (Phil C4, Yannis C4): variante `is_original` do teste nosso corrente
+ * → `title_at_capture` do último retrato diário sem variante → `youtube_videos.title`. `null` quando nenhuma fonte tem texto.
+ */
+export async function resolverTituloOriginal(sb: SupabaseClient, siteId: string, videoId: string): Promise<string | null> {
+  const { data: vid, error: eVid } = await sb.from('youtube_videos').select('youtube_video_id, title').eq('id', videoId).eq('site_id', siteId).maybeSingle()
+  if (eVid) throw new Error(`youtube_videos: ${eVid.message}`)
+  const v = vid as { youtube_video_id: string; title: string | null } | null
+  if (!v) return null
+  const texto = (t: string | null | undefined): string | null => (t && t.trim() !== '' ? t.trim() : null)
+
+  const { data: testes, error: eT } = await sb.from('ab_tests').select('id').eq('site_id', siteId).eq('youtube_video_id', v.youtube_video_id).in('status', ['active', 'paused'])
+  if (eT) throw new Error(`ab_tests: ${eT.message}`)
+  const ids = ((testes ?? []) as Array<{ id: string }>).map((t) => t.id)
+  if (ids.length > 0) {
+    const { data: vars, error: eV } = await sb.from('ab_test_variants').select('title_text').in('test_id', ids).eq('is_original', true)
+    if (eV) throw new Error(`ab_test_variants: ${eV.message}`)
+    for (const x of (vars ?? []) as Array<{ title_text: string | null }>) { const t = texto(x.title_text); if (t) return t }
+  }
+
+  const { data: dias, error: eD } = await sb.from('yt_own_video_meta_daily').select('title_at_capture, day_pt')
+    .eq('site_id', siteId).eq('video_id', videoId).is('ab_variant_id', null).not('title_at_capture', 'is', null)
+    .order('day_pt', { ascending: false }).limit(1)
+  if (eD) throw new Error(`yt_own_video_meta_daily: ${eD.message}`)
+  const retrato = texto(((dias ?? []) as Array<{ title_at_capture: string | null }>)[0]?.title_at_capture)
+  if (retrato) return retrato
+  return texto(v.title)
+}
+
+/**
+ * Merge por `(n, atributo)` da `n=1` com o que já está gravado: o título da A é fixado uma vez (nunca regravado pelo cliente) e a
+ * imagem da A (cópia do servidor) sobrevive a gravação do cliente que não a traz. Sem título gravado, resolve no servidor.
+ */
+async function mesclarOriginal(p: Base & { videoId: string; gravada: FichaLinha; rascunho: FichaRascunho }): Promise<FichaRascunho> {
+  const { gravada, rascunho } = p
+  const guardada = gravada.variantes.find((v) => v.n === 1)
+  const recebida = rascunho.variantes.find((v) => v.n === 1)
+  if (!guardada && !recebida && rascunho.campos.length === 0 && rascunho.variantes.length === 0) return rascunho // gravação vazia: nada a fixar
+
+  let titulo = guardada?.titulo
+  if (!titulo && !recebida?.titulo) titulo = (await resolverTituloOriginal(p.sb, p.siteId, p.videoId)) ?? undefined
+  const tipo = rascunho.campos.length === 2 ? 'combo' : rascunho.campos[0] ?? 'titulo'
+  const n1: VarianteFicha = { ...(recebida ?? { n: 1, tipo: guardada?.tipo ?? tipo }) }
+  if (titulo) n1.titulo = titulo
+  const imagem = recebida?.imagem ?? guardada?.imagem
+  if (imagem) n1.imagem = imagem
+  if (!recebida && !n1.titulo && !n1.imagem) return rascunho
+  const variantes = [...rascunho.variantes.filter((v) => v.n !== 1), n1].sort((a, b) => a.n - b.n)
+  return { campos: rascunho.campos, variantes }
+}
+
 /** Grava campos e variantes sob CAS por `atualizada_em`: quem perde recebe a ficha atual e nada é sobrescrito. */
 export async function salvarFichaCore(p: Base & { fichaId: string; lido: string; dados: unknown }): Promise<ResultadoFicha> {
   const v = FichaRascunhoSchema.safeParse(p.dados)
   if (!v.success) return { ok: false, error: v.error.issues.map((i) => `${i.path.join('.') || 'ficha'}: ${i.message}`).join('; ') }
+  let rascunho = v.data
+  const gravada = await lerFicha(p.sb, p.siteId, p.fichaId)
+  if (gravada && gravada.registro_id === null && gravada.descartada_em === null) {
+    const mesclado = FichaRascunhoSchema.safeParse(await mesclarOriginal({ sb: p.sb, siteId: p.siteId, videoId: gravada.video_id, gravada, rascunho }))
+    if (!mesclado.success) return { ok: false, error: mesclado.error.issues.map((i) => `${i.path.join('.') || 'ficha'}: ${i.message}`).join('; ') }
+    rascunho = mesclado.data
+  }
   const { data, error } = await p.sb.from('ab_native_fichas')
-    .update({ campos: v.data.campos, variantes: v.data.variantes })
+    .update({ campos: rascunho.campos, variantes: rascunho.variantes })
     .eq('id', p.fichaId).eq('site_id', p.siteId).eq('atualizada_em', p.lido)
     .is('registro_id', null).is('descartada_em', null)
     .select('*')
   if (error) throw new Error(`ab_native_fichas: ${error.message}`)
-  const gravada = (data as FichaLinha[] | null)?.[0]
-  if (gravada) return { ok: true, ficha: derivarFicha(gravada, hoje(p)) }
+  const gravadaAgora = (data as FichaLinha[] | null)?.[0]
+  if (gravadaAgora) return { ok: true, ficha: derivarFicha(gravadaAgora, hoje(p)) }
   const atual = await lerFicha(p.sb, p.siteId, p.fichaId)
   if (!atual) return { ok: false, error: MSG_NAO_ENCONTRADO }
   return { ok: false, error: MSG_FICHA_MUDOU, fichaAtual: derivarFicha(atual, hoje(p)) }
+}
+
+export type ResultadoLeitura = { ok: true; ficha: FichaLida | null; vencida: boolean } | { ok: false; error: string }
+
+/** Só leitura: a ficha aberta mais recente do vídeo e se está vencida (inatividade > 14 d). Nunca cria nem descarta. */
+export async function lerFichaDoVideoCore(p: Base & { videoId: string }): Promise<ResultadoLeitura> {
+  const { data, error } = await p.sb.from('ab_native_fichas').select('*')
+    .eq('site_id', p.siteId).eq('video_id', p.videoId).is('registro_id', null).is('descartada_em', null)
+    .order('criada_em', { ascending: false }).limit(1)
+  if (error) throw new Error(`ab_native_fichas: ${error.message}`)
+  const linha = (data as FichaLinha[] | null)?.[0]
+  if (!linha) return { ok: true, ficha: null, vencida: false }
+  const ficha = derivarFicha(linha, hoje(p))
+  return { ok: true, ficha, vencida: hoje(p).getTime() - ultimaAtividade(ficha) > INATIVIDADE_DESCARTE_MS }
+}
+
+/** "Recomeçar": a abertura descarta a inativa e cria a nova; as versões da vencida passam para a nova e o lembrete da velha expira (dentro de `ab_native_ficha_abrir`). */
+export async function recomecarFichaCore(p: Base & { userId: string; fichaVencidaId: string }): Promise<ResultadoFicha> {
+  const velha = await lerFicha(p.sb, p.siteId, p.fichaVencidaId)
+  if (!velha || velha.registro_id !== null || velha.descartada_em !== null) return { ok: false, error: MSG_NAO_ENCONTRADO }
+  const nova = await abrirFichaCore({ sb: p.sb, siteId: p.siteId, userId: p.userId, videoId: velha.video_id, agora: p.agora })
+  if (!nova.ok || nova.ficha.id === velha.id) return nova // ainda não estava vencida: segue a mesma ficha
+  const salvo = await salvarFichaCore({ sb: p.sb, siteId: p.siteId, agora: p.agora, fichaId: nova.ficha.id, lido: nova.ficha.atualizada_em, dados: { campos: velha.campos, variantes: velha.variantes } })
+  return salvo.ok ? salvo : { ok: false, error: salvo.error, fichaAtual: salvo.fichaAtual ?? nova.ficha }
 }
 
 /** "Abrir no Studio": marca `studio_aberto_em` (a ficha vira "enviada"). */

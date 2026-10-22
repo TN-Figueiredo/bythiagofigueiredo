@@ -12,9 +12,10 @@ import { responderDia14, type ResultadoResponder } from '@/lib/youtube/teste-you
 import { guardarImagemDaFichaCore, TAMANHO_MAXIMO_IMAGEM, MSG_IMAGEM_GRANDE, type ResultadoImagemFicha } from '@/lib/youtube/teste-youtube/nativo/imagem-ficha'
 import { getSiteContext } from '@/lib/cms/site-context'
 import {
-  abrirFichaCore, salvarFichaCore, marcarStudioAbertoCore, lembrarNoComputadorCore,
-  type FichaLida, type FichaRascunho, type ResultadoLembrar,
+  abrirFichaCore, salvarFichaCore, lembrarNoComputadorCore, lerFichaDoVideoCore, recomecarFichaCore,
+  type FichaLida, type FichaRascunho, type ResultadoLembrar, type ResultadoLeitura,
 } from '@/lib/youtube/teste-youtube/nativo/ficha'
+import { marcarStudioAbertoComCopiaCore, jaIniciouCore } from '@/lib/youtube/teste-youtube/nativo/ficha-fluxo'
 
 /** Frase provisória da exceção inesperada (o Logan fecha na F1a-tela-1). */
 const MSG_FALHA = 'Não foi possível concluir agora. Recarregue a página e tente de novo.'
@@ -45,6 +46,26 @@ export async function abrirFicha(videoId: string): Promise<ResultadoAcaoFicha> {
   } catch (e) { return falha(e, 'abrirFicha') }
 }
 
+/** Só leitura: a ficha aberta mais recente do vídeo e se está vencida. Nunca cria nem descarta. */
+export async function lerFichaDoVideo(videoId: string): Promise<ResultadoLeitura> {
+  const a = await acesso()
+  if ('ok' in a) return a
+  if (!Id.safeParse(videoId).success) return { ok: false, error: MSG_PEDIDO_INVALIDO }
+  try {
+    return await lerFichaDoVideoCore({ sb: getSupabaseServiceClient(), siteId: a.siteId, videoId })
+  } catch (e) { return falha(e, 'lerFichaDoVideo') }
+}
+
+/** "Recomeçar" uma ficha vencida: a velha é descartada, a nova nasce com as mesmas versões. */
+export async function recomecarFicha(fichaVencidaId: string): Promise<ResultadoAcaoFicha> {
+  const a = await acesso()
+  if ('ok' in a) return a
+  if (!Id.safeParse(fichaVencidaId).success) return { ok: false, error: MSG_PEDIDO_INVALIDO }
+  try {
+    return await recomecarFichaCore({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, fichaVencidaId })
+  } catch (e) { return falha(e, 'recomecarFicha') }
+}
+
 /** CAS por `atualizada_em` (`lido`): quem perde recebe a ficha atual em `fichaAtual`. */
 export async function salvarFicha(fichaId: string, lido: string, dados: FichaRascunho): Promise<ResultadoAcaoFicha> {
   const a = await acesso()
@@ -60,7 +81,7 @@ export async function marcarStudioAberto(fichaId: string): Promise<ResultadoAcao
   if ('ok' in a) return a
   if (!Id.safeParse(fichaId).success) return { ok: false, error: MSG_PEDIDO_INVALIDO }
   try {
-    return await marcarStudioAbertoCore({ sb: getSupabaseServiceClient(), siteId: a.siteId, fichaId })
+    return await marcarStudioAbertoComCopiaCore({ sb: getSupabaseServiceClient(), siteId: a.siteId, fichaId })
   } catch (e) { return falha(e, 'marcarStudioAberto') }
 }
 
@@ -95,7 +116,7 @@ export async function jaIniciei(fichaId: string): Promise<ResultadoAcaoConfirmar
   if ('ok' in a) return { ok: false, erro: 'sem_permissao', error: a.error }
   if (!Id.safeParse(fichaId).success) return { ok: false, erro: 'pedido_invalido', error: MSG_PEDIDO_INVALIDO }
   try {
-    return await confirmarTesteNoStudio({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, origem: { fichaId } })
+    return await jaIniciouCore({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, fichaId })
   } catch (e) { return { ...falha(e, 'jaIniciei'), erro: 'falha' } }
 }
 

@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import sharp from 'sharp'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import * as Sentry from '@sentry/nextjs'
 import { criarSupabaseMemoria, type Tabelas } from '../../../helpers/supabase-memoria'
 
@@ -23,6 +25,18 @@ const V = '33333333-3333-4333-8333-333333333333'
 const HOST = 'https://x.public.blob.vercel-storage.com'
 const SHA = 'a'.repeat(64)
 const AGORA = new Date('2026-10-22T12:00:00Z')
+
+describe('módulo leve ficha-url', () => {
+  it('não arrasta sharp, @vercel/blob nem server-only; ficha.ts importa dele e imagem-ficha reexporta', async () => {
+    const leve = readFileSync('src/lib/youtube/teste-youtube/nativo/ficha-url.ts', 'utf8').replace(/^\/\/.*$/gm, '')
+    expect(leve).not.toMatch(/sharp|@vercel\/blob|server-only|^import /m)
+    const ficha = readFileSync('src/lib/youtube/teste-youtube/nativo/ficha.ts', 'utf8')
+    expect(ficha).toContain("nativo/ficha-url'")
+    expect(ficha).not.toContain('imagem-ficha')
+    const leveMod = await import('@/lib/youtube/teste-youtube/nativo/ficha-url')
+    expect(leveMod.eUrlDaFicha).toBe(eUrlDaFicha)
+  })
+})
 
 describe('eUrlDaFicha e o Zod da ficha', () => {
   const img = (url: string) => ({ n: 2, tipo: 'miniatura' as const, imagem: { url, sha256: SHA, largura: 1280, altura: 720 } })
@@ -69,6 +83,34 @@ const base = (extra: Partial<Tabelas> = {}): Tabelas => ({
 })
 
 describe('guardarImagemDaFichaCore', () => {
+  it('EXIF é removido: JPEG com GPS/Copyright entra e o que vai ao put não tem exif; mede e hasheia o re-codificado', async () => {
+    const { sb } = criarSupabaseMemoria(base())
+    const put = putFalso()
+    const comExif = await sharp({ create: { width: 1280, height: 720, channels: 3, background: '#c33' } })
+      .jpeg().withExif({ IFD0: { Copyright: 'segredo', ImageDescription: 'GPS -23.5,-46.6' } }).toBuffer()
+    expect((await sharp(comExif).metadata()).exif).toBeDefined()
+    const r = await guardarImagemDaFichaCore({ sb, siteId: S, fichaId: F, bytes: comExif, put })
+    expect(r.ok).toBe(true)
+    const enviado = put.mock.calls[0][1] as Buffer
+    const m = await sharp(enviado).metadata()
+    expect(m.exif).toBeUndefined()
+    expect(m.format).toBe('jpeg')
+    if (r.ok) expect(r.imagem.sha256).toBe(createHash('sha256').update(enviado).digest('hex'))
+  })
+  it('EXIF: a orientação é aplicada antes de tirar os metadados (largura e altura trocadas)', async () => {
+    const { sb } = criarSupabaseMemoria(base())
+    const put = putFalso()
+    const girada = await sharp({ create: { width: 200, height: 100, channels: 3, background: '#c33' } }).jpeg().withMetadata({ orientation: 6 }).toBuffer()
+    const r = await guardarImagemDaFichaCore({ sb, siteId: S, fichaId: F, bytes: girada, put })
+    expect(r.ok && r.imagem.largura).toBe(100)
+    expect(r.ok && r.imagem.altura).toBe(200)
+  })
+  it('PNG segue PNG depois de re-codificar', async () => {
+    const { sb } = criarSupabaseMemoria(base())
+    const put = putFalso()
+    await guardarImagemDaFichaCore({ sb, siteId: S, fichaId: F, bytes: await png(), put })
+    expect((await sharp(put.mock.calls[0][1] as Buffer).metadata()).format).toBe('png')
+  })
   it('JPEG: caminho ab-native-ficha/<site>/<ficha>/<sha>.jpg, dimensões do metadata, ficha devolvida', async () => {
     const { sb } = criarSupabaseMemoria(base())
     const put = putFalso()

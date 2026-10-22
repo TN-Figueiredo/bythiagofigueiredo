@@ -18,7 +18,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { abrirFicha, salvarFicha, marcarStudioAberto, lembrarNoComputador } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
+import { abrirFicha, salvarFicha, marcarStudioAberto, lembrarNoComputador, lerFichaDoVideo, recomecarFicha } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
 import { lembrarNoComputadorCore } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import { bloqueadoPorTesteNativo } from '@/lib/youtube/teste-youtube/nativo/guarda'
 
@@ -205,6 +205,38 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T8: ficha gravada (banco)', () => {
     const l = await linhaDaFicha(a.ficha.id)
     expect(l.studio_aberto_em).toBeNull(); expect(l.lembrar_em).toBeNull(); expect(l.variantes).toEqual([])
     expect((await pg.query(`select 1 from public.notifications where dedup_key = $1`, ['ficha-lembrar:' + a.ficha.id])).rowCount).toBe(0)
+  })
+
+  it('T5: lerFichaDoVideo não cria nem descarta; vencida só pela leitura; recomecarFicha descarta a velha, copia as versões e expira o lembrete', async () => {
+    const v = await video()
+    expect(await lerFichaDoVideo(v.id)).toEqual({ ok: true, ficha: null, vencida: false })
+    expect((await pg.query('select 1 from public.ab_native_fichas where video_id = $1', [v.id])).rowCount).toBe(0)
+    const a = await abrirFicha(v.id); if (!a.ok) throw new Error('x')
+    expect((await salvarFicha(a.ficha.id, a.ficha.atualizada_em, dados)).ok).toBe(true)
+    expect((await lembrarNoComputador(a.ficha.id)).ok).toBe(true)
+    await pg.query('alter table public.ab_native_fichas disable trigger user')
+    await pg.query(`update public.ab_native_fichas set criada_em = $2, atualizada_em = $2, lembrar_em = $2 where id = $1`, [a.ficha.id, dias(15)])
+    await pg.query('alter table public.ab_native_fichas enable trigger user')
+    const lida = await lerFichaDoVideo(v.id)
+    expect(lida).toMatchObject({ ok: true, vencida: true, ficha: { id: a.ficha.id } })
+    expect((await linhaDaFicha(a.ficha.id)).descartada_em).toBeNull()
+    const r = await recomecarFicha(a.ficha.id)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.ficha.id).not.toBe(a.ficha.id)
+    expect(r.ficha.variantes).toEqual(dados.variantes)
+    expect(r.ficha.campos).toEqual(dados.campos)
+    expect((await linhaDaFicha(a.ficha.id)).descartada_em).not.toBeNull()
+    const n = await pg.query(`select expired_at from public.notifications where dedup_key = $1`, ['ficha-lembrar:' + a.ficha.id])
+    expect(n.rows[0].expired_at).not.toBeNull()
+  })
+
+  it('T5: recomecarFicha com id de outro site e id inexistente: não encontrado', async () => {
+    const v = await video()
+    const a = await abrirFicha(v.id); if (!a.ok) throw new Error('x')
+    const original = ctx.siteId
+    ctx.siteId = outroSite
+    try { expect(await recomecarFicha(a.ficha.id)).toEqual({ ok: false, error: 'não encontrado' }) } finally { ctx.siteId = original }
+    expect(await recomecarFicha(randomUUID())).toEqual({ ok: false, error: 'não encontrado' })
   })
 
   it('a ficha nunca aparece para a guarda nem para o registrador', async () => {
