@@ -20,30 +20,43 @@ export function projetarIdas(linhasDiaria: number, diasAtuais: number, diasAlvo:
   return Math.ceil(((linhasDiaria / diasAtuais) * diasAlvo) / linhasPorIda)
 }
 
-const ESCRITAS = new Set(['insert', 'update', 'upsert', 'delete'])
+// Deny-by-default: só `from(t).select(...)` e os encadeamentos de filtro, ordem e faixa da leitura passam.
+// Tudo o mais (rpc, schema, storage, functions, auth, channel, insert/update/upsert/delete...) lança.
+const LEITURA = new Set([
+  'select', 'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'is', 'like', 'ilike', 'not', 'or', 'filter', 'match', 'contains',
+  'containedBy', 'order', 'range', 'limit', 'single', 'maybeSingle', 'csv', 'abortSignal', 'then',
+])
 const recusa = (nome: string) => () => { throw new Error(`somente leitura: ${nome} recusado`) }
 
-/** Embrulha o cliente: `.rpc` e as escritas de tabela lançam. `onFrom` conta as consultas (idas) de cada etapa. */
-export function somenteLeitura(sb: SupabaseClient, onFrom?: (tabela: string) => void): SupabaseClient {
-  const tabela = (b: object): object => new Proxy(b, {
-    get(alvo, prop, rec) {
-      if (typeof prop === 'string' && ESCRITAS.has(prop)) return recusa(`.${prop}`)
-      return Reflect.get(alvo, prop, rec)
-    },
-  })
-  return new Proxy(sb, {
-    get(alvo, prop, rec) {
-      if (prop === 'rpc') return recusa('.rpc')
-      if (prop === 'from') return (t: string) => { onFrom?.(t); return tabela((alvo.from as (t: string) => object).call(alvo, t)) }
-      const v = Reflect.get(alvo, prop, rec)
-      return typeof v === 'function' ? v.bind(alvo) : v
+function leitura(alvo: object): object {
+  return new Proxy(alvo, {
+    get(a, prop) {
+      if (typeof prop !== 'string') return Reflect.get(a, prop)
+      if (!LEITURA.has(prop)) return recusa(`.${prop}`)
+      const v = (a as Record<string, unknown>)[prop]
+      if (typeof v !== 'function') return v
+      if (prop === 'then') return v.bind(a)
+      return (...args: unknown[]) => {
+        const r = v.apply(a, args)
+        return r && typeof r === 'object' ? leitura(r) : r
+      }
     },
   })
 }
 
-/** 42P01 = relação inexistente (video_lugares e lugar_aliases só nascem na F2-1): a etapa vira `{ausente: true}`. */
+/** Embrulha o cliente: só `.from(t).select(...)` passa. `onFrom` conta as consultas (idas) de cada etapa. */
+export function somenteLeitura(sb: SupabaseClient, onFrom?: (tabela: string) => void): SupabaseClient {
+  return new Proxy(sb, {
+    get(alvo, prop) {
+      if (prop !== 'from') return typeof prop === 'string' ? recusa(`.${prop}`) : Reflect.get(alvo, prop)
+      return (t: string) => { onFrom?.(t); return leitura((alvo.from as (t: string) => object).call(alvo, t)) }
+    },
+  })
+}
+
+/** 42P01 (Postgres) ou PGRST205 (PostgREST: tabela fora do cache) = relação inexistente: a etapa vira `{ausente: true}`. */
 export function ehRelacaoAusente(err: { code?: string | null } | null | undefined): boolean {
-  return err?.code === '42P01'
+  return err?.code === '42P01' || err?.code === 'PGRST205'
 }
 
 /** PROVISÓRIO: a `tokensDe` oficial nasce na T5. Minúsculas, sem acento, tokens de 3+ letras. */
@@ -112,9 +125,12 @@ async function etapaLeitura(nome: string, fn: () => Promise<{ linhas: number; id
     const r = await fn()
     return { valor: r, idas: 'ausente' in r ? 0 : r.idas, linhas: 'ausente' in r ? 0 : r.linhas }
   })
-  if ('ausente' in ultimo) { console.error(`${nome}: relação ausente (42P01), estimada pela leitura de competitor_raw`); return ultimo }
+  if ('ausente' in ultimo) { console.error(`${nome}: relação ausente (42P01/PGRST205), estimada pela leitura de competitor_raw`); return ultimo }
   return medida
 }
+
+type Resultado = Etapa | Ausente | { erro: string }
+const erroDe = (e: unknown): { erro: string } => ({ erro: e instanceof Error ? e.message.slice(0, 200) : String(e).slice(0, 200) })
 
 async function main(): Promise<number> {
   const bruto = getSupabaseServiceClient() as unknown as SupabaseClient
@@ -122,7 +138,7 @@ async function main(): Promise<number> {
   const sb = somenteLeitura(bruto, () => { contagem++ })
 
   const argSite = process.argv.indexOf('--site')
-  let siteId = argSite >= 0 ? process.argv[argSite + 1] : ''
+  let siteId = argSite >= 0 ? process.argv[argSite + 1] ?? '' : ''
   if (!siteId) {
     const { data, error } = await sb.from('competitor_settings').select('site_id')
     if (error || !data || data.length !== 1) { console.error(`informe --site <uuid> (competitor_settings devolveu ${data?.length ?? 'erro'} sites)`); return 2 }
@@ -130,95 +146,120 @@ async function main(): Promise<number> {
   }
 
   const now = Date.now()
-  const etapas: Record<string, Etapa | Ausente> = {}
-
-  const lr = await cronometrar(async () => { contagem = 0; const v = await loadRows({ siteId, now, supabase: sb }); return { valor: v, idas: contagem, linhas: v.videos.length + v.daily.length + v.versions.length + v.snapshots.length + (v.spans?.length ?? 0) } })
-  etapas.loadRows = lr.medida
-  const rows = lr.ultimo
-  const rd = await cronometrar(async () => ({ valor: rowsToDataset(rows, now) }))
-  etapas.rowsToDataset = rd.medida
-  const co = await cronometrar(async () => ({ valor: createObservatory(rd.ultimo) }))
-  etapas.createObservatory = co.medida
-  const obs = co.ultimo
-  const consulta = (fmt: Fmt) => obs.outliers({ maxAge: 30, fmt })
-  etapas.outliersLong = (await cronometrar(async () => ({ valor: consulta('long') }))).medida
-  etapas.outliersShort = (await cronometrar(async () => ({ valor: consulta('short') }))).medida
-
-  etapas.lerVideoLugares = await etapaLeitura('lerVideoLugares', () => lerPaginado((de, ate) => sb.from('video_lugares').select('video_id').eq('site_id', siteId).range(de, ate)))
-  etapas.lerLugarAliases = await etapaLeitura('lerLugarAliases', () => lerPaginado((de, ate) => sb.from('lugar_aliases').select('lugar_id').range(de, ate)))
-  etapas.lerDescricaoPropria = await etapaLeitura('lerDescricaoPropria', () => lerPaginado((de, ate) => sb.from('youtube_videos').select('id, description').eq('site_id', siteId).range(de, ate)))
-  etapas.lerCompetitorRawRecordingDetails = await etapaLeitura('lerCompetitorRawRecordingDetails', () => lerPaginado((de, ate) => sb.from('competitor_raw').select('video_id, raw->recordingDetails').eq('site_id', siteId).eq('is_current', true).range(de, ate)))
-
-  // uma ida de 1.000 linhas de competitor_video_daily
-  const ida = await cronometrar(async () => {
-    const { data, error } = await sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at').order('video_id').order('snap_date').range(0, LINHAS_POR_IDA - 1)
-    if (error) throw new Error(`${error.code}: ${error.message}`)
-    return { valor: data?.length ?? 0, idas: 1, linhas: data?.length ?? 0 }
-  })
-
-  // projeção: leitura cresce por ida; o resto (CPU) cresce com as linhas
-  const linhasDiaria = rows.daily.length
-  const diasAtuais = new Set(rows.daily.map(d => d.snap_date)).size
-  const idasAtuais = Math.ceil(linhasDiaria / LINHAS_POR_IDA)
-  const cpuP95 = etapas.rowsToDataset && (etapas.rowsToDataset as Medida).p95 + (etapas.createObservatory as Medida).p95 + (etapas.outliersLong as Medida).p95 + (etapas.outliersShort as Medida).p95
-  const projetar = (alvo: 90 | 365) => {
-    const idas = projetarIdas(linhasDiaria, diasAtuais, alvo, LINHAS_POR_IDA)
-    const fator = linhasDiaria > 0 ? idas / Math.max(1, idasAtuais) : 1
-    return { idas, p95Ms: r2((etapas.loadRows as Medida).p95 + Math.max(0, idas - idasAtuais) * ida.medida.p95 + cpuP95 * Math.max(1, fator)) }
-  }
-
-  // T3: por canal e formato, pelo motor
-  const concorrentes = obs.channels.filter(c => !c.own)
-  const nome = new Map(obs.channels.map(c => [c.id, c.name]))
-  const t3Fmt = (fmt: Fmt) => {
-    const nPorCanal = new Map<string, number[]>()
-    for (const v of obs.videos) if (v.tracked && v.fmt === fmt && v.vpd7 != null && !obs.channel(v.ch)?.own) (nPorCanal.get(v.ch) ?? nPorCanal.set(v.ch, []).get(v.ch)!).push(v.vpd7)
-    const estourando = consulta(fmt).items.filter(it => !it.weak && it.phase.id === 'estourando')
-    const estourandoPorCanal: Record<string, number> = {}
-    const mults: number[] = []
-    for (const it of estourando) {
-      estourandoPorCanal[nome.get(it.video.ch) ?? it.video.ch] = (estourandoPorCanal[nome.get(it.video.ch) ?? it.video.ch] ?? 0) + 1
-      const m7 = obs.median(nPorCanal.get(it.video.ch) ?? [])
-      if (it.video.vpd7 != null && m7 != null && m7 > 0) mults.push(it.video.vpd7 / m7)
-    }
-    return {
-      estourando,
-      porFormato: { canais: concorrentes.length, canaisComNMinimo8: [...nPorCanal.values()].filter(a => a.length >= 8).length, estourandoPorCanal },
-      mult: { p50: r2(pct(mults, 0.5)), p90: r2(pct(mults, 0.9)), max: r2(Math.max(0, ...mults)), nAcimaDe5: mults.filter(m => m >= RULES.tiers.high).length },
-    }
-  }
-  const tl = t3Fmt('long'), ts = t3Fmt('short')
-
-  // parecido (Jaccard título + tags, outlier × próprio); a descrição fica de fora
-  const tagsDe = new Map(rows.videos.map(v => [v.id, v.tags]))
-  const proprios = rows.ownVideos.map(v => ({ titulo: v.title, toks: tokensDe(v.title, v.tags) }))
-  const pares: { jaccard: number; tituloTerceiro: string; tituloProprio: string }[] = []
-  for (const it of [...tl.estourando, ...ts.estourando]) {
-    const a = tokensDe(it.video.title, tagsDe.get(it.video.id))
-    let melhor: { j: number; titulo: string } | null = null
-    for (const p of proprios) { const j = jaccard(a, p.toks); if (!melhor || j > melhor.j) melhor = { j, titulo: p.titulo } }
-    if (melhor) pares.push({ jaccard: r2(melhor.j), tituloTerceiro: it.video.title, tituloProprio: melhor.titulo })
-  }
-  pares.sort((x, y) => y.jaccard - x.jaccard)
-
-  const saida = {
-    geradoEm: new Date(now).toISOString(), siteId, repeticoes: REPETICOES,
-    etapas: { ...etapas, ida1000: ida.medida },
-    latenciaIda1000Ms: { p50: ida.medida.p50, p95: ida.medida.p95 },
-    base: { linhasDiaria, diasAtuais, idasAtuais },
-    projecao: { d90: projetar(90), d365: projetar(365), formula: 'p95 loadRows + (idasProj - idasAtuais) * p95 ida + p95 CPU (rowsToDataset+createObservatory+outliers) * fator de linhas' },
-    t3: {
-      porFormato: { long: tl.porFormato, short: ts.porFormato },
-      multDistribuicao: { long: tl.mult, short: ts.mult },
-      parecidoAmostra: { top20: pares.slice(0, 20), histograma: histogramaJaccard(pares.map(p => p.jaccard)), nPares: pares.length, nota: 'Jaccard provisório (tokensDe local, sem descrição)' },
-    },
-  }
+  const etapas: Record<string, Resultado> = {}
+  const saida: Record<string, unknown> = { geradoEm: new Date(now).toISOString(), siteId, repeticoes: REPETICOES, etapas, parcial: true }
   const dia = new Date(now).toLocaleDateString('sv', { timeZone: 'America/Sao_Paulo' })
-  mkdirSync('.superpowers/sdd/ab-lab/f2', { recursive: true })
-  const arquivo = `.superpowers/sdd/ab-lab/f2/medida-gravador-${dia}.json`
-  writeFileSync(arquivo, JSON.stringify(saida, null, 2) + '\n')
-  console.log(`gravado: ${arquivo}`)
-  return 0
+  const gravar = () => {
+    mkdirSync('.superpowers/sdd/ab-lab/f2', { recursive: true })
+    const arquivo = `.superpowers/sdd/ab-lab/f2/medida-gravador-${dia}.json`
+    writeFileSync(arquivo, JSON.stringify(saida, null, 2) + '\n')
+    console.log(`gravado: ${arquivo}${saida.parcial ? ' (PARCIAL: veja etapas com "erro")' : ''}`)
+  }
+  /** Uma etapa que falha vira `{erro}` no JSON; a medição segue. */
+  const seguro = async <T>(nome: string, fn: () => Promise<{ medida: Etapa; ultimo: T }>): Promise<T | undefined> => {
+    try { const r = await fn(); etapas[nome] = r.medida; return r.ultimo } catch (e) { etapas[nome] = erroDe(e); console.error(`${nome}: ${(etapas[nome] as { erro: string }).erro}`); return undefined }
+  }
+  const seguroLeitura = async (nome: string, fn: () => Promise<{ linhas: number; idas: number } | Ausente>) => {
+    try { etapas[nome] = await etapaLeitura(nome, fn) } catch (e) { etapas[nome] = erroDe(e); console.error(`${nome}: ${(etapas[nome] as { erro: string }).erro}`) }
+  }
+
+  try {
+    const rows = await seguro('loadRows', () => cronometrar(async () => { contagem = 0; const v = await loadRows({ siteId, now, supabase: sb }); return { valor: v, idas: contagem, linhas: v.videos.length + v.daily.length + v.versions.length + v.snapshots.length + (v.spans?.length ?? 0) } }))
+    const ds = rows && await seguro('rowsToDataset', () => cronometrar(async () => ({ valor: rowsToDataset(rows, now) })))
+    const obs = ds && await seguro('createObservatory', () => cronometrar(async () => ({ valor: createObservatory(ds) })))
+    const consulta = (fmt: Fmt) => obs!.outliers({ maxAge: 30, fmt })
+    if (obs) {
+      await seguro('outliersLong', () => cronometrar(async () => ({ valor: consulta('long') })))
+      await seguro('outliersShort', () => cronometrar(async () => ({ valor: consulta('short') })))
+    }
+
+    await seguroLeitura('lerVideoLugares', () => lerPaginado((de, ate) => sb.from('video_lugares').select('*').eq('site_id', siteId).range(de, ate)))
+    await seguroLeitura('lerLugarAliases', () => lerPaginado((de, ate) => sb.from('lugar_aliases').select('alias_norm, slug, ambiguo, semente_versao').range(de, ate)))
+    await seguroLeitura('lerDescricaoPropria', () => lerPaginado((de, ate) => sb.from('youtube_videos').select('id, description').eq('site_id', siteId).range(de, ate)))
+    await seguroLeitura('lerCompetitorRawRecordingDetails', () => lerPaginado((de, ate) => sb.from('competitor_raw').select('video_id, raw->recordingDetails').eq('site_id', siteId).eq('is_current', true).range(de, ate)))
+
+    // ida de 1.000 linhas de competitor_video_daily em offsets espalhados (início, ~50%, ~90% da tabela): p50/p95 sobre todas
+    let latencia: { p50: number; p95: number; offsets: number[] } | undefined
+    try {
+      const { count, error: ec } = await sb.from('competitor_video_daily').select('video_id', { count: 'exact', head: true })
+      if (ec) throw new Error(`${ec.code}: ${ec.message}`)
+      const total = count ?? 0
+      const offsets = [0, Math.floor(total * 0.5), Math.floor(total * 0.9)].map(o => Math.max(0, Math.min(o, total - LINHAS_POR_IDA)))
+      const ms: number[] = []
+      for (const off of offsets) for (let i = 0; i < REPETICOES; i++) {
+        const t0 = performance.now()
+        const { error } = await sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at').order('video_id').order('snap_date').range(off, off + LINHAS_POR_IDA - 1)
+        if (error) throw new Error(`${error.code}: ${error.message}`)
+        ms.push(performance.now() - t0)
+      }
+      latencia = { p50: r2(pct(ms, 0.5)), p95: r2(pct(ms, 0.95)), offsets }
+      saida.latenciaIda1000Ms = latencia
+    } catch (e) { saida.latenciaIda1000Ms = erroDe(e) }
+
+    if (rows && obs && latencia) {
+      // projeção: leitura cresce por ida; o resto (CPU) cresce com as linhas
+      const linhasDiaria = rows.daily.length
+      const diasAtuais = new Set(rows.daily.map(d => d.snap_date)).size
+      const idasAtuais = Math.ceil(linhasDiaria / LINHAS_POR_IDA)
+      const p95 = (n: string) => (etapas[n] as Medida | undefined)?.p95 ?? 0
+      const cpuP95 = p95('rowsToDataset') + p95('createObservatory') + p95('outliersLong') + p95('outliersShort')
+      const projetar = (alvo: 90 | 365) => {
+        const idas = projetarIdas(linhasDiaria, diasAtuais, alvo, LINHAS_POR_IDA)
+        const fator = linhasDiaria > 0 ? idas / Math.max(1, idasAtuais) : 1
+        return { idas, p95Ms: r2(p95('loadRows') + Math.max(0, idas - idasAtuais) * latencia.p95 + cpuP95 * Math.max(1, fator)) }
+      }
+      saida.base = { linhasDiaria, diasAtuais, idasAtuais }
+      saida.projecao = { d90: projetar(90), d365: projetar(365), formula: 'p95 loadRows + (idasProj - idasAtuais) * p95 ida (offsets espalhados) + p95 CPU (rowsToDataset+createObservatory+outliers) * fator de linhas' }
+    }
+
+    if (rows && obs) {
+      // T3: por canal e formato, pelo motor. median7 do motor = median(vpd7 dos vídeos do canal, tracked, do formato, vpd7 != null)
+      const concorrentes = obs.channels.filter(c => !c.own)
+      const nome = new Map(obs.channels.map(c => [c.id, c.name]))
+      const vpdsDe = (ch: string, fmt: Fmt): number[] => obs.videos.filter(v => v.ch === ch && v.tracked && v.fmt === fmt && v.vpd7 != null).map(v => v.vpd7 as number)
+      const t3Fmt = (fmt: Fmt) => {
+        const nPorCanal = new Map(concorrentes.map(c => [c.id, vpdsDe(c.id, fmt)]))
+        const estourando = consulta(fmt).items.filter(it => !it.weak && it.phase.id === 'estourando')
+        const estourandoPorCanal: Record<string, number> = {}
+        const mults: number[] = []
+        for (const it of estourando) {
+          const n = nome.get(it.video.ch) ?? it.video.ch
+          estourandoPorCanal[n] = (estourandoPorCanal[n] ?? 0) + 1
+          const m7 = obs.median(vpdsDe(it.video.ch, fmt))
+          if (it.video.vpd7 != null && m7 != null && m7 > 0) mults.push(it.video.vpd7 / m7)
+        }
+        return {
+          estourando,
+          porFormato: { canais: concorrentes.length, canaisComNMinimo8: [...nPorCanal.values()].filter(a => a.length >= 8).length, estourandoPorCanal },
+          mult: { p50: r2(pct(mults, 0.5)), p90: r2(pct(mults, 0.9)), max: r2(Math.max(0, ...mults)), nAcimaDe5: mults.filter(m => m >= RULES.tiers.high).length },
+        }
+      }
+      const tl = t3Fmt('long'), ts = t3Fmt('short')
+
+      // parecido (Jaccard título + tags, outlier × próprio); a descrição fica de fora
+      const tagsDe = new Map(rows.videos.map(v => [v.id, v.tags]))
+      const proprios = rows.ownVideos.map(v => ({ titulo: v.title, toks: tokensDe(v.title, v.tags) }))
+      const pares: { jaccard: number; tituloTerceiro: string; tituloProprio: string }[] = []
+      for (const it of [...tl.estourando, ...ts.estourando]) {
+        const a = tokensDe(it.video.title, tagsDe.get(it.video.id))
+        let melhor: { j: number; titulo: string } | null = null
+        for (const p of proprios) { const j = jaccard(a, p.toks); if (!melhor || j > melhor.j) melhor = { j, titulo: p.titulo } }
+        if (melhor) pares.push({ jaccard: r2(melhor.j), tituloTerceiro: it.video.title, tituloProprio: melhor.titulo })
+      }
+      pares.sort((x, y) => y.jaccard - x.jaccard)
+      saida.t3 = {
+        porFormato: { long: tl.porFormato, short: ts.porFormato },
+        multDistribuicao: { long: tl.mult, short: ts.mult },
+        parecidoAmostra: { top20: pares.slice(0, 20), histograma: histogramaJaccard(pares.map(p => p.jaccard)), nPares: pares.length, nota: 'Jaccard provisório (tokensDe local, sem descrição)' },
+      }
+    }
+    saida.parcial = Object.values(etapas).some(e => 'erro' in e) || !saida.projecao || !saida.t3
+  } catch (e) {
+    saida.erroGeral = erroDe(e).erro
+  } finally {
+    gravar()
+  }
+  return saida.parcial ? 1 : 0
 }
 
 // só roda como script (o teste importa as funções puras acima)
