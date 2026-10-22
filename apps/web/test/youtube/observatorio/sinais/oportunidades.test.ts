@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest'
 import {
   CHAVES_CONTAGENS,
   calcularOportunidades,
@@ -26,6 +26,7 @@ function out(p: Partial<OutlierProjetado> & { videoId: string }): OutlierProjeta
     nCanal: 20,
     chaves: ['pais:VN'],
     tokens: [],
+    deHoje: true,
     ...p,
   }
 }
@@ -40,7 +41,6 @@ function ent(p: Partial<EntradaDoNucleo> = {}): EntradaDoNucleo {
     proprios: [],
     canaisSemRitmo: 0,
     canaisTotal: 5,
-    outliersSemLugar: 0,
     agora: AGORA,
     semente: 1,
     ...p,
@@ -78,6 +78,10 @@ describe('forcaDe', () => {
   })
 })
 
+afterEach(() => {
+  ;(REGRA_SINAIS as { sozinhoNotificaIndividual: boolean }).sozinhoNotificaIndividual = false
+})
+
 describe('destino', () => {
   it('2 outliers de 2 canais -> 1 destino individual com alvos dos próprios, ordenados por id', () => {
     const r = calcularOportunidades(
@@ -112,12 +116,8 @@ describe('destino', () => {
   it('sozinhoNotificaIndividual em true vira individual', () => {
     const mut = REGRA_SINAIS as { sozinhoNotificaIndividual: boolean }
     mut.sozinhoNotificaIndividual = true
-    try {
-      const r = calcularOportunidades(ent({ outliers: [out({ videoId: 'S', mult: 6 })] }))
-      expect(r.itens[0]!.notificarComo).toBe('individual')
-    } finally {
-      mut.sozinhoNotificaIndividual = false
-    }
+    const r = calcularOportunidades(ent({ outliers: [out({ videoId: 'S', mult: 6 })] }))
+    expect(r.itens[0]!.notificarComo).toBe('individual')
   })
   it('nCanal 7 -> nenhum e sem_n_minimo = 1', () => {
     const r = calcularOportunidades(ent({ outliers: [out({ videoId: 'S', mult: 9, nCanal: 7 })] }))
@@ -175,10 +175,15 @@ describe('destino', () => {
     expect(d.evidence.outliers).toHaveLength(20)
     expect(d.evidence.outliers_total).toBe(25)
   })
-  it('D20: o próprio sendo o melhor ou o pior não muda os itens (nada de desempenho na entrada)', () => {
-    const melhor = ent({ outliers: [A, B], proprios: [prop({ videoId: 'p' })] })
-    const pior = ent({ outliers: [A, B], proprios: [prop({ videoId: 'p' })] })
-    expect(calcularOportunidades(melhor).itens).toEqual(calcularOportunidades(pior).itens)
+  it('D20: campo extra de desempenho no próprio (melhor/pior) não muda os itens', () => {
+    const base = prop({ videoId: 'p' })
+    const comDesempenho = (views: number, ctr: number): ProprioProjetado =>
+      ({ ...base, views, ctr, vpd7: views / 7, nota: ctr * 10 }) as ProprioProjetado
+    const melhor = ent({ outliers: [A, B], proprios: [comDesempenho(1_000_000, 0.2)] })
+    const pior = ent({ outliers: [A, B], proprios: [comDesempenho(3, 0.001)] })
+    const ra = calcularOportunidades(melhor).itens
+    expect(ra).toHaveLength(1)
+    expect(ra).toEqual(calcularOportunidades(pior).itens)
   })
 })
 
@@ -225,12 +230,30 @@ describe('parecido', () => {
   })
 })
 
+describe('dado ruim', () => {
+  const casos: Array<[string, Partial<OutlierProjetado>]> = [
+    ['mult', { mult: 0 }],
+    ['mult', { mult: Number.NaN }],
+    ['mult', { mult: -2 }],
+    ['vpd7', { vpd7: Number.POSITIVE_INFINITY }],
+    ['vpd7', { vpd7: 0 }],
+    ['publishedAt', { publishedAt: 'ontem' }],
+  ]
+  for (const [campo, p] of casos) {
+    it(`${campo} ${JSON.stringify(p)} lança`, () => {
+      expect(() => calcularOportunidades(ent({ outliers: [A, out({ videoId: 'R', ...p })] }))).toThrow(
+        `outlier inválido: ${campo}`,
+      )
+    })
+  }
+})
+
 describe('motivoVazio e contagens', () => {
   const casos: Array<[string, Partial<EntradaDoNucleo>, string]> = [
     ['histórico apagado', { canaisTotal: 0 }, 'sem-historico'],
     ['todos sem ritmo', { canaisSemRitmo: 5, outliers: [A] }, 'sync-atrasado'],
     ['zero outliers', {}, 'sem-terceiro-outlier'],
-    ['todos sem chave', { outliers: [out({ videoId: 'A', chaves: [] })], outliersSemLugar: 1 }, 'sem-lugar'],
+    ['todos sem chave', { outliers: [out({ videoId: 'A', chaves: [] })] }, 'sem-lugar'],
     ['todos abaixo do mínimo', { outliers: [out({ videoId: 'A', nCanal: 3 }), out({ videoId: 'B', vpd7: 10 })] }, 'abaixo-do-minimo'],
     ['âncora ou 1 canal', { outliers: [A, out({ videoId: 'A2', canalId: 'ca' })] }, 'sem-grupo'],
   ]
@@ -247,10 +270,11 @@ describe('motivoVazio e contagens', () => {
     })
   }
   it('com itens: motivoVazio nulo e contagens completas e coerentes', () => {
-    const r = calcularOportunidades(ent({ outliers: [A, B, out({ videoId: 'N', chaves: [] })], outliersSemLugar: 1 }))
+    const r = calcularOportunidades(ent({ outliers: [A, B, out({ videoId: 'N', chaves: [] })] }))
     expect(r.itens).toHaveLength(1)
     expect(r.motivoVazio).toBeNull()
     expect(Object.keys(r.contagens).sort()).toEqual([...CHAVES_CONTAGENS].sort())
+    expect(r.contagens.outliers_sem_lugar).toBe(1)
     expect(r.contagens).toMatchObject({ outliers_total: 3, outliers_sem_lugar: 1, canais_com_outlier: 3, proprios: 0 })
   })
   it('propriedade: itens vazio => motivoVazio != null (combinações)', () => {
@@ -264,19 +288,25 @@ describe('motivoVazio e contagens', () => {
     ]
     for (let mask = 0; mask < 1 << pool.length; mask++) {
       for (const total of [0, 3]) {
+       for (const extra of [0, 1, 2]) {
         for (const semRitmo of [0, 3]) {
           for (const anc of [false, true]) {
-            const outliers = pool.filter((_, i) => mask & (1 << i))
+            const outliers = pool
+              .filter((_, i) => mask & (1 << i))
+              .map((o) => ({ ...o, deHoje: extra !== 2 }))
             const r = calcularOportunidades(
               ent({
                 outliers,
                 canaisTotal: total,
                 canaisSemRitmo: semRitmo,
+                proprios: extra === 0 ? [] : [prop({ videoId: 'p', tokens: ['a', 'b'] })],
+                chavesAbertas: extra === 1 ? new Set(['pais:VN', 'outlier:x1']) : new Set(),
                 ancorasPorChave: anc ? new Map([['pais:VN', new Set(outliers.map((o) => o.videoId))]]) : new Map(),
               }),
             )
             if (r.itens.length === 0) expect(r.motivoVazio).not.toBeNull()
             else expect(r.motivoVazio).toBeNull()
+          }
           }
         }
       }

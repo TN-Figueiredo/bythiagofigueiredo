@@ -15,8 +15,8 @@ export interface OutlierProjetado {
   nCanal: number
   chaves: string[]
   tokens: string[]
-  /** false para os recompostos de niche_outliers_vistos; ausente = de hoje. Só os de hoje geram `parecido`. */
-  deHoje?: boolean
+  /** false para os recompostos de niche_outliers_vistos. Só os de hoje geram `parecido`. Obrigatório. */
+  deHoje: boolean
 }
 
 export interface ProprioProjetado {
@@ -33,7 +33,6 @@ export interface EntradaDoNucleo {
   proprios: ProprioProjetado[]
   canaisSemRitmo: number
   canaisTotal: number
-  outliersSemLugar: number
   agora: Date
   semente: number
 }
@@ -147,6 +146,13 @@ export function calcularOportunidades(e: EntradaDoNucleo): {
   const rotulo = `regra v${R.versao}, semente ${e.semente}`
   const agoraMs = e.agora.getTime()
 
+  // Dado ruim derruba em voz alta (só o nome do campo): nunca forca NaN/-Infinity gravada em silêncio.
+  for (const o of e.outliers) {
+    if (!Number.isFinite(o.mult) || o.mult <= 0) throw new Error('outlier inválido: mult')
+    if (!Number.isFinite(o.vpd7) || o.vpd7 <= 0) throw new Error('outlier inválido: vpd7')
+    if (!Number.isFinite(Date.parse(o.publishedAt))) throw new Error('outlier inválido: publishedAt')
+  }
+
   // 1. Régua mínima: nCanal e piso de views.
   const validos: OutlierProjetado[] = []
   let semNMinimo = 0
@@ -212,7 +218,7 @@ export function calcularOportunidades(e: EntradaDoNucleo): {
   // 3. Parecidos: só outliers de hoje.
   const proprioSets = e.proprios.map((p) => ({ p, set: new Set(p.tokens), chaves: new Set(p.chaves) }))
   for (const o of validos) {
-    if (o.deHoje === false) continue
+    if (!o.deHoje) continue
     const subjectKey = `outlier:${o.videoId}`
     const aberto = e.chavesAbertas.has(subjectKey)
     if (!aberto && ancoraDe(subjectKey, o.videoId)) continue
@@ -255,7 +261,7 @@ export function calcularOportunidades(e: EntradaDoNucleo): {
     canais_sem_n_minimo: canaisSemN.size,
     canais_com_outlier: new Set(e.outliers.map((o) => o.canalId)).size,
     outliers_total: e.outliers.length,
-    outliers_sem_lugar: e.outliersSemLugar,
+    outliers_sem_lugar: e.outliers.filter((o) => o.chaves.length === 0).length,
     sem_n_minimo: semNMinimo,
     abaixo_do_piso: abaixoPiso,
     outliers_ancora: validos.filter((o) => o.chaves.some((c) => ancoraDe(c, o.videoId))).length,
