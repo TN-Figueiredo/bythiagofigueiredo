@@ -5,7 +5,7 @@
 import { useRef, useState, type ReactElement } from 'react'
 import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
-import type { RestoreStatus } from '@/lib/youtube/ab-restore'
+import { camposPendentes, type RestoreStatus } from '@/lib/youtube/ab-restore'
 import { FRASES, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
 import type { EntradaFicha } from '@/lib/youtube/teste-youtube/nativo/ficha-tela'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -32,10 +32,10 @@ export function originalDeVoltaDe(campos: RestoreStatus): 'sim' | 'restaurando' 
   return v.every((c) => c?.estado === 'ok') ? 'sim' : 'falhou'
 }
 
-/** `falhou` (token, rede): vale tentar de novo. Qualquer outro estado que não seja `ok` (pulado, desistiu) não volta sozinho. */
+/** Vale tentar de novo quando o retry humano aceita algum campo (`falhou`, ou `desistiu` fora de novo_teste/destino_invalido — mesma regra de `camposPendentes`). Pulado não volta sozinho. */
 export type MotivoNaoVolta = 'tentar' | 'conferir'
 export function motivoDe(campos: RestoreStatus): MotivoNaoVolta {
-  return Object.values(campos).some((c) => c?.estado === 'falhou') ? 'tentar' : 'conferir'
+  return camposPendentes(campos, 'humano').length > 0 ? 'tentar' : 'conferir'
 }
 
 /** O que a linha (recarregada) já sabe do restauro. Sem registro (nulo/vazio) fica `nao`: não se libera o Studio por falta de dado. */
