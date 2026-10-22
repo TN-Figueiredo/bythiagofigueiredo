@@ -35,6 +35,7 @@ import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
 import { guardaDoPonto } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import type { CodigoRecusaNativa } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { retomarTeste, recusaTipoForaDeUso } from '@/lib/youtube/ab-resume'
 import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
@@ -707,7 +708,7 @@ export async function pullPipelineThumbnails(
 
 export async function startAbTest(
   testId: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; codigo?: CodigoRecusaNativa; ate?: string }> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
