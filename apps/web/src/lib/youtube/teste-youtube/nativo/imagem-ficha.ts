@@ -1,6 +1,7 @@
 // Imagem da ficha do teste do YouTube no Blob, com prefixo PRÓPRIO (`ab-native-ficha/`): o cron `ab-draft-cleanup`
 // e `deleteVariant` só olham `ab_test_variants` e nunca tocam neste prefixo (travado em test/ab-draft-cleanup-ficha.test.ts).
 // `eUrlDaFicha` e `PREFIXO_FICHA` moram em `ficha-url.ts` (leve) e são reexportados daqui.
+import { lerRetratoDoEditor } from '@/lib/youtube/observatorio/proprio/ler-retrato-ficha'
 import { createHash } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import sharp from 'sharp'
@@ -178,11 +179,7 @@ export async function copiarOriginalParaFichaCore(p: {
     // cada abertura, então não serve de corte: a miniatura viva depois da 1ª abertura pode já ser a B); Studio nunca aberto: anterior a hoje
     if (!bytes) {
       const corte = diaPt(linha.studio_aberto_em ? new Date(linha.criada_em) : agora())
-      const { data: dias, error: eD } = await p.sb.from('yt_own_video_meta_daily').select('thumbnail_blob_url, day_pt')
-        .eq('site_id', p.siteId).eq('video_id', linha.video_id).is('ab_variant_id', null).not('thumbnail_blob_url', 'is', null)
-        .lt('day_pt', corte).order('day_pt', { ascending: false }).limit(1)
-      if (eD) throw new Error(`yt_own_video_meta_daily: ${eD.message}`)
-      const url = ((dias ?? []) as Array<{ thumbnail_blob_url: string | null }>)[0]?.thumbnail_blob_url
+      const url = await lerRetratoDoEditor(p.sb, { siteId: p.siteId, videoId: linha.video_id, coluna: 'thumbnail_blob_url', antesDe: corte })
       if (ehCopiaNoBlob(url)) {
         try {
           bytes = (await fetchVariantImageBuffer(url, f)).buffer

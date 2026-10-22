@@ -16,6 +16,8 @@ const ctx = vi.hoisted(() => ({ siteId: '', userId: '' }))
 vi.mock('@/lib/youtube/ab-lab-acesso', () => ({ requireEditUser: async () => ({ siteId: ctx.siteId, userId: ctx.userId }) }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
+// a prova de edição que a leitura do retrato diário repete (`leituraDoEditor`): a guarda simulada aceita
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u-teste' } })) }))
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { abrirFicha, salvarFicha, marcarStudioAberto, lembrarNoComputador, lerFichaDoVideo, recomecarFicha } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'

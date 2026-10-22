@@ -126,3 +126,9 @@ export const provarLeituraPrivada = async (siteId: string): Promise<LeituraPriva
 
 /** Em execução: o valor nasceu em `provarAcessoPrivado` (brand check do campo privado). */
 export const leituraValida = (l: unknown): l is LeituraPrivadaDoSite => marca(l)
+
+/** Só a leitura de quem EDITA o site (a guarda de edição aceitou); quem lê por direito de visualização não ganha: `null`. Nunca lança. */
+export const leituraDoEditor = async (siteId: string): Promise<LeituraPrivadaDoSite | null> => {
+  const a = await provarAcessoPrivado(siteId)
+  return a.edita ? a.leitura : null
+}

@@ -7,6 +7,8 @@ import * as Sentry from '@sentry/nextjs'
 import { criarSupabaseMemoria, type Tabelas } from '../../../helpers/supabase-memoria'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
+// a prova de edição que a leitura do retrato diário repete (`leituraDoEditor`): a guarda simulada aceita
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u-teste' } })) }))
 const acesso = vi.hoisted(() => ({ requireEditUser: vi.fn() }))
 vi.mock('@/lib/youtube/ab-lab-acesso', () => acesso)
 const servico = vi.hoisted(() => ({ get: vi.fn() }))

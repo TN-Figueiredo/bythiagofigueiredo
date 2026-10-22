@@ -1,5 +1,6 @@
 // Ficha "Testar no YouTube" gravada no servidor (§5.3): abrir, salvar (CAS), "Abrir no Studio", "Lembrar no computador".
 // Núcleo com portas (cliente de banco e `createNotification` injetáveis); a action fina vive em `ab-lab/actions-nativo.ts`.
+import { lerRetratoDoEditor } from '@/lib/youtube/observatorio/proprio/ler-retrato-ficha'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { eUrlDaFicha } from '@/lib/youtube/teste-youtube/nativo/ficha-url'
@@ -100,11 +101,7 @@ export async function resolverTituloOriginal(sb: SupabaseClient, siteId: string,
     for (const x of (vars ?? []) as Array<{ title_text: string | null }>) { const t = texto(x.title_text); if (t) return t }
   }
 
-  const { data: dias, error: eD } = await sb.from('yt_own_video_meta_daily').select('title_at_capture, day_pt')
-    .eq('site_id', siteId).eq('video_id', videoId).is('ab_variant_id', null).not('title_at_capture', 'is', null)
-    .order('day_pt', { ascending: false }).limit(1)
-  if (eD) throw new Error(`yt_own_video_meta_daily: ${eD.message}`)
-  const retrato = texto(((dias ?? []) as Array<{ title_at_capture: string | null }>)[0]?.title_at_capture)
+  const retrato = texto(await lerRetratoDoEditor(sb, { siteId, videoId, coluna: 'title_at_capture' }))
   if (retrato) return retrato
   return texto(v.title)
 }
