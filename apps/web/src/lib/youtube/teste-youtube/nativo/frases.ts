@@ -21,6 +21,13 @@ export interface FraseDeEstado { frase: string; apoio: string | null }
 const f = (frase: string, apoio: string | null = null): FraseDeEstado => ({ frase, apoio })
 
 export const FRASES = {
+  /** Aviso de resolução (M1/M2, index.html:431). */
+  resolucao: {
+    naoMedida: 'Resolução não medida',
+    baixa: (dim: string): string => `Resolução baixa: ${dim}`,
+    explicacao: (_sujeito: 'enviada' | 'guardada', minimo: number): string =>
+      `Abaixo de ${minimo} × ${Math.round((minimo * 9) / 16)} o Studio reduz todas as versões a 854 × 480. Envie uma maior.`,
+  },
   /** Resumo da lista (T3 move para cá, mesmo texto) e frases de D-7. */
   lista: {
     carregando: f('Lendo os vídeos e os testes.', 'A contagem só aparece depois da leitura; nunca 0 enquanto carrega.'),
