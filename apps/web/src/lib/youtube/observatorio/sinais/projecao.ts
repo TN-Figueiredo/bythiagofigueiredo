@@ -13,6 +13,8 @@ export interface ProjecaoDoMotor {
   canaisTotal: number
   /** Coerente com a lista: quantos de `outliers` têm `chaves` vazias. */
   outliersSemLugar: number
+  /** Estourando pela fase mas sem como medir (sem nBase, m7 <= 0 ou mult de tela nulo): vai ao `detalhe`, não às contagens. */
+  outliersDescartados: number
 }
 
 /**
@@ -62,12 +64,13 @@ export function projetarOutliers(
   const nBase = montarNBase(obs)
   const outliers: OutlierProjetado[] = []
   const vistos = new Set<string>()
+  let descartados = 0
   for (const fmt of FORMATOS) {
     for (const item of obs.outliers({ maxAge: 30, fmt }).items) {
       if (item.weak || item.phase.id !== 'estourando') continue
       const v = item.video
       const base = nBase.get(`${v.ch}|${v.fmt}`)
-      if (!base || v.vpd7 == null || base.m7 <= 0 || item.mult.value == null) continue
+      if (!base || v.vpd7 == null || base.m7 <= 0 || item.mult.value == null) { descartados++; continue }
       // uuid de competitor_videos.id (nunca o video_id do YouTube); um vídeo só entra uma vez
       if (vistos.has(item.id)) continue
       vistos.add(item.id)
@@ -92,6 +95,7 @@ export function projetarOutliers(
     canaisSemRitmo: semRitmo,
     canaisTotal: total,
     outliersSemLugar: outliers.filter((o) => o.chaves.length === 0).length,
+    outliersDescartados: descartados,
   }
 }
 

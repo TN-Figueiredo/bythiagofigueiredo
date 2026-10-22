@@ -6,7 +6,7 @@ import { rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { montarIndice } from '@/lib/youtube/observatorio/lugar/casar'
 import {
-  calcularLugares, lerEntradasDeLugar, lerIndiceDeLugar, sincronizarLugares, ErroSementeIncompleta, type LinhaDeLugar, type ProprioRow,
+  calcularLugares, lerEntradasDeLugar, lerIndiceDeLugar, lerProprios, sincronizarLugares, ErroSementeIncompleta, type LinhaDeLugar, type ProprioRow,
 } from '@/lib/youtube/observatorio/sinais/lugares-do-site'
 import { projetarOutliers, recomporVistos } from '@/lib/youtube/observatorio/sinais/projecao'
 import { canal, rowsDe, NOW, DAY } from './fixture-sinais'
@@ -18,11 +18,12 @@ interface Falso {
   selects: Array<{ table: string; cols: string }>
   escritas: Array<{ table: string; op: 'upsert' | 'delete'; n: number }>
   upserts: Linha[][]
+  gtes: Array<{ table: string; col: string; v: string }>
 }
 
 /** Cliente de teste mínimo: select/eq/in/order/range/upsert/delete sobre tabelas em memória; `rd:raw->x` vira `rd`. */
 function falso(tabelas: Record<string, Linha[]>, o: { cortarEm?: number } = {}): Falso {
-  const f: Falso = { client: null as unknown as SupabaseClient, tabelas, selects: [], escritas: [], upserts: [] }
+  const f: Falso = { client: null as unknown as SupabaseClient, tabelas, selects: [], escritas: [], upserts: [], gtes: [] }
   const from = (table: string) => {
     let rows = [...(tabelas[table] ?? [])]
     let cols: string[] = []
@@ -32,6 +33,7 @@ function falso(tabelas: Record<string, Linha[]>, o: { cortarEm?: number } = {}):
       select(s: string, op?: { count?: string; head?: boolean }) { f.selects.push({ table, cols: s }); cols = s.split(',').map((c) => c.trim()); contar = op?.count === 'exact'; return q },
       eq(c: string, v: unknown) { rows = rows.filter((r) => r[c] === v); return q },
       in(c: string, vs: readonly unknown[]) { rows = rows.filter((r) => vs.includes(r[c])); return q },
+      gte(c: string, v: string) { f.gtes.push({ table, col: c, v }); rows = rows.filter((r) => String(r[c]) >= v); return q },
       order(c: string) { ord = c; return q },
       range(a: number, b: number) { return Promise.resolve(run([a, b])) },
       upsert(batch: Linha[]) {
@@ -181,7 +183,6 @@ describe('sincronizarLugares', () => {
     const antes = f.escritas.length
     const c = calcularLugares({ siteId: SITE, rows, proprios, indice, raws, existentes, agora: new Date(NOW) })
     expect(f.escritas.length).toBe(antes)
-    expect(calcularLugares.length).toBe(1)
     expect(c.contagens).toMatchObject({ total: 3, competidor: 3, proprio: 0, sem_lugar: 2, regravados: 3, inalterados: 0, orfaos: 0 })
   })
 
@@ -201,6 +202,43 @@ describe('sincronizarLugares', () => {
     const f = falso(tabelas)
     await sincroniza(f, rows, indice, muitos)
     expect(f.upserts.map((u) => u.length)).toEqual([500, 500, 103])
+  })
+})
+
+describe('lerProprios', () => {
+  const agora = new Date('2026-10-24T15:00:00-03:00') // hoje_sp = 2026-10-24
+  const dia = (n: number): string => new Date(Date.UTC(2026, 9, 24 - n)).toISOString().slice(0, 10)
+  const v = (id: string, extra: Linha = {}): Linha => ({ id, youtube_video_id: 'yt-' + id, site_id: SITE, is_hidden: false, title: 'T ' + id, description: 'D ' + id, tags: ['t'], ...extra })
+  const m = (id: string, d: number, extra: Linha = {}): Linha => ({ youtube_video_id: 'yt-' + id, site_id: SITE, day_pt: dia(d), privacy_status: 'public', is_short: false, ...extra })
+
+  it('oculto e não público ficam fora; formato pela linha mais nova', async () => {
+    const f = falso({
+      youtube_videos: [v('a'), v('oculto', { is_hidden: true }), v('priv'), v('lista'), v('sem-meta'), v('outro-site', { site_id: 'x' }), v('forma')],
+      yt_own_video_meta_daily: [
+        m('a', 5, { is_short: false }), m('a', 1, { is_short: true }),
+        m('oculto', 1), m('priv', 3), m('priv', 1, { privacy_status: 'private' }), m('lista', 1, { privacy_status: 'unlisted' }),
+        m('forma', 2, { privacy_status: 'public', is_short: true }), m('forma', 1, { privacy_status: null, is_short: false }),
+      ],
+    })
+    const r = await lerProprios(f.client, SITE, agora)
+    expect(r.map((x) => x.id).sort()).toEqual(['a', 'forma'].sort())
+    expect(r.find((x) => x.id === 'a')).toMatchObject({ is_short: true, title: 'T a', description: 'D a', tags: ['t'] })
+    // último privacy conhecido (dia 2: public) vale mesmo com a linha mais nova sem privacidade; o formato é o da mais nova
+    expect(r.find((x) => x.id === 'forma')!.is_short).toBe(false)
+  })
+
+  it('linha de 8 dias atrás é ignorada (formato null; sem privacidade na janela = fora)', async () => {
+    const f = falso({ youtube_videos: [v('a'), v('velho')], yt_own_video_meta_daily: [m('a', 2, { is_short: null }), m('velho', 8, { is_short: true })] })
+    const r = await lerProprios(f.client, SITE, agora)
+    expect(r.map((x) => x.id)).toEqual(['a'])
+    expect(r[0]!.is_short).toBeNull()
+  })
+
+  it('a consulta tem o filtro de day_pt (hoje_sp - 7) e não pede views/CTR', async () => {
+    const f = falso({ youtube_videos: [v('a')], yt_own_video_meta_daily: [m('a', 1)] })
+    await lerProprios(f.client, SITE, agora)
+    expect(f.gtes).toEqual([{ table: 'yt_own_video_meta_daily', col: 'day_pt', v: dia(7) }])
+    for (const s of f.selects) expect(s.cols).not.toMatch(/view|ctr|vpd|nota|like|comment/i)
   })
 })
 

@@ -206,3 +206,37 @@ export async function sincronizarLugares(
   await gravarLugares(sb, siteId, calculo)
   return { lugarDe: calculo.lugarDe, regravados: calculo.regravar.length, inalterados: calculo.linhas.length - calculo.regravar.length }
 }
+
+const TRES_H = 3 * 3_600_000
+
+/**
+ * Vídeos próprios para o casamento de lugar. Regra de "público" igual à de `yt_own_versions_prova`: o último
+ * `privacy_status` conhecido tem de ser 'public' (sem linha de privacidade na janela = fora; unlisted/private = fora).
+ * Janela de 7 dias por `day_pt` na consulta (nunca o histórico); `is_short` vem da linha mais nova do vídeo na janela
+ * (sem `is_short` nela = null). Só colunas de texto/formato: nenhuma métrica de desempenho (D20).
+ */
+export async function lerProprios(sb: SupabaseClient, siteId: string, agora: Date): Promise<ProprioRow[]> {
+  const corte = new Date(agora.getTime() - TRES_H - 7 * 86_400_000).toISOString().slice(0, 10)
+  const [videos, meta] = await Promise.all([
+    readAll<{ id: string; youtube_video_id: string; title: string | null; description: string | null; tags: string[] | null }>('youtube_videos', () =>
+      sb.from('youtube_videos').select('id, youtube_video_id, title, description, tags').eq('site_id', siteId).eq('is_hidden', false).order('id')),
+    readAll<{ youtube_video_id: string; day_pt: string; privacy_status: string | null; is_short: boolean | null }>('yt_own_video_meta_daily', () =>
+      sb.from('yt_own_video_meta_daily').select('youtube_video_id, day_pt, privacy_status, is_short').eq('site_id', siteId).gte('day_pt', corte).order('youtube_video_id').order('day_pt')),
+  ])
+  const maisNova = new Map<string, { day: string; is_short: boolean | null }>()
+  const privacidade = new Map<string, { day: string; status: string }>()
+  for (const m of meta) {
+    const a = maisNova.get(m.youtube_video_id)
+    if (!a || m.day_pt > a.day) maisNova.set(m.youtube_video_id, { day: m.day_pt, is_short: m.is_short })
+    if (m.privacy_status !== null) {
+      const p = privacidade.get(m.youtube_video_id)
+      if (!p || m.day_pt >= p.day) privacidade.set(m.youtube_video_id, { day: m.day_pt, status: m.privacy_status })
+    }
+  }
+  return videos
+    .filter((v) => privacidade.get(v.youtube_video_id)?.status === 'public')
+    .map((v) => ({
+      id: v.id, title: v.title ?? '', description: v.description, tags: v.tags ?? [],
+      is_short: maisNova.get(v.youtube_video_id)?.is_short ?? null,
+    }))
+}
