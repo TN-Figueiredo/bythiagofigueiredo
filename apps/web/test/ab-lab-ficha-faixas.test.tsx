@@ -147,7 +147,7 @@ describe('faixa 0b: nosso teste rodando', () => {
     const { aoAtualizar, trocarNosso } = montar(duas(), { nosso: NOSSO, a })
     await clicar(PAUSAR); await clicar(PAUSAR)
     expect(aoAtualizar).toHaveBeenCalled()
-    trocarNosso({ ...NOSSO, restoreSeq: 5, status: 'paused' })
+    trocarNosso({ ...NOSSO, restoreSeq: 5, status: 'paused', restoreStatus: { title: campoFalhou } })
     await clicar(FRASES.ficha.tentarDeNovo)
     expect(a.retryRestore).toHaveBeenCalledWith('teste-1', 5)
   })
@@ -205,6 +205,87 @@ describe('faixa 0b: nosso teste rodando', () => {
     await clicar(PAUSAR); await clicar(PAUSAR)
     expect(screen.getByRole('alert').textContent).toContain('O teste mudou. Recarregue.')
     expect(screen.queryByText(FRASES.ficha.faixaRestaurada('22/10, 12:00').titulo)).toBeNull()
+  })
+})
+
+describe('restauro sem saída (I1 do Yannis, I2 do Phil)', () => {
+  const studio = (): HTMLButtonElement | undefined => screen.queryAllByRole('button', { name: FRASES.ficha.bloco2.abrirNoStudio })[0] as HTMLButtonElement | undefined
+
+  it('I1: depois de "em andamento", a linha que chega pausada e restaurada libera o Studio e mostra a faixa restaurada', async () => {
+    const a = acoesMock()
+    a.pauseAbTest.mockResolvedValue({ ok: false, resultado: 'em_andamento', error: 'x' })
+    const { trocarNosso } = montar(duas(), { nosso: NOSSO, a })
+    await clicar(PAUSAR); await clicar(PAUSAR)
+    expect(screen.getByText(FRASES.ficha.faixaRestaurando)).toBeTruthy()
+    trocarNosso({ ...NOSSO, status: 'paused', restoreSeq: 5, restoreStatus: { title: campoOk, thumbnail: campoOk } })
+    expect(screen.queryByText(FRASES.ficha.faixaRestaurando)).toBeNull()
+    expect(screen.getByText(FRASES.ficha.faixaRestaurada('').titulo, { exact: false })).toBeTruthy()
+    expect(studio()?.disabled).toBe(false)
+  })
+
+  it('I1: enquanto restaura, relê a linha a cada 5 s por no máximo 1 min, e então manda conferir; desmontar para a leitura', async () => {
+    vi.useFakeTimers()
+    try {
+      const a = acoesMock()
+      a.pauseAbTest.mockResolvedValue({ ok: false, resultado: 'em_andamento', error: 'x' })
+      const { aoAtualizar, unmount } = montar(duas(), { nosso: NOSSO, a })
+      await clicar(PAUSAR); await clicar(PAUSAR)
+      const base = aoAtualizar.mock.calls.length
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+      expect(aoAtualizar.mock.calls.length).toBe(base + 1)
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+      expect(aoAtualizar.mock.calls.length).toBe(base + 12)
+      expect(screen.getByRole('alert').textContent).toContain(FRASES.ficha.faixaRestaurarNaoVolta.titulo)
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+      expect(aoAtualizar.mock.calls.length).toBe(base + 12)
+      unmount()
+    } finally { vi.useRealTimers() }
+  })
+
+  it('I1: desmontar durante o restauro cancela a releitura', async () => {
+    vi.useFakeTimers()
+    try {
+      const a = acoesMock()
+      a.pauseAbTest.mockResolvedValue({ ok: false, resultado: 'em_andamento', error: 'x' })
+      const { aoAtualizar, unmount } = montar(duas(), { nosso: NOSSO, a })
+      await clicar(PAUSAR); await clicar(PAUSAR)
+      unmount()
+      const n = aoAtualizar.mock.calls.length
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+      expect(aoAtualizar.mock.calls.length).toBe(n)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('I1: "já encerrado" também recarrega a linha', async () => {
+    const a = acoesMock()
+    a.pauseAbTest.mockResolvedValue({ ok: false, resultado: 'ja_encerrado', error: 'Este teste já não está neste estado.' })
+    const { aoAtualizar } = montar(duas(), { nosso: NOSSO, a })
+    await clicar(PAUSAR); await clicar(PAUSAR)
+    expect(aoAtualizar).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['nulo', null],
+    ['vazio', {}],
+  ])('I2: pausado com restore_status %s não fica em "Restaurando": mostra a frase de conferir e "Conferi no YouTube, seguir" libera o Studio', async (_n, rs) => {
+    montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: rs } })
+    expect(screen.queryByText(FRASES.ficha.faixaRestaurando)).toBeNull()
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toContain(FRASES.ficha.faixaSemRegistro.titulo)
+    expect(studio()?.disabled ?? true).toBe(true)
+    await clicar(FRASES.ficha.conferiESeguir)
+    expect(studio()?.disabled).toBe(false)
+  })
+
+  it('I2: restauro "pulado" também tem a saída "Conferi no YouTube, seguir"', async () => {
+    montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: { title: { ...campoOk, estado: 'pulado_sem_original' }, thumbnail: campoOk } } })
+    await clicar(FRASES.ficha.conferiESeguir)
+    expect(studio()?.disabled).toBe(false)
+  })
+
+  it('I2: com campo em andamento de verdade continua "Restaurando"', () => {
+    montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: { title: campoOk, thumbnail: campoBusy } } })
+    expect(screen.getByText(FRASES.ficha.faixaRestaurando)).toBeTruthy()
   })
 })
 

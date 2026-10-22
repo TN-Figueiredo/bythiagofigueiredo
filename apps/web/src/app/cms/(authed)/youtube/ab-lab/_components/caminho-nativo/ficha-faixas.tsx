@@ -2,7 +2,7 @@
 // Faixas da "Ficha do teste" que falam do nosso teste e do Studio (F1a-tela-1, T9b): `0b` (nosso rodando, "Pausar e voltar a original" em 2 toques),
 // `restaurando`, `falhou`, `restaurada` e `0c` (registro detectado). `pauseAbTest` e `retryRestore` chegam por props (nunca importados aqui).
 // O estado do nosso teste vive no hook `useNossoDaFicha`, para a `FichaComStudio` passar `entrada.nosso` real à `vistaDaFicha`.
-import { useRef, useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { camposPendentes, type RestoreStatus } from '@/lib/youtube/ab-restore'
@@ -33,17 +33,26 @@ export function originalDeVoltaDe(campos: RestoreStatus): 'sim' | 'restaurando' 
 }
 
 /** Vale tentar de novo quando o retry humano aceita algum campo (`falhou`, ou `desistiu` fora de novo_teste/destino_invalido — mesma regra de `camposPendentes`). Pulado não volta sozinho. */
-export type MotivoNaoVolta = 'tentar' | 'conferir'
+export type MotivoNaoVolta = 'tentar' | 'conferir' | 'sem_registro'
 export function motivoDe(campos: RestoreStatus): MotivoNaoVolta {
   return camposPendentes(campos, 'humano').length > 0 ? 'tentar' : 'conferir'
 }
 
-/** O que a linha (recarregada) já sabe do restauro. Sem registro (nulo/vazio) fica `nao`: não se libera o Studio por falta de dado. */
+const temRetrato = (rs: RestoreStatus | null | undefined): rs is RestoreStatus => rs !== null && rs !== undefined && Object.keys(rs).length > 0
+
+/** O que a linha (recarregada) já sabe do restauro. Pausado SEM retrato (nulo/vazio) não é "restaurando": nada está rodando; vira `falhou`/`sem_registro` (o dono confere e segue). */
 function inicialDe(l: NonNullable<LinhaDoCaminho['nosso']>): NonNullable<EntradaFicha['nosso']> {
   const rs = l.restoreStatus
-  const tem = rs !== null && rs !== undefined && Object.keys(rs).length > 0
-  return { status: l.status, dia: l.dia, originalDeVolta: l.status === 'paused' && tem ? originalDeVoltaDe(rs) : 'nao' }
+  if (l.status !== 'paused') return { status: l.status, dia: l.dia, originalDeVolta: 'nao' }
+  return { status: l.status, dia: l.dia, originalDeVolta: temRetrato(rs) ? originalDeVoltaDe(rs) : 'falhou' }
 }
+function motivoInicial(l: NonNullable<LinhaDoCaminho['nosso']>): MotivoNaoVolta {
+  if (l.status !== 'paused') return 'tentar'
+  return temRetrato(l.restoreStatus) ? motivoDe(l.restoreStatus) : 'sem_registro'
+}
+/** Releitura da linha enquanto "Restaurando": a cada 5 s, no máximo 12 vezes (1 min). */
+const RELEITURA_MS = 5000
+const RELEITURAS_MAX = 12
 
 export interface NossoDaFicha {
   nosso: EntradaFicha['nosso']
@@ -58,17 +67,55 @@ export interface NossoDaFicha {
   pausar: (forcar?: boolean) => void
   tentarDeNovo: () => void
   fecharConfirmar: () => void
+  /** O dono conferiu no YouTube: o teste nosso deixa de bloquear o Studio (só nesta tela; nada é gravado). */
+  conferirESeguir: () => void
 }
 
 export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: AcoesDoNosso, agora: () => Date, recarregar?: () => void): NossoDaFicha {
   const [nosso, setNosso] = useState<EntradaFicha['nosso']>(linhaNosso ? inicialDe(linhaNosso) : null)
-  const [motivo, setMotivo] = useState<MotivoNaoVolta>(linhaNosso?.restoreStatus ? motivoDe(linhaNosso.restoreStatus) : 'tentar')
+  const [motivo, setMotivo] = useState<MotivoNaoVolta>(linhaNosso ? motivoInicial(linhaNosso) : 'tentar')
+  const [conferido, setConferido] = useState(false)
   const [restauradaEm, setRestauradaEm] = useState<Date | null>(null)
   const [pausaAberta, setPausaAberta] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [paraConfirmar, setParaConfirmar] = useState<CamposParaConfirmar | null>(null)
   const emCurso = useRef(false)
+  const recarregarRef = useRef(recarregar); recarregarRef.current = recarregar
+  const agoraRef = useRef(agora); agoraRef.current = agora
+
+  // Ressincroniza com a linha quando ela muda (refresh): o estado semeado no 1º render não pode ficar congelado.
+  const chaveLinha = linhaNosso ? `${linhaNosso.status}|${linhaNosso.restoreSeq}|${linhaNosso.dia}|${JSON.stringify(linhaNosso.restoreStatus ?? null)}` : ''
+  const chaveAnterior = useRef(chaveLinha)
+  useEffect(() => {
+    if (chaveAnterior.current === chaveLinha) return
+    chaveAnterior.current = chaveLinha
+    if (!linhaNosso) { setNosso(null); return }
+    const novo = inicialDe(linhaNosso)
+    setNosso((antes) => {
+      if (antes?.originalDeVolta === 'restaurando' && novo.originalDeVolta === 'sim') setRestauradaEm(agoraRef.current())
+      return novo
+    })
+    setMotivo(motivoInicial(linhaNosso))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveLinha])
+
+  // "Restaurando": relê a linha de 5 em 5 s por até 1 min; sem desfecho, manda conferir no YouTube.
+  const restaurando = nosso?.originalDeVolta === 'restaurando'
+  useEffect(() => {
+    if (!restaurando) return
+    let n = 0
+    const id = setInterval(() => {
+      n += 1
+      recarregarRef.current?.()
+      if (n >= RELEITURAS_MAX) {
+        clearInterval(id)
+        setMotivo('conferir')
+        setNosso((x) => (x && x.originalDeVolta === 'restaurando' ? { ...x, originalDeVolta: 'falhou' } : x))
+      }
+    }, RELEITURA_MS)
+    return () => clearInterval(id)
+  }, [restaurando])
 
   async function rodar(chamar: () => Promise<ResultadoAcaoSaida>, ehRetry: boolean): Promise<void> {
     if (emCurso.current || !linhaNosso) return
@@ -90,7 +137,7 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
         recarregar?.()
       } else {
         setErro(r.error)
-        if (r.resultado === 'mudou') recarregar?.()
+        if (r.resultado === 'mudou' || r.resultado === 'ja_encerrado') recarregar?.()
       }
     } catch {
       setErro(FRASES.ficha.pausarFalhou)
@@ -100,12 +147,13 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
   }
 
   return {
-    nosso, restauradaEm, pausaAberta, ocupado, erro, motivo, paraConfirmar,
+    nosso: conferido ? null : nosso, restauradaEm, pausaAberta, ocupado, erro, motivo, paraConfirmar,
     abrirPausa: () => setPausaAberta(true),
     cancelarPausa: () => setPausaAberta(false),
     pausar: (forcar) => { void rodar(() => (forcar === true ? acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0, true) : acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0)), false) },
     tentarDeNovo: () => { void rodar(() => acoes.retryRestore(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0), true) },
     fecharConfirmar: () => setParaConfirmar(null),
+    conferirESeguir: () => setConferido(true),
   }
 }
 
@@ -138,9 +186,12 @@ export function FaixasFicha({ ctx, n, registroDetectado }: {
         </FaixaCaminho>
       ) : null}
       {faixa === 'restaurando' ? <FaixaCaminho tom="lab" ocupada titulo={FRASES.ficha.faixaRestaurando} /> : null}
-      {faixa === 'falhou' && n.motivo === 'conferir' ? (
-        <FaixaCaminho tom="err" role="alert" titulo={FRASES.ficha.faixaRestaurarNaoVolta.titulo}>
-          {FRASES.ficha.faixaRestaurarNaoVolta.apoio}
+      {faixa === 'falhou' && (n.motivo === 'conferir' || n.motivo === 'sem_registro') ? (
+        <FaixaCaminho
+          tom="err" role="alert" titulo={(n.motivo === 'conferir' ? FRASES.ficha.faixaRestaurarNaoVolta : FRASES.ficha.faixaSemRegistro).titulo}
+          acoes={<button type="button" className="cn-btn pri" onClick={n.conferirESeguir}>{FRASES.ficha.conferiESeguir}</button>}
+        >
+          {(n.motivo === 'conferir' ? FRASES.ficha.faixaRestaurarNaoVolta : FRASES.ficha.faixaSemRegistro).apoio}
         </FaixaCaminho>
       ) : null}
       {faixa === 'falhou' && n.motivo === 'tentar' ? (

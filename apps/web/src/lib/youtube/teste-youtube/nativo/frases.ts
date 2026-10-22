@@ -194,6 +194,9 @@ export const FRASES = {
     restaurarFalhou: f('A original não voltou: o nosso teste segue rodando.', 'Reconecte o canal e tente de novo.'),
     faixaRestaurarFalhou: { titulo: 'Não deu para restaurar a original', apoio: 'O acesso ao YouTube venceu. O nosso teste continua rodando; nada foi trocado. Reconecte o canal e tente de novo.' },
     faixaRestaurarNaoVolta: { titulo: 'A original não voltou sozinha', apoio: 'O vídeo já tinha mudado ou o original não foi encontrado. Confira o título e a miniatura no YouTube antes de seguir.' },
+    /** Provisórias (Logan fecha): teste pausado sem retrato de restauro (pausa antiga ou reivindicação sem resultado) e a saída do dono. */
+    faixaSemRegistro: { titulo: 'O restauro deste teste não foi guardado', apoio: 'Este teste foi pausado antes de o Lab guardar o restauro. Confira o título e a miniatura no YouTube antes de seguir.' },
+    conferiESeguir: 'Conferi no YouTube, seguir',
     reconectar: 'Reconectar o canal',
     /** Provisórias (T9b; Logan fecha): a exceção/rede ao pausar e ao mandar o lembrete. */
     pausarFalhou: 'Não deu para pausar agora. Nada foi trocado. Tente de novo.',
