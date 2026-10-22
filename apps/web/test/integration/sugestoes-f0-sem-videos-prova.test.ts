@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { criarSite, q1 } from '../helpers/mg6'
 
-const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54422/postgres'
+const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
 describe.skipIf(skipIfNoLocalDb())('F0 sugestões: sem_videos de meta e yt_own_versions_prova (banco local)', () => {
   let pg: Client

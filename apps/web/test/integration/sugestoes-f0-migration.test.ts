@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { criarSite, criarUsuario, q1 } from '../helpers/mg6'
 
-const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54422/postgres'
+const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const SQL = readFileSync(fileURLToPath(new URL('../fixtures/sql/sugestoes-f0-coleta.sql', import.meta.url)), 'utf8')
 const V = 'public.yt_own_search_terms'
 
