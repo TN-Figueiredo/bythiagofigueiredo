@@ -30,11 +30,11 @@
   --cn-chip-fg: #FFFFFF;
   color-scheme: light;
 }
-/* No estreito a medida vale para os descendentes: container query não casa com o próprio container. */
-/* Uma medida só para o esqueleto da ficha (--cn-hf) e da lista (--cn-hl); o teste do T12 lê estas duas. --cn-hs = região inteira do esqueleto da lista (frase + lista), medida na lista pronta do Gio: 1637 px (1440) e 2915 px (390). */
-.cn-raiz { --cn-hf: 1011px; --cn-hl: 1525px; --cn-hs: 1637px; }
+/* Altura do esqueleto da ficha (--cn-hf), lida pelo teste do T12. No estreito a medida é declarada só no consumidor (Naksu U-5):
+   container query não casa com o próprio container, e `*` forçaria recálculo em todo nó da lista. A lista não tem medida fixa (U-3). */
+.cn-raiz { --cn-hf: 1011px; }
 @container (max-width: 640px) {
-  .cn-raiz * { --cn-hf: 1430px; --cn-hl: 2544px; --cn-hs: 2915px; }
+  .cn-fsk { --cn-hf: 1430px; }
 }
 .cn-raiz {
   background: var(--cn-bg); color: var(--cn-text); container-type: inline-size; font-size: 14px; overflow-wrap: anywhere;
@@ -89,6 +89,18 @@
 .cn-btn.ghost { background: transparent; }
 .cn-btn[disabled] { color: var(--cn-muted); border-style: dashed; cursor: not-allowed; background: transparent; }
 .cn-lnk { font: inherit; font-size: 13.5px; color: var(--cn-yt); background: none; border: 0; padding: 0 2px; min-height: 24px; text-decoration: underline; cursor: pointer; text-align: left; }
+@media (pointer: coarse) { .cn-btn, .cn-lnk, .cn-segc button, .cn-addv { min-height: 44px; } }
+/* Hover e pressionado (Naksu U-4): hex literais, nunca color-mix */
+[data-theme="dark"] .cn-btn:hover:not([disabled]) { background: #2F2920; border-color: #A89D88; }
+[data-theme="dark"] .cn-btn:active:not([disabled]) { background: #1F1B16; }
+[data-theme="dark"] .cn-btn.pri:hover { background: #FF9560; border-color: #FF9560; }
+[data-theme="dark"] .cn-btn.pri:active { background: #E5702F; border-color: #E5702F; }
+[data-theme="light"] .cn-btn:hover:not([disabled]) { background: #EDE2CF; border-color: #6E624E; }
+[data-theme="light"] .cn-btn:active:not([disabled]) { background: #DED0B6; }
+[data-theme="light"] .cn-btn.pri:hover { background: #9E3C14; border-color: #9E3C14; }
+[data-theme="light"] .cn-btn.pri:active { background: #8A3310; border-color: #8A3310; }
+.cn-lnk:hover { text-decoration-thickness: 2px; }
+.cn-raiz .cn-d14-vopt:hover:not([disabled]), .cn-raiz .cn-slot:hover, .cn-raiz .cn-segc button:hover, .cn-raiz .cn-addv:hover { background: var(--cn-surface-2); }
 @container (max-width: 640px) {
   .cn-btn { min-height: 44px; }
   .cn-lnk { min-height: 44px; }

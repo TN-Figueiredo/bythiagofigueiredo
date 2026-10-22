@@ -29,12 +29,13 @@ describe('Gio F-5: ficha carregando como no mockup', () => {
 })
 
 describe('Gio F-2: o esqueleto da lista tem altura fixa, com ou sem cabeçalhos de grupo', () => {
-  it('a região do esqueleto usa --cn-hs (1637 px larga, 2915 px estreita) e a lista não impõe min-height', () => {
-    expect(css('caminho-nativo.css')).toMatch(/--cn-hs: 1637px/)
-    expect(css('caminho-nativo.css')).toMatch(/--cn-hs: 2915px/)
+  it('Naksu U-3: a altura vem do número de linhas (128 px larga, 220 px estreita), sem altura de região nem linhas esticadas', () => {
     const l = css('lista-caminho.css')
-    expect(l).toMatch(/\.cn-esq \{ height: var\(--cn-hs\)/)
-    expect(l).not.toMatch(/\.cn-lsk \{[^}]*min-height: var\(--cn-hl\)/)
+    expect(l).toMatch(/\[data-skel-linha\] \{ flex: none; height: 128px;/)
+    expect(l).toMatch(/@container \(max-width: 640px\) \{ \.cn-lsk \[data-skel-linha\] \{ height: 220px; \} \}/)
+    expect(l).not.toMatch(/--cn-hs/)
+    expect(l).not.toMatch(/flex: 1 1 0/)
+    expect(css('caminho-nativo.css')).not.toMatch(/--cn-hs/)
   })
   it('a lista e a frase ficam dentro do invólucro de altura fixa', () => {
     const { container } = render(<ListaEsqueleto />)
