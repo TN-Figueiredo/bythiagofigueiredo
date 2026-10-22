@@ -15,6 +15,9 @@ import { ListaCaminhoServidor } from './_components/caminho-nativo/lista-caminho
 import { ListaEsqueleto } from './_components/caminho-nativo/lista-esqueleto'
 import { ListaErro } from './_components/caminho-nativo/lista-erro'
 import { videoDaUrl } from './video-param'
+import { startAbTest } from './actions'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
 
 export const metadata = { title: 'A/B Lab' }
 
@@ -37,7 +40,13 @@ export default async function AbLabPage({ searchParams }: { searchParams: Promis
   const stats = computeDashboardStats(tests.active, tests.completed)
   const cards = tests.active.map(toCardView)
   const completedCards = tests.completed.map(toCardView)
-  const pausedCards = tests.paused.map(toCardView)
+  // Pausados por teste do YouTube: a frase do card segue o registro (T10); sem isso o card mostraria só a nota crua.
+  const pausas = await lerPausasYoutube(getSupabaseServiceClient(), siteId, tests.paused)
+  const pausedCards = tests.paused.map((t) => {
+    const card = toCardView(t)
+    const pausa = pausas.get(t.id)
+    return pausa ? { ...card, pausaYoutube: pausa } : card
+  })
   const drafts = toDraftList(tests.draft)
 
   return (
@@ -53,6 +62,7 @@ export default async function AbLabPage({ searchParams }: { searchParams: Promis
       suggested={suggested}
       settings={settings}
       eligibleVideos={eligibleVideos}
+      iniciarTeste={startAbTest}
       listaSlot={
         <ListaErro>
           <Suspense fallback={<ListaEsqueleto />}>

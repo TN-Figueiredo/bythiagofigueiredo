@@ -5,7 +5,9 @@ import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
 import { EarlyDetail } from '../_components/early-detail'
 import { notFound } from 'next/navigation'
-import { endAbTest, pauseAbTest, retryRestore, dismissRestore } from '../actions'
+import { endAbTest, pauseAbTest, resumeAbTest, retryRestore, dismissRestore } from '../actions'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
 import * as Sentry from '@sentry/nextjs'
 import { FaixaComAcoes } from '../_components/faixa-com-acoes'
 import { carregarDadosDaFaixa } from '../_components/faixa-dados'
@@ -66,7 +68,7 @@ function renderView(view: AbTestDetailView) {
   if (view.status !== 'completed') {
     const id = (view as AbTestActiveView).id
     if (isEarly(view)) return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
-    return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
+    return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} retomar={resumeAbTest.bind(null, id)} />
   }
   if (view.outcome === 'winner') return <WinnerDetail view={view} />
   return <PlayoffDetail view={view} />
@@ -86,7 +88,10 @@ export default async function AbTestDetailPage({
   const results = await getTestResults(testId)
   if (!results) notFound()
 
-  const view = await toDetailView(results)
+  const viewBase = await toDetailView(results)
+  // Pausa por teste do YouTube (T10): o "Retomar" da tela segue o registro aberto; a leitura fecha em falha.
+  const pausa = (await lerPausasYoutube(getSupabaseServiceClient(), results.test.site_id, [results.test])).get(testId)
+  const view = pausa && viewBase.status !== 'completed' ? { ...viewBase, pausaYoutube: pausa } : viewBase
   const dados = await carregarDadosDaFaixa(results.test, view.restoreStatus)
   const { faixa, faixaTentando, emAndamentoDesde, ilegivel } = faixaDaPagina(view, results.test.restore_status, new Date(), dados)
   if (ilegivel) Sentry.captureMessage('restore_status ilegível', { extra: { testId } })

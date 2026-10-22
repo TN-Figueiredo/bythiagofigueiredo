@@ -18,7 +18,7 @@ const prefill = { testType: 'thumbnail' as const, draftVariants: [
   { label: 'A', isOriginal: true, thumbUrl: 'https://i.ytimg.com/a.jpg', titleText: 'v' },
   { label: 'B', isOriginal: false, thumbUrl: 'https://blob/b.jpg', titleText: '' } ] }
 const montar = () => render(<AbCreateWizard video={video} siteId="s" settings={settings}
-  onClose={vi.fn()} onCreated={vi.fn()} prefill={prefill} existingDraftId="d1" />)
+  onClose={vi.fn()} onCreated={vi.fn()} iniciarTeste={start} prefill={prefill} existingDraftId="d1" />)
 
 beforeEach(() => {
   cleanup()
@@ -59,7 +59,7 @@ describe('passo Revisar: aviso da original (D12)', () => {
     // step inicial = prefillType || existingDraftId ? 2 : 0 quando não é continuingDraft (sem draftVariants > 1); localStorage limpo.
     ler.mockResolvedValue({ ok: true, dimensions: '1280x720', medida: true })
     render(<AbCreateWizard video={video} siteId="s" settings={settings}
-      onClose={vi.fn()} onCreated={vi.fn()} prefill={{ testType: 'thumbnail' } as never} existingDraftId="d2" />)
+      onClose={vi.fn()} onCreated={vi.fn()} iniciarTeste={start} prefill={{ testType: 'thumbnail' } as never} existingDraftId="d2" />)
     await waitFor(() => expect(ler).toHaveBeenCalledWith('d2'))
     expect(ler).toHaveBeenCalledTimes(1)
   })
@@ -74,7 +74,7 @@ describe('passo Revisar: aviso da original (D12)', () => {
       config: initWizardConfig(settings), hypothesis: '', savedAt: Date.now(),
     }))
     render(<AbCreateWizard video={video} siteId="s" settings={settings}
-      onClose={vi.fn()} onCreated={vi.fn()} prefill={{} as never} existingDraftId="d2" />)
+      onClose={vi.fn()} onCreated={vi.fn()} iniciarTeste={start} prefill={{} as never} existingDraftId="d2" />)
     await Promise.resolve()
     expect(ler).not.toHaveBeenCalled()
   })

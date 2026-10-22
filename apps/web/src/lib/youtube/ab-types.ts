@@ -320,6 +320,8 @@ export interface AbTestCardView {
   statusNote: string | null
   cycleStartedAt: string | null
   queueStartAfter: string | null
+  /** T10: só nos pausados por teste do YouTube (`status_note = NOTA_TESTE_YOUTUBE`); preenchido pela página (servidor). */
+  pausaYoutube?: { aberto: boolean; ate: string | null }
 }
 
 export interface AbTestDraftVariant {
@@ -483,6 +485,8 @@ export interface AbTestActiveView extends AbTestBaseView {
   outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
   daysRemaining?: { days: number; model: 'exponential' | 'linear' } | null
   statusNote: string | null
+  /** T10: só no pausado por teste do YouTube; preenchido pela página (servidor). */
+  pausaYoutube?: { aberto: boolean; ate: string | null }
   driftAcknowledgedAt: string | null
   variantDb: VariantDbEntry[]
   graceExpiresAt?: string | null

@@ -24,7 +24,8 @@ import { SettingsDrawer } from './settings-drawer'
 import { updateAbSiteSettings, batchStartTests } from '../actions'
 import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
-import { AbCreateWizard } from './ab-create-wizard'
+import { pausaVisivel } from '@/lib/youtube/teste-youtube/nativo/pausa-visivel'
+import { AbCreateWizard, type IniciarTeste } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
 import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
 
@@ -42,6 +43,8 @@ export interface AbLabDashboardProps {
   eligibleVideos: EligibleVideo[]
   /** Lista "Vídeos do A/B Lab" (filho assíncrono do servidor dentro de Suspense). Opcional: sem ela o painel é o de sempre. */
   listaSlot?: ReactNode
+  /** `startAbTest` vem da página (servidor): o assistente não importa a action. */
+  iniciarTeste: IniciarTeste
 }
 
 export function AbLabDashboard({
@@ -57,6 +60,7 @@ export function AbLabDashboard({
   siteId,
   eligibleVideos,
   listaSlot,
+  iniciarTeste,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
@@ -315,7 +319,7 @@ export function AbLabDashboard({
                       style={{ background: 'rgba(234, 179, 8, 0.1)', color: 'rgb(234, 179, 8)' }}
                     >
                       <AlertTriangle size={11} aria-hidden="true" />
-                      {card.statusNote}
+                      {card.pausaYoutube ? (pausaVisivel(card.pausaYoutube, new Date()).frase ?? card.statusNote) : card.statusNote}
                     </span>
                   )}
                 </div>
@@ -447,6 +451,7 @@ export function AbLabDashboard({
             // loading state until router.push completes the navigation.
             router.push(`/cms/youtube/ab-lab/${testId}`)
           }}
+          iniciarTeste={iniciarTeste}
           existingDraftId={continueDraft?.id}
           prefill={continueDraft ? { testType: continueDraft.type, draftVariants: continueDraft.variants } : undefined}
         />

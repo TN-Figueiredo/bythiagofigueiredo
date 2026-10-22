@@ -14,7 +14,6 @@ import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 import {
   createAbTest,
   uploadVariant,
-  startAbTest,
   createTextVariant,
   updateAbTestType,
   cleanupDraftVariants,
@@ -27,6 +26,11 @@ import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings, ReferenciaDoTeste } from '@/lib/youtube/ab-types'
 import { YtPortal } from '../../_components/yt-portal'
+import { MOTIVO_GUARDA_FALHOU, MOTIVO_RECUSA_NATIVO } from '@/lib/youtube/teste-youtube/nativo/guarda'
+import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
+
+/** `startAbTest` chega por prop (a página, no servidor, o passa): nenhum client importa a action direto. */
+export type IniciarTeste = (testId: string) => Promise<{ ok: boolean; error?: string }>
 
 /* ------------------------------------------------------------------ */
 /*  Wizard video — same shape the dashboard already uses              */
@@ -62,6 +66,7 @@ interface Props {
   settings: AbTestSiteSettings
   onClose: () => void
   onCreated: (testId: string) => void
+  iniciarTeste: IniciarTeste
   prefill?: PrefillData
   existingDraftId?: string
   /** Referência (ex.: de concorrente) mostrada junto do passo das variantes */
@@ -254,7 +259,7 @@ function stepIsValid(step: number, state: WizardState): boolean {
 /*  AbCreateWizard                                                     */
 /* ------------------------------------------------------------------ */
 
-export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, prefill, existingDraftId, referencia, referenciaDados }: Props) {
+export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, iniciarTeste, prefill, existingDraftId, referencia, referenciaDados }: Props) {
   const continuingDraft = Boolean(existingDraftId && prefill?.draftVariants && prefill.draftVariants.length > 1)
 
   // When continuing a DB draft, ignore stale localStorage
@@ -312,6 +317,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
   const dialogRef = useRef<HTMLDivElement | null>(null)
   // A leitura da original só começa depois que o diálogo (portal) está no DOM: ver use-aviso-original.ts
   const [dialogoMontado, setDialogoMontado] = useState(false)
+  // Recusa da guarda do teste do YouTube ao iniciar (D-7): frases fechadas; só a falha de conferência oferece "Tentar de novo".
+  const [recusa, setRecusa] = useState<'teste_youtube' | 'guarda_falhou' | null>(null)
   const refDialogo = useCallback((el: HTMLDivElement | null) => { dialogRef.current = el; setDialogoMontado(el !== null) }, [])
   const [libraryPickerFor, setLibraryPickerFor] = useState<number | null>(null)
   const [libraryEntries, setLibraryEntries] = useState<Awaited<ReturnType<typeof fetchLibraryEntries>> | null>(null)
@@ -394,8 +401,17 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
     await navigator.clipboard.writeText(prompt)
   }, [video.id, state.type, state.draftTestId, state.hypothesis])
 
+  // Recusa do servidor ao iniciar: as duas frases do mockup (D-7) no lugar do texto cru; outro erro segue como estava.
+  const falhouAoIniciar = useCallback((erro: string | undefined) => {
+    if (erro === MOTIVO_RECUSA_NATIVO) { setRecusa('teste_youtube'); dispatch({ type: 'SET_ERROR', error: null }); return }
+    if (erro === MOTIVO_GUARDA_FALHOU) { setRecusa('guarda_falhou'); dispatch({ type: 'SET_ERROR', error: null }); return }
+    setRecusa(null)
+    dispatch({ type: 'SET_ERROR', error: erro ?? 'Failed to start test' })
+  }, [])
+
   // --- Launch / save handler ---
   const handleSubmit = useCallback((isLaunch: boolean) => {
+    setRecusa(null)
     dispatch({ type: 'SET_ERROR', error: null })
     dispatch({ type: 'SET_LAUNCHING', isLaunching: true })
 
@@ -481,9 +497,9 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
 
       // 4. Optionally launch
       if (isLaunch) {
-        const startResult = await startAbTest(testId)
+        const startResult = await iniciarTeste(testId)
         if (!startResult.ok) {
-          dispatch({ type: 'SET_ERROR', error: startResult.error ?? 'Failed to start test' })
+          falhouAoIniciar(startResult.error)
           dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
           return
         }
@@ -500,7 +516,27 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         onClose()
       }
     })
-  }, [state.draftTestId, state.type, state.variants, state.config, siteId, video.id, video.title, referenciaDados, onCreated, onClose])
+  }, [state.draftTestId, state.type, state.variants, state.config, siteId, video.id, video.title, referenciaDados, onCreated, onClose, iniciarTeste, falhouAoIniciar])
+
+  // "Tentar de novo": só o início (rascunho e versões já estão gravados; repetir o resto duplicaria versões de título).
+  const tentarIniciarDeNovo = useCallback(() => {
+    const testId = state.draftTestId
+    if (!testId) return
+    setRecusa(null)
+    dispatch({ type: 'SET_ERROR', error: null })
+    dispatch({ type: 'SET_LAUNCHING', isLaunching: true })
+    startTransition(async () => {
+      const r = await iniciarTeste(testId)
+      if (!r.ok) {
+        falhouAoIniciar(r.error)
+        dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+        return
+      }
+      draftCleared.current = true
+      clearDraft(video.id)
+      onCreated(testId)
+    })
+  }, [state.draftTestId, iniciarTeste, falhouAoIniciar, video.id, onCreated])
 
   // --- Step navigation helpers ---
   const canAdvance = stepIsValid(state.step, state)
@@ -628,7 +664,16 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, pr
         {/* Footer */}
         <div className="flex flex-wrap items-center justify-between gap-x-[12px] gap-y-[10px] py-[16px] px-[16px] sm:px-[24px] shrink-0" style={{ borderTop: '1px solid var(--cms-border, #332D25)', background: 'var(--cms-bg-side)' }}>
           <span className="text-[12px] text-cms-text-muted">
-            {state.error ? (
+            {recusa ? (
+              <span className="text-red-400" role="alert">
+                {recusa === 'teste_youtube' ? FRASES.guarda.motivoRecusaSemData : FRASES.guarda.guardaFalhou}
+                {recusa === 'guarda_falhou' ? (
+                  <button type="button" onClick={tentarIniciarDeNovo} disabled={state.isLaunching} className="ml-[10px] underline font-semibold">
+                    {FRASES.guarda.tentarDeNovo}
+                  </button>
+                ) : null}
+              </span>
+            ) : state.error ? (
               <span className="text-red-400">{state.error}</span>
             ) : state.step === 1 ? (
               'A IA é opcional — pode pular'

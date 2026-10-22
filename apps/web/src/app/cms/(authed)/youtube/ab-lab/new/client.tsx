@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { brDec } from '@/lib/youtube/format'
-import { AbCreateWizard } from '../_components/ab-create-wizard'
+import { AbCreateWizard, type IniciarTeste } from '../_components/ab-create-wizard'
 import type { WizardVideo } from '../_components/ab-create-wizard'
 import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
 import { Search, FlaskConical, Info } from 'lucide-react'
@@ -40,6 +40,7 @@ export interface CompetitorContext extends ReferenciaPedida {
 
 interface NewTestClientProps {
   siteId: string
+  iniciarTeste: IniciarTeste
   settings: AbTestSiteSettings
   eligibleVideos: EligibleVideo[]
   draftPrefill?: DraftPrefill
@@ -50,7 +51,7 @@ interface NewTestClientProps {
   aviso?: string
 }
 
-export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, competitorContext, tipoInicial, initialVideoId, aviso }: NewTestClientProps) {
+export function NewTestClient({ siteId, iniciarTeste, settings, eligibleVideos, draftPrefill, competitorContext, tipoInicial, initialVideoId, aviso }: NewTestClientProps) {
   const router = useRouter()
   const [selectedVideo, setSelectedVideo] = useState<WizardVideo | null>(() =>
     draftPrefill
@@ -85,6 +86,7 @@ export function NewTestClient({ siteId, settings, eligibleVideos, draftPrefill, 
         settings={settings}
         onClose={() => router.push('/cms/youtube/ab-lab')}
         onCreated={(testId) => router.push(`/cms/youtube/ab-lab/${testId}`)}
+        iniciarTeste={iniciarTeste}
         existingDraftId={draftPrefill?.id}
         prefill={
           draftPrefill

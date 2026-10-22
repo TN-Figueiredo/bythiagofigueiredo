@@ -17,6 +17,8 @@ export interface LinhaDoCaminho {
   estado: EstadoLinha; caminho: Caminho; fichaId: string | null
   registro: {
     id: string; updatedAt: string; confirmadoEm: string | null; primeiraVista: string | null; diaDe14: number
+    /** T10 (cartão S7): última leitura do registrador e votos por título (`Record<título, leituras>`); nulo = não medido. */
+    ultimaVista?: string | null; votosTitulo?: Record<string, number> | null
     variantes: { n: number; titulo: string | null; imagem: { url: string } | null }[] | null
     variantesTitulo: string[] | null; campos: ('titulo' | 'miniatura')[] | null; respostaDono: RespostaDono | null
   } | null

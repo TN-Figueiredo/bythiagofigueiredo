@@ -18,13 +18,14 @@ import { resolveVideoChannel, resolveYouTubeVideoId } from '@/lib/youtube/ab-vid
 import { probeThumb, thumbUrl } from '@/lib/youtube/thumb-fingerprint'
 import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
 import { MOTIVO_RECUSA_NATIVO, lerLinhaConfirmada } from '@/lib/youtube/teste-youtube/nativo/guarda'
+import { TEXTO_SEM_LEITURA as TEXTO_SEM_LEITURA_TELA } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ErroConhecido, YouTubeApiError, paraErroGravado } from '@/lib/youtube/youtube-api-error'
 
 export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'drift' | 'teste_youtube'
 /** Nota do teste pausado por haver teste do YouTube em andamento (F1a-dado): pausa definitiva, sem escrever no YouTube. */
 export const NOTA_TESTE_YOUTUBE = 'Em teste no Studio: pausado sem escrever no YouTube'
 /** Valor mostrado no diálogo de confirmação quando a leitura do título no YouTube falhou (a thumbnail sem leitura mostra o espaço reservado). */
-export const TEXTO_SEM_LEITURA = 'Não deu para conferir o título agora; tente de novo.'
+export const TEXTO_SEM_LEITURA = TEXTO_SEM_LEITURA_TELA
 export const ORIGINAL = { tipo: 'original' } as const
 
 export interface OpcoesSaida {
