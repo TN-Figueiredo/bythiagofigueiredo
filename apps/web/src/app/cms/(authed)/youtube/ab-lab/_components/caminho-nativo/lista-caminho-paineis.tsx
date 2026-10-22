@@ -15,7 +15,7 @@ import { useDrenarFilaLembrete } from './fila-lembrete'
 import { ListaCaminho, type AcoesCaminho, type ListaCaminhoProps, type SlotPainel } from './lista-caminho'
 import { CartaoTesteYoutube } from './cartao-teste-youtube'
 
-type Estado = { t: 'carregando' } | { t: 'erro' } | { t: 'ok'; ficha: FichaLida }
+type Estado = { t: 'carregando' } | { t: 'erro' } | { t: 'registrado' } | { t: 'ok'; ficha: FichaLida }
 
 /** Registro visto de fora (ainda não confirmado) no vídeo: a faixa `0c` da ficha. */
 const registroDetectado = (l: LinhaDoCaminho): { primeiraVista: string } | null =>
@@ -29,8 +29,13 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
   const [tentativa, setTentativa] = useState(0)
   const raiz = useRef<HTMLDivElement>(null)
   const ctrl = useContext(ContextoAssistente)
+  // `acoes` chega do servidor e muda de identidade a cada router.refresh(): fica num ref para não refazer a leitura (e criar ficha) por isso.
+  const acoesRef = useRef(acoes); acoesRef.current = acoes
+  const linhaRef = useRef(l); linhaRef.current = l
+  const jaTeveFicha = useRef(false)
 
   useEffect(() => {
+    const acoes = acoesRef.current
     let vivo = true
     setEst({ t: 'carregando' })
     void (async () => {
@@ -38,18 +43,23 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
         const lida = await acoes.lerFichaDoVideo(l.videoId)
         if (!lida.ok) throw new Error('leitura')
         let ficha = lida.ficha
+        if (!ficha && jaTeveFicha.current) {
+          // Já houve ficha neste painel e agora não há aberta: foi vinculada a um registro (aqui ou em outro aparelho). Nunca cria outra.
+          if (vivo) setEst({ t: linhaRef.current.registro ? 'registrado' : 'erro' })
+          return
+        }
         if (!ficha) {
           const aberta = await acoes.abrirFicha(l.videoId)
           if (!aberta.ok) throw new Error('abrir')
           ficha = aberta.ficha
         }
-        if (vivo) setEst({ t: 'ok', ficha })
+        if (vivo) { jaTeveFicha.current = true; setEst({ t: 'ok', ficha }) }
       } catch {
         if (vivo) setEst({ t: 'erro' })
       }
     })()
     return () => { vivo = false }
-  }, [acoes, l.videoId, tentativa])
+  }, [l.videoId, tentativa])
 
   // O foco estava no h2 do esqueleto; ao chegar a ficha o h2 é outro elemento.
   useEffect(() => {
@@ -72,6 +82,7 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
       </div>
     )
   }
+  if (est.t === 'registrado') return <div ref={raiz}><PainelS7 l={l} acoes={acoes} fechar={fechar} /></div>
   return (
     <div ref={raiz} aria-busy={est.t === 'carregando'}>
       <h2 tabIndex={-1} className="cn-titulo">{l.titulo}</h2>
