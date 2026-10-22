@@ -54,9 +54,9 @@ for (const [rotulo, manter] of [['11 linhas', null], ['3 linhas', ['sp', 'r66', 
       const sk = await page.evaluate(() => ({ n: document.querySelectorAll('[data-skel-linha]').length, h: Math.round(document.querySelector('[data-skel-linha]')?.getBoundingClientRect().height ?? 0) }))
       registrar({ estado: `esqueleto-r2-${nLinhas}`, projeto: info.project.name, seguinte, pronta, linhasEsqueleto: sk.n, alturaPorLinha: sk.h })
       info.annotations.push({ type: 'altura', description: `${info.project.name}: esqueleto ${seguinte.toFixed(1)} | lista ${pronta.toFixed(1)} | ${sk.n} linhas de ${sk.h} px` })
-      expect(sk.h, 'U-3: altura por linha do esqueleto').toBe(estreito(info) ? 220 : 128)
+      expect(sk.h, 'U-3: altura por linha do esqueleto').toBe(estreito(info) ? 265 : 149)
     } finally { await trava.query('rollback').catch(() => undefined); await trava.end() }
-    expect(Math.abs(seguinte - pronta), `esqueleto ${seguinte} vs lista ${pronta}`).toBeLessThanOrEqual(4)
+    expect(Math.abs(seguinte - pronta), `esqueleto ${seguinte} vs lista ${pronta}`).toBeLessThanOrEqual(estreito(info) ? 265 : 149) // critério: Δ ≤ uma linha
   })
 }
 

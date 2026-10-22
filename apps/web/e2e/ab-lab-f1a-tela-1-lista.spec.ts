@@ -43,7 +43,7 @@ test('lista cheia: resumo, grupos, rodapé e uma linha por estado', async ({ pag
   }
   // Palavras proibidas na tela (glossário): "variante", "nativo", "detectado"
   const txt = await lista.innerText()
-  for (const p of ['variante', 'nativo', 'detectado']) expect.soft(txt.toLowerCase(), `palavra proibida "${p}"`).not.toContain(p)
+  for (const p of ['variante', 'nativo', 'detectado']) expect(txt.toLowerCase(), `palavra proibida "${p}"`).not.toContain(p)
   await foto(page, info, 'lista')
   await medirEAfirmar(page, lista, 'lista', info, a.coleta, { maxPri: 2 })
   // No máximo 1 `.pri` por LINHA/painel; a lista inteira admite os primários de sp e sm (as duas respostas pendentes) conforme o mockup
