@@ -83,18 +83,16 @@ describe('caminho-nativo.css', () => {
     expect(css).toContain('[data-theme="light"] .cn-raiz')
     expect(css).toMatch(/@container \(max-width: 640px\)[\s\S]*min-height: 44px/)
   })
-  it('medidas únicas --cn-hf e --cn-hl', () => {
+  it('medida única --cn-hf (a lista não tem medida fixa: U-3)', () => {
     expect(css).toMatch(/--cn-hf: 1011px/)
-    expect(css).toMatch(/--cn-hl: 1525px/)
+    expect(css).not.toMatch(/--cn-hl|--cn-hs/)
   })
   it('medida estreita vale para descendentes do container, nunca para .cn-raiz sozinho', () => {
     const bloco = css.match(/@container \(max-width: 640px\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
     expect(bloco).toMatch(/--cn-hf: 1430px/)
-    expect(bloco).toMatch(/--cn-hl: 2544px/)
     const seletor = bloco.match(/([^{}]+)\{[^}]*--cn-hf/)?.[1].trim() ?? ''
-    expect(seletor).not.toBe('')
-    expect(seletor.split(',').map(x => x.trim()).filter(x => x === '.cn-raiz')).toEqual([])
-    expect(seletor).toMatch(/\.cn-raiz\s+\S/)
+    expect(seletor).toBe('.cn-fsk')
+    expect(bloco).not.toMatch(/\*\s*\{/)
     expect(css).not.toContain('cn-raiz-conteudo')
   })
   it('chip sem color fixa morta', () => { expect(css).not.toMatch(/\.cn-chip \{[^}]*color: #fff;/) })
