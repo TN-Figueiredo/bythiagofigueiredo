@@ -727,7 +727,8 @@ export async function startAbTest(
 // pauseAbTest
 // ---------------------------------------------------------------------------
 
-export async function pauseAbTest(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
+/** `forcar` (opcional, só o "Trocar mesmo assim" da ficha): pula a pergunta do passo 0b depois de `precisa_confirmar`. */
+export async function pauseAbTest(testId: string, seqVisto: number, forcar?: boolean): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
@@ -736,7 +737,7 @@ export async function pauseAbTest(testId: string, seqVisto: number): Promise<Res
   }
   const seq = seqVistoSchema.safeParse(seqVisto)
   if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true, seqEsperado: seq.data }))
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true, seqEsperado: seq.data, ...(forcar === true ? { forcar: true } : {}) }))
 }
 
 // ---------------------------------------------------------------------------

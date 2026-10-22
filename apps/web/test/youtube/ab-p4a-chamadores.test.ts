@@ -51,6 +51,13 @@ describe('P4a T7: chamadores humanos', () => {
     expect(denyUnlessSiteAdmin).not.toHaveBeenCalled()
   })
 
+  it('pauseAbTest com forcar repassa forcar: true ao settleOnAir ("Trocar mesmo assim" da ficha); sem forcar, a chave não existe', async () => {
+    await pauseAbTest('t1', 7, true)
+    expect(settle.mock.calls[0][1]).toMatchObject({ motivo: 'pausa', seqEsperado: 7, forcar: true })
+    await pauseAbTest('t1', 7)
+    expect('forcar' in settle.mock.calls[1][1]).toBe(false)
+  })
+
   it('sessão expirada vira sem_permissao e não chama settleOnAir', async () => {
     requireSiteScope.mockResolvedValueOnce({ ok: false, reason: 'unauthenticated' })
     expect(await pauseAbTest('t1', 7)).toEqual({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })

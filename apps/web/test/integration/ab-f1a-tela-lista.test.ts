@@ -69,7 +69,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
   })
   afterAll(async () => {
     try {
-      for (const t of ['ab_native_fichas', 'ab_native_tests', 'yt_own_video_reach_daily', 'yt_own_video_meta_daily', 'yt_own_video_state_raw', 'yt_reporting_reports', 'youtube_videos', 'youtube_channels']) {
+      for (const t of ['ab_native_fichas', 'ab_native_tests', 'ab_tests', 'yt_own_video_reach_daily', 'yt_own_video_meta_daily', 'yt_own_video_state_raw', 'yt_reporting_reports', 'youtube_videos', 'youtube_channels']) {
         await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
       }
       await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
@@ -253,6 +253,19 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       const l = (await lerLinhasDoCaminho(sb, s, new Date())).find((x) => x.videoId === a.id)!
       expect(l.nosso?.status).toBe('paused')
       expect(l.labPausadoAte).toBe(new Date(ini.getTime() + 16 * 86_400_000).toISOString())
+      expect(l.nosso?.restoreStatus ?? null).toBeNull()
+    })
+
+    it('nosso teste pausado com restauro feito: restoreStatus chega na linha (a ficha libera o Studio ao recarregar)', async () => {
+      const s = (await seedSite(sb)).siteId
+      sites.push(s)
+      const c = await novoCanal(s)
+      const a = await video(s, c, 20)
+      const campo = { estado: 'ok', destino: 'original', em: new Date().toISOString(), forcado: false, escreveu: true, erro: null, attempts: 1 }
+      await pg.query(`insert into public.ab_tests (site_id, youtube_video_id, name, status, original_thumbnail_url, started_at, paused_at, restore_status)
+        values ($1, $2, 'n', 'paused', 'https://x/t.png', now() - interval '2 days', now(), $3::jsonb)`, [s, a.id, JSON.stringify({ title: campo, thumbnail: campo })])
+      const l = (await lerLinhasDoCaminho(sb, s, new Date())).find((x) => x.videoId === a.id)!
+      expect(l.nosso?.restoreStatus).toMatchObject({ title: { estado: 'ok' }, thumbnail: { estado: 'ok' } })
     })
   })
 })

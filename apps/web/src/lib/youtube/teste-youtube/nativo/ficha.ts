@@ -206,7 +206,7 @@ export async function marcarStudioAbertoCore(p: Base & { fichaId: string }): Pro
   return { ok: false, error: MSG_FICHA_MUDOU, fichaAtual: derivarFicha(atual, hoje(p)) }
 }
 
-export type ResultadoLembrar = { ok: true; lembrarEm: string; jaLembrado: boolean } | { ok: false; error: string }
+export type ResultadoLembrar = { ok: true; lembrarEm: string; jaLembrado: boolean; ficha: FichaLida } | { ok: false; error: string }
 
 /**
  * "Lembrar no computador": notificação do sistema para quem tocou (`dedup_key` por ficha) e `lembrar_em`.
@@ -215,7 +215,7 @@ export type ResultadoLembrar = { ok: true; lembrarEm: string; jaLembrado: boolea
 export async function lembrarNoComputadorCore(p: Base & { userId: string; fichaId: string; criar?: typeof createNotification }): Promise<ResultadoLembrar> {
   const ficha = await lerFicha(p.sb, p.siteId, p.fichaId)
   if (!ficha || ficha.registro_id !== null || ficha.descartada_em !== null) return { ok: false, error: MSG_NAO_ENCONTRADO }
-  if (ficha.lembrar_em) return { ok: true, lembrarEm: ficha.lembrar_em, jaLembrado: true }
+  if (ficha.lembrar_em) return { ok: true, lembrarEm: ficha.lembrar_em, jaLembrado: true, ficha: derivarFicha(ficha, hoje(p)) }
 
   const { data: video, error: erroVideo } = await p.sb.from('youtube_videos').select('youtube_video_id, title').eq('id', ficha.video_id).eq('site_id', p.siteId).maybeSingle()
   if (erroVideo) throw new Error(`youtube_videos: ${erroVideo.message}`)
@@ -235,11 +235,11 @@ export async function lembrarNoComputadorCore(p: Base & { userId: string; fichaI
 
   const lembrarEm = hoje(p).toISOString()
   const { data, error } = await p.sb.from('ab_native_fichas').update({ lembrar_em: lembrarEm })
-    .eq('id', ficha.id).eq('site_id', p.siteId).is('lembrar_em', null).is('registro_id', null).is('descartada_em', null).select('lembrar_em')
+    .eq('id', ficha.id).eq('site_id', p.siteId).is('lembrar_em', null).is('registro_id', null).is('descartada_em', null).select('*')
   if (error) return { ok: false, error: `não foi possível gravar o lembrete: ${error.message}` }
-  const gravado = (data as Array<{ lembrar_em: string }> | null)?.[0]?.lembrar_em
-  if (gravado) return { ok: true, lembrarEm: gravado, jaLembrado: r.suppressed === true }
+  const gravada = (data as FichaLinha[] | null)?.[0]
+  if (gravada?.lembrar_em) return { ok: true, lembrarEm: gravada.lembrar_em, jaLembrado: r.suppressed === true, ficha: derivarFicha(gravada, hoje(p)) }
   // Outro toque gravou na frente: devolve a data que ficou.
   const atual = await lerFicha(p.sb, p.siteId, ficha.id)
-  return atual?.lembrar_em ? { ok: true, lembrarEm: atual.lembrar_em, jaLembrado: true } : { ok: false, error: MSG_NAO_ENCONTRADO }
+  return atual?.lembrar_em ? { ok: true, lembrarEm: atual.lembrar_em, jaLembrado: true, ficha: derivarFicha(atual, hoje(p)) } : { ok: false, error: MSG_NAO_ENCONTRADO }
 }

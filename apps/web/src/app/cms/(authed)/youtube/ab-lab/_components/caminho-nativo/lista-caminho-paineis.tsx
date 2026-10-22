@@ -65,6 +65,7 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
           entrada={{ registroDetectado: registroDetectado(l), ...entrada }}
           aoRecomecar={(nova) => setEst({ t: 'ok', ficha: nova })}
           aoRegistrar={ctrl.atualizar}
+          aoRecarregar={ctrl.atualizar}
           aoAtualizar={() => { ctrl.atualizar(); setTentativa((x) => x + 1) }}
         />
       </div>

@@ -159,9 +159,11 @@ export const FRASES = {
     faixaRestaurando: 'Restaurando a original…',
     restaurarFalhou: f('A original não voltou: o nosso teste segue rodando.', 'Reconecte o canal e tente de novo.'),
     faixaRestaurarFalhou: { titulo: 'Não deu para restaurar a original', apoio: 'O acesso ao YouTube venceu. O nosso teste continua rodando; nada foi trocado. Reconecte o canal e tente de novo.' },
+    faixaRestaurarNaoVolta: { titulo: 'A original não voltou sozinha', apoio: 'O vídeo já tinha mudado ou o original não foi encontrado. Confira o título e a miniatura no YouTube antes de seguir.' },
     reconectar: 'Reconectar o canal',
     /** Provisórias (T9b; Logan fecha): a exceção/rede ao pausar e ao mandar o lembrete. */
     pausarFalhou: 'Não deu para pausar agora. Nada foi trocado. Tente de novo.',
+    pausarPrecisaConfirmar: 'O vídeo no YouTube tem um título ou miniatura diferente do esperado. Confira no YouTube antes de pausar.',
     lembreteFalhou: 'Não foi possível enviar o lembrete agora. Tente de novo.',
     restaurada: f('Original de volta no vídeo. Próximo passo: abrir no Studio.'),
     restauradaEstreita: f('Original de volta no vídeo. Próximo passo: mandar a ficha ao computador.'),
