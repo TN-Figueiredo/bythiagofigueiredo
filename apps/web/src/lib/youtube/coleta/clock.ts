@@ -1,8 +1,8 @@
 // Relógio global e tetos da coleta. Sem import de banco nem de rede: a rota importa daqui.
 
 export const RELOGIO_GLOBAL_MS = 270_000
-// Soma dos tetos: 240 s. Com os 30 s de reserva da parte antiga da rota fecha os 270 s do relógio (clock.test.ts).
-export const TETOS_MS = { metadados: 30_000, jobs: 20_000, relatorios: 120_000, alcance: 20_000, diario: 50_000 } as const
+// Soma dos tetos: 240 s (metadados 45, jobs 15, relatórios 110; 22/10: metadados estourou 30 s, jobs nunca passou de 7,5 s). Com os 30 s de reserva da parte antiga da rota fecha os 270 s do relógio (clock.test.ts).
+export const TETOS_MS = { metadados: 45_000, jobs: 15_000, relatorios: 110_000, alcance: 20_000, diario: 50_000 } as const
 // Passos que só gastam o que sobra dos 270 s: não entram na soma de `TETOS_MS`; `relogio.prazo` os corta no fim do relógio.
 export const TETOS_DE_FIM_MS = { retencao: 45_000, dimensoes: 30_000, normalizadores: 20_000 } as const
 // A função morre aos 300 s; 4 s ficam para a resposta da rota.

@@ -1269,3 +1269,36 @@ describe('passoMetadados: canal sem vídeos (F0-b)', () => {
     expect(tentativasDoCanal(db, 'ch-2').map(r => r.outcome)).toEqual(['nao_alcancado_orcamento'])
   })
 })
+
+describe('passoMetadados: tempo por fase e teto de 45 s', () => {
+  it('captura que consome os 8 s e leituras que consomem 25 s (33 s não cabiam nos 30 s de antes): as 35 linhas saem e nada fica pendente', async () => {
+    const videos = Array.from({ length: 35 }, (_, i) => video(i + 1))
+    const db = fakeSupabase({ youtube_videos: videos })
+    const ctx = ctxDe(db, 45_000)
+    vi.mocked(ensureFreshToken).mockResolvedValue({ accessToken: 'tok' } as never)
+    vi.mocked(videosList).mockImplementation(async () => {
+      vi.setSystemTime(Date.now() + TETO_CAPTURA_MS)
+      throw new SemTempoError()
+    })
+    const from = db.client.from.bind(db.client)
+    let leu = false
+    vi.spyOn(db.client, 'from').mockImplementation(((t: string) => {
+      if (t === 'yt_own_video_meta_daily' && !leu) { leu = true; vi.setSystemTime(Date.now() + 25_000) }
+      return from(t)
+    }) as never)
+    const resumo = await passoMetadados(ctx)
+    expect(resumo).toMatchObject({ gravados: 35, pendentes: 0 })
+    expect(db.tables.yt_own_video_meta_daily).toHaveLength(35)
+    expect(resumo.ms_fases).toMatchObject({ captura: TETO_CAPTURA_MS, leituras: 25_000 })
+    expect(resumo.ms_fases?.laco).toBeGreaterThanOrEqual(0)
+  })
+
+  it('prazo 0: comportamento de sempre (tudo nao_alcancado_orcamento, nada gravado, sem ms_fases)', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1), video(2)] })
+    const resumo = await passoMetadados(ctxDe(db, 0))
+    expect(resumo).toMatchObject({ gravados: 0, pendentes: 2 })
+    expect(resumo.tentativas).toEqual({ nao_alcancado_orcamento: 3 })
+    expect(db.tables.yt_own_video_meta_daily ?? []).toEqual([])
+    expect(resumo.ms_fases).toBeUndefined()
+  })
+})
