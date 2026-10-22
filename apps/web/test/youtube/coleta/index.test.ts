@@ -120,8 +120,8 @@ describe('rodarColeta', () => {
     const ctxMeta = vi.mocked(passoMetadados).mock.calls[0]![0] as StepCtx
     const ctxJobs = vi.mocked(passoJobs).mock.calls[0]![0] as StepCtx
     expect(ctxMeta.channels.map(c => c.id)).toEqual(['ch-1', 'ch-2'])
-    expect(ctxMeta.deadline - Date.now()).toBe(30_000)
-    expect(ctxJobs.deadline - Date.now()).toBe(20_000)
+    expect(ctxMeta.deadline - Date.now()).toBe(45_000)
+    expect(ctxJobs.deadline - Date.now()).toBe(15_000)
     expect(vi.mocked(passoMetadados).mock.invocationCallOrder[0]!).toBeLessThan(vi.mocked(passoJobs).mock.invocationCallOrder[0]!)
     expect(criterioJobsEmErro).toHaveBeenCalledTimes(1)
     expect(passoRelatorios).not.toHaveBeenCalled()
@@ -140,11 +140,11 @@ describe('rodarColeta', () => {
     expect(r.resumo.acao_do_dono).toEqual(['Canal Um: sem_acesso', nota])
   })
 
-  it('fase depois: roda relatórios com 120 s, junta perdidos e atrasados, e confere o orçamento', async () => {
+  it('fase depois: roda relatórios com 110 s, junta perdidos e atrasados, e confere o orçamento', async () => {
     const db = fakeSupabase({ youtube_channels: canais })
     const r = await rodarColeta({ supabase: db.client, relogio: criarRelogio(), fase: 'depois' })
     const ctxRel = vi.mocked(passoRelatorios).mock.calls[0]![0] as StepCtx
-    expect(ctxRel.deadline - Date.now()).toBe(120_000)
+    expect(ctxRel.deadline - Date.now()).toBe(110_000)
     expect(passoMetadados).not.toHaveBeenCalled()
     expect(passoJobs).not.toHaveBeenCalled()
     expect(r.resumo).toMatchObject({
