@@ -72,7 +72,8 @@ describe.skipIf(skipIfNoLocalDb())('F2 T4: niche_signals (gravar, expirar, dispe
   }
 
   it('funções só para service_role', async () => {
-    for (const f of ['niche_signals_gravar(uuid,jsonb,jsonb,boolean,jsonb)', 'niche_signals_expirar(uuid)', 'niche_signals_dispensar(uuid,uuid,text,text,text)', 'niche_signals_ancoras(uuid)']) {
+    for (const f of ['niche_signals_gravar(uuid,jsonb,jsonb,boolean,jsonb)', 'niche_signals_expirar(uuid)', 'niche_signals_dispensar(uuid,uuid,text,text,text)', 'niche_signals_ancoras(uuid)',
+      'niche_signals_mesclar_evidence(jsonb,jsonb)', 'niche_signals_sincronizar_sino(uuid)']) {
       expect(await escalar<boolean>(pg, `select has_function_privilege('authenticated', 'public.${f}', 'execute')`), f).toBe(false)
       expect(await escalar<boolean>(pg, `select has_function_privilege('anon', 'public.${f}', 'execute')`), f).toBe(false)
       expect(await escalar<boolean>(pg, `select has_function_privilege('service_role', 'public.${f}', 'execute')`), f).toBe(true)
@@ -264,6 +265,56 @@ describe.skipIf(skipIfNoLocalDb())('F2 T4: niche_signals (gravar, expirar, dispe
       expect(Number(r[0].vpd7_max)).toBe(300)
       expect(Date.now() - r[0].primeiro_visto_em.getTime()).toBeGreaterThan(4 * 86_400_000)
     })
+  })
+
+  it('p_vistos com video_id repetido grava sinais, estado e 1 linha de vistos (agrega)', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      const id = randomUUID()
+      const base = { video_id: id, canal_id: randomUUID(), formato: 'long', published_at: '2026-10-01T00:00:00Z', n_canal: 9 }
+      const r = await gravar(site, [item('pais:VN')], { vistos: [
+        { ...base, mult_max: 6, vpd7_max: 300, chaves: ['pais:VN'] },
+        { ...base, mult_max: 8, vpd7_max: 100, chaves: ['pais:TH'] },
+      ] })
+      expect(r.novos).toBe(1)
+      expect(await linhas(site)).toHaveLength(1)
+      expect(await escalar<number>(pg, `select count(*)::int from public.niche_signals_estado where site_id = $1`, [site])).toBe(1)
+      const v = (await pg.query(`select * from public.niche_outliers_vistos where site_id = $1`, [site])).rows
+      expect(v).toHaveLength(1)
+      expect(Number(v[0].mult_max)).toBe(8)
+      expect(Number(v[0].vpd7_max)).toBe(300)
+      expect(v[0].chaves).toEqual(['pais:TH'])
+    })
+  })
+
+  it('dispensar espera o gravador do mesmo site (advisory lock) e a chave dispensada não é reaberta', async () => {
+    const b = new Client({ connectionString: PG_URL })
+    await b.connect()
+    const { org, site } = await criarSite(pg)
+    try {
+      await gravar(site, [item('pais:VN')])
+      const [l] = await linhas(site)
+      await pg.query('begin')
+      await gravar(site, [item('pais:VN')]) // segura o lock do site até o commit
+      let terminou = false
+      const disp = b.query(`select public.niche_signals_dispensar($1, $2, 'dispensado', 'ja_fiz', 'user:x') as r`, [site, l.id]).then(r => { terminou = true; return r })
+      let esperando = false
+      for (let i = 0; i < 50 && !esperando; i++) {
+        await new Promise(r => setTimeout(r, 40))
+        esperando = (await escalar<number>(pg, `select count(*)::int from pg_locks where locktype = 'advisory' and not granted`)) > 0
+      }
+      expect(esperando).toBe(true)
+      expect(terminou).toBe(false)
+      await pg.query('commit')
+      expect((await disp).rows[0].r).toEqual({ ok: true })
+      expect(await gravar(site, [item('pais:VN')])).toEqual({ novos: 0, atualizados: 0, expirados: 0 })
+      expect((await linhas(site)).map(x => x.status)).toEqual(['dispensado'])
+    } finally {
+      try { await pg.query('rollback') } catch { /* nada aberto */ }
+      await b.end()
+      await pg.query(`delete from public.sites where id = $1`, [site])
+      await pg.query(`delete from public.organizations where id = $1`, [org])
+    }
   })
 
   it('dispensar mantém motivo e preenche dispensa_motivo/dispensado_por; motivo fora do enum é inválido', async () => {

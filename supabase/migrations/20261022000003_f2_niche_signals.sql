@@ -146,6 +146,8 @@ declare
   v_atualizados integer;
 begin
   if p_site is null or p_estado is null then raise exception 'niche_signals_gravar: parametro nulo' using errcode = '22004'; end if;
+  -- serializa gravar e dispensar do mesmo site (senão o dispensar commitado no meio reabre a chave)
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('niche_signals:' || p_site::text, 0));
   v_expirados := public.niche_signals_expirar(p_site);
 
   with item as (
@@ -184,9 +186,18 @@ begin
 
   insert into public.niche_outliers_vistos (site_id, video_id, canal_id, formato, published_at, n_canal,
                                             primeiro_visto_em, ultimo_visto_em, mult_max, vpd7_max, chaves)
-  select p_site, v.video_id, v.canal_id, v.formato, v.published_at, v.n_canal, now(), now(), v.mult_max, v.vpd7_max, v.chaves
-    from jsonb_to_recordset(coalesce(p_vistos, '[]'::jsonb)) as v(
-      video_id uuid, canal_id uuid, formato text, published_at timestamptz, n_canal int, mult_max numeric, vpd7_max numeric, chaves text[])
+  select p_site, u.video_id, u.canal_id, u.formato, u.published_at, u.n_canal, now(), now(), u.mult_max, u.vpd7_max, u.chaves
+    from (
+      -- video_id repetido no lote: a linha mais recente (última do lote) manda; mult e vpd7 ficam com o máximo
+      select r.video_id, r.canal_id, r.formato, r.published_at, r.n_canal, r.chaves,
+             max(r.mult_max) over (partition by r.video_id) as mult_max,
+             max(r.vpd7_max) over (partition by r.video_id) as vpd7_max,
+             row_number() over (partition by r.video_id order by t.ord desc) as rn
+        from jsonb_array_elements(coalesce(p_vistos, '[]'::jsonb)) with ordinality as t(e, ord)
+        cross join lateral jsonb_to_record(t.e) as r(
+          video_id uuid, canal_id uuid, formato text, published_at timestamptz, n_canal int, mult_max numeric, vpd7_max numeric, chaves text[])
+    ) u
+   where u.rn = 1
   on conflict (site_id, video_id) do update
      set primeiro_visto_em = least(public.niche_outliers_vistos.primeiro_visto_em, excluded.primeiro_visto_em),
          ultimo_visto_em = greatest(public.niche_outliers_vistos.ultimo_visto_em, excluded.ultimo_visto_em),
@@ -208,6 +219,7 @@ create or replace function public.niche_signals_dispensar(p_site uuid, p_id uuid
 language plpgsql security invoker set search_path = '' as $$
 declare s public.niche_signals;
 begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('niche_signals:' || p_site::text, 0));
   select * into s from public.niche_signals where id = p_id and site_id = p_site for update;
   if not found then return jsonb_build_object('ok', false, 'motivo', 'nao_encontrado'); end if;
   if s.status <> 'aberto' then return jsonb_build_object('ok', false, 'motivo', 'nao_aberto'); end if;
