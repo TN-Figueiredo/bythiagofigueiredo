@@ -207,6 +207,21 @@ describe('faixa 0b: nosso teste rodando', () => {
     expect(studioBtn()?.disabled).toBe(false)
   })
 
+  it('D-3 (corrida): "seguir" tocado ANTES de a linha chegar com o seq novo; a marca acompanha o seq novo e a faixa não volta', async () => {
+    const a = acoesMock()
+    const pausado: NossoT = { ...NOSSO, restoreSeq: 0, status: 'paused', restoreStatus: { title: { estado: 'falhou', erro: { status: 503, reason: 'x' } } } }
+    a.retryRestore.mockResolvedValue({ ok: true, resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: 'x' }] })
+    const m = montar(duas(), { nosso: pausado, a })
+    await clicar(FRASES.ficha.tentarDeNovo)
+    await clicar(FRASES.ficha.conferiESeguir) // a linha ainda está no seq 0
+    await act(async () => { m.trocarNosso({ ...pausado, restoreSeq: 1, restoreStatus: null }) }) // o refresh chega depois
+    expect(window.sessionStorage.getItem(`ab-conferido:${NOSSO.testId}:1`)).toBe('1')
+    cleanup()
+    montar(duas(), { nosso: { ...pausado, restoreSeq: 1, restoreStatus: null } })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(studioBtn()?.disabled).toBe(false)
+  })
+
   it('M-1: "A original já está no YouTube, seguir" sobrevive à recarga (sessionStorage, por teste e restoreSeq)', async () => {
     montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: null } })
     await clicar(FRASES.ficha.conferiESeguir)

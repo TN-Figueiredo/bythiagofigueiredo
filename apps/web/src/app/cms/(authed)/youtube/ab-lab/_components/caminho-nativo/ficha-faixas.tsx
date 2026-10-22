@@ -79,6 +79,13 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
     if (!chaveConferido) return false
     try { return window.sessionStorage.getItem(chaveConferido) === '1' } catch { return false }
   })
+  // O retry avança `restore_seq` e a linha só chega com o seq novo depois do refresh: se o dono já tocou em "seguir",
+  // a marca acompanha a chave nova (senão, ao recarregar a aba, a faixa voltaria). Com a aba recarregada, lê a marca da chave atual.
+  useEffect(() => {
+    if (!chaveConferido) return
+    if (conferido) { try { window.sessionStorage.setItem(chaveConferido, '1') } catch { /* sem storage: vale só nesta tela */ } }
+    else { try { if (window.sessionStorage.getItem(chaveConferido) === '1') setConferido(true) } catch { /* idem */ } }
+  }, [chaveConferido, conferido])
   const [restauradaEm, setRestauradaEm] = useState<Date | null>(null)
   const [pausaAberta, setPausaAberta] = useState(false)
   const [ocupado, setOcupado] = useState(false)
