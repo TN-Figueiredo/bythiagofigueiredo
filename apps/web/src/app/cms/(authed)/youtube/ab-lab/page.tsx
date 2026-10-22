@@ -64,7 +64,7 @@ export default async function AbLabPage({ searchParams }: { searchParams: Promis
       eligibleVideos={eligibleVideos}
       iniciarTeste={startAbTest}
       listaSlot={
-        <ListaErro>
+        <ListaErro key="lista-caminho">
           <Suspense fallback={<ListaEsqueleto />}>
             <ListaCaminhoServidor siteId={siteId} videoInicial={videoInicial} />
           </Suspense>
