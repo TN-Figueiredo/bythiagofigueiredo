@@ -177,10 +177,10 @@ export async function abrirFichaDaLinha(page: Page, m: Mundo, chave: string, bot
 }
 
 /** Alcança "Os dois" quando a ficha nova nasce sem campo para escrever (achado F-3): registra no teste e segue. */
-export async function garantirCampoDaB(f: Locator, info: TestInfo): Promise<boolean> {
-  if (await f.locator('#cn-t2').count()) return false
-  info.annotations.push({ type: 'F-3', description: 'ficha nova sem campo de título/imagem na versão B; contornado clicando em "Os dois"' })
-  await f.getByRole('radio', { name: 'Os dois' }).click()
+export async function garantirCampoDaB(f: Locator, _info: TestInfo): Promise<boolean> {
+  // F-3 consertado (e20d70988): a ficha nova já mostra o campo de título; para enviar imagem, o dono escolhe "Os dois"
   await expect(f.locator('#cn-t2')).toBeVisible()
+  await f.getByRole('radio', { name: 'Os dois' }).click()
+  await expect(f.locator('input[type=file][aria-label="Enviar imagem da versão B"]')).toHaveCount(1)
   return true
 }

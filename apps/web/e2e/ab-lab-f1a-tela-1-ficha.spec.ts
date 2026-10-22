@@ -24,8 +24,13 @@ test('ficha nova: abre com foco no h2, mostra "falta a B", tem campo para escrev
   // F-3: com a ficha nova (campos vazios) a tela marca "Título" mas não oferece onde escrever a B
   const temCampo = (await f.locator('#cn-t2').count()) > 0
   expect.soft(temCampo, 'F-3: a versão B tem campo de título numa ficha nova').toBe(true)
-  const alturaDoAbrir = (await f.getByRole('button', { name: 'Abrir no Studio' }).boundingBox())?.y ?? 9999
-  if (largura(info) === 1440) expect.soft(alturaDoAbrir, 'a ação "Abrir no Studio" a ≤450 px do topo da tela de 900').toBeLessThanOrEqual(450)
+  if (largura(info) === 1440) {
+    // critério do plano medido como na spec de estados: a ≤450 px do topo da ficha; e visível na 1ª tela de 900 px (a linha r66 fica no meio da lista)
+    const abrir = await f.getByRole('button', { name: 'Abrir no Studio' }).boundingBox()
+    const topo = (await f.boundingBox())?.y ?? 0
+    expect.soft((abrir?.y ?? 9999) - topo, 'a ação "Abrir no Studio" a ≤450 px do topo da ficha').toBeLessThanOrEqual(450)
+    expect.soft((abrir?.y ?? 9999) + (abrir?.height ?? 0), 'a ação "Abrir no Studio" cabe na 1ª tela de 900 px').toBeLessThanOrEqual(900)
+  }
   await foto(page, info, 'ficha-so-original')
   await medirEAfirmar(page, f, 'ficha-so-original', info, a.coleta)
   await page.keyboard.press('Escape')
