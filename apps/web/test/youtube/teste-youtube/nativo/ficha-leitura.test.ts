@@ -216,6 +216,21 @@ describe('jaIniciouCore', () => {
     await jaIniciouCore({ sb: m.sb, siteId: S, userId: 'u', fichaId: F, buscar: net.f, put: putFalso(), agora, confirmar: confirmar() })
     expect(variantesDe(m.tabelas)[0]?.imagem).toBeDefined()
   })
+  it('1ª cópia falhou e o Studio foi reaberto depois: a fonte (b) corta pela criação da ficha, nunca pelo último studio_aberto_em', async () => {
+    const antiga = `${HOST}/obs/antes-da-criacao.jpg`; const dasB = `${HOST}/obs/depois-da-abertura.jpg`
+    const m = criarSupabaseMemoria(base({
+      // criada há 10 d (12/10), Studio reaberto há 1 d (21/10)
+      ab_native_fichas: [ficha({ criada_em: ms(10 * 86_400_000), atualizada_em: ms(86_400_000), studio_aberto_em: ms(86_400_000) })],
+      yt_own_video_meta_daily: [
+        { site_id: S, video_id: V, day_pt: '2026-10-11', ab_variant_id: null, thumbnail_blob_url: antiga },
+        { site_id: S, video_id: V, day_pt: '2026-10-20', ab_variant_id: null, thumbnail_blob_url: dasB },
+      ],
+    }))
+    const net = rede({ [antiga]: imagemOk(await jpg(640, 360)), [dasB]: imagemOk(await jpg(1280, 720)) })
+    await jaIniciouCore({ sb: m.sb, siteId: S, userId: 'u', fichaId: F, buscar: net.f, put: putFalso(), agora, confirmar: confirmar() })
+    expect(net.pedidos).toEqual([antiga])
+    expect(variantesDe(m.tabelas)[0]?.imagem).toMatchObject({ origem: 'retrato_diario', largura: 640 })
+  })
   it('n=1 já com imagem: nenhum fetch; a falha da cópia não impede a confirmação', async () => {
     const img = { url: `${HOST}/ab-native-ficha/s/f/${'a'.repeat(64)}.jpg`, sha256: 'a'.repeat(64), largura: 1, altura: 1 }
     const m = criarSupabaseMemoria(base({ ab_native_fichas: [ficha({ variantes: [{ n: 1, tipo: 'miniatura', imagem: img }] })] }))
@@ -230,7 +245,7 @@ describe('jaIniciouCore', () => {
 
 describe('recomecarFichaCore (guardas; o fluxo completo está na integração)', () => {
   it('id de outro site ou ficha já fechada: não encontrado, sem tocar nada', async () => {
-    const m = criarSupabaseMemoria(base({ ab_native_fichas: [ficha(), ficha({ id: 'f2', descartada_em: 'x' })] }))
+    const m = criarSupabaseMemoria(base({ ab_native_fichas: [ficha(), ficha({ id: 'f2', registro_id: 'r' })] }))
     expect(await recomecarFichaCore({ sb: m.sb, siteId: 'outro', userId: 'u', fichaVencidaId: F })).toEqual({ ok: false, error: 'não encontrado' })
     expect(await recomecarFichaCore({ sb: m.sb, siteId: S, userId: 'u', fichaVencidaId: 'f2' })).toEqual({ ok: false, error: 'não encontrado' })
   })
