@@ -14,9 +14,9 @@ export const TETO_CORRIDAS = 20
 export const TETO_BYTES_CORRIDA = 1000
 /** Uma versão só vale se vista em >= 2 RODADAS distintas (`rodada_id`): as 3 passadas de uma rodada são minutos, não persistência (Phil C1). */
 export const MIN_RODADAS_CORRIDA = 2
-/** Abaixo disto de rodadas válidas num campo, "sem troca vista" é "não medido" (Phil C2). */
 /** A 1ª versão do vídeo vale com 1 rodada unânime de >= isto de passadas, SÓ se a seguinte se confirmar em >= MIN_RODADAS_CORRIDA rodadas unânimes. */
 export const MIN_PASSADAS_INICIAL = 3
+/** Abaixo disto de rodadas válidas num campo, "sem troca vista" é "não medido" (Phil C2). */
 export const VALIDAS_MIN_MEDIDO = 2 * MIN_RODADAS_CORRIDA
 const H = 3_600_000
 
