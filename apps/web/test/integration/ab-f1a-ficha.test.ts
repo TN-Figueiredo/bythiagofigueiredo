@@ -25,7 +25,7 @@ import { bloqueadoPorTesteNativo } from '@/lib/youtube/teste-youtube/nativo/guar
 vi.setConfig({ testTimeout: 60_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const SHA = 'b'.repeat(64)
-const BLOB = 'https://abc123.public.blob.vercel-storage.com/ab/v1.jpg'
+const BLOB = 'https://abc123.public.blob.vercel-storage.com/ab-native-ficha/s/f/v1.jpg'
 const dias = (n: number): string => new Date(Date.now() - n * 86_400_000).toISOString()
 
 describe.skipIf(skipIfNoLocalDb())('F1a-dado T8: ficha gravada (banco)', () => {

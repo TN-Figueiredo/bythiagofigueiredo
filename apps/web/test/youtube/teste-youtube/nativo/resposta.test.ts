@@ -7,7 +7,7 @@ import * as Sentry from '@sentry/nextjs'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
-const img = (n: number) => ({ url: `https://x.public.blob.vercel-storage.com/${n}.jpg`, sha256: 'a'.repeat(64), largura: 1280, altura: 720 })
+const img = (n: number) => ({ url: `https://x.public.blob.vercel-storage.com/ab-native-ficha/s/f/${n}.jpg`, sha256: 'a'.repeat(64), largura: 1280, altura: 720 })
 const comTitulos: VarianteFicha[] = [{ n: 1, tipo: 'titulo', titulo: 'Original' }, { n: 2, tipo: 'titulo', titulo: 'Nova' }, { n: 3, tipo: 'combo', titulo: 'Outra', imagem: img(3) }]
 const soMiniatura: VarianteFicha[] = [{ n: 1, tipo: 'miniatura', imagem: img(1) }, { n: 2, tipo: 'miniatura', imagem: img(2) }]
 const ficha = (itens: VarianteFicha[]) => ({ itens, origem: 'ficha' as const })

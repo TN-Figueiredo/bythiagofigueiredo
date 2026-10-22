@@ -9,6 +9,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { confirmarTesteNoStudio, type ResultadoConfirmar } from '@/lib/youtube/teste-youtube/nativo/confirmar'
 import { descartarDetectado, type ResultadoDescartar } from '@/lib/youtube/teste-youtube/nativo/descartar'
 import { responderDia14, type ResultadoResponder } from '@/lib/youtube/teste-youtube/nativo/resposta'
+import { guardarImagemDaFichaCore, TAMANHO_MAXIMO_IMAGEM, MSG_IMAGEM_GRANDE, type ResultadoImagemFicha } from '@/lib/youtube/teste-youtube/nativo/imagem-ficha'
 import { getSiteContext } from '@/lib/cms/site-context'
 import {
   abrirFichaCore, salvarFichaCore, marcarStudioAbertoCore, lembrarNoComputadorCore,
@@ -61,6 +62,20 @@ export async function marcarStudioAberto(fichaId: string): Promise<ResultadoAcao
   try {
     return await marcarStudioAbertoCore({ sb: getSupabaseServiceClient(), siteId: a.siteId, fichaId })
   } catch (e) { return falha(e, 'marcarStudioAberto') }
+}
+
+/** Envio manual da imagem de uma versão da ficha: guarda no Blob (`ab-native-ficha/`) e devolve a imagem; o cliente a grava pela `salvarFicha`. */
+export async function enviarImagemDaFicha(fichaId: string, formData: FormData): Promise<ResultadoImagemFicha> {
+  const a = await acesso()
+  if ('ok' in a) return a
+  if (!Id.safeParse(fichaId).success) return { ok: false, error: MSG_PEDIDO_INVALIDO }
+  const file = formData.get('file')
+  if (!(file instanceof File)) return { ok: false, error: MSG_PEDIDO_INVALIDO }
+  if (file.size > TAMANHO_MAXIMO_IMAGEM) return { ok: false, error: MSG_IMAGEM_GRANDE }
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer())
+    return await guardarImagemDaFichaCore({ sb: getSupabaseServiceClient(), siteId: a.siteId, fichaId, bytes })
+  } catch (e) { return falha(e, 'enviarImagemDaFicha') }
 }
 
 export async function lembrarNoComputador(fichaId: string): Promise<ResultadoLembrar> {

@@ -12,7 +12,7 @@ import { FichaRascunhoSchema, VarianteFichaSchema, derivarFicha, type FichaLinha
 import { abrirFicha, salvarFicha, marcarStudioAberto, lembrarNoComputador } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
 
 const SHA = 'a'.repeat(64)
-const BLOB = 'https://abc123.public.blob.vercel-storage.com/ab/v1.jpg'
+const BLOB = 'https://abc123.public.blob.vercel-storage.com/ab-native-ficha/s/f/v1.jpg'
 const imagem = { url: BLOB, sha256: SHA, largura: 1280, altura: 720 }
 const U = '11111111-1111-4111-8111-111111111111'
 
