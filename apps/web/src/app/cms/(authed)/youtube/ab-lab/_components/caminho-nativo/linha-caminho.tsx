@@ -6,10 +6,12 @@ import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
 import { FRASES, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { pisoPorDia } from '@/lib/youtube/teste-youtube/nativo/volume'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
-import { rotuloRetomar, retomarAPartirDe } from '@/lib/youtube/teste-youtube/nativo/lista'
+import { rotuloRetomar, prazoDoDia14 } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { SeloCaminho, type TipoSelo } from './selo-caminho'
 import { Icone } from './icones'
 import { FichaConfirmar } from './ficha-confirmar'
+import { Dia14Duas, type VersaoDia14 } from './dia-14-duas'
+import { perguntaDoDia14 } from './dia-14-duas-estado'
 import type { AcoesCaminho } from './lista-caminho'
 import '../caminho-nativo.css'
 import '../lista-caminho.css'
@@ -35,6 +37,8 @@ export interface LinhaCaminhoProps {
   aoAtualizar: () => void
   jaIniciei: AcoesCaminho['jaIniciei']
   responder?: SlotResponder
+  /** T10b: a action do dia 14 por props tipadas; sem ela (e sem `responder`) a linha não mostra o botão. */
+  responderDia14?: AcoesCaminho['responderTesteDoYouTube']
   responderAberta: boolean
   responderPrimario: boolean
   aoMudarResponder: (aberta: boolean) => void
@@ -87,8 +91,23 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
   let quente = false
 
   const respostaDaLinha = (): ReactNode => {
-    if (!duasVersoes) return <p className="cn-meta">{FRASES.resposta.semBotao}</p>
-    return p.responder ? p.responder(l, { primario: p.responderPrimario, aberta: p.responderAberta, abrir: () => p.aoMudarResponder(true), fechar: () => p.aoMudarResponder(false) }) : null
+    if (!reg || perguntaDoDia14(reg) === 'sem_botao') return <p className="cn-meta">{FRASES.resposta.semBotao}</p>
+    if (p.responder) return p.responder(l, { primario: p.responderPrimario, aberta: p.responderAberta, abrir: () => p.aoMudarResponder(true), fechar: () => p.aoMudarResponder(false) })
+    const acao = p.responderDia14
+    if (!acao) return null
+    const v = (n: 1 | 2, letra: 'A' | 'B'): VersaoDia14 => {
+      const x = reg.variantes?.find((y) => y.n === n)
+      return { letra, titulo: x?.titulo ?? null, imagem: x?.imagem ?? null }
+    }
+    if (p.responderAberta) {
+      full = <Dia14Duas linha={l} versoes={[v(1, 'A'), v(2, 'B')]} acoes={{ responder: acao, atualizar: p.aoAtualizar }} />
+    }
+    return (
+      <button
+        type="button" className={`${BTN}${p.responderPrimario && !p.responderAberta ? ' pri' : ''}`} data-acao="responder"
+        aria-expanded={p.responderAberta} onClick={() => p.aoMudarResponder(!p.responderAberta)}
+      >{FRASES.dia14.responder}</button>
+    )
   }
 
   switch (l.estado) {
@@ -148,7 +167,7 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
     case 'resultado_pronto': {
       selo = SEL('yts', 'Resultado do YouTube pronto')
       quente = true
-      const fim = reg ? new Date((Date.parse(reg.primeiraVista ?? reg.confirmadoEm ?? agora.toISOString())) + 14 * DIA_MS) : agora
+      const fim = reg ? prazoDoDia14({ primeiraVista: reg.primeiraVista, confirmadoEm: reg.confirmadoEm, createdAt: reg.updatedAt }) : agora
       fr = `Os 14 dias acabaram em ${dataCurta(fim)}.`
       ra = respostaDaLinha()
       break
@@ -156,13 +175,19 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
     case 'sem_resposta': {
       selo = SEL('mute-late', 'Sem resposta')
       quente = true
-      fr = reg ? FRASES.resposta.tardia(retomarAPartirDe({ primeiraVista: reg.primeiraVista, confirmadoEm: reg.confirmadoEm, createdAt: reg.primeiraVista ?? reg.confirmadoEm ?? agora.toISOString() })) : null
+      fr = reg && !(p.responderAberta && !p.responder) ? FRASES.resposta.tardia(prazoDoDia14({ primeiraVista: reg.primeiraVista, confirmadoEm: reg.confirmadoEm, createdAt: reg.updatedAt })) : null
       ra = respostaDaLinha()
       break
     }
     case 'ficou_no_ar':
-      selo = SEL('ok', 'Ficou no ar')
-      fr = `Você respondeu em ${dataCurta(new Date(reg?.updatedAt ?? agora))}.`
+      if (duasVersoes && reg?.respostaDono === 'venceu_original') {
+        selo = SEL('ok', FRASES.dia14.seloOriginal); fr = FRASES.dia14.fraseOriginal; apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
+      } else if (duasVersoes && reg?.respostaDono === 'venceu_nova') {
+        selo = SEL('ok', FRASES.dia14.seloNova); fr = FRASES.dia14.fraseNova; apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
+      } else {
+        selo = SEL('ok', 'Ficou no ar')
+        fr = `Você respondeu em ${dataCurta(new Date(reg?.updatedAt ?? agora))}.`
+      }
       ra = botaoAbrir('Ver teste', 's7')
       break
     case 'respostas_diferentes':
@@ -170,8 +195,8 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
       fr = 'O título no ar e a sua resposta são diferentes.'
       break
     case 'respondido_sem_vencedor': {
-      selo = SEL('mute-neq', 'Sem vencedor registrado')
       const r = reg?.respostaDono
+      selo = SEL('mute-neq', r === 'ficou_igual' || r === 'inconclusivo' || r === 'nao_vi' ? FRASES.dia14.seloSemVencedor[r] : 'Sem vencedor registrado')
       fr = r === 'ficou_igual' ? FRASES.resposta.ficouIgual : r === 'inconclusivo' ? FRASES.resposta.inconclusivo : FRASES.resposta.naoVi
       apoio = <p className="cn-meta">{FRASES.resposta.apoioSemVencedor}</p>
       break

@@ -59,6 +59,12 @@ export function retomarAPartirDe(r: { primeiraVista: string | null; confirmadoEm
   return new Date(i.getTime() + FECHAMENTO_DIAS * DIA_MS)
 }
 
+/** Fim do prazo do dia 14: início do teste + 14 d (sem a margem de 2 d do fechamento por silêncio). */
+export function prazoDoDia14(r: { primeiraVista: string | null; confirmadoEm: string | null; createdAt: string }): Date {
+  const i = inicioDoTeste({ primeira_vista: r.primeiraVista, confirmado_em: r.confirmadoEm, created_at: r.createdAt })
+  return new Date(i.getTime() + DURACAO_DIAS * DIA_MS)
+}
+
 /** `dd/mm`, mais `, HH:MM` quando a hora (em São Paulo) não é 00:00. */
 export function rotuloRetomar(instante: Date): string {
   const p = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
