@@ -83,7 +83,10 @@ export const FRASES = {
   /** Erros do "Já iniciei" (`MOT` do mockup): parte forte, resto e ação opcional. */
   motivo: {
     incompleta: { forte: 'Falta a versão B.', resto: ' O teste precisa de 2 ou 3 versões. Escreva o título ou envie a imagem da B e toque em Já iniciei de novo.', acao: null },
-    ja_ha_teste: { forte: (desde: Date): string => `Este vídeo já tem um teste do YouTube registrado, desde ${dataCurta(desde)}.`, resto: ' Nada novo foi gravado.', acao: 'Abrir esse teste' },
+    ja_ha_teste: {
+      /** A action não devolve a data do registro: sem "desde" (nunca inventar). */
+      forteSemData: 'Este vídeo já tem um teste do YouTube registrado.',
+      forte: (desde: Date): string => `Este vídeo já tem um teste do YouTube registrado, desde ${dataCurta(desde)}.`, resto: ' Nada novo foi gravado.', acao: 'Abrir esse teste' },
     estado_mudou: {
       forte: 'O vídeo mudou enquanto a ficha estava aberta',
       resto: (horaDaPausa: string | null): string => (horaDaPausa ? ` (o Lab pausou um teste às ${horaDaPausa}). Nada foi gravado.` : '. Nada foi gravado.'),

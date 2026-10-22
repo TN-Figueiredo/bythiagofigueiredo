@@ -308,6 +308,7 @@ describe('ListaCaminho: D-8, a pergunta antes de abrir o assistente', () => {
     expect(acoes.jaIniciei).toHaveBeenCalledWith('ficha-1')
     expect(atualizar).toHaveBeenCalled()
     expect(onAbrir).not.toHaveBeenCalled()
+    expect(screen.queryByText(FRASES.guarda.pergunta)).toBeNull()
   })
   it('erros pelo motivoDoErro: ja_ha_teste, estado_mudou e rede', async () => {
     render(<Harness linhas={[enviada(3)]} />)
@@ -315,7 +316,8 @@ describe('ListaCaminho: D-8, a pergunta antes de abrir o assistente', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Já iniciei' }))
     vi.mocked(acoes.jaIniciei).mockResolvedValueOnce({ ok: false, erro: 'ja_ha_teste_em_andamento' })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Confirmar' })) })
-    expect(screen.getByRole('alert').textContent).toContain('Este vídeo já tem um teste do YouTube registrado')
+    expect(screen.getByRole('alert').textContent).toContain('Este vídeo já tem um teste do YouTube registrado.')
+    expect(screen.getByRole('alert').textContent).not.toMatch(/desde/)
     fireEvent.click(screen.getByRole('button', { name: 'Já iniciei' }))
     vi.mocked(acoes.jaIniciei).mockRejectedValueOnce(new Error('offline'))
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Confirmar' })) })

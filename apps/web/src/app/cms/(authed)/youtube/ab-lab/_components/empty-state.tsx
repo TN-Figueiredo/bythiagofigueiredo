@@ -9,9 +9,11 @@ export interface EmptyStateProps {
   onCreate: (videoId: string, type: TestType) => void
   selectedForBatch?: Set<string>
   onToggleBatchSelect?: (videoId: string) => void
+  /** A lista do caminho ainda carrega: as portas do "Iniciar teste" ficam desabilitadas. */
+  desabilitado?: boolean
 }
 
-export function EmptyState({ suggested, onCreate, selectedForBatch, onToggleBatchSelect }: EmptyStateProps) {
+export function EmptyState({ suggested, onCreate, selectedForBatch, onToggleBatchSelect, desabilitado }: EmptyStateProps) {
   if (suggested.length === 0) {
     return (
       <div className="rounded-[14px] border border-cms-border bg-cms-surface p-[28px] text-center">
@@ -22,6 +24,7 @@ export function EmptyState({ suggested, onCreate, selectedForBatch, onToggleBatc
         <button
           type="button"
           onClick={() => onCreate('', 'thumbnail')}
+          disabled={desabilitado}
           className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] bg-cms-accent tracking-[-0.01em] cursor-pointer"
           style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
         >
@@ -42,6 +45,7 @@ export function EmptyState({ suggested, onCreate, selectedForBatch, onToggleBatc
             onCreate={onCreate}
             checked={selectedForBatch?.has(video.id) ?? false}
             onToggle={onToggleBatchSelect}
+            desabilitado={desabilitado}
           />
         ))}
       </div>
@@ -50,6 +54,7 @@ export function EmptyState({ suggested, onCreate, selectedForBatch, onToggleBatc
         <button
           type="button"
           onClick={() => onCreate('', 'thumbnail')}
+          disabled={desabilitado}
           className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text cursor-pointer"
           style={{ border: '1px solid var(--cms-border, #332D25)' }}
         >
