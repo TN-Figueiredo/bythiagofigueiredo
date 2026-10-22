@@ -267,6 +267,26 @@ export const DEFINICAO_AVISOS_PENDENTES: Definicao = {
   },
 }
 
+/**
+ * `sinais_do_nicho` (F2 T7): por site, grava os sinais do nicho (`niche_signals`) a partir dos outliers do motor e dos lugares dos vídeos. Pesada, diária, a partir das 07:00 de São Paulo
+ * (depois de `marcas_de_idade` às 04:00; antes de `avisos_pendentes` às 09:00; fora de 12–13, onde moram `serie_semanal` e `retratos_comentarios`), cede a `sincronizar_canais`.
+ * **`ligaCom: 'OBS_SINAIS_NICHO'`**: só `on` liga; ligar só depois do portão de precisão da T6b. Sem `nuncaDesliga`. O código mora em `agenda/tarefas/sinais-do-nicho.ts`.
+ * `ordem: 8.5` (depois de `serie_semanal`, a 8). `schema_ausente` é dos comuns.
+ */
+export const DEFINICAO_SINAIS_DO_NICHO: Definicao = {
+  nome: 'sinais_do_nicho', rotulo: 'sinais do nicho', ordem: 8.5, peso: 'pesada', periodo: 'dia', aPartirDaHoraSP: 7,
+  cedeA: ['sincronizar_canais'],
+  tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
+  comecaAteMs: 120_000, fimAteMs: PESADA_FIM_MS, ligaCom: 'OBS_SINAIS_NICHO',
+  motivos: {
+    motor_estourou: 'a leitura do site passou do tempo; nada foi gravado para ele',
+    gravar_falhou: 'o banco recusou a gravação dos sinais',
+    site_falhou: 'a conta dos sinais falhou em algum site',
+    semente_incompleta: 'a lista de lugares veio incompleta; nada foi gravado',
+    inesperado: 'a gravação dos sinais falhou com erro inesperado (ver Sentry)',
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
@@ -274,7 +294,7 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_AVISOS_PENDENTES, DEFINICAO_PODA_LEITURAS_WATCH].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_AVISOS_PENDENTES, DEFINICAO_PODA_LEITURAS_WATCH, DEFINICAO_SINAIS_DO_NICHO].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {

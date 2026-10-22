@@ -443,7 +443,7 @@ describe('executarAgenda: o catálogo desta ordem, de verdade (tarefas reais com
 // trocado por um espião, e `devidaPeloDado` sai, para o estado do banco falso decidir sozinho quem é devido). 18:10 em SP: as três
 // são devidas pela hora (série a partir das 12, retratos a partir das 13).
 describe('executarAgenda: quem leva a vaga da pesada, com o catálogo real', () => {
-  const PESADAS = ['sincronizar_canais', 'retratos_comentarios', 'serie_semanal']
+  const PESADAS = ['sincronizar_canais', 'retratos_comentarios', 'serie_semanal', 'sinais_do_nicho']
   const espioes = (): Record<string, ReturnType<typeof vi.fn>> => Object.fromEntries(CATALOGO.map(t => [t.nome, vi.fn(okPadrao)]))
   const catalogoReal = (e: Record<string, ReturnType<typeof vi.fn>>): Tarefa[] =>
     CATALOGO.map(t => ({ ...t, devidaPeloDado: undefined, rodar: e[t.nome]! }))
@@ -500,7 +500,7 @@ describe('executarAgenda: quem leva a vaga da pesada, com o catálogo real', () 
     expect(t.retratos_comentarios).toMatchObject({ estado: 'adiada', motivo: 'uma_pesada_por_disparo' })
   })
 
-  it('as três pesadas do catálogo real são exatamente estas, e só a sincronização não cede a ninguém', () => {
+  it('as quatro pesadas do catálogo real são exatamente estas, e só a sincronização não cede a ninguém', () => {
     expect(CATALOGO.filter(t => t.peso === 'pesada').map(t => t.nome).sort()).toEqual([...PESADAS].sort())
     expect(CATALOGO.filter(t => t.peso === 'pesada' && (t.cedeA ?? []).length === 0).map(t => t.nome)).toEqual(['sincronizar_canais'])
   })

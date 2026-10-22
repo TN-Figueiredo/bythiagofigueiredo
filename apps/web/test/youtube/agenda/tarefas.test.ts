@@ -78,8 +78,8 @@ beforeEach(() => {
 })
 
 // A tarefa `playlists_semanais` só liga com `OBS_X3_PLAYLISTS=on`; os testes deste arquivo não são sobre ela (os dela: playlists-semanais.test.ts).
-beforeEach(() => { process.env.OBS_X3_PLAYLISTS = 'on'; process.env.OBS_WATCH_READ = 'on'; process.env.AB_NATIVO_REGISTRO = 'on' })
-afterEach(() => { delete process.env.OBS_X3_PLAYLISTS; delete process.env.OBS_WATCH_READ; delete process.env.AB_NATIVO_REGISTRO })
+beforeEach(() => { process.env.OBS_X3_PLAYLISTS = 'on'; process.env.OBS_WATCH_READ = 'on'; process.env.AB_NATIVO_REGISTRO = 'on'; process.env.OBS_SINAIS_NICHO = 'on' })
+afterEach(() => { delete process.env.OBS_X3_PLAYLISTS; delete process.env.OBS_WATCH_READ; delete process.env.AB_NATIVO_REGISTRO; delete process.env.OBS_SINAIS_NICHO })
 
 describe('sincronizar_canais', () => {
   const rodar = (c = ctx()): Promise<ResultadoTarefa> => tarefa('sincronizar_canais').rodar(c)
@@ -238,7 +238,7 @@ describe('o catálogo real e a lista obedecem ao contrato de registro', () => {
   it('o catálogo tem o código das nove definições da lista única (a do vigia), na mesma ordem', () => {
     expect(CATALOGO.map(t => t.nome)).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
     for (const d of TODAS_AS_DEFINICOES) expect(CATALOGO.find(t => t.nome === d.nome)).toMatchObject({ nome: d.nome, rotulo: d.rotulo, ordem: d.ordem, peso: d.peso, fimAteMs: d.fimAteMs, toleranciaVigiaH: d.toleranciaVigiaH, periodo: d.periodo })
-    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes'].sort())
+    expect(CATALOGO.map(t => t.nome).sort()).toEqual([...DEFINICOES.map(d => d.nome), 'anular_identidade', 'retratos_comentarios', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'sinais_do_nicho'].sort())
   })
   it('toda tarefa da lista é nuncaDesliga com fimAteMs ≤ LEVE_FIM_MS, e o maior da lista também (que é < BATCH_BUDGET_MS)', () => {
     for (const t of antesDoLoteAntigo) {
