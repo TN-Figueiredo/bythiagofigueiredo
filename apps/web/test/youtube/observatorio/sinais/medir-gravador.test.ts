@@ -30,12 +30,25 @@ describe('somenteLeitura', () => {
     for (const m of ['insert', 'update', 'upsert', 'delete']) expect(() => t[m]()).toThrow(/somente leitura/)
     expect(t.select()).toBe('sel')
   })
+  it('deny-by-default: schema, storage, functions, auth, channel e qualquer outro lançam', () => {
+    const sb = somenteLeitura({ schema: () => 1, storage: {}, functions: {}, auth: {}, channel: () => 1, outra: () => 1 } as never) as unknown as Record<string, () => void>
+    for (const m of ['rpc', 'schema', 'storage', 'functions', 'auth', 'channel', 'outra']) expect(() => sb[m]()).toThrow(/somente leitura/)
+  })
+  it('depois do select, filtros passam e escrita encadeada lança', () => {
+    const fim = { range: () => fim, eq: () => fim, order: () => fim, upsert: () => 'x', rpc: () => 'x', then: (f: (v: string) => void) => f('ok') }
+    const sb = somenteLeitura({ from: () => ({ select: () => fim }) } as never)
+    const q = (sb.from('t') as unknown as { select: () => Record<string, (...a: unknown[]) => unknown> }).select()
+    expect(() => (q.eq('a', 1) as Record<string, () => void>).range(0, 1)).not.toThrow()
+    expect(() => q.upsert()).toThrow(/somente leitura/)
+    expect(() => q.rpc()).toThrow(/somente leitura/)
+  })
 })
 
 describe('ehRelacaoAusente', () => {
   it('42P01 é ausente; outro código ou sem erro não é', () => {
     expect(ehRelacaoAusente({ code: '42P01', message: 'relation "video_lugares" does not exist' })).toBe(true)
     expect(ehRelacaoAusente({ code: '42501', message: 'permission denied' })).toBe(false)
+    expect(ehRelacaoAusente({ code: 'PGRST205', message: "Could not find the table 'public.video_lugares' in the schema cache" })).toBe(true)
     expect(ehRelacaoAusente(null)).toBe(false)
   })
 })
