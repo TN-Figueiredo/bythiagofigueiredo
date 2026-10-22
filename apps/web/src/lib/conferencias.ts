@@ -605,7 +605,24 @@ export function conferenciasE11(deploy: string | null): Conferencia[] {
   ]
 }
 
-export const CONFERENCIAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+/**
+ * Conferências já feitas, por id, com o dia da prova (registro datado com o resultado, em .superpowers/sdd/a5/conferencias-vencidas-22-10.md).
+ * Fica fora dos geradores `conferenciasE*` (que seguem puros e sem `feitaEm`); só vale para o que o gerador devolve com `feitaEm` nulo.
+ */
+const FEITAS: Readonly<Record<string, string>> = {
+  'e20-segundo-cron': '2026-10-14',
+  'e1e2-d1': '2026-10-14',
+  'e6-p2-primeira-execucao': '2026-10-14',
+  'e6-p2-tres-execucoes': '2026-10-16',
+  'e6-p3-d0': '2026-10-16',
+  'e12-d3': '2026-10-16',
+  'e12-d7': '2026-10-20',
+  'e5a-ri-d1-cortes': '2026-10-16',
+  'e11-religar-ou-retirar': '2026-10-20',
+}
+
+const TODAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+export const CONFERENCIAS: readonly Conferencia[] = TODAS.map(c => ({ ...c, feitaEm: c.feitaEm ?? FEITAS[c.id] ?? null }))
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
