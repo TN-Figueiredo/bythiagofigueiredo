@@ -721,7 +721,9 @@ export async function startAbTest(
     revalidateTag('youtube', { expire: 0 })
     revalidatePath('/cms/youtube/ab-lab')
   }
-  return result
+  // `nativeTestId` é id interno da guarda: o cliente só precisa de `codigo` e `ate`.
+  const { nativeTestId: _interno, ...publico } = result as typeof result & { nativeTestId?: string }
+  return publico
 }
 
 // ---------------------------------------------------------------------------

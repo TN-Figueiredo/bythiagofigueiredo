@@ -11,7 +11,9 @@ import { inicioDoTeste } from './guarda'
 import { estadoDaLinha, retomarAPartirDe, type LinhaDoCaminho, type RegistroDaLista } from './lista'
 import type { RespostaDono } from './resposta'
 import { caminhoDoTeste } from './roteador'
-import { lerVolumes, volumeDoVideo, type VolumeLido } from './volume'
+import { leituraValida, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import { volumeDoVideo } from './volume'
+import { lerVolumes, type VolumeLido } from './volume-leitor'
 
 export const LIMITE_RECENTES = 20
 /** Lê mais que 20 porque os privados saem depois da RPC de volume, que traz `publico`. */
@@ -108,7 +110,11 @@ function enviadaEm(f: FichaLida): string | null {
   return marcas.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a))
 }
 
-export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, agora: Date): Promise<LinhaDoCaminho[]> {
+/**
+ * `leitura` é a prova de que quem pede edita o site (`leituraDoEditor`): o volume sai de uma RPC que lê dado privado do canal.
+ * Sem prova (nula, forjada ou de outro site) a lista abre SEM volume ("Volume ainda não lido"): não lança e não lê o privado.
+ */
+export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, agora: Date, leitura: LeituraPrivadaDoSite | null): Promise<LinhaDoCaminho[]> {
   const iso30 = new Date(agora.getTime() - JANELA_FECHADOS_DIAS * DIA_MS).toISOString()
   const colunasFicha = `id, site_id, video_id, campos, variantes, criada_em, criada_por, atualizada_em, studio_aberto_em, lembrar_em, descartada_em, registro_id, video:youtube_videos(${COLUNAS_VIDEO})`
   const colunasTeste = `id, video_id, estado, confirmado_em, primeira_vista, ultima_vista, votos_titulo, created_at, updated_at, resposta_dono, variantes, variantes_titulo, campos, vencedor_fonte, vencedor_titulo, variante_vencedora, video:youtube_videos(${COLUNAS_VIDEO})`
@@ -146,7 +152,9 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
   const todos = new Map<string, VideoLido>()
   for (const v of [...recentesLidos, ...extras]) todos.set(v.id, v)
 
-  const volumes = await lerVolumes(sb, siteId, [...todos.keys()])
+  const volumes: Map<string, VolumeLido> = leitura !== null && leituraValida(leitura) && leitura.siteId === siteId
+    ? await lerVolumes(sb, leitura, [...todos.keys()])
+    : new Map()
   // Privado fica fora dos recentes (publico === false); desconhecido (nunca capturado) fica.
   const publicos = recentesLidos.filter((v) => volumes.get(v.id)?.publico !== false).slice(0, LIMITE_RECENTES)
   for (const v of [...publicos, ...extras]) videos.set(v.id, v)

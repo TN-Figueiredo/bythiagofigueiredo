@@ -13,7 +13,16 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerLinhasDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
-import { lerVolumes } from '@/lib/youtube/teste-youtube/nativo/volume'
+import { lerVolumes } from '@/lib/youtube/teste-youtube/nativo/volume-leitor'
+import { leituraDoEditor, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+
+// a prova de edição (`leituraDoEditor`) que a lista repete na borda: a guarda simulada aceita
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u-teste' } })) }))
+const tok = async (site: string): Promise<LeituraPrivadaDoSite> => {
+  const l = await leituraDoEditor(site)
+  if (!l) throw new Error('sem prova de edição no teste')
+  return l
+}
 
 vi.setConfig({ testTimeout: 90_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -83,20 +92,20 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       const v = await video(siteId, canal, 60)
       await relatorios(siteId, canal, Array.from({ length: 14 }, (_, i) => i + 1))
       for (const d of [2, 5, 9]) await alcance(siteId, canal, v, d, 200)
-      const m = await lerVolumes(sb, siteId, [v.id])
+      const m = await lerVolumes(sb, await tok(siteId), [v.id])
       expect(m.get(v.id)).toMatchObject({ soma: 600, diasCobertos: 14 })
     })
 
     it('vídeo sem relatório (canal sem cobertura) vem com dias_cobertos = 0, nunca ausente', async () => {
       const v = await video(siteId, canalSemRelatorio, 60)
-      const m = await lerVolumes(sb, siteId, [v.id])
+      const m = await lerVolumes(sb, await tok(siteId), [v.id])
       expect(m.get(v.id)).toMatchObject({ soma: 0, diasCobertos: 0 })
     })
 
     it('cobertura é por canal: o canal coberto não empresta dias ao canal sem relatório', async () => {
       const a = await video(siteId, canal, 60)
       const b = await video(siteId, canalSemRelatorio, 60)
-      const m = await lerVolumes(sb, siteId, [a.id, b.id])
+      const m = await lerVolumes(sb, await tok(siteId), [a.id, b.id])
       expect(m.get(a.id)?.diasCobertos).toBe(14)
       expect(m.get(b.id)?.diasCobertos).toBe(0)
     })
@@ -104,7 +113,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
     it('vídeo de outro site em p_videos não aparece', async () => {
       const meu = await video(siteId, canal, 60)
       const alheio = await video(outroSite, outroCanal, 60)
-      const m = await lerVolumes(sb, siteId, [meu.id, alheio.id])
+      const m = await lerVolumes(sb, await tok(siteId), [meu.id, alheio.id])
       expect(m.has(meu.id)).toBe(true)
       expect(m.has(alheio.id)).toBe(false)
     })
@@ -114,7 +123,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       const v = await video(siteId, c, 60)
       await relatorios(siteId, c, Array.from({ length: 28 }, (_, i) => i + 1))
       for (const d of [20, 22, 25]) await alcance(siteId, c, v, d, 200)
-      const m = await lerVolumes(sb, siteId, [v.id])
+      const m = await lerVolumes(sb, await tok(siteId), [v.id])
       expect(m.get(v.id)).toMatchObject({ soma: 0, diasCobertos: 14 })
     })
 
@@ -124,7 +133,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       await relatorios(siteId, c, [1, 2, 3, 4], 'vazio')
       await relatorios(siteId, c, [10]) // dias 5..9 sem relatório
       await alcance(siteId, c, v, 1, 50)
-      const m = await lerVolumes(sb, siteId, [v.id])
+      const m = await lerVolumes(sb, await tok(siteId), [v.id])
       expect(m.get(v.id)).toMatchObject({ soma: 50, diasCobertos: 5 })
     })
 
@@ -132,7 +141,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       const c = await novoCanal(siteId)
       const v = await video(siteId, c, 3) // publicado há 3 dias (PT): contam os dias 2 e 1 atrás e hoje não há relatório
       await relatorios(siteId, c, [1, 2, 3, 4, 5, 6])
-      const m = await lerVolumes(sb, siteId, [v.id])
+      const m = await lerVolumes(sb, await tok(siteId), [v.id])
       expect(m.get(v.id)?.diasCobertos).toBeLessThanOrEqual(3)
       expect(m.get(v.id)?.diasCobertos).toBeGreaterThanOrEqual(2)
     })
@@ -151,7 +160,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       await pg.query(`insert into public.yt_own_video_reach_daily (youtube_video_id, day_pt, site_id, video_id, channel_id, thumbnail_impressions, source_report_id, report_create_time, metric_version)
         select v.yt, (now() at time zone 'America/Sao_Paulo')::date - g, $1, v.id, $2, 400, 'r', now(), 'views_desde_2026-08-27'
           from jsonb_to_recordset($3::jsonb) as v(id uuid, yt text), generate_series(1, 28) g`, [siteId, c, JSON.stringify(vs)])
-      const m = await lerVolumes(sb, siteId, vs.map((v) => v.id))
+      const m = await lerVolumes(sb, await tok(siteId), vs.map((v) => v.id))
       expect(m.size).toBe(40)
       for (const v of vs) expect(m.get(v.id)).toMatchObject({ soma: 400 * 14, diasCobertos: 14 })
     })
@@ -186,7 +195,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
           return real
         },
       })
-      const linhas = await lerLinhasDoCaminho(espiao, s, new Date())
+      const linhas = await lerLinhasDoCaminho(espiao, s, new Date(), await tok(s))
       expect(linhas).toHaveLength(22)
       expect(consultas).toBeLessThanOrEqual(7)
       const ids = new Set(linhas.map((l) => l.videoId))
@@ -212,7 +221,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       // O bruto diz que não é para crianças: sem ele o roteador cai, com razão, em "formato não confirmado".
       await pg.query(`insert into public.yt_own_video_state_raw (youtube_video_id, site_id, channel_id, state_sha256, raw, observed_at)
         values ($1, $2, $3, $4, '{"status":{"madeForKids":false}}'::jsonb, now())`, [a.yt, s, c, randomUUID().replace(/-/g, '')])
-      const linhas = await lerLinhasDoCaminho(sb, s, new Date())
+      const linhas = await lerLinhasDoCaminho(sb, s, new Date(), await tok(s))
       expect(linhas.find((l) => l.videoId === a.id)?.impressoesPorDia).toBe(300)
       expect(linhas.find((l) => l.videoId === a.id)?.estado).toBe('sugerido_youtube')
       expect(linhas.find((l) => l.videoId === b.id)?.impressoesPorDia).toBeNull()
@@ -230,7 +239,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
         [s, a.id, a.yt, JSON.stringify([{ n: 1, tipo: 'titulo', titulo: 'A' }, { n: 2, tipo: 'titulo', titulo: 'B', imagem: { url: 'https://x/y.png' } }])])
       await pg.query(`insert into public.ab_native_tests (site_id, video_id, youtube_video_id, origem, campos, estado, primeira_vista, variantes_titulo, versao_regra)
         values ($1, $2, $3, 'detectado', '{titulo}', 'em_andamento', now() - interval '3 days', '["A","B"]'::jsonb, 1)`, [s, b.id, b.yt])
-      const linhas = await lerLinhasDoCaminho(sb, s, new Date())
+      const linhas = await lerLinhasDoCaminho(sb, s, new Date(), await tok(s))
       const la = linhas.find((l) => l.videoId === a.id)!
       const lb = linhas.find((l) => l.videoId === b.id)!
       expect(la.estado).toBe('resultado_pronto')
@@ -250,7 +259,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
         values ($1, $2, $3, 'detectado', '{titulo}', 'em_andamento', $4, '["A","B"]'::jsonb, 1)`, [s, a.id, a.yt, ini.toISOString()])
       await pg.query(`insert into public.ab_tests (site_id, youtube_video_id, name, status, original_thumbnail_url, started_at, paused_at)
         values ($1, $2, 'n', 'paused', 'https://x/t.png', now() - interval '2 days', now())`, [s, a.id])
-      const l = (await lerLinhasDoCaminho(sb, s, new Date())).find((x) => x.videoId === a.id)!
+      const l = (await lerLinhasDoCaminho(sb, s, new Date(), await tok(s))).find((x) => x.videoId === a.id)!
       expect(l.nosso?.status).toBe('paused')
       expect(l.labPausadoAte).toBe(new Date(ini.getTime() + 16 * 86_400_000).toISOString())
       expect(l.nosso?.restoreStatus ?? null).toBeNull()
@@ -264,7 +273,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       const campo = { estado: 'ok', destino: 'original', em: new Date().toISOString(), forcado: false, escreveu: true, erro: null, attempts: 1 }
       await pg.query(`insert into public.ab_tests (site_id, youtube_video_id, name, status, original_thumbnail_url, started_at, paused_at, restore_status)
         values ($1, $2, 'n', 'paused', 'https://x/t.png', now() - interval '2 days', now(), $3::jsonb)`, [s, a.id, JSON.stringify({ title: campo, thumbnail: campo })])
-      const l = (await lerLinhasDoCaminho(sb, s, new Date())).find((x) => x.videoId === a.id)!
+      const l = (await lerLinhasDoCaminho(sb, s, new Date(), await tok(s))).find((x) => x.videoId === a.id)!
       expect(l.nosso?.restoreStatus).toMatchObject({ title: { estado: 'ok' }, thumbnail: { estado: 'ok' } })
     })
   })

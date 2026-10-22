@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // T10: pausa do NOSSO teste por haver teste do YouTube. O "Retomar" segue o DADO (registro aberto), a data é só texto (Phil C7, Yannis M6).
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+import * as Sentry from '@sentry/nextjs'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { NOTA_TESTE_YOUTUBE, TEXTO_SEM_LEITURA } from '@/lib/youtube/ab-settle'
 import { pausaVisivel } from '@/lib/youtube/teste-youtube/nativo/pausa-visivel'
@@ -84,6 +85,12 @@ describe('lerPausasYoutube (borda)', () => {
   it('falha de leitura falha fechada: aberto sem data (nunca "liberado")', async () => {
     const m = await lerPausasYoutube(fake(null, { message: 'x' }) as never, 's1', [t('a')])
     expect(m.get('a')).toEqual({ aberto: true, ate: null })
+  })
+  it('falha de leitura avisa o Sentry (Retomar travado não pode ficar calado), sem dado do dono', async () => {
+    vi.mocked(Sentry.captureMessage).mockClear()
+    await lerPausasYoutube(fake(null, { message: 'x' }) as never, 's1', [t('a')])
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls[0])).not.toContain('v-a')
   })
 })
 

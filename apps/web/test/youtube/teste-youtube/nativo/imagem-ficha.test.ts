@@ -16,7 +16,7 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: servico.get
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 
 import {
-  eUrlDaFicha, guardarImagemDaFichaCore, copiarOriginalParaFichaCore, PREFIXO_FICHA,
+  eUrlDaFicha, guardarImagemDaFichaCore, MSG_IMAGEM_FORMATO, copiarOriginalParaFichaCore, PREFIXO_FICHA,
 } from '@/lib/youtube/teste-youtube/nativo/imagem-ficha'
 import { FichaRascunhoSchema, VarianteFichaSchema } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import { enviarImagemDaFicha } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
@@ -82,6 +82,18 @@ const base = (extra: Partial<Tabelas> = {}): Tabelas => ({
   ab_native_fichas: [ficha()],
   youtube_videos: [{ id: V, site_id: S, youtube_video_id: 'abc' }],
   ab_tests: [], ab_test_variants: [], yt_own_video_meta_daily: [], ...extra,
+})
+
+describe('guardarImagemDaFichaCore: tamanho em pixels', () => {
+  it('PNG pequeno em bytes mas gigante em pixels (9000 x 9000) é recusado sem lançar e sem gravar', async () => {
+    const { sb } = criarSupabaseMemoria(base())
+    const put = putFalso()
+    const enorme = await sharp({ create: { width: 9000, height: 9000, channels: 3, background: '#000' } }).png({ compressionLevel: 9 }).toBuffer()
+    expect(enorme.length).toBeLessThan(2 * 1024 * 1024)
+    const r = await guardarImagemDaFichaCore({ sb, siteId: S, fichaId: F, bytes: enorme, put })
+    expect(r).toEqual({ ok: false, error: MSG_IMAGEM_FORMATO })
+    expect(put).not.toHaveBeenCalled()
+  })
 })
 
 describe('guardarImagemDaFichaCore', () => {

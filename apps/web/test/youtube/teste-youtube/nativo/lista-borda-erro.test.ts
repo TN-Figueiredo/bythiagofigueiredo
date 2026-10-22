@@ -19,7 +19,7 @@ function clienteFalso(falha: string): SupabaseClient {
 describe('lerLinhasDoCaminho: erro de leitura', () => {
   for (const tabela of ['youtube_videos', 'ab_native_fichas', 'ab_native_tests', 'ab_tests']) {
     it(`erro em ${tabela} lança, não devolve lista vazia`, async () => {
-      await expect(lerLinhasDoCaminho(clienteFalso(tabela), 's', new Date())).rejects.toThrow(tabela)
+      await expect(lerLinhasDoCaminho(clienteFalso(tabela), 's', new Date(), null)).rejects.toThrow(tabela)
     })
   }
 })
