@@ -78,7 +78,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T9: "Já iniciei" e "Confirmar" (ba
     return r.data as { id: string; updated_at: string }
   }
   const nosso = async () => (await clienteServico().from('ab_tests').select('status, status_note, restore_status').eq('id', t.testId).single()).data!
-  const semEscritaNoYoutube = (): void => { expect(proibido.chamadas).toEqual([]); expect(fetchSpy).not.toHaveBeenCalled() }
+  const semEscritaNoYoutube = (): void => { expect(proibido.chamadas).toEqual([]); expect(fetchSpy.mock.calls.filter((c) => !String(c[0]).startsWith('https://i.ytimg.com/vi/'))).toEqual([]) } // a cópia da A (leitura, i.ytimg.com) roda agora que a consulta de ab_tests acerta (Gio F-4)
 
   it('"Já iniciei" com teste nosso ativo: registro confirmado, nosso paused/pulado_teste_youtube, zero escrita no YouTube', async () => {
     const f = await ficha()

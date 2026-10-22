@@ -240,7 +240,7 @@ describe('copiarOriginalParaFichaCore', () => {
   it('(a) teste nosso ativo: a fonte é a is_original, sem fetch externo', async () => {
     const orig = `${HOST}/ab-originals/o.jpg`
     const { sb, tabelas } = criarSupabaseMemoria(base({
-      ab_tests: [{ id: 'T', site_id: S, youtube_video_id: 'abc', status: 'active' }],
+      ab_tests: [{ id: 'T', site_id: S, youtube_video_id: V, status: 'active' }],
       ab_test_variants: [{ test_id: 'T', is_original: true, blob_url: orig }, { test_id: 'T', is_original: false, blob_url: `${HOST}/ab-test/T/B.jpg` }],
     }))
     const { f, pedidos } = rede({ [orig]: imagemOk(await jpg()) })

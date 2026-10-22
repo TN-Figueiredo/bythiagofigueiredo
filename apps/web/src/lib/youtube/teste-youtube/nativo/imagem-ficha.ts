@@ -163,7 +163,7 @@ export async function copiarOriginalParaFichaCore(p: {
     let bytes: Buffer | null = null
 
     // (a) teste nosso ativo/pausado: a variante original
-    const { data: testes, error: eT } = await p.sb.from('ab_tests').select('id').eq('site_id', p.siteId).eq('youtube_video_id', ytId).in('status', ['active', 'paused'])
+    const { data: testes, error: eT } = await p.sb.from('ab_tests').select('id').eq('site_id', p.siteId).eq('youtube_video_id', linha.video_id).in('status', ['active', 'paused'])
     if (eT) throw new Error(`ab_tests: ${eT.message}`)
     const ids = ((testes ?? []) as Array<{ id: string }>).map((t) => t.id)
     if (ids.length > 0) {
