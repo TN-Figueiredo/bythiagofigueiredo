@@ -44,6 +44,7 @@ export function ListaEsqueleto(): ReactElement {
   const outros = c.n - c.p
   return (
     <section className="cn-raiz" aria-label="Vídeos do A/B Lab" aria-busy="true">
+      <div className="cn-esq">
       <p className="cn-sum">
         {FRASES.lista.carregando.frase}
         <small>{FRASES.lista.carregando.apoio}</small>
@@ -54,6 +55,7 @@ export function ListaEsqueleto(): ReactElement {
         {Array.from({ length: c.p }, (_, i) => <Linha key={`p${i}`} />)}
         {c.p > 0 ? <div className="cn-grp-h" data-skel-grupo="" aria-hidden="true"><span className="cn-skel" style={{ width: 120, height: 14 }} /><span /></div> : null}
         {Array.from({ length: outros }, (_, i) => <Linha key={`o${i}`} />)}
+      </div>
       </div>
     </section>
   )

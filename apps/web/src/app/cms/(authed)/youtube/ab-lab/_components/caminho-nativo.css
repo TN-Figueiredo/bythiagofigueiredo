@@ -31,10 +31,10 @@
   color-scheme: light;
 }
 /* No estreito a medida vale para os descendentes: container query não casa com o próprio container. */
-/* Uma medida só para o esqueleto da ficha (--cn-hf) e da lista (--cn-hl); o teste do T12 lê estas duas. */
-.cn-raiz { --cn-hf: 1011px; --cn-hl: 1525px; }
+/* Uma medida só para o esqueleto da ficha (--cn-hf) e da lista (--cn-hl); o teste do T12 lê estas duas. --cn-hs = região inteira do esqueleto da lista (frase + lista), medida na lista pronta do Gio: 1637 px (1440) e 2915 px (390). */
+.cn-raiz { --cn-hf: 1011px; --cn-hl: 1525px; --cn-hs: 1637px; }
 @container (max-width: 640px) {
-  .cn-raiz * { --cn-hf: 1430px; --cn-hl: 2544px; }
+  .cn-raiz * { --cn-hf: 1430px; --cn-hl: 2544px; --cn-hs: 2915px; }
 }
 .cn-raiz {
   background: var(--cn-bg); color: var(--cn-text); container-type: inline-size; font-size: 14px; overflow-wrap: anywhere;

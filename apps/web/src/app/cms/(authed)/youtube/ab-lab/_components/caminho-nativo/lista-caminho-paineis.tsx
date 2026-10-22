@@ -7,6 +7,7 @@ import { useContext, useEffect, useRef, useState, type ReactElement } from 'reac
 import type { FichaLida } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { FichaEsqueleto } from './ficha-esqueleto'
 import { FaixaCaminho } from './faixa-caminho'
 import type { EncaixesFicha, FichaTesteProps } from './ficha-teste'
 import { FichaComStudio, type AcoesFichaStudio } from './ficha-com-studio'
@@ -83,13 +84,11 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
     )
   }
   if (est.t === 'registrado') return <div ref={raiz}><PainelS7 l={l} acoes={acoes} fechar={fechar} /></div>
+  if (est.t === 'carregando') return <div ref={raiz}><FichaEsqueleto l={l} fechar={fechar} /></div>
   return (
-    <div ref={raiz} aria-busy={est.t === 'carregando'}>
+    <div ref={raiz}>
       <h2 tabIndex={-1} className="cn-titulo">{l.titulo}</h2>
-      {est.t === 'carregando'
-        ? <p className="cn-meta" role="status">{FRASES.ficha.carregandoMeta}</p>
-        : (
-          <FaixaCaminho
+      <FaixaCaminho
             tom="err" role="alert" titulo={FRASES.ficha.erroAbrir}
             acoes={(
               <>
@@ -97,8 +96,7 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
                 <button type="button" className="cn-btn" onClick={fechar}>{FRASES.ficha.fechar}</button>
               </>
             )}
-          />
-        )}
+      />
     </div>
   )
 }

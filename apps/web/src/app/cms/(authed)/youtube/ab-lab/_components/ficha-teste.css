@@ -89,3 +89,8 @@ a.cn-btn { text-decoration: none; }
 .cn-foot .cn-btn { width: 100%; min-height: 44px; }
 .cn-foot p { font-size: 12.5px; color: var(--cn-muted); margin: 6px 0 0; text-align: center; }
 .cn-foot .cn-sent { display: flex; gap: 8px; align-items: center; justify-content: center; min-height: 44px; margin: 0; font-size: 13.5px; color: var(--cn-text); }
+
+/* Ficha carregando (Gio F-5): esqueleto com a altura da ficha pronta (--cn-hf), sem salto quando o dado chega */
+.cn-fsk { height: var(--cn-hf); margin-top: 24px; }
+.cn-fsk .cn-skel { height: 100%; }
+.cn-fsk-meta { margin-top: 12px; }

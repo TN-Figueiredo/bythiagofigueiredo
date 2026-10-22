@@ -56,8 +56,11 @@ a.cn-btn { text-decoration: none; }
 }
 
 /* Esqueleto: a altura total é a da lista pronta (--cn-hl, medida), a página não pula quando o dado chega */
-.cn-lsk { min-height: var(--cn-hl); display: flex; flex-direction: column; }
-.cn-lsk [data-skel-linha] { flex: 1; min-height: calc(var(--cn-hl) / 11); }
+/* Gio F-2: a região inteira tem altura fixa (--cn-hs), com ou sem cabeçalhos de grupo; as linhas dividem o que sobra. */
+.cn-esq { height: var(--cn-hs); overflow: hidden; display: flex; flex-direction: column; }
+.cn-lsk { flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.cn-lsk > * { flex: none; }
+.cn-lsk [data-skel-linha] { flex: 1 1 0; min-height: 0; overflow: hidden; }
 .cn-skel { display: block; background: var(--cn-skel); border-radius: 4px; }
 @media (prefers-reduced-motion: no-preference) { .cn-skel { animation: cn-pulso 1.6s ease-in-out infinite; } }
 @keyframes cn-pulso { 50% { background: var(--cn-border-subtle); } }
