@@ -211,6 +211,9 @@ export const FRASES = {
     usarNosso: 'O Studio não ofereceu o teste neste vídeo? Usar o nosso teste',
     copiarTitulo: 'Copiar título',
     /** T8: versões, gravação e imagem. */
+    naoSalvoConflito: 'Não salvo: a ficha mudou em outro lugar. O que você escreveu continua aqui.',
+    erroServidor: 'O servidor não conseguiu salvar agora. O que você escreveu continua aqui; tente de novo.',
+    erroCopiar: 'Não deu para copiar o título. Selecione o texto e copie à mão.',
     erroSalvar: 'Não foi possível salvar a ficha agora. Confira os campos e tente de novo.',
     tituloAcima: (limite: number): string => `O título passa de ${limite} caracteres. Encurte para salvar.`,
     erroImagem: 'Não foi possível enviar a imagem. Tente de novo.',

@@ -75,6 +75,7 @@ export function FichaTeste(p: FichaTesteProps): ReactElement {
   const largura = useLargura(p.largura)
   const g = useFichaGravada(p.inicial, { salvarFicha: p.acoes.salvarFicha })
   const [imagensComErro, setImagensComErro] = useState<number[]>([])
+  const [erroCopiar, setErroCopiar] = useState(false)
   const [enviandoN, setEnviandoN] = useState<number | null>(null)
   const [erroImagem, setErroImagem] = useState<{ n: number; frase: string } | null>(null)
 
@@ -102,7 +103,10 @@ export function FichaTeste(p: FichaTesteProps): ReactElement {
   const tres = g.rascunho.variantes.some((v) => v.n === 3)
 
   const copiarTitulo = (texto: string): void => {
-    try { void navigator.clipboard.writeText(texto) } catch { /* sem permissão de área de transferência: o texto segue na tela */ }
+    setErroCopiar(false)
+    try {
+      navigator.clipboard.writeText(texto).catch(() => setErroCopiar(true))
+    } catch { setErroCopiar(true) }
   }
 
   const enviarImagem = (n: number, arquivo: File): void => {
@@ -147,8 +151,17 @@ export function FichaTeste(p: FichaTesteProps): ReactElement {
         </p>
       )
     }
+    if (g.status === 'mudou' && g.mensagem === FRASES.ficha.naoSalvoConflito) {
+      return (
+        <p className="cn-save off" role="status" aria-live="polite">
+          <Icone nome="warn" />
+          <span><b>{FRASES.ficha.naoSalvoConflito}</b></span>
+          <button type="button" className="cn-lnk" onClick={() => { void g.salvarAgora() }}>{FRASES.ficha.tentarAgora}</button>
+        </p>
+      )
+    }
     if (g.status === 'recusado') return <p className="cn-save rec" role="alert"><Icone nome="warn" /><span>{g.mensagem}</span></p>
-    const aviso = g.status === 'mudou' ? g.mensagem : null
+    const aviso = g.mensagem
     return (
       <p className="cn-save" role="status" aria-live="polite">
         {aviso ? <span>{aviso} </span> : null}
@@ -184,6 +197,7 @@ export function FichaTeste(p: FichaTesteProps): ReactElement {
             <p className="cn-crumb">{FRASES.ficha.testarNoYoutube}</p>
             <h2 id="cn-fh" tabIndex={-1}>{p.linha.titulo}</h2>
             <div className="cn-fst">{linhaSalvo}</div>
+            {erroCopiar ? <p className="cn-errl" role="alert"><Icone nome="warn" /><span>{FRASES.ficha.erroCopiar}</span></p> : null}
           </div>
         </div>
         <p className="cn-fsum">

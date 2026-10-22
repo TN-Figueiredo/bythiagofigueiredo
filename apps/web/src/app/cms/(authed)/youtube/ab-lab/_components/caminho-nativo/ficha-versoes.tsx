@@ -86,7 +86,7 @@ export function FichaVersoes(p: FichaVersoesProps): ReactElement {
           const original = n === 1
           const titulo = v?.titulo ?? ''
           const gravado = gravadaPorN.get(n)?.titulo
-          const total = contarCaracteresDoTitulo(titulo)
+          const total = contarCaracteresDoTitulo(titulo.trim())
           const passou = total > LIMITE_TITULO
           const falhou = p.imagensComErro.includes(n)
           const img = v?.imagem
