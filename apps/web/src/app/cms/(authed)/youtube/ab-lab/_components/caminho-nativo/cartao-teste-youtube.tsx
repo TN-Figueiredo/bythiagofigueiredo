@@ -45,12 +45,13 @@ type Falha = { t: 'mudou' } | { t: 'erro'; texto: string }
 
 const dataHora = (d: Date): string => `${dataCurta(d)}, ${fmtHora(d)}`
 
+// As frases próprias valem sempre: o `error` cru do servidor não chega à tela.
 function erroDeConfirmar(r: Extract<ResultadoAcaoConfirmar, { ok: false }>): Falha {
   switch (r.erro) {
     case 'estado_mudou': case 'ja_confirmado': case 'nao_encontrada': case 'ficha_incompleta': case 'ja_ha_teste_em_andamento':
       return { t: 'mudou' }
     case 'sem_permissao': case 'pedido_invalido': case 'falha':
-      return { t: 'erro', texto: 'error' in r && r.error ? r.error : FRASES.s7.confirmarFalhou }
+      return { t: 'erro', texto: FRASES.s7.confirmarFalhou }
     default: {
       const _exaustivo: never = r
       return _exaustivo
@@ -62,7 +63,7 @@ function erroDeDescartar(r: Extract<ResultadoAcaoDescartar, { ok: false }>): Fal
     case 'ja_encerrado': case 'confirmado': case 'nao_encontrado':
       return { t: 'mudou' }
     case 'sem_permissao': case 'pedido_invalido': case 'falha':
-      return { t: 'erro', texto: 'error' in r && r.error ? r.error : FRASES.s7.liberarFalhou }
+      return { t: 'erro', texto: FRASES.s7.liberarFalhou }
     default: {
       const _exaustivo: never = r
       return _exaustivo
@@ -90,8 +91,11 @@ export function CartaoTesteYoutube({ registro, labPausadoAte, acoes, agora, aoAt
   const emCurso = useRef(false)
   const naoRef = useRef<HTMLButtonElement>(null)
   const cancelarRef = useRef<HTMLButtonElement>(null)
+  const tituloRef = useRef<HTMLParagraphElement>(null)
 
   useEffect(() => { if (pergunta) cancelarRef.current?.focus() }, [pergunta])
+  // "Confirmar" some ao ir para o estado 2: o foco passa à frase de confirmação (alvo estável) em vez de cair no body.
+  useEffect(() => { if (confirmadoLocal !== null) tituloRef.current?.focus() }, [confirmadoLocal])
 
   const confirmadoEm = registro.confirmadoEm ?? confirmadoLocal
   const confirmado = confirmadoEm !== null
@@ -157,7 +161,7 @@ export function CartaoTesteYoutube({ registro, labPausadoAte, acoes, agora, aoAt
       <div className="cn-top">
         <SeloCaminho tipo="yt">{confirmado ? FRASES.s7.selo2 : FRASES.s7.selo}</SeloCaminho>
       </div>
-      <p className="cn-meta cn-cmeta">
+      <p className="cn-meta cn-cmeta" ref={tituloRef} tabIndex={-1}>
         {confirmado && confirmadoEm
           ? FRASES.s7.confirmouEm(dataHora(new Date(confirmadoEm)))
           : FRASES.s7.visto(desde, ultima)}

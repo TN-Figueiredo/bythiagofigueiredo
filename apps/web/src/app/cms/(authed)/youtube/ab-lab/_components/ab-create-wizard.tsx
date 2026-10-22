@@ -26,11 +26,13 @@ import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings, ReferenciaDoTeste } from '@/lib/youtube/ab-types'
 import { YtPortal } from '../../_components/yt-portal'
-import { MOTIVO_GUARDA_FALHOU, MOTIVO_RECUSA_NATIVO } from '@/lib/youtube/teste-youtube/nativo/guarda'
+import type { CodigoRecusaNativa } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 
 /** `startAbTest` chega por prop (a página, no servidor, o passa): nenhum client importa a action direto. */
-export type IniciarTeste = (testId: string) => Promise<{ ok: boolean; error?: string }>
+/** `codigo` (e `ate`, ISO, quando o servidor sabe) dizem a recusa da guarda; o cliente nunca compara o texto de `error`. */
+export type ResultadoIniciar = { ok: boolean; error?: string; codigo?: CodigoRecusaNativa; ate?: string }
+export type IniciarTeste = (testId: string) => Promise<ResultadoIniciar>
 
 /* ------------------------------------------------------------------ */
 /*  Wizard video — same shape the dashboard already uses              */
@@ -318,7 +320,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   // A leitura da original só começa depois que o diálogo (portal) está no DOM: ver use-aviso-original.ts
   const [dialogoMontado, setDialogoMontado] = useState(false)
   // Recusa da guarda do teste do YouTube ao iniciar (D-7): frases fechadas; só a falha de conferência oferece "Tentar de novo".
-  const [recusa, setRecusa] = useState<'teste_youtube' | 'guarda_falhou' | null>(null)
+  const [recusa, setRecusa] = useState<{ codigo: CodigoRecusaNativa; ate: string | null } | null>(null)
   const refDialogo = useCallback((el: HTMLDivElement | null) => { dialogRef.current = el; setDialogoMontado(el !== null) }, [])
   const [libraryPickerFor, setLibraryPickerFor] = useState<number | null>(null)
   const [libraryEntries, setLibraryEntries] = useState<Awaited<ReturnType<typeof fetchLibraryEntries>> | null>(null)
@@ -402,12 +404,18 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   }, [video.id, state.type, state.draftTestId, state.hypothesis])
 
   // Recusa do servidor ao iniciar: as duas frases do mockup (D-7) no lugar do texto cru; outro erro segue como estava.
-  const falhouAoIniciar = useCallback((erro: string | undefined) => {
-    if (erro === MOTIVO_RECUSA_NATIVO) { setRecusa('teste_youtube'); dispatch({ type: 'SET_ERROR', error: null }); return }
-    if (erro === MOTIVO_GUARDA_FALHOU) { setRecusa('guarda_falhou'); dispatch({ type: 'SET_ERROR', error: null }); return }
+  const falhouAoIniciar = useCallback((res: ResultadoIniciar) => {
+    if (res.codigo === 'teste_youtube' || res.codigo === 'guarda_falhou') {
+      setRecusa({ codigo: res.codigo, ate: res.codigo === 'teste_youtube' && res.ate ? res.ate : null })
+      dispatch({ type: 'SET_ERROR', error: null })
+      return
+    }
     setRecusa(null)
-    dispatch({ type: 'SET_ERROR', error: erro ?? 'Failed to start test' })
+    dispatch({ type: 'SET_ERROR', error: res.error ?? 'Failed to start test' })
   }, [])
+
+  // Edição ou troca de passo invalida a recusa: as versões só são gravadas em `handleSubmit`, então "Tentar de novo" com versões editadas iniciaria as velhas.
+  const editar = useCallback((acao: WizardAction) => { setRecusa(null); dispatch(acao) }, [])
 
   // --- Launch / save handler ---
   const handleSubmit = useCallback((isLaunch: boolean) => {
@@ -499,7 +507,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
       if (isLaunch) {
         const startResult = await iniciarTeste(testId)
         if (!startResult.ok) {
-          falhouAoIniciar(startResult.error)
+          falhouAoIniciar(startResult)
           dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
           return
         }
@@ -528,7 +536,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
     startTransition(async () => {
       const r = await iniciarTeste(testId)
       if (!r.ok) {
-        falhouAoIniciar(r.error)
+        falhouAoIniciar(r)
         dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
         return
       }
@@ -541,10 +549,10 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   // --- Step navigation helpers ---
   const canAdvance = stepIsValid(state.step, state)
   const goBack = () => {
-    dispatch({ type: 'SET_STEP', step: Math.max(0, state.step - 1) })
+    editar({ type: 'SET_STEP', step: Math.max(0, state.step - 1) })
   }
   const goNext = () => {
-    dispatch({ type: 'SET_STEP', step: Math.min(4, state.step + 1) })
+    editar({ type: 'SET_STEP', step: Math.min(4, state.step + 1) })
   }
 
   // --- Render current step ---
@@ -573,9 +581,9 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             type={state.type!}
             variants={state.variants}
             originalThumbUrl={state.originalThumbUrl}
-            onUpdateVariant={(i, d) => dispatch({ type: 'UPDATE_VARIANT', index: i, data: d })}
-            onAddVariant={() => dispatch({ type: 'ADD_VARIANT' })}
-            onRemoveVariant={i => dispatch({ type: 'REMOVE_VARIANT', index: i })}
+            onUpdateVariant={(i, d) => editar({ type: 'UPDATE_VARIANT', index: i, data: d })}
+            onAddVariant={() => editar({ type: 'ADD_VARIANT' })}
+            onRemoveVariant={i => editar({ type: 'REMOVE_VARIANT', index: i })}
             onPickFromLibrary={async (variantIndex) => {
               if (!libraryEntries) {
                 const entries = await fetchLibraryEntries()
@@ -590,7 +598,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
         return (
           <StepConfig
             config={state.config}
-            onChange={(k, v) => dispatch({ type: 'UPDATE_CONFIG', key: k, value: v })}
+            onChange={(k, v) => editar({ type: 'UPDATE_CONFIG', key: k, value: v })}
           />
         )
       case 4:
@@ -649,7 +657,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
         </div>
 
         {/* Step rail */}
-        <StepRail currentStep={state.step} onStepClick={s => dispatch({ type: 'SET_STEP', step: s })} />
+        <StepRail currentStep={state.step} onStepClick={s => editar({ type: 'SET_STEP', step: s })} />
 
         {/* Body */}
         <div key={state.step} className="flex-1 overflow-y-auto p-[24px]" style={{ animation: 'fadeIn 150ms ease-out' }}>
@@ -666,8 +674,10 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
           <span className="text-[12px] text-cms-text-muted">
             {recusa ? (
               <span className="text-red-400" role="alert">
-                {recusa === 'teste_youtube' ? FRASES.guarda.motivoRecusaSemData : FRASES.guarda.guardaFalhou}
-                {recusa === 'guarda_falhou' ? (
+                {recusa.codigo === 'teste_youtube'
+                  ? (recusa.ate ? FRASES.guarda.motivoRecusa(new Date(recusa.ate)) : FRASES.guarda.motivoRecusaSemData)
+                  : FRASES.guarda.guardaFalhou}
+                {recusa.codigo === 'guarda_falhou' ? (
                   <button type="button" onClick={tentarIniciarDeNovo} disabled={state.isLaunching} className="ml-[10px] underline font-semibold">
                     {FRASES.guarda.tentarDeNovo}
                   </button>
@@ -749,7 +759,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
         <LibraryPickerDialog
           entries={libraryEntries}
           onSelect={(blobUrl, liftAtWin) => {
-            dispatch({
+            editar({
               type: 'UPDATE_VARIANT',
               index: libraryPickerFor,
               data: { thumbUrl: blobUrl, briefing: liftAtWin ? `Da Biblioteca: +${liftAtWin}% lift` : undefined },

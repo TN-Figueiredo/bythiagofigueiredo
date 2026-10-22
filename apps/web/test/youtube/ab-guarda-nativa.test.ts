@@ -205,6 +205,17 @@ describe('startAbTestInternal e a fila', () => {
     return { banco, yt, iniciar: () => startAbTestInternal('teste-1', SITE, { supabase: banco.supabase }) }
   }
 
+  it('recusa devolve `ate` (início + prazo) quando a linha traz as datas; sem datas, sem `ate`', async () => {
+    const inicio = new Date(AGORA.getTime() - 3 * 86_400_000).toISOString()
+    const com = rascunho([nativa({ confirmado_em: inicio, primeira_vista: inicio, created_at: inicio })])
+    const r = await com.iniciar()
+    const esperado = new Date(Date.parse(inicio) + 16 * 86_400_000).toISOString()
+    expect(r).toMatchObject({ ok: false, codigo: 'teste_youtube', ate: esperado })
+    const sem = await rascunho([confirmada()]).iniciar()
+    expect(sem).toMatchObject({ ok: false, codigo: 'teste_youtube' })
+    expect((sem as { ate?: string }).ate).toBeUndefined()
+  })
+
   it('linha confirmada, flag off: recusa com o motivo e o código, nada reivindicado nem escrito', async () => {
     const { banco, yt, iniciar } = rascunho([confirmada()])
     const r = await iniciar()

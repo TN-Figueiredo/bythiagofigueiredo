@@ -159,7 +159,7 @@ describe('assistente: recusa da guarda ao iniciar o nosso teste (D-7)', () => {
   )
 
   it('MOTIVO_RECUSA_NATIVO vira a frase fechada de D-7 (sem inventar a data), sem "Tentar de novo", sem o texto provisório do servidor', async () => {
-    const iniciar = vi.fn().mockResolvedValue({ ok: false, error: MOTIVO_RECUSA_NATIVO })
+    const iniciar = vi.fn().mockResolvedValue({ ok: false, error: MOTIVO_RECUSA_NATIVO, codigo: 'teste_youtube' })
     montar(iniciar)
     fireEvent.click(screen.getByRole('button', { name: 'Ativar teste' }))
     const msg = await screen.findByRole('alert')
@@ -170,7 +170,7 @@ describe('assistente: recusa da guarda ao iniciar o nosso teste (D-7)', () => {
   })
   it('MOTIVO_GUARDA_FALHOU vira a frase fechada com "Tentar de novo"; o botão repete SÓ o início (sem recriar versões)', async () => {
     const iniciar = vi.fn()
-      .mockResolvedValueOnce({ ok: false, error: MOTIVO_GUARDA_FALHOU })
+      .mockResolvedValueOnce({ ok: false, error: MOTIVO_GUARDA_FALHOU, codigo: 'guarda_falhou' })
       .mockResolvedValueOnce({ ok: true })
     const { createTextVariant } = await import('@/app/cms/(authed)/youtube/ab-lab/actions')
     montar(iniciar)
@@ -183,6 +183,30 @@ describe('assistente: recusa da guarda ao iniciar o nosso teste (D-7)', () => {
     await waitFor(() => expect(iniciar).toHaveBeenCalledTimes(2))
     expect(iniciar).toHaveBeenNthCalledWith(2, 'd1')
     expect(vi.mocked(createTextVariant).mock.calls.length).toBe(criadas)
+  })
+  it('recusa com `ate`: a frase fechada de D-7 traz "até dd/mm"; sem `ate`, a frase sem data; o texto cru do servidor nunca decide', async () => {
+    const iniciar = vi.fn().mockResolvedValue({ ok: false, error: 'texto qualquer do servidor', codigo: 'teste_youtube', ate: ATE })
+    montar(iniciar)
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar teste' }))
+    const msg = await screen.findByRole('alert')
+    expect(msg.textContent).toBe(FRASES.guarda.motivoRecusa(new Date(ATE)))
+    expect(msg.textContent).toContain('registrado até 04/11.')
+    expect(document.body.textContent).not.toContain('texto qualquer do servidor')
+  })
+  it('recusa pelo código mesmo com mensagem diferente da constante antiga', async () => {
+    montar(vi.fn().mockResolvedValue({ ok: false, error: 'outra redação', codigo: 'guarda_falhou' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar teste' }))
+    const msg = await screen.findByRole('alert')
+    expect(msg.textContent).toContain(FRASES.guarda.guardaFalhou)
+  })
+  it('a recusa some ao mudar de passo e ao editar uma versão; "Tentar de novo" não volta com versões velhas', async () => {
+    const iniciar = vi.fn().mockResolvedValue({ ok: false, error: MOTIVO_GUARDA_FALHOU, codigo: 'guarda_falhou' })
+    montar(iniciar)
+    fireEvent.click(screen.getByRole('button', { name: 'Ativar teste' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull()
   })
   it('outro erro do servidor segue como antes (texto cru, sem Tentar de novo)', async () => {
     montar(vi.fn().mockResolvedValue({ ok: false, error: 'Quota excedida' }))

@@ -204,7 +204,7 @@ export async function startAbTestInternal(
   testId: string,
   siteId: string,
   portas: Partial<PortasInicio> = {},
-): Promise<{ ok: boolean; error?: string; codigo?: CodigoRecusaNativa; nativeTestId?: string }> {
+): Promise<{ ok: boolean; error?: string; codigo?: CodigoRecusaNativa; nativeTestId?: string; ate?: string }> {
   const supabase = portas.supabase ?? getSupabaseServiceClient()
   const agora = portas.agora ?? (() => new Date())
   const prazo = agora().getTime() + TETO_MS // F-D3: ação humana (e cron da fila), início + 55 s
@@ -256,7 +256,7 @@ export async function startAbTestInternal(
 
   // Guarda do teste do YouTube (F1a-dado): teste nativo em andamento no vídeo recusa o início, sem escrever; depois das validações, antes do canal/token e do passo 0b (que escreve no banco) e da reivindicação, para o modo `log` só anotar onde a escrita sairia (a fila adia sem gastar tentativa).
   const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: portas.pontoDaGuarda ?? 'start' })
-  if (!guarda.seguir) return { ok: false, error: guarda.motivo, codigo: guarda.codigo, ...(guarda.nativeTestId ? { nativeTestId: guarda.nativeTestId } : {}) }
+  if (!guarda.seguir) return { ok: false, error: guarda.motivo, codigo: guarda.codigo, ...(guarda.nativeTestId ? { nativeTestId: guarda.nativeTestId } : {}), ...(guarda.ate ? { ate: guarda.ate } : {}) }
 
   // 4. Canal e token (só leitura): falha aqui não toca em nada.
   let accessToken: string

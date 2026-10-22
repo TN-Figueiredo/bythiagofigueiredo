@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ModoPausaDetectado } from './flag'
 
 /** Linha aberta (`estado = 'em_andamento'`) do registro do teste nativo do YouTube. Confirmada = `confirmado_em` não nulo. */
-export interface LinhaAberta { id: string; video_id: string; confirmado_em: string | null; updated_at: string }
+export interface LinhaAberta { id: string; video_id: string; confirmado_em: string | null; updated_at: string; primeira_vista?: string | null; created_at?: string }
 
 export type DecisaoGuarda =
   | { acao: 'seguir' }
@@ -43,7 +43,7 @@ export async function bloqueadoPorTesteNativo(
       const lote = ids.slice(i, i + LOTE_UUIDS)
       for (let p = 0; p < MAX_PAGINAS; p++) {
         const r = await sb.from('ab_native_tests')
-          .select('id, video_id, confirmado_em, updated_at')
+          .select('id, video_id, confirmado_em, updated_at, primeira_vista, created_at')
           .eq('site_id', siteId).eq('estado', 'em_andamento').in('video_id', lote)
           .order('id', { ascending: true })
           .range(p * PAGINA, p * PAGINA + PAGINA - 1)
