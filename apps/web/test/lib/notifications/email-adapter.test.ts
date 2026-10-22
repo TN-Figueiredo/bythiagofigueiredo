@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }))
 vi.mock('@/lib/email/service', () => ({ getEmailService: () => ({ send: sendMock }) }))
@@ -48,5 +48,49 @@ describe('EmailAdapter: escape do HTML e do assunto', () => {
     expect(subject).not.toMatch(/[\r\n\u0000-\u001f\u007f]/)
     expect(subject).toContain('Canal X')
     expect(subject).toContain('fim')
+  })
+})
+
+describe('EmailAdapter: link da notificação (E0)', () => {
+  const orig = process.env.NEXT_PUBLIC_APP_URL
+  beforeEach(() => { process.env.NEXT_PUBLIC_APP_URL = 'https://site.invalid/' })
+  afterEach(() => {
+    if (orig === undefined) delete process.env.NEXT_PUBLIC_APP_URL
+    else process.env.NEXT_PUBLIC_APP_URL = orig
+    vi.restoreAllMocks()
+  })
+  const com = (href: string | null) => ({ title: 't', message: 'm', action_href: href }) as unknown as INotification
+  const enviado = async (n: INotification) => {
+    await new EmailAdapter().send(n, user)
+    return sendMock.mock.calls[0]![0] as { html: string; text: string }
+  }
+
+  it('relativo vira absoluto no html e no text, sem barra duplicada', async () => {
+    const a = await enviado(com('/cms/x?a=1&b=2'))
+    expect(a.html).toContain('href="https://site.invalid/cms/x?a=1&amp;b=2"')
+    expect(a.text).toBe('m\n\nhttps://site.invalid/cms/x?a=1&b=2')
+  })
+  it('nulo: sem link', async () => {
+    const a = await enviado(com(null))
+    expect(a.html).toBe('<p>m</p>')
+    expect(a.text).toBe('m')
+  })
+  it('aspas no href saem escapadas', async () => {
+    const a = await enviado(com('/x"onmouseover="y'))
+    expect(a.html).not.toContain('"onmouseover')
+    expect(a.html).toContain('&quot;onmouseover=&quot;')
+  })
+  it.each(['https://outro.invalid/x', '//outro.invalid', '/\\outro.invalid', 'x/y'])('%s é ignorado', async (h) => {
+    const a = await enviado(com(h))
+    expect(a.html).toBe('<p>m</p>')
+    expect(a.text).toBe('m')
+  })
+  it('sem NEXT_PUBLIC_APP_URL: sai sem link e com aviso', async () => {
+    delete process.env.NEXT_PUBLIC_APP_URL
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const a = await enviado(com('/cms/x'))
+    expect(a.html).toBe('<p>m</p>')
+    expect(a.text).toBe('m')
+    expect(warn).toHaveBeenCalledTimes(1)
   })
 })
