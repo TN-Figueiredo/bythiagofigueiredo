@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, act, renderHook, within } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, act, renderHook, within, waitFor } from '@testing-library/react'
 import * as Sentry from '@sentry/nextjs'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import type { FichaLida } from '@/lib/youtube/teste-youtube/nativo/ficha'
@@ -57,7 +57,7 @@ describe('Abrir no Studio', () => {
     montar(duas(), a)
     fireEvent.change(screen.getByLabelText(/Título da versão B/), { target: { value: 'Novo B' } })
     await abrir()
-    expect(ordem).toEqual(['salvar', 'open', 'marcar'])
+    expect(ordem).toEqual(['open', 'salvar', 'marcar'])
     expect(aberto).toHaveBeenCalledWith('https://studio.youtube.com/video/abcDEF12345/edit', '_blank', 'noopener')
     expect(a.marcarStudioAberto).toHaveBeenCalledWith(duas().id)
     // editar depois salva sobre o atualizada_em adotado: sem "mudou"
@@ -68,15 +68,44 @@ describe('Abrir no Studio', () => {
     expect(screen.queryByText(FRASES.mudouEmOutroLugar)).toBeNull()
   })
 
-  it('não abre o Studio se a ficha não pôde ser salva', async () => {
+  it('o Studio abre sincronamente no clique, antes do salvar terminar (popup depois de await é bloqueado)', async () => {
+    const a = acoesMock()
+    let solta: (v: unknown) => void = () => undefined
+    a.salvarFicha.mockImplementation(() => new Promise((r) => { solta = r }))
+    a.marcarStudioAberto.mockResolvedValue(okCom(duas({ atualizada_em: T(5), studio_aberto_em: T(5) })))
+    montar(duas(), a)
+    fireEvent.change(screen.getByLabelText(/Título da versão B/), { target: { value: 'Novo B' } })
+    fireEvent.click(screen.getAllByRole('button', { name: new RegExp(FRASES.ficha.bloco2.abrirNoStudio) })[0]!)
+    expect(aberto).toHaveBeenCalledTimes(1)
+    expect(a.marcarStudioAberto).not.toHaveBeenCalled()
+    await waitFor(() => expect(a.salvarFicha).toHaveBeenCalledTimes(1))
+    await act(async () => { solta(okCom(duas({ atualizada_em: T(1) }))) })
+    await waitFor(() => expect(a.marcarStudioAberto).toHaveBeenCalledTimes(1))
+  })
+
+  it('se a ficha não pôde ser salva o Studio já abriu, mas nada é marcado e o erro aparece', async () => {
     const a = acoesMock()
     a.salvarFicha.mockRejectedValue(new TypeError('Failed to fetch'))
     montar(duas(), a)
     fireEvent.change(screen.getByLabelText(/Título da versão B/), { target: { value: 'Novo B' } })
     await abrir()
-    expect(aberto).not.toHaveBeenCalled()
+    expect(aberto).toHaveBeenCalledTimes(1)
     expect(a.marcarStudioAberto).not.toHaveBeenCalled()
     expect(screen.getByText(FRASES.ficha.erroSalvar)).toBeTruthy()
+  })
+
+  it('duplo clique: enquanto a 1ª abertura está pendente o 2º clique não chama nada; depois dela volta a valer', async () => {
+    const a = acoesMock()
+    let solta: (v: unknown) => void = () => undefined
+    a.marcarStudioAberto.mockImplementation(() => new Promise((r) => { solta = r }))
+    montar(duas(), a)
+    const botao = (): HTMLElement => screen.getAllByRole('button', { name: new RegExp(FRASES.ficha.bloco2.abrirNoStudio) })[0]!
+    await act(async () => { fireEvent.click(botao()); fireEvent.click(botao()) })
+    expect(aberto).toHaveBeenCalledTimes(1)
+    expect(a.marcarStudioAberto).toHaveBeenCalledTimes(1)
+    await act(async () => { solta(okCom(duas({ atualizada_em: T(5), studio_aberto_em: T(5) }))) })
+    await abrir()
+    expect(aberto).toHaveBeenCalledTimes(2)
   })
 
   it('o cliente nunca chama cópia: só marcarStudioAberto; falha de marcar não aparece como erro de cópia', async () => {
@@ -169,6 +198,19 @@ describe('Já iniciei e o 2º toque', () => {
     expect(screen.getByText(FRASES.ficha.registradaBloco('22/10, 12:00', '05/11').apoio, { exact: false })).toBeTruthy()
     expect(screen.getByText(FRASES.ficha.registrada(new Date(AGORA_FICHA.getTime() + 14 * 86_400_000)).frase)).toBeTruthy()
     expect(aoRegistrar).toHaveBeenCalledTimes(1)
+  })
+
+  it('depois de registrar, os campos dos passos 1 e 2 ficam travados (sem falso "mudou em outro lugar")', async () => {
+    const a = acoesMock()
+    a.jaIniciei.mockResolvedValue({ ok: true, registroId: 'r', pausados: [], naoPausados: [] })
+    montar(enviada(), a)
+    expect((screen.getByLabelText(/Título da versão B/) as HTMLInputElement).readOnly).toBe(false)
+    fireEvent.click(jaIniciei())
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: FRASES.ficha.bloco3.confirmar })) })
+    const campo = screen.getByLabelText(/Título da versão B/) as HTMLInputElement
+    expect(campo.readOnly || campo.disabled).toBe(true)
+    expect(a.salvarFicha).not.toHaveBeenCalled()
+    expect(screen.queryByText(FRASES.mudouEmOutroLugar)).toBeNull()
   })
 
   it('o aviso de pausa não concluída aparece como linha âmbar sob o registro', async () => {
