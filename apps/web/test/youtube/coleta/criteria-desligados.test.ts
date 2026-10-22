@@ -11,6 +11,7 @@ const DIA_MS = 86_400_000
 /** Execução anterior `i` dias atrás (1 = a mais recente). `desligados` entram no resumo como `{ desligado: true }`. */
 const execucao = (i: number, desligados: string[] = [], extra: Row = {}): Row => ({
   ran_at: new Date(Date.now() - i * DIA_MS).toISOString(),
+  escopo: 'completo',
   resumo: { ...Object.fromEntries(desligados.map(p => [p, { desligado: true }])), ...extra },
 })
 const NOTA = (p: string, n: number) => `${p}: passo desligado por YT_OWN_STEPS_OFF (há ${n} execuções)`
@@ -105,15 +106,15 @@ describe('A5 E6/E8 · criterioDesligados', () => {
     const hoje = Date.now()
     const db = fakeSupabase({
       yt_own_collection_runs: [
-        { ran_at: new Date(hoje - 1 * DIA_MS).toISOString(), resumo: { retencao: { desligado: true } } },
-        { ran_at: new Date(hoje - 2 * DIA_MS).toISOString(), resumo: null },
-        { ran_at: new Date(hoje - 3 * DIA_MS).toISOString(), resumo: { retencao: { desligado: true } } },
+        { ran_at: new Date(hoje - 1 * DIA_MS).toISOString(), escopo: 'completo', resumo: { retencao: { desligado: true } } },
+        { ran_at: new Date(hoje - 2 * DIA_MS).toISOString(), escopo: 'completo', resumo: null },
+        { ran_at: new Date(hoje - 3 * DIA_MS).toISOString(), escopo: 'completo', resumo: { retencao: { desligado: true } } },
       ],
     })
     expect((await rodar(db, ['retencao'])).notas).toEqual([NOTA('retencao', 2)])
-    const db2 = fakeSupabase({ yt_own_collection_runs: [{ ran_at: new Date(hoje - DIA_MS).toISOString(), resumo: { retencao: 'sim' } }] })
+    const db2 = fakeSupabase({ yt_own_collection_runs: [{ ran_at: new Date(hoje - DIA_MS).toISOString(), escopo: 'completo', resumo: { retencao: 'sim' } }] })
     expect((await rodar(db2, ['retencao'])).notas).toEqual([NOTA('retencao', 1)])
-    const db3 = fakeSupabase({ yt_own_collection_runs: [{ ran_at: new Date(hoje - DIA_MS).toISOString(), resumo: { retencao: { desligado: 'true' } } }] })
+    const db3 = fakeSupabase({ yt_own_collection_runs: [{ ran_at: new Date(hoje - DIA_MS).toISOString(), escopo: 'completo', resumo: { retencao: { desligado: 'true' } } }] })
     expect((await rodar(db3, ['retencao'])).notas).toEqual([NOTA('retencao', 1)])
   })
 
@@ -139,7 +140,7 @@ describe('A5 E6/E8 · criterioDesligados', () => {
 
   it('dados que não são lista: não foi possível avaliar (nunca zero, nunca "há 1 execução")', async () => {
     const supabase = {
-      from: () => ({ select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: { x: 1 }, error: null }) }) }) }),
+      from: () => ({ select: () => ({ eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: { x: 1 }, error: null }) }) }) }) }),
     } as unknown as SupabaseClient
     const falhas: string[] = []
     const notas = await criterioDesligados({ supabase, falhas, relogio: criarRelogio() }, ['retencao'])
@@ -212,7 +213,7 @@ describe('A5 E6/E8 · criterioDesligados', () => {
     it('a leitura que não responde em 1 s vira "sem tempo", uma por passo', async () => {
       vi.useFakeTimers()
       const supabase = {
-        from: () => ({ select: () => ({ order: () => ({ limit: () => new Promise(() => {}) }) }) }),
+        from: () => ({ select: () => ({ eq: () => ({ order: () => ({ limit: () => new Promise(() => {}) }) }) }) }),
       } as unknown as SupabaseClient
       const falhas: string[] = []
       const p = criterioDesligados({ supabase, falhas, relogio: criarRelogio() }, ['retencao', 'versoes'])
@@ -266,11 +267,20 @@ describe('A5 E6/E8 · criterioDesligados', () => {
     // Fora de ordem de propósito: a 5ª anterior (não desligada) vem primeiro; sem o `sort`, a sequência seria 0.
     const linhas = [execucao(5), execucao(1, ['retencao']), execucao(3, ['retencao']), execucao(2, ['retencao'])]
     const supabase = {
-      from: () => ({ select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: linhas, error: null }) }) }) }),
+      from: () => ({ select: () => ({ eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: linhas, error: null }) }) }) }) }),
     } as unknown as SupabaseClient
     const falhas: string[] = []
     const notas = await criterioDesligados({ supabase, falhas, relogio: criarRelogio() }, ['retencao'])
     expect(notas).toEqual([NOTA('retencao', 4)])
     expect(falhas).toEqual([])
+  })
+
+  it('F0-c: execuções parciais intercaladas não contam; o vermelho sai na 8ª completa, como hoje', async () => {
+    const completas = seguidas('retencao', 7)
+    const parciais = Array.from({ length: 7 }, (_, i) => ({ ran_at: new Date(Date.now() - (i + 0.5) * DIA_MS).toISOString(), escopo: 'parcial', resumo: {} }))
+    const db = fakeSupabase({ yt_own_collection_runs: [...completas, ...parciais] })
+    const { notas, falhas } = await rodar(db, ['retencao'])
+    expect(notas).toEqual([])
+    expect(falhas).toEqual([VERMELHO('retencao', 8)])
   })
 })

@@ -1228,3 +1228,44 @@ describe('passoMetadados: a cobertura (A5 E18 P2, Tarefa 3)', () => {
     expect(sem.rpcCalls.filter(c => c.name === 'yt_own_meta_cover')).toEqual([])
   })
 })
+
+describe('passoMetadados: canal sem vídeos (F0-b)', () => {
+  const vazio = { ...canal, id: 'ch-2', channel_id: 'UC2', name: 'Canal Vazio' }
+  const tentativasDoCanal = (db: FakeDb, id: string) =>
+    (db.tables.yt_own_collection_attempts ?? []).filter(r => r.scope_type === 'canal' && r.scope_id === id && r.kind === 'meta')
+
+  it('canal ativo com 0 vídeos: exatamente uma tentativa sem_videos, sem token e sem videos.list', async () => {
+    const db = fakeSupabase({ youtube_videos: [] })
+    const ctx: StepCtx = { ...ctxDe(db), channels: [{ ...vazio }] }
+    await passoMetadados(ctx)
+    expect(tentativasDoCanal(db, 'ch-2')).toEqual([expect.objectContaining({ scope_type: 'canal', scope_id: 'ch-2', kind: 'meta', outcome: 'sem_videos' })])
+    expect(ensureFreshToken).not.toHaveBeenCalled()
+    expect(videosList).not.toHaveBeenCalled()
+    expect(ctx.falhas).toEqual([])
+  })
+
+  it('canal com vídeos no mesmo lote segue com a tentativa de sempre; o vazio ganha sem_videos', async () => {
+    const db = fakeSupabase({ youtube_videos: [video(1)] })
+    const ctx: StepCtx = { ...ctxDe(db), channels: [{ ...canal }, { ...vazio }] }
+    await passoMetadados(ctx)
+    expect(tentativasDoCanal(db, 'ch-2').map(r => r.outcome)).toEqual(['sem_videos'])
+    expect(tentativasDoCanal(db, 'ch-1').map(r => r.outcome)).not.toContain('sem_videos')
+  })
+
+  it('canal desligado e sem vídeos: o meta recebe todos os canais e grava sem_videos (P-M1)', async () => {
+    const db = fakeSupabase({ youtube_videos: [] })
+    const ctx: StepCtx = { ...ctxDe(db), channels: [{ ...vazio, sync_enabled: false }] }
+    await passoMetadados(ctx)
+    expect(tentativasDoCanal(db, 'ch-2').map(r => r.outcome)).toEqual(['sem_videos'])
+  })
+
+  it('leitura no teto de 1.000: nenhum canal ganha sem_videos; o fora do lote fica nao_alcancado_orcamento (P4)', async () => {
+    const muitos = Array.from({ length: 1000 }, (_, i) => video(i + 1))
+    const db = fakeSupabase({ youtube_videos: muitos })
+    const ctx: StepCtx = { ...ctxDe(db), channels: [{ ...canal }, { ...vazio }] }
+    await passoMetadados(ctx)
+    const todas = db.tables.yt_own_collection_attempts ?? []
+    expect(todas.some(r => r.outcome === 'sem_videos')).toBe(false)
+    expect(tentativasDoCanal(db, 'ch-2').map(r => r.outcome)).toEqual(['nao_alcancado_orcamento'])
+  })
+})

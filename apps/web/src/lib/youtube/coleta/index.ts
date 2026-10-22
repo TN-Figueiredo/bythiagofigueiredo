@@ -11,6 +11,8 @@ import { registrarTentativa } from './attempts'
 import { voltarAOk } from './autorizacao'
 import { passoAlcance } from './alcance-step'
 import { TETOS_DE_FIM_MS, TETOS_MS, restante, type Relogio } from './clock'
+import { KINDS_DO_PASSO, type PassoParcial } from './passos-parciais'
+import { criterioConectadoDesligado } from './criteria-conectados'
 import { criterioJobsEmErro, criterioMetadados, criterioOrcamento, criteriosRelatorios } from './criteria'
 import { criterioDesligados } from './criteria-desligados'
 import { criterioCobertura } from './criteria-cobertura'
@@ -62,6 +64,11 @@ export interface ColetaCtx {
   negadosAntes?: string[]
   /** A5 E11: datas de partida de dimensões e normalizadores. Padrão: as constantes de `e11-config.ts`. */
   e11?: ConfigE11
+  /**
+   * F0-c: lista fechada de passos da execução parcial. Ausente = execução completa. Presente = só estes passos e os critérios
+   * que são deles; o resto (metadados, versões, diário, dimensões, retenção, L2, cobertura, E11, desligados) e a volta a `ok` não rodam.
+   */
+  passos?: ReadonlySet<PassoParcial>
 }
 
 export function ehMetadadosAntes(x: unknown): x is MetadadosAntes {
@@ -174,20 +181,24 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   }
 
   const ativos = channels.filter(c => c.sync_enabled)
+  /** Execução completa = sem `passos`. Só o completo roda os passos fora da lista parcial. */
+  const completo = !ctx.passos
+  const rodaParcial = (p: PassoParcial): boolean => !ctx.passos || ctx.passos.has(p)
 
   if (ctx.fase === 'antes') {
-    if (PASSOS_LIGADOS.metadados) {
+    if (completo && PASSOS_LIGADOS.metadados) {
       const r = await passo('metadados', TETOS_MS.metadados, 'meta', channels, passoMetadados)
       if (r) resumo.metadados = r
     }
     // A5 E18 T7: as versões do vídeo próprio, logo depois dos metadados (leem o que eles gravaram). `servidos` vazio de propósito: sem tempo o
     // passo não registra tentativa (o `kind` não é usado). Desligado por YT_OWN_STEPS_OFF: nada é chamado, e o nome entra em `desligados` na fase 'depois'.
-    if (passoDesligado('versoes')) resumo.versoes = { desligado: true }
+    if (!completo) { /* parcial: sem versões */ }
+    else if (passoDesligado('versoes')) resumo.versoes = { desligado: true }
     else {
       const r = await passo('versoes', TETO_VERSOES_MS, 'meta', [], c => passoVersoes({ ...c, ontem: ontemPt(new Date()) }))
       if (r) resumo.versoes = r
     }
-    if (PASSOS_LIGADOS.jobs) {
+    if (PASSOS_LIGADOS.jobs && rodaParcial('jobs')) {
       const r = await passo('jobs', TETOS_MS.jobs, 'sondagem', ativos, passoJobs)
       if (r) resumo.jobs = r
       // O critério lê só o banco (limitado): roda mesmo que o passo tenha falhado ou ficado sem tempo.
@@ -197,16 +208,28 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
         falhou('jobs', e)
       }
     }
+    // F0-b: canal conectado com a coleta desligada. É critério do passo `jobs`: roda na completa e na parcial com `jobs`.
+    let conectadosDesligados: string[] = []
+    if (rodaParcial('jobs')) {
+      try {
+        conectadosDesligados = await criterioConectadoDesligado({ supabase: ctx.supabase, falhas, channels })
+      } catch (e) {
+        falhou('conectados', e)
+      }
+    }
     let semVideos: string[] = []
-    try {
-      semVideos = await semVideosCadastrados()
-    } catch (e) {
-      falhou('canais', e)
+    if (completo) {
+      try {
+        semVideos = await semVideosCadastrados()
+      } catch (e) {
+        falhou('canais', e)
+      }
     }
     resumo.acao_do_dono = [...new Set([
       ...((resumo.jobs as Partial<JobsResumo> | undefined)?.acao_do_dono ?? []),
       ...emReautorizar().map(c => `${c.name}: reautorizar`),
       ...semVideos,
+      ...conectadosDesligados,
     ])]
     resumo.reautorizar = emReautorizar().map(c => c.id)
     resumo.autorizados = [...autorizados]
@@ -221,15 +244,18 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   // sem os downloads do dia no meio. Prazo próprio curto (guarda.ts); falha vira nota e a comparação usa o total do fim.
   const tAbertura = Date.now()
   let brutosAoAbrir: number | null = null
-  try {
-    brutosAoAbrir = await contarBrutosAoAbrir({ supabase: ctx.supabase, falhas })
-  } catch (e) {
-    falhou('guarda do bruto (abertura)', e)
-    pushUnico(falhas, 'relatórios: brutos não contados antes do passo de relatórios; a queda de hoje foi comparada só depois dos downloads')
+  const comRelatorios = PASSOS_LIGADOS.relatorios && rodaParcial('relatorios')
+  if (comRelatorios) {
+    try {
+      brutosAoAbrir = await contarBrutosAoAbrir({ supabase: ctx.supabase, falhas })
+    } catch (e) {
+      falhou('guarda do bruto (abertura)', e)
+      pushUnico(falhas, 'relatórios: brutos não contados antes do passo de relatórios; a queda de hoje foi comparada só depois dos downloads')
+    }
+    ms.guarda = Date.now() - tAbertura
   }
-  ms.guarda = Date.now() - tAbertura
   let relPasso: Record<string, unknown> | undefined
-  if (PASSOS_LIGADOS.relatorios) {
+  if (comRelatorios) {
     const r = await passo('relatorios', TETOS_MS.relatorios, 'relatorio', ativos, passoRelatorios)
     relPasso = r ? { ...r } : undefined
   }
@@ -238,14 +264,16 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   // tempo) ou lançou: por isso está aqui, fora do passo. Tem prazo próprio (guarda.ts). Falha da conferência nunca vira
   // "0 órfãos": vira nota, e o campo `guarda` fica ausente. Duas saídas de `executar` não chegam aqui, ambas já vermelhas:
   // a leitura de `youtube_channels` falha (return acima) e a rede de segurança de `rodarColeta` (executar lançou).
-  const tGuarda = Date.now()
-  try {
-    resumo.guarda = await conferirGuarda({ supabase: ctx.supabase, falhas, brutosAoAbrir })
-  } catch (e) {
-    falhou('guarda do bruto', e)
-    pushUnico(falhas, 'relatórios: guarda do bruto não conferida (a conferência lançou)')
-  } finally {
-    ms.guarda = (ms.guarda ?? 0) + (Date.now() - tGuarda)   // abertura + fim: a latência real, lida depois do envio (M-8)
+  if (comRelatorios) {
+    const tGuarda = Date.now()
+    try {
+      resumo.guarda = await conferirGuarda({ supabase: ctx.supabase, falhas, brutosAoAbrir })
+    } catch (e) {
+      falhou('guarda do bruto', e)
+      pushUnico(falhas, 'relatórios: guarda do bruto não conferida (a conferência lançou)')
+    } finally {
+      ms.guarda = (ms.guarda ?? 0) + (Date.now() - tGuarda)   // abertura + fim: a latência real, lida depois do envio (M-8)
+    }
   }
 
   // Alcance: normaliza o bruto que o passo de relatórios acabou de baixar. `servidos` vazio de propósito: sem tempo,
@@ -253,12 +281,12 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   // tentativa `ok` que o passo de relatórios gravou hoje. Sem tempo, o resumo sai `pendentes: 0` (são os `servidos`,
   // vazios) com `sem_tempo: true`: o `pendentes` não é o sinal. O que ficou por fazer só deixa o cron vermelho pelo
   // critério "baixado há mais de 2 dias sem normalizar", se durar.
-  if (PASSOS_LIGADOS.alcance) {
+  if (PASSOS_LIGADOS.alcance && rodaParcial('alcance')) {
     const r = await passo('alcance', TETOS_MS.alcance, 'relatorio', [], passoAlcance)
     if (r) resumo.alcance = r
   }
 
-  if (PASSOS_LIGADOS.relatorios) {
+  if (comRelatorios) {
     let rel = relPasso
     try {
       const c = await criteriosRelatorios({ supabase: ctx.supabase, falhas, channels })
@@ -274,7 +302,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     if (rel) resumo.relatorios = rel
   }
 
-  if (PASSOS_LIGADOS.diario) {
+  if (completo && PASSOS_LIGADOS.diario) {
     const r = await passo('diario', TETOS_MS.diario, 'diario', ativos, passoDiario)
     if (r) resumo.diario = r
   }
@@ -286,7 +314,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   const hojePt = dayPt(new Date())
   // Passos desligados por YT_OWN_STEPS_OFF nesta execução: é a lista que `criterioDesligados` recebe.
   const desligados: PassoComInterruptor[] = []
-  if (passoDesligado('dimensoes')) {
+  if (!completo) { /* parcial: sem dimensões */ } else if (passoDesligado('dimensoes')) {
     resumo.dimensoes = { desligado: true }
     desligados.push('dimensoes')
   } else {
@@ -295,15 +323,16 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   }
   // `servidos` vazio, como o alcance: o passo grava as próprias tentativas por tipo (uma `nao_alcancado_orcamento` aqui
   // sobrescreveria a `ok` que ele gravou).
-  if (passoDesligado('normalizadores')) {
+  // Parcial: o interruptor YT_OWN_STEPS_OFF segura o passo, mas só a execução completa conta `desligados` (a sequência de dias).
+  if (completo && passoDesligado('normalizadores')) {
     resumo.normalizadores = { desligado: true }
     desligados.push('normalizadores')
-  } else {
+  } else if (rodaParcial('normalizadores') && !passoDesligado('normalizadores')) {
     const r = await passo('normalizadores', TETOS_DE_FIM_MS.normalizadores, 'normalizador_trafego', [], passoNormalizadores)
     if (r) resumo.normalizadores = r
   }
 
-  if (PASSOS_LIGADOS.alcance || PASSOS_LIGADOS.diario) {
+  if (completo && (PASSOS_LIGADOS.alcance || PASSOS_LIGADOS.diario)) {
     try {
       await criteriosL2({ supabase: ctx.supabase, falhas, channels })
     } catch (e) {
@@ -315,7 +344,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   // tal dia" é a cobertura. O critério roda mesmo se o passo do diário lançou ou ficou sem tempo (é ele que enxerga o atraso). Vídeo
   // atrasado deixa o cron vermelho (nota em `falhas`, escrita pelo próprio critério); o que o YouTube comprovadamente não devolve mais
   // volta em `acaoDoDono` e vai para a lista do dono, nunca para `falhas`. Se lançar, a nota é vermelha: nunca engolida.
-  if (PASSOS_LIGADOS.diario) {
+  if (completo && PASSOS_LIGADOS.diario) {
     try {
       const { acaoDoDono } = await criterioCobertura({ supabase: ctx.supabase, channels, falhas, relogio: ctx.relogio })
       if (acaoDoDono.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...acaoDoDono])]
@@ -327,7 +356,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   // Critérios da E11 DEPOIS dos dois passos: a prova mede o que eles acabaram de gravar. Sem canal ligado não há site para
   // provar (o critério daria "nenhum site" vermelho para sempre). Se lançar, a nota é vermelha: nunca engolida.
   const sitesE11 = [...new Set(ativos.map(c => c.site_id))]
-  if (sitesE11.length > 0) {
+  if (completo && sitesE11.length > 0) {
     try {
       const c = await criteriosE11({
         supabase: ctx.supabase, falhas, hoje: hojePt, e11, sites: sitesE11,
@@ -343,7 +372,7 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
   // critério dela roda DEPOIS, mesmo que o passo tenha lançado ou ficado sem tempo (é ele que dá a nota de "sem tempo"). Desligada
   // por YT_OWN_STEPS_OFF: nada é chamado, o critério não é avaliado, e o nome entra em `desligados`. As notas de vídeo que o YouTube
   // não devolve são `acao_do_dono` (nunca `falhas`: o vermelho delas é o do passo, depois de dias).
-  if (passoDesligado('retencao')) {
+  if (!completo) { /* parcial: sem retenção */ } else if (passoDesligado('retencao')) {
     resumo.retencao = { desligado: true }
     desligados.push('retencao')
   } else {
@@ -359,19 +388,21 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     if (notasRetencao.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...notasRetencao])]
   }
 
-  if (passoDesligado('versoes')) desligados.push('versoes')
+  if (completo && passoDesligado('versoes')) desligados.push('versoes')
 
   // Passo desligado nunca some: até a 7ª execução seguida é nota em `acao_do_dono`; da 8ª em diante o critério põe o vermelho.
-  const nomesRuins = notaNomesDesconhecidos()
-  if (nomesRuins) pushUnico(falhas, nomesRuins)
-  try {
-    const notas = await criterioDesligados({ supabase: ctx.supabase, falhas, relogio: ctx.relogio }, desligados)
-    if (notas.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...notas])]
-  } catch (e) {
-    falhou('critérios de passos desligados', e)
+  if (completo) {
+    const nomesRuins = notaNomesDesconhecidos()
+    if (nomesRuins) pushUnico(falhas, nomesRuins)
+    try {
+      const notas = await criterioDesligados({ supabase: ctx.supabase, falhas, relogio: ctx.relogio }, desligados)
+      if (notas.length > 0) resumo.acao_do_dono = [...new Set([...((resumo.acao_do_dono as string[] | undefined) ?? []), ...notas])]
+    } catch (e) {
+      falhou('critérios de passos desligados', e)
+    }
   }
 
-  if (PASSOS_LIGADOS.metadados) {
+  if (completo && PASSOS_LIGADOS.metadados) {
     // Sem o resultado do 'antes', o dia é o de ontem no Pacífico e dias_sem_meta vai vazio: todo canal "desconhecido".
     const meta: MetadadosAntes = ehMetadadosAntes(ctx.metadadosAntes)
       ? ctx.metadadosAntes
@@ -384,15 +415,20 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     }
   }
 
+  // Parcial: só os kinds dos passos listados que rodaram (Yannis M1); os do diário e das dimensões só o completo grava.
+  const kindsDaParcial: AttemptKind[] = ctx.passos
+    ? [...ctx.passos].filter(p => p !== 'normalizadores' || !passoDesligado('normalizadores')).flatMap(p => [...KINDS_DO_PASSO[p]])
+    : []
   try {
-    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario', 'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim', 'retencao_vida', 'retencao_7d', 'retencao_30d'])
+    await criterioOrcamento({ supabase: ctx.supabase, falhas }, ctx.passos ? [...new Set(kindsDaParcial)] : ['meta', 'thumbnail', 'sondagem', 'relatorio', 'diario', 'dimensoes', 'normalizador_trafego', 'normalizador_alcance_dim', 'retencao_vida', 'retencao_7d', 'retencao_30d'])
   } catch (e) {
     falhou('orçamento', e)
   }
   // A volta a `ok` acontece UMA vez, aqui, no fim da execução: o canal precisa de uma chamada autenticada que passou
   // (fase 'antes', parte antiga ou esta fase) e de NENHUMA negada. Decidir a cada chamada fazia o canal ser marcado e
   // desmarcado no mesmo dia. Esta fase releu os canais: enxerga o que a parte antiga da rota marcou.
-  for (const c of channels) {
+  // Parcial: não devolve (Phil P6): ela só vê a Reporting e poderia desfazer a marca da Analytics, oscilando duas vezes ao dia.
+  for (const c of completo ? channels : []) {
     if (c.collection_status !== 'reautorizar' || !autorizados.has(c.id) || negados.has(c.id)) continue
     try {
       await voltarAOk(base, c)
@@ -407,20 +443,23 @@ async function executar(ctx: ColetaCtx, falhas: string[], resumo: Record<string,
     ...emReautorizar().map(c => `${c.name}: reautorizar`),
   ])]
   resumo.reautorizar = emReautorizar().map(c => c.id)
+  // Só na execução completa (F0-c): o veredito da parcial depende só dos passos dela.
   // Item 246: conferência com data vencida e sem `feitaEm` aparece em toda execução, com o nome. Até 7 dias de atraso fica só
   // no resumo; com 8 dias ou mais entra em `falhas` e o cron fica vermelho, até alguém preencher `feitaEm` (decisão do
   // controlador, 12/10/2026). Lista vazia = nenhuma vencida; campo ausente = não avaliado (a fase 'antes', ou uma das saídas antecipadas
   // de `rodarColeta`, ou o bloco abaixo lançou: nesse caso há a nota 'conferências: ...'). A nota abaixo é SEMPRE a última de `falhas`
   // (um teste trava a ordem): ela mascara o aviso do vigia e as falhas reais têm de vir na frente dela.
-  try {
-    const hoje = hojeSP()
-    resumo.conferencias_vencidas = conferenciasVencidas(hoje, CONFERENCIAS).map(c => `${c.id} (${c.etapa}, ${c.data}, ${c.responsavel})`)
-    const emFalha = conferenciasEmFalha(hoje, CONFERENCIAS)
-    if (emFalha.length > 0) {
-      pushUnico(falhas, `conferências vencidas há mais de ${DIAS_ATE_O_VERMELHO} dias: ${emFalha.length} (${emFalha.map(c => `${c.id}, devida em ${c.data}`).join('; ')}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 6, "Conferências com data")`)
+  if (completo) {
+    try {
+      const hoje = hojeSP()
+      resumo.conferencias_vencidas = conferenciasVencidas(hoje, CONFERENCIAS).map(c => `${c.id} (${c.etapa}, ${c.data}, ${c.responsavel})`)
+      const emFalha = conferenciasEmFalha(hoje, CONFERENCIAS)
+      if (emFalha.length > 0) {
+        pushUnico(falhas, `conferências vencidas há mais de ${DIAS_ATE_O_VERMELHO} dias: ${emFalha.length} (${emFalha.map(c => `${c.id}, devida em ${c.data}`).join('; ')}): faça a conferência, anote no ledger e preencha feitaEm em apps/web/src/lib/conferencias.ts (runbook da coleta, seção 6, "Conferências com data")`)
+      }
+    } catch (e) {
+      falhou('conferências', e)
     }
-  } catch (e) {
-    falhou('conferências', e)
   }
   // Milissegundos que a cauda gastou depois dos 270 s do relógio (a conferência `e8-tempo-real` lê isto); a rota junta toda chave
   // numérica de `resumo.ms` em `ms_passos`. Lido por último: é o fim da fase 'depois'.

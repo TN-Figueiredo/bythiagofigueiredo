@@ -12,14 +12,15 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const chamada = (f: ReturnType<typeof vi.fn>, i: number) => f.mock.calls[i] as unknown as [string, RequestInit | undefined]
 
 describe('constantes', () => {
-  it('E12: 13 tipos de canal; os 4 de sempre na frente, depois os 9 que só guardam bruto', () => {
+  it('C6: 19 tipos; os 4 de sempre na frente, os 9 da E12 e os 6 de playlist que só guardam bruto', () => {
     const ANTIGOS = ['channel_reach_basic_a1', 'channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3']
     const NOVOS = [
       'channel_combined_a3', 'channel_device_os_a3', 'channel_playback_location_a3', 'channel_province_a3', 'channel_demographics_a1',
       'channel_subtitles_a3', 'channel_cards_a1', 'channel_end_screens_a1', 'channel_sharing_service_a1',
+      'playlist_basic_a2', 'playlist_traffic_source_a2', 'playlist_playback_location_a2', 'playlist_combined_a2', 'playlist_province_a2', 'playlist_device_os_a2',
     ]
     expect([...REPORT_TYPES_ENABLED]).toEqual([...ANTIGOS, ...NOVOS])
-    expect(new Set(REPORT_TYPES_ENABLED).size).toBe(13)
+    expect(new Set(REPORT_TYPES_ENABLED).size).toBe(19)
     expect([...REACH_TYPES]).toEqual(['channel_reach_basic_a1', 'channel_reach_combined_a1'])
     // A5 E11: os dois tipos de E11 também têm normalizador (origem de tráfego com detalhe; alcance por origem, aparelho e sistema).
     expect(SEM_NORMALIZADOR).toEqual([...ANTIGOS, ...NOVOS].filter(t => !['channel_reach_basic_a1', 'channel_traffic_source_a3', 'channel_reach_combined_a1'].includes(t)))
@@ -29,8 +30,8 @@ describe('constantes', () => {
     expect(REPORTING_BASE).toBe('https://youtubereporting.googleapis.com/v1')
   })
 
-  it('E12: fora da lista ficam anotações (recurso extinto) e todos os tipos de playlist', () => {
-    for (const t of REPORT_TYPES_ENABLED) expect(t).toMatch(/^channel_[a-z_]+_a\d$/)
+  it('C6: fora da lista fica anotações (recurso extinto); os de playlist entraram', () => {
+    for (const t of REPORT_TYPES_ENABLED) expect(t).toMatch(/^(channel|playlist)_[a-z_]+_a\d$/)
     expect(REPORT_TYPES_ENABLED as readonly string[]).not.toContain('channel_annotations_a1')
   })
 })

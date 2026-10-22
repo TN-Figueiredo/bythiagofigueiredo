@@ -10,6 +10,7 @@ import { channelNote, describeCronCause, joinNotes, describeHttpCause } from '@/
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import { ehMetadadosAntes, rodarColeta, type MetadadosAntes } from '@/lib/youtube/coleta'
 import { criarRelogio, FETCH_TIMEOUT_MS, restante, type Relogio } from '@/lib/youtube/coleta/clock'
+import { parsePassos, type PassoParcial } from '@/lib/youtube/coleta/passos-parciais'
 import { conferirBanco, ehSchemaAusente, pushUnico } from '@/lib/youtube/coleta/schema'
 import type { Json } from '@/types/database.types'
 import * as Sentry from '@sentry/nextjs'
@@ -323,6 +324,7 @@ async function coletar(
   fase: 'antes' | 'depois',
   falhas: string[],
   antes: { metadadosAntes?: MetadadosAntes; autorizadosAntes?: string[]; negadosAntes?: string[] } = {},
+  passos?: ReadonlySet<PassoParcial>,
 ): Promise<Record<string, unknown>> {
   try {
     const { metadadosAntes, autorizadosAntes, negadosAntes } = antes
@@ -331,6 +333,7 @@ async function coletar(
       ...(metadadosAntes && { metadadosAntes }),
       ...(autorizadosAntes && { autorizadosAntes }),
       ...(negadosAntes && { negadosAntes }),
+      ...(passos && { passos }),
     })
     for (const f of r.falhas) pushUnico(falhas, f)
     return r.resumo ?? {}
@@ -356,11 +359,25 @@ function separarAcaoDoDono(resumo: Record<string, unknown>): { resto: Record<str
   return { resto, acao: Array.isArray(acao) ? acao : [] }
 }
 
+const NOME_PARCIAL = 'sync-analytics-metrics-parcial'
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // F0-c: `?passos=` liga o modo parcial. Valor inválido ou repetido nunca vira silêncio: 400 e falha sob o nome parcial.
+  const todos = new URL(req.url).searchParams.getAll('passos')
+  const analise = todos.length > 1
+    ? ({ ok: false, motivo: `passos inválidos: ${todos.join(',').slice(0, 80)}` } as const)
+    : parsePassos(todos.length === 1 ? todos[0]! : null)
+  if (!analise.ok) {
+    await recordCronFailure(NOME_PARCIAL, analise.motivo)
+    return NextResponse.json({ error: analise.motivo }, { status: 400 })
+  }
+  const passos = analise.passos ?? undefined
+  const nomeCron = passos ? NOME_PARCIAL : 'sync-analytics-metrics'
 
   // Um relógio só para o pedido inteiro: é o mesmo objeto nas duas fases da coleta e na parte antiga.
   const relogio = criarRelogio()
@@ -372,10 +389,14 @@ export async function GET(req: NextRequest) {
 
   let lista: ChannelRow[] = []
   let channelsError: { code?: string | null; message?: string | null } | null
-  const comColuna = await supabase
-    .from('youtube_channels')
-    .select('id, channel_id, site_id, subscriber_count, name, collection_status')
-    .eq('sync_enabled', true)
+  channelsError = null
+  // Na parcial a rota não lê os canais: só a parteAntiga os usa e a coleta lê por conta própria.
+  const comColuna = passos
+    ? { data: null, error: null }
+    : await supabase
+        .from('youtube_channels')
+        .select('id, channel_id, site_id, subscriber_count, name, collection_status')
+        .eq('sync_enabled', true)
   channelsError = comColuna.error
   if (!comColuna.error) {
     lista = comColuna.data ?? []
@@ -401,11 +422,11 @@ export async function GET(req: NextRequest) {
   if (channelsError) {
     Sentry.captureMessage(`sync-analytics-metrics: channels query failed: ${channelsError.message}`)
     // O texto do Postgres fica só no Sentry (acima); a nota gravada e a resposta são legíveis e sem ele.
-    await recordCronFailure('sync-analytics-metrics', 'database error listing the YouTube channels')
+    await recordCronFailure(nomeCron, 'database error listing the YouTube channels')
     return NextResponse.json({ error: 'channels query failed' }, { status: 500 })
   }
 
-  const coletaAntes = await coletar(supabase, relogio, 'antes', falhas)
+  const coletaAntes = await coletar(supabase, relogio, 'antes', falhas, {}, passos)
 
   // Com a leitura da rota vazia a parte antiga não tem o que fazer, mas a coleta roda igual: ela lê
   // todos os canais por conta própria (o passo de metadados não depende de sync_enabled).
@@ -442,7 +463,7 @@ export async function GET(req: NextRequest) {
     ...(metadadosAntes && { metadadosAntes }),
     autorizadosAntes: [...conjuntos.autorizados],
     negadosAntes: [...conjuntos.negados],
-  })
+  }, passos)
 
   const antes = separarAcaoDoDono(coletaAntes)
   const depois = separarAcaoDoDono(coletaDepois)
@@ -459,11 +480,21 @@ export async function GET(req: NextRequest) {
   const acaoDoDono = [...new Set([...acaoAntes, ...depois.acao])].filter((x): x is string => typeof x === 'string')
   const resumoColeta = { ...antes.resto, ...depois.resto, ms: msPassos }
 
+  // Phil P2b: a parcial existe para baixar relatórios; ela rodar e não baixar nada com fila é vermelho, não verde.
+  if (passos) {
+    const rel = (depois.resto.relatorios ?? antes.resto.relatorios) as { gravados?: unknown; pendentes?: unknown } | undefined
+    // `gravados` = baixados + vazios (relatório vazio é baixado, só sem linhas); `baixados` conta só os com linhas.
+    // Saída sem tempo vem sem `gravados` e com `pendentes` = canais: também é "rodou e não fez nada".
+    if (rel && typeof rel.pendentes === 'number' && rel.pendentes > 0 && !(typeof rel.gravados === 'number' && rel.gravados > 0)) {
+      pushUnico(falhas, `relatórios: a parcial não gravou nenhum relatório com ${rel.pendentes} pendente(s)`)
+    }
+  }
+
   // A execução fica gravada: o resumo (tempos por passo, ação do dono, perdidos, vazios) só existia nesta resposta,
   // que ninguém guarda. Vem ANTES do veredito para a falha da própria gravação aparecer nele.
   try {
     // `resumo` e `ms_passos` são Json no banco; o resumo é só dados, então a ida e volta por JSON é segura.
-    const resumoJson: Json = JSON.parse(JSON.stringify(resumoColeta))
+    const resumoJson: Json = JSON.parse(JSON.stringify(passos ? { ...resumoColeta, passos: [...passos] } : resumoColeta))
     const msPassosJson: Json = JSON.parse(JSON.stringify(msPassos))
     const gravou = await supabase.from('yt_own_collection_runs').insert({
       ms_total: relogio.decorrido(),
@@ -472,6 +503,7 @@ export async function GET(req: NextRequest) {
       falhas,
       acao_do_dono: acaoDoDono,
       resumo: resumoJson,
+      escopo: passos ? 'parcial' : 'completo',
     })
     if (conferirBanco(gravou, 'yt_own_collection_runs', falhas) === 'ok') {
       const limpou = await supabase
@@ -492,7 +524,9 @@ export async function GET(req: NextRequest) {
     acao_do_dono: acaoDoDono,
     ...(falhas.length > 0 && { falhas }),
   }
-  const corpo = lista.length === 0
+  const corpo = passos
+    ? { status: 'parcial', passos: [...passos], ...extras }
+    : lista.length === 0
     ? { status: 'no_channels', ...extras }
     : {
         synced: antiga?.synced ?? 0,
@@ -506,9 +540,9 @@ export async function GET(req: NextRequest) {
 
   // Veredito único: nenhum passo chama recordCron* por conta própria.
   if (falhas.length > 0) {
-    await recordCronFailure('sync-analytics-metrics', joinNotes(falhas))
+    await recordCronFailure(nomeCron, joinNotes(falhas))
   } else {
-    await recordCronSuccess('sync-analytics-metrics')
+    await recordCronSuccess(nomeCron)
   }
   return NextResponse.json(corpo)
 }

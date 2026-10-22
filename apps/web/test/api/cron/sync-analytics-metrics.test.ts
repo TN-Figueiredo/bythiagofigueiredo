@@ -92,11 +92,11 @@ function makeRequest(auth?: string): NextRequest {
   } else {
     headers.set('authorization', `Bearer ${CRON_SECRET}`)
   }
-  return { headers } as unknown as NextRequest
+  return { headers, url: 'http://localhost/api/cron/sync-analytics-metrics' } as unknown as NextRequest
 }
 
 function noAuthRequest(): NextRequest {
-  return { headers: new Headers() } as unknown as NextRequest
+  return { headers: new Headers(), url: 'http://localhost/api/cron/sync-analytics-metrics' } as unknown as NextRequest
 }
 
 function channelsQuery(data: unknown[] | null) {

@@ -419,7 +419,7 @@ async function lerFilaPendente(ctx: StepCtx, idsDosCanais: string[]): Promise<Fi
   return { resposta: ultima, linhas, total, cortada }
 }
 
-/** Relatórios gravados por dia, média de 3 dias (janela de 3 dias + 6 h: o cron roda 1x/dia e os downloads de D-3 caem
+/** Relatórios gravados por dia, média de 3 dias (janela de 3 dias + 6 h: o cron roda 2x/dia (00:07 e 12:00 UTC; a folga de 6 h cobre a das 12:00 de D-3) e os downloads de D-3 caem
  * minutos antes de `agora − 72 h`). null = leitura falhou (não vira zero). */
 async function vazaoDiaria(ctx: StepCtx, idsDosCanais: string[]): Promise<number | null> {
   const r = await ctx.supabase

@@ -258,7 +258,7 @@ describe('passoRelatorios: baixar', () => {
 
   it('o teto de downloads cabe no teto de tempo do passo, pela medida de produção: mexer num exige refazer a conta', () => {
     const MS_POR_DOWNLOAD = 900   // pior medida: 36,0 s para listar 8 jobs e baixar 40 (execução de 11/10/2026)
-    const MS_LISTAGEM = 20_000    // reserva para listar 26 jobs, 4 em paralelo
+    const MS_LISTAGEM = 20_000    // reserva para listar 38 jobs (19 tipos x 2 canais), 4 em paralelo; D+1: conferir ms_listar <= 20000
     expect(MAX_DOWNLOADS * MS_POR_DOWNLOAD + MS_LISTAGEM).toBeLessThanOrEqual(TETOS_MS.relatorios)
   })
 
@@ -270,7 +270,7 @@ describe('passoRelatorios: baixar', () => {
     const db = bancoComPurge({
       yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
       yt_reporting_reports: [
-        listado('trafego-corrente', { report_type_id: 'channel_traffic_source_a3', create_time: ha(20) }),               // vence em 40 dias
+        listado('trafego-corrente', { report_type_id: 'channel_device_os_a3', create_time: ha(20) }),               // vence em 40 dias
         listado('basic-historico', { report_type_id: 'channel_basic_a3', create_time: ha(10), is_backfill: true }),      // vence em 20 dias
         listado('alcance-novo', { create_time: ha(1) }),                                                                  // vence em 59 dias
         listado('basic-quase-vencendo', { report_type_id: 'channel_basic_a3', create_time: ha(24), is_backfill: true }), // vence em 6 dias
@@ -284,7 +284,7 @@ describe('passoRelatorios: baixar', () => {
 
   it('fila maior que o teto: o que vence primeiro entra, mesmo criado por último e de tipo de menor prioridade; fica para trás o que vence por último', async () => {
     const correntes = Array.from({ length: MAX_DOWNLOADS }, (_, i) =>
-      listado(`corrente-${i}`, { report_type_id: 'channel_traffic_source_a3', create_time: new Date(AGORA.getTime() - 5 * DIA_MS + i * 1000).toISOString() }))
+      listado(`corrente-${i}`, { report_type_id: 'channel_device_os_a3', create_time: new Date(AGORA.getTime() - 5 * DIA_MS + i * 1000).toISOString() }))
     const db = bancoComPurge({
       yt_reporting_jobs: [jobRow('channel_reach_basic_a1')],
       yt_reporting_reports: [...correntes, listado('historico', { report_type_id: 'channel_basic_a3', create_time: ha(2), is_backfill: true })],
@@ -945,9 +945,9 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
     const NOTA_CORTE = /^relatórios: fila de download cortada em \d+ relatórios/
     const pendentesDe = (n: number, extra: (i: number) => Row = () => ({})): Row[] =>
       Array.from({ length: n }, (_, i) => listado(`r-${String(i).padStart(5, '0')}`, {
-        report_type_id: 'channel_traffic_source_a3', create_time: new Date(AGORA.getTime() - 40 * DIA_MS + i * 1000).toISOString(), ...extra(i),
+        report_type_id: 'channel_device_os_a3', create_time: new Date(AGORA.getTime() - 40 * DIA_MS + i * 1000).toISOString(), ...extra(i),
       }))
-    const banco = (linhas: Row[]) => bancoComPurge({ yt_reporting_jobs: [jobRow('channel_traffic_source_a3')], yt_reporting_reports: linhas })
+    const banco = (linhas: Row[]) => bancoComPurge({ yt_reporting_jobs: [jobRow('channel_device_os_a3')], yt_reporting_reports: linhas })
 
     it('mais de 1000 pendentes: um histórico (30 dias) criado DEPOIS de 1200 correntes (60 dias) que vence antes é baixado primeiro, não cortado', async () => {
       // 1200 correntes criados há 40 dias vencem em ~20 dias; o histórico criado há 20 dias vence em 10. Por create_time ele é o 1201º.
@@ -978,10 +978,10 @@ describe('passoRelatorios: E12, perda nunca fica em verde', () => {
       // os baixa primeiro. Sem o desempate o Postgres devolve os empates em ordem arbitrária a cada consulta (o banco em
       // memória, com embaralharEmpates, faz o mesmo): as páginas se sobrepõem, linhas somem, e nem todos os 100 chegam.
       const t = ha(40)
-      const comuns = Array.from({ length: 1400 }, (_, i) => listado(`r-${String(i).padStart(5, '0')}`, { report_type_id: 'channel_traffic_source_a3', create_time: t }))
+      const comuns = Array.from({ length: 1400 }, (_, i) => listado(`r-${String(i).padStart(5, '0')}`, { report_type_id: 'channel_device_os_a3', create_time: t }))
       const alcance = Array.from({ length: 100 }, (_, i) => listado(`z-${String(i).padStart(3, '0')}`, { create_time: t }))
       const db = bancoComPurge({
-        yt_reporting_jobs: [jobRow('channel_traffic_source_a3'), jobRow('channel_reach_basic_a1')],
+        yt_reporting_jobs: [jobRow('channel_device_os_a3'), jobRow('channel_reach_basic_a1')],
         yt_reporting_reports: [...comuns, ...alcance],
       })
       db.embaralharEmpates = true

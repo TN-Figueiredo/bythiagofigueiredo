@@ -6,7 +6,7 @@
  * A ORDEM só desempata a fila de download (quem manda é o vencimento: coleta/fila-relatorios.ts).
  * Os 9 depois de `channel_basic_a3` entraram na E12 da A5 e só guardam o bruto (sem normalizador, sem tela).
  * Ids como o YouTube os ofereceu aos dois canais em 12/10/2026 (linhas `desativado` de yt_reporting_jobs).
- * Fora de propósito: `channel_annotations_a1` (recurso extinto) e os tipos `playlist_*`.
+ * Os 6 `playlist_*_a2` entraram na C6 da F0 das sugestões (só bruto). Fora de propósito: `channel_annotations_a1` (recurso extinto).
  */
 export const REPORT_TYPES_ENABLED = [
   'channel_reach_basic_a1',
@@ -22,13 +22,20 @@ export const REPORT_TYPES_ENABLED = [
   'channel_cards_a1',
   'channel_end_screens_a1',
   'channel_sharing_service_a1',
+  // C6 (sugestões F0): playlists só guardam bruto, sem normalizador (entram em SEM_NORMALIZADOR pelo filtro).
+  'playlist_basic_a2',
+  'playlist_traffic_source_a2',
+  'playlist_playback_location_a2',
+  'playlist_combined_a2',
+  'playlist_province_a2',
+  'playlist_device_os_a2',
 ] as const
 export type ReportTypeId = (typeof REPORT_TYPES_ENABLED)[number]
 
 /** "Relatório de alcance" nos critérios da seção 9 do spec. */
 export const REACH_TYPES = ['channel_reach_basic_a1', 'channel_reach_combined_a1'] as const
 
-/** Tipos sem normalizador neste spec: o bruto é apagado 180 dias depois do download. (A5 E11: os dois tipos de E11 têm normalizador e ficam fora.) */
+/** Tipos sem normalizador: só o bruto comprimido, guardado sem prazo (D17; a limpeza devolve 0 desde a MG13 e só a MG6 apaga, e só lote confirmado no NAS). (A5 E11: os dois tipos de E11 têm normalizador e ficam fora.) */
 export const SEM_NORMALIZADOR: string[] = REPORT_TYPES_ENABLED.filter(t => !['channel_reach_basic_a1', 'channel_traffic_source_a3', 'channel_reach_combined_a1'].includes(t))
 
 export interface ReportType {

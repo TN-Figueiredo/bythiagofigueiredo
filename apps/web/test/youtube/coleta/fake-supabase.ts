@@ -240,7 +240,7 @@ class Consulta implements PromiseLike<Resposta> {
 }
 
 const SCOPES = ['video', 'canal', 'job']
-const OUTCOMES_OK = ['ok', 'sem_dado_na_janela', 'video_novo', 'sem_conexao', 'sem_autorizacao', 'erro_http', 'nao_alcancado_orcamento', 'schema_ausente']
+const OUTCOMES_OK = ['ok', 'sem_dado_na_janela', 'video_novo', 'sem_conexao', 'sem_autorizacao', 'erro_http', 'nao_alcancado_orcamento', 'schema_ausente', 'sem_videos']
 
 export function fakeSupabase(
   seed: Record<string, Row[]> = {},

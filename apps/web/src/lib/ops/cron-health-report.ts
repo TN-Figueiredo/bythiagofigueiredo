@@ -50,6 +50,11 @@ export function resolveCronName(rawPath: string): string {
     if (mode === 'competitors') return 'sync-youtube-competitors'
     return 'sync-youtube' // schedule | catchall | metrics | sem mode
   }
+  if (base === 'sync-analytics-metrics') {
+    // F0-c: a entrada com `?passos=` (parcial das 00:07 UTC) grava `sync-analytics-metrics-parcial`, veredito próprio.
+    // Sem a linha no vercel.json a chave some e o vigia para de avaliá-la.
+    if (new URLSearchParams(query ?? '').has('passos')) return 'sync-analytics-metrics-parcial'
+  }
   return base
 }
 

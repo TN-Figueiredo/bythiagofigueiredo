@@ -106,7 +106,11 @@ export async function passoDiario(ctx: StepCtx): Promise<DiarioResumo> {
   for (let i = 0; i < canais.length; i++) {
     const c = canais[i]!
     const videos = videosDe(c)
-    if (videos.length === 0) continue
+    if (videos.length === 0) {
+      // Leitura no teto: "sem vídeo" seria palpite, o canal fica fora do lote (orçamento).
+      await registrarTentativa(ctx, { ...tCanal(c), outcome: todos.length >= LIMITE_VIDEOS ? 'nao_alcancado_orcamento' : 'sem_videos' })
+      continue
+    }
 
     let token: string | null
     try {

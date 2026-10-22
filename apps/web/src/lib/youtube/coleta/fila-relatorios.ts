@@ -32,7 +32,10 @@ export function registroDeVencimento(p: { expired_at?: string | null }): Registr
   return Number.isNaN(t) ? { tipo: 'sem_registro' } : { tipo: 'origem', em: new Date(t).toISOString() }
 }
 
-const ALCANCE: readonly string[] = REACH_TYPES
+/** Faixa 1 (F0-a, spec §2.1): alcance mais o detalhe da origem do tráfego. O `traffic_source` alimenta as telas e, na faixa 2,
+ *  ficava atrás do histórico dos outros tipos que vence antes; a faixa 1 o põe na frente sem mudar a regra interna da faixa.
+ *  `criteria.ts` continua com REACH_TYPES (o critério de alcance não muda). */
+export const FAIXA_1: readonly string[] = [...REACH_TYPES, 'channel_traffic_source_a3']
 const TIPOS: readonly string[] = REPORT_TYPES_ENABLED
 
 /** Texto ilegível vira 0 (o mais antigo possível): dado ruim vai para a FRENTE da fila, nunca para o fim. */
@@ -48,8 +51,8 @@ export function venceEm(p: ItemDaFila): number {
 }
 
 /**
- * Três faixas: (0) vence em até URGENTE_DIAS, de qualquer tipo; (1) alcance, que é o que as telas leem e nunca passa
- * de poucos por dia; (2) o resto. Dentro da faixa: vencimento crescente, depois a posição do tipo, depois a criação.
+ * Três faixas: (0) vence em até URGENTE_DIAS, de qualquer tipo; (1) FAIXA_1 (alcance e detalhe da origem), que é o que as telas leem e passa
+ * de poucos por dia só enquanto há histórico do tráfego a baixar; (2) o resto. Dentro da faixa: vencimento crescente, depois a posição do tipo, depois a criação.
  */
 export function ordenarFila<T extends ItemDaFila>(fila: readonly T[], agora: number): T[] {
   const prioridade = (tipo: string): number => {
@@ -57,7 +60,7 @@ export function ordenarFila<T extends ItemDaFila>(fila: readonly T[], agora: num
     return i === -1 ? TIPOS.length : i
   }
   const faixa = (p: T): number =>
-    venceEm(p) - agora <= URGENTE_DIAS * DIA_MS ? 0 : ALCANCE.includes(p.report_type_id) ? 1 : 2
+    venceEm(p) - agora <= URGENTE_DIAS * DIA_MS ? 0 : FAIXA_1.includes(p.report_type_id) ? 1 : 2
   return [...fila].sort((a, b) =>
     faixa(a) - faixa(b)
     || venceEm(a) - venceEm(b)

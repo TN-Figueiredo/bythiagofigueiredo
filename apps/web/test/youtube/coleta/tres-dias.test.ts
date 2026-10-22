@@ -286,7 +286,10 @@ describe('três dias seguidos, passos e critérios de verdade', () => {
     expect(porStatus(db, SEM_VIDEO.id, 'vazio')).toBe((TOTAL_HISTORICO + N_JOBS) / 2)
     // Uma linha de metadados por vídeo por dia, nos três dias; nenhuma tentativa diferente de ok em dia nenhum.
     expect(db.tables.yt_own_video_meta_daily).toHaveLength(9)
-    expect((db.tables.yt_own_collection_attempts ?? []).filter(t => t.outcome !== 'ok')).toEqual([])
+    // A única exceção é o canal sem vídeo, que ganha `sem_videos` em meta e diário (F0-b): 2 kinds x 3 dias, nunca falha.
+    const naoOk = (db.tables.yt_own_collection_attempts ?? []).filter(t => t.outcome !== 'ok')
+    expect(naoOk.filter(t => !(t.outcome === 'sem_videos' && t.scope_type === 'canal' && t.scope_id === SEM_VIDEO.id))).toEqual([])
+    expect(naoOk).toHaveLength(6)
     expect(fanOutToSiteAdmins).not.toHaveBeenCalled()
   })
 
@@ -659,6 +662,7 @@ describe('E11 no cron, passos e critérios de verdade', () => {
     const db2 = banco(VIDEOS_ANTIGOS)
     db2.tables.yt_own_collection_runs = Array.from({ length: 7 }, (_, i) => ({
       ran_at: new Date(DIA_1.getTime() - (i + 1) * 3_600_000).toISOString(),
+      escopo: 'completo',
       resumo: { dimensoes: { desligado: true }, normalizadores: { desligado: true } },
     }))
     const d = await rodarDia(db2, DIA_1)
@@ -759,6 +763,7 @@ describe('E8 no cron, passo e critério de verdade', () => {
     const db = banco(VIDEOS_ANTIGOS)
     db.tables.yt_own_collection_runs = Array.from({ length: 7 }, (_, i) => ({
       ran_at: new Date(DIA_1.getTime() - (i + 1) * 3_600_000).toISOString(),
+      escopo: 'completo',
       resumo: { retencao: { desligado: true } },
     }))
     const d = await rodarDia(db, DIA_1)

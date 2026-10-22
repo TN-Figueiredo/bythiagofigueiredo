@@ -224,8 +224,12 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
   const respondeu = new Set<string>()
   for (const c of canais) {
     const doCanal = videos.filter(v => v.channel_id === c.id)
-    if (doCanal.length === 0) continue
     const tCanal = { site_id: c.site_id, scope_type: 'canal' as const, scope_id: c.id, kind: 'meta' as const, channel_id: c.id }
+    if (doCanal.length === 0) {
+      // Canal sem vídeo: leitura feita, nada a capturar. Com a leitura no teto, "sem vídeo" seria palpite: o canal fica fora do lote.
+      await registrarTentativa(ctx, { ...tCanal, outcome: videos.length >= LIMITE_LEITURA ? 'nao_alcancado_orcamento' : 'sem_videos' })
+      continue
+    }
     try {
       const token = await obterToken(ctxCaptura, c, tCanal)
       if (token === null) continue
