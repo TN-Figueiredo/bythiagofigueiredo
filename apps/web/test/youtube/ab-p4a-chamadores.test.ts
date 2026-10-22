@@ -26,7 +26,8 @@ vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() })
 vi.mock('@/lib/youtube/scoring', () => ({ getChannelTier: vi.fn() }))
 vi.mock('@/lib/youtube/prompt-scoring', () => ({ scoreForPrompt: vi.fn() }))
 
-import { pauseAbTest, endAbTest, revertWinner } from '@/app/cms/(authed)/youtube/ab-lab/actions'
+import { pauseAbTest, endAbTest, revertWinner, startAbTest } from '@/app/cms/(authed)/youtube/ab-lab/actions'
+import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { MSG_EM_ANDAMENTO } from '@/lib/youtube/ab-acao-saida'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
@@ -40,6 +41,15 @@ beforeEach(() => {
   denyUnlessSiteAdmin.mockResolvedValue(null)
   varianteOriginalId.mockResolvedValue('A')
   requireSiteScope.mockResolvedValue({ ok: true })
+})
+
+describe('startAbTest: o retorno ao cliente não leva o id interno do teste do YouTube', () => {
+  it('recusa pela guarda nativa devolve codigo e ate, sem nativeTestId', async () => {
+    vi.mocked(startAbTestInternal).mockResolvedValue({ ok: false, error: 'x', codigo: 'teste_youtube', nativeTestId: 'n1', ate: '2026-11-05T01:00:00.000Z' } as never)
+    const r = await startAbTest('t1')
+    expect(r).toEqual({ ok: false, error: 'x', codigo: 'teste_youtube', ate: '2026-11-05T01:00:00.000Z' })
+    expect('nativeTestId' in r).toBe(false)
+  })
 })
 
 describe('P4a T7: chamadores humanos', () => {

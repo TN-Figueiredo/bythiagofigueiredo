@@ -27,11 +27,15 @@ export interface ImagemGravada {
   origem?: OrigemImagem; capturada_em?: string
 }
 
+/** Teto de pixels decodificados (8192 x 8192): um PNG de 2 MB pode descomprimir para ~1 GB (o padrão do sharp é ~268 MP). */
+const LIMITE_PIXELS = 8192 * 8192
+const ABRIR = { limitInputPixels: LIMITE_PIXELS } as const
+
 interface Formato { ext: 'jpg' | 'png'; contentType: 'image/jpeg' | 'image/png' }
 async function lerImagem(bytes: Buffer): Promise<(Formato & { largura: number; altura: number }) | null> {
   try {
-    const m = await sharp(bytes).metadata()
-    if (!m.width || !m.height) return null
+    const m = await sharp(bytes, ABRIR).metadata()
+    if (!m.width || !m.height || m.width * m.height > LIMITE_PIXELS) return null
     if (m.format === 'jpeg') return { ext: 'jpg', contentType: 'image/jpeg', largura: m.width, altura: m.height }
     if (m.format === 'png') return { ext: 'png', contentType: 'image/png', largura: m.width, altura: m.height }
     return null
@@ -43,7 +47,7 @@ async function lerImagem(bytes: Buffer): Promise<(Formato & { largura: number; a
 /** Re-codifica no mesmo formato, sem metadados (EXIF/GPS/ICC), aplicando a orientação; devolve bytes e medidas do resultado. */
 async function tirarMetadados(bytes: Buffer, f: Formato): Promise<{ bytes: Buffer; info: Formato & { largura: number; altura: number } } | null> {
   try {
-    const base = sharp(bytes).rotate()
+    const base = sharp(bytes, ABRIR).rotate()
     const limpos = await (f.ext === 'jpg' ? base.jpeg({ quality: 95 }) : base.png()).toBuffer()
     const info = await lerImagem(limpos)
     return info ? { bytes: limpos, info } : null
@@ -197,7 +201,7 @@ export async function copiarOriginalParaFichaCore(p: {
 
     let info = await lerImagem(bytes)
     if (!info) { // por exemplo WebP: converte para JPEG antes de guardar
-      try { bytes = await sharp(bytes).jpeg().toBuffer() } catch { return falhaCopia(p.fichaId, 'sem_miniatura') }
+      try { bytes = await sharp(bytes, ABRIR).jpeg().toBuffer() } catch { return falhaCopia(p.fichaId, 'sem_miniatura') }
       info = await lerImagem(bytes)
       if (!info) return falhaCopia(p.fichaId, 'sem_miniatura')
     }

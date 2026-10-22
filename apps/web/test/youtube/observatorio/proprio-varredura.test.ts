@@ -139,6 +139,11 @@ export function violacoes(fontes: Record<string, string>): string[] {
       if (!/\bleituraValida\b/.test(s) && !nivelPeloLeitor) v.push(`${arq}: consulta uma das doze tabelas privadas sem passar por leituraValida`)
       if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas com o token de edição`)
     }
+    // Phil I1 (lote F1a-tela-1): a RPC do volume lê impressões e privacidade (duas das doze) sem passar por `.from()`; a regra olha a chamada
+    if (/\.rpc\(\s*['"`]ab_lab_volume['"`]/.test(s)) {
+      if (!/\bleituraValida\b/.test(s)) v.push(`${arq}: chama a RPC ab_lab_volume sem passar por leituraValida`)
+      if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: chama a RPC ab_lab_volume com o token de edição`)
+    }
     if (!arq.startsWith(COLETA_DIR) && lePorFrom(s) !== leSoColunasPermitidas(s)) v.push(`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`)
     if (!PODE_LER.has(arq) && /import\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
     if (!PODE_LER.has(arq) && /export\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
@@ -290,6 +295,16 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'lib/youtube/observatorio/saiu/outro.ts': "sb.from('competitor_video_comments').select('id')" })).toEqual(['lib/youtube/observatorio/saiu/outro.ts: consulta uma das doze tabelas privadas sem passar por leituraValida'])
       for (const arq of [VERSOES_LER, COMENTARIOS_LER])
         expect(violacoes({ ...base, [arq]: "import { edicaoValida } from '../proprio/edicao'" }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
+    })
+    it('Phil I1: a RPC ab_lab_volume exige leituraValida no mesmo arquivo (e não o token de edição)', () => {
+      const rpc = "sb.rpc('ab_lab_volume', { p_site: s })"
+      expect(violacoes({ ...base, 'lib/x/novo.ts': rpc })).toEqual(['lib/x/novo.ts: chama a RPC ab_lab_volume sem passar por leituraValida'])
+      expect(violacoes({ ...base, 'lib/x/novo.ts': 'await sb\n  .rpc(\n"ab_lab_volume", {})' })).toHaveLength(1)
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "if (!leituraValida(l)) throw new Error('x'); " + rpc })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "leituraValida(l); import type { EdicaoDoSite } from '../proprio/edicao'; " + rpc })).toEqual(['lib/x/novo.ts: chama a RPC ab_lab_volume com o token de edição'])
+      // outra RPC não é acusada; a menção em comentário também não
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "sb.rpc('outra_funcao', {})" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "// sb.rpc('ab_lab_volume', {})" })).toEqual([])
     })
     it('E5a C1: os leitores dos comentários (e a página do vídeo e a do canal) não pedem a prova de edição; a isenção só vale com nivelDeQuemVe', () => {
       const L = 'lib/youtube/observatorio/comentarios/leitor.ts'

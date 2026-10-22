@@ -18,8 +18,11 @@ vi.mock('@/lib/youtube/ab-lab-acesso', () => ({ requireEditUser: async () => ({ 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
+// a prova de edição (`leituraDoEditor`) que a lista repete na borda: a guarda simulada aceita
+vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u-teste' } })) }))
 import { responderTesteDoYouTube, type PedidoRespostaDia14 } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
 import { lerLinhasDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
+import { leituraDoEditor, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { perguntaDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-duas-estado'
 import { prazoDoDia14, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
@@ -76,7 +79,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T10b: dia 14 com duas versões (b
     return { videoId, yt, regId: String(r.rows[0].id) }
   }
   const ler = async (videoId: string): Promise<LinhaDoCaminho> => {
-    const l = (await lerLinhasDoCaminho(sb, siteId, new Date())).find((x) => x.videoId === videoId)
+    const l = (await lerLinhasDoCaminho(sb, siteId, new Date(), await leituraDoEditor(siteId))).find((x) => x.videoId === videoId)
     expect(l).toBeDefined()
     return l!
   }
@@ -144,7 +147,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T10b: dia 14 com duas versões (b
 
   it('aviso do dia 14 aberto por ?video=: o ytId do aviso acha a linha de resultado pronto (a lista abre a pergunta; jsdom prova a abertura)', async () => {
     const v = await novo(14, 2)
-    const linhas = await lerLinhasDoCaminho(sb, siteId, new Date())
+    const linhas = await lerLinhasDoCaminho(sb, siteId, new Date(), await leituraDoEditor(siteId))
     const achada = linhas.find((x) => x.ytId === v.yt)
     expect(achada?.videoId).toBe(v.videoId)
     expect(achada?.estado).toBe('resultado_pronto')
