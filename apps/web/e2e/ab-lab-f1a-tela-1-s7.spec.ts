@@ -161,7 +161,7 @@ test.describe('dia 14 com duas versões', () => {
   })
 })
 
-for (const [de, defeito] of [['/cms', false], ['/cms/youtube/ab-lab', true]] as const) test(`sino a partir de ${de}${defeito ? ' (F-6: hoje não abre a ficha)' : ''}: o aviso do lembrete abre a ficha do vídeo (?video=)`, async ({ page, context }, info) => {
+for (const [de, defeito] of [['/cms', false], ['/cms/youtube/ab-lab', true]] as const) test(`sino a partir de ${de}${defeito ? ' (F-6)' : ''}: o aviso do lembrete abre a ficha do vídeo (?video=)`, async ({ page, context }, info) => {
   test.skip(!soNoProjeto(info), 'fluxo com escrita: um projeto basta')
   const a = await preparar(page, context, info)
   await page.setViewportSize({ width: 390, height: 844 })
@@ -179,8 +179,8 @@ for (const [de, defeito] of [['/cms', false], ['/cms/youtube/ab-lab', true]] as 
   await expect(item).toBeVisible({ timeout: 20_000 })
   await foto(page, info, 'sino')
   await item.hover()
-  // a ação do aviso é o botão "Open" (rótulo em inglês, só aparece no hover): ver achado F-6
-  await item.locator('xpath=ancestor::*[contains(@class,"group")][1]').getByRole('button', { name: 'Open' }).click()
+  // F-6 (consertado em e20d70988): a ação do aviso é o botão "Abrir a ficha", sempre visível; o hover é mantido por inércia
+  await item.locator('xpath=ancestor::*[contains(@class,"group")][1]').getByRole('button', { name: 'Abrir a ficha' }).click()
   await expect(page).toHaveURL(new RegExp(`/cms/youtube/ab-lab\\?video=${a.m.v.mv!.yt}`), { timeout: 20_000 })
   await expect(ficha(page)).toBeVisible({ timeout: 30_000 })
   await foto(page, info, 'ficha-outro-aparelho')
