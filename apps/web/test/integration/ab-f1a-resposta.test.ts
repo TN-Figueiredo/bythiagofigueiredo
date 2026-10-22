@@ -19,7 +19,7 @@ import { responderTesteDoYouTube } from '@/app/cms/(authed)/youtube/ab-lab/actio
 
 vi.setConfig({ testTimeout: 60_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-const IMG = { url: 'https://x.public.blob.vercel-storage.com/a.jpg', sha256: 'a'.repeat(64), largura: 1280, altura: 720 }
+const IMG = { url: 'https://x.public.blob.vercel-storage.com/ab-native-ficha/s/f/a.jpg', sha256: 'a'.repeat(64), largura: 1280, altura: 720 }
 const V2 = [{ n: 1, tipo: 'titulo', titulo: 'Original' }, { n: 2, tipo: 'titulo', titulo: 'Nova' }]
 const V3 = [...V2, { n: 3, tipo: 'combo', titulo: 'Terceira', imagem: IMG }]
 const VMINI = [{ n: 1, tipo: 'miniatura', imagem: IMG }, { n: 2, tipo: 'miniatura', imagem: IMG }]

@@ -2,7 +2,8 @@
 // Núcleo com portas (cliente de banco e `createNotification` injetáveis); a action fina vive em `ab-lab/actions-nativo.ts`.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
-import { ehCopiaNoBlob } from '@/lib/youtube/ab-settle'
+import { eUrlDaFicha } from '@/lib/youtube/teste-youtube/nativo/imagem-ficha'
+import { contarCaracteresDoTitulo, LIMITE_TITULO } from '@/lib/youtube/teste-youtube/nativo/titulo'
 import { createNotification } from '@/lib/notifications/create'
 
 /** Janela de "ficha enviada": o Studio aberto ou o lembrete pedido nos últimos 14 dias. */
@@ -11,18 +12,20 @@ const DIA_MS = 86_400_000
 export const MSG_NAO_ENCONTRADO = 'não encontrado'
 export const MSG_FICHA_MUDOU = 'A ficha mudou em outro lugar. Recarregamos a versão atual.'
 
-/** URL de cópia no Blob da Vercel (imutável): nunca uma URL qualquer. */
-export const eUrlDoBlob = (u: string): boolean => u.startsWith('https://') && ehCopiaNoBlob(u)
+export const ORIGENS_IMAGEM = ['teste_nosso', 'retrato_diario', 'ytimg'] as const
+export type OrigemImagem = (typeof ORIGENS_IMAGEM)[number]
 
 export const VarianteFichaSchema = z.object({
   n: z.number().int().min(1).max(3),
   tipo: z.enum(['titulo', 'miniatura', 'combo']),
-  titulo: z.string().trim().min(1).max(100).optional(),
+  titulo: z.string().trim().min(1).refine((t) => contarCaracteresDoTitulo(t) <= LIMITE_TITULO, `título acima de ${LIMITE_TITULO} caracteres`).optional(),
   imagem: z.object({
-    url: z.string().url().refine(eUrlDoBlob, 'a imagem precisa ser uma cópia no Blob'),
+    url: z.string().url().refine(eUrlDaFicha, 'a imagem precisa ser uma cópia da ficha no Blob'),
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     largura: z.number().int().positive(),
     altura: z.number().int().positive(),
+    origem: z.enum(ORIGENS_IMAGEM).optional(),
+    capturada_em: z.string().datetime({ offset: true }).optional(),
   }).strict().optional(),
 }).strict()
 export type VarianteFicha = z.infer<typeof VarianteFichaSchema>
@@ -117,15 +120,16 @@ export async function lembrarNoComputadorCore(p: Base & { userId: string; fichaI
   if (!ficha || ficha.registro_id !== null || ficha.descartada_em !== null) return { ok: false, error: MSG_NAO_ENCONTRADO }
   if (ficha.lembrar_em) return { ok: true, lembrarEm: ficha.lembrar_em, jaLembrado: true }
 
-  const { data: video, error: erroVideo } = await p.sb.from('youtube_videos').select('youtube_video_id').eq('id', ficha.video_id).eq('site_id', p.siteId).maybeSingle()
+  const { data: video, error: erroVideo } = await p.sb.from('youtube_videos').select('youtube_video_id, title').eq('id', ficha.video_id).eq('site_id', p.siteId).maybeSingle()
   if (erroVideo) throw new Error(`youtube_videos: ${erroVideo.message}`)
-  const yt = (video as { youtube_video_id: string } | null)?.youtube_video_id
+  const lido = video as { youtube_video_id: string; title: string | null } | null
+  const yt = lido?.youtube_video_id
   if (!yt) return { ok: false, error: MSG_NAO_ENCONTRADO }
 
   const r = await (p.criar ?? createNotification)({
     site_id: p.siteId, user_id: p.userId, domain: 'youtube', type: 'youtube.native_ficha_lembrar', priority: 3,
-    title: 'Teste no YouTube pronto para iniciar',
-    message: 'Abra no computador para iniciar o teste no Studio.',
+    title: 'Abrir a ficha no computador',
+    message: `${lido?.title ?? ''}. Ficha do teste do YouTube salva no celular.`.replace(/^\. /, ''),
     dedup_key: `ficha-lembrar:${ficha.id}`,
     payload: { ficha_id: ficha.id, video_id: ficha.video_id },
     action_href: `/cms/youtube/ab-lab?video=${yt}`,
