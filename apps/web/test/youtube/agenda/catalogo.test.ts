@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { CATALOGO, DEFINICOES, agendaLigada, tarefasDesligadas, notaDoInterruptorDaAgenda } from '@/lib/youtube/agenda/catalogo'
@@ -168,11 +168,11 @@ describe('RULES.hourly', () => {
 
 describe('a lista única de definições (o catálogo e o vigia leem a mesma)', () => {
   it('são doze, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal'])
-    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.3, 5.5, 5.7, 5.9, 5.95, 5.96, 6, 7, 8])
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal', 'sinais_do_nicho'])
+    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 4, 5.2, 5.3, 5.5, 5.7, 5.9, 5.95, 5.96, 6, 7, 8, 8.5])
     expect(DEFINICOES_COMENTARIOS.map(d => d.nome)).toEqual(['anular_identidade', 'retratos_comentarios'])
     expect(DEFINICOES.length).toBe(3)
-    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 8) // + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4) + poda_leituras_watch (A5 S4) + registro_teste_nativo (S7 fase 1) + avisos_pendentes (F1a-dado T12)
+    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + 9) // + sinais_do_nicho (F2 T7) + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4) + poda_leituras_watch (A5 S4) + registro_teste_nativo (S7 fase 1) + avisos_pendentes (F1a-dado T12)
   })
   it('as duas da E14, valor por valor', () => {
     const por = (n: string) => TODAS_AS_DEFINICOES.find(d => d.nome === n)!
@@ -351,5 +351,28 @@ describe('avisos_pendentes no catálogo (F1a-dado T12)', () => {
     expect(t()).toMatchObject({ rotulo: 'avisos do teste do YouTube', peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 9 })
     expect(t().fimAteMs).toBeLessThanOrEqual(LEVE_FIM_MS)
     expect(CATALOGO.map(x => x.nome)).toEqual(TODAS_AS_DEFINICOES.map(d => d.nome))
+  })
+})
+
+describe('F2 sinais_do_nicho no catálogo (T7)', () => {
+  const alvoDoCatalogo = CATALOGO.map(t => ({ nome: t.nome, ligaCom: t.ligaCom }))
+  afterEach(() => vi.unstubAllEnvs())
+  it('variável OBS_SINAIS_NICHO apagada: desligada', () => {
+    vi.unstubAllEnvs()
+    delete process.env.OBS_SINAIS_NICHO
+    expect(tarefasDesligadas(process.env, alvoDoCatalogo).desligadas.has('sinais_do_nicho')).toBe(true)
+  })
+  it('"ON" e "1" desligam; só "on" liga', () => {
+    expect(tarefasDesligadas({ OBS_SINAIS_NICHO: 'ON' }, alvoDoCatalogo).desligadas.has('sinais_do_nicho')).toBe(true)
+    expect(tarefasDesligadas({ OBS_SINAIS_NICHO: '1' }, alvoDoCatalogo).desligadas.has('sinais_do_nicho')).toBe(true)
+    expect(tarefasDesligadas({ OBS_SINAIS_NICHO: 'on' }, alvoDoCatalogo).desligadas.has('sinais_do_nicho')).toBe(false)
+  })
+  it('a definição, valor por valor, sem nuncaDesliga', () => {
+    const d = TODAS_AS_DEFINICOES.find(x => x.nome === 'sinais_do_nicho')!
+    expect(d).toMatchObject({ rotulo: 'sinais do nicho', ordem: 8.5, peso: 'pesada', periodo: 'dia', aPartirDaHoraSP: 7, cedeA: ['sincronizar_canais'],
+      tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null, comecaAteMs: 120_000, fimAteMs: PESADA_FIM_MS, ligaCom: 'OBS_SINAIS_NICHO' })
+    expect(d.nuncaDesliga).toBeUndefined()
+    expect(Object.keys(d.motivos)).toEqual(expect.arrayContaining(['motor_estourou', 'gravar_falhou', 'site_falhou', 'inesperado']))
+    expect(CATALOGO.map(x => x.nome)).toEqual(TODAS_AS_DEFINICOES.map(x => x.nome))
   })
 })
