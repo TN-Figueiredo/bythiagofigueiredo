@@ -25,6 +25,8 @@ export interface FichaConfirmarLinhaProps {
   aoFechar: () => void
   /** O registro foi gravado: a lista relê. */
   aoRegistrar: () => void
+  /** "Abrir esse teste" / "Recarregar": só relê a lista, sem fechar nada por conta própria. */
+  aoAtualizar: () => void
 }
 export type FichaConfirmarProps = FichaConfirmarLinhaProps
 
@@ -81,7 +83,7 @@ export function FichaConfirmar(p: FichaConfirmarProps): ReactElement {
                   <p><strong>{FRASES.guarda.perguntaIncompleta}</strong></p>
                 </>
               )}
-              {fase.tipo === 'erro' ? <MensagemDeErro motivo={fase.motivo} aoTentar={() => setFase({ tipo: 'ask' })} aoAtualizar={p.aoRegistrar} /> : null}
+              {fase.tipo === 'erro' ? <MensagemDeErro motivo={fase.motivo} aoTentar={() => setFase({ tipo: 'ask' })} aoAtualizar={p.aoAtualizar} /> : null}
               <div className="cn-acts">
                 {p.completa ? <button type="button" className="cn-btn" onClick={() => setFase({ tipo: 'ask' })}>{FRASES.guarda.jaIniciei}</button> : null}
                 <button type="button" className="cn-btn" onClick={p.aoSeguirComNosso}>{FRASES.guarda.aindaNaoSeguir}</button>
@@ -97,7 +99,7 @@ export function FichaConfirmar(p: FichaConfirmarProps): ReactElement {
 function MensagemDeErro({ motivo, aoTentar, aoAtualizar }: { motivo: MotivoErro; aoTentar: () => void; aoAtualizar: () => void }): ReactElement {
   const m = FRASES.motivo
   const texto = motivo === 'incompleta' ? m.incompleta.forte + m.incompleta.resto
-    : motivo === 'ja_ha_teste' ? m.ja_ha_teste.forte(new Date()) + m.ja_ha_teste.resto
+    : motivo === 'ja_ha_teste' ? m.ja_ha_teste.forteSemData + m.ja_ha_teste.resto
     : motivo === 'estado_mudou' ? m.estado_mudou.forte + m.estado_mudou.resto(null)
     : m.sem_conexao.forte
   const acao = motivo === 'sem_conexao' ? { rotulo: m.sem_conexao.acao, ao: aoTentar }

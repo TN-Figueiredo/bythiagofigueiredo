@@ -29,6 +29,7 @@ export interface LinhaCaminhoProps {
   aoAbrirPainel: (l: LinhaDoCaminho, vista: 'ficha' | 's7') => void
   aoIniciar: (l: LinhaDoCaminho) => void
   perguntaAberta: boolean
+  aoRegistrar: () => void
   aoSeguirComNosso: (l: LinhaDoCaminho) => void
   aoFecharPergunta: () => void
   aoAtualizar: () => void
@@ -203,7 +204,8 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
             agora={() => agora}
             aoSeguirComNosso={() => p.aoSeguirComNosso(l)}
             aoFechar={p.aoFecharPergunta}
-            aoRegistrar={p.aoAtualizar}
+            aoRegistrar={p.aoRegistrar}
+            aoAtualizar={p.aoAtualizar}
           />
         ) : null}
       </div>

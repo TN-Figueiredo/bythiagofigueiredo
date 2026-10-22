@@ -164,7 +164,9 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     perguntaAberta: ctrl.perguntaAberta === l.videoId,
     aoSeguirComNosso: ctrl.seguirComNosso,
     aoFecharPergunta: fecharPergunta,
+    // Registro gravado: a pergunta fecha e a linha relê (passa a "Em teste no Studio").
     aoAtualizar: ctrl.atualizar,
+    aoRegistrar: () => { ctrl.fecharPergunta(); ctrl.atualizar() },
     jaIniciei: acoes.jaIniciei,
     responder, responderAberta: responderAberto === l.videoId, responderPrimario: l.videoId === primarioId,
     aoMudarResponder: (ab) => setResponderAberto(ab ? l.videoId : null),

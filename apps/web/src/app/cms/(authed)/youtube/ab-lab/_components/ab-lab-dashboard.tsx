@@ -68,7 +68,7 @@ export function AbLabDashboard({
   const [filterOpen, setFilterOpen] = useState(false)
   const [showAllCompleted, setShowAllCompleted] = useState(false)
   // Guarda D-8: UMA função (`abrirAssistente`) para as três portas do "Iniciar teste" do nosso; `handleContinueDraft` abre direto.
-  const assistente = useControleAssistente({ onAbrir: setWizardVideo, atualizar: () => router.refresh() })
+  const assistente = useControleAssistente({ onAbrir: setWizardVideo, atualizar: () => router.refresh(), comLista: listaSlot !== undefined })
   const { abrirAssistente } = assistente
 
   const TYPE_FILTER_LABELS: Record<typeof typeFilter, string> = {
@@ -122,13 +122,9 @@ export function AbLabDashboard({
     })
   }
 
-  function handleCreateTest(videoId: string, _type: string) {
-    // Cartão "Sugeridos para testar": com o vídeo conhecido vai pela guarda; sem ele ("Começar do zero") abre o seletor.
-    const s = videoId ? suggested.find(x => x.id === videoId) : undefined
-    if (s) {
-      abrirAssistente({ id: s.id, title: s.title, thumbnailUrl: s.thumbnailUrl })
-      return
-    }
+  function handleCreateTest(_videoId: string, _type: string) {
+    // Abre o seletor; a guarda D-8 roda quando o vídeo é escolhido (`handleVideoPicked`). Desabilitado enquanto a lista carrega.
+    if (assistente.carregando) return
     setShowPicker(true)
   }
 
@@ -214,6 +210,7 @@ export function AbLabDashboard({
             <button
               type="button"
               onClick={() => setShowPicker(true)}
+              disabled={assistente.carregando}
               className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent cursor-pointer"
               style={{ color: 'rgb(26, 18, 12)' }}
             >
@@ -386,6 +383,7 @@ export function AbLabDashboard({
           <EmptyState
             suggested={suggested}
             onCreate={handleCreateTest}
+            desabilitado={assistente.carregando}
             selectedForBatch={selectedForBatch}
             onToggleBatchSelect={toggleBatchSelect}
           />
