@@ -120,6 +120,36 @@ describe('vistaDaFicha: tabela dos estados ficha-* do mockup', () => {
   })
 })
 
+describe('nosso pausado com a original de volta segue o fluxo do Studio', () => {
+  const volta = nosso('sim', 'paused')
+  it('Studio aberto nesta sessão: "Já iniciei" sobe ao topo e é o primário', () => {
+    const v = vistaDaFicha(ent({ nosso: volta, studioAbertoNestaSessao: true }))
+    expect(v.faixa).toBe('restaurada')
+    expect(v.acaoDoTopo).toBe('confirmar')
+    expect(v.primario).toBe('ja_iniciei')
+  })
+  it('sem Studio aberto: Abrir no Studio segue primário', () => {
+    const v = vistaDaFicha(ent({ nosso: volta }))
+    expect(v.acaoDoTopo).toBe('abrir_studio')
+    expect(v.primario).toBe('abrir_studio')
+  })
+  it('confirmação aberta: primário confirmar e a frase é a do 2º toque', () => {
+    const v = vistaDaFicha(ent({ nosso: volta, studioAbertoNestaSessao: true, confirmacao: 'aberta' }))
+    expect(v.primario).toBe('confirmar')
+    expect(v.acaoDoTopo).toBe('confirmar')
+    expect(v.frase).toBe(FRASES.ficha.jaIniciei.frase)
+  })
+  it('ainda_nao: frase de "ainda não" e nenhum primário', () => {
+    const v = vistaDaFicha(ent({ nosso: volta, studioAbertoNestaSessao: true, confirmacao: 'ainda_nao' }))
+    expect(v.frase).toBe(FRASES.ficha.ainda.frase)
+    expect(v.primario).toBeNull()
+  })
+  it('390: segue o fluxo estreito (lembrar; confirmar com a confirmação aberta)', () => {
+    expect(vistaDaFicha(ent({ nosso: volta, ...estreita })).primario).toBe('lembrar')
+    expect(vistaDaFicha(ent({ nosso: volta, ...estreita, confirmacao: 'aberta' })).primario).toBe('confirmar')
+  })
+})
+
 describe('um só primário', () => {
   const combos: Partial<EntradaFicha>[] = []
   for (const largura of ['larga', 'estreita'] as const)
