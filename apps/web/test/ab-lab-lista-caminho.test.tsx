@@ -417,3 +417,35 @@ describe('ListaEsqueleto e ListaErro', () => {
     expect(Sentry.captureException).toHaveBeenCalled()
   })
 })
+
+describe('fila do lembrete pela lista (ListaCaminhoComPaineis)', () => {
+  const ID_FICHA = '11111111-1111-4111-8111-111111111111'
+  async function montarLista() {
+    const { ListaCaminhoComPaineis } = await import('@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho-paineis')
+    return render(<ListaCaminhoComPaineis linhas={[linha(1)]} videoInicial={null} acoes={acoes} agora={() => AGORA} />)
+  }
+  beforeEach(() => { trocar() })
+
+  it('com 1 item na fila e rede: a action é chamada uma vez e o item sai', async () => {
+    localStorage.setItem('ab-lab:lembrete-fila', JSON.stringify([{ fichaId: ID_FICHA, enfileiradoEm: dia(1) }]))
+    ;(acoes.lembrarNoComputador as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, lembrarEm: dia(0), jaLembrado: false })
+    await act(async () => { await montarLista() })
+    expect(acoes.lembrarNoComputador).toHaveBeenCalledTimes(1)
+    expect(acoes.lembrarNoComputador).toHaveBeenCalledWith(ID_FICHA)
+    expect(localStorage.getItem('ab-lab:lembrete-fila')).toBeNull()
+  })
+
+  it('"não encontrado" tira o item sem erro na tela; fila vazia não chama nada', async () => {
+    localStorage.setItem('ab-lab:lembrete-fila', JSON.stringify([{ fichaId: ID_FICHA, enfileiradoEm: dia(1) }]))
+    ;(acoes.lembrarNoComputador as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, error: 'não encontrado' })
+    await act(async () => { await montarLista() })
+    expect(localStorage.getItem('ab-lab:lembrete-fila')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('localStorage lançando não quebra a lista', async () => {
+    trocar(true)
+    await act(async () => { await montarLista() })
+    expect(acoes.lembrarNoComputador).not.toHaveBeenCalled()
+  })
+})

@@ -45,6 +45,8 @@ export interface FichaTesteProps {
   encaixes?: EncaixesFicha
   /** Chamado com a ficha nova depois de "Começar outra ficha com estas versões". */
   aoRecomecar?: (nova: FichaLida) => void
+  /** Ficha registrada como teste: os campos dos passos 1 e 2 ficam só para leitura (nada mais é gravado nela). */
+  travada?: boolean
 }
 
 export const fmtHora = (d: Date): string => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
@@ -221,7 +223,7 @@ export function FichaTeste(p: FichaTesteProps): ReactElement {
           <h3 id="cn-b1"><span className="n" aria-hidden="true">1</span>{FRASES.ficha.bloco1.titulo}</h3>
           <p className="cn-lede">{FRASES.ficha.bloco1.lede}</p>
           <FichaVersoes
-            gravada={ficha} rascunho={g.rascunho} somenteLeitura={vencida}
+            gravada={ficha} rascunho={g.rascunho} somenteLeitura={vencida || p.travada === true}
             alterar={g.alterar} sair={g.sair} copiarTitulo={copiarTitulo} enviarImagem={enviarImagem}
             imagensComErro={imagensComErro} aoErroImagem={(n) => setImagensComErro((a) => (a.includes(n) ? a : [...a, n]))}
             enviandoN={enviandoN} erroImagem={erroImagem}

@@ -8,15 +8,17 @@ export type TomFaixa = 'yt' | 'lab' | 'warn' | 'ok' | 'err' | 'neutra'
 
 const ICONE: Record<TomFaixa, NomeIcone> = { yt: 'yt', lab: 'lab', warn: 'warn', ok: 'ok', err: 'x', neutra: 'dash' }
 
-export function FaixaCaminho({ tom, titulo, children, acoes, role }: {
+export function FaixaCaminho({ tom, titulo, children, acoes, role, ocupada }: {
   tom: TomFaixa
   titulo: string
   children?: ReactNode
   acoes?: ReactNode
   role?: 'status' | 'alert' | 'region'
+  /** `aria-busy`: a faixa mostra um trabalho em andamento ("Restaurando a original…"). */
+  ocupada?: boolean
 }): ReactElement {
   return (
-    <div className={`cn-faixa ${tom === 'neutra' ? '' : tom}`} role={role} data-tom={tom}>
+    <div className={`cn-faixa ${tom === 'neutra' ? '' : tom}`} role={role} data-tom={tom} aria-busy={ocupada || undefined}>
       <span className="cn-ic"><Icone nome={ICONE[tom]} /></span>
       <div>
         <h3>{titulo}</h3>

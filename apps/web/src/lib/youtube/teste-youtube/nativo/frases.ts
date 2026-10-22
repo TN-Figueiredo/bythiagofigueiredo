@@ -160,6 +160,9 @@ export const FRASES = {
     restaurarFalhou: f('A original não voltou: o nosso teste segue rodando.', 'Reconecte o canal e tente de novo.'),
     faixaRestaurarFalhou: { titulo: 'Não deu para restaurar a original', apoio: 'O acesso ao YouTube venceu. O nosso teste continua rodando; nada foi trocado. Reconecte o canal e tente de novo.' },
     reconectar: 'Reconectar o canal',
+    /** Provisórias (T9b; Logan fecha): a exceção/rede ao pausar e ao mandar o lembrete. */
+    pausarFalhou: 'Não deu para pausar agora. Nada foi trocado. Tente de novo.',
+    lembreteFalhou: 'Não foi possível enviar o lembrete agora. Tente de novo.',
     restaurada: f('Original de volta no vídeo. Próximo passo: abrir no Studio.'),
     restauradaEstreita: f('Original de volta no vídeo. Próximo passo: mandar a ficha ao computador.'),
     faixaRestaurada: (quando: string): { titulo: string; apoio: string } => ({
