@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/nextjs'
 import sharp from 'sharp'
 import { put } from '@vercel/blob'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ehCopiaNoBlob } from '@/lib/youtube/ab-settle'
 import { buscarBytesDaOriginal } from '@/lib/youtube/ab-variant-dhash'
 import { fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
@@ -16,8 +17,8 @@ import {
 
 export const PREFIXO_FICHA = 'ab-native-ficha/'
 export const TAMANHO_MAXIMO_IMAGEM = 2 * 1024 * 1024
-export const MSG_IMAGEM_GRANDE = 'A imagem precisa ter até 2 MB.'
-export const MSG_IMAGEM_FORMATO = 'A imagem precisa ser JPEG ou PNG.'
+export const MSG_IMAGEM_GRANDE: string = FRASES.imagem.grande
+export const MSG_IMAGEM_FORMATO: string = FRASES.imagem.formato
 
 /** Cópia no Blob E dentro do prefixo da ficha. `https` só; qualquer outro host ou caminho (ex.: `ab-test/…`) é recusado. */
 export function eUrlDaFicha(u: string): boolean {

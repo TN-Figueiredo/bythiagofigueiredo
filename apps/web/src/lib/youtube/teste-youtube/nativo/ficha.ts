@@ -4,13 +4,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { eUrlDaFicha } from '@/lib/youtube/teste-youtube/nativo/imagem-ficha'
 import { contarCaracteresDoTitulo, LIMITE_TITULO } from '@/lib/youtube/teste-youtube/nativo/titulo'
+import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { createNotification } from '@/lib/notifications/create'
 
 /** Janela de "ficha enviada": o Studio aberto ou o lembrete pedido nos últimos 14 dias. */
 export const JANELA_FICHA_ENVIADA_DIAS = 14
 const DIA_MS = 86_400_000
 export const MSG_NAO_ENCONTRADO = 'não encontrado'
-export const MSG_FICHA_MUDOU = 'A ficha mudou em outro lugar. Recarregamos a versão atual.'
+export const MSG_FICHA_MUDOU: string = FRASES.mudouEmOutroLugar
 
 export const ORIGENS_IMAGEM = ['teste_nosso', 'retrato_diario', 'ytimg'] as const
 export type OrigemImagem = (typeof ORIGENS_IMAGEM)[number]

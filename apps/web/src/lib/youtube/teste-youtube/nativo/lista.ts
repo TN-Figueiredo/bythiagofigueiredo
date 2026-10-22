@@ -2,6 +2,7 @@
 // A leitura do banco é de `lista-borda.ts`. Nada aqui lê relógio nem banco: o `agora` entra por parâmetro.
 import { inicioDoTeste } from './guarda'
 import { INATIVIDADE_DESCARTE_MS } from './ficha-tela'
+import { FRASES, capitalizar } from './frases'
 import type { FichaLida } from './ficha'
 import type { RespostaDono } from './resposta'
 import type { Caminho } from './roteador'
@@ -118,15 +119,12 @@ export function agruparLinhas(l: LinhaDoCaminho[]): { precisaDeVoce: LinhaDoCami
   return { precisaDeVoce: precisa, outros }
 }
 
-const EXTENSO = ['zero', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez']
-const ext = (n: number): string => (n <= 10 ? EXTENSO[n]! : String(n))
-const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
-const videos = (n: number): string => `${ext(n)} ${n === 1 ? 'vídeo' : 'vídeos'}`
+const cap = capitalizar
 
 /** Linha de ficha com exatamente duas versões: só ela ganha o botão "Responder" (T10b). Três versões ou `variantes` nulo = sem botão. */
 const comBotao = (l: LinhaDoCaminho): boolean => l.registro?.variantes?.length === 2
 
-const LAB_PAUSADO = (n: number): string => `Lab pausado em ${n === 1 ? 'um vídeo' : `${ext(n)} vídeos`}.`
+const L = FRASES.lista
 
 export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: LinhaDoCaminho[] }): { frase: string; apoio: string | null } {
   const todas = [...g.precisaDeVoce, ...g.outros]
@@ -140,30 +138,23 @@ export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: Linh
   const pausadas = todas.filter(pausada).length
 
   if (espera === 0 && semBotao > 0) {
-    return { frase: `${cap(videos(semBotao))} ${semBotao === 1 ? 'tem' : 'têm'} resultado pronto no YouTube.`, apoio: pausadas > 0 ? `${LAB_PAUSADO(pausadas)} A resposta chega na próxima atualização.` : 'A resposta chega na próxima atualização.' }
+    return { frase: L.resultadoProntoSemBotao(semBotao), apoio: pausadas > 0 ? `${L.labPausado(pausadas)} ${L.respostaChegaNaAtualizacao}` : L.respostaChegaNaAtualizacao }
   }
   if (espera === 0 && pausadas > 0) {
     const n = studio + preparo + nossoRodando
-    return { frase: LAB_PAUSADO(pausadas), apoio: n > 0 ? `${cap(videos(n))} em teste ou em preparo. Os demais seguem sem teste.` : null }
+    return { frase: L.labPausado(pausadas), apoio: n > 0 ? L.apoioEmTesteOuPreparo(n) : null }
   }
   if (espera === 0) {
     const n = studio + preparo + nossoRodando
-    return {
-      frase: 'Nada espera a sua resposta hoje.',
-      apoio: n > 0 ? `${cap(videos(n))} em teste ou em preparo. Os demais seguem sem teste.` : null,
-    }
+    return { frase: L.nadaEspera, apoio: n > 0 ? L.apoioEmTesteOuPreparo(n) : null }
   }
-  const verbo = espera === 1 ? 'espera' : 'esperam'
-  const detalhe = prazo > 0 && hoje > 0
-    ? `: ${ext(prazo)} ${prazo === 1 ? 'passou' : 'passaram'} do prazo, ${ext(hoje)} ${hoje === 1 ? 'terminou' : 'terminaram'} hoje`
-    : ''
-  const frase = `${cap(videos(espera))} ${verbo} a sua resposta${detalhe}.`
+  const frase = L.esperam(espera, prazo, hoje)
   const partes: string[] = []
-  if (studio > 0) partes.push(`${ext(studio)} em teste no Studio`)
-  if (preparo > 0) partes.push(`${ext(preparo)} em preparo`)
+  if (studio > 0) partes.push(L.emTesteNoStudio(studio))
+  if (preparo > 0) partes.push(L.emPreparo(preparo))
   const frases: string[] = []
   if (partes.length > 0) frases.push(`${cap(partes.join(', '))}.`)
-  if (pausadas > 0) frases.push(`O Lab está pausado em ${ext(pausadas)} deles.`)
-  if (semBotao > 0) frases.push(`Mais ${ext(semBotao)} ${semBotao === 1 ? 'tem' : 'têm'} resultado pronto; a resposta chega na próxima atualização.`)
+  if (pausadas > 0) frases.push(L.labPausadoDeles(pausadas))
+  if (semBotao > 0) frases.push(L.maisComResultadoPronto(semBotao))
   return { frase, apoio: frases.length > 0 ? frases.join(' ') : null }
 }
