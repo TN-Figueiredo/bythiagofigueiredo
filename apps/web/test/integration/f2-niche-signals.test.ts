@@ -14,7 +14,7 @@ import { criarSite, criarUsuario, escalar } from '../helpers/mg6'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
-interface Item { kind?: string; subject_key: string; evidence?: unknown; forca?: number; acao?: string; motivo?: string; notificar_como?: string }
+interface Item { kind?: string; subject_key: string; evidence?: unknown; forca?: number; acao?: string; motivo?: string; notificar_como?: string; modo?: string }
 const ESTADO = { rule_version: 'sinais-v1+semente-1', motivo_vazio: null, contagens: { n: 1 } }
 
 function outlier(i: number, mult = 5 + i): Record<string, unknown> {
@@ -315,6 +315,70 @@ describe.skipIf(skipIfNoLocalDb())('F2 T4: niche_signals (gravar, expirar, dispe
       await pg.query(`delete from public.sites where id = $1`, [site])
       await pg.query(`delete from public.organizations where id = $1`, [org])
     }
+  })
+
+  it('modo atualizar: evento que venceu entre a leitura e o gravar não vira evento novo (P3); modo ausente cria', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      await gravar(site, [item('pais:VN')])
+      await pg.query(`update public.niche_signals set expires_at = now() - interval '1 minute' where site_id = $1`, [site])
+      expect(await gravar(site, [item('pais:VN', { modo: 'atualizar' })])).toEqual({ novos: 0, atualizados: 0, expirados: 1 })
+      expect((await linhas(site)).map(x => x.status)).toEqual(['expirado'])
+      expect(await gravar(site, [item('pais:VN')])).toMatchObject({ novos: 1 })
+    })
+  })
+
+  it('modo atualizar: evento marcado feito entre a leitura e o gravar não cria nada; sobre aberto atualiza', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      await gravar(site, [item('pais:VN')])
+      expect(await gravar(site, [item('pais:VN', { modo: 'atualizar', forca: 33 })])).toEqual({ novos: 0, atualizados: 1, expirados: 0 })
+      const [l] = await linhas(site)
+      expect(Number(l.forca)).toBe(33)
+      await dispensar(site, l.id, 'feito', null)
+      expect(await gravar(site, [item('pais:VN', { modo: 'atualizar' })])).toEqual({ novos: 0, atualizados: 0, expirados: 0 })
+      expect(await linhas(site)).toHaveLength(1)
+    })
+  })
+
+  it('modo fora do enum e p_linha_de_base nulo levantam erro', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      await pg.query('savepoint s')
+      await expect(gravar(site, [item('pais:VN', { modo: 'xis' })])).rejects.toThrow(/modo/)
+      await pg.query('rollback to savepoint s')
+      await expect(pg.query(`select public.niche_signals_gravar($1, '[]'::jsonb, $2::jsonb, null, '[]'::jsonb)`, [site, JSON.stringify(ESTADO)])).rejects.toThrow(/nulo/)
+    })
+  })
+
+  it('evidence/contagens que não são objeto JSON são recusados; mult_max enorme não derruba a gravação', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      await pg.query('savepoint s')
+      await expect(gravar(site, [item('pais:VN', { evidence: null })])).rejects.toThrow()
+      await pg.query('rollback to savepoint s')
+      await pg.query('savepoint s')
+      await expect(gravar(site, [], { estado: { ...ESTADO, contagens: null } })).rejects.toThrow()
+      await pg.query('rollback to savepoint s')
+      const v = { video_id: randomUUID(), canal_id: randomUUID(), formato: 'long', published_at: '2026-10-01T00:00:00Z', n_canal: 9, mult_max: 1000000, vpd7_max: 5, chaves: ['pais:VN'] }
+      await gravar(site, [], { vistos: [v] })
+      expect(Number(await escalar<string>(pg, `select mult_max from public.niche_outliers_vistos where site_id = $1`, [site]))).toBe(1000000)
+      await pg.query('savepoint s')
+      await expect(gravar(site, [], { vistos: [{ ...v, video_id: randomUUID(), formato: 'medio' }] })).rejects.toThrow()
+      await pg.query('rollback to savepoint s')
+    })
+  })
+
+  it('âncora usa a chave nova de video_lugares, não a antiga dos vistos', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      await gravar(site, [item('pais:TH')])
+      const v = await visto(site, ['pais:VN'], 1)
+      await pg.query(`insert into public.video_lugares (video_id, site_id, origem, chaves, fonte, entrada_hash, semente_versao, computado_em)
+        values ($1, $2, 'competidor', '{pais:TH}', 'texto', 'h', 2, now())`, [v, site])
+      const anc = (await pg.query(`select subject_key, video_id from public.niche_signals_ancoras($1)`, [site])).rows
+      expect(anc).toEqual([{ subject_key: 'pais:TH', video_id: v }])
+    })
   })
 
   it('dispensar mantém motivo e preenche dispensa_motivo/dispensado_por; motivo fora do enum é inválido', async () => {
