@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { SeloCaminho, type TipoSelo } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/selo-caminho'
 import { ChipVersao } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/chip-versao'
 import { AvisoResolucao } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/aviso-resolucao'
-import { FaixaCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/faixa-caminho'
+import { FaixaCaminho, propsDaFaixaRestauracao } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/faixa-caminho'
 
 const BASE = 'src/app/cms/(authed)/youtube/ab-lab/_components/'
 const css = readFileSync(`${BASE}caminho-nativo.css`, 'utf8')
@@ -87,8 +87,37 @@ describe('caminho-nativo.css', () => {
     expect(css).toMatch(/--cn-hf: 1011px/)
     expect(css).toMatch(/--cn-hl: 1525px/)
   })
+  it('medida estreita vale para descendentes do container, nunca para .cn-raiz sozinho', () => {
+    const bloco = css.match(/@container \(max-width: 640px\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
+    expect(bloco).toMatch(/--cn-hf: 1430px/)
+    expect(bloco).toMatch(/--cn-hl: 2544px/)
+    const seletor = bloco.match(/([^{}]+)\{[^}]*--cn-hf/)?.[1].trim() ?? ''
+    expect(seletor).not.toBe('')
+    expect(seletor.split(',').map(x => x.trim()).filter(x => x === '.cn-raiz')).toEqual([])
+    expect(seletor).toMatch(/\.cn-raiz\s+\S/)
+    expect(css).not.toContain('cn-raiz-conteudo')
+  })
+  it('chip sem color fixa morta', () => { expect(css).not.toMatch(/\.cn-chip \{[^}]*color: #fff;/) })
   it('títulos em Georgia e com overflow-wrap', () => {
     expect(css).toMatch(/Georgia/)
     expect(css).toMatch(/overflow-wrap: anywhere/)
+  })
+})
+
+describe('propsDaFaixaRestauracao', () => {
+  const base = { lbl: 'Atenção:', resumo: 'a versão B', linhas: [], linkStudio: null, linkRotulo: null, ajuda: null, fine: null, papel: 'status' as const, acoes: { tentar: false, dispensar: [], motivoSemBotao: null } }
+  it('busy vira yt e none vira neutra, tirando os dois-pontos', () => {
+    expect(propsDaFaixaRestauracao({ ...base, tom: 'busy' }).tom).toBe('yt')
+    const n = propsDaFaixaRestauracao({ ...base, tom: 'none' })
+    expect(n.tom).toBe('neutra')
+    expect(n.titulo).toBe('Atenção')
+  })
+  it('ok usa okline como título', () => {
+    expect(propsDaFaixaRestauracao({ tom: 'ok', okline: 'Versão B no ar desde 12/10 05:02.' })).toEqual({ tom: 'ok', titulo: 'Versão B no ar desde 12/10 05:02.', texto: '' })
+  })
+  it('nenhum texto da origem traz "variante"', () => {
+    const src = readFileSync(`${BASE}faixa-restauracao-texto.ts`, 'utf8')
+    const literais = [...src.matchAll(/(['`])((?:\\.|(?!\1)[^\\\n])*)\1/g)].map(m => m[2]).filter(t => !/^pausado_variante$/.test(t))
+    expect(literais.map(t => t.replace(/\$\{[^}]*\}/g, '')).filter(t => /variante/i.test(t))).toEqual([])
   })
 })

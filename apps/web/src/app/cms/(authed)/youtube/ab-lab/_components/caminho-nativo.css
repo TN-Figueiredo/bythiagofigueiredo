@@ -30,10 +30,11 @@
   --cn-chip-fg: #FFFFFF;
   color-scheme: light;
 }
+/* No estreito a medida vale para os descendentes: container query não casa com o próprio container. */
 /* Uma medida só para o esqueleto da ficha (--cn-hf) e da lista (--cn-hl); o teste do T12 lê estas duas. */
 .cn-raiz { --cn-hf: 1011px; --cn-hl: 1525px; }
 @container (max-width: 640px) {
-  .cn-raiz, .cn-raiz-conteudo { --cn-hf: 1430px; --cn-hl: 2544px; }
+  .cn-raiz * { --cn-hf: 1430px; --cn-hl: 2544px; }
 }
 .cn-raiz {
   background: var(--cn-bg); color: var(--cn-text); container-type: inline-size; font-size: 14px; overflow-wrap: anywhere;
@@ -55,7 +56,7 @@
 .cn-nm { display: inline-block; padding: 1px 7px; border: 1px solid var(--cn-nm-line); border-radius: 4px; color: var(--cn-nm); font: 400 12px/16px Inter, system-ui, sans-serif; background: repeating-linear-gradient(135deg, var(--cn-nm-bg) 0 6px, var(--cn-nm-fio) 6px 8px); white-space: nowrap; }
 
 /* Chip de versão: sempre com a letra */
-.cn-chip { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font: 700 13px/1 Inter, system-ui, sans-serif; color: #fff; flex: none; border: 1px solid rgba(255,255,255,.35); }
+.cn-chip { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font: 700 13px/1 Inter, system-ui, sans-serif; flex: none; border: 1px solid rgba(255,255,255,.35); }
 .cn-chip.a { background: var(--cn-va); }
 .cn-chip.b { background: var(--cn-vb); }
 .cn-chip.c { background: var(--cn-vc); }

@@ -54,10 +54,10 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
   })
   it('A2', () => {
     expect(montarFaixa(SEMENTES.A2, ctx)).toMatchObject({
-      tom: 'busy', lbl: 'Trocando pela variante B…', resumo: 'O título está sendo trocado no YouTube.',
+      tom: 'busy', lbl: 'Trocando pela versão B…', resumo: 'O título está sendo trocado no YouTube.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'busy', texto: 'Trocando desde 12/10 05:58.', hora: '12/10 05:58' },
-        { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Variante B aplicada em 12/10 05:58.', hora: '12/10 05:58' },
+        { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Versão B aplicada em 12/10 05:58.', hora: '12/10 05:58' },
       ],
       linkStudio: null, linkRotulo: null, ajuda: null, fine: null, papel: 'region',
     })
@@ -86,7 +86,7 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
   })
   it('A3 na variante e na thumbnail', () => {
     const f = completa(montarFaixa({ thumbnail: campo({ estado: 'em_andamento', destino: 'vb', em: T0500 }) }, ctx))
-    expect(f.resumo).toBe('Não sabemos se a variante B foi aplicada.')
+    expect(f.resumo).toBe('Não sabemos se a versão B foi aplicada.')
     expect(f.linhas[0].texto).toBe('Sem resposta desde 12/10 05:00. Não sabemos se a troca foi feita. Confira a thumbnail no YouTube Studio.')
   })
   it('B: okline mostra "Horários de São Paulo"; destinos diferentes não viram "voltaram ao original"', () => {
@@ -94,17 +94,17 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
     expect(screen.getByText('Horários de São Paulo')).toBeTruthy()
     cleanup()
     const misto = montarFaixa({ title: campo({}), thumbnail: campo({ destino: 'vb' }) }, ctx)
-    expect(misto).toEqual({ tom: 'ok', okline: 'Título: Voltou ao original em 12/10 05:02. Thumbnail: Variante B aplicada em 12/10 05:02.' })
+    expect(misto).toEqual({ tom: 'ok', okline: 'Título: Voltou ao original em 12/10 05:02. Thumbnail: Versão B aplicada em 12/10 05:02.' })
   })
   it('B', () => {
     expect(montarFaixa(SEMENTES.B, ctx)).toEqual({ tom: 'ok', okline: 'Título e thumbnail voltaram ao original em 12/10 05:02.' })
     expect(montarFaixa({ title: campo({}) }, ctx)).toEqual({ tom: 'ok', okline: 'O título voltou ao original em 12/10 05:02.' })
     expect(montarFaixa({ thumbnail: campo({}) }, ctx)).toEqual({ tom: 'ok', okline: 'A thumbnail voltou ao original em 12/10 05:02.' })
-    expect(montarFaixa({ title: campo({ destino: 'vb' }), thumbnail: campo({ destino: 'vb' }) }, ctx)).toEqual({ tom: 'ok', okline: 'Variante B no ar desde 12/10 05:02.' })
+    expect(montarFaixa({ title: campo({ destino: 'vb' }), thumbnail: campo({ destino: 'vb' }) }, ctx)).toEqual({ tom: 'ok', okline: 'Versão B no ar desde 12/10 05:02.' })
   })
   it('C', () => {
     expect(montarFaixa(SEMENTES.C, ctx)).toMatchObject({
-      tom: 'err', lbl: 'Erro:', resumo: 'o título não voltou ao original. O título no ar ainda é o da variante C.',
+      tom: 'err', lbl: 'Erro:', resumo: 'o título não voltou ao original. O título no ar ainda é o da versão C.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'err', texto: 'O YouTube recusou em 12/10 05:02. Nova tentativa automática por volta das 07:00 (horário de São Paulo), tentativa 2 de 3.', hora: '12/10 05:02' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
@@ -114,27 +114,27 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
   })
   it('C na thumbnail troca "o título" por "a thumbnail"', () => {
     const f = completa(montarFaixa({ thumbnail: campo({ estado: 'falhou', erro: { status: 400, reason: 'x', chamada: 'thumbnails.set' } }) }, ctx))
-    expect(f.resumo).toBe('a thumbnail não voltou ao original. A thumbnail no ar ainda é a da variante C.')
+    expect(f.resumo).toBe('a thumbnail não voltou ao original. A thumbnail no ar ainda é a da versão C.')
   })
   it('D', () => {
     expect(montarFaixa(SEMENTES.D, ctx)).toMatchObject({
-      tom: 'err', lbl: 'Erro:', resumo: 'o título da variante B não foi aplicado. No ar continua o título editado por fora.',
+      tom: 'err', lbl: 'Erro:', resumo: 'o título da versão B não foi aplicado. No ar continua o título editado por fora.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'err', texto: 'O YouTube recusou em 12/10 05:02. Nova tentativa automática por volta das 07:00 (horário de São Paulo), sem perguntar de novo: ela repete a troca que você confirmou.', hora: '12/10 05:02' },
-        { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Variante B aplicada em 12/10 05:02.', hora: '12/10 05:02' },
+        { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Versão B aplicada em 12/10 05:02.', hora: '12/10 05:02' },
       ],
       linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio', ajuda: null, fine: null, papel: 'region',
     })
   })
   it('D2', () => {
     const f = completa(montarFaixa(SEMENTES.D2, ctx))
-    expect(f.resumo).toBe('o título da variante B não foi aplicado. No ar continua o da variante C.')
+    expect(f.resumo).toBe('o título da versão B não foi aplicado. No ar continua o da versão C.')
     expect(f.linhas[0].texto).toBe('O YouTube recusou em 12/10 05:02. Nova tentativa automática por volta das 07:00 (horário de São Paulo), tentativa 2 de 3.')
     expect(f.fine).toBeNull()
   })
   it('E', () => {
     expect(montarFaixa(SEMENTES.E, ctx)).toMatchObject({
-      tom: 'warn', lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma variante deste teste: alguém editou por fora. Nada foi alterado.',
+      tom: 'warn', lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma versão deste teste: alguém editou por fora. Nada foi alterado.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'warn', texto: 'Mantida como está no YouTube desde 12/10 05:02.', hora: '12/10 05:02' },
@@ -144,7 +144,7 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
   })
   it('F', () => {
     expect(montarFaixa(SEMENTES.F, ctx)).toMatchObject({
-      tom: 'warn', icone: 'none', lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as variantes. Nada foi alterado.',
+      tom: 'warn', icone: 'none', lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as versões. Nada foi alterado.',
       linhas: [
         { campo: 'title', rotulo: 'Título', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'none', texto: 'Não medida: sem imagem de referência para comparar.' },
@@ -156,7 +156,7 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
     expect(montarFaixa(SEMENTES.G, ctx)).toMatchObject({
       tom: 'warn', lbl: 'Atenção:', resumo: 'o título original não foi guardado quando o teste começou. Nada foi alterado.',
       linhas: [
-        { campo: 'title', rotulo: 'Título', tom: 'warn', texto: 'Continua o da variante C, no ar desde 07/10 05:00.', hora: '07/10 05:00' },
+        { campo: 'title', rotulo: 'Título', tom: 'warn', texto: 'Continua o da versão C, no ar desde 07/10 05:00.', hora: '07/10 05:00' },
         { campo: 'thumbnail', rotulo: 'Thumbnail', tom: 'ok', texto: 'Voltou ao original em 12/10 05:02.', hora: '12/10 05:02' },
       ],
       linkStudio: STUDIO, linkRotulo: 'Abrir no YouTube Studio para conferir', ajuda: null, fine: null, papel: 'status',
@@ -164,10 +164,10 @@ describe('estados da faixa: texto exato da tabela do plano', () => {
   })
   it('G: "no ar desde" usa noArDesde, não a hora do campo; sem noArDesde a frase sai sem hora', () => {
     const f = completa(montarFaixa(SEMENTES.G, ctx))
-    expect(f.linhas[0].texto).toBe('Continua o da variante C, no ar desde 07/10 05:00.')
+    expect(f.linhas[0].texto).toBe('Continua o da versão C, no ar desde 07/10 05:00.')
     expect(f.linhas[0].texto).not.toContain('12/10')
     const sem = completa(montarFaixa(SEMENTES.G, { ...ctx, noArDesde: null }))
-    expect(sem.linhas[0].texto).toBe('Continua o da variante C.')
+    expect(sem.linhas[0].texto).toBe('Continua o da versão C.')
     expect(sem.linhas[0].texto).not.toContain('no ar desde')
     expect(sem.linhas[0].hora).toBeUndefined()
   })
