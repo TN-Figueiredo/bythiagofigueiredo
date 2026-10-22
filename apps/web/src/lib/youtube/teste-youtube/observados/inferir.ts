@@ -15,6 +15,8 @@ export const TETO_BYTES_CORRIDA = 1000
 /** Uma versão só vale se vista em >= 2 RODADAS distintas (`rodada_id`): as 3 passadas de uma rodada são minutos, não persistência (Phil C1). */
 export const MIN_RODADAS_CORRIDA = 2
 /** Abaixo disto de rodadas válidas num campo, "sem troca vista" é "não medido" (Phil C2). */
+/** A 1ª versão do vídeo vale com 1 rodada unânime de >= isto de passadas, SÓ se a seguinte se confirmar em >= MIN_RODADAS_CORRIDA rodadas unânimes. */
+export const MIN_PASSADAS_INICIAL = 3
 export const VALIDAS_MIN_MEDIDO = 2 * MIN_RODADAS_CORRIDA
 const H = 3_600_000
 
@@ -41,7 +43,8 @@ export interface ThumbObs {
 export type CampoObs = 'titulo' | 'miniatura'
 export type TipoTroca = 'sequencial' | 'alternada'
 export type FicouEstado = 'estavel' | 'em_andamento' | 'sem_desfecho'
-export interface CorridaObs { v: number; ref: string; primeira_vista: string; ultima_vista: string; leituras: number }
+/** `rodadas` = rodadas UNÂNIMES em que a versão foi vista; 1 só na 1ª versão do vídeo (exceção da primeira corrida), sempre `sequencial`. */
+export interface CorridaObs { v: number; ref: string; primeira_vista: string; ultima_vista: string; leituras: number; rodadas: number }
 export interface Observado {
   campo: CampoObs
   tipoTroca: TipoTroca
@@ -110,6 +113,7 @@ function versoesDeMiniatura(dhashes: readonly string[]): Map<string, string> {
 
 const rodadasDe = (pontos: readonly Ponto[]): number => new Set(pontos.map(p => p.rodadaId)).size
 
+
 function corridas(pontos: readonly Ponto[]): Corrida[] {
   const out: Corrida[] = []
   for (const p of pontos) {
@@ -134,14 +138,38 @@ function inferirCampo(campo: CampoObs, pontosTodos: readonly Ponto[], e: Entrada
   const pontos = [...pontosTodos].sort((a, b) => a.tMs - b.tMs)
   if (pontos.length < 2) return null
   const runs = corridas(pontos)
-  // corrida vista em 1 rodada só (blip) é descartada, mesmo com 3 passadas; a mais recente nessa condição só pesa na estabilidade (abaixo)
-  const qualificadas: Corrida[] = []
-  for (const r of runs) {
-    if (rodadasDe(r.pontos) < MIN_RODADAS_CORRIDA) continue
-    const ant = qualificadas.at(-1)
-    if (ant && ant.key === r.key) ant.pontos.push(...r.pontos) // as vizinhas iguais, separadas por um blip, se unem
-    else qualificadas.push({ key: r.key, ref: r.ref, pontos: [...r.pontos] })
+  // Só rodada UNÂNIME (todas as passadas válidas do campo com a mesma chave) confirma versão: a rodada mista não sustenta nada (Yannis C2)
+  const porRodada = new Map<string, { keys: Set<string>; n: number }>()
+  for (const p of pontos) {
+    const c = porRodada.get(p.rodadaId) ?? { keys: new Set<string>(), n: 0 }
+    c.keys.add(p.key); c.n++
+    porRodada.set(p.rodadaId, c)
   }
+  const unanimesDe = (ps: readonly Ponto[]): Set<string> => new Set(ps.filter(p => porRodada.get(p.rodadaId)!.keys.size === 1).map(p => p.rodadaId))
+  const qualifica = (r: Corrida): boolean => unanimesDe(r.pontos).size >= MIN_RODADAS_CORRIDA
+  // corrida vista em 1 rodada unânime só (blip) é descartada, mesmo com 3 passadas; a mais recente nessa condição só pesa na estabilidade (abaixo)
+  // Exceção: a 1ª corrida do vídeo vale com 1 rodada unânime (>= 3 passadas) se a corrida seguinte se confirma (Phil + Yannis, decisão do controlador)
+  const inicialOk = (): boolean => {
+    const r0 = runs[0]!
+    const ids = unanimesDe(r0.pontos)
+    if (ids.size !== 1 || !runs[1] || !qualifica(runs[1])) return false
+    const id = [...ids][0]!
+    return porRodada.get(id)!.n >= MIN_PASSADAS_INICIAL
+  }
+  const montar = (comInicial: boolean): Corrida[] => {
+    const out: Corrida[] = []
+    runs.forEach((r, i) => {
+      if (!qualifica(r) && !(comInicial && i === 0)) return
+      const ant = out.at(-1)
+      if (ant && ant.key === r.key) ant.pontos.push(...r.pontos) // as vizinhas iguais, separadas por um blip, se unem
+      else out.push({ key: r.key, ref: r.ref, pontos: [...r.pontos] })
+    })
+    return out
+  }
+  let inicial = !qualifica(runs[0]!) && inicialOk()
+  let qualificadas = montar(inicial)
+  // a exceção nunca forma A,B,A: a troca com ela é sempre sequencial
+  if (inicial && qualificadas.slice(1).some(q => q.key === qualificadas[0]!.key)) { inicial = false; qualificadas = montar(false) }
   if (qualificadas.length < 2) return null
   const chaves = qualificadas.map(r => r.key)
   const distintas = [...new Set(chaves)]
@@ -159,7 +187,7 @@ function inferirCampo(campo: CampoObs, pontosTodos: readonly Ponto[], e: Entrada
   if (!estavel && e.alvoSaiu) { ficouEstado = 'sem_desfecho'; motivo = (e.saiuPor ?? 'saiu').replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 40) || 'saiu' }
 
   const trocas = qualificadas.slice(-TETO_CORRIDAS).map(r => corridaCabivel({
-    v: distintas.indexOf(r.key), ref: r.ref, primeira_vista: r.pontos[0]!.iso, ultima_vista: r.pontos.at(-1)!.iso, leituras: r.pontos.length,
+    v: distintas.indexOf(r.key), ref: r.ref, primeira_vista: r.pontos[0]!.iso, ultima_vista: r.pontos.at(-1)!.iso, leituras: r.pontos.length, rodadas: unanimesDe(r.pontos).size,
   }))
   const tipoTroca: TipoTroca = alternada ? 'alternada' : 'sequencial'
   const refFicou = ficouRun.ref

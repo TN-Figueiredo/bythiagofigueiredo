@@ -175,8 +175,9 @@ async function publicacoes(c: ContextoTarefa, fim: number, alvos: readonly AlvoO
 
 async function varrer(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[], d: Contadores, lote: number): Promise<void> {
   ida(c, fim)
+  // a linha de alvo vivo é regravada a cada avaliação e vai para o fim; a de alvo que saiu fica parada e vem primeiro.
   const r = await c.sb.from('ab_native_observados').select('id,site_id,youtube_video_id').eq('ficou_estado', 'em_andamento')
-    .order('ultima_atualizacao_em', { ascending: true }).order('id', { ascending: true }).limit(lote) // a linha de alvo vivo é regravada a cada avaliação e vai para o fim; a de alvo que saiu fica parada e vem primeiro.abortSignal(AbortSignal.timeout(BANCO_MS))
+    .order('ultima_atualizacao_em', { ascending: true }).order('id', { ascending: true }).limit(lote).abortSignal(AbortSignal.timeout(BANCO_MS))
   if (r.error || !Array.isArray(r.data)) throw new Error('varredura')
   const porChave = new Map(alvos.map(a => [chaveAlvo(a.siteId, a.ytId), a]))
   for (const l of r.data as Linha[]) {

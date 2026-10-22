@@ -5,7 +5,8 @@
 --                         (validas_*: 0 = o campo nunca foi lido, e a F2 lê "não medido", não "sem troca vista").
 --   obs_native_poda       (prefixo obs_: entra na varredura da lista fechada do E10) poda SÓ o cursor (365 d após avaliado_em) e apaga as linhas
 --                         ÓRFÃS das duas tabelas (vídeo sem competitor_videos em nenhum canal do site e sem yt_watch_alvos: canal apagado sem guardar,
---                         por qualquer via). As trocas observadas NÃO envelhecem: guardadas para sempre (decisão do controlador, "coletar mais dado do que usa").
+--                         por qualquer via). As trocas observadas NÃO envelhecem por idade (decisão do controlador, "coletar mais dado do que usa"); só saem quando o vídeo some:
+--                         apagar o canal sem guardar, a E9 que apaga o vídeo que saiu de competitor_videos e a purga deixam trocas órfãs, e a poda as remove no disparo seguinte.
 -- A purga (registro do export + competitor_channel_remove_archived) vem na migration seguinte (..._registro): NÃO levar esta ao db:push:prod sem ela.
 -- Idempotente. Volta: drop function obs_native_poda; drop table ab_native_obs_cursor, ab_native_observados.
 set lock_timeout = '5s';
@@ -47,6 +48,8 @@ create table if not exists public.ab_native_obs_cursor (
   validas_miniatura smallint not null default 0 check (validas_miniatura >= 0),
   primary key (site_id, youtube_video_id)
 );
+-- A poda de órfãos procura o vídeo por (site, video_id); o índice existente de competitor_videos é (competitor_channel_id, video_id), sem video_id na frente.
+create index if not exists idx_competitor_videos_video_id on public.competitor_videos (video_id);
 create index if not exists ab_native_obs_cursor_avaliado on public.ab_native_obs_cursor (avaliado_em);
 
 -- RLS como as tabelas da sonda (yt_watch_*): leitura sensível por can_view_private_site (ou can_edit_site); escrita só por service role.
@@ -66,7 +69,7 @@ begin
   end loop;
 end $$;
 
--- Poda em lote com limite (par de poda na lista fechada do E10). SÓ o cursor envelhece (365 d). As trocas observadas são guardadas para sempre;
+-- Poda em lote com limite (par de poda na lista fechada do E10). SÓ o cursor envelhece (365 d). As trocas observadas não envelhecem por idade;
 -- só as linhas ÓRFÃS saem das duas tabelas: o vídeo não existe mais em competitor_videos de nenhum canal do site e não tem alvo na watch (o canal foi
 -- apagado sem guardar, ou removido por outra via). Um canal arquivado ainda existe, então os vídeos dele não são órfãos. A linha órfã que o observador
 -- gravar depois do apagamento (disparo em voo) também sai no disparo seguinte; o apagado some no próximo disparo com a flag on, não na mesma transação.

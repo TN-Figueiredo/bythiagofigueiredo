@@ -101,7 +101,7 @@ const LISTA: Par[] = [
   { funcao: 'obs_unarchived_watch_sweep', tabela: 'ab_native_obs_cursor', linha: 'T13: varre o cursor que um disparo em voo gravou depois de apagar sem guardar', disparo: 'cron' },
   // a poda por idade é SÓ do cursor (365 d, estado de execução); a troca observada não envelhece (decisão do controlador: coletar mais dado do que usa) e só sai quando o vídeo some (órfã)
   { funcao: 'obs_native_poda', tabela: 'ab_native_obs_cursor', linha: 'T13: cursor, estado de execução: 365 d após avaliado_em, e as linhas órfãs (vídeo sem alvo e sem competitor_videos no site)', disparo: 'agenda' },
-  { funcao: 'obs_native_poda', tabela: 'ab_native_observados', linha: 'T13: SÓ as linhas órfãs (canal apagado sem guardar); nunca por idade, a troca observada é guardada para sempre', disparo: 'agenda' },
+  { funcao: 'obs_native_poda', tabela: 'ab_native_observados', linha: 'T13: SÓ as linhas órfãs (canal apagado sem guardar); nunca por idade; a troca de vídeo vivo fica, a de vídeo que sumiu (canal apagado, E9) sai', disparo: 'agenda' },
 ]
 
 /** Item 78: nenhuma série, versão, texto de comentário ou bruto sai por cron nem por idade. */
