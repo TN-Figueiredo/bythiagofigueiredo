@@ -164,7 +164,16 @@ export function FichaTeste(p: FichaTesteProps): ReactElement {
         </p>
       )
     }
-    if (g.status === 'recusado') return <p className="cn-save rec" role="alert"><Icone nome="warn" /><span>{g.mensagem}</span></p>
+    if (g.status === 'recusado') {
+      return (
+        <p className="cn-save rec" role="alert">
+          <Icone nome="warn" /><span>{g.mensagem}</span>
+          {g.mensagem === FRASES.ficha.erroServidor
+            ? <button type="button" className="cn-lnk" onClick={() => { void g.salvarAgora() }}>{FRASES.ficha.tentarAgora}</button>
+            : null}
+        </p>
+      )
+    }
     const aviso = g.mensagem
     return (
       <p className="cn-save" role="status" aria-live="polite">

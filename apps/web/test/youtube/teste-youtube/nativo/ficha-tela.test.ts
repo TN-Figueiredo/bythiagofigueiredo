@@ -228,7 +228,7 @@ describe('FRASES: frases fechadas (exatidão)', () => {
     expect(FRASES.resposta.tardia(dia)).toBe('O prazo acabou em 04/11. Ainda dá para responder.')
     expect(FRASES.resposta.semBotao).toBe('A resposta por esta tela chega na próxima atualização. O que o YouTube mostrou fica guardado e você poderá responder mesmo depois do prazo.')
     expect(FRASES.guarda.motivoRecusa(dia)).toBe('Este vídeo tem um teste do YouTube registrado até 04/11. Aguarde o resultado ou responda o teste antes de iniciar o nosso.')
-    expect(FRASES.guarda.guardaFalhou).toBe('Não foi possível conferir o teste do YouTube agora. Nada foi iniciado. Tente de novo em alguns minutos.')
+    expect(FRASES.guarda.guardaFalhou).toBe('Não deu para conferir se este vídeo já tem teste do YouTube. Nada foi iniciado.')
     expect(FRASES.guarda.tentarDeNovo).toBe('Tentar de novo')
     expect(FRASES.guarda.estadoMudou).toBe('O teste mudou enquanto a tela estava aberta.')
     expect(FRASES.guarda.atualizar).toBe('Atualizar')

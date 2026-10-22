@@ -183,7 +183,7 @@ describe('assistente: recusa da guarda ao iniciar o nosso teste (D-7)', () => {
     montar(iniciar)
     fireEvent.click(screen.getByRole('button', { name: 'Ativar teste' }))
     const msg = await screen.findByRole('alert')
-    expect(msg.textContent).toContain('Não foi possível conferir o teste do YouTube agora. Nada foi iniciado. Tente de novo em alguns minutos.')
+    expect(msg.textContent).toContain('Não deu para conferir se este vídeo já tem teste do YouTube. Nada foi iniciado.')
     expect(document.body.textContent).not.toContain(MOTIVO_GUARDA_FALHOU)
     const criadas = vi.mocked(createTextVariant).mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }))

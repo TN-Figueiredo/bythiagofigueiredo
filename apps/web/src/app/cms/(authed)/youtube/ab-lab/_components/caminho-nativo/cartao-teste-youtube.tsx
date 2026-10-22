@@ -50,7 +50,11 @@ function erroDeConfirmar(r: Extract<ResultadoAcaoConfirmar, { ok: false }>): Fal
   switch (r.erro) {
     case 'estado_mudou': case 'ja_confirmado': case 'nao_encontrada': case 'ficha_incompleta': case 'ja_ha_teste_em_andamento':
       return { t: 'mudou' }
-    case 'sem_permissao': case 'pedido_invalido': case 'falha':
+    case 'sem_permissao':
+      return { t: 'erro', texto: FRASES.semPermissao }
+    case 'pedido_invalido':
+      return { t: 'erro', texto: FRASES.pedidoRecusado }
+    case 'falha':
       return { t: 'erro', texto: FRASES.s7.confirmarFalhou }
     default: {
       const _exaustivo: never = r
@@ -62,7 +66,11 @@ function erroDeDescartar(r: Extract<ResultadoAcaoDescartar, { ok: false }>): Fal
   switch (r.erro) {
     case 'ja_encerrado': case 'confirmado': case 'nao_encontrado':
       return { t: 'mudou' }
-    case 'sem_permissao': case 'pedido_invalido': case 'falha':
+    case 'sem_permissao':
+      return { t: 'erro', texto: FRASES.semPermissao }
+    case 'pedido_invalido':
+      return { t: 'erro', texto: FRASES.pedidoRecusado }
+    case 'falha':
       return { t: 'erro', texto: FRASES.s7.liberarFalhou }
     default: {
       const _exaustivo: never = r

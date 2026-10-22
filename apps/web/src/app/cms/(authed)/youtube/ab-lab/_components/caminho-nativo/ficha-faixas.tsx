@@ -74,7 +74,11 @@ export interface NossoDaFicha {
 export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: AcoesDoNosso, agora: () => Date, recarregar?: () => void): NossoDaFicha {
   const [nosso, setNosso] = useState<EntradaFicha['nosso']>(linhaNosso ? inicialDe(linhaNosso) : null)
   const [motivo, setMotivo] = useState<MotivoNaoVolta>(linhaNosso ? motivoInicial(linhaNosso) : 'tentar')
-  const [conferido, setConferido] = useState(false)
+  const chaveConferido = linhaNosso ? `ab-conferido:${linhaNosso.testId}:${linhaNosso.restoreSeq}` : null
+  const [conferido, setConferido] = useState<boolean>(() => {
+    if (!chaveConferido) return false
+    try { return window.sessionStorage.getItem(chaveConferido) === '1' } catch { return false }
+  })
   const [restauradaEm, setRestauradaEm] = useState<Date | null>(null)
   const [pausaAberta, setPausaAberta] = useState(false)
   const [ocupado, setOcupado] = useState(false)
@@ -129,8 +133,8 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
         if (o === 'sim') setRestauradaEm(agora())
         recarregar?.() // a pausa já reivindicou o teste e avançou `restore_seq`: a linha recarregada traz o valor atual
       } else if (r.ok) {
-        // Só a pausa tem "Trocar mesmo assim" (`forcar`); o retry não tem caminho de forçar, então vira frase inline (sem diálogo que não resolve).
-        if (ehRetry) setErro(FRASES.ficha.pausarPrecisaConfirmar)
+        // Só a pausa tem "Trocar mesmo assim" (`forcar`); o retry não tem caminho de forçar: leva à saída "A original já está no YouTube, seguir" (I-1).
+        if (ehRetry) setMotivo('conferir')
         else setParaConfirmar(r.campos)
       } else if (r.resultado === 'em_andamento') {
         setNosso((n) => (n ? { ...n, originalDeVolta: 'restaurando', status: 'paused' } : n))
@@ -153,7 +157,10 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
     pausar: (forcar) => { void rodar(() => (forcar === true ? acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0, true) : acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0)), false) },
     tentarDeNovo: () => { void rodar(() => acoes.retryRestore(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0), true) },
     fecharConfirmar: () => setParaConfirmar(null),
-    conferirESeguir: () => setConferido(true),
+    conferirESeguir: () => {
+      setConferido(true)
+      if (chaveConferido) { try { window.sessionStorage.setItem(chaveConferido, '1') } catch { /* sem storage: vale só nesta tela */ } }
+    },
   }
 }
 
@@ -189,7 +196,7 @@ export function FaixasFicha({ ctx, n, registroDetectado }: {
       {faixa === 'falhou' && (n.motivo === 'conferir' || n.motivo === 'sem_registro') ? (
         <FaixaCaminho
           tom="err" role="alert" titulo={(n.motivo === 'conferir' ? FRASES.ficha.faixaRestaurarNaoVolta : FRASES.ficha.faixaSemRegistro).titulo}
-          acoes={<button type="button" className="cn-btn pri" onClick={n.conferirESeguir}>{FRASES.ficha.conferiESeguir}</button>}
+          acoes={<button type="button" className="cn-btn" onClick={n.conferirESeguir}>{FRASES.ficha.conferiESeguir}</button>}
         >
           {(n.motivo === 'conferir' ? FRASES.ficha.faixaRestaurarNaoVolta : FRASES.ficha.faixaSemRegistro).apoio}
         </FaixaCaminho>

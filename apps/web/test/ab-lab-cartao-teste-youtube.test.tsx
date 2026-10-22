@@ -125,7 +125,7 @@ describe('CartaoTesteYoutube, estado 1 (visto de fora)', () => {
     montar()
     fireEvent.click(screen.getByRole('button', { name: 'Não é teste' }))
     fireEvent.click(screen.getByRole('button', { name: 'Liberar o Lab' }))
-    await screen.findByText(FRASES.s7.liberarFalhou)
+    await screen.findByText(FRASES.semPermissao)
     expect(document.body.textContent).not.toContain('RLS violation xyz')
   })
   it('depois de "Confirmar" ok o foco vai para o título do estado 2, não se perde no body', async () => {
@@ -244,7 +244,8 @@ describe('lista: o painel S7 é o cartão real', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Liberar o Lab' }))
     await waitFor(() => expect(atualizar).toHaveBeenCalled())
     expect(a.naoETeste).toHaveBeenCalledWith('reg-1', linhaS7().registro!.updatedAt)
-    await waitFor(() => expect(screen.queryByText('Parece haver um teste no Studio')).toBeNull())
+    // o selo da linha agora também diz "Parece haver um teste no Studio" (I-3): o painel fechado é que prova o fim
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Não é teste' })).toBeNull())
   })
   it('"Confirmar" pela lista usa confirmarDetectado da prop', async () => {
     const a = mkAcoes()

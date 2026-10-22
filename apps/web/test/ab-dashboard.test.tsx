@@ -387,7 +387,7 @@ describe('AbLabDashboard', () => {
     )
     const kpiStrip = container.querySelector('[data-kpi-strip]')
     expect(kpiStrip).toBeTruthy()
-    expect(screen.getAllByText('Testes ativos').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Nossos testes ativos').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Vencedores escolhidos')).toBeTruthy()
     expect(screen.queryAllByText(/confiança média/i)).toHaveLength(0)
     expect(screen.queryAllByText(/lift médio/i)).toHaveLength(0)
@@ -412,14 +412,14 @@ describe('AbLabDashboard', () => {
     expect(screen.getByText('1 de 2 testes')).toBeTruthy()
   })
 
-  it('shows "Nenhum teste ativo" when no active tests and no draft', () => {
+  it('shows "Nenhum teste nosso ativo" when no active tests and no draft', () => {
     render(
       <AbLabDashboard
         {...baseProps}
         stats={{ activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 }}
       />,
     )
-    expect(screen.getByText('Nenhum teste ativo')).toBeTruthy()
+    expect(screen.getByText('Nenhum teste nosso ativo')).toBeTruthy()
   })
 
   it('menu de filtro usa o token --cms-surface (sem o inexistente surface-2)', () => {

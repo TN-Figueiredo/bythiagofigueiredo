@@ -164,9 +164,9 @@ export function FichaVersoes(p: FichaVersoesProps): ReactElement {
                       ) : null}
                       {temMini && (falhou || img) ? (
                         <label className={`cn-btn${ro ? ' off' : ''}`}>
-                          {FRASES.ficha.enviarDeNovo}
+                          {falhou ? FRASES.ficha.enviarDeNovo : FRASES.ficha.trocarImagem}
                           <input type="file" className="cn-sr" accept="image/jpeg,image/png" disabled={ro || p.enviandoN === n}
-                            aria-label={`${FRASES.ficha.enviarDeNovo} (${FRASES.ficha.versao(letra)})`}
+                            aria-label={falhou ? `${FRASES.ficha.enviarDeNovo} (${FRASES.ficha.versao(letra)})` : FRASES.ficha.trocarImagemAria(letra)}
                             onChange={(ev) => { const f = ev.target.files?.[0]; if (f) p.enviarImagem(n, f); ev.target.value = '' }} />
                         </label>
                       ) : null}

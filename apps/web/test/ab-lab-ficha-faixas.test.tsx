@@ -44,13 +44,14 @@ function montar(inicial: FichaLida, o: { nosso?: NossoT | null; largura?: 'larga
 }
 const clicar = async (nome: string | RegExp): Promise<void> => { await act(async () => { fireEvent.click(screen.getByRole('button', { name: nome })) }) }
 const PAUSAR = FRASES.ficha.pausarEVoltar
+const studioBtn = (): HTMLButtonElement | undefined => screen.queryAllByRole('button', { name: FRASES.ficha.bloco2.abrirNoStudio })[0] as HTMLButtonElement | undefined
 
 function armazem(): Storage {
   const m = new Map<string, string>()
   return { get length() { return m.size }, key: (i: number) => [...m.keys()][i] ?? null, getItem: (k: string) => m.get(k) ?? null,
     setItem: (k: string, v: string) => { m.set(k, v) }, removeItem: (k: string) => { m.delete(k) }, clear: () => m.clear() }
 }
-beforeEach(() => { vi.stubGlobal('localStorage', armazem()); vi.stubGlobal('open', vi.fn()) })
+beforeEach(() => { window.sessionStorage.clear(); vi.stubGlobal('localStorage', armazem()); vi.stubGlobal('open', vi.fn()) })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.clearAllMocks() })
 
 describe('faixa 0b: nosso teste rodando', () => {
@@ -175,7 +176,7 @@ describe('faixa 0b: nosso teste rodando', () => {
     expect(screen.getByText(FRASES.ficha.faixaRestaurada('22/10, 12:00').titulo)).toBeTruthy()
   })
 
-  it('precisa_confirmar de retryRestore não abre diálogo: frase inline', async () => {
+  it('I-1: precisa_confirmar de retryRestore não abre diálogo nem beco sem saída: leva a "conferir", com a saída "A original já está no YouTube, seguir"', async () => {
     const a = acoesMock()
     a.pauseAbTest.mockResolvedValue(ok({ title: campoFalhou }))
     a.retryRestore.mockResolvedValue({ ok: true, resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: 'x' }] })
@@ -183,7 +184,20 @@ describe('faixa 0b: nosso teste rodando', () => {
     await clicar(PAUSAR); await clicar(PAUSAR)
     await clicar(FRASES.ficha.tentarDeNovo)
     expect(screen.queryByRole('alertdialog')).toBeNull()
-    expect(screen.getByText(FRASES.ficha.pausarPrecisaConfirmar)).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain(FRASES.ficha.faixaRestaurarNaoVolta.titulo)
+    expect(screen.queryByText(FRASES.ficha.pausarPrecisaConfirmar)).toBeNull()
+    await clicar(FRASES.ficha.conferiESeguir)
+    expect(studioBtn()?.disabled).toBe(false)
+  })
+
+  it('M-1: "A original já está no YouTube, seguir" sobrevive à recarga (sessionStorage, por teste e restoreSeq)', async () => {
+    montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: null } })
+    await clicar(FRASES.ficha.conferiESeguir)
+    expect(window.sessionStorage.getItem(`ab-conferido:${NOSSO.testId}:${NOSSO.restoreSeq}`)).toBe('1')
+    cleanup()
+    montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: null } })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(studioBtn()?.disabled).toBe(false)
   })
 
   it('precisa_confirmar abre o diálogo existente; Voltar fecha sem mais chamadas', async () => {

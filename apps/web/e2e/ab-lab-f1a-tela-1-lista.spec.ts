@@ -15,7 +15,8 @@ test('lista cheia: resumo, grupos, rodapé e uma linha por estado', async ({ pag
   await semAnimacao(page)
   // Resumo: contagem só depois da leitura, com a frase exata (D-7)
   await expect(lista).toContainText(L.esperam(2, 1, 1))
-  await expect(lista).toContainText(`${capitalizar(L.emTesteNoStudio(2))}, ${L.emPreparo(1)}. ${L.labPausadoDeles(2)}`)
+  // I-3: só o confirmado (mu) é "em teste no Studio"; o detectado (lv) conta à parte.
+  await expect(lista).toContainText(`${capitalizar(L.emTesteNoStudio(1))}, ${L.detectados(1)}, ${L.emPreparo(1)}. ${L.labPausadoDeles(2)}`)
   await expect(lista.getByText('Precisa de você', { exact: true })).toBeVisible()
   await expect(lista.getByText('Outros vídeos', { exact: true })).toBeVisible()
   await expect(lista).toContainText(L.rodape)
@@ -23,7 +24,7 @@ test('lista cheia: resumo, grupos, rodapé e uma linha por estado', async ({ pag
   const esperado: Record<string, { estado: string; texto: string[]; botoes: string[] }> = {
     sp: { estado: 'sem_resposta', texto: ['Sem resposta', 'O prazo acabou em'], botoes: ['Responder'] },
     sm: { estado: 'resultado_pronto', texto: ['Resultado do YouTube pronto', 'Os 14 dias acabaram em'], botoes: ['Responder'] },
-    lv: { estado: 'em_teste_studio', texto: ['Em teste no Studio', 'Parece haver um teste no Studio: o título alterna desde', 'Lab pausado porque há teste no Studio.'], botoes: ['Ver teste'] },
+    lv: { estado: 'em_teste_studio', texto: [FRASES.s7.selo, 'Parece haver um teste no Studio: o título alterna desde', 'Lab pausado porque parece haver teste no Studio.'], botoes: ['Ver teste'] },
     mu: { estado: 'em_teste_studio', texto: ['Em teste no Studio', 'Você confirmou em', 'Lab pausado porque há teste no Studio.'], botoes: ['Ver teste'] },
     r66: { estado: 'sugerido_youtube', texto: ['Caminho sugerido: teste do YouTube', 'Impressões por dia: não medido'], botoes: ['Testar no YouTube', 'Prefiro outro caminho'] },
     sh: { estado: 'sugerido_nosso', texto: ['Caminho sugerido: nosso teste', 'Short: o Studio não oferece o teste.'], botoes: ['Iniciar teste'] },

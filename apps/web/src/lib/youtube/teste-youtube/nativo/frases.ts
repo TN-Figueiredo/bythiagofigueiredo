@@ -49,6 +49,7 @@ export const FRASES = {
       return `${capitalizar(videos(espera))} ${verbo} a sua resposta${detalhe}.`
     },
     emTesteNoStudio: (n: number): string => `${porExtenso(n)} em teste no Studio`,
+    detectados: (n: number): string => `${porExtenso(n)} com teste detectado, ainda sem confirmar`,
     emPreparo: (n: number): string => `${porExtenso(n)} em preparo`,
     labPausadoDeles: (n: number): string => `O Lab está pausado em ${porExtenso(n)} deles.`,
     maisComResultadoPronto: (n: number): string =>
@@ -93,14 +94,14 @@ export const FRASES = {
     respostasDiferentesFrase: 'O título no ar e a sua resposta são diferentes.',
     semConexao: 'Sem conexão. Nada foi registrado.',
     tentarDeNovo: 'Tentar de novo',
-    falhou: 'Não deu para registrar a resposta agora. Nada foi alterado. Tente de novo em alguns minutos.',
+    falhou: 'Não deu para registrar a resposta agora. Toque na resposta de novo; se repetir, recarregue a página.',
   },
 
   /** D-7 (guarda do nosso teste) e D-8 (pergunta antes de "Iniciar teste"). */
   guarda: {
     motivoRecusa: (ate: Date): string =>
       `Este vídeo tem um teste do YouTube registrado até ${dataCurta(ate)}. Aguarde o resultado ou responda o teste antes de iniciar o nosso.`,
-    guardaFalhou: 'Não foi possível conferir o teste do YouTube agora. Nada foi iniciado. Tente de novo em alguns minutos.',
+    guardaFalhou: 'Não deu para conferir se este vídeo já tem teste do YouTube. Nada foi iniciado.',
     /** O servidor devolve a recusa sem a data do registro; nunca se inventa o `dd/mm` (a frase fechada tem a data quando ela existe). */
     motivoRecusaSemData: 'Este vídeo tem um teste do YouTube registrado. Aguarde o resultado ou responda o teste antes de iniciar o nosso.',
     tentarDeNovo: 'Tentar de novo',
@@ -134,7 +135,10 @@ export const FRASES = {
     grande: 'A imagem precisa ter até 2 MB.',
     formato: 'A imagem precisa ser JPEG ou PNG.',
   },
-  mudouEmOutroLugar: 'A ficha mudou em outro lugar. Recarregamos a versão atual.',
+  mudouEmOutroLugar: 'A ficha mudou em outra aba ou outro aparelho. Recarregamos a versão atual.',
+  /** I-2: erros em que repetir o toque não resolve. */
+  semPermissao: 'Sua sessão pode ter vencido. Recarregue a página, entre de novo e repita.',
+  pedidoRecusado: 'Este pedido não foi aceito. Nada foi alterado. Recarregue a página e repita.',
 
   /** Faixas, blocos e passos da ficha (os componentes da T6-T9 leem daqui). */
   ficha: {
@@ -193,15 +197,15 @@ export const FRASES = {
     faixaRestaurando: 'Restaurando a original…',
     restaurarFalhou: f('A original não voltou: o nosso teste segue rodando.', 'Reconecte o canal e tente de novo.'),
     faixaRestaurarFalhou: { titulo: 'Não deu para restaurar a original', apoio: 'O acesso ao YouTube venceu. O nosso teste continua rodando; nada foi trocado. Reconecte o canal e tente de novo.' },
-    faixaRestaurarNaoVolta: { titulo: 'A original não voltou sozinha', apoio: 'O vídeo já tinha mudado ou o original não foi encontrado. Confira o título e a miniatura no YouTube antes de seguir.' },
+    faixaRestaurarNaoVolta: { titulo: 'Não deu para confirmar que a original voltou', apoio: 'Pode ser que o vídeo já tivesse outro título ou miniatura, ou que a leitura do YouTube tenha demorado. Abra o vídeo no YouTube e confira se o título e a miniatura são os originais. Se não forem, troque por lá antes de seguir.' },
     /** Provisórias (Logan fecha): teste pausado sem retrato de restauro (pausa antiga ou reivindicação sem resultado) e a saída do dono. */
-    faixaSemRegistro: { titulo: 'O restauro deste teste não foi guardado', apoio: 'Este teste foi pausado antes de o Lab guardar o restauro. Confira o título e a miniatura no YouTube antes de seguir.' },
-    conferiESeguir: 'Conferi no YouTube, seguir',
+    faixaSemRegistro: { titulo: 'A volta da original não foi registrada', apoio: 'Este teste foi pausado antes de o Lab passar a registrar essa volta. Abra o vídeo no YouTube e confira se o título e a miniatura são os originais antes de seguir.' },
+    conferiESeguir: 'A original já está no YouTube, seguir',
     reconectar: 'Reconectar o canal',
     /** Provisórias (T9b; Logan fecha): a exceção/rede ao pausar e ao mandar o lembrete. */
-    pausarFalhou: 'Não deu para pausar agora. Nada foi trocado. Tente de novo.',
-    pausarPrecisaConfirmar: 'O vídeo no YouTube tem um título ou miniatura diferente do esperado. Confira no YouTube antes de pausar.',
-    lembreteFalhou: 'Não foi possível enviar o lembrete agora. Tente de novo.',
+    pausarFalhou: 'Não deu para saber se a pausa foi feita. Recarregue a ficha: se o nosso teste ainda aparece rodando, toque em Pausar de novo.',
+    pausarPrecisaConfirmar: 'O título ou a miniatura no YouTube já são outros. O Lab não os troca sozinho.',
+    lembreteFalhou: 'Não deu para enviar o lembrete agora. Tente de novo.',
     restaurada: f('Original de volta no vídeo. Próximo passo: abrir no Studio.'),
     restauradaEstreita: f('Original de volta no vídeo. Próximo passo: mandar a ficha ao computador.'),
     faixaRestaurada: (quando: string): { titulo: string; apoio: string } => ({
@@ -255,8 +259,8 @@ export const FRASES = {
     usarNosso: 'O Studio não ofereceu o teste neste vídeo? Usar o nosso teste',
     copiarTitulo: 'Copiar título',
     /** T8: versões, gravação e imagem. */
-    naoSalvoConflito: 'Não salvo: a ficha mudou em outro lugar. O que você escreveu continua aqui.',
-    erroServidor: 'O servidor não conseguiu salvar agora. O que você escreveu continua aqui; tente de novo.',
+    naoSalvoConflito: 'Não salvo: a ficha mudou em outra aba ou outro aparelho. O que você escreveu continua aqui.',
+    erroServidor: 'Não deu para salvar agora. O que você escreveu continua aqui.',
     erroCopiar: 'Não deu para copiar o título. Selecione o texto e copie à mão.',
     erroSalvar: 'Não foi possível salvar a ficha agora. Confira os campos e tente de novo.',
     tituloAcima: (limite: number): string => `O título passa de ${limite} caracteres. Encurte para salvar.`,
@@ -266,6 +270,8 @@ export const FRASES = {
     baixarImagem: 'Baixar imagem',
     enviarImagem: (letra: string): string => `Enviar imagem da versão ${letra}`,
     enviarDeNovo: 'Enviar de novo',
+    trocarImagem: 'Trocar imagem',
+    trocarImagemAria: (letra: string): string => `Trocar imagem (Versão ${letra})`,
     imagemNaoCarregou: 'A imagem não carregou',
     naoMedidoOriginal: 'Miniatura da versão A: não medido',
     tituloOriginalNaoLido: 'O título atual do vídeo aparece aqui depois da primeira gravação.',
@@ -313,8 +319,8 @@ export const FRASES = {
     ultimaNaoMedida: 'não medida',
     retomar: 'Retomar',
     /** Provisórias (Logan fecha): a action falhou ou lançou; nada de estado 2 otimista. */
-    confirmarFalhou: 'Não deu para confirmar agora. Tente de novo.',
-    liberarFalhou: 'Não deu para liberar o Lab agora. Tente de novo.',
+    confirmarFalhou: 'Não deu para confirmar agora. O Lab segue parado. Tente de novo.',
+    liberarFalhou: 'Não deu para liberar o Lab agora. Ele segue parado neste vídeo. Tente de novo.',
     hoje: (hora: string): string => `hoje, ${hora}`,
     as: (dia: string, hora: string): string => `${dia} às ${hora}`,
   },

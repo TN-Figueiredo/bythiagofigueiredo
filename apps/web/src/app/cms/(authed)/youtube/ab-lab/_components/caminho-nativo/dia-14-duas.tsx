@@ -32,18 +32,22 @@ type Tela =
   | { t: 'sem_vencedor'; resposta: RespostaSemVencedor }
   | { t: 'diferentes' }
   | { t: 'mudou' }
-  | { t: 'erro' }
+  | { t: 'erro'; texto: string }
   | { t: 'sem_conexao'; pedido: PedidoRespostaDia14 }
 
 type Falha = Extract<ResultadoAcaoResponder, { ok: false }>
 
 /** Desfecho que NÃO é sucesso: relê a linha (o teste mudou) ou mostra a frase de erro. Exaustivo sobre o tipo real. */
-function falhaDaAction(r: Falha): 'mudou' | 'erro' {
+function falhaDaAction(r: Falha): 'mudou' | { texto: string } {
   switch (r.erro) {
     case 'ja_respondido': case 'estado_mudou': case 'nao_respondivel': case 'nao_encontrado':
       return 'mudou'
-    case 'falha_escrita': case 'falha': case 'sem_permissao': case 'pedido_invalido': case 'variante_invalida':
-      return 'erro'
+    case 'sem_permissao':
+      return { texto: FRASES.semPermissao }
+    case 'pedido_invalido': case 'variante_invalida':
+      return { texto: FRASES.pedidoRecusado }
+    case 'falha_escrita': case 'falha':
+      return { texto: FRASES.dia14.falhou }
     default: {
       const _exaustivo: never = r
       return _exaustivo
@@ -94,7 +98,7 @@ export function Dia14Duas({ linha, versoes, acoes }: Dia14DuasProps): ReactEleme
       const f = falhaDaAction(r)
       if (f === 'mudou') { setTela({ t: 'mudou' }); return }
       Sentry.captureMessage('dia 14: resposta recusada', { level: 'warning', tags: { area: 'ab-nativo' }, extra: { motivo: r.erro } })
-      setTela({ t: 'erro' })
+      setTela({ t: 'erro', texto: f.texto })
     } catch {
       // Rede caiu: nada foi registrado; o 2º toque reenvia o mesmo pedido (a action é idempotente por CAS).
       setTela({ t: 'sem_conexao', pedido })
@@ -175,7 +179,7 @@ export function Dia14Duas({ linha, versoes, acoes }: Dia14DuasProps): ReactEleme
           acoes={<button type="button" className="cn-btn" onClick={() => acoes.atualizar()}>{FRASES.guarda.atualizar}</button>}
         />
       ) : null}
-      {tela.t === 'erro' ? <p className="cn-errl" role="alert">{FRASES.dia14.falhou}</p> : null}
+      {tela.t === 'erro' ? <p className="cn-errl" role="alert">{tela.texto}</p> : null}
       {tela.t === 'sem_conexao' ? (
         <div className="cn-errl" role="alert">
           <b>{FRASES.dia14.semConexao}</b>{' '}
