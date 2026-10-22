@@ -19,7 +19,8 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { abrirFicha, salvarFicha, marcarStudioAberto, lembrarNoComputador, lerFichaDoVideo, recomecarFicha } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
-import { lembrarNoComputadorCore } from '@/lib/youtube/teste-youtube/nativo/ficha'
+import { lembrarNoComputadorCore, recomecarFichaCore } from '@/lib/youtube/teste-youtube/nativo/ficha'
+import { jaIniciouCore } from '@/lib/youtube/teste-youtube/nativo/ficha-fluxo'
 import { bloqueadoPorTesteNativo } from '@/lib/youtube/teste-youtube/nativo/guarda'
 
 vi.setConfig({ testTimeout: 60_000 })
@@ -228,6 +229,37 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T8: ficha gravada (banco)', () => {
     expect((await linhaDaFicha(a.ficha.id)).descartada_em).not.toBeNull()
     const n = await pg.query(`select expired_at from public.notifications where dedup_key = $1`, ['ficha-lembrar:' + a.ficha.id])
     expect(n.rows[0].expired_at).not.toBeNull()
+  })
+
+  it('T5 conserto: recomeçar é idempotente (salvar falha na 1ª, a 2ª conclui) e a nova herda o studio_aberto_em sem reabrir o ytimg', async () => {
+    const v = await video()
+    const a = await abrirFicha(v.id); if (!a.ok) throw new Error('x')
+    expect((await salvarFicha(a.ficha.id, a.ficha.atualizada_em, dados)).ok).toBe(true)
+    const studio = dias(16)
+    await pg.query('alter table public.ab_native_fichas disable trigger user')
+    await pg.query(`update public.ab_native_fichas set criada_em = $2, atualizada_em = $2, studio_aberto_em = $3 where id = $1`, [a.ficha.id, dias(20), studio])
+    await pg.query('alter table public.ab_native_fichas enable trigger user')
+    const base = { sb, siteId: ctx.siteId, userId: ctx.userId, fichaVencidaId: a.ficha.id }
+    const cai = vi.fn(async () => ({ ok: false as const, error: 'falha injetada' }))
+    const r1 = await recomecarFichaCore({ ...base, salvar: cai })
+    expect(r1.ok).toBe(false)
+    expect((await linhaDaFicha(a.ficha.id)).descartada_em).not.toBeNull() // a velha já foi descartada: o trabalho tem de ser repetível
+    const r2 = await recomecarFichaCore(base)
+    if (!r2.ok) throw new Error(r2.error)
+    expect(r2.ficha.id).not.toBe(a.ficha.id)
+    expect(r2.ficha.variantes).toEqual(dados.variantes)
+    expect(r2.ficha.campos).toEqual(dados.campos)
+    expect(new Date(r2.ficha.studio_aberto_em as string).getTime()).toBe(new Date(studio).getTime())
+    expect((await pg.query('select count(*)::int as n from public.ab_native_fichas where video_id = $1 and descartada_em is null', [v.id])).rows[0].n).toBe(1)
+    const r3 = await recomecarFichaCore(base) // repetir de novo não duplica nem apaga
+    if (!r3.ok) throw new Error(r3.error)
+    expect(r3.ficha.id).toBe(r2.ficha.id); expect(r3.ficha.variantes).toEqual(dados.variantes)
+    // Studio já aberto: "Já iniciei" na nova nunca consulta i.ytimg.com
+    await pg.query(`update public.ab_native_fichas set variantes = '[]'::jsonb where id = $1`, [r2.ficha.id])
+    const pedidos: string[] = []
+    const buscar = (async (u: string | URL | Request) => { pedidos.push(String(u)); return new Response('', { status: 404 }) }) as typeof fetch
+    await jaIniciouCore({ sb, siteId: ctx.siteId, userId: ctx.userId, fichaId: r2.ficha.id, buscar, confirmar: async () => ({ ok: true, registroId: 'R', pausados: [], naoPausados: [] }) })
+    expect(pedidos.filter((u) => u.includes('ytimg.com'))).toEqual([])
   })
 
   it('T5: recomecarFicha com id de outro site e id inexistente: não encontrado', async () => {

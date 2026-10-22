@@ -89,6 +89,8 @@ export async function guardarImagemDaFichaCore(p: {
   const limpa = await tirarMetadados(p.bytes, original)
   if (!limpa) return { ok: false, error: MSG_IMAGEM_FORMATO }
   const { bytes, info } = limpa
+  // O re-encode pode crescer (JPEG q80 -> q95): o limite vale para o arquivo que vai ser gravado e subido no Studio.
+  if (bytes.length > TAMANHO_MAXIMO_IMAGEM) return { ok: false, error: MSG_IMAGEM_GRANDE }
   const { url, sha256 } = await gravarNoBlob(p.siteId, p.fichaId, bytes, info, p.put ?? put)
   return { ok: true, ficha: derivarFicha(linha, (p.agora ?? (() => new Date()))()), imagem: { url, sha256, largura: info.largura, altura: info.altura } }
 }
@@ -172,9 +174,10 @@ export async function copiarOriginalParaFichaCore(p: {
       }
     }
 
-    // (b) retrato diário anterior ao dia do primeiro `studio_aberto_em` (se nulo, anterior a hoje)
+    // (b) retrato diário anterior ao dia em que a ficha foi criada, se o Studio já foi aberto (o `studio_aberto_em` é regravado a
+    // cada abertura, então não serve de corte: a miniatura viva depois da 1ª abertura pode já ser a B); Studio nunca aberto: anterior a hoje
     if (!bytes) {
-      const corte = diaPt(linha.studio_aberto_em ? new Date(linha.studio_aberto_em) : agora())
+      const corte = diaPt(linha.studio_aberto_em ? new Date(linha.criada_em) : agora())
       const { data: dias, error: eD } = await p.sb.from('yt_own_video_meta_daily').select('thumbnail_blob_url, day_pt')
         .eq('site_id', p.siteId).eq('video_id', linha.video_id).is('ab_variant_id', null).not('thumbnail_blob_url', 'is', null)
         .lt('day_pt', corte).order('day_pt', { ascending: false }).limit(1)

@@ -169,14 +169,27 @@ export async function lerFichaDoVideoCore(p: Base & { videoId: string }): Promis
   return { ok: true, ficha, vencida: hoje(p).getTime() - ultimaAtividade(ficha) > INATIVIDADE_DESCARTE_MS }
 }
 
-/** "Recomeçar": a abertura descarta a inativa e cria a nova; as versões da vencida passam para a nova e o lembrete da velha expira (dentro de `ab_native_ficha_abrir`). */
-export async function recomecarFichaCore(p: Base & { userId: string; fichaVencidaId: string }): Promise<ResultadoFicha> {
+/**
+ * "Recomeçar", idempotente: lê a velha por id mesmo descartada (sempre com `site_id`), abre/adota a ficha aberta corrente do vídeo
+ * (a abertura descarta a inativa e expira o lembrete) e salva nela as versões da velha. Repetir depois de uma falha do salvar
+ * completa o trabalho. A nova herda o `studio_aberto_em` da velha: o Studio já foi aberto, então a fonte `i.ytimg.com` segue proibida.
+ */
+export async function recomecarFichaCore(p: Base & { userId: string; fichaVencidaId: string; salvar?: typeof salvarFichaCore }): Promise<ResultadoFicha> {
   const velha = await lerFicha(p.sb, p.siteId, p.fichaVencidaId)
-  if (!velha || velha.registro_id !== null || velha.descartada_em !== null) return { ok: false, error: MSG_NAO_ENCONTRADO }
-  const nova = await abrirFichaCore({ sb: p.sb, siteId: p.siteId, userId: p.userId, videoId: velha.video_id, agora: p.agora })
-  if (!nova.ok || nova.ficha.id === velha.id) return nova // ainda não estava vencida: segue a mesma ficha
-  const salvo = await salvarFichaCore({ sb: p.sb, siteId: p.siteId, agora: p.agora, fichaId: nova.ficha.id, lido: nova.ficha.atualizada_em, dados: { campos: velha.campos, variantes: velha.variantes } })
-  return salvo.ok ? salvo : { ok: false, error: salvo.error, fichaAtual: salvo.fichaAtual ?? nova.ficha }
+  if (!velha || velha.registro_id !== null) return { ok: false, error: MSG_NAO_ENCONTRADO }
+  const aberta = await abrirFichaCore({ sb: p.sb, siteId: p.siteId, userId: p.userId, videoId: velha.video_id, agora: p.agora })
+  if (!aberta.ok || aberta.ficha.id === velha.id) return aberta // ainda não estava vencida: segue a mesma ficha
+  let nova = aberta.ficha
+  if (velha.studio_aberto_em !== null && nova.studio_aberto_em === null) {
+    const { data, error } = await p.sb.from('ab_native_fichas').update({ studio_aberto_em: velha.studio_aberto_em })
+      .eq('id', nova.id).eq('site_id', p.siteId).is('registro_id', null).is('descartada_em', null).is('studio_aberto_em', null).select('*')
+    if (error) throw new Error(`ab_native_fichas: ${error.message}`)
+    const linha = (data as FichaLinha[] | null)?.[0]
+    if (linha) nova = derivarFicha(linha, hoje(p))
+  }
+  if (nova.variantes.length > 0 || nova.campos.length > 0) return { ok: true, ficha: nova } // o salvar de uma tentativa anterior já valeu
+  const salvo = await (p.salvar ?? salvarFichaCore)({ sb: p.sb, siteId: p.siteId, agora: p.agora, fichaId: nova.id, lido: nova.atualizada_em, dados: { campos: velha.campos, variantes: velha.variantes } })
+  return salvo.ok ? salvo : { ok: false, error: salvo.error, fichaAtual: salvo.fichaAtual ?? nova }
 }
 
 /** "Abrir no Studio": marca `studio_aberto_em` (a ficha vira "enviada"). */

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import sharp from 'sharp'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import * as Sentry from '@sentry/nextjs'
 import { criarSupabaseMemoria, type Tabelas } from '../../../helpers/supabase-memoria'
@@ -146,6 +146,15 @@ describe('guardarImagemDaFichaCore', () => {
     const put = putFalso()
     const r = await guardarImagemDaFichaCore({ sb, siteId: S, fichaId: F, bytes: Buffer.alloc(2 * 1024 * 1024 + 1), put })
     expect(r).toEqual({ ok: false, error: 'A imagem precisa ter até 2 MB.' })
+    expect(put).not.toHaveBeenCalled()
+  })
+  it('imagem que cresce no re-encode (q60 -> q95) e passa de 2 MB: recusada com a frase do limite, sem put', async () => {
+    const entrada = await sharp(randomBytes(2400 * 1350 * 3), { raw: { width: 2400, height: 1350, channels: 3 } }).jpeg({ quality: 60 }).toBuffer()
+    const reencode = await sharp(entrada).jpeg({ quality: 95 }).toBuffer()
+    expect(entrada.length).toBeLessThanOrEqual(2 * 1024 * 1024); expect(reencode.length).toBeGreaterThan(2 * 1024 * 1024)
+    const { sb } = criarSupabaseMemoria(base())
+    const put = putFalso()
+    expect(await guardarImagemDaFichaCore({ sb, siteId: S, fichaId: F, bytes: entrada, put })).toEqual({ ok: false, error: 'A imagem precisa ter até 2 MB.' })
     expect(put).not.toHaveBeenCalled()
   })
   it.each([
