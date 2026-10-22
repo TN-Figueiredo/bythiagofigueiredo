@@ -77,6 +77,16 @@ describe('projetarOutliers', () => {
     expect(p.outliersSemLugar).toBe(1)
   })
 
+  it('outlier que a tela lista mas não dá para medir é contado em outliersDescartados (nunca some em silêncio)', () => {
+    const real = obsDe([canal('c1')], especs('c1', [{ id: 'c1-hit', ch: 'c1', vpd: 1000, ageDias: 21 }]))
+    const item = real.outliers({ maxAge: 30, fmt: 'long' }).items[0]!
+    const obs = { ...real, outliers: () => ({ ...real.outliers({ maxAge: 30, fmt: 'long' }), items: [{ ...item, mult: { ...item.mult, value: null } }] }) } as unknown as typeof real
+    const p = projetarOutliers(obs, semLugar, semTexto)
+    expect(p.outliers).toEqual([])
+    expect(p.outliersDescartados).toBe(2) // uma vez por rodada (long e short)
+    expect(projetarOutliers(real, semLugar, semTexto).outliersDescartados).toBe(0)
+  })
+
   it('canal em sem-ritmo e total de canais (só concorrentes)', () => {
     const cs = [canal('c1'), canal('c2', { sync_status: 'error', sync_error: 'x', sync_error_since: new Date(NOW - 3 * DAY).toISOString(), last_ok_synced_at: null })]
     const obs = obsDe(cs, [...especs('c1', []), { id: 'c2-a', ch: 'c2', vpd: 100, ageDias: 10 }])
