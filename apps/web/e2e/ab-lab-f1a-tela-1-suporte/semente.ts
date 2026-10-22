@@ -241,7 +241,7 @@ export async function inserirFicha(c: Client, m: Mundo, chave: ChaveAny, f: {
 /** "Nosso teste" (ab_tests + variantes + ciclos) no vídeo, pausado ou ativo, com o restauro pedido. Molde: ab-lab-p4a-suporte/semente.ts. */
 export async function inserirNossoTeste(c: Client, m: Mundo, chave: ChaveAny, o: {
   status: 'active' | 'paused'; diasAtras?: number; pausadoHa?: number
-  restoreStatus?: 'ok' | 'em_andamento' | 'falhou' | null
+  restoreStatus?: 'ok' | 'em_andamento' | 'falhou' | 'deriva' | null
 }): Promise<void> {
   const x = m.v[chave]!
   const inicio = atras(m.agora, (o.diasAtras ?? 5) * DIA)
@@ -266,8 +266,8 @@ export async function inserirNossoTeste(c: Client, m: Mundo, chave: ChaveAny, o:
   await c.query(
     `insert into public.ab_test_cycles (test_id, variant_id, cycle_number, started_at, ended_at, end_reason) values ($1,$2,2,$3,$4,$5)`,
     [t, ids.C, iso(ini), o.status === 'paused' ? iso(atras(m.agora, 1 * HORA)) : null, o.status === 'paused' ? 'pausa' : null])
-  const rs = (estado: 'ok' | 'em_andamento' | 'falhou'): unknown => {
-    const campo = (): unknown => ({ estado, destino: 'original', em: iso(atras(m.agora, 30 * 60_000)), forcado: false, escreveu: estado === 'ok', motivo: null, erro: estado === 'falhou' ? { codigo: 'token' } : null, attempts: estado === 'falhou' ? 1 : 0 })
+  const rs = (estado: 'ok' | 'em_andamento' | 'falhou' | 'deriva'): unknown => {
+    const campo = (): unknown => ({ estado: estado === 'deriva' ? 'pulado_drift' : estado, destino: 'original', em: iso(atras(m.agora, 30 * 60_000)), forcado: false, escreveu: estado === 'ok', motivo: null, erro: estado === 'falhou' ? { status: 503, reason: 'backendError' } : null, attempts: estado === 'falhou' ? 1 : 0 })
     return { title: campo(), thumbnail: campo() }
   }
   await c.query('update public.ab_tests set last_applied_variant_id = $2, restore_status = $3::jsonb where id = $1',
