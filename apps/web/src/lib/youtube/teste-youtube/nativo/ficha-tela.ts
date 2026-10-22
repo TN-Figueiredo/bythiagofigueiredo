@@ -1,14 +1,13 @@
 // Estado puro da ficha do teste do YouTube na tela (F1a-tela-1, T4). Nada aqui lê relógio nem banco: `agora` entra por parâmetro.
 // A cópia vive em `frases.ts`; os componentes (T6-T9) só desenham o que `vistaDaFicha` decide.
 import type { FichaLida } from './ficha'
-import type { ErroConfirmar } from './confirmar'
-import type { ErroResponder } from './resposta'
+import type { ResultadoAcaoConfirmar, ResultadoAcaoDescartar, ResultadoAcaoResponder } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
 import { FRASES, dataCurta } from './frases'
 
 /** Vencida ⇔ inatividade > 14 d, com inatividade = greatest(criada_em, atualizada_em, studio_aberto_em, lembrar_em) (spec §5.3). */
 export const INATIVIDADE_DESCARTE_MS = 14 * 24 * 3600 * 1000
 /** A ficha "parada" avisa a partir de 13 d de inatividade. */
-export const INATIVIDADE_AVISO_MS = 13 * 24 * 3600 * 1000
+const INATIVIDADE_AVISO_MS = 13 * 24 * 3600 * 1000
 const DIA_MS = 86_400_000
 
 export type Largura = 'larga' | 'estreita'
@@ -109,9 +108,9 @@ function fraseDe(e: EntradaFicha, idade: VistaFicha['idade'], faixa: Faixa): { f
   if (faixa === '0b') return FRASES.ficha.nossoRodando
   if (faixa === 'restaurando') return FRASES.ficha.restaurando
   if (faixa === 'falhou') return FRASES.ficha.restaurarFalhou
-  if (faixa === 'restaurada') return estreita ? FRASES.ficha.restauradaEstreita : FRASES.ficha.restaurada
   if (c === 'aberta') return FRASES.ficha.jaIniciei
   if (c === 'ainda_nao') return FRASES.ficha.ainda
+  if (faixa === 'restaurada') return estreita ? FRASES.ficha.restauradaEstreita : FRASES.ficha.restaurada
   if (faixa === '0c') return FRASES.ficha.detectado
   if (e.salvamento === 'offline') return FRASES.ficha.offline
   if (e.salvamento === 'salvando') return estreita ? FRASES.ficha.salvandoFraseEstreita : FRASES.ficha.salvandoFrase
@@ -143,7 +142,7 @@ export function vistaDaFicha(e: EntradaFicha): VistaFicha {
   }
 
   const confirmando = typeof e.confirmacao === 'object' || e.confirmacao === 'aberta' || e.confirmacao === 'ainda_nao'
-  const noTopo = !estreita && !vencida && e.nosso === null && e.confirmacao !== 'registrada' && (e.studioAbertoNestaSessao || e.registroDetectado !== null || confirmando)
+  const noTopo = !estreita && !vencida && !nossoBloqueia && e.confirmacao !== 'registrada' && (e.studioAbertoNestaSessao || e.registroDetectado !== null || confirmando)
   const acaoDoTopo: VistaFicha['acaoDoTopo'] = estreita || vencida || e.confirmacao === 'registrada' || nossoBloqueia ? null : noTopo ? 'confirmar' : 'abrir_studio'
 
   // Um só primário: decidido em uma sequência de regras, da mais forte para a mais fraca.
@@ -160,16 +159,9 @@ export function vistaDaFicha(e: EntradaFicha): VistaFicha {
   return { idade, faixa, acaoDoTopo, abrirStudioHabilitado, motivoDesabilitado, jaIniciouHabilitado, primario, frase, apoio }
 }
 
-/** Aviso do dia em que a ficha "parada" será descartada, para a faixa de 13 d (data de `ultimaAtividade` + 14 d). */
-export function datasDaIdade(f: FichaLida): { desde: Date; descarte: Date } {
-  const desde = new Date(ultimaAtividade(f))
-  return { desde, descarte: new Date(desde.getTime() + INATIVIDADE_DESCARTE_MS) }
-}
-export const rotuloDia = dataCurta
-
 // ---- Erros -> motivo (exaustivo; `never` no default) ----------------------------------------------------------------------
 
-type ErroDaActionConfirmar = ErroConfirmar | 'sem_permissao' | 'pedido_invalido' | 'falha'
+type ErroDaActionConfirmar = NonNullable<Extract<ResultadoAcaoConfirmar, { ok: false }>['erro']>
 /** `sem_permissao`/`pedido_invalido`/`falha` viram `estado_mudou`: o chamador manda ao Sentry (só `fichaId` e `motivo`). */
 export function motivoDoErro(erro: ErroDaActionConfirmar | 'rede'): MotivoErro {
   switch (erro) {
@@ -182,7 +174,7 @@ export function motivoDoErro(erro: ErroDaActionConfirmar | 'rede'): MotivoErro {
   }
 }
 
-type ErroDaActionDescartar = 'nao_encontrado' | 'confirmado' | 'ja_encerrado' | 'sem_permissao' | 'pedido_invalido' | 'falha'
+type ErroDaActionDescartar = NonNullable<Extract<ResultadoAcaoDescartar, { ok: false }>['erro']>
 export function motivoDoErroDescartar(erro: ErroDaActionDescartar | 'rede'): 'estado_mudou' | 'sem_conexao' {
   switch (erro) {
     case 'nao_encontrado': case 'confirmado': case 'ja_encerrado': case 'sem_permissao': case 'pedido_invalido': case 'falha': return 'estado_mudou'
@@ -191,7 +183,7 @@ export function motivoDoErroDescartar(erro: ErroDaActionDescartar | 'rede'): 'es
   }
 }
 
-type ErroDaActionResponder = ErroResponder | 'sem_permissao' | 'pedido_invalido' | 'falha'
+type ErroDaActionResponder = NonNullable<Extract<ResultadoAcaoResponder, { ok: false }>['erro']>
 /** `falha`: mostrar a frase de erro da resposta (T10b) e mandar ao Sentry no chamador. */
 export function motivoDoErroResponder(erro: ErroDaActionResponder | 'rede'): 'estado_mudou' | 'sem_conexao' | 'falha' {
   switch (erro) {
