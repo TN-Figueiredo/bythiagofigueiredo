@@ -168,7 +168,7 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     aoAtualizar: ctrl.atualizar,
     aoRegistrar: () => { ctrl.fecharPergunta(); ctrl.atualizar() },
     jaIniciei: acoes.jaIniciei,
-    responder, responderAberta: responderAberto === l.videoId, responderPrimario: l.videoId === primarioId,
+    responder, responderDia14: acoes.responderTesteDoYouTube, responderAberta: responderAberto === l.videoId, responderPrimario: l.videoId === primarioId,
     aoMudarResponder: (ab) => setResponderAberto(ab ? l.videoId : null),
   })
 

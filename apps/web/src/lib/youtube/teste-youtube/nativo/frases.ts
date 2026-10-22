@@ -67,6 +67,35 @@ export const FRASES = {
     semBotao: 'A resposta por esta tela chega na próxima atualização. O que o YouTube mostrou fica guardado e você poderá responder mesmo depois do prazo.',
   },
 
+  /** T10b: a pergunta do dia 14 com duas versões (mockup M2 `d14`, ramo sem resposta). Nunca "variante" nem "ficha". */
+  dia14: {
+    responder: 'Responder',
+    pergunta: 'Qual versão venceu no Studio?',
+    apoio: (confirmadoEm: Date | null): string =>
+      `${confirmadoEm ? `Teste confirmado em ${dataCurta(confirmadoEm)}. ` : ''}O resultado oficial está só no Studio.`,
+    versoes: 'Versões',
+    originalFicou: 'A (original) ficou',
+    novaVenceu: 'B venceu',
+    outra: 'Outra resposta:',
+    outraGrupo: 'Outra resposta',
+    ficouIgual: 'Ficou igual',
+    inconclusivo: 'Inconclusivo',
+    naoVi: 'Não vi',
+    avisoMudar: 'Depois de responder, mudar a resposta por esta tela chega na próxima atualização.',
+    naoMedido: 'não medido',
+    seloOriginal: 'Ficou no ar: A (original)',
+    seloNova: 'Ficou no ar: B',
+    fraseOriginal: 'A original segurou: a nova não superou.',
+    fraseNova: 'A versão B venceu no Studio e ficou no ar.',
+    oficial: 'O resultado oficial está só no Studio.',
+    seloSemVencedor: { ficou_igual: 'Sem vencedor: ficou igual', inconclusivo: 'Sem vencedor: inconclusivo', nao_vi: 'Sem vencedor: não vi o resultado' },
+    respostasDiferentes: 'Respostas diferentes',
+    respostasDiferentesFrase: 'O título no ar e a sua resposta são diferentes.',
+    semConexao: 'Sem conexão. Nada foi registrado.',
+    tentarDeNovo: 'Tentar de novo',
+    falhou: 'Não deu para registrar a resposta agora. Nada foi alterado. Tente de novo em alguns minutos.',
+  },
+
   /** D-7 (guarda do nosso teste) e D-8 (pergunta antes de "Iniciar teste"). */
   guarda: {
     motivoRecusa: (ate: Date): string =>
