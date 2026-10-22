@@ -110,6 +110,19 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     if (!inicial.current.aberta) el?.querySelector<HTMLElement>('[data-foco-selo]')?.focus()
   }, [linhaEl])
 
+  // `?video=` mudou com a tela já montada (sino a partir do próprio Lab, Gio F-6): abre a ficha/cartão do vídeo como na montagem.
+  const videoAnterior = useRef(videoInicial)
+  useEffect(() => {
+    if (videoAnterior.current === videoInicial) return
+    videoAnterior.current = videoInicial
+    const r = abertaInicial(linhas, videoInicial)
+    if (!r.achada) return
+    inicial.current = r
+    setAberta(r.aberta)
+    linhaEl(r.achada.videoId)?.scrollIntoView?.({ block: 'center' })
+    if (!r.aberta) linhaEl(r.achada.videoId)?.querySelector<HTMLElement>('[data-foco-selo]')?.focus()
+  }, [videoInicial, linhas, linhaEl])
+
   // Foco no h2 do painel ao abrir; ao fechar, de volta ao botão que o abriu.
   useEffect(() => {
     if (aberta) {

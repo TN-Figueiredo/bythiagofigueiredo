@@ -85,7 +85,7 @@ describe('título da A resolvido no servidor', () => {
   const t = (extra: Partial<Tabelas>) => criarSupabaseMemoria(base(extra))
   it('teste nosso ativo com B no ar: a is_original vence o retrato e o youtube_videos', async () => {
     const { sb } = t({
-      ab_tests: [{ id: 'T', site_id: S, youtube_video_id: 'abc', status: 'active' }],
+      ab_tests: [{ id: 'T', site_id: S, youtube_video_id: V, status: 'active' }],
       ab_test_variants: [{ test_id: 'T', is_original: false, title_text: 'Título da B' }, { test_id: 'T', is_original: true, title_text: 'Título da original' }],
       yt_own_video_meta_daily: [{ site_id: S, video_id: V, day_pt: '2026-10-21', ab_variant_id: null, title_at_capture: 'Retrato' }],
     })
@@ -104,7 +104,7 @@ describe('título da A resolvido no servidor', () => {
   })
   it('1ª gravação com a n=1 vazia fixa o título; gravação posterior com o título do vídeo trocado mantém; o cliente não regrava', async () => {
     const m = criarSupabaseMemoria(base({
-      ab_tests: [{ id: 'T', site_id: S, youtube_video_id: 'abc', status: 'paused' }],
+      ab_tests: [{ id: 'T', site_id: S, youtube_video_id: V, status: 'paused' }],
       ab_test_variants: [{ test_id: 'T', is_original: true, title_text: 'Original do Lab' }],
     }))
     const dados = { campos: ['titulo' as const], variantes: [{ n: 2, tipo: 'titulo' as const, titulo: 'Nova' }] }

@@ -35,7 +35,9 @@ const tipoDe = (campos: Campo[]): VarianteFicha['tipo'] => (campos.length === 2 
 
 /** Mescla por (n, atributo): o que o dono mexeu vence; o resto vem da ficha adotada. */
 export function mesclar(ficha: FichaLida, alterados: Alterados): FichaRascunho {
-  const campos = (alterados.campos?.atributo === 'campos' ? alterados.campos.valor : ficha.campos) as Campo[]
+  const lidos = (alterados.campos?.atributo === 'campos' ? alterados.campos.valor : ficha.campos) as Campo[]
+  // Ficha nova nasce com `campos = '{}'`; a tela marca "Título", então o rascunho também (Gio F-3).
+  const campos: Campo[] = lidos.length === 0 ? ['titulo'] : lidos
   const porN = new Map<number, VarianteFicha>(ficha.variantes.map((v) => [v.n, { ...v }]))
   for (const a of Object.values(alterados)) {
     if (!a || a.atributo === 'campos') continue

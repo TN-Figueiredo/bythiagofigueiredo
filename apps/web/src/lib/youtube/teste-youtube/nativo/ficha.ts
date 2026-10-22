@@ -90,9 +90,10 @@ export async function resolverTituloOriginal(sb: SupabaseClient, siteId: string,
   if (eVid) throw new Error(`youtube_videos: ${eVid.message}`)
   const v = vid as { youtube_video_id: string; title: string | null } | null
   if (!v) return null
+  // `ab_tests.youtube_video_id` é o UUID de `youtube_videos.id` (não o ID de texto do YouTube): Gio F-4.
   const texto = (t: string | null | undefined): string | null => (t && t.trim() !== '' ? t.trim() : null)
 
-  const { data: testes, error: eT } = await sb.from('ab_tests').select('id').eq('site_id', siteId).eq('youtube_video_id', v.youtube_video_id).in('status', ['active', 'paused'])
+  const { data: testes, error: eT } = await sb.from('ab_tests').select('id').eq('site_id', siteId).eq('youtube_video_id', videoId).in('status', ['active', 'paused'])
   if (eT) throw new Error(`ab_tests: ${eT.message}`)
   const ids = ((testes ?? []) as Array<{ id: string }>).map((t) => t.id)
   if (ids.length > 0) {
@@ -223,6 +224,7 @@ export async function lembrarNoComputadorCore(p: Base & { userId: string; fichaI
   const r = await (p.criar ?? createNotification)({
     site_id: p.siteId, user_id: p.userId, domain: 'youtube', type: 'youtube.native_ficha_lembrar', priority: 3,
     title: 'Abrir a ficha no computador',
+    suggested_action: 'Abrir a ficha',
     message: `${lido?.title ?? ''}. Ficha do teste do YouTube salva no celular.`.replace(/^\. /, ''),
     dedup_key: `ficha-lembrar:${ficha.id}`,
     payload: { ficha_id: ficha.id, video_id: ficha.video_id },

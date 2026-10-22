@@ -57,7 +57,7 @@ export function quandoSalvo(iso: string, agora: Date): string {
   return dataCurta(d) === dataCurta(agora) ? FRASES.ficha.salvoHoje(fmtHora(d)) : FRASES.ficha.salvoOutroDia(dataCurta(d), fmtHora(d))
 }
 
-function useLargura(forcada?: Largura): Largura {
+export function useLargura(forcada?: Largura): Largura {
   const [l, setL] = useState<Largura>('larga')
   useEffect(() => {
     if (forcada || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
@@ -102,6 +102,8 @@ export function FichaTeste(p: FichaTesteProps): ReactElement {
   const semB = !vista.jaIniciouHabilitado && vista.motivoDesabilitado === (estreita ? FRASES.ficha.rodapeLembrete.semB : FRASES.ficha.faltaB)
   const nossoBloqueia = p.entrada?.nosso !== undefined ? p.entrada.nosso !== null && p.entrada.nosso.originalDeVolta !== 'sim' : nossoDaLinha !== null
   const faixaVencida = FRASES.ficha.faixaVencida(new Date(ultimaAtividade(ficha) + INATIVIDADE_DESCARTE_MS))
+  const parada = vista.idade === 'parada'
+  const faixaParada = FRASES.ficha.faixaParada(new Date(ultimaAtividade(ficha)), new Date(ultimaAtividade(ficha) + INATIVIDADE_DESCARTE_MS))
   const tres = g.rascunho.variantes.some((v) => v.n === 3)
 
   const copiarTitulo = (texto: string): void => {
@@ -216,6 +218,7 @@ export function FichaTeste(p: FichaTesteProps): ReactElement {
             {faixaVencida.apoio}
           </FaixaCaminho>
         ) : null}
+        {parada ? <FaixaCaminho tom="neutra" role="status" titulo={faixaParada.titulo}>{faixaParada.apoio}</FaixaCaminho> : null}
         {p.encaixes?.faixas?.(ctx)}
         {!vencida && vista.acaoDoTopo ? p.encaixes?.acaoDoTopo?.(ctx) : null}
 
