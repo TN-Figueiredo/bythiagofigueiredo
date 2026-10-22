@@ -260,15 +260,15 @@ describe('AbLabDashboard behavioral', () => {
     expect(screen.getByText('A/B Lab')).toBeDefined()
   })
 
-  it('shows "Nenhum teste ativo" when no active cards', () => {
+  it('shows "Nenhum teste nosso ativo" when no active cards', () => {
     render(<AbLabDashboard {...defaultProps({ cards: [] })} />)
-    expect(screen.getByText('Nenhum teste ativo')).toBeDefined()
+    expect(screen.getByText('Nenhum teste nosso ativo')).toBeDefined()
   })
 
   it('shows active test count when cards exist', () => {
     const cards = [makeCard('1'), makeCard('2')]
     render(<AbLabDashboard {...defaultProps({ cards })} />)
-    expect(screen.getByText('2 testes ativos')).toBeDefined()
+    expect(screen.getByText('2 testes nossos ativos')).toBeDefined()
   })
 
   it('filter dropdown toggles on click', () => {
@@ -354,7 +354,7 @@ describe('AbLabDashboard behavioral', () => {
   it('KPI strip renders when there is data', () => {
     const cards = [makeCard('1')]
     render(<AbLabDashboard {...defaultProps({ cards })} />)
-    expect(screen.getByTestId('kpi-Testes ativos')).toBeDefined()
+    expect(screen.getByTestId('kpi-Nossos testes ativos')).toBeDefined()
     expect(screen.getByTestId('kpi-Vencedores escolhidos')).toBeDefined()
   })
 })

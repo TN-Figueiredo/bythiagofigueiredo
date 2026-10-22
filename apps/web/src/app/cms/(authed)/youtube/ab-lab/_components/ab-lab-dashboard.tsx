@@ -155,8 +155,8 @@ export function AbLabDashboard({
             <h2 className="text-[22px] font-bold tracking-[-0.01em] text-cms-text m-0">A/B Lab</h2>
             <span className="text-[13px] text-cms-text-dim">
               {cards.length > 0
-                ? `${cards.length} teste${cards.length > 1 ? 's' : ''} ativo${cards.length > 1 ? 's' : ''}`
-                : 'Nenhum teste ativo'}
+                ? `${cards.length} ${cards.length > 1 ? 'testes nossos ativos' : 'teste nosso ativo'}`
+                : 'Nenhum teste nosso ativo'}
             </span>
           </div>
           <div className="flex items-center gap-[10px]">
@@ -229,7 +229,7 @@ export function AbLabDashboard({
       {hasAnyData && (
         <div className="kpi-strip mb-[26px] animate-ab-fade-up" data-kpi-strip>
           <KPI
-            label="Testes ativos"
+            label="Nossos testes ativos"
             value={stats.activeTests}
             icon={FlaskConical}
           />

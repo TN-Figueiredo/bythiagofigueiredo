@@ -129,6 +129,13 @@ describe('FichaTeste: imagens', () => {
     expect(selo.closest('[data-selo]')?.getAttribute('data-selo')).toBe('resb')
   })
 
+  it('M-2: com a imagem carregada o rótulo é "Trocar imagem", não "Enviar de novo"', () => {
+    montar(duas())
+    expect(screen.getAllByText(FRASES.ficha.trocarImagem).length).toBeGreaterThan(0)
+    expect(screen.queryByText(FRASES.ficha.enviarDeNovo)).toBeNull()
+    expect(screen.getByLabelText(FRASES.ficha.trocarImagemAria('B'))).toBeTruthy()
+  })
+
   it('imagem que não carrega vira placeholder com aviso e "Enviar de novo"', () => {
     montar(duas())
     const img = document.querySelectorAll('img.cn-th')[1]!

@@ -173,16 +173,17 @@ describe('Dia14Duas: desfechos da action (um teste por linha)', () => {
       responder.mockResolvedValue({ ok: false, erro })
       montar()
       fireEvent.click(botao(/B venceu/))
-      await screen.findByText(FRASES.dia14.falhou)
+      await screen.findByText(erro === 'falha_escrita' ? FRASES.dia14.falhou : FRASES.pedidoRecusado)
       expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ extra: { motivo: erro } }))
     })
   }
+  const TEXTO_DO_ERRO = { falha: FRASES.dia14.falhou, sem_permissao: FRASES.semPermissao, pedido_invalido: FRASES.pedidoRecusado } as const
   for (const erro of ['falha', 'sem_permissao', 'pedido_invalido'] as const) {
     it(`${erro} (com error cru) -> frase de erro de FRASES, nunca o texto do servidor + Sentry`, async () => {
       responder.mockResolvedValue({ ok: false, erro, error: 'detalhe cru do servidor' })
       montar()
       fireEvent.click(botao(/B venceu/))
-      await screen.findByText(FRASES.dia14.falhou)
+      await screen.findByText(TEXTO_DO_ERRO[erro])
       expect(document.body.textContent).not.toContain('detalhe cru')
       expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
     })

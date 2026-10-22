@@ -50,16 +50,16 @@ const SEL = (tipo: TipoSelo, texto: string): ReactElement => (
 )
 
 /** Frase da linha de Lab pausado (mockup `pausaLinha`). */
-function PausaLinha({ ate, agora }: { ate: string | null; agora: Date }): ReactElement {
+function PausaLinha({ ate, agora, confirmado }: { ate: string | null; agora: Date; confirmado: boolean }): ReactElement {
   const t = ate ? Date.parse(ate) : NaN
   const passou = Number.isFinite(t) && t <= agora.getTime()
   return (
     <p className="fr2">
       <Icone nome="pause" />
       <span>
-        <b>Lab pausado</b> porque há teste no Studio.{' '}
-        {passou ? 'Retomar espera o resultado do teste no Studio.'
-          : Number.isFinite(t) ? `Retomar fica disponível a partir de ${rotuloRetomar(new Date(t))}.` : 'Retomar espera o resultado do teste no Studio.'}
+        {Number.isFinite(t) && !passou
+          ? (confirmado ? FRASES.s7.labPausadoConfirmado(rotuloRetomar(new Date(t))) : FRASES.s7.labPausado(rotuloRetomar(new Date(t))))
+          : <>{confirmado ? FRASES.s7.labPausadoConfirmadoSemData : FRASES.s7.labPausadoSemData} {FRASES.s7.retomarEspera}</>}
       </span>
     </p>
   )
@@ -150,12 +150,12 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
       ra = botaoAbrir('Continuar', 'ficha')
       break
     case 'em_teste_studio': {
-      selo = SEL('yt', 'Em teste no Studio')
+      selo = SEL('yt', reg?.confirmadoEm ? FRASES.s7.selo2 : FRASES.s7.selo)
       const dia = reg?.diaDe14 ?? 0
       fr = reg?.confirmadoEm
         ? `Você confirmou em ${dataCurta(new Date(reg.confirmadoEm))}. Dia ${dia} de 14.`
         : `Parece haver um teste no Studio: o título alterna desde ${dataCurta(new Date(reg?.primeiraVista ?? reg?.updatedAt ?? agora))}. Dia ${dia} de 14.`
-      if (l.nosso?.status === 'paused') fr2 = <PausaLinha ate={l.labPausadoAte} agora={agora} />
+      if (l.nosso?.status === 'paused') fr2 = <PausaLinha ate={l.labPausadoAte} agora={agora} confirmado={Boolean(reg?.confirmadoEm)} />
       ra = botaoAbrir('Ver teste', 's7')
       break
     }

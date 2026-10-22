@@ -146,6 +146,8 @@ export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: Linh
   const semBotao = g.precisaDeVoce.filter((l) => (l.estado === 'sem_resposta' || l.estado === 'resultado_pronto') && !comBotao(l)).length
   const espera = prazo + hoje
   const studio = todas.filter((l) => l.estado === 'em_teste_studio').length
+  const studioConfirmado = todas.filter((l) => l.estado === 'em_teste_studio' && Boolean(l.registro?.confirmadoEm)).length
+  const studioDetectado = studio - studioConfirmado
   const preparo = todas.filter((l) => l.estado === 'em_preparo').length
   const nossoRodando = todas.filter((l) => l.estado === 'nosso_rodando').length
   const pausadas = todas.filter(pausada).length
@@ -163,7 +165,8 @@ export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: Linh
   }
   const frase = L.esperam(espera, prazo, hoje)
   const partes: string[] = []
-  if (studio > 0) partes.push(L.emTesteNoStudio(studio))
+  if (studioConfirmado > 0) partes.push(L.emTesteNoStudio(studioConfirmado))
+  if (studioDetectado > 0) partes.push(L.detectados(studioDetectado))
   if (preparo > 0) partes.push(L.emPreparo(preparo))
   const frases: string[] = []
   if (partes.length > 0) frases.push(`${cap(partes.join(', '))}.`)

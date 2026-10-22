@@ -164,6 +164,20 @@ describe('ListaCaminho: estados de linha', () => {
     expect(screen.getAllByText(/Lab pausado/).length).toBeGreaterThan(0)
     expect(document.body.textContent).toContain('porque há teste no Studio. Retomar fica disponível a partir de 04/11.')
   })
+  it('I-3: linha ainda não confirmada diz "parece haver" no selo e na pausa; a confirmada diz "Em teste no Studio" e "há"', () => {
+    const nosso = { testId: 't', restoreSeq: 1, dia: 2, status: 'paused' as const }
+    render(<Harness linhas={[
+      linha(1, { estado: 'em_teste_studio', registro: reg({ confirmadoEm: null }), nosso, labPausadoAte: '2026-11-04T03:00:00.000Z' }),
+    ]} />)
+    expect(screen.getByText(FRASES.s7.selo)).toBeTruthy()
+    expect(screen.queryByText(FRASES.s7.selo2)).toBeNull()
+    expect(document.body.textContent).toContain('Lab pausado porque parece haver teste no Studio. Retomar fica disponível a partir de 04/11.')
+    expect(document.body.textContent).not.toContain('porque há teste')
+    cleanup()
+    render(<Harness linhas={[linha(1, { estado: 'em_teste_studio', registro: reg(), nosso, labPausadoAte: dia(1) })]} />)
+    expect(screen.getByText(FRASES.s7.selo2)).toBeTruthy()
+    expect(document.body.textContent).toContain('Lab pausado porque há teste no Studio. Retomar espera o resultado do teste no Studio.')
+  })
   it('passada a data com o registro aberto: Retomar espera o resultado', () => {
     const l = linha(1, {
       estado: 'em_teste_studio', registro: reg(), nosso: { testId: 't', restoreSeq: 1, dia: 2, status: 'paused' },
@@ -403,7 +417,7 @@ describe('ListaEsqueleto e ListaErro', () => {
     const { container } = render(<ListaEsqueleto />)
     expect(container.querySelectorAll('[data-skel-linha]').length).toBe(11)
   })
-  it('esqueleto: min-height de linha pela medida (--cn-hl)', () => {
+  it('esqueleto: lista com a classe cn-lsk', () => {
     const { container } = render(<ListaEsqueleto />)
     expect((container.querySelector('[data-skel-lista]') as HTMLElement).className).toContain('cn-lsk')
   })
