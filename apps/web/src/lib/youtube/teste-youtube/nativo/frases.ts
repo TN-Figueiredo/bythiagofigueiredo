@@ -17,6 +17,9 @@ export function dataCurta(d: Date): string {
   return `${g('day')}/${g('month')}`
 }
 
+/** Valor que o diálogo "Trocar mesmo assim?" recebe quando a leitura do YouTube falhou (a mesma frase vai ao lugar do título e da miniatura). */
+export const TEXTO_SEM_LEITURA = 'Não deu para conferir o título agora; tente de novo.'
+
 export interface FraseDeEstado { frase: string; apoio: string | null }
 const f = (frase: string, apoio: string | null = null): FraseDeEstado => ({ frase, apoio })
 
@@ -69,6 +72,8 @@ export const FRASES = {
     motivoRecusa: (ate: Date): string =>
       `Este vídeo tem um teste do YouTube registrado até ${dataCurta(ate)}. Aguarde o resultado ou responda o teste antes de iniciar o nosso.`,
     guardaFalhou: 'Não foi possível conferir o teste do YouTube agora. Nada foi iniciado. Tente de novo em alguns minutos.',
+    /** O servidor devolve a recusa sem a data do registro; nunca se inventa o `dd/mm` (a frase fechada tem a data quando ela existe). */
+    motivoRecusaSemData: 'Este vídeo tem um teste do YouTube registrado. Aguarde o resultado ou responda o teste antes de iniciar o nosso.',
     tentarDeNovo: 'Tentar de novo',
     estadoMudou: 'O teste mudou enquanto a tela estava aberta.',
     atualizar: 'Atualizar',
@@ -263,5 +268,22 @@ export const FRASES = {
     cancelar: 'Cancelar',
     dica: 'Confirmar registra o teste; não altera o vídeo e mantém o Lab parado.',
     labPausado: (retomar: string): string => `Lab pausado porque parece haver teste no Studio. Retomar fica disponível a partir de ${retomar}.`,
+    /** Estado 2 (confirmado) e o cartão do nosso teste pausado: "há", não "parece haver". */
+    labPausadoConfirmado: (retomar: string): string => `Lab pausado porque há teste no Studio. Retomar fica disponível a partir de ${retomar}.`,
+    /** Data passada (ou ausente) com o registro ainda aberto: o botão Retomar segue o dado, não o relógio. */
+    retomarEspera: 'Retomar espera o resultado do teste no Studio.',
+    labPausadoSemData: 'Lab pausado porque parece haver teste no Studio.',
+    labPausadoConfirmadoSemData: 'Lab pausado porque há teste no Studio.',
+    selo2: 'Em teste no Studio',
+    confirmouEm: (quando: string): string => `Você confirmou em ${quando}.`,
+    leiturasDe: (n: number, m: number): string => `${n} de ${m}`,
+    desdeNaoMedido: 'data não medida',
+    ultimaNaoMedida: 'não medida',
+    retomar: 'Retomar',
+    /** Provisórias (Logan fecha): a action falhou ou lançou; nada de estado 2 otimista. */
+    confirmarFalhou: 'Não deu para confirmar agora. Tente de novo.',
+    liberarFalhou: 'Não deu para liberar o Lab agora. Tente de novo.',
+    hoje: (hora: string): string => `hoje, ${hora}`,
+    as: (dia: string, hora: string): string => `${dia} às ${hora}`,
   },
 } as const

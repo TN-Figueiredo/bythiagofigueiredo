@@ -61,6 +61,16 @@ function variantesDe(x: unknown): { n: number; titulo: string | null; imagem: { 
   }
   return saida
 }
+/** `votos_titulo` = `{ título: leituras }` com números finitos e não negativos; qualquer outra forma é "não medido" (nulo). */
+const votosDe = (x: unknown): Record<string, number> | null => {
+  if (typeof x !== 'object' || x === null || Array.isArray(x)) return null
+  const saida: Record<string, number> = {}
+  for (const [k, v] of Object.entries(x)) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null
+    saida[k] = v
+  }
+  return saida
+}
 const titulosDe = (x: unknown): string[] | null => (Array.isArray(x) && x.every((t) => typeof t === 'string') ? (x as string[]) : null)
 
 const RESPOSTAS = new Set(['venceu_nova', 'venceu_original', 'ficou_igual', 'inconclusivo', 'nao_vi', 'sem_resposta'])
@@ -101,7 +111,7 @@ function enviadaEm(f: FichaLida): string | null {
 export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, agora: Date): Promise<LinhaDoCaminho[]> {
   const iso30 = new Date(agora.getTime() - JANELA_FECHADOS_DIAS * DIA_MS).toISOString()
   const colunasFicha = `id, site_id, video_id, campos, variantes, criada_em, criada_por, atualizada_em, studio_aberto_em, lembrar_em, descartada_em, registro_id, video:youtube_videos(${COLUNAS_VIDEO})`
-  const colunasTeste = `id, video_id, estado, confirmado_em, primeira_vista, created_at, updated_at, resposta_dono, variantes, variantes_titulo, campos, vencedor_fonte, vencedor_titulo, variante_vencedora, video:youtube_videos(${COLUNAS_VIDEO})`
+  const colunasTeste = `id, video_id, estado, confirmado_em, primeira_vista, ultima_vista, votos_titulo, created_at, updated_at, resposta_dono, variantes, variantes_titulo, campos, vencedor_fonte, vencedor_titulo, variante_vencedora, video:youtube_videos(${COLUNAS_VIDEO})`
 
   const [recentes, fichasBrutas, testesBrutos, nossosBrutos] = await Promise.all([
     ler<unknown>('youtube_videos', sb.from('youtube_videos').select(COLUNAS_VIDEO)
@@ -173,6 +183,7 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
       linhaRegistro = {
         id: bruto.id, updatedAt: String(bruto.updated_at), confirmadoEm: registro.confirmadoEm, primeiraVista: registro.primeiraVista,
         diaDe14: diaDoTeste(inicio.toISOString(), null, agora) ?? 0,
+        ultimaVista: str(bruto.ultima_vista), votosTitulo: votosDe(bruto.votos_titulo),
         variantes: variantesDe(bruto.variantes), variantesTitulo: titulosDe(bruto.variantes_titulo), campos: camposDe(bruto.campos),
         respostaDono: registro.respostaDono === 'sem_resposta' ? null : registro.respostaDono as RespostaDono | null,
       }

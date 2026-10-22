@@ -14,7 +14,8 @@ import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMomentUnified } from './click-moment-unified'
-import { forceRotate, acknowledgeAbTestDrift, resumeAbTest } from '../actions'
+import { forceRotate, acknowledgeAbTestDrift } from '../actions'
+import { pausaVisivel } from '@/lib/youtube/teste-youtube/nativo/pausa-visivel'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
@@ -32,11 +33,15 @@ export interface ActiveDetailProps {
   encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
   /** `pauseAbTest` com o id do teste, idem. */
   pausar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
+  /** `resumeAbTest` com o id do teste, idem (T10: sai do import direto de `../actions`). */
+  retomar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
+  /** Relógio injetável; só decide o texto da pausa por teste do YouTube (o botão depende do dado). */
+  agora?: () => Date
 }
 
 const BTN = BTN_SAIDA
 
-export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
+export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveDetailProps) {
   const router = useRouter()
   const { setAviso } = useAvisoDePagina(view.id)
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
@@ -44,6 +49,8 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
   const [driftBusy, setDriftBusy] = useState(false)
   const { data: livePoll } = usePollStats(view.id, view.status === 'active')
 
+  // Pausa por teste do YouTube: o botão "Retomar" segue o registro (dado); a data é só texto.
+  const pausaTeste = view.status === 'paused' && view.pausaYoutube ? pausaVisivel(view.pausaYoutube, (agora ?? (() => new Date()))()) : null
   const data = view.confirmedData
   const semMedicao = semImpressoes(view.variants)
 
@@ -133,7 +140,7 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
             setDriftBusy(true)
             const ack = await acknowledgeAbTestDrift(view.id)
             if (!ack.ok) { alert(ack.error); setDriftBusy(false); return }
-            const res = await resumeAbTest(view.id, view.restoreSeq)
+            const res = await retomar(view.restoreSeq)
             if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); router.refresh(); return }
             router.refresh()
           }} className="btn primary sm shrink-0 self-center" style={{ whiteSpace: 'nowrap' }}>
@@ -145,10 +152,10 @@ export function ActiveDetail({ view, encerrar, pausar }: ActiveDetailProps) {
       {view.status === 'paused' && view.statusNote !== DRIFT_STATUS_NOTE && (
         <div className="mx-0 mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-blue-300">Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.</p>
-            <button disabled={driftBusy} onClick={async () => {
+            <p className="text-sm font-medium text-blue-300">{pausaTeste?.frase ?? 'Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.'}</p>
+            <button disabled={driftBusy || pausaTeste?.retomarDesabilitado === true} onClick={async () => {
               setDriftBusy(true)
-              const res = await resumeAbTest(view.id, view.restoreSeq)
+              const res = await retomar(view.restoreSeq)
               if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); return }
               router.refresh()
             }} className="shrink-0 rounded-md bg-blue-500 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-400 disabled:opacity-50">

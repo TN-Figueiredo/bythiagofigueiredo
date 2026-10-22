@@ -2,7 +2,7 @@
 // Liga a lista aos painéis. `painel` e `responder` são funções, e função não atravessa a fronteira servidor -> cliente:
 // por isso esta casca cliente os fornece à `ListaCaminho` que o servidor monta.
 // `painel` vista 'ficha' = `FichaTeste` (T8; Studio/confirmar (T9a) e faixas/lembrete/pausa (T9b) entram pela `FichaComStudio`);
-// vista 's7' = cartão S7 (T10, ainda provisório); `responder` = "Responder" do dia 14 (T10b).
+// vista 's7' = cartão S7 (T10: `CartaoTesteYoutube`); `responder` = "Responder" do dia 14 (T10b).
 import { useContext, useEffect, useRef, useState, type ReactElement } from 'react'
 import type { FichaLida } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -13,6 +13,7 @@ import { FichaComStudio, type AcoesFichaStudio } from './ficha-com-studio'
 import { ContextoAssistente } from './assistente-contexto'
 import { useDrenarFilaLembrete } from './fila-lembrete'
 import { ListaCaminho, type AcoesCaminho, type ListaCaminhoProps, type SlotPainel } from './lista-caminho'
+import { CartaoTesteYoutube } from './cartao-teste-youtube'
 
 type Estado = { t: 'carregando' } | { t: 'erro' } | { t: 'ok'; ficha: FichaLida }
 
@@ -91,14 +92,36 @@ function PainelFicha({ l, acoes, fechar, encaixes, entrada }: {
   )
 }
 
-/** Cartão S7 provisório até a T10: nada é inventado, só diz o que ainda não chegou e deixa fechar. */
-const s7Provisorio: SlotPainel = (l, c) => (
-  <div>
-    <h2 tabIndex={-1} className="cn-titulo">{l.titulo}</h2>
-    <FaixaCaminho tom="neutra" titulo="O cartão deste teste chega na próxima atualização." />
-    <button type="button" className="cn-btn" onClick={c.fechar}>Fechar</button>
-  </div>
-)
+/** Títulos do registro para o cartão: os do registrador; senão os das versões (quando há); senão nenhum (nada é inventado). */
+function titulosDoRegistro(r: NonNullable<LinhaDoCaminho['registro']>): string[] {
+  if (r.variantesTitulo && r.variantesTitulo.length > 0) return r.variantesTitulo
+  return (r.variantes ?? []).map((v) => v.titulo).filter((t): t is string => t !== null)
+}
+
+/** Painel S7 (T10): o cartão do teste do YouTube do vídeo, com as actions que chegam por props. */
+function PainelS7({ l, acoes, fechar, agora }: { l: LinhaDoCaminho; acoes: AcoesCaminho; fechar: () => void; agora?: () => Date }): ReactElement {
+  const ctrl = useContext(ContextoAssistente)
+  const r = l.registro
+  return (
+    <div>
+      <h2 tabIndex={-1} className="cn-titulo">{l.titulo}</h2>
+      {r ? (
+        <CartaoTesteYoutube
+          registro={{
+            id: r.id, updatedAt: r.updatedAt, confirmadoEm: r.confirmadoEm, primeiraVista: r.primeiraVista,
+            ultimaVista: r.ultimaVista ?? null, variantesTitulo: titulosDoRegistro(r), votosTitulo: r.votosTitulo ?? null,
+          }}
+          labPausadoAte={l.labPausadoAte}
+          acoes={acoes}
+          agora={agora}
+          aoAtualizar={ctrl.atualizar}
+          aoLiberado={fechar}
+        />
+      ) : null}
+      <button type="button" className="cn-btn" onClick={fechar}>{FRASES.ficha.fechar}</button>
+    </div>
+  )
+}
 
 export function ListaCaminhoComPaineis(props: Omit<ListaCaminhoProps, 'painel' | 'responder'>): ReactElement {
   // Fila offline do "Lembrar no computador": drena ao montar a lista, em `online` e em `visibilitychange` visível.
@@ -106,7 +129,7 @@ export function ListaCaminhoComPaineis(props: Omit<ListaCaminhoProps, 'painel' |
   const painel: SlotPainel = (l, c) => (
     c.vista === 'ficha'
       ? <PainelFicha l={l} acoes={props.acoes} fechar={c.fechar} />
-      : s7Provisorio(l, c)
+      : <PainelS7 l={l} acoes={props.acoes} fechar={c.fechar} agora={props.agora} />
   )
   return <ListaCaminho {...props} painel={painel} />
 }

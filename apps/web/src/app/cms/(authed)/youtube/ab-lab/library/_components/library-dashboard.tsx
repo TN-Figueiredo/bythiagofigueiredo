@@ -7,7 +7,7 @@ import { uploadToLibrary, updateLibraryTags, deleteFromLibrary } from '../action
 import { Longevity } from '../../_components/longevity'
 import { LongevityLegend } from '../../_components/longevity-legend'
 import { LibEmpty } from '../../_components/lib-empty'
-import { AbCreateWizard } from '../../_components/ab-create-wizard'
+import { AbCreateWizard, type IniciarTeste } from '../../_components/ab-create-wizard'
 import type { WizardVideo } from '../../_components/ab-create-wizard'
 import { VideoPickerDialog } from '../../_components/video-picker-dialog'
 import type { EligibleVideo } from '../../_components/video-picker-dialog'
@@ -140,6 +140,7 @@ interface LibraryDashboardProps {
   entries: LibraryEntry[]
   /** Wizard prerequisites — both optional; when missing, wizard tab is disabled */
   wizardSettings?: AbTestSiteSettings
+  iniciarTeste?: IniciarTeste
   wizardEligibleVideos?: EligibleVideo[]
   siteId?: string
 }
@@ -151,6 +152,7 @@ interface LibraryDashboardProps {
 export function LibraryDashboard({
   entries,
   wizardSettings,
+  iniciarTeste,
   wizardEligibleVideos,
   siteId,
 }: LibraryDashboardProps) {
@@ -211,7 +213,7 @@ export function LibraryDashboard({
 
   const triggerUpload = () => fileRef.current?.click()
 
-  const canWizard = !!wizardSettings && !!wizardEligibleVideos && !!siteId
+  const canWizard = !!wizardSettings && !!wizardEligibleVideos && !!siteId && !!iniciarTeste
 
   // If wizard is active and a video is selected, show the wizard
   if (activeView === 'wizard' && selectedVideo && canWizard) {
@@ -223,6 +225,7 @@ export function LibraryDashboard({
           settings={wizardSettings!}
           onClose={() => setSelectedVideo(null)}
           onCreated={(testId) => router.push(`/cms/youtube/ab-lab/${testId}`)}
+          iniciarTeste={iniciarTeste!}
         />
       </div>
     )
