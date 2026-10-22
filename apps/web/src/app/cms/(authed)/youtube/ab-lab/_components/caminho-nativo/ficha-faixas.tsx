@@ -17,7 +17,7 @@ import '../caminho-nativo.css'
 
 export type EstadoNosso = NonNullable<EntradaFicha['nosso']>
 export interface AcoesDoNosso {
-  pauseAbTest: (testId: string, seqVisto: number) => Promise<ResultadoAcaoSaida>
+  pauseAbTest: (testId: string, seqVisto: number, forcar?: boolean) => Promise<ResultadoAcaoSaida>
   retryRestore: (testId: string, seqVisto: number) => Promise<ResultadoAcaoSaida>
 }
 type CamposParaConfirmar = Extract<ResultadoAcaoSaida, { resultado: 'precisa_confirmar' }>['campos']
@@ -32,22 +32,37 @@ export function originalDeVoltaDe(campos: RestoreStatus): 'sim' | 'restaurando' 
   return v.every((c) => c?.estado === 'ok') ? 'sim' : 'falhou'
 }
 
+/** `falhou` (token, rede): vale tentar de novo. Qualquer outro estado que não seja `ok` (pulado, desistiu) não volta sozinho. */
+export type MotivoNaoVolta = 'tentar' | 'conferir'
+export function motivoDe(campos: RestoreStatus): MotivoNaoVolta {
+  return Object.values(campos).some((c) => c?.estado === 'falhou') ? 'tentar' : 'conferir'
+}
+
+/** O que a linha (recarregada) já sabe do restauro. Sem registro (nulo/vazio) fica `nao`: não se libera o Studio por falta de dado. */
+function inicialDe(l: NonNullable<LinhaDoCaminho['nosso']>): NonNullable<EntradaFicha['nosso']> {
+  const rs = l.restoreStatus
+  const tem = rs !== null && rs !== undefined && Object.keys(rs).length > 0
+  return { status: l.status, dia: l.dia, originalDeVolta: l.status === 'paused' && tem ? originalDeVoltaDe(rs) : 'nao' }
+}
+
 export interface NossoDaFicha {
   nosso: EntradaFicha['nosso']
   restauradaEm: Date | null
   pausaAberta: boolean
   ocupado: boolean
   erro: string | null
+  motivo: MotivoNaoVolta
   paraConfirmar: CamposParaConfirmar | null
   abrirPausa: () => void
   cancelarPausa: () => void
-  pausar: () => void
+  pausar: (forcar?: boolean) => void
   tentarDeNovo: () => void
   fecharConfirmar: () => void
 }
 
-export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: AcoesDoNosso, agora: () => Date): NossoDaFicha {
-  const [nosso, setNosso] = useState<EntradaFicha['nosso']>(linhaNosso ? { status: linhaNosso.status, dia: linhaNosso.dia, originalDeVolta: 'nao' } : null)
+export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: AcoesDoNosso, agora: () => Date, recarregar?: () => void): NossoDaFicha {
+  const [nosso, setNosso] = useState<EntradaFicha['nosso']>(linhaNosso ? inicialDe(linhaNosso) : null)
+  const [motivo, setMotivo] = useState<MotivoNaoVolta>(linhaNosso?.restoreStatus ? motivoDe(linhaNosso.restoreStatus) : 'tentar')
   const [restauradaEm, setRestauradaEm] = useState<Date | null>(null)
   const [pausaAberta, setPausaAberta] = useState(false)
   const [ocupado, setOcupado] = useState(false)
@@ -55,21 +70,27 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
   const [paraConfirmar, setParaConfirmar] = useState<CamposParaConfirmar | null>(null)
   const emCurso = useRef(false)
 
-  async function rodar(chamar: () => Promise<ResultadoAcaoSaida>): Promise<void> {
+  async function rodar(chamar: () => Promise<ResultadoAcaoSaida>, ehRetry: boolean): Promise<void> {
     if (emCurso.current || !linhaNosso) return
     emCurso.current = true; setOcupado(true); setErro(null)
     try {
       const r = await chamar()
       if (r.ok && r.resultado === 'feito') {
         const o = originalDeVoltaDe(r.campos)
+        setMotivo(motivoDe(r.campos))
         setNosso((n) => (n ? { ...n, originalDeVolta: o, status: o === 'falhou' ? n.status : 'paused' } : n))
         if (o === 'sim') setRestauradaEm(agora())
+        recarregar?.() // a pausa já reivindicou o teste e avançou `restore_seq`: a linha recarregada traz o valor atual
       } else if (r.ok) {
-        setParaConfirmar(r.campos)
+        // Só a pausa tem "Trocar mesmo assim" (`forcar`); o retry não tem caminho de forçar, então vira frase inline (sem diálogo que não resolve).
+        if (ehRetry) setErro(FRASES.ficha.pausarPrecisaConfirmar)
+        else setParaConfirmar(r.campos)
       } else if (r.resultado === 'em_andamento') {
         setNosso((n) => (n ? { ...n, originalDeVolta: 'restaurando', status: 'paused' } : n))
+        recarregar?.()
       } else {
         setErro(r.error)
+        if (r.resultado === 'mudou') recarregar?.()
       }
     } catch {
       setErro(FRASES.ficha.pausarFalhou)
@@ -79,11 +100,11 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
   }
 
   return {
-    nosso, restauradaEm, pausaAberta, ocupado, erro, paraConfirmar,
+    nosso, restauradaEm, pausaAberta, ocupado, erro, motivo, paraConfirmar,
     abrirPausa: () => setPausaAberta(true),
     cancelarPausa: () => setPausaAberta(false),
-    pausar: () => { void rodar(() => acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0)) },
-    tentarDeNovo: () => { void rodar(() => acoes.retryRestore(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0)) },
+    pausar: (forcar) => { void rodar(() => (forcar === true ? acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0, true) : acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0)), false) },
+    tentarDeNovo: () => { void rodar(() => acoes.retryRestore(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0), true) },
     fecharConfirmar: () => setParaConfirmar(null),
   }
 }
@@ -107,7 +128,7 @@ export function FaixasFicha({ ctx, n, registroDetectado }: {
             <div className="cn-ask" role="group" aria-label="Confirmar a pausa">
               <p><b>{FRASES.ficha.pausarPergunta}</b> {FRASES.ficha.pausarConsequencia}</p>
               <div className="cn-acts">
-                <button type="button" className="cn-btn pri" disabled={n.ocupado} aria-busy={n.ocupado} onClick={n.pausar}>{FRASES.ficha.pausarEVoltar}</button>
+                <button type="button" className="cn-btn pri" disabled={n.ocupado} aria-busy={n.ocupado} onClick={() => n.pausar()}>{FRASES.ficha.pausarEVoltar}</button>
                 <button type="button" className="cn-btn" disabled={n.ocupado} onClick={n.cancelarPausa}>{FRASES.ficha.cancelar}</button>
               </div>
             </div>
@@ -117,7 +138,12 @@ export function FaixasFicha({ ctx, n, registroDetectado }: {
         </FaixaCaminho>
       ) : null}
       {faixa === 'restaurando' ? <FaixaCaminho tom="lab" ocupada titulo={FRASES.ficha.faixaRestaurando} /> : null}
-      {faixa === 'falhou' ? (
+      {faixa === 'falhou' && n.motivo === 'conferir' ? (
+        <FaixaCaminho tom="err" role="alert" titulo={FRASES.ficha.faixaRestaurarNaoVolta.titulo}>
+          {FRASES.ficha.faixaRestaurarNaoVolta.apoio}
+        </FaixaCaminho>
+      ) : null}
+      {faixa === 'falhou' && n.motivo === 'tentar' ? (
         <FaixaCaminho
           tom="err" role="alert" titulo={FRASES.ficha.faixaRestaurarFalhou.titulo}
           acoes={(
@@ -144,7 +170,7 @@ export function FaixasFicha({ ctx, n, registroDetectado }: {
       {n.paraConfirmar ? (
         <AbConfirmarTrocaDialog
           campos={n.paraConfirmar} opcao={{ id: 'original', rotulo: 'A', isOriginal: true, titulo: null, miniatura: null }}
-          onVoltar={n.fecharConfirmar} onConfirmar={() => { n.fecharConfirmar(); n.pausar() }}
+          onVoltar={n.fecharConfirmar} onConfirmar={() => { n.fecharConfirmar(); n.pausar(true) }}
         />
       ) : null}
     </>

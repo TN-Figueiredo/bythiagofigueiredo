@@ -19,8 +19,9 @@ const duas = (o: Partial<FichaLida> = {}): FichaLida => fichaLida({
     { n: 2, tipo: 'combo', titulo: 'Título da B', imagem: IMG('b') },
   ], ...o,
 })
-const NOSSO = { testId: 'teste-1', restoreSeq: 4, dia: 5, status: 'active' as const }
-const linha = (nosso: typeof NOSSO | null = null) => ({ titulo: 'Rota 66', miniaturaUrl: null, nosso, ytId: 'abcDEF12345' })
+type NossoT = { testId: string; restoreSeq: number; dia: number; status: 'active' | 'paused'; restoreStatus?: Record<string, unknown> | null }
+const NOSSO: NossoT = { testId: 'teste-1', restoreSeq: 4, dia: 5, status: 'active' }
+const linha = (nosso: NossoT | null = null) => ({ titulo: 'Rota 66', miniaturaUrl: null, nosso, ytId: 'abcDEF12345' })
 const ok = (campos: Record<string, unknown>): ResultadoAcaoSaida => ({ ok: true, resultado: 'feito', campos: campos as never })
 const campoOk = { estado: 'ok', destino: 'original', em: '2026-10-22T14:59:00.000Z', forcado: false, escreveu: true, erro: null, attempts: 1 }
 const campoBusy = { ...campoOk, estado: 'em_andamento' }
@@ -31,13 +32,15 @@ const acoesMock = (): Mocks => ({
   salvarFicha: vi.fn(), enviarImagemDaFicha: vi.fn(), recomecarFicha: vi.fn(), marcarStudioAberto: vi.fn(), jaIniciei: vi.fn(),
   lembrarNoComputador: vi.fn(), pauseAbTest: vi.fn(), retryRestore: vi.fn(),
 })
-function montar(inicial: FichaLida, o: { nosso?: typeof NOSSO | null; largura?: 'larga' | 'estreita'; a?: Mocks; entrada?: Record<string, unknown> } = {}) {
+function montar(inicial: FichaLida, o: { nosso?: NossoT | null; largura?: 'larga' | 'estreita'; a?: Mocks; entrada?: Record<string, unknown> } = {}) {
   const a = o.a ?? acoesMock()
-  const r = render(
-    <FichaComStudio linha={linha(o.nosso ?? null)} inicial={inicial} acoes={a as unknown as AcoesFichaStudio} fechar={vi.fn()}
-      agora={() => AGORA_FICHA} largura={o.largura ?? 'larga'} aoRegistrar={vi.fn()} aoAtualizar={vi.fn()} entrada={o.entrada} />,
+  const aoAtualizar = vi.fn()
+  const el = (nosso: NossoT | null): ReactNode => (
+    <FichaComStudio linha={linha(nosso) as never} inicial={inicial} acoes={a as unknown as AcoesFichaStudio} fechar={vi.fn()}
+      agora={() => AGORA_FICHA} largura={o.largura ?? 'larga'} aoRegistrar={vi.fn()} aoAtualizar={vi.fn()} aoRecarregar={aoAtualizar} entrada={o.entrada} />
   )
-  return { a, ...r }
+  const r = render(el(o.nosso ?? null))
+  return { a, aoAtualizar, trocarNosso: (n: NossoT) => r.rerender(el(n)), ...r }
 }
 const clicar = async (nome: string | RegExp): Promise<void> => { await act(async () => { fireEvent.click(screen.getByRole('button', { name: nome })) }) }
 const PAUSAR = FRASES.ficha.pausarEVoltar
@@ -116,6 +119,66 @@ describe('faixa 0b: nosso teste rodando', () => {
     await clicar(FRASES.ficha.tentarDeNovo)
     expect(a.retryRestore).toHaveBeenCalledWith('teste-1', 4)
     expect(screen.getByText(FRASES.ficha.faixaRestaurada('22/10, 12:00').titulo)).toBeTruthy()
+  })
+
+  it('nosso pausado com restauro feito, recarregado: "Abrir no Studio" liberado (restore_status da linha)', () => {
+    montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: { title: campoOk, thumbnail: campoOk } } })
+    const studio = screen.getAllByRole('button', { name: FRASES.ficha.bloco2.abrirNoStudio })[0] as HTMLButtonElement
+    expect(studio.disabled).toBe(false)
+    expect(screen.queryByText(FRASES.ficha.faixaRestaurando)).toBeNull()
+  })
+
+  it('nosso pausado com restauro pulado (sem original): frase própria, não a de token vencido, e sem "Tentar de novo"', () => {
+    montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: { title: { ...campoOk, estado: 'pulado_sem_original' }, thumbnail: campoOk } } })
+    expect(screen.getByRole('alert').textContent).toContain(FRASES.ficha.faixaRestaurarNaoVolta.titulo)
+    expect(screen.queryByText(FRASES.ficha.faixaRestaurarFalhou.apoio)).toBeNull()
+    expect(screen.queryByRole('button', { name: FRASES.ficha.tentarDeNovo })).toBeNull()
+  })
+
+  it('pausa falhou por token: recarrega a linha e o "Tentar de novo" usa o seq novo', async () => {
+    const a = acoesMock()
+    a.pauseAbTest.mockResolvedValue(ok({ title: campoFalhou }))
+    a.retryRestore.mockResolvedValue(ok({ title: campoOk }))
+    const { aoAtualizar, trocarNosso } = montar(duas(), { nosso: NOSSO, a })
+    await clicar(PAUSAR); await clicar(PAUSAR)
+    expect(aoAtualizar).toHaveBeenCalled()
+    trocarNosso({ ...NOSSO, restoreSeq: 5, status: 'paused' })
+    await clicar(FRASES.ficha.tentarDeNovo)
+    expect(a.retryRestore).toHaveBeenCalledWith('teste-1', 5)
+  })
+
+  it('retryRestore devolve "mudou": recarrega a linha em vez de só mostrar a frase', async () => {
+    const a = acoesMock()
+    a.pauseAbTest.mockResolvedValue(ok({ title: campoFalhou }))
+    a.retryRestore.mockResolvedValue({ ok: false, resultado: 'mudou', error: 'O teste mudou em outra aba. Reabra para decidir.' })
+    const { aoAtualizar } = montar(duas(), { nosso: NOSSO, a })
+    await clicar(PAUSAR); await clicar(PAUSAR)
+    aoAtualizar.mockClear()
+    await clicar(FRASES.ficha.tentarDeNovo)
+    expect(aoAtualizar).toHaveBeenCalledTimes(1)
+  })
+
+  it('precisa_confirmar -> "Trocar mesmo assim" repete a pausa com forcar (sem loop de diálogo)', async () => {
+    const a = acoesMock()
+    a.pauseAbTest.mockResolvedValueOnce({ ok: true, resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: 'Título editado por fora' }] })
+    a.pauseAbTest.mockResolvedValueOnce(ok({ title: campoOk, thumbnail: campoOk }))
+    montar(duas(), { nosso: NOSSO, a })
+    await clicar(PAUSAR); await clicar(PAUSAR)
+    await clicar(/Trocar/)
+    expect(a.pauseAbTest).toHaveBeenLastCalledWith('teste-1', 4, true)
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.getByText(FRASES.ficha.faixaRestaurada('22/10, 12:00').titulo)).toBeTruthy()
+  })
+
+  it('precisa_confirmar de retryRestore não abre diálogo: frase inline', async () => {
+    const a = acoesMock()
+    a.pauseAbTest.mockResolvedValue(ok({ title: campoFalhou }))
+    a.retryRestore.mockResolvedValue({ ok: true, resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: 'x' }] })
+    montar(duas(), { nosso: NOSSO, a })
+    await clicar(PAUSAR); await clicar(PAUSAR)
+    await clicar(FRASES.ficha.tentarDeNovo)
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.getByText(FRASES.ficha.pausarPrecisaConfirmar)).toBeTruthy()
   })
 
   it('precisa_confirmar abre o diálogo existente; Voltar fecha sem mais chamadas', async () => {
@@ -201,8 +264,9 @@ describe('rodapé do celular (390): Lembrar no computador', () => {
     montar(duas(), { largura: 'estreita', a })
     const b = screen.getByRole('button', { name: LEMBRAR }) as HTMLButtonElement
     expect(b.disabled).toBe(false)
-    expect(screen.getByText(FRASES.ficha.rodapeLembrete.offline)).toBeTruthy()
+    expect(screen.queryByText(FRASES.ficha.rodapeLembrete.offline)).toBeNull()
     await clicar(LEMBRAR)
+    expect(screen.getByText(FRASES.ficha.rodapeLembrete.offline)).toBeTruthy()
     expect(a.lembrarNoComputador).not.toHaveBeenCalled()
     const fila = JSON.parse(localStorage.getItem(CHAVE_FILA_LEMBRETE)!)
     expect(fila).toHaveLength(1)

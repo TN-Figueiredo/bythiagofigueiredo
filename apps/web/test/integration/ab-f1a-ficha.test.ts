@@ -159,6 +159,11 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T8: ficha gravada (banco)', () => {
     expect(r2).toMatchObject({ ok: true, jaLembrado: true })
     if (!r1.ok || !r2.ok) throw new Error('x')
     expect(r2.lembrarEm).toBe(r1.lembrarEm)
+    // a ficha nova (com o atualizada_em do trigger) volta nos dois ramos de sucesso
+    const linha = await linhaDaFicha(a.ficha.id)
+    expect(r1.ficha.lembrar_em).toBe(r1.lembrarEm)
+    expect(new Date(r1.ficha.atualizada_em).getTime()).toBe(new Date(linha.atualizada_em).getTime())
+    expect(new Date(r2.ficha.atualizada_em).getTime()).toBe(new Date(linha.atualizada_em).getTime())
     const n = await pg.query(`select type, user_id, action_href, payload from public.notifications where dedup_key = $1`, ['ficha-lembrar:' + a.ficha.id])
     expect(n.rowCount).toBe(1)
     expect(n.rows[0]).toMatchObject({ type: 'youtube.native_ficha_lembrar', user_id: ctx.userId, action_href: `/cms/youtube/ab-lab?video=${v.yt}` })

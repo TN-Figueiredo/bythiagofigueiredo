@@ -6,6 +6,7 @@ import { FRASES, capitalizar } from './frases'
 import type { FichaLida } from './ficha'
 import type { RespostaDono } from './resposta'
 import type { Caminho } from './roteador'
+import type { RestoreStatus } from '@/lib/youtube/ab-restore'
 
 export type EstadoLinha =
   | 'sugerido_youtube' | 'sugerido_nosso' | 'formato_nao_confirmado' | 'sem_volume' | 'em_preparo' | 'em_teste_studio'
@@ -20,7 +21,7 @@ export interface LinhaDoCaminho {
     variantesTitulo: string[] | null; campos: ('titulo' | 'miniatura')[] | null; respostaDono: RespostaDono | null
   } | null
   labPausadoAte: string | null
-  nosso: { testId: string; restoreSeq: number; dia: number; status: 'active' | 'paused' } | null
+  nosso: { testId: string; restoreSeq: number; dia: number; status: 'active' | 'paused'; restoreStatus?: RestoreStatus | null } | null
   impressoesPorDia: number | null
   /** T7 (D-8): quando a ficha aberta foi enviada ao Studio (último `studio_aberto_em`/`lembrar_em`, só se `enviada`); nulo = sem pergunta ao iniciar o nosso. */
   fichaEnviadaEm?: string | null

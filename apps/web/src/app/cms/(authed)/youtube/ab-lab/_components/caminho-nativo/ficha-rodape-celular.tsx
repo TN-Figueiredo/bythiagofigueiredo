@@ -64,7 +64,7 @@ export function RodapeCelular({ ctx, lembrar, agora }: {
     <div className="cn-foot">
       <button type="button" className={`cn-btn${ctx.vista.primario === 'lembrar' ? ' pri' : ''}`} disabled={semB || enviando} aria-busy={enviando || undefined}
         onClick={() => { void tocar() }}><Icone nome="bell" />{L.lembrar}</button>
-      <p>{semB ? L.semB : (!online || naFila) ? L.offline : L.chega}</p>
+      <p>{semB ? L.semB : naFila ? L.offline : L.chega}</p>
       {erro ? <p className="cn-errl" role="alert"><Icone nome="warn" /><span>{erro}</span></p> : null}
     </div>
   )

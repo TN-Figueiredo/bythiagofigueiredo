@@ -23,6 +23,8 @@ export interface FichaComStudioProps extends Omit<FichaTesteProps, 'acoes' | 'li
   aoRegistrar: () => void
   /** "Abrir esse teste" / "Recarregar a ficha". */
   aoAtualizar: () => void
+  /** Relê só a lista (sem fechar a ficha): o nosso teste avançou `restore_seq`/`restore_status` e o próximo "Tentar de novo" precisa do valor atual. */
+  aoRecarregar?: () => void
   /** Encaixes das outras tarefas (T9b) somados aos daqui. */
   encaixes?: EncaixesFicha
 }
@@ -47,7 +49,7 @@ export function FichaComStudio(p: FichaComStudioProps): ReactElement {
   const [erroAbrir, setErroAbrir] = useState<string | null>(null)
   const abrindo = useRef(false)
   const voltou = useVoltaDoStudio(abriu)
-  const nosso = useNossoDaFicha(p.linha.nosso, p.acoes, agora)
+  const nosso = useNossoDaFicha(p.linha.nosso, p.acoes, agora, p.aoRecarregar)
   // A ficha enviada que veio do servidor (outro aparelho, recarga) já faz a pergunta; só o lembrete NÃO conta como Studio aberto.
   const doServidor = p.inicial.enviada && p.inicial.studio_aberto_em !== null
   const studioAberto = doServidor || voltou

@@ -4,6 +4,7 @@
 // vêm embutidos nas próprias consultas (FK), sem uma consulta extra por tabela. Nunca uma consulta por vídeo.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { diaDoTeste } from '@/lib/youtube/ab-dia-do-teste'
+import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { derivarFicha, type FichaLida, type FichaLinha } from './ficha'
 import { lerFormatos, type Formato } from './formato-borda'
 import { inicioDoTeste } from './guarda'
@@ -109,7 +110,7 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
       .eq('site_id', siteId).is('registro_id', null).is('descartada_em', null)),
     ler<unknown>('ab_native_tests', sb.from('ab_native_tests').select(colunasTeste)
       .eq('site_id', siteId).or(`estado.eq.em_andamento,and(confirmado_em.not.is.null,encerrado_em.gte.${iso30})`)),
-    ler<unknown>('ab_tests', sb.from('ab_tests').select('id, youtube_video_id, status, started_at, restore_seq')
+    ler<unknown>('ab_tests', sb.from('ab_tests').select('id, youtube_video_id, status, started_at, restore_seq, restore_status')
       .eq('site_id', siteId).in('status', ['active', 'paused'])),
   ])
 
@@ -143,12 +144,12 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
   const lista = [...videos.values()]
   const formatos = await lerFormatos(sb, siteId, lista.map((v) => ({ id: v.id, ytId: v.youtube_video_id })))
 
-  const nossos = new Map<string, { testId: string; restoreSeq: number; dia: number; status: 'active' | 'paused' }>()
+  const nossos = new Map<string, NonNullable<LinhaDoCaminho['nosso']>>()
   for (const n of nossosBrutos) {
     const o = obj(n)
     if (!o || typeof o.youtube_video_id !== 'string' || typeof o.id !== 'string') continue
     nossos.set(o.youtube_video_id, {
-      testId: o.id, restoreSeq: typeof o.restore_seq === 'number' ? o.restore_seq : 0,
+      testId: o.id, restoreSeq: typeof o.restore_seq === 'number' ? o.restore_seq : 0, restoreStatus: paraRestoreStatus(o.restore_status),
       dia: diaDoTeste(str(o.started_at), null, agora) ?? 0, status: o.status === 'paused' ? 'paused' : 'active',
     })
   }
