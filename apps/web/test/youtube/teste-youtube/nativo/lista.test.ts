@@ -217,6 +217,26 @@ describe('resumoDaLista', () => {
   })
 })
 
+describe('resumoDaLista: Lab pausado sem resposta pendente', () => {
+  const g2 = (...ls: LinhaDoCaminho[]) => agruparLinhas(ls)
+  it('só uma pausada: conta a pausa, não diz "Nada espera"', () => {
+    const r = resumoDaLista(g2(linha({ id: 'a', estado: 'em_teste_studio', nosso: pausado })))
+    expect(r.frase).toBe('Lab pausado em um vídeo.')
+    expect(r.apoio).toBe('Um vídeo em teste ou em preparo. Os demais seguem sem teste.')
+  })
+  it('duas pausadas: número por extenso', () => {
+    expect(resumoDaLista(g2(linha({ id: 'a', estado: 'em_teste_studio', nosso: pausado }), linha({ id: 'b', estado: 'em_teste_studio', nosso: pausado }))).frase).toBe('Lab pausado em dois vídeos.')
+  })
+  it('pausada + resposta pendente: frase da resposta, apoio conta a pausa', () => {
+    const r = resumoDaLista(g2(linha({ id: 'a', estado: 'sem_resposta', registro: regLinha(2) }), linha({ id: 'b', estado: 'em_teste_studio', nosso: pausado })))
+    expect(r.frase).toBe('Um vídeo espera a sua resposta.')
+    expect(r.apoio).toContain('O Lab está pausado em um deles.')
+  })
+  it('nenhuma pausada: segue "Nada espera"', () => {
+    expect(resumoDaLista(g2(linha({ id: 'a', estado: 'em_teste_studio' }))).frase).toBe('Nada espera a sua resposta hoje.')
+  })
+})
+
 describe('Retomar a partir de', () => {
   it('detectado visto em 19/10 (BRT): 04/11', () => {
     const t = retomarAPartirDe({ primeiraVista: '2026-10-19T03:00:00Z', confirmadoEm: null, createdAt: '2026-10-25T03:00:00Z' })
