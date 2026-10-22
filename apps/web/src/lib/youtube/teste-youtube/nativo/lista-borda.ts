@@ -90,6 +90,13 @@ function registroDaLista(r: LinhaTeste): RegistroDaLista {
   }
 }
 
+/** Último envio ao Studio (o maior entre `studio_aberto_em` e `lembrar_em`), em ISO. */
+function enviadaEm(f: FichaLida): string | null {
+  const marcas = [f.studio_aberto_em, f.lembrar_em].filter((x): x is string => x !== null).filter((x) => Number.isFinite(Date.parse(x)))
+  if (marcas.length === 0) return null
+  return marcas.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a))
+}
+
 export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, agora: Date): Promise<LinhaDoCaminho[]> {
   const iso30 = new Date(agora.getTime() - JANELA_FECHADOS_DIAS * DIA_MS).toISOString()
   const colunasFicha = `id, site_id, video_id, campos, variantes, criada_em, criada_por, atualizada_em, studio_aberto_em, lembrar_em, descartada_em, registro_id, video:youtube_videos(${COLUNAS_VIDEO})`
@@ -173,6 +180,7 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
     return {
       videoId: v.id, ytId: v.youtube_video_id, titulo: v.title, miniaturaUrl: v.thumbnail_url, publicadoEm: v.published_at,
       estado, caminho, fichaId: ficha?.id ?? null, registro: linhaRegistro, labPausadoAte, nosso, impressoesPorDia: volume.porDia,
+      fichaEnviadaEm: ficha?.enviada ? enviadaEm(ficha) : null, fichaCompleta: ficha ? ficha.variantes.some((x) => x.n >= 2) : false,
     }
   })
 }

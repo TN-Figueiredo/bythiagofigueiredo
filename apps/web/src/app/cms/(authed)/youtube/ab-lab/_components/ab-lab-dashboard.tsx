@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Filter, Settings, FlaskConical, Trophy, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
@@ -26,6 +26,7 @@ import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
 import { AbCreateWizard } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
+import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
 
 export interface AbLabDashboardProps {
   stats: DashboardStats
@@ -39,6 +40,8 @@ export interface AbLabDashboardProps {
   settings: AbTestSiteSettings
   siteId: string
   eligibleVideos: EligibleVideo[]
+  /** Lista "Vídeos do A/B Lab" (filho assíncrono do servidor dentro de Suspense). Opcional: sem ela o painel é o de sempre. */
+  listaSlot?: ReactNode
 }
 
 export function AbLabDashboard({
@@ -53,6 +56,7 @@ export function AbLabDashboard({
   settings,
   siteId,
   eligibleVideos,
+  listaSlot,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
@@ -63,6 +67,9 @@ export function AbLabDashboard({
   const [typeFilter, setTypeFilter] = useState<'all' | TestType>('all')
   const [filterOpen, setFilterOpen] = useState(false)
   const [showAllCompleted, setShowAllCompleted] = useState(false)
+  // Guarda D-8: UMA função (`abrirAssistente`) para as três portas do "Iniciar teste" do nosso; `handleContinueDraft` abre direto.
+  const assistente = useControleAssistente({ onAbrir: setWizardVideo, atualizar: () => router.refresh() })
+  const { abrirAssistente } = assistente
 
   const TYPE_FILTER_LABELS: Record<typeof typeFilter, string> = {
     all: 'Todos os tipos',
@@ -115,13 +122,19 @@ export function AbLabDashboard({
     })
   }
 
-  function handleCreateTest(_videoId: string, _type: string) {
+  function handleCreateTest(videoId: string, _type: string) {
+    // Cartão "Sugeridos para testar": com o vídeo conhecido vai pela guarda; sem ele ("Começar do zero") abre o seletor.
+    const s = videoId ? suggested.find(x => x.id === videoId) : undefined
+    if (s) {
+      abrirAssistente({ id: s.id, title: s.title, thumbnailUrl: s.thumbnailUrl })
+      return
+    }
     setShowPicker(true)
   }
 
   function handleVideoPicked(video: WizardVideo) {
     setShowPicker(false)
-    setWizardVideo(video)
+    abrirAssistente(video)
   }
 
   async function handleSaveSettings(changes: Partial<AbTestSiteSettings>) {
@@ -133,6 +146,7 @@ export function AbLabDashboard({
   const showEmpty = cards.length === 0 && completed.length === 0 && drafts.length === 0 && paused.length === 0
 
   return (
+    <ContextoAssistente.Provider value={assistente}>
     <div data-dashboard-root className="animate-ab-fade-up">
       {/* 1. Header */}
       <div className="animate-ab-fade-up">
@@ -234,6 +248,9 @@ export function AbLabDashboard({
           )}
         </div>
       )}
+
+      {/* 2b. Lista "Vídeos do A/B Lab" (caminho do teste do YouTube) */}
+      {listaSlot}
 
       {/* 3. DraftsBlock */}
       {filteredDrafts.length > 0 && (
@@ -437,5 +454,6 @@ export function AbLabDashboard({
         />
       )}
     </div>
+    </ContextoAssistente.Provider>
   )
 }
