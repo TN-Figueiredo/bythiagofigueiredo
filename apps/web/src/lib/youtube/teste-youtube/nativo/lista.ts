@@ -126,6 +126,8 @@ const videos = (n: number): string => `${ext(n)} ${n === 1 ? 'vídeo' : 'vídeos
 /** Linha de ficha com exatamente duas versões: só ela ganha o botão "Responder" (T10b). Três versões ou `variantes` nulo = sem botão. */
 const comBotao = (l: LinhaDoCaminho): boolean => l.registro?.variantes?.length === 2
 
+const LAB_PAUSADO = (n: number): string => `Lab pausado em ${n === 1 ? 'um vídeo' : `${ext(n)} vídeos`}.`
+
 export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: LinhaDoCaminho[] }): { frase: string; apoio: string | null } {
   const todas = [...g.precisaDeVoce, ...g.outros]
   const prazo = g.precisaDeVoce.filter((l) => l.estado === 'sem_resposta' && comBotao(l)).length
@@ -138,7 +140,11 @@ export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: Linh
   const pausadas = todas.filter(pausada).length
 
   if (espera === 0 && semBotao > 0) {
-    return { frase: `${cap(videos(semBotao))} ${semBotao === 1 ? 'tem' : 'têm'} resultado pronto no YouTube.`, apoio: 'A resposta chega na próxima atualização.' }
+    return { frase: `${cap(videos(semBotao))} ${semBotao === 1 ? 'tem' : 'têm'} resultado pronto no YouTube.`, apoio: pausadas > 0 ? `${LAB_PAUSADO(pausadas)} A resposta chega na próxima atualização.` : 'A resposta chega na próxima atualização.' }
+  }
+  if (espera === 0 && pausadas > 0) {
+    const n = studio + preparo + nossoRodando
+    return { frase: LAB_PAUSADO(pausadas), apoio: n > 0 ? `${cap(videos(n))} em teste ou em preparo. Os demais seguem sem teste.` : null }
   }
   if (espera === 0) {
     const n = studio + preparo + nossoRodando
