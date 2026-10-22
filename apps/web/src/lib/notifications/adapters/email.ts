@@ -11,6 +11,19 @@ export function safeSubject(v: string | null | undefined): string {
   return String(v ?? '').replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, ' ').trim()
 }
 
+// Link absoluto da notificação. Lê NEXT_PUBLIC_APP_URL direto de process.env (nunca clientEnv()).
+// action_href só vale se for caminho relativo do próprio site; qualquer outra forma é ignorada.
+function linkAbsoluto(actionHref: string | null | undefined): string | null {
+  if (!actionHref) return null
+  if (!actionHref.startsWith('/') || actionHref.startsWith('//') || actionHref.startsWith('/\\')) return null
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').trim().replace(/\/+$/, '')
+  if (!base) {
+    console.warn(JSON.stringify({ level: 'warn', event: 'email_sem_link_app_url_ausente' }))
+    return null
+  }
+  return `${base}${actionHref}`
+}
+
 export class EmailAdapter implements IChannelAdapter {
   readonly channel = 'email' as const
 
@@ -25,6 +38,9 @@ export class EmailAdapter implements IChannelAdapter {
     const fromDomain =
       process.env.NEWSLETTER_FROM_DOMAIN ?? 'bythiagofigueiredo.com'
 
+    const link = linkAbsoluto(notification.action_href)
+    const corpo = notification.message ?? notification.title
+
     try {
       // Menor 7 (docs/superpowers/plans/2026-09-02-falhas-silenciosas.md): do
       // not pass configurationSet here. getEmailService()'s singleton already
@@ -36,8 +52,8 @@ export class EmailAdapter implements IChannelAdapter {
         from: { email: `noreply@${fromDomain}`, name: 'Notifications' },
         to: user.email,
         subject: safeSubject(notification.title),
-        html: `<p>${escapeHtml(notification.message ?? notification.title)}</p>`,
-        text: notification.message ?? notification.title,
+        html: `<p>${escapeHtml(corpo)}</p>` + (link ? `<p><a href="${escapeHtml(link)}">${escapeHtml(link)}</a></p>` : ''),
+        text: link ? `${corpo}\n\n${link}` : corpo,
       })
 
       return { success: true }
