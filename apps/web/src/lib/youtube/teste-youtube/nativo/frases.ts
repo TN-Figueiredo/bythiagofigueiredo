@@ -132,6 +132,8 @@ export const FRASES = {
       : { titulo: `Ficha feita em ${feita} no celular`, apoio: 'As versões abaixo vieram de lá. Continue daqui: o Studio abre o teste.' },
     studioAberto: f('Você iniciou o teste no Studio?', 'Se sim, toque em Já iniciei; se não, a ficha espera.'),
     voceAbriuOStudio: (hora: string): string => `Você abriu o Studio às ${hora}.`,
+    /** Ficha enviada em outro dia (recarga, outro aparelho): a data entra, nunca só a hora. */
+    voceAbriuOStudioOutroDia: (data: string, hora: string): string => `Você abriu o Studio em ${data}, ${hora}.`,
     jaIniciei: f('Confirme que o teste já está ligado no Studio.'),
     confirmarConsequencia: (prazo: Date): string => `O Lab não mexe neste vídeo até você responder o resultado (prazo: ${dataCurta(prazo)}). Confirmar que o teste já está ligado no Studio?`,
     registrada: (lembrete: Date): FraseDeEstado => f('Teste do YouTube registrado. O Lab fica parado neste vídeo.', `Lembrete em ${dataCurta(lembrete)}.`),

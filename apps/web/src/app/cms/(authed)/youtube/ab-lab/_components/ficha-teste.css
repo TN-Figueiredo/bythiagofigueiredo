@@ -71,3 +71,15 @@ a.cn-btn { text-decoration: none; }
   .cn-segc button { flex: 1; justify-content: center; min-height: 44px; padding: 0 8px; }
   .cn-vbody { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* T9a: Studio, volta do Studio e "Confirmar". Tokens literais de caminho-nativo.css. */
+.cn-next { margin-top: 16px; }
+.cn-next > .cn-blk { margin-top: 0; }
+.cn-bacts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.cn-q3 { font: 600 14.5px/1.35 Inter, system-ui, sans-serif; margin: 12px 0 0; }
+.cn-blk.cn-hl { border: 1px solid var(--cn-yt-line); border-radius: 8px; padding: 16px; background: var(--cn-yt-bg); }
+.cn-ask { margin-top: 12px; padding: 12px 16px; border: 1px solid var(--cn-border-strong); border-radius: 8px; background: var(--cn-surface); max-width: 72ch; }
+.cn-ask p { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.cn-ask .cn-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.cn-aviso { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0 0; padding: 8px 12px; border: 1px solid var(--cn-warn-line); border-left-width: 4px; border-radius: 8px; background: var(--cn-warn-bg); font-size: 13.5px; color: var(--cn-text); }
+.cn-aviso svg { flex: none; margin-top: 3px; color: var(--cn-warn); }

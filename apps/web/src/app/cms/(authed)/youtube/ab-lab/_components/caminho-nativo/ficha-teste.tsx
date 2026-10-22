@@ -47,7 +47,7 @@ export interface FichaTesteProps {
   aoRecomecar?: (nova: FichaLida) => void
 }
 
-const fmtHora = (d: Date): string => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
+export const fmtHora = (d: Date): string => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
 
 /** "às 14:32" no mesmo dia (São Paulo); "em 08/10, 14:32" em outro. */
 export function quandoSalvo(iso: string, agora: Date): string {
