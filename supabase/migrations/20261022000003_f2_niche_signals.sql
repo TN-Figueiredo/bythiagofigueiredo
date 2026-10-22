@@ -39,16 +39,17 @@ create table if not exists public.niche_outliers_vistos (
   site_id uuid not null references public.sites (id) on delete cascade,
   video_id uuid not null,
   canal_id uuid not null,
-  formato text not null,
+  formato text not null check (formato in ('long', 'short')),
   published_at timestamptz not null,
   n_canal int not null,
   primeiro_visto_em timestamptz not null,
   ultimo_visto_em timestamptz not null,
-  mult_max numeric(8, 2) not null,
+  mult_max numeric not null,
   vpd7_max numeric not null,
   chaves text[] not null,
   primary key (site_id, video_id)
 );
+alter table public.niche_outliers_vistos alter column mult_max type numeric;
 
 create table if not exists public.niche_signals_estado (
   site_id uuid primary key references public.sites (id) on delete cascade,
@@ -58,6 +59,21 @@ create table if not exists public.niche_signals_estado (
   contagens jsonb not null,
   baseline_em timestamptz
 );
+
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'niche_signals_evidence_objeto') then
+    alter table public.niche_signals add constraint niche_signals_evidence_objeto check (jsonb_typeof(evidence) = 'object');
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'niche_signals_estado_contagens_objeto') then
+    alter table public.niche_signals_estado add constraint niche_signals_estado_contagens_objeto check (jsonb_typeof(contagens) = 'object');
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'niche_outliers_vistos_formato_check') then
+    alter table public.niche_outliers_vistos add constraint niche_outliers_vistos_formato_check check (formato in ('long', 'short'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'niche_outliers_vistos_mult_max_check') then
+    alter table public.niche_outliers_vistos add constraint niche_outliers_vistos_mult_max_check check (mult_max >= 0);
+  end if;
+end $$;
 
 alter table public.niche_signals enable row level security;
 alter table public.niche_outliers_vistos enable row level security;
@@ -145,14 +161,17 @@ declare
   v_novos uuid[];
   v_atualizados integer;
 begin
-  if p_site is null or p_estado is null then raise exception 'niche_signals_gravar: parametro nulo' using errcode = '22004'; end if;
+  if p_site is null or p_estado is null or p_linha_de_base is null then raise exception 'niche_signals_gravar: parametro nulo' using errcode = '22004'; end if;
   -- serializa gravar e dispensar do mesmo site (senão o dispensar commitado no meio reabre a chave)
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('niche_signals:' || p_site::text, 0));
+  if exists (select 1 from jsonb_array_elements(coalesce(p_lote, '[]'::jsonb)) e where coalesce(e ->> 'modo', 'novo') not in ('novo', 'atualizar')) then
+    raise exception 'niche_signals_gravar: modo invalido' using errcode = '22023';
+  end if;
   v_expirados := public.niche_signals_expirar(p_site);
 
   with item as (
     select * from jsonb_to_recordset(coalesce(p_lote, '[]'::jsonb)) as x(
-      kind text, subject_key text, rule_version text, evidence jsonb, forca numeric, acao text, motivo text, notificar_como text)
+      kind text, subject_key text, rule_version text, evidence jsonb, forca numeric, acao text, motivo text, notificar_como text, modo text)
   ), ins as (
     insert into public.niche_signals (site_id, kind, subject_key, rule_version, evidence, forca, acao, status,
                                       first_seen_at, computed_at, expires_at, motivo, notificar_como)
@@ -161,7 +180,8 @@ begin
            now(), now(), now() + interval '30 days', i.motivo,
            case when p_linha_de_base then 'resumo' else coalesce(i.notificar_como, 'individual') end
       from item i
-     where not exists (select 1 from public.niche_signals s
+     where coalesce(i.modo, 'novo') = 'novo'
+       and not exists (select 1 from public.niche_signals s
                         where s.site_id = p_site and s.kind = i.kind and s.subject_key = i.subject_key and s.status = 'aberto')
        and not exists (select 1 from public.niche_signals s
                         where s.site_id = p_site and s.kind = i.kind and s.subject_key = i.subject_key
@@ -173,7 +193,7 @@ begin
 
   with item as (
     select * from jsonb_to_recordset(coalesce(p_lote, '[]'::jsonb)) as x(
-      kind text, subject_key text, rule_version text, evidence jsonb, forca numeric, acao text, motivo text, notificar_como text)
+      kind text, subject_key text, rule_version text, evidence jsonb, forca numeric, acao text, motivo text, notificar_como text, modo text)
   )
   update public.niche_signals s
      set evidence = public.niche_signals_mesclar_evidence(s.evidence, i.evidence),
@@ -236,8 +256,8 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
--- Âncoras (Phil 5, A3): por chave, os vídeos já vistos até o fim do último evento da chave (60 d). A borda recompõe as
--- chaves por `video_lugares` (M2); aqui a leitura é de `niche_outliers_vistos.chaves`, sem teto.
+-- Âncoras (Phil 5, A3): por chave, os vídeos já vistos até o fim do último evento da chave (60 d). As chaves vêm de `video_lugares`
+-- (M2, recomposição); sem linha lá, cai para `niche_outliers_vistos.chaves`. Sem teto.
 create or replace function public.niche_signals_ancoras(p_site uuid) returns table (subject_key text, video_id uuid)
 language sql stable security invoker set search_path = '' as $$
   with ultimo as (
@@ -247,7 +267,9 @@ language sql stable security invoker set search_path = '' as $$
      order by s.subject_key, s.first_seen_at desc, s.id)
   select u.subject_key, v.video_id
     from ultimo u
-    join public.niche_outliers_vistos v on v.site_id = p_site and u.subject_key = any (v.chaves) and v.primeiro_visto_em <= u.fim
+    join public.niche_outliers_vistos v on v.site_id = p_site and v.primeiro_visto_em <= u.fim
+    left join public.video_lugares vl on vl.video_id = v.video_id and vl.site_id = p_site
+   where u.subject_key = any (coalesce(vl.chaves, v.chaves))
 $$;
 
 revoke all on function public.niche_signals_mesclar_evidence(jsonb, jsonb) from public, anon, authenticated;
