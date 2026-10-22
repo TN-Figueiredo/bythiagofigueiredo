@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { renderHook, cleanup, act } from '@testing-library/react'
-import { enfileirar, drenar, lerFila, useDrenarFilaLembrete, CHAVE_FILA_LEMBRETE, VALIDADE_FILA_MS } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/fila-lembrete'
+import { enfileirar, drenar, lerFilaLembrete, useDrenarFilaLembrete, CHAVE_FILA_LEMBRETE, VALIDADE_FILA_MS } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/fila-lembrete'
 
 const AGORA = new Date('2026-10-22T15:00:00.000Z')
 const DIA = 86_400_000
@@ -32,7 +32,7 @@ describe('fila do lembrete', () => {
 
   it('o mesmo fichaId não entra duas vezes', () => {
     enfileirar(ID, AGORA); enfileirar(ID, AGORA)
-    expect(lerFila()).toHaveLength(1)
+    expect(lerFilaLembrete()).toHaveLength(1)
   })
 
   it('drenar chama a action uma vez e o item sai', async () => {
@@ -41,14 +41,14 @@ describe('fila do lembrete', () => {
     await drenar(lembrar, AGORA)
     expect(lembrar).toHaveBeenCalledTimes(1)
     expect(lembrar).toHaveBeenCalledWith(ID)
-    expect(lerFila()).toEqual([])
+    expect(lerFilaLembrete()).toEqual([])
   })
 
   it('"não encontrado" tira o item sem erro', async () => {
     enfileirar(ID, AGORA)
     const lembrar = vi.fn().mockResolvedValue({ ok: false, error: 'não encontrado' })
     await expect(drenar(lembrar, AGORA)).resolves.toBeUndefined()
-    expect(lerFila()).toEqual([])
+    expect(lerFilaLembrete()).toEqual([])
   })
 
   it('item de 15 dias sai sem chamar a action; o de 13 dias segue', async () => {
@@ -66,15 +66,15 @@ describe('fila do lembrete', () => {
   it('outro erro ou exceção de rede mantém o item para a próxima vez', async () => {
     enfileirar(ID, AGORA)
     await drenar(vi.fn().mockRejectedValue(new TypeError('Failed to fetch')), AGORA)
-    expect(lerFila()).toHaveLength(1)
+    expect(lerFilaLembrete()).toHaveLength(1)
     await drenar(vi.fn().mockResolvedValue({ ok: false, error: 'não foi possível criar o lembrete' }), AGORA)
-    expect(lerFila()).toHaveLength(1)
+    expect(lerFilaLembrete()).toHaveLength(1)
   })
 
   it('localStorage lançando não quebra nada', async () => {
     vi.stubGlobal('localStorage', armazem(true))
     expect(() => enfileirar(ID, AGORA)).not.toThrow()
-    expect(lerFila()).toEqual([])
+    expect(lerFilaLembrete()).toEqual([])
     const lembrar = vi.fn()
     await expect(drenar(lembrar, AGORA)).resolves.toBeUndefined()
     expect(lembrar).not.toHaveBeenCalled()
@@ -90,7 +90,7 @@ describe('useDrenarFilaLembrete', () => {
     const lembrar = vi.fn().mockResolvedValue(ok)
     await act(async () => { renderHook(() => useDrenarFilaLembrete(lembrar, () => AGORA)) })
     expect(lembrar).toHaveBeenCalledTimes(1)
-    expect(lerFila()).toEqual([])
+    expect(lerFilaLembrete()).toEqual([])
   })
 
   it('online drena uma vez', async () => {

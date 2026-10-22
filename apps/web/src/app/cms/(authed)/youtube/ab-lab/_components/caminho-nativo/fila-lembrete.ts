@@ -13,7 +13,7 @@ const NAO_ENCONTRADO = 'não encontrado'
 export interface ItemFilaLembrete { fichaId: string; enfileiradoEm: string }
 export type LembrarDaFila = (fichaId: string) => Promise<{ ok: boolean; error?: string }>
 
-export function lerFila(): ItemFilaLembrete[] {
+export function lerFilaLembrete(): ItemFilaLembrete[] {
   try {
     const bruto = window.localStorage.getItem(CHAVE_FILA_LEMBRETE)
     if (!bruto) return []
@@ -33,12 +33,12 @@ function gravar(fila: ItemFilaLembrete[]): void {
 }
 
 export function enfileirar(fichaId: string, agora: Date = new Date()): void {
-  const fila = lerFila()
+  const fila = lerFilaLembrete()
   if (fila.some((i) => i.fichaId === fichaId)) return
   gravar([...fila, { fichaId, enfileiradoEm: agora.toISOString() }])
 }
 
-const tirar = (fichaId: string): void => gravar(lerFila().filter((i) => i.fichaId !== fichaId))
+const tirar = (fichaId: string): void => gravar(lerFilaLembrete().filter((i) => i.fichaId !== fichaId))
 
 let drenando = false
 
@@ -46,7 +46,7 @@ export async function drenar(lembrar: LembrarDaFila, agora: Date = new Date()): 
   if (drenando) return
   drenando = true
   try {
-    for (const item of lerFila()) {
+    for (const item of lerFilaLembrete()) {
       const idade = agora.getTime() - Date.parse(item.enfileiradoEm)
       if (!Number.isFinite(idade) || idade > VALIDADE_FILA_MS) { tirar(item.fichaId); continue }
       try {
