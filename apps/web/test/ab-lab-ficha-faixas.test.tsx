@@ -135,6 +135,11 @@ describe('faixa 0b: nosso teste rodando', () => {
     expect(screen.queryByRole('button', { name: FRASES.ficha.tentarDeNovo })).toBeNull()
   })
 
+  it('nosso pausado com restauro desistiu (retry humano aceita): oferece "Tentar de novo"', () => {
+    montar(duas(), { nosso: { ...NOSSO, status: 'paused', restoreStatus: { title: { ...campoOk, estado: 'desistiu', motivo: 'token' }, thumbnail: campoOk } } })
+    expect(screen.getByRole('button', { name: FRASES.ficha.tentarDeNovo })).toBeTruthy()
+  })
+
   it('pausa falhou por token: recarrega a linha e o "Tentar de novo" usa o seq novo', async () => {
     const a = acoesMock()
     a.pauseAbTest.mockResolvedValue(ok({ title: campoFalhou }))
