@@ -1,0 +1,5255 @@
+{
+ "versao": 1,
+ "lugares": [
+  {
+   "slug": "pais:AF",
+   "pais_iso2": "AF",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Afeganistão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Afghanistan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AL",
+   "pais_iso2": "AL",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Albânia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Shqipëria",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:DZ",
+   "pais_iso2": "DZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Argélia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Algeria",
+     "ambiguo": false
+    },
+    {
+     "alias": "Algérie",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AD",
+   "pais_iso2": "AD",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Andorra",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AO",
+   "pais_iso2": "AO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Angola",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AG",
+   "pais_iso2": "AG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Antígua e Barbuda",
+     "ambiguo": false
+    },
+    {
+     "alias": "Antigua and Barbuda",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AR",
+   "pais_iso2": "AR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Argentina",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AM",
+   "pais_iso2": "AM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Armênia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Hayastan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AU",
+   "pais_iso2": "AU",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Austrália",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AT",
+   "pais_iso2": "AT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Áustria",
+     "ambiguo": false
+    },
+    {
+     "alias": "Österreich",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AZ",
+   "pais_iso2": "AZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Azerbaijão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Azerbaijan",
+     "ambiguo": false
+    },
+    {
+     "alias": "Azərbaycan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BS",
+   "pais_iso2": "BS",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bahamas",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BH",
+   "pais_iso2": "BH",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bahrein",
+     "ambiguo": false
+    },
+    {
+     "alias": "Bahrain",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BD",
+   "pais_iso2": "BD",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bangladesh",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BB",
+   "pais_iso2": "BB",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Barbados",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BY",
+   "pais_iso2": "BY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bielorrússia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Belarus",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BE",
+   "pais_iso2": "BE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bélgica",
+     "ambiguo": false
+    },
+    {
+     "alias": "Belgium",
+     "ambiguo": false
+    },
+    {
+     "alias": "België",
+     "ambiguo": false
+    },
+    {
+     "alias": "Belgique",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BZ",
+   "pais_iso2": "BZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Belize",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BJ",
+   "pais_iso2": "BJ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Benin",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BT",
+   "pais_iso2": "BT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Butão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Bhutan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BO",
+   "pais_iso2": "BO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bolívia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BA",
+   "pais_iso2": "BA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bósnia e Herzegovina",
+     "ambiguo": false
+    },
+    {
+     "alias": "Bosnia and Herzegovina",
+     "ambiguo": false
+    },
+    {
+     "alias": "Bosna i Hercegovina",
+     "ambiguo": false
+    },
+    {
+     "alias": "Bósnia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BW",
+   "pais_iso2": "BW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Botsuana",
+     "ambiguo": false
+    },
+    {
+     "alias": "Botswana",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BR",
+   "pais_iso2": "BR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Brasil",
+     "ambiguo": false
+    },
+    {
+     "alias": "Brazil",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BN",
+   "pais_iso2": "BN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Brunei",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BG",
+   "pais_iso2": "BG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bulgária",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BF",
+   "pais_iso2": "BF",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Burkina Faso",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BI",
+   "pais_iso2": "BI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Burundi",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CV",
+   "pais_iso2": "CV",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Cabo Verde",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cape Verde",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KH",
+   "pais_iso2": "KH",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Camboja",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cambodia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kampuchea",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CM",
+   "pais_iso2": "CM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Camarões",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cameroon",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cameroun",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CA",
+   "pais_iso2": "CA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Canadá",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CF",
+   "pais_iso2": "CF",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "República Centro-Africana",
+     "ambiguo": false
+    },
+    {
+     "alias": "Central African Republic",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TD",
+   "pais_iso2": "TD",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Chade",
+     "ambiguo": false
+    },
+    {
+     "alias": "Chad",
+     "ambiguo": true
+    },
+    {
+     "alias": "Tchad",
+     "ambiguo": false
+    },
+    {
+     "alias": "Tchade",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CL",
+   "pais_iso2": "CL",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Chile",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CN",
+   "pais_iso2": "CN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "China",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CO",
+   "pais_iso2": "CO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Colômbia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KM",
+   "pais_iso2": "KM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Comores",
+     "ambiguo": false
+    },
+    {
+     "alias": "Comoros",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CG",
+   "pais_iso2": "CG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "República do Congo",
+     "ambiguo": false
+    },
+    {
+     "alias": "Republic of the Congo",
+     "ambiguo": false
+    },
+    {
+     "alias": "Congo Brazzaville",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CD",
+   "pais_iso2": "CD",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "República Democrática do Congo",
+     "ambiguo": false
+    },
+    {
+     "alias": "Democratic Republic of the Congo",
+     "ambiguo": false
+    },
+    {
+     "alias": "RD Congo",
+     "ambiguo": false
+    },
+    {
+     "alias": "RDC",
+     "ambiguo": false
+    },
+    {
+     "alias": "Congo Kinshasa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CR",
+   "pais_iso2": "CR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Costa Rica",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CI",
+   "pais_iso2": "CI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Costa do Marfim",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ivory Coast",
+     "ambiguo": false
+    },
+    {
+     "alias": "Côte d'Ivoire",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:HR",
+   "pais_iso2": "HR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Croácia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Croatia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Hrvatska",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CU",
+   "pais_iso2": "CU",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Cuba",
+     "ambiguo": true
+    }
+   ]
+  },
+  {
+   "slug": "pais:CY",
+   "pais_iso2": "CY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Chipre",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cyprus",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CZ",
+   "pais_iso2": "CZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "República Tcheca",
+     "ambiguo": false
+    },
+    {
+     "alias": "Czech Republic",
+     "ambiguo": false
+    },
+    {
+     "alias": "Tchéquia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Czechia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Česko",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:DK",
+   "pais_iso2": "DK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Dinamarca",
+     "ambiguo": false
+    },
+    {
+     "alias": "Denmark",
+     "ambiguo": false
+    },
+    {
+     "alias": "Danmark",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:DJ",
+   "pais_iso2": "DJ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Djibouti",
+     "ambiguo": false
+    },
+    {
+     "alias": "Jibuti",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:DM",
+   "pais_iso2": "DM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Dominica",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:DO",
+   "pais_iso2": "DO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "República Dominicana",
+     "ambiguo": false
+    },
+    {
+     "alias": "Dominican Republic",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:EC",
+   "pais_iso2": "EC",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Equador",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ecuador",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:EG",
+   "pais_iso2": "EG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Egito",
+     "ambiguo": false
+    },
+    {
+     "alias": "Egypt",
+     "ambiguo": false
+    },
+    {
+     "alias": "Misr",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SV",
+   "pais_iso2": "SV",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "El Salvador",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GQ",
+   "pais_iso2": "GQ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Guiné Equatorial",
+     "ambiguo": false
+    },
+    {
+     "alias": "Equatorial Guinea",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ER",
+   "pais_iso2": "ER",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Eritreia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Eritrea",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:EE",
+   "pais_iso2": "EE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Estônia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Eesti",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SZ",
+   "pais_iso2": "SZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Essuatíni",
+     "ambiguo": false
+    },
+    {
+     "alias": "Eswatini",
+     "ambiguo": false
+    },
+    {
+     "alias": "Suazilândia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Swaziland",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ET",
+   "pais_iso2": "ET",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Etiópia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ethiopia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:FJ",
+   "pais_iso2": "FJ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Fiji",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:FI",
+   "pais_iso2": "FI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Finlândia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Finland",
+     "ambiguo": false
+    },
+    {
+     "alias": "Suomi",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:FR",
+   "pais_iso2": "FR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "França",
+     "ambiguo": false
+    },
+    {
+     "alias": "France",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GA",
+   "pais_iso2": "GA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Gabão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Gabon",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GM",
+   "pais_iso2": "GM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Gâmbia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GE",
+   "pais_iso2": "GE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Geórgia",
+     "ambiguo": true
+    },
+    {
+     "alias": "Sakartvelo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:DE",
+   "pais_iso2": "DE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Alemanha",
+     "ambiguo": false
+    },
+    {
+     "alias": "Germany",
+     "ambiguo": false
+    },
+    {
+     "alias": "Deutschland",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GH",
+   "pais_iso2": "GH",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Gana",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ghana",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GR",
+   "pais_iso2": "GR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Grécia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Greece",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ellada",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GD",
+   "pais_iso2": "GD",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Granada",
+     "ambiguo": false
+    },
+    {
+     "alias": "Grenada",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GT",
+   "pais_iso2": "GT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Guatemala",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GN",
+   "pais_iso2": "GN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Guiné",
+     "ambiguo": false
+    },
+    {
+     "alias": "Guinea",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GW",
+   "pais_iso2": "GW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Guiné-Bissau",
+     "ambiguo": false
+    },
+    {
+     "alias": "Guinea-Bissau",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GY",
+   "pais_iso2": "GY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Guiana",
+     "ambiguo": false
+    },
+    {
+     "alias": "Guyana",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:HT",
+   "pais_iso2": "HT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Haiti",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:HN",
+   "pais_iso2": "HN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Honduras",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:HK",
+   "pais_iso2": "HK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Hong Kong",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:HU",
+   "pais_iso2": "HU",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Hungria",
+     "ambiguo": false
+    },
+    {
+     "alias": "Hungary",
+     "ambiguo": false
+    },
+    {
+     "alias": "Magyarország",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:IS",
+   "pais_iso2": "IS",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Islândia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Iceland",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ísland",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:IN",
+   "pais_iso2": "IN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Índia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Bharat",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ID",
+   "pais_iso2": "ID",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Indonésia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:IR",
+   "pais_iso2": "IR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Irã",
+     "ambiguo": false
+    },
+    {
+     "alias": "Iran",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:IQ",
+   "pais_iso2": "IQ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Iraque",
+     "ambiguo": false
+    },
+    {
+     "alias": "Iraq",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:IE",
+   "pais_iso2": "IE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Irlanda",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ireland",
+     "ambiguo": false
+    },
+    {
+     "alias": "Éire",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:IL",
+   "pais_iso2": "IL",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Israel",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:IT",
+   "pais_iso2": "IT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Itália",
+     "ambiguo": false
+    },
+    {
+     "alias": "Italy",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:JM",
+   "pais_iso2": "JM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Jamaica",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:JP",
+   "pais_iso2": "JP",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Japão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Japan",
+     "ambiguo": false
+    },
+    {
+     "alias": "Nihon",
+     "ambiguo": false
+    },
+    {
+     "alias": "Nippon",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:JO",
+   "pais_iso2": "JO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Jordânia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Jordan",
+     "ambiguo": true
+    }
+   ]
+  },
+  {
+   "slug": "pais:KZ",
+   "pais_iso2": "KZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Cazaquistão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kazakhstan",
+     "ambiguo": false
+    },
+    {
+     "alias": "Qazaqstan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KE",
+   "pais_iso2": "KE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Quênia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kenya",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KI",
+   "pais_iso2": "KI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Kiribati",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:XK",
+   "pais_iso2": "XK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Kosovo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KW",
+   "pais_iso2": "KW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Kuwait",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kuweit",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KG",
+   "pais_iso2": "KG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Quirguistão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kyrgyzstan",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kirguistão",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LA",
+   "pais_iso2": "LA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Laos",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LV",
+   "pais_iso2": "LV",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Letônia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Latvia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Latvija",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LB",
+   "pais_iso2": "LB",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Líbano",
+     "ambiguo": false
+    },
+    {
+     "alias": "Lebanon",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LS",
+   "pais_iso2": "LS",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Lesoto",
+     "ambiguo": false
+    },
+    {
+     "alias": "Lesotho",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LR",
+   "pais_iso2": "LR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Libéria",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LY",
+   "pais_iso2": "LY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Líbia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Libya",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LI",
+   "pais_iso2": "LI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Liechtenstein",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LT",
+   "pais_iso2": "LT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Lituânia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Lithuania",
+     "ambiguo": false
+    },
+    {
+     "alias": "Lietuva",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LU",
+   "pais_iso2": "LU",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Luxemburgo",
+     "ambiguo": false
+    },
+    {
+     "alias": "Luxembourg",
+     "ambiguo": false
+    },
+    {
+     "alias": "Luxemburg",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MO",
+   "pais_iso2": "MO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Macau",
+     "ambiguo": false
+    },
+    {
+     "alias": "Macao",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MG",
+   "pais_iso2": "MG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Madagascar",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MW",
+   "pais_iso2": "MW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Malawi",
+     "ambiguo": false
+    },
+    {
+     "alias": "Maláui",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MY",
+   "pais_iso2": "MY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Malásia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Malaysia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MV",
+   "pais_iso2": "MV",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Maldivas",
+     "ambiguo": false
+    },
+    {
+     "alias": "Maldives",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ML",
+   "pais_iso2": "ML",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Mali",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MT",
+   "pais_iso2": "MT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Malta",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MH",
+   "pais_iso2": "MH",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Marshall",
+     "ambiguo": false
+    },
+    {
+     "alias": "Marshall Islands",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MR",
+   "pais_iso2": "MR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Mauritânia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MU",
+   "pais_iso2": "MU",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Maurício",
+     "ambiguo": false
+    },
+    {
+     "alias": "Mauritius",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ilhas Maurício",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MX",
+   "pais_iso2": "MX",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "México",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:FM",
+   "pais_iso2": "FM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Micronésia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MD",
+   "pais_iso2": "MD",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Moldávia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Moldova",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MC",
+   "pais_iso2": "MC",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Mônaco",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MN",
+   "pais_iso2": "MN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Mongólia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ME",
+   "pais_iso2": "ME",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Montenegro",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MA",
+   "pais_iso2": "MA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Marrocos",
+     "ambiguo": false
+    },
+    {
+     "alias": "Morocco",
+     "ambiguo": false
+    },
+    {
+     "alias": "Maroc",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MZ",
+   "pais_iso2": "MZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Moçambique",
+     "ambiguo": false
+    },
+    {
+     "alias": "Mozambique",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MM",
+   "pais_iso2": "MM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Mianmar",
+     "ambiguo": false
+    },
+    {
+     "alias": "Myanmar",
+     "ambiguo": false
+    },
+    {
+     "alias": "Birmânia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Burma",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NA",
+   "pais_iso2": "NA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Namíbia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NR",
+   "pais_iso2": "NR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Nauru",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NP",
+   "pais_iso2": "NP",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Nepal",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NL",
+   "pais_iso2": "NL",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Países Baixos",
+     "ambiguo": false
+    },
+    {
+     "alias": "Netherlands",
+     "ambiguo": false
+    },
+    {
+     "alias": "Holanda",
+     "ambiguo": false
+    },
+    {
+     "alias": "Nederland",
+     "ambiguo": false
+    },
+    {
+     "alias": "Holland",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NZ",
+   "pais_iso2": "NZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Nova Zelândia",
+     "ambiguo": false
+    },
+    {
+     "alias": "New Zealand",
+     "ambiguo": false
+    },
+    {
+     "alias": "Aotearoa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NI",
+   "pais_iso2": "NI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Nicarágua",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NE",
+   "pais_iso2": "NE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Níger",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NG",
+   "pais_iso2": "NG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Nigéria",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KP",
+   "pais_iso2": "KP",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Coreia do Norte",
+     "ambiguo": false
+    },
+    {
+     "alias": "North Korea",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MK",
+   "pais_iso2": "MK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Macedônia do Norte",
+     "ambiguo": false
+    },
+    {
+     "alias": "North Macedonia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Macedônia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NO",
+   "pais_iso2": "NO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Noruega",
+     "ambiguo": false
+    },
+    {
+     "alias": "Norway",
+     "ambiguo": false
+    },
+    {
+     "alias": "Norge",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:OM",
+   "pais_iso2": "OM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Omã",
+     "ambiguo": false
+    },
+    {
+     "alias": "Oman",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PK",
+   "pais_iso2": "PK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Paquistão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Pakistan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PW",
+   "pais_iso2": "PW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Palau",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PS",
+   "pais_iso2": "PS",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Palestina",
+     "ambiguo": false
+    },
+    {
+     "alias": "Palestine",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PA",
+   "pais_iso2": "PA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Panamá",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PG",
+   "pais_iso2": "PG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Papua-Nova Guiné",
+     "ambiguo": false
+    },
+    {
+     "alias": "Papua New Guinea",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PY",
+   "pais_iso2": "PY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Paraguai",
+     "ambiguo": false
+    },
+    {
+     "alias": "Paraguay",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PE",
+   "pais_iso2": "PE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Peru",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PH",
+   "pais_iso2": "PH",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Filipinas",
+     "ambiguo": false
+    },
+    {
+     "alias": "Philippines",
+     "ambiguo": false
+    },
+    {
+     "alias": "Pilipinas",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PL",
+   "pais_iso2": "PL",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Polônia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Poland",
+     "ambiguo": false
+    },
+    {
+     "alias": "Polska",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PT",
+   "pais_iso2": "PT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Portugal",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:QA",
+   "pais_iso2": "QA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Catar",
+     "ambiguo": false
+    },
+    {
+     "alias": "Qatar",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:RO",
+   "pais_iso2": "RO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Romênia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Romania",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:RU",
+   "pais_iso2": "RU",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Rússia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:RW",
+   "pais_iso2": "RW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ruanda",
+     "ambiguo": false
+    },
+    {
+     "alias": "Rwanda",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KN",
+   "pais_iso2": "KN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "São Cristóvão e Névis",
+     "ambiguo": false
+    },
+    {
+     "alias": "Saint Kitts and Nevis",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LC",
+   "pais_iso2": "LC",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Santa Lúcia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Saint Lucia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:VC",
+   "pais_iso2": "VC",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "São Vicente e Granadinas",
+     "ambiguo": false
+    },
+    {
+     "alias": "Saint Vincent and the Grenadines",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:WS",
+   "pais_iso2": "WS",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Samoa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SM",
+   "pais_iso2": "SM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "San Marino",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ST",
+   "pais_iso2": "ST",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "São Tomé e Príncipe",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sao Tome and Principe",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SA",
+   "pais_iso2": "SA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Arábia Saudita",
+     "ambiguo": false
+    },
+    {
+     "alias": "Saudi Arabia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SN",
+   "pais_iso2": "SN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Senegal",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:RS",
+   "pais_iso2": "RS",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Sérvia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Serbia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Srbija",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SC",
+   "pais_iso2": "SC",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Seicheles",
+     "ambiguo": false
+    },
+    {
+     "alias": "Seychelles",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SL",
+   "pais_iso2": "SL",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Serra Leoa",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sierra Leone",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SG",
+   "pais_iso2": "SG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Singapura",
+     "ambiguo": false
+    },
+    {
+     "alias": "Singapore",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SK",
+   "pais_iso2": "SK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Eslováquia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Slovakia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Slovensko",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SI",
+   "pais_iso2": "SI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Eslovênia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Slovenia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Slovenija",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SB",
+   "pais_iso2": "SB",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Salomão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Solomon Islands",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SO",
+   "pais_iso2": "SO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Somália",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ZA",
+   "pais_iso2": "ZA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "África do Sul",
+     "ambiguo": false
+    },
+    {
+     "alias": "South Africa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KR",
+   "pais_iso2": "KR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Coreia do Sul",
+     "ambiguo": false
+    },
+    {
+     "alias": "South Korea",
+     "ambiguo": false
+    },
+    {
+     "alias": "Korea",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SS",
+   "pais_iso2": "SS",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Sudão do Sul",
+     "ambiguo": false
+    },
+    {
+     "alias": "South Sudan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ES",
+   "pais_iso2": "ES",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Espanha",
+     "ambiguo": false
+    },
+    {
+     "alias": "Spain",
+     "ambiguo": false
+    },
+    {
+     "alias": "España",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:LK",
+   "pais_iso2": "LK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Sri Lanka",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ceilão",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SD",
+   "pais_iso2": "SD",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Sudão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sudan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SR",
+   "pais_iso2": "SR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Suriname",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SE",
+   "pais_iso2": "SE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Suécia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sweden",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sverige",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CH",
+   "pais_iso2": "CH",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Suíça",
+     "ambiguo": false
+    },
+    {
+     "alias": "Switzerland",
+     "ambiguo": false
+    },
+    {
+     "alias": "Schweiz",
+     "ambiguo": false
+    },
+    {
+     "alias": "Suisse",
+     "ambiguo": false
+    },
+    {
+     "alias": "Svizzera",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SY",
+   "pais_iso2": "SY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Síria",
+     "ambiguo": false
+    },
+    {
+     "alias": "Syria",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TW",
+   "pais_iso2": "TW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Taiwan",
+     "ambiguo": false
+    },
+    {
+     "alias": "Formosa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TJ",
+   "pais_iso2": "TJ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Tajiquistão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Tajikistan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TZ",
+   "pais_iso2": "TZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Tanzânia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TH",
+   "pais_iso2": "TH",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Tailândia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Thailand",
+     "ambiguo": false
+    },
+    {
+     "alias": "Prathet Thai",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TL",
+   "pais_iso2": "TL",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Timor-Leste",
+     "ambiguo": false
+    },
+    {
+     "alias": "East Timor",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TG",
+   "pais_iso2": "TG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Togo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TO",
+   "pais_iso2": "TO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Tonga",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TT",
+   "pais_iso2": "TT",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Trinidad e Tobago",
+     "ambiguo": false
+    },
+    {
+     "alias": "Trinidad and Tobago",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TN",
+   "pais_iso2": "TN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Tunísia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TR",
+   "pais_iso2": "TR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Turquia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Turkey",
+     "ambiguo": true
+    },
+    {
+     "alias": "Türkiye",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TM",
+   "pais_iso2": "TM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Turcomenistão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Turkmenistan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TV",
+   "pais_iso2": "TV",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Tuvalu",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:UG",
+   "pais_iso2": "UG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Uganda",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:UA",
+   "pais_iso2": "UA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ucrânia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ukraine",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ukraina",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AE",
+   "pais_iso2": "AE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Emirados Árabes Unidos",
+     "ambiguo": false
+    },
+    {
+     "alias": "United Arab Emirates",
+     "ambiguo": false
+    },
+    {
+     "alias": "EAU",
+     "ambiguo": false
+    },
+    {
+     "alias": "UAE",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GB",
+   "pais_iso2": "GB",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Reino Unido",
+     "ambiguo": false
+    },
+    {
+     "alias": "United Kingdom",
+     "ambiguo": false
+    },
+    {
+     "alias": "UK",
+     "ambiguo": false
+    },
+    {
+     "alias": "Inglaterra",
+     "ambiguo": false
+    },
+    {
+     "alias": "England",
+     "ambiguo": false
+    },
+    {
+     "alias": "Escócia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Scotland",
+     "ambiguo": false
+    },
+    {
+     "alias": "País de Gales",
+     "ambiguo": false
+    },
+    {
+     "alias": "Wales",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:US",
+   "pais_iso2": "US",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Estados Unidos",
+     "ambiguo": false
+    },
+    {
+     "alias": "United States",
+     "ambiguo": false
+    },
+    {
+     "alias": "EUA",
+     "ambiguo": false
+    },
+    {
+     "alias": "USA",
+     "ambiguo": false
+    },
+    {
+     "alias": "United States of America",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:UY",
+   "pais_iso2": "UY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Uruguai",
+     "ambiguo": false
+    },
+    {
+     "alias": "Uruguay",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:UZ",
+   "pais_iso2": "UZ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Uzbequistão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Uzbekistan",
+     "ambiguo": false
+    },
+    {
+     "alias": "O'zbekiston",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:VU",
+   "pais_iso2": "VU",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Vanuatu",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:VA",
+   "pais_iso2": "VA",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Vaticano",
+     "ambiguo": false
+    },
+    {
+     "alias": "Vatican City",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cidade do Vaticano",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:VE",
+   "pais_iso2": "VE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Venezuela",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:VN",
+   "pais_iso2": "VN",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Vietnã",
+     "ambiguo": false
+    },
+    {
+     "alias": "Vietnam",
+     "ambiguo": false
+    },
+    {
+     "alias": "Viet Nam",
+     "ambiguo": false
+    },
+    {
+     "alias": "Vietname",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:YE",
+   "pais_iso2": "YE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Iêmen",
+     "ambiguo": false
+    },
+    {
+     "alias": "Yemen",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ZM",
+   "pais_iso2": "ZM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Zâmbia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:ZW",
+   "pais_iso2": "ZW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Zimbábue",
+     "ambiguo": false
+    },
+    {
+     "alias": "Zimbabwe",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GL",
+   "pais_iso2": "GL",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Groenlândia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Greenland",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kalaallit Nunaat",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PR",
+   "pais_iso2": "PR",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Porto Rico",
+     "ambiguo": false
+    },
+    {
+     "alias": "Puerto Rico",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:NC",
+   "pais_iso2": "NC",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Nova Caledônia",
+     "ambiguo": false
+    },
+    {
+     "alias": "New Caledonia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:PF",
+   "pais_iso2": "PF",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Polinésia Francesa",
+     "ambiguo": false
+    },
+    {
+     "alias": "French Polynesia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Tahiti",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GU",
+   "pais_iso2": "GU",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Guam",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AW",
+   "pais_iso2": "AW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Aruba",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CW",
+   "pais_iso2": "CW",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Curaçao",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:KY",
+   "pais_iso2": "KY",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Cayman",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cayman Islands",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:BM",
+   "pais_iso2": "BM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Bermudas",
+     "ambiguo": false
+    },
+    {
+     "alias": "Bermuda",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:FO",
+   "pais_iso2": "FO",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Faroé",
+     "ambiguo": false
+    },
+    {
+     "alias": "Faroe Islands",
+     "ambiguo": false
+    },
+    {
+     "alias": "Faroe",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GI",
+   "pais_iso2": "GI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Gibraltar",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:JE",
+   "pais_iso2": "JE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Jersey",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:IM",
+   "pais_iso2": "IM",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilha de Man",
+     "ambiguo": false
+    },
+    {
+     "alias": "Isle of Man",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AX",
+   "pais_iso2": "AX",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Åland",
+     "ambiguo": false
+    },
+    {
+     "alias": "Aland Islands",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SJ",
+   "pais_iso2": "SJ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Svalbard",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:FK",
+   "pais_iso2": "FK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Malvinas",
+     "ambiguo": false
+    },
+    {
+     "alias": "Falkland Islands",
+     "ambiguo": false
+    },
+    {
+     "alias": "Falklands",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:EH",
+   "pais_iso2": "EH",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Saara Ocidental",
+     "ambiguo": false
+    },
+    {
+     "alias": "Western Sahara",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:TC",
+   "pais_iso2": "TC",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Turks e Caicos",
+     "ambiguo": false
+    },
+    {
+     "alias": "Turks and Caicos",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:VG",
+   "pais_iso2": "VG",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Virgens Britânicas",
+     "ambiguo": false
+    },
+    {
+     "alias": "British Virgin Islands",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:VI",
+   "pais_iso2": "VI",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Virgens Americanas",
+     "ambiguo": false
+    },
+    {
+     "alias": "US Virgin Islands",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:AS",
+   "pais_iso2": "AS",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Samoa Americana",
+     "ambiguo": false
+    },
+    {
+     "alias": "American Samoa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:CK",
+   "pais_iso2": "CK",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Ilhas Cook",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cook Islands",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:RE",
+   "pais_iso2": "RE",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Reunião",
+     "ambiguo": false
+    },
+    {
+     "alias": "Reunion",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:MQ",
+   "pais_iso2": "MQ",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Martinica",
+     "ambiguo": false
+    },
+    {
+     "alias": "Martinique",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GP",
+   "pais_iso2": "GP",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Guadalupe",
+     "ambiguo": false
+    },
+    {
+     "alias": "Guadeloupe",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:GF",
+   "pais_iso2": "GF",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "Guiana Francesa",
+     "ambiguo": false
+    },
+    {
+     "alias": "French Guiana",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "pais:SX",
+   "pais_iso2": "SX",
+   "nivel": "pais",
+   "aliases": [
+    {
+     "alias": "São Martinho",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sint Maarten",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:vn-phu-quoc",
+   "pais_iso2": "VN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Phú Quốc",
+     "ambiguo": false
+    },
+    {
+     "alias": "Đảo Phú Quốc",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:vn-ho-chi-minh",
+   "pais_iso2": "VN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Hồ Chí Minh",
+     "ambiguo": false
+    },
+    {
+     "alias": "Saigon",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sài Gòn",
+     "ambiguo": false
+    },
+    {
+     "alias": "Saigão",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:vn-hanoi",
+   "pais_iso2": "VN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Hanói",
+     "ambiguo": false
+    },
+    {
+     "alias": "Hà Nội",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:vn-da-nang",
+   "pais_iso2": "VN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Da Nang",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:vn-hoi-an",
+   "pais_iso2": "VN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Hoi An",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:vn-ha-long",
+   "pais_iso2": "VN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Ha Long",
+     "ambiguo": false
+    },
+    {
+     "alias": "Halong",
+     "ambiguo": false
+    },
+    {
+     "alias": "Baía de Ha Long",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ha Long Bay",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:vn-sapa",
+   "pais_iso2": "VN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Sapa",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sa Pa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:pl-lodz",
+   "pais_iso2": "PL",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Łódź",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:pl-cracovia",
+   "pais_iso2": "PL",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Cracóvia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kraków",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cracow",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:pl-varsovia",
+   "pais_iso2": "PL",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Varsóvia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Warszawa",
+     "ambiguo": false
+    },
+    {
+     "alias": "Warsaw",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:tr-istanbul",
+   "pais_iso2": "TR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "İstanbul",
+     "ambiguo": false
+    },
+    {
+     "alias": "Istambul",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:tr-capadocia",
+   "pais_iso2": "TR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Capadócia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cappadocia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kapadokya",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:tr-antalya",
+   "pais_iso2": "TR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Antalya",
+     "ambiguo": false
+    },
+    {
+     "alias": "Antália",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:no-tromso",
+   "pais_iso2": "NO",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Tromsø",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:no-oslo",
+   "pais_iso2": "NO",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Oslo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:no-bergen",
+   "pais_iso2": "NO",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Bergen",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:no-lofoten",
+   "pais_iso2": "NO",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Lofoten",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ilhas Lofoten",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:is-reykjavik",
+   "pais_iso2": "IS",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Reykjavik",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:th-bangkok",
+   "pais_iso2": "TH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Bangkok",
+     "ambiguo": false
+    },
+    {
+     "alias": "Banguecoque",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:th-phuket",
+   "pais_iso2": "TH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Phuket",
+     "ambiguo": false
+    },
+    {
+     "alias": "Puquete",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:th-chiang-mai",
+   "pais_iso2": "TH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Chiang Mai",
+     "ambiguo": false
+    },
+    {
+     "alias": "Chiangmai",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:th-koh-samui",
+   "pais_iso2": "TH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Koh Samui",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ko Samui",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ilha de Samui",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:th-krabi",
+   "pais_iso2": "TH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Krabi",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:kh-siem-reap",
+   "pais_iso2": "KH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Siem Reap",
+     "ambiguo": false
+    },
+    {
+     "alias": "Angkor Wat",
+     "ambiguo": false
+    },
+    {
+     "alias": "Angkor",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:kh-phnom-penh",
+   "pais_iso2": "KH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Phnom Penh",
+     "ambiguo": false
+    },
+    {
+     "alias": "Pnom Penh",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:id-bali",
+   "pais_iso2": "ID",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Bali",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:id-jacarta",
+   "pais_iso2": "ID",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Jacarta",
+     "ambiguo": false
+    },
+    {
+     "alias": "Jakarta",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:my-kuala-lumpur",
+   "pais_iso2": "MY",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Kuala Lumpur",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:jp-toquio",
+   "pais_iso2": "JP",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Tóquio",
+     "ambiguo": false
+    },
+    {
+     "alias": "Tokyo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:jp-quioto",
+   "pais_iso2": "JP",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Quioto",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kyoto",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:jp-osaka",
+   "pais_iso2": "JP",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Osaka",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:kr-seul",
+   "pais_iso2": "KR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Seul",
+     "ambiguo": false
+    },
+    {
+     "alias": "Seoul",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:cn-pequim",
+   "pais_iso2": "CN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Pequim",
+     "ambiguo": false
+    },
+    {
+     "alias": "Beijing",
+     "ambiguo": false
+    },
+    {
+     "alias": "Peking",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:cn-xangai",
+   "pais_iso2": "CN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Xangai",
+     "ambiguo": false
+    },
+    {
+     "alias": "Shanghai",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:in-nova-delhi",
+   "pais_iso2": "IN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Nova Delhi",
+     "ambiguo": false
+    },
+    {
+     "alias": "New Delhi",
+     "ambiguo": false
+    },
+    {
+     "alias": "Delhi",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:in-goa",
+   "pais_iso2": "IN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Goa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:in-jaipur",
+   "pais_iso2": "IN",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Jaipur",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:np-katmandu",
+   "pais_iso2": "NP",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Katmandu",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kathmandu",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ae-dubai",
+   "pais_iso2": "AE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Dubai",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ae-abu-dhabi",
+   "pais_iso2": "AE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Abu Dhabi",
+     "ambiguo": false
+    },
+    {
+     "alias": "Abu Dabi",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:il-jerusalem",
+   "pais_iso2": "IL",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Jerusalém",
+     "ambiguo": false
+    },
+    {
+     "alias": "Jerusalen",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:eg-cairo",
+   "pais_iso2": "EG",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Cairo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ma-marrakech",
+   "pais_iso2": "MA",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Marrakech",
+     "ambiguo": false
+    },
+    {
+     "alias": "Marraquexe",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:za-cidade-do-cabo",
+   "pais_iso2": "ZA",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Cidade do Cabo",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cape Town",
+     "ambiguo": false
+    },
+    {
+     "alias": "Kaapstad",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ke-nairobi",
+   "pais_iso2": "KE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Nairobi",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:tz-zanzibar",
+   "pais_iso2": "TZ",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Zanzibar",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:fr-paris",
+   "pais_iso2": "FR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Paris",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:fr-nice",
+   "pais_iso2": "FR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Nizza",
+     "ambiguo": false
+    },
+    {
+     "alias": "Côte d'Azur",
+     "ambiguo": false
+    },
+    {
+     "alias": "Costa Azul",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:fr-marselha",
+   "pais_iso2": "FR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Marselha",
+     "ambiguo": false
+    },
+    {
+     "alias": "Marseille",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:gb-londres",
+   "pais_iso2": "GB",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Londres",
+     "ambiguo": false
+    },
+    {
+     "alias": "London",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:gb-edimburgo",
+   "pais_iso2": "GB",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Edimburgo",
+     "ambiguo": false
+    },
+    {
+     "alias": "Edinburgh",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ie-dublin",
+   "pais_iso2": "IE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Dublin",
+     "ambiguo": false
+    },
+    {
+     "alias": "Dublim",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:es-madri",
+   "pais_iso2": "ES",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Madri",
+     "ambiguo": false
+    },
+    {
+     "alias": "Madrid",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:es-barcelona",
+   "pais_iso2": "ES",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Barcelona",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:es-sevilha",
+   "pais_iso2": "ES",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Sevilha",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sevilla",
+     "ambiguo": false
+    },
+    {
+     "alias": "Seville",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:es-ibiza",
+   "pais_iso2": "ES",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Ibiza",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:pt-lisboa",
+   "pais_iso2": "PT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Lisboa",
+     "ambiguo": false
+    },
+    {
+     "alias": "Lisbon",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:pt-porto",
+   "pais_iso2": "PT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Oporto",
+     "ambiguo": false
+    },
+    {
+     "alias": "Porto",
+     "ambiguo": true
+    }
+   ]
+  },
+  {
+   "slug": "local:pt-algarve",
+   "pais_iso2": "PT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Algarve",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:pt-madeira",
+   "pais_iso2": "PT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Ilha da Madeira",
+     "ambiguo": false
+    },
+    {
+     "alias": "Madeira Island",
+     "ambiguo": false
+    },
+    {
+     "alias": "Funchal",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:it-roma",
+   "pais_iso2": "IT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Roma",
+     "ambiguo": false
+    },
+    {
+     "alias": "Rome",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:it-veneza",
+   "pais_iso2": "IT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Veneza",
+     "ambiguo": false
+    },
+    {
+     "alias": "Venezia",
+     "ambiguo": false
+    },
+    {
+     "alias": "Venice",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:it-florenca",
+   "pais_iso2": "IT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Florença",
+     "ambiguo": false
+    },
+    {
+     "alias": "Firenze",
+     "ambiguo": false
+    },
+    {
+     "alias": "Florence",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:it-milao",
+   "pais_iso2": "IT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Milão",
+     "ambiguo": false
+    },
+    {
+     "alias": "Milano",
+     "ambiguo": false
+    },
+    {
+     "alias": "Milan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:it-napoles",
+   "pais_iso2": "IT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Nápoles",
+     "ambiguo": false
+    },
+    {
+     "alias": "Napoli",
+     "ambiguo": false
+    },
+    {
+     "alias": "Naples",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:it-costa-amalfitana",
+   "pais_iso2": "IT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Costa Amalfitana",
+     "ambiguo": false
+    },
+    {
+     "alias": "Amalfi",
+     "ambiguo": false
+    },
+    {
+     "alias": "Amalfi Coast",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:de-berlim",
+   "pais_iso2": "DE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Berlim",
+     "ambiguo": false
+    },
+    {
+     "alias": "Berlin",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:de-munique",
+   "pais_iso2": "DE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Munique",
+     "ambiguo": false
+    },
+    {
+     "alias": "München",
+     "ambiguo": false
+    },
+    {
+     "alias": "Munich",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:at-viena",
+   "pais_iso2": "AT",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Viena",
+     "ambiguo": false
+    },
+    {
+     "alias": "Wien",
+     "ambiguo": false
+    },
+    {
+     "alias": "Vienna",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:cz-praga",
+   "pais_iso2": "CZ",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Praga",
+     "ambiguo": false
+    },
+    {
+     "alias": "Prague",
+     "ambiguo": false
+    },
+    {
+     "alias": "Praha",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:hu-budapeste",
+   "pais_iso2": "HU",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Budapeste",
+     "ambiguo": false
+    },
+    {
+     "alias": "Budapest",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:nl-amsterda",
+   "pais_iso2": "NL",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Amsterdã",
+     "ambiguo": false
+    },
+    {
+     "alias": "Amsterdam",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:be-bruxelas",
+   "pais_iso2": "BE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Bruxelas",
+     "ambiguo": false
+    },
+    {
+     "alias": "Brussels",
+     "ambiguo": false
+    },
+    {
+     "alias": "Bruxelles",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ch-zurique",
+   "pais_iso2": "CH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Zurique",
+     "ambiguo": false
+    },
+    {
+     "alias": "Zürich",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ch-interlaken",
+   "pais_iso2": "CH",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Interlaken",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:gr-atenas",
+   "pais_iso2": "GR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Atenas",
+     "ambiguo": false
+    },
+    {
+     "alias": "Athens",
+     "ambiguo": false
+    },
+    {
+     "alias": "Athína",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:gr-santorini",
+   "pais_iso2": "GR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Santorini",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:hr-dubrovnik",
+   "pais_iso2": "HR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Dubrovnik",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ru-moscou",
+   "pais_iso2": "RU",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Moscou",
+     "ambiguo": false
+    },
+    {
+     "alias": "Moscow",
+     "ambiguo": false
+    },
+    {
+     "alias": "Moskva",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ru-sao-petersburgo",
+   "pais_iso2": "RU",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "São Petersburgo",
+     "ambiguo": false
+    },
+    {
+     "alias": "Saint Petersburg",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sankt-Peterburg",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:us-nova-york",
+   "pais_iso2": "US",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Nova York",
+     "ambiguo": false
+    },
+    {
+     "alias": "New York",
+     "ambiguo": false
+    },
+    {
+     "alias": "New York City",
+     "ambiguo": false
+    },
+    {
+     "alias": "NYC",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:us-los-angeles",
+   "pais_iso2": "US",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Los Angeles",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:us-las-vegas",
+   "pais_iso2": "US",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Las Vegas",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:us-miami",
+   "pais_iso2": "US",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Miami",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:us-orlando",
+   "pais_iso2": "US",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Orlando",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:us-san-francisco",
+   "pais_iso2": "US",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "San Francisco",
+     "ambiguo": false
+    },
+    {
+     "alias": "São Francisco",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:us-havai",
+   "pais_iso2": "US",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Havaí",
+     "ambiguo": false
+    },
+    {
+     "alias": "Hawaii",
+     "ambiguo": false
+    },
+    {
+     "alias": "Hawai'i",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ca-toronto",
+   "pais_iso2": "CA",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Toronto",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ca-vancouver",
+   "pais_iso2": "CA",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Vancouver",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:mx-cidade-do-mexico",
+   "pais_iso2": "MX",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Cidade do México",
+     "ambiguo": false
+    },
+    {
+     "alias": "Mexico City",
+     "ambiguo": false
+    },
+    {
+     "alias": "Ciudad de México",
+     "ambiguo": false
+    },
+    {
+     "alias": "CDMX",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:mx-cancun",
+   "pais_iso2": "MX",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Cancún",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:cu-havana",
+   "pais_iso2": "CU",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Havana",
+     "ambiguo": false
+    },
+    {
+     "alias": "La Habana",
+     "ambiguo": false
+    },
+    {
+     "alias": "Habana",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:pe-lima",
+   "pais_iso2": "PE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Machu Picchu",
+     "ambiguo": false
+    },
+    {
+     "alias": "Lima",
+     "ambiguo": true
+    }
+   ]
+  },
+  {
+   "slug": "local:pe-cusco",
+   "pais_iso2": "PE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Cusco",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cuzco",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:cl-santiago",
+   "pais_iso2": "CL",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Santiago do Chile",
+     "ambiguo": false
+    },
+    {
+     "alias": "Santiago de Chile",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:cl-atacama",
+   "pais_iso2": "CL",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Atacama",
+     "ambiguo": false
+    },
+    {
+     "alias": "San Pedro de Atacama",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ar-buenos-aires",
+   "pais_iso2": "AR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Buenos Aires",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ar-ushuaia",
+   "pais_iso2": "AR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Ushuaia",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ar-bariloche",
+   "pais_iso2": "AR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Bariloche",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:uy-montevideu",
+   "pais_iso2": "UY",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Montevidéu",
+     "ambiguo": false
+    },
+    {
+     "alias": "Montevideo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:co-bogota",
+   "pais_iso2": "CO",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Bogotá",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:co-cartagena",
+   "pais_iso2": "CO",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Cartagena",
+     "ambiguo": false
+    },
+    {
+     "alias": "Cartagena das Índias",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:bo-uyuni",
+   "pais_iso2": "BO",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Uyuni",
+     "ambiguo": false
+    },
+    {
+     "alias": "Salar de Uyuni",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ec-galapagos",
+   "pais_iso2": "EC",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Galápagos",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-rio-de-janeiro",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Rio de Janeiro",
+     "ambiguo": false
+    },
+    {
+     "alias": "Rio",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-sao-paulo",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "São Paulo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-natal",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Natal",
+     "ambiguo": true
+    }
+   ]
+  },
+  {
+   "slug": "local:br-salvador",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Salvador",
+     "ambiguo": true
+    }
+   ]
+  },
+  {
+   "slug": "local:br-belem",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Belém",
+     "ambiguo": true
+    }
+   ]
+  },
+  {
+   "slug": "local:br-vitoria",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Vitória",
+     "ambiguo": true
+    }
+   ]
+  },
+  {
+   "slug": "local:br-fernando-de-noronha",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Fernando de Noronha",
+     "ambiguo": false
+    },
+    {
+     "alias": "Noronha",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-florianopolis",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Florianópolis",
+     "ambiguo": false
+    },
+    {
+     "alias": "Floripa",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-gramado",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Gramado",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-foz-do-iguacu",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Foz do Iguaçu",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-jericoacoara",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Jericoacoara",
+     "ambiguo": false
+    },
+    {
+     "alias": "Jeri",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-lencois-maranhenses",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Lençóis Maranhenses",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:br-bonito",
+   "pais_iso2": "BR",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Bonito MS",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:au-sydney",
+   "pais_iso2": "AU",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Sydney",
+     "ambiguo": false
+    },
+    {
+     "alias": "Sidney",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:au-melbourne",
+   "pais_iso2": "AU",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Melbourne",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:nz-queenstown",
+   "pais_iso2": "NZ",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Queenstown",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:sg-marina-bay",
+   "pais_iso2": "SG",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Marina Bay",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:hk-kowloon",
+   "pais_iso2": "HK",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Kowloon",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:mv-male",
+   "pais_iso2": "MV",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Malé",
+     "ambiguo": false
+    },
+    {
+     "alias": "Male Maldivas",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:lk-colombo",
+   "pais_iso2": "LK",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Colombo",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:uz-samarcanda",
+   "pais_iso2": "UZ",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Samarcanda",
+     "ambiguo": false
+    },
+    {
+     "alias": "Samarkand",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:ge-tbilisi",
+   "pais_iso2": "GE",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Tbilisi",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:am-yerevan",
+   "pais_iso2": "AM",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Yerevan",
+     "ambiguo": false
+    },
+    {
+     "alias": "Erevan",
+     "ambiguo": false
+    }
+   ]
+  },
+  {
+   "slug": "local:jo-petra",
+   "pais_iso2": "JO",
+   "nivel": "local",
+   "aliases": [
+    {
+     "alias": "Petra",
+     "ambiguo": false
+    }
+   ]
+  }
+ ]
+}
