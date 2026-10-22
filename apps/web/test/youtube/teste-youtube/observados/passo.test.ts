@@ -231,6 +231,30 @@ describe('passo (flag on)', () => {
     await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON, varreduraLote: 2 })
     expect(t.ab_native_observados!.find(o => o.id === 3)).toMatchObject({ ficou_estado: 'sem_desfecho', motivo: 'janela' })
   })
+  it('varredura: a consulta recebe abortSignal (tempo limite de banco; o comentário engoliu a chamada no conserto 1)', async () => {
+    const t = mundo(1)
+    t.ab_native_observados!.push({ id: 1, site_id: SITE, youtube_video_id: yt(1), campo: 'titulo', ficou_estado: 'em_andamento', motivo: null })
+    const b = criarBanco(t)
+    const alvo: string[] = []
+    const from = b.sb.from.bind(b.sb) as (tabela: string) => Record<string, unknown>
+    const sb = { ...b.sb, from: (tabela: string) => {
+      const q = from(tabela)
+      if (tabela === 'ab_native_observados' && typeof q.select === 'function') {
+        const sel = (q.select as (...a: unknown[]) => Record<string, unknown>).bind(q)
+        q.select = (...a: unknown[]) => {
+          const r = sel(...a)
+          if (typeof a[0] === 'string' && a[0] === 'id,site_id,youtube_video_id') {
+            const ab = (r.abortSignal as (s: AbortSignal) => unknown).bind(r)
+            r.abortSignal = (s: AbortSignal) => { alvo.push('abort'); return ab(s) }
+          }
+          return r
+        }
+      }
+      return q
+    } }
+    await rodarObservados(contexto(sb), { fimDuroMs: FIM, env: ENV_ON })
+    expect(alvo).toEqual(['abort'])
+  })
   it('varredura com CAS: uma linha que outra avaliação tornou estavel entre a leitura e o update NÃO é sobrescrita', async () => {
     const t = mundo(1)
     t.yt_watch_alvos![0]!.saiu_em = iso(T0 - H); t.yt_watch_alvos![0]!.saiu_por = 'janela'

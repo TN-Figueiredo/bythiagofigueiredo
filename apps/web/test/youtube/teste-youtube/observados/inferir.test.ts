@@ -187,8 +187,45 @@ describe('inferirObservado: a versão só vale se vista em >= 2 RODADAS distinta
     expect(out[0]).toMatchObject({ tipoTroca: 'sequencial', nVersoes: 2 })
     expect(out[0]!.trocas.map(t => t.leituras)).toEqual([6, 6]) // `leituras` continua contando leituras
   })
-  it('A,A,A | B,B,B | B,B,B: a versão inicial vista numa rodada só não qualifica (conservador) -> nenhuma linha', () => {
-    expect(tit(['AAA', 'BBB', 'BBB'])).toEqual([])
+  it('A,A,A | B,B,B | B,B,B: a 1ª versão do vídeo vale com 1 rodada unânime (exceção) -> 1 troca sequencial com rodadas:1', () => {
+    const out = tit(['AAA', 'BBB', 'BBB'])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ tipoTroca: 'sequencial', veredito: 'troca_observada', nVersoes: 2 })
+    expect(out[0]!.trocas.map(t => t.rodadas)).toEqual([1, 2])
+  })
+  it('A,A,A | B,B,B (B numa rodada só) -> nenhuma; a exceção exige a seguinte confirmada', () => {
+    expect(tit(['AAA', 'BBB'])).toEqual([])
+  })
+  it('a exceção vale só na 1ª corrida: A,A,A | A,A,A | B,B,B | C,C,C | C,C,C não grava a troca A->B no meio da série', () => {
+    const out = tit(['AAA', 'AAA', 'BBB', 'CCC', 'CCC'])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ nVersoes: 2 })
+    expect(out[0]!.trocas.map(t => t.rodadas)).toEqual([2, 2]) // A (2 rodadas) -> C; o B de uma rodada não entrou
+  })
+  it('a exceção exige que a corrida SEGUINTE se confirme: A,A,A | B,B,B | C,C,C | C,C,C -> nenhuma (B é blip)', () => {
+    expect(tit(['AAA', 'BBB', 'CCC', 'CCC'])).toEqual([])
+  })
+  it('com a exceção, as corridas do meio de uma rodada só continuam descartadas: A | B,B | C (1 rodada) | D,D', () => {
+    const out = tit(['AAA', 'BBB', 'BBB', 'CCC', 'DDD', 'DDD'])
+    expect(out[0]!.nVersoes).toBe(3) // A (exceção), B, D; o C de uma rodada não entra
+    expect(out[0]!.trocas.map(t => t.rodadas)).toEqual([1, 2, 2])
+  })
+  it('a exceção exige 3 passadas concordantes: A,A | B,B,B | B,B,B (rodada inicial com 2 passadas) -> nenhuma', () => {
+    expect(tit(['AA', 'BBB', 'BBB'])).toEqual([])
+  })
+  it('a exceção nunca vira alternada: A,A,A | B,B,B | B,B,B | A,A,A | A,A,A não usa a 1ª rodada', () => {
+    const out = tit(['AAA', 'BBB', 'BBB', 'AAA', 'AAA'])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ tipoTroca: 'sequencial', nVersoes: 2 })
+    expect(out[0]!.trocas.map(t => t.rodadas)).toEqual([2, 2])
+  })
+  it('a corrida não atravessa a fronteira de rodada: AAB | BAA | AAA -> nenhuma troca (Yannis C2)', () => {
+    expect(tit(['AAB', 'BAA', 'AAA'])).toEqual([])
+    expect(tit(['AAB', 'BBB', 'BBB'])).toEqual([]) // a rodada inicial mista não abre a exceção, e não há 2ª versão qualificada
+  })
+  it('A,A | B,B continua 1 troca (rodadas unânimes de 1 passada)', () => {
+    const out = titulos(['A', 'A', 'B', 'B'], T0 + 30)
+    expect(out).toHaveLength(1)
   })
   it('rodada mista (A,B,A) entre rodadas de A não forma versão', () => {
     expect(tit(['AAA', 'ABA', 'AAA'])).toEqual([])
