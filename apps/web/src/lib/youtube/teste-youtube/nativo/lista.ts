@@ -22,6 +22,10 @@ export interface LinhaDoCaminho {
   labPausadoAte: string | null
   nosso: { testId: string; restoreSeq: number; dia: number; status: 'active' | 'paused' } | null
   impressoesPorDia: number | null
+  /** T7 (D-8): quando a ficha aberta foi enviada ao Studio (último `studio_aberto_em`/`lembrar_em`, só se `enviada`); nulo = sem pergunta ao iniciar o nosso. */
+  fichaEnviadaEm?: string | null
+  /** T7 (D-8): a ficha aberta tem a versão B (2 ou mais versões); sem ela "Já iniciei" não registra. */
+  fichaCompleta?: boolean
 }
 
 /** O que `estadoDaLinha` precisa do registro (`ab_native_tests`), já em camelCase. `sem_resposta` é o valor que o fechamento por silêncio grava. */
