@@ -78,7 +78,7 @@ describe('P4b: desistiu', () => {
   it('H: tres_falhas', () => {
     const f = completa(montarFaixa(des('tres_falhas', { erro: recusa }), ctx))
     expect(f).toMatchObject({ tom: 'err', lbl: 'Erro:', fine: null, linkRotulo: 'Abrir no YouTube Studio', linkStudio: 'https://studio.youtube.com/video/yt123/edit' })
-    expect(f.resumo).toBe('a restauração falhou 3 vezes e parou. O título no ar ainda é o da variante C.')
+    expect(f.resumo).toBe('a restauração falhou 3 vezes e parou. O título no ar ainda é o da versão C.')
     expect(f.linhas[0].texto).toBe('Última recusa do YouTube em 12/10 01:02. Não haverá nova tentativa automática.')
     expect(f.acoes.tentar).toBe(true)
     expect(f.acoes.dispensar).toEqual(['title'])

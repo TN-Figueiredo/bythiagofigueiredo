@@ -114,7 +114,7 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
   if (leitura.tipo === 'em_andamento') {
     const h = horaSP(leitura.desde)
     return mk('busy', `Trocando desde ${h}.`, h, {
-      lbl: variante ? `Trocando pela variante ${variante}…` : 'Voltando ao original…',
+      lbl: variante ? `Trocando pela versão ${variante}…` : 'Voltando ao original…',
       resumo: '',
     })
   }
@@ -123,7 +123,7 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
     const h = horaSP(desde)
     return mk('warn', `Sem resposta desde ${h}. Não sabemos se a troca foi feita. Confira ${o} ${nome} no YouTube Studio.`, h, {
       lbl: 'Atenção:',
-      resumo: variante ? `Não sabemos se a variante ${variante} foi aplicada.` : 'Não sabemos se voltou ao original.',
+      resumo: variante ? `Não sabemos se a versão ${variante} foi aplicada.` : 'Não sabemos se voltou ao original.',
       linkRotulo: STUDIO,
     }, 'none')
   }
@@ -137,7 +137,7 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
   const h = horaSP(c.em)
   switch (c.estado) {
     case 'ok':
-      return mk('ok', variante ? `Variante ${variante} aplicada em ${h}.` : `Voltou ao original em ${h}.`, h, { lbl: '', resumo: '' })
+      return mk('ok', variante ? `Versão ${variante} aplicada em ${h}.` : `Voltou ao original em ${h}.`, h, { lbl: '', resumo: '' })
     case 'falhou': {
       const nova = fraseNovaTentativa(campo, c, ctx)
       if (!erroDeEscrita(c)) return semResposta(c.em) // inalcançável: `lerCampoDeRestauracao` já devolve sem_resposta
@@ -146,15 +146,15 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
       if (!variante) {
         return mk('err', linha, h, {
           lbl: 'Erro:',
-          resumo: `${o} ${nome} não voltou ao original. ${cap} no ar ainda é ${o} da variante ${ctx.noArAntes}.`,
+          resumo: `${o} ${nome} não voltou ao original. ${cap} no ar ainda é ${o} da versão ${ctx.noArAntes}.`,
           linkRotulo: STUDIO,
         })
       }
       return mk('err', linha, h, {
         lbl: 'Erro:',
         resumo: c.forcado
-          ? `${o} ${nome} da variante ${variante} não foi aplicad${eTitulo ? 'o' : 'a'}. No ar continua ${o} ${nome} editad${eTitulo ? 'o' : 'a'} por fora.`
-          : `${o} ${nome} da variante ${variante} não foi aplicad${eTitulo ? 'o' : 'a'}. No ar continua ${o} da variante ${ctx.noArAntes}.`,
+          ? `${o} ${nome} da versão ${variante} não foi aplicad${eTitulo ? 'o' : 'a'}. No ar continua ${o} ${nome} editad${eTitulo ? 'o' : 'a'} por fora.`
+          : `${o} ${nome} da versão ${variante} não foi aplicad${eTitulo ? 'o' : 'a'}. No ar continua ${o} da versão ${ctx.noArAntes}.`,
         linkRotulo: STUDIO,
       })
     }
@@ -166,18 +166,18 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
     case 'pulado_drift':
       if (c.motivo === 'sem_base_de_comparacao') {
         return mk('none', 'Não medida: sem imagem de referência para comparar.', undefined, {
-          lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as variantes. Nada foi alterado.', papel: 'status', linkRotulo: STUDIO,
+          lbl: 'Atenção:', resumo: 'não foi possível comparar a thumbnail no ar com as versões. Nada foi alterado.', papel: 'status', linkRotulo: STUDIO,
           tomFaixa: 'warn',
         })
       }
       return mk('warn', `Mantida como está no YouTube desde ${h}.`, h, {
-        lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma variante deste teste: alguém editou por fora. Nada foi alterado.',
+        lbl: 'Atenção:', resumo: 'a thumbnail no ar não é de nenhuma versão deste teste: alguém editou por fora. Nada foi alterado.',
         papel: 'status', linkRotulo: STUDIO,
       })
     case 'pulado_sem_original': {
       // A hora é a de quando a variante entrou no ar, nunca a do campo; sem ela, a frase sai sem hora.
       const hNoAr = ctx.noArDesde ? horaSP(ctx.noArDesde) : undefined
-      return mk('warn', hNoAr ? `Continua ${o} da variante ${ctx.noArAntes}, no ar desde ${hNoAr}.` : `Continua ${o} da variante ${ctx.noArAntes}.`, hNoAr, {
+      return mk('warn', hNoAr ? `Continua ${o} da versão ${ctx.noArAntes}, no ar desde ${hNoAr}.` : `Continua ${o} da versão ${ctx.noArAntes}.`, hNoAr, {
         lbl: 'Atenção:', resumo: 'o título original não foi guardado quando o teste começou. Nada foi alterado.',
         papel: 'status', linkRotulo: 'Abrir no YouTube Studio para conferir',
       })
@@ -193,7 +193,7 @@ function itemDoCampo(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): Item
       if (c.motivo === 'tres_falhas') {
         const cap = eTitulo ? 'O título' : 'A thumbnail'
         return mk('err', `Última recusa do YouTube em ${h}. Não haverá nova tentativa automática.`, h, {
-          lbl: 'Erro:', resumo: `a restauração falhou ${MAX_TENTATIVAS} vezes e parou. ${cap} no ar ainda é ${o} da variante ${ctx.noArAntes}.`,
+          lbl: 'Erro:', resumo: `a restauração falhou ${MAX_TENTATIVAS} vezes e parou. ${cap} no ar ainda é ${o} da versão ${ctx.noArAntes}.`,
           linkRotulo: STUDIO,
         })
       }
@@ -240,7 +240,7 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
     const ultima = campos.map(k => (rs[k] as CampoRestauracao).em).sort().at(-1) as string
     const h = horaSP(ultima)
     const variante = primeiro.destino === 'original' ? null : ctx.rotulo(primeiro.destino)
-    if (variante) return { tom: 'ok', okline: `Variante ${variante} no ar desde ${h}.` }
+    if (variante) return { tom: 'ok', okline: `Versão ${variante} no ar desde ${h}.` }
     if (campos.length > 1) return { tom: 'ok', okline: `Título e thumbnail voltaram ao original em ${h}.` }
     return { tom: 'ok', okline: `${k0 === 'title' ? 'O título voltou' : 'A thumbnail voltou'} ao original em ${h}.` }
   }
