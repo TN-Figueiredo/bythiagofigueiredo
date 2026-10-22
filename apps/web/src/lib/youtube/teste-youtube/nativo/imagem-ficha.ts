@@ -1,6 +1,6 @@
 // Imagem da ficha do teste do YouTube no Blob, com prefixo PRÓPRIO (`ab-native-ficha/`): o cron `ab-draft-cleanup`
 // e `deleteVariant` só olham `ab_test_variants` e nunca tocam neste prefixo (travado em test/ab-draft-cleanup-ficha.test.ts).
-// Ciclo ficha.ts <-> aqui é só por `eUrlDaFicha`, declarada como `function` (içada) para o `.refine` do schema.
+// `eUrlDaFicha` e `PREFIXO_FICHA` moram em `ficha-url.ts` (leve) e são reexportados daqui.
 import { createHash } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import sharp from 'sharp'
@@ -10,25 +10,16 @@ import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ehCopiaNoBlob } from '@/lib/youtube/ab-settle'
 import { buscarBytesDaOriginal } from '@/lib/youtube/ab-variant-dhash'
 import { fetchVariantImageBuffer } from '@/lib/youtube/ab-youtube'
+import { eUrlDaFicha, PREFIXO_FICHA } from '@/lib/youtube/teste-youtube/nativo/ficha-url'
 import {
   derivarFicha, MSG_NAO_ENCONTRADO, VarianteFichaSchema,
   type FichaLida, type FichaLinha, type OrigemImagem, type VarianteFicha,
 } from '@/lib/youtube/teste-youtube/nativo/ficha'
 
-export const PREFIXO_FICHA = 'ab-native-ficha/'
+export { eUrlDaFicha, PREFIXO_FICHA }
 export const TAMANHO_MAXIMO_IMAGEM = 2 * 1024 * 1024
 export const MSG_IMAGEM_GRANDE: string = FRASES.imagem.grande
 export const MSG_IMAGEM_FORMATO: string = FRASES.imagem.formato
-
-/** Cópia no Blob E dentro do prefixo da ficha. `https` só; qualquer outro host ou caminho (ex.: `ab-test/…`) é recusado. */
-export function eUrlDaFicha(u: string): boolean {
-  if (!u.startsWith('https://') || !ehCopiaNoBlob(u)) return false
-  try {
-    return new URL(u).pathname.startsWith(`/${PREFIXO_FICHA}`)
-  } catch {
-    return false
-  }
-}
 
 export interface ImagemGravada {
   url: string; sha256: string; largura: number; altura: number
@@ -43,6 +34,18 @@ async function lerImagem(bytes: Buffer): Promise<(Formato & { largura: number; a
     if (m.format === 'jpeg') return { ext: 'jpg', contentType: 'image/jpeg', largura: m.width, altura: m.height }
     if (m.format === 'png') return { ext: 'png', contentType: 'image/png', largura: m.width, altura: m.height }
     return null
+  } catch {
+    return null
+  }
+}
+
+/** Re-codifica no mesmo formato, sem metadados (EXIF/GPS/ICC), aplicando a orientação; devolve bytes e medidas do resultado. */
+async function tirarMetadados(bytes: Buffer, f: Formato): Promise<{ bytes: Buffer; info: Formato & { largura: number; altura: number } } | null> {
+  try {
+    const base = sharp(bytes).rotate()
+    const limpos = await (f.ext === 'jpg' ? base.jpeg({ quality: 95 }) : base.png()).toBuffer()
+    const info = await lerImagem(limpos)
+    return info ? { bytes: limpos, info } : null
   } catch {
     return null
   }
@@ -80,9 +83,13 @@ export async function guardarImagemDaFichaCore(p: {
   if (p.bytes.length > TAMANHO_MAXIMO_IMAGEM) return { ok: false, error: MSG_IMAGEM_GRANDE }
   const linha = await lerFichaAberta(p.sb, p.siteId, p.fichaId)
   if (!linha) return { ok: false, error: MSG_NAO_ENCONTRADO }
-  const info = await lerImagem(p.bytes) // o tipo vem do conteúdo, nunca do `file.type` do navegador
-  if (!info) return { ok: false, error: MSG_IMAGEM_FORMATO }
-  const { url, sha256 } = await gravarNoBlob(p.siteId, p.fichaId, p.bytes, info, p.put ?? put)
+  const original = await lerImagem(p.bytes) // o tipo vem do conteúdo, nunca do `file.type` do navegador
+  if (!original) return { ok: false, error: MSG_IMAGEM_FORMATO }
+  // LGPD (Media System): EXIF/GPS fora. Re-codifica aplicando a orientação, sem `withMetadata`, ANTES do sha256 e das medidas.
+  const limpa = await tirarMetadados(p.bytes, original)
+  if (!limpa) return { ok: false, error: MSG_IMAGEM_FORMATO }
+  const { bytes, info } = limpa
+  const { url, sha256 } = await gravarNoBlob(p.siteId, p.fichaId, bytes, info, p.put ?? put)
   return { ok: true, ficha: derivarFicha(linha, (p.agora ?? (() => new Date()))()), imagem: { url, sha256, largura: info.largura, altura: info.altura } }
 }
 
