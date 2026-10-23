@@ -8,7 +8,7 @@ import { requireEditUser } from '@/lib/youtube/ab-lab-acesso'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { confirmarTesteNoStudio, type ResultadoConfirmar } from '@/lib/youtube/teste-youtube/nativo/confirmar'
 import { descartarDetectado, type ResultadoDescartar } from '@/lib/youtube/teste-youtube/nativo/descartar'
-import { responderDia14, type ResultadoResponder } from '@/lib/youtube/teste-youtube/nativo/resposta'
+import { responderDia14, mudarRespostaDia14, type ResultadoResponder, type ResultadoMudar } from '@/lib/youtube/teste-youtube/nativo/resposta'
 import { guardarImagemDaFichaCore, TAMANHO_MAXIMO_IMAGEM, MSG_IMAGEM_GRANDE, type ResultadoImagemFicha } from '@/lib/youtube/teste-youtube/nativo/imagem-ficha'
 import { getSiteContext } from '@/lib/cms/site-context'
 import {
@@ -166,4 +166,25 @@ export async function responderTesteDoYouTube(pedido: PedidoRespostaDia14): Prom
   try {
     return await responderDia14({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, orgId, ...v.data, agora: new Date() })
   } catch (e) { return { ...falha(e, 'responderTesteDoYouTube'), erro: 'falha' } }
+}
+
+const PedidoMudarResposta = PedidoResposta.extend({
+  /** O que a tela mostrava como resposta atual: o servidor só troca se a linha ainda está assim (CAS, D-4). */
+  respostaVista: z.enum(['venceu_nova', 'venceu_original', 'ficou_igual', 'inconclusivo', 'nao_vi']),
+  varianteVista: z.number().int().min(1).max(3).nullable(),
+}).strict()
+export type PedidoMudarRespostaDia14 = z.infer<typeof PedidoMudarResposta>
+export type ResultadoAcaoMudar = ResultadoMudar | { ok: false; erro: 'sem_permissao' | 'pedido_invalido' | 'falha'; error: string }
+
+/** "Mudar minha resposta" do dia 14. `lido` é o `updated_at` que a tela viu; uma tentativa só (D-4). */
+export async function mudarRespostaDoTesteDoYouTube(pedido: PedidoMudarRespostaDia14): Promise<ResultadoAcaoMudar> {
+  const a = await acesso()
+  if ('ok' in a) return { ok: false, erro: 'sem_permissao', error: a.error }
+  const v = PedidoMudarResposta.safeParse(pedido)
+  if (!v.success) return { ok: false, erro: 'pedido_invalido', error: MSG_PEDIDO_INVALIDO }
+  let orgId: string | null = null
+  try { orgId = (await getSiteContext()).orgId ?? null } catch { /* sem org: a linha de auditoria leva site_id */ }
+  try {
+    return await mudarRespostaDia14({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, orgId, ...v.data, tituloVisto: v.data.tituloVisto, agora: new Date() })
+  } catch (e) { return { ...falha(e, 'mudarRespostaDoTesteDoYouTube'), erro: 'falha' } }
 }
