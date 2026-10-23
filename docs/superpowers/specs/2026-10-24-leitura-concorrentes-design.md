@@ -241,7 +241,7 @@ A tabela-verdade completa vira teste (§9.5).
 - A base medida hoje fica entre 0,8% e 6,8% por dia.
 
 **Textos**
-- 1º dia: "Leitura dos concorrentes degradada ontem: 34% das leituras sem título. Os estados de título podem ficar 'não medido'. Se continuar, a leitura de títulos dos concorrentes para até construirmos a leitura pela forja (hoje ela não existe)."
+- 1º dia: "Leitura dos concorrentes degradada ontem: 34% das leituras sem título. Os estados de título podem ficar 'não medido'. Se continuar, a leitura de títulos dos concorrentes fica parada até construirmos a leitura pela forja (hoje ela não existe)."
 - 2º dia seguido: acrescenta "2º dia seguido: é o gatilho para construir a leitura pela forja."
 
 ### 6.2 Guarda de título repetido (placeholder): checagem cruzada por versão
@@ -508,3 +508,4 @@ Regras:
 | r2 | Phil | 91 SIM | N1 dedup e teto da consulta; N2 iteração com teto 3; N3 cursor ausente → aprendendo e numeração do §5; N4 piso de R na troca: não adotado, motivo no §3.5.3; N5 condição 3 declarada estimativa, canal no alarme, SQL sem aprendendo, conta de ≈ 400 consultas |
 | r2 | Yannis | 93 SIM | N1 limite; N2 residual do mesmo canal; N3 `agora` único por avaliação; N4 expiração do aviso da guarda; N5 conta; N6 todas as versões qualificadas conferidas |
 | r1 | Hanna | 84 SIM cond. | C1 portões de entrada e permanência (§7, §8); C2 ensaio a seco (§8.0); C3 envio B desacoplado da flag (§7); C4 textos (§11, §6.1); C5 "o que o dono vê" (§7.1) e critérios em linguagem do dono (§8.3); S2 lista da Gio do ensaio do dia; S3 data da poda |
+| r2.2 | Hanna | SIM | r2.2: redação do §6.1, Hanna 24/10 (1ª linha de exemplo: "fica parada até construirmos", sem a preposição "para até") |
