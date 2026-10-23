@@ -154,6 +154,10 @@ describe('S8-F2 T6: a fonte dá nulo', () => {
     if (d2.status !== 'completed' || d2.outcome !== 'winner') throw new Error('winner')
     expect(d2.lift).toBeNull()
     expect(d2.resultMeta.ctrBefore).toBeNull()
+    const d3 = await toDetailView(resultados([vs('v-a', null, null, 'original', true), vs('v-b', 1000, 80, 'B')], base))
+    if (d3.status !== 'completed' || d3.outcome !== 'winner') throw new Error('winner')
+    expect(d3.resultMeta.totalImpressions).toBeNull()
+    expect(d3.resultMeta.totalImpressions).not.toBe(1000)
   })
 
   it('7: cartão segue sem lift e confiança; bloco morto saiu', () => {
@@ -168,6 +172,7 @@ describe('S8-F2 T6: a fonte dá nulo', () => {
     expect(QUERIES).not.toContain("backfill_status === 'confirmed'")
     const bloco = QUERIES.slice(QUERIES.indexOf('export async function getTestResults'), QUERIES.indexOf('export async function getAbSiteSettings'))
     expect(bloco).not.toMatch(/as AbTestCycleRow\[\]/)
+    expect(bloco).toContain(".select('id, test_id, variant_id, cycle_number, started_at, ended_at, backfill_status, backfill_attempts, applied_metadata, created_at')")
   })
 
   it('temVolumeParaBayes', () => {

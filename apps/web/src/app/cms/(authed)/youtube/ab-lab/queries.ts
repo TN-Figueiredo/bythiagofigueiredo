@@ -62,7 +62,7 @@ export async function getAbTestsForSite(): Promise<{
       `
       *,
       variants:ab_test_variants!test_id(*),
-      cycles:ab_test_cycles(*)
+      cycles:ab_test_cycles(id, test_id, variant_id, cycle_number, started_at, ended_at, backfill_status, backfill_attempts, applied_metadata, created_at)
     `,
     )
     .eq('site_id', siteId)
@@ -74,7 +74,7 @@ export async function getAbTestsForSite(): Promise<{
   type RawTest = typeof tests extends (infer T)[] | null ? T : never
 
   function toWithVariants(raw: RawTest): AbTestWithVariants {
-    const cycles = ((raw as Record<string, unknown>).cycles ?? []) as AbTestCycleRow[]
+    const cycles = ((raw as Record<string, unknown>).cycles ?? []) as CicloSemEntrega[]
     const openCycle = cycles.find(c => !c.ended_at) ?? null
     return {
       ...(raw as AbTestWithVariants),
@@ -1074,9 +1074,9 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
 
   // Discriminate by status/outcome
   if (test.status === 'draft' || test.status === 'active' || test.status === 'paused') {
-    const comPBest = variants.filter(v => v.pBest !== null)
+    const comPBest = variants.filter((v): v is typeof v & { pBest: number } => v.pBest !== null)
     const leader: { label: DisplayLabel; color: string; ctr: number | null } = comPBest.length > 0
-      ? comPBest.reduce((best, v) => ((v.pBest ?? 0) > (best.pBest ?? 0) ? v : best), comPBest[0]!)
+      ? comPBest.reduce((best, v) => (v.pBest > best.pBest ? v : best), comPBest[0]!)
       : (variants.find(v => v.label === 'A') ?? variants[0] ?? { label: 'A' as DisplayLabel, color: '#8A8F98', ctr: null })
     const originalCtr: number | null = variants.find(v => v.label === 'A')?.ctr ?? null
     const liftDoLider: number | null = leader.label !== 'A' && leader.ctr !== null && originalCtr !== null && originalCtr > 0

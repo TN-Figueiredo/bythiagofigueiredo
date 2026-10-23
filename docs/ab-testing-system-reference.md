@@ -64,7 +64,7 @@ Se `max_duration_days` é atingido sem os gates passarem → `completed_reason =
 | **ab-backfill** | — | removido na S8-F2 (gravava views como impressões) |
 | **ab-evaluate** | 12:00 | Roda estatísticas, checa 6 gates, auto-resolve ou marca inconclusive |
 
-Isolamento de erro: falha de OAuth na rotação não bloqueia avaliação de dados já backfillados.
+Isolamento de erro: falha de OAuth na rotação não bloqueia avaliação de dados já coletados.
 
 ### 1.6 State Machine
 
@@ -86,9 +86,9 @@ UNIQUE index garante máximo 1 teste não-terminal por vídeo.
 
 | Dado | Fonte | Delay |
 |------|-------|-------|
-| `total_impressions` | YouTube Analytics API confirmado | 48-72h |
-| `total_clicks` | Calculado: impressions × CTR | 48-72h |
-| `avg_ctr` | CTR ponderado por ciclos confirmados | 48-72h |
+| `total_impressions` | Não medido (nulo) desde a S8-F2; volta na F3 por `ab_test_dias` | — |
+| `total_clicks` | Não medido (nulo) desde a S8-F2; volta na F3 por `ab_test_dias` | — |
+| `avg_ctr` | Não medido (nulo) desde a S8-F2; volta na F3 por `ab_test_dias` | — |
 | `cycles_completed` | Contagem de ciclos fechados, **inclui os fechados por pausa, drift ou falha de API** (uma pausa no meio do slot gera dois ciclos; D-P4) | Realtime |
 | `estimated_impressions` | YouTube Data API v3 (near-realtime) | ~minutos |
 | `estimated_ctr` | YouTube Data API v3 | ~minutos |

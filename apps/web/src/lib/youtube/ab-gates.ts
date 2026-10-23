@@ -13,6 +13,10 @@ export interface GateInput {
   stabilityThreshold: number
 }
 
+function todasMedidas(xs: ReadonlyArray<number | null>): xs is ReadonlyArray<number> {
+  return xs.every(n => n !== null)
+}
+
 export function computeGates(input: GateInput): GateResult[] {
   const {
     confidence, threshold, minImpressions, daysSinceStart,
@@ -23,7 +27,7 @@ export function computeGates(input: GateInput): GateResult[] {
   const NAO_MEDIDO = 'não medido'
   const naoMedido = (name: string): GateResult => ({ name, passed: false, value: NAO_MEDIDO, estado: 'nao_medido' })
 
-  const impressoes = minImpressions.some(n => n === null) ? null : (minImpressions as number[])
+  const impressoes = todasMedidas(minImpressions) ? minImpressions : null
   const minImp = impressoes && impressoes.length > 0 ? Math.min(...impressoes) : 0
 
   return [

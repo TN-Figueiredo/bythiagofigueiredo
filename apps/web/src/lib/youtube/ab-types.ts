@@ -137,7 +137,7 @@ export type CicloSemEntrega = Omit<AbTestCycleRow, 'impressions' | 'clicks' | 'c
 
 export interface AbTestWithVariants extends AbTestRow {
   variants: AbTestVariantRow[]
-  current_cycle: AbTestCycleRow | null
+  current_cycle: CicloSemEntrega | null
   total_cycles: number
 }
 
