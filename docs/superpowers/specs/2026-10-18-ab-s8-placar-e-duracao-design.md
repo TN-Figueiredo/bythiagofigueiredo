@@ -1,8 +1,8 @@
 # Spec S8: gravação por variante e dia, placar com alcance da A5 e regra nova de duração
 
-Escrito em 18/10/2026 (1º rascunho, Opus); r2 em 18/10 (conserto da r1 de Phil e Yannis); **r4 em 24/10 (só F2–F4: conserto dos pareceres r1 de Phil, 74 NÃO, e Yannis, 79 NÃO, de 23/10; a F1 está em produção e não muda)**. Fatia S8 do plano conjunto
+Escrito em 18/10/2026 (1º rascunho, Opus); r2 em 18/10 (conserto da r1 de Phil e Yannis); r4 em 24/10 (só F2–F4: conserto dos pareceres r1 de Phil, 74 NÃO, e Yannis, 79 NÃO, de 23/10); **r5 em 23/10 (só F2–F4: emendas dos pareceres r2 de Phil, 87 NÃO, N1–N3 + M1–M5, e Yannis, 88 NÃO, N-1 a N-4 + m-1 a m-6; a F1 está em produção e não muda)**. Fatia S8 do plano conjunto
 (`.superpowers/sdd/ab-lab/2026-10-18-nativo-vs-nosso/plano-conjunto.md`, §1, §2, §4, §9).
-Revisão: Phil e Yannis no fim (portão G4); a r4 espera re-revisão (só nas emendas). Só documento: nenhum código, nenhuma migration criada.
+Revisão: Phil e Yannis no fim (portão G4); a r5 espera re-revisão (só nas emendas; pode ser Sonnet). Só documento: nenhum código, nenhuma migration criada.
 
 **Ajuste do dono (18/10):** a coleta vem primeiro. A S8 tem quatro fases. A F1 só grava. As outras
 três leem o que a F1 gravou.
@@ -303,8 +303,11 @@ quando B tem **menos** views (1.200 contra 900; 5.000 contra 4.000): vencedor fa
 A F2 faz:
 1. **Corta a escrita.** `ab-backfill` deixa de gravar `impressions`, `clicks` e `ctr` em `ab_test_cycles` e deixa de pedir `views` à
    Analytics API para isso. Os valores antigos ficam no banco, sem leitura, e **não são apagados** (views com rótulo errado; nenhuma
-   migration destrutiva). Se a rota faz mais alguma coisa útil (`backfill_status`), o plano da F2 lê a rota inteira e decide entre
-   "rota sem as três colunas" e "rota fora do `vercel.json`"; o que não pode sobrar é a escrita.
+   migration destrutiva). **Padrão (Phil r2 M1): rota fora do `vercel.json`** (zero chamada à Analytics API, zero escrita; a rota sem as três colunas ainda
+   marcaria `confirmed` sem dado e deixaria ciclos `pending`/`partial` em retentativa). O plano da F2 lê a rota inteira, confere o grep de
+   outro leitor de `backfill_status` e confere `cron-health-report.ts` (cita `ab-backfill` em comentário; se a lista de crons esperados
+   vem do `vercel.json`, nenhum alarme eterno; se vem de lista própria, tirar `ab-backfill` de lá). Só se achar função útil que o plano
+   prove necessária volta a "rota sem as três colunas"; o que não pode sobrar é a escrita.
 2. **Corta toda leitura.** Nenhum código do placar lê `ab_test_cycles.impressions/clicks/ctr`. Até a F3, `total_impressions`,
    `total_clicks` e `avg_ctr` são `null` em toda variante (`number | null`; nulo = nenhum dia com dado). Regra única: **nulo = não
    medido, nunca entra em soma nem em comparação com 0**. Pontos de `queries.ts` (um teste por ponto no plano da F2):
@@ -318,7 +321,7 @@ A F2 faz:
    `{estado:'sem_volume'}` (alguma com 0 medido) ou `{estado:'calculado', z, p}`; nunca `pValue: 1` como resposta padrão; é a base da F4.
    `calculateBayesianConfidence`, `calculatePlayoffStats` e `computeGates` recebem o estado e devolvem `nao_medido` sem amostrar.
 4. **Arquivos da F2 (C-1 de F2–F4, conferido por `git diff --name-only`):** `ab-types.ts`, `ab-statistics.ts`, `ab-gates.ts`,
-   `ab-lab/queries.ts`, `ab-lab/_components/{ab-constants,variant-table,active-detail,rank-bars}.tsx`, `app/api/cron/ab-backfill/route.ts`,
+   `intelligence-types.ts`, `ab-lab/queries.ts`, `ab-lab/_components/{ab-constants,variant-table,active-detail,rank-bars}.tsx`, `app/api/cron/ab-backfill/route.ts`,
    `lib/youtube/ab-youtube.ts` e, se a rota sair da agenda, `vercel.json`.
 5. **Testes:** (a) semente com 2 variantes, ciclos `confirmed` com `impressions = 1200/900`, `clicks = 0`: `getTestResults` e
    `toDetailView` devolvem impressões `null`, `pBest` ausente, gate `min_impressions` "não medido"; `calculateZTest`/`zDuasProporcoes`
@@ -327,7 +330,7 @@ A F2 faz:
 6. **Conferência pendente pelo dono/controlador (leitura em produção, antes do plano da F2):** Q1
    `select backfill_status, count(*), sum(impressions) imp, sum(clicks) cliques, max(ctr) ctr_max from ab_test_cycles group by 1;`
    esperado: `confirmed` com `cliques = 0` e `ctr_max = 0` (prova a mentira em produção; hoje provada só no código).
-   **D+1 do deploy da F2:** `ab-backfill` sem nenhum `update` dessas colunas e o T19 mostrando "não medido".
+   **D+1 do deploy da F2:** log da rota `ab-backfill` com **zero invocações** (rota fora do `vercel.json`; não só "sem update") e o T19 mostrando "não medido".
 
 ---
 
@@ -335,14 +338,20 @@ A F2 faz:
 
 ### 5.1 F3: placar
 
-- Fonte única: `ab_test_dias` do teste (uma leitura pela PK). Vale para todo teste, `v1` ou `v2`: o placar é leitura, não decisão.
+- Fonte única: `ab_test_dias` do teste (detalhe: uma leitura pela PK; lista do Cowork: uma leitura em lote, abaixo). Vale para todo teste, `v1` ou `v2`: o placar é leitura, não decisão.
 - **Função pura `placarDoTeste(dias, variantes)`** em `lib/youtube/ab-gravacao/placar.ts`, usada pela tela **e** pelo Cowork
   (`projetarTeste`, `lib/pipeline/services/youtube.ts:1037-1050`), de modo que os dois mostram o mesmo número (paridade, dono 13/10).
-  O Cowork deixa de mandar `total_impressions: null` e `AVISO_SEM_METRICA_DE_ENTREGA` quando há dia medido. Doc do domínio em
+  O Cowork deixa de mandar `total_impressions: null` e `AVISO_SEM_METRICA_DE_ENTREGA` quando há dia medido.
+  **Lista do Cowork sem N+1** (Yannis r2 N-2): `projetarTeste(row, agora, placar)` continua pura e síncrona e recebe o `placar` já calculado
+  (`null` = sem dado). `listAbTests` (`youtube.ts:1081`) faz **uma** leitura de `ab_test_dias` `.in('test_id', ids).eq('site_id', siteId)`
+  paginada por `lerPaginado` (≤ 38 linhas por teste) e agrupa por `Map`; `getAbTest` (`:1109`) faz uma leitura pela PK. Erro de leitura
+  devolve `err('DB_ERROR', ...)`, nunca `placar = null` silencioso; lista e detalhe mandam o mesmo número. O(D) tempo e memória, D = linhas
+  dos testes listados (~100 hoje, ~1.000 em um ano). Doc do domínio em
   `data/pipeline-docs/cowork-docs-youtube.md` e `docs/cowork-pipeline-reference.md` atualizados (Pipeline Integrity). Dado privado do
   canal (Analytics), sem dado pessoal; sai só pela chave por pessoa do Cowork, com uso registrado.
-- **Predicado único `diaValido`** (uma função, usada por F3 e F4): `variant_id != null && alcance_estado == 'medido' && impressoes > 0
-  && ctr != null`. Em produção `medido` inclui linha com 0 impressões (`estado.ts:12`); esse dia a tela mostra 0 e **não conta para o
+- **Predicados** (uma função cada, usados por F3 e F4): `diaComAlcanceValido` = `alcance_estado == 'medido' && impressoes > 0 && ctr != null`
+  (não olha a variante; é o que o `p1` usa, pois os dias anteriores ao teste não têm variante) e **`diaValido` = `diaComAlcanceValido &&
+  variant_id != null`**. Em produção `medido` inclui linha com 0 impressões (`estado.ts:12`); esse dia a tela mostra 0 e **não conta para o
   piso**. `VariantStats` ganha `impressoes_com_ctr`: CTR ponderado, z, φ̂ e o piso de volume usam **só** `impressoes_com_ctr` e
   `cliques = Σ round(impressoes × ctr)` desses dias; `total_impressions` (inclui dias sem CTR) é só exibição, e a tela diz quantos
   dias ficaram fora do CTR. Teste: variante com um dia de 5.000 impressões e CTR nulo: CTR, z e N não mudam com ou sem esse dia.
@@ -354,7 +363,8 @@ A F2 faz:
 - Desenho: o do mockup S9 aprovado (placar, faixa de CTR "faixa não calculada" quando não há dado, régua de quanto falta, relógio
   parado na pausa, "congelado em ... (dia X de 14)").
 - **Arquivos da F3:** `ab-gravacao/placar.ts`, `ab-lab/queries.ts`, `ab-lab/_components/*`, `lib/pipeline/services/youtube.ts`, docs acima.
-- **Testes:** mock de erro em `ab_test_dias`: a página não mostra "não medido"; mesma semente: tela e Cowork com os mesmos totais.
+- **Testes:** mock de erro em `ab_test_dias`: a página não mostra "não medido"; mesma semente: tela e Cowork com os mesmos totais; spy no
+  cliente conta 1 chamada a `ab_test_dias` para 20 testes na lista do Cowork; erro na leitura faz a lista falhar.
 
 ### 5.2 F4: regra v2 (só teste com `regra_duracao = 'v2'`)
 
@@ -389,13 +399,22 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
 3. **Piso de volume:** cada variante com >= N impressões (`impressoes_com_ctr`), `N = k × (p1(1−p1) + p2(1−p2)) / (p2 − p1)²`,
    `p2 = 1,2 × p1`, `k = 7,85` com 2 variantes (α = 0,05) e `k = 9,50` com 3 (α = 0,025, (2,241 + 0,842)²). Com p1 = 4%: N ≈ 10.315
    (2) e ≈ **12.483** (3); contas refeitas por Phil e conferidas. Função pura `volumeMinimo(p1, nVariantes)`, testada com os dois valores.
-   - **`p1` com guardas** (Phil A6): usa só dias da janela `[started_at − 14 dias, started_at)` com `diaValido` sem exigir `variant_id`
-     (mesmo predicado de alcance). Se < 7 dias, ou < 2.000 impressões com CTR, ou `p1 ∉ (0; 0,5)`: `p1 = 4%` e `base_estimada = true`
-     (a tela diz "base estimada"). Dia da janela que pertenceu a outro teste A/B do mesmo vídeo fica fora. Grava `p1`, `p1_dias`,
-     `p1_impressoes`. Nunca `NaN`/`Infinity` em `result_metadata`. A mesma função serve ao aviso do item 7.
+   - **`p1` com guardas** (Phil A6): usa só dias da janela `[started_at − 14 dias, started_at)` com `diaComAlcanceValido` (5.1; não exige
+     `variant_id`). Se < 7 dias, ou < 2.000 impressões com CTR, ou `p1 ∉ (0; 0,5)`: `p1 = 4%` e `base_estimada = true`
+     (a tela diz "base estimada"). Grava `p1`, `p1_dias`, `p1_impressoes`. Nunca `NaN`/`Infinity` em `result_metadata`.
+   - **Fonte do `p1`** (Yannis r2 N-1; Phil M4): os dias anteriores ao teste **não têm linha em `ab_test_dias`** (o retrato só grava dia com ciclo
+     no ar), então o `p1` não sai dela. Função pura `baseDoVideo(entradas, videoId, ate)` recebe `alcancePorVideoDia`, `relatoriosPorCanalDia` e
+     `metaPorVideoDia` (as leituras em lote que o `rodarRetrato` já faz; ampliar o `gte` de `desdeStr` para `min(desdeJanela, started_at − 14
+     dias)` só para v2) e devolve `{p1, dias, impressoes, p1_dias_sem_meta}` por `estadoDoAlcance` + `diaComAlcanceValido` aplicados ao alcance
+     bruto. **Dia que pertenceu a outro teste A/B do mesmo vídeo fica fora**: a informação é `yt_own_video_meta_daily.ab_test_id` não nulo no
+     dia (e, para auditoria, `ab_tests` + `ab_test_cycles` do vídeo no intervalo). Dia sem linha de `meta_daily` conta como não excluído e
+     entra em `p1_dias_sem_meta` (gravado). Como `p1` é congelado com `p1`, `p1_dias`, `p1_impressoes`, a auditoria lê o congelado, não
+     recalcula. O aviso do item 7 chama a mesma função com `ate = hoje` pela server action (14 linhas de `reach_daily` + relatórios do canal).
+     Teste: vídeo com 14 dias de alcance antes do teste e nenhuma linha em `ab_test_dias` produz `p1` medido e `base_estimada = false`; dia com
+     `ab_test_id` de outro teste fica fora.
    - **Congelamento:** N, `k`, `p1` são calculados e congelados na **primeira rodada v2 que encontra o teste sem eles**. A janela
      **não** é estável na primeira rodada (os 2 a 3 últimos dias ainda estão `aguardando`; o congelamento usa ~11 dias), por isso o
-     determinismo vem da gravação, não da janela. Escrita atômica (item 5, RPC) com `where result_metadata->'v2'->'n' is null`.
+     determinismo vem da gravação, não da janela. Escrita atômica (item 5, RPC) com a flag `p_so_se_sem_n`; os campos congelados são imutáveis dentro da RPC.
      Vale para os três caminhos de criação. Teste: rodar a decisão duas vezes dá N idêntico, gravado uma vez; p1 = 0, janela de 3
      dias e janela com 300 impressões dão `base_estimada`.
 4. **Estatística:** z de duas proporções nos totais (`impressoes_com_ctr`), bilateral, α = 0,05 (3 variantes: cada uma contra a
@@ -411,29 +430,54 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
      sinais por bloco. Com `gl < 2`, não passa (`sem_diferenca_detectavel`).
    - Motivo (Phil): o sinal por bloco sozinho, com 2 blocos, corta o falso positivo no máximo pela metade; com φ = 3 o p real do z
      nominal 1,96 é ~0,26 (~0,13 com o sinal). O intervalo sobre os blocos não serve (1 grau de liberdade, t = 12,7).
-   - Testes: C-13b (φ ≈ 4, z cru p = 0,01, ajustado não passa) e simulação com φ = 1, 10.000 sementes: taxa de "vencedor" <= α + 1 ponto.
+   - Testes: C-13b (φ ≈ 4, z cru p = 0,01, ajustado não passa) e simulação com φ = 1, 10.000 sementes, **PRNG com semente fixa (`mulberry32`), nunca `Math.random`** (teste que muda a cada rodada é flaky): taxa de "vencedor" <= α + 1 ponto.
 5. **Quando decide, e como escreve:** a decisão v2 roda **no fim da própria rodada do `ab-retrato`** (14:00 UTC), depois do apply,
    com o mesmo `withCronLock`, lendo o banco (fonte da decisão, acima). Fora das janelas de promoção.
    - pisos de dias e de volume atingidos → encerra; relógio no teto sem os dois pisos → encerra;
+   - **Dia da decisão** (Phil M3): a decisão grava `v2.encerrado_em_dia` (último dia fechado no encerramento) e o recálculo do desfecho
+     provisório usa só dias `<= encerrado_em_dia`, para `desfecho_no_encerramento` ser o que o nome diz.
    - encerrar = `settleOnAir(original, 'regra_v2')`, `completed_reason = 'regra_v2'`; **nunca** grava `winner_variant_id` (P2). O
      sugerido vai em `result_metadata.v2.vencedor_sugerido`.
    - **Ordem de escrita (escolha registrada entre Phil A7 e Yannis Y-6):** (i) `ab_settle_claim`/`settleOnAir` primeiro; (ii) só depois
      de confirmado, grava o desfecho. Settle que falha (YouTube, tempo, `naoVoltou`, `pausadoPorTesteYoutube`, `em_andamento`) não
-     grava `desfecho`: grava `result_metadata.v2.tentativa_falhou` com a hora, chama `recordCronFailure('ab-regra-v2', ...)` (separado
-     do sucesso do retrato: o retrato gravou, quem falhou foi a decisão) e a próxima rodada tenta de novo. Settle ok e gravação do
+     grava `desfecho`: grava `result_metadata.v2.tentativa_falhou` com a hora, chama `recordCronFailure('ab-retrato', ...)` com `etapa: 'decisao_v2'` no payload
+     (nome sem entrada própria no `vercel.json` poderia virar `unknown`, alarme permanente no watchdog/`cron-health-report`: o plano
+     confere; se o watchdog tolera nome sem agenda, `'ab-regra-v2'` serve) e a próxima rodada tenta de novo. **Só contam como falha**
+     (Yannis m-1): `naoVoltou`, `em_andamento` repetido por 2 rodadas e exceção. `pausadoPorTesteYoutube` é desfecho legítimo (o
+     `ab-evaluate` o trata como `continue`, `:84`): grava `tentativa_falhou` com `motivo: 'teste_youtube'` e **não** chama `recordCronFailure`. Settle ok e gravação do
      desfecho falhando: o teste fica `completed/regra_v2` **sem** `v2.desfecho`; a tela trata isso como "desfecho pendente", nunca "sem
      vencedor", e a próxima rodada grava (a seleção da decisão inclui esse caso).
    - **Escrita atômica, com migration pequena na F4** (opção 1 de Yannis; **a F4 deixa de ser "sem migration"**): função SQL
-     `ab_test_v2_gravar(p_test_id, p_v2 jsonb, p_so_se_sem_n boolean)` (security definer, só service role) faz `result_metadata =
-     coalesce(result_metadata,'{}') || jsonb_build_object('v2', ...)` e, com a flag, `where result_metadata->'v2'->'n' is null`.
-     Nunca ler-modificar-gravar pelo cliente (lost update). Migration por `npm run db:new`, G1 (antes do código que a chama).
+     `ab_test_v2_gravar(p_test_id uuid, p_v2 jsonb, p_hist jsonb default null, p_so_se_sem_n boolean default false) returns boolean`.
+     Nunca ler-modificar-gravar pelo cliente (lost update). Migration por `npm run db:new`, G1 (antes do código que a chama). Regras (Phil r2 N1 =
+     Yannis r2 N-4; o `||` raso da r4 apagava `n`, `p1` e `desfecho_no_encerramento`):
+     1. **Merge um nível abaixo:** `result_metadata = jsonb_set(coalesce(result_metadata,'{}'::jsonb), '{v2}', coalesce(result_metadata->'v2','{}'::jsonb) ||
+        <p_v2 sem os campos congelados>)`; `p_v2` carrega só os campos que mudam.
+     2. **Congelados gravados uma vez, dentro da RPC (não confiar no chamador):** `n`, `k`, `p1`, `p1_dias`, `p1_impressoes`, `base_estimada`,
+        `p1_dias_sem_meta` e `desfecho_no_encerramento` só entram se a chave ainda não existe no `v2` atual (`coalesce(old->'x', new->'x')`).
+     3. **`historico` anexado em SQL:** `p_hist` é concatenado ao array existente, nunca substituído.
+     4. **Retorno `boolean`** (linhas afetadas): `true` = gravou, `false` = outro escritor já havia congelado (com `p_so_se_sem_n`, `where
+        result_metadata->'v2'->'n' is null`); o chamador distingue "gravei" de "já havia".
+     5. **Segurança como na migration da F1 (`:119-124`):** `security definer`, `set search_path = ''` (nomes qualificados, `public.ab_tests`),
+        `revoke all ... from public, anon, authenticated`, `grant execute ... to service_role`; o `update ... where id = p_test_id` exige
+        `regra_duracao = 'v2'`.
+     6. **Testes de integração (`HAS_LOCAL_DB`):** (a) grava `n`, depois `tentativa_falhou`, depois `desfecho`, depois `desfecho_final`: `n`, `p1`,
+        `base_estimada` e `desfecho_no_encerramento` continuam; (b) duas chamadas com a flag gravam `n` uma vez e a segunda devolve `false`;
+        (c) segunda gravação de `desfecho_no_encerramento` não muda; (d) `historico` cresce, não é substituído; (e) `anon` e `authenticated`
+        recebem `permission denied` (só por chamada com cliente comum e `expect(error)`: o banco de integração dá SIGSEGV ao chamar função sem
+        EXECUTE por outra via). **Conferência pós-deploy:** `select result_metadata->'v2' - 'historico' from ab_tests where regra_duracao='v2' and
+        status='completed'` com `n` e `desfecho_no_encerramento` não nulos em todo teste que tenha `desfecho_final`.
    - **Tempo e orçamento** (Yannis Y-3): `maxDuration = 120` no `ab-retrato`; extrair do `phaseEvaluateActiveTests` o laço
      `encerrarComPrazo(testes, motivo, inicioDaFuncao)` e chamá-lo das duas rotas, com `prazo = início + 105 s` e o mesmo
      `SETTLE_MINIMO_MS`/`FIM_DA_AVALIACAO_MS`. Com ~2 settles por rodada, o resto fica para a rodada seguinte. Teste: relógio injetado
      com 50 s gastos, o settle não começa e a nota "adiado por tempo" sai.
-   - **Rede de segurança** (Yannis Y-4): o `ab-evaluate` pula teste `v2` enquanto `daysSinceStart` (em ms) `< max_duration_days + 3`; acima
-     disso encerra com `settleOnAir(original, 'regra_v2')` e grava `desfecho = 'inconclusivo_por_falha'`. Teste: 17 dias em ms e retrato
-     parado, encerra; 15 dias, pula. Fora isso o `ab-evaluate` não é tocado.
+   - **Rede de segurança** (Yannis Y-4; r5 por Phil N2 = Yannis N-3): o relógio v2 para na pausa e o `started_at` não, então **a rede não
+     mede em ms corridos** (`ab-evaluate-phases.ts:53`; teto 14, pausa de 5 dias: aos 17 dias em ms o relógio v2 está em 12, e a rede
+     mataria um teste saudável). Para cada teste v2 `active`, o `ab-evaluate` lê os ciclos (uma consulta `in (ids v2)`, O(C) por teste, C <= 30) e
+     calcula `diasDoTeste(ciclos, teste, ontem, primeiroDia).length`, o **mesmo relógio da decisão e da tela**, que não depende de `ab_test_dias` e por
+     isso continua valendo com o retrato parado. Pula enquanto `< max_duration_days + 3`; acima disso encerra com `settleOnAir(original,
+     'regra_v2')` e grava `desfecho = 'inconclusivo_por_falha'`. Testes: pausa de 5 dias com 12 dias de relógio (ms = 17): não encerra; retrato
+     parado e relógio = 17: encerra; relógio = 15: pula. Fora isso o `ab-evaluate` não é tocado.
 6. **Desfechos** (`result_metadata.v2.desfecho`), em ordem de precedência no teto:
    - `vencedor_provavel` (variante): pisos atingidos, estatística passa;
    - `sem_diferenca_detectavel`: pisos atingidos, estatística não passa ("nenhuma diferença de 20% ou mais com este volume"; nunca "empate");
@@ -441,32 +485,41 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
      os dois (sem dias o volume nem se mede);
    - `inconclusivo_por_volume`: teto com o piso de dias e sem N;
    - `inconclusivo_por_falha`: encerrado pela rede de segurança do `ab-evaluate` (item 5);
-   - `aguardando_alcance`: encerrado com dias ainda `aguardando`.
+   - `aguardando_alcance`: encerrado com dias ainda `aguardando`. Na precedência fica **antes** de `inconclusivo_por_dado` quando o piso de dias
+     é fechável pelos dias ainda `aguardando` (a tela diz "esperando o YouTube" e não "sem dado").
    **Ciclo de vida** (Phil A7 + Yannis Y-7, escolha registrada): todo desfecho nasce `provisorio = true` quando algum dia do teste não é
    `final`. A rodada recalcula a cada dia; quando todas as linhas do teste ficam `final`, recalcula uma última vez e grava `provisorio =
    false` com `desfecho_final`, **ao lado** de `desfecho_no_encerramento` (imutável); cada mudança de `desfecho` vai para
    `v2.historico` (desfecho e data). O encerramento não é desfeito; só o desfecho muda. A seleção da decisão inclui explicitamente
    `regra_duracao = 'v2' and status = 'completed' and coalesce((result_metadata->'v2'->>'provisorio')::boolean, true) = true`
-   (assim o teste não sai da seleção quando a última linha fecha pela RPC `ab_test_dias_fechar_antigas`). Nunca fica provisório depois do
+   (em PostgREST, que não tem `coalesce` no filtro: `.eq('regra_duracao','v2').eq('status','completed').or('result_metadata->v2->>provisorio.is.null,result_metadata->v2->>provisorio.eq.true')`;
+   teste com teste sem a chave `v2`, com `provisorio:false` e com `provisorio:true`; assim o teste não sai da seleção quando a última linha fecha pela RPC `ab_test_dias_fechar_antigas`). Nunca fica provisório depois do
    D+10 do último dia. Testes: settle que lança não deixa `desfecho`; teste encerrado com 2 dias `aguardando` que invertem o sinal
    muda de desfecho no D+10, mantém o inicial e guarda os dois no histórico.
    **Leitura do tipo:** `ResultMetadata` (`ab-types.ts:186`) passa a `{ v2?: ResultadoV2 } & Partial<legado>`; leitura por Zod
    (`safeParse`; inválido = "desfecho ilegível", nunca vazio).
-7. **Aviso antes de iniciar:** impressões/dia = média dos dias com `diaValido` nos últimos 14 dias do vídeo (mesma função de `p1`);
+7. **Aviso antes de iniciar:** impressões/dia = média dos dias com `diaComAlcanceValido` nos últimos 14 dias do vídeo (`baseDoVideo`, a mesma função de `p1`);
    dias previstos = `n_variantes × N / (impressões/dia)`. Se passa do teto: "este teste não chega ao volume em X dias; o desfecho
-   provável é inconclusivo por volume", e o botão de iniciar continua. Com 3 variantes e teto < 16: "um dia sem medição já deixa o teste
-   sem resultado". Sem dado de alcance: "sem medição para estimar o volume", nunca "ok". O Cowork (`manage_ab_test`) devolve o mesmo
+   provável é inconclusivo por volume", e o botão de iniciar continua. Com o teto entre o mínimo de validação (item 8) e mínimo + 2: "um dia sem medição já deixa o teste
+   sem resultado" (a mesma conta do item 8; o aviso de teto abaixo do mínimo nem chega a aparecer, a validação recusa). Sem dado de alcance: "sem medição para estimar o volume", nunca "ok". O Cowork (`manage_ab_test`) devolve o mesmo
    aviso no mesmo campo, e **a F4 acrescenta à projeção do Cowork `result_metadata.v2`** (desfecho, provisório, N, p1, base_estimada,
    gl, p_adj, vencedor_sugerido), com o doc do domínio atualizado (Phil A9).
-8. **Validação na criação v2:** `rotation_pattern = 'abba'` e `max_duration_days >= piso + 1` (8+1 = 9 com 2 variantes; 12+1 = 13 com 3:
-   o dia do início é parcial; Phil A3). Teste: 2 variantes iniciado às 23:50 PT com teto 9 é aceito e os 8 dias inteiros fecham o piso; com
-   teto 8 é recusado. Os campos `confidence_threshold`, `burn_in_days` e `stability_threshold` ficam no schema e são ignorados pela v2.
+8. **Validação na criação v2** (Phil r2 N3): `rotation_pattern = 'abba'` e `max_duration_days >= piso + 1 + ATRASO_ALCANCE`, com `ATRASO_ALCANCE = 3`
+   constante nomeada. Conta: dia válido exige `alcance_estado = medido`, o relatório chega em D+2 a D+3 (estimativa; o p95 real define a
+   constante antes da F4, §11) e na decisão das 14:00 UTC os 2 a 3 últimos dias fechados estão `aguardando`; dias válidos no teto T = T − 1
+   (início parcial) − 3 = **T − 4**. Logo o mínimo é **12 com 2 variantes (piso 8) e 16 com 3 (piso 12)**; abaixo disso, recusa com o motivo em
+   uma frase ("o YouTube leva até 3 dias para enviar o alcance; com este teto o teste não chega a fechar os dias mínimos"). Com 3 variantes e
+   teto 14 (o padrão de hoje) o máximo seria 10 dias válidos (< 12): o teste só decidiria no D+10; por isso o padrão de 3 variantes sobe
+   para 16 (**recomendação, aguarda dono**, §10b). Testes: a semente do caso "teto aceito" põe `alcance_estado = medido` nos dias que
+   provam o piso; 2 variantes com teto 12 é aceito e 11 recusado; 3 variantes com 16 aceito e 15 recusado. Os campos `confidence_threshold`, `burn_in_days` e `stability_threshold` ficam no schema e são ignorados pela v2.
 9. **`CompletedReason` e consumidores** (Yannis Y-10): a F4 acrescenta `'regra_v2'` a `CompletedReason` (`ab-types.ts:6`) e, em
    `coleta/versoes-origem.ts:86-104` (`papelNaThumb`, `default: never`, arquivo da A5: avisar a frente antes) e
    `coleta/versoes-step.ts:95`, trata como `inconclusive` (o encerramento é `settleOnAir(original)`; senão a reconstrução das versões deixa
    de marcar a volta da miniatura original). Em `ab-settle.ts`: `caminhoDe('regra_v2')` igual ao de `duracao_maxima` com
    `completed_reason: 'regra_v2'`, e `regra_v2` entra em `MOTIVOS_QUE_PAUSAM_SEM_ESCREVER`. Teste em `versoes-origem.test.ts`.
-10. **Arquivos da F4 (C-1):** `ab-settle.ts`, `ab-evaluate-phases.ts`, `app/api/cron/ab-retrato/*`, `ab-types.ts`,
+10. **Arquivos da F4 (C-1):** `ab-settle.ts`, `ab-evaluate-phases.ts`, `app/api/cron/ab-retrato/*`, `ab-gravacao/retrato-step.ts`,
+   `ab-gravacao/retrato.ts` (grava `cycle_number` em `ciclos`), `ab-gravacao/decisao-v2.ts` (módulo novo: decisão, `blocoDoDia`, `volumeMinimo`,
+   `tCdf`, `baseDoVideo`), `ab-gravacao/placar.ts`/`diaValido`, `ab-types.ts`,
    `coleta/versoes-origem.ts`, `coleta/versoes-step.ts`, `ab-lab/actions.ts`, playoff SQL (desligado), `lib/pipeline/services/youtube.ts`,
    a migration de `ab_test_v2_gravar`, docs do Cowork; conferido por `git diff --name-only`.
 
@@ -494,7 +547,7 @@ explícita** se não achar (Node sem ICU completo dá 24 h a todo dia e a busca 
 - Sonda: 24 leituras por dia por teste ativo; com 3 testes ao mesmo tempo, 72 linhas por dia (~26 mil por
   ano, ~6 MB). Sem poda neste ciclo; gatilho de rever: 100 MB. Retrato: ~0,7 kB por linha, < 9 MB por ano.
 - Retrato: ≤ 28 linhas por teste; ~30 testes por mês dão < 1.000 linhas por mês.
-- Placar: uma leitura de `ab_test_dias` pela PK por abertura de tela. A lista não calcula placar.
+- Placar: uma leitura de `ab_test_dias` pela PK por abertura de tela. A lista do CMS não calcula placar; a lista do Cowork faz **uma** leitura em lote `in (test_ids)` (5.1), nunca uma por teste.
 - Cota da Data API: zero chamada nova. Cron: duas rotas novas (49 agendas hoje, 51 depois da F1; conta Pro, limite
   de 100 pela documentação da Vercel, não conferido na conta).
 - RLS das tabelas novas: `can_edit_site(site_id)` na leitura (a mesma que protege `yt_own_video_reach_daily`; alcance
@@ -537,7 +590,7 @@ F2 e F3:
 F4:
 - **C-12.** Os três caminhos de criação (fato 9) gravam `v2` depois do deploy; teste que cria por cada
   um. Confere: Yannis.
-- **C-13.** Com menos de 4 dias válidos (impressões > 0) por variante, nenhum desfecho é `vencedor_provavel`, nem com
+- **C-13.** Com menos de 4 dias válidos (`diaValido`) por variante, nenhum desfecho é `vencedor_provavel`, nem com
   volume enorme. Confere: Phil.
 - **C-13b.** Semente com φ ≈ 4 em que o z cru dá p = 0,01: o ajustado não passa, desfecho
   `sem_diferenca_detectavel`. Confere: Phil.
@@ -555,7 +608,7 @@ F4:
   `ab-backfill` não escreve as três colunas; um teste por ponto de `queries.ts` da lista do §4. Confere: Yannis.
 - **C-20 (F3).** Tela e Cowork com os mesmos totais; erro de leitura vira erro de página; `diaValido` único (teste do dia sem CTR). Confere: Yannis, Gio.
 - **C-21 (F4).** `p1` com guardas e sem `NaN`/`Infinity`; `t` de Student (simulação φ = 1 com taxa <= α + 1 ponto); bloco por `cycle_number`
-  (pausa e rotação forçada); teto T dá T − 1 dias inteiros e validação `piso + 1`; settle que falha não deixa `desfecho`; `desfecho_final`
+  (pausa e rotação forçada); teto T dá T − 1 dias inteiros e validação `piso + 1 + 3` (12/16); `p1` por `baseDoVideo` sem linhas em `ab_test_dias`; RPC `ab_test_v2_gravar` com merge um nível abaixo e imutáveis; rede do `ab-evaluate` pelo relógio por ciclos (pausa de 5 dias não encerra); lista do Cowork com 1 leitura; settle que falha não deixa `desfecho`; `desfecho_final`
   ao lado de `desfecho_no_encerramento`; `inconclusivo_por_falha` pela rede do `ab-evaluate`; `regra_v2` em `versoes-origem.ts`. Confere: Phil, Yannis.
 
 ---
@@ -570,8 +623,9 @@ F4:
 - G2: garantido pelo default `v1` da F1 e pela F4 escrever `v2`.
 - G4: Phil e Yannis no fim deste spec e de cada lote.
 - **F2 e F3 em envios separados.** Entre as duas o placar fica "não medido" para todos (esperado; o Gio confere isso, não "placar quebrado").
+- **`npm run db:push:prod` antes do push do commit 2 da F4** (Yannis m-6): o commit chama a RPC.
 - A F4 tem **uma migration pequena** (`ab_test_v2_gravar`, 5.2 item 5; a coluna e os dois CHECKs vêm na F1), **toca `ab-settle.ts`**
-  (`MotivoSaida`, `caminhoDe`, `MOTIVOS_QUE_PAUSAM_SEM_ESCREVER`), `ab-evaluate` (guarda `v2` + rede de segurança) e `versoes-origem.ts`
+  (`MotivoSaida`, `caminhoDe`, `MOTIVOS_QUE_PAUSAM_SEM_ESCREVER`), `ab-evaluate` (guarda `v2` + rede de segurança pelo relógio por ciclos) e `versoes-origem.ts`
   (A5); tudo só vai ao ar depois do E8.
 - **F4 em três commits, árvore verde, cada um inerte até o último** (Yannis): (1) `CompletedReason` + `versoes-origem.ts` +
   `caminhoDe('regra_v2')` + guarda/rede do `ab-evaluate`, sem teste v2 existente, efeito zero; (2) migration `ab_test_v2_gravar` + decisão
@@ -622,8 +676,10 @@ F4:
   sem_ctr from ab_test_dias group by 1;` (mostra se `medido` com 0 e CTR nulo acontece de fato; justifica `diaValido`); Q3 `select thumbnail_ctr from
   yt_own_video_reach_daily where thumbnail_ctr is not null order by day_pt desc limit 20;` (casas decimais do CTR; com 2 casas em porcentagem o erro de
   cliques reconstruídos é <= 0,005% × impressões, desprezível; conferir antes do plano da F4; Phil A13).
-- **Portão da F4 (Yannis M-6):** a conferência do D+10 (p95 de `normalized_at − end_time`) entra no `ACOMPANHAMENTO.md` com a data real do deploy
-  da F1 + 14 dias e **bloqueia o plano da F4**, não é só nota.
+- **Portão da F4 (Yannis M-6, m-5) e ação do controlador:** a conferência do D+10 (p95 de `normalized_at − end_time` dos `channel_reach_basic_a1`)
+  precisa de uma linha no `ACOMPANHAMENTO.md` ("S8-F1+14: p95 de `normalized_at − end_time`") com a data real do deploy da F1 + 14 dias; o valor
+  também define `ATRASO_ALCANCE` (5.2 item 8). **Este spec não edita o `ACOMPANHAMENTO.md`: registrar a linha é ação do controlador**, e a conferência
+  **bloqueia o plano da F4**, não é só nota.
 - Phil não conferiu se `ab-backfill` tem outro leitor além de `queries.ts`; o plano da F2 faz esse grep. Yannis não rodou suíte nem typecheck e não
   conferiu `forceRotate` com `cycle_number` (5.2, bloco ABBA). Tempo real de `settleOnAir` dentro de 120 s não medido. Valor real de φ no canal idem.
 - Horas de cada fase: sem estimativa; pedir a Phil e Yannis.
@@ -636,7 +692,12 @@ F4:
 ## 10b. Decisões do dono: estado na r4
 
 As decisões 2, 3 e 4 do §10 ficam **"recomendação, aguarda dono"** (Phil concorda com as recomendações 1 a 4; 2, 3 e 4 não bloqueiam F2/F3).
-Nenhuma foi decidida nesta revisão. As escolhas técnicas da r4 (RPC `ab_test_v2_gravar`, bloco por `cycle_number`, `t` de Student,
+Nenhuma foi decidida nesta revisão.
+
+**Nova (r5, Phil r2 N3), recomendação, aguarda dono:** subir o **padrão** de `max_duration_days` com 3 variantes de 14 para **16** (o de 2
+variantes fica 14). Custo: até 2 dias a mais de exposição na variante pior em teste de 3 variantes, contra um teste que nunca decidiria
+(com teto 14 e 3 variantes o máximo é 10 dias válidos para um piso de 12). A validação (12 e 16 como mínimos, item 8) entra sem decisão do
+dono; só o valor padrão espera. Hanna leva ao dono. As escolhas técnicas da r4 (RPC `ab_test_v2_gravar`, bloco por `cycle_number`, `t` de Student,
 `inconclusivo_por_falha`) são de engenharia e não mudam nenhuma decisão do dono.
 
 ---
@@ -646,6 +707,7 @@ Nenhuma foi decidida nesta revisão. As escolhas técnicas da r4 (RPC `ab_test_v
 - r1 (18/10): 1º rascunho, Opus.
 - r2 (18/10): conserto da r1 de Phil e Yannis.
 - r3 (18/10, emenda do plano da F1): §2.3 e C-3 dizem que `final` só vale no D+10 e que `motivo_nulo_meta` é recálculo da S8.
+- **r5 (23/10, só F2–F4):** emendas dos pareceres r2 de Phil (87, NÃO) e Yannis (88, NÃO); detalhe no "Registro r5" ao fim.
 - **r4 (24/10, só F2–F4):** conserto dos pareceres r1 de Phil (74, NÃO) e Yannis (79, NÃO). Decisão do controlador: a F2 para a gravação de
   views como impressões e toda soma desses ciclos; F2 e F3 em envios separados.
 
@@ -684,3 +746,29 @@ desfecho depois (Phil), com RPC atômica (Yannis) e "desfecho pendente" na tela 
 | Yannis §6 (deploy e ordem), dívidas | §9 (três commits, desfazer); dívida `diaDoTeste` v1 em §5.2 definições |
 | Decisões 2, 3, 4 do §10 | §10b: recomendação, aguarda dono |
 | Não aplicado | nada; os itens que o spec não pode provar sem produção ou código (Q1–Q3, `forceRotate`, grep de outro leitor do `ab-backfill`) ficam como conferência no §11 |
+
+### Registro r5 (achado → onde entrou)
+
+Escolhas onde os dois coincidiam: RPC `ab_test_v2_gravar` (Phil N1 = Yannis N-4) unida num só texto (merge um nível abaixo, congelados uma vez, `historico` em SQL,
+retorno `boolean`, `revoke`/`grant` e `search_path` como na migration da F1, testes de integração); rede do `ab-evaluate` (Phil N2 = Yannis N-3) pelo relógio
+por ciclos (`diasDoTeste`), não em ms. Phil N3: validação 12/16 entra sem dono; subir o padrão de 3 variantes para 16 vai como "recomendação, aguarda dono".
+
+| Achado | Onde entrou |
+|---|---|
+| Phil N1, Yannis N-4 | §5.2 item 5 ("Escrita atômica", regras 1 a 6), item 3 (congelamento), §9 (`db:push:prod` antes do commit 2) |
+| Phil N2, Yannis N-3 | §5.2 item 5 ("Rede de segurança" pelo relógio por ciclos), §9, C-21 |
+| Phil N3 | §5.2 item 8 (validação 12/16, `ATRASO_ALCANCE = 3`, testes), item 7 (aviso), item 6 (`aguardando_alcance` na precedência), §10b (padrão 16, aguarda dono), §11 |
+| Phil M1 | §4 item 1 (rota fora do `vercel.json`, `cron-health-report`, D+1 com zero invocações) |
+| Phil M2 | §5.1 (`diaComAlcanceValido` e `diaValido`), §5.2 item 3, C-13 |
+| Phil M3 | §5.2 item 5 (`v2.encerrado_em_dia`, recálculo só até esse dia) |
+| Phil M4 | §5.2 item 3 (fonte do "outro teste": `meta_daily.ab_test_id`, `ab_tests` + `ab_test_cycles`) |
+| Phil M5 | §5.2 item 5 (`recordCronFailure('ab-retrato')` com `etapa` no payload; plano confere o watchdog) |
+| Yannis N-1 | §5.2 item 3 (`baseDoVideo`, fonte do `p1`, `p1_dias_sem_meta`), item 7 |
+| Yannis N-2 | §5.1 (lista do Cowork com 1 leitura em lote, `projetarTeste` pura), §7 |
+| Yannis m-1 | §5.2 item 5 (`pausadoPorTesteYoutube` não é falha) |
+| Yannis m-2 | §4 item 4 (`intelligence-types.ts`), §5.2 item 10 (arquivos centrais da F4) |
+| Yannis m-3 | §5.2 item 4 (PRNG `mulberry32` com semente fixa) |
+| Yannis m-4 | §5.2 item 6 (seleção em PostgREST, três casos de teste) |
+| Yannis m-5 | §11 (linha do `ACOMPANHAMENTO.md` é ação do controlador; arquivo não editado aqui) |
+| Yannis m-6 | §9 (`db:push:prod` antes do push do commit 2) |
+| Não aplicado | nada; o p95 do atraso do alcance (define `ATRASO_ALCANCE`) segue conferência com data |
