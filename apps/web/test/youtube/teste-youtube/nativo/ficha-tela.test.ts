@@ -221,7 +221,7 @@ describe('FRASES: frases fechadas (exatidão)', () => {
     expect(FRASES.resposta.ficouIgual).toBe('Você respondeu: ficou igual.')
     expect(FRASES.resposta.inconclusivo).toBe('Você respondeu: inconclusivo.')
     expect(FRASES.resposta.naoVi).toBe('Você respondeu: não vi o resultado.')
-    expect(FRASES.resposta.apoioSemVencedor).toBe('Nada ficou registrado como versão no ar. O resultado oficial está só no Studio. Mudar a resposta por esta tela chega na próxima atualização.')
+    expect(FRASES.resposta.apoioSemVencedor).toBe('Nenhuma versão ficou registrada como vencedora.')
     for (const t of [FRASES.resposta.ficouIgual, FRASES.resposta.inconclusivo, FRASES.resposta.naoVi, FRASES.resposta.apoioSemVencedor]) expect(t).not.toContain('Ficou no ar')
   })
   it('D-7: frase tardia, dia 14 sem botão, guarda, estado mudou, rodapé, leitura', () => {
@@ -318,5 +318,86 @@ describe('FRASES.dia14: pergunta do dia 14 (T5-A, exatidão)', () => {
     expect(d.avisoResponder).not.toContain('próxima atualização')
     const todas = JSON.stringify(FRASES.lista)
     expect(todas).not.toContain('resultado pronto no YouTube')
+  })
+})
+
+describe('FRASES: dia 14 respondido, mudar e conflito (T5 fatia B)', () => {
+  const q = new Date('2026-11-05T13:12:00Z') // 10:12 BRT
+  const prazo = new Date('2026-11-04T15:00:00Z')
+  const r = FRASES.respondido
+  const c = FRASES.conflito
+  it('metas com versão no ar e a troca', () => {
+    expect(r.meta(q, true)).toBe('Você respondeu hoje, 05/11, às 10:12. O resultado oficial está só no Studio.')
+    expect(r.meta(q, false)).toBe('Você respondeu em 05/11, às 10:12. O resultado oficial está só no Studio.')
+    expect(r.metaTardia(q, prazo)).toBe('Você respondeu em 05/11, depois do prazo (04/11). O resultado oficial está só no Studio.')
+    expect(r.mudadaEm(q)).toBe('Resposta mudada em 05/11, às 10:12.')
+  })
+  it('sem vencedor: sujeito uma vez por bloco, apoios das duas variantes', () => {
+    expect(r.metaSemVencedor(q, true)).toBe('Respondido hoje, 05/11, às 10:12. O resultado oficial está só no Studio.')
+    expect(r.metaSemVencedor(q, false)).toBe('Respondido em 05/11, às 10:12. O resultado oficial está só no Studio.')
+    expect(r.metaSemVencedorTardia(q, prazo)).toBe('Respondido em 05/11, depois do prazo (04/11).')
+    expect(FRASES.resposta.apoioSemVencedor).toBe('Nenhuma versão ficou registrada como vencedora.')
+    expect(r.apoioComVeredito('A', prazo)).toBe('No ar, lido pelo Lab em 04/11: A. Você não indicou uma versão.')
+    expect(r.apoioComVeredito('Título cru', null)).toBe('No ar, lido pelo Lab: Título cru. Você não indicou uma versão.')
+    expect(r.metaSemVencedor(q, true)).not.toContain('Você respondeu')
+  })
+  it('mudar, avisos e confirmações', () => {
+    expect(r.mudar).toBe('Mudar minha resposta')
+    expect(r.manter).toBe('Manter a resposta atual')
+    expect(r.suaResposta).toBe('Sua resposta')
+    expect(r.avisoMudar).toBe('Um toque muda a resposta.')
+    expect(r.jaTinhaRespondido).toBe('Você já tinha respondido em outra tela.')
+    expect(r.semConexao).toBe('Sem conexão. A resposta continua a mesma. Tente de novo.')
+    expect(r.registradaVersao('B')).toBe('Registrado: a versão B ficou no ar.')
+    expect(r.registradaOriginal).toBe('Registrado: a original segurou.')
+    expect(r.registradaTardiaVersao('B')).toBe('Registrado depois do prazo: a versão B ficou no ar.')
+    expect(r.mudadaPara('C')).toBe('Resposta mudada para C.')
+    expect(FRASES.dia14.registrada.ficou_igual).toBe('Registrado: você respondeu "ficou igual".')
+    expect(FRASES.dia14.seloOriginal).toBe('Ficou no ar: A (original)')
+    expect(FRASES.dia14.seloNoAr('C')).toBe('Ficou no ar: C')
+    expect(FRASES.dia14.fraseOriginal(2)).toBe('A original segurou: a nova não superou.')
+    expect(FRASES.dia14.fraseNoAr('C')).toBe('A versão C venceu no Studio e ficou no ar.')
+  })
+  it('conflito: "estava" e "está" são textos distintos', () => {
+    expect(c.selo).toBe('Respostas diferentes')
+    expect(c.titulo('A', 'B')).toBe('No ar estava A; você disse B.')
+    expect(c.linha('A', 'B')).toBe('No ar está A; você disse B.')
+    expect(c.titulo('A', 'B')).not.toBe(c.linha('A', 'B'))
+    expect(c.tituloSemPar('B')).toBe('No ar está um título que não é nenhuma das versões; você disse B.')
+    expect(c.linhaSemPar('B')).toBe('No ar está outro título; você disse B.')
+    expect(c.meta).toBe('O Lab só lê qual título está no ar; o resultado do teste está no Studio. O Lab não escolhe entre as duas. Se o Studio mostra outra coisa, mude a sua resposta.')
+    expect(c.cartaoNoAr(new Date('2026-10-05T15:00:00Z'))).toBe('No ar, lido pelo Lab em 05/10')
+    expect(c.cartaoVoce('B', new Date('2026-10-05T13:12:00Z'))).toBe('Você disse: B (05/10, 10:12)')
+    expect(c.seloSemPar).toBe('Título sem versão correspondente')
+    expect([c.verTeste, c.verAsDuas]).toEqual(['Ver teste', 'Ver as duas'])
+    expect(c.sum).toBe('O título no ar e a sua resposta são diferentes.')
+    expect(c.sumApoio).toBe('Só aparece quando o Lab leu o título no ar.')
+  })
+  it('nenhuma frase diz "próxima atualização", "O YouTube indicou" nem vencedor/vencedora (exceto a fixa)', () => {
+    const textos: string[] = []
+    const args: unknown[][] = [[], ['A', 'B'], [new Date(), new Date()], [new Date(), true], [new Date(), null], ['A', new Date()], [2], [true], ['A', true], ['A', new Date(), new Date()]]
+    const visitar = (v: unknown, prof: number): void => {
+      if (prof > 6 || v == null) return
+      if (typeof v === 'string') textos.push(v)
+      else if (typeof v === 'function') {
+        for (const a of args) {
+          try {
+            const o = (v as (...x: unknown[]) => unknown)(...a)
+            if (typeof o === 'string') textos.push(o)
+            else visitar(o, prof + 1)
+          } catch { /* assinatura diferente */ }
+        }
+      } else if (typeof v === 'object') for (const x of Object.values(v)) visitar(x, prof + 1)
+    }
+    visitar(FRASES, 0)
+    expect(textos.length).toBeGreaterThan(200)
+    const FIXA = 'Nenhuma versão ficou registrada como vencedora.'
+    for (const t of textos) {
+      expect(t).not.toContain('próxima atualização')
+      expect(t).not.toContain('O YouTube indicou')
+      // Exceções por igualdade exata: o apoio fixo de D-7(a) e os selos "Sem vencedor: …" da tela-1 (negação, não afirmação do Lab).
+      const selosSemVencedor = Object.values(FRASES.dia14.seloSemVencedor)
+      if (t !== FIXA && !selosSemVencedor.includes(t)) expect(t).not.toMatch(/vencedor/i)
+    }
   })
 })

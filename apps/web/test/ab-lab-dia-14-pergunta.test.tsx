@@ -151,7 +151,7 @@ describe('Dia14Pergunta: desfechos da action (um teste por linha)', () => {
       fireEvent.click(botao(rotulo))
       await screen.findByText(selo)
       expect(screen.getByText(frase)).toBeTruthy()
-      expect(screen.getByText('Nada ficou registrado como versão no ar. O resultado oficial está só no Studio. Mudar a resposta por esta tela chega na próxima atualização.')).toBeTruthy()
+      expect(screen.getByText('Nenhuma versão ficou registrada como vencedora.')).toBeTruthy()
       expect(document.querySelector('[data-selo="mute-neq"]')).not.toBeNull()
       expect(document.body.textContent).not.toContain('Ficou no ar')
       expect(document.body.textContent).not.toContain('Mudar minha resposta')

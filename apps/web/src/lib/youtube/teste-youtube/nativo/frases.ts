@@ -10,6 +10,13 @@ export const porExtensoFem = (n: number): string => (n === 2 ? 'duas' : porExten
 export const capitalizar = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
 export const videos = (n: number): string => `${porExtenso(n)} ${n === 1 ? 'vídeo' : 'vídeos'}`
 
+/** `HH:MM` em America/Sao_Paulo. */
+export function horaCurta(d: Date): string {
+  const p = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d)
+  const g = (t: string): string => p.find((x) => x.type === t)?.value ?? ''
+  return `${g('hour')}:${g('minute')}`
+}
+
 /** `dd/mm` em America/Sao_Paulo. */
 export function dataCurta(d: Date): string {
   const p = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).formatToParts(d)
@@ -59,8 +66,59 @@ export const FRASES = {
     ficouIgual: 'Você respondeu: ficou igual.',
     inconclusivo: 'Você respondeu: inconclusivo.',
     naoVi: 'Você respondeu: não vi o resultado.',
-    apoioSemVencedor: 'Nada ficou registrado como versão no ar. O resultado oficial está só no Studio. Mudar a resposta por esta tela chega na próxima atualização.',
+    /** D-7(a), sem veredito do Lab: a única frase com "vencedora" (aprovada pelo Logan). */
+    apoioSemVencedor: 'Nenhuma versão ficou registrada como vencedora.',
     tardia: (prazo: Date): string => `O prazo acabou em ${dataCurta(prazo)}. Ainda dá para responder.`,
+  },
+
+  /**
+   * F1a-tela-2, T5 fatia B: dia 14 respondido, mudar e conflito (D-7 a, d, f, g; mockup M2 `:539-564,637-644`).
+   * Regra do sujeito: aparece uma vez por bloco. Com versão vencedora o título é "Ficou no ar: B" e a meta "Você respondeu …";
+   * sem vencedor o título diz "Você respondeu: …" e a meta "Respondido …".
+   */
+  respondido: {
+    /** Meta com versão no ar. `hoje` = a resposta foi dada no dia da tela. */
+    meta: (quando: Date, hoje: boolean): string =>
+      `${hoje ? `Você respondeu hoje, ${dataCurta(quando)}, às ${horaCurta(quando)}.` : `Você respondeu em ${dataCurta(quando)}, às ${horaCurta(quando)}.`} O resultado oficial está só no Studio.`,
+    /** Só na 1ª resposta. */
+    metaTardia: (quando: Date, prazo: Date): string => `Você respondeu em ${dataCurta(quando)}, depois do prazo (${dataCurta(prazo)}). O resultado oficial está só no Studio.`,
+    mudadaEm: (quando: Date): string => `Resposta mudada em ${dataCurta(quando)}, às ${horaCurta(quando)}.`,
+    /** Sem vencedor: meta "Respondido …". */
+    metaSemVencedor: (quando: Date, hoje: boolean): string =>
+      `${hoje ? `Respondido hoje, ${dataCurta(quando)}, às ${horaCurta(quando)}.` : `Respondido em ${dataCurta(quando)}, às ${horaCurta(quando)}.`} O resultado oficial está só no Studio.`,
+    metaSemVencedorTardia: (quando: Date, prazo: Date): string => `Respondido em ${dataCurta(quando)}, depois do prazo (${dataCurta(prazo)}).`,
+    /** D-7(a) com veredito `regra`/`data_api`. `noAr` = letra, ou o título cru se não casar; `lidoEm` nulo = sem data. */
+    apoioComVeredito: (noAr: string, lidoEm: Date | null): string =>
+      `No ar, lido pelo Lab${lidoEm ? ` em ${dataCurta(lidoEm)}` : ''}: ${noAr}. Você não indicou uma versão.`,
+    mudar: 'Mudar minha resposta',
+    manter: 'Manter a resposta atual',
+    suaResposta: 'Sua resposta',
+    avisoMudar: 'Um toque muda a resposta.',
+    jaTinhaRespondido: 'Você já tinha respondido em outra tela.',
+    semConexao: 'Sem conexão. A resposta continua a mesma. Tente de novo.',
+    /** D-7(g): confirmações. */
+    registradaVersao: (letra: string): string => `Registrado: a versão ${letra} ficou no ar.`,
+    registradaOriginal: 'Registrado: a original segurou.',
+    registradaTardiaVersao: (letra: string): string => `Registrado depois do prazo: a versão ${letra} ficou no ar.`,
+    registradaTardiaOriginal: 'Registrado depois do prazo: a original segurou.',
+    mudadaPara: (letra: string): string => `Resposta mudada para ${letra}.`,
+  },
+
+  /** Conflito: o título no ar (lido pelo Lab) difere da resposta do dono. "Estava" no bloco do dia 14, "está" na linha da lista. */
+  conflito: {
+    selo: 'Respostas diferentes',
+    titulo: (noAr: string, disse: string): string => `No ar estava ${noAr}; você disse ${disse}.`,
+    tituloSemPar: (disse: string): string => `No ar está um título que não é nenhuma das versões; você disse ${disse}.`,
+    meta: 'O Lab só lê qual título está no ar; o resultado do teste está no Studio. O Lab não escolhe entre as duas. Se o Studio mostra outra coisa, mude a sua resposta.',
+    cartaoNoAr: (lidoEm: Date | null): string => `No ar, lido pelo Lab${lidoEm ? ` em ${dataCurta(lidoEm)}` : ''}`,
+    cartaoVoce: (letra: string, quando: Date): string => `Você disse: ${letra} (${dataCurta(quando)}, ${horaCurta(quando)})`,
+    seloSemPar: 'Título sem versão correspondente',
+    linha: (noAr: string, disse: string): string => `No ar está ${noAr}; você disse ${disse}.`,
+    linhaSemPar: (disse: string): string => `No ar está outro título; você disse ${disse}.`,
+    verTeste: 'Ver teste',
+    verAsDuas: 'Ver as duas',
+    sum: 'O título no ar e a sua resposta são diferentes.',
+    sumApoio: 'Só aparece quando o Lab leu o título no ar.',
   },
 
   /** T10b: a pergunta do dia 14 com duas versões (mockup M2 `d14`, ramo sem resposta). Nunca "variante" nem "ficha". */
