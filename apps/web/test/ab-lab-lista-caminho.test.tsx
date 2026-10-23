@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, within, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
-import { FRASES, FRASE_SEM_BOTAO_PROVISORIA } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ListaCaminho, type AcoesCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho'
 import { ContextoAssistente, useControleAssistente } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/assistente-contexto'
 import { ListaEsqueleto } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-esqueleto'
@@ -199,23 +199,12 @@ describe('ListaCaminho: estados de linha', () => {
     expect(screen.queryByText(/Ficou no ar.*igual/)).toBeNull()
     expect(screen.queryByText('Ver as duas')).toBeNull()
   })
-  it('D-1: 3 versões ou origem derivada mostram a frase honesta, sem botão Responder, em texto meta', () => {
-    render(<Harness linhas={[
-      linha(1, { estado: 'resultado_pronto', registro: reg({ variantes: tres }) }),
-      linha(2, { estado: 'sem_resposta', registro: reg({ variantes: null, variantesTitulo: ['x', 'y'] }) }),
-    ]} />)
-    const frases = screen.getAllByText(FRASE_SEM_BOTAO_PROVISORIA)
-    expect(frases).toHaveLength(2)
-    for (const f of frases) expect(f.closest('.cn-meta')).not.toBeNull()
-    expect(screen.queryByRole('button', { name: 'Responder' })).toBeNull()
-  })
   it('2 versões: o slot de "Responder" (T10b) é renderizado no lugar da ação', () => {
     render(<Harness
       linhas={[linha(1, { estado: 'resultado_pronto', registro: reg({ variantes: duas }) })]}
       responder={(l) => <button type="button">Responder {l.titulo}</button>}
     />)
     expect(screen.getByRole('button', { name: 'Responder Vídeo 1' })).toBeTruthy()
-    expect(screen.queryByText(FRASE_SEM_BOTAO_PROVISORIA)).toBeNull()
   })
   it('no máximo um .pri no DOM', () => {
     const { container } = render(<Harness linhas={[

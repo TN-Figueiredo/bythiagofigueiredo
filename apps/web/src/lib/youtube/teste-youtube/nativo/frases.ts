@@ -20,9 +20,6 @@ export function dataCurta(d: Date): string {
 /** Valor que o diálogo "Trocar mesmo assim?" recebe quando a leitura do YouTube falhou (a mesma frase vai ao lugar do título e da miniatura). */
 export const TEXTO_SEM_LEITURA = 'Não deu para conferir o título agora; tente de novo.'
 
-/** Provisória (T6 remove): a frase da tela-1 para o dia 14 sem botão ainda lida por `linha-caminho.tsx`; sai de `FRASES` na T5-A. */
-export const FRASE_SEM_BOTAO_PROVISORIA = 'A resposta por esta tela chega na próxima atualização. O que o YouTube mostrou fica guardado e você poderá responder mesmo depois do prazo.' // T6 remove
-
 export interface FraseDeEstado { frase: string; apoio: string | null }
 const f = (frase: string, apoio: string | null = null): FraseDeEstado => ({ frase, apoio })
 
@@ -100,6 +97,15 @@ export const FRASES = {
       prazoAcabou: 'O prazo acabou, mas ainda dá para responder.',
       semFicha: 'Sem ficha: o Lab só viu os títulos.',
     },
+    /** T6: modo mudar, estados de envio e o resultado com a letra da versão (3 versões). */
+    manter: 'Manter a resposta atual',
+    suaRespostaCartao: 'Sua resposta',
+    salvando: 'Salvando…',
+    semConexaoMudar: 'Sem conexão. A resposta continua a mesma. Tente de novo.',
+    seloNoAr: (letra: string): string => `Ficou no ar: ${letra}`,
+    fraseNoAr: (letra: string): string => `A versão ${letra} venceu no Studio e ficou no ar.`,
+    mudadaPara: (letra: string): string => `Resposta mudada para ${letra}.`,
+    mudada: 'Resposta mudada.',
     naoMedido: 'não medido',
     seloOriginal: 'Ficou no ar: A (original)',
     seloNova: 'Ficou no ar: B',
