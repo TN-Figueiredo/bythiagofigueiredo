@@ -3,8 +3,6 @@
 import { lerRetratoDoEditor } from '@/lib/youtube/observatorio/proprio/ler-retrato-ficha'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
-import { eUrlDaFicha } from '@/lib/youtube/teste-youtube/nativo/ficha-url'
-import { contarCaracteresDoTitulo, LIMITE_TITULO } from '@/lib/youtube/teste-youtube/nativo/titulo'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { createNotification } from '@/lib/notifications/create'
 import { INATIVIDADE_DESCARTE_MS, ultimaAtividade } from '@/lib/youtube/teste-youtube/nativo/ficha-tela'
@@ -15,23 +13,8 @@ const DIA_MS = 86_400_000
 export const MSG_NAO_ENCONTRADO = 'não encontrado'
 export const MSG_FICHA_MUDOU: string = FRASES.mudouEmOutroLugar
 
-export const ORIGENS_IMAGEM = ['teste_nosso', 'retrato_diario', 'ytimg'] as const
-export type OrigemImagem = (typeof ORIGENS_IMAGEM)[number]
-
-export const VarianteFichaSchema = z.object({
-  n: z.number().int().min(1).max(3),
-  tipo: z.enum(['titulo', 'miniatura', 'combo']),
-  titulo: z.string().trim().min(1).refine((t) => contarCaracteresDoTitulo(t) <= LIMITE_TITULO, `título acima de ${LIMITE_TITULO} caracteres`).optional(),
-  imagem: z.object({
-    url: z.string().url().refine(eUrlDaFicha, 'a imagem precisa ser uma cópia da ficha no Blob'),
-    sha256: z.string().regex(/^[0-9a-f]{64}$/),
-    largura: z.number().int().positive(),
-    altura: z.number().int().positive(),
-    origem: z.enum(ORIGENS_IMAGEM).optional(),
-    capturada_em: z.string().datetime({ offset: true }).optional(),
-  }).strict().optional(),
-}).strict()
-export type VarianteFicha = z.infer<typeof VarianteFichaSchema>
+export { ORIGENS_IMAGEM, VarianteFichaSchema, type OrigemImagem, type VarianteFicha } from './ficha-schema'
+import { VarianteFichaSchema, type VarianteFicha } from './ficha-schema'
 
 export const FichaRascunhoSchema = z.object({
   campos: z.array(z.enum(['titulo', 'miniatura'])).max(2).refine((c) => new Set(c).size === c.length, 'campos repetidos'),

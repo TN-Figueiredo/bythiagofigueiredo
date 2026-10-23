@@ -33,7 +33,8 @@ describe('módulo leve ficha-url', () => {
     const leve = readFileSync('src/lib/youtube/teste-youtube/nativo/ficha-url.ts', 'utf8').replace(/^\/\/.*$/gm, '')
     expect(leve).not.toMatch(/sharp|@vercel\/blob|server-only|^import /m)
     const ficha = readFileSync('src/lib/youtube/teste-youtube/nativo/ficha.ts', 'utf8')
-    expect(ficha).toContain("nativo/ficha-url'")
+    // O schema da variante (que usa eUrlDaFicha) vive em ficha-schema.ts; ficha.ts o reexporta.
+    expect(readFileSync('src/lib/youtube/teste-youtube/nativo/ficha-schema.ts', 'utf8')).toContain("'./ficha-url'")
     expect(ficha).not.toContain('imagem-ficha')
     const leveMod = await import('@/lib/youtube/teste-youtube/nativo/ficha-url')
     expect(leveMod.eUrlDaFicha).toBe(eUrlDaFicha)
