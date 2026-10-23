@@ -156,12 +156,13 @@ export async function listarSinaisDoNicho(
       .select('id, kind, subject_key, acao, forca, motivo, rule_version, evidence, first_seen_at, expires_at', { count: 'exact' })
       .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString())
       .order('forca', { ascending: false }).order('first_seen_at', { ascending: true }).order('id', { ascending: true })
-      .limit(limite),
+      .limit(limite)
+      .returns<LinhaSinal[]>(),
     sb.from('niche_signals_estado').select('computed_at, motivo_vazio, contagens').eq('site_id', siteId).maybeSingle(),
   ])
   quebra('niche_signals', lista.error)
   quebra('niche_signals_estado', est.error)
-  const linhas = (lista.data ?? []) as unknown as LinhaSinal[]
+  const linhas = lista.data ?? []
   const estado = (est.data ?? null) as LinhaEstado | null
   const n = lista.count ?? linhas.length
   const computado_em = estado?.computed_at ?? null

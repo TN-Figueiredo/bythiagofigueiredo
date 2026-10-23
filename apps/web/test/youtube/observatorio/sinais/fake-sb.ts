@@ -26,6 +26,7 @@ export function fakeSb(responder: Respondedor): { sb: SupabaseClient; consultas:
     for (const m of ['insert', 'update', 'upsert', 'delete']) q[m] = () => { c.mutacao = m; return q }
     q.order = (col: string, o?: { ascending?: boolean }) => { c.ordem.push({ col, asc: o?.ascending !== false }); return q }
     q.limit = (n: number) => { c.limite = n; return q }
+    q.returns = () => q
     q.range = (a: number, b: number) => { c.faixa = [a, b]; return q }
     const resolver = (): Resposta => { consultas.push(c); return responder(c) }
     q.maybeSingle = () => { const r = resolver(); return Promise.resolve({ data: Array.isArray(r.data) ? (r.data[0] ?? null) : r.data, error: r.error ?? null }) }

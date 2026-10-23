@@ -17,15 +17,15 @@ export async function lerAmostraDasLinhas(sb: SupabaseClient, siteId: string, id
   if (unicos.length === 0) return saida
   const [comp, prop] = await Promise.all([
     // competitor_videos não tem site_id: o filtro de site é pelo canal (padrão de load.ts)
-    sb.from('competitor_videos').select('id, title, thumbnail_url, competitor_channels!inner(site_id)').in('id', unicos).eq('competitor_channels.site_id', siteId),
-    sb.from('youtube_videos').select('id, title, youtube_video_id').in('id', unicos).eq('site_id', siteId).eq('is_hidden', false),
+    sb.from('competitor_videos').select('id, title, thumbnail_url, competitor_channels!inner(site_id)').in('id', unicos).eq('competitor_channels.site_id', siteId).returns<Array<{ id: string; title: string | null; thumbnail_url: string | null }>>(),
+    sb.from('youtube_videos').select('id, title, youtube_video_id').in('id', unicos).eq('site_id', siteId).eq('is_hidden', false).returns<Array<{ id: string; title: string | null; youtube_video_id: string | null }>>(),
   ])
   if (comp.error) throw new Error('amostra: leitura de competitor_videos falhou')
   if (prop.error) throw new Error('amostra: leitura de youtube_videos falhou')
-  for (const r of (comp.data ?? []) as unknown as Array<{ id: string; title: string | null; thumbnail_url: string | null }>) {
+  for (const r of (comp.data ?? [])) {
     if (r.title) saida.set(r.id, { titulo: r.title, miniatura: r.thumbnail_url ?? null, origem: 'competidor' })
   }
-  for (const r of (prop.data ?? []) as unknown as Array<{ id: string; title: string | null; youtube_video_id: string | null }>) {
+  for (const r of (prop.data ?? [])) {
     if (r.title && !saida.has(r.id)) saida.set(r.id, { titulo: r.title, miniatura: r.youtube_video_id ? miniaturaDoProprio(r.youtube_video_id) : null, origem: 'proprio' })
   }
   return saida

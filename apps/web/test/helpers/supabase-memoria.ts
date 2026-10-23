@@ -34,6 +34,7 @@ export function criarSupabaseMemoria(tabelas: Tabelas): { sb: never; tabelas: Ta
     q.lt = (c: string, v: string) => { filtros.push((r) => String(r[c]) < v); return q }
     q.order = (col: string, o?: { ascending?: boolean }) => { ordem = { col, asc: o?.ascending ?? true }; return q }
     q.limit = (n: number) => { limite = n; return q }
+    q.returns = () => q
     q.maybeSingle = async () => { const r = await executa(); return { data: r.data[0] ?? null, error: null } }
     q.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => executa().then(res, rej)
     return q

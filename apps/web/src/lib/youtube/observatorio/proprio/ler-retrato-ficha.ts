@@ -22,8 +22,9 @@ export async function lerRetratoDiario(
     .eq('site_id', p.leitura.siteId).eq('video_id', p.videoId).is('ab_variant_id', null).not(p.coluna, 'is', null)
   if (p.antesDe !== undefined) q = q.lt('day_pt', p.antesDe)
   const { data, error } = await q.order('day_pt', { ascending: false }).limit(1)
+    .returns<Array<Record<string, string | null>>>()
   if (error) throw new Error(`yt_own_video_meta_daily: ${error.message}`)
-  const v = ((data ?? []) as unknown as Array<Record<string, string | null>>)[0]?.[p.coluna]
+  const v = (data ?? [])[0]?.[p.coluna]
   return typeof v === 'string' ? v : null
 }
 

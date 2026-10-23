@@ -34,6 +34,12 @@ const COLUNAS_VIDEO = 'id, youtube_video_id, title, thumbnail_url, published_at'
 
 const obj = (x: unknown): Record<string, unknown> | null =>
   typeof x === 'object' && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null
+/** Guard da linha de ab_native_fichas (sem o vídeo embutido): confere os campos que derivarFicha lê. */
+const ehFichaLinha = (o: Record<string, unknown>): o is Record<string, unknown> & FichaLinha =>
+  typeof o.id === 'string' && typeof o.site_id === 'string' && typeof o.video_id === 'string' &&
+  Array.isArray(o.campos) && Array.isArray(o.variantes) &&
+  typeof o.criada_em === 'string' && typeof o.atualizada_em === 'string' &&
+  (o.registro_id === null || typeof o.registro_id === 'string') && (o.descartada_em === null || typeof o.descartada_em === 'string')
 const str = (x: unknown): string | null => (typeof x === 'string' ? x : null)
 
 function comoVideo(x: unknown): VideoLido | null {
@@ -164,7 +170,8 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
     const v = videoEmbutido(o.video)
     if (v) extras.push(v)
     const { video: _video, ...linha } = o
-    fichas.set(o.video_id, derivarFicha(linha as unknown as FichaLinha, agora))
+    if (!ehFichaLinha(linha)) continue
+    fichas.set(o.video_id, derivarFicha(linha, agora))
   }
   const testes = new Map<string, LinhaTeste>()
   for (const t of testesBrutos) {
