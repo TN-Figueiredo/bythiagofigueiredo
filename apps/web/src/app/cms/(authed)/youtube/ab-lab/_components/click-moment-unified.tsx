@@ -11,7 +11,7 @@ import { Eye } from 'lucide-react'
 
 interface ClickMomentUnifiedProps {
   videoTitle: string
-  variants: Array<{ label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }>
+  variants: Array<{ label: DisplayLabel; color: string; thumbUrl?: string | null }>
   leaderLabel: DisplayLabel
 }
 

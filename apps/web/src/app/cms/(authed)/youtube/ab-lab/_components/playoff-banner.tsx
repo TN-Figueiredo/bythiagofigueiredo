@@ -3,6 +3,7 @@
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 import { VChip, Badge } from './ab-primitives'
+import { NAO_MEDIDO } from './ab-constants'
 import { Swords, ArrowRight, Check, Target } from 'lucide-react'
 
 const THUMB_BG: Record<string, string> = {
@@ -17,7 +18,7 @@ const COWORK_BG = 'rgba(110, 99, 242, 0.15)'
 const COWORK_BORDER = 'rgba(110, 99, 242, 0.4)'
 
 export interface PlayoffBannerProps {
-  finalists: Array<{ label: DisplayLabel; color: string; ctr: number; thumbnailUrl: string | null }>
+  finalists: Array<{ label: DisplayLabel; color: string; ctr: number | null; thumbnailUrl: string | null }>
   allVariants: Array<{ label: DisplayLabel; isFinalist: boolean; thumbnailUrl: string | null }>
   startsIn: string
   reason: string
@@ -69,7 +70,7 @@ export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: Play
                     {v.label === 'A' ? 'Original' : v.isFinalist ? 'Finalista' : 'Variante'}
                   </span>
                   <span className="mono text-[11.5px] font-bold" style={{ color: v.isFinalist ? COWORK : 'var(--cms-text-muted)' }}>
-                    {finalist ? `${brDec(finalist.ctr * 100, 1)}%` : '—'}
+                    {finalist ? (finalist.ctr === null ? NAO_MEDIDO : `${brDec(finalist.ctr * 100, 1)}%`) : '—'}
                   </span>
                   {v.isFinalist && <Check size={13} style={{ color: COWORK }} aria-hidden="true" />}
                 </div>
@@ -105,7 +106,7 @@ export function PlayoffBanner({ finalists, allVariants, startsIn, reason }: Play
                   <div className="flex items-center gap-[6px]">
                     <VChip label={f.label} size={18} />
                     <span className="mono text-[12px] font-bold" style={{ color: f.color }}>
-                      {brDec(f.ctr * 100, 1)}% CTR
+                      {f.ctr === null ? `CTR ${NAO_MEDIDO}` : `${brDec(f.ctr * 100, 1)}% CTR`}
                     </span>
                   </div>
                   <div className="text-[11px] text-cms-text-dim mt-[3px] whitespace-nowrap overflow-hidden text-ellipsis max-w-[180px]">

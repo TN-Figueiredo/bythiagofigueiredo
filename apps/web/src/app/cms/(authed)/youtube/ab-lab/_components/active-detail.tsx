@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
-import { VARIANT_COLORS, semImpressoes, liftVsA } from './ab-constants'
+import { VARIANT_COLORS, semImpressoes, liftVsA, medicaoCompleta, medidas } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
@@ -69,12 +69,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
     abbaColors[v.label] = v.color
   }
 
-  const funnelVariants = view.variants.map(v => ({
-    impressions: v.impressions,
-    clicks: v.clicks,
-    linkClicks: v.linkClicks ?? 0,
-    color: v.color,
-  }))
+  const comparavel = medicaoCompleta(view.variants)
 
 
   const actionButtons = (
@@ -244,7 +239,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       </section>
 
       {/* ── Section 7: Faixa provável de CTR ── */}
-      {!semMedicao && (<div className="mb-[24px]">
+      {comparavel && (<div className="mb-[24px]">
         {/* Faixa provável de CTR */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -253,13 +248,13 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
             <span className="text-[11.5px] text-cms-text-dim ml-auto">intervalo de credibilidade 95%</span>
           </div>
           <div className="px-[16px] py-[14px]">
-            <CredibleInterval variants={view.variants} leader={data.leader} />
+            <CredibleInterval variants={medidas(view.variants)} leader={data.leader} />
           </div>
         </div>
       </div>)}
 
       {/* ── Section 8: CTR diário por variante ── */}
-      {!semMedicao && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
+      {comparavel && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
         <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
           <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
           <span className="text-[13px] font-semibold text-cms-text">CTR diário por variante</span>
@@ -279,7 +274,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       </div>)}
 
       {/* ── Section 9: Rotação ABBA + Funil por variante ── */}
-      <div className={`grid grid-cols-1 ${semMedicao ? '' : 'md:grid-cols-2'} gap-[16px] mb-[24px]`}>
+      <div className={`grid grid-cols-1 ${comparavel ? 'md:grid-cols-2' : ''} gap-[16px] mb-[24px]`}>
         {/* Rotação ABBA */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -298,7 +293,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
         </div>
 
         {/* Funil por variante (líder): sem impressões medidas não há funil */}
-        {!semMedicao && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+        {comparavel && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
             <Filter size={15} className="text-cms-text-dim" aria-hidden="true" />
             <span className="text-[13px] font-semibold text-cms-text">Funil por variante</span>
@@ -306,9 +301,9 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           </div>
           <div className="px-[16px] py-[14px]">
             {(() => {
-              const leaderIdx = view.variants.findIndex(v => v.label === data.leader)
-              const funnel = funnelVariants[leaderIdx >= 0 ? leaderIdx : 0]
-              return funnel ? <FunnelRow variant={funnel} /> : null
+              const lider = view.variants.find(v => v.label === data.leader) ?? view.variants[0]
+              if (!lider || lider.impressions === null || lider.clicks === null) return null
+              return <FunnelRow variant={{ impressions: lider.impressions, clicks: lider.clicks, linkClicks: lider.linkClicks ?? 0, color: lider.color }} />
             })()}
           </div>
         </div>)}
@@ -321,7 +316,6 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           variants={view.variants.map(v => ({
             label: v.label,
             color: v.color,
-            ctr: v.ctr * 100,
             thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
           }))}
           leaderLabel={data.leader}

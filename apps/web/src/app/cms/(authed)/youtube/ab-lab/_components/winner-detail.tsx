@@ -172,7 +172,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
         variants={view.variants.map(v => ({
           label: v.label,
           color: v.color,
-          ctr: v.ctr * 100,
+          ctr: v.ctr === null ? null : v.ctr * 100,
           thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
         }))}
       />

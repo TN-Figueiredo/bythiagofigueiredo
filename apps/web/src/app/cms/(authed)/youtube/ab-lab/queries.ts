@@ -30,7 +30,7 @@ import { TIPOS_DE_TESTE } from '@/lib/youtube/ab-schemas'
 import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
-import { toDisplayLabel, variantColor } from './_components/ab-constants'
+import { toDisplayLabel, variantColor, ordemDesc } from './_components/ab-constants'
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
@@ -930,6 +930,12 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
 // toDetailView — maps AbTestResults → discriminated AbTestDetailView
 // ---------------------------------------------------------------------------
 
+/** Soma; nulo se a lista é vazia ou se algum item é nulo (nulo = não medido, nunca 0). */
+function somaOuNulo(xs: ReadonlyArray<number | null>): number | null {
+  if (xs.length === 0 || xs.some(x => x === null)) return null
+  return xs.reduce<number>((a, x) => a + (x ?? 0), 0)
+}
+
 export async function toDetailView(results: AbTestResults): Promise<AbTestDetailView> {
   const test = results.test
   const variants: FullChartVariant[] = results.variants.map(v => ({
@@ -938,7 +944,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ctr: v.avg_ctr,
     impressions: v.total_impressions,
     clicks: v.total_clicks,
-    pBest: 0,
+    pBest: null,
   }))
 
   // Compute Bayesian probabilities if enough data
@@ -949,9 +955,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         const variantId = results.variants.find(
           rv => toDisplayLabel(rv.label, rv.is_original) === v.label,
         )?.variant_id
-        if (variantId && bayesian.probabilities[variantId]) {
-          v.pBest = bayesian.probabilities[variantId]!
-        }
+        const p = variantId === undefined ? undefined : bayesian.probabilities[variantId]
+        if (p !== undefined) v.pBest = p
       }
     }
   }
@@ -1098,10 +1103,14 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
 
   // Discriminate by status/outcome
   if (test.status === 'draft' || test.status === 'active' || test.status === 'paused') {
-    const leader = variants.length > 0
-      ? variants.reduce((best, v) => (v.pBest > best.pBest ? v : best), variants[0]!)
-      : { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0, ctr: 0 }
-    const originalCtr = variants.find(v => v.label === 'A')?.ctr ?? 0
+    const comPBest = variants.filter(v => v.pBest !== null)
+    const leader: { label: DisplayLabel; color: string; ctr: number | null } = comPBest.length > 0
+      ? comPBest.reduce((best, v) => ((v.pBest ?? 0) > (best.pBest ?? 0) ? v : best), comPBest[0]!)
+      : (variants.find(v => v.label === 'A') ?? variants[0] ?? { label: 'A' as DisplayLabel, color: '#8A8F98', ctr: null })
+    const originalCtr: number | null = variants.find(v => v.label === 'A')?.ctr ?? null
+    const liftDoLider: number | null = leader.label !== 'A' && leader.ctr !== null && originalCtr !== null && originalCtr > 0
+      ? ((leader.ctr - originalCtr) / originalCtr) * 100
+      : null
 
     // Compute live delta from the two most recent polls
     const latestPolls = results.latestPolls
@@ -1218,17 +1227,13 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         confidence: results.confidence * 100,
         leader: leader.label,
         leaderColor: leader.color,
-        lift: leader.label !== 'A' && originalCtr > 0
-          ? ((leader.ctr - originalCtr) / originalCtr) * 100
-          : 0,
+        lift: liftDoLider,
       },
       liveData: lastPolledAt ? {
         confidence: results.confidence * 100,
         leader: leader.label,
         leaderColor: leader.color,
-        lift: leader.label !== 'A' && originalCtr > 0
-          ? ((leader.ctr - originalCtr) / originalCtr) * 100
-          : 0,
+        lift: liftDoLider,
       } : undefined,
       pollData: lastPolledAt ? {
         viewsDelta: liveViewsDelta,
@@ -1246,7 +1251,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   }
 
   if (test.completed_reason === 'inconclusive' && test.playoff_test_id) {
-    const finalistLabels = [...variants].sort((a, b) => b.pBest - a.pBest).slice(0, 2)
+    const finalistLabels = [...variants].sort((a, b) => ordemDesc(a.pBest, b.pBest)).slice(0, 2)
     return {
       ...base,
       status: 'completed' as const,
@@ -1289,9 +1294,11 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ? variantColor(winnerVariant.label, winnerVariant.is_original)
     : '#8A8F98'
   const originalVariant = results.variants.find(v => v.is_original)
-  const winnerCtr = winnerVariant?.avg_ctr ?? 0
-  const originalCtr = originalVariant?.avg_ctr ?? 0
-  const lift = originalCtr > 0 ? ((winnerCtr - originalCtr) / originalCtr) * 100 : 0
+  const winnerCtr: number | null = winnerVariant?.avg_ctr ?? null
+  const originalCtr: number | null = originalVariant?.avg_ctr ?? null
+  const lift: number | null = winnerCtr !== null && originalCtr !== null && originalCtr > 0
+    ? ((winnerCtr - originalCtr) / originalCtr) * 100
+    : null
 
   return {
     ...base,
@@ -1303,9 +1310,9 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     // A confiança calculada sobre views não é medição de entrega: a tela mostra a frase fixa.
     confidence: null,
     resultMeta: {
-      ctrBefore: originalCtr * 100,
-      ctrAfter: winnerCtr * 100,
-      totalImpressions: results.variants.reduce((sum, v) => sum + v.total_impressions, 0),
+      ctrBefore: originalCtr === null ? null : originalCtr * 100,
+      ctrAfter: winnerCtr === null ? null : winnerCtr * 100,
+      totalImpressions: somaOuNulo(results.variants.map(v => v.total_impressions)),
       abbaCycles: totalCycles,
       // A estimativa guardada vinha de views, sem medição de entrega: a tela mostra a frase fixa.
       monthlyExtraClicks: null,

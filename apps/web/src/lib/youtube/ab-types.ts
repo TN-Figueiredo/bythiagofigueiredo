@@ -275,12 +275,13 @@ export interface StatsVariant extends ChartVariant {
   impressions: number
 }
 
-export interface RankedVariant extends ChartVariant {
-  pBest: number
-}
-
-export interface FullChartVariant extends StatsVariant, RankedVariant {
-  clicks: number
+export interface FullChartVariant extends ChartVariant {
+  /** nulo = não medido (S8-F2: toda variante até a F3) */
+  ctr: number | null
+  impressions: number | null
+  clicks: number | null
+  /** nulo = não calculado; nunca 0 por padrão */
+  pBest: number | null
   linkClicks?: number
   linkCtr?: number
   retention?: number
@@ -471,16 +472,16 @@ export interface AbTestActiveView extends AbTestBaseView {
   status: 'active' | 'paused'
   outcome?: never
   confirmedData: {
-    confidence: number
+    confidence: number | null
     leader: DisplayLabel
     leaderColor: string
-    lift: number
+    lift: number | null
   }
   liveData?: {
-    confidence: number
+    confidence: number | null
     leader: DisplayLabel
     leaderColor: string
-    lift: number
+    lift: number | null
   }
   pollData?: { viewsDelta: number; likesDelta: number; polledAt: string }
   outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
@@ -499,12 +500,12 @@ export interface AbTestWinnerView extends AbTestBaseView {
   outcome: 'winner'
   winnerLabel: DisplayLabel
   winnerColor: string
-  lift: number
+  lift: number | null
   confidence: number | null
   resultMeta: {
-    ctrBefore: number
-    ctrAfter: number
-    totalImpressions: number
+    ctrBefore: number | null
+    ctrAfter: number | null
+    totalImpressions: number | null
     abbaCycles: number
     monthlyExtraClicks: number | null
   }
@@ -519,7 +520,7 @@ export interface AbTestPlayoffView extends AbTestBaseView {
   outcome: 'playoff'
   playoffTestId: string
   startsIn: string
-  finalists: Array<{ label: DisplayLabel; color: string; ctr: number; thumbnailUrl: string | null }>
+  finalists: Array<{ label: DisplayLabel; color: string; ctr: number | null; thumbnailUrl: string | null }>
   confidenceReached: number | null
   reason: string
 }
