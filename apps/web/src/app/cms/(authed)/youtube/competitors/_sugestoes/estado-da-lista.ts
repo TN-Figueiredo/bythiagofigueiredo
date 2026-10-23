@@ -1,7 +1,7 @@
 // Estado puro da lista "Sugestões" (F3 T5): sem React. Linhas e N mostrados são SEMPRE derivados da prop; o estado local só guarda
 // o que a pessoa fez (a chamada em voo, as linhas já respondidas, o erro de cada linha).
 import type { MotivoDaTela, RespostaDaAcao } from './tipos'
-import type { LinhaDaVista, VistaDaLista } from './view-model'
+import { resumoDaLista, type LinhaDaVista, type VistaDaLista } from './view-model'
 
 export type DesfechoDaLinha = 'sucesso' | 'ja-saiu'
 export type TipoDeErro = 'nao-salvou' | 'sem-conexao' | 'sem-permissao'
@@ -62,16 +62,7 @@ export function reduzirLista(e: EstadoDaLista, ev: EventoDaLista): EstadoDaLista
   }
 }
 
-const SEM_NOMES = (ls: LinhaDaVista[]): string => {
-  const n = ls.length
-  if (n === 0) return 'Nenhuma sugestão aberta.'
-  const d = ls.filter((l) => l.kind === 'destino').length
-  const p = n - d
-  const partes: string[] = []
-  if (d) partes.push(`${d} ${d === 1 ? 'destino' : 'destinos'}`)
-  if (p) partes.push(`${p} ${p === 1 ? 'concorrente' : 'concorrentes'}`)
-  return `${n} ${n === 1 ? 'sugestão' : 'sugestões'}: ${partes.join(', ')}.`
-}
+const resumoDe = (ls: LinhaDaVista[]): string => (ls.length === 0 ? 'Nenhuma sugestão aberta.' : resumoDaLista(ls.map((l) => ({ kind: l.kind, lugar: l.lugar }))))
 const cheioNaPrimeira = (ls: LinhaDaVista[]): LinhaDaVista[] =>
   ls.map((l, i) => (l.primario.cheio === (i === 0) ? l : { ...l, primario: { ...l.primario, cheio: i === 0 } }))
 const contagens = (ls: LinhaDaVista[]) => ({ todas: ls.length, destino: ls.filter((l) => l.kind === 'destino').length, parecido: ls.filter((l) => l.kind === 'parecido').length })
@@ -95,7 +86,7 @@ export function vistaVisivel(prop: VistaDaLista, e: EstadoDaLista, ultimaBoa: Vi
     : base.vazio
   return {
     ...base, n, linhas, completas, vazio,
-    resumo: vazio ? vazio.topo : descontadas > 0 ? SEM_NOMES(completas) : base.resumo,
+    resumo: vazio ? vazio.topo : descontadas > 0 ? resumoDe(completas) : base.resumo,
     filtro: base.filtro === null ? null : { atual: base.filtro.atual, contagens: contagens(completas) },
   }
 }

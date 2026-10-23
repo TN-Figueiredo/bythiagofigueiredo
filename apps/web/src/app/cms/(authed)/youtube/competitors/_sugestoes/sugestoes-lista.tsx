@@ -19,7 +19,9 @@ const LINHAS_NO_BLOCO = 3
 
 interface Ancora { linha: LinhaDaVista; indice: number }
 
-export function SugestoesLista(p: { vista: VistaDaLista; acoes: AcoesDaLista | null; modo: 'pagina' | 'bloco'; verTodasHref?: string }) {
+export type PropsDaSugestoesLista = { vista: VistaDaLista; acoes: AcoesDaLista | null } & ({ modo: 'pagina'; verTodasHref?: string } | { modo: 'bloco'; verTodasHref: string })
+
+export function SugestoesLista(p: PropsDaSugestoesLista) {
   const { acoes, modo } = p
   const router = useRouter()
   const [estado, dispatch] = useReducer(reduzirLista, undefined, estadoInicial)
@@ -124,7 +126,7 @@ export function SugestoesLista(p: { vista: VistaDaLista; acoes: AcoesDaLista | n
   const semLeitura = n === null
   const vazio = mostrada.vazio !== null && vivas.length === 0 ? mostrada.vazio : null
   const erroSemLista = semLeitura && !vazio
-  const verTodas = p.verTodasHref ?? '/cms/youtube/competitors/sugestoes'
+  const verTodas = p.verTodasHref
   const refaz = () => recarregar(() => router.refresh())
   const botaoRefazer = <button type="button" className="sg-btn" disabled={recarregando} onClick={refaz}>Tentar de novo</button>
   const f = visivel.filtro
@@ -197,7 +199,7 @@ export function SugestoesLista(p: { vista: VistaDaLista; acoes: AcoesDaLista | n
         <div className="sg-vmore"><button type="button" className="sg-btn" onClick={mostrarMais}>{`Mostrar mais (${vivas.length - POR_PAGINA_NO_CELULAR})`}</button></div>
       )}
       {modo === 'bloco' && mostrada.linhas.length > LINHAS_NO_BLOCO && n !== null && (
-        <p style={{ marginTop: 12 }}><CmsLink href={verTodas} className="sg-btn">{`Ver todas (${n})`}</CmsLink></p>
+        <p style={{ marginTop: 12 }}><CmsLink href={verTodas!} className="sg-btn">{`Ver todas (${n})`}</CmsLink></p>
       )}
 
       {vazio && (

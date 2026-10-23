@@ -48,7 +48,7 @@ export function Linha(p: PropsDaLinha) {
   const semThumb = m === null
   const aoIniciar = p.salvando !== null || p.ocupada
   return (
-    <li className={`sg-row${semThumb ? ' sg-noth' : ''}${p.expandida ? ' sg-open' : ''}`} data-row={l.id} tabIndex={-1}>
+    <li className={`sg-row${semThumb ? ' sg-noth' : ''}${p.expandida ? ' sg-open' : ''}`} data-row={l.id} tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape' && p.aberta && !aoIniciar) { e.stopPropagation(); p.onCancelar() } }}>
       {!semThumb && (
         <div className="sg-thw">
           {m.miniatura === null || semFoto
@@ -103,7 +103,7 @@ export function Linha(p: PropsDaLinha) {
         </div>
       )}
       {p.aberta && p.podeDispensar && (
-        <div className="sg-dsp" role="group" aria-label="Motivo para dispensar" onKeyDown={(e) => { if (e.key === 'Escape' && !aoIniciar) { e.stopPropagation(); p.onCancelar() } }}>
+        <div className="sg-dsp" role="group" aria-label="Motivo para dispensar">
           <p>Por que dispensar?</p>
           {l.motivos.filter((x) => x.grupo === 'motivo').map((x) => <BotaoMotivo key={x.valor} {...p} valor={x.valor} rotulo={x.rotulo} />)}
           <span className="sg-sep" aria-hidden="true" />

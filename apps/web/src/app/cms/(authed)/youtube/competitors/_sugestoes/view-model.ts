@@ -16,6 +16,8 @@ export interface LinhaDaVista {
   id: string; kind: 'destino' | 'parecido'
   chip: { rotulo: 'Destino esquentou' | 'Concorrente bombou'; simbolo: 'alfinete' | 'chama' }
   titulo: string
+  /** Nome do lugar do destino ('' no parecido); usado na frase-resumo depois de uma resposta. */
+  lugar: string
   puxadoPor: { titulo: string; canal: string | null; miniatura: string | null } | null
   regua: { valor: number; acimaDe20: boolean; limiar: number; texto: string } | null
   seus: { texto: string; naoMedido: boolean }
@@ -144,7 +146,7 @@ function montarLinha(it: ItemDeSinal, amostra: ReadonlyMap<string, AmostraDoVide
   return {
     id: it.id, kind: it.kind,
     chip: it.kind === 'destino' ? { rotulo: 'Destino esquentou', simbolo: 'alfinete' } : { rotulo: 'Concorrente bombou', simbolo: 'chama' },
-    titulo,
+    titulo, lugar,
     puxadoPor: am ? { titulo: am.titulo, canal: am.canal, miniatura: am.miniatura } : null,
     regua: forte ? { valor: forte.mult_vpd7, acimaDe20: forte.mult_vpd7 > 20, limiar: lim, texto: `${f1(forte.mult_vpd7)}× o normal do canal${nv > 1 ? `, o mais alto de ${nv}` : ''}` } : null,
     seus: seusDe(it, lugar, calc, semVideoNenhum),
