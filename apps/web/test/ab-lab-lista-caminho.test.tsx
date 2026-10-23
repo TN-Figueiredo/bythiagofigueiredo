@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, within, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
-import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { FRASES, FRASE_SEM_BOTAO_PROVISORIA } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ListaCaminho, type AcoesCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho'
 import { ContextoAssistente, useControleAssistente } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/assistente-contexto'
 import { ListaEsqueleto } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-esqueleto'
@@ -90,15 +90,15 @@ describe('ListaCaminho: grupos, resumo e rodapé', () => {
     expect(screen.getByRole('region', { name: 'Vídeos do A/B Lab' })).toBeTruthy()
     expect(screen.getByText('5 vídeos')).toBeTruthy()
   })
-  it('caso misto: um vídeo com botão e dois sem (T3 resumo)', () => {
+  it('sem caso misto: todos os que esperam contam juntos (T5-A)', () => {
     const l = [
       linha(1, { estado: 'resultado_pronto', registro: reg({ variantes: duas }) }),
       linha(2, { estado: 'resultado_pronto', registro: reg({ variantes: tres }) }),
       linha(3, { estado: 'sem_resposta', registro: reg({ variantes: null }) }),
     ]
     render(<Harness linhas={l} />)
-    expect(screen.getByText('Um vídeo espera a sua resposta.')).toBeTruthy()
-    expect(screen.getByText(/Mais dois têm resultado pronto; a resposta chega na próxima atualização\./)).toBeTruthy()
+    expect(screen.getByText(/Três vídeos esperam a sua resposta/)).toBeTruthy()
+    expect(screen.queryByText(/Mais .* resultado pronto/)).toBeNull()
   })
   it('sem pendência: sem grupo Precisa de você', () => {
     render(<Harness linhas={[linha(1), linha(2)]} />)
@@ -204,7 +204,7 @@ describe('ListaCaminho: estados de linha', () => {
       linha(1, { estado: 'resultado_pronto', registro: reg({ variantes: tres }) }),
       linha(2, { estado: 'sem_resposta', registro: reg({ variantes: null, variantesTitulo: ['x', 'y'] }) }),
     ]} />)
-    const frases = screen.getAllByText(FRASES.resposta.semBotao)
+    const frases = screen.getAllByText(FRASE_SEM_BOTAO_PROVISORIA)
     expect(frases).toHaveLength(2)
     for (const f of frases) expect(f.closest('.cn-meta')).not.toBeNull()
     expect(screen.queryByRole('button', { name: 'Responder' })).toBeNull()
@@ -215,7 +215,7 @@ describe('ListaCaminho: estados de linha', () => {
       responder={(l) => <button type="button">Responder {l.titulo}</button>}
     />)
     expect(screen.getByRole('button', { name: 'Responder Vídeo 1' })).toBeTruthy()
-    expect(screen.queryByText(FRASES.resposta.semBotao)).toBeNull()
+    expect(screen.queryByText(FRASE_SEM_BOTAO_PROVISORIA)).toBeNull()
   })
   it('no máximo um .pri no DOM', () => {
     const { container } = render(<Harness linhas={[

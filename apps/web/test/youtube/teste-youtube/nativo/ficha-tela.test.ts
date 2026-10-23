@@ -226,7 +226,7 @@ describe('FRASES: frases fechadas (exatidão)', () => {
   })
   it('D-7: frase tardia, dia 14 sem botão, guarda, estado mudou, rodapé, leitura', () => {
     expect(FRASES.resposta.tardia(dia)).toBe('O prazo acabou em 04/11. Ainda dá para responder.')
-    expect(FRASES.resposta.semBotao).toBe('A resposta por esta tela chega na próxima atualização. O que o YouTube mostrou fica guardado e você poderá responder mesmo depois do prazo.')
+    expect('semBotao' in FRASES.resposta).toBe(false)
     expect(FRASES.guarda.motivoRecusa(dia)).toBe('Este vídeo tem um teste do YouTube registrado até 04/11. Aguarde o resultado ou responda o teste antes de iniciar o nosso.')
     expect(FRASES.guarda.guardaFalhou).toBe('Não deu para conferir se este vídeo já tem teste do YouTube. Nada foi iniciado.')
     expect(FRASES.guarda.tentarDeNovo).toBe('Tentar de novo')
@@ -236,10 +236,9 @@ describe('FRASES: frases fechadas (exatidão)', () => {
     expect(FRASES.lista.leituraFalhou).toBe('Não deu para ler a lista agora.')
     expect(FRASES.lista.nadaEspera).toBe('Nada espera a sua resposta hoje.')
     expect(FRASES.lista.apoioEmTesteOuPreparo(3)).toBe('Três vídeos em teste ou em preparo. Os demais seguem sem teste.')
-    expect(FRASES.lista.resultadoProntoSemBotao(2)).toBe('Dois vídeos têm resultado pronto no YouTube.')
     expect(FRASES.lista.labPausado(1)).toBe('Lab pausado em um vídeo.')
     expect(FRASES.lista.labPausado(3)).toBe('Lab pausado em três vídeos.')
-    expect(FRASES.lista.maisComResultadoPronto(2)).toBe('Mais dois têm resultado pronto; a resposta chega na próxima atualização.')
+    for (const k of ['resultadoProntoSemBotao', 'maisComResultadoPronto', 'respostaChegaNaAtualizacao']) expect(k in FRASES.lista).toBe(false)
   })
   it('D-8: pergunta sem a palavra "ligou"; botões fechados', () => {
     expect(FRASES.guarda.pergunta).toBe('Você iniciou o teste do YouTube neste vídeo?')
@@ -284,5 +283,40 @@ describe('FRASES: frases fechadas (exatidão)', () => {
     }
     colher(FRASES.ficha)
     for (const t of textos) expect(t).not.toMatch(/variante|nativo|detectado/i)
+  })
+})
+
+describe('FRASES.dia14: pergunta do dia 14 (T5-A, exatidão)', () => {
+  const d = FRASES.dia14
+  it('pergunta, apoios e rótulos copiados do mockup e de D-7', () => {
+    expect(d.pergunta).toBe('Qual versão venceu no Studio?')
+    expect(d.apoio(new Date('2026-10-07T15:00:00Z'))).toBe('Teste confirmado em 07/10. O resultado oficial está só no Studio.')
+    expect(d.apoioDerivada).toBe('Sem ficha: só os títulos que o Lab viu alternando; a miniatura não aparece de fora. A (original) é o título de antes.')
+    expect(d.apoioDerivadaSemOriginal).toBe('Sem ficha: só os títulos que o Lab viu alternando; a miniatura não aparece de fora. O Lab não sabe qual era o título de antes.')
+    expect(d.originalFicou).toBe('A (original) ficou')
+    expect(d.ficou('A')).toBe('A ficou')
+    expect(d.ficou('B')).toBe('B ficou')
+    expect(d.venceu('B')).toBe('B venceu')
+    expect(d.venceu('C')).toBe('C venceu')
+    expect(d.outra).toBe('Outra resposta:')
+    expect(d.suaResposta).toBe('Sua resposta:')
+    expect(d.mudarPara).toBe('Mudar para:')
+    expect([d.ficouIgual, d.inconclusivo, d.naoVi]).toEqual(['Ficou igual', 'Inconclusivo', 'Não vi'])
+  })
+  it('D-7(b), (e) e sum() de D-7(h)', () => {
+    expect(d.avisoResponder).toBe('Um toque responde; dá para mudar depois.')
+    expect(d.avisoMudar).toBe('Um toque muda a resposta.')
+    expect(d.apoioSemVersoes).toBe('O Lab não guardou as versões deste teste. Você pode dizer só que ficou igual, inconclusivo ou que não viu.')
+    expect(d.sum.terminouTres).toBe('O teste do YouTube terminou. Qual das três versões venceu no Studio?')
+    expect(d.sum.terminouDuas).toBe('O teste do YouTube terminou. Qual versão venceu no Studio?')
+    expect(d.sum.prazoAcabou).toBe('O prazo acabou, mas ainda dá para responder.')
+    expect(d.sum.semFicha).toBe('Sem ficha: o Lab só viu os títulos.')
+    expect(FRASES.ficha.salvando).toBe('Salvando…')
+  })
+  it('frases removidas no A: M-3 antigo e caso misto não existem mais', () => {
+    expect(d.avisoMudar).not.toContain('próxima atualização')
+    expect(d.avisoResponder).not.toContain('próxima atualização')
+    const todas = JSON.stringify(FRASES.lista)
+    expect(todas).not.toContain('resultado pronto no YouTube')
   })
 })

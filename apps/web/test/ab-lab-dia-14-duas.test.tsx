@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import * as Sentry from '@sentry/nextjs'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
-import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { FRASES, FRASE_SEM_BOTAO_PROVISORIA } from '@/lib/youtube/teste-youtube/nativo/frases'
 import type { PedidoRespostaDia14, ResultadoAcaoResponder } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
 import { Dia14Duas, type VersaoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-duas'
 import { ListaCaminho, type AcoesCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho'
@@ -59,8 +59,8 @@ describe('Dia14Duas: estrutura do d14-duas (M2)', () => {
     const g = screen.getByRole('group', { name: 'Outra resposta' })
     expect(g.textContent).toContain('Outra resposta:')
     expect(within(g).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ficou igual', 'Inconclusivo', 'Não vi'])
-    expect(FRASES.dia14.avisoMudar).toBe('Depois de responder, mudar a resposta por esta tela chega na próxima atualização.')
-    expect(screen.getByText(FRASES.dia14.avisoMudar)).toBeTruthy()
+    expect(FRASES.dia14.avisoResponder).toBe('Um toque responde; dá para mudar depois.')
+    expect(screen.getByText(FRASES.dia14.avisoResponder)).toBeTruthy()
     expect(responder).not.toHaveBeenCalled()
   })
   it('A sem imagem -> placeholder hachurado "não medido"; B com imagem -> a imagem guardada; nunca miniatura viva do YouTube', () => {
@@ -242,11 +242,11 @@ describe('LinhaCaminho: "Responder" abre a pergunta na própria linha', () => {
   })
   it('3 versões ou origem derivada: sem botão, com a frase honesta de D-1', () => {
     li(props(linha('resultado_pronto', { variantes: [...duasV, { n: 3, titulo: 'C', imagem: null }] })))
-    expect(screen.getByText(FRASES.resposta.semBotao)).toBeTruthy()
+    expect(screen.getByText(FRASE_SEM_BOTAO_PROVISORIA)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Responder' })).toBeNull()
     cleanup()
     li(props(linha('sem_resposta', { variantes: null, variantesTitulo: ['x', 'y'] })))
-    expect(screen.getByText(FRASES.resposta.semBotao)).toBeTruthy()
+    expect(screen.getByText(FRASE_SEM_BOTAO_PROVISORIA)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Responder' })).toBeNull()
   })
   it('tabela das 5 respostas: a linha relida mostra selo e frase exatos', () => {
