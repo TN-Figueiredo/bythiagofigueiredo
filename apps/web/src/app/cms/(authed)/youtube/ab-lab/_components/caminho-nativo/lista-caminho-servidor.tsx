@@ -7,7 +7,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerLinhasDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
 import {
   abrirFicha, lerFichaDoVideo, recomecarFicha, salvarFicha, marcarStudioAberto, enviarImagemDaFicha, lembrarNoComputador,
-  jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube,
+  jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube, mudarRespostaDoTesteDoYouTube,
 } from '../../actions-nativo'
 import { pauseAbTest, retryRestore } from '../../actions'
 import type { AcoesCaminho } from './lista-caminho'
@@ -15,7 +15,7 @@ import { ListaCaminhoComPaineis } from './lista-caminho-paineis'
 
 const ACOES: AcoesCaminho = {
   abrirFicha, lerFichaDoVideo, recomecarFicha, salvarFicha, marcarStudioAberto, enviarImagemDaFicha, lembrarNoComputador,
-  jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube, pauseAbTest, retryRestore,
+  jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube, mudarRespostaDoTesteDoYouTube, pauseAbTest, retryRestore,
 }
 
 export async function ListaCaminhoServidor({ siteId, videoInicial }: { siteId: string; videoInicial: string | null }): Promise<ReactElement> {

@@ -24,6 +24,10 @@ export interface AcoesDia14 {
   mudar?: (pedido: PedidoMudarDia14) => Promise<ResultadoAcaoMudar>
   /** Relê a lista (a linha mudou por dentro ou por fora). */
   atualizar: () => void
+  /** T7: região viva FORA do bloco (o bloco desmonta quando a linha relê). Com ela, a confirmação da troca não leva `role="status"` própria. */
+  anunciar?: (texto: string) => void
+  /** T7: o bloco que hospeda o modo mudar fica sabendo que a troca foi gravada (para voltar ao respondido quando a linha reler). */
+  aoMudou?: () => void
 }
 export interface Dia14PerguntaProps {
   linha: LinhaDoCaminho
@@ -42,16 +46,18 @@ type Tela =
   | { t: 'sem_vencedor'; resposta: RespostaSemVencedor }
   | { t: 'diferentes' }
   | { t: 'mudada'; texto: string }
-  | { t: 'mudou' }
+  | { t: 'mudou'; ja: boolean }
   | { t: 'erro'; texto: string }
   | { t: 'sem_conexao'; pedido: PedidoRespostaDia14 | PedidoMudarDia14; toque: string; versao: VersaoDoDia14 | null }
 
 type Falha = Extract<ResultadoAcaoResponder | ResultadoAcaoMudar, { ok: false }>
 
-/** Desfecho que NÃO é sucesso: relê a linha (o teste mudou) ou mostra a frase de erro. Exaustivo sobre o tipo real. */
-function falhaDaAction(r: Falha): 'mudou' | { texto: string } {
+/** Desfecho que NÃO é sucesso: relê a linha (o teste mudou; `ja` = respondido em outra tela) ou mostra a frase de erro. Exaustivo sobre o tipo real. */
+function falhaDaAction(r: Falha): 'mudou' | 'ja' | { texto: string } {
   switch (r.erro) {
-    case 'ja_respondido': case 'estado_mudou': case 'nao_respondivel': case 'nao_encontrado': case 'nao_respondida':
+    case 'ja_respondido':
+      return 'ja'
+    case 'estado_mudou': case 'nao_respondivel': case 'nao_encontrado': case 'nao_respondida':
       return 'mudou'
     case 'sem_permissao':
       return { texto: FRASES.semPermissao }
@@ -146,17 +152,20 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     if (emCurso.current) return
     emCurso.current = true; setOcupado(true); setTocado(chave)
     try {
-      const chamar = mudar ? acoes.mudar : acoes.responder
-      if (!chamar) { setTela({ t: 'erro', texto: FRASES.dia14.falhou }); return }
-      const r: ResultadoAcaoResponder | ResultadoAcaoMudar = mudar && acoes.mudar ? await acoes.mudar(pedido as PedidoMudarDia14) : await acoes.responder(pedido)
+      // O pedido da troca é o único com `respostaVista`; sem a action de troca no modo mudar, é erro (nunca cai na 1ª resposta).
+      const r: ResultadoAcaoResponder | ResultadoAcaoMudar = 'respostaVista' in pedido
+        ? (acoes.mudar ? await acoes.mudar(pedido) : { ok: false, erro: 'falha', error: '' })
+        : await acoes.responder(pedido)
       if (r.ok) {
         if (r.conflito !== null) { setTela({ t: 'diferentes' }); acoes.atualizar(); return }
-        setTela(mudar ? { t: 'mudada', texto: textoMudada(pedido.resposta, versao) } : telaDoSucesso(pedido.resposta, versao?.letra ?? ''))
+        const texto = textoMudada(pedido.resposta, versao)
+        setTela(mudar ? { t: 'mudada', texto } : telaDoSucesso(pedido.resposta, versao?.letra ?? ''))
+        if (mudar) { acoes.anunciar?.(texto); acoes.aoMudou?.() }
         acoes.atualizar()
         return
       }
       const f = falhaDaAction(r)
-      if (f === 'mudou') { setTela({ t: 'mudou' }); return }
+      if (f === 'mudou' || f === 'ja') { setTela({ t: 'mudou', ja: f === 'ja' }); return }
       Sentry.captureMessage('dia 14: resposta recusada', { level: 'warning', tags: { area: 'ab-nativo' }, extra: { motivo: r.erro } })
       setTela({ t: 'erro', texto: f.texto })
     } catch {
@@ -188,12 +197,18 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     if (p) void enviar(p, resposta, null)
   }
 
+  // D-7(g): "Registrado: …" (ou "Registrado depois do prazo: …") para quem ouve; a tela mostra a frase do resultado.
+  const confirmacao = (original: boolean, letra: string): string => (linha.estado === 'sem_resposta'
+    ? (original ? FRASES.respondido.registradaTardiaOriginal : FRASES.respondido.registradaTardiaVersao(letra))
+    : (original ? FRASES.respondido.registradaOriginal : FRASES.respondido.registradaVersao(letra)))
+
   if (tela.t === 'no_ar') {
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
         <div className="cn-d14-res"><SeloCaminho tipo="ok">{tela.original ? FRASES.dia14.seloOriginal : FRASES.dia14.seloNoAr(tela.letra)}</SeloCaminho></div>
         <p className="cn-d14-q3" id={idQ} ref={resultadoRef} tabIndex={-1}>{tela.original ? FRASES.dia14.fraseOriginal(versoes.length) : FRASES.dia14.fraseNoAr(tela.letra)}</p>
         <p className="cn-meta">{FRASES.dia14.oficial}</p>
+        <p className="cn-sr" role="status">{confirmacao(tela.original, tela.letra)}</p>
       </section>
     )
   }
@@ -202,7 +217,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
         <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.dia14.seloSemVencedor[tela.resposta]}</SeloCaminho></div>
-        <p className="cn-d14-q3" id={idQ} ref={resultadoRef} tabIndex={-1}>{frase}</p>
+        <p className="cn-d14-q3" id={idQ} role="status" ref={resultadoRef} tabIndex={-1}>{frase}</p>
         <p className="cn-meta">{FRASES.resposta.apoioSemVencedor}</p>
       </section>
     )
@@ -218,7 +233,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
   if (tela.t === 'mudada') {
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
-        <p className="cn-d14-q3" id={idQ} role="status" ref={resultadoRef} tabIndex={-1}>{tela.texto}</p>
+        <p className="cn-d14-q3" id={idQ} role={acoes.anunciar ? undefined : 'status'} ref={resultadoRef} tabIndex={-1}>{tela.texto}</p>
       </section>
     )
   }
@@ -237,12 +252,12 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
 
   return (
     <section
-      className="cn-d14" aria-labelledby={idQ}
+      className="cn-d14" {...(semVersoes ? { 'aria-label': rotuloGrupo.replace(/:$/, '') } : { 'aria-labelledby': idQ })}
       onKeyDown={mudar ? (e) => { if (e.key === 'Escape' && !ocupado) { e.stopPropagation(); sair() } } : undefined}
     >
       {semVersoes ? null : <h3 id={idQ} ref={tituloRef} tabIndex={-1}>{FRASES.dia14.pergunta}</h3>}
-      {/* Sem versões não há título: o apoio é o nome da seção e recebe o foco ao abrir o modo mudar. */}
-      <p className="cn-meta" {...(semVersoes ? { id: idQ, ref: apoioRef, tabIndex: -1 } : {})}>{apoio}</p>
+      {/* Sem versões não há título: o apoio recebe o foco ao abrir o modo mudar; o nome da seção é o rótulo curto do grupo. */}
+      <p className="cn-meta" {...(semVersoes ? { ref: apoioRef, tabIndex: -1 } : {})}>{apoio}</p>
       {tardia ? <p className="cn-meta">{tardia}</p> : null}
       <p className="cn-meta cn-d14-aviso">{mudar ? FRASES.dia14.avisoMudar : FRASES.dia14.avisoResponder}</p>
       {semVersoes ? null : (
@@ -292,7 +307,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
       {tela.t === 'mudou' ? (
         <div ref={alertaRef} tabIndex={-1}>
           <FaixaCaminho
-            tom="warn" role="alert" titulo={FRASES.guarda.estadoMudou}
+            tom="warn" role="alert" titulo={tela.ja ? FRASES.respondido.jaTinhaRespondido : FRASES.guarda.estadoMudou}
             acoes={<button type="button" className="cn-btn" onClick={() => acoes.atualizar()}>{FRASES.guarda.atualizar}</button>}
           />
         </div>

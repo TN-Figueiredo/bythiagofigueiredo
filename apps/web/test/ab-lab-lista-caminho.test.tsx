@@ -186,7 +186,7 @@ describe('ListaCaminho: estados de linha', () => {
     render(<Harness linhas={[l]} />)
     expect(document.body.textContent).toContain('Retomar espera o resultado do teste no Studio.')
   })
-  it('ficou_no_ar, respostas_diferentes e respondido_sem_vencedor: selo e frase, sem "Ver as duas"', () => {
+  it('ficou_no_ar, respostas_diferentes e respondido_sem_vencedor: selo, frase e a porta do bloco ("Ver teste"/"Ver as duas", T7)', () => {
     render(<Harness linhas={[
       linha(1, { estado: 'ficou_no_ar', registro: reg({ respostaDono: 'venceu_nova' }) }),
       linha(2, { estado: 'respostas_diferentes', registro: reg({ respostaDono: 'venceu_nova' }) }),
@@ -197,7 +197,8 @@ describe('ListaCaminho: estados de linha', () => {
     expect(screen.getByText(FRASES.resposta.ficouIgual)).toBeTruthy()
     expect(screen.getByText(FRASES.resposta.apoioSemVencedor)).toBeTruthy()
     expect(screen.queryByText(/Ficou no ar.*igual/)).toBeNull()
-    expect(screen.queryByText('Ver as duas')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Ver as duas' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Ver teste' })).toHaveLength(2)
   })
   it('2 versões: o slot de "Responder" (T10b) é renderizado no lugar da ação', () => {
     render(<Harness

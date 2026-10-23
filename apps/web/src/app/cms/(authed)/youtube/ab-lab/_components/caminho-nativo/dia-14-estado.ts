@@ -3,6 +3,7 @@
 import { variantesDaResposta, type RespostaDono } from '@/lib/youtube/teste-youtube/nativo/versoes'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { normalizarTitulo } from '@/lib/youtube/teste-youtube/normalizar-titulo'
+import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 
 type Registro = NonNullable<LinhaDoCaminho['registro']>
 
@@ -66,4 +67,42 @@ export function letraDaResposta(
   if (p.origem === 'derivada' && r.vencedorFonte === 'dono') return porTitulo(p, r.vencedorTitulo)
   const n = r.respostaDono === 'venceu_original' ? 1 : r.varianteVencedora
   return p.versoes.find((x) => x.n === n) ?? null
+}
+
+// --- Tela-2, T7: o que o respondido e o conflito mostram ---
+
+/** Respostas que apontam uma versão (as outras três são "sem vencedor"). */
+export const respostaComVersao = (r: RespostaDono | 'sem_resposta' | null): r is 'venceu_nova' | 'venceu_original' => r === 'venceu_nova' || r === 'venceu_original'
+
+/**
+ * A versão da resposta para a tela. Vem de `letraDaResposta`; só quando a posição gravada está ausente (registro antigo) e não há
+ * dúvida possível — original, ou nova com exatamente 2 versões — a tela usa a posição natural. Nunca chuta com título que não casa.
+ */
+export function versaoDoRespondido(r: Pick<Registro, 'respostaDono' | 'varianteVencedora' | 'vencedorFonte' | 'vencedorTitulo'>, p: PerguntaDoDia14): VersaoDoDia14 | null {
+  const v = letraDaResposta(r, p)
+  if (v || p.tipo !== 'versoes' || r.varianteVencedora != null) return v
+  if (r.respostaDono === 'venceu_original') return p.versoes.find((x) => x.n === 1) ?? null
+  if (r.respostaDono === 'venceu_nova' && p.versoes.length === 2) return p.versoes[1] ?? null
+  return null
+}
+
+/**
+ * Selo e frase do respondido com versão no ar. A original lê "A (original)"; derivada sem original conhecida lê o título
+ * (nunca "original"); sem par, o selo genérico e nenhuma frase inventada.
+ */
+export function resumoDoRespondido(
+  r: Pick<Registro, 'respostaDono' | 'varianteVencedora' | 'vencedorFonte' | 'vencedorTitulo'>, p: PerguntaDoDia14,
+): { selo: string; frase: string | null; versao: VersaoDoDia14 | null } {
+  const versao = versaoDoRespondido(r, p)
+  if (!versao || p.tipo !== 'versoes') return { selo: 'Ficou no ar', frase: null, versao }
+  if (versao.original) return { selo: FRASES.dia14.seloOriginal, frase: FRASES.dia14.fraseOriginal(p.versoes.length), versao }
+  const semOriginal = p.origem === 'derivada' && !p.originalConhecido
+  const selo = semOriginal && versao.titulo ? `Ficou no ar: ${versao.titulo}` : FRASES.dia14.seloNoAr(versao.letra)
+  return { selo, frase: FRASES.dia14.fraseNoAr(versao.letra), versao }
+}
+
+/** Mesmo dia civil em São Paulo (a meta diz "hoje" só quando é). */
+export function mesmoDiaSP(a: Date, b: Date): boolean {
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
+  return f.format(a) === f.format(b)
 }
