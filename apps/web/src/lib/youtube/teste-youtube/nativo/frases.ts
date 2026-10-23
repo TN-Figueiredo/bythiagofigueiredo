@@ -91,6 +91,8 @@ export const FRASES = {
     apoioComVeredito: (noAr: string, lidoEm: Date | null): string =>
       `No ar, lido pelo Lab${lidoEm ? ` em ${dataCurta(lidoEm)}` : ''}: ${noAr}. Você não indicou uma versão.`,
     mudar: 'Mudar minha resposta',
+    /** Linha respondida sem bloco aberto e sem letra a mostrar. */
+    respondeuEm: (quando: Date): string => `Você respondeu em ${dataCurta(quando)}.`,
     jaTinhaRespondido: 'Você já tinha respondido em outra tela.',
     /** D-7(g): confirmações. A troca, o aviso, "Manter" e a falta de conexão do modo mudar vivem em `dia14` (uma só fonte). */
     registradaVersao: (letra: string): string => `Registrado: a versão ${letra} ficou no ar.`,
@@ -108,6 +110,8 @@ export const FRASES = {
     cartaoNoAr: (lidoEm: Date | null): string => `No ar, lido pelo Lab${lidoEm ? ` em ${dataCurta(lidoEm)}` : ''}`,
     cartaoVoce: (letra: string, quando: Date): string => `Você disse: ${letra} (${dataCurta(quando)}, ${horaCurta(quando)})`,
     seloSemPar: 'Título sem versão correspondente',
+    /** O cartão "Você disse" quando a resposta não aponta uma versão que a tela conheça. */
+    seloRespostaSemPar: 'Versão não identificada',
     linha: (noAr: string, disse: string): string => `No ar está ${noAr}; você disse ${disse}.`,
     linhaSemPar: (disse: string): string => `No ar está outro título; você disse ${disse}.`,
     verTeste: 'Ver teste',
@@ -156,6 +160,11 @@ export const FRASES = {
     salvando: 'Salvando…',
     semConexaoMudar: 'Sem conexão. A resposta continua a mesma. Tente de novo.',
     seloNoAr: (letra: string): string => `Ficou no ar: ${letra}`,
+    /** Derivada respondida sem par de letra: o título que o Lab leu, ou o selo nu quando nem isso existe. */
+    seloNoArTitulo: (titulo: string): string => `Ficou no ar: ${titulo}`,
+    seloNoArSemTitulo: 'Ficou no ar',
+    /** A troca foi gravada e a lista não releu a tempo (nunca volta ao dado velho). */
+    trocaSemReleitura: 'A troca foi gravada; a lista ainda não atualizou.',
     fraseNoAr: (letra: string): string => `A versão ${letra} venceu no Studio e ficou no ar.`,
     /** Troca para uma versão: a original leva "(original)" para a pessoa ver que escolheu a de antes. */
     mudadaPara: (letra: string, original: boolean): string => `Resposta mudada para ${letra}${original ? ' (original)' : ''}.`,

@@ -90,6 +90,9 @@
 .cn-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid var(--cn-btn-line); border-radius: 6px; background: var(--cn-surface-2); color: var(--cn-text); font: 500 13px/18px Inter, system-ui, sans-serif; cursor: pointer; text-align: center; }
 .cn-btn.pri { background: var(--cn-accent); border-color: var(--cn-accent); color: var(--cn-on-accent); font-weight: 600; }
 .cn-btn.ghost { background: transparent; }
+.cn-btn[aria-expanded="true"]:not(.pri) { border: 2px solid var(--cn-text); padding: 0 11px; background: var(--cn-surface-2); font-weight: 600; }
+[data-theme] .cn-btn[aria-expanded="true"]:not(.pri):hover:not([disabled]) { border: 2px solid var(--cn-text); }
+.cn-meta .cn-chip { vertical-align: middle; margin: 0 2px; }
 .cn-btn[disabled] { color: var(--cn-muted); border-style: dashed; cursor: not-allowed; background: transparent; }
 .cn-lnk { font: inherit; font-size: 13.5px; color: var(--cn-yt); background: none; border: 0; padding: 0 2px; min-height: 24px; text-decoration: underline; cursor: pointer; text-align: left; }
 @media (pointer: coarse) { .cn-btn, .cn-lnk, .cn-segc button, .cn-addv { min-height: 44px; } }

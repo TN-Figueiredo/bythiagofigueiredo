@@ -37,6 +37,8 @@ export interface Dia14PerguntaProps {
   varianteVista?: number | null
   acoes: AcoesDia14
   aoFechar: () => void
+  /** A troca foi gravada e a lista não releu a tempo: a confirmação mostra o aviso e o "Atualizar". */
+  releituraDemorou?: boolean
 }
 
 type RespostaSemVencedor = 'ficou_igual' | 'inconclusivo' | 'nao_vi'
@@ -98,7 +100,7 @@ const OUTRAS: { resposta: RespostaSemVencedor; rotulo: string }[] = [
   { resposta: 'nao_vi', rotulo: FRASES.dia14.naoVi },
 ]
 
-export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVista, acoes, aoFechar }: Dia14PerguntaProps): ReactElement {
+export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVista, acoes, aoFechar, releituraDemorou = false }: Dia14PerguntaProps): ReactElement {
   const reg = linha.registro
   const mudar = modo === 'mudar'
   const [tela, setTela] = useState<Tela>({ t: 'pergunta' })
@@ -159,8 +161,9 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
       if (r.ok) {
         if (r.conflito !== null) { setTela({ t: 'diferentes' }); acoes.atualizar(); return }
         const texto = textoMudada(pedido.resposta, versao)
-        setTela(mudar ? { t: 'mudada', texto } : telaDoSucesso(pedido.resposta, versao?.letra ?? ''))
-        if (mudar) { acoes.anunciar?.(texto); acoes.aoMudou?.() }
+        const nova = telaDoSucesso(pedido.resposta, versao?.letra ?? '')
+        setTela(mudar ? { t: 'mudada', texto } : nova)
+        if (mudar) { acoes.anunciar?.(texto); acoes.aoMudou?.() } else acoes.anunciar?.(anuncioDoSucesso(nova))
         acoes.atualizar()
         return
       }
@@ -202,13 +205,15 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     ? (original ? FRASES.respondido.registradaTardiaOriginal : FRASES.respondido.registradaTardiaVersao(letra))
     : (original ? FRASES.respondido.registradaOriginal : FRASES.respondido.registradaVersao(letra)))
 
+  // 1ª resposta: sem região viva da lista (bloco direto), a confirmação fica na própria tela.
+  const anuncioDoSucesso = (t: Tela): string => (t.t === 'no_ar' ? confirmacao(t.original, t.letra) : t.t === 'sem_vencedor' ? FRASES.dia14.registrada[t.resposta] : '')
   if (tela.t === 'no_ar') {
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
         <div className="cn-d14-res"><SeloCaminho tipo="ok">{tela.original ? FRASES.dia14.seloOriginal : FRASES.dia14.seloNoAr(tela.letra)}</SeloCaminho></div>
         <p className="cn-d14-q3" id={idQ} ref={resultadoRef} tabIndex={-1}>{tela.original ? FRASES.dia14.fraseOriginal(versoes.length) : FRASES.dia14.fraseNoAr(tela.letra)}</p>
         <p className="cn-meta">{FRASES.dia14.oficial}</p>
-        <p className="cn-sr" role="status">{confirmacao(tela.original, tela.letra)}</p>
+        {acoes.anunciar ? null : <p className="cn-sr" role="status">{confirmacao(tela.original, tela.letra)}</p>}
       </section>
     )
   }
@@ -217,7 +222,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
         <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.dia14.seloSemVencedor[tela.resposta]}</SeloCaminho></div>
-        <p className="cn-d14-q3" id={idQ} role="status" ref={resultadoRef} tabIndex={-1}>{frase}</p>
+        <p className="cn-d14-q3" id={idQ} role={acoes.anunciar ? undefined : 'status'} ref={resultadoRef} tabIndex={-1}>{frase}</p>
         <p className="cn-meta">{FRASES.resposta.apoioSemVencedor}</p>
       </section>
     )
@@ -234,6 +239,12 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
         <p className="cn-d14-q3" id={idQ} role={acoes.anunciar ? undefined : 'status'} ref={resultadoRef} tabIndex={-1}>{tela.texto}</p>
+        {releituraDemorou ? (
+          <>
+            <p className="cn-meta">{FRASES.dia14.trocaSemReleitura}</p>
+            <button type="button" className="cn-lnk" onClick={() => acoes.atualizar()}>{FRASES.guarda.atualizar}</button>
+          </>
+        ) : null}
       </section>
     )
   }

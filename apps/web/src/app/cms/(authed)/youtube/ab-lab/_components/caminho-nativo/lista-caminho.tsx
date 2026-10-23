@@ -219,7 +219,8 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     aoMudarBloco: (ab) => setBlocoAberto(ab ? l.videoId : null),
     // 1ª resposta gravada: a linha relê e já abre o bloco respondido.
     aoRespondeu: () => { focoAposResposta.current = l.videoId; setBlocoAberto(l.videoId); ctrl.atualizar() },
-    aoAnunciar: (t) => { focoAposResposta.current = l.videoId; setAnuncio(t) },
+    // Zera antes: o mesmo texto de novo (B->C, C->B, B->C) ainda é lido.
+    aoAnunciar: (t) => { focoAposResposta.current = l.videoId; setAnuncio(''); requestAnimationFrame(() => setAnuncio(t)) },
   })
 
   const renderLinha = (l: LinhaDoCaminho): ReactElement => {

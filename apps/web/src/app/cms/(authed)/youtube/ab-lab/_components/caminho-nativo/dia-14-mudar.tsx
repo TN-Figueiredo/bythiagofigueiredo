@@ -7,8 +7,8 @@ import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { Dia14Pergunta, type AcoesDia14 } from './dia-14-pergunta'
 import type { PerguntaDoDia14 } from './dia-14-estado'
 
-/** Sem o dado mudar depois do ok (resposta já gravada), o bloco volta sozinho depois disto. */
-const ESPERA_RELEITURA_MS = 3000
+/** Sem o dado mudar depois do ok, a confirmação ganha o aviso e o botão "Atualizar" depois disto (nunca volta ao dado velho). */
+const ESPERA_RELEITURA_MS = 8000
 
 const assinatura = (r: NonNullable<LinhaDoCaminho['registro']>): string =>
   JSON.stringify([r.respostaDono, r.varianteVencedora, r.respostaMudadaEm, r.updatedAt])
@@ -25,6 +25,7 @@ export function Dia14Mudar({ linha, pergunta, acoes, children }: Dia14MudarProps
   const reg = linha.registro
   const [mudando, setMudando] = useState(false)
   const [gravou, setGravou] = useState<string | null>(null)
+  const [demorou, setDemorou] = useState(false)
   const linkRef = useRef<HTMLButtonElement>(null)
   const voltou = useRef(false)
 
@@ -32,12 +33,13 @@ export function Dia14Mudar({ linha, pergunta, acoes, children }: Dia14MudarProps
   const sig = reg ? assinatura(reg) : ''
   // A linha releu com o dado novo: volta ao bloco (que agora mostra a resposta nova).
   useEffect(() => { if (mudando && gravou !== null && sig !== gravou) voltar() }, [mudando, gravou, sig, voltar])
-  // Sem mudança de dado (a resposta pedida já estava gravada), não deixa a tela presa na confirmação.
+  // A releitura demorou (ou o dado não mudou): a confirmação fica e oferece "Atualizar"; só o dado novo devolve o bloco.
   useEffect(() => {
+    setDemorou(false)
     if (gravou === null) return
-    const t = setTimeout(voltar, ESPERA_RELEITURA_MS)
+    const t = setTimeout(() => setDemorou(true), ESPERA_RELEITURA_MS)
     return () => clearTimeout(t)
-  }, [gravou, voltar])
+  }, [gravou])
   // Ao voltar ao bloco, o foco vai para o link (a pergunta que tinha o foco acabou de desmontar).
   useEffect(() => {
     if (mudando || !voltou.current) return
@@ -49,7 +51,7 @@ export function Dia14Mudar({ linha, pergunta, acoes, children }: Dia14MudarProps
   if (mudando && reg.respostaDono) {
     return (
       <Dia14Pergunta
-        linha={linha} pergunta={pergunta} modo="mudar" respostaVista={reg.respostaDono} varianteVista={reg.varianteVencedora}
+        releituraDemorou={demorou} linha={linha} pergunta={pergunta} modo="mudar" respostaVista={reg.respostaDono} varianteVista={reg.varianteVencedora}
         acoes={{ ...acoes, aoMudou: () => { acoes.aoMudou?.(); setGravou(sig) } }}
         aoFechar={() => { voltou.current = true; setMudando(false) }}
       />

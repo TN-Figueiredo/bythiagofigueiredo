@@ -341,12 +341,12 @@ describe('ListaCaminho: bloco na própria linha', () => {
     const l1 = linhaR('ficou_no_ar', { variantes: tresV, varianteVencedora: 3, vencedorTitulo: 'Título C', updatedAt: new Date(AGORA.getTime() + 1000).toISOString(), respostaMudadaEm: AGORA.toISOString() })
     rerender(tela([l1], 'vid00000001'))
     await waitFor(() => expect(within(li()).getByText('A versão C venceu no Studio e ficou no ar.')).toBeTruthy())
+    await waitFor(() => expect(screen.getAllByRole('status').some((s) => s.textContent === 'Resposta mudada para C.')).toBe(true))
     const status = screen.getAllByRole('status').find((s) => s.textContent === 'Resposta mudada para C.')!
-    expect(status).toBeTruthy()
     expect(li().contains(status)).toBe(false)
     await waitFor(() => expect(document.activeElement).toBe(within(li()).getByRole('button', { name: 'Mudar minha resposta' })))
   })
-  it('sem mudança de dado depois do ok, o bloco volta sozinho ao respondido (fallback)', async () => {
+  it('sem mudança de dado depois do ok, a confirmação fica (nunca volta ao dado velho) e oferece Atualizar', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       render(tela([linhaR('ficou_no_ar')], 'vid00000001'))
@@ -354,7 +354,14 @@ describe('ListaCaminho: bloco na própria linha', () => {
       fireEvent.click(within(li()).getByRole('button', { name: /A \(original\) ficou/ }))
       await waitFor(() => expect(mudar).toHaveBeenCalled())
       await act(async () => { await vi.advanceTimersByTimeAsync(4000) })
-      expect(within(li()).getByRole('button', { name: 'Mudar minha resposta' })).toBeTruthy()
+      expect(within(li()).queryByText(FRASES.dia14.trocaSemReleitura)).toBeNull()
+      await act(async () => { await vi.advanceTimersByTimeAsync(6000) })
+      expect(within(li()).queryByRole('button', { name: 'Mudar minha resposta' })).toBeNull()
+      expect(within(li()).queryByText('Ficou no ar: A (original)')).toBeNull()
+      expect(within(li()).getByText(FRASES.dia14.trocaSemReleitura)).toBeTruthy()
+      atualizarCtx.mockClear()
+      fireEvent.click(within(li()).getByRole('button', { name: 'Atualizar' }))
+      expect(atualizarCtx).toHaveBeenCalled()
     } finally { vi.useRealTimers() }
   })
   it('1ª resposta: depois de relida a linha, o foco cai no link "Mudar minha resposta" (não no body) e a linha mostra o respondido', async () => {
@@ -367,7 +374,8 @@ describe('ListaCaminho: bloco na própria linha', () => {
     const q3 = li().querySelector('.cn-d14-q3') as HTMLElement
     expect(document.activeElement).toBe(q3)
     expect(q3.getAttribute('tabindex')).toBe('-1')
-    expect(within(li()).getAllByRole('status').length).toBeGreaterThan(0)
+    await waitFor(() => expect(screen.getByTestId('anuncio-dia-14').textContent).toBe('Registrado: a versão B ficou no ar.'))
+    expect(li().querySelector('[role="status"]')).toBeNull()
     rerender(tela([linhaR('ficou_no_ar')], 'vid00000001'))
     await waitFor(() => expect(document.activeElement).toBe(within(li()).getByRole('button', { name: 'Mudar minha resposta' })))
     expect(within(li()).getByText('Ficou no ar: B')).toBeTruthy()
@@ -396,5 +404,60 @@ describe('Minors da T6 e fonte única das frases (lote da T7)', () => {
   })
   it('FRASES: as chaves duplicadas de respondido.* saíram (a fonte é dia14.*)', () => {
     for (const k of ['manter', 'suaResposta', 'avisoMudar', 'semConexao', 'mudadaPara']) expect(k in FRASES.respondido, k).toBe(false)
+  })
+})
+
+describe('Conserto B1 (revisão Logan e Naksu do envio B)', () => {
+  const lerCss = async (f: string): Promise<string> => (await import('node:fs')).readFileSync(`src/app/cms/(authed)/youtube/ab-lab/_components/${f}`, 'utf8')
+  const tela = (linhas: LinhaDoCaminho[], videoInicial: string | null = null) => (
+    <ContextoAssistente.Provider value={{ ...SEM_ASSISTENTE, atualizar: vi.fn() }}>
+      <ListaCaminho linhas={linhas} videoInicial={videoInicial} acoes={{ responderTesteDoYouTube: responder, mudarRespostaDoTesteDoYouTube: mudar } as unknown as AcoesCaminho} painel={() => null} agora={() => AGORA} />
+    </ContextoAssistente.Provider>
+  )
+  const li = (id = 'uuid-1') => document.querySelector(`li[data-linha="${id}"]`) as HTMLElement
+  const semPar = (): LinhaDoCaminho => linhaR('ficou_no_ar', { variantes: null, variantesTitulo: null, vencedorTitulo: 'Título lido pelo Lab' })
+
+  it('C-1: o selo da linha quebra de linha (regra própria para .cn-vrow .st .cn-selo)', async () => {
+    const css = await lerCss('caminho-nativo.css') + await lerCss('dia-14-pergunta.css')
+    expect(css).toMatch(/\.cn-vrow \.st \.cn-selo[^{]*\{[^}]*white-space:\s*normal/)
+  })
+  it('I-4: o botão com aria-expanded="true" tem estado visível', async () => {
+    expect(await lerCss('caminho-nativo.css')).toMatch(/\.cn-btn\[aria-expanded="true"\][^{]*\{[^}]*border:\s*2px solid var\(--cn-text\)/)
+  })
+  it('I2: derivada respondida sem par diz o título no ar na linha e no bloco', () => {
+    render(tela([semPar()]))
+    expect(within(li()).getByText('Ficou no ar: Título lido pelo Lab')).toBeTruthy()
+    fireEvent.click(within(li()).getByRole('button', { name: 'Ver teste' }))
+    expect(within(li()).getByText('Ficou no ar: Título lido pelo Lab')).toBeTruthy()
+  })
+  it('I2: sem par e sem título lido, o selo genérico (de FRASES)', () => {
+    render(tela([linhaR('ficou_no_ar', { variantes: null, variantesTitulo: null, vencedorTitulo: null })]))
+    expect(within(li()).getByText(FRASES.dia14.seloNoArSemTitulo)).toBeTruthy()
+  })
+  it('I3: com o bloco do conflito aberto há um só "Respostas diferentes" e a frase não repete na tela', () => {
+    render(tela([conflito()]))
+    fireEvent.click(within(li()).getByRole('button', { name: 'Ver as duas' }))
+    expect(within(li()).getAllByText('Respostas diferentes')).toHaveLength(1)
+    expect(within(li()).getAllByText(/No ar est(á|ava) A; você disse B\./).filter((e) => !e.closest('.cn-sr, h3'))).toHaveLength(1)
+    expect(li().querySelector('[data-foco-bloco]')).not.toBeNull()
+  })
+  it('I-3: a 1ª resposta é anunciada na região da lista, não numa região que nasce junto com o texto', async () => {
+    const aberta: LinhaDoCaminho = { ...linhaR('ficou_no_ar'), estado: 'resultado_pronto' as LinhaDoCaminho['estado'] }
+    aberta.registro = { ...aberta.registro!, respostaDono: null }
+    render(tela([aberta]))
+    fireEvent.click(within(li()).getByRole('button', { name: 'Responder' }))
+    fireEvent.click(within(li()).getByRole('button', { name: /B venceu/ }))
+    await waitFor(() => expect(screen.getByTestId('anuncio-dia-14').textContent).toMatch(/^Registrado/))
+  })
+  it('M3 Logan: o cartão "Você disse" sem par não usa o rótulo do lado do Lab', () => {
+    bloco(conflito({ varianteVencedora: 3 }))
+    expect(screen.getAllByLabelText(FRASES.conflito.seloRespostaSemPar).length).toBe(1)
+  })
+  it('m-1: sem selo nem meta (bloco aberto) a linha não deixa a faixa .st vazia', () => {
+    render(tela([linhaR('ficou_no_ar')], 'vid00000001'))
+    expect(li().querySelector('.st')).toBeNull()
+  })
+  it('m-7: textos soltos vivem em FRASES', () => {
+    expect(FRASES.respondido.respondeuEm(AGORA)).toBe(`Você respondeu em ${dataCurta(AGORA)}.`)
   })
 })
