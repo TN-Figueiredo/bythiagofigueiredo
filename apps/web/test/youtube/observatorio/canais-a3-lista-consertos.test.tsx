@@ -280,7 +280,7 @@ describe('I-D (achado na revisão): a faixa de frescor da moldura quebra de linh
   // anterior à A3 (o chrome é o do commit c8672312), mas faz a página do Observatório rolar na horizontal num celular (a faixa passava 41 px a 390 px).
   // A prova real é a medida do canais-a3.spec.ts (main não rola a 390 px); aqui, a regra existe, vale só no contêiner estreito e não toca a faixa larga.
   const css = fs.readFileSync(path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors/_chrome/chrome.css'), 'utf8')
-  const bloco = (css.match(/@container obscontent \(max-width: 4\d\dpx\)\s*\{[\s\S]*?\n\}/) ?? [])[0]
+  const bloco = (css.match(/@container obscontent \(max-width: 420px\)\s*\{[\s\S]*?\n\}/) ?? [])[0]
   it('existe um bloco @container obscontent até ~420 px que deixa a faixa quebrar e põe o trecho da forja na linha de baixo', () => {
     expect(bloco, 'bloco @container obscontent (max-width: 4xx px)').toBeDefined()
     expect(bloco).toMatch(/\.obs-ch-fresh\{[^}]*flex-wrap:wrap/)

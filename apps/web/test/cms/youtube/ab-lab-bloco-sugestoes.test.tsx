@@ -24,7 +24,7 @@ const out = (v: string, m: number) => ({ video_id: v, canal_id: 'c', published_a
 function item(id: string): ItemDeSinal {
   return {
     id, kind: 'destino', subject_key: 'pais:vn', acao: 'titulo_descricao', rotulo_acao: 'abrir-seus', n_proprios: 2, acao_gravada: 'titulo_descricao', forca: 1,
-    motivo: 'm', rule_version: 'sinais-v1+semente-1', first_seen_at: '2026-10-18T10:00:00Z', expires_at: '2099-11-17T10:00:00Z', proprios_agora: ['p1', 'p2'], proprios_agora_n: 2,
+    motivo: 'm', rule_version: 'sinais-v1+semente-1', first_seen_at: '2026-10-18T10:00:00Z', expires_at: new Date(Date.now() + 30 * 864e5).toISOString(), proprios_agora: ['p1', 'p2'], proprios_agora_n: 2,
     evidence: { outliers: [out('v-' + id, 8.4)], outliers_total: 1, canais: 2, proprios: [] },
   }
 }

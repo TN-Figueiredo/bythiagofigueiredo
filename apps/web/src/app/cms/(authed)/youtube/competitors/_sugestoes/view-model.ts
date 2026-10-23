@@ -212,7 +212,7 @@ export function montarVistaDaLista(e: {
   const semVideoNenhum = lista.contagens.proprios === 0
   const itens = lista.itens.slice(0, limite)
   const linhas = comCheio(itens.map((it) => montarLinha(it, amostra, calc, semVideoNenhum, agora)), filtro)
-  const velho = lista.desatualizado
+  const velho = lista.desatualizado && lista.computado_em !== null
   const vazio = lista.n === 0 || itens.length === 0 ? vazioDe(lista, agora) : null
   const resumo = vazio ? vazio.topo
     : lista.n === itens.length ? resumoDaLista(itens.map((it) => ({ kind: it.kind, lugar: it.kind === 'destino' ? nomeDoLugar(it.subject_key) : '' })))

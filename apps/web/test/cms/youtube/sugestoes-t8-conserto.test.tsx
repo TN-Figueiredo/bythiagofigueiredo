@@ -208,3 +208,14 @@ describe('T8 r2', () => {
     expect(css).toMatch(/obs-ch-tab\[data-tab="sugestoes"\][^{]*\{[^}]*flex:none/)
   })
 })
+
+describe('T9 I3: de/aviso saem da URL depois da 1ª renderização', () => {
+  it('replaceState tira de e aviso, mantém o filtro, e a faixa da prop continua no DOM', () => {
+    window.history.replaceState(null, '', '/x?de=sino&aviso=nicho:a&filtro=destino')
+    const v = vista([linha('a')], { faixa: { tipo: 'aviso', titulo: 'Algumas sugestões do aviso já saíram da lista.', texto: 't' } as VistaDaLista['faixa'] })
+    render(<SugestoesLista modo="pagina" vista={v} acoes={acoes(async () => ({ ok: true }))} />)
+    expect(window.location.search).toBe('?filtro=destino')
+    expect(screen.getByText(/Algumas sugestões do aviso já saíram/)).toBeTruthy()
+    expect(nav.replace).not.toHaveBeenCalled()
+  })
+})

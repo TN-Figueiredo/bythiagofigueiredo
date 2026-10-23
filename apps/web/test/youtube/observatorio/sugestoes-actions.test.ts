@@ -9,10 +9,13 @@ const UUID = '11111111-1111-4111-8111-111111111111'
 interface Opcoes { admin?: boolean; edit?: boolean; dispensar?: { ok: boolean; motivo?: string } | 'lanca' }
 interface Registro { ordem: string[]; chamadas: unknown[][]; paths: unknown[][]; tags: unknown[][] }
 
+const sentry = { captureException: vi.fn(), captureMessage: vi.fn() }
+
 async function montar(o: Opcoes = {}) {
   const r: Registro = { ordem: [], chamadas: [], paths: [], tags: [] }
   vi.resetModules()
   vi.doMock('server-only', () => ({}))
+  vi.doMock('@sentry/nextjs', () => sentry)
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 'site-ctx' }) }))
   vi.doMock('@/lib/cms/auth-guards', () => ({
     denyUnlessSiteAdmin: async (siteId: string) => { r.ordem.push(`admin:${siteId}`); return o.admin === false ? { ok: false, error: 'x' } : null },
@@ -34,7 +37,7 @@ async function montar(o: Opcoes = {}) {
   return { r, ...mod }
 }
 
-beforeEach(() => { vi.restoreAllMocks() })
+beforeEach(() => { vi.restoreAllMocks(); sentry.captureException.mockClear(); sentry.captureMessage.mockClear() })
 
 describe('dispensarSugestao', () => {
   it('sem admin: sem_permissao e o cliente de serviço nunca é criado', async () => {
@@ -84,6 +87,13 @@ describe('dispensarSugestao', () => {
     const res = await dispensarSugestao(UUID, 'ja_fiz')
     expect(res).toEqual({ ok: false, motivo: 'falhou' })
     expect(JSON.stringify(res)).not.toContain('postgres')
+    expect(sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(sentry.captureException.mock.calls[0]?.[1]).toMatchObject({ tags: { step: 'dispensar' } })
+  })
+  it('motivo desconhecido da RPC vira falhou e vai ao Sentry como aviso', async () => {
+    const { dispensarSugestao } = await montar({ dispensar: { ok: false, motivo: 'estranho' } })
+    expect(await dispensarSugestao(UUID, 'ja_fiz')).toEqual({ ok: false, motivo: 'falhou' })
+    expect(sentry.captureMessage).toHaveBeenCalledTimes(1)
   })
   it('editor sem admin (edit ok, admin não): sem_permissao', async () => {
     const { dispensarSugestao } = await montar({ admin: false, edit: true })

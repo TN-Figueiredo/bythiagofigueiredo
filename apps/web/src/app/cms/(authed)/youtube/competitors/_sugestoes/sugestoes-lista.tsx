@@ -69,6 +69,14 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
 
   useEffect(() => { if (new URLSearchParams(window.location.search).get('mais') === '1') setMais(true) }, [])
+  // O aviso do sino (`de`/`aviso`) vale só para a 1ª renderização: sem isso, dispensar ou F5 refaria a faixa "algumas saíram". replaceState não pede nada ao servidor.
+  useEffect(() => {
+    if (modo !== 'pagina') return
+    const u = new URL(window.location.href)
+    if (!u.searchParams.has('de') && !u.searchParams.has('aviso')) return
+    u.searchParams.delete('de'); u.searchParams.delete('aviso')
+    window.history.replaceState(window.history.state, '', u.pathname + u.search)
+  }, [modo])
   // A atualização do servidor pode devolver a URL sem `?filtro`: reaplica a escolha da pessoa.
   useEffect(() => {
     if (modo !== 'pagina' || filtro === 'todas') return
