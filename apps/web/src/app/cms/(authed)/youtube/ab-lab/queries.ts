@@ -231,11 +231,13 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
 
   if (hasEnoughData && variantStats.length >= 2) {
     const bayesian = calculateBayesianConfidence(variantStats)
-    confidence = bayesian.confidence
-    suggestedWinnerId = bayesian.winnerId || null
-    const config = (test as Record<string, unknown>).config as { confidence_threshold?: number } | null
-    const threshold = config?.confidence_threshold ?? 0.95
-    isSignificant = confidence >= threshold
+    if (bayesian.estado === 'calculado') {
+      confidence = bayesian.confidence
+      suggestedWinnerId = bayesian.winnerId || null
+      const config = (test as Record<string, unknown>).config as { confidence_threshold?: number } | null
+      const threshold = config?.confidence_threshold ?? 0.95
+      isSignificant = confidence >= threshold
+    }
   }
 
   // Fetch latest polls for live signal (active/paused tests only)
@@ -942,12 +944,14 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   // Compute Bayesian probabilities if enough data
   if (results.variants.length >= 2 && results.variants.every(v => v.total_impressions >= 100)) {
     const bayesian = calculateBayesianConfidence(results.variants)
-    for (const v of variants) {
-      const variantId = results.variants.find(
-        rv => toDisplayLabel(rv.label, rv.is_original) === v.label,
-      )?.variant_id
-      if (variantId && bayesian.probabilities[variantId]) {
-        v.pBest = bayesian.probabilities[variantId]!
+    if (bayesian.estado === 'calculado') {
+      for (const v of variants) {
+        const variantId = results.variants.find(
+          rv => toDisplayLabel(rv.label, rv.is_original) === v.label,
+        )?.variant_id
+        if (variantId && bayesian.probabilities[variantId]) {
+          v.pBest = bayesian.probabilities[variantId]!
+        }
       }
     }
   }

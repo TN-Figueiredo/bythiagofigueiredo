@@ -195,20 +195,19 @@ export interface BayesianResult {
   probabilities: Record<string, number>
 }
 
-export interface ZTestResult {
-  zScore: number
-  pValue: number
-  significant: boolean
+/** Contagem de uma variante para a estatística. Nulo = não medido: nunca vira 0. */
+export interface ContagemDaVariante {
+  variant_id: string
+  total_impressions: number | null
+  total_clicks: number | null
 }
 
-export interface EvaluationResult {
-  confidence: number
-  winnerId: string | null
-  bayesian: BayesianResult
-  zTest: ZTestResult | null
-  gates: { name: string; passed: boolean; detail: string }[]
-  shouldResolve: boolean
-}
+export type ResultadoZ =
+  | { estado: 'nao_medido' }
+  | { estado: 'sem_volume' }
+  | { estado: 'calculado'; z: number; p: number }
+
+export type ResultadoBayes = { estado: 'nao_medido' } | ({ estado: 'calculado' } & BayesianResult)
 
 export interface AbTestSiteSettings {
   default_duration_days: number

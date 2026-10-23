@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   calculateBayesianConfidence,
-  calculateZTest,
+  zDuasProporcoes,
   normalCdf,
   calculatePlayoffStats,
 } from '@/lib/youtube/ab-statistics'
@@ -31,49 +31,34 @@ describe('normalCdf', () => {
   })
 })
 
-describe('calculateZTest', () => {
+describe('zDuasProporcoes', () => {
   it('detects significant difference with large samples', () => {
-    const a = makeVariant('A', 5000, 250)
-    const b = makeVariant('B', 5000, 350)
-    const result = calculateZTest(a, b)
-    expect(result.zScore).toBeGreaterThan(2)
-    expect(result.pValue).toBeLessThan(0.05)
-    expect(result.significant).toBe(true)
+    const r = zDuasProporcoes(makeVariant('A', 5000, 250), makeVariant('B', 5000, 350))
+    expect(r.estado).toBe('calculado')
+    if (r.estado === 'calculado') {
+      expect(r.z).toBeGreaterThan(2)
+      expect(r.p).toBeLessThan(0.05)
+    }
   })
 
   it('does not detect significance with small samples', () => {
-    const a = makeVariant('A', 100, 5)
-    const b = makeVariant('B', 100, 7)
-    const result = calculateZTest(a, b)
-    expect(result.significant).toBe(false)
+    const r = zDuasProporcoes(makeVariant('A', 100, 5), makeVariant('B', 100, 7))
+    expect(r.estado).toBe('calculado')
+    if (r.estado === 'calculado') expect(r.p).toBeGreaterThanOrEqual(0.05)
   })
 
   it('handles equal CTRs', () => {
-    const a = makeVariant('A', 1000, 50)
-    const b = makeVariant('B', 1000, 50)
-    const result = calculateZTest(a, b)
-    expect(result.zScore).toBeCloseTo(0, 1)
-    expect(result.significant).toBe(false)
+    const r = zDuasProporcoes(makeVariant('A', 1000, 50), makeVariant('B', 1000, 50))
+    expect(r.estado).toBe('calculado')
+    if (r.estado === 'calculado') expect(r.z).toBeCloseTo(0, 1)
   })
 
-  it('handles zero impressions gracefully in zTest', () => {
-    const result = calculateZTest(
-      { variant_id: 'a', label: 'A', blob_url: null, is_original: true, total_impressions: 0, total_clicks: 0, avg_ctr: 0, cycles_completed: 0 },
-      { variant_id: 'b', label: 'B', blob_url: null, is_original: false, total_impressions: 1000, total_clicks: 50, avg_ctr: 0.05, cycles_completed: 5 }
-    )
-    expect(result.zScore).toBe(0)
-    expect(result.pValue).toBe(1)
-    expect(result.significant).toBe(false)
+  it('zero impressions dá sem_volume, não pValue 1', () => {
+    expect(zDuasProporcoes(makeVariant('A', 0, 0), makeVariant('B', 1000, 50)).estado).toBe('sem_volume')
   })
 
-  it('handles both variants having zero impressions', () => {
-    const result = calculateZTest(
-      { variant_id: 'a', label: 'A', blob_url: null, is_original: true, total_impressions: 0, total_clicks: 0, avg_ctr: 0, cycles_completed: 0 },
-      { variant_id: 'b', label: 'B', blob_url: null, is_original: false, total_impressions: 0, total_clicks: 0, avg_ctr: 0, cycles_completed: 0 }
-    )
-    expect(result.zScore).toBe(0)
-    expect(result.pValue).toBe(1)
-    expect(result.significant).toBe(false)
+  it('both variants with zero impressions dá sem_volume', () => {
+    expect(zDuasProporcoes(makeVariant('A', 0, 0), makeVariant('B', 0, 0)).estado).toBe('sem_volume')
   })
 })
 
