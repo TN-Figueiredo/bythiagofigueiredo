@@ -98,7 +98,7 @@ function naoMedido(m: Motivo, vistoAte: string | undefined, ultimo: string | nul
   return `${base} Último estado visto${vistoAte ? ` até ${dia(vistoAte)}` : ''}: ${ultimo}`
 }
 const foraDaJanela = (vistoAte: string, ultimo: string | null): string =>
-  `Fora da observação desde ${dia(vistoAte)} (30 dias da publicação). Último estado: ${ultimo ?? 'não medido.'}`
+  `Fora da observação${vistoAte ? ` desde ${dia(vistoAte)}` : ''} (30 dias da publicação). Último estado: ${ultimo ?? 'não medido.'}`
 
 export function textoTitulo(e: EstadoTitulo, o: Opcoes): string {
   if (e.estado === 'nao_medido') return naoMedido(e.motivo, e.vistoAte, e.ultimo ? textoBaseTitulo(e.ultimo, o) : null)

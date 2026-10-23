@@ -101,6 +101,7 @@ describe('textos do título (§11, igualdade exata)', () => {
     expect(textoTitulo({ estado: 'fora_da_janela', ultimo, vistoAte: '2026-10-22T13:00:00Z' }, o))
       .toBe('Fora da observação desde 22/10 (30 dias da publicação). Último estado: Um título só nas últimas 8 passagens (desde 21/10). Não quer dizer que não houve teste antes.')
     expect(textoTitulo({ estado: 'fora_da_janela', ultimo: null, vistoAte: '2026-10-22T13:00:00Z' }, o)).toBe('Fora da observação desde 22/10 (30 dias da publicação). Último estado: não medido.')
+    expect(textoTitulo({ estado: 'fora_da_janela', ultimo: null, vistoAte: '' }, o)).toBe('Fora da observação (30 dias da publicação). Último estado: não medido.') // Yannis M-4: nunca "desde "
   })
   it('versão de 100 emojis: corta em 79 pontos de código + reticências, sem surrogate solto', () => {
     const longo = '😀'.repeat(100)

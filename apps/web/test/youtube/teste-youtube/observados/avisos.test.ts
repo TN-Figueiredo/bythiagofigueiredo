@@ -112,6 +112,40 @@ describe('enviarAvisosDaLeitura: aviso de degradação', () => {
   })
 })
 
+describe('enviarAvisosDaLeitura: envio que falha não expira o aberto de D-1 (Yannis I-2, mutante M8)', () => {
+  const fanErro = { total: 1, sent: 0, suppressed: 0, errors: ['x'] }
+  it('degradação: fan-out com erro em D mantém o obs-degradada de D-1 aberto e conta falhas', async () => {
+    const t = mundo({ porAlvoD: 0, notificacoes: [aberta('obs-degradada:2026-10-21')] })
+    const f = vi.fn().mockResolvedValue(fanErro)
+    const r = await rodar(t, f).fim
+    expect(chaves(f)).toEqual(['obs-degradada:2026-10-22'])
+    expect(r.falhas).toBe(1)
+    expect(abertas(t)).toContain('obs-degradada:2026-10-21')
+  })
+  it('título suspenso: fan-out com erro em D mantém o obs-titulo-suspenso de D-1 aberto e conta falhas', async () => {
+    const t = mundo({ porAlvoD: 1, tituloComum: 'Mesmo titulo placeholder', notificacoes: [aberta('obs-titulo-suspenso:2026-10-21')] })
+    const f = vi.fn().mockResolvedValue(fanErro)
+    const r = await rodar(t, f).fim
+    expect(chaves(f)).toContain('obs-titulo-suspenso:2026-10-22')
+    expect(r.falhas).toBeGreaterThanOrEqual(1)
+    expect(abertas(t)).toContain('obs-titulo-suspenso:2026-10-21')
+  })
+})
+
+describe('enviarAvisosDaLeitura: nenhum alvo considerado com alvos ativos (Yannis M-3 / Phil M-4)', () => {
+  it('ativos sem competitor_videos em D e D-1: dispara sem_leitura com N = ativos e "2º dia seguido"; não é mais mudo', async () => {
+    const t = mundo({ alvos: 3 })
+    t.competitor_videos = []
+    const f = vi.fn().mockResolvedValue(fanOk)
+    const r = await rodar(t, f).fim
+    expect(chaves(f)).toEqual(['obs-degradada:2026-10-22'])
+    const msg = String((f.mock.calls[0]![0] as { message: string }).message)
+    expect(msg).toContain('3 vídeos acompanhados')
+    expect(msg).toContain('2º dia seguido')
+    expect(r.degradada).toBe(1)
+  })
+})
+
 describe('enviarAvisosDaLeitura: título suspenso', () => {
   it('título repetido em 3 vídeos: aviso com a contagem de vídeos; no 1º dia sem suspensos o aberto expira', async () => {
     const t = mundo({ porAlvoD: 1, tituloComum: 'Mesmo titulo placeholder', notificacoes: [aberta('obs-titulo-suspenso:2026-10-21')] })

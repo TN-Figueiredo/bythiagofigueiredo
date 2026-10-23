@@ -53,6 +53,8 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
   try {
     leitura = await (deps.leitura ?? ((sb, a, semTempo) => enviarAvisosDaLeitura(sb, a, { semTempo })))(c.sb, agora, () => c.agora() >= c.t0 + BANCO_ATE_MS)
     leituraFalhou = leitura.falhas
+    // Sem exceção, mas incompleta (sem tempo ou envio que falhou): a tarefa é diária, então sem isto o único rastro seria o detalhe.
+    if (leitura.semTempo > 0 || leitura.falhas > 0) Sentry.captureMessage('avisos_pendentes: parte da leitura incompleta', { level: 'warning', tags: { area: 'ab-observados' }, extra: { sem_tempo: leitura.semTempo, falhas: leitura.falhas } })
   } catch (e) {
     leituraFalhou = 1
     Sentry.captureMessage('avisos_pendentes: parte da leitura falhou: ' + (e instanceof Error ? e.name : typeof e), { level: 'warning', tags: { area: 'ab-observados' } })

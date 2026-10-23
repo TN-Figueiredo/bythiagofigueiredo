@@ -74,6 +74,15 @@ export function avaliarDegradacao(alvos: readonly AlvoAtivo[], leituras: readonl
   return { dispara: false, condicao: null, ...base }
 }
 
+/**
+ * Alvos ativos, mas nenhum considerado nos dois dias (D e D-1): `avaliarDegradacao` calaria (0 considerados). Aqui isso vira `sem_leitura`
+ * com N = ativos e "2º dia seguido"; devolve null quando não se aplica. Silêncio com alvo ativo é o modo de falha deste sistema.
+ */
+export function avaliarSemConsiderados(ativos: number, aD: Avaliacao, aD1: Avaliacao): Avaliacao | null {
+  if (ativos <= 0 || aD.alvosConsiderados !== 0 || aD1.alvosConsiderados !== 0) return null
+  return { dispara: true, condicao: 'sem_leitura', pctSemTitulo: 0, alvosSemLeitura: ativos, alvosConsiderados: ativos }
+}
+
 const RESTO = 'Se continuar, a leitura de títulos dos concorrentes fica parada até construirmos a leitura pela forja (hoje ela não existe).'
 const SEGUNDO_DIA = '2º dia seguido: é o gatilho para construir a leitura pela forja.'
 const NAO_MEDIDO = "Os estados de título podem ficar 'não medido'."

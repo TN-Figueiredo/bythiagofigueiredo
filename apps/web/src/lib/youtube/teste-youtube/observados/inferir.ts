@@ -466,7 +466,8 @@ export function gravacao(e: { r: ResultadoObs; estourou: boolean }, o: { agoraIs
     linhas,
     cursor: {
       avaliado_ate_rodada: o.rodadas, avaliado_em: o.agoraIso, avaliado_motivo: 'ok',
-      validas_titulo: e.estourou ? 0 : e.r.validasTitulo, validas_miniatura: e.estourou ? 0 : e.r.validasMiniatura,
+      // §6.2: no estouro da guarda só o título é zerado; a miniatura medida segue valendo.
+      validas_titulo: e.estourou ? 0 : e.r.validasTitulo, validas_miniatura: e.r.validasMiniatura,
     },
   }
 }

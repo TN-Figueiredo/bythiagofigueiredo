@@ -277,6 +277,15 @@ describe('passo (flag on)', () => {
     await rodarObservados(contexto(b.sb), { fimDuroMs: FIM, env: ENV_ON, varreduraLote: 2 })
     expect(t.ab_native_observados!.find(o => o.id === 3)).toMatchObject({ ficou_estado: 'sem_desfecho', motivo: 'janela' })
   })
+  it('varredura cheia (lote inteiro de linhas vivas, nenhuma fechada) conta obs_varredura_cheia; com fechamento ou lote folgado, não (Phil M-2)', async () => {
+    const t = mundo(3)
+    const linha = (id: number, ytId: string): Linha => ({ id, site_id: SITE, youtube_video_id: ytId, campo: 'titulo', ficou_estado: 'em_andamento', motivo: null, ultima_atualizacao_em: iso(T0 - id * 1000) })
+    t.ab_native_observados!.push(linha(1, yt(1)), linha(2, yt(2)))
+    const cheia = await rodarObservados(contexto(criarBanco(t).sb), { fimDuroMs: FIM, env: ENV_ON, varreduraLote: 2 })
+    expect(cheia.detalhe).toMatchObject({ obs_fechados: 0, obs_varredura_cheia: 1 })
+    const folgada = await rodarObservados(contexto(criarBanco(t).sb), { fimDuroMs: FIM, env: ENV_ON, varreduraLote: 500 })
+    expect(folgada.detalhe).toMatchObject({ obs_varredura_cheia: 0 })
+  })
   it('varredura: a consulta recebe abortSignal (tempo limite de banco; o comentário engoliu a chamada no conserto 1)', async () => {
     const t = mundo(1)
     t.ab_native_observados!.push({ id: 1, site_id: SITE, youtube_video_id: yt(1), campo: 'titulo', ficou_estado: 'em_andamento', motivo: null })
@@ -461,7 +470,7 @@ describe('guarda de título repetido no passo (§6.2)', () => {
     expect(t.ab_native_observados).toHaveLength(0)
     expect(t.ab_native_obs_cursor).toHaveLength(0)
   })
-  it('estouro da guarda: sem linha de título, cursor com validas 0, e o upsert é o gravacao() do mesmo resultado', async () => {
+  it('estouro da guarda: sem linha de título, cursor com validas_titulo 0 (a miniatura segue, §6.2), e o upsert é o gravacao() do mesmo resultado', async () => {
     // idiomas em cadência decrescente: cada suspensão devolve a maioria ao próximo idioma, com versões novas (4 idiomas > teto de 3)
     const idiomas: Array<[string, string]> = [['l1', 'aabab'], ['l2', 'abab'], ['l3', 'aba'], ['l4', 'ab']]
     const todos = idiomas.flatMap(([l]) => ['a', 'b'].map(x => `${l}::${l} ${x}`))
@@ -471,7 +480,7 @@ describe('guarda de título repetido no passo (§6.2)', () => {
     expect(r.detalhe).toMatchObject({ obs_avaliados: 1, obs_falhou: 0 })
     expect(r.detalhe.obs_titulo_suspenso).toBeGreaterThan(0)
     expect(t.ab_native_observados!.filter(o => o.campo === 'titulo')).toHaveLength(0)
-    expect(t.ab_native_obs_cursor![0]).toMatchObject({ validas_titulo: 0, validas_miniatura: 0 })
+    expect(t.ab_native_obs_cursor![0]).toMatchObject({ validas_titulo: 0 })
     const e = await esperado(t, 1, { conferir: async vs => new Set(vs.map(v => v.chave)) })
     expect(e.g.estourou).toBe(true)
     expect(semFixos(t.ab_native_observados!)).toEqual(e.linhas)

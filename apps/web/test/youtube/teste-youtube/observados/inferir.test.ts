@@ -217,11 +217,11 @@ describe('gravacao (D-P7): a única fonte do que vai ao banco', () => {
     expect(r.validasTitulo).toBeGreaterThan(0)
     expect(Object.keys(g.cursor).sort()).toEqual([...COLUNAS_CURSOR].sort())
   })
-  it('estouro da guarda zera as validas do cursor (as duas)', () => {
-    const r = tit(MISTAS)
+  it('estouro da guarda zera só validas_titulo (§6.2); a miniatura medida segue com as validas do resultado (Yannis M-1)', () => {
+    const r = { ...tit(MISTAS), validasMiniatura: 8 }
     expect(r.validasTitulo).toBeGreaterThan(0)
     const g = gravacao({ r, estourou: true }, { agoraIso: AGORA, rodadas: 24, saiuPor: null })
-    expect(g.cursor).toMatchObject({ validas_titulo: 0, validas_miniatura: 0, avaliado_motivo: 'ok' })
+    expect(g.cursor).toMatchObject({ validas_titulo: 0, validas_miniatura: 8, avaliado_motivo: 'ok' })
   })
   it('saiuPor força sem_desfecho + motivo só nas linhas em_andamento; a estavel fica como está (D-P3)', () => {
     const teste = gravacao({ r: tit(MISTAS), estourou: false }, { agoraIso: AGORA, rodadas: 24, saiuPor: 'janela' })

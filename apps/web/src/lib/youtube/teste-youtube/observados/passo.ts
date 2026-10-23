@@ -27,12 +27,12 @@ export interface OpcoesPasso { env?: NodeJS.ProcessEnv; fimDuroMs: number; maxAl
 interface Contadores {
   obs_avaliados: number; obs_trocas: number; obs_falhou: number; obs_sem_tempo: number; obs_indeterminadas: number; obs_sem_publicacao: number
   obs_devidos: number; obs_fechados: number; obs_ignorados: number; obs_podadas: number; obs_sem_sobra: number; obs_sem_leitura_valida: number
-  obs_titulo_suspenso: number; obs_versoes_demais: number
+  obs_titulo_suspenso: number; obs_versoes_demais: number; obs_varredura_cheia: number
 }
 const novoDetalhe = (): Contadores => ({
   obs_avaliados: 0, obs_trocas: 0, obs_falhou: 0, obs_sem_tempo: 0, obs_indeterminadas: 0, obs_sem_publicacao: 0,
   obs_devidos: 0, obs_fechados: 0, obs_ignorados: 0, obs_podadas: 0, obs_sem_sobra: 0, obs_sem_leitura_valida: 0,
-  obs_titulo_suspenso: 0, obs_versoes_demais: 0,
+  obs_titulo_suspenso: 0, obs_versoes_demais: 0, obs_varredura_cheia: 0,
 })
 
 /**
@@ -161,7 +161,8 @@ async function publicacoes(c: ContextoTarefa, fim: number, alvos: readonly AlvoO
 
 async function varrer(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[], d: Contadores, lote: number): Promise<void> {
   ida(c, fim)
-  // a linha de alvo vivo é regravada a cada avaliação e vai para o fim; a de alvo que saiu fica parada e vem primeiro.
+  // Mais antigas primeiro. A linha de alvo vivo só é regravada quando a regra volta a emitir o campo (pode ficar parada, p.ex. após estouro da guarda ou
+  // título que deixou de emitir), então ela também pode vir na frente. Lote cheio sem nenhum fechamento = a fila pode estar escondendo alvo que saiu: obs_varredura_cheia.
   const r = await c.sb.from('ab_native_observados').select('id,site_id,youtube_video_id').eq('ficou_estado', 'em_andamento')
     .order('ultima_atualizacao_em', { ascending: true }).order('id', { ascending: true }).limit(lote).abortSignal(AbortSignal.timeout(BANCO_MS))
   if (r.error || !Array.isArray(r.data)) throw new Error('varredura')
@@ -176,6 +177,7 @@ async function varrer(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[],
     if (u.error) { d.obs_falhou++; continue }
     d.obs_fechados++
   }
+  if (r.data.length >= lote && d.obs_fechados === 0) d.obs_varredura_cheia++ // gatilho: > 0 por 3 dias seguidos -> paginar por keyset (ultima_atualizacao_em, id)
 }
 
 interface ApoioGuarda { canalDe: ReadonlyMap<string, string>; idsConcorrentes: readonly string[] }

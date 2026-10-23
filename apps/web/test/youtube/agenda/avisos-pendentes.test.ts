@@ -267,6 +267,19 @@ describe('rodarAvisos', () => {
       expect(fan).toHaveBeenCalledTimes(2)
       expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('parte da leitura falhou'), expect.objectContaining({ tags: { area: 'ab-observados' } }))
     })
+    it.each([[{ semTempo: 1, falhas: 0 }], [{ semTempo: 0, falhas: 1 }]])('leitura incompleta sem exceção (%j): vai ao Sentry com a área ab-observados e não muda o estado (Yannis I-1)', async (parte) => {
+      const r = roteiro({ ab_native_tests: [ok([]), ok([])] })
+      vi.mocked(Sentry.captureMessage).mockClear()
+      const out = await rodarAvisos(ctx(r.sb), { fanOut: vi.fn(), leitura: async () => ({ ativo: true, degradada: 0, suspenso: 0, expirados: 0, ...parte }) })
+      expect(out.estado).toBe('ok')
+      expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('incompleta'), expect.objectContaining({ level: 'warning', tags: { area: 'ab-observados' }, extra: { sem_tempo: parte.semTempo, falhas: parte.falhas } }))
+    })
+    it('leitura completa: nenhum Sentry da parte da leitura', async () => {
+      const r = roteiro({ ab_native_tests: [ok([]), ok([])] })
+      vi.mocked(Sentry.captureMessage).mockClear()
+      await rodarAvisos(ctx(r.sb), { fanOut: vi.fn(), leitura: async () => ({ ativo: true, degradada: 1, suspenso: 0, expirados: 0, falhas: 0, semTempo: 0 }) })
+      expect(Sentry.captureMessage).not.toHaveBeenCalledWith(expect.stringContaining('incompleta'), expect.anything())
+    })
     it('sem a dependência e com a flag off (env limpo): a parte não consulta nada e não falha', async () => {
       delete process.env.OBS_TROCAS_CONCORRENTE
       const r = roteiro({ ab_native_tests: [ok([]), ok([])] })

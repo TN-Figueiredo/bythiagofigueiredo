@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/nextjs'
 import { BANCO_MS } from '@/lib/youtube/agenda/relogio'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
 import { normalizarTitulo } from '../normalizar-titulo'
-import { avaliarDegradacao, diaBrtAnterior, textoDegradacao, textoSuspenso, type AlvoAtivo, type Avaliacao, type LeituraDia } from './alarme'
+import { avaliarDegradacao, avaliarSemConsiderados, diaBrtAnterior, textoDegradacao, textoSuspenso, type AlvoAtivo, type Avaliacao, type LeituraDia } from './alarme'
 import { modoTrocasConcorrente } from './flag'
 import { titulosSuspensos } from './guarda'
 import { tituloValido, type LeituraObs } from './inferir'
@@ -44,7 +44,7 @@ async function enviar(fanOut: FanOut, o: { siteId: string; type: string; title: 
   }
 }
 
-interface DadosSite { alvos: AlvoAtivo[]; leituras: LeituraDia[] }
+interface DadosSite { alvos: AlvoAtivo[]; leituras: LeituraDia[]; ativos: number }
 
 /** Lê tudo do site (alvos ativos, publicação, leituras de [D-1, D+1)) antes de qualquer decisão. Erro de leitura, ou contagem divergente, LANÇA. */
 async function lerSite(sb: SupabaseClient, siteId: string, ids: readonly string[], janela: { inicioMs: number; fimMs: number }, canais: ReadonlySet<string>, antes: () => void): Promise<DadosSite> {
@@ -76,7 +76,7 @@ async function lerSite(sb: SupabaseClient, siteId: string, ids: readonly string[
       leituras.push({ ytId, rodadaId, lidaEm, http: inteiro(l.http), erro: texto(l.erro), jogadorBloqueado: l.jogador_bloqueado === true, tituloExibido: texto(l.titulo_exibido), idioma: texto(l.idioma), canal: canalDe.get(ytId) ?? null })
     }
   }
-  return { alvos, leituras }
+  return { alvos, leituras, ativos: ids.length }
 }
 
 const comoObs = (l: LeituraDia): LeituraObs => ({
@@ -100,7 +100,7 @@ export async function enviarAvisosDaLeitura(sb: SupabaseClient, agora: Date, o: 
   const idsPorSite = new Map<string, string[]>()
   for (const a of ativos) {
     const site = texto(a.site_id), yt = texto(a.youtube_video_id)
-    if (site && yt) idsPorSite.set(site, [...(idsPorSite.get(site) ?? []), yt])
+    if (site && yt) { const l = idsPorSite.get(site) ?? []; l.push(yt); idsPorSite.set(site, l) }
   }
   let canais: Linha[] | null = null // lido uma vez, no 1º site que tiver tempo
 
@@ -131,11 +131,14 @@ async function avaliarSite(
   sb: SupabaseClient, siteId: string, d: DadosSite,
   c: { dia: ReturnType<typeof diaBrtAnterior>; diaAnterior: ReturnType<typeof diaBrtAnterior>; iso: string; fanOut: FanOut }, total: ResultadoLeituraAvisos,
 ): Promise<void> {
-  const aD: Avaliacao = avaliarDegradacao(d.alvos, d.leituras, c.dia)
+  const d0: Avaliacao = avaliarDegradacao(d.alvos, d.leituras, c.dia)
   const aD1: Avaliacao = avaliarDegradacao(d.alvos, d.leituras, c.diaAnterior)
+  const semConsiderados = avaliarSemConsiderados(d.ativos, d0, aD1)
+  const aD: Avaliacao = semConsiderados ?? d0
+  const segundoDia = semConsiderados !== null || aD1.dispara
   const chaveD = PREFIXO_DEGRADADA + c.dia.rotulo
   if (aD.dispara) {
-    const ok = await enviar(c.fanOut, { siteId, type: 'youtube.obs_degradada', title: 'Leitura dos concorrentes degradada', message: textoDegradacao(aD, aD1.dispara), dedupKey: chaveD, payload: { condicao: aD.condicao } })
+    const ok = await enviar(c.fanOut, { siteId, type: 'youtube.obs_degradada', title: 'Leitura dos concorrentes degradada', message: textoDegradacao(aD, segundoDia), dedupKey: chaveD, payload: { condicao: aD.condicao } })
     if (ok) { total.degradada++; total.expirados += await expirar(sb, siteId, PREFIXO_DEGRADADA, c.iso, chaveD) } else total.falhas++
   } else total.expirados += await expirar(sb, siteId, PREFIXO_DEGRADADA, c.iso, null)
 
