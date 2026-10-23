@@ -4,7 +4,7 @@
 import { useEffect, useReducer, useRef, useState, useTransition, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import CmsLink from '../../../_shared/cms-link'
-import { estadoInicial, reduzirLista, vistaVisivel } from './estado-da-lista'
+import { contagens, estadoInicial, reduzirLista, vistaVisivel } from './estado-da-lista'
 import { Ic } from './icones'
 import { Confirmacao, Linha } from './linha'
 import type { AcoesDaLista, MotivoDaTela } from './tipos'
@@ -16,6 +16,17 @@ const TEMPO_LIMITE_MS = 15_000
 const RECOLHE_MS = 5_000
 const POR_PAGINA_NO_CELULAR = 10
 const LINHAS_NO_BLOCO = 3
+
+/** GET manual na própria página: redirect (resposta opaca) = sessão expirada; erro de rede ou resposta normal = não é sessão. */
+async function sessaoExpirou(): Promise<boolean> {
+  try {
+    const r = await fetch(window.location.pathname, { method: 'HEAD', redirect: 'manual', credentials: 'same-origin', cache: 'no-store' })
+    return r.type === 'opaqueredirect'
+  } catch { return false }
+}
+async function redeResponde(): Promise<boolean> {
+  try { await fetch(window.location.pathname, { method: 'HEAD', credentials: 'same-origin', cache: 'no-store' }); return true } catch { return false }
+}
 
 interface Ancora { linha: LinhaDaVista; indice: number }
 
@@ -31,7 +42,11 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
   const visivel = vistaVisivel(p.vista, estado, ultimaBoa.current)
 
   const [filtro, setFiltro] = useState<FiltroDaLista>(p.vista.filtro?.atual ?? 'todas')
-  const mostrada = visivel.filtro !== null && modo === 'pagina' ? filtrarVista(visivel, filtro) : visivel
+  // O filtro escolhido sobrevive à queda de N: se o servidor deixou de mandar `filtro` (N <= 8), a escolha da pessoa continua valendo.
+  const comFiltroLocal: VistaDaLista = modo === 'pagina' && visivel.filtro === null && filtro !== 'todas' && visivel.completas.length > 0
+    ? { ...visivel, filtro: { atual: filtro, contagens: contagens(visivel.completas) } }
+    : visivel
+  const mostrada = comFiltroLocal.filtro !== null && modo === 'pagina' ? filtrarVista(comFiltroLocal, filtro) : comFiltroLocal
   const vivas = modo === 'bloco' ? mostrada.linhas.slice(0, LINHAS_NO_BLOCO) : mostrada.linhas
 
   const [aberta, setAberta] = useState<string | null>(null)
@@ -54,6 +69,14 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
 
   useEffect(() => { if (new URLSearchParams(window.location.search).get('mais') === '1') setMais(true) }, [])
+  // A atualização do servidor pode devolver a URL sem `?filtro`: reaplica a escolha da pessoa.
+  useEffect(() => {
+    if (modo !== 'pagina' || filtro === 'todas') return
+    const u = new URL(window.location.href)
+    if (u.searchParams.get('filtro') === filtro) return
+    u.searchParams.set('filtro', filtro)
+    window.history.replaceState(window.history.state, '', u.pathname + u.search)
+  }, [modo, filtro, visivel.n])
   useEffect(() => () => { for (const t of timers.current) clearTimeout(t) }, [])
 
   // Confirmação: recolhe 5 s depois; o foco vai à próxima linha (ou à frase-resumo) no momento da resposta.
@@ -92,7 +115,12 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
         setAberta(null)
         dispatch({ tipo: 'resposta', id, motivo, resposta })
       },
-      () => { if (terminou) return; fim(); setAberta(null); dispatch({ tipo: 'falha', id, motivo }) },
+      () => {
+        if (terminou) return
+        fim(); setAberta(null)
+        // Rejeição pode ser rede caída OU sessão expirada (a ação recebe o redirect do login): a sondagem separa as duas.
+        void sessaoExpirou().then((expirou) => dispatch({ tipo: 'falha', id, motivo, causa: expirou ? 'sessao' : undefined }))
+      },
     )
   }
   function fecharMotivos() { setAberta(null); gatilho.current?.focus() }
@@ -127,9 +155,14 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
   const vazio = mostrada.vazio !== null && vivas.length === 0 ? mostrada.vazio : null
   const erroSemLista = semLeitura && !vazio
   const verTodas = p.verTodasHref
-  const refaz = () => recarregar(() => router.refresh())
+  const [semRede, setSemRede] = useState(false)
+  // Sem rede, `router.refresh` cai para navegação completa e troca a tela pela página de erro do navegador: sonda antes.
+  const refaz = () => {
+    setSemRede(false)
+    void redeResponde().then((ok) => { if (ok) recarregar(() => router.refresh()); else setSemRede(true) })
+  }
   const botaoRefazer = <button type="button" className="sg-btn" disabled={recarregando} onClick={refaz}>Tentar de novo</button>
-  const f = visivel.filtro
+  const f = comFiltroLocal.filtro
 
   return (
     <section className="sg" data-obs-screen="sugestoes" data-modo={modo} data-mais={mais ? '' : undefined} ref={raiz}>
@@ -152,7 +185,7 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
           </dl>
         </div>
       )}
-      <p className="sg-sum" tabIndex={-1} ref={resumoRef}>{semLeitura && !vazio ? 'Não deu para ler as sugestões.' : mostrada.resumo}</p>
+      <p className="sg-sum" tabIndex={-1} ref={resumoRef}>{semLeitura && !vazio ? 'Não deu para ler as sugestões.' : mostrada.resumo}{modo === 'pagina' && vivas.length > 0 && <small>Da mais forte para a mais fraca.</small>}</p>
 
       {visivel.faixa && (
         visivel.faixa.tipo === 'erro-com-lista'
@@ -162,6 +195,8 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
             <div><h3>{visivel.faixa.titulo}</h3><p>{visivel.faixa.texto}{visivel.faixa.tipo === 'velho' && <>{' '}<CmsLink href="/cms/youtube/competitors" className="sg-lnk">Ver a coleta em Competidores</CmsLink></>}</p></div>
           </div>
       )}
+
+      {semRede && <p className="sg-errl" role="alert">{Ic.warn()}<span>Sem conexão. A tela continua como está; tente de novo quando a rede voltar.</span></p>}
 
       {modo === 'pagina' && f !== null && (
         <div className="sg-flt" role="group" aria-label="Filtrar por origem">

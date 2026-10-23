@@ -46,7 +46,7 @@ function acoes(r: RespostaDaAcao | (() => Promise<RespostaDaAcao>) = ok): AcoesD
 const cnt = () => document.querySelector('.sg-cnt')!.textContent
 
 beforeEach(() => { nav.replace.mockClear(); nav.refresh.mockClear() })
-afterEach(() => { cleanup(); vi.useRealTimers() })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 async function abrirMotivos(id: string) {
   const li = document.querySelector(`[data-row="${id}"]`) as HTMLElement
@@ -243,6 +243,7 @@ describe('SugestoesLista: lista grande, filtro, faixa, bloco, vazio', () => {
     expect(screen.getByText(/não são recalculadas desde 19\/10/).closest('[role="status"]')).not.toBeNull()
   })
   it('erro-com-lista: faixa com "Tentar de novo" que recarrega; a lista segue utilizável', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, type: 'basic', status: 200 })))
     const boa = tres()
     const { rerender } = render(<SugestoesLista vista={boa} acoes={acoes()} modo="pagina" />)
     rerender(<SugestoesLista vista={{ ...tres(), n: null, linhas: [], completas: [] }} acoes={acoes()} modo="pagina" />)

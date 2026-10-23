@@ -4,7 +4,7 @@ import type { MotivoDaTela, RespostaDaAcao } from './tipos'
 import { resumoDaLista, type LinhaDaVista, type VistaDaLista } from './view-model'
 
 export type DesfechoDaLinha = 'sucesso' | 'ja-saiu'
-export type TipoDeErro = 'nao-salvou' | 'sem-conexao' | 'sem-permissao'
+export type TipoDeErro = 'nao-salvou' | 'sem-conexao' | 'sem-permissao' | 'sessao'
 
 export interface EstadoDaLista {
   pendente: { id: string; motivo: MotivoDaTela } | null
@@ -18,7 +18,7 @@ export type EventoDaLista =
   | { tipo: 'iniciar'; id: string; motivo: MotivoDaTela }
   | { tipo: 'resposta'; id: string; motivo: MotivoDaTela; resposta: RespostaDaAcao }
   /** Promessa rejeitada ou 15 s sem resposta. */
-  | { tipo: 'falha'; id: string; motivo: MotivoDaTela }
+  | { tipo: 'falha'; id: string; motivo: MotivoDaTela; causa?: 'sessao' }
 
 export const estadoInicial = (): EstadoDaLista => ({ pendente: null, respondidas: new Map(), motivoDe: new Map(), erros: new Map() })
 
@@ -33,7 +33,7 @@ export function reduzirLista(e: EstadoDaLista, ev: EventoDaLista): EstadoDaLista
       return { ...e, pendente: { id: ev.id, motivo: ev.motivo }, erros: sem(e.erros, ev.id) }
     case 'falha':
       if (!ePendente) return e
-      return { ...e, pendente: null, erros: com(e.erros, ev.id, { tipo: 'sem-conexao', motivo: ev.motivo }) }
+      return { ...e, pendente: null, erros: com(e.erros, ev.id, { tipo: ev.causa === 'sessao' ? 'sessao' : 'sem-conexao', motivo: ev.motivo }) }
     case 'resposta': {
       const r = ev.resposta
       // `ok` sempre vale (inclusive depois do estouro de 15 s): a linha sai com a confirmação.
@@ -65,7 +65,7 @@ export function reduzirLista(e: EstadoDaLista, ev: EventoDaLista): EstadoDaLista
 const resumoDe = (ls: LinhaDaVista[]): string => (ls.length === 0 ? 'Nenhuma sugestão aberta.' : resumoDaLista(ls.map((l) => ({ kind: l.kind, lugar: l.lugar }))))
 const cheioNaPrimeira = (ls: LinhaDaVista[]): LinhaDaVista[] =>
   ls.map((l, i) => (l.primario.cheio === (i === 0) ? l : { ...l, primario: { ...l.primario, cheio: i === 0 } }))
-const contagens = (ls: LinhaDaVista[]) => ({ todas: ls.length, destino: ls.filter((l) => l.kind === 'destino').length, parecido: ls.filter((l) => l.kind === 'parecido').length })
+export const contagens = (ls: LinhaDaVista[]) => ({ todas: ls.length, destino: ls.filter((l) => l.kind === 'destino').length, parecido: ls.filter((l) => l.kind === 'parecido').length })
 
 /**
  * Pura, calculada no render. `prop.n !== null` -> a prop; `prop.n === null` com `ultimaBoa` -> a última boa com a faixa `erro-com-lista`,
