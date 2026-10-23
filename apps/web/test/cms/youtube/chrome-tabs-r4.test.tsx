@@ -29,16 +29,16 @@ describe('rolagem por rect', () => {
     { key: 'canais', label: 'Canais', href: '/a', current: false, count: 3, title: 't' },
     { key: 'sugestoes', label: 'Sugestões', href: '/b', current: false, count: 2, title: 't' },
   ]
-  function mount(atual: boolean, sugR: number, curL = 10, curR = 80) {
+  function mount(atual: boolean, sugR: number, curL = 10, curR = 80, nav = rect(0, 111), sugL = 28, atualKey: 'canais' | 'sugestoes' = 'canais') {
     const proto = HTMLElement.prototype
     const orig = proto.getBoundingClientRect
     proto.getBoundingClientRect = function (this: HTMLElement) {
-      if (this.tagName === 'NAV') return rect(0, 111)
-      if (this.dataset.tab === 'sugestoes') return rect(28, sugR)
+      if (this.tagName === 'NAV') return nav
+      if (this.dataset.tab === 'sugestoes') return rect(sugL, sugR)
       if (this.dataset.tab === 'canais') return rect(curL, curR)
       return orig.call(this)
     }
-    const t: ChromeView['tabs'] = atual ? tabs.map(x => (x.key === 'canais' ? { ...x, current: true } : x)) : tabs
+    const t: ChromeView['tabs'] = atual ? tabs.map(x => (x.key === atualKey ? { ...x, current: true } : x)) : tabs
     const { container } = render(<Tabs tabs={t} />)
     proto.getBoundingClientRect = orig
     return container.querySelector('nav') as HTMLElement
@@ -49,5 +49,11 @@ describe('rolagem por rect', () => {
   it('aba atual inteira visível mantém, e Sugestões só rola se a atual continuar inteira', () => {
     expect(mount(true, 157, 60, 100).scrollLeft).toBe(54)
     expect(mount(true, 157, 10, 80).scrollLeft).toBe(0)
+  })
+  it('r4 do Gio: em /sugestoes, com a trilha larga e Sugestões cabendo, a trilha fica no começo (Canais à vista)', () => {
+    expect(mount(true, 252, 28, 119, rect(28, 362), 123, 'sugestoes').scrollLeft).toBe(0)
+  })
+  it('a aba atual que não cabe é trazida para a vista', () => {
+    expect(mount(true, 252, 28, 119, rect(28, 139), 123, 'sugestoes').scrollLeft).toBe(252 - 28 - 111 + 8)
   })
 })
