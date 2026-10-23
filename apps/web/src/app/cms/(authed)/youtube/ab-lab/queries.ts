@@ -374,7 +374,7 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
     .from('ab_tests')
     .select(`
       id, name, test_type, status, started_at, completed_at,
-      completed_reason, confidence_at_completion, result_metadata,
+      completed_reason,
       winner:ab_test_variants!winner_variant_id(label)
     `)
     .eq('youtube_video_id', youtubeVideoId)
@@ -390,8 +390,9 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
     completed_at: t.completed_at as string | null,
     completed_reason: t.completed_reason as string | null,
     winner_label: ((Array.isArray(t.winner) ? t.winner[0] : t.winner) as { label: string } | null)?.label ?? null,
-    ctr_lift_percent: (t.result_metadata as { ctr_lift_percent?: number } | null)?.ctr_lift_percent ?? null,
-    confidence_at_completion: t.confidence_at_completion as number | null,
+    // S8-F2: derivados de views/views, sem escritor desde a P2; não saem mais para a tela.
+    ctr_lift_percent: null,
+    confidence_at_completion: null,
   }))
 }
 
@@ -566,8 +567,8 @@ export function aggregateTags(
     if (!winner) continue
     const meta = winner.metadata as Record<string, unknown> | null
     const tags = (meta?.thumbnail_tags as string[]) ?? []
-    const liftBruto = (test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent
-    const lift = typeof liftBruto === 'number' ? liftBruto : null
+    // S8-F2: o lift guardado (views/views) não chega mais à tela nem ao briefing; nulo = não medido.
+    const lift: number | null = null
     const testType = (test.test_type as string | undefined) ?? 'thumbnail'
     if (!(TIPOS_DE_TESTE as readonly string[]).includes(testType)) continue
     const kind = testType === 'title' ? 'title' as const : 'thumb' as const

@@ -81,8 +81,8 @@ describe('getVideoTestHistory', () => {
       completed_at: '2026-05-10T00:00:00Z',
       completed_reason: 'auto_resolved',
       winner_label: 'variant_b',
-      ctr_lift_percent: 12.5,
-      confidence_at_completion: 0.97,
+      ctr_lift_percent: null,
+      confidence_at_completion: null,
     })
   })
 
@@ -148,6 +148,6 @@ describe('getVideoTestHistory', () => {
     expect(result).toHaveLength(2)
     expect(result[0].id).toBe('test-new')
     expect(result[1].id).toBe('test-old')
-    expect(result[1].ctr_lift_percent).toBe(-3.2)
+    expect(result[1].ctr_lift_percent).toBeNull()
   })
 })

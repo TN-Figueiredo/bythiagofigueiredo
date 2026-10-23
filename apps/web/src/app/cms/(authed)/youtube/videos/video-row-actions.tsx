@@ -315,7 +315,7 @@ export function PinButton({ videoId, channelId, pinnedUntil, hasExistingPin }: P
 }
 
 export function AbStatusBadge({ test, videoId, isShort }: {
-  test: { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null } | null
+  test: { id: string; status: string; started_at: string | null } | null
   videoId: string
   isShort: boolean
 }) {
@@ -350,16 +350,6 @@ export function AbStatusBadge({ test, videoId, isShort }: {
     return (
       <Link href={href} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-900/30 text-amber-400">
         Pausado
-      </Link>
-    )
-  }
-
-  if (test.status === 'completed' && test.result_metadata) {
-    const lift = test.result_metadata.ctr_lift_percent
-    if (typeof lift !== 'number') return <span className="text-cms-text-muted">—</span>
-    return (
-      <Link href={href} className={`text-[11px] ${lift > 0 ? 'text-green-400' : 'text-cms-text-muted'}`}>
-        {lift > 0 ? `+${lift}%` : '= Original'}
       </Link>
     )
   }

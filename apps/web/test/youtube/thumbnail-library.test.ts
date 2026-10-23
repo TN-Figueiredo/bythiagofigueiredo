@@ -71,7 +71,7 @@ describe('checkLongevity', () => {
 // ===========================================================================
 
 describe('autoImportWinner', () => {
-  it('imports winning variant to library with lift calculation', async () => {
+  it('imports winning variant to library with lift_at_win null (S8-F2)', async () => {
     const insertedData: Record<string, unknown>[] = []
 
     const fromMock = vi.fn((table: string) => {
@@ -139,8 +139,8 @@ describe('autoImportWinner', () => {
       video_title: 'My Video',
       youtube_video_id: 'yt-vid-1',
     })
-    // Lift: winner avg = 1200, other avg = 800 → (1200-800)/800 = 50%
-    expect(insertedData[0]!.lift_at_win).toBe(50)
+    // S8-F2: lift por diferença de views não é medida de entrega; views 1200 vs 800 não geram mais 50
+    expect(insertedData[0]!.lift_at_win).toBeNull()
   })
 
   it('returns imported: false when test has no winner', async () => {
