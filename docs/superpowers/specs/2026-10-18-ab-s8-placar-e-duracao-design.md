@@ -1,8 +1,8 @@
 # Spec S8: gravação por variante e dia, placar com alcance da A5 e regra nova de duração
 
-Escrito em 18/10/2026 (1º rascunho, Opus); r2 em 18/10 (conserto da r1 de Phil e Yannis); r4 em 24/10 (só F2–F4: conserto dos pareceres r1 de Phil, 74 NÃO, e Yannis, 79 NÃO, de 23/10); **r5 em 23/10 (só F2–F4: emendas dos pareceres r2 de Phil, 87 NÃO, N1–N3 + M1–M5, e Yannis, 88 NÃO, N-1 a N-4 + m-1 a m-6; a F1 está em produção e não muda)**. Fatia S8 do plano conjunto
+Escrito em 18/10/2026 (1º rascunho, Opus); r2 em 18/10 (conserto da r1 de Phil e Yannis); r4 em 24/10 (só F2–F4: conserto dos pareceres r1 de Phil, 74 NÃO, e Yannis, 79 NÃO, de 23/10); r5 em 23/10 (só F2–F4: emendas dos pareceres r2 de Phil, 87 NÃO, N1–N3 + M1–M5, e Yannis, 88 NÃO, N-1 a N-4 + m-1 a m-6); **r5.1 em 23/10 (emendas finais dos pareceres r3: Phil 92 SIM, N4, N5, R1–R3; Yannis 94 SIM, R-1 a R-4; a F1 está em produção e não muda)**. Fatia S8 do plano conjunto
 (`.superpowers/sdd/ab-lab/2026-10-18-nativo-vs-nosso/plano-conjunto.md`, §1, §2, §4, §9).
-Revisão: Phil e Yannis no fim (portão G4); a r5 espera re-revisão (só nas emendas; pode ser Sonnet). Só documento: nenhum código, nenhuma migration criada.
+Revisão: Phil e Yannis no fim (portão G4); a r5.1 tem o SIM de Phil (92) e Yannis (94); sem nova rodada. Só documento: nenhum código, nenhuma migration criada.
 
 **Ajuste do dono (18/10):** a coleta vem primeiro. A S8 tem quatro fases. A F1 só grava. As outras
 três leem o que a F1 gravou.
@@ -344,7 +344,7 @@ A F2 faz:
   O Cowork deixa de mandar `total_impressions: null` e `AVISO_SEM_METRICA_DE_ENTREGA` quando há dia medido.
   **Lista do Cowork sem N+1** (Yannis r2 N-2): `projetarTeste(row, agora, placar)` continua pura e síncrona e recebe o `placar` já calculado
   (`null` = sem dado). `listAbTests` (`youtube.ts:1081`) faz **uma** leitura de `ab_test_dias` `.in('test_id', ids).eq('site_id', siteId)`
-  paginada por `lerPaginado` (≤ 38 linhas por teste) e agrupa por `Map`; `getAbTest` (`:1109`) faz uma leitura pela PK. Erro de leitura
+  paginada por `lerPaginado` (≤ 38 linhas por teste) com **ordem determinística `order('test_id').order('day_pt')` (a PK; sem ordem o `.range` duplica ou perde linha, `paginar.ts:17`)**, `ids` **fatiados em lotes de 100** (o `.in` vai na URL, ~37 caracteres por id; com mais de ~150 testes o GET estoura) e agrupa por `Map`; `getAbTest` (`:1109`) faz uma leitura pela PK. Erro de leitura
   devolve `err('DB_ERROR', ...)`, nunca `placar = null` silencioso; lista e detalhe mandam o mesmo número. O(D) tempo e memória, D = linhas
   dos testes listados (~100 hoje, ~1.000 em um ano). Doc do domínio em
   `data/pipeline-docs/cowork-docs-youtube.md` e `docs/cowork-pipeline-reference.md` atualizados (Pipeline Integrity). Dado privado do
@@ -405,7 +405,7 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
    - **Fonte do `p1`** (Yannis r2 N-1; Phil M4): os dias anteriores ao teste **não têm linha em `ab_test_dias`** (o retrato só grava dia com ciclo
      no ar), então o `p1` não sai dela. Função pura `baseDoVideo(entradas, videoId, ate)` recebe `alcancePorVideoDia`, `relatoriosPorCanalDia` e
      `metaPorVideoDia` (as leituras em lote que o `rodarRetrato` já faz; ampliar o `gte` de `desdeStr` para `min(desdeJanela, started_at − 14
-     dias)` só para v2) e devolve `{p1, dias, impressoes, p1_dias_sem_meta}` por `estadoDoAlcance` + `diaComAlcanceValido` aplicados ao alcance
+     dias)` só para v2 **e só enquanto `result_metadata.v2.p1` ainda é nulo, mais a server action do aviso**: `p1` é congelado uma vez e a janela ampla não se repete a cada rodada, Phil R3) e devolve `{p1, dias, impressoes, p1_dias_sem_meta}` por `estadoDoAlcance` + `diaComAlcanceValido` aplicados ao alcance
      bruto. **Dia que pertenceu a outro teste A/B do mesmo vídeo fica fora**: a informação é `yt_own_video_meta_daily.ab_test_id` não nulo no
      dia (e, para auditoria, `ab_tests` + `ab_test_cycles` do vídeo no intervalo). Dia sem linha de `meta_daily` conta como não excluído e
      entra em `p1_dias_sem_meta` (gravado). Como `p1` é congelado com `p1`, `p1_dias`, `p1_impressoes`, a auditoria lê o congelado, não
@@ -434,8 +434,12 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
 5. **Quando decide, e como escreve:** a decisão v2 roda **no fim da própria rodada do `ab-retrato`** (14:00 UTC), depois do apply,
    com o mesmo `withCronLock`, lendo o banco (fonte da decisão, acima). Fora das janelas de promoção.
    - pisos de dias e de volume atingidos → encerra; relógio no teto sem os dois pisos → encerra;
-   - **Dia da decisão** (Phil M3): a decisão grava `v2.encerrado_em_dia` (último dia fechado no encerramento) e o recálculo do desfecho
-     provisório usa só dias `<= encerrado_em_dia`, para `desfecho_no_encerramento` ser o que o nome diz.
+   - **Dia da decisão** (Phil M3, N4 r3): `encerrado_em_dia` = último dia PT fechado antes de `ab_tests.completed_at` (o `settleOnAir` grava
+     `completed_at`), **derivado do banco**, não do que a gravação do desfecho conseguiu escrever. A decisão o grava em `v2.encerrado_em_dia`
+     junto com o desfecho, mas o recálculo do desfecho provisório usa `day_pt <= encerrado_em_dia` **mesmo sem o campo gravado** (calcula de
+     `completed_at`), para `desfecho_no_encerramento` ser o que o nome diz também no caso "settle ok, gravação falhou". `encerrado_em_dia` é
+     imutável na RPC (lista `c`, abaixo). Teste: settle ok + RPC do desfecho falhando; no dia seguinte, com dia novo de alcance chegando depois,
+     `desfecho_no_encerramento` sai igual ao de um recálculo no dia da decisão.
    - encerrar = `settleOnAir(original, 'regra_v2')`, `completed_reason = 'regra_v2'`; **nunca** grava `winner_variant_id` (P2). O
      sugerido vai em `result_metadata.v2.vencedor_sugerido`.
    - **Ordem de escrita (escolha registrada entre Phil A7 e Yannis Y-6):** (i) `ab_settle_claim`/`settleOnAir` primeiro; (ii) só depois
@@ -446,27 +450,63 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
      (Yannis m-1): `naoVoltou`, `em_andamento` repetido por 2 rodadas e exceção. `pausadoPorTesteYoutube` é desfecho legítimo (o
      `ab-evaluate` o trata como `continue`, `:84`): grava `tentativa_falhou` com `motivo: 'teste_youtube'` e **não** chama `recordCronFailure`. Settle ok e gravação do
      desfecho falhando: o teste fica `completed/regra_v2` **sem** `v2.desfecho`; a tela trata isso como "desfecho pendente", nunca "sem
-     vencedor", e a próxima rodada grava (a seleção da decisão inclui esse caso).
+     vencedor", e a próxima rodada grava (a seleção da decisão inclui esse caso). **`tentativa_falhou` limpa no sucesso** (Yannis R-3): o merge da RPC não apaga chave, então o
+     sucesso grava `tentativa_falhou: null` no `p_v2`; `ResultadoV2` (Zod) declara `.nullish()` e a tela testa `!= null`. Teste: falha, depois sucesso: leitura sem aviso.
    - **Escrita atômica, com migration pequena na F4** (opção 1 de Yannis; **a F4 deixa de ser "sem migration"**): função SQL
-     `ab_test_v2_gravar(p_test_id uuid, p_v2 jsonb, p_hist jsonb default null, p_so_se_sem_n boolean default false) returns boolean`.
-     Nunca ler-modificar-gravar pelo cliente (lost update). Migration por `npm run db:new`, G1 (antes do código que a chama). Regras (Phil r2 N1 =
-     Yannis r2 N-4; o `||` raso da r4 apagava `n`, `p1` e `desfecho_no_encerramento`):
-     1. **Merge um nível abaixo:** `result_metadata = jsonb_set(coalesce(result_metadata,'{}'::jsonb), '{v2}', coalesce(result_metadata->'v2','{}'::jsonb) ||
-        <p_v2 sem os campos congelados>)`; `p_v2` carrega só os campos que mudam.
-     2. **Congelados gravados uma vez, dentro da RPC (não confiar no chamador):** `n`, `k`, `p1`, `p1_dias`, `p1_impressoes`, `base_estimada`,
-        `p1_dias_sem_meta` e `desfecho_no_encerramento` só entram se a chave ainda não existe no `v2` atual (`coalesce(old->'x', new->'x')`).
-     3. **`historico` anexado em SQL:** `p_hist` é concatenado ao array existente, nunca substituído.
-     4. **Retorno `boolean`** (linhas afetadas): `true` = gravou, `false` = outro escritor já havia congelado (com `p_so_se_sem_n`, `where
-        result_metadata->'v2'->'n' is null`); o chamador distingue "gravei" de "já havia".
-     5. **Segurança como na migration da F1 (`:119-124`):** `security definer`, `set search_path = ''` (nomes qualificados, `public.ab_tests`),
-        `revoke all ... from public, anon, authenticated`, `grant execute ... to service_role`; o `update ... where id = p_test_id` exige
-        `regra_duracao = 'v2'`.
-     6. **Testes de integração (`HAS_LOCAL_DB`):** (a) grava `n`, depois `tentativa_falhou`, depois `desfecho`, depois `desfecho_final`: `n`, `p1`,
-        `base_estimada` e `desfecho_no_encerramento` continuam; (b) duas chamadas com a flag gravam `n` uma vez e a segunda devolve `false`;
-        (c) segunda gravação de `desfecho_no_encerramento` não muda; (d) `historico` cresce, não é substituído; (e) `anon` e `authenticated`
-        recebem `permission denied` (só por chamada com cliente comum e `expect(error)`: o banco de integração dá SIGSEGV ao chamar função sem
-        EXECUTE por outra via). **Conferência pós-deploy:** `select result_metadata->'v2' - 'historico' from ab_tests where regra_duracao='v2' and
-        status='completed'` com `n` e `desfecho_no_encerramento` não nulos em todo teste que tenha `desfecho_final`.
+     `ab_test_v2_gravar(p_test_id, p_v2, p_hist, p_so_se_sem_n) returns smallint`. Nunca ler-modificar-gravar pelo cliente (lost update).
+     Migration por `npm run db:new`, G1 (antes do código que a chama). Texto pronto da migration (Yannis r3 R-2, com Phil N4 e R1; **proposta não
+     rodada em banco: deve passar pelo teste de integração `HAS_LOCAL_DB`**):
+     ```sql
+     create or replace function public.ab_test_v2_gravar(
+       p_test_id uuid, p_v2 jsonb, p_hist jsonb default null, p_so_se_sem_n boolean default false)
+     returns smallint language plpgsql security definer set search_path = '' as $$
+     declare
+       -- imutáveis: entram uma vez e nunca mudam (inclui encerrado_em_dia, Phil N4)
+       c constant text[] := array['n','k','p1','p1_dias','p1_impressoes','base_estimada',
+                                  'p1_dias_sem_meta','desfecho_no_encerramento','encerrado_em_dia'];
+       v_regra text;
+       v_atual jsonb;
+     begin
+       -- trava a linha: dois escritores se serializam e o segundo reavalia o v2 já gravado
+       select t.regra_duracao, coalesce(t.result_metadata->'v2','{}'::jsonb)
+         into v_regra, v_atual
+         from public.ab_tests t where t.id = p_test_id for update;
+       if not found or v_regra is distinct from 'v2' then
+         return -1;                                   -- inexistente ou não é v2
+       end if;
+       if p_so_se_sem_n and v_atual ? 'n' then
+         return 0;                                    -- outro escritor já congelou
+       end if;
+       update public.ab_tests t set result_metadata = jsonb_set(
+         coalesce(t.result_metadata,'{}'::jsonb), '{v2}',
+         v_atual
+         || (p_v2 - c - 'historico')                  -- congelados e historico nunca vêm direto de p_v2
+         || coalesce((select jsonb_object_agg(f.k, p_v2->f.k) from unnest(c) as f(k)
+                      where p_v2 ? f.k and not (v_atual ? f.k)), '{}'::jsonb)   -- teste de existência `?`, não coalesce (JSON null não é SQL NULL)
+         || case when p_hist is null then '{}'::jsonb
+                 else jsonb_build_object('historico',
+                        coalesce(v_atual->'historico','[]'::jsonb) || p_hist) end,
+         true)
+       where t.id = p_test_id;
+       return 1;                                      -- gravou
+     end $$;
+     revoke all on function public.ab_test_v2_gravar(uuid, jsonb, jsonb, boolean) from public, anon, authenticated;
+     grant execute on function public.ab_test_v2_gravar(uuid, jsonb, jsonb, boolean) to service_role;
+     ```
+     Regras que o SQL cumpre (Phil r2 N1 = Yannis r2 N-4; Yannis R-2; Phil R1): (1) merge **um nível abaixo** (`jsonb_set` em `{v2}`; o `||` raso da r4
+     apagava `n`, `p1`, `desfecho_no_encerramento`); `p_v2` carrega só o que muda e a RPC tira dele `historico` e os congelados; (2) **congelados gravados
+     uma vez, dentro da RPC**, pelo teste `?` de existência: `n`, `k`, `p1`, `p1_dias`, `p1_impressoes`, `base_estimada`, `p1_dias_sem_meta`,
+     `desfecho_no_encerramento`, `encerrado_em_dia`; (3) `historico` anexado em SQL, nunca substituído; (4) **retorno `smallint`** (Phil R1): `1` gravou, `0`
+     já havia congelado (`p_so_se_sem_n`), `-1` teste inexistente ou não `v2`; o chamador trata `-1` como erro e `0` como "já havia"; (5) segurança como na
+     migration da F1 (`:119-124`): `security definer`, `search_path = ''`, nomes qualificados, `revoke`/`grant` só `service_role`; (6) o `select ... for update`
+     serializa dois escritores sem depender de reavaliação do `update`.
+     **Testes de integração (`HAS_LOCAL_DB`):** (a) grava `n`, depois `tentativa_falhou`, depois `desfecho`, depois `desfecho_final`: `n`, `p1`,
+     `base_estimada` e `desfecho_no_encerramento` continuam; (b) duas chamadas com a flag gravam `n` uma vez e a segunda devolve `0`; (c) segunda gravação de
+     `desfecho_no_encerramento` e de `encerrado_em_dia` não muda; (d) `historico` cresce, não é substituído; **`p_v2` que traz `historico` não apaga o existente**;
+     (e) `anon` e `authenticated` recebem `permission denied` (só por chamada com cliente comum e `expect(error)`: o banco de integração dá SIGSEGV ao chamar
+     função sem EXECUTE por outra via); (f) teste inexistente e teste `v1` devolvem `-1`, diferente do `0` de "já congelado"; (g) `n: null` nunca é gravado
+     (o Zod do chamador recusa). **Conferência pós-deploy:** `select result_metadata->'v2' - 'historico' from ab_tests where regra_duracao='v2' and
+     status='completed'` com `n`, `p1` e `desfecho_no_encerramento` não nulos em todo teste que tenha `desfecho_final`, sem `NaN|Infinity`.
    - **Tempo e orçamento** (Yannis Y-3): `maxDuration = 120` no `ab-retrato`; extrair do `phaseEvaluateActiveTests` o laço
      `encerrarComPrazo(testes, motivo, inicioDaFuncao)` e chamá-lo das duas rotas, com `prazo = início + 105 s` e o mesmo
      `SETTLE_MINIMO_MS`/`FIM_DA_AVALIACAO_MS`. Com ~2 settles por rodada, o resto fica para a rodada seguinte. Teste: relógio injetado
@@ -502,16 +542,16 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
    dias previstos = `n_variantes × N / (impressões/dia)`. Se passa do teto: "este teste não chega ao volume em X dias; o desfecho
    provável é inconclusivo por volume", e o botão de iniciar continua. Com o teto entre o mínimo de validação (item 8) e mínimo + 2: "um dia sem medição já deixa o teste
    sem resultado" (a mesma conta do item 8; o aviso de teto abaixo do mínimo nem chega a aparecer, a validação recusa). Sem dado de alcance: "sem medição para estimar o volume", nunca "ok". O Cowork (`manage_ab_test`) devolve o mesmo
-   aviso no mesmo campo, e **a F4 acrescenta à projeção do Cowork `result_metadata.v2`** (desfecho, provisório, N, p1, base_estimada,
+   aviso no mesmo campo, **pelo mesmo serviço único `avisoDeVolume(sb, videoId, agora)`** (3 leituras de 14 dias: alcance, meta, relatórios do canal; Yannis R-4) chamado pela server action e pelo Cowork, nunca dois cálculos (teste: mesma semente, mesmo texto nos dois caminhos), e **a F4 acrescenta à projeção do Cowork `result_metadata.v2`** (desfecho, provisório, N, p1, base_estimada,
    gl, p_adj, vencedor_sugerido), com o doc do domínio atualizado (Phil A9).
 8. **Validação na criação v2** (Phil r2 N3): `rotation_pattern = 'abba'` e `max_duration_days >= piso + 1 + ATRASO_ALCANCE`, com `ATRASO_ALCANCE = 3`
    constante nomeada. Conta: dia válido exige `alcance_estado = medido`, o relatório chega em D+2 a D+3 (estimativa; o p95 real define a
    constante antes da F4, §11) e na decisão das 14:00 UTC os 2 a 3 últimos dias fechados estão `aguardando`; dias válidos no teto T = T − 1
    (início parcial) − 3 = **T − 4**. Logo o mínimo é **12 com 2 variantes (piso 8) e 16 com 3 (piso 12)**; abaixo disso, recusa com o motivo em
    uma frase ("o YouTube leva até 3 dias para enviar o alcance; com este teto o teste não chega a fechar os dias mínimos"). Com 3 variantes e
-   teto 14 (o padrão de hoje) o máximo seria 10 dias válidos (< 12): o teste só decidiria no D+10; por isso o padrão de 3 variantes sobe
-   para 16 (**recomendação, aguarda dono**, §10b). Testes: a semente do caso "teto aceito" põe `alcance_estado = medido` nos dias que
-   provam o piso; 2 variantes com teto 12 é aceito e 11 recusado; 3 variantes com 16 aceito e 15 recusado. Os campos `confidence_threshold`, `burn_in_days` e `stability_threshold` ficam no schema e são ignorados pela v2.
+   teto 14 (o padrão de hoje) o máximo seria 10 dias válidos (< 12): o teste só decidiria no D+10; por isso o padrão de `max_duration_days` na criação vira
+   `max(14, piso + 4)` (2 variantes 14, 3 variantes 16; **recomendação, aguarda dono**, §10b; sem a resposta, o padrão de 3 variantes continua 14 e a validação o recusa). Testes: a semente do caso "teto aceito" põe `alcance_estado = medido` nos dias que
+   provam o piso; 2 variantes com teto 12 é aceito e 11 recusado; 3 variantes com 16 aceito e 15 recusado; criação sem teto com 3 variantes grava 16 e com 2 grava 14, e um teste que apaga o parâmetro afirma o padrão (só se o dono aceitar a recomendação). Os campos `confidence_threshold`, `burn_in_days` e `stability_threshold` ficam no schema e são ignorados pela v2.
 9. **`CompletedReason` e consumidores** (Yannis Y-10): a F4 acrescenta `'regra_v2'` a `CompletedReason` (`ab-types.ts:6`) e, em
    `coleta/versoes-origem.ts:86-104` (`papelNaThumb`, `default: never`, arquivo da A5: avisar a frente antes) e
    `coleta/versoes-step.ts:95`, trata como `inconclusive` (o encerramento é `settleOnAir(original)`; senão a reconstrução das versões deixa
@@ -625,12 +665,14 @@ F4:
 - **F2 e F3 em envios separados.** Entre as duas o placar fica "não medido" para todos (esperado; o Gio confere isso, não "placar quebrado").
 - **`npm run db:push:prod` antes do push do commit 2 da F4** (Yannis m-6): o commit chama a RPC.
 - A F4 tem **uma migration pequena** (`ab_test_v2_gravar`, 5.2 item 5; a coluna e os dois CHECKs vêm na F1), **toca `ab-settle.ts`**
-  (`MotivoSaida`, `caminhoDe`, `MOTIVOS_QUE_PAUSAM_SEM_ESCREVER`), `ab-evaluate` (guarda `v2` + rede de segurança pelo relógio por ciclos) e `versoes-origem.ts`
+  (`MotivoSaida`, `caminhoDe`, `MOTIVOS_QUE_PAUSAM_SEM_ESCREVER`), `ab-evaluate` (guarda `v2` no commit 1; rede de segurança pelo relógio por ciclos no commit 2) e `versoes-origem.ts`
   (A5); tudo só vai ao ar depois do E8.
 - **F4 em três commits, árvore verde, cada um inerte até o último** (Yannis): (1) `CompletedReason` + `versoes-origem.ts` +
-  `caminhoDe('regra_v2')` + guarda/rede do `ab-evaluate`, sem teste v2 existente, efeito zero; (2) migration `ab_test_v2_gravar` + decisão
+  `caminhoDe('regra_v2')` + só a **guarda** `v2` do `ab-evaluate`, sem teste v2 existente, efeito zero; (2) migration `ab_test_v2_gravar`
+  (regenerar `database.types.ts` ali) + **a rede de segurança do `ab-evaluate`** (ela grava pela RPC, que só nasce aqui; Yannis R-1) + decisão
   no `ab-retrato` (`maxDuration = 120`), só age sobre v2, que ainda não existe; (3) os três caminhos de criação gravam `v2`: ativa.
-  Desfazer: reverter o 3 para criação nova; testes v2 já no ar seguem com o 2; se o 2 for revertido, a rede do 1 encerra em `max + 3`.
+  Desfazer: reverter o 3 para criar sem v2; testes v2 no ar seguem com o 2; reverter o 2 exige antes não haver teste v2 ativo (a rede depende da RPC).
+  Teste: typecheck verde em cada commit isolado (checkout de cada um, sem stash).
 
 ---
 
@@ -692,12 +734,18 @@ F4:
 ## 10b. Decisões do dono: estado na r4
 
 As decisões 2, 3 e 4 do §10 ficam **"recomendação, aguarda dono"** (Phil concorda com as recomendações 1 a 4; 2, 3 e 4 não bloqueiam F2/F3).
-Nenhuma foi decidida nesta revisão.
+Nenhuma foi decidida nesta revisão (r5.1 incluída).
 
 **Nova (r5, Phil r2 N3), recomendação, aguarda dono:** subir o **padrão** de `max_duration_days` com 3 variantes de 14 para **16** (o de 2
 variantes fica 14). Custo: até 2 dias a mais de exposição na variante pior em teste de 3 variantes, contra um teste que nunca decidiria
 (com teto 14 e 3 variantes o máximo é 10 dias válidos para um piso de 12). A validação (12 e 16 como mínimos, item 8) entra sem decisão do
-dono; só o valor padrão espera. Hanna leva ao dono. As escolhas técnicas da r4 (RPC `ab_test_v2_gravar`, bloco por `cycle_number`, `t` de Student,
+dono; só o valor padrão espera. Hanna leva ao dono.
+
+**Padrão na criação (r5.1, Phil r3 N5), recomendação, aguarda dono:** em vez de uma constante, o padrão de `max_duration_days` nos três caminhos de
+criação (C-12) vira `max(14, piso + 4)` (= `max(14, piso + 1 + ATRASO_ALCANCE)`): 2 variantes 14, 3 variantes 16, sem constante por número de variantes. Sem
+esse padrão, a criação de teste de 3 variantes com o teto omitido (14) leva recusa da validação no dia do deploy da F4. **Alternativa: a F4 só vai a
+produção depois da resposta do dono** (portão duro; uma pergunta binária que Hanna leva). Enquanto o dono não responde, vale o texto acima (padrão 14 e a
+validação recusando 3 variantes sem teto à mão). Teste se aceito: criação sem teto com 3 variantes grava 16, com 2 grava 14, e o teste apaga o parâmetro. As escolhas técnicas da r4 (RPC `ab_test_v2_gravar`, bloco por `cycle_number`, `t` de Student,
 `inconclusivo_por_falha`) são de engenharia e não mudam nenhuma decisão do dono.
 
 ---
@@ -708,6 +756,7 @@ dono; só o valor padrão espera. Hanna leva ao dono. As escolhas técnicas da r
 - r2 (18/10): conserto da r1 de Phil e Yannis.
 - r3 (18/10, emenda do plano da F1): §2.3 e C-3 dizem que `final` só vale no D+10 e que `motivo_nulo_meta` é recálculo da S8.
 - **r5 (23/10, só F2–F4):** emendas dos pareceres r2 de Phil (87, NÃO) e Yannis (88, NÃO); detalhe no "Registro r5" ao fim.
+- **r5.1 (23/10, só F2–F4):** emendas finais dos pareceres r3 de Phil (92, SIM) e Yannis (94, SIM); detalhe no "Registro r5.1" ao fim.
 - **r4 (24/10, só F2–F4):** conserto dos pareceres r1 de Phil (74, NÃO) e Yannis (79, NÃO). Decisão do controlador: a F2 para a gravação de
   views como impressões e toda soma desses ciclos; F2 e F3 em envios separados.
 
@@ -772,3 +821,20 @@ por ciclos (`diasDoTeste`), não em ms. Phil N3: validação 12/16 entra sem don
 | Yannis m-5 | §11 (linha do `ACOMPANHAMENTO.md` é ação do controlador; arquivo não editado aqui) |
 | Yannis m-6 | §9 (`db:push:prod` antes do push do commit 2) |
 | Não aplicado | nada; o p95 do atraso do alcance (define `ATRASO_ALCANCE`) segue conferência com data |
+
+### Registro r5.1 (achado → onde entrou)
+
+Ambos deram SIM (Phil 92, Yannis 94); só texto, sem nova rodada. SQL da RPC colado no §5.2 item 5 (Yannis R-2) unindo Phil N4 (`encerrado_em_dia` na lista de
+imutáveis) e Phil R1 (retorno `smallint`: 1 gravou, 0 já havia, -1 não é v2); o SQL não foi rodado em banco, a prova é o teste de integração.
+
+| Achado | Onde entrou |
+|---|---|
+| Phil N4 | §5.2 item 5 ("Dia da decisão": `encerrado_em_dia` derivado de `completed_at`; RPC: imutável; teste settle ok + gravação falha) |
+| Phil N5 | §5.2 item 8 (padrão `max(14, piso + 4)`), §10b (recomendação, aguarda dono; alternativa "F4 só vai a produção depois da resposta"); validação 12/16 inalterada |
+| Phil R1, Yannis R-2 | §5.2 item 5 (SQL pronto, retorno `smallint`, `?` no lugar de `coalesce`, `historico` fora de `p_v2`, testes (d), (f), (g)) |
+| Phil R2 | §5.1 (ordem `test_id, day_pt` e `ids` em lotes de 100 na lista do Cowork) |
+| Phil R3 | §5.2 item 3 (janela ampla de `baseDoVideo` só enquanto `p1` é nulo e na server action) |
+| Yannis R-1 | §9 (rede do `ab-evaluate` passa do commit 1 para o 2; desfazer; typecheck por commit) |
+| Yannis R-3 | §5.2 item 5 (`tentativa_falhou: null` no sucesso, Zod `.nullish()`) |
+| Yannis R-4 | §5.2 item 7 (serviço único `avisoDeVolume`) |
+| Não aplicado | nada; `settleOnAir` gravando `completed_at` (N4) e o upsert de `ab_test_id` em `meta-step.ts:81` ficam para o plano conferir |
