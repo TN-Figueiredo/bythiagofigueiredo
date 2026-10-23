@@ -11,8 +11,9 @@
 .cn-d14-ph { display: grid; place-items: center; border: 1px solid var(--cn-nm-line); background: repeating-linear-gradient(135deg, var(--cn-nm-bg) 0 6px, var(--cn-nm-fio) 6px 8px); }
 .cn-d14-ph.fail { gap: 4px; align-content: center; text-align: center; padding: 8px; box-sizing: border-box; font: 500 12.5px/1.35 Inter, system-ui, sans-serif; color: var(--cn-err); border: 1px dashed var(--cn-err-line); background: transparent; }
 .cn-d14-tx { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
-.cn-d14-top { display: flex; gap: 8px; align-items: flex-start; }
-.cn-d14-top q { overflow-wrap: anywhere; quotes: none; font: 600 13.5px/1.4 Inter, system-ui, sans-serif; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cn-d14-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+/* D-2 (Gio A): base 110 px faz o título quebrar para baixo do chip quando o cartão é estreito (3 colunas a 641 px: 119 px úteis), em vez de ficar com 85 px ao lado dele. */
+.cn-d14-top q { flex: 1 1 110px; min-width: 0; overflow-wrap: anywhere; quotes: none; font: 600 13.5px/1.4 Inter, system-ui, sans-serif; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cn-d14-vopt[aria-pressed="true"] { border: 2px solid var(--cn-text); padding: 11px; }
 .cn-d14-other .cn-btn[aria-pressed="true"] { border: 2px solid var(--cn-text); padding: 0 11px; font-weight: 600; }
 [data-theme="dark"] .cn-d14-vopt:hover:not([disabled]) { border-color: #A89D88; }

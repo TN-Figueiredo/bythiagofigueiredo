@@ -375,6 +375,28 @@ describe('ListaCaminho: ?video=', () => {
     />)
     expect(vistas.at(-1)).toBe(true)
   })
+  it.each([
+    ['duas versões', duas],
+    ['três versões', tres],
+    ['derivada (sem variantes, com original)', null],
+  ])('D-1: ?video= abre a pergunta em ficha de %s', (_nome, variantes) => {
+    const vistas: boolean[] = []
+    render(<Harness
+      linhas={[linha(1, { estado: 'sem_resposta', registro: reg({ variantes, tituloAntes: variantes ? null : 'Título de antes' }) })]}
+      videoInicial={ID(1)}
+      responder={(_l, c) => { vistas.push(c.aberta); return <span>slot</span> }}
+    />)
+    expect(vistas.at(-1)).toBe(true)
+  })
+  it('D-1: derivada sem original (sem título de antes) também abre a pergunta', () => {
+    const vistas: boolean[] = []
+    render(<Harness
+      linhas={[linha(1, { estado: 'resultado_pronto', registro: reg({ variantes: null, tituloAntes: null }) })]}
+      videoInicial={ID(1)}
+      responder={(_l, c) => { vistas.push(c.aberta); return <span>slot</span> }}
+    />)
+    expect(vistas.at(-1)).toBe(true)
+  })
 })
 
 describe('ListaCaminho: contagem para o esqueleto', () => {

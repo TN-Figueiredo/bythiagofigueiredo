@@ -81,7 +81,8 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
   const [escolhas, setEscolhas] = useState<Record<string, true>>({})
   const [responderAberto, setResponderAberto] = useState<string | null>(() => {
     const a = inicial.current.achada
-    return a && (a.estado === 'resultado_pronto' || a.estado === 'sem_resposta') && a.registro?.variantes?.length === 2 ? a.videoId : null
+    // Pelo estado da linha (dia 14), não pela contagem: ficha de 2 ou 3 versões e derivada (com ou sem original) abrem a pergunta.
+    return a && (a.estado === 'resultado_pronto' || a.estado === 'sem_resposta') && a.registro ? a.videoId : null
   })
   const raiz = useRef<HTMLElement>(null)
   const painelRef = useRef<HTMLDivElement>(null)
