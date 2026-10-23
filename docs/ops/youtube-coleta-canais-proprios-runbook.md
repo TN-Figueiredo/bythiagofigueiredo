@@ -5,7 +5,7 @@ Ledgers: `.superpowers/sdd/2026-10-07-coleta-l1a-plan/progress.md`, `.superpower
 
 Em produção desde: a data da promoção entra no ledger, não aqui. O L2 depende da migration `20261009000001`; se ela ainda não foi aplicada, o cron fica vermelho com `schema_ausente` (seção 6) até o dono rodar `npm run db:push:prod`.
 
-Tudo roda dentro do cron `sync-analytics-metrics`, às 12:00 UTC (09:00 em São Paulo, execução completa) e, desde a F0 das sugestões, também às 00:07 UTC (execução parcial: jobs, relatórios, alcance e normalizadores; seção 19). Não há cron novo nem variável de ambiente nova.
+Tudo roda dentro do cron `sync-analytics-metrics`, às 12:04 UTC (09:04 em São Paulo, execução completa; até 23/10 era 12:00, movido para fora da rajada do minuto cheio) e, desde a F0 das sugestões, também às 00:07 UTC (execução parcial: jobs, relatórios, alcance e normalizadores; seção 19). Não há cron novo nem variável de ambiente nova.
 
 **Este sistema falha em verde.** Um passo sem dado termina sem erro. Ao investigar, olhe primeiro se a linha existe, depois se houve erro.
 
