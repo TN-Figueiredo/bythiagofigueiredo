@@ -108,7 +108,7 @@ describe('D2b: a aba Sugestões com contador é trazida para a vista na trilha',
     const src = fs.readFileSync(path.join(DIR, '_chrome/tabs.tsx'), 'utf8')
     expect(src).toMatch(/data-tab="sugestoes"/)
     // r4: conta por getBoundingClientRect (comportamento em chrome-tabs-r4.test.tsx)
-    expect(src).toMatch(/er\.right - tr\.right \+ 8/)
+    expect(src).toMatch(/pos\(sug\)\.r - w \+ 8/)
   })
 })
 

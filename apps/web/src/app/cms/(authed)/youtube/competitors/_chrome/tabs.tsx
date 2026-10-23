@@ -16,27 +16,28 @@ export function Tabs({ tabs }: { tabs: ChromeView['tabs'] }) {
   useEffect(() => {
     const tb = ref.current
     if (!tb) return
-    // contas por getBoundingClientRect (independe do offsetParent): rolagem da própria trilha, nunca da página
-    const dentro = (el: HTMLElement) => ({ tr: tb.getBoundingClientRect(), er: el.getBoundingClientRect() })
-    const cur = tb.querySelector<HTMLElement>('[aria-current]')
-    if (cur) {
-      const { tr, er } = dentro(cur)
-      if (er.left < tr.left) tb.scrollLeft += er.left - tr.left
-      else if (er.right > tr.right) tb.scrollLeft += er.right - tr.right + 8
-    }
-    // plano B (D2b), só reforço: a aba Sugestões com contador não fica cortada, desde que a aba atual continue inteira visível
-    const sug = tb.querySelector<HTMLElement>('[data-tab="sugestoes"]')
-    if (sug && sug.querySelector('[data-count]')) {
-      const { tr, er } = dentro(sug)
-      const delta = er.right - tr.right + 8
-      if (delta > 0) {
-        const c = cur ? cur.getBoundingClientRect() : null
-        if (!c || c.left - delta >= tr.left) tb.scrollLeft += delta
+    // contas por getBoundingClientRect (independe do offsetParent), em coordenadas do conteúdo da trilha; rola a própria trilha, nunca a página.
+    // Refeita quando a trilha muda de largura (a regra de contêiner pode chegar depois da montagem; r4 do Gio: rolava para 95 com a trilha ainda estreita).
+    const ajustar = () => {
+      const tr = tb.getBoundingClientRect(), w = tr.width
+      const pos = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return { l: r.left - tr.left + tb.scrollLeft, r: r.right - tr.left + tb.scrollLeft } }
+      let alvo = 0
+      // a aba atual inteira visível; se já cabe sem rolar, a trilha fica no começo (Canais à vista)
+      const cur = tb.querySelector<HTMLElement>('[aria-current]')
+      const c = cur ? pos(cur) : null
+      if (c && c.r + 8 > w) alvo = c.r - w + 8
+      // plano B (D2b), só reforço: a aba Sugestões com contador não fica cortada, desde que a aba atual continue inteira visível
+      const sug = tb.querySelector<HTMLElement>('[data-tab="sugestoes"]')
+      if (sug && sug.querySelector('[data-count]')) {
+        const need = pos(sug).r - w + 8
+        if (need > alvo && (!c || c.l >= need)) alvo = need
       }
+      tb.scrollLeft = alvo
+      fades()
     }
-    fades()
+    ajustar()
     tb.addEventListener('scroll', fades, { passive: true })
-    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fades) : null
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(ajustar) : null
     ro?.observe(tb)
     return () => { tb.removeEventListener('scroll', fades); ro?.disconnect() }
   }, [tabs, fades])
