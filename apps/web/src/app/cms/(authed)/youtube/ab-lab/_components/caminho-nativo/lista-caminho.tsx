@@ -91,7 +91,7 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
   const g = useMemo(() => agruparLinhas(linhas), [linhas])
   const resumo = useMemo(() => resumoDaLista(g), [g])
   const { registrarLinhas } = ctrl
-  const primarioId = useMemo(() => g.precisaDeVoce.find((l) => l.registro?.variantes?.length === 2)?.videoId ?? null, [g])
+  const primarioId = useMemo(() => g.precisaDeVoce.find((l) => (l.estado === 'resultado_pronto' || l.estado === 'sem_resposta') && l.registro)?.videoId ?? null, [g])
 
   useEffect(() => { registrarLinhas(linhas) }, [linhas, registrarLinhas])
   useEffect(() => { setEscolhas(lerEscolhas(linhas)) }, [linhas])
