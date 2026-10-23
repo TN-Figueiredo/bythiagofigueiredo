@@ -179,6 +179,8 @@ const CONSUMIDORES = [
   'lib/youtube/observatorio/load-channel.ts',
   'lib/youtube/observatorio/load-page.ts',
   'lib/youtube/observatorio/load.ts',
+  // F2: tarefa diária `sinais_do_nicho`; LÊ para derivar sinais e grava só em tabela própria (`video_lugares`, sinais), nunca em tabela do motor.
+  'lib/youtube/observatorio/sinais/gravador.ts',
 ]
 
 describe('Lote 1: quem lê o que ele grava', () => {
