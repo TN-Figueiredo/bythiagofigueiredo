@@ -1,9 +1,17 @@
 /* Pergunta do dia 14 com 2 ou 3 versões (F1a-tela-1 T10b; F1a-tela-2 T6). Tokens --cn-* herdados de .cn-raiz; só cor literal. */
-.cn-d14 { max-width: 880px; margin-top: 12px; border: 1px solid var(--cn-yt-line); background: var(--cn-surface); border-radius: 10px; padding: 16px; }
+.cn-d14 { scroll-margin-top: 80px; max-width: 880px; margin-top: 12px; border: 1px solid var(--cn-yt-line); background: var(--cn-surface); border-radius: 10px; padding: 16px; }
 .cn-d14 h3 { font: 600 17px/1.35 Georgia, serif; margin: 0; overflow-wrap: anywhere; }
 .cn-d14 .cn-meta { margin: 4px 0 0; }
 .cn-d14-q3 { font: 600 16px/1.35 Georgia, serif; margin: 12px 0 0; overflow-wrap: anywhere; }
 .cn-d14-res { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.cn-d14-res .cn-selo { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.cn-d14 .cn-d14-acts { margin-top: 12px; }
+/* Conflito (T7): duas posições lado a lado, mesma borda e mesmo peso (nenhuma em destaque). */
+.cn-d14 .cn-d14-conflito-h { margin-top: 12px; }
+.cn-d14-cf { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.cn-d14-cf > div { border: 1px solid var(--cn-btn-line); border-radius: 8px; padding: 12px; background: var(--cn-surface); min-width: 0; }
+.cn-d14-cf .cn-d14-who { margin: 0 0 8px; font: 600 13px/1.3 Inter, system-ui, sans-serif; color: var(--cn-muted); }
+.cn-d14-cf q { flex: 1 1 110px; min-width: 0; overflow-wrap: anywhere; quotes: none; font: 600 13.5px/1.4 Inter, system-ui, sans-serif; }
 .cn-d14-grid { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .cn-d14-vopt { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 12px; border: 1px solid var(--cn-btn-line); border-radius: 8px; background: var(--cn-surface); color: var(--cn-text); cursor: pointer; font: inherit; min-height: 44px; }
 .cn-d14-vopt[disabled] { cursor: not-allowed; border-style: dashed; }
@@ -18,6 +26,10 @@
 .cn-d14-other .cn-btn[aria-pressed="true"] { border: 2px solid var(--cn-text); padding: 0 11px; font-weight: 600; }
 [data-theme="dark"] .cn-d14-vopt:hover:not([disabled]) { border-color: #A89D88; }
 [data-theme="light"] .cn-d14-vopt:hover:not([disabled]) { border-color: #6E624E; }
+/* Hover não tira a borda de 2 px da resposta atual, em qualquer ordem de import (especificidade acima de `.cn-btn:hover` e do hover do vopt). */
+[data-theme] .cn-d14-vopt[aria-pressed="true"]:hover:not([disabled]), [data-theme] .cn-d14-other .cn-btn[aria-pressed="true"]:hover:not([disabled]) { border: 2px solid var(--cn-text); }
+[data-theme] .cn-d14-vopt[aria-pressed="true"]:hover:not([disabled]) { padding: 11px; }
+[data-theme] .cn-d14-other .cn-btn[aria-pressed="true"]:hover:not([disabled]) { padding: 0 11px; }
 .cn-d14-grid[data-n="3"] .cn-d14-top q, .cn-d14-grid[data-derivada] .cn-d14-top q { -webkit-line-clamp: 3; }
 .cn-d14-lbl { font: 600 13.5px/1.3 Inter, system-ui, sans-serif; margin-top: auto; padding-top: 4px; border-top: 1px solid var(--cn-border-subtle); }
 .cn-d14-other { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 24px; }
@@ -29,6 +41,7 @@
 .cn-d14 .cn-faixa { margin-top: 12px; }
 @container (max-width: 640px) {
   .cn-d14-grid { grid-template-columns: 1fr; gap: 12px; }
+  .cn-d14-cf { grid-template-columns: 1fr; gap: 12px; }
   .cn-d14-top q, .cn-d14-grid[data-n="3"] .cn-d14-top q, .cn-d14-grid[data-derivada] .cn-d14-top q { -webkit-line-clamp: 4; }
   .cn-d14-vopt { min-height: 44px; }
   .cn-d14-other { flex-direction: column; align-items: stretch; }

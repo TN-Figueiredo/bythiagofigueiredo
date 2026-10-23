@@ -5,7 +5,7 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react'
 import type {
   abrirFicha, lerFichaDoVideo, recomecarFicha, salvarFicha, marcarStudioAberto, enviarImagemDaFicha, lembrarNoComputador,
-  jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube,
+  jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube, mudarRespostaDoTesteDoYouTube,
 } from '../../actions-nativo'
 import type { pauseAbTest, retryRestore } from '../../actions'
 import { agruparLinhas, resumoDaLista, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -27,6 +27,7 @@ export type AcoesCaminho = {
   confirmarDetectado: typeof confirmarDetectado
   naoETeste: typeof naoETeste
   responderTesteDoYouTube: typeof responderTesteDoYouTube
+  mudarRespostaDoTesteDoYouTube: typeof mudarRespostaDoTesteDoYouTube
   pauseAbTest: typeof pauseAbTest
   retryRestore: typeof retryRestore
 }
@@ -62,6 +63,9 @@ function lerEscolhas(linhas: LinhaDoCaminho[]): Record<string, true> {
 
 type Aberta = { videoId: string; vista: 'ficha' | 's7' } | null
 
+/** Estados cujo "Ver teste"/"Ver as duas" abre o bloco do dia 14 na própria linha (T7). */
+const RESPONDIDOS = new Set<LinhaDoCaminho['estado']>(['ficou_no_ar', 'respostas_diferentes', 'respondido_sem_vencedor'])
+
 function abertaInicial(linhas: LinhaDoCaminho[], yt: string | null): { aberta: Aberta; achada: LinhaDoCaminho | null } {
   const achada = yt ? (linhas.find((l) => l.ytId === yt) ?? null) : null
   if (!achada) return { aberta: null, achada: null }
@@ -84,6 +88,13 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     // Pelo estado da linha (dia 14), não pela contagem: ficha de 2 ou 3 versões e derivada (com ou sem original) abrem a pergunta.
     return a && (a.estado === 'resultado_pronto' || a.estado === 'sem_resposta') && a.registro ? a.videoId : null
   })
+  // Bloco respondido/conflito aberto na linha (`?video=` de linha respondida já o abre); um por vez.
+  const [blocoAberto, setBlocoAberto] = useState<string | null>(() => {
+    const a = inicial.current.achada
+    return a && RESPONDIDOS.has(a.estado) && a.registro ? a.videoId : null
+  })
+  const [anuncio, setAnuncio] = useState('')
+  const focoAposResposta = useRef<string | null>(null)
   const raiz = useRef<HTMLElement>(null)
   const painelRef = useRef<HTMLDivElement>(null)
   const voltarFocoPara = useRef<{ videoId: string; acao: 'abrir' | 'iniciar' } | null>(null)
@@ -108,7 +119,7 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     if (!a) return
     const el = linhaEl(a.videoId)
     el?.scrollIntoView?.({ block: 'center' })
-    if (!inicial.current.aberta) el?.querySelector<HTMLElement>('[data-foco-selo]')?.focus()
+    if (!inicial.current.aberta && !(RESPONDIDOS.has(a.estado) && a.registro)) el?.querySelector<HTMLElement>('[data-foco-selo]')?.focus()
   }, [linhaEl])
 
   // `?video=` mudou com a tela já montada (sino a partir do próprio Lab, Gio F-6): abre a ficha/cartão do vídeo como na montagem.
@@ -120,9 +131,28 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     if (!r.achada) return
     inicial.current = r
     setAberta(r.aberta)
+    const comBloco = RESPONDIDOS.has(r.achada.estado) && Boolean(r.achada.registro)
+    if (comBloco) setBlocoAberto(r.achada.videoId)
     linhaEl(r.achada.videoId)?.scrollIntoView?.({ block: 'center' })
-    if (!r.aberta) linhaEl(r.achada.videoId)?.querySelector<HTMLElement>('[data-foco-selo]')?.focus()
+    if (!r.aberta && !comBloco) linhaEl(r.achada.videoId)?.querySelector<HTMLElement>('[data-foco-selo]')?.focus()
   }, [videoInicial, linhas, linhaEl])
+
+  // Bloco aberto (botão ou `?video=`): o foco vai para o título do bloco.
+  useEffect(() => {
+    if (blocoAberto) linhaEl(blocoAberto)?.querySelector<HTMLElement>('[data-foco-bloco]')?.focus()
+  }, [blocoAberto, linhaEl])
+  // Depois de responder ou mudar, a linha relê e o nó que tinha o foco desmonta (o foco cairia no body): vai para o link da linha.
+  useEffect(() => {
+    const v = focoAposResposta.current
+    if (!v) return
+    const l = linhas.find((x) => x.videoId === v)
+    if (!l || !RESPONDIDOS.has(l.estado)) return
+    focoAposResposta.current = null
+    const ativo = document.activeElement
+    if (ativo && ativo !== document.body && ativo.isConnected) return
+    const li = linhaEl(v)
+    ;(li?.querySelector<HTMLElement>('[data-acao="mudar-resposta"]') ?? li?.querySelector<HTMLElement>('[data-foco-selo]'))?.focus()
+  }, [linhas, linhaEl])
 
   // Foco no h2 do painel ao abrir; ao fechar, de volta ao botão que o abriu.
   useEffect(() => {
@@ -184,6 +214,12 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     jaIniciei: acoes.jaIniciei,
     responder, responderDia14: acoes.responderTesteDoYouTube, responderAberta: responderAberto === l.videoId, responderPrimario: l.videoId === primarioId,
     aoMudarResponder: (ab) => setResponderAberto(ab ? l.videoId : null),
+    mudarDia14: acoes.mudarRespostaDoTesteDoYouTube,
+    blocoAberto: blocoAberto === l.videoId,
+    aoMudarBloco: (ab) => setBlocoAberto(ab ? l.videoId : null),
+    // 1ª resposta gravada: a linha relê e já abre o bloco respondido.
+    aoRespondeu: () => { focoAposResposta.current = l.videoId; setBlocoAberto(l.videoId); ctrl.atualizar() },
+    aoAnunciar: (t) => { focoAposResposta.current = l.videoId; setAnuncio(t) },
   })
 
   const renderLinha = (l: LinhaDoCaminho): ReactElement => {
@@ -210,6 +246,7 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
         {resumo.apoio ? <small>{resumo.apoio}</small> : null}
       </p>
       {haEscolha ? <p className="cn-meta" role="status">{FRASES.lista.caminhoTrocado.frase}</p> : null}
+      <p className="cn-sr" role="status" data-testid="anuncio-dia-14">{anuncio}</p>
       <div className="cn-lista">
         <div className="cn-lhd">
           <span>{total === 1 ? '1 vídeo' : `${total} vídeos`}</span>

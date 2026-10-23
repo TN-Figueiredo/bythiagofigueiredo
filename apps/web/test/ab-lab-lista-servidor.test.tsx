@@ -14,6 +14,7 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions-nativo', () => ({
   abrirFicha: vi.fn(), lerFichaDoVideo: vi.fn(), recomecarFicha: vi.fn(), salvarFicha: vi.fn(), marcarStudioAberto: vi.fn(),
   enviarImagemDaFicha: vi.fn(), lembrarNoComputador: vi.fn(), jaIniciei: vi.fn(), confirmarDetectado: vi.fn(), naoETeste: vi.fn(),
   responderTesteDoYouTube: vi.fn(),
+  mudarRespostaDoTesteDoYouTube: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({ pauseAbTest: vi.fn(), retryRestore: vi.fn() }))
 

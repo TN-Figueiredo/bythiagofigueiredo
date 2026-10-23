@@ -10,8 +10,10 @@ import { rotuloRetomar, prazoDoTeste } from '@/lib/youtube/teste-youtube/nativo/
 import { SeloCaminho, type TipoSelo } from './selo-caminho'
 import { Icone } from './icones'
 import { FichaConfirmar } from './ficha-confirmar'
-import { Dia14Pergunta } from './dia-14-pergunta'
-import { versoesDoDia14 } from './dia-14-estado'
+import { Dia14Pergunta, type AcoesDia14 } from './dia-14-pergunta'
+import { Dia14Respondido, ApoioSemVencedor } from './dia-14-respondido'
+import { Dia14Conflito, letraQueDisse } from './dia-14-conflito'
+import { versoesDoDia14, letraDoNoAr, resumoDoRespondido } from './dia-14-estado'
 import type { AcoesCaminho } from './lista-caminho'
 import '../caminho-nativo.css'
 import '../lista-caminho.css'
@@ -42,6 +44,15 @@ export interface LinhaCaminhoProps {
   responderAberta: boolean
   responderPrimario: boolean
   aoMudarResponder: (aberta: boolean) => void
+  /** F1a-tela-2 T7: "Mudar minha resposta" (action por props, como `responderDia14`). */
+  mudarDia14?: AcoesCaminho['mudarRespostaDoTesteDoYouTube']
+  /** T7: o bloco respondido/conflito abre na própria linha; sem `aoMudarBloco` o botão "Ver teste" não faz nada. */
+  blocoAberto?: boolean
+  aoMudarBloco?: (aberto: boolean) => void
+  /** T7: relê depois de uma resposta; a lista guarda o foco para o link da linha respondida. */
+  aoRespondeu?: () => void
+  /** T7: região viva fora do bloco ("Resposta mudada para C."). */
+  aoAnunciar?: (texto: string) => void
 }
 
 const Nm = (): ReactElement => <span className="cn-nm">não medido</span>
@@ -81,6 +92,18 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
     <button type="button" className={BTN} data-acao="abrir" onClick={() => p.aoAbrirPainel(l, vista)}>{rotulo}</button>
   )
 
+  // T7: as ações do bloco respondido/conflito; sem a action de resposta a linha não abre bloco.
+  const acoesBloco: AcoesDia14 | null = p.responderDia14
+    ? {
+      responder: p.responderDia14, atualizar: p.aoRespondeu ?? p.aoAtualizar,
+      ...(p.mudarDia14 ? { mudar: p.mudarDia14 } : {}), ...(p.aoAnunciar ? { anunciar: p.aoAnunciar } : {}),
+    }
+    : null
+  const blocoVisivel = Boolean(p.blocoAberto && acoesBloco && reg)
+  const botaoVer = (rotulo: string): ReactElement => (
+    <button type="button" className={BTN} data-acao="ver-bloco" aria-expanded={blocoVisivel} onClick={() => p.aoMudarBloco?.(!blocoVisivel)}>{rotulo}</button>
+  )
+
   let selo: ReactElement | null = null
   let meta: string | null = null
   let fr: ReactNode = null
@@ -96,7 +119,7 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
     const acao = p.responderDia14
     if (!acao) return null
     if (p.responderAberta) {
-      full = <Dia14Pergunta linha={l} pergunta={versoesDoDia14(reg)} modo="responder" acoes={{ responder: acao, atualizar: p.aoAtualizar }} aoFechar={() => p.aoMudarResponder(false)} />
+      full = <Dia14Pergunta linha={l} pergunta={versoesDoDia14(reg)} modo="responder" acoes={{ responder: acao, atualizar: p.aoRespondeu ?? p.aoAtualizar }} aoFechar={() => p.aoMudarResponder(false)} />
     }
     return (
       <button
@@ -175,26 +198,42 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
       ra = respostaDaLinha()
       break
     }
-    case 'ficou_no_ar':
-      if (duasVersoes && reg?.respostaDono === 'venceu_original') {
-        selo = SEL('ok', FRASES.dia14.seloOriginal); fr = FRASES.dia14.fraseOriginal(2); apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
-      } else if (duasVersoes && reg?.respostaDono === 'venceu_nova') {
-        selo = SEL('ok', FRASES.dia14.seloNova); fr = FRASES.dia14.fraseNova; apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
+    case 'ficou_no_ar': {
+      const r = reg ? resumoDoRespondido(reg, versoesDoDia14(reg)) : null
+      if (r?.frase) {
+        selo = SEL('ok', r.selo); fr = r.frase; apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
       } else {
         selo = SEL('ok', 'Ficou no ar')
-        fr = `Você respondeu em ${dataCurta(new Date(reg?.updatedAt ?? agora))}.`
+        fr = `Você respondeu em ${dataCurta(new Date(reg?.respondidoEm ?? reg?.updatedAt ?? agora))}.`
       }
-      ra = botaoAbrir('Ver teste', 's7')
+      if (blocoVisivel && reg && acoesBloco) {
+        selo = null; fr = null; apoio = null
+        full = <Dia14Respondido linha={l} pergunta={versoesDoDia14(reg)} agora={agora} acoes={acoesBloco} />
+      }
+      ra = botaoVer(FRASES.conflito.verTeste)
       break
-    case 'respostas_diferentes':
-      selo = SEL('mute-neq', 'Respostas diferentes')
-      fr = 'O título no ar e a sua resposta são diferentes.'
+    }
+    case 'respostas_diferentes': {
+      selo = SEL('mute-neq', FRASES.conflito.selo)
+      // Sem registro ou sem par de letra, a linha não afirma qual título está no ar.
+      const p14 = reg ? versoesDoDia14(reg) : null
+      const noAr = reg && p14 ? letraDoNoAr(reg, p14) : null
+      const disse = reg && p14 ? letraQueDisse(reg, p14) : 'outra versão'
+      fr = noAr ? FRASES.conflito.linha(noAr.letra, disse) : FRASES.conflito.linhaSemPar(disse)
+      if (blocoVisivel && reg && acoesBloco && p14) full = <Dia14Conflito linha={l} pergunta={p14} acoes={acoesBloco} />
+      ra = botaoVer(FRASES.conflito.verAsDuas)
       break
+    }
     case 'respondido_sem_vencedor': {
       const r = reg?.respostaDono
       selo = SEL('mute-neq', r === 'ficou_igual' || r === 'inconclusivo' || r === 'nao_vi' ? FRASES.dia14.seloSemVencedor[r] : 'Sem vencedor registrado')
       fr = r === 'ficou_igual' ? FRASES.resposta.ficouIgual : r === 'inconclusivo' ? FRASES.resposta.inconclusivo : FRASES.resposta.naoVi
-      apoio = <p className="cn-meta">{FRASES.resposta.apoioSemVencedor}</p>
+      apoio = <p className="cn-meta">{reg ? <ApoioSemVencedor reg={reg} pergunta={versoesDoDia14(reg)} /> : FRASES.resposta.apoioSemVencedor}</p>
+      if (blocoVisivel && reg && acoesBloco) {
+        selo = null; fr = null; apoio = null
+        full = <Dia14Respondido linha={l} pergunta={versoesDoDia14(reg)} agora={agora} acoes={acoesBloco} />
+      }
+      ra = botaoVer(FRASES.conflito.verTeste)
       break
     }
     default: {

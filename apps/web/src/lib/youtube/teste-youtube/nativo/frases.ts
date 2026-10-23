@@ -91,17 +91,12 @@ export const FRASES = {
     apoioComVeredito: (noAr: string, lidoEm: Date | null): string =>
       `No ar, lido pelo Lab${lidoEm ? ` em ${dataCurta(lidoEm)}` : ''}: ${noAr}. Você não indicou uma versão.`,
     mudar: 'Mudar minha resposta',
-    manter: 'Manter a resposta atual',
-    suaResposta: 'Sua resposta',
-    avisoMudar: 'Um toque muda a resposta.',
     jaTinhaRespondido: 'Você já tinha respondido em outra tela.',
-    semConexao: 'Sem conexão. A resposta continua a mesma. Tente de novo.',
-    /** D-7(g): confirmações. */
+    /** D-7(g): confirmações. A troca, o aviso, "Manter" e a falta de conexão do modo mudar vivem em `dia14` (uma só fonte). */
     registradaVersao: (letra: string): string => `Registrado: a versão ${letra} ficou no ar.`,
     registradaOriginal: 'Registrado: a original segurou.',
     registradaTardiaVersao: (letra: string): string => `Registrado depois do prazo: a versão ${letra} ficou no ar.`,
     registradaTardiaOriginal: 'Registrado depois do prazo: a original segurou.',
-    mudadaPara: (letra: string): string => `Resposta mudada para ${letra}.`,
   },
 
   /** Conflito: o título no ar (lido pelo Lab) difere da resposta do dono. "Estava" no bloco do dia 14, "está" na linha da lista. */

@@ -157,7 +157,15 @@ describe('Dia14Pergunta: desfechos da action (um teste por linha)', () => {
       expect(document.body.textContent).not.toContain('Mudar minha resposta')
     })
   }
-  for (const erro of ['ja_respondido', 'estado_mudou', 'nao_respondivel', 'nao_encontrado'] as const) {
+  it('ja_respondido -> "Você já tinha respondido em outra tela." + Atualizar relê', async () => {
+    responder.mockResolvedValue({ ok: false, erro: 'ja_respondido' })
+    montar()
+    fireEvent.click(botao(/B venceu/))
+    await screen.findByText('Você já tinha respondido em outra tela.')
+    fireEvent.click(botao('Atualizar'))
+    expect(atualizar).toHaveBeenCalledTimes(1)
+  })
+  for (const erro of ['estado_mudou', 'nao_respondivel', 'nao_encontrado'] as const) {
     it(`${erro} -> "O teste mudou enquanto a tela estava aberta." + Atualizar relê`, async () => {
       responder.mockResolvedValue({ ok: false, erro })
       montar()
@@ -570,7 +578,8 @@ describe('Conserto UI 1 (revisão Logan e Naksu do envio A)', () => {
     montar(semV(), 'mudar', { respostaVista: 'nao_vi', varianteVista: null })
     const apoio = screen.getByText(FRASES.dia14.apoioSemVersoes)
     expect(document.activeElement).toBe(apoio)
-    expect(screen.getByRole('region', { name: FRASES.dia14.apoioSemVersoes })).toBeTruthy()
+    // Nome curto da seção (o rótulo do grupo), não a frase inteira do apoio.
+    expect(screen.getByRole('region', { name: 'Mudar para' })).toBeTruthy()
     fireEvent.keyDown(apoio, { key: 'Escape' })
     expect(aoFechar).toHaveBeenCalledTimes(1)
   })
