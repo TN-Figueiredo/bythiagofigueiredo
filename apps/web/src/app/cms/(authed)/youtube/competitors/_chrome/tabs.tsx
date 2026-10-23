@@ -16,18 +16,23 @@ export function Tabs({ tabs }: { tabs: ChromeView['tabs'] }) {
   useEffect(() => {
     const tb = ref.current
     if (!tb) return
-    // the current tab always fully visible (scroll of the rail itself, never the page)
+    // contas por getBoundingClientRect (independe do offsetParent): rolagem da própria trilha, nunca da página
+    const dentro = (el: HTMLElement) => ({ tr: tb.getBoundingClientRect(), er: el.getBoundingClientRect() })
     const cur = tb.querySelector<HTMLElement>('[aria-current]')
     if (cur) {
-      const l = cur.offsetLeft - tb.offsetLeft, r = l + cur.offsetWidth
-      if (l < tb.scrollLeft) tb.scrollLeft = l
-      else if (r > tb.scrollLeft + tb.clientWidth) tb.scrollLeft = r - tb.clientWidth + 8
+      const { tr, er } = dentro(cur)
+      if (er.left < tr.left) tb.scrollLeft += er.left - tr.left
+      else if (er.right > tr.right) tb.scrollLeft += er.right - tr.right + 8
     }
-    // plano B (D2b): a aba Sugestões com contador nunca fica cortada pelo fim da rolagem da trilha
+    // plano B (D2b), só reforço: a aba Sugestões com contador não fica cortada, desde que a aba atual continue inteira visível
     const sug = tb.querySelector<HTMLElement>('[data-tab="sugestoes"]')
-    if (sug && sug.querySelector('[data-count]') && !cur) {
-      const l = sug.offsetLeft - tb.offsetLeft, r = l + sug.offsetWidth
-      if (r > tb.scrollLeft + tb.clientWidth) tb.scrollLeft = r - tb.clientWidth + 8
+    if (sug && sug.querySelector('[data-count]')) {
+      const { tr, er } = dentro(sug)
+      const delta = er.right - tr.right + 8
+      if (delta > 0) {
+        const c = cur ? cur.getBoundingClientRect() : null
+        if (!c || c.left - delta >= tr.left) tb.scrollLeft += delta
+      }
     }
     fades()
     tb.addEventListener('scroll', fades, { passive: true })
