@@ -132,6 +132,9 @@ export interface AbTestCycleRow {
   created_at: string
 }
 
+/** Ciclo sem as seis colunas de entrega (vinham de views, S8-F2): leitura delas vira erro de tsc. */
+export type CicloSemEntrega = Omit<AbTestCycleRow, 'impressions' | 'clicks' | 'ctr' | 'estimated_impressions' | 'estimated_clicks' | 'estimated_ctr'>
+
 export interface AbTestWithVariants extends AbTestRow {
   variants: AbTestVariantRow[]
   current_cycle: AbTestCycleRow | null
@@ -169,9 +172,10 @@ export interface VariantStats {
   dimensions?: string | null
   metadata: VariantMetadata
   is_original: boolean
-  total_impressions: number
-  total_clicks: number
-  avg_ctr: number
+  /** Nulo = não medido (S8-F2): views dos ciclos não são entrega. */
+  total_impressions: number | null
+  total_clicks: number | null
+  avg_ctr: number | null
   cycles_completed: number
 }
 
@@ -252,10 +256,10 @@ export interface AbTestPollRow {
 export interface AbTestResults {
   test: AbTestRow
   variants: VariantStats[]
-  confidence: number
+  confidence: number | null
   is_significant: boolean
   suggested_winner_id: string | null
-  timeline: AbTestCycleRow[]
+  timeline: CicloSemEntrega[]
   data_freshness: string
   latestPolls?: AbTestPollRow[]
   /** Id do vídeo no YouTube (`youtube_videos.youtube_video_id`), do join; nulo = vídeo não achado. */
