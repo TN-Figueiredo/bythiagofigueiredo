@@ -130,10 +130,10 @@ describe('D5: sem-historico coerente com canais_total', () => {
     expect(v.titulo).not.toMatch(/não há canais/)
     expect(v.texto).toMatch(/12 canais em Competidores/)
   })
-  it('0 canais: mantém o título e diz 0 canais', () => {
+  it('0 canais: mantém o título e usa o texto sem zero', () => {
     const v = mk(0).vazio!
     expect(v.titulo).toBe('Ainda não há canais acompanhados.')
-    expect(v.texto).toMatch(/0 canais em Competidores/)
+    expect(v.texto).toMatch(/Nenhum canal em Competidores/)
   })
 })
 
@@ -153,5 +153,49 @@ describe('menores', () => {
   })
   it('esqueleto ainda renderiza', () => {
     expect(() => render(<EsqueletoDaLista linhas={3} />)).not.toThrow()
+  })
+})
+
+describe('T8 r2', () => {
+  it('C1: o número-chave da régua e do "seus" vai em <b>', () => {
+    const l = { ...linha('a'), seus: { texto: 'Parecido com 2 vídeos seus (cálculo de hoje, 08:38).', naoMedido: false } }
+    render(<SugestoesLista vista={vista([l])} acoes={null} modo="pagina" />)
+    expect(Array.from(document.querySelectorAll('.sg-rg .sg-v b')).map((b) => b.textContent)).toEqual(['8,4×'])
+    const bs = Array.from(document.querySelectorAll('.sg-alv b')).map((b) => b.textContent)
+    expect(bs).toEqual(['2 vídeos'])
+  })
+  it('D4b: dispensar com filtro mantém ?filtro= na URL', async () => {
+    window.history.replaceState(null, '', '/cms/youtube/competitors/sugestoes')
+    const ls = [...Array.from({ length: 7 }, (_, i) => linha('d' + i)), linha('p1', 'parecido'), linha('p2', 'parecido')]
+    const nove = vista(ls, { filtro: { atual: 'todas', contagens: { todas: 9, destino: 7, parecido: 2 } } })
+    render(<SugestoesLista vista={nove} acoes={acoes(async () => ({ ok: true }) as RespostaDaAcao)} modo="pagina" />)
+    fireEvent.click(screen.getByRole('button', { name: /Destinos \(7\)/ }))
+    await dispensarJaFiz('d0')
+    expect(window.location.search).toContain('filtro=destino')
+    expect(nav.replace.mock.calls.every((c) => String(c[0]).includes('filtro=destino'))).toBe(true)
+  })
+  it('D5b: com 0 canais o vazio não diz "0 canais"', () => {
+    const v = montarVistaDaLista({
+      agora: new Date('2026-10-23T15:00:00Z'), filtro: 'todas', saiuDoAviso: false, limite: 40, amostra: new Map(),
+      lista: { n: 0, itens: [], contagens: { canais_total: 0, proprios: 1 }, motivoVazio: 'sem-historico', computado_em: '2026-10-23T10:00:00Z', desatualizado: false, calculoLigado: true } as never,
+    }).vazio!
+    expect(v.texto).toBe('Nenhum canal em Competidores ainda. As sugestões nascem dos vídeos deles.')
+    expect(v.texto).not.toMatch(/0 canais/)
+  })
+  it('D5: a data de dados velhos aparece uma vez só (sem repetir na faixa)', () => {
+    const v = montarVistaDaLista({
+      agora: new Date('2026-10-23T15:00:00Z'), filtro: 'todas', saiuDoAviso: false, limite: 40, amostra: new Map(),
+      lista: { n: 0, itens: [], contagens: { canais_total: 3, proprios: 1 }, motivoVazio: 'sem-historico', computado_em: '2026-10-20T10:00:00Z', desatualizado: true, calculoLigado: true } as never,
+    })
+    expect(v.faixa!.titulo).not.toMatch(/\d{2}\/\d{2}/)
+    expect(v.calculado).toMatch(/20\/10/)
+  })
+  it('menor: toque (pointer: coarse) dá 44 px a Dispensar e filtros', () => {
+    const css = fs.readFileSync(path.join(DIR, '_sugestoes/sugestoes.css'), 'utf8')
+    expect(css).toMatch(/@media \(pointer:\s*coarse\)\{[^}]*\.sg-btn[^}]*min-height:44px/)
+  })
+  it('D2b: a aba Sugestões não encolhe nem corta o número', () => {
+    const css = fs.readFileSync(path.join(DIR, '_chrome/chrome.css'), 'utf8')
+    expect(css).toMatch(/obs-ch-tab\[data-tab="sugestoes"\][^{]*\{[^}]*flex:none/)
   })
 })

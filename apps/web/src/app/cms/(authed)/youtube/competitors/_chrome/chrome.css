@@ -134,6 +134,8 @@
 [data-obs] .obs-ch-tabs.obs-ch-less{-webkit-mask-image:linear-gradient(to right,transparent,#000 15%);mask-image:linear-gradient(to right,transparent,#000 15%)}
 [data-obs] .obs-ch-tabs.obs-ch-less.obs-ch-more{-webkit-mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent)}
 [data-obs] .obs-ch-tab{display:flex;align-items:center;gap:8px;padding:0 12px;min-height:42px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
+[data-obs] .obs-ch-tab[data-tab="sugestoes"]{flex:none;gap:6px}
+[data-obs] .obs-ch-tab[data-tab="sugestoes"] .obs-ch-ct{flex:none;white-space:nowrap}
 [data-obs] .obs-ch-tab:hover{color:var(--text)}
 [data-obs] .obs-ch-tab[aria-current]{color:var(--text);border-color:var(--accent)}
 /* tab counts: --muted, as in the mockup (CONVENCOES Tokens: never --faint for text) */

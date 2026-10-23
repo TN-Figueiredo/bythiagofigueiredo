@@ -227,7 +227,7 @@ describe('faixas, cabeçalho e vazios', () => {
     const v = montar(lista(tres(), { desatualizado: true, computado_em: '2026-10-19T10:02:00Z' }))
     expect(v.velho).toBe(true)
     expect(v.calculado).toBe('Calculado em 19/10, 07:02')
-    expect(v.faixa).toEqual({ tipo: 'velho', titulo: 'As sugestões não são recalculadas desde 19/10, 07:02.', texto: 'A lista abaixo é a do último cálculo.' })
+    expect(v.faixa).toEqual({ tipo: 'velho', titulo: 'As sugestões não são recalculadas há mais de 36 horas.', texto: 'A lista abaixo é a do último cálculo.' })
   })
   it('saiuDoAviso', () => {
     const v = montar(lista(tres()), new Map(), { saiuDoAviso: true })
