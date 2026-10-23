@@ -19,7 +19,7 @@ function linha(id: string, o: Partial<LinhaDaVista> = {}): LinhaDaVista {
   const kind = o.kind ?? 'destino'
   return {
     id, kind, chip: kind === 'destino' ? { rotulo: 'Destino esquentou', simbolo: 'alfinete' } : { rotulo: 'Concorrente bombou', simbolo: 'chama' },
-    titulo: `Um vídeo sobre ${id} passou de 5× o normal do canal`,
+    lugar: kind === 'destino' ? 'L' + id : '', titulo: `Um vídeo sobre ${id} passou de 5× o normal do canal`,
     puxadoPor: { titulo: 'Vídeo ' + id, canal: 'Canal X', miniatura: 'https://x/y.jpg' },
     regua: { valor: 8.4, acimaDe20: false, limiar: 5, texto: '8,4× o normal do canal' },
     seus: { texto: 'Seus vídeos sobre X: 2.', naoMedido: false },
@@ -70,7 +70,8 @@ describe('SugestoesLista: linha', () => {
     const grupo = within(li).getByRole('group', { name: /motivo/i })
     expect(within(grupo).getByRole('button', { name: 'Não é parecido' })).toBeTruthy()
     expect(within(grupo).queryByRole('button', { name: 'Lugar errado' })).toBeNull()
-    fireEvent.keyDown(grupo, { key: 'Escape' })
+    expect(document.activeElement).toBe(gatilho) // o foco fica no gatilho, fora do grupo
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
     expect(within(li).queryByRole('group', { name: /motivo/i })).toBeNull()
     expect(document.activeElement).toBe(gatilho)
   })
@@ -264,7 +265,7 @@ describe('SugestoesLista: lista grande, filtro, faixa, bloco, vazio', () => {
     expect(container.querySelector('section.sg')!.getAttribute('data-modo')).toBe('bloco')
   })
   it('modo=bloco com 3 linhas: sem "Ver todas"', () => {
-    render(<SugestoesLista vista={tres()} acoes={acoes()} modo="bloco" />)
+    render(<SugestoesLista vista={tres()} acoes={acoes()} modo="bloco" verTodasHref="/x" />)
     expect(screen.queryByText(/Ver todas/)).toBeNull()
   })
   it('bloco com vazio: uma linha, ícone + título + "Ver detalhes", sem parágrafo', () => {
@@ -272,7 +273,8 @@ describe('SugestoesLista: lista grande, filtro, faixa, bloco, vazio', () => {
     const { container } = render(<SugestoesLista vista={v} acoes={null} modo="bloco" verTodasHref="/x" />)
     expect(screen.getByText('Nenhum vídeo dos canais acompanhados passou do normal.')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Ver detalhes' })).toBeTruthy()
-    expect(container.querySelector('.sg-vz p')).toBeNull()
+    expect(container.querySelector('.sg-vz1')).not.toBeNull() // o seletor mira o bloco real
+    expect(container.querySelector('.sg-vz1 p, .sg-vz p')).toBeNull()
   })
   it('vazio da página: sem "0" fora da contagem; nunca calculado mostra "—"', () => {
     const v = vista([], { n: 0, calculado: 'Nunca calculado', resumo: 'As sugestões ainda não foram calculadas.', vazio: { familia: 'espera', topo: 'As sugestões ainda não foram calculadas.', titulo: 'Ainda não houve cálculo.', texto: 'O 1º cálculo roda amanhã.' } })

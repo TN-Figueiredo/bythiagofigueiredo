@@ -5,7 +5,7 @@ import type { LinhaDaVista, VistaDaLista } from '@/app/cms/(authed)/youtube/comp
 import type { RespostaDaAcao } from '@/app/cms/(authed)/youtube/competitors/_sugestoes/tipos'
 
 const linha = (id: string, kind: 'destino' | 'parecido' = 'destino', cheio = false): LinhaDaVista => ({
-  id, kind, chip: { rotulo: 'Destino esquentou', simbolo: 'alfinete' }, titulo: 't' + id, puxadoPor: null, regua: null,
+  id, kind, chip: { rotulo: 'Destino esquentou', simbolo: 'alfinete' }, titulo: 't' + id, lugar: kind === 'destino' ? 'L' + id : '', puxadoPor: null, regua: null,
   seus: { texto: 's', naoMedido: false }, primario: { texto: 'Abrir', href: '/x', cheio }, venceEm: null,
   info: { mults: '—', medida: 'm', regra: 'r', surgiu: '18/10', vence: '17/11' },
   motivos: [{ valor: 'nao_interessa', rotulo: 'Não me interessa', grupo: 'motivo' }],
@@ -51,6 +51,11 @@ describe('reduzirLista: contagem sempre derivada da prop', () => {
     const e = roda(estadoInicial(), { tipo: 'iniciar', id: 'a', motivo: 'ja_fiz' }, { tipo: 'resposta', id: 'a', motivo: 'ja_fiz', resposta: ok })
     const v = vistaVisivel(vista([], null), e, vista(['a', 'b']))
     expect(v.n).toBe(1)
+  })
+  it('a frase-resumo depois de dispensar mantém os nomes de lugar', () => {
+    const e = roda(estadoInicial(), { tipo: 'iniciar', id: 'a', motivo: 'ja_fiz' }, { tipo: 'resposta', id: 'a', motivo: 'ja_fiz', resposta: ok })
+    const v = vistaVisivel(vista(['a', 'b', 'c']), e, null)
+    expect(v.resumo).toBe('2 sugestões: 2 destinos (Lb e Lc).')
   })
   it('tudo respondido: vazio resolvido, nunca lista oca', () => {
     const e = roda(estadoInicial(), { tipo: 'iniciar', id: 'a', motivo: 'ja_fiz' }, { tipo: 'resposta', id: 'a', motivo: 'ja_fiz', resposta: ok })
