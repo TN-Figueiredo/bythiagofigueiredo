@@ -78,4 +78,34 @@ describe('computeGates', () => {
     expect(g[3]!.passed).toBe(false)
     expect(g[3]!.value).toBe('14 / 21 cycles')
   })
+  describe('S8-F2: nao_medido', () => {
+    it('minImpressions com nulo dá "não medido", nunca 0', () => {
+      const g = computeGates(makeInput({ minImpressions: [null, 1500] }))
+      expect(g[1]!.passed).toBe(false)
+      expect(g[1]!.value).toBe('não medido')
+      expect(g[1]!.estado).toBe('nao_medido')
+      expect(g[1]!.value).not.toContain('0')
+    })
+    it('confidence nula dá "não medido"', () => {
+      const g = computeGates(makeInput({ confidence: null }))
+      expect(g[0]!.passed).toBe(false)
+      expect(g[0]!.value).toBe('não medido')
+      expect(g[0]!.estado).toBe('nao_medido')
+      expect(g[0]!.hint).toBeUndefined()
+    })
+    it('stability é não medido com confiança nula, mesmo com contador antigo 5/3', () => {
+      const g = computeGates(makeInput({ confidence: null, consecutiveConfident: 5, stabilityThreshold: 3 }))
+      expect(g[5]!.passed).toBe(false)
+      expect(g[5]!.estado).toBe('nao_medido')
+      expect(g[5]!.value).toBe('não medido')
+    })
+    it('stability é não medido com contador nulo', () => {
+      const g = computeGates(makeInput({ consecutiveConfident: null }))
+      expect(g[5]!.estado).toBe('nao_medido')
+      expect(g[5]!.passed).toBe(false)
+    })
+    it('com números nenhum gate tem estado', () => {
+      for (const g of computeGates(makeInput())) expect(g.estado).toBeUndefined()
+    })
+  })
 })

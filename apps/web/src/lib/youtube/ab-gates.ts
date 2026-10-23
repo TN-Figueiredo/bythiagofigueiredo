@@ -1,15 +1,15 @@
 import type { GateResult } from './ab-types'
 
 export interface GateInput {
-  confidence: number         // 0-1, e.g. 0.97
+  confidence: number | null  // 0-1, e.g. 0.97; nulo = não calculada
   threshold: number          // 0-1, e.g. 0.95
-  minImpressions: number[]   // per-variant impression counts
+  minImpressions: ReadonlyArray<number | null>   // per-variant impression counts; nulo = não medido
   daysSinceStart: number
   confirmedCycles: number
   burnInDays: number
   variantCount: number
   eligibleCycles: number     // cycles after burn-in
-  consecutiveConfident: number
+  consecutiveConfident: number | null
   stabilityThreshold: number
 }
 
@@ -20,18 +20,22 @@ export function computeGates(input: GateInput): GateResult[] {
     eligibleCycles, consecutiveConfident, stabilityThreshold,
   } = input
 
-  const minImp = minImpressions.length > 0 ? Math.min(...minImpressions) : 0
+  const NAO_MEDIDO = 'não medido'
+  const naoMedido = (name: string): GateResult => ({ name, passed: false, value: NAO_MEDIDO, estado: 'nao_medido' })
+
+  const impressoes = minImpressions.some(n => n === null) ? null : (minImpressions as number[])
+  const minImp = impressoes && impressoes.length > 0 ? Math.min(...impressoes) : 0
 
   return [
-    {
+    confidence === null ? naoMedido('confidence') : {
       name: 'confidence',
       passed: confidence >= threshold,
       value: `${(confidence * 100).toFixed(1)}% / ${(threshold * 100).toFixed(0)}%`,
       hint: confidence < threshold ? `Need ${((threshold - confidence) * 100).toFixed(1)}% more` : undefined,
     },
-    {
+    impressoes === null ? naoMedido('min_impressions') : {
       name: 'min_impressions',
-      passed: minImpressions.length > 0 && minImp >= 1000,
+      passed: impressoes.length > 0 && minImp >= 1000,
       value: `${minImp.toLocaleString()} min`,
       hint: minImp < 1000 ? `Need ${(1000 - minImp).toLocaleString()} more on weakest variant` : undefined,
     },
@@ -53,7 +57,7 @@ export function computeGates(input: GateInput): GateResult[] {
       value: burnInDays === 0 ? 'Skipped' : `${eligibleCycles} eligible`,
       hint: burnInDays > 0 && eligibleCycles === 0 ? 'No cycles completed after burn-in period' : undefined,
     },
-    {
+    confidence === null || consecutiveConfident === null ? naoMedido('stability') : {
       name: 'stability',
       passed: consecutiveConfident >= stabilityThreshold,
       value: `${consecutiveConfident} / ${stabilityThreshold} consecutive`,

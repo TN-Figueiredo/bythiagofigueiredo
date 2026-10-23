@@ -402,6 +402,8 @@ export interface GateResult {
   passed: boolean
   value: string
   hint?: string
+  /** `nao_medido`: o gate não tem base (dado nulo); nunca é aprovação nem 0. */
+  estado?: 'nao_medido'
 }
 
 export interface LiveMonitor {
