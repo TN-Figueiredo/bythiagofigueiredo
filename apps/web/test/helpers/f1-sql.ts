@@ -19,3 +19,11 @@ export function lerSqlDaF1(): string | null {
   const c = caminhoDaF1()
   return c === null ? null : readFileSync(c, 'utf8')
 }
+
+/** F1a-dado T13 (20261021000007): recria o registro (32) e as remoções com as trocas observadas; vem depois da F1 e antes da M2. */
+export function lerSqlDaT13(): string | null {
+  const achados = readdirSync(MIGRATIONS).filter(n => n.endsWith('_ab_native_observados_registro.sql'))
+  if (achados.length === 0) return null
+  if (achados.length > 1) throw new Error(`esperava 1 migration da T13, achei ${achados.length}`)
+  return readFileSync(MIGRATIONS + achados[0], 'utf8')
+}

@@ -10,6 +10,14 @@ import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { garantirMg6, semearCena, exportarConferirConfirmar, contagemPorTabela, escalar, tenta } from '../helpers/mg6'
 import { aplicarM2, M2_SQL } from '../helpers/m2'
+import { lerSqlDaT13 } from '../helpers/f1-sql'
+
+/** MG6 + F1 (garantirMg6) e depois a 20261021000007 (T13), que é o corpo de partida do bloco 11b da M2. */
+async function garantirComT13(c: Client): Promise<void> {
+  await garantirMg6(c)
+  const t13 = lerSqlDaT13()
+  if (t13 !== null && (await c.query(`select to_regclass('public.ab_native_observados') is not null and to_regclass('public.ab_native_obs_cursor') is not null as ok`)).rows[0]?.ok) await c.query(t13)
+}
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
@@ -22,7 +30,7 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
     try {
       // a MG6 ANTES da M2: enquanto a fixture estiver sem o conserto, quem põe a cláusula é o bloco 11 da M2 (o caminho que
       // recria fica testado); depois que a E10 consertar, o bloco 11 sai sem fazer nada e o teste continua valendo
-      await garantirMg6(pg)
+      await garantirComT13(pg)
       await aplicarM2(pg)
       for (let i = 1; i <= 3; i++) {
         await pg.query(`select obs_part.criar_particao(t::regclass, (obs_part.mes_corrente_sp() - make_interval(months => $1))::date)
@@ -67,7 +75,7 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
   it('bloco 11: corpo instalado diferente do conhecido e sem a cláusula recusa com M2:obs_archive_uncovered_divergente, ANTES da conversão', async () => {
     await pg.query('begin')
     try {
-      await garantirMg6(pg)
+      await garantirComT13(pg)
       const antes = await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)
       await pg.query(`create or replace function public.obs_archive_uncovered() returns text[] language sql stable security definer set search_path = '' as $$ select '{}'::text[] $$`)
       await pg.query('savepoint s')
@@ -114,7 +122,7 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
   it('bloco 11b: corpo instalado diferente do conhecido e sem a guarda por folhas recusa com M2:competitor_channel_remove_archived_divergente', async () => {
     await pg.query('begin')
     try {
-      await garantirMg6(pg)
+      await garantirComT13(pg)
       const antes = await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)
       await pg.query(`create or replace function public.competitor_channel_remove_archived(p_site uuid, p_channel uuid, p_actor uuid) returns jsonb language sql security definer set search_path = '' as $$ select '{}'::jsonb $$`)
       await pg.query('savepoint s')
@@ -126,24 +134,24 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
     } finally { await pg.query('rollback') }
   })
 
-  it('bloco 11b: a M2 sobre a F1 NÃO desfaz a F1 (a watch, a trava de vídeo compartilhado e o campo watch do retorno continuam) e acrescenta só a guarda por folhas', async () => {
+  it('bloco 11b: a M2 sobre a 000007 NÃO desfaz a F1 nem a T13 (a watch, a trava de vídeo compartilhado e o campo watch do retorno continuam) e acrescenta só a guarda por folhas', async () => {
     await emTx(async () => {
       const src = await escalar<string>(pg, `select prosrc from pg_proc where oid = 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure`)
-      for (const trecho of ['obs_f1_video_compartilhado', 'yt_watch_readings', 'yt_watch_thumbs', 'yt_watch_alvos', 'E10:sobrou_linha: watch', "'watch', jsonb_build_object('readings'", 'pg_partition_tree']) {
+      for (const trecho of ['obs_f1_video_compartilhado', 'yt_watch_readings', 'yt_watch_thumbs', 'yt_watch_alvos', 'ab_native_observados', 'E10:sobrou_linha: watch', "'watch', jsonb_build_object('readings'", 'pg_partition_tree']) {
         expect(src, `trecho da F1 ausente depois da M2: ${trecho}`).toContain(trecho)
       }
       const c = await semearCena(pg)
       await exportarConferirConfirmar(pg, c, c.canalA, 'lote-m2-f1')
       const r = await escalar<{ status: string; watch: Record<string, number> }>(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])
       expect(r.status).toBe('removido')
-      expect(Object.keys(r.watch).sort()).toEqual(['alvos', 'readings', 'thumbs'])
+      expect(Object.keys(r.watch).sort()).toEqual(['alvos', 'obs_cursor', 'observados', 'readings', 'thumbs'])
     })
   })
 
   it('bloco 11b: um corpo quase igual ao da F1 (uma linha a mais) também recusa: o hash é do corpo inteiro, não de um trecho', async () => {
     await pg.query('begin')
     try {
-      await garantirMg6(pg)
+      await garantirComT13(pg)
       const def = await escalar<string>(pg, `select pg_get_functiondef('public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure)`)
       expect(def).toContain('obs_f1_video_compartilhado')
       expect(def).not.toContain('pg_partition_tree')
