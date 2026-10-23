@@ -380,6 +380,7 @@ describe('AbLabDashboard F3 T7', () => {
     const cand = screen.getByRole('heading', { name: 'Candidatos (fora da contagem)' })
     expect(bloco.compareDocumentPosition(cand) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(cand.tagName).toBe('H2')
+    expect(screen.getByText('Vídeos seus com 1.000 views ou mais, publicados há mais de 14 dias e sem teste nos últimos 60 dias. Não entram no número de Sugestões.')).toBeDefined()
     expect(cand.className).toContain('text-[17px]')
   })
   it('sem o slot o resto renderiza; "Sugeridos para testar" sumiu', () => {

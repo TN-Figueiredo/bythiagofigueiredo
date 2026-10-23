@@ -370,7 +370,7 @@ export function AbLabDashboard({
           <div className="flex items-start justify-between gap-3 mb-[14px]">
             <div>
               <h2 className="text-[17px] font-semibold leading-[1.3] m-0 text-cms-text" style={{ fontFamily: 'Georgia, serif' }}>Candidatos (fora da contagem)</h2>
-              <p className="text-[12.5px] text-cms-text-muted m-0 mt-1">Vídeos com CTR abaixo da mediana do canal. Não entram na contagem de Sugestões.</p>
+              <p className="text-[12.5px] text-cms-text-muted m-0 mt-1">Vídeos seus com 1.000 views ou mais, publicados há mais de 14 dias e sem teste nos últimos 60 dias. Não entram no número de Sugestões.</p>
             </div>
             {!showEmpty && selectedForBatch.size >= 2 && (
               <button type="button" onClick={handleBatchStart} className={BOTAO_LOTE}>
