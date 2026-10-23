@@ -95,24 +95,32 @@ export async function ensureFreshToken(
     }
   }
 
-  let query = supabase
-    .from('social_connections')
-    .select(
-      'id, access_token_enc, refresh_token_enc, token_expires_at, metadata, bluesky_did, bluesky_access_jwt_enc, bluesky_refresh_jwt_enc, bluesky_jwt_expires_at',
-    )
-    .eq('site_id', siteId)
-    .eq('provider', provider)
-    .is('revoked_at', null)
-  if (accountId) query = query.eq('account_id', accountId)
-  const { data: conn, error } = await query
-    .order('connected_at', { ascending: false })
-    .limit(1)
-    .single()
+  const lerConexao = () => {
+    let query = supabase
+      .from('social_connections')
+      .select(
+        'id, access_token_enc, refresh_token_enc, token_expires_at, metadata, bluesky_did, bluesky_access_jwt_enc, bluesky_refresh_jwt_enc, bluesky_jwt_expires_at',
+      )
+      .eq('site_id', siteId)
+      .eq('provider', provider)
+      .is('revoked_at', null)
+    if (accountId) query = query.eq('account_id', accountId)
+    return query.order('connected_at', { ascending: false }).limit(1).single()
+  }
+  let { data: conn, error } = await lerConexao()
+  // Erro transitório de rede/PostgREST (não PGRST116): uma única segunda tentativa, após pausa curta,
+  // antes de derrubar o canal do dia. Só a leitura; revogação e "connection disappeared" não passam aqui.
+  if (error && error.code !== 'PGRST116') {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    ;({ data: conn, error } = await lerConexao())
+  }
 
   // "Sem conexão" só quando NÃO há linha (PGRST116 ou sem erro e sem dado). Erro de banco
   // (timeout, rede) é falha de verdade: quem pula canal sem conexão não pode engoli-lo.
   if (error && error.code !== 'PGRST116') {
-    throw new Error(`Could not read the ${provider} connection for site ${siteId}: ${error.message}`)
+    throw new Error(
+      `Could not read the ${provider} connection for site ${siteId} [${error.code ?? 'no-code'}]: ${error.message}`,
+    )
   }
   if (!conn) {
     throw new NoActiveConnectionError(provider, siteId)

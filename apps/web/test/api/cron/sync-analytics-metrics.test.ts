@@ -38,6 +38,7 @@ vi.mock('@/lib/supabase/service', () => ({
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
   captureMessage: vi.fn(),
+  flush: vi.fn().mockResolvedValue(true),
   setTag: vi.fn(),
 }))
 
