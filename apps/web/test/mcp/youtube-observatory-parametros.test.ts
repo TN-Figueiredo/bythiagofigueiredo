@@ -24,6 +24,26 @@ import { youtubeObservatory, PARAMETROS_LIDOS, LIMITE_MUDANCAS_TEXTO, LIMITE_DO_
 const shape = z.object(YoutubeObservatoryShape)
 beforeEach(() => { Object.values(servico).forEach(f => f.mockClear()); sentry.captureMessage.mockReset() })
 
+describe('F2 T8: get_signals e dismiss_signal no anúncio', () => {
+  it('as duas ações existem e os três parâmetros novos são anunciados', () => {
+    expect(shape.safeParse({ action: 'get_signals' }).success).toBe(true)
+    expect(shape.safeParse({ action: 'dismiss_signal', signal_id: '22222222-2222-4222-8222-222222222222', status: 'dispensado', motivo: 'ja_fiz' }).success).toBe(true)
+    expect(Object.keys(YoutubeObservatoryShape)).toEqual(expect.arrayContaining(['signal_id', 'status', 'motivo']))
+    expect(PARAMETROS_LIDOS).toEqual(expect.arrayContaining(['signal_id', 'status', 'motivo']))
+  })
+  it("E-1: status 'feito' é rejeitado pelo esquema; signal_id precisa ser uuid; motivo é lista fechada", () => {
+    expect(shape.safeParse({ action: 'dismiss_signal', signal_id: '22222222-2222-4222-8222-222222222222', status: 'feito', motivo: 'ja_fiz' }).success).toBe(false)
+    expect(shape.safeParse({ action: 'dismiss_signal', signal_id: 'x', status: 'dispensado', motivo: 'ja_fiz' }).success).toBe(false)
+    expect(shape.safeParse({ action: 'dismiss_signal', signal_id: '22222222-2222-4222-8222-222222222222', motivo: 'porque sim' }).success).toBe(false)
+  })
+  it('a descrição pede para citar motivoVazio como está e diz "associação, não causa"', () => {
+    const d = YoutubeObservatoryShape.action.description ?? ''
+    expect(d).toMatch(/motivoVazio as is/)
+    expect(d).toMatch(/association and never a cause/)
+    expect(d).toMatch(/can help/)
+  })
+})
+
 describe('o anúncio e o adaptador', () => {
   it('falam dos mesmos parâmetros', () => {
     expect(new Set(Object.keys(YoutubeObservatoryShape))).toEqual(new Set(PARAMETROS_LIDOS))

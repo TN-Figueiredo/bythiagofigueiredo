@@ -65,8 +65,10 @@ const DOZE = [
  * `ab-gravacao/retrato-step.ts` (A/B S8-F1, cron `ab-retrato`, cliente de serviço) copia o dia por variante para `ab_test_dias`,
  * cuja RLS é `can_edit_site`, mais estrita que `can_view_private_site` (que é edição OU visualizador privado). Quem ler
  * `ab_test_dias` numa tela (F2–F4) não herda esta isenção.
+ * F2 T8: `sinais/leitura.ts` lê `yt_own_video_meta_daily` só para saber se o vídeo é PÚBLICO (`privacy_status`, `proprios_agora`); nenhum número
+ * do Analytics sai dali (a lista de sinais já é leitura de editor do site, via a guarda da rota/ação).
  */
-const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts'])
+const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/sinais/leitura.ts', 'lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts'])
 /**
  * PONTO PARA PORTÃO (E9, noite 15/10): dois pontos da fila "Saíram do YouTube" consultam `competitor_video_comments` SEM `leituraValida`.
  * Ambos já estão atrás da guarda de EDIÇÃO do site e usam o cliente de serviço com o site em todo filtro; nenhum recebe o token de leitura

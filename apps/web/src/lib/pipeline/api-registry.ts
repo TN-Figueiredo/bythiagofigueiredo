@@ -166,7 +166,7 @@ const YOUTUBE: CapabilityDomain = {
   description: 'Channel intelligence, video performance analysis, and title and thumbnail A/B testing.',
   suggest_when: 'YouTube analytics, performance review, A/B test management, video optimization',
   docs: '/api/pipeline/docs/youtube',
-  endpoint_count: 36,
+  endpoint_count: 38,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/youtube/channels', summary: 'List own YouTube channels (id, slug, locale, niche) in registration order — accepts read, intelligence, write or admin', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/intelligence', summary: 'Get channel intelligence snapshot — accepts intelligence, write or admin', auth: 'intelligence' },
@@ -202,6 +202,8 @@ const YOUTUBE: CapabilityDomain = {
     { method: 'GET', path: '/api/pipeline/youtube/competitors/changes', summary: 'List competitor changes with type/bookmarked filters; campos=todos adds field changes (tags, category, duration, language, channel name)', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/outliers', summary: 'List competitor outlier videos by tier', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/insights', summary: 'Aggregate competitor insights (play, cadence, formulas, gaps, heatmap)', auth: 'read' },
+    { method: 'GET', path: '/api/pipeline/youtube/competitors/signals', summary: 'List the niche suggestions (places where competitor videos are outliers) with n, motivoVazio when empty, the derived action and your own public videos on the place (proprios_agora) — an association, never a cause', auth: 'read' },
+    { method: 'POST', path: '/api/pipeline/youtube/competitors/signals/:id/dismiss', summary: 'Dismiss one niche suggestion (status dispensado + motivo); needs write', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/readings', summary: 'Data sent to the forja for a running observatory task (frozen on first read) — intelligence', auth: 'intelligence' },
     { method: 'POST', path: '/api/pipeline/youtube/competitors/readings', summary: 'Submit a frozen forja reading for a running observatory task — intelligence', auth: 'intelligence' },
   ],
