@@ -51,7 +51,7 @@ describe.skipIf(skipIfNoLocalDb())('F3 T7: N da aba = N da página; saiuDoAviso 
     const s = await criarSite(pg)
     site = s.site; org = s.org
     eu = await criarUsuario(pg); outro = await criarUsuario(pg)
-    await sinal(1); await sinal(2); await sinal(3)
+    await sinal(1); await sinal(2); await sinal(3); await sinal(7)
     await sinal(4, { expira: dia(-1) })
     await sinal(5, { status: 'dispensado' })
     await sinal(6, { status: 'feito' })
@@ -71,15 +71,16 @@ describe.skipIf(skipIfNoLocalDb())('F3 T7: N da aba = N da página; saiuDoAviso 
     const agora = new Date()
     const aba = await contarSinaisAbertos(sb(), site, agora)
     const pagina = await listarSinaisDoNicho(sb(), site, agora, 3)
-    expect(aba).toBe(3)
+    expect(aba).toBe(4)
     expect(pagina.n).toBe(aba)
     // o N continua exato mesmo com o limite do bloco menor que o total
-    expect(pagina.itens.length).toBeLessThanOrEqual(3)
+    expect(pagina.itens.length).toBe(3)
+    expect((await listarSinaisDoNicho(sb(), site, agora, 50)).n).toBe(4)
     // sob o mesmo relógio congelado (OBS_NOW_OVERRIDE), depois do vencimento do nº 1: os dois caem juntos
     await pg.query('update public.niche_signals set expires_at = $2 where id = $1', [SIG(1), dia(1)])
     const depois = new Date(Date.now() + 2 * 86_400_000)
-    expect(await contarSinaisAbertos(sb(), site, depois)).toBe(2)
-    expect((await listarSinaisDoNicho(sb(), site, depois, 3)).n).toBe(2)
+    expect(await contarSinaisAbertos(sb(), site, depois)).toBe(3)
+    expect((await listarSinaisDoNicho(sb(), site, depois, 3)).n).toBe(3)
   })
 
   it('resumo real: todos abertos = false; um dispensado depois do aviso = true; resumo de outro usuário = false', async () => {
