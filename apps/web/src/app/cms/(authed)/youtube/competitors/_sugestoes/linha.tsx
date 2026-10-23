@@ -1,6 +1,6 @@
 'use client'
 // Uma linha da lista (F3 T5): sempre um <li class="sg-row"> com a mesma chave (id) em todos os estados; a confirmação ocupa o mesmo <li>.
-import { useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import CmsLink from '../../../_shared/cms-link'
 import type { DesfechoDaLinha, TipoDeErro } from './estado-da-lista'
 import { Ic } from './icones'
@@ -43,6 +43,9 @@ function Seus(p: { l: LinhaDaVista }) {
 export function Linha(p: PropsDaLinha) {
   const { linha: l } = p
   const [semFoto, setSemFoto] = useState(false)
+  // O `error` da imagem pode disparar antes da hidratação (o onError não vê): confere ao montar.
+  const img = useRef<HTMLImageElement | null>(null)
+  useEffect(() => { const el = img.current; if (el && el.complete && el.naturalWidth === 0) setSemFoto(true) }, [])
   const m = l.puxadoPor
   const rotuloDoErro = p.erro ? (l.motivos.find((x) => x.valor === p.erro!.motivo)?.rotulo ?? '') : ''
   const semThumb = m === null
@@ -54,7 +57,7 @@ export function Linha(p: PropsDaLinha) {
           {m.miniatura === null || semFoto
             ? <div className="sg-th sg-fail">Miniatura indisponível</div>
             // eslint-disable-next-line @next/next/no-img-element -- miniatura de terceiro, sem otimizador (decisão do plano)
-            : <img className="sg-th" src={m.miniatura} width={96} height={54} loading="lazy" decoding="async" referrerPolicy="no-referrer" alt="" onError={() => setSemFoto(true)} />}
+            : <img ref={img} className="sg-th" src={m.miniatura} width={96} height={54} loading="lazy" decoding="async" referrerPolicy="no-referrer" alt="" onError={() => setSemFoto(true)} />}
         </div>
       )}
       <div>
@@ -114,7 +117,10 @@ export function Linha(p: PropsDaLinha) {
       {p.erro && (
         <p className="sg-errl" role="alert">
           {Ic.warn()}
-          {p.erro.tipo === 'sem-permissao'
+          {p.erro.tipo === 'sessao'
+            ? <><span>Sua sessão expirou. Entre de novo para responder; a sugestão continua aberta.</span>
+              <a className="sg-btn" href={`/cms/login?next=${encodeURIComponent(typeof window === 'undefined' ? '/cms' : window.location.pathname + window.location.search)}`}>Entrar de novo</a></>
+            : p.erro.tipo === 'sem-permissao'
             ? <><span>Você não tem permissão para responder agora. Entre de novo ou fale com o admin do site.</span>
               <a className="sg-btn" href={`/cms/login?next=${encodeURIComponent(typeof window === 'undefined' ? '/cms' : window.location.pathname + window.location.search)}`}>Entrar de novo</a></>
             : <><span>{`Não salvou “${rotuloDoErro}”${p.erro.tipo === 'sem-conexao' ? ': sem conexão' : ''}. A sugestão continua aberta.`}</span>

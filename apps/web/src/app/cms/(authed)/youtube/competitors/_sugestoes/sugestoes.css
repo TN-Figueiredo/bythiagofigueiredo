@@ -54,6 +54,7 @@
 .sg-selo.sg-mute{color:var(--muted);font-weight:500}
 .sg-sum{margin:16px 0 0;font:600 21px/1.35 Georgia,serif;max-width:72ch;text-wrap:balance}
 .sg[data-modo="bloco"] .sg-sum{font-size:15px;margin-top:8px}
+.sg-sum small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:4px}
 .sg-sum:focus{outline:none}
 .sg-sum:focus-visible{outline:2px solid var(--accent)}
 
@@ -154,7 +155,7 @@
 /* esqueleto: copia .sk-row do mockup */
 .sg-skel{display:block;background:var(--skel);border-radius:4px}
 @media (prefers-reduced-motion:no-preference){.sg-skel{animation:sg-skp 1.6s ease-in-out infinite}@keyframes sg-skp{50%{opacity:.55}}}
-.sg-sk-row{display:grid;grid-template-columns:96px minmax(0,1fr) 248px;gap:16px;padding:16px;border-bottom:1px solid var(--border-subtle);min-height:209px}
+.sg-sk-row{display:grid;grid-template-columns:96px minmax(0,1fr) 248px;gap:16px;padding:16px;border-bottom:1px solid var(--border-subtle);min-height:174px}
 .sg-sk-row:last-child{border-bottom:0}
 .sg-sk-row .sg-skra{display:flex;flex-direction:column;gap:24px}
 
@@ -170,6 +171,7 @@
  .sg-row.sg-open .sg-thw{display:block;margin:8px 0}
  .sg-row.sg-open .sg-pux{display:block}
  .sg-row.sg-open .sg-pux q,.sg-row.sg-open .sg-pux .sg-pc{white-space:normal;overflow:visible;max-width:none;display:inline}
+ .sg-row h4{-webkit-line-clamp:3}
  .sg-row h4.sg-tg{cursor:pointer}
  .sg-row.sg-open h4{-webkit-line-clamp:unset;display:block}
  .sg-row .sg-top{flex-wrap:nowrap}

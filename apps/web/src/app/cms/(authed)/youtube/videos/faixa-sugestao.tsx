@@ -6,7 +6,7 @@ export function FaixaSugestao({ mostrados, total }: { mostrados: number; total: 
       ? 'Nenhum destes vídeos está neste site'
       : mostrados < total
         ? `Mostrando ${mostrados} de ${total} vídeos da sugestão`
-        : `Mostrando ${mostrados} vídeos da sugestão`
+        : `Mostrando ${mostrados} ${mostrados === 1 ? 'vídeo' : 'vídeos'} da sugestão`
   return (
     <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-cms-border bg-cms-surface px-3 py-2 text-sm text-cms-text">
       <span>{texto}</span>

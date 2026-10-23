@@ -175,7 +175,12 @@ function vazioDe(l: ListaDeSinais, agora: Date): NonNullable<VistaDaLista['vazio
       if (!l.calculoLigado) return { familia: 'espera', topo, titulo: texto, texto: `Quando for ligado, o 1º cálculo roda depois das ${String(DEFINICAO_SINAIS_DO_NICHO.aPartirDaHoraSP ?? 0).padStart(2, '0')}:00 (Brasília).` }
       return { familia: 'espera', topo, titulo: 'Ainda não houve cálculo.', texto }
     }
-    case 'sem-historico': return { familia: 'espera', topo: TOPO_AGORA, titulo: 'Ainda não há canais acompanhados.', texto }
+    case 'sem-historico': {
+      // O título não pode negar o número do texto: com canais acompanhados, o que falta é histórico, não canal.
+      const t = l.contagens.canais_total
+      if (typeof t !== 'number') return { familia: 'espera', topo: TOPO_AGORA, titulo: 'Ainda não há canais acompanhados.', texto }
+      return { familia: 'espera', topo: TOPO_AGORA, titulo: t > 0 ? 'Ainda não há histórico suficiente.' : 'Ainda não há canais acompanhados.', texto: `${t} ${t === 1 ? 'canal' : 'canais'} em Competidores. As sugestões nascem dos vídeos deles.` }
+    }
     case 'sync-atrasado': return { familia: 'problema', topo: TOPO_AGORA, titulo: 'A coleta dos canais está atrasada.', texto }
     case 'sem-lugar': return { familia: 'nm', topo: TOPO_AGORA, titulo: 'Os vídeos acima do normal não citam um lugar que a gente reconheça.', texto }
     case 'sem-terceiro-outlier': return { familia: 'calmo', topo: TOPO_AGORA, titulo: 'Nenhum vídeo dos canais acompanhados passou do normal.', texto }

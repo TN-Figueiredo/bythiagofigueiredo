@@ -38,7 +38,7 @@ export function Tabs({ tabs }: { tabs: ChromeView['tabs'] }) {
             style={sug ? { minHeight: 44 } : undefined}>
             {t.label}
             {t.countText != null || t.count != null ? (
-              <span className="obs-ch-ct" data-count={t.key} style={sug ? { fontSize: 12 } : undefined}
+              <span className="obs-ch-ct" data-count={t.key} style={sug ? { fontSize: 12, display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' } : undefined}
                 {...(t.ariaLabel ? { role: 'img', 'aria-label': t.ariaLabel } : {})}>
                 {t.velho ? <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" data-velho="1" style={{ color: 'var(--warning-text)', marginRight: 3, verticalAlign: '-1px' }}><path d="M8 1.5 15 14H1L8 1.5Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="M8 6v4M8 11.6v.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg> : null}
                 {t.countText ?? t.count}
