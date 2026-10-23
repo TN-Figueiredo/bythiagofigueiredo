@@ -4,7 +4,7 @@
 // `modo: 'mudar'` abre a mesma pergunta sobre uma resposta já gravada. As actions chegam por props (nenhum client importa `actions-nativo`).
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactElement } from 'react'
 import * as Sentry from '@sentry/nextjs'
-import type { PedidoRespostaDia14, ResultadoAcaoResponder } from '../../actions-nativo'
+import type { PedidoRespostaDia14, ResultadoAcaoMudar, ResultadoAcaoResponder } from '../../actions-nativo'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { prazoDoTeste, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import type { RespostaDono } from '@/lib/youtube/teste-youtube/nativo/versoes'
@@ -21,7 +21,7 @@ export type PedidoMudarDia14 = PedidoRespostaDia14 & { respostaVista: RespostaDo
 export interface AcoesDia14 {
   responder: (pedido: PedidoRespostaDia14) => Promise<ResultadoAcaoResponder>
   /** Só o modo mudar usa; a T7 passa `mudarRespostaDoTesteDoYouTube`. */
-  mudar?: (pedido: PedidoMudarDia14) => Promise<ResultadoAcaoResponder>
+  mudar?: (pedido: PedidoMudarDia14) => Promise<ResultadoAcaoMudar>
   /** Relê a lista (a linha mudou por dentro ou por fora). */
   atualizar: () => void
 }
@@ -46,12 +46,12 @@ type Tela =
   | { t: 'erro'; texto: string }
   | { t: 'sem_conexao'; pedido: PedidoRespostaDia14 | PedidoMudarDia14; toque: string; versao: VersaoDoDia14 | null }
 
-type Falha = Extract<ResultadoAcaoResponder, { ok: false }>
+type Falha = Extract<ResultadoAcaoResponder | ResultadoAcaoMudar, { ok: false }>
 
 /** Desfecho que NÃO é sucesso: relê a linha (o teste mudou) ou mostra a frase de erro. Exaustivo sobre o tipo real. */
 function falhaDaAction(r: Falha): 'mudou' | { texto: string } {
   switch (r.erro) {
-    case 'ja_respondido': case 'estado_mudou': case 'nao_respondivel': case 'nao_encontrado':
+    case 'ja_respondido': case 'estado_mudou': case 'nao_respondivel': case 'nao_encontrado': case 'nao_respondida':
       return 'mudou'
     case 'sem_permissao':
       return { texto: FRASES.semPermissao }
@@ -148,7 +148,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     try {
       const chamar = mudar ? acoes.mudar : acoes.responder
       if (!chamar) { setTela({ t: 'erro', texto: FRASES.dia14.falhou }); return }
-      const r = await (chamar as (p: PedidoRespostaDia14 | PedidoMudarDia14) => Promise<ResultadoAcaoResponder>)(pedido)
+      const r: ResultadoAcaoResponder | ResultadoAcaoMudar = mudar && acoes.mudar ? await acoes.mudar(pedido as PedidoMudarDia14) : await acoes.responder(pedido)
       if (r.ok) {
         if (r.conflito !== null) { setTela({ t: 'diferentes' }); acoes.atualizar(); return }
         setTela(mudar ? { t: 'mudada', texto: textoMudada(pedido.resposta, versao) } : telaDoSucesso(pedido.resposta, versao?.letra ?? ''))

@@ -15,7 +15,7 @@ export type ResultadoResponder =
   | { ok: false; erro: ErroResponder }
 
 /** `nao_respondida`: só existe na troca (a pergunta ainda não tem resposta). Fora de `ErroResponder` para não quebrar os `switch` exaustivos da tela. */
-export type ResultadoMudar = ResultadoResponder | { ok: false; erro: 'nao_respondida' }
+export type ResultadoMudar = Extract<ResultadoResponder, { ok: true }> | { ok: false; erro: Exclude<ErroResponder, 'ja_respondido'> | 'nao_respondida' }
 
 interface Params {
   sb: SupabaseClient
@@ -136,14 +136,17 @@ async function mesmaRespostaGravada(p: Params, l: Linha): Promise<boolean> {
 
 /** Título do YouTube contra o do dono, normalizados (Yannis m-3). Só há conflito quando o veredito é de `regra`/`data_api`. */
 function conflitoDe(l: Linha, p: Params, tituloDoDono: unknown): { youtube: string; dono: string } | null {
-  if (l.vencedor_fonte === null || l.vencedor_fonte === 'dono') return null
+  if (l.vencedor_fonte !== 'regra' && l.vencedor_fonte !== 'data_api') return null
+  if (!p.resposta.startsWith('venceu')) return null // D-5: sem vencedor = respondido_sem_vencedor, nunca conflito
   const escolhido = typeof tituloDoDono === 'string' ? tituloDoDono : null
   if (escolhido !== null && normalizarTitulo(escolhido) === normalizarTitulo(l.vencedor_titulo ?? '')) return null
-  const dono = escolhido ?? (p.n !== null && p.resposta.startsWith('venceu') ? `variante ${p.resposta === 'venceu_original' ? 1 : p.n}` : p.resposta)
+  const dono = escolhido ?? `variante ${p.resposta === 'venceu_original' ? 1 : p.n}`
   return { youtube: l.vencedor_titulo ?? 'sem título', dono }
 }
 
-/** D-3: o veredito é do dono (ou ainda não existe) quando a fonte é nula ou `dono`; `regra`/`data_api` nunca são reescritas pela troca. */
+/** D-3: o veredito é do dono (ou ainda não existe) quando a fonte é nula ou `dono`; `regra`/`data_api` nunca são reescritas pela troca.
+ * Ressalva de D-3: hoje a regra fecha porque nenhum escritor grava `encerrado` com fonte nula (`registro/registrar.ts:103` só encerra com vencedor);
+ * se um dia existir `encerrado` com fonte nula escrito por outra origem, revisar esta regra. */
 export function vereditoEDoDono(l: { vencedor_fonte: string | null }): boolean {
   return l.vencedor_fonte === null || l.vencedor_fonte === 'dono'
 }

@@ -5,7 +5,7 @@ import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-li
 import * as Sentry from '@sentry/nextjs'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
-import type { PedidoRespostaDia14, ResultadoAcaoResponder } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
+import type { PedidoRespostaDia14, ResultadoAcaoMudar, ResultadoAcaoResponder } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
 import { Dia14Pergunta, type PedidoMudarDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-pergunta'
 import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { ListaCaminho, type AcoesCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho'
@@ -33,9 +33,9 @@ let atualizar: ReturnType<typeof vi.fn>
 beforeEach(() => { responder = vi.fn(async () => ({ ok: true, conflito: null }) as ResultadoAcaoResponder); atualizar = vi.fn(); vi.mocked(Sentry.captureMessage).mockClear() })
 afterEach(() => { cleanup() })
 
-let mudar: ReturnType<typeof vi.fn<(p: PedidoMudarDia14) => Promise<ResultadoAcaoResponder>>>
+let mudar: ReturnType<typeof vi.fn<(p: PedidoMudarDia14) => Promise<ResultadoAcaoMudar>>>
 let aoFechar: ReturnType<typeof vi.fn>
-beforeEach(() => { mudar = vi.fn(async () => ({ ok: true, conflito: null }) as ResultadoAcaoResponder); aoFechar = vi.fn() })
+beforeEach(() => { mudar = vi.fn(async () => ({ ok: true, conflito: null }) as ResultadoAcaoMudar); aoFechar = vi.fn() })
 const montar = (l = linha('resultado_pronto'), modo: 'responder' | 'mudar' = 'responder', vista: { respostaVista?: PedidoMudarDia14['respostaVista']; varianteVista?: number | null } = {}) =>
   render(<div className="cn-raiz"><Dia14Pergunta linha={l} pergunta={versoesDoDia14(l.registro!)} modo={modo} acoes={{ responder, mudar, atualizar }} aoFechar={aoFechar} {...vista} /></div>)
 const botao = (n: RegExp | string) => screen.getByRole('button', { name: n })
@@ -376,6 +376,14 @@ describe('Dia14Pergunta: modo mudar', () => {
   })
   it('estado_mudou: "O teste mudou enquanto a tela estava aberta." + Atualizar relê', async () => {
     mudar.mockResolvedValue({ ok: false, erro: 'estado_mudou' })
+    montar(reg3(), 'mudar', vista)
+    fireEvent.click(botao(/C venceu/))
+    await screen.findByText('O teste mudou enquanto a tela estava aberta.')
+    fireEvent.click(botao('Atualizar'))
+    expect(atualizar).toHaveBeenCalledTimes(1)
+  })
+  it('nao_respondida (outra aba apagou a resposta): trata como "mudou", sem texto vazio, e Atualizar relê', async () => {
+    mudar.mockResolvedValue({ ok: false, erro: 'nao_respondida' })
     montar(reg3(), 'mudar', vista)
     fireEvent.click(botao(/C venceu/))
     await screen.findByText('O teste mudou enquanto a tela estava aberta.')
