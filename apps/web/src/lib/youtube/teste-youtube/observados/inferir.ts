@@ -8,8 +8,6 @@ export const OBS_REGRA_VERSAO = 2
 export const CARENCIA_H = 24
 /** 1,5 x o intervalo do concorrente (4 rodadas por dia = 6 h, `watch/alvos.ts`). */
 export const FRESCOR_H = 9
-/** Abaixo disto de rodadas válidas num campo, "sem troca vista" é "não medido". @deprecated sai na T7 (a regra v2 devolve 0 quando não mediu). */
-export const VALIDAS_MIN_MEDIDO = 4
 /** Guarda no máximo estas versões em `trocas` (§4); o total real fica em `nVersoes`. */
 export const TETO_VERSOES = 8
 /** Regra v2 (§3.2): janela W de rodadas e mínimos por campo. */
