@@ -118,7 +118,8 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     const a = inicial.current.achada
     if (!a) return
     const el = linhaEl(a.videoId)
-    el?.scrollIntoView?.({ block: 'center' })
+    // Linha com bloco aberto pode ser mais alta que a janela: 'center' a deixaria com o topo acima da dobra (Gio B-2).
+    el?.scrollIntoView?.({ block: RESPONDIDOS.has(a.estado) && a.registro ? 'start' : 'center' })
     if (!inicial.current.aberta && !(RESPONDIDOS.has(a.estado) && a.registro)) el?.querySelector<HTMLElement>('[data-foco-selo]')?.focus()
   }, [linhaEl])
 
@@ -133,13 +134,17 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
     setAberta(r.aberta)
     const comBloco = RESPONDIDOS.has(r.achada.estado) && Boolean(r.achada.registro)
     if (comBloco) setBlocoAberto(r.achada.videoId)
-    linhaEl(r.achada.videoId)?.scrollIntoView?.({ block: 'center' })
+    linhaEl(r.achada.videoId)?.scrollIntoView?.({ block: comBloco ? 'start' : 'center' })
     if (!r.aberta && !comBloco) linhaEl(r.achada.videoId)?.querySelector<HTMLElement>('[data-foco-selo]')?.focus()
   }, [videoInicial, linhas, linhaEl])
 
   // Bloco aberto (botão ou `?video=`): o foco vai para o título do bloco.
   useEffect(() => {
-    if (blocoAberto) linhaEl(blocoAberto)?.querySelector<HTMLElement>('[data-foco-bloco]')?.focus()
+    if (!blocoAberto) return
+    const li = linhaEl(blocoAberto)
+    // Sem rolagem do foco (o alvo pode ser pequeno); a tela leva o bloco à vista respeitando a barra fixa (scroll-margin-top do bloco).
+    li?.querySelector<HTMLElement>('[data-foco-bloco]')?.focus({ preventScroll: true })
+    li?.querySelector<HTMLElement>('.cn-d14')?.scrollIntoView?.({ block: 'nearest' })
   }, [blocoAberto, linhaEl])
   // Depois de responder ou mudar, a linha relê e o nó que tinha o foco desmonta (o foco cairia no body): vai para o link da linha.
   useEffect(() => {
