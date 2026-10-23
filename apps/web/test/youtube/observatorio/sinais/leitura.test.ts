@@ -1,8 +1,8 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { listarSinaisDoNicho, dispensarSinal } from '@/lib/youtube/observatorio/sinais/leitura'
+import { listarSinaisDoNicho, dispensarSinal, contarSinaisAbertos, contarAbertosEntre, lerEstadoDaAba, LIMITE_PENDENTES } from '@/lib/youtube/observatorio/sinais/leitura'
 import { textoDoVazio } from '@/lib/youtube/observatorio/sinais/frases'
 import { fakeSb, type Consulta, type Resposta } from './fake-sb'
 
@@ -280,6 +280,57 @@ describe('listarSinaisDoNicho: parecido usa os próprios da evidência (DF6)', (
     expect(w.consultas.filter((c) => c.tabela === 'youtube_videos')).toHaveLength(1)
     const ov = w.consultas.find((c) => c.filtros.some((f) => f.op === 'overlaps'))!
     expect(ov.filtros).toContainEqual({ op: 'overlaps', col: 'chaves', val: ['pt'] })
+  })
+})
+
+describe('contagens da aba', () => {
+  it('contarSinaisAbertos: head + count exact, aberto e vigente; count nulo → null; erro lança', async () => {
+    const w = fakeSb(() => ({ data: null, count: 7 }))
+    expect(await contarSinaisAbertos(w.sb, SITE, AGORA)).toBe(7)
+    const q = w.consultas[0]!
+    expect(q.opcoes).toEqual({ count: 'exact', head: true })
+    expect(q.filtros).toEqual(expect.arrayContaining([{ op: 'eq', col: 'site_id', val: SITE }, { op: 'eq', col: 'status', val: 'aberto' }, { op: 'gt', col: 'expires_at', val: AGORA.toISOString() }]))
+    expect(await contarSinaisAbertos(fakeSb(() => ({ data: null, count: null })).sb, SITE, AGORA)).toBeNull()
+    await expect(contarSinaisAbertos(fakeSb(() => ({ data: null, error: { message: 'segredo' } })).sb, SITE, AGORA)).rejects.toThrow(/sinais: leitura de/)
+  })
+  it('contarAbertosEntre: 450 ids com o 420º dispensado → soma de 3 consultas; só o site da guarda', async () => {
+    const ids = Array.from({ length: 450 }, (_, i) => `s${i}`)
+    const w = fakeSb((c) => {
+      const lote = c.filtros.find((f) => f.op === 'in')!.val as string[]
+      return { data: null, count: lote.filter((x) => x !== 's419').length }
+    })
+    expect(await contarAbertosEntre(w.sb, SITE, ids, AGORA)).toBe(449)
+    expect(w.consultas).toHaveLength(3)
+    for (const c of w.consultas) expect(c.filtros).toEqual(expect.arrayContaining([{ op: 'eq', col: 'site_id', val: SITE }, { op: 'eq', col: 'status', val: 'aberto' }, { op: 'gt', col: 'expires_at', val: AGORA.toISOString() }]))
+  })
+  it('contarAbertosEntre: ids de outro site não contam (o banco devolve 0), duplicados contam uma vez, 501 → null sem consulta, vazio → 0', async () => {
+    const w = fakeSb(() => ({ data: null, count: 0 }))
+    expect(await contarAbertosEntre(w.sb, SITE, ['alheio'], AGORA)).toBe(0)
+    const w2 = fakeSb((c) => ({ data: null, count: (c.filtros.find((f) => f.op === 'in')!.val as string[]).length }))
+    expect(await contarAbertosEntre(w2.sb, SITE, ['a', 'a', 'b'], AGORA)).toBe(2)
+    const w3 = fakeSb(() => ({ data: null, count: 1 }))
+    expect(LIMITE_PENDENTES).toBe(500)
+    expect(await contarAbertosEntre(w3.sb, SITE, Array.from({ length: 501 }, (_, i) => `s${i}`), AGORA)).toBeNull()
+    expect(w3.consultas).toHaveLength(0)
+    expect(await contarAbertosEntre(w3.sb, SITE, [], AGORA)).toBe(0)
+  })
+  it('lerEstadoDaAba: sem linha, recente, velha (> 36 h) e erro (null)', async () => {
+    expect(await lerEstadoDaAba(fakeSb(() => ({ data: null })).sb, SITE, AGORA)).toEqual({ calculado: false, velho: false, computado_em: null })
+    expect(await lerEstadoDaAba(fakeSb(() => ({ data: [{ computed_at: iso(-2) }] })).sb, SITE, AGORA)).toEqual({ calculado: true, velho: false, computado_em: iso(-2) })
+    expect((await lerEstadoDaAba(fakeSb(() => ({ data: [{ computed_at: iso(-37) }] })).sb, SITE, AGORA))?.velho).toBe(true)
+    expect(await lerEstadoDaAba(fakeSb(() => ({ data: null, error: { message: 'x' } })).sb, SITE, AGORA)).toBeNull()
+  })
+})
+
+describe('OBS_SINAIS_NICHO ausente', () => {
+  const original = process.env.OBS_SINAIS_NICHO
+  afterEach(() => { if (original === undefined) delete process.env.OBS_SINAIS_NICHO; else process.env.OBS_SINAIS_NICHO = original })
+  it('sem a variável: calculoLigado false e, sem estado, "ainda não foi ligado"', async () => {
+    delete process.env.OBS_SINAIS_NICHO
+    const l = await listarSinaisDoNicho(mundo({ sinais: [], estado: null }).sb, SITE, AGORA)
+    expect(l.calculoLigado).toBe(false)
+    expect(l.motivoVazio).toBe('nunca-calculado')
+    expect(textoDoVazio(l.motivoVazio!, l.contagens, AGORA, l.calculoLigado)).toMatch(/ainda não foi ligado/)
   })
 })
 

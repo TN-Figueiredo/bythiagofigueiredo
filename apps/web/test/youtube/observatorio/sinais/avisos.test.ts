@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
-import { dedupDoResumo, enviarAvisosDoNicho, fraseDeFalhas, planejarAvisos, type PendenteAviso } from '@/lib/youtube/observatorio/sinais/avisos'
+import { hrefDoAviso, dedupDoResumo, enviarAvisosDoNicho, fraseDeFalhas, planejarAvisos, type PendenteAviso } from '@/lib/youtube/observatorio/sinais/avisos'
 import { rodarAvisos } from '@/lib/youtube/agenda/tarefas/avisos-pendentes'
 import { REGRA_SINAIS } from '@/lib/youtube/observatorio/sinais/regra'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
@@ -9,6 +9,12 @@ import { roteiro, ok } from '../../../helpers/banco-roteirizado'
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 const p = (n: number, forca: number, como: PendenteAviso['notificar_como'] = 'individual'): PendenteAviso => ({ id: `id-${String(n).padStart(2, '0')}`, forca, notificar_como: como, notificacao_tentativas: 0 })
+
+describe('hrefDoAviso', () => {
+  it('codifica os dois-pontos e leva de=sino', () => {
+    expect(hrefDoAviso('nicho-resumo:2026-10-23:abc')).toBe('/cms/youtube/competitors/sugestoes?de=sino&aviso=nicho-resumo%3A2026-10-23%3Aabc')
+  })
+})
 
 describe('planejarAvisos', () => {
   it('8 individuais e teto 5: os 5 de maior força vão um a um e os 3 restantes no resumo', () => {

@@ -3,14 +3,14 @@ import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
 import { spDate } from '@/lib/youtube/competitor-sync'
-import { BLOCO_DO_IN } from './leitura'
+import { BLOCO_DO_IN, LIMITE_PENDENTES } from './leitura'
 import { REGRA_SINAIS } from './regra'
 
 /** Outbox do nicho (F2 T9): leva os sinais `aberto` ao sino, um a um até o teto do dia e o resto num resumo. Só sino: `defaultChannels: []`. */
-const HREF = '/cms/youtube/competitors?aba=sugestoes'
+/** Link do sino: a página lê `aviso` para dizer "algumas saíram" (só na abertura vinda do sino). */
+export const hrefDoAviso = (dedupKey: string): string => `/cms/youtube/competitors/sugestoes?de=sino&aviso=${encodeURIComponent(dedupKey)}`
 const PAGINA = 1000
 const MAX_PAGINAS = 20
-const LIMITE_PENDENTES = 500
 const SP_OFFSET_MS = 3 * 3_600_000
 
 export interface PendenteAviso { id: string; forca: number; notificar_como: 'individual' | 'resumo'; notificacao_tentativas: number }
@@ -65,7 +65,7 @@ async function enviar(
   try {
     const fan = await fanOut({
       siteId: opts.siteId, domain: 'youtube', type: 'youtube.niche_signal', priority: 2,
-      title: opts.title, message: opts.message, dedupKey: opts.dedupKey, payload: opts.payload, actionHref: HREF,
+      title: opts.title, message: opts.message, dedupKey: opts.dedupKey, payload: opts.payload, actionHref: hrefDoAviso(opts.dedupKey),
       defaultChannels: [],
     })
     return fan.total > 0 && fan.errors.length === 0
