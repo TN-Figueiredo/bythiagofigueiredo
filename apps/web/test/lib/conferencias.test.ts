@@ -106,7 +106,7 @@ describe('a lista publicada (CONFERENCIAS)', () => {
     })
   })
   it('as conferências da E19 (avisoDesde = 12/10/2026) estão na lista; a de 30 dias é do dono', () => {
-    expect(datasDa('E19')).toEqual({ 'e19-d1': '2026-10-13', 'e19-veredito': '2026-10-20', 'e19-15o-dia': '2026-10-26', 'e19-30o-dia': '2026-11-11' })
+    expect(datasDa('E19')).toEqual({ 'e19-d1': '2026-10-13', 'e19-veredito': '2026-10-20', 'e19-t0-48h': '2026-10-25', 'e19-15o-dia': '2026-10-26', 'e19-30o-dia': '2026-11-11' })
     expect(CONFERENCIAS.find(x => x.id === 'e19-30o-dia')?.responsavel).toBe('dono')
     for (const x of CONFERENCIAS.filter(y => y.etapa === 'E19' && y.id !== 'e19-30o-dia')) expect(x.responsavel, x.id).toBe('agente')
   })
