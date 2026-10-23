@@ -2,6 +2,7 @@
 // `calcularLugares` é pura (sem cliente); `gravarLugares` escreve; `sincronizarLugares` compõe leitura + cálculo + gravação.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { readAll, type ObservatoryRows } from '../load'
+import { BLOCO_DO_IN } from './leitura'
 import {
   entradaHash, extrairLugares, montarIndice, paresPadrao, chaveDoPar,
   type EntradaDeLugar, type IndiceDeLugar,
@@ -175,9 +176,9 @@ export function calcularLugares(args: {
   }
 }
 
-function emBlocos<T>(xs: readonly T[]): T[][] {
+function emBlocos<T>(xs: readonly T[], n: number = BLOCO): T[][] {
   const out: T[][] = []
-  for (let i = 0; i < xs.length; i += BLOCO) out.push(xs.slice(i, i + BLOCO))
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n))
   return out
 }
 
@@ -187,7 +188,8 @@ export async function gravarLugares(sb: SupabaseClient, siteId: string, calculo:
     const { error } = await sb.from('video_lugares').upsert(bloco, { onConflict: 'video_id' })
     if (error) throw new Error(`video_lugares (upsert): ${error.message}`)
   }
-  for (const bloco of emBlocos(calculo.orfaos)) {
+  // A poda leva os ids na URL (`.in`): blocos de 200 (acima de ~250 o PostgREST responde 414); o upsert vai no corpo e fica em 500.
+  for (const bloco of emBlocos(calculo.orfaos, BLOCO_DO_IN)) {
     const { error } = await sb.from('video_lugares').delete().eq('site_id', siteId).in('video_id', bloco)
     if (error) throw new Error(`video_lugares (poda): ${error.message}`)
   }

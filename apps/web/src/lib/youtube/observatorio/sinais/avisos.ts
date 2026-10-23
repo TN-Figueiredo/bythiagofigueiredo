@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
 import { spDate } from '@/lib/youtube/competitor-sync'
+import { BLOCO_DO_IN } from './leitura'
 import { REGRA_SINAIS } from './regra'
 
 /** Outbox do nicho (F2 T9): leva os sinais `aberto` ao sino, um a um até o teto do dia e o resto num resumo. Só sino: `defaultChannels: []`. */
@@ -13,8 +14,14 @@ const LIMITE_PENDENTES = 500
 const SP_OFFSET_MS = 3 * 3_600_000
 
 export interface PendenteAviso { id: string; forca: number; notificar_como: 'individual' | 'resumo'; notificacao_tentativas: number }
-/** `sem_tempo`: quantos sites ficaram sem visita porque o prazo da tarefa acabou (0 = todos visitados). */
-export interface ResultadoNicho { enviados: number; resumidos: number; falhas: number; sem_tempo: number }
+/** `sem_tempo`: quantos sites ficaram sem visita porque o prazo da tarefa acabou (0 = todos visitados). `adiados`: sinais cujo aviso falhou nesta execução mas ainda têm tentativas (a tarefa fica vermelha para reabrir no disparo seguinte). */
+export interface ResultadoNicho { enviados: number; resumidos: number; falhas: number; sem_tempo: number; adiados: number }
+
+const emBlocos = <T>(xs: readonly T[], n: number): T[][] => {
+  const out: T[][] = []
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n))
+  return out
+}
 
 /** Pura: os `teto − jaEnviados` de maior `forca` entre os `individual` vão um a um; o resto e todos os `resumo` vão no resumo do dia. */
 export function planejarAvisos(pendentes: ReadonlyArray<PendenteAviso>, jaEnviadosHojeIndividual: number, teto: number): { individuais: string[]; resumo: string[] } {
@@ -38,7 +45,9 @@ export function dedupDoResumo(agora: Date, ids: readonly string[]): string {
 async function sitesDe(sb: SupabaseClient, tabela: 'niche_signals' | 'competitor_channels'): Promise<Set<string>> {
   const out = new Set<string>()
   for (let p = 0; p < MAX_PAGINAS; p++) {
-    const r = await sb.from(tabela).select('site_id').order('site_id', { ascending: true }).range(p * PAGINA, (p + 1) * PAGINA - 1)
+    // Só sinal `aberto` precisa de expiração (as mudanças de status já sincronizam o sino): evita varrer a tabela inteira.
+    const base = sb.from(tabela).select('site_id')
+    const r = await (tabela === 'niche_signals' ? base.eq('status', 'aberto') : base).order('site_id', { ascending: true }).range(p * PAGINA, (p + 1) * PAGINA - 1)
     if (r.error) throw new Error(`nicho: leitura de ${tabela} falhou`)
     const linhas = (r.data ?? []) as Array<{ site_id: string }>
     for (const l of linhas) out.add(l.site_id)
@@ -78,14 +87,14 @@ export async function enviarAvisosDoNicho(sb: SupabaseClient, agora: Date, deps:
   const fanOut = deps.fanOut ?? fanOutToSiteAdminsDetailed
   const iso = agora.toISOString()
   const sites = deps.sites !== undefined ? new Set<string>(deps.sites) : new Set<string>([...await sitesDe(sb, 'niche_signals'), ...await sitesDe(sb, 'competitor_channels')])
-  const total: ResultadoNicho = { enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 }
+  const total: ResultadoNicho = { enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 }
   let erro: Error | null = null
 
   for (const siteId of sites) {
     if (deps.semTempo?.()) { total.sem_tempo++; continue }
     try {
       const r = await doSite(sb, siteId, agora, iso, fanOut)
-      total.enviados += r.enviados; total.resumidos += r.resumidos; total.falhas += r.falhas
+      total.enviados += r.enviados; total.resumidos += r.resumidos; total.falhas += r.falhas; total.adiados += r.adiados
     } catch (e) {
       erro ??= e instanceof Error ? e : new Error('nicho: site falhou')
     }
@@ -95,7 +104,17 @@ export async function enviarAvisosDoNicho(sb: SupabaseClient, agora: Date, deps:
 }
 
 async function doSite(sb: SupabaseClient, siteId: string, agora: Date, iso: string, fanOut: typeof fanOutToSiteAdminsDetailed): Promise<ResultadoNicho> {
-  const out: ResultadoNicho = { enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 }
+  const out = await enviarDoSite(sb, siteId, agora, iso, fanOut)
+  // Corrida com o `dispensar` (entre a leitura dos pendentes e o fan-out): ressincroniza o sino para derrubar o aviso de quem já não está `aberto`.
+  if (out.enviados + out.resumidos > 0) {
+    const sync = await sb.rpc('niche_signals_sincronizar_sino', { p_site: siteId })
+    if (sync.error) throw new Error('nicho: niche_signals_sincronizar_sino falhou')
+  }
+  return out
+}
+
+async function enviarDoSite(sb: SupabaseClient, siteId: string, agora: Date, iso: string, fanOut: typeof fanOutToSiteAdminsDetailed): Promise<ResultadoNicho> {
+  const out: ResultadoNicho = { enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 }
   // Primeiro a expiração (derruba do sino o vencido e o dispensado), só depois os pendentes.
   const exp = await sb.rpc('niche_signals_expirar', { p_site: siteId })
   if (exp.error) throw new Error('nicho: niche_signals_expirar falhou')
@@ -117,21 +136,30 @@ async function doSite(sb: SupabaseClient, siteId: string, agora: Date, iso: stri
   const baseline = ((est.data as { baseline_em: string | null } | null)?.baseline_em ?? null) === null
 
   const marcarFeito = async (ids: string[], comoResumo: boolean): Promise<void> => {
-    const r = await sb.from('niche_signals').update({ notificado_em: iso, ...(comoResumo ? { notificar_como: 'resumo' } : {}) })
-      .eq('site_id', siteId).in('id', ids).is('notificado_em', null)
-    if (r.error) throw new Error('nicho: notificado_em não gravado')
+    for (const bloco of emBlocos(ids, BLOCO_DO_IN)) {
+      const r = await sb.from('niche_signals').update({ notificado_em: iso, ...(comoResumo ? { notificar_como: 'resumo' } : {}) })
+        .eq('site_id', siteId).in('id', bloco).is('notificado_em', null)
+      if (r.error) throw new Error('nicho: notificado_em não gravado')
+    }
   }
   const marcarFalha = async (ids: string[]): Promise<void> => {
+    // Agrupa pelo novo número de tentativas (no máximo `tetoTentativas` valores): um update por bloco de 200 em vez de um por id.
+    const porTentativa = new Map<number, string[]>()
     for (const id of ids) {
       const t = (tentativasDe.get(id) ?? 0) + 1
+      porTentativa.set(t, [...(porTentativa.get(t) ?? []), id])
+    }
+    for (const [t, grupo] of porTentativa) {
       const desistiu = t >= REGRA_SINAIS.tetoTentativas
-      const r = await sb.from('niche_signals').update({ notificacao_tentativas: t, ...(desistiu ? { notificacao_falhou_em: iso } : {}) })
-        .eq('site_id', siteId).eq('id', id).is('notificado_em', null)
-      if (r.error) throw new Error('nicho: tentativa não gravada')
-      if (desistiu) {
-        out.falhas++
-        Sentry.captureMessage('avisos_pendentes: sugestão do nicho abandonada', { level: 'error', tags: { area: 'sinais-nicho' }, extra: { sinal_id: id } })
+      for (const bloco of emBlocos(grupo, BLOCO_DO_IN)) {
+        const r = await sb.from('niche_signals').update({ notificacao_tentativas: t, ...(desistiu ? { notificacao_falhou_em: iso } : {}) })
+          .eq('site_id', siteId).in('id', bloco).is('notificado_em', null)
+        if (r.error) throw new Error('nicho: tentativa não gravada')
       }
+      if (desistiu) {
+        out.falhas += grupo.length
+        for (const id of grupo) Sentry.captureMessage('avisos_pendentes: sugestão do nicho abandonada', { level: 'error', tags: { area: 'sinais-nicho' }, extra: { sinal_id: id } })
+      } else out.adiados += grupo.length
     }
   }
   const enviarResumo = async (ids: string[], rotuloBase: string, comoResumo: boolean): Promise<void> => {

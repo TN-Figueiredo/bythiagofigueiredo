@@ -2,9 +2,8 @@
 -- MIGRATION: f2_niche_signals
 -- F2 T4: `niche_signals`, `niche_outliers_vistos`, `niche_signals_estado` e as funções de gravar, expirar, dispensar
 -- e ler âncoras. Aditivo; depende da f2_lugares só por convenção (nenhuma FK).
--- Rollback: drop function niche_signals_ancoras, niche_signals_dispensar, niche_signals_gravar, niche_signals_expirar,
---           niche_signals_sincronizar_sino, niche_signals_mesclar_evidence; drop table niche_signals_estado,
---           niche_outliers_vistos, niche_signals.
+-- Rollback e conferência do F2-1 (6 funções, tabelas em ordem inversa e `migration repair --status reverted` das duas
+-- versões): .superpowers/sdd/ab-lab/f2/f2-1-rollback.sql e f2-1-conferir.sql (fora do git).
 -- =============================================================================
 set lock_timeout = '5s';
 
@@ -49,7 +48,6 @@ create table if not exists public.niche_outliers_vistos (
   chaves text[] not null,
   primary key (site_id, video_id)
 );
-alter table public.niche_outliers_vistos alter column mult_max type numeric;
 
 create table if not exists public.niche_signals_estado (
   site_id uuid primary key references public.sites (id) on delete cascade,
