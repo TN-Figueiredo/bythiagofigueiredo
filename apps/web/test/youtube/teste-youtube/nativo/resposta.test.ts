@@ -106,6 +106,11 @@ describe('responderDia14', () => {
     expect(upd).not.toContain('"encerrado_em"')
   })
 
+  it.each(['regra', 'data_api'])('1a resposta sem vencedor (inconclusivo) sobre veredito de %s: conflito null (D-5)', async (fonte) => {
+    const r = roteiro({ ab_native_tests: [linha({ estado: 'encerrado', vencedor_fonte: fonte, vencedor_titulo: 'Original' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    expect(await responderDia14({ ...base, sb: r.sb, resposta: 'inconclusivo', n: null })).toEqual({ ok: true, conflito: null })
+  })
+
   it('vencedor_fonte presente (data_api): guarda só a resposta e devolve conflito', async () => {
     const r = roteiro({ ab_native_tests: [linha({ estado: 'encerrado', vencedor_fonte: 'data_api', vencedor_titulo: 'Original' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
     const res = await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })
@@ -338,6 +343,13 @@ describe('mudarRespostaDia14', () => {
     const u = upd(r)!.metodos.join(' ')
     for (const nunca of ['"estado"', 'vencedor_', 'desfecho_', 'encerrado_em']) expect(u).not.toContain(nunca)
     expect(u).toContain('resposta_mudada_em')
+  })
+
+  it.each(['regra', 'data_api'])('veredito de %s: troca venceu_nova -> ficou_igual/nao_vi devolve conflito null (D-5)', async (fonte) => {
+    for (const nova of ['ficou_igual', 'nao_vi'] as const) {
+      const r = roteiro({ ab_native_tests: [gravada({ vencedor_fonte: fonte, vencedor_titulo: 'Original', resposta_dono: 'venceu_nova', variante_vencedora: 2 }), ok([{ id: 'r1' }])], audit_log: [ok(null)] })
+      expect(await mudarRespostaDia14({ ...mudar({ resposta: nova, respostaVista: 'venceu_nova', varianteVista: 2, n: null, tituloVisto: undefined }), sb: r.sb })).toEqual({ ok: true, conflito: null })
+    }
   })
 
   it('conflito compara títulos normalizados, não crus (Yannis m-3)', async () => {

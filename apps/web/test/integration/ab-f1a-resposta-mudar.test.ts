@@ -154,7 +154,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-2 T3: mudar a resposta do dia 14 (b
       const agora = new Date().toISOString()
       const a = await confirmada({ variantes: V3, estado: 'encerrado', encerrado_em: agora, desfecho_estado: 'vencedor_provavel', desfecho_motivo: 'coleta_encerrada', desfecho_em: agora,
         vencedor_titulo: 'Original', vencedor_fonte: fonte, ...(fonte === 'data_api' ? { vencedor_visto_em: agora } : { desfecho_versao_regra: 1 }) })
-      expect(await resp(a, 'ficou_igual')).toMatchObject({ ok: true })
+      expect(await resp(a, 'ficou_igual')).toEqual({ ok: true, conflito: null })
       const antes = await linha(a.id)
       await aguarda()
       expect(await mudar(antes, { r: 'ficou_igual', v: null }, { r: 'venceu_nova', n: 2 }, 'Nova')).toEqual({ ok: true, conflito: { youtube: 'Original', dono: 'Nova' } })
@@ -163,6 +163,9 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-2 T3: mudar a resposta do dia 14 (b
       expect(mexeu).toEqual(['resposta_dono', 'resposta_mudada_em', 'updated_at', 'variante_vencedora'].sort())
       // dono toca o mesmo título do YouTube: sai do conflito
       expect(await mudar(depois, { r: 'venceu_nova', v: 2 }, { r: 'venceu_original', n: null }, 'Original')).toEqual({ ok: true, conflito: null })
+      // sem vencedor sobre veredito de regra/data_api nunca é conflito (D-5)
+      const meio = await linha(a.id)
+      expect(await mudar(meio, { r: 'venceu_original', v: 1 }, { r: 'nao_vi', n: null })).toEqual({ ok: true, conflito: null })
     })
   })
 
