@@ -2,6 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Emenda 23/10 (retomada)
+
+Origem: re-revisões de hoje, `.superpowers/sdd/manutencao-nas/replan-23-10/onda0-rerevisao-m6-m9-phil.md` (N6-1 a N6-4) e `...-yannis.md` (N-M6-1, N-M6-2). Onde os dois pedem a mesma coisa, uma emenda só. Tabela completa: `replan-23-10/onda0-emenda-m6-m9.md`.
+
+| Achado | Resumo | Onde foi consertado neste plano |
+|---|---|---|
+| N6-1 (Phil, importante) | CP13 mede com o volume de 14/10; o volume dobrou, a horária não é semeada, sem cauda, sem fator de máquina | Tarefa 6: bullet "Volume por razão medida", teste "CP13 por razão medida", Step 4 |
+| N6-2 (Phil) + N-M6-2 (Yannis) | Dívida 3 e 4 desatualizadas (a E9 já mapeia a recusa); dois caminhos do apagar sem teste; frase tem de dizer "algum mês" | "Dívida técnica declarada" itens 3 e 4; Tarefa 2 (teste 126b); Tarefa 13 (arquivos, teste de `apagarCanalSemGuardar`, nota da frase) |
+| N6-3 (Phil, fato para a Hanna) | M6b não arma antes de ~01/04/2027; as saídas manuais de 01/02 e 01/03 são o que o dono faz | "Partes", nota abaixo desta tabela |
+| N6-4 (Phil, ordem) | Bateria roda no 54422 com esquema de 14/10; M6 só roda depois da M3b em produção | Tarefa 0, "Pré-condições de ambiente (emenda 23/10)" |
+| N-M6-1 (Yannis, importante) | `delete` cru de canal nos testes recusa com `destino_do_arquivo_nao_declarado` quando a M3b está aplicada | Tarefa 0 (helper `apagarCanalDeclarando`), Tarefa 2 (teste 127), Tarefa 6 (`afterAll` e `finally` do CP13) |
+
+Nota N6-3: o teste do item 46 exige 3 saídas reais feitas pelo dono (01/02, 01/03, 01/04, horária de out/nov/dez); a diária de outubro sai depois. "M6b antes de abril/2027" está certo; "antes de o dono embarcar" não acelera nada. A M6b pode esperar a M5/M7/M10 sem risco de dado. Meta de Phil: **M6a no ar até 15/01/2027** (o banco chega a 85% entre 24/01 e 03/03/2027). Aceite do desvio da Decisão 9 (motivo 7 por dia de São Paulo): **dado por Phil em 23/10**; falta o de Hanna.
+
 **Goal:** o banco ganha as quatro funções que tiram um mês de série do online (`obs_archive_detach_month`, `obs_archive_discard_month`, `obs_archive_reattach_month`, `obs_archive_drop_month`), com o portão das 14 condições medido no instante da chamada, a regra dos dois passos por tabela, os gatilhos do invariante do mês destacado, o interruptor do automático e o sinal sem serrote; o site ganha a peça 3 (tirar o mês), a peça 4 (o interruptor), o chip "automático desligou", a frase de "Remover canal" com mês fora das telas e a tarefa diária `saida_automatica`.
 
 **Architecture:** todo o SQL nasce num rascunho (`supabase/rascunhos/m6.sql`, TRAVA M6-1: fora da pasta que o `db push` lê) dividido em partes marcadas `-- M6 PARTE n`, aplicado pelos testes de integração em `begin … rollback` no `bythiago_int`; na Tarefa 14 vira a migration `*_manutencao_m6_saida.sql` por `npm run db:new`. O portão é uma função interna (`obs_archive_gate`) que recebe a relação a medir (partição anexada, ou a tabela `_saida` destacada) e a lista de condições de cada operação; o recálculo do hash por unidade roda antes da trava e pode vir pronto de conferências por canal (`obs_archive_precheck_unit`, gravadas em `obs_archive_prechecks`, válidas por 10 minutos: regra CP13), e sob a trava só se reconta contagem e soma e se compara o resumo da linha inteira (`row_digest`, gravado pela conferência; C-1). No site, um módulo só de servidor (`arquivo-mensal/saida.ts`) é o único caminho até as funções: as ações do botão e a tarefa da agenda o chamam; as frases são módulos puros com os literais do mockup aprovado.
@@ -137,8 +151,8 @@ Corte pedido por Yannis e aprovado pela Hanna com um ajuste (`.superpowers/sdd/m
 
 1. **A serialização do hash existe em dois lugares** (`obs_archive_read_unit` e `obs_archive_content_hash_rel`); um teste de texto (Tarefa 1) trava a igualdade da expressão, mas é guarda, não solução. Unificar é da M3b.
 2. **Os testes de integração só rodam com banco local** (`HAS_LOCAL_DB`); a CI não os roda. A bateria é do controlador antes do push (critério 1 da M6a).
-3. **Invariante global:** mês destacado de qualquer site bloqueia toda remoção de canal e todo `delete` em `competitor_channels`/`competitor_videos`, de qualquer site. É deliberado (sub-sites são aspiracionais) e está dito na frase D7.
-4. **E9/E10 recebem a recusa `mes_destacado_em_transito` como erro genérico** nos caminhos que não passam pela Tarefa 13 (CLI do arquivo). A Tarefa 13 cobre `remover.ts` e o CLI; outros chamadores seguem genéricos.
+3. **Invariante global:** mês destacado de qualquer site bloqueia toda remoção de canal e todo `delete` em `competitor_channels`/`competitor_videos`, de qualquer site, **enquanto houver um mês `detached_at` sem `dropped_at`**. É deliberado (sub-sites são aspiracionais). (Emenda 23/10, Phil N6-2) Caminhos que ele alcança hoje: `competitor_video_purge` e `competitor_channel_purge` (E9), `competitor_channel_remove_archived` e `competitor_channel_delete_unarchived` (F1: "Remover sem guardar" e "Desfazer"), mais o "Remover canal" da Tarefa 13. **Não alcança** `competitor_comments_purge` (só apaga comentários). Duração: cada saída segura o invariante de `detached_at` até `dropped_at`, no mínimo 7 dias por classe por mês (janela de espera de série/horária), ou seja, ordem de ~7 de cada ~30 dias o dono não consegue apagar vídeo nem canal (**ESTIMATIVA**; a Tarefa 7a mede o real). Não perde dado: a recusa é nítida e tem fim definido. A frase diz que é **algum mês** (não o do vídeo/canal dele) e traz a data de liberação.
+4. **(Reescrita 23/10, Phil N6-2 e Yannis N-M6-2.)** A E9 **já mapeia** a recusa (`saiu/responder.ts:30-31,49` reconhece `^mes_destacado_em_transito` e não manda ao Sentry; `saiu/modelo.ts:22,167` tem a frase; é da M9 só conferir/ajustar a frase, ver Tarefa 11 da M9). Não há nada a pedir à A5 nesse ponto. Os caminhos da F1 (`apagarCanalSemGuardar`, `remover.ts`) passam pelo `chamar` e `codigoE10` da Tarefa 13 e herdam o mapeamento; a Tarefa 13 acrescenta o teste que prova isso. O CLI do arquivo segue como a Tarefa 13 descreve.
 
 ## Mapa de arquivos
 
@@ -169,6 +183,8 @@ Corte pedido por Yannis e aprovado pela Hanna com um ajuste (`.superpowers/sdd/m
 
 ### Task 0 [M6a]: O rascunho, a trava e o helper de teste
 
+**Pré-condições de ambiente (emenda 23/10, Phil N6-4):** antes desta tarefa, (1) o banco de integração `bythiago_int` (54422) é recriado a partir de `origin/staging` (o local está ~1.000 commits atrás; hoje tem o esquema de 14/10, e as funções do canal e `obs_archive_registry` mudaram em produção), (2) a M2 rebaseada (C-1 do `phil.md`) está aplicada, (3) a M3b está aplicada no 54422 e em produção (`obs_archive_months` não existe em produção hoje). Sem isso o "verde" do critério 1 da M6a vale para um banco que não existe mais. Registrar no ledger o `git rev-parse origin/staging` da recriação.
+
 **Files:**
 - Create: `supabase/rascunhos/m6.sql`
 - Create: `apps/web/test/helpers/m6.ts`
@@ -185,6 +201,7 @@ Corte pedido por Yannis e aprovado pela Hanna com um ajuste (`.superpowers/sdd/m
   - `novoAdmin(c: Client, site: string): Promise<string>`
   - `selarMes(c: Client, o: SelarMes): Promise<void>` com `interface SelarMes { site: string; classe: string; tabela: string; mes: string; versao?: number; nasHa?: string; b2ForjaHa?: string | null; restauradoHa?: string | null }`
   - `particaoDe(tabela: string, mes: string): string` (`'obs_part.<tabela>_<AAAAMM>'`)
+  - (emenda 23/10, Yannis N-M6-1) `apagarCanalDeclarando(c: Client, site: string, canal: string, admin: string): Promise<void>`: apaga o canal por `select public.competitor_channel_remove($1, $2, 'apagar', 'botao', $3)`, que declara o destino no mesmo `xid`. Com a M3b aplicada, o gatilho `obs_archive_z_destino_declarado` recusa (`destino_do_arquivo_nao_declarado`) todo `delete from public.competitor_channels` cru. Se o helper único de limpeza do replanejamento (`yannis.md` §3.4, `apagarCanalDeTeste` em `apps/web/test/helpers/`) já existir quando esta tarefa rodar, este helper só o chama. Regra: caso que espera `ok: true` ou limpeza usa o helper; caso que espera a recusa do invariante mantém o `delete` cru (o gatilho `a_` dispara antes do `z_`).
 
 - [ ] **Step 1: O teste da trava (falha: o rascunho não existe)**
 
@@ -647,7 +664,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { escalar, tenta, semearCanal, SITE_TESTE } from '../helpers/m3b'
-import { prepararM6 } from '../helpers/m6'
+import { prepararM6, apagarCanalDeclarando, novoAdmin } from '../helpers/m6'   // emenda 23/10 (N-M6-1): `admin = await novoAdmin(c, SITE_TESTE)` dentro de cada `emTransacao` que apaga canal
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const GATILHOS = [
@@ -751,10 +768,27 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 2: o invariante do mês destacado',
       await destacar(SITE_TESTE)
       await c.query(`update public.obs_archive_months set dropped_at = now() where site_id = $1`, [SITE_TESTE])
       const b = await semearCanal(c, { videos: 1 })
-      expect(await tenta(c, `delete from public.competitor_channels where id = $1`, [b.canal])).toMatchObject({ ok: true })
+      await apagarCanalDeclarando(c, SITE_TESTE, b.canal, admin)    // emenda 23/10 (N-M6-1): delete cru recusa com a M3b aplicada
       await c.query(`update public.obs_archive_months set dropped_at = null, detached_at = null where site_id = $1`, [SITE_TESTE])
       const d = await semearCanal(c, { videos: 1 })
-      expect(await tenta(c, `delete from public.competitor_channels where id = $1`, [d.canal])).toMatchObject({ ok: true })
+      await apagarCanalDeclarando(c, SITE_TESTE, d.canal, admin)    // idem: se a função recusar, o teste falha (ela levanta)
+    })
+  })
+
+  // emenda 23/10 (Yannis N-M6-2, Phil N6-2): os dois chamadores da E9 já em produção passam pelo invariante
+  it('126b: com mês destacado, competitor_video_purge e competitor_channel_purge (E9) recusam com mes_destacado_em_transito e nada some', async () => {
+    await emTransacao(async () => {
+      const { canal, videos } = await semearCanal(c, { videos: 1 })
+      await destacar(SITE_TESTE)
+      for (const sql of [
+        `select public.competitor_video_purge('${SITE_TESTE}', '${videos[0]}', 'teste')`,       // ajustar assinatura ao corpo de produção (git show origin/staging:supabase/migrations/20261015000001_*.sql)
+        `select public.competitor_channel_purge('${SITE_TESTE}', '${canal}', 'teste')`,
+      ]) {
+        const r = await tenta(c, sql)
+        expect(r).toMatchObject({ ok: false })
+        expect(JSON.stringify(r)).toContain('mes_destacado_em_transito')
+      }
+      expect(await escalar<string>(c, `select count(*)::text from public.competitor_videos where id = $1`, [videos[0]])).toBe('1')
     })
   })
 
@@ -2653,6 +2687,7 @@ Arquivo serializado, desligado por padrão: só roda com `M6_CORRIDAS=1` e `SUPA
 - Consumes: `confirmarM3bParaCorridas`, `desfazerM3bDasCorridas`, `urlDasCorridas` (helper M3b); Tarefas 2-5.
 - Produces: `corridasM6Ligadas(): boolean`, `confirmarM6ParaCorridas(): Promise<void>` (lança se `M6_EM_MIGRATION`), `desfazerM6DasCorridas(): Promise<void>`; as medidas no ledger (forma da trava escolhida, tempo do recálculo, `statement_timeout` por papel, tempo com a mãe travada no `detach` e no `reattach`, ação ponta a ponta contra o `maxDuration = 60`).
 - Volume por razão medida (M4/I-8): `M6_CANAIS` (padrão 75) e `M6_VIDEOS_POR_CANAL` (padrão 23: 701 vídeos ÷ ~30 canais, **ESTIMATIVA**; a consulta de volume do LEIAME da Tarefa 14 dá o número de verdade antes de fechar a regra de peso). Cada medida roda 3 vezes e vale a pior.
+- **Emenda 23/10 (Phil N6-1), o volume de 14/10 está defasado:** medido em 23/10 (`phil.md` §2b/§1c) a diária tem **1.488 linhas/dia** (46.100 no mês cheio com 31 canais; ~138.000 com 3× canais) e a horária **1.734 linhas/dia** (53.800/mês; 161.000 com 3×). A horária é a primeira classe a sair (01/02/2027) e o teste só semeava a diária. O maior canal-mês medido é 1.419 linhas em 21 dias na diária (~2.100/mês) e 1.621 em 10,7 dias na horária (~4.700/mês); com 3× canais, 6.300 e 14.100. Portanto: (1) semear também a **horária** (e a early) com o mesmo `M6_CANAIS`; (2) distribuição com **cauda**: 1 canal com 6.300 linhas de diária e 14.100 de horária no mês, os demais com ~700 e ~1.500; (3) os dois `expect` de tempo passam a `< 4_000 / FATOR` e `< 60_000 / FATOR`, com `FATOR = Number(process.env.M6_FATOR ?? 4.05)` (o CP29 mediu produção 3,98 a 4,05 vezes mais lenta que o banco local; limite local equivalente 988 ms e 14,8 s; comentário aponta para `phil.md` §1b); (4) rodar uma vez com `M6_CANAIS=225` (3×) e anotar o `tally` da horária no ledger. Conferência: o ledger traz `tally_horaria_ms` e `maior_conferencia_ms` já multiplicados por 4,05, ambos abaixo de 8.000. Estimativa de Phil para o `tally` (10 a 20 µs/linha x 4,05, não medida): diária 1,9 a 3,7 s, horária 2,2 a 4,4 s, horária 3× 6,5 a 13 s. Se o `tally` da horária 3× passar de 8 s, vale a regra já prevista: conferência por canal obrigatória (sem recálculo inline) e `PESADA_FIM_MS` na tarefa.
 
 - [ ] **Step 1: O desfazer da M6 (só para as corridas; produção nunca roda isto)**
 
@@ -2752,7 +2787,7 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
   }, 120_000)
   afterAll(async () => {
     await a?.query(`select public.obs_archive_reattach_month($1, $2, $3, $4)`, [site, D, MES, admin]).catch(() => undefined)
-    await a?.query(`delete from public.competitor_channels where id = $1`, [canal]).catch(() => undefined)
+    await apagarCanalDeclarando(a, site, canal, admin).catch((e: Error) => console.error('[m6-corridas] limpeza do canal falhou', e.message))   // emenda 23/10 (N-M6-1): delete cru recusa com a M3b; não engolir a falha
     await a?.end(); await b?.end()
     await desfazerM6DasCorridas()
   }, 120_000)
@@ -2900,6 +2935,8 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
       for (let i = 0; i < canais - 1; i++) {
         const s = await semearCanal(a, { site, videos: porCanal }); outros.push(s.canal)
         await semearDiaria(a, s.videos, MES, 31)
+        // emenda 23/10 (N6-1): semear também a horária e a early (mesmo M6_CANAIS) e dar cauda a UM canal (6.300 diária / 14.100 horária no mês);
+        // os demais ~700 e ~1.500. Usar/estender o helper de semeadura da M2/M3b (semearHoraria, semearEarly); o canal da cauda é outros[0].
       }
       let pior = { inline: 0, maior: 0, travaDetach: 0, travaReattach: 0, ponta: 0 }
       for (let rodada = 0; rodada < 3; rodada++) {
@@ -2930,11 +2967,12 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
         void t0
       }
       console.log('[m6-corridas] CP13', JSON.stringify({ canais, porCanal, ...pior }))
-      expect(pior.maior).toBeLessThan(4_000)
-      expect(pior.ponta).toBeLessThan(60_000)
+      const FATOR = Number(process.env.M6_FATOR ?? 4.05)   // produção é ~4,05x mais lenta que o banco local (CP29; phil.md §1b)
+      expect(pior.maior).toBeLessThan(4_000 / FATOR)
+      expect(pior.ponta).toBeLessThan(60_000 / FATOR)
     } finally {
       await a.query('reset role').catch(() => undefined)
-      for (const c of outros) await a.query(`delete from public.competitor_channels where id = $1`, [c]).catch(() => undefined)
+      for (const c of outros) await apagarCanalDeclarando(a, site, c, admin).catch((e: Error) => console.error('[m6-corridas] limpeza falhou', e.message))   // emenda 23/10 (N-M6-1)
     }
   }, 600_000)
 })
@@ -2947,7 +2985,7 @@ Expected: PASS em todos (os cinco originais, as corridas C-2, (iv), (v) e o CP13
 
 - [ ] **Step 4: As medidas no ledger e a decisão do peso da tarefa**
 
-Escrever em `.superpowers/sdd/manutencao-nas/m6/progress.md` (só disco): a forma da trava que passou em (i); o `statement_timeout` de cada papel; o tempo do recálculo inline; o maior tempo da conferência por canal; o tempo com a mãe travada no `detach` e no `reattach` (se passar de 2 s, o `lock_timeout` de 3 s e a janela de leitura da coleta precisam de nova conta); a ação ponta a ponta contra o `maxDuration = 60` (se passar de 45 s, `conferirCanais` sobe o paralelismo ou a ação vira dois passos). O volume real entra pela consulta do LEIAME da Tarefa 14 (a 23 vídeos por canal é ESTIMATIVA). Regra: se `75 × maior` passar de 60 s, a Tarefa 8 troca `peso: 'leve'` por `peso: 'pesada'` (`comecaAteMs` e `fimAteMs` das pesadas, `PESADA_FIM_MS`) e o teste do catálogo acompanha no mesmo commit.
+Escrever em `.superpowers/sdd/manutencao-nas/m6/progress.md` (só disco): a forma da trava que passou em (i); o `statement_timeout` de cada papel; o tempo do recálculo inline; o maior tempo da conferência por canal; o tempo com a mãe travada no `detach` e no `reattach` (se passar de 2 s, o `lock_timeout` de 3 s e a janela de leitura da coleta precisam de nova conta); a ação ponta a ponta contra o `maxDuration = 60` (se passar de 45 s, `conferirCanais` sobe o paralelismo ou a ação vira dois passos). Os tempos entram **já multiplicados por 4,05** (N6-1), junto com `tally_horaria_ms` e `maior_conferencia_ms`. O volume real entra pela consulta do LEIAME da Tarefa 14 (a 23 vídeos por canal é ESTIMATIVA). Regra: se `75 × maior` passar de 60 s, a Tarefa 8 troca `peso: 'leve'` por `peso: 'pesada'` (`comecaAteMs` e `fimAteMs` das pesadas, `PESADA_FIM_MS`) e o teste do catálogo acompanha no mesmo commit.
 
 - [ ] **Step 5: Commit**
 
@@ -5529,7 +5567,7 @@ A M3b deixou o D7/D7r com a frase dos meses e "Nada foi removido." como recusa p
 
 **Files:**
 - Modify: `apps/web/src/lib/youtube/observatorio/arquivo-mensal/frases-remocao.ts` (da M3b)
-- Modify: `apps/web/src/app/cms/(authed)/youtube/competitors/actions.ts:156` (`removeCompetitorChannel`, versão da M3b)
+- Modify: `apps/web/src/app/cms/(authed)/youtube/competitors/actions.ts` (`removeCompetitorChannel`, versão da M3b). **Emenda 23/10 (Phil N6-2, ponto 3):** a linha 156 é de antes da F1, que reescreveu o fluxo (`pedirRemocao`, `cancelarRemocao`, `apagarCanalSemGuardarAction` em `actions.ts:278` e `remover.ts`); no `origin/staging` não há mais `removeCompetitorChannel`. Reconferir nomes e linhas com `git show origin/staging:apps/web/src/app/cms/\(authed\)/youtube/competitors/actions.ts` antes de editar e aplicar a tarefa ao(s) ponto(s) de entrada de remoção que existirem (as quatro portas: remover, remover sem guardar, desfazer, purge)
 - Modify: `apps/web/test/youtube/observatorio/arquivo-mensal-frases-remocao.test.ts` (da M3b)
 - Modify: `apps/web/test/youtube/observatorio/canais-add-action.test.ts` (o `describe('removeCompetitorChannel')`)
 - Modify (I6, Phil): `apps/web/src/lib/youtube/observatorio/arquivo/codigos.ts:11-24, 32-39` (o código `mes_destacado_em_transito` no catálogo `CodigoE10`) e `apps/web/test/youtube/observatorio/arquivo-codigos.test.ts` (ou o teste de `codigos` que já existe; `grep -rln codigoE10 apps/web/test`)
@@ -5613,6 +5651,8 @@ it('M6: mes_destacado_em_transito sem o prefixo E10 é um código do catálogo, 
   expect(codigoE10({ code: 'P0001', message: 'outra_coisa' })).toBe('inesperado')
 })
 ```
+
+(Emenda 23/10, Phil N6-2) Idem para `apagarCanalSemGuardar` (`remover.ts`, F1): um teste com `rpc` devolvendo P0001 `mes_destacado_em_transito` afirma `falha.codigo = 'mes_destacado_em_transito'` e que `Sentry.captureMessage` **não** é chamado. A frase de status e o `liberarAPartir` valem para as quatro portas, não só para o "Remover canal"; o texto do diálogo diz que **algum** mês do arquivo está saindo do banco (o invariante é global, Dívida 3). A frase do status do mockup ("o mês saiu das telas") fica como está até a decisão: decisão: Logan/Naksu (trocar por "algum mês saiu das telas").
 
 E em `remover.ts`, um teste com `rpc` devolvendo `{ error: { code: 'P0001', message: 'mes_destacado_em_transito' } }` em `removerCanalArquivado`: afirma que devolve a recusa com a frase do catálogo e que o Sentry (`relatar`) **não** é chamado. Em `codigos.ts`: acrescentar `'mes_destacado_em_transito'` ao tipo `CodigoE10`, a frase em `FRASES_E10` (a mesma de `fraseDaRecusaDaRemocao`), e em `codigoE10`, antes do `MENSAGEM_E10`: `if (typeof erro.message === 'string' && /(^|[^a-z_])mes_destacado_em_transito($|[^a-z_])/.test(erro.message)) return 'mes_destacado_em_transito'`. **Não** entra em `DO_BANCO` (esse conjunto é só do que vem com `E10:`). O `arquivo/cli.ts:334` (que chama `competitor_channel_remove_archived`) não foi reconferido contra a recusa nova: o executor lê `cli.ts:320-345` e, se o `catch` classifica por `erroDoBanco`, o código novo já chega com a frase certa; senão, acrescenta o ramo.
 

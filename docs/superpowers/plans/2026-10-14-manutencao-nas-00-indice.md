@@ -3,6 +3,12 @@
 Escrito em 14/10/2026, depois de o dono aprovar o spec (commit `8b4dd7b61`, acordo de Phil, Yannis, Logan e Naksu na rodada 16).
 Spec: `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` (partes 00 a 06). Decisões do dono de 14/10: `.superpowers/sdd/manutencao-nas/decisoes-dono-14-10.md`.
 
+**Retomada de 23/10 (fim da pausa de 14/10, ainda sem ordem de implementar).** Pareceres de Phil, Yannis e da Hanna em
+`.superpowers/sdd/manutencao-nas/replan-23-10/` (`phil.md`, `yannis.md`, `hanna.md`); a ordem em ondas da Hanna (§4) manda sobre a
+coluna "Ordem" abaixo até o fecho da onda 0. Fatos novos: a M2 do origin já tem a emenda da 0007 (`8df3e13a1`); a M2 ganha o
+bloco 11c (crítico do Yannis); M10a e M3b-site existem só no staging local (envio por worktree, Yannis §2.2); M3b com md5,
+~99 testes de outras frentes e teto 60.000. Estado vivo: `.superpowers/sdd/manutencao-nas/status/status.html`.
+
 **Regra deste índice.** Há um plano por etapa do `05` §15.1, porque as etapas tocam sistemas diferentes (banco, rotas do site, kit da forja, NAS e telas), e cada uma tem de entregar algo testável sozinha. Não há data-meta (D24): uma etapa começa quando a anterior, de que ela depende, fecha. A coluna "Espera por" só traz relógio real.
 
 | Ordem | Plano | Etapa | Depende de | Espera por (relógio real) | Estado |
