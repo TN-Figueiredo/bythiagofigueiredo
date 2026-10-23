@@ -3,7 +3,7 @@ import { gerarPacoteIa } from './contexto-ia-actions'
 import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import type { ObsSearchParams } from './_chrome/resolve-niche'
 import { CanaisScreen } from './_canais/canais-screen'
-import { competitorChannelRedirect, legacyTabRedirect } from './_canais/legacy'
+import { competitorChannelRedirect, legacyAbaRedirect, legacyTabRedirect } from './_canais/legacy'
 import { montarCanais } from './_canais/montar'
 import { addChannelFromCanais, pedirRemocaoCanal, apagarCanalSemGuardarAction, desfazerRemocaoCanal, syncCompetitorNow, unlockMoreChannels, pinVideo, unpinVideo, getCompetitorRemovalImpactAction } from './actions'
 import { setChannelNiche, setOwnChannelNiche } from './niche-actions'
@@ -20,6 +20,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 /** Canais (port of canais.html) inside the Observatório chrome. */
 export default async function CompetitorsPage({ searchParams }: { searchParams: Promise<ObsSearchParams> }) {
   const sp = await searchParams
+  legacyAbaRedirect(sp.aba)
   // The channel drawer reuses ?tab=outliers together with ?channel=; only a bare ?tab= is a legacy dashboard link.
   if (!one(sp.channel)) legacyTabRedirect(one(sp.tab))
   const flat: Record<string, string | undefined> = {}

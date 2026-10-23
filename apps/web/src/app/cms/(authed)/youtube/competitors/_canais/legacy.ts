@@ -10,6 +10,11 @@ export function legacyTabRedirect(tab: string | undefined): void {
   if (tab === 'insights') redirect(link.insights())
 }
 
+/** Sino antigo: `?aba=sugestoes` (a aba virou página, F3 T6). Roda antes de qualquer leitura. */
+export function legacyAbaRedirect(aba: string | string[] | undefined): void {
+  if ((Array.isArray(aba) ? aba[0] : aba) === 'sugestoes') redirect(link.sugestoes())
+}
+
 /**
  * Old links to the side panel (?channel=<id>[&tab=…]): a channel now has its own page, so they land there (on the Vídeos tab: the
  * panel's tab has no equivalent). That is the case for a competitor and, since A4, for an OWN channel WITH videos. An own channel

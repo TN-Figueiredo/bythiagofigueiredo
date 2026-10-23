@@ -1,0 +1,42 @@
+'use server'
+/**
+ * F3 T6: a ação "Dispensar" da lista de sugestões. Porta de entrada, nenhuma regra. Ordem (ruling C10): (1) Zod; (2) quem administra, ANTES de qualquer
+ * cliente de serviço; (3) a sessão de edição, para o id do usuário; (4) `dispensarSinal`; (5) mapeamento da resposta; (6) invalidar.
+ * O `siteId` vem SEMPRE de `getSiteContext()`; o cliente manda só o id e o motivo. Componente client recebe esta ação por prop, nunca a importa.
+ */
+import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
+import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { dispensarSinal } from '@/lib/youtube/observatorio/sinais/leitura'
+import type { RespostaDaAcao } from './tipos'
+
+const ACAO = 'dispensar sugestões do nicho'
+const Entrada = z.object({
+  id: z.string().uuid(),
+  motivo: z.enum(['lugar_errado', 'nao_interessa', 'nao_e_parecido', 'ja_fiz']),
+})
+const REPASSADOS: ReadonlySet<string> = new Set(['nao_aberto', 'nao_encontrado', 'motivo_invalido'])
+
+export async function dispensarSugestao(id: string, motivo: string): Promise<RespostaDaAcao> {
+  const entrada = Entrada.safeParse({ id, motivo })
+  if (!entrada.success) return { ok: false, motivo: 'motivo_invalido' }
+  try {
+    const { siteId } = await getSiteContext()
+    if (await denyUnlessSiteAdmin(siteId, ACAO)) return { ok: false, motivo: 'sem_permissao' }
+    const edicao = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    if (!edicao.ok) return { ok: false, motivo: 'sem_permissao' }
+    const r = await dispensarSinal(getSupabaseServiceClient(), siteId, entrada.data.id, 'dispensado', entrada.data.motivo, `user:${edicao.user.id}`)
+    // A aba (contador) está em todas as páginas do Observatório; o bloco vive no A/B Lab. Também quando "já saiu": a tela está desatualizada.
+    if (r.ok || r.motivo === 'nao_aberto') {
+      revalidatePath('/cms/youtube/competitors', 'layout')
+      revalidatePath('/cms/youtube/ab-lab')
+    }
+    if (r.ok) return { ok: true }
+    return { ok: false, motivo: r.motivo !== undefined && REPASSADOS.has(r.motivo) ? (r.motivo as 'nao_aberto' | 'nao_encontrado' | 'motivo_invalido') : 'falhou' }
+  } catch {
+    return { ok: false, motivo: 'falhou' }
+  }
+}

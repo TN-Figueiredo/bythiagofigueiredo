@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest'
 vi.mock('next/navigation', () => ({ redirect: (u: string) => { throw new Error('REDIRECT ' + u) } }))
-import { canalDoPainel, competitorChannelRedirect, legacyTabRedirect } from '@/app/cms/(authed)/youtube/competitors/_canais/legacy'
+import { canalDoPainel, competitorChannelRedirect, legacyAbaRedirect, legacyTabRedirect } from '@/app/cms/(authed)/youtube/competitors/_canais/legacy'
 describe('legacy ?tab=', () => {
   it('maps tabs to routes', () => {
     expect(() => legacyTabRedirect('mudancas')).toThrow('REDIRECT /cms/youtube/competitors/mudancas')
@@ -9,6 +9,18 @@ describe('legacy ?tab=', () => {
     expect(() => legacyTabRedirect('insights')).toThrow('REDIRECT /cms/youtube/competitors/insights')
     expect(legacyTabRedirect('canais')).toBeUndefined()
     expect(legacyTabRedirect(undefined)).toBeUndefined()
+  })
+})
+
+describe('legacy ?aba=sugestoes (sino antigo)', () => {
+  it('vai para a página das Sugestões, inclusive quando a aba vem repetida (array)', () => {
+    expect(() => legacyAbaRedirect('sugestoes')).toThrow('REDIRECT /cms/youtube/competitors/sugestoes')
+    expect(() => legacyAbaRedirect(['sugestoes', 'x'])).toThrow('REDIRECT /cms/youtube/competitors/sugestoes')
+  })
+  it('qualquer outro valor segue na página', () => {
+    expect(legacyAbaRedirect(undefined)).toBeUndefined()
+    expect(legacyAbaRedirect('canais')).toBeUndefined()
+    expect(legacyAbaRedirect([])).toBeUndefined()
   })
 })
 
