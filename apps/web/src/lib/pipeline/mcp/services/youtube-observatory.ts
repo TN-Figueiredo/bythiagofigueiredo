@@ -50,8 +50,9 @@ const DEGRAUS_DE_OUTLIERS = [20, 10, 5, 3, 2, 1, 0] as const
 
 /**
  * 50 sugestões com a evidência no máximo (20 outliers cada) passam de 250.000 caracteres; o cliente aceita 60.000. Corta só a LISTA de outliers de
- * cada sugestão (a mais fraca primeiro), nunca uma sugestão: `n`, ids, `motivoVazio` e `proprios_agora` seguem iguais aos da rota. `outliers_omitidos`
- * diz quantos ficaram de fora; `evidence.outliers_total` continua o número verdadeiro. O resto do serviço não muda.
+ * cada sugestão (a mais fraca primeiro). Se nem sem outliers couber, tira sugestões do fim (as mais fracas) e põe `aviso` com quantas ficaram de fora.
+ * `n`, `motivoVazio` e `proprios_agora` seguem iguais aos da rota. `outliers_omitidos` diz quantos outliers ficaram de fora; `evidence.outliers_total`
+ * continua o número verdadeiro. O resto do serviço não muda.
  */
 export function cabeNoLimite(lista: ListaDeSinais, limite: number = LIMITE_DO_TEXTO_DA_FERRAMENTA): { texto: string; lista: ListaDeSinais } {
   let ultimo = { texto: JSON.stringify(lista), lista }
@@ -68,11 +69,11 @@ export function cabeNoLimite(lista: ListaDeSinais, limite: number = LIMITE_DO_TE
   const base = ultimo.lista
   for (let ficam = base.itens.length - 1; ficam >= 0; ficam--) {
     const omitidos = base.itens.length - ficam
-    const enxuta = { ...base, itens: base.itens.slice(0, ficam), aviso: `resposta cortada: ${omitidos} itens não couberam` }
+    const enxuta: ListaDeSinais = { ...base, itens: base.itens.slice(0, ficam), aviso: `resposta cortada: ${omitidos} itens não couberam` }
     const texto = JSON.stringify(enxuta)
     if (texto.length <= limite) return { texto, lista: enxuta }
   }
-  const minimo = { ...base, itens: [], aviso: `resposta cortada: ${base.itens.length} itens não couberam` }
+  const minimo: ListaDeSinais = { ...base, itens: [], aviso: `resposta cortada: ${base.itens.length} itens não couberam` }
   return { texto: JSON.stringify(minimo), lista: minimo }
 }
 

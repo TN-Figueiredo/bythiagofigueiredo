@@ -40,6 +40,8 @@ export interface ListaDeSinais {
   motivoVazio: MotivoDaLista | null
   contagens: Record<string, number>
   calculoLigado: boolean
+  /** Só no `get_signals` do Cowork: a resposta foi cortada para caber no teto de texto. */
+  aviso?: string
 }
 
 export { HORAS_ATE_DESATUALIZAR }

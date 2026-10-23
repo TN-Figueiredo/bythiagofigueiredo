@@ -95,6 +95,15 @@ describe('rodarSinaisDoNicho', () => {
     expect(d.rpc).not.toHaveBeenCalled()
   })
 
+  it('prazo esgota DEPOIS do loadRows: motor_estourou e a RPC nao e chamada', async () => {
+    vi.useFakeTimers()
+    loadRows.mockImplementation(async () => { vi.setSystemTime(Date.now() + 86_000); return {} })
+    const d = dados()
+    const r = await rodar(d)
+    expect(r).toMatchObject({ falhas: 1, motivo: 'motor_estourou' })
+    expect(d.rpc).not.toHaveBeenCalled()
+  })
+
   it('2 sites, motor_estourou no 1o: o 2o nao comeca sem prazo', async () => {
     vi.useFakeTimers()
     loadRows.mockReturnValue(new Promise(() => undefined))

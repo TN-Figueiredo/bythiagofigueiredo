@@ -68,6 +68,7 @@ async function rodarSite(sb: SupabaseClient, siteId: string, agora: Date, restan
   const proprios = await lerProprios(sb, siteId, agora)
   const { raws, existentes } = await lerEntradasDeLugar(sb, siteId)
   const calculo = calcularLugares({ siteId, rows, proprios, indice, raws, existentes, agora })
+  if (restanteMs() <= 0) throw new FalhaDeSite('motor_estourou')
   await gravarLugares(sb, siteId, calculo)
 
   const obs = createObservatory(rowsToDataset(rows, agora.getTime()))
@@ -117,6 +118,7 @@ async function rodarSite(sb: SupabaseClient, siteId: string, agora: Date, restan
     mult_max: o.mult, vpd7_max: o.vpd7, chaves: o.chaves,
   }))
 
+  if (restanteMs() <= 0) throw new FalhaDeSite('motor_estourou')
   const { data, error } = await sb.rpc('niche_signals_gravar', {
     p_site: siteId, p_lote: lote,
     p_estado: { rule_version: regra, motivo_vazio: nucleo.motivoVazio, contagens: nucleo.contagens },

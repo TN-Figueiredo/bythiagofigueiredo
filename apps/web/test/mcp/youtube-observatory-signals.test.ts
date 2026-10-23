@@ -116,21 +116,21 @@ describe('cabeNoLimite: nunca devolve texto acima do teto', () => {
 
   it('cabe: devolve a lista inteira, sem aviso', () => {
     const r = cabeNoLimite(lista([item(0, 3)]))
-    expect(JSON.parse(r.texto).aviso).toBeUndefined()
+    expect((JSON.parse(r.texto) as ListaDeSinais).aviso).toBeUndefined()
   })
   it('não cabe nem sem outliers: tira sugestões do fim, diz quantas e mantém n e o prefixo na mesma ordem', () => {
     const itens = Array.from({ length: 50 }, (_, i) => item(i, 20))
     const r = cabeNoLimite(lista(itens), 20_000)
     expect(r.texto.length).toBeLessThanOrEqual(20_000)
-    const j = JSON.parse(r.texto) as { n: number; aviso: string; itens: Array<{ id: string }> }
+    const j = JSON.parse(r.texto) as ListaDeSinais
     expect(j.n).toBe(500)
-    expect(j.aviso).toMatch(/^resposta cortada: \d+ itens não couberam$/)
-    expect(Number(/\d+/.exec(j.aviso)![0]) + j.itens.length).toBe(50)
+    expect(j.aviso ?? '').toMatch(/^resposta cortada: \d+ itens não couberam$/)
+    expect(Number(/\d+/.exec(j.aviso ?? '')![0]) + j.itens.length).toBe(50)
     expect(j.itens.map((i) => i.id)).toEqual(itens.slice(0, j.itens.length).map((i) => i.id))
   })
   it('teto absurdo de pequeno: lista vazia com aviso, ainda abaixo do teto', () => {
     const r = cabeNoLimite(lista([item(0, 20)]), 400)
     expect(JSON.parse(r.texto).itens).toEqual([])
-    expect(JSON.parse(r.texto).aviso).toMatch(/1 itens não couberam/)
+    expect((JSON.parse(r.texto) as ListaDeSinais).aviso).toMatch(/1 itens não couberam/)
   })
 })
