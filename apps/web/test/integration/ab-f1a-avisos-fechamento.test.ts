@@ -11,6 +11,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { semearTesteAb, clienteServico, seedStaffUser, deleteAuthUser } from '../helpers/db-seed'
 
+const emailsEnviados = vi.hoisted(() => [] as Array<{ html: string }>)
+vi.mock('@/lib/email/service', () => ({ getEmailService: () => ({ send: async (m: { html: string }) => { emailsEnviados.push(m); return { messageId: 'x' } } }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 import { rodarAvisos } from '@/lib/youtube/agenda/tarefas/avisos-pendentes'
@@ -114,6 +116,32 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T1: fechamento por silêncio e fa
     const l = await linha(id)
     expect(l.updated_at).not.toBe(updated_at)
     expect(l).toMatchObject({ estado: 'em_andamento', desfecho_estado: null, desfecho_motivo: null, resposta_dono: null, encerrado_em: null, desfecho_em: null })
+  })
+
+  it('(e) lembrete do dia 14 de ponta a ponta: texto novo no sino, 1 entrega email, html com link absoluto do vídeo', async () => {
+    const agora = Date.now()
+    const userId = (await seedStaffUser(clienteServico(), orgId, 'admin')).userId; usuarios.push(userId)
+    const { id } = await confirmada(agora, { inicioDias: 14, lembreteDias: null })
+    const titulo = String((await pg.query('select title from public.youtube_videos where id = $1', [videoId])).rows[0].title ?? '')
+    emailsEnviados.length = 0
+    const r = await rodarAvisos(ctx(agora))
+    expect(r.detalhe).toMatchObject({ lembrados: 1 })
+    const n = (await pg.query('select * from public.notifications where user_id = $1 and dedup_key = $2', [userId, `lembrete-nativo:${id}`])).rows
+    expect(n).toHaveLength(1)
+    expect(n[0].title).toBe('Teste do YouTube: os 14 dias acabaram')
+    expect(String(n[0].message).endsWith('Qual versão venceu no Studio?')).toBe(true)
+    if (titulo.trim() !== '' && titulo.trim().length <= 80) expect(String(n[0].message).startsWith(titulo.trim())).toBe(true)
+    expect(Number((await pg.query(`select count(*) from public.notification_deliveries d join public.notifications x on x.id = d.notification_id where x.user_id = $1 and x.dedup_key = $2 and d.channel = 'email'`, [userId, `lembrete-nativo:${id}`])).rows[0].count)).toBe(1)
+    // O envio do e-mail é de outro worker (create.ts só enfileira a entrega): passa a linha criada pelo adaptador real.
+    const antes = process.env.NEXT_PUBLIC_APP_URL
+    process.env.NEXT_PUBLIC_APP_URL = 'https://teste.exemplo'
+    try {
+      const { EmailAdapter } = await import('@/lib/notifications/adapters/email')
+      const env = await new EmailAdapter().send(n[0] as never, { email: 'dono@exemplo.test' } as never)
+      expect(env).toEqual({ success: true })
+    } finally { if (antes === undefined) delete process.env.NEXT_PUBLIC_APP_URL; else process.env.NEXT_PUBLIC_APP_URL = antes }
+    expect(emailsEnviados).toHaveLength(1)
+    expect(emailsEnviados[0]!.html).toContain(`href="https://teste.exemplo/cms/youtube/ab-lab?video=${ytId.slice(0, 11).padEnd(11, 'x')}"`)
   })
 
   describe('fan-out do lembrete', () => {

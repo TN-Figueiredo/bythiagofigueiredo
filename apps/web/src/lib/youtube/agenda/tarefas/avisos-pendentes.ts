@@ -1,18 +1,29 @@
 import * as Sentry from '@sentry/nextjs'
 import { schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
-import { devidosDoFechamento, devidosDoLembrete, diasDesdeOInicio, emEsperaDoLembrete, type LinhaAviso } from '@/lib/youtube/teste-youtube/nativo/avisos'
+import { devidosDoFechamento, devidosDoLembrete, emEsperaDoLembrete, type LinhaAviso } from '@/lib/youtube/teste-youtube/nativo/avisos'
 import { DEFINICAO_AVISOS_PENDENTES } from '../definicoes'
 import type { ContextoTarefa, ResultadoTarefa, Tarefa } from '../tipos'
 
-const COLUNAS = 'id,site_id,youtube_video_id,estado,primeira_vista,confirmado_em,created_at,resposta_dono,lembrete_notificado_em,notificacao_falhou_em,notificacao_tentativas,updated_at'
+const COLUNAS = 'id,site_id,video_id,youtube_video_id,estado,primeira_vista,confirmado_em,created_at,resposta_dono,lembrete_notificado_em,notificacao_falhou_em,notificacao_tentativas,updated_at'
 const TENTATIVAS_MAX = 3
 const BANCO_ATE_MS = 83_000
 const LIMITE_LINHAS = 500
 
-interface Linha extends LinhaAviso { site_id: string; youtube_video_id: string; notificacao_tentativas: number; updated_at: string }
+interface Linha extends LinhaAviso { site_id: string; video_id: string; youtube_video_id: string; notificacao_tentativas: number; updated_at: string }
 type FanOut = typeof fanOutToSiteAdminsDetailed
 export interface DepsAvisos { fanOut?: FanOut }
+
+const PERGUNTA = 'Qual versão venceu no Studio?'
+const TITULO_MAX = 80
+
+/** Texto do sino/e-mail do dia 14: "<título>. Qual versão venceu no Studio?"; título longo vira 79 + "…"; sem título, só a pergunta. Cru: o escape é do adaptador de e-mail. */
+export function mensagemDoLembrete(titulo: string | null | undefined): string {
+  const t = typeof titulo === 'string' ? titulo.trim() : ''
+  if (t === '') return PERGUNTA
+  const curto = t.length > TITULO_MAX ? `${t.slice(0, TITULO_MAX - 1)}…` : t
+  return `${/[.?!…]$/.test(curto) ? curto : curto + '.'} ${PERGUNTA}`
+}
 
 const semFeito = (estado: ResultadoTarefa['estado'], motivo: string): ResultadoTarefa => ({ estado, feitas: 0, deixadas: null, motivo })
 
@@ -44,6 +55,19 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
   const n = { lembrados: 0, fechados: 0, lembrete_falhou: 0, lembrete_desistiu: 0, lembrete_nao_gravado: 0, lembrete_espera: emEsperaDoLembrete(linhas, agora), no_teto: noTeto ? 1 : 0, fechamento_falhou: 0, cas_perdido: 0, sem_tempo: 0 }
   const semTempo = (): boolean => c.agora() >= c.t0 + BANCO_ATE_MS
 
+  // Títulos dos vídeos a lembrar: UMA consulta por rodada; falhou, o lembrete sai sem o prefixo.
+  const titulos = new Map<string, string>()
+  if (paraLembrar.length > 0) {
+    try {
+      const ids = [...new Set(paraLembrar.map((id) => porId.get(id)!.video_id))]
+      const v = await sb.from('youtube_videos').select('id,title').in('id', ids)
+      if (v.error) Sentry.captureMessage('avisos_pendentes: títulos do lembrete não lidos', { level: 'warning', tags: { area: 'ab-nativo' } })
+      else for (const r of (v.data ?? []) as Array<{ id: string; title: string | null }>) if (typeof r.title === 'string') titulos.set(r.id, r.title)
+    } catch {
+      Sentry.captureMessage('avisos_pendentes: títulos do lembrete não lidos', { level: 'warning', tags: { area: 'ab-nativo' } })
+    }
+  }
+
   for (const id of paraLembrar) {
     const l = porId.get(id)!
     if (semTempo()) { n.sem_tempo++; continue }
@@ -51,8 +75,8 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
     try {
       const fan = await fanOut({
         siteId: l.site_id, domain: 'youtube', type: 'youtube.native_lembrete', priority: 3,
-        title: `Faz ${diasDesdeOInicio(l, agora)} dias do teste no YouTube: qual versão ficou?`,
-        message: 'Abra o A/B Lab e conte o que você viu no Studio.',
+        title: 'Teste do YouTube: os 14 dias acabaram',
+        message: mensagemDoLembrete(titulos.get(l.video_id)),
         dedupKey: `lembrete-nativo:${l.id}`, payload: { registro_id: l.id },
         actionHref: `/cms/youtube/ab-lab?video=${l.youtube_video_id}`,
         defaultChannels: ['email'],

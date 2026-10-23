@@ -11,7 +11,7 @@ const AGORA = Date.parse('2026-12-20T12:00:00.000Z')
 const dias = (n: number): string => new Date(AGORA - n * 86_400_000).toISOString()
 const ctx = (sb: ContextoTarefa['sb'], em: number = AGORA): ContextoTarefa => ({ t0: em, agora: () => em, apiKey: '', sb, linhas: null })
 const linha = (o: Record<string, unknown> = {}) => ({
-  id: 'r1', site_id: 's1', youtube_video_id: 'abcdefghijk', estado: 'em_andamento', primeira_vista: dias(14), confirmado_em: dias(14), created_at: dias(30),
+  id: 'r1', site_id: 's1', video_id: 'v1', youtube_video_id: 'abcdefghijk', estado: 'em_andamento', primeira_vista: dias(14), confirmado_em: dias(14), created_at: dias(30),
   resposta_dono: null, lembrete_notificado_em: null, notificacao_falhou_em: null, notificacao_tentativas: 0, updated_at: dias(1), ...o,
 })
 const fanOk = { total: 1, sent: 1, suppressed: 0, errors: [] as string[] }
@@ -47,12 +47,49 @@ describe('rodarAvisos', () => {
     expect(upd).toContain('lembrete_notificado_em')
   })
 
-  it('título do lembrete: início há 14 d 23 h diz "Faz 14 dias" (piso, não teto)', async () => {
-    const fan = vi.fn().mockResolvedValue(fanOk)
-    const ini = dias(14 + 23 / 24)
-    const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ primeira_vista: ini, confirmado_em: ini })]), ok([{ id: 'r1' }])] })
-    await rodarAvisos(ctx(r.sb), { fanOut: fan })
-    expect(fan).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringContaining('Faz 14 dias') }))
+  describe('texto do lembrete', () => {
+    const rodar = async (titulo: unknown, videos?: Res) => {
+      const fan = vi.fn().mockResolvedValue(fanOk)
+      const r = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([{ id: 'r1' }])], youtube_videos: [videos ?? ok(titulo === undefined ? [] : [{ id: 'v1', title: titulo }])] })
+      await rodarAvisos(ctx(r.sb), { fanOut: fan })
+      return { arg: fan.mock.calls[0]![0], r }
+    }
+    it('título fixo e mensagem "<título>. Qual versão venceu no Studio?"; href inalterado; uma consulta de títulos', async () => {
+      const { arg, r } = await rodar('Meu vídeo')
+      expect(arg.title).toBe('Teste do YouTube: os 14 dias acabaram')
+      expect(arg.message).toBe('Meu vídeo. Qual versão venceu no Studio?')
+      expect(arg.actionHref).toBe('/cms/youtube/ab-lab?video=abcdefghijk')
+      expect(r.chamadas.filter((c) => c.alvo === 'youtube_videos')).toHaveLength(1)
+    })
+    it.each(['Vale a pena?', 'Uau!', 'Fim.', 'Etc…'])('título "%s" não ganha outro ponto', async (t) => {
+      expect((await rodar(t)).arg.message).toBe(`${t} Qual versão venceu no Studio?`)
+    })
+    it('título acima de 80 caracteres: 79 + "…" (total 80), sem ponto extra', async () => {
+      const { arg } = await rodar('a'.repeat(120))
+      expect(arg.message).toBe(`${'a'.repeat(79)}… Qual versão venceu no Studio?`)
+      expect(await rodar('b'.repeat(80)).then((x) => x.arg.message)).toBe(`${'b'.repeat(80)}. Qual versão venceu no Studio?`)
+    })
+    it('vídeo sem linha ou título nulo: só a pergunta, sem undefined/null', async () => {
+      for (const t of [undefined, null]) {
+        const m = (await rodar(t)).arg.message as string
+        expect(m).toBe('Qual versão venceu no Studio?')
+        expect(m).not.toMatch(/undefined|null/)
+      }
+    })
+    it('título hostil vai cru (o escape é do adaptador)', async () => {
+      expect((await rodar('"<script>x</script>"')).arg.message).toBe('"<script>x</script>". Qual versão venceu no Studio?')
+    })
+    it('leitura dos títulos falha (erro ou exceção): o lembrete sai sem prefixo, Sentry sem título', async () => {
+      vi.mocked(Sentry.captureMessage).mockClear()
+      const { arg } = await rodar('x', { data: null, error: { message: 'segredo-titulo' } })
+      expect(arg.message).toBe('Qual versão venceu no Studio?')
+      const fan = vi.fn().mockResolvedValue(fanOk)
+      const r = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([{ id: 'r1' }])], youtube_videos: [] }) // sem resultado: lança
+      expect(await rodarAvisos(ctx(r.sb), { fanOut: fan })).toMatchObject({ estado: 'ok', detalhe: { lembrados: 1 } })
+      expect(fan.mock.calls[0]![0].message).toBe('Qual versão venceu no Studio?')
+      expect(JSON.stringify(vi.mocked(Sentry.captureMessage).mock.calls)).not.toContain('segredo-titulo')
+      expect(vi.mocked(Sentry.captureMessage)).toHaveBeenCalledWith(expect.stringContaining('títulos'), expect.objectContaining({ level: 'warning' }))
+    })
   })
 
   it('detectado não confirmado e descartado: nenhuma notificação', async () => {
@@ -182,12 +219,11 @@ describe('rodarAvisos', () => {
     expect(await rodarAvisos(ctx(r.sb), { fanOut: vi.fn() })).toMatchObject({ estado: 'parcial', motivo: 'sobrou', detalhe: { no_teto: 1 } })
   })
 
-  it('M3: o título leva os dias reais desde o início', async () => {
+  it('M3: o título do sino é fixo, mesmo com 20 dias desde o início', async () => {
     const fan = vi.fn().mockResolvedValue(fanOk)
-    const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ primeira_vista: dias(20), confirmado_em: dias(0) })]), ok([{ id: 'r1' }])] })
+    const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ primeira_vista: dias(20), confirmado_em: dias(0) })]), ok([{ id: 'r1' }])], youtube_videos: [ok([])] })
     await rodarAvisos(ctx(r.sb), { fanOut: fan })
-    expect(fan.mock.calls[0]![0].title).toContain('20 dias')
-    expect(fan.mock.calls[0]![0].title).not.toContain('14')
+    expect(fan.mock.calls[0]![0].title).toBe('Teste do YouTube: os 14 dias acabaram')
   })
 
   it('envio repetido: segundo disparo recebe suppressed, mesmo dedup, e grava lembrado', async () => {
