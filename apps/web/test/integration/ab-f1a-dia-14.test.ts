@@ -23,7 +23,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(as
 import { responderTesteDoYouTube, type PedidoRespostaDia14 } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
 import { lerLinhasDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
 import { leituraDoEditor, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
-import { perguntaDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-duas-estado'
+import { perguntaDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { prazoDoDia14, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 

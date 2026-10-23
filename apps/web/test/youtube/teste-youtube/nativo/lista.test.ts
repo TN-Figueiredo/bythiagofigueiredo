@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import {
-  estadoDaLinha, agruparLinhas, resumoDaLista, retomarAPartirDe, rotuloRetomar,
+  estadoDaLinha, agruparLinhas, resumoDaLista, retomarAPartirDe, rotuloRetomar, foiTardia, prazoDoTeste,
   type EstadoLinha, type LinhaDoCaminho, type RegistroDaLista,
 } from '@/lib/youtube/teste-youtube/nativo/lista'
 import type { Caminho } from '@/lib/youtube/teste-youtube/nativo/roteador'
@@ -124,6 +124,23 @@ describe('estadoDaLinha: respostas do dono', () => {
   it('data_api com título diferente do escolhido: respostas_diferentes', () => {
     expect(estado({ registro: resp('venceu_nova', { vencedorFonte: 'data_api', vencedorTitulo: 'No ar', tituloDaResposta: 'Outro' }) })).toBe('respostas_diferentes')
   })
+  it('regra: vencedor B e dono B -> ficou_no_ar; vencedor A e dono B -> respostas_diferentes', () => {
+    expect(estado({ registro: resp('venceu_nova', { vencedorFonte: 'regra', vencedorTitulo: 'B', tituloDaResposta: 'B' }) })).toBe('ficou_no_ar')
+    expect(estado({ registro: resp('venceu_nova', { vencedorFonte: 'regra', vencedorTitulo: 'A', tituloDaResposta: 'B' }) })).toBe('respostas_diferentes')
+  })
+  it('a comparação ignora espaços do título e não ignora caixa', () => {
+    expect(estado({ registro: resp('venceu_nova', { vencedorFonte: 'regra', vencedorTitulo: ' B  x', tituloDaResposta: 'B x' }) })).toBe('ficou_no_ar')
+    expect(estado({ registro: resp('venceu_nova', { vencedorFonte: 'regra', vencedorTitulo: 'b', tituloDaResposta: 'B' }) })).toBe('respostas_diferentes')
+  })
+  it('fonte dono nunca é conflito, mesmo com títulos diferentes', () => {
+    expect(estado({ registro: resp('venceu_nova', { vencedorFonte: 'dono', vencedorTitulo: 'A', tituloDaResposta: 'B' }) })).toBe('ficou_no_ar')
+  })
+  it('data_api = A e dono "Ficou igual" -> respondido_sem_vencedor, nunca respostas_diferentes', () => {
+    for (const r of ['ficou_igual', 'inconclusivo', 'nao_vi'] as const) {
+      expect(estado({ registro: resp(r, { vencedorFonte: 'data_api', vencedorTitulo: 'A', tituloDaResposta: null }) })).toBe('respondido_sem_vencedor')
+      expect(estado({ registro: resp(r, { vencedorFonte: 'regra', vencedorTitulo: 'A', tituloDaResposta: 'B' }) })).toBe('respondido_sem_vencedor')
+    }
+  })
   it('data_api com o mesmo título: ficou_no_ar', () => {
     expect(estado({ registro: resp('venceu_nova', { vencedorFonte: 'data_api', vencedorTitulo: 'Igual', tituloDaResposta: 'Igual' }) })).toBe('ficou_no_ar')
   })
@@ -139,6 +156,7 @@ const linha = (o: Partial<LinhaDoCaminho> & { estado: EstadoLinha; id?: string }
 const regLinha = (n: number | null): NonNullable<LinhaDoCaminho['registro']> => ({
   id: 'r', updatedAt: ant(D), confirmadoEm: ant(15 * D), primeiraVista: null, diaDe14: 15,
   variantes: n === null ? null : Array.from({ length: n }, (_, i) => ({ n: i + 1, titulo: `t${i}`, imagem: null })), variantesTitulo: null, campos: ['titulo'], respostaDono: null,
+  tituloAntes: null, varianteVencedora: null, respondidoEm: null, respostaMudadaEm: null, vencedorFonte: null, vencedorTitulo: null, desfechoEm: null, inicio: ant(15 * D),
 })
 const pausado = { testId: 't', restoreSeq: 0, dia: 3, status: 'paused' as const }
 
@@ -189,31 +207,29 @@ describe('resumoDaLista', () => {
     expect(resumoDaLista(g(linha({ id: 'c', estado: 'sugerido_youtube' })))).toEqual({ frase: 'Nada espera a sua resposta hoje.', apoio: null })
     expect(resumoDaLista(g())).toEqual({ frase: 'Nada espera a sua resposta hoje.', apoio: null })
   })
-  it('só resultado pronto sem botão (3 versões ou derivada): frase de D-7, não entra em "esperam"', () => {
-    const r = resumoDaLista(g(
-      linha({ id: 'a', estado: 'resultado_pronto', registro: regLinha(3) }),
-      linha({ id: 'b', estado: 'sem_resposta', registro: regLinha(null) }),
-    ))
-    expect(r).toEqual({ frase: 'Dois vídeos têm resultado pronto no YouTube.', apoio: 'A resposta chega na próxima atualização.' })
-  })
-  it('um só sem botão: singular', () => {
-    expect(resumoDaLista(g(linha({ id: 'a', estado: 'resultado_pronto', registro: regLinha(3) }))).frase).toBe('Um vídeo tem resultado pronto no YouTube.')
-  })
-  it('caso misto (M-1): a frase conta só as linhas com botão; o apoio acrescenta as demais', () => {
+  it('toda linha resultado_pronto/sem_resposta espera a resposta, tenha 2 versões, 3 ou derivada', () => {
     const r = resumoDaLista(g(
       linha({ id: 'a', estado: 'resultado_pronto', registro: regLinha(2) }),
-      linha({ id: 'b', estado: 'resultado_pronto', registro: regLinha(3) }),
-      linha({ id: 'c', estado: 'resultado_pronto', registro: regLinha(3) }),
-    ))
-    expect(r.frase).toBe('Um vídeo espera a sua resposta.')
-    expect(r.apoio).toBe('Mais dois têm resultado pronto; a resposta chega na próxima atualização.')
-  })
-  it('caso misto com um só restante: singular', () => {
-    const r = resumoDaLista(g(
-      linha({ id: 'a', estado: 'sem_resposta', registro: regLinha(2) }),
       linha({ id: 'b', estado: 'resultado_pronto', registro: regLinha(null) }),
+      linha({ id: 'c', estado: 'sem_resposta', registro: regLinha(null) }),
     ))
-    expect(r.apoio).toBe('Mais um tem resultado pronto; a resposta chega na próxima atualização.')
+    expect(r.frase).toBe('Três vídeos esperam a sua resposta: um passou do prazo, dois terminaram hoje.')
+  })
+  it('1 linha de 2 versões e 2 derivadas: "Três vídeos esperam a sua resposta." sem apoio de caso misto', () => {
+    const r = resumoDaLista(g(
+      linha({ id: 'a', estado: 'resultado_pronto', registro: regLinha(2) }),
+      linha({ id: 'b', estado: 'resultado_pronto', registro: regLinha(null) }),
+      linha({ id: 'c', estado: 'resultado_pronto', registro: regLinha(null) }),
+    ))
+    expect(r).toEqual({ frase: 'Três vídeos esperam a sua resposta.', apoio: null })
+  })
+  it('um só com 3 versões: singular, na frase de esperam', () => {
+    expect(resumoDaLista(g(linha({ id: 'a', estado: 'resultado_pronto', registro: regLinha(3) }))).frase).toBe('Um vídeo espera a sua resposta.')
+  })
+  it('L-10: respostas_diferentes e ficou_no_ar ficam fora de "Precisa de você" e de "esperam a sua resposta"', () => {
+    const ls = [linha({ id: 'a', estado: 'respostas_diferentes' }), linha({ id: 'b', estado: 'ficou_no_ar' })]
+    expect(agruparLinhas(ls).precisaDeVoce).toEqual([])
+    expect(resumoDaLista(g(...ls)).frase).toBe('Nada espera a sua resposta hoje.')
   })
   it('respondido_sem_vencedor e ficou_no_ar não contam em nada de "espera"', () => {
     const r = resumoDaLista(g(linha({ id: 'a', estado: 'respondido_sem_vencedor' }), linha({ id: 'b', estado: 'ficou_no_ar' }), linha({ id: 'c', estado: 'respostas_diferentes' })))
@@ -264,5 +280,27 @@ describe('Retomar a partir de', () => {
     expect(em(-60_000)).toBe('resultado_pronto')
     expect(em(0)).toBe('sem_resposta')
     expect(em(60_000)).toBe('sem_resposta')
+  })
+})
+
+describe('foiTardia e prazoDoTeste (D-6)', () => {
+  const ini = '2026-11-01T12:00:00Z'
+  const em = (ms: number): string => new Date(Date.parse(ini) + ms).toISOString()
+  it('inicio + 16 d - 1 min -> false; + 16 d -> true', () => {
+    expect(foiTardia(ini, em(16 * D - 60_000))).toBe(false)
+    expect(foiTardia(ini, em(16 * D))).toBe(true)
+  })
+  it('14 d exatos ainda não é tardia (a margem de 2 d conta)', () => {
+    expect(foiTardia(ini, em(14 * D))).toBe(false)
+  })
+  it('1ª resposta no prazo + resposta mudada depois do prazo -> false (só respondidoEm vale)', () => {
+    const r = regLinha(2)
+    const base = { ...r, inicio: ini, respondidoEm: em(15 * D), respostaMudadaEm: em(30 * D) }
+    expect(foiTardia(base.inicio, base.respondidoEm)).toBe(false)
+    expect(foiTardia.length).toBe(2) // a assinatura não aceita `respostaMudadaEm`: a mudança tardia não vira rótulo
+  })
+  it('aceita Date no início; o prazo mostrado é início + 14 d', () => {
+    expect(foiTardia(new Date(ini), em(17 * D))).toBe(true)
+    expect(prazoDoTeste(ini).toISOString()).toBe(em(14 * D))
   })
 })
