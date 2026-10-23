@@ -72,7 +72,7 @@ export function carregarExport(linhas: readonly LinhaExport[]): Map<string, Alvo
     }
     a.leituras.push({
       id: idx, rodadaId: l.rodada_id, lidaEm: isoDoBanco(l.lida_em), http: l.http, erro: l.erro, jogadorBloqueado: l.jogador_bloqueado,
-      idioma: l.idioma, tituloExibido: l.titulo_exibido, tituloOficial: null, tituloFonte: null, miniaturaId,
+      idioma: l.idioma, tituloExibido: l.titulo_exibido, miniaturaId,
     })
   })
   for (const a of out.values()) {
