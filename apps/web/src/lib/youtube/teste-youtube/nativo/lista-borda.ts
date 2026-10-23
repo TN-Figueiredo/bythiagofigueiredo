@@ -1,13 +1,17 @@
 // Borda da lista "Vídeos do A/B Lab" (F1a-tela-1, T3): lê o banco em lote e monta as linhas. Só leitura.
-// Consultas (teto de 7): youtube_videos, ab_native_fichas, ab_native_tests, ab_tests, RPC de volume, RPC de formato
-// (+ a leitura de duração que `lerFormatos` faz só quando algum `is_short` ficou nulo). Os vídeos de ficha e de registro
+// Consultas (teto de 8): youtube_videos, ab_native_fichas, ab_native_tests, ab_tests, RPC de volume, RPC de formato
+// (+ a leitura de duração que `lerFormatos` faz só quando algum `is_short` ficou nulo)
+// (+ 1 em lote a yt_own_video_versions pelo título de antes, só quando há linha derivada; F1a-tela-2 T4, D-1). Os vídeos de ficha e de registro
 // vêm embutidos nas próprias consultas (FK), sem uma consulta extra por tabela. Nunca uma consulta por vídeo.
+import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { diaDoTeste } from '@/lib/youtube/ab-dia-do-teste'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { derivarFicha, type FichaLida, type FichaLinha } from './ficha'
 import { lerFormatos, type Formato } from './formato-borda'
 import { inicioDoTeste } from './guarda'
+import { variantesDaResposta } from './versoes'
+import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { estadoDaLinha, retomarAPartirDe, type LinhaDoCaminho, type RegistroDaLista } from './lista'
 import type { RespostaDono } from './resposta'
 import { caminhoDoTeste } from './roteador'
@@ -86,21 +90,70 @@ function melhorRegistro(atual: LinhaTeste | undefined, novo: LinhaTeste): LinhaT
   return Date.parse(String(novo.created_at)) > Date.parse(String(atual.created_at)) ? novo : atual
 }
 
-function registroDaLista(r: LinhaTeste): RegistroDaLista {
+/** Origem derivada = sem ficha vinculada (`variantes` nulo no banco); é a única que precisa do título de antes (D-1). */
+const ehDerivada = (r: LinhaTeste): boolean => r.variantes === null || r.variantes === undefined
+
+function registroDaLista(r: LinhaTeste, tituloAntes: string | null): RegistroDaLista {
   const estado = ESTADOS.has(String(r.estado)) ? (r.estado as RegistroDaLista['estado']) : 'descartado'
   const resposta = RESPOSTAS.has(String(r.resposta_dono)) ? (str(r.resposta_dono) as RegistroDaLista['respostaDono']) : null
-  const variantes = variantesDe(r.variantes)
-  const derivados = titulosDe(r.variantes_titulo)
   const n = typeof r.variante_vencedora === 'number' ? r.variante_vencedora : null
-  const tituloDaResposta = n === null ? null
-    : variantes ? (variantes.find((v) => v.n === n)?.titulo ?? null)
-    : (derivados?.[n - 1] ?? null)
+  // O título escolhido sai da MESMA numeração que o servidor usa ao gravar (versoes.ts): ficha pela posição `n`, derivada pelo índice.
+  let tituloDaResposta: string | null = null
+  if (n !== null) {
+    if (ehDerivada(r)) {
+      tituloDaResposta = variantesDaResposta({ variantes: null, variantes_titulo: r.variantes_titulo, titulo_antes: tituloAntes })?.itens[n - 1]?.titulo ?? null
+    } else {
+      tituloDaResposta = variantesDe(r.variantes)?.find((v) => v.n === n)?.titulo ?? null
+    }
+  }
   const fonte = str(r.vencedor_fonte)
   return {
     estado, confirmadoEm: str(r.confirmado_em), primeiraVista: str(r.primeira_vista), createdAt: String(r.created_at), respostaDono: resposta,
     vencedorFonte: fonte === 'regra' || fonte === 'dono' || fonte === 'data_api' ? fonte : null,
     vencedorTitulo: str(r.vencedor_titulo), tituloDaResposta,
   }
+}
+
+type VersaoDeTitulo = { em: number; texto: string }
+
+/**
+ * D-1: UMA consulta em lote ao título vigente de cada vídeo derivado (fora as versões do próprio Lab), e o corte por `primeira_vista`
+ * é feito aqui, em memória. Zero consultas quando nenhum registro é derivado.
+ */
+async function lerTitulosAntes(sb: SupabaseClient, siteId: string, derivados: LinhaTeste[]): Promise<Map<string, string>> {
+  const comVista = derivados.filter((r) => typeof r.youtube_video_id === 'string' && str(r.primeira_vista) !== null)
+  const saida = new Map<string, string>()
+  if (comVista.length === 0) return saida
+  const ids = [...new Set(comVista.map((r) => String(r.youtube_video_id)))]
+  const teto = Math.max(...comVista.map((r) => Date.parse(String(r.primeira_vista))))
+  const linhas = await ler<unknown>('yt_own_video_versions', sb.from('yt_own_video_versions').select('youtube_video_id, value_text, first_seen_at')
+    .eq('site_id', siteId).in('youtube_video_id', ids).eq('field', 'title').eq('pre_registro', false)
+    .neq('origin', 'ab_lab').lte('first_seen_at', new Date(teto).toISOString())
+    .order('first_seen_at', { ascending: false }))
+  const porVideo = new Map<string, VersaoDeTitulo[]>()
+  for (const l of linhas) {
+    const o = obj(l)
+    const texto = o ? str(o.value_text) : null
+    const em = o ? Date.parse(String(o.first_seen_at)) : NaN
+    if (!o || typeof o.youtube_video_id !== 'string' || texto === null || texto.trim() === '' || !Number.isFinite(em)) continue
+    const lista = porVideo.get(o.youtube_video_id) ?? []
+    lista.push({ em, texto })
+    porVideo.set(o.youtube_video_id, lista)
+  }
+  for (const r of comVista) {
+    const vista = Date.parse(String(r.primeira_vista))
+    const achada = (porVideo.get(String(r.youtube_video_id)) ?? []).find((v) => v.em <= vista) // já em ordem decrescente
+    if (achada) saida.set(r.id, achada.texto)
+  }
+  return saida
+}
+
+/** `registroId`s já avisados neste processo: a lista relê a cada visita, o aviso sai uma vez (D-7(e)). */
+const avisados = new Set<string>()
+function avisarSemVersoes(registroId: string): void {
+  if (avisados.has(registroId)) return
+  avisados.add(registroId)
+  Sentry.captureMessage('lista do A/B Lab: versões do dia 14 ilegíveis (sem_versoes)', { level: 'warning', tags: { area: 'ab-nativo' }, extra: { registroId } })
 }
 
 /** Último envio ao Studio (o maior entre `studio_aberto_em` e `lembrar_em`), em ISO. */
@@ -117,7 +170,7 @@ function enviadaEm(f: FichaLida): string | null {
 export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, agora: Date, leitura: LeituraPrivadaDoSite | null): Promise<LinhaDoCaminho[]> {
   const iso30 = new Date(agora.getTime() - JANELA_FECHADOS_DIAS * DIA_MS).toISOString()
   const colunasFicha = `id, site_id, video_id, campos, variantes, criada_em, criada_por, atualizada_em, studio_aberto_em, lembrar_em, descartada_em, registro_id, video:youtube_videos(${COLUNAS_VIDEO})`
-  const colunasTeste = `id, video_id, estado, confirmado_em, primeira_vista, ultima_vista, votos_titulo, created_at, updated_at, resposta_dono, variantes, variantes_titulo, campos, vencedor_fonte, vencedor_titulo, variante_vencedora, video:youtube_videos(${COLUNAS_VIDEO})`
+  const colunasTeste = `id, video_id, youtube_video_id, estado, confirmado_em, primeira_vista, ultima_vista, votos_titulo, created_at, updated_at, resposta_dono, variantes, variantes_titulo, campos, vencedor_fonte, vencedor_titulo, variante_vencedora, respondido_em, resposta_mudada_em, desfecho_em, video:youtube_videos(${COLUNAS_VIDEO})`
 
   const [recentes, fichasBrutas, testesBrutos, nossosBrutos] = await Promise.all([
     ler<unknown>('youtube_videos', sb.from('youtube_videos').select(COLUNAS_VIDEO)
@@ -147,6 +200,8 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
     testes.set(t.video_id, melhorRegistro(testes.get(t.video_id), t))
   }
   for (const t of testes.values()) { const v = videoEmbutido(t.video); if (v) extras.push(v) }
+
+  const titulosAntes = await lerTitulosAntes(sb, siteId, [...testes.values()].filter(ehDerivada))
 
   const recentesLidos = recentes.map(comoVideo).filter((v): v is VideoLido => v !== null)
   const todos = new Map<string, VideoLido>()
@@ -181,20 +236,29 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
     const ficha = fichas.get(v.id) ?? null
     const nosso = nossos.get(v.id) ?? null
     const bruto = testes.get(v.id)
-    const registro = bruto ? registroDaLista(bruto) : null
+    const registro = bruto ? registroDaLista(bruto, titulosAntes.get(bruto.id) ?? null) : null
     const estado = estadoDaLinha({ caminho, ficha, registro, nosso }, agora)
 
     let linhaRegistro: LinhaDoCaminho['registro'] = null
     let labPausadoAte: string | null = null
     if (bruto && registro) {
       const inicio = inicioDoTeste({ primeira_vista: registro.primeiraVista, confirmado_em: registro.confirmadoEm, created_at: registro.createdAt })
+      const variantes = variantesDe(bruto.variantes)
+      // Ficha ilegível (JSON fora da forma): o servidor também não a lê e NÃO cai na derivada; a lista idem (sem_versoes, nunca versões inventadas).
+      const fichaIlegivel = !ehDerivada(bruto) && variantes === null
       linhaRegistro = {
         id: bruto.id, updatedAt: String(bruto.updated_at), confirmadoEm: registro.confirmadoEm, primeiraVista: registro.primeiraVista,
         diaDe14: diaDoTeste(inicio.toISOString(), null, agora) ?? 0,
         ultimaVista: str(bruto.ultima_vista), votosTitulo: votosDe(bruto.votos_titulo),
-        variantes: variantesDe(bruto.variantes), variantesTitulo: titulosDe(bruto.variantes_titulo), campos: camposDe(bruto.campos),
+        variantes, variantesTitulo: fichaIlegivel ? null : titulosDe(bruto.variantes_titulo), campos: camposDe(bruto.campos),
         respostaDono: registro.respostaDono === 'sem_resposta' ? null : registro.respostaDono as RespostaDono | null,
+        tituloAntes: titulosAntes.get(bruto.id) ?? null,
+        varianteVencedora: typeof bruto.variante_vencedora === 'number' ? bruto.variante_vencedora : null,
+        respondidoEm: str(bruto.respondido_em), respostaMudadaEm: str(bruto.resposta_mudada_em),
+        vencedorFonte: registro.vencedorFonte, vencedorTitulo: registro.vencedorTitulo, desfechoEm: str(bruto.desfecho_em),
+        inicio: inicio.toISOString(),
       }
+      if (versoesDoDia14(linhaRegistro).tipo === 'sem_versoes' && (bruto.variantes != null || bruto.variantes_titulo != null)) avisarSemVersoes(bruto.id)
       if (registro.estado === 'em_andamento' && nosso?.status === 'paused') labPausadoAte = retomarAPartirDe(registro).toISOString()
     }
     return {

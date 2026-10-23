@@ -13,10 +13,13 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerLinhasDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
+import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { lerVolumes } from '@/lib/youtube/teste-youtube/nativo/volume-leitor'
 import { leituraDoEditor, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 
 // a prova de edição (`leituraDoEditor`) que a lista repete na borda: a guarda simulada aceita
+const sentryMsgs = vi.hoisted(() => vi.fn())
+vi.mock('@sentry/nextjs', async (orig) => ({ ...(await orig<typeof import('@sentry/nextjs')>()), captureMessage: sentryMsgs }))
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u-teste' } })) }))
 const tok = async (site: string): Promise<LeituraPrivadaDoSite> => {
   const l = await leituraDoEditor(site)
@@ -27,6 +30,7 @@ const tok = async (site: string): Promise<LeituraPrivadaDoSite> => {
 vi.setConfig({ testTimeout: 90_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const TIPO = 'channel_reach_basic_a1'
+const DIA = 86_400_000
 
 describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e linhas da lista', () => {
   let pg: Client
@@ -78,7 +82,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
   })
   afterAll(async () => {
     try {
-      for (const t of ['ab_native_fichas', 'ab_native_tests', 'ab_tests', 'yt_own_video_reach_daily', 'yt_own_video_meta_daily', 'yt_own_video_state_raw', 'yt_reporting_reports', 'youtube_videos', 'youtube_channels']) {
+      for (const t of ['ab_native_fichas', 'ab_native_tests', 'ab_tests', 'yt_own_video_reach_daily', 'yt_own_video_meta_daily', 'yt_own_video_state_raw', 'yt_own_video_versions', 'yt_reporting_reports', 'youtube_videos', 'youtube_channels']) {
         await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
       }
       await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
@@ -197,7 +201,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       })
       const linhas = await lerLinhasDoCaminho(espiao, s, new Date(), await tok(s))
       expect(linhas).toHaveLength(22)
-      expect(consultas).toBeLessThanOrEqual(7)
+      expect(consultas).toBeLessThanOrEqual(8) // 7 + a consulta em lote do título de antes (há 1 derivada)
       const ids = new Set(linhas.map((l) => l.videoId))
       expect(ids.has(vs[2]!.id)).toBe(false) // privado fora
       expect(ids.has(vs[23]!.id)).toBe(true) // ficha
@@ -275,6 +279,104 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
         values ($1, $2, 'n', 'paused', 'https://x/t.png', now() - interval '2 days', now(), $3::jsonb)`, [s, a.id, JSON.stringify({ title: campo, thumbnail: campo })])
       const l = (await lerLinhasDoCaminho(sb, s, new Date(), await tok(s))).find((x) => x.videoId === a.id)!
       expect(l.nosso?.restoreStatus).toMatchObject({ title: { estado: 'ok' }, thumbnail: { estado: 'ok' } })
+    })
+
+    describe('F1a-tela-2 T4: versões do dia 14', () => {
+      const espiar = (): { cliente: SupabaseClient; tabelas: string[] } => {
+        const tabelas: string[] = []
+        const cliente = new Proxy(sb as SupabaseClient, {
+          get(alvo, prop, recv) {
+            const real = Reflect.get(alvo, prop, recv) as unknown
+            if ((prop === 'from' || prop === 'rpc') && typeof real === 'function') {
+              return (...a: unknown[]) => { tabelas.push(String(a[0])); return (real as (...x: unknown[]) => unknown).apply(alvo, a) }
+            }
+            return real
+          },
+        })
+        return { cliente, tabelas }
+      }
+      const versaoDeTitulo = async (s: string, c: string, ytId: string, texto: string, dias: number, origin = 'linha_de_base'): Promise<void> => {
+        const quando = new Date(Date.now() - dias * DIA).toISOString()
+        const lab = origin === 'ab_lab'
+        await pg.query(`insert into public.yt_own_video_versions (youtube_video_id, site_id, channel_id, field, value_text, value_hash, first_day_pt, last_day_pt,
+            first_seen_at, last_seen_at, window_precision, origin, ab_event, is_current, window_start, window_end)
+          values ($1, $2, $3, 'title', $4, $5, ($6::timestamptz at time zone 'America/Sao_Paulo')::date, ($6::timestamptz at time zone 'America/Sao_Paulo')::date, $6, $6, $7, $8, $9, false,
+            case when $7 = 'first' then null else $6::timestamptz end, case when $7 = 'first' then null else $6::timestamptz end)`,
+        [ytId, s, c, texto, randomUUID().replace(/-/g, '').slice(0, 32), quando, lab ? 'min' : origin === 'linha_de_base' ? 'first' : '1d', origin, lab ? 'rotacao' : null])
+      }
+      const registro = async (s: string, v: { id: string; yt: string }, titulos: unknown, extra = ''): Promise<string> =>
+        String((await pg.query(`insert into public.ab_native_tests (site_id, video_id, youtube_video_id, origem, campos, estado, confirmado_em, primeira_vista, variantes_titulo, versao_regra)
+          values ($1, $2, $3, 'detectado', '{titulo}', 'em_andamento', now() - interval '15 days', now() - interval '15 days', $4::jsonb, 1) ${extra} returning id`,
+        [s, v.id, v.yt, JSON.stringify(titulos)])).rows[0].id)
+
+      it('derivada com versão anterior a primeira_vista: o título de antes (sem as versões do Lab) vai para a A com original; UMA consulta em lote', async () => {
+        const s = (await seedSite(sb)).siteId
+        sites.push(s)
+        const c = await novoCanal(s)
+        const a = await video(s, c, 30)
+        const b = await video(s, c, 31)
+        await registro(s, a, ['Novo', 'Velho'])
+        await registro(s, b, ['X', 'Y'])
+        await versaoDeTitulo(s, c, a.yt, 'Velho', 40)
+        await versaoDeTitulo(s, c, a.yt, 'Do Lab', 20, 'ab_lab') // anterior a primeira_vista, mas é do próprio Lab: ignorada
+        await versaoDeTitulo(s, c, a.yt, 'Depois', 5) // posterior a primeira_vista: fora do corte
+        const { cliente, tabelas } = espiar()
+        const linhas = await lerLinhasDoCaminho(cliente, s, new Date(), await tok(s))
+        expect(tabelas.filter((t) => t === 'yt_own_video_versions')).toHaveLength(1)
+        expect(tabelas.length).toBeLessThanOrEqual(8)
+        const la = linhas.find((l) => l.videoId === a.id)!
+        const lb = linhas.find((l) => l.videoId === b.id)!
+        expect(la.registro?.tituloAntes).toBe('Velho')
+        expect(lb.registro?.tituloAntes).toBeNull() // sem versão anterior: título de antes desconhecido, nunca inventado
+        const pa = versoesDoDia14(la.registro!)
+        expect(pa).toMatchObject({ tipo: 'versoes', origem: 'derivada', originalConhecido: true })
+        if (pa.tipo === 'versoes') expect(pa.versoes.map((x) => [x.letra, x.titulo, x.original])).toEqual([['A', 'Velho', true], ['B', 'Novo', false]])
+        const pb = versoesDoDia14(lb.registro!)
+        expect(pb).toMatchObject({ tipo: 'versoes', originalConhecido: false })
+        expect(la.registro?.inicio).toBeTruthy()
+      })
+
+      it('sem linha derivada: zero consultas a yt_own_video_versions', async () => {
+        const s = (await seedSite(sb)).siteId
+        sites.push(s)
+        const c = await novoCanal(s)
+        const a = await video(s, c, 30)
+        await pg.query(`insert into public.ab_native_tests (site_id, video_id, youtube_video_id, origem, campos, estado, confirmado_em, primeira_vista, variantes, versao_regra)
+          values ($1, $2, $3, 'confirmado', '{titulo}', 'em_andamento', now() - interval '15 days', now() - interval '15 days', $4::jsonb, 1)`,
+        [s, a.id, a.yt, JSON.stringify([{ n: 1, tipo: 'titulo', titulo: 'A' }, { n: 2, tipo: 'titulo', titulo: 'B' }])])
+        const { cliente, tabelas } = espiar()
+        await lerLinhasDoCaminho(cliente, s, new Date(), await tok(s))
+        expect(tabelas.filter((t) => t === 'yt_own_video_versions')).toHaveLength(0)
+        expect(tabelas.length).toBeLessThanOrEqual(7)
+      })
+
+      it('variantes_titulo ilegível (JSON de outra forma): sem_versoes e UM aviso ao Sentry com registroId, mesmo em duas leituras', async () => {
+        const s = (await seedSite(sb)).siteId
+        sites.push(s)
+        const c = await novoCanal(s)
+        const a = await video(s, c, 30)
+        const id = await registro(s, a, [1, 2])
+        sentryMsgs.mockClear()
+        for (let i = 0; i < 2; i++) {
+          const l = (await lerLinhasDoCaminho(sb, s, new Date(), await tok(s))).find((x) => x.videoId === a.id)!
+          expect(versoesDoDia14(l.registro!)).toEqual({ tipo: 'sem_versoes' })
+        }
+        const deste = sentryMsgs.mock.calls.filter((c2) => (c2[1] as { extra?: { registroId?: string } } | undefined)?.extra?.registroId === id)
+        expect(deste).toHaveLength(1)
+        expect((deste[0]![1] as { level: string }).level).toBe('warning')
+      })
+
+      it('variantes_titulo cheio (3; a `variantes_demais` do registrador mora na avaliação e a lista não a lê): a pergunta sai com as 3 versões (limite declarado)', async () => {
+        const s = (await seedSite(sb)).siteId
+        sites.push(s)
+        const c = await novoCanal(s)
+        const a = await video(s, c, 30)
+        await registro(s, a, ['x', 'y', 'z'])
+        const l = (await lerLinhasDoCaminho(sb, s, new Date(), await tok(s))).find((x) => x.videoId === a.id)!
+        const p = versoesDoDia14(l.registro!)
+        expect(p.tipo).toBe('versoes')
+        if (p.tipo === 'versoes') expect(p.versoes.map((x) => x.letra)).toEqual(['A', 'B', 'C'])
+      })
     })
   })
 })

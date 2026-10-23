@@ -1,6 +1,7 @@
 // Classificação PURA das linhas da lista "Vídeos do A/B Lab" (F1a-tela-1, T3): estado, agrupamento e frase de resumo.
 // A leitura do banco é de `lista-borda.ts`. Nada aqui lê relógio nem banco: o `agora` entra por parâmetro.
-import { inicioDoTeste } from './guarda'
+import { inicioDoTeste, MARGEM_FECHAMENTO_DIAS } from './guarda'
+import { normalizarTitulo } from '../normalizar-titulo'
 import { INATIVIDADE_DESCARTE_MS } from './ficha-tela'
 import { FRASES, capitalizar } from './frases'
 import type { FichaLida } from './ficha'
@@ -21,6 +22,16 @@ export interface LinhaDoCaminho {
     ultimaVista?: string | null; votosTitulo?: Record<string, number> | null
     variantes: { n: number; titulo: string | null; imagem: { url: string } | null }[] | null
     variantesTitulo: string[] | null; campos: ('titulo' | 'miniatura')[] | null; respostaDono: RespostaDono | null
+    /** F1a-tela-2 (D-1): título vigente na Data API em `primeira_vista`; só lido para origem derivada (`variantes` nulo). */
+    tituloAntes: string | null
+    varianteVencedora: number | null
+    /** 1ª resposta (D-6: só ela decide "tardia") e a última mudança (D-4). */
+    respondidoEm: string | null; respostaMudadaEm: string | null
+    vencedorFonte: 'regra' | 'dono' | 'data_api' | null; vencedorTitulo: string | null
+    /** Quando o Lab leu o desfecho ("No ar, lido pelo Lab em …"); nulo = sem data. */
+    desfechoEm: string | null
+    /** Início do teste (ISO): o menor entre `primeira_vista` e `confirmado_em`. */
+    inicio: string
   } | null
   labPausadoAte: string | null
   nosso: { testId: string; restoreSeq: number; dia: number; status: 'active' | 'paused'; restoreStatus?: RestoreStatus | null } | null
@@ -48,7 +59,7 @@ export interface TesteNossoDaLista { status: 'active' | 'paused' }
 const DIA_MS = 86_400_000
 /** O teste do YouTube dura 14 dias; passados +2 d de margem (guarda.ts) a linha fecha por silêncio. */
 const DURACAO_DIAS = 14
-const FECHAMENTO_DIAS = DURACAO_DIAS + 2
+const FECHAMENTO_DIAS = DURACAO_DIAS + MARGEM_FECHAMENTO_DIAS
 
 const inicioDe = (r: RegistroDaLista): Date =>
   inicioDoTeste({ primeira_vista: r.primeiraVista, confirmado_em: r.confirmadoEm, created_at: r.createdAt })
@@ -63,6 +74,19 @@ export function retomarAPartirDe(r: { primeiraVista: string | null; confirmadoEm
 export function prazoDoDia14(r: { primeiraVista: string | null; confirmadoEm: string | null; createdAt: string }): Date {
   const i = inicioDoTeste({ primeira_vista: r.primeiraVista, confirmado_em: r.confirmadoEm, created_at: r.createdAt })
   return new Date(i.getTime() + DURACAO_DIAS * DIA_MS)
+}
+
+/** Fim do prazo mostrado ao dono (D-6): início + 14 d. */
+export function prazoDoTeste(inicio: string | Date): Date {
+  return new Date(new Date(inicio).getTime() + DURACAO_DIAS * DIA_MS)
+}
+
+/**
+ * Resposta tardia (D-6): a 1ª resposta chegou quando a linha já era "Sem resposta" (início + 14 d + margem).
+ * Recebe só `respondido_em`: quem respondeu no prazo e mudou depois dele nunca lê "depois do prazo".
+ */
+export function foiTardia(inicio: string | Date, respondidoEm: string | Date): boolean {
+  return new Date(respondidoEm).getTime() >= new Date(inicio).getTime() + FECHAMENTO_DIAS * DIA_MS
 }
 
 /** `dd/mm`, mais `, HH:MM` quando a hora (em São Paulo) não é 00:00. */
@@ -92,7 +116,9 @@ function estadoDoRegistro(r: RegistroDaLista, agora: Date): EstadoLinha | null {
   // (3) respondido: a resposta vale mesmo depois do prazo.
   if (resp !== null && resp !== 'sem_resposta') {
     if (SEM_VENCEDOR.has(resp)) return 'respondido_sem_vencedor'
-    if (r.vencedorFonte === 'data_api' && r.vencedorTitulo !== null && r.tituloDaResposta !== null && r.vencedorTitulo !== r.tituloDaResposta) return 'respostas_diferentes'
+    // D-5: conflito só versão contra versão, e só com veredito de `regra` ou `data_api` (a fonte `dono` é a própria resposta).
+    if ((r.vencedorFonte === 'regra' || r.vencedorFonte === 'data_api') && r.vencedorTitulo !== null && r.tituloDaResposta !== null
+      && normalizarTitulo(r.vencedorTitulo) !== normalizarTitulo(r.tituloDaResposta)) return 'respostas_diferentes'
     return 'ficou_no_ar'
   }
   if (r.confirmadoEm === null) return r.estado === 'em_andamento' ? 'em_teste_studio' : null // (1) visto de fora
@@ -134,16 +160,13 @@ export function agruparLinhas(l: LinhaDoCaminho[]): { precisaDeVoce: LinhaDoCami
 
 const cap = capitalizar
 
-/** Linha de ficha com exatamente duas versões: só ela ganha o botão "Responder" (T10b). Três versões ou `variantes` nulo = sem botão. */
-const comBotao = (l: LinhaDoCaminho): boolean => l.registro?.variantes?.length === 2
-
 const L = FRASES.lista
 
 export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: LinhaDoCaminho[] }): { frase: string; apoio: string | null } {
   const todas = [...g.precisaDeVoce, ...g.outros]
-  const prazo = g.precisaDeVoce.filter((l) => l.estado === 'sem_resposta' && comBotao(l)).length
-  const hoje = g.precisaDeVoce.filter((l) => l.estado === 'resultado_pronto' && comBotao(l)).length
-  const semBotao = g.precisaDeVoce.filter((l) => (l.estado === 'sem_resposta' || l.estado === 'resultado_pronto') && !comBotao(l)).length
+  // Toda linha com resposta pendente conta, qualquer que seja o número de versões ou a origem (tela-2: todas têm botão).
+  const prazo = g.precisaDeVoce.filter((l) => l.estado === 'sem_resposta').length
+  const hoje = g.precisaDeVoce.filter((l) => l.estado === 'resultado_pronto').length
   const espera = prazo + hoje
   const studio = todas.filter((l) => l.estado === 'em_teste_studio').length
   const studioConfirmado = todas.filter((l) => l.estado === 'em_teste_studio' && Boolean(l.registro?.confirmadoEm)).length
@@ -152,9 +175,6 @@ export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: Linh
   const nossoRodando = todas.filter((l) => l.estado === 'nosso_rodando').length
   const pausadas = todas.filter(pausada).length
 
-  if (espera === 0 && semBotao > 0) {
-    return { frase: L.resultadoProntoSemBotao(semBotao), apoio: pausadas > 0 ? `${L.labPausado(pausadas)} ${L.respostaChegaNaAtualizacao}` : L.respostaChegaNaAtualizacao }
-  }
   if (espera === 0 && pausadas > 0) {
     const n = studio + preparo + nossoRodando
     return { frase: L.labPausado(pausadas), apoio: n > 0 ? L.apoioEmTesteOuPreparo(n) : null }
@@ -171,6 +191,5 @@ export function resumoDaLista(g: { precisaDeVoce: LinhaDoCaminho[]; outros: Linh
   const frases: string[] = []
   if (partes.length > 0) frases.push(`${cap(partes.join(', '))}.`)
   if (pausadas > 0) frases.push(L.labPausadoDeles(pausadas))
-  if (semBotao > 0) frases.push(L.maisComResultadoPronto(semBotao))
   return { frase, apoio: frases.length > 0 ? frases.join(' ') : null }
 }
