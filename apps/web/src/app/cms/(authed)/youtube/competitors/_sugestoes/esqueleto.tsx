@@ -1,10 +1,12 @@
 // Esqueleto da lista (F3 T5): título real, N "…" (nunca 0), linhas com a forma de `.sg-sk-row`. Sem hooks: serve de loading do servidor.
 import './sugestoes.css'
 
-export function EsqueletoDaLista(p: { linhas: number }) {
+export function EsqueletoDaLista(p: { linhas: number; modo?: 'pagina' | 'bloco' }) {
+  const modo = p.modo ?? 'pagina'
+  const Titulo = modo === 'pagina' ? 'h1' : 'h2'
   return (
-    <section className="sg" data-obs-screen="sugestoes" data-modo="pagina">
-      <div className="sg-phd"><h1>Sugestões <span className="sg-cnt">…</span></h1><div className="sg-fresh"><span>Lendo…</span></div></div>
+    <section className="sg" data-obs-screen="sugestoes" data-modo={modo}>
+      <div className="sg-phd"><Titulo>Sugestões <span className="sg-cnt">…</span></Titulo><div className="sg-fresh"><span>Lendo…</span></div></div>
       <p className="sg-sum" aria-busy="true"><span className="sg-skel" style={{ width: 'min(420px,100%)', height: 24 }} /></p>
       <div aria-busy="true" aria-label="Carregando sugestões">
         <div className="sg-list">

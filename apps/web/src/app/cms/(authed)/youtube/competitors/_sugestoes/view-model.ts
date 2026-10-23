@@ -239,3 +239,6 @@ export function filtrarVista(vista: VistaDaLista, filtro: FiltroDaLista): VistaD
   }
   return { ...vista, linhas: recorte, filtro: { atual: filtro, contagens: vista.filtro.contagens }, vazio }
 }
+
+/** Leitura que falhou: n nulo ("?"), sem linhas; a página e o bloco do A/B Lab nunca lançam por causa dela. */
+export const VISTA_COM_ERRO: VistaDaLista = { n: null, calculado: null, velho: false, resumo: '', faixa: null, filtro: null, linhas: [], completas: [], totalAlemDoLimite: null, vazio: null }

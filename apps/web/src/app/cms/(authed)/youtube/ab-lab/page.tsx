@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { getSiteContext } from '@/lib/cms/site-context'
 import {
   getAbTestsForSite,
@@ -10,6 +11,8 @@ import {
   computeDashboardStats,
 } from './queries'
 import { AbLabDashboard } from './_components/ab-lab-dashboard'
+import { BlocoSugestoes } from './_components/bloco-sugestoes'
+import { EsqueletoDaLista } from '../competitors/_sugestoes/esqueleto'
 
 export const metadata = { title: 'A/B Lab' }
 
@@ -46,6 +49,7 @@ export default async function AbLabPage() {
       suggested={suggested}
       settings={settings}
       eligibleVideos={eligibleVideos}
+      blocoSugestoes={<Suspense fallback={<EsqueletoDaLista linhas={3} modo="bloco" />}><BlocoSugestoes /></Suspense>}
     />
   )
 }

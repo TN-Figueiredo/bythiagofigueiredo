@@ -198,7 +198,7 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
       {modo === 'pagina' && !mais && vivas.length > POR_PAGINA_NO_CELULAR && (
         <div className="sg-vmore"><button type="button" className="sg-btn" onClick={mostrarMais}>{`Mostrar mais (${vivas.length - POR_PAGINA_NO_CELULAR})`}</button></div>
       )}
-      {modo === 'bloco' && mostrada.linhas.length > LINHAS_NO_BLOCO && n !== null && (
+      {modo === 'bloco' && n !== null && n > LINHAS_NO_BLOCO && (
         <p style={{ marginTop: 12 }}><CmsLink href={verTodas!} className="sg-btn">{`Ver todas (${n})`}</CmsLink></p>
       )}
 
