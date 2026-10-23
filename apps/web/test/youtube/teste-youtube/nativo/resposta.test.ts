@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
-import { derivadasDeVariantesTitulo, patchDaResposta, responderDia14, type RespostaDono } from '@/lib/youtube/teste-youtube/nativo/resposta'
+import { derivadasDeVariantesTitulo, patchDaResposta, responderDia14, mudarRespostaDia14, vereditoEDoDono, type RespostaDono } from '@/lib/youtube/teste-youtube/nativo/resposta'
 import type { VarianteFicha } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import { roteiro, ok } from '../../../helpers/banco-roteirizado'
 import * as Sentry from '@sentry/nextjs'
@@ -251,5 +251,113 @@ describe('responderDia14', () => {
     expect(m).toContain('"actor_user_id":"u1"')
     expect(m).toContain('"resposta_dono":"venceu_nova"')
     expect(m).toContain('"estado_anterior":"em_andamento"')
+  })
+})
+
+describe('vereditoEDoDono (D-3)', () => {
+  it.each([[null, true], ['dono', true], ['regra', false], ['data_api', false]] as const)('fonte %s -> %s', (fonte, esperado) => {
+    expect(vereditoEDoDono({ vencedor_fonte: fonte })).toBe(esperado)
+  })
+  it('não olha estado nem motivo: encerrado/teste_novo/nulo continua do dono', () => {
+    expect(vereditoEDoDono({ vencedor_fonte: null, ...{ estado: 'encerrado', desfecho_motivo: 'teste_novo' } })).toBe(true)
+  })
+})
+
+describe('mudarRespostaDia14', () => {
+  const mudar = (o: Record<string, unknown> = {}) => ({ ...base, resposta: 'venceu_nova' as RespostaDono, n: 3 as number | null, respostaVista: 'venceu_nova' as RespostaDono, varianteVista: 2 as number | null, tituloVisto: 'Outra' as string | null | undefined, ...o })
+  const gravada = (o: Record<string, unknown> = {}) => linha({ estado: 'encerrado', desfecho_estado: 'vencedor_provavel', desfecho_motivo: 'resposta_do_dono', resposta_dono: 'venceu_nova', variante_vencedora: 2, vencedor_fonte: 'dono', vencedor_titulo: 'Nova', respondido_em: '2026-10-20T00:00:00+00:00', ...o })
+  const upd = (r: ReturnType<typeof roteiro>) => r.chamadas.filter((c) => c.alvo === 'ab_native_tests').find((c) => c.metodos.some((m) => m.startsWith('update')))
+
+  it('venceu_nova n=2 -> n=3 grava: CAS com lido, resposta e variante vistas; respondido_em e encerrado_em intocados; rastro de troca', async () => {
+    const r = roteiro({ ab_native_tests: [gravada(), ok([{ id: 'r1' }])], audit_log: [ok(null)] })
+    expect(await mudarRespostaDia14({ ...mudar(), sb: r.sb })).toEqual({ ok: true, conflito: null })
+    const m = upd(r)!.metodos, u = m.join(' ')
+    expect(m).toContain('eq("updated_at","L0")'); expect(m).toContain('eq("resposta_dono","venceu_nova")'); expect(m).toContain('eq("variante_vencedora",2)')
+    expect(u).toContain('"variante_vencedora":3'); expect(u).toContain('"vencedor_titulo":"Outra"'); expect(u).toContain('"resposta_mudada_em":"2026-10-21T12:00:00.000Z"')
+    expect(u).toContain('"desfecho_versao_regra":null'); expect(u).toContain('"desfecho_em"') // o título mudou
+    for (const nunca of ['"respondido_em"', '"encerrado_em"', 'desfecho_motivo', '"em_andamento"']) expect(u).not.toContain(nunca)
+    const a = r.chamadas.find((c) => c.alvo === 'audit_log')!.metodos.join(' ')
+    expect(a).toContain('ab_native_resposta_mudada'); expect(a).toContain('"variante_anterior":2'); expect(a).toContain('"variante_vencedora":3'); expect(a).toContain('"respondido_em_anterior":"2026-10-20T00:00:00+00:00"')
+  })
+
+  it('variante_vencedora nula na vista usa is(null); mesmo par (estado, desfecho_estado, título) não mexe em desfecho_em', async () => {
+    const r = roteiro({ ab_native_tests: [gravada({ resposta_dono: 'ficou_igual', variante_vencedora: null, vencedor_fonte: null, vencedor_titulo: null, desfecho_estado: 'sem_dado' }), ok([{ id: 'r1' }])], audit_log: [ok(null)] })
+    expect(await mudarRespostaDia14({ ...mudar({ resposta: 'inconclusivo', n: null, respostaVista: 'ficou_igual', varianteVista: null, tituloVisto: null }), sb: r.sb })).toEqual({ ok: true, conflito: null })
+    expect(upd(r)!.metodos).toContain('is("variante_vencedora",null)')
+    expect(upd(r)!.metodos.join(' ')).not.toContain('desfecho_em')
+  })
+
+  it('mesma (resposta, n, título) que a linha tem: nenhum update', async () => {
+    const r = roteiro({ ab_native_tests: [gravada({ variante_vencedora: 3, vencedor_titulo: 'Outra' })] })
+    expect(await mudarRespostaDia14({ ...mudar(), sb: r.sb })).toEqual({ ok: true, conflito: null })
+    expect(upd(r)).toBeUndefined()
+  })
+
+  it('C-N1: mesma (resposta, n) mas título diferente do gravado segue ao CAS e grava', async () => {
+    const r = roteiro({ ab_native_tests: [gravada({ variante_vencedora: 3, vencedor_titulo: 'Antiga', variantes: null, variantes_titulo: ['X', 'Y', 'Outra'] }), ok([{ id: 'r1' }])], yt_own_video_versions: [ok([]), ok([])], audit_log: [ok(null)] })
+    expect(await mudarRespostaDia14({ ...mudar({ varianteVista: 3 }), sb: r.sb })).toMatchObject({ ok: true })
+    expect(upd(r)).toBeDefined()
+  })
+
+  it('mesma resposta com n diferente e sem título para distinguir (miniatura): não é idempotente, vai ao CAS', async () => {
+    const r = roteiro({ ab_native_tests: [gravada({ variantes: soMiniatura, vencedor_titulo: null, variante_vencedora: 2 }), ok([{ id: 'r1' }])], audit_log: [ok(null)] })
+    expect(await mudarRespostaDia14({ ...mudar({ n: 3, tituloVisto: null }), sb: r.sb })).toMatchObject({ ok: false, erro: 'variante_invalida' })
+    const q = roteiro({ ab_native_tests: [gravada({ variantes: [...soMiniatura, { n: 3, tipo: 'miniatura', imagem: img(3) }], vencedor_titulo: null, variante_vencedora: 2 }), ok([{ id: 'r1' }])], audit_log: [ok(null)] })
+    expect(await mudarRespostaDia14({ ...mudar({ n: 3, tituloVisto: null }), sb: q.sb })).toMatchObject({ ok: true })
+    expect(upd(q)).toBeDefined()
+  })
+
+  it('respostaVista ou varianteVista fora da linha: o CAS perde, estado_mudou, uma tentativa só', async () => {
+    const r = roteiro({ ab_native_tests: [gravada({ resposta_dono: 'venceu_original', variante_vencedora: 1, vencedor_titulo: 'Original' }), ok([])] })
+    expect(await mudarRespostaDia14({ ...mudar(), sb: r.sb })).toEqual({ ok: false, erro: 'estado_mudou' })
+    expect(r.chamadas.filter((c) => c.alvo === 'ab_native_tests')).toHaveLength(2)
+  })
+
+  it('ainda sem resposta: nao_respondida; descartada, não confirmada e inexistente', async () => {
+    for (const resposta_dono of [null, 'sem_resposta']) {
+      const r = roteiro({ ab_native_tests: [linha({ resposta_dono })] })
+      expect(await mudarRespostaDia14({ ...mudar(), sb: r.sb })).toEqual({ ok: false, erro: 'nao_respondida' })
+    }
+    expect(await mudarRespostaDia14({ ...mudar(), sb: roteiro({ ab_native_tests: [gravada({ estado: 'descartado' })] }).sb })).toEqual({ ok: false, erro: 'nao_respondivel' })
+    expect(await mudarRespostaDia14({ ...mudar(), sb: roteiro({ ab_native_tests: [gravada({ confirmado_em: null })] }).sb })).toEqual({ ok: false, erro: 'nao_respondivel' })
+    expect(await mudarRespostaDia14({ ...mudar(), sb: roteiro({ ab_native_tests: [ok(null)] }).sb })).toEqual({ ok: false, erro: 'nao_encontrado' })
+  })
+
+  it('C-B: título visto diferente do da versão de agora (ou ausente em derivada) -> estado_mudou, sem update', async () => {
+    const r = roteiro({ ab_native_tests: [gravada({ variantes: null, variantes_titulo: ['A', 'B', 'C'] })], yt_own_video_versions: [ok([])] })
+    expect(await mudarRespostaDia14({ ...mudar({ varianteVista: 2, n: 3, tituloVisto: 'Velho' }), sb: r.sb })).toEqual({ ok: false, erro: 'estado_mudou' })
+    const q = roteiro({ ab_native_tests: [gravada({ variantes: null, variantes_titulo: ['A', 'B', 'C'] })], yt_own_video_versions: [ok([])] })
+    expect(await mudarRespostaDia14({ ...mudar({ varianteVista: 2, n: 3, tituloVisto: undefined }), sb: q.sb })).toEqual({ ok: false, erro: 'estado_mudou' })
+    expect(upd(r)).toBeUndefined(); expect(upd(q)).toBeUndefined()
+  })
+
+  it.each(['regra', 'data_api'])('veredito de %s: só resposta, variante e resposta_mudada_em; conflito com título normalizado', async (fonte) => {
+    const r = roteiro({ ab_native_tests: [gravada({ vencedor_fonte: fonte, vencedor_titulo: 'Original', resposta_dono: 'ficou_igual', variante_vencedora: null }), ok([{ id: 'r1' }])], audit_log: [ok(null)] })
+    const res = await mudarRespostaDia14({ ...mudar({ respostaVista: 'ficou_igual', varianteVista: null, n: 2, tituloVisto: 'Nova' }), sb: r.sb })
+    expect(res).toEqual({ ok: true, conflito: { youtube: 'Original', dono: 'Nova' } })
+    const u = upd(r)!.metodos.join(' ')
+    for (const nunca of ['"estado"', 'vencedor_', 'desfecho_', 'encerrado_em']) expect(u).not.toContain(nunca)
+    expect(u).toContain('resposta_mudada_em')
+  })
+
+  it('conflito compara títulos normalizados, não crus (Yannis m-3)', async () => {
+    const r = roteiro({ ab_native_tests: [gravada({ vencedor_fonte: 'regra', vencedor_titulo: '  Nova  ', resposta_dono: 'ficou_igual', variante_vencedora: null }), ok([{ id: 'r1' }])], audit_log: [ok(null)] })
+    expect(await mudarRespostaDia14({ ...mudar({ respostaVista: 'ficou_igual', varianteVista: null, n: 2, tituloVisto: 'Nova' }), sb: r.sb })).toEqual({ ok: true, conflito: null })
+  })
+
+  it('erro de escrita: falha_escrita', async () => {
+    const r = roteiro({ ab_native_tests: [gravada(), { data: null, error: { message: 'queda' } }] })
+    expect(await mudarRespostaDia14({ ...mudar(), sb: r.sb })).toEqual({ ok: false, erro: 'falha_escrita' })
+  })
+})
+
+describe('responderDia14: ja_respondido repetido com veredito de regra/data_api (M4)', () => {
+  it('mesma (resposta, n) mas título visto diferente da versão n de agora: estado_mudou; título igual: ok sem escrever', async () => {
+    const jaRegra = () => linha({ estado: 'encerrado', vencedor_fonte: 'regra', vencedor_titulo: 'Original', resposta_dono: 'venceu_nova', variante_vencedora: 2 })
+    const a = roteiro({ ab_native_tests: [jaRegra()] })
+    expect(await responderDia14({ ...base, sb: a.sb, resposta: 'venceu_nova', n: 2, tituloVisto: 'Outra' })).toEqual({ ok: false, erro: 'estado_mudou' })
+    const b = roteiro({ ab_native_tests: [jaRegra()] })
+    expect(await responderDia14({ ...base, sb: b.sb, resposta: 'venceu_nova', n: 2, tituloVisto: 'Nova' })).toEqual({ ok: true, conflito: null })
+    expect(b.chamadas).toHaveLength(1)
   })
 })

@@ -14,6 +14,9 @@ export type ResultadoResponder =
   | { ok: true; conflito: { youtube: string; dono: string } | null }
   | { ok: false; erro: ErroResponder }
 
+/** `nao_respondida`: só existe na troca (a pergunta ainda não tem resposta). Fora de `ErroResponder` para não quebrar os `switch` exaustivos da tela. */
+export type ResultadoMudar = ResultadoResponder | { ok: false; erro: 'nao_respondida' }
+
 interface Params {
   sb: SupabaseClient
   siteId: string
@@ -30,11 +33,11 @@ interface Params {
   agora: Date
 }
 interface Linha {
-  id: string; estado: string; desfecho_motivo: string | null; resposta_dono: string | null; vencedor_fonte: string | null; vencedor_titulo: string | null
+  id: string; estado: string; desfecho_estado: string | null; desfecho_motivo: string | null; resposta_dono: string | null; vencedor_fonte: string | null; vencedor_titulo: string | null
   confirmado_em: string | null; variantes: unknown; variantes_titulo: unknown; updated_at: string
-  variante_vencedora: number | null; youtube_video_id: string; primeira_vista: string | null
+  variante_vencedora: number | null; youtube_video_id: string; primeira_vista: string | null; respondido_em: string | null
 }
-const COLUNAS = 'id, estado, desfecho_motivo, resposta_dono, vencedor_fonte, vencedor_titulo, confirmado_em, variantes, variantes_titulo, updated_at, variante_vencedora, youtube_video_id, primeira_vista'
+const COLUNAS = 'id, estado, desfecho_estado, desfecho_motivo, resposta_dono, vencedor_fonte, vencedor_titulo, confirmado_em, variantes, variantes_titulo, updated_at, variante_vencedora, youtube_video_id, primeira_vista, respondido_em'
 
 /** Título vigente na Data API em `primeira_vista` (D-1), pelo leitor único de versões. Só para derivada. */
 async function lerTituloAntes(p: Params, l: Linha): Promise<string | null> {
@@ -66,10 +69,7 @@ export async function responderDia14(p: Params): Promise<ResultadoResponder> {
       // Duplo toque / outra aba com a mesma resposta: já está gravada, nada a escrever.
       if (l.resposta_dono === p.resposta && l.variante_vencedora === varianteDaResposta(p.resposta, p.n)) {
         // Mesma (resposta, n) mas outro título (renumeração entre as duas abas): não é a mesma resposta, a tela relê.
-        const derivadaJa = l.variantes === null || l.variantes === undefined
-        if (p.resposta.startsWith('venceu') && l.vencedor_fonte === 'dono' && typeof l.vencedor_titulo === 'string') {
-          if (typeof p.tituloVisto === 'string' ? normalizarTitulo(l.vencedor_titulo) !== normalizarTitulo(p.tituloVisto) : derivadaJa) return { ok: false, erro: 'estado_mudou' }
-        }
+        if (!(await mesmaRespostaGravada(p, l))) return { ok: false, erro: 'estado_mudou' }
         return { ok: true, conflito: null }
       }
       return { ok: false, erro: 'ja_respondido' }
@@ -105,16 +105,94 @@ export async function responderDia14(p: Params): Promise<ResultadoResponder> {
     if ((data as unknown[] | null)?.length) {
       await registrarRastro(p, l, patch.sempre.variante_vencedora as number | null)
       await expirarLembrete(p)
-      if (elegivel || l.vencedor_fonte === null) return { ok: true, conflito: null }
-      const dono = typeof patch.seEmAndamento.vencedor_titulo === 'string'
-        ? patch.seEmAndamento.vencedor_titulo
-        : (p.n !== null && p.resposta.startsWith('venceu') ? `variante ${p.resposta === 'venceu_original' ? 1 : p.n}` : p.resposta)
-      const youtube = l.vencedor_titulo ?? 'sem título'
-      if (patch.seEmAndamento.vencedor_fonte === 'dono' && patch.seEmAndamento.vencedor_titulo === l.vencedor_titulo) return { ok: true, conflito: null }
-      return { ok: true, conflito: { youtube, dono } }
+      if (elegivel) return { ok: true, conflito: null }
+      return { ok: true, conflito: conflitoDe(l, p, patch.seEmAndamento.vencedor_titulo) }
     }
   }
   return { ok: false, erro: 'estado_mudou' }
+}
+
+async function variantesDeAgora(p: Params, l: Linha): Promise<VariantesDaResposta | null> {
+  const derivada = l.variantes === null || l.variantes === undefined
+  return variantesDaResposta({ variantes: l.variantes, variantes_titulo: l.variantes_titulo, titulo_antes: derivada && p.resposta.startsWith('venceu') ? await lerTituloAntes(p, l) : null })
+}
+
+/**
+ * Idempotência (D-4): a linha já guarda `(resposta, n)` pedidos; é a MESMA resposta só se o título que o dono escolheu também bate.
+ * Veredito do dono com título: compara com `vencedor_titulo`. Veredito de `regra`/`data_api` (ou ficha só de miniatura): o título do dono não
+ * está gravado, então confere-se o que a tela viu contra a versão `n` da numeração de agora. `false` = renumeração, a tela relê.
+ */
+async function mesmaRespostaGravada(p: Params, l: Linha): Promise<boolean> {
+  if (!p.resposta.startsWith('venceu')) return true
+  if (l.vencedor_fonte === 'dono' && typeof l.vencedor_titulo === 'string') {
+    if (typeof p.tituloVisto === 'string') return normalizarTitulo(l.vencedor_titulo) === normalizarTitulo(p.tituloVisto)
+    return l.variantes !== null && l.variantes !== undefined
+  }
+  const v = await variantesDeAgora(p, l)
+  if (!v) return true
+  const item = v.itens.find((x) => x.n === (p.resposta === 'venceu_original' ? 1 : p.n))
+  return !!item && tituloConfere(v, item.titulo, p.tituloVisto)
+}
+
+/** Título do YouTube contra o do dono, normalizados (Yannis m-3). Só há conflito quando o veredito é de `regra`/`data_api`. */
+function conflitoDe(l: Linha, p: Params, tituloDoDono: unknown): { youtube: string; dono: string } | null {
+  if (l.vencedor_fonte === null || l.vencedor_fonte === 'dono') return null
+  const escolhido = typeof tituloDoDono === 'string' ? tituloDoDono : null
+  if (escolhido !== null && normalizarTitulo(escolhido) === normalizarTitulo(l.vencedor_titulo ?? '')) return null
+  const dono = escolhido ?? (p.n !== null && p.resposta.startsWith('venceu') ? `variante ${p.resposta === 'venceu_original' ? 1 : p.n}` : p.resposta)
+  return { youtube: l.vencedor_titulo ?? 'sem título', dono }
+}
+
+/** D-3: o veredito é do dono (ou ainda não existe) quando a fonte é nula ou `dono`; `regra`/`data_api` nunca são reescritas pela troca. */
+export function vereditoEDoDono(l: { vencedor_fonte: string | null }): boolean {
+  return l.vencedor_fonte === null || l.vencedor_fonte === 'dono'
+}
+
+/**
+ * "Mudar minha resposta" (D-4): troca a resposta já dada. Uma tentativa só, CAS por `updated_at` + resposta e variante vistas.
+ * `respondido_em` (a 1ª resposta) nunca muda; `resposta_mudada_em` guarda a troca. Nenhum caminho devolve a linha a `em_andamento`.
+ */
+export async function mudarRespostaDia14(p: Params & { respostaVista: RespostaDono; varianteVista: number | null; tituloVisto: string | null | undefined }): Promise<ResultadoMudar> {
+  const l = await lerLinha(p)
+  if (!l) return { ok: false, erro: 'nao_encontrado' }
+  if (l.estado === 'descartado' || l.confirmado_em === null) return { ok: false, erro: 'nao_respondivel' }
+  if (l.resposta_dono === null || l.resposta_dono === 'sem_resposta') return { ok: false, erro: 'nao_respondida' }
+  const nEscrito = varianteDaResposta(p.resposta, p.n)
+  // Mesma resposta (e mesmo título) que a linha já tem: nada a escrever. Vem ANTES do CAS (duas abas com o mesmo toque).
+  if (l.resposta_dono === p.resposta && l.variante_vencedora === nEscrito && (await mesmaRespostaGravada(p, l))) {
+    const v = await variantesDeAgora(p, l)
+    const patch = patchDaResposta(p.resposta, p.n, v)
+    return { ok: true, conflito: 'erro' in patch ? null : conflitoDe(l, p, patch.seEmAndamento.vencedor_titulo) }
+  }
+  const v = await variantesDeAgora(p, l)
+  if (v && p.resposta.startsWith('venceu')) {
+    const item = v.itens.find((x) => x.n === (p.resposta === 'venceu_original' ? 1 : p.n))
+    if (item && !tituloConfere(v, item.titulo, p.tituloVisto)) return { ok: false, erro: 'estado_mudou' }
+  }
+  const patch = patchDaResposta(p.resposta, p.n, v)
+  if ('erro' in patch) return { ok: false, erro: patch.erro }
+
+  const agora = p.agora.toISOString()
+  const payload: Record<string, unknown> = { ...patch.sempre, resposta_mudada_em: agora }
+  if (vereditoEDoDono(l)) {
+    const { desfecho_motivo: _motivo, ...veredito } = patch.seEmAndamento // o motivo (ex.: teste_novo) nunca muda na troca
+    Object.assign(payload, veredito, { desfecho_versao_regra: null })
+    const mudouPar = l.estado !== veredito.estado || l.desfecho_estado !== veredito.desfecho_estado || (l.vencedor_titulo ?? null) !== (veredito.vencedor_titulo ?? null)
+    if (mudouPar) payload.desfecho_em = agora
+  }
+  let q = p.sb.from('ab_native_tests').update(payload)
+    .eq('id', p.registroId).eq('site_id', p.siteId).eq('updated_at', p.lido).eq('resposta_dono', p.respostaVista)
+  q = p.varianteVista === null ? q.is('variante_vencedora', null) : q.eq('variante_vencedora', p.varianteVista)
+  const { data, error } = await q.select('id')
+  if (error) {
+    Sentry.captureException(new Error(`ab_native_tests: ${error.message}`), { tags: { area: 'ab-nativo' }, extra: { registroId: p.registroId } })
+    return { ok: false, erro: 'falha_escrita' }
+  }
+  if (!(data as unknown[] | null)?.length) return { ok: false, erro: 'estado_mudou' }
+  await registrarRastro(p, l, patch.sempre.variante_vencedora as number | null, {
+    resposta_anterior: l.resposta_dono, variante_anterior: l.variante_vencedora, respondido_em_anterior: l.respondido_em,
+  })
+  return { ok: true, conflito: conflitoDe(l, p, patch.seEmAndamento.vencedor_titulo) }
 }
 
 /** Resolvida a pergunta, o lembrete sai do contador do sino. Falha vai ao log: a resposta já está gravada. */
@@ -134,12 +212,12 @@ function avisarLembrete(p: Params, msg: string): void {
 }
 
 /** Quem respondeu: só ids, a resposta e o estado anterior. Falha vai ao log e não desfaz a resposta (mesmo molde de `descartar.ts`). */
-async function registrarRastro(p: Params, l: Linha, varianteEscrita: number | null): Promise<void> {
+async function registrarRastro(p: Params, l: Linha, varianteEscrita: number | null, depois?: Record<string, unknown>): Promise<void> {
   try {
     const aud = await p.sb.from('audit_log').insert({
       actor_user_id: p.userId, org_id: p.orgId ?? null, site_id: p.siteId,
-      action: 'ab_native_respondido', resource_type: 'ab_native_test', resource_id: p.registroId,
-      after_data: { registro_id: p.registroId, resposta_dono: p.resposta, variante_vencedora: varianteEscrita, estado_anterior: l.estado },
+      action: depois ? 'ab_native_resposta_mudada' : 'ab_native_respondido', resource_type: 'ab_native_test', resource_id: p.registroId,
+      after_data: { registro_id: p.registroId, resposta_dono: p.resposta, variante_vencedora: varianteEscrita, estado_anterior: l.estado, ...depois },
     })
     if (aud?.error) console.error('[ab-nativo] audit_log da resposta', aud.error.message)
   } catch (e) {
