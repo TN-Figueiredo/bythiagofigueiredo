@@ -6,7 +6,7 @@ import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
 import { FRASES, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { pisoPorDia } from '@/lib/youtube/teste-youtube/nativo/volume'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
-import { rotuloRetomar, prazoDoDia14 } from '@/lib/youtube/teste-youtube/nativo/lista'
+import { rotuloRetomar, prazoDoTeste } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { SeloCaminho, type TipoSelo } from './selo-caminho'
 import { Icone } from './icones'
 import { FichaConfirmar } from './ficha-confirmar'
@@ -163,7 +163,7 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
     case 'resultado_pronto': {
       selo = SEL('yts', 'Resultado do YouTube pronto')
       quente = true
-      const fim = reg ? prazoDoDia14({ primeiraVista: reg.primeiraVista, confirmadoEm: reg.confirmadoEm, createdAt: reg.updatedAt }) : agora
+      const fim = reg ? prazoDoTeste(reg.inicio) : agora
       fr = `Os 14 dias acabaram em ${dataCurta(fim)}.`
       ra = respostaDaLinha()
       break
@@ -171,13 +171,13 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
     case 'sem_resposta': {
       selo = SEL('mute-late', 'Sem resposta')
       quente = true
-      fr = reg && !(p.responderAberta && !p.responder) ? FRASES.resposta.tardia(prazoDoDia14({ primeiraVista: reg.primeiraVista, confirmadoEm: reg.confirmadoEm, createdAt: reg.updatedAt })) : null
+      fr = reg && !(p.responderAberta && !p.responder) ? FRASES.resposta.tardia(prazoDoTeste(reg.inicio)) : null
       ra = respostaDaLinha()
       break
     }
     case 'ficou_no_ar':
       if (duasVersoes && reg?.respostaDono === 'venceu_original') {
-        selo = SEL('ok', FRASES.dia14.seloOriginal); fr = FRASES.dia14.fraseOriginal; apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
+        selo = SEL('ok', FRASES.dia14.seloOriginal); fr = FRASES.dia14.fraseOriginal(2); apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
       } else if (duasVersoes && reg?.respostaDono === 'venceu_nova') {
         selo = SEL('ok', FRASES.dia14.seloNova); fr = FRASES.dia14.fraseNova; apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
       } else {

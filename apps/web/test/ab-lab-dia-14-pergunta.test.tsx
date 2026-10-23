@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import React from 'react'
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import * as Sentry from '@sentry/nextjs'
@@ -22,7 +23,7 @@ function linha(estado: 'resultado_pronto' | 'sem_resposta', reg: Partial<NonNull
     videoId: 'uuid-1', ytId: 'vid00000001', titulo: 'Vídeo 1', miniaturaUrl: null, publicadoEm: dia(30), estado,
     caminho: { tipo: 'nativo', portao: true, motivo: 'x' }, fichaId: null, labPausadoAte: null, nosso: null, impressoesPorDia: 300,
     registro: {
-      id: 'reg-1', updatedAt: dia(1), confirmadoEm: dia(estado === 'sem_resposta' ? 20 : 15), primeiraVista: dia(estado === 'sem_resposta' ? 20 : 15), diaDe14: 14,
+      id: 'reg-1', updatedAt: dia(1), inicio: dia(estado === 'sem_resposta' ? 20 : 15), confirmadoEm: dia(estado === 'sem_resposta' ? 20 : 15), primeiraVista: dia(estado === 'sem_resposta' ? 20 : 15), diaDe14: 14,
       variantes: duasV, variantesTitulo: null, campos: ['titulo', 'miniatura'], respostaDono: null, ...reg,
     },
   }
@@ -140,9 +141,9 @@ describe('Dia14Pergunta: desfechos da action (um teste por linha)', () => {
     expect(atualizar).toHaveBeenCalledTimes(1)
   })
   const sem: [string, string, string][] = [
-    ['Ficou igual', 'Sem vencedor: ficou igual', 'Você respondeu: ficou igual.'],
-    ['Inconclusivo', 'Sem vencedor: inconclusivo', 'Você respondeu: inconclusivo.'],
-    ['Não vi', 'Sem vencedor: não vi o resultado', 'Você respondeu: não vi o resultado.'],
+    ['Ficou igual', 'Sem vencedor: ficou igual', 'Registrado: você respondeu "ficou igual".'],
+    ['Inconclusivo', 'Sem vencedor: inconclusivo', 'Registrado: você respondeu "inconclusivo".'],
+    ['Não vi', 'Sem vencedor: não vi o resultado', 'Registrado: você respondeu "não vi o resultado".'],
   ]
   for (const [rotulo, selo, frase] of sem) {
     it(`ok + "${rotulo}" -> selo neutro "${selo}", sem "Ficou no ar"`, async () => {
@@ -498,5 +499,169 @@ describe('ListaCaminho: dia 14 pelo botão e pelo aviso (?video=)', () => {
   it('linha sem_resposta aberta: a frase tardia aparece uma só vez (na pergunta)', () => {
     lista('vid00000001', linha('sem_resposta'))
     expect(screen.getAllByText(/^O prazo acabou em \d{2}\/\d{2}\. Ainda dá para responder\.$/)).toHaveLength(1)
+  })
+})
+
+describe('Conserto UI 1 (revisão Logan e Naksu do envio A)', () => {
+  const reg3 = (o: Partial<NonNullable<LinhaDoCaminho['registro']>> = {}) =>
+    linha('resultado_pronto', { variantes: tresV, respostaDono: 'venceu_nova', varianteVencedora: 2, vencedorFonte: 'dono', vencedorTitulo: 'Título novo', ...o })
+  const vista = { respostaVista: 'venceu_nova' as const, varianteVista: 2 }
+
+  it('FRASES: confirmações de resposta sem versão e da troca, texto exato; "Resposta mudada." sozinho não existe', () => {
+    expect(FRASES.dia14.registrada).toEqual({ ficou_igual: 'Registrado: você respondeu "ficou igual".', inconclusivo: 'Registrado: você respondeu "inconclusivo".', nao_vi: 'Registrado: você respondeu "não vi o resultado".' })
+    expect(FRASES.dia14.mudadaSemVersao).toEqual({ ficou_igual: 'Resposta mudada para "ficou igual".', inconclusivo: 'Resposta mudada para "inconclusivo".', nao_vi: 'Resposta mudada para "não vi o resultado".' })
+    expect(FRASES.dia14.mudadaPara('C', false)).toBe('Resposta mudada para C.')
+    expect(FRASES.dia14.mudadaPara('A', true)).toBe('Resposta mudada para A (original).')
+    expect('mudada' in FRASES.dia14).toBe(false)
+    expect(FRASES.dia14.fraseOriginal(2)).toBe('A original segurou: a nova não superou.')
+    expect(FRASES.dia14.fraseOriginal(3)).toBe('A original segurou: nenhuma das novas superou.')
+  })
+  it('modo mudar, resposta sem versão: "Resposta mudada para "ficou igual"." e, na original, "A (original)."', async () => {
+    montar(reg3(), 'mudar', vista)
+    fireEvent.click(botao('Ficou igual'))
+    expect((await screen.findByRole('status')).textContent).toBe('Resposta mudada para "ficou igual".')
+    cleanup()
+    montar(reg3(), 'mudar', vista)
+    fireEvent.click(botao(/A \(original\) ficou/))
+    expect((await screen.findByRole('status')).textContent).toBe('Resposta mudada para A (original).')
+  })
+  it('3 versões e a original segura: "nenhuma das novas superou"', async () => {
+    montar(linha('resultado_pronto', { variantes: tresV }))
+    fireEvent.click(botao(/A \(original\) ficou/))
+    await screen.findByText('A original segurou: nenhuma das novas superou.')
+  })
+
+  // C1: a tela real desmonta o link ao abrir a pergunta e o remonta no aoFechar.
+  function Tela({ l }: { l: LinhaDoCaminho }) {
+    const [aberto, setAberto] = React.useState(false)
+    return (
+      <div className="cn-raiz"><ul><li data-linha="uuid-1">
+        {aberto
+          ? <Dia14Pergunta linha={l} pergunta={versoesDoDia14(l.registro!)} modo="mudar" {...vista} acoes={{ responder, mudar, atualizar }} aoFechar={() => setAberto(false)} />
+          : <button type="button" data-acao="mudar-resposta" onClick={() => setAberto(true)}>Mudar minha resposta</button>}
+      </li></ul></div>
+    )
+  }
+  it('C1: com o link desmontado enquanto a pergunta está aberta, "Manter" devolve o foco ao link remontado', async () => {
+    render(<Tela l={reg3()} />)
+    const link = screen.getByRole('button', { name: 'Mudar minha resposta' })
+    link.focus(); fireEvent.click(link)
+    expect(screen.queryByRole('button', { name: 'Mudar minha resposta' })).toBeNull()
+    fireEvent.click(botao('Manter a resposta atual'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Mudar minha resposta' })))
+  })
+  it('C1: o Esc também devolve o foco ao link remontado', async () => {
+    render(<Tela l={reg3()} />)
+    const link = screen.getByRole('button', { name: 'Mudar minha resposta' })
+    link.focus(); fireEvent.click(link)
+    fireEvent.keyDown(screen.getByRole('heading', { name: 'Qual versão venceu no Studio?' }), { key: 'Escape' })
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Mudar minha resposta' })))
+  })
+  const semV = () => linha('resultado_pronto', { variantes: null, variantesTitulo: null, respostaDono: 'nao_vi' })
+  it('C2: sem versões no modo mudar, o foco entra no apoio (nome da seção) e o Esc fecha', () => {
+    montar(semV(), 'mudar', { respostaVista: 'nao_vi', varianteVista: null })
+    const apoio = screen.getByText(FRASES.dia14.apoioSemVersoes)
+    expect(document.activeElement).toBe(apoio)
+    expect(screen.getByRole('region', { name: FRASES.dia14.apoioSemVersoes })).toBeTruthy()
+    fireEvent.keyDown(apoio, { key: 'Escape' })
+    expect(aoFechar).toHaveBeenCalledTimes(1)
+  })
+  it('C2: sem versões, o link remontado recebe o foco de volta', async () => {
+    render(<Tela l={semV()} />)
+    const link = screen.getByRole('button', { name: 'Mudar minha resposta' })
+    link.focus(); fireEvent.click(link)
+    fireEvent.click(botao('Manter a resposta atual'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Mudar minha resposta' })))
+  })
+
+  it('I1: o aviso "antes do toque" fica antes da grade de versões e de "Outra resposta"', () => {
+    montar()
+    const aviso = screen.getByText(FRASES.dia14.avisoResponder)
+    const grade = screen.getByRole('group', { name: 'Versões' })
+    const outra = screen.getByRole('group', { name: 'Outra resposta' })
+    expect(aviso.compareDocumentPosition(grade) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(aviso.compareDocumentPosition(outra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+  it('I2: erro, sem conexão e "mudou" levam o foco para o aviso, não para o título', async () => {
+    responder.mockResolvedValueOnce({ ok: false, erro: 'falha_escrita' })
+    montar()
+    fireEvent.click(botao(/B venceu/))
+    expect(document.activeElement?.contains(await screen.findByRole('alert'))).toBe(true)
+    cleanup()
+    responder.mockRejectedValueOnce(new Error('rede'))
+    montar()
+    fireEvent.click(botao(/B venceu/))
+    await screen.findByText('Sem conexão. Nada foi registrado.')
+    expect(document.activeElement?.contains(screen.getByRole('alert'))).toBe(true)
+    cleanup()
+    responder.mockResolvedValueOnce({ ok: false, erro: 'estado_mudou' })
+    montar()
+    fireEvent.click(botao(/B venceu/))
+    await screen.findByText('O teste mudou enquanto a tela estava aberta.')
+    expect(document.activeElement?.contains(screen.getByRole('alert'))).toBe(true)
+  })
+  it('I3: tocar na resposta atual (versão ou "Outra resposta") só fecha, sem chamar a action', () => {
+    montar(reg3(), 'mudar', vista)
+    fireEvent.click(botao(/Sua resposta/))
+    expect(mudar).not.toHaveBeenCalled()
+    expect(aoFechar).toHaveBeenCalledTimes(1)
+    cleanup(); aoFechar.mockClear()
+    montar(reg3({ respostaDono: 'ficou_igual', varianteVencedora: null, vencedorTitulo: null }), 'mudar', { respostaVista: 'ficou_igual', varianteVista: null })
+    fireEvent.click(botao(/Ficou igual/))
+    expect(mudar).not.toHaveBeenCalled()
+    expect(aoFechar).toHaveBeenCalledTimes(1)
+  })
+  it('I4: durante o envio "Manter" fica desligado e o Esc não fecha; "Tentar de novo" leva aria-disabled', async () => {
+    let fim: (r: ResultadoAcaoResponder) => void = () => {}
+    mudar.mockImplementation(() => new Promise((res) => { fim = res }))
+    montar(reg3(), 'mudar', vista)
+    fireEvent.click(botao(/C venceu/))
+    const manter = botao('Manter a resposta atual') as HTMLButtonElement
+    expect(manter.disabled).toBe(true); expect(manter.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(manter)
+    fireEvent.keyDown(screen.getByRole('group', { name: 'Versões' }), { key: 'Escape' })
+    expect(aoFechar).not.toHaveBeenCalled()
+    fim({ ok: true, conflito: null })
+    await screen.findByRole('status')
+  })
+  it('I4: "Tentar de novo" durante o reenvio está desligado com aria-disabled', async () => {
+    responder.mockRejectedValueOnce(new Error('rede'))
+    montar()
+    fireEvent.click(botao(/B venceu/))
+    await screen.findByText('Sem conexão. Nada foi registrado.')
+    let fim: (r: ResultadoAcaoResponder) => void = () => {}
+    responder.mockImplementation(() => new Promise((res) => { fim = res }))
+    fireEvent.click(botao('Tentar de novo'))
+    const t = botao('Tentar de novo')
+    expect(t.getAttribute('aria-disabled')).toBe('true')
+    fim({ ok: true, conflito: null })
+    await screen.findByText('Ficou no ar: B')
+  })
+  it('Naksu I-1 (CSS): resposta atual com borda 2 px em --cn-text, nos cartões e em "Outra resposta"; hover sem cor translúcida', async () => {
+    const css = await lerCss(`${DIR}dia-14-pergunta.css`)
+    expect(css).toMatch(/\.cn-d14-vopt\[aria-pressed="true"\]\s*\{[^}]*border:\s*2px solid var\(--cn-text\)/)
+    expect(css).toMatch(/\.cn-d14-other \.cn-btn\[aria-pressed="true"\]\s*\{[^}]*border:\s*2px solid var\(--cn-text\)/)
+    expect(css).toMatch(/\[data-theme="dark"\] \.cn-d14-vopt:hover:not\(\[disabled\]\)\s*\{[^}]*#A89D88/)
+    expect(css).toMatch(/\[data-theme="light"\] \.cn-d14-vopt:hover:not\(\[disabled\]\)\s*\{[^}]*#6E624E/)
+    expect(css).toMatch(/\.cn-d14-ph\.fail\s*\{[^}]*var\(--cn-err-line\)/)
+  })
+  it('Naksu I-2: miniatura que não carrega vira "A imagem não carregou", sem ícone quebrado', () => {
+    const { container } = montar()
+    fireEvent.error(container.querySelector('img')!)
+    expect(container.querySelectorAll('img')).toHaveLength(0)
+    expect(screen.getByRole('img', { name: FRASES.ficha.imagemNaoCarregou })).toBeTruthy()
+    expect(screen.getAllByTestId('miniatura-nao-medida')).toHaveLength(1)
+  })
+  it('m-3: dois blocos abertos têm ids próprios (aria-labelledby não aponta para o primeiro)', () => {
+    const l = linha('resultado_pronto')
+    render(<div className="cn-raiz">{[0, 1].map((i) => <Dia14Pergunta key={i} linha={l} pergunta={versoesDoDia14(l.registro!)} modo="responder" acoes={{ responder, mudar, atualizar }} aoFechar={aoFechar} />)}</div>)
+    const ids = screen.getAllByRole('heading', { name: 'Qual versão venceu no Studio?' }).map((h) => h.id)
+    expect(new Set(ids).size).toBe(2)
+    for (const sec of document.querySelectorAll('section.cn-d14')) expect(sec.getAttribute('aria-labelledby')).toBe(sec.querySelector('h3')!.id)
+  })
+  it('prazo da frase tardia vem do início do teste (inicio), não do updatedAt', () => {
+    montar(linha('sem_resposta', { primeiraVista: null, confirmadoEm: null, updatedAt: dia(0) }))
+    const prazo = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(new Date(new Date(dia(20)).getTime() + 14 * 86_400_000))
+    expect(screen.getByText(`O prazo acabou em ${prazo}. Ainda dá para responder.`)).toBeTruthy()
   })
 })

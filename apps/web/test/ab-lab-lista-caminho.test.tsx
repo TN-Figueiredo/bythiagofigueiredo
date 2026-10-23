@@ -26,7 +26,7 @@ function linha(n: number, o: Partial<LinhaDoCaminho> = {}): LinhaDoCaminho {
 const nosso = (n: number, o: Partial<LinhaDoCaminho> = {}): LinhaDoCaminho =>
   linha(n, { estado: 'sugerido_nosso', caminho: { tipo: 'nosso', motivo: 'Short: o Studio não oferece o teste. Só o nosso, como indício.' }, ...o })
 const reg = (o: Partial<NonNullable<LinhaDoCaminho['registro']>> = {}): NonNullable<LinhaDoCaminho['registro']> => ({
-  id: 'reg-1', updatedAt: dia(1), confirmadoEm: dia(4), primeiraVista: dia(4), diaDe14: 4, variantes: null, variantesTitulo: null, campos: null, respostaDono: null, ...o,
+  id: 'reg-1', updatedAt: dia(1), inicio: dia(4), confirmadoEm: dia(4), primeiraVista: dia(4), diaDe14: 4, variantes: null, variantesTitulo: null, campos: null, respostaDono: null, ...o,
 })
 const duas = [{ n: 1, titulo: 'A', imagem: null }, { n: 2, titulo: 'B', imagem: null }]
 const tres = [...duas, { n: 3, titulo: 'C', imagem: null }]
