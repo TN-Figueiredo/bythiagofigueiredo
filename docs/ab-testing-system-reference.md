@@ -61,7 +61,7 @@ Se `max_duration_days` é atingido sem os gates passarem → `completed_reason =
 | Cron | Horário UTC | Função |
 |------|------------|--------|
 | **ab-rotate** | 08:00 (meia-noite PST) | Troca thumb/título/desc no YouTube, fecha ciclo, abre novo |
-| **ab-backfill** | 11:00 | Puxa dados confirmados da YouTube Analytics API (48-72h delay) |
+| **ab-backfill** | — | removido na S8-F2 (gravava views como impressões) |
 | **ab-evaluate** | 12:00 | Roda estatísticas, checa 6 gates, auto-resolve ou marca inconclusive |
 
 Isolamento de erro: falha de OAuth na rotação não bloqueia avaliação de dados já backfillados.
@@ -89,7 +89,7 @@ UNIQUE index garante máximo 1 teste não-terminal por vídeo.
 | `total_impressions` | YouTube Analytics API confirmado | 48-72h |
 | `total_clicks` | Calculado: impressions × CTR | 48-72h |
 | `avg_ctr` | CTR ponderado por ciclos confirmados | 48-72h |
-| `cycles_completed` | Contagem de ciclos com backfill `confirmed` | Realtime |
+| `cycles_completed` | Contagem de ciclos fechados, **inclui os fechados por pausa, drift ou falha de API** (uma pausa no meio do slot gera dois ciclos; D-P4) | Realtime |
 | `estimated_impressions` | YouTube Data API v3 (near-realtime) | ~minutos |
 | `estimated_ctr` | YouTube Data API v3 | ~minutos |
 
@@ -98,7 +98,7 @@ UNIQUE index garante máximo 1 teste não-terminal por vídeo.
 Cada ciclo registra:
 - Variante ativa, timestamps start/end
 - Dados estimados (realtime) vs confirmados (backfilled)
-- `backfill_status`: pending → partial → confirmed / no_data / error
+- `backfill_status`: sem escritor desde a S8-F2; os valores antigos (pending → partial → confirmed / no_data / error) ficam sem leitor no placar
 - `applied_metadata`: snapshot do que foi aplicado no YouTube (thumb set? qual título? links resolvidos?)
 
 ### 2.3 Metadata por Variante (VariantMetadata)
@@ -300,7 +300,7 @@ Isso elimina **winner's curse** — raw CTR pode ser misleading em amostras pequ
 | 5 | Avg daily impressions ≥ 500 | Low-traffic não converge |
 | 6 | Original NÃO é o P(best) winner | Se original ganha, não precisa otimizar |
 | 7 | Gap P(top2) entre 2º e 3º ≥ 5pp | Se 2º/3º são indistinguíveis, playoff não ajuda |
-| 8 | Todos os ciclos em backfill terminal | Esperar dados completos |
+| 8 | Todos os ciclos fechados | Esperar dados completos |
 | 9 | Toda variante tem ≥ 2 ciclos + ≥ 200 impressions | Mínimo pra P(top2) confiável |
 
 ### 5.5 Schema Changes
