@@ -44,3 +44,10 @@ export async function lerEstadosDeLeitura(consulta: ConsultaEstado, siteId: stri
   const dado = await consulta(siteId, ytId)
   return estadosDeLeitura({ ...dado, ...o })
 }
+
+/** Linha de `ab_native_obs_cursor` (snake_case) -> `CursorLido`. Lê `avaliado_motivo` (a coluna `motivo` é da tabela de linhas); forma inválida = null. */
+export function lerCursor(row: Record<string, unknown>): CursorLido | null {
+  const { avaliado_ate_rodada: ate, avaliado_em: em, avaliado_motivo: motivo, validas_titulo: vt, validas_miniatura: vm } = row
+  if (typeof ate !== 'number' || typeof em !== 'string' || (motivo !== 'ok' && motivo !== 'sem_publicacao') || typeof vt !== 'number' || typeof vm !== 'number') return null
+  return { avaliadoAteRodada: ate, avaliadoEm: em, motivo, validasTitulo: vt, validasMiniatura: vm }
+}

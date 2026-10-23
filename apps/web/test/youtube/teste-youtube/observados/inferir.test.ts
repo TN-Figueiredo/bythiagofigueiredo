@@ -1,8 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import {
-  inferirObservado, inferirObservadoDetalhe, montarObservado, OBS_REGRA_VERSAO, rodadasDaMiniatura, type BaseObs, type FicouTitulo, type LeituraObs, type Observado, type ThumbObs,
+  cursorSemPublicacao, gravacao, inferirObservado, inferirObservadoDetalhe, montarObservado, OBS_REGRA_VERSAO, rodadasDaMiniatura, type BaseObs, type FicouTitulo, type LeituraObs, type Observado, type ThumbObs,
 } from '@/lib/youtube/teste-youtube/observados/inferir'
+import { lerCursor } from '@/lib/youtube/teste-youtube/observados/estado-de-leitura'
 import { agoraEm, DH_A, DH_A2, DH_B, DH_C, DH_D, leitura, PUB, rodadas, thumb } from './fabrica'
 
 const T0 = 30 // primeira rodada, depois da carência de 24 h
@@ -200,5 +201,42 @@ describe('título e miniatura juntos', () => {
     const ls2 = ls.map(l => ({ ...l, miniaturaId: Date.parse(l.lidaEm) < PUB.getTime() + (T0 + 20 * 6) * 3_600_000 ? 1 : 2 }))
     const out: Observado[] = inferirObservado({ leituras: ls2, thumbsPorId: thumbs, publicadoEm: PUB, agoraMs: agoraEm(fimH(T0, 28) + 1) })
     expect(out.map(o => o.campo)).toContain('miniatura')
+  })
+})
+
+describe('gravacao (D-P7): a única fonte do que vai ao banco', () => {
+  const AGORA = new Date(agoraEm(fimH(T0, 28) + 1)).toISOString()
+  const COLUNAS_CURSOR = ['avaliado_ate_rodada', 'avaliado_em', 'avaliado_motivo', 'validas_titulo', 'validas_miniatura']
+  it('uma linha por observado, em snake_case, com ultima_atualizacao_em = agoraIso; cursor ok com as validas do resultado', () => {
+    const r = tit(A20B8)
+    const g = gravacao({ r, estourou: false }, { agoraIso: AGORA, rodadas: 28, saiuPor: null })
+    expect(g.linhas).toHaveLength(1)
+    expect(g.linhas[0]).toMatchObject({ campo: 'titulo', tipo_troca: 'sequencial', veredito: 'troca_observada', versao_regra: OBS_REGRA_VERSAO, ficou_estado: 'estavel', motivo: null, ultima_atualizacao_em: AGORA })
+    expect(g.linhas[0]!.n_versoes).toBe(r.observados[0]!.nVersoes)
+    expect(g.cursor).toEqual({ avaliado_ate_rodada: 28, avaliado_em: AGORA, avaliado_motivo: 'ok', validas_titulo: r.validasTitulo, validas_miniatura: r.validasMiniatura })
+    expect(r.validasTitulo).toBeGreaterThan(0)
+    expect(Object.keys(g.cursor).sort()).toEqual([...COLUNAS_CURSOR].sort())
+  })
+  it('estouro da guarda zera as validas do cursor (as duas)', () => {
+    const r = tit(MISTAS)
+    expect(r.validasTitulo).toBeGreaterThan(0)
+    const g = gravacao({ r, estourou: true }, { agoraIso: AGORA, rodadas: 24, saiuPor: null })
+    expect(g.cursor).toMatchObject({ validas_titulo: 0, validas_miniatura: 0, avaliado_motivo: 'ok' })
+  })
+  it('saiuPor força sem_desfecho + motivo só nas linhas em_andamento; a estavel fica como está (D-P3)', () => {
+    const teste = gravacao({ r: tit(MISTAS), estourou: false }, { agoraIso: AGORA, rodadas: 24, saiuPor: 'janela' })
+    expect(teste.linhas[0]).toMatchObject({ veredito: 'possivel_teste_youtube', ficou_estado: 'sem_desfecho', motivo: 'janela' })
+    const troca = gravacao({ r: tit(A20B8), estourou: false }, { agoraIso: AGORA, rodadas: 28, saiuPor: 'janela' })
+    expect(troca.linhas[0]).toMatchObject({ ficou_estado: 'estavel', motivo: null })
+    const livre = gravacao({ r: tit(MISTAS), estourou: false }, { agoraIso: AGORA, rodadas: 24, saiuPor: null })
+    expect(livre.linhas[0]).toMatchObject({ ficou_estado: 'em_andamento', motivo: null })
+  })
+  it('lerCursor(cursorSemPublicacao(...)) devolve motivo sem_publicacao, validas 0; lê avaliado_motivo, nunca motivo', () => {
+    const c = cursorSemPublicacao({ agoraIso: AGORA, rodadas: 9 })
+    expect(c).toEqual({ avaliado_ate_rodada: 9, avaliado_em: AGORA, avaliado_motivo: 'sem_publicacao', validas_titulo: 0, validas_miniatura: 0 })
+    expect(lerCursor(c)).toEqual({ avaliadoAteRodada: 9, avaliadoEm: AGORA, motivo: 'sem_publicacao', validasTitulo: 0, validasMiniatura: 0 })
+    expect(lerCursor({ ...c, avaliado_motivo: 'ok' })?.motivo).toBe('ok')
+    const { avaliado_motivo: _a, ...sem } = c
+    expect(lerCursor({ ...sem, motivo: 'ok' })).toBeNull()
   })
 })

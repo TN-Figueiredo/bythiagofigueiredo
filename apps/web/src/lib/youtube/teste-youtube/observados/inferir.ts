@@ -424,3 +424,56 @@ export function inferirObservadoDetalhe(e: EntradaObs): ResultadoObs {
 export function inferirObservado(e: EntradaObs): Observado[] {
   return inferirObservadoDetalhe(e).observados
 }
+
+// ───────────────────────── Gravação única (D-P7) ─────────────────────────
+
+/** Uma linha de `ab_native_observados` sem `site_id`/`youtube_video_id`, com os nomes de coluna do banco. */
+export interface LinhaGravada {
+  campo: CampoObs
+  tipo_troca: TipoTroca
+  veredito: Observado['veredito']
+  versao_regra: number
+  trocas: VersaoObs[]
+  n_versoes: number
+  ficou: FicouTitulo | FicouMiniatura
+  ficou_estado: FicouEstado
+  motivo: string | null
+  primeira_troca_em: string
+  ultima_atualizacao_em: string
+}
+/** Uma linha de `ab_native_obs_cursor` sem `site_id`/`youtube_video_id` (colunas da migration 20261021000006). */
+export interface CursorGravado {
+  avaliado_ate_rodada: number
+  avaliado_em: string
+  avaliado_motivo: 'ok' | 'sem_publicacao'
+  validas_titulo: number
+  validas_miniatura: number
+}
+
+/**
+ * Tudo o que um alvo avaliado grava (§4): linhas e cursor. Usada por `passo.ts`, pelo ensaio a seco e pelos testes.
+ * `saiuPor !== null` (D-P3, alvo que saiu): a linha `em_andamento` fecha como `sem_desfecho` com `motivo = saiuPor`; a `estavel` fica como está.
+ * `estourou` (guarda no teto): as `validas_*` do cursor vão a 0.
+ */
+export function gravacao(e: { r: ResultadoObs; estourou: boolean }, o: { agoraIso: string; rodadas: number; saiuPor: string | null }): { linhas: LinhaGravada[]; cursor: CursorGravado } {
+  const linhas: LinhaGravada[] = e.r.observados.map(x => {
+    const fecha = o.saiuPor !== null && x.ficouEstado === 'em_andamento'
+    return {
+      campo: x.campo, tipo_troca: x.tipoTroca, veredito: x.veredito, versao_regra: x.versaoRegra, trocas: x.trocas, n_versoes: x.nVersoes, ficou: x.ficou,
+      ficou_estado: fecha ? 'sem_desfecho' : x.ficouEstado, motivo: fecha ? o.saiuPor : x.motivo,
+      primeira_troca_em: x.primeiraTrocaEm, ultima_atualizacao_em: o.agoraIso,
+    }
+  })
+  return {
+    linhas,
+    cursor: {
+      avaliado_ate_rodada: o.rodadas, avaliado_em: o.agoraIso, avaliado_motivo: 'ok',
+      validas_titulo: e.estourou ? 0 : e.r.validasTitulo, validas_miniatura: e.estourou ? 0 : e.r.validasMiniatura,
+    },
+  }
+}
+
+/** Cursor de alvo sem data de publicação: avaliado, mas sem como medir. */
+export function cursorSemPublicacao(o: { agoraIso: string; rodadas: number }): CursorGravado {
+  return { avaliado_ate_rodada: o.rodadas, avaliado_em: o.agoraIso, avaliado_motivo: 'sem_publicacao', validas_titulo: 0, validas_miniatura: 0 }
+}
