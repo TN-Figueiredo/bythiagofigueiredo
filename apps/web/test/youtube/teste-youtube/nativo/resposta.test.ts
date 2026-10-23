@@ -10,16 +10,16 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 const img = (n: number) => ({ url: `https://x.public.blob.vercel-storage.com/ab-native-ficha/s/f/${n}.jpg`, sha256: 'a'.repeat(64), largura: 1280, altura: 720 })
 const comTitulos: VarianteFicha[] = [{ n: 1, tipo: 'titulo', titulo: 'Original' }, { n: 2, tipo: 'titulo', titulo: 'Nova' }, { n: 3, tipo: 'combo', titulo: 'Outra', imagem: img(3) }]
 const soMiniatura: VarianteFicha[] = [{ n: 1, tipo: 'miniatura', imagem: img(1) }, { n: 2, tipo: 'miniatura', imagem: img(2) }]
-const ficha = (itens: VarianteFicha[]) => ({ itens, origem: 'ficha' as const })
-const derivada = (titulos: string[]) => ({ itens: derivadasDeVariantesTitulo(titulos)!, origem: 'derivada' as const })
+const ficha = (itens: VarianteFicha[]) => ({ itens, origem: 'ficha' as const, originalConhecido: true })
+const derivada = (titulos: string[]) => ({ ...derivadasDeVariantesTitulo(titulos, null)!, origem: 'derivada' as const })
 
 describe('derivadasDeVariantesTitulo', () => {
   it('monta {n, tipo titulo, titulo} a partir de variantes_titulo; nulo ou vazio ou lixo -> null', () => {
-    expect(derivadasDeVariantesTitulo(['A', 'B'])).toEqual([{ n: 1, tipo: 'titulo', titulo: 'A' }, { n: 2, tipo: 'titulo', titulo: 'B' }])
-    expect(derivadasDeVariantesTitulo(null)).toBeNull()
-    expect(derivadasDeVariantesTitulo([])).toBeNull()
-    expect(derivadasDeVariantesTitulo('x')).toBeNull()
-    expect(derivadasDeVariantesTitulo([1, 2])).toBeNull()
+    expect(derivadasDeVariantesTitulo(['A', 'B'], null)?.itens).toEqual([{ n: 1, tipo: 'titulo', titulo: 'A' }, { n: 2, tipo: 'titulo', titulo: 'B' }])
+    expect(derivadasDeVariantesTitulo(null, null)).toBeNull()
+    expect(derivadasDeVariantesTitulo([], null)).toBeNull()
+    expect(derivadasDeVariantesTitulo('x', null)).toBeNull()
+    expect(derivadasDeVariantesTitulo([1, 2], null)).toBeNull()
   })
 })
 
@@ -123,9 +123,51 @@ describe('responderDia14', () => {
   })
 
   it('linha derivada (detectado confirmado, sem ficha): "Venceu a nova" n=2 grava o 2º título', async () => {
-    const r = roteiro({ ab_native_tests: [linha({ variantes: null, variantes_titulo: ['A', 'B'] }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
-    expect(await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: true, conflito: null })
-    expect(r.chamadas[1]!.metodos.join(' ')).toContain('"vencedor_titulo":"B"')
+    const r = roteiro({ ab_native_tests: [linha({ variantes: null, variantes_titulo: ['A', 'B'] }), ok([{ id: 'r1' }])], yt_own_video_versions: [ok([])], notifications: [ok(null)], audit_log: [ok(null)] })
+    expect(await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_nova', n: 2, tituloVisto: 'B' })).toEqual({ ok: true, conflito: null })
+    expect(r.chamadas.find((c) => c.alvo === 'ab_native_tests' && c.metodos.some((m) => m.startsWith('update')))!.metodos.join(' ')).toContain('"vencedor_titulo":"B"')
+  })
+
+  it('derivada: título de antes lido uma vez (sem Lab, antes de primeira_vista); sem tituloVisto -> estado_mudou; título diferente -> estado_mudou', async () => {
+    const mk = () => roteiro({ ab_native_tests: [linha({ variantes: null, variantes_titulo: ['B', 'A'], primeira_vista: '2026-10-05T00:00:00+00:00' }), ok([{ id: 'r1' }])], yt_own_video_versions: [ok([{ value_text: 'A' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    const a = mk()
+    expect(await responderDia14({ ...base, sb: a.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: false, erro: 'estado_mudou' })
+    const q = a.chamadas.find((c) => c.alvo === 'yt_own_video_versions')!.metodos.join(' ')
+    expect(q).toContain('neq("origin","ab_lab")')
+    expect(q).toContain('lte("first_seen_at","2026-10-05T00:00:00+00:00")')
+    expect(a.chamadas.some((c) => c.metodos.some((m) => m.startsWith('update')))).toBe(false)
+    const b = mk()
+    expect(await responderDia14({ ...base, sb: b.sb, resposta: 'venceu_nova', n: 2, tituloVisto: 'C' })).toEqual({ ok: false, erro: 'estado_mudou' })
+    const c = mk()
+    expect(await responderDia14({ ...base, sb: c.sb, resposta: 'venceu_nova', n: 2, tituloVisto: 'B' })).toEqual({ ok: true, conflito: null })
+    const d = mk()
+    expect(await responderDia14({ ...base, sb: d.sb, resposta: 'venceu_original', n: null, tituloVisto: 'A' })).toEqual({ ok: true, conflito: null })
+  })
+
+  it('ficha: tituloVisto ausente ou nulo grava; título errado -> estado_mudou', async () => {
+    const a = roteiro({ ab_native_tests: [linha(), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    expect(await responderDia14({ ...base, sb: a.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: true, conflito: null })
+    const b = roteiro({ ab_native_tests: [linha({ variantes: soMiniatura }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    expect(await responderDia14({ ...base, sb: b.sb, resposta: 'venceu_nova', n: 2, tituloVisto: null })).toEqual({ ok: true, conflito: null })
+    const c = roteiro({ ab_native_tests: [linha()] })
+    expect(await responderDia14({ ...base, sb: c.sb, resposta: 'venceu_nova', n: 2, tituloVisto: 'Outra' })).toEqual({ ok: false, erro: 'estado_mudou' })
+  })
+
+  it('ja_respondido com a mesma resposta e n: ok sem escrever; resposta diferente: ja_respondido', async () => {
+    const a = roteiro({ ab_native_tests: [linha({ resposta_dono: 'venceu_nova', variante_vencedora: 2 })] })
+    expect(await responderDia14({ ...base, sb: a.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: true, conflito: null })
+    expect(a.chamadas).toHaveLength(1)
+    const b = roteiro({ ab_native_tests: [linha({ resposta_dono: 'venceu_original', variante_vencedora: 1 })] })
+    expect(await responderDia14({ ...base, sb: b.sb, resposta: 'venceu_original', n: null })).toEqual({ ok: true, conflito: null })
+    const c = roteiro({ ab_native_tests: [linha({ resposta_dono: 'venceu_nova', variante_vencedora: 2 })] })
+    expect(await responderDia14({ ...base, sb: c.sb, resposta: 'venceu_nova', n: 3 })).toEqual({ ok: false, erro: 'ja_respondido' })
+  })
+
+  it('o veredito do dono zera desfecho_versao_regra; o rastro grava a variante escrita (1 em venceu_original)', async () => {
+    const r = roteiro({ ab_native_tests: [linha({ estado: 'sem_desfecho', desfecho_motivo: 'coleta_encerrada' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    expect(await responderDia14({ ...base, sb: r.sb, resposta: 'venceu_original', n: null })).toEqual({ ok: true, conflito: null })
+    expect(r.chamadas[1]!.metodos.join(' ')).toContain('"desfecho_versao_regra":null')
+    expect(r.chamadas.find((c) => c.alvo === 'audit_log')!.metodos.join(' ')).toContain('"variante_vencedora":1')
   })
 
   it('já respondido: ja_respondido sem escrever; sem_resposta aceita nova resposta', async () => {

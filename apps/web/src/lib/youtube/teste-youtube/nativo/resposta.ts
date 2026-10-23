@@ -1,57 +1,12 @@
 // Resposta do dia 14 (§5.3): o dono diz o que viu no Studio. Aditiva: `sempre` grava a resposta; `seEmAndamento` só entra se a
 // linha ainda não tem veredito (em_andamento, ou sem_desfecho sem `vencedor_fonte`). Com veredito de outra fonte guardam-se as duas.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
-import { VarianteFichaSchema, type VarianteFicha } from './ficha'
+import { normalizarTitulo } from '../normalizar-titulo'
+import { variantesDaResposta, patchDaResposta, type RespostaDono, type VariantesDaResposta } from './versoes'
 
-export type RespostaDono = 'venceu_nova' | 'venceu_original' | 'ficou_igual' | 'inconclusivo' | 'nao_vi'
-export const MOTIVO_RESPOSTA_DO_DONO = 'resposta_do_dono'
-export type VariantesDaResposta = { itens: VarianteFicha[]; origem: 'ficha' | 'derivada' }
-export type PatchDaResposta =
-  | { sempre: Record<string, unknown>; seEmAndamento: Record<string, unknown> }
-  | { erro: 'variante_invalida' }
-
-/** Linha `detectado` confirmada pelo "Confirmar" (sem ficha): `variantes` é nulo; monta `{n, tipo titulo, titulo}` de `variantes_titulo`. */
-export function derivadasDeVariantesTitulo(variantesTitulo: unknown): VarianteFicha[] | null {
-  const t = z.array(z.string().trim().min(1)).min(1).max(3).safeParse(variantesTitulo)
-  if (!t.success) return null
-  return t.data.map((titulo, i) => ({ n: i + 1, tipo: 'titulo' as const, titulo }))
-}
-
-export function patchDaResposta(r: RespostaDono, n: number | null, variantes: VariantesDaResposta | null): PatchDaResposta {
-  const base = { resposta_dono: r }
-  const encerra = (desfecho_estado: string, estado: string, extra: Record<string, unknown>) => ({
-    estado, desfecho_estado, desfecho_motivo: MOTIVO_RESPOSTA_DO_DONO, ...extra,
-  })
-  if (r === 'venceu_nova') {
-    if (!variantes || n === null || !Number.isInteger(n) || n < 1 || n > 3) return { erro: 'variante_invalida' }
-    let titulo: string | null
-    if (variantes.origem === 'derivada') {
-      const v = variantes.itens[n - 1]
-      if (!v) return { erro: 'variante_invalida' }
-      titulo = v.titulo ?? null
-    } else {
-      // O original (n = 1) não é "a nova".
-      if (n < 2) return { erro: 'variante_invalida' }
-      const v = variantes.itens.find((x) => x.n === n)
-      if (!v) return { erro: 'variante_invalida' }
-      titulo = v.titulo ?? null
-    }
-    return { sempre: { ...base, variante_vencedora: n }, seEmAndamento: encerra('vencedor_provavel', 'encerrado', { vencedor_titulo: titulo, vencedor_fonte: 'dono' }) }
-  }
-  if (r === 'venceu_original') {
-    if (!variantes || variantes.origem !== 'ficha') return { erro: 'variante_invalida' }
-    const v = variantes.itens.find((x) => x.n === 1)
-    if (!v) return { erro: 'variante_invalida' }
-    return { sempre: { ...base, variante_vencedora: 1 }, seEmAndamento: encerra('vencedor_provavel', 'encerrado', { vencedor_titulo: v.titulo ?? null, vencedor_fonte: 'dono' }) }
-  }
-  const semVencedor = { vencedor_titulo: null, vencedor_fonte: null }
-  return {
-    sempre: { ...base, variante_vencedora: null },
-    seEmAndamento: encerra('sem_dado', r === 'nao_vi' ? 'sem_desfecho' : 'encerrado', semVencedor),
-  }
-}
+export { derivadasDeVariantesTitulo, patchDaResposta, variantesDaResposta, MOTIVO_RESPOSTA_DO_DONO } from './versoes'
+export type { RespostaDono, VariantesDaResposta, PatchDaResposta } from './versoes'
 
 export type ErroResponder = 'nao_encontrado' | 'nao_respondivel' | 'ja_respondido' | 'variante_invalida' | 'estado_mudou' | 'falha_escrita'
 export type ResultadoResponder =
@@ -69,21 +24,34 @@ interface Params {
   lido: string
   resposta: RespostaDono
   n: number | null
+  /** Título que a tela mostrava na versão tocada (numeração congelada, D-1). Ausente numa derivada = bundle antigo: devolve `estado_mudou`. */
+  tituloVisto?: string | null
   agora: Date
 }
 interface Linha {
   id: string; estado: string; desfecho_motivo: string | null; resposta_dono: string | null; vencedor_fonte: string | null; vencedor_titulo: string | null
   confirmado_em: string | null; variantes: unknown; variantes_titulo: unknown; updated_at: string
+  variante_vencedora: number | null; youtube_video_id: string; primeira_vista: string | null
 }
-const COLUNAS = 'id, estado, desfecho_motivo, resposta_dono, vencedor_fonte, vencedor_titulo, confirmado_em, variantes, variantes_titulo, updated_at'
+const COLUNAS = 'id, estado, desfecho_motivo, resposta_dono, vencedor_fonte, vencedor_titulo, confirmado_em, variantes, variantes_titulo, updated_at, variante_vencedora, youtube_video_id, primeira_vista'
 
-function variantesDaLinha(l: Linha): VariantesDaResposta | null {
-  if (l.variantes !== null && l.variantes !== undefined) {
-    const f = z.array(VarianteFichaSchema).safeParse(l.variantes)
-    return f.success && f.data.length > 0 ? { itens: f.data, origem: 'ficha' } : null
-  }
-  const d = derivadasDeVariantesTitulo(l.variantes_titulo)
-  return d ? { itens: d, origem: 'derivada' } : null
+/** Título vigente na Data API em `primeira_vista` (D-1). Só para derivada; o corte é a versão mais recente já vista até então, fora as do próprio Lab. */
+async function lerTituloAntes(p: Params, l: Linha): Promise<string | null> {
+  if (l.primeira_vista === null) return null
+  const { data, error } = await p.sb.from('yt_own_video_versions').select('value_text')
+    .eq('site_id', p.siteId).eq('youtube_video_id', l.youtube_video_id).eq('field', 'title').eq('pre_registro', false)
+    .neq('origin', 'ab_lab').lte('first_seen_at', l.primeira_vista)
+    .order('first_seen_at', { ascending: false }).limit(1)
+  if (error) throw new Error(`yt_own_video_versions: ${error.message}`)
+  const v = (data as Array<{ value_text: string | null }> | null)?.[0]?.value_text
+  return typeof v === 'string' && v.trim() !== '' ? v : null
+}
+
+const varianteDaResposta = (r: RespostaDono, n: number | null): number | null => (r === 'venceu_original' ? 1 : r === 'venceu_nova' ? n : null)
+
+function tituloConfere(v: VariantesDaResposta, tituloDaVersao: string | undefined, tituloVisto: string | null | undefined): boolean {
+  if (typeof tituloVisto !== 'string') return v.origem === 'ficha' // ficha: ausente ou nulo (só miniatura) grava como antes; derivada exige o título
+  return normalizarTitulo(tituloDaVersao ?? '') === normalizarTitulo(tituloVisto)
 }
 
 async function lerLinha(p: Params): Promise<Linha | null> {
@@ -99,14 +67,27 @@ export async function responderDia14(p: Params): Promise<ResultadoResponder> {
     if (!l) return { ok: false, erro: 'nao_encontrado' }
     if (tentativa > 0) cas = l.updated_at // perdeu a 1ª: reavalia sobre a linha recém-lida
     if (l.estado === 'descartado' || l.confirmado_em === null) return { ok: false, erro: 'nao_respondivel' }
-    if (l.resposta_dono !== null && l.resposta_dono !== 'sem_resposta') return { ok: false, erro: 'ja_respondido' }
-    const patch = patchDaResposta(p.resposta, p.n, variantesDaLinha(l))
+    if (l.resposta_dono !== null && l.resposta_dono !== 'sem_resposta') {
+      // Duplo toque / outra aba com a mesma resposta: já está gravada, nada a escrever.
+      if (l.resposta_dono === p.resposta && l.variante_vencedora === varianteDaResposta(p.resposta, p.n)) return { ok: true, conflito: null }
+      return { ok: false, erro: 'ja_respondido' }
+    }
+    const derivada = l.variantes === null || l.variantes === undefined
+    const v = variantesDaResposta({ variantes: l.variantes, variantes_titulo: l.variantes_titulo, titulo_antes: derivada ? await lerTituloAntes(p, l) : null })
+    // Numeração congelada: o título que a tela mostrava tem de ser o da versão `n` de agora (o registrador pode ter renumerado).
+    if (v && p.resposta.startsWith('venceu')) {
+      const item = v.itens.find((x) => x.n === (p.resposta === 'venceu_original' ? 1 : p.n))
+      if (item && !tituloConfere(v, item.titulo, p.tituloVisto)) return { ok: false, erro: 'estado_mudou' }
+    }
+    const patch = patchDaResposta(p.resposta, p.n, v)
     if ('erro' in patch) return { ok: false, erro: patch.erro }
 
     const elegivel = l.estado === 'em_andamento' || (l.estado === 'sem_desfecho' && l.vencedor_fonte === null)
     const payload: Record<string, unknown> = { ...patch.sempre, respondido_em: p.agora.toISOString() }
     if (elegivel) {
       Object.assign(payload, patch.seEmAndamento)
+      // O veredito passa a ser do dono: a versão da regra que o desfecho carregava deixa de valer.
+      payload.desfecho_versao_regra = null
       // `teste_novo` é o motivo que o registrador usa para cortar a janela do teste seguinte: a resposta do dono não o troca.
       if (l.desfecho_motivo === 'teste_novo') delete payload.desfecho_motivo
       if (l.estado === 'em_andamento') Object.assign(payload, { encerrado_em: p.agora.toISOString(), desfecho_em: p.agora.toISOString() })
@@ -120,7 +101,7 @@ export async function responderDia14(p: Params): Promise<ResultadoResponder> {
       return { ok: false, erro: 'falha_escrita' }
     }
     if ((data as unknown[] | null)?.length) {
-      await registrarRastro(p, l)
+      await registrarRastro(p, l, patch.sempre.variante_vencedora as number | null)
       await expirarLembrete(p)
       if (elegivel || l.vencedor_fonte === null) return { ok: true, conflito: null }
       const dono = typeof patch.seEmAndamento.vencedor_titulo === 'string'
@@ -151,12 +132,12 @@ function avisarLembrete(p: Params, msg: string): void {
 }
 
 /** Quem respondeu: só ids, a resposta e o estado anterior. Falha vai ao log e não desfaz a resposta (mesmo molde de `descartar.ts`). */
-async function registrarRastro(p: Params, l: Linha): Promise<void> {
+async function registrarRastro(p: Params, l: Linha, varianteEscrita: number | null): Promise<void> {
   try {
     const aud = await p.sb.from('audit_log').insert({
       actor_user_id: p.userId, org_id: p.orgId ?? null, site_id: p.siteId,
       action: 'ab_native_respondido', resource_type: 'ab_native_test', resource_id: p.registroId,
-      after_data: { registro_id: p.registroId, resposta_dono: p.resposta, variante_vencedora: p.n, estado_anterior: l.estado },
+      after_data: { registro_id: p.registroId, resposta_dono: p.resposta, variante_vencedora: varianteEscrita, estado_anterior: l.estado },
     })
     if (aud?.error) console.error('[ab-nativo] audit_log da resposta', aud.error.message)
   } catch (e) {

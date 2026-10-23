@@ -149,6 +149,8 @@ const PedidoResposta = z.object({
   lido: z.string().min(1).max(64),
   resposta: z.enum(['venceu_nova', 'venceu_original', 'ficou_igual', 'inconclusivo', 'nao_vi']),
   n: z.number().int().min(1).max(3).nullable(),
+  /** Título da versão tocada, como a tela o mostrava: o servidor confere contra a numeração de agora. Opcional para a tela-1 não quebrar. */
+  tituloVisto: z.string().max(400).nullable().optional(),
 }).strict()
 export type PedidoRespostaDia14 = z.infer<typeof PedidoResposta>
 export type ResultadoAcaoResponder = ResultadoResponder | { ok: false; erro: 'sem_permissao' | 'pedido_invalido' | 'falha'; error: string }
