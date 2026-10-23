@@ -3,7 +3,7 @@
 // Slots: `responder` (T10b: botão "Responder"/pergunta do dia 14 de ficha com 2 versões); o painel (ficha T8, cartão S7 T10) é da lista.
 import type { ReactElement, ReactNode } from 'react'
 import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
-import { FRASES, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { FRASES, FRASE_SEM_BOTAO_PROVISORIA, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { pisoPorDia } from '@/lib/youtube/teste-youtube/nativo/volume'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { rotuloRetomar, prazoDoDia14 } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -91,7 +91,7 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
   let quente = false
 
   const respostaDaLinha = (): ReactNode => {
-    if (!reg || perguntaDoDia14(reg) === 'sem_botao') return <p className="cn-meta">{FRASES.resposta.semBotao}</p>
+    if (!reg || perguntaDoDia14(reg) === 'sem_botao') return <p className="cn-meta">{FRASE_SEM_BOTAO_PROVISORIA}</p>
     if (p.responder) return p.responder(l, { primario: p.responderPrimario, aberta: p.responderAberta, abrir: () => p.aoMudarResponder(true), fechar: () => p.aoMudarResponder(false) })
     const acao = p.responderDia14
     if (!acao) return null

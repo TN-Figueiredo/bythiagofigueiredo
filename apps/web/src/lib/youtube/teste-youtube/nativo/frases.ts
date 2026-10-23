@@ -20,6 +20,9 @@ export function dataCurta(d: Date): string {
 /** Valor que o diálogo "Trocar mesmo assim?" recebe quando a leitura do YouTube falhou (a mesma frase vai ao lugar do título e da miniatura). */
 export const TEXTO_SEM_LEITURA = 'Não deu para conferir o título agora; tente de novo.'
 
+/** Provisória (T6 remove): a frase da tela-1 para o dia 14 sem botão ainda lida por `linha-caminho.tsx`; sai de `FRASES` na T5-A. */
+export const FRASE_SEM_BOTAO_PROVISORIA = 'A resposta por esta tela chega na próxima atualização. O que o YouTube mostrou fica guardado e você poderá responder mesmo depois do prazo.' // T6 remove
+
 export interface FraseDeEstado { frase: string; apoio: string | null }
 const f = (frase: string, apoio: string | null = null): FraseDeEstado => ({ frase, apoio })
 
@@ -38,8 +41,6 @@ export const FRASES = {
     caminhoTrocado: f('Você trocou o caminho deste vídeo para o nosso teste.', 'A escolha vale só para este vídeo e pode voltar.'),
     nadaEspera: 'Nada espera a sua resposta hoje.',
     apoioEmTesteOuPreparo: (n: number): string => `${capitalizar(videos(n))} em teste ou em preparo. Os demais seguem sem teste.`,
-    resultadoProntoSemBotao: (n: number): string => `${capitalizar(videos(n))} ${n === 1 ? 'tem' : 'têm'} resultado pronto no YouTube.`,
-    respostaChegaNaAtualizacao: 'A resposta chega na próxima atualização.',
     labPausado: (n: number): string => `Lab pausado em ${n === 1 ? 'um vídeo' : `${porExtenso(n)} vídeos`}.`,
     esperam: (espera: number, prazo: number, hoje: number): string => {
       const verbo = espera === 1 ? 'espera' : 'esperam'
@@ -52,8 +53,6 @@ export const FRASES = {
     detectados: (n: number): string => `parece haver teste no Studio em ${n === 1 ? 'um vídeo' : `${porExtenso(n)} vídeos`}`,
     emPreparo: (n: number): string => `${porExtenso(n)} em preparo`,
     labPausadoDeles: (n: number): string => `O Lab está pausado em ${porExtenso(n)} deles.`,
-    maisComResultadoPronto: (n: number): string =>
-      `Mais ${porExtenso(n)} ${n === 1 ? 'tem' : 'têm'} resultado pronto; a resposta chega na próxima atualização.`,
     rodape: 'Mostra os 20 mais recentes e os que têm ficha ou teste. Outros vídeos: Sugeridos para testar, acima.',
     leituraFalhou: 'Não deu para ler a lista agora.',
   },
@@ -65,7 +64,6 @@ export const FRASES = {
     naoVi: 'Você respondeu: não vi o resultado.',
     apoioSemVencedor: 'Nada ficou registrado como versão no ar. O resultado oficial está só no Studio. Mudar a resposta por esta tela chega na próxima atualização.',
     tardia: (prazo: Date): string => `O prazo acabou em ${dataCurta(prazo)}. Ainda dá para responder.`,
-    semBotao: 'A resposta por esta tela chega na próxima atualização. O que o YouTube mostrou fica guardado e você poderá responder mesmo depois do prazo.',
   },
 
   /** T10b: a pergunta do dia 14 com duas versões (mockup M2 `d14`, ramo sem resposta). Nunca "variante" nem "ficha". */
@@ -82,7 +80,26 @@ export const FRASES = {
     ficouIgual: 'Ficou igual',
     inconclusivo: 'Inconclusivo',
     naoVi: 'Não vi',
-    avisoMudar: 'Depois de responder, mudar a resposta por esta tela chega na próxima atualização.',
+    /** D-7(b): aviso antes do toque (troca o M-3 da tela-1) e no modo mudar. */
+    avisoResponder: 'Um toque responde; dá para mudar depois.',
+    avisoMudar: 'Um toque muda a resposta.',
+    /** D-7(c) e mockup `:544`: apoio da linha derivada, com e sem o título de antes conhecido. */
+    apoioDerivada: 'Sem ficha: só os títulos que o Lab viu alternando; a miniatura não aparece de fora. A (original) é o título de antes.',
+    apoioDerivadaSemOriginal: 'Sem ficha: só os títulos que o Lab viu alternando; a miniatura não aparece de fora. O Lab não sabe qual era o título de antes.',
+    /** Rótulos dos cartões: `A ficou`/`B ficou` só na derivada sem original conhecida. */
+    venceu: (letra: string): string => `${letra} venceu`,
+    ficou: (letra: string): string => `${letra} ficou`,
+    /** D-7(e): versões ilegíveis (ou 4 ou mais títulos) e o rótulo do grupo de respostas. */
+    apoioSemVersoes: 'O Lab não guardou as versões deste teste. Você pode dizer só que ficou igual, inconclusivo ou que não viu.',
+    suaResposta: 'Sua resposta:',
+    mudarPara: 'Mudar para:',
+    /** D-7(h): frases `sum()` do M2 para a página. */
+    sum: {
+      terminouDuas: 'O teste do YouTube terminou. Qual versão venceu no Studio?',
+      terminouTres: 'O teste do YouTube terminou. Qual das três versões venceu no Studio?',
+      prazoAcabou: 'O prazo acabou, mas ainda dá para responder.',
+      semFicha: 'Sem ficha: o Lab só viu os títulos.',
+    },
     naoMedido: 'não medido',
     seloOriginal: 'Ficou no ar: A (original)',
     seloNova: 'Ficou no ar: B',

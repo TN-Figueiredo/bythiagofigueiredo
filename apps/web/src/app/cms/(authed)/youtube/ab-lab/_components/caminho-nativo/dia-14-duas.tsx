@@ -172,7 +172,7 @@ export function Dia14Duas({ linha, versoes, acoes }: Dia14DuasProps): ReactEleme
         <button type="button" className="cn-btn" disabled={ocupado} data-resposta="inconclusivo" onClick={toque('inconclusivo', null)}>{FRASES.dia14.inconclusivo}</button>
         <button type="button" className="cn-btn" disabled={ocupado} data-resposta="nao_vi" onClick={toque('nao_vi', null)}>{FRASES.dia14.naoVi}</button>
       </div>
-      <p className="cn-meta cn-d14-aviso">{FRASES.dia14.avisoMudar}</p>
+      <p className="cn-meta cn-d14-aviso">{FRASES.dia14.avisoResponder}</p>
       {tela.t === 'mudou' ? (
         <FaixaCaminho
           tom="warn" role="alert" titulo={FRASES.guarda.estadoMudou}
