@@ -23,7 +23,7 @@ vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(as
 import { responderTesteDoYouTube, type PedidoRespostaDia14 } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
 import { lerLinhasDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
 import { leituraDoEditor, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
-import { perguntaDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
+import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { prazoDoDia14, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 
@@ -83,7 +83,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T10b: dia 14 com duas versões (b
     expect(l).toBeDefined()
     return l!
   }
-  /** O mesmo pedido que `Dia14Duas` monta ao toque (registro.id e registro.updatedAt da linha lida). */
+  /** O mesmo pedido que `Dia14Pergunta` monta ao toque (registro.id e registro.updatedAt da linha lida). */
   const pedido = (l: LinhaDoCaminho, resposta: PedidoRespostaDia14['resposta'], n: number | null): PedidoRespostaDia14 =>
     ({ registroId: l.registro!.id, lido: l.registro!.updatedAt, resposta, n })
   const coluna = async (id: string) => (await pg.query('select * from public.ab_native_tests where id = $1', [id])).rows[0]
@@ -100,7 +100,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T10b: dia 14 com duas versões (b
       const v = await novo(15)
       const antes = await ler(v.videoId)
       expect(antes.estado).toBe('resultado_pronto')
-      expect(perguntaDoDia14(antes.registro!)).toBe('duas')
+      expect(versoesDoDia14(antes.registro!)).toMatchObject({ tipo: 'versoes', origem: 'ficha' })
       expect(await responderTesteDoYouTube(pedido(antes, resposta, n))).toEqual({ ok: true, conflito: null })
       expect(await coluna(v.regId)).toMatchObject(esperado)
       const depois = await ler(v.videoId)
@@ -168,12 +168,14 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T10b: dia 14 com duas versões (b
     expect(depois.registro?.respostaDono).toBe('venceu_nova')
   })
 
-  it('3 versões e origem derivada: sem_botao (nunca pergunta com versões inventadas)', async () => {
+  it('3 versões e origem derivada: a pergunta tem versões (3 de ficha; 2 derivadas sem original conhecido)', async () => {
     const tres = await novo(15, 0, { variantes: JSON.stringify([...V2, { n: 3, tipo: 'titulo', titulo: 'Terceira' }]) })
-    expect(perguntaDoDia14((await ler(tres.videoId)).registro!)).toBe('sem_botao')
+    const p3 = versoesDoDia14((await ler(tres.videoId)).registro!)
+    expect(p3).toMatchObject({ tipo: 'versoes', origem: 'ficha' })
+    expect(p3.tipo === 'versoes' && p3.versoes).toHaveLength(3)
     const der = await novo(15, 0, { variantes: null, variantes_titulo: JSON.stringify(['Original', 'Nova']), origem: 'detectado' })
     const l = await ler(der.videoId)
     expect(l.registro?.variantes).toBeNull()
-    expect(perguntaDoDia14(l.registro!)).toBe('sem_botao')
+    expect(versoesDoDia14(l.registro!)).toMatchObject({ tipo: 'versoes', origem: 'derivada' })
   })
 })

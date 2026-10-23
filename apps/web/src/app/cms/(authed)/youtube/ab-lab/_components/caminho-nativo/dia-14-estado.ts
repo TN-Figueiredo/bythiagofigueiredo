@@ -6,13 +6,6 @@ import { normalizarTitulo } from '@/lib/youtube/teste-youtube/normalizar-titulo'
 
 type Registro = NonNullable<LinhaDoCaminho['registro']>
 
-// --- Legado da tela-1 (linha-caminho.tsx ainda importa; a T6 troca pela pergunta nova e remove) ---
-export type PerguntaLegadaDoDia14 = 'duas' | 'sem_botao'
-
-export function perguntaDoDia14(registro: Pick<Registro, 'variantes'>): PerguntaLegadaDoDia14 {
-  return registro.variantes?.length === 2 ? 'duas' : 'sem_botao'
-}
-
 // --- Tela-2 ---
 const LETRAS = ['A', 'B', 'C'] as const
 

@@ -3,15 +3,15 @@
 // Slots: `responder` (T10b: botão "Responder"/pergunta do dia 14 de ficha com 2 versões); o painel (ficha T8, cartão S7 T10) é da lista.
 import type { ReactElement, ReactNode } from 'react'
 import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
-import { FRASES, FRASE_SEM_BOTAO_PROVISORIA, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { FRASES, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { pisoPorDia } from '@/lib/youtube/teste-youtube/nativo/volume'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { rotuloRetomar, prazoDoDia14 } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { SeloCaminho, type TipoSelo } from './selo-caminho'
 import { Icone } from './icones'
 import { FichaConfirmar } from './ficha-confirmar'
-import { Dia14Duas, type VersaoDia14 } from './dia-14-duas'
-import { perguntaDoDia14 } from './dia-14-estado'
+import { Dia14Pergunta } from './dia-14-pergunta'
+import { versoesDoDia14 } from './dia-14-estado'
 import type { AcoesCaminho } from './lista-caminho'
 import '../caminho-nativo.css'
 import '../lista-caminho.css'
@@ -91,16 +91,12 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
   let quente = false
 
   const respostaDaLinha = (): ReactNode => {
-    if (!reg || perguntaDoDia14(reg) === 'sem_botao') return <p className="cn-meta">{FRASE_SEM_BOTAO_PROVISORIA}</p>
+    if (!reg) return null
     if (p.responder) return p.responder(l, { primario: p.responderPrimario, aberta: p.responderAberta, abrir: () => p.aoMudarResponder(true), fechar: () => p.aoMudarResponder(false) })
     const acao = p.responderDia14
     if (!acao) return null
-    const v = (n: 1 | 2, letra: 'A' | 'B'): VersaoDia14 => {
-      const x = reg.variantes?.find((y) => y.n === n)
-      return { letra, titulo: x?.titulo ?? null, imagem: x?.imagem ?? null }
-    }
     if (p.responderAberta) {
-      full = <Dia14Duas linha={l} versoes={[v(1, 'A'), v(2, 'B')]} acoes={{ responder: acao, atualizar: p.aoAtualizar }} />
+      full = <Dia14Pergunta linha={l} pergunta={versoesDoDia14(reg)} modo="responder" acoes={{ responder: acao, atualizar: p.aoAtualizar }} aoFechar={() => p.aoMudarResponder(false)} />
     }
     return (
       <button

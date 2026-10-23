@@ -1,10 +1,10 @@
-/* Pergunta do dia 14 com duas versões (F1a-tela-1, T10b). Tokens --cn-* herdados de .cn-raiz; só cor literal. */
+/* Pergunta do dia 14 com 2 ou 3 versões (F1a-tela-1 T10b; F1a-tela-2 T6). Tokens --cn-* herdados de .cn-raiz; só cor literal. */
 .cn-d14 { max-width: 880px; margin-top: 12px; border: 1px solid var(--cn-yt-line); background: var(--cn-surface); border-radius: 10px; padding: 16px; }
 .cn-d14 h3 { font: 600 17px/1.35 Georgia, serif; margin: 0; overflow-wrap: anywhere; }
 .cn-d14 .cn-meta { margin: 4px 0 0; }
 .cn-d14-q3 { font: 600 16px/1.35 Georgia, serif; margin: 12px 0 0; overflow-wrap: anywhere; }
 .cn-d14-res { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
-.cn-d14-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.cn-d14-grid { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
 .cn-d14-vopt { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 12px; border: 1px solid var(--cn-btn-line); border-radius: 8px; background: var(--cn-surface); color: var(--cn-text); cursor: pointer; font: inherit; min-height: 44px; }
 .cn-d14-vopt[disabled] { cursor: not-allowed; border-style: dashed; }
 .cn-d14-th { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 5px; object-fit: cover; background: var(--cn-skel); }
@@ -12,18 +12,22 @@
 .cn-d14-tx { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
 .cn-d14-top { display: flex; gap: 8px; align-items: flex-start; }
 .cn-d14-top q { overflow-wrap: anywhere; quotes: none; font: 600 13.5px/1.4 Inter, system-ui, sans-serif; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cn-d14-vopt[aria-pressed="true"] { border-color: var(--cn-yt-line); border-width: 2px; padding: 11px; }
+.cn-d14-grid[data-n="3"] .cn-d14-top q, .cn-d14-grid[data-derivada] .cn-d14-top q { -webkit-line-clamp: 3; }
 .cn-d14-lbl { font: 600 13.5px/1.3 Inter, system-ui, sans-serif; margin-top: auto; padding-top: 4px; border-top: 1px solid var(--cn-border-subtle); }
 .cn-d14-other { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 24px; }
 .cn-d14-other > span { font-size: 13px; color: var(--cn-muted); margin-right: 4px; }
 .cn-d14-other .cn-btn { min-width: 120px; }
+.cn-d14 .cn-d14-manter { margin-top: 12px; }
 .cn-d14 .cn-d14-aviso { margin-top: 12px; }
 .cn-d14 .cn-errl { margin: 12px 0 0; font-size: 13.5px; color: var(--cn-err); }
 .cn-d14 .cn-faixa { margin-top: 12px; }
 @container (max-width: 640px) {
   .cn-d14-grid { grid-template-columns: 1fr; gap: 12px; }
-  .cn-d14-top q { -webkit-line-clamp: 4; }
+  .cn-d14-top q, .cn-d14-grid[data-n="3"] .cn-d14-top q, .cn-d14-grid[data-derivada] .cn-d14-top q { -webkit-line-clamp: 4; }
   .cn-d14-vopt { min-height: 44px; }
   .cn-d14-other { flex-direction: column; align-items: stretch; }
   .cn-d14-other .cn-btn { width: 100%; min-height: 44px; }
   .cn-d14 .cn-lnk { min-height: 44px; }
+  .cn-d14 .cn-d14-manter { display: inline-flex; align-items: center; }
 }

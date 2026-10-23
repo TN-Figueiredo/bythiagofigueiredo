@@ -3,9 +3,10 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import * as Sentry from '@sentry/nextjs'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
-import { FRASES, FRASE_SEM_BOTAO_PROVISORIA } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import type { PedidoRespostaDia14, ResultadoAcaoResponder } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
-import { Dia14Duas, type VersaoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-duas'
+import { Dia14Pergunta, type PedidoMudarDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-pergunta'
+import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { ListaCaminho, type AcoesCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho'
 import { LinhaCaminho, type LinhaCaminhoProps } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/linha-caminho'
 
@@ -26,20 +27,19 @@ function linha(estado: 'resultado_pronto' | 'sem_resposta', reg: Partial<NonNull
     },
   }
 }
-const versoes = (l: LinhaDoCaminho): [VersaoDia14, VersaoDia14] => {
-  const g = (n: number) => l.registro?.variantes?.find((x) => x.n === n)
-  return [{ letra: 'A', titulo: g(1)?.titulo ?? null, imagem: g(1)?.imagem ?? null }, { letra: 'B', titulo: g(2)?.titulo ?? null, imagem: g(2)?.imagem ?? null }]
-}
-
 let responder: ReturnType<typeof vi.fn<(p: PedidoRespostaDia14) => Promise<ResultadoAcaoResponder>>>
 let atualizar: ReturnType<typeof vi.fn>
 beforeEach(() => { responder = vi.fn(async () => ({ ok: true, conflito: null }) as ResultadoAcaoResponder); atualizar = vi.fn(); vi.mocked(Sentry.captureMessage).mockClear() })
 afterEach(() => { cleanup() })
 
-const montar = (l = linha('resultado_pronto')) => render(<div className="cn-raiz"><Dia14Duas linha={l} versoes={versoes(l)} acoes={{ responder, atualizar }} /></div>)
+let mudar: ReturnType<typeof vi.fn<(p: PedidoMudarDia14) => Promise<ResultadoAcaoResponder>>>
+let aoFechar: ReturnType<typeof vi.fn>
+beforeEach(() => { mudar = vi.fn(async () => ({ ok: true, conflito: null }) as ResultadoAcaoResponder); aoFechar = vi.fn() })
+const montar = (l = linha('resultado_pronto'), modo: 'responder' | 'mudar' = 'responder', vista: { respostaVista?: PedidoMudarDia14['respostaVista']; varianteVista?: number | null } = {}) =>
+  render(<div className="cn-raiz"><Dia14Pergunta linha={l} pergunta={versoesDoDia14(l.registro!)} modo={modo} acoes={{ responder, mudar, atualizar }} aoFechar={aoFechar} {...vista} /></div>)
 const botao = (n: RegExp | string) => screen.getByRole('button', { name: n })
 
-describe('Dia14Duas: estrutura do d14-duas (M2)', () => {
+describe('Dia14Pergunta: estrutura do d14-duas (M2)', () => {
   it('título, apoio com a data do dado, dois botões de mesmo peso, sem .pri', () => {
     const { container } = montar()
     expect(screen.getByRole('heading', { name: 'Qual versão venceu no Studio?' })).toBeTruthy()
@@ -87,7 +87,7 @@ describe('Dia14Duas: estrutura do d14-duas (M2)', () => {
     expect(document.body.textContent).not.toContain('O prazo acabou em')
   })
   it('a 390 (CSS): versões em coluna e alvos de 44 px', async () => {
-    const css = (await import('node:fs')).readFileSync('src/app/cms/(authed)/youtube/ab-lab/_components/dia-14-duas.css', 'utf8')
+    const css = (await import('node:fs')).readFileSync('src/app/cms/(authed)/youtube/ab-lab/_components/dia-14-pergunta.css', 'utf8')
     const estreito = css.slice(css.indexOf('@container (max-width: 640px)'))
     expect(estreito).toMatch(/\.cn-d14-grid\s*\{\s*grid-template-columns:\s*1fr/)
     expect(estreito).toMatch(/\.cn-d14-vopt\s*\{\s*min-height:\s*44px/)
@@ -96,23 +96,23 @@ describe('Dia14Duas: estrutura do d14-duas (M2)', () => {
   })
 })
 
-describe('Dia14Duas: pedido enviado à action', () => {
+describe('Dia14Pergunta: pedido enviado à action', () => {
   const casos: [string, PedidoRespostaDia14['resposta'], number | null][] = [
     ['A (original) ficou', 'venceu_original', 1], ['B venceu', 'venceu_nova', 2],
     ['Ficou igual', 'ficou_igual', null], ['Inconclusivo', 'inconclusivo', null], ['Não vi', 'nao_vi', null],
   ]
   for (const [rotulo, resposta, n] of casos) {
-    it(`"${rotulo}" -> { resposta: '${resposta}', n: ${n} } com lido = registro.updatedAt`, async () => {
+    it(`"${rotulo}" -> { resposta: '${resposta}', n: ${n} } (com tituloVisto nas versões) e lido = registro.updatedAt`, async () => {
       const l = linha('resultado_pronto')
       montar(l)
       fireEvent.click(botao(rotulo === 'A (original) ficou' || rotulo === 'B venceu' ? new RegExp(rotulo.replace(/[()]/g, '\\$&')) : rotulo))
       await waitFor(() => expect(responder).toHaveBeenCalledTimes(1))
-      expect(responder).toHaveBeenCalledWith({ registroId: 'reg-1', lido: l.registro!.updatedAt, resposta, n })
+      expect(responder).toHaveBeenCalledWith({ registroId: 'reg-1', lido: l.registro!.updatedAt, resposta, n, ...(n === null ? {} : { tituloVisto: n === 1 ? 'Título original' : 'Título novo' }) })
     })
   }
 })
 
-describe('Dia14Duas: desfechos da action (um teste por linha)', () => {
+describe('Dia14Pergunta: desfechos da action (um teste por linha)', () => {
   it('ok + venceu_original -> selo verde "Ficou no ar: A (original)" + frase + "só no Studio"', async () => {
     montar()
     fireEvent.click(botao(/A \(original\) ficou/))
@@ -204,12 +204,210 @@ describe('Dia14Duas: desfechos da action (um teste por linha)', () => {
     let solta: (r: ResultadoAcaoResponder) => void = () => {}
     responder.mockImplementation(() => new Promise((res) => { solta = res }))
     montar()
-    fireEvent.click(botao(/B venceu/)); fireEvent.click(botao(/B venceu/))
+    const b = botao(/B venceu/)
+    fireEvent.click(b); fireEvent.click(b)
     expect(responder).toHaveBeenCalledTimes(1)
     solta({ ok: true, conflito: null })
     await screen.findByText('Ficou no ar: B')
   })
 })
+
+// ---- T6: três versões, origem derivada, sem versões, envio e modo mudar ----
+const tresV = [...duasV, { n: 3, titulo: 'Título C', imagem: { url: 'https://blob.example/c.png' } }]
+const derivada = (titulos: string[], tituloAntes: string | null, o: Partial<NonNullable<LinhaDoCaminho['registro']>> = {}) =>
+  linha('resultado_pronto', { variantes: null, variantesTitulo: titulos, tituloAntes, campos: null, ...o })
+const rotulos = () => within(screen.getByRole('group', { name: 'Versões' })).getAllByRole('button').map((b) => b.querySelector('.cn-d14-lbl')?.textContent)
+const lerCss = async (f: string) => (await import('node:fs')).readFileSync(f, 'utf8')
+const DIR = 'src/app/cms/(authed)/youtube/ab-lab/_components/'
+
+describe('Dia14Pergunta: três versões de ficha', () => {
+  it('três vopt com chip A/B/C, miniatura e título; rótulos fixos; nenhum .pri; --n = 3', () => {
+    const { container } = montar(linha('resultado_pronto', { variantes: tresV }))
+    const bs = within(screen.getByRole('group', { name: 'Versões' })).getAllByRole('button')
+    expect(bs).toHaveLength(3)
+    expect(rotulos()).toEqual(['A (original) ficou', 'B venceu', 'C venceu'])
+    for (const [i, l] of ['A', 'B', 'C'].entries()) expect(bs[i]!.querySelector(`[aria-label="Versão ${l}"]`)).not.toBeNull()
+    expect(bs[2]!.textContent).toContain('Título C')
+    expect(bs[2]!.querySelector('img')?.getAttribute('src')).toBe('https://blob.example/c.png')
+    expect(container.querySelectorAll('.pri')).toHaveLength(0)
+    expect(screen.getByRole('group', { name: 'Versões' }).style.getPropertyValue('--n')).toBe('3')
+  })
+  it('"C venceu" -> venceu_nova n=3 com o título de C; a confirmação diz C', async () => {
+    const l = linha('resultado_pronto', { variantes: tresV })
+    montar(l)
+    fireEvent.click(botao(/C venceu/))
+    await waitFor(() => expect(responder).toHaveBeenCalledWith({ registroId: 'reg-1', lido: l.registro!.updatedAt, resposta: 'venceu_nova', n: 3, tituloVisto: 'Título C' }))
+    await screen.findByText('Ficou no ar: C')
+    expect(screen.getByText('A versão C venceu no Studio e ficou no ar.')).toBeTruthy()
+  })
+  it('a 390 (CSS): grade em uma coluna, vopt de 44 px; clamp 3 com n=3 ou derivada; overflow-wrap; sem color-mix', async () => {
+    const css = await lerCss(`${DIR}dia-14-pergunta.css`)
+    expect(css).toMatch(/repeat\(var\(--n, 2\), minmax\(0, 1fr\)\)/)
+    expect(css).toMatch(/\[data-n="3"\][^{]*q[^{]*\{\s*-webkit-line-clamp:\s*3/)
+    expect(css).toMatch(/\[data-derivada\][^{]*q[^{]*\{\s*-webkit-line-clamp:\s*3/)
+    expect(css).toMatch(/\.cn-d14-top q\s*\{[^}]*overflow-wrap:\s*anywhere/)
+    const estreito = css.slice(css.indexOf('@container (max-width: 640px)'))
+    expect(estreito).toMatch(/\.cn-d14-grid\s*\{\s*grid-template-columns:\s*1fr/)
+    expect(estreito).toMatch(/\.cn-d14-vopt\s*\{\s*min-height:\s*44px/)
+  })
+  it('título de 90 letras sem espaço: o q quebra (overflow-wrap) e leva title com o título completo', () => {
+    const longo = 'x'.repeat(90)
+    montar(linha('resultado_pronto', { variantes: [{ n: 1, titulo: longo, imagem: null }, duasV[1]!] }))
+    const q = screen.getByText(longo)
+    expect(q.tagName).toBe('Q')
+    expect(q.getAttribute('title')).toBe(longo)
+  })
+  it('aviso D-7(b) antes de qualquer toque; nada enviado', () => {
+    montar(linha('resultado_pronto', { variantes: tresV }))
+    expect(screen.getByText('Um toque responde; dá para mudar depois.')).toBeTruthy()
+    expect(responder).not.toHaveBeenCalled()
+  })
+})
+
+describe('Dia14Pergunta: origem derivada', () => {
+  it('original conhecida: sem miniatura, apoio da derivada, "A (original) ficou" -> venceu_original n=1 com tituloVisto', async () => {
+    const l = derivada(['Novo 1', 'Antes'], 'Antes')
+    const { container } = montar(l)
+    expect(container.querySelectorAll('img, [data-testid="miniatura-nao-medida"], .cn-d14-th')).toHaveLength(0)
+    expect(screen.getByText(FRASES.dia14.apoioDerivada)).toBeTruthy()
+    expect(rotulos()).toEqual(['A (original) ficou', 'B venceu'])
+    fireEvent.click(botao(/A \(original\) ficou/))
+    await waitFor(() => expect(responder).toHaveBeenCalledWith({ registroId: 'reg-1', lido: l.registro!.updatedAt, resposta: 'venceu_original', n: 1, tituloVisto: 'Antes' }))
+  })
+  it('original desconhecida: apoio D-7(c), "A ficou"/"B ficou", sem "(original)"; "A ficou" -> venceu_nova n=1', async () => {
+    const l = derivada(['Um', 'Dois'], null)
+    montar(l)
+    expect(screen.getByText(FRASES.dia14.apoioDerivadaSemOriginal)).toBeTruthy()
+    expect(rotulos()).toEqual(['A ficou', 'B ficou'])
+    expect(document.body.textContent).not.toContain('(original)')
+    fireEvent.click(botao(/A ficou/))
+    await waitFor(() => expect(responder).toHaveBeenCalledWith({ registroId: 'reg-1', lido: l.registro!.updatedAt, resposta: 'venceu_nova', n: 1, tituloVisto: 'Um' }))
+  })
+})
+
+describe('Dia14Pergunta: versões ilegíveis', () => {
+  it('só "Sua resposta:" e a frase D-7(e); sem grade de versões; os três botões enviam sem n', async () => {
+    const l = linha('resultado_pronto', { variantes: null, variantesTitulo: null })
+    montar(l)
+    expect(screen.queryByRole('group', { name: 'Versões' })).toBeNull()
+    expect(screen.getByText(FRASES.dia14.apoioSemVersoes)).toBeTruthy()
+    expect(screen.getByText('Sua resposta:')).toBeTruthy()
+    fireEvent.click(botao('Não vi'))
+    await waitFor(() => expect(responder).toHaveBeenCalledWith({ registroId: 'reg-1', lido: l.registro!.updatedAt, resposta: 'nao_vi', n: null }))
+  })
+})
+
+describe('Dia14Pergunta: enviando', () => {
+  it('ao tocar: todos desabilitados com aria-disabled, grupo aria-busy, o tocado diz "Salvando…"; erro volta ao estado anterior com role=alert', async () => {
+    let falha: (r: ResultadoAcaoResponder) => void = () => {}
+    responder.mockImplementation(() => new Promise((res) => { falha = res }))
+    montar(linha('resultado_pronto', { variantes: tresV }))
+    fireEvent.click(botao(/C venceu/))
+    const todos = screen.getAllByRole('button')
+    expect(todos.length).toBeGreaterThanOrEqual(6)
+    for (const b of todos) { expect((b as HTMLButtonElement).disabled).toBe(true); expect(b.getAttribute('aria-disabled')).toBe('true') }
+    expect(screen.getByRole('group', { name: 'Versões' }).getAttribute('aria-busy')).toBe('true')
+    expect(screen.getByRole('button', { name: /Salvando…/ }).querySelector('[aria-label="Versão C"]')).not.toBeNull()
+    falha({ ok: false, erro: 'falha_escrita' })
+    const alerta = await screen.findByRole('alert')
+    expect(alerta.textContent).toBe(FRASES.dia14.falhou)
+    expect(rotulos()).toEqual(['A (original) ficou', 'B venceu', 'C venceu'])
+    expect((botao(/C venceu/) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+describe('Dia14Pergunta: modo mudar', () => {
+  const reg3 = (o: Partial<NonNullable<LinhaDoCaminho['registro']>> = {}) =>
+    linha('resultado_pronto', { variantes: tresV, respostaDono: 'venceu_nova', varianteVencedora: 2, vencedorFonte: 'dono', vencedorTitulo: 'Título novo', ...o })
+  const vista = { respostaVista: 'venceu_nova' as const, varianteVista: 2 }
+
+  it('a resposta atual leva aria-pressed, ✓ e "Sua resposta" no lugar do rótulo; os outros não; apoio "Um toque muda a resposta."', () => {
+    montar(reg3(), 'mudar', vista)
+    const bs = within(screen.getByRole('group', { name: 'Versões' })).getAllByRole('button')
+    expect(bs.map((b) => b.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false'])
+    expect(bs[1]!.querySelector('.cn-d14-lbl')?.textContent).toBe('✓ Sua resposta')
+    expect(bs[0]!.querySelector('.cn-d14-lbl')?.textContent).toBe('A (original) ficou')
+    expect(bs[2]!.querySelector('.cn-d14-lbl')?.textContent).toBe('C venceu')
+    expect(screen.getByText('Um toque muda a resposta.')).toBeTruthy()
+    expect(screen.queryByText('Um toque responde; dá para mudar depois.')).toBeNull()
+  })
+  it('resposta sem versão atual: "Ficou igual" leva ✓ + aria-pressed (sem texto "Sua resposta")', () => {
+    montar(reg3({ respostaDono: 'ficou_igual', varianteVencedora: null, vencedorTitulo: null }), 'mudar', { respostaVista: 'ficou_igual', varianteVista: null })
+    expect(botao(/Ficou igual/).getAttribute('aria-pressed')).toBe('true')
+    expect(botao(/Ficou igual/).textContent).toContain('✓')
+    expect(botao('Não vi').getAttribute('aria-pressed')).toBe('false')
+    expect(document.body.textContent).not.toContain('Sua resposta')
+  })
+  it('"Manter a resposta atual" é .cn-lnk, fecha e devolve o foco ao link "Mudar minha resposta"', async () => {
+    const l = reg3()
+    const { container } = render(
+      <div className="cn-raiz"><ul><li data-linha="uuid-1"><button type="button" data-acao="mudar-resposta">Mudar minha resposta</button></li></ul><div id="slot" /></div>,
+    )
+    const link = screen.getByRole('button', { name: 'Mudar minha resposta' })
+    link.focus()
+    const { unmount } = render(<Dia14Pergunta linha={l} pergunta={versoesDoDia14(l.registro!)} modo="mudar" {...vista} acoes={{ responder, mudar, atualizar }} aoFechar={aoFechar} />, { container: container.querySelector('#slot')! })
+    const manter = screen.getByRole('button', { name: 'Manter a resposta atual' })
+    expect(manter.className).toContain('cn-lnk')
+    fireEvent.click(manter)
+    expect(aoFechar).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(document.activeElement).toBe(link))
+    unmount()
+  })
+  it('Esc fecha como "Manter a resposta atual"', () => {
+    montar(reg3(), 'mudar', vista)
+    fireEvent.keyDown(screen.getByRole('heading', { name: 'Qual versão venceu no Studio?' }), { key: 'Escape' })
+    expect(aoFechar).toHaveBeenCalledTimes(1)
+  })
+  it('"Manter a resposta atual" tem 44 px a 390 (CSS)', async () => {
+    const css = await lerCss(`${DIR}dia-14-pergunta.css`)
+    expect(css.slice(css.indexOf('@container (max-width: 640px)'))).toMatch(/\.cn-d14 \.cn-lnk\s*\{\s*min-height:\s*44px/)
+  })
+  it('toque em "C venceu" chama a action de mudar com respostaVista, varianteVista e tituloVisto (e não a de responder)', async () => {
+    const l = reg3()
+    montar(l, 'mudar', vista)
+    fireEvent.click(botao(/C venceu/))
+    await waitFor(() => expect(mudar).toHaveBeenCalledWith({
+      registroId: 'reg-1', lido: l.registro!.updatedAt, resposta: 'venceu_nova', n: 3, tituloVisto: 'Título C', respostaVista: 'venceu_nova', varianteVista: 2,
+    }))
+    expect(responder).not.toHaveBeenCalled()
+    expect((await screen.findByRole('status')).textContent).toBe('Resposta mudada para C.')
+    expect(atualizar).toHaveBeenCalledTimes(1)
+  })
+  it('estado_mudou: "O teste mudou enquanto a tela estava aberta." + Atualizar relê', async () => {
+    mudar.mockResolvedValue({ ok: false, erro: 'estado_mudou' })
+    montar(reg3(), 'mudar', vista)
+    fireEvent.click(botao(/C venceu/))
+    await screen.findByText('O teste mudou enquanto a tela estava aberta.')
+    fireEvent.click(botao('Atualizar'))
+    expect(atualizar).toHaveBeenCalledTimes(1)
+  })
+  it('sem_conexao: "Sem conexão. A resposta continua a mesma. Tente de novo." e a pergunta segue aberta', async () => {
+    mudar.mockRejectedValueOnce(new Error('rede'))
+    montar(reg3(), 'mudar', vista)
+    fireEvent.click(botao(/C venceu/))
+    await screen.findByText('Sem conexão. A resposta continua a mesma. Tente de novo.')
+    expect(screen.getByRole('group', { name: 'Versões' })).toBeTruthy()
+    fireEvent.click(botao('Tentar de novo'))
+    await screen.findByText('Resposta mudada para C.')
+    expect(mudar).toHaveBeenCalledTimes(2)
+  })
+  it('sem versões no modo mudar: rótulo "Mudar para:"', () => {
+    montar(linha('resultado_pronto', { variantes: null, variantesTitulo: null, respostaDono: 'nao_vi' }), 'mudar', { respostaVista: 'nao_vi', varianteVista: null })
+    expect(screen.getByText('Mudar para:')).toBeTruthy()
+    expect(screen.queryByText('Sua resposta:')).toBeNull()
+  })
+})
+
+describe('Arquitetura: sem color-mix e sem .pri na pergunta', () => {
+  it('caminho-nativo.css, dia-14-*.css e dia-14-*.tsx não usam color-mix(', async () => {
+    const fs = await import('node:fs')
+    const arquivos = [`${DIR}caminho-nativo.css`, ...fs.readdirSync(DIR).filter((f) => /^dia-14-.*\.css$/.test(f)).map((f) => DIR + f),
+      ...fs.readdirSync(`${DIR}caminho-nativo`).filter((f) => /^dia-14-.*\.tsx?$/.test(f)).map((f) => `${DIR}caminho-nativo/${f}`)]
+    expect(arquivos.length).toBeGreaterThanOrEqual(4)
+    for (const a of arquivos) expect(fs.readFileSync(a, 'utf8'), a).not.toContain('color-mix(')
+  })
+})
+
 
 describe('LinhaCaminho: "Responder" abre a pergunta na própria linha', () => {
   const props = (l: LinhaDoCaminho, o: Partial<LinhaCaminhoProps> = {}): LinhaCaminhoProps => ({
@@ -240,15 +438,6 @@ describe('LinhaCaminho: "Responder" abre a pergunta na própria linha', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
     expect(aoMudarResponder).toHaveBeenCalledWith(true)
   })
-  it('3 versões ou origem derivada: sem botão, com a frase honesta de D-1', () => {
-    li(props(linha('resultado_pronto', { variantes: [...duasV, { n: 3, titulo: 'C', imagem: null }] })))
-    expect(screen.getByText(FRASE_SEM_BOTAO_PROVISORIA)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Responder' })).toBeNull()
-    cleanup()
-    li(props(linha('sem_resposta', { variantes: null, variantesTitulo: ['x', 'y'] })))
-    expect(screen.getByText(FRASE_SEM_BOTAO_PROVISORIA)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Responder' })).toBeNull()
-  })
   it('tabela das 5 respostas: a linha relida mostra selo e frase exatos', () => {
     const tab: [NonNullable<LinhaDoCaminho['registro']>['respostaDono'], string, string, 'ficou_no_ar' | 'respondido_sem_vencedor'][] = [
       ['venceu_original', 'Ficou no ar: A (original)', 'A original segurou: a nova não superou.', 'ficou_no_ar'],
@@ -266,6 +455,27 @@ describe('LinhaCaminho: "Responder" abre a pergunta na própria linha', () => {
       cleanup()
     }
   })
+})
+
+describe('LinhaCaminho: nenhuma linha de dia 14 sem "Responder"', () => {
+  const props = (l: LinhaDoCaminho): LinhaCaminhoProps => ({
+    l, agora: AGORA, escolhaNosso: false, aoPreferir: vi.fn(), aoAbrirPainel: vi.fn(), aoIniciar: vi.fn(), perguntaAberta: false,
+    aoRegistrar: vi.fn(), aoSeguirComNosso: vi.fn(), aoFecharPergunta: vi.fn(), aoAtualizar: atualizar, jaIniciei: vi.fn(),
+    responderDia14: responder as unknown as LinhaCaminhoProps['responderDia14'], responderAberta: false, responderPrimario: false, aoMudarResponder: vi.fn(),
+  })
+  const variantes: [string, Partial<NonNullable<LinhaDoCaminho['registro']>>][] = [
+    ['2 versões', {}], ['3 versões', { variantes: tresV }], ['derivada', { variantes: null, variantesTitulo: ['a', 'b'] }], ['sem versões', { variantes: null, variantesTitulo: null }],
+  ]
+  for (const e of ['resultado_pronto', 'sem_resposta'] as const) {
+    for (const [nome, o] of variantes) {
+      it(`${e} com ${nome}: botão "Responder" e nenhuma frase de "próxima atualização"`, () => {
+        render(<ul><LinhaCaminho {...props(linha(e, o))} /></ul>)
+        expect(screen.getByRole('button', { name: 'Responder' })).toBeTruthy()
+        expect(document.body.textContent).not.toContain('próxima atualização')
+        cleanup()
+      })
+    }
+  }
 })
 
 describe('ListaCaminho: dia 14 pelo botão e pelo aviso (?video=)', () => {
