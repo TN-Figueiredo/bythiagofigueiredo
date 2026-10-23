@@ -18,6 +18,8 @@ export interface Conferencia {
   onde: string
   /** Dia em que foi feita (AAAA-MM-DD). null = por fazer. */
   feitaEm: string | null
+  /** Reaberta por decisão do dono: o vencimento conta deste dia, não de `data` (que segue sendo a do plano). */
+  reabertaEm?: string
 }
 
 /** Decisão do controlador (12/10/2026): até 7 dias de atraso só o resumo; com 8 dias ou mais o cron fica vermelho. */
@@ -622,7 +624,56 @@ const FEITAS: Readonly<Record<string, string>> = {
 }
 
 const TODAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
-export const CONFERENCIAS: readonly Conferencia[] = TODAS.map(c => ({ ...c, feitaEm: c.feitaEm ?? FEITAS[c.id] ?? null }))
+/**
+ * Conferências vencidas sem prova em 22/10 (37; lista em .superpowers/sdd/a5/conferencias-vencidas-22-10.md), reabertas por
+ * decisão do dono (23/10, fecho da A5): o vencimento passa a contar de REABERTAS_EM e elas saem do vermelho até lá. Quem as faz
+ * é o handoff de acompanhamento da A5; com prova, o feitaEm vai em FEITAS.
+ */
+export const REABERTAS_EM = '2026-10-27'
+export const REABERTAS: ReadonlySet<string> = new Set([
+  'e6-retrato',
+  'e10-i4',
+  'e10-d0',
+  'e10-cms-1',
+  'e5a-d0',
+  'e16-d1',
+  'e16-k1',
+  'e8-primeira-execucao',
+  'e10-d1',
+  'e5a-ri-d0',
+  'e17d2-d0',
+  'e1e2-d3',
+  'e14-d1',
+  'e5a-ri-d1-sete-dias',
+  'e15-np-d3',
+  'e17d2-d1',
+  'e17d2-poda-p1',
+  'e9-d0',
+  'e6-p3-d1',
+  'e8-tres-dias',
+  'e8-tempo-real',
+  'e10-miniaturas',
+  'e5a-comentarios-d0',
+  'e11-d1',
+  'e9-d1',
+  'i7-k6-d3',
+  'e7-l1-d7',
+  'e5a-aviso-contagem',
+  'x3-d1',
+  'e1e2-d7',
+  'e15-atraso-d7',
+  'e7-l2-d7',
+  'e20-tamanho-d8',
+  'e1e2-d8',
+  'e10-d7',
+  'e5a-d7',
+  'e11-d5',
+])
+
+export const CONFERENCIAS: readonly Conferencia[] = TODAS.map(c => {
+  const feitaEm = c.feitaEm ?? FEITAS[c.id] ?? null
+  return feitaEm === null && REABERTAS.has(c.id) ? { ...c, feitaEm, reabertaEm: REABERTAS_EM } : { ...c, feitaEm }
+})
 
 const FMT_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
 /** O dia de São Paulo (AAAA-MM-DD) do instante dado. */
@@ -633,13 +684,13 @@ export function hojeSP(agora: Date = new Date()): string {
 const emDias = (dia: string): number => Date.UTC(Number(dia.slice(0, 4)), Number(dia.slice(5, 7)) - 1, Number(dia.slice(8, 10))) / 86_400_000
 
 /** Dias de calendário entre a data devida e `hoje`. 0 = é hoje; 1 = venceu ontem; negativo = ainda não chegou. */
-export function diasDeAtraso(hoje: string, c: Pick<Conferencia, 'data'>): number {
-  return Math.round(emDias(hoje) - emDias(c.data))
+export function diasDeAtraso(hoje: string, c: Pick<Conferencia, 'data' | 'reabertaEm'>): number {
+  return Math.round(emDias(hoje) - emDias(c.reabertaEm ?? c.data))
 }
 
 /** Vencida = a data já passou (o próprio dia ainda não conta) e ninguém preencheu `feitaEm`. */
 export function conferenciasVencidas(hoje: string, lista: readonly Conferencia[] = CONFERENCIAS): Conferencia[] {
-  return lista.filter(c => c.feitaEm === null && c.data < hoje)
+  return lista.filter(c => c.feitaEm === null && (c.reabertaEm ?? c.data) < hoje)
 }
 
 /** As vencidas há mais de `DIAS_ATE_O_VERMELHO` dias: as que deixam o cron vermelho. */
