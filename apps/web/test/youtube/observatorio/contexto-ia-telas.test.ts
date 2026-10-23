@@ -83,8 +83,10 @@ const noDisco = pastasComPagina(COMPETITORS)
 
 describe('registro de telas (TELAS_IA)', () => {
   it('os onze ids são os da lista do spec', () => {
-    expect(Object.keys(TELAS_IA).sort()).toEqual([...ONZE_IDS].sort())
+    // F2 T8: a décima segunda, `sugestoes`, não vem do mockup 22 (nasce pelo Cowork e pelo Claude Code; a página chega na F3)
+    expect(Object.keys(TELAS_IA).sort()).toEqual([...ONZE_IDS, 'sugestoes'].sort())
     expect(ONZE_IDS).toHaveLength(11)
+    expect(TELAS_IA.sugestoes).toMatchObject({ estado: 'existe', rota: null, pedeId: false })
   })
 
   it('ritmo segue em espera_a_tela e sem rota; a fila saiu com a Tarefa 16 e as duas próprias com as Tarefas 7a e 7b', () => {

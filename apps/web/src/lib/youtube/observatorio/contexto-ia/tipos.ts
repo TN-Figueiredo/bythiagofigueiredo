@@ -2,7 +2,7 @@
 // A pasta inteira é pura (sem `server-only`, sem `next/*`, sem Supabase, sem `fetch`, sem relógio); a única exceção é `registrar-acesso.ts`.
 
 export type TelaId =
-  | 'canais' | 'canal' | 'video' | 'comparar' | 'outliers' | 'insights' | 'mudancas' | 'fila' | 'canal-proprio' | 'video-proprio' | 'ritmo'
+  | 'canais' | 'canal' | 'video' | 'comparar' | 'outliers' | 'insights' | 'mudancas' | 'fila' | 'canal-proprio' | 'video-proprio' | 'ritmo' | 'sugestoes'
 
 export type Celula =
   // `origem` é o caminho CONCRETO da folha no modelo, com o índice: 'pack.canais[2].numeros.medianaViews'
