@@ -60,10 +60,10 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T11: resposta do dia 14 (banco)', (
   const PV_MS = () => Date.now() - 3_600_000
   /** Versão de título em `yt_own_video_versions` (a que a Data API viu), `diasAntes` dias antes da primeira_vista. */
   let seqVersao = 0
-  const versao = async (titulo: string, diasAntes: number, origin = 'linha_de_base'): Promise<void> => {
+  const versao = async (titulo: string, diasAntes: number, origin = 'linha_de_base', evento = 'rotacao', quandoIso?: string): Promise<void> => {
     const canal = String((await pg.query('select channel_id from public.youtube_videos where id = $1', [videoId])).rows[0].channel_id)
-    const quando = new Date(PV_MS() - diasAntes * 86_400_000 - (seqVersao++) * 1000).toISOString()
-    const extra = origin === 'ab_lab' ? { precision: 'min', evento: 'rotacao' } : { precision: origin === 'linha_de_base' ? 'first' : '1d', evento: null }
+    const quando = quandoIso ?? new Date(PV_MS() - diasAntes * 86_400_000 - (seqVersao++) * 1000).toISOString()
+    const extra = origin === 'ab_lab' ? { precision: 'min', evento } : { precision: origin === 'linha_de_base' ? 'first' : '1d', evento: null }
     await pg.query(`insert into public.yt_own_video_versions (youtube_video_id, site_id, channel_id, field, value_text, value_hash, first_day_pt, last_day_pt,
         first_seen_at, last_seen_at, window_precision, origin, ab_event, is_current, window_start, window_end)
       values ($1, $2, $3, 'title', $4, $5, ($6::timestamptz at time zone 'America/Sao_Paulo')::date, ($6::timestamptz at time zone 'America/Sao_Paulo')::date, $6, $6, $7, $8, $9, false,
@@ -230,6 +230,56 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T11: resposta do dia 14 (banco)', (
       await versao('A', 3, 'ab_lab')
       expect(await resp(a, 'venceu_original', null, 'B')).toEqual({ ok: false, erro: 'variante_invalida' })
       expect((await linha(a.id)).resposta_dono).toBeNull()
+    })
+    it('I-1: título de vencedor (ou restauro) aplicado pelo Lab antes da primeira_vista conta como título de antes; rotação do Lab não conta', async () => {
+      await versao('O', 9); await versao('W', 3, 'ab_lab', 'vencedor')
+      const a = await derivadaLinha(['X', 'W'])
+      expect(await resp(a, 'venceu_original', null, 'W')).toEqual({ ok: true, conflito: null })
+      expect(await linha(a.id)).toMatchObject({ variante_vencedora: 1, vencedor_titulo: 'W', vencedor_fonte: 'dono' })
+      await pg.query('delete from public.ab_native_tests where id = $1', [a.id])
+      await versao('R', 1, 'ab_lab', 'restauro')
+      const r = await derivadaLinha(['X', 'R'])
+      expect(await resp(r, 'venceu_original', null, 'R')).toEqual({ ok: true, conflito: null })
+    })
+    it('I-1: a rotação do Lab, mesmo a mais recente antes da primeira_vista, não vira título de antes', async () => {
+      await versao('O', 9); await versao('Rot', 1, 'ab_lab', 'rotacao')
+      const a = await derivadaLinha(['X', 'Rot'])
+      // o original é O (a rotação não conta): 'Rot' não é a versão 1, a tela relê
+      expect(await resp(a, 'venceu_original', null, 'Rot')).toEqual({ ok: false, erro: 'estado_mudou' })
+      await pg.query('delete from public.ab_native_tests where id = $1', [a.id])
+      const b = await derivadaLinha(['X', 'O'])
+      expect(await resp(b, 'venceu_original', null, 'O')).toEqual({ ok: true, conflito: null })
+    })
+    it('fronteira: versão com first_seen_at IGUAL a primeira_vista conta; dois dias depois não', async () => {
+      const pv = new Date(PV_MS()).toISOString()
+      await versao('Igual', 0, 'linha_de_base', 'rotacao', pv)
+      await versao('Depois', 0, 'linha_de_base', 'rotacao', new Date(Date.parse(pv) + 2 * 86_400_000).toISOString())
+      const a = await derivadaLinha(['X', 'Igual'], { primeira_vista: pv })
+      expect(await resp(a, 'venceu_original', null, 'Igual')).toEqual({ ok: true, conflito: null })
+    })
+    it('resposta que não é venceu_*: não consulta o título de antes', async () => {
+      await versao('A', 3)
+      const cli = clienteServico()
+      const alvos: string[] = []
+      const orig = cli.from.bind(cli)
+      vi.spyOn(cli, 'from').mockImplementation(((t: string) => { alvos.push(t); return orig(t) }) as typeof cli.from)
+      const mod = await import('@/lib/youtube/teste-youtube/nativo/resposta')
+      const d = await derivadaLinha(['B', 'A'])
+      const r = await mod.responderDia14({ sb: cli, siteId, userId: ctx.userId, registroId: d.id, lido: d.updated_at, resposta: 'nao_vi', n: null, agora: new Date() })
+      vi.restoreAllMocks()
+      expect(r).toEqual({ ok: true, conflito: null })
+      expect(alvos.filter((t) => t === 'yt_own_video_versions')).toHaveLength(0)
+    })
+    it('I-2: duas abas com renumeração: a mesma (resposta, n) com OUTRO título -> estado_mudou, linha intacta; o mesmo título -> ok', async () => {
+      await versao('A', 3)
+      const a = await derivadaLinha(['B', 'C'])
+      expect(await resp(a, 'venceu_nova', 2, 'C')).toEqual({ ok: true, conflito: null }) // aba 1: C era o n=2
+      await pg.query(`update public.ab_native_tests set variantes_titulo = '["B","C","A"]'::jsonb where id = $1`, [a.id])
+      const gravada = await linha(a.id)
+      // aba 2 relida: A, B, C; toca "B ficou" = n=2 e tituloVisto B
+      expect(await resp({ id: a.id, updated_at: gravada.updated_at }, 'venceu_nova', 2, 'B')).toEqual({ ok: false, erro: 'estado_mudou' })
+      expect(await linha(a.id)).toEqual(gravada)
+      expect(await resp({ id: a.id, updated_at: gravada.updated_at }, 'venceu_nova', 2, 'C')).toEqual({ ok: true, conflito: null })
     })
     it('usa a versão mais recente até primeira_vista, não a de hoje', async () => {
       await versao('Velho', 9); await versao('A', 3); await versao('Depois', -2)

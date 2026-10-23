@@ -78,7 +78,7 @@ const AGORA = new Date('2026-10-21T12:00:00.000Z')
 const base = { siteId: 's1', userId: 'u1', registroId: 'r1', lido: 'L0', agora: AGORA }
 const linha = (o: Record<string, unknown> = {}) => ok({
   id: 'r1', estado: 'em_andamento', resposta_dono: null, vencedor_fonte: null, vencedor_titulo: null, confirmado_em: '2026-10-01T00:00:00+00:00',
-  desfecho_motivo: null, variantes: comTitulos, variantes_titulo: null, updated_at: 'L0', ...o,
+  desfecho_motivo: null, variantes: comTitulos, variantes_titulo: null, updated_at: 'L0', youtube_video_id: 'yt1', ...o,
 })
 
 describe('responderDia14', () => {
@@ -128,13 +128,19 @@ describe('responderDia14', () => {
     expect(r.chamadas.find((c) => c.alvo === 'ab_native_tests' && c.metodos.some((m) => m.startsWith('update')))!.metodos.join(' ')).toContain('"vencedor_titulo":"B"')
   })
 
+  it('derivada com resposta que não é venceu_*: não consulta yt_own_video_versions', async () => {
+    const r = roteiro({ ab_native_tests: [linha({ variantes: null, variantes_titulo: ['B', 'A'], primeira_vista: '2026-10-05T00:00:00+00:00' }), ok([{ id: 'r1' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    expect(await responderDia14({ ...base, sb: r.sb, resposta: 'nao_vi', n: null })).toEqual({ ok: true, conflito: null })
+    expect(r.chamadas.some((c) => c.alvo === 'yt_own_video_versions')).toBe(false)
+  })
+
   it('derivada: título de antes lido uma vez (sem Lab, antes de primeira_vista); sem tituloVisto -> estado_mudou; título diferente -> estado_mudou', async () => {
-    const mk = () => roteiro({ ab_native_tests: [linha({ variantes: null, variantes_titulo: ['B', 'A'], primeira_vista: '2026-10-05T00:00:00+00:00' }), ok([{ id: 'r1' }])], yt_own_video_versions: [ok([{ value_text: 'A' }])], notifications: [ok(null)], audit_log: [ok(null)] })
+    const mk = () => roteiro({ ab_native_tests: [linha({ variantes: null, variantes_titulo: ['B', 'A'], primeira_vista: '2026-10-05T00:00:00+00:00' }), ok([{ id: 'r1' }])], yt_own_video_versions: [ok([{ youtube_video_id: 'yt1', value_text: 'A', first_seen_at: '2026-10-04T00:00:00.000Z' }])], notifications: [ok(null)], audit_log: [ok(null)] })
     const a = mk()
     expect(await responderDia14({ ...base, sb: a.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: false, erro: 'estado_mudou' })
     const q = a.chamadas.find((c) => c.alvo === 'yt_own_video_versions')!.metodos.join(' ')
-    expect(q).toContain('neq("origin","ab_lab")')
-    expect(q).toContain('lte("first_seen_at","2026-10-05T00:00:00+00:00")')
+    expect(q).toContain('or("origin.neq.ab_lab,ab_event.in.(vencedor,restauro)")')
+    expect(q).toContain('lte("first_seen_at","2026-10-05T00:00:00.000Z")')
     expect(a.chamadas.some((c) => c.metodos.some((m) => m.startsWith('update')))).toBe(false)
     const b = mk()
     expect(await responderDia14({ ...base, sb: b.sb, resposta: 'venceu_nova', n: 2, tituloVisto: 'C' })).toEqual({ ok: false, erro: 'estado_mudou' })

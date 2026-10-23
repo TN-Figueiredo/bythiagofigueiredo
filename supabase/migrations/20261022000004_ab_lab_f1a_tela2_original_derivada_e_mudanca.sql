@@ -12,8 +12,9 @@ declare def text;
 begin
   select pg_get_constraintdef(oid) into def from pg_constraint
    where conrelid = 'public.ab_native_tests'::regclass and conname = 'ab_native_tests_variante_da_resposta';
-  -- Troca só se falta a constraint ou se ela ainda tem o ramo antigo (variantes is not null no venceu_original).
-  if def is null or def ilike '%variantes IS NOT NULL) AND (variante_vencedora = 1%' then
+  -- Troca sempre que o ramo novo (venceu_original com variante 1, sem exigir variantes) não está lá: falta a constraint, tem o ramo
+  -- antigo ou uma terceira forma. Só não mexe quando já está no formato novo.
+  if def is null or def not ilike '%venceu_original''::text) AND (variante_vencedora = 1)%' then
     alter table public.ab_native_tests drop constraint if exists ab_native_tests_variante_da_resposta;
     alter table public.ab_native_tests add constraint ab_native_tests_variante_da_resposta
       check (variante_vencedora is null or (

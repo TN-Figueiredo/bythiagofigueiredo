@@ -106,7 +106,10 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T1: migration (colunas, CHECKs, ab_
       expect(await tenta({ resposta: 'venceu_original', n: 1 })).toBeNull()
       await pg.query('delete from public.ab_native_tests where site_id = $1', [siteId])
       expect(await tenta({ resposta: 'venceu_original', n: 2 })).toBe('23514')
-      expect(await tenta({ ficha: false, estado: 'sem_desfecho', resposta: 'venceu_original', n: 1 })).toBe('23514')
+      // F1a-tela-2 T1: a derivada passa a aceitar venceu_original com n = 1 (o original é o título de antes); n = 2 segue recusado
+      expect(await tenta({ ficha: false, estado: 'sem_desfecho', resposta: 'venceu_original', n: 1 })).toBeNull()
+      await pg.query('delete from public.ab_native_tests where site_id = $1', [siteId])
+      expect(await tenta({ ficha: false, estado: 'sem_desfecho', resposta: 'venceu_original', n: 2 })).toBe('23514')
       expect(await tenta({ resposta: 'ficou_igual', n: 2 })).toBe('23514')
       expect(await tenta({ ficha: false, resposta: 'venceu_nova', n: 0 })).toBe('23514')
       expect(await tenta({ ficha: false, resposta: 'venceu_nova', n: 4 })).toBe('23514')

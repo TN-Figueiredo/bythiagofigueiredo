@@ -158,3 +158,40 @@ export async function lerVersoes(sb: SupabaseClient, p: PedidoVersoes): Promise<
   }
   return { acesso: 'ok', dado: { canalId, estado, videos: ytIds.map(id => montarVideo(id, porVideo.get(id) ?? [])) } }
 }
+
+export interface PedidoTituloAntes { id: string; youtubeVideoId: string; primeiraVista: string | null }
+
+/**
+ * F1a-tela-2, D-1: título vigente na Data API em `primeira_vista`, por registro de teste nativo, em UMA consulta em lote.
+ * Entram a linha de base, as trocas de fora e do CMS e o que o Lab deixou no ar (`vencedor`, `restauro`); fica de fora só a `rotacao`
+ * do Lab (título passageiro). O corte por `primeira_vista` (inclusive: `first_seen_at` igual conta) é em memória.
+ * Sem pedido com `primeira_vista` não consulta nada. Erro de leitura LANÇA (nunca vira "sem original" em silêncio).
+ * Chave do resultado: `id` do registro. Registro sem versão anterior fica fora do Map.
+ */
+export async function titulosAntesDoTeste(sb: SupabaseClient, siteId: string, pedidos: readonly PedidoTituloAntes[]): Promise<Map<string, string>> {
+  const saida = new Map<string, string>()
+  const validos = pedidos.filter((r) => r.primeiraVista !== null && Number.isFinite(Date.parse(r.primeiraVista)))
+  if (validos.length === 0) return saida
+  const ids = [...new Set(validos.map((r) => r.youtubeVideoId))]
+  const teto = Math.max(...validos.map((r) => Date.parse(r.primeiraVista as string)))
+  const { data, error } = await sb.from('yt_own_video_versions').select('youtube_video_id, value_text, first_seen_at')
+    .eq('site_id', siteId).in('youtube_video_id', ids).eq('field', 'title').eq('pre_registro', false)
+    .or('origin.neq.ab_lab,ab_event.in.(vencedor,restauro)').lte('first_seen_at', new Date(teto).toISOString())
+    .order('first_seen_at', { ascending: false })
+  if (error) throw new Error(`yt_own_video_versions: ${error.message}`)
+  const porVideo = new Map<string, Array<{ em: number; texto: string }>>()
+  for (const l of Array.isArray(data) ? (data as Array<Record<string, unknown>>) : []) {
+    const texto = typeof l.value_text === 'string' ? l.value_text : null
+    const em = Date.parse(String(l.first_seen_at))
+    if (typeof l.youtube_video_id !== 'string' || texto === null || texto.trim() === '' || !Number.isFinite(em)) continue
+    const lista = porVideo.get(l.youtube_video_id) ?? []
+    lista.push({ em, texto })
+    porVideo.set(l.youtube_video_id, lista)
+  }
+  for (const r of validos) {
+    const vista = Date.parse(r.primeiraVista as string)
+    const achada = (porVideo.get(r.youtubeVideoId) ?? []).find((v) => v.em <= vista) // já em ordem decrescente
+    if (achada) saida.set(r.id, achada.texto)
+  }
+  return saida
+}
