@@ -561,6 +561,25 @@ describe('executarAgenda: o fecho, a saúde e o cache', () => {
     expect((c.tarefas as Array<{ estado: string }>).every(t => t.estado === 'nao_devida')).toBe(true)
   })
 
+  describe('extra.acao de uma tarefa vira acao_do_dono da resposta', () => {
+    const comExtra = (extra: unknown) => async (): Promise<ResultadoTarefa> => ({ estado: 'ok', feitas: 0, deixadas: 0, extra })
+    const acao = async (extra: unknown): Promise<string[]> =>
+      (await corpo(await rodarAgenda({ catalogo: catalogoFalso({ leitura_horaria: comExtra(extra) }) }))).acao_do_dono as string[]
+    it('frases válidas aparecem, sem repetir', async () => {
+      const a = await acao({ acao: ['1 sugestão do nicho não chegou ao sino', '1 sugestão do nicho não chegou ao sino', 'outra'] })
+      expect(a).toEqual(expect.arrayContaining(['1 sugestão do nicho não chegou ao sino', 'outra']))
+      expect(a.filter((f) => f.startsWith('1 sugestão'))).toHaveLength(1)
+    })
+    it('forma inválida (não-array, itens não-string, vazios) não aparece', async () => {
+      expect(await acao({ acao: 'texto solto' })).toEqual([])
+      expect(await acao({ acao: [1, null, {}, '', '   '] })).toEqual([])
+    })
+    it('tarefa sem extra.acao não muda nada', async () => {
+      expect(await acao({ outra: ['x'] })).toEqual([])
+      expect(await acao(undefined)).toEqual([])
+    })
+  })
+
   describe('sincronizou canal pela agenda: o cache de cada site é invalidado', () => {
     const comLote = (synced: number, siteIds: string[]) => async (): Promise<ResultadoTarefa> => ({ estado: 'ok', feitas: synced, deixadas: 0, extra: lote({ synced, siteIds }) })
     it('synced 2 em dois sites: invalidateObservatory em cada um e revalidatePath', async () => {

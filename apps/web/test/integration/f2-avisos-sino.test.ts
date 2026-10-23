@@ -16,9 +16,10 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn(), addBreadcrumb: vi.fn() }))
 
-import { enviarAvisosDoNicho } from '@/lib/youtube/observatorio/sinais/avisos'
+import { enviarAvisosDoNicho, type ResultadoNicho } from '@/lib/youtube/observatorio/sinais/avisos'
 import { getSiteAdminUserIds } from '@/lib/notifications/get-site-admin-users'
 import { rodarAvisos } from '@/lib/youtube/agenda/tarefas/avisos-pendentes'
+import { roteiro, ok } from '../helpers/banco-roteirizado'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -59,14 +60,14 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await pg.query('delete from public.niche_signals where site_id = $1', [site])
     await pg.query('delete from public.niche_signals_estado where site_id = $1', [site])
   }
-  const rodar = (): Promise<{ enviados: number; resumidos: number; falhas: number }> => enviarAvisosDoNicho(sb(), new Date())
+  // Isolado no próprio site: o banco de integração é compartilhado e o outbox, por padrão, visita todos.
+  const rodar = (): Promise<ResultadoNicho> => enviarAvisosDoNicho(sb(), new Date(), { sites: [site] })
+  const nichoDoSite = (s: SupabaseClient, a: Date, semTempo: () => boolean): Promise<ResultadoNicho> => enviarAvisosDoNicho(s, a, { sites: [site], semTempo })
 
   beforeAll(async () => {
     pg = new Client({ connectionString: PG_URL }); await pg.connect()
     const s = await criarSite(pg)
     site = s.site; org = s.org
-    // O outbox visita TODO site com sinal: sobras de outros testes do banco de integração não podem entrar nas contagens deste arquivo.
-    await pg.query('update public.niche_signals set notificado_em = now() where site_id <> $1 and notificado_em is null', [site])
     for (let i = 0; i < 2; i++) {
       const u = await criarUsuario(pg); usuarios.push(u)
       await pg.query(`insert into public.organization_members (org_id, user_id, role) values ($1, $2, 'org_admin')`, [org, u])
@@ -88,7 +89,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(false)
     const ids = [await sinal({ como: 'individual' }), await sinal({ como: 'resumo' }), await sinal({ kind: 'parecido', como: 'resumo' }), await sinal(), await sinal(), await sinal()]
     const r = await rodar()
-    expect(r).toEqual({ enviados: 0, resumidos: 6, falhas: 0 })
+    expect(r).toEqual({ enviados: 0, resumidos: 6, falhas: 0, sem_tempo: 0 })
     expect(await notifs('nicho:%')).toEqual([])
     const resumos = await notifs('nicho-resumo:%')
     expect(new Set(resumos).size).toBe(1)
@@ -100,7 +101,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     // o apagamento das notificações não reativa o baseline: uma linha nova sai como individual
     await pg.query('delete from public.notifications where site_id = $1', [site])
     await sinal({ forca: 50 })
-    expect(await rodar()).toEqual({ enviados: 1, resumidos: 0, falhas: 0 })
+    expect(await rodar()).toEqual({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 0 })
     expect((await notifs('nicho:%')).length).toBe((await getSiteAdminUserIds(site)).length)
   })
 
@@ -117,7 +118,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
   it('sinal dispensado antes da passada: nenhuma notificação', async () => {
     await estado(true)
     await sinal({ status: 'dispensado' })
-    expect(await rodar()).toEqual({ enviados: 0, resumidos: 0, falhas: 0 })
+    expect(await rodar()).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 })
     expect(await notifs('nicho%')).toEqual([])
   })
 
@@ -151,7 +152,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     expect(await sino(usuarios[0]!)).toBe(1)
     await pg.query(`update public.niche_signals set expires_at = now() - interval '1 day' where id = $1`, [id])
     const c: ContextoTarefa = { t0: Date.now(), agora: () => Date.now(), apiKey: '', sb: sb(), linhas: null }
-    const out = await rodarAvisos(c)
+    const out = await rodarAvisos(c, { nicho: nichoDoSite })
     expect(out.detalhe).toMatchObject({ nicho_enviados: 0 })
     expect(await sino(usuarios[0]!)).toBe(0)
   })
@@ -169,8 +170,8 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
   it('tabela vazia de pendentes com a flag apagada: a parte do nicho roda e devolve nicho_enviados 0', async () => {
     delete process.env.OBS_SINAIS_NICHO
     const c: ContextoTarefa = { t0: Date.now(), agora: () => Date.now(), apiKey: '', sb: sb(), linhas: null }
-    const out = await rodarAvisos(c)
-    expect(out.detalhe).toMatchObject({ nicho_enviados: 0, nicho_resumidos: 0, nicho_falhas: 0 })
+    const out = await rodarAvisos(c, { nicho: nichoDoSite })
+    expect(out.detalhe).toMatchObject({ nicho_enviados: 0, nicho_resumidos: 0, nicho_falhas: 0, sem_tempo: 0 })
     expect(out.motivo).not.toBe('nicho_falhou')
   })
 
@@ -195,7 +196,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(true)
     const id = await sinal()
     const falha = vi.fn().mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] })
-    expect(await enviarAvisosDoNicho(sb(), new Date(), { fanOut: falha })).toMatchObject({ enviados: 0, falhas: 0 })
+    expect(await enviarAvisosDoNicho(sb(), new Date(), { fanOut: falha, sites: [site] })).toMatchObject({ enviados: 0, falhas: 0, sem_tempo: 0 })
     expect((await linha(id)).notificacao_tentativas).toBe(1)
     expect((await linha(id)).notificado_em).toBeNull()
     expect(await rodar()).toMatchObject({ enviados: 1 })
@@ -207,20 +208,24 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(true)
     const id = await sinal()
     const falha = vi.fn().mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] })
-    const task = (em: number) => rodarAvisos({ t0: em, agora: () => em, apiKey: '', sb: sb(), linhas: null }, { nicho: (s, a) => enviarAvisosDoNicho(s, a, { fanOut: falha }) })
+    // A parte nativa vem de um banco roteirizado vazio (o banco de integração tem linhas alheias): só o nicho é real.
+    const task = (em: number) => {
+      const nativo = roteiro({ ab_native_tests: [ok([]), ok([])] }).sb
+      const real = sb()
+      const misto = { from: (t: string) => (t === 'ab_native_tests' ? nativo.from(t) : real.from(t)), rpc: real.rpc.bind(real) } as unknown as SupabaseClient
+      return rodarAvisos({ t0: em, agora: () => em, apiKey: '', sb: misto, linhas: null }, { nicho: (s, a, t) => enviarAvisosDoNicho(s, a, { fanOut: falha, sites: [site], semTempo: t }) })
+    }
     const t0 = Date.now()
-    const r1 = await task(t0); const r2 = await task(t0); expect(r1.estado).not.toBe('erro'); expect(r2.estado).not.toBe('erro')
+    const r1 = await task(t0); const r2 = await task(t0); expect(r1.estado).toBe('ok'); expect(r2.estado).toBe('ok')
     const r3 = await task(t0)
     expect(r3).toMatchObject({ estado: 'erro', motivo: 'nicho_falhou', detalhe: { nicho_falhas: 1 } })
     expect((await linha(id)).notificacao_falhou_em).not.toBeNull()
     const chamadas = falha.mock.calls.length
     const r4 = await task(t0)
     expect(falha.mock.calls.length).toBe(chamadas)
-    // o banco de integração é compartilhado: a parte nativa pode estar `parcial` por causa de outras linhas; o nicho não pode estar vermelho
-    expect(r4.estado).not.toBe('erro')
-    expect(r4.motivo).not.toBe('nicho_falhou')
-    expect(r4.extra).toEqual({ acao: ['1 sugestão do nicho não chegou ao sino'] })
+    expect(r4).toMatchObject({ estado: 'ok', extra: { acao: ['1 sugestão do nicho não chegou ao sino'] } })
     const r8 = await task(t0 + 8 * DIA)
+    expect(r8).toMatchObject({ estado: 'ok' })
     expect(r8.extra).toBeUndefined()
   })
 })
