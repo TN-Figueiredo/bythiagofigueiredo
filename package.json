@@ -43,7 +43,7 @@
     "@supabase/supabase-js": "2.103.2",
     "vitest": "3.2.6",
     "tmp": "^0.2.6",
-    "dompurify": "^3.4.11",
+    "dompurify": "3.4.17",
     "@tiptap/core": "3.30.6",
     "@tiptap/extension-bubble-menu": "3.30.6",
     "@tiptap/extension-floating-menu": "3.30.6"
