@@ -103,6 +103,14 @@ describe('D2: contador da aba com ⚠ numa linha', () => {
   })
 })
 
+describe('D2b: a aba Sugestões com contador é trazida para a vista na trilha', () => {
+  it('tabs.tsx rola a trilha (não a página) até o fim da aba Sugestões', () => {
+    const src = fs.readFileSync(path.join(DIR, '_chrome/tabs.tsx'), 'utf8')
+    expect(src).toMatch(/data-tab="sugestoes"/)
+    expect(src).toMatch(/r > tb\.scrollLeft \+ tb\.clientWidth\) tb\.scrollLeft = r - tb\.clientWidth/)
+  })
+})
+
 describe('D8: Tentar de novo sem rede não navega', () => {
   it('sondagem falha -> aviso na tela e nenhum router.refresh', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))

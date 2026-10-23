@@ -23,6 +23,12 @@ export function Tabs({ tabs }: { tabs: ChromeView['tabs'] }) {
       if (l < tb.scrollLeft) tb.scrollLeft = l
       else if (r > tb.scrollLeft + tb.clientWidth) tb.scrollLeft = r - tb.clientWidth + 8
     }
+    // plano B (D2b): a aba Sugestões com contador nunca fica cortada pelo fim da rolagem da trilha
+    const sug = tb.querySelector<HTMLElement>('[data-tab="sugestoes"]')
+    if (sug && sug.querySelector('[data-count]') && !cur) {
+      const l = sug.offsetLeft - tb.offsetLeft, r = l + sug.offsetWidth
+      if (r > tb.scrollLeft + tb.clientWidth) tb.scrollLeft = r - tb.clientWidth + 8
+    }
     fades()
     tb.addEventListener('scroll', fades, { passive: true })
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(fades) : null

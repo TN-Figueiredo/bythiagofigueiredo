@@ -207,7 +207,8 @@ export function montarVistaDaLista(e: {
 }): VistaDaLista {
   const { lista, amostra, agora, filtro, limite } = e
   const q = quando(lista.computado_em, agora)
-  const calc = q === null ? '' : q.hoje ? `hoje, ${q.hora}` : `${q.data}, ${q.hora}`
+  // Lista inteira velha: a data fica só no cabeçalho, as linhas não a repetem.
+  const calc = q === null || lista.desatualizado ? '' : q.hoje ? `hoje, ${q.hora}` : `${q.data}, ${q.hora}`
   const semVideoNenhum = lista.contagens.proprios === 0
   const itens = lista.itens.slice(0, limite)
   const linhas = comCheio(itens.map((it) => montarLinha(it, amostra, calc, semVideoNenhum, agora)), filtro)
