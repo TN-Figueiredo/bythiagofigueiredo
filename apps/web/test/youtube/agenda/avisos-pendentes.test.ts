@@ -8,7 +8,7 @@ import { roteiro, ok, type Res } from '../../helpers/banco-roteirizado'
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 // A parte do nicho tem testes próprios (avisos.test.ts); aqui ela é um dublê que não faz nada.
-const rodarAvisos = (c: ContextoTarefa, d: DepsAvisos = {}) => rodarAvisosReal(c, { nicho: async () => ({ enviados: 0, resumidos: 0, falhas: 0 }), ...d })
+const rodarAvisos = (c: ContextoTarefa, d: DepsAvisos = {}) => rodarAvisosReal(c, { nicho: async () => ({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 }), ...d })
 const AGORA = Date.parse('2026-12-20T12:00:00.000Z')
 const dias = (n: number): string => new Date(AGORA - n * 86_400_000).toISOString()
 const ctx = (sb: ContextoTarefa['sb'], em: number = AGORA): ContextoTarefa => ({ t0: em, agora: () => em, apiKey: '', sb, linhas: null })

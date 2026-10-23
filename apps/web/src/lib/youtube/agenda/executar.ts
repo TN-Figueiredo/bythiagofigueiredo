@@ -61,7 +61,7 @@ function acaoDasTarefas(tarefas: ReadonlyArray<{ extra?: unknown }>): string[] {
   for (const t of tarefas) {
     const e = t.extra
     if (typeof e !== 'object' || e === null || !('acao' in e) || !Array.isArray(e.acao)) continue
-    for (const f of e.acao) if (typeof f === 'string') out.push(f)
+    for (const f of e.acao) if (typeof f === 'string' && f.trim().length > 0 && !out.includes(f)) out.push(f)
   }
   return out
 }

@@ -13,7 +13,7 @@ const LIMITE_LINHAS = 500
 
 interface Linha extends LinhaAviso { site_id: string; video_id: string; youtube_video_id: string; notificacao_tentativas: number; updated_at: string }
 type FanOut = typeof fanOutToSiteAdminsDetailed
-export interface DepsAvisos { fanOut?: FanOut; nicho?: (sb: ContextoTarefa['sb'], agora: Date) => Promise<ResultadoNicho> }
+export interface DepsAvisos { fanOut?: FanOut; nicho?: (sb: ContextoTarefa['sb'], agora: Date, semTempo: () => boolean) => Promise<ResultadoNicho> }
 
 const PERGUNTA = 'Qual versão venceu no Studio?'
 const TITULO_MAX = 80
@@ -37,7 +37,7 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
   const agora = new Date(c.agora())
   let nicho: ResultadoNicho | null = null
   try {
-    nicho = await (deps.nicho ?? enviarAvisosDoNicho)(c.sb, agora)
+    nicho = await (deps.nicho ?? ((sb, a, semTempo) => enviarAvisosDoNicho(sb, a, { semTempo })))(c.sb, agora, () => c.agora() >= c.t0 + BANCO_ATE_MS)
   } catch (e) {
     Sentry.captureMessage('avisos_pendentes: parte do nicho falhou: ' + (e instanceof Error ? e.name : typeof e), { level: 'warning', tags: { area: 'sinais-nicho' } })
   }
@@ -48,11 +48,14 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
   } catch { /* sem a contagem não há frase; a falha do nicho já aparece no estado */ }
   const detalhe: Record<string, number> = {
     ...(nativo.detalhe ?? {}),
-    nicho_enviados: nicho?.enviados ?? 0, nicho_resumidos: nicho?.resumidos ?? 0, nicho_falhas: nicho?.falhas ?? 0,
+    nicho_enviados: nicho?.enviados ?? 0, nicho_resumidos: nicho?.resumidos ?? 0, nicho_falhas: nicho?.falhas ?? 0, nicho_sem_tempo: nicho?.sem_tempo ?? 0,
   }
   const base: ResultadoTarefa = { ...nativo, detalhe, ...(acao.length > 0 ? { extra: { acao } } : {}) }
   const nichoFalhou = nicho === null || nicho.falhas > 0
-  if (nichoFalhou && nativo.estado !== 'erro') return { ...base, estado: 'erro', motivo: 'nicho_falhou' }
+  // O erro do nicho não apaga o `sobrou` do nativo: o código combinado diz as duas coisas (o detalhe guarda os contadores de ambos).
+  if (nichoFalhou && nativo.estado !== 'erro') return { ...base, estado: 'erro', motivo: nativo.motivo === 'sobrou' ? 'sobrou_e_nicho_falhou' : 'nicho_falhou' }
+  // Prazo acabou antes de visitar todos os sites: nunca silencioso. Se o nativo já é parcial/erro, o motivo dele fica e o número está em `nicho_sem_tempo`.
+  if (nicho !== null && nicho.sem_tempo > 0 && nativo.estado === 'ok') return { ...base, estado: 'parcial', motivo: 'nicho_sem_tempo' }
   return base
 }
 

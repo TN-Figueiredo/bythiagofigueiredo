@@ -13,7 +13,8 @@ const LIMITE_PENDENTES = 500
 const SP_OFFSET_MS = 3 * 3_600_000
 
 export interface PendenteAviso { id: string; forca: number; notificar_como: 'individual' | 'resumo'; notificacao_tentativas: number }
-export interface ResultadoNicho { enviados: number; resumidos: number; falhas: number }
+/** `sem_tempo`: quantos sites ficaram sem visita porque o prazo da tarefa acabou (0 = todos visitados). */
+export interface ResultadoNicho { enviados: number; resumidos: number; falhas: number; sem_tempo: number }
 
 /** Pura: os `teto − jaEnviados` de maior `forca` entre os `individual` vão um a um; o resto e todos os `resumo` vão no resumo do dia. */
 export function planejarAvisos(pendentes: ReadonlyArray<PendenteAviso>, jaEnviadosHojeIndividual: number, teto: number): { individuais: string[]; resumo: string[] } {
@@ -65,14 +66,23 @@ async function enviar(
   }
 }
 
-export async function enviarAvisosDoNicho(sb: SupabaseClient, agora: Date, deps: { fanOut?: typeof fanOutToSiteAdminsDetailed } = {}): Promise<ResultadoNicho> {
+export interface DepsNicho {
+  fanOut?: typeof fanOutToSiteAdminsDetailed
+  /** Só estes sites (default: todos os de `niche_signals` e `competitor_channels`). */
+  sites?: readonly string[]
+  /** `true` = o prazo da tarefa acabou: para entre sites e devolve o que fez, com `sem_tempo`. */
+  semTempo?: () => boolean
+}
+
+export async function enviarAvisosDoNicho(sb: SupabaseClient, agora: Date, deps: DepsNicho = {}): Promise<ResultadoNicho> {
   const fanOut = deps.fanOut ?? fanOutToSiteAdminsDetailed
   const iso = agora.toISOString()
-  const sites = new Set<string>([...await sitesDe(sb, 'niche_signals'), ...await sitesDe(sb, 'competitor_channels')])
-  const total: ResultadoNicho = { enviados: 0, resumidos: 0, falhas: 0 }
+  const sites = deps.sites !== undefined ? new Set<string>(deps.sites) : new Set<string>([...await sitesDe(sb, 'niche_signals'), ...await sitesDe(sb, 'competitor_channels')])
+  const total: ResultadoNicho = { enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 }
   let erro: Error | null = null
 
   for (const siteId of sites) {
+    if (deps.semTempo?.()) { total.sem_tempo++; continue }
     try {
       const r = await doSite(sb, siteId, agora, iso, fanOut)
       total.enviados += r.enviados; total.resumidos += r.resumidos; total.falhas += r.falhas
@@ -85,7 +95,7 @@ export async function enviarAvisosDoNicho(sb: SupabaseClient, agora: Date, deps:
 }
 
 async function doSite(sb: SupabaseClient, siteId: string, agora: Date, iso: string, fanOut: typeof fanOutToSiteAdminsDetailed): Promise<ResultadoNicho> {
-  const out: ResultadoNicho = { enviados: 0, resumidos: 0, falhas: 0 }
+  const out: ResultadoNicho = { enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 }
   // Primeiro a expiração (derruba do sino o vencido e o dispensado), só depois os pendentes.
   const exp = await sb.rpc('niche_signals_expirar', { p_site: siteId })
   if (exp.error) throw new Error('nicho: niche_signals_expirar falhou')
