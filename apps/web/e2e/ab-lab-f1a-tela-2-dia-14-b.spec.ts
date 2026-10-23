@@ -127,7 +127,7 @@ const CONFLITOS: Conflito[] = [
   { nome: 'títulos hostis de 90 letras', chave: 'c_hostil', noAr: 'A', disse: 'B', tituloNoAr: TB.q90, tituloDisse: TB.r90 },
 ]
 for (const c of CONFLITOS) {
-  test(`conflito ${c.nome}: linha, "Ver as duas", cartões lado a lado, um só selo "Respostas diferentes", h3 só para leitor de tela e com o foco`, async ({ page, context }, info) => {
+  test(`conflito ${c.nome}: linha, "Ver as duas", cartões lado a lado, um só selo "Respostas diferentes", h3 só para leitor de tela (sem foco) e foco no p.cn-meta visível`, async ({ page, context }, info) => {
     test.skip(!soNoProjeto(info), 'texto exato: um projeto basta')
     const a = await prepararB(page, context, info, [c.chave])
     const banco = await lerBanco(a.m.v[c.chave]!.id)
@@ -143,12 +143,14 @@ for (const c of CONFLITOS) {
     // um só selo: o da linha; o do bloco não existe e a frase da linha fica (brief + ruling I3)
     expect(await li.getByText(FRASES.conflito.selo, { exact: true }).count(), 'um só selo "Respostas diferentes" com o bloco aberto').toBe(1)
     expect(await bloco.locator('.cn-d14-res').count(), 'o bloco não desenha o próprio selo').toBe(0)
-    // h3: só para leitor de tela (cn-sr), com o texto da frase e o foco
+    // h3: só para leitor de tela (cn-sr), com o texto da frase; NÃO recebe foco (N-2): o foco cai no p.cn-meta visível
     const h3 = bloco.locator('h3')
     await expect(h3).toHaveClass(/cn-sr/)
     await expect(h3).toHaveText(c.noAr ? FRASES.conflito.titulo(c.noAr, c.disse) : FRASES.conflito.tituloSemPar(c.disse))
-    const foco = await page.evaluate(() => { const e = document.activeElement as HTMLElement; return { tag: e.tagName, foco: e.hasAttribute('data-foco-bloco'), texto: e.textContent } })
-    expect(foco, 'foco no h3 cn-sr do conflito').toMatchObject({ tag: 'H3', foco: true })
+    const foco = await page.evaluate(() => { const e = document.activeElement as HTMLElement; const r = e.getBoundingClientRect(); return { tag: e.tagName, classe: e.className, foco: e.hasAttribute('data-foco-bloco'), sr: !!e.closest('.cn-sr'), visivel: r.width > 1 && r.height > 1, texto: e.textContent } })
+    expect(foco, 'foco no p.cn-meta visível do conflito (não no h3 cn-sr)').toMatchObject({ tag: 'P', foco: true, sr: false, visivel: true })
+    expect(foco.classe).toContain('cn-meta')
+    expect(await h3.getAttribute('tabindex'), 'o h3 cn-sr não é focável').toBeNull()
     expect(await textoDe(bloco.locator('p.cn-meta').first())).toBe(normalizar(FRASES.conflito.meta))
     // cartões
     const quemDisse = new Date(banco.resposta_mudada_em ?? banco.respondido_em!)

@@ -376,8 +376,9 @@ describe('ListaCaminho: bloco na própria linha', () => {
     fireEvent.click(within(li()).getByRole('button', { name: /B venceu/ }))
     await waitFor(() => expect(responder).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(atualizarCtx).toHaveBeenCalled())
+    // Espera por condição (o foco é movido por efeito depois da chamada; assert síncrono era a instabilidade).
+    await waitFor(() => expect(document.activeElement).toBe(li().querySelector('.cn-d14-q3')))
     const q3 = li().querySelector('.cn-d14-q3') as HTMLElement
-    expect(document.activeElement).toBe(q3)
     expect(q3.getAttribute('tabindex')).toBe('-1')
     await waitFor(() => expect(screen.getByTestId('anuncio-dia-14').textContent).toBe('Registrado: a versão B ficou no ar.'))
     expect(li().querySelector('[role="status"]')).toBeNull()
