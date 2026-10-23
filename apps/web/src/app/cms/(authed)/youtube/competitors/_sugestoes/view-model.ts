@@ -28,7 +28,10 @@ export interface VistaDaLista {
   n: number | null; calculado: string | null; velho: boolean; resumo: string
   faixa: null | { tipo: 'velho' | 'sino-saiu' | 'erro-com-lista'; titulo: string; texto: string }
   filtro: null | { atual: FiltroDaLista; contagens: { todas: number; destino: number; parecido: number } }
-  linhas: LinhaDaVista[]; totalAlemDoLimite: number | null
+  linhas: LinhaDaVista[]
+  /** Todas as linhas, sem recorte: `filtrarVista` parte sempre daqui. */
+  completas: LinhaDaVista[]
+  totalAlemDoLimite: number | null
   vazio: null | { familia: FamiliaDoVazio; titulo: string; texto: string; topo: string }
 }
 
@@ -114,10 +117,10 @@ function seusDe(it: ItemDeSinal, lugar: string, calc: string, semVideoNenhum: bo
 
 function hrefPrimario(it: ItemDeSinal, forte: Outlier | null): string {
   switch (it.rotulo_acao) {
-    case 'abrir-concorrente': return forte ? `/cms/youtube/competitors/video/${forte.video_id}` : HREF_OUTLIERS
+    case 'abrir-concorrente': return forte ? `/cms/youtube/competitors/video/${encodeURIComponent(forte.video_id)}` : HREF_OUTLIERS
     case 'abrir-seus':
     case 'playlist':
-      return it.proprios_agora && it.proprios_agora.length > 0 ? `${HREF_VIDEOS}?ids=${it.proprios_agora.join(',')}&total=${it.n_proprios ?? it.proprios_agora.length}` : HREF_VIDEOS
+      return it.proprios_agora && it.proprios_agora.length > 0 ? `${HREF_VIDEOS}?ids=${it.proprios_agora.map(encodeURIComponent).join(',')}&total=${it.n_proprios ?? it.proprios_agora.length}` : HREF_VIDEOS
     case 'generico': return HREF_VIDEOS
   }
 }
@@ -157,14 +160,16 @@ function montarLinha(it: ItemDeSinal, amostra: ReadonlyMap<string, AmostraDoVide
   }
 }
 
+const TOPO_NUNCA = 'As sugestões ainda não foram calculadas.'
 const TOPO_AGORA = 'Nenhuma sugestão agora.'
 function vazioDe(l: ListaDeSinais, agora: Date): NonNullable<VistaDaLista['vazio']> {
-  const m = l.motivoVazio
+  // Sem data de cálculo e sem motivo: nunca rodou (nunca 0 inventado).
+  const m = l.motivoVazio ?? (l.computado_em === null ? 'nunca-calculado' : null)
   const texto = textoDoVazio(m ?? '', l.contagens, agora, l.calculoLigado)
   switch (m) {
     case 'tudo-respondido': return { familia: 'resolvido', topo: 'Nenhuma sugestão aberta.', titulo: 'As últimas sugestões já saíram da lista.', texto }
     case 'nunca-calculado': {
-      const topo = 'As sugestões ainda não foram calculadas.'
+      const topo = TOPO_NUNCA
       if (!l.calculoLigado) return { familia: 'espera', topo, titulo: texto, texto: `Quando for ligado, o 1º cálculo roda depois das ${String(DEFINICAO_SINAIS_DO_NICHO.aPartirDaHoraSP ?? 0).padStart(2, '0')}:00 (Brasília).` }
       return { familia: 'espera', topo, titulo: 'Ainda não houve cálculo.', texto }
     }
@@ -212,20 +217,20 @@ export function montarVistaDaLista(e: {
   const comFiltro = lista.n <= limite && (lista.n > 8 || filtro !== 'todas')
   return {
     n: lista.n,
-    calculado: q === null ? null : q.hoje ? `Calculado hoje às ${q.hora}` : `Calculado em ${q.data}, ${q.hora}`,
+    calculado: vazio && vazio.topo === TOPO_NUNCA ? 'Nunca calculado' : q === null ? null : q.hoje ? `Calculado hoje às ${q.hora}` : `Calculado em ${q.data}, ${q.hora}`,
     velho, resumo, faixa,
     filtro: comFiltro ? { atual: filtro, contagens: contar(linhas) } : null,
-    linhas, totalAlemDoLimite: lista.n > limite ? lista.n : null, vazio,
+    linhas, completas: linhas, totalAlemDoLimite: lista.n > limite ? lista.n : null, vazio,
   }
 }
 
-/** Recorte puro. Parte SEMPRE da vista completa (as linhas filtradas não voltam). Recalcula `cheio` e mantém as contagens. */
+/** Recorte puro. Parte SEMPRE de `completas`, então encadear filtros funciona. Recalcula `cheio` e mantém as contagens. */
 export function filtrarVista(vista: VistaDaLista, filtro: FiltroDaLista): VistaDaLista {
   if (vista.filtro === null) return vista
-  const todas = vista.linhas
+  const todas = vista.completas
   const recorte = comCheio(todas.filter((l) => filtro === 'todas' || l.kind === filtro), filtro === 'todas' ? 'todas' : filtro)
   let vazio = vista.vazio
-  if (todas.length > 0 && !vista.vazio?.familia) {
+  if (todas.length > 0) {
     vazio = recorte.length === 0
       ? { familia: 'calmo', topo: vista.resumo, titulo: filtro === 'destino' ? 'Nenhum destino aberto agora.' : 'Nenhum concorrente aberto agora.', texto: '' }
       : null

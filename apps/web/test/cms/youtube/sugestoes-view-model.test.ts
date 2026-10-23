@@ -7,6 +7,7 @@ vi.mock('@/lib/youtube/observatorio/sinais/regra', async (orig) => {
 })
 
 import { filtrarVista, montarVistaDaLista, resumoDaLista } from '@/app/cms/(authed)/youtube/competitors/_sugestoes/view-model'
+import { textoNuncaCalculado } from '@/lib/youtube/observatorio/sinais/frases'
 import type { ItemDeSinal, ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import type { AmostraDoVideo } from '@/lib/youtube/observatorio/sinais/amostra'
 
@@ -185,6 +186,25 @@ describe('quarenta', () => {
     expect(oito.n).toBe(8)
     expect(oito.filtro?.atual).toBe('destino')
   })
+  it('refiltro encadeado: Destinos -> Todas -> Parecidos', () => {
+    const d = filtrarVista(q, 'destino')
+    expect(d.linhas).toHaveLength(28)
+    const t = filtrarVista(d, 'todas')
+    expect(t.linhas).toHaveLength(40)
+    const p = filtrarVista(t, 'parecido')
+    expect(p.linhas).toHaveLength(12)
+    expect(p.vazio).toBeNull()
+    const soDestino = montar(lista(itens.slice(0, 28)))
+    const vz = filtrarVista(soDestino, 'parecido')
+    expect(vz.vazio).not.toBeNull()
+    expect(filtrarVista(vz, 'destino').vazio).toBeNull()
+    expect(filtrarVista(vz, 'destino').linhas).toHaveLength(28)
+  })
+  it('ids do href vão codificados', () => {
+    const v = montar(lista([item('a', { proprios_agora: ['a b', 'c'], n_proprios: 2 }), item('b', { rotulo_acao: 'abrir-concorrente', outliers: [out('x/y', 5)] })]))
+    expect(v.linhas[0]!.primario.href).toBe('/cms/youtube/videos?ids=a%20b,c&total=2')
+    expect(v.linhas[1]!.primario.href).toBe('/cms/youtube/competitors/video/x%2Fy')
+  })
   it('filtro sem linha e n > 0', () => {
     const so = montar(lista([item('a'), item('b')].concat(Array.from({ length: 7 }, (_, i) => item('c' + i)))))
     const f = filtrarVista(so, 'parecido')
@@ -215,15 +235,28 @@ describe('faixas, cabeçalho e vazios', () => {
   })
   const vz = (motivoVazio: ListaDeSinais['motivoVazio'], contagens: Record<string, number> = {}, calculoLigado = true) =>
     montar(lista([], { n: 0, motivoVazio, contagens, calculoLigado, computado_em: null }))
+  const TOPO = 'Nenhuma sugestão agora.'
   it.each([
-    ['tudo-respondido', 'resolvido'], ['sem-terceiro-outlier', 'calmo'], ['abaixo-do-minimo', 'calmo'], ['sem-grupo', 'calmo'],
-    ['nunca-calculado', 'espera'], ['sem-historico', 'espera'], ['sync-atrasado', 'problema'], ['sem-lugar', 'nm'],
-  ] as const)('%s -> %s', (m, fam) => {
+    ['tudo-respondido', 'resolvido', 'Nenhuma sugestão aberta.', 'As últimas sugestões já saíram da lista.'],
+    ['sem-terceiro-outlier', 'calmo', TOPO, 'Nenhum vídeo dos canais acompanhados passou do normal.'],
+    ['abaixo-do-minimo', 'calmo', TOPO, 'Os vídeos acima do normal ainda não bastam para virar sugestão.'],
+    ['sem-grupo', 'calmo', TOPO, 'Nenhum vídeo acima do normal forma sugestão agora.'],
+    ['nunca-calculado', 'espera', 'As sugestões ainda não foram calculadas.', 'Ainda não houve cálculo.'],
+    ['sem-historico', 'espera', TOPO, 'Ainda não há canais acompanhados.'],
+    ['sync-atrasado', 'problema', TOPO, 'A coleta dos canais está atrasada.'],
+    ['sem-lugar', 'nm', TOPO, 'Os vídeos acima do normal não citam um lugar que a gente reconheça.'],
+  ] as const)('%s -> %s', (m, fam, topo, titulo) => {
     const v = vz(m)
-    expect(v.vazio!.familia).toBe(fam)
-    expect(v.vazio!.titulo.length).toBeGreaterThan(0)
+    expect(v.vazio).toMatchObject({ familia: fam, topo, titulo })
+    expect(v.resumo).toBe(topo)
     expect(v.linhas).toEqual([])
-    expect(v.calculado).toBeNull()
+    expect(v.calculado).toBe(m === 'nunca-calculado' ? 'Nunca calculado' : null)
+  })
+  it('sem estado de cálculo (computado_em nulo, sem motivo) vira nunca-calculado, sem 0', () => {
+    const v = vz(null)
+    expect(v.vazio).toMatchObject({ familia: 'espera', titulo: 'Ainda não houve cálculo.' })
+    expect(v.vazio!.texto).toBe(textoNuncaCalculado(AGORA, true))
+    expect(v.calculado).toBe('Nunca calculado')
   })
   it('frases com número e sem a chave', () => {
     expect(vz('tudo-respondido', { respondidos_30d: 7 }).vazio!.texto).toBe('Todas as sugestões recentes já foram respondidas (7 nos últimos 30 dias).')
