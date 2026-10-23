@@ -10,6 +10,7 @@ import { requireSiteAdminScope } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerAmostraDasLinhas, type AmostraDoVideo } from '@/lib/youtube/observatorio/sinais/amostra'
 import { contarSinaisAbertos, lerEstadoDaAba, listarSinaisDoNicho, type ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
+import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { outlierMaisForte } from './view-model'
 
 export type LeituraDaTela =
@@ -52,7 +53,7 @@ export async function contarParaAAbaSugestoes(): Promise<{ visivel: false } | { 
   if (!edicao.ok) return { visivel: false }
   try {
     const sb = getSupabaseServiceClient()
-    const agora = new Date()
+    const agora = new Date(observatoryNow())
     const [n, estado] = await Promise.all([contarSinaisAbertos(sb, siteId, agora), lerEstadoDaAba(sb, siteId, agora)])
     // Estado ilegível: "?" (nunca 0 nem "—", que afirmariam algo que não medimos).
     if (estado === null) return { visivel: true, n: null, velho: false, calculado: true }

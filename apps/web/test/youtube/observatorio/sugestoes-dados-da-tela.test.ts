@@ -9,7 +9,7 @@ const item = (id: string, kind: 'destino' | 'parecido', outs: Array<{ video_id: 
   ({ id, kind, evidence: { outliers: outs, proprios: [] }, proprios_agora })
 
 async function montar(o: Opcoes = {}) {
-  const r = { ordem: [] as string[], amostraIds: [] as string[][], listaArgs: [] as unknown[][], sentry: [] as unknown[][] }
+  const r = { ordem: [] as string[], amostraIds: [] as string[][], listaArgs: [] as unknown[][], contarArgs: [] as unknown[][], estadoArgs: [] as unknown[][], sentry: [] as unknown[][] }
   vi.resetModules()
   vi.doMock('server-only', () => ({}))
   vi.doMock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => { r.sentry.push(a) }, captureException: (...a: unknown[]) => { r.sentry.push(a) } }))
@@ -19,8 +19,8 @@ async function montar(o: Opcoes = {}) {
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { r.ordem.push('service'); return { marca: 'sb' } } }))
   vi.doMock('@/lib/youtube/observatorio/sinais/leitura', () => ({
     listarSinaisDoNicho: async (...a: unknown[]) => { r.listaArgs.push(a); if (o.listaLanca) throw new Error('boom'); return o.lista },
-    contarSinaisAbertos: async () => { if (o.contar === 'lanca') throw new Error('boom'); return o.contar === undefined ? 3 : o.contar },
-    lerEstadoDaAba: async () => { if (o.estado === 'lanca') throw new Error('boom'); return o.estado === undefined ? { calculado: true, velho: false, computado_em: '2026-10-23T08:00:00Z' } : o.estado },
+    contarSinaisAbertos: async (...a: unknown[]) => { r.contarArgs.push(a); if (o.contar === 'lanca') throw new Error('boom'); return o.contar === undefined ? 3 : o.contar },
+    lerEstadoDaAba: async (...a: unknown[]) => { r.estadoArgs.push(a); if (o.estado === 'lanca') throw new Error('boom'); return o.estado === undefined ? { calculado: true, velho: false, computado_em: '2026-10-23T08:00:00Z' } : o.estado },
   }))
   vi.doMock('@/lib/youtube/observatorio/sinais/amostra', () => ({
     lerAmostraDasLinhas: async (_sb: unknown, _s: string, ids: string[]) => { r.amostraIds.push(ids); if (o.amostraLanca) throw new Error('boom'); return new Map() },
@@ -75,6 +75,15 @@ describe('abrirListaDaTela', () => {
 })
 
 describe('contarParaAAbaSugestoes', () => {
+  it('o relógio é observatoryNow() (paridade com a página sob OBS_NOW_OVERRIDE)', async () => {
+    vi.stubEnv('NODE_ENV', 'test'); vi.stubEnv('OBS_E2E', '1'); vi.stubEnv('OBS_NOW_OVERRIDE', '2026-10-01T10:00:00Z')
+    try {
+      const { r, contarParaAAbaSugestoes } = await montar({ contar: 2 })
+      await contarParaAAbaSugestoes()
+      expect(r.contarArgs[0]![2]).toEqual(new Date('2026-10-01T10:00:00Z'))
+      expect(r.estadoArgs[0]![2]).toEqual(new Date('2026-10-01T10:00:00Z'))
+    } finally { vi.unstubAllEnvs() }
+  })
   it('sem edição: visivel false, sem serviço', async () => {
     const { r, contarParaAAbaSugestoes } = await montar({ edit: false })
     expect(await contarParaAAbaSugestoes()).toEqual({ visivel: false })

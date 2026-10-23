@@ -12,7 +12,7 @@ import { dispensarSugestao } from '../_sugestoes/actions'
 import { saiuDoAviso } from '../_sugestoes/aviso'
 import { abrirListaDaTela } from '../_sugestoes/dados-da-tela'
 import { SugestoesLista } from '../_sugestoes/sugestoes-lista'
-import { montarVistaDaLista, type VistaDaLista } from '../_sugestoes/view-model'
+import { montarVistaDaLista, VISTA_COM_ERRO } from '../_sugestoes/view-model'
 import type { AcoesDaLista } from '../_sugestoes/tipos'
 
 export const metadata = { title: 'Sugestões · Competidores' }
@@ -21,9 +21,6 @@ export const maxDuration = 60
 
 const LIMITE = 100
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
-
-/** Leitura que falhou: n nulo ("?"); a lista nunca lança para o `error.tsx`. */
-const VISTA_COM_ERRO: VistaDaLista = { n: null, calculado: null, velho: false, resumo: '', faixa: null, filtro: null, linhas: [], completas: [], totalAlemDoLimite: null, vazio: null }
 
 /** A faixa "algumas saíram": só na abertura vinda do sino (`de=sino`) e só com o aviso do próprio usuário. */
 async function avisoDoSino(sp: ObsSearchParams, agora: Date): Promise<boolean> {
