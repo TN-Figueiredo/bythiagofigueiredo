@@ -206,12 +206,12 @@ async function avaliar(c: ContextoTarefa, fim: number, a: AlvoObs, publicadoEm: 
 
   // `a.rodadas` foi lida ANTES das leituras (Phil N8): uma rodada inserida no meio fica para o próximo disparo
   const lidas = await paginado(c, fim, sb => sb.from('yt_watch_readings')
-    .select('id,rodada_id,lida_em,http,erro,jogador_bloqueado,idioma,titulo_oficial,titulo_oficial_fonte,miniatura_id', { count: 'exact' })
+    .select('id,rodada_id,lida_em,http,erro,jogador_bloqueado,idioma,titulo_exibido,titulo_oficial,titulo_oficial_fonte,miniatura_id', { count: 'exact' })
     .eq('site_id', a.siteId).eq('youtube_video_id', a.ytId).order('lida_em', { ascending: true }).order('id', { ascending: true }))
   const leituras: LeituraObs[] = lidas.flatMap(l => {
     const id = inteiro(l.id), lidaEm = texto(l.lida_em), rodadaId = texto(l.rodada_id)
     return id !== null && lidaEm && rodadaId ? [{
-      id, rodadaId, lidaEm, http: inteiro(l.http), erro: texto(l.erro), jogadorBloqueado: l.jogador_bloqueado === true, idioma: texto(l.idioma),
+      id, rodadaId, lidaEm, http: inteiro(l.http), erro: texto(l.erro), jogadorBloqueado: l.jogador_bloqueado === true, idioma: texto(l.idioma), tituloExibido: texto(l.titulo_exibido),
       tituloOficial: texto(l.titulo_oficial), tituloFonte: texto(l.titulo_oficial_fonte), miniaturaId: inteiro(l.miniatura_id),
     }] : []
   })

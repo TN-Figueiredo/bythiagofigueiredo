@@ -28,6 +28,8 @@ export interface LeituraObs {
   erro: string | null
   jogadorBloqueado: boolean
   idioma: string | null
+  /** `yt_watch_readings.titulo_exibido` (regra v2). */
+  tituloExibido: string | null
   tituloOficial: string | null
   tituloFonte: string | null
   miniaturaId: number | null
