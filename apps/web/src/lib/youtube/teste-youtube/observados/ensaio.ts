@@ -49,6 +49,7 @@ export function extrairLinhas(texto: string): LinhaExport[] {
     }
     if (!Array.isArray(v)) throw ilegivel()
     if (v.length === 1 && ehObjeto(v[0]) && ('json_agg' in v[0] || 'rows' in v[0])) return desembrulhar(v[0])
+    if (v.length === 1 && ehObjeto(v[0]) && 'json_build_object' in v[0]) return desembrulhar(v[0].json_build_object)
     if (!v.every(x => ehObjeto(x) && typeof x.yt === 'string')) throw ilegivel()
     return v as LinhaExport[]
   }
