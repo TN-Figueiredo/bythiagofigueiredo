@@ -119,7 +119,7 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
     const acao = p.responderDia14
     if (!acao) return null
     if (p.responderAberta) {
-      full = <Dia14Pergunta linha={l} pergunta={versoesDoDia14(reg)} modo="responder" acoes={{ responder: acao, atualizar: p.aoRespondeu ?? p.aoAtualizar }} aoFechar={() => p.aoMudarResponder(false)} />
+      full = <Dia14Pergunta linha={l} pergunta={versoesDoDia14(reg)} modo="responder" acoes={{ responder: acao, atualizar: p.aoRespondeu ?? p.aoAtualizar, ...(p.aoAnunciar ? { anunciar: p.aoAnunciar } : {}) }} aoFechar={() => p.aoMudarResponder(false)} />
     }
     return (
       <button
@@ -203,8 +203,8 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
       if (r?.frase) {
         selo = SEL('ok', r.selo); fr = r.frase; apoio = <p className="cn-meta">{FRASES.dia14.oficial}</p>
       } else {
-        selo = SEL('ok', 'Ficou no ar')
-        fr = `Você respondeu em ${dataCurta(new Date(reg?.respondidoEm ?? reg?.updatedAt ?? agora))}.`
+        selo = SEL('ok', r?.selo ?? FRASES.dia14.seloNoArSemTitulo)
+        fr = FRASES.respondido.respondeuEm(new Date(reg?.respondidoEm ?? reg?.updatedAt ?? agora))
       }
       if (blocoVisivel && reg && acoesBloco) {
         selo = null; fr = null; apoio = null
@@ -220,7 +220,7 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
       const noAr = reg && p14 ? letraDoNoAr(reg, p14) : null
       const disse = reg && p14 ? letraQueDisse(reg, p14) : 'outra versão'
       fr = noAr ? FRASES.conflito.linha(noAr.letra, disse) : FRASES.conflito.linhaSemPar(disse)
-      if (blocoVisivel && reg && acoesBloco && p14) full = <Dia14Conflito linha={l} pergunta={p14} acoes={acoesBloco} />
+      if (blocoVisivel && reg && acoesBloco && p14) full = <Dia14Conflito linha={l} pergunta={p14} acoes={acoesBloco} naLinha />
       ra = botaoVer(FRASES.conflito.verAsDuas)
       break
     }
@@ -250,7 +250,7 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
         : <span className="cn-th" aria-hidden="true" />}
       <div>
         <h4 title={l.titulo}>{l.titulo}</h4>
-        <div className="st">{selo}{meta ? <span className="cn-meta">{meta}</span> : null}</div>
+        {selo || meta ? <div className="st">{selo}{meta ? <span className="cn-meta">{meta}</span> : null}</div> : null}
         {fr ? <p className="fr">{fr}</p> : null}
         {apoio}
         {fr2}

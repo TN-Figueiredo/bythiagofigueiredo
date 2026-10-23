@@ -94,10 +94,10 @@ export function resumoDoRespondido(
   r: Pick<Registro, 'respostaDono' | 'varianteVencedora' | 'vencedorFonte' | 'vencedorTitulo'>, p: PerguntaDoDia14,
 ): { selo: string; frase: string | null; versao: VersaoDoDia14 | null } {
   const versao = versaoDoRespondido(r, p)
-  if (!versao || p.tipo !== 'versoes') return { selo: 'Ficou no ar', frase: null, versao }
+  if (!versao || p.tipo !== 'versoes') return { selo: r.vencedorTitulo ? FRASES.dia14.seloNoArTitulo(r.vencedorTitulo) : FRASES.dia14.seloNoArSemTitulo, frase: null, versao }
   if (versao.original) return { selo: FRASES.dia14.seloOriginal, frase: FRASES.dia14.fraseOriginal(p.versoes.length), versao }
   const semOriginal = p.origem === 'derivada' && !p.originalConhecido
-  const selo = semOriginal && versao.titulo ? `Ficou no ar: ${versao.titulo}` : FRASES.dia14.seloNoAr(versao.letra)
+  const selo = semOriginal && versao.titulo ? FRASES.dia14.seloNoArTitulo(versao.titulo) : FRASES.dia14.seloNoAr(versao.letra)
   return { selo, frase: FRASES.dia14.fraseNoAr(versao.letra), versao }
 }
 
