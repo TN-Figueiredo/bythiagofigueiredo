@@ -224,7 +224,7 @@ Integração (quando a tarefa pede):
 
 ```bash
 cd ~/Workspace/wt-ab-p4b/apps/web
-HAS_LOCAL_DB=1 SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres \
+HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres \
   npx vitest run test/integration/ab-p4b-*.test.ts > /tmp/ab-p4b-int.log 2>&1; tail -30 /tmp/ab-p4b-int.log
 ```
 
@@ -713,6 +713,11 @@ nada de URL de imagem que o pacote "Perguntar a uma IA" monta).
    referência do corte é a **promoção ao `main`** (o cron da Vercel só roda em produção; Y-12), não o push a `staging`.
    - Migration: numa árvore em dia com `origin/staging`: `npm run db:new ab_lab_p4b_corte_da_nova_tentativa`; copiar o
      corpo de `apps/web/test/integration/fixtures/ab-p4b-corte.sql`; `cmp` entre os dois → idêntico.
+   - **Como foi feito em 21/10 (correção pós-envio):** a ordem real foi a inversa (migration 13:07 UTC, push 13:08 e
+     13:25, promoção 13:45, produção READY 13:48), seguindo o combinado com a A5. Janela exposta de 41 min, fora de
+     10:00/20:00 UTC; conferência às ~13:55 UTC: zero `falhou` em `ab_tests` e zero linhas com `updated_at` depois de
+     13:00 UTC, logo nada escapou do corte. Conferências (a), (b) e (c) vazias. O teste de integração do corte ganhou o
+     padrão `127.0.0.1:54322` para `SUPABASE_DB_URL` (o CI não passa a variável; commit `6450be448`).
    - `npm run db:push:prod -- --dry-run` [INFERÊNCIA: a forma exata do dry-run é a do script da P4a, `comandos/` do
      ledger da P4a] mostra **uma** pendente, a nossa.
    - Janela: **fora** de 11:30-13:00 UTC e dos minutos 0-4, 20-24, 30-34 e 40-44 de qualquer hora; nunca a 10 min do

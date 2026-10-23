@@ -219,6 +219,31 @@ describe('ensureFreshToken — erro de banco não é "sem conexão"', () => {
     expect((err as Error).message).toMatch(/statement timeout/)
   })
 
+  it('erro transitório na leitura: uma segunda tentativa resolve', async () => {
+    mockFrom.mockReset()
+    const falha = singleResult({ data: null, error: { code: '08006', message: 'fetch failed' } })
+    const ok = singleResult({ data: FRESH_GOOGLE_CONN, error: null })
+    mockFrom.mockReturnValueOnce(falha).mockReturnValueOnce(ok)
+    const r = await ensureFreshToken('site-1', 'youtube', 'UC1')
+    expect(r.connectionId).toBe('conn-google-1')
+    expect(mockFrom).toHaveBeenCalledTimes(2)
+  })
+
+  it('erro persistente: lança com o código na mensagem, após uma única retentativa', async () => {
+    mockFrom.mockReset()
+    mockFrom.mockReturnValue(singleResult({ data: null, error: { code: '08006', message: 'fetch failed' } }))
+    const err = await ensureFreshToken('site-1', 'youtube', 'UC1').catch((e: unknown) => e)
+    expect((err as Error).message).toMatch(/\[08006\]: fetch failed/)
+    expect(mockFrom).toHaveBeenCalledTimes(2)
+  })
+
+  it('PGRST116 não é repetido', async () => {
+    mockFrom.mockReset()
+    mockFrom.mockReturnValue(singleResult({ data: null, error: { code: 'PGRST116', message: 'no rows' } }))
+    await ensureFreshToken('site-1', 'youtube', 'UC1').catch(() => null)
+    expect(mockFrom).toHaveBeenCalledTimes(1)
+  })
+
   it('PGRST116 (nenhuma linha) continua sendo NoActiveConnectionError', async () => {
     mockFrom.mockReturnValue(singleResult({ data: null, error: { code: 'PGRST116', message: 'no rows' } }))
     const err = await ensureFreshToken('site-1', 'youtube', 'UC1').catch((e: unknown) => e)

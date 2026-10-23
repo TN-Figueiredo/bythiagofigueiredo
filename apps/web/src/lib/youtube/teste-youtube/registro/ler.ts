@@ -232,9 +232,9 @@ export async function lerCandidatos(sb: SupabaseClient, agoraMs: number): Promis
       for (const l of linhas) {
         const f = fechados.get(l.video_id) ?? { encerradoEm: null, descartadoEm: null }
         // `teste_novo`: o fechamento e a criação do novo são dois pedidos. O corte vai na última vista do antigo (não em `encerrado_em`),
-        // para que a falha do 2º pedido não apague o começo do teste novo (P2). `+1 ms`: a leitura de `ultima_vista` é do antigo.
+        // (vale também se o dono respondeu depois e o estado virou `encerrado`) para que a falha do 2º pedido não apague o começo do teste novo (P2). `+1 ms`: a leitura de `ultima_vista` é do antigo.
         const ultimaMs = ms(l.ultima_vista)
-        const encerrado = l.estado === 'sem_desfecho' && l.desfecho_motivo === 'teste_novo' && ultimaMs !== null ? new Date(ultimaMs + 1).toISOString() : l.encerrado_em
+        const encerrado = l.desfecho_motivo === 'teste_novo' && ultimaMs !== null ? new Date(ultimaMs + 1).toISOString() : l.encerrado_em
         if (encerrado !== null && em(encerrado) > em(f.encerradoEm)) f.encerradoEm = encerrado
         if (l.descartado_em !== null && em(l.descartado_em) > em(f.descartadoEm)) f.descartadoEm = l.descartado_em
         fechados.set(l.video_id, f)

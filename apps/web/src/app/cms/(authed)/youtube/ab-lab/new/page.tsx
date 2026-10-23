@@ -2,6 +2,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { getAbSiteSettings, getEligibleVideosForPicker, getAbDraftById } from '../queries'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { NewTestClient } from './client'
+import { startAbTest } from '../actions'
 import { redirect } from 'next/navigation'
 import * as Sentry from '@sentry/nextjs'
 import { filtroBuscaVideo, resolverVideoPedido } from './resolver'
@@ -13,6 +14,7 @@ import { link } from '@/lib/youtube/observatorio/links'
 
 export const metadata = { title: 'Novo Teste: A/B Lab' }
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // o Ativar roda startAbTest nesta rota (teto de 55 s), como em ab-lab/page.tsx
 
 interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -101,6 +103,7 @@ export default async function NewAbTestPage({ searchParams }: Props) {
   return (
     <NewTestClient
       siteId={siteId}
+      iniciarTeste={startAbTest}
       settings={settings}
       eligibleVideos={elegiveis}
       draftPrefill={draftData ?? undefined}

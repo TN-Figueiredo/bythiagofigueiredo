@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/teste-youtube/nativo/guarda', async (orig) => (await import('../../helpers/guarda-nativa-vazia')).guardaVazia(await orig<typeof import('@/lib/youtube/teste-youtube/nativo/guarda')>()))
 vi.mock('@/lib/youtube/channel-account', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
   channelAccountIdForVideo: mockChannelAccountId,
@@ -54,9 +55,6 @@ vi.mock('@/lib/youtube/ab-metadata', () => ({
   updateVideoMetadata: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/youtube/ab-templates', () => ({
-  resolveTemplates: vi.fn((text: string) => text),
-}))
 
 const mockPreflightTokenCheck = vi.fn().mockResolvedValue({ ok: true, accessToken: 'tok-mock' })
 vi.mock('@/lib/youtube/ab-preflight', () => ({

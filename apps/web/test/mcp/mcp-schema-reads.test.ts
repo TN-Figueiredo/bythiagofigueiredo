@@ -345,11 +345,6 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
   const world = (test: Record<string, unknown>): FakePostgrestOptions => ({
     tables: {
       ab_tests: [{ id: 't1', site_id: SITE, ...test }],
-      ab_test_tracked_links: [
-        { ab_test_id: 't1', variant_id: 'v1', link_id: 'l1', template_name: 'A', short_code: 'abc', created_at: START, link: null },
-        { ab_test_id: 't1', variant_id: 'v2', link_id: 'l2', template_name: 'B', short_code: 'def', created_at: START, link: null },
-        { ab_test_id: 't1', variant_id: 'v2', link_id: 'l3', template_name: 'C', short_code: 'ghi', created_at: START, link: null },
-      ],
       ab_test_cycles: [{ test_id: 't1', variant_id: 'v1', impressions: 100, clicks: 7 }],
       tracked_links: [
         { id: 'l1', site_id: SITE, deleted_at: null, total_clicks: 9999 },
@@ -369,7 +364,6 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
     },
     columns: {
       ab_tests: ['id', 'site_id', 'started_at', 'completed_at'],
-      ab_test_tracked_links: ['ab_test_id', 'variant_id', 'link_id', 'template_name', 'short_code', 'created_at'],
       ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks'],
       tracked_links: ['id', 'site_id', 'deleted_at', 'total_clicks'],
       link_clicks: ['id', 'site_id', 'link_id', 'is_bot', 'clicked_at'],
@@ -384,7 +378,6 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
     expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, clicks: null, link_clicks: null }])
     expect(data.aviso).toBe('sem métrica de entrega')
     expect(sb.on('link_clicks')).toHaveLength(0)
-    expect(sb.on('ab_test_tracked_links')).toHaveLength(0)
     expect(sb.on('tracked_links')).toHaveLength(0)
   })
 

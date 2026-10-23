@@ -2,10 +2,7 @@ import { NextRequest } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { recordCronSuccess, recordCronFailure } from '@/lib/cron-health'
-import {
-  phaseAutoStartPlayoffs,
-  phaseEvaluateActiveTests,
-} from '@/lib/youtube/ab-evaluate-phases'
+import { phaseEvaluateActiveTests } from '@/lib/youtube/ab-evaluate-phases'
 import { runLongevityChecks } from '@/lib/youtube/thumbnail-library'
 import { checkAndEscalate } from '@/lib/youtube/ab-escalation'
 
@@ -20,7 +17,6 @@ export async function GET(req: NextRequest) {
   const inicio = Date.now()
   const supabase = getSupabaseServiceClient()
 
-  const playoffs = await phaseAutoStartPlayoffs(supabase)
   const evaluation = await phaseEvaluateActiveTests(supabase, inicio)
 
   // Phase 5: Longevity checks
@@ -39,7 +35,7 @@ export async function GET(req: NextRequest) {
     Sentry.captureException(err, { extra: { context: 'longevity-checks' } })
   }
 
-  const totalErrors = evaluation.errors + playoffs.errors
+  const totalErrors = evaluation.errors
 
   if (totalErrors === 0) {
     await recordCronSuccess('ab-evaluate', 'critical')
@@ -68,7 +64,6 @@ export async function GET(req: NextRequest) {
     evaluated: evaluation.evaluated,
     resolved: evaluation.resolved,
     errors: totalErrors,
-    playoffs_started: playoffs.processed,
     longevity_checked: longevityChecked,
   })
 }

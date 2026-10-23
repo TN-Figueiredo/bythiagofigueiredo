@@ -1938,3 +1938,26 @@ curl https://bythiagofigueiredo.com/api/pipeline/audio-library/export \
   -H "X-Pipeline-Key: $KEY" \
   -o audio-library-export.json
 ```
+
+---
+
+## Sugestões do nicho (`youtube_observatory` ações `get_signals` e `dismiss_signal`; rotas `competitors/signals`)
+
+Não é uma section de item: é a forma da resposta de leitura. Detalhe e regras de uso: `cowork-docs-youtube.md`.
+
+```json
+{
+  "n": 0,
+  "itens": [],
+  "computado_em": "ISO-8601 | null",
+  "desatualizado": false,
+  "motivoVazio": "nunca-calculado | tudo-respondido | sem-historico | sync-atrasado | sem-terceiro-outlier | sem-lugar | abaixo-do-minimo | sem-grupo | null",
+  "contagens": { "canais_total": 0 },
+  "calculoLigado": true
+}
+```
+
+- Invariante: `n = 0` implica `motivoVazio` não nulo. Cite `motivoVazio` como está; nunca leia como "nada no nicho".
+- Cada item: `id`, `kind` (`destino` | `parecido`), `subject_key`, `acao` (derivada dos seus vídeos públicos agora), `acao_gravada`, `proprios_agora` (até 20 ids) e `proprios_agora_n` (total real), `forca`, `motivo`, `evidence` (`outliers[]` com `video_id`, `canal_id`, `published_at`, `mult_vpd7`, `mult_tela`, `vpd7`, `formato`; `outliers_total`; `canais`), `proprios_agora` (ids; `null` = não medido).
+- Texto: "pode ajudar", "associação, não causa". Sem título, miniatura nem comentário de terceiro.
+- `dismiss_signal`: `signal_id` (uuid), `status: "dispensado"`, `motivo` (`nao_e_parecido` | `lugar_errado` | `ja_fiz` | `nao_interessa`); exige `write`.

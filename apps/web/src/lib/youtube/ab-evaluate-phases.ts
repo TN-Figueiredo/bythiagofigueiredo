@@ -1,51 +1,14 @@
 import * as Sentry from '@sentry/nextjs'
 import { ORIGINAL, settleOnAir } from '@/lib/youtube/ab-settle'
-import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import type { AbTestConfig } from '@/lib/youtube/ab-types'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
 
-export interface PhaseResult {
-  processed: number
-  errors: number
-}
-
 export interface EvaluateResult {
   evaluated: number
   resolved: number
   errors: number
-}
-
-// ─── Phase 1: Auto-start Round 2 drafts past cooldown ────────────────────────
-
-export async function phaseAutoStartPlayoffs(supabase: SupabaseClient): Promise<PhaseResult> {
-  let processed = 0
-  let errors = 0
-
-  const { data: pendingPlayoffs } = await supabase
-    .from('ab_tests')
-    .select('id, site_id, round_number, parent_test_id, playoff_start_after')
-    .eq('status', 'draft')
-    .eq('round_number', 2)
-    .not('parent_test_id', 'is', null)
-    .not('playoff_start_after', 'is', null)
-    .lte('playoff_start_after', new Date().toISOString())
-
-  for (const playoff of pendingPlayoffs ?? []) {
-    try {
-      const result = await startAbTestInternal(playoff.id as string, playoff.site_id as string)
-      if (result.ok) processed++
-    } catch (err) {
-      errors++
-      Sentry.captureException(err, {
-        tags: { cron: 'ab-evaluate', phase: 'playoff-start' },
-        extra: { testId: playoff.id },
-      })
-    }
-  }
-
-  return { processed, errors }
 }
 
 // ─── Fase 2: duração máxima ──────────────────────────────────────────────────
@@ -108,6 +71,7 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient, inicioD
       evaluated++
       // ja_encerrado / em_andamento: outro escritor é dono do teste; nada a fazer aqui.
       if (saida.resultado !== 'feito') continue
+      if (saida.pausadoPorTesteYoutube) continue // pausado pela guarda do teste do YouTube: o teste não foi resolvido
       resolved++
       // Campo que não voltou ao original deixa a variante no ar: o cron fica vermelho nesse dia (S-C7).
       const naoVoltou = Object.values(saida.campos).some((c) => c?.estado === 'falhou' || c?.estado === 'desistiu')

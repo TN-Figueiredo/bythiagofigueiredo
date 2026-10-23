@@ -160,15 +160,8 @@ export function NotificationRow({
             {meta.label}
           </span>
 
-          {/* Actions — reveal on hover, always visible on touch */}
-          <div
-            className="
-              ml-auto flex items-center gap-1
-              opacity-0 transition-opacity duration-100
-              group-hover:opacity-100
-              [@media(hover:none)]:opacity-100
-            "
-          >
+          {/* Primary action always visible (Gio F-6); secondary actions reveal on hover/focus, always visible on touch */}
+          <div className="ml-auto flex items-center gap-1">
             {/* Primary action */}
             {n.action_href && (
               <button
@@ -192,7 +185,9 @@ export function NotificationRow({
                 type="button"
                 onClick={onRead}
                 className="
-                  grid place-items-center rounded p-1
+                  opacity-0 transition-opacity duration-100
+                  group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100
+                  [@media(hover:none)]:opacity-100 grid place-items-center rounded p-1
                   text-cms-text-muted hover:text-cms-accent hover:bg-cms-accent-subtle
                   transition-colors
                 "
@@ -208,7 +203,9 @@ export function NotificationRow({
                 type="button"
                 onClick={onDismiss}
                 className="
-                  grid place-items-center rounded p-1
+                  opacity-0 transition-opacity duration-100
+                  group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100
+                  [@media(hover:none)]:opacity-100 grid place-items-center rounded p-1
                   text-cms-text-muted hover:text-cms-red hover:bg-cms-red-subtle
                   transition-colors
                 "

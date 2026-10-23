@@ -13,6 +13,7 @@ import { H, YouTubeFalso, imagemComDhash } from '../helpers/youtube-falso'
 import * as Sentry from '@sentry/nextjs'
 
 const { fanOut, ensureFreshToken } = vi.hoisted(() => ({ fanOut: vi.fn(), ensureFreshToken: vi.fn() }))
+vi.mock('@/lib/youtube/teste-youtube/nativo/guarda', async (orig) => (await import('../helpers/guarda-nativa-vazia')).guardaVazia(await orig<typeof import('@/lib/youtube/teste-youtube/nativo/guarda')>()))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken }))
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdminsDetailed: fanOut }))

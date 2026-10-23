@@ -242,6 +242,53 @@ export const DEFINICAO_REGISTRO_TESTE_NATIVO: Definicao = {
     lista_falhou: 'não foi possível montar a lista de vídeos',
     gravacao_falhou: 'não foi possível gravar a avaliação',
     sem_video: 'há vídeo próprio acompanhado há mais de um dia que não está na tabela de vídeos',
+    observados_falhou: 'a leitura das trocas dos concorrentes falhou (o registro dos vídeos próprios terminou)',
+    observados_schema_ausente: 'as tabelas das trocas observadas dos concorrentes não existem: aplicar a migration',
+  },
+}
+
+/**
+ * `avisos_pendentes` (F1a-dado, T12): o lembrete do dia 14 (e-mail, uma vez por dono) e o fechamento por silêncio (`sem_resposta`) dos testes do YouTube confirmados.
+ * Leve, a partir das 09:00 de São Paulo; roda a cada disparo e o espaçamento é do dado (no máximo uma tentativa de lembrete por dia, contada de max(início + 14 d, confirmação)). **Sem `ligaCom`** (o recuo natural do registrador, `off`, deixaria a linha confirmada sem lembrete nem
+ * fechamento; o desligamento operacional é `OBS_AGENDA_TASKS_OFF`): sem linha devida a tarefa não faz nada. O código mora em `agenda/tarefas/avisos-pendentes.ts`.
+ * `ordem: 5.96` (depois do registro, antes das pesadas).
+ */
+export const DEFINICAO_AVISOS_PENDENTES: Definicao = {
+  nome: 'avisos_pendentes', rotulo: 'avisos do teste do YouTube', ordem: 5.96, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 9,
+  tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
+  comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: 85_000,
+  motivos: {
+    leitura_falhou: 'não foi possível ler os testes do YouTube para avisar',
+    lembrete_falhou: 'o lembrete do dia 14 não saiu e será tentado de novo',
+    lembrete_desistiu: 'o lembrete do dia 14 falhou três vezes e foi abandonado (o teste fecha por silêncio)',
+    lembrete_nao_gravado: 'o lembrete saiu, mas o registro de envio não foi gravado; será conferido no próximo disparo',
+    fechamento_falhou: 'não foi possível fechar um teste sem resposta',
+    sobrou: 'ficaram testes para o próximo disparo',
+    nicho_falhou: 'os avisos das sugestões do nicho falharam (o lembrete do dia 14 não foi afetado)',
+    sobrou_e_nicho_falhou: 'ficaram testes para o próximo disparo e os avisos das sugestões do nicho falharam',
+    nicho_adiado: 'os avisos das sugestões do nicho não saíram e serão tentados no próximo disparo',
+    sobrou_e_nicho_adiado: 'ficaram testes para o próximo disparo e os avisos das sugestões do nicho serão tentados de novo',
+    nicho_sem_tempo: 'o tempo acabou antes de avisar as sugestões de todos os sites; o resto fica para o próximo disparo',
+  },
+}
+
+/**
+ * `sinais_do_nicho` (F2 T7): por site, grava os sinais do nicho (`niche_signals`) a partir dos outliers do motor e dos lugares dos vídeos. Pesada, diária, a partir das 07:00 de São Paulo
+ * (depois de `marcas_de_idade` às 04:00; antes de `avisos_pendentes` às 09:00; fora de 12–13, onde moram `serie_semanal` e `retratos_comentarios`), cede a `sincronizar_canais`.
+ * **`ligaCom: 'OBS_SINAIS_NICHO'`**: só `on` liga; ligar só depois do portão de precisão da T6b. Sem `nuncaDesliga`. O código mora em `agenda/tarefas/sinais-do-nicho.ts`.
+ * `ordem: 8.5` (depois de `serie_semanal`, a 8). `schema_ausente` é dos comuns.
+ */
+export const DEFINICAO_SINAIS_DO_NICHO: Definicao = {
+  nome: 'sinais_do_nicho', rotulo: 'sinais do nicho', ordem: 8.5, peso: 'pesada', periodo: 'dia', aPartirDaHoraSP: 7,
+  cedeA: ['sincronizar_canais'],
+  tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
+  comecaAteMs: 120_000, fimAteMs: PESADA_FIM_MS, ligaCom: 'OBS_SINAIS_NICHO',
+  motivos: {
+    motor_estourou: 'a leitura do site passou do tempo; nada foi gravado para ele',
+    gravar_falhou: 'o banco recusou a gravação dos sinais',
+    site_falhou: 'a conta dos sinais falhou em algum site',
+    semente_incompleta: 'a lista de lugares veio incompleta; nada foi gravado',
+    inesperado: 'a gravação dos sinais falhou com erro inesperado (ver Sentry)',
   },
 }
 
@@ -252,7 +299,7 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_PODA_LEITURAS_WATCH].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_AVISOS_PENDENTES, DEFINICAO_PODA_LEITURAS_WATCH, DEFINICAO_SINAIS_DO_NICHO].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {

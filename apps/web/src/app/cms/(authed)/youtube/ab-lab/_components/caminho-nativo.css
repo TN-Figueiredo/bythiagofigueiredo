@@ -1,0 +1,116 @@
+/* Caminho do teste do YouTube (F1a-tela-1, T6). Tokens copiados do .frame do mockup M2 (index.html:26-48), prefixo --cn-.
+   Sem color-mix (Opera) e sem opacity em texto. */
+.cn-raiz,
+[data-theme="dark"] .cn-raiz {
+  --cn-bg: #1A1714; --cn-surface: #221E1A; --cn-surface-2: #272219; --cn-sunk: #16130F;
+  --cn-border: #332D25; --cn-border-subtle: #2A251F; --cn-border-strong: #40382D; --cn-btn-line: #7D7260;
+  --cn-text: #F5EFE6; --cn-muted: #A89D88; --cn-dim: #958A75; --cn-faint: #5C5345;
+  --cn-accent: #FF8240; --cn-on-accent: #1A120A; --cn-nm: #E59CC0; --cn-nm-line: #B0678F; --cn-nm-bg: #3A2232; --cn-nm-fio: rgba(229,156,192,.14);
+  --cn-warn: #F5B13D; --cn-warn-bg: rgba(245,158,11,.10); --cn-warn-line: #C98A1B;
+  --cn-ok: #6FCF97; --cn-ok-bg: rgba(111,207,151,.10); --cn-ok-line: #3E8F63;
+  --cn-yt: #9FB4C9; --cn-yt-bg: rgba(159,180,201,.08); --cn-yt-line: #6B8199; --cn-yt-solid: rgba(159,180,201,.16);
+  --cn-err: #F4A097; --cn-err-line: #B85A50;
+  --cn-va: #FF8240; --cn-vb: #6FA8DC; --cn-vc: #B79CF2;
+  --cn-skel: #2E2822;
+  /* Chip de versão: texto escuro sobre o tom claro do tema escuro */
+  --cn-chip-fg: #1A120A;
+  color-scheme: dark;
+}
+[data-theme="light"] .cn-raiz {
+  --cn-bg: #F7F2E9; --cn-surface: #FBF7F0; --cn-surface-2: #F2EBDF; --cn-sunk: #F2EBDF;
+  --cn-border: #DDD2BF; --cn-border-subtle: #E7DECF; --cn-border-strong: #C9BBA3; --cn-btn-line: #8A7C62;
+  --cn-text: #231C14; --cn-muted: #5E5240; --cn-dim: #6E624E; --cn-faint: #A69A84;
+  --cn-accent: #B8481A; --cn-on-accent: #FFF8F1; --cn-nm: #8E2A62; --cn-nm-line: #A85585; --cn-nm-bg: #F7E1EC; --cn-nm-fio: rgba(142,42,98,.10);
+  --cn-warn: #7A4F00; --cn-warn-bg: rgba(138,90,0,.09); --cn-warn-line: #8A5A00;
+  --cn-ok: #1E6B43; --cn-ok-bg: rgba(30,107,67,.09); --cn-ok-line: #3E8F63;
+  --cn-yt: #34506B; --cn-yt-bg: rgba(52,80,107,.07); --cn-yt-line: #6B8199; --cn-yt-solid: rgba(52,80,107,.09);
+  --cn-err: #9E2A1E; --cn-err-line: #B85A50;
+  --cn-va: #B8481A; --cn-vb: #2B6DA8; --cn-vc: #6B4BB8;
+  --cn-skel: #E7DECF;
+  --cn-chip-fg: #FFFFFF;
+  color-scheme: light;
+}
+/* Altura do esqueleto da ficha (--cn-hf), lida pelo teste do T12. No estreito a medida é declarada só no consumidor (Naksu U-5):
+   container query não casa com o próprio container, e `*` forçaria recálculo em todo nó da lista. A lista não tem medida fixa (U-3). */
+.cn-raiz { --cn-hf: 1011px; }
+@container (max-width: 640px) {
+  .cn-fsk { --cn-hf: 1430px; }
+}
+.cn-raiz {
+  background: var(--cn-bg); color: var(--cn-text); container-type: inline-size; font-size: 14px; overflow-wrap: anywhere;
+}
+.cn-raiz :focus-visible { outline: 2px solid var(--cn-accent); outline-offset: 2px; border-radius: 3px; }
+.cn-meta { font-size: 12.5px; color: var(--cn-muted); }
+.cn-titulo { font: 600 24px/1.25 Georgia, serif; overflow-wrap: anywhere; }
+
+/* Selos: forma + símbolo + palavra, nunca só cor */
+.cn-selo { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font: 600 12px/18px Inter, system-ui, sans-serif; border: 1px solid var(--cn-border-strong); white-space: nowrap; color: var(--cn-text); }
+.cn-selo svg { flex: none; }
+.cn-selo.yt { border: 1px dashed var(--cn-yt-line); color: var(--cn-yt); background: var(--cn-yt-bg); }
+.cn-selo.yts { border: 1px solid var(--cn-yt-line); color: var(--cn-yt); background: var(--cn-yt-solid); }
+.cn-selo.warn { border-color: var(--cn-warn-line); color: var(--cn-warn); background: var(--cn-warn-bg); }
+.cn-selo.ok { border-color: var(--cn-ok-line); color: var(--cn-ok); background: var(--cn-ok-bg); }
+.cn-selo.unk { border: 1px solid var(--cn-nm-line); color: var(--cn-nm); background: repeating-linear-gradient(135deg, var(--cn-nm-bg) 0 6px, var(--cn-nm-fio) 6px 8px); }
+.cn-selo.dim { border-color: var(--cn-border-strong); color: var(--cn-dim); }
+.cn-selo.mute { border-color: var(--cn-border-strong); color: var(--cn-muted); font-weight: 500; }
+.cn-nm { display: inline-block; padding: 1px 7px; border: 1px solid var(--cn-nm-line); border-radius: 4px; color: var(--cn-nm); font: 400 12px/16px Inter, system-ui, sans-serif; background: repeating-linear-gradient(135deg, var(--cn-nm-bg) 0 6px, var(--cn-nm-fio) 6px 8px); white-space: nowrap; }
+
+/* Chip de versão: sempre com a letra */
+.cn-chip { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font: 700 13px/1 Inter, system-ui, sans-serif; flex: none; border: 1px solid rgba(255,255,255,.35); }
+.cn-chip.a { background: var(--cn-va); }
+.cn-chip.b { background: var(--cn-vb); }
+.cn-chip.c { background: var(--cn-vc); }
+.cn-chip { color: var(--cn-chip-fg); }
+.cn-chip.unk { border: 1px solid var(--cn-nm-line); color: var(--cn-nm); background: repeating-linear-gradient(135deg, var(--cn-nm-bg) 0 6px, var(--cn-nm-fio) 6px 8px); }
+/* Texto só para leitor de tela (região viva fora de um bloco que desmonta). */
+.cn-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Aviso de resolução */
+.cn-aviso-res { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+
+/* Faixas */
+.cn-faixa { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--cn-border); background: var(--cn-surface); }
+.cn-faixa .cn-ic { flex: none; margin-top: 2px; }
+.cn-faixa h3 { font: 600 14.5px/1.35 Inter, system-ui, sans-serif; margin: 0; overflow-wrap: anywhere; }
+.cn-faixa p { font-size: 13.5px; color: var(--cn-muted); margin: 2px 0 0; max-width: 78ch; overflow-wrap: anywhere; }
+.cn-faixa .cn-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.cn-faixa > div { min-width: 0; flex: 1; }
+.cn-faixa.warn { border-color: var(--cn-warn-line); background: var(--cn-warn-bg); border-left-width: 4px; }
+.cn-faixa.warn .cn-ic { color: var(--cn-warn); }
+.cn-faixa.yt { border: 1px dashed var(--cn-yt-line); background: var(--cn-yt-bg); }
+.cn-faixa.yt .cn-ic { color: var(--cn-yt); }
+.cn-faixa.ok { border-color: var(--cn-ok-line); background: var(--cn-ok-bg); border-left-width: 4px; }
+.cn-faixa.ok .cn-ic { color: var(--cn-ok); }
+.cn-faixa.lab { border-color: var(--cn-accent); border-left-width: 4px; }
+.cn-faixa.lab .cn-ic { color: var(--cn-accent); }
+.cn-faixa.err { border-color: var(--cn-err-line); border-left-width: 4px; }
+.cn-faixa.err .cn-ic, .cn-faixa.err h3 { color: var(--cn-err); }
+
+/* Botões e links da tela (alvo de 44 px no estreito) */
+.cn-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid var(--cn-btn-line); border-radius: 6px; background: var(--cn-surface-2); color: var(--cn-text); font: 500 13px/18px Inter, system-ui, sans-serif; cursor: pointer; text-align: center; }
+.cn-btn.pri { background: var(--cn-accent); border-color: var(--cn-accent); color: var(--cn-on-accent); font-weight: 600; }
+.cn-btn.ghost { background: transparent; }
+.cn-btn[aria-expanded="true"]:not(.pri) { border: 2px solid var(--cn-text); padding: 0 11px; background: var(--cn-surface-2); font-weight: 600; }
+[data-theme] .cn-btn[aria-expanded="true"]:not(.pri):hover:not([disabled]) { border: 2px solid var(--cn-text); }
+.cn-meta .cn-chip { vertical-align: middle; margin: 0 2px; }
+.cn-btn[disabled] { color: var(--cn-muted); border-style: dashed; cursor: not-allowed; background: transparent; }
+.cn-lnk { font: inherit; font-size: 13.5px; color: var(--cn-yt); background: none; border: 0; padding: 0 2px; min-height: 24px; text-decoration: underline; cursor: pointer; text-align: left; }
+@media (pointer: coarse) { .cn-btn, .cn-lnk, .cn-segc button, .cn-addv { min-height: 44px; } }
+/* Hover e pressionado (Naksu U-4): hex literais, nunca color-mix */
+[data-theme="dark"] .cn-btn:hover:not([disabled]) { background: #2F2920; border-color: #A89D88; }
+[data-theme="dark"] .cn-btn:active:not([disabled]) { background: #1F1B16; }
+[data-theme="dark"] .cn-btn.pri:hover { background: #FF9560; border-color: #FF9560; }
+[data-theme="dark"] .cn-btn.pri:active { background: #E5702F; border-color: #E5702F; }
+[data-theme="light"] .cn-btn:hover:not([disabled]) { background: #EDE2CF; border-color: #6E624E; }
+[data-theme="light"] .cn-btn:active:not([disabled]) { background: #DED0B6; }
+[data-theme="light"] .cn-btn.pri:hover { background: #9E3C14; border-color: #9E3C14; }
+[data-theme="light"] .cn-btn.pri:active { background: #8A3310; border-color: #8A3310; }
+.cn-lnk:hover { text-decoration-thickness: 2px; }
+.cn-raiz .cn-d14-vopt:hover:not([disabled]), .cn-raiz .cn-slot:hover, .cn-raiz .cn-segc button:hover, .cn-raiz .cn-addv:hover { background: var(--cn-surface-2); }
+@container (max-width: 640px) {
+  .cn-btn { min-height: 44px; }
+  .cn-lnk { min-height: 44px; }
+  .cn-titulo { font-size: 20px; }
+}
+/* Chegada por rolagem (?video=, Ver as duas) respeita a barra fixa de 48 px (Gio B-2/B-3). */
+.cn-vrow { scroll-margin-top: 64px; }

@@ -65,8 +65,12 @@ const DOZE = [
  * `ab-gravacao/retrato-step.ts` (A/B S8-F1, cron `ab-retrato`, cliente de serviço) copia o dia por variante para `ab_test_dias`,
  * cuja RLS é `can_edit_site`, mais estrita que `can_view_private_site` (que é edição OU visualizador privado). Quem ler
  * `ab_test_dias` numa tela (F2–F4) não herda esta isenção.
+ * F2 T8: `sinais/leitura.ts` lê `yt_own_video_meta_daily` só para saber se o vídeo é PÚBLICO (`privacy_status`, `proprios_agora`); nenhum número
+ * do Analytics sai dali (a lista de sinais já é leitura de editor do site, via a guarda da rota/ação).
+ * F2: `sinais/lugares-do-site.ts` (`lerProprios`, tarefa diária `sinais_do_nicho`) lê `yt_own_video_meta_daily` só `privacy_status` e `is_short` (janela de 7 dias,
+ * para o casamento de lugar nos vídeos PÚBLICOS) e grava em `video_lugares`; nenhuma métrica de desempenho (D20), nada volta a tela por este arquivo.
  */
-const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts'])
+const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/sinais/leitura.ts', 'lib/youtube/observatorio/sinais/lugares-do-site.ts', 'lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts'])
 /**
  * PONTO PARA PORTÃO (E9, noite 15/10): dois pontos da fila "Saíram do YouTube" consultam `competitor_video_comments` SEM `leituraValida`.
  * Ambos já estão atrás da guarda de EDIÇÃO do site e usam o cliente de serviço com o site em todo filtro; nenhum recebe o token de leitura
@@ -138,6 +142,11 @@ export function violacoes(fontes: Record<string, string>): string[] {
       const nivelPeloLeitor = LEITORES_POR_NIVEL.has(arq) && /\bnivelDeQuemVe\s*\(/.test(s)
       if (!/\bleituraValida\b/.test(s) && !nivelPeloLeitor) v.push(`${arq}: consulta uma das doze tabelas privadas sem passar por leituraValida`)
       if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: consulta uma das doze tabelas privadas com o token de edição`)
+    }
+    // Phil I1 (lote F1a-tela-1): a RPC do volume lê impressões e privacidade (duas das doze) sem passar por `.from()`; a regra olha a chamada
+    if (/\.rpc\(\s*['"`]ab_lab_volume['"`]/.test(s)) {
+      if (!/\bleituraValida\b/.test(s)) v.push(`${arq}: chama a RPC ab_lab_volume sem passar por leituraValida`)
+      if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: chama a RPC ab_lab_volume com o token de edição`)
     }
     if (!arq.startsWith(COLETA_DIR) && lePorFrom(s) !== leSoColunasPermitidas(s)) v.push(`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`)
     if (!PODE_LER.has(arq) && /import\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
@@ -290,6 +299,16 @@ describe('varredura: o dado privado do canal próprio', () => {
       expect(violacoes({ ...base, 'lib/youtube/observatorio/saiu/outro.ts': "sb.from('competitor_video_comments').select('id')" })).toEqual(['lib/youtube/observatorio/saiu/outro.ts: consulta uma das doze tabelas privadas sem passar por leituraValida'])
       for (const arq of [VERSOES_LER, COMENTARIOS_LER])
         expect(violacoes({ ...base, [arq]: "import { edicaoValida } from '../proprio/edicao'" }), arq).toEqual([`${arq}: o leitor voltou ao token de edição`])
+    })
+    it('Phil I1: a RPC ab_lab_volume exige leituraValida no mesmo arquivo (e não o token de edição)', () => {
+      const rpc = "sb.rpc('ab_lab_volume', { p_site: s })"
+      expect(violacoes({ ...base, 'lib/x/novo.ts': rpc })).toEqual(['lib/x/novo.ts: chama a RPC ab_lab_volume sem passar por leituraValida'])
+      expect(violacoes({ ...base, 'lib/x/novo.ts': 'await sb\n  .rpc(\n"ab_lab_volume", {})' })).toHaveLength(1)
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "if (!leituraValida(l)) throw new Error('x'); " + rpc })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "leituraValida(l); import type { EdicaoDoSite } from '../proprio/edicao'; " + rpc })).toEqual(['lib/x/novo.ts: chama a RPC ab_lab_volume com o token de edição'])
+      // outra RPC não é acusada; a menção em comentário também não
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "sb.rpc('outra_funcao', {})" })).toEqual([])
+      expect(violacoes({ ...base, 'lib/x/novo.ts': "// sb.rpc('ab_lab_volume', {})" })).toEqual([])
     })
     it('E5a C1: os leitores dos comentários (e a página do vídeo e a do canal) não pedem a prova de edição; a isenção só vale com nivelDeQuemVe', () => {
       const L = 'lib/youtube/observatorio/comentarios/leitor.ts'

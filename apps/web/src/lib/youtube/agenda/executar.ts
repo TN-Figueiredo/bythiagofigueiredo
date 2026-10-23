@@ -55,6 +55,17 @@ const curto = (v: string, max = 60): string => {
 
 const ESTADOS_DO_RESULTADO: ReadonlySet<string> = new Set(['ok', 'parcial', 'erro'])
 const inteiroNaoNegativo = (n: unknown): number | null => (typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.round(n)) : null)
+/** Frases de `acao_do_dono` que uma tarefa devolve em `extra.acao` (lista de texto). Forma errada = nada. */
+function acaoDasTarefas(tarefas: ReadonlyArray<{ extra?: unknown }>): string[] {
+  const out: string[] = []
+  for (const t of tarefas) {
+    const e = t.extra
+    if (typeof e !== 'object' || e === null || !('acao' in e) || !Array.isArray(e.acao)) continue
+    for (const f of e.acao) if (typeof f === 'string' && f.trim().length > 0 && !out.includes(f)) out.push(f)
+  }
+  return out
+}
+
 function soNumeros(d: Readonly<Record<string, number>> | undefined): Record<string, number> | undefined {
   if (typeof d !== 'object' || d === null) return undefined
   const out: Record<string, number> = {}
@@ -347,7 +358,7 @@ export async function executarAgenda(o: {
       tarefas: resumo.tarefas.map(({ extra: _extra, ...resto }) => resto),
       ...(f.lote ? resumoDoLote(f.lote) : {}),
       ...(typeof semanal === 'object' && semanal !== null ? { weekly: semanal } : {}),
-      prova: f.prova, prova_horaria: f.provaHoraria, prova_ausentes: f.provaAusentes, apagamentos, acao_do_dono: [...f.acaoDoDono, ...extras.acao], banco: extras.banco, notas, avisos_enviados: avisosEnviados,
+      prova: f.prova, prova_horaria: f.provaHoraria, prova_ausentes: f.provaAusentes, apagamentos, acao_do_dono: [...f.acaoDoDono, ...extras.acao, ...acaoDasTarefas(resumo.tarefas)], banco: extras.banco, notas, avisos_enviados: avisosEnviados,
     }
     logCron({ job: JOB, run_id: runId, status: 'ok', duration_ms: Math.max(0, agora() - t0), ...corpo })
     return { resposta: Response.json({ status: 'ok', ...corpo }) }

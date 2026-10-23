@@ -721,8 +721,8 @@ const SearchContentShape = {
 
 // ---- 17. youtube_observatory ----
 export const YoutubeObservatoryShape = {
-  action: z.enum(['list_channels', 'get_changes', 'get_outliers', 'get_insights'])
-    .describe('list_channels: tracked competitor channels, each with its profile (perfil) and channel measures (medidas: rhythm, hit rate, direction...); a measure marked nao_medido comes with a reason and a sentence (frase): cite the frase as is, never read it as zero. get_changes: recent title/thumbnail/description changes. get_outliers: videos with a multiplier of 2x or more vs the channel. get_insights: aggregated competitor intelligence.'),
+  action: z.enum(['list_channels', 'get_changes', 'get_outliers', 'get_insights', 'get_signals', 'dismiss_signal'])
+    .describe('list_channels: tracked competitor channels, each with its profile (perfil) and channel measures (medidas: rhythm, hit rate, direction...); a measure marked nao_medido comes with a reason and a sentence (frase): cite the frase as is, never read it as zero. get_changes: recent title/thumbnail/description changes. get_outliers: videos with a multiplier of 2x or more vs the channel. get_insights: aggregated competitor intelligence. get_signals: niche suggestions (places where competitors have outliers); an item can help, it is an association and never a cause; when n is 0 cite motivoVazio as is, never read it as "nothing in the niche"; proprios_agora null means not measured. dismiss_signal: dismiss one suggestion (needs write; signal_id and motivo required).'),
   type: z.enum(['all', 'title', 'thumbnail', 'description']).optional()
     .describe('get_changes: only this kind of change (default all)'),
   bookmarked: z.boolean().optional()
@@ -735,6 +735,12 @@ export const YoutubeObservatoryShape = {
     .describe('get_outliers: long videos (default) or Shorts — never mixed in one comparison'),
   campos: z.enum(['todos']).optional()
     .describe('get_changes: also return field changes (tags, category, duration, language, channel name and others)'),
+  signal_id: z.string().uuid().optional()
+    .describe('dismiss_signal: id of the suggestion (from get_signals). Required with status and motivo'),
+  status: z.literal('dispensado').optional()
+    .describe("dismiss_signal: required, only 'dispensado' (done is set by observed effect, never by hand)"),
+  motivo: z.enum(['nao_e_parecido', 'lugar_errado', 'ja_fiz', 'nao_interessa']).optional()
+    .describe('dismiss_signal: why. nao_e_parecido only for kind parecido; lugar_errado only for kind destino'),
 }
 
 // ---- 18. youtube_analytics ----

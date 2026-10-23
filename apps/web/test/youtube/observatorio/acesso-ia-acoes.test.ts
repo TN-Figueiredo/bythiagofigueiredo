@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * A5 · E17 degrau 2, Tarefa 9: as nove ações da ferramenta `observatorio_leitura`, o esquema de entrada e o mapa de cada ação para a tela do degrau 1.
+ * A5 · E17 degrau 2, Tarefa 9: as dez ações da ferramenta `observatorio_leitura`, o esquema de entrada e o mapa de cada ação para a tela do degrau 1.
  * Puro: sem banco, sem relógio. Entrada sem parâmetro equivalente na tela NUNCA some: sai em `semEquivalente` (e a Tarefa 10 a escreve no topo da resposta).
  */
 import { describe, expect, it } from 'vitest'
@@ -38,12 +38,12 @@ const recusa = (e: Entrada): string => {
   return r.frase
 }
 
-describe('as nove ações', () => {
+describe('as dez ações', () => {
   it('são as do spec (lista escrita aqui de propósito)', () => {
-    expect([...ACOES]).toEqual(['definicoes', 'listar_canais', 'canal', 'video', 'comparar', 'destaques', 'serie', 'mudancas', 'pacote_da_tela'])
+    expect([...ACOES]).toEqual(['definicoes', 'listar_canais', 'canal', 'video', 'comparar', 'destaques', 'serie', 'mudancas', 'pacote_da_tela', 'sugestoes'])
   })
 
-  it('o mapa cobre as nove: cada ação tem uma entrada mínima que é aceita', () => {
+  it('o mapa cobre as dez: cada ação tem uma entrada mínima que é aceita', () => {
     const minimas = {
       definicoes: { acao: 'definicoes' },
       listar_canais: { acao: 'listar_canais' },
@@ -54,8 +54,25 @@ describe('as nove ações', () => {
       serie: { acao: 'serie', canal_id: C1, de: '2026-09-01', ate: '2026-09-30' },
       mudancas: { acao: 'mudancas' },
       pacote_da_tela: { acao: 'pacote_da_tela', tela: 'canais' },
+      sugestoes: { acao: 'sugestoes' },
     } satisfies Record<Acao, Entrada>
     for (const a of ACOES) expect(pedir(minimas[a]).ok, a).toBe(true)
+  })
+
+  it('sugestoes: sem parâmetro, a tela `sugestoes` com parâmetros vazios, teto da ação; parâmetro extra é recusado pelo esquema', () => {
+    const p = aceita({ acao: 'sugestoes' })
+    expect(p.telas).toEqual([{ tela: 'sugestoes', sp: {} }])
+    expect(p.teto).toBe(ACESSO_IA_RULES.tetoPorAcao)
+    expect(p.semEquivalente).toEqual([])
+    for (const extra of [{ site_id: C1 }, { nicho: 'viagem' }, { janela: '30' }, { id: C1 }, { status: 'dispensado' }]) {
+      expect(ENTRADA.safeParse({ acao: 'sugestoes', ...extra }).success, JSON.stringify(extra)).toBe(false)
+    }
+  })
+
+  it('sugestoes também está no pacote_da_tela, com os parâmetros da tela vazios (todo parâmetro vai a semEquivalente)', () => {
+    const p = aceita({ acao: 'pacote_da_tela', tela: 'sugestoes', parametros: { niche: 'viagem', sort: 'x' } })
+    expect(p.telas[0]).toMatchObject({ tela: 'sugestoes' })
+    expect(p.semEquivalente.length).toBe(2)
   })
 
   it("ação desconhecida, '__proto__', 'constructor' e vazia: recusadas pelo esquema", () => {

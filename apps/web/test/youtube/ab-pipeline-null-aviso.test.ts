@@ -63,7 +63,7 @@ function testeCompleto(over: Record<string, unknown> = {}): Record<string, unkno
 const COLS_TESTE = Object.keys(testeCompleto()).filter(k => !['variants', 'cycles', 'tracked_links'].includes(k))
 
 const semTestes = (): FakePostgrestOptions => ({
-  tables: { sites: [{ id: SITE }], ab_tests: [], ab_test_variants: [], thumbnail_library: [], ab_test_cycles: [], ab_test_tracked_links: [] },
+  tables: { sites: [{ id: SITE }], ab_tests: [], ab_test_variants: [], thumbnail_library: [], ab_test_cycles: [] },
   columns: {
     ab_tests: COLS_TESTE,
     ab_test_variants: ['id', 'test_id', 'metadata'],
@@ -109,7 +109,6 @@ describe('funil: impressões e cliques de entrega saem null com aviso; link_clic
     tables: {
       sites: [{ id: SITE }],
       ab_tests: [{ id: 't1', site_id: SITE, started_at: START, completed_at: END }],
-      ab_test_tracked_links: [{ ab_test_id: 't1', variant_id: 'v1', link_id: 'l1', template_name: 'A', short_code: 'abc', created_at: START, link: null }],
       ab_test_cycles: [
         { test_id: 't1', variant_id: 'v1', impressions: 150, clicks: 15 },
         { test_id: 't1', variant_id: 'v2', impressions: 200, clicks: 30 },
@@ -119,7 +118,6 @@ describe('funil: impressões e cliques de entrega saem null com aviso; link_clic
     },
     columns: {
       ab_tests: ['id', 'site_id', 'started_at', 'completed_at'],
-      ab_test_tracked_links: ['ab_test_id', 'variant_id', 'link_id', 'template_name', 'short_code', 'created_at'],
       ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks'],
       tracked_links: ['id', 'site_id', 'deleted_at'],
       link_clicks: ['id', 'site_id', 'link_id', 'is_bot', 'clicked_at'],

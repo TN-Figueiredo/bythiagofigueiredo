@@ -27,6 +27,8 @@ const LISTA: ParDaLista[] = [
   { arquivo: 'src/lib/youtube/observatorio/arquivo/remover.ts', tabela: 'blob', disparo: 'dono', classe: 'miniatura de canal removido, com cópia conferida no arquivo (prefixo observatorio/thumbs/; nova tentativa diária das pendências)' },
   // A5 E9 T5: o `del` do Blob da fila "Saíram do YouTube" (só `observatorio/thumbs/`, filtrado por `soMiniaturasDoObservatorio`).
   { arquivo: 'src/lib/youtube/observatorio/saiu/blob.ts', tabela: 'blob', disparo: 'dono', classe: 'miniaturas do item que o dono mandou apagar na fila (prefixo observatorio/thumbs/; o que falha fica em blobs_pending)' },
+  // F2: a poda de órfãos de `video_lugares` (derivada, recalculável): apaga só linhas do site cujo `video_id` não está no conjunto lido na rodada.
+  { arquivo: 'src/lib/youtube/observatorio/sinais/lugares-do-site.ts', tabela: 'video_lugares', disparo: 'cron', classe: 'órfãos de tabela derivada (vídeo que saiu do conjunto lido; recalculável)' },
   // Poda do acesso externo da IA (E17, MG11): a tabela chega por parâmetro de `podarTabela`, resolvido em PARAMETROS_RESOLVIDOS.
   { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', tabela: 'obs_ai_access_log', disparo: 'cron', classe: 'registro de acesso da IA com mais de 400 dias' },
   { arquivo: 'src/lib/youtube/observatorio/acesso-ia/poda.ts', tabela: 'obs_ai_rate', disparo: 'cron', classe: 'contador de taxa da IA com mais de 2 dias' },

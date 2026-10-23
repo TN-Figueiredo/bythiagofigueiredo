@@ -80,7 +80,8 @@ export function criarBanco(tabelas: Record<string, Linha[]>, o: OpcoesBanco = {}
     q.insert = (x: Linha | Linha[]) => { p.op = 'insert'; payload = x; return q }
     q.update = (x: Linha) => { p.op = 'update'; payload = x; return q }
     q.delete = () => { p.op = 'delete'; return q }
-    q.upsert = (x: Linha | Linha[]) => { p.op = 'upsert'; payload = x; return q }
+    let conflito: string[] | null = null
+    q.upsert = (x: Linha | Linha[], op?: { onConflict?: string }) => { p.op = 'upsert'; payload = x; conflito = op?.onConflict ? op.onConflict.split(',') : null; return q }
     const filtro = (nome: string, args: unknown[], t: Teste): unknown => { p.filtros.push(`${nome}:${args.map(String).join(',')}`); testes.push(t); return q }
     // texto contra texto é comparado byte a byte (o CAS do `updated_at` tem microssegundos que `Date.parse` perderia)
     q.eq = (c: string, v: unknown) => filtro('eq', [c, v], l => (l[c] ?? null) !== null && (typeof l[c] === 'string' && typeof v === 'string' ? l[c] === v : cmp(l[c], v) === 0))
@@ -138,6 +139,13 @@ export function criarBanco(tabelas: Record<string, Linha[]>, o: OpcoesBanco = {}
           }
         }
         if (tabela === 'ab_native_avaliacoes') for (const n of novas) if (typeof n.id === 'string') n.id = ++seq
+        if (p.op === 'upsert' && conflito) {
+          for (const n of novas) {
+            const ex = rows().find(x => conflito!.every(col => x[col] === n[col]))
+            if (ex) { const { id: _id, ...resto } = n; Object.assign(ex, resto) } else rows().push(n)
+          }
+          return { data: retorna ? novas.map(x => ({ ...x })) : null, error: null }
+        }
         rows().push(...novas)
         return { data: retorna ? novas.map(x => ({ ...x })) : null, error: null }
       }

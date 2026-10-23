@@ -5,6 +5,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 vi.mock('../src/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   createAbTest: vi.fn(), uploadVariant: vi.fn(), startAbTest: vi.fn(), createTextVariant: vi.fn(),
   updateAbTestType: vi.fn(), cleanupDraftVariants: vi.fn(), fetchAbBriefingData: vi.fn(), fetchLibraryEntries: vi.fn(async () => []),
+  lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false })),
 }))
 
 import { AbCreateWizard } from '../src/app/cms/(authed)/youtube/ab-lab/_components/ab-create-wizard'

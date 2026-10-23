@@ -75,13 +75,18 @@ export async function dhashDasVariantes(
   return out
 }
 
+/** Busca os bytes da maior miniatura que o YouTube serve (maxres, sd, senão a hqdefault da sonda); null se nenhuma responde. */
+export async function buscarBytesDaOriginal(youtubeId: string, f: typeof fetch = fetch): Promise<Buffer | null> {
+  return (await biggerCopy(thumbUrl(youtubeId), f)) ?? (await probeThumb(youtubeId, null, f)).bytes
+}
+
 /** Guarda a maior cópia da original (1280×720, senão 640×480, senão a hqdefault) e devolve url, dHash e dimensões. */
 export async function guardarOriginalMaior(
   youtubeId: string,
   testOuVideoUuid: string,
   f: typeof fetch = fetch,
 ): Promise<{ url: string; dhash: string; largura: number; altura: number }> {
-  const bytes = (await biggerCopy(thumbUrl(youtubeId), f)) ?? (await probeThumb(youtubeId, null, f)).bytes
+  const bytes = await buscarBytesDaOriginal(youtubeId, f)
   if (!bytes) throw new Error('thumbnail original indisponível')
   const meta = await sharp(bytes).metadata()
   const dhash = await dhashDosBytes(bytes)

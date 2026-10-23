@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { mockChannelAccountId } = vi.hoisted(() => ({ mockChannelAccountId: vi.fn() }))
+vi.mock('@/lib/youtube/teste-youtube/nativo/guarda', async (orig) => (await import('./helpers/guarda-nativa-vazia')).guardaVazia(await orig<typeof import('@/lib/youtube/teste-youtube/nativo/guarda')>()))
 vi.mock('@/lib/youtube/channel-account', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
   channelAccountIdForVideo: mockChannelAccountId,
@@ -576,7 +577,7 @@ describe('GET /api/cron/ab-rotate', () => {
       }),
     )
     // startAbTestInternal called with correct args
-    expect(startAbTestInternal).toHaveBeenCalledWith('queued-1', 'site-1')
+    expect(startAbTestInternal).toHaveBeenCalledWith('queued-1', 'site-1', { pontoDaGuarda: 'fila' })
   })
 
   it('reverts queued test to queued status on start failure', async () => {
@@ -653,6 +654,15 @@ describe('GET /api/cron/ab-rotate', () => {
     expect(updateCalls.some((c) => (c.data as { status?: string }).status === 'paused')).toBe(false)
   })
 
+  it('3ª falha convertida em pausa por teste do YouTube: Sentry info com o testId, sem pausa extra (Phil C1)', async () => {
+    const test = makeTest({ test_type: 'thumbnail', config: { rotation_pattern: 'abba', consecutive_failures: 2 } })
+    buildSupabaseMock({ tests: [test] })
+    ;(setThumbnail as ReturnType<typeof vi.fn>).mockRejectedValue(new YouTubeApiError(401, 'authError', 'thumbnails.set'))
+    settleOnAirFalso.mockResolvedValueOnce({ resultado: 'feito', campos: {}, pausadoPorTesteYoutube: true })
+    await GET(createCronRequest('test-secret'))
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('convertida em pausa por teste do YouTube'), expect.objectContaining({ level: 'info', extra: { testId: 'test-1' } }))
+  })
+
   it('does not process queued tests with future queue_start_after', async () => {
     // The query uses .lte('queue_start_after', now), so future tests are NOT returned by DB
     buildSupabaseMock({ queuedTests: [], tests: [] })
@@ -690,8 +700,8 @@ describe('GET /api/cron/ab-rotate', () => {
 
     // Both queued tests should be started
     expect(startAbTestInternal).toHaveBeenCalledTimes(2)
-    expect(startAbTestInternal).toHaveBeenCalledWith('queued-a', 'site-1')
-    expect(startAbTestInternal).toHaveBeenCalledWith('queued-b', 'site-1')
+    expect(startAbTestInternal).toHaveBeenCalledWith('queued-a', 'site-1', { pontoDaGuarda: 'fila' })
+    expect(startAbTestInternal).toHaveBeenCalledWith('queued-b', 'site-1', { pontoDaGuarda: 'fila' })
 
     // Both should have status changed to draft (each update generates 2 eq calls)
     expect(updateCalls.filter(c =>

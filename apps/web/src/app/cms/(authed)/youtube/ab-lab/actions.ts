@@ -5,6 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { put } from '@vercel/blob'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { requireEditUser } from '@/lib/youtube/ab-lab-acesso'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -32,7 +33,9 @@ import { getChannelTier } from '@/lib/youtube/scoring'
 import { scoreForPrompt } from '@/lib/youtube/prompt-scoring'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import { guardarOriginalMaior, dhashOuNulo } from '@/lib/youtube/ab-variant-dhash'
+import { guardaDoPonto } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
+import type { CodigoRecusaNativa } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { retomarTeste, recusaTipoForaDeUso } from '@/lib/youtube/ab-resume'
 import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
@@ -83,14 +86,6 @@ async function concluirSaida(saida: Promise<ResultadoSaida>): Promise<ResultadoA
   const out = traduzirSaida(r)
   if (out.ok && out.resultado === 'feito') invalidarTelasDoAbLab()
   return out
-}
-
-/** Como requireEditAccess, mas também devolve quem agiu (para o rastro em audit_log). */
-async function requireEditUser(): Promise<{ siteId: string; userId: string }> {
-  const { siteId } = await getSiteContext()
-  const res = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
-  if (!res.ok) throw new Error(res.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden')
-  return { siteId, userId: res.user.id }
 }
 
 async function requireEditAccess(): Promise<string> {
@@ -558,6 +553,24 @@ export async function cleanupDraftVariants(
   return { ok: true }
 }
 
+/** D12: só leitura da original guardada do rascunho; o assistente avisa, nunca bloqueia. Erro ou ambiguidade = ok:false. */
+export async function lerDimensoesDaOriginal(
+  testId: string,
+): Promise<{ ok: true; dimensions: string | null; medida: boolean } | { ok: false }> {
+  let siteId: string
+  try { siteId = await requireEditAccess() } catch { return { ok: false } }
+  const supabase = getSupabaseServiceClient()
+  const { data: test, error: eTeste } = await supabase
+    .from('ab_tests').select('id').eq('id', testId).eq('site_id', siteId).maybeSingle()
+  if (eTeste || !test) return { ok: false }
+  const { data: originais, error: eVar } = await supabase
+    .from('ab_test_variants').select('dimensions, thumbnail_dhash')
+    .eq('test_id', testId).eq('is_original', true).limit(2)
+  if (eVar || !originais || originais.length > 1) return { ok: false }
+  const original = originais[0]
+  return { ok: true, dimensions: original?.dimensions ?? null, medida: original?.thumbnail_dhash != null }
+}
+
 // ---------------------------------------------------------------------------
 // pullPipelineThumbnails
 // ---------------------------------------------------------------------------
@@ -695,7 +708,7 @@ export async function pullPipelineThumbnails(
 
 export async function startAbTest(
   testId: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; codigo?: CodigoRecusaNativa; ate?: string }> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
@@ -708,14 +721,17 @@ export async function startAbTest(
     revalidateTag('youtube', { expire: 0 })
     revalidatePath('/cms/youtube/ab-lab')
   }
-  return result
+  // `nativeTestId` é id interno da guarda: o cliente só precisa de `codigo` e `ate`.
+  const { nativeTestId: _interno, ...publico } = result as typeof result & { nativeTestId?: string }
+  return publico
 }
 
 // ---------------------------------------------------------------------------
 // pauseAbTest
 // ---------------------------------------------------------------------------
 
-export async function pauseAbTest(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
+/** `forcar` (opcional, só o "Trocar mesmo assim" da ficha): pula a pergunta do passo 0b depois de `precisa_confirmar`. */
+export async function pauseAbTest(testId: string, seqVisto: number, forcar?: boolean): Promise<ResultadoAcaoSaida> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
@@ -724,7 +740,7 @@ export async function pauseAbTest(testId: string, seqVisto: number): Promise<Res
   }
   const seq = seqVistoSchema.safeParse(seqVisto)
   if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true, seqEsperado: seq.data }))
+  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'pausa', humano: true, seqEsperado: seq.data, ...(forcar === true ? { forcar: true } : {}) }))
 }
 
 // ---------------------------------------------------------------------------
@@ -1020,6 +1036,10 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
   if (!test) return { ok: false, resultado: 'erro', error: 'Test not found or not active' }
   const tipoRecusado = recusaTipoForaDeUso(test.test_type)
   if (tipoRecusado) return { ok: false, resultado: 'erro', error: tipoRecusado }
+
+  // Guarda do teste do YouTube (F1a-dado): forçar a rotação escreve no vídeo; teste nativo em andamento recusa.
+  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: 'forcar' })
+  if (!guarda.seguir) return { ok: false, resultado: 'erro', error: guarda.motivo }
 
   // Resolve channel for correct token
   const { data: video } = await supabase

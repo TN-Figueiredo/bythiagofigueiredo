@@ -1009,7 +1009,7 @@ const CAMPOS_DA_VARIANTE = ['id', 'test_id', 'label', 'is_original', 'blob_url',
   'dimensions', 'title_text', 'metadata', 'sort_order', 'source_variant_id', 'created_at'] as const satisfies readonly ColunaVariante[]
 // `thumbnail_dhash` (Migration 0) é interno do A/B Lab e sai de propósito.
 // coluna nova no banco obriga alguém a decidir (entra na lista ou sai de propósito), em vez de sumir em silêncio
-type _Cobre = Exclude<ColunaVariante, (typeof CAMPOS_DA_VARIANTE)[number] | 'description_text' | 'thumbnail_dhash'> extends never ? true : never
+type _Cobre = Exclude<ColunaVariante, (typeof CAMPOS_DA_VARIANTE)[number] | 'thumbnail_dhash'> extends never ? true : never
 const _cobre: _Cobre = true
 void _cobre
 
@@ -1260,7 +1260,7 @@ export async function listVariants(
 
   const { data: variants, error } = await supabase
     .from('ab_test_variants')
-    .select('*')
+    .select('id, test_id, label, is_original, blob_url, blob_key, file_size_bytes, dimensions, title_text, metadata, sort_order, source_variant_id, created_at')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -1269,8 +1269,8 @@ export async function listVariants(
     return err('DB_ERROR', 'Failed to load variants', 500)
   }
 
-  // mesma projeção de projetarVariante, tipada: o _Cobre acima garante que só estas duas colunas ficam de fora
-  return ok((variants ?? []).map(({ description_text: _desc, thumbnail_dhash: _dhash, ...v }) => v) as VariantRow[])
+  // mesma lista de CAMPOS_DA_VARIANTE (o _Cobre acima garante que só `thumbnail_dhash` fica de fora)
+  return ok((variants ?? []) as VariantRow[])
 }
 
 // ---------------------------------------------------------------------------

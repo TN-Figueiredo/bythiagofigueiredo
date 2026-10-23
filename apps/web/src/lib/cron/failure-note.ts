@@ -13,7 +13,10 @@ export function describeCronCause(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err)
 
   // ensureFreshToken: "Could not read/count the youtube connection ..." = leitura no banco.
-  if (/^Could not (read|count) the \w+ connections?/.test(message)) return 'database error reading the connection'
+  if (/^Could not (read|count) the \w+ connections?/.test(message)) {
+    const code = message.match(/ for site \S+ \[([\w-]+)\]:/)?.[1]
+    return code ? `database error reading the connection (${code})` : 'database error reading the connection'
+  }
   if (/connection disappeared/i.test(message)) return 'connection disappeared during a concurrent refresh'
   const refresh = message.match(/token refresh failed(?: for \w+)? \((\d{3})\)/i)
   if (refresh) return `Google token refresh failed (HTTP ${refresh[1]})`

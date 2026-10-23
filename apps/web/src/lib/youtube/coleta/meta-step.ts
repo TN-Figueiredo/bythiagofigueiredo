@@ -70,6 +70,8 @@ interface ThumbCaptura {
 
 /** A captura pela Data API (token + videos.list de todos os canais) não come mais que isto do prazo do passo. */
 export const TETO_CAPTURA_MS = 8_000
+/** Prazo da leitura/renovação do token, à parte do TETO_CAPTURA_MS: o token não consome o orçamento da videos.list. */
+export const TETO_TOKEN_MS = 10_000
 
 /** O PostgREST corta em 1000 linhas: bater nesse número é sinal de leitura truncada. */
 const LIMITE_LEITURA = 1000
@@ -220,9 +222,8 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
   const f = fetchComPrazo(ctx.deadline)
   // Prazo próprio da captura: ela roda em série antes das linhas e não pode consumir o prazo do passo.
   // O spread é raso: `falhas` e `tentativas` continuam sendo os mesmos arrays.
-  const prazoCaptura = Math.min(ctx.deadline, Date.now() + TETO_CAPTURA_MS)
-  const ctxCaptura: StepCtx = { ...ctx, deadline: prazoCaptura }
-  const fCaptura = fetchComPrazo(prazoCaptura)
+  /** Tempo já gasto em videos.list (só ele conta no teto de 8 s; o token tem prazo próprio). */
+  let gastoLista = 0
   const tCaptura0 = Date.now()
   const captura = new Map<string, VideoCapturado>()
   /** `youtube_channels.id` cuja videos.list respondeu: só para esses "ausente da resposta" quer dizer alguma coisa. */
@@ -236,9 +237,17 @@ export async function passoMetadados(ctx: StepCtx): Promise<MetaResumo> {
       continue
     }
     try {
-      const token = await obterToken(ctxCaptura, c, tCanal)
+      const token = await obterToken({ ...ctx, deadline: Math.min(ctx.deadline, Date.now() + TETO_TOKEN_MS) }, c, tCanal)
       if (token === null) continue
-      const lidosApi = await videosList(token, doCanal.map(v => v.youtube_video_id), fCaptura)
+      const tLista0 = Date.now()
+      const prazoLista = Math.min(ctx.deadline, tLista0 + Math.max(0, TETO_CAPTURA_MS - gastoLista))
+      if (prazoLista - tLista0 <= 0) throw new SemTempoError()
+      let lidosApi: Awaited<ReturnType<typeof videosList>>
+      try {
+        lidosApi = await videosList(token, doCanal.map(v => v.youtube_video_id), fetchComPrazo(prazoLista))
+      } finally {
+        gastoLista += Date.now() - tLista0
+      }
       for (const [id, v] of lidosApi) captura.set(id, v)
       respondeu.add(c.id)
       // Falha em verde: uma resposta sem nenhum dos vídeos do canal não é "alguns ausentes", é dado que não veio.

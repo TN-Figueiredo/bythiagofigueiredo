@@ -7,8 +7,11 @@
  * exposing internal functions to the network.
  */
 
+import { guardaDoPonto } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
+import type { CodigoRecusaNativa } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { TestTypeSchema, DESCRICAO_FORA_DO_TESTE, pedeDescricao } from './ab-schemas'
 import * as Sentry from '@sentry/nextjs'
+import { del } from '@vercel/blob'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
@@ -24,6 +27,7 @@ import { avisarRestauracao } from '@/lib/youtube/ab-restore-avisos'
 import { lerSnippet } from '@/lib/youtube/ab-metadata'
 import { guardarOriginalMaior } from '@/lib/youtube/ab-variant-dhash'
 import { DHASH_MAX_SAME, hamming, probeThumb } from '@/lib/youtube/thumb-fingerprint'
+import { dimensoesDeTexto, publicaBaixa } from '@/lib/youtube/ab-original-resolucao'
 import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
 import type { AppliedMetadata, TestType } from '@/lib/youtube/ab-types'
 
@@ -173,12 +177,15 @@ interface VarianteInicio {
   blob_url: string | null
   title_text: string | null
   thumbnail_dhash: string | null
+  dimensions: string | null
   sort_order: number
 }
 
 export interface PortasInicio {
   supabase: SupabaseClient
   agora: () => Date
+  /** Quem chama a partir da fila marca 'fila' (só muda o `ponto` do rastro do modo `log`). */
+  pontoDaGuarda?: 'start' | 'fila' | 'playoff'
 }
 
 /**
@@ -197,7 +204,7 @@ export async function startAbTestInternal(
   testId: string,
   siteId: string,
   portas: Partial<PortasInicio> = {},
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; codigo?: CodigoRecusaNativa; nativeTestId?: string; ate?: string }> {
   const supabase = portas.supabase ?? getSupabaseServiceClient()
   const agora = portas.agora ?? (() => new Date())
   const prazo = agora().getTime() + TETO_MS // F-D3: ação humana (e cron da fila), início + 55 s
@@ -219,7 +226,7 @@ export async function startAbTestInternal(
   // 2. Fetch variants.
   const { data: variants, error: variantsError } = await supabase
     .from('ab_test_variants')
-    .select('id, label, is_original, blob_url, title_text, thumbnail_dhash, sort_order')
+    .select('id, label, is_original, blob_url, title_text, thumbnail_dhash, dimensions, sort_order')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
 
@@ -246,6 +253,10 @@ export async function startAbTestInternal(
     const semConteudo = motivoVarianteSemConteudo(testType, firstVariant, test.original_title as string | null)
     if (semConteudo) return { ok: false, error: `O teste não começou: a variante ${firstVariant.label} está ${semConteudo}. Corrija a variante e inicie de novo.` }
   }
+
+  // Guarda do teste do YouTube (F1a-dado): teste nativo em andamento no vídeo recusa o início, sem escrever; depois das validações, antes do canal/token e do passo 0b (que escreve no banco) e da reivindicação, para o modo `log` só anotar onde a escrita sairia (a fila adia sem gastar tentativa).
+  const guarda = await guardaDoPonto(supabase, { siteId, testId, videoId: test.youtube_video_id as string, ponto: portas.pontoDaGuarda ?? 'start' })
+  if (!guarda.seguir) return { ok: false, error: guarda.motivo, codigo: guarda.codigo, ...(guarda.nativeTestId ? { nativeTestId: guarda.nativeTestId } : {}), ...(guarda.ate ? { ate: guarda.ate } : {}) }
 
   // 4. Canal e token (só leitura): falha aqui não toca em nada.
   let accessToken: string
@@ -315,9 +326,27 @@ export async function startAbTestInternal(
       const sonda = await probeThumb(youtubeVideoId, null)
       if (!sonda.dhash) return await desfazer('Não foi possível ler a thumbnail atual do vídeo. Tente de novo.')
       const guardado = original?.thumbnail_dhash ?? null
+      const larguraGuardada = dimensoesDeTexto(original?.dimensions)?.largura ?? 0
+      const originalBaixa = publicaBaixa(larguraGuardada)   // r5 B1: nula, 0x0, ilegível ou < 1280
       if (guardado === null || hamming(guardado, sonda.dhash) > DHASH_MAX_SAME) {
+        // A original mudou: a cópia nova é obrigatória (falha recusa o início, como antes do B1).
         guardada = await guardarOriginalMaior(youtubeVideoId, testId)
         patchTeste.original_thumbnail_url = guardada.url
+      } else if (originalBaixa) {
+        // Só baixa: é melhoria, nunca recusa o início (D12). Só troca se a cópia nova for mais larga.
+        try {
+          const nova = await guardarOriginalMaior(youtubeVideoId, testId)
+          if (nova.largura > larguraGuardada) {
+            guardada = nova
+            patchTeste.original_thumbnail_url = nova.url
+          } else {
+            try { await del(nova.url) } catch (e) {
+              Sentry.captureException(e, { tags: { area: 'ab-start', etapa: 'b1-apagar-copia' }, extra: { testId } })
+            }
+          }
+        } catch (e) {
+          Sentry.captureException(e, { tags: { area: 'ab-start', etapa: 'b1-regravar' }, extra: { testId } })
+        }
       }
     }
   } catch (e) {

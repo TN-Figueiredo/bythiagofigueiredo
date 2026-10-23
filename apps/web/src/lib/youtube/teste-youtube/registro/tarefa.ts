@@ -2,7 +2,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { schemaTablesReady } from '@/lib/youtube/competitor-health'
-import { BANCO_MS } from '@/lib/youtube/agenda/relogio'
+import { BANCO_MS, LEVE_COMECA_ATE_MS } from '@/lib/youtube/agenda/relogio'
 import type { ContextoTarefa, ResultadoTarefa } from '@/lib/youtube/agenda/tipos'
 import { resumoTecnico } from '@/lib/youtube/agenda/motivos'
 import { PADROES_DETECCAO, REGRA_TESTE_YOUTUBE_VERSAO, type EscritaConhecida, type LeituraWatch } from '../tipos'
@@ -11,6 +11,7 @@ import { escritasDoApp } from './escritas'
 import { lerAberto, lerCandidatos, lerEscritas, lerLeiturasPaginadas, type Candidato } from './ler'
 import { avaliarVideo, corteDaJanela } from './registrar'
 import { reproduzirPassado, type Reproducao } from './reproduzir'
+import { rodarObservados } from '../observados/passo'
 import type { AcaoRegistro, Encerramento, NovaAvaliacao, NovoRegistro, RegistroAberto } from './tipos'
 
 const MAX_VIDEOS = 8
@@ -18,6 +19,9 @@ const MAX_REPRODUCOES = 2
 const PARALELO = 4
 const PROPRIO_MS = 30_000
 const BANCO_ATE_MS = 83_000
+/** O observador (T13) acaba em min(t0 + 70 s, início + 20 s): `avisos_pendentes` (leve, começa até 75 s) e a pesada seguinte contam do mesmo t0, e a ida ao banco que ele começar cabe antes do fimAteMs (88 s). */
+export const OBS_FIM_MS = LEVE_COMECA_ATE_MS - 5_000
+const OBS_PROPRIO_MS = 20_000
 const PODA_LOTE = 500
 const PODA_FOLGA_MS = 3_000
 
@@ -95,6 +99,25 @@ function linhaDeReproducaoRegistro(n: NovoRegistro & { fim: Encerramento | null 
   return { id: n.id, youtube_video_id: ytId, ...colunasDoNovo(n), ...(n.fim === null ? { estado: 'em_andamento' } : colunasDoFim(n.fim)) }
 }
 
+/**
+ * `registro_teste_nativo`: os próprios primeiro (30 s próprios, nada depois de `t0 + 83 s`) e, DEPOIS, o observador dos concorrentes (T13, §5.8; no máximo até `OBS_FIM_MS` e 20 s),
+ * atrás de `OBS_TROCAS_CONCORRENTE` (padrão off: nenhuma leitura, nenhuma escrita, o resultado sai idêntico). Só roda se sobrar >= 10 s; a falha dele vira
+ * `parcial` com motivo `observados_falhou` e NUNCA reprova a tarefa dos próprios nem os `avisos_pendentes`.
+ */
+export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): Promise<ResultadoTarefa> {
+  const proprios = await rodarRegistroProprios(c, o)
+  let obs: Awaited<ReturnType<typeof rodarObservados>>
+  try {
+    obs = await rodarObservados(c, { fimDuroMs: Math.min(c.t0 + OBS_FIM_MS, c.agora() + OBS_PROPRIO_MS) })
+  } catch {
+    obs = { ativo: true, detalhe: { obs_falhou: 1 }, motivo: 'observados_falhou' } // o passo já se isola; isto é o cinto
+  }
+  if (!obs.ativo) return proprios
+  const detalhe = { ...(proprios.detalhe ?? {}), ...obs.detalhe }
+  if (obs.motivo !== null && proprios.estado === 'ok') return { ...proprios, estado: 'parcial', motivo: obs.motivo, detalhe }
+  return { ...proprios, detalhe }
+}
+
 const semFeito = (estado: ResultadoTarefa['estado'], motivo: string, detalhe?: Record<string, number>): ResultadoTarefa =>
   ({ estado, feitas: 0, deixadas: null, motivo, ...(detalhe ? { detalhe } : {}) })
 
@@ -103,7 +126,7 @@ const semFeito = (estado: ResultadoTarefa['estado'], motivo: string, detalhe?: R
  * Só escreve em `ab_native_tests`, `ab_native_avaliacoes` e nas RPCs `yt_watch_reter`, `ab_native_poda` e `ab_native_reproduzir`.
  * 30 s próprios; nenhuma ida ao banco começa depois de `t0 + 83 s`.
  */
-export async function rodarRegistro(c: ContextoTarefa, o: OpcoesRegistro = {}): Promise<ResultadoTarefa> {
+async function rodarRegistroProprios(c: ContextoTarefa, o: OpcoesRegistro = {}): Promise<ResultadoTarefa> {
   const novoId = o.novoId ?? randomUUID
   const sb = c.sb
   const inicio = c.agora()

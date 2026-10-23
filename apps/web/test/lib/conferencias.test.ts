@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { DIMENSOES_LIGADO_EM } from '@/lib/youtube/coleta/e11-config'
 import {
-  CONFERENCIAS, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E9_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE5AComentarios, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE9, conferenciasX3, X3_LIGADA, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
+  CONFERENCIAS, REABERTAS, REABERTAS_EM, DIAS_ATE_O_VERMELHO, E10_DEPLOY, E11_DEPLOY, E5A_DEPLOY, E5A_RI_DEPLOY, E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA, E14_DEPLOY, E16_E15_DEPLOY, E17_D1_DEPLOY, E17_D1_NUCLEO_DEPLOY, E17_D2_ABERTURA, E17_D2_DEPLOY, E17_D2_PODA_DEPLOY, E18_DEPLOY, E1_E2_DEPLOY, E9_DEPLOY, E6_P2_DEPLOY, E6_P3_APLICADA, E8_COLETA_DEPLOY, conferenciasE10, conferenciasE11, conferenciasE17D1, conferenciasE17D1Nucleo, conferenciasE5A, conferenciasE5ARi, conferenciasE5AComentarios, conferenciasE14, conferenciasE16E15, conferenciasE17D2, conferenciasE17D2Abertura, conferenciasE17D2Poda, conferenciasE18, conferenciasE1E2, conferenciasE9, conferenciasX3, X3_LIGADA, conferenciasE6P2, conferenciasE6P3, conferenciasE8Coleta, conferenciasEmFalha, conferenciasVencidas, diasDeAtraso, hojeSP, E6_P4_APLICADA, E18P2_APLICADA, E18P2_COBERTURA_DEPLOY, conferenciasE6P4, conferenciasE18P2, conferenciasE18P2Cobertura, type Conferencia,
 } from '@/lib/conferencias'
 import { CONTEXTO_IA_RULES } from '@/lib/youtube/observatorio/contexto-ia/regras'
 
@@ -96,7 +96,7 @@ describe('a lista publicada (CONFERENCIAS)', () => {
   })
   it('e20-segundo-cron: devida em 14/10, a leitura da base de blobs_guardados_antes', () => {
     const x = CONFERENCIAS.find(y => y.id === 'e20-segundo-cron')
-    expect(x).toMatchObject({ etapa: 'E20', data: '2026-10-14', responsavel: 'agente', feitaEm: null })
+    expect(x).toMatchObject({ etapa: 'E20', data: '2026-10-14', responsavel: 'agente', feitaEm: '2026-10-14' })
     expect(x?.onde).toContain('blobs_guardados_antes')
   })
   it('as conferências da E12 (D0 = 13/10/2026) estão na lista, com as datas do ledger', () => {
@@ -149,10 +149,10 @@ describe('conferências de E1 e E2 (relativas ao dia do envio)', () => {
     expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual(['e1e2-d0'])
     expect(conferenciasEmFalha(dia(8), l).map(x => x.id)).toEqual(['e1e2-d0'])
   })
-  it('com o deploy real (E1_E2_DEPLOY): a e1e2-d0 foi feita em 13/10/2026 (D0 do Lote 1 verde) e as demais e1e2-* seguem sem feitaEm', () => {
+  it('com o deploy real (E1_E2_DEPLOY): a e1e2-d0 (13/10) e a e1e2-d1 (14/10) foram feitas e as demais e1e2-* seguem sem feitaEm', () => {
     const l = CONFERENCIAS.filter(x => x.id.startsWith('e1e2-'))
     expect(l.map(x => x.id)).toEqual(IDS)
-    for (const x of l) expect(x.feitaEm, x.id).toBe(x.id === 'e1e2-d0' ? '2026-10-13' : null)
+    for (const x of l) expect(x.feitaEm, x.id).toBe(x.id === 'e1e2-d0' ? '2026-10-13' : x.id === 'e1e2-d1' ? '2026-10-14' : null)
     // a data é fato do envio real: um envio hipotético (outra data de deploy) não herda a conferência como feita
     expect(conferenciasE1E2(dia(-10)).every(x => x.feitaEm === null)).toBe(true)
   })
@@ -1029,5 +1029,22 @@ describe('X3: conferências com data (A5 X3)', () => {
   })
   it('data malformada vira entrada de 1970 (vermelha)', () => {
     expect(conferenciasX3('2026-13-45').map(x => [x.id, x.data])).toEqual([['x3-ligada-invalida', '1970-01-01']])
+  })
+})
+
+// Fecho da A5 (dono, 23/10): as 37 vencidas sem prova reabrem em REABERTAS_EM; a data do plano não muda.
+describe('reabertas (fecho da A5)', () => {
+  it('toda reaberta existe na lista, segue sem feitaEm e conta o vencimento de REABERTAS_EM', () => {
+    expect(REABERTAS.size).toBe(37)
+    for (const id of REABERTAS) {
+      const c = CONFERENCIAS.find(x => x.id === id)
+      expect(c, id).toBeDefined()
+      expect(c?.feitaEm ?? null, id).toBeNull()
+      expect(c?.reabertaEm, id).toBe(REABERTAS_EM)
+      expect(diasDeAtraso(REABERTAS_EM, c!), id).toBe(0)
+    }
+  })
+  it('a data do plano fica: e7-l1-d7 segue devida em 19/10', () => {
+    expect(CONFERENCIAS.find(x => x.id === 'e7-l1-d7')).toMatchObject({ data: '2026-10-19', reabertaEm: REABERTAS_EM })
   })
 })

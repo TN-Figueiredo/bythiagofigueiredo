@@ -24,9 +24,10 @@ export interface SuggestedCardProps {
   onCreate: (videoId: string, type: TestType) => void
   checked?: boolean
   onToggle?: (videoId: string) => void
+  desabilitado?: boolean
 }
 
-export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedCardProps) {
+export function SuggestedCard({ video, onCreate, checked, onToggle, desabilitado }: SuggestedCardProps) {
   const gradeColor = GRADE_COLORS[video.grade] ?? GRADE_COLORS.C
   const ctrColor = video.grade === 'D' || video.grade === 'F' ? 'var(--cms-red, #ef4444)' : gradeColor
 
@@ -119,6 +120,7 @@ export function SuggestedCard({ video, onCreate, checked, onToggle }: SuggestedC
           <button
             type="button"
             onClick={() => onCreate(video.id, video.suggest)}
+            disabled={desabilitado}
             className="flex-1 inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent cursor-pointer"
             style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
           >

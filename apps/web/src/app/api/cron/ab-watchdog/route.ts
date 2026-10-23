@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
     if (!podaRetratos.ok) console.error('[ab-watchdog] snapshot prune skipped:', podaRetratos.motivo)
 
     // Conversão do `em_andamento` interrompido (só banco): fora e antes das duas fases, a nova tentativa lê o resultado dela (Y-6).
-    const drift: ResultadoDrift = { verificados: 0, pausados: 0, falhas: 0, adiados: 0, interrompidos: 0, semDestinatario: false }
+    const drift: ResultadoDrift = { verificados: 0, pausados: 0, pausadosPorTesteYoutube: 0, falhas: 0, adiados: 0, interrompidos: 0, semDestinatario: false }
     await converterInterrompidosDoVigia(getSupabaseServiceClient(), { agora: Date.now, inicio }, drift)
 
     // Drift (só testes `active`) e nova tentativa (só `status <> 'active'`) têm conjuntos disjuntos: rodam em paralelo,
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       faseDriftEInterrompidos(getSupabaseServiceClient(), { agora: Date.now, inicio }, undefined, undefined, { semInterrompidos: true })
         .catch((e: unknown): ResultadoDrift => {
           Sentry.captureException(e, { extra: { context: 'ab-watchdog-drift' } })
-          return { verificados: 0, pausados: 0, falhas: 1, adiados: 0, interrompidos: 0, semDestinatario: false }
+          return { verificados: 0, pausados: 0, pausadosPorTesteYoutube: 0, falhas: 1, adiados: 0, interrompidos: 0, semDestinatario: false }
         }),
       faseNovaTentativa(getSupabaseServiceClient(), { agora: Date.now, inicio })
         .catch((e: unknown): ResultadoNovaTentativa => {
@@ -111,6 +111,7 @@ export async function GET(req: NextRequest) {
     ])
     drift.verificados += driftFase.verificados
     drift.pausados += driftFase.pausados
+    drift.pausadosPorTesteYoutube += driftFase.pausadosPorTesteYoutube
     drift.falhas += driftFase.falhas
     drift.adiados += driftFase.adiados
     drift.interrompidos += driftFase.interrompidos
@@ -125,7 +126,7 @@ export async function GET(req: NextRequest) {
       await recordCronSuccess('ab-watchdog', 'info')
     }
 
-    const driftResposta = { verificados: drift.verificados, pausados: drift.pausados, falhas: drift.falhas }
+    const driftResposta = { verificados: drift.verificados, pausados: drift.pausados, falhas: drift.falhas, ...(drift.pausadosPorTesteYoutube > 0 ? { pausados_teste_youtube: drift.pausadosPorTesteYoutube } : {}) }
     // Sempre presente, inclusive com zeros (P4b-I9): a ausência não pode ser lida como "nada a fazer".
     const novaTentativaResposta = {
       tentadas: nt.tentadas, ok: nt.ok, falharam: nt.falharam, desistiram: nt.desistiram, pulados: nt.pulados, cota: nt.cota,

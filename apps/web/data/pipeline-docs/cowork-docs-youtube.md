@@ -1076,6 +1076,63 @@ Retorna insights agregados de todos os canais concorrentes monitorados.
 
 ---
 
+### GET /api/pipeline/youtube/competitors/signals
+
+Sugestões do nicho: lugares onde vídeos de concorrentes estouraram (régua do Observatório, `estourando`) em pelo menos dois canais, ou um vídeo muito acima do normal. É uma **associação, não uma causa**: a sugestão **pode ajudar**, não promete resultado. Nunca escreva "vai ajudar".
+
+**Auth:** read
+**Ferramenta:** `youtube_observatory`, ação `get_signals` (mesmo conteúdo; o texto sai sem indentação e, se passar de 60.000 caracteres, só a lista `evidence.outliers` de cada sugestão é encurtada, com `evidence.outliers_omitidos`; `n`, ids e `motivoVazio` não mudam).
+
+**Query:** `limit` (opcional, 1 a 50, padrão 50).
+
+**Resposta:**
+```json
+{
+  "n": 2,
+  "itens": [
+    {
+      "id": "uuid", "kind": "destino", "subject_key": "pais:JP",
+      "acao": "titulo_descricao", "rotulo_acao": "abrir-seus", "n_proprios": 1, "acao_gravada": "video_novo",
+      "forca": 12.5, "motivo": "dois canais estouraram...", "rule_version": "sinais-v1+semente-1",
+      "evidence": { "outliers": [{ "video_id": "uuid", "canal_id": "uuid", "published_at": "ISO", "mult_vpd7": 6.1, "mult_tela": 3.2, "vpd7": 900, "formato": "long" }], "outliers_total": 4, "canais": 2, "proprios": [] },
+      "first_seen_at": "ISO", "expires_at": "ISO",
+      "proprios_agora": ["uuid do seu vídeo público sobre o lugar"],
+      "proprios_agora_n": 1
+    }
+  ],
+  "computado_em": "ISO", "desatualizado": false, "motivoVazio": null, "contagens": { "canais_total": 5 }, "calculoLigado": true
+}
+```
+
+**Campos-chave:**
+- `n`: total de sugestões abertas e vigentes (não o tamanho de `itens`). Ordem: `forca` (maior primeiro).
+- `kind`: `destino` (lugar que esquentou) ou `parecido` (vídeo de concorrente parecido com um seu).
+- `acao`: derivada **agora** dos seus vídeos públicos sobre o lugar (`proprios_agora`): com ≥ 1, `titulo_descricao` (rever título e descrição do que você já tem); com nenhum, `video_novo`; `playlist` não muda. `acao_gravada` é a que o cálculo gravou, só para auditoria.
+- `proprios_agora`: ids dos **seus** vídeos públicos e visíveis que citam o lugar hoje. `null` = **não medido** (os lugares dos seus vídeos ainda não foram calculados): não leia como "você não tem vídeo sobre isso".
+- `proprios_agora` leva no máximo 20 ids; `proprios_agora_n` é o total real (e o `n_proprios`). `null` nos dois = não medido.
+- Se a resposta passar do teto, vem um campo `aviso` ("resposta cortada: N itens não couberam"): as sugestões do fim saíram, `n` continua o total real.
+- `evidence.proprios` é a foto de quando a sugestão nasceu; use `proprios_agora`.
+- Só ids, números e chaves de lugar: a rota não traz título, miniatura nem texto de comentário. O desempenho dos seus vídeos não entra na força nem na ordem.
+- **Lista vazia nunca é "nada no nicho".** Com `n: 0`, `motivoVazio` diz por quê e deve ser **citado como está**: `nunca-calculado`, `tudo-respondido` (use `contagens.respondidos_30d`), `sem-historico`, `sync-atrasado`, `sem-terceiro-outlier`, `sem-lugar`, `abaixo-do-minimo` ou `sem-grupo`. Os números do motivo estão em `contagens`.
+- `desatualizado: true`: o último cálculo tem mais de 36 horas; cite a data (`computado_em`).
+
+---
+
+### POST /api/pipeline/youtube/competitors/signals/:id/dismiss
+
+Dispensa uma sugestão (ela não volta por 30 dias). **Auth:** write. **Ferramenta:** `youtube_observatory`, ação `dismiss_signal` com `signal_id`, `status` e `motivo`.
+
+**Body:**
+```json
+{ "status": "dispensado", "motivo": "ja_fiz" }
+```
+
+- `status`: só `dispensado` (`feito` nasce do efeito observado, nunca à mão).
+- `motivo`: `nao_e_parecido` (só `parecido`), `lugar_errado` (só `destino`), `ja_fiz` ou `nao_interessa`.
+- Respostas: 200 `{ "ok": true }`; 400 corpo inválido; 403 sem `write`; 404 id inexistente ou de outro site; 409 já respondida; 422 motivo que não cabe no tipo.
+
+---
+
 ### O que não é entregue ao Cowork nesta fase
 
 - Série por vídeo (curva de views por dia), texto e contagem de comentários, a descrição do canal e qualquer dado do canal próprio no Observatório de concorrentes.
@@ -1890,6 +1947,7 @@ Workflow de monitoramento competitivo e geração de insights:
 2. GET  /api/pipeline/youtube/competitors/changes     → detectar mudanças recentes (`?campos=todos` para incluir mudanças de campo)
 3. GET  /api/pipeline/youtube/competitors/outliers    → identificar vídeos virais
 4. GET  /api/pipeline/youtube/competitors/insights    → insights agregados (heatmap, gaps, formulas, play-of-the-week)
+4b. GET /api/pipeline/youtube/competitors/signals     → sugestões do nicho (associação, não causa; cite `motivoVazio` quando `n` for 0)
 5. POST /api/pipeline/items                           → criar pipeline item com insight acionável
 ```
 

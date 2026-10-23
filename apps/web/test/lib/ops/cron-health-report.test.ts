@@ -207,7 +207,7 @@ describe('F0-c: entrada parcial da coleta', () => {
 
   it('o vercel.json real tem as duas chaves, com os horários certos', () => {
     const g = groupCronSchedules(vercelConfig.crons)
-    expect(g.get('sync-analytics-metrics')).toEqual(['0 12 * * *'])
+    expect(g.get('sync-analytics-metrics')).toEqual(['4 12 * * *'])
     expect(g.get('sync-analytics-metrics-parcial')).toEqual(['7 0 * * *'])
   })
 

@@ -17,9 +17,15 @@ import type { ResultadoAviso } from '@/lib/youtube/ab-restore-avisos'
 import { resolveVideoChannel, resolveYouTubeVideoId } from '@/lib/youtube/ab-video-context'
 import { probeThumb, thumbUrl } from '@/lib/youtube/thumb-fingerprint'
 import { autoImportWinner } from '@/lib/youtube/thumbnail-library'
+import { MOTIVO_RECUSA_NATIVO, lerLinhaConfirmada } from '@/lib/youtube/teste-youtube/nativo/guarda'
+import { TEXTO_SEM_LEITURA as TEXTO_SEM_LEITURA_TELA } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ErroConhecido, YouTubeApiError, paraErroGravado } from '@/lib/youtube/youtube-api-error'
 
-export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'drift'
+export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'drift' | 'teste_youtube'
+/** Nota do teste pausado por haver teste do YouTube em andamento (F1a-dado): pausa definitiva, sem escrever no YouTube. */
+export const NOTA_TESTE_YOUTUBE = 'Em teste no Studio: pausado sem escrever no YouTube'
+/** Valor mostrado no diálogo de confirmação quando a leitura do título no YouTube falhou (a thumbnail sem leitura mostra o espaço reservado). */
+export const TEXTO_SEM_LEITURA = TEXTO_SEM_LEITURA_TELA
 export const ORIGINAL = { tipo: 'original' } as const
 
 export interface OpcoesSaida {
@@ -35,13 +41,14 @@ export interface OpcoesSaida {
 }
 
 export type ResultadoSaida =
-  | { resultado: 'feito'; campos: RestoreStatus; aviso?: ResultadoAviso } // aviso: 'sem_destinatario'/'falha_de_envio' sobem ao chamador (Y-P3)
+  | { resultado: 'feito'; campos: RestoreStatus; aviso?: ResultadoAviso; pausadoPorTesteYoutube?: true } // aviso: 'sem_destinatario'/'falha_de_envio' sobem ao chamador (Y-P3)
   | { resultado: 'precisa_confirmar'; campos: Array<{ campo: CampoNome; valor_atual: string }> }
   | { resultado: 'ja_encerrado'; campos: RestoreStatus | null }
   | { resultado: 'em_andamento'; campos: RestoreStatus | null }
   | { resultado: 'destino_invalido'; campos: null }
   | { resultado: 'outro_teste'; campos: RestoreStatus | null } // P4b Y-5: outro teste aberto no mesmo vídeo; o Lab não escreve
   | { resultado: 'sem_permissao'; campos: RestoreStatus | null } // P4b Y-A1: `autorizar` recusou o destino do retrato reivindicado
+  | { resultado: 'teste_youtube'; motivo: string; campos: null } // F1a-dado: teste do YouTube confirmado em andamento no vídeo; o Lab não escreve
   | { resultado: 'mudou'; campos: RestoreStatus | null } // seqEsperado de uma tela humana não bate: o teste mudou desde a abertura
 
 export interface VarianteRetrato {
@@ -59,6 +66,7 @@ export interface Retrato {
   name: string
   test_type: string
   status: string
+  status_note?: string | null
   restore_seq: number
   restore_status: RestoreStatus | null
   original_title: string | null
@@ -87,6 +95,7 @@ export const TETO_MS = 55_000 // F-D3: ações humanas e crons que não passam `
 export const MARGEM_ESCRITA_MS = 25_000 // 20 s da escrita + 5 s do passo 4 e do aviso
 const RECENTE_MS = 2 * 60_000 // F-D4: 60 s do teto da função + folga
 const REVERT_MS = 7 * 86_400_000
+const MOTIVOS_QUE_PAUSAM_SEM_ESCREVER: readonly MotivoSaida[] = ['pausa', 'falha_api', 'drift', 'duracao_maxima']
 const JANELA_DA_COTA_MS = 72 * 3_600_000 // cota que dura mais que isso desde a âncora do "sim" conta como falha
 
 /**
@@ -160,6 +169,8 @@ function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
       return { de: ['active'], para: 'completed', endReason: 'duracao_maxima', extra: { completed_reason: 'inconclusive', winner_variant_id: null, limpar_confianca: true, limpar_carencia: true, status_note: null } }
     case 'drift':
       return { de: ['active'], para: 'paused', endReason: 'drift', extra: { status_note: DRIFT_STATUS_NOTE, limpar_drift_ack: true } }
+    case 'teste_youtube':
+      return { de: ['active', 'paused'], para: 'paused', endReason: 'teste_youtube', extra: { status_note: NOTA_TESTE_YOUTUBE } }
   }
 }
 
@@ -188,7 +199,7 @@ function portasPadrao(p: Partial<PortasSaida>): PortasSaida {
 // ---------------------------------------------------------------------------
 
 interface FilaTeste {
-  id: string; site_id: string; name: string; test_type: string; status: string; restore_seq: number
+  id: string; site_id: string; name: string; test_type: string; status: string; status_note: string | null; restore_seq: number
   restore_status: unknown; original_title: string | null; original_thumbnail_url: string | null
   last_applied_variant_id: string | null; winner_applied_at: string | null; revert_expires_at: string | null
   youtube_video_id: string
@@ -197,7 +208,7 @@ interface FilaTeste {
 export async function lerRetratoPadrao(supabase: SupabaseClient, testId: string, siteId: string): Promise<Retrato | null> {
   const { data: t, error } = await supabase
     .from('ab_tests')
-    .select('id, site_id, name, test_type, status, restore_seq, restore_status, original_title, original_thumbnail_url, last_applied_variant_id, winner_applied_at, revert_expires_at, youtube_video_id')
+    .select('id, site_id, name, test_type, status, status_note, restore_seq, restore_status, original_title, original_thumbnail_url, last_applied_variant_id, winner_applied_at, revert_expires_at, youtube_video_id')
     .eq('id', testId)
     .eq('site_id', siteId)
     .maybeSingle()
@@ -484,6 +495,35 @@ async function converterEmAndamentoVelho(portas: PortasSaida, r: Retrato, rs: Re
 // settleOnAir
 // ---------------------------------------------------------------------------
 
+/**
+ * Motivo `teste_youtube`: pausa definitiva sem escrita (Yannis C1: pelo mesmo `ab_settle_claim`, que fecha o ciclo aberto e zera
+ * `last_applied_variant_id` na mesma transação). Campo `ok` ou `pulado_*` fica como está (o histórico não pode negar uma escrita feita);
+ * o resto vira `pulado_teste_youtube`. O restore_status já nasce final: o gatilho do histórico grava na mesma transação.
+ */
+async function gravarPuladoDefinitivo(portas: PortasSaida, r: Retrato, campos: CampoNome[], agora: Date): Promise<ResultadoSaida> {
+  const base: Base = { destino: 'original', forcado: false, anterior: 0 }
+  const final: RestoreStatus = {}
+  for (const c of campos) {
+    const ant = r.restore_status?.[c]
+    final[c] = ant && (ant.estado === 'ok' || ant.estado.startsWith('pulado_'))
+      ? ant
+      : montarCampo(base, agora, { estado: 'pulado_teste_youtube', escreveu: false })
+  }
+  const claim = await portas.supabase.rpc('ab_settle_claim', {
+    p_test_id: r.id, p_seq: r.restore_seq, p_de: ['active', 'paused'], p_para: 'paused',
+    p_end_reason: 'teste_youtube', p_restore_status: final, p_extra: { status_note: NOTA_TESTE_YOUTUBE },
+  })
+  if (claim.error) throw new Error(`ab-settle: ab_settle_claim: ${claim.error.message}`)
+  const seq = (claim.data as Array<{ claimed_seq: number }> | null)?.[0]?.claimed_seq
+  if (seq === undefined) {
+    const { data, error } = await portas.supabase.from('ab_tests').select('status').eq('id', r.id).maybeSingle()
+    if (error) throw new Error(`ab-settle: status do teste ${r.id}: ${(error as { message: string }).message}`)
+    const status = (data as { status: string } | null)?.status
+    return status && ['active', 'paused'].includes(status) ? { resultado: 'em_andamento', campos: null } : { resultado: 'ja_encerrado', campos: null }
+  }
+  return { resultado: 'feito', campos: final, pausadoPorTesteYoutube: true } // pausa sem escrita: os chamadores não a tratam como a saída pedida
+}
+
 export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<PortasSaida> = {}): Promise<ResultadoSaida> {
   const portas = portasPadrao(p)
   const agora = portas.agora()
@@ -501,22 +541,38 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (op.motivo === 'reverter' && !reversaoAberta(r, agora)) return { resultado: 'ja_encerrado', campos: r.restore_status }
 
   const campos = camposDoTeste(r.test_type)
+  // Guarda do teste do YouTube confirmado (F1a-dado, Yannis C2; sem flag): ponto único de escrita do nosso teste. Dispensada quando o motivo já é `teste_youtube`.
+  if (op.motivo !== 'teste_youtube' && (await lerLinhaConfirmada(portas.supabase, r.site_id, r.youtube_video_id)) !== null) {
+    if (MOTIVOS_QUE_PAUSAM_SEM_ESCREVER.includes(op.motivo)) return gravarPuladoDefinitivo(portas, r, campos, agora)
+    return { resultado: 'teste_youtube', motivo: MOTIVO_RECUSA_NATIVO, campos: null }
+  }
+  // Há teste do YouTube em andamento: pausa definitiva SEM escrever (antes de token, leitura e passo 0b).
+  if (op.motivo === 'teste_youtube') return gravarPuladoDefinitivo(portas, r, campos, agora)
+  // Saindo de uma pausa por teste do YouTube: a nota de guarda não vira razão do encerramento.
+  if (op.motivo === 'encerrado' && r.status_note === NOTA_TESTE_YOUTUBE) caminho.extra = { ...caminho.extra, status_note: null }
   // Antes da reivindicação: depois dela o `em` do próprio campo seria o do claim (F-P2, Review Focus 1).
   const contexto = (c: CampoNome) => ({
     ultimaEscrita: ultimaEscritaDoApp({ inicioUltimoCiclo: r.inicioUltimoCiclo, restoreStatus: r.restore_status, winnerAppliedAt: r.winner_applied_at }, c),
     marcador: r.last_applied_variant_id,
   })
 
-  if (op.humano && destino !== 'original' && !op.forcar) { // passo 0b: decide a seco; falha na leitura não impede
+  // Depois de pulado_teste_youtube o original pode ter sido reaproveitado por uma variante nossa no YouTube: o passo 0b roda também com destino original.
+  const aposTesteYoutube = destino === 'original' && campos.some((c) => r.restore_status?.[c]?.estado === 'pulado_teste_youtube')
+  if (op.humano && (destino !== 'original' || aposTesteYoutube) && !op.forcar) { // passo 0b: decide a seco; falha na leitura não impede
     try {
       const acesso = await resolverAcesso(portas, r)
       const leitura = await lerNoYouTube(portas, acesso, r, campos)
       const perguntar = campos.flatMap((c) => {
         const d = decidirCampo(entrada(c, r, destino, leitura, contexto(c), portas.agora(), false))
-        return d.acao === 'pular' && d.estado === 'pulado_drift' ? [{ campo: c, valor_atual: valorAtual(c, leitura, acesso) }] : []
+        const pergunta = (d.acao === 'pular' && d.estado === 'pulado_drift') || (aposTesteYoutube && d.acao === 'escrever')
+        return pergunta ? [{ campo: c, valor_atual: valorAtual(c, leitura, acesso) }] : []
       })
       if (perguntar.length) return { resultado: 'precisa_confirmar', campos: perguntar }
-    } catch { /* o passo 3 decide */ }
+    } catch {
+      // Depois de pulado_teste_youtube, sem a leitura o passo 3 poderia escrever o original sobre uma variante nossa no ar: pergunta em vez de seguir.
+      if (aposTesteYoutube) return { resultado: 'precisa_confirmar', campos: campos.map((c) => ({ campo: c, valor_atual: c === 'title' ? TEXTO_SEM_LEITURA : '' })) }
+      /* o passo 3 decide */
+    }
   }
 
   // PODE-1: em_andamento velho (já com >= 2 min) conta a tentativa antes de ser sobrescrito.
@@ -604,6 +660,9 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
   const rs0 = r.restore_status
   const pend = camposPendentes(rs0, op.origem)
   if (!rs0 || pend.length === 0) return { resultado: 'ja_encerrado', campos: r.restore_status }
+
+  // Guarda do teste do YouTube confirmado (F1a-dado, Yannis C2): nova tentativa escreveria no vídeo.
+  if ((await lerLinhaConfirmada(portas.supabase, r.site_id, r.youtube_video_id)) !== null) return { resultado: 'teste_youtube', motivo: MOTIVO_RECUSA_NATIVO, campos: null }
 
   // 3. destino
   const alvos = new Set(pend.map((c) => rs0[c]!.destino))

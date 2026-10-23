@@ -4,12 +4,10 @@ import { NextRequest } from 'next/server'
 // A rota só orquestra: o comportamento de cada fase está em test/youtube/ab-evaluate-phases.test.ts.
 const fases = vi.hoisted(() => ({
   evaluate: vi.fn(),
-  playoffs: vi.fn(),
 }))
 
 vi.mock('@/lib/youtube/ab-evaluate-phases', () => ({
   phaseEvaluateActiveTests: fases.evaluate,
-  phaseAutoStartPlayoffs: fases.playoffs,
 }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
@@ -40,7 +38,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(clienteVazio())
   fases.evaluate.mockResolvedValue({ evaluated: 2, resolved: 1, errors: 0 })
-  fases.playoffs.mockResolvedValue({ processed: 3, errors: 0 })
 })
 
 afterEach(() => {
@@ -57,12 +54,13 @@ describe('GET /api/cron/ab-evaluate', () => {
 
   it('a resposta não tem mais applies_retried nem playoffs_created', async () => {
     const corpo = await (await GET(pedidoAutenticado())).json()
-    expect(Object.keys(corpo).sort()).toEqual(['errors', 'evaluated', 'longevity_checked', 'playoffs_started', 'resolved', 'status'])
+    expect(Object.keys(corpo).sort()).toEqual(['errors', 'evaluated', 'longevity_checked', 'resolved', 'status'])
   })
 
-  it('resolved é só o da avaliação e playoffs_started vem da fase de playoffs', async () => {
+  it('resolved é só o da avaliação e a resposta não tem playoffs_started', async () => {
     const corpo = await (await GET(pedidoAutenticado())).json()
-    expect(corpo).toMatchObject({ status: 'ok', evaluated: 2, resolved: 1, errors: 0, playoffs_started: 3 })
+    expect(corpo).toMatchObject({ status: 'ok', evaluated: 2, resolved: 1, errors: 0 })
+    expect(corpo).not.toHaveProperty('playoffs_started')
   })
 
   it('recordCronFailure quando as fases somam erro; recordCronSuccess quando zero', async () => {
@@ -72,12 +70,5 @@ describe('GET /api/cron/ab-evaluate', () => {
     fases.evaluate.mockResolvedValueOnce({ evaluated: 1, resolved: 1, errors: 0 })
     await GET(pedidoAutenticado())
     expect(recordCronSuccess).toHaveBeenCalledTimes(1)
-  })
-
-  it('erro da fase de playoffs também soma no total', async () => {
-    fases.playoffs.mockResolvedValueOnce({ processed: 0, errors: 2 })
-    const corpo = await (await GET(pedidoAutenticado())).json()
-    expect(corpo.errors).toBe(2)
-    expect(recordCronFailure).toHaveBeenCalledTimes(1)
   })
 })

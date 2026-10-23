@@ -12,7 +12,6 @@ vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken: vi.fn() }))
 vi.mock('@/lib/youtube/ab-statistics', () => ({ calculateBayesianConfidence: vi.fn() }))
 vi.mock('@/lib/youtube/ab-youtube', () => ({ setThumbnail: vi.fn().mockResolvedValue({ highUrl: 'https://i.ytimg.com/vi/test/hqdefault.jpg' }), fetchVariantImageBuffer: vi.fn() }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn() }))
 vi.mock('@/lib/youtube/ab-preflight', () => ({
   preflightTokenCheck: vi.fn(() => ({ ok: true, accessToken: 'token-retry' })),
 }))
@@ -23,11 +22,6 @@ vi.mock('@/lib/youtube/notification-service', () => ({
   })),
 }))
 vi.mock('@/lib/youtube/analytics-sync', () => ({ getIsoWeek: vi.fn(() => '2026-W22') }))
-vi.mock('@/lib/youtube/ab-playoff', () => ({
-  checkPlayoffEligibility: vi.fn(() => ({ eligible: false })),
-  selectPlayoffVariants: vi.fn(() => null),
-}))
-vi.mock('@/lib/youtube/ab-start', () => ({ startAbTestInternal: vi.fn() }))
 vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 // T8: a duração máxima é um PEDIDO a settleOnAir (o contrato dele está em ab-settle.test.ts; o caminho real, em ab-evaluate-duracao-maxima.test.ts).
@@ -37,17 +31,12 @@ vi.mock('@/lib/youtube/ab-settle', async (orig) => {
 })
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn().mockResolvedValue(1) }))
 
-import {
-  phaseEvaluateActiveTests,
-  phaseAutoStartPlayoffs,
-} from '@/lib/youtube/ab-evaluate-phases'
+import { phaseEvaluateActiveTests } from '@/lib/youtube/ab-evaluate-phases'
 import * as Sentry from '@sentry/nextjs'
 import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { fetchVariantImageBuffer, setThumbnail } from '@/lib/youtube/ab-youtube'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
-import { resolveTemplates } from '@/lib/youtube/ab-templates'
 import { updateVideoMetadata } from '@/lib/youtube/ab-metadata'
-import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { settleOnAirFalso as settle } from '../helpers/montar-saida-automatica'
 
 // ─── Cliente falso POR TABELA ───────────────────────────────────────────────
@@ -122,7 +111,6 @@ interface OpcoesCliente {
   statusNaReleitura?: string
   updateCasaZeroLinha?: boolean
   falhaAoLer?: boolean
-  draftPlayoffs?: unknown[]
 }
 
 function clienteCom(tests: TesteFalso[], opts: OpcoesCliente = {}) {
@@ -162,12 +150,6 @@ function clienteCom(tests: TesteFalso[], opts: OpcoesCliente = {}) {
         select: () => ({
           eq: (col: string, val: unknown) => {
             if (col === 'status' && val === 'active') return Promise.resolve(listaOuErro)
-            if (col === 'status' && val === 'draft') {
-              const ch: Record<string, unknown> = {}
-              for (const m of ['eq', 'not', 'lte']) ch[m] = () => ch
-              ch.then = (r: (v: unknown) => void) => r({ data: opts.draftPlayoffs ?? [], error: null })
-              return ch
-            }
             const lido = { data: { status: opts.statusNaReleitura ?? 'active' }, error: null }
             return { maybeSingle: () => Promise.resolve(lido), single: () => Promise.resolve(lido) }
           },
@@ -234,7 +216,6 @@ beforeEach(() => {
   ;(fetchVariantImageBuffer as ReturnType<typeof vi.fn>).mockResolvedValue({
     buffer: Buffer.from('x'), contentType: 'image/jpeg',
   })
-  ;(resolveTemplates as ReturnType<typeof vi.fn>).mockImplementation((text: string) => text)
   settle.mockReset()
   settle.mockResolvedValue({ resultado: 'feito', campos: { thumbnail: { estado: 'ok' } } })
 })
@@ -300,6 +281,12 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     settle.mockResolvedValueOnce({ resultado: 'feito', campos: { thumbnail: { estado: 'falhou' }, title: { estado: 'ok' } } })
     const { supabase } = clienteCom([testeAtivo({ tipo: 'combo', diasNoAr: 15, maxDuracao: 14 })])
     expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 1, resolved: 1, errors: 1 })
+  })
+
+  it('pausa convertida pela guarda do teste do YouTube não conta como resolvida (Phil C1)', async () => {
+    settle.mockResolvedValueOnce({ resultado: 'feito', campos: { thumbnail: { estado: 'pulado_teste_youtube' } }, pausadoPorTesteYoutube: true })
+    const { supabase } = clienteCom([testeAtivo({ diasNoAr: 15 })])
+    expect(await phaseEvaluateActiveTests(supabase)).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
   })
 
   it('campo desistiu também deixa o cron vermelho; pulado_drift e pulado_sem_original não', async () => {
@@ -382,29 +369,5 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     } finally {
       delete process.env.AB_AUTO_APPLY_WINNER
     }
-  })
-})
-
-// ─── Phase 1: phaseAutoStartPlayoffs ────────────────────────────────────────
-
-describe('phaseAutoStartPlayoffs', () => {
-  it('starts draft round-2 playoffs past cooldown', async () => {
-    const playoff = {
-      id: 'playoff-1',
-      site_id: 'site-1',
-      round_number: 2,
-      parent_test_id: 'parent-1',
-      playoff_start_after: new Date(Date.now() - 3_600_000).toISOString(), // 1h ago — past cooldown
-    }
-
-    ;(startAbTestInternal as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true })
-
-    const { supabase: client } = clienteCom([], { draftPlayoffs: [playoff] })
-
-    const result = await phaseAutoStartPlayoffs(client)
-
-    expect(result.processed).toBe(1)
-    expect(result.errors).toBe(0)
-    expect(startAbTestInternal).toHaveBeenCalledWith('playoff-1', 'site-1')
   })
 })

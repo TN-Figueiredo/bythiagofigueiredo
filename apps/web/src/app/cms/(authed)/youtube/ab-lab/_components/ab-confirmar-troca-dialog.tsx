@@ -5,6 +5,7 @@ import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import type { OpcaoDoDialogo } from './encerrar-props'
+import { TEXTO_SEM_LEITURA } from '@/lib/youtube/teste-youtube/nativo/frases'
 import './ab-end-test-dialog.css'
 
 export interface AbConfirmarTrocaDialogProps {
@@ -16,7 +17,11 @@ export interface AbConfirmarTrocaDialogProps {
   onConfirmar: () => void
 }
 
-function Miniatura({ src, rotulo }: { src: string | null; rotulo: string }) {
+/** Leitura que falhou depois do pulado: valor vazio ou o texto fixo (T10). Nunca caixa em branco. */
+const semLeitura = (v: string): boolean => v === '' || v === TEXTO_SEM_LEITURA
+
+function Miniatura({ src, rotulo, semLeitura: falhou }: { src: string | null; rotulo: string; semLeitura?: boolean }) {
+  if (falhou) return <div className="etd-th fail" role="img" aria-label={rotulo}>{TEXTO_SEM_LEITURA}</div>
   // Na comparação a imagem é o dado; quando não carrega, o texto diz que falta.
   if (!src) return <div className="etd-th fail" role="img" aria-label={rotulo}>Sem imagem</div>
   // eslint-disable-next-line @next/next/no-img-element
@@ -52,13 +57,13 @@ export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar }:
 
   const compTitulo = titulo ? (
     <div className="etd-cmp">
-      <div><h4>No YouTube agora</h4><p>{titulo.valor_atual}</p></div>
+      <div><h4>No YouTube agora</h4><p>{semLeitura(titulo.valor_atual) ? TEXTO_SEM_LEITURA : titulo.valor_atual}</p></div>
       <div className="mine"><h4>Variante {v}</h4><p>{opcao.titulo ?? ''}</p></div>
     </div>
   ) : null
   const compThumb = thumb ? (
     <div className="etd-cmp">
-      <div><h4>No YouTube agora</h4><Miniatura src={thumb.valor_atual || null} rotulo="Thumbnail editada por fora" /></div>
+      <div><h4>No YouTube agora</h4><Miniatura src={thumb.valor_atual || null} semLeitura={semLeitura(thumb.valor_atual)} rotulo="Thumbnail editada por fora" /></div>
       <div className="mine"><h4>Variante {v}</h4><Miniatura src={opcao.miniatura} rotulo={`Thumbnail da variante ${v}`} /></div>
     </div>
   ) : null

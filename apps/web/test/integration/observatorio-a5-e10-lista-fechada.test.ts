@@ -18,6 +18,16 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { emTransacao, escalar, q1, tenta, semearCena, type Cena } from '../helpers/mg6'
 
 /** A MG17a (E18 parte 2) ainda não está em nenhum banco persistente: o teste a aplica DENTRO da transação desfeita (idempotente se já estiver). */
+/** T13: as migrations das trocas observadas (tabelas e registro de 32 entradas) também só existem aqui dentro da transação desfeita, por cima da F1. */
+function sqlsDaT13(): string[] {
+  const dir = fileURLToPath(new URL('../../../../supabase/migrations/', import.meta.url))
+  return ['_ab_native_observados.sql', '_ab_native_observados_registro.sql'].map(suf => {
+    const arq = readdirSync(dir).find(f => f.endsWith(suf))
+    if (!arq) throw new Error(`migration ${suf} ausente em supabase/migrations`)
+    return readFileSync(`${dir}${arq}`, 'utf8')
+  })
+}
+
 function sqlDaMg17a(): string {
   const dir = fileURLToPath(new URL('../../../../supabase/migrations/', import.meta.url))
   const arq = readdirSync(dir).find(f => f.endsWith('observatorio_a5_e18p2_cobertura_de_metadados.sql'))
@@ -82,6 +92,16 @@ const LISTA: Par[] = [
   { funcao: 'yt_watch_poda', tabela: 'yt_watch_alvos', linha: 'S4 §9 (poda dos alvos saídos)', disparo: 'agenda' },
   { funcao: 'yt_watch_poda', tabela: 'yt_watch_readings', linha: 'S4 §9 (leituras dos alvos saídos)', disparo: 'agenda' },
   { funcao: 'yt_watch_poda', tabela: 'yt_watch_thumbs', linha: 'S4 §9 (miniaturas órfãs)', disparo: 'agenda' },
+  // T13 (F1a-dado): trocas observadas nos concorrentes. A remoção do canal apaga as duas depois de exportadas e conferidas.
+  { funcao: 'competitor_channel_remove_archived', tabela: 'ab_native_observados', linha: 'T13: trocas observadas do canal removido, depois de exportadas e conferidas', disparo: 'dono' },
+  { funcao: 'competitor_channel_remove_archived', tabela: 'ab_native_obs_cursor', linha: 'T13: cursor do canal removido, depois de exportado e conferido', disparo: 'dono' },
+  { funcao: 'competitor_channel_delete_unarchived', tabela: 'ab_native_observados', linha: 'T13: o dono apagou sem guardar um canal com até 30 dias; as trocas observadas dele saem junto', disparo: 'dono' },
+  { funcao: 'competitor_channel_delete_unarchived', tabela: 'ab_native_obs_cursor', linha: 'T13: idem, o cursor', disparo: 'dono' },
+  { funcao: 'obs_unarchived_watch_sweep', tabela: 'ab_native_observados', linha: 'T13: varre a troca observada que um disparo em voo gravou depois de apagar sem guardar', disparo: 'cron' },
+  { funcao: 'obs_unarchived_watch_sweep', tabela: 'ab_native_obs_cursor', linha: 'T13: varre o cursor que um disparo em voo gravou depois de apagar sem guardar', disparo: 'cron' },
+  // a poda por idade é SÓ do cursor (365 d, estado de execução); a troca observada não envelhece (decisão do controlador: coletar mais dado do que usa) e só sai quando o vídeo some (órfã)
+  { funcao: 'obs_native_poda', tabela: 'ab_native_obs_cursor', linha: 'T13: cursor, estado de execução: 365 d após avaliado_em, e as linhas órfãs (vídeo sem alvo e sem competitor_videos no site)', disparo: 'agenda' },
+  { funcao: 'obs_native_poda', tabela: 'ab_native_observados', linha: 'T13: SÓ as linhas órfãs (canal apagado sem guardar); nunca por idade; a troca de vídeo vivo fica, a de vídeo que sumiu (canal apagado, E9) sai', disparo: 'agenda' },
 ]
 
 /** Item 78: nenhuma série, versão, texto de comentário ou bruto sai por cron nem por idade. */
@@ -108,6 +128,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 T10: a lista fechada do que apaga (ca
   it('toda função com delete tem par e todo par tem função', async () => {
     await emTransacao(pg, async () => {
       await pg.query(sqlDaMg17a())
+      for (const sql of sqlsDaT13()) await pg.query(sql)
       const achadas = (await pg.query(DELETES_SQL)).rows as { funcao: string; tabela: string }[]
       const chaves = new Set(achadas.map(a => `${a.funcao}::${a.tabela}`))
       const daLista = new Set(LISTA.map(p => `${p.funcao}::${p.tabela}`))

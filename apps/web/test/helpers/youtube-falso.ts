@@ -9,7 +9,7 @@ const ESCRITAS: readonly ChamadaFalsa[] = ['videos.update', 'thumbnails.set']
 export interface RelogioFalso { avancar(ms: number): void }
 
 /** Imagem cujo dHash (thumb-fingerprint.dhashOf) é exatamente `hex` (16 dígitos): 9x8 de cinza ampliado sem suavizar. */
-export async function imagemComDhash(hex: string): Promise<Buffer> {
+export async function imagemComDhash(hex: string, largura = 450, altura = 360): Promise<Buffer> {
   const px = Buffer.alloc(9 * 8)
   for (let y = 0; y < 8; y++) {
     const bits = hex.slice(2 * y, 2 * y + 2).split('').map((d) => parseInt(d, 16).toString(2).padStart(4, '0')).join('')
@@ -17,8 +17,11 @@ export async function imagemComDhash(hex: string): Promise<Buffer> {
     px[y * 9] = v
     for (let x = 0; x < 8; x++) { v += bits[x] === '1' ? -12 : 12; px[y * 9 + x + 1] = v }
   }
-  return sharp(px, { raw: { width: 9, height: 8, channels: 1 } }).resize(450, 360, { kernel: 'nearest' }).png().toBuffer()
+  return sharp(px, { raw: { width: 9, height: 8, channels: 1 } }).resize(largura, altura, { kernel: 'nearest' }).png().toBuffer()
 }
+
+/** Mesma arte de `imagemComDhash` em 1280x720 (o dHash não muda); prova a saída do aviso de original baixa. */
+export const imagemGrande = (hex: string): Promise<Buffer> => imagemComDhash(hex, 1280, 720)
 
 export const H = { A: 'f0f0f0f0f0f0f0f0', B: '00ff00ff00ff00ff', C: 'aaaaaaaaaaaaaaaa' } as const
 

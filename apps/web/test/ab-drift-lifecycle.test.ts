@@ -15,7 +15,6 @@ vi.mock('@/lib/youtube/ab-youtube', () => ({
   fetchVariantImageBuffer: vi.fn().mockResolvedValue({ buffer: Buffer.from('img'), contentType: 'image/jpeg' }),
 }))
 vi.mock('@/lib/youtube/ab-metadata', () => ({ updateVideoMetadata: vi.fn() }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn((d: string) => d) }))
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({ select: () => ({ eq: () => Promise.resolve({ data: [] }) }) }),

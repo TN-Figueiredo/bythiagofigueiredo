@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, Filter, Settings, FlaskConical, Trophy, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
@@ -24,8 +24,10 @@ import { SettingsDrawer } from './settings-drawer'
 import { updateAbSiteSettings, batchStartTests } from '../actions'
 import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
-import { AbCreateWizard } from './ab-create-wizard'
+import { pausaVisivel } from '@/lib/youtube/teste-youtube/nativo/pausa-visivel'
+import { AbCreateWizard, type IniciarTeste } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
+import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
 
 export interface AbLabDashboardProps {
   stats: DashboardStats
@@ -39,6 +41,10 @@ export interface AbLabDashboardProps {
   settings: AbTestSiteSettings
   siteId: string
   eligibleVideos: EligibleVideo[]
+  /** Lista "Vídeos do A/B Lab" (filho assíncrono do servidor dentro de Suspense). Opcional: sem ela o painel é o de sempre. */
+  listaSlot?: ReactNode
+  /** `startAbTest` vem da página (servidor): o assistente não importa a action. */
+  iniciarTeste: IniciarTeste
 }
 
 export function AbLabDashboard({
@@ -53,6 +59,8 @@ export function AbLabDashboard({
   settings,
   siteId,
   eligibleVideos,
+  listaSlot,
+  iniciarTeste,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
@@ -63,6 +71,9 @@ export function AbLabDashboard({
   const [typeFilter, setTypeFilter] = useState<'all' | TestType>('all')
   const [filterOpen, setFilterOpen] = useState(false)
   const [showAllCompleted, setShowAllCompleted] = useState(false)
+  // Guarda D-8: UMA função (`abrirAssistente`) para as três portas do "Iniciar teste" do nosso; `handleContinueDraft` abre direto.
+  const assistente = useControleAssistente({ onAbrir: setWizardVideo, atualizar: () => router.refresh(), comLista: listaSlot !== undefined })
+  const { abrirAssistente } = assistente
 
   const TYPE_FILTER_LABELS: Record<typeof typeFilter, string> = {
     all: 'Todos os tipos',
@@ -116,12 +127,14 @@ export function AbLabDashboard({
   }
 
   function handleCreateTest(_videoId: string, _type: string) {
+    // Abre o seletor; a guarda D-8 roda quando o vídeo é escolhido (`handleVideoPicked`). Desabilitado enquanto a lista carrega.
+    if (assistente.carregando) return
     setShowPicker(true)
   }
 
   function handleVideoPicked(video: WizardVideo) {
     setShowPicker(false)
-    setWizardVideo(video)
+    abrirAssistente(video)
   }
 
   async function handleSaveSettings(changes: Partial<AbTestSiteSettings>) {
@@ -133,6 +146,7 @@ export function AbLabDashboard({
   const showEmpty = cards.length === 0 && completed.length === 0 && drafts.length === 0 && paused.length === 0
 
   return (
+    <ContextoAssistente.Provider value={assistente}>
     <div data-dashboard-root className="animate-ab-fade-up">
       {/* 1. Header */}
       <div className="animate-ab-fade-up">
@@ -141,8 +155,8 @@ export function AbLabDashboard({
             <h2 className="text-[22px] font-bold tracking-[-0.01em] text-cms-text m-0">A/B Lab</h2>
             <span className="text-[13px] text-cms-text-dim">
               {cards.length > 0
-                ? `${cards.length} teste${cards.length > 1 ? 's' : ''} ativo${cards.length > 1 ? 's' : ''}`
-                : 'Nenhum teste ativo'}
+                ? `${cards.length} ${cards.length > 1 ? 'testes nossos ativos' : 'teste nosso ativo'}`
+                : 'Nenhum teste nosso ativo'}
             </span>
           </div>
           <div className="flex items-center gap-[10px]">
@@ -200,6 +214,7 @@ export function AbLabDashboard({
             <button
               type="button"
               onClick={() => setShowPicker(true)}
+              disabled={assistente.carregando}
               className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent cursor-pointer"
               style={{ color: 'rgb(26, 18, 12)' }}
             >
@@ -214,7 +229,7 @@ export function AbLabDashboard({
       {hasAnyData && (
         <div className="kpi-strip mb-[26px] animate-ab-fade-up" data-kpi-strip>
           <KPI
-            label="Testes ativos"
+            label="Nossos testes ativos"
             value={stats.activeTests}
             icon={FlaskConical}
           />
@@ -234,6 +249,9 @@ export function AbLabDashboard({
           )}
         </div>
       )}
+
+      {/* 2b. Lista "Vídeos do A/B Lab" (caminho do teste do YouTube) */}
+      {listaSlot}
 
       {/* 3. DraftsBlock */}
       {filteredDrafts.length > 0 && (
@@ -301,7 +319,7 @@ export function AbLabDashboard({
                       style={{ background: 'rgba(234, 179, 8, 0.1)', color: 'rgb(234, 179, 8)' }}
                     >
                       <AlertTriangle size={11} aria-hidden="true" />
-                      {card.statusNote}
+                      {card.pausaYoutube ? (pausaVisivel(card.pausaYoutube, new Date()).frase ?? card.statusNote) : card.statusNote}
                     </span>
                   )}
                 </div>
@@ -369,6 +387,7 @@ export function AbLabDashboard({
           <EmptyState
             suggested={suggested}
             onCreate={handleCreateTest}
+            desabilitado={assistente.carregando}
             selectedForBatch={selectedForBatch}
             onToggleBatchSelect={toggleBatchSelect}
           />
@@ -432,10 +451,12 @@ export function AbLabDashboard({
             // loading state until router.push completes the navigation.
             router.push(`/cms/youtube/ab-lab/${testId}`)
           }}
+          iniciarTeste={iniciarTeste}
           existingDraftId={continueDraft?.id}
           prefill={continueDraft ? { testType: continueDraft.type, draftVariants: continueDraft.variants } : undefined}
         />
       )}
     </div>
+    </ContextoAssistente.Provider>
   )
 }

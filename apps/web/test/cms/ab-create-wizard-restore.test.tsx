@@ -12,6 +12,7 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   cleanupDraftVariants: vi.fn(),
   fetchAbBriefingData: vi.fn(),
   fetchLibraryEntries: vi.fn(),
+  lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false })),
 }))
 vi.mock('@/app/cms/(authed)/youtube/_components/yt-portal', () => ({
   YtPortal: ({ children }: { children: React.ReactNode }) => <>{children}</>,

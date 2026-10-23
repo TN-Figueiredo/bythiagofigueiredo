@@ -16,7 +16,6 @@ vi.mock('@/lib/youtube/ab-metadata', () => ({
   updateVideoMetadata: vi.fn(),
   captureOriginalMetadata: vi.fn(),
 }))
-vi.mock('@/lib/youtube/ab-templates', () => ({ resolveTemplates: vi.fn(), parseTemplateTokens: vi.fn() }))
 vi.mock('@/lib/youtube/ab-rotation', () => ({ getNextVariantIndex: vi.fn(), getVariantForCycle: vi.fn() }))
 vi.mock('@/lib/cms/site-context', () => ({
   getSiteContext: vi.fn().mockResolvedValue({ siteId: 'site-1' }),

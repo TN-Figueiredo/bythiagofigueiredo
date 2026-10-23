@@ -2,17 +2,19 @@
 // startAbTestInternal (P4a T10): código real contra o banco falso único (helpers/banco-ab) e o YouTubeFalso.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as Sentry from '@sentry/nextjs'
-import { YouTubeFalso, H, imagemComDhash } from './helpers/youtube-falso'
+import { YouTubeFalso, H, imagemComDhash, imagemGrande } from './helpers/youtube-falso'
+import { hamming, DHASH_MAX_SAME } from '@/lib/youtube/thumb-fingerprint'
+import { textoAvisoOriginalBaixa } from '@/lib/youtube/ab-original-resolucao'
 import { AGORA, BLOB, IMG, SITE, criarBanco } from './helpers/banco-ab'
 import type { Fila, OpcoesBanco } from './helpers/banco-ab'
 
-const { fanOut, ensureFreshToken, canal, put } = vi.hoisted(() => ({
-  fanOut: vi.fn(), ensureFreshToken: vi.fn(), canal: vi.fn(), put: vi.fn(),
+const { fanOut, ensureFreshToken, canal, put, del } = vi.hoisted(() => ({
+  fanOut: vi.fn(), ensureFreshToken: vi.fn(), canal: vi.fn(), put: vi.fn(), del: vi.fn(),
 }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 vi.mock('@/lib/social/token-refresh', () => ({ ensureFreshToken }))
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdminsDetailed: fanOut }))
-vi.mock('@vercel/blob', () => ({ put }))
+vi.mock('@vercel/blob', () => ({ put, del }))
 vi.mock('@/lib/youtube/channel-account', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/channel-account')>()),
   channelAccountIdForVideo: canal,
@@ -45,6 +47,7 @@ beforeEach(() => {
   fanOut.mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
   ensureFreshToken.mockResolvedValue({ accessToken: 'tok' })
   canal.mockResolvedValue('UCpt')
+  del.mockResolvedValue(undefined)
   let n = 0
   put.mockImplementation(async () => ({ url: `https://abc.public.blob.vercel-storage.com/ab-originals/novo-${++n}.jpg` }))
 })
@@ -218,6 +221,64 @@ describe('startAbTestInternal: o original é relido depois da reivindicação', 
     expect(put).not.toHaveBeenCalled()
     expect(banco.variantes()[0]).toMatchObject({ blob_url: BLOB('A'), thumbnail_dhash: H.A })
     expect(banco.teste().original_title).toBe('Título A')
+  })
+  it('B1: original guardada baixa (480x360), dHash igual e a thumbnail do YouTube agora 1280x720 -> regrava, mede 1280x720 e o aviso some', async () => {
+    const { banco, iniciar } = await montar({ testType: 'thumbnail', thumb: await imagemGrande(H.A), ajustar: (v) => { v[0]!.dimensions = '480x360' } })
+    const antesBlob = banco.variantes()[0]!.blob_url
+    expect((await iniciar()).ok).toBe(true)
+    expect(put).toHaveBeenCalledTimes(1)
+    const a = banco.variantes()[0]!
+    expect(a.blob_url).not.toBe(antesBlob)
+    expect(banco.teste().original_thumbnail_url).toBe(a.blob_url)
+    expect(a.dimensions).toBe('1280x720')
+    expect(hamming(a.thumbnail_dhash as string, H.A)).toBeLessThanOrEqual(DHASH_MAX_SAME)
+    expect(textoAvisoOriginalBaixa(a.dimensions as string, true)).toBeNull()
+  })
+  it('B1b: Short sem maxres (o falso serve 450x360, menor que a guardada 480x360) -> tenta uma vez, mantém a guardada, apaga a nova, sem erro', async () => {
+    const { banco, iniciar } = await montar({ testType: 'thumbnail', ajustar: (v) => { v[0]!.dimensions = '480x360' } })
+    expect((await iniciar()).ok).toBe(true)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(del).toHaveBeenCalledTimes(1)
+    expect(banco.variantes()[0]!.dimensions).toBe('480x360')
+  })
+  it('B1: original guardada em alta (1280x720, fixture padrão) com dHash igual -> nenhuma cópia nova (o caso "nada mudou" continua)', async () => {
+    const { banco, iniciar } = await montar({ testType: 'thumbnail' })
+    await iniciar()
+    expect(put).not.toHaveBeenCalled()
+    expect(banco.variantes()[0]).toMatchObject({ blob_url: BLOB('A'), thumbnail_dhash: H.A })
+  })
+  it('B1: dimensions nula com dHash guardado e igual -> regrava (nulo/ilegível é "baixa" na régua única)', async () => {
+    const { banco, iniciar } = await montar({ testType: 'thumbnail', ajustar: (v) => { v[0]!.dimensions = null } })
+    await iniciar()
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(banco.variantes()[0]!.dimensions).toBe('450x360')
+    expect(banco.teste().original_thumbnail_url).toBe(banco.variantes()[0]!.blob_url)
+    expect(del).not.toHaveBeenCalled()
+  })
+  it('B1: cópia nova 450x360 sobre guardada 640x480 (mesma arte) -> mantém a guardada, apaga a nova (del) e o início segue', async () => {
+    const { banco, iniciar } = await montar({ testType: 'thumbnail', ajustar: (v) => { v[0]!.dimensions = '640x480' } })
+    const antesBlob = banco.variantes()[0]!.blob_url
+    const antesUrl = banco.teste().original_thumbnail_url
+    expect((await iniciar()).ok).toBe(true)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(del).toHaveBeenCalledTimes(1)
+    expect(del).toHaveBeenCalledWith('https://abc.public.blob.vercel-storage.com/ab-originals/novo-1.jpg')
+    expect(banco.variantes()[0]).toMatchObject({ blob_url: antesBlob, dimensions: '640x480', thumbnail_dhash: H.A })
+    expect(banco.teste().original_thumbnail_url).toBe(antesUrl)
+  })
+  it('B1: put rejeitado no ramo "só baixa" -> início segue, original intacta, erro ao Sentry', async () => {
+    const { banco, iniciar } = await montar({ testType: 'thumbnail', ajustar: (v) => { v[0]!.dimensions = '480x360' } })
+    const antesUrl = banco.teste().original_thumbnail_url
+    put.mockRejectedValueOnce(new Error('blob 503'))
+    expect((await iniciar()).ok).toBe(true)
+    expect(banco.variantes()[0]).toMatchObject({ blob_url: BLOB('A'), thumbnail_dhash: H.A, dimensions: '480x360' })
+    expect(banco.teste().original_thumbnail_url).toBe(antesUrl)
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+  })
+  it('original mudou (dHash diferente) + put rejeitado -> a falha continua obrigatória: início recusado', async () => {
+    const { iniciar } = await montar({ testType: 'thumbnail', thumb: IMG.B })
+    put.mockRejectedValueOnce(new Error('blob 503'))
+    expect((await iniciar()).ok).toBe(false)
   })
   it('o campo que não está em teste não é relido: teste de thumbnail ignora o título', async () => {
     const { banco, yt, iniciar } = await montar({ testType: 'thumbnail', titulo: 'Outro título' })

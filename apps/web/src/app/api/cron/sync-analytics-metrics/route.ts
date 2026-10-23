@@ -544,5 +544,6 @@ export async function GET(req: NextRequest) {
   } else {
     await recordCronSuccess(nomeCron)
   }
+  await Sentry.flush(2000)
   return NextResponse.json(corpo)
 }

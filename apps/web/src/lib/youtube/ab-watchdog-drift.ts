@@ -32,6 +32,7 @@ const CICLO_MINIMO_MS = 3 * 3_600_000 // o CDN do YouTube precisa de tempo para 
 export interface ResultadoDrift {
   verificados: number
   pausados: number
+  pausadosPorTesteYoutube: number // pausa convertida pela guarda do teste do YouTube: sem aviso de drift
   falhas: number
   adiados: number
   interrompidos: number
@@ -167,6 +168,7 @@ async function detectarDrift(
         siteId: t.site_id, destino: ORIGINAL, motivo: 'drift', seqEsperado: t.restore_seq, prazo: relogio.inicio + PRAZO_DA_ROTA_MS,
       }, { supabase, fetch: f })
       if (saida.resultado !== 'feito') return // seq mudou ou já encerrado: não pausa, sem falha
+      if (saida.pausadoPorTesteYoutube) { r.pausadosPorTesteYoutube++; return } // o aviso de drift diria "retome", e retomar é recusado enquanto o teste do YouTube durar
       r.pausados++
       if (saida.aviso === 'sem_destinatario') r.semDestinatario = true
       if (saida.aviso === 'falha_de_envio') r.falhas++
@@ -198,7 +200,7 @@ export async function faseDriftEInterrompidos(
   limite: number = LIMITE_PADRAO,
   portas: PortasDoVigia = {},
 ): Promise<ResultadoDrift> {
-  const r: ResultadoDrift = { verificados: 0, pausados: 0, falhas: 0, adiados: 0, interrompidos: 0, semDestinatario: false }
+  const r: ResultadoDrift = { verificados: 0, pausados: 0, pausadosPorTesteYoutube: 0, falhas: 0, adiados: 0, interrompidos: 0, semDestinatario: false }
   if (!portas.semInterrompidos) await converterInterrompidosDoVigia(supabase, relogio, r)
   try {
     await detectarDrift(supabase, relogio, f, limite, portas, r)

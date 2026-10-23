@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { channelNote, joinNotes, MAX_NOTE_LENGTH } from '@/lib/cron/failure-note'
+import { channelNote, describeCronCause, joinNotes, MAX_NOTE_LENGTH } from '@/lib/cron/failure-note'
 
 describe('failure-note', () => {
   it('rótulo de canal: uma linha, recortado em 80 caracteres', () => {
@@ -19,5 +19,12 @@ describe('failure-note', () => {
 
   it('joinNotes: poucas notas entram inteiras e duplicatas somem', () => {
     expect(joinNotes(['a: x', 'a: x', 'b: y'], 'P')).toBe('P — a: x; b: y')
+  })
+
+  it('leitura da conexão: a nota traz o código do erro quando existe', () => {
+    const com = new Error('Could not read the youtube connection for site s-1 [57014]: statement timeout')
+    expect(describeCronCause(com)).toBe('database error reading the connection (57014)')
+    const sem = new Error('Could not read the youtube connection for site s-1: boom')
+    expect(describeCronCause(sem)).toBe('database error reading the connection')
   })
 })
