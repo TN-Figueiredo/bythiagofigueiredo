@@ -1,7 +1,8 @@
 import * as Sentry from '@sentry/nextjs'
 import { schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
-import { devidosDoFechamento, devidosDoLembrete, emEsperaDoLembrete, type LinhaAviso } from '@/lib/youtube/teste-youtube/nativo/avisos'
+import { devidosDoFechamento, devidosDoLembrete, diasDesdeOInicio, emEsperaDoLembrete, type LinhaAviso } from '@/lib/youtube/teste-youtube/nativo/avisos'
+import { contarFalhasRecentes, enviarAvisosDoNicho, fraseDeFalhas, type ResultadoNicho } from '@/lib/youtube/observatorio/sinais/avisos'
 import { DEFINICAO_AVISOS_PENDENTES } from '../definicoes'
 import type { ContextoTarefa, ResultadoTarefa, Tarefa } from '../tipos'
 
@@ -12,7 +13,7 @@ const LIMITE_LINHAS = 500
 
 interface Linha extends LinhaAviso { site_id: string; video_id: string; youtube_video_id: string; notificacao_tentativas: number; updated_at: string }
 type FanOut = typeof fanOutToSiteAdminsDetailed
-export interface DepsAvisos { fanOut?: FanOut }
+export interface DepsAvisos { fanOut?: FanOut; nicho?: (sb: ContextoTarefa['sb'], agora: Date) => Promise<ResultadoNicho> }
 
 const PERGUNTA = 'Qual versão venceu no Studio?'
 const TITULO_MAX = 80
@@ -28,10 +29,34 @@ export function mensagemDoLembrete(titulo: string | null | undefined): string {
 const semFeito = (estado: ResultadoTarefa['estado'], motivo: string): ResultadoTarefa => ({ estado, feitas: 0, deixadas: null, motivo })
 
 /**
- * `avisos_pendentes`: lembrete do dia 14 e fechamento `sem_resposta`. Só lê e escreve `ab_native_tests` (e `notifications` pelo fan-out e pela expiração).
- * O fechamento é calculado sobre o que foi LIDO no início: um lembrete que sai neste disparo nunca fecha no mesmo disparo.
+ * `avisos_pendentes`: lembrete do dia 14, fechamento `sem_resposta` e (F2) o outbox do nicho. A parte do nicho roda SEMPRE, depois da parte nativa e em `try/catch`
+ * próprio: nenhuma saída antecipada da parte nativa a pula, e a falha dela não desfaz nem impede o lembrete do dia 14.
  */
 export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Promise<ResultadoTarefa> {
+  const nativo = await rodarNativo(c, deps)
+  const agora = new Date(c.agora())
+  let nicho: ResultadoNicho | null = null
+  try {
+    nicho = await (deps.nicho ?? enviarAvisosDoNicho)(c.sb, agora)
+  } catch (e) {
+    Sentry.captureMessage('avisos_pendentes: parte do nicho falhou: ' + (e instanceof Error ? e.name : typeof e), { level: 'warning', tags: { area: 'sinais-nicho' } })
+  }
+  let acao: string[] = []
+  try {
+    const frase = fraseDeFalhas(await contarFalhasRecentes(c.sb, agora))
+    if (frase !== null) acao = [frase]
+  } catch { /* sem a contagem não há frase; a falha do nicho já aparece no estado */ }
+  const detalhe: Record<string, number> = {
+    ...(nativo.detalhe ?? {}),
+    nicho_enviados: nicho?.enviados ?? 0, nicho_resumidos: nicho?.resumidos ?? 0, nicho_falhas: nicho?.falhas ?? 0,
+  }
+  const base: ResultadoTarefa = { ...nativo, detalhe, ...(acao.length > 0 ? { extra: { acao } } : {}) }
+  const nichoFalhou = nicho === null || nicho.falhas > 0
+  if (nichoFalhou && nativo.estado !== 'erro') return { ...base, estado: 'erro', motivo: 'nicho_falhou' }
+  return base
+}
+
+async function rodarNativo(c: ContextoTarefa, deps: DepsAvisos): Promise<ResultadoTarefa> {
   const fanOut = deps.fanOut ?? fanOutToSiteAdminsDetailed
   const sb = c.sb
   const falha = await schemaTablesReady(sb, [
