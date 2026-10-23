@@ -229,6 +229,11 @@ describe('faixas, cabeçalho e vazios', () => {
     expect(v.calculado).toBe('Calculado em 19/10, 07:02')
     expect(v.faixa).toEqual({ tipo: 'velho', titulo: 'As sugestões não são recalculadas há mais de 36 horas.', texto: 'A lista abaixo é a do último cálculo.' })
   })
+  it('lista velha: a data de cálculo fica só no cabeçalho, nunca nas linhas', () => {
+    const v = montar(lista(tres(), { desatualizado: true, computado_em: '2026-10-21T12:01:00Z' }))
+    expect(v.calculado).toMatch(/21\/10/)
+    for (const l of v.linhas) expect(l.seus.texto).not.toMatch(/21\/10|cálculo de/)
+  })
   it('saiuDoAviso', () => {
     const v = montar(lista(tres()), new Map(), { saiuDoAviso: true })
     expect(v.faixa).toMatchObject({ tipo: 'sino-saiu', titulo: 'Algumas sugestões do aviso já saíram da lista.' })
