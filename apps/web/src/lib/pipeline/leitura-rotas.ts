@@ -85,6 +85,8 @@ const PADROES = [
   '/api/pipeline/youtube/competitors/insights',
   '/api/pipeline/youtube/competitors/outliers',
   '/api/pipeline/youtube/competitors/readings',
+  '/api/pipeline/youtube/competitors/signals',
+  '/api/pipeline/youtube/competitors/signals/[id]/dismiss',
   '/api/pipeline/youtube/intelligence',
   '/api/pipeline/youtube/intelligence/task',
   '/api/pipeline/youtube/intelligence/task/[id]/fail',

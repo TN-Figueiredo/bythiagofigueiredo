@@ -11,13 +11,16 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { PipelineServiceError } from '@/lib/pipeline/services/types'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import * as competitors from '@/lib/pipeline/services/competitors'
+import type { ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
+import * as nicheSignals from '@/lib/pipeline/services/niche-signals'
+import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import * as Sentry from '@sentry/nextjs'
 import { toMcpError, toMcpSuccess } from '../errors'
 
 type Params = Record<string, unknown>
 
 /** Os parâmetros que este adaptador lê: o anúncio (`YoutubeObservatoryShape`) tem de ter exatamente estes (teste nos dois sentidos). */
-export const PARAMETROS_LIDOS = ['action', 'type', 'bookmarked', 'tier', 'limit', 'fmt', 'campos'] as const
+export const PARAMETROS_LIDOS = ['action', 'type', 'bookmarked', 'tier', 'limit', 'fmt', 'campos', 'signal_id', 'status', 'motivo'] as const
 
 /**
  * Teto do `limit` de `get_changes` com `campos=todos`: com o pior valor de `tags` medido (561 bytes) o texto
@@ -42,12 +45,35 @@ function avisarSeGrande(caracteres: number, canais: number): void {
   }
 }
 
+/** Quantos outliers por sugestão o `get_signals` tenta levar, do mais cheio ao mais enxuto (a evidência guarda até 20). */
+const DEGRAUS_DE_OUTLIERS = [20, 10, 5, 3, 2, 1, 0] as const
+
+/**
+ * 50 sugestões com a evidência no máximo (20 outliers cada) passam de 250.000 caracteres; o cliente aceita 60.000. Corta só a LISTA de outliers de
+ * cada sugestão (a mais fraca primeiro), nunca uma sugestão: `n`, ids, `motivoVazio` e `proprios_agora` seguem iguais aos da rota. `outliers_omitidos`
+ * diz quantos ficaram de fora; `evidence.outliers_total` continua o número verdadeiro. O resto do serviço não muda.
+ */
+export function cabeNoLimite(lista: ListaDeSinais, limite: number = LIMITE_DO_TEXTO_DA_FERRAMENTA): { texto: string; lista: ListaDeSinais } {
+  let ultimo = { texto: JSON.stringify(lista), lista }
+  if (ultimo.texto.length <= limite) return ultimo
+  for (const k of DEGRAUS_DE_OUTLIERS) {
+    const cortada: ListaDeSinais = {
+      ...lista,
+      itens: lista.itens.map((i) => ({ ...i, evidence: { ...i.evidence, outliers: i.evidence.outliers.slice(0, k), outliers_omitidos: Math.max(0, i.evidence.outliers.length - k) } })),
+    }
+    ultimo = { texto: JSON.stringify(cortada), lista: cortada }
+    if (ultimo.texto.length <= limite) return ultimo
+  }
+  return ultimo
+}
+
 function buildCtx(): ServiceContext {
   const mcp = getMcpContext()
   return {
     siteId: mcp.siteId,
     permissions: mcp.permissions as ServiceContext['permissions'],
     keyHash: mcp.keyHash,
+    keyId: mcp.keyId,
     supabase: getSupabaseServiceClient(),
     source: 'api_key',
   }
@@ -91,10 +117,25 @@ export async function youtubeObservatory(params: Params): Promise<CallToolResult
         return toMcpSuccess(result.data)
       }
 
+      case 'get_signals': {
+        // sem indentação, como list_channels; a evidência é cortada em degraus até caber nos 60.000 caracteres (`cabeNoLimite`)
+        const result = await nicheSignals.listNicheSignals(buildCtx(), { limit: Math.min((params.limit as number) || 50, 50) })
+        const { texto: text } = cabeNoLimite(result.data)
+        avisarSeGrande(text.length, result.data.itens.length)
+        return { content: [{ type: 'text', text }], isError: false }
+      }
+
+      case 'dismiss_signal': {
+        if (!mcpRequirePermission(getMcpContext(), 'write')) return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
+        if (typeof params.signal_id !== 'string') return toMcpError({ code: 'VALIDATION_ERROR', message: 'signal_id is required for dismiss_signal' })
+        const result = await nicheSignals.dismissNicheSignal(buildCtx(), params.signal_id, { status: params.status, motivo: params.motivo })
+        return toMcpSuccess(result.data)
+      }
+
       default:
         return toMcpError({
           code: 'VALIDATION_ERROR',
-          message: `Unknown action "${action ?? '(missing)'}". Supported: list_channels, get_changes, get_outliers, get_insights`,
+          message: `Unknown action "${action ?? '(missing)'}". Supported: list_channels, get_changes, get_outliers, get_insights, get_signals, dismiss_signal`,
         })
     }
   } catch (error) {

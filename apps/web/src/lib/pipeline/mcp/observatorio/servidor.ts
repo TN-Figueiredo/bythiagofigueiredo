@@ -13,7 +13,7 @@ export const NOME_DA_FERRAMENTA = 'observatorio_leitura'
 
 const DESCRICAO =
   'Lê o Observatório do YouTube (concorrentes e canal próprio) e devolve texto com cada número, o estado "não medido" e o motivo. ' +
-  'Só leitura. Escolha uma ação: definicoes, listar_canais, canal, video, comparar (2 a 6 canais), destaques, serie, mudancas ou pacote_da_tela. ' +
+  'Só leitura. Escolha uma das dez ações: definicoes, listar_canais, canal, video, comparar (2 a 6 canais), destaques, serie, mudancas, pacote_da_tela ou sugestoes (as sugestões do nicho: só leitura). ' +
   'Cada ação aceita só os campos que a ela cabem; o resto é recusado.'
 
 const FORMA = {
