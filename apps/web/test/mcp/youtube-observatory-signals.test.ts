@@ -10,7 +10,8 @@ vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi
 vi.mock('@/lib/pipeline/mcp/context', () => ({ getMcpContext: () => ({ siteId: SITE, permissions: mundo.permissoes, keyHash: 'h', keyId: 'chave-9' }) }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => mundo.sb }))
 
-import { youtubeObservatory, LIMITE_DO_TEXTO_DA_FERRAMENTA } from '@/lib/pipeline/mcp/services/youtube-observatory'
+import type { ItemDeSinal, ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
+import { youtubeObservatory, cabeNoLimite, LIMITE_DO_TEXTO_DA_FERRAMENTA } from '@/lib/pipeline/mcp/services/youtube-observatory'
 
 const agoraIso = new Date().toISOString()
 const outlier = (i: number) => ({ video_id: `0000000${i}-0000-4000-8000-000000000000`, canal_id: `1111111${i % 9}-0000-4000-8000-000000000000`, published_at: agoraIso, mult_vpd7: 12.34567, mult_tela: 4.5678, vpd7: 123456.78, formato: 'long' })
@@ -101,5 +102,35 @@ describe('dismiss_signal', () => {
     linhas = linhas.slice(1) // o banco passa a devolver um aberto a menos
     expect(JSON.parse(texto(await youtubeObservatory({ action: 'get_signals' }))).n).toBe(1)
     expect(w.rpc).toHaveLength(2)
+  })
+})
+
+describe('cabeNoLimite: nunca devolve texto acima do teto', () => {
+  const item = (i: number, nIds: number): ItemDeSinal => ({
+    id: `id-${i}`, kind: 'destino', subject_key: `pais:${i}`, acao: 'titulo_descricao', rotulo_acao: 'abrir-seus', n_proprios: nIds, acao_gravada: 'video_novo',
+    forca: 10 - i / 100, motivo: 'm', rule_version: 'v', first_seen_at: agoraIso, expires_at: agoraIso, proprios_agora_n: nIds,
+    proprios_agora: Array.from({ length: nIds }, (_, k) => `${'x'.repeat(36)}${k}`),
+    evidence: { outliers: [], outliers_total: 0, canais: 2, proprios: [] },
+  })
+  const lista = (itens: ItemDeSinal[]): ListaDeSinais => ({ n: 500, itens, computado_em: agoraIso, desatualizado: false, motivoVazio: null, contagens: {}, calculoLigado: true })
+
+  it('cabe: devolve a lista inteira, sem aviso', () => {
+    const r = cabeNoLimite(lista([item(0, 3)]))
+    expect(JSON.parse(r.texto).aviso).toBeUndefined()
+  })
+  it('não cabe nem sem outliers: tira sugestões do fim, diz quantas e mantém n e o prefixo na mesma ordem', () => {
+    const itens = Array.from({ length: 50 }, (_, i) => item(i, 20))
+    const r = cabeNoLimite(lista(itens), 20_000)
+    expect(r.texto.length).toBeLessThanOrEqual(20_000)
+    const j = JSON.parse(r.texto) as { n: number; aviso: string; itens: Array<{ id: string }> }
+    expect(j.n).toBe(500)
+    expect(j.aviso).toMatch(/^resposta cortada: \d+ itens não couberam$/)
+    expect(Number(/\d+/.exec(j.aviso)![0]) + j.itens.length).toBe(50)
+    expect(j.itens.map((i) => i.id)).toEqual(itens.slice(0, j.itens.length).map((i) => i.id))
+  })
+  it('teto absurdo de pequeno: lista vazia com aviso, ainda abaixo do teto', () => {
+    const r = cabeNoLimite(lista([item(0, 20)]), 400)
+    expect(JSON.parse(r.texto).itens).toEqual([])
+    expect(JSON.parse(r.texto).aviso).toMatch(/1 itens não couberam/)
   })
 })

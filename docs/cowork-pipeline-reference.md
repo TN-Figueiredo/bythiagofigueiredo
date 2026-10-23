@@ -1958,6 +1958,6 @@ Não é uma section de item: é a forma da resposta de leitura. Detalhe e regras
 ```
 
 - Invariante: `n = 0` implica `motivoVazio` não nulo. Cite `motivoVazio` como está; nunca leia como "nada no nicho".
-- Cada item: `id`, `kind` (`destino` | `parecido`), `subject_key`, `acao` (derivada dos seus vídeos públicos agora), `acao_gravada`, `forca`, `motivo`, `evidence` (`outliers[]` com `video_id`, `canal_id`, `published_at`, `mult_vpd7`, `mult_tela`, `vpd7`, `formato`; `outliers_total`; `canais`), `proprios_agora` (ids; `null` = não medido).
+- Cada item: `id`, `kind` (`destino` | `parecido`), `subject_key`, `acao` (derivada dos seus vídeos públicos agora), `acao_gravada`, `proprios_agora` (até 20 ids) e `proprios_agora_n` (total real), `forca`, `motivo`, `evidence` (`outliers[]` com `video_id`, `canal_id`, `published_at`, `mult_vpd7`, `mult_tela`, `vpd7`, `formato`; `outliers_total`; `canais`), `proprios_agora` (ids; `null` = não medido).
 - Texto: "pode ajudar", "associação, não causa". Sem título, miniatura nem comentário de terceiro.
 - `dismiss_signal`: `signal_id` (uuid), `status: "dispensado"`, `motivo` (`nao_e_parecido` | `lugar_errado` | `ja_fiz` | `nao_interessa`); exige `write`.

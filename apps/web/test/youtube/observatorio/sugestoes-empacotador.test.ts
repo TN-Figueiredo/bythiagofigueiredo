@@ -37,7 +37,7 @@ function item(i: number, o: Partial<ItemDeSinal> = {}, nOut = 3): ItemDeSinal {
     acao: 'titulo_descricao', rotulo_acao: 'abrir-seus', n_proprios: 2, acao_gravada: 'video_novo', forca: 12.5 + i, motivo: 'dois canais estouraram no mesmo lugar nos últimos 14 dias',
     rule_version: 'sinais-v1+semente-1', evidence: { outliers: Array.from({ length: nOut }, (_, k) => outlier(k)), outliers_total: nOut + 5, canais: 3, proprios: ['foto'] },
     first_seen_at: '2026-10-20T12:00:00Z', expires_at: '2026-11-19T12:00:00Z',
-    proprios_agora: ['bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002'], ...o,
+    proprios_agora: ['bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002'], proprios_agora_n: 2, ...o,
   }
 }
 const lista = (itens: ItemDeSinal[], o: Partial<ListaDeSinais> = {}): ListaDeSinais => ({
@@ -47,8 +47,8 @@ const vazia = (motivo: ListaDeSinais['motivoVazio'], contagens: Record<string, n
 
 const MATRIZ: Array<[string, () => ListaDeSinais]> = [
   ['duas sugestões, destino e parecido', () => lista([item(1), item(2, { kind: 'parecido', subject_key: 'outlier:abc', acao: 'titulo_descricao' })])],
-  ['próprios não medidos (null)', () => lista([item(1, { proprios_agora: null, n_proprios: null, rotulo_acao: 'generico' })])],
-  ['nenhum próprio hoje', () => lista([item(1, { proprios_agora: [], n_proprios: 0, acao: 'video_novo', rotulo_acao: 'abrir-concorrente' })])],
+  ['próprios não medidos (null)', () => lista([item(1, { proprios_agora: null, proprios_agora_n: null, n_proprios: null, rotulo_acao: 'generico' })])],
+  ['nenhum próprio hoje', () => lista([item(1, { proprios_agora: [], proprios_agora_n: 0, n_proprios: 0, acao: 'video_novo', rotulo_acao: 'abrir-concorrente' })])],
   ['desatualizado e truncado (n > itens)', () => lista([item(1)], { n: 9, desatualizado: true })],
   ['sem estouros na evidência', () => lista([item(1, {}, 0)])],
   ...(['nunca-calculado', 'tudo-respondido', 'sem-lugar', 'sync-atrasado', 'sem-historico', 'sem-terceiro-outlier', 'abaixo-do-minimo', 'sem-grupo'] as const)
@@ -78,6 +78,14 @@ describe('Sugestões: inventário de folhas', () => {
 })
 
 describe('Sugestões: o pacote', () => {
+  it('450 vídeos seus (20 ids na lista): a tabela dos seus vídeos diz o total real e leva só os 20 códigos', () => {
+    const ids = Array.from({ length: 20 }, (_, k) => `bbbbbbbb-0000-4000-8000-${String(k).padStart(12, '0')}`)
+    const p = empacotarSugestoes(modeloDe(lista([item(1, { proprios_agora: ids, proprios_agora_n: 450, n_proprios: 450 })])))
+    const texto = montarTexto(segmentar(p, CONTEXTO), '', 1_000_000, 'todos').texto
+    expect(texto).toMatch(/450/)
+    expect(texto).toContain(ids[19]!)
+    expect(texto).toMatch(/Total de vídeos seus/)
+  })
   it('dimensões: tela, privado na (alvos são vídeos próprios PÚBLICOS, sem número do Analytics), sem comentários; incluiuPrivado é falso', () => {
     for (const [nome, fazer] of MATRIZ) {
       const p = empacotarSugestoes(modeloDe(fazer()))

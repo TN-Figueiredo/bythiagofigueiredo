@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { listarSinaisDoNicho, dispensarSinal } from '@/lib/youtube/observatorio/sinais/leitura'
+import { textoDoVazio } from '@/lib/youtube/observatorio/sinais/frases'
 import { fakeSb, type Consulta, type Resposta } from './fake-sb'
 
 const SITE = '00000000-0000-4000-8000-000000000001'
@@ -18,6 +19,8 @@ interface Mundo {
   respondidos?: number
   lugares?: Array<{ video_id: string; chaves: string[] }>
   lugaresDoSite?: boolean
+  /** origens que têm linha em video_lugares no site (padrão: proprio e competidor). A sonda de existência só vê as que ela filtra. */
+  origensNoSite?: string[]
   videos?: Array<{ id: string; youtube_video_id: string }>
   metas?: Array<{ youtube_video_id: string; privacy_status: string | null; day_pt: string }>
 }
@@ -32,9 +35,14 @@ function mundo(m: Mundo) {
     if (c.tabela === 'niche_signals') return { data: m.sinais ?? [], count: m.total ?? (m.sinais ?? []).length }
     if (c.tabela === 'niche_signals_estado') return { data: m.estado === undefined ? null : [m.estado] }
     if (c.tabela === 'video_lugares' && c.filtros.some((f) => f.op === 'overlaps')) return { data: m.lugares ?? [] }
-    if (c.tabela === 'video_lugares') return { data: m.lugaresDoSite === false ? [] : [{ video_id: 'x' }] }
-    if (c.tabela === 'youtube_videos') return { data: m.videos ?? [] }
-    if (c.tabela === 'yt_own_video_meta_daily') return { data: m.metas ?? [] }
+    if (c.tabela === 'video_lugares') {
+      const origens = m.origensNoSite ?? ['proprio', 'competidor']
+      const f = c.filtros.find((x) => x.op === 'eq' && x.col === 'origem')
+      const ha = m.lugaresDoSite === false ? false : f ? origens.includes(String(f.val)) : origens.length > 0
+      return { data: ha ? [{ video_id: 'x' }] : [] }
+    }
+    if (c.tabela === 'youtube_videos') { const ids = c.filtros.find((x) => x.op === 'in')?.val as string[] | undefined; return { data: (m.videos ?? []).filter((v) => !ids || ids.includes(v.id)) } }
+    if (c.tabela === 'yt_own_video_meta_daily') { const ids = c.filtros.find((x) => x.op === 'in')?.val as string[] | undefined; return { data: (m.metas ?? []).filter((x) => !ids || ids.includes(x.youtube_video_id)) } }
     return { data: [] }
   })
 }
@@ -103,6 +111,15 @@ describe('listarSinaisDoNicho: o que acontece quando o dado não existe', () => 
   it('estado sem motivo e sem respondidos: o catch-all sem-grupo (nunca null com n = 0)', async () => {
     const l = await listarSinaisDoNicho(mundo({ estado: estado(), respondidos: 0 }).sb, SITE, AGORA)
     expect(l.motivoVazio).toBe('sem-grupo')
+  })
+
+  it('catch-all com o cálculo velho (> 36 h): a frase não diz "nenhum grupo", diz que a leitura é antiga; com cálculo novo continua o genérico', async () => {
+    const velho = await listarSinaisDoNicho(mundo({ estado: estado({ computed_at: iso(-40) }), respondidos: 0 }).sb, SITE, AGORA)
+    expect(velho.desatualizado).toBe(true)
+    expect(velho.motivoVazio).toBe('sem-grupo')
+    expect(textoDoVazio(velho.motivoVazio!, velho.contagens, AGORA, true)).toMatch(/última leitura do nicho é antiga/)
+    const novo = await listarSinaisDoNicho(mundo({ estado: estado(), respondidos: 0 }).sb, SITE, AGORA)
+    expect(textoDoVazio(novo.motivoVazio!, novo.contagens, AGORA, true)).toMatch(/nenhum grupo forma um evento/)
   })
 
   it('propriedade: para qualquer combinação (estado, motivo, itens, respondidos), n = 0 implica motivoVazio != null; n > 0 implica null', async () => {
@@ -175,6 +192,41 @@ describe('listarSinaisDoNicho: proprios_agora e a ação derivada (r6)', () => {
     const i = (await listarSinaisDoNicho(w.sb, SITE, AGORA)).itens[0]!
     expect(i.proprios_agora).toBeNull()
     expect(i).toMatchObject({ acao: 'titulo_descricao', rotulo_acao: 'generico', n_proprios: null })
+  })
+
+  it('site só com linhas de origem competidor: proprios_agora é null (a sonda filtra origem = proprio; nunca vira "nenhum vídeo seu")', async () => {
+    const w = mundo({ sinais: [linha('a', 'pt')], estado: estado(), lugares: [], origensNoSite: ['competidor'] })
+    const i = (await listarSinaisDoNicho(w.sb, SITE, AGORA)).itens[0]!
+    expect(i.proprios_agora).toBeNull()
+    expect(i.proprios_agora_n).toBeNull()
+    expect(i).toMatchObject({ acao: 'video_novo', rotulo_acao: 'generico', n_proprios: null })
+    const sondas = w.consultas.filter((c) => c.tabela === 'video_lugares')
+    expect(sondas).toHaveLength(2)
+    for (const c of sondas) expect(c.filtros).toContainEqual({ op: 'eq', col: 'origem', val: 'proprio' })
+  })
+
+  it('site com linhas proprio mas nenhuma cobre o lugar: [] (medido, nenhum vídeo seu) e video_novo', async () => {
+    const w = mundo({ sinais: [linha('a', 'pt')], estado: estado(), lugares: [], origensNoSite: ['proprio'] })
+    const i = (await listarSinaisDoNicho(w.sb, SITE, AGORA)).itens[0]!
+    expect(i.proprios_agora).toEqual([])
+    expect(i).toMatchObject({ acao: 'video_novo', rotulo_acao: 'abrir-concorrente', n_proprios: 0, proprios_agora_n: 0 })
+  })
+
+  it('450 vídeos seus no lugar: proprios_agora tem 20 ids, proprios_agora_n 450, a ação usa o total e nenhum .in passa de 200 valores', async () => {
+    const N = 450
+    const ids = Array.from({ length: N }, (_, k) => `v${String(k).padStart(3, '0')}`)
+    const w = mundo({
+      sinais: [linha('a', 'pt')], estado: estado(), lugares: ids.map((id) => ({ video_id: id, chaves: ['pt'] })),
+      videos: ids.map((id) => ({ id, youtube_video_id: `Y${id}` })), metas: ids.map((id) => meta(`Y${id}`)),
+    })
+    const i = (await listarSinaisDoNicho(w.sb, SITE, AGORA)).itens[0]!
+    expect(i.proprios_agora).toHaveLength(20)
+    expect(i.proprios_agora).toEqual(ids.slice(0, 20))
+    expect(i.proprios_agora_n).toBe(N)
+    expect(i).toMatchObject({ acao: 'titulo_descricao', n_proprios: N })
+    const ins = w.consultas.flatMap((c) => c.filtros.filter((f) => f.op === 'in' && (c.tabela === 'youtube_videos' || c.tabela === 'yt_own_video_meta_daily')))
+    expect(ins.length).toBeGreaterThanOrEqual(6)
+    for (const f of ins) expect((f.val as unknown[]).length).toBeLessThanOrEqual(200)
   })
 
   it('o caso quarenta: a 10ª linha gravada video_novo e 1 vídeo hoje', async () => {

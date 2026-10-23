@@ -8,18 +8,19 @@ export interface AcaoDoSinal { acao: AcaoDerivada; rotulo: RotuloDaAcao; n: numb
 
 /**
  * `propriosAgora = null` = não medido (site sem `video_lugares`): mantém a gravada, rótulo genérico, sem número a prometer.
- * `[]` = medido, nenhum vídeo seu: `video_novo`. Com ≥ 1: `titulo_descricao` com o número. `playlist` gravada nunca muda.
+ * `[]`/0 = medido, nenhum vídeo seu: `video_novo`. Com ≥ 1: `titulo_descricao` com o número. `playlist` gravada nunca muda.
  * `kind` fica na assinatura (contrato do plano); hoje a derivação não distingue destino de parecido.
  */
-export function derivarAcao(kind: 'destino' | 'parecido', acaoGravada: string, propriosAgora: readonly string[] | null): AcaoDoSinal {
-  if (acaoGravada === 'playlist') return { acao: 'playlist', rotulo: 'playlist', n: propriosAgora === null ? null : propriosAgora.length }
+export function derivarAcao(kind: 'destino' | 'parecido', acaoGravada: string, propriosAgora: readonly string[] | number | null): AcaoDoSinal {
+  const total = propriosAgora === null ? null : typeof propriosAgora === 'number' ? propriosAgora : propriosAgora.length
+  if (acaoGravada === 'playlist') return { acao: 'playlist', rotulo: 'playlist', n: total }
   if (propriosAgora === null) {
     const gravada: AcaoDerivada = acaoGravada === 'video_novo' ? 'video_novo' : 'titulo_descricao'
     return { acao: gravada, rotulo: 'generico', n: null }
   }
-  if (propriosAgora.length === 0) {
+  if (total === 0) {
     return { acao: 'video_novo', rotulo: 'abrir-concorrente', n: 0 }
   }
   void kind
-  return { acao: 'titulo_descricao', rotulo: 'abrir-seus', n: propriosAgora.length }
+  return { acao: 'titulo_descricao', rotulo: 'abrir-seus', n: total }
 }

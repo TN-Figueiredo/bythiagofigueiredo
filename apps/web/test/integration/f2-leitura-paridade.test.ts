@@ -113,6 +113,20 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     expect(a.motivoVazio).toBeNull(); expect(b.motivoVazio).toBeNull(); expect(c.vazio).toBeNull()
   })
 
+  it('mais de 20 abertas: mesmo n e mesmo motivoVazio; os ids da sugestoes (20 mais fortes) são o PREFIXO, na mesma ordem, dos ids da rota e do get_signals', async () => {
+    await limpar()
+    for (let k = 1; k <= 25; k++) await sinal(k, `pais:P${k}`, { forca: 100 - k })
+    await estado(null, { canais_total: 5 })
+    const [a, b, c] = [await rota(), await cowork(), await claudeCode()]
+    expect(a.n).toBe(25)
+    expect(b.n).toBe(25); expect(c.n).toBe(25)
+    expect(a.itens).toHaveLength(25)
+    expect(b.itens.map((i) => i.id)).toEqual(a.itens.map((i) => i.id))
+    expect(c.ids).toHaveLength(20)
+    expect(c.ids).toEqual(a.itens.slice(0, 20).map((i) => i.id))
+    expect(a.motivoVazio).toBeNull(); expect(b.motivoVazio).toBeNull(); expect(c.vazio).toBeNull()
+  })
+
   it('próprio público entra em proprios_agora; privado e oculto não; a ação derivada e o n_proprios são iguais nos três caminhos', async () => {
     await limpar()
     await sinal(1, 'pais:JP')

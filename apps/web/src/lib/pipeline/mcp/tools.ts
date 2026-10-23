@@ -736,9 +736,9 @@ export const YoutubeObservatoryShape = {
   campos: z.enum(['todos']).optional()
     .describe('get_changes: also return field changes (tags, category, duration, language, channel name and others)'),
   signal_id: z.string().uuid().optional()
-    .describe('dismiss_signal: id of the suggestion (from get_signals)'),
+    .describe('dismiss_signal: id of the suggestion (from get_signals). Required with status and motivo'),
   status: z.literal('dispensado').optional()
-    .describe("dismiss_signal: only 'dispensado' (done is set by observed effect, never by hand)"),
+    .describe("dismiss_signal: required, only 'dispensado' (done is set by observed effect, never by hand)"),
   motivo: z.enum(['nao_e_parecido', 'lugar_errado', 'ja_fiz', 'nao_interessa']).optional()
     .describe('dismiss_signal: why. nao_e_parecido only for kind parecido; lugar_errado only for kind destino'),
 }
