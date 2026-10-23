@@ -111,12 +111,15 @@ test('conflitos (linha fechada e bloco aberto): medidas gerais, cartões da mesm
       const tops = cartoes.map((c) => c.querySelector('.cn-d14-top') as HTMLElement)
       const raiz = s.closest('.cn-raiz') as HTMLElement
       const h3 = s.querySelector('h3') as HTMLElement
+      const ae = document.activeElement as HTMLElement | null
+      const aeBox = ae ? ae.getBoundingClientRect() : null
       const unk = s.querySelector('.cn-chip.unk') as HTMLElement | null
       return {
         larguras: cartoes.map((c) => Math.round(c.getBoundingClientRect().width * 10) / 10), alturas: cartoes.map((c) => Math.round(c.getBoundingClientRect().height * 10) / 10),
         xs: cartoes.map((c) => Math.round(c.getBoundingClientRect().left)), alturasTop: tops.map((t) => Math.round(t.getBoundingClientRect().height * 10) / 10),
         transbordam: cartoes.map((c) => c.scrollWidth > c.clientWidth + 1), raiz: { sw: raiz.scrollWidth, cw: raiz.clientWidth }, secao: { sw: s.scrollWidth, cw: s.clientWidth },
-        h3: { sw: h3.scrollWidth, cw: h3.clientWidth, sr: h3.classList.contains('cn-sr'), foco: document.activeElement === h3, dentro: (() => { const a = h3.getBoundingClientRect(); const b = s.getBoundingClientRect(); return { h3Topo: Math.round(a.top), secaoTopo: Math.round(b.top), secaoFundo: Math.round(b.bottom), dentro: a.top >= b.top - 2 && a.bottom <= b.bottom + 2 } })() },
+        h3: { sw: h3.scrollWidth, cw: h3.clientWidth, sr: h3.classList.contains('cn-sr'), focavel: h3.hasAttribute('tabindex') || h3.hasAttribute('data-foco-bloco'), foco: document.activeElement === h3, dentro: (() => { const a = h3.getBoundingClientRect(); const b = s.getBoundingClientRect(); return { h3Topo: Math.round(a.top), secaoTopo: Math.round(b.top), secaoFundo: Math.round(b.bottom), dentro: a.top >= b.top - 2 && a.bottom <= b.bottom + 2 } })() },
+        alvo: ae ? { tag: ae.tagName, classe: ae.className, marcado: ae.hasAttribute('data-foco-bloco'), dentro: s.contains(ae), sr: !!ae.closest('.cn-sr'), visivel: !!aeBox && aeBox.width > 1 && aeBox.height > 1 && getComputedStyle(ae).visibility !== 'hidden' } : null,
         unk: unk ? { w: Math.round(unk.getBoundingClientRect().width * 10) / 10, h: Math.round(unk.getBoundingClientRect().height * 10) / 10 } : null,
         chips: Array.from(s.querySelectorAll('.cn-chip')).map((c) => ({ w: Math.round(c.getBoundingClientRect().width * 10) / 10, h: Math.round(c.getBoundingClientRect().height * 10) / 10 })),
         selosNoBloco: s.querySelectorAll('.cn-d14-res, .cn-selo').length,
@@ -133,7 +136,10 @@ test('conflitos (linha fechada e bloco aberto): medidas gerais, cartões da mesm
     expect.soft(dados.transbordam, `${k}: nada transborda os cartões`).toEqual([false, false])
     expect.soft(dados.raiz.sw, `${k}: .cn-raiz sem rolagem horizontal`).toBeLessThanOrEqual(dados.raiz.cw)
     expect.soft(dados.secao.sw, `${k}: o bloco não transborda`).toBeLessThanOrEqual(dados.secao.cw)
-    expect.soft(dados.h3.sr && dados.h3.foco, `${k}: h3 cn-sr com o foco`).toBe(true)
+    // N-2 (Gio B, re-medição 2): o h3 é só-leitor e NÃO recebe foco; o foco cai no p.cn-meta VISÍVEL dentro do bloco.
+    expect.soft(dados.h3.sr && !dados.h3.focavel && !dados.h3.foco, `${k}: h3 cn-sr existe, sem tabindex e sem o foco (${JSON.stringify(dados.h3)})`).toBe(true)
+    expect.soft(dados.alvo, `${k}: o foco cai no p.cn-meta visível, marcado, dentro do bloco, fora de .cn-sr (${JSON.stringify(dados.alvo)})`).toMatchObject({ tag: 'P', marcado: true, dentro: true, sr: false, visivel: true })
+    expect.soft(String(dados.alvo?.classe), `${k}: alvo é p.cn-meta`).toContain('cn-meta')
     expect.soft(dados.h3.dentro.dentro, `${k}: o h3 cn-sr fica dentro da caixa do bloco (${JSON.stringify(dados.h3.dentro)})`).toBe(true)
     if (k === 'c_sempar') {
       expect.soft(dados.unk, `${k}: slot unk 24x24`).toEqual({ w: 24, h: 24 })
