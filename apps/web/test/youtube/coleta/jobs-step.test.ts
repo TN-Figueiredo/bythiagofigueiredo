@@ -284,11 +284,11 @@ describe('passoJobs: erros', () => {
   })
 
   it('outro erro ao obter o token é falha crítica, com o nome do canal e sem o texto do banco', async () => {
-    vi.mocked(ensureFreshToken).mockRejectedValue(new Error('Could not read the youtube connection for site site-1: relation "segredo" does not exist'))
+    vi.mocked(ensureFreshToken).mockRejectedValue(new Error('Could not read the youtube connection for site site-1: relation "segredo" does not exist [42P01]'))
     const db = fakeSupabase()
     const ctx = ctxDe(db)
     await passoJobs(ctx)
-    expect(ctx.falhas).toEqual(['jobs: Canal Um: database error reading the connection'])
+    expect(ctx.falhas).toEqual(['jobs: Canal Um: database error reading the connection (code 42P01)'])
     expect(tentativaCanal(db)).toMatchObject({ outcome: 'erro_http' })
   })
 

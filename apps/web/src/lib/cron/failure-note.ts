@@ -13,7 +13,17 @@ export function describeCronCause(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err)
 
   // ensureFreshToken: "Could not read/count the youtube connection ..." = leitura no banco.
-  if (/^Could not (read|count) the \w+ connections?/.test(message)) return 'database error reading the connection'
+  if (/^Could not (read|count) the \w+ connections?/.test(message)) {
+    // Causa real, sem o texto cru do Postgres: rótulo por tipo + o código do PostgREST/Postgres (ex.: 57014).
+    const codigo = message.match(/\[([A-Za-z0-9_]{3,10})\]\s*$/)?.[1]
+    const tipo = /statement timeout/i.test(message) ? 'statement timeout'
+      : /lock timeout/i.test(message) ? 'lock timeout'
+      : /fetch failed|ECONN|ENOTFOUND|network|socket/i.test(message) ? 'network error'
+      : /timeout|timed out|aborted/i.test(message) ? 'timeout'
+      : null
+    const causa = [tipo, codigo && `code ${codigo}`].filter(Boolean).join(', ')
+    return causa ? `database error reading the connection (${causa})` : 'database error reading the connection'
+  }
   if (/connection disappeared/i.test(message)) return 'connection disappeared during a concurrent refresh'
   const refresh = message.match(/token refresh failed(?: for \w+)? \((\d{3})\)/i)
   if (refresh) return `Google token refresh failed (HTTP ${refresh[1]})`

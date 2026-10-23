@@ -39,6 +39,7 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
   captureMessage: vi.fn(),
   setTag: vi.fn(),
+  flush: vi.fn().mockResolvedValue(true),
 }))
 
 const mockEnsureFreshToken = vi.fn()
@@ -221,6 +222,8 @@ describe('GET /api/cron/sync-analytics-metrics', () => {
     // O caminho feliz tem de terminar verde de verdade: nenhum bloco lançou.
     expect(body.falhas).toBeUndefined()
     expect(Sentry.captureException).not.toHaveBeenCalled()
+    // Serverless congela ao responder: o evento do Sentry precisa sair antes.
+    expect(Sentry.flush).toHaveBeenCalledWith(2000)
     expect(recordCronSuccess).toHaveBeenCalledTimes(1)
     expect(recordCronFailure).not.toHaveBeenCalled()
 

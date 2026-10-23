@@ -55,6 +55,7 @@ vi.mock('@/lib/youtube/coleta', () => ({
 vi.mock('@sentry/nextjs', () => ({
   captureException: vi.fn(),
   captureMessage: vi.fn(),
+  flush: vi.fn().mockResolvedValue(true),
 }))
 
 import { GET } from '../../src/app/api/cron/sync-analytics-metrics/route'

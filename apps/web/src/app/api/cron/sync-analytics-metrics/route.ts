@@ -423,6 +423,7 @@ export async function GET(req: NextRequest) {
     Sentry.captureMessage(`sync-analytics-metrics: channels query failed: ${channelsError.message}`)
     // O texto do Postgres fica só no Sentry (acima); a nota gravada e a resposta são legíveis e sem ele.
     await recordCronFailure(nomeCron, 'database error listing the YouTube channels')
+    await Sentry.flush(2000)
     return NextResponse.json({ error: 'channels query failed' }, { status: 500 })
   }
 
@@ -544,5 +545,7 @@ export async function GET(req: NextRequest) {
   } else {
     await recordCronSuccess(nomeCron)
   }
+  // Serverless congela ao responder: sem o flush, o captureException do passo se perde (diagnóstico de 23/10).
+  await Sentry.flush(2000)
   return NextResponse.json(corpo)
 }

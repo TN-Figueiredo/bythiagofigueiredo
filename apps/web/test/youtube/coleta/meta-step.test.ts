@@ -22,7 +22,7 @@ vi.mock('@/lib/youtube/short-classifier', async (orig) => ({
 }))
 vi.mock('@/lib/youtube/coleta/alerts', () => ({ avisarEntrada: vi.fn(), avisarSaida: vi.fn() }))
 
-import { passoMetadados, TETO_CAPTURA_MS } from '@/lib/youtube/coleta/meta-step'
+import { passoMetadados, TETO_CAPTURA_MS, TETO_TOKEN_MS } from '@/lib/youtube/coleta/meta-step'
 import { SemTempoError } from '@/lib/youtube/coleta/clock'
 import { probeThumb, archiveThumb } from '@/lib/youtube/thumb-fingerprint'
 import { DataApiError, videosList, type VideoCapturado } from '@/lib/youtube/coleta/videos-list'
@@ -1267,6 +1267,23 @@ describe('passoMetadados: canal sem vídeos (F0-b)', () => {
     const todas = db.tables.yt_own_collection_attempts ?? []
     expect(todas.some(r => r.outcome === 'sem_videos')).toBe(false)
     expect(tentativasDoCanal(db, 'ch-2').map(r => r.outcome)).toEqual(['nao_alcancado_orcamento'])
+  })
+})
+
+describe('passoMetadados: prazo do token separado do da videos.list', () => {
+  it('token lento (9 s) não consome os 8 s da videos.list: a chamada ainda recebe o teto cheio', async () => {
+    expect(TETO_TOKEN_MS).toBeGreaterThan(9_000)
+    vi.mocked(ensureFreshToken).mockImplementation(async () => {
+      vi.setSystemTime(Date.now() + 9_000)
+      return { accessToken: 'tok' } as never
+    })
+    vi.mocked(videosList).mockResolvedValue(new Map())
+    const db = fakeSupabase({ youtube_videos: [video(1)], youtube_channels: canais() })
+    const ctx = ctxDe(db, 60_000)
+    await passoMetadados(ctx)
+    // Antes da correção o token gastava 9 dos 8 s e a lista nem era chamada (SemTempo).
+    expect(videosList).toHaveBeenCalledTimes(1)
+    expect(tentCanal(db)?.outcome).not.toBe('nao_alcancado_orcamento')
   })
 })
 

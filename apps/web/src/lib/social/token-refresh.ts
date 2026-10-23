@@ -68,6 +68,24 @@ interface MetaRefreshResponse {
   expires_in: number
 }
 
+/** Espera antes da segunda (e última) leitura da conexão. */
+export const LEITURA_RETRY_MS = 500
+
+type LinhaConexao = {
+  id: unknown; access_token_enc: unknown; refresh_token_enc: unknown; token_expires_at: unknown; metadata: unknown
+  bluesky_did: unknown; bluesky_access_jwt_enc: unknown; bluesky_refresh_jwt_enc: unknown; bluesky_jwt_expires_at: unknown
+}
+type LeituraConexao = { data: LinhaConexao | null; error: { code?: string; message: string } | null }
+
+/** Uma exceção da leitura (ex.: "fetch failed") vira `error`, no mesmo formato do PostgREST. */
+async function lerConexaoSegura(ler: () => PromiseLike<unknown>): Promise<LeituraConexao> {
+  try {
+    return (await ler()) as LeituraConexao
+  } catch (e) {
+    return { data: null, error: { message: e instanceof Error ? e.message : String(e) } }
+  }
+}
+
 export async function ensureFreshToken(
   siteId: string,
   provider: Provider,
@@ -95,24 +113,30 @@ export async function ensureFreshToken(
     }
   }
 
-  let query = supabase
-    .from('social_connections')
-    .select(
-      'id, access_token_enc, refresh_token_enc, token_expires_at, metadata, bluesky_did, bluesky_access_jwt_enc, bluesky_refresh_jwt_enc, bluesky_jwt_expires_at',
-    )
-    .eq('site_id', siteId)
-    .eq('provider', provider)
-    .is('revoked_at', null)
-  if (accountId) query = query.eq('account_id', accountId)
-  const { data: conn, error } = await query
-    .order('connected_at', { ascending: false })
-    .limit(1)
-    .single()
+  const lerConexao = () => {
+    let query = supabase
+      .from('social_connections')
+      .select(
+        'id, access_token_enc, refresh_token_enc, token_expires_at, metadata, bluesky_did, bluesky_access_jwt_enc, bluesky_refresh_jwt_enc, bluesky_jwt_expires_at',
+      )
+      .eq('site_id', siteId)
+      .eq('provider', provider)
+      .is('revoked_at', null)
+    if (accountId) query = query.eq('account_id', accountId)
+    return query.order('connected_at', { ascending: false }).limit(1).single()
+  }
+  let { data: conn, error } = await lerConexaoSegura(lerConexao)
+  // Timeout/rede/banco: UMA nova tentativa depois de ~500 ms. Erro de dado (PGRST116 = sem linha) não repete.
+  if (error && error.code !== 'PGRST116') {
+    await new Promise(resolve => setTimeout(resolve, LEITURA_RETRY_MS))
+    ;({ data: conn, error } = await lerConexaoSegura(lerConexao))
+  }
 
   // "Sem conexão" só quando NÃO há linha (PGRST116 ou sem erro e sem dado). Erro de banco
   // (timeout, rede) é falha de verdade: quem pula canal sem conexão não pode engoli-lo.
   if (error && error.code !== 'PGRST116') {
-    throw new Error(`Could not read the ${provider} connection for site ${siteId}: ${error.message}`)
+    const codigo = error.code ? ` [${error.code}]` : ''
+    throw new Error(`Could not read the ${provider} connection for site ${siteId}: ${error.message}${codigo}`)
   }
   if (!conn) {
     throw new NoActiveConnectionError(provider, siteId)
