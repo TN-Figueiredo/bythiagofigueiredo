@@ -6,6 +6,8 @@
  */
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
+import { unstable_rethrow } from 'next/navigation'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
@@ -35,8 +37,11 @@ export async function dispensarSugestao(id: string, motivo: string): Promise<Res
       revalidatePath('/cms/youtube/ab-lab')
     }
     if (r.ok) return { ok: true }
+    if (r.motivo === undefined || !REPASSADOS.has(r.motivo)) Sentry.captureMessage('sugestoes: motivo desconhecido de niche_signals_dispensar', { level: 'warning', extra: { motivo: r.motivo } })
     return { ok: false, motivo: r.motivo !== undefined && REPASSADOS.has(r.motivo) ? (r.motivo as 'nao_aberto' | 'nao_encontrado' | 'motivo_invalido') : 'falhou' }
-  } catch {
+  } catch (e) {
+    unstable_rethrow(e)
+    Sentry.captureException(e, { tags: { component: 'sugestoes', step: 'dispensar' } })
     return { ok: false, motivo: 'falhou' }
   }
 }

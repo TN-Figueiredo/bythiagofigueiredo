@@ -2,6 +2,7 @@
 // do Cowork não leva texto de terceiro nem URL de imagem). Duas consultas por abertura, k ≤ 20 ids.
 // `siteId` vem da guarda, nunca de parâmetro da pessoa. Título é texto de terceiro: quem renderiza usa só texto React.
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 
 import { BLOCO_DO_IN } from './leitura'
 
@@ -15,6 +16,11 @@ export interface AmostraDoVideo {
   chaves: string[] | null
 }
 
+const Canal = z.object({ channel_name: z.string().nullable() })
+const LinhaComp = z.object({ id: z.string(), title: z.string().nullable(), thumbnail_url: z.string().nullable(), competitor_channels: z.union([Canal, z.array(Canal)]).nullish() })
+const LinhaProp = z.object({ id: z.string(), title: z.string().nullable(), youtube_video_id: z.string().nullable() })
+const LinhaLugar = z.object({ video_id: z.string(), chaves: z.array(z.string()).nullable() })
+
 const miniaturaDoProprio = (youtubeVideoId: string): string => `https://i.ytimg.com/vi/${youtubeVideoId}/mqdefault.jpg`
 
 /**
@@ -26,8 +32,8 @@ export async function lerAmostraDasLinhas(sb: SupabaseClient, siteId: string, id
   const unicos = [...new Set(ids)]
   if (unicos.length === 0) return saida
   const lugares = new Map<string, string[]>()
-  const comps: Array<{ id: string; title: string | null; thumbnail_url: string | null; competitor_channels: { channel_name: string | null } | Array<{ channel_name: string | null }> | null }> = []
-  const props: Array<{ id: string; title: string | null; youtube_video_id: string | null }> = []
+  const comps: z.infer<typeof LinhaComp>[] = []
+  const props: z.infer<typeof LinhaProp>[] = []
   for (let i = 0; i < unicos.length; i += BLOCO_DO_IN) {
     const bloco = unicos.slice(i, i + BLOCO_DO_IN)
     const [comp, prop, vl] = await Promise.all([
@@ -39,9 +45,9 @@ export async function lerAmostraDasLinhas(sb: SupabaseClient, siteId: string, id
     if (comp.error) throw new Error('amostra: leitura de competitor_videos falhou')
     if (prop.error) throw new Error('amostra: leitura de youtube_videos falhou')
     if (vl.error) throw new Error('amostra: leitura de video_lugares falhou')
-    comps.push(...((comp.data ?? []) as unknown as typeof comps))
-    props.push(...((prop.data ?? []) as unknown as typeof props))
-    for (const r of (vl.data ?? []) as unknown as Array<{ video_id: string; chaves: string[] | null }>) if (Array.isArray(r.chaves)) lugares.set(r.video_id, r.chaves)
+    comps.push(...z.array(LinhaComp).parse(comp.data ?? []))
+    props.push(...z.array(LinhaProp).parse(prop.data ?? []))
+    for (const r of z.array(LinhaLugar).parse(vl.data ?? [])) if (Array.isArray(r.chaves)) lugares.set(r.video_id, r.chaves)
   }
   for (const r of comps) {
     if (!r.title) continue

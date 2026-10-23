@@ -28,7 +28,7 @@ function item(id: string, o: Partial<ItemDeSinal> & { outliers?: Out[] } = {}): 
   }
 }
 function lista(itens: ItemDeSinal[], o: Partial<ListaDeSinais> = {}): ListaDeSinais {
-  return { n: itens.length, itens, computado_em: '2026-10-23T10:02:00Z', desatualizado: false, motivoVazio: null, contagens: {}, calculoLigado: true, ...o }
+  return { n: itens.length, itens, computado_em: '2026-10-23T10:02:00Z', desatualizado: false, motivoVazio: null, contagens: {}, calculoLigado: true, ...o, ...(o.computado_em === null ? { desatualizado: o.desatualizado ?? true } : {}) }
 }
 const am = (titulo: string, o: Partial<AmostraDoVideo> = {}): AmostraDoVideo => ({ titulo, miniatura: 'https://x/y.jpg', origem: 'competidor', canal: 'Canal', chaves: null, ...o })
 const montar = (l: ListaDeSinais, amostra: Map<string, AmostraDoVideo> = new Map(), o: Partial<Parameters<typeof montarVistaDaLista>[0]> = {}) =>
@@ -290,5 +290,14 @@ describe('dado hostil', () => {
     const v = montar(lista([item('a', { outliers: [out('o', 6)] })]), new Map([['o', am(t, { canal: '<b>x</b>' })]]))
     expect(v.linhas[0]!.puxadoPor!.titulo).toBe(t)
     expect(v.linhas[0]!.puxadoPor!.canal).toBe('<b>x</b>')
+  })
+})
+
+describe('T9 I4: nunca calculado não é dado velho', () => {
+  it('sem computado_em: velho false, sem faixa, "Nunca calculado"', () => {
+    const v = montar(lista([], { computado_em: null, desatualizado: true, motivoVazio: null }))
+    expect(v.velho).toBe(false)
+    expect(v.faixa).toBeNull()
+    expect(v.calculado).toBe('Nunca calculado')
   })
 })

@@ -61,7 +61,7 @@ describe('sem fadiga: consultas', () => {
         youtube_channels: { locale: 'pt', handle: 'h', name: 'n' },
       },
     ]
-    await YouTubeVideosPage()
+    await YouTubeVideosPage({ searchParams: Promise.resolve({}) })
     expect(tablesQueried()).toContain('youtube_videos')
     expect(tablesQueried()).not.toContain('youtube_fatigue_alerts')
   })
