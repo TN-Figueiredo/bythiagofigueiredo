@@ -68,7 +68,7 @@ describe('avaliarDegradacao (§6.1)', () => {
 })
 
 describe('textos (igualdade exata)', () => {
-  const resto = 'Se continuar, a leitura de títulos dos concorrentes para até construirmos a leitura pela forja (hoje ela não existe).'
+  const resto = 'Se continuar, a leitura de títulos dos concorrentes fica parada até construirmos a leitura pela forja (hoje ela não existe).'
   const segundo = '2º dia seguido: é o gatilho para construir a leitura pela forja.'
   it('sem_titulo: literal do §6.1, com uma casa e floor', () => {
     const a = { dispara: true, condicao: 'sem_titulo' as const, pctSemTitulo: 34, alvosSemLeitura: 0, alvosConsiderados: 10 }
@@ -85,15 +85,21 @@ describe('textos (igualdade exata)', () => {
   })
   it('sem_leitura (proposta, a Hanna valida)', () => {
     const a = { dispara: true, condicao: 'sem_leitura' as const, pctSemTitulo: 0, alvosSemLeitura: 0, alvosConsiderados: 12 }
-    expect(textoDegradacao(a, false)).toBe("Leitura dos concorrentes parada ontem: a sonda não trouxe nenhuma leitura de 12 vídeos ativos. Os estados de título vão ficar 'não medido'. " + resto)
-    expect(textoDegradacao(a, true)).toBe("Leitura dos concorrentes parada ontem: a sonda não trouxe nenhuma leitura de 12 vídeos ativos. Os estados de título vão ficar 'não medido'. " + resto + ' ' + segundo)
-    expect(textoDegradacao({ ...a, alvosConsiderados: 1 }, false)).toContain('leitura de 1 vídeo ativo.')
+    expect(textoDegradacao(a, false)).toBe("Leitura dos concorrentes parada ontem: a sonda não trouxe nenhuma leitura de 12 vídeos acompanhados. Os estados de título vão ficar 'não medido'. " + resto)
+    expect(textoDegradacao(a, true)).toBe("Leitura dos concorrentes parada ontem: a sonda não trouxe nenhuma leitura de 12 vídeos acompanhados. Os estados de título vão ficar 'não medido'. " + resto + ' ' + segundo)
+    expect(textoDegradacao({ ...a, alvosConsiderados: 1 }, false)).toContain('leitura de 1 vídeo acompanhado.')
   })
   it('alvos_sem_leitura (proposta, a Hanna valida): em vídeos, sem %', () => {
     const a = { dispara: true, condicao: 'alvos_sem_leitura' as const, pctSemTitulo: 3, alvosSemLeitura: 4, alvosConsiderados: 30 }
-    expect(textoDegradacao(a, false)).toBe("Leitura dos concorrentes degradada ontem: 4 de 30 vídeos ativos ficaram sem nenhuma passagem com título. Os estados de título podem ficar 'não medido'. " + resto)
+    expect(textoDegradacao(a, false)).toBe("Leitura dos concorrentes degradada ontem: 4 de 30 vídeos acompanhados ficaram sem nenhuma passagem com título. Os estados de título podem ficar 'não medido'. " + resto)
     expect(textoDegradacao(a, true)).toContain(segundo)
     expect(textoDegradacao(a, false)).not.toContain('%')
+  })
+  it('alvos_sem_leitura com K = 1: "ficou" no singular; K > 1 segue "ficaram"; N = 1 -> "vídeo acompanhado"', () => {
+    const a = { dispara: true, condicao: 'alvos_sem_leitura' as const, pctSemTitulo: 3, alvosSemLeitura: 1, alvosConsiderados: 5 }
+    expect(textoDegradacao(a, false)).toBe("Leitura dos concorrentes degradada ontem: 1 de 5 vídeos acompanhados ficou sem nenhuma passagem com título. Os estados de título podem ficar 'não medido'. " + resto)
+    expect(textoDegradacao({ ...a, alvosSemLeitura: 2 }, false)).toContain('2 de 5 vídeos acompanhados ficaram sem')
+    expect(textoDegradacao({ ...a, alvosConsiderados: 1 }, false)).toContain('1 de 1 vídeo acompanhado ficou sem')
   })
   it('textoSuspenso literal do §6.2', () => {
     expect(textoSuspenso(5)).toBe('Leitura de título suspensa ontem em 5 vídeos: o mesmo título apareceu em vídeos diferentes (provável falha da página do YouTube). Nada foi gravado com esse título.')

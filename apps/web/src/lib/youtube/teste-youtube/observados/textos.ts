@@ -66,7 +66,7 @@ function textoBaseTitulo(e: EstadoTituloBase, o: Opcoes): string {
       const dias = Math.floor((o.agoraMs - maisRecente(e.sumidas)) / DIA_MS)
       const nomes = e.sumidas.map(x => q(x.ref))
       const sumiu = e.sumidas.length === 1 ? 'não aparece' : 'não aparecem'
-      return `${cab} ${lista(nomes, 'e')} ${sumiu} há ${dias} ${dias === 1 ? 'dia' : 'dias'}. Pode reabrir se ${lista(nomes, 'ou')} voltar.`
+      return `${cab} ${lista(nomes, 'e')} ${sumiu} ${dias < 1 ? 'há menos de 1 dia' : `há ${dias} ${dias === 1 ? 'dia' : 'dias'}`}. Pode reabrir se ${lista(nomes, 'ou')} voltar.`
     }
     case 'troca': {
       const mesmoDia = dia(e.entre.de) === dia(e.entre.ate)

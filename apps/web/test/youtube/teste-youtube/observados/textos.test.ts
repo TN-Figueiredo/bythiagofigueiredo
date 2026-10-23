@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import type { EstadoMiniatura, EstadoTitulo, EstadoTituloBase } from '@/lib/youtube/teste-youtube/observados/estado-de-leitura'
+import { decidirCampo, qualificadas } from '@/lib/youtube/teste-youtube/observados/inferir'
 import { AINDA_NAO_CONFERIDA, dia, NOTA_PASSAGENS, quando, TEXTO_MOTIVO, textoMiniatura, textoTitulo } from '@/lib/youtube/teste-youtube/observados/textos'
 
 const AGORA = Date.parse('2026-10-23T15:00:00Z') // 23/10 12h em São Paulo
@@ -42,6 +43,34 @@ describe('textos do título (§11, igualdade exata)', () => {
     expect(textoTitulo(um, o)).toBe("Possível teste do YouTube, provavelmente terminou: ficou 'X'. 'B' não aparece há 3 dias. Pode reabrir se 'B' voltar.")
     const dois: EstadoTitulo = { estado: 'provavelmente_terminou', ficou: 'X', sumidas: [um.sumidas[0]!, { ref: 'C', rodadasEmW: 0, ultimaVista: iso(AGORA - 5 * 86_400_000) }] }
     expect(textoTitulo(dois, o)).toBe("Possível teste do YouTube, provavelmente terminou: ficou 'X'. 'B' e 'C' não aparecem há 3 dias. Pode reabrir se 'B' ou 'C' voltar.")
+  })
+  it('terminou há menos de 1 dia: "há menos de 1 dia", nunca "há 0 dias"; 1 dia e 2 dias seguem', () => {
+    const sum = (ms: number): EstadoTitulo => ({ estado: 'provavelmente_terminou', ficou: 'X', sumidas: [{ ref: 'B', rodadasEmW: 0, ultimaVista: iso(AGORA - ms) }] })
+    expect(textoTitulo(sum(5 * H), o)).toBe("Possível teste do YouTube, provavelmente terminou: ficou 'X'. 'B' não aparece há menos de 1 dia. Pode reabrir se 'B' voltar.")
+    expect(textoTitulo(sum(0), o)).toContain('há menos de 1 dia')
+    expect(textoTitulo(sum(86_400_000), o)).toContain('há 1 dia.')
+    expect(textoTitulo(sum(2 * 86_400_000 + H), o)).toContain('há 2 dias.')
+  })
+  it('"0 títulos seguem" é inalcançável: todo "sumindo" decidido tem a versão que ficou (x) em >= 2 rodadas de W', () => {
+    let s = 12345
+    const rnd = (): number => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648 }
+    let sumindos = 0
+    for (let it = 0; it < 30000; it++) {
+      const teste = 8 + Math.floor(rnd() * 8)
+      const cauda = 8 + Math.floor(rnd() * 5)
+      const n = teste + cauda
+      const rs = Array.from({ length: n }, (_, i) => {
+        const vs = new Set<string>()
+        if (i < teste) { vs.add(rnd() < 0.5 ? 'A' : 'B'); if (rnd() < 0.3) vs.add('A').add('B') } else { vs.add('A'); if (rnd() < 0.15) vs.add(rnd() < 0.5 ? 'B' : 'C') }
+        return { tMs: AGORA - (n - i) * 6 * H, rodadaId: `r${i}`, versoes: vs as ReadonlySet<string> }
+      })
+      const d = decidirCampo('titulo', rs, { publicadoMs: AGORA - 90 * 86_400_000, agoraMs: AGORA })
+      if (d.estado !== 'sumindo') continue
+      sumindos++
+      const seguem = [...qualificadas(d.w)].filter(v => !d.sumidas.includes(v))
+      expect(seguem.length, JSON.stringify(rs.map(r => [...r.versoes]))).toBeGreaterThanOrEqual(1)
+    }
+    expect(sumindos).toBeGreaterThan(0)
   })
   it('troca, com e sem conferida; troca que cruza o dia', () => {
     const t: EstadoTitulo = { estado: 'troca', antes: 'A', depois: 'B', entre: { de: '2026-10-20T16:00:00Z', ate: '2026-10-20T22:00:00Z' }, vistoAte: iso(AGORA) }

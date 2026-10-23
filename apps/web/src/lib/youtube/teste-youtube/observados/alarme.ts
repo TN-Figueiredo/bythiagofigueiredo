@@ -74,7 +74,7 @@ export function avaliarDegradacao(alvos: readonly AlvoAtivo[], leituras: readonl
   return { dispara: false, condicao: null, ...base }
 }
 
-const RESTO = 'Se continuar, a leitura de títulos dos concorrentes para até construirmos a leitura pela forja (hoje ela não existe).'
+const RESTO = 'Se continuar, a leitura de títulos dos concorrentes fica parada até construirmos a leitura pela forja (hoje ela não existe).'
 const SEGUNDO_DIA = '2º dia seguido: é o gatilho para construir a leitura pela forja.'
 const NAO_MEDIDO = "Os estados de título podem ficar 'não medido'."
 const pct = (x: number): string => String(x).replace('.', ',')
@@ -88,10 +88,10 @@ export function textoDegradacao(a: Avaliacao, segundoDia: boolean): string {
   let t: string
   switch (a.condicao) {
     case 'sem_leitura':
-      t = `Leitura dos concorrentes parada ontem: a sonda não trouxe nenhuma leitura de ${n} ${n === 1 ? 'vídeo ativo' : 'vídeos ativos'}. Os estados de título vão ficar 'não medido'. ${RESTO}`
+      t = `Leitura dos concorrentes parada ontem: a sonda não trouxe nenhuma leitura de ${n} ${n === 1 ? 'vídeo acompanhado' : 'vídeos acompanhados'}. Os estados de título vão ficar 'não medido'. ${RESTO}`
       break
     case 'alvos_sem_leitura':
-      t = `Leitura dos concorrentes degradada ontem: ${a.alvosSemLeitura} de ${n} ${n === 1 ? 'vídeo ativo' : 'vídeos ativos'} ficaram sem nenhuma passagem com título. ${NAO_MEDIDO} ${RESTO}`
+      t = `Leitura dos concorrentes degradada ontem: ${a.alvosSemLeitura} de ${n} ${n === 1 ? 'vídeo acompanhado' : 'vídeos acompanhados'} ${a.alvosSemLeitura === 1 ? 'ficou' : 'ficaram'} sem nenhuma passagem com título. ${NAO_MEDIDO} ${RESTO}`
       break
     default:
       t = `Leitura dos concorrentes degradada ontem: ${pct(a.pctSemTitulo)}% das leituras sem título. ${NAO_MEDIDO} ${RESTO}`
