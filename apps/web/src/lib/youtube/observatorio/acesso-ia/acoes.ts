@@ -1,6 +1,6 @@
-// A5 · E17 degrau 2, Tarefa 9: as nove ações da ferramenta `observatorio_leitura`, o esquema de entrada e o mapa de cada ação para uma
-// ou mais telas do degrau 1 (plano, 4.6). Puro: sem banco, sem relógio, sem rede. A ferramenta NÃO tem leitor próprio: cada ação vira
-// `(tela, id, parâmetros de URL)` e quem responde (Tarefa 10) chama `EMPACOTAR[tela]`.
+// A5 · E17 degrau 2, Tarefa 9: as dez ações da ferramenta `observatorio_leitura`, o esquema de entrada e o mapa de cada ação para uma
+// ou mais telas do degrau 1 (plano, 4.6). Puro: sem banco, sem relógio, sem rede. As nove primeiras NÃO têm leitor próprio: cada ação vira
+// `(tela, id, parâmetros de URL)` e quem responde (Tarefa 10) chama `EMPACOTAR[tela]`. `sugestoes` (F2 T8) é a primeira com leitor próprio: lê a tabela dos sinais.
 //
 // Duas regras que valem para tudo aqui:
 //   - texto livre não existe: todo campo é uma lista fechada, um id com forma de uuid ou de id do YouTube, ou uma data; nada passa de 64 caracteres;
@@ -13,7 +13,7 @@ import { DEFAULT_AGES } from '../rules'
 import { TELAS_IA, telaExiste } from '../contexto-ia/telas'
 import type { TelaId } from '../contexto-ia/tipos'
 
-export const ACOES = ['definicoes', 'listar_canais', 'canal', 'video', 'comparar', 'destaques', 'serie', 'mudancas', 'pacote_da_tela'] as const
+export const ACOES = ['definicoes', 'listar_canais', 'canal', 'video', 'comparar', 'destaques', 'serie', 'mudancas', 'pacote_da_tela', 'sugestoes'] as const
 export type Acao = (typeof ACOES)[number]
 
 export interface Pedido {
@@ -62,6 +62,7 @@ export const ENTRADA = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('destaques'), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional() }).strict(),
   z.object({ acao: z.literal('serie'), video_id: id.optional(), canal_id: id.optional(), de: data, ate: data, grao: z.enum(['dia', 'semana']).optional() }).strict(),
   z.object({ acao: z.literal('mudancas'), canal_id: id.optional(), desde: data.optional(), janela: janela.optional(), formato: formato.optional(), nicho: nicho.optional() }).strict(),
+  z.object({ acao: z.literal('sugestoes') }).strict(),
   z.object({ acao: z.literal('pacote_da_tela'), tela: z.string().max(32), id: id.optional(), parametros: parametros.optional() }).strict(),
 ])
 export type Entrada = z.infer<typeof ENTRADA>
@@ -192,6 +193,9 @@ const TRADUTORES: { [A in Acao]: Tradutor<A> } = {
     return { ok: true, pedido: { telas: [{ tela: 'mudancas', sp }], teto: TETO, limite: { tipo: 'linhas', n: ACESSO_IA_RULES.mudancas }, semEquivalente: aviso } }
   },
 
+  // F2 T8: a primeira ação com leitor próprio (lê a tabela dos sinais, não uma tela). Só leitura; sem parâmetro: o site vem da guarda.
+  sugestoes: () => ({ ok: true, pedido: { telas: [{ tela: 'sugestoes', sp: {} }], teto: TETO, limite: NENHUM, semEquivalente: [] } }),
+
   pacote_da_tela: (e) => {
     if (!telaExiste(e.tela)) {
       const existem = (Object.keys(TELAS_IA) as TelaId[]).filter((t) => TELAS_IA[t].estado === 'existe')
@@ -231,6 +235,7 @@ const PARAMETROS_DA_TELA: Record<TelaId, readonly string[]> = {
   mudancas: ['niche', 'fmt', 'win', 'type', 'sort', 'channel', 'video', 'measured'],
   fila: [],
   ritmo: [],
+  sugestoes: [],
 }
 
 /** A entrada já passou pelo esquema (`ENTRADA`); aqui entram as regras que olham mais de um campo. */

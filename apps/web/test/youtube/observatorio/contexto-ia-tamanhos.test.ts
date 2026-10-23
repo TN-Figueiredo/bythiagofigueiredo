@@ -40,6 +40,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados', async (orig) =>
   lerDadosDoVideo: async () => ({ acesso: 'ok', dado: { alcance: (w.dados.alcance as { dado: unknown }).dado, diario: (w.dados.diario as { dado: unknown }).dado } }),
   lerDiarioLongo: async () => ({ acesso: 'erro' }), longosAcompanhadosDe: () => [],
 }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_sugestoes/dados', () => ({ abrirSugestoes: async () => ({ n: 0, itens: [], computado_em: null, desatualizado: true, motivoVazio: 'nunca-calculado', contagens: {}, calculoLigado: true }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_saiu/dados', () => ({ abrirFila: async () => filaSt.leitura, contarParaAAba: async () => ({ visivel: false }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-origem', () => ({ lerOrigem: async () => ({ acesso: 'erro' }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_proprio/dados-termos', () => ({ lerTermosESites: async () => ({ acesso: 'negado' }) }))
@@ -83,6 +84,7 @@ const PEDIDOS: Record<TelaId, { id?: string; consulta: string } | null> = {
   'video-proprio': { id: proprioVideo.id, consulta: '' },
   fila: { consulta: '' },
   ritmo: null,
+  sugestoes: { consulta: '' },
 }
 const TELAS_EXISTE = (Object.keys(TELAS_IA) as TelaId[]).filter((t) => TELAS_IA[t].estado === 'existe')
 

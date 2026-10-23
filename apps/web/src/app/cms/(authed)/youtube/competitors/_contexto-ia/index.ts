@@ -33,6 +33,7 @@ import { empacotarOutliers, modeloDeOutliers } from './empacotar-outliers'
 import { empacotarInsights, modeloDeInsights } from './empacotar-insights'
 import { empacotarMudancas, modeloDeMudancas } from './empacotar-mudancas'
 import { empacotarFila, modeloDeFila } from './empacotar-fila'
+import { montarSugestoes } from '../_sugestoes/montar'
 
 export interface PedidoMontado { id?: string; sp: Record<string, string | undefined> }
 export interface PacoteMontado { modelo: PacoteModelo; recente: string | null; estado: Record<string, string> }
@@ -201,6 +202,8 @@ export const EMPACOTAR: { [T in TelaId]?: Empacotador } = {
     if (m.view.estado === 'erro') throw new Error('contexto-ia: a fila não pôde ser lida')
     return { modelo: empacotarFila(modeloDeFila(m.view)), recente: m.recente, estado: textoDe(m.estado) }
   },
+  // F2 T8: leitor próprio (a tabela dos sinais, não uma tela); o site vem da guarda dentro de `montarSugestoes`
+  sugestoes: async () => montarSugestoes(),
 }
 
 export { telaExiste }

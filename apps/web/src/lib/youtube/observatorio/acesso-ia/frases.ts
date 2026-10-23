@@ -23,6 +23,10 @@ export const FRASES_DA_FERRAMENTA = {
   tela_sem_pacote: 'esta tela ainda não tem pacote',
 } as const
 
+/** O rodapé da ação `sugestoes` (F2 T8): associação, não causa; "pode ajudar", nunca "vai ajudar" (D2). */
+export const RODAPE_SUGESTOES =
+  'Sugestões do nicho: associação entre vídeos de concorrentes que estouraram e um lugar, não causa; pode ajudar, não promete resultado.'
+
 const TRES_HORAS_MS = 3 * 3_600_000 // São Paulo é UTC-3, sem horário de verão desde 2019 (igual a `lib/pipeline/chave.ts`)
 
 /** `limite de uso atingido: tente de novo a partir das HH:MM (horário de São Paulo)`. Instante inválido não inventa hora. */
