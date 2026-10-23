@@ -10,6 +10,10 @@ import { ContextoAssistente, useControleAssistente } from '@/app/cms/(authed)/yo
 import type { AcoesCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho'
 import { fichaLida, AGORA_FICHA, URL_IMG, SHA } from './helpers/ficha-fixture'
 
+// Relógio fixo no dia dos dados (22/10, 12:00 em São Paulo): a frase "Você abriu o Studio às" depende de ser o mesmo dia.
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-22T15:00:00.000Z')) })
+afterEach(() => { vi.useRealTimers() })
+
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 
 const IMG = (nome: string) => ({ url: URL_IMG(nome), sha256: SHA, largura: 1280, altura: 720 })
