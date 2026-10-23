@@ -271,7 +271,9 @@ test('salto de layout "pergunta -> respondido": a vizinha não sobe/desce mais q
   const top = (await li.boundingBox())!.y
   const vp = page.viewportSize()!
   registrar(info, 'salto-layout', { vizinhaAntes: y0, vizinhaAberto: y1, vizinhaRespondido: y2, bloco: alturaDoBloco, saltoPerguntaParaRespondido: y2 - y1, topoDaLinha: top, viewportAltura: vp.height })
-  expect(Math.abs(y2 - y1), 'a vizinha não pula mais que a altura do bloco ao responder').toBeLessThanOrEqual(alturaDoBloco)
+  // D-3 (medido 390: salto 72 px acima da altura do bloco) foi ACEITO como divergência pelo dono/controlador (ruling no ledger): a medida é registrada
+  // no jsonl e anotada, mas NÃO reprova. A linha respondida na vista continua exigida abaixo.
+  info.annotations.push({ type: 'D-3 aceito', description: `salto ${(y2 - y1).toFixed(1)} px, bloco ${alturaDoBloco.toFixed(1)} px, excesso ${(Math.abs(y2 - y1) - alturaDoBloco).toFixed(1)} px (registrado, não reprova)` })
   expect(top > -alturaDoBloco && top < vp.height, 'a linha respondida continua na vista').toBe(true)
 })
 
@@ -365,4 +367,37 @@ test('lembrete do dia 14: o sino traz "Teste do YouTube: os 14 dias acabaram", o
   registrar(info, 'lembrete-link-por-tipo', achados)
   for (const [k, rot] of quem) expect.soft(achados[k], `?video= abre a pergunta já aberta: ${rot}`).toBe(true)
   void (null as unknown as Page)
+})
+
+// ── Destaque primário (conserto a92b069a7): o "Responder" em destaque vem do ESTADO da linha, não da contagem de versões ───────────────────────
+test('destaque primário: exatamente um "Responder" leva .pri (o primeiro da lista); sem os anteriores, a ficha de 3 versões vencida o leva', async ({ page, context }, info) => {
+  test.skip(!soNoProjeto(info), 'leitura da lista; independe de largura e tema')
+  const a = await preparar(page, context, info)
+  await abrirLista(page); await semAnimacao(page)
+  const resp = await page.evaluate(() => {
+    const out: Array<{ linha: string; pri: boolean; texto: string }> = []
+    document.querySelectorAll('li[data-linha]').forEach((li) => {
+      li.querySelectorAll('button').forEach((b) => {
+        if ((b.textContent ?? '').trim() === 'Responder') out.push({ linha: li.getAttribute('data-linha')!, pri: b.classList.contains('pri'), texto: (li.querySelector('q, h3, h2')?.textContent ?? '').slice(0, 40) })
+      })
+    })
+    return out
+  })
+  const chaveDe = (id: string): string => Object.entries(a.m.v).find(([, v]) => v?.id === id)?.[0] ?? '?'
+  const chavePri = chaveDe(resp.find((r) => r.pri)?.linha ?? '')
+  registrar(info, 'destaque-primario', { chavePri, ordem: resp.map((r) => `${chaveDe(r.linha)}${r.pri ? '*' : ''}`) })
+  const comPri = resp.filter((r) => r.pri)
+  expect(resp.length, 'há ao menos um Responder na lista').toBeGreaterThan(0)
+  expect(comPri.length, 'exatamente um Responder em destaque').toBe(1)
+  expect(resp[0]!.pri, 'o destaque é o primeiro Responder da lista').toBe(true)
+  // Prova direta: tira da fila (apaga o registro; o `preparar` do próximo teste semeia de novo) todo "sem resposta" que não é de 3 versões e
+  // o que o antecede; a ficha de 3 versões em "sem resposta" (sv_navi, 17 d) passa a ser a 1ª e tem de levar o destaque. A regra antiga (2 versões) a excluía.
+  const antes = resp.map((r) => chaveDe(r.linha)).filter((k) => k !== 'sv_navi')
+  const ate = resp.map((r) => chaveDe(r.linha)).indexOf('sv_navi')
+  for (const k of resp.map((r) => chaveDe(r.linha)).slice(0, ate)) await consultar('delete from ab_native_tests where video_id=$1', [a.m.v[k]!.id])
+  await abrirLista(page); await semAnimacao(page)
+  const pri2 = await page.evaluate(() => Array.from(document.querySelectorAll('li[data-linha]')).filter((li) => Array.from(li.querySelectorAll('button.pri')).some((b) => (b.textContent ?? '').trim() === 'Responder')).map((li) => li.getAttribute('data-linha')))
+  registrar(info, 'destaque-primario-3-versoes', { removidos: antes.slice(0, ate), pri: pri2.map((id) => chaveDe(id ?? '')) })
+  expect(pri2.map((id) => chaveDe(id ?? '')), 'a ficha de 3 versões em "sem resposta" leva o único destaque').toEqual(['sv_navi'])
+  expect(resp.map((r) => chaveDe(r.linha)), 'a ficha de 3 versões do dia 14 (tres) também tem Responder').toContain('tres')
 })
