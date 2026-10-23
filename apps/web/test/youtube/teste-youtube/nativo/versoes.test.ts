@@ -57,10 +57,25 @@ describe('patchDaResposta com derivada', () => {
   })
 })
 
+// Qualquer forma de importar (com ou sem `from`, em várias linhas): o arquivo inteiro é testado, não linha a linha.
+const PROIBIDO = /(?:from|import)\s*['"](?:@sentry\/nextjs|@\/lib\/notifications[^'"]*|(?:\.\/|@\/lib\/youtube\/teste-youtube\/nativo\/)(?:ficha|resposta)|@\/lib\/youtube\/observatorio\/[^'"]*)['"]/
+
 describe('arquitetura: o bundle do cliente não arrasta código de servidor', () => {
-  it.each(['versoes.ts', 'ficha-schema.ts'])('%s não importa Sentry, notifications nem ./ficha', (arq) => {
-    const src = readFileSync(resolve(__dirname, '../../../../src/lib/youtube/teste-youtube/nativo', arq), 'utf8')
-    const imports = src.split('\n').filter((l) => /^\s*(import|export)\b.*\bfrom\b/.test(l)).join('\n')
-    expect(imports).not.toMatch(/@sentry\/nextjs|@\/lib\/notifications|from '\.\/ficha'/)
+  it.each([
+    "import {\n x,\n} from '@sentry/nextjs'",
+    "import { y } from '@/lib/youtube/teste-youtube/nativo/ficha'",
+    "import '@sentry/nextjs'",
+    "export { z } from './ficha'",
+    "import { t } from '@/lib/youtube/observatorio/proprio-versoes/ler'",
+  ])('a regra pega o mutante %j', (txt) => {
+    expect(txt).toMatch(PROIBIDO)
+  })
+  it('a regra deixa passar import legítimo', () => {
+    expect(["import { z } from 'zod'", "import type { X } from './ficha'", "import { a } from './ficha-schema'"].join('\n').replace(/import type[^\n]*/g, '')).not.toMatch(PROIBIDO)
+  })
+  it.each(['versoes.ts', 'ficha-schema.ts', 'ficha-url.ts', 'titulo.ts'])('%s não importa Sentry, notifications, ./ficha nem leitor de servidor', (arq) => {
+    const dir = resolve(__dirname, '../../../../src/lib/youtube/teste-youtube/nativo')
+    const src = readFileSync(resolve(dir, arq), 'utf8').replace(/\/\/[^\n]*/g, '')
+    expect(src).not.toMatch(PROIBIDO)
   })
 })

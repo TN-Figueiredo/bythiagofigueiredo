@@ -2,6 +2,7 @@
 // linha ainda não tem veredito (em_andamento, ou sem_desfecho sem `vencedor_fonte`). Com veredito de outra fonte guardam-se as duas.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
+import { titulosAntesDoTeste } from '@/lib/youtube/observatorio/proprio-versoes/ler'
 import { normalizarTitulo } from '../normalizar-titulo'
 import { variantesDaResposta, patchDaResposta, type RespostaDono, type VariantesDaResposta } from './versoes'
 
@@ -35,16 +36,10 @@ interface Linha {
 }
 const COLUNAS = 'id, estado, desfecho_motivo, resposta_dono, vencedor_fonte, vencedor_titulo, confirmado_em, variantes, variantes_titulo, updated_at, variante_vencedora, youtube_video_id, primeira_vista'
 
-/** Título vigente na Data API em `primeira_vista` (D-1). Só para derivada; o corte é a versão mais recente já vista até então, fora as do próprio Lab. */
+/** Título vigente na Data API em `primeira_vista` (D-1), pelo leitor único de versões. Só para derivada. */
 async function lerTituloAntes(p: Params, l: Linha): Promise<string | null> {
-  if (l.primeira_vista === null) return null
-  const { data, error } = await p.sb.from('yt_own_video_versions').select('value_text')
-    .eq('site_id', p.siteId).eq('youtube_video_id', l.youtube_video_id).eq('field', 'title').eq('pre_registro', false)
-    .neq('origin', 'ab_lab').lte('first_seen_at', l.primeira_vista)
-    .order('first_seen_at', { ascending: false }).limit(1)
-  if (error) throw new Error(`yt_own_video_versions: ${error.message}`)
-  const v = (data as Array<{ value_text: string | null }> | null)?.[0]?.value_text
-  return typeof v === 'string' && v.trim() !== '' ? v : null
+  const m = await titulosAntesDoTeste(p.sb, p.siteId, [{ id: l.id, youtubeVideoId: l.youtube_video_id, primeiraVista: l.primeira_vista }])
+  return m.get(l.id) ?? null
 }
 
 const varianteDaResposta = (r: RespostaDono, n: number | null): number | null => (r === 'venceu_original' ? 1 : r === 'venceu_nova' ? n : null)
@@ -69,11 +64,18 @@ export async function responderDia14(p: Params): Promise<ResultadoResponder> {
     if (l.estado === 'descartado' || l.confirmado_em === null) return { ok: false, erro: 'nao_respondivel' }
     if (l.resposta_dono !== null && l.resposta_dono !== 'sem_resposta') {
       // Duplo toque / outra aba com a mesma resposta: já está gravada, nada a escrever.
-      if (l.resposta_dono === p.resposta && l.variante_vencedora === varianteDaResposta(p.resposta, p.n)) return { ok: true, conflito: null }
+      if (l.resposta_dono === p.resposta && l.variante_vencedora === varianteDaResposta(p.resposta, p.n)) {
+        // Mesma (resposta, n) mas outro título (renumeração entre as duas abas): não é a mesma resposta, a tela relê.
+        const derivadaJa = l.variantes === null || l.variantes === undefined
+        if (p.resposta.startsWith('venceu') && l.vencedor_fonte === 'dono' && typeof l.vencedor_titulo === 'string') {
+          if (typeof p.tituloVisto === 'string' ? normalizarTitulo(l.vencedor_titulo) !== normalizarTitulo(p.tituloVisto) : derivadaJa) return { ok: false, erro: 'estado_mudou' }
+        }
+        return { ok: true, conflito: null }
+      }
       return { ok: false, erro: 'ja_respondido' }
     }
     const derivada = l.variantes === null || l.variantes === undefined
-    const v = variantesDaResposta({ variantes: l.variantes, variantes_titulo: l.variantes_titulo, titulo_antes: derivada ? await lerTituloAntes(p, l) : null })
+    const v = variantesDaResposta({ variantes: l.variantes, variantes_titulo: l.variantes_titulo, titulo_antes: derivada && p.resposta.startsWith('venceu') ? await lerTituloAntes(p, l) : null })
     // Numeração congelada: o título que a tela mostrava tem de ser o da versão `n` de agora (o registrador pode ter renumerado).
     if (v && p.resposta.startsWith('venceu')) {
       const item = v.itens.find((x) => x.n === (p.resposta === 'venceu_original' ? 1 : p.n))

@@ -80,6 +80,35 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-2 T1: migration (CHECK da derivada,
     expect(def).toContain(`venceu_original'::text) AND (variante_vencedora = 1`)
     expect(def).not.toContain('variantes IS NOT NULL) AND (variante_vencedora = 1')
   })
+  const CHECK_ANTIGO = `check (variante_vencedora is null or (
+    (resposta_dono = 'venceu_nova' and ((variantes is null and variante_vencedora between 1 and 3) or (variantes is not null and variante_vencedora between 2 and 3)))
+    or (resposta_dono = 'venceu_original' and variantes is not null and variante_vencedora = 1)))`
+  async function defDoCheck(): Promise<string> {
+    return String((await pg.query(`select pg_get_constraintdef(oid) d from pg_constraint where conname = 'ab_native_tests_variante_da_resposta'`)).rows[0].d)
+  }
+  it.each([
+    ['o CHECK antigo (ramo com variantes is not null)', CHECK_ANTIGO],
+    ['uma terceira forma (correção manual)', `check (variante_vencedora is null or variante_vencedora between 1 and 3)`],
+  ])('(f) ensaio da troca: parte de %s, aplica a migration e fica o CHECK novo, validado', async (_nome, check) => {
+    await pg.query('begin')
+    try {
+      await pg.query('alter table public.ab_native_tests drop constraint ab_native_tests_variante_da_resposta')
+      await pg.query(`alter table public.ab_native_tests add constraint ab_native_tests_variante_da_resposta ${check} not valid`)
+      await pg.query(MIGRATION)
+      const def = await defDoCheck()
+      expect(def).toContain(`venceu_original'::text) AND (variante_vencedora = 1`)
+      expect(def).not.toContain('variantes IS NOT NULL) AND (variante_vencedora = 1')
+      expect((await pg.query(`select convalidated from pg_constraint where conname = 'ab_native_tests_variante_da_resposta'`)).rows[0].convalidated).toBe(true)
+    } finally { await pg.query('rollback') }
+  })
+  it('(f2) CHECK ausente: a migration o cria', async () => {
+    await pg.query('begin')
+    try {
+      await pg.query('alter table public.ab_native_tests drop constraint ab_native_tests_variante_da_resposta')
+      await pg.query(MIGRATION)
+      expect(await defDoCheck()).toContain(`venceu_original'::text) AND (variante_vencedora = 1`)
+    } finally { await pg.query('rollback') }
+  })
   it('(e) resposta_mudada_em existe, timestamptz, nula por padrão', async () => {
     const c = await pg.query(`select data_type, column_default from information_schema.columns where table_schema = 'public' and table_name = 'ab_native_tests' and column_name = 'resposta_mudada_em'`)
     expect(c.rows[0]).toMatchObject({ data_type: 'timestamp with time zone', column_default: null })

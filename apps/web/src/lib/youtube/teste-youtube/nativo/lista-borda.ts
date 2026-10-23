@@ -11,6 +11,7 @@ import { derivarFicha, type FichaLida, type FichaLinha } from './ficha'
 import { lerFormatos, type Formato } from './formato-borda'
 import { inicioDoTeste } from './guarda'
 import { variantesDaResposta } from './versoes'
+import { titulosAntesDoTeste } from '@/lib/youtube/observatorio/proprio-versoes/ler'
 import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { estadoDaLinha, retomarAPartirDe, type LinhaDoCaminho, type RegistroDaLista } from './lista'
 import type { RespostaDono } from './resposta'
@@ -114,38 +115,9 @@ function registroDaLista(r: LinhaTeste, tituloAntes: string | null): RegistroDaL
   }
 }
 
-type VersaoDeTitulo = { em: number; texto: string }
-
-/**
- * D-1: UMA consulta em lote ao título vigente de cada vídeo derivado (fora as versões do próprio Lab), e o corte por `primeira_vista`
- * é feito aqui, em memória. Zero consultas quando nenhum registro é derivado.
- */
 async function lerTitulosAntes(sb: SupabaseClient, siteId: string, derivados: LinhaTeste[]): Promise<Map<string, string>> {
-  const comVista = derivados.filter((r) => typeof r.youtube_video_id === 'string' && str(r.primeira_vista) !== null)
-  const saida = new Map<string, string>()
-  if (comVista.length === 0) return saida
-  const ids = [...new Set(comVista.map((r) => String(r.youtube_video_id)))]
-  const teto = Math.max(...comVista.map((r) => Date.parse(String(r.primeira_vista))))
-  const linhas = await ler<unknown>('yt_own_video_versions', sb.from('yt_own_video_versions').select('youtube_video_id, value_text, first_seen_at')
-    .eq('site_id', siteId).in('youtube_video_id', ids).eq('field', 'title').eq('pre_registro', false)
-    .neq('origin', 'ab_lab').lte('first_seen_at', new Date(teto).toISOString())
-    .order('first_seen_at', { ascending: false }))
-  const porVideo = new Map<string, VersaoDeTitulo[]>()
-  for (const l of linhas) {
-    const o = obj(l)
-    const texto = o ? str(o.value_text) : null
-    const em = o ? Date.parse(String(o.first_seen_at)) : NaN
-    if (!o || typeof o.youtube_video_id !== 'string' || texto === null || texto.trim() === '' || !Number.isFinite(em)) continue
-    const lista = porVideo.get(o.youtube_video_id) ?? []
-    lista.push({ em, texto })
-    porVideo.set(o.youtube_video_id, lista)
-  }
-  for (const r of comVista) {
-    const vista = Date.parse(String(r.primeira_vista))
-    const achada = (porVideo.get(String(r.youtube_video_id)) ?? []).find((v) => v.em <= vista) // já em ordem decrescente
-    if (achada) saida.set(r.id, achada.texto)
-  }
-  return saida
+  return titulosAntesDoTeste(sb, siteId, derivados.filter((r) => typeof r.youtube_video_id === 'string')
+    .map((r) => ({ id: r.id, youtubeVideoId: String(r.youtube_video_id), primeiraVista: str(r.primeira_vista) })))
 }
 
 /** `registroId`s já avisados neste processo: a lista relê a cada visita, o aviso sai uma vez (D-7(e)). */
