@@ -207,7 +207,7 @@ describe('SugestoesLista: linha', () => {
 describe('SugestoesLista: lista grande, filtro, faixa, bloco, vazio', () => {
   const quarenta = () => vista(Array.from({ length: 40 }, (_, i) => linha('q' + i, { kind: i % 4 === 3 ? 'parecido' : 'destino' })), {
     filtro: { atual: 'todas', contagens: { todas: 40, destino: 30, parecido: 10 } },
-    faixa: { tipo: 'velho', titulo: 'As sugestões não são recalculadas desde 19/10, 07:02.', texto: 'A lista abaixo é a do último cálculo.' },
+    faixa: { tipo: 'velho', titulo: 'As sugestões não são recalculadas há mais de 36 horas.', texto: 'A lista abaixo é a do último cálculo.' },
   })
   it('o HTML do servidor traz as 40 linhas e o botão "Mostrar mais (30)"', () => {
     const html = renderToString(<SugestoesLista vista={quarenta()} acoes={acoes()} modo="pagina" />)
@@ -240,7 +240,7 @@ describe('SugestoesLista: lista grande, filtro, faixa, bloco, vazio', () => {
   })
   it('a faixa velho aparece (role=status) e nunca como resultado de ação', () => {
     render(<SugestoesLista vista={quarenta()} acoes={acoes()} modo="pagina" />)
-    expect(screen.getByText(/não são recalculadas desde 19\/10/).closest('[role="status"]')).not.toBeNull()
+    expect(screen.getByText(/não são recalculadas há mais de 36 horas/).closest('[role="status"]')).not.toBeNull()
   })
   it('erro-com-lista: faixa com "Tentar de novo" que recarrega; a lista segue utilizável', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, type: 'basic', status: 200 })))

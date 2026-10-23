@@ -36,8 +36,17 @@ export interface PropsDaLinha {
   onExpandir(): void
 }
 
+/** Põe o primeiro número (com × ou "vídeo(s)") em <b>; só antes do "(cálculo de ...)", para não pegar a hora. */
+function ComNumero(p: { texto: string }) {
+  const corte = p.texto.indexOf(' (cálculo')
+  const fim = corte === -1 ? p.texto.length : corte
+  const m = /\d+(?:,\d+)?(?:×| vídeos?)?/.exec(p.texto.slice(0, fim))
+  if (!m) return <>{p.texto}</>
+  return <>{p.texto.slice(0, m.index)}<b>{m[0]}</b>{p.texto.slice(m.index + m[0].length)}</>
+}
+
 function Seus(p: { l: LinhaDaVista }) {
-  return <>{p.l.seus.naoMedido && <><span className="sg-nm">não medido</span>{' '}</>}{p.l.seus.texto}</>
+  return <>{p.l.seus.naoMedido ? <><span className="sg-nm">não medido</span>{' '}{p.l.seus.texto}</> : <ComNumero texto={p.l.seus.texto} />}</>
 }
 
 export function Linha(p: PropsDaLinha) {
@@ -72,7 +81,7 @@ export function Linha(p: PropsDaLinha) {
           <div className="sg-rg">
             <ReguaMult valor={l.regua.valor} acimaDe20={l.regua.acimaDe20} limiar={l.regua.limiar} />
             <button type="button" className="sg-ib" aria-expanded={p.info} aria-label="Como esta sugestão foi calculada" onClick={p.onInfo}>i</button>
-            <span className="sg-v">{l.regua.texto}</span>
+            <span className="sg-v"><ComNumero texto={l.regua.texto} /></span>
           </div>
         )}
         {l.venceEm && <p className="sg-venm"><span className="sg-selo sg-mute">{Ic.late()}{l.venceEm}</span></p>}

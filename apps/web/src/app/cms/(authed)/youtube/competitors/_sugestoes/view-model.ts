@@ -179,7 +179,7 @@ function vazioDe(l: ListaDeSinais, agora: Date): NonNullable<VistaDaLista['vazio
       // O título não pode negar o número do texto: com canais acompanhados, o que falta é histórico, não canal.
       const t = l.contagens.canais_total
       if (typeof t !== 'number') return { familia: 'espera', topo: TOPO_AGORA, titulo: 'Ainda não há canais acompanhados.', texto }
-      return { familia: 'espera', topo: TOPO_AGORA, titulo: t > 0 ? 'Ainda não há histórico suficiente.' : 'Ainda não há canais acompanhados.', texto: `${t} ${t === 1 ? 'canal' : 'canais'} em Competidores. As sugestões nascem dos vídeos deles.` }
+      return { familia: 'espera', topo: TOPO_AGORA, titulo: t > 0 ? 'Ainda não há histórico suficiente.' : 'Ainda não há canais acompanhados.', texto: t === 0 ? 'Nenhum canal em Competidores ainda. As sugestões nascem dos vídeos deles.' : `${t} ${t === 1 ? 'canal' : 'canais'} em Competidores. As sugestões nascem dos vídeos deles.` }
     }
     case 'sync-atrasado': return { familia: 'problema', topo: TOPO_AGORA, titulo: 'A coleta dos canais está atrasada.', texto }
     case 'sem-lugar': return { familia: 'nm', topo: TOPO_AGORA, titulo: 'Os vídeos acima do normal não citam um lugar que a gente reconheça.', texto }
@@ -218,7 +218,7 @@ export function montarVistaDaLista(e: {
     : `${lista.n} sugestões abertas. Mostrando as ${itens.length} mais fortes.`
   // Uma faixa só: dado velho vence o aviso do sino (é o que muda a leitura da lista inteira).
   let faixa: VistaDaLista['faixa'] = null
-  if (velho && q) faixa = { tipo: 'velho', titulo: `As sugestões não são recalculadas desde ${q.data}, ${q.hora}.`, texto: 'A lista abaixo é a do último cálculo.' }
+  if (velho && q) faixa = { tipo: 'velho', titulo: 'As sugestões não são recalculadas há mais de 36 horas.', texto: 'A lista abaixo é a do último cálculo.' }
   else if (e.saiuDoAviso) faixa = { tipo: 'sino-saiu', titulo: 'Algumas sugestões do aviso já saíram da lista.', texto: 'Foram dispensadas ou venceram depois do aviso.' }
   // Filtro só com todas as linhas carregadas (N ≤ limite, C11).
   const comFiltro = lista.n <= limite && (lista.n > 8 || filtro !== 'todas')

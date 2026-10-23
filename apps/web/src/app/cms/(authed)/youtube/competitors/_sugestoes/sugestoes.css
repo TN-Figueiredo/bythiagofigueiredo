@@ -201,3 +201,5 @@
  .sg:not([data-mais]) .sg-list > .sg-row:nth-child(n+11){display:none}
  .sg:not([data-mais]) .sg-vmore{display:flex}
 }
+
+@media (pointer:coarse){.sg-btn,.sg-flt button{min-height:44px}}
