@@ -8,9 +8,9 @@ import type { Niche, ObsChannel } from '@/lib/youtube/observatorio/types'
 import type { ForjaView } from './forja-view-model'
 import { ownMenuOf, type OwnMenu } from './own-menu'
 
-export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'saiu'
-/** As abas que o pacote do engine conhece; a quinta ("Saíram do YouTube", A5 E9) não vem dele. */
-type AbaDoPacote = Exclude<ChromeTab, 'saiu'>
+export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'saiu' | 'sugestoes'
+/** As abas que o pacote do engine conhece; "Saíram do YouTube" (A5 E9) e "Sugestões" (F3 T6) não vêm dele. */
+type AbaDoPacote = Exclude<ChromeTab, 'saiu' | 'sugestoes'>
 const TABS: readonly AbaDoPacote[] = ['canais', 'mudancas', 'outliers', 'insights']
 const TAB_NAME: Record<AbaDoPacote, string> = { canais: 'Canais', mudancas: 'Mudanças', outliers: 'Outliers', insights: 'Insights' }
 // Rótulo e títulos da quinta aba (revistos pelo Logan, 17/10) (o mockup fixa o rótulo "Saíram do YouTube"; os títulos não)
@@ -23,7 +23,8 @@ export interface ChromeFreshRow { id: string; name: string; niche: Niche | null;
 export interface ChromeView {
   title: 'Observatório de Competidores'; subtitle: string; tzLabel: 'Horários em São Paulo'
   niche: NicheScope; nicheLabel: string; nicheColor: { dark: string; light: string } | null
-  tabs: Array<{ key: ChromeTab; label: string; href: string; count: number | null; /** só na aba da fila quando a contagem falhou: "?" */ countText?: string; title: string; current: boolean }>
+  tabs: Array<{ key: ChromeTab; label: string; href: string; count: number | null; /** "?" (contagem falhou) ou "—" (Sugestões ainda não calculadas) */ countText?: string; title: string; current: boolean
+    /** Só Sugestões: dados velhos (> 36 h); o contador mostra o ⚠ e o `aria-label` o diz. */ velho?: boolean; ariaLabel?: string }>
   niches: Array<{ key: NicheScope; label: string; count: number; pressed: boolean; color: { dark: string; light: string } | null }>
   fresh: {
     channelsInNiche: number; channelsTotal: number; syncText: string; syncTitle: string
@@ -47,7 +48,7 @@ const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 export const nicheLabelOf = (obs: Observatory, n: NicheScope): string => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
 const colorOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? null : obs.nicheColor(n))
 
-export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** quantos itens esperam resposta na fila (n nulo = a contagem falhou); sem o campo não há quinta aba */ fila?: { n: number | null } | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null }): ChromeView {
+export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** quantos itens esperam resposta na fila (n nulo = a contagem falhou); sem o campo não há quinta aba */ fila?: { n: number | null } | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null; /** F3 T6: a aba Sugestões (2ª); sem o campo ela não existe (quem só lê o site não a vê) */ sugestoes?: { n: number | null; velho: boolean; calculado: boolean } | null }): ChromeView {
   const { niche } = o, F = obs.fmt, D = obs.date
   const counts = obs.tabCounts(niche)
   const countOf: Record<AbaDoPacote, number | null> = { canais: counts.canais, mudancas: counts.mud, outliers: counts.out, insights: null }
@@ -58,6 +59,17 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
   // Object links (CONVENCOES F4): the niche is persisted server-side, so the tab hrefs never carry it.
   const hrefOf: Record<AbaDoPacote, string> = { canais: obs.link.canais(), mudancas: obs.link.mudancas(), outliers: obs.link.outliers(), insights: obs.link.insights() }
   const tabs: ChromeView['tabs'] = TABS.map(k => ({ key: k, label: TAB_NAME[k], href: hrefOf[k], count: countOf[k], title: cap(titleOf[k]), current: k === o.tab }))
+  if (o.sugestoes) {
+    const { n, velho, calculado } = o.sugestoes
+    const base = !calculado ? 'Ainda não calculado' : n == null ? 'Não foi possível contar as sugestões' : n === 0 ? 'Nenhuma sugestão aberta' : F.plural(n, 'sugestão aberta', 'sugestões abertas')
+    const countText = !calculado ? '—' : n == null ? '?' : undefined
+    tabs.splice(1, 0, {
+      key: 'sugestoes', label: 'Sugestões', href: obs.link.sugestoes(), count: calculado ? n : null, ...(countText ? { countText } : {}),
+      title: velho && calculado ? `${base} (dados velhos: sem recálculo há mais de 36 horas)` : base,
+      current: o.tab === 'sugestoes',
+      ...(velho && calculado ? { velho: true, ariaLabel: `${n == null ? 'sugestões' : F.plural(n, 'sugestão', 'sugestões')}, dados velhos` } : {}),
+    })
+  }
   if (o.fila) {
     const n = o.fila.n
     tabs.push({
@@ -107,7 +119,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
       problemsHref: obs.link.canais({ filter: 'problemas' }),
     },
     addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais({ nicheEditor: 1 }),
-    cowork: coworkText(o.tab === 'saiu' ? 'canais' : o.tab, niche, nl),
+    cowork: coworkText(o.tab === 'saiu' || o.tab === 'sugestoes' ? 'canais' : o.tab, niche, nl),
     owns: ownMenuOf(obs, o.lembrado ?? null),
     // Task 22's guard: the segment exists only when the forja tables are ready
     forja: o.forja && o.forja.ready ? o.forja : null,

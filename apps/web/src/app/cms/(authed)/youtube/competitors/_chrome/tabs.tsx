@@ -31,12 +31,22 @@ export function Tabs({ tabs }: { tabs: ChromeView['tabs'] }) {
   }, [tabs, fades])
   return (
     <nav className="obs-ch-tabs" aria-label="Seções do Observatório" ref={ref}>
-      {tabs.map(t => (
-        <Link key={t.key} className="obs-ch-tab" href={t.href} data-tab={t.key} aria-current={t.current ? 'page' : undefined} title={t.title}>
-          {t.label}
-          {t.countText != null || t.count != null ? <span className="obs-ch-ct" data-count={t.key}>{t.countText ?? t.count}</span> : null}
-        </Link>
-      ))}
+      {tabs.map(t => {
+        const sug = t.key === 'sugestoes'
+        return (
+          <Link key={t.key} className="obs-ch-tab" href={t.href} data-tab={t.key} aria-current={t.current ? 'page' : undefined} title={t.title}
+            style={sug ? { minHeight: 44 } : undefined}>
+            {t.label}
+            {t.countText != null || t.count != null ? (
+              <span className="obs-ch-ct" data-count={t.key} style={sug ? { fontSize: 12 } : undefined}
+                {...(t.ariaLabel ? { role: 'img', 'aria-label': t.ariaLabel } : {})}>
+                {t.velho ? <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12" data-velho="1" style={{ color: 'var(--warning-text)', marginRight: 3, verticalAlign: '-1px' }}><path d="M8 1.5 15 14H1L8 1.5Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="M8 6v4M8 11.6v.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg> : null}
+                {t.countText ?? t.count}
+              </span>
+            ) : null}
+          </Link>
+        )
+      })}
     </nav>
   )
 }

@@ -155,4 +155,48 @@ describe('sync result toast', () => {
       expect(buildChromeView(obs, { tab: 'saiu', niche: 'todos', fila: { n: 1 } }).cowork).toBe(coworkText('canais', 'todos', 'Todos'))
     })
   })
+
+  describe('F3 T6: aba Sugestões (2ª)', () => {
+    const com = (sugestoes: { n: number | null; velho: boolean; calculado: boolean } | null | undefined, tab: 'canais' | 'sugestoes' = 'canais') =>
+      buildChromeView(obs, { tab, niche: 'todos', sugestoes, fila: { n: 1 } }).tabs
+    it('sem o campo sugestoes, nada muda: a aba não existe', () => {
+      expect(com(undefined).map(x => x.key)).toEqual(['canais', 'mudancas', 'outliers', 'insights', 'saiu'])
+      expect(com(null).map(x => x.key)).toEqual(['canais', 'mudancas', 'outliers', 'insights', 'saiu'])
+    })
+    it('com o campo, a aba é a 2ª e a fila segue por último', () => {
+      const t = com({ n: 3, velho: false, calculado: true })
+      expect(t.map(x => x.key)).toEqual(['canais', 'sugestoes', 'mudancas', 'outliers', 'insights', 'saiu'])
+      expect(t[1]).toMatchObject({ key: 'sugestoes', label: 'Sugestões', href: '/cms/youtube/competitors/sugestoes', count: 3, current: false })
+    })
+    it('n: 3 mostra "3"; n: 0 com cálculo mostra "0"', () => {
+      const a = com({ n: 3, velho: false, calculado: true })[1]!
+      expect(a.countText ?? String(a.count)).toBe('3')
+      const z = com({ n: 0, velho: false, calculado: true })[1]!
+      expect(z.countText ?? String(z.count)).toBe('0')
+    })
+    it('n nulo é "?"', () => {
+      const x = com({ n: null, velho: false, calculado: true })[1]!
+      expect(x.countText).toBe('?')
+      expect(x.title).toMatch(/não foi possível/i)
+    })
+    it('não calculado: "—" e título "ainda não calculado", nunca "0"', () => {
+      for (const n of [0, 5, null]) {
+        const x = com({ n, velho: false, calculado: false })[1]!
+        expect(x.countText).toBe('—')
+        expect(x.title).toMatch(/ainda não calculado/i)
+      }
+    })
+    it('velho: sinal de dados velhos e aria-label com a contagem', () => {
+      const x = com({ n: 3, velho: true, calculado: true })[1]!
+      expect(x.velho).toBe(true)
+      expect(x.ariaLabel).toBe('3 sugestões, dados velhos')
+      expect(com({ n: 1, velho: true, calculado: true })[1]!.ariaLabel).toBe('1 sugestão, dados velhos')
+      expect(com({ n: 3, velho: false, calculado: true })[1]!.velho).toBeFalsy()
+    })
+    it('na tela das sugestões ela é a atual e o Cowork usa o texto de Canais', () => {
+      const v = buildChromeView(obs, { tab: 'sugestoes', niche: 'todos', sugestoes: { n: 2, velho: false, calculado: true } })
+      expect(v.tabs.filter(x => x.current).map(x => x.key)).toEqual(['sugestoes'])
+      expect(v.cowork).toBe(coworkText('canais', 'todos', 'Todos'))
+    })
+  })
 })
