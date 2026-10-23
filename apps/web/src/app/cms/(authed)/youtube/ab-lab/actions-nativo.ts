@@ -164,7 +164,7 @@ export async function responderTesteDoYouTube(pedido: PedidoRespostaDia14): Prom
   let orgId: string | null = null
   try { orgId = (await getSiteContext()).orgId ?? null } catch { /* sem org: a linha de auditoria leva site_id */ }
   try {
-    return await responderDia14({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, orgId, ...v.data, agora: new Date() })
+    return await responderDia14({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, orgId, ...v.data, tituloVisto: v.data.tituloVisto, agora: new Date() })
   } catch (e) { return { ...falha(e, 'responderTesteDoYouTube'), erro: 'falha' } }
 }
 
