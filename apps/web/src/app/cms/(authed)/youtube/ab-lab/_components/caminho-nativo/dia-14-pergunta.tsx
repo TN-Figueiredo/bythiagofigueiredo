@@ -2,14 +2,15 @@
 // Pergunta do dia 14 com 2 ou 3 versões, de ficha ou derivada (F1a-tela-2, T6; nasceu como `Dia14Duas` na tela-1). Mockup M2 `index.html:539-565`
 // (função `d14`). Sem botão primário: as versões têm o mesmo peso. A numeração e o pedido vêm de `dia-14-estado` (a mesma do servidor).
 // `modo: 'mudar'` abre a mesma pergunta sobre uma resposta já gravada. As actions chegam por props (nenhum client importa `actions-nativo`).
-import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactElement } from 'react'
 import * as Sentry from '@sentry/nextjs'
 import type { PedidoRespostaDia14, ResultadoAcaoResponder } from '../../actions-nativo'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
-import { prazoDoDia14, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
+import { prazoDoTeste, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import type { RespostaDono } from '@/lib/youtube/teste-youtube/nativo/versoes'
 import { letraDaResposta, pedidoDaVersao, type PerguntaDoDia14, type VersaoDoDia14 } from './dia-14-estado'
 import { ChipVersao } from './chip-versao'
+import { Icone } from './icones'
 import { FaixaCaminho } from './faixa-caminho'
 import { SeloCaminho } from './selo-caminho'
 import '../caminho-nativo.css'
@@ -43,7 +44,7 @@ type Tela =
   | { t: 'mudada'; texto: string }
   | { t: 'mudou' }
   | { t: 'erro'; texto: string }
-  | { t: 'sem_conexao'; pedido: PedidoRespostaDia14 | PedidoMudarDia14; toque: string; letra: string | null }
+  | { t: 'sem_conexao'; pedido: PedidoRespostaDia14 | PedidoMudarDia14; toque: string; versao: VersaoDoDia14 | null }
 
 type Falha = Extract<ResultadoAcaoResponder, { ok: false }>
 
@@ -66,7 +67,7 @@ function falhaDaAction(r: Falha): 'mudou' | { texto: string } {
 }
 
 /** Resultado de sucesso sem conflito: `venceu_*` vira "ficou no ar" (com a letra tocada); as outras três, "sem vencedor" (nunca "Ficou no ar"). */
-export function telaDoSucesso(resposta: PedidoRespostaDia14['resposta'], letra = 'B'): Tela {
+export function telaDoSucesso(resposta: PedidoRespostaDia14['resposta'], letra: string): Tela {
   switch (resposta) {
     case 'venceu_original': return { t: 'no_ar', original: true, letra }
     case 'venceu_nova': return { t: 'no_ar', original: false, letra }
@@ -76,6 +77,13 @@ export function telaDoSucesso(resposta: PedidoRespostaDia14['resposta'], letra =
       return _exaustivo
     }
   }
+}
+
+/** Confirmação da troca: com a versão tocada (letra, e "(original)" na A) ou, sem versão, pela resposta. */
+function textoMudada(resposta: PedidoRespostaDia14['resposta'], v: VersaoDoDia14 | null): string {
+  if (v) return FRASES.dia14.mudadaPara(v.letra, v.original)
+  if (resposta === 'ficou_igual' || resposta === 'inconclusivo' || resposta === 'nao_vi') return FRASES.dia14.mudadaSemVersao[resposta]
+  return FRASES.dia14.falhou
 }
 
 const OUTRAS: { resposta: RespostaSemVencedor; rotulo: string }[] = [
@@ -90,17 +98,22 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
   const [tela, setTela] = useState<Tela>({ t: 'pergunta' })
   const [ocupado, setOcupado] = useState(false)
   const [tocado, setTocado] = useState<string | null>(null)
+  const [semImagem, setSemImagem] = useState<ReadonlySet<number>>(new Set())
   const emCurso = useRef(false)
   const resultadoRef = useRef<HTMLParagraphElement>(null)
   const tituloRef = useRef<HTMLHeadingElement>(null)
+  const apoioRef = useRef<HTMLParagraphElement>(null)
+  const alertaRef = useRef<HTMLDivElement & HTMLParagraphElement>(null)
   const origemFoco = useRef<Element | null>(null)
+  const idQ = useId()
 
-  useEffect(() => { if (tela.t !== 'pergunta') (resultadoRef.current ?? tituloRef.current)?.focus() }, [tela])
+  // Resultado, ou o aviso de erro (que fica junto de "Outra resposta", longe do título), ou o título.
+  useEffect(() => { if (tela.t !== 'pergunta') (resultadoRef.current ?? alertaRef.current ?? tituloRef.current ?? apoioRef.current)?.focus() }, [tela])
   // Quem abriu (o link "Mudar minha resposta") é guardado antes de o foco entrar na pergunta; ao sair, volta para ele.
   useEffect(() => {
     if (!mudar) return
     origemFoco.current = document.activeElement
-    tituloRef.current?.focus()
+    ;(tituloRef.current ?? apoioRef.current)?.focus()
   }, [mudar])
 
   const sair = (): void => {
@@ -108,7 +121,9 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     // O pai pode ter trocado o link por outro nó ao fechar: espera o ciclo e procura o link da mesma linha.
     setTimeout(() => {
       const o = origemFoco.current
-      const alvo = o instanceof HTMLElement && o.isConnected ? o : document.querySelector<HTMLElement>(`li[data-linha="${linha.videoId}"] [data-acao="mudar-resposta"]`)
+      // O link da linha vem primeiro: ao abrir a pergunta ele saiu do DOM e o nó guardado pode ser o `body`.
+      const alvo = document.querySelector<HTMLElement>(`li[data-linha="${linha.videoId}"] [data-acao="mudar-resposta"]`)
+        ?? (o instanceof HTMLElement && o.isConnected && o !== document.body ? o : null)
       alvo?.focus()
     }, 0)
   }
@@ -118,7 +133,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
   const comMiniatura = pergunta.tipo === 'versoes' && !derivada && (reg?.campos === null || reg?.campos === undefined || reg.campos.includes('miniatura'))
   const confirmadoEm = reg?.confirmadoEm ?? reg?.primeiraVista ?? null
   const tardia = !mudar && linha.estado === 'sem_resposta' && reg
-    ? FRASES.resposta.tardia(prazoDoDia14({ primeiraVista: reg.primeiraVista, confirmadoEm: reg.confirmadoEm, createdAt: reg.updatedAt }))
+    ? FRASES.resposta.tardia(prazoDoTeste(reg.inicio))
     : null
 
   // A resposta atual (modo mudar): a versão pela mesma regra da linha respondida; sem par, pela posição gravada.
@@ -127,7 +142,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
   const versaoAtual: VersaoDoDia14 | null = !mudar || pergunta.tipo !== 'versoes' || !reg ? null
     : letraDaResposta(reg, pergunta) ?? versoes.find((x) => x.n === (vistaResposta === 'venceu_original' ? 1 : vistaVariante)) ?? null
 
-  async function enviar(pedido: PedidoRespostaDia14 | PedidoMudarDia14, chave: string, letra: string | null): Promise<void> {
+  async function enviar(pedido: PedidoRespostaDia14 | PedidoMudarDia14, chave: string, versao: VersaoDoDia14 | null): Promise<void> {
     if (emCurso.current) return
     emCurso.current = true; setOcupado(true); setTocado(chave)
     try {
@@ -136,7 +151,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
       const r = await (chamar as (p: PedidoRespostaDia14 | PedidoMudarDia14) => Promise<ResultadoAcaoResponder>)(pedido)
       if (r.ok) {
         if (r.conflito !== null) { setTela({ t: 'diferentes' }); acoes.atualizar(); return }
-        setTela(mudar ? { t: 'mudada', texto: letra ? FRASES.dia14.mudadaPara(letra) : FRASES.dia14.mudada } : telaDoSucesso(pedido.resposta, letra ?? undefined))
+        setTela(mudar ? { t: 'mudada', texto: textoMudada(pedido.resposta, versao) } : telaDoSucesso(pedido.resposta, versao?.letra ?? ''))
         acoes.atualizar()
         return
       }
@@ -146,7 +161,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
       setTela({ t: 'erro', texto: f.texto })
     } catch {
       // Rede caiu: nada foi registrado; o 2º toque reenvia o mesmo pedido (a action é idempotente por CAS).
-      setTela({ t: 'sem_conexao', pedido, toque: chave, letra })
+      setTela({ t: 'sem_conexao', pedido, toque: chave, versao })
     } finally {
       emCurso.current = false; setOcupado(false); setTocado(null)
     }
@@ -162,45 +177,48 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
   const toqueVersao = (v: VersaoDoDia14) => (): void => {
     if (pergunta.tipo !== 'versoes') return
     const { resposta, n, tituloVisto } = pedidoDaVersao(v, pergunta)
+    // Tocar na resposta que já vale não muda nada: só fecha, como "Manter a resposta atual".
+    if (mudar && versaoAtual?.n === v.n) { sair(); return }
     const p = base(resposta, n, tituloVisto)
-    if (p) void enviar(p, `v${v.n}`, v.letra)
+    if (p) void enviar(p, `v${v.n}`, v)
   }
   const toqueOutra = (resposta: RespostaSemVencedor) => (): void => {
+    if (outraAtual(resposta)) { sair(); return }
     const p = base(resposta, null)
     if (p) void enviar(p, resposta, null)
   }
 
   if (tela.t === 'no_ar') {
     return (
-      <section className="cn-d14" aria-labelledby="cn-d14-q">
+      <section className="cn-d14" aria-labelledby={idQ}>
         <div className="cn-d14-res"><SeloCaminho tipo="ok">{tela.original ? FRASES.dia14.seloOriginal : FRASES.dia14.seloNoAr(tela.letra)}</SeloCaminho></div>
-        <p className="cn-d14-q3" id="cn-d14-q" ref={resultadoRef} tabIndex={-1}>{tela.original ? FRASES.dia14.fraseOriginal : FRASES.dia14.fraseNoAr(tela.letra)}</p>
+        <p className="cn-d14-q3" id={idQ} ref={resultadoRef} tabIndex={-1}>{tela.original ? FRASES.dia14.fraseOriginal(versoes.length) : FRASES.dia14.fraseNoAr(tela.letra)}</p>
         <p className="cn-meta">{FRASES.dia14.oficial}</p>
       </section>
     )
   }
   if (tela.t === 'sem_vencedor') {
-    const frase = tela.resposta === 'ficou_igual' ? FRASES.resposta.ficouIgual : tela.resposta === 'inconclusivo' ? FRASES.resposta.inconclusivo : FRASES.resposta.naoVi
+    const frase = FRASES.dia14.registrada[tela.resposta]
     return (
-      <section className="cn-d14" aria-labelledby="cn-d14-q">
+      <section className="cn-d14" aria-labelledby={idQ}>
         <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.dia14.seloSemVencedor[tela.resposta]}</SeloCaminho></div>
-        <p className="cn-d14-q3" id="cn-d14-q" ref={resultadoRef} tabIndex={-1}>{frase}</p>
+        <p className="cn-d14-q3" id={idQ} ref={resultadoRef} tabIndex={-1}>{frase}</p>
         <p className="cn-meta">{FRASES.resposta.apoioSemVencedor}</p>
       </section>
     )
   }
   if (tela.t === 'diferentes') {
     return (
-      <section className="cn-d14" aria-labelledby="cn-d14-q">
+      <section className="cn-d14" aria-labelledby={idQ}>
         <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.dia14.respostasDiferentes}</SeloCaminho></div>
-        <p className="cn-d14-q3" id="cn-d14-q" ref={resultadoRef} tabIndex={-1}>{FRASES.dia14.respostasDiferentesFrase}</p>
+        <p className="cn-d14-q3" id={idQ} ref={resultadoRef} tabIndex={-1}>{FRASES.dia14.respostasDiferentesFrase}</p>
       </section>
     )
   }
   if (tela.t === 'mudada') {
     return (
-      <section className="cn-d14" aria-labelledby="cn-d14-q">
-        <p className="cn-d14-q3" id="cn-d14-q" role="status" ref={resultadoRef} tabIndex={-1}>{tela.texto}</p>
+      <section className="cn-d14" aria-labelledby={idQ}>
+        <p className="cn-d14-q3" id={idQ} role="status" ref={resultadoRef} tabIndex={-1}>{tela.texto}</p>
       </section>
     )
   }
@@ -219,12 +237,14 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
 
   return (
     <section
-      className="cn-d14" aria-labelledby={semVersoes ? undefined : 'cn-d14-q'} aria-label={semVersoes ? rotuloGrupo : undefined}
-      onKeyDown={mudar ? (e) => { if (e.key === 'Escape') { e.stopPropagation(); sair() } } : undefined}
+      className="cn-d14" aria-labelledby={idQ}
+      onKeyDown={mudar ? (e) => { if (e.key === 'Escape' && !ocupado) { e.stopPropagation(); sair() } } : undefined}
     >
-      {semVersoes ? null : <h3 id="cn-d14-q" ref={tituloRef} tabIndex={-1}>{FRASES.dia14.pergunta}</h3>}
-      <p className="cn-meta">{apoio}</p>
+      {semVersoes ? null : <h3 id={idQ} ref={tituloRef} tabIndex={-1}>{FRASES.dia14.pergunta}</h3>}
+      {/* Sem versões não há título: o apoio é o nome da seção e recebe o foco ao abrir o modo mudar. */}
+      <p className="cn-meta" {...(semVersoes ? { id: idQ, ref: apoioRef, tabIndex: -1 } : {})}>{apoio}</p>
       {tardia ? <p className="cn-meta">{tardia}</p> : null}
+      <p className="cn-meta cn-d14-aviso">{mudar ? FRASES.dia14.avisoMudar : FRASES.dia14.avisoResponder}</p>
       {semVersoes ? null : (
         <div
           className="cn-d14-grid" role="group" aria-label={FRASES.dia14.versoes} aria-busy={ocupado ? 'true' : undefined}
@@ -239,9 +259,11 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
                 aria-pressed={mudar ? atual : undefined} data-resposta={resposta} data-atual={atual ? '' : undefined} onClick={toqueVersao(v)}
               >
                 {comMiniatura
-                  ? (v.imagem
+                  ? (v.imagem && semImagem.has(v.n)
+                    ? <span className="cn-d14-th cn-d14-ph fail" role="img" aria-label={FRASES.ficha.imagemNaoCarregou}><Icone nome="warn" /> {FRASES.ficha.imagemNaoCarregou}</span>
+                    : v.imagem
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img className="cn-d14-th" src={v.imagem.url} alt="" referrerPolicy="no-referrer" />
+                    ? <img className="cn-d14-th" src={v.imagem.url} alt="" referrerPolicy="no-referrer" onError={() => setSemImagem((a) => new Set(a).add(v.n))} />
                     : <span className="cn-d14-th cn-d14-ph" data-testid="miniatura-nao-medida"><span className="cn-nm">{FRASES.dia14.naoMedido}</span></span>)
                   : null}
                 <span className="cn-d14-tx">
@@ -266,19 +288,20 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
           </button>
         ))}
       </div>
-      {mudar ? <button type="button" className="cn-lnk cn-d14-manter" onClick={sair}>{FRASES.dia14.manter}</button> : null}
-      <p className="cn-meta cn-d14-aviso">{mudar ? FRASES.dia14.avisoMudar : FRASES.dia14.avisoResponder}</p>
+      {mudar ? <button type="button" className="cn-lnk cn-d14-manter" disabled={ocupado} aria-disabled={ocupado || undefined} onClick={sair}>{FRASES.dia14.manter}</button> : null}
       {tela.t === 'mudou' ? (
-        <FaixaCaminho
-          tom="warn" role="alert" titulo={FRASES.guarda.estadoMudou}
-          acoes={<button type="button" className="cn-btn" onClick={() => acoes.atualizar()}>{FRASES.guarda.atualizar}</button>}
-        />
+        <div ref={alertaRef} tabIndex={-1}>
+          <FaixaCaminho
+            tom="warn" role="alert" titulo={FRASES.guarda.estadoMudou}
+            acoes={<button type="button" className="cn-btn" onClick={() => acoes.atualizar()}>{FRASES.guarda.atualizar}</button>}
+          />
+        </div>
       ) : null}
-      {tela.t === 'erro' ? <p className="cn-errl" role="alert">{tela.texto}</p> : null}
+      {tela.t === 'erro' ? <p className="cn-errl" role="alert" ref={alertaRef} tabIndex={-1}>{tela.texto}</p> : null}
       {sc ? (
-        <div className="cn-errl" role="alert">
+        <div className="cn-errl" role="alert" ref={alertaRef} tabIndex={-1}>
           <b>{mudar ? FRASES.dia14.semConexaoMudar : FRASES.dia14.semConexao}</b>{' '}
-          <button type="button" className="cn-lnk" disabled={ocupado} onClick={() => { void enviar(sc.pedido, sc.toque, sc.letra) }}>{FRASES.dia14.tentarDeNovo}</button>
+          <button type="button" className="cn-lnk" disabled={ocupado} aria-disabled={ocupado || undefined} onClick={() => { void enviar(sc.pedido, sc.toque, sc.versao) }}>{FRASES.dia14.tentarDeNovo}</button>
         </div>
       ) : null}
     </section>

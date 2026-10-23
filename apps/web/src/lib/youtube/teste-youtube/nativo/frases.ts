@@ -104,12 +104,16 @@ export const FRASES = {
     semConexaoMudar: 'Sem conexão. A resposta continua a mesma. Tente de novo.',
     seloNoAr: (letra: string): string => `Ficou no ar: ${letra}`,
     fraseNoAr: (letra: string): string => `A versão ${letra} venceu no Studio e ficou no ar.`,
-    mudadaPara: (letra: string): string => `Resposta mudada para ${letra}.`,
-    mudada: 'Resposta mudada.',
+    /** Troca para uma versão: a original leva "(original)" para a pessoa ver que escolheu a de antes. */
+    mudadaPara: (letra: string, original: boolean): string => `Resposta mudada para ${letra}${original ? ' (original)' : ''}.`,
+    /** Confirmação da 1ª resposta e da troca quando a resposta não é uma versão. */
+    registrada: { ficou_igual: 'Registrado: você respondeu "ficou igual".', inconclusivo: 'Registrado: você respondeu "inconclusivo".', nao_vi: 'Registrado: você respondeu "não vi o resultado".' },
+    mudadaSemVersao: { ficou_igual: 'Resposta mudada para "ficou igual".', inconclusivo: 'Resposta mudada para "inconclusivo".', nao_vi: 'Resposta mudada para "não vi o resultado".' },
     naoMedido: 'não medido',
     seloOriginal: 'Ficou no ar: A (original)',
     seloNova: 'Ficou no ar: B',
-    fraseOriginal: 'A original segurou: a nova não superou.',
+    /** `n` = quantas versões o teste tem: com 3 ou mais há mais de uma nova. */
+    fraseOriginal: (n: number): string => (n >= 3 ? 'A original segurou: nenhuma das novas superou.' : 'A original segurou: a nova não superou.'),
     fraseNova: 'A versão B venceu no Studio e ficou no ar.',
     oficial: 'O resultado oficial está só no Studio.',
     seloSemVencedor: { ficou_igual: 'Sem vencedor: ficou igual', inconclusivo: 'Sem vencedor: inconclusivo', nao_vi: 'Sem vencedor: não vi o resultado' },
