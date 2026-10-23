@@ -2,13 +2,21 @@ import { redirect } from 'next/navigation'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { lerFiltroDeIds, lerTotal, montarFaixa } from './filtro-ids'
 import { VideosConnected, type VideoRow, type ChannelOption, type CategoryOption } from './videos-connected'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // F-D3: settleOnAir (teto de 55 s) corre dentro das ações desta página
 export const metadata = { title: 'Vídeos' }
 
-export default async function YouTubeVideosPage() {
+export default async function YouTubeVideosPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const sp = await searchParams
+  const idsFiltro = lerFiltroDeIds(sp.ids)
+  const totalSugestao = lerTotal(sp.total)
   const { siteId } = await getSiteContext()
 
   const authRes = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
@@ -16,14 +24,16 @@ export default async function YouTubeVideosPage() {
 
   const supabase = getSupabaseServiceClient()
 
+  let videosQuery = supabase
+    .from('youtube_videos')
+    .select(
+      'id, youtube_video_id, title, title_translation, published_at, thumbnail_url, view_count, like_count, duration, duration_seconds, is_featured, is_hidden, category_id, auto_suggested_category_id, channel_id, pinned_until, cms_notes, version, youtube_channels!inner(locale, handle, name)',
+    )
+    .eq('site_id', siteId)
+  if (idsFiltro) videosQuery = videosQuery.in('id', idsFiltro)
+
   const [videosRes, channelsRes, categoriesRes, abTestsRes] = await Promise.all([
-    supabase
-      .from('youtube_videos')
-      .select(
-        'id, youtube_video_id, title, title_translation, published_at, thumbnail_url, view_count, like_count, duration, duration_seconds, is_featured, is_hidden, category_id, auto_suggested_category_id, channel_id, pinned_until, cms_notes, version, youtube_channels!inner(locale, handle, name)',
-      )
-      .eq('site_id', siteId)
-      .order('published_at', { ascending: false }),
+    videosQuery.order('published_at', { ascending: false }),
     supabase.from('youtube_channels').select('id, locale, handle, name').eq('site_id', siteId),
     supabase
       .from('youtube_categories')
@@ -120,7 +130,12 @@ export default async function YouTubeVideosPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <VideosConnected videos={videos} channels={channels} categories={categories} />
+      <VideosConnected
+        videos={videos}
+        channels={channels}
+        categories={categories}
+        faixa={montarFaixa(idsFiltro, totalSugestao, videos.length)}
+      />
     </div>
   )
 }
