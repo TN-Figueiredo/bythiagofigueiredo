@@ -260,10 +260,12 @@ describe('o leitor é único: só leitura.ts (e a F2b) toca niche_signals e a co
     const p = join(dir, n)
     return statSync(p).isDirectory() ? arquivos(p) : /\.(ts|tsx)$/.test(n) ? [p] : []
   })
-  it("só leitura.ts e o gravador (que lê chaves abertas, nunca `acao`) fazem .from('niche_signals')", () => {
+  it("só leitura.ts, o gravador e o outbox (avisos.ts) leem; gravador e outbox nunca selecionam `acao` ao fazer .from('niche_signals')", () => {
     const leem = arquivos(SRC).filter((f) => /from\(\s*['"]niche_signals['"]\s*\)/.test(readFileSync(f, 'utf8')))
-    expect(leem.map((f) => f.slice(SRC.length + 1)).sort()).toEqual(['lib/youtube/observatorio/sinais/gravador.ts', 'lib/youtube/observatorio/sinais/leitura.ts'])
-    const g = readFileSync(join(SRC, 'lib/youtube/observatorio/sinais/gravador.ts'), 'utf8')
-    for (const m of g.matchAll(/from\('niche_signals'\)\.select\('([^']*)'/g)) expect(m[1]).not.toMatch(/\bacao\b/)
+    expect(leem.map((f) => f.slice(SRC.length + 1)).sort()).toEqual(['lib/youtube/observatorio/sinais/avisos.ts', 'lib/youtube/observatorio/sinais/gravador.ts', 'lib/youtube/observatorio/sinais/leitura.ts'])
+    for (const arq of ['gravador.ts', 'avisos.ts']) {
+      const g = readFileSync(join(SRC, 'lib/youtube/observatorio/sinais', arq), 'utf8')
+      for (const m of g.matchAll(/from\('niche_signals'\)\.select\('([^']*)'/g)) expect(m[1]).not.toMatch(/\bacao\b/)
+    }
   })
 })

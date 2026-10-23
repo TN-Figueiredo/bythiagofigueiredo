@@ -264,6 +264,7 @@ export const DEFINICAO_AVISOS_PENDENTES: Definicao = {
     lembrete_nao_gravado: 'o lembrete saiu, mas o registro de envio não foi gravado; será conferido no próximo disparo',
     fechamento_falhou: 'não foi possível fechar um teste sem resposta',
     sobrou: 'ficaram testes para o próximo disparo',
+    nicho_falhou: 'os avisos das sugestões do nicho falharam (o lembrete do dia 14 não foi afetado)',
   },
 }
 

@@ -1,12 +1,14 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
-import { rodarAvisos } from '@/lib/youtube/agenda/tarefas/avisos-pendentes'
+import { rodarAvisos as rodarAvisosReal, type DepsAvisos } from '@/lib/youtube/agenda/tarefas/avisos-pendentes'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
 import * as Sentry from '@sentry/nextjs'
 import { roteiro, ok, type Res } from '../../helpers/banco-roteirizado'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
+// A parte do nicho tem testes próprios (avisos.test.ts); aqui ela é um dublê que não faz nada.
+const rodarAvisos = (c: ContextoTarefa, d: DepsAvisos = {}) => rodarAvisosReal(c, { nicho: async () => ({ enviados: 0, resumidos: 0, falhas: 0 }), ...d })
 const AGORA = Date.parse('2026-12-20T12:00:00.000Z')
 const dias = (n: number): string => new Date(AGORA - n * 86_400_000).toISOString()
 const ctx = (sb: ContextoTarefa['sb'], em: number = AGORA): ContextoTarefa => ({ t0: em, agora: () => em, apiKey: '', sb, linhas: null })
@@ -139,11 +141,11 @@ describe('rodarAvisos', () => {
     expect(await rodarAvisos(ctx(r1.sb), { fanOut: fanF })).toMatchObject({ motivo: 'lembrete_falhou' })
     const r2 = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 1 })]), ok([{ id: 'r1' }])] })
     expect(await rodarAvisos(ctx(r2.sb, AGORA + dia), { fanOut: fanF })).toMatchObject({ motivo: 'lembrete_falhou' })
-    expect(r2.chamadas.at(-1)!.metodos.join(' ')).toContain('"notificacao_tentativas":2')
+    expect(r2.chamadas.filter((c) => c.alvo === 'ab_native_tests').at(-1)!.metodos.join(' ')).toContain('"notificacao_tentativas":2')
     const fanOkF = vi.fn().mockResolvedValue(fanOk)
     const r3 = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 2 })]), ok([{ id: 'r1' }])] })
     expect(await rodarAvisos(ctx(r3.sb, AGORA + 2 * dia), { fanOut: fanOkF })).toMatchObject({ estado: 'ok', detalhe: { lembrados: 1, fechados: 0 } })
-    expect(r3.chamadas.at(-1)!.metodos.join(' ')).toContain('lembrete_notificado_em')
+    expect(r3.chamadas.filter((c) => c.alvo === 'ab_native_tests').at(-1)!.metodos.join(' ')).toContain('lembrete_notificado_em')
   })
 
   it('C1: três falhas em três dias gravam falhou_em só na 3ª e avisam o Sentry', async () => {
@@ -152,7 +154,7 @@ describe('rodarAvisos', () => {
     const r = roteiro({ ab_native_tests: [ok([]), ok([linha({ notificacao_tentativas: 2 })]), ok([{ id: 'r1' }])] })
     const out = await rodarAvisos(ctx(r.sb, AGORA + 2 * 86_400_000), { fanOut: fan })
     expect(out).toMatchObject({ estado: 'erro', motivo: 'lembrete_desistiu' })
-    expect(r.chamadas.at(-1)!.metodos.join(' ')).toContain('notificacao_falhou_em')
+    expect(r.chamadas.filter((c) => c.alvo === 'ab_native_tests').at(-1)!.metodos.join(' ')).toContain('notificacao_falhou_em')
     expect(vi.mocked(Sentry.captureMessage).mock.calls.some((c) => String(c[0]).includes('abandonado'))).toBe(true)
   })
 
