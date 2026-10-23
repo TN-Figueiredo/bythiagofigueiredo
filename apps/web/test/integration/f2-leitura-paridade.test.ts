@@ -45,11 +45,11 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
   const sb = (): SupabaseClient => getSupabaseServiceClient() as unknown as SupabaseClient
   const ctx = (): ServiceContext => ({ siteId: mundo.siteId, permissions: ['write'], keyId: 'chave-int', supabase: sb(), source: 'api_key' })
 
-  async function sinal(n: number, chave: string, extra: { status?: string; expira?: string; forca?: number; kind?: string } = {}): Promise<void> {
+  async function sinal(n: number, chave: string, extra: { status?: string; expira?: string; forca?: number; kind?: string; proprios?: string[] } = {}): Promise<void> {
     await pg.query(
       `insert into public.niche_signals (id, site_id, kind, subject_key, rule_version, evidence, forca, acao, status, first_seen_at, computed_at, expires_at, motivo)
        values ($1, $2, $3, $4, 'sinais-v1+semente-1', $5::jsonb, $6, 'video_novo', $7, now() - interval '2 days', now(), $8, 'dois canais estouraram')`,
-      [SIG(n), mundo.siteId, extra.kind ?? 'destino', chave, JSON.stringify(EV), extra.forca ?? 10 + n, extra.status ?? 'aberto', extra.expira ?? dia(20)])
+      [SIG(n), mundo.siteId, extra.kind ?? 'destino', chave, JSON.stringify({ ...EV, proprios: extra.proprios ?? EV.proprios }), extra.forca ?? 10 + n, extra.status ?? 'aberto', extra.expira ?? dia(20)])
   }
   async function video(yt: string, privacidade: string | null, oculto = false): Promise<string> {
     const id = String((await pg.query(`insert into public.youtube_videos (site_id, channel_id, youtube_video_id, title, published_at, is_hidden)
@@ -144,6 +144,17 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     expect(c.ids).toEqual([SIG(1)])
     // a leitura não reescreve a coluna
     expect(Number((await pg.query(`select count(*) from public.niche_signals where site_id = $1 and acao = 'video_novo'`, [mundo.siteId])).rows[0].count)).toBe(1)
+  })
+
+  it('parecido: proprios_agora vem de evidence.proprios; n_proprios igual nos três caminhos', async () => {
+    await limpar()
+    const pub = await video('ytpar' + randomUUID().slice(0, 6), 'public')
+    const pri = await video('ytpap' + randomUUID().slice(0, 6), 'private')
+    await sinal(1, 'outlier:' + randomUUID(), { kind: 'parecido', proprios: [pub, pri] })
+    await estado(null)
+    const [a, b, c] = [await rota(), await cowork(), await claudeCode()]
+    for (const l of [a, b]) expect(l.itens[0]).toMatchObject({ proprios_agora: [pub], proprios_agora_n: 1, n_proprios: 1, acao: 'titulo_descricao', rotulo_acao: 'abrir-seus' })
+    expect(c.texto).toContain(pub)
   })
 
   it('dispensar derruba o N da próxima leitura nos três caminhos; tudo dispensado = tudo-respondido (e a sugestoes diz a frase)', async () => {
