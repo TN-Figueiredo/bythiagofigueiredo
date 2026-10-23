@@ -355,7 +355,7 @@ O envio A traz um script só de leitura, `scripts/obs-dry-run.ts`:
 
 1. **Cobertura** (ensaio do dia): ≥ 90% dos alvos ativos com ≥ 8 rodadas têm título medido, e ≥ 80% têm miniatura medida. Aprendendo e fora da janela contam à parte. Hoje: 154 de 162.
 2. **Contaminação**: 0 título de outro vídeo no ensaio (nenhuma versão emitida aparece em ≥ 2 outros vídeos), mais a regressão com semente.
-4. **Gio no YouTube**: de 5 a 10 vídeos *em andamento* e todos os *sumindo* **do ensaio do dia**, incluindo os IDs de 23/10 que ainda estiverem ativos (`2emVR-6NEmM`, `FxP6Yzehs3k`, `pilQupJKe2o`, `TtjDltoXhqI`, `bY2q7zTwep4`; sumindo `AKKb2Oz77fw`, `xQcKF7hVts0`, `iqTrdmtqCCg`), mais 5 miniaturas indeterminadas. Todos têm de bater, 100%. `8fi8uOPOJA8` entra quando virar troca.
+4. **Gio no YouTube** (o ensaio não carrega a linha anterior do banco: o texto de produção de um alvo em transição traz "Último estado visto: …" e o do ensaio não; isso não é divergência, Phil M-3. `0thg8eunUto`, `Tk_0L_vS5Y4` e `2U3QbV2VoI0` aparecem como não medido pela regra, não por defeito: lacuna de uma rodada ou título nulo na coleta, Phil M-1): de 5 a 10 vídeos *em andamento* e todos os *sumindo* **do ensaio do dia**, incluindo os IDs de 23/10 que ainda estiverem ativos (`2emVR-6NEmM`, `FxP6Yzehs3k`, `pilQupJKe2o`, `TtjDltoXhqI`, `bY2q7zTwep4`; sumindo `AKKb2Oz77fw`, `xQcKF7hVts0`, `iqTrdmtqCCg`), mais 5 miniaturas indeterminadas. Todos têm de bater, 100%. `8fi8uOPOJA8` entra quando virar troca.
 5. **Falha visível**: alarme e guarda testados com semente (§9.2), e o ensaio do dia abaixo do limiar.
 7. **Tamanho**: banco < 400 MB e projeção de 3× < 450 MB. As tabelas da T13 crescem ~0,5 a 1,3 MB por ano (≈ 4 MB com 3× canais).
 8. **CI**: os testes do §9, verdes.
@@ -372,11 +372,15 @@ O envio A traz um script só de leitura, `scripts/obs-dry-run.ts`:
 
 **Conferência da cobertura em produção** (D+1 ligado; esperado ≥ 0,90 e ≥ 0,80):
 ```sql
-select round(avg((k.validas_titulo > 0)::int)::numeric, 3) as titulo, round(avg((k.validas_miniatura > 0)::int)::numeric, 3) as miniatura, count(*) as alvos
-  from yt_watch_alvos a join ab_native_obs_cursor k using (site_id, youtube_video_id)
+select round(avg((coalesce(k.validas_titulo,0) > 0 and k.avaliado_em > now() - interval '9 hours')::int)::numeric, 3) as titulo,
+       round(avg((coalesce(k.validas_miniatura,0) > 0 and k.avaliado_em > now() - interval '9 hours')::int)::numeric, 3) as miniatura,
+       count(*) as alvos, count(*) filter (where k.site_id is null) as sem_cursor,
+       count(*) filter (where k.avaliado_em <= now() - interval '9 hours') as cursor_velho
+  from yt_watch_alvos a left join ab_native_obs_cursor k using (site_id, youtube_video_id)
  where a.tipo = 'concorrente' and a.saiu_em is null and a.rodadas >= 8
    and not exists (select 1 from competitor_videos v where v.video_id = a.youtube_video_id and v.published_at > now() - interval '4 days');
 ```
+O `left join` e o frescor de 9 h fazem o alvo que falha (sem cursor) ou com cursor velho contar como NÃO medido, como faz a tela (passo 5 do §5); com `join` interno ele sumia do denominador ou contava como medido (Phil I-1, portão final). **Esperado em D+1:** `alvos` dentro de ±5 de 150 (a população do dia), `sem_cursor = 0`, `cursor_velho = 0`, título ≥ 0,900 e miniatura ≥ 0,800.
 
 ### 8.3 Em linguagem do dono
 
