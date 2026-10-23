@@ -101,18 +101,29 @@ async function filtrarPublicos(sb: SupabaseClient, siteId: string, ids: string[]
   return publicos
 }
 
-/** `Map<subject_key, ids[]>` (null = o site não tem `video_lugares` de origem `proprio`: nunca calculou os vídeos dele; as linhas `competidor` não contam). Uma consulta para os lugares, mais uma de cadastro/privacidade. */
-async function propriosPorChave(sb: SupabaseClient, siteId: string, chaves: string[], agora: Date): Promise<Map<string, string[]> | null> {
-  const r = await sb.from('video_lugares').select('video_id, chaves').eq('site_id', siteId).eq('origem', 'proprio').overlaps('chaves', chaves)
-  quebra('video_lugares', r.error)
-  const linhas = (r.data ?? []) as Array<{ video_id: string; chaves: string[] }>
-  if (linhas.length === 0) {
-    const medido = await sb.from('video_lugares').select('video_id').eq('site_id', siteId).eq('origem', 'proprio').limit(1)
-    quebra('video_lugares', medido.error)
-    if (((medido.data ?? []) as unknown[]).length === 0) return null
-    return new Map()
+interface Proprios {
+  /** destino: `Map<subject_key, ids[]>` (null = o site não tem `video_lugares` de origem `proprio`). */
+  porChave: Map<string, string[]> | null
+  /** ids públicos e visíveis entre os de `video_lugares` e os `extras` (parecido). */
+  publicos: Set<string>
+}
+
+/** Destino: `video_lugares` por `subject_key` (null = site sem `video_lugares` de origem `proprio`; as linhas `competidor` não contam). Parecido: os ids em `extras` (evidence.proprios). Uma só chamada a `filtrarPublicos` para a união. */
+async function propriosPorChave(sb: SupabaseClient, siteId: string, chaves: string[], extras: string[], agora: Date): Promise<Proprios> {
+  let linhas: Array<{ video_id: string; chaves: string[] }> = []
+  let medido = true
+  if (chaves.length > 0) {
+    const r = await sb.from('video_lugares').select('video_id, chaves').eq('site_id', siteId).eq('origem', 'proprio').overlaps('chaves', chaves)
+    quebra('video_lugares', r.error)
+    linhas = (r.data ?? []) as Array<{ video_id: string; chaves: string[] }>
+    if (linhas.length === 0) {
+      const sonda = await sb.from('video_lugares').select('video_id').eq('site_id', siteId).eq('origem', 'proprio').limit(1)
+      quebra('video_lugares', sonda.error)
+      medido = ((sonda.data ?? []) as unknown[]).length > 0
+    }
   }
-  const publicos = await filtrarPublicos(sb, siteId, [...new Set(linhas.map((l) => l.video_id))], agora)
+  const publicos = await filtrarPublicos(sb, siteId, [...new Set([...linhas.map((l) => l.video_id), ...extras])], agora)
+  if (!medido) return { porChave: null, publicos }
   const alvo = new Set(chaves)
   const mapa = new Map<string, string[]>()
   for (const l of linhas) {
@@ -125,7 +136,7 @@ async function propriosPorChave(sb: SupabaseClient, siteId: string, chaves: stri
     }
   }
   for (const lista of mapa.values()) lista.sort()
-  return mapa
+  return { porChave: mapa, publicos }
 }
 
 async function respondidosEm30d(sb: SupabaseClient, siteId: string, agora: Date): Promise<number> {
@@ -170,9 +181,17 @@ export async function listarSinaisDoNicho(
     return { n: 0, itens: [], computado_em, desatualizado, motivoVazio, contagens, calculoLigado }
   }
 
-  const proprios = await propriosPorChave(sb, siteId, [...new Set(linhas.map((l) => l.subject_key))], agora)
+  const idsDoParecido = (l: LinhaSinal): string[] => (Array.isArray(l.evidence?.proprios) ? l.evidence.proprios : [])
+  const proprios = await propriosPorChave(
+    sb, siteId,
+    [...new Set(linhas.filter((l) => l.kind === 'destino').map((l) => l.subject_key))],
+    [...new Set(linhas.filter((l) => l.kind === 'parecido').flatMap(idsDoParecido))],
+    agora,
+  )
   const itens = linhas.map((l): ItemDeSinal => {
-    const todos = proprios === null ? null : (proprios.get(l.subject_key) ?? [])
+    const todos = l.kind === 'parecido'
+      ? [...new Set(idsDoParecido(l))].filter((id) => proprios.publicos.has(id)).sort()
+      : proprios.porChave === null ? null : (proprios.porChave.get(l.subject_key) ?? [])
     const d = derivarAcao(l.kind, l.acao, todos === null ? null : todos.length)
     const agoraProprios = todos === null ? null : todos.slice(0, TETO_PROPRIOS_AGORA)
     return {

@@ -244,6 +244,45 @@ describe('listarSinaisDoNicho: proprios_agora e a ação derivada (r6)', () => {
   })
 })
 
+describe('listarSinaisDoNicho: parecido usa os próprios da evidência (DF6)', () => {
+  const par = (id: string, proprios: string[]) => linha(id, `outlier:${id}`, { kind: 'parecido', evidence: { ...EV, proprios } })
+  const um = { videos: [{ id: 'p1', youtube_video_id: 'YT1' }], metas: [meta('YT1')] }
+
+  it('p1 público: proprios_agora [p1], abrir-seus, titulo_descricao', async () => {
+    const w = mundo({ sinais: [par('a', ['p1'])], estado: estado(), lugares: [], ...um })
+    const i = (await listarSinaisDoNicho(w.sb, SITE, AGORA)).itens[0]!
+    expect(i.proprios_agora).toEqual(['p1'])
+    expect(i).toMatchObject({ proprios_agora_n: 1, rotulo_acao: 'abrir-seus', n_proprios: 1, acao: 'titulo_descricao' })
+  })
+
+  it('p1 privado ou oculto: [] e abrir-concorrente', async () => {
+    const priv = mundo({ sinais: [par('a', ['p1'])], estado: estado(), videos: um.videos, metas: [meta('YT1', 'private')] })
+    expect((await listarSinaisDoNicho(priv.sb, SITE, AGORA)).itens[0]).toMatchObject({ proprios_agora: [], rotulo_acao: 'abrir-concorrente', proprios_agora_n: 0 })
+    const oculto = mundo({ sinais: [par('a', ['p1'])], estado: estado(), videos: [], metas: [meta('YT1')] })
+    expect((await listarSinaisDoNicho(oculto.sb, SITE, AGORA)).itens[0]).toMatchObject({ proprios_agora: [], rotulo_acao: 'abrir-concorrente' })
+  })
+
+  it('site sem video_lugares próprio: destino null/generico, parecido com p1 público segue [p1]', async () => {
+    const w = mundo({ sinais: [linha('d', 'pt'), par('a', ['p1'])], estado: estado(), lugares: [], lugaresDoSite: false, ...um })
+    const [d, p] = (await listarSinaisDoNicho(w.sb, SITE, AGORA)).itens
+    expect(d).toMatchObject({ proprios_agora: null, rotulo_acao: 'generico' })
+    expect(p).toMatchObject({ proprios_agora: ['p1'], rotulo_acao: 'abrir-seus' })
+  })
+
+  it('lista mista: filtrarPublicos roda uma vez (uma consulta a youtube_videos) e cada tipo recebe os seus', async () => {
+    const w = mundo({
+      sinais: [linha('d', 'pt'), par('a', ['p2'])], estado: estado(), lugares: [{ video_id: 'p1', chaves: ['pt'] }],
+      videos: [{ id: 'p1', youtube_video_id: 'YT1' }, { id: 'p2', youtube_video_id: 'YT2' }], metas: [meta('YT1'), meta('YT2')],
+    })
+    const [d, p] = (await listarSinaisDoNicho(w.sb, SITE, AGORA)).itens
+    expect(d!.proprios_agora).toEqual(['p1'])
+    expect(p!.proprios_agora).toEqual(['p2'])
+    expect(w.consultas.filter((c) => c.tabela === 'youtube_videos')).toHaveLength(1)
+    const ov = w.consultas.find((c) => c.filtros.some((f) => f.op === 'overlaps'))!
+    expect(ov.filtros).toContainEqual({ op: 'overlaps', col: 'chaves', val: ['pt'] })
+  })
+})
+
 describe('dispensarSinal', () => {
   it('chama niche_signals_dispensar com o site da guarda; ok e os motivos da função', async () => {
     const respostas = [{ ok: true }, { ok: false, motivo: 'nao_encontrado' }]
