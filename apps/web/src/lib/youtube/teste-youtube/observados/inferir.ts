@@ -18,6 +18,19 @@ export const MIN_RODADAS_CORRIDA = 2
 export const MIN_PASSADAS_INICIAL = 3
 /** Abaixo disto de rodadas válidas num campo, "sem troca vista" é "não medido" (Phil C2). */
 export const VALIDAS_MIN_MEDIDO = 2 * MIN_RODADAS_CORRIDA
+/** Regra v2 (§3.2): janela W de rodadas e mínimos por campo. */
+export const W_RODADAS = 8
+export const MIN_RODADAS_TITULO = 6
+export const MIN_RODADAS_MINIATURA = 4
+export const SPAN_MAX_H = 72
+export const MIN_RODADAS_MISTAS_HIST = 2
+/** Risco aceito de declarar "terminou" com o teste ainda vivo (§3.5). */
+export const ALFA = 0.0005
+/** Sem a trava, q = 1 daria ln 0 = -Infinity e a exigência sumiria. */
+export const Q_TRAVA = 0.999
+export const PERIODO_MIN_RODADAS = 16
+/** Cadência da sonda (uma rodada a cada 6 h, `watch/alvos.ts`). Acoplada a `W_RODADAS` x `FRESCOR_H` (§3.2): 8 rodadas ~ 48 h, frescor 1,5 x a cadência. D-P2 usa para a data "desde". */
+export const CADENCIA_H = 6
 const H = 3_600_000
 
 export interface LeituraObs {
@@ -247,4 +260,159 @@ export function inferirObservadoDetalhe(e: EntradaObs): ResultadoObs {
 
 export function inferirObservado(e: EntradaObs): Observado[] {
   return inferirObservadoDetalhe(e).observados
+}
+
+// ───────────────────────── Regra v2 (§3.1–§3.6): rodadas, janelas e decisão ─────────────────────────
+
+/** Uma rodada da sonda para um campo: `tMs` = menor `lida_em` válida dela; `versoes` = chaves normalizadas vistas nela. */
+export interface Rodada { tMs: number; rodadaId: string; versoes: ReadonlySet<string> }
+export type EstadoRegra = 'em_andamento' | 'sumindo' | 'terminou' | 'troca' | 'indeterminada' | 'sem_troca_vista' | 'nao_medido'
+export interface Decisao {
+  estado: EstadoRegra
+  /** W: as últimas 8 rodadas do campo. */
+  w: Rodada[]
+  /** Versão única qualificada de W (quando há uma só). */
+  x: string | null
+  /** Versões qualificadas da última janela de teste (terminou/sumindo). */
+  s: string[]
+  /** Versões Y que saíram (terminou/sumindo); em `troca`, a versão antes. */
+  sumidas: string[]
+  /** Em andamento: W. Terminou/sumindo: a última janela de teste. Senão null. */
+  janelaTeste: Rodada[] | null
+  /** Em `troca`: Y, a versão de antes. */
+  antes: string | null
+  /** Rodadas mistas (>= 2 versões qualificadas juntas) do histórico, para as versões do teste. */
+  mistasHist: number
+}
+
+/** Validade do título (§3.1): `jogador_bloqueado` não invalida. */
+export function tituloValido(l: LeituraObs): boolean {
+  return l.http === 200 && l.erro === null && l.tituloExibido !== null && l.idioma !== null
+}
+
+function agrupar(itens: readonly { tMs: number; rodadaId: string; chave: string }[]): Rodada[] {
+  const por = new Map<string, { tMs: number; versoes: Set<string> }>()
+  for (const x of itens) {
+    const r = por.get(x.rodadaId) ?? { tMs: x.tMs, versoes: new Set<string>() }
+    if (x.tMs < r.tMs) r.tMs = x.tMs
+    r.versoes.add(x.chave)
+    por.set(x.rodadaId, r)
+  }
+  return [...por.entries()].map(([rodadaId, r]) => ({ tMs: r.tMs, rodadaId, versoes: r.versoes })).sort((a, b) => a.tMs - b.tMs)
+}
+
+/**
+ * Rodadas do título (§3.1). `suspensos` (chaves normalizadas, guarda §6.2) contam como leitura inválida e saem ANTES da maioria de idioma.
+ * `brutos`: chave -> textos brutos que a produziram (a guarda consulta cada um).
+ */
+export function rodadasDoTitulo(ls: readonly LeituraObs[], suspensos: ReadonlySet<string> = new Set()): { rodadas: Rodada[]; brutos: Map<string, Set<string>> } {
+  const validas = ls.flatMap(l => {
+    if (!tituloValido(l)) return []
+    const chave = normalizarTitulo(l.tituloExibido!)
+    return suspensos.has(chave) ? [] : [{ l, chave }]
+  })
+  const idioma = maioria(validas, x => x.l.idioma!, x => Date.parse(x.l.lidaEm))
+  const votam = validas.filter(x => x.l.idioma === idioma)
+  const brutos = new Map<string, Set<string>>()
+  for (const x of votam) {
+    const b = brutos.get(x.chave) ?? new Set<string>()
+    b.add(x.l.tituloExibido!)
+    brutos.set(x.chave, b)
+  }
+  return { rodadas: agrupar(votam.map(x => ({ tMs: Date.parse(x.l.lidaEm), rodadaId: x.l.rodadaId, chave: x.chave }))), brutos }
+}
+
+/** Versões vistas em >= 2 rodadas da janela. */
+export function qualificadas(janela: readonly Rodada[]): Set<string> {
+  const c = new Map<string, number>()
+  for (const r of janela) for (const v of r.versoes) c.set(v, (c.get(v) ?? 0) + 1)
+  return new Set([...c].filter(([, n]) => n >= 2).map(([v]) => v))
+}
+
+/** Rodadas do histórico com >= 2 das versões `q` juntas. */
+export function rodadasMistas(hist: readonly Rodada[], q: ReadonlySet<string>): number {
+  let n = 0
+  for (const r of hist) {
+    let k = 0
+    for (const v of r.versoes) if (q.has(v)) k++
+    if (k >= 2) n++
+  }
+  return n
+}
+
+/** Rodadas de ausência exigidas: ceil(ln ALFA / ln(1 - min(q, Q_TRAVA))). q <= 0 -> 0 (a ausência não precisa de prova). */
+export function rodadasExigidas(q: number): number {
+  if (!(q > 0)) return 0
+  return Math.ceil(Math.log(ALFA) / Math.log(1 - Math.min(q, Q_TRAVA)))
+}
+
+const ehTeste = (w: readonly Rodada[], hist: readonly Rodada[]): boolean => {
+  const q = qualificadas(w)
+  return q.size >= 2 && rodadasMistas(hist, q) >= MIN_RODADAS_MISTAS_HIST
+}
+
+/** Y ausente há R rodadas, com q = fração de rodadas de `base` que têm Y e R contado de trás para frente em `rs`. */
+function ausenciaOk(rs: readonly Rodada[], base: readonly Rodada[], y: string): boolean {
+  const q = base.filter(r => r.versoes.has(y)).length / Math.max(1, base.length)
+  let r = 0
+  for (let i = rs.length - 1; i >= 0 && !rs[i]!.versoes.has(y); i--) r++
+  return r >= rodadasExigidas(q)
+}
+
+/** Período de Y: da 1ª à última rodada com Y, estendido para trás até ter PERIODO_MIN_RODADAS. */
+function periodo(rs: readonly Rodada[], y: string): Rodada[] {
+  const ix: number[] = []
+  rs.forEach((r, i) => { if (r.versoes.has(y)) ix.push(i) })
+  if (ix.length === 0) return []
+  const ultimo = ix[ix.length - 1]!
+  const a = Math.max(0, Math.min(ix[0]!, ultimo + 1 - PERIODO_MIN_RODADAS))
+  return rs.slice(a, ultimo + 1)
+}
+
+function ultimaJanelaTeste(rs: readonly Rodada[]): { w: Rodada[]; q: Set<string> } | null {
+  for (let e = rs.length; e >= W_RODADAS; e--) {
+    const w = rs.slice(e - W_RODADAS, e)
+    if (ehTeste(w, rs.slice(0, e))) return { w, q: qualificadas(w) }
+  }
+  return null
+}
+
+/**
+ * Decisão por campo (§3.2–§3.5): porte de `avalia`/`decide_unica` do protótipo. Pura: o relógio entra por `agoraMs`.
+ * O frescor vale se `agoraMs - última rodada de W < FRESCOR_H`.
+ */
+export function decidirCampo(campo: CampoObs, rodadas: readonly Rodada[], o: { publicadoMs: number; agoraMs: number }): Decisao {
+  const rs = rodadas
+  const mn = campo === 'titulo' ? MIN_RODADAS_TITULO : MIN_RODADAS_MINIATURA
+  const w = rs.slice(-W_RODADAS)
+  const base: Decisao = { estado: 'nao_medido', w, x: null, s: [], sumidas: [], janelaTeste: null, antes: null, mistasHist: 0 }
+  if (w.length < mn) return base
+  if (w[w.length - 1]!.tMs - w[0]!.tMs > SPAN_MAX_H * H) return base
+  if (!(o.agoraMs - w[w.length - 1]!.tMs < FRESCOR_H * H)) return base
+  const qw = qualificadas(w)
+  if (ehTeste(w, rs)) {
+    return { ...base, estado: campo === 'titulo' ? 'em_andamento' : 'indeterminada', s: [...qw], janelaTeste: w, mistasHist: rodadasMistas(rs, qw) }
+  }
+  if (qw.size !== 1) return base
+  const x = [...qw][0]!
+  const prev = rs.slice(-W_RODADAS - 1, -1)
+  const qprev = qualificadas(prev)
+  if (prev.length < mn || qprev.size !== 1 || !qprev.has(x)) return base
+  const ant = rs.slice(-2 * W_RODADAS, -W_RODADAS).filter(r => r.tMs >= o.publicadoMs + CARENCIA_H * H)
+
+  const ult = ultimaJanelaTeste(rs)
+  if (campo === 'titulo' && ult !== null && !(ult.q.size === 1 && ult.q.has(x))) {
+    const sumidas = [...ult.q].filter(v => v !== x)
+    const fim = sumidas.every(y => ausenciaOk(rs, periodo(rs, y), y))
+    return { ...base, estado: fim ? 'terminou' : 'sumindo', x, s: [...ult.q], sumidas, janelaTeste: ult.w, mistasHist: rodadasMistas(rs, ult.q) }
+  }
+  if (ant.length < mn) return { ...base, x }
+  const qa = qualificadas(ant)
+  if (qa.size === 1 && qa.has(x)) return { ...base, estado: 'sem_troca_vista', x }
+  if (qa.size === 1) {
+    const y = [...qa][0]!
+    if (ausenciaOk(rs, ant, y)) return { ...base, estado: 'troca', x, antes: y, sumidas: [y] }
+  }
+  if (qa.size >= 1 && campo === 'miniatura') return { ...base, estado: 'indeterminada', x, s: [...qa] }
+  return { ...base, x }
 }
