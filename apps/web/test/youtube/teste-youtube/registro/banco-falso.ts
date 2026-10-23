@@ -88,6 +88,11 @@ export function criarBanco(tabelas: Record<string, Linha[]>, o: OpcoesBanco = {}
     q.neq = (c: string, v: unknown) => filtro('neq', [c, v], l => cmp(l[c], v) !== 0)
     q.is = (c: string, v: null) => filtro('is', [c, v], l => (l[c] === null || l[c] === undefined) === (v === null))
     q.in = (c: string, vs: unknown[]) => filtro('in', [c, vs.join('|')], l => vs.some(v => cmp(l[c], v) === 0 && l[c] !== null))
+    // `like` do Postgres: `%` = qualquer sequência, `_` = um caractere
+    q.like = (c: string, padrao: string) => {
+      const re = new RegExp('^' + padrao.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$')
+      return filtro('like', [c, padrao], l => typeof l[c] === 'string' && re.test(l[c] as string))
+    }
     q.gte = (c: string, v: unknown) => filtro('gte', [c, v], condicao(c, 'gte', String(v)))
     q.gt = (c: string, v: unknown) => filtro('gt', [c, v], condicao(c, 'gt', String(v)))
     q.lte = (c: string, v: unknown) => filtro('lte', [c, v], condicao(c, 'lte', String(v)))

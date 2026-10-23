@@ -1,16 +1,14 @@
 import 'server-only'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { BANCO_MS } from '@/lib/youtube/agenda/relogio'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
 import { modoTrocasConcorrente } from './flag'
+import { ida, paginado as paginar, SemTempo, type Linha, type Montar } from './paginar'
 import { ehPlaceholder, inferirComGuarda, TETO_LINHAS_GUARDA, type ConferirVersoes } from './guarda'
 import { cursorSemPublicacao, gravacao, type CursorGravado, type LeituraObs, type ThumbObs, type VersaoParaConferir } from './inferir'
 import { chaveAlvo, MAX_OBSERVADOS_POR_DISPARO, MIN_SOBRA_MS, selecionarAlvos, type AlvoObs, type CursorObs } from './selecao'
 
-const PAGINA = 1000
-const MAX_PAGINAS = 60
 const LOTE_VIDEOS = 100
 const LOTE_THUMBS = 200
 const PODA_LOTE = 500
@@ -25,8 +23,6 @@ export interface ResultadoPasso {
 }
 
 export interface OpcoesPasso { env?: NodeJS.ProcessEnv; fimDuroMs: number; maxAlvos?: number; varreduraLote?: number }
-
-class SemTempo extends Error {}
 
 interface Contadores {
   obs_avaliados: number; obs_trocas: number; obs_falhou: number; obs_sem_tempo: number; obs_indeterminadas: number; obs_sem_publicacao: number
@@ -62,25 +58,7 @@ export async function rodarObservados(c: ContextoTarefa, o: OpcoesPasso): Promis
   }
 }
 
-function ida(c: ContextoTarefa, fimDuroMs: number): void {
-  if (c.agora() >= fimDuroMs) throw new SemTempo()
-}
-
-type Linha = Record<string, unknown>
-async function paginado(c: ContextoTarefa, fim: number, montar: (sb: SupabaseClient) => { range: (a: number, b: number) => PromiseLike<{ data: unknown; error: unknown; count: number | null }> }): Promise<Linha[]> {
-  const out: Linha[] = []
-  let total: number | null = null
-  for (let p = 0; p < MAX_PAGINAS; p++) {
-    ida(c, fim)
-    const r = await montar(c.sb).range(p * PAGINA, p * PAGINA + PAGINA - 1)
-    if (r.error || !Array.isArray(r.data)) throw new Error('leitura_falhou')
-    out.push(...(r.data as Linha[]))
-    total = r.count
-    if (r.data.length < PAGINA) break
-  }
-  if (total !== null && out.length !== total) throw new Error('paginacao')
-  return out
-}
+const paginado = (c: ContextoTarefa, fim: number, montar: Montar): Promise<Linha[]> => paginar(c.sb, () => ida(c, fim), montar)
 
 const texto = (v: unknown): string | null => (typeof v === 'string' ? v : null)
 const inteiro = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)

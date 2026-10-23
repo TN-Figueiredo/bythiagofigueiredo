@@ -3,6 +3,7 @@ import { schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
 import { devidosDoFechamento, devidosDoLembrete, diasDesdeOInicio, emEsperaDoLembrete, type LinhaAviso } from '@/lib/youtube/teste-youtube/nativo/avisos'
 import { contarFalhasRecentes, enviarAvisosDoNicho, fraseDeFalhas, type ResultadoNicho } from '@/lib/youtube/observatorio/sinais/avisos'
+import { enviarAvisosDaLeitura, type ResultadoLeituraAvisos } from '@/lib/youtube/teste-youtube/observados/avisos'
 import { DEFINICAO_AVISOS_PENDENTES } from '../definicoes'
 import type { ContextoTarefa, ResultadoTarefa, Tarefa } from '../tipos'
 
@@ -13,7 +14,12 @@ const LIMITE_LINHAS = 500
 
 interface Linha extends LinhaAviso { site_id: string; video_id: string; youtube_video_id: string; notificacao_tentativas: number; updated_at: string }
 type FanOut = typeof fanOutToSiteAdminsDetailed
-export interface DepsAvisos { fanOut?: FanOut; nicho?: (sb: ContextoTarefa['sb'], agora: Date, semTempo: () => boolean) => Promise<ResultadoNicho> }
+export interface DepsAvisos {
+  fanOut?: FanOut
+  nicho?: (sb: ContextoTarefa['sb'], agora: Date, semTempo: () => boolean) => Promise<ResultadoNicho>
+  /** Alarme de degradação e aviso de título suspenso da leitura dos concorrentes (§6.1, §6.2). */
+  leitura?: (sb: ContextoTarefa['sb'], agora: Date, semTempo: () => boolean) => Promise<ResultadoLeituraAvisos>
+}
 
 const PERGUNTA = 'Qual versão venceu no Studio?'
 const TITULO_MAX = 80
@@ -41,6 +47,16 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
   } catch (e) {
     Sentry.captureMessage('avisos_pendentes: parte do nicho falhou: ' + (e instanceof Error ? e.name : typeof e), { level: 'warning', tags: { area: 'sinais-nicho' } })
   }
+  // Parte da leitura dos concorrentes: depois do nicho, `try/catch` próprio. A falha dela NÃO muda `estado` nem `motivo` (§6.1), mas vai ao Sentry: a defesa contra falha em verde não morre em verde.
+  let leitura: ResultadoLeituraAvisos | null = null
+  let leituraFalhou = 0
+  try {
+    leitura = await (deps.leitura ?? ((sb, a, semTempo) => enviarAvisosDaLeitura(sb, a, { semTempo })))(c.sb, agora, () => c.agora() >= c.t0 + BANCO_ATE_MS)
+    leituraFalhou = leitura.falhas
+  } catch (e) {
+    leituraFalhou = 1
+    Sentry.captureMessage('avisos_pendentes: parte da leitura falhou: ' + (e instanceof Error ? e.name : typeof e), { level: 'warning', tags: { area: 'ab-observados' } })
+  }
   let acao: string[] = []
   try {
     const frase = fraseDeFalhas(await contarFalhasRecentes(c.sb, agora))
@@ -50,6 +66,8 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
     ...(nativo.detalhe ?? {}),
     nicho_enviados: nicho?.enviados ?? 0, nicho_resumidos: nicho?.resumidos ?? 0, nicho_falhas: nicho?.falhas ?? 0, nicho_sem_tempo: nicho?.sem_tempo ?? 0,
     nicho_adiados: nicho?.adiados ?? 0,
+    obs_aviso_degradada: leitura?.degradada ?? 0, obs_aviso_suspenso: leitura?.suspenso ?? 0, obs_aviso_expirados: leitura?.expirados ?? 0,
+    obs_aviso_sem_tempo: leitura?.semTempo ?? 0, obs_aviso_falhou: leituraFalhou,
   }
   const base: ResultadoTarefa = { ...nativo, detalhe, ...(acao.length > 0 ? { extra: { acao } } : {}) }
   const nichoFalhou = nicho === null || nicho.falhas > 0
