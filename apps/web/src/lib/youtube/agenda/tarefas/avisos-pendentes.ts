@@ -49,10 +49,14 @@ export async function rodarAvisos(c: ContextoTarefa, deps: DepsAvisos = {}): Pro
   const detalhe: Record<string, number> = {
     ...(nativo.detalhe ?? {}),
     nicho_enviados: nicho?.enviados ?? 0, nicho_resumidos: nicho?.resumidos ?? 0, nicho_falhas: nicho?.falhas ?? 0, nicho_sem_tempo: nicho?.sem_tempo ?? 0,
+    nicho_adiados: nicho?.adiados ?? 0,
   }
   const base: ResultadoTarefa = { ...nativo, detalhe, ...(acao.length > 0 ? { extra: { acao } } : {}) }
   const nichoFalhou = nicho === null || nicho.falhas > 0
   // O erro do nicho não apaga o `sobrou` do nativo: o código combinado diz as duas coisas (o detalhe guarda os contadores de ambos).
+  // Aviso que falhou mas ainda tem tentativa: `erro` já na 1ª, para a agenda reabrir a tarefa no disparo seguinte (senão ela fica verde até o dia seguinte).
+  const nichoAdiado = nicho !== null && nicho.adiados > 0
+  if (nichoAdiado && !nichoFalhou && nativo.estado !== 'erro') return { ...base, estado: 'erro', motivo: nativo.motivo === 'sobrou' ? 'sobrou_e_nicho_adiado' : 'nicho_adiado' }
   if (nichoFalhou && nativo.estado !== 'erro') return { ...base, estado: 'erro', motivo: nativo.motivo === 'sobrou' ? 'sobrou_e_nicho_falhou' : 'nicho_falhou' }
   // Prazo acabou antes de visitar todos os sites: nunca silencioso. Se o nativo já é parcial/erro, o motivo dele fica e o número está em `nicho_sem_tempo`.
   if (nicho !== null && nicho.sem_tempo > 0 && nativo.estado === 'ok') return { ...base, estado: 'parcial', motivo: 'nicho_sem_tempo' }

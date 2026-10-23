@@ -6,7 +6,7 @@ import { rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { montarIndice } from '@/lib/youtube/observatorio/lugar/casar'
 import {
-  calcularLugares, lerEntradasDeLugar, lerIndiceDeLugar, lerProprios, sincronizarLugares, ErroSementeIncompleta, type LinhaDeLugar, type ProprioRow,
+  calcularLugares, gravarLugares, lerEntradasDeLugar, lerIndiceDeLugar, lerProprios, sincronizarLugares, ErroSementeIncompleta, type CalculoDeLugares, type LinhaDeLugar, type ProprioRow,
 } from '@/lib/youtube/observatorio/sinais/lugares-do-site'
 import { projetarOutliers, recomporVistos } from '@/lib/youtube/observatorio/sinais/projecao'
 import { canal, rowsDe, NOW, DAY } from './fixture-sinais'
@@ -145,6 +145,27 @@ describe('sincronizarLugares', () => {
     await sincroniza(f, rows)
     expect(f.tabelas.video_lugares.some((l) => l.video_id === 'sumiu')).toBe(false)
     expect(f.escritas.some((e) => e.op === 'delete' && e.n === 1)).toBe(true)
+  })
+
+  it('poda de 450 órfãos: nenhum .in com mais de 200 ids (acima de ~250 o PostgREST responde 414) e todos apagados', async () => {
+    const tamanhos: number[] = []
+    const apagados: string[] = []
+    const client = {
+      from: () => ({
+        delete: () => {
+          const d = {
+            eq: () => d,
+            in: (_c: string, vs: readonly string[]) => { tamanhos.push(vs.length); apagados.push(...vs); return d },
+            then: (ok: (r: { error: null }) => unknown) => Promise.resolve({ error: null }).then(ok),
+          }
+          return d
+        },
+      }),
+    } as unknown as SupabaseClient
+    const orfaos = Array.from({ length: 450 }, (_, i) => `v${i}`)
+    await gravarLugares(client, SITE, { regravar: [], orfaos } as unknown as CalculoDeLugares)
+    expect(tamanhos).toEqual([200, 200, 50])
+    expect(apagados).toEqual(orfaos)
   })
 
   it('versão desc "Istanbul" e título "Turkey" -> pais:TR; localização Cappadocia sozinha não conta', async () => {

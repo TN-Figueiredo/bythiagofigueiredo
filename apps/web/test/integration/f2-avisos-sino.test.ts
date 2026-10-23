@@ -79,6 +79,8 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
       await pg.query('delete from public.competitor_channels where site_id = $1', [site])
       await pg.query('delete from public.organization_members where org_id = $1', [org])
       await pg.query('delete from public.sites where id = $1', [site])
+      // os deletes acima gravam em audit_log (trigger): limpar por último, antes da organização
+      await pg.query('delete from public.audit_log where org_id = $1', [org])
       await pg.query('delete from public.organizations where id = $1', [org])
       for (const u of usuarios) await pg.query('delete from auth.users where id = $1', [u])
     } finally { await pg.end() }
@@ -89,7 +91,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(false)
     const ids = [await sinal({ como: 'individual' }), await sinal({ como: 'resumo' }), await sinal({ kind: 'parecido', como: 'resumo' }), await sinal(), await sinal(), await sinal()]
     const r = await rodar()
-    expect(r).toEqual({ enviados: 0, resumidos: 6, falhas: 0, sem_tempo: 0 })
+    expect(r).toEqual({ enviados: 0, resumidos: 6, falhas: 0, sem_tempo: 0, adiados: 0 })
     expect(await notifs('nicho:%')).toEqual([])
     const resumos = await notifs('nicho-resumo:%')
     expect(new Set(resumos).size).toBe(1)
@@ -101,7 +103,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     // o apagamento das notificações não reativa o baseline: uma linha nova sai como individual
     await pg.query('delete from public.notifications where site_id = $1', [site])
     await sinal({ forca: 50 })
-    expect(await rodar()).toEqual({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 0 })
+    expect(await rodar()).toEqual({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 })
     expect((await notifs('nicho:%')).length).toBe((await getSiteAdminUserIds(site)).length)
   })
 
@@ -118,7 +120,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
   it('sinal dispensado antes da passada: nenhuma notificação', async () => {
     await estado(true)
     await sinal({ status: 'dispensado' })
-    expect(await rodar()).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 })
+    expect(await rodar()).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 })
     expect(await notifs('nicho%')).toEqual([])
   })
 
@@ -171,7 +173,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     delete process.env.OBS_SINAIS_NICHO
     const c: ContextoTarefa = { t0: Date.now(), agora: () => Date.now(), apiKey: '', sb: sb(), linhas: null }
     const out = await rodarAvisos(c, { nicho: nichoDoSite })
-    expect(out.detalhe).toMatchObject({ nicho_enviados: 0, nicho_resumidos: 0, nicho_falhas: 0, sem_tempo: 0 })
+    expect(out.detalhe).toMatchObject({ nicho_enviados: 0, nicho_resumidos: 0, nicho_falhas: 0, nicho_sem_tempo: 0, nicho_adiados: 0 })
     expect(out.motivo).not.toBe('nicho_falhou')
   })
 
@@ -196,7 +198,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(true)
     const id = await sinal()
     const falha = vi.fn().mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] })
-    expect(await enviarAvisosDoNicho(sb(), new Date(), { fanOut: falha, sites: [site] })).toMatchObject({ enviados: 0, falhas: 0, sem_tempo: 0 })
+    expect(await enviarAvisosDoNicho(sb(), new Date(), { fanOut: falha, sites: [site] })).toMatchObject({ enviados: 0, falhas: 0, sem_tempo: 0, adiados: 1 })
     expect((await linha(id)).notificacao_tentativas).toBe(1)
     expect((await linha(id)).notificado_em).toBeNull()
     expect(await rodar()).toMatchObject({ enviados: 1 })
@@ -204,7 +206,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     expect((await linha(id)).notificado_em).not.toBeNull()
   })
 
-  it('3 falhas: vermelho na 3ª (falhas 1 e erro nicho_falhou), a 4ª não tenta; acao_do_dono por 7 dias e some no 8º', async () => {
+  it('3 falhas: vermelho já na 1ª e na 2ª (nicho_adiado), na 3ª abandona (falhas 1, nicho_falhou), a 4ª não tenta; acao_do_dono por 7 dias e some no 8º', async () => {
     await estado(true)
     const id = await sinal()
     const falha = vi.fn().mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] })
@@ -216,7 +218,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
       return rodarAvisos({ t0: em, agora: () => em, apiKey: '', sb: misto, linhas: null }, { nicho: (s, a, t) => enviarAvisosDoNicho(s, a, { fanOut: falha, sites: [site], semTempo: t }) })
     }
     const t0 = Date.now()
-    const r1 = await task(t0); const r2 = await task(t0); expect(r1.estado).toBe('ok'); expect(r2.estado).toBe('ok')
+    const r1 = await task(t0); const r2 = await task(t0); expect(r1).toMatchObject({ estado: 'erro', motivo: 'nicho_adiado', detalhe: { nicho_adiados: 1 } }); expect(r2).toMatchObject({ estado: 'erro', motivo: 'nicho_adiado' })
     const r3 = await task(t0)
     expect(r3).toMatchObject({ estado: 'erro', motivo: 'nicho_falhou', detalhe: { nicho_falhas: 1 } })
     expect((await linha(id)).notificacao_falhou_em).not.toBeNull()

@@ -266,6 +266,8 @@ export const DEFINICAO_AVISOS_PENDENTES: Definicao = {
     sobrou: 'ficaram testes para o próximo disparo',
     nicho_falhou: 'os avisos das sugestões do nicho falharam (o lembrete do dia 14 não foi afetado)',
     sobrou_e_nicho_falhou: 'ficaram testes para o próximo disparo e os avisos das sugestões do nicho falharam',
+    nicho_adiado: 'os avisos das sugestões do nicho não saíram e serão tentados no próximo disparo',
+    sobrou_e_nicho_adiado: 'ficaram testes para o próximo disparo e os avisos das sugestões do nicho serão tentados de novo',
     nicho_sem_tempo: 'o tempo acabou antes de avisar as sugestões de todos os sites; o resto fica para o próximo disparo',
   },
 }
