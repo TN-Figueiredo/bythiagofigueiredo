@@ -50,3 +50,5 @@
   .cn-d14 .cn-lnk { min-height: 44px; }
   .cn-d14 .cn-d14-manter { display: inline-flex; align-items: center; }
 }
+/* Gio B-1: o título só-leitor (.cn-sr, absoluto) fica dentro da caixa do bloco, não no fim da página. */
+.cn-d14 { position: relative; }

@@ -19,7 +19,7 @@ export function letraQueDisse(reg: Registro, pergunta: PerguntaDoDia14): string 
   return versaoDoRespondido(reg, pergunta)?.letra ?? (reg.respostaDono === 'venceu_original' ? 'A' : 'outra versão')
 }
 
-/** `naLinha`: a linha da lista já mostra o selo e a frase; o bloco não os repete (o título fica só para leitor de tela e foco). */
+/** `naLinha`: a linha da lista já mostra o selo e a frase; o bloco não os repete (o título fica só para leitor de tela; o foco vai para a linha de apoio visível, sem repetir a frase). */
 export function Dia14Conflito({ linha, pergunta, acoes, naLinha = false }: Dia14BlocoProps & { naLinha?: boolean }): ReactElement | null {
   const id = useId()
   const reg = linha.registro
@@ -37,8 +37,8 @@ export function Dia14Conflito({ linha, pergunta, acoes, naLinha = false }: Dia14
       {(link) => (
         <section className="cn-d14 cn-d14-conflito" aria-labelledby={id}>
           {naLinha ? null : <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.conflito.selo}</SeloCaminho></div>}
-          <h3 id={id} tabIndex={-1} data-foco-bloco="" className={`cn-d14-conflito-h${naLinha ? ' cn-sr' : ''}`}>{titulo}</h3>
-          <p className="cn-meta">{FRASES.conflito.meta}</p>
+          <h3 id={id} {...(naLinha ? {} : { tabIndex: -1, 'data-foco-bloco': '' })} className={`cn-d14-conflito-h${naLinha ? ' cn-sr' : ''}`}>{titulo}</h3>
+          <p className="cn-meta" {...(naLinha ? { tabIndex: -1, 'data-foco-bloco': '' } : {})}>{FRASES.conflito.meta}</p>
           <div className="cn-d14-cf">
             <div>
               <p className="cn-d14-who">{FRASES.conflito.cartaoNoAr(reg.desfechoEm ? new Date(reg.desfechoEm) : null)}</p>

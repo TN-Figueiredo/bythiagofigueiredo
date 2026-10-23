@@ -328,7 +328,12 @@ describe('ListaCaminho: bloco na própria linha', () => {
     cleanup()
     render(tela([conflito()], 'vid00000001'))
     expect(within(li()).getByRole('heading', { name: 'No ar estava A; você disse B.' })).toBeTruthy()
-    expect(document.activeElement).toBe(li().querySelector('[data-foco-bloco]'))
+    // Gio B-1/N-2: o foco vai para a linha de apoio VISÍVEL do bloco (dentro dele), não para o h3 só-leitor.
+    const alvo = li().querySelector('[data-foco-bloco]')
+    expect(document.activeElement).toBe(alvo)
+    expect(alvo?.closest('section.cn-d14-conflito')).not.toBeNull()
+    expect(alvo?.closest('.cn-sr')).toBeNull()
+    expect(li().querySelector('h3[data-foco-bloco]')).toBeNull()
   })
   it('mudar na lista: trocar para C chama a action; a linha relida mostra o respondido novo e o anúncio fica fora do bloco', async () => {
     const l0 = linhaR('ficou_no_ar', { variantes: tresV, varianteVencedora: 2 })
