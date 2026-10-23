@@ -2,6 +2,12 @@
 import { describe, it, expect } from 'vitest'
 import { derivarAcao } from '@/lib/youtube/observatorio/sinais/acao'
 
+it('aceita o total como número (a lista de ids pode vir cortada em 20)', () => {
+  expect(derivarAcao('destino', 'video_novo', 450)).toEqual({ acao: 'titulo_descricao', rotulo: 'abrir-seus', n: 450 })
+  expect(derivarAcao('destino', 'titulo_descricao', 0).acao).toBe('video_novo')
+  expect(derivarAcao('destino', 'playlist', 7).n).toBe(7)
+})
+
 describe('derivarAcao (F2 T8, r6)', () => {
   it('gravada video_novo e um próprio entrou depois: titulo_descricao com n = 1', () => {
     expect(derivarAcao('destino', 'video_novo', ['v1'])).toEqual({ acao: 'titulo_descricao', rotulo: 'abrir-seus', n: 1 })

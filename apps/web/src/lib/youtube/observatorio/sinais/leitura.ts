@@ -3,6 +3,7 @@
 // Lista vazia nunca é muda: `n = 0 ⇒ motivoVazio != null`. Sem escrita aqui, salvo `dispensarSinal` (RPC atômica).
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { readAll } from '../load'
+import { HORAS_ATE_DESATUALIZAR } from './frases'
 import { derivarAcao, type AcaoDerivada, type RotuloDaAcao } from './acao'
 import type { Evidence, MotivoVazio } from './oportunidades'
 
@@ -24,8 +25,10 @@ export interface ItemDeSinal {
   evidence: Evidence
   first_seen_at: string
   expires_at: string
-  /** ids de `youtube_videos` públicos e visíveis que cobrem o lugar HOJE; `null` = não medido (site sem `video_lugares`). */
+  /** ids de `youtube_videos` públicos e visíveis que cobrem o lugar HOJE (no máximo `TETO_PROPRIOS_AGORA`, por id); `null` = não medido (site sem `video_lugares` de origem `proprio`). */
   proprios_agora: string[] | null
+  /** Total REAL de vídeos próprios que cobrem o lugar (a lista acima pode ser só os primeiros); `null` = não medido. */
+  proprios_agora_n: number | null
 }
 
 export interface ListaDeSinais {
@@ -39,9 +42,19 @@ export interface ListaDeSinais {
   calculoLigado: boolean
 }
 
-export const HORAS_ATE_DESATUALIZAR = 36
+export { HORAS_ATE_DESATUALIZAR }
 const DIA_MS = 86_400_000
 const JANELA_PRIVACIDADE_DIAS = 30
+/** Teto de ids por item em `proprios_agora` (o total real vai em `proprios_agora_n`). */
+export const TETO_PROPRIOS_AGORA = 20
+/** Tamanho do bloco dos `.in(...)` que dependem de N (o URL do PostgREST tem limite). */
+export const BLOCO_DO_IN = 200
+
+function emBlocos<T>(xs: T[], tam: number): T[][] {
+  const blocos: T[][] = []
+  for (let i = 0; i < xs.length; i += tam) blocos.push(xs.slice(i, i + tam))
+  return blocos
+}
 
 interface LinhaSinal {
   id: string; kind: 'destino' | 'parecido'; subject_key: string; acao: string; forca: number | string; motivo: string; rule_version: string
@@ -65,30 +78,34 @@ function soNumeros(o: Record<string, unknown> | null): Record<string, number> {
 /** Ids de vídeo próprio que contam: cadastrados, não ocultos e com o ÚLTIMO `privacy_status` igual a `public` (C0.11; sem linha = não conta). */
 async function filtrarPublicos(sb: SupabaseClient, siteId: string, ids: string[], agora: Date): Promise<Set<string>> {
   if (ids.length === 0) return new Set()
-  const v = await sb.from('youtube_videos').select('id, youtube_video_id').eq('site_id', siteId).eq('is_hidden', false).in('id', ids)
-  quebra('youtube_videos', v.error)
   const yt = new Map<string, string>() // youtube_video_id → id
-  for (const r of (v.data ?? []) as Array<{ id: string; youtube_video_id: string }>) yt.set(r.youtube_video_id, r.id)
+  for (const bloco of emBlocos(ids, BLOCO_DO_IN)) {
+    const v = await sb.from('youtube_videos').select('id, youtube_video_id').eq('site_id', siteId).eq('is_hidden', false).in('id', bloco)
+    quebra('youtube_videos', v.error)
+    for (const r of (v.data ?? []) as Array<{ id: string; youtube_video_id: string }>) yt.set(r.youtube_video_id, r.id)
+  }
   if (yt.size === 0) return new Set()
   const desde = new Date(agora.getTime() - JANELA_PRIVACIDADE_DIAS * DIA_MS).toISOString().slice(0, 10)
-  const metas = await readAll<{ youtube_video_id: string; privacy_status: string | null; day_pt: string }>('yt_own_video_meta_daily', () =>
-    sb.from('yt_own_video_meta_daily').select('youtube_video_id, privacy_status, day_pt')
-      .eq('site_id', siteId).in('youtube_video_id', [...yt.keys()]).not('privacy_status', 'is', null).gte('day_pt', desde)
-      .order('day_pt', { ascending: false }).order('youtube_video_id'))
   const ultimo = new Map<string, string | null>()
-  for (const m of metas) if (!ultimo.has(m.youtube_video_id)) ultimo.set(m.youtube_video_id, m.privacy_status) // desc: a 1ª é a última
+  for (const bloco of emBlocos([...yt.keys()], BLOCO_DO_IN)) {
+    const metas = await readAll<{ youtube_video_id: string; privacy_status: string | null; day_pt: string }>('yt_own_video_meta_daily', () =>
+      sb.from('yt_own_video_meta_daily').select('youtube_video_id, privacy_status, day_pt')
+        .eq('site_id', siteId).in('youtube_video_id', bloco).not('privacy_status', 'is', null).gte('day_pt', desde)
+        .order('day_pt', { ascending: false }).order('youtube_video_id'))
+    for (const m of metas) if (!ultimo.has(m.youtube_video_id)) ultimo.set(m.youtube_video_id, m.privacy_status) // desc: a 1ª é a última
+  }
   const publicos = new Set<string>()
   for (const [ytId, id] of yt) if (ultimo.get(ytId) === 'public') publicos.add(id)
   return publicos
 }
 
-/** `Map<subject_key, ids[]>` (null = o site não tem `video_lugares`). Uma consulta para os lugares, mais uma de cadastro/privacidade. */
+/** `Map<subject_key, ids[]>` (null = o site não tem `video_lugares` de origem `proprio`: nunca calculou os vídeos dele; as linhas `competidor` não contam). Uma consulta para os lugares, mais uma de cadastro/privacidade. */
 async function propriosPorChave(sb: SupabaseClient, siteId: string, chaves: string[], agora: Date): Promise<Map<string, string[]> | null> {
   const r = await sb.from('video_lugares').select('video_id, chaves').eq('site_id', siteId).eq('origem', 'proprio').overlaps('chaves', chaves)
   quebra('video_lugares', r.error)
   const linhas = (r.data ?? []) as Array<{ video_id: string; chaves: string[] }>
   if (linhas.length === 0) {
-    const medido = await sb.from('video_lugares').select('video_id').eq('site_id', siteId).limit(1)
+    const medido = await sb.from('video_lugares').select('video_id').eq('site_id', siteId).eq('origem', 'proprio').limit(1)
     quebra('video_lugares', medido.error)
     if (((medido.data ?? []) as unknown[]).length === 0) return null
     return new Map()
@@ -145,18 +162,21 @@ export async function listarSinaisDoNicho(
       const respondidos = await respondidosEm30d(sb, siteId, agora)
       contagens.respondidos_30d = respondidos
       motivoVazio = estado.motivo_vazio ?? (respondidos > 0 ? 'tudo-respondido' : 'sem-grupo')
+      // catch-all com o cálculo velho (gravador parado, linhas abertas já vencidas): a frase não pode dizer "nenhum grupo" como se fosse medido hoje
+      if (motivoVazio === 'sem-grupo' && desatualizado) contagens.calculo_atrasado = 1
     }
     return { n: 0, itens: [], computado_em, desatualizado, motivoVazio, contagens, calculoLigado }
   }
 
   const proprios = await propriosPorChave(sb, siteId, [...new Set(linhas.map((l) => l.subject_key))], agora)
   const itens = linhas.map((l): ItemDeSinal => {
-    const agoraProprios = proprios === null ? null : (proprios.get(l.subject_key) ?? [])
-    const d = derivarAcao(l.kind, l.acao, agoraProprios)
+    const todos = proprios === null ? null : (proprios.get(l.subject_key) ?? [])
+    const d = derivarAcao(l.kind, l.acao, todos === null ? null : todos.length)
+    const agoraProprios = todos === null ? null : todos.slice(0, TETO_PROPRIOS_AGORA)
     return {
       id: l.id, kind: l.kind, subject_key: l.subject_key, acao: d.acao, rotulo_acao: d.rotulo, n_proprios: d.n, acao_gravada: l.acao,
       forca: Number(l.forca), motivo: l.motivo, rule_version: l.rule_version, evidence: l.evidence,
-      first_seen_at: l.first_seen_at, expires_at: l.expires_at, proprios_agora: agoraProprios,
+      first_seen_at: l.first_seen_at, expires_at: l.expires_at, proprios_agora: agoraProprios, proprios_agora_n: todos === null ? null : todos.length,
     }
   })
   return { n, itens, computado_em, desatualizado, motivoVazio: null, contagens, calculoLigado }

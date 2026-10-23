@@ -64,7 +64,16 @@ export function cabeNoLimite(lista: ListaDeSinais, limite: number = LIMITE_DO_TE
     ultimo = { texto: JSON.stringify(cortada), lista: cortada }
     if (ultimo.texto.length <= limite) return ultimo
   }
-  return ultimo
+  // Nem sem outliers coube: tira sugestões do fim (as mais fracas) e DIZ quantas, nunca devolve texto acima do teto. `n`, `motivoVazio` seguem os reais.
+  const base = ultimo.lista
+  for (let ficam = base.itens.length - 1; ficam >= 0; ficam--) {
+    const omitidos = base.itens.length - ficam
+    const enxuta = { ...base, itens: base.itens.slice(0, ficam), aviso: `resposta cortada: ${omitidos} itens não couberam` }
+    const texto = JSON.stringify(enxuta)
+    if (texto.length <= limite) return { texto, lista: enxuta }
+  }
+  const minimo = { ...base, itens: [], aviso: `resposta cortada: ${base.itens.length} itens não couberam` }
+  return { texto: JSON.stringify(minimo), lista: minimo }
 }
 
 function buildCtx(): ServiceContext {

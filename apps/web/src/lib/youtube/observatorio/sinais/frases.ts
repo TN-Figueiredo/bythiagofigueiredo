@@ -2,6 +2,8 @@
 import { DEFINICAO_SINAIS_DO_NICHO } from '../../agenda/definicoes'
 import type { RotuloDaAcao } from './acao'
 
+/** Idade (em horas) do último cálculo a partir da qual a lista conta como desatualizada. */
+export const HORAS_ATE_DESATUALIZAR = 36
 const HORA_SP = (agora: Date): number => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(agora))
 const dois = (n: number): string => String(n).padStart(2, '0')
 
@@ -68,6 +70,7 @@ export function textoDoVazio(motivo: string, contagens: Record<string, number>, 
     }
     case 'sem-grupo': {
       const t = num(c, 'outliers_total')
+      if (num(c, 'calculo_atrasado') === 1) return `A última leitura do nicho é antiga (mais de ${HORAS_ATE_DESATUALIZAR} horas): a lista pode estar sem atualizar, não é prova de que não há sugestão.`
       if (num(c, 'canais_com_outlier') === 1) return 'Há vídeos estourando com lugar, mas só em 1 canal: ainda não forma um evento.'
       if (t !== null && t > 0 && num(c, 'outliers_ancora') === t) return 'Os vídeos estourando com lugar já foram respondidos antes: nada novo.'
       return `Há vídeos estourando com lugar${t !== null ? ` (${t})` : ''}, mas nenhum grupo forma um evento.`

@@ -1096,7 +1096,8 @@ Sugestões do nicho: lugares onde vídeos de concorrentes estouraram (régua do 
       "forca": 12.5, "motivo": "dois canais estouraram...", "rule_version": "sinais-v1+semente-1",
       "evidence": { "outliers": [{ "video_id": "uuid", "canal_id": "uuid", "published_at": "ISO", "mult_vpd7": 6.1, "mult_tela": 3.2, "vpd7": 900, "formato": "long" }], "outliers_total": 4, "canais": 2, "proprios": [] },
       "first_seen_at": "ISO", "expires_at": "ISO",
-      "proprios_agora": ["uuid do seu vídeo público sobre o lugar"]
+      "proprios_agora": ["uuid do seu vídeo público sobre o lugar"],
+      "proprios_agora_n": 1
     }
   ],
   "computado_em": "ISO", "desatualizado": false, "motivoVazio": null, "contagens": { "canais_total": 5 }, "calculoLigado": true
@@ -1108,6 +1109,8 @@ Sugestões do nicho: lugares onde vídeos de concorrentes estouraram (régua do 
 - `kind`: `destino` (lugar que esquentou) ou `parecido` (vídeo de concorrente parecido com um seu).
 - `acao`: derivada **agora** dos seus vídeos públicos sobre o lugar (`proprios_agora`): com ≥ 1, `titulo_descricao` (rever título e descrição do que você já tem); com nenhum, `video_novo`; `playlist` não muda. `acao_gravada` é a que o cálculo gravou, só para auditoria.
 - `proprios_agora`: ids dos **seus** vídeos públicos e visíveis que citam o lugar hoje. `null` = **não medido** (os lugares dos seus vídeos ainda não foram calculados): não leia como "você não tem vídeo sobre isso".
+- `proprios_agora` leva no máximo 20 ids; `proprios_agora_n` é o total real (e o `n_proprios`). `null` nos dois = não medido.
+- Se a resposta passar do teto, vem um campo `aviso` ("resposta cortada: N itens não couberam"): as sugestões do fim saíram, `n` continua o total real.
 - `evidence.proprios` é a foto de quando a sugestão nasceu; use `proprios_agora`.
 - Só ids, números e chaves de lugar: a rota não traz título, miniatura nem texto de comentário. O desempenho dos seus vídeos não entra na força nem na ordem.
 - **Lista vazia nunca é "nada no nicho".** Com `n: 0`, `motivoVazio` diz por quê e deve ser **citado como está**: `nunca-calculado`, `tudo-respondido` (use `contagens.respondidos_30d`), `sem-historico`, `sync-atrasado`, `sem-terceiro-outlier`, `sem-lugar`, `abaixo-do-minimo` ou `sem-grupo`. Os números do motivo estão em `contagens`.

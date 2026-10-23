@@ -52,7 +52,7 @@ export const INVENTARIO_SUGESTOES: Inventario = {
   'itens[].n_proprios': 'numero', 'itens[].acao_gravada': { descartado: 'repetido' },
   'itens[].forca': 'numero', 'itens[].motivo': 'base', 'itens[].rule_version': 'base',
   'itens[].first_seen_at': 'base', 'itens[].expires_at': 'base',
-  'itens[].proprios_agora': ID, 'itens[].proprios_agora[]': ID,
+  'itens[].proprios_agora': ID, 'itens[].proprios_agora[]': ID, 'itens[].proprios_agora_n': 'numero',
   'itens[].evidence.outliers[].video_id': ID, 'itens[].evidence.outliers[].canal_id': ID, 'itens[].evidence.outliers[].published_at': 'base',
   'itens[].evidence.outliers[].mult_vpd7': 'numero', 'itens[].evidence.outliers[].mult_tela': 'numero', 'itens[].evidence.outliers[].vpd7': 'numero',
   'itens[].evidence.outliers[].formato': 'rotulo',
@@ -125,12 +125,12 @@ function tabelaItens(m: ModeloSugestoes): Tabela[] {
     }))]
 }
 
-/** Os códigos dos vídeos seus de cada sugestão, UMA linha por sugestão (a lista inteira numa célula): 50 sugestões não viram 500 linhas. */
+/** Os códigos dos vídeos seus de cada sugestão, UMA linha por sugestão (até 20 códigos numa célula, mais o total real): 50 sugestões não viram 500 linhas. */
 function tabelaSeusVideos(m: ModeloSugestoes): Tabela[] {
   const linhas = m.itens.flatMap((i, k): Celula[][] => (i.proprios_agora && i.proprios_agora.length > 0
-    ? [[base(i.id, `modelo.itens[${k}].id`), base(i.proprios_agora.join(', '), `modelo.itens[${k}].proprios_agora`)]] : []))
+    ? [[base(i.id, `modelo.itens[${k}].id`), numero(i.proprios_agora_n ?? i.proprios_agora.length, `modelo.itens[${k}].proprios_agora_n`), base(i.proprios_agora.join(', '), `modelo.itens[${k}].proprios_agora`)]] : []))
   if (linhas.length === 0) return []
-  return [tabelaLista('sugestoes-seus-videos', 'Seus vídeos públicos que já falam do lugar (códigos)', 'tabela de seus vídeos por sugestão', ['Código da sugestão', 'Códigos dos vídeos seus'], linhas)]
+  return [tabelaLista('sugestoes-seus-videos', 'Seus vídeos públicos que já falam do lugar (códigos)', 'tabela de seus vídeos por sugestão', ['Código da sugestão', 'Total de vídeos seus', 'Códigos dos vídeos seus (até 20)'], linhas)]
 }
 
 /** Quantos estouros por sugestão o pacote lista (os mais fortes); o número verdadeiro vai na coluna "Vídeos estourando" da tabela principal. */
