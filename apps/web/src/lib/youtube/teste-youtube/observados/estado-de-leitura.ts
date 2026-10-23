@@ -148,7 +148,11 @@ function baseTitulo(l: LinhaLida, c: Ctx): EstadoTituloBase | null {
     if (f.janela === null) return null
     return {
       estado: 'em_andamento', sumindo: f.sumindo, passagens: c.passagens,
-      versoes: f.versoes.filter(w => w.rodadasEmW > 0).map(w => lidaDe(trocas, w)), desde: f.janela.de, ate: f.janela.ate,
+      // sumindo: inclui as versões que já saíram de W (rodadasEmW 0), para o texto dizer qual não aparece mais
+      versoes: f.sumindo
+        ? trocas.map(t => { const w = f.versoes.find(x => x.v === t.v); return { ref: t.ref, rodadasEmW: w?.rodadasEmW ?? 0, ultimaVista: w?.ultima ?? t.ultima } })
+        : f.versoes.filter(w => w.rodadasEmW > 0).map(w => lidaDe(trocas, w)),
+      desde: f.janela.de, ate: f.janela.ate,
     }
   }
   // troca_observada: no título só existe estável (o par com em_andamento é proibido por tipo)

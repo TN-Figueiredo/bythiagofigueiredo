@@ -97,7 +97,12 @@ describe('estado de leitura do título (tabela-verdade do §5)', () => {
       estado: 'em_andamento', sumindo: false, passagens: 8, desde: iso(AGORA - 50 * H), ate: iso(AGORA - 3 * H),
       versoes: [{ ref: 'a', rodadasEmW: 5, ultimaVista: iso(AGORA - 3 * H) }, { ref: 'b', rodadasEmW: 3, ultimaVista: iso(AGORA - 9 * H) }],
     })
-    expect(estadoTitulo(ent({}, { titulo: linha({ ficou: ficouT({ sumindo: true }) }) }))).toMatchObject({ estado: 'em_andamento', sumindo: true })
+    // sumindo: a versão que saiu de W (rodadasEmW 0) vem junto, para o texto dizer qual não aparece mais
+    const sum = linha({ ficou: ficouT({ sumindo: true, versoes: [{ v: 0, rodadas_em_w: 8, ultima_vista: iso(AGORA - 3 * H) }] }) })
+    expect(estadoTitulo(ent({}, { titulo: sum }))).toMatchObject({
+      estado: 'em_andamento', sumindo: true,
+      versoes: [{ ref: 'a', rodadasEmW: 8, ultimaVista: iso(AGORA - 3 * H) }, { ref: 'b', rodadasEmW: 0, ultimaVista: iso(AGORA - 9 * H) }],
+    })
   })
   it('7. linha estavel + possivel_teste -> provavelmente_terminou com sumidas', () => {
     const l = linha({ ficouEstado: 'estavel', ficou: ficouT({ titulo: 'a', versoes: [{ v: 0, rodadas_em_w: 8, ultima_vista: iso(AGORA - 3 * H) }] }) })

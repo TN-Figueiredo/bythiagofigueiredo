@@ -10,8 +10,8 @@ const arquivos = readdirSync(DIR).filter(f => f.endsWith('.ts') && !SERVIDOR.has
 const PERMITIDO = (m: string): boolean => m.startsWith('./') || m === '../normalizar-titulo' || m === '@/lib/youtube/thumb-hamming'
 
 describe('pureza do observador de trocas', () => {
-  it('há arquivos para conferir (ensaio, guarda, inferir, selecao, estado-de-leitura, flag)', () => {
-    expect(arquivos.sort()).toEqual(['ensaio.ts', 'estado-de-leitura.ts', 'flag.ts', 'guarda.ts', 'inferir.ts', 'selecao.ts'])
+  it('há arquivos para conferir (ensaio, guarda, inferir, selecao, estado-de-leitura, flag, textos)', () => {
+    expect(arquivos.sort()).toEqual(['ensaio.ts', 'estado-de-leitura.ts', 'flag.ts', 'guarda.ts', 'inferir.ts', 'selecao.ts', 'textos.ts'])
   })
   for (const a of arquivos) {
     it(a, () => {
