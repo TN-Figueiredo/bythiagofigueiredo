@@ -37,7 +37,7 @@ export async function lerDiasDosTestes(sb: SupabaseClient, siteId: string, testI
           .eq('site_id', siteId)
           .order('test_id')
           .order('day_pt')
-          .range(de, ate) as unknown as PromiseLike<{ data: unknown[] | null; error: { code?: string | null; message?: string | null } | null }>,
+          .range(de, ate),
       TETO_LINHAS_POR_TESTE * lote.length,
     )
     if (!lido.ok) return { ok: false, motivo: lido.motivo, detalhe: lido.detalhe }

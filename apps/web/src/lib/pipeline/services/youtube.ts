@@ -19,7 +19,6 @@ import { nicheDefs, readNiches, type NicheRow } from '@/lib/youtube/observatorio
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
 import { claim } from './forja-queue'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { placarDoTeste, regraDoTeste, type Placar } from '@/lib/youtube/ab-gravacao/placar'
 import { lerDiasDosTestes, lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 
@@ -1140,7 +1139,7 @@ export async function listAbTests(
   if (error) return err('DB_ERROR', 'Failed to load tests', 500)
 
   const linhas = (data ?? []) as Record<string, unknown>[]
-  const lido = await lerDiasDosTestes(supabase as unknown as SupabaseClient, siteId, linhas.map(r => String(r.id)))
+  const lido = await lerDiasDosTestes(supabase, siteId, linhas.map(r => String(r.id)))
   if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
 
   const agora = new Date()
@@ -1177,7 +1176,7 @@ export async function getAbTest(
   if (!test) return err('NOT_FOUND', 'Test not found', 404)
 
   const row = test as Record<string, unknown>
-  const lido = await lerDiasDoTeste(supabase as unknown as SupabaseClient, siteId, id)
+  const lido = await lerDiasDoTeste(supabase, siteId, id)
   if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
   const agora = new Date()
   const detail = projetarTeste(row, agora, placarDaLinha(row, lido.dias, variantesOrdenadas(row), agora))
@@ -1224,7 +1223,7 @@ export async function getAbTestFunnel(
   // Variantes com ciclo; o A/B não cria mais link rastreado desde 10/2026 (P3): link_clicks null, per_link [], janela null.
   const variantIds = [...new Set((cycles ?? []).map(c => c.variant_id))]
 
-  const lido = await lerDiasDoTeste(supabase as unknown as SupabaseClient, siteId, id)
+  const lido = await lerDiasDoTeste(supabase, siteId, id)
   if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
   const placar = placarDaLinha(test as Record<string, unknown>, lido.dias, variantIds.map(v => ({ variant_id: v })), new Date())
 

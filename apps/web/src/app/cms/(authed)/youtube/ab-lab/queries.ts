@@ -1,6 +1,5 @@
 import { cache } from 'react'
 import { z } from 'zod'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { placarDoTeste, faixaDeDias, regraDoTeste } from '@/lib/youtube/ab-gravacao/placar'
 import { lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
@@ -194,7 +193,7 @@ export const getTestResults = cache(async (testId: string): Promise<AbTestResult
   const allCycles = (cycles ?? []) as CicloSemEntrega[]
 
   // Impressões, cliques e CTR vêm de `ab_test_dias` (placar). Falha de leitura é erro de página (D-F3-5).
-  const lido = await lerDiasDoTeste(supabase as unknown as SupabaseClient, siteId, testId)
+  const lido = await lerDiasDoTeste(supabase, siteId, testId)
   if (!lido.ok) throw new Error(`ab_lab_leitura: ab_test_dias: ${lido.motivo}${lido.detalhe ? ` (${lido.detalhe})` : ''}`)
   const regra = regraDoTeste(test)
   const agora = new Date()
