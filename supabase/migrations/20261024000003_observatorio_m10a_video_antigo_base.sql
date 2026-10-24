@@ -5,8 +5,50 @@
 --   apply_competitor_tier_plan.ignorados_congelados.
 -- Ordem dura (02 §10.8, passos 1 e 2): esta migration ANTES do código que lê as colunas.
 -- Depende só de ordem da M2 (arquivo posterior e push separado, depois da M2 conferida); não usa objeto dela.
--- Idempotente: add column/create table/create index if not exists, create or replace function, drop trigger if exists.
+-- Idempotente: add column/create table if not exists, create or replace function, drop trigger if exists.
+-- Guardas no TOPO (antes de qualquer escrita): corpo instalado das 4 funções redefinidas = o das migrations (antes) ou o desta (depois),
+-- E10 aplicada, índice da E9 presente. Qualquer divergência recusa com M10a:<causa> e nada é escrito.
 set lock_timeout = '3s';
+
+-- 0. Guardas (padrão da M2, bloco 11). md5 do prosrc medido no bythiago_int depois da última migration que define cada função.
+do $$
+declare
+  v_src text;
+  r record;
+begin
+  if pg_catalog.to_regprocedure('public.competitor_channel_pause_covers(uuid,timestamptz,interval)') is null then
+    raise exception 'M10a: a E10 (competitor_channel_pause_covers) tem de estar aplicada antes da M10a' using errcode = 'P0001';
+  end if;
+  if not exists (select 1 from pg_catalog.pg_indexes where schemaname = 'public' and indexname = 'idx_competitor_readings_video'
+                    and indexdef like '%(video_id)%') then
+    raise exception 'M10a: falta o índice de competitor_readings por vídeo (E9)' using errcode = 'P0001';
+  end if;
+  for r in
+    select * from (values
+      ('apply_competitor_tier_plan', 'public.apply_competitor_tier_plan(uuid,uuid,jsonb,date)', '033d6a127e15d03a9252e4384c876a8a', '17e38443c61dea6524e8635de4fd0bda'),
+      ('competitor_series_health', 'public.competitor_series_health(uuid,timestamptz)', '6b8bc09657c93975e382c9f710c7357f', '943e486602c5ec4e29b13e2d312f998e'),
+      ('competitor_channel_removal_impact', 'public.competitor_channel_removal_impact(uuid,uuid)', '0f3cbc176f87d6305af10ccc7977fcb0', '171c49ae4ae11e10df37098848a8c308'),
+      ('pin_competitor_video', 'public.pin_competitor_video(uuid,uuid,uuid,integer)', 'a74262cea77beeced46749e1dad3d127', null),
+      ('pin_competitor_video', 'public.pin_competitor_video(uuid,uuid,uuid,integer,boolean)', null, 'bbfa7ba64cc8130faeb8280c38f178c0')
+    ) as t(nome, assinatura, md5_antes, md5_depois)
+  loop
+    select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure(r.assinatura);
+    if v_src is null then
+      if r.nome = 'pin_competitor_video' then
+        continue; -- a pin tem duas assinaturas possíveis; a ausência de ambas é conferida abaixo
+      end if;
+      raise exception 'M10a:%_ausente', r.nome using errcode = 'P0001'; -- Phil R-1: as outras 3 têm de existir
+    end if;
+    if pg_catalog.md5(v_src) is distinct from r.md5_antes and pg_catalog.md5(v_src) is distinct from r.md5_depois then
+      raise exception 'M10a:%_divergente', r.nome using errcode = 'P0001',
+        detail = 'o corpo instalado não é o das migrations nem o da M10a (md5 ' || pg_catalog.md5(v_src) || '): conferir antes de sobrescrever';
+    end if;
+  end loop;
+  if pg_catalog.to_regprocedure('public.pin_competitor_video(uuid,uuid,uuid,integer)') is null
+     and pg_catalog.to_regprocedure('public.pin_competitor_video(uuid,uuid,uuid,integer,boolean)') is null then
+    raise exception 'M10a:pin_competitor_video_ausente' using errcode = 'P0001';
+  end if;
+end $$;
 
 -- 1. O toco (02 §10.8, "O toco e os três estados"). Contagem nula fica nula ("não medido"), nunca zero.
 alter table public.competitor_videos
@@ -32,6 +74,10 @@ begin
     return new;
   end if;
   if new.archive_dropped_at is not null and new.archive_frozen_at is null then
+    raise exception 'retirada_sem_congelamento' using errcode = 'P0001', detail = old.id::text;
+  end if;
+  -- a ordem dos estágios é invariante do banco: congelar e retirar no mesmo UPDATE pularia a leitura mensal e a carência
+  if old.archive_frozen_at is null and new.archive_dropped_at is not null then
     raise exception 'retirada_sem_congelamento' using errcode = 'P0001', detail = old.id::text;
   end if;
   if old.archive_frozen_at is not null and new.archive_frozen_at is not null
@@ -99,11 +145,11 @@ begin
   end loop;
 end $$;
 
--- 4. P36: a retirada e a remoção buscam leituras da forja por vídeo.
-create index if not exists idx_competitor_readings_video on public.competitor_readings (video_id) where video_id is not null;
+-- 4. P36: a retirada e a remoção buscam leituras da forja por vídeo e usam o índice inteiro (video_id) da E9
+--    (20261015000001:37), conferido no topo. Não se cria outro: o nome já existe e um parcial exigiria rebuild com trava.
 
 -- 5. Ponto 4 (fechamento da faixa): vídeo congelado nunca troca de faixa (o congelamento só fecha a aberta, na M10b).
---    Cópia literal de 20261012000003_observatorio_a5_e2_serie_faixas.sql:66-111, com DUAS mudanças: o retorno ganha `ignorados_congelados` (os congelados do plano, que não são tocados: a defesa não fica calada; M-2) e o "where" do laço
+--    Cópia literal de 20261012000003_observatorio_a5_e2_serie_faixas.sql:66-111, com DUAS mudanças: o retorno ganha `ignorados_congelados` (os congelados DISTINTOS citados no plano, que não são tocados: a defesa não fica calada; M-2) e o "where" do laço
 --    ganha "and v.archive_frozen_at is null". O resto (trava, reabertura da semanal, retorno) é idêntico.
 create or replace function public.apply_competitor_tier_plan(
   p_site_id uuid, p_channel_id uuid, p_changes jsonb, p_today date
@@ -144,18 +190,12 @@ begin
   if v_reopen then
     update public.competitor_channels set weekly_pass_date = null where id = p_channel_id and weekly_pass_date is not null;
   end if;
-  return jsonb_build_object('changed', v_changed, 'ignorados_congelados', (select count(*) from jsonb_to_recordset(coalesce(p_changes, '[]'::jsonb)) as x(video_id uuid, tier text) join public.competitor_videos v on v.id = x.video_id and v.competitor_channel_id = p_channel_id where v.archive_frozen_at is not null));
+  return jsonb_build_object('changed', v_changed, 'ignorados_congelados', (select count(distinct x.video_id) from jsonb_to_recordset(coalesce(p_changes, '[]'::jsonb)) as x(video_id uuid, tier text) join public.competitor_videos v on v.id = x.video_id and v.competitor_channel_id = p_channel_id where v.archive_frozen_at is not null));
 end $$;
 revoke all on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) from public, anon, authenticated;
 grant execute on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) to service_role;
 
--- Guarda (conserto 14/10): esta função leva o remendo da E10; sem a E10 aplicada antes, parar aqui com mensagem clara.
-do $$
-begin
-  if to_regprocedure('public.competitor_channel_pause_covers(uuid,timestamptz,interval)') is null then
-    raise exception 'M10a: a E10 (competitor_channel_pause_covers) tem de estar aplicada antes da M10a';
-  end if;
-end $$;
+-- (a guarda da E10 está no topo, bloco 0.)
 
 -- Ponto 5 (prova da série): cópia de 20261012000004 com três mudanças (CTE vid_todos + congelado, CTE vid sem congelados, chave arquivados).
 create or replace function public.competitor_series_health(p_site_id uuid, p_now timestamptz)
@@ -168,10 +208,9 @@ returns jsonb language sql stable security invoker set search_path = '' as $$
            -- coalesce: nunca NULO (um NULO tiraria o vídeo de `fora` E de `not fora`, isto é, de todas as contas, em silêncio)
            coalesce(c.sync_status = 'error' and c.missing_since is null
                     and c.sync_error_since < p_now - interval '3 days', false) as canal_erro_3d,
+           -- remendo da E10 na linha única que a E10 gera (cobertura da pausa de canal; sem ele a pausa recusa com E10:pausa_sem_remendo)
            (coalesce(v.views_hidden, false) or coalesce(v.live_broadcast_content, 'none') = 'upcoming'
-            or v.missing_since is not null or c.missing_since is not null
-            -- remendo da E10 (cobertura da pausa de canal): sem ele a pausa de canal recusa com E10:pausa_sem_remendo
-            or public.competitor_channel_pause_covers(c.id, p_now, interval '3 days')
+            or v.missing_since is not null or c.missing_since is not null or public.competitor_channel_pause_covers(c.id, p_now, interval '3 days')
             or coalesce(c.sync_status = 'error' and c.sync_error_since < p_now - interval '3 days', false)) as fora,
            -- o canal já foi lido pelo código da E2 e terminou uma sincronização boa nas últimas 24 h
            (c.last_seen_at is not null and c.last_ok_synced_at > p_now - interval '1 day') as canal_em_dia,

@@ -40,10 +40,10 @@ export const TETO_LINHAS_POR_CHAMADA = 5_000
  * 99.200 estreitas em páginas de 2.000 = 11,7 s (metade do maxDuration = 60 é 30 s; custo quadrático, ~190 mil linhas chegariam a 30 s).
  * NÃO MEDIDO contra a maior unidade de produção × 3 (diária, early, marcas, horária e comentários; o script do dono é
  * m3b/m3b-0-leituras-prod.sh, saída em saidas/m3b-0-*.txt); o valor é da medida sintética. AMARRAÇÃO (Phil I3): o teto vale se o
- * maior de produção × 3 ficar abaixo de 100.000 (60.000 se a CPU de produção for 2x mais lenta que a local); acima disso, pagar a D25
+ * maior de produção × 3 ficar abaixo de 60.000 (100.000 só se a CPU de produção igualar a local; 11,7 s × 4,05 = 47,4 s > 30 s com 99.200 linhas); acima disso, pagar a D25
  * (hash incremental no read_unit) ANTES da Tarefa 11. Unidade acima do teto responde 413 e só vira vermelho 30 dias depois.
  */
-export const TETO_LINHAS_DA_UNIDADE = 100_000
+export const TETO_LINHAS_DA_UNIDADE = 60_000
 export const TETO_BYTES_POR_PARTE = 3 * 1024 * 1024
 export const TETO_PARTES = 99
 export const TENTATIVAS_DE_LEITURA = 3

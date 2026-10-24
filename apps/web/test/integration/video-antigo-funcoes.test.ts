@@ -114,6 +114,16 @@ describe.skipIf(pular)('M10a: funções SQL dos pontos 4, 5, 7 e 8 (pula até a 
     })
   })
 
+  it('ponto 4 (M-3): o mesmo congelado citado duas vezes no plano conta uma vez', async () => {
+    await emTransacao(async () => {
+      const { siteId, canal, videos } = await semear(1)
+      await congela(videos[0]!)
+      const plano = JSON.stringify([{ video_id: videos[0], tier: 'diaria' }, { video_id: videos[0], tier: 'semanal' }])
+      const r = (await um(`select public.apply_competitor_tier_plan($1, $2, $3::jsonb, current_date) j`, [siteId, canal, plano])).j
+      expect(r).toEqual({ changed: 0, ignorados_congelados: 1 })
+    })
+  })
+
   it('ponto 4: o plano que pede faixa para um congelado não o toca, não cai na guarda e é contado', async () => {
     await emTransacao(async () => {
       const { siteId, canal, videos } = await semear(2)
