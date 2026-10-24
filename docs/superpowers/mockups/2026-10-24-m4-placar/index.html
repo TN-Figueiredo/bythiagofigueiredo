@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Placar do teste A/B (mockup M4)</title>
+<style>
+/* Mockup M4 r1 (24/10/2026), S8-F3 T5. Mesmos tokens do S9 (18/10). Só hex/rgba literais (sem color-mix). Texto >= 12 px. Dados SINTÉTICOS.
+   Seletor por URL: ?estado=&tema=claro|escuro&largura=1440|390|ambas */
+*,*::before,*::after{box-sizing:border-box}
+:root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
+html{background:var(--pg)}
+body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--pgt);background:var(--pg)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;background:var(--pgs);border-bottom:1px solid var(--pgb)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--pgm)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #40382D;border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:34px;padding:0 11px;border:0;background:transparent;color:var(--pgm);cursor:pointer}
+.seg button[aria-pressed="true"]{background:#F5EFE6;color:#100E0C;font-weight:600}
+.wrap{max-width:1520px;margin:0 auto;padding:24px 16px 80px}
+h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
+.lede{max-width:78ch;color:var(--pgm);margin:0 0 20px}
+.figs{display:flex;flex-direction:column;gap:26px;align-items:flex-start;overflow-x:auto;max-width:100%}
+.fig{margin:0}.fig>figcaption{font-size:13px;color:var(--pgm);margin-bottom:8px}
+
+.frame{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--on-accent:#1A120A;--nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;--nm-fio:rgba(229,156,192,.14);
+  --warn:#F5B13D;--warn-bg:rgba(245,158,11,.10);--warn-line:#C98A1B;
+  --yt:#9FB4C9;--yt-bg:rgba(159,180,201,.08);--yt-line:#6B8199;
+  --skel:#2B2620;--skel2:#363028;
+  background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;border:1px solid var(--border);border-radius:10px;padding:24px;font-size:14px}
+.frame[data-theme="light"]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--on-accent:#FFF8F1;--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--nm-fio:rgba(142,42,98,.10);
+  --warn:#7A4F00;--warn-bg:rgba(138,90,0,.09);--warn-line:#8A5A00;
+  --yt:#34506B;--yt-bg:rgba(52,80,107,.07);--yt-line:#6B8199;
+  --skel:#E7DECF;--skel2:#F2EBDF;color-scheme:light}
+.frame.w1440{width:1440px}.frame.w390{width:390px;padding:16px 12px}
+.frame :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.frame h2,.frame h3,.frame p{margin:0}
+.num{font-variant-numeric:tabular-nums;font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+.meta{font-size:12.5px;color:var(--muted)}
+.nm{display:inline-block;padding:1px 7px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);font:400 12px/16px Inter,system-ui,sans-serif;background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 13px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-2);color:var(--text);font:500 13px/18px Inter,system-ui,sans-serif;cursor:pointer;text-decoration:none}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.ghost{background:transparent}
+@container (max-width:640px){.btn{min-height:44px}}
+
+.th{display:grid;place-items:center;border-radius:5px;color:rgba(255,255,255,.92);font:600 15px/1 Georgia,serif;flex:none;aspect-ratio:16/9;width:80px}
+.tA{background:linear-gradient(135deg,#C2562E,#E8A15A 60%,#F3D19A)}
+.tB{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+.tC{background:linear-gradient(135deg,#3C5A1A,#7FA23D 60%,#CBE08E)}
+.tD{background:linear-gradient(135deg,#5B3A86,#9A74C9 60%,#D8C2F0)}
+
+.hd{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.hd .th{width:128px}
+.hd h2{font:600 19px/1.3 Georgia,serif;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ttl{flex:1;min-width:0}
+.crumb{font-size:12.5px;color:var(--muted)}
+.selos{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.selo{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);white-space:nowrap}
+.selo svg{flex:none}
+.selo.lab{border-color:var(--accent);color:var(--accent)}
+.selo.old{border:1px dashed var(--border-strong);color:var(--muted);font-weight:500}
+.selo.warn{border-color:var(--warn-line);color:var(--warn);background:var(--warn-bg)}
+
+.sum{margin:18px 0 6px;font:600 21px/1.35 Georgia,serif;max-width:72ch;text-wrap:balance}
+.sum small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:4px}
+@container (max-width:640px){.sum{font-size:18px}}
+
+.band{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-top:14px}
+.band .ic{flex:none;margin-top:2px}
+.band h3{font:600 14.5px/1.35 Inter,system-ui,sans-serif}
+.band p{font-size:13.5px;color:var(--muted);margin-top:2px;max-width:78ch}
+.band.warn{border-color:var(--warn-line);background:var(--warn-bg);border-left-width:4px;color:var(--warn)}
+.band.warn h3{color:var(--warn)}
+.band.yt{border:1px dashed var(--yt-line);background:var(--yt-bg);color:var(--yt)}
+.band.calm{padding:8px 12px;align-items:center;margin-top:12px}
+.band.calm p{margin:0;color:var(--muted)}
+
+.sec{margin-top:24px}
+.sec>h3,.sec .sh{font:600 15px/1.3 Inter,system-ui,sans-serif;display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.sh .upd{font:400 12.5px/1.3 Inter,system-ui,sans-serif;color:var(--muted);margin-left:auto}
+.sh .upd.warn{color:var(--warn);font-weight:600;display:inline-flex;gap:5px;align-items:center}
+.info{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--border-strong);background:transparent;color:var(--muted);font:600 12px/1 Inter,system-ui,sans-serif;cursor:pointer;position:relative}
+@container (max-width:640px){.info{width:44px;height:44px;margin:-10px 0}}
+.tip{display:none;position:absolute;z-index:3;left:0;top:30px;width:min(340px,80vw);padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font:400 12.5px/1.45 Inter,system-ui,sans-serif;text-align:left;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+@container (max-width:640px){.tip{top:46px;width:min(300px,76vw)}}
+.info[aria-expanded="true"] .tip{display:block}
+.tip b{font-weight:600}
+
+/* placar: um grid por linha, mesma markup em 1440 e 390 */
+.card{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:6px 16px 4px}
+.vhead,.vr{display:grid;grid-template-columns:minmax(0,1fr) 150px 170px 44px;gap:0 16px;align-items:center}
+.vhead{font:500 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);padding:8px 0;border-bottom:1px solid var(--border)}
+.vhead span:nth-child(2),.vhead span:nth-child(3){text-align:right}
+.vrow{border-bottom:1px solid var(--border-subtle)}
+.vrow:last-child{border-bottom:0}
+.vr{min-height:56px;padding:9px 0}
+.vh{display:flex;gap:10px;align-items:center;min-width:0}
+.vchip{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:5px;font:700 13px/1 Inter,system-ui,sans-serif;color:#fff;flex:none}
+.cA{background:#B8481A}.cB{background:#2B6DA8}.cC{background:#4C6B1F}.cD{background:#7A4FA0}
+.vt{min-width:0}
+.vt b{display:block;font:600 13.5px/1.35 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vt .ap{font-size:12px;color:var(--muted);margin-top:1px;display:flex;gap:4px 10px;flex-wrap:wrap}
+.vi,.vc{text-align:right;font-size:14px}
+.vi .lb,.vc .lb{display:none}
+.vc .de{color:var(--muted);font-size:12.5px}
+.big{font-size:16px;font-weight:600}
+.ag{display:inline-flex;gap:6px;align-items:center;padding:1px 8px;border:1px dashed var(--yt-line);border-radius:999px;color:var(--yt);background:var(--yt-bg);font:500 12px/18px Inter,system-ui,sans-serif;white-space:nowrap}
+.dash{color:var(--muted)}
+.chev{width:44px;height:44px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center;border-radius:6px}
+.chev svg{transition:transform .15s}
+.chev[aria-expanded="true"] svg{transform:rotate(180deg)}
+.vx{padding:2px 0 14px 36px;font-size:13px;color:var(--muted);display:none}
+.vx.open{display:block}
+.vx b{color:var(--text);font-weight:600}
+.vx ul{margin:6px 0 0;padding-left:18px}
+@container (max-width:640px){
+ .card{padding:4px 10px}
+ .vhead{display:none}
+ .vr{grid-template-columns:1fr 1fr 44px;grid-template-areas:"h h h" "i c x";gap:8px 10px;padding:12px 0}
+ .vh{grid-area:h;align-items:flex-start}
+ .vh .th{width:72px}
+ .vt b{white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+ .vi{grid-area:i;text-align:left}.vc{grid-area:c;text-align:left}
+ .chev{grid-area:x}
+ .vi .lb,.vc .lb{display:block;font-size:12px;color:var(--muted)}
+ .vx{padding-left:0}
+}
+.apoio{margin-top:10px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.apoio>span{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+
+/* faixa de dias (bloco separável) */
+.dias{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.dias .sh{margin-bottom:8px}
+.strip{display:flex;flex-wrap:wrap;gap:6px}
+.dc{width:34px;height:42px;border-radius:5px;border:1px solid var(--border-strong);background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 12px/1.2 Inter,system-ui,sans-serif;gap:1px}
+.dc i{font-style:normal;font-weight:500;font-size:12px}
+.dc.m{background:var(--sunk)}
+.dc.z{background:transparent}
+.dc.a{background:transparent;border-style:dotted;color:var(--muted)}
+.dc.g{border:1px dashed var(--yt-line);background:var(--yt-bg);color:var(--yt)}
+.dc.n{border-color:var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.dc.f{border-color:var(--faint);color:var(--muted);background:transparent;opacity:.9}
+.lv{color:inherit}
+.lA{color:#E0703A}.lB{color:#6FA8DC}.lC{color:#9CC25A}.lD{color:#B895E0}
+.frame[data-theme="light"] .lA{color:#B8481A}.frame[data-theme="light"] .lB{color:#2B6DA8}.frame[data-theme="light"] .lC{color:#4C6B1F}.frame[data-theme="light"] .lD{color:#7A4FA0}
+.leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted);margin-top:8px}
+.leg span{display:inline-flex;gap:5px;align-items:center}
+@container (max-width:640px){.strip{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.dc{width:auto;height:44px}}
+
+/* régua */
+.ruler{max-width:760px}
+.rbar{position:relative;height:14px;background:var(--sunk);border:1px solid var(--border-subtle);border-radius:7px;overflow:hidden}
+.rbar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
+.mark{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
+
+/* carregando / erro */
+.sk{background:linear-gradient(90deg,var(--skel) 0,var(--skel2) 50%,var(--skel) 100%);background-size:200% 100%;border-radius:6px;animation:sh 1.4s linear infinite}
+@keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}.chev svg{transition:none}}
+.err{border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:10px;padding:18px;margin-top:18px;display:flex;gap:12px;align-items:flex-start;color:var(--warn)}
+.err h3{font:600 16px/1.3 Inter,system-ui,sans-serif;color:var(--warn)}
+.err p{color:var(--muted);margin-top:4px;font-size:13.5px}
+.err .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.err .btn{color:var(--text)}
+</style></head><body>
+<div class="ctl">
+ <div class="grp">Estado <div class="seg" id="sEstado" role="group" aria-label="Estado"></div></div>
+ <div class="grp">Tema <div class="seg" id="sTema" role="group" aria-label="Tema"><button data-v="escuro">Escuro</button><button data-v="claro">Claro</button></div></div>
+ <div class="grp">Largura <div class="seg" id="sLarg" role="group" aria-label="Largura"><button data-v="ambas">1440 e 390</button><button data-v="1440">1440</button><button data-v="390">390</button></div></div>
+</div>
+<div class="wrap">
+ <h1>Placar do teste A/B do YouTube, sem vencedor</h1>
+ <p class="lede">Mockup M4 r1 (S8-F3). Troque estado, tema e largura no topo ou pela URL (?estado=atrasado&amp;tema=claro&amp;largura=390). Dados sintéticos. Nenhum líder, lift, intervalo ou % na linha: só contagens do YouTube. Hachura rosa = "não medido"; tracejado azul-acinzentado = pendente do YouTube (aguardando); âmbar = dados do YouTube fora de hora; ⊘ = dia fora do placar.</p>
+ <div class="figs" id="figs"></div>
+</div>
+<script>
+const SV=(p,a='')=>'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" '+a+'>'+p+'</svg>';
+const I={
+ clock:SV('<circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 4v3.2l2 1.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'),
+ warn:SV('<path d="M7 1.5l6 10.5H1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 5.5v3M7 10.2v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
+ yt:SV('<rect x="1.5" y="3" width="11" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/><path d="M6 5.5v3l2.6-1.5z" fill="currentColor"/>'),
+ lab:SV('<path d="M5 1h4M6 1v4L2 12h10L8 5V1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'),
+ old:SV('<path d="M2 7h10M8 3l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'),
+ chev:SV('<path d="M3 5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>','width="16" height="16"'),
+ skip:SV('<circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.2 10.8l7.6-7.6" stroke="currentColor" stroke-width="1.5"/>')
+};
+const NMC='<span class="nm">não medido</span>';
+const n=x=>x.toLocaleString('pt-BR');
+function info(h){return '<button class="info" type="button" aria-expanded="false" aria-label="Como ler" data-info>ⓘ<span class="tip" role="note">'+h+'</span></button>'}
+const T1='5 - Como somos controlados - Consistência e Compromisso (Part 4)';
+const T100='Eu testei 4 títulos diferentes no mesmo vídeo durante duas semanas e o resultado final me surpreendeu muito mesmo, veja';
+/* variante: l,t, st(ok|sem|ag|semctr|zero|aus|nt), imp, cl, ctr, val, ag, nm(dias não medidos), z(dias zero) */
+const V=(l,t,o)=>Object.assign({l,t,st:'ok',imp:0,cl:0,ctr:null,val:0,ag:0,nmd:0,z:0},o);
+/* dias: string "A m, B z, ..." -> usar helper D('Am Bz ... ') ; m medido, z zero, a ausente, g aguardando, n não medido, f fora */
+const D=s=>s.trim().split(/\s+/).map(t=>({v:t[0]==='-'?'':t[0],s:t[1]}));
+const E={
+ hoje:{rot:'Hoje, sem dia fechado',dia:'dia 1 de 14',upd:'24/10 06:10',
+  frase:['O teste começou há pouco. O YouTube ainda não fechou nenhum dia.','Os números aparecem aqui quando o primeiro dia fechar.'],band:'sem',
+  v:[V('A',T1,{st:'sem'}),V('B','Consistência e Compromisso (Part 4)',{st:'sem'})],dias:D('-g'),total:1},
+ atrasado:{rot:'Dados do YouTube atrasados',dia:'dia 7 de 14',upd:'21/10 06:10',atras:'21/10',
+  frase:['Os dados do YouTube pararam: último dia gravado 21/10. Os números abaixo estão desatualizados.','O teste segue valendo; a leitura diária não rodou desde 22/10.'],band:'atras',
+  v:[V('A',T1,{imp:412,cl:19,ctr:'4,6',val:3}),V('B','Consistência e Compromisso (Part 4)',{imp:388,cl:21,ctr:'5,4',val:3})],dias:D('Am Bm Am Bm Am Bm')},
+ aguardando:{rot:'Aguardando',dia:'dia 12 de 14',upd:'24/10 06:10',prox:'31/10',
+  frase:['2 variantes, 4.210 impressões no total. Contagens do YouTube; sem comparação entre variantes por enquanto.','2 dias ainda aguardam o YouTube; fecham no máximo até 31/10.'],
+  v:[V('A',T1,{imp:2105,cl:97,ctr:'4,6',val:5,ag:1}),V('B','Consistência e Compromisso (Part 4)',{imp:2105,cl:112,ctr:'5,3',val:5,ag:1})],
+  dias:D('Am Bm Am Bm Am Bm Am Bm Am Bm Ag Bg')},
+ descartados:{rot:'Com descartados',dia:'dia 9 de 14',upd:'24/10 06:10',desc:2,semctr:3,
+  frase:['2 variantes, 1.760 impressões no total. Contagens do YouTube; sem comparação entre variantes por enquanto.','Dois dias de troca ou dia parcial ficaram fora do placar.'],
+  v:[V('A',T1,{imp:930,cl:41,ctr:'4,4',val:4}),V('B','Consistência e Compromisso (Part 4)',{imp:830,cl:39,ctr:'4,7',val:3})],
+  dias:D('Am Bf Am Bm Af Bm Am Bm Am')},
+ naomedido:{rot:'Não medido',dia:'dia 6 de 14',upd:'24/10 06:10',
+  frase:['Os dias medidos ainda não têm cliques: faltam dados do YouTube.','O YouTube trouxe impressões, mas não o CTR de B.'],
+  v:[V('A',T1,{st:'zero',imp:0,cl:0,z:3,val:3}),V('B','Consistência e Compromisso (Part 4)',{st:'semctr',imp:5000,nmd:3})],
+  dias:D('Az Bn Az Bn Az Bn'),semctr:3},
+ poucas:{rot:'1 a 3 impressões',dia:'dia 14 de 14',upd:'24/10 06:10',
+  frase:['2 variantes, 5 impressões no total. Contagens do YouTube; sem comparação entre variantes por enquanto.','Contagens muito pequenas: um clique muda tudo. Não leia isto como resultado.'],
+  v:[V('A',T1,{imp:3,cl:1,ctr:'33,3',val:2,z:5,aus:1}),V('B','Consistência e Compromisso (Part 4)',{imp:2,cl:0,ctr:'0,0',val:1,z:6})],
+  dias:D('Aa Ba Am Ba Az Bz Aa Ba Az Bm Aa Ba Az Bz')},
+ cheio:{rot:'Teste cheio, 4 variantes',dia:'dia 14 de 14',upd:'24/10 06:10',desc:1,semctr:2,
+  frase:['4 variantes, 1.563.140 impressões no total. Contagens do YouTube; sem comparação entre variantes por enquanto.','Teste de 14 dias; todos os dias fechados.'],
+  v:[V('A',T100,{imp:312840,cl:14120,ctr:'4,5',val:4,z:0,expand:1}),V('B','Consistência e Compromisso (Part 4)',{imp:1234567,cl:61728,ctr:'5,0',val:4}),V('C',T1,{imp:9812,cl:405,ctr:'4,1',val:3,nmd:1}),V('D','Outro título curto',{imp:5921,cl:0,st:'ok',ctr:'0,0',val:3,z:3,ag:0})],
+  dias:D('Am Bm Cm Dm Am Bm Cm Dz Am Bm Cn Dz Af Bm')},
+ naoiniciado:{rot:'Teste não iniciado',dia:'agendado',
+  frase:['O teste ainda não começou.','Ele começa em 25/10, às 08:00. Até lá não há números.'],band:'none',
+  v:[V('A',T1,{st:'nt'}),V('B','Consistência e Compromisso (Part 4)',{st:'nt'})],dias:[]},
+ v1:{rot:'Teste v1 (regra antiga)',dia:'dia 8 de 14',upd:'24/10 06:10',v1:1,
+  frase:['2 variantes, 2.340 impressões no total. Contagens do YouTube; sem comparação entre variantes por enquanto.','Este teste termina por duração, no dia 14.'],
+  v:[V('A',T1,{imp:1190,cl:52,ctr:'4,4',val:4}),V('B','Consistência e Compromisso (Part 4)',{imp:1150,cl:58,ctr:'5,0',val:4})],dias:D('Am Bm Am Bm Am Bm Am Bm')},
+ carregando:{rot:'Carregando'},erro:{rot:'Erro'}
+};
+const ORDEM=['hoje','atrasado','aguardando','descartados','naomedido','poucas','cheio','naoiniciado','v1','carregando','erro'];
+
+function header(e,st){
+ const selos=(e.v1?'<span class="selo old">'+I.old+'Regra antiga: encerra por duração</span>':'')+'<span class="selo lab">'+I.lab+'Teste do Lab rodando'+(e.dia?', '+e.dia:'')+'</span>'+(e.atras?'<span class="selo warn">'+I.warn+'Dados do YouTube parados</span>':'');
+ return '<div class="hd"><div class="th tA">A</div><div class="ttl"><div class="crumb">A/B Lab / Vídeos / qIg9a7vqcNo</div><h2 title="'+T1+'">'+T1+'</h2><div class="selos">'+selos+'</div></div></div>';
+}
+function faixa(e){
+ let h='';
+ if(e.band==='atras')h='<div class="band warn" role="status"><span class="ic">'+I.warn+'</span><div><h3>Dados do YouTube fora de hora</h3><p>O último dia gravado é 21/10. Hoje é 24/10. Os números abaixo não incluem os dias mais recentes.</p></div></div>';
+ else if(e.band==='sem')h='<div class="band yt" role="status"><span class="ic">'+I.clock+'</span><div><h3>Sem dia fechado</h3><p>O YouTube fecha cada dia depois de algum tempo. O primeiro dia deste teste ainda está aberto.</p></div></div>';
+ else if(e.band==='none')h='';
+ return h+'<div class="band yt calm" role="note"><span class="ic">'+I.yt+'</span><p>YouTube: nenhum teste nativo visto neste vídeo. Verificado há 3 h.</p></div>';
+}
+function cells(v){
+ const L=x=>'<span class="num">'+x+'</span>';
+ switch(v.st){
+  case 'nt':return ['<span class="dash">—</span>','<span class="dash">—</span>'];
+  case 'sem':return ['<span class="ag">'+I.clock+'aguardando</span>','<span class="ag">'+I.clock+'aguardando</span>'];
+  case 'semctr':return [L('<span class="big">'+n(v.imp)+'</span>'),NMC];
+  case 'zero':return [L('<span class="big">0</span>'),L('<span class="big">0</span>')];
+  default:return [L('<span class="big">'+n(v.imp)+'</span>'),L('<span class="big">'+n(v.cl)+'</span> <span class="de">de '+n(v.imp)+'</span>')];
+ }
+}
+function apoio(v){
+ if(v.st==='sem')return '<span>nenhum dia fechado</span>';
+ if(v.st==='nt')return '';
+ const p=[];
+ p.push(v.val+(v.val===1?' válido':' válidos'));
+ if(v.ag)p.push(v.ag+' aguardando '+I.clock);
+ if(v.nmd)p.push(v.nmd+' não medido ∅');
+ return p.map(x=>'<span>'+x+'</span>').join('');
+}
+function expand(v){
+ if(v.st==='sem'||v.st==='nt')return 'Sem dia fechado ainda: nada a mostrar.';
+ if(v.st==='semctr')return '<b>CTR: não medido.</b> O YouTube trouxe '+n(v.imp)+' impressões nos dias medidos, mas não o CTR. Os cliques não podem ser estimados e não são mostrados como 0.';
+ if(v.st==='zero')return '<b>0 cliques em 0 impressões.</b> O YouTube informou 0 impressões nos dias medidos.';
+ const p=(n(v.cl)+' '+(v.cl===1?'clique':'cliques')+' em '+n(v.imp)+' impressões');
+ return '<b>'+p+'</b> (CTR ≈ '+v.ctr+'%, dos dias válidos).'+(v.z?'<ul><li>'+v.z+' dias com 0 impressões informadas.</li></ul>':'');
+}
+function placar(e,w){
+ const hdr='<div class="vhead"><span>Variante</span><span>Impressões</span><span>Cliques ≈</span><span></span></div>';
+ const rows=e.v.map(v=>{
+  const c=cells(v), id='x'+w+v.l;
+  return '<div class="vrow"><div class="vr" role="group" aria-label="Variante '+v.l+'"><div class="vh"><span class="vchip c'+v.l+'">'+v.l+'</span><div class="th t'+v.l+'">'+v.l+'</div><div class="vt"><b title="'+v.t+'">'+v.t+'</b><div class="ap">'+apoio(v)+'</div></div></div>'
+  +'<div class="vi"><span class="lb">Impressões</span>'+c[0]+'</div><div class="vc"><span class="lb">Cliques ≈</span>'+c[1]+'</div>'
+  +'<button class="chev" type="button" aria-expanded="'+(v.expand?'true':'false')+'" aria-controls="'+id+'" aria-label="Detalhes da variante '+v.l+'" data-exp>'+I.chev+'</button></div>'
+  +'<div class="vx'+(v.expand?' open':'')+'" id="'+id+'">'+expand(v)+'</div></div>';
+ }).join('');
+ const upd=e.atras?'<span class="upd warn">'+I.warn+'Dados parados em '+e.atras+'</span>':(e.upd?'<span class="upd">Atualizado em '+e.upd.replace(' ',' às ')+'</span>':'<span class="upd">Sem leitura ainda</span>');
+ const tip=info('<b>Como ler este placar.</b> São contagens do YouTube dos dias fechados. Cliques ≈ é impressões × CTR de cada dia, somado (estimado, exato até 9.999 impressões por dia). O CTR é cliques ÷ impressões dos dias válidos e só aparece ao abrir a variante. Esta regra não compara variantes: sem líder, sem ganho. “Dados do YouTube” é a cópia diária dos números do YouTube.');
+ let ap='';
+ const ln=[];
+ if(e.desc)ln.push('<span>'+I.skip+' '+e.desc+(e.desc===1?' dia':' dias')+' de troca ou dia parcial, fora do placar '+info('<b>Dia fora do placar.</b> Dia de troca de variante ou dia parcial . Eles não entram nas contagens.')+'</span>');
+ if(e.semctr)ln.push('<span>'+e.semctr+(e.semctr===1?' dia':' dias')+' com impressões e sem CTR '+info('<b>Impressões sem CTR.</b> As impressões desses dias contam no total, mas o CTR não as usa; por isso não viram cliques.')+'</span>');
+ if(ln.length)ap='<div class="apoio">'+ln.join('')+'</div>';
+ return '<div class="sec"><div class="sh"><h3 style="margin:0;font:inherit">Placar por variante</h3>'+tip+upd+'</div><div class="card">'+hdr+rows+'</div>'+ap+dias(e)+'</div>';
+}
+const SY={m:'■',z:'0',a:'0*',g:I.clock,n:'∅',f:I.skip};
+function dias(e){
+ if(!e.dias||!e.dias.length)return '';
+ const nm={m:'medido',z:'zero medido',a:'o YouTube não listou o vídeo',g:'aguardando',n:'não medido',f:'fora do placar'};
+ const c=e.dias.map((d,i)=>'<div class="dc '+d.s+'" role="img" aria-label="dia '+(i+1)+', '+(d.v||'sem variante')+', '+nm[d.s]+'" title="Dia '+(i+1)+': '+nm[d.s]+'"><span class="lA l'+(d.v||'x')+'">'+(d.v||'–')+'</span><i>'+SY[d.s]+'</i></div>').join('');
+ const tip=info('<b>Faixa de dias.</b> Um quadrado por dia, com a letra da variante. ■ medido · 0 zero medido · 0* o YouTube não listou o vídeo no dia · ◷ aguardando (o YouTube ainda fecha o dia, até 10 dias) · ∅ não medido · ⊘ fora do placar (troca ou dia parcial).');
+ return '<div class="dias"><div class="sh">Dias do teste '+tip+'</div><div class="strip">'+c+'</div><div class="leg"><span>■ medido</span><span>0 zero</span><span>0* sem listagem</span><span>'+I.clock+' aguardando</span><span>∅ não medido</span><span>'+I.skip+' fora do placar</span></div></div>';
+}
+function regua(e){
+ if(!e.dia||e.dia==='agendado')return '';
+ const m=e.dia.match(/(\d+) de (\d+)/); const p=Math.round(m[1]/m[2]*100);
+ return '<div class="sec"><div class="sh">Quanto falta '+info('<b>Quanto falta.</b> Dias corridos do teste: '+(e.v1?'este teste termina por duração.':'o teste termina quando chega ao último dia planejado.')+' Não indica quem está na frente.')+'</div><div class="ruler"><div class="rbar"><i style="width:'+p+'%"></i></div><div class="mark"><span>'+e.dia+'</span><span>'+(100-p)+'% do prazo restante</span></div></div></div>';
+}
+function skeleton(){
+ return '<div class="hd"><div class="sk" style="width:128px;aspect-ratio:16/9"></div><div class="ttl"><div class="sk" style="height:14px;width:40%;margin-bottom:10px"></div><div class="sk" style="height:22px;width:85%"></div></div></div>'
+ +'<div class="sk" style="height:56px;margin-top:18px;max-width:72ch" aria-label="Carregando"></div><div class="sk" style="height:44px;margin-top:14px"></div>'
+ +'<div class="sec"><div class="sk" style="height:24px;width:200px;margin-bottom:10px"></div><div class="card" style="padding:8px 16px">'+[0,1].map(()=>'<div class="sk" style="height:51px;margin:8px 0"></div>').join('')+'</div><div class="sk" style="height:28px;margin-top:14px;width:70%"></div></div>';
+}
+function erro(){
+ return '<div class="hd"><div class="th tA">A</div><div class="ttl"><div class="crumb">A/B Lab / Vídeos / qIg9a7vqcNo</div><h2>'+T1+'</h2></div></div>'
+ +'<div class="err" role="alert"><span class="ic">'+I.warn+'</span><div><h3>Não consegui ler o placar. Nada foi perdido.</h3><p>Os dados do teste continuam guardados. Tente de novo; se persistir, a leitura falhou às 10:42.</p><div class="acts"><button class="btn pri" type="button">Tentar de novo</button><a class="btn ghost" href="#">Voltar aos testes</a></div></div></div>';
+}
+function render(k,w){
+ if(k==='carregando')return skeleton();
+ if(k==='erro')return erro();
+ const e=E[k];
+ return header(e)+'<p class="sum">'+e.frase[0]+'<small>'+e.frase[1]+'</small></p>'+faixa(e)+placar(e,w)+regua(e);
+}
+/* seletor por URL */
+const P=new URLSearchParams(location.search);
+let estado=ORDEM.includes(P.get('estado'))?P.get('estado'):'hoje';
+let tema=P.get('tema')==='claro'?'claro':'escuro';
+let larg=['1440','390'].includes(P.get('largura'))?P.get('largura'):'ambas';
+function sync(){const q=new URLSearchParams({estado,tema,largura:larg});history.replaceState(null,'','?'+q)}
+function paint(){
+ const f=document.getElementById('figs');const ws=larg==='ambas'?['1440','390']:[larg];
+ f.innerHTML=ws.map(w=>'<figure class="fig"><figcaption>'+(w==='1440'?'Desktop 1440 px':'Celular 390 px')+'</figcaption><div class="frame w'+w+'" data-theme="'+(tema==='claro'?'light':'dark')+'">'+render(estado,w)+'</div></figure>').join('');
+ document.documentElement.style.background=tema==='claro'?'#100E0C':'#100E0C';
+ document.querySelectorAll('#sEstado button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===estado));
+ document.querySelectorAll('#sTema button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===tema));
+ document.querySelectorAll('#sLarg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===larg));
+ document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();const o=b.getAttribute('aria-expanded')==='true';document.querySelectorAll('[data-info]').forEach(x=>x.setAttribute('aria-expanded','false'));b.setAttribute('aria-expanded',o?'false':'true')}));
+ document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',!o);document.getElementById(b.getAttribute('aria-controls')).classList.toggle('open',!o)}));
+ sync();
+}
+document.getElementById('sEstado').innerHTML=ORDEM.map(k=>'<button data-v="'+k+'">'+E[k].rot+'</button>').join('');
+document.addEventListener('click',ev=>{
+ const b=ev.target.closest('.seg button');
+ if(b){const g=b.parentElement.id;if(g==='sEstado')estado=b.dataset.v;if(g==='sTema')tema=b.dataset.v;if(g==='sLarg')larg=b.dataset.v;paint();return}
+ document.querySelectorAll('[data-info]').forEach(x=>x.setAttribute('aria-expanded','false'));
+});
+paint();
+</script></body></html>
