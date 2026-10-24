@@ -13,6 +13,7 @@ import type { ServiceContext } from '@/lib/pipeline/services/types'
 import * as competitors from '@/lib/pipeline/services/competitors'
 import type { ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import * as nicheSignals from '@/lib/pipeline/services/niche-signals'
+import { lerLeituraDosConcorrentes, type RespostaLeitura } from '@/lib/pipeline/services/leitura-concorrentes'
 import { mcpRequirePermission } from '@/lib/pipeline/mcp/auth'
 import * as Sentry from '@sentry/nextjs'
 import { toMcpError, toMcpSuccess } from '../errors'
@@ -77,6 +78,22 @@ export function cabeNoLimite(lista: ListaDeSinais, limite: number = LIMITE_DO_TE
   return { texto: JSON.stringify(minimo), lista: minimo }
 }
 
+/**
+ * `get_observed`: corta a LISTA de itens (do fim, os menos recentes) até o texto caber no teto, nunca a contagem, e diz quantos ficaram de fora
+ * em `itens_omitidos` (mesmo padrão do `get_signals`). Cabendo inteira, a resposta é idêntica à da rota.
+ */
+export function cabeObservado(r: RespostaLeitura, limite: number = LIMITE_DO_TEXTO_DA_FERRAMENTA): string {
+  const inteiro = JSON.stringify(r)
+  if (!r.ligada || inteiro.length <= limite) return inteiro
+  let ficam = r.itens.length
+  let texto = inteiro
+  while (texto.length > limite && ficam > 0) {
+    ficam = Math.max(0, Math.min(ficam - 1, Math.floor(ficam * (limite / texto.length))))
+    texto = JSON.stringify({ ...r, itens: r.itens.slice(0, ficam), itens_omitidos: r.itens.length - ficam })
+  }
+  return texto
+}
+
 function buildCtx(): ServiceContext {
   const mcp = getMcpContext()
   return {
@@ -135,6 +152,14 @@ export async function youtubeObservatory(params: Params): Promise<CallToolResult
         return { content: [{ type: 'text', text }], isError: false }
       }
 
+      case 'get_observed': {
+        // a mesma função da rota GET /competitors/observed; sem indentação, como get_signals
+        const result = await lerLeituraDosConcorrentes(buildCtx(), { agoraMs: Date.now() })
+        const text = cabeObservado(result.data)
+        avisarSeGrande(text.length, result.data.ligada ? result.data.itens.length : 0)
+        return { content: [{ type: 'text', text }], isError: false }
+      }
+
       case 'dismiss_signal': {
         if (!mcpRequirePermission(getMcpContext(), 'write')) return toMcpError({ code: 'FORBIDDEN', message: 'Write permission required' })
         if (typeof params.signal_id !== 'string') return toMcpError({ code: 'VALIDATION_ERROR', message: 'signal_id is required for dismiss_signal' })
@@ -145,7 +170,7 @@ export async function youtubeObservatory(params: Params): Promise<CallToolResult
       default:
         return toMcpError({
           code: 'VALIDATION_ERROR',
-          message: `Unknown action "${action ?? '(missing)'}". Supported: list_channels, get_changes, get_outliers, get_insights, get_signals, dismiss_signal`,
+          message: `Unknown action "${action ?? '(missing)'}". Supported: list_channels, get_changes, get_outliers, get_insights, get_signals, get_observed, dismiss_signal`,
         })
     }
   } catch (error) {
