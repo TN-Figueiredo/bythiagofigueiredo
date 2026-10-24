@@ -4,6 +4,8 @@ import type { RotuloDaAcao } from './acao'
 
 /** Idade (em horas) do último cálculo a partir da qual a lista conta como desatualizada. */
 export const HORAS_ATE_DESATUALIZAR = 36
+/** Dias que "Adiar" empurra a sugestão (a função `niche_signals_adiar` do banco usa os mesmos 7). Aqui para o cliente importar sem trazer o leitor. */
+export const DIAS_DO_ADIAR = 7
 const HORA_SP = (agora: Date): number => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(agora))
 const dois = (n: number): string => String(n).padStart(2, '0')
 
@@ -46,6 +48,11 @@ export function textoDoVazio(motivo: string, contagens: Record<string, number>, 
   const c = contagens
   switch (motivo) {
     case 'nunca-calculado': return textoNuncaCalculado(agora, ligado)
+    case 'adiado': {
+      // Só o texto puro (sem a data, que depende do fuso e vive na tela): a tela monta "Você adiou N" e a data.
+      const a = num(c, 'adiados')
+      return a === null ? 'Adiadas por você: não medido. Não deu para contar quantas voltam nem quando.' : `Você adiou ${a} ${a === 1 ? 'sugestão' : 'sugestões'}; ${a === 1 ? 'ela volta' : 'voltam'} sozinhas em até ${DIAS_DO_ADIAR} dias.`
+    }
     case 'tudo-respondido': {
       const r = num(c, 'respondidos_30d')
       return `Todas as sugestões recentes já foram respondidas${r !== null ? ` (${r} nos últimos 30 dias)` : ''}.`

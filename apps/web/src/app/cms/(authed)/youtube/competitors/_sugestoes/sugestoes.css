@@ -93,9 +93,9 @@
 .sg-pux .sg-pl{flex:none;margin-right:4px}
 .sg-pux q{quotes:"\201C" "\201D";color:var(--text);flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sg-pux .sg-pc{flex:0 1 auto;max-width:45%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sg-rg{display:flex;align-items:center;gap:12px;margin-top:12px}
+.sg-rg{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:12px}
 .sg-rg svg{flex:none;display:block}
-.sg-rg .sg-v{flex:1 1 0;min-width:0;font-size:13.5px;color:var(--muted)}
+.sg-rg .sg-v{flex:1 1 160px;min-width:160px;font-size:13.5px;color:var(--muted)}
 .sg-rg .sg-v b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
 .sg-venm,.sg-vsr,.sg-vm{display:none}
 .sg-vs{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);flex:1;min-width:0}
@@ -203,3 +203,30 @@
 }
 
 @media (pointer:coarse){.sg-btn,.sg-flt button{min-height:44px}}
+
+/* ===== F3b "Adiar 7 dias" (delta do mockup 2026-10-24-f3b-adiar; nenhum token novo) ===== */
+.sg-btn svg{flex:none}
+.sg-btn[aria-busy="true"]{color:var(--muted);cursor:progress}
+.sg-lnk[disabled]{color:var(--muted);cursor:not-allowed;text-decoration:none}
+/* separador do grupo "adiar": traço duplo (a partir de 701 px de contêiner) */
+.sg-dsp .sg-sep.sg-sep2{width:5px;background:linear-gradient(90deg,var(--btn-line) 0 1px,transparent 1px 4px,var(--btn-line) 4px 5px)}
+/* sugestão que vence em até 7 dias: frase no lugar do botão (fora do Tab) */
+.sg-dsp p.sg-vence{display:flex;gap:6px;align-items:flex-start;flex:1 1 220px;min-width:0;margin-right:0;font:400 13px/1.4 Inter,system-ui,sans-serif;color:var(--muted)}
+.sg-vence svg{flex:none;margin-top:2px}
+/* faixa "Adiada": borda em --btn-line (>= 3:1; a --border-strong não passa), relógio neutro */
+.sg-done.sg-adi{border-left-color:var(--btn-line);background:var(--sunk)}
+.sg-done.sg-adi svg{color:var(--muted)}
+/* linha de contagem sob o resumo */
+.sg p.sg-adl{margin-top:8px}
+.sg-adl{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:13px;color:var(--muted)}
+.sg-adl svg{flex:none}
+.sg-vz p+p{margin-top:4px}
+@container (max-width:700px){
+ /* os separadores viram fio horizontal que força a quebra de fileira */
+ .sg-dsp .sg-sep,.sg-dsp .sg-sep.sg-sep2{display:block;flex:1 1 100%;width:auto;height:1px;margin:0;align-self:auto;background:var(--btn-line)}
+ .sg-dsp p.sg-vence{flex:1 1 100%}
+}
+.sg-dsp .sg-sep.sg-sep-v{display:none}
+@container (max-width:640px){
+ .sg p.sg-venm{margin-top:8px}
+}

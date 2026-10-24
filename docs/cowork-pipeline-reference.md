@@ -1951,8 +1951,10 @@ Não é uma section de item: é a forma da resposta de leitura. Detalhe e regras
   "itens": [],
   "computado_em": "ISO-8601 | null",
   "desatualizado": false,
-  "motivoVazio": "nunca-calculado | tudo-respondido | sem-historico | sync-atrasado | sem-terceiro-outlier | sem-lugar | abaixo-do-minimo | sem-grupo | null",
-  "contagens": { "canais_total": 0 },
+  "motivoVazio": "nunca-calculado | tudo-respondido | sem-historico | sync-atrasado | sem-terceiro-outlier | sem-lugar | abaixo-do-minimo | sem-grupo | adiado | null",
+  "motivoDoCalculo": "só com motivoVazio=adiado: o motivo do cálculo | null",
+  "proximaVolta": "ISO-8601 da próxima adiada que volta | null",
+  "contagens": { "canais_total": 0, "adiados": 0 },
   "calculoLigado": true
 }
 ```

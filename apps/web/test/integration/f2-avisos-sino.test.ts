@@ -92,7 +92,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(false)
     const ids = [await sinal({ como: 'individual' }), await sinal({ como: 'resumo' }), await sinal({ kind: 'parecido', como: 'resumo' }), await sinal(), await sinal(), await sinal()]
     const r = await rodar()
-    expect(r).toEqual({ enviados: 0, resumidos: 6, falhas: 0, sem_tempo: 0, adiados: 0 })
+    expect(r).toEqual({ enviados: 0, resumidos: 6, falhas: 0, sem_tempo: 0, envios_adiados: 0 })
     expect(await notifs('nicho:%')).toEqual([])
     const resumos = await notifs('nicho-resumo:%')
     expect(new Set(resumos).size).toBe(1)
@@ -104,7 +104,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     // o apagamento das notificações não reativa o baseline: uma linha nova sai como individual
     await pg.query('delete from public.notifications where site_id = $1', [site])
     await sinal({ forca: 50 })
-    expect(await rodar()).toEqual({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 })
+    expect(await rodar()).toEqual({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 0, envios_adiados: 0 })
     expect((await notifs('nicho:%')).length).toBe((await getSiteAdminUserIds(site)).length)
   })
 
@@ -121,7 +121,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
   it('sinal dispensado antes da passada: nenhuma notificação', async () => {
     await estado(true)
     await sinal({ status: 'dispensado' })
-    expect(await rodar()).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 })
+    expect(await rodar()).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, envios_adiados: 0 })
     expect(await notifs('nicho%')).toEqual([])
   })
 
@@ -199,7 +199,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(true)
     const id = await sinal()
     const falha = vi.fn().mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] })
-    expect(await enviarAvisosDoNicho(sb(), new Date(), { fanOut: falha, sites: [site] })).toMatchObject({ enviados: 0, falhas: 0, sem_tempo: 0, adiados: 1 })
+    expect(await enviarAvisosDoNicho(sb(), new Date(), { fanOut: falha, sites: [site] })).toMatchObject({ enviados: 0, falhas: 0, sem_tempo: 0, envios_adiados: 1 })
     expect((await linha(id)).notificacao_tentativas).toBe(1)
     expect((await linha(id)).notificado_em).toBeNull()
     expect(await rodar()).toMatchObject({ enviados: 1 })

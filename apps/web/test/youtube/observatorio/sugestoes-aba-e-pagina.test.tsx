@@ -41,7 +41,7 @@ async function pagina(c: Ctx, sp: Record<string, string> = {}) {
   vi.doMock('@/lib/youtube/observatorio/now', () => ({ observatoryNow: () => Date.parse('2026-10-23T12:00:00Z') }))
   vi.doMock('@/app/cms/(authed)/youtube/competitors/_chrome/chrome-server', () => ({ ObservatoryChromeServer: () => null }))
   vi.doMock('@/app/cms/(authed)/youtube/competitors/contexto-ia-actions', () => ({ gerarPacoteIa: async () => null }))
-  vi.doMock('@/app/cms/(authed)/youtube/competitors/_sugestoes/actions', () => ({ dispensarSugestao: async () => ({ ok: true }) }))
+  vi.doMock('@/app/cms/(authed)/youtube/competitors/_sugestoes/actions', () => ({ dispensarSugestao: async () => ({ ok: true }), adiarSugestao: async () => ({ ok: true }) }))
   vi.doMock('@/app/cms/(authed)/youtube/competitors/_sugestoes/aviso', () => ({ saiuDoAviso: async () => c.aviso }))
   vi.doMock('@/app/cms/(authed)/youtube/competitors/_sugestoes/dados-da-tela', () => ({ abrirListaDaTela: async () => c.leitura }))
   vi.doMock('@/app/cms/(authed)/youtube/competitors/_sugestoes/sugestoes-lista', () => ({ SugestoesLista: () => null }))

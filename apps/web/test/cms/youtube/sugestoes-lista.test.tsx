@@ -67,12 +67,12 @@ describe('SugestoesLista: linha', () => {
     const li = document.querySelector('[data-row="p"]') as HTMLElement
     const gatilho = within(li).getAllByRole('button', { name: /dispensar/i })[0]!
     gatilho.focus(); fireEvent.click(gatilho)
-    const grupo = within(li).getByRole('group', { name: /motivo/i })
+    const grupo = within(li).getByRole('group', { name: /dispensar ou adiar/i })
     expect(within(grupo).getByRole('button', { name: 'Não é parecido' })).toBeTruthy()
     expect(within(grupo).queryByRole('button', { name: 'Lugar errado' })).toBeNull()
     expect(document.activeElement).toBe(gatilho) // o foco fica no gatilho, fora do grupo
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
-    expect(within(li).queryByRole('group', { name: /motivo/i })).toBeNull()
+    expect(within(li).queryByRole('group', { name: /dispensar ou adiar/i })).toBeNull()
     expect(document.activeElement).toBe(gatilho)
   })
   it('dois cliques rápidos no mesmo motivo chamam a ação uma vez; o grupo fica disabled e mostra "Salvando…"', async () => {
@@ -84,10 +84,10 @@ describe('SugestoesLista: linha', () => {
     fireEvent.click(btn); fireEvent.click(btn)
     expect(a.dispensar).toHaveBeenCalledTimes(1)
     expect(a.dispensar).toHaveBeenCalledWith('a', 'lugar_errado')
-    const grupo = within(li).getByRole('group', { name: /motivo/i })
+    const grupo = within(li).getByRole('group', { name: /dispensar ou adiar/i })
     for (const b of within(grupo).getAllByRole('button')) expect((b as HTMLButtonElement).disabled).toBe(true)
     expect(within(grupo).getByText('Salvando…').closest('button')!.getAttribute('aria-busy')).toBe('true')
-    expect(within(grupo).queryByText('Cancelar')).toBeNull()
+    expect((within(grupo).getByText('Cancelar') as HTMLButtonElement).disabled).toBe(true) // F3b: parado, sem pular de lugar
     await act(async () => { solta(ok) })
   })
   it('motivo -> confirmação no lugar da linha; N cai só depois da promessa; foco na linha seguinte', async () => {

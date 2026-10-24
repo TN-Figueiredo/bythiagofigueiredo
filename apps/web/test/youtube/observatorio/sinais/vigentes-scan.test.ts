@@ -1,6 +1,6 @@
 // @vitest-environment node
 // "Vigente" = aberto E expires_at > agora. Todo from('niche_signals') que filtra status = 'aberto' em leitura.ts/avisos.ts
-// tem de conter .gt('expires_at'. Dívida declarada: "vigente" também existe em SQL (sincronizar_sino), coberta pela integração de paridade.
+// tem de conter .gt('expires_at' E .or(naoAdiado( (F3b: adiada não é vigente). Exceção: a consulta das PRÓPRIAS adiadas (.gt('adiado_ate'). Dívida declarada: "vigente" também existe em SQL (sincronizar_sino), coberta pela integração de paridade.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -17,7 +17,10 @@ describe('toda consulta de abertos a niche_signals exige expires_at', () => {
       expect(partes.length).toBeGreaterThan(0)
       partes.forEach((resto, i) => {
         const cadeia = resto.split(/\n\s*\n|\n(?=(?:async )?function |export |const )/)[0]!
-        if (/\.eq\(\s*'status'\s*,\s*'aberto'\s*\)/.test(cadeia) && !(EXCECOES[arq] ?? []).includes(i)) expect(cadeia, `${arq} consulta #${i}`).toMatch(/\.gt\(\s*'expires_at'/)
+        if (/\.eq\(\s*'status'\s*,\s*'aberto'\s*\)/.test(cadeia) && !(EXCECOES[arq] ?? []).includes(i)) {
+          expect(cadeia, `${arq} consulta #${i}`).toMatch(/\.gt\(\s*'expires_at'/)
+          if (!/\.gt\(\s*'adiado_ate'/.test(cadeia)) expect(cadeia, `${arq} consulta #${i} (adiadas)`).toMatch(/\.or\(\s*naoAdiado\(/)
+        }
       })
     })
   }

@@ -4,12 +4,12 @@
 import { useEffect, useReducer, useRef, useState, useTransition, type MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import CmsLink from '../../../_shared/cms-link'
-import { contagens, estadoInicial, reduzirLista, vistaVisivel } from './estado-da-lista'
+import { contagens, estadoInicial, reduzirLista, vistaVisivel, type AcaoDaLinha } from './estado-da-lista'
 import { Ic } from './icones'
 import { Confirmacao, Linha } from './linha'
 import type { AcoesDaLista, MotivoDaTela } from './tipos'
 import { VazioDaLista } from './vazio'
-import { filtrarVista, type FiltroDaLista, type LinhaDaVista, type VistaDaLista } from './view-model'
+import { filtrarVista, linhaDasAdiadas, type FiltroDaLista, type LinhaDaVista, type VistaDaLista } from './view-model'
 import './sugestoes.css'
 
 const TEMPO_LIMITE_MS = 15_000
@@ -103,7 +103,8 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
     el?.focus()
   }, [estado.respondidas])
 
-  function dispensar(linha: LinhaDaVista, motivo: MotivoDaTela) {
+  /** Dispensar por um motivo ou, F3b, `adiar` ("Adiar 7 dias"): o mesmo voo, os mesmos 15 s, o mesmo foco. */
+  function dispensar(linha: LinhaDaVista, motivo: AcaoDaLinha) {
     if (acoes === null || voo.current !== 0) return
     const meu = ++seq.current
     voo.current = meu
@@ -114,11 +115,11 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
     const timer = setTimeout(() => { if (terminou) return; if (voo.current === meu) voo.current = 0; dispatch({ tipo: 'falha', id, motivo }) }, TEMPO_LIMITE_MS)
     const fim = () => { terminou = true; clearTimeout(timer); if (voo.current === meu) voo.current = 0 }
     let chamada: Promise<Awaited<ReturnType<AcoesDaLista['dispensar']>>>
-    try { chamada = acoes.dispensar(id, motivo) } catch (e) { chamada = Promise.reject(e instanceof Error ? e : new Error('falhou')) }
+    try { chamada = motivo === 'adiar' ? acoes.adiar(id) : acoes.dispensar(id, motivo) } catch (e) { chamada = Promise.reject(e instanceof Error ? e : new Error('falhou')) }
     chamada.then(
       (resposta) => {
         fim()
-        const saiu = resposta.ok || resposta.motivo === 'nao_aberto' || resposta.motivo === 'nao_encontrado'
+        const saiu = resposta.ok || resposta.motivo === 'nao_aberto' || resposta.motivo === 'nao_encontrado' || resposta.motivo === 'ja_adiado'
         if (saiu) { const i = ordem.current.indexOf(id); foco.current = ordem.current[i + 1] ?? '' }
         setAberta(null)
         dispatch({ tipo: 'resposta', id, motivo, resposta })
@@ -157,7 +158,8 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
   confs.forEach(([id, a], k) => { itens.splice(Math.min(a.indice + k, itens.length), 0, { tipo: 'conf', id }) })
 
   const n = visivel.n
-  const nTxt = n === null ? '?' : visivel.calculado === 'Nunca calculado' ? '—' : String(n)
+  const vazioNm = mostrada.vazio?.chipNm === true && vivas.length === 0
+  const nTxt = n === null || vazioNm ? '?' : visivel.calculado === 'Nunca calculado' ? '—' : String(n)
   const Titulo = modo === 'pagina' ? 'h1' : 'h2'
   const semLeitura = n === null
   const vazio = mostrada.vazio !== null && vivas.length === 0 ? mostrada.vazio : null
@@ -195,6 +197,10 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
       )}
       <p className="sg-sum" tabIndex={-1} ref={resumoRef}>{semLeitura && !vazio ? 'Não deu para ler as sugestões.' : mostrada.resumo}{modo === 'pagina' && vivas.length > 0 && <small>Da mais forte para a mais fraca.</small>}</p>
 
+      {vivas.length > 0 && linhaDasAdiadas(visivel.adiadas) && (
+        <p className="sg-adl sg-meta" id={modo === 'pagina' ? 'sg-adiadas' : undefined}>{Ic.wait(14)}<span>{linhaDasAdiadas(visivel.adiadas)}</span></p>
+      )}
+
       {visivel.faixa && (
         visivel.faixa.tipo === 'erro-com-lista'
           ? <div className="sg-band sg-err" role="alert"><span className="sg-ic">{Ic.warn()}</span><div><h3>{visivel.faixa.titulo}</h3><p>{visivel.faixa.texto}</p><div className="sg-acts">{botaoRefazer}</div></div></div>
@@ -217,7 +223,7 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
       {itens.length > 0 && (
         <ol className="sg-list">
           {itens.map((it) => it.tipo === 'conf'
-            ? <Confirmacao key={it.id} id={it.id} desfecho={estado.respondidas.get(it.id)!} motivo={estado.motivoDe.get(it.id) ?? null} />
+            ? <Confirmacao key={it.id} id={it.id} desfecho={estado.respondidas.get(it.id)!} motivo={estado.motivoDe.get(it.id) ?? null} volta={estado.voltaDe.get(it.id) ?? null} />
             : (
               <Linha
                 key={it.linha.id}
@@ -231,6 +237,7 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
                 erro={estado.erros.get(it.linha.id) ?? null}
                 onDispensar={(e) => aoDispensar(it.linha.id, e)}
                 onMotivo={(m) => dispensar(it.linha, m)}
+                onAdiar={() => dispensar(it.linha, 'adiar')}
                 onCancelar={fecharMotivos}
                 onInfo={() => setInfoId((x) => (x === it.linha.id ? null : it.linha.id))}
                 onExpandir={() => setExpId((x) => (x === it.linha.id ? null : it.linha.id))}

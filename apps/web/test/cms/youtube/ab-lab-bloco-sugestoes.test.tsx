@@ -12,7 +12,7 @@ const mundo = vi.hoisted(() => ({ leitura: null as unknown, lanca: false, args: 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: nav.refresh, replace: vi.fn(), push: vi.fn() }) }))
 vi.mock('next/link', () => ({ default: ({ children, href, ...r }: { children: React.ReactNode; href: string }) => <a href={href} {...r}>{children}</a> }))
 vi.mock('@sentry/nextjs', () => ({ captureException: (...a: unknown[]) => { mundo.sentry.push(a) }, captureMessage: vi.fn() }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_sugestoes/actions', () => ({ dispensarSugestao: async () => ({ ok: true }) }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_sugestoes/actions', () => ({ dispensarSugestao: async () => ({ ok: true }), adiarSugestao: async () => ({ ok: true }) }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_sugestoes/dados-da-tela', () => ({
   abrirListaDaTela: async (...a: unknown[]) => { mundo.args.push(a); if (mundo.lanca) throw new Error('boom'); return mundo.leitura },
 }))

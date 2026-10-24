@@ -1,10 +1,13 @@
 // @vitest-environment node
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import * as Sentry from '@sentry/nextjs'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { listarSinaisDoNicho, dispensarSinal, contarSinaisAbertos, contarAbertosEntre, lerEstadoDaAba, LIMITE_PENDENTES } from '@/lib/youtube/observatorio/sinais/leitura'
+import { listarSinaisDoNicho, dispensarSinal, adiarSinal, naoAdiado, contarSinaisAbertos, contarAbertosEntre, lerEstadoDaAba, LIMITE_PENDENTES } from '@/lib/youtube/observatorio/sinais/leitura'
 import { textoDoVazio } from '@/lib/youtube/observatorio/sinais/frases'
 import { fakeSb, type Consulta, type Resposta } from './fake-sb'
+
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 const SITE = '00000000-0000-4000-8000-000000000001'
 const AGORA = new Date('2026-10-24T15:00:00Z')
@@ -14,6 +17,8 @@ const EV = { outliers: [{ video_id: 'o1', canal_id: 'c1', published_at: iso(-48)
 
 interface Mundo {
   sinais?: Array<Record<string, unknown>>
+  /** linhas devolvidas à consulta das adiadas (.gt adiado_ate); `'erro'` = a consulta falha. */
+  adiadas?: Array<{ adiado_ate: string; expires_at: string }> | 'erro'
   total?: number
   estado?: Record<string, unknown> | null
   respondidos?: number
@@ -32,6 +37,9 @@ const linha = (id: string, chave: string, extra: Record<string, unknown> = {}) =
 function mundo(m: Mundo) {
   return fakeSb((c: Consulta): Resposta => {
     if (c.tabela === 'niche_signals' && c.opcoes?.head) return { data: null, count: m.respondidos ?? 0 }
+    if (c.tabela === 'niche_signals' && c.filtros.some((f) => f.op === 'gt' && f.col === 'adiado_ate')) {
+      return m.adiadas === 'erro' ? { data: null, error: { code: 'XX000', message: 'boom' } } : { data: m.adiadas ?? [] }
+    }
     if (c.tabela === 'niche_signals') return { data: m.sinais ?? [], count: m.total ?? (m.sinais ?? []).length }
     if (c.tabela === 'niche_signals_estado') return { data: m.estado === undefined ? null : [m.estado] }
     if (c.tabela === 'video_lugares' && c.filtros.some((f) => f.op === 'overlaps')) return { data: m.lugares ?? [] }
@@ -46,6 +54,8 @@ function mundo(m: Mundo) {
     return { data: [] }
   })
 }
+/** A consulta da lista (não a das adiadas, que filtra `gt adiado_ate`). */
+const daLista = (c: Consulta): boolean => c.tabela === 'niche_signals' && !c.opcoes?.head && !c.filtros.some((f) => f.col === 'adiado_ate' && f.op === 'gt')
 const estado = (extra: Record<string, unknown> = {}) => ({ computed_at: iso(-2), motivo_vazio: null, contagens: { canais_total: 5, outliers_total: 3 }, ...extra })
 const meta = (yt: string, p = 'public') => ({ youtube_video_id: yt, privacy_status: p, day_pt: '2026-10-23' })
 
@@ -55,7 +65,7 @@ describe('listarSinaisDoNicho: o N e a lista', () => {
     const l = await listarSinaisDoNicho(w.sb, SITE, AGORA, 1)
     expect(l.n).toBe(73)
     expect(l.itens).toHaveLength(1)
-    const q = w.consultas.find((c) => c.tabela === 'niche_signals')!
+    const q = w.consultas.find(daLista)!
     expect(q.opcoes).toEqual({ count: 'exact' })
     expect(q.filtros).toEqual(expect.arrayContaining([
       { op: 'eq', col: 'site_id', val: SITE }, { op: 'eq', col: 'status', val: 'aberto' }, { op: 'gt', col: 'expires_at', val: AGORA.toISOString() },
@@ -136,7 +146,7 @@ describe('listarSinaisDoNicho: o que acontece quando o dado não existe', () => 
     const w = mundo({ estado: estado({ computed_at: iso(-37) }), sinais: [] })
     const l = await listarSinaisDoNicho(w.sb, SITE, AGORA)
     expect(l.desatualizado).toBe(true)
-    expect(w.consultas.find((c) => c.tabela === 'niche_signals')!.filtros).toContainEqual({ op: 'gt', col: 'expires_at', val: AGORA.toISOString() })
+    expect(w.consultas.find(daLista)!.filtros).toContainEqual({ op: 'gt', col: 'expires_at', val: AGORA.toISOString() })
     expect((await listarSinaisDoNicho(mundo({ estado: estado({ computed_at: iso(-35) }) }).sb, SITE, AGORA)).desatualizado).toBe(false)
   })
 
@@ -341,6 +351,118 @@ describe('dispensarSinal', () => {
     expect(await dispensarSinal(w.sb, SITE, 'id1', 'dispensado', 'ja_fiz', 'key:k1')).toEqual({ ok: true })
     expect(await dispensarSinal(w.sb, SITE, 'id2', 'dispensado', 'ja_fiz', 'key:k1')).toEqual({ ok: false, motivo: 'nao_encontrado' })
     expect(w.rpc[0]).toEqual({ nome: 'niche_signals_dispensar', args: { p_site: SITE, p_id: 'id1', p_status: 'dispensado', p_motivo: 'ja_fiz', p_por: 'key:k1' } })
+  })
+})
+
+describe('F3b: adiadas na leitura', () => {
+  const volta = (dias: number) => iso(24 * dias)
+  it('naoAdiado: nulo ou já passado; a lista e as duas contagens usam o mesmo filtro', async () => {
+    const f = { op: 'or', col: naoAdiado(AGORA.toISOString()), val: undefined }
+    expect(naoAdiado('X')).toBe('adiado_ate.is.null,adiado_ate.lte.X')
+    const w = mundo({ sinais: [linha('a', 'pt')], estado: estado() })
+    await listarSinaisDoNicho(w.sb, SITE, AGORA)
+    expect(w.consultas.find(daLista)!.filtros).toContainEqual(f)
+    const c = fakeSb(() => ({ data: null, count: 1 }))
+    await contarSinaisAbertos(c.sb, SITE, AGORA)
+    await contarAbertosEntre(c.sb, SITE, ['a'], AGORA)
+    for (const q of c.consultas) expect(q.filtros).toContainEqual(f)
+  })
+
+  it('contagens.adiados conta só as que voltam antes de vencer; proximaVolta é a mais cedo delas (precedência: expira_antes não conta)', async () => {
+    const w = mundo({
+      sinais: [linha('a', 'pt')], estado: estado(),
+      adiadas: [
+        { adiado_ate: volta(2), expires_at: volta(10) },
+        { adiado_ate: volta(5), expires_at: volta(3) }, // vence antes de voltar: não conta
+        { adiado_ate: volta(4), expires_at: volta(9) },
+      ],
+    })
+    const l = await listarSinaisDoNicho(w.sb, SITE, AGORA)
+    expect(l.contagens.adiados).toBe(2)
+    expect(l.proximaVolta).toBe(volta(2))
+    expect(l.motivoVazio).toBeNull()
+    const q = w.consultas.find((c) => c.filtros.some((f) => f.col === 'adiado_ate' && f.op === 'gt'))!
+    expect(q.filtros).toEqual(expect.arrayContaining([{ op: 'eq', col: 'status', val: 'aberto' }, { op: 'gt', col: 'expires_at', val: AGORA.toISOString() }, { op: 'gt', col: 'adiado_ate', val: AGORA.toISOString() }]))
+  })
+
+  it('lista vazia com adiadas que voltam: motivo adiado (P-C2), a razão do cálculo vira motivoDoCalculo', async () => {
+    const w = mundo({ estado: estado({ motivo_vazio: 'sem-terceiro-outlier' }), adiadas: [{ adiado_ate: volta(3), expires_at: volta(20) }] })
+    const l = await listarSinaisDoNicho(w.sb, SITE, AGORA)
+    expect(l).toMatchObject({ n: 0, motivoVazio: 'adiado', motivoDoCalculo: 'sem-terceiro-outlier', proximaVolta: volta(3) })
+    expect(l.contagens.adiados).toBe(1)
+  })
+
+  it('lista vazia e nenhuma adiada volta (todas vencem antes): o motivo é o do cálculo, não "adiado"', async () => {
+    const w = mundo({ estado: estado({ motivo_vazio: 'sem-lugar' }), adiadas: [{ adiado_ate: volta(5), expires_at: volta(2) }] })
+    const l = await listarSinaisDoNicho(w.sb, SITE, AGORA)
+    expect(l.motivoVazio).toBe('sem-lugar')
+    expect(l.contagens.adiados).toBe(0)
+    expect(l.motivoDoCalculo).toBeNull()
+  })
+
+  it('o dado não existe: a consulta das adiadas falha → contagens.adiados AUSENTE (nunca 0); vazio vira adiado/não medido; lista com itens segue', async () => {
+    vi.mocked(Sentry.captureMessage).mockClear()
+    const vazio = await listarSinaisDoNicho(mundo({ estado: estado({ motivo_vazio: 'sem-lugar' }), adiadas: 'erro' }).sb, SITE, AGORA)
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('sinais: contagem das adiadas falhou', expect.objectContaining({ level: 'warning', tags: { area: 'sinais-nicho' } }))
+    expect(vazio.motivoVazio).toBe('adiado')
+    expect('adiados' in vazio.contagens).toBe(false)
+    expect(vazio.motivoDoCalculo).toBe('sem-lugar')
+    expect(vazio.proximaVolta).toBeNull()
+    const cheia = await listarSinaisDoNicho(mundo({ sinais: [linha('a', 'pt')], estado: estado(), adiadas: 'erro' }).sb, SITE, AGORA)
+    expect(cheia.n).toBe(1)
+    expect('adiados' in cheia.contagens).toBe(false)
+  })
+
+  it('sem estado (nunca calculado) com adiadas ilegíveis continua nunca-calculado', async () => {
+    const l = await listarSinaisDoNicho(mundo({ estado: null, adiadas: 'erro' }).sb, SITE, AGORA, 50, false)
+    expect(l.motivoVazio).toBe('nunca-calculado')
+  })
+
+  it('uma chave "adiados" no estado do cálculo nunca vence a medida de agora', async () => {
+    const w = mundo({ sinais: [linha('a', 'pt')], estado: estado({ contagens: { adiados: 99 } }), adiadas: [] })
+    expect((await listarSinaisDoNicho(w.sb, SITE, AGORA)).contagens.adiados).toBe(0)
+  })
+
+  it('o item que voltou traz adiada_em (a coluna adiado_em, não deduzida do adiado_ate); o nunca adiado, null', async () => {
+    // adiado_ate e adiado_em propositalmente sem relação de 7 dias: a leitura não pode deduzir
+    const w = mundo({ sinais: [linha('a', 'pt', { adiado_ate: iso(-24), adiado_em: iso(-24 * 3) }), linha('b', 'br')], estado: estado() })
+    const l = await listarSinaisDoNicho(w.sb, SITE, AGORA)
+    expect(l.itens[0]!.adiada_em).toBe(iso(-24 * 3))
+    expect(l.itens[1]!.adiada_em).toBeNull()
+  })
+
+  it('M-3: mais adiadas que o teto da página: o count exato vale e o corte é avisado (nunca trunca calado)', async () => {
+    vi.mocked(Sentry.captureMessage).mockClear()
+    const pagina = Array.from({ length: LIMITE_PENDENTES }, () => ({ adiado_ate: volta(3), expires_at: volta(20) }))
+    const w = fakeSb((c: Consulta): Resposta => {
+      if (c.tabela === 'niche_signals' && c.filtros.some((f) => f.op === 'gt' && f.col === 'adiado_ate')) return { data: pagina, count: LIMITE_PENDENTES + 37 }
+      if (c.tabela === 'niche_signals') return { data: [linha('a', 'pt')], count: 1 }
+      if (c.tabela === 'niche_signals_estado') return { data: [estado()] }
+      return { data: [] }
+    })
+    const l = await listarSinaisDoNicho(w.sb, SITE, AGORA)
+    expect(l.contagens.adiados).toBe(LIMITE_PENDENTES + 37)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('sinais: adiadas além do teto da página', expect.objectContaining({ level: 'warning' }))
+  })
+})
+
+describe('adiarSinal', () => {
+  it('chama niche_signals_adiar com o site da guarda e devolve ok com a data, ou o motivo com os campos da função', async () => {
+    const respostas = [
+      { ok: true, adiado_ate: '2026-10-31T15:00:00Z' }, { ok: false, motivo: 'ja_adiado', adiado_ate: '2026-10-30T10:00:00Z' },
+      { ok: false, motivo: 'expira_antes', expira_em: '2026-10-28T10:00:00Z' }, { ok: false, motivo: 'nao_aberto' }, null,
+    ]
+    const w = fakeSb(() => ({ data: respostas.shift() }))
+    expect(await adiarSinal(w.sb, SITE, 'id1', 'user:u1')).toEqual({ ok: true, adiado_ate: '2026-10-31T15:00:00Z' })
+    expect(await adiarSinal(w.sb, SITE, 'id1', 'user:u1')).toEqual({ ok: false, motivo: 'ja_adiado', adiado_ate: '2026-10-30T10:00:00Z' })
+    expect(await adiarSinal(w.sb, SITE, 'id1', 'user:u1')).toEqual({ ok: false, motivo: 'expira_antes', expira_em: '2026-10-28T10:00:00Z' })
+    expect(await adiarSinal(w.sb, SITE, 'id1', 'user:u1')).toEqual({ ok: false, motivo: 'nao_aberto' })
+    expect(await adiarSinal(w.sb, SITE, 'id1', 'user:u1')).toEqual({ ok: false, motivo: 'falhou' })
+    expect(w.rpc[0]).toEqual({ nome: 'niche_signals_adiar', args: { p_site: SITE, p_id: 'id1', p_por: 'user:u1' } })
+  })
+  it('erro do banco lança', async () => {
+    await expect(adiarSinal(fakeSb(() => ({ data: null, error: { message: 'segredo' } })).sb, SITE, 'id1', 'user:u1')).rejects.toThrow(/sinais: leitura de/)
   })
 })
 
