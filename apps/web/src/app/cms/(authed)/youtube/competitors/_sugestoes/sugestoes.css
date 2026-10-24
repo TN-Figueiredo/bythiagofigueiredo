@@ -93,9 +93,9 @@
 .sg-pux .sg-pl{flex:none;margin-right:4px}
 .sg-pux q{quotes:"\201C" "\201D";color:var(--text);flex:0 100 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sg-pux .sg-pc{flex:0 1 auto;max-width:45%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sg-rg{display:flex;align-items:center;gap:12px;margin-top:12px}
+.sg-rg{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:12px}
 .sg-rg svg{flex:none;display:block}
-.sg-rg .sg-v{flex:1 1 0;min-width:0;font-size:13.5px;color:var(--muted)}
+.sg-rg .sg-v{flex:1 1 160px;min-width:160px;font-size:13.5px;color:var(--muted)}
 .sg-rg .sg-v b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
 .sg-venm,.sg-vsr,.sg-vm{display:none}
 .sg-vs{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);flex:1;min-width:0}

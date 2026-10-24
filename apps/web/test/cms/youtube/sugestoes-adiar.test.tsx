@@ -287,4 +287,10 @@ describe('CSS do delta F3b', () => {
     expect(css).toMatch(/@container \(max-width:700px\)/)
     expect(css).not.toMatch(/color-mix/)
   })
+
+  it('Gio F3: o texto da régua nunca fica abaixo de 160 px (entre ~641 e ~800 px ele quebra para baixo da régua) e o 420 segue sem ele', () => {
+    expect(css).toMatch(/\.sg-rg\{[^}]*flex-wrap:wrap/)
+    expect(css).toMatch(/\.sg-rg \.sg-v\{[^}]*flex:1 1 160px;min-width:160px/)
+    expect(css).toMatch(/@container \(max-width:640px\)[\s\S]*\.sg-rg \.sg-v\{display:none\}/)
+  })
 })
