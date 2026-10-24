@@ -7,460 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   public: {
     Tables: {
-      ab_guarda_liberacoes: {
-        Row: {
-          desfeito_em: string | null
-          desfeito_por: string | null
-          id: string
-          liberado_em: string
-          liberado_por: string | null
-          motivo_na_hora: string
-          site_id: string
-          valido_ate: string
-          video_id: string
-        }
-        Insert: {
-          desfeito_em?: string | null
-          desfeito_por?: string | null
-          id?: string
-          liberado_em?: string
-          liberado_por?: string | null
-          motivo_na_hora: string
-          site_id: string
-          valido_ate: string
-          video_id: string
-        }
-        Update: {
-          desfeito_em?: string | null
-          desfeito_por?: string | null
-          id?: string
-          liberado_em?: string
-          liberado_por?: string | null
-          motivo_na_hora?: string
-          site_id?: string
-          valido_ate?: string
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_guarda_liberacoes_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_guarda_liberacoes_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ab_native_avaliacoes: {
-        Row: {
-          ate_lida_em: string | null
-          avaliada_em: string
-          aviso: string | null
-          contagem: Json | null
-          erro: string | null
-          escritas: number | null
-          estado_14: string
-          estado_48: string | null
-          estado_pos_liberacao: string | null
-          id: number
-          min_desde_escrita: number[] | null
-          mistas_48: number | null
-          mistas_48_fora_quarentena: number | null
-          motivo_14: string | null
-          registro_id: string | null
-          retroativa: boolean
-          site_id: string
-          versao_regra: number
-          video_id: string
-        }
-        Insert: {
-          ate_lida_em?: string | null
-          avaliada_em: string
-          aviso?: string | null
-          contagem?: Json | null
-          erro?: string | null
-          escritas?: number | null
-          estado_14: string
-          estado_48?: string | null
-          estado_pos_liberacao?: string | null
-          id?: never
-          min_desde_escrita?: number[] | null
-          mistas_48?: number | null
-          mistas_48_fora_quarentena?: number | null
-          motivo_14?: string | null
-          registro_id?: string | null
-          retroativa?: boolean
-          site_id: string
-          versao_regra: number
-          video_id: string
-        }
-        Update: {
-          ate_lida_em?: string | null
-          avaliada_em?: string
-          aviso?: string | null
-          contagem?: Json | null
-          erro?: string | null
-          escritas?: number | null
-          estado_14?: string
-          estado_48?: string | null
-          estado_pos_liberacao?: string | null
-          id?: never
-          min_desde_escrita?: number[] | null
-          mistas_48?: number | null
-          mistas_48_fora_quarentena?: number | null
-          motivo_14?: string | null
-          registro_id?: string | null
-          retroativa?: boolean
-          site_id?: string
-          versao_regra?: number
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_native_avaliacoes_registro_id_fkey"
-            columns: ["registro_id"]
-            isOneToOne: false
-            referencedRelation: "ab_native_tests"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_native_avaliacoes_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_native_avaliacoes_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ab_native_fichas: {
-        Row: {
-          atualizada_em: string
-          campos: string[]
-          criada_em: string
-          criada_por: string | null
-          descartada_em: string | null
-          id: string
-          lembrar_em: string | null
-          registro_id: string | null
-          site_id: string
-          studio_aberto_em: string | null
-          variantes: Json
-          video_id: string
-        }
-        Insert: {
-          atualizada_em?: string
-          campos?: string[]
-          criada_em?: string
-          criada_por?: string | null
-          descartada_em?: string | null
-          id?: string
-          lembrar_em?: string | null
-          registro_id?: string | null
-          site_id: string
-          studio_aberto_em?: string | null
-          variantes?: Json
-          video_id: string
-        }
-        Update: {
-          atualizada_em?: string
-          campos?: string[]
-          criada_em?: string
-          criada_por?: string | null
-          descartada_em?: string | null
-          id?: string
-          lembrar_em?: string | null
-          registro_id?: string | null
-          site_id?: string
-          studio_aberto_em?: string | null
-          variantes?: Json
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_native_fichas_registro_id_fkey"
-            columns: ["registro_id"]
-            isOneToOne: true
-            referencedRelation: "ab_native_tests"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_native_fichas_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_native_fichas_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ab_native_obs_cursor: {
-        Row: {
-          avaliado_ate_rodada: number
-          avaliado_em: string
-          avaliado_motivo: string
-          site_id: string
-          validas_miniatura: number
-          validas_titulo: number
-          youtube_video_id: string
-        }
-        Insert: {
-          avaliado_ate_rodada: number
-          avaliado_em: string
-          avaliado_motivo: string
-          site_id: string
-          validas_miniatura?: number
-          validas_titulo?: number
-          youtube_video_id: string
-        }
-        Update: {
-          avaliado_ate_rodada?: number
-          avaliado_em?: string
-          avaliado_motivo?: string
-          site_id?: string
-          validas_miniatura?: number
-          validas_titulo?: number
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_native_obs_cursor_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ab_native_observados: {
-        Row: {
-          campo: string
-          ficou: Json | null
-          ficou_estado: string
-          id: number
-          motivo: string | null
-          n_versoes: number
-          primeira_troca_em: string
-          site_id: string
-          tipo_troca: string
-          trocas: Json
-          ultima_atualizacao_em: string
-          veredito: string
-          versao_regra: number
-          youtube_video_id: string
-        }
-        Insert: {
-          campo: string
-          ficou?: Json | null
-          ficou_estado: string
-          id?: never
-          motivo?: string | null
-          n_versoes: number
-          primeira_troca_em: string
-          site_id: string
-          tipo_troca: string
-          trocas: Json
-          ultima_atualizacao_em?: string
-          veredito: string
-          versao_regra: number
-          youtube_video_id: string
-        }
-        Update: {
-          campo?: string
-          ficou?: Json | null
-          ficou_estado?: string
-          id?: never
-          motivo?: string | null
-          n_versoes?: number
-          primeira_troca_em?: string
-          site_id?: string
-          tipo_troca?: string
-          trocas?: Json
-          ultima_atualizacao_em?: string
-          veredito?: string
-          versao_regra?: number
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_native_observados_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ab_native_tests: {
-        Row: {
-          campos: string[]
-          confirmado_em: string | null
-          confirmado_por: string | null
-          created_at: string
-          descartado_em: string | null
-          descartado_por: string | null
-          desfecho_em: string | null
-          desfecho_estado: string | null
-          desfecho_motivo: string | null
-          desfecho_versao_regra: number | null
-          encerrado_em: string | null
-          estado: string
-          evidencia: Json
-          evidencia_cortada: boolean
-          id: string
-          lembrete_notificado_em: string | null
-          miniatura_a: Json | null
-          notificacao_falhou_em: string | null
-          notificacao_tentativas: number
-          origem: string
-          primeira_vista: string | null
-          respondido_em: string | null
-          resposta_dono: string | null
-          resposta_mudada_em: string | null
-          sinais_fracos: Json
-          site_id: string
-          titulo_oficial: string | null
-          ultima_vista: string | null
-          updated_at: string
-          variante_vencedora: number | null
-          variantes: Json | null
-          variantes_titulo: Json | null
-          vencedor_fonte: string | null
-          vencedor_titulo: string | null
-          vencedor_visto_em: string | null
-          veredito: Json | null
-          versao_regra: number | null
-          video_id: string
-          votos_titulo: Json | null
-          youtube_video_id: string
-        }
-        Insert: {
-          campos: string[]
-          confirmado_em?: string | null
-          confirmado_por?: string | null
-          created_at?: string
-          descartado_em?: string | null
-          descartado_por?: string | null
-          desfecho_em?: string | null
-          desfecho_estado?: string | null
-          desfecho_motivo?: string | null
-          desfecho_versao_regra?: number | null
-          encerrado_em?: string | null
-          estado: string
-          evidencia?: Json
-          evidencia_cortada?: boolean
-          id?: string
-          lembrete_notificado_em?: string | null
-          miniatura_a?: Json | null
-          notificacao_falhou_em?: string | null
-          notificacao_tentativas?: number
-          origem: string
-          primeira_vista?: string | null
-          respondido_em?: string | null
-          resposta_dono?: string | null
-          resposta_mudada_em?: string | null
-          sinais_fracos?: Json
-          site_id: string
-          titulo_oficial?: string | null
-          ultima_vista?: string | null
-          updated_at?: string
-          variante_vencedora?: number | null
-          variantes?: Json | null
-          variantes_titulo?: Json | null
-          vencedor_fonte?: string | null
-          vencedor_titulo?: string | null
-          vencedor_visto_em?: string | null
-          veredito?: Json | null
-          versao_regra?: number | null
-          video_id: string
-          votos_titulo?: Json | null
-          youtube_video_id: string
-        }
-        Update: {
-          campos?: string[]
-          confirmado_em?: string | null
-          confirmado_por?: string | null
-          created_at?: string
-          descartado_em?: string | null
-          descartado_por?: string | null
-          desfecho_em?: string | null
-          desfecho_estado?: string | null
-          desfecho_motivo?: string | null
-          desfecho_versao_regra?: number | null
-          encerrado_em?: string | null
-          estado?: string
-          evidencia?: Json
-          evidencia_cortada?: boolean
-          id?: string
-          lembrete_notificado_em?: string | null
-          miniatura_a?: Json | null
-          notificacao_falhou_em?: string | null
-          notificacao_tentativas?: number
-          origem?: string
-          primeira_vista?: string | null
-          respondido_em?: string | null
-          resposta_dono?: string | null
-          resposta_mudada_em?: string | null
-          sinais_fracos?: Json
-          site_id?: string
-          titulo_oficial?: string | null
-          ultima_vista?: string | null
-          updated_at?: string
-          variante_vencedora?: number | null
-          variantes?: Json | null
-          variantes_titulo?: Json | null
-          vencedor_fonte?: string | null
-          vencedor_titulo?: string | null
-          vencedor_visto_em?: string | null
-          veredito?: Json | null
-          versao_regra?: number | null
-          video_id?: string
-          votos_titulo?: Json | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_native_tests_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_native_tests_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ab_test_cycles: {
         Row: {
           applied_metadata: Json | null
@@ -547,104 +95,6 @@ export type Database = {
             columns: ["variant_id"]
             isOneToOne: false
             referencedRelation: "ab_test_variants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ab_test_dias: {
-        Row: {
-          alcance_estado: string
-          avg_view_percentage: number | null
-          ciclos: Json
-          ctr: number | null
-          day_pt: string
-          dia_de_troca: boolean | null
-          engaged_views: number | null
-          final: boolean
-          impressoes: number | null
-          metric_version: string | null
-          motivo_nulo_meta: string | null
-          motivo_sem_variante: string | null
-          regra_duracao: string
-          report_create_time: string | null
-          retratado_em: string
-          segundos_do_dia: number
-          segundos_no_ar: number | null
-          site_id: string
-          source_report_id: string | null
-          test_id: string
-          troca_vista_em: string | null
-          variant_id: string | null
-          views: number | null
-          views_estado: string
-          views_fonte: string | null
-          watch_time_minutes: number | null
-          youtube_video_id: string
-        }
-        Insert: {
-          alcance_estado: string
-          avg_view_percentage?: number | null
-          ciclos: Json
-          ctr?: number | null
-          day_pt: string
-          dia_de_troca?: boolean | null
-          engaged_views?: number | null
-          final?: boolean
-          impressoes?: number | null
-          metric_version?: string | null
-          motivo_nulo_meta?: string | null
-          motivo_sem_variante?: string | null
-          regra_duracao: string
-          report_create_time?: string | null
-          retratado_em: string
-          segundos_do_dia: number
-          segundos_no_ar?: number | null
-          site_id: string
-          source_report_id?: string | null
-          test_id: string
-          troca_vista_em?: string | null
-          variant_id?: string | null
-          views?: number | null
-          views_estado: string
-          views_fonte?: string | null
-          watch_time_minutes?: number | null
-          youtube_video_id: string
-        }
-        Update: {
-          alcance_estado?: string
-          avg_view_percentage?: number | null
-          ciclos?: Json
-          ctr?: number | null
-          day_pt?: string
-          dia_de_troca?: boolean | null
-          engaged_views?: number | null
-          final?: boolean
-          impressoes?: number | null
-          metric_version?: string | null
-          motivo_nulo_meta?: string | null
-          motivo_sem_variante?: string | null
-          regra_duracao?: string
-          report_create_time?: string | null
-          retratado_em?: string
-          segundos_do_dia?: number
-          segundos_no_ar?: number | null
-          site_id?: string
-          source_report_id?: string | null
-          test_id?: string
-          troca_vista_em?: string | null
-          variant_id?: string | null
-          views?: number | null
-          views_estado?: string
-          views_fonte?: string | null
-          watch_time_minutes?: number | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_test_dias_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
             referencedColumns: ["id"]
           },
         ]
@@ -750,133 +200,11 @@ export type Database = {
           },
         ]
       }
-      ab_test_sondas: {
-        Row: {
-          dhash: string | null
-          enviada_em: string | null
-          erro: string | null
-          etag: string | null
-          hora: string
-          http: number | null
-          leitura_estado: string
-          lida_em: string
-          sha16: string | null
-          site_id: string
-          test_id: string
-          variante_esperada: string | null
-          variante_vista: string | null
-          variantes_sem_referencia: number
-          youtube_video_id: string
-        }
-        Insert: {
-          dhash?: string | null
-          enviada_em?: string | null
-          erro?: string | null
-          etag?: string | null
-          hora: string
-          http?: number | null
-          leitura_estado: string
-          lida_em: string
-          sha16?: string | null
-          site_id: string
-          test_id: string
-          variante_esperada?: string | null
-          variante_vista?: string | null
-          variantes_sem_referencia?: number
-          youtube_video_id: string
-        }
-        Update: {
-          dhash?: string | null
-          enviada_em?: string | null
-          erro?: string | null
-          etag?: string | null
-          hora?: string
-          http?: number | null
-          leitura_estado?: string
-          lida_em?: string
-          sha16?: string | null
-          site_id?: string
-          test_id?: string
-          variante_esperada?: string | null
-          variante_vista?: string | null
-          variantes_sem_referencia?: number
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_test_sondas_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ab_test_tracked_links: {
-        Row: {
-          ab_test_id: string
-          created_at: string
-          id: string
-          link_id: string
-          short_code: string
-          template_name: string
-          variant_id: string
-        }
-        Insert: {
-          ab_test_id: string
-          created_at?: string
-          id?: string
-          link_id: string
-          short_code: string
-          template_name: string
-          variant_id: string
-        }
-        Update: {
-          ab_test_id?: string
-          created_at?: string
-          id?: string
-          link_id?: string
-          short_code?: string
-          template_name?: string
-          variant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ab_test_tracked_links_ab_test_id_fkey"
-            columns: ["ab_test_id"]
-            isOneToOne: false
-            referencedRelation: "ab_tests"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_test_tracked_links_link_id_fkey"
-            columns: ["link_id"]
-            isOneToOne: false
-            referencedRelation: "link_summary_v2"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_test_tracked_links_link_id_fkey"
-            columns: ["link_id"]
-            isOneToOne: false
-            referencedRelation: "tracked_links"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_test_tracked_links_variant_id_fkey"
-            columns: ["variant_id"]
-            isOneToOne: false
-            referencedRelation: "ab_test_variants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ab_test_variants: {
         Row: {
           blob_key: string | null
           blob_url: string | null
           created_at: string
-          description_text: string | null
           dimensions: string | null
           file_size_bytes: number | null
           id: string
@@ -893,7 +221,6 @@ export type Database = {
           blob_key?: string | null
           blob_url?: string | null
           created_at?: string
-          description_text?: string | null
           dimensions?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -910,7 +237,6 @@ export type Database = {
           blob_key?: string | null
           blob_url?: string | null
           created_at?: string
-          description_text?: string | null
           dimensions?: string | null
           file_size_bytes?: number | null
           id?: string
@@ -956,7 +282,6 @@ export type Database = {
           last_applied_variant_id: string | null
           last_apply_error: string | null
           name: string
-          original_description: string | null
           original_thumbnail_url: string
           original_title: string | null
           parent_test_id: string | null
@@ -964,7 +289,6 @@ export type Database = {
           playoff_start_after: string | null
           playoff_test_id: string | null
           queue_start_after: string | null
-          regra_duracao: string
           restore_seq: number
           restore_status: Json | null
           result_metadata: Json | null
@@ -996,7 +320,6 @@ export type Database = {
           last_applied_variant_id?: string | null
           last_apply_error?: string | null
           name: string
-          original_description?: string | null
           original_thumbnail_url: string
           original_title?: string | null
           parent_test_id?: string | null
@@ -1004,7 +327,6 @@ export type Database = {
           playoff_start_after?: string | null
           playoff_test_id?: string | null
           queue_start_after?: string | null
-          regra_duracao?: string
           restore_seq?: number
           restore_status?: Json | null
           result_metadata?: Json | null
@@ -1036,7 +358,6 @@ export type Database = {
           last_applied_variant_id?: string | null
           last_apply_error?: string | null
           name?: string
-          original_description?: string | null
           original_thumbnail_url?: string
           original_title?: string | null
           parent_test_id?: string | null
@@ -1044,7 +365,6 @@ export type Database = {
           playoff_start_after?: string | null
           playoff_test_id?: string | null
           queue_start_after?: string | null
-          regra_duracao?: string
           restore_seq?: number
           restore_status?: Json | null
           result_metadata?: Json | null
@@ -2827,72 +2147,6 @@ export type Database = {
           },
         ]
       }
-      competitor_agenda_lease: {
-        Row: {
-          expires_at: string
-          holder: string
-          name: string
-        }
-        Insert: {
-          expires_at: string
-          holder: string
-          name: string
-        }
-        Update: {
-          expires_at?: string
-          holder?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      competitor_agenda_runs: {
-        Row: {
-          attempts: number
-          detail: Json | null
-          done_n: number | null
-          duration_ms: number | null
-          finished_at: string | null
-          left_n: number | null
-          period_key: string
-          reason: string | null
-          runs: number
-          started_at: string
-          status: string
-          task: string
-          unfinished_n: number
-        }
-        Insert: {
-          attempts?: number
-          detail?: Json | null
-          done_n?: number | null
-          duration_ms?: number | null
-          finished_at?: string | null
-          left_n?: number | null
-          period_key: string
-          reason?: string | null
-          runs?: number
-          started_at?: string
-          status: string
-          task: string
-          unfinished_n?: number
-        }
-        Update: {
-          attempts?: number
-          detail?: Json | null
-          done_n?: number | null
-          duration_ms?: number | null
-          finished_at?: string | null
-          left_n?: number | null
-          period_key?: string
-          reason?: string | null
-          runs?: number
-          started_at?: string
-          status?: string
-          task?: string
-          unfinished_n?: number
-        }
-        Relationships: []
-      }
       competitor_changes: {
         Row: {
           bookmarked: boolean | null
@@ -2979,166 +2233,12 @@ export type Database = {
           },
         ]
       }
-      competitor_channel_hour_map: {
-        Row: {
-          comments_share: number[]
-          comments_sum: number[]
-          competitor_channel_id: string
-          format: string
-          likes_share: number[]
-          likes_sum: number[]
-          long_comments: number
-          long_intervals: number
-          long_likes: number
-          long_views: number
-          month: string
-          n_intervals: number[]
-          neg_comments_n: number
-          neg_comments_sum: number
-          neg_likes_n: number
-          neg_likes_sum: number
-          neg_views_n: number
-          neg_views_sum: number
-          phase: string
-          rule_version: number
-          site_id: string
-          updated_at: string
-          video_days_comments: number
-          video_days_likes: number
-          video_days_views: number
-          videos: number
-          views_share: number[]
-          views_sum: number[]
-        }
-        Insert: {
-          comments_share: number[]
-          comments_sum: number[]
-          competitor_channel_id: string
-          format: string
-          likes_share: number[]
-          likes_sum: number[]
-          long_comments?: number
-          long_intervals?: number
-          long_likes?: number
-          long_views?: number
-          month: string
-          n_intervals: number[]
-          neg_comments_n?: number
-          neg_comments_sum?: number
-          neg_likes_n?: number
-          neg_likes_sum?: number
-          neg_views_n?: number
-          neg_views_sum?: number
-          phase: string
-          rule_version?: number
-          site_id: string
-          updated_at?: string
-          video_days_comments?: number
-          video_days_likes?: number
-          video_days_views?: number
-          videos?: number
-          views_share: number[]
-          views_sum: number[]
-        }
-        Update: {
-          comments_share?: number[]
-          comments_sum?: number[]
-          competitor_channel_id?: string
-          format?: string
-          likes_share?: number[]
-          likes_sum?: number[]
-          long_comments?: number
-          long_intervals?: number
-          long_likes?: number
-          long_views?: number
-          month?: string
-          n_intervals?: number[]
-          neg_comments_n?: number
-          neg_comments_sum?: number
-          neg_likes_n?: number
-          neg_likes_sum?: number
-          neg_views_n?: number
-          neg_views_sum?: number
-          phase?: string
-          rule_version?: number
-          site_id?: string
-          updated_at?: string
-          video_days_comments?: number
-          video_days_likes?: number
-          video_days_views?: number
-          videos?: number
-          views_share?: number[]
-          views_sum?: number[]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_channel_hour_map_competitor_channel_id_fkey"
-            columns: ["competitor_channel_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_channel_hour_map_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_channel_sections: {
-        Row: {
-          competitor_channel_id: string
-          id: number
-          observed_at: string
-          prev_seen_at: string | null
-          raw: Json
-          site_id: string
-          state_sha256: string
-        }
-        Insert: {
-          competitor_channel_id: string
-          id?: never
-          observed_at?: string
-          prev_seen_at?: string | null
-          raw: Json
-          site_id: string
-          state_sha256: string
-        }
-        Update: {
-          competitor_channel_id?: string
-          id?: never
-          observed_at?: string
-          prev_seen_at?: string | null
-          raw?: Json
-          site_id?: string
-          state_sha256?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_channel_sections_competitor_channel_id_fkey"
-            columns: ["competitor_channel_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_channel_sections_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       competitor_channel_snapshots: {
         Row: {
           competitor_channel_id: string
           id: string
           snapshot_date: string
           subscriber_count: number | null
-          subscribers_hidden: boolean | null
           video_count: number | null
           view_count: number | null
         }
@@ -3147,7 +2247,6 @@ export type Database = {
           id?: string
           snapshot_date: string
           subscriber_count?: number | null
-          subscribers_hidden?: boolean | null
           video_count?: number | null
           view_count?: number | null
         }
@@ -3156,7 +2255,6 @@ export type Database = {
           id?: string
           snapshot_date?: string
           subscriber_count?: number | null
-          subscribers_hidden?: boolean | null
           video_count?: number | null
           view_count?: number | null
         }
@@ -3175,32 +2273,15 @@ export type Database = {
           added_at: string | null
           channel_id: string
           channel_name: string
-          collection_paused_at: string | null
-          collection_paused_by: string | null
-          country: string | null
-          custom_url: string | null
-          description: string | null
           full_sync_completed_at: string | null
           id: string
           last_ok_synced_at: string | null
           last_seen_at: string | null
           last_synced_at: string | null
-          miss_first_at: string | null
-          miss_streak: number
-          missing_since: string | null
           niche: string | null
           published_at: string | null
-          removal_decided_at: string | null
-          removal_decided_by: string | null
-          removal_decision: string | null
-          removal_reason: string | null
-          removal_requested_at: string | null
-          removal_requested_by: string | null
-          removal_reter_antes: Json | null
-          removal_was_paused: boolean | null
           site_id: string
           subscriber_count: number | null
-          subscribers_hidden: boolean | null
           sync_error: string | null
           sync_error_since: string | null
           sync_mode: string
@@ -3209,39 +2290,21 @@ export type Database = {
           sync_status: string
           thumbnail_url: string | null
           video_limit: number
-          weekly_pass_date: string | null
           youtube_video_count: number | null
         }
         Insert: {
           added_at?: string | null
           channel_id: string
           channel_name?: string
-          collection_paused_at?: string | null
-          collection_paused_by?: string | null
-          country?: string | null
-          custom_url?: string | null
-          description?: string | null
           full_sync_completed_at?: string | null
           id?: string
           last_ok_synced_at?: string | null
           last_seen_at?: string | null
           last_synced_at?: string | null
-          miss_first_at?: string | null
-          miss_streak?: number
-          missing_since?: string | null
           niche?: string | null
           published_at?: string | null
-          removal_decided_at?: string | null
-          removal_decided_by?: string | null
-          removal_decision?: string | null
-          removal_reason?: string | null
-          removal_requested_at?: string | null
-          removal_requested_by?: string | null
-          removal_reter_antes?: Json | null
-          removal_was_paused?: boolean | null
           site_id: string
           subscriber_count?: number | null
-          subscribers_hidden?: boolean | null
           sync_error?: string | null
           sync_error_since?: string | null
           sync_mode?: string
@@ -3250,39 +2313,21 @@ export type Database = {
           sync_status?: string
           thumbnail_url?: string | null
           video_limit?: number
-          weekly_pass_date?: string | null
           youtube_video_count?: number | null
         }
         Update: {
           added_at?: string | null
           channel_id?: string
           channel_name?: string
-          collection_paused_at?: string | null
-          collection_paused_by?: string | null
-          country?: string | null
-          custom_url?: string | null
-          description?: string | null
           full_sync_completed_at?: string | null
           id?: string
           last_ok_synced_at?: string | null
           last_seen_at?: string | null
           last_synced_at?: string | null
-          miss_first_at?: string | null
-          miss_streak?: number
-          missing_since?: string | null
           niche?: string | null
           published_at?: string | null
-          removal_decided_at?: string | null
-          removal_decided_by?: string | null
-          removal_decision?: string | null
-          removal_reason?: string | null
-          removal_requested_at?: string | null
-          removal_requested_by?: string | null
-          removal_reter_antes?: Json | null
-          removal_was_paused?: boolean | null
           site_id?: string
           subscriber_count?: number | null
-          subscribers_hidden?: boolean | null
           sync_error?: string | null
           sync_error_since?: string | null
           sync_mode?: string
@@ -3291,7 +2336,6 @@ export type Database = {
           sync_status?: string
           thumbnail_url?: string | null
           video_limit?: number
-          weekly_pass_date?: string | null
           youtube_video_count?: number | null
         }
         Relationships: [
@@ -3304,54 +2348,6 @@ export type Database = {
           },
           {
             foreignKeyName: "competitor_channels_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_collection_pauses: {
-        Row: {
-          competitor_channel_id: string
-          id: number
-          paused_at: string
-          paused_by: string
-          reason: string
-          resumed_at: string | null
-          resumed_by: string | null
-          site_id: string
-        }
-        Insert: {
-          competitor_channel_id: string
-          id?: never
-          paused_at: string
-          paused_by: string
-          reason?: string
-          resumed_at?: string | null
-          resumed_by?: string | null
-          site_id: string
-        }
-        Update: {
-          competitor_channel_id?: string
-          id?: never
-          paused_at?: string
-          paused_by?: string
-          reason?: string
-          resumed_at?: string | null
-          resumed_by?: string | null
-          site_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_collection_pauses_competitor_channel_id_fkey"
-            columns: ["competitor_channel_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_collection_pauses_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
@@ -3419,391 +2415,6 @@ export type Database = {
           },
           {
             foreignKeyName: "competitor_field_versions_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_hour_fold_log: {
-        Row: {
-          day: string
-          folded_at: string
-          intervals_clean: number
-          intervals_long: number
-          site_id: string
-          video_id: string
-        }
-        Insert: {
-          day: string
-          folded_at?: string
-          intervals_clean: number
-          intervals_long: number
-          site_id: string
-          video_id: string
-        }
-        Update: {
-          day?: string
-          folded_at?: string
-          intervals_clean?: number
-          intervals_long?: number
-          site_id?: string
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_hour_fold_log_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_hour_fold_log_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_missing_baseline: {
-        Row: {
-          lines_floor: number
-          measured_at: string
-          missing_since: string
-          site_id: string
-          video_id: string
-        }
-        Insert: {
-          lines_floor: number
-          measured_at: string
-          missing_since: string
-          site_id: string
-          video_id: string
-        }
-        Update: {
-          lines_floor?: number
-          measured_at?: string
-          missing_since?: string
-          site_id?: string
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_missing_baseline_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_missing_baseline_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_playlist_items: {
-        Row: {
-          added_at: string | null
-          first_seen_at: string
-          item_id: string
-          note: string | null
-          playlist_ref: string
-          position: number | null
-          privacy: string | null
-          removed_after: string | null
-          removed_since: string | null
-          site_id: string
-          video_owner_channel_id: string | null
-          video_published_at: string | null
-          youtube_video_id: string
-        }
-        Insert: {
-          added_at?: string | null
-          first_seen_at: string
-          item_id: string
-          note?: string | null
-          playlist_ref: string
-          position?: number | null
-          privacy?: string | null
-          removed_after?: string | null
-          removed_since?: string | null
-          site_id: string
-          video_owner_channel_id?: string | null
-          video_published_at?: string | null
-          youtube_video_id: string
-        }
-        Update: {
-          added_at?: string | null
-          first_seen_at?: string
-          item_id?: string
-          note?: string | null
-          playlist_ref?: string
-          position?: number | null
-          privacy?: string | null
-          removed_after?: string | null
-          removed_since?: string | null
-          site_id?: string
-          video_owner_channel_id?: string | null
-          video_published_at?: string | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_playlist_items_playlist_ref_fkey"
-            columns: ["playlist_ref"]
-            isOneToOne: false
-            referencedRelation: "competitor_playlists"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_playlist_items_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_playlist_reads: {
-        Row: {
-          competitor_channel_id: string
-          empty_streak: number
-          first_visit_at: string
-          last_complete_at: string | null
-          last_cycle_at: string | null
-          last_reason: string | null
-          last_status: string
-          last_units: number
-          last_visit_at: string
-          last_visit_day: string
-          playlists_left: number | null
-          sections_empty_streak: number
-          site_id: string
-        }
-        Insert: {
-          competitor_channel_id: string
-          empty_streak?: number
-          first_visit_at: string
-          last_complete_at?: string | null
-          last_cycle_at?: string | null
-          last_reason?: string | null
-          last_status: string
-          last_units: number
-          last_visit_at: string
-          last_visit_day: string
-          playlists_left?: number | null
-          sections_empty_streak?: number
-          site_id: string
-        }
-        Update: {
-          competitor_channel_id?: string
-          empty_streak?: number
-          first_visit_at?: string
-          last_complete_at?: string | null
-          last_cycle_at?: string | null
-          last_reason?: string | null
-          last_status?: string
-          last_units?: number
-          last_visit_at?: string
-          last_visit_day?: string
-          playlists_left?: number | null
-          sections_empty_streak?: number
-          site_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_playlist_reads_competitor_channel_id_fkey"
-            columns: ["competitor_channel_id"]
-            isOneToOne: true
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_playlist_reads_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_playlist_versions: {
-        Row: {
-          id: number
-          observed_at: string
-          playlist_ref: string
-          prev_seen_at: string | null
-          raw: Json
-          site_id: string
-          state_sha256: string
-        }
-        Insert: {
-          id?: never
-          observed_at?: string
-          playlist_ref: string
-          prev_seen_at?: string | null
-          raw: Json
-          site_id: string
-          state_sha256: string
-        }
-        Update: {
-          id?: never
-          observed_at?: string
-          playlist_ref?: string
-          prev_seen_at?: string | null
-          raw?: Json
-          site_id?: string
-          state_sha256?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_playlist_versions_playlist_ref_fkey"
-            columns: ["playlist_ref"]
-            isOneToOne: false
-            referencedRelation: "competitor_playlists"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_playlist_versions_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_playlists: {
-        Row: {
-          competitor_channel_id: string
-          first_seen_at: string
-          id: string
-          item_count: number | null
-          items_complete_at: string | null
-          items_read_at: string | null
-          items_reason: string | null
-          items_status: string | null
-          last_seen_at: string
-          mass_exit_day: string | null
-          missing_since: string | null
-          playlist_id: string
-          privacy: string | null
-          published_at: string | null
-          site_id: string
-          state_sha256: string
-          title: string | null
-        }
-        Insert: {
-          competitor_channel_id: string
-          first_seen_at: string
-          id?: string
-          item_count?: number | null
-          items_complete_at?: string | null
-          items_read_at?: string | null
-          items_reason?: string | null
-          items_status?: string | null
-          last_seen_at: string
-          mass_exit_day?: string | null
-          missing_since?: string | null
-          playlist_id: string
-          privacy?: string | null
-          published_at?: string | null
-          site_id: string
-          state_sha256: string
-          title?: string | null
-        }
-        Update: {
-          competitor_channel_id?: string
-          first_seen_at?: string
-          id?: string
-          item_count?: number | null
-          items_complete_at?: string | null
-          items_read_at?: string | null
-          items_reason?: string | null
-          items_status?: string | null
-          last_seen_at?: string
-          mass_exit_day?: string | null
-          missing_since?: string | null
-          playlist_id?: string
-          privacy?: string | null
-          published_at?: string | null
-          site_id?: string
-          state_sha256?: string
-          title?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_playlists_competitor_channel_id_fkey"
-            columns: ["competitor_channel_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_playlists_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_raw: {
-        Row: {
-          competitor_channel_id: string
-          first_seen_at: string
-          id: number
-          is_current: boolean
-          last_seen_at: string
-          raw: Json
-          raw_sha256: string
-          site_id: string
-          video_id: string | null
-        }
-        Insert: {
-          competitor_channel_id: string
-          first_seen_at: string
-          id?: never
-          is_current?: boolean
-          last_seen_at: string
-          raw: Json
-          raw_sha256: string
-          site_id: string
-          video_id?: string | null
-        }
-        Update: {
-          competitor_channel_id?: string
-          first_seen_at?: string
-          id?: never
-          is_current?: boolean
-          last_seen_at?: string
-          raw?: Json
-          raw_sha256?: string
-          site_id?: string
-          video_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_raw_competitor_channel_id_fkey"
-            columns: ["competitor_channel_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_raw_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_raw_video_id_fkey"
             columns: ["video_id"]
             isOneToOne: false
             referencedRelation: "competitor_videos"
@@ -3891,68 +2502,6 @@ export type Database = {
           },
         ]
       }
-      competitor_removed_items: {
-        Row: {
-          archive_pending: boolean
-          blobs_pending: string[]
-          competitor_channel_id: string | null
-          decided_at: string
-          decided_by: string
-          id: number
-          kind: string
-          missing_since: string | null
-          purge_count: number
-          return_decided_at: string | null
-          return_decision: string | null
-          returned_seen_at: string | null
-          rows_deleted: Json
-          site_id: string
-          youtube_id: string
-        }
-        Insert: {
-          archive_pending?: boolean
-          blobs_pending?: string[]
-          competitor_channel_id?: string | null
-          decided_at?: string
-          decided_by: string
-          id?: never
-          kind: string
-          missing_since?: string | null
-          purge_count?: number
-          return_decided_at?: string | null
-          return_decision?: string | null
-          returned_seen_at?: string | null
-          rows_deleted: Json
-          site_id: string
-          youtube_id: string
-        }
-        Update: {
-          archive_pending?: boolean
-          blobs_pending?: string[]
-          competitor_channel_id?: string | null
-          decided_at?: string
-          decided_by?: string
-          id?: never
-          kind?: string
-          missing_since?: string | null
-          purge_count?: number
-          return_decided_at?: string | null
-          return_decision?: string | null
-          returned_seen_at?: string | null
-          rows_deleted?: Json
-          site_id?: string
-          youtube_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_removed_items_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       competitor_settings: {
         Row: {
           channel_limit: number
@@ -4014,307 +2563,6 @@ export type Database = {
           },
         ]
       }
-      competitor_video_comment_authors: {
-        Row: {
-          avatar_url: string | null
-          channel_id: string | null
-          comment_id: number
-          created_at: string
-          display_name: string | null
-          expires_at: string
-          site_id: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          channel_id?: string | null
-          comment_id: number
-          created_at?: string
-          display_name?: string | null
-          expires_at: string
-          site_id: string
-        }
-        Update: {
-          avatar_url?: string | null
-          channel_id?: string | null
-          comment_id?: number
-          created_at?: string
-          display_name?: string | null
-          expires_at?: string
-          site_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_comment_authors_comment_id_fkey"
-            columns: ["comment_id"]
-            isOneToOne: true
-            referencedRelation: "competitor_video_comments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_comment_authors_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_video_comment_marks: {
-        Row: {
-          comment_id: number
-          creator_replied: boolean | null
-          likes: number
-          mark: number
-          relevance_rank: number | null
-          reply_count: number | null
-          site_id: string
-          slot: string | null
-        }
-        Insert: {
-          comment_id: number
-          creator_replied?: boolean | null
-          likes: number
-          mark: number
-          relevance_rank?: number | null
-          reply_count?: number | null
-          site_id: string
-          slot?: string | null
-        }
-        Update: {
-          comment_id?: number
-          creator_replied?: boolean | null
-          likes?: number
-          mark?: number
-          relevance_rank?: number | null
-          reply_count?: number | null
-          site_id?: string
-          slot?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_comment_marks_comment_id_fkey"
-            columns: ["comment_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_video_comments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_comment_marks_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_video_comment_snaps: {
-        Row: {
-          competitor_channel_id: string
-          error_reason: string | null
-          featured_lookup_n: number | null
-          featured_unknown_n: number | null
-          mark: number
-          pool_complete: boolean | null
-          pool_size: number | null
-          pool_stats: Json | null
-          rule_params: Json
-          rule_version: number
-          selected_count: number | null
-          site_id: string
-          status: string
-          taken_at: string
-          units_used: number
-          video_age_hours: number
-          video_comment_count: number | null
-          video_id: string
-        }
-        Insert: {
-          competitor_channel_id: string
-          error_reason?: string | null
-          featured_lookup_n?: number | null
-          featured_unknown_n?: number | null
-          mark: number
-          pool_complete?: boolean | null
-          pool_size?: number | null
-          pool_stats?: Json | null
-          rule_params: Json
-          rule_version: number
-          selected_count?: number | null
-          site_id: string
-          status: string
-          taken_at: string
-          units_used: number
-          video_age_hours: number
-          video_comment_count?: number | null
-          video_id: string
-        }
-        Update: {
-          competitor_channel_id?: string
-          error_reason?: string | null
-          featured_lookup_n?: number | null
-          featured_unknown_n?: number | null
-          mark?: number
-          pool_complete?: boolean | null
-          pool_size?: number | null
-          pool_stats?: Json | null
-          rule_params?: Json
-          rule_version?: number
-          selected_count?: number | null
-          site_id?: string
-          status?: string
-          taken_at?: string
-          units_used?: number
-          video_age_hours?: number
-          video_comment_count?: number | null
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_comment_snaps_competitor_channel_id_fkey"
-            columns: ["competitor_channel_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_comment_snaps_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_comment_snaps_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_video_comments: {
-        Row: {
-          author_purged_at: string | null
-          body: string
-          body_truncated: boolean
-          competitor_channel_id: string
-          creator_replied: boolean | null
-          edited_at: string | null
-          featured_channel_id: string | null
-          featured_ratio_band: string | null
-          featured_reason: string | null
-          featured_size_band: string | null
-          first_seen_at: string
-          id: number
-          is_creator: boolean
-          last_checked_at: string | null
-          last_seen_at: string
-          miss_streak: number
-          missing_since: string | null
-          parent_id: number | null
-          published_at: string
-          removal_decided_at: string | null
-          removal_decided_by: string | null
-          removal_decision: string | null
-          site_id: string
-          speaker_no: number | null
-          video_id: string
-          youtube_comment_id: string
-        }
-        Insert: {
-          author_purged_at?: string | null
-          body: string
-          body_truncated?: boolean
-          competitor_channel_id: string
-          creator_replied?: boolean | null
-          edited_at?: string | null
-          featured_channel_id?: string | null
-          featured_ratio_band?: string | null
-          featured_reason?: string | null
-          featured_size_band?: string | null
-          first_seen_at: string
-          id?: never
-          is_creator: boolean
-          last_checked_at?: string | null
-          last_seen_at: string
-          miss_streak?: number
-          missing_since?: string | null
-          parent_id?: number | null
-          published_at: string
-          removal_decided_at?: string | null
-          removal_decided_by?: string | null
-          removal_decision?: string | null
-          site_id: string
-          speaker_no?: number | null
-          video_id: string
-          youtube_comment_id: string
-        }
-        Update: {
-          author_purged_at?: string | null
-          body?: string
-          body_truncated?: boolean
-          competitor_channel_id?: string
-          creator_replied?: boolean | null
-          edited_at?: string | null
-          featured_channel_id?: string | null
-          featured_ratio_band?: string | null
-          featured_reason?: string | null
-          featured_size_band?: string | null
-          first_seen_at?: string
-          id?: never
-          is_creator?: boolean
-          last_checked_at?: string | null
-          last_seen_at?: string
-          miss_streak?: number
-          missing_since?: string | null
-          parent_id?: number | null
-          published_at?: string
-          removal_decided_at?: string | null
-          removal_decided_by?: string | null
-          removal_decision?: string | null
-          site_id?: string
-          speaker_no?: number | null
-          video_id?: string
-          youtube_comment_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_comments_competitor_channel_id_fkey"
-            columns: ["competitor_channel_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_comments_featured_channel_id_fkey"
-            columns: ["featured_channel_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_comments_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_video_comments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_comments_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_comments_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       competitor_video_daily: {
         Row: {
           comments: number | null
@@ -4343,246 +2591,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "competitor_video_daily_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_video_early: {
-        Row: {
-          comments: number | null
-          likes: number | null
-          site_id: string
-          taken_at: string
-          video_id: string
-          views: number
-        }
-        Insert: {
-          comments?: number | null
-          likes?: number | null
-          site_id: string
-          taken_at: string
-          video_id: string
-          views: number
-        }
-        Update: {
-          comments?: number | null
-          likes?: number | null
-          site_id?: string
-          taken_at?: string
-          video_id?: string
-          views?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_early_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_early_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_video_hourly: {
-        Row: {
-          comments: number | null
-          hour_slot: string
-          likes: number | null
-          site_id: string
-          taken_at: string
-          video_id: string
-          views: number
-        }
-        Insert: {
-          comments?: number | null
-          hour_slot: string
-          likes?: number | null
-          site_id: string
-          taken_at: string
-          video_id: string
-          views: number
-        }
-        Update: {
-          comments?: number | null
-          hour_slot?: string
-          likes?: number | null
-          site_id?: string
-          taken_at?: string
-          video_id?: string
-          views?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_hourly_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_hourly_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_video_mark_misses: {
-        Row: {
-          age_base_at: string
-          age_days: number
-          decided_at: string
-          reason: string
-          rule_version: number
-          since_at: string | null
-          site_id: string
-          video_id: string
-        }
-        Insert: {
-          age_base_at: string
-          age_days: number
-          decided_at?: string
-          reason: string
-          rule_version: number
-          since_at?: string | null
-          site_id: string
-          video_id: string
-        }
-        Update: {
-          age_base_at?: string
-          age_days?: number
-          decided_at?: string
-          reason?: string
-          rule_version?: number
-          since_at?: string | null
-          site_id?: string
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_mark_misses_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_mark_misses_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_video_marks: {
-        Row: {
-          age_base_at: string
-          age_days: number
-          comments: number | null
-          comments_disabled: boolean | null
-          computed_at: string
-          gap_hours: number
-          likes: number | null
-          likes_hidden: boolean | null
-          read_after_at: string
-          read_before_at: string
-          rule_version: number
-          site_id: string
-          video_id: string
-          views: number
-        }
-        Insert: {
-          age_base_at: string
-          age_days: number
-          comments?: number | null
-          comments_disabled?: boolean | null
-          computed_at?: string
-          gap_hours: number
-          likes?: number | null
-          likes_hidden?: boolean | null
-          read_after_at: string
-          read_before_at: string
-          rule_version?: number
-          site_id: string
-          video_id: string
-          views: number
-        }
-        Update: {
-          age_base_at?: string
-          age_days?: number
-          comments?: number | null
-          comments_disabled?: boolean | null
-          computed_at?: string
-          gap_hours?: number
-          likes?: number | null
-          likes_hidden?: boolean | null
-          read_after_at?: string
-          read_before_at?: string
-          rule_version?: number
-          site_id?: string
-          video_id?: string
-          views?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_marks_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_marks_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      competitor_video_tier_spans: {
-        Row: {
-          from_date: string
-          site_id: string
-          tier: string
-          to_date: string | null
-          video_id: string
-        }
-        Insert: {
-          from_date: string
-          site_id: string
-          tier: string
-          to_date?: string | null
-          video_id: string
-        }
-        Update: {
-          from_date?: string
-          site_id?: string
-          tier?: string
-          to_date?: string | null
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "competitor_video_tier_spans_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "competitor_video_tier_spans_video_id_fkey"
             columns: ["video_id"]
             isOneToOne: false
             referencedRelation: "competitor_videos"
@@ -4659,125 +2667,68 @@ export type Database = {
         Row: {
           category_id: string | null
           comment_count: number | null
-          comments_disabled: boolean | null
           competitor_channel_id: string
-          daily_until: string | null
-          default_audio_language: string | null
-          default_language: string | null
           description_hash: string | null
-          discovered_at: string | null
           duration_seconds: number | null
           id: string
           is_short: boolean | null
           last_checked_at: string | null
           last_seen_at: string | null
           like_count: number | null
-          likes_hidden: boolean | null
-          live_actual_end_at: string | null
-          live_actual_start_at: string | null
-          live_broadcast_content: string | null
-          live_scheduled_start_at: string | null
-          miss_first_at: string | null
-          miss_streak: number
           missing_since: string | null
           original_thumbnail_url: string | null
           pinned_at: string | null
           pinned_by: string | null
           published_at: string | null
-          removal_decided_at: string | null
-          removal_decided_by: string | null
-          removal_decision: string | null
-          series_tier: string | null
-          series_tier_since: string | null
           tags: string[] | null
           thumbnail_url: string | null
           title: string | null
           video_id: string
           view_count: number | null
-          views_hidden: boolean | null
-          was_live: boolean | null
         }
         Insert: {
           category_id?: string | null
           comment_count?: number | null
-          comments_disabled?: boolean | null
           competitor_channel_id: string
-          daily_until?: string | null
-          default_audio_language?: string | null
-          default_language?: string | null
           description_hash?: string | null
-          discovered_at?: string | null
           duration_seconds?: number | null
           id?: string
           is_short?: boolean | null
           last_checked_at?: string | null
           last_seen_at?: string | null
           like_count?: number | null
-          likes_hidden?: boolean | null
-          live_actual_end_at?: string | null
-          live_actual_start_at?: string | null
-          live_broadcast_content?: string | null
-          live_scheduled_start_at?: string | null
-          miss_first_at?: string | null
-          miss_streak?: number
           missing_since?: string | null
           original_thumbnail_url?: string | null
           pinned_at?: string | null
           pinned_by?: string | null
           published_at?: string | null
-          removal_decided_at?: string | null
-          removal_decided_by?: string | null
-          removal_decision?: string | null
-          series_tier?: string | null
-          series_tier_since?: string | null
           tags?: string[] | null
           thumbnail_url?: string | null
           title?: string | null
           video_id: string
           view_count?: number | null
-          views_hidden?: boolean | null
-          was_live?: boolean | null
         }
         Update: {
           category_id?: string | null
           comment_count?: number | null
-          comments_disabled?: boolean | null
           competitor_channel_id?: string
-          daily_until?: string | null
-          default_audio_language?: string | null
-          default_language?: string | null
           description_hash?: string | null
-          discovered_at?: string | null
           duration_seconds?: number | null
           id?: string
           is_short?: boolean | null
           last_checked_at?: string | null
           last_seen_at?: string | null
           like_count?: number | null
-          likes_hidden?: boolean | null
-          live_actual_end_at?: string | null
-          live_actual_start_at?: string | null
-          live_broadcast_content?: string | null
-          live_scheduled_start_at?: string | null
-          miss_first_at?: string | null
-          miss_streak?: number
           missing_since?: string | null
           original_thumbnail_url?: string | null
           pinned_at?: string | null
           pinned_by?: string | null
           published_at?: string | null
-          removal_decided_at?: string | null
-          removal_decided_by?: string | null
-          removal_decision?: string | null
-          series_tier?: string | null
-          series_tier_since?: string | null
           tags?: string[] | null
           thumbnail_url?: string | null
           title?: string | null
           video_id?: string
           view_count?: number | null
-          views_hidden?: boolean | null
-          was_live?: boolean | null
         }
         Relationships: [
           {
@@ -5404,7 +3355,6 @@ export type Database = {
         Row: {
           changed_at: string
           changed_by: string | null
-          changed_by_key_id: string | null
           event_type: string
           from_value: string | null
           id: string
@@ -5414,7 +3364,6 @@ export type Database = {
         Insert: {
           changed_at?: string
           changed_by?: string | null
-          changed_by_key_id?: string | null
           event_type: string
           from_value?: string | null
           id?: string
@@ -5424,7 +3373,6 @@ export type Database = {
         Update: {
           changed_at?: string
           changed_by?: string | null
-          changed_by_key_id?: string | null
           event_type?: string
           from_value?: string | null
           id?: string
@@ -5432,13 +3380,6 @@ export type Database = {
           to_value?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "content_pipeline_history_changed_by_key_id_fkey"
-            columns: ["changed_by_key_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_api_keys"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "content_pipeline_history_pipeline_id_fkey"
             columns: ["pipeline_id"]
@@ -6700,414 +4641,6 @@ export type Database = {
         }
         Relationships: []
       }
-      link_clicks_2026_08: {
-        Row: {
-          ad_click_ids: Json | null
-          browser: string | null
-          city: string | null
-          clicked_at: string
-          conversion_id: string | null
-          conversion_type: string | null
-          conversion_value: number | null
-          converted_at: string | null
-          country: string | null
-          device_type: string | null
-          id: string
-          ip: string | null
-          is_bot: boolean
-          is_returning: boolean
-          is_unique: boolean
-          language: string | null
-          link_id: string
-          os: string | null
-          referrer_domain: string | null
-          referrer_source: string | null
-          referrer_url: string | null
-          region: string | null
-          site_id: string
-          user_agent: string | null
-          utm_campaign: string | null
-          utm_content: string | null
-          utm_id: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          utm_term: string | null
-          visitor_id: string | null
-        }
-        Insert: {
-          ad_click_ids?: Json | null
-          browser?: string | null
-          city?: string | null
-          clicked_at?: string
-          conversion_id?: string | null
-          conversion_type?: string | null
-          conversion_value?: number | null
-          converted_at?: string | null
-          country?: string | null
-          device_type?: string | null
-          id?: string
-          ip?: string | null
-          is_bot?: boolean
-          is_returning?: boolean
-          is_unique?: boolean
-          language?: string | null
-          link_id: string
-          os?: string | null
-          referrer_domain?: string | null
-          referrer_source?: string | null
-          referrer_url?: string | null
-          region?: string | null
-          site_id: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_id?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-          visitor_id?: string | null
-        }
-        Update: {
-          ad_click_ids?: Json | null
-          browser?: string | null
-          city?: string | null
-          clicked_at?: string
-          conversion_id?: string | null
-          conversion_type?: string | null
-          conversion_value?: number | null
-          converted_at?: string | null
-          country?: string | null
-          device_type?: string | null
-          id?: string
-          ip?: string | null
-          is_bot?: boolean
-          is_returning?: boolean
-          is_unique?: boolean
-          language?: string | null
-          link_id?: string
-          os?: string | null
-          referrer_domain?: string | null
-          referrer_source?: string | null
-          referrer_url?: string | null
-          region?: string | null
-          site_id?: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_id?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-          visitor_id?: string | null
-        }
-        Relationships: []
-      }
-      link_clicks_2026_09: {
-        Row: {
-          ad_click_ids: Json | null
-          browser: string | null
-          city: string | null
-          clicked_at: string
-          conversion_id: string | null
-          conversion_type: string | null
-          conversion_value: number | null
-          converted_at: string | null
-          country: string | null
-          device_type: string | null
-          id: string
-          ip: string | null
-          is_bot: boolean
-          is_returning: boolean
-          is_unique: boolean
-          language: string | null
-          link_id: string
-          os: string | null
-          referrer_domain: string | null
-          referrer_source: string | null
-          referrer_url: string | null
-          region: string | null
-          site_id: string
-          user_agent: string | null
-          utm_campaign: string | null
-          utm_content: string | null
-          utm_id: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          utm_term: string | null
-          visitor_id: string | null
-        }
-        Insert: {
-          ad_click_ids?: Json | null
-          browser?: string | null
-          city?: string | null
-          clicked_at?: string
-          conversion_id?: string | null
-          conversion_type?: string | null
-          conversion_value?: number | null
-          converted_at?: string | null
-          country?: string | null
-          device_type?: string | null
-          id?: string
-          ip?: string | null
-          is_bot?: boolean
-          is_returning?: boolean
-          is_unique?: boolean
-          language?: string | null
-          link_id: string
-          os?: string | null
-          referrer_domain?: string | null
-          referrer_source?: string | null
-          referrer_url?: string | null
-          region?: string | null
-          site_id: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_id?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-          visitor_id?: string | null
-        }
-        Update: {
-          ad_click_ids?: Json | null
-          browser?: string | null
-          city?: string | null
-          clicked_at?: string
-          conversion_id?: string | null
-          conversion_type?: string | null
-          conversion_value?: number | null
-          converted_at?: string | null
-          country?: string | null
-          device_type?: string | null
-          id?: string
-          ip?: string | null
-          is_bot?: boolean
-          is_returning?: boolean
-          is_unique?: boolean
-          language?: string | null
-          link_id?: string
-          os?: string | null
-          referrer_domain?: string | null
-          referrer_source?: string | null
-          referrer_url?: string | null
-          region?: string | null
-          site_id?: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_id?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-          visitor_id?: string | null
-        }
-        Relationships: []
-      }
-      link_clicks_2026_10: {
-        Row: {
-          ad_click_ids: Json | null
-          browser: string | null
-          city: string | null
-          clicked_at: string
-          conversion_id: string | null
-          conversion_type: string | null
-          conversion_value: number | null
-          converted_at: string | null
-          country: string | null
-          device_type: string | null
-          id: string
-          ip: string | null
-          is_bot: boolean
-          is_returning: boolean
-          is_unique: boolean
-          language: string | null
-          link_id: string
-          os: string | null
-          referrer_domain: string | null
-          referrer_source: string | null
-          referrer_url: string | null
-          region: string | null
-          site_id: string
-          user_agent: string | null
-          utm_campaign: string | null
-          utm_content: string | null
-          utm_id: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          utm_term: string | null
-          visitor_id: string | null
-        }
-        Insert: {
-          ad_click_ids?: Json | null
-          browser?: string | null
-          city?: string | null
-          clicked_at?: string
-          conversion_id?: string | null
-          conversion_type?: string | null
-          conversion_value?: number | null
-          converted_at?: string | null
-          country?: string | null
-          device_type?: string | null
-          id?: string
-          ip?: string | null
-          is_bot?: boolean
-          is_returning?: boolean
-          is_unique?: boolean
-          language?: string | null
-          link_id: string
-          os?: string | null
-          referrer_domain?: string | null
-          referrer_source?: string | null
-          referrer_url?: string | null
-          region?: string | null
-          site_id: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_id?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-          visitor_id?: string | null
-        }
-        Update: {
-          ad_click_ids?: Json | null
-          browser?: string | null
-          city?: string | null
-          clicked_at?: string
-          conversion_id?: string | null
-          conversion_type?: string | null
-          conversion_value?: number | null
-          converted_at?: string | null
-          country?: string | null
-          device_type?: string | null
-          id?: string
-          ip?: string | null
-          is_bot?: boolean
-          is_returning?: boolean
-          is_unique?: boolean
-          language?: string | null
-          link_id?: string
-          os?: string | null
-          referrer_domain?: string | null
-          referrer_source?: string | null
-          referrer_url?: string | null
-          region?: string | null
-          site_id?: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_id?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-          visitor_id?: string | null
-        }
-        Relationships: []
-      }
-      link_clicks_2026_11: {
-        Row: {
-          ad_click_ids: Json | null
-          browser: string | null
-          city: string | null
-          clicked_at: string
-          conversion_id: string | null
-          conversion_type: string | null
-          conversion_value: number | null
-          converted_at: string | null
-          country: string | null
-          device_type: string | null
-          id: string
-          ip: string | null
-          is_bot: boolean
-          is_returning: boolean
-          is_unique: boolean
-          language: string | null
-          link_id: string
-          os: string | null
-          referrer_domain: string | null
-          referrer_source: string | null
-          referrer_url: string | null
-          region: string | null
-          site_id: string
-          user_agent: string | null
-          utm_campaign: string | null
-          utm_content: string | null
-          utm_id: string | null
-          utm_medium: string | null
-          utm_source: string | null
-          utm_term: string | null
-          visitor_id: string | null
-        }
-        Insert: {
-          ad_click_ids?: Json | null
-          browser?: string | null
-          city?: string | null
-          clicked_at?: string
-          conversion_id?: string | null
-          conversion_type?: string | null
-          conversion_value?: number | null
-          converted_at?: string | null
-          country?: string | null
-          device_type?: string | null
-          id?: string
-          ip?: string | null
-          is_bot?: boolean
-          is_returning?: boolean
-          is_unique?: boolean
-          language?: string | null
-          link_id: string
-          os?: string | null
-          referrer_domain?: string | null
-          referrer_source?: string | null
-          referrer_url?: string | null
-          region?: string | null
-          site_id: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_id?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-          visitor_id?: string | null
-        }
-        Update: {
-          ad_click_ids?: Json | null
-          browser?: string | null
-          city?: string | null
-          clicked_at?: string
-          conversion_id?: string | null
-          conversion_type?: string | null
-          conversion_value?: number | null
-          converted_at?: string | null
-          country?: string | null
-          device_type?: string | null
-          id?: string
-          ip?: string | null
-          is_bot?: boolean
-          is_returning?: boolean
-          is_unique?: boolean
-          language?: string | null
-          link_id?: string
-          os?: string | null
-          referrer_domain?: string | null
-          referrer_source?: string | null
-          referrer_url?: string | null
-          region?: string | null
-          site_id?: string
-          user_agent?: string | null
-          utm_campaign?: string | null
-          utm_content?: string | null
-          utm_id?: string | null
-          utm_medium?: string | null
-          utm_source?: string | null
-          utm_term?: string | null
-          visitor_id?: string | null
-        }
-        Relationships: []
-      }
       link_clicks_default: {
         Row: {
           ad_click_ids: Json | null
@@ -8094,53 +5627,6 @@ export type Database = {
         }
         Relationships: []
       }
-      lugar_aliases: {
-        Row: {
-          alias_norm: string
-          ambiguo: boolean
-          semente_versao: number
-          slug: string
-        }
-        Insert: {
-          alias_norm: string
-          ambiguo?: boolean
-          semente_versao: number
-          slug: string
-        }
-        Update: {
-          alias_norm?: string
-          ambiguo?: boolean
-          semente_versao?: number
-          slug?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lugar_aliases_slug_fkey"
-            columns: ["slug"]
-            isOneToOne: false
-            referencedRelation: "lugares"
-            referencedColumns: ["slug"]
-          },
-        ]
-      }
-      lugares: {
-        Row: {
-          nivel: string
-          pais_iso2: string
-          slug: string
-        }
-        Insert: {
-          nivel: string
-          pais_iso2: string
-          slug: string
-        }
-        Update: {
-          nivel?: string
-          pais_iso2?: string
-          slug?: string
-        }
-        Relationships: []
-      }
       media_asset_usage: {
         Row: {
           asset_id: string
@@ -8711,168 +6197,6 @@ export type Database = {
           },
         ]
       }
-      niche_outliers_vistos: {
-        Row: {
-          canal_id: string
-          chaves: string[]
-          formato: string
-          mult_max: number
-          n_canal: number
-          primeiro_visto_em: string
-          published_at: string
-          site_id: string
-          ultimo_visto_em: string
-          video_id: string
-          vpd7_max: number
-        }
-        Insert: {
-          canal_id: string
-          chaves: string[]
-          formato: string
-          mult_max: number
-          n_canal: number
-          primeiro_visto_em: string
-          published_at: string
-          site_id: string
-          ultimo_visto_em: string
-          video_id: string
-          vpd7_max: number
-        }
-        Update: {
-          canal_id?: string
-          chaves?: string[]
-          formato?: string
-          mult_max?: number
-          n_canal?: number
-          primeiro_visto_em?: string
-          published_at?: string
-          site_id?: string
-          ultimo_visto_em?: string
-          video_id?: string
-          vpd7_max?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "niche_outliers_vistos_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      niche_signals: {
-        Row: {
-          acao: string
-          computed_at: string
-          dispensa_motivo: string | null
-          dispensado_em: string | null
-          dispensado_por: string | null
-          evidence: Json
-          expires_at: string
-          first_seen_at: string
-          forca: number
-          id: string
-          kind: string
-          motivo: string
-          notificacao_falhou_em: string | null
-          notificacao_tentativas: number
-          notificado_em: string | null
-          notificar_como: string
-          rule_version: string
-          site_id: string
-          status: string
-          subject_key: string
-        }
-        Insert: {
-          acao: string
-          computed_at: string
-          dispensa_motivo?: string | null
-          dispensado_em?: string | null
-          dispensado_por?: string | null
-          evidence: Json
-          expires_at: string
-          first_seen_at: string
-          forca: number
-          id?: string
-          kind: string
-          motivo: string
-          notificacao_falhou_em?: string | null
-          notificacao_tentativas?: number
-          notificado_em?: string | null
-          notificar_como?: string
-          rule_version: string
-          site_id: string
-          status?: string
-          subject_key: string
-        }
-        Update: {
-          acao?: string
-          computed_at?: string
-          dispensa_motivo?: string | null
-          dispensado_em?: string | null
-          dispensado_por?: string | null
-          evidence?: Json
-          expires_at?: string
-          first_seen_at?: string
-          forca?: number
-          id?: string
-          kind?: string
-          motivo?: string
-          notificacao_falhou_em?: string | null
-          notificacao_tentativas?: number
-          notificado_em?: string | null
-          notificar_como?: string
-          rule_version?: string
-          site_id?: string
-          status?: string
-          subject_key?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "niche_signals_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      niche_signals_estado: {
-        Row: {
-          baseline_em: string | null
-          computed_at: string
-          contagens: Json
-          motivo_vazio: string | null
-          rule_version: string
-          site_id: string
-        }
-        Insert: {
-          baseline_em?: string | null
-          computed_at: string
-          contagens: Json
-          motivo_vazio?: string | null
-          rule_version: string
-          site_id: string
-        }
-        Update: {
-          baseline_em?: string | null
-          computed_at?: string
-          contagens?: Json
-          motivo_vazio?: string | null
-          rule_version?: string
-          site_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "niche_signals_estado_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: true
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       notification_deliveries: {
         Row: {
           attempts: number
@@ -9085,261 +6409,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "notifications_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      obs_ai_access_log: {
-        Row: {
-          action: string
-          at: string
-          id: number
-          included_private: boolean
-          key_id: string | null
-          origin: string
-          output_chars: number | null
-          params: Json
-          result: string
-          site_id: string
-          user_id: string | null
-        }
-        Insert: {
-          action: string
-          at?: string
-          id?: never
-          included_private: boolean
-          key_id?: string | null
-          origin: string
-          output_chars?: number | null
-          params?: Json
-          result: string
-          site_id: string
-          user_id?: string | null
-        }
-        Update: {
-          action?: string
-          at?: string
-          id?: never
-          included_private?: boolean
-          key_id?: string | null
-          origin?: string
-          output_chars?: number | null
-          params?: Json
-          result?: string
-          site_id?: string
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "obs_ai_access_log_key_id_fkey"
-            columns: ["key_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_api_keys"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "obs_ai_access_log_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      obs_ai_rate: {
-        Row: {
-          bucket: string
-          grain: string
-          key_id: string
-          n: number
-        }
-        Insert: {
-          bucket: string
-          grain: string
-          key_id: string
-          n?: number
-        }
-        Update: {
-          bucket?: string
-          grain?: string
-          key_id?: string
-          n?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "obs_ai_rate_key_id_fkey"
-            columns: ["key_id"]
-            isOneToOne: false
-            referencedRelation: "pipeline_api_keys"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      obs_archive_batches: {
-        Row: {
-          batch: string
-          blob_bytes: number | null
-          blob_count: number | null
-          blob_missing: number | null
-          blob_urls_pending: string[] | null
-          channel_label: string | null
-          channel_ref: string
-          closed_at: string | null
-          closed_reason: string | null
-          control_sum: number | null
-          csv_sha256: string
-          deleted_at: string | null
-          exported_at: string
-          file_sha256: string
-          id: number
-          kind: string
-          nas_confirmed_at: string | null
-          nas_confirmed_by: string | null
-          period_end: string
-          period_start: string
-          row_count: number
-          rows_deleted: number | null
-          site_id: string
-          table_name: string
-          verified_at: string | null
-        }
-        Insert: {
-          batch: string
-          blob_bytes?: number | null
-          blob_count?: number | null
-          blob_missing?: number | null
-          blob_urls_pending?: string[] | null
-          channel_label?: string | null
-          channel_ref: string
-          closed_at?: string | null
-          closed_reason?: string | null
-          control_sum?: number | null
-          csv_sha256: string
-          deleted_at?: string | null
-          exported_at: string
-          file_sha256: string
-          id?: never
-          kind?: string
-          nas_confirmed_at?: string | null
-          nas_confirmed_by?: string | null
-          period_end: string
-          period_start: string
-          row_count: number
-          rows_deleted?: number | null
-          site_id: string
-          table_name: string
-          verified_at?: string | null
-        }
-        Update: {
-          batch?: string
-          blob_bytes?: number | null
-          blob_count?: number | null
-          blob_missing?: number | null
-          blob_urls_pending?: string[] | null
-          channel_label?: string | null
-          channel_ref?: string
-          closed_at?: string | null
-          closed_reason?: string | null
-          control_sum?: number | null
-          csv_sha256?: string
-          deleted_at?: string | null
-          exported_at?: string
-          file_sha256?: string
-          id?: never
-          kind?: string
-          nas_confirmed_at?: string | null
-          nas_confirmed_by?: string | null
-          period_end?: string
-          period_start?: string
-          row_count?: number
-          rows_deleted?: number | null
-          site_id?: string
-          table_name?: string
-          verified_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "obs_archive_batches_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      obs_db_size_daily: {
-        Row: {
-          competitor_bytes: number
-          day: string
-          db_bytes: number
-          measured_at: string
-          own_bytes: number
-          top_relations: Json
-        }
-        Insert: {
-          competitor_bytes: number
-          day: string
-          db_bytes: number
-          measured_at?: string
-          own_bytes: number
-          top_relations?: Json
-        }
-        Update: {
-          competitor_bytes?: number
-          day?: string
-          db_bytes?: number
-          measured_at?: string
-          own_bytes?: number
-          top_relations?: Json
-        }
-        Relationships: []
-      }
-      obs_unarchived_deletions: {
-        Row: {
-          blob_urls_pending: string[]
-          channel_name: string
-          channel_ref: string
-          deleted_at: string
-          deleted_by: string
-          id: number
-          reason: string
-          rows_deleted: Json
-          site_id: string
-          youtube_channel_id: string
-          youtube_video_ids: string[]
-        }
-        Insert: {
-          blob_urls_pending?: string[]
-          channel_name: string
-          channel_ref: string
-          deleted_at: string
-          deleted_by: string
-          id?: never
-          reason: string
-          rows_deleted: Json
-          site_id: string
-          youtube_channel_id: string
-          youtube_video_ids?: string[]
-        }
-        Update: {
-          blob_urls_pending?: string[]
-          channel_name?: string
-          channel_ref?: string
-          deleted_at?: string
-          deleted_by?: string
-          id?: never
-          reason?: string
-          rows_deleted?: Json
-          site_id?: string
-          youtube_channel_id?: string
-          youtube_video_ids?: string[]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "obs_unarchived_deletions_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
@@ -9616,7 +6685,6 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
-          expires_at: string | null
           id: string
           key_hash: string
           last_used_at: string | null
@@ -9624,12 +6692,10 @@ export type Database = {
           permissions: string[]
           revoked_at: string | null
           site_id: string
-          user_id: string | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
-          expires_at?: string | null
           id?: string
           key_hash: string
           last_used_at?: string | null
@@ -9637,12 +6703,10 @@ export type Database = {
           permissions?: string[]
           revoked_at?: string | null
           site_id: string
-          user_id?: string | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
-          expires_at?: string | null
           id?: string
           key_hash?: string
           last_used_at?: string | null
@@ -9650,7 +6714,6 @@ export type Database = {
           permissions?: string[]
           revoked_at?: string | null
           site_id?: string
-          user_id?: string | null
         }
         Relationships: [
           {
@@ -10718,41 +7781,6 @@ export type Database = {
           },
         ]
       }
-      site_private_viewers: {
-        Row: {
-          granted_at: string
-          granted_by: string | null
-          revoked_at: string | null
-          revoked_by: string | null
-          site_id: string
-          user_id: string
-        }
-        Insert: {
-          granted_at?: string
-          granted_by?: string | null
-          revoked_at?: string | null
-          revoked_by?: string | null
-          site_id: string
-          user_id: string
-        }
-        Update: {
-          granted_at?: string
-          granted_by?: string | null
-          revoked_at?: string | null
-          revoked_by?: string | null
-          site_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "site_private_viewers_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sites: {
         Row: {
           cms_enabled: boolean
@@ -11572,47 +8600,6 @@ export type Database = {
           },
         ]
       }
-      video_lugares: {
-        Row: {
-          chaves: string[]
-          computado_em: string
-          entrada_hash: string
-          fonte: string
-          origem: string
-          semente_versao: number
-          site_id: string
-          video_id: string
-        }
-        Insert: {
-          chaves: string[]
-          computado_em: string
-          entrada_hash: string
-          fonte: string
-          origem: string
-          semente_versao: number
-          site_id: string
-          video_id: string
-        }
-        Update: {
-          chaves?: string[]
-          computado_em?: string
-          entrada_hash?: string
-          fonte?: string
-          origem?: string
-          semente_versao?: number
-          site_id?: string
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "video_lugares_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       video_recording_status: {
         Row: {
           beat_id: string
@@ -12373,6 +9360,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "youtube_intelligence_tasks_target_video_id_fkey"
+            columns: ["target_video_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_videos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "youtube_intelligence_tasks_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
@@ -12385,13 +9379,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "youtube_niches"
             referencedColumns: ["site_id", "slug"]
-          },
-          {
-            foreignKeyName: "youtube_intelligence_tasks_target_video_id_fkey"
-            columns: ["target_video_id"]
-            isOneToOne: false
-            referencedRelation: "competitor_videos"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -12927,48 +9914,6 @@ export type Database = {
           },
         ]
       }
-      yt_own_channel_state_raw: {
-        Row: {
-          channel_id: string
-          id: number
-          observed_at: string
-          raw: Json
-          site_id: string
-          state_sha256: string
-        }
-        Insert: {
-          channel_id: string
-          id?: never
-          observed_at?: string
-          raw: Json
-          site_id: string
-          state_sha256: string
-        }
-        Update: {
-          channel_id?: string
-          id?: never
-          observed_at?: string
-          raw?: Json
-          site_id?: string
-          state_sha256?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_channel_state_raw_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_channel_state_raw_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       yt_own_collection_attempts: {
         Row: {
           attempt_day: string
@@ -13062,369 +10007,6 @@ export type Database = {
         }
         Relationships: []
       }
-      yt_own_public_hour_fold_log: {
-        Row: {
-          channel_id: string
-          day: string
-          folded_at: string
-          intervals_clean: number
-          intervals_long: number
-          site_id: string
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          day: string
-          folded_at?: string
-          intervals_clean: number
-          intervals_long: number
-          site_id: string
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          day?: string
-          folded_at?: string
-          intervals_clean?: number
-          intervals_long?: number
-          site_id?: string
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_public_hour_fold_log_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_public_hour_fold_log_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_public_hour_map: {
-        Row: {
-          channel_id: string
-          comments_share: number[]
-          comments_sum: number[]
-          format: string
-          likes_share: number[]
-          likes_sum: number[]
-          long_comments: number
-          long_intervals: number
-          long_likes: number
-          long_views: number
-          month: string
-          n_intervals: number[]
-          neg_comments_n: number
-          neg_comments_sum: number
-          neg_likes_n: number
-          neg_likes_sum: number
-          neg_views_n: number
-          neg_views_sum: number
-          phase: string
-          rule_version: number
-          site_id: string
-          updated_at: string
-          video_days_comments: number
-          video_days_likes: number
-          video_days_views: number
-          videos: number
-          views_share: number[]
-          views_sum: number[]
-        }
-        Insert: {
-          channel_id: string
-          comments_share: number[]
-          comments_sum: number[]
-          format: string
-          likes_share: number[]
-          likes_sum: number[]
-          long_comments?: number
-          long_intervals?: number
-          long_likes?: number
-          long_views?: number
-          month: string
-          n_intervals: number[]
-          neg_comments_n?: number
-          neg_comments_sum?: number
-          neg_likes_n?: number
-          neg_likes_sum?: number
-          neg_views_n?: number
-          neg_views_sum?: number
-          phase: string
-          rule_version?: number
-          site_id: string
-          updated_at?: string
-          video_days_comments?: number
-          video_days_likes?: number
-          video_days_views?: number
-          videos?: number
-          views_share: number[]
-          views_sum: number[]
-        }
-        Update: {
-          channel_id?: string
-          comments_share?: number[]
-          comments_sum?: number[]
-          format?: string
-          likes_share?: number[]
-          likes_sum?: number[]
-          long_comments?: number
-          long_intervals?: number
-          long_likes?: number
-          long_views?: number
-          month?: string
-          n_intervals?: number[]
-          neg_comments_n?: number
-          neg_comments_sum?: number
-          neg_likes_n?: number
-          neg_likes_sum?: number
-          neg_views_n?: number
-          neg_views_sum?: number
-          phase?: string
-          rule_version?: number
-          site_id?: string
-          updated_at?: string
-          video_days_comments?: number
-          video_days_likes?: number
-          video_days_views?: number
-          videos?: number
-          views_share?: number[]
-          views_sum?: number[]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_public_hour_map_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_public_hour_map_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_public_video_early: {
-        Row: {
-          channel_id: string
-          comments: number | null
-          likes: number | null
-          site_id: string
-          taken_at: string
-          video_id: string | null
-          views: number
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          comments?: number | null
-          likes?: number | null
-          site_id: string
-          taken_at: string
-          video_id?: string | null
-          views: number
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          comments?: number | null
-          likes?: number | null
-          site_id?: string
-          taken_at?: string
-          video_id?: string | null
-          views?: number
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_public_video_early_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_public_video_early_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_public_video_early_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_public_video_hourly: {
-        Row: {
-          channel_id: string
-          comments: number | null
-          hour_slot: string
-          likes: number | null
-          site_id: string
-          taken_at: string
-          video_id: string | null
-          views: number
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          comments?: number | null
-          hour_slot: string
-          likes?: number | null
-          site_id: string
-          taken_at: string
-          video_id?: string | null
-          views: number
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          comments?: number | null
-          hour_slot?: string
-          likes?: number | null
-          site_id?: string
-          taken_at?: string
-          video_id?: string | null
-          views?: number
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_public_video_hourly_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_public_video_hourly_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_public_video_hourly_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_versions_state: {
-        Row: {
-          channel_id: string
-          derived_through: string
-          site_id: string
-          tracking_since: string
-          updated_at: string
-        }
-        Insert: {
-          channel_id: string
-          derived_through: string
-          site_id: string
-          tracking_since: string
-          updated_at?: string
-        }
-        Update: {
-          channel_id?: string
-          derived_through?: string
-          site_id?: string
-          tracking_since?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_versions_state_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: true
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_versions_state_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_video_coverage: {
-        Row: {
-          channel_id: string
-          collected_at: string
-          covered_from: string
-          covered_to: string
-          metric_set: string
-          site_id: string
-          source: string
-          video_id: string | null
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          collected_at?: string
-          covered_from: string
-          covered_to: string
-          metric_set: string
-          site_id: string
-          source?: string
-          video_id?: string | null
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          collected_at?: string
-          covered_from?: string
-          covered_to?: string
-          metric_set?: string
-          site_id?: string
-          source?: string
-          video_id?: string | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_coverage_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_coverage_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_coverage_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       yt_own_video_daily: {
         Row: {
           avg_view_duration_seconds: number | null
@@ -13509,145 +10091,6 @@ export type Database = {
           },
           {
             foreignKeyName: "yt_own_video_daily_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_video_daily_zeros_bkp: {
-        Row: {
-          avg_view_duration_seconds: number | null
-          avg_view_percentage: number | null
-          card_click_rate: number | null
-          card_impressions: number | null
-          channel_id: string
-          collected_at: string
-          comments: number | null
-          day_pt: string
-          engaged_views: number | null
-          likes: number | null
-          metric_version: string
-          shares: number | null
-          site_id: string
-          source: string
-          subscribers_gained: number | null
-          subscribers_lost: number | null
-          video_id: string | null
-          views: number | null
-          watch_time_minutes: number | null
-          youtube_video_id: string
-        }
-        Insert: {
-          avg_view_duration_seconds?: number | null
-          avg_view_percentage?: number | null
-          card_click_rate?: number | null
-          card_impressions?: number | null
-          channel_id: string
-          collected_at: string
-          comments?: number | null
-          day_pt: string
-          engaged_views?: number | null
-          likes?: number | null
-          metric_version: string
-          shares?: number | null
-          site_id: string
-          source: string
-          subscribers_gained?: number | null
-          subscribers_lost?: number | null
-          video_id?: string | null
-          views?: number | null
-          watch_time_minutes?: number | null
-          youtube_video_id: string
-        }
-        Update: {
-          avg_view_duration_seconds?: number | null
-          avg_view_percentage?: number | null
-          card_click_rate?: number | null
-          card_impressions?: number | null
-          channel_id?: string
-          collected_at?: string
-          comments?: number | null
-          day_pt?: string
-          engaged_views?: number | null
-          likes?: number | null
-          metric_version?: string
-          shares?: number | null
-          site_id?: string
-          source?: string
-          subscribers_gained?: number | null
-          subscribers_lost?: number | null
-          video_id?: string | null
-          views?: number | null
-          watch_time_minutes?: number | null
-          youtube_video_id?: string
-        }
-        Relationships: []
-      }
-      yt_own_video_dim_daily: {
-        Row: {
-          channel_id: string
-          collected_at: string
-          day_pt: string
-          dim_kind: string
-          dim_value: string
-          engaged_views: number | null
-          metric_version: string
-          site_id: string
-          source: string
-          video_id: string | null
-          views: number | null
-          watch_time_minutes: number | null
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          collected_at?: string
-          day_pt: string
-          dim_kind: string
-          dim_value: string
-          engaged_views?: number | null
-          metric_version: string
-          site_id: string
-          source?: string
-          video_id?: string | null
-          views?: number | null
-          watch_time_minutes?: number | null
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          collected_at?: string
-          day_pt?: string
-          dim_kind?: string
-          dim_value?: string
-          engaged_views?: number | null
-          metric_version?: string
-          site_id?: string
-          source?: string
-          video_id?: string | null
-          views?: number | null
-          watch_time_minutes?: number | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_dim_daily_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_dim_daily_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_dim_daily_video_id_fkey"
             columns: ["video_id"]
             isOneToOne: false
             referencedRelation: "youtube_videos"
@@ -13761,54 +10204,6 @@ export type Database = {
           },
         ]
       }
-      yt_own_video_public_daily: {
-        Row: {
-          captured_at: string
-          channel_id: string
-          comment_count: number | null
-          day_pt: string
-          like_count: number | null
-          site_id: string
-          view_count: number | null
-          youtube_video_id: string
-        }
-        Insert: {
-          captured_at?: string
-          channel_id: string
-          comment_count?: number | null
-          day_pt: string
-          like_count?: number | null
-          site_id: string
-          view_count?: number | null
-          youtube_video_id: string
-        }
-        Update: {
-          captured_at?: string
-          channel_id?: string
-          comment_count?: number | null
-          day_pt?: string
-          like_count?: number | null
-          site_id?: string
-          view_count?: number | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_public_daily_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_public_daily_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       yt_own_video_reach_daily: {
         Row: {
           channel_id: string
@@ -13869,391 +10264,6 @@ export type Database = {
           },
           {
             foreignKeyName: "yt_own_video_reach_daily_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_video_reach_dim_daily: {
-        Row: {
-          channel_id: string
-          collected_at: string
-          day_pt: string
-          device_type: string
-          metric_version: string
-          operating_system: string
-          report_create_time: string
-          site_id: string
-          source_report_id: string
-          thumbnail_clicks_est: number | null
-          thumbnail_impressions: number | null
-          traffic_source_type: string
-          video_id: string | null
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          collected_at?: string
-          day_pt: string
-          device_type: string
-          metric_version: string
-          operating_system: string
-          report_create_time: string
-          site_id: string
-          source_report_id: string
-          thumbnail_clicks_est?: number | null
-          thumbnail_impressions?: number | null
-          traffic_source_type: string
-          video_id?: string | null
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          collected_at?: string
-          day_pt?: string
-          device_type?: string
-          metric_version?: string
-          operating_system?: string
-          report_create_time?: string
-          site_id?: string
-          source_report_id?: string
-          thumbnail_clicks_est?: number | null
-          thumbnail_impressions?: number | null
-          traffic_source_type?: string
-          video_id?: string | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_reach_dim_daily_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_reach_dim_daily_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_reach_dim_daily_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_video_retention: {
-        Row: {
-          channel_id: string
-          collected_at: string
-          metric_version: string
-          metrics_returned: string[]
-          point_count: number
-          points: Json
-          requested_end: string
-          segment: string
-          site_id: string
-          source: string
-          video_id: string | null
-          views_at_read: number | null
-          window_end: string
-          window_kind: string
-          window_start: string
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          collected_at?: string
-          metric_version: string
-          metrics_returned: string[]
-          point_count: number
-          points: Json
-          requested_end: string
-          segment?: string
-          site_id: string
-          source?: string
-          video_id?: string | null
-          views_at_read?: number | null
-          window_end: string
-          window_kind: string
-          window_start: string
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          collected_at?: string
-          metric_version?: string
-          metrics_returned?: string[]
-          point_count?: number
-          points?: Json
-          requested_end?: string
-          segment?: string
-          site_id?: string
-          source?: string
-          video_id?: string | null
-          views_at_read?: number | null
-          window_end?: string
-          window_kind?: string
-          window_start?: string
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_retention_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_retention_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_retention_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_video_state_raw: {
-        Row: {
-          channel_id: string
-          id: number
-          observed_at: string
-          raw: Json
-          site_id: string
-          state_sha256: string
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          id?: never
-          observed_at?: string
-          raw: Json
-          site_id: string
-          state_sha256: string
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          id?: never
-          observed_at?: string
-          raw?: Json
-          site_id?: string
-          state_sha256?: string
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_state_raw_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_state_raw_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_video_traffic_detail_daily: {
-        Row: {
-          channel_id: string
-          collected_at: string
-          day_pt: string
-          detail: string
-          detail_hash: string
-          metric_version: string
-          report_create_time: string
-          site_id: string
-          source: string
-          source_report_id: string
-          source_type: string
-          video_id: string | null
-          views: number | null
-          watch_time_minutes: number | null
-          youtube_video_id: string
-        }
-        Insert: {
-          channel_id: string
-          collected_at?: string
-          day_pt: string
-          detail: string
-          detail_hash: string
-          metric_version: string
-          report_create_time: string
-          site_id: string
-          source?: string
-          source_report_id: string
-          source_type: string
-          video_id?: string | null
-          views?: number | null
-          watch_time_minutes?: number | null
-          youtube_video_id: string
-        }
-        Update: {
-          channel_id?: string
-          collected_at?: string
-          day_pt?: string
-          detail?: string
-          detail_hash?: string
-          metric_version?: string
-          report_create_time?: string
-          site_id?: string
-          source?: string
-          source_report_id?: string
-          source_type?: string
-          video_id?: string | null
-          views?: number | null
-          watch_time_minutes?: number | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_traffic_detail_daily_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_traffic_detail_daily_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_traffic_detail_daily_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_own_video_versions: {
-        Row: {
-          ab_event: string | null
-          ab_test_id: string | null
-          ab_variant_id: string | null
-          channel_id: string
-          created_at: string
-          field: string
-          first_day_pt: string
-          first_seen_at: string
-          id: string
-          is_current: boolean
-          last_day_pt: string
-          last_seen_at: string
-          origin: string
-          pre_registro: boolean
-          site_id: string
-          thumb_anchor_dhash: string | null
-          thumb_blob_url: string | null
-          thumb_dhash: string | null
-          thumb_sha256: string | null
-          thumb_similar: boolean
-          value_hash: string
-          value_text: string | null
-          video_id: string | null
-          window_end: string | null
-          window_precision: string
-          window_start: string | null
-          youtube_video_id: string
-        }
-        Insert: {
-          ab_event?: string | null
-          ab_test_id?: string | null
-          ab_variant_id?: string | null
-          channel_id: string
-          created_at?: string
-          field: string
-          first_day_pt: string
-          first_seen_at: string
-          id?: string
-          is_current?: boolean
-          last_day_pt: string
-          last_seen_at: string
-          origin: string
-          pre_registro?: boolean
-          site_id: string
-          thumb_anchor_dhash?: string | null
-          thumb_blob_url?: string | null
-          thumb_dhash?: string | null
-          thumb_sha256?: string | null
-          thumb_similar?: boolean
-          value_hash: string
-          value_text?: string | null
-          video_id?: string | null
-          window_end?: string | null
-          window_precision: string
-          window_start?: string | null
-          youtube_video_id: string
-        }
-        Update: {
-          ab_event?: string | null
-          ab_test_id?: string | null
-          ab_variant_id?: string | null
-          channel_id?: string
-          created_at?: string
-          field?: string
-          first_day_pt?: string
-          first_seen_at?: string
-          id?: string
-          is_current?: boolean
-          last_day_pt?: string
-          last_seen_at?: string
-          origin?: string
-          pre_registro?: boolean
-          site_id?: string
-          thumb_anchor_dhash?: string | null
-          thumb_blob_url?: string | null
-          thumb_dhash?: string | null
-          thumb_sha256?: string | null
-          thumb_similar?: boolean
-          value_hash?: string
-          value_text?: string | null
-          video_id?: string | null
-          window_end?: string | null
-          window_precision?: string
-          window_start?: string | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_versions_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_versions_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_versions_video_id_fkey"
             columns: ["video_id"]
             isOneToOne: false
             referencedRelation: "youtube_videos"
@@ -14434,214 +10444,6 @@ export type Database = {
           },
           {
             foreignKeyName: "yt_reporting_reports_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_watch_alvos: {
-        Row: {
-          ativo_desde: string
-          coleta_ate: string
-          created_at: string
-          extensoes_curtas: number
-          hora_base_min: number
-          id: number
-          indisponivel_seguidas: number
-          motivo_ate: string
-          proxima_rodada_em: string
-          reter_ate: string | null
-          rodadas: number
-          rodadas_por_dia: number
-          saiu_em: string | null
-          saiu_por: string | null
-          site_id: string
-          tipo: string
-          ultima_rodada_em: string | null
-          youtube_video_id: string
-        }
-        Insert: {
-          ativo_desde?: string
-          coleta_ate: string
-          created_at?: string
-          extensoes_curtas?: number
-          hora_base_min: number
-          id?: never
-          indisponivel_seguidas?: number
-          motivo_ate: string
-          proxima_rodada_em: string
-          reter_ate?: string | null
-          rodadas?: number
-          rodadas_por_dia?: number
-          saiu_em?: string | null
-          saiu_por?: string | null
-          site_id: string
-          tipo: string
-          ultima_rodada_em?: string | null
-          youtube_video_id: string
-        }
-        Update: {
-          ativo_desde?: string
-          coleta_ate?: string
-          created_at?: string
-          extensoes_curtas?: number
-          hora_base_min?: number
-          id?: never
-          indisponivel_seguidas?: number
-          motivo_ate?: string
-          proxima_rodada_em?: string
-          reter_ate?: string | null
-          rodadas?: number
-          rodadas_por_dia?: number
-          saiu_em?: string | null
-          saiu_por?: string | null
-          site_id?: string
-          tipo?: string
-          ultima_rodada_em?: string | null
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_watch_alvos_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_watch_readings: {
-        Row: {
-          erro: string | null
-          http: number | null
-          id: number
-          idioma: string | null
-          jogador_bloqueado: boolean
-          lida_em: string
-          miniatura_id: number | null
-          origem_rede: string
-          renderers_presentes: number
-          rendicoes_sqp: number | null
-          rodada_id: string
-          site_id: string
-          titulo_exibido: string | null
-          titulo_oficial: string | null
-          titulo_oficial_fonte: string | null
-          titulos_divergentes: Json | null
-          versao_leitor: number
-          youtube_video_id: string
-        }
-        Insert: {
-          erro?: string | null
-          http?: number | null
-          id?: never
-          idioma?: string | null
-          jogador_bloqueado?: boolean
-          lida_em: string
-          miniatura_id?: number | null
-          origem_rede: string
-          renderers_presentes?: number
-          rendicoes_sqp?: number | null
-          rodada_id: string
-          site_id: string
-          titulo_exibido?: string | null
-          titulo_oficial?: string | null
-          titulo_oficial_fonte?: string | null
-          titulos_divergentes?: Json | null
-          versao_leitor: number
-          youtube_video_id: string
-        }
-        Update: {
-          erro?: string | null
-          http?: number | null
-          id?: never
-          idioma?: string | null
-          jogador_bloqueado?: boolean
-          lida_em?: string
-          miniatura_id?: number | null
-          origem_rede?: string
-          renderers_presentes?: number
-          rendicoes_sqp?: number | null
-          rodada_id?: string
-          site_id?: string
-          titulo_exibido?: string | null
-          titulo_oficial?: string | null
-          titulo_oficial_fonte?: string | null
-          titulos_divergentes?: Json | null
-          versao_leitor?: number
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_watch_readings_miniatura_id_fkey"
-            columns: ["miniatura_id"]
-            isOneToOne: false
-            referencedRelation: "yt_watch_thumbs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_watch_readings_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      yt_watch_thumbs: {
-        Row: {
-          altura: number | null
-          dhash: string | null
-          etag: string | null
-          host: string
-          http: number | null
-          id: number
-          largura: number | null
-          primeira_vista: string
-          sha16: string | null
-          site_id: string
-          ultima_vista: string
-          variante: string
-          vistas: number
-          youtube_video_id: string
-        }
-        Insert: {
-          altura?: number | null
-          dhash?: string | null
-          etag?: string | null
-          host: string
-          http?: number | null
-          id?: never
-          largura?: number | null
-          primeira_vista: string
-          sha16?: string | null
-          site_id: string
-          ultima_vista: string
-          variante: string
-          vistas?: number
-          youtube_video_id: string
-        }
-        Update: {
-          altura?: number | null
-          dhash?: string | null
-          etag?: string | null
-          host?: string
-          http?: number | null
-          id?: never
-          largura?: number | null
-          primeira_vista?: string
-          sha16?: string | null
-          site_id?: string
-          ultima_vista?: string
-          variante?: string
-          vistas?: number
-          youtube_video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_watch_thumbs_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "sites"
@@ -14831,19 +10633,6 @@ export type Database = {
         }
         Relationships: []
       }
-      v_cron_health: {
-        Row: {
-          duration_secs: number | null
-          health: string | null
-          jobname: string | null
-          last_end: string | null
-          last_run: string | null
-          last_status: string | null
-          return_message: string | null
-          schedule: string | null
-        }
-        Relationships: []
-      }
       youtube_channel_stats: {
         Row: {
           channel_id: string | null
@@ -14872,137 +10661,8 @@ export type Database = {
           },
         ]
       }
-      yt_own_search_terms: {
-        Row: {
-          channel_id: string | null
-          day_pt: string | null
-          sem_termo: boolean | null
-          site_id: string | null
-          termo: string | null
-          video_id: string | null
-          views: number | null
-          watch_time_minutes: number | null
-          youtube_video_id: string | null
-        }
-        Insert: {
-          channel_id?: string | null
-          day_pt?: string | null
-          sem_termo?: never
-          site_id?: string | null
-          termo?: string | null
-          video_id?: string | null
-          views?: number | null
-          watch_time_minutes?: number | null
-          youtube_video_id?: string | null
-        }
-        Update: {
-          channel_id?: string | null
-          day_pt?: string | null
-          sem_termo?: never
-          site_id?: string | null
-          termo?: string | null
-          video_id?: string | null
-          views?: number | null
-          watch_time_minutes?: number | null
-          youtube_video_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "yt_own_video_traffic_detail_daily_channel_id_fkey"
-            columns: ["channel_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_channels"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_traffic_detail_daily_site_id_fkey"
-            columns: ["site_id"]
-            isOneToOne: false
-            referencedRelation: "sites"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "yt_own_video_traffic_detail_daily_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "youtube_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Functions: {
-      ab_lab_formato_atual: {
-        Args: { p_ids: string[]; p_site: string }
-        Returns: {
-          is_short: boolean
-          raw: Json
-          youtube_video_id: string
-        }[]
-      }
-      ab_lab_volume: {
-        Args: { p_site: string; p_videos: string[] }
-        Returns: {
-          dias_cobertos: number
-          publico: boolean
-          soma: number
-          video_id: string
-        }[]
-      }
-      ab_native_ficha_abrir: {
-        Args: { p_site: string; p_usuario: string; p_video: string }
-        Returns: {
-          atualizada_em: string
-          campos: string[]
-          criada_em: string
-          criada_por: string | null
-          descartada_em: string | null
-          id: string
-          lembrar_em: string | null
-          registro_id: string | null
-          site_id: string
-          studio_aberto_em: string | null
-          variantes: Json
-          video_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "ab_native_fichas"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      ab_native_iniciar: {
-        Args: { p_ficha: string; p_site: string; p_usuario: string }
-        Returns: Json
-      }
-      ab_native_poda: {
-        Args: { p_agora: string; p_lote: number }
-        Returns: number
-      }
-      ab_native_reproduzir: {
-        Args: {
-          p_avaliacoes: Json
-          p_registros: Json
-          p_site: string
-          p_video: string
-        }
-        Returns: number
-      }
-      ab_native_ultimas: {
-        Args: { p_videos: string[] }
-        Returns: {
-          alguma: boolean
-          ultima_em: string
-          ultima_id: number
-          ultima_ok_em: string
-          ultimo_erro: string
-          ultimo_erro_em: string
-          ultimo_erro_id: number
-          ultimo_sem_rodada_em: string
-          video_id: string
-        }[]
-      }
       ab_resume_commit: {
         Args: {
           p_applied_metadata: Json
@@ -15040,14 +10700,9 @@ export type Database = {
           stamped_at: string
         }[]
       }
-      ab_test_dias_apply: { Args: { p_rows: Json }; Returns: number }
-      ab_test_dias_fechar_antigas: {
-        Args: { p_antes: string }
-        Returns: number
-      }
-      ab_test_dias_fechar_apagados: {
-        Args: { p_test_ids: string[] }
-        Returns: number
+      apply_competitor_version_plan: {
+        Args: { p_changes: Json; p_close: string[]; p_open: Json; p_video_id: string }
+        Returns: Json
       }
       accept_invitation_atomic:
         | { Args: { p_token: string }; Returns: Json }
@@ -15104,14 +10759,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      admin_user_directory: {
-        Args: { p_user_ids: string[] }
-        Returns: {
-          display_name: string
-          email: string
-          user_id: string
-        }[]
-      }
       aggregate_ad_events_yesterday: { Args: never; Returns: number }
       aggregate_content_events: { Args: { p_date?: string }; Returns: Json }
       anonymize_contact_submission: {
@@ -15120,52 +10767,6 @@ export type Database = {
       }
       anonymize_old_link_clicks: {
         Args: { p_older_than_days?: number }
-        Returns: Json
-      }
-      apply_competitor_comment_snap: {
-        Args: {
-          p_comments: Json
-          p_mark: number
-          p_missing?: string[]
-          p_snap: Json
-          p_video: string
-        }
-        Returns: Json
-      }
-      apply_competitor_field_plan: {
-        Args: {
-          p_channel_id: string
-          p_close: Json
-          p_open: Json
-          p_site_id: string
-        }
-        Returns: Json
-      }
-      apply_competitor_raw_plan: {
-        Args: {
-          p_channel_id: string
-          p_close: Json
-          p_open: Json
-          p_site_id: string
-        }
-        Returns: Json
-      }
-      apply_competitor_tier_plan: {
-        Args: {
-          p_changes: Json
-          p_channel_id: string
-          p_site_id: string
-          p_today: string
-        }
-        Returns: Json
-      }
-      apply_competitor_version_plan: {
-        Args: {
-          p_changes: Json
-          p_close: string[]
-          p_open: Json
-          p_video_id: string
-        }
         Returns: Json
       }
       assign_week_slot: {
@@ -15188,21 +10789,8 @@ export type Database = {
       }
       can_admin_site_users: { Args: { p_site_id: string }; Returns: boolean }
       can_edit_site: { Args: { p_site_id: string }; Returns: boolean }
-      can_edit_site_as: {
-        Args: { p_site: string; p_user: string }
-        Returns: boolean
-      }
       can_publish_site: { Args: { p_site_id: string }; Returns: boolean }
-      can_view_private_site: { Args: { p_site_id: string }; Returns: boolean }
-      can_view_private_site_as: {
-        Args: { p_site: string; p_user: string }
-        Returns: boolean
-      }
       can_view_site: { Args: { p_site_id: string }; Returns: boolean }
-      can_view_site_as: {
-        Args: { p_site: string; p_user: string }
-        Returns: boolean
-      }
       cancel_account_deletion_in_grace: {
         Args: { p_token_hash: string }
         Returns: Json
@@ -15212,341 +10800,9 @@ export type Database = {
         Args: { p_max_per_playlist?: number }
         Returns: number
       }
-      competitor_agenda_claim: {
-        Args: {
-          p_max_attempts: number
-          p_period_key: string
-          p_reopen?: boolean
-          p_stale?: string
-          p_task: string
-        }
-        Returns: boolean
-      }
-      competitor_agenda_defer: {
-        Args: { p_period_key: string; p_reason: string; p_task: string }
-        Returns: boolean
-      }
-      competitor_agenda_exhaust: {
-        Args: {
-          p_max_attempts: number
-          p_period_key: string
-          p_stale?: string
-          p_task: string
-        }
-        Returns: boolean
-      }
-      competitor_agenda_finish: {
-        Args: {
-          p_detail: Json
-          p_done_n: number
-          p_duration_ms: number
-          p_left_n: number
-          p_period_key: string
-          p_reason: string
-          p_status: string
-          p_task: string
-        }
-        Returns: boolean
-      }
-      competitor_agenda_lease_release: {
-        Args: { p_holder: string; p_name: string }
-        Returns: boolean
-      }
-      competitor_agenda_lease_take: {
-        Args: { p_holder: string; p_name: string; p_ttl: string }
-        Returns: boolean
-      }
-      competitor_agenda_state: {
-        Args: { p_period_keys: string[]; p_tasks: string[] }
-        Returns: Json
-      }
-      competitor_archive_suggestions: {
-        Args: { p_months: number; p_now: string; p_site: string }
-        Returns: Json
-      }
-      competitor_capture_health: {
-        Args: { p_now: string; p_site_id: string }
-        Returns: Json
-      }
-      competitor_cascade_counts: {
-        Args: { p_id: string; p_root: string }
-        Returns: Json
-      }
-      competitor_channel_cancel_removal: {
-        Args: { p_by: string; p_channel: string; p_site: string }
-        Returns: Json
-      }
-      competitor_channel_comment_impact: {
-        Args: { p_channel_id: string; p_site_id: string }
-        Returns: Json
-      }
-      competitor_channel_delete_unarchived: {
-        Args: {
-          p_actor: string
-          p_channel: string
-          p_confirm_name: string
-          p_motivo: string
-          p_site: string
-        }
-        Returns: Json
-      }
-      competitor_channel_mark_missing: {
-        Args: { p_channel_id: string; p_now: string }
-        Returns: Json
-      }
-      competitor_channel_pause: {
-        Args: { p_by: string; p_channel: string; p_site: string }
-        Returns: Json
-      }
-      competitor_channel_pause_covers: {
-        Args: { p_channel: string; p_now: string; p_tail: string }
-        Returns: boolean
-      }
-      competitor_channel_purge: {
-        Args: {
-          p_actor: string
-          p_channel: string
-          p_ip: string
-          p_janela_min: number
-          p_site: string
-          p_ua: string
-        }
-        Returns: Json
-      }
-      competitor_channel_removal_extra: {
-        Args: { p_channel: string; p_site: string }
-        Returns: Json
-      }
       competitor_channel_removal_impact: {
         Args: { p_channel_id: string; p_site_id: string }
         Returns: Json
-      }
-      competitor_channel_remove_archived: {
-        Args: { p_actor: string; p_channel: string; p_site: string }
-        Returns: Json
-      }
-      competitor_channel_request_removal: {
-        Args: {
-          p_by: string
-          p_channel: string
-          p_motivo: string
-          p_site: string
-        }
-        Returns: Json
-      }
-      competitor_channel_unpause: {
-        Args: { p_by: string; p_channel: string; p_site: string }
-        Returns: Json
-      }
-      competitor_comment_due: {
-        Args: {
-          p_fast_reasons?: string[]
-          p_limit: number
-          p_marks: Json
-          p_now: string
-          p_retry_after: string
-          p_retry_fast?: string
-          p_since?: string
-          p_site_id?: string
-        }
-        Returns: {
-          channel_row_id: string
-          channel_subscribers: number
-          channel_subscribers_hidden: boolean
-          channel_youtube_id: string
-          deadline: string
-          mark: number
-          prev_status: string
-          site_id: string
-          stored_n: number
-          t0: string
-          total_due: number
-          video_checked_at: string
-          video_comment_count: number
-          video_id: string
-          youtube_video_id: string
-        }[]
-      }
-      competitor_comment_health: {
-        Args: {
-          p_grace: string
-          p_identity_days: number
-          p_marks: Json
-          p_now: string
-          p_since?: string
-          p_site_id: string
-        }
-        Returns: Json
-      }
-      competitor_comment_identity_purge: {
-        Args: { p_site_id?: string }
-        Returns: Json
-      }
-      competitor_comments_preview: {
-        Args: { p_channel: string; p_comment_ids: number[]; p_site: string }
-        Returns: Json
-      }
-      competitor_comments_purge: {
-        Args: {
-          p_actor: string
-          p_channel: string
-          p_comment_ids: number[]
-          p_ip: string
-          p_site: string
-          p_ua: string
-        }
-        Returns: Json
-      }
-      competitor_hourly_health: {
-        Args: {
-          p_age_days: number
-          p_cap: number
-          p_now: string
-          p_site_id: string
-        }
-        Returns: Json
-      }
-      competitor_jsonb_sum: { Args: { p_a: Json; p_b: Json }; Returns: Json }
-      competitor_mark_missing: {
-        Args: { p_channel_id: string; p_now: string; p_video_ids: string[] }
-        Returns: Json
-      }
-      competitor_marks_apply: {
-        Args: {
-          p_gap_hours: number
-          p_gap_hours_day1: number
-          p_marks: Json
-          p_misses: Json
-          p_now: string
-          p_rule_version: number
-        }
-        Returns: Json
-      }
-      competitor_marks_health: {
-        Args: { p_gap_hours: number; p_gap_hours_day1: number; p_now: string }
-        Returns: Json
-      }
-      competitor_marks_pending: {
-        Args: {
-          p_gap_hours: number
-          p_gap_hours_day1: number
-          p_limit: number
-          p_now: string
-          p_rule_version: number
-        }
-        Returns: Json
-      }
-      competitor_missing_count: { Args: { p_site: string }; Returns: Json }
-      competitor_missing_keep: {
-        Args: {
-          p_actor: string
-          p_comment_ids: number[]
-          p_ids: string[]
-          p_ip: string
-          p_kind: string
-          p_site: string
-          p_ua: string
-        }
-        Returns: Json
-      }
-      competitor_missing_proof: {
-        Args: { p_now: string; p_site: string }
-        Returns: Json
-      }
-      competitor_purge_preview: {
-        Args: {
-          p_id: string
-          p_janela_min: number
-          p_kind: string
-          p_site: string
-        }
-        Returns: Json
-      }
-      competitor_removed_blobs_done: {
-        Args: { p_done: string[]; p_item: number; p_site: string }
-        Returns: Json
-      }
-      competitor_removed_comment_groups: {
-        Args: { p_site: string }
-        Returns: Json
-      }
-      competitor_return_decide: {
-        Args: {
-          p_actor: string
-          p_decision: string
-          p_ip: string
-          p_item: number
-          p_site: string
-          p_ua: string
-        }
-        Returns: Json
-      }
-      competitor_series_health: {
-        Args: { p_now: string; p_site_id: string }
-        Returns: Json
-      }
-      competitor_video_purge: {
-        Args: {
-          p_actor: string
-          p_ip: string
-          p_janela_min: number
-          p_site: string
-          p_ua: string
-          p_video: string
-        }
-        Returns: Json
-      }
-      competitor_x3_guard: {
-        Args: { p_channel: string; p_site: string }
-        Returns: undefined
-      }
-      competitor_x3_items_record: {
-        Args: {
-          p_channel: string
-          p_complete: boolean
-          p_now: string
-          p_playlist: string
-          p_reason: string
-          p_rows: Json
-          p_site: string
-          p_status: string
-        }
-        Returns: Json
-      }
-      competitor_x3_playlists_record: {
-        Args: {
-          p_channel: string
-          p_complete: boolean
-          p_now: string
-          p_rows: Json
-          p_site: string
-        }
-        Returns: Json
-      }
-      competitor_x3_sections_record: {
-        Args: {
-          p_channel: string
-          p_now: string
-          p_raw: Json
-          p_sha: string
-          p_site: string
-        }
-        Returns: number
-      }
-      competitor_x3_visit_close: {
-        Args: {
-          p_channel: string
-          p_ciclo: boolean
-          p_left: number
-          p_lista_vazia: boolean
-          p_now: string
-          p_reason: string
-          p_secoes_vazias: boolean
-          p_site: string
-          p_status: string
-          p_units: number
-        }
-        Returns: undefined
       }
       confirm_newsletter_subscription: {
         Args: { p_token_hash: string }
@@ -15580,14 +10836,6 @@ export type Database = {
         Args: { p_months_ahead?: number }
         Returns: undefined
       }
-      create_playoff_test: {
-        Args: {
-          p_cooldown_hours?: number
-          p_parent_test_id: string
-          p_variant_ids: string[]
-        }
-        Returns: string
-      }
       create_waitlist_with_translation: {
         Args: {
           p_campaign_id: string
@@ -15620,11 +10868,12 @@ export type Database = {
         }
         Returns: string
       }
-      cron_purge_cron_runs: { Args: never; Returns: undefined }
+      cron_http_post_web: {
+        Args: { p_path: string; p_timeout_ms?: number }
+        Returns: number
+      }
       cron_purge_old_contact_submissions: { Args: never; Returns: undefined }
       cron_purge_sent_emails: { Args: never; Returns: undefined }
-      cron_purge_used_dsar_tokens: { Args: never; Returns: undefined }
-      cron_purge_yt_own_collection_attempts: { Args: never; Returns: undefined }
       cron_try_lock: { Args: { p_job: string }; Returns: boolean }
       cron_unlock: { Args: { p_job: string }; Returns: boolean }
       expire_old_yt_notifications: { Args: never; Returns: number }
@@ -15760,10 +11009,6 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_member_staff: { Args: never; Returns: boolean }
       is_org_admin: { Args: { p_org_id: string }; Returns: boolean }
-      is_org_admin_as: {
-        Args: { p_org: string; p_user: string }
-        Returns: boolean
-      }
       is_org_staff: { Args: { p_org_id: string }; Returns: boolean }
       is_org_staff_for_user: {
         Args: { p_org_id: string; p_user_id: string }
@@ -15771,11 +11016,6 @@ export type Database = {
       }
       is_staff: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
-      is_super_admin_as: { Args: { p_user: string }; Returns: boolean }
-      jsonb_num_merge: {
-        Args: { p_add: Json; p_base: Json; p_max: Json }
-        Returns: Json
-      }
       lgpd_phase1_cleanup: {
         Args: { p_pre_capture: Json; p_user_id: string }
         Returns: undefined
@@ -15810,150 +11050,10 @@ export type Database = {
           subscriber_email: string
         }[]
       }
-      niche_signals_ancoras: {
-        Args: { p_site: string }
-        Returns: {
-          subject_key: string
-          video_id: string
-        }[]
-      }
-      niche_signals_dispensar: {
-        Args: {
-          p_id: string
-          p_motivo: string
-          p_por: string
-          p_site: string
-          p_status: string
-        }
-        Returns: Json
-      }
-      niche_signals_expirar: { Args: { p_site: string }; Returns: number }
-      niche_signals_gravar: {
-        Args: {
-          p_estado: Json
-          p_linha_de_base: boolean
-          p_lote: Json
-          p_site: string
-          p_vistos: Json
-        }
-        Returns: Json
-      }
-      niche_signals_mesclar_evidence: {
-        Args: { p_antiga: Json; p_nova: Json }
-        Returns: Json
-      }
-      niche_signals_sincronizar_sino: {
-        Args: { p_site: string }
-        Returns: undefined
-      }
       normalize_utm_value: {
         Args: { field_name: string; raw_value: string }
         Returns: string
       }
-      obs_ai_rate_hit: {
-        Args: { p_key: string; p_now: string }
-        Returns: {
-          no_dia: number
-          no_minuto: number
-        }[]
-      }
-      obs_archive_blobs_done: {
-        Args: {
-          p_batch: string
-          p_channel_ref: string
-          p_site: string
-          p_urls: string[]
-        }
-        Returns: number
-      }
-      obs_archive_channel_counts: {
-        Args: { p_channel: string }
-        Returns: {
-          control_sum: number
-          period_start: string
-          row_count: number
-          table_name: string
-        }[]
-      }
-      obs_archive_confirm_nas: {
-        Args: {
-          p_batch: string
-          p_by: string
-          p_channel: string
-          p_site: string
-        }
-        Returns: Json
-      }
-      obs_archive_diff: {
-        Args: { p_batch: string; p_channel: string; p_site: string }
-        Returns: {
-          db_rows: number
-          db_sum: number
-          file_rows: number
-          file_sum: number
-          period_start: string
-          table_name: string
-        }[]
-      }
-      obs_archive_excluded: {
-        Args: never
-        Returns: {
-          reason: string
-          table_name: string
-        }[]
-      }
-      obs_archive_guard: {
-        Args: {
-          p_batch: string
-          p_channel: string
-          p_need: string
-          p_site: string
-        }
-        Returns: undefined
-      }
-      obs_archive_is_site_admin: {
-        Args: { p_site: string; p_user: string }
-        Returns: boolean
-      }
-      obs_archive_register: {
-        Args: {
-          p_batch: string
-          p_channel: string
-          p_rows: Json
-          p_site: string
-        }
-        Returns: Json
-      }
-      obs_archive_registry: {
-        Args: never
-        Returns: {
-          filter_sql: string
-          order_sql: string
-          period_sql: string
-          sum_sql: string
-          table_name: string
-        }[]
-      }
-      obs_archive_uncovered: { Args: never; Returns: string[] }
-      obs_archive_verify: {
-        Args: { p_batch: string; p_channel: string; p_site: string }
-        Returns: Json
-      }
-      obs_db_size_record: { Args: { p_now?: string }; Returns: Json }
-      obs_f1_video_compartilhado: {
-        Args: { p_channel: string; p_site: string }
-        Returns: undefined
-      }
-      obs_native_poda: {
-        Args: { p_agora: string; p_lote: number }
-        Returns: number
-      }
-      obs_nome_normalizado: { Args: { p_nome: string }; Returns: string }
-      obs_unarchived_blobs_done: {
-        Args: { p_id: number; p_site: string; p_urls: string[] }
-        Returns: number
-      }
-      obs_unarchived_watch_sweep: { Args: { p_agora: string }; Returns: number }
       ops_alert_claim: {
         Args: { p_key: string; p_min_interval?: string }
         Returns: boolean
@@ -15990,15 +11090,6 @@ export type Database = {
         Args: { p_older_than_days?: number }
         Returns: Json
       }
-      purge_cron_runs: {
-        Args: {
-          p_dias?: number
-          p_lote?: number
-          p_max_lotes?: number
-          p_now?: string
-        }
-        Returns: number
-      }
       purge_deleted_user_audit: {
         Args: { p_user_id: string }
         Returns: undefined
@@ -16009,10 +11100,6 @@ export type Database = {
       }
       purge_sent_emails: {
         Args: { p_older_than_days?: number }
-        Returns: number
-      }
-      purge_used_dsar_tokens: {
-        Args: { p_max_age_days?: number }
         Returns: number
       }
       reassign_authors: {
@@ -16232,32 +11319,18 @@ export type Database = {
           waitlist_id: string
         }[]
       }
-      youtube_channel_removal_impact: {
-        Args: { p_channel_id: string; p_site_id: string }
-        Returns: Json
-      }
-      youtube_channel_remove: {
-        Args: {
-          p_channel_id: string
-          p_confirm_slug: string
-          p_site_id: string
-        }
-        Returns: Json
-      }
       youtube_channel_slug_base: { Args: { p_handle: string }; Returns: string }
       youtube_channel_slug_pick: {
         Args: { p_exclude_id?: string; p_handle: string; p_site_id: string }
         Returns: string
       }
-      youtube_quota_add: {
-        Args: {
-          p_add?: Json
-          p_day: string
-          p_max?: Json
-          p_site_id: string
-          p_units: number
-        }
-        Returns: number
+      youtube_channel_removal_impact: {
+        Args: { p_channel_id: string; p_site_id: string }
+        Returns: Json
+      }
+      youtube_channel_remove: {
+        Args: { p_channel_id: string; p_confirm_slug: string; p_site_id: string }
+        Returns: Json
       }
       yt_own_attempt_record: {
         Args: {
@@ -16272,122 +11345,7 @@ export type Database = {
         }
         Returns: number
       }
-      yt_own_channel_state_record: { Args: { p_rows: Json }; Returns: number }
-      yt_own_collection_attempts_purge: {
-        Args: {
-          p_dias?: number
-          p_lote?: number
-          p_max_lotes?: number
-          p_now?: string
-        }
-        Returns: number
-      }
-      yt_own_daily_apply: {
-        Args: {
-          p_days_returned: string[]
-          p_ids: Json
-          p_rows: Json
-          p_sets: string[]
-          p_video: string
-        }
-        Returns: Json
-      }
-      yt_own_dim_apply: {
-        Args: {
-          p_channel: string
-          p_from: string
-          p_kind: string
-          p_rows: Json
-          p_site: string
-          p_to: string
-          p_video: string
-          p_video_id: string
-        }
-        Returns: Json
-      }
-      yt_own_dim_cover_idle: {
-        Args: {
-          p_channel: string
-          p_inicio: string
-          p_janela: string
-          p_to: string
-        }
-        Returns: Json
-      }
-      yt_own_dim_coverage_extend: {
-        Args: {
-          p_channel: string
-          p_from: string
-          p_set: string
-          p_site: string
-          p_source: string
-          p_to: string
-          p_video: string
-          p_video_id: string
-        }
-        Returns: undefined
-      }
-      yt_own_dim_prova: {
-        Args: { p_desde: string; p_hoje: string; p_site: string }
-        Returns: Json
-      }
-      yt_own_meta_cover: {
-        Args: {
-          p_channel_id: string
-          p_compactar: boolean
-          p_day: string
-          p_site_id: string
-        }
-        Returns: Json
-      }
-      yt_own_meta_cover_set: {
-        Args: {
-          p_at: string
-          p_channel_id: string
-          p_days: string[]
-          p_set: string
-          p_site_id: string
-          p_video: string
-          p_video_uuid: string
-        }
-        Returns: number
-      }
-      yt_own_meta_prova: {
-        Args: { p_channel_id: string; p_day: string; p_site_id: string }
-        Returns: Json
-      }
       yt_own_reach_apply: { Args: { p_rows: Json }; Returns: number }
-      yt_own_reach_dim_apply: {
-        Args: { p_report_id: string; p_rows: Json; p_unmatched: Json }
-        Returns: Json
-      }
-      yt_own_retention_facts: {
-        Args: { p_channel_id: string; p_hoje_utc?: string }
-        Returns: Json
-      }
-      yt_own_traffic_detail_apply: {
-        Args: { p_report_id: string; p_rows: Json; p_unmatched: Json }
-        Returns: Json
-      }
-      yt_own_versions_apply_day: {
-        Args: {
-          p_channel_id: string
-          p_day: string
-          p_open: Json
-          p_site_id: string
-          p_touch: Json
-        }
-        Returns: Json
-      }
-      yt_own_versions_prova: {
-        Args: { p_ontem: string; p_site_id: string }
-        Returns: Json
-      }
-      yt_own_versions_seed_pre: {
-        Args: { p_channel_id: string; p_rows: Json; p_site_id: string }
-        Returns: Json
-      }
-      yt_own_video_state_record: { Args: { p_rows: Json }; Returns: number }
       yt_reporting_blobs_purge: {
         Args: { p_sem_normalizador: string[] }
         Returns: number
@@ -16402,28 +11360,6 @@ export type Database = {
           perdas_reconhecidas: number
         }[]
       }
-      yt_watch_conciliar: {
-        Args: { p_agora: string; p_candidatos: Json }
-        Returns: Json
-      }
-      yt_watch_gravar_disparo: { Args: { p: Json }; Returns: Json }
-      yt_watch_poda: {
-        Args: { p_agora: string; p_lote: number }
-        Returns: Json
-      }
-      yt_watch_prova: {
-        Args: {
-          p_agora: string
-          p_candidatos_esperados: number
-          p_coleta_ligada: boolean
-        }
-        Returns: Json
-      }
-      yt_watch_reter: {
-        Args: { p_ate: string; p_site: string; p_video: string }
-        Returns: number
-      }
-      yt_watch_titulos_ok: { Args: { j: Json }; Returns: boolean }
     }
     Enums: {
       email_provider: "brevo" | "resend" | "ses"
@@ -16471,12 +11407,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16500,11 +11436,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16525,11 +11461,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16550,11 +11486,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16567,11 +11503,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -16619,3 +11555,4 @@ export const Constants = {
     },
   },
 } as const
+

@@ -1008,10 +1008,8 @@ type ColunaVariante = keyof Database['public']['Tables']['ab_test_variants']['Ro
 const CAMPOS_DA_VARIANTE = ['id', 'test_id', 'label', 'is_original', 'blob_url', 'blob_key', 'file_size_bytes',
   'dimensions', 'title_text', 'metadata', 'sort_order', 'source_variant_id', 'created_at'] as const satisfies readonly ColunaVariante[]
 // `thumbnail_dhash` (Migration 0) é interno do A/B Lab e sai de propósito.
-// `description_text` (teste de descrição) aparecia só depois de regenerar os tipos de produção (24/10); segue fora da saída
-// como antes (o MCP nunca a expôs). Decidir à parte se entra na lista.
 // coluna nova no banco obriga alguém a decidir (entra na lista ou sai de propósito), em vez de sumir em silêncio
-type _Cobre = Exclude<ColunaVariante, (typeof CAMPOS_DA_VARIANTE)[number] | 'thumbnail_dhash' | 'description_text'> extends never ? true : never
+type _Cobre = Exclude<ColunaVariante, (typeof CAMPOS_DA_VARIANTE)[number] | 'thumbnail_dhash'> extends never ? true : never
 const _cobre: _Cobre = true
 void _cobre
 
