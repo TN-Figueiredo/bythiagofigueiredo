@@ -130,6 +130,8 @@ describe.skipIf(pular)('M10a: banco (pula até a Tarefa 5b se o rascunho não fo
       expect(await tenta(c, sql)).toBeNull() // idempotente: o corpo "depois" também é aceito
     })
     const mutantes: Array<[string, string]> = [
+      ['apply_competitor_tier_plan', 'p_site_id uuid, p_channel_id uuid, p_changes jsonb, p_today date'],
+      ['pin_competitor_video', 'p_site_id uuid, p_video_id uuid, p_user_id uuid, p_limit integer, p_pode_descongelar boolean default false'],
       ['competitor_series_health', 'p_site_id uuid, p_now timestamptz'],
       ['competitor_channel_removal_impact', 'p_site_id uuid, p_channel_id uuid'],
     ]
@@ -139,6 +141,19 @@ describe.skipIf(pular)('M10a: banco (pula até a Tarefa 5b se o rascunho não fo
         await c.query(`create or replace function public.${nome}(${args}) returns jsonb language sql as $b$ select '{}'::jsonb $b$`)
         const e = await tenta(c, sql)
         expect(e?.message).toBe(`M10a:${nome}_divergente`)
+      })
+    }
+    // Phil R-1: função ausente (prosrc nulo) recusa, não deixa a migration criar do zero
+    for (const [nome, assinatura] of [
+      ['apply_competitor_tier_plan', 'uuid,uuid,jsonb,date'],
+      ['competitor_series_health', 'uuid,timestamptz'],
+      ['competitor_channel_removal_impact', 'uuid,uuid'],
+    ]) {
+      await emTransacao(async () => {
+        await c.query(sql)
+        await c.query(`drop function public.${nome}(${assinatura})`)
+        const e = await tenta(c, sql)
+        expect(e?.message).toBe(`M10a:${nome}_ausente`)
       })
     }
   })

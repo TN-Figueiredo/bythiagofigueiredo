@@ -34,7 +34,10 @@ begin
   loop
     select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure(r.assinatura);
     if v_src is null then
-      continue; -- a pin tem duas assinaturas possíveis; a ausência de ambas é conferida abaixo
+      if r.nome = 'pin_competitor_video' then
+        continue; -- a pin tem duas assinaturas possíveis; a ausência de ambas é conferida abaixo
+      end if;
+      raise exception 'M10a:%_ausente', r.nome using errcode = 'P0001'; -- Phil R-1: as outras 3 têm de existir
     end if;
     if pg_catalog.md5(v_src) is distinct from r.md5_antes and pg_catalog.md5(v_src) is distinct from r.md5_depois then
       raise exception 'M10a:%_divergente', r.nome using errcode = 'P0001',
