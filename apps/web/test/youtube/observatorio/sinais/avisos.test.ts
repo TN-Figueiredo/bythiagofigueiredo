@@ -84,21 +84,21 @@ describe('rodarAvisos + nicho', () => {
     expect(out).toMatchObject({ estado: 'erro', motivo: 'nicho_falhou', detalhe: { lembrados: 1, nicho_enviados: 0, nicho_resumidos: 0, nicho_falhas: 0 } })
   })
   it('o nicho roda mesmo com o schema do nativo ausente (nenhuma saída antecipada o pula)', async () => {
-    const nicho = vi.fn().mockResolvedValue({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 })
+    const nicho = vi.fn().mockResolvedValue({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, envios_adiados: 0 })
     const r = roteiro({ ab_native_tests: [{ data: null, error: { message: 'x', code: '42703' } }], niche_signals: [ok(null)] })
     const out = await rodarAvisos(ctx(r.sb), { nicho })
     expect(nicho).toHaveBeenCalledTimes(1)
     expect(out).toMatchObject({ estado: 'parcial', motivo: 'schema_ausente' })
   })
   it('nicho com falha de 3ª tentativa: erro nicho_falhou; contadores no detalhe', async () => {
-    const nicho = vi.fn().mockResolvedValue({ enviados: 2, resumidos: 3, falhas: 1, sem_tempo: 0, adiados: 0 })
+    const nicho = vi.fn().mockResolvedValue({ enviados: 2, resumidos: 3, falhas: 1, sem_tempo: 0, envios_adiados: 0 })
     const r = roteiro({ ab_native_tests: [ok([]), ok([])], niche_signals: [{ data: null, error: null }] })
     const out = await rodarAvisos(ctx(r.sb), { nicho })
     expect(out).toMatchObject({ estado: 'erro', motivo: 'nicho_falhou', detalhe: { nicho_enviados: 2, nicho_resumidos: 3, nicho_falhas: 1 } })
   })
   it('nicho com aviso adiado (falhou, ainda tem tentativa): erro nicho_adiado já na 1ª, sem desfazer o lembrete do dia 14', async () => {
     const fan = vi.fn().mockResolvedValue(fanOk)
-    const nicho = vi.fn().mockResolvedValue({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 2 })
+    const nicho = vi.fn().mockResolvedValue({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, envios_adiados: 2 })
     const r = roteiro({ ab_native_tests: [ok([]), ok([linha]), ok([{ id: 'r1' }])], niche_signals: [{ data: null, error: null }] })
     const out = await rodarAvisos(ctx(r.sb), { fanOut: fan, nicho })
     expect(fan).toHaveBeenCalledTimes(1)
@@ -119,14 +119,14 @@ describe('rodarAvisos + nicho', () => {
     expect(out).toMatchObject({ estado: 'erro', motivo: 'sobrou_e_nicho_falhou', detalhe: { no_teto: 1 } })
   })
   it('prazo acabado no nicho: parcial com nicho_sem_tempo (nunca ok silencioso) e o número no detalhe', async () => {
-    const nicho = vi.fn().mockResolvedValue({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 2, adiados: 0 })
+    const nicho = vi.fn().mockResolvedValue({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 2, envios_adiados: 0 })
     const r = roteiro({ ab_native_tests: [ok([]), ok([])], niche_signals: [ok(null)] })
     const out = await rodarAvisos(ctx(r.sb), { nicho })
     expect(out).toMatchObject({ estado: 'parcial', motivo: 'nicho_sem_tempo', detalhe: { nicho_sem_tempo: 2 } })
   })
   it('o nicho recebe o relógio da tarefa: passa a ser "sem tempo" depois de t0 + 83 s', async () => {
     let semTempo: (() => boolean) | null = null
-    const nicho = vi.fn(async (_sb: unknown, _a: Date, st: () => boolean) => { semTempo = st; return { enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 } })
+    const nicho = vi.fn(async (_sb: unknown, _a: Date, st: () => boolean) => { semTempo = st; return { enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, envios_adiados: 0 } })
     let agora = AGORA
     const r = roteiro({ ab_native_tests: [ok([]), ok([])], niche_signals: [ok(null)] })
     await rodarAvisos({ t0: AGORA, agora: () => agora, apiKey: '', sb: r.sb, linhas: null }, { nicho })
@@ -141,7 +141,7 @@ describe('enviarAvisosDoNicho: prazo e escopo', () => {
   it('sem tempo desde o início: nenhum site visitado, contador sem_tempo = nº de sites, nenhuma chamada ao banco', async () => {
     const r = sbVazio()
     const out = await enviarAvisosDoNicho(r.sb, new Date(), { sites: ['a', 'b'], semTempo: () => true })
-    expect(out).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 2, adiados: 0 })
+    expect(out).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 2, envios_adiados: 0 })
     expect(r.chamadas).toHaveLength(0)
   })
   it('o prazo acaba entre sites: o 1º é visitado, o 2º fica de fora e é contado', async () => {
@@ -174,7 +174,7 @@ describe('enviarAvisosDoNicho: falha transitória, blocos e sino', () => {
       notifications: [ok([])],
     })
     const out = await enviarAvisosDoNicho(r.sb, AGORA, { sites: ['s1'], fanOut: fan })
-    expect(out).toMatchObject({ enviados: 0, resumidos: 0, falhas: 0, adiados: 1 })
+    expect(out).toMatchObject({ enviados: 0, resumidos: 0, falhas: 0, envios_adiados: 1 })
     const upd = r.chamadas.filter((c) => c.alvo === 'niche_signals').flatMap((c) => c.metodos).find((m) => m.startsWith('update('))!
     expect(upd).toContain('"notificacao_tentativas":1')
     expect(upd).not.toContain('notificado_em')
@@ -188,7 +188,7 @@ describe('enviarAvisosDoNicho: falha transitória, blocos e sino', () => {
     })
     const out = await enviarAvisosDoNicho(r.sb, AGORA, { sites: ['s1'], fanOut: fan })
     expect(fan).toHaveBeenCalledTimes(1)
-    expect(out).toMatchObject({ resumidos: 250, adiados: 0 })
+    expect(out).toMatchObject({ resumidos: 250, envios_adiados: 0 })
     expect(metodosIn(r.chamadas)).toEqual([200, 50])
     expect(r.chamadas.filter((c) => c.alvo === 'niche_signals_estado' && c.metodos.some((m) => m.startsWith('update(')))).toHaveLength(1)
   })
@@ -200,7 +200,7 @@ describe('enviarAvisosDoNicho: falha transitória, blocos e sino', () => {
       niche_signals_estado: [ok({ baseline_em: null })],
     })
     const out = await enviarAvisosDoNicho(r.sb, AGORA, { sites: ['s1'], fanOut: fan })
-    expect(out.adiados).toBe(450)
+    expect(out.envios_adiados).toBe(450)
     expect(metodosIn(r.chamadas)).toEqual([200, 200, 50])
   })
   it('depois de enviar, ressincroniza o sino do site (corrida com o dispensar); sem envio, não chama', async () => {
