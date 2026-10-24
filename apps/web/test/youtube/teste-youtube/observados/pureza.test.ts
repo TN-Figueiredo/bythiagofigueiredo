@@ -5,13 +5,13 @@ import { describe, expect, it } from 'vitest'
 import { especificadores } from '../pureza.test'
 
 const DIR = fileURLToPath(new URL('../../../../src/lib/youtube/teste-youtube/observados/', import.meta.url))
-const SERVIDOR = new Set(['passo.ts'])
+const SERVIDOR = new Set(['passo.ts', 'paginar.ts', 'avisos.ts'])
 const arquivos = readdirSync(DIR).filter(f => f.endsWith('.ts') && !SERVIDOR.has(f))
 const PERMITIDO = (m: string): boolean => m.startsWith('./') || m === '../normalizar-titulo' || m === '@/lib/youtube/thumb-hamming'
 
 describe('pureza do observador de trocas', () => {
-  it('há arquivos para conferir (inferir, selecao, estado-de-leitura, flag)', () => {
-    expect(arquivos.sort()).toEqual(['estado-de-leitura.ts', 'flag.ts', 'inferir.ts', 'selecao.ts'])
+  it('há arquivos para conferir (alarme, ensaio, guarda, inferir, selecao, estado-de-leitura, flag, textos)', () => {
+    expect(arquivos.sort()).toEqual(['alarme.ts', 'ensaio.ts', 'estado-de-leitura.ts', 'flag.ts', 'guarda.ts', 'inferir.ts', 'selecao.ts', 'textos.ts'])
   })
   for (const a of arquivos) {
     it(a, () => {

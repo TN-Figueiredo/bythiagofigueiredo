@@ -16,7 +16,7 @@ let seq = 0
 export function leitura(h: number, o: Partial<LeituraObs> = {}): LeituraObs {
   return {
     id: ++seq, rodadaId: `r${seq}`, lidaEm: aposPub(h), http: 200, erro: null, jogadorBloqueado: false, idioma: 'pt',
-    tituloOficial: 'Titulo A', tituloFonte: 'videoDetails', miniaturaId: null, ...o,
+    tituloExibido: 'Titulo A', miniaturaId: null, ...o,
   }
 }
 export function thumb(id: number, dhash: string | null, o: Partial<ThumbObs> = {}): ThumbObs {
