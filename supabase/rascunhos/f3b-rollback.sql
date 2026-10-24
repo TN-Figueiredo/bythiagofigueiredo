@@ -1,5 +1,5 @@
 -- Rollback da F3b (migration 20261024000001_f3_niche_signals_adiar). Transação única; os adiados voltam ao N na hora.
--- PRE-REQUISITO (ordem): (1) reverter o codigo da F3b (2790eea4c e 0756559e2) e conferir que o deploy terminou; (2) so entao rodar este SQL;
+-- PRE-REQUISITO (ordem): (1) reverter TODO o codigo da F3b (commits de 527c9dc36 a bb6ee4985: 0756559e2, 2790eea4c, f33eeb77b, 60144fd8d, bb6ee4985; leem adiado_*) e conferir que o deploy terminou; (2) so entao rodar este SQL;
 -- (3) migration repair. Invertido (SQL antes do codigo), lista, get_signals e o cron do outbox quebram com 42703 (coluna adiado_ate inexistente).
 -- Nao devolve ao sino as notificacoes que o adiar expirou: os adiados voltam ao N, nao ao sino (coerente com "adiada que volta nao reenvia o sino").
 -- Depois: npx supabase migration repair --status reverted 20261024000001

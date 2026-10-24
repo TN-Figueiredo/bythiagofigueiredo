@@ -1,6 +1,6 @@
 -- =============================================================================
 -- MIGRATION: f3_niche_signals_adiar
--- F3b "Adiar 7 dias": `adiado_ate`, `adiado_por`, `niche_signals_adiar` (mesmo lock de `niche_signals_dispensar`) e
+-- F3b "Adiar 7 dias": `adiado_ate`, `adiado_por`, `adiado_em`, `adiado_vezes`, `niche_signals_adiar` (mesmo lock de `niche_signals_dispensar`) e
 -- `niche_signals_sincronizar_sino` recriada: um sinal adiado (adiado_ate no futuro) não conta como aberto no sino.
 -- Aditivo e idempotente. Rollback: supabase/rascunhos/f3b-rollback.sql (transação única).
 -- O status continua `aberto` (índice único e gravador intactos); "adiado" é `adiado_ate > now()`.
