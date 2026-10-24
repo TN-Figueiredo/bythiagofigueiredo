@@ -8,7 +8,7 @@
   --pm-la: #E0703A; --pm-lb: #6FA8DC; --pm-lc: #9CC25A; --pm-ld: #B895E0;
 }
 [data-theme="light"] .pm4 { --pm-la: #AB4216; --pm-lb: #2B6DA8; --pm-lc: #4C6B1F; --pm-ld: #7A4FA0; }
-.pm4-in { padding: var(--s5); }
+.pm4-in { padding: var(--s5); } /* padding-top = ÚNICA fonte do espaço selo→frase (24 px); o cabeçalho não tem margem inferior */
 .pm4 h2, .pm4 h3, .pm4 p { margin: 0; }
 .pm4 .num { font-variant-numeric: tabular-nums; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
 .pm4 .dash { color: var(--cn-muted); }
@@ -19,8 +19,8 @@
 
 .pm4 .pm4-sum { margin: 0 0 var(--s4); font: 600 21px/1.35 Georgia, serif; max-width: 72ch; text-wrap: balance; }
 .pm4-sum small { display: block; font: 400 13px/1.45 Inter, system-ui, sans-serif; color: var(--cn-muted); margin-top: var(--s2); }
-.pm4-selos + .pm4-sum { margin-top: var(--s3); }
-@container (max-width: 640px) { .pm4-sum { font-size: 18px; } .pm4-in { padding: var(--s4) var(--s3); } }
+.pm4-selos + .pm4-sum { margin-top: var(--s5); }
+@container (max-width: 640px) { .pm4-sum { font-size: 18px; } .pm4-in { padding: var(--s5) var(--s3) var(--s4); } }
 
 .pm4-band { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--cn-border); background: var(--cn-surface); margin-top: var(--s4); }
 .pm4-sum + .pm4-band { margin-top: 0; }
@@ -104,3 +104,6 @@
 .pm4-rbar { position: relative; height: 14px; background: var(--cn-sunk); border: 1px solid var(--cn-border-subtle); border-radius: 7px; overflow: hidden; }
 .pm4-rbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--cn-accent); }
 .pm4-mark { display: flex; justify-content: space-between; font-size: 12px; color: var(--cn-muted); margin-top: var(--s1); }
+
+/* ◷ do "aguardando" na mesma linha do texto (o svg do Svg() é inline por padrão no pm4) */
+.pm4-vt .ap svg, .pm4-leg svg { display: inline-block; vertical-align: -2px; }

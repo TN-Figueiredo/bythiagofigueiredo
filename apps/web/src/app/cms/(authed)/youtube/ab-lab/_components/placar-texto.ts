@@ -114,7 +114,9 @@ export function fraseDoPlacar(
     apoio += p.proximo_fechamento ? `; ${aguardando === 1 ? 'fecha' : 'fecham'} no máximo até ${dataCurta(p.proximo_fechamento)}.` : '.'
   } else if (p.regra === 'v1' && andamento) {
     apoio = `Este teste termina por duração, no dia ${andamento.total}.`
-  } else if ((status === 'active' || status === 'paused') && andamento && andamento.total > andamento.dayOf) {
+  } else if (status === 'paused') {
+    apoio = 'Teste pausado: a contagem de dias está parada até retomar.'
+  } else if (status === 'active' && andamento && andamento.total > andamento.dayOf) {
     const f = andamento.total - andamento.dayOf
     apoio = `Falta${f === 1 ? '' : 'm'} ${f} ${f === 1 ? 'dia' : 'dias'} para o teste terminar.`
   } else if (status === 'active' || status === 'paused') {

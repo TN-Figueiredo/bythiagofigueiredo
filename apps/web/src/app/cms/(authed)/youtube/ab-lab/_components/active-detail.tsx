@@ -45,7 +45,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
   const canAdminSite = useCanAdminSite()
   const [driftBusy, setDriftBusy] = useState(false)
-  const { data: livePoll } = usePollStats(view.id, view.status === 'active')
+  const { data: livePoll } = usePollStats(view.id, view.status === 'active' && view.placar?.iniciado !== false)
 
   // Pausa por teste do YouTube: o botão "Retomar" segue o registro (dado); a data é só texto.
   const pausaTeste = view.status === 'paused' && view.pausaYoutube ? pausaVisivel(view.pausaYoutube, (agora ?? (() => new Date()))()) : null
@@ -101,7 +101,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
   return (
     <div data-testid="active-detail">
       {/* ── Section 1: Header with inline actions ── */}
-      <div data-section="header" className="mb-[16px]">
+      <div data-section="header">
         <DetailHeader
           title={view.videoTitle}
           flag={view.flag}

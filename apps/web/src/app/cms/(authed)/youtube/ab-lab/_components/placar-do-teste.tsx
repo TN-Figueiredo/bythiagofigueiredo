@@ -311,7 +311,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
             </div>
             <div className="pm4-ruler">
               <div className="pm4-rbar" aria-hidden="true"><i style={{ width: `${pct}%` }} /></div>
-              <div className="pm4-mark"><span>dia {andamento.dayOf} de {andamento.total}</span><span>{f > 0 ? `faltam ${f} ${f === 1 ? 'dia' : 'dias'}` : 'último dia'}</span></div>
+              <div className="pm4-mark"><span>dia {andamento.dayOf} de {andamento.total}</span><span>{status === 'paused' ? 'pausado' : f > 0 ? `faltam ${f} ${f === 1 ? 'dia' : 'dias'}` : 'último dia'}</span></div>
             </div>
           </div>
         )
