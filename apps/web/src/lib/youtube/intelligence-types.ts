@@ -210,7 +210,7 @@ export interface IntelligenceAbTestSummary {
   ctr_lift_percent: number | null
   confidence: number | null
   variants_count: number
-  total_impressions: number
+  total_impressions: number | null // nulo = não medido (S8-F2)
 }
 
 export interface IntelligenceTrafficSources {

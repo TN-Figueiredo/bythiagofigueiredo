@@ -2,6 +2,7 @@
 
 import { headers } from 'next/headers'
 import { z } from 'zod'
+import { boundedArray } from '../../../../lib/validation/bounded-array'
 import { getSupabaseServiceClient } from '../../../../lib/supabase/service'
 import { getSiteContext } from '../../../../lib/cms/site-context'
 import { verifyTurnstileToken } from '../../../../lib/turnstile'
@@ -16,7 +17,9 @@ import type { ScoredSuggestion } from '@/lib/newsletter/suggestions'
 
 const MultiSchema = z.object({
   email: z.string().email(),
-  newsletter_ids: z.array(z.string().min(1)).min(1).max(8),
+  // GHSA-mrhx-c7xc-m3w5: ação pública, parse antes do Turnstile. A guarda de
+  // tamanho impede 1 issue por elemento em corpo gigante.
+  newsletter_ids: boundedArray(z.string().min(1), 8).pipe(z.array(z.string()).min(1)),
   locale: z.enum(['en', 'pt-BR']),
   turnstile_token: z.string().optional(),
 })

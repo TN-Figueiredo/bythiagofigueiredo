@@ -175,7 +175,9 @@ jobs:
       # Exception plan when a prod-dep advisory lands with NO upstream fix: add a
       # temporary root override (validated — see 8ea6c54d for the pattern), log an
       # open finding in docs/audit-baseline.md, and keep this gate blocking.
-      - run: npm audit --omit=dev --audit-level=high
+      # Exceção datada (GHSA-mrhx-c7xc-m3w5, até 2027-01-31): scripts/audit-gate.mjs
+      # falha em qualquer outro high/critical, na exceção vencida ou obsoleta.
+      - run: node scripts/audit-gate.mjs
 
   secret-scan:
     name: Secret Scan (TruffleHog)

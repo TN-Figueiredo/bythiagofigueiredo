@@ -6,6 +6,7 @@ import type {
   AbTestWithVariants,
   AbTestVariantRow,
   AbTestCycleRow,
+  CicloSemEntrega,
   AbTestSiteSettings,
   AbTestResults,
   VariantStats,
@@ -30,7 +31,7 @@ import { TIPOS_DE_TESTE } from '@/lib/youtube/ab-schemas'
 import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
-import { toDisplayLabel, variantColor } from './_components/ab-constants'
+import { toDisplayLabel, variantColor, ordemDesc } from './_components/ab-constants'
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
@@ -61,7 +62,7 @@ export async function getAbTestsForSite(): Promise<{
       `
       *,
       variants:ab_test_variants!test_id(*),
-      cycles:ab_test_cycles(*)
+      cycles:ab_test_cycles(id, test_id, variant_id, cycle_number, started_at, ended_at, backfill_status, backfill_attempts, applied_metadata, created_at)
     `,
     )
     .eq('site_id', siteId)
@@ -73,7 +74,7 @@ export async function getAbTestsForSite(): Promise<{
   type RawTest = typeof tests extends (infer T)[] | null ? T : never
 
   function toWithVariants(raw: RawTest): AbTestWithVariants {
-    const cycles = ((raw as Record<string, unknown>).cycles ?? []) as AbTestCycleRow[]
+    const cycles = ((raw as Record<string, unknown>).cycles ?? []) as CicloSemEntrega[]
     const openCycle = cycles.find(c => !c.ended_at) ?? null
     return {
       ...(raw as AbTestWithVariants),
@@ -178,64 +179,43 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
 
   const { data: cycles } = await supabase
     .from('ab_test_cycles')
-    .select('*')
+    .select('id, test_id, variant_id, cycle_number, started_at, ended_at, backfill_status, backfill_attempts, applied_metadata, created_at')
     .eq('test_id', testId)
     .order('cycle_number', { ascending: true })
 
   const allVariants = (variants ?? []) as AbTestVariantRow[]
-  const allCycles = (cycles ?? []) as AbTestCycleRow[]
+  const allCycles = (cycles ?? []) as CicloSemEntrega[]
 
-  const confirmedCycles = allCycles.filter(
-    c => c.ended_at !== null && c.backfill_status === 'confirmed',
-  )
+  // Ciclo fechado conta, inclusive o fechado por pausa, drift ou falha (D-P4). Impressões, cliques e CTR dos ciclos
+  // vinham de views (ab-backfill) e não são entrega: ficam nulos até a F3 trazer a medição real.
+  const closed = allCycles.filter(c => c.ended_at !== null)
+  const variantStats: VariantStats[] = allVariants.map(v => ({
+    variant_id: v.id,
+    label: v.label,
+    blob_url: v.blob_url,
+    title_text: v.title_text,
+    dimensions: v.dimensions,
+    metadata: v.metadata,
+    is_original: v.is_original,
+    total_impressions: null,
+    total_clicks: null,
+    avg_ctr: null,
+    cycles_completed: closed.filter(c => c.variant_id === v.id).length,
+  }))
 
-  const statsMap = new Map<string, VariantStats>()
-  for (const v of allVariants) {
-    statsMap.set(v.id, {
-      variant_id: v.id,
-      label: v.label,
-      blob_url: v.blob_url,
-      title_text: v.title_text,
-      dimensions: v.dimensions,
-      metadata: v.metadata,
-      is_original: v.is_original,
-      total_impressions: 0,
-      total_clicks: 0,
-      avg_ctr: 0,
-      cycles_completed: 0,
-    })
-  }
-
-  for (const cycle of confirmedCycles) {
-    const stats = statsMap.get(cycle.variant_id)
-    if (!stats) continue
-    stats.total_impressions += cycle.impressions ?? 0
-    stats.total_clicks += cycle.clicks ?? 0
-    stats.cycles_completed += 1
-  }
-
-  for (const stats of statsMap.values()) {
-    stats.avg_ctr =
-      stats.total_impressions > 0 ? stats.total_clicks / stats.total_impressions : 0
-  }
-
-  const variantStats = Array.from(statsMap.values())
-
-  const hasEnoughData = variantStats.every(
-    v => v.total_impressions >= 100 && v.cycles_completed >= 1,
-  )
-
-  let confidence = 0
+  let confidence: number | null = null
   let suggestedWinnerId: string | null = null
   let isSignificant = false
 
-  if (hasEnoughData && variantStats.length >= 2) {
+  if (temVolumeParaBayes(variantStats) && variantStats.length >= 2) {
     const bayesian = calculateBayesianConfidence(variantStats)
-    confidence = bayesian.confidence
-    suggestedWinnerId = bayesian.winnerId || null
-    const config = (test as Record<string, unknown>).config as { confidence_threshold?: number } | null
-    const threshold = config?.confidence_threshold ?? 0.95
-    isSignificant = confidence >= threshold
+    if (bayesian.estado === 'calculado') {
+      confidence = bayesian.confidence
+      suggestedWinnerId = bayesian.winnerId || null
+      const config = (test as Record<string, unknown>).config as { confidence_threshold?: number } | null
+      const threshold = config?.confidence_threshold ?? 0.95
+      isSignificant = confidence >= threshold
+    }
   }
 
   // Fetch latest polls for live signal (active/paused tests only)
@@ -262,7 +242,15 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     data_freshness: new Date().toISOString(),
     latestPolls,
     youtubeId,
-  } as AbTestResults
+  } satisfies AbTestResults
+}
+
+/** Bayes só com todas as variantes medidas (impressões e cliques não nulos), >= 100 impressões e 1 ciclo fechado. */
+export function temVolumeParaBayes(variants: readonly VariantStats[]): boolean {
+  return variants.every(v =>
+    v.total_impressions !== null && v.total_clicks !== null &&
+    v.total_impressions >= 100 && v.cycles_completed >= 1,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -372,7 +360,7 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
     .from('ab_tests')
     .select(`
       id, name, test_type, status, started_at, completed_at,
-      completed_reason, confidence_at_completion, result_metadata,
+      completed_reason,
       winner:ab_test_variants!winner_variant_id(label)
     `)
     .eq('youtube_video_id', youtubeVideoId)
@@ -388,8 +376,9 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
     completed_at: t.completed_at as string | null,
     completed_reason: t.completed_reason as string | null,
     winner_label: ((Array.isArray(t.winner) ? t.winner[0] : t.winner) as { label: string } | null)?.label ?? null,
-    ctr_lift_percent: (t.result_metadata as { ctr_lift_percent?: number } | null)?.ctr_lift_percent ?? null,
-    confidence_at_completion: t.confidence_at_completion as number | null,
+    // S8-F2: derivados de views/views, sem escritor desde a P2; não saem mais para a tela.
+    ctr_lift_percent: null,
+    confidence_at_completion: null,
   }))
 }
 
@@ -398,13 +387,6 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
 // ---------------------------------------------------------------------------
 
 export function toCardView(test: AbTestWithVariants): AbTestCardView {
-  // Build per-variant stats from total impressions * ctr per variant
-  // We derive ctr per variant from cycles: avg_ctr = total_clicks / total_impressions
-  const statsMap = new Map<string, { impressions: number; clicks: number; ctr: number }>()
-  for (const v of test.variants) {
-    statsMap.set(v.id, { impressions: 0, clicks: 0, ctr: 0 })
-  }
-
   // Use total_cycles as a proxy — but we don't have cycle data in AbTestWithVariants
   // The leader is determined from winner_variant_id if available, otherwise fall back to original
   const originalVariant = test.variants.find(v => v.is_original) ?? test.variants[0]
@@ -564,8 +546,8 @@ export function aggregateTags(
     if (!winner) continue
     const meta = winner.metadata as Record<string, unknown> | null
     const tags = (meta?.thumbnail_tags as string[]) ?? []
-    const liftBruto = (test.result_metadata as Record<string, unknown> | null)?.ctr_lift_percent
-    const lift = typeof liftBruto === 'number' ? liftBruto : null
+    // S8-F2: o lift guardado (views/views) não chega mais à tela nem ao briefing; nulo = não medido.
+    const lift: number | null = null
     const testType = (test.test_type as string | undefined) ?? 'thumbnail'
     if (!(TIPOS_DE_TESTE as readonly string[]).includes(testType)) continue
     const kind = testType === 'title' ? 'title' as const : 'thumb' as const
@@ -928,6 +910,12 @@ export async function getSuggestedVideos(siteId: string): Promise<SuggestedVideo
 // toDetailView — maps AbTestResults → discriminated AbTestDetailView
 // ---------------------------------------------------------------------------
 
+/** Soma; nulo se a lista é vazia ou se algum item é nulo (nulo = não medido, nunca 0). */
+function somaOuNulo(xs: ReadonlyArray<number | null>): number | null {
+  if (xs.length === 0 || xs.some(x => x === null)) return null
+  return xs.reduce<number>((a, x) => a + (x ?? 0), 0)
+}
+
 export async function toDetailView(results: AbTestResults): Promise<AbTestDetailView> {
   const test = results.test
   const variants: FullChartVariant[] = results.variants.map(v => ({
@@ -936,18 +924,19 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ctr: v.avg_ctr,
     impressions: v.total_impressions,
     clicks: v.total_clicks,
-    pBest: 0,
+    pBest: null,
   }))
 
   // Compute Bayesian probabilities if enough data
-  if (results.variants.length >= 2 && results.variants.every(v => v.total_impressions >= 100)) {
+  if (results.variants.length >= 2 && temVolumeParaBayes(results.variants)) {
     const bayesian = calculateBayesianConfidence(results.variants)
-    for (const v of variants) {
-      const variantId = results.variants.find(
-        rv => toDisplayLabel(rv.label, rv.is_original) === v.label,
-      )?.variant_id
-      if (variantId && bayesian.probabilities[variantId]) {
-        v.pBest = bayesian.probabilities[variantId]!
+    if (bayesian.estado === 'calculado') {
+      for (const v of variants) {
+        const variantId = results.variants.find(
+          rv => toDisplayLabel(rv.label, rv.is_original) === v.label,
+        )?.variant_id
+        const p = variantId === undefined ? undefined : bayesian.probabilities[variantId]
+        if (p !== undefined) v.pBest = p
       }
     }
   }
@@ -961,7 +950,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   }))
 
   // Build confTrend from progressive cycle confidence
-  const confTrend = results.confidence > 0 ? [results.confidence * 100] : []
+  const confTrend = results.confidence !== null && results.confidence > 0 ? [results.confidence * 100] : []
 
   // Build daily CTR per variant
   const daily: Record<DisplayLabel, number[]> = {} as Record<DisplayLabel, number[]>
@@ -969,16 +958,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     const label = toDisplayLabel(v.label, v.is_original)
     daily[label] = []
   }
-  const confirmedCycles = results.timeline.filter(
-    c => c.ended_at && c.backfill_status === 'confirmed',
-  )
-  for (const cycle of confirmedCycles) {
-    const variant = results.variants.find(v => v.variant_id === cycle.variant_id)
-    if (variant) {
-      const label = toDisplayLabel(variant.label, variant.is_original)
-      if (daily[label]) daily[label]!.push((cycle.ctr ?? 0) * 100)
-    }
-  }
+  const closed = results.timeline.filter(c => c.ended_at !== null)
 
   // Build ABBA sequence — merge real cycle data with planned rotation slots.
   // When the timeline has fewer entries than the planned total (e.g. a fresh
@@ -1032,11 +1012,11 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     daysSinceStart: test.started_at
       ? Math.floor((Date.now() - new Date(test.started_at).getTime()) / 86400000)
       : 0,
-    confirmedCycles: confirmedCycles.length,
+    confirmedCycles: closed.length,
     burnInDays: test.config.burn_in_days,
     variantCount: results.variants.length,
-    eligibleCycles: confirmedCycles.length,
-    consecutiveConfident: test.consecutive_confident_evals,
+    eligibleCycles: closed.length,
+    consecutiveConfident: results.confidence === null ? null : test.consecutive_confident_evals,
     stabilityThreshold: test.config.stability_threshold,
   }
   const gates = computeGates(gateInput)
@@ -1094,10 +1074,14 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
 
   // Discriminate by status/outcome
   if (test.status === 'draft' || test.status === 'active' || test.status === 'paused') {
-    const leader = variants.length > 0
-      ? variants.reduce((best, v) => (v.pBest > best.pBest ? v : best), variants[0]!)
-      : { label: 'A' as DisplayLabel, color: '#8A8F98', pBest: 0, ctr: 0 }
-    const originalCtr = variants.find(v => v.label === 'A')?.ctr ?? 0
+    const comPBest = variants.filter((v): v is typeof v & { pBest: number } => v.pBest !== null)
+    const leader: { label: DisplayLabel; color: string; ctr: number | null } = comPBest.length > 0
+      ? comPBest.reduce((best, v) => (v.pBest > best.pBest ? v : best), comPBest[0]!)
+      : (variants.find(v => v.label === 'A') ?? variants[0] ?? { label: 'A' as DisplayLabel, color: '#8A8F98', ctr: null })
+    const originalCtr: number | null = variants.find(v => v.label === 'A')?.ctr ?? null
+    const liftDoLider: number | null = leader.label !== 'A' && leader.ctr !== null && originalCtr !== null && originalCtr > 0
+      ? ((leader.ctr - originalCtr) / originalCtr) * 100
+      : null
 
     // Compute live delta from the two most recent polls
     const latestPolls = results.latestPolls
@@ -1211,20 +1195,16 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       ...base,
       status: (test.status === 'draft' ? 'active' : test.status) as 'active' | 'paused',
       confirmedData: {
-        confidence: results.confidence * 100,
+        confidence: results.confidence === null ? null : results.confidence * 100,
         leader: leader.label,
         leaderColor: leader.color,
-        lift: leader.label !== 'A' && originalCtr > 0
-          ? ((leader.ctr - originalCtr) / originalCtr) * 100
-          : 0,
+        lift: liftDoLider,
       },
       liveData: lastPolledAt ? {
-        confidence: results.confidence * 100,
+        confidence: results.confidence === null ? null : results.confidence * 100,
         leader: leader.label,
         leaderColor: leader.color,
-        lift: leader.label !== 'A' && originalCtr > 0
-          ? ((leader.ctr - originalCtr) / originalCtr) * 100
-          : 0,
+        lift: liftDoLider,
       } : undefined,
       pollData: lastPolledAt ? {
         viewsDelta: liveViewsDelta,
@@ -1242,7 +1222,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   }
 
   if (test.completed_reason === 'inconclusive' && test.playoff_test_id) {
-    const finalistLabels = [...variants].sort((a, b) => b.pBest - a.pBest).slice(0, 2)
+    const finalistLabels = [...variants].sort((a, b) => ordemDesc(a.pBest, b.pBest)).slice(0, 2)
     return {
       ...base,
       status: 'completed' as const,
@@ -1261,7 +1241,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   }
 
   // Guard: completed test with no real winner → treat as inconclusive
-  if (!test.winner_variant_id || results.variants.every(v => v.total_impressions === 0)) {
+  if (!test.winner_variant_id || (!ehVitoriaHumana(test) && results.variants.every(v => v.total_impressions === null || v.total_impressions === 0))) {
     return {
       ...base,
       status: 'completed' as const,
@@ -1285,9 +1265,11 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ? variantColor(winnerVariant.label, winnerVariant.is_original)
     : '#8A8F98'
   const originalVariant = results.variants.find(v => v.is_original)
-  const winnerCtr = winnerVariant?.avg_ctr ?? 0
-  const originalCtr = originalVariant?.avg_ctr ?? 0
-  const lift = originalCtr > 0 ? ((winnerCtr - originalCtr) / originalCtr) * 100 : 0
+  const winnerCtr: number | null = winnerVariant?.avg_ctr ?? null
+  const originalCtr: number | null = originalVariant?.avg_ctr ?? null
+  const lift: number | null = winnerCtr !== null && originalCtr !== null && originalCtr > 0
+    ? ((winnerCtr - originalCtr) / originalCtr) * 100
+    : null
 
   return {
     ...base,
@@ -1299,9 +1281,9 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     // A confiança calculada sobre views não é medição de entrega: a tela mostra a frase fixa.
     confidence: null,
     resultMeta: {
-      ctrBefore: originalCtr * 100,
-      ctrAfter: winnerCtr * 100,
-      totalImpressions: results.variants.reduce((sum, v) => sum + v.total_impressions, 0),
+      ctrBefore: originalCtr === null ? null : originalCtr * 100,
+      ctrAfter: winnerCtr === null ? null : winnerCtr * 100,
+      totalImpressions: somaOuNulo(results.variants.map(v => v.total_impressions)),
       abbaCycles: totalCycles,
       // A estimativa guardada vinha de views, sem medição de entrega: a tela mostra a frase fixa.
       monthlyExtraClicks: null,

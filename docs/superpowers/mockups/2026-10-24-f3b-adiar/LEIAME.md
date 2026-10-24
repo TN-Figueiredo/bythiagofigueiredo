@@ -1,0 +1,26 @@
+# F3b "Adiar 7 dias": roteiro de teste do mockup (delta do M3)
+
+Abrir: `open -a Opera docs/superpowers/mockups/2026-10-24-f3b-adiar/index.html`. Barra de cima: **Estado**, **Tema** (escuro/claro), **Largura** (1440/390). Cada item abaixo vale nos quatro cantos (1440 e 390, claro e escuro); o que muda de um canto para outro está dito no item. Hoje, no mockup, é sex, 23/10/2026, então "7 dias" = sex, 30/10. Dados sintéticos.
+
+**O que é novo em relação ao M3 aprovado (só isto precisa da sua aprovação):** o botão "Adiar 7 dias" dentro do painel; o gatilho passa a se chamar "Dispensar ou adiar"; a faixa "Adiada"; a linha de contagem; o vazio "Você adiou N sugestões"; o selo "Adiada por você em DD/MM" na linha que voltou; a frase no lugar do botão quando a sugestão vence em até 7 dias. O resto é o M3, sem mudança.
+
+1. **Lista: ponto de partida.** Clique no gatilho da 2ª linha ("Dispensar ou adiar"; a 390 é o ⋯), depois em "Adiar 7 dias". Confira: o painel abre na linha, o botão grava sem pedir confirmação, aparece "Adiando…", depois a faixa "Adiada. Volta para esta lista em sex, 30/10.", que some em 5 s. O N cai de 3 para 2 e aparece a linha "1 adiada por você. Volta em sex, 30/10.". Durante "Adiando…" o painel inteiro fica parado (motivos, Já fiz e Cancelar desabilitados). Dispensar por um motivo continua como antes.
+2. **Painel aberto: 3 grupos.** Confira a ordem `Por que dispensar? [motivo] [motivo] | Já fiz ‖ Adiar 7 dias   Cancelar`, o traço duplo antes de "Adiar" (a 1440; entre 641 e 700 px de contêiner já vira fio) e o relógio no botão. A 390: o traço vira fio horizontal, cada grupo fica na sua fileira (motivos, Já fiz, Adiar 7 dias). Os 3 grupos se leem como coisas diferentes? Esc e Cancelar fecham e devolvem o foco ao gatilho. Com Tab: motivos, Já fiz, Adiar 7 dias, Cancelar.
+3. **Vence em até 7 dias.** Painel da 3ª linha. Confira: no lugar do botão há uma frase com ampulheta ("Vence em qua, 28/10: não dá para adiar 7 dias."), sem ser clicável; o Tab pula da "Já fiz" para "Cancelar". A frase se lê sem esforço nos dois temas?
+4. **Adiando….** Confira o botão com "Adiando…", sem ícone, parado (estado fixo). A 1440 "Cancelar" não pula de lugar; a 390 o botão não muda de tamanho.
+5. **Faixa "Adiada".** Estado fixo. Confira: relógio cinza (não o ✓ verde), borda esquerda cinza-bege, fundo mais fundo que a lista. Dá para distinguir de "Dispensada" sem depender da cor (símbolo e palavra)? Para ver a faixa recolher sozinha, volte ao estado 1 e adie uma linha.
+6. **Não salvou (sem conexão).** A linha volta com "Não salvou “Adiar 7 dias”: sem conexão. A sugestão continua aberta." e o botão "Tentar de novo “Adiar 7 dias”". Clique nele: mostra "Adiando…" e falha de novo (a rede segue caída neste estado). O N não mudou.
+7. **Nova tentativa: já estava adiada.** Mesmo erro do item 6. Clique em "Tentar de novo": vira a faixa "Adiada" normal com a data (e não "já saiu da lista"). O dono entende que deu certo?
+8. **Corrida: venceu antes dos 7 dias.** A 3ª linha ainda oferece o botão (lista velha). Clique "Adiar 7 dias": a linha fica e mostra "Não adiou: ela vence em 28/10, antes dos 7 dias.", sem botão de nova tentativa. Depois do erro, abra "Dispensar ou adiar" de novo na 3ª linha: o botão deu lugar à frase "Vence em qua, 28/10…".
+9. **Lista com 2 adiadas.** Confira a linha sob o resumo: "2 adiadas por você. A próxima volta em ter, 27/10." (o 3 do cabeçalho não inclui as adiadas). Não há selo no cabeçalho.
+10. **Vazio: tudo adiado.** N = 0. Confira o título "Você adiou 2 sugestões.", a data "A próxima volta em ter, 27/10." e a frase do motivo do cálculo. O ícone é o relógio neutro.
+11. **Vazio adiado, contagem não medida.** Confira o título "Adiadas por você: não medido" (rosa hachurado), a frase "Não deu para contar quantas voltam nem quando." e que não aparece "0 adiadas", "Você adiou" nem data inventada.
+12. **Linha que voltou.** A 2ª linha traz o selo "Adiada por você em 23/10" ao lado do chip (a 390, abaixo do título). Clique em "Dispensar ou adiar": dá para adiar de novo.
+13. **A/B Lab: bloco com adiadas.** Resumo e linha de contagem dentro do bloco (sem selo); ao adiar a última linha aberta a faixa "Adiada" aparece antes do vazio e o foco fica no título; confira que não aparece nada de "Desfazer" nem lista de adiadas (decisão: só uma linha).
+14. **A/B Lab: bloco com vazio adiado.** Linha única: "Você adiou 2 sugestões. A próxima volta em ter, 27/10." A 390 pode quebrar em 2 linhas, sem cortar.
+
+**Decisões já tomadas (não precisa reabrir, mas pode discordar):** rótulo do gatilho "Dispensar ou adiar"; nada de confirmação nem Desfazer; só a opção de 7 dias; borda da faixa "Adiada" em `--btn-line` (a `--border-strong` não passa de 3:1); relógio = volta, ampulheta = vence.
+
+**Fora do que este mockup prova:** leitor de tela, fuso de outro país, rede lenta real, Opera real: ficam para a revisão e a T8.
+
+**Aprovado pelo dono em 23/10/2026 ~23:10 BRT** (Logan 96, Naksu 95).

@@ -11,6 +11,7 @@ import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
 import { INSTAGRAM_STATE_LABEL, deriveHmacKey, signState, verifyState } from '@/lib/oauth/state'
 import { oauthErrorText } from '@/lib/instagram/status-text'
 import { allowedLocales, LOCALE_CONFLICT_ERROR } from '@/lib/instagram/locale-rules'
+import { boundedArray, boundedRecord, limitedZodMessage } from '../../../../../lib/validation/bounded-array'
 import { syncScheduleSchema, type SyncScheduleInput } from './sync-schedule-schema'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
@@ -21,8 +22,9 @@ type ActionResult = { ok: true } | { ok: false; error: string }
  */
 export type SyncActionResult = { ok: true; partial?: boolean } | { ok: false; error: string }
 
+// GHSA-mrhx-c7xc-m3w5: nunca devolver a lista inteira de issues ao cliente.
 function zodError(err: z.ZodError): string {
-  return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
+  return limitedZodMessage(err)
 }
 
 async function requireEditAccess(): Promise<{ siteId: string; userId: string }> {
@@ -101,16 +103,16 @@ const blogCadenceSchema = z.object({
 
 const localesSchema = z.object({
   default_locale: z.string().min(2).max(10),
-  supported_locales: z.array(z.string().min(2).max(10)).min(1),
+  supported_locales: boundedArray(z.string().min(2).max(10), 50).pipe(z.array(z.string()).min(1)),
 })
 
 export async function updateBranding(input: {
   logo_url: string
   primary_color: string
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = brandingSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('sites')
@@ -126,9 +128,9 @@ export async function updateIdentity(input: {
   identity_type: string
   twitter_handle: string
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = identitySchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('sites')
@@ -143,9 +145,9 @@ export async function updateIdentity(input: {
 export async function updateSeoDefaults(input: {
   seo_default_og_image: string | null
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = seoSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('sites')
@@ -170,9 +172,9 @@ export async function updateNewsletterType(
     sort_order?: number
   },
 ): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = newsletterTypeUpdateSchema.safeParse(data)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('newsletter_types')
@@ -188,9 +190,9 @@ export async function createNewsletterType(data: {
   name: string
   sort_order?: number
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = newsletterTypeCreateSchema.safeParse(data)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('newsletter_types')
@@ -240,9 +242,9 @@ export async function updateBlogCadence(
     cadence_start_date?: string | null
   },
 ): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = blogCadenceSchema.safeParse(data)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('blog_cadence')
@@ -259,6 +261,7 @@ export async function updateSiteLocales(data: {
   default_locale: string
   supported_locales: string[]
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = localesSchema.safeParse(data)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
   if (!parsed.data.supported_locales.includes(parsed.data.default_locale)) {
@@ -267,7 +270,6 @@ export async function updateSiteLocales(data: {
       error: 'Default locale must be in supported locales',
     }
   }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('sites')
@@ -293,9 +295,9 @@ export async function disableCms(): Promise<ActionResult> {
 }
 
 export async function updateYouTubeChannelSettings(input: SyncScheduleInput): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = syncScheduleSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { error, data } = await supabase.from('youtube_channels')
@@ -322,13 +324,13 @@ const timezoneSchema = z.object({
 export async function updateSiteTimezone(input: {
   timezone: string
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = timezoneSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
   const validTimezones = Intl.supportedValuesOf('timeZone')
   if (!validTimezones.includes(parsed.data.timezone)) {
     return { ok: false, error: 'Invalid IANA timezone' }
   }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('sites')
@@ -391,10 +393,13 @@ const instagramTokenSchema = z.object({
 
 const instagramSlotSchema = z.object({
   accountId: z.string().uuid(),
-  slots: z.array(z.object({
-    position: z.number().int().min(1).max(12),
-    postId: z.string().uuid().nullable(),
-  })),
+  slots: boundedArray(
+    z.object({
+      position: z.number().int().min(1).max(12),
+      postId: z.string().uuid().nullable(),
+    }),
+    12,
+  ),
 })
 
 function normalizeHandle(raw: string): string {
@@ -416,12 +421,12 @@ export async function addInstagramAccount(input: {
   if (denied) return denied
   // MUST: normalizar PRIMEIRO. Com a ordem antiga, o max(50) rejeitava URLs
   // longas legítimas antes de a extração de path acontecer.
+  const { siteId } = await requireEditAccess()
   const parsed = instagramAccountSchema.safeParse({
     handle: normalizeHandle(input.handle),
     locale: input.locale,
   })
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { data: siblings } = await supabase
@@ -449,9 +454,9 @@ export async function removeInstagramAccount(input: {
 }): Promise<ActionResult> {
   const denied = await adminOnly('remover uma conta do Instagram')
   if (denied) return denied
+  const { siteId } = await requireEditAccess()
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { error } = await supabase
@@ -477,9 +482,9 @@ export async function updateInstagramSettings(input: {
   section_subtitle_pt?: string | null
   section_subtitle_en?: string | null
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = instagramSettingsSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { accountId, ...updates } = parsed.data
 
@@ -522,9 +527,9 @@ export async function setInstagramToken(input: {
 }): Promise<ActionResult> {
   const denied = await adminOnly('trocar a credencial do Instagram')
   if (denied) return denied
+  const { siteId } = await requireEditAccess()
   const parsed = instagramTokenSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { getVaultKeyOrNull, writeAccessToken } = await import('@/lib/instagram/token')
@@ -577,9 +582,9 @@ export async function setInstagramToken(input: {
 export async function triggerInstagramSync(input: {
   accountId: string
 }): Promise<SyncActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
 
   const { getVaultKeyOrNull, readAccessToken, markTokenInvalid } =
     await import('@/lib/instagram/token')
@@ -672,9 +677,9 @@ export async function updateInstagramSlots(input: {
   accountId: string
   slots: { position: number; postId: string | null }[]
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = instagramSlotSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   // `instagram_feed_slots` não tem `site_id` (20260507190000:56-68): a posse é
@@ -737,9 +742,9 @@ export async function disconnectInstagramAccount(input: {
 }): Promise<ActionResult> {
   const denied = await adminOnly('desconectar o Instagram')
   if (denied) return denied
+  const { siteId } = await requireEditAccess()
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const nowIso = new Date().toISOString()
 
@@ -792,9 +797,9 @@ export async function authorizeInstagramRebind(input: {
 }): Promise<{ ok: true; rebind: string } | { ok: false; error: string }> {
   const denied = await adminOnly('religar o Instagram a outra conta')
   if (denied) return denied
+  const { siteId, userId } = await requireEditAccess()
   const parsed = z.object({ accountId: z.string().uuid() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId, userId } = await requireEditAccess()
 
   const masterKey = process.env.SOCIAL_MASTER_KEY
   if (!masterKey) return { ok: false, error: oauthErrorText('vault_unavailable') }
@@ -856,8 +861,8 @@ const contactHeroDisplaySchema = z.object({
 
 const SOCIAL_KEYS = ['email', 'instagram', 'youtube', 'x', 'github', 'rss'] as const
 const contactSocialSchema = z.object({
-  social_order: z.array(z.enum(SOCIAL_KEYS)),
-  social_visible: z.record(z.enum(SOCIAL_KEYS), z.boolean()),
+  social_order: boundedArray(z.enum(SOCIAL_KEYS), SOCIAL_KEYS.length),
+  social_visible: boundedRecord(z.enum(SOCIAL_KEYS), z.boolean(), SOCIAL_KEYS.length),
   email_highlight: z.boolean(),
   handwritten_note: z.boolean(),
 })
@@ -872,12 +877,12 @@ const contactFormTextSchema = z.object({
   locale: z.enum(['pt-BR', 'en']),
   form_title: z.string().max(100).default(''),
   auto_reply_text: z.string().max(500).default(''),
-  subject_options: z.array(z.string().max(100)),
+  subject_options: boundedArray(z.string().max(100), 20),
 })
 
 const contactFaqSchema = z.object({
   locale: z.enum(['pt-BR', 'en']),
-  faq_items: z.array(z.object({ q: z.string().max(300), a: z.string().max(2000) })),
+  faq_items: boundedArray(z.object({ q: z.string().max(300), a: z.string().max(2000) }), 50),
 })
 
 const contactVisibilitySchema = z.object({
@@ -899,9 +904,9 @@ export async function updateContactHeroText(input: {
   hero_subtitle?: string
   response_time_text?: string
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = contactHeroTextSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('contact_page_settings')
@@ -916,9 +921,9 @@ export async function updateContactHeroDisplay(input: {
   show_bio: boolean
   show_response_badge: boolean
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = contactHeroDisplaySchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('contact_page_visibility')
@@ -934,9 +939,9 @@ export async function updateContactSocial(input: {
   email_highlight: boolean
   handwritten_note: boolean
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = contactSocialSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('contact_page_visibility')
@@ -951,9 +956,9 @@ export async function updateContactFormSettings(input: {
   show_subject_selector: boolean
   show_marketing_consent: boolean
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = contactFormSettingsSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const [sitesResult, visibilityResult] = await Promise.all([
     supabase
@@ -983,9 +988,9 @@ export async function updateContactFormText(input: {
   auto_reply_text?: string
   subject_options: string[]
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = contactFormTextSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('contact_page_settings')
@@ -1006,9 +1011,9 @@ export async function updateContactFaq(input: {
   locale: 'pt-BR' | 'en'
   faq_items: { q: string; a: string }[]
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = contactFaqSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('contact_page_settings')
@@ -1031,9 +1036,9 @@ export async function updateContactVisibility(input: {
   show_contact_form: boolean
   show_faq: boolean
 }): Promise<ActionResult> {
+  const { siteId } = await requireEditAccess()
   const parsed = contactVisibilitySchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const { siteId } = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
   const { error } = await supabase
     .from('contact_page_visibility')

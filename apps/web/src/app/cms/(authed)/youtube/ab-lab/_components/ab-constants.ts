@@ -62,18 +62,39 @@ export function formatCtr(ctr: number | null | undefined, impressions: number | 
   return `${brDec(ctr * 100, decimals)}%`
 }
 
-/** true quando nenhuma variante tem impressões medidas. */
-type CtrMedida = { label?: string; ctr: number; impressions?: number | null }
+export const NAO_MEDIDO = 'não medido'
+
+type CtrMedida = { label?: string; ctr: number | null; impressions?: number | null }
 
 /** Diferença de CTR de `variant` contra A, em pontos percentuais relativos; null quando não há base medida. */
 export function liftVsA(variantA: CtrMedida | null | undefined, variant: CtrMedida | null | undefined): number | null {
   if (!variantA || !variant || variant.label === 'A') return null
+  if (variantA.ctr === null || variant.ctr === null) return null
   if (!(variantA.ctr > 0) || !variantA.impressions || !variant.impressions) return null
   return ((variant.ctr - variantA.ctr) / variantA.ctr) * 100
 }
 
+/** true quando nenhuma variante tem impressões medidas (nulo conta como não medido). */
 export function semImpressoes(variants: ReadonlyArray<{ impressions?: number | null }>): boolean {
   return variants.every(v => !v.impressions || v.impressions <= 0)
+}
+
+/** true só com 2+ variantes, todas com impressões > 0 e CTR não nulo. Guarda as seções que comparam variantes. */
+export function medicaoCompleta(vs: ReadonlyArray<{ impressions?: number | null; ctr?: number | null }>): boolean {
+  return vs.length >= 2 && vs.every(v => v.impressions != null && v.impressions > 0 && v.ctr != null)
+}
+
+/** Só as variantes com CTR e impressões medidas (> 0); o tipo sai estreitado. */
+export function medidas<T extends { ctr: number | null; impressions: number | null }>(vs: readonly T[]): Array<T & { ctr: number; impressions: number }> {
+  return vs.filter((v): v is T & { ctr: number; impressions: number } => v.ctr !== null && v.impressions !== null && v.impressions > 0)
+}
+
+/** Comparador decrescente com nulo por último. */
+export function ordemDesc(a: number | null, b: number | null): number {
+  if (a === null && b === null) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  return b - a
 }
 
 export function formatDate(d: string | Date | null | undefined): string {

@@ -1118,8 +1118,6 @@ export async function getAbTest(
 
 interface CycleRow {
   variant_id: string
-  impressions: number | null
-  clicks: number | null
 }
 
 /** Compute funnel metrics (impressions -> clicks -> link clicks) for an A/B test. */
@@ -1141,9 +1139,9 @@ export async function getAbTestFunnel(
 
   const cyclesRes = await supabase
     .from('ab_test_cycles')
-    .select('variant_id, impressions, clicks')
+    .select('variant_id')
     .eq('test_id', id)
-    .not('impressions', 'is', null)
+    .not('started_at', 'is', null) // ciclo existe; entrega não é medida (S8-F2)
 
   if (cyclesRes.error) return err('DB_ERROR', 'Failed to load A/B cycles', 500)
   const cycles = cyclesRes.data as CycleRow[] | null

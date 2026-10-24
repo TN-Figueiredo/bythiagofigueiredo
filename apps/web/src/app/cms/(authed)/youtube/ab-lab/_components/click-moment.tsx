@@ -10,7 +10,7 @@ interface ClickMomentProps {
   videoTitle: string
   winnerLabel: DisplayLabel
   winnerColor: string
-  variants: Array<{ label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }>
+  variants: Array<{ label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }>
   /** Esconde a barra de CTR/lift (sem medição de entrega o número seria inventado). */
   semCtr?: boolean
   /** Prévia do wizard: ninguém venceu ainda, então sem selo de vencedor. */
@@ -80,8 +80,8 @@ function BehaviorStrip({ label, color, ctr, maxCtr, isWinner, lift }: { label: D
   )
 }
 
-function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
-  const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number | null }) {
+  const lift = baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
       {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
@@ -94,13 +94,13 @@ function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCt
           <div className="text-[12.5px] text-cms-text-dim">12 mil visualizações · há 2 dias</div>
         </div>
       </div>
-      {!semCtr && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
+      {!semCtr && v.ctr !== null && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
     </div>
   )
 }
 
-function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
-  const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number | null }) {
+  const lift = baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
       {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
@@ -116,13 +116,13 @@ function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { sem
           <div className="text-[12.5px] text-cms-text-muted leading-[1.4] line-clamp-2">Fui até o MBK Center em Bangkok pra descobrir se vale a pena. Ouro, ternos sob medida e eletrônicos…</div>
         </div>
       </div>
-      {!semCtr && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
+      {!semCtr && v.ctr !== null && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
     </div>
   )
 }
 
-function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
-  const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number | null }) {
+  const lift = baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
       {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
@@ -134,13 +134,13 @@ function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { se
           <div className="text-[11.5px] text-cms-text-dim">12 mil views · há 2 dias</div>
         </div>
       </div>
-      {!semCtr && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
+      {!semCtr && v.ctr !== null && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
     </div>
   )
 }
 
-function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number }) {
-  const lift = baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number | null }) {
+  const lift = baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
   return (
     <div className="relative overflow-hidden rounded-lg">
       <div className="w-[300px] overflow-hidden" style={{ border: '8px solid #050505', borderRadius: 34, background: '#0a0a0a', boxShadow: 'rgba(0,0,0,0.7) 0 20px 50px -16px' }}>
@@ -159,7 +159,7 @@ function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { sem
         </div>
       </div>
       <div className="mt-[12px]">
-        {!semCtr && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
+        {!semCtr && v.ctr !== null && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
       </div>
     </div>
   )
@@ -183,8 +183,8 @@ export function ClickMoment({ videoTitle, winnerLabel, winnerColor, variants, se
   const [mode, setMode] = useState<'compare' | 'feed'>('compare')
   const [context, setContext] = useState<Context>('home')
 
-  const maxCtr = Math.max(...variants.map(v => v.ctr), 0.01)
-  const baseline = variants.find(v => v.label === 'A')?.ctr ?? 0
+  const maxCtr = Math.max(...variants.flatMap(v => (v.ctr === null ? [] : [v.ctr])), 0.01)
+  const baseline = variants.find(v => v.label === 'A')?.ctr ?? null
 
   const displayVariants = context === 'home' ? variants : variants.filter(v => v.label === 'A' || v.label === winnerLabel)
 
