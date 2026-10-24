@@ -1,5 +1,5 @@
 // apps/web/test/helpers/m2.ts
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
@@ -9,8 +9,8 @@ import { Client } from 'pg'
  * constantes (e só elas) para o arquivo da migration e `true`. Caminho por `__dirname`, nunca pelo `cwd` (muda entre `npm test -w`
  * e `npx vitest` da raiz).
  */
-export const M2_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m2.sql')
-export const M2_EM_MIGRATION = false
+export const M2_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/migrations', readdirSync(resolve(__dirname, '../../../../supabase/migrations')).find(n => n.endsWith('_manutencao_m2_particoes.sql')) ?? 'manutencao_m2_ausente.sql')
+export const M2_EM_MIGRATION = true
 export const M2_SQL: string = readFileSync(M2_SQL_CAMINHO, 'utf8')
 
 /**

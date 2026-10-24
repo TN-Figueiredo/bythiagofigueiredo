@@ -118,6 +118,18 @@ describe('regra genérica: quem mede n_tup_del sabe de partição (M2 11b e 11c)
   it('M2 sem o 11c: a competitor_channel_delete_unarchived da 0007 (última definição) acusa; com o 11c passa (o mutante do 11c fica vermelho)', () => {
     const sem11c = M2_SQL.replace(/-- 11c\.[\s\S]*?(?=\n-- 12\. )/, '')
     expect(sem11c).not.toBe(M2_SQL)
+    // Com a M2 já em supabase/migrations, a cópia sem o 11c substitui o arquivo da M2 numa pasta falsa (senão a definição real, a última, vence).
+    const comM2 = (sql: string): string => {
+      const outros: Record<string, string> = {}
+      for (const n of readdirSync(PASTA_DAS_MIGRATIONS).filter(x => x.endsWith('.sql') && !x.endsWith('_manutencao_m2_particoes.sql'))) outros[n] = readFileSync(join(PASTA_DAS_MIGRATIONS, n), 'utf8')
+      outros['99999999999999_m2_particoes.sql'] = sql
+      return pastaFalsa(outros)
+    }
+    if (M2_EM_MIGRATION) {
+      expect(regraStatXact(comM2(sem11c)).some(e => e.startsWith('competitor_channel_delete_unarchived '))).toBe(true)
+      expect(regraStatXact(comM2(M2_SQL))).toEqual([])
+      return
+    }
     expect(regraStatXact(undefined, [{ arquivo: 'rascunhos/m2.sql', sql: sem11c }]).some(e => e.startsWith('competitor_channel_delete_unarchived '))).toBe(true)
     expect(regraStatXact(undefined, [{ arquivo: 'rascunhos/m2.sql', sql: M2_SQL }])).toEqual([])
   })
