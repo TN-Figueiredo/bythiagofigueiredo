@@ -149,6 +149,8 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
   const upd = (() => {
     if (!placar || !placar.atualizado_em) return <span className="upd">Sem leitura ainda</span>
     const { data, hora } = dataEHora(placar.atualizado_em)
+    // Atrasado: a mesma data da frase (último dia gravado); nunca duas datas diferentes na tela (Gio A2).
+    if (placar.atrasado && ultimoDia !== null) return <span className="upd warn"><IcAviso />Dados parados em {ultimoDia}</span>
     return parado
       ? <span className="upd warn"><IcAviso />Dados parados desde {data} às {hora}</span>
       : <span className="upd">Atualizado em {data} às {hora}</span>

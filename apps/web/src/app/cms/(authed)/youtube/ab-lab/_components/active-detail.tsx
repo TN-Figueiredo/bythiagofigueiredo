@@ -111,7 +111,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
           actions={actionButtons}
-          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null }}
+          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, naoIniciado: view.placar?.iniciado === false }}
         />
       </div>
 

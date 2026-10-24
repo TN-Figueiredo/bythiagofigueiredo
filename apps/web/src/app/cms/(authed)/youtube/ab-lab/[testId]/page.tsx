@@ -9,6 +9,7 @@ import { endAbTest, pauseAbTest, resumeAbTest, retryRestore, dismissRestore } fr
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
 import * as Sentry from '@sentry/nextjs'
+import { FalhaDeLeitura } from '../_components/falha-de-leitura'
 import { FaixaComAcoes } from '../_components/faixa-com-acoes'
 import { carregarDadosDaFaixa } from '../_components/faixa-dados'
 import { AtualizarEnquantoEmAndamento } from '../_components/atualizar-enquanto-em-andamento'
@@ -85,7 +86,18 @@ export default async function AbTestDetailPage({
   const mockView = mockMap[testId]
   if (mockView) return <><AvisoDePagina testId={testId} />{renderView(mockView)}</>
 
-  const results = await getTestResults(testId)
+  // O Next apaga a mensagem de erro de Server Component em produção: a falha de leitura do placar (D-F3-5)
+  // é tratada aqui, no servidor, para a cópia do M4 chegar à tela.
+  let results: Awaited<ReturnType<typeof getTestResults>>
+  try {
+    results = await getTestResults(testId)
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('ab_lab_leitura')) {
+      Sentry.captureException(e)
+      return <FalhaDeLeitura />
+    }
+    throw e
+  }
   if (!results) notFound()
 
   const viewBase = await toDetailView(results)

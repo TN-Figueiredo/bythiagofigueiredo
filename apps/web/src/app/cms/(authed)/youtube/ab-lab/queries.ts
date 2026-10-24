@@ -205,6 +205,7 @@ export const getTestResults = cache(async (testId: string): Promise<AbTestResult
     agora,
     inicio: (test.started_at as string | null) ?? null,
     fim: (test.completed_at as string | null) ?? null,
+    pausado_em: (test.paused_at as string | null) ?? null,
     status: test.status as string,
   })
   const faixaDias = faixaDeDias({ dias: lido.dias, variantes: allVariants.map(v => ({ variant_id: v.id })), agora })
@@ -1093,7 +1094,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   }
 
   // Discriminate by status/outcome
-  if (test.status === 'draft' || test.status === 'active' || test.status === 'paused') {
+  if (test.status === 'draft' || test.status === 'queued' || test.status === 'active' || test.status === 'paused') {
     const comPBest = variants.filter((v): v is typeof v & { pBest: number } => v.pBest !== null)
     const leader: { label: DisplayLabel; color: string; ctr: number | null } = comPBest.length > 0
       ? comPBest.reduce((best, v) => (v.pBest > best.pBest ? v : best), comPBest[0]!)
@@ -1215,7 +1216,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
 
     return {
       ...base,
-      status: (test.status === 'draft' ? 'active' : test.status) as 'active' | 'paused',
+      status: (test.status === 'draft' || test.status === 'queued' ? 'active' : test.status) as 'active' | 'paused',
       confirmedData: {
         confidence: results.confidence === null ? null : results.confidence * 100,
         leader: leader.label,

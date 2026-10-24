@@ -69,3 +69,10 @@ describe('S8-F3 T5: casos e frases do placar (tabela)', () => {
     expect(em.map(x => x.label)).toEqual(['C', 'A', 'D', 'B']) // não muta
   })
 })
+
+describe('conserto do lote (Yannis 3)', () => {
+  it('dias aguardando somam as variantes (cada dia tem uma só)', () => {
+    const f = fraseDoPlacar(pl({ variantes: [pv('a', { ...com(10, 1), dias_aguardando: 1 }), pv('b', { ...com(10, 1), dias_aguardando: 1 })] }), 'active')
+    expect(f.apoio).toContain('2 dias ainda aguardam')
+  })
+})

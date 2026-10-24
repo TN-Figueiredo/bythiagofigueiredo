@@ -21,7 +21,7 @@ export interface DetailHeaderProps {
   dayInfo?: { dayOf: number; total: number }
   actions?: React.ReactNode
   /** Variante do Lab (S8-F3 T5b): rastro com respiro, miniatura, selo "Teste do Lab". Sem a prop, o cabeçalho é o de sempre. */
-  lab?: { thumbUrl: string | null }
+  lab?: { thumbUrl: string | null; naoIniciado?: boolean }
 }
 
 export function DetailHeader({
@@ -65,7 +65,9 @@ export function DetailHeader({
               <div className="dhl-selos">
                 <span className="dhl-selo" data-testid="selo-lab">
                   <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5 1.5h4M5.5 1.5v4L2.5 11a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5l-3-5.5v-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                  <span>Teste do Lab {situacao}, <span className="dhl-dia">dia {dayInfo.dayOf} de {dayInfo.total}</span></span>
+                  {lab.naoIniciado
+                    ? <span>Teste do Lab não iniciado</span>
+                    : <span>Teste do Lab {situacao}, <span className="dhl-dia">dia {dayInfo.dayOf} de {dayInfo.total}</span></span>}
                 </span>
               </div>
             )}

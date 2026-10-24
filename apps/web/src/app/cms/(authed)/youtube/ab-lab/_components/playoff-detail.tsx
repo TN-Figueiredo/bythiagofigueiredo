@@ -4,7 +4,7 @@ import type { AbTestPlayoffView } from '@/lib/youtube/ab-types'
 import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { DetailHeader } from './detail-header'
 import { PlayoffBanner } from './playoff-banner'
-import { VariantTable } from './variant-table'
+import { PlacarDoTeste } from './placar-do-teste'
 import { Copy, Archive, Download, Info, LayoutGrid } from 'lucide-react'
 
 export interface PlayoffDetailProps {
@@ -97,12 +97,16 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
 
       {/* 5. Placar das variantes */}
       <section className="mb-[36px]">
-        <VariantTable
+        {/* Sem estatística não há ordem por CTR nem ganho sobre A (C-11): só o placar de contagens. */}
+        <PlacarDoTeste
+          placar={view.placar ?? null}
+          faixaDias={view.faixa_dias ?? []}
           variants={view.variants}
-          finalists={view.finalists.map(f => f.label)}
+          variantDb={view.variantDb}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
-          semChance
+          status={view.status}
+          titulo="Placar das variantes"
         />
       </section>
     </div>

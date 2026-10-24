@@ -149,6 +149,17 @@ describe('placar puro (S8-F3 T1)', () => {
     expect(vazio.variantes.every(v => v.dias === 0)).toBe(true)
   })
 
+  it('9c. pausado: o limite é paused_at (sem alarme falso durante a pausa)', () => {
+    const tarde = new Date('2026-10-24T15:00:00Z')
+    const pausadoEm = '2026-10-17T12:00:00Z'
+    const ate17 = [dia({ day_pt: '2026-10-15' }), dia({ day_pt: '2026-10-16' }), dia({ day_pt: '2026-10-17' })]
+    const ate14 = [dia({ day_pt: '2026-10-12' }), dia({ day_pt: '2026-10-13' }), dia({ day_pt: '2026-10-14' })]
+    expect(placar(ate17, { status: 'paused', pausado_em: pausadoEm, agora: tarde }).atrasado).toBe(false)
+    expect(placar(ate14, { status: 'paused', pausado_em: pausadoEm, agora: tarde }).atrasado).toBe(true)
+    // retomado: ativo ignora paused_at antigo
+    expect(placar(ate17, { status: 'active', pausado_em: pausadoEm, agora: tarde }).atrasado).toBe(true)
+  })
+
   it('9b. atrasado', () => {
     expect(placar([], { inicio: ha(49) }).atrasado).toBe(true)
     expect(placar([], { inicio: ha(20) }).atrasado).toBe(false)

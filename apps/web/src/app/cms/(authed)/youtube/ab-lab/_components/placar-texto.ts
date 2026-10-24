@@ -90,7 +90,8 @@ export function fraseDoPlacar(
   const principal = total === null
     ? `${p.variantes.length} variantes, sem impressões medidas ainda.`
     : `${p.variantes.length} variantes, ${n(total)} impressões no total.`
-  const aguardando = Math.max(0, ...p.variantes.map(v => v.dias_aguardando))
+  // Cada dia pertence a uma só variante (PK test_id+day_pt): o total é a soma.
+  const aguardando = p.variantes.reduce((s, v) => s + v.dias_aguardando, 0)
   let apoio: string
   if (aguardando > 0) {
     apoio = `${aguardando} ${aguardando === 1 ? 'dia ainda aguarda' : 'dias ainda aguardam'} o YouTube`

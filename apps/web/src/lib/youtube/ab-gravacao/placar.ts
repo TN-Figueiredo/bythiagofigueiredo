@@ -184,6 +184,8 @@ export function placarDoTeste(i: {
   agora: Date
   inicio: string | null
   fim: string | null
+  /** `ab_tests.paused_at`: limite do teste pausado (mesma regra da atribuição). */
+  pausado_em?: string | null
   status: string
 }): Placar {
   const { dias, agora } = i
@@ -224,7 +226,9 @@ export function placarDoTeste(i: {
       atrasado = agora.getTime() - Date.parse(i.inicio as string) > 48 * H
     } else if (maxDay !== null) {
       const porRodada = addDays(diaPt(ultimaRodada(agora)), -2)
-      const limite = diaPt(i.fim !== null ? new Date(i.fim) : agora)
+      // Mesma parada da atribuição: pausado para em paused_at (sem ele, em completed_at); ativo ignora paused_at.
+      const parou = i.status === 'paused' ? (i.pausado_em ?? i.fim) : i.fim
+      const limite = diaPt(parou !== null ? new Date(parou) : agora)
       const esperado = porRodada < limite ? porRodada : limite
       atrasado = maxDay < esperado
     }

@@ -1092,6 +1092,7 @@ function placarDaLinha(row: Record<string, unknown>, dias: Parameters<typeof pla
     agora,
     inicio: (row.started_at as string | null) ?? null,
     fim: (row.completed_at as string | null) ?? null,
+    pausado_em: (row.paused_at as string | null) ?? null,
     status: String(row.status),
   })
 }
