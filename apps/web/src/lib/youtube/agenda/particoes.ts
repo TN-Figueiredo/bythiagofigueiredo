@@ -1,7 +1,9 @@
 // apps/web/src/lib/youtube/agenda/particoes.ts
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { CODIGOS_SCHEMA_AUSENTE } from '@/lib/youtube/coleta/schema'
-import { BANCO_MS } from './relogio'
+import * as Sentry from '@sentry/nextjs'
+import { DEFINICAO_PARTICOES_A_FRENTE } from './definicoes'
+import { BANCO_MS, comPrazo } from './relogio'
 import type { ItemAgenda } from './saude'
 import type { Lido } from './tipos'
 
@@ -48,7 +50,8 @@ export async function lerMesesAFrente(sb: SupabaseClient): Promise<Lido<LinhaPar
       out.push({ tabela: o.table_name, mesesAFrente: m, convertidaEm: conv })
     }
     return { valor: out }
-  } catch {
+  } catch (err) {
+    Sentry.captureException(err, { tags: { component: 'vigia', invariante: 'particoes' } })
     return { porque: 'o banco não respondeu', causa: 'excecao' }
   }
 }
@@ -77,4 +80,19 @@ export function avaliarParticoes(lido: Lido<LinhaParticao[]>, ultimoOkTarefa: st
   if (pior < VERMELHO_ABAIXO_DE) return item('late', 'vermelho', MOTIVO_POUCOS, ultimoOkTarefa)
   if (pior < AMARELO_ABAIXO_DE) return item('late', 'amarelo', MOTIVO_ALERTA, ultimoOkTarefa)
   return item('ok', undefined, undefined, ultimoOkTarefa)
+}
+
+/** A leitura com o mesmo teto da agenda (`BANCO_MS + 1 s`); nunca lança. */
+export async function lerMesesAFrenteComPrazo(sb: SupabaseClient): Promise<Lido<LinhaParticao[]>> {
+  const r = await comPrazo(lerMesesAFrente(sb), BANCO_MS + 1_000).catch(() => ({ estourou: true as const }))
+  return 'estourou' in r ? { porque: 'o banco não respondeu', causa: 'prazo' } : r.valor
+}
+
+/**
+ * A cola entre a leitura e a agenda: o item da tarefa ausente (agenda não lida: uma entrada `leitura`) vira `undefined`
+ * (motivo "não lido"), distinto de `null` (a tarefa nunca rodou). Mora aqui para o relatório não conhecer tarefas (OP-5).
+ */
+export function avaliarComAgenda(lido: Lido<LinhaParticao[]>, itensDaAgenda: readonly ItemAgenda[], agoraMs: number): ItemAgenda {
+  const t = itensDaAgenda.find(i => i.nome === DEFINICAO_PARTICOES_A_FRENTE.nome)
+  return avaliarParticoes(lido, t ? t.ultimoOk : undefined, agoraMs)
 }

@@ -11,6 +11,13 @@ const TABELAS = ['competitor_video_daily', 'competitor_video_early', 'competitor
 
 interface LinhaEnsure { table_name: string; last_month: string; created: number }
 
+/** O mês-alvo ('AAAA-MM'): o mês corrente em São Paulo + 12. */
+export function mesAlvo(agoraMs: number): string {
+  const [a, m] = new Date(agoraMs).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).split('-').map(Number) as [number, number]
+  const idx = a * 12 + (m - 1) + MESES_A_FRENTE_ALVO
+  return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`
+}
+
 function ler(data: unknown): LinhaEnsure[] | null {
   if (!Array.isArray(data)) return null
   const linhas: LinhaEnsure[] = []
@@ -34,12 +41,18 @@ export const particoesAFrente: Tarefa = {
     try {
       const { data, error } = await c.sb.rpc('obs_partitions_ensure', { p_months_ahead: MESES_A_FRENTE_ALVO }).abortSignal(AbortSignal.timeout(BANCO_MS))
       if (error) {
-        if (/abort/i.test(String(error.message ?? ''))) return { estado: 'erro', feitas: 0, deixadas: null, motivo: 'prazo' }
         const codigo = typeof error.code === 'string' ? error.code : ''
+        // o supabase-js devolve a falha de fetch/timeout como `error` com code '' (não lança); só ela é prazo ou rede, nunca um erro com código do Postgres (25P02 "aborted")
+        if (codigo === '') {
+          const msg = String(error.message ?? '')
+          return { estado: 'erro', feitas: 0, deixadas: null, motivo: /^(AbortError|TimeoutError):/.test(msg) ? 'prazo' : 'sem_resposta' }
+        }
         return { estado: 'erro', feitas: 0, deixadas: null, motivo: CODIGOS_SCHEMA_AUSENTE.includes(codigo) ? 'funcao_ausente' : 'banco_recusou' }
       }
       const linhas = ler(data)
       if (!linhas) return { estado: 'erro', feitas: 0, deixadas: null, motivo: 'resposta_invalida' }
+      const alvo = mesAlvo(c.agora())
+      if (linhas.some(l => l.last_month.slice(0, 7) < alvo)) return { estado: 'erro', feitas: 0, deixadas: null, motivo: 'aquem_do_alvo' }
       const criadas = linhas.reduce((s, l) => s + l.created, 0)
       return { estado: 'ok', feitas: criadas, deixadas: 0, detalhe: { criadas } }
     } catch (err) {

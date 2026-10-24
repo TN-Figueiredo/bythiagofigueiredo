@@ -43,6 +43,7 @@ export function validarCatalogo(catalogo: readonly Pick<Tarefa, 'nome' | 'nuncaD
 export const CATALOGO: readonly Tarefa[] = [
   { ...definicao('leitura_horaria'), ...leituraHoraria },
   anularIdentidade,
+  particoesAFrente,
   tamanhoDoBanco,
   podaAcessoIa,
   podaLeiturasWatch,
@@ -55,7 +56,6 @@ export const CATALOGO: readonly Tarefa[] = [
   retratosComentarios,
   { ...definicao('serie_semanal'), ...serieSemanal },
   sinaisDoNicho,
-  particoesAFrente,
 ]
 
 validarCatalogo(CATALOGO)

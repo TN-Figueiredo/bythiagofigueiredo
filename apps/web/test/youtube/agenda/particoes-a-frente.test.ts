@@ -2,12 +2,13 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { particoesAFrente, MESES_A_FRENTE_ALVO } from '@/lib/youtube/agenda/tarefas/particoes-a-frente'
+import { particoesAFrente, mesAlvo, MESES_A_FRENTE_ALVO } from '@/lib/youtube/agenda/tarefas/particoes-a-frente'
 import { CATALOGO } from '@/lib/youtube/agenda/catalogo'
 import { TODAS_AS_DEFINICOES } from '@/lib/youtube/agenda/definicoes'
 import { antesDoLoteAntigo } from '@/lib/youtube/agenda/executar'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
 
+const AGORA = Date.parse('2026-10-24T15:00:00Z')
 type Resp = { data: unknown; error: { code: string; message: string } | null }
 function ctx(resp: Resp | 'lanca'): { c: ContextoTarefa; chamadas: Array<{ fn: string; args: unknown }> } {
   const chamadas: Array<{ fn: string; args: unknown }> = []
@@ -17,7 +18,7 @@ function ctx(resp: Resp | 'lanca'): { c: ContextoTarefa; chamadas: Array<{ fn: s
       return { abortSignal: () => (resp === 'lanca' ? Promise.reject(new Error('rede')) : Promise.resolve(resp)) }
     },
   } as unknown as SupabaseClient
-  return { c: { t0: 0, agora: () => 0, apiKey: '', sb, linhas: null }, chamadas }
+  return { c: { t0: 0, agora: () => AGORA, apiKey: '', sb, linhas: null }, chamadas }
 }
 const TRES = [
   { table_name: 'competitor_video_daily', last_month: '2027-10-01', created: 0 },
@@ -64,7 +65,24 @@ describe('particoes_a_frente: o que roda', () => {
     expect(r).toEqual({ estado: 'erro', feitas: 0, deixadas: null, motivo: 'inesperado' })
   })
   it('prazo estourado (AbortSignal.timeout volta como error, não lança): erro prazo, nunca banco_recusou', async () => {
-    const r = await particoesAFrente.rodar(ctx({ data: null, error: { code: '', message: 'AbortError: This operation was aborted' } }).c)
-    expect(r).toEqual({ estado: 'erro', feitas: 0, deixadas: null, motivo: 'prazo' })
+    for (const message of ['AbortError: This operation was aborted', 'TimeoutError: The operation was aborted due to timeout']) {
+      const r = await particoesAFrente.rodar(ctx({ data: null, error: { code: '', message } }).c)
+      expect(r, message).toEqual({ estado: 'erro', feitas: 0, deixadas: null, motivo: 'prazo' })
+    }
+  })
+  it('falha de rede (o supabase-js devolve error com code vazio): sem_resposta, nunca banco_recusou', async () => {
+    const r = await particoesAFrente.rodar(ctx({ data: null, error: { code: '', message: 'TypeError: fetch failed' } }).c)
+    expect(r).toEqual({ estado: 'erro', feitas: 0, deixadas: null, motivo: 'sem_resposta' })
+  })
+  it('erro do Postgres cuja mensagem contém "aborted" (25P02): banco_recusou, não prazo', async () => {
+    const r = await particoesAFrente.rodar(ctx({ data: null, error: { code: '25P02', message: 'current transaction is aborted' } }).c)
+    expect(r).toMatchObject({ estado: 'erro', motivo: 'banco_recusou' })
+  })
+  it('M1: last_month aquém do alvo (mês corrente de SP + 12) em qualquer das três: erro aquem_do_alvo, nunca ok', async () => {
+    expect(mesAlvo(AGORA)).toBe('2027-10')
+    expect(mesAlvo(Date.parse('2026-12-01T01:00:00Z'))).toBe('2027-11') // 30/11 22:00 em SP
+    const curta = TRES.map((l, i) => (i === 2 ? { ...l, last_month: '2027-09-01' } : l))
+    const r = await particoesAFrente.rodar(ctx({ data: curta, error: null }).c)
+    expect(r).toEqual({ estado: 'erro', feitas: 0, deixadas: null, motivo: 'aquem_do_alvo' })
   })
 })

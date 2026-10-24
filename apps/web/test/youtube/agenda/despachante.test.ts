@@ -825,7 +825,7 @@ describe('despachante: as tarefas dos comentários de destaque no catálogo real
       estado: estadoDe([linha(sinc(), t0, { status: 'ok', runs: 1 })], t0),
     })
     const r = await m.rodar()
-    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'particoes_a_frente', 'retratos_comentarios'])
+    expect(nomes(m.chamadas)).toEqual(['leitura_horaria', 'anular_identidade', 'particoes_a_frente', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'retratos_comentarios'])
     expect(final(r, 'anular_identidade')).toMatchObject({ estado: 'erro', motivo: 'banco' })
     expect(final(r, 'retratos_comentarios').estado).toBe('ok')
     expect(r.problemas).toEqual(['anular identidade de autores: o banco não respondeu a tempo ou recusou'])

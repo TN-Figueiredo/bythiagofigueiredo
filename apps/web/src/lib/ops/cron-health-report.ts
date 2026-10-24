@@ -1,9 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import vercelConfig from '../../../vercel.json'
 import { lerAgendaDoVigia, type ItemAgenda } from '@/lib/youtube/agenda/saude'
-import { avaliarParticoes, lerMesesAFrente } from '@/lib/youtube/agenda/particoes'
-import { BANCO_MS, comPrazo } from '@/lib/youtube/agenda/relogio'
-import { DEFINICAO_PARTICOES_A_FRENTE } from '@/lib/youtube/agenda/definicoes'
+import { avaliarComAgenda, lerMesesAFrenteComPrazo } from '@/lib/youtube/agenda/particoes'
 
 // Avaliação de saúde dos crons do `vercel.json`, extraída de
 // `src/app/api/health/route.ts` (2026-09-18) sem mudança de comportamento.
@@ -416,13 +414,6 @@ export const CRON_HEALTH_COLUMNS =
  * e com a agenda desligada. Nada aqui lança: leitura que falha vira item `late` (o do invariante, vermelho).
  */
 export async function lerAgendaParaRelatorio(sb: SupabaseClient, now: Date): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
-  const [agenda, meses] = await Promise.all([
-    lerAgendaDoVigia(sb, now.getTime(), process.env),
-    comPrazo(lerMesesAFrente(sb), BANCO_MS + 1_000).catch(() => ({ estourou: true as const })),
-  ])
-  const lido = 'estourou' in meses ? { porque: 'o banco não respondeu', causa: 'prazo' as const } : meses.valor
-  // item da tarefa ausente (agenda não lida: uma entrada `leitura`) → undefined, e o motivo do vermelho diz "não lido"
-  const itemTarefa = agenda.itens.find(i => i.nome === DEFINICAO_PARTICOES_A_FRENTE.nome)
-  const ultimoOk = itemTarefa ? itemTarefa.ultimoOk : undefined
-  return { itens: [...agenda.itens, avaliarParticoes(lido, ultimoOk, now.getTime())], nota: agenda.nota }
+  const [agenda, lido] = await Promise.all([lerAgendaDoVigia(sb, now.getTime(), process.env), lerMesesAFrenteComPrazo(sb)])
+  return { itens: [...agenda.itens, avaliarComAgenda(lido, agenda.itens, now.getTime())], nota: agenda.nota }
 }

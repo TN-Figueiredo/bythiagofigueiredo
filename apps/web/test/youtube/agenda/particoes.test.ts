@@ -2,7 +2,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { avaliarParticoes, lerMesesAFrente, MOTIVO_NAO_LIDO, type LinhaParticao } from '@/lib/youtube/agenda/particoes'
+import { avaliarParticoes, avaliarComAgenda, lerMesesAFrente, MOTIVO_NAO_LIDO, MOTIVO_TAREFA_PARADA, type LinhaParticao } from '@/lib/youtube/agenda/particoes'
 import { buildCronHealthReport } from '@/lib/ops/cron-health-report'
 
 const H = 3_600_000
@@ -75,5 +75,19 @@ describe('lerMesesAFrente', () => {
     expect(await lerMesesAFrente(sb({ data: null, error: { code: 'PGRST202' } }))).toMatchObject({ causa: 'schema_ausente' })
     expect(await lerMesesAFrente(sb('lanca'))).toMatchObject({ causa: 'excecao' })
     expect(await lerMesesAFrente(sb({ data: [{ table_name: 1 }], error: null }))).toMatchObject({ causa: 'forma_invalida' })
+  })
+})
+
+describe('avaliarComAgenda: a cola undefined (agenda não lida) × null (nunca rodou)', () => {
+  const item = (nome: string, ultimoOk: string | null) => ({ nome, status: 'late' as const, ultimoOk, toleranciaH: 36 })
+  const conv = iso(AGORA - 80 * H)
+  it('sem o item da tarefa entre os da agenda (só `leitura`): undefined → MOTIVO_NAO_LIDO', () => {
+    expect(avaliarComAgenda(linhas([12, 12, 12], conv), [item('leitura', null)], AGORA)).toMatchObject({ status: 'late', gravidade: 'vermelho', motivo: MOTIVO_NAO_LIDO })
+  })
+  it('com o item e ultimoOk null (nunca rodou): MOTIVO_TAREFA_PARADA', () => {
+    expect(avaliarComAgenda(linhas([12, 12, 12], conv), [item('particoes_a_frente', null)], AGORA)).toMatchObject({ status: 'late', gravidade: 'vermelho', motivo: MOTIVO_TAREFA_PARADA })
+  })
+  it('com o item e ok recente: ok', () => {
+    expect(avaliarComAgenda(linhas([12, 12, 12], conv), [item('particoes_a_frente', okRecente)], AGORA).status).toBe('ok')
   })
 })

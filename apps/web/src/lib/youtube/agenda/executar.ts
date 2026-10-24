@@ -176,7 +176,7 @@ async function rodarUmaAntes(
 }
 
 /**
- * Roda, antes do lote antigo, as tarefas `nuncaDesliga` da lista (hoje só `anular_identidade`). Quem chama é a rota, nos dois caminhos sem agenda
+ * Roda, antes do lote antigo, as tarefas `nuncaDesliga` da lista (hoje `anular_identidade` e `particoes_a_frente`). Quem chama é a rota, nos dois caminhos sem agenda
  * (`interruptor`: `OBS_AGENDA=off`; `guarda_mg10`: a migration da agenda ausente). Nunca lança. Lista vazia: devolve na hora, sem ida ao
  * banco nem ao Sentry. `OBS_AGENDA_TASKS_OFF` não vale para estas tarefas.
  */

@@ -297,16 +297,18 @@ export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_ID
 
 /**
  * `particoes_a_frente` (manutenção M2, spec 02 §10.2 e §10.6): cria, uma vez por dia, as partições que faltam das três séries até 12 meses à
- * frente (`obs_partitions_ensure`). Do tipo que não desliga: sem partição, a coleta grava lacuna (a hora não lida não volta). Ordem 10: depois
- * de todas as outras. Quem a cobra além da tolerância é o invariante "meses à frente" (`agenda/particoes.ts`), vermelho com a tarefa parada há mais de 72 h.
+ * frente (`obs_partitions_ensure`). Do tipo que não desliga: sem partição, a coleta grava lacuna (a hora não lida não volta). Ordem 2.5: logo depois de `anular_identidade` e antes de toda a A5 (uma ida ao banco de até 5 s, e a única leve cuja falta vira lacuna
+ * irrecuperável: não pode ser a primeira adiada por `sem_tempo`). Quem a cobra além da tolerância é o invariante "meses à frente" (`agenda/particoes.ts`), vermelho com a tarefa parada há mais de 72 h.
  */
 export const DEFINICAO_PARTICOES_A_FRENTE: Definicao = {
-  nome: 'particoes_a_frente', rotulo: 'partições à frente', ordem: 10, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 6,
+  nome: 'particoes_a_frente', rotulo: 'partições à frente', ordem: 2.5, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 6,
   tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
   comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: LEVE_COMECA_ATE_MS + BANCO_MS + 5_000, nuncaDesliga: true,
   motivos: {
     funcao_ausente: 'a função de partições não existe no banco (migration da M2 não aplicada)',
     prazo: 'o banco não respondeu a tempo',
+    sem_resposta: 'o banco não respondeu (rede)',
+    aquem_do_alvo: 'o banco não chegou aos 12 meses à frente (mês bloqueado pelo registro de arquivo?)',
     banco_recusou: 'o banco recusou criar as partições',
     resposta_invalida: 'resposta do banco fora da forma esperada',
     inesperado: 'a criação de partições falhou com erro inesperado (ver Sentry)',
