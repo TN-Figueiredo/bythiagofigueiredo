@@ -2,7 +2,7 @@
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Placar do teste A/B (mockup M4)</title>
 <style>
-/* Mockup M4 r2 (24/10/2026), S8-F3 T5. Mesmos tokens do S9 (18/10). Só hex/rgba literais (sem color-mix). Texto >= 12 px. Dados SINTÉTICOS.
+/* Mockup M4 r3 (24/10/2026), S8-F3 T5. Mesmos tokens do S9 (18/10). Só hex/rgba literais (sem color-mix). Texto >= 12 px. Dados SINTÉTICOS.
    Seletor por URL: ?estado=&tema=claro|escuro&largura=1440|390|ambas */
 *,*::before,*::after{box-sizing:border-box}
 :root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
@@ -27,6 +27,7 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
   --warn:#F5B13D;--warn-bg:rgba(245,158,11,.10);--warn-line:#C98A1B;
   --yt:#9FB4C9;--yt-bg:rgba(159,180,201,.08);--yt-line:#6B8199;
   --skel:#2B2620;--skel2:#363028;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;
   --va:#B8481A;--vb:#2B6DA8;--vc:#4C6B1F;--vd:#7A4FA0;--la:#E0703A;--lb:#6FA8DC;--lc:#9CC25A;--ld:#B895E0;
   background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;border:1px solid var(--border);border-radius:10px;padding:24px;font-size:14px}
 .frame[data-theme="light"]{
@@ -54,33 +55,34 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .tC{background:linear-gradient(135deg,#3C5A1A,#7FA23D 60%,#CBE08E)}
 .tD{background:linear-gradient(135deg,#5B3A86,#9A74C9 60%,#D8C2F0)}
 
-.hd{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.hd{display:flex;gap:var(--s4);align-items:center}
 .hd .th{width:128px}
 .hd h2{font:600 19px/1.3 Georgia,serif;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .ttl{flex:1;min-width:0}
 .crumb{font-size:12px;color:var(--muted)}
-.selos{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.selo{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);white-space:normal;max-width:100%}
+.selos{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
+.selo{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);white-space:nowrap;max-width:100%}
 .selo svg{flex:none}
 .selo.lab{border-color:var(--accent);color:var(--accent)}
 .selo.old{border:1px dashed var(--border-strong);color:var(--muted);font-weight:500}
 
-.sum{margin:18px 0 6px;font:600 21px/1.35 Georgia,serif;max-width:72ch;text-wrap:balance}
-.sum small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:4px}
-@container (max-width:640px){.sum{font-size:18px}}
+.frame .sum{margin:var(--s5) 0 0;font:600 21px/1.35 Georgia,serif;max-width:72ch;text-wrap:balance}
+.sum small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:var(--s2)}
+@container (max-width:640px){.sum{font-size:18px}.hd{flex-direction:column;align-items:flex-start;gap:var(--s3)}.hd .th{width:96px}.ttl{width:100%}}
 
-.band{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-top:14px}
+.band{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-top:var(--s2)}
+.sum+.band{margin-top:var(--s4)}
 .band .ic{flex:none;margin-top:2px}
 .band h3{font:600 14px/1.35 Inter,system-ui,sans-serif}
 .band p{font-size:14px;color:var(--muted);margin-top:2px;max-width:78ch}
 .band.warn{border-color:var(--warn-line);background:var(--warn-bg);border-left-width:4px;color:var(--warn)}
 .band.warn h3{color:var(--warn)}
 .band.yt{border:1px dashed var(--yt-line);background:var(--yt-bg);color:var(--yt)}
-.band.calm{padding:8px 12px;align-items:center;margin-top:12px}
+.band.calm{padding:8px 12px;align-items:center}
 .band.calm p{margin:0;color:var(--muted)}
 
-.sec{margin-top:24px}
-.sec>h3,.sec .sh{font:600 16px/1.3 Inter,system-ui,sans-serif;display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.sec{margin-top:var(--s6)}
+.sec>h3,.sec .sh{font:600 16px/1.3 Inter,system-ui,sans-serif;display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s3);flex-wrap:wrap}
 .sh .upd{font:400 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);margin-left:auto}
 .sh .upd.warn{color:var(--warn);font-weight:600;display:inline-flex;gap:5px;align-items:center}
 .info{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--dim);background:transparent;color:var(--muted);font:600 12px/1 Inter,system-ui,sans-serif;cursor:pointer;position:relative;padding:0;flex:none}
@@ -132,12 +134,12 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
  .vi,.vc{white-space:nowrap}
  .vc .de{display:block}
 }
-.apoio{margin-top:10px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.apoio{margin-top:var(--s3);display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
 .apoio>span{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 
 /* faixa de dias (bloco separável) */
-.dias{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
-.dias .sh{margin-bottom:8px}
+.dias{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--border)}
+.dias .sh{margin-bottom:var(--s3)}
 .strip{display:flex;flex-wrap:wrap;gap:6px}
 .dc{width:34px;height:42px;border-radius:5px;border:1px solid var(--dim);background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 12px/1.2 Inter,system-ui,sans-serif;gap:1px}
 .dc i{font-style:normal;font-weight:500;font-size:12px}
@@ -160,12 +162,12 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .mark{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
 
 /* carregando / erro. Alturas = as do estado real (medidas na r2): hd 75/125, sum 80/120, linha 63/150, faixa 41/59 */
-.skhd{height:75px;display:flex;gap:14px;align-items:center}
-.sksum{height:80px;margin-top:18px;max-width:72ch;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:0 14px;font:400 13px/1.4 Inter,system-ui,sans-serif;color:var(--muted)}
-.skband{height:41px;margin-top:14px}
+.skhd{height:79px;display:flex;gap:var(--s4);align-items:center}
+.sksum{height:105px;margin-top:var(--s5);max-width:72ch;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:0 14px;font:400 13px/1.4 Inter,system-ui,sans-serif;color:var(--muted)}
+.skband{height:41px;margin-top:var(--s4)}
 .skrow{height:63px;margin:6px 0}
 .skdias{display:flex;gap:6px;flex-wrap:wrap}.skdias .sk{width:34px;height:42px}
-@container (max-width:640px){.skhd{height:125px}.sksum{height:120px}.skband{height:59px}.skrow{height:150px}.skdias{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.skdias .sk{width:auto;height:44px}}
+@container (max-width:640px){.skhd{height:169px;flex-direction:column;align-items:flex-start}.sksum{height:160px}.skband{height:59px}.skrow{height:150px}.skdias{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.skdias .sk{width:auto;height:44px}}
 .sk{background:linear-gradient(90deg,var(--skel) 0,var(--skel2) 50%,var(--skel) 100%);background-size:200% 100%;border-radius:6px;animation:sh 1.4s linear infinite}
 @keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.sk{animation:none}.chev svg{transition:none}}
@@ -181,7 +183,7 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 </div>
 <div class="wrap">
  <h1>Placar do teste A/B do YouTube, sem vencedor</h1>
- <p class="lede">Mockup M4 r2 (S8-F3). Troque estado, tema e largura no topo ou pela URL (?estado=atrasado&amp;tema=claro&amp;largura=390). Dados sintéticos. Nenhum líder, lift, intervalo ou % na linha: só contagens do YouTube. Hachura rosa = "não medido"; tracejado azul-acinzentado = pendente do YouTube (aguardando); âmbar = dados do YouTube fora de hora; ⊘ = dia fora do placar.</p>
+ <p class="lede">Mockup M4 r3 (S8-F3). Troque estado, tema e largura no topo ou pela URL (?estado=atrasado&amp;tema=claro&amp;largura=390). Dados sintéticos. Nenhum líder, lift, intervalo ou % na linha: só contagens do YouTube. Hachura rosa = "não medido"; tracejado azul-acinzentado = pendente do YouTube (aguardando); âmbar = dados do YouTube fora de hora; ⊘ = dia fora do placar.</p>
  <div class="figs" id="figs"></div>
 </div>
 <script>
@@ -243,7 +245,7 @@ const E={
 const ORDEM=['hoje','atrasado','aguardando','descartados','naomedido','poucas','cheio','naoiniciado','v1','carregando','erro'];
 
 function header(e,st){
- const selos=(e.v1?'<span class="selo old">'+I.old+'Regra antiga: encerra por duração</span>':'')+'<span class="selo lab">'+I.lab+'Teste do Lab '+(e.agend?'agendado para '+e.agend:'rodando'+(e.dia?', '+e.dia:''))+'</span>';
+ const selos=(e.v1?'<span class="selo old">'+I.old+'Regra antiga: encerra por duração</span>':'')+'<span class="selo lab">'+I.lab+'<span>Teste do Lab '+(e.agend?'agendado para '+e.agend:'rodando'+(e.dia?', <span style="white-space:nowrap">'+e.dia+'</span>':''))+'</span></span>';
  return '<div class="hd"><div class="th tA">A</div><div class="ttl"><div class="crumb">A/B Lab / Vídeos / qIg9a7vqcNo</div><h2 title="'+T1+'">'+T1+'</h2><div class="selos">'+selos+'</div></div></div>';
 }
 function faixa(e){
@@ -316,9 +318,9 @@ function skeleton(){
  /* alturas finais: ver bloco CSS "carregando / erro"; 2 linhas = variantes desconhecidas */
  return '<div class="skhd"><div class="sk" style="width:128px;aspect-ratio:16/9"></div><div style="flex:1;min-width:0"><div class="sk" style="height:14px;width:40%;margin-bottom:10px"></div><div class="sk" style="height:22px;width:85%"></div></div></div>'
  +'<div class="sk sksum" role="status"><span class="skmsg">Carregando o placar</span></div><div class="sk skband"></div>'
- +'<div class="sec"><div class="sk" style="height:21px;width:200px;margin-bottom:10px"></div><div class="card" style="padding:4px 16px">'+[0,1].map(()=>'<div class="sk skrow"></div>').join('')+'</div>'
- +'<div class="dias"><div class="sk" style="height:21px;width:140px;margin-bottom:8px"></div><div class="skdias">'+Array.from({length:14},()=>'<div class="sk"></div>').join('')+'</div></div></div>'
- +'<div class="sec"><div class="sk" style="height:21px;width:160px;margin-bottom:10px"></div><div class="sk" style="height:14px;max-width:760px"></div><div class="sk" style="height:18px;width:90px;margin-top:6px"></div></div>';
+ +'<div class="sec"><div class="sk" style="height:21px;width:200px;margin-bottom:var(--s3)"></div><div class="card" style="padding:4px 16px">'+[0,1].map(()=>'<div class="sk skrow"></div>').join('')+'</div>'
+ +'<div class="dias"><div class="sk" style="height:21px;width:140px;margin-bottom:var(--s3)"></div><div class="skdias">'+Array.from({length:14},()=>'<div class="sk"></div>').join('')+'</div></div></div>'
+ +'<div class="sec"><div class="sk" style="height:21px;width:160px;margin-bottom:var(--s3)"></div><div class="sk" style="height:14px;max-width:760px"></div><div class="sk" style="height:18px;width:90px;margin-top:6px"></div></div>';
 }
 function erro(){
  return '<div class="hd"><div class="th tA">A</div><div class="ttl"><div class="crumb">A/B Lab / Vídeos / qIg9a7vqcNo</div><h2>'+T1+'</h2></div></div>'

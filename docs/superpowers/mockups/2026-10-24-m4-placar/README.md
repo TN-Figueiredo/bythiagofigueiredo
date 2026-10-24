@@ -1,4 +1,4 @@
-# Mockup M4 r2 — placar do teste A/B do YouTube (S8-F3 T5), 24/10/2026
+# Mockup M4 r3 — placar do teste A/B do YouTube (S8-F3 T5), 24/10/2026
 
 `index.html` (autocontido, dados sintéticos). Seletor por URL: `?estado=&tema=claro|escuro&largura=1440|390|ambas` (também há botões no topo).
 Estados: `hoje` (sem dia fechado), `atrasado`, `aguardando`, `descartados`, `naomedido`, `poucas` (1–3 impressões), `cheio` (4 variantes, 14 dias, título de 100 caracteres, 7 dígitos), `naoiniciado`, `v1`, `carregando`, `erro`. Cada um (menos carregando/erro) tem frase-resumo sem %. A cauda fixa saiu da frase (r2) e vive no ⓘ do placar.
@@ -54,3 +54,11 @@ Contraste medido (Naksu), leitor de teclado/tela, Opera, dado real. Opera, leito
 - N17a (Naksu: frase sem variante) x L5 (Logan: citar o 0 de A e o CTR de B): segui Logan (texto); a Naksu marcou como sugestão.
 - N14 (Naksu: tirar a legenda repetida do ⓘ) x L6 (Logan: mesmo texto no ⓘ): ⓘ ficou só com o 0* e o que ele não é; a legenda visível completa fica.
 - N17b (duas "idades": "Verificado há 3 h" e "Atualizado em") não alterada (sugestão, sem dono de texto): decidir na F3.
+
+## r3: o que mudou (pedido do dono no Opera, 24/10; capturas refeitas em shots/)
+- Escala única de espaçamento (tokens no `.frame`): --s1 4 · --s2 8 · --s3 12 · --s4 16 · --s5 24 · --s6 32 px. Nenhum outro valor de margem/gap vertical no cabeçalho e nas seções.
+- Selo do Lab: `white-space:nowrap` (e "dia N de M" em span nowrap); 1 linha medida (24 px de altura) nos 11 estados x 2 temas x 1440/390, 0 overflow horizontal. Texto não foi encurtado: a 390 o selo ganhou a largura do contêiner (linha própria, abaixo do título).
+- Ritmo do cabeçalho: título+selo (selo a --s3 do título) → --s5 → frase-resumo (subfrase a --s2) → --s4 → faixa de estado → --s2 → linha do YouTube (grupo "o que o placar diz") → --s6 → seções. Antes a margem da frase era zerada por `.frame p{margin:0}` (bug de especificidade): a frase colava na faixa.
+- Seções: título → conteúdo a --s3; entre seções --s6; "Dias do teste" dentro do placar: --s5 de espaço + --s4 após o filete; linha de apoio a --s3 do cartão.
+- 390: miniatura (96 px) acima, título em largura total (2 linhas com o título de teste, antes 3 ao lado da miniatura); sem identidade nova.
+- Esqueleto remedido para a nova geometria (hd 79/169, sum 105/160; altura total 753/1125 px = a do estado aguardando).
