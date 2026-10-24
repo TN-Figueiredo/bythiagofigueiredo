@@ -59,4 +59,14 @@ describe.skipIf(skipIfNoLocalDb())('limpa-cena: declara o destino quando a M3b e
     expect(await nCanais(b.site)).toBe(0)
     expect(await nDecl()).toBe(antes)
   }))
+
+  it('não apaga a linha botao que o teste já tinha declarado antes (só a que o helper inseriu; Yannis 1.5 M1)', async () => emTx(true, async () => {
+    const a = await semearCanal(c, { videos: 0 })
+    await c.query(
+      `insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid)
+       values ($1, $2, 'botao', 'apagar', now(), true, '1'::xid8)`, [a.site, a.canal])
+    await apagarCanais(c, 'id = $1', [a.canal])
+    expect(await nCanais(a.site)).toBe(0)
+    expect(await escalar(c, `select count(*)::int from public.obs_archive_channel_removals where site_id = $1 and channel_ref = $2`, [a.site, a.canal])).toBe(1)
+  }))
 })

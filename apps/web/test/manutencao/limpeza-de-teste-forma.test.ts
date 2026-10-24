@@ -23,10 +23,8 @@ const EXCECOES: Record<string, string> = {
   'integration/limpa-cena-db.test.ts': 'prova que o delete direto é recusado pelo gatilho (de propósito) antes de provar o helper',
   'integration/observatorio-a5-e9-migration.test.ts': 'corpo de função de teste (SQL de uma função), não é limpeza',
   'integration/manutencao-m3b-e10-remocao.test.ts': 'corpo de função de teste (SQL de uma função), não é limpeza',
-  'integration/manutencao-m3b-remocao.test.ts': 'prova o gatilho e limpa depois (vários deletes diretos são de propósito, para provar a recusa)',
-  'integration/manutencao-m3b-pendencias.test.ts': 'prova o gatilho e limpa depois (apaga sob session_replication_role = replica, sem declarar, de propósito)',
-  'integration/manutencao-m3b-selagem.test.ts': 'prova o gatilho e limpa depois',
-  'integration/manutencao-m3b-plano.test.ts': 'prova o gatilho e limpa depois',
+  'integration/manutencao-m3b-remocao.test.ts': 'prova o gatilho e limpa depois (deletes diretos de propósito: a corrida em 2ª conexão, linha 386, e a prova da recusa)',
+  'integration/manutencao-m3b-pendencias.test.ts': 'prova o gatilho e limpa depois (deletes diretos de propósito, linhas 167 e 177, sob session_replication_role = replica, sem declarar)',
 }
 
 const PADROES: { nome: string; re: RegExp }[] = [
@@ -46,15 +44,24 @@ function arquivos(dir: string): string[] {
   return saida
 }
 
+/** Varre o arquivo inteiro (pega `.from('sites')\n.delete()` e `delete\n from` multilinha); a linha vem do índice. */
+function acharDiretos(texto: string): { linha: number; nome: string }[] {
+  const out: { linha: number; nome: string }[] = []
+  for (const { nome, re } of PADROES) {
+    for (const m of texto.matchAll(new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g'))) {
+      out.push({ linha: texto.slice(0, m.index).split('\n').length, nome })
+    }
+  }
+  return out
+}
+
 describe('limpeza de teste: nenhum arquivo apaga competitor_channels/sites direto', () => {
   it('fora das exceções declaradas, só o helper apaga', () => {
     const achados: string[] = []
     for (const p of arquivos(RAIZ)) {
       const rel = relative(RAIZ, p).split(sep).join('/')
       if (rel in EXCECOES) continue
-      readFileSync(p, 'utf8').split('\n').forEach((linha, i) => {
-        for (const { nome, re } of PADROES) if (re.test(linha)) achados.push(`${rel}:${i + 1} (${nome}): use apagarCanais/apagarSites (test/helpers/limpa-cena.ts)`)
-      })
+      achados.push(...acharDiretos(readFileSync(p, 'utf8')).map(({ linha, nome }) => `${rel}:${linha} (${nome}): use apagarCanais/apagarSites (test/helpers/limpa-cena.ts)`))
     }
     expect(achados).toEqual([])
   })
@@ -65,9 +72,9 @@ describe('limpeza de teste: nenhum arquivo apaga competitor_channels/sites diret
   })
 
   it('o padrão pega o que deve (mutante)', () => {
-    const ruins = ['await pg.query(`delete from public.sites where id = $1`)', "await sb.from('competitor_channels').delete().eq('x', 1)", 'truncate public.competitor_channels', 'DELETE FROM sites']
-    for (const r of ruins) expect(PADROES.some(p => p.re.test(r)), r).toBe(true)
+    const ruins = ['await pg.query(`delete from public.sites where id = $1`)', "await sb.from('competitor_channels').delete().eq('x', 1)", 'truncate public.competitor_channels', 'DELETE FROM sites', "sb\n.from('sites')\n.delete()", 'delete\n from public.sites']
+    for (const r of ruins) expect(acharDiretos(r).length, r).toBeGreaterThan(0)
     const bons = ['delete from public.competitor_channels_x', 'delete from public.sites_extra', "from('sites').select('*')"]
-    for (const b of bons) expect(PADROES.some(p => p.re.test(b)), b).toBe(false)
+    for (const b of bons) expect(acharDiretos(b).length, b).toBe(0)
   })
 })

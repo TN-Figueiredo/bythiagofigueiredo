@@ -25,7 +25,7 @@ export interface IConexaoDeTeste {
 
 const DB_URL = (): string => process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
-interface ICanalDeclarado { site_id: string; channel_ref: string }
+interface ICanalDeclarado { site_id: string; channel_ref: string; inserida: boolean }
 
 async function haRegistroDeRemocao(c: IConexaoDeTeste): Promise<boolean> {
   const r = await c.query(`select to_regclass('public.obs_archive_channel_removals') is not null as ok`)
@@ -53,9 +53,10 @@ async function apagarComDeclaracao(c: IConexaoDeTeste, alvo: string, quaisCanais
        select site_id, id::text, 'botao', 'apagar', now(), true, pg_current_xact_id()
          from public.competitor_channels where ${quaisCanais}
        on conflict (site_id, channel_ref) do update set declared_xid = pg_current_xact_id()
-       returning site_id, channel_ref`, params)
+       returning site_id, channel_ref, (xmax = 0) as inserida`, params)
     await c.query(`delete from public.${alvo} where ${where}`, params)
-    const meus = declarados.rows as unknown as ICanalDeclarado[]
+    // só as linhas que ESTE helper inseriu: uma `botao` que o teste já tinha declarado antes fica (Yannis 1.5, M1)
+    const meus = (declarados.rows as unknown as ICanalDeclarado[]).filter(m => m.inserida)
     if (meus.length > 0) {
       await c.query(
         `delete from public.obs_archive_channel_removals r
