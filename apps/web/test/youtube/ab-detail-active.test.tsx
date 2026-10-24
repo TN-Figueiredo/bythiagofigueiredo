@@ -97,7 +97,7 @@ describe('ActiveDetail', () => {
   it('renders key sections via data-section attributes', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     const sections = [
-      'header', 'lock-countdown', 'hero-band', 'variant-performance',
+      'header', 'andamento', 'hero-band', 'variant-performance',
     ]
     for (const s of sections) {
       expect(container.querySelector(`[data-section="${s}"]`), `missing section: ${s}`).not.toBeNull()
@@ -195,13 +195,12 @@ describe('ActiveDetail', () => {
     expect(screen.getByText('4/6 ciclos ABBA completos')).toBeDefined()
   })
 
-  it('LockCountdown section exists', () => {
+  it('régua Andamento do teste existe, no lugar do LockCountdown (S8-F3 T5b)', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
-    const lockSection = container.querySelector('[data-section="lock-countdown"]')
-    expect(lockSection).not.toBeNull()
-    // Contains the lock text
-    expect(lockSection?.textContent).toContain('Roda até 14 dias ou até você encerrar. Ao encerrar, você escolhe o vencedor.')
-    expect(lockSection?.textContent).not.toContain('critérios de resolução')
+    const reg = container.querySelector('[data-section="andamento"]')
+    expect(reg).not.toBeNull()
+    expect(reg?.textContent).toContain('Andamento do teste')
+    expect(container.querySelector('[data-section="lock-countdown"]')).toBeNull()
   })
 
   it('HeroBand shows leader VChip for variant B', () => {

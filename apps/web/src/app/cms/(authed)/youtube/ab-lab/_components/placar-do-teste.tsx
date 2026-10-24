@@ -189,7 +189,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
             <span className="ic"><IcRelogio /></span>
             <div>
               <h3>Sem dia fechado</h3>
-              <p>O primeiro dia fecha até 10 dias depois do início.</p>
+              <p>{placar?.proximo_fechamento ? `O primeiro dia fecha até ${dataCurta(placar.proximo_fechamento)}.` : 'O primeiro dia fecha até 10 dias depois do início.'}</p>
             </div>
           </div>
         )}
@@ -284,6 +284,22 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
             </div>
           )}
         </div>
+      {andamento && (status === 'active' || status === 'paused') && placar?.iniciado !== false && (() => {
+        const f = Math.max(0, andamento.total - andamento.dayOf)
+        const pct = andamento.total > 0 ? Math.min(100, Math.round((andamento.dayOf / andamento.total) * 100)) : 0
+        return (
+          <div className="pm4-sec" data-section="andamento">
+            <div className="pm4-sh">
+              Andamento do teste
+              <Info label="Como ler o andamento"><b>Andamento.</b> A barra mostra os dias já passados. {placar?.regra === 'v1' ? 'Este teste termina por duração.' : 'O teste termina quando chega ao último dia planejado.'} Não indica quem está na frente.</Info>
+            </div>
+            <div className="pm4-ruler">
+              <div className="pm4-rbar" aria-hidden="true"><i style={{ width: `${pct}%` }} /></div>
+              <div className="pm4-mark"><span>dia {andamento.dayOf} de {andamento.total}</span><span>{f > 0 ? `faltam ${f} ${f === 1 ? 'dia' : 'dias'}` : 'último dia'}</span></div>
+            </div>
+          </div>
+        )
+      })()}
       </div>
     </div>
   )

@@ -6,7 +6,6 @@ import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import { semImpressoes, liftVsA, medicaoCompleta, medidas } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
-import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
 import { PlacarDoTeste } from './placar-do-teste'
 import { CredibleInterval } from './credible-interval'
@@ -112,6 +111,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
           actions={actionButtons}
+          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null }}
         />
       </div>
 
@@ -160,19 +160,6 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           </div>
         </div>
       )}
-
-      {/* ── Section 2: Lock Countdown ── */}
-      <div data-section="lock-countdown" className="mb-[16px]">
-        <LockCountdown
-          dayOf={view.dayOf}
-          durationDays={Math.max(view.dayOf, view.durationDays)}
-          confidence={data.confidence}
-          confidenceTarget={view.confidenceTarget * 100}
-          cyclesCompleted={view.cycles.done}
-          createdAt={view.createdAt}
-          hasPlayoff={view.hasPlayoff}
-        />
-      </div>
 
       {/* ── Section 3: Hero Band ── */}
       {comEstatistica && (<div data-section="hero-band" className="mb-[16px]">
