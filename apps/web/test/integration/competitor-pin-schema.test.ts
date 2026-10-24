@@ -5,6 +5,10 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { apagarCanaisDeTeste, apagarSitesDeTeste } from '../helpers/limpa-cena'
+import { m10aAtiva } from './video-antigo-m10a-caminho'
+
+// M10a (Tarefa 5b): as duas chaves novas só existem depois da migration.
+const M10A = await m10aAtiva()
 
 const DAY = 864e5
 const spDate = (ms: number) => new Date(ms - 3 * 36e5).toISOString().slice(0, 10)
@@ -54,7 +58,7 @@ describe.skipIf(skipIfNoLocalDb())('fixar vídeo: schema e contagem (banco local
   it('a função conta vídeos, fixados, versões e dias distintos de registro; sem troca salva, bookmarks é zero', async () => {
     const { data, error } = await sb.rpc('competitor_channel_removal_impact', { p_site_id: siteId, p_channel_id: chId })
     expect(error).toBeNull()
-    expect(data).toEqual({ status: 'ok', name: 'Canal Schema', videos: 3, pinned: 1, versions: 4, daily_days: 2, bookmarks: 0, field_versions: 0, raw: 0, early: 0, tier_spans: 0, hourly: 0, hour_map: 0, hour_fold_log: 0 }) // as três últimas vieram com a MG9 (leitura horária)
+    expect(data).toEqual({ status: 'ok', name: 'Canal Schema', videos: 3, pinned: 1, versions: 4, daily_days: 2, bookmarks: 0, field_versions: 0, raw: 0, early: 0, tier_spans: 0, hourly: 0, hour_map: 0, hour_fold_log: 0, ...(M10A ? { videos_leitura_mensal: 0, videos_no_arquivo: 0 } : {}) }) // as três últimas vieram com a MG9 (leitura horária)
   })
 
   it('trocas salvas do canal entram na conta; as não salvas não', async () => {

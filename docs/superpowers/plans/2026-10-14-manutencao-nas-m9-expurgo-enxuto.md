@@ -10,6 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` — `02` §10.4, §10.5 ("Alvo derivado", "Lista derivada", "Remoção sem arquivo"), §11.3 (expurgo, tabela de estados da remoção); `04` §14.2 (bloco "Canais removidos"), §14.3, §14.7 (peça 7); `05` l.29, l.39, §16.10; `06` itens 65, 66, 67, 109, 110, 111, 120, 161, 163 (parte M9), 165 (parte dos comandos), P47, R38. Vale mais que o spec onde divergem (brief da onda 2): `.superpowers/sdd/manutencao-nas/contrato-rotas-m3b.md` (r2.5), `emenda-credencial-rota.md`, `decisoes-dono-14-10.md` (seção final), `docs/superpowers/plans/2026-10-14-manutencao-nas-m3b-site.md` (E-D1 a E-D5, Tarefa E1, Tarefa 13), `docs/superpowers/plans/2026-10-14-manutencao-nas-m3b-forja.md` (Tarefa 7a, D-F22 a D-F25), `supabase/rascunhos/m3b.sql`, `apps/web/test/helpers/m3b.ts`. Mockups (fonte da tela, não redesenhar): `docs/superpowers/mockups/2026-10-14-manutencao-nas/19-mes-fora-do-banco/peca7.js`, `arquivo.js` (bloco canais, `CMDHTML` l.170), `NOTAS.md` (peça 7, l.84-123).
 
+
+> **Emenda 24/10 (Phil, janela).** A linha de `obs_archive_units` só nasce depois que o copiador leu e montou o arquivo; entre a 1ª chamada do plano e o 1º `record`, o helper via `units` vazio e deixava apagar (item no NAS/B2 sem lista). O helper `obs_archive_m9_pronto` (Tarefa 2) também recusa quando `obs_archive_switch` do site tem `first_month_at` ou `armed_at` não nulos (gravados antes de qualquer leitura; no rascunho `m3b.sql`: upsert de `first_month_at` l.1979, coalesce monótono; `armed_at` l.152; `units` gravada na l.673). Não usar `disarmed_at`. Efeito aceito: plano sem export ou classe armada e desarmada mantém a recusa até ligar a M9 (lado seguro, `P0001` com frase). Pendência na execução: conferir que a 1ª chamada do plano grava `first_month_at` antes de devolver a lista; se só gravar com classe devida, usar só `armed_at`. Fonte: `.superpowers/sdd/manutencao-nas/replan-23-10/m9-janela-phil.md`. Testes novos na tabela da Tarefa 2 (5 linhas marcadas).
+
 ## Emenda 23/10 (retomada)
 
 Origem: `.superpowers/sdd/manutencao-nas/replan-23-10/onda0-rerevisao-m6-m9-phil.md` (N9-1 a N9-5) e `...-yannis.md` (N-M9-1 a N-M9-5); pedido de `yannis.md` §6.7 ("não refaz o que a E9 já trouxe"). Onde os dois pedem a mesma coisa, uma emenda só. Fatos de 23/10 em produção (SELECT): `competitor_video_purge` md5 `8c6d51b2ae774671c2fa15c3e8d48535`; `competitor_comments_purge` md5 `2233c4edb3613594ed363ed68eb2378a` (recriada pela F2, migration `20261018000002`; a migration da E9 de 15/10 dá `d739a541…`, **não** é o corpo vigente); `competitor_channel_purge` md5 `02d2a5b50a930a06ff2bc523226a0697`; `competitor_removed_items` tem 0 linhas. Tabela completa: `replan-23-10/onda0-emenda-m6-m9.md`.
@@ -523,6 +526,11 @@ create trigger obs_archive_congela_dias before update on public.obs_archive_mont
 | `recusa: sem unidades apaga` | sem linha em `obs_archive_units` (M3b fora do ar) e M9 desligada: apagam |
 | `recusa: critério é o banco, não o env` | com `OBS_ARQUIVO` apagado/desligado no processo e unidades semeadas, M9 desligada: continua recusando (o helper não lê env) |
 | `recusa: mutante` | recriar as duas funções sem o `perform public.obs_archive_m9_pronto(p_site);` (injeção só dos efeitos `captura` e `watch`): os 2 casos acima que esperam a recusa caem; `injecao: idempotente` afirma **uma** ocorrência de `obs_archive_m9_pronto` em cada uma das duas funções |
+| `recusa: switch armado sem unidades` (Emenda 24/10, Phil, janela) | semear `obs_archive_switch` do site com `armed_at` e nenhuma unidade, M9 desligada: `competitor_video_purge` e `competitor_comments_purge` levantam `P0001 m9_desligada` |
+| `recusa: plano rodou, sem unidade` (Emenda 24/10) | linha de `obs_archive_switch` com `first_month_at` e `armed_at` nulo, sem unidade, M9 desligada: idem |
+| `recusa: switch de outro site não conta` (Emenda 24/10) | switch armado só de outro `site_id`: o site consultado apaga |
+| `recusa: mutante do critério` (Emenda 24/10) | recriar `obs_archive_m9_pronto` com o critério só-`units`: os dois casos acima de switch caem |
+| `m9-guarda: helper cita o switch` (Emenda 24/10) | o `prosrc` de `obs_archive_m9_pronto` contém `obs_archive_switch` |
 | `captura_presente` | `obs_archive_m9_captura_presente()` verdadeiro após a injeção; falso se uma das funções for recriada sem a captura (teste recria `competitor_video_purge` com o corpo original) |
 
 `m9-guarda.test.ts` (sem banco): varre `supabase/migrations/*` **posteriores** à da M9 (nome ordenado; se a M9 ainda é rascunho, varre todas) e falha se algum arquivo tiver `create or replace function public.competitor_video_purge`, `competitor_comments_purge`, `obs_archive_plan`, `obs_archive_b2_plan` ou `obs_archive_removed_channel_list` **sem** o texto `obs_archive_item_capture` (as duas primeiras) ou **sem** o sufixo `_base` (as três últimas: quem mexer nelas mexe nas `*_base`). A mensagem do `expect` diz o motivo e aponta `docs/superpowers/plans/2026-10-14-manutencao-nas-m9-expurgo-enxuto.md` (D-M9-21).
@@ -706,7 +714,10 @@ end $g$;
 create or replace function public.obs_archive_m9_pronto(p_site uuid) returns void
 language plpgsql stable security definer set search_path = '' as $$
 begin
-  if exists (select 1 from public.obs_archive_units x where x.site_id = p_site)
+  -- Emenda 24/10 (Phil, janela): "a M3b tocou o site" = unidade gravada OU switch com first_month_at/armed_at (monótonos, nascem antes da 1ª leitura). NÃO usar disarmed_at.
+  if (   exists (select 1 from public.obs_archive_units x where x.site_id = p_site)
+      or exists (select 1 from public.obs_archive_switch s where s.site_id = p_site
+                  and (s.first_month_at is not null or s.armed_at is not null)) )
      and not public.obs_archive_m9_ligado(p_site) then
     raise exception 'm9_desligada' using errcode = 'P0001', hint = 'o apagar do arquivo ainda não está ligado; espere';
   end if;

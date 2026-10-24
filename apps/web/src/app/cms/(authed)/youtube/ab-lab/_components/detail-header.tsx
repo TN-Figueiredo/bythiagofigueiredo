@@ -5,6 +5,8 @@ import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
 import { TypeBadge, Badge } from './ab-primitives'
 import { ChevronLeft, Swords } from 'lucide-react'
+import './caminho-nativo.css'
+import './detail-header-lab.css'
 
 export type DetailOutcome = 'winner' | 'playoff' | undefined
 
@@ -18,6 +20,8 @@ export interface DetailHeaderProps {
   outcome?: DetailOutcome
   dayInfo?: { dayOf: number; total: number }
   actions?: React.ReactNode
+  /** Variante do Lab (S8-F3 T5b): rastro com respiro, miniatura, selo "Teste do Lab". Sem a prop, o cabeçalho é o de sempre. */
+  lab?: { thumbUrl: string | null; naoIniciado?: boolean }
 }
 
 export function DetailHeader({
@@ -30,7 +34,49 @@ export function DetailHeader({
   outcome,
   dayInfo,
   actions,
+  lab,
 }: DetailHeaderProps) {
+  if (lab) {
+    const situacao = status === 'paused' ? 'pausado' : 'rodando'
+    return (
+      <header className="cn-raiz dhl">
+        <div className="dhl-hd">
+          {lab.thumbUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="dhl-th" src={lab.thumbUrl} alt="" referrerPolicy="no-referrer" />
+            : <span className="dhl-th" aria-hidden="true" />}
+          <div className="dhl-ttl">
+            <div className="dhl-crumb">
+              <Link href="/cms/youtube/ab-lab" className="inline-flex items-center gap-[5px] font-medium hover:text-cms-text transition-colors">
+                <ChevronLeft size={15} aria-hidden="true" />
+                A/B Lab
+              </Link>
+              <span>/</span>
+              <TypeBadge type={flag} />
+              {totalRounds > 1 && (
+                <Badge tone="neutral">
+                  <Swords size={11} aria-hidden="true" className="-translate-y-px" />
+                  Round {roundNumber}/{totalRounds}
+                </Badge>
+              )}
+            </div>
+            <h2 className="dhl-h2" title={title}>{title}</h2>
+            {dayInfo && (
+              <div className="dhl-selos">
+                <span className="dhl-selo" data-testid="selo-lab">
+                  <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5 1.5h4M5.5 1.5v4L2.5 11a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5l-3-5.5v-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  {lab.naoIniciado
+                    ? <span>Teste do Lab não iniciado</span>
+                    : <span>Teste do Lab {situacao}, <span className="dhl-dia">dia {dayInfo.dayOf} de {dayInfo.total}</span></span>}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+        {actions && <div className="dhl-acoes">{actions}</div>}
+      </header>
+    )
+  }
   return (
     <header>
       {/* Row 1: breadcrumb + badges */}

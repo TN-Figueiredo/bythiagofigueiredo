@@ -28,7 +28,7 @@ type Err = (Error & { code?: string }) | null
 describe.skipIf(pular)('M10a: funções SQL dos pontos 4, 5, 7 e 8 (pula até a Tarefa 5b se o rascunho não foi aplicado)', () => {
   let c: pg.Client
   beforeAll(async () => {
-    c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL })
+    c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
     await c.connect()
     await c.query(funcaoAntiga('20261012000004_observatorio_a5_e1_e2_provas_corretiva.sql', 'competitor_series_health'))
     await c.query(funcaoAntiga('20261013000002_observatorio_a5_e15_leitura_horaria.sql', 'competitor_channel_removal_impact'))
@@ -111,6 +111,16 @@ describe.skipIf(pular)('M10a: funções SQL dos pontos 4, 5, 7 e 8 (pula até a 
       const depois = await saude(siteId)
       expect(depois).toMatchObject({ semanal_atrasados: 2, arquivados: 2, fora_da_prova: 1 })
       expect(depois.semanal_total).toBe(2)
+    })
+  })
+
+  it('ponto 4 (M-3): o mesmo congelado citado duas vezes no plano conta uma vez', async () => {
+    await emTransacao(async () => {
+      const { siteId, canal, videos } = await semear(1)
+      await congela(videos[0]!)
+      const plano = JSON.stringify([{ video_id: videos[0], tier: 'diaria' }, { video_id: videos[0], tier: 'semanal' }])
+      const r = (await um(`select public.apply_competitor_tier_plan($1, $2, $3::jsonb, current_date) j`, [siteId, canal, plano])).j
+      expect(r).toEqual({ changed: 0, ignorados_congelados: 1 })
     })
   })
 

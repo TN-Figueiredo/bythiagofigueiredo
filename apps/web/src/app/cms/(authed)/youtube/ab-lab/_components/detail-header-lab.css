@@ -1,0 +1,16 @@
+/* Cabeçalho do detalhe do teste do Lab (S8-F3 T5b), mockup M4 r3.1. Escala --s1..--s6 = 4/8/12/16/24/32. */
+.dhl { --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; background: transparent; }
+.dhl-hd { display: flex; gap: var(--s4); align-items: center; }
+.dhl-th { flex: none; width: 128px; aspect-ratio: 16 / 9; border-radius: 5px; object-fit: cover; background: var(--cn-skel); display: block; }
+.dhl-ttl { flex: 1; min-width: 0; }
+.dhl-crumb { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; font-size: 12px; color: var(--cn-muted); margin-bottom: var(--s1); }
+.dhl-h2 { margin: 0; font: 600 19px/1.3 Georgia, serif; color: var(--cn-text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.dhl-selos { display: flex; gap: var(--s2); flex-wrap: wrap; margin-top: var(--s3); }
+.dhl-selo { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; font: 600 12px/18px Inter, system-ui, sans-serif; border: 1px solid var(--cn-accent); color: var(--cn-accent); white-space: nowrap; max-width: 100%; }
+.dhl-selo .dhl-dia { white-space: nowrap; }
+.dhl-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-top: var(--s3); }
+@container (max-width: 640px) {
+  .dhl-hd { flex-direction: column; align-items: flex-start; gap: var(--s3); }
+  .dhl-th { width: 96px; }
+  .dhl-ttl { width: 100%; }
+}

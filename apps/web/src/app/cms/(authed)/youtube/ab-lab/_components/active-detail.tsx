@@ -3,14 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
-import { VARIANT_COLORS, semImpressoes, liftVsA, medicaoCompleta, medidas } from './ab-constants'
+import { semImpressoes, liftVsA, medicaoCompleta, medidas } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
-import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
-import { VariantTable } from './variant-table'
+import { PlacarDoTeste } from './placar-do-teste'
 import { CredibleInterval } from './credible-interval'
-import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMomentUnified } from './click-moment-unified'
@@ -47,7 +45,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
   const canAdminSite = useCanAdminSite()
   const [driftBusy, setDriftBusy] = useState(false)
-  const { data: livePoll } = usePollStats(view.id, view.status === 'active')
+  const { data: livePoll } = usePollStats(view.id, view.status === 'active' && view.placar?.iniciado !== false)
 
   // Pausa por teste do YouTube: o botão "Retomar" segue o registro (dado); a data é só texto.
   const pausaTeste = view.status === 'paused' && view.pausaYoutube ? pausaVisivel(view.pausaYoutube, (agora ?? (() => new Date()))()) : null
@@ -70,6 +68,8 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
   }
 
   const comparavel = medicaoCompleta(view.variants)
+  // Sem estatística de vencedor (D-F3-2) ninguém é líder: sem hero, sem destaque na tabela e sem faixa provável.
+  const comEstatistica = view.placar?.estatistica === 'calculada'
 
 
   const actionButtons = (
@@ -101,7 +101,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
   return (
     <div data-testid="active-detail">
       {/* ── Section 1: Header with inline actions ── */}
-      <div data-section="header" className="mb-[16px]">
+      <div data-section="header">
         <DetailHeader
           title={view.videoTitle}
           flag={view.flag}
@@ -110,7 +110,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
-          actions={actionButtons}
+          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, naoIniciado: view.placar?.iniciado === false }}
         />
       </div>
 
@@ -145,9 +145,9 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       )}
 
       {view.status === 'paused' && view.statusNote !== DRIFT_STATUS_NOTE && (
-        <div className="mx-0 mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3">
+        <div className="cn-raiz mx-0 mt-4 mb-4 rounded-lg px-4 py-3" style={{ border: '1px dashed var(--cn-yt-line)', background: 'var(--cn-yt-bg)' }}>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-blue-300">{pausaTeste?.frase ?? 'Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.'}</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--cn-yt)' }}>{pausaTeste?.frase ?? 'Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.'}</p>
             <button disabled={driftBusy || pausaTeste?.retomarDesabilitado === true} onClick={async () => {
               setDriftBusy(true)
               const res = await retomar(view.restoreSeq)
@@ -160,27 +160,33 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
         </div>
       )}
 
-      {/* ── Section 2: Lock Countdown ── */}
-      <div data-section="lock-countdown" className="mb-[16px]">
-        <LockCountdown
-          dayOf={view.dayOf}
-          durationDays={Math.max(view.dayOf, view.durationDays)}
-          confidence={data.confidence}
-          confidenceTarget={view.confidenceTarget * 100}
-          cyclesCompleted={view.cycles.done}
-          createdAt={view.createdAt}
-          hasPlayoff={view.hasPlayoff}
-        />
-      </div>
-
       {/* ── Section 3: Hero Band ── */}
-      <div data-section="hero-band" className="mb-[16px]">
+      {comEstatistica && (<div data-section="hero-band" className="mb-[16px]">
         <HeroBand
           leader={{ label: data.leader, color: data.leaderColor }}
           trend={trend}
           semMedicao={semMedicao}
           liftLider={liftVsA(view.variants.find(v => v.label === 'A'), view.variants.find(v => v.label === data.leader))}
         />
+      </div>)}
+
+      {/* ── Section 5: Placar das variantes ── */}
+      <section data-section="variant-performance" className="mb-[24px]">
+        <PlacarDoTeste
+          placar={view.placar ?? null}
+          faixaDias={view.faixa_dias ?? []}
+          variants={view.variants}
+          variantDb={view.variantDb}
+          thumbs={view.variantThumbs}
+          videoTitle={view.videoTitle}
+          status={view.status}
+          andamento={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
+        />
+      </section>
+
+      {/* Ações do teste: depois do placar (ordem do M4 r3.1: rastro, título, selo, frase, faixa; o resto vem depois). */}
+      <div className="cn-raiz dhl mb-[24px]" data-section="acoes">
+        <div className="dhl-acoes" style={{ marginTop: 0 }}>{actionButtons}</div>
       </div>
 
       {/* ── Section 4: Signal ao vivo + Métricas computadas (side by side) ── */}
@@ -226,20 +232,8 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
         </div>)}
       </div>
 
-      {/* ── Section 5: Placar das variantes ── */}
-      <section data-section="variant-performance" className="mb-[24px]">
-        <VariantTable
-          variants={view.variants}
-          leaderId={data.leader}
-          activeNow={view.activeNow ?? undefined}
-          thumbs={view.variantThumbs}
-          videoTitle={view.videoTitle}
-          semChance
-        />
-      </section>
-
       {/* ── Section 7: Faixa provável de CTR ── */}
-      {comparavel && (<div className="mb-[24px]">
+      {comEstatistica && comparavel && (<div className="mb-[24px]">
         {/* Faixa provável de CTR */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -253,28 +247,10 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
         </div>
       </div>)}
 
-      {/* ── Section 8: CTR diário por variante ── */}
-      {comparavel && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
-        <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
-          <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
-          <span className="text-[13px] font-semibold text-cms-text">CTR diário por variante</span>
-          <span className="text-[11.5px] text-cms-text-dim ml-auto">últimos {Object.values(view.daily)[0]?.length ?? 0} dias</span>
-          <div className="flex gap-[10px] ml-[16px]">
-            {view.variants.map(v => (
-              <span key={v.label} className="inline-flex items-center gap-[5px] text-[11px] text-cms-text-dim">
-                <span className="rounded-[2px]" style={{ width: 10, height: 3, background: v.color }} aria-hidden="true" />
-                {v.label}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="px-[16px] py-[14px]">
-          <MultiLine series={view.daily} colors={VARIANT_COLORS} />
-        </div>
-      </div>)}
+      {/* CTR diário por variante: fora da F3 (volta na F4 com a estatística); a série `daily` fica vazia, nunca 0. */}
 
       {/* ── Section 9: Rotação ABBA + Funil por variante ── */}
-      <div className={`grid grid-cols-1 ${comparavel ? 'md:grid-cols-2' : ''} gap-[16px] mb-[24px]`}>
+      <div className={`grid grid-cols-1 ${comEstatistica && comparavel ? 'md:grid-cols-2' : ''} gap-[16px] mb-[24px]`}>
         {/* Rotação ABBA */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -293,7 +269,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
         </div>
 
         {/* Funil por variante (líder): sem impressões medidas não há funil */}
-        {comparavel && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+        {comEstatistica && comparavel && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
             <Filter size={15} className="text-cms-text-dim" aria-hidden="true" />
             <span className="text-[13px] font-semibold text-cms-text">Funil por variante</span>

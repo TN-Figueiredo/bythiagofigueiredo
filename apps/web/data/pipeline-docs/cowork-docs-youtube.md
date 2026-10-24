@@ -1915,22 +1915,35 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 
 ## A/B: funil, teste e lista de testes
 
-`GET /api/pipeline/youtube/ab-tests/{id}/funnel`, `GET /api/pipeline/youtube/ab-tests/{id}` e `GET /api/pipeline/youtube/ab-tests` (no MCP: `manage_ab_test` com `get_funnel`, `get_test` e `list_tests`). Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
+`GET /api/pipeline/youtube/ab-tests/{id}/funnel`, `GET /api/pipeline/youtube/ab-tests/{id}` e `GET /api/pipeline/youtube/ab-tests` (no MCP: `manage_ab_test` com `get_funnel`, `get_test` e `list_tests`). Os números de alcance vêm de `ab_test_dias` (dia do Pacífico, alcance do Reporting), os mesmos da tela, no campo `placar`. Confiança, vencedor sugerido e lift continuam `null`. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
+
+**`aviso`** muda com o dado:
+- `'sem métrica de entrega'`: o teste ainda não tem nenhum dia de volume (`placar` nulo ou toda variante com `impressoes` nula);
+- `'placar medido; sem estatística de vencedor nesta regra'`: há número medido, mas não declare vencedor pelo CTR (estatística de vencedor só na regra v2);
+- `'placar indisponível: linha inválida em ab_test_dias'`: acompanha `placar_erro: 'linha_invalida'` e `placar: null`; o dado existe e está corrompido, então peça a correção da linha, não espere. Na lista só esse teste é isolado; em `get_test` e no funil a chamada falha.
+
+**`placar`** (teste e itens da lista):
+- `regra` (`v1`/`v2`), `estatistica` (`nao_calculada` na regra v1), `dias_total`, `dias_descartados` (dias sem variante), `dias_variante_desconhecida`, `iniciado`, `todos_finais`, `proximo_fechamento`;
+- `atualizado_em` (último retrato; `null` sem dia gravado), `desatualizado` (retrato com mais de 26 h e dia ainda não final) e `atrasado` (o retrato parou: sem dia 48 h depois do início, ou último dia gravado antes do esperado);
+- `variantes[]` por `variant_id`: `impressoes` (exibição), `impressoes_com_ctr`, `cliques`, `ctr` (ponderado), `views`, e as contagens de dias (`dias`, `dias_validos`, `dias_zero`, `dias_ausentes`, `dias_aguardando`, `dias_nao_medidos`, `dias_fora_do_ctr`);
+- **`null` quer dizer não medido**: nunca é 0, 0% nem "sem diferença". `0` é zero sabido. `cliques` é `null` quando há impressões sem CTR.
 
 ```json
 {
   "data": {
-    "per_variant": [{ "variant_id": "uuid", "impressions": null, "clicks": null, "link_clicks": null }],
+    "per_variant": [{ "variant_id": "uuid", "impressions": 3000, "impressions_total": 4000, "clicks": 150, "ctr": 0.05, "link_clicks": null }],
     "per_link": [],
     "link_clicks_window": null,
-    "aviso": "sem métrica de entrega"
+    "dias_variante_desconhecida": 0,
+    "aviso": "placar medido; sem estatística de vencedor nesta regra"
   }
 }
 ```
 
-- Funil: `impressions` e `clicks` por variante saem `null`; `link_clicks` é `null`, `per_link` é `[]` e `link_clicks_window` é `null`: o A/B não cria link rastreado desde 10/2026
-- Teste (`get_test`): `confidence_at_completion`, `consecutive_confident_evals`, `result_metadata.ctr_lift_percent`, `result_metadata.total_impressions`, `result_metadata.estimated_monthly_extra_clicks` e, em cada ciclo, `impressions`, `clicks`, `ctr`, `estimated_impressions`, `estimated_clicks`, `estimated_ctr` saem `null`; `result_metadata.winner_label` e o resto continuam; `aviso` no teste
-- Lista (`list_tests`, `ab-tests`): continua um vetor; cada item tem os mesmos `null` e o seu próprio `aviso`
+- Funil: `impressions` é o denominador dos cliques (`clicks / impressions = ctr`); `impressions_total` é a exibição (inclui dia sem CTR). Variante sem dia de volume tem `impressions`, `clicks` e `ctr` nulos. `link_clicks` é `null`, `per_link` é `[]` e `link_clicks_window` é `null`: o A/B não cria link rastreado desde 10/2026
+- Teste (`get_test`): `result_metadata.total_impressions` é a soma das impressões das variantes (`null` se alguma for nula; a tela soma só as variantes com número, então no 1º dia, com uma variante sem volume, a tela mostra o total medido e este campo vem `null`; os números por variante em `placar` são idênticos); `confidence_at_completion`, `consecutive_confident_evals`, `result_metadata.ctr_lift_percent`, `result_metadata.estimated_monthly_extra_clicks` e, em cada ciclo, `impressions`, `clicks`, `ctr`, `estimated_impressions`, `estimated_clicks`, `estimated_ctr` saem `null`; `result_metadata.winner_label` e o resto continuam. O ganho medido de CTR entre variantes é limite inferior (dia fora do CTR não entra), nunca prova de vencedor
+- Ciclos: `backfill_status` e `backfill_attempts` não têm escritor desde a S8-F2; não indicam dado a caminho
+- Lista (`list_tests`, `ab-tests`): continua um vetor; cada item tem `placar`, `placar_erro` e o seu próprio `aviso`
 - Painel (`ab-tests/dashboard`): `winRate` é `null` quando nenhum teste concluído conta
 
 ### GET /ab-tests/:id e list_tests: `restore_status` e `leitura`

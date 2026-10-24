@@ -6,6 +6,11 @@ import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { weekSlotOf, dayNumber, addDays } from '@/lib/youtube/competitor-tiers'
 import { apagarCanaisDeTeste, apagarSitesDeTeste } from '../helpers/limpa-cena'
+import { m10aAtiva } from './video-antigo-m10a-caminho'
+
+// M10a (Tarefa 5b): as chaves novas só existem depois da migration; antes, a CI segue verde com as asserções de hoje.
+const M10A = await m10aAtiva()
+const IGN = M10A ? { ignorados_congelados: 0 } : {}
 
 const T0 = new Date(Date.now() - 20 * 86_400_000) // 20 dias atrás: nada aqui depende do relógio de parede
 const at = (h: number) => new Date(T0.getTime() + h * 3_600_000).toISOString()
@@ -94,8 +99,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
   })
   it('item 222: troca de faixa grava a linha; sem mudança não escreve; promoção e rebaixamento no mesmo dia deixam UMA linha aberta com a última faixa', async () => {
     const d0 = spDate(at(0)), d5 = spDate(at(120))
-    expect((await sb.rpc('apply_competitor_tier_plan', { p_site_id: siteId, p_channel_id: ch, p_changes: [{ video_id: v1, tier: 'semanal' }, { video_id: v2, tier: 'diaria' }], p_today: d0 })).data).toEqual({ changed: 2 })
-    expect((await sb.rpc('apply_competitor_tier_plan', { p_site_id: siteId, p_channel_id: ch, p_changes: [{ video_id: v1, tier: 'semanal' }], p_today: spDate(at(24)) })).data).toEqual({ changed: 0 })
+    expect((await sb.rpc('apply_competitor_tier_plan', { p_site_id: siteId, p_channel_id: ch, p_changes: [{ video_id: v1, tier: 'semanal' }, { video_id: v2, tier: 'diaria' }], p_today: d0 })).data).toEqual({ changed: 2, ...IGN })
+    expect((await sb.rpc('apply_competitor_tier_plan', { p_site_id: siteId, p_channel_id: ch, p_changes: [{ video_id: v1, tier: 'semanal' }], p_today: spDate(at(24)) })).data).toEqual({ changed: 0, ...IGN })
     await sb.rpc('apply_competitor_tier_plan', { p_site_id: siteId, p_channel_id: ch, p_changes: [{ video_id: v1, tier: 'diaria' }], p_today: d5 })
     await sb.rpc('apply_competitor_tier_plan', { p_site_id: siteId, p_channel_id: ch, p_changes: [{ video_id: v1, tier: 'semanal' }], p_today: d5 })
     const spans = (await sb.from('competitor_video_tier_spans').select('from_date, to_date, tier').eq('video_id', v1).order('from_date')).data!
@@ -108,8 +113,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
     expect(Object.keys(c)).toHaveLength(9)
     expect(c.videos_ausentes).toBe(1) // v1
     const s = (await sb.rpc('competitor_series_health', { p_site_id: siteId, p_now: at(7) })).data as Record<string, unknown>
-    for (const k of ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total', 'fora_canal_em_erro_3d']) expect(typeof s[k]).toBe('number')
-    expect(Object.keys(s)).toHaveLength(13)
+    for (const k of ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total', 'fora_canal_em_erro_3d', ...(M10A ? ['arquivados'] : [])]) expect(typeof s[k]).toBe('number')
+    expect(Object.keys(s)).toHaveLength(M10A ? 14 : 13)
     expect(s.fora_da_prova).toBe(1) // v1 ausente fica fora de todas as contas
   })
   it('competitor_channel_removal_impact conta as quatro tabelas novas e mantém as chaves antigas', async () => {
@@ -303,23 +308,23 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
     const pass = async (id: string) => (await sb.from('competitor_channels').select('weekly_pass_date').eq('id', id).single()).data!.weekly_pass_date
     await stamp(c1); await stamp(c2) // carimbados antes de ter faixa: o dia do deploy
     // (1) a primeira classificação reabre
-    expect((await tierPlan(site, c2, [{ video_id: v3, tier: 'semanal' }, { video_id: v4, tier: 'diaria' }], hoje)).data).toEqual({ changed: 2 })
+    expect((await tierPlan(site, c2, [{ video_id: v3, tier: 'semanal' }, { video_id: v4, tier: 'diaria' }], hoje)).data).toEqual({ changed: 2, ...IGN })
     expect(await pass(c2)).toBeNull()
     expect(await pass(c1)).toBe(hoje) // o carimbo de OUTRO canal não é tocado
     // (2) a mesma chamada de novo: changed 0, o carimbo fica
     await stamp(c2)
-    expect((await tierPlan(site, c2, [{ video_id: v3, tier: 'semanal' }, { video_id: v4, tier: 'diaria' }], hoje)).data).toEqual({ changed: 0 })
+    expect((await tierPlan(site, c2, [{ video_id: v3, tier: 'semanal' }, { video_id: v4, tier: 'diaria' }], hoje)).data).toEqual({ changed: 0, ...IGN })
     expect(await pass(c2)).toBe(hoje)
     // (3) promoção (semanal para diária): o carimbo fica
-    expect((await tierPlan(site, c2, [{ video_id: v3, tier: 'diaria' }], hoje)).data).toEqual({ changed: 1 })
+    expect((await tierPlan(site, c2, [{ video_id: v3, tier: 'diaria' }], hoje)).data).toEqual({ changed: 1, ...IGN })
     expect(await pass(c2)).toBe(hoje)
     // (4) rebaixamento (diária para semanal): reabre
-    expect((await tierPlan(site, c2, [{ video_id: v3, tier: 'semanal' }], hoje)).data).toEqual({ changed: 1 })
+    expect((await tierPlan(site, c2, [{ video_id: v3, tier: 'semanal' }], hoje)).data).toEqual({ changed: 1, ...IGN })
     expect(await pass(c2)).toBeNull()
     // (5) canal já nulo: outra entrada em semanal passa sem erro
     const r5 = await tierPlan(site, c2, [{ video_id: v4, tier: 'semanal' }], hoje)
     expect(r5.error).toBeNull()
-    expect(r5.data).toEqual({ changed: 1 })
+    expect(r5.data).toEqual({ changed: 1, ...IGN })
     expect(await pass(c2)).toBeNull()
     // uma linha aberta por vídeo, com a última faixa; as trocas do mesmo dia não duplicam
     const spans = (await sb.from('competitor_video_tier_spans').select('video_id, to_date, tier').in('video_id', [v3, v4])).data!

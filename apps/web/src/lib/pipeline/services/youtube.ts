@@ -19,6 +19,8 @@ import { nicheDefs, readNiches, type NicheRow } from '@/lib/youtube/observatorio
 import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
 import { claim } from './forja-queue'
+import { placarDoTeste, regraDoTeste, type Placar } from '@/lib/youtube/ab-gravacao/placar'
+import { lerDiasDosTestes, lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 
 // ---------------------------------------------------------------------------
 // Shared constants
@@ -30,6 +32,11 @@ const VALID_LABELS = new Set(['B', 'C', 'D'])
 /** Enquanto o A/B não tiver métrica de entrega real, esses campos saem null com este aviso. */
 export const AVISO_SEM_METRICA_DE_ENTREGA = 'sem métrica de entrega' as const
 type AvisoSemMetricaDeEntrega = typeof AVISO_SEM_METRICA_DE_ENTREGA
+/** Placar com número medido, mas sem estatística de vencedor (regra v1; a estatística é da F4). */
+export const AVISO_SEM_ESTATISTICA = 'placar medido; sem estatística de vencedor nesta regra' as const
+/** O dado existe e está corrompido: a linha de `ab_test_dias` precisa de correção, não de espera. */
+export const AVISO_PLACAR_INVALIDO = 'placar indisponível: linha inválida em ab_test_dias' as const
+export type AvisoDoPlacar = AvisoSemMetricaDeEntrega | typeof AVISO_SEM_ESTATISTICA | typeof AVISO_PLACAR_INVALIDO
 
 // ---------------------------------------------------------------------------
 // Types — Intelligence
@@ -141,7 +148,10 @@ export interface AbTestListItem {
   confidence_at_completion: number | null
   consecutive_confident_evals: number | null
   result_metadata: AbResultMetadataSaida
-  aviso: AvisoSemMetricaDeEntrega
+  aviso: AvisoDoPlacar
+  /** Mesmo placar da tela (`ab_test_dias`); nulo com `placar_erro` quando uma linha do teste é inválida. */
+  placar: Placar | null
+  placar_erro: 'linha_invalida' | null
   /** Cru, como veio; nulo = o teste nunca passou pelo código novo da saída do ar. */
   restore_status: Record<string, unknown> | null
   /** Leitura da faixa; nula quando `restore_status` é nulo; `{ ilegivel: true }` quando não dá para ler. */
@@ -163,7 +173,10 @@ export interface AbTestDetail {
   confidence_at_completion: number | null
   consecutive_confident_evals: number | null
   result_metadata: AbResultMetadataSaida
-  aviso: AvisoSemMetricaDeEntrega
+  aviso: AvisoDoPlacar
+  placar: Placar | null
+  /** Sempre nulo no detalhe: linha inválida derruba `getAbTest` (falha alta); só a lista isola o teste. */
+  placar_erro: null
   restore_status: Record<string, unknown> | null
   leitura: Partial<Record<CampoNome, LeituraCampo>> | { ilegivel: true } | null
   variants: Record<string, unknown>[]
@@ -173,8 +186,12 @@ export interface AbTestDetail {
 
 export interface PerVariantFunnel {
   variant_id: string
+  /** Denominador dos cliques (`impressoes_com_ctr`): `clicks / impressions = ctr`. */
   impressions: number | null
+  /** Exibição: todas as impressões medidas, inclusive de dia sem CTR. */
+  impressions_total: number | null
   clicks: number | null
+  ctr: number | null
   link_clicks: number | null
 }
 
@@ -190,7 +207,9 @@ export interface FunnelMetrics {
   per_link: PerLinkFunnel[]
   /** null: o A/B não tem mais link rastreado (P3) */
   link_clicks_window: { from: string; to: string } | null
-  aviso: AvisoSemMetricaDeEntrega
+  /** Dias de variante que não está entre as do funil. */
+  dias_variante_desconhecida: number
+  aviso: AvisoDoPlacar
 }
 
 interface WinnerVariant {
@@ -1034,7 +1053,47 @@ function projetarCiclo(row: Record<string, unknown>): Record<string, unknown> {
  * nulo = o teste nunca passou pelo código novo da saída do ar → `leitura` nula; ilegível → `{ ilegivel: true }`.
  * `restore_seq` é interno e não sai (a lista fechada já o deixa de fora).
  */
-export function projetarTeste(row: Record<string, unknown>, agora: Date): Record<string, unknown> {
+function somaOuNulo(xs: ReadonlyArray<number | null>): number | null {
+  if (xs.length === 0) return null
+  let t = 0
+  for (const x of xs) {
+    if (x === null) return null
+    t += x
+  }
+  return t
+}
+
+function avisoDoPlacar(placar: Placar | null, placarErro: 'linha_invalida' | null): AvisoDoPlacar {
+  if (placarErro) return AVISO_PLACAR_INVALIDO
+  if (placar === null || placar.variantes.every(v => v.impressoes === null)) return AVISO_SEM_METRICA_DE_ENTREGA
+  return AVISO_SEM_ESTATISTICA
+}
+
+function variantesOrdenadas(row: Record<string, unknown>): Array<{ variant_id: string }> {
+  const vs = ((row.variants ?? []) as Array<{ id: string; sort_order?: number }>).slice()
+  vs.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  return vs.map(v => ({ variant_id: v.id }))
+}
+
+function placarDaLinha(row: Record<string, unknown>, dias: Parameters<typeof placarDoTeste>[0]['dias'], variantes: Array<{ variant_id: string }>, agora: Date): Placar {
+  return placarDoTeste({
+    dias,
+    variantes,
+    regra: regraDoTeste(row),
+    agora,
+    inicio: (row.started_at as string | null) ?? null,
+    fim: (row.completed_at as string | null) ?? null,
+    pausado_em: (row.paused_at as string | null) ?? null,
+    status: String(row.status),
+  })
+}
+
+export function projetarTeste(
+  row: Record<string, unknown>,
+  agora: Date,
+  placar: Placar | null,
+  placarErro?: 'linha_invalida',
+): Record<string, unknown> {
   const meta = (row.result_metadata ?? null) as Record<string, unknown> | null
   const label = meta?.winner_label
   const out: Record<string, unknown> = copiar(row, CAMPOS_DO_TESTE_QUE_SAEM_COMO_VIERAM)
@@ -1043,11 +1102,13 @@ export function projetarTeste(row: Record<string, unknown>, agora: Date): Record
   out.result_metadata = {
     winner_label: typeof label === 'string' ? label : null,
     ctr_lift_percent: null,
-    total_impressions: null,
+    total_impressions: placar ? somaOuNulo(placar.variantes.map(v => v.impressoes)) : null,
     estimated_monthly_extra_clicks: null,
   } satisfies AbResultMetadataSaida
   out.variants = ((row.variants ?? []) as Record<string, unknown>[]).map(projetarVariante)
-  out.aviso = AVISO_SEM_METRICA_DE_ENTREGA
+  out.placar = placar
+  out.placar_erro = placarErro ?? null
+  out.aviso = avisoDoPlacar(placar, placarErro ?? null)
   const bruto = row.restore_status ?? null
   out.restore_status = bruto
   out.leitura = restoreStatusIlegivel(bruto) ? { ilegivel: true } : lerRestauracao(paraRestoreStatus(bruto), agora)
@@ -1077,8 +1138,16 @@ export async function listAbTests(
   const { data, error } = await query
   if (error) return err('DB_ERROR', 'Failed to load tests', 500)
 
+  const linhas = (data ?? []) as Record<string, unknown>[]
+  const lido = await lerDiasDosTestes(supabase, siteId, linhas.map(r => String(r.id)))
+  if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
+
   const agora = new Date()
-  return ok(((data ?? []) as Record<string, unknown>[]).map(r => projetarTeste(r, agora)) as unknown as AbTestListItem[])
+  return ok(linhas.map(r => {
+    const id = String(r.id)
+    if (lido.invalidos.has(id)) return projetarTeste(r, agora, null, 'linha_invalida')
+    return projetarTeste(r, agora, placarDaLinha(r, lido.porTeste.get(id) ?? [], variantesOrdenadas(r), agora))
+  }) as unknown as AbTestListItem[])
 }
 
 // ---------------------------------------------------------------------------
@@ -1101,12 +1170,16 @@ export async function getAbTest(
     `)
     .eq('id', id)
     .eq('site_id', siteId)
-    .single()
+    .maybeSingle()
 
-  if (error || !test) return err('NOT_FOUND', 'Test not found', 404)
+  if (error) return err('DB_ERROR', 'Failed to load test', 500)
+  if (!test) return err('NOT_FOUND', 'Test not found', 404)
 
   const row = test as Record<string, unknown>
-  const detail = projetarTeste(row, new Date())
+  const lido = await lerDiasDoTeste(supabase, siteId, id)
+  if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
+  const agora = new Date()
+  const detail = projetarTeste(row, agora, placarDaLinha(row, lido.dias, variantesOrdenadas(row), agora))
   detail.cycles = ((row.cycles ?? []) as Record<string, unknown>[]).map(projetarCiclo)
   detail.tracked_links = []
   return ok(detail as unknown as AbTestDetail)
@@ -1128,13 +1201,14 @@ export async function getAbTestFunnel(
   const { supabase, siteId } = ctx
 
   // Verify test belongs to site
-  const { data: test } = await supabase
+  const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id')
+    .select('*')
     .eq('id', id)
     .eq('site_id', siteId)
-    .single()
+    .maybeSingle()
 
+  if (testError) return err('DB_ERROR', 'Failed to load test', 500)
   if (!test) return err('NOT_FOUND', 'Test not found', 404)
 
   const cyclesRes = await supabase
@@ -1146,15 +1220,26 @@ export async function getAbTestFunnel(
   if (cyclesRes.error) return err('DB_ERROR', 'Failed to load A/B cycles', 500)
   const cycles = cyclesRes.data as CycleRow[] | null
 
-  // Variants that have a cycle; impressions/clicks de entrega não têm medida real (null), e o A/B
-  // não cria mais link rastreado desde 10/2026 (P3): link_clicks null, per_link [], janela null.
+  // Variantes com ciclo; o A/B não cria mais link rastreado desde 10/2026 (P3): link_clicks null, per_link [], janela null.
   const variantIds = [...new Set((cycles ?? []).map(c => c.variant_id))]
 
+  const lido = await lerDiasDoTeste(supabase, siteId, id)
+  if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
+  const placar = placarDaLinha(test as Record<string, unknown>, lido.dias, variantIds.map(v => ({ variant_id: v })), new Date())
+
   return ok({
-    per_variant: variantIds.map(variantId => ({ variant_id: variantId, impressions: null, clicks: null, link_clicks: null })),
+    per_variant: placar.variantes.map(v => ({
+      variant_id: v.variant_id,
+      impressions: v.impressoes_com_ctr,
+      impressions_total: v.impressoes,
+      clicks: v.cliques,
+      ctr: v.ctr,
+      link_clicks: null,
+    })),
     per_link: [],
     link_clicks_window: null,
-    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
+    dias_variante_desconhecida: placar.dias_variante_desconhecida,
+    aviso: avisoDoPlacar(placar, null),
   })
 }
 
