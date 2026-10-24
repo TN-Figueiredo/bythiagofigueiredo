@@ -8,7 +8,9 @@ import { roteiro, ok, type Res } from '../../helpers/banco-roteirizado'
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 // A parte do nicho tem testes próprios (avisos.test.ts); aqui ela é um dublê que não faz nada.
-const rodarAvisos = (c: ContextoTarefa, d: DepsAvisos = {}) => rodarAvisosReal(c, { nicho: async () => ({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 }), ...d })
+// A parte da leitura dos concorrentes (obs_aviso_*) também: testes próprios em observados/avisos.test.ts.
+const RESULTADO_VAZIO = { ativo: false, degradada: 0, suspenso: 0, expirados: 0, falhas: 0, semTempo: 0 }
+const rodarAvisos = (c: ContextoTarefa, d: DepsAvisos = {}) => rodarAvisosReal(c, { nicho: async () => ({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 }), leitura: async () => RESULTADO_VAZIO, ...d })
 const AGORA = Date.parse('2026-12-20T12:00:00.000Z')
 const dias = (n: number): string => new Date(AGORA - n * 86_400_000).toISOString()
 const ctx = (sb: ContextoTarefa['sb'], em: number = AGORA): ContextoTarefa => ({ t0: em, agora: () => em, apiKey: '', sb, linhas: null })
@@ -244,5 +246,45 @@ describe('rodarAvisos', () => {
     const r2 = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([])] })
     expect(await rodarAvisos(ctx(r1.sb), { fanOut: fan })).toMatchObject({ detalhe: { lembrados: 1 } })
     expect(await rodarAvisos(ctx(r2.sb), { fanOut: fan })).toMatchObject({ estado: 'ok', detalhe: { lembrados: 0 } })
+  })
+
+  describe('parte da leitura dos concorrentes', () => {
+    it('contadores no detalhe, sem mudar estado nem motivo', async () => {
+      const r = roteiro({ ab_native_tests: [ok([]), ok([])] })
+      const out = await rodarAvisos(ctx(r.sb), { fanOut: vi.fn(), leitura: async () => ({ ativo: true, degradada: 1, suspenso: 1, expirados: 3, falhas: 0, semTempo: 2 }) })
+      expect(out).toMatchObject({ estado: 'ok', detalhe: { obs_aviso_degradada: 1, obs_aviso_suspenso: 1, obs_aviso_expirados: 3, obs_aviso_sem_tempo: 2, obs_aviso_falhou: 0 } })
+    })
+    it('leitura que lança: estado e motivo iguais aos de quando não lança, obs_aviso_falhou = 1, o lembrete do dia 14 sai e o Sentry recebe', async () => {
+      const fan = vi.fn().mockResolvedValue(fanOk)
+      const sem = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([{ id: 'r1' }])] })
+      const base = await rodarAvisos(ctx(sem.sb), { fanOut: fan })
+      vi.mocked(Sentry.captureMessage).mockClear()
+      const com = roteiro({ ab_native_tests: [ok([]), ok([linha()]), ok([{ id: 'r1' }])] })
+      const out = await rodarAvisos(ctx(com.sb), { fanOut: fan, leitura: async () => { throw new Error('boom') } })
+      expect(out.estado).toBe(base.estado)
+      expect(out.motivo).toBe(base.motivo)
+      expect(out.detalhe).toMatchObject({ lembrados: 1, obs_aviso_falhou: 1 })
+      expect(fan).toHaveBeenCalledTimes(2)
+      expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('parte da leitura falhou'), expect.objectContaining({ tags: { area: 'ab-observados' } }))
+    })
+    it.each([[{ semTempo: 1, falhas: 0 }], [{ semTempo: 0, falhas: 1 }]])('leitura incompleta sem exceção (%j): vai ao Sentry com a área ab-observados e não muda o estado (Yannis I-1)', async (parte) => {
+      const r = roteiro({ ab_native_tests: [ok([]), ok([])] })
+      vi.mocked(Sentry.captureMessage).mockClear()
+      const out = await rodarAvisos(ctx(r.sb), { fanOut: vi.fn(), leitura: async () => ({ ativo: true, degradada: 0, suspenso: 0, expirados: 0, ...parte }) })
+      expect(out.estado).toBe('ok')
+      expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('incompleta'), expect.objectContaining({ level: 'warning', tags: { area: 'ab-observados' }, extra: { sem_tempo: parte.semTempo, falhas: parte.falhas } }))
+    })
+    it('leitura completa: nenhum Sentry da parte da leitura', async () => {
+      const r = roteiro({ ab_native_tests: [ok([]), ok([])] })
+      vi.mocked(Sentry.captureMessage).mockClear()
+      await rodarAvisos(ctx(r.sb), { fanOut: vi.fn(), leitura: async () => ({ ativo: true, degradada: 1, suspenso: 0, expirados: 0, falhas: 0, semTempo: 0 }) })
+      expect(Sentry.captureMessage).not.toHaveBeenCalledWith(expect.stringContaining('incompleta'), expect.anything())
+    })
+    it('sem a dependência e com a flag off (env limpo): a parte não consulta nada e não falha', async () => {
+      delete process.env.OBS_TROCAS_CONCORRENTE
+      const r = roteiro({ ab_native_tests: [ok([]), ok([])] })
+      const out = await rodarAvisosReal(ctx(r.sb), { nicho: async () => ({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0 }), fanOut: vi.fn() })
+      expect(out).toMatchObject({ estado: 'ok', detalhe: { obs_aviso_falhou: 0, obs_aviso_degradada: 0 } })
+    })
   })
 })

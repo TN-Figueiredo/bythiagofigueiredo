@@ -1,0 +1,54 @@
+[
+  {
+    "json_agg": [
+      {
+        "altura": null,
+        "dhash": null,
+        "erro": null,
+        "http": 200,
+        "idioma": "pt-BR",
+        "jogador_bloqueado": true,
+        "largura": null,
+        "lida_em": "2026-10-23T19:21:03.734+00:00",
+        "publicado_em": "2026-10-08T13:05:19+00:00",
+        "rodada_id": "b41e8dc4-a0a7-4e13-a123-b37f3b05e2d1",
+        "thumb_http": null,
+        "titulo_exibido": "Por que o Vietnã supera o México no custo de vida",
+        "variante": null,
+        "yt": "1XUXst9lqxM"
+      },
+      {
+        "altura": null,
+        "dhash": null,
+        "erro": null,
+        "http": 200,
+        "idioma": "pt-BR",
+        "jogador_bloqueado": true,
+        "largura": null,
+        "lida_em": "2026-10-23T19:21:02.695+00:00",
+        "publicado_em": "2026-10-11T12:03:52+00:00",
+        "rodada_id": "b3edb3ec-2bed-4d97-9389-fbe5710ef345",
+        "thumb_http": null,
+        "titulo_exibido": "GOLDEN BRIDGE | Ba Na Hills DA Nang Vietnam",
+        "variante": null,
+        "yt": "MTkIWNk2Vxg"
+      },
+      {
+        "altura": null,
+        "dhash": null,
+        "erro": null,
+        "http": 200,
+        "idioma": "pt-BR",
+        "jogador_bloqueado": true,
+        "largura": null,
+        "lida_em": "2026-10-23T19:21:02.581+00:00",
+        "publicado_em": "2026-10-22T13:24:10+00:00",
+        "rodada_id": "88ac87e9-82a4-4f0d-87dc-3b74d92527a7",
+        "thumb_http": null,
+        "titulo_exibido": "What Happens In You Get Sick In A Slum?",
+        "variante": null,
+        "yt": "3cmhhPTI0jo"
+      }
+    ]
+  }
+]
