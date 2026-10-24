@@ -27,9 +27,9 @@ export function isoDoBanco(s: string): string {
 
 export function linhasDaFixture(f: FixtureColunar): LinhaExport[] {
   return f.linhas.map(v => {
-    const o: Record<string, unknown> = {}
+    const o: Partial<Record<keyof LinhaExport, unknown>> = {}
     f.colunas.forEach((c, i) => { o[c] = v[i] ?? null })
-    return o as unknown as LinhaExport
+    return o as LinhaExport
   })
 }
 
@@ -42,7 +42,7 @@ export function extrairLinhas(texto: string): LinhaExport[] {
   try { j = JSON.parse(texto) } catch { throw ilegivel() }
   const desembrulhar = (v: unknown): LinhaExport[] => {
     if (ehObjeto(v)) {
-      if (Array.isArray(v.colunas) && Array.isArray(v.linhas)) return linhasDaFixture(v as unknown as FixtureColunar)
+      if (Array.isArray(v.colunas) && Array.isArray(v.linhas)) return linhasDaFixture({ fonte: String(v.fonte ?? ''), agora: String(v.agora ?? ''), colunas: v.colunas as FixtureColunar['colunas'], linhas: v.linhas as unknown[][] })
       if (Array.isArray(v.rows)) return desembrulhar(v.rows)
       if ('json_agg' in v) return desembrulhar(typeof v.json_agg === 'string' ? JSON.parse(v.json_agg) : v.json_agg)
       throw ilegivel()
@@ -166,14 +166,14 @@ export async function ensaiar(
       suspensos = [...g.suspensos]
       const gr = gravar({ r: g.r, estourou: g.estourou }, { agoraIso, rodadas: a.rodadas, saiuPor })
       for (const l of gr.linhas) {
-        const lida = lerLinha({ ...l } as unknown as Record<string, unknown>)
+        const lida = lerLinha({ ...l })
         if (l.campo === 'titulo') linhaTitulo = lida; else linhaMini = lida
         if (l.campo === 'titulo') {
           const vistos = new Set(l.trocas.map(t => normalizarTitulo(t.ref)))
           for (const k of vistos) if ([...(porNormalizado.get(k) ?? [])].filter(y => y !== a.ytId).length >= 2) contaminacao++
         }
       }
-      cursor = lerCursor({ ...gr.cursor } as unknown as Record<string, unknown>)
+      cursor = lerCursor({ ...gr.cursor })
     }
     const entrada: EntradaEstado = {
       flagLigada: true,
