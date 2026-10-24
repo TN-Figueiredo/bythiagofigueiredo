@@ -115,7 +115,7 @@ export function fraseDoPlacar(
   } else if (p.regra === 'v1' && andamento) {
     apoio = `Este teste termina por duração, no dia ${andamento.total}.`
   } else if (status === 'paused') {
-    apoio = 'Teste pausado: a contagem de dias está parada até retomar.'
+    apoio = 'Os dias não contam enquanto o teste estiver pausado.'
   } else if (status === 'active' && andamento && andamento.total > andamento.dayOf) {
     const f = andamento.total - andamento.dayOf
     apoio = `Falta${f === 1 ? '' : 'm'} ${f} ${f === 1 ? 'dia' : 'dias'} para o teste terminar.`

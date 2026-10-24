@@ -71,8 +71,8 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
               {temPlayoff
                 ? SEM_MEDICAO_DE_ENTREGA
                 : podeDuplicar
-                  ? 'Você não escolheu uma variante e o teste terminou sem vencedor. Para testar de novo, use Duplicar.'
-                  : 'Você não escolheu uma variante e o teste terminou sem vencedor. Este tipo de teste foi retirado; para testar de novo, crie um teste novo.'}
+                  ? 'Você não escolheu uma variante e o teste terminou. Para testar de novo, use Duplicar.'
+                  : 'Você não escolheu uma variante e o teste terminou. Este tipo de teste foi retirado; para testar de novo, crie um teste novo.'}
             </div>
           </div>
         </div>

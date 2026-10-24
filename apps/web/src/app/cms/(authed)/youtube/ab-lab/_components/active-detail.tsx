@@ -145,9 +145,9 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       )}
 
       {view.status === 'paused' && view.statusNote !== DRIFT_STATUS_NOTE && (
-        <div className="mx-0 mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3">
+        <div className="cn-raiz mx-0 mt-4 mb-4 rounded-lg px-4 py-3" style={{ border: '1px dashed var(--cn-yt-line)', background: 'var(--cn-yt-bg)' }}>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-blue-300">{pausaTeste?.frase ?? 'Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.'}</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--cn-yt)' }}>{pausaTeste?.frase ?? 'Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.'}</p>
             <button disabled={driftBusy || pausaTeste?.retomarDesabilitado === true} onClick={async () => {
               setDriftBusy(true)
               const res = await retomar(view.restoreSeq)
