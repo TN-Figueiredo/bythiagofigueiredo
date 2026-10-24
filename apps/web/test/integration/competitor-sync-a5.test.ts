@@ -30,6 +30,7 @@ import { readSiteHealth, schemaReady, parseCaptureHealth, parseSeriesHealth, hea
 import { pacificDate } from '@/lib/youtube/competitor-quota'
 import { weekSlotOf, dayNumber, addDays } from '@/lib/youtube/competitor-tiers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarCanaisDeTeste, apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 // ── contagem de idas ao banco: o cliente do Supabase resolve o `fetch` global na criação, então o embrulho entra antes de qualquer cliente ──
 const dbCalls = { n: 0 }
@@ -178,12 +179,12 @@ const cleanup = async (): Promise<void> => {
   if (cleaned || !sites.length) return
   await sb.from('competitor_changes').delete().in('site_id', sites)
   await sb.from('competitor_removed_items').delete().in('site_id', sites)
-  await sb.from('competitor_channels').delete().in('site_id', sites)
+  await apagarCanaisDeTeste('site_id = any($1::uuid[])', [sites])
   await sb.from('competitor_settings').delete().in('site_id', sites)
   await sb.from('youtube_quota_usage').delete().in('site_id', sites)
   await sb.from('audit_log').delete().in('site_id', sites)
   await sb.from('notifications').delete().in('site_id', sites)
-  await sb.from('sites').delete().in('id', sites)
+  await apagarSitesDeTeste('id = any($1::uuid[])', [sites])
   cleaned = true
 }
 

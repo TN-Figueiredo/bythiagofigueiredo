@@ -8,16 +8,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg6, semearCena, exportarConferirConfirmar, contagemPorTabela, escalar, tenta } from '../helpers/mg6'
+import { garantirMg6, garantirComT13, semearCena, exportarConferirConfirmar, contagemPorTabela, escalar, tenta } from '../helpers/mg6'
 import { aplicarM2, M2_SQL } from '../helpers/m2'
 import { lerSqlDaT13 } from '../helpers/f1-sql'
-
-/** MG6 + F1 (garantirMg6) e depois a 20261021000007 (T13), que é o corpo de partida do bloco 11b da M2. */
-async function garantirComT13(c: Client): Promise<void> {
-  await garantirMg6(c)
-  const t13 = lerSqlDaT13()
-  if (t13 !== null && (await c.query(`select to_regclass('public.ab_native_observados') is not null and to_regclass('public.ab_native_obs_cursor') is not null as ok`)).rows[0]?.ok) await c.query(t13)
-}
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
@@ -161,6 +154,83 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
       expect(r.ok).toBe(false)
       if (!r.ok) expect(r.message).toMatch(/M2:competitor_channel_remove_archived_divergente/)
       await pg.query('rollback to savepoint s')
+    } finally { await pg.query('rollback') }
+  })
+
+  const APAGAR = `select public.competitor_channel_delete_unarchived($1, $2, $3, $4, $5)`
+
+  it('bloco 11c: com a M2 aplicada, apagar SEM arquivo um canal com diária em 2 meses devolve as contagens certas, tabela a tabela', async () => {
+    await emTx(async () => {
+      expect(await escalar<boolean>(pg, `select prosrc ~ 'pg_partition_tree' from pg_proc where oid = 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure`)).toBe(true)
+      const c = await semearCena(pg)
+      const cont = await contagemPorTabela(pg, c.canalA)
+      expect(cont.competitor_video_daily).toBeGreaterThanOrEqual(3)
+      expect(cont.competitor_video_early).toBeGreaterThan(0)
+      expect(cont.competitor_video_hourly).toBeGreaterThan(0)
+      const meses = await escalar<number>(pg, `select count(distinct to_char(d.snap_date, 'YYYYMM'))::int from public.competitor_video_daily d join public.competitor_videos v on v.id = d.video_id where v.competitor_channel_id = $1`, [c.canalA])
+      expect(meses).toBeGreaterThanOrEqual(2)
+      const r = await escalar<{ status: string; linhas: Record<string, number> }>(pg, APAGAR, [c.site, c.canalA, c.admin, 'Canal A', 'teste_particoes'])
+      expect(r.status).toBe('apagado')
+      for (const t of ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly']) expect(r.linhas[t], `linhas.${t}`).toBe(cont[t])
+      expect(await escalar<number>(pg, `select count(*)::int from public.competitor_channels where id = $1`, [c.canalA])).toBe(0)
+      // o outro canal da cena não perdeu nada
+      expect((await contagemPorTabela(pg, c.canalB)).competitor_video_daily).toBeGreaterThan(0)
+    })
+  })
+
+  it('bloco 11c: o corpo recriado continua sendo o da 0007 (a watch, as trocas observadas e a M3b) e acrescenta só a guarda por folhas', async () => {
+    await emTx(async () => {
+      const src = await escalar<string>(pg, `select prosrc from pg_proc where oid = 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure`)
+      for (const trecho of ['obs_f1_video_compartilhado', 'yt_watch_readings', 'ab_native_obs_cursor', 'competitor_channel_remove(', 'E10:canal_antigo', 'E10:nome_nao_confere', 'obs_unarchived_deletions', 'pg_partition_tree', 'not c.relispartition']) {
+        expect(src, `trecho ausente depois da M2: ${trecho}`).toContain(trecho)
+      }
+      expect((src.match(/pg_partition_tree/g) ?? []).length).toBe(2)
+      expect((src.match(/not c\.relispartition/g) ?? []).length).toBe(2)
+      expect(src).not.toMatch(/left join pg_catalog\.pg_stat_xact_user_tables s /)
+      // emenda 0.6 (Yannis M2-3): a porta continua fechada (um `drop function` + `create` no lugar do `create or replace` devolveria PUBLIC)
+      for (const f of ['competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)', 'competitor_channel_remove_archived(uuid,uuid,uuid)']) {
+        expect(await escalar<boolean>(pg, `select has_function_privilege('anon', 'public.${f}', 'execute')`), `anon em ${f}`).toBe(false)
+        expect(await escalar<boolean>(pg, `select has_function_privilege('authenticated', 'public.${f}', 'execute')`), `authenticated em ${f}`).toBe(false)
+        expect(await escalar<boolean>(pg, `select has_function_privilege('service_role', 'public.${f}', 'execute')`), `service_role em ${f}`).toBe(true)
+      }
+    })
+  })
+
+  it('bloco 11c, MUTANTE: com o corpo da 0007 (sem o 11c) reinstalado depois da M2, apagar sem arquivo o canal com diária falha com apagou_alem_do_arquivo', async () => {
+    await emTx(async () => {
+      const t13 = lerSqlDaT13()
+      expect(t13).not.toBeNull()
+      const ini = (t13 ?? '').indexOf('CREATE OR REPLACE FUNCTION public.competitor_channel_delete_unarchived')
+      const fim = (t13 ?? '').indexOf('$function$;', (t13 ?? '').indexOf('$function$', ini) + 10) + '$function$;'.length
+      expect(ini).toBeGreaterThanOrEqual(0)
+      await pg.query((t13 ?? '').slice(ini, fim))
+      expect(await escalar<boolean>(pg, `select prosrc ~ 'pg_partition_tree' from pg_proc where oid = 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure`)).toBe(false)
+      const c = await semearCena(pg)
+      await pg.query('savepoint s')
+      const r = await tenta(pg, APAGAR, [c.site, c.canalA, c.admin, 'Canal A', 'teste_particoes'])
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/E10:apagou_alem_do_arquivo: competitor_video_daily apagadas=0/)
+      await pg.query('rollback to savepoint s')
+      expect(await escalar<number>(pg, `select count(*)::int from public.competitor_channels where id = $1`, [c.canalA])).toBe(1)
+    })
+  })
+
+  it('bloco 11c: corpo instalado diferente do conhecido e sem a guarda por folhas recusa com M2:competitor_channel_delete_unarchived_divergente, ANTES da conversão', async () => {
+    await pg.query('begin')
+    try {
+      await garantirComT13(pg)
+      const antes = await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)
+      const def = await escalar<string>(pg, `select pg_get_functiondef('public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure)`)
+      expect(def).not.toContain('pg_partition_tree')
+      const def2 = def.replace('v_now timestamptz := pg_catalog.clock_timestamp();', 'v_now timestamptz := pg_catalog.clock_timestamp(); -- mutante')
+      expect(def2, 'o replace do mutante não achou o trecho (0007 reformatada?)').not.toBe(def) // emenda 0.6, Yannis M2-2
+      await pg.query(def2)
+      await pg.query('savepoint s')
+      const r = await tenta(pg, M2_SQL)
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/M2:competitor_channel_delete_unarchived_divergente/)
+      await pg.query('rollback to savepoint s')
+      expect(await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)).toBe(antes)
     } finally { await pg.query('rollback') }
   })
 })

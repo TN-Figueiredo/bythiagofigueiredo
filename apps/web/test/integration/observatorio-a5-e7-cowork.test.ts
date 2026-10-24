@@ -32,6 +32,7 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => mcp.s
 import { listCompetitorChanges, listCompetitorChannels } from '@/lib/pipeline/services/competitors'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import { youtubeObservatory, LIMITE_DO_TEXTO_DA_FERRAMENTA } from '@/lib/pipeline/mcp/services/youtube-observatory'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 60_000 })
 
@@ -61,7 +62,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E7 Tarefa 15: Lote 2 contra o PostgREST l
   })
   afterAll(async () => {
     try {
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       if (orgs.length > 0) await pg.query('delete from public.organizations where id = any($1::uuid[])', [orgs])
     } finally {
       await pg.end()
@@ -190,7 +191,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E7 Tarefa 15: Lote 2 contra o PostgREST l
         `insert into public.competitor_field_versions (site_id, competitor_channel_id, video_id, field, value, value_hash, precision, first_seen_at, last_seen_at, is_current)
          values ($1, $2, $3, 'tags', $4::jsonb, $5, $6, now() - make_interval(hours => $7), now() - make_interval(hours => $7), $8)`, [site, c2, v.id, JSON.stringify(val), randomUUID(), prec, h, cor])
     }
-    await pg.query('delete from public.competitor_channels where id = $1', [c2])
+    await apagarCanais(pg, 'id = $1', [c2])
     const canais = (await listCompetitorChannels(ctxDe(site))).data
     expect(canais.channels.map(c => c.id)).toEqual([c1])
     expect(canais.medidas_indisponiveis.total).toBe(8)

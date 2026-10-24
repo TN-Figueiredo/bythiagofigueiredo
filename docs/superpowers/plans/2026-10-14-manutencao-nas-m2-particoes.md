@@ -2,6 +2,28 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Emenda 23/10 (retomada)** — vem do replanejamento de 23/10 (`.superpowers/sdd/manutencao-nas/replan-23-10/`: `yannis.md` §3.1, §3.2 e §10; `phil.md` C-1; `hanna.md` §4, item 0.1). O que mudou neste plano, e por quê:
+> 1. **Bloco 11c (novo, Tarefa 4, Steps 3b a 3e).** A F1 da A5 (21/10, `20261021000007`) criou `competitor_channel_delete_unarchived`, que mede o apagado por `pg_stat_xact_user_tables.n_tup_del` do fecho de cascata, sem filtrar partição e sem somar folhas. Depois da conversão a mãe registra `n_tup_del = 0` e o botão "Remover canal sem arquivo" morre com `E10:apagou_alem_do_arquivo` (falha alta, mas morto) (yannis §3.1, CRÍTICO). O 11c repete o molde do 11b.
+> 2. **Regra genérica no lugar da parte de `remove_archived` da `regra71` (Tarefa 1, Step 6).** Lista de nomes foi o que deixou a quarta função passar. Agora: toda função cuja ÚLTIMA definição usa `pg_stat_xact_user_tables` tem de ter `pg_partition_tree` ≥ 2 e `not c.relispartition` ≥ 2; a próxima função nova é pega sem editar lista (yannis §3.1 e §3.2). As duas da E10 (`obs_archive_uncovered`, `obs_db_size_record`; não usam `pg_stat_xact`) continuam na `regra71` por nome.
+> 3. **"Quatro guardas md5"** (não três): `obs_archive_uncovered`, `obs_db_size_record`, `competitor_channel_remove_archived` (11b) e `competitor_channel_delete_unarchived` (11c) (yannis §10). Texto da Tarefa 8 (Step 1, item 1c do LEIAME) atualizado; o md5 esperado de `remove_archived` no 1c passa a ser o da 0007 (`932e746f…`, phil C-1), não o `467d3bc3…` antigo.
+> 4. **A M2 vive no origin.** O 11b já foi para o `origin/staging` na emenda `8df3e13a1` ("M2 parte do corpo de remoção da 000007") e este plano não descrevia o 11b (agora descreve: Step 3b). `supabase/rascunhos/m2.sql`, `apps/web/test/helpers/f1-sql.ts`, `manutencao-m2-e10.test.ts` e `migrations-leitura.test.ts` do origin são a base. **Não levar o `m2.sql` do `staging` local** (751/1.048 atrás do origin; o local tem a versão sem o 11b): trabalhar no worktree sobre `origin/staging`, e a cópia da Tarefa 8, Step 0, sai de `git show origin/staging:…`, nunca do disco local.
+> 5. **Tarefa 8 atualizada.** Leituras 1b e 1c refeitas (as de 14/10 são velhas; relidas no minuto do push, Phil M-1), `explain analyze` de E4/E9 sobre a série particionada no ensaio (yannis §3.2), e a **janela passa a 27 ou 28/10, antes de a C5 da A5 fechar (29/10)**; depois disso a M2 só entra na fila de 30/10 em diante (hanna §4, onda 2).
+>
+> **Rodada 0.6 (23/10, re-revisão de Phil e Yannis): achado → onde.** (`replan-23-10/onda0-0.6-phil.md`, `onda0-0.6-yannis.md`; tabela completa em `replan-23-10/onda0-conserto-0.6.md`.)
+>
+> | Achado | Onde neste plano |
+> |---|---|
+> | Yannis M2-1 (importante): o caso da linha 62 do origin quebra quando as duas linhas saem da `regra71` | Tarefa 1, Step 6, parágrafo "Casos antigos a apagar" |
+> | Phil M2-1 (importante): nada mostra, depois do push, que o 11c pegou | Tarefa 8, Step 2, item 3d do LEIAME; Step 3 (ledger) |
+> | Phil M2-2: "calculado do arquivo" ficou velho | Tarefa 4, Step 3c |
+> | Phil M2-3 + Yannis (compatível com o desfazer): 11b e 11c ficam depois de `obs_part.desfazer` | Tarefa 8, Step 2, "Se precisar voltar" |
+> | Yannis M2-2: `def.replace` pode ser no-op | Tarefa 4, Step 3d, 4º caso |
+> | Yannis M2-3 (+ resposta 1 das perguntas): ACL sem asserção | Tarefa 4, Step 3c (fato) e Step 3d (casos 2 e do 11b) |
+> | Yannis M2-4: `regraStatXact` conta comentário | Tarefa 1, Step 6 (código e caso novo) |
+> | Yannis M2-5: o `m2.sql` do origin ainda pode não ter o 11c | Tarefa 8, Step 1, pré-condição do diff |
+> | Yannis C-1: `garantirComT13` local a um teste | Tarefa 4, Step 3d, parágrafo "Helper" |
+> | Yannis C-2: fixture que reaplica a 0007 | Tarefa 4, Step 3d, parágrafo "Helper" |
+
 **Goal:** as três séries de vídeo de concorrente (`competitor_video_daily`, `competitor_video_early`, `competitor_video_hourly`) passam a tabelas particionadas por mês de São Paulo, com as partições no schema `obs_part`, 12 meses à frente criados por uma tarefa diária da agenda (`particoes_a_frente`) e vigiados pelo invariante "meses à frente"; nasce a tabela de ensaio `obs_archive_rehearsal`; e um teste sem banco lê as migrations e segura os pedidos 1, 3, 5 e 13 da seção 17.
 
 **Architecture:** uma migration (`*_manutencao_m2_particoes.sql`, escrita até o dia do push como rascunho em `supabase/rascunhos/m2.sql`, fora da pasta que o `db push` lê: TRAVA M2-1) cria o schema `obs_part`, funções internas nele (nome, limites, criação de partição, assinatura do catálogo, lista de dependentes, conversor genérico), as duas funções públicas que a aplicação chama (`obs_partitions_ensure`, `obs_partitions_months_ahead`), a tabela de ensaio e o registro da conversão; depois converte as três tabelas num único bloco `do` (uma transação: copia, confere contagem e soma de `views`, compara a assinatura do catálogo antes e depois, ou desfaz tudo). No site, uma tarefa leve e `nuncaDesliga` da agenda chama `obs_partitions_ensure`, e o relatório de saúde dos crons (o vigia) ganha o item `agenda:particoes_meses_a_frente`, amarelo abaixo de 6 e vermelho abaixo de 3. Até o sétimo dia, `obs_part.desfazer` é a volta atrás (só o dono, pelo SQL do painel). Sete dias depois, uma segunda migration remove as tabelas antigas.
@@ -31,6 +53,7 @@
 
 - **TRAVA M2-1:** nenhum arquivo `*_manutencao_m2_*` em `supabase/migrations/` (nem não commitado: o `db push` lê o disco, não o git) antes da Tarefa 8, Step 0. Até lá o SQL vive em `supabase/rascunhos/m2.sql` e os testes o leem por `M2_SQL_CAMINHO` (um só lugar, `apps/web/test/helpers/m2.ts`). O teste `migrations-leitura.test.ts` (Tarefa 2) segura a trava. Motivo: um `db:push:prod` de qualquer outra trilha levaria a M2 pela metade, e o Supabase nunca mais rodaria o arquivo (controla por versão, não por conteúdo); outra trilha que criasse migration depois do `<ts>` e fizesse push primeiro deixaria a M2 "out of order".
 - **TRAVA M2-2:** nenhuma linha das Tarefas 6 e 7 (nem na árvore sem commit: outra trilha que commita o mesmo arquivo por caminho levaria o trabalho junto) antes de a migration da M2 estar aplicada em produção e conferida (Tarefa 8, Step 3, linha "TRAVA M2-2 solta em <data hora>" no ledger). Motivo: com o código no `staging`, a promoção de qualquer outra frente leva a tarefa e o item do vigia a produção antes da função; o vigia fica vermelho (`down`) e a tarefa termina `erro funcao_ausente` até o push.
+- **TRAVA M2-3 (emenda 23/10):** o rascunho vive no `origin/staging`. Nenhuma tarefa deste plano parte do `m2.sql` do `staging` local; todo passo roda no worktree sobre o origin (`git worktree add … origin/staging`), e o fim de cada tarefa é push do worktree por refspec. Antes de editar o `m2.sql`: `git show origin/staging:supabase/rascunhos/m2.sql | grep -c "^-- 11b"` tem de dar 1.
 - **Ordem de execução:** Tarefa 1 → 2 → 3 → 4 → 5 → **8** (a vez da migration, push e conferência) → 6 → 7 → promoção → 9 (sétimo dia). A numeração das tarefas não muda (a M10a cita a "Tarefa 8, Step 3" deste plano).
 - Dívida declarada: entre as Tarefas 2 e 8 o SQL só é provado no banco local de quem o escreve (na CI os testes que precisam da conversão confirmada pulam). Gatilho de pagamento: Tarefa 8, Step 0.
 
@@ -264,6 +287,78 @@ git commit -m "test: lê as migrations e segura os pedidos 1, 3, 5 e 13 da manut
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- apps/web/test/helpers/migrations.ts apps/web/test/manutencao/migrations-leitura.test.ts
 ```
+
+- [ ] **Step 6 (emenda 23/10): a regra genérica de `pg_stat_xact_user_tables` (yannis §3.1)**
+
+No `origin`, a `regra71` ainda traz duas verificações por nome para `competitor_channel_remove_archived`. Elas saem e entra `regraStatXact`, que não lista nome nenhum. Em `apps/web/test/manutencao/migrations-leitura.test.ts`: apagar as duas linhas `const r = ultimaDefinicao(migs, 'competitor_channel_remove_archived')`…`erros.push(… (M2 11b))` de dentro de `regra71` (a E10 continua por nome) e acrescentar.
+
+**Casos antigos a apagar (emenda 0.6, Yannis M2-1 importante).** Apagar também, no mesmo arquivo, o caso `'competitor_channel_remove_archived: o corpo da MG6 (sem as folhas) acusa; o do 11b passa; ...'` (linhas 62-68 do origin): sem as duas verificações dentro de `regra71`, `regra71(pastaFalsa({'..._mg15.sql': quebrada}))` devolve `[]` e o `toHaveLength(2)` da linha 66 falha (árvore vermelha no commit deste Step e na CI do origin). A cobertura dele passa para os casos 2 a 4 do `describe` de `regraStatXact` abaixo. O caso `'M2_BLOCO_11 contém ...'` (linhas 69-76) **fica**. Prova: `npx vitest run test/manutencao/migrations-leitura.test.ts` verde antes do commit.
+
+
+```ts
+/**
+ * Toda função cuja ÚLTIMA definição mede o apagado por pg_stat_xact_user_tables (n_tup_del) sabe de partição: a mãe particionada
+ * registra n_tup_del = 0 (a estatística é por folha), então o corpo soma as folhas (pg_partition_tree, uma vez na base e uma na
+ * comparação) e tira as partições do fecho (not c.relispartition, nos dois `with recursive alvo`). Sem lista de nomes: a função
+ * nova da próxima frente é pega sem ninguém editar o teste (a F1 da A5 criou a quarta depois do plano).
+ */
+export function regraStatXact(dir?: string, extras: Migration[] = []): string[] {
+  const migs = [...lerMigrations(dir), ...extras]
+  const nomes = new Set<string>()
+  for (const m of migs) {
+    for (const h of m.sql.matchAll(/create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z_0-9]+)\s*\(/gi)) nomes.add((h[1] ?? '').toLowerCase())
+  }
+  const erros: string[] = []
+  for (const nome of [...nomes].sort()) {
+    const d = ultimaDefinicao(migs, nome)
+    if (!d || !/pg_stat_xact_user_tables/.test(d.corpo)) continue
+    const sem = d.corpo.replace(/--[^\n]*/g, '') // emenda 0.6 (Yannis M2-4): comentário que cite a expressão não conta
+    if ((sem.match(/pg_partition_tree/g) ?? []).length < 2) erros.push(`${nome} em ${d.arquivo} usa pg_stat_xact_user_tables sem a soma das folhas (pg_partition_tree)`)
+    if ((sem.match(/not c\.relispartition/g) ?? []).length < 2) erros.push(`${nome} em ${d.arquivo} usa pg_stat_xact_user_tables sem not c.relispartition no fecho`)
+  }
+  return erros
+}
+
+describe('regra genérica: quem mede n_tup_del sabe de partição (M2 11b e 11c)', () => {
+  const ruim = (nome: string) => `create or replace function public.${nome}(a uuid) returns jsonb language plpgsql as $$ begin perform 1 from pg_stat_xact_user_tables x left join pg_class c on c.oid = x.relid where x.relid = c.oid; return '{}'::jsonb; end $$;`
+  const boa = (nome: string) => `create or replace function public.${nome}(a uuid) returns jsonb language plpgsql as $$ begin perform 1 from pg_stat_xact_user_tables x where x.relid in (select relid from pg_partition_tree(a)); perform 2 from pg_stat_xact_user_tables x where x.relid in (select relid from pg_partition_tree(a)); perform 3 from pg_class c where not c.relispartition; perform 4 from pg_class c where not c.relispartition; return '{}'::jsonb; end $$;`
+  it('no repositório (com o rascunho da M2 como última migration, até o dia do push)', () => {
+    const extras: Migration[] = M2_EM_MIGRATION ? [] : [{ arquivo: 'rascunhos/m2.sql', sql: M2_SQL }]
+    expect(regraStatXact(undefined, extras)).toEqual([])
+  })
+  it('função de nome qualquer, nunca vista, que mede n_tup_del sem as folhas acusa as duas faltas', () => {
+    expect(regraStatXact(pastaFalsa({ '20990101000001_nova.sql': ruim('funcao_da_proxima_frente') }))).toHaveLength(2)
+  })
+  it('com a soma das folhas e o filtro nas duas pontas passa', () => {
+    expect(regraStatXact(pastaFalsa({ '20990101000001_boa.sql': boa('funcao_da_proxima_frente') }))).toEqual([])
+  })
+  it('vale a ÚLTIMA definição: consertada e depois recriada sem as folhas acusa', () => {
+    const d = pastaFalsa({ '20990101000001_a.sql': boa('f1'), '20990101000002_b.sql': ruim('f1') })
+    expect(regraStatXact(d)).toHaveLength(2)
+  })
+  it('comentário que cita a guarda não conta (emenda 0.6, Yannis M2-4): função sem a guarda e com `-- pg_partition_tree pg_partition_tree -- not c.relispartition not c.relispartition` acusa as duas faltas', () => {
+    const coment = ruim('f3').replace('begin ', 'begin\n-- pg_partition_tree pg_partition_tree\n-- not c.relispartition not c.relispartition\n')
+    expect(coment).toContain('-- pg_partition_tree')
+    expect(regraStatXact(pastaFalsa({ '20990101000001_c.sql': coment }))).toHaveLength(2)
+  })
+  it('função que não usa pg_stat_xact_user_tables não é cobrada', () => {
+    expect(regraStatXact(pastaFalsa({ '20990101000001_x.sql': 'create or replace function public.f2(a uuid) returns int language sql as $$ select 1 $$;' }))).toEqual([])
+  })
+  it('M2 sem o 11c: a competitor_channel_delete_unarchived da 0007 (última definição) acusa; com o 11c passa (o mutante do 11c fica vermelho)', () => {
+    const sem11c = M2_SQL.replace(/-- 11c\.[\s\S]*?(?=\n-- 12\. )/, '')
+    expect(sem11c).not.toBe(M2_SQL)
+    expect(regraStatXact(undefined, [{ arquivo: 'rascunhos/m2.sql', sql: sem11c }]).some(e => e.startsWith('competitor_channel_delete_unarchived '))).toBe(true)
+    expect(regraStatXact(undefined, [{ arquivo: 'rascunhos/m2.sql', sql: M2_SQL }])).toEqual([])
+  })
+})
+```
+
+(O último caso exige a 0007 em `supabase/migrations/` do worktree; no `staging` local velho ela não existe. TRAVA M2-3.) Quando a M2 virar migration (Tarefa 8, Step 0), o `extras` do caso final passa a ser `[]` e a "sem11c" lê `M2_SQL` do arquivo da migration, em memória.
+
+Run: `npx vitest run test/manutencao/migrations-leitura.test.ts`
+Expected: PASS. Mutante: tirar o 11c do `m2.sql` (ou só as duas ocorrências de `pg_partition_tree` do 11c) e o caso "M2 sem o 11c" e o "no repositório" ficam vermelhos.
+
+Commit: `git commit -m "test: regra genérica de pg_stat_xact_user_tables no lugar da lista de nomes (M2, 11c)" -- apps/web/test/manutencao/migrations-leitura.test.ts` (com o trailer de coautoria do projeto).
 
 ---
 
@@ -1399,7 +1494,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- supabas
 ### Task 4: as duas funções da E10 sabem de partição (pedidos 1 e 3; itens 13 e 14)
 
 **Files:**
-- Modify: `supabase/rascunhos/m2.sql` (bloco 11, condicional, **antes** do bloco 12, a conversão)
+- Modify: `supabase/rascunhos/m2.sql` (blocos 11, 11b e 11c, condicionais, **antes** do bloco 12, a conversão; o 11b já está no origin, o 11c é da emenda 23/10)
 - Create: `apps/web/test/integration/manutencao-m2-e10.test.ts`
 - Create (só disco, sem commit): `.superpowers/sdd/manutencao-nas/entrega-e10-pedidos-1-e-3.md`
 
@@ -1662,6 +1757,321 @@ end $$;
 
 O segundo `execute` é a função `obs_db_size_record` da fixture de 14/10 com o conserto do Step 2, com o delimitador do corpo trocado de `$$` para `$b$` (MEDIDO: recria e roda, seção "Fatos"). Os dois md5 não se conferem à mão: enquanto a fixture não for consertada pela E10, o teste da Tarefa 4 instala o corpo dela e o caminho de recriar roda em toda passada (o md5 se confirma sozinho); o caso "bloco 11" prova a recusa.
 
+- [ ] **Step 3b (emenda 23/10): o bloco 11b já existe no origin (`8df3e13a1`); registro do que ele é**
+
+O 11b recria `competitor_channel_remove_archived(uuid,uuid,uuid)` com o corpo da `20261021000007` (F1 + T13, md5 `932e746f65ceae7085ee425ffdc91a61`), acrescentando só a guarda por folhas (`not c.relispartition` nos dois `with recursive alvo`, `n_tup_del` somado por `pg_partition_tree`). Fica entre o bloco 11 e o 12. Recusa com `M2:competitor_channel_remove_archived_divergente` se o corpo instalado não for o conhecido e ainda não tiver `pg_partition_tree`. **Não reescrever**: a emenda existe justamente porque o conserto errado (só trocar o md5 sobre o corpo velho) apagaria a F1 (phil C-1). Os testes do 11b (`manutencao-m2-e10.test.ts`) já estão no origin.
+
+- [ ] **Step 3c (emenda 23/10): o bloco 11c, `competitor_channel_delete_unarchived`**
+
+Mesmo molde do 11b: logo **depois** do bloco 11b e **antes** de `-- 12. A conversão das três séries`. O corpo é o da `20261021000007` (linhas ~336–500), letra por letra, com **três** trocas e nenhuma outra: (a) `coalesce(s.n_tup_del, 0)` vira a soma das folhas, nos dois lugares (a base `v_base` e a comparação do laço); (b) o `left join pg_catalog.pg_stat_xact_user_tables s on s.relid = c.oid` sai, nos dois; (c) `where n.nspname = 'public'` vira `where n.nspname = 'public' and not c.relispartition`, nos dois (assim as folhas não entram no fecho pelas FKs herdadas e a mãe é medida pela soma delas). O md5 `95c5ec60ab2b07b4e8151c1768d91370` é o do `prosrc` da 0007, **conferido em produção por Phil em 23/10 (`bate` = t, `ja_consertada` = f)**; relido no dia do push, item 1c do LEIAME (se divergir, a janela pára: Tarefa 8, Step 1). `create or replace` preserva as concessões que a função já tem; o bloco não mexe em `grant`/`revoke`. **Permissões (emenda 0.6, dúvida do 0.1 encerrada):** a F1 (`20261021000002:875-890`) já faz `revoke all ... from public, anon, authenticated` e `grant execute ... to service_role` para a função, e a `proacl` em produção é `{postgres=X/postgres,service_role=X/postgres}` nas cinco funções (Phil e Yannis, MEDIDO 23/10); não há EXECUTE para PUBLIC, e o 11c não precisa de `revoke`.
+
+```sql
+-- 11c. competitor_channel_delete_unarchived ("Remover canal sem arquivo", F1/T13) mede o apagado por n_tup_del do fecho de cascata, como a
+--      remove_archived do 11b: depois da conversão a mãe particionada tem n_tup_del 0 e as partições entrariam no fecho pelas chaves herdadas
+--      (apagou_alem_do_arquivo: competitor_video_daily apagadas=0 antes=N, o botão fica morto). Aqui: o fecho só com relações que não são
+--      partição, e o n_tup_del de cada uma é a soma das folhas de pg_partition_tree.
+--      Ausente: nada. Já com o conserto (pg_partition_tree): nada. Corpo diferente do conhecido: recusa.
+do $$
+declare
+  v_src text;
+begin
+  select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure('public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)');
+  if v_src is not null and v_src !~ 'pg_partition_tree' then
+    if pg_catalog.md5(v_src) <> '95c5ec60ab2b07b4e8151c1768d91370' then
+      raise exception 'M2:competitor_channel_delete_unarchived_divergente' using errcode = 'P0001',
+        detail = 'o corpo instalado não é o da 20261021000007 (T13): copiar o corpo instalado com a guarda por folhas para esta migration';
+    end if;
+    execute $f$
+create or replace function public.competitor_channel_delete_unarchived(p_site uuid, p_channel uuid, p_actor uuid, p_confirm_name text, p_motivo text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $b$
+declare
+  v_max_dias constant integer := 30;
+  v_c record;
+  v_yt text[];
+  v_busy bigint;
+  v_antes jsonb;
+  v_urls text[];
+  v_base jsonb;
+  v_rows jsonb := '{}'::jsonb;
+  v_t record;
+  v_n_l bigint := 0;
+  v_n_t bigint := 0;
+  v_n_a bigint := 0;
+  v_n_o bigint := 0;  -- T13: trocas observadas e cursor
+  v_n_k bigint := 0;
+  v_watch jsonb;
+  v_id bigint;
+  v_featured integer;
+  v_refs jsonb;
+  v_now timestamptz := pg_catalog.clock_timestamp();
+begin
+  if p_site is null or p_channel is null or p_actor is null or p_confirm_name is null or btrim(p_confirm_name) = ''
+     or p_motivo is null or p_motivo !~ '^[a-z_]{1,40}$' then
+    raise exception 'E10:parametro_nulo: competitor_channel_delete_unarchived' using errcode = '22023';
+  end if;
+  if not public.obs_archive_is_site_admin(p_site, p_actor) then
+    raise exception 'E10:sem_direito: só quem administra o site apaga um canal' using errcode = '42501';
+  end if;
+  select c.channel_id, c.channel_name, c.added_at, c.missing_since into v_c
+    from public.competitor_channels c
+   where c.id = p_channel and c.site_id = p_site
+     for update;
+  if not found then
+    raise exception 'E10:canal_nao_encontrado: neste site' using errcode = 'P0002';
+  end if;
+  if v_c.missing_since is not null then
+    raise exception 'E10:saiu_do_youtube: este canal saiu do YouTube' using errcode = 'P0001';
+  end if;
+  if v_c.added_at is null or v_now - v_c.added_at > make_interval(days => v_max_dias) then
+    raise exception 'E10:canal_antigo: canal com mais de % dias não se apaga sem guardar', v_max_dias using errcode = 'P0001';
+  end if;
+  -- maiúscula e minúscula valem igual (mockup aprovado em 19/10); espaço de qualquer tipo é normalizado; caractere de controle não
+  if public.obs_nome_normalizado(p_confirm_name) is distinct from public.obs_nome_normalizado(v_c.channel_name) then
+    raise exception 'E10:nome_nao_confere: o nome digitado não é o nome do canal' using errcode = 'P0001';
+  end if;
+
+  perform 1 from public.competitor_videos v where v.competitor_channel_id = p_channel order by v.id for update;
+  select coalesce(array_agg(v.video_id), '{}'::text[]) into v_yt from public.competitor_videos v where v.competitor_channel_id = p_channel;
+  perform public.obs_f1_video_compartilhado(p_site, p_channel);
+
+  -- tarefa da forja em andamento (janela fixa de 30 min, como na E9)
+  perform 1 from public.youtube_intelligence_tasks t
+    where t.target_video_id in (select v.id from public.competitor_videos v where v.competitor_channel_id = p_channel)
+    order by t.id for update;
+  select count(*) into v_busy
+    from public.youtube_intelligence_tasks t
+    join public.competitor_videos v on v.id = t.target_video_id
+   where v.competitor_channel_id = p_channel and t.status = 'running'
+     and (t.started_at is null or t.started_at > v_now - interval '30 minutes');
+  if v_busy > 0 then
+    raise exception 'E10:forja_em_andamento: % tarefa(s) da forja em andamento', v_busy using errcode = 'P0001';
+  end if;
+
+  -- retrato do que existe, por tabela, ANTES de apagar
+  select coalesce(jsonb_object_agg(x.table_name, x.total), '{}'::jsonb) into v_antes
+    from (select n.table_name, sum(n.row_count) as total from public.obs_archive_channel_counts(p_channel) n group by n.table_name) x;
+  select coalesce(array_agg(distinct x.thumb_blob_url), '{}'::text[]) into v_urls
+    from public.competitor_video_versions x
+    join public.competitor_videos v on v.id = x.video_id
+   where v.competitor_channel_id = p_channel and x.thumb_blob_url is not null;
+
+  -- medição independente do apagado (n_tup_del do fecho de cascata); sem track_counts a contagem é zero e não vale
+  if pg_catalog.current_setting('track_counts') <> 'on' then
+    raise exception 'E10:apagou_alem_do_arquivo: track_counts desligado' using errcode = 'P0001';
+  end if;
+  with recursive alvo (rel) as (
+    select 'public.competitor_channels'::regclass::oid
+    union
+    select k.conrelid from pg_catalog.pg_constraint k join alvo a on k.confrelid = a.rel
+     where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+  )
+  select coalesce(jsonb_object_agg(c.relname::text, coalesce((select sum(x.n_tup_del) from pg_catalog.pg_stat_xact_user_tables x where x.relid = c.oid or x.relid in (select pt.relid from pg_catalog.pg_partition_tree(c.oid) pt where pt.isleaf)), 0)), '{}'::jsonb) into v_base
+    from alvo a
+    join pg_catalog.pg_class c on c.oid = a.rel
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and not c.relispartition;
+
+  -- (Phil I-1) a FK featured_channel_id zera o campo em comentários de OUTROS canais; o n_tup_del não vê update, então o rastro vai ao audit
+  select count(*) into v_featured from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
+  select coalesce(jsonb_agg(jsonb_build_object('comment_id', k.id, 'video_id', k.video_id, 'channel_ref', k.competitor_channel_id) order by k.id), '[]'::jsonb) into v_refs
+    from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
+
+  -- a watch não está no fecho de cascata: apaga explicitamente, antes do canal
+  perform 1 from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt) for update;
+  delete from public.yt_watch_readings r where r.site_id = p_site and r.youtube_video_id = any(v_yt);
+  get diagnostics v_n_l = row_count;
+  delete from public.yt_watch_thumbs t where t.site_id = p_site and t.youtube_video_id = any(v_yt);
+  get diagnostics v_n_t = row_count;
+  delete from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt);
+  get diagnostics v_n_a = row_count;
+  -- T13: as trocas observadas e o cursor dos mesmos (site, vídeo); também não estão no fecho de cascata
+  delete from public.ab_native_observados o where o.site_id = p_site and o.youtube_video_id = any(v_yt);
+  get diagnostics v_n_o = row_count;
+  delete from public.ab_native_obs_cursor k where k.site_id = p_site and k.youtube_video_id = any(v_yt);
+  get diagnostics v_n_k = row_count;
+
+  -- o canal: pela M3b quando ela existir (declara o destino), senão delete direto
+  if to_regprocedure('public.competitor_channel_remove(uuid,uuid,text,text,uuid)') is not null then
+    perform public.competitor_channel_remove(p_site, p_channel, 'apagar', 'botao', p_actor);
+  else
+    delete from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;
+  end if;
+  if exists (select 1 from public.competitor_channels c where c.id = p_channel) then
+    raise exception 'E10:sobrou_linha: o canal não foi apagado' using errcode = 'P0001';
+  end if;
+
+  if exists (select 1 from public.obs_archive_channel_counts(p_channel)) then
+    raise exception 'E10:sobrou_linha: uma tabela do registro não apaga em cascata' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from public.yt_watch_readings r where r.site_id = p_site and r.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.yt_watch_thumbs t where t.site_id = p_site and t.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.ab_native_observados o where o.site_id = p_site and o.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.ab_native_obs_cursor k where k.site_id = p_site and k.youtube_video_id = any(v_yt)) then
+    raise exception 'E10:sobrou_linha: watch' using errcode = 'P0001';
+  end if;
+
+  -- o apagado medido tem de ser igual ao retrato de antes, tabela a tabela
+  for v_t in
+    with recursive alvo (rel) as (
+      select 'public.competitor_channels'::regclass::oid
+      union
+      select k.conrelid from pg_catalog.pg_constraint k join alvo a on k.confrelid = a.rel
+       where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+    )
+    select c.relname::text as nome,
+           coalesce((select sum(x.n_tup_del) from pg_catalog.pg_stat_xact_user_tables x where x.relid = c.oid or x.relid in (select pt.relid from pg_catalog.pg_partition_tree(c.oid) pt where pt.isleaf)), 0) - coalesce((v_base ->> c.relname::text)::bigint, 0) as apagadas
+      from alvo a
+      join pg_catalog.pg_class c on c.oid = a.rel
+      join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and not c.relispartition
+       and c.relname::text not in (select e.table_name from public.obs_archive_excluded() e)
+     order by 1
+  loop
+    if v_t.apagadas <> coalesce((v_antes ->> v_t.nome)::bigint, 0) then
+      raise exception 'E10:apagou_alem_do_arquivo: % apagadas=% antes=%', v_t.nome, v_t.apagadas, coalesce(v_antes ->> v_t.nome, '0') using errcode = 'P0001';
+    end if;
+    if v_t.apagadas > 0 then
+      v_rows := v_rows || jsonb_build_object(v_t.nome, v_t.apagadas);
+    end if;
+  end loop;
+  if v_n_l <> coalesce((v_antes ->> 'yt_watch_readings')::bigint, 0)
+     or v_n_t <> coalesce((v_antes ->> 'yt_watch_thumbs')::bigint, 0)
+     or v_n_a <> coalesce((v_antes ->> 'yt_watch_alvos')::bigint, 0)
+     or v_n_o <> coalesce((v_antes ->> 'ab_native_observados')::bigint, 0)
+     or v_n_k <> coalesce((v_antes ->> 'ab_native_obs_cursor')::bigint, 0) then
+    raise exception 'E10:apagou_alem_do_arquivo: watch leituras=% miniaturas=% alvos=%', v_n_l, v_n_t, v_n_a using errcode = 'P0001';
+  end if;
+  v_watch := jsonb_build_object('readings', v_n_l, 'thumbs', v_n_t, 'alvos', v_n_a);
+  -- as três chaves da watch existem SEMPRE (zero quando nada foi apagado): quem lê não distingue "0" de "não medido"
+  v_rows := v_rows || jsonb_build_object('yt_watch_readings', v_n_l, 'yt_watch_thumbs', v_n_t, 'yt_watch_alvos', v_n_a);
+  v_rows := v_rows || jsonb_build_object('ab_native_observados', v_n_o, 'ab_native_obs_cursor', v_n_k); -- T13: idem, sempre presentes
+
+  -- lotes abertos deste canal apontam para um canal que não existe mais
+  update public.obs_archive_batches b
+     set closed_at = v_now, closed_reason = 'apagado_sem_arquivo'
+   where b.site_id = p_site and b.channel_ref = p_channel::text and b.deleted_at is null and b.closed_at is null;
+
+  insert into public.obs_unarchived_deletions
+    (site_id, channel_ref, channel_name, youtube_channel_id, reason, deleted_at, deleted_by, rows_deleted, youtube_video_ids, blob_urls_pending)
+  values (p_site, p_channel::text, v_c.channel_name, v_c.channel_id, p_motivo, v_now, p_actor, v_rows, v_yt, v_urls)
+  returning id into v_id;
+
+  insert into public.audit_log (actor_user_id, action, resource_type, resource_id, org_id, site_id, before_data, after_data)
+  select p_actor, 'observatorio_canal_apagado_sem_arquivo', 'competitor_channel', p_channel, s.org_id, p_site,
+         jsonb_build_object('channel_id', v_c.channel_id, 'channel_name', v_c.channel_name, 'added_at', v_c.added_at),
+         jsonb_build_object('motivo', p_motivo, 'videos', cardinality(v_yt), 'rows_deleted', v_rows, 'watch', v_watch,
+                            'miniaturas_no_blob', cardinality(v_urls), 'deletion_id', v_id,
+                            'featured_refs_cleared', v_featured, 'featured_refs', v_refs)
+    from public.sites s where s.id = p_site;
+
+  return jsonb_build_object('status', 'apagado', 'deletion_id', v_id, 'videos', cardinality(v_yt), 'linhas', v_rows,
+                            'watch', v_watch, 'blob_urls', to_jsonb(v_urls),
+                            'featured_refs_cleared', v_featured, 'featured_refs', v_refs);
+end $b$;
+$f$;
+  end if;
+end $$;
+```
+
+(O texto acima é o do corpo da 0007 com as três trocas; ao copiar para o `m2.sql`, conferir com `diff <(sed -n '336,500p' 20261021000007….sql) <(trecho do 11c)` que as ÚNICAS diferenças são as trocas (a), (b) e (c). `$b$` não aparece no corpo.)
+
+- [ ] **Step 3d (emenda 23/10): os testes do 11c, em `apps/web/test/integration/manutencao-m2-e10.test.ts`**
+
+Acrescentar dentro do `describe` existente, depois dos casos do 11b (mesmos helpers `emTx`, `garantirComT13`, `semearCena`, `contagemPorTabela`, `escalar`, `tenta`). Importar também `lerSqlDaT13` (já importado). `semearCena` cria o canal A com o nome `'Canal A'`, `added_at` de agora e diária em 3 datas (`current_date - 1`, `- 2`, `- 40`), duas ou mais em meses diferentes; `emTx` cria partições de 3 meses para trás.
+
+```ts
+  const APAGAR = `select public.competitor_channel_delete_unarchived($1, $2, $3, $4, $5)`
+
+  it('bloco 11c: com a M2 aplicada, apagar SEM arquivo um canal com diária em 2 meses devolve as contagens certas, tabela a tabela', async () => {
+    await emTx(async () => {
+      expect(await escalar<boolean>(pg, `select prosrc ~ 'pg_partition_tree' from pg_proc where oid = 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure`)).toBe(true)
+      const c = await semearCena(pg)
+      const cont = await contagemPorTabela(pg, c.canalA)
+      expect(cont.competitor_video_daily).toBeGreaterThanOrEqual(3)
+      expect(cont.competitor_video_early).toBeGreaterThan(0)
+      expect(cont.competitor_video_hourly).toBeGreaterThan(0)
+      const meses = await escalar<number>(pg, `select count(distinct to_char(d.snap_date, 'YYYYMM'))::int from public.competitor_video_daily d join public.competitor_videos v on v.id = d.video_id where v.competitor_channel_id = $1`, [c.canalA])
+      expect(meses).toBeGreaterThanOrEqual(2)
+      const r = await escalar<{ status: string; linhas: Record<string, number> }>(pg, APAGAR, [c.site, c.canalA, c.admin, 'Canal A', 'teste_m2'])
+      expect(r.status).toBe('apagado')
+      for (const t of ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly']) expect(r.linhas[t], `linhas.${t}`).toBe(cont[t])
+      expect(await escalar<number>(pg, `select count(*)::int from public.competitor_channels where id = $1`, [c.canalA])).toBe(0)
+      // o outro canal da cena não perdeu nada
+      expect((await contagemPorTabela(pg, c.canalB)).competitor_video_daily).toBeGreaterThan(0)
+    })
+  })
+
+  it('bloco 11c: o corpo recriado continua sendo o da 0007 (a watch, as trocas observadas e a M3b) e acrescenta só a guarda por folhas', async () => {
+    await emTx(async () => {
+      const src = await escalar<string>(pg, `select prosrc from pg_proc where oid = 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure`)
+      for (const trecho of ['obs_f1_video_compartilhado', 'yt_watch_readings', 'ab_native_obs_cursor', 'competitor_channel_remove(', 'E10:canal_antigo', 'E10:nome_nao_confere', 'obs_unarchived_deletions', 'pg_partition_tree', 'not c.relispartition']) {
+        expect(src, `trecho ausente depois da M2: ${trecho}`).toContain(trecho)
+      }
+      expect((src.match(/pg_partition_tree/g) ?? []).length).toBe(2)
+      expect((src.match(/not c\.relispartition/g) ?? []).length).toBe(2)
+      expect(src).not.toMatch(/left join pg_catalog\.pg_stat_xact_user_tables s /)
+      // emenda 0.6 (Yannis M2-3): a porta continua fechada (um `drop function` + `create` no lugar do `create or replace` devolveria PUBLIC)
+      for (const f of ['competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)', 'competitor_channel_remove_archived(uuid,uuid,uuid)']) {
+        expect(await escalar<boolean>(pg, `select has_function_privilege('anon', 'public.${f}', 'execute')`), `anon em ${f}`).toBe(false)
+        expect(await escalar<boolean>(pg, `select has_function_privilege('authenticated', 'public.${f}', 'execute')`), `authenticated em ${f}`).toBe(false)
+        expect(await escalar<boolean>(pg, `select has_function_privilege('service_role', 'public.${f}', 'execute')`), `service_role em ${f}`).toBe(true)
+      }
+    })
+  })
+
+  it('bloco 11c, MUTANTE: com o corpo da 0007 (sem o 11c) reinstalado depois da M2, apagar sem arquivo o canal com diária falha com apagou_alem_do_arquivo', async () => {
+    await emTx(async () => {
+      const t13 = lerSqlDaT13()
+      expect(t13).not.toBeNull()
+      const ini = (t13 ?? '').indexOf('CREATE OR REPLACE FUNCTION public.competitor_channel_delete_unarchived')
+      const fim = (t13 ?? '').indexOf('$function$;', (t13 ?? '').indexOf('$function$', ini) + 10) + '$function$;'.length
+      expect(ini).toBeGreaterThanOrEqual(0)
+      await pg.query((t13 ?? '').slice(ini, fim))
+      expect(await escalar<boolean>(pg, `select prosrc ~ 'pg_partition_tree' from pg_proc where oid = 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure`)).toBe(false)
+      const c = await semearCena(pg)
+      await pg.query('savepoint s')
+      const r = await tenta(pg, APAGAR, [c.site, c.canalA, c.admin, 'Canal A', 'teste_m2'])
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/E10:apagou_alem_do_arquivo: competitor_video_daily apagadas=0/)
+      await pg.query('rollback to savepoint s')
+      expect(await escalar<number>(pg, `select count(*)::int from public.competitor_channels where id = $1`, [c.canalA])).toBe(1)
+    })
+  })
+
+  it('bloco 11c: corpo instalado diferente do conhecido e sem a guarda por folhas recusa com M2:competitor_channel_delete_unarchived_divergente, ANTES da conversão', async () => {
+    await pg.query('begin')
+    try {
+      await garantirComT13(pg)
+      const antes = await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)
+      const def = await escalar<string>(pg, `select pg_get_functiondef('public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure)`)
+      expect(def).not.toContain('pg_partition_tree')
+      const def2 = def.replace('v_now timestamptz := pg_catalog.clock_timestamp();', 'v_now timestamptz := pg_catalog.clock_timestamp(); -- mutante')
+      expect(def2, 'o replace do mutante não achou o trecho (0007 reformatada?)').not.toBe(def) // emenda 0.6, Yannis M2-2
+      await pg.query(def2)
+      await pg.query('savepoint s')
+      const r = await tenta(pg, M2_SQL)
+      expect(r.ok).toBe(false)
+      if (!r.ok) expect(r.message).toMatch(/M2:competitor_channel_delete_unarchived_divergente/)
+      await pg.query('rollback to savepoint s')
+      expect(await escalar<string>(pg, `select relkind::text from pg_class where oid = 'public.competitor_video_daily'::regclass`)).toBe(antes)
+    } finally { await pg.query('rollback') }
+  })
+```
+
+**Helper (emenda 0.6, Yannis C-1 e C-2).** `garantirComT13` é local a `manutencao-m2-e10.test.ts`; os outros arquivos que fazem `garantirMg6` e depois aplicam a M2 ou a M3b (`manutencao-m3b-e10-remocao.test.ts`, `manutencao-m10a-pausa.test.ts`, e os 4 casos do 11c) caem em `M2:..._divergente`, porque MG6+F1 deixa o corpo da F1, não o da 0007. Mover `garantirComT13` para `apps/web/test/helpers/mg6.ts` (exportada; **não** dentro de `garantirMg6`, que as suítes da E10 e da E4 usam esperando 30 entradas no registro) e usá-la nesses arquivos. Prova: `HAS_LOCAL_DB=1 npx vitest run test/integration/manutencao-m3b-e10-remocao.test.ts test/integration/manutencao-m10a-pausa.test.ts` sem `divergente`. Aviso: o cabeçalho do `m2.sql` diz que reaplicar a 0007 depois da M2 desfaz a guarda por folhas; vale também para o 11c. A regra genérica cobre quem cria **migration** nova, não **fixture de teste** que reaplica a 0007 (o MUTANTE do 11c faz isso de propósito): não copiar esse padrão para teste que deva ficar verde.
+
+- [ ] **Step 3e (emenda 23/10): rodar e conferir**
+
+Run (no 54422, com as 29 migrations do origin aplicadas, saída em arquivo): `HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres npx vitest run test/integration/manutencao-m2-e10.test.ts test/integration/observatorio-a5-remover-f1.test.ts test/manutencao/migrations-leitura.test.ts --no-file-parallelism > /tmp/m2-11c.log 2>&1; grep -E "FAIL|✗|Tests " /tmp/m2-11c.log`
+Expected: PASS nos 4 casos do 11c, nos do 11b, nos B1.1 e B1.3 do `observatorio-a5-remover-f1.test.ts` (exigidos no cabeçalho da 0002 da F1) e nos da `ab_native`. O caso MUTANTE prova que o 11c é o que faz o botão voltar a funcionar: sem ele o teste "devolve as contagens certas" falharia com `apagadas=0`.
+
 - [ ] **Step 4: Rodar os testes da M2 e os da E10**
 
 Run: `HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres npx vitest run test/integration/manutencao-m2-e10.test.ts test/integration/observatorio-a5-e10-migration.test.ts test/integration/observatorio-a5-e10-rls.test.ts test/integration/observatorio-a5-e4-migration.test.ts test/manutencao/migrations-leitura.test.ts --no-file-parallelism > /tmp/m2-e10.log 2>&1; grep -E "FAIL|✗|Tests " /tmp/m2-e10.log`
@@ -1671,7 +2081,7 @@ Expected: PASS em todos, depois de a E10 confirmar a entrega (inclusive a linha 
 
 ```bash
 git add apps/web/test/integration/manutencao-m2-e10.test.ts
-git commit -m "feat: o rascunho da M2 recria obs_archive_uncovered e obs_db_size_record sabendo de partição (pedidos 1 e 3; M2, itens 13 e 14)
+git commit -m "feat: o rascunho da M2 recria obs_archive_uncovered e obs_db_size_record sabendo de partição (pedidos 1 e 3; M2, itens 13 e 14); emenda 23/10: 11c em competitor_channel_delete_unarchived
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- supabase/rascunhos/m2.sql apps/web/test/integration/manutencao-m2-e10.test.ts
 ```
@@ -2306,7 +2716,7 @@ Roda logo depois da Tarefa 5 (ordem de execução: T1 → T5 → **T8** → T6 �
 git fetch origin staging
 npm run db:new manutencao_m2_particoes
 F=$(ls supabase/migrations/*_manutencao_m2_particoes.sql); V=$(basename "$F" | cut -c1-14)
-cp supabase/rascunhos/m2.sql "$F"
+git show origin/staging:supabase/rascunhos/m2.sql > "$F"   # do ORIGIN (TRAVA M2-3), nunca do disco do staging local
 ```
 
 Em `apps/web/test/helpers/m2.ts`, trocar as duas constantes (e só elas) por:
@@ -2341,8 +2751,13 @@ Anotar no ledger o `<ts>` (a M10a depende dele) e "TRAVA M2-1 solta em <data hor
   - Pedidos 5 e 6 (§17): texto entregue ao controlador da A5. Recusa ou demora não bloqueia: o teste do item 15 e o `obs_part.dependentes` na migration neutralizam do lado desta fase.
   - Entrega à E10 (Tarefa 4) gravada e confirmada no ledger.
   - No `migration list`, `20261013000001` (agenda) aparece aplicada. Sem ela, o invariante fica vermelho 72 h depois da conversão (`ultimoOk` nunca é gravado): não aplicar a M2 antes.
-  - Os três md5 dos corpos instalados em produção (item 1c do LEIAME) conferidos pelo dono (Yannis I-2 / Phil M-1), e a leitura de bytes (item 1b-bytes, `cabe` = `t`, Phil I-2) anotada no ledger.
-  - `grep -lE "obs_archive_uncovered|obs_db_size_record|competitor_channel_remove_archived" supabase/migrations/*` mostra que a Migration 0 do A/B Lab (quando existir) não cita as três funções; se citar, ler o corpo antes: toda redefinição de `competitor_channel_remove_archived` depois da M2 parte do corpo instalado (com `pg_partition_tree`), nunca da fixture da MG6 (a `regra71` acusa).
+  - **Janela (emenda 23/10, hanna §4 onda 2):** 27 ou 28/10, antes de a C5 da A5 fechar (29/10); fora de 08:30–10:00 e dos minutos 0/20/40. Se a ordem "pode aplicar" vier depois de 25/10, a M2 entra na fila de 30/10 em diante (cada dia empurra a M3b contra 21/11).
+  - Os **quatro** md5 dos corpos instalados em produção (item 1c do LEIAME: `obs_archive_uncovered`, `obs_db_size_record`, `competitor_channel_remove_archived` = `932e746f…`, `competitor_channel_delete_unarchived` = `95c5ec60ab2b07b4e8151c1768d91370`) conferidos pelo dono (Yannis I-2 / Phil M-1 / yannis §10), e a leitura de bytes (item 1b-bytes, `cabe` = `t`, Phil I-2) anotada no ledger. **As leituras 1b, 1b-bytes e 1c são refeitas no dia** (as de 14/10 e as de 23/10 envelhecem: a coleta e a A5 continuam gravando e migrando); o 1b é relido no minuto do push (Phil M-1), imediatamente antes do passo 2.
+  - **(emenda 0.6, Yannis M2-5)** os commits do Step 5 da Tarefa 4 e do Step 6 da Tarefa 1 já estão em `origin/staging`: `git fetch origin && git show origin/staging:supabase/rascunhos/m2.sql | grep -c '^-- 11c\.'` = 1. Sem isso o Step 0 copia um `m2.sql` sem o 11c e a janela se perde sem falha alta.
+  - `git diff origin/staging -- supabase/rascunhos/m2.sql` vazio no worktree que vai gerar a migration, e o `m2.sql` contém `-- 11b.` e `-- 11c.` (TRAVA M2-3: a M2 vive no origin; nunca copiar do `staging` local).
+  - Nenhuma migration nova depois de `20261022000004` recria `competitor_channel_remove_archived` ou `competitor_channel_delete_unarchived` (a regra genérica da Tarefa 1, Step 6, acusa na CI; conferir também `git log origin/staging -- supabase/migrations` desde 23/10): a C5 da A5 e a Migration B do A/B Lab estão na fila.
+  - Planejar a leitura de custo: no ensaio, `explain analyze` de `competitor_missing_proof` (E9) e da E4 sobre a série particionada com 12 partições à frente (leitura por `video_id` com `order by snap_date limit 1` varre todas as partições); declarado, não bloqueia (yannis §3.2).
+  - `grep -lE "obs_archive_uncovered|obs_db_size_record|competitor_channel_remove_archived|competitor_channel_delete_unarchived" supabase/migrations/*` mostra que a Migration 0 do A/B Lab (quando existir) e a C5 da A5 não citam as quatro funções; se citarem, ler o corpo antes: toda redefinição de `competitor_channel_remove_archived` ou `competitor_channel_delete_unarchived` depois da M2 parte do corpo instalado (com `pg_partition_tree`), nunca da fixture da MG6 nem da 0007 (a regra genérica da Tarefa 1, Step 6, acusa).
   - Nenhuma migration nova da A5 que crie dependente das três séries desde 14/10: `grep -l "competitor_video_\(daily\|early\|hourly\)" supabase/migrations/*` depois de `20261013000006`; se houver, ler: view, FK ou função `begin atomic` que as cite faz a migration recusar com `M2:dependente_novo`, e é melhor saber antes.
 
 - [ ] **Step 2: Escrever os comandos do dono no LEIAME**
@@ -2358,7 +2773,7 @@ Quando: fora de 08:30 a 10:00 de São Paulo (11:30 a 13:00 UTC) e fora dos minut
 ```
 npx supabase migration list --linked
 ```
-1b. Medir antes (guarde a saída; o item 3c compara).
+1b. Medir antes (guarde a saída; o item 3c compara). **Refeito no dia, e de novo no minuto do passo 2** (leituras de dias anteriores não valem).
 ```
 npx supabase db query --linked "select 'competitor_video_daily' t, count(*) n, coalesce(sum(views),0) soma, min(snap_date)::text de, max(snap_date)::text ate, (select pg_get_userbyid(relowner) from pg_class where oid='public.competitor_video_daily'::regclass) dona from public.competitor_video_daily union all select 'competitor_video_early', count(*), coalesce(sum(views),0), min((taken_at at time zone 'America/Sao_Paulo')::date)::text, max((taken_at at time zone 'America/Sao_Paulo')::date)::text, (select pg_get_userbyid(relowner) from pg_class where oid='public.competitor_video_early'::regclass) from public.competitor_video_early union all select 'competitor_video_hourly', count(*), coalesce(sum(views),0), min((hour_slot at time zone 'America/Sao_Paulo')::date)::text, max((hour_slot at time zone 'America/Sao_Paulo')::date)::text, (select pg_get_userbyid(relowner) from pg_class where oid='public.competitor_video_hourly'::regclass) from public.competitor_video_hourly;"
 ```
@@ -2368,11 +2783,11 @@ Deve dar: `dona` = `postgres` nas três; `ate` no máximo hoje. Se a dona for ou
 npx supabase db query --linked "select pg_size_pretty(pg_database_size(current_database())) banco, pg_size_pretty(sum(pg_total_relation_size(c))) series, pg_database_size(current_database()) + sum(pg_total_relation_size(c)) < 450*1024*1024 cabe from unnest(array['public.competitor_video_daily','public.competitor_video_early','public.competitor_video_hourly']::regclass[]) c;"
 ```
 Deve dar: `cabe` = `t`. O `competitor_bytes` do `obs_db_size_daily` sobe até o sétimo dia e cai na Tarefa 9: o salto é esperado (as `_antiga` casam com `competitor\_%`).
-1c. Os três corpos instalados em produção (se divergirem, a M2 recusa com `M2:…_divergente` e a janela se perde). Um veredito por linha.
+1c. Os quatro corpos instalados em produção (se divergirem, a M2 recusa com `M2:…_divergente` e a janela se perde). Um veredito por linha.
 ```
-npx supabase db query --linked "select p.proname, md5(p.prosrc) md5, p.prosrc ~ 'relispartition|pg_partition_tree' as ja_consertada, md5(p.prosrc) = case p.proname when 'obs_archive_uncovered' then '04acb555daf84c61933b740e13a85e21' when 'obs_db_size_record' then '3b6daeff58c7e884d8b6e944c8e234a7' when 'competitor_channel_remove_archived' then '467d3bc3c887af98196c8e415780d40b' end as bate from pg_proc p where p.oid in ('public.obs_archive_uncovered()'::regprocedure, 'public.obs_db_size_record(timestamptz)'::regprocedure, 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure);"
+npx supabase db query --linked "select p.proname, md5(p.prosrc) md5, p.prosrc ~ 'relispartition|pg_partition_tree' as ja_consertada, md5(p.prosrc) = case p.proname when 'obs_archive_uncovered' then '04acb555daf84c61933b740e13a85e21' when 'obs_db_size_record' then '3b6daeff58c7e884d8b6e944c8e234a7' when 'competitor_channel_remove_archived' then '932e746f65ceae7085ee425ffdc91a61' when 'competitor_channel_delete_unarchived' then '95c5ec60ab2b07b4e8151c1768d91370' end as bate from pg_proc p where p.oid in ('public.obs_archive_uncovered()'::regprocedure, 'public.obs_db_size_record(timestamptz)'::regprocedure, 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure, 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure);"
 ```
-Deve dar: `bate` = `t` nas três linhas (ou `ja_consertada` = `t`). Qualquer `f` nas duas colunas: pare e me mande a saída.
+Deve dar: `bate` = `t` nas quatro linhas (ou `ja_consertada` = `t`). Qualquer `f` nas duas colunas: pare e me mande a saída.
 2. Aplicar (pede YES).
 ```
 npm run db:push:prod
@@ -2395,6 +2810,11 @@ Deve dar: `months_ahead` = 12 nas três.
 npx supabase db query --linked "select table_name, rows_copied, views_sum, converted_at from public.obs_partition_conversions order by 1;"
 ```
 Deve dar: `rows_copied` e `views_sum` iguais a `n` e `soma` do item 1b, tabela a tabela (a coleta pode ter gravado entre 1b e 2: diferença só para mais, nunca para menos).
+3d. O 11c e o 11b pegaram (só leitura, no dia do push; emenda 0.6, Phil M2-1).
+```
+npx supabase db query --linked "select p.proname, (length(p.prosrc) - length(replace(p.prosrc,'pg_partition_tree',''))) / length('pg_partition_tree') as n_partition_tree, (length(p.prosrc) - length(replace(p.prosrc,'not c.relispartition',''))) / length('not c.relispartition') as n_filtro from pg_proc p where p.oid in ('public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure, 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)'::regprocedure);"
+```
+Deve dar: `n_partition_tree` = 2 e `n_filtro` = 2 nas duas linhas. Qualquer outro valor: pare e me avise (a função está sem a guarda por folhas e o botão "Remover canal sem arquivo" morreria quando você clicasse).
 4. Abrir o Observatório no site e uma página de canal: a página de um canal mostra o ponto de hoje na série diária (o mesmo número de views que aparecia antes do push, ou maior).
 
 Se o passo 2 falhar: nada mudou (a conversão é uma transação só). Me mande a mensagem; o código `M2:…` diz o porquê.
@@ -2408,11 +2828,11 @@ No SQL do painel do Supabase (exceção do `05` §16), numa vez só:
 ```
 begin; set local lock_timeout = '5s'; select obs_part.desfazer('public.competitor_video_daily'::regclass); select obs_part.desfazer('public.competitor_video_early'::regclass); select obs_part.desfazer('public.competitor_video_hourly'::regclass); commit; notify pgrst, 'reload schema';
 ```
-Deve dar: três linhas com `"feito": true`. As séries voltam a tabelas comuns, com tudo o que foi gravado depois do push; as particionadas ficam de lado como `…_particionada`, sem acesso pela API. Depois disso o vigia mostra `agenda:particoes_meses_a_frente` vermelho: é o certo (a M2 não está mais de pé); me avise para eu tirar a tarefa e o item. Se der erro `M2:…`: nada mudou; me mande a mensagem.
+Deve dar: três linhas com `"feito": true`. As séries voltam a tabelas comuns, com tudo o que foi gravado depois do push; as particionadas ficam de lado como `…_particionada`, sem acesso pela API. As funções 11b (`remove_archived`) e 11c (`delete_unarchived`) **ficam como estão**: valem para tabela comum e para particionada (`pg_partition_tree` de tabela comum devolve ela mesma, `isleaf` = true; emenda 0.6, Phil M2-3). Depois disso o vigia mostra `agenda:particoes_meses_a_frente` vermelho: é o certo (a M2 não está mais de pé); me avise para eu tirar a tarefa e o item. Se der erro `M2:…`: nada mudou; me mande a mensagem.
 ````
 
 - [ ] **Step 3: Depois da conferência do dono**
-  - Ledger: hora do push, as saídas dos itens 1b, 3 e 3c lado a lado, `converted_at`, e a linha **"TRAVA M2-2 solta em <data hora>"**. **Liberar a M10a** (o `db:new` e o push dela).
+  - Ledger: hora do push, as saídas dos itens 1b, 3, 3c e 3d lado a lado, `converted_at`, e a linha **"TRAVA M2-2 solta em <data hora>"**. **Liberar a M10a** (o `db:new` e o push dela).
   - Executar as Tarefas 6 e 7; commitá-las no `staging` (só agora, com a M2 aplicada e conferida), conferir a CI e promover para `main` (regra do projeto: push e promoção são do agente), conferir a CI do push.
   - No dia seguinte, depois das 06:00 de SP: `agenda:particoes_a_frente` com `ok` e `agenda:particoes_meses_a_frente` `ok` no `/api/health` (leitura).
   - Registrar, para o item 12 do aceite: a data de medida é 28 dias depois de a leitura horária começar a gravar, ou 15/12/2026, o que vier primeiro.

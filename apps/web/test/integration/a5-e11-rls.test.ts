@@ -16,6 +16,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, signUserJwt, SUPABASE_URL, ANON_KEY } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { addDays, utcDay } from '@/lib/youtube/coleta/day-pt'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -48,7 +49,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (MG7): RLS e privilégios das três t
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
       }
       if (usuarios.length > 0) await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       await pg.end()
     }

@@ -13,6 +13,7 @@ import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { criarSite, criarCanal, criarVideo, escalar, tenta, q1 } from '../helpers/mg6'
 import { aplicarM2, aplicarM2SoFuncoes, criarBrinquedo, apagarBrinquedo } from '../helpers/m2'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
@@ -245,7 +246,7 @@ describe.skipIf(skipIfNoLocalDb())('M2: o conversor numa tabela de brinquedo', (
       await gravador.catch(() => undefined)
       await g.end()
       await apagarBrinquedo(pg, t)
-      await pg.query('delete from public.sites where id = $1', [site])
+      await apagarSites(pg, 'id = $1', [site])
     }
   })
 })

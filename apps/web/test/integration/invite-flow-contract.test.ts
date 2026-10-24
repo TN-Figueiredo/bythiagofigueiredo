@@ -24,6 +24,7 @@ import {
 } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { fetchPendingInvitation } from '@/app/signup/invite/[token]/invitation-lookup'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 function clientAs(jwt: string): SupabaseClient {
   return createClient(SUPABASE_URL, ANON_KEY, {
@@ -368,8 +369,7 @@ describe.skipIf(skipIfNoLocalDb())('convite de editora de site: contrato com o b
     await service.from('audit_log').delete().in('actor_user_id', [inviterId, editorId])
     if (inviterId) await deleteAuthUser(inviterId)
     if (editorId) await deleteAuthUser(editorId)
-    const del = await service.from('sites').delete().in('id', sites)
-    expect(del.error).toBeNull()
+    await apagarSitesDeTeste('id = any($1::uuid[])', [sites])   // lança se o delete falhar
   })
 
   it('a página do convite acha o convite de site e mostra o papel editor', async () => {
@@ -475,8 +475,7 @@ describe.skipIf(skipIfNoLocalDb())('convite de site para quem já tem conta: con
     await service.from('audit_log').delete().eq('site_id', siteId)
     await service.from('audit_log').delete().eq('actor_user_id', userId)
     if (userId) await deleteAuthUser(userId)
-    const del = await service.from('sites').delete().eq('id', siteId)
-    expect(del.error).toBeNull()
+    await apagarSitesDeTeste('id = $1', [siteId])   // lança se o delete falhar
   })
 
   it('a sobrecarga antiga (p_token) não serve para convite de site: falha e não cria vínculo nenhum', async () => {

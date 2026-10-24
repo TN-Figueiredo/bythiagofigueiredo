@@ -49,6 +49,7 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 // Import the function under test AFTER mocks are set up
 // ---------------------------------------------------------------------------
 import { fetchAbBriefingData } from '@/app/cms/(authed)/youtube/ab-lab/actions'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -257,7 +258,7 @@ describe.skipIf(skipIfNoLocalDb())('fetchAbBriefingData integration', () => {
       await supabase.from('youtube_channels').delete().in('id', createdChannelIds)
     }
     if (createdSiteIds.length) {
-      await supabase.from('sites').delete().in('id', createdSiteIds)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [createdSiteIds])
     }
   })
 

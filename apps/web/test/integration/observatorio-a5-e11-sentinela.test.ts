@@ -35,6 +35,7 @@ vi.mock('@/lib/pipeline/leitura-registro', async (orig) => ({
 }))
 
 import { API_REGISTRY } from '@/lib/pipeline/api-registry'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 120_000 })
 
@@ -99,7 +100,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (item 89): nenhum GET de api/pipeline
           await pg.query(`delete from public.${t} where site_id = $1`, [site])
         }
         await pg.query('delete from public.audit_log where site_id = $1', [site])
-        await pg.query('delete from public.sites where id = $1', [site])
+        await apagarSites(pg, 'id = $1', [site])
       }
     } finally {
       await pg.end()

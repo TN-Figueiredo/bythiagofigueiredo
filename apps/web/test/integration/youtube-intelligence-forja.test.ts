@@ -78,6 +78,7 @@ import {
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import { fetchChannelCoaching } from '../../src/app/cms/(authed)/youtube/analytics/actions'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real Supabase local DB', () => {
   const svc: SupabaseClient = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -95,10 +96,13 @@ describe.skipIf(skipIfNoLocalDb())('forja intelligence queue — against a real 
     // changing later.
     await svc.from('youtube_intelligence').delete().in('site_id', siteIds)
     await svc.from('youtube_intelligence_tasks').delete().in('site_id', siteIds)
+    // ab_tests.youtube_video_id e optimization_cycles.ab_test_id são NO ACTION: saem antes dos vídeos
+    await svc.from('optimization_cycles').delete().in('site_id', siteIds)
+    await svc.from('ab_tests').delete().in('site_id', siteIds)
     await svc.from('youtube_video_analytics').delete().in('site_id', siteIds)
     await svc.from('youtube_videos').delete().in('site_id', siteIds)
     await svc.from('youtube_channels').delete().in('site_id', siteIds)
-    await svc.from('sites').delete().in('id', siteIds)
+    await apagarSitesDeTeste('id = any($1::uuid[])', [siteIds])
   })
 
   async function freshSite(): Promise<string> {

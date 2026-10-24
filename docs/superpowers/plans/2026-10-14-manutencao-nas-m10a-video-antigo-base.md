@@ -3,6 +3,25 @@
 > **Para quem executa:** SUB-SKILL OBRIGATÓRIA: `superpowers:subagent-driven-development` (recomendada) ou
 > `superpowers:executing-plans`. Os passos usam caixas (`- [ ]`) para acompanhar.
 
+> **Emenda 23/10 (retomada).** O plano foi escrito em 14/10 sobre o `staging` `a1094bfe3`; o `origin/staging` (`7c6917406`) andou 29 migrations e 1.048 commits (A5, A/B). O que muda, e por quê:
+> 1. **Tarefa 0 refeita sobre o código do `origin/staging`** (yannis.md §3.6): `observatorio/load.ts` (6 commits, +41/-10), `competitor-sync.ts` (5 commits), `competitor-sync-batch.ts` (2 commits), `competitor-capture.ts`, `competitor-health.ts`, `competitor-removal-impact.ts` e `actions.ts` mudaram; o retrato `__golden__/dataset-antes*.json` de 14/10 (código de `c46b0ff27`) **não vale mais** e não pode ser regravado em cima do código novo da M10a. Novo passo 0.5 da Tarefa 0: trabalhar num worktree de `origin/staging` e tirar o retrato lá, antes de qualquer edição.
+> 2. **Linhas citadas reconferidas** contra `origin/staging` (tabela dos oito pontos e referências nas Tarefas 7 a 11 atualizadas; a descoberta mais importante: `arquivados` **não existe** hoje em `competitor-health.ts`, é criado pela Tarefa 8; e o leitor da remoção ganhou a parcela `competitor_channel_removal_extra` da A5, ver Tarefa 8).
+> 3. **Guarda de insert × tabelas novas** (phil.md/yannis.md §3.6): a guarda cobre 8 tabelas; desde 14/10 há tabelas por vídeo novas fora dela (`competitor_video_marks`, `competitor_video_mark_misses`, `competitor_missing_baseline`, com FK; `yt_watch_*` e `ab_native_observados`, por `youtube_video_id` texto, sem FK). **Phil, 23/10 (`onda0-phil-tabelas-capacidade.md` §1.3): nenhuma das 13 entra na classe; a CP29 não muda** (já considera só as 8). A Tarefa 4 ganha o teste de forma e a lista fechada de 14 exceções.
+> 4. **CP29 relida em 23/10** (phil.md §1b, `m10a/cp29/producao-20261023-1548.txt`): fator de máquina 3,98 (14/10 deu 4,05; usa-se 4,05); 13.272 linhas em 8,947 dias = **1.483 linhas/dia**; 1.483 x 4,05 = **6.007** contra o limite de 1.000.000 (0,6%); teto 100 confirmado (0,077 s x 4,05 = 0,31 s < 4 s). Não bloqueia a M10a. Tarefa 1 não precisa ser refeita; só o limiar é conferido no dia (passo 5a).
+> 5. **Pendências da 5b mantidas** (yannis.md §3.6): `competitor-pin-schema.test.ts:56` e as 3 asserções `{changed: 2}` de `observatorio-a5-e1-e2-migration.test.ts` quebram com as chaves novas e vão no mesmo commit da migration. O banco 54422 é recriado de `origin/staging` antes de qualquer `db:new` (phil.md I-4).
+> 6. **Rodada 0.6 (23/10, re-revisão de Phil e Yannis): achado → onde.** (`replan-23-10/onda0-0.6-phil.md`, `onda0-0.6-yannis.md`; tabela completa em `replan-23-10/onda0-conserto-0.6.md`.)
+>
+> | Achado | Onde neste plano |
+> |---|---|
+> | Phil M10a-1 (importante): lista de exceções e teste de forma sem conteúdo; varredura de todo o `public` pega 35 tabelas | Tarefa 4, bloco "Emenda 23/10" (lista fechada das 14, escopo do teste), Passo 0, Passo 1 itens 8 e 9 |
+> | Yannis M10-1 (importante): o teste de forma pega as partições da M2 | Tarefa 4 (escopo do teste, `conparentid = 0` e `not relispartition`); Tarefa 11 (c) |
+> | Phil M10a-2 (importante): a consulta do teste das listas pega FKs clonadas; produção tem 16, a lista tinha 13 | Tarefa 11, teste com banco (c) e "Conteúdo inicial" |
+> | Phil M10a-2 (4): `comment_authors` e `comment_marks` não têm FK para `competitor_videos` | Tarefa 4, bloco "Emenda 23/10" |
+> | Yannis M10-2 (menor): herança do gatilho para partição futura não provada | Tarefa 4, Passo 1 item 10 (condicional: hoje nenhuma das 8 é particionada) |
+> | Yannis M10-3 (observação): linhas citadas conferidas, nada a mudar | nenhum |
+>
+> Nada disto autoriza produção: "pode preparar" e "pode aplicar" continuam sendo ordens do dono.
+
 Escrito em 14/10/2026. Spec: `docs/superpowers/specs/2026-10-13-fase-manutencao-nas/` (commit `8b4dd7b61`). Índice dos
 planos: `docs/superpowers/plans/2026-10-14-manutencao-nas-00-indice.md` (linha 3). Brief: `.superpowers/sdd/manutencao-nas/brief-planos.md`.
 
@@ -107,18 +126,18 @@ para a condição 1 do portão da classe `video_antigo`; a M10b usa as colunas, 
 | `.superpowers/sdd/manutencao-nas/m10a/prova-zero.sh` | criar (Tarefa 5b) | as leituras de produção do item 135 (o dono roda) |
 | `.superpowers/sdd/manutencao-nas/ledger-video-antigo.md` | criar | os cinco passos da §10.8 com data (item 146) |
 
-**Os oito pontos, lidos hoje (14/10) no `staging` `a1094bfe3`. Relidos no dia (Tarefa 0): as linhas mudam com a A5.**
+**Os oito pontos, relidos em 23/10 no `origin/staging` `7c6917406` (antes: 14/10, `a1094bfe3`). Relidos de novo no dia (Tarefa 0): as linhas mudam com a A5 e o A/B.**
 
 | # | Ponto (pedido 15) | Onde está hoje |
 |---|---|---|
-| 1 | Classificação de faixas e passada diária | `competitor-sync.ts:350` (`ALL_COLS`), `:370-372` (`classify`), `:931-936` (plano e prova do dia), `:1205-1207` (reclassificação), `:1221-1223` (passada diária); `extendPromotions(all, …)` em `:1307` |
-| 2 | Passada semanal e a conta que a fecha | `competitor-sync.ts:821-823` (`weeklyRows`), `:893-894` (`complete`) |
-| 3 | Caminho da página de uploads | `competitor-sync.ts:1062-1069` (busca dos já gravados e `asked`), `:1116-1167` (insere, reconcilia, captura, regrava) |
-| 4 | Fechamento da faixa | `apply_competitor_tier_plan`, `supabase/migrations/20261012000003_observatorio_a5_e2_serie_faixas.sql:66-111`; chamada em `competitor-sync.ts:1211` |
-| 5 | Prova da série, chave `arquivados` | `competitor_series_health`, `20261012000004_observatorio_a5_e1_e2_provas_corretiva.sql:85-163`; leitor `competitor-health.ts:98`, `:139-157` |
-| 6 | Carregadores das telas | `observatorio/load.ts:94` (`VIDEO_COLS`), `:260-323` (`rowsToDataset`), `:542` (`readVideos`); `observatorio/load-channel.ts:24`; `observatorio/series.ts:137-150` (`withUnobserved`, `weeklyRate`, F76) |
-| 7 | Ação de fixar | `competitors/actions.ts:437-470` (`pinTarget`, `pinVideo`); `pin_competitor_video`, `20261007000002_observatorio_fixar_video_teto.sql:25-70` |
-| 8 | Contagens do diálogo de remover canal | `competitor_channel_removal_impact`, `20261013000002_observatorio_a5_e15_leitura_horaria.sql:274-308`; leitor `competitor-removal-impact.ts:5-16` |
+| 1 | Classificação de faixas e passada diária | `competitor-sync.ts:367` (`ALL_COLS`), `:386` (`classify`), `:950-953` (plano e prova do dia), `:1243` (reclassificação), `:1257-1259` (passada diária, `tierPlan.daily`); `extendPromotions` definida em `:469`, chamada `(all, …)` em `:1343` |
+| 2 | Passada semanal e a conta que a fecha | `competitor-sync.ts:842-849` (`weeklyRows`), `:913` (`complete`) |
+| 3 | Caminho da página de uploads | `competitor-sync.ts:1080-1089` (busca dos já gravados e `asked`), `:1158` (insert), `:1195-1197` (regrava), `:1315-1324` (fixados, `asked`) |
+| 4 | Fechamento da faixa | `apply_competitor_tier_plan`, `supabase/migrations/20261012000003_observatorio_a5_e2_serie_faixas.sql:66-` (corpo plpgsql, inalterado); chamada em `competitor-sync.ts:1247` |
+| 5 | Prova da série, chave `arquivados` | `competitor_series_health`, `20261012000004_observatorio_a5_e1_e2_provas_corretiva.sql:85-161` (última definição; nenhuma migration posterior a recria); leitor `competitor-health.ts:86` (`SeriesHealth`), `:102` (`SERIES_KEYS`), `:143-152` (`readSeries`), `:253` (chamada). A chave `arquivados` **ainda não existe**: nasce nesta etapa |
+| 6 | Carregadores das telas | `observatorio/load.ts:104` (`VIDEO_COLS`), `:247-408` (`rowsToDataset`), `:554-555` (`readVideos`); `observatorio/load-channel.ts:24`; `observatorio/series.ts:137-150` (`withUnobserved`, `weeklyRate`, F76; sem mudança) |
+| 7 | Ação de fixar | `competitors/actions.ts:572` (`pinTarget`), `:587` (`pinVideo`, chamada da RPC em ~`:593`), `:613` (`unpinVideo`; caminho `apps/web/src/app/cms/(authed)/youtube/competitors/actions.ts`); `pin_competitor_video`, `20261007000002_observatorio_fixar_video_teto.sql:19-` (última definição) |
+| 8 | Contagens do diálogo de remover canal | `competitor_channel_removal_impact`, `20261013000002_observatorio_a5_e15_leitura_horaria.sql:274-` (última definição); leitor `competitor-removal-impact.ts:5-13` (`CompetitorRemovalImpact`, `ImpactoBase`), `:16` (`isCount`), `:19-23` (`parseRemovalImpact`); a A5 acrescentou a parcela `competitor_channel_removal_extra` (`:43`, `:55`), que **não** é desta etapa |
 
 ---
 
@@ -128,10 +147,12 @@ para a condição 1 do portão da classe `video_antigo`; a M10b usa as colunas, 
 
 - [ ] **Passo 1.** Escrever no ledger as duas travas, com estas palavras: `TRAVA M10a-1: nenhum arquivo em supabase/migrations/ desta etapa (nem não commitado) antes de a M2 estar aplicada e conferida no ledger.` e `TRAVA M10a-2: nenhum commit das Tarefas 6 a 12 antes de a migration da M10a estar em produção e a prova depois-migration anotada no ledger.`
 - [ ] **Passo 2.** Base verde no `staging` comum: `npx tsc -p apps/web --noEmit > …/tsc-base.txt 2>&1` e os testes dos arquivos que esta etapa toca (`apps/web/test/youtube/competitor-sync*.test.ts`, `apps/web/test/youtube/observatorio/load.test.ts`, `pack-shape.test.ts`, `cache-writers.test.ts`). Falha na base é anotada e levada ao controlador, não consertada aqui.
-- [ ] **Passo 2b. O retrato do "antes" (Yannis Y3; Phil M-1 conciliado)**, antes de qualquer edição de código: gravar `apps/web/test/youtube/video-antigo/__golden__/dataset-antes.json` = `JSON.stringify(rowsToDataset(<fixture maior de load.test.ts>, NOW_FIXO))` (ajustar à assinatura do dia) e, com banco, `dataset-antes-semente.json` da semente do Observatório com `now` fixo; commit `test: retrato do conjunto de dados antes da M10a`. É deste arquivo, não do código novo, que a Tarefa 12 compara.
-- [ ] **Passo 3.** Reler os oito pontos (tabela acima) com `grep -n` e corrigir as linhas citadas neste plano (a tarefa que edita usa a linha do dia). Conferir com o controlador da A5 (pedido 15) que nenhum lote dele está editando `competitor-sync.ts`, `load.ts`, `load-channel.ts` ou `actions.ts` sem ter chegado ao `staging`; se estiver, a edição desta etapa entra assim mesmo e o conflito é resolvido no próprio commit (05 §17, linha 15).
+- [ ] **Passo 0 (emenda 23/10). Onde se trabalha.** O `staging` local está 1.048 commits atrás do origin e o ouro de 14/10 foi tirado no código de `c46b0ff27`. O passo 1.1 da onda 1 (Hanna) faz o envio ao origin por worktree; esta tarefa só começa depois dele, num worktree em `origin/staging` (nunca `checkout`/`reset` no `staging` comum), com o 54422 recriado de `origin/staging` (29 migrations a mais; Phil I-4). Sem isso, "verde" vale para um esquema que não existe mais.
+- [ ] **Passo 0b (emenda 23/10). Apagar o ouro velho.** `apps/web/test/youtube/video-antigo/__golden__/dataset-antes.json` e `dataset-antes-semente.json` (só no `staging` local, 14/10) **não são levados** ao worktree. `dataset-antes.test.ts` e a Tarefa 12 passam a apontar para o retrato novo do passo 2b. Quem regravasse o ouro velho sobre o código novo da M10a perderia o "antes".
+- [ ] **Passo 2b. O retrato do "antes" (Yannis Y3; Phil M-1 conciliado; refeito em 23/10 sobre `origin/staging`, yannis.md §3.6)**, antes de qualquer edição de código, no worktree de `origin/staging` já com o passo 2 verde: conferir primeiro que `load.test.ts` e `observatorio-load.test.ts` do origin passam (o `rowsToDataset` e os carregadores mudaram em 6 commits, +41/-10), reler a assinatura de `rowsToDataset(rows, now)` (`load.ts:247`) e a fixture maior de `load.test.ts` no origin, e só então gravar `apps/web/test/youtube/video-antigo/__golden__/dataset-antes.json` = `JSON.stringify(rowsToDataset(<fixture maior de load.test.ts>, NOW_FIXO))` (ajustar à assinatura do dia) e, com banco, `dataset-antes-semente.json` da semente do Observatório com `now` fixo; commit `test: retrato do conjunto de dados antes da M10a`. É deste arquivo, não do código novo, que a Tarefa 12 compara.
+- [ ] **Passo 3.** Reler os oito pontos (tabela acima, já corrigida em 23/10 contra `7c6917406`) com `grep -n` no worktree e corrigir as linhas que tiverem andado desde então (a tarefa que edita usa a linha do dia); registrar no ledger o SHA do origin de que o retrato e as linhas saíram. Conferir com o controlador da A5 (pedido 15) que nenhum lote dele está editando `competitor-sync.ts`, `load.ts`, `load-channel.ts` ou `actions.ts` sem ter chegado ao `staging`; se estiver, a edição desta etapa entra assim mesmo e o conflito é resolvido no próprio commit (05 §17, linha 15).
 - [ ] **Passo 4.** Criar `.superpowers/sdd/manutencao-nas/ledger-video-antigo.md` com a tabela dos cinco passos da §10.8 (colunas: passo, o que é, data, quem, prova), as duas travas, os três portões da M10b (seção "Quem depende desta etapa") e a primeira linha: "M10a iniciada no `staging` de `<sha>`".
-- [ ] **Passo 5.** Commit no `staging` (só o retrato; o ledger fica no disco): `git commit -m "test: retrato do conjunto de dados antes (M10a, Tarefa 0)" -- apps/web/test/youtube/video-antigo/__golden__`. O ledger não entra (`.superpowers/` é ignorado).
+- [ ] **Passo 5.** Commit no worktree de `origin/staging`, depois do envio (só o retrato; o ledger fica no disco): `git commit -m "test: retrato do conjunto de dados antes (M10a, Tarefa 0)" -- apps/web/test/youtube/video-antigo/__golden__`. O ledger não entra (`.superpowers/` é ignorado).
 
 ---
 
@@ -203,6 +224,7 @@ analyze;
   produção pelo dono, só leitura: `select relname, n_tup_ins from pg_stat_user_tables where relname in (<as 8>)` em dois
   dias seguidos, a diferença é o número. Acima de qualquer um dos dois: para e leva ao Phil e ao Yannis. Se o incremento
   ficar abaixo do piso de ruído, anotar "indistinguível do ruído (< X ms por lote)" e seguir.
+  **Releitura de 23/10 (Phil, phil.md §1b; `m10a/cp29/producao-20261023-1548.txt`, `n_tup_ins` das 8 tabelas, `stats_reset` nulo):** 39.174 − 25.902 = 13.272 linhas em 8,947 dias = **1.483 linhas/dia** (14/10 usava-se uma estimativa menor); fator de máquina mediana 7.528 ms / 1.891 ms = **3,98**, usa-se **4,05** (o pior, de 14/10); 1.483 × 4,05 = **6.007**, contra o limite de **1.000.000** (0,6%; folga de 166×); com 3× canais, ~73 mil, ainda 14× abaixo; retirada 0,077 s × 4,05 = 0,31 s < 4 s, **teto 100 confirmado**. Veredito: dentro do limite, não bloqueia. Ressalva: um contador zerado por queda do servidor faria o número real ser MAIOR; a folga cobre. No dia do push, o passo (a) é refeito com a leitura do dia (`ler-producao.sh`), porque a conta acima envelhece (a coleta cresceu: `competitor_field_versions` +6.708, `competitor_raw` +3.892 em 9 dias).
   (b) Retirada. **Fator de máquina:** o dono roda em produção, 3 vezes, a leitura só de CPU
   `explain (analyze, timing off) select count(*) from (select md5(g::text) from generate_series(1, 2000000) g order by 1) s`
   (`npx supabase db query --linked`, só leitura, sem tabela); o agente roda a mesma no `bythiago_int`. `fator =
@@ -356,7 +378,7 @@ grant select on table public.obs_archive_video_policy to service_role;
 
 ## Tarefa 4. A guarda de `insert` nas 8 tabelas e o índice de `competitor_readings`
 
-**Arquivos:** editar o rascunho `M10A_SQL`; criar `apps/web/test/integration/video-antigo-guarda-insert.test.ts`.
+**Arquivos:** editar o rascunho `M10A_SQL`; criar `apps/web/test/integration/video-antigo-guarda-insert.test.ts` e `apps/web/src/lib/youtube/video-antigo/tabelas-fora-da-classe.ts` (rodada 0.6: `TABELAS_VIDEO_FORA_DA_CLASSE`; rodada 0.7, Yannis C-A: o arquivo mora em `src/`, dados puros sem import, porque a Tarefa 11 é código de produção e `src` não pode importar de `test/helpers`).
 
 **Contrato (02 §10.8, "A guarda no banco"):** `before insert`, por linha, nas 8 tabelas da classe; linha com `video_id`
 nulo passa sem consulta; vídeo com `archive_frozen_at` preenchido recusa com a exceção `video_congelado` (`P0001`, `detail` =
@@ -366,6 +388,17 @@ id do vídeo, `hint` = tabela). É a **segunda** linha de defesa: quem impede a 
 `security invoker`, um papel que gravasse sem poder ler `competitor_videos` veria "nenhuma linha" e a guarda passaria em
 silêncio: falharia em verde. Não confundir com o item 143, que pede `security invoker` para **outro** gatilho (o de
 `obs_archive_units`, da M3b). O `revoke` de `execute` não impede o disparo do gatilho.
+
+**Emenda 23/10 (guarda × tabelas novas; yannis.md §3.6, phil.md §3.5; fechada na rodada 0.6).** A lista de 8 foi fechada em 14/10. Desde então a A5 e o A/B criaram tabelas por vídeo. **Phil, 23/10: nenhuma entra na classe; a guarda continua nas 8** (`onda0-phil-tabelas-capacidade.md` §1.2 e §1.3). Elas entram numa constante explícita, `TABELAS_VIDEO_FORA_DA_CLASSE` (arquivo novo `apps/web/src/lib/youtube/video-antigo/tabelas-fora-da-classe.ts`, dados puros sem import, exportada e importada (`@/lib/youtube/video-antigo/tabelas-fora-da-classe`) pela Tarefa 11, pelo teste de forma e pela M3b: um só lugar; rodada 0.7 C-A: a varredura da Tarefa 11 exclui também este arquivo, e ele não traz o literal `competitor_videos` sozinho. Prova: `grep -rn "test/helpers" apps/web/src` vazio), cada uma `{ tabela, motivo, fica_online? }`. **Lista fechada, 14 entradas além das 8:**
+
+| Grupo | Tabelas | Motivo |
+|---|---|---|
+| FK para `competitor_videos` e **fica online** (3) | `competitor_video_marks`, `competitor_video_mark_misses`, `competitor_missing_baseline` | spec 02 l.186: marcas 1/7/30 e prova de perda ficam online; a reavaliação é `update`, não `insert` |
+| sem FK, chave `youtube_video_id` texto, **fica online** (6) | `yt_watch_alvos`, `yt_watch_thumbs`, `yt_watch_readings` (poda própria da A5, 30 dias após `saiu_em`), `ab_native_observados`, `ab_native_obs_cursor` (aprendizado do nicho, nunca sai por idade), `competitor_playlist_items` (mutável; sem saída por enquanto, gatilho 15/11) | janela de coleta de 30 dias após a publicação; não há alvo de vídeo congelado |
+| FK, mas **outra classe de saída (por mês, não por idade)** (5) | `competitor_video_daily`, `competitor_video_early` (`serie`), `competitor_video_hourly` (`horaria`), `competitor_video_comments` (`texto`), `youtube_intelligence_tasks` (`fica`: o vídeo não é apagado) | saem pela política mensal da M3b, não pela idade do vídeo |
+
+(Correção da rodada 0.6, MEDIDO por Phil: `competitor_video_comment_authors` e `competitor_video_comment_marks` **não têm FK para `competitor_videos`**; só `competitor_video_comments` e `competitor_video_comment_snaps` têm. Saem da lista.) A `competitor_video_comment_snaps` é uma das 8.
+**Passo 0 da tarefa (fechado):** a classificação do Phil existe; criar o arquivo da constante com as 14 entradas acima antes de escrever o teste de forma. **Teste de forma** (no `video-antigo-guarda-insert.test.ts`, com banco): o universo são **as tabelas de `obs_archive_registry()` (32) mais as tabelas com FK raiz para `competitor_videos`** (`pg_constraint` com `confrelid = 'public.competitor_videos'::regclass and contype = 'f' and conparentid = 0`, juntando `not c.relispartition` na relação: Yannis M10-1 e Phil M10a-2; depois da M2 cada partição `obs_part.*` carrega uma FK clonada, que não conta). **Não varrer o `public` inteiro** (Phil: a varredura por coluna `youtube_video_id` pega 35 tabelas, 26 delas do canal do dono: `yt_own_*`, `youtube_videos`, `ab_tests`, `thumbnail_library`, `content_pipeline`...). Dentro desse universo, o teste falha, com o nome da tabela, se achar tabela com FK para `competitor_videos` ou com coluna `youtube_video_id` que não esteja nas 8 nem em `TABELAS_VIDEO_FORA_DA_CLASSE`. Sem ele a próxima tabela da A5 fica fora da classe em silêncio (falha em verde). Mutante: tabela fictícia com FK para `competitor_videos`, fora das 8 e da lista, derruba o teste; remover uma entrada da lista (ex.: `competitor_playlist_items`) o derruba com o nome da tabela. O teste roda no 54422 recriado de `origin/staging` e passa. A lista de gatilhos do rascunho (`m10a.sql:93-95`) **não cresce** e a CP29 do gatilho (Tarefa 1) **não é refeita**.
 
 **O que acontece quando o dado não existe:** `video_id` que não existe em `competitor_videos` passa a guarda e é recusado
 pela chave estrangeira, como hoje. Tabela nova com chave para `competitor_videos` criada depois: não tem gatilho; quem pega é o teste de catálogo e o teste das listas (Tarefa 11).
@@ -381,7 +414,10 @@ pela chave estrangeira, como hoje. Tabela nova com chave para `competitor_videos
      só comando, com 1 vídeo congelado e 49 ativos, recusa inteiro e nenhuma das 49 fica gravada;
   6. `upsert` com `on conflict do nothing` de linha de vídeo congelado também recusa (o `before insert` dispara antes do
      conflito);
-  7. o índice `idx_competitor_readings_video` existe e é parcial (`pg_indexes.indexdef` contém `WHERE (video_id IS NOT NULL)`).
+  7. o índice `idx_competitor_readings_video` existe e é parcial (`pg_indexes.indexdef` contém `WHERE (video_id IS NOT NULL)`);
+  8. **(rodada 0.6) forma:** o teste de catálogo da emenda acima (universo = registro ∪ FK raiz, `conparentid = 0`; 8 + `TABELAS_VIDEO_FORA_DA_CLASSE`), com o 54422 recriado e a M2 aplicada, passa;
+  9. **(rodada 0.6) mutantes da forma:** tabela fictícia com FK para `competitor_videos` fora das 8 e da lista faz o teste cair com o nome dela; tirar `competitor_playlist_items` da lista faz cair com esse nome;
+  10. **(rodada 0.6, Yannis M10-2) herança do gatilho para partição nova:** se alguma das 8 for particionada (hoje nenhuma: a M2 converte só as três séries, que não estão entre as 8), criar com `obs_part.criar_particao` o mês +13 dessa tabela, inserir ali linha de vídeo congelado e esperar `video_congelado`; sem a conversão, o caso fica `it.skip` com o motivo escrito e o teste de catálogo (4) passa a exigir `tgisinternal = false` também nas partições, se existirem.
 - [ ] **Passo 2. SQL** (anexar):
 
 ```sql
@@ -506,7 +542,10 @@ revoke all on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date
 grant execute on function public.apply_competitor_tier_plan(uuid, uuid, jsonb, date) to service_role;
 ```
 
-  **Ponto 5 (`competitor_series_health`):** cópia literal do bloco de `20261012000004_…:85-163` com **três** mudanças, e
+  **Ponto 5 (`competitor_series_health`):** cópia literal do bloco de `20261012000004_…:85-163` com **três** mudanças
+  (mais o remendo da E10, conserto de 14/10: a condição `or public.competitor_channel_pause_covers(c.id, p_now, interval '3 days')`
+  logo depois de `c.missing_since is not null` em `fora`, com guarda antes (E10 aplicada) e depois (corpo leva o remendo);
+  sem ele a pausa de canal recusa com `E10:pausa_sem_remendo`; teste `manutencao-m10a-pausa.test.ts`), e
   nenhuma outra: (a) a CTE `vid` passa a se chamar `vid_todos` e ganha, depois de `canal_em_dia`, a coluna
   `(v.archive_frozen_at is not null) as congelado`; (b) logo depois dela, a CTE nova
   `vid as (select * from vid_todos where not congelado)` (assim toda conta de hoje, que lê `vid`, deixa o congelado de fora
@@ -822,9 +861,8 @@ leitura da prova** (o mesmo tratamento de hoje para chave obrigatória ausente: 
   notas (nunca alarme); a leitura de remoção com `videos_leitura_mensal` e `videos_no_arquivo` devolve
   `videosLeituraMensal` e `videosNoArquivo`; ausentes → `resposta inesperada` como hoje. **E a compatibilidade da volta
   atrás:** conferido em 14/10 (Yannis): `counts` ignora chave extra; o teste fixa esse comportamento: `readSeries` de uma resposta com `arquivados` e uma chave inventada `zzz` lê igual ao de hoje (por isso reverter o código antes do primeiro congelamento não exige migration de volta).
-- [ ] **Passo 2. Código:** `SeriesHealth` ganha `arquivados: number`; `SERIES_KEYS` ganha `'arquivados'`; a nota acima em
-  `:224`; `CompetitorRemovalImpact` ganha `videosLeituraMensal: number; videosNoArquivo: number` e a checagem `isCount` das
-  duas chaves em `:15`. Quem renderiza o diálogo de remoção não muda nesta etapa (as frases são da M10b, peça 8). Em `readSeries`, antes de `counts`: `if (!hasKey(d, 'arquivados')) return { why: 'migration M10a não aplicada (falta o campo arquivados)' }` (Yannis Y7).
+- [ ] **Passo 2. Código:** `SeriesHealth` ganha `arquivados: number`; `SERIES_KEYS` ganha `'arquivados'`; a nota acima no bloco de notas (`competitor-health.ts:~222`, reler); `CompetitorRemovalImpact` ganha `videosLeituraMensal: number; videosNoArquivo: number` e a checagem `isCount` das
+  duas chaves em `:23` (`parseRemovalImpact`); **atenção (A5):** os campos novos entram em `ImpactoBase` (`:13`, o que a função do banco devolve), não nas parcelas `readings`/`watch` que a A5 montou à parte (`competitor_channel_removal_extra`, `:43`); `getCompetitorRemovalImpact` (`:51`) já junta as duas respostas, e o teste cobre as duas. Quem renderiza o diálogo de remoção não muda nesta etapa (as frases são da M10b, peça 8). Em `readSeries`, antes de `counts`: `if (!hasKey(d, 'arquivados')) return { why: 'migration M10a não aplicada (falta o campo arquivados)' }` (Yannis Y7).
 - [ ] **Passo 3.** Testes passam. **Passo 4.** Commit: `git commit -m "feat: a prova da série lê arquivados e a remoção de canal lê as duas parcelas do vídeo antigo (M10a, Tarefa 8, pontos 5 e 8)" -- <arquivos>`.
 
 ---
@@ -851,7 +889,7 @@ e com `title` nulo: título `''` (nunca a versão inventada "igual desde a publi
      `tracked: false` e não conta em `nTracked` (os 2 ativos mais recentes são os acompanhados); `pinState` dos ativos é o de
      hoje;
   3. **V3:** congelado sem linha de título em `versions`: `titles` vazio e `title` = `v.title`; o ramo da versão inventada
-     (`load.ts:298`) não roda (o teste falha se aparecer um título com `id` terminado em `/title`);
+     (`load.ts:308`) não roda (o teste falha se aparecer um título com `id` terminado em `/title`);
   4. **V2:** vídeo no arquivo com linhas legadas em `legacyChanges`: zero versão legada (`titles` e `descs` sem os itens
      vindos de `withLegacy`) e `arquivo.estado = 'no_arquivo'`;
   5. **V15:** `weeklyRate` de vídeo com `arquivo` devolve `vpd: null` e o texto `em leitura mensal desde dd/mm: sem taxa atual`
@@ -872,7 +910,7 @@ e com `title` nulo: título `''` (nunca a versão inventada "igual desde a publi
   - `legacyBy.get(v.id + '|title') ?? []` e o de `description` passam a `estaNoArquivo(v) ? [] : (legacyBy.get(…) ?? [])`.
   - `if (!titles.length && !estaCongelado(v)) titles = [ …a de hoje… ]` e
     `const title = v.title ?? titles[titles.length - 1]?.text ?? ''`.
-  - No objeto do vídeo, depois de `pinState`: `const m = marcaDoArquivo(v); const desde = m ? ms(m.desde) : null;` e `...(m && desde != null ? { arquivo: { estado: m.estado, desde } } : {})`; data ilegível com marca é `ObservatoryLoadError` (o padrão do arquivo para dado inconsistente, `load.ts:300`), nunca vídeo "ativo" calado (Yannis Y8).
+  - No objeto do vídeo, depois de `pinState`: `const m = marcaDoArquivo(v); const desde = m ? ms(m.desde) : null;` e `...(m && desde != null ? { arquivo: { estado: m.estado, desde } } : {})`; data ilegível com marca é `ObservatoryLoadError` (o padrão do arquivo para dado inconsistente, `load.ts:313`), nunca vídeo "ativo" calado (Yannis Y8).
   - `types.ts`: `ObsVideo` ganha `arquivo?: { estado: 'leitura_mensal' | 'no_arquivo'; desde: number }` com o comentário da
     M10a.
   - `series.ts` `weeklyRate`: logo depois de `if (!stored) throw …`, `if (stored.arquivo) return none('em leitura mensal desde ' + ctx.clock.dm(stored.arquivo.desde) + ': sem taxa atual')`.
@@ -950,7 +988,7 @@ export const GRAVADORES_DAS_8: readonly GravadorDasOito[]
 ```
 
 **Regra de varredura (teste sem banco).** Pastas: `apps/web/src`, `apps/web/lib`, `apps/api/src`, `packages/*/src`,
-`scripts`. Fora: `apps/web/src/types/database.types.ts`, arquivos `*.test.*`, e os dois arquivos de `video-antigo/`. O
+`scripts`. Fora: `apps/web/src/types/database.types.ts`, arquivos `*.test.*`, e os arquivos de `video-antigo/` que carregam as listas (`leitores-competitor-videos.ts` e `tabelas-fora-da-classe.ts`; este por rodada 0.7, Yannis C-A). O
 teste falha (a) por arquivo com o texto e sem entrada; (b) por entrada sem o arquivo ou com `ocorrencias` diferente;
 (c) se o conjunto dos `ponto` presentes nas três listas não for exatamente {1..8}, ou se alguma entrada com `ponto` tiver `pendenteAte`; (d) se algum arquivo de `apps/web/src`/`lib` com `.from('<uma das 8>')` seguido de `insert`/`upsert`, ou `rpc('<função que grava numa das 8>')`, não tiver entrada em `GRAVADORES_DAS_8`. Migrations: todo arquivo de `supabase/migrations` que cita
 `competitor_videos` tem entrada (pelo nome, que não muda depois do push) e toda entrada tem arquivo; a migration desta
@@ -960,8 +998,8 @@ escapa. Um teste afirma que nenhum arquivo das pastas contém `'competitor_' +` 
 **Teste com banco (`video-antigo-leitores-vivos.test.ts`).** (a) `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f' and pg_get_functiondef(p.oid) like '%competitor_videos%'`
 é exatamente o conjunto de `FUNCOES_VIVAS`; (b) nenhuma view de `public` cita a tabela (`pg_views.definition`), ou, se
 citar, está na lista; (c) **o teste das listas:** as chaves estrangeiras para `competitor_videos`
-(`select conrelid::regclass::text, a.attname from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey) where c.confrelid = 'public.competitor_videos'::regclass and c.contype = 'f'`)
-são exatamente `TABELAS_COM_CHAVE_PARA_COMPETITOR_VIDEOS`, cada tabela numa classe só, com `competitor_raw` em
+(`select conrelid::regclass::text, a.attname from pg_constraint c join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey) where c.confrelid = 'public.competitor_videos'::regclass and c.contype = 'f' and c.conparentid = 0`; **rodada 0.6: sem `conparentid = 0` a consulta devolve dezenas de FKs clonadas `obs_part.competitor_video_*_AAAAMM` depois da M2**; juntar `not cl.relispartition` em `pg_class`)
+são exatamente `TABELAS_COM_CHAVE_PARA_COMPETITOR_VIDEOS` (16 entradas hoje, MEDIDO em produção por Phil em 23/10), cada tabela numa classe só, com `competitor_raw` em
 `video_antigo` com o motivo "a versão corrente; a não corrente é da classe texto, por isso a classe vai na chave do registro
 (M3b)"; e as 8 tabelas com classe `video_antigo` são exatamente as que têm o gatilho `obs_video_antigo_guarda` (liga a
 Tarefa 4); (d) **`competitor_hour_fold_log`:** o conjunto de arquivos e funções que leem a tabela é exatamente
@@ -974,7 +1012,7 @@ tabela sai da classe (02 §10.8, linha da tabela) por decisão registrada, não 
 | Arquivo | Trata | Motivo / pendência |
 |---|---|---|
 | `competitor-sync.ts` | exclui | pontos 1 a 3 (Tarefa 7) |
-| `observatorio/load.ts`, `observatorio/load-channel.ts` | inclui_e_rotula | ponto 6 (Tarefa 9); `load.ts:484` e `:606-619` só embutem o canal da série diária, indiferente |
+| `observatorio/load.ts`, `observatorio/load-channel.ts` | inclui_e_rotula | ponto 6 (Tarefa 9); `load.ts:482` (`readAll`) e `:599-632` (`loadLiveRows`) só embutem o canal da série diária, indiferente |
 | `competitors/actions.ts` | inclui_e_rotula | ponto 7 (Tarefa 10) |
 | `competitor-health.ts` | indiferente | só confere a existência de colunas (`:5`, `:11`) |
 | `competitor-capture.ts`, `observatorio/types.ts`, `observatorio/cache-tag.ts`, `observatorio/index.ts`, `_chrome/forja-view-model.ts`, `pipeline/services/forja-queue.ts` | indiferente | só comentário. **`forja-queue.ts` grava em `competitor_readings`:** o alvo congelado da fila de inteligência (recusar ao criar; 422 em `readSent` e `completeReading`) é o pedido 17, `pendenteAte: 'M10b'` (é condição do passo 4 da §10.8) |
@@ -992,12 +1030,11 @@ tabela sai da classe (02 §10.8, linha da tabela) por decisão registrada, não 
 `pendenteAte: 'M10b'`), `competitor_hourly_health` (indiferente: janela de dias), `apply_competitor_comment_snap`,
 `competitor_comment_due`, `competitor_comment_health` (indiferente: comentários só nos primeiros 37 dias; a guarda cobre
 `competitor_video_comment_snaps`), e as funções de captura e versões da A5 que a consulta (a) devolver no dia (a lista final
-sai da consulta, não deste plano). `TABELAS_COM_CHAVE…` iniciais (13 colunas, lidas nas migrations): as 8 da classe;
+sai da consulta, não deste plano). `TABELAS_COM_CHAVE…` iniciais (**16 entradas, FKs raiz lidas em produção em 23/10**; rodada 0.6, Phil M10a-2): as 8 da classe;
 `competitor_video_daily` e `competitor_video_early` (`serie`); `competitor_video_hourly` (`horaria`);
-`competitor_video_comments` (`texto`); `youtube_intelligence_tasks.target_video_id` (`fica`: o vídeo não é apagado).
-`competitor_video_marks` não existe em migration (F75): fora da lista até nascer, e o teste (c) a pega quando nascer.
+`competitor_video_comments` (`texto`); `youtube_intelligence_tasks.target_video_id` (`fica`: o vídeo não é apagado); e, na classe `fica` (ficam online, spec 02 l.186), `competitor_video_marks`, `competitor_video_mark_misses` e `competitor_missing_baseline`. Os motivos por tabela são os de `TABELAS_VIDEO_FORA_DA_CLASSE` (Tarefa 4), **importados de lá** (`import { TABELAS_VIDEO_FORA_DA_CLASSE } from './tabelas-fora-da-classe'`, mesma pasta `video-antigo/`; nunca de `test/`); os motivos das 8 tabelas da classe vêm do registro da classe, não da lista de 14 (rodada 0.7, Phil). As três últimas existem em migration desde `20261014000004` e `20261015000001` (a frase antiga "não existe em migration (F75)" caiu). Conferir: a consulta com `conparentid = 0` devolve 16 linhas hoje; depois da M2 em produção continua 16 (rodar no 54422 com a M2 aplicada).
 
-`GRAVADORES_DAS_8` iniciais (lidos em 14/10, Phil M-4): a sincronização (`competitor-sync.ts:736`, `:1211`); a captura (`competitor-capture.ts:326`, `:339`); a ausência (`competitor-capture.ts:373`, `competitor_mark_missing`); a leitura horária (`horaria/gravar.ts`, janela de dias) e os retratos de comentário (37 dias): os dois de janela curta nunca veem vídeo de 24 meses por construção, e a entrada diz isso; a fila da forja (`forja-queue.ts:399`, pedido 17: `pendenteAte: 'M10b'`).
+`GRAVADORES_DAS_8` iniciais (lidos em 14/10, Phil M-4): a sincronização (`competitor-sync.ts:680`, `:685`, `:796`, `:1209` (as `update` de `competitor_video_versions`; em 14/10 eram `:736` e `:1211`)); a captura (`competitor-capture.ts:324` (`captureItems`), `:339-340` (leitura do atual), `:357` (`apply_competitor_raw_plan`)); a ausência (`competitor-capture.ts:389` (`markMissing`), `:391` (`competitor_mark_missing`)); a leitura horária (`horaria/gravar.ts`, janela de dias) e os retratos de comentário (37 dias): os dois de janela curta nunca veem vídeo de 24 meses por construção, e a entrada diz isso; a fila da forja (`forja-queue.ts:399`, pedido 17: `pendenteAte: 'M10b'`).
 
 **Gate da M10b (Y4):** o passo 4 da §10.8 (primeiro congelamento) exige `'M10b'` fora de `ETAPAS_EM_ABERTO` com `tsc` verde; a tarefa da função de congelar na M10b começa por esse commit.
 

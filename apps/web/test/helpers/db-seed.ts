@@ -13,6 +13,7 @@ import { Client } from 'pg'
 import jwt from 'jsonwebtoken'
 import { getLocalJwtSecret, localSupabaseUrl } from './db-skip'
 import { getSupabaseServiceClient } from '../../lib/supabase/service'
+import { apagarSitesDeTeste } from './limpa-cena'
 
 // Direct postgres URL — matches supabase start local defaults.
 // Used instead of auth.admin.createUser/deleteUser because CI excludes GoTrue.
@@ -577,7 +578,7 @@ export async function cleanupRbacScenario(
     }
   }
   if (cleanup.siteIds.length) {
-    await admin.from('sites').delete().in('id', cleanup.siteIds)
+    await apagarSitesDeTeste('id = any($1::uuid[])', [cleanup.siteIds])
   }
   if (cleanup.orgIds.length) {
     await admin.from('organizations').delete().in('id', cleanup.orgIds)

@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -56,7 +57,7 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: RLS das tabelas do registro do teste 
       await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
       await pg.query('delete from public.youtube_videos where site_id = any($1::uuid[])', [sites])
       await pg.query('delete from public.youtube_channels where site_id = any($1::uuid[])', [sites])
-      await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       await pg.end()
     }

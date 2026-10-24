@@ -23,6 +23,7 @@ import { garantirMg6, tenta, q1, escalar, criarSite, criarCanal } from '../helpe
 import { decidirMarca, type PendenteDeMarca } from '@/lib/youtube/observatorio/medidas/m1'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
 import { FALTAS_DE_MARCA } from '@/lib/youtube/observatorio/medidas/tipos'
+import { apagarCanais } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 export const MG4_FIXTURE = fileURLToPath(new URL('../fixtures/sql/a5-e4-mg4.sql', import.meta.url))
@@ -491,7 +492,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4 Tarefa 9: a MG4, função por função
       await aplicar([marca(v, 7, ANCORA, antes, depois)], [falta(w, 7, ANCORA, 'sem_leitura')], agora)
       await pg.query(`delete from public.competitor_videos where id = $1`, [v])
       expect(await linhas('competitor_video_marks', v)).toEqual([])
-      await pg.query(`delete from public.competitor_channels where id = $1`, [c.canal])
+      await apagarCanais(pg, 'id = $1', [c.canal])
       expect(await linhas('competitor_video_mark_misses', w)).toEqual([])
     })
   })

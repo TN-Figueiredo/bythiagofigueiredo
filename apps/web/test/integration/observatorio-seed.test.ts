@@ -14,6 +14,7 @@ import { requestStateOf } from '@/lib/youtube/observatorio/forja/states'
 import { humanizeSyncError } from '@/lib/youtube/observatorio/channels'
 import { loadOracle } from '../youtube/observatorio/oracle'
 import { seedObservatory, clearObservatory, seedUuid, ownSeedUuid, ORACLE_NOW, NICHE_PRESETS } from '../../e2e/fixtures/observatorio-seed'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
@@ -26,7 +27,7 @@ describe.skipIf(skipIfNoLocalDb())('seedObservatory (local DB)', () => {
   afterAll(async () => {
     if (!siteId) return
     await clearObservatory(siteId, sb)
-    await sb.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
   }, 60_000)
 
   it('ORACLE_NOW is the mockup clock (24/10 15:02 SP)', () => {

@@ -14,6 +14,7 @@ import { travarS4, destravarS4 } from '../helpers/a5-s4-trava'
 import { seedSite, seedYoutubeChannelAndVideo } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { conciliar, montarCandidatos, type Candidato } from '@/lib/youtube/watch/alvos'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 300_000 })
 
@@ -37,6 +38,14 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B6: yt_watch_conciliar (banco local)',
   async function comRepeticao(sql: string, args: unknown[]): Promise<void> {
     for (let i = 0; ; i++) {
       try { await pg.query(sql, args); return } catch (e) {
+        if ((e as { code?: string }).code !== '40P01' || i >= 8) throw e
+        await new Promise(r => setTimeout(r, 150 * (i + 1) + Math.random() * 200))
+      }
+    }
+  }
+  async function comRepeticaoDe(acao: () => Promise<void>): Promise<void> {   // mesmo laço do comRepeticao, para o helper de limpeza
+    for (let i = 0; ; i++) {
+      try { await acao(); return } catch (e) {
         if ((e as { code?: string }).code !== '40P01' || i >= 8) throw e
         await new Promise(r => setTimeout(r, 150 * (i + 1) + Math.random() * 200))
       }
@@ -66,8 +75,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B6: yt_watch_conciliar (banco local)',
       await comRepeticao('delete from public.ab_tests where site_id = any($1::uuid[])', [sites])
       await comRepeticao('delete from public.youtube_videos where site_id = any($1::uuid[])', [sites])
       await comRepeticao('delete from public.youtube_channels where site_id = any($1::uuid[])', [sites])
-      await comRepeticao('delete from public.competitor_channels where site_id = any($1::uuid[])', [sites])
-      await comRepeticao('delete from public.sites where id = any($1::uuid[])', [sites])
+      await comRepeticaoDe(() => apagarCanais(pg, 'site_id = any($1::uuid[])', [sites]))
+      await comRepeticaoDe(() => apagarSites(pg, 'id = any($1::uuid[])', [sites]))
     } finally { await destravarS4(pg); await pg.end() }
   })
 

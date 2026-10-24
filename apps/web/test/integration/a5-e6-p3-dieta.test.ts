@@ -24,6 +24,7 @@ import { metricVersion } from '@/lib/youtube/coleta/metric-version'
 import type { DiarioResumo } from '@/lib/youtube/coleta/diario-step'
 import { readFileSync } from 'node:fs'
 import { OUTCOMES } from '@/lib/youtube/coleta/types'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -99,7 +100,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E6 P3, MG15: apagar linhas vazias do diá
   })
   afterAll(async () => {
     try {
-      if (pg && sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (pg && sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       if (pg) await pg.end()
     }

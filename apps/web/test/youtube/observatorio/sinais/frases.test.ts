@@ -64,9 +64,13 @@ describe('rótulos e ações em palavras', () => {
   it('"pode ajudar", nunca "vai ajudar"', () => {
     for (const a of ['titulo_descricao', 'video_novo', 'playlist', 'outra']) { expect(textoDaAcao(a)).toMatch(/pode ajudar/); expect(textoDaAcao(a)).not.toMatch(/vai ajudar/) }
   })
-  it('o texto do botão', () => {
-    expect(textoDoRotulo('abrir-seus', 2, 'Japão')).toBe('Abrir seus 2 vídeos sobre Japão')
-    expect(textoDoRotulo('abrir-seus', 1)).toBe('Abrir seu vídeo parecido')
-    expect(textoDoRotulo('generico', null)).toBe('Abrir seus vídeos')
+  it('o texto do botão nos 6 casos do mockup (kind obrigatório)', () => {
+    expect(textoDoRotulo('abrir-concorrente', 0, 'Japão', 'destino')).toBe('Abrir o vídeo do concorrente')
+    expect(textoDoRotulo('abrir-seus', 2, 'Japão', 'destino')).toBe('Abrir seus 2 vídeos sobre Japão')
+    expect(textoDoRotulo('abrir-seus', 1, 'Japão', 'destino')).toBe('Abrir seu vídeo sobre Japão')
+    expect(textoDoRotulo('abrir-seus', 3, undefined, 'parecido')).toBe('Abrir seus 3 vídeos parecidos')
+    expect(textoDoRotulo('abrir-seus', 1, undefined, 'parecido')).toBe('Abrir seu vídeo parecido')
+    expect(textoDoRotulo('generico', null, 'Japão', 'destino')).toBe('Abrir seus vídeos')
+    expect(textoDoRotulo('abrir-seus', 2, '  ', 'destino')).toBe('Abrir seus 2 vídeos sobre este lugar')
   })
 })

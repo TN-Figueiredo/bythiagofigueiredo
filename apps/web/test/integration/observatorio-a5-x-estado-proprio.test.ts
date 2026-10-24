@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -38,7 +39,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X1/X2/X5: estado do vÃ­deo e do canal prÃ
   afterAll(async () => {
     try {
       await pg.query('delete from public.youtube_channels where site_id = $1', [site])
-      await pg.query('delete from public.sites where id = $1', [site])
+      await apagarSites(pg, 'id = $1', [site])
     } finally { await pg.end() }
   })
 

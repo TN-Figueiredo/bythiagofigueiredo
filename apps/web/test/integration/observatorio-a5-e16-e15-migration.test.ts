@@ -20,6 +20,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerEstado, tomar, fechar, esgotar, adiar } from '@/lib/youtube/agenda/estado'
 import { lerProvaHoraria } from '@/lib/youtube/horaria/prova'
 import { lerCandidatos } from '@/lib/youtube/horaria/gravar'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const HORA = 3_600_000
@@ -56,7 +57,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 e E15 parte 1: SQL da agenda e da lei
         for (const t of ['yt_own_public_hour_fold_log', 'yt_own_public_hour_map', 'yt_own_public_video_early', 'yt_own_public_video_hourly', 'yt_own_video_meta_daily', 'youtube_videos', 'youtube_channels', 'youtube_quota_usage']) {
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
       if (tarefas.length > 0) await pg.query('delete from public.competitor_agenda_runs where task = any($1::text[])', [tarefas])
       if (leases.length > 0) await pg.query('delete from public.competitor_agenda_lease where name = any($1::text[])', [leases])
@@ -615,7 +616,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 e E15 parte 1: SQL da agenda e da lei
     const v = await videoConc(ch)
     await lerConc(v, site, ultimas(3))
     await semearMapaEFold(site, ch, v)
-    await pg.query('delete from public.competitor_channels where id = $1', [ch])
+    await apagarCanais(pg, 'id = $1', [ch])
     for (const [t, c] of [['competitor_video_hourly', 'video_id'], ['competitor_channel_hour_map', 'competitor_channel_id'], ['competitor_hour_fold_log', 'video_id']] as const) {
       const n = (await q(pg, `select count(*)::int as n from public.${t} where site_id = $1`, [site]))[0]!.n
       expect(n, `${t}.${c}`).toBe(0)

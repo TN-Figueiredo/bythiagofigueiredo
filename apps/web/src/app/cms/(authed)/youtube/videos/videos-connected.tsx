@@ -8,6 +8,8 @@ import { brDec } from '@/lib/youtube/format'
 import { CategoryBadge, FeaturedToggle, HiddenToggle, PinButton, SyncButton, AbStatusBadge, VideoContextMenu } from './video-row-actions'
 import { triggerSync } from './actions'
 import { VideoOptimizerDrawer } from './video-optimizer-drawer'
+import { FaixaSugestao } from './faixa-sugestao'
+import type { DadosFaixa } from './filtro-ids'
 
 export interface VideoRow {
   id: string
@@ -56,6 +58,7 @@ interface Props {
   videos: VideoRow[]
   channels: ChannelOption[]
   categories: CategoryOption[]
+  faixa?: DadosFaixa | null
 }
 
 const LOCALE_FLAG: Record<string, string> = {
@@ -73,7 +76,7 @@ function formatCount(n: number): string {
   return String(n)
 }
 
-export function VideosConnected({ videos, channels, categories }: Props) {
+export function VideosConnected({ videos, channels, categories, faixa = null }: Props) {
   const [channelFilter, setChannelFilter] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [search, setSearch] = useState<string>('')
@@ -120,6 +123,7 @@ export function VideosConnected({ videos, channels, categories }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      {faixa && <FaixaSugestao mostrados={faixa.mostrados} total={faixa.total} />}
       {/* ── Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>

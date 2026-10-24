@@ -27,6 +27,7 @@ import { CABECALHO_TRAFEGO, lerTrafego, agregarTrafego } from '@/lib/youtube/rep
 import { CABECALHO_ALCANCE_COMBINADO, lerAlcanceCombinado, agregarAlcanceCombinado } from '@/lib/youtube/reporting/reach-combined-csv'
 import { provarLeituraPrivada } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerDimensoes, lerDetalheDaOrigem } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -78,7 +79,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (MG7): schema, funções SQL e o Type
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
     } finally {
       await pg.end()

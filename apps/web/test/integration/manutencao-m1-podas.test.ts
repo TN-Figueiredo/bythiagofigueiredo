@@ -15,6 +15,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, SUPABASE_URL, SERVICE_KEY } from '../helpers/db-seed'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -44,7 +45,7 @@ describe.skipIf(skipIfNoLocalDb())('M1: podas de estado de execução (bythiago_
     siteId = (await seedSite(service)).siteId
   })
   afterAll(async () => {
-    await service.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
     await pg.end()
   })
   beforeEach(async () => {

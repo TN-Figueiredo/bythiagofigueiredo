@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, SUPABASE_URL, ANON_KEY } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 describe.skipIf(skipIfNoLocalDb())('coleta L2: schema (banco local)', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
@@ -33,7 +34,8 @@ describe.skipIf(skipIfNoLocalDb())('coleta L2: schema (banco local)', () => {
   })
   afterAll(async () => {
     for (const t of ['yt_own_video_daily', 'yt_own_video_reach_daily']) await sb.from(t).delete().eq('site_id', siteId)
-    await sb.from('sites').delete().eq('id', siteId)
+    await sb.from('youtube_channels').delete().eq('site_id', siteId) // youtube_channels.site_id é NO ACTION
+    await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   it('diário: toda métrica nasce nula, a chave é (youtube_video_id, day_pt) e metric_version fora da lista é recusada', async () => {

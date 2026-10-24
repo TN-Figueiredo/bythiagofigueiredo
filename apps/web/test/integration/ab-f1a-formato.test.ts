@@ -11,6 +11,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerFormatos } from '@/lib/youtube/teste-youtube/nativo/formato-borda'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -39,7 +40,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T7: formato atual do vídeo (RPC)',
       await pg.query('delete from public.yt_own_video_meta_daily where site_id = $1', [siteId])
       await pg.query('delete from public.youtube_videos where site_id = $1', [siteId])
       await pg.query('delete from public.youtube_channels where site_id = $1', [siteId])
-      await pg.query('delete from public.sites where id = any($1::uuid[])', [[siteId, outroSite]])
+      await apagarSites(pg, 'id = any($1::uuid[])', [[siteId, outroSite]])
     } finally {
       await pg.end()
     }

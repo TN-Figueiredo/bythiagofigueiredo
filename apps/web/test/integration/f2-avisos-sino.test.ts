@@ -21,6 +21,7 @@ import { getSiteAdminUserIds } from '@/lib/notifications/get-site-admin-users'
 import { rodarAvisos } from '@/lib/youtube/agenda/tarefas/avisos-pendentes'
 import { roteiro, ok } from '../helpers/banco-roteirizado'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const EV = { outliers: [{ video_id: randomUUID(), canal_id: randomUUID(), published_at: '2026-10-01T00:00:00Z', mult_vpd7: 6, mult_tela: 3, vpd7: 900, formato: 'long' }], outliers_total: 2, canais: 2, proprios: [] }
@@ -76,9 +77,9 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
   afterAll(async () => {
     try {
       await limpar()
-      await pg.query('delete from public.competitor_channels where site_id = $1', [site])
+      await apagarCanais(pg, 'site_id = $1', [site])
       await pg.query('delete from public.organization_members where org_id = $1', [org])
-      await pg.query('delete from public.sites where id = $1', [site])
+      await apagarSites(pg, 'id = $1', [site])
       // os deletes acima gravam em audit_log (trigger): limpar por último, antes da organização
       await pg.query('delete from public.audit_log where org_id = $1', [org])
       await pg.query('delete from public.organizations where id = $1', [org])
@@ -91,7 +92,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(false)
     const ids = [await sinal({ como: 'individual' }), await sinal({ como: 'resumo' }), await sinal({ kind: 'parecido', como: 'resumo' }), await sinal(), await sinal(), await sinal()]
     const r = await rodar()
-    expect(r).toEqual({ enviados: 0, resumidos: 6, falhas: 0, sem_tempo: 0, adiados: 0 })
+    expect(r).toEqual({ enviados: 0, resumidos: 6, falhas: 0, sem_tempo: 0, envios_adiados: 0 })
     expect(await notifs('nicho:%')).toEqual([])
     const resumos = await notifs('nicho-resumo:%')
     expect(new Set(resumos).size).toBe(1)
@@ -103,7 +104,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     // o apagamento das notificações não reativa o baseline: uma linha nova sai como individual
     await pg.query('delete from public.notifications where site_id = $1', [site])
     await sinal({ forca: 50 })
-    expect(await rodar()).toEqual({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 })
+    expect(await rodar()).toEqual({ enviados: 1, resumidos: 0, falhas: 0, sem_tempo: 0, envios_adiados: 0 })
     expect((await notifs('nicho:%')).length).toBe((await getSiteAdminUserIds(site)).length)
   })
 
@@ -120,7 +121,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
   it('sinal dispensado antes da passada: nenhuma notificação', async () => {
     await estado(true)
     await sinal({ status: 'dispensado' })
-    expect(await rodar()).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, adiados: 0 })
+    expect(await rodar()).toEqual({ enviados: 0, resumidos: 0, falhas: 0, sem_tempo: 0, envios_adiados: 0 })
     expect(await notifs('nicho%')).toEqual([])
   })
 
@@ -198,7 +199,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
     await estado(true)
     const id = await sinal()
     const falha = vi.fn().mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] })
-    expect(await enviarAvisosDoNicho(sb(), new Date(), { fanOut: falha, sites: [site] })).toMatchObject({ enviados: 0, falhas: 0, sem_tempo: 0, adiados: 1 })
+    expect(await enviarAvisosDoNicho(sb(), new Date(), { fanOut: falha, sites: [site] })).toMatchObject({ enviados: 0, falhas: 0, sem_tempo: 0, envios_adiados: 1 })
     expect((await linha(id)).notificacao_tentativas).toBe(1)
     expect((await linha(id)).notificado_em).toBeNull()
     expect(await rodar()).toMatchObject({ enviados: 1 })

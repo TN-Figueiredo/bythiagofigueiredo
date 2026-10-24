@@ -24,6 +24,7 @@ vi.mock('@/lib/cron-health', () => ({
 
 import { GET } from '@/app/api/cron/weekly-grade-snapshot/route'
 import { NextRequest } from 'next/server'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 interface GradeRow {
   youtube_video_id: string
@@ -117,7 +118,7 @@ describe.skipIf(skipIfNoLocalDb())('weekly-grade-snapshot with production-shaped
     await admin.from('optimization_cycles').delete().in('youtube_video_id', [measuredId, unmeasuredId])
     await admin.from('youtube_videos').delete().eq('channel_id', channelId)
     await admin.from('youtube_channels').delete().eq('id', channelId)
-    await admin.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   it('grades videos whose ctr is NULL instead of skipping the whole channel', () => {

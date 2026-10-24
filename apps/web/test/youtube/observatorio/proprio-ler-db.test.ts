@@ -9,6 +9,7 @@ import { leituraDe } from './leitura-teste'
 import { lerAlcance, lerAlcanceDoVideo, lerDiario, TIPO_ALCANCE, TETO_VIDEOS_DIARIO } from '@/lib/youtube/observatorio/proprio/ler'
 import { montarDias } from '@/lib/youtube/observatorio/proprio/dias'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
+import { apagarSitesDeTeste } from '../../helpers/limpa-cena'
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -83,7 +84,7 @@ describe.skipIf(skipIfNoLocalDb())('leitores do canal próprio (banco local)', (
       for (const t of ['yt_own_video_coverage', 'yt_own_video_daily', 'yt_own_video_reach_daily', 'yt_reporting_reports']) await sb.from(t).delete().eq('site_id', s)
     }
     for (const c of [canalId, outroCanal]) if (c) { await sb.from('youtube_videos').delete().eq('channel_id', c); await sb.from('youtube_channels').delete().eq('id', c) }
-    for (const s of sites) await sb.from('sites').delete().eq('id', s)
+    for (const s of sites) await apagarSitesDeTeste('id = $1', [s])
   }, 60_000)
 
   it('diário: 1400 linhas passam do limite de 1000 e chegam inteiras; zero medido continua 0; nada de outro site nem fora da janela', async () => {

@@ -31,7 +31,10 @@ import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { CONTEXTO } from '../youtube/observatorio/contexto-ia-fixture'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
+import { contarSinaisAbertos, contarAbertosEntre, listarSinaisDoNicho } from '@/lib/youtube/observatorio/sinais/leitura'
+import { lerAmostraDasLinhas } from '@/lib/youtube/observatorio/sinais/amostra'
 import type { ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const dia = (n: number): string => new Date(Date.now() + n * 86_400_000).toISOString()
 const hoje = new Date().toISOString().slice(0, 10)
@@ -95,7 +98,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
       await pg.query('delete from public.yt_own_video_meta_daily where site_id = $1', [mundo.siteId])
       await pg.query('delete from public.youtube_videos where site_id = $1', [mundo.siteId])
       await pg.query('delete from public.youtube_channels where site_id = $1', [mundo.siteId])
-      await pg.query('delete from public.sites where id = $1', [mundo.siteId])
+      await apagarSites(pg, 'id = $1', [mundo.siteId])
       await pg.query('delete from public.organizations where id = $1', [org])
     } finally { await pg.end() }
   })
@@ -186,7 +189,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
       expect((await pg.query(`select status from public.niche_signals where id = $1`, [SIG(1)])).rows[0].status).toBe('aberto')
     } finally {
       await pg.query('delete from public.niche_signals where id = $1', [SIG(1)])
-      await pg.query('delete from public.sites where id = $1', [outro.site]); await pg.query('delete from public.organizations where id = $1', [outro.org])
+      await apagarSites(pg, 'id = $1', [outro.site]); await pg.query('delete from public.organizations where id = $1', [outro.org])
     }
     await estado('sem-lugar', { outliers_sem_lugar: 4, outliers_total: 4 })
     const [a, b, c] = [await rota(), await cowork(), await claudeCode()]
@@ -200,5 +203,51 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     const [a, b, c] = [await rota(), await cowork(), await claudeCode()]
     expect([a.motivoVazio, b.motivoVazio]).toEqual(['nunca-calculado', 'nunca-calculado'])
     expect(c.vazio).toMatch(/cálculo|1º cálculo/)
+  })
+
+  it('F3 T2: contarSinaisAbertos dá o mesmo n e os ids de listarSinaisDoNicho coincidem com a rota, o get_signals e a sugestoes; vencida e dispensada ficam fora', async () => {
+    await limpar()
+    await sinal(1, 'pais:JP', { forca: 30 }); await sinal(2, 'pais:VN', { forca: 20 }); await sinal(3, 'pais:TR', { expira: dia(-1) }); await sinal(4, 'pais:IT', { status: 'dispensado' })
+    await estado(null, { canais_total: 5 })
+    const agora = new Date()
+    const [a, b, c, lista, n] = [await rota(), await cowork(), await claudeCode(), await listarSinaisDoNicho(sb(), mundo.siteId, agora, 100), await contarSinaisAbertos(sb(), mundo.siteId, agora)]
+    expect(n).toBe(2)
+    expect([a.n, b.n, c.n, lista.n]).toEqual([2, 2, 2, 2])
+    expect(lista.itens.map((i) => i.id)).toEqual(a.itens.map((i) => i.id))
+    expect(c.ids).toEqual(lista.itens.map((i) => i.id))
+  })
+
+  it('F3 T2: contarAbertosEntre conta só abertos vigentes do site (vencido, dispensado e id alheio ficam fora)', async () => {
+    await limpar()
+    await sinal(1, 'pais:JP'); await sinal(2, 'pais:VN'); await sinal(3, 'pais:TR', { expira: dia(-1) }); await sinal(4, 'pais:IT', { status: 'dispensado' })
+    const ids = [SIG(1), SIG(2), SIG(3), SIG(4), randomUUID()]
+    expect(await contarAbertosEntre(sb(), mundo.siteId, ids, new Date())).toBe(2)
+    const outro = await criarSite(pg)
+    try { expect(await contarAbertosEntre(sb(), outro.site, ids, new Date())).toBe(0) }
+    finally { await apagarSites(pg, 'id = $1', [outro.site]); await pg.query('delete from public.organizations where id = $1', [outro.org]) }
+  })
+
+  it('F3 T2 (DF6): parecido com o próprio privado → proprios_agora [] e abrir-concorrente; com o público → [p1], abrir-seus, n_proprios 1', async () => {
+    await limpar()
+    const pub = await video('ytdf6a' + randomUUID().slice(0, 6), 'public')
+    const pri = await video('ytdf6b' + randomUUID().slice(0, 6), 'private')
+    await sinal(1, 'outlier:' + randomUUID(), { kind: 'parecido', proprios: [pub], forca: 30 })
+    await sinal(2, 'outlier:' + randomUUID(), { kind: 'parecido', proprios: [pri], forca: 20 })
+    await estado(null)
+    const [a, b] = [await rota(), await cowork()]
+    for (const l of [a, b]) {
+      expect(l.itens[0]).toMatchObject({ id: SIG(1), proprios_agora: [pub], rotulo_acao: 'abrir-seus', n_proprios: 1 })
+      expect(l.itens[1]).toMatchObject({ id: SIG(2), proprios_agora: [], rotulo_acao: 'abrir-concorrente', n_proprios: 0 })
+    }
+  })
+
+  it('F3 T2: a amostra traz canal e chaves das duas origens, nada de outro site, e chaves = null sem video_lugares', async () => {
+    await limpar()
+    const pub = await video('ytam' + randomUUID().slice(0, 6), 'public')
+    const m = await lerAmostraDasLinhas(sb(), mundo.siteId, [pub, randomUUID()])
+    expect(m.size).toBe(1)
+    expect(m.get(pub)).toMatchObject({ origem: 'proprio', canal: null, chaves: ['pais:JP'] })
+    await pg.query('delete from public.video_lugares where video_id = $1', [pub])
+    expect((await lerAmostraDasLinhas(sb(), mundo.siteId, [pub])).get(pub)?.chaves).toBeNull()
   })
 })

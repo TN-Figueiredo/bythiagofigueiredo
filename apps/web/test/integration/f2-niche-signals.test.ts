@@ -11,6 +11,7 @@ import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { criarSite, criarUsuario, escalar } from '../helpers/mg6'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
@@ -143,7 +144,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T4: niche_signals (gravar, expirar, dispe
       expect(await escalar<number>(pg, `select count(*)::int from public.niche_signals where site_id = $1`, [site])).toBe(1)
     } finally {
       await b.end()
-      await pg.query(`delete from public.sites where id = $1`, [site])
+      await apagarSites(pg, 'id = $1', [site])
       await pg.query(`delete from public.organizations where id = $1`, [org])
     }
   })
@@ -312,7 +313,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T4: niche_signals (gravar, expirar, dispe
     } finally {
       try { await pg.query('rollback') } catch { /* nada aberto */ }
       await b.end()
-      await pg.query(`delete from public.sites where id = $1`, [site])
+      await apagarSites(pg, 'id = $1', [site])
       await pg.query(`delete from public.organizations where id = $1`, [org])
     }
   })

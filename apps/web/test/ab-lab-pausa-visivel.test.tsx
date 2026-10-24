@@ -212,8 +212,10 @@ describe('assistente: recusa da guarda ao iniciar o nosso teste (D-7)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ativar teste' }))
     await screen.findByRole('alert')
     fireEvent.click(screen.getByRole('button', { name: 'Voltar' }))
-    expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull()
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull()
+    })
   })
   it('outro erro do servidor segue como antes (texto cru, sem Tentar de novo)', async () => {
     montar(vi.fn().mockResolvedValue({ ok: false, error: 'Quota excedida' }))

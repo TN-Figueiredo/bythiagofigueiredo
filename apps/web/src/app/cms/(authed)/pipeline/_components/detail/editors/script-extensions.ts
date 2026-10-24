@@ -15,6 +15,8 @@ export function getScriptExtensions(placeholder?: string): Extensions {
       heading: false,           // no headings in beat editor
       codeBlock: false,
       horizontalRule: false,
+      link: false,
+      underline: false,
     }),
     Underline,
     Link.configure({

@@ -1,0 +1,95 @@
+// @vitest-environment node
+import { describe, it, expect } from 'vitest'
+import { lerPendencias, pendenciasParaTela, LINHA_DO_DONO } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
+
+const SHA = 'a'.repeat(64)
+const base = (itens: unknown[], extra: Record<string, unknown> = {}) => ({ versao: 1, lido_em: '2026-12-01T10:00:00Z', total: itens.length, itens, ...extra })
+const canal = (o: Record<string, unknown> = {}) => ({ item_id: 'canal:6f1c1b9e-0000-4000-8000-000000000001', kind: 'canal', tempo: 'sem_comando',
+  desde: '2026-10-01T12:00:00Z', mes: null, channel_ref: '6f1c1b9e-0000-4000-8000-000000000001', youtube_id: 'UCx', marcado_rodado_em: null,
+  apagar: [], b2_nomes: [], ...o })
+
+describe('lerPendencias: a forma do C12', () => {
+  it('a linha do dono é a da peça 7, com cd e com -s (E-D1)', () => {
+    expect(LINHA_DO_DONO).toBe("cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'")
+  })
+  it('zero medido é ok com lista vazia', () => {
+    expect(lerPendencias(base([]))).toEqual({ ok: true, lidoEm: new Date('2026-12-01T10:00:00Z'), itens: [] })
+  })
+  it('um canal sem comando', () => {
+    const l = lerPendencias(base([canal()]))
+    expect(l.ok && l.itens[0]!.tempo).toBe('sem_comando')
+  })
+  it('o formato de data do Postgres (jsonb, com microssegundos e deslocamento) é aceito', () => {
+    expect(lerPendencias({ ...base([canal({ desde: '2026-10-01T12:00:00.123456+00:00' })]), lido_em: '2026-12-01T10:00:00.5+00:00' }).ok).toBe(true)
+  })
+  it('um item de vídeo da E9 e o apagar_antigas bem formado (M9) passam', () => {
+    const video = canal({ item_id: 'item:42', kind: 'video', channel_ref: null, youtube_id: 'abc_DEF-123' })
+    expect(lerPendencias(base([video])).ok).toBe(true)
+    const antigas = canal({ tempo: 'apagar_antigas', mes: '2026-10', b2_nomes: ['serie/x.csv.gz'],
+      apagar: [{ filho: 'numerico', caminho: 'serie/canais/x/2026-10.v1.csv.gz', sha256: SHA, nova: { caminho: 'serie/canais/x/2026-10.v2.csv.gz', sha256: SHA } }] })
+    expect(lerPendencias(base([antigas])).ok).toBe(true)
+  })
+  it.each([
+    ['nulo', null],
+    ['lista', []],
+    ['versão 2', base([], { versao: 2 })],
+    ['sem lido_em', { versao: 1, total: 0, itens: [] }],
+    ['total diferente', { ...base([canal()]), total: 2 }],
+    ['campo a mais', base([], { extra: 1 })],
+    ['campo a mais no item', base([canal({ extra: 1 })])],
+    ['tempo desconhecido', base([canal({ tempo: 'apagar' })])],
+    ['kind desconhecido', base([canal({ kind: 'playlist' })])],
+    ['desde nulo', base([canal({ desde: null })])],
+    ['apagar fora de apagar_antigas', base([canal({ apagar: [{ filho: 'numerico', caminho: 'serie/x.csv.gz', sha256: SHA, nova: null }] })])],
+    ['apagar_antigas sem nada a apagar', base([canal({ tempo: 'apagar_antigas' })])],
+    ['b2_nomes fora de apagar_antigas', base([canal({ b2_nomes: ['a'] })])],
+    ['caminho com ..', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: '../etc/x', sha256: SHA, nova: null }] })])],
+    ['caminho com .. no meio', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a/../x', sha256: SHA, nova: null }] })])],
+    ['caminho absoluto', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: '/etc/x', sha256: SHA, nova: null }] })])],
+    ['caminho com aspas', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: "a'b", sha256: SHA, nova: null }] })])],
+    ['caminho novo com cifrão', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a', sha256: SHA, nova: { caminho: 'a$b', sha256: SHA } }] })])],
+    ['filho desconhecido', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'appdata', caminho: 'a', sha256: SHA, nova: null }] })])],
+    ['item_id com substituição de comando', base([canal({ item_id: 'item:$(touch X)' })])],
+    ['item_id com crase', base([canal({ item_id: 'canal:`id`' })])],
+    ['canal: com channel_ref diferente', base([canal({ channel_ref: '6f1c1b9e-0000-4000-8000-000000000002' })])],
+    ['canal: com kind video', base([canal({ kind: 'video' })])],
+    ['item: com kind canal', base([canal({ item_id: 'item:7' })])],
+    ['youtube_id com crase', base([canal({ youtube_id: 'UC`id`' })])],
+    ['sha curto', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a', sha256: 'abc', nova: null }] })])],
+    ['mes inválido', base([canal({ mes: '2026-13' })])],
+  ])('%s: { ok: false }, nunca "nada pendente"', (_, bruto) => {
+    expect(lerPendencias(bruto).ok).toBe(false)
+  })
+  it('a razão da recusa não repete o valor recebido', () => {
+    const l = lerPendencias(base([canal({ youtube_id: 'UC`id`' })]))
+    expect(l.ok).toBe(false)
+    if (!l.ok) expect(l.porque).not.toContain('`id`')
+  })
+})
+
+describe('pendenciasParaTela (E-D4)', () => {
+  const agora = new Date('2026-12-01T12:00:00Z')
+  it('quem só edita vê contagem e idade, sem a linha', () => {
+    const t = pendenciasParaTela(lerPendencias(base([canal()])), { podeVerComandos: false, agora })
+    expect(t).toMatchObject({ estado: 'com_itens', n: 1, maisAntigoDias: 61, linha: null })
+    expect(JSON.stringify(t)).not.toContain('b2_nomes')
+  })
+  it('quem administra recebe a linha', () => {
+    expect(pendenciasParaTela(lerPendencias(base([canal()])), { podeVerComandos: true, agora })).toMatchObject({ linha: LINHA_DO_DONO })
+  })
+  it('a tela nunca recebe apagar nem b2_nomes', () => {
+    const antigas = canal({ tempo: 'apagar_antigas', b2_nomes: ['serie/x'], apagar: [{ filho: 'texto', caminho: 'a/b', sha256: SHA, nova: null }] })
+    const t = pendenciasParaTela(lerPendencias(base([antigas])), { podeVerComandos: true, agora })
+    expect(JSON.stringify(t)).not.toMatch(/apagar"|b2_nomes|sha256|caminho/)
+    expect(t).toMatchObject({ estado: 'com_itens', itens: [{ item_id: antigas.item_id, kind: 'canal', tempo: 'apagar_antigas', idadeDias: 61 }] })
+  })
+  it('zero medido e não medido são estados diferentes; sem permissão não há linha nem com zero', () => {
+    expect(pendenciasParaTela(lerPendencias(base([])), { podeVerComandos: true, agora })).toMatchObject({ estado: 'zero' })
+    expect(pendenciasParaTela(lerPendencias(base([])), { podeVerComandos: false, agora })).toMatchObject({ estado: 'zero', linha: null })
+    expect(pendenciasParaTela(lerPendencias(null), { podeVerComandos: true, agora })).toEqual({ estado: 'nao_medido' })
+  })
+  it('o mais antigo vem do menor desde, mesmo fora de ordem', () => {
+    const l = lerPendencias(base([canal({ desde: '2026-11-20T12:00:00Z' }), canal({ item_id: 'item:3', kind: 'video', channel_ref: null, desde: '2026-10-01T12:00:00Z' })]))
+    expect(pendenciasParaTela(l, { podeVerComandos: false, agora })).toMatchObject({ n: 2, maisAntigoDias: 61 })
+  })
+})

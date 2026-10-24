@@ -23,8 +23,8 @@ export const TELAS_IA: Record<TelaId, TelaIa> = {
   // As duas próprias dividem a rota com Canal e Vídeo e passam a `existe` nas Tarefas 7a e 7b.
   'canal-proprio': { nome: 'Canal próprio', rota: 'canal/[id]', pedeId: true, estado: 'existe', exemplos: ['O que melhorou nos meus últimos vídeos?', 'O que ainda não dá para medir?'] },
   'video-proprio': { nome: 'Vídeo próprio', rota: 'video/[id]', pedeId: true, estado: 'existe', exemplos: ['A thumbnail está funcionando?', 'O que os comentários pedem?'] },
-  // F2 T8: a aba das sugestões do nicho nasce pelo Cowork e pelo Claude Code; a página chega na F3 (rota null até lá), o pacote já existe.
-  sugestoes: { nome: 'Sugestões do nicho', rota: null, pedeId: false, estado: 'existe', exemplos: ['Qual sugestão vale olhar primeiro?', 'O que ainda não dá para afirmar sobre estas sugestões?'] },
+  // F2 T8: a aba das sugestões do nicho nasce pelo Cowork e pelo Claude Code; a página chegou na F3 T6 (competitors/sugestoes).
+  sugestoes: { nome: 'Sugestões do nicho', rota: 'sugestoes', pedeId: false, estado: 'existe', exemplos: ['Qual sugestão vale olhar primeiro?', 'O que ainda não dá para afirmar sobre estas sugestões?'] },
   ritmo: { nome: 'Ritmo por hora', rota: null, pedeId: false, estado: 'espera_a_tela', exemplos: ['Qual a melhor faixa de hora para publicar?', 'O que este perfil não consegue dizer?'] },
 }
 

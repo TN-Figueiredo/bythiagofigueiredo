@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { criarCanal, criarSite, criarVideo, escalar, q1 } from '../helpers/mg6'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
 
@@ -32,7 +33,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4: competitor_marks_apply concorrente (t
   })
   afterAll(async () => {
     try {
-      if (site) await adm.query('delete from public.sites where id = $1', [site])
+      if (site) await apagarSites(adm, 'id = $1', [site])
       if (org) await adm.query('delete from public.organizations where id = $1', [org])
     } finally {
       await Promise.all([adm?.end(), a?.end(), b?.end()])

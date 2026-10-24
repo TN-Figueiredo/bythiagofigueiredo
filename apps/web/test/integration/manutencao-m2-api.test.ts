@@ -15,6 +15,7 @@ import { M2_EM_MIGRATION, m2NoBanco } from '../helpers/m2'
 import { gravarLeituras } from '@/lib/youtube/horaria/gravar'
 import type { Alvo } from '@/lib/youtube/horaria/lista'
 import type { Contagem } from '@/lib/youtube/horaria/leitura'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 // Pula até a conversão existir no banco (rascunho aplicado no Step 1, ou a migration pelo `db reset` da CI depois da Tarefa 8,
@@ -38,7 +39,7 @@ describe.skipIf(pular)('M2 pela API (pula até a conversão existir no banco)', 
     // o gatilho de auditoria de site_memberships grava no audit_log ao apagar o vínculo: vínculo antes, audit_log depois, site por último
     await pg.query(`delete from public.site_memberships where site_id = $1`, [site])
     await pg.query(`delete from public.audit_log where site_id = $1`, [site])
-    await pg.query(`delete from public.sites where id = $1`, [site])
+    await apagarSites(pg, 'id = $1', [site])
     await pg.query(`delete from public.organizations where id = $1`, [org])
     await pg.query(`delete from auth.users where id = $1`, [editor])
     await pg.end()

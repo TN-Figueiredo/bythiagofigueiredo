@@ -355,7 +355,13 @@ export async function deleteSite(confirmSlug: string): Promise<ActionResult> {
   if (!site || site.slug !== confirmSlug)
     return { ok: false, error: 'Slug confirmation does not match' }
   const { error } = await supabase.from('sites').delete().eq('id', siteId)
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    // M3b: o delete do site desce em cascata até os canais do observatório, e o gatilho do arquivo recusa canal apagado sem o destino declarado
+    // (fail-closed, de propósito). Quem apaga o site vê o que fazer, não o nome cru do gatilho (Yannis N6).
+    if (error.message.includes('destino_do_arquivo_nao_declarado'))
+      return { ok: false, error: 'This site still has Observatory channels. Remove them first (choosing what happens to their archive), then delete the site.' }
+    return { ok: false, error: error.message }
+  }
   return { ok: true }
 }
 

@@ -8,6 +8,7 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { buildShortUrl } from '@/lib/links/short-url'
 import { normalizeUtmValue, normalizeAllUtmFields } from '@tn-figueiredo/links'
+import { boundedArray, limitedZodMessage } from '../../../../../lib/validation/bounded-array'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ const CreateLinkSchema = z.object({
   utm_term: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_term', v)),
   utm_content: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_content', v)),
   utm_id: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_id', v)),
-  tags: z.array(z.string()).optional(),
+  tags: boundedArray(z.string(), 50).optional(),
   expires_at: z.string().datetime().optional(),
   activates_at: z.string().datetime().optional(),
   pass_click_ids: z.boolean().optional(),
@@ -70,7 +71,7 @@ const UpdateLinkSchema = z.object({
   utm_term: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_term', v)),
   utm_content: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_content', v)),
   utm_id: z.string().max(255).optional().transform(v => normalizeUtmValue('utm_id', v)),
-  tags: z.array(z.string()).optional(),
+  tags: boundedArray(z.string(), 50).optional(),
   expires_at: z.string().datetime().nullable().optional(),
   activates_at: z.string().datetime().nullable().optional(),
   pass_click_ids: z.boolean().optional(),
@@ -120,15 +121,15 @@ function generateShortCode(length = 7): string {
 export async function createLink(
   input: z.input<typeof CreateLinkSchema>,
 ): Promise<ActionResult<{ linkId: string }>> {
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
   const parsed = CreateLinkSchema.safeParse(input)
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0]
     const firstError = firstIssue?.message ?? 'validation_failed'
     return { ok: false, error: firstError }
   }
-
-  const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
 
   const supabase = getSupabaseServiceClient()
   const code = parsed.data.code || generateShortCode()
@@ -176,15 +177,15 @@ export async function updateLink(
 ): Promise<ActionResult> {
   if (!id) return { ok: false, error: 'id_required' }
 
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
   const parsed = UpdateLinkSchema.safeParse(input)
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0]
     const firstError = firstIssue?.message ?? 'validation_failed'
     return { ok: false, error: firstError }
   }
-
-  const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
 
   const supabase = getSupabaseServiceClient()
 
@@ -503,15 +504,15 @@ export async function createAlert(input: {
 export async function saveAlertRule(
   input: z.input<typeof AlertRuleSchema>,
 ): Promise<ActionResult<{ ruleId?: string }>> {
+  const { siteId } = await getSiteContext()
+  await requireEditScope(siteId)
+
   const parsed = AlertRuleSchema.safeParse(input)
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0]
     const firstError = firstIssue?.message ?? 'validation_failed'
     return { ok: false, error: firstError }
   }
-
-  const { siteId } = await getSiteContext()
-  await requireEditScope(siteId)
 
   const supabase = getSupabaseServiceClient()
 
@@ -619,10 +620,9 @@ export async function getLinks(
   siteId: string,
   filters: z.input<typeof GetLinksFiltersSchema>,
 ): Promise<ActionResult<{ links: Record<string, unknown>[]; total: number }>> {
+  await requireEditScope(siteId)
   const parsed = GetLinksFiltersSchema.safeParse(filters)
   if (!parsed.success) return { ok: false, error: 'invalid_filters' }
-
-  await requireEditScope(siteId)
   const supabase = getSupabaseServiceClient()
 
   const page = parsed.data.page ?? 1
@@ -958,8 +958,8 @@ export async function deleteQrTemplate(id: string): Promise<ActionResult> {
 // ─── Batch Operations ───────────────────────────────────────────────────────
 
 const BatchFiltersSchema = z.object({
-  ids: z.array(z.string().uuid()).optional(),
-  tags: z.array(z.string()).optional(),
+  ids: boundedArray(z.string().uuid(), 1000).optional(),
+  tags: boundedArray(z.string(), 50).optional(),
   utm_campaign: z.string().optional(),
   source_type: z.enum(sourceTypes).optional(),
   active: z.boolean().optional(),
@@ -1000,7 +1000,7 @@ export async function previewBatchUpdate(
   if (siteId !== ctxSiteId) return { ok: false, error: 'forbidden' }
   await requireEditScope(siteId)
   const parsed = BatchFiltersSchema.safeParse(filters)
-  if (!parsed.success) return { ok: false, error: parsed.error.message }
+  if (!parsed.success) return { ok: false, error: limitedZodMessage(parsed.error) }
   const supabase = getSupabaseServiceClient()
   let query = supabase
     .from('tracked_links')
@@ -1026,9 +1026,9 @@ export async function batchUpdateLinks(
   if (siteId !== ctxSiteId) return { ok: false, error: 'forbidden' }
   const { userId } = await requireEditScope(siteId)
   const filtersParsed = BatchFiltersSchema.safeParse(filters)
-  if (!filtersParsed.success) return { ok: false, error: filtersParsed.error.message }
+  if (!filtersParsed.success) return { ok: false, error: limitedZodMessage(filtersParsed.error) }
   const updatesParsed = BatchUpdateSchema.safeParse(updates)
-  if (!updatesParsed.success) return { ok: false, error: updatesParsed.error.message }
+  if (!updatesParsed.success) return { ok: false, error: limitedZodMessage(updatesParsed.error) }
   const updateObj: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(updatesParsed.data)) {
     if (value !== undefined) updateObj[key] = value
@@ -1070,7 +1070,7 @@ export async function batchExtendExpiry(
   if (siteId !== ctxSiteId) return { ok: false, error: 'forbidden' }
   const { userId } = await requireEditScope(siteId)
   const parsed = BatchFiltersSchema.safeParse(filters)
-  if (!parsed.success) return { ok: false, error: parsed.error.message }
+  if (!parsed.success) return { ok: false, error: limitedZodMessage(parsed.error) }
   if (hours < 1 || hours > 8760) return { ok: false, error: 'Hours must be 1-8760' }
   const supabase = getSupabaseServiceClient()
   let affectedQuery = supabase

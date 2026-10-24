@@ -17,6 +17,7 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { abrirFichaCore, derivarFicha, type FichaLinha } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import { vistaDaFicha } from '@/lib/youtube/teste-youtube/nativo/ficha-tela'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -45,7 +46,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T4: vencida na tela = descartada 
     try {
       await pg.query('delete from public.youtube_videos where site_id = $1', [siteId])
       await pg.query('delete from public.youtube_channels where site_id = $1', [siteId])
-      await pg.query('delete from public.sites where id = $1', [siteId])
+      await apagarSites(pg, 'id = $1', [siteId])
       await pg.query('delete from auth.users where id = $1', [userId])
     } finally {
       await pg.end()

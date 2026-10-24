@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, insertAuthUser, deleteAuthUser, SUPABASE_URL, ANON_KEY } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const FACTORY = [
   { slug: 'viagem', label: 'Viagem', color_dark: '#5BBF8A', color_light: '#11692F' },
@@ -32,7 +33,7 @@ describe.skipIf(skipIfNoLocalDb())('migration multi_canal_nichos_slug', () => {
   afterAll(async () => {
     for (const siteId of [siteA, siteB]) {
       await sb.from('youtube_channels').delete().eq('site_id', siteId)
-      await sb.from('sites').delete().eq('id', siteId)
+      await apagarSitesDeTeste('id = $1', [siteId])
     }
   })
 
@@ -287,7 +288,7 @@ describe.skipIf(skipIfNoLocalDb())('migration multi_canal_nichos_slug', () => {
     const [dark, light] = PALETTE[2]
     await sb.from('youtube_niches').insert({ site_id: tmp, slug: 'culinaria', label: 'Culinária', color_dark: dark, color_light: light })
     expect((await sb.from('competitor_channels').insert({ site_id: tmp, channel_id: `UCtmp${run}`, niche: 'culinaria' })).error).toBeNull()
-    expect((await sb.from('sites').delete().eq('id', tmp)).error).toBeNull()
+    await apagarSitesDeTeste('id = $1', [tmp])   // lança se o delete falhar
     const left = await sb.from('youtube_niches').select('slug').eq('site_id', tmp)
     expect(left.data).toEqual([])
   })

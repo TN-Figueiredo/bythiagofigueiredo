@@ -79,6 +79,7 @@ import { lerNegadosDoDono, lerProvaHoraria, veredictoHorario, type ProvaHoraria 
 import { lerCandidatos } from '@/lib/youtube/horaria/gravar'
 import { GET as rotaSyncYoutube } from '@/app/api/cron/sync-youtube/route'
 import { recordCronFailure } from '@/lib/cron-health'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const RUN = !skipIfNoLocalDb()
@@ -181,7 +182,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 parte 1: o disparo inteiro da agenda 
         for (const t of ['yt_own_public_hour_fold_log', 'yt_own_public_hour_map', 'yt_own_public_video_early', 'yt_own_public_video_hourly', 'yt_own_video_meta_daily', 'youtube_videos', 'youtube_channels', 'youtube_quota_usage']) {
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
       for (const p of prefixos) await pg.query('delete from public.competitor_agenda_runs where task like $1', [p + '%'])
       await pg.query(`delete from public.competitor_agenda_lease where name = 'despachante'`)

@@ -227,6 +227,7 @@ export function TipTapEditor({
         heading: { levels: [2, 3] },
         // Add the standalone Link below so we control its options exactly.
         link: false,
+        underline: false,
       }),
       Underline,
       Highlight,

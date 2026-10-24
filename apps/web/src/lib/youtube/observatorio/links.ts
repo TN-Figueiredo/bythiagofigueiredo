@@ -174,6 +174,11 @@ export const link = {
     return OBS_BASE + '/saiu' + query
   },
 
+  /** Link to the "Sugestões" list (F3 T6). No niche: the list is the site's. */
+  sugestoes(): string {
+    return OBS_BASE + '/sugestoes'
+  },
+
   /**
    * Link to the comparison of two channels. Only the data goes in the URL, in the fixed order a, b; an argument that is
    * missing or empty stays out (the screen then picks the default for that side).

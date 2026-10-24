@@ -4,6 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarCanaisDeTeste, apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const DAY = 864e5
 const spDate = (ms: number) => new Date(ms - 3 * 36e5).toISOString().slice(0, 10)
@@ -33,8 +34,8 @@ describe.skipIf(skipIfNoLocalDb())('fixar vídeo: schema e contagem (banco local
     expect((await sb.from('competitor_video_daily').insert([d(v1, now - 2 * DAY), d(v2, now - 2 * DAY), d(v1, now - DAY)])).error).toBeNull()
   })
   afterAll(async () => {
-    await sb.from('competitor_channels').delete().eq('site_id', siteId)
-    await sb.from('sites').delete().in('id', [siteId, otherSite])
+    await apagarCanaisDeTeste('site_id = $1', [siteId])
+    await apagarSitesDeTeste('id = any($1::uuid[])', [[siteId, otherSite]])
   })
 
   it('pinned_at nasce nulo e o filtro "is not null" acha só o fixado', async () => {
@@ -94,8 +95,8 @@ describe.skipIf(skipIfNoLocalDb())('pin_competitor_video: o teto é garantido no
     for (const v of vids.data!) ids[v.video_id] = v.id
   })
   afterAll(async () => {
-    await sb.from('competitor_channels').delete().eq('site_id', siteId)
-    await sb.from('sites').delete().in('id', [siteId, otherSite])
+    await apagarCanaisDeTeste('site_id = $1', [siteId])
+    await apagarSitesDeTeste('id = any($1::uuid[])', [[siteId, otherSite]])
   })
 
   it('fixa abaixo do teto e grava pinned_at; fixar de novo é ok sem regravar a data', async () => {

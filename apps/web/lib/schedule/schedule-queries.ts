@@ -196,16 +196,17 @@ export async function fetchScheduleData(
       .gte('scheduled_at', `${rangeStart}T00:00:00`)
       .lte('scheduled_at', `${rangeEnd}T23:59:59`),
 
-    // Video pipeline items: published within month range
+    // Video pipeline items: published within month range.
+    // `content_pipeline` não tem `published_at`; a data do vídeo publicado é a de `scheduled_at`.
     supabase
       .from('content_pipeline')
-      .select('id, title_pt, title_en, stage, published_at')
+      .select('id, title_pt, title_en, stage, scheduled_at')
       .eq('site_id', siteId)
       .eq('format', 'video')
       .eq('stage', 'published')
-      .not('published_at', 'is', null)
-      .gte('published_at', `${rangeStart}T00:00:00`)
-      .lte('published_at', `${rangeEnd}T23:59:59`),
+      .not('scheduled_at', 'is', null)
+      .gte('scheduled_at', `${rangeStart}T00:00:00`)
+      .lte('scheduled_at', `${rangeEnd}T23:59:59`),
 
     // Newsletter types (for cadence slots)
     supabase
@@ -366,14 +367,14 @@ export async function fetchScheduleData(
 
   for (const row of videoPublishedRes.data ?? []) {
     if (items.some((i) => i.id === row.id)) continue
-    const dateKey = extractDateKey(row.published_at as string | null, timezone) ?? ''
+    const dateKey = extractDateKey(row.scheduled_at as string | null, timezone) ?? ''
     items.push({
       id: row.id as string,
       type: 'video',
       title: ((row.title_pt as string | null) ?? (row.title_en as string | null)) ?? 'Untitled',
       status: 'published',
       dateKey,
-      time: extractTime(row.published_at as string | null),
+      time: extractTime(row.scheduled_at as string | null),
       editUrl: `/cms/pipeline/${row.id}`,
     })
   }
