@@ -224,3 +224,35 @@ describe('enviarAvisosDoNicho: falha transitória, blocos e sino', () => {
     expect(r.chamadas.find((c) => c.alvo === 'competitor_channels')!.metodos.some((m) => m.startsWith('eq('))).toBe(false)
   })
 })
+
+describe('enviarAvisosDoNicho: adiadas (F3b)', () => {
+  const AGORA = new Date('2026-12-20T12:00:00.000Z')
+  const base = { kind: 'destino', forca: 10, notificar_como: 'individual', notificacao_tentativas: 0 }
+  const montar = (pendentes: unknown[]) => roteiro({
+    'rpc:niche_signals_expirar': [ok(0)], 'rpc:niche_signals_sincronizar_sino': [ok(null)],
+    niche_signals: [ok(pendentes), ok(null), ok(null)],
+    niche_signals_estado: [ok({ baseline_em: '2026-12-01T00:00:00Z' })],
+    notifications: [ok([])],
+  })
+
+  it('a consulta dos pendentes exclui as adiadas (adiado_ate nulo ou já passado)', async () => {
+    const r = montar([])
+    await enviarAvisosDoNicho(r.sb, AGORA, { sites: ['s1'], fanOut: vi.fn() })
+    const ms = r.chamadas.find((c) => c.alvo === 'niche_signals')!.metodos
+    expect(ms).toContain(`or(${JSON.stringify(`adiado_ate.is.null,adiado_ate.lte.${AGORA.toISOString()}`)})`)
+  })
+  it('adiada que voltou vai no resumo, nunca como "Nova sugestão"; a nunca adiada segue individual', async () => {
+    const fan = vi.fn().mockResolvedValue({ total: 1, sent: 1, suppressed: 0, errors: [] })
+    const r = montar([
+      { id: 'volta', ...base, adiado_ate: '2026-12-19T00:00:00Z' },
+      { id: 'nova', ...base, adiado_ate: null },
+    ])
+    const out = await enviarAvisosDoNicho(r.sb, AGORA, { sites: ['s1'], fanOut: fan })
+    expect(out).toMatchObject({ enviados: 1, resumidos: 1 })
+    const chaves = fan.mock.calls.map((c) => (c[0] as { dedupKey: string }).dedupKey)
+    expect(chaves.some((k) => k === 'nicho:nova')).toBe(true)
+    expect(chaves.some((k) => k === 'nicho:volta')).toBe(false)
+    expect(chaves.some((k) => k.startsWith('nicho-resumo:'))).toBe(true)
+  })
+})
+

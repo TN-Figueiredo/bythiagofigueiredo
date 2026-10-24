@@ -103,4 +103,37 @@ describe.skipIf(skipIfNoLocalDb())('F3 T7: N da aba = N da página; saiuDoAviso 
     expect(await saiuDoAviso(sb(), site, eu, `nicho:${SIG(2)}`, agora)).toBe(false)
     expect(await saiuDoAviso(sb(), site, eu, `nicho:${SIG(4)}`, agora)).toBe(true)
   })
+
+  it('F3b adiada: sai do N da aba e da página juntas, volta sozinha, conta em "adiados" só se volta antes de vencer; no aviso conta como saiu', async () => {
+    const agora = new Date()
+    const antes = await contarSinaisAbertos(sb(), site, agora)
+    expect(antes).toBeGreaterThan(0)
+    await pg.query(`update public.niche_signals set adiado_ate = $2, expires_at = $3 where id = $1`, [SIG(7), dia(5), dia(20)])
+    expect(await contarSinaisAbertos(sb(), site, agora)).toBe((antes as number) - 1)
+    const l = await listarSinaisDoNicho(sb(), site, agora, 50)
+    expect(l.n).toBe((antes as number) - 1)
+    expect(l.itens.some((i) => i.id === SIG(7))).toBe(false)
+    expect(l.contagens.adiados).toBe(1)
+    expect(l.proximaVolta).not.toBeNull()
+    // vence antes de voltar: continua fora do N, mas não conta como "volta"
+    await pg.query(`update public.niche_signals set expires_at = $2 where id = $1`, [SIG(7), dia(3)])
+    expect((await listarSinaisDoNicho(sb(), site, agora, 50)).contagens.adiados).toBe(0)
+    // no resumo do sino: adiada = saiu
+    await notificar(eu, 'nicho-resumo:2026-10-24:adiada01', { ids: [SIG(2), SIG(7)] })
+    expect(await saiuDoAviso(sb(), site, eu, 'nicho-resumo:2026-10-24:adiada01', agora)).toBe(true)
+    // o adiamento passou: volta ao N, ao item (com adiada_em) e deixa de contar como adiada
+    await pg.query(`update public.niche_signals set adiado_ate = now() - interval '1 hour', expires_at = $2 where id = $1`, [SIG(7), dia(20)])
+    expect(await contarSinaisAbertos(sb(), site, agora)).toBe(antes)
+    const volta = await listarSinaisDoNicho(sb(), site, agora, 50)
+    expect(volta.n).toBe(antes)
+    expect(volta.itens.find((i) => i.id === SIG(7))!.adiada_em).not.toBeNull()
+    expect(volta.contagens.adiados).toBe(0)
+    // sem nada aberto e uma adiada que volta: o vazio é "adiado", com a razão do cálculo guardada
+    await pg.query(`update public.niche_signals set adiado_ate = $2 where site_id = $1 and status = 'aberto'`, [site, dia(5)])
+    await pg.query(`insert into public.niche_signals_estado (site_id, computed_at, rule_version, motivo_vazio, contagens) values ($1, now(), 'sinais-v1+semente-1', 'sem-grupo', '{}'::jsonb)
+                    on conflict (site_id) do update set computed_at = excluded.computed_at, motivo_vazio = excluded.motivo_vazio`, [site])
+    const vazio = await listarSinaisDoNicho(sb(), site, agora, 50)
+    expect(vazio).toMatchObject({ n: 0, motivoVazio: 'adiado', motivoDoCalculo: 'sem-grupo' })
+    expect(vazio.contagens.adiados).toBeGreaterThan(0)
+  })
 })

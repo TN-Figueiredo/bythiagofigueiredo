@@ -72,10 +72,10 @@ describe('GET /competitors/signals', () => {
   it('limit chega à consulta (máximo 50)', async () => {
     const w = montar(['read'])
     await get('?limit=7')
-    expect(w.consultas.find((c) => c.tabela === 'niche_signals')!.limite).toBe(7)
+    expect(w.consultas.find((c) => c.tabela === 'niche_signals' && !c.filtros.some((f) => f.col === 'adiado_ate'))!.limite).toBe(7)
     const w2 = montar(['read'])
     await get('?limit=900')
-    expect(w2.consultas.find((c) => c.tabela === 'niche_signals')!.limite).toBe(50)
+    expect(w2.consultas.find((c) => c.tabela === 'niche_signals' && !c.filtros.some((f) => f.col === 'adiado_ate'))!.limite).toBe(50)
   })
 
   it('lista vazia traz o motivo, nunca mudo', async () => {

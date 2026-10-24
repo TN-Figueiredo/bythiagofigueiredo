@@ -36,7 +36,7 @@ function item(i: number, o: Partial<ItemDeSinal> = {}, nOut = 3): ItemDeSinal {
     id: `aaaaaaaa-0000-4000-8000-${String(i).padStart(12, '0')}`, kind: 'destino', subject_key: `pais:${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + Math.floor(i / 26))}`,
     acao: 'titulo_descricao', rotulo_acao: 'abrir-seus', n_proprios: 2, acao_gravada: 'video_novo', forca: 12.5 + i, motivo: 'dois canais estouraram no mesmo lugar nos últimos 14 dias',
     rule_version: 'sinais-v1+semente-1', evidence: { outliers: Array.from({ length: nOut }, (_, k) => outlier(k)), outliers_total: nOut + 5, canais: 3, proprios: ['foto'] },
-    first_seen_at: '2026-10-20T12:00:00Z', expires_at: '2026-11-19T12:00:00Z',
+    first_seen_at: '2026-10-20T12:00:00Z', expires_at: '2026-11-19T12:00:00Z', adiada_em: null,
     proprios_agora: ['bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002'], proprios_agora_n: 2, ...o,
   }
 }

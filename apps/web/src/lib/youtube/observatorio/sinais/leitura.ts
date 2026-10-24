@@ -3,11 +3,12 @@
 // Lista vazia nunca é muda: `n = 0 ⇒ motivoVazio != null`. Sem escrita aqui, salvo `dispensarSinal` (RPC atômica).
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { readAll } from '../load'
-import { HORAS_ATE_DESATUALIZAR } from './frases'
+import { DIAS_DO_ADIAR, HORAS_ATE_DESATUALIZAR } from './frases'
 import { derivarAcao, type AcaoDerivada, type RotuloDaAcao } from './acao'
 import type { Evidence, MotivoVazio } from './oportunidades'
 
-export type MotivoDaLista = MotivoVazio | 'nunca-calculado' | 'tudo-respondido'
+/** `adiado` (F3b): n = 0 porque o que existe foi adiado por quem usa (e volta); a razão do cálculo vai em `motivoDoCalculo`. */
+export type MotivoDaLista = MotivoVazio | 'nunca-calculado' | 'tudo-respondido' | 'adiado'
 
 export interface ItemDeSinal {
   id: string
@@ -25,6 +26,8 @@ export interface ItemDeSinal {
   evidence: Evidence
   first_seen_at: string
   expires_at: string
+  /** F3b: quando foi adiada pela última vez (o `adiado_ate` já passou, voltou à lista); `null` = nunca adiada. */
+  adiada_em: string | null
   /** ids de `youtube_videos` públicos e visíveis que cobrem o lugar HOJE (no máximo `TETO_PROPRIOS_AGORA`, por id); `null` = não medido (site sem `video_lugares` de origem `proprio`). */
   proprios_agora: string[] | null
   /** Total REAL de vídeos próprios que cobrem o lugar (a lista acima pode ser só os primeiros); `null` = não medido. */
@@ -38,14 +41,25 @@ export interface ListaDeSinais {
   computado_em: string | null
   desatualizado: boolean
   motivoVazio: MotivoDaLista | null
+  /** F3b: com `motivoVazio === 'adiado'`, a razão do cálculo para a 2ª linha do vazio (P-C2); senão `null`. */
+  motivoDoCalculo: MotivoDaLista | null
+  /** F3b: quando volta a próxima adiada (só as que voltam antes de vencer); `null` = nenhuma ou não medido. */
+  proximaVolta: string | null
+  /** `adiados` (só os que voltam) existe só quando MEDIDO; chave ausente = "não medido", nunca 0. */
   contagens: Record<string, number>
   calculoLigado: boolean
   /** Só no `get_signals` do Cowork: a resposta foi cortada para caber no teto de texto. */
   aviso?: string
 }
 
-export { HORAS_ATE_DESATUALIZAR }
+export { HORAS_ATE_DESATUALIZAR, DIAS_DO_ADIAR }
 const DIA_MS = 86_400_000
+
+/**
+ * F3b: o filtro "não está adiado" de toda consulta de vigentes (`.or(naoAdiado(iso))`). Adiada = `adiado_ate` no futuro; passou, volta sozinha.
+ * Fonte única: o teste-varredura exige este filtro em toda consulta de abertos de leitura.ts e avisos.ts.
+ */
+export const naoAdiado = (iso: string): string => `adiado_ate.is.null,adiado_ate.lte.${iso}`
 const JANELA_PRIVACIDADE_DIAS = 30
 /** Teto de ids por item em `proprios_agora` (o total real vai em `proprios_agora_n`). */
 export const TETO_PROPRIOS_AGORA = 20
@@ -62,7 +76,7 @@ function emBlocos<T>(xs: T[], tam: number): T[][] {
 
 interface LinhaSinal {
   id: string; kind: 'destino' | 'parecido'; subject_key: string; acao: string; forca: number | string; motivo: string; rule_version: string
-  evidence: Evidence; first_seen_at: string; expires_at: string
+  evidence: Evidence; first_seen_at: string; expires_at: string; adiado_ate: string | null
 }
 interface LinhaEstado { computed_at: string; motivo_vazio: MotivoVazio | null; contagens: Record<string, unknown> | null }
 
@@ -141,6 +155,17 @@ async function propriosPorChave(sb: SupabaseClient, siteId: string, chaves: stri
   return { porChave: mapa, publicos }
 }
 
+/** Adiadas por quem usa que VOLTAM (voltam antes de vencer): `null` = não medido (erro de leitura; nunca vira 0). */
+async function adiadosQueVoltam(sb: SupabaseClient, siteId: string, agora: Date): Promise<{ n: number; proxima: string | null } | null> {
+  const iso = agora.toISOString()
+  const r = await sb.from('niche_signals').select('adiado_ate, expires_at')
+    .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', iso).gt('adiado_ate', iso)
+    .order('adiado_ate', { ascending: true }).limit(LIMITE_PENDENTES)
+  if (r.error) return null
+  const voltam = ((r.data ?? []) as Array<{ adiado_ate: string; expires_at: string }>).filter((x) => Date.parse(x.adiado_ate) < Date.parse(x.expires_at))
+  return { n: voltam.length, proxima: voltam[0]?.adiado_ate ?? null }
+}
+
 async function respondidosEm30d(sb: SupabaseClient, siteId: string, agora: Date): Promise<number> {
   const corte = new Date(agora.getTime() - 30 * DIA_MS).toISOString()
   const r = await sb.from('niche_signals').select('id', { count: 'exact', head: true }).eq('site_id', siteId)
@@ -150,17 +175,22 @@ async function respondidosEm30d(sb: SupabaseClient, siteId: string, agora: Date)
   return r.count ?? 0
 }
 
+/** Quando foi adiada: o `adiado_ate` (já passado, senão a linha nem estaria na lista) menos os 7 dias. */
+const adiadaEm = (adiadoAte: string | null): string | null =>
+  adiadoAte === null || Number.isNaN(Date.parse(adiadoAte)) ? null : new Date(Date.parse(adiadoAte) - DIAS_DO_ADIAR * DIA_MS).toISOString()
+
 export async function listarSinaisDoNicho(
   sb: SupabaseClient, siteId: string, agora: Date, limite = 50, calculoLigado: boolean = calculoLigadoNoAmbiente(),
 ): Promise<ListaDeSinais> {
-  const [lista, est] = await Promise.all([
+  const [lista, est, adiados] = await Promise.all([
     sb.from('niche_signals')
-      .select('id, kind, subject_key, acao, forca, motivo, rule_version, evidence, first_seen_at, expires_at', { count: 'exact' })
-      .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString())
+      .select('id, kind, subject_key, acao, forca, motivo, rule_version, evidence, first_seen_at, expires_at, adiado_ate', { count: 'exact' })
+      .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString()).or(naoAdiado(agora.toISOString()))
       .order('forca', { ascending: false }).order('first_seen_at', { ascending: true }).order('id', { ascending: true })
       .limit(limite)
       .returns<LinhaSinal[]>(),
     sb.from('niche_signals_estado').select('computed_at, motivo_vazio, contagens').eq('site_id', siteId).maybeSingle(),
+    adiadosQueVoltam(sb, siteId, agora),
   ])
   quebra('niche_signals', lista.error)
   quebra('niche_signals_estado', est.error)
@@ -170,9 +200,13 @@ export async function listarSinaisDoNicho(
   const computado_em = estado?.computed_at ?? null
   const desatualizado = computado_em === null || Date.parse(computado_em) < agora.getTime() - HORAS_ATE_DESATUALIZAR * 3_600_000
   const contagens = soNumeros(estado?.contagens ?? null)
+  delete contagens.adiados // nunca herdado do estado do cálculo: só a medida de agora vale
+  if (adiados !== null) contagens.adiados = adiados.n
+  const proximaVolta = adiados?.proxima ?? null
 
   if (n === 0) {
     let motivoVazio: MotivoDaLista
+    let motivoDoCalculo: MotivoDaLista | null = null
     if (estado === null) motivoVazio = 'nunca-calculado'
     else {
       const respondidos = await respondidosEm30d(sb, siteId, agora)
@@ -180,8 +214,10 @@ export async function listarSinaisDoNicho(
       motivoVazio = estado.motivo_vazio ?? (respondidos > 0 ? 'tudo-respondido' : 'sem-grupo')
       // catch-all com o cálculo velho (gravador parado, linhas abertas já vencidas): a frase não pode dizer "nenhum grupo" como se fosse medido hoje
       if (motivoVazio === 'sem-grupo' && desatualizado) contagens.calculo_atrasado = 1
+      // P-C2: o que o dono adiou explica a lista vazia melhor que o cálculo; sem a medida (null), a frase diz "não medido".
+      if (adiados === null || adiados.n > 0) { motivoDoCalculo = motivoVazio; motivoVazio = 'adiado' }
     }
-    return { n: 0, itens: [], computado_em, desatualizado, motivoVazio, contagens, calculoLigado }
+    return { n: 0, itens: [], computado_em, desatualizado, motivoVazio, motivoDoCalculo, proximaVolta, contagens, calculoLigado }
   }
 
   const idsDoParecido = (l: LinhaSinal): string[] => (Array.isArray(l.evidence?.proprios) ? l.evidence.proprios : [])
@@ -200,10 +236,10 @@ export async function listarSinaisDoNicho(
     return {
       id: l.id, kind: l.kind, subject_key: l.subject_key, acao: d.acao, rotulo_acao: d.rotulo, n_proprios: d.n, acao_gravada: l.acao,
       forca: Number(l.forca), motivo: l.motivo, rule_version: l.rule_version, evidence: l.evidence,
-      first_seen_at: l.first_seen_at, expires_at: l.expires_at, proprios_agora: agoraProprios, proprios_agora_n: todos === null ? null : todos.length,
+      first_seen_at: l.first_seen_at, expires_at: l.expires_at, adiada_em: adiadaEm(l.adiado_ate), proprios_agora: agoraProprios, proprios_agora_n: todos === null ? null : todos.length,
     }
   })
-  return { n, itens, computado_em, desatualizado, motivoVazio: null, contagens, calculoLigado }
+  return { n, itens, computado_em, desatualizado, motivoVazio: null, motivoDoCalculo: null, proximaVolta, contagens, calculoLigado }
 }
 
 export type StatusDeResposta = 'dispensado' | 'feito'
@@ -219,10 +255,23 @@ export async function dispensarSinal(
   return d?.ok === true ? { ok: true } : { ok: false, motivo: d?.motivo ?? 'falhou' }
 }
 
+export type ResultadoDoAdiar =
+  | { ok: true; adiado_ate: string }
+  | { ok: false; motivo: string; adiado_ate?: string; expira_em?: string }
+
+/** Chama `niche_signals_adiar` (F3b). Motivos da função: nao_encontrado, nao_aberto (inclui vencida), ja_adiado (com `adiado_ate`), expira_antes (com `expira_em`). */
+export async function adiarSinal(sb: SupabaseClient, siteId: string, id: string, por: string): Promise<ResultadoDoAdiar> {
+  const r = await sb.rpc('niche_signals_adiar', { p_site: siteId, p_id: id, p_por: por })
+  quebra('niche_signals_adiar', r.error)
+  const d = r.data as { ok?: boolean; motivo?: string; adiado_ate?: string; expira_em?: string } | null
+  if (d?.ok === true && typeof d.adiado_ate === 'string') return { ok: true, adiado_ate: d.adiado_ate }
+  return { ok: false, motivo: d?.motivo ?? 'falhou', ...(d?.adiado_ate ? { adiado_ate: d.adiado_ate } : {}), ...(d?.expira_em ? { expira_em: d.expira_em } : {}) }
+}
+
 /** N da aba: abertos e vigentes. `count` nulo sem erro → `null` ("?" na tela, nunca 0); erro do banco lança. */
 export async function contarSinaisAbertos(sb: SupabaseClient, siteId: string, agora: Date): Promise<number | null> {
   const r = await sb.from('niche_signals').select('id', { count: 'exact', head: true })
-    .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString())
+    .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString()).or(naoAdiado(agora.toISOString()))
   quebra('niche_signals', r.error)
   return typeof r.count === 'number' ? r.count : null
 }
@@ -234,7 +283,7 @@ export async function contarAbertosEntre(sb: SupabaseClient, siteId: string, ids
   let total = 0
   for (const bloco of emBlocos(unicos, BLOCO_DO_IN)) {
     const r = await sb.from('niche_signals').select('id', { count: 'exact', head: true })
-      .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString()).in('id', bloco)
+      .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString()).or(naoAdiado(agora.toISOString())).in('id', bloco)
     quebra('niche_signals', r.error)
     if (typeof r.count !== 'number') return null
     total += r.count

@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fanOutToSiteAdminsDetailed } from '@/lib/notifications/fan-out-to-admins'
 import { spDate } from '@/lib/youtube/competitor-sync'
-import { BLOCO_DO_IN, LIMITE_PENDENTES } from './leitura'
+import { BLOCO_DO_IN, LIMITE_PENDENTES, naoAdiado } from './leitura'
 import { REGRA_SINAIS } from './regra'
 
 /** Outbox do nicho (F2 T9): leva os sinais `aberto` ao sino, um a um até o teto do dia e o resto num resumo. Só sino: `defaultChannels: []`. */
@@ -56,7 +56,7 @@ async function sitesDe(sb: SupabaseClient, tabela: 'niche_signals' | 'competitor
   return out
 }
 
-interface LinhaPendente { id: string; kind: string; forca: number | string; notificar_como: 'individual' | 'resumo'; notificacao_tentativas: number }
+interface LinhaPendente { id: string; kind: string; forca: number | string; notificar_como: 'individual' | 'resumo'; notificacao_tentativas: number; adiado_ate: string | null }
 
 async function enviar(
   fanOut: typeof fanOutToSiteAdminsDetailed,
@@ -119,14 +119,14 @@ async function enviarDoSite(sb: SupabaseClient, siteId: string, agora: Date, iso
   const exp = await sb.rpc('niche_signals_expirar', { p_site: siteId })
   if (exp.error) throw new Error('nicho: niche_signals_expirar falhou')
 
-  const lido = await sb.from('niche_signals').select('id,kind,forca,notificar_como,notificacao_tentativas')
-    .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', iso).is('notificado_em', null).is('notificacao_falhou_em', null)
+  const lido = await sb.from('niche_signals').select('id,kind,forca,notificar_como,notificacao_tentativas,adiado_ate')
+    .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', iso).or(naoAdiado(iso)).is('notificado_em', null).is('notificacao_falhou_em', null)
     .order('first_seen_at', { ascending: true }).limit(LIMITE_PENDENTES)
   if (lido.error) throw new Error('nicho: leitura dos pendentes falhou')
   const pendentes: PendenteAviso[] = ((lido.data ?? []) as LinhaPendente[]).map((l) => ({
     id: l.id, forca: Number(l.forca), notificacao_tentativas: l.notificacao_tentativas ?? 0,
-    // `parecido` só vai no resumo enquanto a regra não o libera.
-    notificar_como: l.kind === 'parecido' && !REGRA_SINAIS.parecidoNotificaIndividual ? 'resumo' : l.notificar_como,
+    // `parecido` só vai no resumo enquanto a regra não o libera. Adiada que voltou (adiado_ate já passou) também: não renasce como "Nova sugestão" (F3b).
+    notificar_como: (l.kind === 'parecido' && !REGRA_SINAIS.parecidoNotificaIndividual) || (l.adiado_ate ?? null) !== null ? 'resumo' : l.notificar_como,
   }))
   if (pendentes.length === 0) return out
   const tentativasDe = new Map(pendentes.map((p) => [p.id, p.notificacao_tentativas]))
