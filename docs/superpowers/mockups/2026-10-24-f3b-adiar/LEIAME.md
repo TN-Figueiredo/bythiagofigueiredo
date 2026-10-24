@@ -22,3 +22,5 @@ Abrir: `open -a Opera docs/superpowers/mockups/2026-10-24-f3b-adiar/index.html`.
 **Decisões já tomadas (não precisa reabrir, mas pode discordar):** rótulo do gatilho "Dispensar ou adiar"; nada de confirmação nem Desfazer; só a opção de 7 dias; borda da faixa "Adiada" em `--btn-line` (a `--border-strong` não passa de 3:1); relógio = volta, ampulheta = vence.
 
 **Fora do que este mockup prova:** leitor de tela, fuso de outro país, rede lenta real, Opera real: ficam para a revisão e a T8.
+
+**Aprovado pelo dono em 23/10/2026 ~23:10 BRT** (Logan 96, Naksu 95).
