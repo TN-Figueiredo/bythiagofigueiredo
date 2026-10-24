@@ -39,6 +39,7 @@ describe.skipIf(skipIfNoLocalDb())('coleta L1a: schema (banco local)', () => {
     for (const t of ['yt_reporting_reports', 'yt_reporting_jobs', 'yt_own_video_meta_daily', 'yt_own_collection_attempts']) {
       await sb.from(t).delete().eq('site_id', siteId)
     }
+    await sb.from('youtube_channels').delete().eq('site_id', siteId) // youtube_channels.site_id é NO ACTION
     await apagarSitesDeTeste('id = $1', [siteId])
   })
 
