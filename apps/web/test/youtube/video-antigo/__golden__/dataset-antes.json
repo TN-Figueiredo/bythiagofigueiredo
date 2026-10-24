@@ -35,7 +35,9 @@
    },
    "lastIdx": 18,
    "snapshots": [],
-   "undated": []
+   "undated": [],
+   "youtubeVideoCount": 300,
+   "createdMs": null
   },
   {
    "id": "ch2",
@@ -70,7 +72,9 @@
    },
    "lastIdx": null,
    "snapshots": [],
-   "undated": []
+   "undated": [],
+   "youtubeVideoCount": 30,
+   "createdMs": null
   },
   {
    "id": "ch3",
@@ -103,7 +107,9 @@
    },
    "lastIdx": 17,
    "snapshots": [],
-   "undated": []
+   "undated": [],
+   "youtubeVideoCount": null,
+   "createdMs": null
   }
  ],
  "videos": [

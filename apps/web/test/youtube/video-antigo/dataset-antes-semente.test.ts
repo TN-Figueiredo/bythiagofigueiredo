@@ -34,8 +34,7 @@ export function retrato(ds: Record<string, unknown>): { sha256: string; bytes: n
   return { sha256: createHash('sha256').update(texto).digest('hex'), bytes: texto.length, listas }
 }
 
-// SKIP 23/10/2026 (envio E0): o ouro `__golden__/dataset-antes*.json` foi tirado no codigo de 14/10 (c46b0ff27); load.ts/competitor-sync mudaram no origin (yannis.md 3.6). Refazer a Tarefa 0 (retrato) da M10a no codigo atual antes de religar; NAO regravar o ouro sem isso.
-describe.skip('retrato da semente do Observatório antes da M10a', () => {
+describe('retrato da semente do Observatório antes da M10a', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
   let siteId = ''
   beforeAll(async () => { sb = getSupabaseServiceClient(); siteId = (await seedSite(sb)).siteId }, 60_000)

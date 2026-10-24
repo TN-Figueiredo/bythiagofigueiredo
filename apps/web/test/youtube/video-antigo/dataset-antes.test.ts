@@ -61,8 +61,7 @@ export function fixtureMaior(): ObservatoryRows {
   })
 }
 
-// SKIP 23/10/2026 (envio E0): o ouro `__golden__/dataset-antes*.json` foi tirado no codigo de 14/10 (c46b0ff27); load.ts/competitor-sync mudaram no origin (yannis.md 3.6). Refazer a Tarefa 0 (retrato) da M10a no codigo atual antes de religar; NAO regravar o ouro sem isso.
-describe.skip('retrato do conjunto de dados antes da M10a', () => {
+describe('retrato do conjunto de dados antes da M10a', () => {
   it('rowsToDataset(fixtureMaior, NOW_FIXO) é idêntico ao arquivo gravado', () => {
     const atual = JSON.stringify(rowsToDataset(fixtureMaior(), NOW_FIXO), null, 1)
     if (process.env.GERAR_GOLDEN === '1') writeFileSync(GOLDEN, atual + '\n')
