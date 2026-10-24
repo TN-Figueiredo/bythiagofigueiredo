@@ -10,7 +10,7 @@ import { Client } from 'pg'
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { emTransacao, semearCena, exportarConferirConfirmar, q1, escalar, tenta, codigoE10, semearWatchDoVideo, type Cena } from '../helpers/mg6'
+import { emTransacao as emTransacaoMg6, guardaPorFolhas, semearCena, exportarConferirConfirmar, q1, escalar, tenta, codigoE10, semearWatchDoVideo, type Cena } from '../helpers/mg6'
 
 vi.setConfig({ testTimeout: 40_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -31,7 +31,10 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T13: registro de purga e remoção 
   const aplicar = async (): Promise<void> => {
     await pg.query(sqlDe('_ab_native_observados.sql'))
     await pg.query(sqlDe('_ab_native_observados_registro.sql'))
+    await guardaPorFolhas(pg)   // séries particionadas (M2): a T13 mede n_tup_del pela mãe
   }
+  // sem a troca por folhas na entrada: a guarda de md5 da T13 exige o corpo puro da F1
+  const emTransacao = <T>(c: Client, fn: () => Promise<T>): Promise<T> => emTransacaoMg6(c, fn, 'read committed', false)
   const ytDe = async (video: string) => (await q1(pg, `select video_id from public.competitor_videos where id = $1`, [video])).video_id as string
 
   async function cena(): Promise<{ c: Cena; ytA: string; ytB: string }> {
@@ -108,6 +111,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T13: registro de purga e remoção 
   it('sem a migration do registro (30 entradas) a remoção não conhece as tabelas: a nossa recusa só aparece com a migration aplicada (controle do teste)', async () => {
     await emTransacao(pg, async () => {
       await pg.query(sqlDe('_ab_native_observados.sql'))
+      await guardaPorFolhas(pg)   // M2 aplicada: a F1 pura mede n_tup_del pela mãe
       const { c, ytA } = await cena()
       await exportarConferirConfirmar(pg, c, c.canalA, 'lote-t13-sem')
       const t = await tenta(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])

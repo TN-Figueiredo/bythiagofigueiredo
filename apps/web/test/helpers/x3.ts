@@ -5,7 +5,7 @@
  * (idempotência provada por teste). `E10_X3_ARQUIVO` aponta o helper para outro arquivo.
  */
 import type { Client } from 'pg'
-import { iniciarComMg6 } from './mg6'
+import { iniciarComMg6, guardaPorFolhas } from './mg6'
 import { lerSqlDaX3, lerX3Registro } from './x3-sql'
 import { lerSqlDaF1 } from './f1-sql'
 
@@ -28,6 +28,7 @@ export async function iniciarComX3(c: Client): Promise<void> {
   await iniciarComMg6(c)
   try {
     await garantirX3(c)
+    await guardaPorFolhas(c)   // garantirX3 reaplica a F1 pura (a suíte da T13 depende disso); com a M2 aplicada a remoção precisa da guarda por folhas
   } catch (e) {
     await c.query('rollback')
     throw e

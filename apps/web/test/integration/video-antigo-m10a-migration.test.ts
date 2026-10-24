@@ -57,7 +57,7 @@ async function tenta(c: pg.Client, sql: string, params: unknown[] = []): Promise
 describe.skipIf(pular)('M10a: banco (pula até a Tarefa 5b se o rascunho não foi aplicado)', () => {
   let c: pg.Client
   beforeAll(async () => {
-    c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL })
+    c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
     await c.connect()
   })
   afterAll(async () => { await c.end() })

@@ -28,7 +28,7 @@ type Err = (Error & { code?: string }) | null
 describe.skipIf(pular)('M10a: funções SQL dos pontos 4, 5, 7 e 8 (pula até a Tarefa 5b se o rascunho não foi aplicado)', () => {
   let c: pg.Client
   beforeAll(async () => {
-    c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL })
+    c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
     await c.connect()
     await c.query(funcaoAntiga('20261012000004_observatorio_a5_e1_e2_provas_corretiva.sql', 'competitor_series_health'))
     await c.query(funcaoAntiga('20261013000002_observatorio_a5_e15_leitura_horaria.sql', 'competitor_channel_removal_impact'))

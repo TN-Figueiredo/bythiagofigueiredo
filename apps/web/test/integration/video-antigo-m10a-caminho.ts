@@ -10,7 +10,7 @@ export const M10A_EM_MIGRATION = true
 
 /** O rascunho já foi aplicado neste banco? (coluna do toco existe em competitor_videos). Sem banco, false. */
 export async function m10aNoBanco(): Promise<boolean> {
-  const url = process.env.SUPABASE_DB_URL
+  const url = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
   if (!url) return false
   const c = new pg.Client({ connectionString: url })
   await c.connect()

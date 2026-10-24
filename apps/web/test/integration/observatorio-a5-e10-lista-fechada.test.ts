@@ -135,7 +135,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 T10: a lista fechada do que apaga (ca
       expect([...chaves].filter(k => !daLista.has(k)).sort(), 'delete em função fora da lista: classifique-o de propósito').toEqual([])
       const semFuncao = LISTA.filter(p => !chaves.has(`${p.funcao}::${p.tabela}`))
       expect(semFuncao.map(p => `${p.funcao}::${p.tabela}`), 'par da lista sem função').toEqual([])
-    })
+    }, 'read committed', false)   // folhas = false: a T13 acima exige o corpo puro da F1 (guarda de md5)
   })
 
   it('o teste enxerga: uma função com delete fora da lista é acusada', async () => {

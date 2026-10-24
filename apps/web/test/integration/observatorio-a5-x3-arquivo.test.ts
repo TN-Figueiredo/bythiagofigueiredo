@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { iniciarComMg6, semearCena, pausarEEnvelhecer, q1, escalar, tenta, codigoE10, tabelasComIdentidade, type Cena } from '../helpers/mg6'
+import { iniciarComMg6, guardaPorFolhas, semearCena, pausarEEnvelhecer, q1, escalar, tenta, codigoE10, tabelasComIdentidade, type Cena } from '../helpers/mg6'
 import { garantirX3, emTransacaoComX3 } from '../helpers/x3'
 import { exportarCanal, type Disco } from '@/lib/youtube/observatorio/arquivo/exportar'
 import { conferirLote } from '@/lib/youtube/observatorio/arquivo/conferir'
@@ -202,6 +202,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 2: E10 com as tabelas de playli
         expect(await conferir(c, raiz)).toMatchObject({ ok: true })
         await pg.query(`select public.obs_archive_confirm_nas($1, $2, $3, $4)`, [c.site, LOTE, c.canalA, c.admin])
         await garantirX3(pg)
+        await guardaPorFolhas(pg)   // garantirX3 reaplicou a F1 pura; com a M2 aplicada a remoção precisa da guarda por folhas
         if (comPlaylistNova) {
           await pg.query(`insert into public.competitor_playlists (site_id, competitor_channel_id, playlist_id, state_sha256, first_seen_at, last_seen_at) values ($1, $2, 'PLnova123', 'h', now(), now())`, [c.site, c.canalA])
           const t = await tenta(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])

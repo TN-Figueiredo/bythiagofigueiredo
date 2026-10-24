@@ -66,11 +66,12 @@ export async function garantirComT13(c: Client): Promise<void> {
   if (t13 !== null && (await c.query(`select to_regclass('public.ab_native_observados') is not null and to_regclass('public.ab_native_obs_cursor') is not null as ok`)).rows[0]?.ok) await c.query(t13)
 }
 
-export async function iniciarComMg6(c: Client, isolamento: 'read committed' | 'repeatable read' = 'read committed'): Promise<void> {
+export async function iniciarComMg6(c: Client, isolamento: 'read committed' | 'repeatable read' = 'read committed', folhas = true): Promise<void> {
   for (let tentativa = 0; ; tentativa++) {
     await c.query(`begin isolation level ${isolamento}`)
     try {
       await garantirMg6(c)
+      if (folhas) await guardaPorFolhas(c)   // `folhas = false`: a suíte da T13 precisa do corpo puro da F1 (guarda de md5 da 20261021000007)
       return
     } catch (e) {
       await c.query('rollback')
@@ -82,8 +83,8 @@ export async function iniciarComMg6(c: Client, isolamento: 'read committed' | 'r
 }
 
 /** Roda `fn` dentro de `begin; <MG6>; …; rollback`. Nada fica gravado, nem quando `fn` lança. */
-export async function emTransacao<T>(c: Client, fn: () => Promise<T>, isolamento: 'read committed' | 'repeatable read' = 'read committed'): Promise<T> {
-  await iniciarComMg6(c, isolamento)
+export async function emTransacao<T>(c: Client, fn: () => Promise<T>, isolamento: 'read committed' | 'repeatable read' = 'read committed', folhas = true): Promise<T> {
+  await iniciarComMg6(c, isolamento, folhas)
   try {
     return await fn()
   } finally {
@@ -390,4 +391,22 @@ export async function semearWatchDoVideo(c: Client, site: string, yt: string, o:
       [site, yt, 20 - i, randomUUID(), i === 0 && miniaturas.length > 0 ? miniaturas[0] : null])).id as number)
   }
   return { leituras, miniaturas }
+}
+
+/**
+ * Com a M2 aplicada (séries particionadas) a F1 (ou a T13) reaplicada pelos helpers mede n_tup_del pela mãe, que vale 0 (a estatística é
+ * por folha), e a remoção recusa com `E10:apagou_alem_do_arquivo: competitor_video_daily apagadas=0`. Mesma troca do 11b/11c da M2, feita
+ * sobre o corpo instalado (o texto do 11b/11c parte do corpo da T13 e exige o registro de 32; aqui o registro pode ter 30): soma das
+ * folhas de pg_partition_tree e o fecho sem partição. Sem a M2 (séries comuns) não faz nada.
+ */
+export async function guardaPorFolhas(c: Client): Promise<void> {
+  if ((await c.query(`select relkind::text as k from pg_class where oid = to_regclass('public.competitor_video_daily')`)).rows[0]?.k !== 'p') return
+  const SOMA = `coalesce((select sum(x.n_tup_del) from pg_catalog.pg_stat_xact_user_tables x where x.relid = c.oid or x.relid in (select pt.relid from pg_catalog.pg_partition_tree(c.oid) pt where pt.isleaf)), 0)`
+  for (const assinatura of ['public.competitor_channel_remove_archived(uuid,uuid,uuid)', 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)']) {
+    const def = String((await c.query(`select pg_get_functiondef($1::regprocedure) as d`, [assinatura])).rows[0]?.d)
+    if (/pg_partition_tree/.test(def)) continue
+    const novo = def.replaceAll('coalesce(s.n_tup_del, 0)', SOMA).replaceAll(`where n.nspname = 'public'`, `where n.nspname = 'public' and not c.relispartition`)
+    if (novo === def) throw new Error(`guardaPorFolhas: nada a trocar em ${assinatura}`)
+    await c.query(novo)
+  }
 }

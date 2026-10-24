@@ -38,7 +38,7 @@ async function tenta(c: pg.Client, sql: string, params: unknown[] = []): Promise
 describe.skipIf(pular)('M10a: guarda de insert do vídeo congelado (pula até a Tarefa 5b se o rascunho não foi aplicado)', () => {
   let c: pg.Client
   beforeAll(async () => {
-    c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL })
+    c = new pg.Client({ connectionString: process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
     await c.connect()
     await c.query('begin')
     const slug = 'm10a-g-' + Math.random().toString(36).slice(2, 10)
