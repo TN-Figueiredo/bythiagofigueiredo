@@ -17,6 +17,7 @@ import { exportarUnidade } from '@/lib/youtube/observatorio/arquivo/exportar'
 import { serializarResumo, type LinhasDoResumo } from '@/lib/youtube/observatorio/arquivo-mensal/resumo'
 import { montarManifesto, type LinhasDoManifesto } from '@/lib/youtube/observatorio/arquivo-mensal/manifesto-mensal'
 import { RespostaPlano } from '@/lib/youtube/observatorio/arquivo-mensal/contrato'
+import { apagarCanais } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MES = '2026-10-01'
@@ -259,7 +260,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 5: plano do copiador, atraso, verm
     const u = await unidade(a.site, DAILY, a.canal); await unidade(a.site, EARLY, a.canal)
     await c.query(`insert into public.obs_archive_b2_files (site_id, arquivo_id, class, month, last_ok_at, last_ok_file_id) values ($1, $2, 'serie', $3::date, now(), $4)`, [a.site, `u:${u.id}`, MES, FID(5)])
     await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid) values ($1, $2, 'e10_export', 'guardar', now(), true, pg_current_xact_id())`, [a.site, a.canal])
-    await c.query(`delete from public.competitor_channels where id = $1`, [a.canal])
+    await apagarCanais(c, 'id = $1', [a.canal])
     expect((await plano(a.site)).aguardando_dono).toEqual([])                          // recebida e em dia no NAS: nada a procurar
     await c.query(`update public.obs_archive_units set nas_withdrawn_at = now(), nas_withdrawn_reason = 'ausente' where id = $1`, [u.id])
     const p = await plano(a.site)

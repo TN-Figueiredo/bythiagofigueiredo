@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -47,6 +48,14 @@ describe.skipIf(skipIfNoLocalDb())('A5 R9a (MG20): yt_own_channel_snapshots (ban
       }
     }
   }
+  async function comRepeticaoDe(acao: () => Promise<void>): Promise<void> {   // mesmo laço do comRepeticao, para o helper de limpeza
+    for (let i = 0; ; i++) {
+      try { await acao(); return } catch (e) {
+        if ((e as { code?: string }).code !== '40P01' || i >= 8) throw e
+        await new Promise(r => setTimeout(r, 150 * (i + 1) + Math.random() * 200))
+      }
+    }
+  }
   afterAll(async () => {
     try {
       if (sites.length > 0) {
@@ -55,7 +64,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 R9a (MG20): yt_own_channel_snapshots (ban
         await comRepeticao('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
       }
       if (usuarios.length > 0) await comRepeticao('delete from auth.users where id = any($1::uuid[])', [usuarios])
-      if (sites.length > 0) await comRepeticao('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await comRepeticaoDe(() => apagarSites(pg, 'id = any($1::uuid[])', [sites]))
     } finally {
       await pg.end()
     }

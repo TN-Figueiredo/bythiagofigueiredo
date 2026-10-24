@@ -25,6 +25,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 import {
   SUPABASE_URL, ANON_KEY, SERVICE_KEY,
   signUserJwt, seedSite, seedRbacScenario, cleanupRbacScenario, type RbacScenario,
@@ -283,7 +284,7 @@ describe.skipIf(skipIfNoLocalDb())('M1 (C1) — DML fechado e schema novo', () =
     if (siteIdsC1.length) {
       await svcC1.from('instagram_sync_log').delete().in('site_id', siteIdsC1)
       await svcC1.from('instagram_accounts').delete().in('site_id', siteIdsC1)
-      await svcC1.from('sites').delete().in('id', siteIdsC1)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [siteIdsC1])
     }
     await pgC1.end()
   })
@@ -387,7 +388,7 @@ describe.skipIf(skipIfNoLocalDb())('M1 (C1) — DML fechado e schema novo', () =
       .insert({ confirmation_code: code, ig_user_id: '17841400000000001', site_id: siteId })
     expect(dup.error?.code).toBe('23505')
 
-    await svcC1.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
     const { data: after } = await svcC1.from('instagram_deletion_requests')
       .select('site_id').eq('confirmation_code', code).single()
     expect(after?.site_id).toBeNull()   // on delete set null: o registro sobrevive 180 dias

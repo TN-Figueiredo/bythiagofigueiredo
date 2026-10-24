@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarCanaisDeTeste, apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const READ = ['competitor_field_versions', 'competitor_video_early', 'competitor_video_tier_spans'] as const
@@ -49,12 +50,12 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: RLS das tabelas novas com GUC fo
   })
   afterAll(async () => {
     await sb.from('competitor_removed_items').delete().eq('site_id', siteId)
-    await sb.from('competitor_channels').delete().eq('site_id', siteId)
+    await apagarCanaisDeTeste('site_id = $1', [siteId])
     await pg.query('delete from public.site_memberships where site_id = $1', [siteId])
     await pg.query('delete from auth.users where id = any($1)', [Object.values(users)])
     // os vínculos acima geram linhas em audit_log (trigger), e a FK delas impede apagar o site
     await pg.query('delete from public.audit_log where site_id = $1', [siteId])
-    await sb.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
     await pg.end()
   })
 

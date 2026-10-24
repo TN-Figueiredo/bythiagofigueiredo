@@ -12,6 +12,7 @@ import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { criarSite, criarUsuario, criarCanal, criarVideo, q1, escalar } from '../helpers/mg6'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const dormir = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms))
@@ -35,8 +36,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 2: corridas (duas conexões, co
         await a.query(`delete from public.competitor_removed_items where site_id = $1`, [s.site])
         await a.query(`delete from public.youtube_intelligence_tasks where site_id = $1`, [s.site])
         await a.query(`delete from public.youtube_niches where site_id = $1`, [s.site])
-        await a.query(`delete from public.competitor_channels where site_id = $1`, [s.site])
-        await a.query(`delete from public.sites where id = $1`, [s.site])
+        await apagarCanais(a, 'site_id = $1', [s.site])
+        await apagarSites(a, 'id = $1', [s.site])
         await a.query(`delete from public.organizations where id = $1`, [s.org])
         await a.query(`delete from auth.users where id = $1`, [s.ator])
       } catch (e) { console.error('limpeza da corrida falhou', s.site, e instanceof Error ? e.message : e) }

@@ -16,6 +16,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { registrarLeitura, zerarEstadoDoRegistro, diaSP, rotaNormalizada, ACAO_AVISO, RECURSO_CHAVE } from '@/lib/pipeline/leitura-registro'
 import { fetchActivityFeed } from '@/app/cms/(authed)/_components/dashboard-queries'
 import type { PipelineAuth } from '@/lib/pipeline/auth'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 describe.skipIf(skipIfNoLocalDb())('E19: registro de leitura no banco local', () => {
   // Criado em beforeAll: com o banco ausente o describe é pulado e o ambiente (test/setup.ts) não tem as variáveis.
@@ -36,7 +37,7 @@ describe.skipIf(skipIfNoLocalDb())('E19: registro de leitura no banco local', ()
       await sb.from('audit_log').delete().eq('site_id', siteId),
     ]
     for (const { error } of apagados) expect(error).toBeNull()
-    expect((await sb.from('sites').delete().eq('id', siteId)).error).toBeNull()
+    await apagarSitesDeTeste('id = $1', [siteId])   // lança se o delete falhar
   })
 
   it('a linha é aceita sem ator e com site_id nulo; o site fica em after_data', async () => {

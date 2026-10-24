@@ -17,6 +17,7 @@ import { lerSqlMg15 } from '../helpers/mg15'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { metricVersion } from '@/lib/youtube/coleta/metric-version'
 import type { DiarioResumo } from '@/lib/youtube/coleta/diario-step'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -92,7 +93,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E6 P3: os roteiros de volta A (backup) e 
   })
   afterAll(async () => {
     try {
-      if (pg && sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (pg && sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       if (pg) await pg.end()
     }

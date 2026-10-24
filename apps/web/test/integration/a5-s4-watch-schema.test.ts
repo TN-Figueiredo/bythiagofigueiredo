@@ -18,6 +18,7 @@ import type { AlvoAtivo } from '@/lib/youtube/watch/alvos'
 import { gravarComDegrau, type PayloadDisparo } from '@/lib/youtube/watch/gravar'
 import { mulberry32, gerar } from '../fixtures/watch-html/gerador'
 import { CASOS_RECUSADOS, leituraValida, thumbValida } from '../fixtures/watch-html/casos-recusados'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 300_000 })
 
@@ -39,7 +40,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4: yt_watch_* (banco local)', () => {
   afterAll(async () => {
     try {
       for (let i = 0; i < 8 && sites.length > 0; i++) {
-        try { await pg.query('delete from public.sites where id = any($1::uuid[])', [sites]); break } catch (e) {
+        try { await apagarSites(pg, 'id = any($1::uuid[])', [sites]); break } catch (e) {
           if ((e as { code?: string }).code !== '40P01' || i >= 7) throw e
           await new Promise(r => setTimeout(r, 150 * (i + 1)))
         }

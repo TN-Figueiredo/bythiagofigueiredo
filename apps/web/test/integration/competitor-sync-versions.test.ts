@@ -8,6 +8,7 @@ vi.mock('@/lib/notifications/create', () => ({ createNotification: vi.fn() }))
 import { syncCompetitorChannel } from '@/lib/youtube/competitor-sync'
 import { hashValue } from '@/lib/youtube/competitor-versions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarCanaisDeTeste } from '../helpers/limpa-cena'
 
 const sp = (iso: string) => new Date(iso + '-03:00').toISOString()
 /** Horizontal gradient, bright → dark: every dHash comparison is 1 → "ffffffffffffffff". */
@@ -34,7 +35,7 @@ describe.skipIf(skipIfNoLocalDb())('syncCompetitorChannel versions', () => {
   let siteId = '', chId = '', vidId = ''
   beforeAll(async () => {
     siteId = (await sb.from('sites').select('id').limit(1).single()).data!.id
-    await sb.from('competitor_channels').delete().eq('site_id', siteId).eq('channel_id', 'UCsync')
+    await apagarCanaisDeTeste('site_id = $1 and channel_id = $2', [siteId, 'UCsync'])
     chId = (await sb.from('competitor_channels').insert({ site_id: siteId, channel_id: 'UCsync', channel_name: 'Canal', video_limit: 50, last_ok_synced_at: sp('2026-10-24T12:00:00'), last_synced_at: sp('2026-10-24T12:00:00') }).select('id').single()).data!.id
     vidId = (await sb.from('competitor_videos').insert({ competitor_channel_id: chId, video_id: 'vidsync1', title: 'A', published_at: '2026-10-20T15:00:00Z' }).select('id').single()).data!.id
     const seen = sp('2026-10-24T12:00:00')
@@ -85,7 +86,7 @@ describe.skipIf(skipIfNoLocalDb())('apply_competitor_version_plan atomicity (R22
   beforeAll(() => { sb = getSupabaseServiceClient() })
   it('a violating change row rolls back the close and the open', async () => {
     const siteId = (await sb.from('sites').select('id').limit(1).single()).data!.id
-    await sb.from('competitor_channels').delete().eq('site_id', siteId).eq('channel_id', 'UCatom')
+    await apagarCanaisDeTeste('site_id = $1 and channel_id = $2', [siteId, 'UCatom'])
     const chId = (await sb.from('competitor_channels').insert({ site_id: siteId, channel_id: 'UCatom', channel_name: 'C', video_limit: 50 }).select('id').single()).data!.id
     const vidId = (await sb.from('competitor_videos').insert({ competitor_channel_id: chId, video_id: 'vidatom1', title: 'A' }).select('id').single()).data!.id
     const seen = new Date().toISOString()
@@ -137,7 +138,7 @@ describe.skipIf(skipIfNoLocalDb())('vídeo fixado com mais de 90 dias (R123)', (
   beforeAll(async () => {
     sb = getSupabaseServiceClient()
     siteId = (await sb.from('sites').select('id').limit(1).single()).data!.id
-    await sb.from('competitor_channels').delete().eq('site_id', siteId).eq('channel_id', 'UCpinsync')
+    await apagarCanaisDeTeste('site_id = $1 and channel_id = $2', [siteId, 'UCpinsync'])
     const seen = sp('2026-10-24T00:00:00')
     chId = (await sb.from('competitor_channels').insert({ site_id: siteId, channel_id: 'UCpinsync', channel_name: 'Canal fixado', video_limit: 50, last_ok_synced_at: seen, last_synced_at: seen }).select('id').single()).data!.id
     vidId = (await sb.from('competitor_videos').insert({ competitor_channel_id: chId, video_id: 'pinold1', title: 'A', published_at: '2025-09-01T15:00:00Z', pinned_at: seen }).select('id').single()).data!.id

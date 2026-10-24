@@ -7,6 +7,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 import {
   SUPABASE_URL,
   SERVICE_KEY,
@@ -28,7 +29,7 @@ describe.skipIf(skipIfNoLocalDb())('RPC unsubscribe_via_token', () => {
     if (siteIdsToCleanup.length) {
       await db.from('unsubscribe_tokens').delete().in('site_id', siteIdsToCleanup)
       await db.from('newsletter_subscriptions').delete().in('site_id', siteIdsToCleanup)
-      await db.from('sites').delete().in('id', siteIdsToCleanup)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [siteIdsToCleanup])
     }
     if (orgIdsToCleanup.length) {
       await db.from('organizations').delete().in('id', orgIdsToCleanup)

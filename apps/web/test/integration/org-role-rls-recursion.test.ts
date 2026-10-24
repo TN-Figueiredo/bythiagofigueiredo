@@ -22,6 +22,7 @@ import {
   signUserJwt,
 } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 function clientAs(userId: string): SupabaseClient {
   // Papel 'user' no JWT: nada aqui pode depender de app_metadata.role.
@@ -105,8 +106,7 @@ describe.skipIf(skipIfNoLocalDb())('org_role / is_org_staff / can_admin_site com
       if (id) await deleteAuthUser(id)
     }
     if (siteId) {
-      const site = await service.from('sites').delete().eq('id', siteId)
-      expect(site.error).toBeNull()
+      await apagarSitesDeTeste('id = $1', [siteId])   // lança se o delete falhar
     }
     if (orgId) {
       const org = await service.from('organizations').delete().eq('id', orgId)

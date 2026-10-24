@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg6, semearCena, escalar, tenta, codigoE10 } from '../helpers/mg6'
+import { garantirComT13, semearCena, escalar, tenta, codigoE10 } from '../helpers/mg6'
 import { aplicarM2 } from '../helpers/m2'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 
@@ -24,7 +24,7 @@ describe.skip('M10a leva o remendo da pausa da E10', () => {
   async function emTx(fn: () => Promise<void>): Promise<void> {
     await pg.query('begin'); await pg.query('select pg_advisory_xact_lock(7339001)')   // TRAVA_DDL_TESTES na 1ª instrução (Yannis R3-1)
     try {
-      await garantirMg6(pg)
+      await garantirComT13(pg)
       await aplicarM2(pg)
       await fn()
     } finally { await pg.query('rollback') }

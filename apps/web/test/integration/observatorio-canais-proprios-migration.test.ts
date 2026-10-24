@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 describe.skipIf(skipIfNoLocalDb())('migration observatorio_canais_proprios_nicho', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
@@ -19,7 +20,7 @@ describe.skipIf(skipIfNoLocalDb())('migration observatorio_canais_proprios_nicho
   afterAll(async () => {
     if (channelRowId) await sb.from('youtube_channels').delete().eq('id', channelRowId)
     await sb.from('youtube_channels').delete().eq('site_id', siteId)
-    await sb.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   const base = () => ({

@@ -32,6 +32,7 @@ import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto
 import { CONTEXTO } from '../youtube/observatorio/contexto-ia-fixture'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import type { ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const dia = (n: number): string => new Date(Date.now() + n * 86_400_000).toISOString()
 const hoje = new Date().toISOString().slice(0, 10)
@@ -95,7 +96,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
       await pg.query('delete from public.yt_own_video_meta_daily where site_id = $1', [mundo.siteId])
       await pg.query('delete from public.youtube_videos where site_id = $1', [mundo.siteId])
       await pg.query('delete from public.youtube_channels where site_id = $1', [mundo.siteId])
-      await pg.query('delete from public.sites where id = $1', [mundo.siteId])
+      await apagarSites(pg, 'id = $1', [mundo.siteId])
       await pg.query('delete from public.organizations where id = $1', [org])
     } finally { await pg.end() }
   })
@@ -186,7 +187,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
       expect((await pg.query(`select status from public.niche_signals where id = $1`, [SIG(1)])).rows[0].status).toBe('aberto')
     } finally {
       await pg.query('delete from public.niche_signals where id = $1', [SIG(1)])
-      await pg.query('delete from public.sites where id = $1', [outro.site]); await pg.query('delete from public.organizations where id = $1', [outro.org])
+      await apagarSites(pg, 'id = $1', [outro.site]); await pg.query('delete from public.organizations where id = $1', [outro.org])
     }
     await estado('sem-lugar', { outliers_sem_lugar: 4, outliers_total: 4 })
     const [a, b, c] = [await rota(), await cowork(), await claudeCode()]

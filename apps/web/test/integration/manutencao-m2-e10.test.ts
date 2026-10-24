@@ -8,16 +8,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg6, semearCena, exportarConferirConfirmar, contagemPorTabela, escalar, tenta } from '../helpers/mg6'
+import { garantirMg6, garantirComT13, semearCena, exportarConferirConfirmar, contagemPorTabela, escalar, tenta } from '../helpers/mg6'
 import { aplicarM2, M2_SQL } from '../helpers/m2'
 import { lerSqlDaT13 } from '../helpers/f1-sql'
-
-/** MG6 + F1 (garantirMg6) e depois a 20261021000007 (T13), que é o corpo de partida do bloco 11b da M2. */
-async function garantirComT13(c: Client): Promise<void> {
-  await garantirMg6(c)
-  const t13 = lerSqlDaT13()
-  if (t13 !== null && (await c.query(`select to_regclass('public.ab_native_observados') is not null and to_regclass('public.ab_native_obs_cursor') is not null as ok`)).rows[0]?.ok) await c.query(t13)
-}
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 

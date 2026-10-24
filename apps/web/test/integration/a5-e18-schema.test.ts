@@ -13,6 +13,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -46,7 +47,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 (MG12): tabelas e funções de versõ
         for (const t of ['yt_own_video_versions', 'yt_own_versions_state', 'yt_own_video_meta_daily', 'youtube_videos', 'youtube_channels']) {
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
     } finally {
       await pg.end()

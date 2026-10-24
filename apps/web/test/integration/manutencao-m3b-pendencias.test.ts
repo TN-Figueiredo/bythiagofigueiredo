@@ -12,6 +12,7 @@ import { aplicarM2 } from '../helpers/m2'
 import { aplicarM3b, sqlM3bAte, M3B_SQL_CAMINHO, escalar, q1, semearCanal } from '../helpers/m3b'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 import { lerPendencias } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const DAILY = 'competitor_video_daily'
@@ -72,8 +73,8 @@ describe.skip('M3b parte 7: pendências do dono (sem papel de leitura)', () => {
   }
   const limparSites = async (manter: string | null): Promise<void> => {      // só dentro da transação desfeita; sem os gatilhos de chave estrangeira
     await c.query(`set local session_replication_role = replica`)
-    await c.query(`delete from public.competitor_channels where $1::uuid is null or site_id <> $1`, [manter])    // sem o gatilho de chave estrangeira, os canais não saem com o site
-    await c.query(`delete from public.sites where $1::uuid is null or id <> $1`, [manter])
+    await apagarCanais(c, '$1::uuid is null or site_id <> $1', [manter])    // sem o gatilho de chave estrangeira, os canais não saem com o site
+    await apagarSites(c, '$1::uuid is null or id <> $1', [manter])
     await c.query(`set local session_replication_role = origin`)
   }
 

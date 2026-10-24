@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { M2_BLOCO_11 } from './m2'
 import { garantirParticoesDaDiaria, travarDdl } from './ddl-testes'
 import { lerSqlDaX3, lerX3Registro } from './x3-sql'
-import { lerSqlDaF1 } from './f1-sql'
+import { lerSqlDaF1, lerSqlDaT13 } from './f1-sql'
 
 export const MG6_FIXTURE = fileURLToPath(new URL('../fixtures/sql/a5-e10-mg6.sql', import.meta.url))
 
@@ -55,6 +55,17 @@ export async function garantirMg6(c: Client): Promise<void> {
  * Abre a transação e aplica a MG6. Banco ocupado por outro agente (`55P03` lock_timeout, `40P01` deadlock): espera e repete,
  * até 3 vezes; passando disso, o erro sobe (o teste falha dizendo que o banco estava ocupado, nunca em silêncio).
  */
+/**
+ * MG6 + F1 (garantirMg6) e depois a 20261021000007 (T13), que é o corpo de partida do bloco 11b da M2. Fica fora de
+ * `garantirMg6` de propósito: as suítes da E10 e da E4 esperam 30 entradas no registro. Quem aplica a M2 ou a M3b depois
+ * usa esta (MG6+F1 deixa o corpo da F1, e não o da 0007, e a M2 cairia em `M2:..._divergente`).
+ */
+export async function garantirComT13(c: Client): Promise<void> {
+  await garantirMg6(c)
+  const t13 = lerSqlDaT13()
+  if (t13 !== null && (await c.query(`select to_regclass('public.ab_native_observados') is not null and to_regclass('public.ab_native_obs_cursor') is not null as ok`)).rows[0]?.ok) await c.query(t13)
+}
+
 export async function iniciarComMg6(c: Client, isolamento: 'read committed' | 'repeatable read' = 'read committed'): Promise<void> {
   for (let tentativa = 0; ; tentativa++) {
     await c.query(`begin isolation level ${isolamento}`)

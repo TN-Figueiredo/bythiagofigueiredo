@@ -39,6 +39,7 @@ import { addDays, dayPt, utcDay } from '@/lib/youtube/coleta/day-pt'
 import { metricVersion } from '@/lib/youtube/coleta/metric-version'
 import { lerDiario } from '@/lib/youtube/observatorio/proprio/ler'
 import type { ColetaChannel, StepCtx } from '@/lib/youtube/coleta/types'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 90_000 })
 
@@ -137,7 +138,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E6 (3b): a dieta do diário contra o banc
         }
         await pg.query('delete from public.site_memberships where site_id = any($1::uuid[])', [sites])
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
     } finally {
       await pg.end()

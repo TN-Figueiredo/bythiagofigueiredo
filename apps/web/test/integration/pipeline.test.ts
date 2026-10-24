@@ -3,6 +3,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SERVICE_KEY, SUPABASE_URL, seedSite } from '../helpers/db-seed'
 import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const PG_URL =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -20,7 +21,7 @@ describe.skipIf(skipIfNoLocalDb())('content_pipeline integration', () => {
       await db.from('content_pipeline').delete().in('id', createdItemIds)
     }
     if (createdSiteIds.length) {
-      await db.from('sites').delete().in('id', createdSiteIds)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [createdSiteIds])
     }
   })
 

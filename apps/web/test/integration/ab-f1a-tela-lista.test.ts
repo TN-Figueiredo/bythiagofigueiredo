@@ -16,6 +16,7 @@ import { lerLinhasDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista-bor
 import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { lerVolumes } from '@/lib/youtube/teste-youtube/nativo/volume-leitor'
 import { leituraDoEditor, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import { apagarSites } from '../helpers/limpa-cena'
 
 // a prova de edição (`leituraDoEditor`) que a lista repete na borda: a guarda simulada aceita
 const sentryMsgs = vi.hoisted(() => vi.fn())
@@ -85,7 +86,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T3: volume por vídeo (RPC) e lin
       for (const t of ['ab_native_fichas', 'ab_native_tests', 'ab_tests', 'yt_own_video_reach_daily', 'yt_own_video_meta_daily', 'yt_own_video_state_raw', 'yt_own_video_versions', 'yt_reporting_reports', 'youtube_videos', 'youtube_channels']) {
         await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
       }
-      await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       await pg.end()
     }

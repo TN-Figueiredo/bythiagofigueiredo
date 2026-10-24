@@ -10,6 +10,7 @@ import { seedSite } from '../../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { loadDataset } from '@/lib/youtube/observatorio/load'
 import { seedObservatory, clearObservatory, ORACLE_NOW } from '../../../e2e/fixtures/observatorio-seed'
+import { apagarSitesDeTeste } from '../../helpers/limpa-cena'
 
 export const GOLDEN_SEMENTE = path.resolve(__dirname, '__golden__/dataset-antes-semente.json')
 
@@ -41,7 +42,7 @@ describe.skip('retrato da semente do Observatório antes da M10a', () => {
   afterAll(async () => {
     if (!siteId) return
     await clearObservatory(siteId, sb)
-    await sb.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
   }, 60_000)
 
   it('loadDataset(semente, ORACLE_NOW) é idêntico ao arquivo gravado', async () => {

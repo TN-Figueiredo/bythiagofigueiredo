@@ -22,6 +22,7 @@ import { runFecharMarcas } from '@/lib/youtube/observatorio/medidas/fechar-marca
 import { lerMarcasDoCanal, lerSeriesDoCanal } from '@/lib/youtube/observatorio/medidas/ler'
 import { m1DoVideo, viewsNaIdade, type IdadeDeMarca } from '@/lib/youtube/observatorio/medidas/m1'
 import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 180_000, hookTimeout: 60_000 })
 
@@ -60,7 +61,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4 Tarefa 16: runFecharMarcas contra o ba
   })
   afterAll(async () => {
     try {
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       if (orgs.length > 0) await pg.query('delete from public.organizations where id = any($1::uuid[])', [orgs])
     } finally {
       await pg.end()

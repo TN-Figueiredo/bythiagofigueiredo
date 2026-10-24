@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, SUPABASE_URL, ANON_KEY } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
@@ -39,7 +40,7 @@ describe.skipIf(skipIfNoLocalDb())('youtube_channel_remove', () => {
       await sb.from('youtube_videos').delete().eq('site_id', siteId)
       await sb.from('youtube_sync_log').delete().eq('site_id', siteId)
       await sb.from('youtube_channels').delete().eq('site_id', siteId)
-      await sb.from('sites').delete().eq('id', siteId)
+      await apagarSitesDeTeste('id = $1', [siteId])
     }
   })
 

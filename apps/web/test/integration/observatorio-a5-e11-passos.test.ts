@@ -52,6 +52,7 @@ import { provarLeituraPrivada } from '@/lib/youtube/observatorio/proprio/leitura
 import { lerDimensoes, lerDetalheDaOrigem, type PedidoDimensoes } from '@/lib/youtube/observatorio/proprio/ler-dimensoes'
 import { estadoDoDiaLido } from '@/lib/youtube/observatorio/proprio/dimensoes-estado'
 import type { ColetaChannel } from '@/lib/youtube/coleta/types'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 90_000 })
 
@@ -188,7 +189,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E11 (Tarefa 12): passos, critérios e lei
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
     } finally {
       await pg.end()

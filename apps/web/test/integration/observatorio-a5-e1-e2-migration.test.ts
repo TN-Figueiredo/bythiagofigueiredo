@@ -5,6 +5,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { weekSlotOf, dayNumber, addDays } from '@/lib/youtube/competitor-tiers'
+import { apagarCanaisDeTeste, apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const T0 = new Date(Date.now() - 20 * 86_400_000) // 20 dias atrás: nada aqui depende do relógio de parede
 const at = (h: number) => new Date(T0.getTime() + h * 3_600_000).toISOString()
@@ -30,9 +31,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E1 e E2: funções das migrations (banco 
   })
   afterAll(async () => {
     const todos = [siteId, otherSite, ...extraSites]
-    await sb.from('competitor_channels').delete().in('site_id', todos)
+    await apagarCanaisDeTeste('site_id = any($1::uuid[])', [todos])
     await sb.from('youtube_quota_usage').delete().in('site_id', todos)
-    await sb.from('sites').delete().in('id', todos)
+    await apagarSitesDeTeste('id = any($1::uuid[])', [todos])
   })
   const open = (video_id: string | null, field: string, value: unknown, hash: string, first: string, win: string | null, precision: string) =>
     ({ video_id, field, value, value_hash: hash, first_seen_at: first, window_start: win, precision })

@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -72,7 +73,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 P2, MG17a: cobertura de metadados (by
   })
   afterAll(async () => {
     try {
-      if (pg && sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (pg && sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       if (pg) await pg.end()
     }

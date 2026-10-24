@@ -6,6 +6,7 @@ import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { loadDataset } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
+import { apagarCanaisDeTeste, apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const DAY = 864e5
 const spDate = (ms: number) => new Date(ms - 3 * 36e5).toISOString().slice(0, 10)
@@ -51,9 +52,9 @@ describe.skipIf(skipIfNoLocalDb())('loadDataset (local DB)', () => {
     expect((await sb.from('competitor_settings').upsert({ site_id: siteId, series_started_at: new Date(now - 5 * DAY).toISOString() }, { onConflict: 'site_id' })).error).toBeNull()
   })
   afterAll(async () => {
-    await sb.from('competitor_channels').delete().eq('site_id', siteId)
+    await apagarCanaisDeTeste('site_id = $1', [siteId])
     await sb.from('competitor_settings').delete().eq('site_id', siteId)
-    await sb.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   it('maps fmt, tracked, series and niche, reading each table once', async () => {

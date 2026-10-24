@@ -24,6 +24,7 @@ import {
 } from '@/lib/youtube/observatorio/comentarios/gravar'
 import { runAnularIdentidade } from '@/lib/youtube/observatorio/comentarios/anular'
 import type { AgregadosDoLote, Conversa, Devido, Escolhido, Marco } from '@/lib/youtube/observatorio/comentarios/tipos'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const H = 3_600_000
@@ -60,7 +61,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
         for (const t of ['competitor_removed_items', 'youtube_channels']) {
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
     } finally {
       await pg.end()
@@ -700,7 +701,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
     expect((await q(pg, 'select public.competitor_channel_comment_impact($1::uuid, $2::uuid) as r', [alheio.site, b.canal.id]))[0]!.r).toEqual({ status: 'not_found' })
     expect(await lerImpacto(sb, alheio.site, b.canal.id)).toBeNull()
     // apagar o canal leva as quatro tabelas
-    await pg.query('delete from public.competitor_channels where id = $1', [b.canal.id])
+    await apagarCanais(pg, 'id = $1', [b.canal.id])
     const resto = await q(pg, `select
       (select count(*) from public.competitor_video_comment_snaps where competitor_channel_id = $1)::int as snaps,
       (select count(*) from public.competitor_video_comments where competitor_channel_id = $1)::int as comentarios,

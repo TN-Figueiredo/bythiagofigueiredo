@@ -18,6 +18,7 @@ import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { COMMENT_RULES } from '@/lib/youtube/observatorio/comentarios/regras'
 import { lerImpacto, lerProva } from '@/lib/youtube/observatorio/comentarios/gravar'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const H = 3_600_000
@@ -63,7 +64,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): RLS e privilégios (banco loca
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
       }
       if (usuarios.length > 0) await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       await pg.end()
     }

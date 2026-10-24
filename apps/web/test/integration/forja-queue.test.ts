@@ -12,6 +12,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import { askReading, cancelReading, claim, completeReading, refuseTask, type ObsType } from '@/lib/pipeline/services/forja-queue'
+import { apagarCanaisDeTeste, apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const NOT_ANNOUNCED = 'A forja ainda não lê pedidos do observatório.'
 const USER = '00000000-0000-4000-8000-0000000000aa'
@@ -26,9 +27,9 @@ describe.skipIf(skipIfNoLocalDb())('forja queue service — real Supabase', () =
     await svc.from('competitor_readings').delete().in('site_id', siteIds)
     await svc.from('youtube_intelligence_tasks').delete().in('site_id', siteIds)
     await svc.from('forja_heartbeat').delete().in('site_id', siteIds)
-    await svc.from('competitor_channels').delete().in('site_id', siteIds)
+    await apagarCanaisDeTeste('site_id = any($1::uuid[])', [siteIds])
     await svc.from('youtube_channels').delete().in('site_id', siteIds)
-    await svc.from('sites').delete().in('id', siteIds)
+    await apagarSitesDeTeste('id = any($1::uuid[])', [siteIds])
   })
 
   /**

@@ -4,6 +4,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { loadVideoDetail } from '@/lib/pipeline/load-video-detail'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 /**
  * Verifies the `content_pipeline ⋈ youtube_videos` join exposed by
@@ -77,7 +78,7 @@ describe.skipIf(skipIfNoLocalDb())('loadVideoDetail join', () => {
     await admin.from('content_pipeline').delete().eq('site_id', siteId)
     if (ytId) await admin.from('youtube_videos').delete().eq('id', ytId)
     if (channelId) await admin.from('youtube_channels').delete().eq('id', channelId)
-    if (siteId) await admin.from('sites').delete().eq('id', siteId)
+    if (siteId) await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   it('returns the referenced youtube_videos thumbnail/duration via the join', async () => {

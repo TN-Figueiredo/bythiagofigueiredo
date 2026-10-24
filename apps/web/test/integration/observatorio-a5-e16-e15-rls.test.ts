@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const HORA = 3_600_000
@@ -80,7 +81,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 e E15 parte 1: RLS e privilégios (ba
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
       }
       if (usuarios.length > 0) await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       if (tarefas.length > 0) await pg.query('delete from public.competitor_agenda_runs where task = any($1::text[])', [tarefas])
       if (leases.length > 0) await pg.query('delete from public.competitor_agenda_lease where name = any($1::text[])', [leases])
     } finally {

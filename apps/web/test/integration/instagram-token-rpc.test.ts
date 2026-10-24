@@ -19,6 +19,7 @@ import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite } from '../helpers/db-seed'
 import type { InstagramAccountRow, InstagramSyncMode } from '@/lib/instagram/types'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const PG_URL =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -72,7 +73,7 @@ describe.skipIf(skipIfNoLocalDb())('M1 — instagram token health columns + inst
   afterAll(async () => {
     if (siteIds.length) {
       await svc.from('instagram_accounts').delete().in('site_id', siteIds)
-      await svc.from('sites').delete().in('id', siteIds)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [siteIds])
     }
     await pg.end()
   })

@@ -17,6 +17,7 @@ import { exportarUnidade } from '@/lib/youtube/observatorio/arquivo/exportar'
 import { serializarResumo, type LinhasDoResumo } from '@/lib/youtube/observatorio/arquivo-mensal/resumo'
 import { montarManifesto, type LinhasDoManifesto } from '@/lib/youtube/observatorio/arquivo-mensal/manifesto-mensal'
 import { RespostaRecord } from '@/lib/youtube/observatorio/arquivo-mensal/contrato'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MES = '2026-10-01'
@@ -337,7 +338,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     const { daily } = await unidadesDoCanal(a.site, a.canal)
     await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid)
       select distinct site_id, channel_ref, 'botao', 'apagar', now(), true, pg_current_xact_id() from public.obs_archive_units where site_id = $1 on conflict do nothing`, [a.site])      // o destino declarado (parte 6): o gatilho deixa apagar
-    await c.query(`delete from public.competitor_channels where id = $1`, [a.canal])
+    await apagarCanais(c, 'id = $1', [a.canal])
     await attest(a.site, [{ arquivo_id: daily.arquivo_id, resultado: 'ilegivel' }])
     expect(await q1(c, `select nas_withdrawn_reason, redo_reason from public.obs_archive_units where id = $1`, [daily.arquivo_id!.slice(2)])).toEqual({ nas_withdrawn_reason: 'divergente', redo_reason: null })
   }))
@@ -628,8 +629,8 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
         for (const t of ['obs_archive_units', 'obs_archive_summaries', 'obs_archive_months']) await c.query(`delete from public.${t} where site_id = $1`, [site])
         await c.query(`delete from public.competitor_video_daily where video_id in (select v.id from public.competitor_videos v join public.competitor_channels ch on ch.id = v.competitor_channel_id where ch.site_id = $1)`, [site])
         await c.query(`delete from public.competitor_videos where competitor_channel_id in (select id from public.competitor_channels where site_id = $1)`, [site])
-        await c.query(`delete from public.competitor_channels where site_id = $1`, [site])
-        await c.query(`delete from public.sites where id = $1`, [site])
+        await apagarCanais(c, 'site_id = $1', [site])
+        await apagarSites(c, 'id = $1', [site])
       }
       await Promise.all([a.end(), b.end()])
       await desfazerM3bDasCorridas()

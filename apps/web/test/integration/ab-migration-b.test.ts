@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, seedYoutubeChannelAndVideo, clienteServico } from '../helpers/db-seed'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 // Migration B (A/B Lab): o SQL como fixture, provado no bythiago_int. O arquivo de migration real só nasce no dia B
 // (db:new, cópia byte a byte de fixtures/ab-migration-b.sql). Cada `it` roda dentro de uma transação desfeita; a fixture
@@ -76,8 +77,8 @@ describe.skipIf(skipIfNoLocalDb())('Migration B (fixture)', { timeout: 30_000 },
     const db = clienteServico()
     const r1 = await db.from('youtube_videos').delete().eq('id', videoId)
     const r2 = await db.from('youtube_channels').delete().eq('id', channelId)
-    const r3 = await db.from('sites').delete().eq('id', siteId)
-    expect([r1.error, r2.error, r3.error]).toEqual([null, null, null])
+    await apagarSitesDeTeste('id = $1', [siteId])   // lança se o delete falhar
+    expect([r1.error, r2.error]).toEqual([null, null])
   })
 
   async function emTransacao(fn: (c: Client) => Promise<void>, preparar = true): Promise<void> {

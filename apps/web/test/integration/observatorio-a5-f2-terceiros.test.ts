@@ -17,6 +17,7 @@ import { seedSite } from '../helpers/db-seed'
 import { criarUsuario } from '../helpers/mg6'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { COMMENT_RULES } from '@/lib/youtube/observatorio/comentarios/regras'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const H = 3_600_000
@@ -55,7 +56,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 F2-coleta: respostas de espectadores, SQL
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
       if (usuarios.length > 0) await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
     } finally {

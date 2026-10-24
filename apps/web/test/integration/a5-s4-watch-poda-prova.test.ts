@@ -13,6 +13,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { travarS4, destravarS4 } from '../helpers/a5-s4-trava'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 300_000 })
 
@@ -43,6 +44,14 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B4/B5: poda e prova (banco local)', ()
       }
     }
   }
+  async function comRepeticaoDe(acao: () => Promise<void>): Promise<void> {   // mesmo laço do comRepeticao, para o helper de limpeza
+    for (let i = 0; ; i++) {
+      try { await acao(); return } catch (e) {
+        if ((e as { code?: string }).code !== '40P01' || i >= 8) throw e
+        await new Promise(r => setTimeout(r, 150 * (i + 1) + Math.random() * 200))
+      }
+    }
+  }
   async function limpar(): Promise<void> {
     await comRepeticao('delete from public.yt_watch_readings', [])
     await comRepeticao('delete from public.yt_watch_thumbs', [])
@@ -60,8 +69,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B4/B5: poda e prova (banco local)', ()
   afterAll(async () => {
     try {
       await limpar()
-      await comRepeticao(`delete from public.competitor_channels where site_id = any($1::uuid[])`, [sites])
-      await comRepeticao('delete from public.sites where id = any($1::uuid[])', [sites])
+      await comRepeticaoDe(() => apagarCanais(pg, 'site_id = any($1::uuid[])', [sites]))
+      await comRepeticaoDe(() => apagarSites(pg, 'id = any($1::uuid[])', [sites]))
     } finally { await destravarS4(pg); await pg.end() }
   })
 

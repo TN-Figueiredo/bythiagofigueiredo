@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg6, semearCena, exportarConferirConfirmar, escalar, q1, tenta } from '../helpers/mg6'
+import { garantirComT13, semearCena, exportarConferirConfirmar, escalar, q1, tenta } from '../helpers/mg6'
 import { aplicarM2 } from '../helpers/m2'
 import { readFileSync } from 'node:fs'
 import { aplicarM3b, M3B_SQL, M3B_DESFAZER_CAMINHO } from '../helpers/m3b'
@@ -23,7 +23,7 @@ describe.skip('M3b e a E10: competitor_channel_remove_archived declara o destino
   async function emTx(fn: () => Promise<void>): Promise<void> {
     await pg.query('begin'); await pg.query('select pg_advisory_xact_lock(7339001)')   // TRAVA_DDL_TESTES na 1ª instrução (Yannis R3-1)
     try {
-      await garantirMg6(pg)
+      await garantirComT13(pg)
       await aplicarM2(pg)
       for (let i = 1; i <= 3; i++) {
         await pg.query(`select obs_part.criar_particao(t::regclass, (obs_part.mes_corrente_sp() - make_interval(months => $1))::date)

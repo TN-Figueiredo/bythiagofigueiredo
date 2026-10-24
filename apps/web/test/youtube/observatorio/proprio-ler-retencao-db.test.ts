@@ -11,6 +11,7 @@ import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from 
 import { leituraDe } from './leitura-teste'
 import { lerRetencao, TETO_LEITURAS, TETO_TENTATIVAS } from '@/lib/youtube/observatorio/proprio/ler-retencao'
 import { dayPt, addDays } from '@/lib/youtube/coleta/day-pt'
+import { apagarSitesDeTeste } from '../../helpers/limpa-cena'
 
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -83,7 +84,7 @@ describe.skipIf(skipIfNoLocalDb())('leitor da retenção (banco local)', () => {
   afterAll(async () => {
     for (const s of sites) for (const t of ['yt_own_video_retention', 'yt_own_collection_attempts']) await sb.from(t).delete().eq('site_id', s)
     for (const c of canais) { await sb.from('youtube_videos').delete().eq('channel_id', c); await sb.from('youtube_channels').delete().eq('id', c) }
-    for (const s of sites) await sb.from('sites').delete().eq('id', s)
+    for (const s of sites) await apagarSitesDeTeste('id = $1', [s])
   }, 60_000)
 
   it('points volta como lista de objetos com números; bigint, date e timestamptz chegam nos tipos que a tela espera', async () => {

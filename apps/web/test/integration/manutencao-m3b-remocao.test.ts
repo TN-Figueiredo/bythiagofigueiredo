@@ -13,6 +13,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
 import { aplicarM3b, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
+import { apagarCanais } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MES = '2026-10-01'
@@ -296,7 +297,7 @@ describe.skip('M3b parte 6: remover canal declara o destino do arquivo', () => {
     await unidade(a.site, a.canal)
     await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, decided_by, online_thumbs_known, declared_xid)
       values ($1, $2, 'e10_export', 'guardar', now() - interval '365 days', $3, true, pg_current_xact_id())`, [a.site, a.canal, dono])
-    await c.query(`delete from public.competitor_channels where id = $1`, [a.canal])
+    await apagarCanais(c, 'id = $1', [a.canal])
     expect(await decidir(a.site, a.canal, admin)).toEqual({ status: 'ok' })
     expect(await q1(c, `select archive_decision, decided_by = $2 as clique, decided_at > now() - interval '1 minute' as agora from public.obs_archive_channel_removals where site_id = $1`, [a.site, admin]))
       .toEqual({ archive_decision: 'apagar', clique: true, agora: true })
@@ -310,7 +311,7 @@ describe.skip('M3b parte 6: remover canal declara o destino do arquivo', () => {
     // guardar: a única exceção, grava a versão nova
     await unidade(a.site, a.canal)
     await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid) values ($1, $2, 'e10_export', 'guardar', now(), true, pg_current_xact_id())`, [a.site, a.canal])
-    await c.query(`delete from public.competitor_channels where id = $1`, [a.canal])
+    await apagarCanais(c, 'id = $1', [a.canal])
     expect(await expurgo(a.canal)).toBe('nova')
     expect(await escalar(c, `select max(version)::int from public.obs_archive_units where site_id = $1 and channel_ref = $2`, [a.site, a.canal])).toBe(2)
     // a rota (sem p_origem) recusa o canal guardado, em unidade e em resumo
@@ -407,7 +408,7 @@ describe.skip('M3b parte 6: remover canal declara o destino do arquivo', () => {
     // c1: unidade órfã (canal apagado com o gatilho desligado, como dono) sem linha de remoção
     const orfao = await semearCanal(c, { site: a.site, videos: 0 }); await unidade(a.site, orfao.canal)
     await c.query(`alter table public.competitor_channels disable trigger obs_archive_z_destino_declarado`)
-    await c.query(`delete from public.competitor_channels where id = $1`, [orfao.canal])
+    await apagarCanais(c, 'id = $1', [orfao.canal])
     await c.query(`alter table public.competitor_channels enable trigger obs_archive_z_destino_declarado`)
     expect(await vigia()).toEqual({ c1: 1, c2: 0, c3: 0, c4: 0 })
     expect(await vermelhos()).toContain('1 canais removidos sem destino do arquivo')
