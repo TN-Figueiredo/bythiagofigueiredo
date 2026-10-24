@@ -177,6 +177,7 @@ jobs:
       # open finding in docs/audit-baseline.md, and keep this gate blocking.
       # Exceção datada (GHSA-mrhx-c7xc-m3w5, até 2027-01-31): scripts/audit-gate.mjs
       # falha em qualquer outro high/critical, na exceção vencida ou obsoleta.
+      - run: node --test scripts/audit-gate.test.mjs
       - run: node scripts/audit-gate.mjs
 
   secret-scan:
