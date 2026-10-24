@@ -1133,6 +1133,46 @@ Dispensa uma sugestão (ela não volta por 30 dias). **Auth:** write. **Ferramen
 
 ---
 
+### GET /api/pipeline/youtube/competitors/observed
+
+Leitura dos títulos e miniaturas dos concorrentes (regra v2): quais vídeos têm **possível teste do YouTube** em andamento, sumindo, provavelmente terminado ou troca. **Auth:** read. **Ferramenta:** `youtube_observatory`, ação `get_observed` (a mesma função da rota). Só leitura; segue a flag `OBS_TROCAS_CONCORRENTE`.
+
+**Resposta (flag desligada):** `{ "ligada": false, "motivo": "flag_off", "resumo": "Leitura de concorrentes desligada" }`. Diga isso; nunca trate como lista vazia.
+
+**Resposta (flag ligada):**
+```json
+{
+  "ligada": true,
+  "resumo": "3 vídeos de concorrentes observados: 1 com possível teste em andamento, 0 provavelmente terminados, 1 troca, 1 não medido (aprendendo 1)",
+  "resumo_miniatura": "Miniatura: 1 troca, 0 alternando sem dar para afirmar troca.",
+  "nota": "a contagem é das nossas passagens, não da divisão de público do YouTube",
+  "contagem": {
+    "titulo": { "em_andamento": 1, "sumindo": 0, "provavelmente_terminou": 0, "troca": 1, "sem_troca_vista": 0, "nao_medido": 1 },
+    "nao_medido_por_motivo": { "aprendendo": 1 },
+    "miniatura": { "troca": 1, "indeterminada": 0, "sem_troca_vista": 1, "nao_medido": 1 }
+  },
+  "fora_da_janela": 0,
+  "itens": [
+    { "canal": "Canal Um", "canal_id": "…", "video_id": "abc", "titulo_video": "…", "campo": "titulo", "estado": "em_andamento", "texto": "Possível teste do YouTube: …", "visto_ate": "2026-10-23T10:00:00.000Z" }
+  ],
+  "janela_dias": 14
+}
+```
+
+- `itens`: estados `em_andamento`, `sumindo`, `provavelmente_terminou` e `troca` (título) e `troca`/`indeterminada` (miniatura) vistos nos últimos 14 dias. "Sem troca vista" e "não medido" aparecem só em `contagem`. Item `estado: "fora_da_janela"` (`fora_da_observacao: true`, `ultimo`) é vídeo que já saiu da observação; não entra na contagem N.
+- A soma das chaves de `contagem.titulo` (e de `contagem.miniatura`) é o N do resumo. Canal com remoção pedida não aparece.
+
+**Regra para o Cowork**
+- Repita o `texto` de cada item sem reescrever.
+- Nunca tire "possível" nem "provavelmente".
+- Nunca diga "venceu".
+- "Não medido" nunca vira 0 nem "não testou".
+- "Provavelmente terminou" pode reabrir.
+
+Depois de editar esta doc, rodar de novo o seed da referência do Cowork (controlador).
+
+---
+
 ### O que não é entregue ao Cowork nesta fase
 
 - Série por vídeo (curva de views por dia), texto e contagem de comentários, a descrição do canal e qualquer dado do canal próprio no Observatório de concorrentes.
