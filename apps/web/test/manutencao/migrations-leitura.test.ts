@@ -29,9 +29,6 @@ export function regra71(dir?: string, extras: Migration[] = []): string[] {
   const s = ultimaDefinicao(migs, 'obs_db_size_record')
   if (s && !/relispartition/.test(s.corpo)) erros.push(`obs_db_size_record em ${s.arquivo} sem relispartition (pedido 3)`)
   if (s && !/relkind\s+in\s*\(\s*'r'\s*,\s*'p'/.test(s.corpo)) erros.push(`obs_db_size_record em ${s.arquivo} sem relkind in ('r','p') (pedido 3)`)
-  const r = ultimaDefinicao(migs, 'competitor_channel_remove_archived')
-  if (r && (r.corpo.match(/pg_partition_tree/g) ?? []).length < 2) erros.push(`competitor_channel_remove_archived em ${r.arquivo} sem a soma das folhas (M2 11b)`)
-  if (r && (r.corpo.match(/not c\.relispartition/g) ?? []).length < 2) erros.push(`competitor_channel_remove_archived em ${r.arquivo} sem not c.relispartition no fecho (M2 11b)`)
   return erros
 }
 
@@ -59,13 +56,6 @@ describe('item 71: a última definição das duas funções da E10 sabe de parti
     })
     expect(regra71(d)).toHaveLength(2)
   })
-  it('competitor_channel_remove_archived: o corpo da MG6 (sem as folhas) acusa; o do 11b passa; consertada e depois quebrada acusa', () => {
-    const quebrada = 'create or replace function public.competitor_channel_remove_archived(a uuid, b uuid, c uuid) returns jsonb language plpgsql as $$ begin perform 1 from pg_stat_xact_user_tables x left join pg_class c on c.oid = x.relid; end $$;'
-    const boa = 'create or replace function public.competitor_channel_remove_archived(a uuid, b uuid, c uuid) returns jsonb language plpgsql as $$ begin perform 1 from pg_partition_tree(c.oid) where not c.relispartition; perform 2 from pg_partition_tree(c.oid) where not c.relispartition; end $$;'
-    expect(regra71(pastaFalsa({ '20990101000001_mg15.sql': quebrada }))).toHaveLength(2)
-    expect(regra71(pastaFalsa({ '20990101000001_boa.sql': boa }))).toEqual([])
-    expect(regra71(pastaFalsa({ '20990101000001_boa.sql': boa, '20990101000002_mg15.sql': quebrada }))).toHaveLength(2)
-  })
   it('M2_BLOCO_11 contém as duas funções da E10 e não converte; a de remoção vem no 11b, só na M2 inteira (parte da F1)', () => {
     for (const f of ['obs_archive_uncovered', 'obs_db_size_record']) expect(M2_BLOCO_11).toContain(f)
     expect(M2_BLOCO_11).not.toContain('competitor_channel_remove_archived(')
@@ -75,6 +65,62 @@ describe('item 71: a última definição das duas funções da E10 sabe de parti
     expect(b11b).toContain('pg_partition_tree')
   })
   it('sem definição nenhuma não acusa', () => { expect(regra71(pastaFalsa({ '20990101000001_x.sql': 'select 1;' }))).toEqual([]) })
+})
+
+/**
+ * Toda função cuja ÚLTIMA definição mede o apagado por pg_stat_xact_user_tables (n_tup_del) sabe de partição: a mãe particionada
+ * registra n_tup_del = 0 (a estatística é por folha), então o corpo soma as folhas (pg_partition_tree, uma vez na base e uma na
+ * comparação) e tira as partições do fecho (not c.relispartition, nos dois `with recursive alvo`). Sem lista de nomes: a função
+ * nova da próxima frente é pega sem ninguém editar o teste (a F1 da A5 criou a quarta depois do plano).
+ */
+export function regraStatXact(dir?: string, extras: Migration[] = []): string[] {
+  const migs = [...lerMigrations(dir), ...extras]
+  const nomes = new Set<string>()
+  for (const m of migs) {
+    for (const h of m.sql.matchAll(/create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z_0-9]+)\s*\(/gi)) nomes.add((h[1] ?? '').toLowerCase())
+  }
+  const erros: string[] = []
+  for (const nome of [...nomes].sort()) {
+    const d = ultimaDefinicao(migs, nome)
+    if (!d || !/pg_stat_xact_user_tables/.test(d.corpo)) continue
+    const sem = d.corpo.replace(/--[^\n]*/g, '') // comentário que cite a expressão não conta
+    if ((sem.match(/pg_partition_tree/g) ?? []).length < 2) erros.push(`${nome} em ${d.arquivo} usa pg_stat_xact_user_tables sem a soma das folhas (pg_partition_tree)`)
+    if ((sem.match(/not c\.relispartition/g) ?? []).length < 2) erros.push(`${nome} em ${d.arquivo} usa pg_stat_xact_user_tables sem not c.relispartition no fecho`)
+  }
+  return erros
+}
+
+describe('regra genérica: quem mede n_tup_del sabe de partição (M2 11b e 11c)', () => {
+  const ruim = (nome: string) => `create or replace function public.${nome}(a uuid) returns jsonb language plpgsql as $$ begin perform 1 from pg_stat_xact_user_tables x left join pg_class c on c.oid = x.relid where x.relid = c.oid; return '{}'::jsonb; end $$;`
+  const boa = (nome: string) => `create or replace function public.${nome}(a uuid) returns jsonb language plpgsql as $$ begin perform 1 from pg_stat_xact_user_tables x where x.relid in (select relid from pg_partition_tree(a)); perform 2 from pg_stat_xact_user_tables x where x.relid in (select relid from pg_partition_tree(a)); perform 3 from pg_class c where not c.relispartition; perform 4 from pg_class c where not c.relispartition; return '{}'::jsonb; end $$;`
+  it('no repositório (com o rascunho da M2 como última migration, até o dia do push)', () => {
+    const extras: Migration[] = M2_EM_MIGRATION ? [] : [{ arquivo: 'rascunhos/m2.sql', sql: M2_SQL }]
+    expect(regraStatXact(undefined, extras)).toEqual([])
+  })
+  it('função de nome qualquer, nunca vista, que mede n_tup_del sem as folhas acusa as duas faltas', () => {
+    expect(regraStatXact(pastaFalsa({ '20990101000001_nova.sql': ruim('funcao_da_proxima_frente') }))).toHaveLength(2)
+  })
+  it('com a soma das folhas e o filtro nas duas pontas passa', () => {
+    expect(regraStatXact(pastaFalsa({ '20990101000001_boa.sql': boa('funcao_da_proxima_frente') }))).toEqual([])
+  })
+  it('vale a ÚLTIMA definição: consertada e depois recriada sem as folhas acusa', () => {
+    const d = pastaFalsa({ '20990101000001_a.sql': boa('f1'), '20990101000002_b.sql': ruim('f1') })
+    expect(regraStatXact(d)).toHaveLength(2)
+  })
+  it('comentário que cita a guarda não conta: função sem a guarda e com a guarda só em comentário acusa as duas faltas', () => {
+    const coment = ruim('f3').replace('begin ', 'begin\n-- pg_partition_tree pg_partition_tree\n-- not c.relispartition not c.relispartition\n')
+    expect(coment).toContain('-- pg_partition_tree')
+    expect(regraStatXact(pastaFalsa({ '20990101000001_c.sql': coment }))).toHaveLength(2)
+  })
+  it('função que não usa pg_stat_xact_user_tables não é cobrada', () => {
+    expect(regraStatXact(pastaFalsa({ '20990101000001_x.sql': 'create or replace function public.f2(a uuid) returns int language sql as $$ select 1 $$;' }))).toEqual([])
+  })
+  it('M2 sem o 11c: a competitor_channel_delete_unarchived da 0007 (última definição) acusa; com o 11c passa (o mutante do 11c fica vermelho)', () => {
+    const sem11c = M2_SQL.replace(/-- 11c\.[\s\S]*?(?=\n-- 12\. )/, '')
+    expect(sem11c).not.toBe(M2_SQL)
+    expect(regraStatXact(undefined, [{ arquivo: 'rascunhos/m2.sql', sql: sem11c }]).some(e => e.startsWith('competitor_channel_delete_unarchived '))).toBe(true)
+    expect(regraStatXact(undefined, [{ arquivo: 'rascunhos/m2.sql', sql: M2_SQL }])).toEqual([])
+  })
 })
 
 describe('item 119: obs_archive_is_site_admin citada pela fase só se alguma migration a define', () => {
