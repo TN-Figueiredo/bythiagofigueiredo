@@ -28,11 +28,14 @@ describe.skipIf(skipIfNoLocalDb())('M10a: forma do SQL e TRAVA M10a-1', () => {
   it('sem md5 placeholder no SQL', () => {
     expect(readFileSync(M10A_SQL, 'utf8')).not.toContain('@@')
   })
-  it('TRAVA M10a-1: enquanto M10A_SQL é o rascunho, não há *_observatorio_m10a_* em supabase/migrations', () => {
+  it('TRAVA M10a-1: o nome do arquivo é maior que o de todo arquivo da M2 (e a M2 está aplicada)', () => {
     const dir = path.resolve(__dirname, '../../../../supabase/migrations')
-    const achados = readdirSync(dir).filter(f => f.includes('_observatorio_m10a_'))
-    if (M10A_EM_MIGRATION) expect(achados.length).toBe(1)
-    else expect(achados).toEqual([])
+    const todos = readdirSync(dir)
+    const m10a = todos.filter(f => f.includes('_observatorio_m10a_'))
+    expect(m10a.length).toBe(1)
+    const m2 = todos.filter(f => f.includes('_manutencao_m2_'))
+    expect(m2.length, 'a M2 ainda não está aplicada').toBeGreaterThan(0)
+    for (const f of m2) expect(m10a[0] > f, f).toBe(true)
   })
 })
 
