@@ -1152,6 +1152,7 @@ Leitura dos títulos e miniaturas dos concorrentes (regra v2): quais vídeos tê
     "miniatura": { "troca": 1, "indeterminada": 0, "sem_troca_vista": 1, "nao_medido": 1 }
   },
   "fora_da_janela": 0,
+  "saiu_por_outro_motivo": 0,
   "itens": [
     { "canal": "Canal Um", "canal_id": "…", "video_id": "abc", "titulo_video": "…", "campo": "titulo", "estado": "em_andamento", "texto": "Possível teste do YouTube: …", "visto_ate": "2026-10-23T10:00:00.000Z" }
   ],
@@ -1160,6 +1161,8 @@ Leitura dos títulos e miniaturas dos concorrentes (regra v2): quais vídeos tê
 ```
 
 - `itens`: estados `em_andamento`, `sumindo`, `provavelmente_terminou` e `troca` (título) e `troca`/`indeterminada` (miniatura) vistos nos últimos 14 dias. "Sem troca vista" e "não medido" aparecem só em `contagem`. Item `estado: "fora_da_janela"` (`fora_da_observacao: true`, `ultimo`) é vídeo que já saiu da observação; não entra na contagem N.
+- `saiu_por_outro_motivo`: vídeos que saíram da observação nos últimos 14 dias por indisponibilidade (privado ou apagado pelo concorrente); não entram em N nem na lista. Cite quando for maior que 0: o concorrente tirou do ar o vídeo.
+- `itens_omitidos` (só pela ferramenta, quando a lista não cabe): quantos itens ficaram de fora, os menos recentes. Diga que a lista está incompleta e use `contagem` para o total.
 - A soma das chaves de `contagem.titulo` (e de `contagem.miniatura`) é o N do resumo. Canal com remoção pedida não aparece.
 
 **Regra para o Cowork**

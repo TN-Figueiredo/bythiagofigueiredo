@@ -1,9 +1,12 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { lerLeituraDosConcorrentes, type RespostaLeitura } from '@/lib/pipeline/services/leitura-concorrentes'
 import { PipelineServiceError, type ServiceContext } from '@/lib/pipeline/services/types'
 import { textoTitulo } from '@/lib/youtube/teste-youtube/observados/textos'
 import { fakeSb, type Consulta } from '../../youtube/observatorio/sinais/fake-sb'
+
+const sentry = vi.hoisted(() => ({ captureException: vi.fn() }))
+vi.mock('@sentry/nextjs', () => sentry)
 
 const SITE = 'site-1'
 const AGORA = Date.parse('2026-10-23T12:00:00.000Z')
@@ -12,7 +15,7 @@ const iso = (h: number): string => new Date(AGORA + h * H).toISOString()
 const ON = { OBS_TROCAS_CONCORRENTE: 'on' } as NodeJS.ProcessEnv
 
 type Row = Record<string, unknown>
-interface Mundo { alvos: Row[]; cursores: Row[]; linhas: Row[]; canais: Row[]; videos: Row[]; erro?: string }
+interface Mundo { alvos: Row[]; cursores: Row[]; linhas: Row[]; canais: Row[]; videos: Row[]; erro?: string; pagina?: (faixa: [number, number] | null) => Row[] }
 
 function aplicar(rows: Row[], c: Consulta): Row[] {
   return rows.filter(r => c.filtros.every(f => {
@@ -27,7 +30,8 @@ function ctxDe(m: Mundo): ServiceContext {
     const base = { yt_watch_alvos: m.alvos, ab_native_obs_cursor: m.cursores, ab_native_observados: m.linhas, competitor_channels: m.canais, competitor_videos: m.videos }[c.tabela]
     if (!base) return { data: [], count: 0 }
     const rows = aplicar(base, c)
-    if (c.faixa && c.faixa[0] > 0) return { data: [], count: rows.length }
+    if (m.pagina) return { data: m.pagina(c.faixa), count: null }
+    if (c.faixa) return { data: rows.slice(c.faixa[0], c.faixa[1] + 1), count: rows.length }
     return { data: rows, count: rows.length }
   })
   return { siteId: SITE, permissions: ['read'], supabase: sb }
@@ -71,6 +75,7 @@ const ligada = (r: RespostaLeitura): Extract<RespostaLeitura, { ligada: true }> 
 }
 const soma = (o: Record<string, number>): number => Object.values(o).reduce((a, b) => a + b, 0)
 
+beforeEach(() => { sentry.captureException.mockClear() })
 afterEach(() => { delete process.env.OBS_TROCAS_CONCORRENTE })
 
 describe('lerLeituraDosConcorrentes', () => {
@@ -198,5 +203,69 @@ describe('lerLeituraDosConcorrentes', () => {
       await expect(lerLeituraDosConcorrentes(ctxDe(m), { agoraMs: AGORA, env: ON })).rejects.toMatchObject({ status: 500 })
       await expect(lerLeituraDosConcorrentes(ctxDe(m), { agoraMs: AGORA, env: ON })).rejects.toBeInstanceOf(PipelineServiceError)
     }
+    // dois lançamentos por tabela acima: cada falha vai ao Sentry (Yannis M-2)
+    expect(sentry.captureException).toHaveBeenCalledTimes(10)
+    expect(sentry.captureException.mock.calls[0]![1]).toMatchObject({ tags: { area: 'leitura_concorrentes' } })
+  })
+
+  it('mais de 1000 alvos: pagina de verdade, sem repetir nem perder linha (Phil M-3a)', async () => {
+    const m = mundoVazio()
+    for (let i = 0; i < 1001; i++) alvo(m, `p${String(i).padStart(4, '0')}`, { cursor: false })
+    const r = ligada((await lerLeituraDosConcorrentes(ctxDe(m), { agoraMs: AGORA, env: ON })).data)
+    expect(soma(r.contagem.titulo)).toBe(1001)
+    expect(r.resumo.startsWith('1001 vídeos')).toBe(true)
+  })
+
+  it('passar de 60 páginas lança 500 e nunca devolve lista parcial (Phil M-3a)', async () => {
+    const m = mundoVazio()
+    m.pagina = () => Array.from({ length: 1000 }, (_, i) => ({ id: `a${i}`, youtube_video_id: `x${i}`, rodadas: 1, ultima_rodada_em: iso(-1), saiu_em: null, saiu_por: null }))
+    await expect(lerLeituraDosConcorrentes(ctxDe(m), { agoraMs: AGORA, env: ON })).rejects.toMatchObject({ status: 500 })
+    expect(sentry.captureException).toHaveBeenCalled()
+  })
+
+  it('alvo FORA da janela de canal com remoção pedida: nem na lista nem em fora_da_janela (Phil M-3b)', async () => {
+    const m = mundoVazio()
+    m.canais.push({ id: 'ch2', site_id: SITE, channel_name: 'Removido', removal_requested_at: iso(-5) })
+    alvo(m, 'v9', { canal: 'ch2', saiu: { em: iso(-72), por: 'janela' }, ultimaRodadaH: -72 })
+    m.linhas.push({ ...linhaTesteTitulo('v9'), ultima_atualizacao_em: iso(-73) })
+    const r = ligada((await lerLeituraDosConcorrentes(ctxDe(m), { agoraMs: AGORA, env: ON })).data)
+    expect(r.itens).toHaveLength(0)
+    expect(r.fora_da_janela).toBe(0)
+    expect(r.resumo).not.toContain('mais')
+  })
+
+  it('vídeo em dois canais, o removido primeiro: fica em N com o canal vivo (Yannis M-6)', async () => {
+    const m = mundoVazio()
+    m.canais.push({ id: 'ch0', site_id: SITE, channel_name: 'Removido', removal_requested_at: iso(-5) })
+    alvo(m, 'v1', { canal: 'ch0' }); m.linhas.push(linhaTrocaTitulo('v1'))
+    m.videos.push({ video_id: 'v1', title: 'Video v1', published_at: iso(-480), competitor_channel_id: 'ch1' })
+    const r = ligada((await lerLeituraDosConcorrentes(ctxDe(m), { agoraMs: AGORA, env: ON })).data)
+    expect(soma(r.contagem.titulo)).toBe(1)
+    expect(r.itens[0]!.canal).toBe('Canal Um')
+  })
+
+  it('saiu por indisponibilidade/removido nos últimos 14 dias: fora de N, contado em saiu_por_outro_motivo e no resumo (Phil M-1)', async () => {
+    const m = mundoVazio()
+    alvo(m, 'v1'); m.linhas.push(linhaTrocaTitulo('v1'))
+    alvo(m, 'v2', { saiu: { em: iso(-48), por: 'indisponivel' } })
+    alvo(m, 'v3', { saiu: { em: iso(-48), por: 'removido' } })
+    alvo(m, 'v4', { saiu: { em: iso(-15 * 24), por: 'indisponivel' } })
+    m.canais.push({ id: 'ch2', site_id: SITE, channel_name: 'Removido', removal_requested_at: iso(-5) })
+    alvo(m, 'v5', { canal: 'ch2', saiu: { em: iso(-48), por: 'indisponivel' } })
+    const r = ligada((await lerLeituraDosConcorrentes(ctxDe(m), { agoraMs: AGORA, env: ON })).data)
+    expect(soma(r.contagem.titulo)).toBe(1)
+    expect(r.saiu_por_outro_motivo).toBe(2)
+    expect(r.fora_da_janela).toBe(0)
+    expect(r.itens.map(i => i.video_id)).toEqual(['v1'])
+    expect(r.resumo).toBe('1 vídeo de concorrentes observado: 0 com possível teste em andamento, 0 provavelmente terminados, 1 troca, 0 não medidos, e 2 que saíram por indisponibilidade')
+  })
+
+  it('sem consulta com count exact (Yannis M-5a)', async () => {
+    const m = mundoVazio()
+    alvo(m, 'v1')
+    const { sb, consultas } = fakeSb(() => ({ data: [] }))
+    await lerLeituraDosConcorrentes({ siteId: SITE, permissions: ['read'], supabase: sb }, { agoraMs: AGORA, env: ON })
+    expect(consultas.length).toBeGreaterThan(0)
+    expect(consultas.every(c => c.opcoes?.count === undefined)).toBe(true)
   })
 })
