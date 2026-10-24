@@ -24,6 +24,7 @@ export async function lerDiasDosTestes(sb: SupabaseClient, siteId: string, testI
   const porTeste = new Map<string, LinhaDiaPlacar[]>()
   const invalidos = new Map<string, { day_pt: string; detalhe: string }>()
   for (const id of testIds) porTeste.set(id, [])
+  let medidoSemImpressoes = false
 
   for (let i = 0; i < testIds.length; i += LOTE_DE_IDS) {
     const lote = testIds.slice(i, i + LOTE_DE_IDS)
@@ -44,6 +45,7 @@ export async function lerDiasDosTestes(sb: SupabaseClient, siteId: string, testI
     for (const bruta of lido.linhas) {
       const p = LinhaDiaPlacarSchema.safeParse(bruta)
       if (p.success) {
+        if (p.data.alcance_estado === 'medido' && p.data.impressoes === null) medidoSemImpressoes = true
         porTeste.get(p.data.test_id)?.push(p.data)
         continue
       }
@@ -56,6 +58,10 @@ export async function lerDiasDosTestes(sb: SupabaseClient, siteId: string, testI
         avisaLinhaInvalida(testId, dayPt, detalhe)
       }
     }
+  }
+  // Escritor com bug: 'medido' sem impressões. Uma vez por leitura, sem dado do canal.
+  if (medidoSemImpressoes) {
+    Sentry.captureMessage('ab-placar: dia medido sem impressões', { level: 'warning', fingerprint: ['ab-placar-medido-sem-impressoes'] })
   }
   // Teste com linha inválida fica só em `invalidos`.
   for (const id of invalidos.keys()) porTeste.delete(id)

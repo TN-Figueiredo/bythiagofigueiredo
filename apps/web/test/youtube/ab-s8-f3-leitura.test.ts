@@ -87,6 +87,14 @@ describe('placar-leitura (fake-postgrest)', () => {
     expect(sentry.captureMessage).toHaveBeenCalledTimes(1)
   })
 
+  it('medido com impressoes null avisa o Sentry (warning) uma vez por leitura, sem dado do canal', async () => {
+    const f = fakePostgrest({ tables: { ab_test_dias: [dia('t-1', '2026-10-01', { impressoes: null, ctr: null }), dia('t-1', '2026-10-02', { impressoes: null, ctr: null })] } })
+    const r = await lerDiasDosTestes(sb(f), 'site-1', ['t-1'])
+    expect(r.ok).toBe(true)
+    expect(sentry.captureMessage).toHaveBeenCalledTimes(1)
+    expect(sentry.captureMessage.mock.calls[0]![1]).toEqual({ level: 'warning', fingerprint: ['ab-placar-medido-sem-impressoes'] })
+  })
+
   it('lerDiasDoTeste devolve as linhas do teste', async () => {
     const f = fakePostgrest({ tables: { ab_test_dias: [dia('t-1', '2026-10-02'), dia('t-1', '2026-10-01')] } })
     const d = await lerDiasDoTeste(sb(f), 'site-1', 't-1')

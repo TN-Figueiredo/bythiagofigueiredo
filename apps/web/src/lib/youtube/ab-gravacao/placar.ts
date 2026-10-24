@@ -65,7 +65,6 @@ export function diaValido(d: Pick<LinhaDiaPlacar, 'alcance_estado' | 'impressoes
   return d.variant_id !== null && diaComAlcanceValido(d)
 }
 
-/** Dia civil de `d` em America/Los_Angeles. */
 /** `regra_duracao` não está nos tipos gerados (K4); ausente vale 'v1'. Valor inválido lança (falha alta, nunca regra errada em silêncio).
  *  Na lista o `throw` seria inalcançável: CHECK + NOT NULL da migration 20261018000004. */
 export function regraDoTeste(row: unknown): 'v1' | 'v2' {
@@ -76,6 +75,7 @@ export function regraDoTeste(row: unknown): 'v1' | 'v2' {
   return p.data
 }
 
+/** Dia civil de `d` em America/Los_Angeles. */
 export function diaPt(d: Date): string {
   return dayPt(d)
 }

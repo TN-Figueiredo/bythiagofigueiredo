@@ -260,5 +260,6 @@ describe('placar puro (S8-F3 T1)', () => {
     expect(v.dias_nao_medidos).toBe(1)
     expect(v.impressoes).toBe(1000)
     expect(v.dias_zero).toBe(0)
+    expect(v.dias_validos + v.dias_zero + v.dias_fora_do_ctr + v.dias_aguardando + v.dias_nao_medidos + v.dias_ausentes).toBe(v.dias)
   })
 })
