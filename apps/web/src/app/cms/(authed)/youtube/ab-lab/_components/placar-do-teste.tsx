@@ -125,10 +125,16 @@ function Apoio({ v }: { v: PlacarVariante | undefined }) {
   return (
     <>
       <span>{v.dias_validos} {v.dias_validos === 1 ? 'válido' : 'válidos'}</span>
-      {v.dias_aguardando > 0 && <span>{v.dias_aguardando} aguardando o YouTube <IcRelogio /></span>}
+      {v.dias_aguardando > 0 && <span>{v.dias_aguardando} aguardando <IcRelogio /></span>}
       {v.dias_nao_medidos > 0 && <span>{v.dias_nao_medidos} {NAO_MEDIDO} ∅</span>}
     </>
   )
+}
+
+function rotulosDe(placar: Placar, db: readonly VariantDbEntry[]): Record<string, string> {
+  const r: Record<string, string> = {}
+  for (const v of placar.variantes) { const l = db.find(d => d.id === v.variant_id)?.label; if (l) r[v.variant_id] = l }
+  return r
 }
 
 export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = [], thumbs, videoTitle, status, andamento, titulo = 'Placar por variante' }: PlacarDoTesteProps) {
@@ -139,7 +145,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
   const letraDe = (id: string | null) => variantDb.find(d => d.id === id)?.label ?? null
 
   const frase = placar
-    ? fraseDoPlacar(placar, status, faixaDias, andamento)
+    ? fraseDoPlacar(placar, status, faixaDias, andamento, rotulosDe(placar, variantDb))
     : { principal: 'Ainda não há dados do YouTube para este teste.', apoio: '' }
   const faixa = placar ? faixaDoPlacar(placar) : null
   const caso = placar ? casoDoPlacar(placar) : 'sem_dia_fechado'
@@ -161,8 +167,10 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
 
   const cont: Partial<Record<CodigoDia, number>> = {}
   const celulas = faixaDias.map(d => ({ d, c: codigoDoDia(d) }))
+  // Hoje, sem dia fechado: a faixa mostra o dia de hoje pendente (célula tracejada ◷), como no mockup.
+  const hojePendente = celulas.length === 0 && placar !== null && faixa === 'sem_dia_fechado'
   for (const { c } of celulas) cont[c] = (cont[c] ?? 0) + 1
-  const resumo = `${faixaDias.length} ${faixaDias.length === 1 ? 'dia' : 'dias'}: ${(Object.keys(cont) as CodigoDia[]).map(k => `${cont[k]} ${NOME_DIA[k]}`).join(', ')}`
+  const resumo = hojePendente ? '1 dia: 1 aguardando o YouTube' : `${faixaDias.length} ${faixaDias.length === 1 ? 'dia' : 'dias'}: ${(Object.keys(cont) as CodigoDia[]).map(k => `${cont[k]} ${NOME_DIA[k]}`).join(', ')}`
 
   return (
     <div className="cn-raiz pm4" data-testid="placar-do-teste">
@@ -262,7 +270,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
             </div>
           )}
 
-          {celulas.length > 0 && (
+          {(celulas.length > 0 || hojePendente) && (
             <div className="pm4-dias">
               <div className="pm4-sh">
                 Dias do teste
@@ -278,6 +286,12 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
                     </div>
                   )
                 })}
+                {hojePendente && (
+                  <div className="pm4-dc g" role="listitem" aria-label="hoje, sem variante, aguardando o YouTube" title="hoje: aguardando o YouTube">
+                    <span className="pm4-lx">–</span>
+                    <i><IcRelogio /></i>
+                  </div>
+                )}
               </div>
               <div className="pm4-leg">
                 <span>■ medido</span><span>0 zero</span><span>0* o YouTube não listou o dia</span>

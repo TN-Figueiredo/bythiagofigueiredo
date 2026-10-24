@@ -110,7 +110,6 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
-          actions={actionButtons}
           lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, naoIniciado: view.placar?.iniciado === false }}
         />
       </div>
@@ -171,6 +170,25 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
         />
       </div>)}
 
+      {/* ── Section 5: Placar das variantes ── */}
+      <section data-section="variant-performance" className="mb-[24px]">
+        <PlacarDoTeste
+          placar={view.placar ?? null}
+          faixaDias={view.faixa_dias ?? []}
+          variants={view.variants}
+          variantDb={view.variantDb}
+          thumbs={view.variantThumbs}
+          videoTitle={view.videoTitle}
+          status={view.status}
+          andamento={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
+        />
+      </section>
+
+      {/* Ações do teste: depois do placar (ordem do M4 r3.1: rastro, título, selo, frase, faixa; o resto vem depois). */}
+      <div className="cn-raiz dhl mb-[24px]" data-section="acoes">
+        <div className="dhl-acoes" style={{ marginTop: 0 }}>{actionButtons}</div>
+      </div>
+
       {/* ── Section 4: Signal ao vivo + Métricas computadas (side by side) ── */}
       <div className={`grid grid-cols-1 ${view.outlier || view.daysRemaining ? 'md:grid-cols-2' : ''} gap-[16px] mb-[16px]`}>
         <SignalCard
@@ -213,20 +231,6 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           </div>
         </div>)}
       </div>
-
-      {/* ── Section 5: Placar das variantes ── */}
-      <section data-section="variant-performance" className="mb-[24px]">
-        <PlacarDoTeste
-          placar={view.placar ?? null}
-          faixaDias={view.faixa_dias ?? []}
-          variants={view.variants}
-          variantDb={view.variantDb}
-          thumbs={view.variantThumbs}
-          videoTitle={view.videoTitle}
-          status={view.status}
-          andamento={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
-        />
-      </section>
 
       {/* ── Section 7: Faixa provável de CTR ── */}
       {comEstatistica && comparavel && (<div className="mb-[24px]">

@@ -74,7 +74,7 @@ describe('S8-F3 T5: tela do placar', () => {
     expect(cel(/aguardando o YouTube/)[0]!.textContent).not.toMatch(/(^|[^*\d])0($|[^*\d])/)
     expect(cel(/não medido/)).toHaveLength(1)
     const linhaA = screen.getByRole('group', { name: 'Variante A' })
-    expect(linhaA.textContent).toContain('1 aguardando o YouTube')
+    expect(linhaA.textContent).toContain('1 aguardando ')
     expect(linhaA.textContent).toContain('1 não medido')
   })
 

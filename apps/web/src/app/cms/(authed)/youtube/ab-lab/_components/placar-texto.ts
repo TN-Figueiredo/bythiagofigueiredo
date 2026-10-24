@@ -60,11 +60,27 @@ export function totalDeImpressoes(p: Placar): number | null {
   return xs.length === 0 ? null : xs.reduce((s, x) => s + x, 0)
 }
 
+/** Mockup L5: "A teve 0 impressões nos dias medidos; o CTR de B não veio." Sem rótulos, cai na frase genérica. */
+function apoioNaoMedido(p: Placar, rotulos?: Readonly<Record<string, string>>): string {
+  const lista = (xs: string[]) => xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`
+  const zero = p.variantes.filter(v => v.impressoes === 0).map(v => rotulos?.[v.variant_id])
+  const sem = p.variantes.filter(semCtr).map(v => rotulos?.[v.variant_id])
+  if (!rotulos || zero.includes(undefined) || sem.includes(undefined)) {
+    return 'Sem o CTR do YouTube os cliques não podem ser estimados; eles não são mostrados como 0.'
+  }
+  const z = zero as string[]; const x = sem as string[]
+  const parte2 = `o CTR de ${lista(x)} não veio.`
+  return z.length > 0
+    ? `${lista(z)} ${z.length === 1 ? 'teve' : 'tiveram'} 0 impressões nos dias medidos; ${parte2}`
+    : parte2.charAt(0).toUpperCase() + parte2.slice(1)
+}
+
 export function fraseDoPlacar(
   p: Placar,
   status: string,
   faixa?: readonly DiaDaFaixa[],
   andamento?: { dayOf: number; total: number },
+  rotulos?: Readonly<Record<string, string>>,
 ): { principal: string; apoio: string } {
   const caso = casoDoPlacar(p)
   switch (caso) {
@@ -80,7 +96,7 @@ export function fraseDoPlacar(
     case 'sem_dia_fechado':
       return { principal: 'O teste começou há pouco. O YouTube ainda não fechou nenhum dia.', apoio: '' }
     case 'nao_medido':
-      return { principal: 'Os dias medidos ainda não têm cliques: faltam dados do YouTube.', apoio: 'Sem o CTR do YouTube os cliques não podem ser estimados; eles não são mostrados como 0.' }
+      return { principal: 'Os dias medidos ainda não têm cliques: faltam dados do YouTube.', apoio: apoioNaoMedido(p, rotulos) }
     case 'poucas':
       return { principal: `${p.variantes.length} variantes, ${n(totalDeImpressoes(p) ?? 0)} impressões no total.`, apoio: 'Contagens muito pequenas: um clique muda tudo. Não leia isto como resultado.' }
     case 'normal':
