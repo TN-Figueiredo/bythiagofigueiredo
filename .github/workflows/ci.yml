@@ -141,8 +141,14 @@ jobs:
       # Pin the CLI — bare `npx supabase` pulls latest (2.105.x) and drifts
       # from the version developers resolve locally (2.98.2). Keep in sync
       # with local npx resolution when bumping.
+      # Imagens do Docker Hub: o public.ecr.aws (padrão do CLI) devolveu "toomanyrequests: Data
+      # limit exceeded" a todos os runs de 24/10 (cota anônima por IP dos runners).
       - run: npx supabase@2.98.2 start --exclude gotrue,realtime,imgproxy --ignore-health-check
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
       - run: npx supabase@2.98.2 db reset --local
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: docker.io
       # Um arquivo por vez: com 4 processos em paralelo o gateway do Supabase da CI devolvia 502
       # ("An invalid response was received from the upstream server") num teste diferente a cada
       # execução — 5 de 6 tentativas em 07/10. Em série a pasta roda em ~85 s localmente.
@@ -177,6 +183,7 @@ jobs:
       # open finding in docs/audit-baseline.md, and keep this gate blocking.
       # Exceção datada (GHSA-mrhx-c7xc-m3w5, até 2027-01-31): scripts/audit-gate.mjs
       # falha em qualquer outro high/critical, na exceção vencida ou obsoleta.
+      - run: node --test scripts/audit-gate.test.mjs
       - run: node scripts/audit-gate.mjs
 
   secret-scan:

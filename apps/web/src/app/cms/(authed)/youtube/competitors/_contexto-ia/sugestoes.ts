@@ -29,7 +29,9 @@ export function modeloDeSugestoes(lista: ListaDeSinais, agora: Date): ModeloSuge
   return {
     n: lista.n,
     motivoVazio: lista.motivoVazio,
-    textoDoVazio: lista.n === 0 && lista.motivoVazio !== null ? textoDoVazio(lista.motivoVazio, lista.contagens, agora, lista.calculoLigado) : null,
+    textoDoVazio: lista.n === 0 && lista.motivoVazio !== null
+      ? [textoDoVazio(lista.motivoVazio, lista.contagens, agora, lista.calculoLigado), ...(lista.motivoDoCalculo ? [textoDoVazio(lista.motivoDoCalculo, lista.contagens, agora, lista.calculoLigado)] : [])].join(' ')
+      : null,
     computadoEm: lista.computado_em,
     desatualizado: lista.desatualizado,
     contagens: lista.contagens,
@@ -51,7 +53,7 @@ export const INVENTARIO_SUGESTOES: Inventario = {
   'itens[].id': ID, 'itens[].kind': 'rotulo', 'itens[].subject_key': 'base', 'itens[].acao': 'base', 'itens[].rotulo_acao': REP,
   'itens[].n_proprios': 'numero', 'itens[].acao_gravada': { descartado: 'repetido' },
   'itens[].forca': 'numero', 'itens[].motivo': 'base', 'itens[].rule_version': 'base',
-  'itens[].first_seen_at': 'base', 'itens[].expires_at': 'base',
+  'itens[].first_seen_at': 'base', 'itens[].expires_at': 'base', 'itens[].adiada_em': 'base',
   'itens[].proprios_agora': ID, 'itens[].proprios_agora[]': ID, 'itens[].proprios_agora_n': 'numero',
   'itens[].evidence.outliers[].video_id': ID, 'itens[].evidence.outliers[].canal_id': ID, 'itens[].evidence.outliers[].published_at': 'base',
   'itens[].evidence.outliers[].mult_vpd7': 'numero', 'itens[].evidence.outliers[].mult_tela': 'numero', 'itens[].evidence.outliers[].vpd7': 'numero',

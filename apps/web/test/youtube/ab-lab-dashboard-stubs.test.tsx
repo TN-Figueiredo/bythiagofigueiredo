@@ -92,7 +92,11 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/learnings-panel', () => (
 }))
 
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/empty-state', () => ({
-  EmptyState: () => <div data-testid="empty-state" />,
+  EmptyState: ({ suggested, onToggleBatchSelect }: { suggested: Array<{ id: string }>; onToggleBatchSelect: (id: string) => void }) => (
+    <div data-testid="empty-state">
+      {suggested.map((v) => <button key={v.id} type="button" onClick={() => onToggleBatchSelect(v.id)}>{`sel-${v.id}`}</button>)}
+    </div>
+  ),
 }))
 
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/settings-drawer', () => ({
@@ -356,5 +360,47 @@ describe('AbLabDashboard behavioral', () => {
     render(<AbLabDashboard {...defaultProps({ cards })} />)
     expect(screen.getByTestId('kpi-Nossos testes ativos')).toBeDefined()
     expect(screen.getByTestId('kpi-Vencedores escolhidos')).toBeDefined()
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/*  F3 T7: bloco Sugestões + Candidatos (fora da contagem)             */
+/* ------------------------------------------------------------------ */
+
+describe('AbLabDashboard F3 T7', () => {
+  const dashSrc = readFileSync(
+    resolve(__dirname, '../../src/app/cms/(authed)/youtube/ab-lab/_components/ab-lab-dashboard.tsx'),
+    'utf-8',
+  )
+  const sug = (id: string): SuggestedVideo => ({ id, title: `V ${id}`, thumbnailUrl: null, ctr: 2, channelMedianCtr: 4, grade: 'C', reason: 'r', suggest: 'thumbnail' })
+
+  it('o slot do bloco vem antes do cartão "Candidatos (fora da contagem)"', () => {
+    render(<AbLabDashboard {...defaultProps({ suggested: [sug('a')], blocoSugestoes: <div data-testid="bloco-sug">bloco</div> })} />)
+    const bloco = screen.getByTestId('bloco-sug')
+    const cand = screen.getByRole('heading', { name: 'Candidatos (fora da contagem)' })
+    expect(bloco.compareDocumentPosition(cand) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(cand.tagName).toBe('H2')
+    expect(screen.getByText('Vídeos seus com 1.000 views ou mais, publicados há mais de 14 dias e sem teste nos últimos 60 dias. Não entram no número de Sugestões.')).toBeDefined()
+    expect(cand.className).toContain('text-[17px]')
+  })
+  it('sem o slot o resto renderiza; "Sugeridos para testar" sumiu', () => {
+    render(<AbLabDashboard {...defaultProps({ suggested: [sug('a')], cards: [makeCard('1')] })} />)
+    expect(screen.getByTestId('empty-state')).toBeDefined()
+    expect(screen.queryByText('Sugeridos para testar')).toBeNull()
+    expect(dashSrc).not.toContain('Sugeridos para testar')
+  })
+  it('sem texto de 9/10/11 px', () => {
+    expect(dashSrc.match(/text-\[(9|10|11)px\]/g)).toBeNull()
+  })
+  it('"Iniciar Lote" em contorno, sem a classe do primário laranja, e o lote continua funcionando', async () => {
+    const { batchStartTests } = await import('@/app/cms/(authed)/youtube/ab-lab/actions')
+    render(<AbLabDashboard {...defaultProps({ suggested: [sug('a'), sug('b')], cards: [makeCard('1')] })} />)
+    fireEvent.click(screen.getByText('sel-a'))
+    fireEvent.click(screen.getByText('sel-b'))
+    const btn = screen.getByRole('button', { name: 'Iniciar Lote (2)' })
+    expect(btn.className).not.toMatch(/bg-cms-accent|bg-blue-600/)
+    expect(btn.className).toContain('border')
+    fireEvent.click(btn)
+    expect(batchStartTests).toHaveBeenCalledWith(['a', 'b'])
   })
 })

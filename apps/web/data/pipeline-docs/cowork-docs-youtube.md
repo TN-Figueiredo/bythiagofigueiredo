@@ -1113,7 +1113,7 @@ Sugestões do nicho: lugares onde vídeos de concorrentes estouraram (régua do 
 - Se a resposta passar do teto, vem um campo `aviso` ("resposta cortada: N itens não couberam"): as sugestões do fim saíram, `n` continua o total real.
 - `evidence.proprios` é a foto de quando a sugestão nasceu; use `proprios_agora`.
 - Só ids, números e chaves de lugar: a rota não traz título, miniatura nem texto de comentário. O desempenho dos seus vídeos não entra na força nem na ordem.
-- **Lista vazia nunca é "nada no nicho".** Com `n: 0`, `motivoVazio` diz por quê e deve ser **citado como está**: `nunca-calculado`, `tudo-respondido` (use `contagens.respondidos_30d`), `sem-historico`, `sync-atrasado`, `sem-terceiro-outlier`, `sem-lugar`, `abaixo-do-minimo` ou `sem-grupo`. Os números do motivo estão em `contagens`.
+- **Lista vazia nunca é "nada no nicho".** Com `n: 0`, `motivoVazio` diz por quê e deve ser **citado como está**: `nunca-calculado`, `tudo-respondido` (use `contagens.respondidos_30d`), `sem-historico`, `sync-atrasado`, `sem-terceiro-outlier`, `sem-lugar`, `abaixo-do-minimo`, `sem-grupo` ou `adiado` (o dono adiou 7 dias as sugestões que existiam: `contagens.adiados` quantas voltam, `proximaVolta` quando; `motivoDoCalculo` traz o motivo do cálculo; chave `adiados` ausente = não medido, nunca 0). Os números do motivo estão em `contagens`.
 - `desatualizado: true`: o último cálculo tem mais de 36 horas; cite a data (`computado_em`).
 
 ---

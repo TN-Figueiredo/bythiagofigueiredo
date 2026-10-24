@@ -4,6 +4,8 @@ import type { RotuloDaAcao } from './acao'
 
 /** Idade (em horas) do último cálculo a partir da qual a lista conta como desatualizada. */
 export const HORAS_ATE_DESATUALIZAR = 36
+/** Dias que "Adiar" empurra a sugestão (a função `niche_signals_adiar` do banco usa os mesmos 7). Aqui para o cliente importar sem trazer o leitor. */
+export const DIAS_DO_ADIAR = 7
 const HORA_SP = (agora: Date): number => Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(agora))
 const dois = (n: number): string => String(n).padStart(2, '0')
 
@@ -15,12 +17,14 @@ export function textoNuncaCalculado(agora: Date, ligado: boolean): string {
   return `O 1º cálculo roda depois das ${hora} de amanhã (Brasília), ou na próxima rodada da agenda se hoje falhou.`
 }
 
-/** O texto do botão da ação derivada. `lugar` é o nome do lugar quando a tela o conhece; sem ele, "este lugar". */
-export function textoDoRotulo(rotulo: RotuloDaAcao, n: number | null, lugar?: string): string {
+/** O texto do botão da ação derivada. `lugar` é o nome do lugar quando a tela o conhece; sem ele, "este lugar". `kind` separa "parecido" de "sobre X". */
+export function textoDoRotulo(rotulo: RotuloDaAcao, n: number | null, lugar: string | undefined, kind: 'destino' | 'parecido'): string {
   const onde = lugar && lugar.trim() !== '' ? lugar : 'este lugar'
   switch (rotulo) {
-    case 'abrir-seus': return n === 1 ? 'Abrir seu vídeo parecido' : `Abrir seus ${n ?? ''} vídeos sobre ${onde}`.replace('  ', ' ')
-    case 'abrir-concorrente': return 'Abrir os vídeos dos concorrentes'
+    case 'abrir-seus':
+      if (kind === 'parecido') return n === 1 ? 'Abrir seu vídeo parecido' : `Abrir seus ${n ?? ''} vídeos parecidos`.replace('  ', ' ')
+      return n === 1 ? `Abrir seu vídeo sobre ${onde}` : `Abrir seus ${n ?? ''} vídeos sobre ${onde}`.replace('  ', ' ')
+    case 'abrir-concorrente': return 'Abrir o vídeo do concorrente'
     case 'playlist': return 'Abrir a playlist'
     case 'generico': return 'Abrir seus vídeos'
   }
@@ -44,6 +48,11 @@ export function textoDoVazio(motivo: string, contagens: Record<string, number>, 
   const c = contagens
   switch (motivo) {
     case 'nunca-calculado': return textoNuncaCalculado(agora, ligado)
+    case 'adiado': {
+      // Só o texto puro (sem a data, que depende do fuso e vive na tela): a tela monta "Você adiou N" e a data.
+      const a = num(c, 'adiados')
+      return a === null ? 'Adiadas por você: não medido. Não deu para contar quantas voltam nem quando.' : `Você adiou ${a} ${a === 1 ? 'sugestão' : 'sugestões'}; ${a === 1 ? 'ela volta' : 'voltam'} sozinhas em até ${DIAS_DO_ADIAR} dias.`
+    }
     case 'tudo-respondido': {
       const r = num(c, 'respondidos_30d')
       return `Todas as sugestões recentes já foram respondidas${r !== null ? ` (${r} nos últimos 30 dias)` : ''}.`

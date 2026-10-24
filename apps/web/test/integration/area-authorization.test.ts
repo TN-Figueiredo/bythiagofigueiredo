@@ -121,6 +121,8 @@ describe.skipIf(skipIfNoLocalDb())('area authorization (admin + cms) — DB-gate
       }
     }
     if (siteIdsToCleanup.length) {
+      // audit_log.site_id é NO ACTION: os eventos que o próprio teste gerou saem antes do site
+      await db.from('audit_log').delete().in('site_id', siteIdsToCleanup)
       await apagarSitesDeTeste('id = any($1::uuid[])', [siteIdsToCleanup])
     }
     if (orgIdsToCleanup.length) {

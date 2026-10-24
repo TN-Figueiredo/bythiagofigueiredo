@@ -18,6 +18,8 @@ import { videoDaUrl } from './video-param'
 import { startAbTest } from './actions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
+import { BlocoSugestoes } from './_components/bloco-sugestoes'
+import { EsqueletoDaLista } from '../competitors/_sugestoes/esqueleto'
 
 export const metadata = { title: 'A/B Lab' }
 
@@ -70,6 +72,7 @@ export default async function AbLabPage({ searchParams }: { searchParams: Promis
           </Suspense>
         </ListaErro>
       }
+      blocoSugestoes={<Suspense fallback={<EsqueletoDaLista linhas={3} modo="bloco" />}><BlocoSugestoes /></Suspense>}
     />
   )
 }

@@ -62,7 +62,7 @@ describe('get_signals', () => {
   it('limit acima de 50 é cortado em 50 na consulta', async () => {
     const w = montar(['read'], 3)
     await youtubeObservatory({ action: 'get_signals', limit: 100 })
-    expect(w.consultas.find((c) => c.tabela === 'niche_signals')!.limite).toBe(50)
+    expect(w.consultas.find((c) => c.tabela === 'niche_signals' && !c.filtros.some((f) => f.col === 'adiado_ate'))!.limite).toBe(50)
   })
 })
 

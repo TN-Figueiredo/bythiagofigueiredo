@@ -29,6 +29,9 @@ import { AbCreateWizard, type IniciarTeste } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
 import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
 
+/** "Iniciar Lote": contorno, nunca o primário laranja (esse é do "Novo teste"). */
+const BOTAO_LOTE = 'rounded-lg border border-cms-border bg-transparent px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface-hover transition-colors cursor-pointer'
+
 export interface AbLabDashboardProps {
   stats: DashboardStats
   cards: AbTestCardView[]
@@ -45,6 +48,8 @@ export interface AbLabDashboardProps {
   listaSlot?: ReactNode
   /** `startAbTest` vem da página (servidor): o assistente não importa a action. */
   iniciarTeste: IniciarTeste
+  /** F3 T7: bloco "Sugestões" (servidor, dentro de Suspense), renderizado antes do cartão de candidatos. */
+  blocoSugestoes?: React.ReactNode
 }
 
 export function AbLabDashboard({
@@ -61,6 +66,7 @@ export function AbLabDashboard({
   eligibleVideos,
   listaSlot,
   iniciarTeste,
+  blocoSugestoes,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
@@ -265,7 +271,7 @@ export function AbLabDashboard({
         <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
           <div className="flex items-center justify-between mb-[14px]">
             <div className="flex items-center gap-[8px]">
-              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes</span>
+              <span className="text-xs font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes</span>
               <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green font-mono">
                 <span className="size-[6px] rounded-full bg-cms-green animate-ab-slot-pulse" />
                 ativos
@@ -289,7 +295,7 @@ export function AbLabDashboard({
         <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
           <div className="flex items-center justify-between mb-[14px]">
             <div className="flex items-center gap-[8px]">
-              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes</span>
+              <span className="text-xs font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes</span>
               <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase font-mono" style={{ background: 'rgba(234, 179, 8, 0.08)', color: 'rgb(234, 179, 8)' }}>
                 <Pause size={10} aria-hidden="true" />
                 pausados
@@ -315,7 +321,7 @@ export function AbLabDashboard({
                   </div>
                   {card.statusNote && (
                     <span
-                      className="inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-[6px] text-[11px] font-medium shrink-0"
+                      className="inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-[6px] text-xs font-medium shrink-0"
                       style={{ background: 'rgba(234, 179, 8, 0.1)', color: 'rgb(234, 179, 8)' }}
                     >
                       <AlertTriangle size={11} aria-hidden="true" />
@@ -329,7 +335,10 @@ export function AbLabDashboard({
         </div>
       )}
 
-      {/* 5. Suggested videos — always shown when available */}
+      {/* 4b. F3 T7: bloco Sugestões (servidor), antes dos candidatos */}
+      {blocoSugestoes && <div className="animate-ab-fade-up" style={{ margin: '26px 0 0' }}>{blocoSugestoes}</div>}
+
+      {/* 5. Candidatos (fora da contagem) — shown when available */}
       {suggested.length > 0 && (
         <div className="animate-ab-fade-up" style={{ margin: '26px 0 0' }}>
           {/* Hero banner only when empty */}
@@ -358,27 +367,23 @@ export function AbLabDashboard({
               </div>
             </div>
           )}
-          {/* Compact eyebrow when dashboard has data */}
-          {!showEmpty && (
-            <div className="flex items-center justify-between mb-[14px]">
-              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Sugeridos para testar</span>
-              {selectedForBatch.size >= 2 && (
-                <button
-                  type="button"
-                  onClick={handleBatchStart}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors cursor-pointer"
-                >
-                  Iniciar Lote ({selectedForBatch.size})
-                </button>
-              )}
+          <div className="flex items-start justify-between gap-3 mb-[14px]">
+            <div>
+              <h2 className="text-[17px] font-semibold leading-[1.3] m-0 text-cms-text" style={{ fontFamily: 'Georgia, serif' }}>Candidatos (fora da contagem)</h2>
+              <p className="text-[12.5px] text-cms-text-muted m-0 mt-1">Vídeos seus com 1.000 views ou mais, publicados há mais de 14 dias e sem teste nos últimos 60 dias. Não entram no número de Sugestões.</p>
             </div>
-          )}
+            {!showEmpty && selectedForBatch.size >= 2 && (
+              <button type="button" onClick={handleBatchStart} className={BOTAO_LOTE}>
+                Iniciar Lote ({selectedForBatch.size})
+              </button>
+            )}
+          </div>
           {showEmpty && selectedForBatch.size >= 2 && (
             <div className="flex justify-end mb-[14px]">
               <button
                 type="button"
                 onClick={handleBatchStart}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors cursor-pointer"
+                className={BOTAO_LOTE}
               >
                 Iniciar Lote ({selectedForBatch.size})
               </button>
@@ -399,7 +404,7 @@ export function AbLabDashboard({
         <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-[16px] mt-[26px] items-start animate-ab-fade-up">
           <div className="rounded-[14px] border border-cms-border bg-cms-surface p-[16px]">
             <div className="flex items-center justify-between mb-[14px]">
-              <span className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Concluídos</span>
+              <span className="text-xs font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Concluídos</span>
               {filteredCompleted.length > 3 && (
                 <button
                   type="button"

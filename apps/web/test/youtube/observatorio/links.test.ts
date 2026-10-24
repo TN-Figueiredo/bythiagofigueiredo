@@ -201,3 +201,9 @@ describe('link.saiu (A5 E9)', () => {
     expect(link.saiu({ mostrar: 30 })).toBe('/cms/youtube/competitors/saiu?mostrar=30')
   })
 })
+
+describe('link.sugestoes (F3 T6)', () => {
+  it('a aba não leva nicho', () => {
+    expect(link.sugestoes()).toBe('/cms/youtube/competitors/sugestoes')
+  })
+})

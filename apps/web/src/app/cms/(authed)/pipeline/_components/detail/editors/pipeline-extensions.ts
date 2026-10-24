@@ -37,6 +37,8 @@ export function getFullExtensions(options: ExtensionOptions = {}): Extensions {
   return [
     StarterKit.configure({
       heading: { levels: [2, 3, 4] },
+      link: false,
+      underline: false,
     }),
     Underline,
     Link.configure({
@@ -75,6 +77,7 @@ export function getCompactExtensions(options: ExtensionOptions = {}): Extensions
   return [
     StarterKit.configure({
       heading: { levels: [3, 4] },
+      link: false,
     }),
     Link.configure({
       openOnClick: false,
@@ -91,6 +94,8 @@ export function getBlogExtensions(options: ExtensionOptions = {}): Extensions {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4] },
+      link: false,
+      underline: false,
     }),
     Underline,
     Link.configure({
