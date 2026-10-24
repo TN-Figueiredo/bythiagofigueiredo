@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { placarVazio } from '../helpers/ab-placar-fixture'
 
 // Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
 const siteAdmin = vi.hoisted(() => ({ value: true }))
@@ -77,6 +78,8 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
       { name: 'stability', passed: false, value: '2 / 3 consecutive' },
     ],
     confirmedData: { confidence: 88, leader: 'B' as DisplayLabel, leaderColor: '#E8823C', lift: 12.3 },
+    // Fixture legada da F2: hero e faixa só abrem com estatística calculada (D-F3-2); a F4 os reativa na tela real.
+    placar: placarVazio({ estatistica: 'calculada' }),
     ...overrides,
   } as AbTestActiveView
 }
@@ -94,7 +97,7 @@ describe('ActiveDetail', () => {
   it('renders key sections via data-section attributes', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     const sections = [
-      'header', 'lock-countdown', 'hero-band', 'variant-performance',
+      'header', 'andamento', 'hero-band', 'variant-performance',
     ]
     for (const s of sections) {
       expect(container.querySelector(`[data-section="${s}"]`), `missing section: ${s}`).not.toBeNull()
@@ -138,9 +141,11 @@ describe('ActiveDetail', () => {
     expect(screen.getByText('Sinal ao vivo')).toBeDefined()
   })
 
-  it('VariantTable do teste ativo ordena por CTR, sem a coluna de chance de vencer', () => {
+  it('placar do teste ativo: ordem fixa por rótulo, sem ordenar por CTR e sem coluna de chance de vencer (S8-F3 T5)', () => {
     render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
-    expect(screen.getByText('ordenado por CTR')).toBeDefined()
+    expect(screen.getByText('Placar por variante')).toBeDefined()
+    expect(screen.queryByText('ordenado por CTR')).toBeNull()
+    expect(screen.queryByText(/chance de vencer/i)).toBeNull()
   })
 
   it('não mostra o painel de critérios nem "N / 3 consecutive"; a frase fixa ocupa o lugar', () => {
@@ -190,13 +195,12 @@ describe('ActiveDetail', () => {
     expect(screen.getByText('4/6 ciclos ABBA completos')).toBeDefined()
   })
 
-  it('LockCountdown section exists', () => {
+  it('régua Andamento do teste existe, no lugar do LockCountdown (S8-F3 T5b)', () => {
     const { container } = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
-    const lockSection = container.querySelector('[data-section="lock-countdown"]')
-    expect(lockSection).not.toBeNull()
-    // Contains the lock text
-    expect(lockSection?.textContent).toContain('Roda até 14 dias ou até você encerrar. Ao encerrar, você escolhe o vencedor.')
-    expect(lockSection?.textContent).not.toContain('critérios de resolução')
+    const reg = container.querySelector('[data-section="andamento"]')
+    expect(reg).not.toBeNull()
+    expect(reg?.textContent).toContain('Andamento do teste')
+    expect(container.querySelector('[data-section="lock-countdown"]')).toBeNull()
   })
 
   it('HeroBand shows leader VChip for variant B', () => {

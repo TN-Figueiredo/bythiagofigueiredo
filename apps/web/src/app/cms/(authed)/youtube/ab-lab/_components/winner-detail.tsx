@@ -7,7 +7,7 @@ import { WinnerBanner } from './winner-banner'
 import { LiveMonitorCard } from './live-monitor'
 import { ComoEstaAgora } from './como-esta-agora'
 import { ClickMoment } from './click-moment'
-import { VariantTable } from './variant-table'
+import { PlacarDoTeste } from './placar-do-teste'
 import { SectionLabel } from './ab-primitives'
 import { revertWinner, archiveAbTest } from '../actions'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
@@ -152,12 +152,14 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
             </p>
           </div>
         </div>
-        <VariantTable
+        <PlacarDoTeste
+          placar={view.placar ?? null}
+          faixaDias={view.faixa_dias ?? []}
           variants={view.variants}
-          winnerId={view.winnerLabel}
-          videoTitle={view.videoTitle}
+          variantDb={view.variantDb}
           thumbs={view.variantThumbs}
-          semChance
+          videoTitle={view.videoTitle}
+          status={view.status}
         />
       </section>
 

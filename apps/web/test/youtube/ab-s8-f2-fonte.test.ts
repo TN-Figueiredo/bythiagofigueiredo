@@ -45,11 +45,12 @@ function semear(testOverrides: Record<string, unknown> = {}) {
       ciclo('c5', 5, 'v-a', { end_reason: 'pausa' }),
     ],
     ab_test_polls: [],
+    ab_test_dias: [],
   }
 }
 function vs(id: string, imp: number | null, clk: number | null, label = id, original = false): VariantStats {
   return { variant_id: id, label, blob_url: null, title_text: null, metadata: {}, is_original: original,
-    total_impressions: imp, total_clicks: clk, avg_ctr: imp && clk !== null ? clk / imp : null, cycles_completed: 1 }
+    total_impressions: imp, total_clicks: clk, avg_ctr: imp && clk !== null ? clk / imp : null, impressoes_com_ctr: imp, cycles_completed: 1 }
 }
 function resultados(variants: VariantStats[], testO: Record<string, unknown> = {}): AbTestResults {
   return {
@@ -61,7 +62,7 @@ function resultados(variants: VariantStats[], testO: Record<string, unknown> = {
 beforeEach(() => { ESPIAO.mockClear(); semear() })
 
 describe('S8-F2 T6: a fonte dá nulo', () => {
-  it('1: getTestResults não soma views dos ciclos', async () => {
+  it('1: getTestResults não soma views dos ciclos (nulo por falta de dia em ab_test_dias)', async () => {
     const r = await getTestResults('t1')
     expect(r).not.toBeNull()
     for (const v of r!.variants) {
@@ -136,11 +137,11 @@ describe('S8-F2 T6: a fonte dá nulo', () => {
     expect(d.finalists).toEqual([])
   })
 
-  it('5d: Bayes calculado com variantes medidas preenche pBest 0 e não null', async () => {
-    ESPIAO.mockReturnValueOnce({ estado: 'calculado', winnerId: 'v-b', confidence: 0.99, probabilities: { 'v-a': 0, 'v-b': 1 } } as never)
+  it('5d: (S8-F3) o Bayes não é chamado em toDetailView: pBest segue nulo mesmo com variantes medidas', async () => {
     const d = await toDetailView(resultados([vs('v-a', 500, 10, 'original', true), vs('v-b', 500, 40, 'B')]))
     if (d.status !== 'active') throw new Error('esperava ativo')
-    expect(d.variants.find(v => v.label === 'A')!.pBest).toBe(0)
+    expect(ESPIAO).not.toHaveBeenCalled()
+    expect(d.variants.every(v => v.pBest === null)).toBe(true)
   })
 
   it('6: vencedor com ambos medidos e com A nulo', async () => {
@@ -170,7 +171,7 @@ describe('S8-F2 T6: a fonte dá nulo', () => {
   it('8: guarda estática', () => {
     expect(QUERIES).not.toMatch(/\b(cycle|c)\.(impressions|clicks|ctr)\b/)
     expect(QUERIES).not.toContain("backfill_status === 'confirmed'")
-    const bloco = QUERIES.slice(QUERIES.indexOf('export async function getTestResults'), QUERIES.indexOf('export async function getAbSiteSettings'))
+    const bloco = QUERIES.slice(QUERIES.indexOf('export const getTestResults'), QUERIES.indexOf('export async function getAbSiteSettings'))
     expect(bloco).not.toMatch(/as AbTestCycleRow\[\]/)
     expect(bloco).toContain(".select('id, test_id, variant_id, cycle_number, started_at, ended_at, backfill_status, backfill_attempts, applied_metadata, created_at')")
   })

@@ -360,7 +360,7 @@ A F2 faz:
 - **Leitura:** filtra `.eq('site_id', siteId)` além do `test_id`. **Erro da leitura de `ab_test_dias` (e de variantes e ciclos, que
   `getTestResults` hoje ignora em `queries.ts`) vira estado de erro da página, nunca "não medido".**
 - Teste `v1` (T19): números, sem régua de volume, sem "vencedor", com "regra antiga: encerra por duração".
-- Desenho: o do mockup S9 aprovado (placar, faixa de CTR "faixa não calculada" quando não há dado, régua de quanto falta, relógio
+- Desenho: o do mockup S9 aprovado, **exceto** hero (Líder/lift/Tendência), coluna "vs A", barra de impressões e gráfico de CTR diário, que voltam na F4 (plano S8-F3 r2.2, decisão do dono 24/10) (placar, faixa de CTR "faixa não calculada" quando não há dado, régua de quanto falta, relógio
   parado na pausa, "congelado em ... (dia X de 14)").
 - **Arquivos da F3:** `ab-gravacao/placar.ts`, `ab-lab/queries.ts`, `ab-lab/_components/*`, `lib/pipeline/services/youtube.ts`, docs acima.
 - **Testes:** mock de erro em `ab_test_dias`: a página não mostra "não medido"; mesma semente: tela e Cowork com os mesmos totais; spy no

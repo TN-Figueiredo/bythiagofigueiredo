@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { placarVazio } from '../helpers/ab-placar-fixture'
 import { render, screen, cleanup } from '@testing-library/react'
 import { formatCtr } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-constants'
 import { VariantTable } from '@/app/cms/(authed)/youtube/ab-lab/_components/variant-table'
@@ -56,6 +57,8 @@ describe('emenda P1-P6 (Gio)', () => {
       abbaSeq: ['A', 'B'], cycles: { total: 6, done: 0 }, durationDays: 14, confidenceTarget: 0.95,
       totalRounds: 1, hasPlayoff: false, gates: [],
       confirmedData: { confidence: 0, leader: 'A', leaderColor: '#888', lift: 0 },
+      // Fixture legada da F2: hero e faixa só abrem com estatística calculada (D-F3-2); a F4 os reativa na tela real.
+      placar: placarVazio({ estatistica: 'calculada' }),
     } as unknown as AbTestActiveView
     const { container } = render(<ActiveDetail view={view} {...ACOES} />)
     expect(container.textContent).not.toMatch(/credibilidade/)

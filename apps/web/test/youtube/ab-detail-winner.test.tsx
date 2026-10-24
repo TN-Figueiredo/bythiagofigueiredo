@@ -313,12 +313,10 @@ describe('WinnerDetail', () => {
     )
   })
 
-  it('renders VariantTable in scoreboard section', () => {
+  it('renders o placar por variante na seção do placar final (S8-F3 T5)', () => {
     render(<WinnerDetail view={makeWinnerView()} />)
-    // VariantTable renders role="table" (ConfidenceChart also has a sr-only table)
-    const tables = screen.getAllByRole('table')
-    const variantTable = tables.find(t => t.getAttribute('aria-label') === 'Variant comparison')
-    expect(variantTable).toBeDefined()
+    const secao = screen.getByTestId('scoreboard')
+    expect(secao.querySelector('[data-testid="placar-do-teste"]')).not.toBeNull()
   })
 
   it('teste de tipo retirado (description) não oferece Duplicar', () => {

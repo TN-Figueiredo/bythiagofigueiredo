@@ -177,7 +177,7 @@ describe('PlayoffDetail: encerrado sem vencedor e sem playoff real (P2 I1)', () 
     expect(container.textContent).not.toMatch(/o sistema afunila/)
     expect(container.textContent).not.toMatch(/empatou/)
     expect(screen.getByText('Encerrado sem vencedor')).toBeDefined()
-    expect(screen.getByText('Você não escolheu uma variante e não há CTR medido para decidir. Para testar de novo, use Duplicar.')).toBeDefined()
+    expect(screen.getByText('Você não escolheu uma variante e o teste terminou. Para testar de novo, use Duplicar.')).toBeDefined()
   })
 
   it('teste de tipo retirado: sem Duplicar e sem mandar usar Duplicar', () => {

@@ -5,7 +5,8 @@
  * Os casos dos prompts (ab-ideate / ab-write) ficam em test/mcp/youtube-mcp-prompts.test.ts.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { fakePostgrest, type FakePostgrestOptions } from '../helpers/fake-postgrest'
+import type { FakePostgrestOptions } from '../helpers/fake-postgrest'
+import { fakePostgrestComDias as fakePostgrest } from '../helpers/fake-postgrest-dias'
 
 let sb = fakePostgrest({ tables: {} })
 let upsertsFeitos: Array<Record<string, unknown>[]> = []
@@ -187,7 +188,7 @@ describe('P3: a descrição não participa do teste', () => {
       fail: q => { if (q.table === 'link_clicks' || q.table === 'tracked_links') throw new Error(`leu ${q.table}`); return null },
     })
     const { data } = await youtube.getAbTestFunnel(ctxLeitura(), 't1')
-    expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, clicks: null, link_clicks: null }])
+    expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, impressions_total: null, clicks: null, ctr: null, link_clicks: null }])
     expect(data.per_link).toEqual([])
     expect(data.link_clicks_window).toBeNull()
   })

@@ -64,8 +64,8 @@ describe('dia do teste: lista, cartão e detalhe mostram o mesmo dia', () => {
     expect(view.dayOf).toBe(5)
 
     const ativo = render(<ActiveDetail view={view} encerrar={{} as never} pausar={{} as never} />)
-    expect(ativo.container.textContent).toContain('Dia 5/14')
-    expect(ativo.container.textContent).toContain('9 dias até o fim')
+    expect(ativo.container.textContent).toContain('Teste do Lab rodando, dia 5 de 14')
+    expect(ativo.container.textContent).toContain('faltam 9 dias')
     ativo.unmount()
 
     const cedo = render(<EarlyDetail view={view} encerrar={{} as never} pausar={{} as never} />)
@@ -77,7 +77,7 @@ describe('dia do teste: lista, cartão e detalhe mostram o mesmo dia', () => {
     results.test = makeTestRow({ status: 'active', started_at: new Date(Date.now() - 16 * 86400000).toISOString(), completed_at: null })
     const view = (await toDetailView(results)) as AbTestActiveView
     const ativo = render(<ActiveDetail view={view} encerrar={{} as never} pausar={{} as never} />)
-    expect(ativo.container.textContent).toContain('Dia 16/16')
+    expect(ativo.container.textContent).toContain('dia 16 de 16')
   })
 })
 void makeTestWithVariants

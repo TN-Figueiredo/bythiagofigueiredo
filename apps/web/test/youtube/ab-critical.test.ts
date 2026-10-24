@@ -155,6 +155,7 @@ describe('toDetailView — status discrimination', () => {
     const results = makeResults({
       status: 'completed',
       winnerId: 'v-b',
+      completedReason: 'manual_apply', // (S8-F3, I1) só vitória humana vira vencedor
       confidence: 0.97,
       resultMetadata: {
         ctr_lift_percent: 23,

@@ -4,7 +4,7 @@ import type { AbTestPlayoffView } from '@/lib/youtube/ab-types'
 import { SEM_MEDICAO_DE_ENTREGA } from './ab-constants'
 import { DetailHeader } from './detail-header'
 import { PlayoffBanner } from './playoff-banner'
-import { VariantTable } from './variant-table'
+import { PlacarDoTeste } from './placar-do-teste'
 import { Copy, Archive, Download, Info, LayoutGrid } from 'lucide-react'
 
 export interface PlayoffDetailProps {
@@ -71,8 +71,8 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
               {temPlayoff
                 ? SEM_MEDICAO_DE_ENTREGA
                 : podeDuplicar
-                  ? 'Você não escolheu uma variante e não há CTR medido para decidir. Para testar de novo, use Duplicar.'
-                  : 'Você não escolheu uma variante e não há CTR medido para decidir. Este tipo de teste foi retirado; para testar de novo, crie um teste novo.'}
+                  ? 'Você não escolheu uma variante e o teste terminou. Para testar de novo, use Duplicar.'
+                  : 'Você não escolheu uma variante e o teste terminou. Este tipo de teste foi retirado; para testar de novo, crie um teste novo.'}
             </div>
           </div>
         </div>
@@ -97,12 +97,16 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
 
       {/* 5. Placar das variantes */}
       <section className="mb-[36px]">
-        <VariantTable
+        {/* Sem estatística não há ordem por CTR nem ganho sobre A (C-11): só o placar de contagens. */}
+        <PlacarDoTeste
+          placar={view.placar ?? null}
+          faixaDias={view.faixa_dias ?? []}
           variants={view.variants}
-          finalists={view.finalists.map(f => f.label)}
+          variantDb={view.variantDb}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
-          semChance
+          status={view.status}
+          titulo="Placar das variantes"
         />
       </section>
     </div>
