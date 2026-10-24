@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
-import { VARIANT_COLORS, semImpressoes, liftVsA, medicaoCompleta, medidas } from './ab-constants'
+import { semImpressoes, liftVsA, medicaoCompleta, medidas } from './ab-constants'
 import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { LockCountdown } from './lock-countdown'
 import { HeroBand } from './hero-band'
-import { VariantTable } from './variant-table'
+import { PlacarDoTeste } from './placar-do-teste'
 import { CredibleInterval } from './credible-interval'
-import { MultiLine } from './multi-line'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
 import { ClickMomentUnified } from './click-moment-unified'
@@ -230,13 +229,15 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
 
       {/* ── Section 5: Placar das variantes ── */}
       <section data-section="variant-performance" className="mb-[24px]">
-        <VariantTable
+        <PlacarDoTeste
+          placar={view.placar ?? null}
+          faixaDias={view.faixa_dias ?? []}
           variants={view.variants}
-          leaderId={comEstatistica ? data.leader : undefined}
-          activeNow={view.activeNow ?? undefined}
+          variantDb={view.variantDb}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
-          semChance
+          status={view.status}
+          andamento={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
         />
       </section>
 
@@ -255,28 +256,10 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
         </div>
       </div>)}
 
-      {/* ── Section 8: CTR diário por variante ── */}
-      {comparavel && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden mb-[24px]" style={{ boxShadow: 'var(--shadow)' }}>
-        <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
-          <TrendingUp size={15} className="text-cms-text-dim" aria-hidden="true" />
-          <span className="text-[13px] font-semibold text-cms-text">CTR diário por variante</span>
-          <span className="text-[11.5px] text-cms-text-dim ml-auto">últimos {Object.values(view.daily)[0]?.length ?? 0} dias</span>
-          <div className="flex gap-[10px] ml-[16px]">
-            {view.variants.map(v => (
-              <span key={v.label} className="inline-flex items-center gap-[5px] text-[11px] text-cms-text-dim">
-                <span className="rounded-[2px]" style={{ width: 10, height: 3, background: v.color }} aria-hidden="true" />
-                {v.label}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="px-[16px] py-[14px]">
-          <MultiLine series={view.daily} colors={VARIANT_COLORS} />
-        </div>
-      </div>)}
+      {/* CTR diário por variante: fora da F3 (volta na F4 com a estatística); a série `daily` fica vazia, nunca 0. */}
 
       {/* ── Section 9: Rotação ABBA + Funil por variante ── */}
-      <div className={`grid grid-cols-1 ${comparavel ? 'md:grid-cols-2' : ''} gap-[16px] mb-[24px]`}>
+      <div className={`grid grid-cols-1 ${comEstatistica && comparavel ? 'md:grid-cols-2' : ''} gap-[16px] mb-[24px]`}>
         {/* Rotação ABBA */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
@@ -295,7 +278,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
         </div>
 
         {/* Funil por variante (líder): sem impressões medidas não há funil */}
-        {comparavel && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
+        {comEstatistica && comparavel && (<div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
             <Filter size={15} className="text-cms-text-dim" aria-hidden="true" />
             <span className="text-[13px] font-semibold text-cms-text">Funil por variante</span>

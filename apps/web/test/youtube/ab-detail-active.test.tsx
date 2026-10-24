@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { placarVazio } from '../helpers/ab-placar-fixture'
 
 // Degrau "administrar o site": por padrão estes testes rodam como quem administra (o dono).
 const siteAdmin = vi.hoisted(() => ({ value: true }))
@@ -78,7 +79,7 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
     ],
     confirmedData: { confidence: 88, leader: 'B' as DisplayLabel, leaderColor: '#E8823C', lift: 12.3 },
     // Fixture legada da F2: hero e faixa só abrem com estatística calculada (D-F3-2); a F4 os reativa na tela real.
-    placar: { estatistica: 'calculada' },
+    placar: placarVazio({ estatistica: 'calculada' }),
     ...overrides,
   } as AbTestActiveView
 }
@@ -140,9 +141,11 @@ describe('ActiveDetail', () => {
     expect(screen.getByText('Sinal ao vivo')).toBeDefined()
   })
 
-  it('VariantTable do teste ativo ordena por CTR, sem a coluna de chance de vencer', () => {
+  it('placar do teste ativo: ordem fixa por rótulo, sem ordenar por CTR e sem coluna de chance de vencer (S8-F3 T5)', () => {
     render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
-    expect(screen.getByText('ordenado por CTR')).toBeDefined()
+    expect(screen.getByText('Placar por variante')).toBeDefined()
+    expect(screen.queryByText('ordenado por CTR')).toBeNull()
+    expect(screen.queryByText(/chance de vencer/i)).toBeNull()
   })
 
   it('não mostra o painel de critérios nem "N / 3 consecutive"; a frase fixa ocupa o lugar', () => {

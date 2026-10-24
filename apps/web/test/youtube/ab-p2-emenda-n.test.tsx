@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { placarVazio } from '../helpers/ab-placar-fixture'
 import { render, screen, cleanup } from '@testing-library/react'
 
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) }))
@@ -34,7 +35,7 @@ function stats(id: string, label: string, imp: number, clicks: number, orig: boo
 }
 
 describe('emenda N (Gio)', () => {
-  it('N2: vencedor A 30/840 e B 45/840 mostra 3,6% e 5,4% no placar e no hero, nunca 357,1%', async () => {
+  it('N2: vencedor A 30/840 e B 45/840 mostra 3,6% e 5,4% no banner, nunca 357,1%', async () => {
     const results: AbTestResults = {
       test: makeTestRow({ status: 'completed', winner_variant_id: 'v-b', completed_reason: 'manual_winner', started_at: new Date(Date.now() - 10 * 86400000).toISOString() }),
       variants: [stats('v-a', 'original', 840, 30, true), stats('v-b', 'B', 840, 45, false)],
@@ -45,8 +46,9 @@ describe('emenda N (Gio)', () => {
     const { container } = render(<WinnerDetail view={view as AbTestWinnerView} />)
     const t = container.textContent ?? ''
     expect(t).not.toMatch(/357,1|535,7/)
-    expect(t.match(/3,6%/g)?.length).toBeGreaterThanOrEqual(2)
-    expect(t.match(/5,4%/g)?.length).toBeGreaterThanOrEqual(2)
+    // S8-F3 T5: a linha do placar não mostra % (só contagens); o CTR segue uma vez no banner do vencedor.
+    expect(t.match(/3,6%/g)?.length).toBeGreaterThanOrEqual(1)
+    expect(t.match(/5,4%/g)?.length).toBeGreaterThanOrEqual(1)
   })
 
   it('N1: sugeridos com CTR e sem impressões mostra "—" e nunca "0,0%"', () => {
@@ -68,7 +70,7 @@ describe('emenda N (Gio)', () => {
     totalRounds: 1, hasPlayoff: false, gates: [],
     confirmedData: { confidence: 0, leader: 'A', leaderColor: '#888', lift: 0 },
     // Fixture legada da F2: hero e faixa só abrem com estatística calculada (D-F3-2); a F4 os reativa na tela real.
-    placar: { estatistica: 'calculada' },
+    placar: placarVazio({ estatistica: 'calculada' }),
   } as unknown as AbTestActiveView
 
   it('N3: ativo sem medição não mostra funil, Δ em zero nem cartão vazio de métricas', () => {
