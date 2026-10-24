@@ -3,7 +3,7 @@ import { BATCH_BUDGET_MS, WEEKLY_DEADLINE_MS } from '@/lib/youtube/competitor-ba
 import { COMMENT_RULES, WORST_END_FROM_T0_MS } from '@/lib/youtube/observatorio/comentarios/regras'
 import { FRASES_FIXAS, fraseDe } from '@/lib/youtube/observatorio/comentarios/frases'
 import { MOTIVOS_COMUNS } from './motivos'
-import { HORARIA_FIM_MS, HORARIA_ULTIMA_ONDA_MS, LEVE_COMECA_ATE_MS, PESADA_FIM_MS } from './relogio'
+import { BANCO_MS, HORARIA_FIM_MS, HORARIA_ULTIMA_ONDA_MS, LEVE_COMECA_ATE_MS, PESADA_FIM_MS } from './relogio'
 
 /**
  * As DEFINIÇÕES das tarefas (nome, rótulo, período, peso, tolerância, tempos, frases): tudo o que o vigia, o despachante e os testes leem,
@@ -296,10 +296,31 @@ export const DEFINICAO_SINAIS_DO_NICHO: Definicao = {
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
 /**
+ * `particoes_a_frente` (manutenção M2, spec 02 §10.2 e §10.6): cria, uma vez por dia, as partições que faltam das três séries até 12 meses à
+ * frente (`obs_partitions_ensure`). Do tipo que não desliga: sem partição, a coleta grava lacuna (a hora não lida não volta). Ordem 10: depois
+ * de todas as outras. Quem a cobra além da tolerância é o invariante "meses à frente" (`agenda/particoes.ts`), vermelho com a tarefa parada há mais de 72 h.
+ */
+export const DEFINICAO_PARTICOES_A_FRENTE: Definicao = {
+  nome: 'particoes_a_frente', rotulo: 'partições à frente', ordem: 10, peso: 'leve', periodo: 'dia', aPartirDaHoraSP: 6,
+  tetoTentativas: 12, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
+  comecaAteMs: LEVE_COMECA_ATE_MS, fimAteMs: LEVE_COMECA_ATE_MS + BANCO_MS + 5_000, nuncaDesliga: true,
+  motivos: {
+    funcao_ausente: 'a função de partições não existe no banco (migration da M2 não aplicada)',
+    prazo: 'o banco não respondeu a tempo',
+    banco_recusou: 'o banco recusou criar as partições',
+    resposta_invalida: 'resposta do banco fora da forma esperada',
+    inesperado: 'a criação de partições falhou com erro inesperado (ver Sentry)',
+  },
+}
+
+/** As tarefas da fase de manutenção. */
+export const DEFINICOES_MANUTENCAO: readonly Definicao[] = [DEFINICAO_PARTICOES_A_FRENTE]
+
+/**
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_AVISOS_PENDENTES, DEFINICAO_PODA_LEITURAS_WATCH, DEFINICAO_SINAIS_DO_NICHO].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, ...DEFINICOES_MANUTENCAO, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_AVISOS_PENDENTES, DEFINICAO_PODA_LEITURAS_WATCH, DEFINICAO_SINAIS_DO_NICHO].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {

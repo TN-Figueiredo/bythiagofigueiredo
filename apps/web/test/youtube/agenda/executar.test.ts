@@ -705,8 +705,8 @@ describe('rodarAntesDoLoteAntigo', () => {
     expect(vi.mocked(Sentry.captureMessage)).not.toHaveBeenCalled()
   })
 
-  it('a lista REAL traz exatamente anular_identidade (a obrigação de LGPD), e ela é nuncaDesliga', () => {
-    expect(antesDoLoteAntigo.map(t => t.nome)).toEqual(['anular_identidade'])
+  it('a lista REAL traz exatamente anular_identidade (a obrigação de LGPD) e particoes_a_frente (M2), as duas nuncaDesliga', () => {
+    expect(antesDoLoteAntigo.map(t => t.nome)).toEqual(['anular_identidade', 'particoes_a_frente'])
     expect(antesDoLoteAntigo.every(t => t.nuncaDesliga === true)).toBe(true)
     // é a mesma tarefa do catálogo (um só objeto, uma só definição)
     expect(CATALOGO.find(t => t.nome === 'anular_identidade')).toBe(antesDoLoteAntigo[0])

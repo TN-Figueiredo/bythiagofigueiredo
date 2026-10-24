@@ -20,6 +20,8 @@ export interface ItemAgenda {
   ultimoOk: string | null
   toleranciaH: number
   motivo?: string
+  /** Só itens de invariante (M2: meses à frente). 'vermelho' vira severity 'critical' no relatório (late + critical = down). */
+  gravidade?: 'amarelo' | 'vermelho'
 }
 
 type DaTarefa = Pick<Tarefa, 'nome' | 'toleranciaVigiaH' | 'nuncaDesliga' | 'ligaCom'>
