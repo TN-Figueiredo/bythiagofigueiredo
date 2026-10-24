@@ -1,4 +1,5 @@
 import type { RestoreStatus } from '@/lib/youtube/ab-restore'
+import type { DiaDaFaixa, Placar } from '@/lib/youtube/ab-gravacao/placar'
 export const VARIANT_LABELS = ['B', 'C', 'D'] as const
 export type VariantLabel = (typeof VARIANT_LABELS)[number]
 
@@ -176,6 +177,8 @@ export interface VariantStats {
   total_impressions: number | null
   total_clicks: number | null
   avg_ctr: number | null
+  /** Denominador dos cliques e do CTR (S8-F3); nulo = sem dia de volume. Não é `total_impressions` (exibição). */
+  impressoes_com_ctr: number | null
   cycles_completed: number
 }
 
@@ -264,6 +267,10 @@ export interface AbTestResults {
   latestPolls?: AbTestPollRow[]
   /** Id do vídeo no YouTube (`youtube_videos.youtube_video_id`), do join; nulo = vídeo não achado. */
   youtubeId?: string | null
+  /** Placar de `ab_test_dias` (S8-F3); nulo = sem placar. */
+  placar: Placar | null
+  /** Lista por dia para a tela (só o detalhe). */
+  faixa_dias: DiaDaFaixa[]
 }
 
 /* --- Chart variant hierarchy (Layer 1 redesign) --- */
@@ -439,6 +446,9 @@ export interface VariantDbEntry {
 }
 
 export interface AbTestBaseView {
+  /** Placar repassado sem transformação (S8-F3). */
+  placar?: Placar | null
+  faixa_dias?: DiaDaFaixa[]
   id: string
   videoTitle: string
   flag: TestType

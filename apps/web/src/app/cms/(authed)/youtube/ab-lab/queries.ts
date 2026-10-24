@@ -1,4 +1,9 @@
+import { cache } from 'react'
+import { z } from 'zod'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSiteContext } from '@/lib/cms/site-context'
+import { placarDoTeste, faixaDeDias } from '@/lib/youtube/ab-gravacao/placar'
+import { lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { AB_SITE_SETTINGS_DEFAULTS, ehVitoriaHumana } from '@/lib/youtube/ab-types'
@@ -26,7 +31,6 @@ import type {
   SuggestedVideo,
   TestType,
 } from '@/lib/youtube/ab-types'
-import { calculateBayesianConfidence } from '@/lib/youtube/ab-statistics'
 import { TIPOS_DE_TESTE } from '@/lib/youtube/ab-schemas'
 import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
@@ -155,7 +159,7 @@ export async function getAbDraftById(draftId: string): Promise<{
 // getTestResults
 // ---------------------------------------------------------------------------
 
-export async function getTestResults(testId: string): Promise<AbTestResults | null> {
+export const getTestResults = cache(async (testId: string): Promise<AbTestResults | null> => {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
@@ -164,59 +168,71 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     .select('*, youtube_videos(youtube_video_id)')
     .eq('id', testId)
     .eq('site_id', siteId)
-    .single()
+    .maybeSingle()
 
-  if (testError || !test) return null
+  if (testError) throw new Error(`ab_lab_leitura: ab_tests: ${testError.message}`)
+  if (!test) return null
   // `ab_tests.youtube_video_id` é a FK (uuid); o id do YouTube vem do join com `youtube_videos`.
   const videoJoin = (test as { youtube_videos?: { youtube_video_id?: string | null } | Array<{ youtube_video_id?: string | null }> | null }).youtube_videos
   const youtubeId = (Array.isArray(videoJoin) ? videoJoin[0] : videoJoin)?.youtube_video_id ?? null
 
-  const { data: variants } = await supabase
+  const { data: variants, error: variantsError } = await supabase
     .from('ab_test_variants')
     .select('*')
     .eq('test_id', testId)
     .order('sort_order', { ascending: true })
+  if (variantsError) throw new Error(`ab_lab_leitura: ab_test_variants: ${variantsError.message}`)
 
-  const { data: cycles } = await supabase
+  const { data: cycles, error: cyclesError } = await supabase
     .from('ab_test_cycles')
     .select('id, test_id, variant_id, cycle_number, started_at, ended_at, backfill_status, backfill_attempts, applied_metadata, created_at')
     .eq('test_id', testId)
     .order('cycle_number', { ascending: true })
+  if (cyclesError) throw new Error(`ab_lab_leitura: ab_test_cycles: ${cyclesError.message}`)
 
   const allVariants = (variants ?? []) as AbTestVariantRow[]
   const allCycles = (cycles ?? []) as CicloSemEntrega[]
 
-  // Ciclo fechado conta, inclusive o fechado por pausa, drift ou falha (D-P4). Impressões, cliques e CTR dos ciclos
-  // vinham de views (ab-backfill) e não são entrega: ficam nulos até a F3 trazer a medição real.
+  // Impressões, cliques e CTR vêm de `ab_test_dias` (placar). Falha de leitura é erro de página (D-F3-5).
+  const lido = await lerDiasDoTeste(supabase as unknown as SupabaseClient, siteId, testId)
+  if (!lido.ok) throw new Error(`ab_lab_leitura: ab_test_dias: ${lido.motivo}${lido.detalhe ? ` (${lido.detalhe})` : ''}`)
+  const regra = regraDoTeste(test)
+  const agora = new Date()
+  const placar = placarDoTeste({
+    dias: lido.dias,
+    variantes: allVariants.map(v => ({ variant_id: v.id })),
+    regra,
+    agora,
+    inicio: (test.started_at as string | null) ?? null,
+    fim: (test.completed_at as string | null) ?? null,
+    status: test.status as string,
+  })
+  const faixaDias = faixaDeDias({ dias: lido.dias, variantes: allVariants.map(v => ({ variant_id: v.id })), agora })
+
+  // Ciclo fechado conta, inclusive o fechado por pausa, drift ou falha (D-P4).
   const closed = allCycles.filter(c => c.ended_at !== null)
-  const variantStats: VariantStats[] = allVariants.map(v => ({
-    variant_id: v.id,
-    label: v.label,
-    blob_url: v.blob_url,
-    title_text: v.title_text,
-    dimensions: v.dimensions,
-    metadata: v.metadata,
-    is_original: v.is_original,
-    total_impressions: null,
-    total_clicks: null,
-    avg_ctr: null,
-    cycles_completed: closed.filter(c => c.variant_id === v.id).length,
-  }))
-
-  let confidence: number | null = null
-  let suggestedWinnerId: string | null = null
-  let isSignificant = false
-
-  if (temVolumeParaBayes(variantStats) && variantStats.length >= 2) {
-    const bayesian = calculateBayesianConfidence(variantStats)
-    if (bayesian.estado === 'calculado') {
-      confidence = bayesian.confidence
-      suggestedWinnerId = bayesian.winnerId || null
-      const config = (test as Record<string, unknown>).config as { confidence_threshold?: number } | null
-      const threshold = config?.confidence_threshold ?? 0.95
-      isSignificant = confidence >= threshold
+  const variantStats: VariantStats[] = allVariants.map(v => {
+    const pv = placar.variantes.find(x => x.variant_id === v.id)
+    return {
+      variant_id: v.id,
+      label: v.label,
+      blob_url: v.blob_url,
+      title_text: v.title_text,
+      dimensions: v.dimensions,
+      metadata: v.metadata,
+      is_original: v.is_original,
+      total_impressions: pv?.impressoes ?? null,
+      total_clicks: pv?.cliques ?? null,
+      avg_ctr: pv?.ctr ?? null,
+      impressoes_com_ctr: pv?.impressoes_com_ctr ?? null,
+      cycles_completed: closed.filter(c => c.variant_id === v.id).length,
     }
-  }
+  })
+
+  // Sem estatística de vencedor na regra v1 (D-F3-2): o Bayes ignora a superdispersão.
+  const confidence: number | null = null
+  const suggestedWinnerId: string | null = null
+  const isSignificant = false
 
   // Fetch latest polls for live signal (active/paused tests only)
   let latestPolls: AbTestResults['latestPolls'] = undefined
@@ -242,10 +258,23 @@ export async function getTestResults(testId: string): Promise<AbTestResults | nu
     data_freshness: new Date().toISOString(),
     latestPolls,
     youtubeId,
+    placar,
+    faixa_dias: faixaDias,
   } satisfies AbTestResults
+})
+
+/** Regra de duração do teste: `regra_duracao` não está em `AbTestRow` nem nos tipos gerados (K4); ausente vale 'v1'. */
+function regraDoTeste(test: unknown): 'v1' | 'v2' {
+  const bruta = (test as { regra_duracao?: unknown }).regra_duracao
+  if (bruta === undefined || bruta === null) return 'v1'
+  const p = z.enum(['v1', 'v2']).safeParse(bruta)
+  if (!p.success) throw new Error('ab_lab_leitura: ab_tests: regra_duracao inválida')
+  return p.data
 }
 
-/** Bayes só com todas as variantes medidas (impressões e cliques não nulos), >= 100 impressões e 1 ciclo fechado. */
+/**
+ * Sem chamador desde a S8-F3; dono = F4, que decide reaproveitar ou apagar; não reativar sem φ̂.
+ * Bayes só com todas as variantes medidas (impressões e cliques não nulos), >= 100 impressões e 1 ciclo fechado. */
 export function temVolumeParaBayes(variants: readonly VariantStats[]): boolean {
   return variants.every(v =>
     v.total_impressions !== null && v.total_clicks !== null &&
@@ -927,19 +956,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     pBest: null,
   }))
 
-  // Compute Bayesian probabilities if enough data
-  if (results.variants.length >= 2 && temVolumeParaBayes(results.variants)) {
-    const bayesian = calculateBayesianConfidence(results.variants)
-    if (bayesian.estado === 'calculado') {
-      for (const v of variants) {
-        const variantId = results.variants.find(
-          rv => toDisplayLabel(rv.label, rv.is_original) === v.label,
-        )?.variant_id
-        const p = variantId === undefined ? undefined : bayesian.probabilities[variantId]
-        if (p !== undefined) v.pBest = p
-      }
-    }
-  }
+  // Sem estatística de vencedor na F3 (D-F3-2): pBest fica nulo; o Bayes não é chamado aqui.
 
   const variantThumbs: VariantThumb[] = results.variants.map(v => ({
     label: toDisplayLabel(v.label, v.is_original),
@@ -1008,7 +1025,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   const gateInput = {
     confidence: results.confidence,
     threshold: test.config.confidence_threshold,
-    minImpressions: results.variants.map(v => v.total_impressions),
+    // O piso de volume lê o denominador do CTR (spec §5.1), não a exibição.
+    minImpressions: results.variants.map(v => v.impressoes_com_ctr),
     daysSinceStart: test.started_at
       ? Math.floor((Date.now() - new Date(test.started_at).getTime()) / 86400000)
       : 0,
@@ -1068,6 +1086,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     restoreStatus: paraRestoreStatus(test.restore_status),
     restoreSeq: test.restore_seq ?? 0,
     youtubeVideoId: results.youtubeId ?? null,
+    placar: results.placar ?? null,
+    faixa_dias: results.faixa_dias ?? [],
     noArAntes,
     noArAgora: openCycle && activeNow ? { label: activeNow, desde: openCycle.started_at ?? null } : null,
   }
@@ -1078,6 +1098,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     const leader: { label: DisplayLabel; color: string; ctr: number | null } = comPBest.length > 0
       ? comPBest.reduce((best, v) => (v.pBest > best.pBest ? v : best), comPBest[0]!)
       : (variants.find(v => v.label === 'A') ?? variants[0] ?? { label: 'A' as DisplayLabel, color: '#8A8F98', ctr: null })
+    // Sem estatística ninguém é líder (I2): a tela não mostra hero nem destaque (ver ActiveDetail); o `leader` abaixo
+    // é só valor de compatibilidade do tipo.
     const originalCtr: number | null = variants.find(v => v.label === 'A')?.ctr ?? null
     const liftDoLider: number | null = leader.label !== 'A' && leader.ctr !== null && originalCtr !== null && originalCtr > 0
       ? ((leader.ctr - originalCtr) / originalCtr) * 100
@@ -1241,7 +1263,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
   }
 
   // Guard: completed test with no real winner → treat as inconclusive
-  if (!test.winner_variant_id || (!ehVitoriaHumana(test) && results.variants.every(v => v.total_impressions === null || v.total_impressions === 0))) {
+  if (!ehVitoriaHumana(test)) {
     return {
       ...base,
       status: 'completed' as const,

@@ -36,7 +36,7 @@ function stats(id: string, label: string, imp: number, clicks: number, orig: boo
 describe('emenda N (Gio)', () => {
   it('N2: vencedor A 30/840 e B 45/840 mostra 3,6% e 5,4% no placar e no hero, nunca 357,1%', async () => {
     const results: AbTestResults = {
-      test: makeTestRow({ status: 'completed', winner_variant_id: 'v-b', completed_reason: 'winner', started_at: new Date(Date.now() - 10 * 86400000).toISOString() }),
+      test: makeTestRow({ status: 'completed', winner_variant_id: 'v-b', completed_reason: 'manual_winner', started_at: new Date(Date.now() - 10 * 86400000).toISOString() }),
       variants: [stats('v-a', 'original', 840, 30, true), stats('v-b', 'B', 840, 45, false)],
       confidence: 0.9, is_significant: false, suggested_winner_id: 'v-b', timeline: [],
       data_freshness: new Date().toISOString(), tracked_links: [],
@@ -67,6 +67,8 @@ describe('emenda N (Gio)', () => {
     abbaSeq: ['A', 'B'], cycles: { total: 6, done: 1 }, durationDays: 14, confidenceTarget: 0.95,
     totalRounds: 1, hasPlayoff: false, gates: [],
     confirmedData: { confidence: 0, leader: 'A', leaderColor: '#888', lift: 0 },
+    // Fixture legada da F2: hero e faixa só abrem com estatística calculada (D-F3-2); a F4 os reativa na tela real.
+    placar: { estatistica: 'calculada' },
   } as unknown as AbTestActiveView
 
   it('N3: ativo sem medição não mostra funil, Δ em zero nem cartão vazio de métricas', () => {

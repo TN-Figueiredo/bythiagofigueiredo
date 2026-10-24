@@ -77,6 +77,8 @@ function makeActiveView(overrides?: Partial<AbTestActiveView>): AbTestActiveView
       { name: 'stability', passed: false, value: '2 / 3 consecutive' },
     ],
     confirmedData: { confidence: 88, leader: 'B' as DisplayLabel, leaderColor: '#E8823C', lift: 12.3 },
+    // Fixture legada da F2: hero e faixa só abrem com estatística calculada (D-F3-2); a F4 os reativa na tela real.
+    placar: { estatistica: 'calculada' },
     ...overrides,
   } as AbTestActiveView
 }

@@ -70,6 +70,8 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
   }
 
   const comparavel = medicaoCompleta(view.variants)
+  // Sem estatística de vencedor (D-F3-2) ninguém é líder: sem hero, sem destaque na tabela e sem faixa provável.
+  const comEstatistica = view.placar?.estatistica === 'calculada'
 
 
   const actionButtons = (
@@ -174,14 +176,14 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       </div>
 
       {/* ── Section 3: Hero Band ── */}
-      <div data-section="hero-band" className="mb-[16px]">
+      {comEstatistica && (<div data-section="hero-band" className="mb-[16px]">
         <HeroBand
           leader={{ label: data.leader, color: data.leaderColor }}
           trend={trend}
           semMedicao={semMedicao}
           liftLider={liftVsA(view.variants.find(v => v.label === 'A'), view.variants.find(v => v.label === data.leader))}
         />
-      </div>
+      </div>)}
 
       {/* ── Section 4: Signal ao vivo + Métricas computadas (side by side) ── */}
       <div className={`grid grid-cols-1 ${view.outlier || view.daysRemaining ? 'md:grid-cols-2' : ''} gap-[16px] mb-[16px]`}>
@@ -230,7 +232,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       <section data-section="variant-performance" className="mb-[24px]">
         <VariantTable
           variants={view.variants}
-          leaderId={data.leader}
+          leaderId={comEstatistica ? data.leader : undefined}
           activeNow={view.activeNow ?? undefined}
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
@@ -239,7 +241,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       </section>
 
       {/* ── Section 7: Faixa provável de CTR ── */}
-      {comparavel && (<div className="mb-[24px]">
+      {comEstatistica && comparavel && (<div className="mb-[24px]">
         {/* Faixa provável de CTR */}
         <div className="rounded-[12px] border border-cms-border bg-cms-surface overflow-hidden" style={{ boxShadow: 'var(--shadow)' }}>
           <div className="flex items-center gap-[8px] px-[16px] py-[12px] border-b border-cms-border">
