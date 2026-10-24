@@ -2680,7 +2680,7 @@ begin
     raise exception 'M3b:competitor_channel_remove_archived_sem_m2' using errcode = 'P0001',
       detail = 'o corpo instalado não tem a guarda por folhas do bloco 11b: aplicar a M2 antes da M3b';
   end if;
-  if pg_catalog.md5(v_src) <> '428702cb04c1029a10a7aa3b53aac63e' then
+  if pg_catalog.md5(v_src) <> '96fccc5423bdf22ef680692adb5f99cd' then
     raise exception 'M3b:competitor_channel_remove_archived_divergente' using errcode = 'P0001',
       detail = 'o corpo instalado não é o do bloco 11b da M2: copiar o corpo instalado com a declaração para esta migration';
   end if;

@@ -8,7 +8,7 @@ drop trigger if exists obs_archive_z_destino_declarado on public.competitor_chan
 drop trigger if exists obs_archive_z_truncate on public.competitor_channels;
 
 -- Yannis N5 (2ª rodada): a parte 6 recria competitor_channel_remove_archived (E10) com a declaração do destino. Antes de dropar as tabelas,
--- devolve o corpo do bloco 11b da M2 (md5 428702cb04c1029a10a7aa3b53aac63e) tirando a declaração que a parte 6 inseriu (o mesmo texto, v_decl).
+-- devolve o corpo do bloco 11b da M2 (md5 96fccc5423bdf22ef680692adb5f99cd) tirando a declaração que a parte 6 inseriu (o mesmo texto, v_decl).
 -- Sem a declaração no corpo: nada. Corpo que não volta ao md5 conhecido: recusa (nada é trocado) e o desfazer inteiro aborta.
 do $$
 declare
@@ -42,7 +42,7 @@ begin
   end if;
   execute v_novo;
   select p.prosrc into v_chk from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure('public.competitor_channel_remove_archived(uuid,uuid,uuid)');
-  if pg_catalog.md5(v_chk) <> '428702cb04c1029a10a7aa3b53aac63e' then
+  if pg_catalog.md5(v_chk) <> '96fccc5423bdf22ef680692adb5f99cd' then
     raise exception 'M3b-desfazer:competitor_channel_remove_archived_md5' using errcode = 'P0001', detail = 'o corpo restaurado não é o do bloco 11b';
   end if;
 end $$;
