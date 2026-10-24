@@ -41,7 +41,7 @@
   },
   "overrides": {
     "@supabase/supabase-js": "2.103.2",
-    "vitest": "3.2.6",
+    "vitest": "3.2.7",
     "tmp": "^0.2.6",
     "dompurify": "3.4.17",
     "@tiptap/core": "3.30.6",
