@@ -9,12 +9,17 @@ set lock_timeout = '5s';
 
 alter table public.niche_signals add column if not exists adiado_ate timestamptz;
 alter table public.niche_signals add column if not exists adiado_por text;
+-- Quando foi adiada pela última vez e quantas vezes (a tela mostra "Adiada por você em"; não se deduz de adiado_ate - 7 d).
+alter table public.niche_signals add column if not exists adiado_em timestamptz;
+alter table public.niche_signals add column if not exists adiado_vezes integer not null default 0;
 
 -- Devolve {ok:false, motivo} em: nao_encontrado, nao_aberto (inclui vencida), ja_adiado (com adiado_ate),
 -- expira_antes (vence em até 7 dias: não adia; com expira_em). Sucesso: {ok:true, adiado_ate}.
 create or replace function public.niche_signals_adiar(p_site uuid, p_id uuid, p_por text) returns jsonb
 language plpgsql security invoker set search_path = '' as $$
-declare s public.niche_signals;
+declare
+  s public.niche_signals;
+  c_dias constant interval := interval '7 days'; -- = DIAS_DO_ADIAR (frases.ts); o único 7 deste SQL
 begin
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('niche_signals:' || p_site::text, 0));
   select * into s from public.niche_signals where id = p_id and site_id = p_site for update;
@@ -23,12 +28,14 @@ begin
   if s.adiado_ate is not null and s.adiado_ate > now() then
     return jsonb_build_object('ok', false, 'motivo', 'ja_adiado', 'adiado_ate', s.adiado_ate);
   end if;
-  if s.expires_at <= now() + interval '7 days' then
+  if s.expires_at <= now() + c_dias then
     return jsonb_build_object('ok', false, 'motivo', 'expira_antes', 'expira_em', s.expires_at);
   end if;
-  update public.niche_signals set adiado_ate = now() + interval '7 days', adiado_por = p_por where id = p_id;
+  update public.niche_signals
+     set adiado_ate = now() + c_dias, adiado_por = p_por, adiado_em = now(), adiado_vezes = adiado_vezes + 1
+   where id = p_id;
   perform public.niche_signals_sincronizar_sino(p_site);
-  return jsonb_build_object('ok', true, 'adiado_ate', now() + interval '7 days');
+  return jsonb_build_object('ok', true, 'adiado_ate', now() + c_dias);
 end $$;
 
 -- Igual à F2 (20261022000003), com "aberto" = status aberto e não adiado.

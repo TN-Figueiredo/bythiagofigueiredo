@@ -1,6 +1,7 @@
 // Leitura dos sinais do nicho (F2 T8): o ÚNICO leitor de `niche_signals`. Tela, rota, `get_signals` do Cowork e a ação `sugestoes`
 // do Claude Code chamam `listarSinaisDoNicho`; nenhum lê a tabela nem a coluna `acao` direto (teste de importação).
 // Lista vazia nunca é muda: `n = 0 ⇒ motivoVazio != null`. Sem escrita aqui, salvo `dispensarSinal` (RPC atômica).
+import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { readAll } from '../load'
 import { DIAS_DO_ADIAR, HORAS_ATE_DESATUALIZAR } from './frases'
@@ -76,7 +77,7 @@ function emBlocos<T>(xs: T[], tam: number): T[][] {
 
 interface LinhaSinal {
   id: string; kind: 'destino' | 'parecido'; subject_key: string; acao: string; forca: number | string; motivo: string; rule_version: string
-  evidence: Evidence; first_seen_at: string; expires_at: string; adiado_ate: string | null
+  evidence: Evidence; first_seen_at: string; expires_at: string; adiado_ate: string | null; adiado_em: string | null
 }
 interface LinhaEstado { computed_at: string; motivo_vazio: MotivoVazio | null; contagens: Record<string, unknown> | null }
 
@@ -158,12 +159,20 @@ async function propriosPorChave(sb: SupabaseClient, siteId: string, chaves: stri
 /** Adiadas por quem usa que VOLTAM (voltam antes de vencer): `null` = não medido (erro de leitura; nunca vira 0). */
 async function adiadosQueVoltam(sb: SupabaseClient, siteId: string, agora: Date): Promise<{ n: number; proxima: string | null } | null> {
   const iso = agora.toISOString()
-  const r = await sb.from('niche_signals').select('adiado_ate, expires_at')
+  const r = await sb.from('niche_signals').select('adiado_ate, expires_at', { count: 'exact' })
     .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', iso).gt('adiado_ate', iso)
     .order('adiado_ate', { ascending: true }).limit(LIMITE_PENDENTES)
-  if (r.error) return null
-  const voltam = ((r.data ?? []) as Array<{ adiado_ate: string; expires_at: string }>).filter((x) => Date.parse(x.adiado_ate) < Date.parse(x.expires_at))
-  return { n: voltam.length, proxima: voltam[0]?.adiado_ate ?? null }
+  if (r.error) {
+    // não medido na tela, mas nunca em silêncio: sem isto a aba fica em "?" para sempre sem alarme (Yannis I1)
+    Sentry.captureMessage('sinais: contagem das adiadas falhou', { level: 'warning', tags: { area: 'sinais-nicho' }, extra: { code: r.error.code } })
+    return null
+  }
+  const linhas = (r.data ?? []) as Array<{ adiado_ate: string; expires_at: string }>
+  const voltam = linhas.filter((x) => Date.parse(x.adiado_ate) < Date.parse(x.expires_at))
+  // Phil M-3: a página para em LIMITE_PENDENTES; o resto vem do `count` exato e o corte é avisado, não calado.
+  const alemDaPagina = typeof r.count === 'number' ? Math.max(0, r.count - linhas.length) : 0
+  if (alemDaPagina > 0) Sentry.captureMessage('sinais: adiadas além do teto da página', { level: 'warning', tags: { area: 'sinais-nicho' }, extra: { total: r.count, teto: LIMITE_PENDENTES } })
+  return { n: voltam.length + alemDaPagina, proxima: voltam[0]?.adiado_ate ?? null }
 }
 
 async function respondidosEm30d(sb: SupabaseClient, siteId: string, agora: Date): Promise<number> {
@@ -175,16 +184,16 @@ async function respondidosEm30d(sb: SupabaseClient, siteId: string, agora: Date)
   return r.count ?? 0
 }
 
-/** Quando foi adiada: o `adiado_ate` (já passado, senão a linha nem estaria na lista) menos os 7 dias. */
-const adiadaEm = (adiadoAte: string | null): string | null =>
-  adiadoAte === null || Number.isNaN(Date.parse(adiadoAte)) ? null : new Date(Date.parse(adiadoAte) - DIAS_DO_ADIAR * DIA_MS).toISOString()
+/** Quando foi adiada pela última vez: a coluna `adiado_em` (gravada por `niche_signals_adiar`); `null` = nunca adiada. */
+const adiadaEm = (adiadoEm: string | null): string | null =>
+  adiadoEm === null || Number.isNaN(Date.parse(adiadoEm)) ? null : new Date(Date.parse(adiadoEm)).toISOString()
 
 export async function listarSinaisDoNicho(
   sb: SupabaseClient, siteId: string, agora: Date, limite = 50, calculoLigado: boolean = calculoLigadoNoAmbiente(),
 ): Promise<ListaDeSinais> {
   const [lista, est, adiados] = await Promise.all([
     sb.from('niche_signals')
-      .select('id, kind, subject_key, acao, forca, motivo, rule_version, evidence, first_seen_at, expires_at, adiado_ate', { count: 'exact' })
+      .select('id, kind, subject_key, acao, forca, motivo, rule_version, evidence, first_seen_at, expires_at, adiado_ate, adiado_em', { count: 'exact' })
       .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString()).or(naoAdiado(agora.toISOString()))
       .order('forca', { ascending: false }).order('first_seen_at', { ascending: true }).order('id', { ascending: true })
       .limit(limite)
@@ -236,7 +245,7 @@ export async function listarSinaisDoNicho(
     return {
       id: l.id, kind: l.kind, subject_key: l.subject_key, acao: d.acao, rotulo_acao: d.rotulo, n_proprios: d.n, acao_gravada: l.acao,
       forca: Number(l.forca), motivo: l.motivo, rule_version: l.rule_version, evidence: l.evidence,
-      first_seen_at: l.first_seen_at, expires_at: l.expires_at, adiada_em: adiadaEm(l.adiado_ate), proprios_agora: agoraProprios, proprios_agora_n: todos === null ? null : todos.length,
+      first_seen_at: l.first_seen_at, expires_at: l.expires_at, adiada_em: adiadaEm(l.adiado_em), proprios_agora: agoraProprios, proprios_agora_n: todos === null ? null : todos.length,
     }
   })
   return { n, itens, computado_em, desatualizado, motivoVazio: null, motivoDoCalculo: null, proximaVolta, contagens, calculoLigado }

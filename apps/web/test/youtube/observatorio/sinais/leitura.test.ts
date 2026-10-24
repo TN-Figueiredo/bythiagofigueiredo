@@ -1,10 +1,13 @@
 // @vitest-environment node
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import * as Sentry from '@sentry/nextjs'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { listarSinaisDoNicho, dispensarSinal, adiarSinal, naoAdiado, contarSinaisAbertos, contarAbertosEntre, lerEstadoDaAba, LIMITE_PENDENTES } from '@/lib/youtube/observatorio/sinais/leitura'
 import { textoDoVazio } from '@/lib/youtube/observatorio/sinais/frases'
 import { fakeSb, type Consulta, type Resposta } from './fake-sb'
+
+vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
 
 const SITE = '00000000-0000-4000-8000-000000000001'
 const AGORA = new Date('2026-10-24T15:00:00Z')
@@ -398,7 +401,10 @@ describe('F3b: adiadas na leitura', () => {
   })
 
   it('o dado não existe: a consulta das adiadas falha → contagens.adiados AUSENTE (nunca 0); vazio vira adiado/não medido; lista com itens segue', async () => {
+    vi.mocked(Sentry.captureMessage).mockClear()
     const vazio = await listarSinaisDoNicho(mundo({ estado: estado({ motivo_vazio: 'sem-lugar' }), adiadas: 'erro' }).sb, SITE, AGORA)
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('sinais: contagem das adiadas falhou', expect.objectContaining({ level: 'warning', tags: { area: 'sinais-nicho' } }))
     expect(vazio.motivoVazio).toBe('adiado')
     expect('adiados' in vazio.contagens).toBe(false)
     expect(vazio.motivoDoCalculo).toBe('sem-lugar')
@@ -418,11 +424,26 @@ describe('F3b: adiadas na leitura', () => {
     expect((await listarSinaisDoNicho(w.sb, SITE, AGORA)).contagens.adiados).toBe(0)
   })
 
-  it('o item que voltou traz adiada_em (adiado_ate − 7 dias); o nunca adiado, null', async () => {
-    const w = mundo({ sinais: [linha('a', 'pt', { adiado_ate: iso(-24) }), linha('b', 'br')], estado: estado() })
+  it('o item que voltou traz adiada_em (a coluna adiado_em, não deduzida do adiado_ate); o nunca adiado, null', async () => {
+    // adiado_ate e adiado_em propositalmente sem relação de 7 dias: a leitura não pode deduzir
+    const w = mundo({ sinais: [linha('a', 'pt', { adiado_ate: iso(-24), adiado_em: iso(-24 * 3) }), linha('b', 'br')], estado: estado() })
     const l = await listarSinaisDoNicho(w.sb, SITE, AGORA)
-    expect(l.itens[0]!.adiada_em).toBe(iso(-24 - 24 * 7))
+    expect(l.itens[0]!.adiada_em).toBe(iso(-24 * 3))
     expect(l.itens[1]!.adiada_em).toBeNull()
+  })
+
+  it('M-3: mais adiadas que o teto da página: o count exato vale e o corte é avisado (nunca trunca calado)', async () => {
+    vi.mocked(Sentry.captureMessage).mockClear()
+    const pagina = Array.from({ length: LIMITE_PENDENTES }, () => ({ adiado_ate: volta(3), expires_at: volta(20) }))
+    const w = fakeSb((c: Consulta): Resposta => {
+      if (c.tabela === 'niche_signals' && c.filtros.some((f) => f.op === 'gt' && f.col === 'adiado_ate')) return { data: pagina, count: LIMITE_PENDENTES + 37 }
+      if (c.tabela === 'niche_signals') return { data: [linha('a', 'pt')], count: 1 }
+      if (c.tabela === 'niche_signals_estado') return { data: [estado()] }
+      return { data: [] }
+    })
+    const l = await listarSinaisDoNicho(w.sb, SITE, AGORA)
+    expect(l.contagens.adiados).toBe(LIMITE_PENDENTES + 37)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('sinais: adiadas além do teto da página', expect.objectContaining({ level: 'warning' }))
   })
 })
 

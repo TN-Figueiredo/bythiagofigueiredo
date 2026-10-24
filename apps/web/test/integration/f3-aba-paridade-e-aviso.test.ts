@@ -122,7 +122,7 @@ describe.skipIf(skipIfNoLocalDb())('F3 T7: N da aba = N da página; saiuDoAviso 
     await notificar(eu, 'nicho-resumo:2026-10-24:adiada01', { ids: [SIG(2), SIG(7)] })
     expect(await saiuDoAviso(sb(), site, eu, 'nicho-resumo:2026-10-24:adiada01', agora)).toBe(true)
     // o adiamento passou: volta ao N, ao item (com adiada_em) e deixa de contar como adiada
-    await pg.query(`update public.niche_signals set adiado_ate = now() - interval '1 hour', expires_at = $2 where id = $1`, [SIG(7), dia(20)])
+    await pg.query(`update public.niche_signals set adiado_ate = now() - interval '1 hour', adiado_em = now() - interval '8 days', expires_at = $2 where id = $1`, [SIG(7), dia(20)])
     expect(await contarSinaisAbertos(sb(), site, agora)).toBe(antes)
     const volta = await listarSinaisDoNicho(sb(), site, agora, 50)
     expect(volta.n).toBe(antes)

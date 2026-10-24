@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { DIAS_DO_ADIAR } from '@/lib/youtube/observatorio/sinais/frases'
 import { criarSite, criarUsuario, escalar } from '../helpers/mg6'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -55,10 +56,12 @@ describe.skipIf(skipIfNoLocalDb())('F3b: niche_signals_adiar', () => {
       const id = await criar(site)
       const r = await adiar(site, id, 'user:abc')
       expect(r.ok).toBe(true)
-      const l = (await pg.query(`select status, adiado_por, (adiado_ate - now()) as d from public.niche_signals where id = $1`, [id])).rows[0]
+      const l = (await pg.query(`select status, adiado_por, adiado_vezes, (adiado_ate - now()) as d, (adiado_em = now()) as em_agora from public.niche_signals where id = $1`, [id])).rows[0]
       expect(l.status).toBe('aberto')
       expect(l.adiado_por).toBe('user:abc')
-      expect(l.d.days).toBe(7) // now() é fixo dentro da transação
+      expect(l.d.days).toBe(DIAS_DO_ADIAR) // now() é fixo dentro da transação; o 7 do SQL tem de bater com o do TS
+      expect(l.em_agora).toBe(true)
+      expect(l.adiado_vezes).toBe(1)
       expect(Date.parse(r.adiado_ate as string)).toBeGreaterThan(Date.now() + 6.9 * 86_400_000)
     })
   })
@@ -84,6 +87,13 @@ describe.skipIf(skipIfNoLocalDb())('F3b: niche_signals_adiar', () => {
       expect(r2.expira_em).toBeTruthy()
       expect(await escalar<unknown>(pg, `select adiado_ate from public.niche_signals where id = $1`, [id2])).toBeNull()
 
+      // fronteira (Yannis M2): vence em EXATAMENTE os dias do adiar já é expira_antes; um segundo depois, adia
+      const idB = await criar(a.site, 'pais:MY')
+      await pg.query(`update public.niche_signals set expires_at = now() + make_interval(days => $2) where id = $1`, [idB, DIAS_DO_ADIAR])
+      expect((await adiar(a.site, idB)).motivo).toBe('expira_antes')
+      await pg.query(`update public.niche_signals set expires_at = now() + make_interval(days => $2) + interval '1 second' where id = $1`, [idB, DIAS_DO_ADIAR])
+      expect((await adiar(a.site, idB)).ok).toBe(true)
+
       const id3 = await criar(a.site, 'pais:ID')
       await pg.query(`update public.niche_signals set expires_at = now() - interval '1 hour' where id = $1`, [id3])
       expect((await adiar(a.site, id3)).motivo).toBe('nao_aberto')
@@ -101,6 +111,7 @@ describe.skipIf(skipIfNoLocalDb())('F3b: niche_signals_adiar', () => {
       await adiar(site, id)
       await pg.query(`update public.niche_signals set adiado_ate = now() - interval '1 minute' where id = $1`, [id])
       expect((await adiar(site, id, 'user:y')).ok).toBe(true)
+      expect(await escalar<number>(pg, `select adiado_vezes from public.niche_signals where id = $1`, [id])).toBe(2)
       expect(await escalar<string>(pg, `select adiado_por from public.niche_signals where id = $1`, [id])).toBe('user:y')
     })
   })
