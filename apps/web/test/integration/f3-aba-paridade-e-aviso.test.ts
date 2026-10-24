@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { apagarSites } from '../helpers/limpa-cena'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { criarSite, criarUsuario } from '../helpers/mg6'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -61,7 +62,7 @@ describe.skipIf(skipIfNoLocalDb())('F3 T7: N da aba = N da página; saiuDoAviso 
       await pg.query('delete from public.notifications where site_id = $1', [site])
       await pg.query('delete from public.niche_signals where site_id = $1', [site])
       await pg.query('delete from public.niche_signals_estado where site_id = $1', [site])
-      await pg.query('delete from public.sites where id = $1', [site])
+      await apagarSites(pg, 'id = $1', [site])
       await pg.query('delete from public.organizations where id = $1', [org])
       await pg.query('delete from auth.users where id = any($1::uuid[])', [[eu, outro]])
     } finally { await pg.end() }

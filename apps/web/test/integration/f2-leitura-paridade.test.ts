@@ -224,7 +224,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     expect(await contarAbertosEntre(sb(), mundo.siteId, ids, new Date())).toBe(2)
     const outro = await criarSite(pg)
     try { expect(await contarAbertosEntre(sb(), outro.site, ids, new Date())).toBe(0) }
-    finally { await pg.query('delete from public.sites where id = $1', [outro.site]); await pg.query('delete from public.organizations where id = $1', [outro.org]) }
+    finally { await apagarSites(pg, 'id = $1', [outro.site]); await pg.query('delete from public.organizations where id = $1', [outro.org]) }
   })
 
   it('F3 T2 (DF6): parecido com o próprio privado → proprios_agora [] e abrir-concorrente; com o público → [p1], abrir-seus, n_proprios 1', async () => {
