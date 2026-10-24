@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   CLASSES, TABELAS_DA_CLASSE, FILHO_DA_CLASSE, RESERVADOS, COLUNA_DE_CONTROLE, CorpoExportar, CorpoAtestar, CorpoBatimento,
-  RespostaPlanoB2, RespostaBatimento, parDaPolitica, MES_RE,
+  RespostaPlanoB2, RespostaBatimento, parDaPolitica, MES_RE, TETO_LINHAS_DA_UNIDADE,
 } from '@/lib/youtube/observatorio/arquivo-mensal/contrato'
 import {
   caminhoDaUnidade, caminhoDaParte, caminhoDoResumo, caminhoDoManifesto, caminhoDoCanario, idDaParte, idDoManifesto, lerArquivoId,
@@ -130,5 +130,12 @@ describe('arquivo mensal: contrato e caminhos (itens 131 e 158)', () => {
     for (const teto of ['verde', 'ambar', 'vermelho', null]) expect(RespostaBatimento.safeParse({ gravado: false, teto }).success).toBe(true)
     expect(RespostaBatimento.safeParse({ gravado: true, teto: 'amarelo' }).success).toBe(false)
     expect(RespostaBatimento.safeParse({ gravado: true }).success).toBe(false)
+  })
+})
+
+describe('teto de linhas por unidade (Phil I-1)', () => {
+  // 99.200 linhas levaram 11,7 s local; x4,05 em produção = 47,4 s > 30 s (metade do maxDuration). replan-23-10/phil.md §1c
+  it('fica em 60.000 ou menos', () => {
+    expect(TETO_LINHAS_DA_UNIDADE).toBeLessThanOrEqual(60_000)
   })
 })
