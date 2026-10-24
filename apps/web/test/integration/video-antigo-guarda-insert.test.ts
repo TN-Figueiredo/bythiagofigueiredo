@@ -106,9 +106,9 @@ describe.skipIf(pular)('M10a: guarda de insert do vídeo congelado (pula até a 
     expect(e?.message).toBe('video_congelado')
   })
 
-  it('o índice idx_competitor_readings_video existe e é parcial', async () => {
+  it('o índice idx_competitor_readings_video existe (E9) e cobre video_id; a M10a não o recria', async () => {
     const r = await c.query(`select indexdef from pg_indexes where schemaname = 'public' and indexname = 'idx_competitor_readings_video'`)
     expect(r.rowCount).toBe(1)
-    expect(r.rows[0].indexdef).toContain('WHERE (video_id IS NOT NULL)')
+    expect(r.rows[0].indexdef).toContain('(video_id)')
   })
 })

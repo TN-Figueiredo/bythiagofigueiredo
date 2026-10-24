@@ -13,6 +13,21 @@ describe.skipIf(skipIfNoLocalDb())('M10a: forma do SQL e TRAVA M10a-1', () => {
   it('o SQL abre com set lock_timeout', () => {
     expect(readFileSync(M10A_SQL, 'utf8')).toContain("set lock_timeout")
   })
+  it('as guardas (E10, índice da E9, md5 das 4 funções) vêm antes de qualquer escrita', () => {
+    const sql = readFileSync(M10A_SQL, 'utf8')
+    const guarda = sql.indexOf('_divergente')
+    expect(guarda).toBeGreaterThan(0)
+    const primeiraEscrita = sql.search(/^\s*(alter table|create (or replace )?(table|function|trigger|index)|insert into|drop (trigger|function))/mi)
+    expect(guarda).toBeLessThan(primeiraEscrita)
+    for (const g of ['competitor_channel_pause_covers', 'idx_competitor_readings_video', 'M10a:pin_competitor_video_ausente']) {
+      const i = sql.indexOf(g)
+      expect(i, g).toBeGreaterThan(0)
+      expect(i, g).toBeLessThan(primeiraEscrita)
+    }
+  })
+  it('sem md5 placeholder no SQL', () => {
+    expect(readFileSync(M10A_SQL, 'utf8')).not.toContain('@@')
+  })
   it('TRAVA M10a-1: enquanto M10A_SQL é o rascunho, não há *_observatorio_m10a_* em supabase/migrations', () => {
     const dir = path.resolve(__dirname, '../../../../supabase/migrations')
     const achados = readdirSync(dir).filter(f => f.includes('_observatorio_m10a_'))
@@ -94,6 +109,9 @@ describe.skipIf(pular)('M10a: banco (pula até a Tarefa 5b se o rascunho não fo
       const { videoId } = await semear()
       const e1 = await tenta(c, `update public.competitor_videos set archive_dropped_at = now() where id = $1`, [videoId])
       expect(e1?.message).toBe('retirada_sem_congelamento')
+      // Phil M-2: congelar e retirar no MESMO update também recusa (a ordem dos estágios é invariante do banco)
+      const e1b = await tenta(c, `update public.competitor_videos set archive_frozen_at = now(), archive_dropped_at = now() where id = $1`, [videoId])
+      expect(e1b?.message).toBe('retirada_sem_congelamento')
       expect(await tenta(c, `update public.competitor_videos set archive_frozen_at = now() where id = $1`, [videoId])).toBeNull()
       expect(await tenta(c, `update public.competitor_videos set archive_dropped_at = now() where id = $1`, [videoId])).toBeNull()
       for (const set of [`archive_frozen_at = null`, `archive_dropped_at = null`, `archive_view_count = 1`, `archive_like_count = 1`, `archive_comment_count = 1`, `archive_stats_at = now()`]) {
@@ -103,6 +121,26 @@ describe.skipIf(pular)('M10a: banco (pula até a Tarefa 5b se o rascunho não fo
       // colunas fora das seis seguem livres no vídeo retirado
       expect(await tenta(c, `update public.competitor_videos set title = 'novo' where id = $1`, [videoId])).toBeNull()
     })
+  })
+
+  it('guarda md5 (Yannis I-3): corpo instalado diferente recusa com M10a:<função>_divergente e nada é escrito; reaplicar sobre o próprio resultado passa', async () => {
+    const sql = readFileSync(M10A_SQL, 'utf8')
+    await emTransacao(async () => {
+      await c.query(sql)
+      expect(await tenta(c, sql)).toBeNull() // idempotente: o corpo "depois" também é aceito
+    })
+    const mutantes: Array<[string, string]> = [
+      ['competitor_series_health', 'p_site_id uuid, p_now timestamptz'],
+      ['competitor_channel_removal_impact', 'p_site_id uuid, p_channel_id uuid'],
+    ]
+    for (const [nome, args] of mutantes) {
+      await emTransacao(async () => {
+        await c.query(sql)
+        await c.query(`create or replace function public.${nome}(${args}) returns jsonb language sql as $b$ select '{}'::jsonb $b$`)
+        const e = await tenta(c, sql)
+        expect(e?.message).toBe(`M10a:${nome}_divergente`)
+      })
+    }
   })
 
   it('update que não cita as seis colunas (o da sincronização) não dispara o gatilho', async () => {

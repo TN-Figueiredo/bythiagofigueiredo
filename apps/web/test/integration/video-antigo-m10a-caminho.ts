@@ -19,3 +19,8 @@ export async function m10aNoBanco(): Promise<boolean> {
     await c.end()
   }
 }
+
+/** Valem as chaves novas da M10a (ignorados_congelados, arquivados, videos_*)? true com a migration no repositório ou o rascunho já aplicado no banco. */
+export async function m10aAtiva(): Promise<boolean> {
+  return M10A_EM_MIGRATION || (await m10aNoBanco())
+}
