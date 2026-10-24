@@ -31,6 +31,8 @@ export function ordenarPorRotulo<T extends { label: string }>(xs: readonly T[]):
 
 const semCtr = (v: PlacarVariante) => v.impressoes !== null && v.impressoes > 0 && v.impressoes_com_ctr === 0 && v.cliques === null
 
+const encerrado = (status?: string) => status === 'completed' || status === 'archived'
+
 export function casoDoPlacar(p: Placar): CasoPlacar {
   if (!p.iniciado) return 'nao_iniciado'
   if (p.atrasado) return 'atrasado'
@@ -43,10 +45,10 @@ export function casoDoPlacar(p: Placar): CasoPlacar {
 }
 
 /** Faixa de estado em 2 níveis, por prioridade: dados fora de hora | sem dia fechado. */
-export function faixaDoPlacar(p: Placar): FaixaPlacar | null {
+export function faixaDoPlacar(p: Placar, status?: string): FaixaPlacar | null {
   if (!p.iniciado) return null
   if (p.atrasado) return 'atrasado'
-  if (p.dias_total === 0) return 'sem_dia_fechado'
+  if (p.dias_total === 0) return encerrado(status) ? null : 'sem_dia_fechado'
   return null
 }
 
@@ -94,6 +96,7 @@ export function fraseDoPlacar(
       return { principal: `Os dados do YouTube pararam em ${ult}. Os números abaixo estão desatualizados.`, apoio: 'O teste segue valendo; a próxima leitura traz os dias novos.' }
     }
     case 'sem_dia_fechado':
+      if (encerrado(status)) return { principal: 'O teste terminou antes de o YouTube fechar algum dia. Não há números deste teste.', apoio: '' }
       return { principal: 'O teste começou há pouco. O YouTube ainda não fechou nenhum dia.', apoio: '' }
     case 'nao_medido':
       return { principal: 'Os dias medidos ainda não têm cliques: faltam dados do YouTube.', apoio: apoioNaoMedido(p, rotulos) }
