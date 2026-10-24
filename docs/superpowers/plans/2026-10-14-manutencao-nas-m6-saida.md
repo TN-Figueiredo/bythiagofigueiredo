@@ -201,7 +201,8 @@ Corte pedido por Yannis e aprovado pela Hanna com um ajuste (`.superpowers/sdd/m
   - `novoAdmin(c: Client, site: string): Promise<string>`
   - `selarMes(c: Client, o: SelarMes): Promise<void>` com `interface SelarMes { site: string; classe: string; tabela: string; mes: string; versao?: number; nasHa?: string; b2ForjaHa?: string | null; restauradoHa?: string | null }`
   - `particaoDe(tabela: string, mes: string): string` (`'obs_part.<tabela>_<AAAAMM>'`)
-  - (emenda 23/10, Yannis N-M6-1) `apagarCanalDeclarando(c: Client, site: string, canal: string, admin: string): Promise<void>`: apaga o canal por `select public.competitor_channel_remove($1, $2, 'apagar', 'botao', $3)`, que declara o destino no mesmo `xid`. Com a M3b aplicada, o gatilho `obs_archive_z_destino_declarado` recusa (`destino_do_arquivo_nao_declarado`) todo `delete from public.competitor_channels` cru. Se o helper único de limpeza do replanejamento (`yannis.md` §3.4, `apagarCanalDeTeste` em `apps/web/test/helpers/`) já existir quando esta tarefa rodar, este helper só o chama. Regra: caso que espera `ok: true` ou limpeza usa o helper; caso que espera a recusa do invariante mantém o `delete` cru (o gatilho `a_` dispara antes do `z_`).
+  - (rodada 0.7, Phil C1) `semearHoraria(c: Client, videos: readonly string[], mes: string, linhasPorVideo: number): Promise<void>` e `semearEarly(c: Client, videos: readonly string[], mes: string, linhasPorVideo: number): Promise<void>`: criam a partição do mês (`select obs_part.criar_particao('public.competitor_video_hourly'::regclass, $1)`, e `competitor_video_early`) e inserem `linhasPorVideo` linhas por vídeo (horária: `(video_id, hour_slot, taken_at, site_id, views)`, o `site_id` vem do canal do vídeo; early: `(video_id, taken_at, site_id, views, likes, comments)`), espalhadas pelo mês; não existem em `m3b.ts`, nascem aqui.
+  - (emenda 23/10, Yannis N-M6-1) `apagarCanalDeclarando(c: Client, site: string, canal: string, admin: string): Promise<void>`: apaga o canal por `select public.competitor_channel_remove($1, $2, 'apagar', 'botao', $3)`, que declara o destino no mesmo `xid`. Com a M3b aplicada, o gatilho `obs_archive_z_destino_declarado` recusa (`destino_do_arquivo_nao_declarado`) todo `delete from public.competitor_channels` cru. **Rodada 0.7 (Yannis C-D, Phil C3; vale o mais restritivo):** o helper **chama `apagarCanais(c, 'id = $1', [canal])` de `apps/web/test/helpers/limpa-cena.ts`** (Passo 0a da M3b, que vem antes da M6: ele existe; o texto "se já existir" caiu) e **não deixa resíduo em `obs_archive_channel_removals`**: `apagarCanais` já apaga só a linha que declarou (`declared_xid = pg_current_xact_id()` e `removed_via = 'botao'`). Só o caso que quer provar que `competitor_channel_remove` funciona chama a função direto, e então o helper faz, depois da chamada, `delete from public.obs_archive_channel_removals where site_id = $1 and channel_ref = $2 and removed_via = 'botao'` (conexão `postgres`). Sem isso, as ~74 linhas de cada rodada do CP13 e das corridas (fora de `emTransacao`) ficam no 54422 compartilhado e dão `site_ambiguo` em teste da M3b que chama `obs_archive_owner_pending` sem `p_site`. Prova: depois de uma rodada do CP13, `select count(*) from public.obs_archive_channel_removals where site_id = <site do teste>` é 0. Regra: caso que espera `ok: true` ou limpeza usa o helper; caso que espera a recusa do invariante mantém o `delete` cru (o gatilho `a_` dispara antes do `z_`).
 
 - [ ] **Step 1: O teste da trava (falha: o rascunho não existe)**
 
@@ -777,20 +778,31 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 2: o invariante do mês destacado',
 
   // emenda 23/10 (Yannis N-M6-2, Phil N6-2): os dois chamadores da E9 já em produção passam pelo invariante
   it('126b: com mês destacado, competitor_video_purge e competitor_channel_purge (E9) recusam com mes_destacado_em_transito e nada some', async () => {
+    // rodada 0.7 (Phil C2, Yannis C-C): assinatura REAL de 6 argumentos (origin/staging:supabase/migrations/20261015000001_*.sql:267-269, 362-364):
+    // (p_site uuid, p_video|p_channel uuid, p_actor uuid, p_janela_min integer, p_ip text, p_ua text). O ator é uuid ('teste' dá 22P02).
+    // As duas devolvem {status:'no_ar'} sem erro se missing_since é nulo: o delete (onde o gatilho a_ levanta) nunca roda. Por isso o vídeo
+    // e o canal entram em missing_since ANTES. Cada `tenta` roda em savepoint (conferir no helper `tenta`; se não abrir, o 2º select roda
+    // numa transação abortada).
     await emTransacao(async () => {
       const { canal, videos } = await semearCanal(c, { videos: 1 })
+      const admin = await novoAdmin(c, SITE_TESTE)
+      await c.query(`update public.competitor_videos set missing_since = current_date - 40 where id = $1`, [videos[0]])
+      await c.query(`update public.competitor_channels set missing_since = current_date - 40 where id = $1`, [canal])
       await destacar(SITE_TESTE)
       for (const sql of [
-        `select public.competitor_video_purge('${SITE_TESTE}', '${videos[0]}', 'teste')`,       // ajustar assinatura ao corpo de produção (git show origin/staging:supabase/migrations/20261015000001_*.sql)
-        `select public.competitor_channel_purge('${SITE_TESTE}', '${canal}', 'teste')`,
+        `select public.competitor_video_purge('${SITE_TESTE}', '${videos[0]}', '${admin}', 30, '127.0.0.1', 'teste')`,
+        `select public.competitor_channel_purge('${SITE_TESTE}', '${canal}', '${admin}', 30, '127.0.0.1', 'teste')`,
       ]) {
         const r = await tenta(c, sql)
         expect(r).toMatchObject({ ok: false })
         expect(JSON.stringify(r)).toContain('mes_destacado_em_transito')
       }
       expect(await escalar<string>(c, `select count(*)::text from public.competitor_videos where id = $1`, [videos[0]])).toBe('1')
+      expect(await escalar<string>(c, `select count(*)::text from public.competitor_channels where id = $1`, [canal])).toBe('1')
     })
   })
+  // 126b, mutantes: tirar os dois `update ... missing_since` faz o teste cair com `no_ar`, sem a palavra mes_destacado_em_transito; sem o `destacar`,
+  // a mesma chamada devolve ok.
 
   it('89: unidade nova de mês destacado (expurgo, reexportação) é recusada', async () => {
     await emTransacao(async () => {
@@ -2762,7 +2774,7 @@ export async function desfazerM6DasCorridas(): Promise<void> {
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { urlDasCorridas, semearCanal, semearDiaria } from '../helpers/m3b'
-import { corridasM6Ligadas, confirmarM6ParaCorridas, desfazerM6DasCorridas, selarMes, particaoDe, novoAdmin, M6_EM_MIGRATION } from '../helpers/m6'
+import { corridasM6Ligadas, confirmarM6ParaCorridas, desfazerM6DasCorridas, selarMes, particaoDe, novoAdmin, semearHoraria, semearEarly, apagarCanalDeclarando, M6_EM_MIGRATION } from '../helpers/m6'
 
 const D = 'competitor_video_daily'
 const MES = '2026-10-01'
@@ -2928,51 +2940,60 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
     expect((await a.query(`select to_regclass($1) is not null as e`, [particaoDe(D, '2026-08-01')])).rows[0].e).toBe(true)
   })
 
-  it('CP13 por razão medida: conferência por canal, a mãe travada e a ação ponta a ponta contra o maxDuration de 60 s (3 rodadas, vale a pior)', async () => {
+  it('CP13 por razão medida: conferência por canal, a mãe travada e a ação ponta a ponta contra o maxDuration de 60 s, na diária E na horária (3 rodadas, vale a pior)', async () => {
     const canais = Number(process.env.M6_CANAIS ?? 75), porCanal = Number(process.env.M6_VIDEOS_POR_CANAL ?? 23)
+    const H = 'competitor_video_hourly'
     const outros: string[] = []
     try {
       for (let i = 0; i < canais - 1; i++) {
-        const s = await semearCanal(a, { site, videos: porCanal }); outros.push(s.canal)
+        // rodada 0.7 (Phil C1): a horária e a early também, com cauda no canal 0 (6.300 linhas de diária e 14.100 de horária no mês); os demais ~700 e ~1.500.
+        // A diária tem no máximo 1 linha por vídeo por dia (31 por mês): para 6.300 linhas a cauda tem ceil(6300/31) = 204 vídeos; os demais, `porCanal` (23).
+        const cauda = i === 0
+        const s = await semearCanal(a, { site, videos: cauda ? 204 : porCanal }); outros.push(s.canal)
         await semearDiaria(a, s.videos, MES, 31)
-        // emenda 23/10 (N6-1): semear também a horária e a early (mesmo M6_CANAIS) e dar cauda a UM canal (6.300 diária / 14.100 horária no mês);
-        // os demais ~700 e ~1.500. Usar/estender o helper de semeadura da M2/M3b (semearHoraria, semearEarly); o canal da cauda é outros[0].
+        await semearHoraria(a, s.videos, MES, Math.ceil((cauda ? 14_100 : 1_500) / s.videos.length))
+        await semearEarly(a, s.videos, MES, cauda ? 40 : 4)
       }
-      let pior = { inline: 0, maior: 0, travaDetach: 0, travaReattach: 0, ponta: 0 }
-      for (let rodada = 0; rodada < 3; rodada++) {
-        await selarMes(a, { site, classe: 'serie', tabela: D, mes: MES })
-        await a.query(`delete from public.obs_archive_prechecks where site_id = $1`, [site])
-        // (c) a ação ponta a ponta, como service_role: simulação + C conferências (4 em paralelo na ação; aqui em série e dividido por 4) + o destaque
-        await a.query('set role service_role')
-        const t0 = Date.now()
-        let t = Date.now()
-        await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', true)`, [site, D, MES, admin])
-        pior.inline = Math.max(pior.inline, Date.now() - t)
-        const lista = (await a.query(`select unnest(public.obs_archive_precheck_channels($1, $2, $3, true)) as c`, [site, D, MES])).rows.map(r => r.c as string)
-        let somaConf = 0
-        for (const c of lista) {                                              // (a) a maior conferência por canal
-          t = Date.now()
-          await a.query(`select public.obs_archive_precheck_unit($1, $2, $3, $4::uuid)`, [site, D, MES, c])
-          const d = Date.now() - t; somaConf += d; pior.maior = Math.max(pior.maior, d)
-        }
-        t = Date.now()                                                        // (b) o tempo com a mãe travada: a própria chamada do destaque
-        const r = (await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', false) as r`, [site, D, MES, admin])).rows[0].r as { status: string }
-        pior.travaDetach = Math.max(pior.travaDetach, Date.now() - t)
-        await a.query('reset role')
-        expect(r.status).toBe('ok')
-        pior.ponta = Math.max(pior.ponta, pior.inline + Math.ceil(somaConf / 4) + pior.travaDetach + 2 * 150)   // + idas ao banco (RTT, ESTIMATIVA)
-        t = Date.now()
-        await a.query(`select public.obs_archive_reattach_month($1, $2, $3, $4, false)`, [site, D, MES, admin])
-        pior.travaReattach = Math.max(pior.travaReattach, Date.now() - t)
-        void t0
-      }
-      console.log('[m6-corridas] CP13', JSON.stringify({ canais, porCanal, ...pior }))
+      // Cada alvo tem o seu pior caso; o log traz uma linha CP13 por alvo.
+      const ALVOS = [{ classe: 'serie', tabela: D }, { classe: 'horaria', tabela: H }] as const
       const FATOR = Number(process.env.M6_FATOR ?? 4.05)   // produção é ~4,05x mais lenta que o banco local (CP29; phil.md §1b)
-      expect(pior.maior).toBeLessThan(4_000 / FATOR)
-      expect(pior.ponta).toBeLessThan(60_000 / FATOR)
+      const RTT = 2 * 150                                  // idas ao banco de produção (ESTIMATIVA), somadas DEPOIS do fator
+      for (const alvo of ALVOS) {
+        let pior = { inline: 0, maior: 0, travaDetach: 0, travaReattach: 0, ponta: 0 }
+        for (let rodada = 0; rodada < 3; rodada++) {
+          await selarMes(a, { site, classe: alvo.classe, tabela: alvo.tabela, mes: MES })
+          await a.query(`delete from public.obs_archive_prechecks where site_id = $1`, [site])
+          // (c) a ação ponta a ponta, como service_role: simulação + C conferências (4 em paralelo na ação; aqui em série e dividido por 4) + o destaque
+          await a.query('set role service_role')
+          let t = Date.now()
+          await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', true)`, [site, alvo.tabela, MES, admin])
+          pior.inline = Math.max(pior.inline, Date.now() - t)
+          const lista = (await a.query(`select unnest(public.obs_archive_precheck_channels($1, $2, $3, true)) as c`, [site, alvo.tabela, MES])).rows.map(r => r.c as string)
+          let somaConf = 0
+          for (const c of lista) {                                              // (a) a maior conferência por canal
+            t = Date.now()
+            await a.query(`select public.obs_archive_precheck_unit($1, $2, $3, $4::uuid)`, [site, alvo.tabela, MES, c])
+            const d = Date.now() - t; somaConf += d; pior.maior = Math.max(pior.maior, d)
+          }
+          t = Date.now()                                                        // (b) o tempo com a mãe travada: a própria chamada do destaque
+          const r = (await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', false) as r`, [site, alvo.tabela, MES, admin])).rows[0].r as { status: string }
+          pior.travaDetach = Math.max(pior.travaDetach, Date.now() - t)
+          await a.query('reset role')
+          expect(r.status).toBe('ok')
+          pior.ponta = Math.max(pior.ponta, pior.inline + Math.ceil(somaConf / 4) + pior.travaDetach)   // sem o RTT: ele entra depois do fator (rodada 0.7, Phil)
+          t = Date.now()
+          await a.query(`select public.obs_archive_reattach_month($1, $2, $3, $4, false)`, [site, alvo.tabela, MES, admin])
+          pior.travaReattach = Math.max(pior.travaReattach, Date.now() - t)
+        }
+        // tally_horaria_ms = o recálculo inline da horária (o `inline` do alvo horária) já x FATOR; maior_conferencia_ms idem.
+        console.log('[m6-corridas] CP13', JSON.stringify({ alvo: alvo.classe, canais, porCanal, ...pior,
+          tally_horaria_ms: alvo.classe === 'horaria' ? Math.round(pior.inline * FATOR) : null, maior_conferencia_ms: Math.round(pior.maior * FATOR) }))
+        expect(pior.maior).toBeLessThan(4_000 / FATOR)
+        expect((pior.ponta * FATOR) + RTT).toBeLessThan(60_000)
+      }
     } finally {
       await a.query('reset role').catch(() => undefined)
-      for (const c of outros) await apagarCanalDeclarando(a, site, c, admin).catch((e: Error) => console.error('[m6-corridas] limpeza falhou', e.message))   // emenda 23/10 (N-M6-1)
+      for (const c of outros) await apagarCanalDeclarando(a, site, c, admin).catch((e: Error) => console.error('[m6-corridas] limpeza falhou', e.message))   // emenda 23/10 (N-M6-1); rodada 0.7: sem resíduo em obs_archive_channel_removals
     }
   }, 600_000)
 })
@@ -2985,7 +3006,7 @@ Expected: PASS em todos (os cinco originais, as corridas C-2, (iv), (v) e o CP13
 
 - [ ] **Step 4: As medidas no ledger e a decisão do peso da tarefa**
 
-Escrever em `.superpowers/sdd/manutencao-nas/m6/progress.md` (só disco): a forma da trava que passou em (i); o `statement_timeout` de cada papel; o tempo do recálculo inline; o maior tempo da conferência por canal; o tempo com a mãe travada no `detach` e no `reattach` (se passar de 2 s, o `lock_timeout` de 3 s e a janela de leitura da coleta precisam de nova conta); a ação ponta a ponta contra o `maxDuration = 60` (se passar de 45 s, `conferirCanais` sobe o paralelismo ou a ação vira dois passos). Os tempos entram **já multiplicados por 4,05** (N6-1), junto com `tally_horaria_ms` e `maior_conferencia_ms`. O volume real entra pela consulta do LEIAME da Tarefa 14 (a 23 vídeos por canal é ESTIMATIVA). Regra: se `75 × maior` passar de 60 s, a Tarefa 8 troca `peso: 'leve'` por `peso: 'pesada'` (`comecaAteMs` e `fimAteMs` das pesadas, `PESADA_FIM_MS`) e o teste do catálogo acompanha no mesmo commit.
+Escrever em `.superpowers/sdd/manutencao-nas/m6/progress.md` (só disco): a forma da trava que passou em (i); o `statement_timeout` de cada papel; o tempo do recálculo inline; o maior tempo da conferência por canal; o tempo com a mãe travada no `detach` e no `reattach` (se passar de 2 s, o `lock_timeout` de 3 s e a janela de leitura da coleta precisam de nova conta); a ação ponta a ponta contra o `maxDuration = 60` (se passar de 45 s, `conferirCanais` sobe o paralelismo ou a ação vira dois passos). Os tempos entram **já multiplicados por 4,05** (N6-1), junto com `tally_horaria_ms` e `maior_conferencia_ms` (o log traz **duas linhas CP13**, `alvo: serie` e `alvo: horaria`; rodada 0.7, Phil C1; mutante: dobrar as linhas da horária em `semearHoraria` faz cair o `expect` da horária sem mexer no da diária). Rodar uma vez com `M6_CANAIS=225` e gravar os dois tempos já x 4,05; se o `tally_horaria_ms` de 3x passar de 8.000, vale a regra de conferência por canal obrigatória. O RTT (2 x 150 ms) soma depois do fator: `pior.ponta * FATOR + RTT < 60_000`. O volume real entra pela consulta do LEIAME da Tarefa 14 (a 23 vídeos por canal é ESTIMATIVA). Regra: se `75 × maior` passar de 60 s, a Tarefa 8 troca `peso: 'leve'` por `peso: 'pesada'` (`comecaAteMs` e `fimAteMs` das pesadas, `PESADA_FIM_MS`) e o teste do catálogo acompanha no mesmo commit.
 
 - [ ] **Step 5: Commit**
 

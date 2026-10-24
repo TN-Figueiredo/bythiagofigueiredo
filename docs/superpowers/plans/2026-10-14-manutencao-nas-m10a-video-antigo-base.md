@@ -378,7 +378,7 @@ grant select on table public.obs_archive_video_policy to service_role;
 
 ## Tarefa 4. A guarda de `insert` nas 8 tabelas e o índice de `competitor_readings`
 
-**Arquivos:** editar o rascunho `M10A_SQL`; criar `apps/web/test/integration/video-antigo-guarda-insert.test.ts` e `apps/web/test/helpers/video-antigo-fora-da-classe.ts` (rodada 0.6: `TABELAS_VIDEO_FORA_DA_CLASSE`).
+**Arquivos:** editar o rascunho `M10A_SQL`; criar `apps/web/test/integration/video-antigo-guarda-insert.test.ts` e `apps/web/src/lib/youtube/video-antigo/tabelas-fora-da-classe.ts` (rodada 0.6: `TABELAS_VIDEO_FORA_DA_CLASSE`; rodada 0.7, Yannis C-A: o arquivo mora em `src/`, dados puros sem import, porque a Tarefa 11 é código de produção e `src` não pode importar de `test/helpers`).
 
 **Contrato (02 §10.8, "A guarda no banco"):** `before insert`, por linha, nas 8 tabelas da classe; linha com `video_id`
 nulo passa sem consulta; vídeo com `archive_frozen_at` preenchido recusa com a exceção `video_congelado` (`P0001`, `detail` =
@@ -389,7 +389,7 @@ id do vídeo, `hint` = tabela). É a **segunda** linha de defesa: quem impede a 
 silêncio: falharia em verde. Não confundir com o item 143, que pede `security invoker` para **outro** gatilho (o de
 `obs_archive_units`, da M3b). O `revoke` de `execute` não impede o disparo do gatilho.
 
-**Emenda 23/10 (guarda × tabelas novas; yannis.md §3.6, phil.md §3.5; fechada na rodada 0.6).** A lista de 8 foi fechada em 14/10. Desde então a A5 e o A/B criaram tabelas por vídeo. **Phil, 23/10: nenhuma entra na classe; a guarda continua nas 8** (`onda0-phil-tabelas-capacidade.md` §1.2 e §1.3). Elas entram numa constante explícita, `TABELAS_VIDEO_FORA_DA_CLASSE` (arquivo novo `apps/web/test/helpers/video-antigo-fora-da-classe.ts`, exportada e importada pela Tarefa 11 e pela M3b: um só lugar), cada uma `{ tabela, motivo, fica_online? }`. **Lista fechada, 14 entradas além das 8:**
+**Emenda 23/10 (guarda × tabelas novas; yannis.md §3.6, phil.md §3.5; fechada na rodada 0.6).** A lista de 8 foi fechada em 14/10. Desde então a A5 e o A/B criaram tabelas por vídeo. **Phil, 23/10: nenhuma entra na classe; a guarda continua nas 8** (`onda0-phil-tabelas-capacidade.md` §1.2 e §1.3). Elas entram numa constante explícita, `TABELAS_VIDEO_FORA_DA_CLASSE` (arquivo novo `apps/web/src/lib/youtube/video-antigo/tabelas-fora-da-classe.ts`, dados puros sem import, exportada e importada (`@/lib/youtube/video-antigo/tabelas-fora-da-classe`) pela Tarefa 11, pelo teste de forma e pela M3b: um só lugar; rodada 0.7 C-A: a varredura da Tarefa 11 exclui também este arquivo, e ele não traz o literal `competitor_videos` sozinho. Prova: `grep -rn "test/helpers" apps/web/src` vazio), cada uma `{ tabela, motivo, fica_online? }`. **Lista fechada, 14 entradas além das 8:**
 
 | Grupo | Tabelas | Motivo |
 |---|---|---|
@@ -988,7 +988,7 @@ export const GRAVADORES_DAS_8: readonly GravadorDasOito[]
 ```
 
 **Regra de varredura (teste sem banco).** Pastas: `apps/web/src`, `apps/web/lib`, `apps/api/src`, `packages/*/src`,
-`scripts`. Fora: `apps/web/src/types/database.types.ts`, arquivos `*.test.*`, e os dois arquivos de `video-antigo/`. O
+`scripts`. Fora: `apps/web/src/types/database.types.ts`, arquivos `*.test.*`, e os arquivos de `video-antigo/` que carregam as listas (`leitores-competitor-videos.ts` e `tabelas-fora-da-classe.ts`; este por rodada 0.7, Yannis C-A). O
 teste falha (a) por arquivo com o texto e sem entrada; (b) por entrada sem o arquivo ou com `ocorrencias` diferente;
 (c) se o conjunto dos `ponto` presentes nas três listas não for exatamente {1..8}, ou se alguma entrada com `ponto` tiver `pendenteAte`; (d) se algum arquivo de `apps/web/src`/`lib` com `.from('<uma das 8>')` seguido de `insert`/`upsert`, ou `rpc('<função que grava numa das 8>')`, não tiver entrada em `GRAVADORES_DAS_8`. Migrations: todo arquivo de `supabase/migrations` que cita
 `competitor_videos` tem entrada (pelo nome, que não muda depois do push) e toda entrada tem arquivo; a migration desta
@@ -1032,7 +1032,7 @@ tabela sai da classe (02 §10.8, linha da tabela) por decisão registrada, não 
 `competitor_video_comment_snaps`), e as funções de captura e versões da A5 que a consulta (a) devolver no dia (a lista final
 sai da consulta, não deste plano). `TABELAS_COM_CHAVE…` iniciais (**16 entradas, FKs raiz lidas em produção em 23/10**; rodada 0.6, Phil M10a-2): as 8 da classe;
 `competitor_video_daily` e `competitor_video_early` (`serie`); `competitor_video_hourly` (`horaria`);
-`competitor_video_comments` (`texto`); `youtube_intelligence_tasks.target_video_id` (`fica`: o vídeo não é apagado); e, na classe `fica` (ficam online, spec 02 l.186), `competitor_video_marks`, `competitor_video_mark_misses` e `competitor_missing_baseline`. Os motivos por tabela são os de `TABELAS_VIDEO_FORA_DA_CLASSE` (Tarefa 4), **importados de lá**. As três últimas existem em migration desde `20261014000004` e `20261015000001` (a frase antiga "não existe em migration (F75)" caiu). Conferir: a consulta com `conparentid = 0` devolve 16 linhas hoje; depois da M2 em produção continua 16 (rodar no 54422 com a M2 aplicada).
+`competitor_video_comments` (`texto`); `youtube_intelligence_tasks.target_video_id` (`fica`: o vídeo não é apagado); e, na classe `fica` (ficam online, spec 02 l.186), `competitor_video_marks`, `competitor_video_mark_misses` e `competitor_missing_baseline`. Os motivos por tabela são os de `TABELAS_VIDEO_FORA_DA_CLASSE` (Tarefa 4), **importados de lá** (`import { TABELAS_VIDEO_FORA_DA_CLASSE } from './tabelas-fora-da-classe'`, mesma pasta `video-antigo/`; nunca de `test/`); os motivos das 8 tabelas da classe vêm do registro da classe, não da lista de 14 (rodada 0.7, Phil). As três últimas existem em migration desde `20261014000004` e `20261015000001` (a frase antiga "não existe em migration (F75)" caiu). Conferir: a consulta com `conparentid = 0` devolve 16 linhas hoje; depois da M2 em produção continua 16 (rodar no 54422 com a M2 aplicada).
 
 `GRAVADORES_DAS_8` iniciais (lidos em 14/10, Phil M-4): a sincronização (`competitor-sync.ts:680`, `:685`, `:796`, `:1209` (as `update` de `competitor_video_versions`; em 14/10 eram `:736` e `:1211`)); a captura (`competitor-capture.ts:324` (`captureItems`), `:339-340` (leitura do atual), `:357` (`apply_competitor_raw_plan`)); a ausência (`competitor-capture.ts:389` (`markMissing`), `:391` (`competitor_mark_missing`)); a leitura horária (`horaria/gravar.ts`, janela de dias) e os retratos de comentário (37 dias): os dois de janela curta nunca veem vídeo de 24 meses por construção, e a entrada diz isso; a fila da forja (`forja-queue.ts:399`, pedido 17: `pendenteAte: 'M10b'`).
 
