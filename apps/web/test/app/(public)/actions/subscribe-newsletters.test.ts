@@ -333,6 +333,34 @@ describe('subscribeToNewsletters', () => {
     expect(result.error).toBe('Verification failed.')
   })
 
+  /* ====== GHSA-mrhx-c7xc-m3w5: array gigante antes do Turnstile ====== */
+
+  it('rejeita 100.000 ids vazios sem chamar Turnstile nem o banco, e rápido', async () => {
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = 'test-site-key'
+    const { verifyTurnstileToken } = await import('../../../../lib/turnstile')
+    // Proxy conta quantos elementos o zod lê: com a guarda de tamanho, nenhum.
+    let reads = 0
+    const big = new Proxy(new Array<string>(100_000).fill(''), {
+      get(target, prop, recv) {
+        if (typeof prop === 'string' && /^\d+$/.test(prop)) reads++
+        return Reflect.get(target, prop, recv)
+      },
+    })
+    const result = await subscribeToNewsletters('user@example.com', big, 'en', 'tok')
+    expect(reads).toBeLessThan(10)
+    expect(result.error).toBe('Invalid email.')
+    expect(verifyTurnstileToken).not.toHaveBeenCalled()
+    expect(mockRateCheck).not.toHaveBeenCalled()
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
+
+  it('rejeita 9 ids válidos (teto de 8)', async () => {
+    const ids = Array.from({ length: 9 }, (_, i) => `nl-${i}`)
+    const result = await subscribeToNewsletters('user@example.com', ids, 'en')
+    expect(result.error).toBe('Invalid email.')
+    expect(mockInsert).not.toHaveBeenCalled()
+  })
+
   /* ====== Insert correctness ====== */
 
   it('inserts one row per newsletter_id when none exist', async () => {

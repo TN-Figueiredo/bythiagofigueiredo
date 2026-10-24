@@ -62,8 +62,8 @@ describe('Ratchet de agenda dos crons do Instagram (C2)', () => {
 
   // Aceitar também o valor antigo deixaria passar VERDE um revert acidental de
   // vercel.json — a única linha que C2 edita — e o "≤ 24 h" do objetivo 2
-  // viraria "≤ 7 dias" em silêncio. Por PATH, porque '0 11 * * *' já existe em
-  // outra entrada (/api/cron/ab-backfill).
+  // viraria "≤ 7 dias" em silêncio. Por PATH: o horário '0 11 * * *' já foi dividido
+  // com /api/cron/ab-backfill (removido na S8-F2); a busca continua por PATH.
   it("instagram-token-refresh roda '0 11 * * *' (08:00 America/Sao_Paulo)", () => {
     expect(scheduleFor('/api/cron/instagram-token-refresh')).toBe('0 11 * * *')
   })

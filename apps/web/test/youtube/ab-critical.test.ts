@@ -618,7 +618,7 @@ describe('toDetailView — winner lift', () => {
     }
   })
 
-  it('returns 0 lift when original CTR is 0', async () => {
+  it('returns null lift (nao medido) when original CTR is 0', async () => {
     const results = makeResults({
       status: 'completed',
       winnerId: 'v-b',
@@ -630,7 +630,7 @@ describe('toDetailView — winner lift', () => {
     })
     const view = await toDetailView(results)
     if ('outcome' in view && view.outcome === 'winner') {
-      expect(view.lift).toBe(0)
+      expect(view.lift).toBeNull()
     }
   })
 })

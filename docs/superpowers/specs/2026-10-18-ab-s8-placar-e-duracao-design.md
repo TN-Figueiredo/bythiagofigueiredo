@@ -550,7 +550,7 @@ decide o que vier por último entre piso e volume; ganho mínimo 20%; pouco volu
    (início parcial) − 3 = **T − 4**. Logo o mínimo é **12 com 2 variantes (piso 8) e 16 com 3 (piso 12)**; abaixo disso, recusa com o motivo em
    uma frase ("o YouTube leva até 3 dias para enviar o alcance; com este teto o teste não chega a fechar os dias mínimos"). Com 3 variantes e
    teto 14 (o padrão de hoje) o máximo seria 10 dias válidos (< 12): o teste só decidiria no D+10; por isso o padrão de `max_duration_days` na criação vira
-   `max(14, piso + 4)` (2 variantes 14, 3 variantes 16; **recomendação, aguarda dono**, §10b; sem a resposta, o padrão de 3 variantes continua 14 e a validação o recusa). Testes: a semente do caso "teto aceito" põe `alcance_estado = medido` nos dias que
+   `max(14, piso + 4)` (2 variantes 14, 3 variantes 16; **decidido pelo dono em 23/10/2026**, §10b). Testes: a semente do caso "teto aceito" põe `alcance_estado = medido` nos dias que
    provam o piso; 2 variantes com teto 12 é aceito e 11 recusado; 3 variantes com 16 aceito e 15 recusado; criação sem teto com 3 variantes grava 16 e com 2 grava 14, e um teste que apaga o parâmetro afirma o padrão (só se o dono aceitar a recomendação). Os campos `confidence_threshold`, `burn_in_days` e `stability_threshold` ficam no schema e são ignorados pela v2.
 9. **`CompletedReason` e consumidores** (Yannis Y-10): a F4 acrescenta `'regra_v2'` a `CompletedReason` (`ab-types.ts:6`) e, em
    `coleta/versoes-origem.ts:86-104` (`papelNaThumb`, `default: never`, arquivo da A5: avisar a frente antes) e
@@ -736,12 +736,12 @@ F4:
 As decisões 2, 3 e 4 do §10 ficam **"recomendação, aguarda dono"** (Phil concorda com as recomendações 1 a 4; 2, 3 e 4 não bloqueiam F2/F3).
 Nenhuma foi decidida nesta revisão (r5.1 incluída).
 
-**Nova (r5, Phil r2 N3), recomendação, aguarda dono:** subir o **padrão** de `max_duration_days` com 3 variantes de 14 para **16** (o de 2
+**Nova (r5, Phil r2 N3), decidido pelo dono em 23/10/2026 (forma da r5.1 abaixo):** subir o **padrão** de `max_duration_days` com 3 variantes de 14 para **16** (o de 2
 variantes fica 14). Custo: até 2 dias a mais de exposição na variante pior em teste de 3 variantes, contra um teste que nunca decidiria
 (com teto 14 e 3 variantes o máximo é 10 dias válidos para um piso de 12). A validação (12 e 16 como mínimos, item 8) entra sem decisão do
 dono; só o valor padrão espera. Hanna leva ao dono.
 
-**Padrão na criação (r5.1, Phil r3 N5), recomendação, aguarda dono:** em vez de uma constante, o padrão de `max_duration_days` nos três caminhos de
+**Padrão na criação (r5.1, Phil r3 N5), DECIDIDO pelo dono em 23/10/2026 ("16, calculado"):** em vez de uma constante, o padrão de `max_duration_days` nos três caminhos de
 criação (C-12) vira `max(14, piso + 4)` (= `max(14, piso + 1 + ATRASO_ALCANCE)`): 2 variantes 14, 3 variantes 16, sem constante por número de variantes. Sem
 esse padrão, a criação de teste de 3 variantes com o teto omitido (14) leva recusa da validação no dia do deploy da F4. **Alternativa: a F4 só vai a
 produção depois da resposta do dono** (portão duro; uma pergunta binária que Hanna leva). Enquanto o dono não responde, vale o texto acima (padrão 14 e a

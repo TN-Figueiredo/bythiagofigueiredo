@@ -16,7 +16,7 @@ describe('aggregateTags com lift ausente', () => {
     expect(tag.negative).toBeUndefined()
   })
 
-  it('média usa só os lifts medidos', () => {
+  it('S8-F2: lift guardado (views) não entra mais na média', () => {
     const winners = [
       { id: 'v1', metadata: { thumbnail_tags: ['rosto'] } },
       { id: 'v2', metadata: { thumbnail_tags: ['rosto'] } },
@@ -25,7 +25,7 @@ describe('aggregateTags com lift ausente', () => {
       { id: 't1', winner_variant_id: 'v1', result_metadata: { ctr_lift_percent: 10 }, test_type: 'thumbnail' },
       { id: 't2', winner_variant_id: 'v2', result_metadata: null, test_type: 'thumbnail' },
     ]
-    expect(aggregateTags(winners, tests as never)[0].avgLift).toBe(10)
+    expect(aggregateTags(winners, tests as never)[0].avgLift).toBeNull()
   })
 })
 

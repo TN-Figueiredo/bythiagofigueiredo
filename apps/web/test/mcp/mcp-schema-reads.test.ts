@@ -345,7 +345,7 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
   const world = (test: Record<string, unknown>): FakePostgrestOptions => ({
     tables: {
       ab_tests: [{ id: 't1', site_id: SITE, ...test }],
-      ab_test_cycles: [{ test_id: 't1', variant_id: 'v1', impressions: 100, clicks: 7 }],
+      ab_test_cycles: [{ test_id: 't1', variant_id: 'v1', impressions: 100, clicks: 7, started_at: '2026-03-01T00:00:00.000Z' }],
       tracked_links: [
         { id: 'l1', site_id: SITE, deleted_at: null, total_clicks: 9999 },
         { id: 'l2', site_id: SITE, deleted_at: null, total_clicks: 9999 },
@@ -364,7 +364,7 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
     },
     columns: {
       ab_tests: ['id', 'site_id', 'started_at', 'completed_at'],
-      ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks'],
+      ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks', 'started_at'],
       tracked_links: ['id', 'site_id', 'deleted_at', 'total_clicks'],
       link_clicks: ['id', 'site_id', 'link_id', 'is_bot', 'clicked_at'],
     },

@@ -181,9 +181,9 @@ describe('P3: a descrição não participa do teste', () => {
       tables: {
         sites: [{ id: SITE }],
         ab_tests: [{ id: 't1', site_id: SITE, started_at: '2026-03-01T00:00:00.000Z', completed_at: null }],
-        ab_test_cycles: [{ test_id: 't1', variant_id: 'v1', impressions: 150, clicks: 15 }],
+        ab_test_cycles: [{ test_id: 't1', variant_id: 'v1', impressions: 150, clicks: 15, started_at: '2026-03-01T00:00:00.000Z' }],
       },
-      columns: { ab_tests: ['id', 'site_id', 'started_at', 'completed_at'], ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks'] },
+      columns: { ab_tests: ['id', 'site_id', 'started_at', 'completed_at'], ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks', 'started_at'] },
       fail: q => { if (q.table === 'link_clicks' || q.table === 'tracked_links') throw new Error(`leu ${q.table}`); return null },
     })
     const { data } = await youtube.getAbTestFunnel(ctxLeitura(), 't1')

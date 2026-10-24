@@ -52,42 +52,6 @@ export async function getCurrentThumbnailUrl(
   return data.items?.[0]?.snippet?.thumbnails?.high?.url ?? null
 }
 
-export async function fetchAnalyticsForDateRange(
-  videoId: string,
-  startDate: string,
-  endDate: string,
-  accessToken: string
-): Promise<{ day: string; impressions: number; ctr: number }[]> {
-  // "impressions" and "impressionClickThroughRate" are YouTube Studio metrics
-  // NOT available via the Analytics Reporting API. Use "views" as the primary
-  // metric and derive a placeholder. The AB test system stores real
-  // impressions/ctr from the Data API via the cycle collector, so this
-  // fallback only affects the initial fetch path.
-  const params = new URLSearchParams({
-    ids: 'channel==MINE',
-    startDate,
-    endDate,
-    metrics: 'views',
-    dimensions: 'day',
-    filters: `video==${videoId}`,
-  })
-  const url = `https://youtubeanalytics.googleapis.com/v2/reports?${params}`
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(`Analytics query failed: ${res.status} — ${JSON.stringify(err)}`)
-  }
-  const data = await res.json()
-  return (data.rows ?? []).map((row: string[]) => ({
-    day: row[0],
-    impressions: Number(row[1]) || 0,
-    ctr: 0,
-  }))
-}
-
 export async function fetchVariantImageBuffer(
   blobUrl: string,
   f: typeof fetch = fetch,

@@ -132,9 +132,12 @@ export interface AbTestCycleRow {
   created_at: string
 }
 
+/** Ciclo sem as seis colunas de entrega (vinham de views, S8-F2): leitura delas vira erro de tsc. */
+export type CicloSemEntrega = Omit<AbTestCycleRow, 'impressions' | 'clicks' | 'ctr' | 'estimated_impressions' | 'estimated_clicks' | 'estimated_ctr'>
+
 export interface AbTestWithVariants extends AbTestRow {
   variants: AbTestVariantRow[]
-  current_cycle: AbTestCycleRow | null
+  current_cycle: CicloSemEntrega | null
   total_cycles: number
 }
 
@@ -169,9 +172,10 @@ export interface VariantStats {
   dimensions?: string | null
   metadata: VariantMetadata
   is_original: boolean
-  total_impressions: number
-  total_clicks: number
-  avg_ctr: number
+  /** Nulo = não medido (S8-F2): views dos ciclos não são entrega. */
+  total_impressions: number | null
+  total_clicks: number | null
+  avg_ctr: number | null
   cycles_completed: number
 }
 
@@ -195,20 +199,19 @@ export interface BayesianResult {
   probabilities: Record<string, number>
 }
 
-export interface ZTestResult {
-  zScore: number
-  pValue: number
-  significant: boolean
+/** Contagem de uma variante para a estatística. Nulo = não medido: nunca vira 0. */
+export interface ContagemDaVariante {
+  variant_id: string
+  total_impressions: number | null
+  total_clicks: number | null
 }
 
-export interface EvaluationResult {
-  confidence: number
-  winnerId: string | null
-  bayesian: BayesianResult
-  zTest: ZTestResult | null
-  gates: { name: string; passed: boolean; detail: string }[]
-  shouldResolve: boolean
-}
+export type ResultadoZ =
+  | { estado: 'nao_medido' }
+  | { estado: 'sem_volume' }
+  | { estado: 'calculado'; z: number; p: number }
+
+export type ResultadoBayes = { estado: 'nao_medido' } | ({ estado: 'calculado' } & BayesianResult)
 
 export interface AbTestSiteSettings {
   default_duration_days: number
@@ -253,10 +256,10 @@ export interface AbTestPollRow {
 export interface AbTestResults {
   test: AbTestRow
   variants: VariantStats[]
-  confidence: number
+  confidence: number | null
   is_significant: boolean
   suggested_winner_id: string | null
-  timeline: AbTestCycleRow[]
+  timeline: CicloSemEntrega[]
   data_freshness: string
   latestPolls?: AbTestPollRow[]
   /** Id do vídeo no YouTube (`youtube_videos.youtube_video_id`), do join; nulo = vídeo não achado. */
@@ -276,12 +279,13 @@ export interface StatsVariant extends ChartVariant {
   impressions: number
 }
 
-export interface RankedVariant extends ChartVariant {
-  pBest: number
-}
-
-export interface FullChartVariant extends StatsVariant, RankedVariant {
-  clicks: number
+export interface FullChartVariant extends ChartVariant {
+  /** nulo = não medido (S8-F2: toda variante até a F3) */
+  ctr: number | null
+  impressions: number | null
+  clicks: number | null
+  /** nulo = não calculado; nunca 0 por padrão */
+  pBest: number | null
   linkClicks?: number
   linkCtr?: number
   retention?: number
@@ -403,6 +407,8 @@ export interface GateResult {
   passed: boolean
   value: string
   hint?: string
+  /** `nao_medido`: o gate não tem base (dado nulo); nunca é aprovação nem 0. */
+  estado?: 'nao_medido'
 }
 
 export interface LiveMonitor {
@@ -470,16 +476,16 @@ export interface AbTestActiveView extends AbTestBaseView {
   status: 'active' | 'paused'
   outcome?: never
   confirmedData: {
-    confidence: number
+    confidence: number | null
     leader: DisplayLabel
     leaderColor: string
-    lift: number
+    lift: number | null
   }
   liveData?: {
-    confidence: number
+    confidence: number | null
     leader: DisplayLabel
     leaderColor: string
-    lift: number
+    lift: number | null
   }
   pollData?: { viewsDelta: number; likesDelta: number; polledAt: string }
   outlier?: { multiplier: number; badge: 'blue' | 'purple' | 'red' } | null
@@ -498,12 +504,12 @@ export interface AbTestWinnerView extends AbTestBaseView {
   outcome: 'winner'
   winnerLabel: DisplayLabel
   winnerColor: string
-  lift: number
+  lift: number | null
   confidence: number | null
   resultMeta: {
-    ctrBefore: number
-    ctrAfter: number
-    totalImpressions: number
+    ctrBefore: number | null
+    ctrAfter: number | null
+    totalImpressions: number | null
     abbaCycles: number
     monthlyExtraClicks: number | null
   }
@@ -518,7 +524,7 @@ export interface AbTestPlayoffView extends AbTestBaseView {
   outcome: 'playoff'
   playoffTestId: string
   startsIn: string
-  finalists: Array<{ label: DisplayLabel; color: string; ctr: number; thumbnailUrl: string | null }>
+  finalists: Array<{ label: DisplayLabel; color: string; ctr: number | null; thumbnailUrl: string | null }>
   confidenceReached: number | null
   reason: string
 }

@@ -2,10 +2,11 @@
 
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
+import { ordemDesc, NAO_MEDIDO } from './ab-constants'
 import { VChip } from './ab-primitives'
 
 export interface RankBarsProps {
-  variants: Array<{ label: DisplayLabel; color: string; pBest: number }>
+  variants: Array<{ label: DisplayLabel; color: string; pBest: number | null }>
 }
 
 export function RankBars({ variants }: RankBarsProps) {
@@ -17,13 +18,13 @@ export function RankBars({ variants }: RankBarsProps) {
     )
   }
 
-  const sorted = [...variants].sort((a, b) => b.pBest - a.pBest)
+  const sorted = [...variants].sort((a, b) => ordemDesc(a.pBest, b.pBest))
 
   return (
     <div className="flex flex-col gap-[11px]">
       {sorted.map(v => {
         const raw = v.pBest
-        const clamped = Math.min(raw, 1)
+        const clamped = raw === null ? 0 : Math.min(raw, 1)
         const widthPct = clamped * 100
         const widthStyle = widthPct === 0 ? '2px' : `${widthPct}%`
 
@@ -41,8 +42,8 @@ export function RankBars({ variants }: RankBarsProps) {
                 }}
               />
             </div>
-            <span className="font-mono text-[13px] font-bold text-cms-text w-[42px] text-right shrink-0">
-              {brDec(Math.min(raw, 1) * 100, 0)}%
+            <span className="font-mono text-[13px] font-bold text-cms-text w-[64px] text-right shrink-0">
+              {raw === null ? <span className="text-[10px] font-normal text-cms-text-dim">{NAO_MEDIDO}</span> : `${brDec(Math.min(raw, 1) * 100, 0)}%`}
             </span>
           </div>
         )

@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react'
 import type { FullChartVariant, VariantThumb, DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
-import { formatPercent, formatCompact, formatCtr, liftVsA } from './ab-constants'
+import { formatPercent, formatCompact, formatCtr, liftVsA, ordemDesc, NAO_MEDIDO } from './ab-constants'
 import { VChip } from './ab-primitives'
 import { ChevronDown, ChevronRight, BarChart3 } from 'lucide-react'
 
@@ -21,7 +21,7 @@ export interface VariantTableProps {
 
 export function VariantTable({ variants, winnerId, leaderId, activeNow, finalists, thumbs, videoTitle, semChance }: VariantTableProps) {
   const [expandedLabel, setExpandedLabel] = useState<string | null>(null)
-  const sorted = [...variants].sort((a, b) => (semChance ? b.ctr - a.ctr : b.pBest - a.pBest))
+  const sorted = [...variants].sort((a, b) => (semChance ? ordemDesc(a.ctr, b.ctr) : ordemDesc(a.pBest, b.pBest)))
   const thumbMap = new Map(thumbs.map(t => [t.label, t]))
 
   const toggle = useCallback((label: string) => {
@@ -144,7 +144,9 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
 
                   {/* CTR */}
                   <span className="font-mono text-[14px] font-bold text-right tabular-nums" style={{ width: 56, flexShrink: 0, color: variant.color }}>
-                    {formatCtr(variant.ctr, variant.impressions)}
+                    {variant.impressions === null
+                      ? <span className="text-[11px] text-cms-text-dim font-normal">{NAO_MEDIDO}</span>
+                      : formatCtr(variant.ctr, variant.impressions)}
                   </span>
 
                   {/* vs A */}
@@ -163,7 +165,9 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
                   {/* Chance */}
                   {!semChance && (
                     <span className="font-mono text-[14px] font-bold text-right tabular-nums text-cms-text" style={{ width: 90, flexShrink: 0 }}>
-                      {brDec(chance * 100, 0)}%
+                      {chance === null
+                        ? <span className="text-[11px] text-cms-text-dim font-normal">{NAO_MEDIDO}</span>
+                        : `${brDec(chance * 100, 0)}%`}
                     </span>
                   )}
 
@@ -182,11 +186,11 @@ export function VariantTable({ variants, winnerId, leaderId, activeNow, finalist
                     <div className="flex gap-[24px]">
                       <div>
                         <span className="eyebrow">Impressões</span>
-                        <span className="block font-mono text-[13px] text-cms-text mt-[2px]">{formatCompact(variant.impressions)}</span>
+                        <span className="block font-mono text-[13px] text-cms-text mt-[2px]">{variant.impressions === null ? NAO_MEDIDO : formatCompact(variant.impressions)}</span>
                       </div>
                       <div>
                         <span className="eyebrow">Cliques</span>
-                        <span className="block font-mono text-[13px] text-cms-text mt-[2px]">{formatCompact(variant.clicks)}</span>
+                        <span className="block font-mono text-[13px] text-cms-text mt-[2px]">{variant.clicks === null ? NAO_MEDIDO : formatCompact(variant.clicks)}</span>
                       </div>
                       <div>
                         <span className="eyebrow">Cliques no link</span>

@@ -166,7 +166,7 @@ const YOUTUBE: CapabilityDomain = {
   description: 'Channel intelligence, video performance analysis, and title and thumbnail A/B testing.',
   suggest_when: 'YouTube analytics, performance review, A/B test management, video optimization',
   docs: '/api/pipeline/docs/youtube',
-  endpoint_count: 38,
+  endpoint_count: 39,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/youtube/channels', summary: 'List own YouTube channels (id, slug, locale, niche) in registration order — accepts read, intelligence, write or admin', auth: 'read' },
     { method: 'GET', path: '/api/pipeline/youtube/intelligence', summary: 'Get channel intelligence snapshot — accepts intelligence, write or admin', auth: 'intelligence' },
@@ -206,6 +206,7 @@ const YOUTUBE: CapabilityDomain = {
     { method: 'POST', path: '/api/pipeline/youtube/competitors/signals/:id/dismiss', summary: 'Dismiss one niche suggestion (status dispensado + motivo); needs write', auth: 'write' },
     { method: 'GET', path: '/api/pipeline/youtube/competitors/readings', summary: 'Data sent to the forja for a running observatory task (frozen on first read) — intelligence', auth: 'intelligence' },
     { method: 'POST', path: '/api/pipeline/youtube/competitors/readings', summary: 'Submit a frozen forja reading for a running observatory task — intelligence', auth: 'intelligence' },
+    { method: 'GET', path: '/api/pipeline/youtube/competitors/observed', summary: "Competitor title/thumbnail reading (rule v2): per video 'possible YouTube test' in progress, fading, probably ended, or swap, each with the fixed sentence and seen-until; not-measured only counted, with reason. Off flag answers 'Leitura de concorrentes desligada'", auth: 'read' },
   ],
 }
 
