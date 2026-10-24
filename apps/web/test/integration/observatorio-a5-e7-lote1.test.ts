@@ -18,6 +18,7 @@ import { criarCanal, criarSite, criarVideo, q1 } from '../helpers/mg6'
 import { listCompetitorChanges, listCompetitorChannels } from '@/lib/pipeline/services/competitors'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
 import { listarMudancasDeCampo } from '@/lib/pipeline/services/competitors-campos'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
 
@@ -50,7 +51,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E7 Tarefa 8b: Lote 1 contra o PostgREST l
   })
   afterAll(async () => {
     try {
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       if (orgs.length > 0) await pg.query('delete from public.organizations where id = any($1::uuid[])', [orgs])
     } finally {
       await pg.end()
@@ -198,7 +199,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E7 Tarefa 8b: Lote 1 contra o PostgREST l
   it('o canal apagado some', async () => {
     const site = await novoSite()
     const { canalB } = await cenaDeCampos(site)
-    await pg.query('delete from public.competitor_channels where id = $1', [canalB])
+    await apagarCanais(pg, 'id = $1', [canalB])
     const canais = await listCompetitorChannels(ctxDe(site))
     expect(canais.data.channels.some((c) => c.id === canalB)).toBe(false)
     const r = await listCompetitorChanges(ctxDe(site), { campos: 'todos' })

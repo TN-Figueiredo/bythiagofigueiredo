@@ -44,6 +44,7 @@ import { runAnularIdentidade } from '@/lib/youtube/observatorio/comentarios/anul
 import { lerImpacto } from '@/lib/youtube/observatorio/comentarios/gravar'
 import { COMMENT_RULES, MOTIVOS } from '@/lib/youtube/observatorio/comentarios/regras'
 import type { TarefaSaida } from '@/lib/youtube/observatorio/comentarios/tipos'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 import {
   H, canal, canalComInscritos, comentarioPorId, conversa, corpoDeCanais, corpoDeConversas, corpoPorId, iso, resposta,
   type OpcoesConversa,
@@ -179,7 +180,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (coleta): comentários de destaque, c
         for (const t of ['competitor_removed_items', 'youtube_channels']) {
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
     } finally {
       await pg.end()
@@ -739,7 +740,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (coleta): comentários de destaque, c
       (select count(*) from public.competitor_video_comments where competitor_channel_id = $1)::int as comentarios`, [b.canal.id])
     expect(direto[0]).toEqual({ snaps: 1, comentarios: 5 })
     expect(JSON.stringify(impacto)).toContain('5')
-    await pg.query('delete from public.competitor_channels where id = $1', [b.canal.id])
+    await apagarCanais(pg, 'id = $1', [b.canal.id])
     const resto = await q(`select
       (select count(*) from public.competitor_video_comment_snaps where video_id = $1)::int as snaps,
       (select count(*) from public.competitor_video_comments where video_id = $1)::int as comentarios,

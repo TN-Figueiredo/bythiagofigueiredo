@@ -9,7 +9,7 @@ export async function autoImportWinner(
   // Get test + winner variant
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, winner_variant_id, youtube_video_id, confidence_at_completion, name')
+    .select('id, winner_variant_id, youtube_video_id, name')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -41,24 +41,8 @@ export async function autoImportWinner(
     .eq('id', test.youtube_video_id)
     .single()
 
-  // Compute lift from cycles
-  const { data: cycles } = await supabase
-    .from('ab_test_cycles')
-    .select('variant_id, views')
-    .eq('test_id', testId)
-    .not('ended_at', 'is', null)
-
-  let liftAtWin: number | null = null
-  if (cycles?.length) {
-    const winnerViews = cycles.filter(c => c.variant_id === test.winner_variant_id).reduce((s, c) => s + (c.views ?? 0), 0)
-    const otherViews = cycles.filter(c => c.variant_id !== test.winner_variant_id).reduce((s, c) => s + (c.views ?? 0), 0)
-    const otherCount = cycles.filter(c => c.variant_id !== test.winner_variant_id).length
-    if (otherCount > 0 && otherViews > 0) {
-      const avgOther = otherViews / otherCount
-      const avgWinner = winnerViews / cycles.filter(c => c.variant_id === test.winner_variant_id).length
-      liftAtWin = Math.round(((avgWinner - avgOther) / avgOther) * 10000) / 100
-    }
-  }
+  // S8-F2: o lift por diferença de views entre ciclos não é medida de entrega; nulo = não medido.
+  const liftAtWin: number | null = null
 
   const { data: entry } = await supabase
     .from('thumbnail_library')

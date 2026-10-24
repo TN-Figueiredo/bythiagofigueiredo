@@ -12,6 +12,7 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdminsDetailed: vi.fn().mockResolvedValue({ total: 0, sent: 0, suppressed: 0, errors: [] }) }))
 
 import { phaseEvaluateActiveTests } from '@/lib/youtube/ab-evaluate-phases'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const DIA = 24 * 3_600_000
 
@@ -44,7 +45,7 @@ describe.skipIf(skipIfNoLocalDb())('ab-evaluate: duração máxima contra o banc
     await apagarTestes()
     if (videoId) await supabase.from('youtube_videos').delete().eq('id', videoId)
     if (channelId) await supabase.from('youtube_channels').delete().eq('id', channelId)
-    if (siteId) await supabase.from('sites').delete().eq('id', siteId)
+    if (siteId) await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   async function semearTeste(o: {

@@ -29,6 +29,7 @@ import { diarioDoVideo, type DiaDoVideo, type ValoresDiario } from '@/lib/youtub
 import { retencaoDoVideo } from '@/lib/youtube/coleta/analytics-retencao'
 import { lerFatos } from '@/lib/youtube/coleta/retencao-regra'
 import { youtubeNaoDevolveu } from '@/lib/youtube/coleta/atraso-permanente'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -79,7 +80,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E6 e E8: schema, funções SQL e o TypeSc
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
       }
       if (usuarios.length > 0) await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
     } finally {
       await pg.end()
     }

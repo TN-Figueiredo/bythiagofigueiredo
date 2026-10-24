@@ -99,6 +99,13 @@ export async function authenticatePipeline(req: NextRequest): Promise<
       return { ok: false, status: 403, error: 'Forbidden' }
     }
 
+    // K2 (manutenção M3b): chave só do arquivo (todas as permissões archive_*) não abre nada fora de /api/pipeline/archive/,
+    // em qualquer modo da E19. A chave mora na forja; o arquivo não lê pesquisa, canais nem analytics.
+    const soArquivo = permissions.length > 0 && permissions.every(p => p.startsWith('archive_'))
+    if (soArquivo && !req.nextUrl.pathname.startsWith('/api/pipeline/archive/')) {
+      return { ok: false, status: 403, error: 'Forbidden' }
+    }
+
     // Item 236: chave com validade preenchida e no passado é 401 com a data. Sem a coluna ou nula, não vence (como hoje).
     if (lida.estado === 'vencida') {
       return { ok: false, status: 401, error: fraseDeVencida(keyRow.expiresAt ?? '') }

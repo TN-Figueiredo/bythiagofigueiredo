@@ -13,6 +13,7 @@ import { travarS4, destravarS4 } from '../helpers/a5-s4-trava'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { leituraValida, thumbValida } from '../fixtures/watch-html/casos-recusados'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 300_000 })
 
@@ -35,6 +36,14 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B2: RLS de yt_watch_* (banco local, GU
   async function comRepeticao(sql: string, args: unknown[]): Promise<void> {
     for (let i = 0; ; i++) {
       try { await pg.query(sql, args); return } catch (e) {
+        if ((e as { code?: string }).code !== '40P01' || i >= 8) throw e
+        await new Promise(r => setTimeout(r, 150 * (i + 1) + Math.random() * 200))
+      }
+    }
+  }
+  async function comRepeticaoDe(acao: () => Promise<void>): Promise<void> {   // mesmo laço do comRepeticao, para o helper de limpeza
+    for (let i = 0; ; i++) {
+      try { await acao(); return } catch (e) {
         if ((e as { code?: string }).code !== '40P01' || i >= 8) throw e
         await new Promise(r => setTimeout(r, 150 * (i + 1) + Math.random() * 200))
       }
@@ -67,7 +76,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 S4 B2: RLS de yt_watch_* (banco local, GU
       if (sites.length > 0) await comRepeticao('delete from public.site_memberships where site_id = any($1::uuid[])', [sites])
       if (sites.length > 0) await comRepeticao('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
       if (usuarios.length > 0) await comRepeticao('delete from auth.users where id = any($1::uuid[])', [usuarios])
-      if (sites.length > 0) await comRepeticao('delete from public.sites where id = any($1::uuid[])', [sites]) // cascade apaga yt_watch_*
+      if (sites.length > 0) await comRepeticaoDe(() => apagarSites(pg, 'id = any($1::uuid[])', [sites])) // cascade apaga yt_watch_*
     } finally { await destravarS4(pg); await pg.end() }
   })
 

@@ -16,6 +16,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite, insertAuthUser, deleteAuthUser } from '../helpers/db-seed'
 import { definirSessao } from '../helpers/mg11'
 import { criarChaveDoPerfil, type DepsDeCriar } from '@/lib/youtube/observatorio/acesso-ia/criar-chave'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -88,7 +89,7 @@ describe.skipIf(skipIfNoLocalDb())('E17 d2 T15: criar-chave contra o banco (byth
   afterAll(async () => {
     await rodar(`delete from public.pipeline_api_keys where site_id = any($1::uuid[])`, [[siteA, siteB]]).catch(() => undefined)
     await rodar(`delete from public.site_memberships where site_id = any($1::uuid[])`, [[siteA, siteB]]).catch(() => undefined)
-    await rodar(`delete from public.sites where id = any($1::uuid[])`, [[siteA, siteB]]).catch(() => undefined)
+    await apagarSitesDeTeste('id = any($1::uuid[])', [[siteA, siteB]]).catch(() => undefined)
     for (const u of [ana, bia, sem]) if (u) await deleteAuthUser(u).catch(() => undefined)
   })
 

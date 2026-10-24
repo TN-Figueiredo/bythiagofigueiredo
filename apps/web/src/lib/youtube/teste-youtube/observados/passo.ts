@@ -1,15 +1,14 @@
 import 'server-only'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { schemaTablesReady } from '@/lib/youtube/competitor-health'
 import { BANCO_MS } from '@/lib/youtube/agenda/relogio'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
 import { modoTrocasConcorrente } from './flag'
-import { inferirObservadoDetalhe, VALIDAS_MIN_MEDIDO, type LeituraObs, type ThumbObs } from './inferir'
+import { ida, paginado as paginar, SemTempo, type Linha, type Montar } from './paginar'
+import { ehPlaceholder, inferirComGuarda, TETO_LINHAS_GUARDA, type ConferirVersoes } from './guarda'
+import { cursorSemPublicacao, gravacao, type CursorGravado, type LeituraObs, type ThumbObs, type VersaoParaConferir } from './inferir'
 import { chaveAlvo, MAX_OBSERVADOS_POR_DISPARO, MIN_SOBRA_MS, selecionarAlvos, type AlvoObs, type CursorObs } from './selecao'
 
-const PAGINA = 1000
-const MAX_PAGINAS = 60
 const LOTE_VIDEOS = 100
 const LOTE_THUMBS = 200
 const PODA_LOTE = 500
@@ -25,15 +24,15 @@ export interface ResultadoPasso {
 
 export interface OpcoesPasso { env?: NodeJS.ProcessEnv; fimDuroMs: number; maxAlvos?: number; varreduraLote?: number }
 
-class SemTempo extends Error {}
-
 interface Contadores {
   obs_avaliados: number; obs_trocas: number; obs_falhou: number; obs_sem_tempo: number; obs_indeterminadas: number; obs_sem_publicacao: number
   obs_devidos: number; obs_fechados: number; obs_ignorados: number; obs_podadas: number; obs_sem_sobra: number; obs_sem_leitura_valida: number
+  obs_titulo_suspenso: number; obs_versoes_demais: number; obs_varredura_cheia: number
 }
 const novoDetalhe = (): Contadores => ({
   obs_avaliados: 0, obs_trocas: 0, obs_falhou: 0, obs_sem_tempo: 0, obs_indeterminadas: 0, obs_sem_publicacao: 0,
   obs_devidos: 0, obs_fechados: 0, obs_ignorados: 0, obs_podadas: 0, obs_sem_sobra: 0, obs_sem_leitura_valida: 0,
+  obs_titulo_suspenso: 0, obs_versoes_demais: 0, obs_varredura_cheia: 0,
 })
 
 /**
@@ -59,25 +58,7 @@ export async function rodarObservados(c: ContextoTarefa, o: OpcoesPasso): Promis
   }
 }
 
-function ida(c: ContextoTarefa, fimDuroMs: number): void {
-  if (c.agora() >= fimDuroMs) throw new SemTempo()
-}
-
-type Linha = Record<string, unknown>
-async function paginado(c: ContextoTarefa, fim: number, montar: (sb: SupabaseClient) => { range: (a: number, b: number) => PromiseLike<{ data: unknown; error: unknown; count: number | null }> }): Promise<Linha[]> {
-  const out: Linha[] = []
-  let total: number | null = null
-  for (let p = 0; p < MAX_PAGINAS; p++) {
-    ida(c, fim)
-    const r = await montar(c.sb).range(p * PAGINA, p * PAGINA + PAGINA - 1)
-    if (r.error || !Array.isArray(r.data)) throw new Error('leitura_falhou')
-    out.push(...(r.data as Linha[]))
-    total = r.count
-    if (r.data.length < PAGINA) break
-  }
-  if (total !== null && out.length !== total) throw new Error('paginacao')
-  return out
-}
+const paginado = (c: ContextoTarefa, fim: number, montar: Montar): Promise<Linha[]> => paginar(c.sb, () => ida(c, fim), montar)
 
 const texto = (v: unknown): string | null => (typeof v === 'string' ? v : null)
 const inteiro = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
@@ -106,7 +87,7 @@ async function passo(c: ContextoTarefa, o: OpcoesPasso, d: Contadores): Promise<
   })
 
   // 2) publicação: junção por canal do site (competitor_videos.video_id; canal com remoção pedida é ignorado). Nulo = sem_publicacao.
-  const publicado = await publicacoes(c, fim, alvos)
+  const { publicado, canalDe } = await publicacoes(c, fim, alvos)
   const elegiveis = alvos.filter(a => publicado.has(chaveAlvo(a.siteId, a.ytId)))
   d.obs_ignorados = alvos.length - elegiveis.length
 
@@ -126,7 +107,7 @@ async function passo(c: ContextoTarefa, o: OpcoesPasso, d: Contadores): Promise<
     const a = escolhidos[i]!
     if (c.agora() >= fim) { d.obs_sem_tempo += escolhidos.length - i; break }
     try {
-      await avaliar(c, fim, a, publicado.get(chaveAlvo(a.siteId, a.ytId)) ?? null, d)
+      await avaliar(c, fim, a, publicado.get(chaveAlvo(a.siteId, a.ytId)) ?? null, d, { canalDe, idsConcorrentes: idsAlvo })
     } catch (e) {
       if (e instanceof SemTempo) { d.obs_sem_tempo += escolhidos.length - i; break }
       d.obs_falhou++ // sem cursor: o alvo volta à fila (dívida declarada: gatilho obs_falhou > 0 por 3 dias seguidos)
@@ -144,8 +125,11 @@ async function passo(c: ContextoTarefa, o: OpcoesPasso, d: Contadores): Promise<
   }
 }
 
-/** chave -> publicação mínima (ISO) ou null (sem publicação). Alvo sem vídeo em canal ativo do site não entra no mapa. */
-async function publicacoes(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[]): Promise<Map<string, string | null>> {
+/**
+ * `publicado`: chave -> publicação mínima (ISO) ou null (sem publicação); alvo sem vídeo em canal ativo do site não entra no mapa.
+ * `canalDe`: chave -> `competitor_channel_id` (o 1º visto), para a regra de "outro canal" da guarda (§6.2).
+ */
+async function publicacoes(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[]): Promise<{ publicado: Map<string, string | null>; canalDe: Map<string, string> }> {
   ida(c, fim)
   const canais = await c.sb.from('competitor_channels').select('id,site_id,removal_requested_at').abortSignal(AbortSignal.timeout(BANCO_MS))
   if (canais.error || !Array.isArray(canais.data)) throw new Error('canais')
@@ -154,6 +138,7 @@ async function publicacoes(c: ContextoTarefa, fim: number, alvos: readonly AlvoO
   const ids = [...new Set(alvos.map(a => a.ytId))]
   const sitesPorAlvo = new Set(alvos.map(a => chaveAlvo(a.siteId, a.ytId)))
   const out = new Map<string, string | null>()
+  const canalDe = new Map<string, string>()
   for (let i = 0; i < ids.length; i += LOTE_VIDEOS) {
     ida(c, fim)
     const r = await c.sb.from('competitor_videos').select('video_id,published_at,competitor_channel_id').in('video_id', ids.slice(i, i + LOTE_VIDEOS)).abortSignal(AbortSignal.timeout(BANCO_MS))
@@ -165,17 +150,19 @@ async function publicacoes(c: ContextoTarefa, fim: number, alvos: readonly AlvoO
       const chave = chaveAlvo(site, yt)
       if (!sitesPorAlvo.has(chave)) continue
       const pub = texto(v.published_at)
+      if (!canalDe.has(chave)) canalDe.set(chave, String(v.competitor_channel_id))
       const atual = out.get(chave)
       if (!out.has(chave)) out.set(chave, pub)
       else if (pub !== null && (atual === null || atual === undefined || Date.parse(pub) < Date.parse(atual))) out.set(chave, pub)
     }
   }
-  return out
+  return { publicado: out, canalDe }
 }
 
 async function varrer(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[], d: Contadores, lote: number): Promise<void> {
   ida(c, fim)
-  // a linha de alvo vivo é regravada a cada avaliação e vai para o fim; a de alvo que saiu fica parada e vem primeiro.
+  // Mais antigas primeiro. A linha de alvo vivo só é regravada quando a regra volta a emitir o campo (pode ficar parada, p.ex. após estouro da guarda ou
+  // título que deixou de emitir), então ela também pode vir na frente. Lote cheio sem nenhum fechamento = a fila pode estar escondendo alvo que saiu: obs_varredura_cheia.
   const r = await c.sb.from('ab_native_observados').select('id,site_id,youtube_video_id').eq('ficou_estado', 'em_andamento')
     .order('ultima_atualizacao_em', { ascending: true }).order('id', { ascending: true }).limit(lote).abortSignal(AbortSignal.timeout(BANCO_MS))
   if (r.error || !Array.isArray(r.data)) throw new Error('varredura')
@@ -190,29 +177,62 @@ async function varrer(c: ContextoTarefa, fim: number, alvos: readonly AlvoObs[],
     if (u.error) { d.obs_falhou++; continue }
     d.obs_fechados++
   }
+  if (r.data.length >= lote && d.obs_fechados === 0) d.obs_varredura_cheia++ // gatilho: > 0 por 3 dias seguidos -> paginar por keyset (ultima_atualizacao_em, id)
 }
 
-async function avaliar(c: ContextoTarefa, fim: number, a: AlvoObs, publicadoEm: string | null, d: Contadores): Promise<void> {
-  const agora = (): string => new Date(c.agora()).toISOString()
-  const gravarCursor = async (motivo: 'ok' | 'sem_publicacao', validas: { titulo: number; miniatura: number } = { titulo: 0, miniatura: 0 }): Promise<void> => {
+interface ApoioGuarda { canalDe: ReadonlyMap<string, string>; idsConcorrentes: readonly string[] }
+
+/**
+ * Conferência da guarda (§6.2) por versão e por texto bruto: a versão é placeholder se o mesmo texto aparece em >= 2 OUTROS vídeos do site
+ * (ou em outro canal, ou bateu o teto de linhas), numa janela de ± 24 h em volta das vistas dela. Os achados de todos os lotes de 100 ids
+ * são unidos antes de `ehPlaceholder`. Erro de consulta LANÇA: nunca vira "nenhum achado".
+ */
+function conferirVersoes(c: ContextoTarefa, fim: number, a: AlvoObs, apoio: ApoioGuarda): ConferirVersoes {
+  const DIA = 86_400_000
+  return async (vs: readonly VersaoParaConferir[]) => {
+    const suspensas = new Set<string>()
+    for (const v of vs) {
+      const achados: { ytId: string }[] = []
+      let bateuTeto = false
+      const de = new Date(Date.parse(v.primeiraVista) - DIA).toISOString()
+      const ate = new Date(Date.parse(v.ultimaVista) + DIA).toISOString()
+      for (const bruto of v.brutos) {
+        for (let i = 0; i < apoio.idsConcorrentes.length; i += LOTE_VIDEOS) {
+          ida(c, fim)
+          const r = await c.sb.from('yt_watch_readings').select('youtube_video_id').eq('site_id', a.siteId).in('youtube_video_id', apoio.idsConcorrentes.slice(i, i + LOTE_VIDEOS))
+            .neq('youtube_video_id', a.ytId).eq('titulo_exibido', bruto).gte('lida_em', de).lte('lida_em', ate).limit(TETO_LINHAS_GUARDA).abortSignal(AbortSignal.timeout(BANCO_MS))
+          if (r.error || !Array.isArray(r.data)) throw new Error('guarda')
+          if (r.data.length === TETO_LINHAS_GUARDA) bateuTeto = true
+          for (const l of r.data as Linha[]) { const yt = texto(l.youtube_video_id); if (yt) achados.push({ ytId: yt }) }
+        }
+      }
+      const canalDoAlvo = apoio.canalDe.get(chaveAlvo(a.siteId, a.ytId)) ?? null
+      if (ehPlaceholder(achados, { canalDoAlvo, canalDe: yt => apoio.canalDe.get(chaveAlvo(a.siteId, yt)) ?? null, bateuTeto })) suspensas.add(v.chave)
+    }
+    return suspensas
+  }
+}
+
+async function avaliar(c: ContextoTarefa, fim: number, a: AlvoObs, publicadoEm: string | null, d: Contadores, apoio: ApoioGuarda): Promise<void> {
+  // um só relógio por avaliação: a regra, a linha e o cursor levam o mesmo instante
+  const agoraMs = c.agora()
+  const agoraIso = new Date(agoraMs).toISOString()
+  const gravarCursor = async (cursor: CursorGravado): Promise<void> => {
     ida(c, fim)
-    const r = await c.sb.from('ab_native_obs_cursor').upsert(
-      { site_id: a.siteId, youtube_video_id: a.ytId, avaliado_ate_rodada: a.rodadas, avaliado_em: agora(), avaliado_motivo: motivo, validas_titulo: validas.titulo, validas_miniatura: validas.miniatura },
-      { onConflict: 'site_id,youtube_video_id' },
-    ).abortSignal(AbortSignal.timeout(BANCO_MS))
+    const r = await c.sb.from('ab_native_obs_cursor').upsert({ site_id: a.siteId, youtube_video_id: a.ytId, ...cursor }, { onConflict: 'site_id,youtube_video_id' }).abortSignal(AbortSignal.timeout(BANCO_MS))
     if (r.error) throw new Error('cursor')
   }
-  if (publicadoEm === null) { await gravarCursor('sem_publicacao'); d.obs_sem_publicacao++; return }
+  if (publicadoEm === null) { await gravarCursor(cursorSemPublicacao({ agoraIso, rodadas: a.rodadas })); d.obs_sem_publicacao++; return }
 
   // `a.rodadas` foi lida ANTES das leituras (Phil N8): uma rodada inserida no meio fica para o próximo disparo
   const lidas = await paginado(c, fim, sb => sb.from('yt_watch_readings')
-    .select('id,rodada_id,lida_em,http,erro,jogador_bloqueado,idioma,titulo_oficial,titulo_oficial_fonte,miniatura_id', { count: 'exact' })
+    .select('id,rodada_id,lida_em,http,erro,jogador_bloqueado,idioma,titulo_exibido,miniatura_id', { count: 'exact' })
     .eq('site_id', a.siteId).eq('youtube_video_id', a.ytId).order('lida_em', { ascending: true }).order('id', { ascending: true }))
   const leituras: LeituraObs[] = lidas.flatMap(l => {
     const id = inteiro(l.id), lidaEm = texto(l.lida_em), rodadaId = texto(l.rodada_id)
     return id !== null && lidaEm && rodadaId ? [{
-      id, rodadaId, lidaEm, http: inteiro(l.http), erro: texto(l.erro), jogadorBloqueado: l.jogador_bloqueado === true, idioma: texto(l.idioma),
-      tituloOficial: texto(l.titulo_oficial), tituloFonte: texto(l.titulo_oficial_fonte), miniaturaId: inteiro(l.miniatura_id),
+      id, rodadaId, lidaEm, http: inteiro(l.http), erro: texto(l.erro), jogadorBloqueado: l.jogador_bloqueado === true, idioma: texto(l.idioma), tituloExibido: texto(l.titulo_exibido),
+      miniaturaId: inteiro(l.miniatura_id),
     }] : []
   })
   const idsThumb = [...new Set(leituras.flatMap(l => (l.miniaturaId === null ? [] : [l.miniaturaId])))]
@@ -226,21 +246,20 @@ async function avaliar(c: ContextoTarefa, fim: number, a: AlvoObs, publicadoEm: 
       if (id !== null && variante) thumbsPorId.set(id, { id, variante, http: inteiro(t.http), dhash: texto(t.dhash), largura: inteiro(t.largura), altura: inteiro(t.altura) })
     }
   }
-  const r = inferirObservadoDetalhe({
-    leituras, thumbsPorId, publicadoEm: new Date(publicadoEm), agoraMs: c.agora(), alvoSaiu: a.saiuEm !== null, ...(a.saiuPor !== null ? { saiuPor: a.saiuPor } : {}),
-  })
+  const g = await inferirComGuarda({ leituras, thumbsPorId, publicadoEm: new Date(publicadoEm), agoraMs }, conferirVersoes(c, fim, a, apoio))
+  const r = g.r
   d.obs_indeterminadas += r.indeterminadas
-  if (r.observados.length > 0) {
+  d.obs_titulo_suspenso += g.suspensos.size + (g.estourou ? 1 : 0)
+  if (r.versoesDemais) d.obs_versoes_demais++
+  // alvo que saiu fecha a linha em vez de abri-la (D-P3): quem decide é `gravacao`
+  const { linhas, cursor } = gravacao({ r, estourou: g.estourou }, { agoraIso, rodadas: a.rodadas, saiuPor: a.saiuEm !== null ? (a.saiuPor ?? 'saiu') : null })
+  if (linhas.length > 0) {
     ida(c, fim)
-    const w = await c.sb.from('ab_native_observados').upsert(r.observados.map(x => ({
-      site_id: a.siteId, youtube_video_id: a.ytId, campo: x.campo, tipo_troca: x.tipoTroca, veredito: x.veredito, versao_regra: x.versaoRegra,
-      trocas: x.trocas, n_versoes: x.nVersoes, ficou: x.ficou, ficou_estado: x.ficouEstado, motivo: x.motivo,
-      primeira_troca_em: x.primeiraTrocaEm, ultima_atualizacao_em: x.ultimaAtualizacaoEm,
-    })), { onConflict: 'site_id,youtube_video_id,campo' }).abortSignal(AbortSignal.timeout(BANCO_MS))
+    const w = await c.sb.from('ab_native_observados').upsert(linhas.map(l => ({ site_id: a.siteId, youtube_video_id: a.ytId, ...l })), { onConflict: 'site_id,youtube_video_id,campo' }).abortSignal(AbortSignal.timeout(BANCO_MS))
     if (w.error) throw new Error('observados')
-    d.obs_trocas += r.observados.length
+    d.obs_trocas += linhas.length
   }
-  await gravarCursor('ok', { titulo: r.validasTitulo, miniatura: r.validasMiniatura })
-  if (r.validasTitulo < VALIDAS_MIN_MEDIDO || r.validasMiniatura < VALIDAS_MIN_MEDIDO) d.obs_sem_leitura_valida++ // "não medido" em algum campo: a F2 não mostra "sem troca vista"
+  await gravarCursor(cursor)
+  if (r.validasTitulo === 0 || r.validasMiniatura === 0) d.obs_sem_leitura_valida++ // "não medido" em algum campo: a F2 não mostra "sem troca vista"
   d.obs_avaliados++
 }

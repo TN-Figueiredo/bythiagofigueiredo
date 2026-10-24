@@ -46,6 +46,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 import { NextRequest } from 'next/server'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 // Mirror middleware.test.ts: stub ring so site resolution uses localhost
 // instead of hitting the DB (which has no localhost site row).
@@ -120,7 +121,7 @@ describe.skipIf(skipIfNoLocalDb())('area authorization (admin + cms) — DB-gate
       }
     }
     if (siteIdsToCleanup.length) {
-      await db.from('sites').delete().in('id', siteIdsToCleanup)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [siteIdsToCleanup])
     }
     if (orgIdsToCleanup.length) {
       await db.from('organizations').delete().in('id', orgIdsToCleanup)

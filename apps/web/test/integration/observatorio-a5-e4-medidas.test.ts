@@ -17,6 +17,7 @@ import { DAY, spDateOf } from '@/lib/youtube/observatorio/time'
 import { somaDias } from '@/lib/youtube/observatorio/medidas/direcao'
 import { medidasDoCanal, type Insumos, type MedidasDoCanal } from '@/lib/youtube/observatorio/medidas/do-canal'
 import { lerCanal, lerMarcasDoCanal, lerRetratosDoCanal, lerVideosDoCanal } from '@/lib/youtube/observatorio/medidas/ler'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })
 
@@ -59,7 +60,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E4 Tarefa 16: leitores e medidasDoCanal c
   })
   afterAll(async () => {
     try {
-      if (sites.length > 0) await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+      if (sites.length > 0) await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       if (orgs.length > 0) await pg.query('delete from public.organizations where id = any($1::uuid[])', [orgs])
     } finally {
       await pg.end()

@@ -7,6 +7,7 @@ import { gzipSync, gunzipSync } from 'node:zlib'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite, SUPABASE_URL, ANON_KEY } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 const DIA = 864e5
 const SEM_NORMALIZADOR = ['channel_reach_combined_a1', 'channel_traffic_source_a3', 'channel_basic_a3']
@@ -38,7 +39,7 @@ describe.skipIf(skipIfNoLocalDb())('coleta L1a: schema (banco local)', () => {
     for (const t of ['yt_reporting_reports', 'yt_reporting_jobs', 'yt_own_video_meta_daily', 'yt_own_collection_attempts']) {
       await sb.from(t).delete().eq('site_id', siteId)
     }
-    await sb.from('sites').delete().eq('id', siteId)
+    await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   it('yt_own_attempt_record soma attempts na segunda chamada do dia e sobrescreve o resultado', async () => {

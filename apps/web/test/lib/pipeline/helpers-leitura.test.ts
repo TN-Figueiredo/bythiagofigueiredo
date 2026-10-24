@@ -90,3 +90,35 @@ describe('403 da autenticação sai com o código FORBIDDEN, em todos os helpers
     })
   }
 })
+
+describe('chaves archive_* da forja (M3a), antes das rotas da M3b', () => {
+  const ARQ = ['archive_copy', 'archive_read', 'archive_b2']
+  it('nunca escrevem nem pegam tarefa, em nenhum modo', async () => {
+    for (const modo of ['aviso', 'recusa'] as const) {
+      cfg.modo = modo
+      for (const p of ARQ) {
+        for (const porta of [authenticateWrite, authenticateIntel, authenticateReadOrIntel]) {
+          entra(chave([p]))
+          const r = await porta(req)
+          expect(r instanceof Response && r.status).toBe(403)
+        }
+      }
+    }
+  })
+  it('modo aviso (hoje): leem como qualquer chave sem read, e TODA leitura é registrada', async () => {
+    for (const p of ARQ) {
+      vi.clearAllMocks(); entra(chave([p]))
+      expect(await authenticateRead(req)).toMatchObject({ ok: true })
+      expect(registrarLeitura).toHaveBeenCalledWith(req, chave([p]), 'aviso')
+    }
+  })
+  it('modo recusa: 403 e a recusa é registrada', async () => {
+    cfg.modo = 'recusa'
+    for (const p of ARQ) {
+      vi.clearAllMocks(); entra(chave([p]))
+      const r = await authenticateRead(req)
+      expect(r instanceof Response && r.status).toBe(403)
+      expect(registrarLeitura).toHaveBeenCalledWith(req, chave([p]), 'recusada')
+    }
+  })
+})

@@ -1,4 +1,4 @@
-import type { VariantStats, BayesianResult, ZTestResult } from './ab-types'
+import type { BayesianResult, ContagemDaVariante, ResultadoBayes, ResultadoZ } from './ab-types'
 
 export function normalCdf(z: number): number {
   const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741
@@ -10,18 +10,26 @@ export function normalCdf(z: number): number {
   return 0.5 * (1.0 + sign * y)
 }
 
-export function calculateZTest(a: VariantStats, b: VariantStats): ZTestResult {
-  if (a.total_impressions === 0 || b.total_impressions === 0) {
-    return { zScore: 0, pValue: 1, significant: false }
+/**
+ * Teste z de duas proporções. `nao_medido`: impressão ou clique nulo (nunca vira 0).
+ * `sem_volume`: impressão 0 em alguma variante, ou taxa degenerada (zero cliques nas
+ * duas, ou todos os cliques; erro-padrão 0), não só "pouca impressão".
+ */
+export function zDuasProporcoes(a: ContagemDaVariante, b: ContagemDaVariante): ResultadoZ {
+  if (
+    a.total_impressions === null || a.total_clicks === null ||
+    b.total_impressions === null || b.total_clicks === null
+  ) {
+    return { estado: 'nao_medido' }
   }
+  if (a.total_impressions === 0 || b.total_impressions === 0) return { estado: 'sem_volume' }
   const pA = a.total_clicks / a.total_impressions
   const pB = b.total_clicks / b.total_impressions
   const pPool = (a.total_clicks + b.total_clicks) / (a.total_impressions + b.total_impressions)
   const se = Math.sqrt(pPool * (1 - pPool) * (1 / a.total_impressions + 1 / b.total_impressions))
-  if (se === 0) return { zScore: 0, pValue: 1, significant: false }
-  const zScore = (pB - pA) / se
-  const pValue = 2 * (1 - normalCdf(Math.abs(zScore)))
-  return { zScore, pValue, significant: pValue < 0.05 }
+  if (se === 0) return { estado: 'sem_volume' }
+  const z = (pB - pA) / se
+  return { estado: 'calculado', z, p: 2 * (1 - normalCdf(Math.abs(z))) }
 }
 
 /** Mulberry32 seeded PRNG — deterministic, fast, full 32-bit period */
@@ -69,7 +77,21 @@ function randn(random: () => number): number {
 
 const MC_SAMPLES = 10_000
 
-export function calculateBayesianConfidence(variants: VariantStats[]): BayesianResult {
+type Medida = { variant_id: string; total_impressions: number; total_clicks: number }
+
+/** Todas medidas ou nada: nulo nunca entra em soma. */
+function medidasOuNull(variants: readonly ContagemDaVariante[]): Medida[] | null {
+  const out: Medida[] = []
+  for (const v of variants) {
+    if (v.total_impressions === null || v.total_clicks === null) return null
+    out.push({ variant_id: v.variant_id, total_impressions: v.total_impressions, total_clicks: v.total_clicks })
+  }
+  return out
+}
+
+export function calculateBayesianConfidence(entrada: readonly ContagemDaVariante[]): ResultadoBayes {
+  const variants = medidasOuNull(entrada)
+  if (variants === null) return { estado: 'nao_medido' }
   const seed = variants.reduce((s, v) => s + v.total_impressions + v.total_clicks, 0)
   const random = mulberry32(seed)
 
@@ -103,7 +125,7 @@ export function calculateBayesianConfidence(variants: VariantStats[]): BayesianR
     }
   }
 
-  return { winnerId, confidence: probabilities[winnerId] ?? 0, probabilities }
+  return { estado: 'calculado', winnerId, confidence: probabilities[winnerId] ?? 0, probabilities }
 }
 
 export interface PlayoffMcResult {
@@ -111,7 +133,11 @@ export interface PlayoffMcResult {
   ptop2: Record<string, number>
 }
 
-export function calculatePlayoffStats(variants: VariantStats[]): PlayoffMcResult {
+export type ResultadoPlayoff = { estado: 'nao_medido' } | ({ estado: 'calculado' } & PlayoffMcResult)
+
+export function calculatePlayoffStats(entrada: readonly ContagemDaVariante[]): ResultadoPlayoff {
+  const variants = medidasOuNull(entrada)
+  if (variants === null) return { estado: 'nao_medido' }
   const seed = variants.reduce((s, v) => s + v.total_impressions + v.total_clicks, 0)
   const random = mulberry32(seed)
 
@@ -151,6 +177,7 @@ export function calculatePlayoffStats(variants: VariantStats[]): PlayoffMcResult
   }
 
   return {
+    estado: 'calculado',
     bayesian: { winnerId, confidence: probabilities[winnerId] ?? 0, probabilities },
     ptop2,
   }

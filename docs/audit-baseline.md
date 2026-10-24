@@ -25,6 +25,7 @@
 | BTF-083 | RESOLVIDO 2026-07-03 | TypeScript | Ratchet `check-type-debt.sh` agora cobre web/src+web/lib+api/src+packages/src (exclui testes), baseline 149, no job ecosystem-pinning. | scripts/check-type-debt.sh |
 | BTF-086b | MEDIO | CI | Restante do BTF-086 (audit gate ja bloqueante): type-debt ratchet + teste-guardiao de inventario PII. Mantido MEDIO: o guardian PII e LGPD-adjacente (inventario ja teve drift real) — so o audit gate foi resolvido. | .github/workflows/ci.yml |
 | BTF-094 | BAIXO | Deps | MITIGADO 2026-07-03: override virou floor range `^3.4.11` (advisory bumps fluem; canary + suites de sanitizer guardam comportamento). Restante: pin exato retinha o fix do proximo advisory (mesma classe do pin 3.4.2 que anulou o fix em 2026-07-03). Fix estrutural: bump isomorphic-dompurify 2.x -> 3.x (pareia dompurify ^3.4.11 + jsdom ^29 — major de jsdom em dep de PRODUCAO, exige sessao com build+testes), declarar dompurify como dep direta e remover o override. | package.json |
+| BTF-105 | ALTO (exceção datada) | Deps | GHSA-mrhx-c7xc-m3w5 (zod <4.6.6, DoS em `z.array`): exceção no `scripts/audit-gate.mjs`, validade 2027-01-31. Ver seção abaixo. | scripts/audit-gate.mjs |
 | — | — | Cobertura | DEFERIDO: testes de providers social (youtube/meta) — exigem mocking de SDK (~4h). Threshold de coverage no social bloqueado por version mismatch vitest 2.1.9 vs coverage-v8 3.2.4. | packages/social/ |
 | — | — | TypeScript | DEFERIDO: migracao de ~38 rotas mutativas para helper Zod unico (parseBodyWith). | apps/web/src/app/api/ |
 
@@ -222,3 +223,13 @@
 6. DEFERIDO: testes de providers social (youtube/meta) com mocks + alinhar vitest/coverage-v8 no social.
 
 > 2026-07-03: deploy freeze encerrado. f96fc806 + docs pushed (staging); BTF-080/086 resolvidos nesta rodada (blob 2.5.0, audit gate bloqueante, form-data/dompurify/js-yaml corrigidos). Prod deps 0 high.
+
+## Exceção datada de audit: GHSA-mrhx-c7xc-m3w5 (zod)
+
+- **Id / data:** GHSA-mrhx-c7xc-m3w5, decidida pelo dono em 2026-10-23 (opção a do parecer de Yannis, `.superpowers/sdd/audit-bump-gio/yannis-zod.md`).
+- **Motivo:** `zod <4.6.6` acumula um issue por elemento inválido em `$ZodArray`, sem teto. `@tn-figueiredo/cms@0.2.0` prende `zod@3.23.8` (cms 2.0.0 é reescrita adiada); `auth`, `email`, `newsletter` também declaram zod 3. Os 12 high do `npm audit --omit=dev` são só esse GHSA propagado (`@atproto/*`, `@tn-figueiredo/*`, `@vercel/blob`, `@vercel/oidc`, `@vercel/cli-config`, `zod`).
+- **Risco medido:** corpo de 4,5 MB (teto da Vercel) com `[""] x 1,5 milhão` gera 1,5 M de issues e ~640 MB de heap (amplificação ~140x) no zod 3.25.76, 3.23.8 e 4.6.5. O 4.6.6 só corta array com `.max`; sem `.max` ainda gasta ~956 MB. Explorável sem login em `subscribeToNewsletters` e nas actions de `cms/settings` (parse antes de `requireEditAccess`).
+- **Mitigação em código (lote paralelo):** helper `boundedArray` (guarda de tamanho antes do zod) na action pública de newsletter e nas coleções das actions do CMS; autorização antes do parse; `zodError()` com teto de issues; revisar `bodySizeLimit` de 50mb.
+- **Controle no CI:** `scripts/audit-gate.mjs` roda `npm audit --omit=dev --json`; só libera pacotes cujos `via` resolvem (transitivamente) apenas a advisories da allowlist. Falha em outro high/critical, em exceção vencida ou obsoleta.
+- **Validade:** 2027-01-31 (o script falha sozinho depois disso).
+- **Condição de saída:** `@tn-figueiredo/cms` sair do 0.2.0 (ou sair zod 3.x corrigido) e migração para zod >=4.6.6; então remover o id de `ALLOWLIST` (o gate também cobra a remoção quando o id some do audit).

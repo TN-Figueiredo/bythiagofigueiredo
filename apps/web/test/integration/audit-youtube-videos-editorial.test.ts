@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 interface AuditRow {
   id: string
@@ -85,7 +86,7 @@ describe.skipIf(skipIfNoLocalDb())('audit_youtube_videos_editorial trigger', () 
     if (videoId) await admin.from('audit_log').delete().eq('resource_type', 'youtube_videos').eq('resource_id', videoId)
     if (videoId) await admin.from('youtube_videos').delete().eq('id', videoId)
     if (channelId) await admin.from('youtube_channels').delete().eq('id', channelId)
-    if (siteId) await admin.from('sites').delete().eq('id', siteId)
+    if (siteId) await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   it('INSERT of the video wrote no audit row (discovery by the sync is not a decision)', async () => {

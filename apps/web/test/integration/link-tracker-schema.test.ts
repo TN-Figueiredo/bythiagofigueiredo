@@ -25,6 +25,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 import {
   SUPABASE_URL,
   ANON_KEY,
@@ -143,7 +144,7 @@ describe.skipIf(skipIfNoLocalDb())('Link Tracker schema — integration', () => 
     }
     if (cleanup.siteIds.length) {
       await db.from('tracked_links').delete().in('site_id', cleanup.siteIds)
-      await db.from('sites').delete().in('id', cleanup.siteIds)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [cleanup.siteIds])
     }
     if (cleanup.orgIds.length) {
       await db.from('organizations').delete().in('id', cleanup.orgIds)

@@ -17,6 +17,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, ANON_KEY, seedSite } from '../helpers/db-seed'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 describe.skipIf(skipIfNoLocalDb())('ad-engine 1.0 migrations', () => {
   let db: SupabaseClient
@@ -41,7 +42,7 @@ describe.skipIf(skipIfNoLocalDb())('ad-engine 1.0 migrations', () => {
       await db.from('ad_campaigns').delete().in('id', campaignIdsToCleanup)
     }
     if (siteIdsToCleanup.length) {
-      await db.from('sites').delete().in('id', siteIdsToCleanup)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [siteIdsToCleanup])
     }
     if (orgIdsToCleanup.length) {
       await db.from('organizations').delete().in('id', orgIdsToCleanup)

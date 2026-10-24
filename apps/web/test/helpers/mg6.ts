@@ -13,8 +13,9 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { M2_BLOCO_11 } from './m2'
+import { garantirParticoesDaDiaria, travarDdl } from './ddl-testes'
 import { lerSqlDaX3, lerX3Registro } from './x3-sql'
-import { lerSqlDaF1 } from './f1-sql'
+import { lerSqlDaF1, lerSqlDaT13 } from './f1-sql'
 
 export const MG6_FIXTURE = fileURLToPath(new URL('../fixtures/sql/a5-e10-mg6.sql', import.meta.url))
 
@@ -36,6 +37,7 @@ function codigoDoErro(e: unknown): string {
 
 /** Aplica o ensaio da MG6 na transação aberta (idempotente: pode ser aplicada de novo sobre uma MG6 já aplicada). */
 export async function garantirMg6(c: Client): Promise<void> {
+  await travarDdl(c)   // Yannis N4: DDL em transação desfeita se enfileira entre arquivos
   await c.query(lerSqlDaMg6())
   // a fixture é a MG6 de produção byte a byte e recria duas funções sem saber de partição; o bloco 11 da M2 as recria com o conserto
   await c.query(M2_BLOCO_11)
@@ -53,6 +55,17 @@ export async function garantirMg6(c: Client): Promise<void> {
  * Abre a transação e aplica a MG6. Banco ocupado por outro agente (`55P03` lock_timeout, `40P01` deadlock): espera e repete,
  * até 3 vezes; passando disso, o erro sobe (o teste falha dizendo que o banco estava ocupado, nunca em silêncio).
  */
+/**
+ * MG6 + F1 (garantirMg6) e depois a 20261021000007 (T13), que é o corpo de partida do bloco 11b da M2. Fica fora de
+ * `garantirMg6` de propósito: as suítes da E10 e da E4 esperam 30 entradas no registro. Quem aplica a M2 ou a M3b depois
+ * usa esta (MG6+F1 deixa o corpo da F1, e não o da 0007, e a M2 cairia em `M2:..._divergente`).
+ */
+export async function garantirComT13(c: Client): Promise<void> {
+  await garantirMg6(c)
+  const t13 = lerSqlDaT13()
+  if (t13 !== null && (await c.query(`select to_regclass('public.ab_native_observados') is not null and to_regclass('public.ab_native_obs_cursor') is not null as ok`)).rows[0]?.ok) await c.query(t13)
+}
+
 export async function iniciarComMg6(c: Client, isolamento: 'read committed' | 'repeatable read' = 'read committed'): Promise<void> {
   for (let tentativa = 0; ; tentativa++) {
     await c.query(`begin isolation level ${isolamento}`)
@@ -167,6 +180,7 @@ export async function criarVideo(c: Client, canal: string, diasAtras: number): P
 
 /** Uma linha em quase toda tabela do registro para o vídeo (e o canal). Datas relativas a hoje. */
 export async function semearDadosDoVideo(c: Client, site: string, canal: string, video: string): Promise<void> {
+  await garantirParticoesDaDiaria(c, new Date(Date.now() - 41 * 86400000).toISOString().slice(0, 10), 42)   // current_date - 40 .. - 1 (Yannis N1)
   await c.query(
     `insert into public.competitor_video_daily (video_id, snap_date, views, taken_at) values
        ($1, current_date - 1, 100, now() - interval '1 day'), ($1, current_date - 2, 90, now() - interval '2 days'), ($1, current_date - 40, 5, now() - interval '40 days')`, [video])

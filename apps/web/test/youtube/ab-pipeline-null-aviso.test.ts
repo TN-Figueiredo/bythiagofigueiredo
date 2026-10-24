@@ -110,15 +110,15 @@ describe('funil: impressões e cliques de entrega saem null com aviso; link_clic
       sites: [{ id: SITE }],
       ab_tests: [{ id: 't1', site_id: SITE, started_at: START, completed_at: END }],
       ab_test_cycles: [
-        { test_id: 't1', variant_id: 'v1', impressions: 150, clicks: 15 },
-        { test_id: 't1', variant_id: 'v2', impressions: 200, clicks: 30 },
+        { test_id: 't1', variant_id: 'v1', impressions: 150, clicks: 15, started_at: START },
+        { test_id: 't1', variant_id: 'v2', impressions: 200, clicks: 30, started_at: START },
       ],
       tracked_links: [{ id: 'l1', site_id: SITE, deleted_at: null }],
       link_clicks: [{ id: 'c1', site_id: SITE, link_id: 'l1', is_bot: false, clicked_at: '2026-03-02T00:00:00.000Z' }],
     },
     columns: {
       ab_tests: ['id', 'site_id', 'started_at', 'completed_at'],
-      ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks'],
+      ab_test_cycles: ['test_id', 'variant_id', 'impressions', 'clicks', 'started_at'],
       tracked_links: ['id', 'site_id', 'deleted_at'],
       link_clicks: ['id', 'site_id', 'link_id', 'is_bot', 'clicked_at'],
     },
@@ -136,6 +136,18 @@ describe('funil: impressões e cliques de entrega saem null com aviso; link_clic
     }
     expect(data.per_link).toEqual([])
     expect(data.link_clicks_window).toBeNull()
+  })
+
+  it('I-1: ciclos com impressions null (caso real de produção) ainda listam as variantes que rodaram', async () => {
+    const w = world()
+    w.tables.ab_test_cycles = [
+      { test_id: 't1', variant_id: 'v1', impressions: null, clicks: null, started_at: START },
+      { test_id: 't1', variant_id: 'v2', impressions: null, clicks: null, started_at: START },
+    ]
+    sb = fakePostgrest(w)
+    const { data } = await youtube.getAbTestFunnel(ctxOf(), 't1')
+    expect(data.per_variant.map(v => v.variant_id).sort()).toEqual(['v1', 'v2'])
+    for (const v of data.per_variant) expect(v.impressions).toBeNull()
   })
 
   it('paridade: ação MCP get_funnel dá o mesmo JSON do serviço', async () => {

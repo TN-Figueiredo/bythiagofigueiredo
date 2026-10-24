@@ -1,0 +1,102 @@
+// apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts
+/**
+ * Manutenção M3b, emenda de 14/10 (peça 7): o leitor puro da leitura C12 (`obs_archive_owner_pending`), usado pela página e pelo comando
+ * `npm run -s obs:arquivo`. Puro: só `zod` e o contrato; o `tsx` da raiz o importa. Estrito de propósito: qualquer desvio da forma é
+ * `{ ok: false }`, que a tela mostra como "não medido" e o comando trata como erro, nunca como "nada pendente" (o sistema falha em verde).
+ * Os caminhos de `apagar` viram argumento de `rm` na forja: nada vindo do banco vira pedaço de comando sem passar por aqui.
+ */
+import { z } from 'zod'
+import { MES_RE, SHA_RE, UUID_RE, type Filho } from './contrato'
+
+export const LINHA_DO_DONO = "cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'"
+export const VERSAO_PENDENCIAS = 1
+
+export const TEMPOS_PENDENCIA = ['sem_comando', 'copiar', 'conferir_b2', 'apagar_antigas', 'bloqueado'] as const
+export type TempoPendencia = (typeof TEMPOS_PENDENCIA)[number]
+const KINDS = ['canal', 'video', 'comentario'] as const
+
+// Sem "..", sem "." isolado, sem "/" no começo, sem aspas, espaço, "$" ou crase.
+const CAMINHO_SEGURO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))[A-Za-z0-9_][A-Za-z0-9._/-]{0,299}$/
+const ITEM_ID_RE = /^(?:canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|item:[1-9][0-9]{0,18})$/
+const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
+const data = z.string().datetime({ offset: true })
+const caminho = z.string().regex(CAMINHO_SEGURO)
+const FILHOS = ['numerico', 'texto'] as const satisfies readonly Filho[]
+const filho = z.enum(FILHOS)
+
+const Apagar = z.object({
+  filho, caminho, sha256: z.string().regex(SHA_RE),
+  nova: z.object({ caminho, sha256: z.string().regex(SHA_RE) }).strict().nullable(),
+}).strict()
+
+const Item = z.object({
+  item_id: z.string().regex(ITEM_ID_RE),
+  kind: z.enum(KINDS),
+  tempo: z.enum(TEMPOS_PENDENCIA),
+  desde: data,
+  mes: z.string().regex(MES_RE).nullable(),
+  channel_ref: z.string().regex(UUID_RE).nullable(),
+  youtube_id: z.string().regex(YOUTUBE_ID_RE).nullable(),
+  marcado_rodado_em: data.nullable(),
+  apagar: z.array(Apagar),
+  b2_nomes: z.array(caminho),
+}).strict().superRefine((i, ctx) => {
+  const falha = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }) }
+  const apagarAntigas = i.tempo === 'apagar_antigas'
+  if ((i.apagar.length > 0) !== apagarAntigas) falha('apagar só existe em apagar_antigas, e lá não é vazio')
+  if (!apagarAntigas && i.b2_nomes.length > 0) falha('b2_nomes só existe em apagar_antigas')
+  const deCanal = i.item_id.startsWith('canal:')
+  if (deCanal !== (i.kind === 'canal')) falha('kind canal se e só se item_id começa por canal:')
+  if (deCanal && i.item_id.slice('canal:'.length) !== i.channel_ref) falha('canal:<uuid> diferente de channel_ref')
+})
+
+const Corpo = z.object({ versao: z.literal(VERSAO_PENDENCIAS), lido_em: data, total: z.number().int().nonnegative(), itens: z.array(Item) })
+  .strict().superRefine((c, ctx) => {
+    if (c.total !== c.itens.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'total diferente do tamanho da lista' })
+  })
+
+export interface PendenciaDoDono {
+  itemId: string
+  kind: (typeof KINDS)[number]
+  tempo: TempoPendencia
+  desde: Date
+  mes: string | null
+  channelRef: string | null
+  youtubeId: string | null
+  marcadoRodadoEm: Date | null
+  apagar: Array<{ filho: Filho; caminho: string; sha256: string; nova: { caminho: string; sha256: string } | null }>
+  b2Nomes: string[]
+}
+export type LeituraPendencias = { ok: true; lidoEm: Date; itens: PendenciaDoDono[] } | { ok: false; porque: string }
+
+/** Lê a resposta do C12. Nunca devolve lista vazia no lugar de um erro. A razão da recusa não repete o valor recebido. */
+export function lerPendencias(bruto: unknown): LeituraPendencias {
+  const r = Corpo.safeParse(bruto)
+  if (!r.success) {
+    const e = r.error.issues[0]
+    return { ok: false, porque: e ? `${e.path.join('.') || 'corpo'}: ${e.message}` : 'forma inválida' }
+  }
+  return {
+    ok: true, lidoEm: new Date(r.data.lido_em),
+    itens: r.data.itens.map(i => ({
+      itemId: i.item_id, kind: i.kind, tempo: i.tempo, desde: new Date(i.desde), mes: i.mes, channelRef: i.channel_ref, youtubeId: i.youtube_id,
+      marcadoRodadoEm: i.marcado_rodado_em ? new Date(i.marcado_rodado_em) : null, apagar: i.apagar, b2Nomes: i.b2_nomes,
+    })),
+  }
+}
+
+export type PendenciasDaTela =
+  | { estado: 'nao_medido' }
+  | { estado: 'zero'; lidoEm: Date; linha: string | null }
+  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; idadeDias: number }>; linha: string | null }
+
+const DIA_MS = 86_400_000
+/** O que a tela recebe. `apagar` e `b2_nomes` nunca saem daqui; a linha só vai a quem administra o site (E-D4). */
+export function pendenciasParaTela(l: LeituraPendencias, o: { podeVerComandos: boolean; agora: Date }): PendenciasDaTela {
+  if (!l.ok) return { estado: 'nao_medido' }
+  const linha = o.podeVerComandos ? LINHA_DO_DONO : null
+  if (l.itens.length === 0) return { estado: 'zero', lidoEm: l.lidoEm, linha }
+  const idade = (d: Date): number => Math.max(0, Math.floor((o.agora.getTime() - d.getTime()) / DIA_MS))
+  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, idadeDias: idade(i.desde) }))
+  return { estado: 'com_itens', lidoEm: l.lidoEm, n: itens.length, maisAntigoDias: Math.max(...itens.map(i => i.idadeDias)), itens, linha }
+}

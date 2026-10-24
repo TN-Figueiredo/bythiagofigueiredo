@@ -17,6 +17,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SERVICE_KEY, SUPABASE_URL } from '../helpers/db-seed'
 import { semearCena, escalar, type Cena } from '../helpers/mg6'
 import { podarRetratosDeCanal } from '@/lib/youtube/competitor-snapshot-prune'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const DIA = 86_400_000
@@ -66,8 +67,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 11b: 400 dias depois, o ausente
       await pg.query(`delete from public.competitor_removed_items where site_id = $1`, [c.site])
       await pg.query(`delete from public.youtube_intelligence_tasks where site_id = $1`, [c.site])
       await pg.query(`delete from public.youtube_niches where site_id = $1`, [c.site])
-      await pg.query(`delete from public.competitor_channels where site_id = $1`, [c.site])
-      await pg.query(`delete from public.sites where id = $1`, [c.site])
+      await apagarCanais(pg, 'site_id = $1', [c.site])
+      await apagarSites(pg, 'id = $1', [c.site])
       await pg.query(`delete from public.organizations where id = $1`, [c.org])
       await pg.query(`delete from auth.users where id in ($1, $2)`, [c.admin, c.comum])
     } catch (e) { console.error('limpeza da 400-dias falhou', c.site, e instanceof Error ? e.message : e) }

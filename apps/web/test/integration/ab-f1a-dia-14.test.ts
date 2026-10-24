@@ -26,6 +26,7 @@ import { leituraDoEditor, type LeituraPrivadaDoSite } from '@/lib/youtube/observ
 import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { prazoDoDia14, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 90_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -55,7 +56,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-tela-1 T10b: dia 14 com duas versões (b
       for (const t of ['ab_native_tests', 'yt_own_video_meta_daily', 'youtube_videos', 'youtube_channels', 'audit_log', 'notifications']) {
         await pg.query(`delete from public.${t} where site_id = $1`, [siteId]).catch(() => undefined)
       }
-      await pg.query('delete from public.sites where id = $1', [siteId])
+      await apagarSites(pg, 'id = $1', [siteId])
       await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
     } finally { await pg.end() }
   })

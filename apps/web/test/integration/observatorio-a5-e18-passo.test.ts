@@ -27,6 +27,7 @@ import { passoVersoes, type VersoesResumo } from '@/lib/youtube/coleta/versoes-s
 import type { ColetaChannel } from '@/lib/youtube/coleta/types'
 import { provarLeituraPrivada } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { lerVersoes } from '@/lib/youtube/observatorio/proprio-versoes/ler'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 90_000 })
 
@@ -62,7 +63,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E18 (Tarefa 10): passo de versões e leit
           await pg.query(`delete from public.${t} where site_id = any($1::uuid[])`, [sites])
         }
         await pg.query('delete from public.audit_log where site_id = any($1::uuid[])', [sites])
-        await pg.query('delete from public.sites where id = any($1::uuid[])', [sites])
+        await apagarSites(pg, 'id = any($1::uuid[])', [sites])
       }
     } finally {
       await pg.end()

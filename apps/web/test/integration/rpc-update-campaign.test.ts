@@ -23,6 +23,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 import {
   SUPABASE_URL,
   SERVICE_KEY,
@@ -47,7 +48,7 @@ describe.skipIf(skipIfNoLocalDb())('RPC update_campaign_atomic', () => {
       await db.from('campaigns').delete().in('id', campaignIdsToCleanup)
     }
     if (siteIdsToCleanup.length) {
-      await db.from('sites').delete().in('id', siteIdsToCleanup)
+      await apagarSitesDeTeste('id = any($1::uuid[])', [siteIdsToCleanup])
     }
     if (orgIdsToCleanup.length) {
       await db.from('organizations').delete().in('id', orgIdsToCleanup)

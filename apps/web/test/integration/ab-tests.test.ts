@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { SUPABASE_URL, SERVICE_KEY, seedSite, seedYoutubeChannelAndVideo } from '../helpers/db-seed'
 import { createClient } from '@supabase/supabase-js'
+import { apagarSitesDeTeste } from '../helpers/limpa-cena'
 
 describe.skipIf(skipIfNoLocalDb())('ab-tests integration', () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
@@ -30,7 +31,7 @@ describe.skipIf(skipIfNoLocalDb())('ab-tests integration', () => {
     }
     if (videoId) await supabase.from('youtube_videos').delete().eq('id', videoId)
     if (channelId) await supabase.from('youtube_channels').delete().eq('id', channelId)
-    if (siteId) await supabase.from('sites').delete().eq('id', siteId)
+    if (siteId) await apagarSitesDeTeste('id = $1', [siteId])
   })
 
   it('creates a draft test', async () => {

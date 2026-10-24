@@ -34,7 +34,7 @@ export interface VideoRow {
   channelName: string
   pinnedUntil: string | null
   durationSeconds: number | null
-  abTest: { id: string; status: string; started_at: string | null; result_metadata: { ctr_lift_percent: number } | null } | null
+  abTest: { id: string; status: string; started_at: string | null } | null
   sourcePipelineId: string | null
   cmsNotes: string | null
   version: number

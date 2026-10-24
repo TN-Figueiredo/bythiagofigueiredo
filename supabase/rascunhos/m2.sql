@@ -786,6 +786,220 @@ $f$;
   end if;
 end $$;
 
+-- 11c. competitor_channel_delete_unarchived ("Remover canal sem arquivo", F1/T13) mede o apagado por n_tup_del do fecho de cascata, como a
+--      remove_archived do 11b: depois da conversão a mãe particionada tem n_tup_del 0 e as partições entrariam no fecho pelas chaves herdadas
+--      (apagou_alem_do_arquivo: competitor_video_daily apagadas=0 antes=N, o botão fica morto). Aqui: o fecho só com relações que não são
+--      partição, e o n_tup_del de cada uma é a soma das folhas de pg_partition_tree.
+--      Ausente: nada. Já com o conserto (pg_partition_tree): nada. Corpo diferente do conhecido: recusa.
+--      O create or replace preserva as concessões da F1 (service_role); este bloco não mexe em grant/revoke.
+do $$
+declare
+  v_src text;
+begin
+  select p.prosrc into v_src from pg_catalog.pg_proc p where p.oid = pg_catalog.to_regprocedure('public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)');
+  if v_src is not null and v_src !~ 'pg_partition_tree' then
+    if pg_catalog.md5(v_src) <> '95c5ec60ab2b07b4e8151c1768d91370' then
+      raise exception 'M2:competitor_channel_delete_unarchived_divergente' using errcode = 'P0001',
+        detail = 'o corpo instalado não é o da 20261021000007 (T13): copiar o corpo instalado com a guarda por folhas para esta migration';
+    end if;
+    execute $f$
+create or replace function public.competitor_channel_delete_unarchived(p_site uuid, p_channel uuid, p_actor uuid, p_confirm_name text, p_motivo text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $b$
+declare
+  v_max_dias constant integer := 30;
+  v_c record;
+  v_yt text[];
+  v_busy bigint;
+  v_antes jsonb;
+  v_urls text[];
+  v_base jsonb;
+  v_rows jsonb := '{}'::jsonb;
+  v_t record;
+  v_n_l bigint := 0;
+  v_n_t bigint := 0;
+  v_n_a bigint := 0;
+  v_n_o bigint := 0;  -- T13: trocas observadas e cursor
+  v_n_k bigint := 0;
+  v_watch jsonb;
+  v_id bigint;
+  v_featured integer;
+  v_refs jsonb;
+  v_now timestamptz := pg_catalog.clock_timestamp();
+begin
+  if p_site is null or p_channel is null or p_actor is null or p_confirm_name is null or btrim(p_confirm_name) = ''
+     or p_motivo is null or p_motivo !~ '^[a-z_]{1,40}$' then
+    raise exception 'E10:parametro_nulo: competitor_channel_delete_unarchived' using errcode = '22023';
+  end if;
+  if not public.obs_archive_is_site_admin(p_site, p_actor) then
+    raise exception 'E10:sem_direito: só quem administra o site apaga um canal' using errcode = '42501';
+  end if;
+  select c.channel_id, c.channel_name, c.added_at, c.missing_since into v_c
+    from public.competitor_channels c
+   where c.id = p_channel and c.site_id = p_site
+     for update;
+  if not found then
+    raise exception 'E10:canal_nao_encontrado: neste site' using errcode = 'P0002';
+  end if;
+  if v_c.missing_since is not null then
+    raise exception 'E10:saiu_do_youtube: este canal saiu do YouTube' using errcode = 'P0001';
+  end if;
+  if v_c.added_at is null or v_now - v_c.added_at > make_interval(days => v_max_dias) then
+    raise exception 'E10:canal_antigo: canal com mais de % dias não se apaga sem guardar', v_max_dias using errcode = 'P0001';
+  end if;
+  -- maiúscula e minúscula valem igual (mockup aprovado em 19/10); espaço de qualquer tipo é normalizado; caractere de controle não
+  if public.obs_nome_normalizado(p_confirm_name) is distinct from public.obs_nome_normalizado(v_c.channel_name) then
+    raise exception 'E10:nome_nao_confere: o nome digitado não é o nome do canal' using errcode = 'P0001';
+  end if;
+
+  perform 1 from public.competitor_videos v where v.competitor_channel_id = p_channel order by v.id for update;
+  select coalesce(array_agg(v.video_id), '{}'::text[]) into v_yt from public.competitor_videos v where v.competitor_channel_id = p_channel;
+  perform public.obs_f1_video_compartilhado(p_site, p_channel);
+
+  -- tarefa da forja em andamento (janela fixa de 30 min, como na E9)
+  perform 1 from public.youtube_intelligence_tasks t
+    where t.target_video_id in (select v.id from public.competitor_videos v where v.competitor_channel_id = p_channel)
+    order by t.id for update;
+  select count(*) into v_busy
+    from public.youtube_intelligence_tasks t
+    join public.competitor_videos v on v.id = t.target_video_id
+   where v.competitor_channel_id = p_channel and t.status = 'running'
+     and (t.started_at is null or t.started_at > v_now - interval '30 minutes');
+  if v_busy > 0 then
+    raise exception 'E10:forja_em_andamento: % tarefa(s) da forja em andamento', v_busy using errcode = 'P0001';
+  end if;
+
+  -- retrato do que existe, por tabela, ANTES de apagar
+  select coalesce(jsonb_object_agg(x.table_name, x.total), '{}'::jsonb) into v_antes
+    from (select n.table_name, sum(n.row_count) as total from public.obs_archive_channel_counts(p_channel) n group by n.table_name) x;
+  select coalesce(array_agg(distinct x.thumb_blob_url), '{}'::text[]) into v_urls
+    from public.competitor_video_versions x
+    join public.competitor_videos v on v.id = x.video_id
+   where v.competitor_channel_id = p_channel and x.thumb_blob_url is not null;
+
+  -- medição independente do apagado (n_tup_del do fecho de cascata); sem track_counts a contagem é zero e não vale
+  if pg_catalog.current_setting('track_counts') <> 'on' then
+    raise exception 'E10:apagou_alem_do_arquivo: track_counts desligado' using errcode = 'P0001';
+  end if;
+  with recursive alvo (rel) as (
+    select 'public.competitor_channels'::regclass::oid
+    union
+    select k.conrelid from pg_catalog.pg_constraint k join alvo a on k.confrelid = a.rel
+     where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+  )
+  select coalesce(jsonb_object_agg(c.relname::text, coalesce((select sum(x.n_tup_del) from pg_catalog.pg_stat_xact_user_tables x where x.relid = c.oid or x.relid in (select pt.relid from pg_catalog.pg_partition_tree(c.oid) pt where pt.isleaf)), 0)), '{}'::jsonb) into v_base
+    from alvo a
+    join pg_catalog.pg_class c on c.oid = a.rel
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and not c.relispartition;
+
+  -- (Phil I-1) a FK featured_channel_id zera o campo em comentários de OUTROS canais; o n_tup_del não vê update, então o rastro vai ao audit
+  select count(*) into v_featured from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
+  select coalesce(jsonb_agg(jsonb_build_object('comment_id', k.id, 'video_id', k.video_id, 'channel_ref', k.competitor_channel_id) order by k.id), '[]'::jsonb) into v_refs
+    from public.competitor_video_comments k
+   where k.featured_channel_id = p_channel and k.competitor_channel_id <> p_channel;
+
+  -- a watch não está no fecho de cascata: apaga explicitamente, antes do canal
+  perform 1 from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt) for update;
+  delete from public.yt_watch_readings r where r.site_id = p_site and r.youtube_video_id = any(v_yt);
+  get diagnostics v_n_l = row_count;
+  delete from public.yt_watch_thumbs t where t.site_id = p_site and t.youtube_video_id = any(v_yt);
+  get diagnostics v_n_t = row_count;
+  delete from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt);
+  get diagnostics v_n_a = row_count;
+  -- T13: as trocas observadas e o cursor dos mesmos (site, vídeo); também não estão no fecho de cascata
+  delete from public.ab_native_observados o where o.site_id = p_site and o.youtube_video_id = any(v_yt);
+  get diagnostics v_n_o = row_count;
+  delete from public.ab_native_obs_cursor k where k.site_id = p_site and k.youtube_video_id = any(v_yt);
+  get diagnostics v_n_k = row_count;
+
+  -- o canal: pela M3b quando ela existir (declara o destino), senão delete direto
+  if to_regprocedure('public.competitor_channel_remove(uuid,uuid,text,text,uuid)') is not null then
+    perform public.competitor_channel_remove(p_site, p_channel, 'apagar', 'botao', p_actor);
+  else
+    delete from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;
+  end if;
+  if exists (select 1 from public.competitor_channels c where c.id = p_channel) then
+    raise exception 'E10:sobrou_linha: o canal não foi apagado' using errcode = 'P0001';
+  end if;
+
+  if exists (select 1 from public.obs_archive_channel_counts(p_channel)) then
+    raise exception 'E10:sobrou_linha: uma tabela do registro não apaga em cascata' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from public.yt_watch_readings r where r.site_id = p_site and r.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.yt_watch_thumbs t where t.site_id = p_site and t.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.yt_watch_alvos a where a.site_id = p_site and a.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.ab_native_observados o where o.site_id = p_site and o.youtube_video_id = any(v_yt))
+     or exists (select 1 from public.ab_native_obs_cursor k where k.site_id = p_site and k.youtube_video_id = any(v_yt)) then
+    raise exception 'E10:sobrou_linha: watch' using errcode = 'P0001';
+  end if;
+
+  -- o apagado medido tem de ser igual ao retrato de antes, tabela a tabela
+  for v_t in
+    with recursive alvo (rel) as (
+      select 'public.competitor_channels'::regclass::oid
+      union
+      select k.conrelid from pg_catalog.pg_constraint k join alvo a on k.confrelid = a.rel
+       where k.contype = 'f' and k.confdeltype = 'c' and k.conrelid <> k.confrelid
+    )
+    select c.relname::text as nome,
+           coalesce((select sum(x.n_tup_del) from pg_catalog.pg_stat_xact_user_tables x where x.relid = c.oid or x.relid in (select pt.relid from pg_catalog.pg_partition_tree(c.oid) pt where pt.isleaf)), 0) - coalesce((v_base ->> c.relname::text)::bigint, 0) as apagadas
+      from alvo a
+      join pg_catalog.pg_class c on c.oid = a.rel
+      join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and not c.relispartition
+       and c.relname::text not in (select e.table_name from public.obs_archive_excluded() e)
+     order by 1
+  loop
+    if v_t.apagadas <> coalesce((v_antes ->> v_t.nome)::bigint, 0) then
+      raise exception 'E10:apagou_alem_do_arquivo: % apagadas=% antes=%', v_t.nome, v_t.apagadas, coalesce(v_antes ->> v_t.nome, '0') using errcode = 'P0001';
+    end if;
+    if v_t.apagadas > 0 then
+      v_rows := v_rows || jsonb_build_object(v_t.nome, v_t.apagadas);
+    end if;
+  end loop;
+  if v_n_l <> coalesce((v_antes ->> 'yt_watch_readings')::bigint, 0)
+     or v_n_t <> coalesce((v_antes ->> 'yt_watch_thumbs')::bigint, 0)
+     or v_n_a <> coalesce((v_antes ->> 'yt_watch_alvos')::bigint, 0)
+     or v_n_o <> coalesce((v_antes ->> 'ab_native_observados')::bigint, 0)
+     or v_n_k <> coalesce((v_antes ->> 'ab_native_obs_cursor')::bigint, 0) then
+    raise exception 'E10:apagou_alem_do_arquivo: watch leituras=% miniaturas=% alvos=%', v_n_l, v_n_t, v_n_a using errcode = 'P0001';
+  end if;
+  v_watch := jsonb_build_object('readings', v_n_l, 'thumbs', v_n_t, 'alvos', v_n_a);
+  -- as três chaves da watch existem SEMPRE (zero quando nada foi apagado): quem lê não distingue "0" de "não medido"
+  v_rows := v_rows || jsonb_build_object('yt_watch_readings', v_n_l, 'yt_watch_thumbs', v_n_t, 'yt_watch_alvos', v_n_a);
+  v_rows := v_rows || jsonb_build_object('ab_native_observados', v_n_o, 'ab_native_obs_cursor', v_n_k); -- T13: idem, sempre presentes
+
+  -- lotes abertos deste canal apontam para um canal que não existe mais
+  update public.obs_archive_batches b
+     set closed_at = v_now, closed_reason = 'apagado_sem_arquivo'
+   where b.site_id = p_site and b.channel_ref = p_channel::text and b.deleted_at is null and b.closed_at is null;
+
+  insert into public.obs_unarchived_deletions
+    (site_id, channel_ref, channel_name, youtube_channel_id, reason, deleted_at, deleted_by, rows_deleted, youtube_video_ids, blob_urls_pending)
+  values (p_site, p_channel::text, v_c.channel_name, v_c.channel_id, p_motivo, v_now, p_actor, v_rows, v_yt, v_urls)
+  returning id into v_id;
+
+  insert into public.audit_log (actor_user_id, action, resource_type, resource_id, org_id, site_id, before_data, after_data)
+  select p_actor, 'observatorio_canal_apagado_sem_arquivo', 'competitor_channel', p_channel, s.org_id, p_site,
+         jsonb_build_object('channel_id', v_c.channel_id, 'channel_name', v_c.channel_name, 'added_at', v_c.added_at),
+         jsonb_build_object('motivo', p_motivo, 'videos', cardinality(v_yt), 'rows_deleted', v_rows, 'watch', v_watch,
+                            'miniaturas_no_blob', cardinality(v_urls), 'deletion_id', v_id,
+                            'featured_refs_cleared', v_featured, 'featured_refs', v_refs)
+    from public.sites s where s.id = p_site;
+
+  return jsonb_build_object('status', 'apagado', 'deletion_id', v_id, 'videos', cardinality(v_yt), 'linhas', v_rows,
+                            'watch', v_watch, 'blob_urls', to_jsonb(v_urls),
+                            'featured_refs_cleared', v_featured, 'featured_refs', v_refs);
+end $b$;
+$f$;
+  end if;
+end $$;
+
 -- 12. A conversão das três séries: um só bloco, uma só transação (se uma falhar, nenhuma muda).
 -- Todas as travas de uma vez e em ordem fixa (sem ciclo com um coletor que segura a early e grava em competitor_videos).
 -- Dentro do bloco: `lock table` solto exige bloco de transação explícito, e o db push não garante um.

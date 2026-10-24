@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { seedSite } from '../helpers/db-seed'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -42,7 +43,7 @@ describe.skipIf(skipIfNoLocalDb())('S7 f1: schema e funções do registro do tes
     try {
       await pg.query('delete from public.youtube_videos where site_id = $1', [siteId])
       await pg.query('delete from public.youtube_channels where site_id = $1', [siteId])
-      await pg.query('delete from public.sites where id = $1', [siteId])
+      await apagarSites(pg, 'id = $1', [siteId])
     } finally {
       await pg.end()
     }

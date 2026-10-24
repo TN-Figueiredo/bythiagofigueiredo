@@ -20,6 +20,7 @@ import { ehTabelaDeIdentidade } from '@/lib/youtube/observatorio/comentarios/ide
 import { ROTULO_DA_TABELA } from '@/lib/youtube/observatorio/saiu/rotulos'
 import type { ItemEsperando } from '@/lib/youtube/observatorio/saiu/modelo'
 import type { ResultadoDoBlob } from '@/lib/youtube/observatorio/saiu/blob'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const TITULO = 'TITULO-SEMEADO-NAO-PODE-VAZAR'
@@ -39,8 +40,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 12: a fila de ponta (serviço d
         await pg.query(`delete from public.competitor_removed_items where site_id = $1`, [c.site])
         await pg.query(`delete from public.youtube_intelligence_tasks where site_id = $1`, [c.site])
         await pg.query(`delete from public.youtube_niches where site_id = $1`, [c.site])
-        await pg.query(`delete from public.competitor_channels where site_id = $1`, [c.site])
-        await pg.query(`delete from public.sites where id = $1`, [c.site])
+        await apagarCanais(pg, 'site_id = $1', [c.site])
+        await apagarSites(pg, 'id = $1', [c.site])
         await pg.query(`delete from public.organizations where id = $1`, [c.org])
         await pg.query(`delete from auth.users where id in ($1, $2)`, [c.admin, c.comum])
       } catch (e) { console.error('limpeza da fila falhou', c.site, e instanceof Error ? e.message : e) }

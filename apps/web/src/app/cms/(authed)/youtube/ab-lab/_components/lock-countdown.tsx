@@ -5,7 +5,7 @@ import { Lock } from 'lucide-react'
 export interface LockCountdownProps {
   dayOf: number
   durationDays: number
-  confidence: number
+  confidence: number | null
   confidenceTarget: number
   cyclesCompleted: number
   createdAt?: string

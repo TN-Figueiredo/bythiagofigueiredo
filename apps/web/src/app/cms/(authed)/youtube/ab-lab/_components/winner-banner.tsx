@@ -11,9 +11,9 @@ export interface WinnerBannerProps {
   lift: number | null
   confidence: number | null
   stats: {
-    ctrBefore: number
-    ctrAfter: number
-    totalImpressions: number
+    ctrBefore: number | null
+    ctrAfter: number | null
+    totalImpressions: number | null
     abbaCycles: number
     monthlyExtraClicks: number | null
   }
@@ -24,7 +24,7 @@ export function WinnerBanner({
   lift,
   stats,
 }: WinnerBannerProps) {
-  const ctrMedido = stats.totalImpressions > 0
+  const ctrMedido = stats.totalImpressions !== null && stats.totalImpressions > 0 && stats.ctrBefore !== null && stats.ctrAfter !== null
   return (
     <div
       data-testid="winner-banner"

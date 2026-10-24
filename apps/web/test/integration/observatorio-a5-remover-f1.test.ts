@@ -12,6 +12,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { lerSqlDaF1 } from '../helpers/f1-sql'
 import { CASOS_NOME } from '../helpers/casos-nome'
 import { colunasDaSoma } from '../../src/lib/youtube/observatorio/arquivo/sessao'
+import { apagarCanais } from '../helpers/limpa-cena'
 import {
   emTransacao, semearCena, pausarEEnvelhecer, registrar, exportarConferirConfirmar, q1, escalar, tenta, codigoE10, criarCanal, criarVideo, criarUsuario,
   semearWatchDoVideo, type Cena,
@@ -588,7 +589,7 @@ describe.skipIf(skipIfNoLocalDb())('F1 §C: apagar sem guardar', () => {
       await pg.query(`select public.competitor_channel_request_removal($1, $2, $3, 'entrou_por_engano')`, [c.site, c.canalA, c.admin])
       await pg.query(`select public.competitor_channel_request_removal($1, $2, $3, 'entrou_por_engano')`, [c.site, c.canalB, c.admin])
       // o canal A some por outra via, sem passar pelo Desfazer
-      await pg.query(`delete from public.competitor_channels where id = $1`, [c.canalA])
+      await apagarCanais(pg, 'id = $1', [c.canalA])
       expect(await escalar<number>(pg, `select public.obs_unarchived_watch_sweep(now())`)).toBe(1)
       expect(await escalar<string | null>(pg, `select reter_ate::text from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, ytA])).toBeNull()
       expect(await escalar<string>(pg, `select reter_ate::text from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, ytB])).toBe('infinity')

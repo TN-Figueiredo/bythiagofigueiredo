@@ -48,7 +48,13 @@ export function LibraryPickerDialog({ entries, onSelect, onClose }: LibraryPicke
 
   const allTags = [...new Set(entries.flatMap(e => e.tags))]
   const filtered = filter ? entries.filter(e => e.tags.includes(filter)) : entries
-  const sorted = [...filtered].sort((a, b) => (b.lift_at_win ?? 0) - (a.lift_at_win ?? 0))
+  const sorted = [...filtered].sort((a, b) => {
+    // nulo = lift não medido: vai depois de qualquer número, inclusive negativo
+    if (a.lift_at_win === null && b.lift_at_win === null) return 0
+    if (a.lift_at_win === null) return 1
+    if (b.lift_at_win === null) return -1
+    return b.lift_at_win - a.lift_at_win
+  })
 
   return (
     <YtPortal>

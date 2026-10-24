@@ -24,6 +24,7 @@ import { abrirFicha, salvarFicha, marcarStudioAberto, lembrarNoComputador, lerFi
 import { lembrarNoComputadorCore, recomecarFichaCore } from '@/lib/youtube/teste-youtube/nativo/ficha'
 import { jaIniciouCore } from '@/lib/youtube/teste-youtube/nativo/ficha-fluxo'
 import { bloqueadoPorTesteNativo } from '@/lib/youtube/teste-youtube/nativo/guarda'
+import { apagarSites } from '../helpers/limpa-cena'
 
 vi.setConfig({ testTimeout: 60_000 })
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -56,7 +57,7 @@ describe.skipIf(skipIfNoLocalDb())('F1a-dado T8: ficha gravada (banco)', () => {
       await pg.query('drop function if exists public.f1a_teste_falha_lembrar()')
       await pg.query('delete from public.youtube_videos where site_id = $1', [ctx.siteId])
       await pg.query('delete from public.youtube_channels where site_id = $1', [ctx.siteId])
-      await pg.query('delete from public.sites where id = any($1::uuid[])', [[ctx.siteId, outroSite]])
+      await apagarSites(pg, 'id = any($1::uuid[])', [[ctx.siteId, outroSite]])
       await pg.query('delete from auth.users where id = any($1::uuid[])', [usuarios])
     } finally {
       await pg.end()

@@ -21,6 +21,7 @@ import { getSiteAdminUserIds } from '@/lib/notifications/get-site-admin-users'
 import { rodarAvisos } from '@/lib/youtube/agenda/tarefas/avisos-pendentes'
 import { roteiro, ok } from '../helpers/banco-roteirizado'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const EV = { outliers: [{ video_id: randomUUID(), canal_id: randomUUID(), published_at: '2026-10-01T00:00:00Z', mult_vpd7: 6, mult_tela: 3, vpd7: 900, formato: 'long' }], outliers_total: 2, canais: 2, proprios: [] }
@@ -76,9 +77,9 @@ describe.skipIf(skipIfNoLocalDb())('F2 T9: avisos do nicho no sino', () => {
   afterAll(async () => {
     try {
       await limpar()
-      await pg.query('delete from public.competitor_channels where site_id = $1', [site])
+      await apagarCanais(pg, 'site_id = $1', [site])
       await pg.query('delete from public.organization_members where org_id = $1', [org])
-      await pg.query('delete from public.sites where id = $1', [site])
+      await apagarSites(pg, 'id = $1', [site])
       // os deletes acima gravam em audit_log (trigger): limpar por último, antes da organização
       await pg.query('delete from public.audit_log where org_id = $1', [org])
       await pg.query('delete from public.organizations where id = $1', [org])
