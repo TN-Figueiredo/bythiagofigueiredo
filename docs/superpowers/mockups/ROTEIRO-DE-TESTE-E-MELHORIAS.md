@@ -1350,3 +1350,8 @@ Abrir no Opera `file:///Users/figueiredo/Workspace/bythiagofigueiredo/docs/super
 ### Melhorias futuras (não bloqueiam)
 1. Botões de ordenar a 34 px no desktop (herdado da tela 16, abaixo da meta de 44 px).
 2. Não verificados: Opera, leitor de tela, aparelho real, rede lenta real.
+
+### F3 T6: pré-existentes no chrome, fora da F3 (não bloqueiam)
+1. O contador das abas (`.obs-ch-ct`) tem 11,5 px; só o da aba Sugestões foi levado a 12 px.
+2. As abas do Observatório medem 40/42 px de altura; só a aba Sugestões tem `min-height: 44px`.
+3. Plano B da aba Sugestões a 390 px: se o Gio medir a aba fora de 0..390 px, `tabs.tsx` rola a aba atual para a vista (`scrollIntoView({ inline: 'nearest' })`) e o Logan decide a ordem.

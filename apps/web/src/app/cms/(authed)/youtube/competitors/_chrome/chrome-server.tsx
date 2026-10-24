@@ -14,6 +14,7 @@ import { ObservatoryChrome } from './observatory-chrome'
 import { buildChromeView, coworkText, type ChromeTab } from './view-model'
 import { resolveNiche, type ObsSearchParams } from './resolve-niche'
 import { contarParaAAba } from '../_saiu/dados'
+import { contarParaAAbaSugestoes } from '../_sugestoes/dados-da-tela'
 import type { PropsPerguntarIa } from './perguntar-ia/botao'
 
 export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, children }: {
@@ -39,9 +40,9 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   // removed, a stale link) shows Todos, without error, and a ?niche= naming it is dropped from the URL like an invalid one.
   const wanted = nicheOverride ?? resolved.niche, niche = engine.scopeOf(wanted)
   const dropParam = resolved.dropParam || (nicheOverride == null && niche !== wanted && resolved.fromParam)
-  const [lembrado, aba] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba()])
+  const [lembrado, aba, sug] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba(), contarParaAAbaSugestoes()])
   // A5 E9: a quinta aba só existe para quem edita o site; a contagem que falha vira "?" (n nulo)
-  const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null })
+  const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null, sugestoes: sug.visivel ? { n: sug.n, velho: sug.velho, calculado: sug.calculado } : null })
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche, view.nicheLabel) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
       onAskForja={askForjaReading} readingCopy={readingCopy} perguntarIa={perguntarIa}>

@@ -51,6 +51,8 @@ const JANELA_PRIVACIDADE_DIAS = 30
 export const TETO_PROPRIOS_AGORA = 20
 /** Tamanho do bloco dos `.in(...)` que dependem de N (o URL do PostgREST tem limite). */
 export const BLOCO_DO_IN = 200
+/** Teto de ids que o resumo do sino carrega (e que `contarAbertosEntre` aceita). */
+export const LIMITE_PENDENTES = 500
 
 function emBlocos<T>(xs: T[], tam: number): T[][] {
   const blocos: T[][] = []
@@ -215,4 +217,36 @@ export async function dispensarSinal(
   quebra('niche_signals_dispensar', r.error)
   const d = r.data as { ok?: boolean; motivo?: string } | null
   return d?.ok === true ? { ok: true } : { ok: false, motivo: d?.motivo ?? 'falhou' }
+}
+
+/** N da aba: abertos e vigentes. `count` nulo sem erro → `null` ("?" na tela, nunca 0); erro do banco lança. */
+export async function contarSinaisAbertos(sb: SupabaseClient, siteId: string, agora: Date): Promise<number | null> {
+  const r = await sb.from('niche_signals').select('id', { count: 'exact', head: true })
+    .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString())
+  quebra('niche_signals', r.error)
+  return typeof r.count === 'number' ? r.count : null
+}
+
+/** Quantos dos `ids` (do resumo do sino) ainda estão abertos e vigentes NESTE site. Mais de `LIMITE_PENDENTES` ids únicos → `null` (não medido). */
+export async function contarAbertosEntre(sb: SupabaseClient, siteId: string, ids: string[], agora: Date): Promise<number | null> {
+  const unicos = [...new Set(ids)]
+  if (unicos.length > LIMITE_PENDENTES) return null
+  let total = 0
+  for (const bloco of emBlocos(unicos, BLOCO_DO_IN)) {
+    const r = await sb.from('niche_signals').select('id', { count: 'exact', head: true })
+      .eq('site_id', siteId).eq('status', 'aberto').gt('expires_at', agora.toISOString()).in('id', bloco)
+    quebra('niche_signals', r.error)
+    if (typeof r.count !== 'number') return null
+    total += r.count
+  }
+  return total
+}
+
+/** Estado do cálculo para a aba: `calculado` = há linha em `niche_signals_estado`; `velho` = mais de `HORAS_ATE_DESATUALIZAR` h. `null` = erro de leitura. */
+export async function lerEstadoDaAba(sb: SupabaseClient, siteId: string, agora: Date): Promise<{ calculado: boolean; velho: boolean; computado_em: string | null } | null> {
+  const r = await sb.from('niche_signals_estado').select('computed_at').eq('site_id', siteId).maybeSingle()
+  if (r.error) return null
+  const computado_em = (r.data as { computed_at?: string } | null)?.computed_at ?? null
+  if (computado_em === null) return { calculado: false, velho: false, computado_em: null }
+  return { calculado: true, velho: Date.parse(computado_em) < agora.getTime() - HORAS_ATE_DESATUALIZAR * 3_600_000, computado_em }
 }

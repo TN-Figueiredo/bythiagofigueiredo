@@ -15,12 +15,14 @@ export function textoNuncaCalculado(agora: Date, ligado: boolean): string {
   return `O 1º cálculo roda depois das ${hora} de amanhã (Brasília), ou na próxima rodada da agenda se hoje falhou.`
 }
 
-/** O texto do botão da ação derivada. `lugar` é o nome do lugar quando a tela o conhece; sem ele, "este lugar". */
-export function textoDoRotulo(rotulo: RotuloDaAcao, n: number | null, lugar?: string): string {
+/** O texto do botão da ação derivada. `lugar` é o nome do lugar quando a tela o conhece; sem ele, "este lugar". `kind` separa "parecido" de "sobre X". */
+export function textoDoRotulo(rotulo: RotuloDaAcao, n: number | null, lugar: string | undefined, kind: 'destino' | 'parecido'): string {
   const onde = lugar && lugar.trim() !== '' ? lugar : 'este lugar'
   switch (rotulo) {
-    case 'abrir-seus': return n === 1 ? 'Abrir seu vídeo parecido' : `Abrir seus ${n ?? ''} vídeos sobre ${onde}`.replace('  ', ' ')
-    case 'abrir-concorrente': return 'Abrir os vídeos dos concorrentes'
+    case 'abrir-seus':
+      if (kind === 'parecido') return n === 1 ? 'Abrir seu vídeo parecido' : `Abrir seus ${n ?? ''} vídeos parecidos`.replace('  ', ' ')
+      return n === 1 ? `Abrir seu vídeo sobre ${onde}` : `Abrir seus ${n ?? ''} vídeos sobre ${onde}`.replace('  ', ' ')
+    case 'abrir-concorrente': return 'Abrir o vídeo do concorrente'
     case 'playlist': return 'Abrir a playlist'
     case 'generico': return 'Abrir seus vídeos'
   }
