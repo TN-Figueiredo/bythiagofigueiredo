@@ -142,7 +142,7 @@ function variantePlacar(variant_id: string, dias: readonly LinhaDiaPlacar[]): Pl
   for (const d of dias) {
     switch (d.alcance_estado) {
       case 'medido':
-        if (d.impressoes === null) break
+        if (d.impressoes === null) { v.dias_nao_medidos++; break }
         impressoes = (impressoes ?? 0) + d.impressoes
         if (d.impressoes === 0) v.dias_zero++
         else if (d.ctr === null) { v.dias_fora_do_ctr++; cliqueDesconhecido = true }

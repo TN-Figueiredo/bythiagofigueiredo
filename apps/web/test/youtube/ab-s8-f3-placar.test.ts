@@ -254,4 +254,11 @@ describe('placar puro (S8-F3 T1)', () => {
     expect(v.dias_ausentes).toBe(1)
     expect(v.dias_zero).toBe(2)
   })
+
+  it('15. dia medido sem impressões conta como não medido (Yannis 6)', () => {
+    const v = varA([dia(), dia({ day_pt: '2026-10-21', impressoes: null, ctr: null })])
+    expect(v.dias_nao_medidos).toBe(1)
+    expect(v.impressoes).toBe(1000)
+    expect(v.dias_zero).toBe(0)
+  })
 })
