@@ -8,11 +8,12 @@ import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { revalidateAuthor, revalidateAbout } from '@/lib/newsletter/cache-invalidation'
 import { compileMdx, defaultComponents } from '@tn-figueiredo/cms'
 import { trackMediaUsage } from '@/lib/media/track-usage'
+import { boundedArray, boundedRecord, limitedZodMessage } from '../../../../../lib/validation/bounded-array'
 
 type ActionResult = { ok: true } | { ok: false; error: string }
 
 function zodError(err: z.ZodError): string {
-  return err.issues.map((i) => i.message).join(', ') || 'Validation failed'
+  return limitedZodMessage(err)
 }
 
 function slugify(name: string): string {
@@ -37,8 +38,7 @@ async function requireEditAccess(): Promise<string> {
 /*  Schemas                                                           */
 /* ------------------------------------------------------------------ */
 
-const socialLinksSchema = z
-  .record(z.string().url().or(z.literal('')))
+const socialLinksSchema = boundedRecord(z.string(), z.string().url().or(z.literal('')), 20)
   .optional()
   .default({})
 
@@ -54,8 +54,7 @@ const createAuthorSchema = z.object({
 const updateAuthorSchema = z.object({
   display_name: z.string().min(1).max(200).optional(),
   bio: z.string().max(2000).nullable().optional(),
-  social_links: z
-    .record(z.string().url().or(z.literal('')))
+  social_links: boundedRecord(z.string(), z.string().url().or(z.literal('')), 20)
     .optional(),
   avatar_color: z
     .string()
@@ -77,11 +76,11 @@ const aboutSchema = z.object({
   aboutCtaLinks: z.object({
     kicker:    z.string().max(100),
     signature: z.string().max(200),
-    links: z.array(z.object({
+    links: boundedArray(z.object({
       type:  z.enum(['internal', 'social']),
       key:   z.string(),
       label: z.string().max(50),
-    })).max(10),
+    }), 10),
   }).optional().nullable(),
 })
 
@@ -97,9 +96,9 @@ export async function createAuthor(input: {
   social_links?: Record<string, string>
   avatar_color?: string
 }): Promise<ActionResult> {
+  const siteId = await requireEditAccess()
   const parsed = createAuthorSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const slug = slugify(parsed.data.display_name)
@@ -131,9 +130,9 @@ export async function updateAuthor(
     sort_order?: number
   },
 ): Promise<ActionResult> {
+  const siteId = await requireEditAccess()
   const parsed = updateAuthorSchema.safeParse(data)
   if (!parsed.success) return { ok: false, error: zodError(parsed.error) }
-  const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const updateData: Record<string, unknown> = { ...parsed.data }
@@ -240,6 +239,8 @@ export async function reorderAuthors(
   orderedIds: string[],
 ): Promise<ActionResult> {
   const siteId = await requireEditAccess()
+  const idsParsed = boundedArray(z.string().min(1), 200).safeParse(orderedIds)
+  if (!idsParsed.success) return { ok: false, error: zodError(idsParsed.error) }
   const supabase = getSupabaseServiceClient()
 
   for (let i = 0; i < orderedIds.length; i++) {
