@@ -34,7 +34,7 @@ export function retrato(ds: Record<string, unknown>): { sha256: string; bytes: n
   return { sha256: createHash('sha256').update(texto).digest('hex'), bytes: texto.length, listas }
 }
 
-describe('retrato da semente do Observatório antes da M10a', () => {
+describe.skipIf(skipIfNoLocalDb())('retrato da semente do Observatório antes da M10a', () => {
   let sb: ReturnType<typeof getSupabaseServiceClient>
   let siteId = ''
   beforeAll(async () => { sb = getSupabaseServiceClient(); siteId = (await seedSite(sb)).siteId }, 60_000)
