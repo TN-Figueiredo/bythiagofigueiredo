@@ -24,14 +24,18 @@ const DIRS = ['src/lib/pipeline', 'src/app/api/pipeline']
  *  - content_pipeline_history.changed_by_key_id: criada pela migration
  *    20260903000001_pipeline_history_key_identity.sql; `database.types.ts` ainda não foi
  *    regenerado desde então. Sai desta lista quando os tipos forem regenerados.
+ *  - competitor_channels.removal_requested_at: migration 20261021000002 (remover canal F1); tipos não regenerados.
+ *  Dívida D-1 (Yannis, envio B): o gatilho para regenerar (`supabase gen types --linked`) é o próximo `db:push:prod`, ou antes de ligar a flag
+ *  OBS_TROCAS_CONCORRENTE; dono: controlador.
  */
-const KNOWN_STALE_TYPES = new Set(['content_pipeline_history.changed_by_key_id'])
+const KNOWN_STALE_TYPES = new Set(['content_pipeline_history.changed_by_key_id', 'competitor_channels.removal_requested_at'])
 /**
- * Tabelas inteiras da migration do registro do teste nativo (S7 fase 1), que ainda não está
- * aplicada nem tipada: `database.types.ts` é regenerado depois do `db push`. Qualquer coluna delas
- * passa; sai desta lista quando os tipos forem regenerados.
+ * Tabelas criadas por migration que `database.types.ts` ainda não tem: S7 fase 1 (ab_native_tests, ab_native_avaliacoes);
+ * S4 (yt_watch_alvos, 20261018000005); T13 (ab_native_observados, ab_native_obs_cursor, 20261021000006). Qualquer coluna delas passa.
+ * Colunas conferidas à mão contra o SQL na revisão do envio B (23/10). Sai desta lista quando os tipos forem regenerados
+ * (`supabase gen types --linked`); gatilho D-1: o próximo `db:push:prod`, ou antes de ligar a flag.
  */
-const TABELAS_AINDA_SEM_TIPOS = new Set(['ab_native_tests', 'ab_native_avaliacoes'])
+const TABELAS_AINDA_SEM_TIPOS = new Set(['ab_native_tests', 'ab_native_avaliacoes', 'ab_native_observados', 'ab_native_obs_cursor', 'yt_watch_alvos'])
 
 describe('MCP + serviços do pipeline: esquema', () => {
   const { refs } = auditDirs(WEB, DIRS)
