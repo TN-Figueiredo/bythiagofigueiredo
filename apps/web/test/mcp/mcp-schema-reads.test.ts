@@ -7,7 +7,8 @@
  */
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { createTestMcpPair, type McpTestPair } from './helpers'
-import { fakePostgrest, type FakePostgrestOptions } from '../helpers/fake-postgrest'
+import type { FakePostgrestOptions } from '../helpers/fake-postgrest'
+import { fakePostgrestComDias as fakePostgrest } from '../helpers/fake-postgrest-dias'
 
 let sb = fakePostgrest({ tables: {} })
 
@@ -375,7 +376,7 @@ describe('serviços: funil do A/B conta cliques na janela do teste', () => {
     const { data } = await getAbTestFunnel(ctx(), 't1')
     expect(data.link_clicks_window).toBeNull()
     expect(data.per_link).toEqual([])
-    expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, clicks: null, link_clicks: null }])
+    expect(data.per_variant).toEqual([{ variant_id: 'v1', impressions: null, impressions_total: null, clicks: null, ctr: null, link_clicks: null }])
     expect(data.aviso).toBe('sem métrica de entrega')
     expect(sb.on('link_clicks')).toHaveLength(0)
     expect(sb.on('tracked_links')).toHaveLength(0)

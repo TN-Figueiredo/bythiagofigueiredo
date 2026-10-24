@@ -8,7 +8,8 @@
  * então "REST" aqui é o próprio retorno do serviço; a ação e o recurso MCP passam pelos adaptadores.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { fakePostgrest, type FakePostgrestOptions } from '../helpers/fake-postgrest'
+import type { FakePostgrestOptions } from '../helpers/fake-postgrest'
+import { fakePostgrestComDias as fakePostgrest } from '../helpers/fake-postgrest-dias'
 import { createTestMcpPair, type McpTestPair } from '../mcp/helpers'
 
 let sb = fakePostgrest({ tables: {} })
@@ -439,7 +440,7 @@ describe('A/B P4a T12: restore_status, leitura e end_reason', () => {
   it('leitura usa o relógio injetado: o mesmo em_andamento é "em andamento" aos 3 min e "sem resposta" aos 6', () => {
     const rs = { title: { estado: 'em_andamento', destino: 'original', em: '2026-10-12T08:00:00Z', forcado: false, escreveu: null, erro: null, attempts: 0 } }
     const linha = { ...testeCompleto(), restore_status: rs }
-    const leitura = (agora: string) => (projetarTeste(linha, new Date(agora)).leitura as { title: { tipo: string } }).title.tipo
+    const leitura = (agora: string) => (projetarTeste(linha, new Date(agora), null).leitura as { title: { tipo: string } }).title.tipo
     expect(leitura('2026-10-12T08:03:00Z')).toBe('em_andamento')
     expect(leitura('2026-10-12T08:06:00Z')).toBe('sem_resposta')
   })
