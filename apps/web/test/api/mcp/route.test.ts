@@ -200,6 +200,19 @@ describe('/api/mcp — permission gate', () => {
     expect(handlerMock).not.toHaveBeenCalled()
   })
 
+  // Manutenção M3b (emenda 14/10 noite: rota com chave; Phil M2): a chave só de arquivo não abre o MCP. A recusa é do `read` exigido aqui
+  // (a K2 de auth.ts não cobre o MCP); se um dia uma ferramenta deixar de exigir `read`, este caso avisa.
+  it.each(['archive_owner', 'archive_copy', 'archive_b2', 'archive_read'])('a chave só de arquivo (%s) recebe 403 e nunca chega ao handler', async (permissao) => {
+    const supabase = makeAuthSupabase({ keyRow: { id: 'k', site_id: 'site-1', permissions: [permissao] } })
+    vi.mocked(getSupabaseServiceClient).mockReturnValue(supabase as never)
+
+    const res = await POST(mcpReq({ Authorization: 'Bearer valid-key' }))
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.message).toMatch(/insufficient permissions/i)
+    expect(handlerMock).not.toHaveBeenCalled()
+    expect(runWithMcpContextMock).not.toHaveBeenCalled()
+  })
+
   it('a write key still satisfies the read requirement (delegates)', async () => {
     const supabase = makeAuthSupabase({
       keyRow: { id: 'k', site_id: 'site-1', permissions: ['write'] },
