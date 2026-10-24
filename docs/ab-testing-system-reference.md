@@ -86,12 +86,24 @@ UNIQUE index garante máximo 1 teste não-terminal por vídeo.
 
 | Dado | Fonte | Delay |
 |------|-------|-------|
-| `total_impressions` | Não medido (nulo) desde a S8-F2; volta na F3 por `ab_test_dias` | — |
-| `total_clicks` | Não medido (nulo) desde a S8-F2; volta na F3 por `ab_test_dias` | — |
-| `avg_ctr` | Não medido (nulo) desde a S8-F2; volta na F3 por `ab_test_dias` | — |
+| `total_impressions` | `ab_test_dias` (placar da S8-F3; ver 2.1.1) | — |
+| `total_clicks` | `ab_test_dias` (placar da S8-F3; ver 2.1.1) | — |
+| `avg_ctr` | `ab_test_dias` (placar da S8-F3; ver 2.1.1) | — |
 | `cycles_completed` | Contagem de ciclos fechados, **inclui os fechados por pausa, drift ou falha de API** (uma pausa no meio do slot gera dois ciclos; D-P4) | Realtime |
 | `estimated_impressions` | YouTube Data API v3 (near-realtime) | ~minutos |
 | `estimated_ctr` | YouTube Data API v3 | ~minutos |
+
+### 2.1.1 Fonte do placar (S8-F3)
+
+O placar de cada teste (impressões, cliques, CTR, contagens de dias aguardando e descartados) vem **só** de `ab_test_dias`, a mesma leitura para a tela do Lab e para o Cowork (`placar` em `ab-tests`, detalhe e funil). O dia é o dia do Pacífico (`day_pt`); um dia vira `final` em D+10. Na v1 **não há estatística de vencedor** (sem intervalo, sem P(vencer), sem líder): o Bayes só volta na F4, e `calculateBayesianConfidence` não é chamada fora de `ab-statistics.ts`. Dia sem variante (`variant_id` nulo) é descartado e só entra na contagem.
+
+#### Runbook: linha `final` inválida (CTR fora de [0, 1])
+
+Sintoma: evento Sentry `ab-placar-linha-invalida` (fingerprint por `test_id` e `day_pt`), teste com `placar_erro: 'linha_invalida'` na lista do Cowork e erro no detalhe da tela. `ab_test_dias_apply` só atualiza `where not final`, então a linha ruim não se cura sozinha.
+
+1. Diagnóstico (Q7, deve dar 0): `select test_id, day_pt, ctr, impressoes, final from ab_test_dias where ctr is not null and (ctr < 0 or ctr > 1);`
+2. Conferir a fonte do dia em `yt_own_video_reach_daily` (mesmo `youtube_video_id` e `day_pt`) antes de mexer.
+3. Correção manual, pela chave do dono, uma linha por vez: `update ab_test_dias set ctr = null, alcance_estado = 'nao_medido' where test_id = '<test_id>' and day_pt = '<day_pt>' and final;` (ou o CTR correto, se a fonte o confirmar). Rodar a Q7 de novo: deve dar 0; o evento Sentry para de se repetir.
 
 ### 2.2 Por Ciclo (AbTestCycle)
 
