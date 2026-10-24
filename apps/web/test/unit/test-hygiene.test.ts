@@ -39,6 +39,10 @@ function futureYearsIn(line: string): number[] {
 // Files verified to use future dates inertly (no wall-clock comparison on the
 // consuming path). Re-verify before adding to this list.
 const ALLOWLIST = new Set([
+  // M3b: relógio simulado do arquivo (`obs_archive.agora` por set_config e AGORA
+  // passado como argumento); nem teste nem código leem Date.now()
+  'test/integration/manutencao-m3b-b2.test.ts',
+  'test/youtube/observatorio/arquivo-mensal-estado.test.ts',
   // mocked refreshToken return value — only persisted via toISOString(), never
   // compared against Date.now() (verified in lib/social/workflows.ts)
   'test/lib/social/execute-with-retry.test.ts',
