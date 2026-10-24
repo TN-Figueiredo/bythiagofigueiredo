@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const UUID = '11111111-1111-4111-8111-111111111111'
-interface Opcoes { admin?: boolean; edit?: boolean; dispensar?: { ok: boolean; motivo?: string } | 'lanca' }
+interface Opcoes { admin?: boolean; edit?: boolean; dispensar?: { ok: boolean; motivo?: string } | 'lanca'; adiar?: Record<string, unknown> | 'lanca' }
 interface Registro { ordem: string[]; chamadas: unknown[][]; paths: unknown[][]; tags: unknown[][] }
 
 const sentry = { captureException: vi.fn(), captureMessage: vi.fn() }
@@ -27,6 +27,11 @@ async function montar(o: Opcoes = {}) {
   vi.doMock('next/cache', () => ({ revalidatePath: (...a: unknown[]) => { r.paths.push(a) }, revalidateTag: (...a: unknown[]) => { r.tags.push(a) } }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { r.ordem.push('service'); return { marca: 'sb' } } }))
   vi.doMock('@/lib/youtube/observatorio/sinais/leitura', () => ({
+    adiarSinal: async (...a: unknown[]) => {
+      r.chamadas.push(a)
+      if (o.adiar === 'lanca') throw new Error('postgres: relation niche_signals secret')
+      return o.adiar ?? { ok: true, adiado_ate: '2026-10-31T15:00:00Z' }
+    },
     dispensarSinal: async (...a: unknown[]) => {
       r.chamadas.push(a)
       if (o.dispensar === 'lanca') throw new Error('postgres: relation niche_signals secret')
@@ -98,5 +103,63 @@ describe('dispensarSugestao', () => {
   it('editor sem admin (edit ok, admin não): sem_permissao', async () => {
     const { dispensarSugestao } = await montar({ admin: false, edit: true })
     expect(await dispensarSugestao(UUID, 'ja_fiz')).toEqual({ ok: false, motivo: 'sem_permissao' })
+  })
+})
+
+describe('adiarSugestao (F3b)', () => {
+  it('sem admin: sem_permissao e o cliente de serviço nunca é criado', async () => {
+    const { r, adiarSugestao } = await montar({ admin: false })
+    expect(await adiarSugestao(UUID)).toEqual({ ok: false, motivo: 'sem_permissao' })
+    expect(r.ordem).not.toContain('service')
+    expect(r.chamadas).toHaveLength(0)
+  })
+  it('sem edição (admin ok): sem_permissao', async () => {
+    const { r, adiarSugestao } = await montar({ edit: false })
+    expect(await adiarSugestao(UUID)).toEqual({ ok: false, motivo: 'sem_permissao' })
+    expect(r.chamadas).toHaveLength(0)
+  })
+  it.each([['não-uuid', 'abc'], ['uuid com lixo', UUID + 'x'], ['vazio', '']])('id inválido (%s): recusado sem guarda nem banco', async (_n, id) => {
+    const { r, adiarSugestao } = await montar()
+    expect(await adiarSugestao(id)).toEqual({ ok: false, motivo: 'motivo_invalido' })
+    expect(r.ordem).toEqual([])
+  })
+  it('sucesso: por = user:<uid>, site do contexto, guarda antes do serviço, devolve a data e revalida as duas telas', async () => {
+    const { r, adiarSugestao } = await montar()
+    expect(await adiarSugestao(UUID)).toEqual({ ok: true, adiado_ate: '2026-10-31T15:00:00Z' })
+    expect(r.chamadas).toEqual([[{ marca: 'sb' }, 'site-ctx', UUID, 'user:u1']])
+    expect(r.ordem.indexOf('admin:site-ctx')).toBeLessThan(r.ordem.indexOf('service'))
+    expect(r.paths).toEqual([['/cms/youtube/competitors', 'layout'], ['/cms/youtube/ab-lab']])
+  })
+  it('ja_adiado leva a data; expira_antes leva o vencimento; os dois revalidam', async () => {
+    const a = await montar({ adiar: { ok: false, motivo: 'ja_adiado', adiado_ate: '2026-10-30T10:00:00Z' } })
+    expect(await a.adiarSugestao(UUID)).toEqual({ ok: false, motivo: 'ja_adiado', adiado_ate: '2026-10-30T10:00:00Z' })
+    expect(a.r.paths).toHaveLength(2)
+    const e = await montar({ adiar: { ok: false, motivo: 'expira_antes', expira_em: '2026-10-28T10:00:00Z' } })
+    expect(await e.adiarSugestao(UUID)).toEqual({ ok: false, motivo: 'expira_antes', expira_em: '2026-10-28T10:00:00Z' })
+    expect(e.r.paths).toHaveLength(2)
+  })
+  it('ja_adiado sem data (resposta estranha) vira falhou e vai ao Sentry', async () => {
+    const { adiarSugestao } = await montar({ adiar: { ok: false, motivo: 'ja_adiado' } })
+    expect(await adiarSugestao(UUID)).toEqual({ ok: false, motivo: 'falhou' })
+    expect(sentry.captureMessage).toHaveBeenCalledTimes(1)
+  })
+  it.each([['nao_aberto', 'nao_aberto'], ['nao_encontrado', 'nao_encontrado'], ['coisa_do_banco', 'falhou']])('mapeamento: %s -> %s', async (vindo, esperado) => {
+    const { adiarSugestao } = await montar({ adiar: { ok: false, motivo: vindo } })
+    expect(await adiarSugestao(UUID)).toEqual({ ok: false, motivo: esperado })
+  })
+  it('nao_aberto (vencida) revalida; nao_encontrado não', async () => {
+    const a = await montar({ adiar: { ok: false, motivo: 'nao_aberto' } })
+    await a.adiarSugestao(UUID)
+    expect(a.r.paths).toHaveLength(2)
+    const b = await montar({ adiar: { ok: false, motivo: 'nao_encontrado' } })
+    await b.adiarSugestao(UUID)
+    expect(b.r.paths).toHaveLength(0)
+  })
+  it('exceção vira falhou, sem texto do banco, com tag step adiar', async () => {
+    const { adiarSugestao } = await montar({ adiar: 'lanca' })
+    const res = await adiarSugestao(UUID)
+    expect(res).toEqual({ ok: false, motivo: 'falhou' })
+    expect(JSON.stringify(res)).not.toContain('postgres')
+    expect(sentry.captureException.mock.calls[0]?.[1]).toMatchObject({ tags: { step: 'adiar' } })
   })
 })

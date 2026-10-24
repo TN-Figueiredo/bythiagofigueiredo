@@ -2,15 +2,22 @@
 // Uma linha da lista (F3 T5): sempre um <li class="sg-row"> com a mesma chave (id) em todos os estados; a confirmação ocupa o mesmo <li>.
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import CmsLink from '../../../_shared/cms-link'
-import type { DesfechoDaLinha, TipoDeErro } from './estado-da-lista'
+import type { AcaoDaLinha, DesfechoDaLinha, TipoDeErro } from './estado-da-lista'
 import { Ic } from './icones'
 import { ReguaMult } from './regua-mult'
 import type { MotivoDaTela } from './tipos'
-import type { LinhaDaVista } from './view-model'
+import { dataSP, diaSP, type LinhaDaVista } from './view-model'
 
 const MLAB: Record<MotivoDaTela, string> = { lugar_errado: 'lugar errado', nao_interessa: 'não me interessa', nao_e_parecido: 'não é parecido', ja_fiz: 'já fiz' }
 
-export function Confirmacao(p: { id: string; desfecho: DesfechoDaLinha; motivo: MotivoDaTela | null }) {
+export function Confirmacao(p: { id: string; desfecho: DesfechoDaLinha; motivo: MotivoDaTela | null; volta?: string | null }) {
+  if (p.desfecho === 'adiada') {
+    return (
+      <li className="sg-row sg-done sg-adi" role="status" data-row={p.id} tabIndex={-1}>
+        {Ic.wait(14)}<span><b>Adiada.</b>{p.volta ? ` Volta para esta lista em ${diaSP(p.volta)}.` : ' Volta para esta lista em 7 dias.'}</span>
+      </li>
+    )
+  }
   const texto = p.desfecho === 'ja-saiu'
     ? <b>Esta sugestão já saiu da lista.</b>
     : p.motivo === 'ja_fiz' ? <><b>Marcada como já feita.</b> Não volta nos próximos 30 dias.</>
@@ -25,12 +32,14 @@ export interface PropsDaLinha {
   info: boolean
   expandida: boolean
   /** Motivo em gravação nesta linha (a chamada em voo). */
-  salvando: MotivoDaTela | null
+  salvando: AcaoDaLinha | null
   /** Alguma chamada em voo na lista (trava toque duplo em qualquer linha). */
   ocupada: boolean
-  erro: { tipo: TipoDeErro; motivo: MotivoDaTela } | null
+  erro: { tipo: TipoDeErro; motivo: AcaoDaLinha; expiraEm?: string } | null
   onDispensar(e: MouseEvent<HTMLButtonElement>): void
   onMotivo(motivo: MotivoDaTela): void
+  /** F3b: "Adiar 7 dias". */
+  onAdiar(): void
   onCancelar(): void
   onInfo(): void
   onExpandir(): void
@@ -56,7 +65,10 @@ export function Linha(p: PropsDaLinha) {
   const img = useRef<HTMLImageElement | null>(null)
   useEffect(() => { const el = img.current; if (el && el.complete && el.naturalWidth === 0) setSemFoto(true) }, [])
   const m = l.puxadoPor
-  const rotuloDoErro = p.erro ? (l.motivos.find((x) => x.valor === p.erro!.motivo)?.rotulo ?? '') : ''
+  const rotuloDoErro = p.erro ? (p.erro.motivo === 'adiar' ? 'Adiar 7 dias' : (l.motivos.find((x) => x.valor === p.erro!.motivo)?.rotulo ?? '')) : ''
+  // Vence em até 7 dias: sem botão, a frase. A corrida (a lista velha ainda oferecia o botão) cai no mesmo desenho depois do erro.
+  const naoAdia = l.naoAdia ?? (p.erro?.tipo === 'vence-antes' && p.erro.expiraEm ? { dia: diaSP(p.erro.expiraEm), data: dataSP(p.erro.expiraEm) } : null)
+  const seloAdiada = l.adiadaEm ? <>{Ic.wait(14)}{`Adiada por você em ${l.adiadaEm}`}</> : null
   const semThumb = m === null
   const aoIniciar = p.salvando !== null || p.ocupada
   return (
@@ -72,6 +84,7 @@ export function Linha(p: PropsDaLinha) {
       <div>
         <div className="sg-top">
           <span className="sg-chip">{l.chip.simbolo === 'alfinete' ? Ic.pin() : Ic.flame()}{l.chip.rotulo}</span>
+          {seloAdiada && <span className="sg-selo sg-mute sg-ven1">{seloAdiada}</span>}
           {l.venceEm && <span className="sg-selo sg-mute sg-ven1">{Ic.late()}{l.venceEm}</span>}
           {l.regua && <span className="sg-vm">{l.regua.valor.toFixed(1).replace('.', ',')}×</span>}
         </div>
@@ -84,7 +97,12 @@ export function Linha(p: PropsDaLinha) {
             <span className="sg-v"><ComNumero texto={l.regua.texto} /></span>
           </div>
         )}
-        {l.venceEm && <p className="sg-venm"><span className="sg-selo sg-mute">{Ic.late()}{l.venceEm}</span></p>}
+        {(seloAdiada || l.venceEm) && (
+          <p className="sg-venm">
+            {seloAdiada && <span className="sg-selo sg-mute">{seloAdiada}</span>}
+            {l.venceEm && <span className="sg-selo sg-mute">{Ic.late()}{l.venceEm}</span>}
+          </p>
+        )}
         <p className="sg-alv sg-desk">{Ic.vid()}<span><Seus l={l} /></span></p>
         <div className="sg-vsr">
           <p className="sg-vs">{Ic.vid()}<span><Seus l={l} /></span></p>
@@ -97,8 +115,8 @@ export function Linha(p: PropsDaLinha) {
         </CmsLink>
         {p.podeDispensar && (
           <>
-            <button type="button" className="sg-btn sg-ghost sg-dis" aria-expanded={p.aberta} onClick={p.onDispensar}>Dispensar</button>
-            <button type="button" className="sg-btn sg-ghost sg-more-btn" aria-expanded={p.aberta} aria-label="Dispensar: escolher motivo" onClick={p.onDispensar}>{Ic.dots()}</button>
+            <button type="button" className="sg-btn sg-ghost sg-dis" aria-expanded={p.aberta} onClick={p.onDispensar}>Dispensar ou adiar</button>
+            <button type="button" className="sg-btn sg-ghost sg-more-btn" aria-expanded={p.aberta} aria-label="Dispensar ou adiar" onClick={p.onDispensar}>{Ic.dots()}</button>
           </>
         )}
       </div>
@@ -115,12 +133,20 @@ export function Linha(p: PropsDaLinha) {
         </div>
       )}
       {p.aberta && p.podeDispensar && (
-        <div className="sg-dsp" role="group" aria-label="Motivo para dispensar">
+        <div className="sg-dsp" role="group" aria-label="Dispensar ou adiar">
           <p>Por que dispensar?</p>
           {l.motivos.filter((x) => x.grupo === 'motivo').map((x) => <BotaoMotivo key={x.valor} {...p} valor={x.valor} rotulo={x.rotulo} />)}
           <span className="sg-sep" aria-hidden="true" />
           {l.motivos.filter((x) => x.grupo === 'feito').map((x) => <BotaoMotivo key={x.valor} {...p} valor={x.valor} rotulo={x.rotulo} />)}
-          {!aoIniciar && <button type="button" className="sg-lnk" onClick={p.onCancelar}>Cancelar</button>}
+          <span className={`sg-sep sg-sep2${naoAdia ? ' sg-sep-v' : ''}`} aria-hidden="true" />
+          {naoAdia
+            ? <p className="sg-vence">{Ic.late()}<span>{`Vence em ${naoAdia.dia}: não dá para adiar 7 dias.`}</span></p>
+            : (
+              <button type="button" className="sg-btn" disabled={aoIniciar} aria-busy={p.salvando === 'adiar' || undefined} onClick={p.onAdiar}>
+                {p.salvando === 'adiar' ? 'Adiando…' : <>{Ic.wait(14)}Adiar 7 dias</>}
+              </button>
+            )}
+          <button type="button" className="sg-lnk" disabled={aoIniciar} onClick={p.onCancelar}>Cancelar</button>
         </div>
       )}
       {p.erro && (
@@ -132,8 +158,13 @@ export function Linha(p: PropsDaLinha) {
             : p.erro.tipo === 'sem-permissao'
             ? <><span>Você não tem permissão para responder agora. Entre de novo ou fale com o admin do site.</span>
               <a className="sg-btn" href={`/cms/login?next=${encodeURIComponent(typeof window === 'undefined' ? '/cms' : window.location.pathname + window.location.search)}`}>Entrar de novo</a></>
+            : p.erro.tipo === 'vence-antes'
+            ? <span><b>Não adiou:</b>{` ela vence em ${p.erro.expiraEm ? dataSP(p.erro.expiraEm) : 'menos de 7 dias'}, antes dos 7 dias.`}</span>
             : <><span>{`Não salvou “${rotuloDoErro}”${p.erro.tipo === 'sem-conexao' ? ': sem conexão' : ''}. A sugestão continua aberta.`}</span>
-              <button type="button" className="sg-btn" onClick={() => p.onMotivo(p.erro!.motivo)} disabled={p.ocupada}>{`Tentar de novo “${rotuloDoErro}”`}</button></>}
+              <button type="button" className="sg-btn" aria-busy={p.salvando === 'adiar' || undefined}
+                onClick={() => { const m = p.erro!.motivo; if (m === 'adiar') p.onAdiar(); else p.onMotivo(m) }} disabled={p.ocupada}>
+                {p.erro.motivo === 'adiar' && p.salvando === 'adiar' ? 'Adiando…' : `Tentar de novo “${rotuloDoErro}”`}
+              </button></>}
         </p>
       )}
     </li>

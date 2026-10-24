@@ -2,14 +2,14 @@
 // Os textos vêm do mockup M3 (index.html: h4txt, alvos, resumo, head, MOT, vazios) e das fontes únicas (`frases.ts`, `REGRA_SINAIS`).
 import { DEFINICAO_SINAIS_DO_NICHO } from '@/lib/youtube/agenda/definicoes'
 import type { AmostraDoVideo } from '@/lib/youtube/observatorio/sinais/amostra'
-import { textoDoRotulo, textoDoVazio } from '@/lib/youtube/observatorio/sinais/frases'
+import { DIAS_DO_ADIAR, textoDoRotulo, textoDoVazio } from '@/lib/youtube/observatorio/sinais/frases'
 import type { ItemDeSinal, ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import type { Evidence } from '@/lib/youtube/observatorio/sinais/oportunidades'
 import { REGRA_SINAIS } from '@/lib/youtube/observatorio/sinais/regra'
 import { nomeDoLugar } from './lugar'
 import type { MotivoDaTela } from './tipos'
 
-export type FamiliaDoVazio = 'resolvido' | 'calmo' | 'espera' | 'problema' | 'nm'
+export type FamiliaDoVazio = 'resolvido' | 'calmo' | 'espera' | 'problema' | 'nm' | 'adiado'
 export type FiltroDaLista = 'todas' | 'destino' | 'parecido'
 
 export interface LinhaDaVista {
@@ -25,7 +25,13 @@ export interface LinhaDaVista {
   venceEm: string | null
   info: { mults: string; medida: string; regra: string; surgiu: string; vence: string }
   motivos: Array<{ valor: MotivoDaTela; rotulo: string; grupo: 'motivo' | 'feito' }>
+  /** F3b: "dd/mm" de quando foi adiada, se já voltou (selo "Adiada por você em dd/mm"); `null` = nunca adiada. */
+  adiadaEm: string | null
+  /** F3b: vence em até 7 dias (não dá para adiar): o dia por extenso ("qua, 28/10") e a data curta; `null` = dá para adiar. */
+  naoAdia: { dia: string; data: string } | null
 }
+/** F3b: adiadas que VOLTAM (`proxima` = a primeira a voltar, ISO); `null` na vista = não medido. */
+export interface AdiadasDaVista { n: number; proxima: string | null }
 export interface VistaDaLista {
   n: number | null; calculado: string | null; velho: boolean; resumo: string
   faixa: null | { tipo: 'velho' | 'sino-saiu' | 'erro-com-lista'; titulo: string; texto: string }
@@ -34,7 +40,13 @@ export interface VistaDaLista {
   /** Todas as linhas, sem recorte: `filtrarVista` parte sempre daqui. */
   completas: LinhaDaVista[]
   totalAlemDoLimite: number | null
-  vazio: null | { familia: FamiliaDoVazio; titulo: string; texto: string; topo: string }
+  vazio: null | {
+    familia: FamiliaDoVazio; titulo: string; texto: string; topo: string
+    /** F3b, vazio `adiado`: 2ª frase (o motivo do cálculo) e o selo "não medido" depois do título. */
+    texto2?: string; chipNm?: boolean
+  }
+  /** F3b: quantas adiadas voltam. `null` = não medido (nunca 0 inventado). */
+  adiadas: AdiadasDaVista | null
 }
 
 const DIA_MS = 86_400_000
@@ -47,7 +59,14 @@ function partesSP(d: Date): { dd: string; mm: string; hh: string; mi: string; di
   for (const x of new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d)) p[x.type] = x.value
   return { dd: p.day!, mm: p.month!, hh: p.hour!, mi: p.minute!, dia: `${p.year}-${p.month}-${p.day}` }
 }
-const dataSP = (iso: string): string => { const d = new Date(iso); if (Number.isNaN(d.getTime())) return '—'; const p = partesSP(d); return `${p.dd}/${p.mm}` }
+/** "ter, 27/10" (fuso de São Paulo). */
+export function diaSP(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  const sem = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(d).replace('.', '')
+  return `${sem}, ${dataSP(iso)}`
+}
+export const dataSP = (iso: string): string => { const d = new Date(iso); if (Number.isNaN(d.getTime())) return '—'; const p = partesSP(d); return `${p.dd}/${p.mm}` }
 
 /** "hoje, 07:02" ou "19/10, 07:02" (fuso de São Paulo); `null` sem data. */
 function quando(iso: string | null, agora: Date): { hoje: boolean; hora: string; data: string } | null {
@@ -159,9 +178,24 @@ function montarLinha(it: ItemDeSinal, amostra: ReadonlyMap<string, AmostraDoVide
       surgiu: dataSP(it.first_seen_at), vence: dataSP(it.expires_at),
     },
     motivos: MOTIVOS[it.kind].map((m) => ({ ...m })),
+    adiadaEm: it.adiada_em === null ? null : dataSP(it.adiada_em),
+    // Mesma conta da função do banco: `expires_at <= agora + 7 d` não adia.
+    naoAdia: new Date(it.expires_at).getTime() <= agora.getTime() + DIAS_DO_ADIAR * DIA_MS ? { dia: diaSP(it.expires_at), data: dataSP(it.expires_at) } : null,
   }
 }
 
+/** A frase sob o resumo ("1 adiada por você. Volta em ter, 27/10."); `null` = nada a dizer (nenhuma ou não medido). */
+export function linhaDasAdiadas(a: AdiadasDaVista | null): string | null {
+  if (!a || a.n === 0) return null
+  const dia = a.proxima === null ? null : diaSP(a.proxima)
+  if (a.n === 1) return dia === null ? '1 adiada por você.' : `1 adiada por você. Volta em ${dia}.`
+  return dia === null ? `${a.n} adiadas por você.` : `${a.n} adiadas por você. A próxima volta em ${dia}.`
+}
+
+/** As adiadas que voltam, como a vista as mostra: `null` quando a leitura não mediu (chave ausente em `contagens`). */
+function adiadasDe(l: ListaDeSinais): AdiadasDaVista | null {
+  return typeof l.contagens.adiados === 'number' ? { n: l.contagens.adiados, proxima: l.proximaVolta } : null
+}
 const TOPO_NUNCA = 'As sugestões ainda não foram calculadas.'
 const TOPO_AGORA = 'Nenhuma sugestão agora.'
 function vazioDe(l: ListaDeSinais, agora: Date): NonNullable<VistaDaLista['vazio']> {
@@ -169,6 +203,17 @@ function vazioDe(l: ListaDeSinais, agora: Date): NonNullable<VistaDaLista['vazio
   const m = l.motivoVazio ?? (l.computado_em === null ? 'nunca-calculado' : null)
   const texto = textoDoVazio(m ?? '', l.contagens, agora, l.calculoLigado)
   switch (m) {
+    case 'adiado': {
+      // P-C2: o que o dono adiou explica a lista vazia; a frase do motivo do cálculo vai de 2ª linha.
+      const calculo = l.motivoDoCalculo === null ? undefined : textoDoVazio(l.motivoDoCalculo, l.contagens, agora, l.calculoLigado)
+      const a = adiadasDe(l)
+      if (a === null) return { familia: 'adiado', topo: 'Nenhuma sugestão aberta.', titulo: 'Adiadas por você:', chipNm: true, texto: 'Não deu para contar quantas voltam nem quando.', ...(calculo ? { texto2: calculo } : {}) }
+      return {
+        familia: 'adiado', topo: 'Nenhuma sugestão aberta.', titulo: `Você adiou ${a.n} ${a.n === 1 ? 'sugestão' : 'sugestões'}.`,
+        texto: a.proxima === null ? '' : a.n === 1 ? `Ela volta em ${diaSP(a.proxima)}.` : `A próxima volta em ${diaSP(a.proxima)}.`,
+        ...(calculo ? { texto2: calculo } : {}),
+      }
+    }
     case 'tudo-respondido': return { familia: 'resolvido', topo: 'Nenhuma sugestão aberta.', titulo: 'As últimas sugestões já saíram da lista.', texto }
     case 'nunca-calculado': {
       const topo = TOPO_NUNCA
@@ -229,6 +274,7 @@ export function montarVistaDaLista(e: {
     velho, resumo, faixa,
     filtro: comFiltro ? { atual: filtro, contagens: contar(linhas) } : null,
     linhas, completas: linhas, totalAlemDoLimite: lista.n > limite ? lista.n : null, vazio,
+    adiadas: adiadasDe(lista),
   }
 }
 
@@ -247,4 +293,4 @@ export function filtrarVista(vista: VistaDaLista, filtro: FiltroDaLista): VistaD
 }
 
 /** Leitura que falhou: n nulo ("?"), sem linhas; a página e o bloco do A/B Lab nunca lançam por causa dela. */
-export const VISTA_COM_ERRO: VistaDaLista = { n: null, calculado: null, velho: false, resumo: '', faixa: null, filtro: null, linhas: [], completas: [], totalAlemDoLimite: null, vazio: null }
+export const VISTA_COM_ERRO: VistaDaLista = { n: null, calculado: null, velho: false, resumo: '', faixa: null, filtro: null, linhas: [], completas: [], totalAlemDoLimite: null, vazio: null, adiadas: null }

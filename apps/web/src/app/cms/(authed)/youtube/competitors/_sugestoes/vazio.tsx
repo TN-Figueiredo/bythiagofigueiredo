@@ -5,8 +5,8 @@ import { Ic } from './icones'
 import type { VistaDaLista } from './view-model'
 
 type Vazio = NonNullable<VistaDaLista['vazio']>
-const ICONE: Record<Vazio['familia'], () => ReactNode> = { resolvido: () => Ic.ok(18), calmo: Ic.calm, espera: Ic.wait, problema: () => Ic.warn(18), nm: Ic.q }
-const CLASSE: Record<Vazio['familia'], string> = { resolvido: 'sg-ok', calmo: '', espera: '', problema: 'sg-prob', nm: 'sg-nm' }
+const ICONE: Record<Vazio['familia'], (w: number) => ReactNode> = { resolvido: () => Ic.ok(18), calmo: Ic.calm, espera: () => Ic.wait(), problema: () => Ic.warn(18), nm: Ic.q, adiado: (w) => Ic.wait(w) }
+const CLASSE: Record<Vazio['familia'], string> = { resolvido: 'sg-ok', calmo: '', espera: '', problema: 'sg-prob', nm: 'sg-nm', adiado: '' }
 
 export function VazioDaLista(p: { vazio: Vazio; modo: 'pagina' | 'bloco'; verTodasHref?: string; alerta?: boolean; acao?: ReactNode }) {
   const { vazio: v } = p
@@ -15,18 +15,19 @@ export function VazioDaLista(p: { vazio: Vazio; modo: 'pagina' | 'bloco'; verTod
   if (p.modo === 'bloco') {
     return (
       <div className={`sg-vz1 ${classe}`.trim()} role={papel}>
-        <span className="sg-vic">{ICONE[v.familia]()}</span>
-        <span className="sg-vt">{v.titulo}</span>
+        <span className="sg-vic">{ICONE[v.familia](16)}</span>
+        <span className="sg-vt">{v.titulo}{v.chipNm && <>{' '}<span className="sg-nm">não medido</span>.</>}{v.familia === 'adiado' && v.texto !== '' ? ` ${v.texto}` : ''}</span>
         {p.acao ?? (p.verTodasHref ? <CmsLink href={p.verTodasHref} className="sg-btn sg-ghost">Ver detalhes</CmsLink> : null)}
       </div>
     )
   }
   return (
     <div className={`sg-vz ${classe}`.trim()} role={papel}>
-      <span className="sg-vic">{ICONE[v.familia]()}</span>
+      <span className="sg-vic">{ICONE[v.familia](18)}</span>
       <div>
-        <h3>{v.titulo}</h3>
+        <h3>{v.titulo}{v.chipNm && <>{' '}<span className="sg-nm">não medido</span></>}</h3>
         {v.texto !== '' && <p>{v.texto}</p>}
+        {v.texto2 && <p>{v.texto2}</p>}
         {p.acao && <div className="sg-acts">{p.acao}</div>}
       </div>
     </div>
