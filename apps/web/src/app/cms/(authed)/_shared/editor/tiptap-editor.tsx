@@ -157,6 +157,9 @@ export function TipTapEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4] },
+        // StarterKit 3 já traz link/underline; os avulsos abaixo mantêm a configuração própria (sem aviso de nome duplicado)
+        link: false,
+        underline: false,
       }),
       Underline,
       Link.configure({
