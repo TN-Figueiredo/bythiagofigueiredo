@@ -90,6 +90,11 @@ export function fraseDoPlacar(
       return { principal: 'O teste ainda não começou.', apoio: 'Até lá não há números.' }
     case 'atrasado': {
       const ult = ultimoDiaGravado(p, faixa)
+      if (encerrado(status)) {
+        const apoioFim = 'O teste já terminou; esta leitura não vai mais mudar sozinha.'
+        if (p.dias_total === 0 || ult === null) return { principal: 'Os dados do YouTube não rodaram durante este teste. Não há números.', apoio: apoioFim }
+        return { principal: `Os dados do YouTube pararam em ${ult}. Os dias que faltavam não foram fechados.`, apoio: apoioFim }
+      }
       if (p.dias_total === 0 || ult === null) {
         return { principal: 'Os dados do YouTube não rodaram desde o início do teste. Ainda não há números.', apoio: 'O teste segue valendo; a próxima leitura traz os dias fechados.' }
       }

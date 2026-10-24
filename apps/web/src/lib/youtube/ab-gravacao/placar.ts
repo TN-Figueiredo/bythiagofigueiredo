@@ -233,10 +233,14 @@ export function placarDoTeste(i: {
   let atrasado = false
   if (iniciado && !todosFinais && (emCurso || encerradoRecente)) {
     if (diasTotal === 0) {
-      atrasado = agora.getTime() - Date.parse(i.inicio as string) > 48 * H
+      // Encerrado: a vida do teste termina em fim (Phil 24/10); em curso, em agora.
+      const ate = emCurso ? agora.getTime() : (fimMs ?? agora.getTime())
+      atrasado = ate - Date.parse(i.inicio as string) > 48 * H
     } else if (maxDay !== null) {
       const porRodada = addDays(diaPt(ultimaRodada(agora)), -2)
       // Mesma parada da atribuição: pausado para em paused_at (sem ele, em completed_at); ativo ignora paused_at.
+      // Limitação aceita (Phil 24/10, D-F3-4): pausado e depois arquivado/concluído usa fim, não pausado_em;
+      // o texto de encerrado já não promete leitura nova.
       const parou = i.status === 'paused' ? (i.pausado_em ?? i.fim) : i.fim
       const limite = diaPt(parou !== null ? new Date(parou) : agora)
       const esperado = porRodada < limite ? porRodada : limite
