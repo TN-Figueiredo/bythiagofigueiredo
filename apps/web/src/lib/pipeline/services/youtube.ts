@@ -20,7 +20,7 @@ import type { ServiceContext, ServiceResult } from './types'
 import { ok, err } from './types'
 import { claim } from './forja-queue'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { placarDoTeste, type Placar } from '@/lib/youtube/ab-gravacao/placar'
+import { placarDoTeste, regraDoTeste, type Placar } from '@/lib/youtube/ab-gravacao/placar'
 import { lerDiasDosTestes, lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 
 // ---------------------------------------------------------------------------
@@ -176,7 +176,8 @@ export interface AbTestDetail {
   result_metadata: AbResultMetadataSaida
   aviso: AvisoDoPlacar
   placar: Placar | null
-  placar_erro: 'linha_invalida' | null
+  /** Sempre nulo no detalhe: linha inválida derruba `getAbTest` (falha alta); só a lista isola o teste. */
+  placar_erro: null
   restore_status: Record<string, unknown> | null
   leitura: Partial<Record<CampoNome, LeituraCampo>> | { ilegivel: true } | null
   variants: Record<string, unknown>[]
@@ -1069,15 +1070,6 @@ function avisoDoPlacar(placar: Placar | null, placarErro: 'linha_invalida' | nul
   return AVISO_SEM_ESTATISTICA
 }
 
-/** `regra_duracao` não está nos tipos gerados (K4); ausente vale 'v1'. */
-function regraDoTeste(row: unknown): 'v1' | 'v2' {
-  const bruta = (row as { regra_duracao?: unknown }).regra_duracao
-  if (bruta === undefined || bruta === null) return 'v1'
-  const p = z.enum(['v1', 'v2']).safeParse(bruta)
-  if (!p.success) throw new Error('ab_lab_leitura: ab_tests: regra_duracao inválida')
-  return p.data
-}
-
 function variantesOrdenadas(row: Record<string, unknown>): Array<{ variant_id: string }> {
   const vs = ((row.variants ?? []) as Array<{ id: string; sort_order?: number }>).slice()
   vs.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -1149,7 +1141,7 @@ export async function listAbTests(
 
   const linhas = (data ?? []) as Record<string, unknown>[]
   const lido = await lerDiasDosTestes(supabase as unknown as SupabaseClient, siteId, linhas.map(r => String(r.id)))
-  if (!lido.ok) return err('DB_ERROR', 'Failed to load A/B scoreboard', 500)
+  if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
 
   const agora = new Date()
   return ok(linhas.map(r => {
@@ -1186,7 +1178,7 @@ export async function getAbTest(
 
   const row = test as Record<string, unknown>
   const lido = await lerDiasDoTeste(supabase as unknown as SupabaseClient, siteId, id)
-  if (!lido.ok) return err('DB_ERROR', 'Failed to load A/B scoreboard', 500)
+  if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
   const agora = new Date()
   const detail = projetarTeste(row, agora, placarDaLinha(row, lido.dias, variantesOrdenadas(row), agora))
   detail.cycles = ((row.cycles ?? []) as Record<string, unknown>[]).map(projetarCiclo)
@@ -1233,7 +1225,7 @@ export async function getAbTestFunnel(
   const variantIds = [...new Set((cycles ?? []).map(c => c.variant_id))]
 
   const lido = await lerDiasDoTeste(supabase as unknown as SupabaseClient, siteId, id)
-  if (!lido.ok) return err('DB_ERROR', 'Failed to load A/B scoreboard', 500)
+  if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
   const placar = placarDaLinha(test as Record<string, unknown>, lido.dias, variantIds.map(v => ({ variant_id: v })), new Date())
 
   return ok({

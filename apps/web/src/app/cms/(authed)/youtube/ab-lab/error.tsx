@@ -3,11 +3,12 @@
 import { useEffect } from 'react'
 import * as Sentry from '@sentry/nextjs'
 import { FalhaDeLeitura } from './_components/falha-de-leitura'
+import { horaDaFalha } from './_components/hora-da-falha'
 
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => { Sentry.captureException(error) }, [error])
 
-  if (error.message.startsWith('ab_lab_leitura')) return <FalhaDeLeitura reset={reset} />
+  if (error.message.startsWith('ab_lab_leitura')) return <FalhaDeLeitura reset={reset} falhouAs={horaDaFalha(new Date())} />
 
   return (
     <div className="flex flex-col items-center justify-center p-8 text-cms-text">

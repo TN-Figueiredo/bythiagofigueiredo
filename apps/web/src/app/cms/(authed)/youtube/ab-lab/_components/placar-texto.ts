@@ -103,6 +103,12 @@ export function fraseDoPlacar(
       break
   }
   const total = totalDeImpressoes(p)
+  const perdido = p.variantes.reduce((s, v) => s + v.dias_nao_medidos, 0)
+  const esperando = p.variantes.reduce((s, v) => s + v.dias_aguardando, 0)
+  if (total === null && perdido > 0 && esperando === 0) {
+    // Perda definitiva (relatório expirou sem baixar): "ainda" prometeria dado que não vem.
+    return { principal: 'Os dias deste teste não foram medidos pelo YouTube (relatório perdido); não há números.', apoio: '' }
+  }
   const principal = total === null
     ? `${p.variantes.length} variantes, sem impressões medidas ainda.`
     : `${p.variantes.length} variantes, ${n(total)} impressões no total.`

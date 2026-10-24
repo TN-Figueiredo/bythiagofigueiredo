@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { placarDoTeste, faixaDeDias } from '@/lib/youtube/ab-gravacao/placar'
+import { placarDoTeste, faixaDeDias, regraDoTeste } from '@/lib/youtube/ab-gravacao/placar'
 import { lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -263,15 +263,6 @@ export const getTestResults = cache(async (testId: string): Promise<AbTestResult
     faixa_dias: faixaDias,
   } satisfies AbTestResults
 })
-
-/** Regra de duração do teste: `regra_duracao` não está em `AbTestRow` nem nos tipos gerados (K4); ausente vale 'v1'. */
-function regraDoTeste(test: unknown): 'v1' | 'v2' {
-  const bruta = (test as { regra_duracao?: unknown }).regra_duracao
-  if (bruta === undefined || bruta === null) return 'v1'
-  const p = z.enum(['v1', 'v2']).safeParse(bruta)
-  if (!p.success) throw new Error('ab_lab_leitura: ab_tests: regra_duracao inválida')
-  return p.data
-}
 
 /**
  * Sem chamador desde a S8-F3; dono = F4, que decide reaproveitar ou apagar; não reativar sem φ̂.

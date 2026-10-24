@@ -66,6 +66,16 @@ export function diaValido(d: Pick<LinhaDiaPlacar, 'alcance_estado' | 'impressoes
 }
 
 /** Dia civil de `d` em America/Los_Angeles. */
+/** `regra_duracao` não está nos tipos gerados (K4); ausente vale 'v1'. Valor inválido lança (falha alta, nunca regra errada em silêncio).
+ *  Na lista o `throw` seria inalcançável: CHECK + NOT NULL da migration 20261018000004. */
+export function regraDoTeste(row: unknown): 'v1' | 'v2' {
+  const bruta = (row as { regra_duracao?: unknown }).regra_duracao
+  if (bruta === undefined || bruta === null) return 'v1'
+  const p = z.enum(['v1', 'v2']).safeParse(bruta)
+  if (!p.success) throw new Error('ab_lab_leitura: ab_tests: regra_duracao inválida')
+  return p.data
+}
+
 export function diaPt(d: Date): string {
   return dayPt(d)
 }

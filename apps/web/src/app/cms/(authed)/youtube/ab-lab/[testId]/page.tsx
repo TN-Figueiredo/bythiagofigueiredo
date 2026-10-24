@@ -10,6 +10,7 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
 import * as Sentry from '@sentry/nextjs'
 import { FalhaDeLeitura } from '../_components/falha-de-leitura'
+import { horaDaFalha } from '../_components/hora-da-falha'
 import { FaixaComAcoes } from '../_components/faixa-com-acoes'
 import { carregarDadosDaFaixa } from '../_components/faixa-dados'
 import { AtualizarEnquantoEmAndamento } from '../_components/atualizar-enquanto-em-andamento'
@@ -94,7 +95,7 @@ export default async function AbTestDetailPage({
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('ab_lab_leitura')) {
       Sentry.captureException(e)
-      return <FalhaDeLeitura />
+      return <FalhaDeLeitura falhouAs={horaDaFalha(new Date())} />
     }
     throw e
   }
