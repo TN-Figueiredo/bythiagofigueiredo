@@ -27,7 +27,7 @@ beforeEach(() => { modo.atual = 'aviso' })
 
 describe('K2: chave só do arquivo não lê o resto do pipeline', () => {
   for (const m of ['aviso', 'recusa'] as const) {
-    for (const p of ['archive_copy', 'archive_b2', 'archive_read']) {
+    for (const p of ['archive_copy', 'archive_b2', 'archive_read', 'archive_owner']) {
       it(`${p} em GET /api/pipeline/items, modo ${m}: 403 "Forbidden"`, async () => {
         modo.atual = m
         linha.atual = { id: 'k', site_id: 'site-1', name: 'forja', permissions: [p] }
