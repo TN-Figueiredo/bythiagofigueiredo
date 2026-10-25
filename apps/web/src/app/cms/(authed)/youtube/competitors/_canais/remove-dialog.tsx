@@ -138,7 +138,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const sair = (f: Fase) => { setFase(f); onBloqueioRef.current(false) }
   const campoNome = useRef<HTMLInputElement>(null)
   const enviar = async () => {
-    if (btn.desabilitado && caminho === 'apagar' && !nomeOk && fase === 'pronto' && !emVoo.current) { campoNome.current?.focus(); campoNome.current?.scrollIntoView?.({ block: 'nearest' }); return }
+    if (btn.desabilitado && caminho === 'apagar' && !nomeOk && fase === 'pronto' && !emVoo.current) { campoNome.current?.focus({ preventScroll: true }); campoNome.current?.scrollIntoView?.({ block: 'center' }); return }
     if (emVoo.current || btn.desabilitado) return
     emVoo.current = true
     const tok = ++tokAcao.current
@@ -213,7 +213,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const arquivoLinha = linhaArquivo(arquivo)
   const blob = caminho === 'apagar' && arquivo ? fraseBlobDialogo(arquivo.imagensBlob, capacidade, dataDoComando) : null
   const lead = caminho === 'guardar' ? TXT.leadGuardar : TXT.leadApagar
-  useEffect(() => { if (erro && (fase === 'erro' || fase === 'incerto')) faixaErro.current?.scrollIntoView?.({ block: 'nearest' }) }, [erro, fase])
+  useEffect(() => { if (erro && (fase === 'erro' || fase === 'incerto')) faixaErro.current?.scrollIntoView?.({ block: 'center' }) }, [erro, fase]) // center: com nearest a barra sticky (.acts) cobre o alvo
   const frase = erro ? fraseDoErro(erro.codigo, erro.frase, erro.caminho) : null
   const semSaidaGuardar = erro?.caminho === 'apagar' && erro.codigo === 'video_compartilhado' // a F1 também recusaria guardar (I6)
   const passageiroGuardar = erro?.caminho === 'guardar' && codigoPassageiro(erro.codigo)
@@ -255,7 +255,8 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
         <p className={'fx-never rm-lead' + (caminho === 'apagar' ? ' after' : '')} id={ids.lead} hidden={mostrarFalha}>{lead}</p>
         {/* o sizer é o estado mais alto (todas as linhas com a explicação mais longa), invisível e na mesma célula do que aparece */}
         <div className="fx-loss-box">
-          {mostrarFalha ? null : <div className="fx-sizer" aria-hidden="true">
+          {/* no caminho apagar, já contado, a reserva só deixaria vazio (Gio r4) */}
+          {mostrarFalha || (caminho === 'apagar' && nums) ? null : <div className="fx-sizer" aria-hidden="true">
             <ul className="fx-lossz">
               {LINHAS.map(l => <li key={l.k}><b className="fx-wait">contando…</b><span>{l.varios}<span>{subDe(l.k, null) + TXT.subLeiturasExtra}</span></span></li>)}
               {caminho === 'guardar' ? <li><b className="fx-wait">contando…</b><span>meses já no arquivo<span>{SIZER_SUB_ARQUIVO}</span></span></li> : null}
