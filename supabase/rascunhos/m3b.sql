@@ -1070,16 +1070,49 @@ $$;
 revoke all on function public.obs_archive_channel_units(uuid, text, uuid, date) from public, anon, authenticated;
 grant execute on function public.obs_archive_channel_units(uuid, text, uuid, date) to service_role;
 
+-- O cálculo do resumo de UMA unidade (canal x tabela x mês), único bloco execute format dele (pedido da M7, TRAVA M7-0b).
+-- Os cinco set são os de obs_archive_summary_rows: o texto sai igual por quem chamar. Interna: ninguém chama de fora.
+create or replace function public.obs_archive_summary_calc(p_site uuid, p_class text, p_channel uuid, p_table text, p_month date, p_hash text, p_ver text)
+returns jsonb language plpgsql stable security definer
+set search_path = '' set timezone = 'UTC' set extra_float_digits = 3 set datestyle = 'ISO, YMD' set intervalstyle = 'postgres' set bytea_output = 'hex'
+as $$
+declare
+  v_ch text := p_channel::text; x record; v_src record; v_c jsonb; v_v jsonb; v_mes text := to_char(p_month, 'YYYY-MM');
+  v_ini timestamptz := (p_month::text || ' 00:00:00-03')::timestamptz;
+  v_fim timestamptz := (((p_month + interval '1 month')::date)::text || ' 00:00:00-03')::timestamptz;
+  v_seg date := (p_month + interval '1 month')::date;
+begin
+  select * into x from public.obs_archive_table_exprs(p_table);
+  select * into v_src from public.obs_archive_unit_source(p_class, p_table);
+  execute format($q$
+    with s as (select %1$s as v, %2$s as ts, %3$s as d, %4$s as a, %5$s as b, %6$s as c %7$s),
+    pv as (select v, count(*) as n, count(distinct d) as nd, min(ts) as t1, max(ts) as t2,
+                  (array_agg(a order by ts asc))[1] as a1, (array_agg(a order by ts desc))[1] as a2,
+                  (array_agg(b order by ts asc))[1] as b1, (array_agg(b order by ts desc))[1] as b2,
+                  (array_agg(c order by ts asc))[1] as c1, (array_agg(c order by ts desc))[1] as c2
+             from s group by v)
+    select to_jsonb(array[ $8, $9, $10, (select count(*) from pv)::text, (select count(*) from s)::text, (select count(distinct d) from s)::text, $7,
+                          (select min(t1) from pv)::text, (select max(t2) from pv)::text,
+                          (select case when count(*) filter (where a1 is null or a2 is null) > 0 then null else sum(a2 - a1)::text end from pv),
+                          (select case when count(*) filter (where b1 is null or b2 is null) > 0 then null else sum(b2 - b1)::text end from pv),
+                          (select case when count(*) filter (where c1 is null or c2 is null) > 0 then null else sum(c2 - c1)::text end from pv),
+                          $11, $12 ]::text[]),
+           (select coalesce(jsonb_agg(to_jsonb(array[ pv.v::text, $8, $9, $10, pv.n::text, pv.nd::text, pv.a1::text, pv.a2::text, pv.b1::text, pv.b2::text, pv.c1::text, pv.c2::text, $11, $12 ]::text[]) order by pv.v), '[]'::jsonb) from pv)
+  $q$, x.video_expr, x.ts_expr, x.day_expr,
+       case when x.measured then 't.views' else 'null::bigint' end, case when x.measured then 't.likes' else 'null::bigint' end, case when x.measured then 't.comments' else 'null::bigint' end,
+       v_src.from_where)
+    into v_c, v_v using p_site, p_channel, p_month, v_ini, v_fim, v_seg, (v_seg - p_month)::text, v_ch, p_table, v_mes, p_hash, p_ver;
+  return jsonb_build_object('canal', v_c, 'video', v_v);
+end $$;
+revoke all on function public.obs_archive_summary_calc(uuid, text, uuid, text, date, text, text) from public, anon, authenticated, service_role;
+
 create or replace function public.obs_archive_summary_rows(p_site uuid, p_class text, p_channel uuid, p_month date)
 returns jsonb language plpgsql security definer
 set search_path = '' set timezone = 'UTC' set extra_float_digits = 3 set datestyle = 'ISO, YMD' set intervalstyle = 'postgres' set bytea_output = 'hex'
 as $$
 declare
   v_ch text := p_channel::text; v_pend text; v_hashes jsonb; v_last record; v_ver integer; v_vazio boolean;
-  v_ini timestamptz := (p_month::text || ' 00:00:00-03')::timestamptz;
-  v_fim timestamptz := (((p_month + interval '1 month')::date)::text || ' 00:00:00-03')::timestamptz;
-  v_seg date := (p_month + interval '1 month')::date;
-  u record; x record; v_src record; v_canal jsonb := '[]'; v_video jsonb := '[]'; v_c jsonb; v_v jsonb; v_mes text := to_char(p_month, 'YYYY-MM');
+  u record; v_canal jsonb := '[]'; v_video jsonb := '[]'; v_c jsonb; v_v jsonb; v_c_v jsonb;
 begin
   if p_class = 'video_antigo' then raise exception 'resumo_da_m10b' using errcode = 'P0001'; end if;
   if p_month is null or p_month <> date_trunc('month', p_month)::date then raise exception 'mes_invalido' using errcode = 'P0001'; end if;
@@ -1105,26 +1138,8 @@ begin
   if not v_vazio then
     for u in select c.* from public.obs_archive_current_units(p_site, p_class, p_month) c
               where c.channel_ref = v_ch and c.purged_at is null and c.lost_at is null order by c.table_name loop
-      select * into x from public.obs_archive_table_exprs(u.table_name);
-      select * into v_src from public.obs_archive_unit_source(p_class, u.table_name);
-      execute format($q$
-        with s as (select %1$s as v, %2$s as ts, %3$s as d, %4$s as a, %5$s as b, %6$s as c %7$s),
-        pv as (select v, count(*) as n, count(distinct d) as nd, min(ts) as t1, max(ts) as t2,
-                      (array_agg(a order by ts asc))[1] as a1, (array_agg(a order by ts desc))[1] as a2,
-                      (array_agg(b order by ts asc))[1] as b1, (array_agg(b order by ts desc))[1] as b2,
-                      (array_agg(c order by ts asc))[1] as c1, (array_agg(c order by ts desc))[1] as c2
-                 from s group by v)
-        select to_jsonb(array[ $8, $9, $10, (select count(*) from pv)::text, (select count(*) from s)::text, (select count(distinct d) from s)::text, $7,
-                              (select min(t1) from pv)::text, (select max(t2) from pv)::text,
-                              (select case when count(*) filter (where a1 is null or a2 is null) > 0 then null else sum(a2 - a1)::text end from pv),
-                              (select case when count(*) filter (where b1 is null or b2 is null) > 0 then null else sum(b2 - b1)::text end from pv),
-                              (select case when count(*) filter (where c1 is null or c2 is null) > 0 then null else sum(c2 - c1)::text end from pv),
-                              $11, $12 ]::text[]),
-               (select coalesce(jsonb_agg(to_jsonb(array[ pv.v::text, $8, $9, $10, pv.n::text, pv.nd::text, pv.a1::text, pv.a2::text, pv.b1::text, pv.b2::text, pv.c1::text, pv.c2::text, $11, $12 ]::text[]) order by pv.v), '[]'::jsonb) from pv)
-      $q$, x.video_expr, x.ts_expr, x.day_expr,
-           case when x.measured then 't.views' else 'null::bigint' end, case when x.measured then 't.likes' else 'null::bigint' end, case when x.measured then 't.comments' else 'null::bigint' end,
-           v_src.from_where)
-        into v_c, v_v using p_site, p_channel, p_month, v_ini, v_fim, v_seg, (v_seg - p_month)::text, v_ch, u.table_name, v_mes, u.hash_conteudo, v_ver::text;
+      v_c_v := public.obs_archive_summary_calc(p_site, p_class, p_channel, u.table_name, p_month, u.hash_conteudo, v_ver::text);
+      v_c := v_c_v -> 'canal'; v_v := v_c_v -> 'video';
       v_canal := v_canal || jsonb_build_array(v_c);
       v_video := v_video || (select coalesce(jsonb_agg(e), '[]'::jsonb) from jsonb_array_elements(v_v) e);
     end loop;

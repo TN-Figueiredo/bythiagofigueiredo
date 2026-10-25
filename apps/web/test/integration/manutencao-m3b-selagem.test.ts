@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID, createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
 import { aplicarM3b, sqlM3bAte, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
@@ -268,6 +269,51 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     const linha = r.canal.find(l => col(r.colunas_canal, l, 'tabela') === DAILY)!
     expect(col(r.colunas_canal, linha, 'var_likes')).toBeNull()
     expect(col(r.colunas_canal, linha, 'var_views')).toBe('200')       // (200-100) + (200-100)
+  }))
+
+  it('Passo 1b: a saída do resumo depois de extrair a calc é IGUAL, byte a byte, à da função antiga congelada', async () => emTx(async () => {
+    // Escolha: diferencial vivo (a função de antes, congelada em test/fixtures-sql, roda ao lado da nova sobre os mesmos dados), não ouro gravado:
+    // o ouro envelhece com o esquema e o diferencial cai no dia em que alguém mexer na calc sem querer.
+    await c.query(readFileSync(resolve(__dirname, '../fixtures-sql/m3b-summary-rows-antes.sql'), 'utf8'))
+    const a = await semearCanal(c, { videos: 3 })
+    await duasPontas(a.videos[0]!, [0, 10], [0, 20])
+    await duasPontas(a.videos[1]!, [0, null], [0, 5])
+    await semearDiaria(c, [a.videos[2]!], '2026-10-03', 29)
+    await unidadesDoCanal(a.site, a.canal)
+    const vazio = await semearCanal(c, { videos: 1 })
+    await unidadesDoCanal(vazio.site, vazio.canal)
+    for (const k of [a, vazio]) {
+      const [antes, depois] = await Promise.all(['obs_archive_summary_rows_antes', 'obs_archive_summary_rows'].map(async f =>
+        (await c.query(`select public.${f}($1, 'serie', $2, $3::date)::text as r`, [k.site, k.canal, MES])).rows[0].r as string))
+      expect(depois).toBe(antes)
+      expect(depois.length).toBeGreaterThan(100)
+    }
+    // Phil M4 / Yannis M4: a classe `texto` (measured = false, o ramo do nulo) também passa pelo antes/depois
+    const tx = await semearCanal(c, { videos: 1 })
+    await c.query(`insert into public.competitor_video_comments (site_id, competitor_channel_id, video_id, youtube_comment_id, body, published_at, is_creator, first_seen_at, last_seen_at)
+      values ($1, $2, $3, 'cm1', 'um comentário', '2026-10-05T10:00:00Z', false, '2026-10-05T11:00:00Z', '2026-10-06T11:00:00Z')`, [tx.site, tx.canal, tx.videos[0]])
+    await fixaHoje('2026-12-15')                                  // o texto só fecha o mês no dia 15 (Phil C2)
+    for (const t of ['competitor_video_comments', 'competitor_video_comment_marks', 'competitor_raw']) {
+      const u = await unidadePelaRota({ site: tx.site, classe: 'texto', tabela: t, canal: tx.canal, mes: MES })
+      if (u.linhas > 0) await receber(tx.site, [item(u)])
+    }
+    const [antesT, depoisT] = await Promise.all(['obs_archive_summary_rows_antes', 'obs_archive_summary_rows'].map(async f =>
+      (await c.query(`select public.${f}($1, 'texto', $2, $3::date)::text as r`, [tx.site, tx.canal, MES])).rows[0].r as string))
+    expect(depoisT).toBe(antesT)
+    expect(depoisT.length).toBeGreaterThan(100)
+    const dados = JSON.parse((await c.query(`select public.obs_archive_summary_rows($1, 'serie', $2, $3::date)::text as r`, [a.site, a.canal, MES])).rows[0].r) as LinhasDoResumo
+    expect(dados.canal.length).toBeGreaterThan(0)
+    expect(dados.video.length).toBeGreaterThan(0)
+  }))
+
+  it('Passo 1b: a calc é interna (ninguém chama de fora) e é o único execute format do cálculo', async () => emTx(async () => {
+    for (const q of ['anon', 'authenticated', 'service_role']) {
+      expect(await escalar<boolean>(c, `select has_function_privilege($1, 'public.obs_archive_summary_calc(uuid,text,uuid,text,date,text,text)'::regprocedure, 'execute')`, [q]), q).toBe(false)
+    }
+    const rows = await escalar<string>(c, `select prosrc from pg_proc where proname = 'obs_archive_summary_rows' and pronamespace = 'public'::regnamespace`)
+    expect(rows).not.toMatch(/execute format/)
+    expect(rows).toMatch(/obs_archive_summary_calc\(/)
+    expect(await escalar<string>(c, `select provolatile::text from pg_proc where proname = 'obs_archive_summary_calc' and pronamespace = 'public'::regnamespace`)).toBe('s')
   }))
 
   it('sealed_kind e os números são por tabela (Phil I10)', async () => emTx(async () => {
