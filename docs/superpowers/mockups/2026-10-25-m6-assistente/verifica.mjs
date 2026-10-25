@@ -164,6 +164,49 @@ for(const k of ['revisar-ativando','revisar-erro']){const r=await get(k,()=>({no
  if(/conexão/.test(r)||!/Tentar de novo/.test(r))ng('demora: '+r);}
 {const r=await get('variantes-titulo',()=>{const l=document.querySelector('.frame label.fl');return l&&l.textContent});
  if(r!=='Título da variante B')ng('variantes-titulo: falta rótulo visível '+r);}
+// 12. FLUXO inteiro clicando (modo padrão): cada passo tem de avançar, para cada tipo
+for(const tp of ['title','thumbnail','combo']){
+ await pg.setViewportSize({width:1500,height:900});
+ await pg.goto(`${url}?tema=claro`);
+ const passo=()=>pg.evaluate(()=>document.querySelector('.frame')?.dataset.passo);
+ const espera=async(p,ms=6000)=>{try{await pg.waitForFunction(x=>document.querySelector('.frame')?.dataset.passo===x,p,{timeout:ms})}catch(_){ng(`fluxo ${tp}: não chegou em "${p}" (está em "${await passo()}")`);throw new Error('stop')}};
+ try{
+  if(await passo()!=='lista')ng('fluxo: não abre na lista');
+  if(!(await pg.$('.frame .fx-hd h2')))ng('fluxo: lista sem cabeçalho');
+  await pg.click('.frame .fx-hd .fx-new');await espera('sel');
+  await pg.fill('#bq','zzzz');if(await pg.locator('.frame .vp').count()!==0)ng('fluxo: busca não filtra');
+  await pg.fill('#bq','Diamante 3');if(await pg.locator('.frame .vp').count()!==1)ng('fluxo: busca por "Diamante 3" deveria dar 1 linha');
+  await pg.fill('#bq','');
+  await pg.locator('.frame .vp').first().click();await espera('tipo');
+  await pg.click(`.frame .tp-c[data-k="${tp}"]`);
+  if(!/Criando o rascunho/.test(await pg.locator('.frame .wz-f').textContent()))ng(`fluxo ${tp}: sem "Criando rascunho…"`);
+  await espera('var');
+  if(await pg.locator('.frame .wz-f .pri').isEnabled()&&tp!=='thumbnail')ng(`fluxo ${tp}: Próximo habilitado sem título B`);
+  await pg.click('.frame .ideia');if(!/não desenhado/i.test(await pg.locator('.frame .wz-b').textContent()))ng('fluxo: ideias sem aviso');
+  await pg.click('.frame .wz-f .b:has-text("Voltar")');await espera('tipo');
+  await pg.click('.frame .wz-f .pri');await espera('var');
+  if(tp!=='thumbnail')await pg.fill('#tb','Título B de teste do fluxo');
+  if(tp!=='title')await pg.click('.frame .slot-a button');
+  if(!(await pg.locator('.frame .wz-f .pri').isEnabled()))ng(`fluxo ${tp}: Próximo segue desabilitado`);
+  await pg.click('.frame .wz-f .pri');await espera('rev');
+  if(await pg.locator('.frame .avs-sk').count()!==1)ng('fluxo: sem esqueleto ao abrir Revisar');
+  await pg.waitForSelector('.frame .avs',{timeout:3000});
+  const ct=await pg.$$eval('.frame [data-ctx]',b=>b.map(x=>x.textContent.trim()));
+  if(ct.join()!=='Home,Busca,Sugeridos,Mobile')ng('fluxo: abas '+ct);
+  for(const c of ['sea','sid','mob','home']){await pg.click(`.frame [data-ctx="${c}"]`);if(await pg.locator(`.frame [data-ctx="${c}"][aria-pressed="true"]`).count()!==1)ng('fluxo: aba '+c)}
+  const tt=await pg.$$eval('.frame .cmc .tt',e=>e.map(x=>x.textContent));
+  const th=await pg.$$eval('.frame .cmt',e=>e.map(x=>x.className));
+  if(tp==='title'&&(tt[0]===tt[1]||th[0]!==th[1]))ng('fluxo título: prévia errada');
+  if(tp==='thumbnail'&&(tt[0]!==tt[1]||th[0]===th[1]))ng('fluxo thumbnail: prévia errada');
+  if(tp==='combo'&&(tt[0]===tt[1]||th[0]===th[1]))ng('fluxo combo: prévia errada');
+  await pg.click('.frame .wz-f .pri');
+  if(!/Ativando…/.test(await pg.locator('.frame .wz-f').textContent()))ng('fluxo: sem "Ativando…"');
+  await espera('ld');await pg.waitForSelector('.frame [data-testid="detalhe-carregando"]');
+  await espera('ativo');
+  if(await pg.locator('.frame iframe').count()!==1)ng('fluxo: tela ativa sem o mockup M5');
+  await pg.click('#rst');await espera('lista');
+ }catch(e){if(e.message!=='stop')ng(`fluxo ${tp}: ${e.message.split('\n')[0]}`)}
+}
 await browser.close();
 console.log(`${nshots} capturas; ${falhas} falha(s)`);
 process.exit(falhas?1:0);

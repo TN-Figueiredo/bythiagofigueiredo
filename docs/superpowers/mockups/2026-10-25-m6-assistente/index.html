@@ -267,15 +267,42 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .ld .etd-msg .acao{color:var(--cms-text)}
 @container (max-width:640px){.ld{padding:16px 12px}.ld .hd{flex-direction:column;align-items:flex-start;gap:12px;min-height:169px}.ld .hd .im{width:96px}.ld .hd .tt{width:100%}}
 .pgmock{padding:0}
+
+/* ---------- modo Fluxo (r3) ---------- */
+.fx-lista{padding:28px 28px 36px;min-height:420px}
+.fx-hd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px}
+.fx-hd .l{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.fx-hd h2{font-size:22px;font-weight:700;letter-spacing:-.01em;color:var(--cms-text)}
+.fx-hd .l span{font-size:13px;color:var(--cms-text-muted)}
+.fx-hd .r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fx-b{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:6px 12px;font:inherit;font-size:12.5px;font-weight:600;border-radius:9px;border:1px solid var(--cms-border);background:transparent;color:var(--cms-text);cursor:pointer;white-space:nowrap}
+.fx-b.fl{background:var(--cms-surface-hover)}
+.fx-b.pri{background:var(--cms-accent);border-color:var(--cms-accent);color:rgb(26,18,12);font-size:13.5px;padding:9px 15px;letter-spacing:-.01em}
+.fx-b svg{flex:none}
+.fx-empty{border:1px solid var(--cms-border);background:var(--cms-surface);border-radius:14px;padding:28px;text-align:center}
+.fx-empty h3{font-size:18px;font-weight:600;margin-bottom:8px;color:var(--cms-text)}
+.fx-empty p{font-size:13px;color:var(--cms-text-muted);max-width:400px;margin:0 auto 16px}
+.fx-ok{margin-bottom:18px}
+.fx-vazio{padding:28px 12px;text-align:center;color:var(--cms-text-muted);font-size:13px}
+.fx-ativo{position:relative;overflow:hidden;background:#100E0C}
+.fx-ativo iframe{position:absolute;left:0;top:0;width:100%;border:0;background:#100E0C}
+.fx-nav{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 16px;background:var(--cn-surface);border-bottom:1px solid var(--cn-border);font-size:13px;color:var(--cn-muted)}
+.fx-nav a{color:var(--cn-accent);font-weight:600;min-height:44px;display:inline-flex;align-items:center}
+.ctl .rst{margin-left:auto;font:inherit;font-size:12px;min-height:34px;padding:0 10px;border:1px solid #40382D;border-radius:6px;background:transparent;color:var(--pgm);cursor:pointer}
+.ctl .rst:hover{color:var(--pgt)}
+.ctl[data-modo="fluxo"] #gEstado{display:none}
+.ctl[data-modo="estados"] .rst{display:none}
 </style></head><body>
-<div class="ctl">
- <div class="grp">Estado <div class="seg" id="sEstado" role="group" aria-label="Estado"></div></div>
+<div class="ctl" id="ctl">
+ <div class="grp">Modo <div class="seg" id="sModo" role="group" aria-label="Modo"><button data-v="fluxo">Fluxo</button><button data-v="estados">Estados</button></div></div>
+ <div class="grp" id="gEstado">Estado <div class="seg" id="sEstado" role="group" aria-label="Estado"></div></div>
  <div class="grp">Tema <div class="seg" id="sTema" role="group" aria-label="Tema"><button data-v="escuro">Escuro</button><button data-v="claro">Claro</button></div></div>
  <div class="grp">Largura <div class="seg" id="sLarg" role="group" aria-label="Largura"><button data-v="ambas">1440 e 390</button><button data-v="1440">1440</button><button data-v="390">390</button></div></div>
+ <button class="rst" id="rst" type="button">Reiniciar fluxo</button>
 </div>
 <div class="wrap">
  <h1>Assistente “Novo teste A/B” (3 passos)</h1>
- <p class="lede">Mockup M6 r1. Troque estado, tema e largura no topo ou pela URL (?estado=revisar-titulo&amp;tema=claro&amp;largura=390). Dados e miniaturas sintéticos; nenhum número ou arte aparece sem ser dado real do vídeo ou do que a pessoa digitou. Esperas sem véu: só o elemento clicado muda.</p>
+ <p class="lede">Mockup M6 r3. Modo Fluxo (padrão): percorra clicando, do botão Novo teste até a tela do teste ativo; tempos simulados. Modo Estados: troque estado, tema e largura no topo ou pela URL (?estado=revisar-titulo&amp;tema=claro&amp;largura=390). Dados e miniaturas sintéticos; nenhum número ou arte aparece sem ser dado real do vídeo ou do que a pessoa digitou. Esperas sem véu: só o elemento clicado muda.</p>
  <div class="figs" id="figs"></div>
 </div>
 <div id="flut"></div>
@@ -316,24 +343,26 @@ function info(label,titulo,pars){const id='vbi'+(++IC);TIPS[id]={t:titulo,p:pars
 const TA='Main AD Diamante 2 - Lolzin raiz!';
 const TB='Main AD no Diamante 2: partida perdida em 3 minutos?';
 const TBL='Main AD no Diamante 2: como eu perdi uma partida ganha em 3 minutos e o que eu aprendi com isso (assista até o fim)';
+let VID=TA, VTH='tA';
 const HANDLE='@tnfigueiredotv';
 const DUR='12:48', PUB='21 out 2026';
-const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+let BT='';
 
 /* ---------- seletor ---------- */
-function linha(v){
+function linha(v,i){
  const th=v.thumb?'<span class="th '+v.thumb+'" aria-hidden="true"></span>':'<span class="th semimg" aria-hidden="true">Sem thumbnail</span>';
  const m=[];
  if(v.dur)m.push('<span>Duração '+v.dur+'</span>');
  m.push(v.pub?'<span>Publicado em '+v.pub+'</span>':'<span>Data de publicação não informada</span>');
  if(v.views!=null)m.push('<span>'+v.views.toLocaleString('pt-BR')+' visualizações</span>');
- return '<button class="vp" type="button"'+(v.ativo?' disabled':'')+'>'+th+'<span class="tx"><span class="t">'+esc(v.t)+'</span><span class="m">'+m.join('')+'</span>'
+ return '<button class="vp" type="button" data-i="'+(v.i!=null?v.i:i)+'"'+(v.ativo?' disabled':'')+'>'+th+'<span class="tx"><span class="t">'+esc(v.t)+'</span><span class="m">'+m.join('')+'</span>'
   +(v.ativo?'<span class="amb">Teste ativo em andamento</span>':'')+(v.lift?'<span class="lf">Lift anterior: '+v.lift+'</span>':'')+'</span></button>';
 }
 function seletor(e){
  return '<div class="wz" role="dialog" aria-label="Selecionar vídeo"><div class="wz-h"><div><h2>Selecionar vídeo</h2><div class="sub" style="white-space:normal">Escolha o vídeo. Os mais recentes aparecem primeiro.</div></div><button class="xb" type="button" aria-label="Fechar">'+ICO.x+'</button></div>'
-  +'<div class="sch"><div class="in">'+ICO.search+'<input type="text" placeholder="Buscar vídeos..." aria-label="Buscar vídeos" value="'+(e.busca||'')+'"></div></div>'
-  +'<div class="vl">'+e.rows.map(linha).join('')+'</div><div class="sel-f"><button class="b" type="button">Cancelar</button></div></div>';
+  +'<div class="sch"><div class="in">'+ICO.search+'<input id="bq" type="text" placeholder="Buscar vídeos..." aria-label="Buscar vídeos" value="'+esc(e.busca||'')+'"></div></div>'
+  +'<div class="vl">'+(e.rows.length?e.rows.map(linha).join(''):'<div class="fx-vazio">Nenhum vídeo encontrado.</div>')+'</div><div class="sel-f"><button class="b" type="button">Cancelar</button></div></div>';
 }
 
 /* ---------- passos ---------- */
@@ -345,7 +374,7 @@ function tipo(e){
  const card=t=>{
   const pend=e.pend===t.k, off=e.pend&&!pend;
   const ic=pend?S('<circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 9 9" stroke-width="2.4"/>','class="sp"'):t.ic;
-  return '<button type="button" role="radio" aria-checked="'+(pend||e.sel===t.k)+'" class="tp-c'+(pend||e.sel===t.k?' pick':'')+'"'+(pend?' aria-busy="true"':'')+(off?' aria-disabled="true"':'')+'>'
+  return '<button type="button" data-k="'+t.k+'" role="radio" aria-checked="'+(pend||e.sel===t.k)+'" class="tp-c'+(pend||e.sel===t.k?' pick':'')+'"'+(pend?' aria-busy="true"':'')+(off?' aria-disabled="true"':'')+'>'
    +'<div class="r"><div class="ic">'+ic+'</div><span class="ti">'+t.ti+'</span></div>'
    +'<div class="de">'+t.de+'</div>'+(t.ex?'<div class="ex">'+t.ex+'</div>':'')+'</button>';
  };
@@ -359,22 +388,22 @@ function variantes(e){
  const th=e.tp!=='title', ti=e.tp!=='thumbnail';
  const bTitle=e.bTitulo||'', bThumb=e.bThumb;
  const cardA='<div class="vc"><div class="vc-h"><span class="vchip vA" role="img" aria-label="Variante A">A</span><b>Original</b><span class="bdg">'+ICO.lock+'Travado</span></div><div class="vc-b'+(th?' th2':'')+'">'
-  +(th?'<div>'+slotThumb('tA',true)+'</div>':'')
-  +'<div style="min-width:0"><div class="lockt">'+TA+'</div>'+(!ti?'<p class="lockn">Título mantido: só a thumbnail está sendo testada.</p>':'')+'</div></div></div>';
+  +(th?'<div>'+slotThumb(VTH,true)+'</div>':'')
+  +'<div style="min-width:0"><div class="lockt">'+VID+'</div>'+(!ti?'<p class="lockn">Título mantido: só a thumbnail está sendo testada.</p>':'')+'</div></div></div>';
  const bSlot=bThumb?slotThumb('tB'):'<div class="slot vz">'+ICO.up+'<span>Arraste uma imagem ou escolha um arquivo</span></div>';
  const cardB='<div class="vc ch"><div class="vc-h"><span class="vchip vB" role="img" aria-label="Variante B">B</span><b>Desafiante</b><button class="rm" type="button" aria-label="Remover variante B">'+ICO.trash+'</button></div><div class="vc-b'+(th?' th2':'')+'">'
   +(th?'<div>'+bSlot+'<div class="slot-a"><button type="button">Escolher da Biblioteca</button></div></div>':'')
-  +'<div style="min-width:0">'+(ti?'<label class="fl" for="tb">Título da variante B</label><input id="tb" class="inp" type="text" value="'+esc(bTitle)+'" placeholder="Título da variante B…" aria-label="Título da variante B" maxlength="100">'+(bTitle.length>=80?'<div class="cc">'+bTitle.length+'/100 caracteres</div>':''):'<div class="lockt">'+TA+'</div><p class="lockn">Título mantido: só a thumbnail está sendo testada.</p>')+'</div></div></div>';
+  +'<div style="min-width:0">'+(ti?'<label class="fl" for="tb">Título da variante B</label><input id="tb" class="inp" type="text" value="'+esc(bTitle)+'" placeholder="Título da variante B…" aria-label="Título da variante B" maxlength="100">'+(bTitle.length>=80?'<div class="cc">'+bTitle.length+'/100 caracteres</div>':''):'<div class="lockt">'+VID+'</div><p class="lockn">Título mantido: só a thumbnail está sendo testada.</p>')+'</div></div></div>';
  return '<div class="vh"><div><h3>Variantes</h3><p>Monte até 2 desafiantes. A original (A) fica travada como referência.</p>'
   +'<button class="ideia" type="button" aria-haspopup="dialog">'+ICO.spark+'Pedir ideias a uma IA</button></div><span class="cnt">1 de 2 desafiantes</span></div>'
-  +cardA+cardB+'<button class="add" type="button">'+ICO.plus+'Adicionar desafiante</button>';
+  +cardA+cardB+'<button class="add" type="button">'+ICO.plus+'Adicionar desafiante</button>'+(e.ideiasMsg?'<div class="etd-msg warn" role="status">'+S('<path d="M12 3L22 20H2z"/><path d="M12 10v4.5M12 17.3v.2"/>')+'<div><strong>Pedir ideias a uma IA</strong>Não desenhado nesta rodada: reaproveita o componente que já existe.</div></div>':'');
 }
 
 /* ---------- Revisar ---------- */
 const PREV={ // por tipo: o que cada variante mostra (thumb e título reais; só muda o que foi mexido)
- title:{A:{th:'tA',t:TA},B:{th:'tA',t:TB},d:'Neste teste só o título muda: a miniatura é a mesma nas duas.'},
- thumbnail:{A:{th:'tA',t:TA},B:{th:'tB',t:TA},d:'Neste teste só a thumbnail muda: o título é o mesmo nas duas.'},
- combo:{A:{th:'tA',t:TA},B:{th:'tB',t:TB},d:'Neste teste o título e a thumbnail mudam juntos.'}};
+ title:{A:{get th(){return VTH},get t(){return VID}},B:{get th(){return VTH},get t(){return BT||TB}},d:'Neste teste só o título muda: a miniatura é a mesma nas duas.'},
+ thumbnail:{A:{get th(){return VTH},get t(){return VID}},B:{th:'tB',get t(){return VID}},d:'Neste teste só a thumbnail muda: o título é o mesmo nas duas.'},
+ combo:{A:{get th(){return VTH},get t(){return VID}},B:{th:'tB',get t(){return BT||TB}},d:'Neste teste o título e a thumbnail mudam juntos.'}};
 function meta(extra){return '<div class="mm">'+HANDLE+'</div><div class="mm">Publicado em '+PUB+'</div>'}
 function card(l,v,ctx,semimg){
  const lab='<div class="cml"><span class="vchip v'+l+'" role="img" aria-label="Variante '+l+'">'+l+'</span>'+(l==='A'?'Original':'Variante B')+'</div>';
@@ -420,8 +449,8 @@ function rodape(e,n){
  let bt='';
  if(n===0)bt='<button class="b" type="button"'+(e.pend?' disabled':'')+'>Cancelar</button>';
  else bt='<button class="b" type="button"'+(ocupado?' disabled':'')+'>Voltar</button>';
- if(n===1)bt+='<button class="b pri" type="button">Próximo'+ICO.arrow+'</button>';
- if(n===0)bt+=e.erro==='existe'?'<button class="b pri" type="button">Abrir rascunho</button>':'<button class="b pri" type="button" disabled>Próximo'+ICO.arrow+'</button>';
+ if(n===1)bt+='<button class="b pri" type="button"'+(e.nextOff?' disabled':'')+'>Próximo'+ICO.arrow+'</button>';
+ if(n===0)bt+=e.erro==='existe'?'<button class="b pri" type="button">Abrir rascunho</button>':'<button class="b pri" type="button"'+(e.fluxo&&e.sel?'':' disabled')+'>Próximo'+ICO.arrow+'</button>';
  if(n===2){
   const sv=e.acao==='salvando', at=e.acao==='ativando';
   bt+='<button class="b'+(sv?' busy':'')+'" type="button"'+(ocupado?' disabled':'')+'>'+(sv?BUSY.replace('<svg','<svg class="ib sp" style="animation:etd-sp 1s linear infinite"'):'')+(sv?'Salvando…':'Salvar rascunho')+'</button>'
@@ -433,7 +462,7 @@ function wizard(e,tema){
  const n=e.passo, corpo=[tipo,variantes,revisar][n](e);
  const trava=!!e.acao;
  return '<div class="wz'+(tema==='claro'?' light-on':'')+'" role="dialog" aria-modal="true" aria-label="Novo Teste A/B"'+((e.pend||trava)?' aria-busy="true"':'')+'>'
-  +'<div class="wz-h"><div><h2>Novo teste A/B</h2><div class="sub">'+TA+'</div></div><button class="xb" type="button" aria-label="Fechar"'+(trava?' disabled':'')+'>'+ICO.x+'</button></div>'
+  +'<div class="wz-h"><div><h2>Novo teste A/B</h2><div class="sub">'+VID+'</div></div><button class="xb" type="button" aria-label="Fechar"'+(trava?' disabled':'')+'>'+ICO.x+'</button></div>'
   +rail(n)+'<div class="wz-b">'+corpo+'</div>'+rodape(e,n)+'</div>';
 }
 
@@ -441,7 +470,7 @@ function wizard(e,tema){
 function carregando(e){
  const hd=e.frio
   ?'<div class="hd" aria-hidden="true"><span class="skl2 im" style="height:72px"></span><div class="tt"><span class="skl2" style="height:14px;width:40%;margin-bottom:10px"></span><span class="skl2" style="height:22px;width:85%"></span></div></div>'
-  :'<div class="hd"><span class="im tA" aria-hidden="true"></span><div class="tt"><p class="cr">Teste A/B</p><h2>'+TA+'</h2></div></div>';
+  :'<div class="hd"><span class="im '+VTH+'" aria-hidden="true"></span><div class="tt"><p class="cr">Teste A/B</p><h2>'+VID+'</h2></div></div>';
  const hdReal=hd;
  const msg=e.demora
   ?'<div class="etd-msg busy" role="status">'+BUSY+'<div><strong>Está demorando mais que o normal</strong><button class="acao" type="button">Tentar de novo</button></div></div>'
@@ -486,13 +515,92 @@ let estado=ORDEM.includes(Q.get('estado'))?Q.get('estado'):'seletor';
 let tema=Q.get('tema')==='claro'?'claro':'escuro';
 let larg=['1440','390'].includes(Q.get('largura'))?Q.get('largura'):'ambas';
 const CTXS={};
-function sync(){history.replaceState(null,'','?'+new URLSearchParams({estado,tema,largura:larg}))}
+let modo=(Q.get('modo')==='estados'||(!Q.get('modo')&&Q.get('estado')))?'estados':'fluxo';
+if(modo==='fluxo'&&!['1440','390','ambas'].includes(Q.get('largura')))larg='1440';
+function sync(){const o={modo,tema,largura:larg};if(modo==='estados')o.estado=estado;history.replaceState(null,'','?'+new URLSearchParams(o))}
 function render(k,w){
  const e=Object.assign({},E[k]);if(CTXS[k])e.ctx=CTXS[k];
  if(e.k==='sel')return seletor(e);
  if(e.k==='wz')return wizard(e,tema);
  return carregando(e);
 }
+/* ---------- modo Fluxo (r3): tempos simulados ---------- */
+const ROWS=E.seletor.rows.map((v,i)=>Object.assign({i},v));
+const F0=()=>({step:'lista',sel:null,tipo:null,pend:null,acao:null,bT:'',bThumb:false,aviso:null,ctx:'home',ideias:false,ok:false,busca:''});
+let F=F0(), TOK=0;
+const T_CRIA=1500,T_LENDO=1000,T_ATIVA=2000,T_CARREGA=1500,T_SALVA=1200;
+function later(ms,fn){const t=TOK;setTimeout(()=>{if(t===TOK&&modo==='fluxo')fn()},ms)}
+function reiniciar(){TOK++;F=F0();VID=TA;VTH='tA';BT='';paint()}
+const fxOk=()=>(F.tipo==='thumbnail'||F.bT.trim().length>0)&&(F.tipo==='title'||F.bThumb);
+function listaTela(){
+ const ok=F.ok?'<div class="ban fx-ok" role="status">'+ICO.ok+'<p><strong>Rascunho salvo.</strong> Ele aparece na lista de rascunhos do A/B Lab.</p></div>':'';
+ const novo='<button class="fx-b pri fx-new" type="button">'+ICO.plus.replace('width="14" height="14"','width="16" height="16"')+'Novo teste</button>';
+ return '<div class="fx-lista"><div class="fx-hd"><div class="l"><h2>A/B Lab</h2><span>Nenhum teste ativo</span></div><div class="r">'
+  +'<button class="fx-b" type="button">'+ICO.image.replace('<svg ','<svg width="16" height="16" ')+'Library</button>'
+  +'<button class="fx-b fl" type="button">'+S('<polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/>','width="14" height="14"')+'Todos os tipos</button>'
+  +'<button class="fx-b" type="button" aria-label="Configurações">'+S('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>','width="14" height="14"')+'</button>'
+  +novo+'</div></div>'+ok
+  +'<div class="fx-empty"><h3>Comece a testar</h3><p>Crie seu primeiro teste A/B para descobrir qual thumbnail/título maximiza o CTR.</p>'+novo+'</div></div>';
+}
+function ativoTela(w){
+ const src='../2026-10-25-m5-tela-v2/index.html?'+new URLSearchParams({estado:'ativo-antes-pisos',tema,largura:w});
+ const g=w==='390'?{iw:430,top:978,h:1316}:{iw:1472,top:385,h:966};
+ return '<div class="fx-nav"><span>Teste ativado. Esta é a tela do teste ativo aprovada no M5 (estado “Ativo, antes dos pisos”, teste de título).</span><a href="'+src+'" target="_blank" rel="noopener">Abrir em tela cheia</a></div>'
+  +'<div class="fx-ativo" data-testid="fx-ativo" style="height:'+g.h+'px"><iframe title="Tela do teste ativo (M5)" src="'+src+'" style="width:'+g.iw+'px;height:'+(g.top+g.h+40)+'px;left:-16px;top:-'+g.top+'px"></iframe></div>';
+}
+function fxEstado(w){
+ switch(F.step){
+  case 'lista':return {cnf:true,html:listaTela()};
+  case 'sel':{const q=F.busca.trim().toLowerCase();return {html:seletor({rows:ROWS.filter(v=>v.t.toLowerCase().includes(q)),busca:F.busca})}}
+  case 'tipo':return {html:wizard({passo:0,sel:F.sel,pend:F.pend,fluxo:true},tema)};
+  case 'var':return {html:wizard({passo:1,tp:F.tipo,bTitulo:F.bT,bThumb:F.bThumb&&F.tipo!=='title',nextOff:!fxOk(),ideiasMsg:F.ideias},tema)};
+  case 'rev':return {html:wizard({passo:2,tp:F.tipo,aviso:F.aviso,acao:F.acao,ctx:F.ctx},tema)};
+  case 'ld':return {cnf:true,html:carregando({})};
+  default:return {cnf:true,html:ativoTela(w)};
+ }
+}
+const bt0=b=>b.textContent.trim();
+document.addEventListener('click',ev=>{
+ if(modo!=='fluxo'||!ev.target.closest('.frame'))return;
+ const t=ev.target, b=t.closest('button'), st=F.step;
+ const go=(s)=>{F.step=s;paint()};
+ const sair=()=>{TOK++;F.pend=null;F.acao=null;go('lista')};
+ if(st==='var'&&(t.closest('.slot.vz')||(b&&b.closest('.slot-a')))){F.bThumb=true;paint();return}
+ if(!b)return;
+ if(b.classList.contains('fx-new')){F.ok=false;F.busca='';go('sel');return}
+ if(st==='sel'){
+  if(b.classList.contains('vp')){const r=ROWS[+b.dataset.i];VID=r.t;VTH=r.thumb;F.sel=null;F.tipo=null;go('tipo');return}
+  if(b.classList.contains('xb')||bt0(b)==='Cancelar')sair();
+  return}
+ if(st==='tipo'){
+  if(F.pend)return;
+  if(b.classList.contains('tp-c')){const k=b.dataset.k;F.sel=k;F.pend=k;paint();later(T_CRIA,()=>{F.tipo=k;F.pend=null;F.bT='';BT='';F.bThumb=false;F.ideias=false;go('var')});return}
+  if(b.classList.contains('xb')||bt0(b)==='Cancelar')sair();
+  else if(bt0(b).startsWith('Próximo')&&F.sel)go('var');
+  return}
+ if(st==='var'){
+  if(b.classList.contains('xb'))sair();
+  else if(bt0(b)==='Voltar'){F.sel=F.tipo;go('tipo')}
+  else if(b.classList.contains('ideia')){F.ideias=true;paint()}
+  else if(b.classList.contains('rm')){F.bT='';BT='';F.bThumb=false;paint()}
+  else if(bt0(b).startsWith('Próximo')&&fxOk()){
+   F.aviso='lendo';go('rev');
+   later(T_LENDO,()=>{F.aviso=F.tipo==='thumbnail'?'depois':'nao_chega';paint()})}
+  return}
+ if(st==='rev'){
+  if(F.acao)return;
+  if(b.classList.contains('xb'))sair();
+  else if(bt0(b)==='Voltar')go('var');
+  else if(bt0(b)==='Ativar teste'){F.acao='ativando';paint();later(T_ATIVA,()=>{F.acao=null;go('ld');later(T_CARREGA,()=>go('ativo'))})}
+  else if(bt0(b)==='Salvar rascunho'){F.acao='salvando';paint();later(T_SALVA,()=>{F.acao=null;F.ok=true;go('lista')})}
+ }
+});
+document.addEventListener('input',ev=>{
+ if(modo!=='fluxo')return;
+ if(ev.target.id==='tb'){F.bT=ev.target.value;BT=F.bT;paint()}
+ if(ev.target.id==='bq'){F.busca=ev.target.value;paint()}
+});
+document.getElementById('rst').addEventListener('click',reiniciar);
 
 /* ---------- Popover do produto (copiado do M5 r5) ---------- */
 let FL=null;const EDGE=8,GAP=6;
@@ -534,19 +642,25 @@ function paint(){
  closeTips(false);
  document.getElementById('flut').setAttribute('data-theme',tema==='claro'?'light':'dark');
  const ws=larg==='ambas'?['1440','390']:[larg];
- const cnf=E[estado].k==='ld';
- document.getElementById('figs').innerHTML=ws.map(w=>'<figure class="fig"><figcaption>'+(w==='1440'?'Desktop 1440 px':'Celular 390 px')+'</figcaption><div class="frame w'+w+(cnf?' cnf':'')+'" data-theme="'+(tema==='claro'?'light':'dark')+'">'+render(estado,w)+'</div></figure>').join('');
+ const ac=document.activeElement, acId=ac&&ac.id, acS=ac&&ac.selectionStart;
+ document.getElementById('ctl').dataset.modo=modo;
+ document.getElementById('figs').innerHTML=ws.map(w=>{
+  let cnf,html;
+  if(modo==='fluxo'){const r=fxEstado(w);cnf=r.cnf;html=r.html}else{cnf=E[estado].k==='ld';html=render(estado,w)}
+  return '<figure class="fig"><figcaption>'+(w==='1440'?'Desktop 1440 px':'Celular 390 px')+'</figcaption><div class="frame w'+w+(cnf?' cnf':'')+'" data-theme="'+(tema==='claro'?'light':'dark')+'"'+(modo==='fluxo'?' data-passo="'+F.step+'"':'')+'>'+html+'</div></figure>'}).join('');
+ if(acId==='tb'||acId==='bq'){const el=document.getElementById(acId);if(el){el.focus({preventScroll:true});try{el.setSelectionRange(acS,acS)}catch(_){}}}
+ document.querySelectorAll('#sModo button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===modo));
  document.querySelectorAll('#sEstado button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===estado));
  document.querySelectorAll('#sTema button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===tema));
  document.querySelectorAll('#sLarg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===larg));
  document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',()=>{if(FL&&FL.btn===b)closeTips(false);else openTip(b)}));
- document.querySelectorAll('[data-ctx]').forEach(b=>b.addEventListener('click',()=>{CTXS[estado]=b.dataset.ctx;paint()}));
+ document.querySelectorAll('[data-ctx]').forEach(b=>b.addEventListener('click',()=>{if(modo==='fluxo')F.ctx=b.dataset.ctx;else CTXS[estado]=b.dataset.ctx;paint()}));
  sync();
 }
 document.getElementById('sEstado').innerHTML=ORDEM.map(k=>'<button data-v="'+k+'">'+E[k].rot+'</button>').join('');
 document.addEventListener('click',ev=>{
  const b=ev.target.closest('.seg button');
- if(b){const g=b.parentElement.id;if(g==='sEstado')estado=b.dataset.v;if(g==='sTema')tema=b.dataset.v;if(g==='sLarg')larg=b.dataset.v;paint()}
+ if(b){const g=b.parentElement.id;if(g==='sEstado')estado=b.dataset.v;if(g==='sModo')modo=b.dataset.v;if(g==='sTema')tema=b.dataset.v;if(g==='sLarg')larg=b.dataset.v;paint()}
 });
 paint();
 </script></body></html>

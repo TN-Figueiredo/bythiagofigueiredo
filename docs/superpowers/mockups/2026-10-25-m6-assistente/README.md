@@ -1,6 +1,6 @@
 # Mockup M6 r1: assistente "Novo teste A/B" (3 passos) e carregamento da tela do teste, 25/10/2026
 
-`index.html` (um arquivo, dados e miniaturas sintéticos). Seletor: `?estado=&tema=claro|escuro&largura=1440|390|ambas` (também botões no topo). Base: `.superpowers/sdd/ab-lab/assistente-r1/logan.md` e `naksu.md` (R1 deles, sobre `origin/main d4c26f2b1`). Verificação: `node verifica.mjs` (Playwright headless; 39 capturas em `shots/`, 0 falhas).
+`index.html` (um arquivo, dados e miniaturas sintéticos). Seletor: `?estado=&tema=claro|escuro&largura=1440|390|ambas` (também botões no topo). Base: `.superpowers/sdd/ab-lab/assistente-r1/logan.md` e `naksu.md` (R1 deles, sobre `origin/main d4c26f2b1`). Verificação: `node verifica.mjs` (Playwright headless; 39 capturas em `shots/`, 0 falhas; inclui o passo 12, que percorre o fluxo clicando para os 3 tipos e falha se algum passo não avançar).
 
 ## Estados (21)
 - Seletor: `seletor`, `seletor-dado-ruim`.
@@ -11,6 +11,7 @@
 Capturas completas (1440 e 390, claro e escuro): `seletor`, `tipo-criando`, `variantes-titulo`, `revisar-titulo`, `revisar-ativando`, `teste-carregando`; os demais, 390 claro.
 
 ## Como testar
+0. **Percorrer o fluxo (r3, modo "Fluxo", padrão ao abrir; "Estados" no topo volta à lista).** Abre na tela do A/B Lab (cabeçalho copiado de `ab-lab-dashboard.tsx`). Clique em "Novo teste" → seletor (a busca filtra; clicar numa linha avança; a linha com teste ativo não clica) → Tipo (clicar no cartão mostra "Criando rascunho…" por ~1,5 s e avança) → Variantes (Próximo só habilita com o título B digitado e, nos tipos com thumbnail, com a thumbnail escolhida em "Escolher da Biblioteca"; "Voltar" volta ao Tipo; "Pedir ideias a uma IA" mostra "não desenhado nesta rodada") → Revisar (esqueleto ~1 s, depois o aviso; abas Home, Busca, Sugeridos, Mobile; "Ativar teste" mostra "Ativando…" ~2 s) → tela do teste carregando (~1,5 s) → tela do teste ativo. A escolha do tipo (título, thumbnail, combo) e o título digitado mudam Variantes e Revisar. "Salvar rascunho" (~1,2 s) volta à lista com "Rascunho salvo". "Reiniciar fluxo" (topo) recomeça. Tempos só simulados; a tela ativa é o estado "ativo-antes-pisos" do M5 num iframe (sempre o teste de título do M5, com o título dele; "Abrir em tela cheia" abre à parte). URL: `?modo=fluxo|estados`.
 1. `seletor`: as duas linhas "Main AD Diamante 2 - Lolzin raiz!" se distinguem em 3 s pela data e hora de publicação (e pela duração e visualizações). Os mais recentes vêm primeiro; a linha com teste ativo segue desabilitada, agora em âmbar legível.
 2. `seletor-dado-ruim`: título de 100+ caracteres em 2 linhas, sem miniatura ("Sem thumb"), sem data ("Data de publicação não informada"), sem visualizações (a linha some; "0 visualizações" real aparece), sem duração (some).
 3. `tipo-criando`: nada cobre a tela. Só o cartão clicado muda (marcado, spinner, "Criando rascunho…"); os outros dois e "Cancelar" ficam travados; o rodapé troca "Passo 1 de 3" por "Criando o rascunho…". `tipo-erro` e `tipo-ja-existe`: mensagem em português abaixo dos cartões, com a saída ("Tentar de novo" / "Abrir rascunho").
