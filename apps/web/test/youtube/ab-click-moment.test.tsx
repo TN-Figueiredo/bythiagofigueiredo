@@ -62,7 +62,7 @@ import { BehaviorStrip } from '@/app/cms/(authed)/youtube/ab-lab/_components/beh
 describe('BehaviorStrip', () => {
   it('renders VChip with label', () => {
     render(<BehaviorStrip label="A" color="#8A8F98" ctr={5.0} maxCtr={7.0} />)
-    expect(screen.getByLabelText('Variant A')).toBeTruthy()
+    expect(screen.getByLabelText('Variante A')).toBeTruthy()
   })
 
   it('shows CTR value', () => {
@@ -88,7 +88,7 @@ describe('BehaviorStrip', () => {
 
   it('renders leader ring on VChip', () => {
     render(<BehaviorStrip label="B" color="#E8823C" ctr={7.0} maxCtr={7.0} isLeader />)
-    const chip = screen.getByLabelText('Variant B')
+    const chip = screen.getByLabelText('Variante B')
     expect(chip.getAttribute('style')).toContain('box-shadow')
   })
 })
@@ -122,8 +122,8 @@ describe.skip('ClickMoment', () => { // TODO: broken by component redesign
   it('renders variant cards in compare mode', () => {
     render(<ClickMoment variants={mockVariants} />)
     // Should render BehaviorStrip for each variant, which contains VChip
-    expect(screen.getByLabelText('Variant A')).toBeTruthy()
-    expect(screen.getByLabelText('Variant B')).toBeTruthy()
+    expect(screen.getByLabelText('Variante A')).toBeTruthy()
+    expect(screen.getByLabelText('Variante B')).toBeTruthy()
   })
 
   it('shows Trophy badge for winner', () => {
@@ -146,7 +146,7 @@ describe.skip('ClickMoment', () => { // TODO: broken by component redesign
     const { container } = render(<ClickMoment variants={[]} />)
     expect(screen.getByText('The click moment')).toBeTruthy()
     // No variant cards
-    expect(container.querySelector('[aria-label="Variant A"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Variante A"]')).toBeNull()
   })
 
   it('switches to feed mode', () => {
@@ -165,7 +165,7 @@ import { FeedView } from '@/app/cms/(authed)/youtube/ab-lab/_components/feed-vie
 describe('FeedView', () => {
   const variants: ClickMomentVariant[] = [
     { label: 'A', color: '#8A8F98', thumbUrl: null, title: 'Test Video', ctr: 5.0 },
-    { label: 'B', color: '#E8823C', thumbUrl: null, title: 'Variant B', ctr: 7.0 },
+    { label: 'B', color: '#E8823C', thumbUrl: null, title: 'Variante B', ctr: 7.0 },
   ]
 
   it('renders decoy videos', () => {

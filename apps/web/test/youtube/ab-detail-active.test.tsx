@@ -206,7 +206,7 @@ describe('ActiveDetail', () => {
   it('HeroBand shows leader VChip for variant B', () => {
     render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
     // Multiple VChips with "Variant B" exist (hero-band + variant-table)
-    const chips = screen.getAllByLabelText('Variant B')
+    const chips = screen.getAllByLabelText('Variante B')
     expect(chips.length).toBeGreaterThanOrEqual(1)
   })
 
