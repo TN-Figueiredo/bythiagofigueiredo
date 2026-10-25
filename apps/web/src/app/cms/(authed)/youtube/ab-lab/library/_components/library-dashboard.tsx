@@ -7,7 +7,7 @@ import { uploadToLibrary, updateLibraryTags, deleteFromLibrary } from '../action
 import { Longevity } from '../../_components/longevity'
 import { LongevityLegend } from '../../_components/longevity-legend'
 import { LibEmpty } from '../../_components/lib-empty'
-import { AbCreateWizard, type IniciarTeste } from '../../_components/ab-create-wizard'
+import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from '../../_components/ab-create-wizard'
 import type { WizardVideo } from '../../_components/ab-create-wizard'
 import { VideoPickerDialog } from '../../_components/video-picker-dialog'
 import type { EligibleVideo } from '../../_components/video-picker-dialog'
@@ -141,6 +141,7 @@ interface LibraryDashboardProps {
   /** Wizard prerequisites — both optional; when missing, wizard tab is disabled */
   wizardSettings?: AbTestSiteSettings
   iniciarTeste?: IniciarTeste
+  avisoDeVolume?: LerAvisoDeVolume
   wizardEligibleVideos?: EligibleVideo[]
   siteId?: string
 }
@@ -153,6 +154,7 @@ export function LibraryDashboard({
   entries,
   wizardSettings,
   iniciarTeste,
+  avisoDeVolume,
   wizardEligibleVideos,
   siteId,
 }: LibraryDashboardProps) {
@@ -226,6 +228,7 @@ export function LibraryDashboard({
           onClose={() => setSelectedVideo(null)}
           onCreated={(testId) => router.push(`/cms/youtube/ab-lab/${testId}`)}
           iniciarTeste={iniciarTeste!}
+          avisoDeVolume={avisoDeVolume}
         />
       </div>
     )

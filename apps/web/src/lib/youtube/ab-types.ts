@@ -143,6 +143,8 @@ export interface AbTestWithVariants extends AbTestRow {
   variants: AbTestVariantRow[]
   current_cycle: CicloSemEntrega | null
   total_cycles: number
+  /** S8-F4 T11c: ciclos da leitura da lista, só para o "Dia X/Y" de v2. */
+  ciclos?: CicloSemEntrega[]
 }
 
 export interface ReferenciaDoTeste {
@@ -387,6 +389,10 @@ export interface AbTestCardView {
   statusNote: string | null
   cycleStartedAt: string | null
   queueStartAfter: string | null
+  /** S8-F4 T11c: "Dia X/Y" de teste v2 (dias fechados com ciclo, de `estadoV2DoTeste`); ausente em v1. */
+  diaV2?: { dia: number; teto: number }
+  /** S8-F4 T11c: rótulo do concluído por `regra_v2`; ausente nos demais. */
+  rotuloV2?: string | null
   /** T10: só nos pausados por teste do YouTube (`status_note = NOTA_TESTE_YOUTUBE`); preenchido pela página (servidor). */
   pausaYoutube?: { aberto: boolean; ate: string | null }
 }

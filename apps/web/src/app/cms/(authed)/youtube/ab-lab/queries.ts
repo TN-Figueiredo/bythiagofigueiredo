@@ -38,6 +38,8 @@ import { toDisplayLabel, variantColor, ordemDesc } from './_components/ab-consta
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
+import { rotuloDeConcluido } from '@/lib/youtube/ab-rotulo-v2'
+import { estadoV2DoTeste, tetoDoTesteV2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -84,6 +86,7 @@ export async function getAbTestsForSite(): Promise<{
       variants: ((raw as Record<string, unknown>).variants ?? []) as AbTestVariantRow[],
       current_cycle: openCycle,
       total_cycles: cycles.length,
+      ciclos: cycles,
     }
   }
 
@@ -406,6 +409,17 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
 // Pure computed helpers (Phase 3)
 // ---------------------------------------------------------------------------
 
+/** S8-F4 T11c: rótulo do concluído v2 e "Dia X/Y" de v2 (fonte única `estadoV2DoTeste`); v1 não ganha nada. */
+function camposV2DoCartao(test: AbTestWithVariants): Pick<AbTestCardView, 'diaV2' | 'rotuloV2'> {
+  const rotulo = rotuloDeConcluido(test.completed_reason, test.result_metadata)
+  if (rotulo) return { rotuloV2: rotulo }
+  if (regraDoTeste(test) !== 'v2' || test.status === 'queued' || test.status === 'completed' || !test.ciclos) return {}
+  const teto = tetoDoTesteV2(test.config, test.variants.length)
+  const ciclos = test.ciclos.filter(c => c.started_at)
+  const est = estadoV2DoTeste(test, ciclos, null, new Date(), teto)
+  return { diaV2: { dia: est.dia, teto: est.teto } }
+}
+
 export function toCardView(test: AbTestWithVariants): AbTestCardView {
   // Use total_cycles as a proxy — but we don't have cycle data in AbTestWithVariants
   // The leader is determined from winner_variant_id if available, otherwise fall back to original
@@ -467,6 +481,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     statusNote: test.status_note ?? null,
     cycleStartedAt: test.current_cycle?.started_at ?? null,
     queueStartAfter: test.queue_start_after ?? null,
+    ...camposV2DoCartao(test),
   }
 }
 

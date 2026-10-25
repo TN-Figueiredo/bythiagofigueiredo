@@ -25,7 +25,7 @@ import { updateAbSiteSettings, batchStartTests } from '../actions'
 import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
 import { pausaVisivel } from '@/lib/youtube/teste-youtube/nativo/pausa-visivel'
-import { AbCreateWizard, type IniciarTeste } from './ab-create-wizard'
+import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
 import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
 
@@ -48,6 +48,7 @@ export interface AbLabDashboardProps {
   listaSlot?: ReactNode
   /** `startAbTest` vem da página (servidor): o assistente não importa a action. */
   iniciarTeste: IniciarTeste
+  avisoDeVolume?: LerAvisoDeVolume
   /** F3 T7: bloco "Sugestões" (servidor, dentro de Suspense), renderizado antes do cartão de candidatos. */
   blocoSugestoes?: React.ReactNode
 }
@@ -66,6 +67,7 @@ export function AbLabDashboard({
   eligibleVideos,
   listaSlot,
   iniciarTeste,
+  avisoDeVolume,
   blocoSugestoes,
 }: AbLabDashboardProps) {
   const router = useRouter()
@@ -457,6 +459,7 @@ export function AbLabDashboard({
             router.push(`/cms/youtube/ab-lab/${testId}`)
           }}
           iniciarTeste={iniciarTeste}
+          avisoDeVolume={avisoDeVolume}
           existingDraftId={continueDraft?.id}
           prefill={continueDraft ? { testType: continueDraft.type, draftVariants: continueDraft.variants } : undefined}
         />

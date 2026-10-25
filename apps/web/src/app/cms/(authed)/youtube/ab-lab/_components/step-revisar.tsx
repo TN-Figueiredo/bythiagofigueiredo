@@ -27,6 +27,8 @@ export interface StepRevisarProps {
   videoTitle: string
   /** D12: estado da leitura da resolução da original (undefined = não se aplica). */
   avisoOriginal?: EstadoAviso
+  /** S8-F4 T11c: uma linha do aviso de volume da regra nova; null/ausente = nada a dizer. Nunca bloqueia o botão. */
+  avisoVolume?: string | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -158,7 +160,7 @@ function AvisoResolucao({ aviso }: { aviso: AvisoComSelo }) {
 /*  StepRevisar                                                        */
 /* ------------------------------------------------------------------ */
 
-export function StepRevisar({ type, variants, config, videoTitle, avisoOriginal }: StepRevisarProps) {
+export function StepRevisar({ type, variants, config, videoTitle, avisoOriginal, avisoVolume }: StepRevisarProps) {
   const summaryText = buildSummaryText(variants, type, config)
   const clickMomentVariants = buildClickMomentVariants(variants)
   const winnerLabel = variants.length > 1 ? variants[variants.length - 1]!.label : 'A'
@@ -196,6 +198,10 @@ export function StepRevisar({ type, variants, config, videoTitle, avisoOriginal 
         ) : (
           <AvisoResolucao aviso={avisoOriginal} />
         )
+      ) : null}
+
+      {avisoVolume ? (
+        <p data-aviso-volume className="m-0 text-[12.5px] text-cms-text-muted">{avisoVolume}</p>
       ) : null}
 
       {/* Variant preview grid — 2x2 */}
