@@ -14,6 +14,7 @@ import { aplicarM2 } from '../helpers/m2'
 import { aplicarM3b, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 import { apagarCanais } from '../helpers/limpa-cena'
+import { garantirComT13, semearCena as semearCenaMg6, exportarConferirConfirmar, criarCanal as criarCanalMg6, escalar as escalarMg6 } from '../helpers/mg6'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MES = '2026-10-01'
@@ -24,8 +25,7 @@ const dorme = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms))
 
 interface Unid { classe?: string; tabela?: string; mes?: string; versao?: number; linhas?: number; bytes?: number; recebida?: boolean }
 
-// SKIP 23/10/2026 (envio E0): este teste monta o banco com o corpo antigo (fixture MG6/E10 de 14/10) e a M2/M3b novas guardam por md5 o corpo da 0007 (M2:/M3b:competitor_channel_remove_archived_divergente). Religar na onda da M2 (11c) e M3b (md5 recomputado, yannis.md 3.3): `.skip` -> o `describe.skipIf(skipIfNoLocalDb())` original.
-describe.skip('M3b parte 6: remover canal declara o destino do arquivo', () => {
+describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino do arquivo', () => {
   let c: Client
   const sitesReais: string[] = []
   const usuariosReais: string[] = []
@@ -518,4 +518,60 @@ describe.skip('M3b parte 6: remover canal declara o destino do arquivo', () => {
     expect(await semPurga(a.site, a.canal)).toBe(0)
     expect(ms).toBeLessThan(8000)                                                       // o teto do authenticator
   }), 60_000)
+})
+
+/**
+ * Emenda 23/10 (Yannis §3.3): os três caminhos que apagam canal declaram o destino do arquivo. Mundo: MG6+F1+T13, M2, M10a e M3b parte 6, em sequência,
+ * numa transação desfeita. (a) remove_archived (0007) -> e10_export/guardar; (b) delete_unarchived (F1) -> botao/apagar; (c) channel_purge (E9) -> fila/apagar.
+ */
+describe.skipIf(skipIfNoLocalDb())('M3b parte 6: os três caminhos de apagar canal gravam a remoção', () => {
+  let pg: Client
+  beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })
+  afterAll(async () => { await pg.end() })
+
+  async function mundo(fn: () => Promise<void>, mutante?: string): Promise<void> {
+    await pg.query('begin'); await pg.query('select pg_advisory_xact_lock(7339001)')
+    try {
+      await garantirComT13(pg)
+      await aplicarM2(pg)
+      await pg.query(readFileSync(M10A_SQL, 'utf8'))
+      await aplicarM3b(pg, 6)
+      if (mutante) await pg.query(mutante)
+      await fn()
+    } finally { await pg.query('rollback') }
+  }
+  const remocoes = async (site: string, canal: string) =>
+    (await pg.query(`select removed_via, archive_decision from public.obs_archive_channel_removals where site_id = $1 and channel_ref = $2`, [site, canal])).rows
+
+  async function tresCaminhos(): Promise<void> {
+    const c = await semearCenaMg6(pg)
+    // (a) remove_archived: canal A exportado e confirmado
+    await exportarConferirConfirmar(pg, c, c.canalA, 'lote-3c-a')
+    expect((await escalarMg6<{ status: string }>(pg, `select public.competitor_channel_remove_archived($1, $2, $3)`, [c.site, c.canalA, c.admin])).status).toBe('removido')
+    expect(await remocoes(c.site, c.canalA)).toEqual([{ removed_via: 'e10_export', archive_decision: 'guardar' }])
+    // (b) delete_unarchived: canal B novo, nome conferido
+    await pg.query(`update public.competitor_channels set added_at = now() - interval '10 days', channel_name = 'Canal B' where id = $1`, [c.canalB])
+    await pg.query(`select public.competitor_channel_delete_unarchived($1, $2, $3, 'Canal B', 'outro')`, [c.site, c.canalB, c.admin])
+    expect(await escalarMg6<number>(pg, `select count(*)::int from public.competitor_channels where id = $1`, [c.canalB])).toBe(0)
+    expect(await remocoes(c.site, c.canalB)).toEqual([{ removed_via: 'botao', archive_decision: 'apagar' }])
+    // (c) channel_purge: canal C que saiu do YouTube
+    const canalC = await criarCanalMg6(pg, c.site, 'Canal C')
+    await pg.query(`update public.competitor_channels set missing_since = (now() at time zone 'America/Sao_Paulo')::date - 5 where id = $1`, [canalC])
+    const r = await escalarMg6<{ status: string }>(pg, `select public.competitor_channel_purge($1, $2, $3, 30, null, null)`, [c.site, canalC, c.admin])
+    expect(r.status).toBe('apagado')
+    expect(await escalarMg6<number>(pg, `select count(*)::int from public.competitor_channels where id = $1`, [canalC])).toBe(0)
+    expect(await remocoes(c.site, canalC)).toEqual([{ removed_via: 'fila', archive_decision: 'apagar' }])
+    // nenhuma recusa por destino não declarado, e uma linha por canal (3)
+    expect(await escalarMg6<number>(pg, `select count(*)::int from public.obs_archive_channel_removals where site_id = $1`, [c.site])).toBe(3)
+  }
+
+  it('remove_archived, delete_unarchived e channel_purge gravam 1 linha cada, com removed_via e archive_decision esperados', async () => {
+    await mundo(tresCaminhos)
+  })
+
+  it('mutante: remove_archived sem a declaração não grava a linha, e o teste cai', async () => {
+    const mutante = `create or replace function public.competitor_channel_remove_archived(p_site uuid, p_channel uuid, p_actor uuid) returns jsonb
+      language plpgsql security definer set search_path = '' as $f$ begin delete from public.competitor_channels where id = p_channel; return '{"status":"removido"}'::jsonb; end $f$`
+    await expect(mundo(tresCaminhos, mutante)).rejects.toThrow()
+  })
 })
