@@ -161,6 +161,13 @@ describe.skipIf(skipIfNoLocalDb())('A5 E10 T10: a lista fechada do que apaga (ca
       const cena: Cena = await semearCena(pg)
       const video = cena.videoA
       // 30 meses atrás, nas três séries e nas versões
+      // em banco onde a M2 rodou com a série vazia (db reset, 54422) a 1ª partição é a do mês corrente: cria a do mês de 900 dias atrás (desfeita com a transação)
+      for (const t of ['competitor_video_daily', 'competitor_video_hourly', 'competitor_video_early']) {
+        await pg.query(
+          `select obs_part.criar_particao(('public.' || $1)::regclass, date_trunc('month', (now() - interval '900 days') at time zone 'America/Sao_Paulo')::date)
+            where to_regprocedure('obs_part.criar_particao(regclass,date)') is not null
+              and (select relkind from pg_class where oid = ('public.' || $1)::regclass) = 'p'`, [t])
+      }
       await pg.query(`insert into public.competitor_video_daily (video_id, snap_date, views, taken_at) values ($1, current_date - 900, 7, now() - interval '900 days')`, [video])
       await pg.query(`insert into public.competitor_video_hourly (video_id, hour_slot, taken_at, site_id, views) values ($1, date_trunc('hour', now() - interval '900 days'), date_trunc('hour', now() - interval '900 days'), $2, 7)`, [video, cena.site])
       await pg.query(`insert into public.competitor_video_early (video_id, taken_at, site_id, views) values ($1, now() - interval '900 days', $2, 7)`, [video, cena.site])
