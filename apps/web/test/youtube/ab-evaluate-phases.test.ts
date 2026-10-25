@@ -166,6 +166,8 @@ function clienteCom(tests: TesteFalso[], opts: OpcoesCliente = {}) {
             const t = tests.find(x => x.id === id)
             return Promise.resolve({ data: null, count: t ? t.cycles.length : 0, error: null })
           },
+          // T8: leitura paginada da rede v2 (sem ciclos neste fake; o cenário da rede está em ab-evaluate-rede-v2.test.ts)
+          in: () => ({ order: () => ({ range: () => Promise.resolve({ data: [], error: null }) }) }),
         }),
         update: (data: Record<string, unknown>) => updateChain(table, data),
       }
