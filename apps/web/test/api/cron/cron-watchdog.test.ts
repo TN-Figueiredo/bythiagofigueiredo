@@ -57,6 +57,7 @@ const MESES_12 = ['competitor_video_daily', 'competitor_video_early', 'competito
 
 function makeSupabase(rows: IRow[], opts: { selectError?: string; claim?: boolean } = {}) {
   const from = vi.fn((table: string) => {
+    if (table === 'sites') return { select: () => ({ abortSignal: () => Promise.resolve({ data: [{ id: 's1' }], error: null }) }) }
     if (table !== 'cron_health') return {}
     // `select` é aguardado direto pela rota E encadeado com .eq().single()
     // por recordCronSuccess/recordCronFailure — precisa servir as duas formas.
@@ -80,6 +81,7 @@ function makeSupabase(rows: IRow[], opts: { selectError?: string; claim?: boolea
   const rpc = vi.fn((fn?: string) => {
     // Vigia de partições (M2 T6-T7): 12 meses à frente nas 3 tabelas = item verde.
     if (fn === 'obs_partitions_months_ahead') return { abortSignal: () => Promise.resolve({ data: MESES_12, error: null }) }
+    if (fn === 'obs_archive_atraso' || fn === 'obs_archive_vigia_remocao') return { abortSignal: () => Promise.resolve({ data: (fn === 'obs_archive_atraso' ? { amarelos: 0, vermelhos: 0, mais_antiga: null, meses_sem_selo: 0 } : { c1: 0, c2: 0, c3: 0, c4: 0 }), error: null }) }
     if (fn === 'competitor_agenda_state') {
       return { abortSignal: () => Promise.resolve({ data: null, error: { code: 'PGRST202', message: 'função ausente' } }) }
     }
