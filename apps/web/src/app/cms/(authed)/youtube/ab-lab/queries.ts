@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { statusAbertoDoVideo, bloqueioDoVideo } from '@/lib/youtube/ab-linha-video'
 import type { EligibleVideo } from './_components/video-picker-dialog'
 import { z } from 'zod'
@@ -145,13 +146,18 @@ export async function getAbDraftById(draftId: string): Promise<{
 
   const { data, error } = await supabase
     .from('ab_tests')
-    .select('id, youtube_video_id, name, original_thumbnail_url, test_type, source_pipeline_id, ab_test_variants(id, label, is_original, blob_url, title_text, sort_order)')
+    .select('id, youtube_video_id, name, original_thumbnail_url, test_type, source_pipeline_id, ab_test_variants!test_id(id, label, is_original, blob_url, title_text, sort_order)')
     .eq('id', draftId)
     .eq('site_id', siteId)
     .eq('status', 'draft')
     .single()
 
-  if (error || !data) return null
+  if (error) {
+    console.warn('[ab-lab] getAbDraftById falhou', error.message)
+    Sentry.captureException(error, { tags: { area: 'ab-rascunho-leitura' }, extra: { draftId } })
+    return null
+  }
+  if (!data) return null
 
   const linhas = (data.ab_test_variants ?? []) as Array<{ id: string; label: string; is_original: boolean; blob_url: string | null; title_text: string | null; sort_order: number | null }>
   const variants: AbTestDraftVariant[] = [...linhas]

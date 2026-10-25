@@ -134,7 +134,7 @@ describe('getAbDraftById traz as variantes no mesmo pedido (C1)', () => {
     const r = await getAbDraftById('d1')
     expect(m.froms).toHaveLength(1)
     expect(m.froms[0]?.table).toBe('ab_tests')
-    expect(m.froms[0]?.select).toContain('ab_test_variants(id, label, is_original, blob_url, title_text, sort_order)')
+    expect(m.froms[0]?.select).toContain('ab_test_variants!test_id(id, label, is_original, blob_url, title_text, sort_order)')
     expect(r?.variants).toEqual([
       { id: 'va', label: 'A', isOriginal: true, thumbUrl: 'https://blob/A.jpg', titleText: '' },
       { id: 'vb', label: 'B', isOriginal: false, thumbUrl: null, titleText: 'Fila de 3 h' },
