@@ -101,14 +101,37 @@ describe('aplicarSugerido (T11b)', () => {
       expect(ehVitoriaHumana({ completed_reason: 'manual_winner', winner_variant_id: 'A', winner_is_original: true })).toBe(false)
       expect(ehVitoriaHumana({ completed_reason: 'manual_winner', winner_variant_id: 'B', winner_is_original: false })).toBe(true)
     })
-    it('volta_falhou: delega a novaTentativa (tentarAgora) e não grava nada', async () => {
-      linha.mockResolvedValue(ORIG({ volta_falhou: { em: '2026-10-20' } }))
+    const campo = (estado: string) => ({ estado, destino: 'A', em: '2026-10-20T00:00:00Z', forcado: false, attempts: 1 })
+    const PEND = { title: campo('falhou'), thumbnail: campo('ok') }
+    const TODO_OK = { title: campo('ok'), thumbnail: campo('ok') }
+    const COM = (rs: object, v2: object = {}) => { const o = ORIG(v2); return { ...o, data: { ...o.data, restore_status: rs } } }
+    it('flag volta_falhou velha com restore_status todo ok: grava manual_winner sem tentar de novo', async () => {
+      linha.mockResolvedValue(COM(TODO_OK, { volta_falhou: { em: '2026-10-20' } }))
+      const r = await aplicarSugerido('t1', 'A', 9)
+      expect(r).toMatchObject({ ok: true, resultado: 'feito' })
+      expect(tentar).not.toHaveBeenCalled()
+      expect(atualiza).toHaveBeenCalledTimes(1)
+      expect((atualiza.mock.calls[0]![0] as unknown[])[0]).toEqual({ completed_reason: 'manual_winner', winner_variant_id: 'A' })
+    })
+    it('pendente real: tenta a volta e, com sucesso, grava manual_winner com o restore_seq relido', async () => {
+      linha.mockResolvedValueOnce(COM(PEND, { volta_falhou: { em: '2026-10-20' } }))
+      linha.mockResolvedValueOnce({ data: { restore_seq: 10 }, error: null })
       tentar.mockResolvedValue(FEITO)
       const r = await aplicarSugerido('t1', 'A', 9)
       expect(tentar).toHaveBeenCalledTimes(1)
       expect(tentar.mock.calls[0]!.slice(1, 4)).toEqual(['t1', SITE, 9])
       expect(r).toMatchObject({ ok: true, resultado: 'feito' })
-      expect(atualiza).not.toHaveBeenCalled(); expect(settle).not.toHaveBeenCalled()
+      const [[upd], eqs] = atualiza.mock.calls[0]! as [[Record<string, unknown>], unknown[][]]
+      expect(upd).toEqual({ completed_reason: 'manual_winner', winner_variant_id: 'A' })
+      expect(eqs).toEqual(expect.arrayContaining([['completed_reason', 'regra_v2'], ['restore_seq', 10]]))
+      expect(settle).not.toHaveBeenCalled()
+    })
+    it('pendente real e a tentativa falhou: não grava, devolve o desfecho da tentativa', async () => {
+      linha.mockResolvedValue(COM(PEND))
+      tentar.mockResolvedValue({ resultado: 'em_andamento', campos: null })
+      const r = await aplicarSugerido('t1', 'A', 9)
+      expect(r).toMatchObject({ ok: false, resultado: 'em_andamento' })
+      expect(atualiza).not.toHaveBeenCalled()
     })
     it('seq mudou (CAS não casou): mudou, sem sucesso falso', async () => {
       atualiza.mockResolvedValue({ data: [], error: null })

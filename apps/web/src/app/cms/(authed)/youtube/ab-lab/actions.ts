@@ -49,6 +49,7 @@ import {
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
+import { camposPendentes, paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
@@ -1239,22 +1240,36 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
   const seq = seqVistoSchema.safeParse(seqVisto)
   if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
   const { data, error } = await getSupabaseServiceClient()
-    .from('ab_tests').select('completed_reason, status, result_metadata').eq('id', testId).eq('site_id', siteId).maybeSingle()
+    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata').eq('id', testId).eq('site_id', siteId).maybeSingle()
   if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
-  const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null; volta_falhou?: { em: string } | null } } | null | undefined
+  const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
   const sugerido = meta?.v2?.vencedor_sugerido
   if (!data || data.completed_reason !== 'regra_v2' || !sugerido || sugerido !== varianteId) {
     return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
   }
   if (varianteId === (await varianteOriginalId(testId, siteId))) {
-    // S8-F4 B2 "a original vence": o teste fechou com a original no ar. Se a volta falhou, repete a volta (novaTentativa); senão só registra a decisão, sem escrever no YouTube.
-    if (meta?.v2?.volta_falhou) {
+    // S8-F4 B2 "a original vence": o teste fechou com a original no ar. Decide pelo estado real da volta (restore_status), não pela flag volta_falhou, que nunca é limpa.
+    let seqGrava = seq.data
+    if (camposPendentes(paraRestoreStatus(data.restore_status), 'humano').length > 0) {
       const autorizar = async (): Promise<boolean> => true // o destino é sempre a original
-      return concluirSaida(tentarAgora(getSupabaseServiceClient(), testId, siteId, seq.data, undefined, autorizar))
+      let tentou: ResultadoSaida
+      try {
+        tentou = await tentarAgora(getSupabaseServiceClient(), testId, siteId, seq.data, undefined, autorizar)
+      } catch (e) {
+        Sentry.captureException(e, { tags: { area: 'ab-acao-saida' } })
+        invalidarTelasDoAbLab()
+        return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
+      }
+      if (tentou.resultado !== 'feito') return concluirSaida(Promise.resolve(tentou))
+      invalidarTelasDoAbLab()
+      const { data: reli, error: errReler } = await getSupabaseServiceClient()
+        .from('ab_tests').select('restore_seq').eq('id', testId).eq('site_id', siteId).maybeSingle()
+      if (errReler || !reli) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
+      seqGrava = reli.restore_seq as number
     }
     const { data: gravou, error: errGrava } = await getSupabaseServiceClient()
       .from('ab_tests').update({ completed_reason: 'manual_winner', winner_variant_id: varianteId })
-      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seq.data).select('id')
+      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seqGrava).select('id')
     if (errGrava) { Sentry.captureException(errGrava, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
     if (((gravou ?? []) as unknown[]).length === 0) return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
     revalidatePath('/cms/youtube/ab-lab')
