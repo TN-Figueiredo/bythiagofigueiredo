@@ -84,9 +84,9 @@ describe('StepRevisar', () => {
 
   it('variant mini cards render for each variant', () => {
     renderRevisar()
-    expect(screen.getByLabelText('Variant A')).toBeDefined()
-    expect(screen.getByLabelText('Variant B')).toBeDefined()
-    expect(screen.getByLabelText('Variant C')).toBeDefined()
+    expect(screen.getByLabelText('Variante A')).toBeDefined()
+    expect(screen.getByLabelText('Variante B')).toBeDefined()
+    expect(screen.getByLabelText('Variante C')).toBeDefined()
   })
 
   it('original variant shows "Original" badge', () => {

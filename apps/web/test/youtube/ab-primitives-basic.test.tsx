@@ -10,7 +10,7 @@ vi.mock('lucide-react', () => {
 
 describe('VChip', () => {
   it('renders the label letter', () => { render(<VChip label="A" />); expect(screen.getByText('A')).toBeDefined() })
-  it('has aria-label', () => { render(<VChip label="B" />); expect(screen.getByLabelText('Variant B')).toBeDefined() })
+  it('has aria-label', () => { render(<VChip label="B" />); expect(screen.getByLabelText('Variante B')).toBeDefined() })
   it('renders as button when onClick provided', () => {
     const fn = vi.fn()
     render(<VChip label="C" onClick={fn} />)

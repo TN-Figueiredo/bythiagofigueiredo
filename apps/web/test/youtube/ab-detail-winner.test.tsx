@@ -172,7 +172,7 @@ describe('WinnerBanner', () => {
         stats={{ ctrBefore: 4.5, ctrAfter: 5.2, totalImpressions: 50000, abbaCycles: 12, monthlyExtraClicks: 350 }}
       />,
     )
-    expect(screen.getByLabelText('Variant B')).toBeDefined()
+    expect(screen.getByLabelText('Variante B')).toBeDefined()
   })
 
   it('renders lift value', () => {
