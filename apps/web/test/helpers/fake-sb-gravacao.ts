@@ -10,6 +10,8 @@ export interface FakeSb {
   tabelas: Record<string, Linha[]>
   erros: Record<string, string>
   lidas: Array<{ tabela: string; de: number }>
+  /** cada filtro `gte` pedido (tabela, coluna, valor) */
+  gtes: Array<{ tabela: string; coluna: string; valor: string }>
   rpcs: Array<{ nome: string; args: Record<string, unknown> }>
   rpcRetorno: Record<string, unknown>
   upserts: Array<{ tabela: string; linhas: Linha[]; opcoes: unknown }>
@@ -23,6 +25,7 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
     tabelas,
     erros: {},
     lidas: [],
+    gtes: [],
     rpcs: [],
     rpcRetorno: {},
     upserts: [],
@@ -33,7 +36,8 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
     let faixa: [number, number] | null = null
     let usouOr = false
     const q: Record<string, unknown> = {}
-    q.select = () => q
+    let colunas: string[] | null = null
+    q.select = (cols?: string) => { if (tabela === 'ab_test_dias' && typeof cols === 'string' && !cols.includes('(')) colunas = cols.split(',').map((c) => c.trim()); return q }
     q.upsert = (linhas: Linha[], opcoes: unknown) => {
       f.upserts.push({ tabela, linhas, opcoes })
       if (f.erros[`upsert:${tabela}`]) return Promise.resolve({ data: null, error: { message: f.erros[`upsert:${tabela}`] } })
@@ -42,7 +46,7 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
     q.eq = (c: string, v: unknown) => { filtros.push((l) => l[c] === v); return q }
     q.is = (c: string, v: unknown) => { filtros.push((l) => (l[c] ?? null) === v); return q }
     q.in = (c: string, vs: unknown[]) => { filtros.push((l) => vs.includes(l[c])); return q }
-    q.gte = (c: string, v: string) => { filtros.push((l) => String(l[c]) >= v); return q }
+    q.gte = (c: string, v: string) => { f.gtes.push({ tabela, coluna: c, valor: v }); filtros.push((l) => String(l[c]) >= v); return q }
     q.lt = (c: string, v: string) => { filtros.push((l) => String(l[c]) < v); return q }
     q.or = () => { usouOr = true; return q }
     q.order = () => q
@@ -53,7 +57,8 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
       let hit = (f.tabelas[tabela] ?? []).filter((l) => filtros.every((g) => g(l)))
       if (usouOr) hit = hit.filter((l) => l._soNaSegunda !== true)
       if (faixa) hit = hit.slice(faixa[0], faixa[1] + 1)
-      return Promise.resolve({ data: hit.map((l) => ({ ...l })), error: null }).then(ok, ko)
+      const proj = (l: Linha): Linha => (colunas ? Object.fromEntries(Object.entries(l).filter(([k]) => colunas!.includes(k))) : { ...l })
+      return Promise.resolve({ data: hit.map(proj), error: null }).then(ok, ko)
     }
     return q
   }

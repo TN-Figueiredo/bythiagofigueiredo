@@ -1061,6 +1061,8 @@ Cada linha com decisão escrita. As marcadas **(padrão)** são o padrão adotad
 
 ## 9. Como se reverte
 
+- Depois da Migration B (aplicada em 24/10/2026, 20261024000004): ver `2026-10-21-ab-lab-migration-b-plan.md` §5. O rollback da Vercel para deploy anterior a `55ea62df6` quebra.
+
 - **Antes da Migration A:** `git revert` dos quatro commits do lote, na ordem inversa (Tarefas 4, 3, 2,
   1), num commit de reversão cada um, push (de árvore própria), CI, promoção; o doc volta a aceitar descrição
   com o próprio deploy (não há seed).

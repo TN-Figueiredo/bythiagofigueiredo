@@ -10756,6 +10756,10 @@ export type Database = {
           stamped_at: string
         }[]
       }
+      ab_test_v2_gravar: {
+        Args: { p_hist?: Json; p_so_se_sem_n?: boolean; p_test_id: string; p_v2: Json }
+        Returns: number
+      }
       apply_competitor_version_plan: {
         Args: { p_changes: Json; p_close: string[]; p_open: Json; p_video_id: string }
         Returns: Json

@@ -33,7 +33,7 @@ export function zDuasProporcoes(a: ContagemDaVariante, b: ContagemDaVariante): R
 }
 
 /** Mulberry32 seeded PRNG — deterministic, fast, full 32-bit period */
-function mulberry32(seed: number): () => number {
+export function mulberry32(seed: number): () => number {
   return function () {
     seed |= 0
     seed = (seed + 0x6D2B79F5) | 0

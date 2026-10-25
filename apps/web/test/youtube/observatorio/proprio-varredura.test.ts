@@ -69,8 +69,11 @@ const DOZE = [
  * do Analytics sai dali (a lista de sinais já é leitura de editor do site, via a guarda da rota/ação).
  * F2: `sinais/lugares-do-site.ts` (`lerProprios`, tarefa diária `sinais_do_nicho`) lê `yt_own_video_meta_daily` só `privacy_status` e `is_short` (janela de 7 dias,
  * para o casamento de lugar nos vídeos PÚBLICOS) e grava em `video_lugares`; nenhuma métrica de desempenho (D20), nada volta a tela por este arquivo.
+ * S8-F4 T10b: `ab-gravacao/aviso-volume.ts` lê `yt_own_video_reach_daily` (14 dias) só para estimar quantos dias o teste v2 precisa (dias_previstos, n,
+ * impressoes_dia); chamado só pelo `get_test` de rascunho (chave do Cowork) e pela ação do assistente (editor). PONTO PARA PORTÃO (Phil/Yannis): sai um
+ * agregado, nunca a linha do dia.
  */
-const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/sinais/leitura.ts', 'lib/youtube/observatorio/sinais/lugares-do-site.ts', 'lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts'])
+const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/sinais/leitura.ts', 'lib/youtube/observatorio/sinais/lugares-do-site.ts', 'lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts', 'lib/youtube/ab-gravacao/aviso-volume.ts'])
 /**
  * PONTO PARA PORTÃO (E9, noite 15/10): dois pontos da fila "Saíram do YouTube" consultam `competitor_video_comments` SEM `leituraValida`.
  * Ambos já estão atrás da guarda de EDIÇÃO do site e usam o cliente de serviço com o site em todo filtro; nenhum recebe o token de leitura
