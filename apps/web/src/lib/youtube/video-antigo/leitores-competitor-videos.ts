@@ -90,6 +90,7 @@ export const LEITORES_NAS_MIGRATIONS: readonly LeitorNaMigration[] = [
   { arquivo: '20261024000003_observatorio_m10a_video_antigo_base.sql', funcoes: ['apply_competitor_tier_plan', 'competitor_channel_removal_impact', 'competitor_series_health', 'competitor_videos_archive_guard', 'obs_video_antigo_guarda_insert', 'pin_competitor_video'], trata: 'indiferente', motivo: 'é a marca: colunas, gatilho de imutabilidade, guarda de insert e as quatro funções dos pontos 4, 5, 7 e 8 (que estão em FUNCOES_VIVAS)' },
   { arquivo: '20261025000001_retratos_perda_nova.sql', funcoes: ['competitor_comment_health'], trata: 'indiferente', motivo: 'retratos perdidos novos; comentários só nos primeiros 37 dias' },
   { arquivo: '20261025000002_manutencao_m3b_arquivo.sql', funcoes: ['obs_archive_channel_archive_impact', 'obs_archive_channel_blobs', 'obs_archive_first_month', 'obs_archive_unit_source'], trata: 'indiferente', motivo: 'arquivo durável (M3b): lê o vídeo só para achar canal, mês e miniaturas do que vai ao arquivo; o toco (archive_dropped_at) é contado como destino, não filtrado' },
+  { arquivo: '20261025000003_manutencao_m3b_recusa.sql', funcoes: [], trata: 'indiferente', motivo: 'a recusa (M3b): reedita competitor_video_purge/competitor_comments_purge só para chamar obs_archive_m9_pronto; o delete do vídeo é o da E9, sem leitura nova' },
 ]
 
 export const FUNCOES_VIVAS: readonly FuncaoViva[] = [
