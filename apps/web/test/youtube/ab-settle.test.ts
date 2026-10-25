@@ -279,6 +279,23 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect((await settleOnAir(v.banco.testId, { ...v.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' } }, v.portas)).resultado).toBe('ja_encerrado')
     expect(v.yt.escritas()).toEqual([])
   })
+  it('Y-T12-1: aplicar_sugerido com outro teste aberto no mesmo vídeo → outro_teste, mesmo com forcar, zero escrita; outro concluído não bloqueia', async () => {
+    const outro = (status: string) => [{ id: 'outro', site_id: SITE, youtube_video_id: 'video-interno', status, restore_seq: 0 }]
+    const a = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A }, outros: outro('active') })
+    a.banco.setTeste({ completed_reason: 'regra_v2' })
+    const r = await settleOnAir(a.banco.testId, { ...a.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' }, forcar: true }, a.portas)
+    expect(r.resultado).toBe('outro_teste')
+    expect(a.yt.escritas()).toEqual([]); expect(a.banco.teste().restore_seq).toBe(0)
+    const b = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A }, outros: outro('completed') })
+    b.banco.setTeste({ completed_reason: 'regra_v2' })
+    expect((await settleOnAir(b.banco.testId, { ...b.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' }, forcar: true }, b.portas)).resultado).toBe('feito')
+  })
+  it('Y-T12-1: reverter com outro teste aberto no mesmo vídeo → outro_teste, mesmo com forcar, zero escrita', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: true,
+      outros: [{ id: 'outro', site_id: SITE, youtube_video_id: 'video-interno', status: 'paused', restore_seq: 0 }] })
+    const r = await settleOnAir(c.banco.testId, { ...c.op('reverter'), forcar: true }, c.portas)
+    expect(r.resultado).toBe('outro_teste'); expect(c.yt.escritas()).toEqual([]); expect(c.banco.teste().restore_seq).toBe(0)
+  })
   it('PODE-5: encerrar um teste já completed → ja_encerrado, nada escrito', async () => {
     const c = await preparar({ status: 'completed', testType: 'combo' })
     expect((await settleOnAir(c.banco.testId, c.op('encerrado'), c.portas)).resultado).toBe('ja_encerrado')
