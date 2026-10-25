@@ -87,7 +87,7 @@ for(const [k,th,ti] of [['revisar-titulo',true,false],['revisar-thumbnail',false
 }
 // 3b. sem imagem: cartão tracejado "Sem thumbnail", nunca arte
 {const r=await get('revisar-combo-sem-imagem',()=>({sem:document.querySelectorAll('.frame .cmt.semimg').length,txt:document.querySelector('.frame .cmt.semimg')?.textContent}));
- if(r.sem!==1||r.txt!=='Sem thumbnail')ng('sem-imagem '+JSON.stringify(r));}
+ if(r.sem!==1||r.txt!=='Sem thumbnailEscolher da Biblioteca')ng('sem-imagem '+JSON.stringify(r));}
 // 4. aviso de volume: o esqueleto reserva a altura do maior cartão (sem salto) e a ativação não o remove
 {const hs=async k=>get(k,()=>{const e=document.querySelector('.frame .avs')||document.querySelector('.frame .avs-sk');return e?Math.round(e.getBoundingClientRect().height):0});
  for(const w of [1500,390]){await pg.setViewportSize({width:w,height:900});
@@ -141,6 +141,29 @@ for(const w of ['1440','390']){
 {await pg.setViewportSize({width:1500,height:900});
  for(const c of ['sea','sid','mob','home']){await pg.goto(`${url}?estado=revisar-combo&tema=claro&largura=1440`);await pg.locator(`.frame [data-ctx="${c}"]`).click();
   const n=await pg.$$eval('.frame .cmg .cmc',e=>e.length);if(n!==2)ng('contexto '+c+' cartões '+n);}}
+// 10. r2: consertos da revisão
+{ // linha de teste ativo: sem opacidade no texto que explica o bloqueio; razão do bloqueio >= 4,5:1 nos 2 temas
+ for(const t of ['claro','escuro']){await pg.goto(`${url}?estado=seletor&tema=${t}&largura=1440`);
+  const r=await pg.evaluate(()=>{const b=document.querySelector('.frame .vp:disabled');const op=e=>{let o=1;for(let x=e;x&&x!==document.body;x=x.parentElement)o*=+getComputedStyle(x).opacity;return o};
+   const a=b.querySelector('.amb'),m=b.querySelector('.m');return {amb:op(a),m:op(m),txt:a.textContent}});
+  if(r.amb!==1||r.m!==1)ng(`seletor ${t}: razão do bloqueio com opacidade ${JSON.stringify(r)}`);}}
+{const r=await get('seletor-dado-ruim',()=>[...document.querySelectorAll('.frame .vp .th')].map(e=>e.textContent+'|'+e.classList.contains('semimg')));
+ if(!r.includes('Sem thumbnail|true'))ng('seletor-dado-ruim: sem thumbnail tracejado '+JSON.stringify(r));
+ const m=await pg.evaluate(()=>[...document.querySelectorAll('.frame .vp .m')].map(e=>e.textContent));
+ const i21=m.findIndex(x=>x.includes('21:00')),i18=m.findIndex(x=>x.includes('18:32'));
+ if(i21<0||i18<0||i21>i18||/não informada/.test(m[0]))ng('seletor-dado-ruim: ordem '+JSON.stringify(m));}
+{const r=await get('revisar-combo-sem-imagem',()=>({ban:document.querySelector('.frame .ban strong').textContent,at:[...document.querySelectorAll('.frame .wz-f .b')].pop().disabled,bib:document.querySelectorAll('.frame .cmt.semimg .bib').length,nota:document.querySelector('.frame .nota')?.textContent}));
+ if(r.ban!=='Falta a thumbnail da variante B.'||!r.at||r.bib!==1||!/desativado/.test(r.nota||''))ng('combo sem imagem '+JSON.stringify(r));}
+{const r=await get('tipo-ja-existe',()=>[...document.querySelectorAll('.frame .wz-f .b')].map(b=>b.textContent.trim()+(b.disabled?'|d':'')));
+ if(JSON.stringify(r)!==JSON.stringify(['Cancelar','Abrir rascunho']))ng('tipo-ja-existe '+JSON.stringify(r));}
+{const r=await get('tipo-criando',()=>({n:(document.querySelector('.frame').textContent.match(/Criando (o )?rascunho/g)||[]).length}));
+ if(r.n!==1)ng('tipo-criando: mensagem repetida '+r.n);}
+for(const k of ['revisar-ativando','revisar-erro']){const r=await get(k,()=>({nota:!!document.querySelector('.frame .nota'),t:document.querySelector('.frame .etd-msg')?.textContent}));
+ if(r.nota||/1 minuto/.test(r.t))ng(k+' nota/prazo '+JSON.stringify(r));}
+{const r=await get('teste-carregando-demora',()=>document.querySelector('.frame .etd-msg').textContent);
+ if(/conexão/.test(r)||!/Tentar de novo/.test(r))ng('demora: '+r);}
+{const r=await get('variantes-titulo',()=>{const l=document.querySelector('.frame label.fl');return l&&l.textContent});
+ if(r!=='Título da variante B')ng('variantes-titulo: falta rótulo visível '+r);}
 await browser.close();
 console.log(`${nshots} capturas; ${falhas} falha(s)`);
 process.exit(falhas?1:0);

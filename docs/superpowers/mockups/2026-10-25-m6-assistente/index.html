@@ -83,6 +83,7 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .b:hover{background:var(--cms-surface-hover)}
 .b.pri{background:var(--cms-accent);border-color:var(--cms-accent);color:var(--cms-on-accent)}
 .b.pri:hover{background:var(--cms-accent)}
+.wz-f .b:not(.pri):not(:disabled){color:var(--cms-text)}
 .b:disabled{color:var(--cms-text-muted);cursor:not-allowed;background:transparent}
 .b.pri:disabled{background:var(--cms-surface-hover);border-color:var(--cms-border);color:var(--cms-text-muted)}
 .b.pri.busy:disabled{background:var(--cms-accent);border-color:var(--cms-accent);color:var(--cms-on-accent);cursor:progress}
@@ -119,8 +120,10 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .vl{padding:8px 24px 24px;display:flex;flex-direction:column;gap:8px}
 .vp{width:100%;display:flex;align-items:center;gap:12px;padding:12px;border-radius:2px;border:1px solid var(--cms-border);background:var(--cms-surface);color:var(--cms-text);text-align:left;font-family:inherit;cursor:pointer}
 .vp:hover:not(:disabled){background:var(--cms-surface-hover)}
-.vp:disabled{opacity:.5;cursor:not-allowed}
-.vp .th{width:96px;height:54px;border-radius:4px;background-color:var(--cms-bg);flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--cms-text-dim)}
+.vp:disabled{cursor:not-allowed}
+.vp:disabled .th,.vp:disabled .t{opacity:.5}
+.vp .th{width:96px;height:54px;border-radius:4px;background-color:var(--cms-bg);flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:12px;line-height:14px;text-align:center;color:var(--cms-text-muted)}
+.vp .th.semimg{border:1px dashed var(--etd-ctl);background:var(--cms-surface-hover)}
 .vp .tx{min-width:0;flex:1}
 .vp .t{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:14px;font-weight:500;line-height:1.35}
 .vp .m{display:flex;flex-wrap:wrap;gap:0 12px;font-size:12px;line-height:18px;color:var(--cms-text-muted);margin-top:2px;font-variant-numeric:tabular-nums}
@@ -150,7 +153,8 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .tp-c .ex{font-size:12.5px;color:var(--sub);margin-top:6px}
 .tp-c.pick{border-color:var(--cms-accent);background:var(--accent-soft)}
 .tp-c.pick .ic{background:var(--cms-accent);border:0;color:rgb(26,18,12)}
-.tp-c[aria-disabled="true"]{opacity:.55;cursor:not-allowed}
+.tp-c[aria-disabled="true"]{cursor:not-allowed;border-color:var(--cms-border);background:transparent}
+.tp-c[aria-disabled="true"] .ic{opacity:.55}
 .tp-c[aria-busy="true"]{opacity:1;cursor:progress}
 .tp-c .ic svg.sp{animation:etd-sp 1s linear infinite}
 .tp-c .ap{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--cms-text);margin-top:6px;font-weight:600}
@@ -230,6 +234,8 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .ph .nt{height:26px;display:flex;align-items:center;justify-content:center}.ph .nt i{width:70px;height:16px;background:#050505;border-radius:99px}
 .ph .cmt{border-radius:0}.ph .cmx{padding:0 12px 14px}.ph .tt{color:#eee;font-size:13.5px;-webkit-line-clamp:2}.ph .mm{color:#a8a39a;font-size:12px}
 .nota{font-size:12px;color:var(--cms-text-dim);text-align:center;line-height:1.35;padding:0 8px}
+.cmt.semimg .bib{margin-top:4px;min-height:44px;padding:0 10px;border-radius:8px;border:1px dashed var(--cms-border-strong);background:none;color:var(--cms-text);font:500 12px/1.2 inherit;font-family:inherit;cursor:pointer}
+.fl{display:block;font-size:12px;font-weight:600;color:var(--cms-text-muted);margin-bottom:4px}
 .nota strong{color:var(--cms-text-muted)}
 @container (max-width:640px){.avs-sk{min-height:100px}.cmg.home{grid-template-columns:1fr}.cmc.row{flex-direction:column}.cmc.row .cmt{width:100%}.cmc.sd .cmt{width:120px}}
 
@@ -316,7 +322,7 @@ const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
 
 /* ---------- seletor ---------- */
 function linha(v){
- const th=v.thumb?'<span class="th '+v.thumb+'" aria-hidden="true"></span>':'<span class="th" aria-hidden="true">Sem thumb</span>';
+ const th=v.thumb?'<span class="th '+v.thumb+'" aria-hidden="true"></span>':'<span class="th semimg" aria-hidden="true">Sem thumbnail</span>';
  const m=[];
  if(v.dur)m.push('<span>Duração '+v.dur+'</span>');
  m.push(v.pub?'<span>Publicado em '+v.pub+'</span>':'<span>Data de publicação não informada</span>');
@@ -341,11 +347,11 @@ function tipo(e){
   const ic=pend?S('<circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 9 9" stroke-width="2.4"/>','class="sp"'):t.ic;
   return '<button type="button" role="radio" aria-checked="'+(pend||e.sel===t.k)+'" class="tp-c'+(pend||e.sel===t.k?' pick':'')+'"'+(pend?' aria-busy="true"':'')+(off?' aria-disabled="true"':'')+'>'
    +'<div class="r"><div class="ic">'+ic+'</div><span class="ti">'+t.ti+'</span></div>'
-   +'<div class="de">'+t.de+'</div>'+(t.ex?'<div class="ex">'+t.ex+'</div>':'')+(pend?'<div class="ap">Criando rascunho…</div>':'')+'</button>';
+   +'<div class="de">'+t.de+'</div>'+(t.ex?'<div class="ex">'+t.ex+'</div>':'')+'</button>';
  };
  let msg='';
  if(e.erro==='falha')msg='<div class="etd-msg err" role="alert">'+ERRO+'<div><strong>Não foi possível criar o rascunho</strong>Nada foi salvo. Tente de novo.<br><button class="acao" type="button">Tentar de novo</button></div></div>';
- if(e.erro==='existe')msg='<div class="etd-msg warn" role="alert">'+S('<path d="M12 3L22 20H2z"/><path d="M12 10v4.5M12 17.3v.2"/>')+'<div><strong>Já existe um rascunho deste vídeo</strong>Abra-o na lista de rascunhos para continuar de onde parou.<br><button class="acao" type="button">Abrir rascunho</button></div></div>';
+ if(e.erro==='existe')msg='<div class="etd-msg warn" role="alert">'+S('<path d="M12 3L22 20H2z"/><path d="M12 10v4.5M12 17.3v.2"/>')+'<div><strong>Já existe um rascunho deste vídeo</strong>Abra-o na lista de rascunhos para continuar de onde parou.</div></div>';
  return '<p class="tp-p">Escolha o que vai ser rotacionado no YouTube.</p><div class="tp-g" role="radiogroup" aria-label="Tipo de teste">'+TIPOS.map(card).join('')+'</div>'+msg;
 }
 function slotThumb(cls,locked){return '<div class="slot '+cls+'" role="img" aria-label="Thumbnail">'+(locked?'<div class="lk">'+ICO.lock.replace('11','16').replace('11','16')+'</div>':'')+'</div>'}
@@ -358,7 +364,7 @@ function variantes(e){
  const bSlot=bThumb?slotThumb('tB'):'<div class="slot vz">'+ICO.up+'<span>Arraste uma imagem ou escolha um arquivo</span></div>';
  const cardB='<div class="vc ch"><div class="vc-h"><span class="vchip vB" role="img" aria-label="Variante B">B</span><b>Desafiante</b><button class="rm" type="button" aria-label="Remover variante B">'+ICO.trash+'</button></div><div class="vc-b'+(th?' th2':'')+'">'
   +(th?'<div>'+bSlot+'<div class="slot-a"><button type="button">Escolher da Biblioteca</button></div></div>':'')
-  +'<div style="min-width:0">'+(ti?'<input class="inp" type="text" value="'+esc(bTitle)+'" placeholder="Título da variante B…" aria-label="Título da variante B" maxlength="100">'+(bTitle.length>=80?'<div class="cc">'+bTitle.length+'/100 caracteres</div>':''):'<div class="lockt">'+TA+'</div><p class="lockn">Título mantido: só a thumbnail está sendo testada.</p>')+'</div></div></div>';
+  +'<div style="min-width:0">'+(ti?'<label class="fl" for="tb">Título da variante B</label><input id="tb" class="inp" type="text" value="'+esc(bTitle)+'" placeholder="Título da variante B…" aria-label="Título da variante B" maxlength="100">'+(bTitle.length>=80?'<div class="cc">'+bTitle.length+'/100 caracteres</div>':''):'<div class="lockt">'+TA+'</div><p class="lockn">Título mantido: só a thumbnail está sendo testada.</p>')+'</div></div></div>';
  return '<div class="vh"><div><h3>Variantes</h3><p>Monte até 2 desafiantes. A original (A) fica travada como referência.</p>'
   +'<button class="ideia" type="button" aria-haspopup="dialog">'+ICO.spark+'Pedir ideias a uma IA</button></div><span class="cnt">1 de 2 desafiantes</span></div>'
   +cardA+cardB+'<button class="add" type="button">'+ICO.plus+'Adicionar desafiante</button>';
@@ -372,7 +378,7 @@ const PREV={ // por tipo: o que cada variante mostra (thumb e título reais; só
 function meta(extra){return '<div class="mm">'+HANDLE+'</div><div class="mm">Publicado em '+PUB+'</div>'}
 function card(l,v,ctx,semimg){
  const lab='<div class="cml"><span class="vchip v'+l+'" role="img" aria-label="Variante '+l+'">'+l+'</span>'+(l==='A'?'Original':'Variante B')+'</div>';
- const th=semimg?'<div class="cmt semimg">'+ICO.img0+'Sem thumbnail</div>':'<div class="cmt '+v.th+'"><span class="dur">'+DUR+'</span></div>';
+ const th=semimg?'<div class="cmt semimg">'+ICO.img0+'Sem thumbnail'+(l==='B'?'<button class="bib" type="button">Escolher da Biblioteca</button>':'')+'</div>':'<div class="cmt '+v.th+'"><span class="dur">'+DUR+'</span></div>';
  const tx='<div class="cmx"><div class="tt">'+esc(v.t)+'</div>'+meta()+'</div>';
  if(ctx==='sea')return '<div class="cmc row">'+'<div>'+lab+th+'</div>'+tx+'</div>';
  if(ctx==='sid')return '<div class="cmc sd">'+th+'<div>'+lab.replace('class="cml"','class="cml" style="display:flex;margin-bottom:4px"')+tx+'</div></div>';
@@ -383,7 +389,8 @@ function revisar(e){
  const P=PREV[e.tp], aviso=e.aviso;
  const neutro=!!aviso;
  const resumo={title:'2 variantes de título',thumbnail:'2 variantes de thumbnail',combo:'2 variantes de título e thumbnail'}[e.tp];
- const ban='<div class="ban'+(neutro?' neu':'')+'">'+ICO.ok+'<p><strong>'+(neutro?'Pronto para ativar, com um aviso abaixo.':'Tudo pronto.')+'</strong> '+resumo+'</p></div>';
+ const falta=!!e.semimg;
+ const ban='<div class="ban'+(neutro||falta?' neu':'')+'">'+(falta?ICO.tri:ICO.ok)+'<p><strong>'+(falta?'Falta a thumbnail da variante B.':neutro?'Pronto para ativar, com um aviso abaixo.':'Tudo pronto.')+'</strong> '+(falta?'Escolha uma imagem da Biblioteca para poder ativar o teste.':resumo)+'</p></div>';
  const regra='<div class="regra"><span>Roda até 15 dias (mínimo 12), em rotação ABBA. Quem escolhe o vencedor é você.</span>'+info('Por que 15 dias','Por que 15 dias',['O YouTube leva dias para enviar o alcance de cada vídeo; por isso o prazo é fixo: no mínimo 12 e no máximo 15 dias.','A rotação ABBA alterna as versões em blocos (A, B, B, A) para que cada uma passe por dias parecidos.'])+'</div>';
  let av='';
  if(aviso==='lendo')av='<div class="avs-sk" aria-busy="true" aria-label="Estimando o volume do teste"><span class="skl"></span></div>';
@@ -394,9 +401,9 @@ function revisar(e){
  const cards=ctx==='home'?card('A',P.A,ctx)+card('B',P.B,ctx,e.semimg):card('A',P.A,ctx)+card('B',P.B,ctx,e.semimg);
  const pills=[['home','Home',ICO.home],['sea','Busca',ICO.busca],['sid','Sugeridos',ICO.sug],['mob','Mobile',ICO.mob]].map(([k,l,i])=>'<button type="button" data-ctx="'+k+'" aria-pressed="'+(k===ctx)+'">'+i+l+'</button>').join('');
  const cm='<section><div class="cmh">'+ICO.click+'<h3>O momento de clique</h3></div><p class="cm-d">É assim que cada variante aparece para o espectador. '+P.d+'</p><div class="ctx" role="group" aria-label="Onde o espectador vê">'+pills+'</div><div class="cmg '+cls+'">'+cards+'</div></section>';
- const nota='<p class="nota">Clique em <strong>Ativar teste</strong> para começar. As variantes começam a alternar depois que o teste for ativado no YouTube.</p>';
+ const nota=(e.acao||e.erro)?'':e.semimg?'<p class="nota"><strong>Ativar teste</strong> está desativado: a variante B ainda não tem thumbnail.</p>':'<p class="nota">Clique em <strong>Ativar teste</strong> para começar. As variantes começam a alternar depois que o teste for ativado no YouTube.</p>';
  let msg='';
- if(e.acao==='ativando')msg='<div class="etd-msg busy" role="status">'+BUSY+'<div><strong>Ativando o teste no YouTube</strong>Pode levar até 1 minuto. Depois abrimos a tela do teste.</div></div>';
+ if(e.acao==='ativando')msg='<div class="etd-msg busy" role="status">'+BUSY+'<div><strong>Ativando o teste no YouTube</strong>Pode levar alguns segundos. Se fechar, o teste continua e aparece na lista.</div></div>';
  if(e.acao==='salvando')msg='<div class="etd-msg busy" role="status">'+BUSY+'<div><strong>Salvando o rascunho</strong>Leva alguns segundos.</div></div>';
  if(e.erro)msg='<div class="etd-msg err" role="alert">'+ERRO+'<div><strong>Não foi possível ativar</strong>O rascunho ficou salvo. Você pode tentar de novo.</div></div>';
  return '<div class="rv">'+ban+regra+av+cm+nota+'</div>'+msg;
@@ -414,11 +421,11 @@ function rodape(e,n){
  if(n===0)bt='<button class="b" type="button"'+(e.pend?' disabled':'')+'>Cancelar</button>';
  else bt='<button class="b" type="button"'+(ocupado?' disabled':'')+'>Voltar</button>';
  if(n===1)bt+='<button class="b pri" type="button">Próximo'+ICO.arrow+'</button>';
- if(n===0)bt+='<button class="b pri" type="button" disabled>Próximo'+ICO.arrow+'</button>';
+ if(n===0)bt+=e.erro==='existe'?'<button class="b pri" type="button">Abrir rascunho</button>':'<button class="b pri" type="button" disabled>Próximo'+ICO.arrow+'</button>';
  if(n===2){
   const sv=e.acao==='salvando', at=e.acao==='ativando';
   bt+='<button class="b'+(sv?' busy':'')+'" type="button"'+(ocupado?' disabled':'')+'>'+(sv?BUSY.replace('<svg','<svg class="ib sp" style="animation:etd-sp 1s linear infinite"'):'')+(sv?'Salvando…':'Salvar rascunho')+'</button>'
-    +'<button class="b pri'+(at?' busy':'')+'" type="button"'+(ocupado?' disabled':'')+'>'+(at?BUSY.replace('<svg','<svg class="ib" style="animation:etd-sp 1s linear infinite;width:14px;height:14px"'):ICO.play)+(at?'Ativando…':e.erro?'Tentar de novo':'Ativar teste')+'</button>';
+    +'<button class="b pri'+(at?' busy':'')+'" type="button"'+(ocupado||e.semimg?' disabled':'')+'>'+(at?BUSY.replace('<svg','<svg class="ib" style="animation:etd-sp 1s linear infinite;width:14px;height:14px"'):ICO.play)+(at?'Ativando…':e.erro?'Tentar de novo':'Ativar teste')+'</button>';
  }
  return '<div class="wz-f">'+esq+'<div class="bt">'+bt+'</div></div>';
 }
@@ -437,7 +444,7 @@ function carregando(e){
   :'<div class="hd"><span class="im tA" aria-hidden="true"></span><div class="tt"><p class="cr">Teste A/B</p><h2>'+TA+'</h2></div></div>';
  const hdReal=hd;
  const msg=e.demora
-  ?'<div class="etd-msg busy" role="status">'+BUSY+'<div><strong>Está demorando</strong>A conexão pode estar lenta. <button class="acao" type="button">Tentar de novo</button></div></div>'
+  ?'<div class="etd-msg busy" role="status">'+BUSY+'<div><strong>Está demorando mais que o normal</strong><button class="acao" type="button">Tentar de novo</button></div></div>'
   :'<div class="etd-msg busy" role="status">'+BUSY+'<div><strong>Carregando o placar do teste</strong>Isso costuma levar poucos segundos.</div></div>';
  return '<div class="ld" data-testid="detalhe-carregando" aria-busy="true">'+hdReal+msg+'</div>';
 }
@@ -450,9 +457,9 @@ const E={
   {t:TA,thumb:'tD',dur:'9:07',pub:'14 out 2026, 11:05',views:8912},
   {t:'Rota de Lolzin no Diamante 1',thumb:'tB',dur:'11:02',pub:'02 out 2026, 09:40',views:21870,ativo:true,lift:'+4,2%'}]},
  'seletor-dado-ruim':{rot:'Seletor dado ruim',k:'sel',busca:'Main AD',rows:[
-  {t:TBL,thumb:null,dur:'',pub:'',views:null},
+  {t:'Ao vivo agora: Main AD Diamante 2',thumb:'tD',dur:'',pub:'21 out 2026, 21:00',views:null},
   {t:TA,thumb:'tA',dur:'12:48',pub:'21 out 2026, 18:32',views:0},
-  {t:'Ao vivo agora: Main AD Diamante 2',thumb:'tD',dur:'',pub:'21 out 2026, 21:00',views:null}]},
+  {t:TBL,thumb:null,dur:'',pub:'',views:null}]},
  'tipo':{rot:'Tipo',k:'wz',passo:0,sel:null},
  'tipo-criando':{rot:'Tipo criando',k:'wz',passo:0,pend:'title'},
  'tipo-erro':{rot:'Tipo erro',k:'wz',passo:0,sel:'title',erro:'falha'},

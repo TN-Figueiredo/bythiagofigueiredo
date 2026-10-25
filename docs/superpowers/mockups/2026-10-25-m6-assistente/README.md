@@ -22,6 +22,21 @@ Capturas completas (1440 e 390, claro e escuro): `seletor`, `tipo-criando`, `var
 9. `teste-carregando`: título e miniatura da linha clicada já aparecem; no lugar do bloco escuro de 105 px com frase miúda há uma mensagem `.etd-msg.busy` e nada mais. `-frio` (sem título conhecido): traços de esqueleto visíveis (>= 1,4:1). `-demora`: depois de 8 s a mensagem vira "Está demorando" com "Tentar de novo".
 10. Clique no ⓘ da regra: popover do produto (`InfoDica`), não muda a altura da página, Esc fecha.
 
+## r2 (25/10): achados da revisão de Logan e Naksu, como foram tratados
+| Achado | Como tratado |
+|---|---|
+| Logan C1 (combo sem imagem dizia "Tudo pronto") | Banner neutro "Falta a thumbnail da variante B." com ícone de aviso; cartão tracejado ganha "Escolher da Biblioteca"; "Ativar teste" desabilitado e a nota diz o motivo. Checagem nova no `verifica.mjs`. |
+| Logan M1 (Próximo ao lado de Abrir rascunho) | Em `tipo-ja-existe` o rodapé tem só "Cancelar" e "Abrir rascunho" (primário); o botão saiu do aviso. |
+| Logan M2 (nota durante Ativando; prazo de 1 min) | Nota oculta durante a espera e no erro; texto: "Pode levar alguns segundos. Se fechar, o teste continua e aparece na lista." |
+| Logan M3 / Naksu 2 (mensagem duplicada ao criar) | Fica só a do rodapé (`role=status` único, escolha da Naksu; Logan preferia o cartão); o cartão mostra só o spinner e `aria-busy`. |
+| Logan M4 (causa da demora) | "Está demorando mais que o normal." + "Tentar de novo". |
+| Logan M5 (ordem do dado ruim) | Ordem do mock corrigida (21:00 antes de 18:32); vídeo sem data vai por último. |
+| Logan para Naksu: Salvar rascunho apagado | Botões secundários habilitados do rodapé usam `--cms-text` (cheio); desabilitado continua apagado. |
+| Logan para Naksu: título B sem rótulo | Rótulo visível "Título da variante B" acima do campo. |
+| Naksu 1 (opacity .5 na linha ativa) | Sem `opacity` na linha; só miniatura e título a .5; datas e "Teste ativo em andamento" em cor cheia. Checagem de opacidade efetiva nos 2 temas. |
+| Naksu 3 (descrições travadas a 2,45:1) | Cartões travados perdem fundo e ícone a .55; título e descrição em cor cheia. |
+| Naksu 4 (Sem thumb x Sem thumbnail) | Mesmo tracejado e rótulo "Sem thumbnail" no seletor e na prévia. |
+
 ## Escolhas onde Logan e Naksu divergem (cada um com o opositor no próprio texto)
 | Ponto | Logan | Naksu | Escolhido e motivo |
 |---|---|---|---|
