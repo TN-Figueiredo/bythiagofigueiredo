@@ -39,7 +39,7 @@ import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
 import { rotuloDeConcluido } from '@/lib/youtube/ab-rotulo-v2'
-import { diasDaDecisao, estadoV2DoTeste, tetoDoTesteV2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { diasDaDecisao, estadoV2DoTeste, tetoDoTesteV2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { telaV2DoTeste } from '@/lib/youtube/ab-gravacao/tela-v2'
 
 async function requireEditAccess(): Promise<string> {
@@ -265,7 +265,7 @@ export const getTestResults = cache(async (testId: string): Promise<AbTestResult
     placar,
     faixa_dias: faixaDias,
     // Mesma leitura do placar, no formato da decisão (Y4): a tela v2 não faz consulta nova.
-    dias_decisao: diasDaDecisao(lido.dias, allCycles as unknown as CicloComNumero[], allVariants.length),
+    dias_decisao: diasDaDecisao(lido.dias, allCycles, allVariants.length),
   } satisfies AbTestResults
 })
 
@@ -1088,7 +1088,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
           id: v.variant_id, letra: toDisplayLabel(v.label, v.is_original), is_original: v.is_original,
           titulo: v.is_original ? (v.title_text ?? test.original_title ?? '') : (v.title_text ?? ''),
         })),
-        ciclos: results.timeline as unknown as CicloComNumero[],
+        ciclos: results.timeline,
         dias: results.dias_decisao,
         agora: new Date(),
       })

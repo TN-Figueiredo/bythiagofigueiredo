@@ -31,6 +31,9 @@ export function tetoDoTesteV2(config: unknown, V: number, opcoes: { soExplicito?
 
 export interface CicloComNumero extends AbCycle { cycle_number: number }
 
+/** O que `cicloDoDia` lê de um ciclo (a tela passa ciclos sem os números de entrega). */
+export type CicloDoDia = Pick<CicloComNumero, 'started_at' | 'ended_at' | 'variant_id' | 'cycle_number'>
+
 export type UltimaAvaliacaoV2 = NonNullable<ResultadoV2['ultima_avaliacao']>
 
 /** Dias fechados com ciclo no ar, sem a janela de 40 dias do retrato (nunca hoje, PT). */
@@ -42,9 +45,9 @@ export function relogioV2(ciclos: CicloComNumero[], teste: AbTest, agora: Date):
 }
 
 /** Ciclo com maior sobreposição no dia; empate: o da variante do dia, depois o de maior cycle_number; null se nenhum. */
-export function cicloDoDia(day: DiaPt, ciclos: readonly CicloComNumero[], variantDoDia?: string | null): CicloComNumero | null {
+export function cicloDoDia<C extends CicloDoDia>(day: DiaPt, ciclos: readonly C[], variantDoDia?: string | null): C | null {
   const b = boundsAnalytics(day)
-  let melhor: { c: CicloComNumero; s: number } | null = null
+  let melhor: { c: C; s: number } | null = null
   for (const c of ciclos) {
     const ini = Date.parse(c.started_at)
     if (!Number.isFinite(ini)) continue
@@ -53,7 +56,7 @@ export function cicloDoDia(day: DiaPt, ciclos: readonly CicloComNumero[], varian
     if (!(s > 0)) continue
     if (!melhor || s > melhor.s) { melhor = { c, s }; continue }
     if (s < melhor.s) continue
-    const daVar = (x: CicloComNumero) => (variantDoDia != null && x.variant_id === variantDoDia ? 1 : 0)
+    const daVar = (x: C) => (variantDoDia != null && x.variant_id === variantDoDia ? 1 : 0)
     if (daVar(c) > daVar(melhor.c) || (daVar(c) === daVar(melhor.c) && c.cycle_number > melhor.c.cycle_number)) melhor = { c, s }
   }
   return melhor ? melhor.c : null
@@ -69,7 +72,7 @@ export function blocoDoDia(cycleNumber: number, V: number): number {
  */
 export function diasDaDecisao(
   linhas: ReadonlyArray<{ day_pt: DiaPt; variant_id: string | null; alcance_estado: EstadoAlcance; impressoes: number | null; ctr: number | null; final: boolean }>,
-  ciclos: readonly CicloComNumero[],
+  ciclos: readonly CicloDoDia[],
   V: number,
 ): DiaDaDecisao[] {
   return linhas.map((l) => {
