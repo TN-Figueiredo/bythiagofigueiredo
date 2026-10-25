@@ -3,7 +3,8 @@
 -- Mesmo isolamento da 000004 (READ COMMITTED; nenhum chamador abre esta função em REPEATABLE READ). Mesma assinatura e grants.
 -- Desfazer: supabase/rascunhos/m3b-apagar-so-cheias-desfazer.sql (reaplica o corpo da 000004).
 
--- Aceita só o corpo da 000004 (já em produção). Se o corpo já tem v_cheias (reaplicação), sai sem erro e sem tocar na função.
+-- Aceita só o corpo da 000004 (já em produção). Se o corpo já tem v_cheias (reaplicação), a guarda passa sem erro; o
+-- `return` sai só deste bloco DO, então o create or replace abaixo refaz o mesmo corpo (efeito nulo, mesmo md5).
 do $g$ begin
   if (select p.prosrc from pg_proc p where p.oid = 'public.competitor_channel_remove(uuid,uuid,text,text,uuid)'::regprocedure) ~ 'v_cheias' then
     return;

@@ -249,7 +249,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   // Esc closes the topmost layer (canais.html keydown). The row menu is not here: the floating layer closes it first and returns the focus.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      // uma camada de dentro (o ⓘ do diálogo, o próprio diálogo) já tratou este Esc
+      if (e.key !== 'Escape' || e.defaultPrevented) return
       if (confirm) { if (!bloqueado.current) closeConfirm(); return }
       if (addOpen) { closeAdd(); return }
       if (nicheOpen) { closeNiche(); return }

@@ -165,11 +165,12 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
 
   const teclas = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
-      // o ⓘ aberto fecha sozinho (Esc do popover); o diálogo fica
-      if (infoAberto.current || Date.now() - infoFechouEm.current < JANELA_ESC_INFO_MS) { infoFechouEm.current = 0; e.stopPropagation(); return }
+      // o ⓘ aberto fecha sozinho (Esc do popover); o diálogo fica. preventDefault: o ouvinte de Esc do document (canais-screen) roda
+      // depois do React mesmo com stopPropagation (o Next hidrata no document), e é o defaultPrevented que o faz desistir
+      if (infoAberto.current || Date.now() - infoFechouEm.current < JANELA_ESC_INFO_MS) { infoFechouEm.current = 0; e.preventDefault(); e.stopPropagation(); return }
       // em envio, nada fecha (o resultado ainda vai chegar); no incerto, fechar também atualiza a lista
       if (enviando) { e.preventDefault(); e.stopPropagation(); return }
-      e.stopPropagation()
+      e.preventDefault(); e.stopPropagation()
       if (incerto) onConferir(); else onCancel()
       return
     }

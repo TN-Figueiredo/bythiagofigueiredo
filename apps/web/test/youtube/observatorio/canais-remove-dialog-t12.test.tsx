@@ -142,7 +142,8 @@ describe('Q3 · a frase do Blob antes do clique (B2)', () => {
     toggle('open')
     // ordem real do navegador: o Esc fecha o popover (toggle fechado) e só depois o keydown sobe até o diálogo
     toggle('closed')
-    fireEvent.keyDown(ib, { key: 'Escape' })
+    // false = defaultPrevented: é o que faz o ouvinte do document (canais-screen) desistir; no navegador o stopPropagation não o barra
+    expect(fireEvent.keyDown(ib, { key: 'Escape' })).toBe(false)
     expect(onCancel).not.toHaveBeenCalled()
     // o Esc seguinte, já sem ⓘ aberto e fora da janela do anterior, fecha o diálogo
     vi.setSystemTime(Date.now() + 1000)
@@ -157,7 +158,7 @@ describe('Q3 · a frase do Blob antes do clique (B2)', () => {
     fireEvent.click(r.container.querySelector('input[value="apagar"]')!)
     const pop = r.container.querySelector<HTMLElement>('.fx-blob .ri-pop')!
     act(() => { pop.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' })) })
-    fireEvent.keyDown(r.container.querySelector('.fx-blob .ri-ibtn')!, { key: 'Escape' })
+    expect(fireEvent.keyDown(r.container.querySelector('.fx-blob .ri-ibtn')!, { key: 'Escape' })).toBe(false)
     expect(onCancel).not.toHaveBeenCalled()
   })
   it('o ⓘ do Blob é cinza (como o do rádio) e o ponto vem colado a ele', async () => {
