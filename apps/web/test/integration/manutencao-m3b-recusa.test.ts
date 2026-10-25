@@ -109,7 +109,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b-recusa: o banco recusa apagar vídeo e c
 
   it('7. apagar canal não é recusado: a E9 do canal declara o destino e o corpo não tem o helper', async () => {
     await emTx(async c => {
-      await unidade(c)
+      // sem unidade: com unidade o canal só sai por Guardar (migration manutencao_m3b_apagar_com_arquivo); ver manutencao-m3b-apagar-com-arquivo.test.ts
       const org = await escalar<string>(pg, `select org_id from public.sites where id = $1`, [c.site])
       await pg.query(`insert into public.organization_members (org_id, user_id, role) values ($1, $2, 'org_admin')`, [org, c.actor])
       await pg.query(`update public.competitor_channels set missing_since = current_date - 3 where id = $1`, [c.canal])

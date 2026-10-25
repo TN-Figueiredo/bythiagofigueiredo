@@ -131,6 +131,12 @@ describe('A5 E9 T6: apagar', () => {
     expect(sentry.captureException).toHaveBeenCalledTimes(1)
   })
 
+  it('M3b-apagar-sql: P0001 apagar_com_arquivo em apagar canal vira apagar_com_arquivo e NÃO vai ao Sentry', async () => {
+    const f = monta({ competitor_channel_purge: async () => ({ data: null, error: { message: 'apagar_com_arquivo', code: 'P0001' } }) })
+    expect(await apagarCanal(f.sb, CTX, 'c1', 'APAGAR', { apagarDoBlob: blobOk() })).toEqual({ desfecho: 'erro', codigo: 'apagar_com_arquivo' })
+    expect(sentry.captureException).not.toHaveBeenCalled()
+  })
+
   it('M3b-recusa: P0001 m9_desligada em apagar vídeo e em apagar comentários vira arquivo_sem_apagar e NÃO vai ao Sentry', async () => {
     const recusa = async () => ({ data: null, error: { message: 'm9_desligada', code: 'P0001' } })
     const fv = monta({ competitor_video_purge: recusa })

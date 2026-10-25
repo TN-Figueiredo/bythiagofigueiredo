@@ -68,9 +68,10 @@ describe('A5 E9 T3: modelo', () => {
   })
 
   it('todo código de erro tem frase e a frase não repete o código cru; código desconhecido não lança', () => {
-    expect(CODIGOS_DE_ERRO).toHaveLength(11)
+    expect(CODIGOS_DE_ERRO).toHaveLength(12)
     expect(fraseDoErro('mes_destacado_em_transito')).toBe('Este mês está sendo enviado ao arquivo. Tente de novo depois que terminar.')
     expect(fraseDoErro('arquivo_sem_apagar')).toMatch(/Nada foi apagado\.$/)
+    expect(fraseDoErro('apagar_com_arquivo')).toBe('Este canal tem meses no arquivo; use Guardar no NAS.')
     expect(fraseDoErro('sem_direito')).toBe('Só quem administra a organização pode apagar canais. Nada foi apagado.')
     for (const c of CODIGOS_DE_ERRO) {
       const f = fraseDoErro(c)

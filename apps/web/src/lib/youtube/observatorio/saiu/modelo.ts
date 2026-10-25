@@ -19,7 +19,7 @@ export type TipoDeItem = 'video' | 'canal' | 'comentarios'
 
 export const CODIGOS_DE_ERRO = [
   'schema_ausente', 'erro_de_banco', 'tempo_esgotado', 'impasse', 'impedido_por_tabela', 'contagem_indisponivel', 'resposta_inesperada', 'blob_nao_configurado',
-  'mes_destacado_em_transito', 'sem_direito', 'arquivo_sem_apagar',
+  'mes_destacado_em_transito', 'sem_direito', 'arquivo_sem_apagar', 'apagar_com_arquivo',
 ] as const
 export type CodigoDeErro = (typeof CODIGOS_DE_ERRO)[number]
 
@@ -165,6 +165,8 @@ const FRASES_DE_ERRO: Record<CodigoDeErro, string> = {
   blob_nao_configurado: 'As thumbnails não podem ser apagadas aqui: falta ligar o armazenamento delas. Nada foi apagado.',
   // M9 (aviso de 15/10): recusa de regra da manutenção, não falha; nada foi apagado
   arquivo_sem_apagar: 'Este item já tem cópia no arquivo, e apagar do arquivo ainda não está ligado. Nada foi apagado.',
+  // M3b-apagar-sql (Phil a, 25/10): o banco recusa apagar canal com meses no arquivo; frase provisória
+  apagar_com_arquivo: 'Este canal tem meses no arquivo; use Guardar no NAS.',
   mes_destacado_em_transito: 'Este mês está sendo enviado ao arquivo. Tente de novo depois que terminar.',
   // Yannis M1 (15/10): recusa do banco pós-M3b (competitor_channel_remove exige org_admin); não é falha
   sem_direito: 'Só quem administra a organização pode apagar canais. Nada foi apagado.',
