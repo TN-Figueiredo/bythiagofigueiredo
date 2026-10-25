@@ -27,6 +27,8 @@ export interface AbEndTestDialogProps {
   seqVisto: number
   /** Aviso de página (role="status", 6 s) quando o teste encerrou mas o YouTube recusou algum campo. */
   onAviso?: (texto: string) => void
+  /** S8-F4 T12: teste com regra v2; encerrar à mão tira o teste da decisão. */
+  regraV2?: boolean
 }
 
 type Fase = 'escolha' | 'enviando' | 'sem_resposta' | 'sessao_expirada' | 'mudou'
@@ -244,7 +246,7 @@ interface EscolhaProps extends AbEndTestDialogProps {
   onEnviar: () => void
 }
 
-function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeixarVariante, escolhida, setEscolhida, fase, erro, opcao, onEnviar }: EscolhaProps) {
+function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeixarVariante, regraV2, escolhida, setEscolhida, fase, erro, opcao, onEnviar }: EscolhaProps) {
   const ref = useRef<HTMLDivElement>(null)
   useModalFocusTrap(ref, true, onFechar)
   const enviando = fase === 'enviando'
@@ -306,6 +308,9 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
             </fieldset>
             {!podeDeixarVariante ? (
               <div className="etd-msg warn">{ICONE_AVISO}<div>Só quem administra o site pode deixar uma variante no ar. Você pode voltar ao original.</div></div>
+            ) : null}
+            {regraV2 ? (
+              <div className="etd-msg warn">{ICONE_AVISO}<div>Encerrar à mão tira o teste da decisão: o resultado não será calculado.</div></div>
             ) : null}
             {enviando ? (
               <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Trocando título e thumbnail no YouTube</strong>Pode levar até 1 minuto. Se fechar, o resultado aparece no topo da página.</div></div>
