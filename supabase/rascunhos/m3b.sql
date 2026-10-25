@@ -848,13 +848,13 @@ begin
     end if;
   end loop;
   -- grava por tabela (Phil I10)
-  for v_row in select m.table_name from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.month = p_month order by m.table_name loop
+  for v_row in select m.table_name, m.detached_at, m.dropped_at from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.month = p_month order by m.table_name loop
     select count(*), count(*) filter (where c.row_count = 0), coalesce(sum(c.row_count), 0) into v_total, v_vazias, v_linhas
       from public.obs_archive_current_units(p_site, p_class, p_month) c where c.table_name = v_row.table_name and c.purged_at is null;
     v_kind := case when v_total = 0 then 'sem_dado_a_guardar' when v_vazias = v_total then 'vazio_conferido' else 'com_dado' end;
     -- dias de São Paulo com linha, contados na tabela online pela mesma regra do leitor, na hora do selo
     v_dias := '{}'; v_dm := 0;
-    if v_kind = 'com_dado' and exists (select 1 from pg_catalog.pg_class where oid = pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(v_row.table_name))) then
+    if v_kind = 'com_dado' and v_row.detached_at is null and v_row.dropped_at is null and exists (select 1 from pg_catalog.pg_class where oid = pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(v_row.table_name))) then
       select * into v_ex from public.obs_archive_table_exprs(v_row.table_name);
       select * into v_src from public.obs_archive_unit_source(p_class, v_row.table_name);
       for v_ch in select c.channel_ref from public.obs_archive_current_units(p_site, p_class, p_month) c

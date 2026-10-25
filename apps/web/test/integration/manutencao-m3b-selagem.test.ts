@@ -162,12 +162,18 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     await receber(site, [item(u)])
     await receber(site, (await resumoPelaRota({ site, classe: 'serie', canal, mes: MES })).arquivos)
     await receber(site, (await manifestoPelaRota({ site, classe: 'serie', mes: MES })).arquivos)
-    await c.query(`update public.obs_archive_months set detached_at = now(), unsealed_at = now(), unsealed_reason = 'expurgo' where site_id = $1 and class = 'serie'`, [site])
     await c.query(`delete from public.competitor_video_daily where video_id = any($1::uuid[])`, [videos])
-    expect(await escalar(c, `select public.obs_archive_seal($1, 'serie', $2::date)`, [site, MES])).toBe(1)
-    const linha = (await c.query(`select days_measured, days_in_month, unsealed_reason from public.obs_archive_months where site_id = $1 and class = 'serie' and table_name = $2`, [site, DAILY])).rows[0]
-    expect(linha).toEqual({ days_measured: 29, days_in_month: 31, unsealed_reason: null })
+    const reselar = async (marca: string, nulos = false): Promise<Record<string, unknown>> => {
+      await c.query(`update public.obs_archive_months set ${marca} = now(), unsealed_at = now(), unsealed_reason = 'expurgo'${nulos ? ', days_measured = null, days_in_month = null' : ''} where site_id = $1 and class = 'serie'`, [site])
+      expect(await escalar(c, `select public.obs_archive_seal($1, 'serie', $2::date)`, [site, MES])).toBe(1)
+      return (await c.query(`select days_measured, days_in_month, unsealed_reason from public.obs_archive_months where site_id = $1 and class = 'serie' and table_name = $2`, [site, DAILY])).rows[0]
+    }
+    expect(await reselar('detached_at')).toEqual({ days_measured: 29, days_in_month: 31, unsealed_reason: null })
+    expect(await reselar('dropped_at')).toEqual({ days_measured: 29, days_in_month: 31, unsealed_reason: null })
+    // mês fora do banco sem medida anterior fica sem medida (nulo, nunca 0)
+    expect(await reselar('detached_at', true)).toEqual({ days_measured: null, days_in_month: null, unsealed_reason: null })
   }))
+
   it('canal sem linha tem unidade vazia com o nome do canal (item 26)', async () => emTx(async () => {
     const a = await semearCanal(c, { videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
     const b = await semearCanal(c, { site: a.site, videos: 0 })
