@@ -30,6 +30,10 @@ describe('parseImpactoDoArquivo', () => {
 describe('mesAno e a 5ª linha (Q1)', () => {
   it('YYYY-MM vira MM/YYYY', () => { expect(mesAno('2026-09')).toBe('09/2026') })
   it('sem arquivo (N = 0): sem linha', () => { expect(linhaArquivo(VAZIO)).toBeNull() })
+  it('meses sem as datas: a frase não cita faixa (singular e plural)', () => {
+    expect(linhaArquivo(com({ meses: 3, de: null, ate: null }))).toEqual({ n: 3, rotulo: 'meses já no arquivo', sub: 'Ficam como estão: o arquivo não é tocado.' })
+    expect(linhaArquivo(com({ meses: 1, de: null, ate: null }))).toEqual({ n: 1, rotulo: 'mês já no arquivo', sub: 'Fica como está.' })
+  })
   it('9 meses', () => {
     expect(linhaArquivo(com({ meses: 9, de: '2026-01', ate: '2026-09' }))).toEqual({ n: 9, rotulo: 'meses já no arquivo', sub: 'de 01/2026 a 09/2026. Ficam como estão: o arquivo não é tocado.' })
   })

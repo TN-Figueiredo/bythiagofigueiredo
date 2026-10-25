@@ -7,9 +7,10 @@ import { render, act, fireEvent, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { RemoveDialog, type ImpactAnswer, type Desfecho } from '@/app/cms/(authed)/youtube/competitors/_canais/remove-dialog'
 import { TXT } from '@/app/cms/(authed)/youtube/competitors/_canais/remover-model'
+import { CONTAGEM_T12 } from '../../helpers/arquivo-vazio'
 
 const IMPACT = { name: 'Ryan Otis', videos: 340, pinned: 2, versions: 1208, dailyDays: 12, bookmarks: 3, readings: 28, watch: { readings: 20, thumbs: 0, alvos: 0 } }
-const PODE: ImpactAnswer = { ok: true, impact: IMPACT, semGuardar: { pode: true } }
+const PODE: ImpactAnswer = { ok: true, impact: IMPACT, semGuardar: { pode: true }, ...CONTAGEM_T12 }
 type Pedir = (id: string) => Promise<{ ok: true; jaPedido: boolean } | { ok: false; codigo: never; frase: string }>
 function deferred<T>() { let done!: (r: T) => void; let fail!: (e: unknown) => void; const p = new Promise<T>((a, b) => { done = a; fail = b }); return { p, done, fail } }
 
@@ -62,13 +63,13 @@ describe('RemoveDialog · contando e pronto', () => {
   })
 
   it('a linha de leituras diz que também saem fotos e alvos da página de vídeo, quando há', async () => {
-    const m = mount({ impact: async () => ({ ok: true, impact: { ...IMPACT, watch: { readings: 20, thumbs: 3, alvos: 1 } }, semGuardar: { pode: true } }) })
+    const m = mount({ impact: async () => ({ ok: true, impact: { ...IMPACT, watch: { readings: 20, thumbs: 3, alvos: 1 } }, semGuardar: { pode: true }, ...CONTAGEM_T12 }) })
     await act(async () => {})
     expect(m.rows()[2]).toContain('mais as fotos e os alvos da página de vídeo')
   })
 
   it('zeros de verdade: "nenhuma" e sem explicação; a linha continua (a altura é reservada)', async () => {
-    const m = mount({ impact: async () => ({ ok: true, impact: { ...IMPACT, readings: 0, watch: { readings: 0, thumbs: 0, alvos: 0 } }, semGuardar: { pode: true } }) })
+    const m = mount({ impact: async () => ({ ok: true, impact: { ...IMPACT, readings: 0, watch: { readings: 0, thumbs: 0, alvos: 0 } }, semGuardar: { pode: true }, ...CONTAGEM_T12 }) })
     await act(async () => {})
     expect(m.rows()[2]).toBe('nenhumaleitura da forja e da página de vídeo')
     expect(m.container.querySelectorAll('.fx-loss li')).toHaveLength(4)
@@ -107,7 +108,7 @@ describe('RemoveDialog · apagar sem guardar', () => {
   })
 
   it('D5.4 a-antigo: (a) desabilitado, com a frase ligada por aria-describedby', async () => {
-    const m = mount({ impact: async () => ({ ok: true, impact: IMPACT, semGuardar: { pode: false, porque: 'antigo', meses: 7 } }) })
+    const m = mount({ impact: async () => ({ ok: true, impact: IMPACT, semGuardar: { pode: false, porque: 'antigo', meses: 7 }, ...CONTAGEM_T12 }) })
     await act(async () => {})
     const a = m.radio('apagar')
     expect(a.disabled).toBe(true)
@@ -156,14 +157,14 @@ describe('RemoveDialog · envio', () => {
     fireEvent.click(m2.radio('apagar'))
     fireEvent.change(m2.container.querySelector('.fld input')!, { target: { value: 'Ryan Otis' } })
     await act(async () => { fireEvent.click(m2.btn('Apagar sem guardar')) })
-    expect(m2.onDone).toHaveBeenCalledWith({ caminho: 'apagar', videos: 340, leituras: 48, registrosDiarios: 4000 })
+    expect(m2.onDone).toHaveBeenCalledWith({ caminho: 'apagar', videos: 340, leituras: 48, registrosDiarios: 4000, imagensAoAbrir: 0, capacidade: 'nao-nao', dataDoComando: null })
     cleanup()
     const m3 = mount()
     await act(async () => {})
     fireEvent.click(m3.radio('apagar'))
     fireEvent.change(m3.container.querySelector('.fld input')!, { target: { value: 'Ryan Otis' } })
     await act(async () => { fireEvent.click(m3.btn('Apagar sem guardar')) })
-    expect(m3.onDone.mock.calls[0]![0]).toEqual({ caminho: 'apagar', videos: 340 })
+    expect(m3.onDone.mock.calls[0]![0]).toEqual({ caminho: 'apagar', videos: 340, imagensAoAbrir: 0, capacidade: 'nao-nao', dataDoComando: null })
   })
 
   it('D5.7 andamento-a: 3 cliques = 1 chamada; "Apagando…", aria-busy, Cancelar travado, campo desabilitado, Esc não fecha', async () => {

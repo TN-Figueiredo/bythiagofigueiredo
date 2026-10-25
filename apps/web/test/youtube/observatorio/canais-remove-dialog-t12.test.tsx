@@ -129,7 +129,8 @@ describe('Q3 · a frase do Blob antes do clique (B2)', () => {
     const m = mount({ impact: async () => resp({ imagensBlob: 47 }) }); await act(async () => {})
     expect(m.q('.fx-blob')).toBeNull()
   })
-  it('Esc com o ⓘ aberto fecha só o ⓘ, não o diálogo', async () => {
+  it('Esc com o ⓘ aberto fecha só o ⓘ: o popover nativo dispara `toggle` (fechado) ANTES do keydown chegar ao diálogo', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
     const onCancel = vi.fn()
     const r = render(<div data-obs=""><div data-obs-screen="canais"><RemoveDialog id="c1" name="V" onImpact={async () => resp({ imagensBlob: 3 })} onPedir={vi.fn() as never} onApagar={vi.fn() as never}
       onCancel={onCancel} onDone={vi.fn()} onConferir={vi.fn()} onBloqueio={vi.fn()} trap={() => {}} /></div></div>)
@@ -137,15 +138,60 @@ describe('Q3 · a frase do Blob antes do clique (B2)', () => {
     fireEvent.click(r.container.querySelector('input[value="apagar"]')!)
     const ib = r.container.querySelector('.fx-blob .ri-ibtn')!
     const pop = r.container.querySelector<HTMLElement>('.fx-blob .ri-pop')!
-    act(() => { pop.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' })) })
+    const toggle = (novo: string) => act(() => { pop.dispatchEvent(Object.assign(new Event('toggle'), { newState: novo })) })
+    toggle('open')
+    // ordem real do navegador: o Esc fecha o popover (toggle fechado) e só depois o keydown sobe até o diálogo
+    toggle('closed')
     fireEvent.keyDown(ib, { key: 'Escape' })
     expect(onCancel).not.toHaveBeenCalled()
-    act(() => { pop.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'closed' })) })
+    // o Esc seguinte, já sem ⓘ aberto e fora da janela do anterior, fecha o diálogo
+    vi.setSystemTime(Date.now() + 1000)
     fireEvent.keyDown(ib, { key: 'Escape' })
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
+  it('Esc com o ⓘ ainda aberto no keydown (toggle depois): também só fecha o ⓘ', async () => {
+    const onCancel = vi.fn()
+    const r = render(<div data-obs=""><div data-obs-screen="canais"><RemoveDialog id="c1" name="V" onImpact={async () => resp({ imagensBlob: 3 })} onPedir={vi.fn() as never} onApagar={vi.fn() as never}
+      onCancel={onCancel} onDone={vi.fn()} onConferir={vi.fn()} onBloqueio={vi.fn()} trap={() => {}} /></div></div>)
+    await act(async () => {})
+    fireEvent.click(r.container.querySelector('input[value="apagar"]')!)
+    const pop = r.container.querySelector<HTMLElement>('.fx-blob .ri-pop')!
+    act(() => { pop.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' })) })
+    fireEvent.keyDown(r.container.querySelector('.fx-blob .ri-ibtn')!, { key: 'Escape' })
+    expect(onCancel).not.toHaveBeenCalled()
+  })
+  it('o ⓘ do Blob é cinza (como o do rádio) e o ponto vem colado a ele', async () => {
+    const fs = await import('node:fs'); const path = await import('node:path')
+    const DIR = path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors')
+    for (const f of ['_canais/canais.css', '_chrome/kit.css']) {
+      const css = fs.readFileSync(path.join(DIR, f), 'utf8')
+      expect(css, f).toMatch(/\.modal \.fx-blob > \.fx-i\{color:var\(--muted\)\}/)
+      expect(css, f).toMatch(/\.fx-blob \.ri-ibtn\{[^}]*margin:-4px -4px -4px 1px/)
+    }
+  })
+  it('depois da recusa por corrida o rádio volta a desligado com a frase do Q2, e "O que será apagado" sai', async () => {
+    const apagar = vi.fn(async () => ({ ok: false as const, codigo: 'apagar_com_arquivo', frase: 'x' }))
+    const m = mount({ apagar, impact: async () => resp({ imagensBlob: 3 }) })
+    await act(async () => {})
+    fireEvent.click(m.radio('apagar'))
+    fireEvent.change(m.q('.fld input')!, { target: { value: 'Viaje com Marina' } })
+    await act(async () => { fireEvent.click(m.btn('Apagar sem guardar')) })
+    expect(m.radio('apagar').disabled).toBe(true)
+    expect(m.radio('apagar').checked).toBe(false)
+    expect(m.radio('guardar').checked).toBe(true)
+    expect(m.container.textContent).toContain('Este canal tem meses no arquivo. Para não perder esse histórico, use Guardar no NAS.')
+    expect(m.q('.fx-blob')).toBeNull()
+  })
 })
 
+describe('I1 · resposta sem `arquivo` nunca liga o apagar (fail closed)', () => {
+  it('ok: true sem o campo ⇒ rádio desligado e "Não foi possível contar o que sai."', async () => {
+    const m = mount({ impact: async () => ({ ok: true, impact: IMPACT, semGuardar: { pode: true } }) as unknown as ImpactAnswer }); await act(async () => {})
+    expect(m.radio('apagar').disabled).toBe(true)
+    expect(m.container.textContent).toContain('Não foi possível contar o que sai.')
+    expect(m.rows()).toEqual([])
+  })
+})
 describe('Q4 · o desfecho leva o que o aviso precisa', () => {
   it('apagar: imagensRestantes (depois do clique), imagensAoAbrir (ao abrir), capacidade e data', async () => {
     const m = mount({ impact: async () => resp({ imagensBlob: 47 }, { capacidade: 'nao-sim', dataDoComando: '2026-12-05' }) })

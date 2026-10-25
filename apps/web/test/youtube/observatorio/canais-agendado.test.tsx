@@ -18,6 +18,7 @@ import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/to
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { TXT, desfeitoCorpo, pedidoAoAgente } from '@/app/cms/(authed)/youtube/competitors/_canais/remover-model'
 import { marcarRemovido } from '@/app/cms/(authed)/youtube/competitors/_canais/removido-flag'
+import { CONTAGEM_T12 } from '../../helpers/arquivo-vazio'
 
 const replace = vi.fn(), refresh = vi.fn(), push = vi.fn()
 vi.mock('next/navigation', () => ({
@@ -27,7 +28,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 const DIA = 86_400_000
-const IMPACTO = { ok: true as const, impact: { name: 'X', videos: 340, pinned: 2, versions: 1208, dailyDays: 12, bookmarks: 3, readings: 28, watch: { readings: 20, thumbs: 0, alvos: 0 } }, semGuardar: { pode: true as const } }
+const IMPACTO = { ok: true as const, impact: { name: 'X', videos: 340, pinned: 2, versions: 1208, dailyDays: 12, bookmarks: 3, readings: 28, watch: { readings: 20, thumbs: 0, alvos: 0 } }, semGuardar: { pode: true as const }, ...CONTAGEM_T12 }
 let agendadoId = '', normalId = '', agendadoNome = ''
 const w = () => a3World(ds => {
   const [a, b] = ds.channels.filter(c => !c.own)

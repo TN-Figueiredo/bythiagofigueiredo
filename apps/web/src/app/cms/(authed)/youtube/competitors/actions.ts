@@ -655,10 +655,9 @@ export async function getCompetitorRemovalImpactAction(channelRowId: string): Pr
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
   if (typeof channelRowId !== 'string' || !UUID_RE.test(channelRowId)) return { ok: false }
   try {
-    const r = await getCompetitorRemovalImpact(siteId, channelRowId)
-    if (!r) return { ok: false }
-    const arquivo = await lerImpactoDoArquivo(getSupabaseServiceClient(), siteId, channelRowId)
-    if (!arquivo) return { ok: false }
+    // as duas leituras são independentes: uma ida e volta só
+    const [r, arquivo] = await Promise.all([getCompetitorRemovalImpact(siteId, channelRowId), lerImpactoDoArquivo(getSupabaseServiceClient(), siteId, channelRowId)])
+    if (!r || !arquivo) return { ok: false }
     const cap = lerCapacidades()
     return {
       ok: true, impact: r.impact, semGuardar: semGuardarDe(r.addedAt, Date.now(), RULES.removal.semGuardarAteDias), arquivo,

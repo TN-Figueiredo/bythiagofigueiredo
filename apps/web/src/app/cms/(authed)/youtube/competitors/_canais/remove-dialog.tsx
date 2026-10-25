@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { CompetitorRemovalImpact, SemGuardar } from '@/lib/youtube/competitor-removal-impact'
-import type { RespostaRemocao } from '../actions'
+import type { RespostaRemocao, RespostaDoImpacto } from '../actions'
 import { PinIcon } from '../_chrome/pin-kit'
 import { RiInfo } from './ri-info'
 import {
@@ -17,15 +17,15 @@ import {
   type ArquivoImpact, type Capacidade, type Caminho, type CodigoTela, type Fase, type ImagensDoAviso,
 } from './remover-model'
 
-/** `arquivo`, `capacidade` e `dataDoComando` vêm juntos com a contagem ou não vêm (falha_contagem). Ausentes (versão antiga da ação) = sem arquivo. */
-export type ImpactAnswer =
-  | { ok: true; impact: CompetitorRemovalImpact; semGuardar: SemGuardar; arquivo?: ArquivoImpact; capacidade?: Capacidade; dataDoComando?: string | null }
-  | { ok: false }
+/** Igual à resposta da ação: `arquivo`, `capacidade` e `dataDoComando` são OBRIGATÓRIOS (vêm juntos com a contagem ou é `ok: false`). Sem `arquivo` a tela não liga o apagar (fail closed). */
+export type ImpactAnswer = RespostaDoImpacto
 export type Desfecho =
   | { caminho: 'guardar'; jaPedido: boolean }
   | ({ caminho: 'apagar'; videos: number; leituras?: number; registrosDiarios?: number } & ImagensDoAviso)
 
 type Erro = { codigo: CodigoTela | 'sem-resposta'; frase?: string; caminho: Caminho }
+/** O Esc que fechou o ⓘ ainda chega ao diálogo dentro deste prazo; passado ele, o Esc volta a fechar o diálogo. */
+const JANELA_ESC_INFO_MS = 250
 /** A explicação mais longa da 1ª linha (cinco dígitos de versões): o que o sizer reserva. */
 const SIZER_SUB = TXT.subVideos(99_999)
 
@@ -75,6 +75,8 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const [dataDoComando, setDataDoComando] = useState<string | null>(null)
   const [corrida, setCorrida] = useState(false)
   const infoAberto = useRef(false)
+  /** O popover nativo fecha no Esc e dispara `toggle` ANTES do keydown chegar aqui: sem este carimbo o Esc do ⓘ fecharia o diálogo também. */
+  const infoFechouEm = useRef(0)
   const [nome, setNome] = useState('')
   const [erro, setErro] = useState<Erro | null>(null)
   const emVoo = useRef(false)
@@ -99,9 +101,9 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
     pedir(id).then(r => {
       if (tok !== tokContagem.current) return // resposta tardia: ignorada
       clearTimeout(timer)
-      if (!r.ok) { falhar(); return }
+      if (!r.ok || !r.arquivo) { falhar(); return } // resposta sem o arquivo: nunca liga o apagar
       tokContagem.current++
-      setImpacto(r.impact); setSemGuardar(r.semGuardar); setArquivo(r.arquivo ?? null); setCapacidade(r.capacidade ?? 'nao-nao'); setDataDoComando(r.dataDoComando ?? null); setCorrida(false); setFase('pronto')
+      setImpacto(r.impact); setSemGuardar(r.semGuardar); setArquivo(r.arquivo); setCapacidade(r.capacidade ?? 'nao-nao'); setDataDoComando(r.dataDoComando ?? null); setCorrida(false); setFase('pronto')
     }).catch(falhar)
     return () => clearTimeout(timer)
   }, [id])
@@ -139,7 +141,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
       emVoo.current = false
       if (!r.ok) {
         // corrida: o arquivo nasceu entre a contagem e o clique. A opção de apagar se desliga com a frase do Q2 e Guardar é a saída
-        if (c === 'apagar' && r.codigo === 'apagar_com_arquivo') setCorrida(true)
+        if (c === 'apagar' && r.codigo === 'apagar_com_arquivo') { setCorrida(true); setCaminho('guardar') }
         setErro({ codigo: r.codigo, frase: r.frase, caminho: c }); sair('erro'); return
       }
       onBloqueioRef.current(false)
@@ -164,7 +166,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const teclas = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
       // o ⓘ aberto fecha sozinho (Esc do popover); o diálogo fica
-      if (infoAberto.current) { e.stopPropagation(); return }
+      if (infoAberto.current || Date.now() - infoFechouEm.current < JANELA_ESC_INFO_MS) { infoFechouEm.current = 0; e.stopPropagation(); return }
       // em envio, nada fecha (o resultado ainda vai chegar); no incerto, fechar também atualiza a lista
       if (enviando) { e.preventDefault(); e.stopPropagation(); return }
       e.stopPropagation()
@@ -259,7 +261,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
             <div className="fx-msg fx-info fx-blob" role="note">
               <PinIcon name="info" />
               <div>
-                <div className="fx-blob-p">{blob.linha1Antes}<RiInfo titulo={BLOB_INFO.titulo} itens={BLOB_INFO.itens} rotuloBotao={BLOB_INFO.rotulo} aoMudar={a => { infoAberto.current = a }} />{blob.linha1Depois}</div>
+                <div className="fx-blob-p">{blob.linha1Antes}<RiInfo titulo={BLOB_INFO.titulo} itens={BLOB_INFO.itens} rotuloBotao={BLOB_INFO.rotulo} aoMudar={a => { infoAberto.current = a; if (!a) infoFechouEm.current = Date.now() }} />{blob.linha1Depois}</div>
                 <p>{blob.linha2}</p>
               </div>
             </div>

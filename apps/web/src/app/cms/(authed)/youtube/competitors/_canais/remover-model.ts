@@ -74,7 +74,11 @@ const mesesDe = (n: number) => `${n} ${n === 1 ? 'mês' : 'meses'}`
 
 /** Q1: a 5ª linha "meses já no arquivo" (só com N > 0; vale no caminho de guardar). */
 export function linhaArquivo(a: ArquivoImpact | null): { n: number; rotulo: string; sub: string } | null {
-  if (!a || a.meses <= 0 || !a.de || !a.ate) return a && a.meses > 0 ? { n: a.meses, rotulo: a.meses === 1 ? 'mês já no arquivo' : 'meses já no arquivo', sub: a.meses === 1 ? 'Fica como está.' : 'Ficam como estão: o arquivo não é tocado.' } : null
+  if (!a || a.meses <= 0) return null
+  if (!a.de || !a.ate) {
+    // sem as datas do primeiro e do último mês: a frase não cita faixa
+    return { n: a.meses, rotulo: a.meses === 1 ? 'mês já no arquivo' : 'meses já no arquivo', sub: a.meses === 1 ? 'Fica como está.' : 'Ficam como estão: o arquivo não é tocado.' }
+  }
   return a.meses === 1
     ? { n: 1, rotulo: 'mês já no arquivo', sub: `em ${mesAno(a.de)}. Fica como está.` }
     : { n: a.meses, rotulo: 'meses já no arquivo', sub: `de ${mesAno(a.de)} a ${mesAno(a.ate)}. Ficam como estão: o arquivo não é tocado.` }
@@ -82,7 +86,10 @@ export function linhaArquivo(a: ArquivoImpact | null): { n: number; rotulo: stri
 /** A mais longa das subfrases da 5ª linha: o que o sizer reserva. */
 export const SIZER_SUB_ARQUIVO = 'de 00/0000 a 00/0000. Ficam como estão: o arquivo não é tocado.'
 
-/** Há unidade no arquivo (a mesma regra que o banco usa para recusar o apagar). */
+/**
+ * Há arquivo a proteger. Mesma regra do banco: `meses` conta só unidade corrente com row_count > 0 (cte `cheios` de obs_archive_channel_archive_impact) e a
+ * recusa `apagar_com_arquivo` de competitor_channel_remove (`v_cheias`, migration 20261025000005) conta o mesmo; unidade vazia não é arquivo.
+ */
 export const temArquivo = (a: ArquivoImpact | null | undefined): boolean => !!a && (a.meses > 0 || a.videosRetirados.n > 0)
 
 /** Q2: a frase do rádio desligado. "Única cópia" só quando há mês fora do banco ou vídeo retirado (D2). */
@@ -144,9 +151,6 @@ export function fraseBlobDialogo(n: number, cap: Capacidade, dataIso: string | n
   }
 }
 export const BLOB_INFO = { rotulo: 'O que é o Blob', titulo: 'O que é o Blob', itens: ['O Blob é o armazenamento de imagens do site, na Vercel.', 'A contagem vem do banco no momento em que esta janela abre.'] }
-/** O bloco do Blob mais alto possível (47 imagens, a frase de duas linhas do cap 'nao-nao'): o que o sizer reserva. */
-export const SIZER_BLOB = `${fraseBlobDialogo(99_999, 'nao-nao', null)!.linha1Antes}ⓘ${fraseBlobDialogo(99_999, 'nao-nao', null)!.linha1Depois} ${fraseCapacidade('nao-nao', 99_999, null, 'dialogo')}`
-
 /**
  * Espelho de `obs_nome_normalizado` (banco): classe EXPLÍCITA de espaços (nunca `\s`, que difere entre JS e Postgres), um espaço simples,
  * pontas aparadas, caixa ignorada, acento preservado. A mesma classe vale nos dois lados.
@@ -229,11 +233,14 @@ export function desfeitoCorpo(nome: string, despausado: boolean): string {
  * As linhas de `competitor_video_daily` NÃO entram no toast: a janela conta dias distintos e o retorno da F1 só tem linhas, então os dois
  * números da mesma tabela divergiriam. As linhas seguem no `audit_log`.
  */
-export function toastApagadoCorpo(nome: string, d: { videos: number; leituras?: number }): string {
+export function listaApagada(nome: string, d: { videos: number; leituras?: number }): string {
   const itens = [plural(d.videos, 'vídeo', 'vídeos')]
   if (d.leituras !== undefined) itens.push(plural(d.leituras, 'leitura', 'leituras'))
   const lista = itens.length === 1 ? itens[0]! : `${itens.slice(0, -1).join(', ')} e ${itens[itens.length - 1]}`
-  return `${nome} saiu, sem cópia: ${lista}. A vaga foi liberada. A ação foi registrada.`
+  return `${nome} saiu, sem cópia: ${lista}.`
+}
+export function toastApagadoCorpo(nome: string, d: { videos: number; leituras?: number }): string {
+  return `${listaApagada(nome, d)} A vaga foi liberada. A ação foi registrada.`
 }
 
 /** B2/Q4: o que se sabe das imagens do canal. `imagensRestantes`: lido depois do clique (ausente = a leitura não veio); `imagensAoAbrir`: lido quando a janela abriu. */
@@ -247,13 +254,13 @@ export function toastApagado(nome: string, d: { videos: number; leituras?: numbe
   const cap = d.capacidade ?? 'nao-nao'
   if (d.imagensRestantes === undefined) {
     if (d.imagensAoAbrir === undefined || d.imagensAoAbrir <= 0) return verde
-    const lista = base.slice(0, base.indexOf(' A vaga foi liberada.'))
+    const lista = listaApagada(nome, d)
     return { kind: 'warn', fixo: true, titulo: 'Apagado, sem conferir as imagens',
       corpo: `${lista} Não deu para conferir as imagens do canal no Blob; quando você abriu esta janela havia ${milhar(d.imagensAoAbrir)}. A vaga foi liberada. A ação foi registrada.` }
   }
   const n = d.imagensRestantes
   if (n <= 0) return verde
-  const lista = base.slice(0, base.indexOf(' A vaga foi liberada.'))
+  const lista = listaApagada(nome, d)
   const ainda = n === 1 ? '1 imagem do canal ainda está' : `${milhar(n)} imagens do canal ainda estão`
   return { kind: 'warn', fixo: true, titulo: n === 1 ? 'Apagado, com 1 imagem no Blob' : `Apagado, com ${milhar(n)} imagens no Blob`,
     corpo: `${lista} ${ainda} no Blob. ${fraseCapacidade(cap, n, d.dataDoComando, 'toast')} A vaga foi liberada. A ação foi registrada.` }
