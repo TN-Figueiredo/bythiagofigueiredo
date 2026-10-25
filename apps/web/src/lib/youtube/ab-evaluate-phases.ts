@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { ORIGINAL, settleOnAir } from '@/lib/youtube/ab-settle'
 import type { AbTestConfig } from '@/lib/youtube/ab-types'
-import { encerradoEmDia, relogioV2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { encerradoEmDia, relogioV2, tetoDoTesteV2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { lerPaginado } from '@/lib/youtube/coleta/paginar'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
@@ -87,7 +87,7 @@ export async function encerrarComPrazo(
   return saidas
 }
 
-type TesteV2Rede = { id: string; site_id: string; max_duration_days: number; status: string; paused_at: string | null; completed_at: string | null; original_title: string | null }
+type TesteV2Rede = { id: string; site_id: string; config: unknown; status: string; paused_at: string | null; completed_at: string | null; original_title: string | null }
 type CicloLido = CicloComNumero
 
 /** Rede de segurança v2: se o retrato parou, o relógio por ciclos passa de `max_duration_days + 3` e o teste não pode ficar no ar. */
@@ -98,22 +98,26 @@ async function redeDeSegurancaV2(supabase: SupabaseClient, testes: TesteV2Rede[]
   const ids = testes.map((t) => t.id)
   const leitura = await lerPaginado<CicloLido>(
     (de, ate) => supabase.from('ab_test_cycles').select('id, test_id, variant_id, cycle_number, started_at, ended_at')
-      .in('test_id', ids).order('id').range(de, ate) as unknown as PromiseLike<{ data: CicloLido[] | null; error: { message: string } | null }>,
+      .in('test_id', ids).order('id').range(de, ate) as never,
     50_000,
   )
   if (!leitura.ok) {
     Sentry.captureException(new Error(`rede v2: ler ciclos: ${leitura.motivo}`), { tags: { cron: 'ab-evaluate' }, extra: { context: 'rede v2' } })
     return { resolved, errors: 1 }
   }
+  const ciclosPorTeste = new Map<string, CicloLido[]>()
+  for (const c of leitura.linhas) { const l = ciclosPorTeste.get(c.test_id) ?? []; l.push(c); ciclosPorTeste.set(c.test_id, l) }
   for (const t of testes) {
     try {
-      const ciclos = leitura.linhas.filter((c) => c.test_id === t.id)
+      const ciclos = ciclosPorTeste.get(t.id) ?? []
       if (!ciclos.some((c) => c.ended_at === null)) {
         Sentry.captureMessage('ab-evaluate: teste v2 ativo sem ciclo aberto', { extra: { testId: t.id } })
       }
       const agoraData = new Date()
       const relogio = relogioV2(ciclos, { id: t.id, status: t.status, paused_at: t.paused_at, completed_at: t.completed_at, original_title: t.original_title }, agoraData).length
-      if (relogio < t.max_duration_days + 3) continue
+      // V vem dos ciclos (os mesmos que dão o relógio); o teto é o mesmo da decisão (Phil D1 / Yannis D3).
+      const V = new Set(ciclos.map((c) => c.variant_id)).size
+      if (relogio < tetoDoTesteV2(t.config, V) + 3) continue
 
       // A9: grava a tentativa ANTES do settle (chave não congelada).
       const tentou = await supabase.rpc('ab_test_v2_gravar', { p_test_id: t.id, p_v2: { rede_tentou_em: agoraData.toISOString() } })
@@ -183,9 +187,8 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient, inicioD
       // S8-F4: teste v2 tem a duração decidida pelo retrato diário; a rede de segurança roda depois do laço.
       if ((test as { regra_duracao?: string }).regra_duracao === 'v2') {
         evaluated++
-        const c = test.config as Partial<AbTestConfig> | null
         v2.push({
-          id: test.id as string, site_id: test.site_id as string, max_duration_days: c?.max_duration_days ?? 14,
+          id: test.id as string, site_id: test.site_id as string, config: test.config,
           status: (test.status as string | undefined) ?? 'active', paused_at: (test.paused_at as string | null | undefined) ?? null,
           completed_at: (test.completed_at as string | null | undefined) ?? null, original_title: (test.original_title as string | null | undefined) ?? null,
         })

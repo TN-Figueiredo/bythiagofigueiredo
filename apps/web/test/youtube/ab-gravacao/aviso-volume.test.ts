@@ -16,7 +16,7 @@ describe('montarAvisoDeVolume', () => {
   it('Phil A10: teto 14, V=2, N=10.315, 1.800 imp/dia => 12 dias, so_decide_depois (nunca ok)', () => {
     const a = base()
     expect(a).toMatchObject({ estado: 'so_decide_depois', dias_previstos: 12, n: N2, impressoes_dia: 1800, base_estimada: true })
-    expect((a as { texto: string }).texto).toMatch(/só decide depois que o YouTube enviar os últimos dias \(até \d\d\/\d\d\)/)
+    expect((a as { texto: string }).texto).toMatch(/só decide depois que o YouTube enviar os últimos dias \(cerca de 15 dias depois do início\)/)
   })
   it('Yannis R-3: padrão V=2 (teto 15) com 1.800/dia => so_decide_depois, não teto_justo', () => {
     expect(base({ teto: 15 }).estado).toBe('so_decide_depois')
@@ -26,8 +26,9 @@ describe('montarAvisoDeVolume', () => {
     expect(a).toMatchObject({ estado: 'teto_justo', folga_min: 0 })
     expect((a as { texto: string }).texto).toMatch(/folga 0 na original com teto de 17 dias; com teto de \d+ dias a folga mínima passa a ser 1/)
   })
-  it('Yannis N-3: teto padrão V=2 (15) cabe => teto_justo; teto largo => ok', () => {
-    expect(base({ teto: 15, impressoesDia: 100_000 })).toMatchObject({ estado: 'teto_justo', folga_min: 1 })
+  it('Phil D4: padrão V=2 (15, folga 1) cabe => ok, não alarme; folga 0 (teto 13) => teto_justo; teto largo => ok', () => {
+    expect(base({ teto: 15, impressoesDia: 100_000 })).toMatchObject({ estado: 'ok', texto: null })
+    expect(base({ teto: 13, impressoesDia: 100_000 })).toMatchObject({ estado: 'teto_justo', folga_min: 0 })
     expect(base({ teto: 30, impressoesDia: 100_000 })).toMatchObject({ estado: 'ok', texto: null })
   })
   it('nao_chega quando passa de teto - 1', () => {

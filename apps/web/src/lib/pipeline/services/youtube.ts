@@ -22,7 +22,7 @@ import { claim } from './forja-queue'
 import { placarDoTeste, regraDoTeste, type Placar } from '@/lib/youtube/ab-gravacao/placar'
 import { lerDiasDosTestes, lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 import { avisoDeVolume, comEstatistica } from '@/lib/youtube/ab-gravacao/aviso-volume'
-import { estadoV2DoTeste, tetoPadrao, V_MAXIMO_V2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { estadoV2DoTeste, tetoDoTesteV2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
 
 // ---------------------------------------------------------------------------
 // Shared constants
@@ -1109,8 +1109,7 @@ function liftGravado(v2: ResultadoV2 | null): number | null {
 
 function projecaoV2(row: Record<string, unknown>, v2: ResultadoV2 | null, agora: Date): Record<string, unknown> {
   const variantes = (row.variants ?? []) as unknown[]
-  const cfg = ((row.config ?? {}) as { max_duration_days?: unknown }).max_duration_days
-  const teto = typeof cfg === 'number' && cfg > 0 ? cfg : tetoPadrao(Math.min(Math.max(variantes.length, 2), V_MAXIMO_V2))
+  const teto = tetoDoTesteV2(row.config, variantes.length)
   const relogio = Array.isArray(row.cycles)
     ? estadoV2DoTeste(
       { id: String(row.id), status: String(row.status), paused_at: (row.paused_at as string | null) ?? null, completed_at: (row.completed_at as string | null) ?? null, original_title: (row.original_title as string | null) ?? null },
@@ -1141,7 +1140,7 @@ async function lerPlacaresDosTestes(ctx: ServiceContext, ids: string[], agora: D
   const alvo = ids.length > LIMITE_K ? ids.slice(0, LIMITE_RECENTES) : ids
   const rows: Record<string, unknown>[] = []
   for (let i = 0; i < alvo.length; i += 100) {
-    const { data, error } = await supabase.from('ab_tests').select('*, variants:ab_test_variants!test_id(id, sort_order)').in('id', alvo.slice(i, i + 100))
+    const { data, error } = await supabase.from('ab_tests').select('*, variants:ab_test_variants!test_id(id, sort_order)').eq('site_id', siteId).in('id', alvo.slice(i, i + 100))
     if (error) return err('DB_ERROR', 'Failed to load A/B scoreboard rows', 500)
     rows.push(...((data ?? []) as Record<string, unknown>[]))
   }
@@ -1264,10 +1263,19 @@ export async function getAbTest(
   const detail = projetarTeste(row, agora, placarDaLinha(row, lido.dias, variantesOrdenadas(row), agora))
   detail.cycles = ((row.cycles ?? []) as Record<string, unknown>[]).map(projetarCiclo)
   detail.tracked_links = []
-  if (row.status === 'draft') {
-    const volume = await avisoDeVolume(supabase, siteId, id, agora)
-    if (!volume.ok) return err('DB_ERROR', `Failed to estimate volume: ${volume.erro}`, 500)
-    detail.aviso_volume = volume.aviso
+  // Só rascunho que nasceu v2: o aviso prevê a regra v2 (N e teto 15/17), que não vale para um v1 (Phil D3).
+  // Falha ao estimar nunca derruba o detalhe: aviso nulo + erro visível (nunca "ok") (Phil D2).
+  if (row.status === 'draft' && regraDoTeste(row) === 'v2') {
+    try {
+      const volume = await avisoDeVolume(supabase, siteId, id, agora)
+      detail.aviso_volume = volume.ok ? volume.aviso : null
+      detail.aviso_volume_erro = volume.ok ? null : volume.erro
+      if (!volume.ok) Sentry.captureMessage('get_test: estimativa de volume falhou', { level: 'warning', extra: { testId: id, erro: volume.erro } })
+    } catch (e) {
+      detail.aviso_volume = null
+      detail.aviso_volume_erro = 'estimativa de volume falhou'
+      Sentry.captureException(e, { extra: { testId: id } })
+    }
   }
   return ok(detail as unknown as AbTestDetail)
 }
@@ -1350,6 +1358,7 @@ export async function getAbPerformance(
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
+    .order('completed_at', { ascending: false })
     .order('completed_at', { ascending: false })
     .limit(50)
   if (lidosError) return err('DB_ERROR', 'Failed to load completed A/B tests', 500)
@@ -1855,8 +1864,10 @@ export interface AbDashboardResponse {
   avgConfidence: number | null
   /** Só vitória humana; null quando não sobra teste que conte (nunca 0). */
   winRate: number | null
-  /** Média (em %) do lift gravado, só sobre testes com `p_adj`; nula se nenhum (nunca 0). */
+  /** Lift médio (em %) dos VENCEDORES (desfecho com `p_adj` e sugerida); `sem_diferenca` não tem lift (sem significância o lift é nulo). Nulo se nenhum (nunca 0). */
   avgLift: number | null
+  /** Quantos vencedores entraram em `avgLift`. */
+  vencedores_com_lift: number
   aviso: AvisoAgregado
   /** Contagem por desfecho da regra v2 nos concluídos. */
   desfechos_v2: Partial<Record<DesfechoV2, number>>
@@ -1918,6 +1929,7 @@ export async function getAbDashboard(
     avgConfidence: null,
     winRate,
     avgLift: lifts.length > 0 ? lifts.reduce((a, b) => a + b, 0) / lifts.length : null,
+    vencedores_com_lift: lifts.length,
     aviso: avisoAgregado(lidosV2.values()),
     desfechos_v2: desfechos,
     desfecho_v2_nota: DESFECHO_V2_NOTA,

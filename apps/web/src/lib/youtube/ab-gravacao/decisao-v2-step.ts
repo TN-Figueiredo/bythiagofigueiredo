@@ -12,7 +12,7 @@ import { lerPaginado } from '../coleta/paginar'
 import type { AbTest } from '../coleta/ab-seconds'
 import {
   K_POR_V, V_MAXIMO_V2, baseDoVideo, blocoDoDia, cicloDoDia, decidirV2, desfechoProvisorio, encerradoEmDia, estatisticaV2,
-  pisos, relogioV2, tetoPadrao, volumeMinimo, type CicloComNumero, type DiaDaDecisao, type EstatisticaV2,
+  pisos, relogioV2, tetoDoTesteV2, volumeMinimo, type CicloComNumero, type DiaDaDecisao, type EstatisticaV2,
 } from './decisao-v2'
 import { lerDiasDosTestes } from './placar-leitura'
 import type { EntradasParaDecisao } from './retrato-step'
@@ -31,15 +31,16 @@ export type ResultadoDecisao =
   | { status: 'error'; error: string; health_written: true }
 
 interface LinhaTeste {
-  id: string; site_id: string; status: string; completed_reason: string | null; paused_at: string | null; completed_at: string | null
+  id: string; regra_duracao?: string; site_id: string; status: string; completed_reason: string | null; paused_at: string | null; completed_at: string | null
   original_title: string | null; started_at: string | null; result_metadata: unknown; config: unknown
   youtube_videos: { youtube_video_id: string; channel_id: string } | Array<{ youtube_video_id: string; channel_id: string }>
 }
 
-const SELECT_TESTE = 'id, site_id, status, completed_reason, paused_at, completed_at, original_title, started_at, result_metadata, config, youtube_videos!inner(youtube_video_id, channel_id)'
+const SELECT_TESTE = 'id, regra_duracao, site_id, status, completed_reason, paused_at, completed_at, original_title, started_at, result_metadata, config, youtube_videos!inner(youtube_video_id, channel_id)'
 
 const CicloSchema = z.object({
   id: z.string(), test_id: z.string(), variant_id: z.string(), started_at: z.string(), ended_at: z.string().nullable(), cycle_number: z.number().int(),
+  applied_metadata: z.object({ title_set: z.string().nullish() }).passthrough().nullable().default(null),
 }).passthrough()
 
 function v2Cru(rm: unknown): Record<string, unknown> {
@@ -50,6 +51,7 @@ function v2Cru(rm: unknown): Record<string, unknown> {
 /** Ativos v2 mais concluídos/arquivados com `encerrado_em_dia` e provisório (ou concluídos pela regra sem a gravação). Filtro em TS (Yannis N-5). */
 export function selecionarParaDecisao(linhas: readonly LinhaTeste[]): LinhaTeste[] {
   return linhas.filter((t) => {
+    if (t.regra_duracao !== undefined && t.regra_duracao !== 'v2') return false // terceira guarda (a consulta já filtra)
     if (t.status === 'active') return true
     if (t.status !== 'completed' && t.status !== 'archived') return false
     const v = v2Cru(t.result_metadata)
@@ -127,7 +129,7 @@ export async function rodarDecisaoV2(sb: SupabaseClient, agora: Date, entradas: 
 
   // (2) variantes e ciclos, uma leitura cada (em lotes de 100)
   const lv = await lerEmLotes<{ id: string; test_id: string; is_original: boolean }>(ids, (l) => (de, ate) => sb.from('ab_test_variants').select('id, test_id, is_original').in('test_id', l).order('id').range(de, ate) as never, 5_000)
-  const lc = await lerEmLotes<unknown>(ids, (l) => (de, ate) => sb.from('ab_test_cycles').select('id, test_id, variant_id, started_at, ended_at, cycle_number').in('test_id', l).order('id').range(de, ate) as never, 50_000)
+  const lc = await lerEmLotes<unknown>(ids, (l) => (de, ate) => sb.from('ab_test_cycles').select('id, test_id, variant_id, started_at, ended_at, applied_metadata, cycle_number').in('test_id', l).order('id').range(de, ate) as never, 50_000)
   if (!lv.ok || !lc.ok) {
     falhas.push(`leitura: ${!lv.ok ? lv.motivo : (lc as { motivo: string }).motivo}`)
     return fim()
@@ -140,7 +142,7 @@ export async function rodarDecisaoV2(sb: SupabaseClient, agora: Date, entradas: 
     const p = CicloSchema.safeParse(bruto)
     if (!p.success) { const tid = (bruto as { test_id?: unknown })?.test_id; if (typeof tid === 'string') ciclosInvalidos.add(tid); continue }
     const l = ciclosPorTeste.get(p.data.test_id) ?? []
-    l.push(p.data as unknown as CicloComNumero)
+    l.push(p.data)
     ciclosPorTeste.set(p.data.test_id, l)
   }
 
@@ -200,8 +202,7 @@ export async function rodarDecisaoV2(sb: SupabaseClient, agora: Date, entradas: 
       const c = cicloDoDia(l.day_pt, ciclos, l.variant_id)
       return { day_pt: l.day_pt, variant_id: l.variant_id, alcance_estado: l.alcance_estado, impressoes: l.impressoes, ctr: l.ctr, final: l.final, bloco: c ? blocoDoDia(c.cycle_number, V) : null }
     })
-    const cfg = t.config && typeof t.config === 'object' ? (t.config as { max_duration_days?: unknown }).max_duration_days : undefined
-    const teto = typeof cfg === 'number' && cfg > 0 ? cfg : tetoPadrao(V)
+    const teto = tetoDoTesteV2(t.config, V)
     const relogio = relogioV2(ciclos, teste, agora).length
     const video = Array.isArray(t.youtube_videos) ? t.youtube_videos[0]! : t.youtube_videos
     const em = agora.toISOString()

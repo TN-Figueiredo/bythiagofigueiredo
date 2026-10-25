@@ -12,6 +12,7 @@ vi.mock('@/lib/youtube/ab-gravacao/aviso-volume', async (orig) => ({ ...(await o
 import {
   AVISO_SEM_ESTATISTICA, AVISO_SEM_METRICA_DE_ENTREGA, getAbDashboard, getAbLearnings, getAbPerformance, getAbTest, getAbVideoHistory, projetarTeste,
 } from '@/lib/pipeline/services/youtube'
+import * as Sentry from '@sentry/nextjs'
 import { avisoDeVolume } from '@/lib/youtube/ab-gravacao/aviso-volume'
 
 const SITE = 's1'
@@ -98,6 +99,27 @@ describe('get_test de rascunho: aviso_volume (paridade com a tela)', () => {
     await getAbTest(ctx(sbDe({ ab_tests: { data: linhaV2(null), error: null } })), 't1')
     expect(avisoDeVolume).not.toHaveBeenCalled()
   })
+  it('Phil D3: rascunho v1 não chama avisoDeVolume e não traz aviso (a regra v2 não vale para ele)', async () => {
+    vi.mocked(avisoDeVolume).mockClear()
+    const sb = sbDe({ ab_tests: { data: linhaV2(null, { status: 'draft', regra_duracao: 'v1', result_metadata: {} }), error: null } })
+    const r = await getAbTest(ctx(sb), 't1')
+    expect(avisoDeVolume).not.toHaveBeenCalled()
+    expect((r.data as unknown as { aviso_volume: unknown }).aviso_volume ?? null).toBeNull()
+  })
+  it('Phil D2: leitura do aviso falha => 200, aviso_volume null, aviso_volume_erro preenchido, nunca 500', async () => {
+    vi.mocked(avisoDeVolume).mockResolvedValue({ ok: false, erro: 'leitura da entrega falhou' })
+    const sb = sbDe({ ab_tests: { data: linhaV2(null, { status: 'draft', result_metadata: {} }), error: null } })
+    const r = await getAbTest(ctx(sb), 't1')
+    expect(r.error).toBeFalsy()
+    expect(r.data).toMatchObject({ aviso_volume: null, aviso_volume_erro: 'leitura da entrega falhou' })
+    expect(Sentry.captureMessage).toHaveBeenCalled()
+  })
+  it('Phil D2: avisoDeVolume que lança também não derruba o get_test', async () => {
+    vi.mocked(avisoDeVolume).mockRejectedValue(new Error('boom'))
+    const sb = sbDe({ ab_tests: { data: linhaV2(null, { status: 'draft', result_metadata: {} }), error: null } })
+    const r = await getAbTest(ctx(sb), 't1')
+    expect(r.data).toMatchObject({ aviso_volume: null, aviso_volume_erro: expect.any(String) })
+  })
 })
 
 describe('rotas agregadas: aviso honesto e uma leitura de dias', () => {
@@ -150,6 +172,16 @@ describe('dashboard e histórico: desfecho_v2 e lift só com p_adj', () => {
     expect(r.desfecho_v2_nota).toContain('vitória só conta quando uma pessoa escolhe')
     const sb2 = sbDe({ ab_tests: { data: [rows[2]], error: null }, ab_test_dias: { data: [], error: null } })
     expect(((await getAbDashboard(ctx(sb2))).data as { avgLift: number | null }).avgLift).toBeNull()
+  })
+  it('Yannis D1: avgLift é o lift médio dos VENCEDORES (sem_diferenca não tem lift), com a contagem ao lado', async () => {
+    const semDif = (id: string) => linhaV2(v2Calculado(0.03, { desfecho: 'sem_diferenca_detectavel', vencedor_sugerido: null }), { id })
+    const rows = [linhaV2(v2Calculado(0.25), { id: 'a' }), semDif('b'), semDif('c')]
+    const sb = sbDe({ ab_tests: { data: rows, error: null }, ab_test_dias: { data: [], error: null } })
+    const r = (await getAbDashboard(ctx(sb))).data as unknown as { avgLift: number | null; vencedores_com_lift: number }
+    expect(r.avgLift).toBeCloseTo(25, 6)
+    expect(r.vencedores_com_lift).toBe(1)
+    const sb2 = sbDe({ ab_tests: { data: [semDif('b')], error: null }, ab_test_dias: { data: [], error: null } })
+    expect((await getAbDashboard(ctx(sb2))).data).toMatchObject({ avgLift: null, vencedores_com_lift: 0 })
   })
   it('histórico: desfecho_v2 por teste e liftPercent só com p_adj', async () => {
     const rows = [linhaV2(v2Calculado(0.2), { id: 'a', youtube_video_id: 'yt1' }), linhaV2(v2Calculado(0.9, { p_adj: null }), { id: 'c', youtube_video_id: 'yt1' })]

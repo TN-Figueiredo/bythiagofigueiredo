@@ -91,6 +91,23 @@ describe('selecionarParaDecisao (pura)', () => {
   })
 })
 
+describe('guardas v1 (Yannis D4)', () => {
+  it('terceira guarda: selecionarParaDecisao descarta linha com regra_duracao v1, mesmo ativa', () => {
+    const L = (o: Linha): Linha => ({ id: 'x', status: 'active', completed_reason: null, result_metadata: {}, regra_duracao: 'v2', ...o })
+    expect(selecionarParaDecisao([L({})] as never)).toHaveLength(1)
+    expect(selecionarParaDecisao([L({ regra_duracao: 'v1' })] as never)).toHaveLength(0)
+  })
+  it('segunda guarda: RPC devolvendo -1 no congelamento do N (teste v1 que vazou da consulta): sem settle e uma só falha', async () => {
+    const c = cenario({ v2: null, nDias: 14, teto: 14 })
+    c.f.rpcRetorno.ab_test_v2_gravar = -1
+    const r = await rodar(c)
+    expect(settle.encerrarComPrazo).not.toHaveBeenCalled()
+    expect(r).toMatchObject({ status: 'error' })
+    expect((r as { error: string }).error).toContain('gravar v2 falhou')
+    expect(saude.recordCronFailure).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('notaDeFalhaDecisao', () => {
   it('30 falhas: até 480 caracteres e termina em "e mais N"', () => {
     const n = notaDeFalhaDecisao(Array.from({ length: 30 }, (_, i) => `teste-${i}: nao_voltou ${'x'.repeat(20)}`))

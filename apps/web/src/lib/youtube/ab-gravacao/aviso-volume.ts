@@ -6,7 +6,7 @@ import { addDays, dayPt, ontemPt, type DiaPt } from '../coleta/day-pt'
 import { lerPaginado } from '../coleta/paginar'
 import type { ResultadoV2 } from '../ab-types'
 import {
-  ATRASO_ALCANCE, V_MAXIMO_V2, baseDoVideo, folgaPorVariante, tetoPadrao, volumeMinimo,
+  ATRASO_ALCANCE, V_MAXIMO_V2, baseDoVideo, folgaPorVariante, tetoDoTesteV2, volumeMinimo,
 } from './decisao-v2'
 import { estadoDoAlcance } from './estado'
 import { diaComAlcanceValido, type Placar } from './placar'
@@ -25,7 +25,6 @@ export type AvisoDeVolume =
 
 const TETO_LEITURA = 20_000
 const DIA_MS = 86_400_000
-const ddmm = (d: DiaPt): string => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const plural = (n: number): string => `${n} dia${n === 1 ? '' : 's'}`
 
 /** `estatistica` do placar vira 'calculada' sse a decisão v2 gravou `p_adj`. Não toca `placar.ts`. */
@@ -50,14 +49,14 @@ export function montarAvisoDeVolume(i: {
     return { estado: 'nao_chega', ...base, texto: `este teste não chega ao volume em ${i.teto} dias; o desfecho provável é inconclusivo por volume${origem}` }
   }
   if (dias_previstos > limite) {
-    return { estado: 'so_decide_depois', ...base, texto: `só decide depois que o YouTube enviar os últimos dias (até ${ddmm(addDays(i.hoje, dias_previstos + ATRASO_ALCANCE))})${origem}` }
+    return { estado: 'so_decide_depois', ...base, texto: `só decide depois que o YouTube enviar os últimos dias (cerca de ${plural(dias_previstos + ATRASO_ALCANCE)} depois do início)${origem}` }
   }
   const folgas = folgaPorVariante(i.V, i.teto)
   const min = Math.min(...folgas)
-  if (min <= 1) {
+  if (min < 1) { // folga 1 é o alvo do dono (V=2, 15 dias): estado ok, não alarme (Phil D4)
     let paraFolga1 = i.teto
     while (paraFolga1 < i.teto + 6 && Math.min(...folgaPorVariante(i.V, paraFolga1)) < 1) paraFolga1++
-    const dica = min >= 1 ? '' : `; com teto de ${plural(paraFolga1)} a folga mínima passa a ser ${Math.min(...folgaPorVariante(i.V, paraFolga1))}`
+    const dica = `; com teto de ${plural(paraFolga1)} a folga mínima passa a ser ${Math.min(...folgaPorVariante(i.V, paraFolga1))}`
     const quem = folgas[0] === min ? ' na original' : ''
     return {
       estado: 'teto_justo', ...base, folga_min: min,
@@ -100,8 +99,7 @@ export async function avisoDeVolume(sb: SupabaseClient, siteId: string, testId: 
   const row = t.data as Linha | null
   if (!row) return { ok: false, erro: 'teste não encontrado' }
   const V = Array.isArray(row.variants) ? row.variants.length : 0
-  const cfg = (row.config ?? {}) as { max_duration_days?: unknown; teto_explicito?: unknown }
-  const teto = cfg.teto_explicito === true && typeof cfg.max_duration_days === 'number' && cfg.max_duration_days > 0 ? cfg.max_duration_days : tetoPadrao(V < 2 ? 2 : V)
+  const teto = tetoDoTesteV2(row.config, V, { soExplicito: true })
   const hoje = dayPt(agora)
   if (V < 2 || V > V_MAXIMO_V2) {
     return { ok: true, aviso: montarAvisoDeVolume({ V, teto, p1: 0.04, base_estimada: true, impressoesDia: null, usouUltimos7: false, hoje }) }

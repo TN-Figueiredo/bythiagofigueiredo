@@ -112,9 +112,21 @@ describe('rede de segurança v2', () => {
     expect(settle).not.toHaveBeenCalled()
   })
 
-  it('config sem max_duration_days usa 14', async () => {
-    const c = cliente([teste('t1', undefined)], ontemV2(17))
-    expect((await phaseEvaluateActiveTests(c.supabase)).resolved).toBe(1)
+  it('config sem max_duration_days, V=2: teto padrão 15 (rede em 18)', async () => {
+    expect((await phaseEvaluateActiveTests(cliente([teste('t1', undefined)], ontemV2(17)).supabase)).resolved).toBe(0)
+    expect((await phaseEvaluateActiveTests(cliente([teste('t1', undefined)], ontemV2(18)).supabase)).resolved).toBe(1)
+  })
+
+  it('Phil D1: V=3 e config {}: relógio 17 NÃO encerra (teto 17, rede em 20); relógio 20 encerra', async () => {
+    const aberto = (dias: number): Ciclo[] => [
+      { ...ciclo(0, dias, dias - 5), variant_id: 'V0' }, { ...ciclo(1, dias - 5, dias - 10), variant_id: 'V1' },
+      { ...ciclo(2, dias - 10, null), variant_id: 'V2' },
+    ]
+    const c17 = cliente([teste('t1', undefined)], aberto(17))
+    expect(await phaseEvaluateActiveTests(c17.supabase)).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
+    expect(settle).not.toHaveBeenCalled()
+    const c20 = cliente([teste('t1', undefined)], aberto(20))
+    expect((await phaseEvaluateActiveTests(c20.supabase)).resolved).toBe(1)
   })
 
   it('RPC devolvendo -1 no desfecho: errors++ e Sentry', async () => {
