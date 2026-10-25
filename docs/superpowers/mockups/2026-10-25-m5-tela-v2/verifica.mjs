@@ -70,12 +70,16 @@ for(const [k,id] of [['ativo-sinal','cfA'],['ativo-sinal','cfE'],['concluido-apl
   const g=pg.locator(`.frame [data-abre="${id}"]`);
   if(!await g.count())continue;
   await g.click();
+  const m=await pg.evaluate((i)=>{const d=document.getElementById(i);const cs=getComputedStyle(d);const r=d.getBoundingClientRect();return {open:d.open,modal:d.matches(':modal'),foco:document.activeElement?.textContent.trim(),bg:cs.backgroundColor,w:Math.round(r.width),bottom:Math.round(innerHeight-r.bottom)}},id);
+  if(!m.open||!m.modal||m.foco!=='Cancelar')ng(`${k} ${id} dialog: ${JSON.stringify(m)}`);
+  if(m.bg==='rgba(0, 0, 0, 0)'||m.bg==='transparent')ng(`${k} ${id} dialog sem fundo`);
+  if(m.w!==390||m.bottom>1)ng(`${k} ${id} 390 deveria colar ao rodapé: ${JSON.stringify(m)}`);
   const rot=await pg.evaluate(()=>{const m={};[...document.querySelectorAll('.frame button')].filter(b=>b.offsetParent&&!b.hasAttribute('data-info')).forEach(b=>{const r=b.textContent.trim();if(!r)return;m[r]=(m[r]||0)+1});return Object.entries(m).filter(([,n])=>n>1).map(([r])=>r)});
   if(rot.length)ng(`${k} ${id} rótulo duplicado: ${rot}`);
   if(id==='cfV'||id==='cfA'){await pg.setViewportSize({width:430,height:900});await pg.locator('.frame').first().screenshot({path:path.join(dir,'shots',`${k}-claro-390-confirma.png`)});await pg.setViewportSize({width:390,height:900})}
   await pg.keyboard.press('Escape');
-  const r2=await pg.evaluate((i)=>({oculta:document.getElementById(i).hidden,foco:document.activeElement?.dataset?.abre,exp:document.activeElement?.getAttribute('aria-expanded')}),id);
-  if(!r2.oculta||r2.foco!==id||r2.exp!=='false')ng(`${k} ${id} Esc: ${JSON.stringify(r2)}`);
+  const r2=await pg.evaluate((i)=>({fechado:!document.getElementById(i).open,foco:document.activeElement?.dataset?.abre}),id);
+  if(!r2.fechado||r2.foco!==id)ng(`${k} ${id} Esc: ${JSON.stringify(r2)}`);
 }
 // foco após Aplicar e Voltar vai a um alvo visível (.noar), não ao body
 for(const [k,sel] of [['concluido-vencedor-provisorio','[data-aplica]'],['concluido-aplicado','[data-volta]']]){
@@ -85,6 +89,51 @@ for(const [k,sel] of [['concluido-vencedor-provisorio','[data-aplica]'],['conclu
   const f=await pg.evaluate(()=>{const a=document.activeElement;return {cls:a.className,vis:!!a.offsetParent,body:a===document.body,txt:a.textContent.trim().slice(0,60)}});
   if(f.body||!f.vis||f.cls!=='noar')ng(`${k} foco após ação: ${JSON.stringify(f)}`);
   await pg.setViewportSize({width:430,height:900});await pg.locator('.frame').first().screenshot({path:path.join(dir,'shots',`${k}-claro-390-depois.png`)});await pg.setViewportSize({width:390,height:900});
+}
+// ⓘ: altura do documento igual aberto/fechado; popover dentro da moldura (390) e fecha por Esc, fora, outro ⓘ, Tab
+for(const [t,w] of [['escuro','1440'],['escuro','390'],['claro','390'],['claro','1440']]){
+  await pg.setViewportSize({width:w==='390'?390:1500,height:900});
+  await pg.goto(`${url}?estado=ativo-sinal&tema=${t}&largura=${w}`);
+  const n=await pg.locator('.frame [data-info]').count();
+  if(n<2)ng(`ⓘ: só ${n}`);
+  for(let i=0;i<n;i++){
+    const b=pg.locator('.frame [data-info]').nth(i);
+    await b.scrollIntoViewIfNeeded();
+    const h0=await pg.evaluate(()=>document.documentElement.scrollHeight);
+    const y0=await pg.evaluate(()=>[...document.querySelectorAll('.frame .sec,.frame .dias')].map(e=>Math.round(e.getBoundingClientRect().height)));
+    await b.click();
+    const tid=await b.getAttribute('aria-controls');
+    const h1=await pg.evaluate(()=>document.documentElement.scrollHeight);
+    const y1=await pg.evaluate(()=>[...document.querySelectorAll('.frame .sec,.frame .dias')].map(e=>Math.round(e.getBoundingClientRect().height)));
+    if(h0!==h1||JSON.stringify(y0)!==JSON.stringify(y1))ng(`ⓘ ${i} ${t} ${w} altera layout ${h0}->${h1}`);
+    const g=await pg.evaluate((id)=>{const e=document.getElementById(id),r=e.getBoundingClientRect(),f=document.querySelector('.frame').getBoundingClientRect(),cs=getComputedStyle(e);return {l:r.left-f.left,rt:f.right-r.right,t:r.top,b:innerHeight-r.bottom,pos:cs.position,bd:cs.borderTopColor,dby:document.querySelectorAll('[aria-describedby]').length}},tid);
+    if(g.pos!=='absolute'||g.l<-0.5||g.rt<-0.5)ng(`ⓘ ${i} ${t} ${w} fora da moldura ${JSON.stringify(g)}`);
+    if(w==='390'&&(g.t<0||g.b<0))ng(`ⓘ ${i} ${t} ${w} fora do viewport ${JSON.stringify(g)}`);
+    if(g.dby)ng('aria-describedby presente');
+    if(i===0&&(t==='escuro')){await pg.screenshot({path:path.join(dir,'shots',`info-aberto-${t}-${w}.png`)}); /* sem resize: resize fecha o popover */}
+    // Esc fecha e devolve foco ao ⓘ
+    await pg.keyboard.press('Escape');
+    const e1=await pg.evaluate(()=>({exp:document.activeElement.getAttribute('aria-expanded'),inf:document.activeElement.hasAttribute('data-info')}));
+    if(e1.exp!=='false'||!e1.inf)ng(`ⓘ ${i} Esc ${JSON.stringify(e1)}`);
+    // toque fora
+    await b.click();await pg.mouse.click(5,5);
+    if(await b.getAttribute('aria-expanded')!=='false')ng(`ⓘ ${i} não fecha por toque fora`);
+    // Tab para fora
+    await b.click();await b.focus();await pg.keyboard.press('Tab');
+    if(await b.getAttribute('aria-expanded')!=='false')ng(`ⓘ ${i} não fecha com Tab`);
+  }
+  // abrir outro fecha o anterior
+  const bs=pg.locator('.frame [data-info]');await bs.nth(0).click();await bs.nth(1).click();
+  const ab=await pg.locator('.frame [data-info][aria-expanded="true"]').count();
+  if(ab!==1)ng(`ⓘ abertos simultâneos: ${ab}`);
+}
+// captura do Encerrar aberto (escuro 1440 e 390)
+for(const w of ['1440','390']){
+  await pg.setViewportSize({width:w==='390'?390:1500,height:900});
+  await pg.goto(`${url}?estado=ativo-sinal&tema=escuro&largura=${w}`);
+  await pg.locator('.frame [data-abre="cfE"]').click();
+  await pg.screenshot({path:path.join(dir,'shots',`encerrar-aberto-escuro-${w}.png`)});
+  await pg.keyboard.press('Escape');
 }
 await browser.close();
 console.log(`${nshots} capturas; ${falhas} falha(s)`);

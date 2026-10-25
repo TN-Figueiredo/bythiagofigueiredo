@@ -92,7 +92,10 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 @container (max-width:640px){.info{width:44px;height:44px;margin:-10px}.info::before{inset:0}}
 .info::before{content:"";position:absolute;inset:-11px}
 /* balão em fluxo: ocupa a linha inteira do contêiner flex e empurra o conteúdo; nunca passa da moldura */
-.tip{order:9;flex:0 0 100%;max-width:60ch;padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font:400 12px/1.45 Inter,system-ui,sans-serif;text-align:left;font-weight:400}
+.sec .sh,.dias .sh{position:relative}
+.tip{position:absolute;z-index:30;top:calc(100% - 6px);left:0;width:min(60ch,100%);padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--dim);box-shadow:0 6px 20px rgba(0,0,0,.45);color:var(--text);font:400 12px/1.45 Inter,system-ui,sans-serif;text-align:left;font-weight:400}
+.tip.up{top:auto;bottom:calc(100% - 6px)}
+@container (min-width:641px){.tip{top:0;bottom:auto;left:var(--tl,36px);width:360px}}
 .tip[hidden]{display:none}
 .tip b{font-weight:600}
 .tip b{font-weight:600}
@@ -203,7 +206,10 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .btn.alvo{min-height:44px;padding:0 18px}
 .btn.sec2{background:transparent}
 .conf{border:1px solid var(--border-strong);background:var(--surface-2);border-radius:8px;padding:var(--s3) var(--s4);max-width:62ch}
-.conf[hidden]{display:none}
+dialog.conf{color:var(--text);box-shadow:0 12px 40px rgba(0,0,0,.5);width:calc(100% - 32px);font:400 14px/1.5 Inter,system-ui,-apple-system,sans-serif;border-color:var(--dim);border-radius:10px;margin:auto}
+dialog.conf:not([open]){display:none}
+dialog.conf::backdrop{background:rgba(0,0,0,.6)}
+@media (max-width:640px){dialog.conf{margin:auto 0 0;width:100%;max-width:none;border-radius:12px 12px 0 0;border-bottom:0;padding-bottom:calc(var(--s4) + env(safe-area-inset-bottom))}}
 .conf h3{font:600 15px/1.35 Inter,system-ui,sans-serif}
 .conf p{color:var(--muted);font-size:13px;margin-top:4px}
 .conf .acts{margin-top:var(--s3);gap:var(--s3)}
@@ -282,7 +288,7 @@ const I={
 const NMC='<span class="nm">não medido</span>';
 const n=x=>x.toLocaleString('pt-BR');
 let IC=0;
-function info(label,h){const id='tip'+(++IC);return '<button class="info" type="button" aria-expanded="false" aria-controls="'+id+'" aria-describedby="'+id+'" aria-label="'+label+'" data-info><span class="ig" aria-hidden="true">ⓘ</span></button><span class="tip" id="'+id+'" role="note" hidden>'+h+'</span>'}
+function info(label,h){const id='tip'+(++IC);return '<button class="info" type="button" aria-expanded="false" aria-controls="'+id+'" aria-label="'+label+'" data-info><span class="ig" aria-hidden="true">ⓘ</span></button><span class="tip" id="'+id+'" role="note" hidden>'+h+'</span>'}
 const T1='5 - Como somos controlados - Consistência e Compromisso (Part 4)';
 const T100='Eu testei 4 títulos diferentes no mesmo vídeo durante duas semanas e o resultado final me surpreendeu muito mesmo, veja';
 /* variante: l,t, st(ok|sem|ag|semctr|zero|aus|nt), imp, cl, ctr, val, ag, nm(dias não medidos), z(dias zero) */
@@ -445,12 +451,12 @@ function sinal(e){
 }
 function acoes(e){
  const aberto=e.abrirEncerrar;
- const conf='<div class="conf" id="cfE" '+(aberto?'':'hidden')+' role="group" aria-labelledby="cfEt"><h3 id="cfEt">Encerrar o teste agora?</h3>'
+ const conf='<dialog class="conf" id="cfE" '+(aberto?'data-open ':'')+'aria-labelledby="cfEt"><h3 id="cfEt">Encerrar o teste agora?</h3><p>No ar hoje: A (original).</p>'
  +'<div class="band neu calm" style="margin-top:8px"><span class="ic">'+I.warn+'</span><p>Encerrar à mão tira o teste da decisão: o resultado não será calculado.</p></div>'
  +'<p style="margin-top:12px">A miniatura que fica no ar é a que você escolher abaixo.</p>'
  +'<label><input type="radio" name="fica" checked> Voltar à original (A)</label>'+(e.sinal?'<label><input type="radio" name="fica"> Ficar com '+e.sinal+'</label>':'')
- +'<div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfE">Cancelar</button><button class="btn alvo pri" type="button" data-fecha="cfE">Encerrar teste</button></div></div>';
- return '<div class="sec acoes"><div class="acts"><button class="btn alvo" type="button">Pausar</button><button class="btn alvo" type="button" aria-expanded="'+(aberto?'true':'false')+'" aria-controls="cfE" data-abre="cfE">Encerrar '+I.chev.replace('width="14" height="14"','width="14" height="14"')+'</button></div><div style="margin-top:12px">'+conf+'</div></div>';
+ +'<div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfE" autofocus>Cancelar</button><button class="btn alvo pri" type="button" data-fecha="cfE">Encerrar teste</button></div></dialog>';
+ return '<div class="sec acoes"><div class="acts"><button class="btn alvo" type="button">Pausar</button><button class="btn alvo" type="button" aria-haspopup="dialog" data-abre="cfE">Encerrar</button></div>'+conf+'</div>';
 }
 /* desfecho */
 const DS={
@@ -479,12 +485,12 @@ function desfecho(e){
   ?(e.prov?'<span class="provl">'+I.clock+'Provisório até '+e.prov+': pode mudar nos próximos dias.</span>':'<span class="provl"><span aria-hidden="true">■</span>Final: já não muda.</span>'):'';
  let btn='';
  if(e.d==='venc'&&!e.aplicada){
-  btn='<div class="acts"><button class="btn alvo pri" type="button" data-abre="cfA" aria-expanded="false" aria-controls="cfA">Aplicar '+e.who+' ao vídeo</button></div>'
-  +'<div class="conf" id="cfA" hidden role="group" aria-labelledby="cfAt"><h3 id="cfAt">Aplicar '+e.who+' ao vídeo?</h3><p>A miniatura muda agora no YouTube.'+(e.prov?' O desfecho ainda é provisório.':'')+'</p><div class="acts"><button class="btn alvo pri" type="button" data-aplica="cfA">Aplicar '+e.who+'</button><button class="btn alvo ghost" type="button" data-fecha="cfA">Cancelar</button></div></div>';
+  btn='<div class="acts"><button class="btn alvo pri" type="button" data-abre="cfA" aria-haspopup="dialog">Aplicar '+e.who+' ao vídeo</button></div>'
+  +'<dialog class="conf" id="cfA" aria-labelledby="cfAt"><h3 id="cfAt">Aplicar '+e.who+' ao vídeo?</h3><p>A miniatura muda agora no YouTube.'+(e.prov?' O desfecho ainda é provisório.':'')+'</p><div class="acts"><button class="btn alvo pri" type="button" data-aplica="cfA">Aplicar '+e.who+'</button><button class="btn alvo ghost" type="button" data-fecha="cfA" autofocus>Cancelar</button></div></dialog>';
  }
  if(e.aplicada&&!e.manual){
-  btn='<div class="acts"><button class="btn alvo" type="button" data-abre="cfV" aria-expanded="false" aria-controls="cfV">Voltar à original</button></div>'
-  +'<div class="conf" id="cfV" hidden role="group" aria-labelledby="cfVt"><h3 id="cfVt">Voltar à original (A)?</h3><p>A miniatura volta a ser a de A agora no YouTube. O resultado do teste não muda e continua visível aqui.</p><div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfV">Cancelar</button><button class="btn alvo pri" type="button" data-volta="cfV">Sim, voltar à original</button></div></div>';
+  btn='<div class="acts"><button class="btn alvo" type="button" data-abre="cfV" aria-haspopup="dialog">Voltar à original</button></div>'
+  +'<dialog class="conf" id="cfV" aria-labelledby="cfVt"><h3 id="cfVt">Voltar à original (A)?</h3><p>A miniatura volta a ser a de A agora no YouTube. O resultado do teste não muda e continua visível aqui.</p><div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfV" autofocus>Cancelar</button><button class="btn alvo pri" type="button" data-volta="cfV">Sim, voltar à original</button></div></dialog>';
  }
  const extra=e.d==='ileg'?'<div class="acts"><button class="btn alvo" type="button">Tentar de novo</button></div>':'';
  return '<div class="desf"><span class="sel '+s.c+'" role="status"><span class="sy" aria-hidden="true">'+s.s+'</span>'+s.t+'</span>'+prov+noar(e)+btn+extra+'</div>';
@@ -529,24 +535,34 @@ let tema=Q.get('tema')==='claro'?'claro':'escuro';
 let larg=['1440','390'].includes(Q.get('largura'))?Q.get('largura'):'ambas';
 let skT;
 function sync(){history.replaceState(null,'','?'+new URLSearchParams({estado,tema,largura:larg}))}
-function closeTips(){document.querySelectorAll('[data-info]').forEach(x=>{x.setAttribute('aria-expanded','false');const t=document.getElementById(x.getAttribute('aria-controls'));if(t)t.hidden=true})}
+function closeTips(){document.querySelectorAll('[data-info]').forEach(x=>{x.setAttribute('aria-expanded','false');const t=document.getElementById(x.getAttribute('aria-controls'));if(t){t.hidden=true;t.classList.remove('up')}})}
+function openTip(b){const tip=document.getElementById(b.getAttribute('aria-controls')),fr=b.closest('.frame'),sh=b.closest('.sh');b.setAttribute('aria-expanded','true');tip.hidden=false;tip.classList.remove('up');
+ const wide=fr.clientWidth-parseFloat(getComputedStyle(fr).paddingLeft)*2>640;
+ if(wide){tip.style.setProperty('--tl',(b.offsetLeft+b.offsetWidth+8)+'px');return}
+ // 390: acima do ⓘ; vira para baixo só sem espaço no topo da janela
+ tip.classList.add('up');if(b.getBoundingClientRect().top-tip.offsetHeight-8<0)tip.classList.remove('up')}
 function paint(){
  const ws=larg==='ambas'?['1440','390']:[larg];
  document.getElementById('figs').innerHTML=ws.map(w=>'<figure class="fig"><figcaption>'+(w==='1440'?'Desktop 1440 px':'Celular 390 px')+'</figcaption><div class="frame w'+w+'" data-theme="'+(tema==='claro'?'light':'dark')+'">'+render(estado,w)+'</div></figure>').join('');
  document.querySelectorAll('#sEstado button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===estado));
  document.querySelectorAll('#sTema button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===tema));
  document.querySelectorAll('#sLarg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===larg));
- document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();const o=b.getAttribute('aria-expanded')==='true';closeTips();if(!o){b.setAttribute('aria-expanded','true');document.getElementById(b.getAttribute('aria-controls')).hidden=false}}));
+ document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();const o=b.getAttribute('aria-expanded')==='true';closeTips();if(!o)openTip(b)}));
+ document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('focusout',ev=>{const t=document.getElementById(b.getAttribute('aria-controls'));if(b.getAttribute('aria-expanded')==='true'&&!(ev.relatedTarget&&(ev.relatedTarget===b||t.contains(ev.relatedTarget))))closeTips()}));
+ document.querySelectorAll('.tip').forEach(t=>t.addEventListener('click',ev=>ev.stopPropagation()));
  document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',!o);document.getElementById(b.getAttribute('aria-controls')).classList.toggle('open',!o)}));
- document.querySelectorAll('[data-abre]').forEach(b=>b.addEventListener('click',()=>{const f=b.closest('.frame'),c=f.querySelector('#'+b.dataset.abre);c.hidden=!c.hidden;b.setAttribute('aria-expanded',String(!c.hidden))}));
- document.querySelectorAll('[data-fecha]').forEach(b=>b.addEventListener('click',()=>{const f=b.closest('.frame'),c=f.querySelector('#'+b.dataset.fecha);c.hidden=true;const o=f.querySelector('[data-abre="'+b.dataset.fecha+'"]');if(o){o.setAttribute('aria-expanded','false');o.focus()}}));
+ document.querySelectorAll('[data-abre]').forEach(b=>b.addEventListener('click',()=>{closeTips();b.closest('.frame').querySelector('#'+b.dataset.abre).showModal()}));
+ document.querySelectorAll('dialog.conf').forEach(c=>{c.addEventListener('click',ev=>{if(ev.target===c)c.close()});c.addEventListener('close',()=>{const o=c.closest('.frame')?.querySelector('[data-abre="'+c.id+'"]');if(o&&c.isConnected&&!c.dataset.feito)o.focus()});if(c.hasAttribute('data-open'))c.showModal()});
+ document.querySelectorAll('[data-fecha]').forEach(b=>b.addEventListener('click',()=>{b.closest('dialog').close()}));
  document.querySelectorAll('[data-volta]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');const t=d.querySelector('.noar');const antes=t.querySelector('.th').textContent;d.querySelector('.acts').remove();b.closest('.conf').remove();t.querySelector('.th').className='th tA';t.querySelector('.th').textContent='A';t.querySelector('span').innerHTML='No ar agora: <b>A (original)</b>. '+antes+' deixou de ser aplicada.';if(!d.querySelector('.desfeito')){const sl=d.querySelector('.sel');const x=document.createElement('span');x.className='sel neu desfeito';x.setAttribute('role','status');x.innerHTML='<span class="sy" aria-hidden="true">◆</span>Aplicação de '+antes+' desfeita';sl.after(x)}t.tabIndex=-1;t.focus()}));
  document.querySelectorAll('[data-aplica]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');d.querySelector('.acts').remove();b.closest('.conf').remove();const t=d.querySelector('.noar');t.querySelector('span').innerHTML='<b>'+E[estado].who+'</b> está no ar.';t.tabIndex=-1;t.focus()}));
  clearTimeout(skT);if(estado==='carregando')skT=setTimeout(()=>document.querySelectorAll('.skmsg').forEach(m=>{m.innerHTML='Está demorando; a conexão pode estar lenta. <button class="btn ghost" type="button">Tentar de novo</button>'}),8000);
  sync();
 }
 document.getElementById('sEstado').innerHTML=ORDEM.map(k=>'<button data-v="'+k+'">'+E[k].rot+'</button>').join('');
-document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;const cf=document.querySelector('.conf:not([hidden])');if(cf){cf.hidden=true;const g=document.querySelector('[data-abre="'+cf.id+'"]');if(g){g.setAttribute('aria-expanded','false');g.focus()}return}const o=document.querySelector('[data-info][aria-expanded="true"]');if(o){closeTips();o.focus()}});
+document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(document.querySelector('dialog.conf[open]'))return;const o=document.querySelector('[data-info][aria-expanded="true"]');if(o){closeTips();o.focus()}});
+window.addEventListener('resize',closeTips);
+document.addEventListener('pointerdown',ev=>{if(!ev.target.closest('.tip,[data-info]'))closeTips()});
 document.addEventListener('click',ev=>{
  const b=ev.target.closest('.seg button');
  if(b){const g=b.parentElement.id;if(g==='sEstado')estado=b.dataset.v;if(g==='sTema')tema=b.dataset.v;if(g==='sLarg')larg=b.dataset.v;paint();return}
