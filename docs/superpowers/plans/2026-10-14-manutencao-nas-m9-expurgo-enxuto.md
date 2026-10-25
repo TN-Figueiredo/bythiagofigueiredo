@@ -1,5 +1,13 @@
 # Manutenção M9: expurgo enxuto (fatia 12b) Implementation Plan
 
+> **Emenda 25/10 (conserto da Tarefa 6 pura, Yannis I2 e Phil I2; commit dad12e7fe). Vale sobre o texto abaixo onde ele divergir.**
+> - **Passo 5 da Tarefa 6, 2ª linha:** "`unidade: null` = ficou vazio" está ERRADO. Versão nova vazia vem com `unidade` NÃO nula, `row_count 0` e `sha256_bytes`/`csv_sha256` nulos (check `m3b.sql:88`); `unidade: null` só quando `removidas = 0`; `removidas > 0` com `unidade` nula é recusado (`forma`).
+> - **Tarefa 8:** usar `serializarUnidade(...)` direto (já devolve shas nulos, não `''`); `arquivo_id` das respostas é texto `u:<uuid>`/`s:<uuid>`; `status: 'recusado'` (409) é resposta válida, não corpo inválido; `bloquear` idem (`RespostaBloquear`).
+> - **Tarefas 8 e 9:** ao filtrar `competitor_video_comment_marks` por comentário, passar `idsDeComentarioComRespostas(comentariosOriginais, chaves)`, nunca as chaves cruas.
+> - **Tarefa 11:** o `resumo` de `abrir` já vem tipado (`canal`/`video` = sha ou null).
+> - **Portão (Phil M3):** o vetor do hash em `arquivo-mensal-expurgo-resumo.test.ts` foi escrito à mão; o teste de ouro `manutencao-m9-resumo-ouro.test.ts` contra o banco segue devido e é portão antes da Tarefa 8; a Tarefa 9 não roda em dado real sem ele verde. `ITEM_ID` duplicado: a Tarefa 7 Parte B da forja importa uma só definição.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fazer o "apagar" da fila "Saíram do YouTube" (vídeo e comentário) e o "apagar do arquivo" de um canal removido alcançarem o NAS e o B2, com prova de ausência, pelo comando único do dono (`obs:arquivo`), pela peça 7 e pelo bloco "Canais removidos", sem que nenhum programa da forja apague sozinho.
