@@ -15,7 +15,6 @@ import { aplicarM3b, M3B_SQL, M3B_DESFAZER_CAMINHO } from '../helpers/m3b'
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MD5_DO_11B = '96fccc5423bdf22ef680692adb5f99cd'
 
-// SKIP 23/10/2026 (envio E0): este teste monta o banco com o corpo antigo (fixture MG6/E10 de 14/10) e a M2/M3b novas guardam por md5 o corpo da 0007 (M2:/M3b:competitor_channel_remove_archived_divergente). Religar na onda da M2 (11c) e M3b (md5 recomputado, yannis.md 3.3): `.skip` -> o `describe.skipIf(skipIfNoLocalDb())` original.
 describe.skipIf(skipIfNoLocalDb())('M3b e a E10: competitor_channel_remove_archived declara o destino do arquivo', () => {
   let pg: Client
   beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })

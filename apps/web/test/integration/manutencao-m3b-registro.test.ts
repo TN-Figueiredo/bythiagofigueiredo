@@ -189,3 +189,71 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 1: o registro', () => {
     })
   })
 })
+
+// Emenda 23/10 (Yannis §3.5, Phil M3b-1): forma "registro (32) x política". Não é igualdade: 19 tabelas ficam online POR DECISÃO, escrita aqui.
+const FICA_ONLINE: ReadonlyArray<{ tabela: string; motivo: string; gatilho: string }> = [
+  { tabela: 'competitor_playlist_reads', motivo: 'estado mutável, 1 linha por canal', gatilho: 'nenhum' },
+  { tabela: 'competitor_playlists', motivo: 'estado corrente, mutável', gatilho: '> 5 MB' },
+  { tabela: 'competitor_playlist_versions', motivo: 'imutável, mas 3 MB/ano; candidata a texto', gatilho: '> 10 MB ou 12/2027' },
+  { tabela: 'competitor_playlist_items', motivo: 'mutável, sem classe que a alcance', gatilho: '15/11, >= 250 linhas/dia' },
+  { tabela: 'competitor_channel_sections', motivo: 'pequena, versão só por mudança', gatilho: '> 5 MB' },
+  { tabela: 'competitor_video_marks', motivo: 'resumo leve que sobra depois da série (spec 02 l.186)', gatilho: 'nenhum' },
+  { tabela: 'competitor_video_mark_misses', motivo: 'par das marcas, mutável', gatilho: '> 15 MB' },
+  { tabela: 'competitor_missing_baseline', motivo: 'piso da prova dos ausentes (spec 02 l.186)', gatilho: 'nenhum' },
+  { tabela: 'yt_watch_alvos', motivo: 'fila mutável com poda própria da A5', gatilho: 'nenhum' },
+  { tabela: 'yt_watch_thumbs', motivo: 'mesma poda do alvo', gatilho: 'nenhum' },
+  { tabela: 'yt_watch_readings', motivo: 'poda da A5 como retenção; platô ~38 MB em 22/12', gatilho: '22/12: 30 a 45 MB' },
+  { tabela: 'ab_native_observados', motivo: 'tem update, nunca sai por idade', gatilho: '25/10 cursor com linha' },
+  { tabela: 'ab_native_obs_cursor', motivo: 'estado de avaliação', gatilho: 'idem ab_native_observados' },
+  { tabela: 'competitor_channels', motivo: 'estado do canal, mutável', gatilho: 'nenhum' },
+  { tabela: 'competitor_collection_pauses', motivo: 'estado de pausa, mutável', gatilho: '> 5 MB' },
+  { tabela: 'competitor_channel_hour_map', motivo: 'mapa por mês/formato, mutável', gatilho: '> 5 MB' },
+  { tabela: 'competitor_videos', motivo: 'tabela-mãe, vira toco na M10b, não sai', gatilho: '> 15 MB' },
+  { tabela: 'youtube_intelligence_tasks', motivo: 'fila da forja, 1 linha/dia', gatilho: '> 5 MB' },
+  { tabela: 'competitor_channel_snapshots', motivo: 'série diária pequena, ~8,9 MB/ano; candidata a serie', gatilho: '> 10 MB ou 06/2027' },
+]
+
+/** As quatro asserções da emenda; devolve a lista de problemas (vazia = ok). */
+export function formaRegistroXPolitica(registro: string[], politica: string[], ficaOnline: string[]): string[] {
+  const R = new Set(registro), P = new Set(politica), F = new Set(ficaOnline), erros: string[] = []
+  for (const t of R) if (!P.has(t) && !F.has(t)) erros.push(`registro sem decisão: ${t}`)
+  for (const t of F) if (P.has(t)) erros.push(`FICA_ONLINE também na política: ${t}`)
+  const soPolitica = [...P].filter(t => !R.has(t)).sort()
+  if (soPolitica.join(',') !== 'obs_archive_rehearsal') erros.push(`política fora do registro: ${soPolitica.join(',')}`)
+  const dentro = [...R].filter(t => P.has(t)).length
+  if (dentro + F.size !== R.size) erros.push(`soma ${dentro} + ${F.size} != ${R.size}`)
+  return erros
+}
+
+describe.skipIf(skipIfNoLocalDb())('M3b: forma registro x política (Yannis §3.5)', () => {
+  let c: Client
+  beforeAll(async () => { c = new Client({ connectionString: PG_URL }); await c.connect() })
+  afterAll(async () => { await c.end() })
+  async function lista(): Promise<{ registro: string[]; politica: string[] }> {
+    await c.query('begin'); await c.query('select pg_advisory_xact_lock(7339001)')
+    try {
+      await aplicarM2(c); await c.query(readFileSync(M10A_SQL, 'utf8')); await aplicarM3b(c, 1)
+      const registro = (await c.query(`select table_name from public.obs_archive_registry()`)).rows.map(x => x.table_name as string)
+      const politica = [...new Set((await c.query(`select table_name from public.obs_archive_policy()`)).rows.map(x => x.table_name as string))]
+      return { registro, politica }
+    } finally { await c.query('rollback') }
+  }
+  const FO = FICA_ONLINE.map(x => x.tabela)
+
+  it('registro real: 32 = 13 classificadas + 19 FICA_ONLINE, sem tabela sem decisão', async () => {
+    const { registro, politica } = await lista()
+    expect(FICA_ONLINE).toHaveLength(19)
+    expect(new Set(FO).size).toBe(19)
+    FICA_ONLINE.forEach(x => { expect(x.motivo.length).toBeGreaterThan(0); expect(x.gatilho.length).toBeGreaterThan(0) })
+    expect(registro).toHaveLength(32)
+    expect(registro.filter(t => politica.includes(t))).toHaveLength(13)
+    expect(formaRegistroXPolitica(registro, politica, FO)).toEqual([])
+  })
+
+  it('mutantes: tabela fictícia no registro, ou a política perdendo uma tabela, derrubam a forma', async () => {
+    const { registro, politica } = await lista()
+    expect(formaRegistroXPolitica([...registro, 'tabela_ficticia'], politica, FO)).toContain('registro sem decisão: tabela_ficticia')
+    expect(formaRegistroXPolitica(registro, politica.filter(t => t !== 'competitor_video_daily'), FO).join('|')).toContain('competitor_video_daily')
+    expect(formaRegistroXPolitica(registro, politica, [...FO, 'competitor_video_daily']).join('|')).toContain('também na política')
+  })
+})

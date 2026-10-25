@@ -140,7 +140,7 @@ describe('leitura por canal', () => {
   })
   it('A5: as colunas lidas incluem series_tier e as faixas; sem weekly o conjunto de linhas dos observados não muda', async () => {
     const { db, rows } = await viaChannels()
-    expect(db.selects.filter(s => s.table === 'competitor_videos').every(s => s.cols.endsWith(', series_tier'))).toBe(true)
+    expect(db.selects.filter(s => s.table === 'competitor_videos').every(s => s.cols.includes(', series_tier'))).toBe(true)
     expect(db.selects.filter(s => s.table === 'competitor_video_tier_spans').map(s => s.cols)).toEqual(['video_id, from_date, to_date, tier', 'video_id, from_date, to_date, tier'])
     expect(rows.spans).toEqual([])
     expect(rows.weeklyOmitted).toBeUndefined()

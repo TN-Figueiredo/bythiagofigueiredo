@@ -34,7 +34,7 @@ function year(nVideos: number, nDaily: number): { rows: ChannelRows; observed: S
 
 describe('pacote com a série semanal (item 21)', () => {
   it('PACK_VERSION subiu, e o pacote leva e devolve as faixas', () => {
-    expect(PACK_VERSION).toBe(2)
+    expect(PACK_VERSION).toBe(3)
     const { rows } = year(4, 2)
     expect(unpackChannel(packChannel(rows))).toEqual(rows)
   })

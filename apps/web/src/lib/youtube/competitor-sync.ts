@@ -16,6 +16,7 @@ import { apagadosDaPagina } from '@/lib/youtube/competitor-removed'
 import { optCount, videoObservedOf, channelObservedOf, rawOf, sanitizeForDb, cleanText, captureItems, markMissing, markChannelMissing, missingProgressOf, rowsAs, isRec, CAPTURE_CHUNK, type CaptureStats, type RawCapture } from '@/lib/youtube/competitor-capture'
 import { classifyTiers, earlyEligible, weeklyDue, shouldPromote, addDays, dayNumber, type Tier } from '@/lib/youtube/competitor-tiers'
 import { RULES } from '@/lib/youtube/observatorio/rules'
+import { estaCongelado } from '@/lib/youtube/video-antigo/esta-congelado'
 export { optCount } from '@/lib/youtube/competitor-capture'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
@@ -363,8 +364,9 @@ async function runChannel(
   type FullRow = TrackedRow & {
     published_at: string | null; pinned_at: string | null; daily_until: string | null; series_tier: Tier | null; series_tier_since: string | null
     last_seen_at: string | null; missing_since: string | null; views_hidden: boolean | null; live_broadcast_content: string | null; discovered_at: string | null
+    archive_frozen_at: string | null
   }
-  const ALL_COLS = 'id, video_id, title, thumbnail_url, published_at, pinned_at, daily_until, series_tier, series_tier_since, last_seen_at, missing_since, views_hidden, live_broadcast_content, discovered_at'
+  const ALL_COLS = 'id, video_id, title, thumbnail_url, published_at, pinned_at, daily_until, series_tier, series_tier_since, last_seen_at, missing_since, views_hidden, live_broadcast_content, discovered_at, archive_frozen_at'
   const PAGE = 1000 // max_rows do PostgREST: uma leitura maior viria cortada sem aviso, então pagina até a página curta
   // a guarda confere as duas chaves de que tudo depende (os dois ids); as outras colunas são anuláveis e chegam como o banco manda.
   // Uma linha sem id é erro, nunca "canal sem vídeos".
@@ -383,8 +385,10 @@ async function runChannel(
   }
   /** Fora das provas de série: sem contagem de views, estreia agendada, ou ausente. Continua sendo pedido (é como se descobre que voltou). */
   const outOfProof = (r: FullRow): boolean => r.views_hidden === true || r.live_broadcast_content === 'upcoming' || r.missing_since != null
+  // M10a (02 §10.8): o vídeo em leitura mensal não tem faixa, não é pedido e não é capturado; a guarda do banco é a segunda linha.
+  const ativos = (rows: readonly FullRow[]): FullRow[] => rows.filter(r => !estaCongelado(r))
   const classify = (rows: FullRow[]) => classifyTiers(
-    rows.map(r => ({ id: r.id, publishedAt: r.published_at ? Date.parse(r.published_at) : null, pinned: r.pinned_at != null, dailyUntil: r.daily_until, tier: r.series_tier })),
+    ativos(rows).map(r => ({ id: r.id, publishedAt: r.published_at ? Date.parse(r.published_at) : null, pinned: r.pinned_at != null, dailyUntil: r.daily_until, tier: r.series_tier })),
     { videoLimit, nowMs, today: spDate(nowMs) })
   /** tracked uuids with no competitor_video_daily row for snapDate */
   const missingDaily = async (uuids: string[], snapDate: string): Promise<string[]> => {
@@ -839,7 +843,7 @@ async function runChannel(
     try {
       const all = await loadAll() // paginada: lista acima de 1.000 vem inteira ou falha, nunca cortada em silêncio
       for (const r of all) if (!rowInfo.has(r.id)) rowInfo.set(r.id, { lastSeenAt: r.last_seen_at, weeklySince: r.series_tier === 'semanal' ? r.series_tier_since : null, missing: r.missing_since != null })
-      const weeklyRows = all.filter(r => r.series_tier === 'semanal')
+      const weeklyRows = all.filter(r => r.series_tier === 'semanal' && !estaCongelado(r))
       const points = await loadRecentPoints(weeklyRows.map(r => r.id), today)
       // Quem tem o ponto de hoje: o que a leitura do começo já via, mais o que esta visita grava (a promoção só olha esses).
       const gotPointToday = new Set(weeklyRows.filter(r => points.get(r.id)?.last.date === today).map(r => r.id))
@@ -910,7 +914,7 @@ async function runChannel(
       if (lateFailure) throw lateFailure // linha do vídeo ou captura que não gravou: não carimba; o disparo seguinte refaz
       // Canal em que ainda há vídeo SEM faixa não fecha a passada: quem grava a faixa é a sincronização do canal, e até lá não se
       // sabe o que é devido (dia do deploy, canal novo, troca de faixa que falhou). Canal sem vídeo nenhum não tem o que esperar.
-      const complete = deferred === 0 && !all.some(r => r.series_tier == null)
+      const complete = deferred === 0 && !ativos(all).some(r => r.series_tier == null)
       if (complete) {
         const { error } = await supabase.from('competitor_channels').update({ weekly_pass_date: today }).eq('id', channelRow.id)
         fail('não foi possível carimbar a passada semanal do canal', error)
@@ -943,7 +947,7 @@ async function runChannel(
       }
     }
     index()
-    pinned = all.filter(r => r.pinned_at != null)
+    pinned = ativos(all).filter(r => r.pinned_at != null)
     const pinnedUuids = new Set(pinned.map(p => p.id))
     // A passada diária segue a REGRA (classifyTiers), nunca a faixa gravada: no dia do deploy nenhum vídeo tem faixa, e o vídeo sem faixa
     // que a regra põe na diária ganha o ponto de hoje como sempre ganhou. Os N mais recentes e os fixados de antes estão sempre nela.
@@ -1078,15 +1082,17 @@ async function runChannel(
       videoItemsOf(videosData) // antes de qualquer `asked`: corpo malformado não vira falta
 
       // Batch lookup existing videos
-      const { data: existingVideos } = await supabase
+      const { data: existingVideos, error: existingErr } = await supabase
         .from('competitor_videos')
-        .select('id, video_id, title, description_hash, thumbnail_url, view_count, is_short, last_seen_at, missing_since, discovered_at')
+        .select('id, video_id, title, description_hash, thumbnail_url, view_count, is_short, last_seen_at, missing_since, discovered_at, archive_frozen_at')
         .eq('competitor_channel_id', channelRow.id)
         .in('video_id', videoIds)
+      // um erro aqui nunca pode fazer todo vídeo parecer novo (Phil M-5)
+      if (existingErr) throw new Error('competitor_videos (página de uploads): ' + existingErr.message)
       for (const v of existingVideos ?? []) noteRow(v)
       const existingMap = new Map((existingVideos ?? []).map(v => [v.video_id, v]))
       // (A5) os já gravados que a lista de uploads trouxe foram pedidos a videos.list; o lançamento de `!videosRes.ok` vem antes, então uma chamada que falhou não chega aqui
-      for (const v of existingVideos ?? []) asked.add(v.id as string)
+      for (const v of existingVideos ?? []) if (!estaCongelado(v)) asked.add(v.id as string)
 
       // (A5 E9, D-11) Vídeo NOVO que o dono apagou não volta a ser coletado sem ele decidir. Só valem os ids que `videos.list` DEVOLVEU
       // (a lista de envios cita o vídeo que continua privado, e isso não é "voltou ao ar"). Erro na consulta: nenhum vídeo novo entra.
@@ -1101,7 +1107,7 @@ async function runChannel(
       }
 
       // Current versions of every known video in this page, one query
-      const currentByVideo = await loadCurrent((existingVideos ?? []).map(v => v.id as string))
+      const currentByVideo = await loadCurrent((existingVideos ?? []).filter(v => !estaCongelado(v)).map(v => v.id as string))
       const touchIds: string[] = []
       /** Os vídeos desta página que têm linha (novos e já gravados), para a captura no fim do laço. */
       const pagePairs: Array<{ uuid: string; item: unknown }> = []
@@ -1125,6 +1131,10 @@ async function runChannel(
           if (!semConferencia) removedSkipped++
           continue
         }
+        // M10a (M-1/M3): o vídeo em leitura mensal continua "conhecido" (a incremental para nele e ninguém o reinsere),
+        // mas não conta como checado nem é reconciliado, capturado ou regravado: a única leitura dele é a mensal (M10b).
+        const conhecido0 = existingMap.get(video.id as string)
+        if (conhecido0 && estaCongelado(conhecido0)) { hitKnownVideo = true; continue }
         videosChecked++
         const videoId = video.id as string
         const apiTitle = (video.snippet?.title as string | undefined) ?? ''
@@ -1244,7 +1254,12 @@ async function runChannel(
     tierChanges = tierPlan.changes.length
     tierCut = tierPlan.cut
     if (tierPlan.changes.length) {
-      const { error } = await supabase.rpc('apply_competitor_tier_plan', { p_site_id: channelRow.site_id, p_channel_id: channelRow.id, p_changes: tierPlan.changes, p_today: snapDate })
+      const { data: planRes, error } = await supabase.rpc('apply_competitor_tier_plan', { p_site_id: channelRow.site_id, p_channel_id: channelRow.id, p_changes: tierPlan.changes, p_today: snapDate })
+      // M10a (M-2): o plano é feito só com os ativos; um congelado citado nele é defeito do código, e a guarda do banco o ignorou
+      const ignorados = isRec(planRes) && typeof planRes.ignorados_congelados === 'number' ? planRes.ignorados_congelados : 0
+      // M10a (M-6): resposta sem a chave = migration revertida ou função redefinida; a defesa acima ficaria muda
+      if (!error && !(isRec(planRes) && typeof planRes.ignorados_congelados === 'number')) Sentry.captureMessage('apply_competitor_tier_plan sem ignorados_congelados', { level: 'warning', tags: { component: 'sync-youtube', mode: 'competitors-tier-plan-sem-chave' }, extra: { channelId: channelRow.id } })
+      if (ignorados > 0) Sentry.captureException(new Error('apply_competitor_tier_plan ignorou ' + ignorados + ' vídeo(s) congelado(s) do plano'), { tags: { component: 'sync-youtube', mode: 'competitors-tier-plan-congelados' }, extra: { channelId: channelRow.id, ignorados } })
       // a faixa que não grava não impede a passada diária, que usa o plano em memória; o canal termina em erro
       if (!late('não foi possível gravar a faixa da série', error)) {
         for (const c of tierPlan.changes) { const r = byId.get(c.video_id); if (r) { r.series_tier = c.tier; r.series_tier_since = snapDate } }
@@ -1340,7 +1355,7 @@ async function runChannel(
 
     // ── A5 E2 (11c): a extensão da promoção dos que continuam crescendo. Gravação nova, depois da série do dia (e dos fixados): falhar aqui vira `lateFailure`. ──
     if (hourOk) {
-      try { await extendPromotions(all, snapDate) } catch (e) { late('não foi possível estender a promoção do vídeo à leitura diária', { message: e instanceof Error ? e.message : String(e) }) }
+      try { await extendPromotions(ativos(all), snapDate) } catch (e) { late('não foi possível estender a promoção do vídeo à leitura diária', { message: e instanceof Error ? e.message : String(e) }) }
     }
 
     // Notifications (unchanged from original)

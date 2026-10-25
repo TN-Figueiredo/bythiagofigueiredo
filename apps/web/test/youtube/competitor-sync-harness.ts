@@ -124,6 +124,10 @@ export type SetupOpts = {
   channelStatus?: string; channelStartedAt?: string | null
   /** (A5 E2) As versões de campo abertas recentemente (a leitura com `gte` em first_seen_at; a Tarefa 11c usa). */
   recentChanges?: Record<string, unknown>[]
+  /** (M10a) O `select` dos já gravados da página de uploads (o de `.in('video_id', …)`) devolve erro de banco com este texto. */
+  existingError?: string
+  /** (M10a) O que `apply_competitor_tier_plan` devolve (por exemplo `{ changed: 1, ignorados_congelados: 2 }`); omitido = `{}`. */
+  tierPlanResult?: Record<string, unknown>
 }
 
 /** O `failWrite` casa com esta chamada? */
@@ -187,6 +191,7 @@ export function setup(opts: SetupOpts = {}) {
     }
     if (c.table === 'competitor_videos' && first(c) === 'update' && opts.failUpdateOf && c.ops.some(o => o[0] === 'eq' && o[1][1] === opts.failUpdateOf)) return { data: null, error: { message: 'boom' } }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'gt' && o[1][1] === 180)) return { data: opts.longs ?? [] }
+    if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'in') && opts.existingError) return { data: null, error: { message: opts.existingError } }
     if (c.table === 'competitor_videos' && first(c) === 'select' && c.ops.some(o => o[0] === 'in')) return { data: opts.existing ?? [] }
     if (c.table === 'competitor_videos' && first(c) === 'select') return { count: 100 }
     if (c.table === 'competitor_videos' && first(c) === 'insert') return { data: { id: 'v-new' } }
@@ -227,6 +232,7 @@ export function setup(opts: SetupOpts = {}) {
       if (name === 'competitor_mark_missing') return { data: opts.missed ?? [] }
       if (name === 'competitor_channel_mark_missing') return { data: opts.channelMissed ?? null }
       if (name === 'youtube_quota_add') return { data: 1 }
+      if (name === 'apply_competitor_tier_plan' && opts.tierPlanResult) return { data: opts.tierPlanResult }
       return { data: {} }
     }
     return { data: null, error: null }
