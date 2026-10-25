@@ -537,6 +537,16 @@ Row expandível com painel de detalhes + pipeline badge.
 - YouTube verification badge
 - Funnel attribution (para testes com links)
 
+### 8.5 Tela v2 (testes com `regra_duracao = 'v2'`)
+
+A tela só lê `result_metadata.v2` (`lerResultadoV2`); nunca recalcula estatística, lift ou p. Modelo puro: `telaV2DoTeste` (`lib/youtube/ab-gravacao/`); fonte: `getTestResults` entrega `view.v2`; blocos: `ab-lab/_components/blocos-v2.tsx` (ativo/pausado) e `concluido-v2-detail.tsx` (concluído).
+
+- **Fontes de cada bloco:** pisos de dias e impressões = `pisos(dias, variantes, n)` sobre `ab_test_dias` (no concluído, só dias `<= encerrado_em_dia`); teto e estado = `tetoDoTesteV2` e `estadoV2DoTeste`; CTR e lift da frase do vencedor = `ctrDosValidos` (aritmética, não o lift gravado); sinal = presença da chave `vencedor_sugerido` (ausente com pisos fechados = "a conta de hoje ainda não rodou"); provisório = `provisorioAte`.
+- **No ar agora (D-T12-4):** vem de `winner_variant_id` + `winner_applied_at`, nunca de `vencedor_sugerido`. Aplicada = variante não original com `applied_at`; `winner_variant_id` diferente do sugerido = "aplicada, desfecho mudou". Original (ou id da original sem `applied_at`) = original. Desfeita = `manual_winner`, `applied_at` nulo e todos os campos de `restore_status` em `ok`. Qualquer outro caso com `applied_at` nulo = desconhecido (a linha não aparece).
+- **Botões do concluído (D-T12-5):** "Aplicar X" só com `desfecho = 'vencedor_provavel'`, sugerido diferente da original, `regra_v2` e sem `winner_variant_id`; sucesso é `resultado === 'feito'`. `precisa_confirmar` (nada foi escrito) abre o diálogo de troca e a 2ª chamada vai com `forcar: true` (D-T12-5b). "Voltar à original" só com aplicada e janela de reversão aberta (`revert_expires_at`), conferida de novo no clique. Ativo não tem botão de aplicar.
+- **Placar M4:** em modo v2 (`modoV2`) omite a frase e o andamento (já vêm antes); o ⓘ é o `InfoDica` compartilhado (`youtube/_components/info-dica.tsx`), também no v1.
+- Plano e textos finais: `docs/superpowers/plans/2026-10-25-ab-s8-f4-tela-v2-plan.md`.
+
 ---
 
 ## 9. Infraestrutura Técnica
