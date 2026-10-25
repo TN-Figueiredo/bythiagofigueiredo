@@ -56,11 +56,9 @@ export function montarAvisoDeVolume(i: {
   if (min < 1) { // folga 1 é o alvo do dono (V=2, 15 dias): estado ok, não alarme (Phil D4)
     let paraFolga1 = i.teto
     while (paraFolga1 < i.teto + 6 && Math.min(...folgaPorVariante(i.V, paraFolga1)) < 1) paraFolga1++
-    const dica = `; com teto de ${plural(paraFolga1)} a folga mínima passa a ser ${Math.min(...folgaPorVariante(i.V, paraFolga1))}`
-    const quem = folgas[0] === min ? ' na original' : ''
     return {
       estado: 'teto_justo', ...base, folga_min: min,
-      texto: `folga ${min}${quem} com teto de ${plural(i.teto)}${dica}${origem}`,
+      texto: `uma das versões fica com pouco tempo no ar com ${plural(i.teto)}; com ${plural(paraFolga1)} a rotação fica equilibrada${origem}`,
     }
   }
   return { estado: 'ok', ...base, texto: null }

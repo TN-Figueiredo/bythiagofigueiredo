@@ -57,12 +57,12 @@ describe('M6 T6: banner e selos', () => {
     expect(container.querySelector('[data-aviso-volume]')).toBeNull()
     expect(container.querySelector('[data-tom="verde"]')).toBeTruthy()
     expect(seloDoAvisoDeVolume('so_decide_depois')).toEqual({ selo: 'Decide mais tarde', tom: 'neutro' })
-    expect(seloDoAvisoDeVolume('teto_justo')).toEqual({ selo: 'Teto justo', tom: 'neutro' })
+    expect(seloDoAvisoDeVolume('teto_justo')).toEqual({ selo: 'Rotação apertada', tom: 'neutro' })
     expect(seloDoAvisoDeVolume('sem_medicao')).toEqual({ selo: 'Sem medição', tom: 'neutro' })
     expect(seloDoAvisoDeVolume('nao_chega')).toEqual({ selo: 'Volume insuficiente', tom: 'ambar' })
     expect(seloDoAvisoDeVolume('sem_variantes')).toBeNull()
   })
-  it.each([['so_decide_depois', 'Decide mais tarde'], ['teto_justo', 'Teto justo'], ['sem_medicao', 'Sem medição']] as const)('%s ⇒ selo %s tracejado', (estado, selo) => {
+  it.each([['so_decide_depois', 'Decide mais tarde'], ['teto_justo', 'Rotação apertada'], ['sem_medicao', 'Sem medição']] as const)('%s ⇒ selo %s tracejado', (estado, selo) => {
     render(<StepRevisar type="thumbnail" variants={v2} config={config} meta={meta} avisoVolume={{ estado, texto: 'x y' }} />)
     expect(screen.getByText(selo).getAttribute('data-tracejado')).toBe('true')
   })

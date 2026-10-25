@@ -24,7 +24,7 @@ describe('montarAvisoDeVolume', () => {
   it('volume que cabe com folga 0 => teto_justo com a folga real e a de +1 dia', () => {
     const a = montarAvisoDeVolume({ V: 3, teto: 17, p1: 0.04, base_estimada: false, impressoesDia: 100_000, usouUltimos7: false, hoje: HOJE })
     expect(a).toMatchObject({ estado: 'teto_justo', folga_min: 0 })
-    expect((a as { texto: string }).texto).toMatch(/folga 0 na original com teto de 17 dias; com teto de \d+ dias a folga mínima passa a ser 1/)
+    expect((a as { texto: string }).texto).toMatch(/uma das versões fica com pouco tempo no ar com 17 dias; com \d+ dias a rotação fica equilibrada/)
   })
   it('Phil D4: padrão V=2 (15, folga 1) cabe => ok, não alarme; folga 0 (teto 13) => teto_justo; teto largo => ok', () => {
     expect(base({ teto: 15, impressoesDia: 100_000 })).toMatchObject({ estado: 'ok', texto: null })

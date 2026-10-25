@@ -5,7 +5,7 @@ export function seloDoAvisoDeVolume(estado: AvisoDeVolume['estado']): { selo: st
   switch (estado) {
     case 'nao_chega': return { selo: 'Volume insuficiente', tom: 'ambar' }
     case 'so_decide_depois': return { selo: 'Decide mais tarde', tom: 'neutro' }
-    case 'teto_justo': return { selo: 'Teto justo', tom: 'neutro' }
+    case 'teto_justo': return { selo: 'Rotação apertada', tom: 'neutro' }
     case 'sem_medicao': return { selo: 'Sem medição', tom: 'neutro' }
     default: return null
   }

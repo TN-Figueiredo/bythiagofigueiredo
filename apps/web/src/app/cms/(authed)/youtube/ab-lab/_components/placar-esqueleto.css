@@ -11,7 +11,7 @@
 .pm4-sk .cr { font-size: 12.5px; color: var(--cn-muted); margin-bottom: 4px; }
 .pm4-sk h2 { margin: 0; font: 600 19px/1.3 Georgia, serif; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; color: var(--cn-text); }
 .pm4-sk .etd-msg { margin-top: var(--s5); max-width: 72ch; }
-.pm4-sk .etd-msg .acao { margin-left: 8px; color: var(--cms-text); text-decoration: underline; background: none; border: 0; cursor: pointer; font: inherit; }
+.pm4-sk .etd-msg .acao { display: block; margin: 6px 0 0; padding: 0; text-align: left; color: var(--cms-text); text-decoration: underline; background: none; border: 0; cursor: pointer; font: inherit; }
 @container (max-width: 640px) {
   .pm4-sk { padding: var(--s4) var(--s3); }
   .pm4-sk .skhd { min-height: 169px; flex-direction: column; align-items: flex-start; gap: var(--s3); }
