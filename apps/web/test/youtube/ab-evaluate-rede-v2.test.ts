@@ -140,6 +140,15 @@ describe('rede de segurança v2', () => {
     const r = await phaseEvaluateActiveTests(c.supabase)
     expect(r.errors).toBe(1)
     expect(c.rpc).toHaveBeenCalledTimes(2)
+    const g = c.rpc.mock.calls.find(([n, a]) => n === 'ab_test_v2_gravar' && (a as { p_v2: Record<string, unknown> }).p_v2.desfecho)
+    expect((g![1] as { p_v2: { volta_falhou: unknown } }).p_v2.volta_falhou).toEqual({ em: expect.any(String) })
+  })
+
+  it('feito sem nao_voltou: não grava volta_falhou', async () => {
+    const c = cliente([teste('t1', 14)], ontemV2(17))
+    await phaseEvaluateActiveTests(c.supabase)
+    const g = c.rpc.mock.calls.find(([n, a]) => n === 'ab_test_v2_gravar' && (a as { p_v2: Record<string, unknown> }).p_v2.desfecho)
+    expect((g![1] as { p_v2: Record<string, unknown> }).p_v2).not.toHaveProperty('volta_falhou')
   })
 
   it('outro_escritor e ja_encerrado: não gravam desfecho nem contam erro', async () => {

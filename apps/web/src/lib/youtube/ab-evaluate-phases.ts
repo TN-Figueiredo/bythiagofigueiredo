@@ -132,6 +132,7 @@ async function redeDeSegurancaV2(supabase: SupabaseClient, testes: TesteV2Rede[]
           p_v2: {
             desfecho: 'inconclusivo_por_falha', desfecho_no_encerramento: 'inconclusivo_por_falha', encerrado_em_dia: encerradoEmDia(em),
             provisorio: false, desfecho_final: 'inconclusivo_por_falha',
+            ...(saida.resultado === 'nao_voltou' ? { volta_falhou: { em } } : {}),
           },
           p_hist: [{ em, desfecho: 'inconclusivo_por_falha' }],
         })
