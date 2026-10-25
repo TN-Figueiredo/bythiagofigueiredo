@@ -116,6 +116,7 @@ begin
         'obs_archive_resumo_devido',
         'obs_archive_schema_fp',
         'obs_archive_seal',
+        'obs_archive_summary_calc',
         'obs_archive_summary_rows',
         'obs_archive_table_exprs',
         'obs_archive_unit_due',
