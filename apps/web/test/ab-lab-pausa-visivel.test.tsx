@@ -19,7 +19,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   forceRotate: vi.fn(), applyWinnerNow: vi.fn(), cancelGracePeriod: vi.fn(), acknowledgeAbTestDrift: vi.fn(),
   createAbTest: vi.fn(), uploadVariant: vi.fn(), createTextVariant: vi.fn(async () => ({ ok: true })), updateAbTestType: vi.fn(),
-  cleanupDraftVariants: vi.fn(), fetchAbBriefingData: vi.fn(), fetchLibraryEntries: vi.fn(), lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false })),
+  cleanupDraftVariants: vi.fn(async () => ({ ok: true })), fetchAbBriefingData: vi.fn(), fetchLibraryEntries: vi.fn(), lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false })),
 }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({ usePollStats: () => ({ data: null, loading: false }) }))
 vi.mock('@/app/cms/(authed)/youtube/_components/yt-portal', () => ({ YtPortal: ({ children }: { children: React.ReactNode }) => <>{children}</> }))

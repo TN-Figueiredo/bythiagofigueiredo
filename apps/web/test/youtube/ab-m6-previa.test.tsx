@@ -160,6 +160,7 @@ describe('Biblioteca que grava (C2) e N2', () => {
     await waitFor(() => expect(document.body.textContent).toContain('Failed to download library image'))
     expect(start).not.toHaveBeenCalled()
     expect(upload).not.toHaveBeenCalled()
+    expect(cleanupDraft).not.toHaveBeenCalled()
   })
 
   it('N2: imagem webp da Biblioteca: frase própria, sem limpar o rascunho nem enviar', async () => {

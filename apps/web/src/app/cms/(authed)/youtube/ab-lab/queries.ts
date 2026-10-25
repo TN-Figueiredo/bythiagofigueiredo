@@ -18,6 +18,7 @@ import type {
   VariantStats,
   AbTestCardView,
   AbTestDraft,
+  AbTestDraftVariant,
   AbTestDetailView,
   AbTestActiveView,
   AbTestWinnerView,
@@ -136,19 +137,26 @@ export async function getAbDraftById(draftId: string): Promise<{
   thumbnailUrl: string | null
   testType: TestType
   sourcePipelineId: string | null
+  /** Variantes já gravadas do rascunho, em ordem (D-M6-16). */
+  variants: AbTestDraftVariant[]
 } | null> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { data, error } = await supabase
     .from('ab_tests')
-    .select('id, youtube_video_id, name, original_thumbnail_url, test_type, source_pipeline_id')
+    .select('id, youtube_video_id, name, original_thumbnail_url, test_type, source_pipeline_id, ab_test_variants(id, label, is_original, blob_url, title_text, sort_order)')
     .eq('id', draftId)
     .eq('site_id', siteId)
     .eq('status', 'draft')
     .single()
 
   if (error || !data) return null
+
+  const linhas = (data.ab_test_variants ?? []) as Array<{ id: string; label: string; is_original: boolean; blob_url: string | null; title_text: string | null; sort_order: number | null }>
+  const variants: AbTestDraftVariant[] = [...linhas]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map(v => ({ id: v.id, label: v.label, isOriginal: v.is_original, thumbUrl: v.blob_url ?? null, titleText: v.title_text ?? '' }))
 
   return {
     id: data.id as string,
@@ -157,6 +165,7 @@ export async function getAbDraftById(draftId: string): Promise<{
     thumbnailUrl: (data.original_thumbnail_url as string) || null,
     testType: data.test_type as TestType,
     sourcePipelineId: (data.source_pipeline_id as string) || null,
+    variants,
   }
 }
 
@@ -515,6 +524,7 @@ export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
         videoId: d.youtube_video_id,
         sourcePipelineId: d.source_pipeline_id,
         variants: d.variants.map(v => ({
+          id: v.id,
           label: v.label,
           isOriginal: v.is_original,
           thumbUrl: v.blob_url ?? null,

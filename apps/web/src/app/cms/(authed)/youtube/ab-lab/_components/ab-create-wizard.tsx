@@ -16,6 +16,7 @@ import {
   uploadVariant,
   createTextVariant,
   updateAbTestType,
+  updateTextVariant,
   cleanupDraftVariants,
   fetchAbBriefingData,
   fetchLibraryEntries,
@@ -57,6 +58,7 @@ export interface WizardVideo {
 /* ------------------------------------------------------------------ */
 
 interface DraftVariant {
+  id?: string
   label: string
   isOriginal: boolean
   thumbUrl: string | null
@@ -266,7 +268,15 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       let labelIdx = 0
       const relabeled = remaining.map(v => {
         if (v.isOriginal) return v
-        return { ...v, label: NEXT_LABELS[labelIdx++] ?? ('D' as DisplayLabel) }
+        const label = NEXT_LABELS[labelIdx++] ?? ('D' as DisplayLabel)
+        if (label === v.label) return v
+        // A linha gravada tem o rótulo antigo: vira variante nova (D-M6-16). Imagem que só existe no
+        // servidor (https) é baixada e enviada de novo no Ativar, como a da Biblioteca.
+        const resto = { ...v }
+        delete resto.gravada
+        delete resto.textoGravado
+        const soNoServidor = !resto.thumbFile && !resto.thumbDataUrl && /^https?:/.test(resto.thumbUrl ?? '')
+        return { ...resto, label, ...(soNoServidor ? { origem: 'biblioteca' as const } : {}) }
       })
       return { ...state, variants: relabeled }
     }
@@ -312,7 +322,8 @@ function stepIsValid(step: Passo, state: WizardState): boolean {
 
 /** Estado inicial, calculado uma vez por montagem (lê o `localStorage` uma vez, não a cada render). */
 function estadoInicial({ video, settings, prefill, existingDraftId }: Pick<Props, 'video' | 'settings' | 'prefill' | 'existingDraftId'>): WizardState {
-  const continuingDraft = Boolean(existingDraftId && prefill?.draftVariants && prefill.draftVariants.length > 1)
+  // Rascunho com variantes já gravadas (qualquer desafiante) reabre no Revisar, com o que está no banco (D-M6-16)
+  const continuingDraft = Boolean(existingDraftId && prefill?.draftVariants?.some(v => !v.isOriginal))
 
   // Ao continuar um rascunho do banco, o rascunho local velho é ignorado
   if (continuingDraft) clearDraft(video.id)
@@ -336,6 +347,7 @@ function estadoInicial({ video, settings, prefill, existingDraftId }: Pick<Props
     thumbFile: null as File | null,
     thumbDataUrl: null as string | null,
     titleText: v.titleText,
+    ...(v.id && !v.isOriginal ? { gravada: v.id, textoGravado: v.titleText } : {}),
   })) as VariantData[] | undefined
 
   const restoredVariants = saved?.variants?.map(v => ({
@@ -350,7 +362,7 @@ function estadoInicial({ video, settings, prefill, existingDraftId }: Pick<Props
     // Sem tipo não há o que mostrar depois do passo Tipo
     step: type === null ? 'tipo' : passoPedido,
     type,
-    variants: continuingDraft ? (dbVariants ?? defaultVariants) : (restoredVariants ?? dbVariants ?? defaultVariants),
+    variants: continuingDraft ? (dbVariants ?? defaultVariants) : (restoredVariants ?? (dbVariants?.some(v => !v.isOriginal) ? dbVariants : undefined) ?? defaultVariants),
     config: initWizardConfig(settings),
     videoId: video.id,
     videoTitle: video.title,
@@ -520,14 +532,23 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
 
       dispatch({ type: 'SET_DRAFT_ID', id: testId })
 
+      // Marca no estado o que acabou de ser gravado (um Ativar repetido não duplica; D-M6-16).
+      const marcarGravada = (label: DisplayLabel, id: string, texto: string, extra: Partial<VariantData> = {}) => {
+        const index = state.variants.findIndex(x => x.label === label)
+        if (index >= 0) dispatch({ type: 'UPDATE_VARIANT', index, data: { gravada: id, textoGravado: texto, ...extra } })
+      }
+      const desafiantes = state.variants.filter(v => !v.isOriginal)
+
       // 2. Upload image variants (thumbnail/combo)
       if (state.type === 'thumbnail' || state.type === 'combo') {
-        const variantsWithNewData = state.variants.filter(v =>
-          !v.isOriginal && (v.thumbFile || v.thumbUrl?.startsWith('data:') || v.origem === 'biblioteca'),
+        const variantsWithNewData = desafiantes.filter(v =>
+          v.thumbFile || v.thumbUrl?.startsWith('data:') || v.origem === 'biblioteca',
         )
+        // Gravadas que continuam no estado sem arquivo novo ficam como estão
+        const gravadasMantidas = desafiantes.filter(v => v.gravada && !variantsWithNewData.includes(v))
 
-        if (variantsWithNewData.length > 0) {
-          // Imagem da Biblioteca: baixa ANTES de qualquer limpeza do rascunho (a T4b mantém esta ordem), para uma falha aqui não apagar nada.
+        if (variantsWithNewData.length > 0 || gravadasMantidas.length > 0) {
+          // Imagem da Biblioteca: baixa ANTES de qualquer limpeza do rascunho (N2), para uma falha aqui não apagar nada.
           const daBiblioteca = new Map<string, Blob>()
           for (const v of variantsWithNewData) {
             if (v.origem !== 'biblioteca' || v.thumbFile || !v.thumbUrl) continue
@@ -550,7 +571,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             daBiblioteca.set(v.label, blob)
           }
 
-          const cleanupRes = await cleanupDraftVariants(testId)
+          const cleanupRes = await cleanupDraftVariants(testId, { manter: gravadasMantidas.map(v => v.label) })
           if (!cleanupRes.ok) {
             dispatch({ type: 'SET_ERROR', error: cleanupRes.error ?? 'Failed to clean up draft' })
             dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
@@ -570,6 +591,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             if (!file) continue
             const fd = new FormData()
             fd.append('file', file, `variant-${v.label}.jpg`)
+            fd.append('label', v.label)
             if (v.titleText?.trim()) fd.append('title_text', v.titleText.trim())
             const uploadResult = await uploadVariant(testId, fd)
             if (!uploadResult.ok) {
@@ -577,26 +599,66 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
               dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
               return
             }
+            if (uploadResult.variantId) {
+              // O arquivo já subiu: não sobe de novo num "Tentar de novo" (a Biblioteca deixa de ser origem; o `data:` fica de prévia)
+              marcarGravada(v.label, uploadResult.variantId, v.titleText.trim(), { thumbFile: null, thumbDataUrl: null })
+            }
+          }
+
+          // Combo reaberto: título editado de uma imagem já gravada
+          if (state.type === 'combo') {
+            for (const v of gravadasMantidas) {
+              if (v.titleText.trim() === (v.textoGravado ?? '')) continue
+              const upd = await updateTextVariant(v.gravada!, { title_text: v.titleText.trim() })
+              if (!upd.ok) {
+                dispatch({ type: 'SET_ERROR', error: upd.error ?? 'Failed to update variant' })
+                dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+                return
+              }
+              marcarGravada(v.label, v.gravada!, v.titleText.trim())
+            }
           }
         }
       }
 
-      // 4. Create text-only variants (title — NOT combo, which was handled in step 3)
+      // 3. Text-only variants (title — NOT combo, which was handled in step 2)
       if (state.type === 'title') {
-        const textVariants = state.variants
-          .filter(v => !v.isOriginal && !v.isCoworkGenerated)
+        const comTexto = desafiantes
+          .filter(v => !v.isCoworkGenerated)
           .filter(v => v.titleText.trim().length > 0)
 
-        for (const tv of textVariants) {
+        // Só os rótulos que saíram do estado são apagados; o resto já está gravado
+        const cleanupRes = await cleanupDraftVariants(testId, { manter: comTexto.filter(v => v.gravada).map(v => v.label) })
+        if (!cleanupRes.ok) {
+          dispatch({ type: 'SET_ERROR', error: cleanupRes.error ?? 'Failed to clean up draft' })
+          dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+          return
+        }
+
+        for (const tv of comTexto) {
+          const texto = tv.titleText.trim()
+          if (tv.gravada) {
+            if (texto === (tv.textoGravado ?? '')) continue
+            const upd = await updateTextVariant(tv.gravada, { title_text: texto })
+            if (!upd.ok) {
+              dispatch({ type: 'SET_ERROR', error: upd.error ?? 'Failed to update text variant' })
+              dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+              return
+            }
+            marcarGravada(tv.label, tv.gravada, texto)
+            continue
+          }
           const textResult = await createTextVariant({
             test_id: testId,
-            title_text: tv.titleText.trim() || undefined,
+            title_text: texto || undefined,
+            label: tv.label,
           })
           if (!textResult.ok) {
             dispatch({ type: 'SET_ERROR', error: textResult.error ?? 'Failed to create text variant' })
             dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
             return
           }
+          if (textResult.id) marcarGravada(tv.label, textResult.id, texto)
         }
       }
 

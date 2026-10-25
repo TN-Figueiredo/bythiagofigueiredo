@@ -6,7 +6,7 @@ import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from '../_co
 import type { WizardVideo } from '../_components/ab-create-wizard'
 import type { EligibleVideo } from '../_components/video-picker-dialog'
 import { LinhaDeVideo } from '../_components/linha-de-video'
-import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
+import type { AbTestSiteSettings, AbTestDraftVariant } from '@/lib/youtube/ab-types'
 import { Search, FlaskConical, Info } from 'lucide-react'
 import type { ReferenciaPedida } from './params'
 import type { TipoTroca } from '@/lib/youtube/ab-referencia'
@@ -18,6 +18,8 @@ interface DraftPrefill {
   thumbnailUrl: string | null
   testType: string
   sourcePipelineId: string | null
+  /** Variantes já gravadas do rascunho (D-M6-16); ausente = só a original. */
+  variants?: AbTestDraftVariant[]
 }
 
 export interface CompetitorContext extends ReferenciaPedida {
@@ -82,7 +84,7 @@ export function NewTestClient({ siteId, iniciarTeste, avisoDeVolume, settings, e
         existingDraftId={draftPrefill?.id}
         prefill={
           draftPrefill
-            ? { testType: draftPrefill.testType as import('@/lib/youtube/ab-types').TestType }
+            ? { testType: draftPrefill.testType as import('@/lib/youtube/ab-types').TestType, ...(draftPrefill.variants?.length ? { draftVariants: draftPrefill.variants } : {}) }
             : tipoInicial
               ? { testType: tipoInicial }
               : undefined

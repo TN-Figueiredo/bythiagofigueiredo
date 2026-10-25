@@ -408,9 +408,11 @@ export async function uploadVariant(
     return { ok: false, error: 'Maximum of 3 non-original variants allowed' }
   }
 
-  // Determine next label
+  // Rótulo: o pedido pelo assistente, se for válido e livre; senão o primeiro livre (N1)
   const usedLabels = new Set((existingVariants ?? []).map(v => v.label))
-  const label = VARIANT_LABELS.find(l => !usedLabels.has(l))
+  const pedido = formData.get('label')
+  const rotuloPedido = VARIANT_LABELS.find(l => l === pedido && !usedLabels.has(l))
+  const label = rotuloPedido ?? VARIANT_LABELS.find(l => !usedLabels.has(l))
   if (!label) return { ok: false, error: 'No available variant label slot' }
 
   // Determine extension
@@ -524,6 +526,7 @@ export async function deleteVariant(
 
 export async function cleanupDraftVariants(
   testId: string,
+  opts?: { manter?: string[] },
 ): Promise<{ ok: boolean; error?: string }> {
   let siteId: string
   try {
@@ -546,20 +549,32 @@ export async function cleanupDraftVariants(
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
-    .select('id, blob_url')
+    .select('id, label, blob_url')
     .eq('test_id', testId)
     .eq('is_original', false)
 
-  if (variants && variants.length > 0) {
+  // Com `manter`, só os rótulos fora da lista saem (rascunho reaberto não apaga o que já está gravado; D-M6-16).
+  const manter = opts?.manter
+  const apagar = manter ? (variants ?? []).filter(v => !manter.includes(v.label)) : (variants ?? [])
+
+  if (apagar.length > 0) {
     const { del } = await import('@vercel/blob')
-    for (const v of variants) {
+    for (const v of apagar) {
       if (v.blob_url) await del(v.blob_url).catch(() => {})
     }
-    await supabase
-      .from('ab_test_variants')
-      .delete()
-      .eq('test_id', testId)
-      .eq('is_original', false)
+    if (manter) {
+      await supabase
+        .from('ab_test_variants')
+        .delete()
+        .eq('test_id', testId)
+        .in('id', apagar.map(v => v.id))
+    } else {
+      await supabase
+        .from('ab_test_variants')
+        .delete()
+        .eq('test_id', testId)
+        .eq('is_original', false)
+    }
   }
 
   return { ok: true }

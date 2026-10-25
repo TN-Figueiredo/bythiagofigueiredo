@@ -31,6 +31,8 @@ export interface VariantData {
   origem?: 'biblioteca'
   /** Id da linha já gravada no banco (rascunho reaberto ou depois de gravar); D-M6-16. */
   gravada?: string
+  /** Texto que a linha gravada tem no banco; decide entre pular e `updateTextVariant`. */
+  textoGravado?: string
 }
 
 export interface StepVariantesProps {
