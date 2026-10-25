@@ -7,6 +7,6 @@ describe('provisorioAte (S8-F4 T12 T1)', () => {
   })
   it('virada de mês e de ano', () => {
     expect(provisorioAte('2026-10-25')).toBe('2026-11-05')
-    expect(provisorioAte('2026-12-25')).toBe('2027-01-05')
+    expect(provisorioAte('2025-12-25')).toBe('2026-01-05')
   })
 })
