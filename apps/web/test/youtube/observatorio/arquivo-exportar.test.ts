@@ -245,6 +245,12 @@ describe('A5 E10 T6: exportarCanal, o caminho feliz', () => {
     const r = await m.exportar()
     expect(trocou).toBe(true)
     expect(r).toMatchObject({ ok: false, codigo: 'contagem_do_arquivo_difere' })
+    // o detalhe traz linhas E soma dos dois lados, e as somas são diferentes
+    const detalhe = (r as { detalhe?: string[] }).detalhe?.[0] ?? ''
+    const mm = /banco (\d+) linhas\/soma (\d+), arquivo (\d+)\/(\d+)/.exec(detalhe)
+    expect(mm, detalhe).not.toBeNull()
+    expect(mm![1]).toBe(mm![3])
+    expect(BigInt(mm![4]!)).toBe(BigInt(mm![2]!) + BigInt(1))
     expect(m.d.arquivos.has(`${PASTA}/manifesto.json`)).toBe(false)
     expect(m.b.chamadas.some(c => /obs_archive_register/.test(c.texto))).toBe(false)
   })
