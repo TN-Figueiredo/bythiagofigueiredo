@@ -8,8 +8,8 @@ describe('API_REGISTRY', () => {
     expect(API_REGISTRY.version).toBe('2.0.0')
   })
 
-  it('has exactly 8 capability domains', () => {
-    expect(API_REGISTRY.capabilities).toHaveLength(8)
+  it('has exactly 9 capability domains', () => {
+    expect(API_REGISTRY.capabilities).toHaveLength(9)
     const domains = API_REGISTRY.capabilities.map((c) => c.domain)
     expect(domains).toEqual([
       'items-and-sections',
@@ -20,6 +20,7 @@ describe('API_REGISTRY', () => {
       'utilities',
       'course',
       'links',
+      'archive',
     ])
   })
 
@@ -35,7 +36,7 @@ describe('API_REGISTRY', () => {
         expect(ep.method).toMatch(/^(GET|POST|PATCH|PUT|DELETE)$/)
         expect(ep.path).toMatch(/^\//)
         expect(ep.summary.length).toBeGreaterThan(5)
-        expect(ep.auth).toMatch(/^(read|write|intelligence)$/)
+        expect(ep.auth).toMatch(/^(read|write|intelligence|archive_copy|archive_b2|archive_read|archive_owner)$/)
       }
     }
   })

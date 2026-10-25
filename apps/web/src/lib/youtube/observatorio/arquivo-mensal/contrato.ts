@@ -173,6 +173,11 @@ export const RespostaAtestarB2 = z.object({
   itens: z.array(z.object({ arquivo_id: arquivoId, resposta: z.enum(['aceito', 'repetir', 'recusado']),
     motivo: z.enum(['controle_pendente', 'controle_falhou', 'sem_file_id', 'file_id_invalido', 'desconhecido', 'execucao_vencida', 'forma']).optional() }).strict()),
 }).strict()
+/** Resposta de `unit/received` (C6): o que `obs_archive_receive` devolve. */
+export const RespostaRecebido = z.object({
+  itens: z.array(z.object({ arquivo_id: arquivoId, resultado: z.enum(['recebida', 'ja_recebida', 'divergente', 'conteudo_divergente', 'canal_removido', 'desconhecido']) }).strict()),
+  selados: z.array(z.object({ classe, mes: z.string().regex(MES_RE), versao: z.number().int().min(1) }).strict()),
+}).strict()
 /** Dado das RPCs que a rota de exportar lê (Yannis M10). */
 export const RespostaParteInfo = z.object({
   status: z.literal('ok'), unidade_id: canal, versao: z.number().int().min(1), partes: z.number().int().min(1).max(TETO_PARTES),

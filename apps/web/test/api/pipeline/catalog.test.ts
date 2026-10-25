@@ -67,10 +67,10 @@ describe('GET /api/pipeline (catalog)', () => {
     expect(json.data.version).toBe('2.0.0')
   })
 
-  it('returns 8 capability domains in data.capabilities', async () => {
+  it('returns 9 capability domains in data.capabilities', async () => {
     const res = await GET(makeReq())
     const json = await res.json()
-    expect(json.data.capabilities).toHaveLength(8)
+    expect(json.data.capabilities).toHaveLength(9)
     const domains = json.data.capabilities.map((c: { domain: string }) => c.domain)
     expect(domains).toContain('items-and-sections')
     expect(domains).toContain('utilities')

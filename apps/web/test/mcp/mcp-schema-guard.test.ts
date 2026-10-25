@@ -37,6 +37,13 @@ const KNOWN_STALE_TYPES = new Set(['content_pipeline_history.changed_by_key_id',
  */
 const TABELAS_AINDA_SEM_TIPOS = new Set(['ab_native_tests', 'ab_native_avaliacoes', 'ab_native_observados', 'ab_native_obs_cursor', 'yt_watch_alvos'])
 
+/**
+ * Funções `obs_archive_*` da M3b (migration 20261025000002, em produção desde 25/10): as rotas de /api/pipeline/archive as chamam por `rpc`,
+ * e `database.types.ts` ainda não foi regenerado. Mesmo gatilho D-1 (`supabase gen types --linked`); sai daqui quando os tipos vierem.
+ * Os nomes e os argumentos são conferidos pelos testes de integração `manutencao-m3b-*` contra o banco real.
+ */
+const RPC_DO_ARQUIVO_SEM_TIPOS = /^rpc:obs_archive_/
+
 describe('MCP + serviços do pipeline: esquema', () => {
   const { refs } = auditDirs(WEB, DIRS)
 
@@ -56,6 +63,7 @@ describe('MCP + serviços do pipeline: esquema', () => {
     const missing = refs
       .filter(r => !r.exists && !r.kind.startsWith('embed:'))
       .filter(r => !TABELAS_AINDA_SEM_TIPOS.has(r.table))
+      .filter(r => !RPC_DO_ARQUIVO_SEM_TIPOS.test(r.table))
       .filter(r => !KNOWN_STALE_TYPES.has(r.column ? `${r.table}.${r.column}` : r.table))
       .map(r => `${r.file}:${r.line}  ${r.table}${r.column ? `.${r.column}` : ''}  (${r.kind})`)
     expect([...new Set(missing)]).toEqual([])

@@ -1,10 +1,10 @@
-export type DomainId = 'items-and-sections' | 'playlists' | 'libraries' | 'research' | 'youtube' | 'utilities' | 'course' | 'links'
+export type DomainId = 'items-and-sections' | 'playlists' | 'libraries' | 'research' | 'youtube' | 'utilities' | 'course' | 'links' | 'archive'
 
 export interface ApiEndpointMeta {
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   path: string
   summary: string
-  auth: 'read' | 'write' | 'intelligence'
+  auth: 'read' | 'write' | 'intelligence' | 'archive_copy' | 'archive_b2' | 'archive_read' | 'archive_owner'
 }
 
 export interface CapabilityDomain {
@@ -258,6 +258,26 @@ const LINKS: CapabilityDomain = {
   ],
 }
 
+const ARCHIVE: CapabilityDomain = {
+  domain: 'archive',
+  name: 'Observatory monthly archive (NAS/B2 workers)',
+  description: "Machine-to-machine routes used only by the home workers (copier, B2 checker) to copy sealed months of the Observatory to the NAS and attest the copies, and by the owner's Mac command to read pending archive steps. Not for Cowork.",
+  suggest_when: "Never for Cowork tasks: these routes accept only archive_* keys held by the home workers and the owner's Mac",
+  docs: '/api/pipeline/docs/archive',
+  endpoint_count: 9,
+  endpoints: [
+    { method: 'GET', path: '/api/pipeline/archive/plan', summary: 'What is due, to re-check and red flags (copier); ?fonte=b2: what to check in B2 (B2 checker) — archive_copy | archive_b2', auth: 'archive_copy' },
+    { method: 'POST', path: '/api/pipeline/archive/unit/export', summary: 'Serialize one monthly unit (gzip CSV bytes, values in headers) — archive_copy', auth: 'archive_copy' },
+    { method: 'POST', path: '/api/pipeline/archive/month/summary', summary: 'Per-channel monthly summary files — archive_copy', auth: 'archive_copy' },
+    { method: 'POST', path: '/api/pipeline/archive/month/manifest', summary: 'Monthly manifest (.json and .sha256) — archive_copy', auth: 'archive_copy' },
+    { method: 'POST', path: '/api/pipeline/archive/unit/received', summary: 'Report files re-read from the NAS — archive_copy', auth: 'archive_copy' },
+    { method: 'POST', path: '/api/pipeline/archive/attest', summary: 'Re-check report: fonte nas (archive_copy) or fonte b2 (archive_b2); never returns expected values', auth: 'archive_copy' },
+    { method: 'POST', path: '/api/pipeline/archive/heartbeat', summary: 'Worker heartbeat (worker derived from the key permission) — archive_copy | archive_b2 | archive_read', auth: 'archive_copy' },
+    { method: 'GET', path: '/api/pipeline/archive/pode-desligar', summary: "Whether the NAS archive is safe to switch off (move house), read by the owner's Mac; never answers 'can switch off' without a well-formed answer — archive_owner only", auth: 'archive_owner' },
+    { method: 'GET', path: '/api/pipeline/archive/pending', summary: "Owner's pending archive steps, read by the owner's Mac (obs:arquivo); zero pending is total 0, never empty data — archive_owner only", auth: 'archive_owner' },
+  ],
+}
+
 const CROSS_DOMAIN_WORKFLOWS: CrossDomainWorkflow[] = [
   {
     name: 'Video production pipeline',
@@ -331,6 +351,7 @@ export const DOMAIN_LABELS: Record<DomainId, string> = {
   utilities: 'Utilities',
   course: 'Courses',
   links: 'Links',
+  archive: 'Arquivo mensal',
 }
 
 export const API_REGISTRY: ApiCatalog = {
@@ -342,6 +363,6 @@ export const API_REGISTRY: ApiCatalog = {
     rate_limit: '100/min (api_key only)',
     version_header: 'X-Expected-Version',
   },
-  capabilities: [ITEMS_AND_SECTIONS, PLAYLISTS, LIBRARIES, RESEARCH, YOUTUBE, UTILITIES, COURSE, LINKS],
+  capabilities: [ITEMS_AND_SECTIONS, PLAYLISTS, LIBRARIES, RESEARCH, YOUTUBE, UTILITIES, COURSE, LINKS, ARCHIVE],
   cross_domain_workflows: CROSS_DOMAIN_WORKFLOWS,
 }
