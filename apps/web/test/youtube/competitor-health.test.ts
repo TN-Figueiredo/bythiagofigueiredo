@@ -90,7 +90,7 @@ describe('schemaReady (a ordem migration → código não pode falhar em verde)'
 
 // ───────── Tarefa 12: a prova embutida ─────────
 const C: CaptureHealth = { videos_vistos_sem_raw: 0, canais_vistos_sem_raw: 0, canais_vistos_dia_pacifico: 15, cota_dia_pacifico: 200, videos_ausentes: 0, canais_ausentes: 0, canais_em_erro_12h: 0, canais_em_erro_3d: 0, canais_total: 15 }
-const S: SeriesHealth = { hoje: '2026-06-10', hora_sp: 19, fora_da_prova: 0, sem_faixa: 0, diaria_sem_ponto_hoje: 0, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, sem_miniatura_9d: 0, diaria_total: 674, semanal_total: 716, fora_canal_em_erro_3d: 0 }
+const S: SeriesHealth = { hoje: '2026-06-10', hora_sp: 19, fora_da_prova: 0, sem_faixa: 0, diaria_sem_ponto_hoje: 0, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, sem_miniatura_9d: 0, diaria_total: 674, semanal_total: 716, fora_canal_em_erro_3d: 0, arquivados: 0 }
 const done = { slotDone: true, e2: true }
 
 describe('healthVerdict', () => {
@@ -237,7 +237,7 @@ describe('parse', () => {
   })
   it('a forma REAL devolvida pelo banco local (medida em 12/10) passa', () => {
     expect(parseCaptureHealth({ canais_ausentes: 0, videos_ausentes: 1, canais_em_erro_3d: 0, cota_dia_pacifico: 0, canais_em_erro_12h: 0, canais_vistos_sem_raw: 0, videos_vistos_sem_raw: 1, canais_vistos_dia_pacifico: 0, canais_total: 1 })).not.toBeNull()
-    expect(parseSeriesHealth({ hoje: '2026-10-12', hora_sp: 20, sem_faixa: 0, diaria_total: 1, fora_da_prova: 1, semanal_total: 0, sem_miniatura_9d: 1, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, diaria_sem_ponto_hoje: 1, fora_canal_em_erro_3d: 0 })).not.toBeNull()
+    expect(parseSeriesHealth({ hoje: '2026-10-12', hora_sp: 20, sem_faixa: 0, diaria_total: 1, fora_da_prova: 1, semanal_total: 0, sem_miniatura_9d: 1, diaria_buracos_3d: 0, semanal_atrasados: 0, semanal_atrasados_9d: 0, semanal_devidos_hoje: 0, diaria_sem_ponto_hoje: 1, fora_canal_em_erro_3d: 0, arquivados: 0 })).not.toBeNull()
   })
 })
 
@@ -460,5 +460,33 @@ describe('item 7: weekly: false (a fase semanal desligada) não deixa a prova ve
   })
   it('E1 sozinha (e2: false) não fala da fase semanal', () => {
     expect(healthVerdict(C, S, { slotDone: true, e2: false, weekly: false }).notes).not.toContain('fase semanal desligada')
+  })
+})
+
+describe('M10a: a chave arquivados da prova da série (Tarefa 8, ponto 5)', () => {
+  const done = { slotDone: true, e2: true }
+  it('arquivados: 0 lê igual a hoje; as outras chaves intactas', () => {
+    expect(parseSeriesHealth(S)).toEqual(S)
+    expect(healthVerdict(C, S, done)).toEqual({ ok: true, problems: [], notes: [] })
+  })
+  it('arquivados ausente: não lido (nunca 0 adivinhado), com o motivo escrito', async () => {
+    const { arquivados: _a, ...velha } = S
+    void _a
+    expect(parseSeriesHealth(velha)).toBeNull()
+    const sb = { rpc: (name: string) => Promise.resolve({ data: name === 'competitor_capture_health' ? C : velha, error: null }) } as never
+    const v = await readSiteHealth(sb, 's', '2026-10-12T22:00:00.000Z', done)
+    expect(v.ok).toBe(false)
+    expect(v.notes.join(' | ')).toContain('prova da série: migration M10a não aplicada (falta o campo arquivados)')
+  })
+  it('arquivados: 3 vira nota, nunca alarme', () => {
+    expect(healthVerdict(C, { ...S, arquivados: 3 }, done)).toEqual({ ok: true, problems: [], notes: ['3 vídeos em leitura mensal, fora da prova da série'] })
+    expect(healthVerdict(C, { ...S, arquivados: 1 }, done).notes).toContain('1 vídeo em leitura mensal, fora da prova da série')
+  })
+  it('arquivados que não é contagem (texto, negativo) é não lido', () => {
+    expect(parseSeriesHealth({ ...S, arquivados: 'x' })).toBeNull()
+    expect(parseSeriesHealth({ ...S, arquivados: -1 })).toBeNull()
+  })
+  it('compatibilidade da volta atrás: chave inventada ao lado de arquivados lê igual (counts ignora chave extra)', () => {
+    expect(parseSeriesHealth({ ...S, arquivados: 2, zzz: 9 })).toEqual({ ...S, arquivados: 2 })
   })
 })

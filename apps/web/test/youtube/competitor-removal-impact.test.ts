@@ -4,18 +4,18 @@ import { describe, it, expect, vi } from 'vitest'
 import { parseRemovalImpact, semGuardarDe } from '@/lib/youtube/competitor-removal-impact'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 
-const OK = { status: 'ok', name: 'Canal Um', videos: 50, pinned: 2, versions: 180, daily_days: 12, bookmarks: 3 }
+const OK = { status: 'ok', name: 'Canal Um', videos: 50, pinned: 2, versions: 180, daily_days: 12, bookmarks: 3, videos_leitura_mensal: 4, videos_no_arquivo: 1 }
 const CH = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 
 describe('parseRemovalImpact', () => {
   it('lê os cinco números e o nome; trocas salvas diferentes de zero', () => {
-    expect(parseRemovalImpact(OK)).toEqual({ name: 'Canal Um', videos: 50, pinned: 2, versions: 180, dailyDays: 12, bookmarks: 3 })
+    expect(parseRemovalImpact(OK)).toEqual({ name: 'Canal Um', videos: 50, pinned: 2, versions: 180, dailyDays: 12, bookmarks: 3, videosLeituraMensal: 4, videosNoArquivo: 1 })
   })
   it('canal sem troca salva: bookmarks é zero de verdade', () => {
     expect(parseRemovalImpact({ ...OK, bookmarks: 0 })!.bookmarks).toBe(0)
   })
   it('canal recém-adicionado, sem nada gravado: zeros de verdade', () => {
-    expect(parseRemovalImpact({ status: 'ok', name: null, videos: 0, pinned: 0, versions: 0, daily_days: 0, bookmarks: 0 })).toEqual({ name: null, videos: 0, pinned: 0, versions: 0, dailyDays: 0, bookmarks: 0 })
+    expect(parseRemovalImpact({ status: 'ok', name: null, videos: 0, pinned: 0, versions: 0, daily_days: 0, bookmarks: 0, videos_leitura_mensal: 0, videos_no_arquivo: 0 })).toEqual({ name: null, videos: 0, pinned: 0, versions: 0, dailyDays: 0, bookmarks: 0, videosLeituraMensal: 0, videosNoArquivo: 0 })
   })
   it('canal de outro site (not_found) é nulo, nunca zeros', () => {
     expect(parseRemovalImpact({ status: 'not_found' })).toBeNull()
@@ -26,6 +26,9 @@ describe('parseRemovalImpact', () => {
     ['status desconhecido', { ...OK, status: 'x' }],
     ['número ausente', { status: 'ok', name: 'C', videos: 1, pinned: 0, versions: 3 }],
     ['bookmarks ausente (função antiga no banco)', { status: 'ok', name: 'C', videos: 1, pinned: 0, versions: 3, daily_days: 2 }],
+    ['videos_leitura_mensal ausente (função de antes da M10a)', (({ videos_leitura_mensal: _a, ...r }) => (void _a, r))(OK)],
+    ['videos_no_arquivo ausente (função de antes da M10a)', (({ videos_no_arquivo: _a, ...r }) => (void _a, r))(OK)],
+    ['videos_no_arquivo negativo', { ...OK, videos_no_arquivo: -1 }],
     ['número como texto', { ...OK, versions: '180' }],
     ['número negativo', { ...OK, pinned: -1 }],
   ])('%s lança, nunca vira zero', (_n, data) => {
@@ -34,7 +37,7 @@ describe('parseRemovalImpact', () => {
 })
 
 const EXTRA_OK = { readings: 20, thumbs: 4, alvos: 2 }
-const IMPACTO = { name: 'Canal Um', videos: 50, pinned: 2, versions: 180, dailyDays: 12, bookmarks: 3, readings: 48, watch: EXTRA_OK }
+const IMPACTO = { name: 'Canal Um', videos: 50, pinned: 2, versions: 180, dailyDays: 12, bookmarks: 3, videosLeituraMensal: 4, videosNoArquivo: 1, readings: 48, watch: EXTRA_OK }
 const AGO = Date.parse('2026-10-19T12:00:00Z')
 const DIA = 86_400_000
 const iso = (ms: number) => new Date(ms).toISOString()

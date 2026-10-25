@@ -89,7 +89,9 @@ export interface CaptureHealth { videos_vistos_sem_raw: number; canais_vistos_se
   canais_total: number }
 export interface SeriesHealth { hoje: string; hora_sp: number; fora_da_prova: number; sem_faixa: number; diaria_sem_ponto_hoje: number; diaria_buracos_3d: number; semanal_atrasados: number; semanal_atrasados_9d: number; semanal_devidos_hoje: number; sem_miniatura_9d: number; diaria_total: number; semanal_total: number
   /** MG2b: vídeos de canal em erro há mais de 3 dias (já contados em fora_da_prova). Obrigatória: é a guarda da migration corretiva. */
-  fora_canal_em_erro_3d: number }
+  fora_canal_em_erro_3d: number
+  /** M10a: vídeos em leitura mensal (fora da prova da série). Obrigatória: é a guarda da migration M10a. */
+  arquivados: number }
 export interface HealthVerdict { ok: boolean; problems: string[]; notes: string[] }
 
 /**
@@ -103,7 +105,7 @@ export const DAILY_DUE_FROM_HOUR_SP = 18
 export const WEEKLY_DUE_FROM_HOUR_SP = 19
 
 const CAPTURE_KEYS = ['videos_vistos_sem_raw', 'canais_vistos_sem_raw', 'canais_vistos_dia_pacifico', 'cota_dia_pacifico', 'videos_ausentes', 'canais_ausentes', 'canais_em_erro_12h', 'canais_em_erro_3d', 'canais_total'] as const
-const SERIES_KEYS = ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total', 'fora_canal_em_erro_3d'] as const
+const SERIES_KEYS = ['hora_sp', 'fora_da_prova', 'sem_faixa', 'diaria_sem_ponto_hoje', 'diaria_buracos_3d', 'semanal_atrasados', 'semanal_atrasados_9d', 'semanal_devidos_hoje', 'sem_miniatura_9d', 'diaria_total', 'semanal_total', 'fora_canal_em_erro_3d', 'arquivados'] as const
 const isCount = (x: unknown): x is number => typeof x === 'number' && Number.isInteger(x) && x >= 0
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -150,6 +152,7 @@ function readSeries(data: unknown): Read<SeriesHealth> {
   const d = o.value
   if (typeof d.hoje !== 'string' || !DATE_RE.test(d.hoje)) return { why: 'o campo hoje não é uma data AAAA-MM-DD (veio ' + shown(d.hoje) + ')' }
   if (!hasKey(d, 'fora_canal_em_erro_3d')) return { why: MG2B_WHY + 'fora_canal_em_erro_3d)' }
+  if (!hasKey(d, 'arquivados')) return { why: 'migration M10a não aplicada (falta o campo arquivados)' }
   const c = counts(d, SERIES_KEYS)
   if ('why' in c) return c
   if (c.value.hora_sp > 23) return { why: 'o campo hora_sp está fora de 0 a 23 (veio ' + c.value.hora_sp + ')' }
@@ -230,6 +233,7 @@ export function healthVerdict(c: CaptureHealth | null, s: SeriesHealth | null, o
         else notes.push('nenhum vídeo com faixa ainda (esperado só no dia da ativação, antes das 18:00)')
       }
       if (s.fora_da_prova) notes.push(s.fora_da_prova + ' fora da prova de série (sem contagem, estreia agendada, ausente ou de canal em erro há mais de 3 dias)')
+      if (s.arquivados) notes.push(n(s.arquivados, 'vídeo', 'vídeos') + ' em leitura mensal, fora da prova da série')
       if (s.fora_canal_em_erro_3d) notes.push(n(s.fora_canal_em_erro_3d, 'vídeo', 'vídeos') + ' de canal em erro há mais de 3 dias fora da prova')
     }
   }
