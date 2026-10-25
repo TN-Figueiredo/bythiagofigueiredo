@@ -69,7 +69,7 @@ async function getMockMap(): Promise<Record<string, AbTestDetailView>> {
 function renderView(view: AbTestDetailView) {
   if (view.status !== 'completed') {
     const id = (view as AbTestActiveView).id
-    if (isEarly(view)) return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
+    if (isEarly(view) && (view as AbTestActiveView).v2?.fase !== 'ativo') return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
     return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} retomar={resumeAbTest.bind(null, id)} />
   }
   if (view.outcome === 'winner') return <WinnerDetail view={view} />

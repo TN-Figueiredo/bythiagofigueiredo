@@ -22,6 +22,8 @@ export interface PlacarDoTesteProps {
   status: AbTestStatus
   andamento?: { dayOf: number; total: number }
   titulo?: string
+  /** Tela v2: o resumo e o andamento vêm antes do placar (blocos-v2), então a frase `pm4-sum` não é desenhada aqui. */
+  modoV2?: boolean
 }
 
 const Svg = ({ children, size = 14 }: { children: React.ReactNode; size?: number }) => (
@@ -137,7 +139,7 @@ function rotulosDe(placar: Placar, db: readonly VariantDbEntry[]): Record<string
   return r
 }
 
-export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = [], thumbs, videoTitle, status, andamento, titulo = 'Placar por variante' }: PlacarDoTesteProps) {
+export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = [], thumbs, videoTitle, status, andamento, titulo = 'Placar por variante', modoV2 = false }: PlacarDoTesteProps) {
   const [aberta, setAberta] = useState<string | null>(null)
   const idBase = useId()
   const ordenadas = ordenarPorRotulo(variants)
@@ -178,10 +180,12 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
         {placar?.regra === 'v1' && (
           <div className="pm4-selos"><span className="pm4-selo"><IcVelho />Regra antiga: encerra por duração</span></div>
         )}
-        <p className="pm4-sum" data-caso={caso}>
-          {frase.principal}
-          {frase.apoio !== '' && <small>{frase.apoio}</small>}
-        </p>
+        {!modoV2 && (
+          <p className="pm4-sum" data-caso={caso}>
+            {frase.principal}
+            {frase.apoio !== '' && <small>{frase.apoio}</small>}
+          </p>
+        )}
 
         {faixa === 'atrasado' && (
           <div className="pm4-band warn" role="status">

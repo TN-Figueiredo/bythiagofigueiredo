@@ -1,0 +1,57 @@
+/* Blocos da tela v2 (S8-F4 T12, T6). Cópia do mockup M5 r5 (.sum, .rel, .ticks, .pisos, .pr, .pbar, .pnum, .pdv, .okk, .sinal) com prefixo pv2-.
+   Tokens --cn-* do .cn-raiz; sem mistura de cor no CSS (Opera); sombras e fundos em rgba literal. O contêiner .pv2 escopa o ⓘ compartilhado (.dica-i). */
+.pv2 {
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  --pv-on: #FFFFFF;
+  --pv-va: #B8481A; --pv-vb: #2B6DA8; --pv-vc: #4C6B1F; --pv-vd: #7A4FA0;
+  --muted: var(--cn-muted); --text: var(--cn-text); --accent: var(--cn-accent);
+  container-type: inline-size;
+  padding: 0 0 var(--s4);
+}
+.pv2 h3, .pv2 p { margin: 0; }
+.pv2 .num { font-variant-numeric: tabular-nums; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+.pv2 .dash { color: var(--cn-muted); }
+.pv2-selos { display: flex; gap: var(--s2); flex-wrap: wrap; margin-bottom: var(--s3); }
+.pv2-sel { display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px 5px 11px; border-radius: 999px; font: 600 14px/20px Inter, system-ui, sans-serif; border: 2px solid var(--cn-border-strong); color: var(--cn-text); max-width: 100%; }
+.pv2-sel.errf { border-color: var(--cn-err-line); color: var(--cn-err); background: rgba(244, 160, 151, 0.08); }
+.pv2-sum { margin: 0 0 var(--s4); font: 600 21px/1.35 Georgia, serif; max-width: 72ch; text-wrap: balance; color: var(--cn-text); }
+.pv2-sum small { display: block; font: 400 13px/1.45 Inter, system-ui, sans-serif; color: var(--cn-muted); margin-top: var(--s2); }
+@container (max-width: 640px) { .pv2-sum { font-size: 18px; } }
+.pv2-sec { margin-top: var(--s5); }
+.pv2-sh { font: 600 16px/1.3 Inter, system-ui, sans-serif; display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); flex-wrap: wrap; color: var(--cn-text); }
+.pv2-sh .pv2-h { font: inherit; }
+.pv2-rel { max-width: 1040px; }
+.pv2-top { display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s2); }
+.pv2-dia { font: 600 17px/1.3 Inter, system-ui, sans-serif; color: var(--cn-text); }
+.pv2-falta { font-size: 13px; color: var(--cn-muted); }
+.pv2-ticks { display: grid; gap: 3px; max-width: 760px; }
+.pv2-ticks i { height: 12px; border-radius: 3px; border: 1px solid var(--cn-border-strong); background: transparent; }
+.pv2-ticks i.p { background: var(--cn-muted); border-color: var(--cn-muted); }
+.pv2-ticks i.h { border-color: var(--cn-text); border-width: 2px; background: var(--cn-surface-2); }
+.pv2-pisos { border: 1px solid var(--cn-border); border-radius: 10px; background: var(--cn-surface); padding: 4px 16px; max-width: 1040px; }
+.pv2-pr { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr) 190px; gap: 6px 20px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--cn-border-subtle); }
+.pv2-pr:last-child { border-bottom: 0; }
+.pv2-vh { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.pv2-chip { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font: 700 13px/1 Inter, system-ui, sans-serif; color: var(--pv-on); flex: none; }
+.pv2-cA { background: var(--pv-va); } .pv2-cB { background: var(--pv-vb); } .pv2-cC { background: var(--pv-vc); } .pv2-cD { background: var(--pv-vd); }
+.pv2-vt { min-width: 0; }
+.pv2-vt b { display: block; font: 600 14px/1.35 Inter, system-ui, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cn-text); }
+.pv2-pbar { position: relative; height: 14px; background: var(--cn-sunk); border: 1px solid var(--cn-border-strong); border-radius: 7px; overflow: hidden; }
+.pv2-pbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--cn-muted); }
+.pv2-pbar.vz { border-style: dashed; }
+.pv2-pbar.pv2-ok i { background: var(--cn-ok); }
+.pv2-pnum { font-size: 13px; color: var(--cn-muted); margin-top: 4px; display: flex; gap: 6px 14px; flex-wrap: wrap; }
+.pv2-pnum b { color: var(--cn-text); font-weight: 600; }
+.pv2-pdv { font-size: 13px; color: var(--cn-muted); text-align: right; }
+.pv2-pdv b { color: var(--cn-text); }
+.pv2-okk { color: var(--cn-ok); font-weight: 600; }
+.pv2-nm { color: var(--cn-muted); }
+@container (max-width: 640px) {
+  .pv2-pisos { padding: 4px 12px; }
+  .pv2-pr { grid-template-columns: 1fr; gap: 8px; }
+  .pv2-pdv { text-align: left; }
+}
+.pv2-sinal { margin-top: var(--s5); max-width: 1040px; display: flex; flex-direction: column; gap: var(--s3); align-items: flex-start; }
+.pv2-sinal .l { display: flex; gap: 10px; align-items: center; padding: 8px 14px; border: 1px dashed var(--cn-border-strong); background: transparent; border-radius: 8px; color: var(--cn-text); font-size: 14px; max-width: 100%; }
+.pv2-sinal .l .sy { color: var(--cn-text); }
+.pv2-sinal .l b { font-weight: 600; }
