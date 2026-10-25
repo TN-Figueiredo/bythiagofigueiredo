@@ -504,7 +504,7 @@ function PedirIdeias({ onPedirIdeias }: { onPedirIdeias: () => Promise<void> }) 
         style={{ background: 'none', border: 0, cursor: 'pointer' }}
       >
         <Sparkles size={14} aria-hidden="true" style={{ color: 'var(--cms-accent)' }} />
-        Pedir ideias a uma IA
+        Copiar briefing para IA
       </button>
       {estado === 'copiando' ? (
         <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Montando o briefing…</strong>Leva alguns segundos.</div></div>

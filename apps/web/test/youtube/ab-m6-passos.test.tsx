@@ -149,7 +149,7 @@ describe('M6 T3: três passos', () => {
   })
 })
 
-describe('M6 T3: pedir ideias a uma IA', () => {
+describe('M6 T3: copiar briefing para IA', () => {
   const props = (onPedirIdeias: () => Promise<void>) => ({
     type: 'title' as const,
     variants: [{ label: 'A', isOriginal: true, thumbUrl: null, titleText: 'v' }, { label: 'B', isOriginal: false, thumbUrl: null, titleText: '' }] as VariantData[],
@@ -161,7 +161,7 @@ describe('M6 T3: pedir ideias a uma IA', () => {
   it('pendente: "Montando o briefing…" com role=status e o 2º clique não chama de novo', async () => {
     const f = vi.fn(() => new Promise<void>(() => {}))
     render(<StepVariantes {...props(f)} />)
-    const b = screen.getByRole('button', { name: /Pedir ideias a uma IA/ })
+    const b = screen.getByRole('button', { name: /Copiar briefing para IA/ })
     fireEvent.click(b)
     fireEvent.click(b)
     expect(f).toHaveBeenCalledTimes(1)
@@ -170,11 +170,11 @@ describe('M6 T3: pedir ideias a uma IA', () => {
 
   it('resolvida: "Briefing copiado"; rejeitada: alerta', async () => {
     render(<StepVariantes {...props(vi.fn(async () => {}))} />)
-    fireEvent.click(screen.getByRole('button', { name: /Pedir ideias a uma IA/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Copiar briefing para IA/ }))
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Briefing copiado'))
     cleanup()
     render(<StepVariantes {...props(vi.fn(async () => { throw new Error('x') }))} />)
-    fireEvent.click(screen.getByRole('button', { name: /Pedir ideias a uma IA/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Copiar briefing para IA/ }))
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Não foi possível copiar o briefing'))
   })
 })
