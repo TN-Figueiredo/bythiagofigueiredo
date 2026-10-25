@@ -86,6 +86,9 @@ export interface ProvaComentarios {
   retratos_na_janela: number
   retratos_perdidos_7d: number
   perdidos_por_motivo: Record<string, number>
+  /** janela fechada nas últimas 48 h sem retrato: só isto acende o vermelho (emenda 24/10) */
+  retratos_perdidos_novos: number
+  perdidos_novos_por_motivo: Record<string, number>
   retratos_total: number
   retratos_ok: number
   primeira_coleta: string | null
