@@ -4,14 +4,14 @@ import { CODIGOS_SCHEMA_AUSENTE } from '@/lib/youtube/coleta/schema'
 import * as Sentry from '@sentry/nextjs'
 import { DEFINICAO_PARTICOES_A_FRENTE } from './definicoes'
 import { BANCO_MS, comPrazo } from './relogio'
-import type { ItemAgenda } from './saude'
+import { MOTIVO_SCHEMA_AUSENTE, type ItemAgenda } from './saude'
 import type { Lido } from './tipos'
 
 /**
  * O invariante "meses de partição à frente" (manutenção M2, spec 02 §10.2). Módulo leve: o vigia o lê sem carregar a coleta.
- * Regras, nesta ordem: leitura que falha (inclusive função ausente) → vermelho; tabela que falta, não particionada (null) ou sem o mês
+ * Regras, nesta ordem: leitura que falha por prazo/exceção → amarelo (emenda 24/10), as demais causas (inclusive função ausente) → vermelho; tabela que falta, não particionada (null) ou sem o mês
  * corrente (-1) → vermelho; tarefa `particoes_a_frente` sem `ok` há mais de 72 h (sem nenhum ok: desde a conversão; sem conversão
- * registrada: vermelho; agenda não lida, `undefined`: o mesmo prazo, com o motivo "não lido") → vermelho; o pior das três abaixo de 3 → vermelho; abaixo de 6 → amarelo; senão ok. Nunca "12 à frente" sem leitura.
+ * registrada: vermelho; agenda não lida, `undefined`: a regra não se aplica, só os meses) → vermelho; o pior das três abaixo de 3 → vermelho; abaixo de 6 → amarelo; senão ok. Nunca "12 à frente" sem leitura.
  */
 export const AMARELO_ABAIXO_DE = 6
 export const VERMELHO_ABAIXO_DE = 3
@@ -62,7 +62,12 @@ const item = (status: ItemAgenda['status'], gravidade: 'amarelo' | 'vermelho' | 
 })
 
 export function avaliarParticoes(lido: Lido<LinhaParticao[]>, ultimoOkTarefa: string | null | undefined, agoraMs: number): ItemAgenda {
-  if ('porque' in lido) return item('late', 'vermelho', MOTIVO_NAO_LIDO, ultimoOkTarefa)
+  if ('porque' in lido) {
+    // Emenda 24/10 (dono aprovou a recomendação da Hanna; Phil I1, Yannis Y1): prazo estourado ou exceção são falha passageira de leitura
+    // e dizem nada sobre as partições → amarelo (degradado, sem 503 nem push urgente). Estrutural (schema ausente, forma, erro do banco) segue vermelho.
+    const passageira = lido.causa === 'prazo' || lido.causa === 'excecao'
+    return item('late', passageira ? 'amarelo' : 'vermelho', MOTIVO_NAO_LIDO, ultimoOkTarefa)
+  }
   const porTabela = new Map(lido.valor.map(l => [l.tabela, l]))
   const meses: number[] = []
   for (const t of TABELAS) {
@@ -73,8 +78,10 @@ export function avaliarParticoes(lido: Lido<LinhaParticao[]>, ultimoOkTarefa: st
   const conversoes = lido.valor.map(l => (l.convertidaEm ? Date.parse(l.convertidaEm) : Number.NaN)).filter(n => !Number.isNaN(n))
   const okMs = ultimoOkTarefa ? Date.parse(ultimoOkTarefa) : Number.NaN
   const referencia = !Number.isNaN(okMs) ? okMs : conversoes.length ? Math.max(...conversoes) : Number.NaN
-  if (Number.isNaN(referencia) || agoraMs - referencia > TAREFA_PARADA_H * H) {
-    return item('late', 'vermelho', ultimoOkTarefa === undefined ? MOTIVO_NAO_LIDO : MOTIVO_TAREFA_PARADA, ultimoOkTarefa)
+  // Agenda não lida (`undefined`): a regra das 72 h não se aplica (o `agenda:leitura` já acusa a falha); avaliam-se só os meses (Phil I1.2).
+  // Limitação conhecida (Yannis Y7): no caminho `guarda_mg10` a tarefa roda mas nunca grava `ok`; o item de agenda vem `unknown` e é tratado como `undefined`.
+  if (ultimoOkTarefa !== undefined && (Number.isNaN(referencia) || agoraMs - referencia > TAREFA_PARADA_H * H)) {
+    return item('late', 'vermelho', MOTIVO_TAREFA_PARADA, ultimoOkTarefa)
   }
   const pior = Math.min(...meses)
   if (pior < VERMELHO_ABAIXO_DE) return item('late', 'vermelho', MOTIVO_POUCOS, ultimoOkTarefa)
@@ -94,5 +101,7 @@ export async function lerMesesAFrenteComPrazo(sb: SupabaseClient): Promise<Lido<
  */
 export function avaliarComAgenda(lido: Lido<LinhaParticao[]>, itensDaAgenda: readonly ItemAgenda[], agoraMs: number): ItemAgenda {
   const t = itensDaAgenda.find(i => i.nome === DEFINICAO_PARTICOES_A_FRENTE.nome)
-  return avaliarParticoes(lido, t ? t.ultimoOk : undefined, agoraMs)
+  // Phil M2 / Yannis Y7: item `unknown` por schema ausente (guarda_mg10: roda sem gravar `ok`) é "não lido", não "nunca rodou".
+  const naoLido = !t || (t.status === 'unknown' && t.motivo === MOTIVO_SCHEMA_AUSENTE)
+  return avaliarParticoes(lido, naoLido ? undefined : t.ultimoOk, agoraMs)
 }

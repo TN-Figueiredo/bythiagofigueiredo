@@ -411,7 +411,7 @@ export const CRON_HEALTH_COLUMNS =
 
 /**
  * A leitura da agenda para as duas rotas (`/api/health` e `cron-watchdog`), mais o invariante "meses à frente" (M2), que vale sem a E10
- * e com a agenda desligada. Nada aqui lança: leitura que falha vira item `late` (o do invariante, vermelho).
+ * e com a agenda desligada. Nada aqui lança: leitura que falha vira item `late` (o do invariante: amarelo se passageira, vermelho se estrutural).
  */
 export async function lerAgendaParaRelatorio(sb: SupabaseClient, now: Date): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
   const [agenda, lido] = await Promise.all([lerAgendaDoVigia(sb, now.getTime(), process.env), lerMesesAFrenteComPrazo(sb)])
