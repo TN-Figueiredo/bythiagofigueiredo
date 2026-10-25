@@ -3,8 +3,8 @@ import type { AbCycle, AbTest } from '../coleta/ab-seconds'
 import { getVariantForCycle } from '../ab-rotation'
 import { diasDoTeste } from './atribuicao'
 import { estadoDoAlcance, type LinhaAlcance, type RelatorioDoDia } from './estado'
-import { diaComAlcanceValido } from './placar'
-import type { MetaDoDia } from './tipos'
+import { diaComAlcanceValido, diaValido } from './placar'
+import type { EstadoAlcance, MetaDoDia } from './tipos'
 
 export const ATRASO_ALCANCE = 3
 export const V_MAXIMO_V2 = 3 // 4 variantes: recusar (padrão do plano); suportar = 4
@@ -117,4 +117,143 @@ export function baseDoVideo(e: {
   const medido = impressoes > 0 ? cliques / impressoes : 0
   const ok = dias >= 7 && impressoes >= 2000 && Number.isFinite(medido) && medido > 0 && medido < 0.5
   return { p1: ok ? medido : P1_PADRAO, dias, impressoes, p1_dias_sem_meta: semMeta, base_estimada: !ok }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Estatística v2 (pura): z de duas proporções ajustado por superdispersão, p pela t de Student.
+// ---------------------------------------------------------------------------------------------
+
+export interface DiaDaDecisao {
+  day_pt: DiaPt; variant_id: string | null; alcance_estado: EstadoAlcance
+  impressoes: number | null; ctr: number | null; final: boolean; bloco: number | null
+}
+
+function lnGamma(x: number): number {
+  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]
+  let y = x
+  let tmp = x + 5.5
+  tmp -= (x + 0.5) * Math.log(tmp)
+  let ser = 1.000000000190015
+  for (const cj of c) ser += cj / ++y
+  return -tmp + Math.log((2.5066282746310005 * ser) / x)
+}
+
+function betacf(a: number, b: number, x: number): number {
+  const TINY = 1e-300
+  let c = 1
+  let d = 1 - ((a + b) * x) / (a + 1)
+  if (Math.abs(d) < TINY) d = TINY
+  d = 1 / d
+  let h = d
+  for (let m = 1; m <= 300; m++) {
+    const m2 = 2 * m
+    let aa = (m * (b - m) * x) / ((a + m2 - 1) * (a + m2))
+    d = 1 + aa * d; if (Math.abs(d) < TINY) d = TINY
+    c = 1 + aa / c; if (Math.abs(c) < TINY) c = TINY
+    d = 1 / d
+    h *= d * c
+    aa = (-(a + m) * (a + b + m) * x) / ((a + m2) * (a + m2 + 1))
+    d = 1 + aa * d; if (Math.abs(d) < TINY) d = TINY
+    c = 1 + aa / c; if (Math.abs(c) < TINY) c = TINY
+    d = 1 / d
+    const del = d * c
+    h *= del
+    if (Math.abs(del - 1) < 3e-14) break
+  }
+  return h
+}
+
+/** Beta incompleta regularizada I_x(a, b). */
+function betaIncompleta(x: number, a: number, b: number): number {
+  if (x <= 0) return 0
+  if (x >= 1) return 1
+  const bt = Math.exp(lnGamma(a + b) - lnGamma(a) - lnGamma(b) + a * Math.log(x) + b * Math.log(1 - x))
+  return x < (a + 1) / (a + b + 2) ? (bt * betacf(a, b, x)) / a : 1 - (bt * betacf(b, a, 1 - x)) / b
+}
+
+/** CDF da t de Student com `gl` graus de liberdade inteiros >= 1. */
+export function tCdf(t: number, gl: number): number {
+  if (!Number.isInteger(gl) || gl < 1) throw new Error(`tCdf: gl=${gl} inválido`)
+  if (!Number.isFinite(t)) return t > 0 ? 1 : 0
+  const cauda = 0.5 * betaIncompleta(gl / (gl + t * t), gl / 2, 0.5) // P(T > |t|)
+  return t > 0 ? 1 - cauda : cauda
+}
+
+export type EstatisticaV2 =
+  | { estado: 'sem_dado'; motivo: 'gl_menor_que_2' | 'variante_sem_ctr' | 'p_extremo' }
+  | {
+      estado: 'calculada'; phi: number; gl: number
+      por_variante: Array<{ variant_id: string; alfa: number; z: number; z_adj: number; p_adj: number; sinais_por_bloco: Array<-1 | 0 | 1>; passa: boolean; lift: number }>
+    }
+
+const SEM = (motivo: 'gl_menor_que_2' | 'variante_sem_ctr' | 'p_extremo'): EstatisticaV2 => ({ estado: 'sem_dado', motivo })
+const SINAL_BLOCO_SEM = -1_000_000 // bloco nulo: nunca participa do sinal
+
+interface Celula { imp: number; cliques: number; dias: Array<{ imp: number; cliques: number }> }
+
+/**
+ * `variantes` lista todas as variantes do teste (a original inclusive): V = variantes.length define α
+ * (0,05 com 2; 0,025 por comparação com 3). Compara cada não-original contra a original.
+ */
+export function estatisticaV2(dias: readonly DiaDaDecisao[], originalId: string, variantes: readonly string[]): EstatisticaV2 {
+  const V = variantes.length
+  const alfa = V <= 2 ? 0.05 : 0.025
+  const validos = dias.filter(d => diaValido(d) && d.variant_id !== null && variantes.includes(d.variant_id))
+  const total = new Map<string, { imp: number; cliques: number }>()
+  const celulas = new Map<string, Celula>() // `${variante}|${bloco}`
+  for (const d of validos) {
+    const imp = d.impressoes as number
+    const cliques = Math.round(imp * (d.ctr as number))
+    const v = d.variant_id as string
+    const t = total.get(v) ?? { imp: 0, cliques: 0 }
+    t.imp += imp; t.cliques += cliques; total.set(v, t)
+    const chave = `${v}|${d.bloco ?? SINAL_BLOCO_SEM}`
+    const c = celulas.get(chave) ?? { imp: 0, cliques: 0, dias: [] }
+    c.imp += imp; c.cliques += cliques; c.dias.push({ imp, cliques }); celulas.set(chave, c)
+  }
+  for (const v of variantes) if (!((total.get(v)?.imp ?? 0) > 0)) return SEM('variante_sem_ctr')
+
+  const gl = validos.length - celulas.size
+  if (gl < 2) return SEM('gl_menor_que_2')
+
+  let soma = 0
+  for (const c of celulas.values()) {
+    const p = c.cliques / c.imp
+    if (!(p > 0 && p < 1)) continue
+    for (const d of c.dias) soma += (d.cliques - d.imp * p) ** 2 / (d.imp * p * (1 - p))
+  }
+  const phi = soma / gl
+  if (!Number.isFinite(phi)) return SEM('p_extremo')
+
+  const orig = total.get(originalId)
+  if (!orig) return SEM('variante_sem_ctr')
+  const ctrO = orig.cliques / orig.imp
+  const blocos = [...new Set(validos.map(d => d.bloco).filter((b): b is number => b !== null))].sort((a, b) => a - b)
+
+  const por_variante: Array<{ variant_id: string; alfa: number; z: number; z_adj: number; p_adj: number; sinais_por_bloco: Array<-1 | 0 | 1>; passa: boolean; lift: number }> = []
+  for (const v of variantes) {
+    if (v === originalId) continue
+    const tv = total.get(v) as { imp: number; cliques: number }
+    const ctrV = tv.cliques / tv.imp
+    const pool = (tv.cliques + orig.cliques) / (tv.imp + orig.imp)
+    if (!(pool > 0 && pool < 1) || !(ctrO > 0)) return SEM('p_extremo')
+    const se = Math.sqrt(pool * (1 - pool) * (1 / tv.imp + 1 / orig.imp))
+    const z = (ctrV - ctrO) / se
+    const z_adj = z / Math.sqrt(Math.max(1, phi))
+    const p_adj = 2 * (1 - tCdf(Math.abs(z_adj), gl))
+    const lift = ctrV / ctrO - 1
+    if (![z, z_adj, p_adj, lift].every(Number.isFinite)) return SEM('p_extremo')
+
+    const sinais: Array<-1 | 0 | 1> = []
+    for (const b of blocos) {
+      const cv = celulas.get(`${v}|${b}`), co = celulas.get(`${originalId}|${b}`)
+      if (!cv || !co) continue // bloco incompleto (parcial no fim) não entra no sinal
+      const dif = cv.cliques / cv.imp - co.cliques / co.imp
+      sinais.push(dif > 0 ? 1 : dif < 0 ? -1 : 0)
+    }
+    const sinalZ = z > 0 ? 1 : z < 0 ? -1 : 0
+    const consistente = sinais.length > 0 && sinalZ !== 0 && sinais.every(s => s === sinalZ)
+    por_variante.push({ variant_id: v, alfa, z, z_adj, p_adj, sinais_por_bloco: sinais, passa: p_adj < alfa && consistente, lift })
+  }
+  return { estado: 'calculada', phi, gl, por_variante }
 }
