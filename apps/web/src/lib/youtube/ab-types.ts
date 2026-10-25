@@ -16,6 +16,19 @@ export function ehVitoriaHumana(t: { completed_reason: string | null; winner_var
   // S8-F4 B2: "a original vence" é decisão humana, mas não é vitória de variante (winRate); quem conhece as variantes passa winner_is_original.
   return t.winner_variant_id !== null && t.winner_is_original !== true && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
 }
+/** Variante vencedora embutida na leitura (`winner:ab_test_variants!winner_variant_id(is_original)`): objeto, lista de um ou nula. */
+export type VencedorEmbutido = { is_original?: boolean | null } | Array<{ is_original?: boolean | null }> | null | undefined
+
+/** S8-F4 B2: fonte única de "a vencedora é a original" para quem lê o vencedor embutido. */
+export function vencedorEhOriginal(w: VencedorEmbutido): boolean {
+  const v = Array.isArray(w) ? w[0] : w
+  return v?.is_original === true
+}
+
+/** Vitória humana DE VARIANTE: igual a ehVitoriaHumana, mas a original vencedora ("não mudar nada") não conta. Use em todo agregado e rótulo. */
+export function ehVitoriaDeVariante(t: { completed_reason: string | null; winner_variant_id: string | null; winner?: VencedorEmbutido }): boolean {
+  return ehVitoriaHumana({ completed_reason: t.completed_reason, winner_variant_id: t.winner_variant_id, winner_is_original: vencedorEhOriginal(t.winner) })
+}
 export type TestType = 'thumbnail' | 'title' | 'combo'
 
 export interface AbTestConfig {

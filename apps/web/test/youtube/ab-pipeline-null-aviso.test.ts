@@ -324,6 +324,40 @@ describe('vencedor automático ou "sem aplicar" não conta como vitória', () =>
     expect((await youtube.getAbVideoHistory(ctxOf(), 'yt-a')).data.tests[0]!.liftPercent).toBeNull()
   })
 
+  describe('S8-F4 B2: a original vencedora não é vitória de variante', () => {
+    const w = (tag: string, is_original: boolean) => ({ id: `w-${tag}`, label: tag, title_text: null, is_original, metadata: { thumbnail_tags: [tag], title_pattern: `p-${tag}` } })
+    function mundoOriginal(): FakePostgrestOptions {
+      const o = mundoMisto()
+      o.tables.ab_tests = [
+        testeCompleto({ id: 'tv', completed_reason: 'manual_winner', winner_variant_id: 'vv', youtube_video_id: 'yt-v', winner: w('tag-da-variante', false), variants: [w('tag-da-variante', false)] }),
+        testeCompleto({ id: 'to', completed_reason: 'manual_winner', winner_variant_id: 'vo', youtube_video_id: 'yt-o', winner: w('tag-da-original', true), variants: [w('tag-da-original', true)] }),
+      ]
+      o.tables.ab_test_variants = [
+        { id: 'vv', test_id: 'tv', metadata: { thumbnail_tags: ['tag-da-variante'] } },
+        { id: 'vo', test_id: 'to', metadata: { thumbnail_tags: ['tag-da-original'] } },
+      ]
+      return o
+    }
+    it('getAbPerformance: tags e padrões da original não entram em "padrões vencedores"', async () => {
+      sb = fakePostgrest(mundoOriginal())
+      const json = JSON.stringify((await youtube.getAbPerformance(ctxOf())).data)
+      expect(json).toContain('tag-da-variante')
+      expect(json).not.toContain('tag-da-original')
+      expect(json).not.toContain('p-tag-da-original')
+    })
+    it('getAbLearnings: tagWinRates ignora a original vencedora', async () => {
+      sb = fakePostgrest(mundoOriginal())
+      const { data } = await youtube.getAbLearnings(ctxOf())
+      expect(data.tagWinRates.map(t => t.tag)).toEqual(['tag-da-variante'])
+      expect(data.totalCompletedTests).toBe(1)
+    })
+    it('getAbVideoHistory (get_history): winner da original sai null', async () => {
+      sb = fakePostgrest(mundoOriginal())
+      expect((await youtube.getAbVideoHistory(ctxOf(), 'yt-v')).data.tests[0]!.winner).toBe('tag-da-variante')
+      expect((await youtube.getAbVideoHistory(ctxOf(), 'yt-o')).data.tests[0]!.winner).toBeNull()
+    })
+  })
+
   it('paridade: get_learnings, get_performance, get_history (ação) e recursos dão o mesmo JSON do serviço', async () => {
     sb = fakePostgrest(mundoMisto())
     const l = await youtube.getAbLearnings(ctxOf())

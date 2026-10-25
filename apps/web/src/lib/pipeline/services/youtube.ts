@@ -11,7 +11,7 @@ import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics
 import type { Axis, VideoScoreInput, TrafficSources, TrendData, UnavailableAxis } from '@/lib/youtube/scoring-types'
 import { latestRow } from '@/lib/youtube/rolling-window'
 import { lerRestauracao, paraRestoreStatus, restoreStatusIlegivel, type CampoNome, type LeituraCampo } from '@/lib/youtube/ab-restore'
-import { ehVitoriaHumana, lerResultadoV2, type DesfechoV2, type ResultadoV2, type TestType, type VariantMetadata } from '@/lib/youtube/ab-types'
+import { ehVitoriaHumana, ehVitoriaDeVariante, lerResultadoV2, type DesfechoV2, type ResultadoV2, type TestType, type VariantMetadata, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import { nicheLabel } from '@/lib/youtube/observatorio/niche'
@@ -1352,7 +1352,7 @@ export async function getAbPerformance(
     .from('ab_tests')
     .select(`
       id, name, test_type, winner_variant_id, completed_reason,
-      winner:ab_test_variants!winner_variant_id(id, label, title_text, metadata),
+      winner:ab_test_variants!winner_variant_id(id, label, title_text, metadata, is_original),
       variants:ab_test_variants!test_id(id, metadata)
     `)
     .eq('site_id', siteId)
@@ -1364,9 +1364,10 @@ export async function getAbPerformance(
   if (lidosError) return err('DB_ERROR', 'Failed to load completed A/B tests', 500)
 
   // Vitória só conta quando humana; filtro em memória, depois da leitura.
-  const completedTests = (lidos ?? []).filter(t => ehVitoriaHumana({
+  const completedTests = (lidos ?? []).filter(t => ehVitoriaDeVariante({
     completed_reason: (t.completed_reason as string | null) ?? null,
     winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+    winner: t.winner as VencedorEmbutido,
   }))
 
   const lidosV2 = await lerPlacaresDosTestes(ctx, completedTests.map(t => String(t.id)), new Date())
@@ -1661,15 +1662,16 @@ export async function getAbLearnings(
   // Completed tests with a winner; only a human win counts (filtered in memory, right after the read)
   const { data: lidos, error: lidosError } = await supabase
     .from('ab_tests')
-    .select('id, winner_variant_id, test_type, completed_reason')
+    .select('id, winner_variant_id, test_type, completed_reason, winner:ab_test_variants!winner_variant_id(is_original)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
   if (lidosError) return err('DB_ERROR', 'Failed to load completed A/B tests', 500)
 
-  const tests = (lidos ?? []).filter(t => ehVitoriaHumana({
+  const tests = (lidos ?? []).filter(t => ehVitoriaDeVariante({
     completed_reason: (t.completed_reason as string | null) ?? null,
     winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+    winner: t.winner as VencedorEmbutido,
   }))
 
   if (tests.length === 0) {
@@ -1975,7 +1977,7 @@ export async function getAbVideoHistory(
     .from('ab_tests')
     .select(`
       id, test_type, status, started_at, completed_at, winner_variant_id, completed_reason,
-      winner:ab_test_variants!winner_variant_id(label)
+      winner:ab_test_variants!winner_variant_id(label, is_original)
     `)
     .eq('youtube_video_id', youtubeVideoId)
     .eq('site_id', siteId)
@@ -1987,9 +1989,10 @@ export async function getAbVideoHistory(
     id: t.id as string,
     type: (t.test_type as string) ?? 'thumbnail',
     status: t.status as string,
-    winner: ehVitoriaHumana({
+    winner: ehVitoriaDeVariante({
       completed_reason: (t.completed_reason as string | null) ?? null,
       winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+      winner: t.winner as VencedorEmbutido,
     })
       ? ((Array.isArray(t.winner) ? t.winner[0] : t.winner) as { label: string } | null)?.label ?? null
       : null,

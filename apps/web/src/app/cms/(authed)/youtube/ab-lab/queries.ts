@@ -5,7 +5,7 @@ import { placarDoTeste, faixaDeDias, regraDoTeste } from '@/lib/youtube/ab-grava
 import { lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { AB_SITE_SETTINGS_DEFAULTS, ehVitoriaHumana } from '@/lib/youtube/ab-types'
+import { AB_SITE_SETTINGS_DEFAULTS, ehVitoriaHumana, vencedorEhOriginal, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 import type {
   AbTestWithVariants,
   AbTestVariantRow,
@@ -654,13 +654,15 @@ function buildInsightText(tags: LearningsTag[]): string {
 export async function getLearnings(siteId: string): Promise<LearningsData | null> {
   const supabase = getSupabaseServiceClient()
 
-  const { data: tests } = await supabase
+  const { data: lidos } = await supabase
     .from('ab_tests')
-    .select('id, result_metadata, winner_variant_id, test_type')
+    .select('id, result_metadata, winner_variant_id, test_type, winner:ab_test_variants!winner_variant_id(is_original)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
 
+  // S8-F4 B2: a original vencedora ("não mudar nada") não ensina tag nenhuma
+  const tests = lidos?.filter(t => !vencedorEhOriginal(t.winner as VencedorEmbutido))
   if (!tests || tests.length < 3) return null
 
   const testIds = tests.map(t => t.id as string)
@@ -689,12 +691,13 @@ export async function getChannelLearnings(siteId: string): Promise<ChannelLearni
   const supabase = getSupabaseServiceClient()
 
   // Get all completed tests with winner, including channel info
-  const { data: tests } = await supabase
+  const { data: lidos } = await supabase
     .from('ab_tests')
-    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id)')
+    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id), winner:ab_test_variants!winner_variant_id(is_original)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
+  const tests = lidos?.filter(t => !vencedorEhOriginal(t.winner as VencedorEmbutido))
 
   if (!tests?.length || tests.length < 3) {
     return null
