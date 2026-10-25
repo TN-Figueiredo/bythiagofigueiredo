@@ -393,7 +393,7 @@ function estadoInicial({ video, settings, prefill, existingDraftId }: Pick<Props
   })) as VariantData[] | undefined
 
   const type = prefillType ?? savedType
-  const passoPedido: Passo = continuingDraft && !tipoInvalido ? 'revisar' : tipoInvalido ? 'tipo' : (saved?.step ?? (prefillType || existingDraftId ? 'variantes' : 'tipo'))
+  const passoPedido: Passo = continuingDraft && !tipoInvalido ? 'revisar' : tipoInvalido ? 'tipo' : existingDraftId ? 'variantes' : (saved?.step ?? (prefillType ? 'variantes' : 'tipo'))
   return {
     // Sem tipo não há o que mostrar depois do passo Tipo
     step: type === null ? 'tipo' : passoPedido,

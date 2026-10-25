@@ -73,7 +73,7 @@ describe('passo Revisar: aviso da original (D12)', () => {
       draftTestId: null, savedAt: Date.now(),
     }))
     render(<AbCreateWizard video={video} siteId="s" settings={settings}
-      onClose={vi.fn()} onCreated={vi.fn()} iniciarTeste={start} prefill={{} as never} existingDraftId="d2" />)
+      onClose={vi.fn()} onCreated={vi.fn()} iniciarTeste={start} prefill={{} as never} />)
     await Promise.resolve()
     expect(ler).not.toHaveBeenCalled()
   })

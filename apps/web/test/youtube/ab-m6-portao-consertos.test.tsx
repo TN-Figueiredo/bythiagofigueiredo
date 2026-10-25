@@ -99,6 +99,7 @@ describe('M2: imagem já gravada não sobe de novo', () => {
     }))
     m.start.mockResolvedValueOnce({ ok: false, error: 'x' }).mockResolvedValue({ ok: true })
     render(<AbCreateWizard video={video} siteId="s" settings={{} as never} onClose={vi.fn()} onCreated={vi.fn()} iniciarTeste={m.start} existingDraftId="d1" prefill={{ testType: 'thumbnail' } as never} />)
+    fireEvent.click(screen.getByRole('button', { name: /Próximo/ })) // rascunho do servidor sem desafiante abre em Variantes
     fireEvent.click(screen.getByRole('button', { name: /Ativar teste/ }))
     await waitFor(() => expect(m.start).toHaveBeenCalledTimes(1))
     expect(m.upload).toHaveBeenCalledTimes(1)

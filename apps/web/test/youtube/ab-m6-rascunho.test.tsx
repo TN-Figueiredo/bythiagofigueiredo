@@ -144,3 +144,20 @@ describe('M6 T4b: combo reaberto', () => {
     expect(fd.get('title_text')).toBe('dois')
   })
 })
+
+describe('M6 achado E: passo do servidor vence o do localStorage', () => {
+  const guardar = (step: string) => localStorage.setItem('ab-wizard-draft-v2-vid-1', JSON.stringify({
+    step, type: 'thumbnail', variants: [{ label: 'A', isOriginal: true, thumbUrl: null, thumbDataUrl: null, titleText: 'Meu vídeo' }],
+    draftTestId: 'd1', savedAt: Date.now(),
+  }))
+  it('rascunho sem desafiante + localStorage "tipo" abre em Variantes', () => {
+    guardar('tipo')
+    montar('thumbnail', [A])
+    expect(screen.getByText(/Passo 2 de 3/)).toBeTruthy()
+  })
+  it('rascunho com desafiante + localStorage "tipo" abre em Revisar', () => {
+    guardar('tipo')
+    montar('title', [A, gravada('B', 'Fila de 3 h')])
+    expect(screen.getByText(/Passo 3 de 3/)).toBeTruthy()
+  })
+})
