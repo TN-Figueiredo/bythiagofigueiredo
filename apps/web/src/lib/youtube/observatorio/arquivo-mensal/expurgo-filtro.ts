@@ -11,7 +11,7 @@ import { serializarLinhas } from '../arquivo/exportar'
 export type Celula = string | null
 export interface UnidadeLida { colunas: string[]; linhas: Celula[][] }
 export interface UnidadeSerializada {
-  gz: Buffer | null; sha256_bytes: string; csv_sha256: string; file_bytes: number; row_count: number; control_sum: string | null; hash_conteudo: string
+  gz: Buffer | null; sha256_bytes: string | null; csv_sha256: string | null; file_bytes: number; row_count: number; control_sum: string | null; hash_conteudo: string
 }
 
 /** A coluna que carrega a chave do item, por tabela (`m3b.sql:310-350`, `obs_archive_table_exprs` l.787-806). */
@@ -35,6 +35,17 @@ function indice(u: UnidadeLida, coluna: string): number {
   const i = u.colunas.indexOf(coluna)
   if (i < 0) throw new Error(`coluna_da_chave_ausente: ${coluna}`)
   return i
+}
+
+/** Ids dos comentários da chave E das respostas dela (`parent_id`), sobre a unidade de comentários NÃO filtrada do mesmo mês: o que as marcas do item devem tirar. */
+export function idsDeComentarioComRespostas(comentariosOriginais: UnidadeLida, chaves: ReadonlySet<string>): Set<string> {
+  const ii = indice(comentariosOriginais, 'id'), ip = indice(comentariosOriginais, 'parent_id')
+  const ids = new Set<string>()
+  for (const l of comentariosOriginais.linhas) {
+    const id = l[ii]; const pai = l[ip]
+    if (id != null && (chaves.has(id) || (pai != null && chaves.has(pai)))) ids.add(id)
+  }
+  return ids
 }
 
 export function idsDeComentariosDoVideo(comentarios: UnidadeLida, videos: ReadonlySet<string>): Set<string> {
@@ -71,18 +82,24 @@ export function filtrarUnidade(o: {
 const jsonbTexto = (l: ReadonlyArray<Celula>): string => '[' + l.map(v => (v === null ? 'null' : JSON.stringify(v))).join(', ') + ']'
 export const hashConteudo = (linhas: ReadonlyArray<ReadonlyArray<Celula>>): string => sha(linhas.map(jsonbTexto).join('\n'))
 
+/** Inteiro de coluna bigint/integer: `BigInt('')`, `' 7 '` e `'0x10'` não podem passar em silêncio. */
+function inteiroDe(v: string, coluna: string): bigint {
+  if (!/^-?\d+$/.test(v)) throw new Error(`valor_nao_inteiro: ${coluna}`)
+  return BigInt(v)
+}
+
 function soma(u: UnidadeLida, coluna: string | null): string | null {
   if (coluna === null) return null
   const i = indice(u, coluna)
   let s = BigInt(0)
-  for (const l of u.linhas) { const v = l[i]; if (v != null) s += BigInt(v) }
+  for (const l of u.linhas) { const v = l[i]; if (v != null) s += inteiroDe(v, coluna) }
   return s.toString()
 }
 
 export function serializarUnidade(u: UnidadeLida, colunaControle: string | null): UnidadeSerializada {
   const hash = hashConteudo(u.linhas)
   const control_sum = soma(u, colunaControle)
-  if (u.linhas.length === 0) return { gz: null, sha256_bytes: '', csv_sha256: '', file_bytes: 0, row_count: 0, control_sum, hash_conteudo: hash }
+  if (u.linhas.length === 0) return { gz: null, sha256_bytes: null, csv_sha256: null, file_bytes: 0, row_count: 0, control_sum, hash_conteudo: hash }
   const csv = serializarLinhas(u.colunas, u.linhas)
   const gz = gzipSync(csv, { level: 9 })
   return { gz, sha256_bytes: sha(gz), csv_sha256: sha(csv), file_bytes: gz.byteLength, row_count: u.linhas.length, control_sum, hash_conteudo: hash }

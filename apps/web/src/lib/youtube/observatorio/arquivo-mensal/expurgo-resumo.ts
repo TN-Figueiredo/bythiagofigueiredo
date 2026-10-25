@@ -13,6 +13,8 @@ const DIA_SP = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo',
 /** Texto de timestamptz do Postgres com `timezone = 'UTC'` ("2026-09-01 03:00:00+00") ou data ("2026-09-01"). */
 function diaSP(ts: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(ts)) return ts
+  // sem offset o JS leria no fuso da máquina (Mac e forja não são UTC): recusa em vez de adivinhar
+  if (!/(?:[+-]\d{2}(?::?\d{2})?|Z)$/.test(ts)) throw new Error(`instante_ilegivel: ${ts}`)
   const iso = ts.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00')
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) throw new Error(`instante_ilegivel: ${ts}`)
@@ -27,7 +29,7 @@ function leituras(tabela: string, u: UnidadeLida, comentarios: UnidadeLida | und
   if (tabela === 'competitor_video_comments' || tabela === 'competitor_video_comment_marks') {
     const base = tabela === 'competitor_video_comments' ? u : comentarios
     if (!base) throw new Error('resumo_de_marcas_sem_comentarios')
-    const bi = (n: string): number => base.colunas.indexOf(n)
+    const bi = (n: string): number => { const i = base.colunas.indexOf(n); if (i < 0) throw new Error(`coluna_ausente: comentarios.${n}`); return i }
     const porId = new Map(base.linhas.map(l => [l[bi('id')]!, l]))
     return u.linhas.map(l => {
       const k = tabela === 'competitor_video_comments' ? l : porId.get(v(l, 'comment_id')!)
@@ -46,8 +48,12 @@ function leituras(tabela: string, u: UnidadeLida, comentarios: UnidadeLida | und
   }))
 }
 
+const inteiroDe = (v: string, coluna: string): bigint => {
+  if (!/^-?\d+$/.test(v)) throw new Error(`valor_nao_inteiro: ${coluna}`)
+  return BigInt(v)
+}
 const difSoma = (pares: Array<[string | null, string | null]>): string | null =>
-  pares.some(([x, y]) => x === null || y === null) ? null : pares.reduce((s, [x, y]) => s + (BigInt(y!) - BigInt(x!)), BigInt(0)).toString()
+  pares.some(([x, y]) => x === null || y === null) ? null : pares.reduce((s, [x, y]) => s + (inteiroDe(y!, 'medida') - inteiroDe(x!, 'medida')), BigInt(0)).toString()
 
 export function refazerResumo(o: {
   classe: string; canal: string; mes: string; diasDoMes: number; versao: number
@@ -55,6 +61,7 @@ export function refazerResumo(o: {
   vazias: Array<{ tabela: string; hashConteudo: string }>
   comentarios?: UnidadeLida
 }): LinhasDoResumo {
+  if (o.unidades.length + o.vazias.length === 0) throw new Error('resumo_sem_unidades')
   const canal: Celula[][] = []; const video: Celula[][] = []
   const ver = String(o.versao)
   const todas = [...o.unidades.map(u => ({ ...u, ls: leituras(u.tabela, u.unidade, o.comentarios) })),

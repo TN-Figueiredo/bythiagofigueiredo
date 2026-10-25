@@ -54,4 +54,41 @@ describe('expurgo: resumo refeito', () => {
     const r = refazerResumo({ ...base, classe: 'horaria', unidades: [{ tabela: 'competitor_video_hourly', unidade, hashConteudo: 'h' }], vazias: [] })
     expect(r.canal[0]![5]).toBe('2')
   })
+  it('sem nenhuma unidade lança (ausência não é vazio)', () => {
+    expect(() => refazerResumo({ ...base, unidades: [], vazias: [] })).toThrow('resumo_sem_unidades')
+  })
+  it('timestamp sem offset lança', () => {
+    const unidade = { colunas: ['video_id', 'hour_slot', 'views', 'likes', 'comments'], linhas: [[V1, '2026-09-01 03:00:00', '1', '1', '1']] }
+    expect(() => refazerResumo({ ...base, classe: 'horaria', unidades: [{ tabela: 'competitor_video_hourly', unidade, hashConteudo: 'h' }], vazias: [] }))
+      .toThrow('instante_ilegivel')
+  })
+  it('medida não inteira lança', () => {
+    const unidade = { colunas, linhas: [[V1, '2026-09-01', '', '1', '0'], [V1, '2026-09-02', '9', '2', '1']] }
+    expect(() => refazerResumo({ ...base, unidades: [{ tabela: 'competitor_video_daily', unidade, hashConteudo: 'h' }], vazias: [] }))
+      .toThrow('valor_nao_inteiro')
+  })
+  it('raw de canal com video_id nulo: grupo nulo contado', () => {
+    const unidade = { colunas: ['video_id', 'last_seen_at'], linhas: [[null, '2026-09-01 12:00:00+00'], [V1, '2026-09-02 12:00:00+00']] }
+    const r = refazerResumo({ ...base, unidades: [{ tabela: 'competitor_raw', unidade, hashConteudo: 'h' }], vazias: [] })
+    expect(r.canal[0]!.slice(3, 6)).toEqual(['2', '2', '2'])   // o grupo nulo conta como um "vídeo", como o group by do SQL
+    expect(r.video.map(l => l[0])).toEqual([null, V1])
+  })
+  it('comentários e marcas: resposta usa o ts do pai; marca usa o comentário', () => {
+    const com = { colunas: ['id', 'parent_id', 'video_id', 'first_seen_at'], linhas: [['7', null, V1, '2026-09-01 12:00:00+00'], ['8', '7', V1, '2026-09-20 12:00:00+00']] }
+    const marcas = { colunas: ['comment_id', 'likes'], linhas: [['8', '1']] }
+    const r = refazerResumo({
+      ...base, comentarios: com,
+      unidades: [{ tabela: 'competitor_video_comments', unidade: com, hashConteudo: 'h1' }, { tabela: 'competitor_video_comment_marks', unidade: marcas, hashConteudo: 'h2' }],
+      vazias: [],
+    })
+    const c = r.canal.find(l => l[1] === 'competitor_video_comments')!
+    expect(c.slice(4, 6)).toEqual(['2', '1'])
+    const m = r.canal.find(l => l[1] === 'competitor_video_comment_marks')!
+    expect(m.slice(3, 6)).toEqual(['1', '1', '1'])
+    expect(m[7]).toBe('2026-09-01 12:00:00+00')
+    expect(() => refazerResumo({ ...base, unidades: [{ tabela: 'competitor_video_comment_marks', unidade: marcas, hashConteudo: 'h2' }], vazias: [] }))
+      .toThrow('resumo_de_marcas_sem_comentarios')
+    expect(() => refazerResumo({ ...base, comentarios: { colunas: ['id'], linhas: [['8']] }, unidades: [{ tabela: 'competitor_video_comment_marks', unidade: marcas, hashConteudo: 'h2' }], vazias: [] }))
+      .toThrow('coluna_ausente: comentarios.parent_id')
+  })
 })
