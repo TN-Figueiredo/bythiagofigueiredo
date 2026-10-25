@@ -10,7 +10,7 @@ import { getStagePosition, getNextStage } from '@/lib/pipeline/workflows'
 import { videoColumn } from '@/lib/pipeline/video-lifecycle'
 import { loadVideoDetail } from '@/lib/pipeline/load-video-detail'
 import { ABDraftSchema } from '@/lib/pipeline/video-schemas'
-import { planAbMaterialization } from '@/lib/pipeline/video-ab-materialize'
+import { planAbMaterialization, escolherDesafiantes } from '@/lib/pipeline/video-ab-materialize'
 import { abPublishCtaState } from '@/lib/pipeline/video-ab-precondition'
 import { getSectionKey } from '@/lib/pipeline/sections'
 import { createAbTest, updateTextVariant, createTextVariant } from '@/app/cms/(authed)/youtube/ab-lab/actions'
@@ -199,13 +199,13 @@ export async function advanceVideoStage(id: string, version: number): Promise<Vi
  *   1. createAbTest (direct FK to youtube_videos, seeds is_original row, test_type:'title')
  *   2. resolve the is_original variant id → updateTextVariant (createAbTest does NOT set title_text);
  *      this row carries the `firstOnAir` variant (which thumbnail goes live first — not a user tag).
- *   3. createTextVariant ×3 (the other three variants)
+ *   3. createTextVariant ×(V_MAXIMO_V2 - 1) (winner first, then draft order; the rest go to status_note)
  * `uploadVariant` is NEVER used — the title-only flow has no thumbnail file.
  */
 async function materializeAbDraft(
   supabase: SupabaseClient, siteId: string, youtubeVideoId: string,
   code: string, draft: z.infer<typeof ABDraftSchema>,
-): Promise<{ ok: true; testId: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; testId: string; foraDoTeste: number } | { ok: false; error: string }> {
   const plan = planAbMaterialization(draft)
 
   const created = await createAbTest({
@@ -217,21 +217,34 @@ async function materializeAbDraft(
   if (!created.ok || !created.id) return { ok: false, error: created.error ?? 'createAbTest failed' }
   const testId = created.id
 
+  // Compensação: qualquer passo que falhe apaga o rascunho (senão o vídeo fica preso a um teste órfão).
+  const falhar = async (error: string): Promise<{ ok: false; error: string }> => {
+    const { error: delErr } = await supabase.from('ab_tests').delete().eq('id', testId).eq('site_id', siteId).eq('status', 'draft')
+    // Não mascara o erro original: só registra o rascunho órfão que ficou.
+    if (delErr) console.error(`[publishVideo] compensação falhou, rascunho ${testId} órfão: ${delErr.message}`)
+    return { ok: false, error }
+  }
+
   const { data: original } = await supabase
     .from('ab_test_variants')
     .select('id')
     .eq('test_id', testId).eq('is_original', true)
     .single()
-  if (!original) return { ok: false, error: 'Original variant not found' }
+  if (!original) return falhar('Original variant not found')
 
   const upd = await updateTextVariant(original.id as string, plan.originalUpdate)
-  if (!upd.ok) return { ok: false, error: upd.error ?? 'updateTextVariant failed' }
+  if (!upd.ok) return falhar(upd.error ?? 'updateTextVariant failed')
 
-  for (const c of plan.challengers) {
+  const { escolhidas, descartadas } = escolherDesafiantes(draft)
+  for (const c of escolhidas) {
     const r = await createTextVariant({ test_id: testId, title_text: c.title_text, metadata: c.metadata })
-    if (!r.ok) return { ok: false, error: r.error ?? 'createTextVariant failed' }
+    if (!r.ok) return falhar(r.error ?? 'createTextVariant failed')
   }
-  return { ok: true, testId }
+  if (descartadas.length > 0) {
+    const { error } = await supabase.from('ab_tests').update({ status_note: `Fora do teste (limite da regra v2): ${descartadas.join('; ')}` }).eq('id', testId).eq('status', 'draft')
+    if (error) return falhar(error.message)
+  }
+  return { ok: true, testId, foraDoTeste: descartadas.length }
 }
 
 /**
@@ -243,7 +256,13 @@ async function materializeAbDraft(
  * A reporter (publish denied) is 403'd by the action itself — the service-role client is never
  * obtained and `createAbTest`/`createTextVariant` are never reached.
  */
-export async function publishVideo(id: string, version: number): Promise<VideoActionResult<{ testId: string; stage: string; version: number }>> {
+/** Aviso do que ficou de fora do teste (limite da regra v2); null quando nada foi descartado. */
+function avisoForaDoTeste(n: number): string | null {
+  if (n <= 0) return null
+  return `${n} ${n === 1 ? 'título ficou fora do teste' : 'títulos ficaram fora do teste'} (limite da regra nova); ${n === 1 ? 'está' : 'estão'} na nota do teste.`
+}
+
+export async function publishVideo(id: string, version: number): Promise<VideoActionResult<{ testId: string; stage: string; version: number; foraDoTeste: number; aviso: string | null }>> {
   const { siteId } = await getSiteContext()
   const scope = await requireSiteScope({ area: 'cms', siteId, mode: 'publish' })
   if (!scope.ok) return { ok: false, error: scopeError(scope.reason) }
@@ -284,6 +303,6 @@ export async function publishVideo(id: string, version: number): Promise<VideoAc
   const row = updated as { stage?: string; version?: number }
   return {
     ok: true,
-    data: { testId: mat.testId, stage: row.stage ?? 'published', version: row.version ?? version },
+    data: { testId: mat.testId, stage: row.stage ?? 'published', version: row.version ?? version, foraDoTeste: mat.foraDoTeste, aviso: avisoForaDoTeste(mat.foraDoTeste) },
   }
 }

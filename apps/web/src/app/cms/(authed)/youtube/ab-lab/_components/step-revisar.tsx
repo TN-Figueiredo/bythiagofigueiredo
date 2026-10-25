@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle, CircleHelp } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
+import { tetoMinimo, tetoPadrao } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { Badge, VChip } from './ab-primitives'
 import { NOTA_ATIVAR, tituloDoBanner, type AvisoOriginal, type EstadoAviso } from '@/lib/youtube/ab-original-resolucao'
 import { VARIANT_COLORS, TYPE_META, ROTULO_TIPO_DESCONHECIDO_CURTO } from './ab-constants'
@@ -26,6 +27,8 @@ export interface StepRevisarProps {
   videoTitle: string
   /** D12: estado da leitura da resolução da original (undefined = não se aplica). */
   avisoOriginal?: EstadoAviso
+  /** S8-F4 T11c: uma linha do aviso de volume da regra nova; null/ausente = nada a dizer. Nunca bloqueia o botão. */
+  avisoVolume?: string | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -53,7 +56,7 @@ function buildSummaryText(
   const parts: string[] = [
     `${variants.length} variantes ${TYPE_LABELS_PT[type as TestType] ?? ROTULO_TIPO_DESCONHECIDO_CURTO}`,
     `rotação ${ROTATION_LABELS[config.rotation]}`,
-    `${config.duration} dias`,
+    `Duração: ${tetoPadrao(variants.length)} dias; mínimo ${tetoMinimo(variants.length)}`,
   ]
   return parts.join(' · ')
 }
@@ -157,7 +160,7 @@ function AvisoResolucao({ aviso }: { aviso: AvisoComSelo }) {
 /*  StepRevisar                                                        */
 /* ------------------------------------------------------------------ */
 
-export function StepRevisar({ type, variants, config, videoTitle, avisoOriginal }: StepRevisarProps) {
+export function StepRevisar({ type, variants, config, videoTitle, avisoOriginal, avisoVolume }: StepRevisarProps) {
   const summaryText = buildSummaryText(variants, type, config)
   const clickMomentVariants = buildClickMomentVariants(variants)
   const winnerLabel = variants.length > 1 ? variants[variants.length - 1]!.label : 'A'
@@ -195,6 +198,10 @@ export function StepRevisar({ type, variants, config, videoTitle, avisoOriginal 
         ) : (
           <AvisoResolucao aviso={avisoOriginal} />
         )
+      ) : null}
+
+      {avisoVolume ? (
+        <p data-aviso-volume className="m-0 text-[12.5px] text-cms-text-muted">{avisoVolume}</p>
       ) : null}
 
       {/* Variant preview grid — 2x2 */}

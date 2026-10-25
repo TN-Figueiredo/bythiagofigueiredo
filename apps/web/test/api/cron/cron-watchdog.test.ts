@@ -52,6 +52,9 @@ function row(over: Partial<IRow> & { cron_name: string }): IRow {
   }
 }
 
+const MESES_12 = ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly']
+  .map(table_name => ({ table_name, months_ahead: 12, last_month: null, converted_at: null }))
+
 function makeSupabase(rows: IRow[], opts: { selectError?: string; claim?: boolean } = {}) {
   const from = vi.fn((table: string) => {
     if (table !== 'cron_health') return {}
@@ -75,6 +78,8 @@ function makeSupabase(rows: IRow[], opts: { selectError?: string; claim?: boolea
   // A agenda (A5 E16) é lida por `competitor_agenda_state`, com `.abortSignal(...)`: aqui responde "schema ausente"
   // (PGRST202), o estado real de produção antes da migration MG10. As demais chamadas são o lock do cron.
   const rpc = vi.fn((fn?: string) => {
+    // Vigia de partições (M2 T6-T7): 12 meses à frente nas 3 tabelas = item verde.
+    if (fn === 'obs_partitions_months_ahead') return { abortSignal: () => Promise.resolve({ data: MESES_12, error: null }) }
     if (fn === 'competitor_agenda_state') {
       return { abortSignal: () => Promise.resolve({ data: null, error: { code: 'PGRST202', message: 'função ausente' } }) }
     }

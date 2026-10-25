@@ -31,8 +31,7 @@ describe('M3b parte 7 (texto, roda sem banco): sem papel de banco', () => {
   })
 })
 
-// SKIP 23/10/2026 (envio E0): este teste monta o banco com o corpo antigo (fixture MG6/E10 de 14/10) e a M2/M3b novas guardam por md5 o corpo da 0007 (M2:/M3b:competitor_channel_remove_archived_divergente). Religar na onda da M2 (11c) e M3b (md5 recomputado, yannis.md 3.3): `.skip` -> o `describe.skipIf(skipIfNoLocalDb())` original.
-describe.skip('M3b parte 7: pendências do dono (sem papel de leitura)', () => {
+describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel de leitura)', () => {
   let c: Client
   beforeAll(async () => { c = new Client({ connectionString: PG_URL }); await c.connect() })
   afterAll(async () => { await c.end() })

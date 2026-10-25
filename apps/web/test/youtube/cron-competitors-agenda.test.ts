@@ -35,7 +35,7 @@ vi.mock('@/lib/youtube/agenda/executar', async (orig) => {
   const o = await orig<typeof import('@/lib/youtube/agenda/executar')>()
   return {
     ...o,
-    antesDoLoteAntigo: [{ nome: 'anular_identidade' }],
+    antesDoLoteAntigo: [{ nome: 'anular_identidade' }, { nome: 'particoes_a_frente' }],
     executarAgenda: vi.fn(o.executarAgenda),
     rodarAntesDoLoteAntigo: vi.fn(async () => ({ tarefas: [], problemas: [], notas: [] })),
   }

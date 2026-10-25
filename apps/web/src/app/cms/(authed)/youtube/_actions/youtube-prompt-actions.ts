@@ -33,7 +33,7 @@ import type {
 } from '@/lib/youtube/prompt-types'
 import type { YtDemographics } from '@/lib/youtube/analytics-types'
 import { latestRow } from '@/lib/youtube/rolling-window'
-import { ehVitoriaHumana } from '@/lib/youtube/ab-types'
+import { ehVitoriaDeVariante, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 
 type ActionResult<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -269,7 +269,7 @@ export async function fetchChannelHealthData(
         .limit(50),
       supabase
         .from('ab_tests')
-        .select('name, test_type, winner_variant_id, completed_reason, youtube_video_id')
+        .select('name, test_type, winner_variant_id, completed_reason, youtube_video_id, winner:ab_test_variants!winner_variant_id(is_original)')
         .eq('site_id', siteId)
         .eq('status', 'completed')
         .not('winner_variant_id', 'is', null)
@@ -513,9 +513,10 @@ export async function fetchChannelHealthData(
 
     // --- AB test results ---
     // Vitória só conta quando humana (filtro em memória, depois da leitura)
-    const abTests = (abTestsRes.data ?? []).filter(t => ehVitoriaHumana({
+    const abTests = (abTestsRes.data ?? []).filter(t => ehVitoriaDeVariante({
       completed_reason: (t.completed_reason as string | null) ?? null,
       winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+      winner: t.winner as VencedorEmbutido,
     }))
     const abWinnerVariantIds = abTests
       .map((t: { winner_variant_id: string | null }) => t.winner_variant_id as string)

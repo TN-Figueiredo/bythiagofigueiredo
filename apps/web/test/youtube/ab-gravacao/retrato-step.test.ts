@@ -29,7 +29,7 @@ function teste(id: string, o: Linha = {}): Linha {
   }
 }
 function ciclo(testId: string, inicio: string, fim: string | null = null, n = 1): Linha {
-  return { id: `c-${testId}-${n}`, test_id: testId, variant_id: 'v-a', started_at: inicio, ended_at: fim, applied_metadata: null }
+  return { id: `c-${testId}-${n}`, test_id: testId, variant_id: 'v-a', started_at: inicio, ended_at: fim, applied_metadata: null, cycle_number: n }
 }
 function aberta(testId: string, day: string): Linha {
   return { test_id: testId, day_pt: day, final: false }
@@ -198,5 +198,64 @@ describe('rodarRetrato: testes fora da primeira leitura, apagados e notas (D2)',
     const chamadas = rpc(f, 'ab_test_dias_apply')
     expect(chamadas.length).toBeGreaterThan(1)
     expect(chamadas.every((c) => (c.args.p_rows as unknown[]).length <= 500)).toBe(true)
+  })
+})
+
+describe('rodarRetrato: S8-F4 T7', () => {
+  const gtesDe = (f: ReturnType<typeof criarFakeSb>, tabela: string) => f.gtes.filter((g) => g.tabela === tabela && g.coluna === 'day_pt').map((g) => g.valor)
+
+  it('a linha gravada leva cycle_number em cada item de ciclos', async () => {
+    const f = criarFakeSb({ ab_tests: [teste('t1')], ab_test_cycles: [ciclo('t1', ha(5), null, 7)] })
+    await rodarRetrato(f.sb, agora())
+    const l = linhasApply(f)
+    expect(l.length).toBeGreaterThan(0)
+    for (const x of l) for (const c of x.ciclos as Array<{ cycle_number: number }>) expect(c.cycle_number).toBe(7)
+  })
+
+  it('v2 iniciado há 30 dias sem n: o gte de meta/alcance desce a started_at - 14 d', async () => {
+    const ini = ha(30)
+    const f = criarFakeSb({
+      ab_tests: [teste('t1', { regra_duracao: 'v2', started_at: ini, result_metadata: {}, config: {} })],
+      ab_test_cycles: [ciclo('t1', ini)],
+    })
+    await rodarRetrato(f.sb, agora())
+    const alvo = new Date(Date.parse(ini) - 14 * DIA_MS).toISOString().slice(0, 10)
+    const piso = janelaDesde(ontemPt(agora()))
+    for (const t of ['yt_own_video_meta_daily', 'yt_own_video_reach_daily']) {
+      const g = gtesDe(f, t)
+      expect(g).toHaveLength(1)
+      expect(g[0]! < piso).toBe(true)
+      expect(Math.abs(Date.parse(g[0]!) - Date.parse(alvo))).toBeLessThanOrEqual(DIA_MS)
+    }
+    expect(f.gtes.some((g) => g.tabela === 'yt_reporting_reports' && g.valor < new Date(Date.parse(piso) - DIA_MS).toISOString())).toBe(true)
+  })
+
+  it('v2 com n gravado e v1: o gte é o de hoje', async () => {
+    const ini = ha(30)
+    const piso = janelaDesde(ontemPt(agora()))
+    for (const over of [{ regra_duracao: 'v2', result_metadata: { v2: { n: 5 } } }, { regra_duracao: 'v1', result_metadata: {} }]) {
+      const f = criarFakeSb({ ab_tests: [teste('t1', { started_at: ini, config: {}, ...over })], ab_test_cycles: [ciclo('t1', ini)] })
+      await rodarRetrato(f.sb, agora())
+      expect(gtesDe(f, 'yt_own_video_meta_daily')).toEqual([piso])
+      expect(gtesDe(f, 'yt_own_video_reach_daily')).toEqual([piso])
+    }
+  })
+
+  it('devolve duracao_ms e entradas; videosLidos não inclui vídeo de teste fora do corte de 11 dias', async () => {
+    const f = criarFakeSb({
+      ab_tests: [
+        teste('t1'),
+        teste('t2', { status: 'completed', completed_at: ha(20), _soNaSegunda: true, youtube_videos: { youtube_video_id: 'zzzzzzzzzzz', channel_id: 'ch2' } }),
+      ],
+      ab_test_cycles: [ciclo('t1', ha(5))],
+    })
+    const r = await rodarRetrato(f.sb, agora())
+    expect(r.status).toBe('ok')
+    if (r.status !== 'ok') return
+    expect(typeof r.duracao_ms).toBe('number')
+    expect(r.entradas?.videosLidos.has(VID)).toBe(true)
+    expect(r.entradas?.videosLidos.has('zzzzzzzzzzz')).toBe(false)
+    expect(r.entradas?.porTeste.get('t1')?.started_at).toBeTruthy()
+    expect(r.entradas?.ciclosPorTeste.get('t1')?.[0]?.cycle_number).toBe(1)
   })
 })

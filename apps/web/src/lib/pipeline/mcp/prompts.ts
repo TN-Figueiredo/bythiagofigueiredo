@@ -27,7 +27,7 @@ import { SECTION_DEFINITIONS, getSectionKey } from '@/lib/pipeline/sections'
 import { buildAbBriefingPrompt, buildAbWritePrompt, buildAbReviewPrompt } from '@/lib/youtube/prompt-builders-ab'
 import { buildPlaylistPrompt, type PlaylistPromptInput } from '@/lib/playlists/prompt-builder'
 import { getChannelTier } from '@/lib/youtube/scoring'
-import { ehVitoriaHumana, type TestType } from '@/lib/youtube/ab-types'
+import { ehVitoriaDeVariante, type TestType, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 import { DESCRICAO_FORA_DO_TESTE, TIPOS_DE_TESTE, TestTypeSchema, pedeDescricao } from '@/lib/youtube/ab-schemas'
 import type { AbBriefingData } from '@/lib/youtube/prompt-types'
 import type { Format } from '@/lib/pipeline/schemas'
@@ -649,7 +649,7 @@ export function registerPrompts(server: McpServer): void {
       const { data: testHistory, error: historyError } = siteId
         ? await supabase
           .from('ab_tests')
-          .select('test_type, winner_variant_id, completed_reason')
+          .select('test_type, winner_variant_id, completed_reason, winner:ab_test_variants!winner_variant_id(is_original)')
           .eq('site_id', siteId)
           .eq('status', 'completed')
           .order('completed_at', { ascending: false })
@@ -659,9 +659,10 @@ export function registerPrompts(server: McpServer): void {
 
       const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
         test_type: t.test_type as string,
-        winner_label: ehVitoriaHumana({
+        winner_label: ehVitoriaDeVariante({
           completed_reason: (t.completed_reason as string | null) ?? null,
           winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+          winner: t.winner as VencedorEmbutido,
         }) ? 'variant' : null,
       }))
 
@@ -743,7 +744,7 @@ export function registerPrompts(server: McpServer): void {
       // Fetch test history (completed tests of this site)
       const { data: testHistory, error: historyError } = await supabase
         .from('ab_tests')
-        .select('test_type, winner_variant_id, completed_reason')
+        .select('test_type, winner_variant_id, completed_reason, winner:ab_test_variants!winner_variant_id(is_original)')
         .eq('site_id', siteId)
         .eq('status', 'completed')
         .order('completed_at', { ascending: false })
@@ -752,9 +753,10 @@ export function registerPrompts(server: McpServer): void {
 
       const history = (testHistory ?? []).map((t: Record<string, unknown>) => ({
         test_type: t.test_type as string,
-        winner_label: ehVitoriaHumana({
+        winner_label: ehVitoriaDeVariante({
           completed_reason: (t.completed_reason as string | null) ?? null,
           winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+          winner: t.winner as VencedorEmbutido,
         }) ? 'variant' : null,
       }))
 

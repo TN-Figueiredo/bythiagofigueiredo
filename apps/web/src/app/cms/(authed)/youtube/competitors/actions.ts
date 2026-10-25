@@ -561,6 +561,9 @@ export async function syncCompetitorsNow(): Promise<SyncNowResult> {
 
 const PIN_DENIED: PinResult = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar ou desafixar vídeos neste site. Se a sessão expirou, entre de novo.' }
 const PIN_GONE: PinResult = { ok: false, kind: 'denied', error: 'Este vídeo não existe mais no Observatório.' }
+// M10a (frases da §14.10 do 04; a de quem só edita é do redator, para o revisor de UX)
+const PIN_PRECISA_ADMIN: PinResult = { ok: false, kind: 'denied', error: 'Este vídeo está em leitura mensal. Só quem administra o site pode voltar a acompanhá-lo por inteiro.' }
+const PIN_NO_ARQUIVO: PinResult = { ok: false, kind: 'denied', error: "Este vídeo está no arquivo e não pode ser fixado. As views dele continuam sendo lidas uma vez por mês; o histórico está em 'Ver antigo'. Voltar a acompanhar por inteiro um vídeo que está no arquivo ainda não existe." }
 const PIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível fixar agora. Tente de novo.' }
 const UNPIN_FAILED: PinResult = { ok: false, kind: 'failed', error: 'Não foi possível desafixar agora. Tente de novo.' }
 interface PinTarget { id: string; channelId: string; channelName: string; pinnedAt: string | null }
@@ -590,10 +593,14 @@ export async function pinVideo(videoId: string): Promise<PinResult> {
   if (typeof videoId !== 'string' || !UUID_RE.test(videoId)) return PIN_GONE
 
   const supabase = getSupabaseServiceClient()
-  const { data, error } = await supabase.rpc('pin_competitor_video', { p_site_id: who.siteId, p_video_id: videoId, p_user_id: who.userId, p_limit: RULES.pinLimit })
+  // M10a (V14): fixar um vídeo em leitura mensal o descongela, e isso é de quem administra. Falha de quem pergunta = "não administra" (falha fechada).
+  const podeDescongelar = await canAdminSiteUsers(who.siteId)
+  const { data, error } = await supabase.rpc('pin_competitor_video', { p_site_id: who.siteId, p_video_id: videoId, p_user_id: who.userId, p_limit: RULES.pinLimit, p_pode_descongelar: podeDescongelar })
   if (error || typeof data !== 'object' || data === null || Array.isArray(data)) return PIN_FAILED
   const d = data as Record<string, unknown>
   if (d.status === 'not_found') return PIN_GONE
+  if (d.status === 'precisa_admin') return PIN_PRECISA_ADMIN
+  if (d.status === 'ja_no_arquivo') return PIN_NO_ARQUIVO
   if (d.status === 'cap') {
     // an answer without the count is "could not check": the sentence never invents a number
     if (typeof d.pinned !== 'number') return PIN_FAILED

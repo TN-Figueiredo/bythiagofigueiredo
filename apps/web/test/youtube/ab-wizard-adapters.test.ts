@@ -7,11 +7,17 @@ describe('wizardConfigToAbConfig', () => {
     const result = wizardConfigToAbConfig({ confidence: 95, duration: 14, burnIn: 2, rotation: 'abba' })
     expect(result.confidence_threshold).toBe(0.95)
   })
-  it('maps duration to max_duration_days', () => {
-    const result = wizardConfigToAbConfig({ confidence: 95, duration: 21, burnIn: 2, rotation: 'abba' })
-    expect(result.max_duration_days).toBe(21)
+  it('duração tocada (legado): também NÃO manda max_duration_days nem teto_explicito (S8-F4 D2)', () => {
+    const result = wizardConfigToAbConfig({ confidence: 95, duration: 21, burnIn: 2, rotation: 'abba', durationTouched: true })
+    expect(result).not.toHaveProperty('max_duration_days')
+    expect(result).not.toHaveProperty('teto_explicito')
   })
-  it('passes rotation through unchanged', () => {
+  it('duração sem toque: NÃO manda max_duration_days nem teto_explicito (A4)', () => {
+    const result = wizardConfigToAbConfig({ confidence: 95, duration: 14, burnIn: 2, rotation: 'abba' })
+    expect(result).not.toHaveProperty('max_duration_days')
+    expect(result).not.toHaveProperty('teto_explicito')
+  })
+  it('passes rotation through unchanged (o início da v2 é quem recusa o que não for abba)', () => {
     const result = wizardConfigToAbConfig({ confidence: 95, duration: 14, burnIn: 2, rotation: 'round_robin' })
     expect(result.rotation_pattern).toBe('round_robin')
   })

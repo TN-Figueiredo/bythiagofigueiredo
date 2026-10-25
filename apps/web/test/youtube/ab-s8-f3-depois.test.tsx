@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Placar, PlacarVariante } from '@/lib/youtube/ab-gravacao/placar'
 import { regraDoTeste } from '@/lib/youtube/ab-gravacao/placar'
-import { fraseDoPlacar } from '@/app/cms/(authed)/youtube/ab-lab/_components/placar-texto'
+import { fraseDoPlacar, faixaDoPlacar } from '@/app/cms/(authed)/youtube/ab-lab/_components/placar-texto'
 import { horaDaFalha } from '@/app/cms/(authed)/youtube/ab-lab/_components/hora-da-falha'
 import { fakePostgrest } from '../helpers/fake-postgrest'
 import { makeTestRow } from '../helpers/ab-fixtures'
@@ -69,5 +69,19 @@ describe('S8-F3 depois: Phil 5, motivo do erro no Cowork', () => {
     for (const f of [() => listAbTests(ctx(), {}), () => getAbTest(ctx(), 't1'), () => getAbTestFunnel(ctx(), 't1')]) {
       await expect(f()).rejects.toThrow('Failed to load A/B scoreboard: erro_de_banco')
     }
+  })
+})
+
+describe('S8-F3: teste encerrado sem dia medido', () => {
+  const vazio = () => pl({ dias_total: 0, variantes: [pv('a'), pv('b')] })
+  it.each(['completed', 'archived'])('%s: frase de fim e sem faixa', (st) => {
+    const f = fraseDoPlacar(vazio(), st)
+    expect(f.principal).toBe('O teste terminou antes de o YouTube fechar algum dia. Não há números deste teste.')
+    expect(f.apoio).toBe('')
+    expect(faixaDoPlacar(vazio(), st)).toBeNull()
+  })
+  it.each(['active', 'paused'])('%s continua como em andamento', (st) => {
+    expect(fraseDoPlacar(vazio(), st).principal).toContain('começou há pouco')
+    expect(faixaDoPlacar(vazio(), st)).toBe('sem_dia_fechado')
   })
 })

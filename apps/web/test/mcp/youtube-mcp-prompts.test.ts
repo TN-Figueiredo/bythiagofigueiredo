@@ -628,6 +628,23 @@ describe('R93 — prompts de A/B contra o esquema real', () => {
     expect(data.testHistory).toEqual([{ test_type: 'thumbnail', winner_label: null }, { test_type: 'title', winner_label: 'variant' }])
   })
 
+  it('S8-F4 B2: a original vencedora (manual_winner) não vira winner_label "variant" nem em ab-write nem em ab-ideate', async () => {
+    const orig = { is_original: true }
+    const tabelas = {
+      ab_tests: [
+        test_(T_EN, {}),
+        test_('done-orig', { status: 'completed', test_type: 'title', winner_variant_id: 'w-orig', completed_reason: 'manual_winner', completed_at: '2026-09-10T00:00:00Z', winner: orig }),
+        test_('done-var', { status: 'completed', test_type: 'thumbnail', winner_variant_id: 'w-var', completed_reason: 'manual_winner', completed_at: '2026-09-09T00:00:00Z', winner: { is_original: false } }),
+      ],
+    } as Partial<FakePostgrestOptions['tables']>
+    await start(world(tabelas))
+    await pair.client.getPrompt({ name: 'ab-write', arguments: { test_id: T_EN } })
+    await pair.client.getPrompt({ name: 'ab-ideate', arguments: { test_type: 'title' } })
+    const esperado = [{ test_type: 'title', winner_label: null }, { test_type: 'thumbnail', winner_label: 'variant' }]
+    expect(vi.mocked(buildAbWritePrompt).mock.calls[0]![0].data.testHistory).toEqual(esperado)
+    expect(vi.mocked(buildAbBriefingPrompt).mock.calls[0]![0].data.testHistory).toEqual(esperado)
+  })
+
   it('P3: ab-write sobre teste gravado como description rejeita com a frase; tipo desconhecido, com "Tipo de teste desconhecido"', async () => {
     await start(world({
       ab_tests: [test_('t-desc', { test_type: 'description' }), test_('t-xyz', { test_type: 'xyz' })],

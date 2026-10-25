@@ -1,18 +1,33 @@
+import { z } from 'zod'
 import type { RestoreStatus } from '@/lib/youtube/ab-restore'
 import type { DiaDaFaixa, Placar } from '@/lib/youtube/ab-gravacao/placar'
 export const VARIANT_LABELS = ['B', 'C', 'D'] as const
 export type VariantLabel = (typeof VARIANT_LABELS)[number]
 
 export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'queued'
-export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'manual_no_apply' | 'manual_apply' | 'max_duration' | 'inconclusive'
+export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'manual_no_apply' | 'manual_apply' | 'max_duration' | 'inconclusive' | 'regra_v2'
 export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'
 
 /** Razões de encerramento em que uma pessoa escolheu o vencedor. Nenhum caminho automático grava estas. */
 export const RAZOES_DE_VITORIA_HUMANA = ['manual_winner', 'manual_apply'] as const
 
 /** Vitória só conta quando humana: tem vencedor gravado E o encerramento foi decisão de pessoa. */
-export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null }): boolean {
-  return t.winner_variant_id !== null && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
+export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null; winner_is_original?: boolean }): boolean {
+  // S8-F4 B2: "a original vence" é decisão humana, mas não é vitória de variante (winRate); quem conhece as variantes passa winner_is_original.
+  return t.winner_variant_id !== null && t.winner_is_original !== true && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
+}
+/** Variante vencedora embutida na leitura (`winner:ab_test_variants!winner_variant_id(is_original)`): objeto, lista de um ou nula. */
+export type VencedorEmbutido = { is_original?: boolean | null } | Array<{ is_original?: boolean | null }> | null | undefined
+
+/** S8-F4 B2: fonte única de "a vencedora é a original" para quem lê o vencedor embutido. */
+export function vencedorEhOriginal(w: VencedorEmbutido): boolean {
+  const v = Array.isArray(w) ? w[0] : w
+  return v?.is_original === true
+}
+
+/** Vitória humana DE VARIANTE: igual a ehVitoriaHumana, mas a original vencedora ("não mudar nada") não conta. Use em todo agregado e rótulo. */
+export function ehVitoriaDeVariante(t: { completed_reason: string | null; winner_variant_id: string | null; winner?: VencedorEmbutido }): boolean {
+  return ehVitoriaHumana({ completed_reason: t.completed_reason, winner_variant_id: t.winner_variant_id, winner_is_original: vencedorEhOriginal(t.winner) })
 }
 export type TestType = 'thumbnail' | 'title' | 'combo'
 
@@ -24,6 +39,8 @@ export interface AbTestConfig {
   auto_apply_winner?: boolean
   rotation_pattern: 'abba' | 'round_robin' | 'random'
   stability_threshold: number
+  /** v2: true sse o usuário mexeu no teto; sem isso o início grava `tetoPadrao(V)` (S8-F4). */
+  teto_explicito?: boolean
 }
 
 export const AB_TEST_CONFIG_DEFAULTS: AbTestConfig = {
@@ -140,6 +157,8 @@ export interface AbTestWithVariants extends AbTestRow {
   variants: AbTestVariantRow[]
   current_cycle: CicloSemEntrega | null
   total_cycles: number
+  /** S8-F4 T11c: ciclos da leitura da lista, só para o "Dia X/Y" de v2. */
+  ciclos?: CicloSemEntrega[]
 }
 
 export interface ReferenciaDoTeste {
@@ -189,11 +208,64 @@ export interface CreateTextVariantInput {
   metadata?: Partial<VariantMetadata>
 }
 
-export interface ResultMetadata {
-  ctr_lift_percent: number
-  winner_label: string
-  total_impressions: number
-  estimated_monthly_extra_clicks: number
+export type DesfechoV2 = 'vencedor_provavel' | 'sem_diferenca_detectavel' | 'inconclusivo_por_dado' | 'inconclusivo_por_volume' | 'inconclusivo_por_falha' | 'aguardando_alcance'
+
+export interface ResultadoV2 {
+  n?: number | null; k?: number | null; p1?: number | null; p1_dias?: number | null; p1_impressoes?: number | null
+  base_estimada?: boolean | null; p1_dias_sem_meta?: number | null
+  desfecho?: DesfechoV2 | null; provisorio?: boolean | null; desfecho_no_encerramento?: DesfechoV2 | null; desfecho_final?: DesfechoV2 | null
+  encerrado_em_dia?: string | null; vencedor_sugerido?: string | null
+  /** Phil N4: n congelado sem leitura do vídeo (p1 = 0,04, base_estimada = true). */
+  p1_motivo?: 'sem_leitura' | null
+  /** Escalares do topo = os da variante de MENOR p_adj (ou da sugerida, quando há); por variante em por_variante. */
+  gl?: number | null; p_adj?: number | null; z?: number | null; phi?: number | null; z_adj?: number | null; sinais_por_bloco?: number[] | null
+  /** Todas as comparações (A8 / I-6): a tela e o Cowork leem daqui, nunca recalculam. */
+  por_variante?: Array<{ variant_id: string; alfa: number; z: number; z_adj: number; p_adj: number; sinais_por_bloco: number[]; passa: boolean; lift: number }> | null
+  ultima_avaliacao?: { em: string; acao: 'seguir' | 'encerrar_adiado'; sem_n?: boolean; dias_relogio: number; dias_validos: Record<string, number>; blocos_completos: number; volume: Record<string, number | null> } | null
+  /** Dia PT, não contagem de execução (M2). */
+  tentativa_falhou?: { em: string; motivo: string; em_andamento_desde?: string } | null
+  /** Não congelada; a rede grava ANTES do settle (A9). */
+  rede_tentou_em?: string | null
+  finalizado_por_prazo?: boolean | null
+  /** O teste fechou mas o campo não voltou ao original; a vigia restaura. Falha à parte de `tentativa_falhou`. */
+  volta_falhou?: { em: string } | null
+  historico?: Array<{ em: string; desfecho: DesfechoV2 }>
+}
+
+const DESFECHO_V2 = z.enum(['vencedor_provavel', 'sem_diferenca_detectavel', 'inconclusivo_por_dado', 'inconclusivo_por_volume', 'inconclusivo_por_falha', 'aguardando_alcance'])
+const NUM = z.number().finite()
+
+export const ResultadoV2Schema: z.ZodType<ResultadoV2> = z.object({
+  n: NUM.positive().nullish(), k: NUM.nullish(), p1: NUM.nullish(), p1_dias: NUM.nullish(), p1_impressoes: NUM.nullish(),
+  base_estimada: z.boolean().nullish(), p1_dias_sem_meta: NUM.nullish(),
+  desfecho: DESFECHO_V2.nullish(), provisorio: z.boolean().nullish(), desfecho_no_encerramento: DESFECHO_V2.nullish(), desfecho_final: DESFECHO_V2.nullish(),
+  encerrado_em_dia: z.string().nullish(), vencedor_sugerido: z.string().nullish(),
+  p1_motivo: z.literal('sem_leitura').nullish(),
+  gl: NUM.nullish(), p_adj: NUM.nullish(), z: NUM.nullish(), phi: NUM.nullish(), z_adj: NUM.nullish(), sinais_por_bloco: z.array(NUM).nullish(),
+  por_variante: z.array(z.object({
+    variant_id: z.string(), alfa: NUM, z: NUM, z_adj: NUM, p_adj: NUM, sinais_por_bloco: z.array(NUM), passa: z.boolean(), lift: NUM,
+  })).nullish(),
+  ultima_avaliacao: z.object({
+    em: z.string(), acao: z.enum(['seguir', 'encerrar_adiado']), sem_n: z.boolean().optional(), dias_relogio: NUM,
+    dias_validos: z.record(NUM), blocos_completos: NUM, volume: z.record(NUM.nullable()),
+  }).nullish(),
+  tentativa_falhou: z.object({ em: z.string(), motivo: z.string(), em_andamento_desde: z.string().optional() }).nullish(),
+  rede_tentou_em: z.string().nullish(),
+  finalizado_por_prazo: z.boolean().nullish(),
+  volta_falhou: z.object({ em: z.string() }).nullish(),
+  historico: z.array(z.object({ em: z.string(), desfecho: DESFECHO_V2 })).optional(),
+})
+
+export type ResultMetadata = { v2?: ResultadoV2 } & Partial<{
+  ctr_lift_percent: number; winner_label: string; total_impressions: number; estimated_monthly_extra_clicks: number
+}>
+
+export function lerResultadoV2(meta: unknown): { estado: 'ausente' } | { estado: 'ilegivel' } | { estado: 'ok'; v2: ResultadoV2 } {
+  if (meta === null || typeof meta !== 'object' || !('v2' in meta)) return { estado: 'ausente' }
+  const bruto = (meta as { v2?: unknown }).v2
+  if (bruto === undefined || bruto === null) return { estado: 'ausente' }
+  const r = ResultadoV2Schema.safeParse(bruto)
+  return r.success ? { estado: 'ok', v2: r.data } : { estado: 'ilegivel' }
 }
 
 export interface BayesianResult {
@@ -331,6 +403,10 @@ export interface AbTestCardView {
   statusNote: string | null
   cycleStartedAt: string | null
   queueStartAfter: string | null
+  /** S8-F4 T11c: "Dia X/Y" de teste v2 (dias fechados com ciclo, de `estadoV2DoTeste`); ausente em v1. */
+  diaV2?: { dia: number; teto: number }
+  /** S8-F4 T11c: rótulo do concluído por `regra_v2`; ausente nos demais. */
+  rotuloV2?: string | null
   /** T10: só nos pausados por teste do YouTube (`status_note = NOTA_TESTE_YOUTUBE`); preenchido pela página (servidor). */
   pausaYoutube?: { aberto: boolean; ate: string | null }
 }

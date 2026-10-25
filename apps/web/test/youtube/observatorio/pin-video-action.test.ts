@@ -19,6 +19,8 @@ interface Opts {
   updated?: Array<{ id: string }> | null
   /** What pin_competitor_video answers. Default: { status: 'ok', already: false }. */
   rpc?: { data: unknown; error: { code?: string; message: string } | null }
+  /** M10a: o que `canAdminSiteUsers` responde (quem administra o site). Padrão: não administra. */
+  admin?: boolean
 }
 async function load(o: Opts = {}) {
   vi.resetModules()
@@ -38,7 +40,8 @@ async function load(o: Opts = {}) {
     q.then = (res: (x: unknown) => unknown) => Promise.resolve(answer(call)).then(res)
     return q
   }
-  const revalidatePath = vi.fn(), revalidateTag = vi.fn()
+  const revalidatePath = vi.fn(), revalidateTag = vi.fn(), adminCalls: string[] = []
+  vi.doMock('@/lib/youtube/competitor-admin', () => ({ canAdminSiteUsers: async (siteId: string) => { adminCalls.push(siteId); return o.admin === true } }))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({
     requireSiteScope: async () => {
@@ -51,7 +54,7 @@ async function load(o: Opts = {}) {
   const { pinVideo, unpinVideo } = await import('@/app/cms/(authed)/youtube/competitors/actions')
   const updates = () => calls.filter(c => has(c, 'update'))
   const opArgs = (c: Call, op: string) => c.ops.filter(x => x[0] === op).map(x => x[1])
-  return { pinVideo, unpinVideo, calls, order, rpcCalls, revalidatePath, revalidateTag, updates, opArgs }
+  return { pinVideo, unpinVideo, calls, order, rpcCalls, adminCalls, revalidatePath, revalidateTag, updates, opArgs }
 }
 const DENIED = { ok: false, kind: 'denied', error: 'Você não tem permissão para fixar ou desafixar vídeos neste site. Se a sessão expirou, entre de novo.' }
 const GONE = { ok: false, kind: 'denied', error: 'Este vídeo não existe mais no Observatório.' }
@@ -85,7 +88,7 @@ describe('pinVideo', () => {
   it('fixa por UMA chamada ao banco: site do contexto, vídeo, quem fixou e o teto de RULES.pinLimit; revalida', async () => {
     const a = await load()
     expect(await a.pinVideo(VID)).toEqual({ ok: true })
-    expect(a.rpcCalls).toEqual([['pin_competitor_video', { p_site_id: 's1', p_video_id: VID, p_user_id: 'u1', p_limit: RULES.pinLimit }]])
+    expect(a.rpcCalls).toEqual([['pin_competitor_video', { p_site_id: 's1', p_video_id: VID, p_user_id: 'u1', p_limit: RULES.pinLimit, p_pode_descongelar: false }]])
     // the count and the write live inside the function (one transaction): the action does neither
     expect(a.calls).toEqual([])
     expect(a.revalidatePath).toHaveBeenCalledWith('/cms/youtube/competitors', 'layout')
@@ -213,5 +216,43 @@ describe('nenhum resultado carrega código cru nem texto do banco', () => {
         if (!r.ok) expect(r.error).not.toMatch(/acompanh/i)
       }
     }
+  })
+})
+
+describe('M10a (V14): fixar vídeo em leitura mensal ou no arquivo', () => {
+  const PRECISA = { ok: false, kind: 'denied', error: 'Este vídeo está em leitura mensal. Só quem administra o site pode voltar a acompanhá-lo por inteiro.' }
+  const ARQUIVO = { ok: false, kind: 'denied', error: "Este vídeo está no arquivo e não pode ser fixado. As views dele continuam sendo lidas uma vez por mês; o histórico está em 'Ver antigo'. Voltar a acompanhar por inteiro um vídeo que está no arquivo ainda não existe." }
+  it('quem só edita, vídeo em leitura mensal: a função diz precisa_admin e a ação devolve a frase de quem só edita (denied); nada é invalidado', async () => {
+    const a = await load({ admin: false, rpc: { data: { status: 'precisa_admin' }, error: null } })
+    expect(await a.pinVideo(VID)).toEqual(PRECISA)
+    expect(a.rpcCalls[0]![1]).toMatchObject({ p_pode_descongelar: false })
+    expect(a.revalidateTag).not.toHaveBeenCalled()
+    expect(a.revalidatePath).not.toHaveBeenCalled()
+  })
+  it('quem administra: a chamada leva p_pode_descongelar = true, a resposta ok invalida o cache e revalida a página', async () => {
+    const a = await load({ admin: true, rpc: { data: { status: 'ok', already: false }, error: null } })
+    expect(await a.pinVideo(VID)).toEqual({ ok: true })
+    expect(a.adminCalls).toEqual(['s1'])
+    expect(a.rpcCalls[0]![1]).toMatchObject({ p_pode_descongelar: true })
+    expect(a.revalidateTag.mock.calls).toEqual(TAG)
+    expect(a.revalidatePath).toHaveBeenCalled()
+  })
+  it('vídeo no arquivo: PIN_NO_ARQUIVO, mesmo para quem administra', async () => {
+    const a = await load({ admin: true, rpc: { data: { status: 'ja_no_arquivo' }, error: null } })
+    expect(await a.pinVideo(VID)).toEqual(ARQUIVO)
+  })
+  it('vídeo ativo: a resposta é a de hoje (ok); a pergunta de quem administra vai em toda fixação', async () => {
+    const a = await load({ admin: false })
+    expect(await a.pinVideo(VID)).toEqual({ ok: true })
+    expect(a.adminCalls).toEqual(['s1'])
+  })
+  it('admin indefinido = não administra: o pedido vai com p_pode_descongelar false e o congelado vira precisa_admin', async () => {
+    const a = await load({ rpc: { data: { status: 'precisa_admin' }, error: null } }) // admin indefinido = false
+    expect(await a.pinVideo(VID)).toEqual(PRECISA)
+    expect(a.rpcCalls[0]![1]).toMatchObject({ p_pode_descongelar: false })
+  })
+  it('status desconhecido continua sendo falha (PIN_FAILED)', async () => {
+    const a = await load({ rpc: { data: { status: 'inventado' }, error: null } })
+    expect(await a.pinVideo(VID)).toEqual(PIN_FAILED)
   })
 })

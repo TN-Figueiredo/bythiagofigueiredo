@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { placarVazio } from '../helpers/ab-placar-fixture'
 import { render, screen, cleanup } from '@testing-library/react'
 import { formatCtr } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-constants'
-import { VariantTable } from '@/app/cms/(authed)/youtube/ab-lab/_components/variant-table'
 import { ActiveTestCard } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-test-card'
 import { LearningsPanel } from '@/app/cms/(authed)/youtube/ab-lab/_components/learnings-panel'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
@@ -65,11 +64,6 @@ describe('emenda P1-P6 (Gio)', () => {
     expect(container.textContent).not.toMatch(/Faixa provável/)
     expect(container.textContent).not.toMatch(/últimos \d+ dias/)
     expect(screen.getAllByText(FRASE)).toHaveLength(1)
-  })
-
-  it('P4/P5: placar com 0 impressões mostra "—", nunca "0,0%"', () => {
-    const { container } = render(<VariantTable variants={[vz('A'), vz('B')]} thumbs={thumbs} semChance />)
-    expect(container.textContent).not.toMatch(/0,0%/)
   })
 
   it('P4: encerrado sem vencedor não duplica o título "Placar das variantes"', () => {

@@ -11,7 +11,7 @@ import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics
 import type { Axis, VideoScoreInput, TrafficSources, TrendData, UnavailableAxis } from '@/lib/youtube/scoring-types'
 import { latestRow } from '@/lib/youtube/rolling-window'
 import { lerRestauracao, paraRestoreStatus, restoreStatusIlegivel, type CampoNome, type LeituraCampo } from '@/lib/youtube/ab-restore'
-import { ehVitoriaHumana, type TestType, type VariantMetadata } from '@/lib/youtube/ab-types'
+import { ehVitoriaHumana, ehVitoriaDeVariante, lerResultadoV2, type DesfechoV2, type ResultadoV2, type TestType, type VariantMetadata, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import { nicheLabel } from '@/lib/youtube/observatorio/niche'
@@ -21,6 +21,8 @@ import { ok, err } from './types'
 import { claim } from './forja-queue'
 import { placarDoTeste, regraDoTeste, type Placar } from '@/lib/youtube/ab-gravacao/placar'
 import { lerDiasDosTestes, lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
+import { avisoDeVolume, comEstatistica } from '@/lib/youtube/ab-gravacao/aviso-volume'
+import { estadoV2DoTeste, tetoDoTesteV2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
 
 // ---------------------------------------------------------------------------
 // Shared constants
@@ -37,6 +39,8 @@ export const AVISO_SEM_ESTATISTICA = 'placar medido; sem estatística de vencedo
 /** O dado existe e está corrompido: a linha de `ab_test_dias` precisa de correção, não de espera. */
 export const AVISO_PLACAR_INVALIDO = 'placar indisponível: linha inválida em ab_test_dias' as const
 export type AvisoDoPlacar = AvisoSemMetricaDeEntrega | typeof AVISO_SEM_ESTATISTICA | typeof AVISO_PLACAR_INVALIDO
+/** Rotas agregadas: nulo quando algum placar da resposta tem estatística calculada (Yannis R-4). */
+export type AvisoAgregado = AvisoSemMetricaDeEntrega | typeof AVISO_SEM_ESTATISTICA | null
 
 // ---------------------------------------------------------------------------
 // Types — Intelligence
@@ -126,7 +130,10 @@ export interface AbTestFilters {
 
 export interface AbResultMetadataSaida {
   winner_label: string | null
+  /** v2: lift gravado em `por_variante` da sugerida, só em vencedor_provavel/sem_diferenca_detectavel com `p_adj`. */
   ctr_lift_percent: number | null
+  /** Só testes de regra v2: decisão gravada e relógio; `{ ilegivel: true }` quando não dá para ler. */
+  v2?: Record<string, unknown> | { ilegivel: true }
   total_impressions: number | null
   estimated_monthly_extra_clicks: number | null
 }
@@ -148,7 +155,7 @@ export interface AbTestListItem {
   confidence_at_completion: number | null
   consecutive_confident_evals: number | null
   result_metadata: AbResultMetadataSaida
-  aviso: AvisoDoPlacar
+  aviso: AvisoDoPlacar | null
   /** Mesmo placar da tela (`ab_test_dias`); nulo com `placar_erro` quando uma linha do teste é inválida. */
   placar: Placar | null
   placar_erro: 'linha_invalida' | null
@@ -228,7 +235,7 @@ export interface PerformancePatterns {
   completed_tests: number
   winning_patterns: Record<string, number>
   winning_tags: Record<string, { wins: number; tests: number }>
-  aviso: AvisoSemMetricaDeEntrega
+  aviso: AvisoAgregado
 }
 
 // ---------------------------------------------------------------------------
@@ -1063,8 +1070,9 @@ function somaOuNulo(xs: ReadonlyArray<number | null>): number | null {
   return t
 }
 
-function avisoDoPlacar(placar: Placar | null, placarErro: 'linha_invalida' | null): AvisoDoPlacar {
+function avisoDoPlacar(placar: Placar | null, placarErro: 'linha_invalida' | null): AvisoDoPlacar | null {
   if (placarErro) return AVISO_PLACAR_INVALIDO
+  if (placar?.estatistica === 'calculada') return null
   if (placar === null || placar.variantes.every(v => v.impressoes === null)) return AVISO_SEM_METRICA_DE_ENTREGA
   return AVISO_SEM_ESTATISTICA
 }
@@ -1088,23 +1096,96 @@ function placarDaLinha(row: Record<string, unknown>, dias: Parameters<typeof pla
   })
 }
 
+const DESFECHOS_COM_LIFT: ReadonlySet<string> = new Set(['vencedor_provavel', 'sem_diferenca_detectavel'])
+export const DESFECHO_V2_NOTA = 'vitória só conta quando uma pessoa escolhe' as const
+
+/** Lift gravado da sugerida (em %), nunca recalculado: só com `p_adj` e desfecho que o admite. */
+function liftGravado(v2: ResultadoV2 | null): number | null {
+  if (!v2 || v2.p_adj === null || v2.p_adj === undefined) return null
+  if (!v2.desfecho || !DESFECHOS_COM_LIFT.has(v2.desfecho) || !v2.vencedor_sugerido) return null
+  const l = v2.por_variante?.find(x => x.variant_id === v2.vencedor_sugerido)?.lift
+  return typeof l === 'number' && Number.isFinite(l) ? l * 100 : null
+}
+
+function projecaoV2(row: Record<string, unknown>, v2: ResultadoV2 | null, agora: Date): Record<string, unknown> {
+  const variantes = (row.variants ?? []) as unknown[]
+  const teto = tetoDoTesteV2(row.config, variantes.length)
+  const relogio = Array.isArray(row.cycles)
+    ? estadoV2DoTeste(
+      { id: String(row.id), status: String(row.status), paused_at: (row.paused_at as string | null) ?? null, completed_at: (row.completed_at as string | null) ?? null, original_title: (row.original_title as string | null) ?? null },
+      row.cycles as CicloComNumero[], v2, agora, teto,
+    )
+    : null
+  return {
+    desfecho: v2?.desfecho ?? null, provisorio: v2?.provisorio ?? null, n: v2?.n ?? null, p1: v2?.p1 ?? null, base_estimada: v2?.base_estimada ?? null,
+    gl: v2?.gl ?? null, p_adj: v2?.p_adj ?? null, vencedor_sugerido: v2?.vencedor_sugerido ?? null, por_variante: v2?.por_variante ?? null, relogio,
+  }
+}
+
+function v2DaLinha(row: Record<string, unknown>): { v2: ResultadoV2 | null; ilegivel: boolean } {
+  if (regraDoTeste(row) !== 'v2') return { v2: null, ilegivel: false }
+  const lido = lerResultadoV2(row.result_metadata)
+  return lido.estado === 'ok' ? { v2: lido.v2, ilegivel: false } : { v2: null, ilegivel: lido.estado === 'ilegivel' }
+}
+
+interface LidoDoTeste { row: Record<string, unknown>; placar: Placar | null; v2: ResultadoV2 | null }
+const LIMITE_K = 500
+const LIMITE_RECENTES = 100
+
+/** Placar em lote para as rotas agregadas: 1 leitura de variantes/testes por lote de 100 e 1 de `ab_test_dias` (falha alta). K > 500 ⇒ os 100 mais recentes. */
+async function lerPlacaresDosTestes(ctx: ServiceContext, ids: string[], agora: Date): Promise<Map<string, LidoDoTeste>> {
+  const { supabase, siteId } = ctx
+  const mapa = new Map<string, LidoDoTeste>()
+  if (ids.length === 0) return mapa
+  const alvo = ids.length > LIMITE_K ? ids.slice(0, LIMITE_RECENTES) : ids
+  const rows: Record<string, unknown>[] = []
+  for (let i = 0; i < alvo.length; i += 100) {
+    const { data, error } = await supabase.from('ab_tests').select('*, variants:ab_test_variants!test_id(id, sort_order)').eq('site_id', siteId).in('id', alvo.slice(i, i + 100))
+    if (error) return err('DB_ERROR', 'Failed to load A/B scoreboard rows', 500)
+    rows.push(...((data ?? []) as Record<string, unknown>[]))
+  }
+  const lido = await lerDiasDosTestes(supabase, siteId, alvo)
+  if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
+  for (const row of rows) {
+    const id = String(row.id)
+    const { v2 } = v2DaLinha(row)
+    const placar = lido.invalidos.has(id) ? null : comEstatistica(placarDaLinha(row, lido.porTeste.get(id) ?? [], variantesOrdenadas(row), agora), v2)
+    mapa.set(id, { row, placar, v2 })
+  }
+  return mapa
+}
+
+/** Aviso das rotas agregadas (Yannis R-1/R-4): sem estatística só quando NENHUM placar tem `calculada`. */
+function avisoAgregado(lidos: Iterable<LidoDoTeste>): AvisoAgregado {
+  let medido = false
+  for (const l of lidos) {
+    if (l.placar?.estatistica === 'calculada') return null
+    if (l.placar && l.placar.variantes.some(v => v.impressoes !== null)) medido = true
+  }
+  return medido ? AVISO_SEM_ESTATISTICA : AVISO_SEM_METRICA_DE_ENTREGA
+}
+
 export function projetarTeste(
   row: Record<string, unknown>,
   agora: Date,
-  placar: Placar | null,
+  placarBruto: Placar | null,
   placarErro?: 'linha_invalida',
 ): Record<string, unknown> {
+  let placar = placarBruto
   const meta = (row.result_metadata ?? null) as Record<string, unknown> | null
   const label = meta?.winner_label
   const out: Record<string, unknown> = copiar(row, CAMPOS_DO_TESTE_QUE_SAEM_COMO_VIERAM)
+  const { v2, ilegivel } = v2DaLinha(row)
+  placar = placar ? comEstatistica(placar, v2) : null
   out.confidence_at_completion = null
   out.consecutive_confident_evals = null
   out.result_metadata = {
     winner_label: typeof label === 'string' ? label : null,
-    ctr_lift_percent: null,
+    ctr_lift_percent: liftGravado(v2),
     total_impressions: placar ? somaOuNulo(placar.variantes.map(v => v.impressoes)) : null,
     estimated_monthly_extra_clicks: null,
   } satisfies AbResultMetadataSaida
+  if (regraDoTeste(row) === 'v2') (out.result_metadata as AbResultMetadataSaida).v2 = ilegivel ? { ilegivel: true } : projecaoV2(row, v2, agora)
   out.variants = ((row.variants ?? []) as Record<string, unknown>[]).map(projetarVariante)
   out.placar = placar
   out.placar_erro = placarErro ?? null
@@ -1182,6 +1263,20 @@ export async function getAbTest(
   const detail = projetarTeste(row, agora, placarDaLinha(row, lido.dias, variantesOrdenadas(row), agora))
   detail.cycles = ((row.cycles ?? []) as Record<string, unknown>[]).map(projetarCiclo)
   detail.tracked_links = []
+  // Só rascunho que nasceu v2: o aviso prevê a regra v2 (N e teto 15/17), que não vale para um v1 (Phil D3).
+  // Falha ao estimar nunca derruba o detalhe: aviso nulo + erro visível (nunca "ok") (Phil D2).
+  if (row.status === 'draft' && regraDoTeste(row) === 'v2') {
+    try {
+      const volume = await avisoDeVolume(supabase, siteId, id, agora)
+      detail.aviso_volume = volume.ok ? volume.aviso : null
+      detail.aviso_volume_erro = volume.ok ? null : volume.erro
+      if (!volume.ok) Sentry.captureMessage('get_test: estimativa de volume falhou', { level: 'warning', extra: { testId: id, erro: volume.erro } })
+    } catch (e) {
+      detail.aviso_volume = null
+      detail.aviso_volume_erro = 'estimativa de volume falhou'
+      Sentry.captureException(e, { extra: { testId: id } })
+    }
+  }
   return ok(detail as unknown as AbTestDetail)
 }
 
@@ -1239,7 +1334,7 @@ export async function getAbTestFunnel(
     per_link: [],
     link_clicks_window: null,
     dias_variante_desconhecida: placar.dias_variante_desconhecida,
-    aviso: avisoDoPlacar(placar, null),
+    aviso: avisoDoPlacar(placar, null) ?? AVISO_SEM_ESTATISTICA,
   })
 }
 
@@ -1257,22 +1352,25 @@ export async function getAbPerformance(
     .from('ab_tests')
     .select(`
       id, name, test_type, winner_variant_id, completed_reason,
-      winner:ab_test_variants!winner_variant_id(id, label, title_text, metadata),
+      winner:ab_test_variants!winner_variant_id(id, label, title_text, metadata, is_original),
       variants:ab_test_variants!test_id(id, metadata)
     `)
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
     .order('completed_at', { ascending: false })
+    .order('completed_at', { ascending: false })
     .limit(50)
   if (lidosError) return err('DB_ERROR', 'Failed to load completed A/B tests', 500)
 
   // Vitória só conta quando humana; filtro em memória, depois da leitura.
-  const completedTests = (lidos ?? []).filter(t => ehVitoriaHumana({
+  const completedTests = (lidos ?? []).filter(t => ehVitoriaDeVariante({
     completed_reason: (t.completed_reason as string | null) ?? null,
     winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+    winner: t.winner as VencedorEmbutido,
   }))
 
+  const lidosV2 = await lerPlacaresDosTestes(ctx, completedTests.map(t => String(t.id)), new Date())
   const patterns: Record<string, number> = {}
   const tags: Record<string, { wins: number; tests: number }> = {}
 
@@ -1312,7 +1410,7 @@ export async function getAbPerformance(
     completed_tests: completedTests.length,
     winning_patterns: patterns,
     winning_tags: tags,
-    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
+    aviso: avisoAgregado(lidosV2.values()),
   })
 }
 
@@ -1552,7 +1650,7 @@ export interface AbLearningsResponse {
   }>
   channelInsights: Array<{ text: string; type: 'positive' | 'negative' | 'neutral' }>
   totalCompletedTests: number
-  aviso: AvisoSemMetricaDeEntrega
+  aviso: AvisoAgregado
 }
 
 /** Aggregate learnings from completed A/B tests: tag win rates and channel insights. */
@@ -1564,15 +1662,16 @@ export async function getAbLearnings(
   // Completed tests with a winner; only a human win counts (filtered in memory, right after the read)
   const { data: lidos, error: lidosError } = await supabase
     .from('ab_tests')
-    .select('id, winner_variant_id, test_type, completed_reason')
+    .select('id, winner_variant_id, test_type, completed_reason, winner:ab_test_variants!winner_variant_id(is_original)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
   if (lidosError) return err('DB_ERROR', 'Failed to load completed A/B tests', 500)
 
-  const tests = (lidos ?? []).filter(t => ehVitoriaHumana({
+  const tests = (lidos ?? []).filter(t => ehVitoriaDeVariante({
     completed_reason: (t.completed_reason as string | null) ?? null,
     winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+    winner: t.winner as VencedorEmbutido,
   }))
 
   if (tests.length === 0) {
@@ -1581,6 +1680,7 @@ export async function getAbLearnings(
 
   const winnerIds = tests.map(t => t.winner_variant_id as string)
   const testIds = tests.map(t => t.id as string)
+  const lidosV2 = await lerPlacaresDosTestes(ctx, testIds, new Date())
 
   const [winnersRes, allVariantsRes] = await Promise.all([
     supabase.from('ab_test_variants').select('id, metadata').in('id', winnerIds),
@@ -1639,7 +1739,7 @@ export async function getAbLearnings(
     tagWinRates,
     channelInsights,
     totalCompletedTests: tests.length,
-    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
+    aviso: avisoAgregado(lidosV2.values()),
   })
 }
 
@@ -1766,8 +1866,14 @@ export interface AbDashboardResponse {
   avgConfidence: number | null
   /** Só vitória humana; null quando não sobra teste que conte (nunca 0). */
   winRate: number | null
+  /** Lift médio (em %) dos VENCEDORES (desfecho com `p_adj` e sugerida); `sem_diferenca` não tem lift (sem significância o lift é nulo). Nulo se nenhum (nunca 0). */
   avgLift: number | null
-  aviso: AvisoSemMetricaDeEntrega
+  /** Quantos vencedores entraram em `avgLift`. */
+  vencedores_com_lift: number
+  aviso: AvisoAgregado
+  /** Contagem por desfecho da regra v2 nos concluídos. */
+  desfechos_v2: Partial<Record<DesfechoV2, number>>
+  desfecho_v2_nota: string
   testsByStatus: {
     draft: number
     active: number
@@ -1784,7 +1890,7 @@ export async function getAbDashboard(
 
   const { data: tests, error: testsError } = await supabase
     .from('ab_tests')
-    .select('id, status, winner_variant_id, completed_reason, parent_test_id')
+    .select('id, status, winner_variant_id, completed_reason, parent_test_id, completed_at, variants:ab_test_variants!test_id(id, is_original)')
     .eq('site_id', siteId)
     .not('status', 'eq', 'archived')
   if (testsError) return err('DB_ERROR', 'Failed to load A/B tests', 500)
@@ -1805,15 +1911,32 @@ export async function getAbDashboard(
   const vitorias = contam.filter(t => ehVitoriaHumana({
     completed_reason: (t.completed_reason as string | null) ?? null,
     winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+    // S8-F4 B2: a original vencedora é decisão humana, não vitória de variante
+    winner_is_original: ((t.variants ?? []) as Array<{ id: string; is_original: boolean }>).some(v => v.is_original && v.id === t.winner_variant_id),
   })).length
   const winRate = contam.length > 0 ? (vitorias / contam.length) * 100 : null
+
+  const recentes = completed.slice().sort((a, b) => String((b as { completed_at?: string | null }).completed_at ?? '').localeCompare(String((a as { completed_at?: string | null }).completed_at ?? '')))
+  const lidosV2 = await lerPlacaresDosTestes(ctx, recentes.map(t => String(t.id)), new Date())
+  const desfechos: Partial<Record<DesfechoV2, number>> = {}
+  const lifts: number[] = []
+  for (const l of lidosV2.values()) {
+    if (l.row.status !== 'completed' || !l.v2) continue
+    const d = l.v2.desfecho_final ?? l.v2.desfecho
+    if (d) desfechos[d] = (desfechos[d] ?? 0) + 1
+    const lift = liftGravado(l.v2)
+    if (lift !== null) lifts.push(lift)
+  }
 
   return ok({
     activeTests: active,
     avgConfidence: null,
     winRate,
-    avgLift: null,
-    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
+    avgLift: lifts.length > 0 ? lifts.reduce((a, b) => a + b, 0) / lifts.length : null,
+    vencedores_com_lift: lifts.length,
+    aviso: avisoAgregado(lidosV2.values()),
+    desfechos_v2: desfechos,
+    desfecho_v2_nota: DESFECHO_V2_NOTA,
     testsByStatus: {
       draft,
       active,
@@ -1838,8 +1961,9 @@ export interface AbVideoHistoryResponse {
     liftPercent: number | null
     startedAt: string | null
     endedAt: string | null
+    desfecho_v2: DesfechoV2 | null
   }>
-  aviso: AvisoSemMetricaDeEntrega
+  aviso: AvisoAgregado
 }
 
 /** Get all test history for a specific video by its youtube_video_id. */
@@ -1853,32 +1977,35 @@ export async function getAbVideoHistory(
     .from('ab_tests')
     .select(`
       id, test_type, status, started_at, completed_at, winner_variant_id, completed_reason,
-      winner:ab_test_variants!winner_variant_id(label)
+      winner:ab_test_variants!winner_variant_id(label, is_original)
     `)
     .eq('youtube_video_id', youtubeVideoId)
     .eq('site_id', siteId)
     .order('created_at', { ascending: false })
   if (testsError) return err('DB_ERROR', 'Failed to load the video A/B history', 500)
 
+  const lidosV2 = await lerPlacaresDosTestes(ctx, (tests ?? []).map(t => String(t.id)), new Date())
   const mappedTests = (tests ?? []).map(t => ({
     id: t.id as string,
     type: (t.test_type as string) ?? 'thumbnail',
     status: t.status as string,
-    winner: ehVitoriaHumana({
+    winner: ehVitoriaDeVariante({
       completed_reason: (t.completed_reason as string | null) ?? null,
       winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+      winner: t.winner as VencedorEmbutido,
     })
       ? ((Array.isArray(t.winner) ? t.winner[0] : t.winner) as { label: string } | null)?.label ?? null
       : null,
-    liftPercent: null,
+    liftPercent: liftGravado(lidosV2.get(String(t.id))?.v2 ?? null),
     startedAt: t.started_at as string | null,
     endedAt: t.completed_at as string | null,
+    desfecho_v2: lidosV2.get(String(t.id))?.v2?.desfecho_final ?? lidosV2.get(String(t.id))?.v2?.desfecho ?? null,
   }))
 
   return ok({
     videoId: youtubeVideoId,
     tests: mappedTests,
-    aviso: AVISO_SEM_METRICA_DE_ENTREGA,
+    aviso: avisoAgregado(lidosV2.values()),
   })
 }
 

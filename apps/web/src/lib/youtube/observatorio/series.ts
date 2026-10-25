@@ -146,6 +146,8 @@ export function weeklyRate(ctx: EngineCtx, videoId: string, fromMs: number, toMs
   const stored = ctx.V.get(videoId)
   if (!stored) throw new Error('weeklyRate: unknown video ' + videoId)
   const none = (text: string): WeeklyRate => ({ vpd: null, sharedDay: false, onlySinceDays: null, coveredHours: 0, text, weekly: false })
+  // M10a (V15): o vídeo em leitura mensal não tem taxa atual (frase do redator, para o Logan na M10b; nunca "parou de ser lido")
+  if (stored.arquivo) return none('em leitura mensal desde ' + ctx.clock.dm(stored.arquivo.desde) + ': sem taxa atual')
   if (toMs - fromMs < DAY) return none('menos de 1 dia no ar, sem média')
   const iv = intervalsOf(ctx, withUnobserved(stored), { weekly: true })
   let s = 0, w = 0, weekly = false

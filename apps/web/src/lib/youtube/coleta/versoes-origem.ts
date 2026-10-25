@@ -95,6 +95,7 @@ function papelNaThumb(t: TesteAb, comCicloNaJanela: boolean): PapelNaThumb {
     case 'manual_archive': return 'restauro'
     case 'manual_no_apply': return comCicloNaJanela ? 'incerto' : 'restauro'
     case 'inconclusive':
+    case 'regra_v2':
       if (t.tipo !== 'thumbnail' && t.tipo !== 'combo') return 'nada'
       return comCicloNaJanela ? 'incerto' : 'restauro'
     case 'manual_winner': return t.tipo === 'title' || t.tipo === 'description' ? 'incerto' : 'nada' // thumbnail e combo: ordem 3b

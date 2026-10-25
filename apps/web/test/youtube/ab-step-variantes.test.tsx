@@ -84,15 +84,15 @@ describe('StepVariantes', () => {
     expect(onAdd).toHaveBeenCalledOnce()
   })
 
-  it('"Adicionar variante" hidden when 3 challengers present', () => {
-    const variants = [makeOriginal(), makeChallenger('B'), makeChallenger('C'), makeChallenger('D')]
+  it('"Adicionar variante" hidden when 2 challengers present (regra v2)', () => {
+    const variants = [makeOriginal(), makeChallenger('B'), makeChallenger('C')]
     render(<StepVariantes {...defaultProps({ variants })} />)
     expect(screen.queryByText('Adicionar variante')).toBeNull()
   })
 
-  it('shows "0/3 desafiantes" counter', () => {
+  it('shows "0/2 desafiantes" counter', () => {
     render(<StepVariantes {...defaultProps({ variants: [makeOriginal()] })} />)
-    expect(screen.getByText('0/3 desafiantes')).toBeDefined()
+    expect(screen.getByText('0/2 desafiantes')).toBeDefined()
   })
 
   it('warning message when no challengers', () => {

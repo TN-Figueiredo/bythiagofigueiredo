@@ -15,6 +15,7 @@ let testeGravado: Record<string, unknown> | null = null
 const mcpCtx = { siteId: 'site-1', permissions: ['read', 'write'] as string[], keyHash: 'h', keyId: 'key-1' }
 vi.mock('@/lib/pipeline/mcp/context', () => ({ getMcpContext: () => mcpCtx }))
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => clienteDeEscrita() }))
+vi.mock('@/lib/youtube/ab-gravacao/aviso-volume', async (orig) => ({ ...(await orig<object>()), avisoDeVolume: async () => ({ ok: true, aviso: { estado: 'sem_medicao', texto: 'sem medição para estimar o volume' } }) }))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 vi.mock('@/lib/notifications/fan-out-to-admins', () => ({ fanOutToSiteAdmins: vi.fn() }))
 

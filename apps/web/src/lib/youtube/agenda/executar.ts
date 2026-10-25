@@ -20,6 +20,7 @@ import { chaveDoPeriodo } from './periodo'
 import { BANCO_MS, LIMITE_FUNCAO_MS, comPrazo } from './relogio'
 import type { ContextoTarefa, Lido, ResultadoTarefa, Tarefa } from './tipos'
 import { anularIdentidade } from './tarefas/anular-identidade'
+import { particoesAFrente } from './tarefas/particoes-a-frente'
 
 /**
  * A rota do cron entrega o disparo a este arquivo quando a agenda está ligada (`executarAgenda`), e chama `rodarAntesDoLoteAntigo` quando o
@@ -34,8 +35,8 @@ const AVISO_MAX_MS = 8_000
 const FOLGA_FIM_MS = 3_000
 const FRASE_MIGRATION = 'migration MG10 não aplicada: a agenda não rodou; o lote antigo rodou no lugar'
 
-/** As tarefas que rodam ANTES do lote antigo quando a agenda não roda (`OBS_AGENDA=off` ou a MG10 ausente). Só `anular_identidade` (E14): a obrigação de LGPD. */
-export const antesDoLoteAntigo: readonly Tarefa[] = [anularIdentidade]
+/** As tarefas que rodam ANTES do lote antigo quando a agenda não roda (`OBS_AGENDA=off` ou a MG10 ausente): as `nuncaDesliga` — a anulação de identidade (LGPD) e as partições à frente (M2). */
+export const antesDoLoteAntigo: readonly Tarefa[] = [anularIdentidade, particoesAFrente]
 
 export type CaminhoSemAgenda = 'interruptor' | 'guarda_mg10'
 export interface AntesDoLote { tarefas: EstadoFinalTarefa[]; problemas: string[]; notas: string[] }
@@ -175,7 +176,7 @@ async function rodarUmaAntes(
 }
 
 /**
- * Roda, antes do lote antigo, as tarefas `nuncaDesliga` da lista (hoje só `anular_identidade`). Quem chama é a rota, nos dois caminhos sem agenda
+ * Roda, antes do lote antigo, as tarefas `nuncaDesliga` da lista (hoje `anular_identidade` e `particoes_a_frente`). Quem chama é a rota, nos dois caminhos sem agenda
  * (`interruptor`: `OBS_AGENDA=off`; `guarda_mg10`: a migration da agenda ausente). Nunca lança. Lista vazia: devolve na hora, sem ida ao
  * banco nem ao Sentry. `OBS_AGENDA_TASKS_OFF` não vale para estas tarefas.
  */

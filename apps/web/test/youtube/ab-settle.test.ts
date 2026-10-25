@@ -193,6 +193,7 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     ['encerrado', 'paused', 'completed', 'manual_archive', 'encerrado'],
     ['falha_api', 'active', 'paused', undefined, 'falha_api'],
     ['duracao_maxima', 'active', 'completed', 'inconclusive', 'duracao_maxima'],
+    ['regra_v2', 'active', 'completed', 'regra_v2', 'regra_v2'],
     ['drift', 'active', 'paused', undefined, 'drift'],
   ] as const)('%s de %s → %s', async (motivo, de, para, completedReason, endReason) => {
     const { banco, yt, portas, op } = await preparar({ status: de, testType: 'combo', noAr: { titulo: 'Título B', dhash: H.B } })
@@ -262,6 +263,21 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect(r.resultado).toBe('ja_encerrado')
     expect(banco.teste()).toMatchObject({ status: antes.status, restore_seq: 0, winner_applied_at: antes.winner_applied_at, revert_expires_at: antes.revert_expires_at })
     expect(yt.escritas()).toEqual([])
+  })
+  it('aplicar_sugerido (S8-F4 T11b): completed regra_v2 → completed manual_winner com B no ar, applied_by manual, sem fechar ciclo; sobre o original → destino_invalido; sobre ativo → ja_encerrado', async () => {
+    const a = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A } })
+    a.banco.setTeste({ completed_reason: 'regra_v2', completed_at: '2026-10-20T00:00:00.000Z' })
+    const r = await settleOnAir(a.banco.testId, { ...a.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' } }, a.portas)
+    expect(r.resultado).toBe('feito')
+    expect(await dhashOf(a.yt.thumb)).toBe(H.B)
+    expect(a.banco.teste()).toMatchObject({ status: 'completed', completed_reason: 'manual_winner', winner_variant_id: 'B', applied_by: 'manual', completed_at: '2026-10-20T00:00:00.000Z' })
+    expect(a.banco.teste().winner_applied_at).not.toBeNull()
+    const o = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A } })
+    expect((await settleOnAir(o.banco.testId, { ...o.op('aplicar_sugerido'), destino: { tipo: 'original' } }, o.portas)).resultado).toBe('destino_invalido')
+    expect(o.banco.teste().restore_seq).toBe(0)
+    const v = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A } })
+    expect((await settleOnAir(v.banco.testId, { ...v.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' } }, v.portas)).resultado).toBe('ja_encerrado')
+    expect(v.yt.escritas()).toEqual([])
   })
   it('PODE-5: encerrar um teste já completed → ja_encerrado, nada escrito', async () => {
     const c = await preparar({ status: 'completed', testType: 'combo' })

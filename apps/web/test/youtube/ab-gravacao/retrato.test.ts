@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { addDays, boundsAnalytics, dayPt, ontemPt } from '@/lib/youtube/coleta/day-pt'
-import type { AbCycle } from '@/lib/youtube/coleta/ab-seconds'
+import type { CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { montarRetrato, type EntradasDoRetrato, type TesteParaRetrato, type LinhaSonda, type LinhaViews } from '@/lib/youtube/ab-gravacao/retrato'
 
 const AGORA = new Date()
@@ -17,8 +17,8 @@ const VID = TESTE.youtube_id
 
 /** Um ciclo por dia, na variante dada (ABBA etc.), nos dias dados. */
 function fixture(dias: Array<[string, string]>, over: Partial<EntradasDoRetrato> = {}, teste: TesteParaRetrato = TESTE): EntradasDoRetrato {
-  const ciclos: AbCycle[] = dias.map(([day, v], n) => ({
-    id: 'c' + n, test_id: 't1', variant_id: v, started_at: meioDia(day, 1), ended_at: meioDia(day, 23), applied_metadata: null,
+  const ciclos: CicloComNumero[] = dias.map(([day, v], n) => ({
+    id: 'c' + n, test_id: 't1', variant_id: v, started_at: meioDia(day, 1), ended_at: meioDia(day, 23), applied_metadata: null, cycle_number: n + 1,
   }))
   const meta = new Map(dias.map(([day, v]) => [`${VID}|${day}`, { ab_test_id: 't1', ab_variant_id: v, seconds_on_air_analytics: 86_000, captured_at: meioDia(day) }]))
   return {
@@ -37,6 +37,7 @@ describe('montarRetrato', () => {
     expect(r.some(x => x.day_pt === dayPt(AGORA))).toBe(false)
     expect(r[0]).toMatchObject({ test_id: 't1', site_id: 's1', youtube_video_id: VID, regra_duracao: 'v1', variant_id: 'A', segundos_no_ar: 86_000 })
     expect(r[0].ciclos).toHaveLength(1)
+    expect(r[0].ciclos[0]?.cycle_number).toBe(1)
     expect(r[0].retratado_em).toBe(AGORA.toISOString())
   })
 

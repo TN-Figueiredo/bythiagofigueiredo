@@ -1,7 +1,7 @@
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { LibraryDashboard } from './_components/library-dashboard'
-import { startAbTest } from '../actions'
+import { startAbTest, avisoDeVolumeDoTeste } from '../actions'
 import { getAbSiteSettings, getEligibleVideosForPicker } from '../queries'
 
 export const metadata = { title: 'Library: A/B Lab' }
@@ -29,6 +29,7 @@ export default async function LibraryPage() {
       wizardEligibleVideos={eligibleVideos}
       siteId={siteId}
       iniciarTeste={startAbTest}
+      avisoDeVolume={avisoDeVolumeDoTeste}
     />
   )
 }

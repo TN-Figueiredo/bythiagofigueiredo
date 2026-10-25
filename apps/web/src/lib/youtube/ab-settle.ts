@@ -21,7 +21,7 @@ import { MOTIVO_RECUSA_NATIVO, lerLinhaConfirmada } from '@/lib/youtube/teste-yo
 import { TEXTO_SEM_LEITURA as TEXTO_SEM_LEITURA_TELA } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ErroConhecido, YouTubeApiError, paraErroGravado } from '@/lib/youtube/youtube-api-error'
 
-export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'drift' | 'teste_youtube'
+export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'regra_v2' | 'drift' | 'teste_youtube' | 'aplicar_sugerido'
 /** Nota do teste pausado por haver teste do YouTube em andamento (F1a-dado): pausa definitiva, sem escrever no YouTube. */
 export const NOTA_TESTE_YOUTUBE = 'Em teste no Studio: pausado sem escrever no YouTube'
 /** Valor mostrado no diálogo de confirmação quando a leitura do título no YouTube falhou (a thumbnail sem leitura mostra o espaço reservado). */
@@ -95,7 +95,7 @@ export const TETO_MS = 55_000 // F-D3: ações humanas e crons que não passam `
 export const MARGEM_ESCRITA_MS = 25_000 // 20 s da escrita + 5 s do passo 4 e do aviso
 const RECENTE_MS = 2 * 60_000 // F-D4: 60 s do teto da função + folga
 const REVERT_MS = 7 * 86_400_000
-const MOTIVOS_QUE_PAUSAM_SEM_ESCREVER: readonly MotivoSaida[] = ['pausa', 'falha_api', 'drift', 'duracao_maxima']
+const MOTIVOS_QUE_PAUSAM_SEM_ESCREVER: readonly MotivoSaida[] = ['pausa', 'falha_api', 'drift', 'duracao_maxima', 'regra_v2']
 const JANELA_DA_COTA_MS = 72 * 3_600_000 // cota que dura mais que isso desde a âncora do "sim" conta como falha
 
 /**
@@ -118,7 +118,7 @@ function fonteDoOriginal(r: Retrato): string | null {
   return [original?.blob_url, r.original_thumbnail_url].find(ehCopiaNoBlob) ?? null
 }
 
-type Destino = 'original' | { varianteId: string }
+export type Destino = 'original' | { varianteId: string }
 
 /**
  * Normalização de `op.destino` (Y-D2, 3.1) contra as variantes do teste:
@@ -144,7 +144,7 @@ const nomeDoDestino = (d: Destino): string => (d === 'original' ? 'original' : d
 interface Caminho { de: string[]; para: 'paused' | 'completed'; endReason: string | null; extra: Record<string, unknown> }
 
 /** Tabela 3.1: os sete caminhos de saída do ar. */
-function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
+export function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
   switch (op.motivo) {
     case 'pausa':
       return { de: ['active'], para: 'paused', endReason: 'pausa', extra: { status_note: null } }
@@ -157,6 +157,8 @@ function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
       }
     case 'reverter':
       return { de: ['completed'], para: 'completed', endReason: null, extra: {} }
+    case 'aplicar_sugerido': // S8-F4 T11b: o humano põe no ar o sugerido da regra v2; completed_at e result_metadata.v2 ficam
+      return { de: ['completed'], para: 'completed', endReason: null, extra: { completed_reason: 'manual_winner', winner_variant_id: destino === 'original' ? null : destino.varianteId } }
     case 'falha_api':
       return {
         de: ['active'], para: 'paused', endReason: 'falha_api',
@@ -167,6 +169,8 @@ function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
       }
     case 'duracao_maxima':
       return { de: ['active'], para: 'completed', endReason: 'duracao_maxima', extra: { completed_reason: 'inconclusive', winner_variant_id: null, limpar_confianca: true, limpar_carencia: true, status_note: null } }
+    case 'regra_v2':
+      return { de: ['active'], para: 'completed', endReason: 'regra_v2', extra: { completed_reason: 'regra_v2', winner_variant_id: null, limpar_confianca: true, limpar_carencia: true, status_note: null } }
     case 'drift':
       return { de: ['active'], para: 'paused', endReason: 'drift', extra: { status_note: DRIFT_STATUS_NOTE, limpar_drift_ack: true } }
     case 'teste_youtube':
@@ -536,6 +540,7 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (destino === null) return { resultado: 'destino_invalido', campos: null }
   if (op.seqEsperado !== undefined && op.seqEsperado !== r.restore_seq) return { resultado: op.humano ? 'mudou' : 'em_andamento', campos: r.restore_status } // Y-D13; D3: a tela humana recebe 'mudou'
   if (emAndamentoRecente(r.restore_status, agora)) return { resultado: 'em_andamento', campos: r.restore_status } // F-D4
+  if (op.motivo === 'aplicar_sugerido' && destino === 'original') return { resultado: 'destino_invalido', campos: null } // o sugerido nunca é a original
   const caminho = caminhoDe(op, destino)
   if (!tipoConhecido(r.test_type) || !caminho.de.includes(r.status)) return { resultado: 'ja_encerrado', campos: r.restore_status }
   if (op.motivo === 'reverter' && !reversaoAberta(r, agora)) return { resultado: 'ja_encerrado', campos: r.restore_status }
