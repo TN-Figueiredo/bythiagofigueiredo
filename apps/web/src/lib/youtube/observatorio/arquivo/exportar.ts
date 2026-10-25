@@ -257,7 +257,7 @@ export async function exportarCanal(o: {
         // a soma do banco existe: o arquivo tem de somar igual, e soma que o export não sabe refazer (nula) é diferença, nunca conferência pulada em silêncio
         if (u.linhas !== k.linhas || (k.soma !== null && u.soma !== k.soma)) {
           await desfazer()
-          return recusarLimpando('contagem_do_arquivo_difere', [`${e.tabela} ${unico ? 'arquivo único' : periodo}: banco ${k.linhas}, arquivo ${u.linhas}`])
+          return recusarLimpando('contagem_do_arquivo_difere', [`${e.tabela} ${unico ? 'arquivo único' : periodo}: banco ${k.linhas} linhas/soma ${k.soma}, arquivo ${u.linhas}/${u.soma}`])
         }
         await disco.criarPasta(diretorioDe(juntar(pasta, caminho)), MODO_DA_PASTA)
         await gravar(caminho, u.gz)

@@ -13,7 +13,7 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { emTransacao, garantirComT13, semearCena, semearWatchDoVideo, pausarEEnvelhecer, q1, escalar } from '../helpers/mg6'
 import { exportarCanal, type Disco } from '@/lib/youtube/observatorio/arquivo/exportar'
 import { conferirLote } from '@/lib/youtube/observatorio/arquivo/conferir'
-import { colunasDaSoma, type ClienteSql } from '@/lib/youtube/observatorio/arquivo/sessao'
+import { colunasDaSoma, consultaDoArquivo, lerLinhasDoBanco, type ClienteSql } from '@/lib/youtube/observatorio/arquivo/sessao'
 import { validarManifesto } from '@/lib/youtube/observatorio/arquivo/manifesto'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -84,7 +84,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b item 1: soma composta do registro no exp
           `insert into public.ab_native_observados (site_id, youtube_video_id, campo, tipo_troca, veredito, versao_regra, trocas, n_versoes, ficou_estado, primeira_troca_em)
            values ($1, $2, $3, 'sequencial', 'troca_observada', 1, '[]'::jsonb, $4, 'estavel', now() - interval '3 days')`, [c.site, yt, campo, n])
       }
-      const compostas = (await pg.query(`select table_name, sum_sql, filter_sql from public.obs_archive_registry() where sum_sql like '%+%' order by 1`)).rows as Array<{ table_name: string; sum_sql: string; filter_sql: string }>
+      const compostas = (await pg.query(`select table_name, sum_sql, filter_sql, period_sql, order_sql from public.obs_archive_registry() where sum_sql like '%+%' order by 1`)).rows as Array<{ table_name: string; sum_sql: string; filter_sql: string; period_sql: string | null; order_sql: string }>
       expect(compostas.map(r => r.table_name)).toEqual(['ab_native_observados', 'yt_watch_alvos', 'yt_watch_thumbs'])
       const esperados = new Map<string, string>()
       for (const reg of compostas) {
@@ -109,7 +109,18 @@ describe.skipIf(skipIfNoLocalDb())('M3b item 1: soma composta do registro no exp
       expect(r.ok, JSON.stringify(r)).toBe(true)
       const v = validarManifesto(JSON.parse(await readFile(join(raiz, LOTE, 'manifesto.json'), 'utf8')))
       if (!('valor' in v)) throw new Error(v.porque)
-      // k.soma do manifesto vem do SQL; quem prova a soma do TypeScript é o `r.ok` (exportar.ts recusa se u.soma !== k.soma) e o conferirLote abaixo
+      // k.soma (SQL) = esperado; o TS se prova também direto, abaixo, e pelo r.ok e pelo conferirLote
+      for (const reg of compostas) {
+        const colunas = ((await pg.query(`select attname::text as n from pg_attribute where attrelid = ('public.' || $1)::regclass and attnum > 0 and not attisdropped order by attnum`, [reg.table_name])).rows as Array<{ n: string }>).map(x => x.n)
+        const consulta = consultaDoArquivo({ tabela: reg.table_name, filtro: reg.filter_sql, periodo: reg.period_sql, ordem: reg.order_sql, colunas })
+        const meses = reg.period_sql === null ? [null] : ((await pg.query(`select period_start::text as i from public.obs_archive_channel_counts($1) where table_name = $2`, [c.canalA, reg.table_name])).rows as Array<{ i: string }>).map(x => x.i)
+        let total = BigInt(0)
+        for (const mes of meses) {
+          const lido = await lerLinhasDoBanco(clienteDoTeste(pg), { consulta, parametros: mes === null ? [c.canalA] : [c.canalA, mes], colunas, colunaDaSoma: colunasDaSoma(reg.sum_sql) })
+          total += BigInt(lido.soma ?? 'x')
+        }
+        expect(total.toString(), `${reg.table_name}: soma do TypeScript = esperado`).toBe(esperados.get(reg.table_name))
+      }
       for (const [tabela, esperado] of esperados) {
         const doManifesto = v.valor.arquivos.filter(a => a.tabela === tabela)
         expect(doManifesto.length, tabela).toBeGreaterThan(0)

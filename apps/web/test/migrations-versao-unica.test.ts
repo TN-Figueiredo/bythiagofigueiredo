@@ -20,6 +20,9 @@ describe('supabase/migrations: versão única', () => {
   it('nenhum par de arquivos com o mesmo prefixo de versão', () => {
     expect(versoesRepetidas(readdirSync(DIR).filter(f => f.endsWith('.sql')))).toEqual([])
   })
+  it('todo .sql de supabase/migrations casa ^\\d{14}_.+\\.sql$', () => {
+    expect(readdirSync(DIR).filter(f => f.endsWith('.sql') && !/^\d{14}_.+\.sql$/.test(f))).toEqual([])
+  })
   it('a função cai com dois arquivos de mesma versão num diretório temporário', () => {
     const t = mkdtempSync(join(tmpdir(), 'mig-ver-'))
     try {
