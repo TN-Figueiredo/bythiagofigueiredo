@@ -129,7 +129,7 @@ create table if not exists public.obs_archive_months (
   detached_at timestamptz, detached_by uuid,
   dropped_at timestamptz, dropped_by uuid, drop_mode text check (drop_mode in ('clique', 'automatico')), rows_dropped bigint, bytes_freed bigint,
   closed_at timestamptz, closed_by uuid,
-  unsealed_at timestamptz, unsealed_reason text check (unsealed_reason in ('conteudo_mudou', 'mudou_no_destaque', 'unidade_nova')),
+  unsealed_at timestamptz, unsealed_reason text check (unsealed_reason in ('conteudo_mudou', 'mudou_no_destaque', 'unidade_nova', 'expurgo')),   -- expurgo: a M9 reabre o mês para refazer o manifesto
   unique (site_id, class, table_name, month)
 );
 create index if not exists idx_oam_detached on public.obs_archive_months (site_id) where detached_at is not null and dropped_at is null;
@@ -848,13 +848,13 @@ begin
     end if;
   end loop;
   -- grava por tabela (Phil I10)
-  for v_row in select m.table_name from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.month = p_month order by m.table_name loop
+  for v_row in select m.table_name, m.detached_at, m.dropped_at from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.month = p_month order by m.table_name loop
     select count(*), count(*) filter (where c.row_count = 0), coalesce(sum(c.row_count), 0) into v_total, v_vazias, v_linhas
       from public.obs_archive_current_units(p_site, p_class, p_month) c where c.table_name = v_row.table_name and c.purged_at is null;
     v_kind := case when v_total = 0 then 'sem_dado_a_guardar' when v_vazias = v_total then 'vazio_conferido' else 'com_dado' end;
     -- dias de São Paulo com linha, contados na tabela online pela mesma regra do leitor, na hora do selo
     v_dias := '{}'; v_dm := 0;
-    if v_kind = 'com_dado' and exists (select 1 from pg_catalog.pg_class where oid = pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(v_row.table_name))) then
+    if v_kind = 'com_dado' and v_row.detached_at is null and v_row.dropped_at is null and exists (select 1 from pg_catalog.pg_class where oid = pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(v_row.table_name))) then
       select * into v_ex from public.obs_archive_table_exprs(v_row.table_name);
       select * into v_src from public.obs_archive_unit_source(p_class, v_row.table_name);
       for v_ch in select c.channel_ref from public.obs_archive_current_units(p_site, p_class, p_month) c
@@ -867,7 +867,10 @@ begin
     end if;
     update public.obs_archive_months
        set sealed_at = now(), sealed_version = v_mv, units_total = v_total, units_empty = v_vazias, rows_total = v_linhas,
-           days_measured = v_dm, days_in_month = (v_seg - p_month), sealed_kind = v_kind, unsealed_at = null, unsealed_reason = null
+           -- mês fora do banco (detached/dropped) guarda os dias medidos no selo anterior: o online já não os tem (pedido da M9)
+           days_measured = case when detached_at is not null or dropped_at is not null then days_measured else v_dm end,
+           days_in_month = case when detached_at is not null or dropped_at is not null then days_in_month else (v_seg - p_month) end,
+           sealed_kind = v_kind, unsealed_at = null, unsealed_reason = null
      where site_id = p_site and class = p_class and month = p_month and table_name = v_row.table_name;
   end loop;
   -- versões anteriores de canal que existe (a de canal removido nunca: 02 §10.5) e os resumos anteriores

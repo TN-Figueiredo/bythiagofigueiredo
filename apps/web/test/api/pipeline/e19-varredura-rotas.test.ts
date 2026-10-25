@@ -36,7 +36,7 @@ vi.mock('@/lib/supabase/service', () => {
 const modulos = import.meta.glob('../../../src/app/api/pipeline/**/route.ts')
 const METODOS = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'] as const
 type Metodo = (typeof METODOS)[number]
-type Helper = 'authenticateRead' | 'authenticateWrite' | 'authenticateIntel' | 'authenticateReadOrIntel' | 'authenticatePipeline' | 'NENHUM'
+type Helper = 'authenticateRead' | 'authenticateWrite' | 'authenticateIntel' | 'authenticateReadOrIntel' | 'authenticatePipeline' | 'authenticateArchive' | 'NENHUM'
 const ID = '00000000-0000-4000-8000-000000000001'
 const PARAMS = { id: ID, key: 'k', code: 'c', domain: 'd', section: 's', linkId: ID }
 const rotaDe = (arq: string) => arq.replace(/^.*\/src\/app\/api\/pipeline\/?/, '').replace(/\/?route\.ts$/, '')
@@ -76,8 +76,11 @@ async function listarHandlers(): Promise<Handler[]> {
     const helperDe = new Map<string, Helper>()
     for (let i = 1; i < partes.length; i += 2) {
       const corpo = partes[i + 1]!.split(/\n\}/)[0]!   // só o corpo do handler: função privada declarada depois não empresta o rótulo
-      const achado = corpo.match(/\b(authenticateReadOrIntel|authenticateRead|authenticateWrite|authenticateIntel|authenticatePipeline)\(/)
-      helperDe.set(partes[i]!, (achado?.[1] as Helper | undefined) ?? 'NENHUM')
+      // M3b (Tarefa 11): as rotas do arquivo autenticam por `authenticateArchive` (lib/pipeline/archive-auth.ts, que chama authenticatePipeline
+      // e exige chave de API + permissão `archive_*` exata); `leituraDoDono` é o mesmo caminho para `pending` e `pode-desligar`.
+      const achado = corpo.match(/\b(authenticateReadOrIntel|authenticateRead|authenticateWrite|authenticateIntel|authenticatePipeline|authenticateArchive|leituraDoDono)\(/)
+      const rotulo = achado?.[1] === 'leituraDoDono' ? 'authenticateArchive' : achado?.[1]
+      helperDe.set(partes[i]!, (rotulo as Helper | undefined) ?? 'NENHUM')
     }
     const mod = (await modulos[arq]!()) as Record<string, unknown>
     for (const metodo of METODOS) {

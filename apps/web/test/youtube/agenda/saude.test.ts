@@ -472,8 +472,9 @@ function sbDasRotas(agenda: () => Promise<Resp>) {
     thenable.eq = vi.fn(() => ({ single: vi.fn(() => Promise.resolve({ data: { consecutive_failures: 0 } })) }))
     return thenable
   })
-  const from = vi.fn(() => ({ select, upsert: vi.fn(() => Promise.resolve({ error: null })) }))
+  const from = vi.fn((t?: string) => (t === 'sites' ? { select: () => ({ abortSignal: () => Promise.resolve({ data: [{ id: 's1' }], error: null }) }) } : { select, upsert: vi.fn(() => Promise.resolve({ error: null })) }))
   const rpc = vi.fn((fn: string) => {
+    if (fn === 'obs_archive_atraso' || fn === 'obs_archive_vigia_remocao') return { abortSignal: () => Promise.resolve({ data: (fn === 'obs_archive_atraso' ? { amarelos: 0, vermelhos: 0, mais_antiga: null, meses_sem_selo: 0 } : { c1: 0, c2: 0, c3: 0, c4: 0 }), error: null }) }
     if (fn === 'competitor_agenda_state') return { abortSignal: () => agenda() }
     if (fn === 'obs_partitions_months_ahead') {
       const conv = iso(Date.now() - 3_600_000)
@@ -523,7 +524,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
     expect(res.status).toBe(200)
     expect(corpo.status).toBe('degraded')
     expect(corpo.crons.filter(c => c.status === 'late').map(c => c.name)).toEqual(['agenda:leitura'])
-    expect(corpo.crons.filter(c => c.name.startsWith('agenda:')).map(c => c.name)).toEqual(['agenda:leitura', 'agenda:particoes_meses_a_frente'])
+    expect(corpo.crons.filter(c => c.name.startsWith('agenda:')).map(c => c.name)).toEqual(['agenda:leitura', 'agenda:particoes_meses_a_frente', 'agenda:arquivo_atraso_copia', 'agenda:arquivo_vigia_remocao'])
     expect(corpo.agendaNota).toBe('agenda não conferida: o banco não respondeu')
   })
 

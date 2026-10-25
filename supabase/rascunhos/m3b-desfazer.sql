@@ -4,6 +4,12 @@
 -- NÃO toca no que já existia antes: obs_archive_batches, _rehearsal, _video_policy, obs_archive_is_site_admin (migration 20261014000002)
 -- nem as funções da MG6/M2 (obs_archive_register, _uncovered, _verify, ...).
 begin;
+-- Phil M5 (M3b-recusa): se a recusa ainda está instalada, as funções da E9 chamariam um helper que lê tabelas que este arquivo apaga (42P01 em todo apagar).
+do $recusa$ begin
+  if to_regprocedure('public.obs_archive_m9_pronto(uuid)') is not null then
+    raise exception 'rode antes o m3b-recusa-desfazer.sql' using errcode = 'P0001';
+  end if;
+end $recusa$;
 drop trigger if exists obs_archive_z_destino_declarado on public.competitor_channels;
 drop trigger if exists obs_archive_z_truncate on public.competitor_channels;
 

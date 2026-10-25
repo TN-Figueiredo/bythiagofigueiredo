@@ -8,7 +8,8 @@ import { FUNCOES_VIVAS, TABELAS_COM_CHAVE_PARA_COMPETITOR_VIDEOS } from '@/lib/y
 
 const pular = skipIfNoLocalDb() || (!M10A_EM_MIGRATION && !(await m10aNoBanco()))
 // leitores conhecidos de competitor_hour_fold_log (E15 soma o dia; o registro do arquivo e a contagem da remoção só contam)
-const LEITORES_FOLD_LOG = ['competitor_channel_removal_impact', 'obs_archive_registry']
+// M3b: obs_archive_policy só cita a tabela como linha da política do arquivo (classe video_antigo, nunca apaga); não lê o conteúdo
+const LEITORES_FOLD_LOG = ['competitor_channel_removal_impact', 'obs_archive_policy', 'obs_archive_registry']
 
 describe.skipIf(pular)('M10a: listas de leitores contra o catálogo do banco', () => {
   let c: pg.Client
