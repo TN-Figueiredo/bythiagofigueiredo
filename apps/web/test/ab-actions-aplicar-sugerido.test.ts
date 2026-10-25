@@ -64,6 +64,23 @@ describe('aplicarSugerido (T11b)', () => {
     expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE, destino: { tipo: 'variante', id: 'B' }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: 9 })
     expect(r).toMatchObject({ ok: true, resultado: 'feito' })
   })
+  it('T12 Y2: forcar=true é repassado ao settleOnAir e o resultado feito não pede confirmação', async () => {
+    const r = await aplicarSugerido('t1', 'B', 9, true)
+    expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE, destino: { tipo: 'variante', id: 'B' }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: 9, forcar: true })
+    expect(r).toMatchObject({ ok: true, resultado: 'feito' })
+  })
+  it('T12 Y2: sem forcar (ou forcar=false) o repasse não leva a chave', async () => {
+    await aplicarSugerido('t1', 'B', 9)
+    await aplicarSugerido('t1', 'B', 9, false)
+    for (const [, opcoes] of settle.mock.calls) expect('forcar' in (opcoes as object)).toBe(false)
+  })
+  it('T12 Y2: o ramo da original ignora forcar', async () => {
+    linha.mockResolvedValue({ data: { completed_reason: 'regra_v2', status: 'completed', restore_seq: 9, result_metadata: { v2: { vencedor_sugerido: 'A' } } }, error: null })
+    atualiza.mockResolvedValue({ data: [{ id: 't1' }], error: null })
+    const r = await aplicarSugerido('t1', 'A', 9, true)
+    expect(r).toMatchObject({ ok: true, resultado: 'feito' })
+    expect(settle).not.toHaveBeenCalled()
+  })
   it('exige admin do site (variante no canal): sem permissão não toca no banco nem no settle', async () => {
     denyUnlessSiteAdmin.mockResolvedValueOnce({ error: 'negado' })
     expect(await aplicarSugerido('t1', 'B', 9)).toEqual({ ok: false, resultado: 'sem_permissao', error: 'negado' })

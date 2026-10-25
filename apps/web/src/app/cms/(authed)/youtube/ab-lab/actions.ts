@@ -1226,8 +1226,9 @@ export async function revertWinner(testId: string, seqVisto: number): Promise<Re
 /**
  * S8-F4 T11b: o humano põe no ar o vencedor SUGERIDO pela regra v2 num teste já concluído (completed_reason = regra_v2).
  * Guarda: a variante tem de ser `result_metadata.v2.vencedor_sugerido`; CAS por seqVisto no settleOnAir.
+ * `forcar` (T12 Y2): só o "Aplicar mesmo assim" depois de `precisa_confirmar`; o ramo da original não usa.
  */
-export async function aplicarSugerido(testId: string, varianteId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
+export async function aplicarSugerido(testId: string, varianteId: string, seqVisto: number, forcar?: boolean): Promise<ResultadoAcaoSaida> {
   const siteIdDaTela = (await getSiteContext()).siteId
   const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'deixar uma variante no ar')
   if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
@@ -1275,7 +1276,7 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
     revalidatePath('/cms/youtube/ab-lab')
     return { ok: true, resultado: 'feito', campos: {} }
   }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: { tipo: 'variante', id: varianteId }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: seq.data }))
+  return concluirSaida(settleOnAir(testId, { siteId, destino: { tipo: 'variante', id: varianteId }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: seq.data, ...(forcar === true ? { forcar: true } : {}) }))
 }
 
 // ---------------------------------------------------------------------------

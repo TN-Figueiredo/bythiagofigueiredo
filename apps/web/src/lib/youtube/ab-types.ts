@@ -562,6 +562,8 @@ export interface AbTestBaseView {
   noArAgora?: { label: DisplayLabel; desde: string | null } | null
   /** `restore_seq` no momento da leitura: a tela devolve como `seqVisto` ao pausar/encerrar (recusa se mudou em outra aba). */
   restoreSeq: number
+  /** `completed_at` (ISO); o cabeçalho do teste v2 concluído mostra "concluído em DD/MM" (T12 T7). */
+  completedAt?: string | null
 }
 
 export interface AbTestActiveView extends AbTestBaseView {

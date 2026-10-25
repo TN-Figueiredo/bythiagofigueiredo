@@ -55,3 +55,23 @@
 .pv2-sinal .l { display: flex; gap: 10px; align-items: center; padding: 8px 14px; border: 1px dashed var(--cn-border-strong); background: transparent; border-radius: 8px; color: var(--cn-text); font-size: 14px; max-width: 100%; }
 .pv2-sinal .l .sy { color: var(--cn-text); }
 .pv2-sinal .l b { font-weight: 600; }
+
+/* Desfecho do concluído (T7): selo em 4 famílias de cor + símbolo + texto (lê em cinza); provisório = tracejado sem preenchimento. */
+.pv2-sel .sy { font-size: 16px; line-height: 1; flex: none; display: inline-grid; place-items: center; min-width: 16px; }
+.pv2-sel.vence { border-color: var(--cn-ok-line); color: var(--cn-ok); background: var(--cn-ok-bg); }
+.pv2-sel.vence.prov { border-style: dashed; background: transparent; }
+.pv2-sel.neu { border-color: var(--cn-dim); color: var(--cn-text); }
+.pv2-sel.mut { border-color: var(--cn-dim); color: var(--cn-text); background: var(--cn-surface-2); }
+.pv2-sel.nmf { border-color: var(--cn-nm-line); color: var(--cn-nm); background: repeating-linear-gradient(135deg, var(--cn-nm-bg) 0 6px, var(--cn-nm-fio) 6px 8px); }
+.pv2-sel.esp { border-style: dashed; border-color: var(--cn-yt-line); color: var(--cn-yt); background: var(--cn-yt-bg); }
+.pv2-sel.fort { border-color: var(--cn-dim); color: var(--cn-text); background: var(--cn-surface-2); border-width: 3px; border-style: double; }
+.pv2-desf { margin-top: var(--s4); display: flex; flex-direction: column; gap: var(--s3); align-items: flex-start; max-width: 1040px; }
+.pv2-desf .pv2-selos { margin-bottom: 0; }
+.pv2-provl { display: inline-flex; gap: 7px; align-items: center; font-size: 13px; color: var(--cn-muted); }
+.pv2-noar { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--cn-muted); }
+.pv2-noar b { color: var(--cn-text); }
+.pv2-noar:focus-visible { outline: 2px solid var(--cn-accent); outline-offset: 3px; border-radius: 4px; }
+.pv2-acts { display: flex; flex-wrap: wrap; gap: var(--s4); align-items: center; }
+.pv2-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 0 18px; border: 1px solid var(--cn-border-strong); border-radius: 6px; background: transparent; color: var(--cn-text); font: 500 13px/18px Inter, system-ui, sans-serif; cursor: pointer; }
+.pv2-btn.pri { background: var(--cn-accent); border-color: var(--cn-accent); color: var(--cn-on-accent); font-weight: 600; }
+.pv2-btn:focus-visible { outline: 2px solid var(--cn-accent); outline-offset: 2px; }

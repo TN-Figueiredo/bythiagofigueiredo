@@ -3,7 +3,9 @@
 // Blocos da tela v2 do teste A/B (S8-F4 T12, T6). Só desenham o modelo `TelaV2`: nenhuma conta aqui.
 // Nulo é "não medido", nunca 0. Textos: mockup M5 r5 e tabela ◆T do plano.
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
-import type { LinhaPisoV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
+import type { ReactNode, RefObject } from 'react'
+import type { LinhaPisoV2, SeloV2, TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
+import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import { InfoDica } from '../../_components/info-dica'
 import './caminho-nativo.css'
 import './blocos-v2.css'
@@ -103,6 +105,83 @@ export function SinalV2({ letra }: { letra: DisplayLabel }) {
   return (
     <div className="pv2-sinal">
       <div className="l"><span className="sy" aria-hidden="true">▲</span><span><b>Sinal provisório, não decide:</b> {letra} está um pouco à frente.</span></div>
+    </div>
+  )
+}
+
+// ---- Desfecho do teste concluído (T7) ----
+
+const SELO: Record<SeloV2['tipo'], { c: string; s: string }> = {
+  vence: { c: 'vence', s: '▲' }, original: { c: 'neu', s: '◆' }, sem_diferenca: { c: 'mut', s: '=' }, volume: { c: 'mut', s: '◔' },
+  dado: { c: 'nmf', s: '∅' }, falha: { c: 'errf', s: '✕' }, aguardando: { c: 'esp', s: '◷' }, pendente: { c: 'esp', s: '◌' }, ilegivel: { c: 'fort', s: '⚠' },
+}
+
+function textoDoSelo(selo: SeloV2): string {
+  switch (selo.tipo) {
+    case 'vence': return selo.provisorio ? `${selo.letra} vence (provisório)` : `${selo.letra} vence`
+    case 'original': return 'A original vence'
+    case 'sem_diferenca': return 'Sem diferença'
+    case 'volume': return 'Faltou volume'
+    case 'dado': return 'Dado não medido'
+    case 'falha': return 'Encerrado por segurança'
+    case 'aguardando': return 'Aguardando o YouTube'
+    case 'pendente': return 'Calculando'
+    case 'ilegivel': return 'Não consegui ler'
+  }
+}
+
+const IcRelogio = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M7 4v3.2l2 1.3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+)
+
+export interface DesfechoV2Props {
+  tela: Extract<TelaV2, { fase: 'concluido' }>
+  onAplicar: (gatilho: HTMLButtonElement) => void
+  onVoltar: (gatilho: HTMLButtonElement) => void
+  onTentarDeNovo: () => void
+  /** Alvo do foco depois de aplicar/voltar (a linha "No ar agora"). */
+  noArRef: RefObject<HTMLDivElement | null>
+}
+
+export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef }: DesfechoV2Props) {
+  const canAdmin = useCanAdminSite()
+  const { c, s } = SELO[tela.selo.tipo]
+  const prov = tela.selo.tipo === 'vence' && tela.selo.provisorio
+  const noAr = tela.noAr
+  let linhaNoAr: ReactNode = null
+  if (noAr.tipo === 'original') linhaNoAr = <>No ar agora: <b>A (original)</b>.</>
+  else if (noAr.tipo === 'aplicada') linhaNoAr = <><b>{noAr.letra}</b> está no ar.</>
+  else if (noAr.tipo === 'desfeita') linhaNoAr = <>No ar agora: <b>A (original)</b>. {noAr.letra} deixou de ser aplicada.</>
+  const chipNoAr = noAr.tipo === 'aplicada' ? noAr.letra : 'A'
+  return (
+    <div className="pv2-desf">
+      <div className="pv2-selos">
+        <span className={`pv2-sel ${c}${prov ? ' prov' : ''}`} role="status"><span className="sy" aria-hidden="true">{s}</span>{textoDoSelo(tela.selo)}</span>
+        {noAr.tipo === 'desfeita' ? <span className="pv2-sel mut"><span className="sy" aria-hidden="true">◆</span>Aplicação de {noAr.letra} desfeita</span> : null}
+      </div>
+      {tela.prazo ? (
+        <span className="pv2-provl">
+          {tela.prazo.tipo === 'final'
+            ? <><span aria-hidden="true">■</span>Final: já não muda.</>
+            : <><IcRelogio />{tela.prazo.ate ? `Provisório até ${tela.prazo.ate}: pode mudar nos próximos dias.` : 'Provisório: pode mudar nos próximos dias.'}</>}
+        </span>
+      ) : null}
+      {linhaNoAr ? (
+        <div className="pv2-noar" ref={noArRef} tabIndex={-1}>
+          <span className={`pv2-chip pv2-c${chipNoAr}`} aria-hidden="true">{chipNoAr}</span>
+          <span>{linhaNoAr}</span>
+        </div>
+      ) : null}
+      {tela.aplicar ? (
+        canAdmin ? (
+          <div className="pv2-acts"><button type="button" className="pv2-btn pri" onClick={e => onAplicar(e.currentTarget)}>Aplicar {tela.aplicar.letra} ao vídeo</button></div>
+        ) : <AdminOnlyNote action="aplicar a variante" className="text-cms-text-dim" />
+      ) : tela.voltar ? (
+        canAdmin ? (
+          <div className="pv2-acts"><button type="button" className="pv2-btn" onClick={e => onVoltar(e.currentTarget)}>Voltar à original</button></div>
+        ) : <AdminOnlyNote action="voltar à original" className="text-cms-text-dim" />
+      ) : null}
+      {tela.tentarDeNovo ? <div className="pv2-acts"><button type="button" className="pv2-btn" onClick={onTentarDeNovo}>Tentar de novo</button></div> : null}
     </div>
   )
 }

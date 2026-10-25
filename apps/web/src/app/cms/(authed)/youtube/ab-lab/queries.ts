@@ -1118,6 +1118,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     createdAt: test.created_at,
     restoreStatus: paraRestoreStatus(test.restore_status),
     restoreSeq: test.restore_seq ?? 0,
+    completedAt: test.completed_at ?? null,
     youtubeVideoId: results.youtubeId ?? null,
     placar: results.placar ?? null,
     faixa_dias: results.faixa_dias ?? [],

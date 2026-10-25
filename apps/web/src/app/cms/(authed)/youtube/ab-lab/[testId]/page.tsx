@@ -3,9 +3,10 @@ import { getTestResults, toDetailView } from '../queries'
 import { ActiveDetail } from '../_components/active-detail'
 import { WinnerDetail } from '../_components/winner-detail'
 import { PlayoffDetail } from '../_components/playoff-detail'
+import { ConcluidoV2Detail } from '../_components/concluido-v2-detail'
 import { EarlyDetail } from '../_components/early-detail'
 import { notFound } from 'next/navigation'
-import { endAbTest, pauseAbTest, resumeAbTest, retryRestore, dismissRestore } from '../actions'
+import { endAbTest, pauseAbTest, resumeAbTest, retryRestore, dismissRestore, aplicarSugerido, revertWinner } from '../actions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
 import * as Sentry from '@sentry/nextjs'
@@ -18,6 +19,7 @@ import { isEarly } from '../_components/is-early'
 import { faixaDaPagina } from '../_components/faixa-da-pagina'
 import type { Metadata } from 'next'
 import type { AbTestDetailView, AbTestActiveView } from '@/lib/youtube/ab-types'
+import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // F-D3: settleOnAir (teto de 55 s) corre dentro das ações desta página
@@ -71,6 +73,16 @@ function renderView(view: AbTestDetailView) {
     const id = (view as AbTestActiveView).id
     if (isEarly(view) && (view as AbTestActiveView).v2?.fase !== 'ativo') return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
     return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} retomar={resumeAbTest.bind(null, id)} />
+  }
+  // Concluído v2 "da regra" (D-T12-2): a tela v2 (T12). Encerrado à mão no ativo segue nos detalhes de sempre.
+  if (view.v2?.fase === 'concluido') {
+    return (
+      <ConcluidoV2Detail
+        view={view as AbTestDetailView & { v2: Extract<TelaV2, { fase: 'concluido' }> }}
+        aplicar={aplicarSugerido.bind(null, view.id)}
+        voltar={revertWinner.bind(null, view.id)}
+      />
+    )
   }
   if (view.outcome === 'winner') return <WinnerDetail view={view} />
   return <PlayoffDetail view={view} />
