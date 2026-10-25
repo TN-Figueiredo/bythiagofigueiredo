@@ -91,6 +91,15 @@ describe('publishVideo sem mock das ações do A/B (S8-F4 B2)', () => {
     expect(String(t.status_note)).toContain('C: C')
   })
 
+  it('o retorno diz quantos títulos ficaram fora do teste e que estão na nota', async () => {
+    montar()
+    const r = await publishVideo('p1', 1)
+    expect(r).toMatchObject({ ok: true, data: { foraDoTeste: 1 } })
+    if (!r.ok) throw new Error('esperava ok')
+    expect(r.data?.aviso).toMatch(/1 título ficou fora do teste/)
+    expect(r.data?.aviso).toMatch(/nota do teste/)
+  })
+
   it('falha no 2º createTextVariant: nenhum ab_tests de rascunho sobra', async () => {
     const b = montar(3) // 1ª inserção = a original do createAbTest; 2ª e 3ª = os desafiantes
     const r = await publishVideo('p1', 1)

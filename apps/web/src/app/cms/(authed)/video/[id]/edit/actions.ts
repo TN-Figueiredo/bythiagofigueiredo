@@ -205,7 +205,7 @@ export async function advanceVideoStage(id: string, version: number): Promise<Vi
 async function materializeAbDraft(
   supabase: SupabaseClient, siteId: string, youtubeVideoId: string,
   code: string, draft: z.infer<typeof ABDraftSchema>,
-): Promise<{ ok: true; testId: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; testId: string; foraDoTeste: number } | { ok: false; error: string }> {
   const plan = planAbMaterialization(draft)
 
   const created = await createAbTest({
@@ -244,7 +244,7 @@ async function materializeAbDraft(
     const { error } = await supabase.from('ab_tests').update({ status_note: `Fora do teste (limite da regra v2): ${descartadas.join('; ')}` }).eq('id', testId).eq('status', 'draft')
     if (error) return falhar(error.message)
   }
-  return { ok: true, testId }
+  return { ok: true, testId, foraDoTeste: descartadas.length }
 }
 
 /**
@@ -256,7 +256,13 @@ async function materializeAbDraft(
  * A reporter (publish denied) is 403'd by the action itself — the service-role client is never
  * obtained and `createAbTest`/`createTextVariant` are never reached.
  */
-export async function publishVideo(id: string, version: number): Promise<VideoActionResult<{ testId: string; stage: string; version: number }>> {
+/** Aviso do que ficou de fora do teste (limite da regra v2); null quando nada foi descartado. */
+function avisoForaDoTeste(n: number): string | null {
+  if (n <= 0) return null
+  return `${n} ${n === 1 ? 'título ficou fora do teste' : 'títulos ficaram fora do teste'} (limite da regra nova); ${n === 1 ? 'está' : 'estão'} na nota do teste.`
+}
+
+export async function publishVideo(id: string, version: number): Promise<VideoActionResult<{ testId: string; stage: string; version: number; foraDoTeste: number; aviso: string | null }>> {
   const { siteId } = await getSiteContext()
   const scope = await requireSiteScope({ area: 'cms', siteId, mode: 'publish' })
   if (!scope.ok) return { ok: false, error: scopeError(scope.reason) }
@@ -297,6 +303,6 @@ export async function publishVideo(id: string, version: number): Promise<VideoAc
   const row = updated as { stage?: string; version?: number }
   return {
     ok: true,
-    data: { testId: mat.testId, stage: row.stage ?? 'published', version: row.version ?? version },
+    data: { testId: mat.testId, stage: row.stage ?? 'published', version: row.version ?? version, foraDoTeste: mat.foraDoTeste, aviso: avisoForaDoTeste(mat.foraDoTeste) },
   }
 }

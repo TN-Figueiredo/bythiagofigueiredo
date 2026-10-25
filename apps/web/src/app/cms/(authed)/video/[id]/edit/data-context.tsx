@@ -58,7 +58,7 @@ export interface VideoData {
   /** Publish-gated A/B materialize + stage→published. Returns the new stage+version on success
    *  so the shell can advance locally (no stale UI until reload). */
   publishVideo: (id: string, version: number) =>
-    Promise<{ ok: true; stage: string; version: number } | { ok: false; error?: string }>
+    Promise<{ ok: true; stage: string; version: number; aviso?: string | null } | { ok: false; error?: string }>
 }
 
 const Ctx = createContext<VideoData | null>(null)

@@ -204,7 +204,7 @@ export function VideoEditorClient({
     if (res.ok) {
       const next = res.data?.version
       if (typeof next === 'number') setVersion(next)
-      return { ok: true as const, stage: res.data?.stage ?? 'published', version: next ?? v }
+      return { ok: true as const, stage: res.data?.stage ?? 'published', version: next ?? v, aviso: res.data?.aviso ?? null }
     }
     return { ok: false as const, error: res.error }
   }, [])

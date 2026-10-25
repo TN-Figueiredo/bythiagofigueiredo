@@ -146,6 +146,7 @@ function StageBody() {
                 if (res.ok) {
                   dispatch({ type: 'SET_DB_STAGE', stage: res.stage })
                   dispatch({ type: 'SET_VERSION', version: res.version })
+                  if (res.aviso) toast.warning('Publicado, com um aviso', { description: res.aviso, duration: 12000 })
                 } else {
                   toast.error('Falha ao publicar', { description: res.error })
                 }
