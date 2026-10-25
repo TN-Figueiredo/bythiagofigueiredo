@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { aplicarM3b, m3bNoBanco, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, semearCanal } from '../helpers/m3b'
+import { aplicarM3b, m3bNoBanco, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, semearCanal, voltarA04 } from '../helpers/m3b'
 import { criarUsuario } from '../helpers/mg6'
 import { travarDdl } from '../helpers/ddl-testes'
 
@@ -49,6 +49,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b-apagar-sql: o for key share do _core fic
     try {
       if (!(await m3bNoBanco(pg))) await aplicarM3b(pg)
       await travarDdl(pg)
+      await voltarA04(pg)
       await pg.query(SQL_04())
       await fn()
     } finally { await pg.query('rollback') }

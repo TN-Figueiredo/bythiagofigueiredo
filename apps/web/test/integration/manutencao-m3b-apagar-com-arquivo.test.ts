@@ -8,7 +8,7 @@ import { Client } from 'pg'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { aplicarM3b, m3bNoBanco, semearCanal, escalar, tenta } from '../helpers/m3b'
+import { aplicarM3b, m3bNoBanco, semearCanal, escalar, tenta, voltarA04 } from '../helpers/m3b'
 import { criarUsuario } from '../helpers/mg6'
 import { travarDdl } from '../helpers/ddl-testes'
 
@@ -27,6 +27,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b-apagar-sql: o banco recusa apagar canal 
     try {
       if (!(await m3bNoBanco(pg))) await aplicarM3b(pg)
       await travarDdl(pg)
+      await voltarA04(pg)
       await pg.query(sql())
       const s = await semearCanal(pg, { videos: 1 })
       const admin = await criarUsuario(pg)
