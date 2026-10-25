@@ -650,9 +650,9 @@ describe('wizardConfigToAbConfig — full coverage', () => {
     expect(result.confidence_threshold).toBe(0.99)
   })
 
-  it('maps duration to max_duration_days', () => {
+  it('nunca manda max_duration_days (S8-F4: duração fixa pela regra)', () => {
     const result = wizardConfigToAbConfig({ ...baseConfig, duration: 28 })
-    expect(result.max_duration_days).toBe(28)
+    expect(result).not.toHaveProperty('max_duration_days')
   })
 
   it('não grava auto_apply_winner (A/B Lab P2)', () => {
@@ -679,7 +679,6 @@ describe('wizardConfigToAbConfig — full coverage', () => {
     const result = wizardConfigToAbConfig(baseConfig)
     expect(Object.keys(result)).toEqual(expect.arrayContaining([
       'confidence_threshold',
-      'max_duration_days',
       'burn_in_days',
       'rotation_pattern',
       'stability_threshold',
@@ -715,7 +714,7 @@ describe('initWizardConfig — from site settings', () => {
     const cfg = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
     const abConfig = wizardConfigToAbConfig({ ...cfg, durationTouched: true })
     expect(abConfig.confidence_threshold).toBe(AB_SITE_SETTINGS_DEFAULTS.default_confidence)
-    expect(abConfig.max_duration_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_duration_days)
+    expect(abConfig).not.toHaveProperty('max_duration_days')
     expect(abConfig).not.toHaveProperty('auto_apply_winner')
     expect(abConfig.burn_in_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_burn_in_days)
   })

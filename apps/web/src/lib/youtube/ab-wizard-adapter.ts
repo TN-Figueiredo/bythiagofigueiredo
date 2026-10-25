@@ -5,7 +5,7 @@ export interface WizardConfig {
   duration: number        // days 7-28
   burnIn: number          // days 0-3
   rotation: 'abba' | 'round_robin' | 'random'
-  /** true sse o usuário mexeu na duração; sem toque o adaptador não manda `max_duration_days` (S8-F4 A4). */
+  /** Legado: o assistente v2 não tem mais o controle de duração e o adaptador nunca manda `max_duration_days` (o início grava `tetoPadrao(V)`). */
   durationTouched?: boolean
 }
 
@@ -23,7 +23,6 @@ export interface ClickMomentVariant {
 export function wizardConfigToAbConfig(cfg: WizardConfig): Partial<AbTestConfig> {
   return {
     confidence_threshold: cfg.confidence / 100,
-    ...(cfg.durationTouched ? { max_duration_days: cfg.duration, teto_explicito: true } : {}),
     burn_in_days: cfg.burnIn,
     rotation_pattern: cfg.rotation, // o passo trava em ABBA; o início da v2 recusa o resto
     stability_threshold: 3,

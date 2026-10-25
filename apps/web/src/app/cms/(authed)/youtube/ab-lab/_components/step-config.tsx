@@ -20,9 +20,8 @@ export function StepConfig({ config, variantCount = 2, onChange }: StepConfigPro
   // O teste só encerra na duração máxima (a avaliação automática foi retirada)
   const minimo = tetoMinimo(variantCount)
   const padrao = tetoPadrao(variantCount)
-  const duracao = config.durationTouched ? config.duration : padrao
-  const estDays = duracao
-  const abbaCycles = Math.ceil(duracao / 2) * 2
+  const estDays = padrao
+  const abbaCycles = Math.ceil(padrao / 2) * 2
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
@@ -30,16 +29,11 @@ export function StepConfig({ config, variantCount = 2, onChange }: StepConfigPro
       <div>
         <CfgRow
           label="Duração máxima"
-          hint={`Padrão ${padrao} dias, mínimo ${minimo} dias com ${variantCount} variantes (o YouTube leva dias para enviar o alcance)`}
+          hint="Fixa pela regra nova (o YouTube leva dias para enviar o alcance)"
         >
-          <Slider
-            value={duracao}
-            onChange={v => onChange('duration', v)}
-            min={minimo}
-            max={28}
-            step={1}
-            format={v => `${v} dias`}
-          />
+          <span className="text-xs font-mono font-semibold text-cms-text" data-testid="duracao-fixa">
+            Duração: {padrao} dias; mínimo {minimo}
+          </span>
         </CfgRow>
 
         <CfgRow

@@ -677,9 +677,10 @@ describe('WizardConfig adapter', () => {
       expect(result.confidence_threshold).toBe(0.80)
     })
 
-    it('maps duration to max_duration_days', () => {
+    it('nunca manda max_duration_days nem teto_explicito (o início grava o teto padrão)', () => {
       const result = wizardConfigToAbConfig({ ...defaultWc, duration: 21 })
-      expect(result.max_duration_days).toBe(21)
+      expect(result).not.toHaveProperty('max_duration_days')
+      expect(result).not.toHaveProperty('teto_explicito')
     })
 
     it('não grava auto_apply_winner (A/B Lab P2)', () => {
@@ -710,8 +711,6 @@ describe('WizardConfig adapter', () => {
       const result = wizardConfigToAbConfig(defaultWc)
       expect(result).toEqual({
         confidence_threshold: 0.95,
-        max_duration_days: 14,
-        teto_explicito: true,
         burn_in_days: 2,
         rotation_pattern: 'abba',
         stability_threshold: 3,
@@ -721,9 +720,8 @@ describe('WizardConfig adapter', () => {
     it('round-trip: init from defaults then convert back has consistent values', () => {
       const wc = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
       const result = wizardConfigToAbConfig({ ...wc, durationTouched: true })
-      expect(wizardConfigToAbConfig(wc)).not.toHaveProperty('max_duration_days') // sem toque o teto fica com o início
+      expect(result).not.toHaveProperty('max_duration_days') // o teto fica com o início
       expect(result.confidence_threshold).toBe(AB_SITE_SETTINGS_DEFAULTS.default_confidence)
-      expect(result.max_duration_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_duration_days)
       expect(result).not.toHaveProperty('auto_apply_winner')
       expect(result.burn_in_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_burn_in_days)
     })
@@ -895,7 +893,8 @@ describe('StepConfig component', () => {
 
     it('renders hint text for each config row', () => {
       renderConfig()
-      expect(screen.getByText(/Padrão 15 dias, mínimo 12 dias/)).toBeDefined()
+      expect(screen.getByText(/Fixa pela regra nova/)).toBeDefined()
+      expect(screen.getByTestId('duracao-fixa').textContent).toBe('Duração: 15 dias; mínimo 12')
       expect(screen.getByText(/Período inicial/)).toBeDefined()
       expect(screen.getByText(/usa só a rotação ABBA/)).toBeDefined()
     })
@@ -904,18 +903,16 @@ describe('StepConfig component', () => {
   /* --- Slider bounds --------------------------------------------- */
 
   describe('slider bounds', () => {
-    it('duration slider: min=12 max=28', () => {
+    it('sem slider de duração: só o burn-in (a duração é texto fixo)', () => {
       renderConfig()
-      const sliders = screen.getAllByRole('slider')
-      expect(sliders[0]!.getAttribute('min')).toBe('12')
-      expect(sliders[0]!.getAttribute('max')).toBe('28')
+      expect(screen.getAllByRole('slider')).toHaveLength(1)
     })
 
     it('burn-in slider: min=0 max=3', () => {
       renderConfig()
       const sliders = screen.getAllByRole('slider')
-      expect(sliders[1]!.getAttribute('min')).toBe('0')
-      expect(sliders[1]!.getAttribute('max')).toBe('3')
+      expect(sliders[0]!.getAttribute('min')).toBe('0')
+      expect(sliders[0]!.getAttribute('max')).toBe('3')
     })
 
     it('all sliders have step=1', () => {
@@ -973,41 +970,13 @@ describe('StepConfig component', () => {
       expect(screen.getByText('Ciclos ABBA')).toBeDefined()
     })
 
-    it('correct calculation for duration=14 confidence=95 (factor 1.0)', () => {
-      renderConfig({ duration: 14, confidence: 95 })
-      // estDays = Math.round(14 * 1) = 14
-      expect(screen.getByText('~14 dias')).toBeDefined()
-      // abbaCycles = ceil(14/2)*2 = 14
-      expect(screen.getByText('14')).toBeDefined()
-    })
-
-    it('duration=14 confidence=90: estimativa é a duração máxima (~14)', () => {
-      renderConfig({ confidence: 90, duration: 14 })
-      expect(screen.getByText('~14 dias')).toBeDefined()
-    })
-
-    it('correct calculation for duration=21 confidence=95', () => {
-      renderConfig({ duration: 21, confidence: 95 })
-      // estDays = Math.round(21 * 1) = 21
-      expect(screen.getByText('~21 dias')).toBeDefined()
-      // abbaCycles = ceil(21/2)*2 = 22
-      expect(screen.getByText('22')).toBeDefined()
-    })
-
-    it('duration=7 confidence=80: estimativa é a duração máxima (~7)', () => {
-      renderConfig({ duration: 7, confidence: 80 })
-      expect(screen.getByText('~7 dias')).toBeDefined()
-      // abbaCycles = ceil(7/2)*2 = 8
-      expect(screen.getByText('8')).toBeDefined()
-    })
-
-    it('correct calculation for duration=28 confidence=99', () => {
-      renderConfig({ duration: 28, confidence: 99 })
-      // confidence >= 95 => factor 1
-      // estDays = Math.round(28 * 1) = 28
-      expect(screen.getByText('~28 dias')).toBeDefined()
-      // abbaCycles = ceil(28/2)*2 = 28
-      expect(screen.getByText('28')).toBeDefined()
+    it('a estimativa é o teto padrão (15 dias, 16 ciclos com 2 variantes), venha o que vier em duration/confidence', () => {
+      for (const o of [{ duration: 14, confidence: 95 }, { duration: 28, confidence: 99 }, { duration: 7, confidence: 80 }]) {
+        const { unmount } = renderConfig(o)
+        expect(screen.getByText('~15 dias')).toBeDefined()
+        expect(screen.getByText('16')).toBeDefined()
+        unmount()
+      }
     })
 
     it('rodapé não fala de gates', () => {

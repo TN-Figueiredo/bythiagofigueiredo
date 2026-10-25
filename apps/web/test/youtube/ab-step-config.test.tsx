@@ -46,8 +46,8 @@ describe('StepConfig', () => {
     expect(screen.queryByText('Aplicar vencedor automaticamente')).toBeNull()
     expect(screen.queryByText('Playoff automático')).toBeNull()
     expect(screen.queryAllByRole('switch')).toHaveLength(0)
-    // sobram só duração e burn-in
-    expect(screen.getAllByRole('slider')).toHaveLength(2)
+    // sobra só o burn-in (a duração é texto fixo na regra nova)
+    expect(screen.getAllByRole('slider')).toHaveLength(1)
   })
 
   it('renders estimate card with title, subtitle, and stats', () => {
@@ -60,15 +60,15 @@ describe('StepConfig', () => {
 
   it('estimate card shows correct values for duration=14 confidence=95', () => {
     renderConfig()
-    // estDays = Math.round(14 * 1) = 14 (confidence >= 95 => factor 1)
-    expect(screen.getByText('~14 dias')).toBeDefined()
-    // abbaCycles = ceil(14/2)*2 = 14
-    expect(screen.getByText('14')).toBeDefined()
+    // teto padrão com 2 variantes = 15
+    expect(screen.getByText('~15 dias')).toBeDefined()
+    // abbaCycles = ceil(15/2)*2 = 16
+    expect(screen.getByText('16')).toBeDefined()
   })
 
-  it('estimativa é a duração máxima, não depende da confiança salva (90 + 14 dias = ~14)', () => {
+  it('estimativa é a duração máxima, não depende da confiança salva (~15)', () => {
     renderConfig({ confidence: 90, duration: 14 })
-    expect(screen.getByText('~14 dias')).toBeDefined()
+    expect(screen.getByText('~15 dias')).toBeDefined()
     expect(screen.queryByText('~11 dias')).toBeNull()
   })
 
@@ -78,18 +78,17 @@ describe('StepConfig', () => {
     expect(container.textContent).not.toMatch(/estabilidade/i)
   })
 
-  it('duration slider has min=12 (tetoMinimo de 2 variantes) max=28', () => {
-    renderConfig()
-    const sliders = screen.getAllByRole('slider')
-    const durationSlider = sliders[0]!
-    expect(durationSlider.getAttribute('min')).toBe('12')
-    expect(durationSlider.getAttribute('max')).toBe('28')
+  it('duração: texto fixo, sem controle e sem onChange (regra v2: padrão 15, mínimo 12 com 2 variantes)', () => {
+    const { onChange, container } = renderConfig()
+    expect(screen.getByTestId('duracao-fixa').textContent).toBe('Duração: 15 dias; mínimo 12')
+    expect(container.querySelector('input[type="range"][min="12"]')).toBeNull()
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('burn-in slider has min=0 max=3', () => {
     renderConfig()
     const sliders = screen.getAllByRole('slider')
-    const burnInSlider = sliders[1]!
+    const burnInSlider = sliders[0]!
     expect(burnInSlider.getAttribute('min')).toBe('0')
     expect(burnInSlider.getAttribute('max')).toBe('3')
   })
@@ -102,11 +101,10 @@ describe('StepConfig', () => {
     expect(screen.queryByText('Sequencial')).toBeNull()
   })
 
-  it('sem toque e 3 variantes: mostra o padrão 17 e o mínimo 16 no slider', () => {
+  it('com 3 variantes: texto fixo com padrão 17 e mínimo 16, sem slider de duração', () => {
     const { container } = render(<StepConfig config={{ ...defaultConfig, durationTouched: false }} variantCount={3} onChange={vi.fn()} />)
-    const slider = screen.getAllByRole('slider')[0]!
-    expect(slider.getAttribute('min')).toBe('16')
-    expect(container.textContent).toContain('Padrão 17 dias, mínimo 16 dias')
+    expect(screen.getByTestId('duracao-fixa').textContent).toBe('Duração: 17 dias; mínimo 16')
+    expect(screen.getAllByRole('slider')).toHaveLength(1)
     expect(container.textContent).toContain('~17 dias')
   })
 

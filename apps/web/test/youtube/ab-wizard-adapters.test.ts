@@ -7,9 +7,10 @@ describe('wizardConfigToAbConfig', () => {
     const result = wizardConfigToAbConfig({ confidence: 95, duration: 14, burnIn: 2, rotation: 'abba' })
     expect(result.confidence_threshold).toBe(0.95)
   })
-  it('duração tocada: manda max_duration_days e teto_explicito true', () => {
+  it('duração tocada (legado): também NÃO manda max_duration_days nem teto_explicito (S8-F4 D2)', () => {
     const result = wizardConfigToAbConfig({ confidence: 95, duration: 21, burnIn: 2, rotation: 'abba', durationTouched: true })
-    expect(result).toMatchObject({ max_duration_days: 21, teto_explicito: true })
+    expect(result).not.toHaveProperty('max_duration_days')
+    expect(result).not.toHaveProperty('teto_explicito')
   })
   it('duração sem toque: NÃO manda max_duration_days nem teto_explicito (A4)', () => {
     const result = wizardConfigToAbConfig({ confidence: 95, duration: 14, burnIn: 2, rotation: 'abba' })
