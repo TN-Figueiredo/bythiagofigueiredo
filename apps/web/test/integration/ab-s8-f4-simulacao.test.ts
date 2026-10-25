@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { semearTesteAb, clienteServico, q } from '../helpers/db-seed'
+import { semearTesteAb, clienteServico, q, SUPABASE_URL } from '../helpers/db-seed'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('@/lib/cron-health', () => ({ recordCronFailure: vi.fn(async () => undefined), recordCronSuccess: vi.fn(async () => undefined) }))
@@ -229,7 +229,8 @@ beforeAll(() => {
   // nada de rede real: só o Supabase local passa
   globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url
-    if (!/^https?:\/\/(127\.0\.0\.1|localhost):54421\//.test(url)) throw new Error(`rede externa bloqueada na simulação: ${url}`)
+    // Só o Supabase local em uso (54421 no bythiago_int, 54321 na CI) passa; o resto é rede externa.
+    if (!url.startsWith(`${new URL(SUPABASE_URL).origin}/`)) throw new Error(`rede externa bloqueada na simulação: ${url}`)
     return fetchOriginal(input, init)
   }) as typeof fetch
 })
