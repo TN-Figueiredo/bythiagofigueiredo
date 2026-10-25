@@ -84,15 +84,21 @@ describe('StepVariantes', () => {
     expect(onAdd).toHaveBeenCalledOnce()
   })
 
-  it('"Adicionar variante" hidden when 3 challengers present', () => {
-    const variants = [makeOriginal(), makeChallenger('B'), makeChallenger('C'), makeChallenger('D')]
+  it('S8-F4 D3: com 2 desafiantes o botão de adicionar some e aparece a frase da regra', () => {
+    const variants = [makeOriginal(), makeChallenger('B'), makeChallenger('C')]
     render(<StepVariantes {...defaultProps({ variants })} />)
     expect(screen.queryByText('Adicionar variante')).toBeNull()
+    expect(screen.getByText('a regra nova aceita até 2 variantes além da original')).toBeDefined()
+  })
+  it('com 1 desafiante o botão aparece e a frase não', () => {
+    render(<StepVariantes {...defaultProps()} />)
+    expect(screen.getByText('Adicionar variante')).toBeDefined()
+    expect(screen.queryByText('a regra nova aceita até 2 variantes além da original')).toBeNull()
   })
 
-  it('shows "0/3 desafiantes" counter', () => {
+  it('shows "0/2 desafiantes" counter', () => {
     render(<StepVariantes {...defaultProps({ variants: [makeOriginal()] })} />)
-    expect(screen.getByText('0/3 desafiantes')).toBeDefined()
+    expect(screen.getByText('0/2 desafiantes')).toBeDefined()
   })
 
   it('warning message when no challengers', () => {

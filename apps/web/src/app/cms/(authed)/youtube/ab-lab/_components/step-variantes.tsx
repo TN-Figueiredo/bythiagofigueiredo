@@ -5,6 +5,7 @@ import { Lock, Plus, Trash2, Sparkles, ImageIcon, Image as ImageLucide } from 'l
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { VChip, Badge } from './ab-primitives'
 import { VARIANT_COLORS } from './ab-constants'
+import { MSG_VARIANTES_V2, V_MAXIMO_V2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -42,7 +43,7 @@ const TITLE_MAX = 100
 
 const showsThumbnail = (type: TestType) => type === 'thumbnail' || type === 'combo'
 
-const MAX_CHALLENGERS = 3 // B, C, D
+const MAX_CHALLENGERS = V_MAXIMO_V2 - 1 // regra v2: a original + 2 desafiantes
 
 function fileToDataUrl(file: File, maxWidth = 640): Promise<string> {
   return new Promise((resolve) => {
@@ -475,14 +476,14 @@ export function StepVariantes({
         <div>
           <h3 className="text-sm font-semibold text-cms-text" style={{ margin: 0 }}>Variantes</h3>
           <p style={{ fontSize: '13.5px', color: 'var(--cms-text-dim)', maxWidth: 520, marginTop: 2, margin: '2px 0 0 0' }}>
-            Monte ate 3 desafiantes. A original (A) fica travada como referencia.
+            Monte ate {MAX_CHALLENGERS} desafiantes. A original (A) fica travada como referencia.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-[10px] text-cms-text-dim font-mono tabular-nums">
             {challengers.length}/{MAX_CHALLENGERS} desafiantes
           </span>
-          <Badge tone="neutral">MAX. 4 VARIANTES</Badge>
+          <Badge tone="neutral">MAX. {V_MAXIMO_V2} VARIANTES</Badge>
         </div>
       </div>
 
@@ -519,6 +520,12 @@ export function StepVariantes({
           <Plus className="w-3.5 h-3.5" />
           Adicionar variante
         </button>
+      )}
+
+      {!canAdd && (
+        <p className="text-center text-xs text-cms-text-dim" role="note" style={{ margin: '4px 0 0' }}>
+          {MSG_VARIANTES_V2}
+        </p>
       )}
 
       {/* Hint when no challengers */}
