@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>T12 Remover canal, delta</title>
+<style>
+/* Tokens do Observatório, copiados de chrome.css (escuro e claro). Literais rgba/hex: o Opera renderiza color-mix() transparente. */
+[data-obs]{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--surface-hover:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--accent-hover:#FF9A60;--accent-subtle:rgba(255,130,64,.12);--on-accent:#1A120A;
+  --success:#22c55e;--warning:#f59e0b;--warning-text:#f59e0b;--danger:#F26B6B;--danger-text:#F26B6B;
+  --shadow:0 12px 32px rgba(0,0,0,.45);
+  --dg-bg:#432A27;--dg-bg-hover:#53332F;--dg-line:#F26B6B;--dg-fg:#FFB9B3;--toast-bg:#2D1B19;--toast-line:#F26B6B;
+  --fx-cap-b:#f59e0b;--fx-cap-bg:rgba(245,158,11,.12);--fx-cap-i:#f59e0b;--fx-err-b:#F26B6B;--fx-err-bg:rgba(239,68,68,.12);--fx-err-i:#F26B6B;--fx-info-b:#40382D;--fx-info-bg:#272219;--fx-info-i:#A89D88;
+  color-scheme:dark;
+}
+[data-theme="light"] [data-obs]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--surface-hover:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--accent-hover:#A23E14;--accent-subtle:rgba(184,72,26,.10);--on-accent:#FFF8F1;
+  --success:#11692F;--warning:#B45309;--warning-text:#92400E;--danger:#B42318;--danger-text:#B42318;
+  --shadow:0 12px 32px rgba(60,40,10,.14);
+  --dg-bg:#B42318;--dg-bg-hover:#9A1D14;--dg-line:#B42318;--dg-fg:#FFFFFF;--toast-bg:#FDF0EE;--toast-line:#B42318;
+  --fx-cap-b:#B45309;--fx-cap-bg:rgba(180,83,9,.10);--fx-cap-i:#92400E;--fx-err-b:#B42318;--fx-err-bg:rgba(180,35,24,.08);--fx-err-i:#B42318;--fx-info-b:#C9BBA3;--fx-info-bg:#F2EBDF;--fx-info-i:#5E5240;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:400 14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1000px;margin:0 auto;padding:24px 16px 64px}
+.top{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
+.top h1{margin:0;font-size:20px;font-weight:600;line-height:1.3}
+.sum{margin:6px 0 0;color:var(--muted);max-width:68ch}
+.tg{min-height:36px;padding:0 14px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;font:500 13.5px/1 inherit}
+.tg:hover{background:var(--surface-hover)}
+.tg:focus-visible,.ri-ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.q{margin-top:36px;padding-top:20px;border-top:1px solid var(--border)}
+.q .ver{margin:14px 0 0;font-size:13px;max-width:72ch}.q h2{margin:0 0 4px;font-size:16px;font-weight:600}
+.q .mud{margin:0 0 14px;color:var(--muted);font-size:13.5px;max-width:72ch}
+.q .tst{margin:14px 0 0;font-size:13px;color:var(--text);max-width:72ch}
+.q .tst b{font-weight:600}
+.par{display:grid;grid-template-columns:minmax(0,420px) minmax(0,460px);gap:20px 24px;align-items:start}
+.par.tres{grid-template-columns:repeat(auto-fit,minmax(0,460px))}
+.col>.lbl{font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 8px}
+.col.antes{opacity:.92}
+.col.antes .stage{zoom:.9}
+.col.antes .lbl::after{content:" (hoje, em produção)";font-weight:400}
+.sub{margin:20px 0 6px;font-size:13px;font-weight:600}
+@media (max-width:960px){.par{grid-template-columns:minmax(0,1fr)}.col.antes .stage{zoom:.9}}
+.stage{position:relative}
+
+/* ---- Diálogo: as regras de canais.css (btn, modal, fx-remove, opt, why, fld, hint), com o fundo e o fixed trocados por fluxo estático ---- */
+[data-obs-screen="canais"] .btn{min-height:36px;padding:0 14px;border-radius:7px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:8px;font:500 13.5px/1 inherit;white-space:nowrap;text-decoration:none}
+[data-obs-screen="canais"] .btn:hover{background:var(--surface-hover)}
+[data-obs-screen="canais"] .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+[data-obs-screen="canais"] .btn.primary:hover{background:var(--accent-hover)}
+[data-obs-screen="canais"] .btn.small{min-height:32px;padding:0 10px;font-size:12.5px}
+[data-obs-screen="canais"] .btn.danger{background:var(--dg-bg);border-color:var(--dg-line);color:var(--dg-fg)}
+[data-obs-screen="canais"] .btn.danger:hover{background:var(--dg-bg-hover)}
+[data-obs-screen="canais"] .modal{display:block}
+[data-obs-screen="canais"] .modal .box{width:min(440px,100%);background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow);padding:20px}
+[data-obs-screen="canais"] .modal p{margin:0 0 10px;color:var(--muted);font-size:13.5px}
+[data-obs-screen="canais"] .modal .fld{display:flex;flex-direction:column;gap:5px;margin-top:12px;font-size:13px;color:var(--muted)}
+[data-obs-screen="canais"] .modal .fld input{min-height:36px;border:1px solid var(--border-strong);border-radius:7px;background:var(--bg);color:var(--text);padding:0 10px;font-size:14px}
+[data-obs-screen="canais"] .modal .hint{display:block;color:var(--muted);font-size:12px;margin:4px 0 0}
+[data-obs-screen="canais"] .modal .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+[data-obs-screen="canais"] .modal .box.fx-remove{padding-bottom:0}
+[data-obs-screen="canais"] .modal .fx-remove h2{margin:0 0 8px;font-size:16px;font-weight:600}
+[data-obs-screen="canais"] :is(.fx-loss){margin:0 0 12px;padding:0;list-style:none;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
+[data-obs-screen="canais"] :is(.fx-loss) li{display:grid;grid-template-columns:76px minmax(0,1fr);gap:0 12px;align-items:baseline;min-height:54px;padding:8px 12px;font-size:13px;line-height:1.5;color:var(--muted)}
+[data-obs-screen="canais"] :is(.fx-loss) li + li{border-top:1px solid var(--border-subtle)}
+[data-obs-screen="canais"] :is(.fx-loss) b{font:500 15px/1.3 ui-monospace,"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;color:var(--text);text-align:right}
+[data-obs-screen="canais"] :is(.fx-loss) span span{display:block;font-size:12px}
+[data-obs-screen="canais"] .modal p.fx-never{color:var(--text)}
+[data-obs-screen="canais"] .modal .fx-msg{margin:0 0 12px}
+/* no produto o .acts é sticky (diálogo com rolagem interna); aqui o quadro é estático, então fica no fim do fluxo */
+[data-obs-screen="canais"] .modal .fx-remove .acts{margin:0 -20px;padding:12px 20px 20px;background:var(--surface);border-top:1px solid var(--border-subtle);flex-wrap:wrap}
+@media (max-width:460px){[data-obs-screen="canais"] .fx-remove .acts .btn{white-space:normal;flex:1 1 100%;justify-content:center;text-align:center}[data-obs-screen="canais"] .fx-remove .acts .btn.primary,[data-obs-screen="canais"] .fx-remove .acts .btn.danger{order:-1}}
+@media (max-width:700px){[data-obs-screen="canais"] .btn,[data-obs-screen="canais"] .btn.small,[data-obs-screen="canais"] .modal .fld input{min-height:44px}}
+@media (pointer:coarse){.obs-ch-toast .x{min-width:44px;min-height:44px}}
+[data-obs-screen="canais"] .fx-loss li[data-novo]{border-top:1px solid var(--border-strong)}
+[data-obs-screen="canais"] .fx-loss li[data-novo] b{color:var(--muted)}
+[data-obs-screen="canais"] .modal .btn[aria-disabled="true"]{cursor:not-allowed;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted)}
+[data-obs-screen="canais"] .modal .rm-why{border:0;margin:0 0 16px;padding:0;min-width:0}
+[data-obs-screen="canais"] .modal .rm-why legend{padding:0;font-weight:600;font-size:13px;line-height:1.3;margin-bottom:8px;color:var(--text)}
+[data-obs-screen="canais"] .modal .opt{display:grid;grid-template-columns:20px minmax(0,1fr);gap:2px 10px;padding:12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg);cursor:pointer;margin-bottom:8px;min-height:44px}
+[data-obs-screen="canais"] .modal .opt:has(input:checked){border-color:var(--accent);background:var(--accent-subtle);box-shadow:inset 0 0 0 1px var(--accent)}
+[data-obs-screen="canais"] .modal .opt input{margin:2px 0 0;accent-color:var(--accent);width:18px;height:18px}
+[data-obs-screen="canais"] .modal .opt b{font-weight:600;font-size:14px;line-height:1.35;color:var(--text)}
+[data-obs-screen="canais"] .modal .opt small{grid-column:2;font-size:12.5px;line-height:1.45;color:var(--muted)}
+[data-obs-screen="canais"] .modal .opt.off{cursor:not-allowed;background:transparent;border-style:dashed}
+[data-obs-screen="canais"] .modal .opt.off b{color:var(--muted)}
+[data-obs-screen="canais"] .modal .opt.off input{accent-color:var(--faint)}
+[data-obs-screen="canais"] .modal .why{grid-column:2;display:flex;gap:6px;align-items:flex-start;margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--text)}
+[data-obs-screen="canais"] .modal .why .fx-i{color:var(--warning-text);margin-top:2px}
+[data-obs-screen="canais"] .modal .rm-lead{font-size:13.5px;color:var(--text);margin:0 0 8px}
+[data-obs-screen="canais"] .modal .rm-lead.after{font-weight:600}
+[data-obs-screen="canais"] .modal .hint.good{color:var(--success)}
+[data-obs-screen="canais"] .modal .fx-msg .code{display:block;margin-top:4px;font-size:12px;color:var(--muted)}
+[data-obs-screen="canais"] .modal .fx-msg .btn{margin-top:8px}
+/* chrome.css: .fx-i e .fx-msg (a variante .fx-info usa as variáveis --fx-info-* que já existem nos tokens) */
+.fx-i{width:15px;height:15px;flex:none;display:inline-block;vertical-align:-2px;stroke-width:2}
+.fx-msg{display:grid;grid-template-columns:16px minmax(0,1fr);gap:0 9px;margin:0;padding:9px 12px;border:1px solid var(--fx-cap-b);border-radius:6px;background:var(--fx-cap-bg);font-size:12.5px;line-height:1.45;color:var(--text);text-wrap:pretty}
+.fx-msg .fx-i{color:var(--fx-cap-i);margin-top:2px}
+.fx-msg.fx-err{border-color:var(--fx-err-b);background:var(--fx-err-bg)}
+.fx-msg.fx-err .fx-i{color:var(--fx-err-i)}
+.fx-msg.fx-info{border-color:var(--fx-info-b);background:var(--fx-info-bg)}
+.fx-msg.fx-info .fx-i{color:var(--fx-info-i)}
+.fx-msg p{margin:0 0 6px!important;color:var(--text)!important;font-size:12.5px!important}
+.fx-msg p:last-child{margin:0!important}
+/* ⓘ de ri.css (.ri-ibtn/.ri-pop); aqui em linha com o texto: 24px visíveis, área de toque de 44px por ::after */
+.ri-ibtn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;vertical-align:middle;margin:-4px 1px;line-height:1;border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:6px;padding:0}
+.ri-ibtn::after{content:"";position:absolute;inset:-11px}
+.ri-ibtn:hover,.ri-ibtn[aria-expanded=true]{color:var(--text);background:var(--surface-2)}
+.ri-pop{position:absolute;left:12px;right:12px;margin-top:4px;z-index:5;padding:12px 14px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);box-shadow:var(--shadow);font-size:13px;line-height:1.5}
+.ri-pop[hidden]{display:none}
+.ri-pop h3{margin:0 0 6px;font-size:14px}
+.ri-pop ul{margin:0;padding-left:18px}.ri-pop li{margin:0 0 6px}.ri-pop li:last-child{margin:0}
+.fx-blob{position:relative}
+/* toast: obs-ch-toast de chrome.css */
+.obs-ch-toast{background:var(--surface);border:1px solid var(--border-strong);border-left:3px solid var(--muted);border-radius:7px;box-shadow:var(--shadow);padding:11px 13px;display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:8px;align-items:start;color:var(--text);width:min(380px,100%)}
+.obs-ch-toast>svg{width:16px;height:16px;margin-top:2px;color:var(--muted)}
+.obs-ch-toast.ok{border-left-color:var(--success)}.obs-ch-toast.ok>svg{color:var(--success)}
+.obs-ch-toast.warn{border-left-color:var(--warning)}.obs-ch-toast.warn>svg{color:var(--warning)}
+.obs-ch-toast b{font-weight:600;font-size:13px;display:block}
+.obs-ch-toast span{font-size:12.5px;color:var(--muted);display:block}
+.obs-ch-toast .x{border:0;background:transparent;color:var(--muted);min-width:32px;min-height:32px;cursor:pointer;border-radius:6px;font-size:14px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.tstack{display:grid;gap:12px}
+.nota{margin-top:6px;font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body class="" data-obs data-obs-screen="canais">
+<div class="page" data-obs data-obs-screen="canais">
+  <div class="top">
+    <div>
+      <h1>T12 · Remover canal: o que muda no diálogo</h1>
+      <p class="sum">Quatro quadros sobre o diálogo da A5 como está no ar. À esquerda, o diálogo de hoje em tamanho menor; à direita, o novo. Só mudam frases e estados: o resto é o mesmo diálogo.</p>
+    </div>
+    <button class="tg" id="tema" type="button" aria-pressed="false">Tema claro</button>
+  </div>
+  <div id="app"></div>
+</div>
+
+<script>
+const ERR='<circle cx="12" cy="12" r="9"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7"/>';
+const INFO='<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>';
+const ico=(p,c)=>`<svg class="fx-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const NOME='Viaje com Marina';
+let uid=0;
+const pl=(n,u,v)=>n+' '+(n===1?u:v);
+const mil=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+const sing=n=>n===1;
+
+/* frases da tabela de capacidade (04 §14.3), coluna "diálogo" e coluna "depois do clique" */
+function capDialogo(cap,n){
+  const um=sing(n);
+  if(cap==='sim') return 'O site tenta apagá-las todo dia, e a página do Arquivo mostra quantas faltam.'.replace('apagá-las',um?'apagá-la':'apagá-las').replace('quantas faltam','quantas faltam');
+  const cmd=um?'O comando que a apaga':'O comando que as apaga';
+  const ate=um?'até lá ela continua no Blob':'até lá elas continuam no Blob';
+  return cap==='nao-sim'
+    ? `${cmd} ainda não tem data para chegar; ${ate}, e a página do Arquivo mostra quantas faltam.`
+    : `${cmd} ainda não tem data para chegar; ${ate}. A página do Arquivo vai mostrar quantas faltam.`;
+}
+function capToast(cap,n){
+  if(cap==='sim') return capDialogo('sim',n);
+  return `${sing(n)?'O comando que a apaga':'O comando que as apaga'} ainda não tem data para chegar; até lá não há nada a fazer.`;
+}
+const mesRot=n=>n===1?'mês no arquivo':'meses no arquivo';
+
+function ibtn(id,tit,itens,aberto){
+  const r=`<button type="button" class="ri-ibtn" aria-expanded="${aberto?'true':'false'}" aria-controls="${id}" aria-label="O que é o Blob" data-pop="${id}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v4M8 4.8v.1"/></svg></button>`+
+  `<div class="ri-pop" id="${id}" role="note" aria-label="${tit}" ${aberto?'':'hidden'}><h3>${tit}</h3><ul>${itens.map(t=>`<li>${t}</li>`).join('')}</ul></div>`;
+  const i=r.indexOf('<div class="ri-pop"');
+  return [r.slice(0,i),r.slice(i)];
+}
+
+function dialogo(o){
+  const u=++uid;
+  const {caminho='guardar',fase='pronto',rows,arq,apagarOff,blob,digitado,sizerFalha}=o;
+  const falha=fase==='falha';
+  const linhas=[
+    ['videos','vídeo','vídeos',rows[0],`com ${pl(rows[0]*3,'versão','versões')} de título, thumbnail e descrição`],
+    ['dias','dia de registros','dias de registros',rows[1],'views diárias dos vídeos'],
+    ['leit','leitura da forja e da página de vídeo','leituras da forja e da página de vídeo',rows[2],'feitas para vídeos deste canal, inclusive as da página de vídeo'],
+    ['itens','item fixado ou salvo','itens fixados ou salvos',rows[3],`${pl(rows[3]>1?rows[3]-1:rows[3],'vídeo fixado','vídeos fixados')} e ${pl(rows[3]>1?1:0,'troca','trocas')} no swipe file`],
+  ];
+  const li=linhas.map(([k,um,vs,n,sub])=>`<li><b>${n===0?'nenhum':mil(n)}</b><span>${n===1||n===0?um:vs}${n===0?'':`<span>${sub}</span>`}</span></li>`).join('')
+   +(arq&&caminho==='guardar'?`<li data-novo><b>${arq.n}</b><span>${arq.n===1?'mês já no arquivo':'meses já no arquivo'}<span>${arq.n===1?'em '+arq.de+'. Fica como está.':'de '+arq.de+' a '+arq.ate+'. Ficam como estão: o arquivo não é tocado.'}</span></span></li>`:'');
+  const nomeOk=digitado===NOME;
+  const apagarAtiva=!apagarOff&&!falha;
+  const optApagar=`<label class="opt${apagarAtiva?'':' off'}"><input type="radio" name="m${u}" ${caminho==='apagar'?'checked':''} ${apagarAtiva?'':'disabled'} ${apagarOff?`aria-describedby="why${u}"`:''}><b>Entrou por engano: apagar sem guardar</b><small>Apaga agora e sem cópia. Só para canal adicionado há até 30 dias.</small>${
+    apagarOff?`<span class="why" id="why${u}">${ico(ERR)}<span>${apagarOff}</span></span>`:
+    falha?`<span class="why" id="why${u}">${ico(ERR)}<span>Precisa da contagem para apagar sem guardar.</span></span>`:''}</label>`;
+  const ib=blob?ibtn('pop'+u,'O que é o Blob',['O Blob é o armazenamento de imagens do site, na Vercel.','A contagem vem do banco no momento em que esta janela abre.'],blob.aberto):null;
+  const blobHtml=blob?`<div class="fx-msg fx-info fx-blob" role="note">${ico(INFO)}<span><p>Este canal tem ${mil(blob.n)} ${sing(blob.n)?'imagem guardada':'imagens guardadas'} no Blob${ib[0]}. Ao apagar, ${sing(blob.n)?'ela fica anotada':'elas ficam anotadas'} para apagar.</p><p>${capDialogo(blob.cap,blob.n)}</p>${ib[1]}</span></div>`:'';
+  const falhaHtml=falha?`<div class="fx-msg fx-err" role="alert">${ico(ERR)}<span><b>Não foi possível contar o que sai.</b> Guardar no NAS continua disponível: nada é apagado antes da cópia conferida. Para apagar sem guardar, conte de novo.<br><button type="button" class="btn small">Contar de novo</button></span></div>`:'';
+  const lead=caminho==='guardar'?'O que vai para o NAS, com cópia conferida antes de sair daqui:':'O que será apagado, sem cópia e sem volta:';
+  const corpo=falha?'':`<p class="fx-never rm-lead${caminho==='apagar'?' after':''}">${lead}</p><ul class="fx-loss">${li}</ul>`;
+  const base=caminho==='guardar'
+    ? `<p class="fx-never">Depois do clique falta um passo: o agente guarda o histórico no NAS. Você pode desfazer até lá.</p>`
+    : `${blobHtml}<div class="fld"><label for="nm${u}">Para confirmar, digite o nome do canal: <b>${NOME}</b></label><input id="nm${u}" value="${digitado||''}" autocomplete="off" spellcheck="false"><span class="hint${nomeOk?' good':''}">${nomeOk?'Nome confere. O botão está liberado.':'O botão libera quando o nome estiver igual.'}</span></div>`;
+  const botao=caminho==='guardar'
+    ? `<button type="button" class="btn primary"${falha?'':''}>Parar coleta e agendar guarda no NAS</button>`
+    : `<button type="button" class="btn danger" ${nomeOk?'':'aria-disabled="true"'}>Apagar sem guardar</button>`;
+  return `<div class="stage"><div class="modal"><div class="box fx-remove" role="group" aria-label="Remover ${NOME}?">
+  <h2>Remover ${NOME}?</h2>
+  <fieldset class="rm-why"><legend>Por que você quer remover?</legend>
+   <label class="opt"><input type="radio" name="m${u}" ${caminho==='guardar'?'checked':''}><b>Não quero mais acompanhar: guardar no NAS</b><small>A coleta para agora e a vaga é liberada. O histórico só sai daqui depois de ir para o NAS.</small></label>
+   ${optApagar}
+  </fieldset>
+  ${falhaHtml}${corpo}${base}
+  <div class="acts"><button type="button" class="btn">Cancelar</button>${botao}</div>
+ </div></div></div>`;
+}
+
+function toast(titulo,texto,kind){
+  return `<div class="obs-ch-toast ${kind}" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${kind==='ok'?'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>':'<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>'}</svg><div><b>${titulo}</b><span>${texto}</span></div><button class="x" type="button" aria-label="Fechar aviso">✕</button></div>`;
+}
+const par=(a,d,cls='')=>`<div class="par ${cls}"><div class="col antes"><p class="lbl">Antes</p>${a}</div><div class="col"><p class="lbl">Depois</p>${d}</div></div>`;
+
+const R1=[212,430,9840,3];
+const toastAntes=`${NOME} saiu, sem cópia: 12 vídeos e 340 leituras. A vaga foi liberada. A ação foi registrada.`;
+const igual='<p class="nota">Igual ao “antes” acima.</p>';
+const Q=[];
+const nota='O diálogo reserva a altura do estado mais alto (inclui a 5ª linha, a frase do rádio desligado e o bloco do Blob): o botão não muda de lugar quando a contagem chega. Isso vira requisito do sizer no código.';
+
+/* Q1 */
+Q.push(`<section class="q" aria-labelledby="q1"><h2 id="q1">Q1 · Guardar no NAS, canal com 9 meses no arquivo</h2>
+<p class="mud">Entra uma 5ª linha, “meses já no arquivo”, com o período, separada das quatro de cima porque ela não sai nem muda: fica como está. Só existe quando o arquivo tem pelo menos 1 mês; sem arquivo, o diálogo é o de hoje.</p>
+${par(dialogo({rows:R1}),dialogo({rows:R1,arq:{n:9,de:'01/2026',ate:'09/2026'}}))}
+<p class="sub">Com 1 mês só (singular)</p>
+${par(igual,dialogo({rows:[40,31,980,0],arq:{n:1,de:'09/2026',ate:'09/2026'}}))}
+<p class="ver"><b>Ver:</b> a linha nova aparece no Guardar (acima) e não no Apagar (Q3). ${nota}</p></section>`);
+
+/* Q2 */
+const O2=[12,14,220,1];
+Q.push(`<section class="q" aria-labelledby="q2"><h2 id="q2">Q2 · Apagar sem guardar desligado: canal de até 30 dias que já tem arquivo</h2>
+<p class="mud">Hoje esse canal ainda pode ser apagado, e o arquivo vai junto sem a tela dizer que ele existe. Agora a opção fica desligada, com o motivo escrito logo abaixo, e Guardar no NAS é a saída. Sem arquivo, Apagar liga como hoje. A frase muda conforme o que o arquivo tem; “única cópia” só aparece quando o dado sustenta.</p>
+<p class="sub">Q2a · meses no arquivo, todos ainda no banco</p>
+${par(dialogo({caminho:'apagar',rows:O2,digitado:NOME}),dialogo({rows:O2,arq:{n:2,de:'09/2026',ate:'10/2026'},apagarOff:'Este canal tem 2 meses no arquivo (09/2026 a 10/2026). Para não perder esse histórico, use Guardar no NAS.'}))}
+<p class="sub">Q2b · algum mês já saiu do banco</p>
+${par(igual,dialogo({rows:O2,arq:{n:2,de:'09/2026',ate:'10/2026'},apagarOff:'Este canal tem 2 meses no arquivo (09/2026 a 10/2026), 1 já fora do banco. Para não perder a única cópia, use Guardar no NAS.'}))}
+<p class="sub">Q2c · só vídeos retirados do banco (sem meses no arquivo)</p>
+${par(igual,dialogo({rows:O2,apagarOff:'3 vídeos deste canal já foram retirados do banco e só existem no arquivo. Para não perder a única cópia, use Guardar no NAS.'}))}
+<p class="ver"><b>Ver:</b> o rádio de Apagar não aceita clique nem Tab, e a frase abaixo dele explica sem abrir nada. Guardar já vem marcado. ${nota}</p></section>`);
+
+/* Q3 */
+const apagarRows=[12,14,340,2];
+Q.push(`<section class="q" aria-labelledby="q3"><h2 id="q3">Q3 · Apagar sem guardar, canal com imagens no Blob</h2>
+<p class="mud">As imagens do canal não saem junto: ficam anotadas para apagar. Agora o diálogo diz isso antes do clique. A segunda frase muda conforme o comando que apaga essas imagens existe ou não. Hoje só a linha “ainda não tem data para chegar” é possível; quando houver data, a frase diz “chega em dd/mm”.</p>
+<p class="sub">Q3a · o site apaga todo dia (comando ligado)</p>
+${par(dialogo({caminho:'apagar',rows:apagarRows,digitado:NOME}),dialogo({caminho:'apagar',rows:apagarRows,digitado:NOME,blob:{n:47,cap:'sim'}}))}
+<p class="sub">Q3b · comando ainda sem data, e a página do Arquivo já mostra a contagem</p>
+${par(igual,dialogo({caminho:'apagar',rows:apagarRows,digitado:NOME,blob:{n:47,cap:'nao-sim'}}))}
+<p class="sub">Q3c · comando ainda sem data, e a página do Arquivo ainda não mostra a contagem (1 imagem)</p>
+${par(igual,dialogo({caminho:'apagar',rows:apagarRows,digitado:NOME,blob:{n:1,cap:'nao-nao'}}))}
+<p class="sub">Q3d · o ⓘ aberto (clique no ⓘ de qualquer quadro acima para abrir; Esc fecha)</p>
+${par(igual,dialogo({caminho:'apagar',rows:apagarRows,digitado:NOME,blob:{n:47,cap:'sim',aberto:true}}))}
+<p class="ver"><b>Ver:</b> sem imagens, nenhuma frase aparece (o “antes” é o diálogo certo). A frase não promete data. O ⓘ abre por clique ou Enter e fecha com Esc devolvendo o foco ao botão.</p></section>`);
+
+/* Q4 */
+const tImg=(n,cap)=>`${NOME} saiu, sem cópia: 12 vídeos e 340 leituras. ${n===1?'1 imagem do canal ainda está':n+' imagens do canal ainda estão'} no Blob. ${capToast(cap,n)} A vaga foi liberada. A ação foi registrada.`;
+const rot=t=>`<p class="nota" style="margin:0 0 6px">${t}</p>`;
+Q.push(`<section class="q" aria-labelledby="q4"><h2 id="q4">Q4 · Aviso depois de apagar, com imagens que ficaram</h2>
+<p class="mud">O aviso conta o que ficou no Blob, com o número lido depois do clique. Se esse número não vier, o aviso diz que não deu para conferir: nunca vira “zero”. Com imagens restantes ou sem conferência, o aviso é âmbar e não some sozinho (fica até o ✕); o verde de hoje continua saindo em 6,5 s.</p>
+${par(`<div class="tstack">${toast('Apagado',toastAntes,'ok')}</div>`,
+`<div class="tstack">
+<div>${rot('Com o comando ligado')}${toast('Apagado, com imagens no Blob',tImg(47,'sim'),'warn')}</div>
+<div>${rot('Sem o comando (1 imagem)')}${toast('Apagado, com imagem no Blob',tImg(1,'nao-sim'),'warn')}</div>
+<div>${rot('A leitura depois do clique falhou (havia 47 ao abrir a janela)')}${toast('Apagado, sem conferir as imagens',`${NOME} saiu, sem cópia: 12 vídeos e 340 leituras. Não deu para conferir as imagens do canal no Blob; quando você abriu esta janela havia 47. A vaga foi liberada. A ação foi registrada.`,'warn')}</div>
+<div>${rot('Zero imagens lidas depois do clique')}${toast('Apagado',toastAntes,'ok')}</div></div>`)}
+<p class="ver"><b>Ver:</b> dá para ler o aviso âmbar inteiro sem pressa? A cor âmbar para “algo ficou” faz sentido para você? A palavra “comando” na frase de capacidade vem do spec; se preferir “a limpeza das imagens”, diga.</p></section>`);
+
+/* Extra */
+Q.push(`<section class="q" aria-labelledby="q5"><h2 id="q5">Extra · A leitura do arquivo ou das imagens falha</h2>
+<p class="mud">Sem mudança de tela: a mesma falha de contagem de hoje cobre as leituras novas, e as três leituras (banco, arquivo, imagens) vêm juntas ou nenhuma vem. Nenhum zero aparece no lugar do número que não veio; Guardar no NAS continua livre e Apagar fica desligado até a contagem chegar. “Contar de novo” refaz as três.</p>
+<div class="par"><div class="col"><p class="lbl">Antes e depois (iguais)</p>${dialogo({fase:'falha',rows:[0,0,0,0]})}</div></div></section>`);
+
+document.getElementById('app').innerHTML=Q.join('');
+
+/* ⓘ: abre por clique, fecha com Esc ou segundo clique */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-pop]');
+  document.querySelectorAll('.ri-pop').forEach(p=>{ if(!b||p.id!==b.dataset.pop){ if(!p.hidden && !(b===null&&p.contains(e.target))){ p.hidden=true; const bb=document.querySelector(`[data-pop="${p.id}"]`); bb&&bb.setAttribute('aria-expanded','false'); } } });
+  if(b){ const p=document.getElementById(b.dataset.pop); p.hidden=!p.hidden; b.setAttribute('aria-expanded',String(!p.hidden)); }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  document.querySelectorAll('.ri-pop:not([hidden])').forEach(p=>{p.hidden=true; const bb=document.querySelector(`[data-pop="${p.id}"]`); if(bb){bb.setAttribute('aria-expanded','false');bb.focus();}});
+});
+/* tema */
+const html=document.documentElement,tb=document.getElementById('tema');
+function tema(t){html.dataset.theme=t;tb.textContent=t==='dark'?'Tema claro':'Tema escuro';tb.setAttribute('aria-pressed',String(t==='light'));try{localStorage.setItem('t12-tema',t)}catch(_){}}
+let ini='dark';try{ini=localStorage.getItem('t12-tema')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')}catch(_){}
+tema(ini);
+tb.addEventListener('click',()=>tema(html.dataset.theme==='dark'?'light':'dark'));
+</script>
+</body>
+</html>
