@@ -107,20 +107,44 @@ describe.skipIf(skipIfNoLocalDb())('M3b-recusa: o banco recusa apagar vídeo e c
     })
   })
 
-  it('7. apagar canal não é recusado: a E9 do canal declara o destino e o corpo não tem o helper', async () => {
+  /** Apaga o canal pela E9 (fila) como service_role. */
+  async function apagarCanal(c: Cena) {
+    await pg.query('set local role service_role')
+    try { return await tenta(pg, `select (public.competitor_channel_purge($1, $2, $3, 60, '203.0.113.7', 'ua'))->>'status' as st`, [c.site, c.canal, c.actor]) } finally { await pg.query('reset role') }
+  }
+  /** Prepara o caso 7: admin do site, canal ausente do YouTube, e unidade de OUTRO canal do mesmo site (Yannis I2: o site fica tocado pela M3b, o canal apagado não tem unidade). */
+  async function prepararCanalSemUnidade(c: Cena): Promise<void> {
+    const org = await escalar<string>(pg, `select org_id from public.sites where id = $1`, [c.site])
+    await pg.query(`insert into public.organization_members (org_id, user_id, role) values ($1, $2, 'org_admin')`, [org, c.actor])
+    await pg.query(`update public.competitor_channels set missing_since = current_date - 3 where id = $1`, [c.canal])
+    const outro = await semearCanal(pg, { site: c.site, videos: 0 })
+    await unidade({ ...c, canal: outro.canal })
+    expect(await escalar<boolean>(pg, `select exists (select 1 from public.obs_archive_units where site_id = $1)`, [c.site])).toBe(true)   // o helper levantaria para este site
+  }
+
+  it('7. apagar canal não é recusado: a E9 do canal declara o destino e o corpo não tem o helper (site tocado por unidade de outro canal)', async () => {
     await emTx(async c => {
-      // sem unidade: com unidade o canal só sai por Guardar (migration manutencao_m3b_apagar_com_arquivo); ver manutencao-m3b-apagar-com-arquivo.test.ts
-      const org = await escalar<string>(pg, `select org_id from public.sites where id = $1`, [c.site])
-      await pg.query(`insert into public.organization_members (org_id, user_id, role) values ($1, $2, 'org_admin')`, [org, c.actor])
-      await pg.query(`update public.competitor_channels set missing_since = current_date - 3 where id = $1`, [c.canal])
-      await pg.query('set local role service_role')
-      let r
-      try { r = await tenta(pg, `select (public.competitor_channel_purge($1, $2, $3, 60, '203.0.113.7', 'ua'))->>'status' as st`, [c.site, c.canal, c.actor]) } finally { await pg.query('reset role') }
+      // o canal apagado não tem unidade (com unidade só sai por Guardar: manutencao-m3b-apagar-com-arquivo.test.ts)
+      await prepararCanalSemUnidade(c)
+      const r = await apagarCanal(c)
       expect(r).toMatchObject({ ok: true })
       expect((r as { rows: { st: string }[] }).rows[0].st).toBe('apagado')
       const decisao = (await pg.query(`select archive_decision, removed_via from public.obs_archive_channel_removals where site_id = $1 and channel_ref = $2`, [c.site, c.canal])).rows[0]
       expect(decisao).toEqual({ archive_decision: 'apagar', removed_via: 'fila' })
-      expect(await escalar<boolean>(pg, `select prosrc like '%obs_archive_m9_pronto%' from pg_proc where proname = 'competitor_channel_purge'`)).toBe(false)
+      for (const f of ['competitor_channel_purge', 'competitor_channel_remove']) {
+        expect(await escalar<boolean>(pg, `select prosrc like '%obs_archive_m9_pronto%' from pg_proc where proname = $1`, [f])).toBe(false)
+      }
+    })
+  })
+
+  it('7b. mutante: com o helper injetado em competitor_channel_remove, o caso 7 cai com m9_desligada', async () => {
+    await emTx(async c => {
+      await prepararCanalSemUnidade(c)
+      const def = await escalar<string>(pg, `select pg_get_functiondef('public.competitor_channel_remove(uuid,uuid,text,text,uuid)'::regprocedure)`)
+      const mutante = def.replace(/\nbegin\n/, '\nbegin\n  perform public.obs_archive_m9_pronto(p_site);\n')
+      expect(mutante).not.toBe(def)
+      await pg.query(mutante)
+      expect(await apagarCanal(c)).toMatchObject({ ok: false, message: 'm9_desligada' })
     })
   })
 

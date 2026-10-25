@@ -87,6 +87,36 @@ describe.skipIf(skipIfNoLocalDb())('M3b-apagar-sql: o banco recusa apagar canal 
     }, semGuarda)
   })
 
+  it('6. unidade ainda não recebida (received_at nulo) também recusa: o SQL conta toda unidade não purgada, recebida ou não', async () => {
+    await emTx(async c => {
+      await pg.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes)
+        values ($1, 'serie', 'competitor_video_daily', $2, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100)`, [c.site, c.canal])
+      expect(await remover(c, 'apagar', 'botao')).toMatchObject({ ok: false, code: 'P0001', message: 'apagar_com_arquivo' })
+    })
+  })
+
+  it('7. unidade já purgada (purged_at preenchido) não conta: apagar passa', async () => {
+    await emTx(async c => {
+      await unidade(c)
+      // Por caminho normal unidade purgada só existe com canal já removido (gatilho purga_sem_decisao_apagar); aqui a purga é forçada só para fixar o que o SQL conta.
+      await pg.query(`set local session_replication_role = replica`)
+      await pg.query(`update public.obs_archive_units set purged_at = now(), purged_by = $3, purge_ref = 'x' where site_id = $1 and channel_ref = $2`, [c.site, c.canal, c.admin])
+      await pg.query(`set local session_replication_role = origin`)
+      expect(await remover(c, 'apagar', 'botao')).toMatchObject({ ok: true })
+      expect(await canais(c)).toBe(0)
+    })
+  })
+
+  it('8. guarda de md5 (Phil I1): base alterado recusa a sobrescrita; reaplicar sobre o próprio corpo passa', async () => {
+    await emTx(async c => {
+      expect(await tenta(pg, SQL_GUARDA())).toMatchObject({ ok: true })   // 2ª aplicação: o corpo já é o 04 (aafccb33…)
+      const def = await escalar<string>(pg, `select pg_get_functiondef('public.competitor_channel_remove(uuid,uuid,text,text,uuid)'::regprocedure)`)
+      await pg.query(def.replace("'decisao_invalida'", "'decisao_invalida_x'"))   // simula um hotfix em produção
+      expect(await tenta(pg, SQL_GUARDA())).toMatchObject({ ok: false, code: 'P0001', message: 'm3b_apagar_base_mudou' })
+      expect(c.canal).toBeTruthy()
+    })
+  })
+
   it('5. assinatura e grants não mudam', async () => {
     await emTx(async () => {
       const a = 'public.competitor_channel_remove(uuid,uuid,text,text,uuid)'

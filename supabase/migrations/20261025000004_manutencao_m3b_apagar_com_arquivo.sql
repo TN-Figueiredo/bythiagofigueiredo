@@ -1,5 +1,16 @@
 -- M3b-apagar-sql (Phil a, 25/10): competitor_channel_remove recusa 'apagar' de canal com unidade no arquivo (P0001 apagar_com_arquivo).
 -- Cópia do corpo vigente (20261025000002); só acrescenta a guarda. Mesma assinatura e mesmos grants. Desfazer: supabase/rascunhos/m3b-apagar-desfazer.sql
+-- Isolamento: a prova de que a gravação de unidade (obs_archive_record_core, for key share no canal) e esta remoção (for update no canal) se
+-- excluem vale em READ COMMITTED (cada comando pega snapshot novo, então a contagem abaixo vê a unidade confirmada pela gravação que esperou).
+-- Nenhum chamador pode abrir esta função dentro de REPEATABLE READ.
+
+-- Phil I1 (25/10): confere o corpo anterior antes de sobrescrever. Aceita o base (20261025000002) ou este corpo já aplicado (reaplicação).
+do $g$ begin
+  if md5((select p.prosrc from pg_proc p where p.oid = 'public.competitor_channel_remove(uuid,uuid,text,text,uuid)'::regprocedure))
+     not in ('767fd32afefa2e0c73e61e05a42769d6', 'aafccb33d193a2e5109367d086724cff') then
+    raise exception 'm3b_apagar_base_mudou' using errcode = 'P0001', hint = 'competitor_channel_remove difere do corpo de 20261025000002; revise antes de sobrescrever';
+  end if;
+end $g$;
 
 create or replace function public.competitor_channel_remove(p_site uuid, p_channel uuid, p_decision text, p_via text, p_actor uuid)
 returns jsonb language plpgsql security definer set search_path = '' as $$
