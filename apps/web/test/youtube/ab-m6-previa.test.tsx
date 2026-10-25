@@ -7,7 +7,7 @@ import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 
 const { start, upload, cleanupDraft } = vi.hoisted(() => ({
   start: vi.fn(async () => ({ ok: true })),
-  upload: vi.fn(async () => ({ ok: true })),
+  upload: vi.fn(async (_testId: string, _fd: FormData) => ({ ok: true })),
   cleanupDraft: vi.fn(async () => ({ ok: true })),
 }))
 vi.mock('../../src/app/cms/(authed)/youtube/ab-lab/actions', () => ({
@@ -147,7 +147,7 @@ describe('Biblioteca que grava (C2) e N2', () => {
     await waitFor(() => expect(start).toHaveBeenCalledWith('d1'))
     expect(f).toHaveBeenCalledWith('https://blob/lib.jpg')
     expect(upload).toHaveBeenCalledTimes(1)
-    const fd = (upload.mock.calls[0] as unknown as [string, FormData])[1]
+    const fd = upload.mock.calls[0]![1]
     expect((fd.get('file') as File).name).toBe('variant-B.jpg')
   })
 
