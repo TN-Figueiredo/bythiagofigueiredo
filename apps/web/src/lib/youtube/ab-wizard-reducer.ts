@@ -7,6 +7,10 @@
 
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
+import { V_MAXIMO_V2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
+
+/** Regra v2: a original + (V_MAXIMO_V2 - 1) desafiantes. */
+export const MAX_CHALLENGERS = V_MAXIMO_V2 - 1
 
 /**
  * Duplicated from step-variantes.tsx to avoid importing from the (authed) route
@@ -106,6 +110,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
 
     case 'ADD_VARIANT': {
       const challengerCount = state.variants.filter(v => !v.isOriginal).length
+      if (challengerCount >= MAX_CHALLENGERS) return state
       const nextLabel = NEXT_LABELS[challengerCount] ?? 'D'
       return {
         ...state,

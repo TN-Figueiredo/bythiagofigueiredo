@@ -219,7 +219,9 @@ async function materializeAbDraft(
 
   // Compensação: qualquer passo que falhe apaga o rascunho (senão o vídeo fica preso a um teste órfão).
   const falhar = async (error: string): Promise<{ ok: false; error: string }> => {
-    await supabase.from('ab_tests').delete().eq('id', testId).eq('site_id', siteId).eq('status', 'draft')
+    const { error: delErr } = await supabase.from('ab_tests').delete().eq('id', testId).eq('site_id', siteId).eq('status', 'draft')
+    // Não mascara o erro original: só registra o rascunho órfão que ficou.
+    if (delErr) console.error(`[publishVideo] compensação falhou, rascunho ${testId} órfão: ${delErr.message}`)
     return { ok: false, error }
   }
 

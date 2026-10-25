@@ -6,6 +6,7 @@ import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { VChip, Badge } from './ab-primitives'
 import { VARIANT_COLORS } from './ab-constants'
 import { MSG_VARIANTES_V2, V_MAXIMO_V2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { MAX_CHALLENGERS } from '@/lib/youtube/ab-wizard-reducer'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -43,7 +44,6 @@ const TITLE_MAX = 100
 
 const showsThumbnail = (type: TestType) => type === 'thumbnail' || type === 'combo'
 
-const MAX_CHALLENGERS = V_MAXIMO_V2 - 1 // regra v2: a original + 2 desafiantes
 
 function fileToDataUrl(file: File, maxWidth = 640): Promise<string> {
   return new Promise((resolve) => {

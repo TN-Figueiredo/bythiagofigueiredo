@@ -23,6 +23,7 @@ import {
 } from '../actions'
 import { useAvisoVolume, type LerAvisoDeVolume } from './use-aviso-volume'
 import { useAvisoOriginal, LEITURA_A_PARTIR_DO_PASSO } from './use-aviso-original'
+import { MAX_CHALLENGERS } from '@/lib/youtube/ab-wizard-reducer'
 import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings, ReferenciaDoTeste } from '@/lib/youtube/ab-types'
@@ -204,6 +205,7 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 
     case 'ADD_VARIANT': {
       const challengerCount = state.variants.filter(v => !v.isOriginal).length
+      if (challengerCount >= MAX_CHALLENGERS) return state
       const nextLabel = NEXT_LABELS[challengerCount] ?? 'D'
       return {
         ...state,

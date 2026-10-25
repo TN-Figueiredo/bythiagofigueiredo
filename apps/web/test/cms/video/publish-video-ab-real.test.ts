@@ -34,7 +34,7 @@ const detalhe = () => ({
 })
 
 /** Banco com o vídeo e sem teste aberto nele (o modelo de criarBanco entra como concluído), mais content_pipeline. */
-function montar(falharNaInsercao?: number) {
+function montar(falharNaInsercao?: number, falharNoDelete = false) {
   const banco = criarBanco({ status: 'completed', testType: 'title', regra: 'v2' })
   let insercoes = 0
   const publicado = { data: { id: 'p1', stage: 'published', version: 2 }, error: null }
@@ -45,6 +45,17 @@ function montar(falharNaInsercao?: number) {
     from(t: string) {
       if (t === 'content_pipeline') return cadeia
       const q = banco.supabase.from(t)
+      if (t === 'ab_tests' && falharNoDelete) {
+        return new Proxy(q, {
+          get(alvo, p, rec) {
+            if (p !== 'delete') return Reflect.get(alvo, p, rec)
+            const c: Record<string, unknown> = {}
+            for (const m of ['eq']) c[m] = () => c
+            c.then = (res: (v: unknown) => unknown) => res({ error: { message: 'delete falhou' } })
+            return () => c
+          },
+        })
+      }
       if (t !== 'ab_test_variants' || falharNaInsercao === undefined) return q
       return new Proxy(q, {
         get(alvo, p, rec) {
@@ -86,5 +97,15 @@ describe('publishVideo sem mock das ações do A/B (S8-F4 B2)', () => {
     expect(r).toMatchObject({ ok: false, error: 'falha injetada' })
     const { data: testes } = await testesDoRascunho(b)
     expect(testes).toEqual([])
+  })
+
+  it('delete da compensação falha: loga e devolve o erro ORIGINAL (não mascara)', async () => {
+    montar(3, true)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const r = await publishVideo('p1', 1)
+    expect(r).toMatchObject({ ok: false, error: 'falha injetada' })
+    expect(log).toHaveBeenCalled()
+    expect(String(log.mock.calls[0]!.join(' '))).toContain('delete falhou')
+    log.mockRestore()
   })
 })

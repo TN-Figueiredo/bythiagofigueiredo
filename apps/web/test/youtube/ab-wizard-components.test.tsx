@@ -175,36 +175,19 @@ describe('wizardReducer — state machine', () => {
       expect(next.variants[2]!.label).toBe('C')
     })
 
-    it('appends D when two challengers exist', () => {
+    it('teto MAX_CHALLENGERS: com 2 desafiantes não adiciona', () => {
       const state = baseState({
         variants: [makeOriginalVariant('V'), makeEmptyVariant('B'), makeEmptyVariant('C')],
       })
-      const next = wizardReducer(state, { type: 'ADD_VARIANT' })
-      expect(next.variants).toHaveLength(4)
-      expect(next.variants[3]!.label).toBe('D')
+      expect(wizardReducer(state, { type: 'ADD_VARIANT' }).variants).toHaveLength(3)
     })
 
-    it('caps at 4 total (A + 3 challengers) — adding beyond uses D fallback', () => {
-      const state = baseState({
-        variants: [
-          makeOriginalVariant('V'),
-          makeEmptyVariant('B'),
-          makeEmptyVariant('C'),
-          makeEmptyVariant('D'),
-        ],
-      })
-      const next = wizardReducer(state, { type: 'ADD_VARIANT' })
-      // Implementation does not prevent adding, but label falls back to D
-      expect(next.variants).toHaveLength(5)
-      expect(next.variants[4]!.label).toBe('D')
-    })
-
-    it('sequential addition produces B, C, D labels', () => {
+    it('sequential addition produces B, C labels e para no teto', () => {
       let state = baseState({ variants: [makeOriginalVariant('V')] })
       state = wizardReducer(state, { type: 'ADD_VARIANT' })
       state = wizardReducer(state, { type: 'ADD_VARIANT' })
       state = wizardReducer(state, { type: 'ADD_VARIANT' })
-      expect(state.variants.map(v => v.label)).toEqual(['A', 'B', 'C', 'D'])
+      expect(state.variants.map(v => v.label)).toEqual(['A', 'B', 'C'])
     })
 
     it('new variant is always non-original with empty fields', () => {
@@ -284,11 +267,8 @@ describe('wizardReducer — state machine', () => {
       expect(next.variants[1]!.titleText).toBe('Title C')
     })
 
-    it('round-trip: add 3 challengers, remove middle, labels are A,B,C', () => {
-      let state = baseState({ variants: [makeOriginalVariant('V')] })
-      state = wizardReducer(state, { type: 'ADD_VARIANT' }) // B
-      state = wizardReducer(state, { type: 'ADD_VARIANT' }) // C
-      state = wizardReducer(state, { type: 'ADD_VARIANT' }) // D
+    it('round-trip: rascunho com 3 desafiantes, remove o do meio, labels são A,B,C', () => {
+      let state = baseState({ variants: [makeOriginalVariant('V'), makeEmptyVariant('B'), makeEmptyVariant('C'), makeEmptyVariant('D')] })
       state = wizardReducer(state, { type: 'REMOVE_VARIANT', index: 2 }) // remove C
       expect(state.variants.map(v => v.label)).toEqual(['A', 'B', 'C'])
     })

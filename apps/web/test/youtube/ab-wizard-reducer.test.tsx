@@ -150,28 +150,19 @@ describe('wizardReducer', () => {
     expect(next.variants[2]!.label).toBe('C')
   })
 
-  it('ADD_VARIANT appends D when two challengers exist', () => {
+  it('ADD_VARIANT respeita MAX_CHALLENGERS (regra v2): com 2 desafiantes não adiciona', () => {
     const state = baseState({
       variants: [makeOriginalVariant('V'), makeEmptyVariant('B'), makeEmptyVariant('C')],
     })
     const next = wizardReducer(state, { type: 'ADD_VARIANT' })
-    expect(next.variants).toHaveLength(4)
-    expect(next.variants[3]!.label).toBe('D')
+    expect(next.variants).toHaveLength(3)
   })
 
-  it('ADD_VARIANT caps at label D when 3 challengers already exist', () => {
+  it('ADD_VARIANT não adiciona também com rascunho antigo de 3 desafiantes', () => {
     const state = baseState({
-      variants: [
-        makeOriginalVariant('V'),
-        makeEmptyVariant('B'),
-        makeEmptyVariant('C'),
-        makeEmptyVariant('D'),
-      ],
+      variants: [makeOriginalVariant('V'), makeEmptyVariant('B'), makeEmptyVariant('C'), makeEmptyVariant('D')],
     })
-    // Adding a 4th challenger — label falls back to 'D' (NEXT_LABELS[3] is undefined → fallback)
-    const next = wizardReducer(state, { type: 'ADD_VARIANT' })
-    expect(next.variants).toHaveLength(5)
-    expect(next.variants[4]!.label).toBe('D')
+    expect(wizardReducer(state, { type: 'ADD_VARIANT' }).variants).toHaveLength(4)
   })
 
   /* --- REMOVE_VARIANT --------------------------------------------- */
@@ -371,19 +362,16 @@ describe('stepIsValid', () => {
 /* ------------------------------------------------------------------ */
 
 describe('label assignment (NEXT_LABELS)', () => {
-  it('adding 3 challengers produces B, C, D labels', () => {
+  it('adding challengers up to the cap produces B, C labels', () => {
     let state = baseState({ variants: [makeOriginalVariant('V')] })
     state = wizardReducer(state, { type: 'ADD_VARIANT' }) // B
     state = wizardReducer(state, { type: 'ADD_VARIANT' }) // C
-    state = wizardReducer(state, { type: 'ADD_VARIANT' }) // D
-    expect(state.variants.map(v => v.label)).toEqual(['A', 'B', 'C', 'D'])
+    state = wizardReducer(state, { type: 'ADD_VARIANT' }) // recusado (teto)
+    expect(state.variants.map(v => v.label)).toEqual(['A', 'B', 'C'])
   })
 
   it('removing middle challenger and relabeling gives B, C (not B, D)', () => {
-    let state = baseState({ variants: [makeOriginalVariant('V')] })
-    state = wizardReducer(state, { type: 'ADD_VARIANT' }) // B
-    state = wizardReducer(state, { type: 'ADD_VARIANT' }) // C
-    state = wizardReducer(state, { type: 'ADD_VARIANT' }) // D
+    let state = baseState({ variants: [makeOriginalVariant('V'), makeEmptyVariant('B'), makeEmptyVariant('C'), makeEmptyVariant('D')] })
     // Remove C (index 2)
     state = wizardReducer(state, { type: 'REMOVE_VARIANT', index: 2 })
     expect(state.variants.map(v => v.label)).toEqual(['A', 'B', 'C'])
