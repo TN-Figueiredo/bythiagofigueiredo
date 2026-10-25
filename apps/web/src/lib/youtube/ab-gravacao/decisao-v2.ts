@@ -2,6 +2,9 @@ import { addDays, boundsAnalytics, dayPt, ontemPt, type DiaPt } from '../coleta/
 import type { AbCycle, AbTest } from '../coleta/ab-seconds'
 import { getVariantForCycle } from '../ab-rotation'
 import { diasDoTeste } from './atribuicao'
+import { estadoDoAlcance, type LinhaAlcance, type RelatorioDoDia } from './estado'
+import { diaComAlcanceValido } from './placar'
+import type { MetaDoDia } from './tipos'
 
 export const ATRASO_ALCANCE = 3
 export const V_MAXIMO_V2 = 3 // 4 variantes: recusar (padrão do plano); suportar = 4
@@ -75,4 +78,43 @@ export function estadoV2DoTeste(teste: AbTest, ciclos: CicloComNumero[], v2: Res
     idade_horas: !pausado && ua && Number.isFinite(em) ? (agora.getTime() - em) / 3_600_000 : null,
     estado: pausado ? 'pausado' : 'ativo',
   }
+}
+
+export const K_POR_V: Record<2 | 3, number> = { 2: 7.85, 3: 9.5 } // V = 4 (k = 10.47) só se o dono escolher suportar
+
+/** N por variante para detectar +20% relativo; lança para V fora de {2,3} (nunca NaN). */
+export function volumeMinimo(p1: number, V: number): number {
+  if (V !== 2 && V !== 3) throw new Error(`volumeMinimo: V=${V} fora de {2,3}`)
+  if (!Number.isFinite(p1) || p1 <= 0 || p1 >= 1) throw new Error(`volumeMinimo: p1=${p1} inválido`)
+  const p2 = 1.2 * p1
+  return Math.ceil(K_POR_V[V] * (p1 * (1 - p1) + p2 * (1 - p2)) / ((p2 - p1) ** 2))
+}
+
+export interface BaseDoVideo { p1: number; dias: number; impressoes: number; p1_dias_sem_meta: number; base_estimada: boolean }
+
+const P1_PADRAO = 0.04
+
+/** p1 do vídeo na janela [ate − 14, ate): só dias com alcance válido e fora de outro teste. */
+export function baseDoVideo(e: {
+  alcancePorVideoDia: Map<string, LinhaAlcance>; relatoriosPorCanalDia: Map<string, RelatorioDoDia[]>; metaPorVideoDia: Map<string, MetaDoDia>
+}, video: { youtube_id: string; channel_id: string }, testId: string | null, ate: DiaPt, agora: Date): BaseDoVideo {
+  const ontem = ontemPt(agora)
+  let dias = 0, impressoes = 0, cliques = 0, semMeta = 0
+  for (let i = 14; i >= 1; i--) {
+    const day = addDays(ate, -i)
+    const meta = e.metaPorVideoDia.get(`${video.youtube_id}|${day}`) ?? null
+    if (meta && meta.ab_test_id !== null && meta.ab_test_id !== testId) continue
+    const linha = e.alcancePorVideoDia.get(`${video.youtube_id}|${day}`) ?? null
+    const alcance_estado = estadoDoAlcance({ day, ontem, relatorios: e.relatoriosPorCanalDia.get(`${video.channel_id}|${day}`) ?? [], linha })
+    const imp = linha?.thumbnail_impressions ?? null
+    const ctr = linha?.thumbnail_ctr ?? null
+    if (!diaComAlcanceValido({ alcance_estado, impressoes: imp, ctr })) continue
+    if (!meta) semMeta++
+    dias++
+    impressoes += imp as number
+    cliques += Math.round((imp as number) * (ctr as number))
+  }
+  const medido = impressoes > 0 ? cliques / impressoes : 0
+  const ok = dias >= 7 && impressoes >= 2000 && Number.isFinite(medido) && medido > 0 && medido < 0.5
+  return { p1: ok ? medido : P1_PADRAO, dias, impressoes, p1_dias_sem_meta: semMeta, base_estimada: !ok }
 }
