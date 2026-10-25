@@ -85,7 +85,7 @@ function createMockSupabase(tables: TableSetup) {
       const count = callCounts[table] ?? 0
       callCounts[table] = count + 1
       const setup = tables[table]
-      if (!setup) return chainable({ data: null, error: null })
+      if (!setup) return chainable({ data: table === 'ab_test_dias' ? [] : null, error: null })
       const result = typeof setup === 'function' ? setup(count) : setup
       return chainable(result)
     }),

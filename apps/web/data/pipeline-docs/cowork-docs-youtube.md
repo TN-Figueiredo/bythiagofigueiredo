@@ -1946,6 +1946,14 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 - Lista (`list_tests`, `ab-tests`): continua um vetor; cada item tem `placar`, `placar_erro` e o seu próprio `aviso`
 - Painel (`ab-tests/dashboard`): `winRate` é `null` quando nenhum teste concluído conta
 
+**Regra v2 (S8-F4), em `get_test`, `list_tests`, `get_dashboard`, `get_history`, `get_learnings`, `get_performance`:**
+- `result_metadata.v2` (só teste de regra v2; `{ "ilegivel": true }` quando não dá para ler): `desfecho`, `provisorio`, `n`, `p1`, `base_estimada`, `gl`, `p_adj`, `vencedor_sugerido`, `por_variante` (lift, p ajustado e sinais por variante, gravados pela decisão; nunca recalcule) e `relogio` (`dia`, `teto`, `estado` `ativo`/`pausado`, `ultima_avaliacao`, `idade_horas`; é o mesmo número da tela). Teste pausado nunca traz idade de avaliação.
+- `result_metadata.ctr_lift_percent` é o lift gravado da variante sugerida, em %, só em `vencedor_provavel` ou `sem_diferenca_detectavel` com `p_adj`; nos outros casos `null`. `placar.estatistica` é `calculada` só quando `p_adj` existe e então `aviso` é `null`.
+- **`vencedor_sugerido` é só sugestão**: vitória só conta quando uma pessoa escolhe (`winRate`, `winning_tags` e `tagWinRates` não o usam).
+- Rotas agregadas (`get_dashboard`, `get_history`, `get_learnings`, `get_performance`): `aviso` é `'placar medido; sem estatística de vencedor nesta regra'` quando algum teste tem placar medido, `'sem métrica de entrega'` quando nenhum tem, e `null` quando algum placar da resposta tem estatística calculada. A biblioteca de thumbnails (`lift: null`) não muda. Com mais de 500 concluídos, só os 100 mais recentes entram.
+- `get_dashboard`: `desfechos_v2` (contagem por desfecho nos concluídos), `desfecho_v2_nota` e `avgLift` (média do lift gravado só sobre testes com `p_adj`; `null` se nenhum, nunca 0). `get_history`: `desfecho_v2` e `liftPercent` por teste (mesma regra).
+- `get_test` de rascunho (`draft`) traz `aviso_volume`, o mesmo da tela do assistente: `estado` `sem_variantes`, `variantes_demais` (mais de 2 além da original), `sem_medicao`, `ok`, `so_decide_depois`, `nao_chega` ou `teto_justo`, com `dias_previstos`, `impressoes_dia` (menor entre a média de 14 e a de 7 dias), `n`, `base_estimada` e `texto`. Teto padrão: 15 dias com 2 variantes e 17 com 3.
+
 ### GET /ab-tests/:id e list_tests: `restore_status` e `leitura`
 
 Teste (`get_test`, `GET /api/pipeline/youtube/ab-tests/{id}`) e cada item da lista (`list_tests`, `GET /api/pipeline/youtube/ab-tests`) trazem o que aconteceu quando o teste saiu do ar (restauração do original ou da variante), igual no REST e no MCP:
