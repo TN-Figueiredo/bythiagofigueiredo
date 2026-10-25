@@ -12,8 +12,9 @@ export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | '
 export const RAZOES_DE_VITORIA_HUMANA = ['manual_winner', 'manual_apply'] as const
 
 /** Vitória só conta quando humana: tem vencedor gravado E o encerramento foi decisão de pessoa. */
-export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null }): boolean {
-  return t.winner_variant_id !== null && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
+export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null; winner_is_original?: boolean }): boolean {
+  // S8-F4 B2: "a original vence" é decisão humana, mas não é vitória de variante (winRate); quem conhece as variantes passa winner_is_original.
+  return t.winner_variant_id !== null && t.winner_is_original !== true && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
 }
 export type TestType = 'thumbnail' | 'title' | 'combo'
 

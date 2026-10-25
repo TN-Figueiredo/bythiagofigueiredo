@@ -45,7 +45,7 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
@@ -1241,12 +1241,25 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
   const { data, error } = await getSupabaseServiceClient()
     .from('ab_tests').select('completed_reason, status, result_metadata').eq('id', testId).eq('site_id', siteId).maybeSingle()
   if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
-  const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
+  const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null; volta_falhou?: { em: string } | null } } | null | undefined
   const sugerido = meta?.v2?.vencedor_sugerido
   if (!data || data.completed_reason !== 'regra_v2' || !sugerido || sugerido !== varianteId) {
     return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
   }
-  if (varianteId === (await varianteOriginalId(testId, siteId))) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  if (varianteId === (await varianteOriginalId(testId, siteId))) {
+    // S8-F4 B2 "a original vence": o teste fechou com a original no ar. Se a volta falhou, repete a volta (novaTentativa); senão só registra a decisão, sem escrever no YouTube.
+    if (meta?.v2?.volta_falhou) {
+      const autorizar = async (): Promise<boolean> => true // o destino é sempre a original
+      return concluirSaida(tentarAgora(getSupabaseServiceClient(), testId, siteId, seq.data, undefined, autorizar))
+    }
+    const { data: gravou, error: errGrava } = await getSupabaseServiceClient()
+      .from('ab_tests').update({ completed_reason: 'manual_winner', winner_variant_id: varianteId })
+      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seq.data).select('id')
+    if (errGrava) { Sentry.captureException(errGrava, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
+    if (((gravou ?? []) as unknown[]).length === 0) return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
+    revalidatePath('/cms/youtube/ab-lab')
+    return { ok: true, resultado: 'feito', campos: {} }
+  }
   return concluirSaida(settleOnAir(testId, { siteId, destino: { tipo: 'variante', id: varianteId }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: seq.data }))
 }
 

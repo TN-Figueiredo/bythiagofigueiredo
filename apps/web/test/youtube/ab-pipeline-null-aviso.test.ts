@@ -244,6 +244,17 @@ describe('painel (getAbDashboard)', () => {
     expect(data.testsByStatus.completed).toBe(3)
   })
 
+  it('B2: original vencedora entra no denominador e não conta como vitória de variante (Cowork)', async () => {
+    const o = mundoMisto()
+    const vars = [{ id: 'vo', is_original: true }, { id: 'vb', is_original: false }]
+    o.tables.ab_tests = [
+      testeCompleto({ id: 'a', completed_reason: 'manual_winner', winner_variant_id: 'vb', variants: vars }),
+      testeCompleto({ id: 'b', completed_reason: 'manual_winner', winner_variant_id: 'vo', variants: vars }),
+    ]
+    sb = fakePostgrest(o)
+    const { data } = await youtube.getAbDashboard(ctxOf())
+    expect(data.winRate).toBe(50)
+  })
   it('só auto_resolve concluídos: winRate é null, nunca 0', async () => {
     const o = semTestes()
     o.tables.ab_tests = [testeCompleto({ id: 'a', completed_reason: 'auto_resolve', winner_variant_id: 'v1' })]

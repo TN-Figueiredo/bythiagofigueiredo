@@ -543,7 +543,7 @@ export function computeDashboardStats(
   // calculados sobre views, sem medição de entrega).
   const rootCompleted = completed.filter(t => t.parent_test_id === null)
   const contam = rootCompleted.filter(t => t.completed_reason !== null && t.completed_reason !== 'auto_resolve')
-  const testsWon = contam.filter(t => ehVitoriaHumana(t)).length
+  const testsWon = contam.filter(t => ehVitoriaHumana({ ...t, winner_is_original: t.variants.some(v => v.is_original && v.id === t.winner_variant_id) })).length
   const winRate = contam.length > 0 ? (testsWon / contam.length) * 100 : null
 
   return { activeTests, winRate, completedTests: rootCompleted.length, winRateBase: contam.length, testsWon }

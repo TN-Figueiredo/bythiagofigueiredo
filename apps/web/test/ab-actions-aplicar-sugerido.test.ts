@@ -6,7 +6,13 @@ const denyUnlessSiteAdmin = vi.fn()
 const varianteOriginalId = vi.fn()
 const requireSiteScope = vi.fn()
 const linha = vi.fn()
+const atualiza = vi.fn()
+const tentar = vi.fn()
 
+vi.mock('@/lib/youtube/ab-restore-acoes', async (orig) => ({
+  ...(await orig<typeof import('@/lib/youtube/ab-restore-acoes')>()),
+  tentarAgora: (...a: unknown[]) => tentar(...a),
+}))
 vi.mock('@/lib/youtube/ab-settle', () => ({ settleOnAir: (...a: unknown[]) => settle(...a), ORIGINAL: { tipo: 'original' } }))
 vi.mock('@/lib/youtube/ab-acao-saida', async (orig) => ({
   ...(await orig<typeof import('@/lib/youtube/ab-acao-saida')>()),
@@ -19,7 +25,14 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn(), 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
-    from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => linha() }) }) }) }),
+    from: () => ({
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => linha() }) }) }),
+      update: (...u: unknown[]) => {
+        const cad = { eq: (...e: unknown[]) => { eqs.push(e); return cad }, select: () => atualiza(u, eqs) }
+        const eqs: unknown[][] = []
+        return cad
+      },
+    }),
   }),
 }))
 vi.mock('@vercel/blob', () => ({ put: vi.fn() }))
@@ -72,10 +85,39 @@ describe('aplicarSugerido (T11b)', () => {
     expect(await aplicarSugerido('t1', varianteId, 9)).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
     expect(settle).not.toHaveBeenCalled()
   })
-  it('sugerido igual à original: recusa pedido inválido', async () => {
-    varianteOriginalId.mockResolvedValueOnce('B')
-    const r = await aplicarSugerido('t1', 'B', 9)
-    expect(r.ok).toBe(false); expect(settle).not.toHaveBeenCalled()
+  describe('B2: a original vence', () => {
+    const ORIG = (v2: object = {}) => ({ data: { completed_reason: 'regra_v2', status: 'completed', restore_seq: 9, result_metadata: { v2: { vencedor_sugerido: 'A', ...v2 } } }, error: null })
+    beforeEach(() => { atualiza.mockResolvedValue({ data: [{ id: 't1' }], error: null }); linha.mockResolvedValue(ORIG()) })
+    it('original já no ar: manual_winner com a original, sem settleOnAir nem YouTube', async () => {
+      const r = await aplicarSugerido('t1', 'A', 9)
+      expect(r).toMatchObject({ ok: true, resultado: 'feito' })
+      expect(atualiza).toHaveBeenCalledTimes(1)
+      const [[upd], eqs] = atualiza.mock.calls[0]! as [[Record<string, unknown>], unknown[][]]
+      expect(upd).toEqual({ completed_reason: 'manual_winner', winner_variant_id: 'A' })
+      expect(eqs).toEqual(expect.arrayContaining([['id', 't1'], ['site_id', SITE], ['completed_reason', 'regra_v2'], ['restore_seq', 9]]))
+      expect(settle).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
+    })
+    it('a vitória da original não conta como vitória de variante no winRate', () => {
+      expect(ehVitoriaHumana({ completed_reason: 'manual_winner', winner_variant_id: 'A', winner_is_original: true })).toBe(false)
+      expect(ehVitoriaHumana({ completed_reason: 'manual_winner', winner_variant_id: 'B', winner_is_original: false })).toBe(true)
+    })
+    it('volta_falhou: delega a novaTentativa (tentarAgora) e não grava nada', async () => {
+      linha.mockResolvedValue(ORIG({ volta_falhou: { em: '2026-10-20' } }))
+      tentar.mockResolvedValue(FEITO)
+      const r = await aplicarSugerido('t1', 'A', 9)
+      expect(tentar).toHaveBeenCalledTimes(1)
+      expect(tentar.mock.calls[0]!.slice(1, 4)).toEqual(['t1', SITE, 9])
+      expect(r).toMatchObject({ ok: true, resultado: 'feito' })
+      expect(atualiza).not.toHaveBeenCalled(); expect(settle).not.toHaveBeenCalled()
+    })
+    it('seq mudou (CAS não casou): mudou, sem sucesso falso', async () => {
+      atualiza.mockResolvedValue({ data: [], error: null })
+      expect(await aplicarSugerido('t1', 'A', 9)).toMatchObject({ ok: false, resultado: 'mudou' })
+    })
+    it('erro do banco ao gravar: erro', async () => {
+      atualiza.mockResolvedValue({ data: null, error: { message: 'x' } })
+      expect(await aplicarSugerido('t1', 'A', 9)).toMatchObject({ ok: false, resultado: 'erro' })
+    })
   })
   it('seqVisto inválido recusa', async () => {
     const r = await aplicarSugerido('t1', 'B', -1)

@@ -1888,7 +1888,7 @@ export async function getAbDashboard(
 
   const { data: tests, error: testsError } = await supabase
     .from('ab_tests')
-    .select('id, status, winner_variant_id, completed_reason, parent_test_id, completed_at')
+    .select('id, status, winner_variant_id, completed_reason, parent_test_id, completed_at, variants:ab_test_variants!test_id(id, is_original)')
     .eq('site_id', siteId)
     .not('status', 'eq', 'archived')
   if (testsError) return err('DB_ERROR', 'Failed to load A/B tests', 500)
@@ -1909,6 +1909,8 @@ export async function getAbDashboard(
   const vitorias = contam.filter(t => ehVitoriaHumana({
     completed_reason: (t.completed_reason as string | null) ?? null,
     winner_variant_id: (t.winner_variant_id as string | null) ?? null,
+    // S8-F4 B2: a original vencedora é decisão humana, não vitória de variante
+    winner_is_original: ((t.variants ?? []) as Array<{ id: string; is_original: boolean }>).some(v => v.is_original && v.id === t.winner_variant_id),
   })).length
   const winRate = contam.length > 0 ? (vitorias / contam.length) * 100 : null
 
