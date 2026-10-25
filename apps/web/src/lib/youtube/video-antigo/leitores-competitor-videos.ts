@@ -89,6 +89,7 @@ export const LEITORES_NAS_MIGRATIONS: readonly LeitorNaMigration[] = [
   { arquivo: '20261024000002_manutencao_m2_particoes.sql', funcoes: ['competitor_channel_delete_unarchived', 'competitor_channel_remove_archived', 'obs_archive_uncovered', 'obs_db_size_record', 'obs_part', 'obs_partitions_ensure', 'obs_partitions_months_ahead'], trata: 'indiferente', motivo: 'partições da M2; a retirada de canal sem arquivo é da M10c', pendenteAte: 'M10c' },
   { arquivo: '20261024000003_observatorio_m10a_video_antigo_base.sql', funcoes: ['apply_competitor_tier_plan', 'competitor_channel_removal_impact', 'competitor_series_health', 'competitor_videos_archive_guard', 'obs_video_antigo_guarda_insert', 'pin_competitor_video'], trata: 'indiferente', motivo: 'é a marca: colunas, gatilho de imutabilidade, guarda de insert e as quatro funções dos pontos 4, 5, 7 e 8 (que estão em FUNCOES_VIVAS)' },
   { arquivo: '20261025000001_retratos_perda_nova.sql', funcoes: ['competitor_comment_health'], trata: 'indiferente', motivo: 'retratos perdidos novos; comentários só nos primeiros 37 dias' },
+  { arquivo: '20261025000002_manutencao_m3b_arquivo.sql', funcoes: ['obs_archive_channel_archive_impact', 'obs_archive_channel_blobs', 'obs_archive_first_month', 'obs_archive_unit_source'], trata: 'indiferente', motivo: 'arquivo durável (M3b): lê o vídeo só para achar canal, mês e miniaturas do que vai ao arquivo; o toco (archive_dropped_at) é contado como destino, não filtrado' },
 ]
 
 export const FUNCOES_VIVAS: readonly FuncaoViva[] = [
@@ -121,6 +122,10 @@ export const FUNCOES_VIVAS: readonly FuncaoViva[] = [
   { nome: 'competitor_series_health', trata: 'exclui', motivo: 'ponto 5 (Tarefa 5): arquivados fora da prova da série', ponto: 5 },
   { nome: 'competitor_video_purge', trata: 'indiferente', motivo: 'purga por vídeo', pendenteAte: 'M10c' },
   { nome: 'competitor_videos_archive_guard', trata: 'indiferente', motivo: 'é a marca: imutabilidade das colunas do toco' },
+  { nome: 'obs_archive_channel_archive_impact', trata: 'indiferente', motivo: 'M3b: o que o arquivo guarda do canal e o que o toco já soltou (lê archive_dropped_at)' },
+  { nome: 'obs_archive_channel_blobs', trata: 'indiferente', motivo: 'M3b: miniaturas do canal que o arquivo precisa listar' },
+  { nome: 'obs_archive_first_month', trata: 'indiferente', motivo: 'M3b: primeiro mês com dado do canal, para as unidades devidas' },
+  { nome: 'obs_archive_unit_source', trata: 'indiferente', motivo: 'M3b: monta a origem (junção com o vídeo) de cada unidade do arquivo' },
   { nome: 'obs_archive_register', trata: 'indiferente', motivo: 'registro do arquivo' },
   { nome: 'obs_archive_registry', trata: 'indiferente', motivo: 'registro do arquivo (lê competitor_hour_fold_log)' },
   { nome: 'obs_f1_video_compartilhado', trata: 'indiferente', motivo: 'vídeo compartilhado na remoção F1' },

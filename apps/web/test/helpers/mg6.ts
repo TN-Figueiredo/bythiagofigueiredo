@@ -10,7 +10,7 @@
  */
 import type { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { M2_BLOCO_11 } from './m2'
 import { garantirParticoesDaDiaria, travarDdl } from './ddl-testes'
@@ -400,6 +400,36 @@ export async function semearWatchDoVideo(c: Client, site: string, yt: string, o:
  * folhas de pg_partition_tree e o fecho sem partição. Sem a M2 (séries comuns) não faz nada.
  */
 export async function guardaPorFolhas(c: Client): Promise<void> {
+  await trocaPorFolhas(c)
+  await declaracaoDaM3b(c)
+}
+
+/**
+ * Com a M3b no banco o gatilho `obs_archive_z_destino_declarado` exige a declaração do destino do arquivo na mesma transação do delete
+ * do canal. A M3b instala a declaração em `competitor_channel_remove_archived`, mas os helpers reaplicam o texto da MG6/X3/F1/T13 (que
+ * não declara) por cima: aqui o corpo instalado recebe de novo o mesmo bloco da M3b (extraído do texto dela), antes do delete. Sem a
+ * tabela `obs_archive_channel_removals` (banco sem M3b) ou com a declaração já no corpo: nada.
+ */
+export async function declaracaoDaM3b(c: Client): Promise<void> {
+  if (!(await c.query(`select to_regclass('public.obs_archive_channel_removals') is not null as ok`)).rows[0]?.ok) return
+  const assinatura = 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'
+  const def = String((await c.query(`select pg_get_functiondef($1::regprocedure) as d`, [assinatura])).rows[0]?.d)
+  if (/obs_archive_channel_removals/.test(def)) return
+  const ancora = 'delete from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;'
+  const m = /v_decl := \$d\$([\s\S]*?)\$d\$;/.exec(M3B_SQL_TEXTO())
+  if (!m) throw new Error('declaracaoDaM3b: bloco da declaração não encontrado na migration da M3b')
+  if (def.split(ancora).length !== 2) throw new Error('declaracaoDaM3b: o delete do canal não aparece exatamente uma vez')
+  await c.query(def.replace(ancora, m[1] + ancora))
+}
+
+function M3B_SQL_TEXTO(): string {
+  const dir = fileURLToPath(new URL('../../../../supabase/migrations/', import.meta.url))
+  const nome = readdirSync(dir).find(n => n.endsWith('_manutencao_m3b_arquivo.sql'))
+  if (!nome) throw new Error('migration da M3b ausente')
+  return readFileSync(dir + nome, 'utf8')
+}
+
+async function trocaPorFolhas(c: Client): Promise<void> {
   if ((await c.query(`select relkind::text as k from pg_class where oid = to_regclass('public.competitor_video_daily')`)).rows[0]?.k !== 'p') return
   const SOMA = `coalesce((select sum(x.n_tup_del) from pg_catalog.pg_stat_xact_user_tables x where x.relid = c.oid or x.relid in (select pt.relid from pg_catalog.pg_partition_tree(c.oid) pt where pt.isleaf)), 0)`
   for (const assinatura of ['public.competitor_channel_remove_archived(uuid,uuid,uuid)', 'public.competitor_channel_delete_unarchived(uuid,uuid,uuid,text,text)']) {
