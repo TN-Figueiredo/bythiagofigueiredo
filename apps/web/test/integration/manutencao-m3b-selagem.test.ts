@@ -472,8 +472,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     expect(ids).toEqual([`p:${p.id}:01`, `p:${p.id}:02`])
   }))
 
-  // SKIP 23/10/2026 (envio E0): este teste monta o banco com o corpo antigo (fixture MG6/E10 de 14/10) e a M2/M3b novas guardam por md5 o corpo da 0007 (M2:/M3b:competitor_channel_remove_archived_divergente). Religar na onda da M2 (11c) e M3b (md5 recomputado, yannis.md 3.3): `.skip` -> o `describe.skipIf(skipIfNoLocalDb())` original.
-  it.skip('remover o canal antes do recebimento: unit/received devolve canal_removido e não grava (item 159; a corrida de 20 rodadas está em manutencao-m3b-remocao.test.ts)', async () => {
+  it('remover o canal antes do recebimento: unit/received devolve canal_removido e não grava (item 159; a corrida de 20 rodadas está em manutencao-m3b-remocao.test.ts)', async () => {
     await c.query('begin')
     try {
       await aplicarM2(c); await c.query(readFileSync(M10A_SQL, 'utf8')); await aplicarM3b(c, 6)
