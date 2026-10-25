@@ -4,6 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import pg from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { M10A_EM_MIGRATION, m10aNoBanco } from './video-antigo-m10a-caminho'
+import { TABELAS_VIDEO_FORA_DA_CLASSE } from '@/lib/youtube/video-antigo/tabelas-fora-da-classe'
 
 const pular = skipIfNoLocalDb() || (!M10A_EM_MIGRATION && !(await m10aNoBanco()))
 
@@ -110,5 +111,44 @@ describe.skipIf(pular)('M10a: guarda de insert do vídeo congelado (pula até a 
     const r = await c.query(`select indexdef from pg_indexes where schemaname = 'public' and indexname = 'idx_competitor_readings_video'`)
     expect(r.rowCount).toBe(1)
     expect(r.rows[0].indexdef).toContain('(video_id)')
+  })
+
+  // ── (rodada 0.6) forma: a próxima tabela por vídeo não fica fora da classe em silêncio ──────────────────────────────
+  const CONHECIDAS = new Set<string>([...OITO, ...TABELAS_VIDEO_FORA_DA_CLASSE.map(t => t.tabela)])
+  /** O universo: as tabelas do registro de arquivo (obs_archive_registry) mais as com FK RAIZ para competitor_videos (sem as partições da M2). */
+  const SQL_UNIVERSO = `
+    with registro as (select table_name::text as t from public.obs_archive_registry()),
+    fk as (select cl.relname::text as t from pg_constraint k join pg_class cl on cl.oid = k.conrelid join pg_namespace n on n.oid = cl.relnamespace
+            where k.confrelid = 'public.competitor_videos'::regclass and k.contype = 'f' and k.conparentid = 0 and not cl.relispartition and n.nspname = 'public'),
+    universo as (select t from registro union select t from fk)
+    select u.t,
+      exists (select 1 from fk f where f.t = u.t) as fk_para_video,
+      exists (select 1 from pg_attribute a join pg_class cl on cl.oid = a.attrelid join pg_namespace n on n.oid = cl.relnamespace
+               where n.nspname = 'public' and cl.relname = u.t and a.attname = 'youtube_video_id' and not a.attisdropped) as tem_youtube_video_id
+    from universo u order by 1`
+  const faltando = async () => (await c.query(SQL_UNIVERSO)).rows.filter(r => (r.fk_para_video || r.tem_youtube_video_id) && !CONHECIDAS.has(r.t)).map(r => r.t as string)
+
+  it('forma: toda tabela do universo com chave para o vídeo está nas 8 ou em TABELAS_VIDEO_FORA_DA_CLASSE', async () => {
+    expect(await faltando()).toEqual([])
+    expect(TABELAS_VIDEO_FORA_DA_CLASSE).toHaveLength(14)
+    expect(new Set(TABELAS_VIDEO_FORA_DA_CLASSE.map(t => t.tabela)).size).toBe(14)
+  })
+  it('forma, mutante 1: tabela fictícia com FK para competitor_videos, fora das 8 e da lista, derruba o teste com o nome dela', async () => {
+    await c.query('savepoint m1')
+    try {
+      await c.query(`create table public.zz_m10a_tabela_nova (id uuid primary key default gen_random_uuid(), video_id uuid references public.competitor_videos(id))`)
+      expect(await faltando()).toEqual(['zz_m10a_tabela_nova'])
+    } finally { await c.query('rollback to savepoint m1') }
+  })
+  it('forma, mutante 2: tirar competitor_playlist_items da lista derruba o teste com esse nome (pela coluna youtube_video_id)', async () => {
+    const tem = (await c.query(SQL_UNIVERSO)).rows.some(r => r.t === 'competitor_playlist_items')
+    if (!tem) return // fora do universo (sem FK e fora do registro): a lista é a rede de quem entrar no registro
+    CONHECIDAS.delete('competitor_playlist_items')
+    try { expect(await faltando()).toContain('competitor_playlist_items') } finally { CONHECIDAS.add('competitor_playlist_items') }
+  })
+  it.skip('herança do gatilho para partição nova: hoje nenhuma das 8 é particionada (a M2 converte só as três séries); ligar quando uma for', () => {})
+  it('catálogo (item 10, condicional): se alguma das 8 for particionada, o gatilho não pode ser interno nas partições', async () => {
+    const r = await c.query(`select cl.relname, t.tgisinternal from pg_trigger t join pg_class cl on cl.oid = t.tgrelid where t.tgname = 'obs_video_antigo_guarda' and cl.relispartition`)
+    for (const row of r.rows) expect(row.tgisinternal).toBe(false)
   })
 })
