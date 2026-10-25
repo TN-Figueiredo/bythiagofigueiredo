@@ -4,10 +4,10 @@ import { AlertTriangle, CheckCircle, CircleHelp } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 import { tetoMinimo, tetoPadrao } from '@/lib/youtube/ab-gravacao/decisao-v2'
-import { Badge, VChip } from './ab-primitives'
 import { NOTA_ATIVAR, tituloDoBanner, type AvisoOriginal, type EstadoAviso } from '@/lib/youtube/ab-original-resolucao'
 import { VARIANT_COLORS, TYPE_META, ROTULO_TIPO_DESCONHECIDO_CURTO } from './ab-constants'
 import { ClickMoment } from './click-moment'
+import { previaPorTipo, descricaoDaPrevia } from './previa-por-tipo'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -24,7 +24,10 @@ export interface StepRevisarProps {
   type: TestType
   variants: ReviewVariant[]
   config: WizardConfig
-  videoTitle: string
+  /** Dado real do vídeo para os cartões da prévia; null some da tela. */
+  meta: { canal: string | null; publicadoEm: string | null; duracao: string | null }
+  /** Variante sem imagem pode ser preenchida da Biblioteca (só testes de thumbnail e combo). */
+  onEscolherDaBiblioteca?: (label: DisplayLabel) => void
   /** D12: estado da leitura da resolução da original (undefined = não se aplica). */
   avisoOriginal?: EstadoAviso
   /** S8-F4 T11c: uma linha do aviso de volume da regra nova; null/ausente = nada a dizer. Nunca bloqueia o botão. */
@@ -61,72 +64,6 @@ function buildSummaryText(
   return parts.join(' · ')
 }
 
-function buildClickMomentVariants(variants: ReviewVariant[]) {
-  const baseCtr = 4.2
-  return variants.map((v, i) => ({
-    label: v.label,
-    color: VARIANT_COLORS[v.label],
-    ctr: i === 0 ? baseCtr : +(baseCtr + (i * 1.1)).toFixed(1),
-    thumbUrl: v.thumbUrl,
-  }))
-}
-
-/* ------------------------------------------------------------------ */
-/*  Variant mini-card                                                  */
-/* ------------------------------------------------------------------ */
-
-interface VariantMiniCardProps {
-  variant: ReviewVariant
-}
-
-function VariantMiniCard({ variant }: VariantMiniCardProps) {
-  const color = VARIANT_COLORS[variant.label]
-  const hasThumb = Boolean(variant.thumbUrl)
-  const hasTitle = Boolean(variant.title)
-
-  return (
-    <div
-      className="rounded-lg border border-cms-border bg-cms-surface overflow-hidden"
-      style={{ borderTopWidth: 3, borderTopColor: color }}
-    >
-      {/* Thumbnail */}
-      {hasThumb ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={variant.thumbUrl!}
-          alt={`Thumbnail da variante ${variant.label}`}
-          referrerPolicy="no-referrer"
-          className="w-full aspect-video object-cover"
-        />
-      ) : (
-        <div
-          className="w-full aspect-video"
-          style={{
-            background: `linear-gradient(135deg, ${color}22 0%, ${color}44 100%)`,
-          }}
-          aria-label={`Sem thumbnail para variante ${variant.label}`}
-        />
-      )}
-
-      {/* Footer */}
-      <div className="px-2 py-1.5 flex items-center gap-1.5">
-        <VChip label={variant.label} size={18} />
-        <span
-          className={[
-            'text-[10px] leading-snug truncate flex-1',
-            hasTitle ? 'text-cms-text' : 'text-cms-text-dim italic',
-          ].join(' ')}
-        >
-          {hasTitle ? variant.title : 'Sem título'}
-        </span>
-        {variant.isOriginal && (
-          <Badge tone="neutral">Original</Badge>
-        )}
-      </div>
-    </div>
-  )
-}
-
 /* ------------------------------------------------------------------ */
 /*  AvisoResolucao (D12)                                               */
 /* ------------------------------------------------------------------ */
@@ -160,9 +97,15 @@ function AvisoResolucao({ aviso }: { aviso: AvisoComSelo }) {
 /*  StepRevisar                                                        */
 /* ------------------------------------------------------------------ */
 
-export function StepRevisar({ type, variants, config, videoTitle, avisoOriginal, avisoVolume }: StepRevisarProps) {
+export function StepRevisar({ type, variants, config, meta, onEscolherDaBiblioteca, avisoOriginal, avisoVolume }: StepRevisarProps) {
   const summaryText = buildSummaryText(variants, type, config)
-  const clickMomentVariants = buildClickMomentVariants(variants)
+  const clickMomentVariants = previaPorTipo(type, variants).map(c => ({
+    label: c.label,
+    color: VARIANT_COLORS[c.label],
+    ctr: null,
+    thumbUrl: c.thumbUrl,
+    title: c.title,
+  }))
   const winnerLabel = variants.length > 1 ? variants[variants.length - 1]!.label : 'A'
   const winnerColor = VARIANT_COLORS[winnerLabel as DisplayLabel] ?? VARIANT_COLORS.A
 
@@ -204,25 +147,17 @@ export function StepRevisar({ type, variants, config, videoTitle, avisoOriginal,
         <p data-aviso-volume className="m-0 text-[12.5px] text-cms-text-muted">{avisoVolume}</p>
       ) : null}
 
-      {/* Variant preview grid — 2x2 */}
-      <div>
-        <h3 className="text-sm font-semibold text-cms-text mb-2">Variantes</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {variants.map(variant => (
-            <VariantMiniCard key={variant.label} variant={variant} />
-          ))}
-        </div>
-      </div>
-
       {/* ClickMoment preview — only when 2+ variants */}
       {variants.length >= 2 && (
         <ClickMoment
-          videoTitle={videoTitle}
           winnerLabel={winnerLabel as DisplayLabel}
           winnerColor={winnerColor}
           variants={clickMomentVariants}
           semCtr
           semVencedor
+          meta={meta}
+          descricao={descricaoDaPrevia(type, variants.length)}
+          onEscolherDaBiblioteca={type === 'thumbnail' || type === 'combo' ? onEscolherDaBiblioteca : undefined}
         />
       )}
 

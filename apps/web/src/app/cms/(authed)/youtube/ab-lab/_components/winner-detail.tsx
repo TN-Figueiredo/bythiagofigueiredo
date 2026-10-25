@@ -7,6 +7,7 @@ import { WinnerBanner } from './winner-banner'
 import { LiveMonitorCard } from './live-monitor'
 import { ComoEstaAgora } from './como-esta-agora'
 import { ClickMoment } from './click-moment'
+import { previaPorTipo, descricaoDaPrevia } from './previa-por-tipo'
 import { PlacarDoTeste } from './placar-do-teste'
 import { SectionLabel } from './ab-primitives'
 import { revertWinner, archiveAbTest } from '../actions'
@@ -167,16 +168,21 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
 
       {/* 8. O momento de clique */}
       <ClickMoment
-        videoTitle={view.videoTitle}
         winnerLabel={view.winnerLabel}
         winnerColor={view.winnerColor}
         semCtr
-        variants={view.variants.map(v => ({
-          label: v.label,
-          color: v.color,
-          ctr: v.ctr === null ? null : v.ctr * 100,
-          thumbUrl: view.variantThumbs.find(t => t.label === v.label)?.thumbUrl ?? null,
-        }))}
+        meta={{ canal: null, publicadoEm: null, duracao: null }}
+        descricao={descricaoDaPrevia(view.flag, view.variants.length)}
+        variants={previaPorTipo(
+          view.flag,
+          view.variants.map(v => {
+            const t = view.variantThumbs.find(x => x.label === v.label)
+            return { label: v.label, thumbUrl: t?.thumbUrl ?? null, title: t?.titleText ?? view.videoTitle, isOriginal: t?.isOriginal ?? v.label === 'A' }
+          }),
+        ).map(c => {
+          const v = view.variants.find(x => x.label === c.label)!
+          return { label: c.label, color: v.color, ctr: v.ctr === null ? null : v.ctr * 100, thumbUrl: c.thumbUrl, title: c.title }
+        })}
       />
     </div>
   )

@@ -23,6 +23,8 @@ export interface VariantData {
   briefing?: string
   tags?: string[]
   classification?: 'hero' | 'challenger' | 'safety'
+  /** 'biblioteca': a imagem é uma URL da Biblioteca e precisa ser baixada e enviada no Ativar. */
+  origem?: 'biblioteca'
 }
 
 export interface StepVariantesProps {

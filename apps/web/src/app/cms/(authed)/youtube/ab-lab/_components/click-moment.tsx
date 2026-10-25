@@ -5,33 +5,27 @@ import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 import { VChip, Badge } from './ab-primitives'
 import { LayoutGrid, Search, ListVideo, Smartphone, MousePointerClick, Trophy } from 'lucide-react'
+import './ab-end-test-dialog.css'
 
 interface ClickMomentProps {
-  videoTitle: string
   winnerLabel: DisplayLabel
   winnerColor: string
-  variants: Array<{ label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }>
+  variants: Array<{ label: DisplayLabel; color: string; ctr: number | null; thumbUrl: string | null; title: string }>
   /** Esconde a barra de CTR/lift (sem medição de entrega o número seria inventado). */
   semCtr?: boolean
-  /** Prévia do wizard: ninguém venceu ainda, então sem selo de vencedor. */
+  /** Prévia do wizard: ninguém venceu ainda, então sem selo de vencedor e todas as variantes em todos os contextos. */
   semVencedor?: boolean
+  /** Dado real do vídeo; ausente (null) some da tela, nunca vira número de exemplo. */
+  meta: { canal: string | null; publicadoEm: string | null; duracao: string | null }
+  /** Frase do apoio: o que este teste muda (`descricaoDaPrevia`). */
+  descricao: string
+  /** Variante sem thumbnail oferece "Escolher da Biblioteca". */
+  onEscolherDaBiblioteca?: (label: DisplayLabel) => void
 }
 
 type Context = 'home' | 'search' | 'sidebar' | 'mobile'
-
-const OVERLAY_TEXT: Record<DisplayLabel, string[]> = {
-  A: ['RAMEN DE', 'TÓQUIO'],
-  B: ['FILA DE', '3 HORAS'],
-  C: ['STREET', 'FOOD'],
-  D: ['TOP 10', 'SPOTS'],
-}
-
-const THUMB_BG: Record<DisplayLabel, string> = {
-  A: 'linear-gradient(135deg, rgb(58,47,40), rgb(31,26,22))',
-  B: 'linear-gradient(135deg, rgb(90,47,23), rgb(36,16,8))',
-  C: 'linear-gradient(135deg, rgb(30,60,55), rgb(18,35,30))',
-  D: 'linear-gradient(135deg, rgb(50,35,70), rgb(25,18,40))',
-}
+type CardVariant = ClickMomentProps['variants'][number]
+type Meta = ClickMomentProps['meta']
 
 const CTX_BUTTONS: Array<{ ctx: Context; icon: typeof LayoutGrid; label: string }> = [
   { ctx: 'home', icon: LayoutGrid, label: 'Home' },
@@ -40,27 +34,53 @@ const CTX_BUTTONS: Array<{ ctx: Context; icon: typeof LayoutGrid; label: string 
   { ctx: 'mobile', icon: Smartphone, label: 'Mobile' },
 ]
 
-function YTThumb({ label, radius = 10, thumbUrl }: { label: DisplayLabel; radius?: number; thumbUrl?: string | null }) {
-  if (thumbUrl) {
+function YTThumb({ v, radius = 10, duracao, onEscolherDaBiblioteca }: { v: CardVariant; radius?: number; duracao: string | null; onEscolherDaBiblioteca?: (label: DisplayLabel) => void }) {
+  if (v.thumbUrl) {
     return (
       <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', borderRadius: radius }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={thumbUrl} alt={`Thumbnail variante ${label}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+        <img src={v.thumbUrl} alt={`Thumbnail variante ${v.label}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+        {duracao && <span className="absolute right-[6px] bottom-[6px] font-mono text-[12px] leading-4 font-semibold px-[5px] rounded" style={{ background: 'rgba(0,0,0,.8)', color: '#fff' }}>{duracao}</span>}
       </div>
     )
   }
-  const overlay = OVERLAY_TEXT[label] ?? [label]
   return (
-    <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', borderRadius: radius, background: THUMB_BG[label], boxShadow: 'rgba(0,0,0,0.4) 0 0 60px inset' }}>
-      <div className="absolute" style={{ left: '8%', bottom: '-6%', width: '46%', height: '92%', background: 'radial-gradient(at 50% 40%, rgba(255,255,255,0.14), transparent 65%)' }} />
-      <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.024) 0px, rgba(255,255,255,0.024) 2px, transparent 2px, transparent 9px)' }} />
-      <div className="absolute inset-0 flex flex-col items-end justify-center text-right p-[9px_11px]">
-        {overlay.map(line => (
-          <span key={line} className="text-white uppercase" style={{ fontWeight: 900, lineHeight: 0.96, letterSpacing: '-0.02em', fontSize: 'clamp(13px, 3.1vw, 22px)', textShadow: 'rgba(0,0,0,0.7) 0 2px 8px, rgba(0,0,0,0.9) 0 0 2px' }}>{line}</span>
-        ))}
-      </div>
-      <span className="absolute right-[6px] bottom-[6px] bg-black/80 text-white font-mono text-[10.5px] font-semibold px-[5px] py-px rounded">12:48</span>
+    <div
+      className="semimg flex flex-col items-center justify-center gap-[4px] w-full overflow-hidden text-center text-[12px] leading-[14px]"
+      style={{ aspectRatio: '16/9', borderRadius: radius, border: '1px dashed var(--etd-ctl)', color: 'var(--cms-text-muted)', background: 'var(--cms-surface-hover)' }}
+    >
+      <span>Sem thumbnail</span>
+      {onEscolherDaBiblioteca && v.label !== 'A' && (
+        <button
+          type="button"
+          onClick={() => onEscolherDaBiblioteca(v.label)}
+          className="cursor-pointer text-[12px] font-medium"
+          style={{ minHeight: 44, padding: '0 10px', borderRadius: 8, border: '1px dashed var(--cms-border-strong, var(--cms-border))', background: 'none', color: 'var(--cms-text)' }}
+        >
+          Escolher da Biblioteca
+        </button>
+      )}
     </div>
+  )
+}
+
+/** Linha acima da miniatura: chip da variante + "Original"/"Variante X". */
+function Rotulo({ label }: { label: DisplayLabel }) {
+  return (
+    <div className="cml flex items-center gap-2 mb-[10px] text-[12.5px] font-semibold text-cms-text">
+      <VChip label={label} size={22} />
+      <span>{label === 'A' ? 'Original' : `Variante ${label}`}</span>
+    </div>
+  )
+}
+
+function MetaLinhas({ meta, small }: { meta: Meta; small?: boolean }) {
+  const cls = small ? 'text-[12px] text-cms-text-dim' : 'text-[12.5px] text-cms-text-dim'
+  return (
+    <>
+      {meta.canal && <div className={`${cls} mt-[3px]`}>@{meta.canal}</div>}
+      {meta.publicadoEm && <div className={cls}>Publicado em {meta.publicadoEm}</div>}
+    </>
   )
 }
 
@@ -80,86 +100,106 @@ function BehaviorStrip({ label, color, ctr, maxCtr, isWinner, lift }: { label: D
   )
 }
 
-function HomeCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number | null }) {
-  const lift = baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+interface CardProps {
+  v: CardVariant
+  isWinner: boolean
+  maxCtr: number
+  baseline: number | null
+  semCtr?: boolean
+  meta: Meta
+  onEscolherDaBiblioteca?: (label: DisplayLabel) => void
+}
+
+function liftDe(v: CardVariant, baseline: number | null): number | null {
+  return baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+}
+
+function Strip({ v, isWinner, maxCtr, baseline, semCtr }: Pick<CardProps, 'v' | 'isWinner' | 'maxCtr' | 'baseline' | 'semCtr'>) {
+  if (semCtr || v.ctr === null) return null
+  return <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={liftDe(v, baseline)} />
+}
+
+function Selo({ v, isWinner }: { v: CardVariant; isWinner: boolean }) {
+  if (!isWinner) return null
+  return <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>
+}
+
+function cardStyle(v: CardVariant, isWinner: boolean) {
+  return { border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }
+}
+
+function HomeCard(p: CardProps) {
+  const { v, isWinner, meta } = p
   return (
-    <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
-      {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
-      <YTThumb label={v.label} thumbUrl={v.thumbUrl} />
-      <div className="flex gap-[11px] mt-[11px]">
-        <div className="size-[34px] min-w-[34px] rounded-full bg-cms-accent flex items-center justify-center text-[13.6px] font-bold" style={{ color: 'rgb(20, 15, 8)', fontFamily: 'Fraunces, serif' }}>TF</div>
-        <div className="min-w-0">
-          <div className="text-[14px] font-semibold text-cms-text leading-[1.3] line-clamp-2">{videoTitle}</div>
-          <div className="text-[12.5px] text-cms-text-dim mt-[3px]">ByThiagoFigueiredo</div>
-          <div className="text-[12.5px] text-cms-text-dim">12 mil visualizações · há 2 dias</div>
-        </div>
+    <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={cardStyle(v, isWinner)}>
+      <Selo v={v} isWinner={isWinner} />
+      <Rotulo label={v.label} />
+      <YTThumb v={v} duracao={meta.duracao} onEscolherDaBiblioteca={p.onEscolherDaBiblioteca} />
+      <div className="mt-[11px] min-w-0">
+        <div className="text-[14px] font-semibold text-cms-text leading-[1.3] line-clamp-3">{v.title}</div>
+        <MetaLinhas meta={meta} />
       </div>
-      {!semCtr && v.ctr !== null && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
+      <Strip {...p} />
     </div>
   )
 }
 
-function SearchCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number | null }) {
-  const lift = baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+function SearchCard(p: CardProps) {
+  const { v, isWinner, meta } = p
   return (
-    <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
-      {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
-      <div className="flex gap-[16px]">
-        <div className="w-[340px] shrink-0"><YTThumb label={v.label} thumbUrl={v.thumbUrl} /></div>
+    <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={cardStyle(v, isWinner)}>
+      <Selo v={v} isWinner={isWinner} />
+      <Rotulo label={v.label} />
+      <div className="flex flex-col sm:flex-row gap-[16px]">
+        <div className="w-full sm:w-[340px] shrink-0"><YTThumb v={v} duracao={meta.duracao} onEscolherDaBiblioteca={p.onEscolherDaBiblioteca} /></div>
         <div className="min-w-0 pt-[2px]">
-          <div className="text-[17px] font-semibold text-cms-text leading-[1.25]">{videoTitle}</div>
-          <div className="text-[12.5px] text-cms-text-dim mt-[5px]">12 mil visualizações · há 2 dias</div>
-          <div className="flex items-center gap-2 my-[9px]">
-            <div className="size-[24px] min-w-[24px] rounded-full bg-cms-accent flex items-center justify-center text-[9.6px] font-bold" style={{ color: 'rgb(20, 15, 8)', fontFamily: 'Fraunces, serif' }}>TF</div>
-            <span className="text-[12.5px] text-cms-text-dim">ByThiagoFigueiredo</span>
-          </div>
-          <div className="text-[12.5px] text-cms-text-muted leading-[1.4] line-clamp-2">Fui até o MBK Center em Bangkok pra descobrir se vale a pena. Ouro, ternos sob medida e eletrônicos…</div>
+          <div className="text-[17px] font-semibold text-cms-text leading-[1.25] line-clamp-3">{v.title}</div>
+          <MetaLinhas meta={meta} />
         </div>
       </div>
-      {!semCtr && v.ctr !== null && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
+      <Strip {...p} />
     </div>
   )
 }
 
-function SidebarCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number | null }) {
-  const lift = baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+function SidebarCard(p: CardProps) {
+  const { v, isWinner, meta } = p
   return (
-    <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={{ border: isWinner ? `1px solid ${v.color}66` : '1px solid var(--cms-border)', padding: 16 }}>
-      {isWinner && <div className="absolute z-10 right-[14px] top-[14px]"><Badge tone="green"><Trophy size={11} aria-hidden="true" />vencedor</Badge></div>}
+    <div className="relative overflow-hidden rounded-lg bg-cms-surface" style={cardStyle(v, isWinner)}>
+      <Selo v={v} isWinner={isWinner} />
+      <Rotulo label={v.label} />
       <div className="flex gap-[10px]">
-        <div className="w-[168px] shrink-0"><YTThumb label={v.label} thumbUrl={v.thumbUrl} radius={8} /></div>
+        <div className="w-[168px] shrink-0"><YTThumb v={v} radius={8} duracao={meta.duracao} onEscolherDaBiblioteca={p.onEscolherDaBiblioteca} /></div>
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold text-cms-text leading-[1.25] line-clamp-2">{videoTitle}</div>
-          <div className="text-[11.5px] text-cms-text-dim mt-[5px]">ByThiagoFigueiredo</div>
-          <div className="text-[11.5px] text-cms-text-dim">12 mil views · há 2 dias</div>
+          <div className="text-[13px] font-semibold text-cms-text leading-[1.25] line-clamp-2">{v.title}</div>
+          <MetaLinhas meta={meta} small />
         </div>
       </div>
-      {!semCtr && v.ctr !== null && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
+      <Strip {...p} />
     </div>
   )
 }
 
-function MobileCard({ v, videoTitle, isWinner, maxCtr, baseline, semCtr }: { semCtr?: boolean; v: { label: DisplayLabel; color: string; ctr: number | null; thumbUrl?: string | null }; videoTitle: string; isWinner: boolean; maxCtr: number; baseline: number | null }) {
-  const lift = baseline !== null && v.ctr !== null && baseline > 0 && v.label !== 'A' ? Math.round(((v.ctr - baseline) / baseline) * 100) : null
+function MobileCard(p: CardProps) {
+  const { v, meta } = p
   return (
     <div className="relative overflow-hidden rounded-lg">
+      <Rotulo label={v.label} />
       <div className="w-[300px] overflow-hidden" style={{ border: '8px solid #050505', borderRadius: 34, background: '#0a0a0a', boxShadow: 'rgba(0,0,0,0.7) 0 20px 50px -16px' }}>
         <div className="h-[26px] flex items-center justify-center">
           <div className="w-[70px] h-[16px] bg-[#050505] rounded-full" />
         </div>
         <div className="pb-[14px]">
-          <YTThumb label={v.label} thumbUrl={v.thumbUrl} radius={0} />
-          <div className="flex gap-[10px] px-[12px] pt-[11px]">
-            <div className="size-[32px] min-w-[32px] rounded-full bg-cms-accent flex items-center justify-center text-[12.8px] font-bold" style={{ color: 'rgb(20, 15, 8)', fontFamily: 'Fraunces, serif' }}>TF</div>
-            <div className="min-w-0">
-              <div className="text-[13.5px] font-semibold leading-[1.3] line-clamp-2" style={{ color: '#eee' }}>{videoTitle}</div>
-              <div className="text-[11.5px] mt-[3px]" style={{ color: '#9a958c' }}>ByThiagoFigueiredo · 12 mil · há 2 dias</div>
-            </div>
+          <YTThumb v={v} radius={0} duracao={meta.duracao} onEscolherDaBiblioteca={p.onEscolherDaBiblioteca} />
+          <div className="px-[12px] pt-[11px] min-w-0">
+            <div className="text-[13.5px] font-semibold leading-[1.3] line-clamp-2" style={{ color: '#eee' }}>{v.title}</div>
+            {meta.canal && <div className="text-[12px] mt-[3px]" style={{ color: '#a8a39a' }}>@{meta.canal}</div>}
+            {meta.publicadoEm && <div className="text-[12px]" style={{ color: '#a8a39a' }}>Publicado em {meta.publicadoEm}</div>}
           </div>
         </div>
       </div>
       <div className="mt-[12px]">
-        {!semCtr && v.ctr !== null && <BehaviorStrip label={v.label} color={v.color} ctr={v.ctr} maxCtr={maxCtr} isWinner={isWinner} lift={lift} />}
+        <Strip {...p} />
       </div>
     </div>
   )
@@ -179,37 +219,27 @@ const GRID_JUSTIFY: Record<Context, string | undefined> = {
   mobile: 'center',
 }
 
-export function ClickMoment({ videoTitle, winnerLabel, winnerColor, variants, semCtr, semVencedor }: ClickMomentProps) {
-  const [mode, setMode] = useState<'compare' | 'feed'>('compare')
+export function ClickMoment({ winnerLabel, variants, semCtr, semVencedor, meta, descricao, onEscolherDaBiblioteca }: ClickMomentProps) {
   const [context, setContext] = useState<Context>('home')
 
   const maxCtr = Math.max(...variants.flatMap(v => (v.ctr === null ? [] : [v.ctr])), 0.01)
   const baseline = variants.find(v => v.label === 'A')?.ctr ?? null
 
-  const displayVariants = context === 'home' ? variants : variants.filter(v => v.label === 'A' || v.label === winnerLabel)
+  // Com a prévia do assistente (sem vencedor) todos os contextos mostram todas as variantes; no resultado, fora da Home só A e o vencedor.
+  const displayVariants = context === 'home' || semVencedor ? variants : variants.filter(v => v.label === 'A' || v.label === winnerLabel)
 
   const CardComponent = { home: HomeCard, search: SearchCard, sidebar: SidebarCard, mobile: MobileCard }[context]
 
   return (
-    <section className="space-y-[16px]">
-      {/* Header */}
-      <div className="flex items-end justify-between flex-wrap gap-[14px] mb-[18px]">
-        <div>
-          <div className="flex items-center gap-[9px]">
-            <MousePointerClick size={17} className="text-cms-accent shrink-0" aria-hidden="true" />
-            <h3 className="text-[20px] font-semibold text-cms-text m-0">O momento de clique</h3>
-          </div>
-          <p className="text-[13px] text-cms-text-dim mt-[6px] max-w-[520px] m-0">
-            É assim que cada variante disputa a atenção do espectador. Compare lado a lado — e cruze com o comportamento (CTR).
-          </p>
+    <section className="space-y-[16px] etd-tok">
+      <div className="mb-[18px]">
+        <div className="flex items-center gap-[9px]">
+          <MousePointerClick size={17} className="text-cms-accent shrink-0" aria-hidden="true" />
+          <h3 className="text-[20px] font-semibold text-cms-text m-0">O momento de clique</h3>
         </div>
-        <div className="inline-flex bg-cms-surface-hover rounded-[9px] p-[3px] gap-[2px]">
-          {(['compare', 'feed'] as const).map(m => (
-            <button key={m} type="button" onClick={() => setMode(m)} className="border-none cursor-pointer transition-[0.15s]" style={{ padding: '6px 13px', borderRadius: 7, fontSize: '12.5px', fontWeight: 600, background: m === mode ? 'var(--cms-accent)' : 'transparent', color: m === mode ? 'rgb(20, 15, 8)' : 'var(--cms-text-dim)' }}>
-              {m === 'compare' ? 'Comparar' : 'No feed'}
-            </button>
-          ))}
-        </div>
+        <p className="text-[13px] text-cms-text-dim mt-[6px] max-w-[520px] m-0">
+          É assim que cada variante aparece para o espectador. {descricao}
+        </p>
       </div>
 
       {/* Context buttons */}
@@ -217,7 +247,7 @@ export function ClickMoment({ videoTitle, winnerLabel, winnerColor, variants, se
         {CTX_BUTTONS.map(({ ctx, icon: Icon, label }) => {
           const active = ctx === context
           return (
-            <button key={ctx} type="button" onClick={() => setContext(ctx)} className="inline-flex items-center gap-[7px] cursor-pointer transition-[0.15s] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent" style={{ padding: '7px 13px', borderRadius: 8, fontSize: '13px', fontWeight: 600, border: active ? '1px solid var(--cms-accent)' : '1px solid var(--cms-border)', background: active ? 'var(--cms-accent-subtle)' : 'var(--cms-surface)', color: active ? 'var(--cms-accent)' : 'var(--cms-text-dim)' }}>
+            <button key={ctx} type="button" aria-pressed={active} onClick={() => setContext(ctx)} className="inline-flex items-center gap-[7px] cursor-pointer transition-[0.15s] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent" style={{ minHeight: 44, padding: '6px 13px', borderRadius: 9, fontSize: '12.5px', fontWeight: 600, border: active ? '1px solid var(--cms-accent)' : '1px solid var(--cms-border)', background: active ? 'var(--cms-accent-subtle)' : 'transparent', color: active ? 'var(--cms-text)' : 'var(--cms-text-dim)' }}>
               <Icon size={14} aria-hidden="true" />
               {label}
             </button>
@@ -228,7 +258,7 @@ export function ClickMoment({ videoTitle, winnerLabel, winnerColor, variants, se
       {/* Cards grid */}
       <div className="grid gap-[22px]" style={{ gridTemplateColumns: GRID_COLS[context], justifyContent: GRID_JUSTIFY[context] }}>
         {displayVariants.map(v => (
-          <CardComponent key={v.label} v={v} videoTitle={videoTitle} isWinner={!semVencedor && v.label === winnerLabel} maxCtr={maxCtr} baseline={baseline} semCtr={semCtr} />
+          <CardComponent key={v.label} v={v} isWinner={!semVencedor && v.label === winnerLabel} maxCtr={maxCtr} baseline={baseline} semCtr={semCtr} meta={meta} onEscolherDaBiblioteca={onEscolherDaBiblioteca} />
         ))}
       </div>
     </section>

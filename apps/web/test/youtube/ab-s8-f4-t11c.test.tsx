@@ -89,7 +89,7 @@ describe('Dia X/Y de v2 vem de estadoV2DoTeste', () => {
   })
 })
 
-const props = { type: 'thumbnail' as const, variants: [{ label: 'A' as const, thumbUrl: null, title: 't', isOriginal: true }, { label: 'B' as const, thumbUrl: null, title: 't', isOriginal: false }], config: initWizardConfig(AB_SITE_SETTINGS_DEFAULTS), videoTitle: 'v' }
+const props = { type: 'thumbnail' as const, variants: [{ label: 'A' as const, thumbUrl: null, title: 't', isOriginal: true }, { label: 'B' as const, thumbUrl: null, title: 't', isOriginal: false }], config: initWizardConfig(AB_SITE_SETTINGS_DEFAULTS), meta: { canal: null, publicadoEm: null, duracao: null } }
 
 describe('aviso de volume no passo de início', () => {
   it('mostra o texto em uma linha', () => {

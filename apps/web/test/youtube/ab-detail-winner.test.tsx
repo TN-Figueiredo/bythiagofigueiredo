@@ -246,6 +246,19 @@ describe('LiveMonitorCard', () => {
 /* ─── WinnerDetail ─── */
 
 describe('WinnerDetail', () => {
+  it('M6: em teste de título, o cartão B do momento de clique mostra o título de B, não o do vídeo', () => {
+    const view = makeWinnerView({
+      flag: 'title',
+      videoTitle: 'Título do vídeo',
+      variantThumbs: [{ ...makeThumb('A', true), titleText: null }, { ...makeThumb('B'), titleText: 'Título da variante B' }],
+    })
+    render(<WinnerDetail view={view} />)
+    const secao = screen.getByText('O momento de clique').closest('section')!
+    expect(secao.textContent).toContain('Título da variante B')
+    expect(secao.textContent).toContain('Título do vídeo')
+    expect(secao.textContent).toContain('Neste teste só o título muda')
+  })
+
   it('renders key sections', () => {
     const view = makeWinnerView()
     render(<WinnerDetail view={view} />)

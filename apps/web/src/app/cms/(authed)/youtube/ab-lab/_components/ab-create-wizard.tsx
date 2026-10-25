@@ -9,6 +9,7 @@ import type { VariantData } from './step-variantes'
 import { StepConfig } from './step-config'
 import { StepRevisar } from './step-revisar'
 import { LibraryPickerDialog } from './library-picker-dialog'
+import { duracaoDoVideo, dataDePublicacao } from '@/lib/youtube/ab-linha-video'
 import { initWizardConfig, wizardConfigToAbConfig } from '@/lib/youtube/ab-wizard-adapter'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 import {
@@ -117,6 +118,10 @@ type WizardAction =
   | { type: 'SET_ERROR'; error: string | null }
   | { type: 'SET_HYPOTHESIS'; text: string }
 
+const TIPOS_DA_BIBLIOTECA = ['image/jpeg', 'image/png']
+const LIMITE_DA_BIBLIOTECA_BYTES = 2 * 1024 * 1024
+const FRASE_BIBLIOTECA_INVALIDA = 'Esta imagem da Biblioteca não pode ser usada (precisa ser JPEG ou PNG, até 2 MB). Escolha outra.'
+
 const NEXT_LABELS: DisplayLabel[] = ['B', 'C', 'D']
 
 function draftStorageKey(videoId: string): string {
@@ -203,7 +208,10 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 
     case 'UPDATE_VARIANT': {
       const variants = [...state.variants]
-      variants[action.index] = { ...variants[action.index]!, ...action.data }
+      const proxima = { ...variants[action.index]!, ...action.data }
+      // Trocar a imagem por outra (arquivo ou data URL) encerra a origem 'biblioteca'.
+      if (!('origem' in action.data) && ('thumbUrl' in action.data || 'thumbFile' in action.data)) delete proxima.origem
+      variants[action.index] = proxima
       return { ...state, variants }
     }
 
@@ -334,6 +342,18 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   const refDialogo = useCallback((el: HTMLDivElement | null) => { dialogRef.current = el; setDialogoMontado(el !== null) }, [])
   const [libraryPickerFor, setLibraryPickerFor] = useState<number | null>(null)
   const [libraryEntries, setLibraryEntries] = useState<Awaited<ReturnType<typeof fetchLibraryEntries>> | null>(null)
+
+  const abrirBiblioteca = async (variantIndex: number) => {
+    if (!libraryEntries) {
+      const entries = await fetchLibraryEntries()
+      setLibraryEntries(entries)
+    }
+    setLibraryPickerFor(variantIndex)
+  }
+  const escolherDaBiblioteca = (label: DisplayLabel) => {
+    const i = state.variants.findIndex(v => v.label === label)
+    if (i >= 0) void abrirBiblioteca(i)
+  }
   // D12: aviso de original baixa; só leitura, não valida passo nem envia
   const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step >= LEITURA_A_PARTIR_DO_PASSO && !state.isLaunching)
 
@@ -461,10 +481,33 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
       // 2. Upload image variants (thumbnail/combo)
       if (state.type === 'thumbnail' || state.type === 'combo') {
         const variantsWithNewData = state.variants.filter(v =>
-          !v.isOriginal && (v.thumbFile || v.thumbUrl?.startsWith('data:')),
+          !v.isOriginal && (v.thumbFile || v.thumbUrl?.startsWith('data:') || v.origem === 'biblioteca'),
         )
 
         if (variantsWithNewData.length > 0) {
+          // Imagem da Biblioteca: baixa ANTES de qualquer limpeza do rascunho (a T4b mantém esta ordem), para uma falha aqui não apagar nada.
+          const daBiblioteca = new Map<string, Blob>()
+          for (const v of variantsWithNewData) {
+            if (v.origem !== 'biblioteca' || v.thumbFile || !v.thumbUrl) continue
+            let blob: Blob
+            try {
+              const resp = await fetch(v.thumbUrl)
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+              blob = await resp.blob()
+            } catch (e) {
+              console.warn(e)
+              dispatch({ type: 'SET_ERROR', error: 'Failed to download library image' })
+              dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+              return
+            }
+            if (!TIPOS_DA_BIBLIOTECA.includes(blob.type) || blob.size > LIMITE_DA_BIBLIOTECA_BYTES) {
+              dispatch({ type: 'SET_ERROR', error: FRASE_BIBLIOTECA_INVALIDA })
+              dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+              return
+            }
+            daBiblioteca.set(v.label, blob)
+          }
+
           const cleanupRes = await cleanupDraftVariants(testId)
           if (!cleanupRes.ok) {
             dispatch({ type: 'SET_ERROR', error: cleanupRes.error ?? 'Failed to clean up draft' })
@@ -473,7 +516,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
           }
 
           for (const v of variantsWithNewData) {
-            let file: File | Blob | null = v.thumbFile ?? null
+            let file: File | Blob | null = v.thumbFile ?? daBiblioteca.get(v.label) ?? null
             if (!file && v.thumbUrl?.startsWith('data:')) {
               const [header, b64] = v.thumbUrl.split(',')
               const mime = header?.match(/:(.*?);/)?.[1] ?? 'image/jpeg'
@@ -596,13 +639,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             onUpdateVariant={(i, d) => editar({ type: 'UPDATE_VARIANT', index: i, data: d })}
             onAddVariant={() => editar({ type: 'ADD_VARIANT' })}
             onRemoveVariant={i => editar({ type: 'REMOVE_VARIANT', index: i })}
-            onPickFromLibrary={async (variantIndex) => {
-              if (!libraryEntries) {
-                const entries = await fetchLibraryEntries()
-                setLibraryEntries(entries)
-              }
-              setLibraryPickerFor(variantIndex)
-            }}
+            onPickFromLibrary={abrirBiblioteca}
           />
           </>
         )
@@ -625,7 +662,12 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
               isOriginal: v.isOriginal,
             }))}
             config={state.config}
-            videoTitle={state.videoTitle}
+            meta={{
+              canal: video.channelHandle?.replace(/^@/, '').trim() || null,
+              publicadoEm: video.publishedAt && !Number.isNaN(Date.parse(video.publishedAt)) ? dataDePublicacao(video.publishedAt) : null,
+              duracao: video.durationSeconds ? duracaoDoVideo(video.durationSeconds) : null,
+            }}
+            onEscolherDaBiblioteca={escolherDaBiblioteca}
             avisoOriginal={avisoOriginal}
             avisoVolume={avisoVolume}
           />
@@ -776,7 +818,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             editar({
               type: 'UPDATE_VARIANT',
               index: libraryPickerFor,
-              data: { thumbUrl: blobUrl, briefing: liftAtWin ? `Da Biblioteca: +${liftAtWin}% lift` : undefined },
+              data: { thumbUrl: blobUrl, origem: 'biblioteca', briefing: liftAtWin ? `Da Biblioteca: +${liftAtWin}% lift` : undefined },
             })
             setLibraryPickerFor(null)
           }}
