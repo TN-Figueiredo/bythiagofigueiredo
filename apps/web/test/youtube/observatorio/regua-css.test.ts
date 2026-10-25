@@ -55,7 +55,7 @@ describe('cores dos lados no tema claro (WCAG, calculado)', () => {
   }
   const escuro = (css: string, nome: string) => { const m = css.match(new RegExp('\\[data-obs\\]\\{[^}]*--' + nome + ':(#[0-9A-Fa-f]{6})')); if (!m) throw new Error('token escuro ausente: --' + nome); return m[1]! }
   const tokens = read('_chrome/tokens-telas.css')
-  const chrome = read('_chrome/chrome.css')
+  const chrome = read('_chrome/tokens-obs.css')
   const surfaceClaro = token(claro(chrome), 'surface'), surfaceEscuro = escuro(chrome, 'surface')
   const lados = ['lado-o', 'lado-b', 'lado-n'] as const
 

@@ -7,7 +7,7 @@
 import type { ReactNode } from 'react'
 import { BarraAssistido } from './barra-assistido'
 import { Impressoes } from './impressoes'
-import { InfoDica } from './info-dica'
+import { InfoDica } from '../../_components/info-dica'
 import { ForjaIndisponivelVideo } from './forja-indisponivel-video'
 import { Reguas } from './reguas'
 import { RetencaoCurva } from './retencao-curva'

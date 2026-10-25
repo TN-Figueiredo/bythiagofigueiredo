@@ -3,7 +3,7 @@
  * Componente de SERVIDOR: recebe o `TrocasView` JÁ montado (`buildTrocas`, só texto e frações), sem banco. `diagnostico` nunca entra aqui.
  * Estado nunca é só cor: todo chip leva símbolo E texto; lado sem número tem forma própria de borda (cheia, tracejada, pontilhada, dupla, dupla tracejada).
  */
-import { InfoDica } from './info-dica'
+import { InfoDica } from '../../_components/info-dica'
 import { FRASE_TESTE_RESTRITO, FRASE_TROCA_FALHOU, rotuloChip, simboloDoChip, type Chip, type LadoView, type TesteView, type TrocaView, type TrocasView } from './trocas-model'
 import { entradaDaTroca, DICA_TROCA_PROPRIA, ROTULO_TESTAR, type EntradaProprio } from '../_chrome/ab-entradas/modelo'
 import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'

@@ -1,7 +1,7 @@
 // A5 · E5a · Tarefa C2: a seção montada a partir de `SecaoView` (componente de servidor; sem estado próprio).
 // O dado do leitor NÃO passa pelo `HistoricoView`: a página (C3) chama o modelo e entrega o `SecaoView` aqui.
 import type { CriadorDoFio } from './fio-model'
-import { InfoDica } from '../../_proprio/info-dica'
+import { InfoDica } from '../../../_components/info-dica'
 import { Abas } from './abas'
 import { EstadoDoPainel } from './estados'
 import { enxugarLista } from './enxuto'

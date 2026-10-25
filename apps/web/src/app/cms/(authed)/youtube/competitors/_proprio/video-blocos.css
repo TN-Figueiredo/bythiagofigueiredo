@@ -16,10 +16,6 @@
 [data-obs-screen="video-proprio"] .vb-nml{display:grid;gap:6px;justify-items:start}
 [data-obs-screen="video-proprio"] .vb-nml p{margin:0;font-size:13px;line-height:19px;max-width:88ch}
 [data-obs-screen="video-proprio"] .vb-nml b{font-weight:600}
-/* o ⓘ das seções */
-[data-obs-screen="video-proprio"] .vb-info{margin:-6px 0}
-@media (pointer:coarse){[data-obs-screen="video-proprio"] .vb-info{width:44px;height:44px;margin:-10px 0}}
-#flut .canal-tip .vb-info-p{margin:4px 0 0;font-size:13px;line-height:19px}
 /* taxa de clique: o texto e a faixa (a faixa é de taxa-faixa.css) */
 [data-obs-screen="video-proprio"] .vb-ctr{margin:14px 0 0;display:grid;gap:6px;max-width:760px}
 [data-obs-screen="video-proprio"] .vb-ctr .vb-h{margin:0}

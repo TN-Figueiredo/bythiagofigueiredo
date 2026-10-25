@@ -28,7 +28,8 @@ describe('13.4 CSS dos blocos do vídeo', () => {
 
   it('toque (pointer:coarse): o ⓘ, o botão da forja e o link da posição ganham 44 px', () => {
     const b = semComentarios(css('video-blocos.css')), r = semComentarios(css('reguas.css'))
-    expect(b).toMatch(/pointer:coarse\)\{[^}]*\.vb-info\{width:44px;height:44px/)
+    const d = semComentarios(readFileSync(join(DIR, '../../_components/info-dica.css'), 'utf8')) // T12 T2: o ⓘ mora no lugar compartilhado
+    expect(d).toMatch(/pointer:coarse\)\{\.dica-i\{width:44px;height:44px/)
     expect(b).toMatch(/pointer:coarse\)\{[^}]*\.vb-forja-btn\{min-height:44px/)
     expect(r).toMatch(/pointer:coarse\)\{[\s\S]*\.vb-rg-p a\{[^}]*min-height:44px/)
   })
