@@ -5,7 +5,7 @@ import { placarDoTeste, faixaDeDias, regraDoTeste } from '@/lib/youtube/ab-grava
 import { lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { AB_SITE_SETTINGS_DEFAULTS, ehVitoriaHumana } from '@/lib/youtube/ab-types'
+import { AB_SITE_SETTINGS_DEFAULTS, ehVitoriaHumana, vencedorEhOriginal, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 import type {
   AbTestWithVariants,
   AbTestVariantRow,
@@ -38,6 +38,8 @@ import { toDisplayLabel, variantColor, ordemDesc } from './_components/ab-consta
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
+import { rotuloDeConcluido } from '@/lib/youtube/ab-rotulo-v2'
+import { estadoV2DoTeste, tetoDoTesteV2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -84,6 +86,7 @@ export async function getAbTestsForSite(): Promise<{
       variants: ((raw as Record<string, unknown>).variants ?? []) as AbTestVariantRow[],
       current_cycle: openCycle,
       total_cycles: cycles.length,
+      ciclos: cycles,
     }
   }
 
@@ -406,6 +409,17 @@ export async function getVideoTestHistory(youtubeVideoId: string): Promise<Array
 // Pure computed helpers (Phase 3)
 // ---------------------------------------------------------------------------
 
+/** S8-F4 T11c: rótulo do concluído v2 e "Dia X/Y" de v2 (fonte única `estadoV2DoTeste`); v1 não ganha nada. */
+function camposV2DoCartao(test: AbTestWithVariants): Pick<AbTestCardView, 'diaV2' | 'rotuloV2'> {
+  const rotulo = rotuloDeConcluido(test.completed_reason, test.result_metadata)
+  if (rotulo) return { rotuloV2: rotulo }
+  if (regraDoTeste(test) !== 'v2' || test.status === 'queued' || test.status === 'completed' || !test.ciclos) return {}
+  const teto = tetoDoTesteV2(test.config, test.variants.length)
+  const ciclos = test.ciclos.filter(c => c.started_at)
+  const est = estadoV2DoTeste(test, ciclos, null, new Date(), teto)
+  return { diaV2: { dia: est.dia, teto: est.teto } }
+}
+
 export function toCardView(test: AbTestWithVariants): AbTestCardView {
   // Use total_cycles as a proxy — but we don't have cycle data in AbTestWithVariants
   // The leader is determined from winner_variant_id if available, otherwise fall back to original
@@ -467,6 +481,7 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     statusNote: test.status_note ?? null,
     cycleStartedAt: test.current_cycle?.started_at ?? null,
     queueStartAfter: test.queue_start_after ?? null,
+    ...camposV2DoCartao(test),
   }
 }
 
@@ -528,7 +543,7 @@ export function computeDashboardStats(
   // calculados sobre views, sem medição de entrega).
   const rootCompleted = completed.filter(t => t.parent_test_id === null)
   const contam = rootCompleted.filter(t => t.completed_reason !== null && t.completed_reason !== 'auto_resolve')
-  const testsWon = contam.filter(t => ehVitoriaHumana(t)).length
+  const testsWon = contam.filter(t => ehVitoriaHumana({ ...t, winner_is_original: t.variants.some(v => v.is_original && v.id === t.winner_variant_id) })).length
   const winRate = contam.length > 0 ? (testsWon / contam.length) * 100 : null
 
   return { activeTests, winRate, completedTests: rootCompleted.length, winRateBase: contam.length, testsWon }
@@ -639,13 +654,15 @@ function buildInsightText(tags: LearningsTag[]): string {
 export async function getLearnings(siteId: string): Promise<LearningsData | null> {
   const supabase = getSupabaseServiceClient()
 
-  const { data: tests } = await supabase
+  const { data: lidos } = await supabase
     .from('ab_tests')
-    .select('id, result_metadata, winner_variant_id, test_type')
+    .select('id, result_metadata, winner_variant_id, test_type, winner:ab_test_variants!winner_variant_id(is_original)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
 
+  // S8-F4 B2: a original vencedora ("não mudar nada") não ensina tag nenhuma
+  const tests = lidos?.filter(t => !vencedorEhOriginal(t.winner as VencedorEmbutido))
   if (!tests || tests.length < 3) return null
 
   const testIds = tests.map(t => t.id as string)
@@ -674,12 +691,13 @@ export async function getChannelLearnings(siteId: string): Promise<ChannelLearni
   const supabase = getSupabaseServiceClient()
 
   // Get all completed tests with winner, including channel info
-  const { data: tests } = await supabase
+  const { data: lidos } = await supabase
     .from('ab_tests')
-    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id)')
+    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id), winner:ab_test_variants!winner_variant_id(is_original)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
     .not('winner_variant_id', 'is', null)
+  const tests = lidos?.filter(t => !vencedorEhOriginal(t.winner as VencedorEmbutido))
 
   if (!tests?.length || tests.length < 3) {
     return null

@@ -15,7 +15,7 @@ import { ListaCaminhoServidor } from './_components/caminho-nativo/lista-caminho
 import { ListaEsqueleto } from './_components/caminho-nativo/lista-esqueleto'
 import { ListaErro } from './_components/caminho-nativo/lista-erro'
 import { videoDaUrl } from './video-param'
-import { startAbTest } from './actions'
+import { startAbTest, avisoDeVolumeDoTeste } from './actions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
 import { BlocoSugestoes } from './_components/bloco-sugestoes'
@@ -65,6 +65,7 @@ export default async function AbLabPage({ searchParams }: { searchParams: Promis
       settings={settings}
       eligibleVideos={eligibleVideos}
       iniciarTeste={startAbTest}
+      avisoDeVolume={avisoDeVolumeDoTeste}
       listaSlot={
         <ListaErro key="lista-caminho">
           <Suspense fallback={<ListaEsqueleto />}>

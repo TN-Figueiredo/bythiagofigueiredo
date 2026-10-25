@@ -1,24 +1,27 @@
 'use client'
 
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
+import { tetoMinimo, tetoPadrao } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { CfgRow, Slider, Seg, SectionLabel } from './ab-primitives'
 
 interface StepConfigProps {
   config: WizardConfig
+  /** Variantes do teste (com a original); o passo 2 já as conhece. */
+  variantCount?: number
   onChange: <K extends keyof WizardConfig>(key: K, value: WizardConfig[K]) => void
 }
 
-const ROTATION_OPTIONS = ['abba', 'round_robin', 'random'] as const
+const ROTATION_OPTIONS = ['abba'] as const
 const ROTATION_LABELS: Record<(typeof ROTATION_OPTIONS)[number], string> = {
   abba: 'ABBA',
-  round_robin: 'Sequencial',
-  random: 'Aleatório',
 }
 
-export function StepConfig({ config, onChange }: StepConfigProps) {
+export function StepConfig({ config, variantCount = 2, onChange }: StepConfigProps) {
   // O teste só encerra na duração máxima (a avaliação automática foi retirada)
-  const estDays = config.duration
-  const abbaCycles = Math.ceil(config.duration / 2) * 2
+  const minimo = tetoMinimo(variantCount)
+  const padrao = tetoPadrao(variantCount)
+  const estDays = padrao
+  const abbaCycles = Math.ceil(padrao / 2) * 2
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
@@ -26,16 +29,11 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
       <div>
         <CfgRow
           label="Duração máxima"
-          hint="Tempo máximo que o teste pode rodar antes de encerrar automaticamente"
+          hint="Fixa pela regra nova (o YouTube leva dias para enviar o alcance)"
         >
-          <Slider
-            value={config.duration}
-            onChange={v => onChange('duration', v)}
-            min={7}
-            max={28}
-            step={1}
-            format={v => `${v} dias`}
-          />
+          <span className="text-xs font-mono font-semibold text-cms-text" data-testid="duracao-fixa">
+            Duração: {padrao} dias; mínimo {minimo}
+          </span>
         </CfgRow>
 
         <CfgRow
@@ -54,11 +52,11 @@ export function StepConfig({ config, onChange }: StepConfigProps) {
 
         <CfgRow
           label="Padrão de rotação"
-          hint="Estratégia de alternância entre variantes durante o teste"
+          hint="A regra nova usa só a rotação ABBA"
         >
           <Seg
             options={ROTATION_OPTIONS}
-            value={config.rotation}
+            value="abba"
             onChange={v => onChange('rotation', v)}
             labels={ROTATION_LABELS}
             aria-label="Padrão de rotação"

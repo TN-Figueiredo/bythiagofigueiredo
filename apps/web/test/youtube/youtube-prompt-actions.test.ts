@@ -148,4 +148,18 @@ describe('prompts do YouTube: o analytics recebe o id UC do canal', () => {
       expect(x.winner).toBe('B')
     }
   })
+  it('S8-F4 B2: a original vencedora (manual_winner) não entra em abTestResults', async () => {
+    seed(CH_UC)
+    const W = '55555555-5555-4555-8555-555555555555'
+    const base = { test_type: 'thumbnail', winner_variant_id: W, youtube_video_id: 'yt1', completed_reason: 'manual_winner' }
+    tables.ab_tests = [
+      { ...base, name: 'variante-venceu', winner: { is_original: false } },
+      { ...base, name: 'original-venceu', winner: { is_original: true } },
+    ]
+    tables.ab_test_variants = [{ id: W, label: 'B' }]
+    const { fetchChannelHealthData } = await import('@/app/cms/(authed)/youtube/_actions/youtube-prompt-actions')
+    const r = await fetchChannelHealthData(CH_UUID)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.data.abTestResults.map(x => x.videoTitle)).toEqual(['variante-venceu'])
+  })
 })

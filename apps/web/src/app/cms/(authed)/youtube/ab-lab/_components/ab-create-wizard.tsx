@@ -21,7 +21,9 @@ import {
   fetchLibraryEntries,
   lerDimensoesDaOriginal,
 } from '../actions'
+import { useAvisoVolume, type LerAvisoDeVolume } from './use-aviso-volume'
 import { useAvisoOriginal, LEITURA_A_PARTIR_DO_PASSO } from './use-aviso-original'
+import { MAX_CHALLENGERS } from '@/lib/youtube/ab-wizard-reducer'
 import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
 import type { TestType, DisplayLabel, AbTestSiteSettings, ReferenciaDoTeste } from '@/lib/youtube/ab-types'
@@ -33,6 +35,7 @@ import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 /** `codigo` (e `ate`, ISO, quando o servidor sabe) dizem a recusa da guarda; o cliente nunca compara o texto de `error`. */
 export type ResultadoIniciar = { ok: boolean; error?: string; codigo?: CodigoRecusaNativa; ate?: string }
 export type IniciarTeste = (testId: string) => Promise<ResultadoIniciar>
+export type { LerAvisoDeVolume }
 
 /* ------------------------------------------------------------------ */
 /*  Wizard video — same shape the dashboard already uses              */
@@ -69,6 +72,8 @@ interface Props {
   onClose: () => void
   onCreated: (testId: string) => void
   iniciarTeste: IniciarTeste
+  /** S8-F4 T11c: `avisoDeVolumeDoTeste` vem da página (servidor); ausente = sem aviso. */
+  avisoDeVolume?: LerAvisoDeVolume
   prefill?: PrefillData
   existingDraftId?: string
   /** Referência (ex.: de concorrente) mostrada junto do passo das variantes */
@@ -200,6 +205,7 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 
     case 'ADD_VARIANT': {
       const challengerCount = state.variants.filter(v => !v.isOriginal).length
+      if (challengerCount >= MAX_CHALLENGERS) return state
       const nextLabel = NEXT_LABELS[challengerCount] ?? 'D'
       return {
         ...state,
@@ -218,7 +224,7 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
     }
 
     case 'UPDATE_CONFIG':
-      return { ...state, config: { ...state.config, [action.key]: action.value } }
+      return { ...state, config: { ...state.config, [action.key]: action.value, ...(action.key === 'duration' ? { durationTouched: true } : {}) } }
 
     case 'SET_DRAFT_ID':
       return { ...state, draftTestId: action.id }
@@ -261,7 +267,7 @@ function stepIsValid(step: number, state: WizardState): boolean {
 /*  AbCreateWizard                                                     */
 /* ------------------------------------------------------------------ */
 
-export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, iniciarTeste, prefill, existingDraftId, referencia, referenciaDados }: Props) {
+export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, iniciarTeste, avisoDeVolume, prefill, existingDraftId, referencia, referenciaDados }: Props) {
   const continuingDraft = Boolean(existingDraftId && prefill?.draftVariants && prefill.draftVariants.length > 1)
 
   // When continuing a DB draft, ignore stale localStorage
@@ -326,6 +332,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   const [libraryEntries, setLibraryEntries] = useState<Awaited<ReturnType<typeof fetchLibraryEntries>> | null>(null)
   // D12: aviso de original baixa; só leitura, não valida passo nem envia
   const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step >= LEITURA_A_PARTIR_DO_PASSO && !state.isLaunching)
+
+  const avisoVolume = useAvisoVolume(avisoDeVolume, state.draftTestId, dialogoMontado && state.step === 4 && !state.isLaunching, state.variants.length)
 
   // --- Escape key ---
   useEffect(() => {
@@ -598,6 +606,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
         return (
           <StepConfig
             config={state.config}
+            variantCount={state.variants.length}
             onChange={(k, v) => editar({ type: 'UPDATE_CONFIG', key: k, value: v })}
           />
         )
@@ -614,6 +623,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             config={state.config}
             videoTitle={state.videoTitle}
             avisoOriginal={avisoOriginal}
+            avisoVolume={avisoVolume}
           />
         )
       default:

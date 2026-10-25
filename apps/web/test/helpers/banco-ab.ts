@@ -28,7 +28,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   private limite = Infinity
   private deslocamento = 0
   private contar = false
-  constructor(private readonly linhas: Fila[], private readonly aoReler: () => void, private readonly unir?: (f: Fila) => Fila, private readonly aoAtualizar?: (antes: Fila, depois: Fila) => void) {}
+  constructor(private readonly linhas: Fila[], private readonly aoReler: () => void, private readonly unir?: (f: Fila) => Fila, private readonly aoAtualizar?: (antes: Fila, depois: Fila) => void, private readonly gerarId?: () => string) {}
   select(cols?: string, o?: { count?: string; head?: boolean }) {
     if (this.modo === 'select' && cols === 'restore_seq') this.aoReler()
     if (o?.count) this.contar = true
@@ -58,7 +58,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   limit(n: number) { this.limite = n; return this }
   private executar(): Fila[] {
     let hit = this.linhas.filter((f) => this.filtros.every((g) => g(f)))
-    if (this.modo === 'insert') { this.linhas.push(structuredClone(this.patch)); return [structuredClone(this.patch)] }
+    if (this.modo === 'insert') { if (this.gerarId && this.patch.id === undefined) this.patch = { ...this.patch, id: this.gerarId() }; this.linhas.push(structuredClone(this.patch)); return [structuredClone(this.patch)] }
     if (this.modo === 'delete') { for (const f of hit) this.linhas.splice(this.linhas.indexOf(f), 1); return [] }
     if (this.modo === 'update') hit.forEach((f) => { const antes = structuredClone(f); Object.assign(f, this.patch); this.aoAtualizar?.(antes, f) })
     if (this.ordenar) { const { col, asc } = this.ordenar; hit = [...hit].sort((a, b) => (String(a[col]) < String(b[col]) ? -1 : 1) * (asc ? 1 : -1)) }
@@ -72,7 +72,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   }
 }
 
-export interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; restoreSeq?: number; marcador?: string | null; config?: Fila; atualizadoHaMs?: number; diasNoAr?: number; ajustar?: (variantes: Fila[]) => void; ciclosFechados?: number
+export interface OpcoesBanco { /** regra_duracao do teste (padrão v1). */ regra?: 'v1' | 'v2'; testType?: 'thumbnail' | 'title' | 'combo'; restoreSeq?: number; marcador?: string | null; config?: Fila; atualizadoHaMs?: number; diasNoAr?: number; ajustar?: (variantes: Fila[]) => void; ciclosFechados?: number
   /** Rascunho/pausado etc. (padrão active). */ status?: string
   /** Sem ciclo aberto (rascunho). */ semCiclos?: boolean
   restoreStatus?: unknown
@@ -83,7 +83,7 @@ export interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; resto
 
 export function criarBanco(o: OpcoesBanco = {}) {
   const teste: Fila = {
-    id: 'teste-1', site_id: SITE, name: 'Teste do Lab', test_type: o.testType ?? 'thumbnail', status: o.status ?? 'active', restore_seq: o.restoreSeq ?? 0,
+    id: 'teste-1', site_id: SITE, name: 'Teste do Lab', test_type: o.testType ?? 'thumbnail', status: o.status ?? 'active', restore_seq: o.restoreSeq ?? 0, regra_duracao: o.regra ?? 'v1',
     restore_status: o.restoreStatus ?? null, original_title: 'Título A', original_thumbnail_url: BLOB('A'), last_applied_variant_id: o.marcador ?? null,
     youtube_video_id: 'video-interno', config: o.config ?? { rotation_pattern: 'abba' }, winner_variant_id: null, winner_applied_at: null,
     revert_expires_at: null, status_note: null, paused_at: null, completed_at: null, completed_reason: null, applied_by: null,
@@ -100,12 +100,13 @@ export function criarBanco(o: OpcoesBanco = {}) {
     ab_tests: [teste, ...(o.extras ?? []).map((e) => ({ ...structuredClone(teste), restore_status: null, ...e }))], ab_test_variants: variantes,
     ab_test_cycles: o.semCiclos ? [] : [{ id: 'c0', test_id: 'teste-1', cycle_number: 0, variant_id: 'A', started_at: ONTEM, ended_at: null, end_reason: null }],
     ab_test_restores: [],
-    ab_test_polls: [], youtube_videos: [{ id: 'video-interno', site_id: SITE, youtube_video_id: 'yt-1', channel_id: 'ch-1', youtube_channels: { channel_id: 'UC1', name: 'Canal' } }, ...(o.videos ?? [])],
+    ab_test_polls: [], youtube_videos: [{ id: 'video-interno', site_id: SITE, youtube_video_id: 'yt-1', duration_seconds: 600, thumbnail_hq_url: BLOB('A'), channel_id: 'ch-1', youtube_channels: { channel_id: 'UC1', name: 'Canal' } }, ...(o.videos ?? [])],
     ops_alert_state: [], ab_native_tests: o.nativas ?? [], audit_log: [], sites: [{ id: SITE, org_id: null }],
   }
   for (let i = 0; i < (o.ciclosFechados ?? 0); i++) tabelas.ab_test_cycles!.unshift({ id: `f${i}`, test_id: 'teste-1', cycle_number: -1 - i, variant_id: 'A', started_at: ONTEM, ended_at: ONTEM, end_reason: 'rotacao' })
   const ganchos: Array<() => void> = []
   let ciclo = 0
+  let seqId = 0
   const t = () => tabelas.ab_tests[0] as Fila & { restore_seq: number; config: Fila }
   const lancam = new Map<string, Error>()
   // Emula tg_ab_tests_restore_log (com a guarda da P4a): uma linha por campo e por restore_seq quando o campo muda e não
@@ -128,7 +129,7 @@ export function criarBanco(o: OpcoesBanco = {}) {
   const supabase = {
     from(tabela: string) {
       const unir = tabela === 'ab_tests' ? (f: Fila) => ({ ...f, variants: tabelas.ab_test_variants }) : undefined
-      return new Consulta(tabelas[tabela]!, () => ganchos.forEach((g) => g()), unir, tabela === 'ab_tests' ? gatilhoDoHistorico : undefined)
+      return new Consulta(tabelas[tabela]!, () => ganchos.forEach((g) => g()), unir, tabela === 'ab_tests' ? gatilhoDoHistorico : undefined, tabela === 'ab_tests' || tabela === 'ab_test_variants' ? () => `gerado-${tabela}-${++seqId}` : undefined)
     },
     rpc(nome: string, a: Record<string, unknown>) {
       if (lancam.has(nome)) return Promise.reject(lancam.get(nome))

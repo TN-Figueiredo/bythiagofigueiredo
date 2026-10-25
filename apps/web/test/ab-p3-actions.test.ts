@@ -225,6 +225,12 @@ describe('batchStartTests', () => {
     expect(insertedTests[2]).toMatchObject({ status: 'draft' })
   })
 
+  it('S8-F4 C-12/I-10: o lote grava regra_duracao v2 e config { teto_explicito: false }', async () => {
+    const { insertedTests } = setupBatchMock()
+    await batchStartTests(['vid-1', 'vid-2'])
+    expect(insertedTests[0]).toMatchObject({ regra_duracao: 'v2', config: { teto_explicito: false } })
+  })
+
   it('returns error for < 2 videos', async () => {
     setupBatchMock()
 

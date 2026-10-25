@@ -29,6 +29,8 @@ import { guardarOriginalMaior } from '@/lib/youtube/ab-variant-dhash'
 import { DHASH_MAX_SAME, hamming, probeThumb } from '@/lib/youtube/thumb-fingerprint'
 import { dimensoesDeTexto, publicaBaixa } from '@/lib/youtube/ab-original-resolucao'
 import { getVariantForCycle } from '@/lib/youtube/ab-rotation'
+import { ATRASO_ALCANCE, MSG_VARIANTES_V2, V_MAXIMO_V2, tetoDoTesteV2, tetoMinimo } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { regraDoTeste } from '@/lib/youtube/ab-gravacao/placar'
 import type { AppliedMetadata, TestType } from '@/lib/youtube/ab-types'
 
 // ---------------------------------------------------------------------------
@@ -204,7 +206,7 @@ export async function startAbTestInternal(
   testId: string,
   siteId: string,
   portas: Partial<PortasInicio> = {},
-): Promise<{ ok: boolean; error?: string; codigo?: CodigoRecusaNativa; nativeTestId?: string; ate?: string }> {
+): Promise<{ ok: boolean; error?: string; recusa?: 'regra_v2'; codigo?: CodigoRecusaNativa; nativeTestId?: string; ate?: string }> {
   const supabase = portas.supabase ?? getSupabaseServiceClient()
   const agora = portas.agora ?? (() => new Date())
   const prazo = agora().getTime() + TETO_MS // F-D3: ação humana (e cron da fila), início + 55 s
@@ -212,7 +214,7 @@ export async function startAbTestInternal(
   // 1. Fetch the test row and validate ownership + status.
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, site_id, name, status, youtube_video_id, test_type, restore_seq, restore_status, original_title')
+    .select('id, site_id, name, status, youtube_video_id, test_type, restore_seq, restore_status, original_title, config, regra_duracao')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -233,6 +235,25 @@ export async function startAbTestInternal(
   if (variantsError) return { ok: false, error: variantsError.message }
   if (!variants || variants.length < 2) {
     return { ok: false, error: 'A test needs at least 2 variants (original + 1) to start' }
+  }
+
+  // Regra v2 (S8-F4 T11): variantes, rotação e teto mínimo recusam antes de qualquer escrita.
+  const v2 = regraDoTeste(test) === 'v2'
+  let configV2: Record<string, unknown> | null = null
+  if (v2) {
+    const V = variants.length
+    const config = ((test as { config?: unknown }).config ?? {}) as Record<string, unknown>
+    if (V > V_MAXIMO_V2) return { ok: false, error: MSG_VARIANTES_V2, recusa: 'regra_v2' }
+    if (config.rotation_pattern !== undefined && config.rotation_pattern !== 'abba') {
+      return { ok: false, error: 'a regra nova só roda a rotação ABBA; escolha ABBA para iniciar', recusa: 'regra_v2' }
+    }
+    if (config.teto_explicito === true) {
+      const teto = tetoDoTesteV2(config, V, { soExplicito: true })
+      if (teto < tetoMinimo(V)) {
+        return { ok: false, error: `o YouTube leva até ${ATRASO_ALCANCE} dias para enviar o alcance; com este teto o teste não chega a fechar os dias mínimos (mínimo de ${tetoMinimo(V)} dias com ${V} variantes)`, recusa: 'regra_v2' }
+      }
+    }
+    configV2 = { ...config, max_duration_days: tetoDoTesteV2(config, V, { soExplicito: true }) }
   }
 
   // (0) Variante de thumbnail sem imagem: recusa antes de qualquer escrita (P4a-I11).
@@ -295,6 +316,7 @@ export async function startAbTestInternal(
     .update({
       status: 'active', started_at: agoraIso, paused_at: null, updated_at: agoraIso,
       restore_seq: lidoSeq + 1, restore_status: test.restore_status ?? {},
+      ...(configV2 ? { config: configV2 } : {}),
     })
     .eq('id', testId)
     .eq('status', 'draft')

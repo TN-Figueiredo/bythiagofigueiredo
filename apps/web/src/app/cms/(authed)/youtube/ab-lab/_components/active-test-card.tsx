@@ -50,7 +50,9 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
             </Badge>
           ) : (
             <Badge tone="green" dot>
-              Dia {test.dayOf}/{Math.max(test.dayOf, duracaoPrevista({ max_duration_days: test.durationDays }))}
+              {test.diaV2
+                ? `Dia ${test.diaV2.dia}/${test.diaV2.teto}`
+                : `Dia ${test.dayOf}/${Math.max(test.dayOf, duracaoPrevista({ max_duration_days: test.durationDays }))}`}
             </Badge>
           )}
           {cycleHealthDot(test.cycleStartedAt)}

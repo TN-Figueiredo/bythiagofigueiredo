@@ -12,8 +12,22 @@ export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | '
 export const RAZOES_DE_VITORIA_HUMANA = ['manual_winner', 'manual_apply'] as const
 
 /** Vitória só conta quando humana: tem vencedor gravado E o encerramento foi decisão de pessoa. */
-export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null }): boolean {
-  return t.winner_variant_id !== null && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
+export function ehVitoriaHumana(t: { completed_reason: string | null; winner_variant_id: string | null; winner_is_original?: boolean }): boolean {
+  // S8-F4 B2: "a original vence" é decisão humana, mas não é vitória de variante (winRate); quem conhece as variantes passa winner_is_original.
+  return t.winner_variant_id !== null && t.winner_is_original !== true && (RAZOES_DE_VITORIA_HUMANA as readonly string[]).includes(t.completed_reason ?? '')
+}
+/** Variante vencedora embutida na leitura (`winner:ab_test_variants!winner_variant_id(is_original)`): objeto, lista de um ou nula. */
+export type VencedorEmbutido = { is_original?: boolean | null } | Array<{ is_original?: boolean | null }> | null | undefined
+
+/** S8-F4 B2: fonte única de "a vencedora é a original" para quem lê o vencedor embutido. */
+export function vencedorEhOriginal(w: VencedorEmbutido): boolean {
+  const v = Array.isArray(w) ? w[0] : w
+  return v?.is_original === true
+}
+
+/** Vitória humana DE VARIANTE: igual a ehVitoriaHumana, mas a original vencedora ("não mudar nada") não conta. Use em todo agregado e rótulo. */
+export function ehVitoriaDeVariante(t: { completed_reason: string | null; winner_variant_id: string | null; winner?: VencedorEmbutido }): boolean {
+  return ehVitoriaHumana({ completed_reason: t.completed_reason, winner_variant_id: t.winner_variant_id, winner_is_original: vencedorEhOriginal(t.winner) })
 }
 export type TestType = 'thumbnail' | 'title' | 'combo'
 
@@ -25,6 +39,8 @@ export interface AbTestConfig {
   auto_apply_winner?: boolean
   rotation_pattern: 'abba' | 'round_robin' | 'random'
   stability_threshold: number
+  /** v2: true sse o usuário mexeu no teto; sem isso o início grava `tetoPadrao(V)` (S8-F4). */
+  teto_explicito?: boolean
 }
 
 export const AB_TEST_CONFIG_DEFAULTS: AbTestConfig = {
@@ -141,6 +157,8 @@ export interface AbTestWithVariants extends AbTestRow {
   variants: AbTestVariantRow[]
   current_cycle: CicloSemEntrega | null
   total_cycles: number
+  /** S8-F4 T11c: ciclos da leitura da lista, só para o "Dia X/Y" de v2. */
+  ciclos?: CicloSemEntrega[]
 }
 
 export interface ReferenciaDoTeste {
@@ -385,6 +403,10 @@ export interface AbTestCardView {
   statusNote: string | null
   cycleStartedAt: string | null
   queueStartAfter: string | null
+  /** S8-F4 T11c: "Dia X/Y" de teste v2 (dias fechados com ciclo, de `estadoV2DoTeste`); ausente em v1. */
+  diaV2?: { dia: number; teto: number }
+  /** S8-F4 T11c: rótulo do concluído por `regra_v2`; ausente nos demais. */
+  rotuloV2?: string | null
   /** T10: só nos pausados por teste do YouTube (`status_note = NOTA_TESTE_YOUTUBE`); preenchido pela página (servidor). */
   pausaYoutube?: { aberto: boolean; ate: string | null }
 }

@@ -86,6 +86,34 @@ describe('decidirV2', () => {
     ] }
     expect(decidirV2({ relogio: 15, teto: 15, pisos: P(), estatistica: e })).toEqual({ acao: 'encerrar', desfecho: 'vencedor_provavel', vencedor_sugerido: 'b' })
   })
+  it('B1: passa com z negativo nunca vence (mistura: pior e melhor sugere a melhor)', () => {
+    const pior = { variant_id: 'a', alfa: 0.025, z: -9, z_adj: -9, p_adj: 0.0001, sinais_por_bloco: [-1], passa: true, lift: -0.3 }
+    const melhor = { variant_id: 'b', alfa: 0.025, z: 3, z_adj: 3, p_adj: 0.02, sinais_por_bloco: [1], passa: true, lift: 0.1 }
+    const so: EstatisticaV2 = { estado: 'calculada', phi: 1, gl: 6, por_variante: [pior] }
+    expect(decidirV2({ relogio: 15, teto: 15, pisos: P(), estatistica: so })).toEqual({ acao: 'encerrar', desfecho: 'sem_diferenca_detectavel', vencedor_sugerido: null }) // sem originalId: nada a sugerir
+    const mix: EstatisticaV2 = { estado: 'calculada', phi: 1, gl: 6, por_variante: [pior, melhor] }
+    expect(decidirV2({ relogio: 15, teto: 15, pisos: P(), estatistica: mix })).toMatchObject({ desfecho: 'vencedor_provavel', vencedor_sugerido: 'b' })
+  })
+  const perde = (id: string) => ({ variant_id: id, alfa: 0.025, z: -9, z_adj: -9, p_adj: 0.0001, sinais_por_bloco: [-1, -1], passa: false, lift: -0.3 })
+  const neutra = (id: string) => ({ variant_id: id, alfa: 0.025, z: 0.5, z_adj: 0.5, p_adj: 0.6, sinais_por_bloco: [1, -1], passa: false, lift: 0.01 })
+  it('B2: V=2, a única variante é pior e significativa => vencedor_provavel com a original', () => {
+    const e: EstatisticaV2 = { estado: 'calculada', phi: 1, gl: 6, por_variante: [perde('a')] }
+    expect(decidirV2({ relogio: 15, teto: 15, pisos: P(), estatistica: e, originalId: 'o' })).toEqual({ acao: 'encerrar', desfecho: 'vencedor_provavel', vencedor_sugerido: 'o' })
+  })
+  it('B2: V=3, as duas são piores => original; uma pior e outra neutra => sem_diferenca_detectavel', () => {
+    const duas: EstatisticaV2 = { estado: 'calculada', phi: 1, gl: 6, por_variante: [perde('a'), perde('b')] }
+    expect(decidirV2({ relogio: 15, teto: 15, pisos: P(), estatistica: duas, originalId: 'o' })).toMatchObject({ desfecho: 'vencedor_provavel', vencedor_sugerido: 'o' })
+    const mix: EstatisticaV2 = { estado: 'calculada', phi: 1, gl: 6, por_variante: [perde('a'), neutra('b')] }
+    expect(decidirV2({ relogio: 15, teto: 15, pisos: P(), estatistica: mix, originalId: 'o' })).toEqual({ acao: 'encerrar', desfecho: 'sem_diferenca_detectavel', vencedor_sugerido: null })
+  })
+  it('B2: pior sem significância ou sem consistência por bloco não faz a original vencer', () => {
+    const fraca = { ...perde('a'), p_adj: 0.3 }
+    const incons = { ...perde('a'), sinais_por_bloco: [-1, 1] }
+    for (const x of [fraca, incons]) {
+      const e: EstatisticaV2 = { estado: 'calculada', phi: 1, gl: 6, por_variante: [x] }
+      expect(decidirV2({ relogio: 15, teto: 15, pisos: P(), estatistica: e, originalId: 'o' })).toMatchObject({ desfecho: 'sem_diferenca_detectavel' })
+    }
+  })
   it('no teto com pisos e ninguém passa => sem_diferenca_detectavel', () => {
     expect(decidirV2({ relogio: 15, teto: 15, pisos: P(), estatistica: calc(false) })).toEqual({ acao: 'encerrar', desfecho: 'sem_diferenca_detectavel', vencedor_sugerido: null })
   })
@@ -131,6 +159,14 @@ describe('encerradoEmDia e desfechoProvisorio', () => {
     const r2 = desfechoProvisorio({ dias, encerradoEmDia: '2026-09-11', variantes: V2, originalId: 'o', n: 1000 })
     expect(r2.provisorio).toBe(false)
     expect(['vencedor_provavel', 'sem_diferenca_detectavel']).toContain(r2.desfecho)
+  })
+  it('B2: reprocesso de teste concluído em que toda variante é pior sugere a original (não rebaixa a sem_diferenca)', () => {
+    const p = [0, 1, 1, 0]
+    const dias = Array.from({ length: 12 }, (_, i) => dia(i, V2[p[i % 4]!]!, 100_000, 100_000 * (p[i % 4] ? 0.03 : 0.05), Math.floor(i / 4), i === 11 ? { final: false } : {}))
+    const r = desfechoProvisorio({ dias, encerradoEmDia: '2026-09-12', variantes: V2, originalId: 'o', n: 1000 })
+    expect(r).toMatchObject({ desfecho: 'vencedor_provavel', vencedor_sugerido: 'o', provisorio: true })
+    const fechado = desfechoProvisorio({ dias, encerradoEmDia: '2026-09-11', variantes: V2, originalId: 'o', n: 1000 })
+    expect(fechado).toMatchObject({ desfecho: 'vencedor_provavel', vencedor_sugerido: 'o', provisorio: false })
   })
   it('sem piso de dias no provisório nunca vence', () => {
     const r = desfechoProvisorio({ dias: serie(12), encerradoEmDia: '2026-09-05', variantes: V2, originalId: 'o', n: 1000 })

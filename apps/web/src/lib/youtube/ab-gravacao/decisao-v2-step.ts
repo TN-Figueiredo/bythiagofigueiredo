@@ -12,7 +12,7 @@ import { lerPaginado } from '../coleta/paginar'
 import type { AbTest } from '../coleta/ab-seconds'
 import {
   K_POR_V, V_MAXIMO_V2, baseDoVideo, blocoDoDia, cicloDoDia, decidirV2, desfechoProvisorio, encerradoEmDia, estatisticaV2,
-  pisos, relogioV2, tetoDoTesteV2, volumeMinimo, type CicloComNumero, type DiaDaDecisao, type EstatisticaV2,
+  pisos, relogioV2, sugeridoV2, tetoDoTesteV2, volumeMinimo, type CicloComNumero, type DiaDaDecisao, type EstatisticaV2,
 } from './decisao-v2'
 import { lerDiasDosTestes } from './placar-leitura'
 import type { EntradasParaDecisao } from './retrato-step'
@@ -245,13 +245,13 @@ export async function rodarDecisaoV2(sb: SupabaseClient, agora: Date, entradas: 
     const ultima: NonNullable<ResultadoV2['ultima_avaliacao']> = {
       em, acao: 'seguir', ...(semN ? { sem_n: true } : {}), dias_relogio: relogio, dias_validos: pis.dias_validos, blocos_completos: pis.blocos_completos, volume: pis.volume,
     }
-    const d = semN ? ({ acao: 'seguir' } as const) : decidirV2({ relogio, teto, pisos: pis, estatistica })
+    const d = semN ? ({ acao: 'seguir' } as const) : decidirV2({ relogio, teto, pisos: pis, estatistica, originalId: variantes.originalId })
     if (d.acao === 'seguir') {
       const p: Record<string, unknown> = { ultima_avaliacao: ultima }
       if (!semN && pis.piso_dias && pis.piso_volume) {
-        const melhor = estatistica.estado === 'calculada' ? estatistica.por_variante.filter((x) => x.passa).sort((a, b) => a.p_adj - b.p_adj)[0] : undefined
-        p.vencedor_sugerido = melhor?.variant_id ?? null
-        Object.assign(p, camposDeEstatistica(estatistica, melhor?.variant_id ?? null))
+        const sugerido = sugeridoV2(estatistica, variantes.originalId)
+        p.vencedor_sugerido = sugerido
+        Object.assign(p, camposDeEstatistica(estatistica, sugerido))
       }
       if (await gravar(t, p) === null) return { avaliado: true, encerrado: false, desfecho: false }
       return { avaliado: true, encerrado: false, desfecho: false }

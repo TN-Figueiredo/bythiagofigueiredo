@@ -11,6 +11,7 @@ export type { DesfechoV2 }
 
 export const ATRASO_ALCANCE = 3
 export const V_MAXIMO_V2 = 3 // 4 variantes: recusar (padrão do plano); suportar = 4
+export const MSG_VARIANTES_V2 = 'a regra nova aceita até 2 variantes além da original'
 export const pisoDeDias = (V: number): number => 4 * V // 8 com 2, 12 com 3
 export const tetoMinimo = (V: number): number => pisoDeDias(V) + 1 + ATRASO_ALCANCE
 export const tetoPadrao = (V: number): number => Math.max(15, tetoMinimo(V) + 1) // ◆folga, dono 24/10: 15/17
@@ -18,11 +19,12 @@ export const tetoPadrao = (V: number): number => Math.max(15, tetoMinimo(V) + 1)
 /**
  * Fonte única do teto (dias) de um teste v2: decisão, rede, projeção do Cowork e aviso de volume chamam esta função.
  * `max_duration_days` positivo vale; ausente ou inválido cai em `tetoPadrao(V)` (V limitado a 2..V_MAXIMO_V2).
+ * `teto_explicito: false` (rascunho v2 com o 14 do wizard) nunca vale; config legada sem a chave vale.
  * `soExplicito`: no rascunho o config pode trazer o 14 do wizard v1, que só vale com `teto_explicito === true`.
  */
 export function tetoDoTesteV2(config: unknown, V: number, opcoes: { soExplicito?: boolean } = {}): number {
   const c = config && typeof config === 'object' ? (config as { max_duration_days?: unknown; teto_explicito?: unknown }) : {}
-  const vale = !opcoes.soExplicito || c.teto_explicito === true
+  const vale = opcoes.soExplicito ? c.teto_explicito === true : c.teto_explicito !== false
   if (vale && typeof c.max_duration_days === 'number' && c.max_duration_days > 0) return c.max_duration_days
   return tetoPadrao(Math.min(Math.max(V, 2), V_MAXIMO_V2))
 }
@@ -266,7 +268,7 @@ export function estatisticaV2(dias: readonly DiaDaDecisao[], originalId: string,
     }
     const sinalZ = z > 0 ? 1 : z < 0 ? -1 : 0
     const consistente = sinais.length > 0 && sinalZ !== 0 && sinais.every(s => s === sinalZ)
-    por_variante.push({ variant_id: v, alfa, z, z_adj, p_adj, sinais_por_bloco: sinais, passa: p_adj < alfa && consistente, lift })
+    por_variante.push({ variant_id: v, alfa, z, z_adj, p_adj, sinais_por_bloco: sinais, passa: p_adj < alfa && consistente && z > 0, lift })
   }
   return { estado: 'calculada', phi, gl, por_variante }
 }
@@ -315,15 +317,32 @@ export const ENCERRA_AO_FECHAR_PISOS = false
 
 export type DecisaoV2 = { acao: 'seguir' } | { acao: 'encerrar'; desfecho: DesfechoV2; vencedor_sugerido: string | null }
 
-export function decidirV2(i: { relogio: number; teto: number; pisos: Pisos; estatistica: EstatisticaV2; encerraAoFecharPisos?: boolean }): DecisaoV2 {
+type PorVariante = Extract<EstatisticaV2, { estado: 'calculada' }>['por_variante'][number]
+
+/** Pior de forma significativa: p ajustado abaixo do α, z negativo e todos os blocos no mesmo sentido (o espelho de `passa`, que exige z > 0). */
+export function perdeSignificativo(x: PorVariante): boolean {
+  return x.p_adj < x.alfa && x.z < 0 && x.sinais_por_bloco.length > 0 && x.sinais_por_bloco.every(s => s === -1)
+}
+
+/**
+ * Sugerido da regra v2 (S8-F4 B1/B2): a melhor variante que passa com z > 0; se NENHUMA passa e TODA não original
+ * perde de forma significativa, a própria original ("a original vence"). Mistura (uma pior, outra neutra) = null.
+ */
+export function sugeridoV2(e: EstatisticaV2, originalId: string | null | undefined): string | null {
+  if (e.estado !== 'calculada') return null
+  const melhor = e.por_variante.filter(x => x.passa && x.z > 0).sort((a, b) => a.p_adj - b.p_adj)[0]
+  if (melhor) return melhor.variant_id
+  if (originalId && e.por_variante.length > 0 && e.por_variante.every(perdeSignificativo)) return originalId
+  return null
+}
+
+export function decidirV2(i: { relogio: number; teto: number; pisos: Pisos; estatistica: EstatisticaV2; encerraAoFecharPisos?: boolean; originalId?: string | null }): DecisaoV2 {
   const noTeto = i.relogio >= i.teto
   const { pisos: p } = i
   if (p.piso_dias && p.piso_volume) {
     if (!noTeto && !(i.encerraAoFecharPisos ?? ENCERRA_AO_FECHAR_PISOS)) return { acao: 'seguir' }
-    if (i.estatistica.estado === 'calculada') {
-      const melhor = i.estatistica.por_variante.filter(x => x.passa).sort((a, b) => a.p_adj - b.p_adj)[0]
-      if (melhor) return { acao: 'encerrar', desfecho: 'vencedor_provavel', vencedor_sugerido: melhor.variant_id }
-    }
+    const sugerido = sugeridoV2(i.estatistica, i.originalId)
+    if (sugerido) return { acao: 'encerrar', desfecho: 'vencedor_provavel', vencedor_sugerido: sugerido }
     return { acao: 'encerrar', desfecho: 'sem_diferenca_detectavel', vencedor_sugerido: null }
   }
   if (!noTeto) return { acao: 'seguir' }
@@ -339,7 +358,7 @@ export function desfechoProvisorio(i: { dias: readonly DiaDaDecisao[]; encerrado
 } {
   const dias = i.dias.filter(d => d.day_pt <= i.encerradoEmDia)
   const estatistica = estatisticaV2(dias, i.originalId, i.variantes)
-  const d = decidirV2({ relogio: Number.POSITIVE_INFINITY, teto: 0, pisos: pisos(dias, i.variantes, i.n), estatistica })
+  const d = decidirV2({ relogio: Number.POSITIVE_INFINITY, teto: 0, pisos: pisos(dias, i.variantes, i.n), estatistica, originalId: i.originalId })
   const provisorio = dias.some(x => !x.final)
   return d.acao === 'encerrar'
     ? { desfecho: d.desfecho, vencedor_sugerido: d.vencedor_sugerido, provisorio, estatistica }

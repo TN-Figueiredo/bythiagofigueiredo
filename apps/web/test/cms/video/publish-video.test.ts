@@ -74,7 +74,7 @@ describe('publishVideo (§5.4/§9)', () => {
     expect(createTextVariant).not.toHaveBeenCalled()
   })
 
-  it('materializes in order: createAbTest 1× + updateTextVariant 1× (original) + createTextVariant 3×; uploadVariant never', async () => {
+  it('materializes in order: createAbTest 1× + updateTextVariant 1× (original) + createTextVariant 2× (regra v2); uploadVariant never', async () => {
     vi.mocked(requireSiteScope).mockResolvedValue({ ok: true, user: { id: 'u1' } } as never)
     vi.mocked(loadVideoDetail).mockResolvedValue(detail() as never)
     const res = await publishVideo('p1', 1)
@@ -83,7 +83,7 @@ describe('publishVideo (§5.4/§9)', () => {
     expect(createAbTest).toHaveBeenCalledWith(expect.objectContaining({ youtube_video_id: 'yt-1', test_type: 'title' }))
     expect(updateTextVariant).toHaveBeenCalledTimes(1)
     expect(updateTextVariant).toHaveBeenCalledWith('orig-var-1', { title_text: 'Orig', metadata: { visual_description: 'b orig' } })
-    expect(createTextVariant).toHaveBeenCalledTimes(3)
+    expect(createTextVariant).toHaveBeenCalledTimes(2)
     expect(uploadVariant).not.toHaveBeenCalled()
   })
 

@@ -68,6 +68,16 @@ describe('computeDashboardStats', () => {
     c.parent_test_id = 'parent-1'
     expect(computeDashboardStats([], [c]).winRate).toBeNull()
   })
+  it('B2: a original vencedora é teste decidido (entra no denominador) mas não conta como vitória de variante', () => {
+    const venceVariante = concluido('manual_winner', true)
+    const venceOriginal = concluido('manual_winner', true)
+    const orig = venceOriginal.variants.find(v => v.is_original)!
+    venceOriginal.winner_variant_id = orig.id
+    const s = computeDashboardStats([], [venceVariante, venceOriginal])
+    expect(s.testsWon).toBe(1)
+    expect(s.winRateBase).toBe(2)
+    expect(s.winRate).toBe(50)
+  })
   it('um manual com vencedor, um auto_resolve, um inconclusivo: 1 de 2 = 50 (mesma regra do pipeline)', () => {
     const manual = concluido('manual_apply', true)
     const auto = concluido('auto_resolve', true)

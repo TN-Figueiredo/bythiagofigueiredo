@@ -1,5 +1,9 @@
 'use server'
 
+import { avisoDeVolume } from '@/lib/youtube/ab-gravacao/aviso-volume'
+import type { AvisoDeVolume } from '@/lib/youtube/ab-gravacao/aviso-volume'
+import { MSG_VARIANTES_V2, V_MAXIMO_V2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { regraDoTeste } from '@/lib/youtube/ab-gravacao/placar'
 import { isCertainShort } from '@/lib/youtube/short-classifier'
 import * as Sentry from '@sentry/nextjs'
 import { revalidatePath, revalidateTag } from 'next/cache'
@@ -41,10 +45,11 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
+import { camposPendentes, paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
@@ -187,9 +192,12 @@ export async function createAbTest(
   }
   // `referencia` do cliente dentro de `config` nunca entra: só a validada acima.
   const { referencia: _referenciaDoCliente, ...configDoCliente } = (input.config ?? {}) as Record<string, unknown>
+  // S8-F4: teto_explicito só vale se o usuário mexeu no teto (flag + valor); sem isso o início grava tetoPadrao(V).
+  const tetoMexido = configDoCliente.teto_explicito === true && typeof configDoCliente.max_duration_days === 'number'
   const config = {
     ...AB_TEST_CONFIG_DEFAULTS,
     ...configDoCliente,
+    teto_explicito: tetoMexido,
     ...(referencia ? { referencia } : {}),
   }
 
@@ -262,6 +270,7 @@ export async function createAbTest(
       youtube_video_id: input.youtube_video_id,
       name: input.name,
       status: 'draft',
+      regra_duracao: 'v2',
       config,
       original_thumbnail_url: immutableOriginalUrl,
       test_type: testType,
@@ -361,7 +370,7 @@ export async function uploadVariant(
   // Load test and assert draft status + site scope
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, status')
+    .select('id, status, regra_duracao')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -392,6 +401,9 @@ export async function uploadVariant(
 
   if (countError) return { ok: false, error: countError.message }
 
+  if (regraDoTeste(test) === 'v2' && (existingVariants?.length ?? 0) >= V_MAXIMO_V2 - 1) {
+    return { ok: false, error: MSG_VARIANTES_V2 }
+  }
   if ((existingVariants?.length ?? 0) >= 3) {
     return { ok: false, error: 'Maximum of 3 non-original variants allowed' }
   }
@@ -591,7 +603,7 @@ export async function pullPipelineThumbnails(
   // Load test (scoped to site)
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, status')
+    .select('id, status, regra_duracao')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -627,7 +639,9 @@ export async function pullPipelineThumbnails(
 
   const existingCount = existingVariants?.length ?? 0
   const usedLabels = new Set((existingVariants ?? []).map(v => v.label))
-  const maxToAdd = 3 - existingCount
+  const v2 = regraDoTeste(test) === 'v2'
+  if (v2 && existingCount >= V_MAXIMO_V2 - 1) return { ok: false, error: MSG_VARIANTES_V2 }
+  const maxToAdd = (v2 ? V_MAXIMO_V2 - 1 : 3) - existingCount
 
   if (maxToAdd <= 0) {
     return { ok: false, error: 'Maximum of 3 non-original variants already reached' }
@@ -914,7 +928,7 @@ export async function createTextVariant(
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, test_type')
+    .select('id, site_id, status, test_type, regra_duracao')
     .eq('id', input.test_id)
     .eq('site_id', siteId)
     .single()
@@ -933,6 +947,7 @@ export async function createTextVariant(
     .select('id', { count: 'exact', head: true })
     .eq('test_id', input.test_id)
 
+  if (regraDoTeste(test) === 'v2' && (count ?? 0) >= V_MAXIMO_V2) return { ok: false, error: MSG_VARIANTES_V2 }
   if ((count ?? 0) >= 4) return { ok: false, error: 'Maximum 4 variants per test' }
 
   const sortOrder = (count ?? 0)
@@ -1208,6 +1223,61 @@ export async function revertWinner(testId: string, seqVisto: number): Promise<Re
   return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true, seqEsperado: seq.data }))
 }
 
+/**
+ * S8-F4 T11b: o humano põe no ar o vencedor SUGERIDO pela regra v2 num teste já concluído (completed_reason = regra_v2).
+ * Guarda: a variante tem de ser `result_metadata.v2.vencedor_sugerido`; CAS por seqVisto no settleOnAir.
+ */
+export async function aplicarSugerido(testId: string, varianteId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
+  const siteIdDaTela = (await getSiteContext()).siteId
+  const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'deixar uma variante no ar')
+  if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return recusaDeSessao(e)
+  }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  const { data, error } = await getSupabaseServiceClient()
+    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata').eq('id', testId).eq('site_id', siteId).maybeSingle()
+  if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
+  const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
+  const sugerido = meta?.v2?.vencedor_sugerido
+  if (!data || data.completed_reason !== 'regra_v2' || !sugerido || sugerido !== varianteId) {
+    return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+  }
+  if (varianteId === (await varianteOriginalId(testId, siteId))) {
+    // S8-F4 B2 "a original vence": o teste fechou com a original no ar. Decide pelo estado real da volta (restore_status), não pela flag volta_falhou, que nunca é limpa.
+    let seqGrava = seq.data
+    if (camposPendentes(paraRestoreStatus(data.restore_status), 'humano').length > 0) {
+      const autorizar = async (): Promise<boolean> => true // o destino é sempre a original
+      let tentou: ResultadoSaida
+      try {
+        tentou = await tentarAgora(getSupabaseServiceClient(), testId, siteId, seq.data, undefined, autorizar)
+      } catch (e) {
+        Sentry.captureException(e, { tags: { area: 'ab-acao-saida' } })
+        invalidarTelasDoAbLab()
+        return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
+      }
+      if (tentou.resultado !== 'feito') return concluirSaida(Promise.resolve(tentou))
+      invalidarTelasDoAbLab()
+      const { data: reli, error: errReler } = await getSupabaseServiceClient()
+        .from('ab_tests').select('restore_seq').eq('id', testId).eq('site_id', siteId).maybeSingle()
+      if (errReler || !reli) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
+      seqGrava = reli.restore_seq as number
+    }
+    const { data: gravou, error: errGrava } = await getSupabaseServiceClient()
+      .from('ab_tests').update({ completed_reason: 'manual_winner', winner_variant_id: varianteId })
+      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seqGrava).select('id')
+    if (errGrava) { Sentry.captureException(errGrava, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
+    if (((gravou ?? []) as unknown[]).length === 0) return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
+    revalidatePath('/cms/youtube/ab-lab')
+    return { ok: true, resultado: 'feito', campos: {} }
+  }
+  return concluirSaida(settleOnAir(testId, { siteId, destino: { tipo: 'variante', id: varianteId }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: seq.data }))
+}
+
 // ---------------------------------------------------------------------------
 // fetchAbBriefingData
 // ---------------------------------------------------------------------------
@@ -1455,8 +1525,9 @@ export async function batchStartTests(
         name: `Batch: ${video.title?.slice(0, 40)}`,
         status: 'draft',
         test_type: 'thumbnail',
+        regra_duracao: 'v2',
         original_thumbnail_url: batchImmutableUrl,
-        config: {},
+        config: { teto_explicito: false },
       })
       .select('id')
       .single()
@@ -1478,4 +1549,27 @@ export async function batchStartTests(
 
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, created }
+}
+
+// ---------------------------------------------------------------------------
+// avisoDeVolumeDoTeste — o aviso nunca bloqueia o início (C-17)
+// ---------------------------------------------------------------------------
+
+const PedidoAvisoSchema = z.object({ V: z.number().int().min(1).max(4), teto: z.number().int().min(1).max(60).optional() }).strict()
+
+/** `pedido`: o V (e o teto) que o assistente tem na tela; as variantes só sobem no lançamento, então o banco pode ter menos. */
+export async function avisoDeVolumeDoTeste(
+  testId: string,
+  pedido?: { V: number; teto?: number },
+): Promise<{ ok: true; aviso: AvisoDeVolume } | { ok: false; error: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+  const p = pedido === undefined ? undefined : PedidoAvisoSchema.safeParse(pedido)
+  if (p && !p.success) return { ok: false, error: 'pedido inválido' }
+  const r = await avisoDeVolume(getSupabaseServiceClient(), siteId, testId, new Date(), p?.data)
+  return r.ok ? { ok: true, aviso: r.aviso } : { ok: false, error: r.erro }
 }

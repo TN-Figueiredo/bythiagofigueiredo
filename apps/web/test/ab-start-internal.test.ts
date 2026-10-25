@@ -488,3 +488,64 @@ describe('startAbTestInternal: escrita parcial, prazo e guarda de conteúdo (T10
     expect(banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
   })
 })
+
+describe('startAbTestInternal: regra v2 (S8-F4 T11)', () => {
+  const comC = (v: Fila[]) => { v.push({ id: 'C', test_id: 'teste-1', label: 'C', sort_order: 2, is_original: false, blob_url: BLOB('B'), title_text: 'Título C', thumbnail_dhash: H.B }) }
+  const comCD = (v: Fila[]) => { comC(v); v.push({ id: 'D', test_id: 'teste-1', label: 'D', sort_order: 3, is_original: false, blob_url: BLOB('B'), title_text: 'Título D', thumbnail_dhash: H.B }) }
+
+  it('sem teto explícito, 2 variantes: grava 15 no mesmo update do claim', async () => {
+    const { banco, iniciar } = await montar({ regra: 'v2', config: { rotation_pattern: 'abba', max_duration_days: 14 } })
+    expect((await iniciar()).ok).toBe(true)
+    expect(banco.teste()).toMatchObject({ status: 'active', config: expect.objectContaining({ max_duration_days: 15 }) })
+  })
+  it('sem teto explícito, 3 variantes: grava 17', async () => {
+    const { banco, iniciar } = await montar({ regra: 'v2', ajustar: comC, config: { max_duration_days: 14 } })
+    expect((await iniciar()).ok).toBe(true)
+    expect(banco.teste()).toMatchObject({ config: expect.objectContaining({ max_duration_days: 17 }) })
+  })
+  it('apagar teto_explicito do config vale o padrão (config sem a chave nem o teto)', async () => {
+    const { banco, iniciar } = await montar({ regra: 'v2', ajustar: comC, config: {} })
+    expect((await iniciar()).ok).toBe(true)
+    expect(banco.teste().config).toMatchObject({ max_duration_days: 17 })
+    expect(banco.teste().config).not.toHaveProperty('teto_explicito', true)
+  })
+  it('teto explícito: V=2 com 12 aceita e preserva; 11 recusa com a frase do atraso, nada reivindicado', async () => {
+    const ok = await montar({ regra: 'v2', config: { max_duration_days: 12, teto_explicito: true } })
+    expect((await ok.iniciar()).ok).toBe(true)
+    expect(ok.banco.teste().config).toMatchObject({ max_duration_days: 12, teto_explicito: true })
+    const ruim = await montar({ regra: 'v2', config: { max_duration_days: 11, teto_explicito: true } })
+    const r = await ruim.iniciar()
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('o YouTube leva até 3 dias para enviar o alcance') })
+    expect(ruim.banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
+  })
+  it('teto explícito: V=3 com 16 aceita, 15 recusa', async () => {
+    expect((await (await montar({ regra: 'v2', ajustar: comC, config: { max_duration_days: 16, teto_explicito: true } })).iniciar()).ok).toBe(true)
+    const r = await (await montar({ regra: 'v2', ajustar: comC, config: { max_duration_days: 15, teto_explicito: true } })).iniciar()
+    expect(r.ok).toBe(false)
+  })
+  it('14 do assistente sem toque (teto_explicito false) e V=3 não recusa: vale o padrão 17', async () => {
+    const { banco, iniciar } = await montar({ regra: 'v2', ajustar: comC, config: { max_duration_days: 14, teto_explicito: false } })
+    expect((await iniciar()).ok).toBe(true)
+    expect(banco.teste().config).toMatchObject({ max_duration_days: 17 })
+  })
+  it('rotação explícita diferente de abba recusa; ausente aceita', async () => {
+    const r = await (await montar({ regra: 'v2', config: { rotation_pattern: 'round_robin' } })).iniciar()
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining('ABBA') })
+    expect((await (await montar({ regra: 'v2', config: {} })).iniciar()).ok).toBe(true)
+  })
+  it('V=4 em v2 recusa com a frase das variantes; recusa definitiva (recusa próprio)', async () => {
+    const { banco, iniciar } = await montar({ regra: 'v2', ajustar: comCD })
+    const r = await iniciar()
+    expect(r).toMatchObject({ ok: false, error: 'a regra nova aceita até 2 variantes além da original', recusa: 'regra_v2' })
+    expect(banco.teste()).toMatchObject({ status: 'draft', restore_seq: 0 })
+  })
+  it('teto curto também carrega recusa: regra_v2', async () => {
+    const r = await (await montar({ regra: 'v2', config: { max_duration_days: 9, teto_explicito: true } })).iniciar()
+    expect(r).toMatchObject({ ok: false, recusa: 'regra_v2' })
+  })
+  it('v1 (rascunho antigo) inicia como hoje: V=4, teto 14 e round_robin, config intacto', async () => {
+    const { banco, iniciar } = await montar({ regra: 'v1', ajustar: comCD, config: { max_duration_days: 14, rotation_pattern: 'round_robin' } })
+    expect((await iniciar()).ok).toBe(true)
+    expect(banco.teste().config).toEqual({ max_duration_days: 14, rotation_pattern: 'round_robin' })
+  })
+})

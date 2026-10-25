@@ -58,7 +58,9 @@ export function CompletedRow({ test, onOpen }: CompletedRowProps) {
 
       {/* Result */}
       <div className="text-right shrink-0">
-        {semMedicao ? (
+        {test.rotuloV2 ? (
+          <div className="text-[10.5px] text-cms-text max-w-[220px]">{test.rotuloV2}</div>
+        ) : semMedicao ? (
           <div className="text-[10.5px] text-cms-text">{SEM_MEDICAO_CURTA}</div>
         ) : isInconclusive ? (
           <>

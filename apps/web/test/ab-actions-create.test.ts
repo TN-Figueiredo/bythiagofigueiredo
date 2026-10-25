@@ -245,6 +245,21 @@ describe('createAbTest', () => {
     expect(revalidatePath).toHaveBeenCalledWith('/cms/youtube/ab-lab')
   })
 
+  it('S8-F4 C-12: insere regra_duracao v2 e teto_explicito false quando o assistente não mexeu no teto', async () => {
+    const { insertCalls } = buildSupabaseMock()
+    expect((await createAbTest(makeInput({ config: { confidence_threshold: 0.9 } }))).ok).toBe(true)
+    const dados = insertCalls.find(c => c.table === 'ab_tests')!.data as { regra_duracao: string; config: Record<string, unknown> }
+    expect(dados.regra_duracao).toBe('v2')
+    expect(dados.config.teto_explicito).toBe(false)
+  })
+  it('S8-F4: teto mexido (teto_explicito true + max_duration_days) é preservado; teto sem a flag não vira explícito', async () => {
+    const a = buildSupabaseMock()
+    await createAbTest(makeInput({ config: { max_duration_days: 12, teto_explicito: true } }))
+    expect((a.insertCalls.find(c => c.table === 'ab_tests')!.data as { config: unknown }).config).toMatchObject({ max_duration_days: 12, teto_explicito: true })
+    const b = buildSupabaseMock()
+    await createAbTest(makeInput({ config: { max_duration_days: 12 } }))
+    expect((b.insertCalls.find(c => c.table === 'ab_tests')!.data as { config: unknown }).config).toMatchObject({ teto_explicito: false })
+  })
   it('preserves original when URL is ggpht.com', async () => {
     buildSupabaseMock({
       video: {

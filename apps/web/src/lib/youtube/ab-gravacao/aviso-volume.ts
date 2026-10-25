@@ -6,7 +6,7 @@ import { addDays, dayPt, ontemPt, type DiaPt } from '../coleta/day-pt'
 import { lerPaginado } from '../coleta/paginar'
 import type { ResultadoV2 } from '../ab-types'
 import {
-  ATRASO_ALCANCE, V_MAXIMO_V2, baseDoVideo, folgaPorVariante, tetoDoTesteV2, volumeMinimo,
+  ATRASO_ALCANCE, MSG_VARIANTES_V2, V_MAXIMO_V2, baseDoVideo, folgaPorVariante, tetoDoTesteV2, volumeMinimo,
 } from './decisao-v2'
 import { estadoDoAlcance } from './estado'
 import { diaComAlcanceValido, type Placar } from './placar'
@@ -37,7 +37,7 @@ export function montarAvisoDeVolume(i: {
   V: number; teto: number; p1: number; base_estimada: boolean; impressoesDia: number | null; usouUltimos7: boolean; hoje: DiaPt
 }): AvisoDeVolume {
   if (i.V < 2) return { estado: 'sem_variantes', texto: 'adicione as variantes para estimar o volume' }
-  if (i.V > V_MAXIMO_V2) return { estado: 'variantes_demais', texto: 'a regra nova aceita até 2 variantes além da original' }
+  if (i.V > V_MAXIMO_V2) return { estado: 'variantes_demais', texto: MSG_VARIANTES_V2 }
   if (i.impressoesDia === null || !(i.impressoesDia > 0)) return { estado: 'sem_medicao', texto: 'sem medição para estimar o volume' }
   const n = volumeMinimo(i.p1, i.V)
   const dias_previstos = Math.ceil((i.V * n) / i.impressoesDia)
@@ -91,15 +91,16 @@ function entregaPorDia(e: Entradas, video: { youtube_id: string; channel_id: str
 
 type Linha = Record<string, unknown>
 
-export async function avisoDeVolume(sb: SupabaseClient, siteId: string, testId: string, agora: Date): Promise<{ ok: true; aviso: AvisoDeVolume } | { ok: false; erro: string }> {
+/** `pedido`: o assistente ainda não subiu as variantes (V no banco é menor): vale o maior V; `teto` explícito do pedido vence o do banco. */
+export async function avisoDeVolume(sb: SupabaseClient, siteId: string, testId: string, agora: Date, pedido?: { V: number; teto?: number }): Promise<{ ok: true; aviso: AvisoDeVolume } | { ok: false; erro: string }> {
   const t = await sb.from('ab_tests')
     .select('id, config, youtube_videos!inner(youtube_video_id, channel_id), variants:ab_test_variants!test_id(id)')
     .eq('id', testId).eq('site_id', siteId).maybeSingle()
   if (t.error) return { ok: false, erro: 'leitura do teste falhou' }
   const row = t.data as Linha | null
   if (!row) return { ok: false, erro: 'teste não encontrado' }
-  const V = Array.isArray(row.variants) ? row.variants.length : 0
-  const teto = tetoDoTesteV2(row.config, V, { soExplicito: true })
+  const V = Math.max(Array.isArray(row.variants) ? row.variants.length : 0, pedido?.V ?? 0)
+  const teto = pedido?.teto ?? tetoDoTesteV2(row.config, V, { soExplicito: true })
   const hoje = dayPt(agora)
   if (V < 2 || V > V_MAXIMO_V2) {
     return { ok: true, aviso: montarAvisoDeVolume({ V, teto, p1: 0.04, base_estimada: true, impressoesDia: null, usouUltimos7: false, hoje }) }
