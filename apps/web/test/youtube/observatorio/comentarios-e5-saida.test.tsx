@@ -139,6 +139,9 @@ const TABELAS_PERMITIDAS = [
   'apps/web/src/app/cms/(authed)/youtube/competitors/actions.ts',
   // M3b: só a lista de tabelas por classe do arquivo mensal (exporta comentários ao NAS/B2, como o cli.ts)
   'apps/web/src/lib/youtube/observatorio/arquivo-mensal/contrato.ts',
+  // M3b expurgo: nomes de tabela do filtro e do resumo (mapas de colunas), sem leitura de comentário
+  'apps/web/src/lib/youtube/observatorio/arquivo-mensal/expurgo-filtro.ts',
+  'apps/web/src/lib/youtube/observatorio/arquivo-mensal/expurgo-resumo.ts',
   'apps/web/src/lib/youtube/observatorio/arquivo/cli.ts',
   'apps/web/src/lib/youtube/observatorio/comentarios/gravar.ts',
   'apps/web/src/lib/youtube/observatorio/comentarios/identidade.ts',

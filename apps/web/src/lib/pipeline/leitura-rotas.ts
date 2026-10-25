@@ -2,6 +2,15 @@
 // Um teste (leitura-rotas.test.ts) confere esta lista contra as pastas de src/app/api/pipeline: rota nova sem entrada reprova.
 const PADROES = [
   '/api/pipeline',
+  '/api/pipeline/archive/attest',
+  '/api/pipeline/archive/heartbeat',
+  '/api/pipeline/archive/month/manifest',
+  '/api/pipeline/archive/month/summary',
+  '/api/pipeline/archive/pending',
+  '/api/pipeline/archive/plan',
+  '/api/pipeline/archive/pode-desligar',
+  '/api/pipeline/archive/unit/export',
+  '/api/pipeline/archive/unit/received',
   '/api/pipeline/audio-library',
   '/api/pipeline/audio-library/[id]',
   '/api/pipeline/audio-library/export',

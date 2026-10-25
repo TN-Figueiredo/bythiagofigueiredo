@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { garantirMg6, garantirComT13, semearCena, exportarConferirConfirmar, contagemPorTabela, escalar, tenta } from '../helpers/mg6'
+import { garantirMg6, garantirComT13, declaracaoDaM3b, semearCena, exportarConferirConfirmar, contagemPorTabela, escalar, tenta } from '../helpers/mg6'
 import { aplicarM2, M2_SQL } from '../helpers/m2'
 import { lerSqlDaT13 } from '../helpers/f1-sql'
 
@@ -25,6 +25,7 @@ describe.skipIf(skipIfNoLocalDb())('M2 e a E10: uncovered vazio e tamanho somand
       // recria fica testado); depois que a E10 consertar, o bloco 11 sai sem fazer nada e o teste continua valendo
       await garantirComT13(pg)
       await aplicarM2(pg)
+      await declaracaoDaM3b(pg)   // a M2 recria o corpo sem a declaração que a M3b instalou
       for (let i = 1; i <= 3; i++) {
         await pg.query(`select obs_part.criar_particao(t::regclass, (obs_part.mes_corrente_sp() - make_interval(months => $1))::date)
           from unnest(array['public.competitor_video_daily','public.competitor_video_early','public.competitor_video_hourly']) t`, [i])

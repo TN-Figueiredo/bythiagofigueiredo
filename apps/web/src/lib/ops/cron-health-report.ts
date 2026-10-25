@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import vercelConfig from '../../../vercel.json'
 import { lerAgendaDoVigia, type ItemAgenda } from '@/lib/youtube/agenda/saude'
 import { avaliarComAgenda, lerMesesAFrenteComPrazo } from '@/lib/youtube/agenda/particoes'
+import { itensDoArquivo, lerArquivoParaVigiaComPrazo } from '@/lib/youtube/agenda/arquivo-mensal'
 
 // Avaliação de saúde dos crons do `vercel.json`, extraída de
 // `src/app/api/health/route.ts` (2026-09-18) sem mudança de comportamento.
@@ -414,6 +415,6 @@ export const CRON_HEALTH_COLUMNS =
  * e com a agenda desligada. Nada aqui lança: leitura que falha vira item `late` (o do invariante: amarelo se passageira, vermelho se estrutural).
  */
 export async function lerAgendaParaRelatorio(sb: SupabaseClient, now: Date): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
-  const [agenda, lido] = await Promise.all([lerAgendaDoVigia(sb, now.getTime(), process.env), lerMesesAFrenteComPrazo(sb)])
-  return { itens: [...agenda.itens, avaliarComAgenda(lido, agenda.itens, now.getTime())], nota: agenda.nota }
+  const [agenda, lido, arquivo] = await Promise.all([lerAgendaDoVigia(sb, now.getTime(), process.env), lerMesesAFrenteComPrazo(sb), lerArquivoParaVigiaComPrazo(sb)])
+  return { itens: [...agenda.itens, avaliarComAgenda(lido, agenda.itens, now.getTime()), ...itensDoArquivo(arquivo)], nota: agenda.nota }
 }

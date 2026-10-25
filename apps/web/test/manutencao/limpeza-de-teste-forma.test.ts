@@ -24,6 +24,7 @@ const EXCECOES: Record<string, string> = {
   'integration/observatorio-a5-e9-migration.test.ts': 'corpo de função de teste (SQL de uma função), não é limpeza',
   'integration/manutencao-m3b-e10-remocao.test.ts': 'corpo de função de teste (SQL de uma função), não é limpeza',
   'integration/manutencao-m3b-remocao.test.ts': 'prova o gatilho e limpa depois (deletes diretos de propósito: a corrida em 2ª conexão, linha 386, e a prova da recusa)',
+  'integration/manutencao-m3b-apagar-corrida.test.ts': 'limpa a cena da corrida depois de desfazer a 000004 (delete direto de propósito, linha 88, melhor esforço)',
   'integration/manutencao-m3b-pendencias.test.ts': 'prova o gatilho e limpa depois (deletes diretos de propósito, linhas 167 e 177, sob session_replication_role = replica, sem declarar)',
 }
 

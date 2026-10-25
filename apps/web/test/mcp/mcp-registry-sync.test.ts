@@ -6,7 +6,7 @@ describe('MCP Registry Sync', () => {
     const { unmapped } = getRegistryCoverage()
     // Some endpoints may be intentionally unmapped (root catalog, docs)
     // but the count should be small
-    expect(unmapped.length).toBeLessThan(10)
+    expect(unmapped.filter((u) => !u.includes('/api/pipeline/archive/')).length).toBeLessThan(10)
   })
 
   it('has exactly 24 unique MCP tools', () => {
@@ -25,13 +25,19 @@ describe('MCP Registry Sync', () => {
 
   it('covers all registry endpoints', () => {
     const { mapped, unmapped } = getRegistryCoverage()
-    // Sum: items(22) + playlists(13) + libraries(15) + research(26) + youtube(39) + utilities(11) + course(0) + links(5) = 131
-    expect(mapped.length + unmapped.length).toBe(131)
+    // Sum: items(22) + playlists(13) + libraries(15) + research(26) + youtube(39) + utilities(11) + course(0) + links(5) = 131; + archive(9) = 140 (as rotas do arquivo nunca viram ferramenta MCP)
+    expect(mapped.length + unmapped.length).toBe(131 + 9)
   })
 
   it('GET /api/pipeline/youtube/channels (lista dos canais próprios) tem ferramenta MCP', () => {
     const { mapped, unmapped } = getRegistryCoverage()
     expect(unmapped).not.toContain('GET /api/pipeline/youtube/channels')
     expect(mapped.find((m) => m.path === '/api/pipeline/youtube/channels')?.mcpTool).toBe('youtube_analytics')
+  })
+
+  it('as rotas do arquivo nunca viram ferramenta MCP', () => {
+    const { mapped, unmapped } = getRegistryCoverage()
+    expect(mapped.filter((m) => m.domain === 'archive')).toEqual([])
+    expect(unmapped.filter((u) => u.includes('/archive/'))).toHaveLength(9)
   })
 })

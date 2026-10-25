@@ -15,6 +15,7 @@ export type CodigoE10 =
   | 'sem_direito' | 'pausa_recente' | 'sincronizando' | 'lote_ja_apagado' | 'pausa_sem_remendo' | 'parametro_nulo'
   | 'schema_ausente' | 'apagou_alem_do_arquivo' | 'inesperado'
   | 'canal_antigo' | 'nome_nao_confere' | 'video_compartilhado' | 'saiu_do_youtube' | 'sem_vaga'
+  | 'apagar_com_arquivo'
 
 /** Os códigos que o banco (MG6) levanta com `E10:<codigo>:`. `demorou_demais`, `schema_ausente` e `inesperado` nascem do código do erro, nunca da mensagem. */
 const DO_BANCO: ReadonlySet<string> = new Set<CodigoE10>([
@@ -25,6 +26,8 @@ const DO_BANCO: ReadonlySet<string> = new Set<CodigoE10>([
 ])
 
 const MENSAGEM_E10 = /^E10:([a-z_]+):/
+/** M3b-apagar-sql: a guarda de `competitor_channel_remove` levanta `apagar_com_arquivo` (P0001) sem o prefixo `E10:`; o botão de Remover canal a recebe por aqui. */
+const MENSAGEM_APAGAR_COM_ARQUIVO = /^apagar_com_arquivo\b/
 
 /**
  * O código de um erro do banco. Olha o `code` ANTES da mensagem: `57014` (instrução cancelada por tempo) e `55P03` (trava esperou além do lock_timeout) é `demorou_demais`;
@@ -35,6 +38,7 @@ export function codigoE10(erro: { message?: string; code?: string } | null | und
   if (!erro) return 'inesperado'
   if (erro.code === '57014' || erro.code === '55P03') return 'demorou_demais'
   if (erro.code === 'PGRST202' || erro.code === '42883') return 'schema_ausente'
+  if (typeof erro.message === 'string' && MENSAGEM_APAGAR_COM_ARQUIVO.test(erro.message)) return 'apagar_com_arquivo'
   const m = typeof erro.message === 'string' ? MENSAGEM_E10.exec(erro.message) : null
   if (m && DO_BANCO.has(m[1]!)) return m[1] as CodigoE10
   return 'inesperado'
@@ -64,6 +68,7 @@ export const FRASES_E10: Record<CodigoE10, string> = {
   nome_nao_confere: 'O nome digitado não é o nome do canal. Nada foi apagado.',
   video_compartilhado: 'Um vídeo deste canal também é acompanhado por outro canal ou por um teste nosso. Nada foi apagado.',
   saiu_do_youtube: 'Este canal saiu do YouTube: responda na aba Saíram do YouTube.',
+  apagar_com_arquivo: 'Este canal tem meses no arquivo e não pode ser apagado sem guardar.',   // provisória: a frase final vem do mockup da T12
   sem_vaga: 'Não há vaga para este canal voltar. Remova outro canal antes de desfazer.',
   inesperado: 'Algo inesperado aconteceu e nada foi apagado. A causa foi registrada; tente de novo mais tarde.',
 }

@@ -231,6 +231,15 @@ describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemo
     expect(apagar).not.toHaveBeenCalled()
   })
 
+  it('M3b-apagar-sql: apagar_com_arquivo do botão vira a frase própria, sem Blob e sem Sentry', async () => {
+    const { sb } = falso({ competitor_channel_delete_unarchived: { data: null, error: { message: 'apagar_com_arquivo', code: 'P0001' } } })
+    const apagar = vi.fn(async () => undefined)
+    const r = await apagarCanalSemGuardar(sb, e, { apagarDoBlob: apagar })
+    expect(r).toEqual({ ok: false, codigo: 'apagar_com_arquivo', frase: codigos.FRASES_E10.apagar_com_arquivo })
+    expect(apagar).not.toHaveBeenCalled()
+    expect(captureMessage).not.toHaveBeenCalled()
+  })
+
   it('OBS_E2E=1: o Blob não é tocado e as pendências ficam', async () => {
     process.env.OBS_E2E = '1'
     const { sb, chamadas } = falso({ competitor_channel_delete_unarchived: apagado([url(1)]) })

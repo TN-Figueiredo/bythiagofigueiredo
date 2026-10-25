@@ -198,10 +198,15 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 2: a MG18, função por funçã
       // dublê da função da M3b (a verdadeira vive em rascunho): registra a chamada e apaga o canal, como a original
       await pg.query(`create temp table t_m9_chamadas (site uuid, canal uuid, destino text, via text, ator uuid) on commit drop`)
       await pg.query(`
-        create or replace function public.competitor_channel_remove(p_site uuid, p_channel uuid, p_destino text, p_via text, p_actor uuid)
-        returns void language plpgsql as $f$ begin
-          insert into pg_temp.t_m9_chamadas values (p_site, p_channel, p_destino, p_via, p_actor);
+        create or replace function public.competitor_channel_remove(p_site uuid, p_channel uuid, p_decision text, p_via text, p_actor uuid)
+        returns jsonb language plpgsql as $f$ begin
+          insert into pg_temp.t_m9_chamadas values (p_site, p_channel, p_decision, p_via, p_actor);
+          -- a M3b exige o destino declarado na mesma transação do delete
+          insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, declared_xid)
+            values (p_site, p_channel::text, 'botao', 'apagar', now(), true, pg_current_xact_id())
+            on conflict (site_id, channel_ref) do update set declared_xid = pg_current_xact_id();
           delete from public.competitor_channels where id = p_channel;
+          return jsonb_build_object('status', 'ok');
         end $f$`)
       const r = await rpc('competitor_channel_purge', [c.site, c.canalA, c.admin, 30, null, null])
       expect(r.status).toBe('apagado')

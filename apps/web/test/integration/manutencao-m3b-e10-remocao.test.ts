@@ -99,6 +99,8 @@ describe.skipIf(skipIfNoLocalDb())('M3b e a E10: competitor_channel_remove_archi
       await aplicarM3b(pg, 6)
       const f = `select md5(prosrc) from pg_proc where oid = 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'::regprocedure`
       expect(await escalar<string>(pg, f)).not.toBe(MD5_DO_11B)
+      // com a recusa (000003) instalada o m3b-desfazer pede antes o m3b-recusa-desfazer (Phil M5)
+      await pg.query(readFileSync(M3B_DESFAZER_CAMINHO.replace('m3b-desfazer.sql', 'm3b-recusa-desfazer.sql'), 'utf8').replace(/^begin;$/m, '').replace(/^commit;$/m, ''))
       // o arquivo traz begin/commit próprios; dentro da transação do teste só o corpo conta
       await pg.query(readFileSync(M3B_DESFAZER_CAMINHO, 'utf8').replace(/^begin;$/m, '').replace(/^commit;$/m, ''))
       expect(await escalar<string>(pg, f)).toBe(MD5_DO_11B)

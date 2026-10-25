@@ -25,7 +25,7 @@ vi.mock('@/lib/youtube/observatorio/load', async (orig) => {
 })
 
 import { rodarSinaisDoNicho } from '@/lib/youtube/observatorio/sinais/gravador'
-import { apagarSites } from '../helpers/limpa-cena'
+import { apagarCanais, apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const AGORA = new Date(NOW)
@@ -69,8 +69,9 @@ describe.skipIf(skipIfNoLocalDb())('F2 T10: gravador contra niche_signals_gravar
   })
   afterAll(async () => {
     try {
-      for (const t of ['niche_signals', 'niche_outliers_vistos', 'niche_signals_estado', 'video_lugares', 'competitor_channels'])
+      for (const t of ['niche_signals', 'niche_outliers_vistos', 'niche_signals_estado', 'video_lugares'])
         await pg.query(`delete from public.${t} where site_id = $1`, [site])
+      await apagarCanais(pg, 'site_id = $1', [site])
       await apagarSites(pg, 'id = $1', [site])
       await pg.query('delete from public.audit_log where org_id = $1', [org])
       await pg.query('delete from public.organizations where id = $1', [org])
