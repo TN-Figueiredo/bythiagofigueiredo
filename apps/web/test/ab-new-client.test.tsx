@@ -13,7 +13,7 @@ import { NewTestClient } from '../src/app/cms/(authed)/youtube/ab-lab/new/client
 
 const video = (id: string, hasActiveTest = false) => ({
   id, title: `Vídeo ${id}`, thumbnailUrl: null, durationSeconds: 60,
-  channelHandle: '@x', hasActiveTest, previousLift: null, sourcePipelineId: null,
+  channelHandle: '@x', hasActiveTest, statusDoTeste: hasActiveTest ? 'active' as const : null, bloqueio: null, publishedAt: null, viewCount: null, previousLift: null, sourcePipelineId: null,
 })
 const base = {
   siteId: 's',

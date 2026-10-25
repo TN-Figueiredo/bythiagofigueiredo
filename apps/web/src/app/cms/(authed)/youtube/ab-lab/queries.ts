@@ -1,4 +1,6 @@
 import { cache } from 'react'
+import { statusAbertoDoVideo, bloqueioDoVideo } from '@/lib/youtube/ab-linha-video'
+import type { EligibleVideo } from './_components/video-picker-dialog'
 import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { placarDoTeste, faixaDeDias, regraDoTeste } from '@/lib/youtube/ab-gravacao/placar'
@@ -303,22 +305,13 @@ export async function getAbSiteSettings(): Promise<AbTestSiteSettings> {
 // getEligibleVideosForPicker
 // ---------------------------------------------------------------------------
 
-export async function getEligibleVideosForPicker(): Promise<Array<{
-  id: string
-  title: string
-  thumbnailUrl: string | null
-  durationSeconds: number
-  channelHandle: string
-  hasActiveTest: boolean
-  previousLift: number | null
-  sourcePipelineId: string | null
-}>> {
+export async function getEligibleVideosForPicker(): Promise<EligibleVideo[]> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { data: videos } = await supabase
     .from('youtube_videos')
-    .select('id, title, thumbnail_url, duration_seconds, youtube_channels!inner(handle)')
+    .select('id, title, thumbnail_url, thumbnail_hq_url, duration_seconds, published_at, view_count, youtube_channels!inner(handle)')
     .eq('site_id', siteId)
     .order('published_at', { ascending: false })
     .limit(100)
@@ -328,37 +321,40 @@ export async function getEligibleVideosForPicker(): Promise<Array<{
   const videoIds = videos.map(v => v.id as string)
   const { data: tests } = await supabase
     .from('ab_tests')
-    .select('youtube_video_id, status, result_metadata, source_pipeline_id')
+    .select('youtube_video_id, status, source_pipeline_id')
     .eq('site_id', siteId)
     .in('youtube_video_id', videoIds)
 
-  const testMap = new Map<string, { hasActive: boolean; lift: number | null; pipelineId: string | null }>()
+  const statusPorVideo = new Map<string, string[]>()
+  const pipelinePorVideo = new Map<string, string>()
   for (const t of (tests ?? [])) {
     const vid = t.youtube_video_id as string
-    const existing = testMap.get(vid)
-    const isActive = ['draft', 'active', 'paused', 'queued'].includes(t.status as string)
-    // P2: lift gravado pelo avaliador automático não aparece mais em tela nenhuma.
-    const lift: number | null = null
-
-    testMap.set(vid, {
-      hasActive: existing?.hasActive || isActive,
-      lift: lift ?? existing?.lift ?? null,
-      pipelineId: (t.source_pipeline_id as string | null) ?? existing?.pipelineId ?? null,
-    })
+    statusPorVideo.set(vid, [...(statusPorVideo.get(vid) ?? []), t.status as string])
+    const pipeline = t.source_pipeline_id as string | null
+    if (pipeline && !pipelinePorVideo.has(vid)) pipelinePorVideo.set(vid, pipeline)
   }
 
   return videos.map(v => {
     const channel = v.youtube_channels as unknown as { handle: string }
-    const testInfo = testMap.get(v.id as string)
+    const id = v.id as string
+    const statusDoTeste = statusAbertoDoVideo(statusPorVideo.get(id) ?? [])
+    const dur = (v.duration_seconds as number) ?? 0
+    const views = v.view_count as number | null
     return {
-      id: v.id as string,
+      id,
       title: v.title as string,
       thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
-      durationSeconds: (v.duration_seconds as number) ?? 0,
+      durationSeconds: dur,
       channelHandle: channel?.handle ?? '',
-      hasActiveTest: testInfo?.hasActive ?? false,
-      previousLift: testInfo?.lift ?? null,
-      sourcePipelineId: testInfo?.pipelineId ?? null,
+      hasActiveTest: statusDoTeste !== null,
+      statusDoTeste,
+      bloqueio: bloqueioDoVideo(dur, (v.thumbnail_hq_url as string | null) ?? null),
+      publishedAt: (v.published_at as string | null) ?? null,
+      // A coluna é NOT NULL DEFAULT 0 e api-client.ts:145 grava 0 quando o YouTube não manda: 0 não é medição (nulo nunca é zero).
+      viewCount: typeof views === 'number' && views > 0 ? views : null,
+      // P2: lift gravado pelo avaliador automático não aparece mais em tela nenhuma.
+      previousLift: null,
+      sourcePipelineId: pipelinePorVideo.get(id) ?? null,
     }
   })
 }

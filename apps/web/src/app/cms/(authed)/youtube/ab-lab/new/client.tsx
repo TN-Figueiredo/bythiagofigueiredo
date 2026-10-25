@@ -2,24 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { brDec } from '@/lib/youtube/format'
 import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from '../_components/ab-create-wizard'
 import type { WizardVideo } from '../_components/ab-create-wizard'
+import type { EligibleVideo } from '../_components/video-picker-dialog'
+import { LinhaDeVideo } from '../_components/linha-de-video'
 import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
 import { Search, FlaskConical, Info } from 'lucide-react'
 import type { ReferenciaPedida } from './params'
 import type { TipoTroca } from '@/lib/youtube/ab-referencia'
-
-interface EligibleVideo {
-  id: string
-  title: string
-  thumbnailUrl: string | null
-  durationSeconds: number
-  channelHandle: string
-  hasActiveTest: boolean
-  previousLift: number | null
-  sourcePipelineId: string | null
-}
 
 interface DraftPrefill {
   id: string
@@ -65,7 +55,7 @@ export function NewTestClient({ siteId, iniciarTeste, avisoDeVolume, settings, e
       : (() => {
           const v = initialVideoId ? eligibleVideos.find((e) => e.id === initialVideoId) : undefined
           return v
-            ? { id: v.id, title: v.title, thumbnailUrl: v.thumbnailUrl, sourcePipelineId: v.sourcePipelineId }
+            ? { id: v.id, title: v.title, thumbnailUrl: v.thumbnailUrl, sourcePipelineId: v.sourcePipelineId, durationSeconds: v.durationSeconds, publishedAt: v.publishedAt, channelHandle: v.channelHandle }
             : null
         })(),
   )
@@ -151,47 +141,7 @@ export function NewTestClient({ siteId, iniciarTeste, avisoDeVolume, settings, e
           </p>
         )}
         {filtered.map((v) => (
-          <button
-            key={v.id}
-            type="button"
-            disabled={v.hasActiveTest}
-            onClick={() =>
-              setSelectedVideo({
-                id: v.id,
-                title: v.title,
-                thumbnailUrl: v.thumbnailUrl,
-                sourcePipelineId: v.sourcePipelineId,
-              })
-            }
-            className="w-full flex items-center gap-3 p-3 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface hover:bg-cms-surface-hover transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-          >
-            <div className="w-24 h-[54px] rounded bg-cms-bg shrink-0 overflow-hidden">
-              {v.thumbnailUrl ? (
-                <img
-                  src={v.thumbnailUrl}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-cms-text-dim text-xs">
-                  Sem thumb
-                </div>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-cms-text truncate">{v.title}</p>
-              <p className="text-2xs text-cms-text-muted">{v.channelHandle}</p>
-              {v.hasActiveTest && (
-                <p className="text-2xs text-amber-400 mt-0.5">Teste ativo em andamento</p>
-              )}
-              {v.previousLift != null && (
-                <p className="text-2xs text-cms-text-dim mt-0.5">
-                  Lift anterior: {v.previousLift > 0 ? '+' : ''}{brDec(v.previousLift, 1)}%
-                </p>
-              )}
-            </div>
-          </button>
+          <LinhaDeVideo key={v.id} video={v} onEscolher={setSelectedVideo} />
         ))}
       </div>
 

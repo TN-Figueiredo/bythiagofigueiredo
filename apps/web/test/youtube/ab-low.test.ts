@@ -246,7 +246,7 @@ describe('VChip rendering', () => {
     const labels: DisplayLabel[] = ['A', 'B', 'C', 'D']
     for (const l of labels) {
       const { unmount } = render(React.createElement(VChip, { label: l }))
-      expect(screen.getByLabelText(`Variant ${l}`)).toBeDefined()
+      expect(screen.getByLabelText(`Variante ${l}`)).toBeDefined()
       unmount()
     }
   })

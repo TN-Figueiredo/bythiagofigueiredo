@@ -46,6 +46,10 @@ export interface WizardVideo {
   title: string
   thumbnailUrl: string | null
   sourcePipelineId?: string | null
+  /** Dados reais do vídeo para a prévia; ausentes (rascunho do banco) a prévia omite. */
+  durationSeconds?: number
+  publishedAt?: string | null
+  channelHandle?: string | null
 }
 
 /* ------------------------------------------------------------------ */

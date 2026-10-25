@@ -107,8 +107,8 @@ describe('getEligibleVideosForPicker: hasActiveTest', () => {
     const { vi } = await import('vitest')
     vi.resetModules()
     const dados: Record<string, unknown[]> = {
-      youtube_videos: [{ id: 'v1', title: 'T', thumbnail_url: null, duration_seconds: 600, youtube_channels: { handle: 'h' } }],
-      ab_tests: [{ youtube_video_id: 'v1', status: 'queued', result_metadata: null, source_pipeline_id: null }],
+      youtube_videos: [{ id: 'v1', title: 'T', thumbnail_url: null, duration_seconds: 600, thumbnail_hq_url: 'hq', published_at: '2026-10-21T21:32:00Z', view_count: 0, youtube_channels: { handle: 'h' } }],
+      ab_tests: [{ youtube_video_id: 'v1', status: 'queued', source_pipeline_id: null }],
     }
     const cadeia = (t: string) => {
       const c: Record<string, unknown> = {}
@@ -122,5 +122,30 @@ describe('getEligibleVideosForPicker: hasActiveTest', () => {
     const { getEligibleVideosForPicker } = await import('@/app/cms/(authed)/youtube/ab-lab/queries')
     const r = await getEligibleVideosForPicker()
     expect(r[0]!.hasActiveTest).toBe(true)
+    expect(r[0]!.statusDoTeste).toBe('queued')
+    expect(r[0]!.publishedAt).toBe('2026-10-21T21:32:00Z')
+    expect(r[0]!.viewCount).toBeNull() // view_count 0 no banco = sem medição
+    expect(r[0]!.bloqueio).toBeNull()
+  })
+  it('o select pede published_at, view_count e thumbnail_hq_url e não pede result_metadata', async () => {
+    const { vi } = await import('vitest')
+    vi.resetModules()
+    const selects: string[] = []
+    const cadeia = () => {
+      const c: Record<string, unknown> = {}
+      c.select = (cols: string) => { selects.push(cols); return c }
+      for (const k of ['eq', 'order', 'limit', 'in']) c[k] = () => c
+      c.then = (r: (v: unknown) => unknown) => r({ data: [] })
+      return c
+    }
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({ from: cadeia }) }))
+    vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
+    vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true }) }))
+    const { getEligibleVideosForPicker } = await import('@/app/cms/(authed)/youtube/ab-lab/queries')
+    await getEligibleVideosForPicker()
+    expect(selects[0]).toContain('published_at')
+    expect(selects[0]).toContain('view_count')
+    expect(selects[0]).toContain('thumbnail_hq_url')
+    expect(selects.join(' ')).not.toContain('result_metadata')
   })
 })

@@ -1,16 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { statusAbertoDoVideo } from '@/lib/youtube/ab-linha-video'
 import { isCertainShort } from '@/lib/youtube/short-classifier'
+import type { EligibleVideo } from '../_components/video-picker-dialog'
 
-export interface VideoDoPicker {
-  id: string
-  title: string
-  thumbnailUrl: string | null
-  durationSeconds: number
-  channelHandle: string
-  hasActiveTest: boolean
-  previousLift: number | null
-  sourcePipelineId: string | null
-}
+export type VideoDoPicker = EligibleVideo
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -23,7 +16,7 @@ export async function lerVideoForaDosCem(sb: SupabaseClient, siteId: string, vid
   if (!UUID.test(videoUuid)) return null
   const { data: v, error } = await sb
     .from('youtube_videos')
-    .select('id, title, thumbnail_url, thumbnail_hq_url, duration_seconds, youtube_channels(handle)')
+    .select('id, title, thumbnail_url, thumbnail_hq_url, duration_seconds, published_at, view_count, youtube_channels(handle)')
     .eq('site_id', siteId)
     .eq('id', videoUuid)
     .maybeSingle()
@@ -32,7 +25,7 @@ export async function lerVideoForaDosCem(sb: SupabaseClient, siteId: string, vid
   if (isCertainShort(dur) || !v.thumbnail_hq_url) return null
   const { data: abertos, error: e2 } = await sb
     .from('ab_tests')
-    .select('id')
+    .select('id, status')
     .eq('site_id', siteId)
     .eq('youtube_video_id', videoUuid)
     .in('status', ['draft', 'active', 'paused', 'queued'])
@@ -46,6 +39,10 @@ export async function lerVideoForaDosCem(sb: SupabaseClient, siteId: string, vid
     durationSeconds: dur,
     channelHandle: canal?.handle ?? '',
     hasActiveTest: (abertos ?? []).length > 0,
+    statusDoTeste: statusAbertoDoVideo((abertos ?? []).map((a) => String((a as { status?: string }).status ?? ''))),
+    bloqueio: null, // Short e sem thumbnail HQ já saíram acima (retornam null)
+    publishedAt: typeof v.published_at === 'string' ? v.published_at : null,
+    viewCount: typeof v.view_count === 'number' && v.view_count > 0 ? v.view_count : null,
     previousLift: null,
     sourcePipelineId: null,
   }
