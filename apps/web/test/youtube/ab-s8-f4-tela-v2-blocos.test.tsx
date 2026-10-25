@@ -117,7 +117,7 @@ describe('T12 T6: blocos do ativo v2', () => {
   })
 
   it('ativo ilegível: selo ⚠ "Não consegui ler"', () => {
-    const t = ativoV2({ ilegivel: true, frase: { principal: 'Não consegui ler a avaliação; este teste não encerra sozinho.', apoio: '' } })
+    const t = ativoV2({ ilegivel: true, frase: { principal: 'Não consegui ler a avaliação; este teste não encerra sozinho.', apoio: 'Para decidir agora, use Encerrar.' } })
     const { container } = render(<ResumoV2 frase={t.frase} ilegivel />)
     expect(screen.getByRole('status').textContent).toContain('⚠ Não consegui ler')
     expect(container.textContent).toContain('Não consegui ler a avaliação; este teste não encerra sozinho.')

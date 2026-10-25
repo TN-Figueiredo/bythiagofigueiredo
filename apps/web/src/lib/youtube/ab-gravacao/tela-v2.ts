@@ -68,8 +68,8 @@ function fraseAtivo(e: {
   linhas: LinhaPisoV2[]; n: number | null; p: ReturnType<typeof pisos>; dia: number; teto: number; pausado: boolean
   passouDoFim: boolean; ilegivel: boolean; nenhumDia: boolean; v2: ResultadoV2 | null; sinal: DisplayLabel | null
 }): { principal: string; apoio: string } {
-  if (e.ilegivel) return { principal: 'Não consegui ler a avaliação; este teste não encerra sozinho.', apoio: '' }
-  if (e.passouDoFim) return { principal: 'O encerramento atrasou; a regra tenta de novo no próximo cron.', apoio: '' }
+  if (e.ilegivel) return { principal: 'Não consegui ler a avaliação; este teste não encerra sozinho.', apoio: 'Para decidir agora, use Encerrar.' }
+  if (e.passouDoFim) return { principal: 'O encerramento atrasou; o teste tenta encerrar de novo na próxima avaliação diária.', apoio: '' }
   if (e.nenhumDia) return { principal: 'Ainda não decide: o YouTube não fechou nenhum dia.', apoio: 'A primeira avaliação sai até 24 horas depois do início.' }
   if (e.n === null) return { principal: 'Ainda não decide: falta calcular quantas impressões cada versão precisa.', apoio: 'A conta roda uma vez por dia.' }
   const N = milhar(e.n)
@@ -132,7 +132,7 @@ function telaAtiva(e: EntradaTelaV2): TelaV2 {
 const ESTADO_AGORA: Record<string, string> = {
   sem_diferenca: 'não há diferença clara', volume: 'faltou volume para decidir', dado: 'faltam dias medidos',
   aguardando: 'o YouTube ainda não enviou o alcance', pendente: 'o desfecho está sendo recalculado', falha: 'o teste consta como encerrado por segurança',
-  original: 'a original se saiu melhor',
+  original: 'a original parece melhor',
 }
 
 function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
@@ -231,7 +231,9 @@ function fraseConcluida(selo: SeloV2, c: {
       const ctrX = alvo?.ctr ?? null
       const lift = alvo?.lift ?? null
       let apoio: string | null = null
-      if (ctrX !== null && ctrA !== null) apoio = `CTR ≈ ${pct1(ctrX)}% contra ${pct1(ctrA)}% de A${lift !== null ? ` (${liftTxt(lift)}% vs A)` : ''}.`
+      // M2 (Phil): o selo é do cron de ontem, o lift é das linhas de agora; se contradizem, não mostra o CTR.
+      if (lift !== null && lift <= 0) apoio = 'Os números mudaram desde a última avaliação; o desfecho é revisto no próximo cron.'
+      else if (ctrX !== null && ctrA !== null) apoio = `CTR ≈ ${pct1(ctrX)}% contra ${pct1(ctrA)}% de A${lift !== null ? ` (${liftTxt(lift)}% vs A)` : ''}.`
       else if (lift !== null) apoio = `${selo.letra} está ${liftTxt(lift)}% acima de A no CTR.`
       return { principal: selo.provisorio ? `${selo.letra} provavelmente vence.` : `${selo.letra} vence.`, apoio }
     }

@@ -153,6 +153,64 @@ describe('T12 T7: concluído v2', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
+  it('texto por tipo de teste (Gio 2): combo, título e miniatura no Aplicar e no Voltar', () => {
+    const c = montar(base(), { view: { flag: 'combo' } })
+    abrirAplicar()
+    expect(screen.getByRole('alertdialog').textContent).toContain('A miniatura e o título mudam agora.')
+    c.unmount(); cleanup()
+    montar(base(), { view: { flag: 'title' } })
+    abrirAplicar()
+    expect(screen.getByRole('alertdialog').textContent).toContain('O título muda agora.')
+    cleanup()
+    const aplicada = base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true })
+    montar(aplicada, { view: { flag: 'combo', revertExpiresAt: em(3) } })
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar à original' }))
+    expect(screen.getByRole('alertdialog').textContent).toContain('A miniatura e o título voltam a ser os de A agora no YouTube.')
+    cleanup()
+    montar(aplicada, { view: { flag: 'title', revertExpiresAt: em(3) } })
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar à original' }))
+    expect(screen.getByRole('alertdialog').textContent).toContain('O título volta a ser o de A agora no YouTube.')
+  })
+
+  it('erro nos diálogos tem ícone (grid de 2 colunas não deixa o texto na coluna de 20px) — Aplicar e troca', async () => {
+    const aplicar = vi.fn()
+      .mockResolvedValueOnce({ ok: false, resultado: 'mudou', error: MSG_MUDOU })
+    montar(base(), { aplicar })
+    abrirAplicar(); confirmar('Aplicar B')
+    await waitFor(() => expect(screen.getByRole('alert').querySelector('svg')).not.toBeNull())
+    cleanup()
+    const ap2 = vi.fn()
+      .mockResolvedValueOnce({ ok: true, resultado: 'precisa_confirmar', campos: CAMPOS })
+      .mockResolvedValueOnce({ ok: false, resultado: 'mudou', error: MSG_MUDOU })
+    montar(base(), { aplicar: ap2 })
+    abrirAplicar(); confirmar('Aplicar B')
+    fireEvent.click(await screen.findByRole('button', { name: 'Aplicar B mesmo assim' }))
+    await waitFor(() => expect(screen.getByRole('alert').querySelector('svg')).not.toBeNull())
+  })
+
+  it('diálogo de troca: ja_encerrado e exceção oferecem Recarregar (Y-T12-2)', async () => {
+    for (const falha of [{ ok: false, resultado: 'ja_encerrado', error: 'x' }, new Error('rede')]) {
+      const aplicar = vi.fn().mockResolvedValueOnce({ ok: true, resultado: 'precisa_confirmar', campos: CAMPOS })
+      if (falha instanceof Error) aplicar.mockRejectedValueOnce(falha); else aplicar.mockResolvedValueOnce(falha)
+      montar(base(), { aplicar })
+      abrirAplicar(); confirmar('Aplicar B')
+      fireEvent.click(await screen.findByRole('button', { name: 'Aplicar B mesmo assim' }))
+      const rec = await screen.findByRole('button', { name: 'Recarregar' })
+      refresh.mockClear(); fireEvent.click(rec)
+      expect(refresh).toHaveBeenCalledTimes(1)
+      cleanup()
+    }
+  })
+
+  it('Voltar devolvendo precisa_confirmar: texto próprio da volta, com Recarregar (Logan f)', async () => {
+    const voltar = vi.fn().mockResolvedValue({ ok: true, resultado: 'precisa_confirmar', campos: CAMPOS })
+    montar(base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true }), { voltar, view: { revertExpiresAt: em(3) } })
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar à original' }))
+    confirmar('Sim, voltar à original')
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Não consegui concluir a volta. Recarregue a página para ver o estado atual.'))
+    expect(screen.getByRole('button', { name: 'Recarregar' })).toBeTruthy()
+  })
+
   it('original vence: nenhum botão, nenhum %', () => {
     const { container } = montar(base({
       selo: { tipo: 'original' }, aplicar: null, prazo: { tipo: 'final' },

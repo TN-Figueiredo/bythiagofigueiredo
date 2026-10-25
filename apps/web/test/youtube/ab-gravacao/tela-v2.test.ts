@@ -153,13 +153,14 @@ describe('telaV2DoTeste: ativo', () => {
   it('P5: dia = teto + 2 => passouDoFim, nunca "-2"', () => {
     const r = ativoDe(ativo({ dia: 17, v2: { n: 10315 }, dias: dias([O, B], 4, 100) }))
     expect(r.passouDoFim).toBe(true)
-    expect(r.frase.principal).toBe('O encerramento atrasou; a regra tenta de novo no próximo cron.')
+    expect(r.frase.principal).toBe('O encerramento atrasou; o teste tenta encerrar de novo na próxima avaliação diária.')
     expect(JSON.stringify(r)).not.toContain('-2')
   })
   it('P5: v2 ilegível no ativo => ilegivel', () => {
     const r = ativoDe(ativo({ v2: { n: 'x' }, dias: dias([O, B], 3) }))
     expect(r.ilegivel).toBe(true)
     expect(r.frase.principal).toBe('Não consegui ler a avaliação; este teste não encerra sozinho.')
+    expect(r.frase.apoio).toBe('Para decidir agora, use Encerrar.')
   })
   it('P5/N2: dia = teto + 2 com v2 ilegível => ◆T 13, não 12', () => {
     const r = ativoDe(ativo({ dia: 17, v2: { n: 'x' } }))
@@ -220,6 +221,16 @@ describe('telaV2DoTeste: concluído, um por estado', () => {
     expect(r.noAr).toEqual({ tipo: 'aplicada', letra: 'B', desfechoMudou: true })
     expect(r.frase.principal).toBe('Agora C parece melhor; ao encerrar, B parecia melhor.')
     expect(r.voltar).toBe(true); expect(r.aplicar).toBeNull()
+  })
+  it('aplicado B e a original passou a vencer (Logan a): "Agora a original parece melhor; ao encerrar, B parecia melhor."', () => {
+    const r = concDe(concluido({ sugerido: O, reason: 'manual_winner', winner: B, applied: '2026-10-25T10:00:00Z', revert: '2026-11-01T10:00:00Z' }))
+    expect(r.frase.principal).toBe('Agora a original parece melhor; ao encerrar, B parecia melhor.')
+  })
+  it('M2 (Phil): provisório "vence" com lift <= 0 nas linhas atuais não mostra o CTR contraditório', () => {
+    const r = concDe(concluido({ provisorio: true, dias: dias([O, B], 5, 1000, { [B]: 0.04, [O]: 0.046 }) }))
+    expect(r.frase.principal).toBe('B provavelmente vence.')
+    expect(r.frase.apoio).toBe('Os números mudaram desde a última avaliação; o desfecho é revisto no próximo cron.')
+    expect(JSON.stringify(r.frase)).not.toMatch(/vs A|CTR ≈/)
   })
   it('original-vence: sem aplicar, sem lift na frase', () => {
     const r = concDe(concluido({ sugerido: O }))

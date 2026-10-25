@@ -77,8 +77,8 @@ Regra de junção: texto do Logan quando diverge da Naksu; ajuste de cabimento a
 | 9 | `precisa_confirmar` de Aplicar (**superado por Y2**) | Não há mais `.etd-msg warn`: abre o `AbConfirmarTrocaDialog` existente (valor atual no YouTube, Voltar com foco inicial) com `rotuloConfirmar` **Aplicar {X} mesmo assim**; a 2ª chamada vai com `forcar: true`. Único texto novo (3 palavras): Logan confere na revisão final. |
 | 10 | ⓘ dos pisos (H3: substitui o do mockup) | Terceira frase: **Dias e impressões são somados dos dias válidos do placar; o piso vem da avaliação diária. “—” é não medido, não zero.** Vale para "Como ler os pisos" e "Como ler a régua final". O controlador avisa o dono em 1 linha: frase do mockup aprovado muda por honestidade (a tela não lê `ultima_avaliacao`). |
 | 11 | Ativo, pisos fechados na tela, chave `vencedor_sugerido` ausente (P4) | **Os pisos fecharam; a conta de hoje ainda não rodou.** / Volte amanhã. Sem sinal. |
-| 12 | Ativo com `dia > teto` (P5) | Andamento "Dia {X} · passou do fim ({T})"; resumo: **O encerramento atrasou; a regra tenta de novo no próximo cron.** (texto do Phil; Logan confere na revisão final.) |
-| 13 | Ativo com `v2` ilegível (P5) | Selo ⚠ **Não consegui ler**; resumo: **Não consegui ler a avaliação; este teste não encerra sozinho.** (texto do Phil; idem.) |
+| 12 | Ativo com `dia > teto` (P5) | Andamento "Dia {X} · passou do fim ({T})"; resumo: **O encerramento atrasou; o teste tenta encerrar de novo na próxima avaliação diária.** (Logan, portão final.) |
+| 13 | Ativo com `v2` ilegível (P5) | Selo ⚠ **Não consegui ler**; resumo: **Não consegui ler a avaliação; este teste não encerra sozinho.** / apoio **Para decidir agora, use Encerrar.** (Logan, portão final.) |
 | 14 | Voltar com janela vencida na aba (Y8) | `.etd-msg err` **O prazo de 7 dias para voltar acabou.** Sem chamar a action; botão seguro "Fechar". (texto do Yannis; idem.) |
 | 15 | Provisório com data vencida (P6) | Texto existente "Provisório: pode mudar nos próximos dias." |
 

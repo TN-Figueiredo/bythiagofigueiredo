@@ -6,6 +6,7 @@ import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import type { OpcaoDoDialogo } from './encerrar-props'
 import { TEXTO_SEM_LEITURA } from '@/lib/youtube/teste-youtube/nativo/frases'
+import { ICONE_ERRO } from './etd-icone-erro'
 import './ab-end-test-dialog.css'
 
 export interface AbConfirmarTrocaDialogProps {
@@ -21,6 +22,8 @@ export interface AbConfirmarTrocaDialogProps {
   enviando?: boolean
   /** Recusa da 2ª chamada: aparece no corpo, o diálogo continua aberto. */
   erro?: string
+  /** Botão seguro extra da recusa (ex.: "Recarregar"). */
+  acaoSegura?: { rotulo: string; onClick: () => void } | null
 }
 
 /** Leitura que falhou depois do pulado: valor vazio ou o texto fixo (T10). Nunca caixa em branco. */
@@ -74,7 +77,7 @@ export function CascaEtd({ titulo, children, rodape, onVoltar, voltarRef, ids, t
   )
 }
 
-export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, rotuloConfirmar, enviando, erro }: AbConfirmarTrocaDialogProps) {
+export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, rotuloConfirmar, enviando, erro, acaoSegura }: AbConfirmarTrocaDialogProps) {
   const voltarRef = useRef<HTMLButtonElement>(null)
 
   const titulo = campos.find(c => c.campo === 'title')
@@ -120,7 +123,12 @@ export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, r
       voltarRef={voltarRef}
       travado={enviando === true}
       ids={{ titulo: 'etd-c-t', lead: 'etd-c-d', nota: 'etd-c-n' }}
-      rodape={<button type="button" className="etd-btn over" disabled={enviando === true} onClick={onConfirmar}>{botao}</button>}
+      rodape={
+        <>
+          {acaoSegura ? <button type="button" className="etd-btn" onClick={acaoSegura.onClick}>{acaoSegura.rotulo}</button> : null}
+          <button type="button" className="etd-btn over" disabled={enviando === true} onClick={onConfirmar}>{botao}</button>
+        </>
+      }
     >
       <p className="etd-lead" id="etd-c-d">{lead}</p>
       <p className="etd-tiny" id="etd-c-n">{nota}</p>
@@ -128,7 +136,7 @@ export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, r
       {compTitulo}
       {ambos ? <h3 className="etd-sec">Thumbnail</h3> : null}
       {compThumb}
-      {erro ? <div className="etd-msg err" role="alert"><div>{erro}</div></div> : null}
+      {erro ? <div className="etd-msg err" role="alert">{ICONE_ERRO}<div>{erro}</div></div> : null}
     </CascaEtd>
   )
 }

@@ -3,6 +3,7 @@
 // Confirmação de Aplicar / Voltar à original no teste v2 concluído (S8-F4 T12, T7). Mesma casca `.etd` da troca "mesmo assim".
 import { useRef } from 'react'
 import { CascaEtd } from './ab-confirmar-troca-dialog'
+import { ICONE_ERRO } from './etd-icone-erro'
 import './ab-end-test-dialog.css'
 
 export interface AbConfirmarDialogProps {
@@ -38,7 +39,7 @@ export function AbConfirmarDialog({ titulo, lead, nota, rotuloConfirmar, enviand
     >
       <p className="etd-lead" id="etd-v-d">{lead}</p>
       <p className="etd-tiny" id="etd-v-n">{nota ?? ''}</p>
-      {erro ? <div className="etd-msg err" role="alert"><div>{erro}</div></div> : null}
+      {erro ? <div className="etd-msg err" role="alert">{ICONE_ERRO}<div>{erro}</div></div> : null}
     </CascaEtd>
   )
 }

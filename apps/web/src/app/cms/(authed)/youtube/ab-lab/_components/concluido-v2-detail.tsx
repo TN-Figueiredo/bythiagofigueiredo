@@ -28,7 +28,15 @@ export interface ConcluidoV2DetailProps {
 
 const MSG_RECARREGUE = 'O teste mudou desde que você abriu a página. Recarregue para ver o estado atual.'
 const MSG_PRAZO_VOLTAR = 'O prazo de 7 dias para voltar acabou.'
+const MSG_VOLTA_NAO_CONCLUIDA = 'Não consegui concluir a volta. Recarregue a página para ver o estado atual.'
 const MSG_SEM_RESPOSTA = 'Sem resposta. Recarregue a página para ver o resultado.'
+
+/** Texto do que muda no YouTube, conforme o que o teste varia (miniatura, título ou os dois). */
+function oQueMuda(flag: string, volta: boolean): string {
+  if (flag === 'combo') return volta ? 'A miniatura e o título voltam a ser os de A agora no YouTube.' : 'A miniatura e o título mudam agora.'
+  if (flag === 'title') return volta ? 'O título volta a ser o de A agora no YouTube.' : 'O título muda agora.'
+  return volta ? 'A miniatura volta a ser a de A agora no YouTube.' : 'A miniatura muda agora no YouTube.'
+}
 
 type Dialogo = null | 'aplicar' | 'voltar' | 'troca'
 
@@ -89,7 +97,7 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
         setDialogo('troca')
         return
       }
-      if (r.ok) { setErro({ texto: MSG_RECARREGUE, recarregar: true, prazo: false }); return }
+      if (r.ok) { setErro({ texto: tipo === 'voltar' ? MSG_VOLTA_NAO_CONCLUIDA : MSG_RECARREGUE, recarregar: true, prazo: false }); return }
       if (r.resultado === 'ja_encerrado') {
         setErro(r.error === MSG_OUTRO_TESTE ? { texto: r.error, recarregar: false, prazo: false } : { texto: MSG_RECARREGUE, recarregar: true, prazo: false })
         return
@@ -150,7 +158,7 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
       {dialogo === 'aplicar' && tela.aplicar ? (
         <AbConfirmarDialog
           titulo={`Aplicar ${tela.aplicar.letra} ao vídeo?`}
-          lead="A miniatura muda agora no YouTube."
+          lead={oQueMuda(view.flag, false)}
           nota={provisorio ? 'O desfecho ainda é provisório.' : null}
           rotuloConfirmar={`Aplicar ${tela.aplicar.letra}`}
           enviando={enviando}
@@ -163,7 +171,7 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
       {dialogo === 'voltar' ? (
         <AbConfirmarDialog
           titulo="Voltar à original (A)?"
-          lead="A miniatura volta a ser a de A agora no YouTube."
+          lead={oQueMuda(view.flag, true)}
           nota="O resultado do teste não muda e continua visível aqui."
           rotuloConfirmar="Sim, voltar à original"
           enviando={enviando}
@@ -180,6 +188,7 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
           rotuloConfirmar={`Aplicar ${tela.aplicar.letra} mesmo assim`}
           enviando={enviando}
           erro={erro?.texto}
+          acaoSegura={erro?.recarregar ? { rotulo: 'Recarregar', onClick: recarregar } : null}
           onVoltar={fechar}
           onConfirmar={() => { void executar('aplicar', true) }}
         />
