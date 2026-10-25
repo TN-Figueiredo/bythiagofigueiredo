@@ -167,7 +167,7 @@ describe('Q3 · a frase do Blob antes do clique (B2)', () => {
     for (const f of ['_canais/canais.css', '_chrome/kit.css']) {
       const css = fs.readFileSync(path.join(DIR, f), 'utf8')
       expect(css, f).toMatch(/\.modal \.fx-blob > \.fx-i\{color:var\(--muted\)\}/)
-      expect(css, f).toMatch(/\.fx-blob \.ri-ibtn\{[^}]*margin:-4px -4px -4px 1px/)
+      expect(css, f).toMatch(/\.fx-blob \.ri-ibtn\{[^}]*margin:-4px 1px -4px 1px/)
     }
   })
   it('depois da recusa por corrida o rádio volta a desligado com a frase do Q2, e "O que será apagado" sai', async () => {
@@ -224,4 +224,52 @@ describe('D6 · o CSS do diálogo', async () => {
       expect(css).toMatch(/@media \(max-width:460px\)\{[^}]*\.fx-remove \.acts \.btn\{[^}]*flex:1 1 100%/)
     })
   }
+})
+
+describe('ajustes Logan/Naksu 25/10', () => {
+  it('N1/N3: apagar não reserva o why-sizer nem a 5ª linha; falha de contagem desmonta o sizer', async () => {
+    const m = mount(); await act(async () => {})
+    fireEvent.click(m.radio('apagar'))
+    expect(m.q('.why-sizer')).toBeNull()
+    expect(m.container.querySelectorAll('.fx-sizer li')).toHaveLength(4)
+    const f = mount({ impact: async () => ({ ok: false }) }); await act(async () => {})
+    expect(f.container.querySelector('.fx-sizer')).toBeNull()
+  })
+  it('L3: depois da recusa por corrida, a lista ganha a 5ª linha e a faixa fica', async () => {
+    const impact = vi.fn<() => Promise<ImpactAnswer>>().mockResolvedValueOnce(resp({})).mockResolvedValue(resp({ meses: 2, de: '2026-09', ate: '2026-10' }))
+    const apagar = vi.fn(async () => ({ ok: false as const, codigo: 'apagar_com_arquivo', frase: 'x' }))
+    const m = mount({ impact, apagar }); await act(async () => {})
+    fireEvent.click(m.radio('apagar'))
+    fireEvent.change(m.q('.fld input')!, { target: { value: 'Viaje com Marina' } })
+    await act(async () => { fireEvent.click(m.btn('Apagar sem guardar')) })
+    await act(async () => {})
+    expect(impact).toHaveBeenCalledTimes(2)
+    expect(m.q('.fx-msg.fx-err')).not.toBeNull()
+    expect(m.rows()).toHaveLength(5)
+  })
+  it('L4: clicar o botão tracejado sem o nome foca o campo', async () => {
+    const m = mount(); await act(async () => {})
+    fireEvent.click(m.radio('apagar'))
+    fireEvent.click(m.btn('Apagar sem guardar'))
+    expect(document.activeElement).toBe(m.q('.fld input'))
+  })
+  it('L5: 0 versões não aparece', async () => {
+    const { TXT } = await import('@/app/cms/(authed)/youtube/competitors/_canais/remover-model')
+    expect(TXT.subVideos(0)).toBe('')
+    expect(TXT.subVideos(1)).toContain('1 versão')
+  })
+  it('item 0: Esc com o ⓘ aberto fecha o popover aberto do diálogo (e não o diálogo)', async () => {
+    const m = mount({ impact: async () => resp({ imagensBlob: 47 }) }); await act(async () => {})
+    fireEvent.click(m.radio('apagar'))
+    const pop = document.createElement('div'); const hide = vi.fn(); (pop as unknown as { hidePopover: () => void }).hidePopover = hide
+    m.q('.box')!.appendChild(pop)
+    const orig = Element.prototype.querySelector
+    vi.spyOn(Element.prototype, 'querySelector').mockImplementation(function (this: Element, s: string) { return s === ':popover-open' ? pop : orig.call(this, s) })
+    expect(m.q('.ri-ibtn')).not.toBeNull()
+    const p = m.q('.ri-pop')!
+    p.dispatchEvent(Object.assign(new Event('toggle'), { newState: 'open' }))
+    fireEvent.keyDown(m.q('.modal')!, { key: 'Escape' })
+    expect(hide).toHaveBeenCalled()
+    vi.restoreAllMocks()
+  })
 })

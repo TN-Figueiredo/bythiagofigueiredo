@@ -50,7 +50,7 @@ export const TXT = {
   erroApagarTitulo: 'Nada foi apagado.',
   compartilhadoProximo: 'Guardar no NAS também não é possível por este motivo. Nada mudou: o canal continua sendo coletado. Copie o pedido e leve ao agente.',
   toastApagadoTitulo: 'Apagado',
-  subVideos: (versoes: number) => `com ${plural(versoes, 'versão', 'versões')} de título, thumbnail e descrição`,
+  subVideos: (versoes: number) => (versoes === 0 ? '' : `com ${plural(versoes, 'versão', 'versões')} de título, thumbnail e descrição`),
   subDias: 'views diárias dos vídeos',
   subLeituras: 'feitas para vídeos deste canal, inclusive as da página de vídeo',
   subLeiturasExtra: ', mais as fotos e os alvos da página de vídeo',

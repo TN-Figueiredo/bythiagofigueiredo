@@ -17,9 +17,19 @@ export function RiInfo({ titulo, itens, rotuloBotao, aoMudar }: { titulo: string
     p.style.left = `${Math.max(12, Math.min(r.left, window.innerWidth - 12 - w))}px`
     p.style.top = `${r.bottom + 6}px`
   }
+  /** Depois de aberto: se não cabe abaixo do botão, abre para cima (nunca acima de 8px). */
+  function ajustaAltura() {
+    const b = botao.current
+    const p = pop.current
+    if (!b || !p) return
+    const r = b.getBoundingClientRect()
+    const h = p.getBoundingClientRect().height
+    if (r.bottom + 6 + h > window.innerHeight - 8) p.style.top = `${Math.max(8, r.top - 6 - h)}px`
+  }
   function alterna() {
     posiciona()
     pop.current?.togglePopover?.()
+    ajustaAltura()
   }
   function aoAlternar(ev: SyntheticEvent<HTMLDivElement>) {
     const novo = (ev.nativeEvent as Event & { newState?: string }).newState

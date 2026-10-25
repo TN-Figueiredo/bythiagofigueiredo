@@ -77,6 +77,8 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const infoAberto = useRef(false)
   /** O popover nativo fecha no Esc e dispara `toggle` ANTES do keydown chegar aqui: sem este carimbo o Esc do ⓘ fecharia o diálogo também. */
   const infoFechouEm = useRef(0)
+  /** O Esc deste diálogo já fechou o ⓘ à mão: o `toggle` que vem depois não pode armar a janela (um 2º Esc logo em seguida fecha o diálogo). */
+  const fechouPorEsc = useRef(false)
   const [nome, setNome] = useState('')
   const [erro, setErro] = useState<Erro | null>(null)
   const emVoo = useRef(false)
@@ -108,10 +110,22 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
     return () => clearTimeout(timer)
   }, [id])
 
+  /** Recontagem silenciosa (depois da corrida): só atualiza os números, sem mexer na fase nem na faixa do erro. */
+  const recontarEmSegundoPlano = () => {
+    const pedir = onImpactRef.current
+    if (!pedir) return
+    const tok = ++tokContagem.current
+    pedir(id).then(r => {
+      if (tok !== tokContagem.current || !vivo.current || !r.ok || !r.arquivo) return
+      setImpacto(r.impact); setSemGuardar(r.semGuardar); setArquivo(r.arquivo); setCapacidade(r.capacidade ?? 'nao-nao'); setDataDoComando(r.dataDoComando ?? null)
+    }).catch(() => { /* a lista segue como estava */ })
+  }
+
   useEffect(() => contar(), [contar])
   useEffect(() => { radioGuardar.current?.focus() }, [])
   useEffect(() => { vivo.current = true; return () => { vivo.current = false; if (timerAcao.current) clearTimeout(timerAcao.current); onBloqueioRef.current(false) } }, [])
 
+  const faixaErro = useRef<HTMLDivElement>(null)
   const apagarLiberado = opcaoApagar({ fase, semGuardar, arquivo, corrida })
   const nomeOk = nomeConfere(nome, name)
   const btn = botaoPrincipal({ caminho, fase, nomeOk })
@@ -122,7 +136,9 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   /** Depois de um erro/incerto: sem contagem em mãos, volta a `falha_contagem` (com "Contar de novo"), nunca a um `pronto` sem números. */
   const faseDepoisDoErro: Fase = impacto ? 'pronto' : 'falha_contagem'
   const sair = (f: Fase) => { setFase(f); onBloqueioRef.current(false) }
+  const campoNome = useRef<HTMLInputElement>(null)
   const enviar = async () => {
+    if (btn.desabilitado && caminho === 'apagar' && !nomeOk && fase === 'pronto' && !emVoo.current) { campoNome.current?.focus(); campoNome.current?.scrollIntoView?.({ block: 'nearest' }); return }
     if (emVoo.current || btn.desabilitado) return
     emVoo.current = true
     const tok = ++tokAcao.current
@@ -141,7 +157,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
       emVoo.current = false
       if (!r.ok) {
         // corrida: o arquivo nasceu entre a contagem e o clique. A opção de apagar se desliga com a frase do Q2 e Guardar é a saída
-        if (c === 'apagar' && r.codigo === 'apagar_com_arquivo') { setCorrida(true); setCaminho('guardar') }
+        if (c === 'apagar' && r.codigo === 'apagar_com_arquivo') { setCorrida(true); setCaminho('guardar'); recontarEmSegundoPlano() }
         setErro({ codigo: r.codigo, frase: r.frase, caminho: c }); sair('erro'); return
       }
       onBloqueioRef.current(false)
@@ -167,7 +183,15 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
     if (e.key === 'Escape') {
       // o ⓘ aberto fecha sozinho (Esc do popover); o diálogo fica. preventDefault: o ouvinte de Esc do document (canais-screen) roda
       // depois do React mesmo com stopPropagation (o Next hidrata no document), e é o defaultPrevented que o faz desistir
-      if (infoAberto.current || Date.now() - infoFechouEm.current < JANELA_ESC_INFO_MS) { infoFechouEm.current = 0; e.preventDefault(); e.stopPropagation(); return }
+      if (infoAberto.current || Date.now() - infoFechouEm.current < JANELA_ESC_INFO_MS) {
+        infoFechouEm.current = 0
+        // preventDefault cancela o fechamento nativo do popover no Chrome: fecha-se explicitamente o que estiver aberto
+        try {
+          const aberto = e.currentTarget.querySelector(':popover-open') as HTMLElement | null
+          if (aberto?.hidePopover) { fechouPorEsc.current = true; aberto.hidePopover() }
+        } catch { /* jsdom sem :popover-open */ }
+        e.preventDefault(); e.stopPropagation(); return
+      }
       // em envio, nada fecha (o resultado ainda vai chegar); no incerto, fechar também atualiza a lista
       if (enviando) { e.preventDefault(); e.stopPropagation(); return }
       e.preventDefault(); e.stopPropagation()
@@ -189,6 +213,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const arquivoLinha = linhaArquivo(arquivo)
   const blob = caminho === 'apagar' && arquivo ? fraseBlobDialogo(arquivo.imagensBlob, capacidade, dataDoComando) : null
   const lead = caminho === 'guardar' ? TXT.leadGuardar : TXT.leadApagar
+  useEffect(() => { if (erro && (fase === 'erro' || fase === 'incerto')) faixaErro.current?.scrollIntoView?.({ block: 'nearest' }) }, [erro, fase])
   const frase = erro ? fraseDoErro(erro.codigo, erro.frase, erro.caminho) : null
   const semSaidaGuardar = erro?.caminho === 'apagar' && erro.codigo === 'video_compartilhado' // a F1 também recusaria guardar (I6)
   const passageiroGuardar = erro?.caminho === 'guardar' && codigoPassageiro(erro.codigo)
@@ -214,7 +239,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
             <small>{TXT.apagarSub}</small>
             {/* D6: a frase mais longa do rádio desligado fica reservada, invisível, na mesma célula da frase real: o botão não pula quando a contagem chega */}
             <span className="why-box">
-              <span className="why why-sizer" aria-hidden="true"><PinIcon name="info" /><span>{SIZER_PORQUE}</span></span>
+              {caminho === 'guardar' ? <span className="why why-sizer" aria-hidden="true"><PinIcon name="info" /><span>{SIZER_PORQUE}</span></span> : null}
               {apagarLiberado.ativa || !apagarLiberado.porque ? null : <span className="why" id={ids.why}><PinIcon name="info" /><span>{apagarLiberado.porque}</span></span>}
             </span>
           </label>
@@ -230,12 +255,12 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
         <p className={'fx-never rm-lead' + (caminho === 'apagar' ? ' after' : '')} id={ids.lead} hidden={mostrarFalha}>{lead}</p>
         {/* o sizer é o estado mais alto (todas as linhas com a explicação mais longa), invisível e na mesma célula do que aparece */}
         <div className="fx-loss-box">
-          <div className="fx-sizer" aria-hidden="true">
+          {mostrarFalha ? null : <div className="fx-sizer" aria-hidden="true">
             <ul className="fx-lossz">
               {LINHAS.map(l => <li key={l.k}><b className="fx-wait">contando…</b><span>{l.varios}<span>{subDe(l.k, null) + TXT.subLeiturasExtra}</span></span></li>)}
-              <li><b className="fx-wait">contando…</b><span>meses já no arquivo<span>{SIZER_SUB_ARQUIVO}</span></span></li>
+              {caminho === 'guardar' ? <li><b className="fx-wait">contando…</b><span>meses já no arquivo<span>{SIZER_SUB_ARQUIVO}</span></span></li> : null}
             </ul>
-          </div>
+          </div>}
           {mostrarFalha ? null : <div className="fx-shown">
             <ul className="fx-loss" aria-busy={nums ? undefined : true}>
               {LINHAS.map(l => {
@@ -262,21 +287,21 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
             <div className="fx-msg fx-info fx-blob" role="note">
               <PinIcon name="info" />
               <div>
-                <div className="fx-blob-p">{blob.linha1Antes}<RiInfo titulo={BLOB_INFO.titulo} itens={BLOB_INFO.itens} rotuloBotao={BLOB_INFO.rotulo} aoMudar={a => { infoAberto.current = a; if (!a) infoFechouEm.current = Date.now() }} />{blob.linha1Depois}</div>
+                <div className="fx-blob-p">{blob.linha1Antes}<RiInfo titulo={BLOB_INFO.titulo} itens={BLOB_INFO.itens} rotuloBotao={BLOB_INFO.rotulo} aoMudar={a => { infoAberto.current = a; if (!a) { if (fechouPorEsc.current) fechouPorEsc.current = false; else infoFechouEm.current = Date.now() } }} />{blob.linha1Depois}</div>
                 <p>{blob.linha2}</p>
               </div>
             </div>
           ) : null}
           <div className="fld">
             <label htmlFor={ids.nm}>{TXT.nomeRotulo} <b>{name}</b></label>
-            <input id={ids.nm} value={nome} onChange={e => setNome(e.target.value)} autoComplete="off" spellCheck={false} disabled={enviando}
+            <input id={ids.nm} ref={campoNome} value={nome} onChange={e => setNome(e.target.value)} autoComplete="off" spellCheck={false} disabled={enviando}
               aria-describedby={ids.hint} />
             <span className={'hint' + (nomeOk ? ' good' : '')} id={ids.hint}>{nomeOk ? TXT.nomeOk : TXT.nomeDica}</span>
           </div>
         </>)}
 
         {frase && (comErro || incerto) ? (
-          <div className="fx-msg fx-err" role="alert">
+          <div className="fx-msg fx-err" role="alert" ref={faixaErro}>
             <PinIcon name="err" />
             <span>
               <b>{frase.titulo}</b> {frase.corpo}
