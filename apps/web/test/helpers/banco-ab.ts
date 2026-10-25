@@ -72,7 +72,7 @@ class Consulta implements PromiseLike<{ data: unknown; error: unknown; count?: n
   }
 }
 
-export interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; restoreSeq?: number; marcador?: string | null; config?: Fila; atualizadoHaMs?: number; diasNoAr?: number; ajustar?: (variantes: Fila[]) => void; ciclosFechados?: number
+export interface OpcoesBanco { /** regra_duracao do teste (padrão v1). */ regra?: 'v1' | 'v2'; testType?: 'thumbnail' | 'title' | 'combo'; restoreSeq?: number; marcador?: string | null; config?: Fila; atualizadoHaMs?: number; diasNoAr?: number; ajustar?: (variantes: Fila[]) => void; ciclosFechados?: number
   /** Rascunho/pausado etc. (padrão active). */ status?: string
   /** Sem ciclo aberto (rascunho). */ semCiclos?: boolean
   restoreStatus?: unknown
@@ -83,7 +83,7 @@ export interface OpcoesBanco { testType?: 'thumbnail' | 'title' | 'combo'; resto
 
 export function criarBanco(o: OpcoesBanco = {}) {
   const teste: Fila = {
-    id: 'teste-1', site_id: SITE, name: 'Teste do Lab', test_type: o.testType ?? 'thumbnail', status: o.status ?? 'active', restore_seq: o.restoreSeq ?? 0,
+    id: 'teste-1', site_id: SITE, name: 'Teste do Lab', test_type: o.testType ?? 'thumbnail', status: o.status ?? 'active', restore_seq: o.restoreSeq ?? 0, regra_duracao: o.regra ?? 'v1',
     restore_status: o.restoreStatus ?? null, original_title: 'Título A', original_thumbnail_url: BLOB('A'), last_applied_variant_id: o.marcador ?? null,
     youtube_video_id: 'video-interno', config: o.config ?? { rotation_pattern: 'abba' }, winner_variant_id: null, winner_applied_at: null,
     revert_expires_at: null, status_note: null, paused_at: null, completed_at: null, completed_reason: null, applied_by: null,

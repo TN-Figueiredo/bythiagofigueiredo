@@ -218,7 +218,7 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
     }
 
     case 'UPDATE_CONFIG':
-      return { ...state, config: { ...state.config, [action.key]: action.value } }
+      return { ...state, config: { ...state.config, [action.key]: action.value, ...(action.key === 'duration' ? { durationTouched: true } : {}) } }
 
     case 'SET_DRAFT_ID':
       return { ...state, draftTestId: action.id }
@@ -598,6 +598,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
         return (
           <StepConfig
             config={state.config}
+            variantCount={state.variants.length}
             onChange={(k, v) => editar({ type: 'UPDATE_CONFIG', key: k, value: v })}
           />
         )

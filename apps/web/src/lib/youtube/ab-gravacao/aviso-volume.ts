@@ -6,7 +6,7 @@ import { addDays, dayPt, ontemPt, type DiaPt } from '../coleta/day-pt'
 import { lerPaginado } from '../coleta/paginar'
 import type { ResultadoV2 } from '../ab-types'
 import {
-  ATRASO_ALCANCE, V_MAXIMO_V2, baseDoVideo, folgaPorVariante, tetoDoTesteV2, volumeMinimo,
+  ATRASO_ALCANCE, MSG_VARIANTES_V2, V_MAXIMO_V2, baseDoVideo, folgaPorVariante, tetoDoTesteV2, volumeMinimo,
 } from './decisao-v2'
 import { estadoDoAlcance } from './estado'
 import { diaComAlcanceValido, type Placar } from './placar'
@@ -37,7 +37,7 @@ export function montarAvisoDeVolume(i: {
   V: number; teto: number; p1: number; base_estimada: boolean; impressoesDia: number | null; usouUltimos7: boolean; hoje: DiaPt
 }): AvisoDeVolume {
   if (i.V < 2) return { estado: 'sem_variantes', texto: 'adicione as variantes para estimar o volume' }
-  if (i.V > V_MAXIMO_V2) return { estado: 'variantes_demais', texto: 'a regra nova aceita até 2 variantes além da original' }
+  if (i.V > V_MAXIMO_V2) return { estado: 'variantes_demais', texto: MSG_VARIANTES_V2 }
   if (i.impressoesDia === null || !(i.impressoesDia > 0)) return { estado: 'sem_medicao', texto: 'sem medição para estimar o volume' }
   const n = volumeMinimo(i.p1, i.V)
   const dias_previstos = Math.ceil((i.V * n) / i.impressoesDia)

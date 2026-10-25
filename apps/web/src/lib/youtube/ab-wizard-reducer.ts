@@ -124,7 +124,7 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
     }
 
     case 'UPDATE_CONFIG':
-      return { ...state, config: { ...state.config, [action.key]: action.value } }
+      return { ...state, config: { ...state.config, [action.key]: action.value, ...(action.key === 'duration' ? { durationTouched: true } : {}) } }
 
     case 'SET_DRAFT_ID':
       return { ...state, draftTestId: action.id }

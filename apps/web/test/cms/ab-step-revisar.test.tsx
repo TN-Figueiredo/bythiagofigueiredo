@@ -63,7 +63,7 @@ describe('StepRevisar', () => {
   })
 
   it('success banner shows one-liner summary with variant count, type, rotation, duration', () => {
-    renderRevisar({ type: 'combo', config: { rotation: 'abba', duration: 14, confidence: 95 } })
+    renderRevisar({ type: 'combo', config: { rotation: 'abba', duration: 14, confidence: 95, durationTouched: true } })
     // "3 variantes título + thumbnail · rotação ABBA · 14 dias"
     const summary = screen.getByText(/3 variantes título \+ thumbnail/)
     expect(summary.textContent).toContain('rotação ABBA')

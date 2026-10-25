@@ -25,6 +25,8 @@ export interface AbTestConfig {
   auto_apply_winner?: boolean
   rotation_pattern: 'abba' | 'round_robin' | 'random'
   stability_threshold: number
+  /** v2: true sse o usuário mexeu no teto; sem isso o início grava `tetoPadrao(V)` (S8-F4). */
+  teto_explicito?: boolean
 }
 
 export const AB_TEST_CONFIG_DEFAULTS: AbTestConfig = {

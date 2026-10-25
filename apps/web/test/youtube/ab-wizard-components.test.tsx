@@ -664,6 +664,7 @@ describe('WizardConfig adapter', () => {
       duration: 14,
       burnIn: 2,
       rotation: 'abba',
+      durationTouched: true,
     }
 
     it('converts confidence integer 95 to decimal 0.95', () => {
@@ -710,6 +711,7 @@ describe('WizardConfig adapter', () => {
       expect(result).toEqual({
         confidence_threshold: 0.95,
         max_duration_days: 14,
+        teto_explicito: true,
         burn_in_days: 2,
         rotation_pattern: 'abba',
         stability_threshold: 3,
@@ -718,7 +720,8 @@ describe('WizardConfig adapter', () => {
 
     it('round-trip: init from defaults then convert back has consistent values', () => {
       const wc = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
-      const result = wizardConfigToAbConfig(wc)
+      const result = wizardConfigToAbConfig({ ...wc, durationTouched: true })
+      expect(wizardConfigToAbConfig(wc)).not.toHaveProperty('max_duration_days') // sem toque o teto fica com o início
       expect(result.confidence_threshold).toBe(AB_SITE_SETTINGS_DEFAULTS.default_confidence)
       expect(result.max_duration_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_duration_days)
       expect(result).not.toHaveProperty('auto_apply_winner')
@@ -870,6 +873,7 @@ describe('StepConfig component', () => {
     duration: 14,
     burnIn: 1,
     rotation: 'abba' as const,
+    durationTouched: true,
   }
 
   function renderConfig(overrides?: Partial<WizardConfig>) {
@@ -891,19 +895,19 @@ describe('StepConfig component', () => {
 
     it('renders hint text for each config row', () => {
       renderConfig()
-      expect(screen.getByText(/Tempo máximo/)).toBeDefined()
+      expect(screen.getByText(/Padrão 15 dias, mínimo 12 dias/)).toBeDefined()
       expect(screen.getByText(/Período inicial/)).toBeDefined()
-      expect(screen.getByText(/Estratégia de alternância/)).toBeDefined()
+      expect(screen.getByText(/usa só a rotação ABBA/)).toBeDefined()
     })
   })
 
   /* --- Slider bounds --------------------------------------------- */
 
   describe('slider bounds', () => {
-    it('duration slider: min=7 max=28', () => {
+    it('duration slider: min=12 max=28', () => {
       renderConfig()
       const sliders = screen.getAllByRole('slider')
-      expect(sliders[0]!.getAttribute('min')).toBe('7')
+      expect(sliders[0]!.getAttribute('min')).toBe('12')
       expect(sliders[0]!.getAttribute('max')).toBe('28')
     })
 
@@ -935,19 +939,18 @@ describe('StepConfig component', () => {
   /* --- Rotation segmented control -------------------------------- */
 
   describe('rotation segmented control', () => {
-    it('shows 3 Portuguese options in radiogroup', () => {
+    it('rotação travada em ABBA: uma opção no radiogroup', () => {
       renderConfig()
       const radiogroup = screen.getByRole('radiogroup', { name: 'Padrão de rotação' })
       expect(radiogroup).toBeDefined()
       const radios = radiogroup.querySelectorAll('[role="radio"]')
-      expect(radios).toHaveLength(3)
+      expect(radios).toHaveLength(1)
     })
 
-    it('shows ABBA, Sequencial, Aleatório labels', () => {
+    it('mostra só ABBA', () => {
       renderConfig()
       expect(screen.getByText('ABBA')).toBeDefined()
-      expect(screen.getByText('Sequencial')).toBeDefined()
-      expect(screen.getByText('Aleatório')).toBeDefined()
+      expect(screen.queryByText('Sequencial')).toBeNull()
     })
   })
 

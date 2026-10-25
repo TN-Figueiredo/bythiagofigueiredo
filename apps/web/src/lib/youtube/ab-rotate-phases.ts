@@ -86,6 +86,15 @@ async function adiarInicioDaFila(supabase: SupabaseClient, queued: TesteDaFila, 
  * Recusa pela guarda do teste do YouTube (F1a-dado): adia para amanhã SEM gastar tentativa (`queue_start_failures` fica),
  * senão uma espera de 14 dias mataria o teste da fila em 7. O aviso sai uma vez por par (teste, registro nativo).
  */
+/** Recusa da regra v2 (variantes, rotação, teto curto): o teste já está em rascunho; não gasta tentativa nem volta à fila. */
+async function recusarDefinitivo(queued: TesteDaFila, motivo: string): Promise<void> {
+  await avisarFila(queued, {
+    title: 'A/B: o teste não pôde começar',
+    message: `O teste "${queued.name ?? ''}" não pôde começar: ${motivo}. Ele continua como rascunho: abra o teste para corrigir e iniciar.`,
+    dedupKey: `ab-queue-recusa:${queued.id}`,
+  })
+}
+
 async function adiarSemContar(supabase: SupabaseClient, queued: TesteDaFila, motivo: string, nativeTestId: string | undefined): Promise<void> {
   const lido = queued.queue_start_after ? Date.parse(queued.queue_start_after) : Number.NaN
   const base = Math.max(Number.isNaN(lido) ? 0 : lido, Date.now())
@@ -156,6 +165,8 @@ export async function phaseProcessQueue(supabase: SupabaseClient): Promise<numbe
       const result = await startAbTestInternal(queued.id, queued.site_id, { pontoDaGuarda: 'fila' })
       if (result?.ok) {
         started++
+      } else if (result?.recusa) {
+        await recusarDefinitivo(queued, result.error ?? 'a regra do teste não aceita este início')
       } else if (result?.codigo) {
         await adiarSemContar(supabase, queued, result.error ?? 'teste do YouTube em andamento', result.nativeTestId)
       } else {

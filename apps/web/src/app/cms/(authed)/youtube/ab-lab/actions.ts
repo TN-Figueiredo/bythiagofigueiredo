@@ -1,5 +1,9 @@
 'use server'
 
+import { avisoDeVolume } from '@/lib/youtube/ab-gravacao/aviso-volume'
+import type { AvisoDeVolume } from '@/lib/youtube/ab-gravacao/aviso-volume'
+import { MSG_VARIANTES_V2, V_MAXIMO_V2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { regraDoTeste } from '@/lib/youtube/ab-gravacao/placar'
 import { isCertainShort } from '@/lib/youtube/short-classifier'
 import * as Sentry from '@sentry/nextjs'
 import { revalidatePath, revalidateTag } from 'next/cache'
@@ -187,9 +191,12 @@ export async function createAbTest(
   }
   // `referencia` do cliente dentro de `config` nunca entra: só a validada acima.
   const { referencia: _referenciaDoCliente, ...configDoCliente } = (input.config ?? {}) as Record<string, unknown>
+  // S8-F4: teto_explicito só vale se o usuário mexeu no teto (flag + valor); sem isso o início grava tetoPadrao(V).
+  const tetoMexido = configDoCliente.teto_explicito === true && typeof configDoCliente.max_duration_days === 'number'
   const config = {
     ...AB_TEST_CONFIG_DEFAULTS,
     ...configDoCliente,
+    teto_explicito: tetoMexido,
     ...(referencia ? { referencia } : {}),
   }
 
@@ -262,6 +269,7 @@ export async function createAbTest(
       youtube_video_id: input.youtube_video_id,
       name: input.name,
       status: 'draft',
+      regra_duracao: 'v2',
       config,
       original_thumbnail_url: immutableOriginalUrl,
       test_type: testType,
@@ -361,7 +369,7 @@ export async function uploadVariant(
   // Load test and assert draft status + site scope
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, status')
+    .select('id, status, regra_duracao')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -392,6 +400,9 @@ export async function uploadVariant(
 
   if (countError) return { ok: false, error: countError.message }
 
+  if (regraDoTeste(test) === 'v2' && (existingVariants?.length ?? 0) >= V_MAXIMO_V2 - 1) {
+    return { ok: false, error: MSG_VARIANTES_V2 }
+  }
   if ((existingVariants?.length ?? 0) >= 3) {
     return { ok: false, error: 'Maximum of 3 non-original variants allowed' }
   }
@@ -591,7 +602,7 @@ export async function pullPipelineThumbnails(
   // Load test (scoped to site)
   const { data: test, error: testError } = await supabase
     .from('ab_tests')
-    .select('id, status')
+    .select('id, status, regra_duracao')
     .eq('id', testId)
     .eq('site_id', siteId)
     .single()
@@ -627,7 +638,9 @@ export async function pullPipelineThumbnails(
 
   const existingCount = existingVariants?.length ?? 0
   const usedLabels = new Set((existingVariants ?? []).map(v => v.label))
-  const maxToAdd = 3 - existingCount
+  const v2 = regraDoTeste(test) === 'v2'
+  if (v2 && existingCount >= V_MAXIMO_V2 - 1) return { ok: false, error: MSG_VARIANTES_V2 }
+  const maxToAdd = (v2 ? V_MAXIMO_V2 - 1 : 3) - existingCount
 
   if (maxToAdd <= 0) {
     return { ok: false, error: 'Maximum of 3 non-original variants already reached' }
@@ -914,7 +927,7 @@ export async function createTextVariant(
 
   const { data: test } = await supabase
     .from('ab_tests')
-    .select('id, site_id, status, test_type')
+    .select('id, site_id, status, test_type, regra_duracao')
     .eq('id', input.test_id)
     .eq('site_id', siteId)
     .single()
@@ -933,6 +946,7 @@ export async function createTextVariant(
     .select('id', { count: 'exact', head: true })
     .eq('test_id', input.test_id)
 
+  if (regraDoTeste(test) === 'v2' && (count ?? 0) >= V_MAXIMO_V2) return { ok: false, error: MSG_VARIANTES_V2 }
   if ((count ?? 0) >= 4) return { ok: false, error: 'Maximum 4 variants per test' }
 
   const sortOrder = (count ?? 0)
@@ -1455,8 +1469,9 @@ export async function batchStartTests(
         name: `Batch: ${video.title?.slice(0, 40)}`,
         status: 'draft',
         test_type: 'thumbnail',
+        regra_duracao: 'v2',
         original_thumbnail_url: batchImmutableUrl,
-        config: {},
+        config: { teto_explicito: false },
       })
       .select('id')
       .single()
@@ -1478,4 +1493,21 @@ export async function batchStartTests(
 
   revalidatePath('/cms/youtube/ab-lab')
   return { ok: true, created }
+}
+
+// ---------------------------------------------------------------------------
+// avisoDeVolumeDoTeste — o aviso nunca bloqueia o início (C-17)
+// ---------------------------------------------------------------------------
+
+export async function avisoDeVolumeDoTeste(
+  testId: string,
+): Promise<{ ok: true; aviso: AvisoDeVolume } | { ok: false; error: string }> {
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+  const r = await avisoDeVolume(getSupabaseServiceClient(), siteId, testId, new Date())
+  return r.ok ? { ok: true, aviso: r.aviso } : { ok: false, error: r.erro }
 }

@@ -3,6 +3,7 @@
 import { AlertTriangle, CheckCircle, CircleHelp } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
+import { tetoPadrao } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { Badge, VChip } from './ab-primitives'
 import { NOTA_ATIVAR, tituloDoBanner, type AvisoOriginal, type EstadoAviso } from '@/lib/youtube/ab-original-resolucao'
 import { VARIANT_COLORS, TYPE_META, ROTULO_TIPO_DESCONHECIDO_CURTO } from './ab-constants'
@@ -53,7 +54,7 @@ function buildSummaryText(
   const parts: string[] = [
     `${variants.length} variantes ${TYPE_LABELS_PT[type as TestType] ?? ROTULO_TIPO_DESCONHECIDO_CURTO}`,
     `rotação ${ROTATION_LABELS[config.rotation]}`,
-    `${config.duration} dias`,
+    `${config.durationTouched ? config.duration : tetoPadrao(variants.length)} dias`,
   ]
   return parts.join(' · ')
 }

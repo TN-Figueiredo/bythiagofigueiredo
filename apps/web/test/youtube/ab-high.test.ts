@@ -628,6 +628,7 @@ describe('wizardReducer — all action types', () => {
 
 describe('wizardConfigToAbConfig — full coverage', () => {
   const baseConfig: WizardConfig = {
+    durationTouched: true,
     confidence: 95,
     duration: 14,
     burnIn: 2,
@@ -712,7 +713,7 @@ describe('initWizardConfig — from site settings', () => {
 
   it('roundtrip: initWizardConfig -> wizardConfigToAbConfig preserves values', () => {
     const cfg = initWizardConfig(AB_SITE_SETTINGS_DEFAULTS)
-    const abConfig = wizardConfigToAbConfig(cfg)
+    const abConfig = wizardConfigToAbConfig({ ...cfg, durationTouched: true })
     expect(abConfig.confidence_threshold).toBe(AB_SITE_SETTINGS_DEFAULTS.default_confidence)
     expect(abConfig.max_duration_days).toBe(AB_SITE_SETTINGS_DEFAULTS.default_duration_days)
     expect(abConfig).not.toHaveProperty('auto_apply_winner')

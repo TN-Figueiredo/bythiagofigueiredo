@@ -11,6 +11,7 @@ export type { DesfechoV2 }
 
 export const ATRASO_ALCANCE = 3
 export const V_MAXIMO_V2 = 3 // 4 variantes: recusar (padrão do plano); suportar = 4
+export const MSG_VARIANTES_V2 = 'a regra nova aceita até 2 variantes além da original'
 export const pisoDeDias = (V: number): number => 4 * V // 8 com 2, 12 com 3
 export const tetoMinimo = (V: number): number => pisoDeDias(V) + 1 + ATRASO_ALCANCE
 export const tetoPadrao = (V: number): number => Math.max(15, tetoMinimo(V) + 1) // ◆folga, dono 24/10: 15/17

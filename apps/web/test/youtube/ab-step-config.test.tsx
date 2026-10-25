@@ -22,6 +22,7 @@ const defaultConfig: WizardConfig = {
   duration: 14,
   burnIn: 1,
   rotation: 'abba' as const,
+  durationTouched: true,
 }
 
 function renderConfig(overrides?: Partial<WizardConfig>) {
@@ -77,11 +78,11 @@ describe('StepConfig', () => {
     expect(container.textContent).not.toMatch(/estabilidade/i)
   })
 
-  it('duration slider has min=7 max=28', () => {
+  it('duration slider has min=12 (tetoMinimo de 2 variantes) max=28', () => {
     renderConfig()
     const sliders = screen.getAllByRole('slider')
     const durationSlider = sliders[0]!
-    expect(durationSlider.getAttribute('min')).toBe('7')
+    expect(durationSlider.getAttribute('min')).toBe('12')
     expect(durationSlider.getAttribute('max')).toBe('28')
   })
 
@@ -93,15 +94,20 @@ describe('StepConfig', () => {
     expect(burnInSlider.getAttribute('max')).toBe('3')
   })
 
-  it('rotation segmented control shows 3 Portuguese options', () => {
+  it('rotação travada em ABBA (regra v2): uma só opção', () => {
     renderConfig()
-    const radiogroup = screen.getByRole('radiogroup', { name: 'Padrão de rotação' })
-    expect(radiogroup).toBeDefined()
-    const radios = radiogroup.querySelectorAll('[role="radio"]')
-    expect(radios).toHaveLength(3)
+    const radios = screen.getByRole('radiogroup', { name: 'Padrão de rotação' }).querySelectorAll('[role="radio"]')
+    expect(radios).toHaveLength(1)
     expect(screen.getByText('ABBA')).toBeDefined()
-    expect(screen.getByText('Sequencial')).toBeDefined()
-    expect(screen.getByText('Aleatório')).toBeDefined()
+    expect(screen.queryByText('Sequencial')).toBeNull()
+  })
+
+  it('sem toque e 3 variantes: mostra o padrão 17 e o mínimo 16 no slider', () => {
+    const { container } = render(<StepConfig config={{ ...defaultConfig, durationTouched: false }} variantCount={3} onChange={vi.fn()} />)
+    const slider = screen.getAllByRole('slider')[0]!
+    expect(slider.getAttribute('min')).toBe('16')
+    expect(container.textContent).toContain('Padrão 17 dias, mínimo 16 dias')
+    expect(container.textContent).toContain('~17 dias')
   })
 
   it('não renderiza nenhum toggle (os de aplicar vencedor e playoff saíram)', () => {

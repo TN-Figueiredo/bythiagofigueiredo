@@ -57,6 +57,7 @@ export const AbTestConfigSchema = z.object({
   auto_apply_winner: z.boolean().optional(),
   rotation_pattern: z.enum(['abba', 'round_robin', 'random']),
   stability_threshold: z.number().int().min(1).max(10),
+  teto_explicito: z.boolean().optional(),
 })
 
 export const AbTestSiteSettingsSchema = z.object({

@@ -47,6 +47,16 @@ describe('phaseProcessQueue', () => {
     expect(fanOut.mock.calls[0]![0]).toMatchObject({ type: 'youtube.ab_queue_start_failed', siteId: 'site-1' })
     expect(fanOut.mock.calls[0]![0].message).toContain('YouTube token expired')
   })
+  it('S8-F4 T11: recusa da regra v2 é definitiva: fica rascunho, sem contador de tentativas, um aviso próprio', async () => {
+    const banco = fila()
+    iniciar.mockResolvedValue({ ok: false, error: 'a regra nova aceita até 2 variantes além da original', recusa: 'regra_v2' })
+    expect(await phaseProcessQueue(banco.supabase)).toBe(0)
+    expect(banco.teste()).toMatchObject({ status: 'draft' })
+    expect(banco.teste().config).not.toHaveProperty('queue_start_failures')
+    expect(fanOut).toHaveBeenCalledTimes(1)
+    expect(fanOut.mock.calls[0]![0].message).toContain('a regra nova aceita até 2 variantes')
+    expect(fanOut.mock.calls[0]![0].message).toContain('rascunho')
+  })
   it('fila (Y-D5): no dia seguinte (relógio falso) o teste é pego de novo e inicia', async () => {
     const banco = fila()
     iniciar.mockResolvedValueOnce({ ok: false, error: 'x' })
