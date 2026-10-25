@@ -61,6 +61,12 @@ describe('projetarTeste v2', () => {
     expect(typeof (out.result_metadata.v2.relogio as { idade_horas: number }).idade_horas).toBe('number')
     expect(out.result_metadata.ctr_lift_percent).toBe(25)
   })
+  it('provisorio_ate: só com provisorio=true e encerrado_em_dia; senão null (T12 T1)', () => {
+    const ate = (v2: unknown) => (projetarTeste(linhaV2(v2), AGORA, null) as { result_metadata: { v2: { provisorio_ate: string | null } } }).result_metadata.v2.provisorio_ate
+    expect(ate(v2Calculado(0.25, { provisorio: false, encerrado_em_dia: '2026-10-24' }))).toBeNull()
+    expect(ate(v2Calculado(0.25, { provisorio: true }))).toBeNull()
+    expect(ate(v2Calculado(0.25, { provisorio: true, encerrado_em_dia: '2026-10-24' }))).toBe('2026-11-04')
+  })
   it('teste pausado => estado pausado, sem idade de avaliação', () => {
     const out = projetarTeste(linhaV2(v2Calculado(0.25), { status: 'paused', paused_at: '2026-10-23T00:00:00Z', completed_at: null }), AGORA, null) as { result_metadata: { v2: { relogio: { estado: string; idade_horas: number | null } } } }
     expect(out.result_metadata.v2.relogio).toMatchObject({ estado: 'pausado', idade_horas: null })

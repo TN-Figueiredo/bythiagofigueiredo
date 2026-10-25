@@ -369,3 +369,11 @@ export function desfechoProvisorio(i: { dias: readonly DiaDaDecisao[]; encerrado
 export function encerradoEmDia(completedAt: string): DiaPt {
   return addDays(dayPt(new Date(completedAt)), -1)
 }
+
+/**
+ * Último dia em que o desfecho provisório ainda pode mudar: `encerrado_em_dia + 11`. Conta do Phil: o cron de enc+11
+ * fecha o último dia no caso normal; o reserva (`> 12`, grava em enc+13) não muda a data mostrada.
+ */
+export function provisorioAte(enc: DiaPt): DiaPt {
+  return addDays(enc, 11)
+}
