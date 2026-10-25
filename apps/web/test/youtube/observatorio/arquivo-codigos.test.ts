@@ -26,7 +26,7 @@ describe('A5 E10 T5: codigos', () => {
 
   it('M3b-apagar-sql: apagar_com_arquivo (P0001, sem prefixo E10) tem código e frase próprios; vizinhos não casam', () => {
     expect(codigoE10({ message: 'apagar_com_arquivo', code: 'P0001' })).toBe('apagar_com_arquivo')
-    expect(FRASES_E10.apagar_com_arquivo).toBe('Este canal tem meses no arquivo e não pode ser apagado sem guardar.')
+    expect(FRASES_E10.apagar_com_arquivo).toBe('Este canal tem meses no arquivo. Para não perder esse histórico, use Guardar no NAS.')
     expect(codigoE10({ message: 'apagar_com_arquivo_x', code: 'P0001' })).toBe('inesperado')
     expect(codigoE10({ message: 'x apagar_com_arquivo', code: 'P0001' })).toBe('inesperado')
   })

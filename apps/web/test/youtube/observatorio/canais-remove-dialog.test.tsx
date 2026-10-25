@@ -380,7 +380,7 @@ describe('RemoveDialog · rodada 3 do Gio', () => {
   it('I1: contando, a opção de apagar fica desligada sem a frase de falha', () => {
     const d = deferred<ImpactAnswer>()
     const r = render(<RemoveDialog {...props({ impact: () => d.p })} />)
-    expect(r.container.querySelector('.why')).toBeNull()
+    expect(r.container.querySelector('.why:not(.why-sizer)')).toBeNull() // T12: a frase reservada (.why-sizer) existe, invisível, desde o início
     expect((r.container.querySelector('input[value="apagar"]') as HTMLInputElement).disabled).toBe(true)
   })
 })

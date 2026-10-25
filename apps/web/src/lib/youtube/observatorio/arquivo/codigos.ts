@@ -68,7 +68,7 @@ export const FRASES_E10: Record<CodigoE10, string> = {
   nome_nao_confere: 'O nome digitado não é o nome do canal. Nada foi apagado.',
   video_compartilhado: 'Um vídeo deste canal também é acompanhado por outro canal ou por um teste nosso. Nada foi apagado.',
   saiu_do_youtube: 'Este canal saiu do YouTube: responda na aba Saíram do YouTube.',
-  apagar_com_arquivo: 'Este canal tem meses no arquivo e não pode ser apagado sem guardar.',   // provisória: a frase final vem do mockup da T12
+  apagar_com_arquivo: 'Este canal tem meses no arquivo. Para não perder esse histórico, use Guardar no NAS.',   // a frase do Q2 do mockup da T12 (D2), sem números: aqui só chega na corrida
   sem_vaga: 'Não há vaga para este canal voltar. Remova outro canal antes de desfazer.',
   inesperado: 'Algo inesperado aconteceu e nada foi apagado. A causa foi registrada; tente de novo mais tarde.',
 }

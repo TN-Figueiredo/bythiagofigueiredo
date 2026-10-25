@@ -5,6 +5,8 @@ import { parseRemovalImpact, semGuardarDe } from '@/lib/youtube/competitor-remov
 import { RULES } from '@/lib/youtube/observatorio/rules'
 
 const OK = { status: 'ok', name: 'Canal Um', videos: 50, pinned: 2, versions: 180, daily_days: 12, bookmarks: 3, videos_leitura_mensal: 4, videos_no_arquivo: 1 }
+const ARQ = { status: 'ok', meses: 2, de: '2026-09', ate: '2026-10', registros: 40, fora_do_banco: { meses: 0, de: null, ate: null }, videos_retirados: { n: 0, de: null, ate: null }, imagens_blob: 47 }
+const ARQUIVO = { meses: 2, de: '2026-09', ate: '2026-10', foraDoBanco: { meses: 0, de: null, ate: null }, videosRetirados: { n: 0, de: null, ate: null }, imagensBlob: 47 }
 const CH = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 
 describe('parseRemovalImpact', () => {
@@ -51,10 +53,11 @@ interface Cenario {
 async function load(o: Cenario = {}) {
   vi.resetModules()
   const order: string[] = [], rpcCalls: Array<[string, unknown]> = [], eqs: Array<[string, unknown]> = [], selects: string[] = []
+  vi.doMock('server-only', () => ({}))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => { order.push('guard'); return o.allowed === false ? { ok: false, reason: 'forbidden' } : { ok: true, user: { id: 'u1' } } } }))
   vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
-  const rpcs = { competitor_channel_removal_impact: { data: OK, error: null }, competitor_channel_removal_extra: { data: EXTRA_OK, error: null }, ...(o.rpc ?? {}) }
+  const rpcs = { competitor_channel_removal_impact: { data: OK, error: null }, competitor_channel_removal_extra: { data: EXTRA_OK, error: null }, obs_archive_channel_archive_impact: { data: ARQ, error: null }, ...(o.rpc ?? {}) }
   const from = (tabela: string) => {
     const q = {
       select: (cols: string) => { selects.push(tabela + ':' + cols); return q },
@@ -136,9 +139,34 @@ describe('getCompetitorRemovalImpactAction', () => {
   })
   it('chama a função com o site do contexto e o canal pedido', async () => {
     const a = await load()
-    expect(await a.act(CH)).toEqual({ ok: true, impact: IMPACTO, semGuardar: { pode: true } })
+    expect(await a.act(CH)).toEqual({ ok: true, impact: IMPACTO, semGuardar: { pode: true }, arquivo: ARQUIVO, capacidade: 'nao-nao', dataDoComando: null })
     expect(a.rpcCalls).toContainEqual(['competitor_channel_removal_impact', { p_site_id: 's1', p_channel_id: CH }])
-    expect(a.order).toEqual(['guard', 'db'])
+    expect(a.order[0]).toBe('guard')
+    expect(a.order.slice(1).every(x => x === 'db')).toBe(true)
+  })
+  it('T12: lê o arquivo e as imagens do Blob na mesma ação, com o site do contexto', async () => {
+    const a = await load()
+    await a.act(CH)
+    expect(a.rpcCalls).toContainEqual(['obs_archive_channel_archive_impact', { p_site: 's1', p_channel: CH }])
+  })
+  it('T12: a leitura do arquivo falha, vem fora da forma ou o canal some: ok false (falha_contagem), nunca zero', async () => {
+    for (const rpc of [
+      { obs_archive_channel_archive_impact: { data: null, error: { message: 'timeout' } } },
+      { obs_archive_channel_archive_impact: { data: { status: 'ok' }, error: null } },
+      { obs_archive_channel_archive_impact: { data: { status: 'nao_encontrado' }, error: null } },
+    ]) expect(await (await load({ rpc })).act(CH)).toEqual({ ok: false })
+  })
+  it('T12: a capacidade vem do servidor; sem a variável ou com valor que não seja "on", "ainda não tem data" (o item 163)', async () => {
+    const antes = { ...process.env }
+    try {
+      delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL; delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL_DATA
+      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'nao-nao', dataDoComando: null })
+      process.env.OBS_ARQUIVO_LIMPEZA_CANAL = 'on'; process.env.OBS_ARQUIVO_LIMPEZA_CANAL_DATA = '2026-12-05'
+      // o bloco "Canais removidos" ainda não está em produção (BLOCO_CANAIS_REMOVIDOS = false): comando sim, bloco não vira "não, não"
+      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'nao-nao', dataDoComando: '2026-12-05' })
+      process.env.OBS_ARQUIVO_LIMPEZA_CANAL = 'ON'
+      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'nao-nao' })
+    } finally { process.env = antes }
   })
   it('id que não é uuid é recusado sem tocar no banco', async () => {
     const a = await load()
