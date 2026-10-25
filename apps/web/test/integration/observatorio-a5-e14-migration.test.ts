@@ -686,6 +686,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
     expect(await prova(site)).toMatchObject({ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 }, retratos_perdidos_novos: 0, perdidos_novos_por_motivo: {} })
     await novoVideo(canal.id, { pubMs: NOW - 72 * H - 47 * H })   // marco 1 fechou há 47 h, sem retrato
     expect(await prova(site)).toMatchObject({ retratos_perdidos_7d: 2, perdidos_por_motivo: { sem_retrato: 2 }, retratos_perdidos_novos: 1, perdidos_novos_por_motivo: { sem_retrato: 1 } })
+    // lerProva (o caminho de produção) tem de entregar cada campo no seu lugar, com os dois mapas diferentes
+    expect(await lerProva(sb, { siteId: site, nowIso: iso(NOW), since: null })).toEqual({ ok: true, prova: await prova(site) })
   })
 
   it('prova: site sem nada devolve zeros enquanto outro site tem dados (filtro por site)', async () => {

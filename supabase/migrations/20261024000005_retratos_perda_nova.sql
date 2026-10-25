@@ -5,6 +5,25 @@
 -- md5(prosrc) antes: 2abceb69c00820f7596b6c88d4478b1f
 -- md5(prosrc) depois: 25eeaa23497f27a74730bbba344aa687
 
+-- Guarda (Phil I2 / Yannis Y3): so recria se o corpo instalado e o conhecido (antes) ou o desta propria migration (reaplicacao).
+-- Se outra migration/trilha mexeu na funcao, recusa em vez de sobrescrever em silencio.
+do $guarda$
+declare
+  n integer;
+  h text;
+begin
+  select count(*), min(md5(p.prosrc)) into n, h
+    from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+   where ns.nspname = 'public' and p.proname = 'competitor_comment_health';
+  if n <> 1 then
+    raise exception 'retratos_perda_nova: esperava 1 funcao public.competitor_comment_health, achei %', n;
+  end if;
+  if h not in ('2abceb69c00820f7596b6c88d4478b1f', '25eeaa23497f27a74730bbba344aa687') then
+    raise exception 'retratos_perda_nova: corpo instalado de competitor_comment_health tem md5 % (esperado 2abceb69... ou 25eeaa23...); outra migration mexeu nela. Reescreva a partir do corpo instalado antes de aplicar.', h;
+  end if;
+end
+$guarda$;
+
 CREATE OR REPLACE FUNCTION public.competitor_comment_health(p_site_id uuid, p_now timestamp with time zone, p_marks jsonb, p_identity_days integer, p_grace interval, p_since timestamp with time zone DEFAULT NULL::timestamp with time zone)
  RETURNS jsonb
  LANGUAGE sql

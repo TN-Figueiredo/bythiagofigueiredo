@@ -6,6 +6,7 @@
 // o que sai daqui para fora é código de catálogo e número. O erro do banco (que pode citar a linha recusada) nunca é repassado.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { COMMENT_RULES, MOTIVOS, MOTIVOS_PASSAGEIROS, ruleParams } from './regras'
+import { CHAVES_CONTAGEM } from './prova'
 import { ComentariosErro, codigoDe } from './erro'
 import { semMencoes } from './leitor-mencao'
 import type { AgregadosDoLote, Conversa, Devido, Escolhido, EstadoRetrato, Marco, Motivo, ProvaComentarios, RespostaVista } from './tipos'
@@ -80,13 +81,6 @@ const ehContagem = (x: unknown): x is number => typeof x === 'number' && Number.
 
 // ───── a prova (e a guarda de schema) ─────
 
-const CHAVES_NUMERICAS_PROVA = [
-  'identidade_vencida', 'identidade_prazo_errado', 'identidade_de_criador', 'respostas_de_terceiros', 'retratos_atrasados',
-  'retratos_em_erro', 'retratos_na_janela', 'retratos_perdidos_7d', 'retratos_perdidos_novos', 'retratos_total', 'retratos_ok', 'comentarios_total',
-  'identidades_total', 'comentarios_ausentes_sem_decisao',
-] as const
-const CHAVES_MAPA_PROVA = ['erros_por_motivo', 'perdidos_por_motivo', 'perdidos_novos_por_motivo'] as const
-
 function mapaDeInteiros(x: unknown): Record<string, number> | null {
   if (!ehObj(x)) return null
   const saida: Record<string, number> = {}
@@ -100,7 +94,7 @@ function mapaDeInteiros(x: unknown): Record<string, number> | null {
 function provaDe(x: unknown): ProvaComentarios | null {
   if (!ehObj(x)) return null
   const n: Record<string, number> = {}
-  for (const k of CHAVES_NUMERICAS_PROVA) {
+  for (const k of CHAVES_CONTAGEM) {
     const v = x[k]
     if (!ehContagem(v)) return null
     n[k] = v
@@ -112,7 +106,7 @@ function provaDe(x: unknown): ProvaComentarios | null {
   if (erros === null || perdidos === null || perdidosNovos === null) return null
   if ((primeira !== null && typeof primeira !== 'string') || (ultima !== null && typeof ultima !== 'string')) return null
   // Já validadas acima: todas as chaves de `n` são inteiros >= 0.
-  const g = (k: typeof CHAVES_NUMERICAS_PROVA[number]): number => n[k] as number
+  const g = (k: typeof CHAVES_CONTAGEM[number]): number => n[k] as number
   return {
     identidade_vencida: g('identidade_vencida'), identidade_prazo_errado: g('identidade_prazo_errado'),
     identidade_de_criador: g('identidade_de_criador'), respostas_de_terceiros: g('respostas_de_terceiros'),

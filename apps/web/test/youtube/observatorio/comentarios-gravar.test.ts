@@ -76,11 +76,19 @@ describe('lerProva', () => {
   it('erro de rede, exceção, resposta nula, chave faltando, chave "3" em texto, mapa que é lista → prova_ilegivel', async () => {
     const semChave = { ...PROVA } as Record<string, unknown>
     delete semChave.retratos_atrasados
+    const semNova = { ...PROVA } as Record<string, unknown>
+    delete semNova.retratos_perdidos_novos
+    const semMapaNovo = { ...PROVA } as Record<string, unknown>
+    delete semMapaNovo.perdidos_novos_por_motivo
     const casos: Resolvedor[] = [
       () => falha('', 'fetch failed'),
       () => { throw new Error('boom') },
       () => ok(null),
       () => ok(semChave),
+      () => ok(semNova),
+      () => ok(semMapaNovo),
+      () => ok({ ...PROVA, perdidos_novos_por_motivo: [] }),
+      () => ok({ ...PROVA, perdidos_novos_por_motivo: { rede: '2' } }),
       () => ok({ ...PROVA, identidade_vencida: '3' }),
       () => ok({ ...PROVA, identidade_vencida: 1.5 }),
       () => ok({ ...PROVA, identidade_vencida: -1 }),
@@ -105,6 +113,16 @@ describe('lerProva', () => {
       expect(r.prova.primeira_coleta).toBeNull()
       expect(Object.keys(r.prova)).not.toContain('extra_desconhecida')
     }
+  })
+
+  it('cada campo da prova chega no seu lugar (mapas e totais de 7 dias e de perda nova diferentes)', async () => {
+    const entrada = {
+      ...PROVA, retratos_perdidos_7d: 3, perdidos_por_motivo: { sem_retrato: 2, proibido: 1 },
+      retratos_perdidos_novos: 1, perdidos_novos_por_motivo: { sem_retrato: 1 },
+    }
+    const { sb } = criarSb(() => ok(entrada))
+    const r = await lerProva(sb, { siteId: 'site-1', nowIso: NOW, since: null })
+    expect(r).toEqual({ ok: true, prova: entrada })
   })
 
   it('manda p_since e p_site_id; com since nulo manda null (não omite); p_marks exato; p_grace e p_identity_days', async () => {

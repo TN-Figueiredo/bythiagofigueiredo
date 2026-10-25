@@ -32,7 +32,7 @@ function mapaValido(x: unknown): x is Record<string, number> {
   return ehObj(x) && Object.values(x).every(ehContagem)
 }
 
-/** As 17 chaves, com o tipo certo e nenhum número negativo ou fracionário. A prova do banco já passa por isto em `lerProva`; aqui é a defesa de quem recebe. */
+/** As chaves de `CHAVES_CONTAGEM`, `CHAVES_MAPA` e `CHAVES_DATA`, com o tipo certo e nenhum número negativo ou fracionário. A prova do banco já passa por isto em `lerProva`; aqui é a defesa de quem recebe. */
 function provaValida(p: unknown): p is ProvaComentarios {
   if (!ehObj(p)) return false
   for (const k of CHAVES_CONTAGEM) if (!ehContagem(p[k])) return false
