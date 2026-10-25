@@ -79,7 +79,7 @@ describe('lerMesesAFrente', () => {
     rpc: () => ({ abortSignal: () => (resp === 'lanca' ? Promise.reject(new Error('rede')) : Promise.resolve(resp)) }),
   }) as unknown as SupabaseClient
   it('lê as três linhas', async () => {
-    const r = await lerMesesAFrente(sb({ data: [{ table_name: 'competitor_video_daily', months_ahead: 12, last_month: '2027-10-01', converted_at: null }], error: null }))
+    const r = await lerMesesAFrente(sb({ data: [{ table_name: 'competitor_video_daily', months_ahead: 12, last_month: new Date(AGORA + 365 * 864e5).toISOString().slice(0, 10), converted_at: null }], error: null }))
     expect(r).toEqual({ valor: [{ tabela: 'competitor_video_daily', mesesAFrente: 12, convertidaEm: null }] })
   })
   it('função ausente: schema_ausente; exceção: excecao; forma estranha: forma_invalida', async () => {

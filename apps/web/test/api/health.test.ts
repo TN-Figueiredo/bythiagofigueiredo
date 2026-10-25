@@ -48,7 +48,11 @@ function mockCronHealthRows(rows: Record<string, unknown>[]) {
   const chain = {
     select: vi.fn().mockResolvedValue({ data: rows, error: null }),
   };
-  const mockSupabase = { from: vi.fn().mockReturnValue(chain) };
+  // Vigia de partições (M2 T6-T7): a RPC devolve 12 meses à frente nas 3 tabelas, para o item sair verde.
+  const meses12 = ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly']
+    .map(table_name => ({ table_name, months_ahead: 12, last_month: null, converted_at: null }));
+  const rpc = vi.fn(() => ({ abortSignal: () => Promise.resolve({ data: meses12, error: null }) }));
+  const mockSupabase = { from: vi.fn().mockReturnValue(chain), rpc };
   vi.mocked(getSupabaseServiceClient).mockReturnValue(mockSupabase as never);
   return mockSupabase;
 }
@@ -228,7 +232,8 @@ describe('GET /api/health', () => {
     const body = await res.json();
     expect(body.status).toBe('ok');
     expect(res.status).toBe(200);
-    expect(body.crons).toHaveLength(4);
+    // 4 crons do vercel.json + o item de partições à frente (M2 T6-T7), verde pela RPC mockada.
+    expect(body.crons).toHaveLength(5);
   });
 
   it('flags a cron whose most recent recorded run failed, even inside the grace window', async () => {

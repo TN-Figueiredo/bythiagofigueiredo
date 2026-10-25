@@ -9,6 +9,10 @@ import { antesDoLoteAntigo } from '@/lib/youtube/agenda/executar'
 import type { ContextoTarefa } from '@/lib/youtube/agenda/tipos'
 
 const AGORA = Date.parse('2026-10-24T15:00:00Z')
+// Relativas ao AGORA injetado (mês de SP + 12 / + 11), sem literal de ano futuro (regra anti-regressão de fixtures temporais).
+const mesMais = (n: number) => { const d = new Date(AGORA); d.setUTCMonth(d.getUTCMonth() + n, 1); return d.toISOString().slice(0, 10) }
+const ALVO = mesMais(12)
+const ALVO_MENOS_1 = mesMais(11)
 type Resp = { data: unknown; error: { code: string; message: string } | null }
 function ctx(resp: Resp | 'lanca'): { c: ContextoTarefa; chamadas: Array<{ fn: string; args: unknown }> } {
   const chamadas: Array<{ fn: string; args: unknown }> = []
@@ -21,9 +25,9 @@ function ctx(resp: Resp | 'lanca'): { c: ContextoTarefa; chamadas: Array<{ fn: s
   return { c: { t0: 0, agora: () => AGORA, apiKey: '', sb, linhas: null }, chamadas }
 }
 const TRES = [
-  { table_name: 'competitor_video_daily', last_month: '2027-10-01', created: 0 },
-  { table_name: 'competitor_video_early', last_month: '2027-10-01', created: 1 },
-  { table_name: 'competitor_video_hourly', last_month: '2027-10-01', created: 0 },
+  { table_name: 'competitor_video_daily', last_month: ALVO, created: 0 },
+  { table_name: 'competitor_video_early', last_month: ALVO, created: 1 },
+  { table_name: 'competitor_video_hourly', last_month: ALVO, created: 0 },
 ]
 
 describe('particoes_a_frente no catálogo (item 10: falha se a tarefa que chama ensure não existir)', () => {
@@ -79,9 +83,9 @@ describe('particoes_a_frente: o que roda', () => {
     expect(r).toMatchObject({ estado: 'erro', motivo: 'banco_recusou' })
   })
   it('M1: last_month aquém do alvo (mês corrente de SP + 12) em qualquer das três: erro aquem_do_alvo, nunca ok', async () => {
-    expect(mesAlvo(AGORA)).toBe('2027-10')
+    expect(mesAlvo(AGORA)).toBe(ALVO.slice(0, 7))
     expect(mesAlvo(Date.parse('2026-12-01T01:00:00Z'))).toBe('2027-11') // 30/11 22:00 em SP
-    const curta = TRES.map((l, i) => (i === 2 ? { ...l, last_month: '2027-09-01' } : l))
+    const curta = TRES.map((l, i) => (i === 2 ? { ...l, last_month: ALVO_MENOS_1 } : l))
     const r = await particoesAFrente.rodar(ctx({ data: curta, error: null }).c)
     expect(r).toEqual({ estado: 'erro', feitas: 0, deixadas: null, motivo: 'aquem_do_alvo' })
   })
