@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
 import { authenticateArchive } from '@/lib/pipeline/archive-auth'
 import { parseBody, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
@@ -8,6 +9,8 @@ import { CorpoExportar, COLUNA_DE_CONTROLE, parDaPolitica, RespostaParteInfo, Re
 import { caminhoDaUnidade, caminhoDaParte, idDaParte } from '@/lib/youtube/observatorio/arquivo-mensal/caminho'
 import { lerUnidadeInteira, lerFaixa, dividirEmPartes, MudouDuranteALeitura, GrandeDemais, erroDoRpc, erroDoBancoDe } from '@/lib/youtube/observatorio/arquivo-mensal/exportar-do-banco'
 import { exportarUnidade } from '@/lib/youtube/observatorio/arquivo/exportar'
+
+const ContentHash = z.array(z.object({ row_count: z.union([z.number().int().min(0), z.string().regex(/^\d+$/).transform(Number)]) }).passthrough()).length(1)
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -32,10 +35,18 @@ export async function POST(req: NextRequest) {
       const lidoInfo = RespostaParteInfo.safeParse(info.data)
       if (!lidoInfo.success) { Sentry.captureMessage('archive part_info fora do esquema', 'error'); return pipelineError('erro_do_banco', 'erro do banco', 500, a.auth) }
       const p = lidoInfo.data
-      const faixa = await lerFaixa(sb, u, p.de, p.ate - p.de)
+      let faixa: Awaited<ReturnType<typeof lerFaixa>>
+      try { faixa = await lerFaixa(sb, u, p.de, p.ate - p.de) } catch (e) {
+        if (!(e instanceof MudouDuranteALeitura)) throw e
+        // a unidade já existe (p.unidade_id): sem o motivo gravado, o plano não manda reexportar (Phil I2)
+        const m = await sb.rpc('obs_archive_mark_redo', { p_unit: p.unidade_id, p_reason: 'mudou_durante_a_leitura' })
+        if (m.error) return erroDoRpc(m.error, a.auth)
+        return pipelineError('mudou_durante_a_leitura', 'mudou durante a leitura', 409, a.auth)
+      }
       const s = await exportarUnidade({ ler: async () => faixa }, null, { tabela: u.tabela, canal: u.canal, de: mesData, ate: mesData, rotulo: caminhoDaParte({ ...u, versao: p.versao, parte: corpo.parte }) })
       if (s.sha256 !== p.sha256) {
-        await sb.rpc('obs_archive_mark_redo', { p_unit: p.unidade_id, p_reason: 'parte_mudou' })
+        const m = await sb.rpc('obs_archive_mark_redo', { p_unit: p.unidade_id, p_reason: 'parte_mudou' })
+        if (m.error) return erroDoRpc(m.error, a.auth)   // sem a marca gravada, o 409 mentiria (Phil I1)
         return pipelineError('parte_mudou', 'parte mudou', 409, a.auth)
       }
       // X-Arquivo-Linhas é o da parte; X-Arquivo-Soma vazio em toda parte (C3, Pedido 13)
@@ -44,9 +55,8 @@ export async function POST(req: NextRequest) {
     // D25: a contagem antes de qualquer página; acima do teto, 413 sem ler (Yannis I9)
     const h = await sb.rpc('obs_archive_content_hash', { p_site: u.site, p_class: u.classe, p_table: u.tabela, p_channel: u.canal, p_month: mesData })
     if (h.error) return erroDoRpc(h.error, a.auth)
-    const primeiraLinha: unknown = Array.isArray(h.data) ? h.data[0] : null
-    const bruta = typeof primeiraLinha === 'object' && primeiraLinha !== null ? (primeiraLinha as { row_count?: unknown }).row_count : undefined
-    const contagem = typeof bruta === 'number' ? bruta : typeof bruta === 'string' && /^\d+$/.test(bruta) ? Number(bruta) : null
+    const ch = ContentHash.safeParse(h.data)
+    const contagem = ch.success ? ch.data[0]!.row_count : null
     if (contagem === null) { Sentry.captureMessage('archive content_hash fora do esquema', 'error'); return pipelineError('erro_do_banco', 'erro do banco', 500, a.auth) }
     if (contagem > TETO_LINHAS_DA_UNIDADE) return pipelineError('grande_demais', 'grande demais', 413, a.auth)
     const lido = await lerUnidadeInteira(sb, u)
@@ -65,6 +75,7 @@ export async function POST(req: NextRequest) {
       { tabela: u.tabela, canal: u.canal, de: mesData, ate: mesData, rotulo: '' })))
     const inteira = partes.length === 1 ? series[0]! : null
     const r = await sb.rpc('obs_archive_record', { p_site: u.site, p_kind: 'unidade', p_payload: {
+      // sha256_bytes: o check do SQL exige um valor; em unidade de várias partes vale o da parte 1, e o sha de cada parte está em `parts`
       ...base, sha256_bytes: inteira?.sha256 ?? series[0]!.sha256, csv_sha256: inteira?.csvSha256 ?? null, file_bytes: series.reduce((t, s) => t + s.bytes, 0),
       partes: partes.length, min_key: series[0]!.menorChave, max_key: series[series.length - 1]!.maiorChave,
       parts: partes.length === 1 ? [] : partes.map((p, i) => ({ parte: p.parte, sha256_bytes: series[i]!.sha256, csv_sha256: series[i]!.csvSha256, file_bytes: series[i]!.bytes,

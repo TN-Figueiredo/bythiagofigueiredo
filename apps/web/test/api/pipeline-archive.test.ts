@@ -36,6 +36,7 @@ import { POST as postAttest } from '@/app/api/pipeline/archive/attest/route'
 import { POST as postHeartbeat } from '@/app/api/pipeline/archive/heartbeat/route'
 import { GET as getPending } from '@/app/api/pipeline/archive/pending/route'
 import { GET as getPodeDesligar } from '@/app/api/pipeline/archive/pode-desligar/route'
+import { randomBytes } from 'node:crypto'
 import { exportarUnidade } from '@/lib/youtube/observatorio/arquivo/exportar'
 
 const CANAL = '11111111-1111-4111-8111-111111111111'
@@ -119,6 +120,11 @@ describe('autenticação e permissão', () => {
       expect(r.status).toBe(403)
       expect((await json(r)).error?.message).toBe('Insufficient permissions')
     }
+  })
+  it('permissão errada com OBS_ARQUIVO apagada: 403, nunca 503 (ordem do C0)', async () => {
+    delete process.env.OBS_ARQUIVO
+    const r = await chamar(postExport, { perms: ['archive_b2'], corpo: exportCorpo })
+    expect(r.status).toBe(403)
   })
   it('OBS_ARQUIVO apagada: arquivo_desligado em toda rota; ON, 1, true também', async () => {
     for (const valor of [undefined, 'ON', '1', 'true', '']) {
@@ -324,7 +330,7 @@ describe('unit/export', () => {
     expect(r.headers.get('x-arquivo-partes')).toBe('1')
     expect(r.headers.get('x-arquivo-coluna-controle')).toBe('views')
     const rec = rpcs.chamadas.find(c => c.fn === 'obs_archive_record')!.args.p_payload as Record<string, unknown>
-    expect(rec).toMatchObject({ row_count: 2, control_sum: '3', hash_conteudo: 'h1', mes: '2026-10-01', partes: 1 })
+    expect(rec).toMatchObject({ row_count: 2, control_sum: '3', hash_conteudo: 'h1', mes: '2026-10-01', partes: 1, parts: [] })
   })
   it('unidade com zero linha: JSON vazia true, nunca arquivo só com cabeçalho', async () => {
     programar([])
@@ -362,6 +368,33 @@ describe('unit/export', () => {
     expect(r.status).toBe(409)
     expect((await json(r)).error?.code).toBe('mudou_durante_a_leitura')
   })
+  it('unidade inteira em várias partes: soma vazia, parts contíguas, e cada parte k confere com o registrado (Yannis I2)', async () => {
+    const todas = Array.from({ length: 20_000 }, (_, i) => [`k${i}`, randomBytes(150).toString('hex')])
+    rpcs.tabela.obs_archive_content_hash = async () => ok([{ row_count: todas.length, control_sum: '3', hash_conteudo: 'h1' }])
+    rpcs.tabela.obs_archive_read_unit = async (a) => {
+      const o = Number(a.p_offset)
+      return ok(lidaDe(todas.slice(o, o + Number(a.p_limit)), { row_count: todas.length }))
+    }
+    rpcs.tabela.obs_archive_record = async () => ok({ status: 'nova', arquivo_id: `u:${UUID}`, versao: 1 })
+    const r = await chamar(postExport, { corpo: exportCorpo })
+    expect(r.status).toBe(200)
+    expect(r.headers.get('x-arquivo-soma')).toBe('')
+    expect(r.headers.get('x-arquivo-id')).toBe(`p:${UUID}:01`)
+    const pay = rpcs.chamadas.find(c => c.fn === 'obs_archive_record')!.args.p_payload as { partes: number; parts: Array<{ parte: number; sha256_bytes: string; row_count: number; row_offset: number }> }
+    expect(pay.partes).toBeGreaterThanOrEqual(2)
+    expect(pay.parts).toHaveLength(pay.partes)
+    expect(pay.parts[0]!.sha256_bytes).toBe(r.headers.get('x-arquivo-sha256'))
+    let off = 0
+    for (const p of pay.parts) { expect(p.row_offset).toBe(off); off += p.row_count }
+    expect(off).toBe(todas.length)
+    for (const p of pay.parts.slice(1)) {
+      rpcs.tabela.obs_archive_unit_part_info = async () => ok({ status: 'ok', unidade_id: UUID, versao: 1, partes: pay.partes, de: p.row_offset, ate: p.row_offset + p.row_count, sha256: p.sha256_bytes, recebida: false })
+      const rk = await chamar(postExport, { corpo: { ...exportCorpo, parte: p.parte } })
+      expect(rk.status).toBe(200)
+      expect(rk.headers.get('x-arquivo-sha256')).toBe(p.sha256_bytes)
+      expect(rk.headers.get('x-arquivo-soma')).toBe('')
+    }
+  })
   describe('parte', () => {
     const rows = [['a', '1'], ['b', '2']]
     const info = async (sha: string) => ok({ status: 'ok', unidade_id: UUID, versao: 1, partes: 2, de: 0, ate: 2, sha256: sha, recebida: false })
@@ -386,6 +419,25 @@ describe('unit/export', () => {
       expect(r.status).toBe(409)
       expect((await json(r)).error?.code).toBe('parte_mudou')
       expect(rpcs.chamadas.at(-1)).toEqual({ fn: 'obs_archive_mark_redo', args: { p_unit: UUID, p_reason: 'parte_mudou' } })
+    })
+    it('mark_redo falha: 500, nunca 409 parte_mudou como se estivesse gravado (Phil I1)', async () => {
+      rpcs.tabela.obs_archive_unit_part_info = async () => info(SHA)
+      rpcs.tabela.obs_archive_read_unit = async () => ok(lidaDe(rows))
+      rpcs.tabela.obs_archive_mark_redo = async () => erro('x', '42883')
+      const r = await chamar(postExport, { corpo: { ...exportCorpo, parte: 2 } })
+      expect(r.status).toBe(500)
+      expect((await json(r)).error?.code).toBe('erro_do_banco')
+    })
+    it('faixa que muda entre páginas: grava mudou_durante_a_leitura antes do 409 (Phil I2)', async () => {
+      const grande = Array.from({ length: 6000 }, () => ['a', '1'])
+      rpcs.tabela.obs_archive_unit_part_info = async () => ok({ status: 'ok', unidade_id: UUID, versao: 1, partes: 2, de: 0, ate: 6000, sha256: SHA, recebida: false })
+      let i = 0
+      rpcs.tabela.obs_archive_read_unit = async (a) => ok(lidaDe(grande.slice(0, Number(a.p_limit)), { row_count: 6000, hash_conteudo: `h${i++}` }))
+      rpcs.tabela.obs_archive_mark_redo = async () => ok(null)
+      const r = await chamar(postExport, { corpo: { ...exportCorpo, parte: 2 } })
+      expect(r.status).toBe(409)
+      expect((await json(r)).error?.code).toBe('mudou_durante_a_leitura')
+      expect(rpcs.chamadas.at(-1)).toEqual({ fn: 'obs_archive_mark_redo', args: { p_unit: UUID, p_reason: 'mudou_durante_a_leitura' } })
     })
     it('part_info com um campo a menos: 500, nunca as', async () => {
       rpcs.tabela.obs_archive_unit_part_info = async () => ok({ status: 'ok', unidade_id: UUID, versao: 1, partes: 2, de: 0, ate: 2, recebida: false })

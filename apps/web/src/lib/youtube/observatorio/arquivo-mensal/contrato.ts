@@ -32,7 +32,8 @@ export const RESERVADOS = ['_recebendo', '_canario', 'canais', 'resumo', 'miniat
 /**
  * CP13 (medida de 14/10 no bythiago_int, 54422): uma chamada de obs_archive_read_unit custa ~220 ms (diária, 99.200 linhas) e ~410 ms
  * (comentários, 100.000 linhas de ~565 B no jsonb) com limit de 2.000, 5.000 ou 10.000: o custo é o da unidade inteira, não da página.
- * O tempo deixaria 10.000; o tamanho da resposta não (5.000 linhas largas = 2,8 MB, 10.000 = 5,6 MB, acima dos 4,5 MB da função).
+ * O tempo deixaria 10.000; o tamanho da página não: 5.000 linhas largas = 2,8 MB e 10.000 = 5,6 MB de JSON na memória da função e no statement_timeout.
+ * (O limite de 4,5 MB da Vercel é da resposta da ROTA, que é a parte .gz de até 3 MB; não da resposta do rpc.)
  */
 export const TETO_LINHAS_POR_CHAMADA = 5_000
 /**
@@ -183,6 +184,8 @@ export const RespostaParteInfo = z.object({
   status: z.literal('ok'), unidade_id: canal, versao: z.number().int().min(1), partes: z.number().int().min(1).max(TETO_PARTES),
   de: z.number().int().min(0), ate: z.number().int().min(0), sha256: sha, recebida: z.boolean(),
 }).strict()
+/** O `record` do resumo devolve `s:<uuid>` (o da unidade devolve `u:`). */
+export const RespostaRecordResumo = z.object({ status: z.string().min(1).max(40), arquivo_id: z.string().regex(/^s:[0-9a-f-]{36}$/).optional(), versao: z.number().int().min(1).optional() }).passthrough()
 export const RespostaRecord = z.object({
   // o banco devolve `arquivo_id` ('u:<uuid>', C0.2 e C3 do contrato), nunca `unidade_id` (Yannis 9): o passthrough escondia a diferença
   status: z.string().min(1).max(40), arquivo_id: z.string().regex(/^u:[0-9a-f-]{36}$/).optional(), versao: z.number().int().min(1).optional(),

@@ -42,7 +42,10 @@ const TABELAS_AINDA_SEM_TIPOS = new Set(['ab_native_tests', 'ab_native_avaliacoe
  * e `database.types.ts` ainda não foi regenerado. Mesmo gatilho D-1 (`supabase gen types --linked`); sai daqui quando os tipos vierem.
  * Os nomes e os argumentos são conferidos pelos testes de integração `manutencao-m3b-*` contra o banco real.
  */
-const RPC_DO_ARQUIVO_SEM_TIPOS = /^rpc:obs_archive_/
+const RPC_DO_ARQUIVO_SEM_TIPOS = new Set([
+  'rpc:obs_archive_read_unit', 'rpc:obs_archive_content_hash', 'rpc:obs_archive_record', 'rpc:obs_archive_unit_part_info', 'rpc:obs_archive_mark_redo', 'rpc:obs_archive_plan', 'rpc:obs_archive_b2_plan', 
+  'rpc:obs_archive_attest_nas', 'rpc:obs_archive_attest_b2', 'rpc:obs_archive_heartbeat_write', 'rpc:obs_archive_receive', 'rpc:obs_archive_unit_rehash', 'rpc:obs_archive_channel_units', 'rpc:obs_archive_summary_rows', 'rpc:obs_archive_manifest_rows', 'rpc:obs_archive_record_manifest', 'rpc:obs_archive_owner_pending', 'rpc:obs_archive_pode_desligar',
+])   // lista FECHADA (os 18 que as rotas chamam): função nova ou nome com erro de digitação reprova
 
 describe('MCP + serviços do pipeline: esquema', () => {
   const { refs } = auditDirs(WEB, DIRS)
@@ -63,7 +66,7 @@ describe('MCP + serviços do pipeline: esquema', () => {
     const missing = refs
       .filter(r => !r.exists && !r.kind.startsWith('embed:'))
       .filter(r => !TABELAS_AINDA_SEM_TIPOS.has(r.table))
-      .filter(r => !RPC_DO_ARQUIVO_SEM_TIPOS.test(r.table))
+      .filter(r => !RPC_DO_ARQUIVO_SEM_TIPOS.has(r.table))
       .filter(r => !KNOWN_STALE_TYPES.has(r.column ? `${r.table}.${r.column}` : r.table))
       .map(r => `${r.file}:${r.line}  ${r.table}${r.column ? `.${r.column}` : ''}  (${r.kind})`)
     expect([...new Set(missing)]).toEqual([])

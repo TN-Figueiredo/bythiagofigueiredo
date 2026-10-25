@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { authenticateArchive } from '@/lib/pipeline/archive-auth'
 import { parseBody, pipelineError, pipelineSuccess } from '@/lib/pipeline/helpers'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { CorpoResumo, STATUS_DO_CODIGO } from '@/lib/youtube/observatorio/arquivo-mensal/contrato'
+import { CorpoResumo, RespostaRecordResumo, STATUS_DO_CODIGO } from '@/lib/youtube/observatorio/arquivo-mensal/contrato'
 import { caminhoDoResumo } from '@/lib/youtube/observatorio/arquivo-mensal/caminho'
 import { chamar } from '@/lib/youtube/observatorio/arquivo-mensal/exportar-do-banco'
 import { serializarResumo } from '@/lib/youtube/observatorio/arquivo-mensal/resumo'
@@ -19,7 +19,6 @@ const Linhas = z.object({
   versao: z.number().int().min(1), vazio: z.boolean(), unit_hashes: z.record(z.string(), z.string()),
   colunas_canal: z.array(z.string()), colunas_video: z.array(z.string()), canal: z.array(Linha), video: z.array(Linha),
 }).passthrough()
-const Gravado = z.object({ status: z.string().min(1).max(40), arquivo_id: z.string().regex(/^s:[0-9a-f-]{36}$/).optional(), versao: z.number().int().min(1).optional() }).passthrough()
 
 /** C4: o resumo mensal de um canal. Recalcula o hash de cada unidade (uma chamada por unidade) antes de calcular o resumo. */
 export async function POST(req: NextRequest) {
@@ -47,7 +46,7 @@ export async function POST(req: NextRequest) {
         canal_sha256: por('canal')?.sha256 ?? null, canal_bytes: por('canal')?.bytes ?? null, canal_rows: por('canal')?.linhas ?? null,
         video_sha256: por('video')?.sha256 ?? null, video_bytes: por('video')?.bytes ?? null, video_rows: por('video')?.linhas ?? null,
       },
-    }, Gravado, a.auth)
+    }, RespostaRecordResumo, a.auth)
     if (!g.ok) return g.res
     const r = g.data
     if ((r.status !== 'nova' && r.status !== 'mesma') || r.arquivo_id === undefined || r.versao === undefined) {

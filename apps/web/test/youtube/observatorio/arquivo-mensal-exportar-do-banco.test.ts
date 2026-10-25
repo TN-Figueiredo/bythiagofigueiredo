@@ -52,6 +52,13 @@ describe('lerUnidadeInteira', () => {
     await expect(lerUnidadeInteira(b.rpc, U, 1000)).rejects.toBeInstanceOf(GrandeDemais)
     expect(b.chamadas).toHaveLength(1)
   })
+  it('página que devolve mais linhas que row_count: recomeça e acaba em MudouDuranteALeitura (mutante I)', async () => {
+    const rpc: Rpc = { rpc: async (_fn, args) => {
+      const rows = Array.from({ length: Number(args.p_limit) }, (_, i) => [`k${i}`, '1'])   // sempre a página cheia, mesmo na última
+      return { data: [{ rows, row_count: 1500, control_sum: '9', hash_conteudo: 'h', columns: [{ nome: 'k' }, { nome: 'views' }], schema_fp: 'fp' }], error: null }
+    } }
+    await expect(lerUnidadeInteira(rpc, U, 1000)).rejects.toBeInstanceOf(MudouDuranteALeitura)
+  })
   it('zero linha: contagem 0 e colunas', async () => {
     const r = await lerUnidadeInteira(banco(0).rpc, U, 1000)
     expect(r).toMatchObject({ contagem: 0, linhas: [], colunas: ['k', 'views'] })
@@ -63,6 +70,10 @@ describe('lerUnidadeInteira', () => {
 })
 
 describe('lerFaixa', () => {
+  it('hash que muda entre as páginas da faixa: MudouDuranteALeitura (mutante B)', async () => {
+    const b = banco(5000, c => (c === 1 ? 'h' : 'outro'))
+    await expect(lerFaixa(b.rpc, U, 0, 2000, 1000)).rejects.toBeInstanceOf(MudouDuranteALeitura)
+  })
   it('lê só a faixa pedida, soma nula, contagem igual às linhas', async () => {
     const b = banco(5000)
     const r = await lerFaixa(b.rpc, U, 1200, 2300, 1000)
