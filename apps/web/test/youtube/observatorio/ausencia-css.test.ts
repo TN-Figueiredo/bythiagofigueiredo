@@ -9,7 +9,7 @@ const semComentario = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '')
 const read = (f: string) => semComentario(fs.readFileSync(path.join(DIR, f), 'utf8'))
 const css = read('_chrome/ausencia/ausencia.css')
 const tokens = read('_chrome/tokens-telas.css')
-const chrome = read('_chrome/chrome.css')
+const chrome = read('_chrome/tokens-obs.css')
 
 const rgb = (hex: string) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
 const lum = (c: number[]) => { const [r, g, b] = c.map(v => v / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! }

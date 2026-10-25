@@ -39,7 +39,8 @@ import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
 import { rotuloDeConcluido } from '@/lib/youtube/ab-rotulo-v2'
-import { estadoV2DoTeste, tetoDoTesteV2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { diasDaDecisao, estadoV2DoTeste, tetoDoTesteV2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { telaV2DoTeste } from '@/lib/youtube/ab-gravacao/tela-v2'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -263,6 +264,8 @@ export const getTestResults = cache(async (testId: string): Promise<AbTestResult
     youtubeId,
     placar,
     faixa_dias: faixaDias,
+    // Mesma leitura do placar, no formato da decisão (Y4): a tela v2 não faz consulta nova.
+    dias_decisao: diasDaDecisao(lido.dias, allCycles, allVariants.length),
   } satisfies AbTestResults
 })
 
@@ -1072,7 +1075,28 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ? { label: toDisplayLabel(varNoAr.label, varNoAr.is_original), desde: ultimoFechado.started_at ?? null }
     : null
 
+  // Tela v2 (S8-F4 T12): só leitura do que a decisão gravou; v1 e v2 fora da decisão ficam sem modelo.
+  const v2 = regraDoTeste(test) === 'v2'
+    ? telaV2DoTeste({
+        teste: {
+          id: test.id, status: test.status, regra: 'v2', config: test.config, paused_at: test.paused_at, completed_at: test.completed_at,
+          completed_reason: test.completed_reason, winner_variant_id: test.winner_variant_id, winner_applied_at: test.winner_applied_at,
+          revert_expires_at: test.revert_expires_at, restore_status: test.restore_status, result_metadata: test.result_metadata,
+          original_title: test.original_title, test_type: test.test_type,
+        },
+        variantes: results.variants.map(v => ({
+          id: v.variant_id, letra: toDisplayLabel(v.label, v.is_original), is_original: v.is_original,
+          titulo: v.is_original ? (v.title_text ?? test.original_title ?? '') : (v.title_text ?? ''),
+        })),
+        ciclos: results.timeline,
+        dias: results.dias_decisao,
+        agora: new Date(),
+      })
+    : null
+  const v2Ativo = v2?.fase === 'ativo' ? v2 : null
+
   const base = {
+    v2,
     id: test.id,
     videoTitle: test.original_title ?? test.name,
     flag: test.test_type,
@@ -1084,8 +1108,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     daily,
     abbaSeq,
     cycles: { total: totalCycles, done: doneCycles },
-    dayOf: diaDoTeste(test.started_at, test.completed_at, new Date()) ?? 0,
-    durationDays: duracaoPrevista(test.config),
+    dayOf: v2Ativo ? v2Ativo.dia : (diaDoTeste(test.started_at, test.completed_at, new Date()) ?? 0),
+    durationDays: v2Ativo ? v2Ativo.teto : duracaoPrevista(test.config),
     confidenceTarget: test.config.confidence_threshold,
     totalRounds: test.round_number,
     hasPlayoff: !!test.playoff_test_id,
@@ -1094,6 +1118,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     createdAt: test.created_at,
     restoreStatus: paraRestoreStatus(test.restore_status),
     restoreSeq: test.restore_seq ?? 0,
+    completedAt: test.completed_at ?? null,
     youtubeVideoId: results.youtubeId ?? null,
     placar: results.placar ?? null,
     faixa_dias: results.faixa_dias ?? [],

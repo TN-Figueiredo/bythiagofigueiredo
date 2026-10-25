@@ -545,6 +545,9 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (!tipoConhecido(r.test_type) || !caminho.de.includes(r.status)) return { resultado: 'ja_encerrado', campos: r.restore_status }
   if (op.motivo === 'reverter' && !reversaoAberta(r, agora)) return { resultado: 'ja_encerrado', campos: r.restore_status }
 
+  // Y-T12-1: aplicar/voltar não escrevem sobre o ciclo aberto de outro teste nosso no vídeo (antes do passo 0b: `forcar` não atravessa).
+  if ((op.motivo === 'aplicar_sugerido' || op.motivo === 'reverter') && (await outroTesteAberto(portas, r, testId))) return { resultado: 'outro_teste', campos: r.restore_status }
+
   const campos = camposDoTeste(r.test_type)
   // Guarda do teste do YouTube confirmado (F1a-dado, Yannis C2; sem flag): ponto único de escrita do nosso teste. Dispensada quando o motivo já é `teste_youtube`.
   if (op.motivo !== 'teste_youtube' && (await lerLinhaConfirmada(portas.supabase, r.site_id, r.youtube_video_id)) !== null) {
@@ -639,6 +642,14 @@ export interface OpcoesNovaTentativa {
 
 const ABERTOS_NO_VIDEO = ['draft', 'queued', 'active', 'paused']
 
+/** Há outro teste nosso aberto (draft/queued/active/paused) no mesmo vídeo? */
+async function outroTesteAberto(portas: PortasSaida, r: Retrato, testId: string): Promise<boolean> {
+  const outro = await portas.supabase.from('ab_tests').select('id')
+    .eq('site_id', r.site_id).eq('youtube_video_id', r.youtube_video_id).neq('id', testId).in('status', ABERTOS_NO_VIDEO).limit(1)
+  if (outro.error) throw new Error(`ab-settle: outro teste do vídeo ${r.youtube_video_id}: ${outro.error.message}`)
+  return ((outro.data ?? []) as unknown[]).length > 0
+}
+
 /** Destino que nenhuma tentativa conseguiria cumprir: o vigia dá o campo por encerrado (F4), uma vez, guardado por restore_seq. */
 async function desistirPorDestino(portas: PortasSaida, r: Retrato, rs: RestoreStatus, pend: CampoNome[]): Promise<boolean> {
   const novo: RestoreStatus = { ...rs }
@@ -689,10 +700,7 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
   if (r.status === 'paused' && destino !== 'original') return { resultado: 'ja_encerrado', campos: r.restore_status }
 
   // 5. Y-5: outro teste aberto no mesmo vídeo
-  const outro = await portas.supabase.from('ab_tests').select('id')
-    .eq('site_id', r.site_id).eq('youtube_video_id', r.youtube_video_id).neq('id', testId).in('status', ABERTOS_NO_VIDEO).limit(1)
-  if (outro.error) throw new Error(`ab-settle: outro teste do vídeo ${r.youtube_video_id}: ${outro.error.message}`)
-  if (((outro.data ?? []) as unknown[]).length > 0) return { resultado: 'outro_teste', campos: r.restore_status }
+  if (await outroTesteAberto(portas, r, testId)) return { resultado: 'outro_teste', campos: r.restore_status }
 
   // 6. o "sim" repetido: 48 h desde o primeiro forcado da cadeia (Y-3)
   const ancora: Partial<Record<CampoNome, string | null>> = {}

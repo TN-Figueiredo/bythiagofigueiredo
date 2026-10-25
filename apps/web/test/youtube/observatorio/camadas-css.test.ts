@@ -60,8 +60,8 @@ describe('Observatório · flutuantes de Canais não dependem da ordem de carga 
     expect(canais).not.toMatch(/#flut \.cn-tt\s*\{/)
     expect(canais).not.toMatch(/#flut \.cn-menu\s*\{/)
   })
-  it('--danger-text vem de [data-obs] (chrome.css), nos dois temas: o menu em #flut não o redefine', () => {
-    const chrome = semComentario(read('_chrome/chrome.css'))
+  it('--danger-text vem de [data-obs] (tokens-obs.css), nos dois temas: o menu em #flut não o redefine', () => {
+    const chrome = semComentario(read('_chrome/tokens-obs.css'))
     expect(chrome).toMatch(/(^|\n)\[data-obs\]\{[^}]*--danger-text:#F26B6B/)
     expect(chrome).toMatch(/\[data-theme="light"\] \[data-obs\]\{[^}]*--danger-text:#B42318/)
     expect(canais).not.toMatch(/#flut[^{]*\{[^}]*--danger-text\s*:/)
@@ -106,7 +106,7 @@ describe('Observatório · contraste do "não medido" no tema claro (WCAG)', () 
     throw new Error('token claro ausente: --' + nome)
   }
   const tokens = claro(semComentario(read('_chrome/tokens-telas.css')))
-  const surface = token(claro(semComentario(read('_chrome/chrome.css'))), 'surface')
+  const surface = token(claro(semComentario(read('_chrome/tokens-obs.css'))), 'surface')
   const nm = token(tokens, 'nm'), nmLine = token(tokens, 'nm-line'), nmBg = token(tokens, 'nm-bg')
   it('--nm sobre --surface >= 4,5', () => { expect(contraste(nm, surface)).toBeGreaterThanOrEqual(4.5) })
   it('--nm sobre --nm-bg >= 4,5', () => { expect(contraste(nm, nmBg)).toBeGreaterThanOrEqual(4.5) })

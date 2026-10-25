@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import './_chrome/tokens-obs.css'
 import './_chrome/chrome.css'
 import './_chrome/camadas.css'
 import './_chrome/kit.css'

@@ -127,8 +127,6 @@
 #flut .canal-menu [role="menuitem"].del{color:var(--danger-text)}
 #flut .canal-menu hr{border:0;border-top:1px solid var(--border-subtle);margin:4px 0}
 #flut .canal-menu p{margin:0;padding:6px 10px;max-width:230px;font-size:12px;line-height:1.35;color:var(--muted)}
-#flut .obs-fl-pop.canal-tip{width:380px;padding:12px 14px;font-size:13px;max-height:min(70vh,560px);overflow:auto}
-#flut .canal-tip h3{margin:0 0 6px;font:600 13.5px var(--font-sans),system-ui,sans-serif}
 #flut .canal-tip ul{margin:0;padding-left:16px;color:var(--muted);display:grid;gap:4px}
 #flut .canal-tip b{color:var(--text);font-weight:500}
 #flut .canal-tip p.m{margin:8px 0 0;color:var(--muted)}

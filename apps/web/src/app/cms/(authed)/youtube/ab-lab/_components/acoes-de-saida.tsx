@@ -101,6 +101,7 @@ export function AcoesDeSaida({ view, encerrar, pausar, onAviso }: AcoesDeSaidaPr
           encerrar={encerrar}
           seqVisto={view.restoreSeq}
           onAviso={onAviso}
+          regraV2={view.placar?.regra === 'v2'}
         />
       )}
     </>

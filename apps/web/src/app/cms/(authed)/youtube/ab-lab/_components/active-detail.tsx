@@ -8,6 +8,7 @@ import { InfoTip, VChip } from './ab-primitives'
 import { DetailHeader } from './detail-header'
 import { HeroBand } from './hero-band'
 import { PlacarDoTeste } from './placar-do-teste'
+import { ResumoV2, AndamentoV2, PisosV2, SinalV2 } from './blocos-v2'
 import { CredibleInterval } from './credible-interval'
 import { ABBATimeline } from './abba-timeline'
 import { FunnelRow } from './funnel-row'
@@ -70,6 +71,8 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
   const comparavel = medicaoCompleta(view.variants)
   // Sem estatística de vencedor (D-F3-2) ninguém é líder: sem hero, sem destaque na tabela e sem faixa provável.
   const comEstatistica = view.placar?.estatistica === 'calculada'
+  // Tela v2 (S8-F4 T12): o modelo vem pronto do servidor; a tela só desenha.
+  const v2 = view.v2?.fase === 'ativo' ? view.v2 : null
 
 
   const actionButtons = (
@@ -171,6 +174,15 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       </div>)}
 
       {/* ── Section 5: Placar das variantes ── */}
+      {v2 && (
+        <div className="cn-raiz pv2 mb-[8px]" data-testid="tela-v2">
+          <ResumoV2 frase={v2.frase} ilegivel={v2.ilegivel} />
+          <AndamentoV2 dia={v2.dia} teto={v2.teto} pausado={v2.pausado} />
+          <PisosV2 linhas={v2.pisos} n={v2.n} final={false} />
+          {v2.sinal ? <SinalV2 letra={v2.sinal} /> : null}
+        </div>
+      )}
+
       <section data-section="variant-performance" className="mb-[24px]">
         <PlacarDoTeste
           placar={view.placar ?? null}
@@ -180,7 +192,8 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
           status={view.status}
-          andamento={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
+          andamento={v2 ? undefined : { dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
+          modoV2={v2 !== null}
         />
       </section>
 

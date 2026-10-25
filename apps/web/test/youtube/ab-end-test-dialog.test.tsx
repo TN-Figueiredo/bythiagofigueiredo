@@ -96,6 +96,12 @@ describe('AbEndTestDialog: escolha', () => {
     expect(document.body.textContent).not.toMatch(/Aplicar variante l[ií]der|Arquivar sem aplicar|Aplicar vencedor|Cancelar carência/)
   })
 
+  it('foco inicial do Encerrar em Cancelar, não no X (Gio)', async () => {
+    render(<AbEndTestDialog {...props()} />)
+    await act(async () => {})
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancelar' }))
+  })
+
   it('Esc fecha; o foco volta ao botão que abriu; Cancelar e X também fecham', async () => {
     const abrir = document.createElement('button')
     document.body.appendChild(abrir); abrir.focus()

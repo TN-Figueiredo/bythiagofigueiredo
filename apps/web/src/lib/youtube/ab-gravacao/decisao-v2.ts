@@ -31,6 +31,9 @@ export function tetoDoTesteV2(config: unknown, V: number, opcoes: { soExplicito?
 
 export interface CicloComNumero extends AbCycle { cycle_number: number }
 
+/** O que `cicloDoDia` lê de um ciclo (a tela passa ciclos sem os números de entrega). */
+export type CicloDoDia = Pick<CicloComNumero, 'started_at' | 'ended_at' | 'variant_id' | 'cycle_number'>
+
 export type UltimaAvaliacaoV2 = NonNullable<ResultadoV2['ultima_avaliacao']>
 
 /** Dias fechados com ciclo no ar, sem a janela de 40 dias do retrato (nunca hoje, PT). */
@@ -42,9 +45,9 @@ export function relogioV2(ciclos: CicloComNumero[], teste: AbTest, agora: Date):
 }
 
 /** Ciclo com maior sobreposição no dia; empate: o da variante do dia, depois o de maior cycle_number; null se nenhum. */
-export function cicloDoDia(day: DiaPt, ciclos: readonly CicloComNumero[], variantDoDia?: string | null): CicloComNumero | null {
+export function cicloDoDia<C extends CicloDoDia>(day: DiaPt, ciclos: readonly C[], variantDoDia?: string | null): C | null {
   const b = boundsAnalytics(day)
-  let melhor: { c: CicloComNumero; s: number } | null = null
+  let melhor: { c: C; s: number } | null = null
   for (const c of ciclos) {
     const ini = Date.parse(c.started_at)
     if (!Number.isFinite(ini)) continue
@@ -53,7 +56,7 @@ export function cicloDoDia(day: DiaPt, ciclos: readonly CicloComNumero[], varian
     if (!(s > 0)) continue
     if (!melhor || s > melhor.s) { melhor = { c, s }; continue }
     if (s < melhor.s) continue
-    const daVar = (x: CicloComNumero) => (variantDoDia != null && x.variant_id === variantDoDia ? 1 : 0)
+    const daVar = (x: C) => (variantDoDia != null && x.variant_id === variantDoDia ? 1 : 0)
     if (daVar(c) > daVar(melhor.c) || (daVar(c) === daVar(melhor.c) && c.cycle_number > melhor.c.cycle_number)) melhor = { c, s }
   }
   return melhor ? melhor.c : null
@@ -61,6 +64,21 @@ export function cicloDoDia(day: DiaPt, ciclos: readonly CicloComNumero[], varian
 
 export function blocoDoDia(cycleNumber: number, V: number): number {
   return Math.floor(cycleNumber / (2 * V))
+}
+
+/**
+ * Linhas de `ab_test_dias` -> dias da decisão (ciclo do dia e bloco). Fonte única: o passo da decisão e a tela
+ * (`getTestResults`) chamam esta função, nunca uma cópia (Y4).
+ */
+export function diasDaDecisao(
+  linhas: ReadonlyArray<{ day_pt: DiaPt; variant_id: string | null; alcance_estado: EstadoAlcance; impressoes: number | null; ctr: number | null; final: boolean }>,
+  ciclos: readonly CicloDoDia[],
+  V: number,
+): DiaDaDecisao[] {
+  return linhas.map((l) => {
+    const c = cicloDoDia(l.day_pt, ciclos, l.variant_id)
+    return { day_pt: l.day_pt, variant_id: l.variant_id, alcance_estado: l.alcance_estado, impressoes: l.impressoes, ctr: l.ctr, final: l.final, bloco: c ? blocoDoDia(c.cycle_number, V) : null }
+  })
 }
 
 /**
@@ -206,6 +224,38 @@ const SINAL_BLOCO_SEM = -1_000_000 // bloco nulo: nunca participa do sinal
 
 interface Celula { imp: number; cliques: number; dias: Array<{ imp: number; cliques: number }> }
 
+/** Impressões e cliques somados por variante, só com os dias já filtrados como válidos (fonte única do total). */
+function totalPorVariante(validos: readonly DiaDaDecisao[]): Map<string, { imp: number; cliques: number }> {
+  const total = new Map<string, { imp: number; cliques: number }>()
+  for (const d of validos) {
+    const imp = d.impressoes as number
+    const v = d.variant_id as string
+    const t = total.get(v) ?? { imp: 0, cliques: 0 }
+    t.imp += imp; t.cliques += Math.round(imp * (d.ctr as number)); total.set(v, t)
+  }
+  return total
+}
+
+/**
+ * CTR (cliques/impressões dos dias válidos) e lift (ctrV/ctrO - 1) por variante: aritmética, sem estatística.
+ * Fonte única da frase do vencedor na tela v2 (P2). Variante sem dia válido, ou lift da original: null.
+ */
+export function ctrDosValidos(dias: readonly DiaDaDecisao[], variantes: readonly string[], originalId: string): Record<string, { ctr: number | null; lift: number | null }> {
+  const total = totalPorVariante(dias.filter(d => diaValido(d) && d.variant_id !== null && variantes.includes(d.variant_id)))
+  const ctrDe = (v: string): number | null => {
+    const t = total.get(v)
+    return t && t.imp > 0 ? t.cliques / t.imp : null
+  }
+  const ctrO = ctrDe(originalId)
+  const out: Record<string, { ctr: number | null; lift: number | null }> = {}
+  for (const v of variantes) {
+    const ctr = ctrDe(v)
+    const lift = v !== originalId && ctr !== null && ctrO !== null && ctrO > 0 ? ctr / ctrO - 1 : null
+    out[v] = { ctr, lift: lift !== null && Number.isFinite(lift) ? lift : null }
+  }
+  return out
+}
+
 /**
  * `variantes` lista todas as variantes do teste (a original inclusive): V = variantes.length define α
  * (0,05 com 2; 0,025 por comparação com 3). Compara cada não-original contra a original.
@@ -214,14 +264,12 @@ export function estatisticaV2(dias: readonly DiaDaDecisao[], originalId: string,
   const V = variantes.length
   const alfa = V <= 2 ? 0.05 : 0.025
   const validos = dias.filter(d => diaValido(d) && d.variant_id !== null && variantes.includes(d.variant_id))
-  const total = new Map<string, { imp: number; cliques: number }>()
+  const total = totalPorVariante(validos)
   const celulas = new Map<string, Celula>() // `${variante}|${bloco}`
   for (const d of validos) {
     const imp = d.impressoes as number
     const cliques = Math.round(imp * (d.ctr as number))
     const v = d.variant_id as string
-    const t = total.get(v) ?? { imp: 0, cliques: 0 }
-    t.imp += imp; t.cliques += cliques; total.set(v, t)
     const chave = `${v}|${d.bloco ?? SINAL_BLOCO_SEM}`
     const c = celulas.get(chave) ?? { imp: 0, cliques: 0, dias: [] }
     c.imp += imp; c.cliques += cliques; c.dias.push({ imp, cliques }); celulas.set(chave, c)
@@ -368,4 +416,12 @@ export function desfechoProvisorio(i: { dias: readonly DiaDaDecisao[]; encerrado
 /** Último dia PT fechado antes de completed_at. */
 export function encerradoEmDia(completedAt: string): DiaPt {
   return addDays(dayPt(new Date(completedAt)), -1)
+}
+
+/**
+ * Último dia em que o desfecho provisório ainda pode mudar: `encerrado_em_dia + 11`. Conta do Phil: o cron de enc+11
+ * fecha o último dia no caso normal; o reserva (`> 12`, grava em enc+13) não muda a data mostrada.
+ */
+export function provisorioAte(enc: DiaPt): DiaPt {
+  return addDays(enc, 11)
 }

@@ -6,7 +6,7 @@ import path from 'node:path'
 
 const DIR = path.resolve(__dirname, '../../../src/app/cms/(authed)/youtube/competitors')
 const ler = (f: string) => fs.readFileSync(path.join(DIR, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
-const CHROME = ler('_chrome/chrome.css'), CANAIS = ler('_canais/canais.css'), KIT = ler('_chrome/kit.css')
+const CHROME = ler('_chrome/chrome.css'), TOKENS = ler('_chrome/tokens-obs.css'), CANAIS = ler('_canais/canais.css'), KIT = ler('_chrome/kit.css')
 
 /** O corpo da primeira regra cujo seletor é exatamente `sel`. */
 function corpo(src: string, sel: string): string {
@@ -20,8 +20,8 @@ const ESCURO = ['--dg-bg:#432A27', '--dg-bg-hover:#53332F', '--dg-line:#F26B6B',
 const CLARO = ['--dg-bg:#B42318', '--dg-bg-hover:#9A1D14', '--dg-line:#B42318', '--dg-fg:#FFFFFF', '--toast-bg:#FDF0EE', '--toast-line:#B42318']
 
 describe('F2 · tokens do vermelho', () => {
-  it('T1.1 chrome.css declara os 6 tokens nos dois temas', () => {
-    const esc = corpo(CHROME, '[data-obs]'), cla = corpo(CHROME, '[data-theme="light"] [data-obs]')
+  it('T1.1 tokens-obs.css (ex-chrome.css) declara os 6 tokens nos dois temas', () => {
+    const esc = corpo(TOKENS, '[data-obs]'), cla = corpo(TOKENS, '[data-theme="light"] [data-obs]')
     for (const t of ESCURO) expect(esc).toContain(t)
     for (const t of CLARO) expect(cla).toContain(t)
   })
@@ -45,7 +45,7 @@ describe('F2 · tokens do vermelho', () => {
     expect(b).toContain('border-color:var(--toast-line)')
   })
   it('T1.5 nenhum dos três usa color-mix', () => {
-    for (const s of [CHROME, CANAIS, KIT]) expect(s).not.toMatch(/color-mix\s*\(/)
+    for (const s of [CHROME, TOKENS, CANAIS, KIT]) expect(s).not.toMatch(/color-mix\s*\(/)
   })
 })
 

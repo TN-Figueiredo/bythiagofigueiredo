@@ -13,7 +13,7 @@ import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { HoverTip } from '../_chrome/flut/flut'
-import { InfoDica } from './info-dica'
+import { InfoDica } from '../../_components/info-dica'
 import type { LinhaRegua, ReguasView, Terco, TracoRegua } from './reguas-model'
 import './reguas.css'
 

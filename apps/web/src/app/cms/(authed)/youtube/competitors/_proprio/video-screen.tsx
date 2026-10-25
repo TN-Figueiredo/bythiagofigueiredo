@@ -22,6 +22,7 @@ import type { PagerView } from '../_historico/view-model'
 import type { CelulaVideo, ProprioVideoHeader } from './video-model'
 import '../_canal/canal.css'
 import './video.css'
+import '../../_components/info-dica.css'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const ExtIcon = () => <svg className="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9 3h4v4M13 3L7.5 8.5M12 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2.5" /></svg>
