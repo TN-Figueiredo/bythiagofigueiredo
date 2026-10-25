@@ -129,7 +129,7 @@ create table if not exists public.obs_archive_months (
   detached_at timestamptz, detached_by uuid,
   dropped_at timestamptz, dropped_by uuid, drop_mode text check (drop_mode in ('clique', 'automatico')), rows_dropped bigint, bytes_freed bigint,
   closed_at timestamptz, closed_by uuid,
-  unsealed_at timestamptz, unsealed_reason text check (unsealed_reason in ('conteudo_mudou', 'mudou_no_destaque', 'unidade_nova')),
+  unsealed_at timestamptz, unsealed_reason text check (unsealed_reason in ('conteudo_mudou', 'mudou_no_destaque', 'unidade_nova', 'expurgo')),   -- expurgo: a M9 reabre o mês para refazer o manifesto
   unique (site_id, class, table_name, month)
 );
 create index if not exists idx_oam_detached on public.obs_archive_months (site_id) where detached_at is not null and dropped_at is null;
@@ -867,7 +867,10 @@ begin
     end if;
     update public.obs_archive_months
        set sealed_at = now(), sealed_version = v_mv, units_total = v_total, units_empty = v_vazias, rows_total = v_linhas,
-           days_measured = v_dm, days_in_month = (v_seg - p_month), sealed_kind = v_kind, unsealed_at = null, unsealed_reason = null
+           -- mês fora do banco (detached/dropped) guarda os dias medidos no selo anterior: o online já não os tem (pedido da M9)
+           days_measured = case when detached_at is not null or dropped_at is not null then days_measured else v_dm end,
+           days_in_month = case when detached_at is not null or dropped_at is not null then days_in_month else (v_seg - p_month) end,
+           sealed_kind = v_kind, unsealed_at = null, unsealed_reason = null
      where site_id = p_site and class = p_class and month = p_month and table_name = v_row.table_name;
   end loop;
   -- versões anteriores de canal que existe (a de canal removido nunca: 02 §10.5) e os resumos anteriores

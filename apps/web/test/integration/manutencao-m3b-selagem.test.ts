@@ -154,6 +154,20 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     expect(linha).toEqual({ sealed_kind: 'com_dado', rows_total: '58', days_measured: 29, days_in_month: 31 })
   }))
 
+  it('re-selo por expurgo de mês fora do banco guarda os dias do selo anterior (pedido da M9)', async () => emTx(async () => {
+    const { site, canal, videos } = await semearCanal(c, { videos: 2 })
+    await semearDiaria(c, videos, '2026-10-03', 29)
+    const u = await unidadePelaRota({ site, classe: 'serie', tabela: DAILY, canal, mes: MES })
+    await unidadePelaRota({ site, classe: 'serie', tabela: EARLY, canal, mes: MES })
+    await receber(site, [item(u)])
+    await receber(site, (await resumoPelaRota({ site, classe: 'serie', canal, mes: MES })).arquivos)
+    await receber(site, (await manifestoPelaRota({ site, classe: 'serie', mes: MES })).arquivos)
+    await c.query(`update public.obs_archive_months set detached_at = now(), unsealed_at = now(), unsealed_reason = 'expurgo' where site_id = $1 and class = 'serie'`, [site])
+    await c.query(`delete from public.competitor_video_daily where video_id = any($1::uuid[])`, [videos])
+    expect(await escalar(c, `select public.obs_archive_seal($1, 'serie', $2::date)`, [site, MES])).toBe(1)
+    const linha = (await c.query(`select days_measured, days_in_month, unsealed_reason from public.obs_archive_months where site_id = $1 and class = 'serie' and table_name = $2`, [site, DAILY])).rows[0]
+    expect(linha).toEqual({ days_measured: 29, days_in_month: 31, unsealed_reason: null })
+  }))
   it('canal sem linha tem unidade vazia com o nome do canal (item 26)', async () => emTx(async () => {
     const a = await semearCanal(c, { videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
     const b = await semearCanal(c, { site: a.site, videos: 0 })
