@@ -22,7 +22,7 @@ import { claim } from './forja-queue'
 import { placarDoTeste, regraDoTeste, type Placar } from '@/lib/youtube/ab-gravacao/placar'
 import { lerDiasDosTestes, lerDiasDoTeste } from '@/lib/youtube/ab-gravacao/placar-leitura'
 import { avisoDeVolume, comEstatistica } from '@/lib/youtube/ab-gravacao/aviso-volume'
-import { estadoV2DoTeste, tetoDoTesteV2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { estadoV2DoTeste, provisorioAte, tetoDoTesteV2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
 
 // ---------------------------------------------------------------------------
 // Shared constants
@@ -1119,6 +1119,7 @@ function projecaoV2(row: Record<string, unknown>, v2: ResultadoV2 | null, agora:
   return {
     desfecho: v2?.desfecho ?? null, provisorio: v2?.provisorio ?? null, n: v2?.n ?? null, p1: v2?.p1 ?? null, base_estimada: v2?.base_estimada ?? null,
     gl: v2?.gl ?? null, p_adj: v2?.p_adj ?? null, vencedor_sugerido: v2?.vencedor_sugerido ?? null, por_variante: v2?.por_variante ?? null, relogio,
+    provisorio_ate: v2?.provisorio === true && v2.encerrado_em_dia ? provisorioAte(v2.encerrado_em_dia) : null,
   }
 }
 

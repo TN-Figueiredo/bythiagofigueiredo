@@ -16,6 +16,7 @@ import { Icon } from '../_chrome/icons'
 import { PastilhaAusencia } from '../_chrome/ausencia/pastilhas'
 import { cap, Ext } from '../_canal/canal-header'
 import type { PosicaoItem, ProprioCell, ProprioHeaderView } from './header-model'
+import '../../_components/info-dica.css'
 
 /**
  * Uma célula da faixa (mockup de 12/10): o valor em cima, o rótulo e, sob ele, a segunda linha (`sub`). Sem número ela leva só o quadradinho

@@ -19,6 +19,7 @@ import { lembrarGatilho } from '../_chrome/gatilho-volta'
 import type { CanalHeaderView, NumCell } from './header-model'
 import { maisNumeros } from './medidas/cabecalho-model'
 import { MaisNumeros } from './medidas/mais-numeros'
+import '../../_components/info-dica.css'
 
 export const Ext = () => (
   <svg className="i" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9 3h4v4M13 3L7.5 8.5M12 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2.5" /></svg>

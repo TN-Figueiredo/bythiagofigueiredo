@@ -1,0 +1,30 @@
+/* Tokens do Observatório (movidos de chrome.css): escuros por padrão, claros sob <html data-theme="light">. Importado pelo layout de competitors e pelo InfoDica (o #flut herda daqui). */
+[data-obs]{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--surface-hover:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--accent-hover:#FF9A60;--accent-subtle:rgba(255,130,64,.12);--on-accent:#1A120A;
+  --success:#22c55e;--warning:#f59e0b;--warning-text:#f59e0b;--danger:#F26B6B;--danger-text:#F26B6B;--info:#06b6d4;
+  --forja:#5CC3B2;--forja-hover:#7FD6C7;--forja-soft-bg:#2F5D56;--forja-soft-text:#DCF3EE;--forja-subtle:rgba(92,195,178,.12);--forja-line:rgba(92,195,178,.35);--on-forja:#0E2A25;
+  --ia:#6EA8FE;--viagem:#5BBF8A;--cowork:#9B93F6;
+  --tier-mid:#38BDF8;--tier-high:#A78BFA;--tier-top:#E0735C;--youtube:#FF3333;
+  --warn-subtle:rgba(245,158,11,.12);--danger-subtle:rgba(239,68,68,.12);--ok-subtle:rgba(34,197,94,.12);
+  --shadow:0 12px 32px rgba(0,0,0,.45);
+  --dg-bg:#432A27;--dg-bg-hover:#53332F;--dg-line:#F26B6B;--dg-fg:#FFB9B3;--toast-bg:#2D1B19;--toast-line:#F26B6B;
+  --drawer-w:404px;
+  color-scheme:dark;
+}
+[data-theme="light"] [data-obs]{
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--surface-hover:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--accent-hover:#A23E14;--accent-subtle:rgba(184,72,26,.10);--on-accent:#FFF8F1;
+  --success:#11692F;--warning:#B45309;--warning-text:#92400E;--danger:#B42318;--danger-text:#B42318;--info:#0e7490;
+  --forja:#17695C;--forja-hover:#11564B;--forja-soft-bg:#A9D2CA;--forja-soft-text:#0E2A25;--forja-subtle:rgba(23,105,92,.06);--forja-line:rgba(23,105,92,.35);--on-forja:#FFFFFF;
+  --ia:#1D4ED8;--viagem:#11692F;--cowork:#5B4FD9;
+  --tier-mid:#0369A1;--tier-high:#6D28D9;--tier-top:#B4452F;
+  --warn-subtle:rgba(180,83,9,.10);--danger-subtle:rgba(180,35,24,.08);--ok-subtle:rgba(17,105,47,.10);
+  --shadow:0 12px 32px rgba(60,40,10,.14);
+  --dg-bg:#B42318;--dg-bg-hover:#9A1D14;--dg-line:#B42318;--dg-fg:#FFFFFF;--toast-bg:#FDF0EE;--toast-line:#B42318;
+  color-scheme:light;
+}

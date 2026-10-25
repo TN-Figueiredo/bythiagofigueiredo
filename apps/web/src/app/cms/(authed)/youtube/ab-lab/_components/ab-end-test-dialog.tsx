@@ -7,6 +7,7 @@ import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { AbConfirmarTrocaDialog } from './ab-confirmar-troca-dialog'
+import { ICONE_ERRO } from './etd-icone-erro'
 import type { OpcaoDoDialogo } from './encerrar-props'
 import './ab-end-test-dialog.css'
 
@@ -27,6 +28,8 @@ export interface AbEndTestDialogProps {
   seqVisto: number
   /** Aviso de página (role="status", 6 s) quando o teste encerrou mas o YouTube recusou algum campo. */
   onAviso?: (texto: string) => void
+  /** S8-F4 T12: teste com regra v2; encerrar à mão tira o teste da decisão. */
+  regraV2?: boolean
 }
 
 type Fase = 'escolha' | 'enviando' | 'sem_resposta' | 'sessao_expirada' | 'mudou'
@@ -99,9 +102,6 @@ function Miniatura({ src }: { src: string | null }) {
   )
 }
 
-const ICONE_ERRO = (
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 2.5h7.6l5.7 5.7v7.6l-5.7 5.7H8.2l-5.7-5.7V8.2z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
-)
 const ICONE_AVISO = (
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L22 20H2z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="M12 10v4.5M12 17.3v.2" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
 )
@@ -244,9 +244,10 @@ interface EscolhaProps extends AbEndTestDialogProps {
   onEnviar: () => void
 }
 
-function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeixarVariante, escolhida, setEscolhida, fase, erro, opcao, onEnviar }: EscolhaProps) {
+function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeixarVariante, regraV2, escolhida, setEscolhida, fase, erro, opcao, onEnviar }: EscolhaProps) {
   const ref = useRef<HTMLDivElement>(null)
-  useModalFocusTrap(ref, true, onFechar)
+  const cancelarRef = useRef<HTMLButtonElement>(null)
+  useModalFocusTrap(ref, true, onFechar, cancelarRef) // foco inicial na opção segura (Cancelar), não no X
   const enviando = fase === 'enviando'
   const semResposta = fase === 'sem_resposta'
   const sessaoExpirada = fase === 'sessao_expirada'
@@ -307,6 +308,9 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
             {!podeDeixarVariante ? (
               <div className="etd-msg warn">{ICONE_AVISO}<div>Só quem administra o site pode deixar uma variante no ar. Você pode voltar ao original.</div></div>
             ) : null}
+            {regraV2 ? (
+              <div className="etd-msg warn">{ICONE_AVISO}<div>Encerrar à mão tira o teste da decisão: o resultado não será calculado.</div></div>
+            ) : null}
             {enviando ? (
               <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Trocando título e thumbnail no YouTube</strong>Pode levar até 1 minuto. Se fechar, o resultado aparece no topo da página.</div></div>
             ) : null}
@@ -342,7 +346,7 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
             ) : (
               <>
                 <button type="button" className="etd-btn pri" aria-disabled={botaoOff} aria-describedby="etd-hint" onClick={() => { if (!botaoOff) onEnviar() }}>{rotuloBotao}</button>
-                <button type="button" className="etd-btn" disabled={enviando} onClick={onFechar}>Cancelar</button>
+                <button type="button" className="etd-btn" ref={cancelarRef} disabled={enviando} onClick={onFechar}>Cancelar</button>
                 {!opcao ? <p className="etd-hint" id="etd-hint">Escolha uma opção.</p> : <span id="etd-hint" hidden />}
               </>
             )}

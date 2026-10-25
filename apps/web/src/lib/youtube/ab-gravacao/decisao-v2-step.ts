@@ -11,7 +11,7 @@ import { dayPt, diffDias } from '../coleta/day-pt'
 import { lerPaginado } from '../coleta/paginar'
 import type { AbTest } from '../coleta/ab-seconds'
 import {
-  K_POR_V, V_MAXIMO_V2, baseDoVideo, blocoDoDia, cicloDoDia, decidirV2, desfechoProvisorio, encerradoEmDia, estatisticaV2,
+  K_POR_V, V_MAXIMO_V2, baseDoVideo, decidirV2, diasDaDecisao, desfechoProvisorio, encerradoEmDia, estatisticaV2,
   pisos, relogioV2, sugeridoV2, tetoDoTesteV2, volumeMinimo, type CicloComNumero, type DiaDaDecisao, type EstatisticaV2,
 } from './decisao-v2'
 import { lerDiasDosTestes } from './placar-leitura'
@@ -198,10 +198,7 @@ export async function rodarDecisaoV2(sb: SupabaseClient, agora: Date, entradas: 
 
     const teste: AbTest = { id: t.id, status: t.status, paused_at: t.paused_at, completed_at: t.completed_at, original_title: t.original_title }
     const concluido = t.status !== 'active'
-    const dias: DiaDaDecisao[] = ((linhasDia ?? []) as Array<{ day_pt: string; variant_id: string | null; alcance_estado: DiaDaDecisao['alcance_estado']; impressoes: number | null; ctr: number | null; final: boolean }>).map((l) => {
-      const c = cicloDoDia(l.day_pt, ciclos, l.variant_id)
-      return { day_pt: l.day_pt, variant_id: l.variant_id, alcance_estado: l.alcance_estado, impressoes: l.impressoes, ctr: l.ctr, final: l.final, bloco: c ? blocoDoDia(c.cycle_number, V) : null }
-    })
+    const dias: DiaDaDecisao[] = diasDaDecisao((linhasDia ?? []) as Array<{ day_pt: string; variant_id: string | null; alcance_estado: DiaDaDecisao['alcance_estado']; impressoes: number | null; ctr: number | null; final: boolean }>, ciclos, V)
     const teto = tetoDoTesteV2(t.config, V)
     const relogio = relogioV2(ciclos, teste, agora).length
     const video = Array.isArray(t.youtube_videos) ? t.youtube_videos[0]! : t.youtube_videos
