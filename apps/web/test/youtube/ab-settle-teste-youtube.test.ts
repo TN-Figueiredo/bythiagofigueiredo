@@ -40,7 +40,7 @@ function retrato(o: Partial<Retrato> = {}): Retrato {
 function montar(r: Retrato, opts: { claimVazio?: boolean; statusDepois?: string; nativas?: Row[]; falhaNativas?: boolean } = {}) {
   const nativas = fakeSupabase({ ab_native_tests: opts.nativas ?? [] }, opts.falhaNativas ? { failOn: 'ab_native_tests' } : {})
   const rpc = vi.fn(async (_n: string, a: Record<string, unknown>) => (opts.claimVazio ? { data: [], error: null } : { data: [{ claimed_seq: Number(a.p_seq) + 1 }], error: null }))
-  const from = vi.fn((tabela: string) => tabela === 'ab_native_tests' ? nativas.client.from(tabela) : ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { status: opts.statusDepois ?? 'completed' }, error: null }) }) }) }))
+  const from = vi.fn((tabela: string) => tabela === 'ab_native_tests' ? nativas.client.from(tabela) : ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { status: opts.statusDepois ?? 'completed' }, error: null }), eq: () => ({ neq: () => ({ in: () => ({ limit: async () => ({ data: [], error: null }) }) }) }) }) }) }))
   const proibida = (nome: string) => vi.fn(() => { throw new Error(`porta proibida: ${nome}`) })
   const token = proibida('token')
   const fetchFn = proibida('fetch')
