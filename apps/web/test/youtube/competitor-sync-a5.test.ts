@@ -2610,3 +2610,114 @@ describe('A5 E9 T7: a sincronização consulta o apagado', () => {
     expect(inserts(db).map(i => i.video_id)).toEqual(['AAAAAAAAAA2'])
   })
 })
+
+// ── M10a (02 §10.8, pontos 1 a 3): o vídeo em leitura mensal não é lido, capturado nem regravado ──
+describe('M10a: a coleta respeita a marca do vídeo antigo', () => {
+  const FROZEN = { archive_frozen_at: '2026-09-01T00:00:00.000Z' }
+  const frozenRow = (i: number | string, age: number, over: Record<string, unknown> = {}) => row(i, age, { ...FROZEN, ...over })
+  const selectsOf = (db: ReturnType<typeof setup>) => db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'select').map(c => String(c.ops.find(o => o[0] === 'select')?.[1][0]))
+  const silent = (_n: number, _u: string): Record<string, unknown>[] => [] // o YouTube não devolve ninguém: quem foi pedido vira falta
+  const noFrozenUuid = (db: ReturnType<typeof setup>, ids: string[]) => {
+    for (const id of ids) expect(updatesOf(db, id), 'update em ' + id).toEqual([])
+    expect(db.calls.filter(c => c.table.startsWith('rpc:') && ids.some(id => JSON.stringify(c.ops[0]![1][0]).includes('"' + id + '"')))
+      .map(c => c.table).filter(t => t !== 'rpc:apply_competitor_tier_plan')).toEqual([])
+  }
+
+  it('1: o select de loadAll e o dos já gravados da página pedem archive_frozen_at', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [ROW1], all: [row(1, 1)] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })
+    const s = selectsOf(db)
+    expect(s.length).toBeGreaterThanOrEqual(3) // loadAll (2x) e os já gravados da página
+    for (const cols of s.filter(c => c.includes('discovered_at'))) expect(cols).toContain('archive_frozen_at')
+    expect(s.filter(c => c.includes('series_tier')).length).toBe(2)
+  })
+  it('2 (ponto 1): classifyTiers só vê os ativos; nenhum congelado entra na diária, no plano nem na extensão da promoção', async () => {
+    const ativos = Array.from({ length: 20 }, (_, i) => row(i + 1, 40 + i)) // 20 ativos com mais de 30 dias; limite 10
+    const congelados = Array.from({ length: 40 }, (_, i) => frozenRow('f' + i, 1 + i * 0.01, i === 0 ? { daily_until: '2026-10-25' } : {}))
+    const db = setup({ videoLimit: 10, dailyHave: [], existing: [], all: [...ativos, ...congelados] })
+    const log = { dailyCalls: [] as string[] }
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo, log }), ...quiet })
+    const plano = rpcCalls(db, 'apply_competitor_tier_plan')
+    expect(plano).toHaveLength(1)
+    const ids = (plano[0]!.p_changes as Array<{ video_id: string }>).map(c => c.video_id)
+    expect(ids.length).toBeGreaterThan(0)
+    expect(ids.every(id => /^v-\d+$/.test(id))).toBe(true)
+    const pedidos = log.dailyCalls.flatMap(idsOf)
+    expect(pedidos).toHaveLength(10) // os 10 mais recentes DOS ATIVOS (o limite não é gasto com congelado)
+    expect(pedidos.some(id => id.startsWith('vid-f'))).toBe(false)
+    noFrozenUuid(db, congelados.map(r => r.id as string))
+    expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert' && JSON.stringify(c.ops[0]![1][0]).includes('v-f'))).toBe(false)
+  })
+  it('3 (ponto 2 / V5): a passada semanal não pede congelado e fecha com congelado sem faixa', async () => {
+    const day = (() => { let d = '2026-10-24'; while (dayNumber(d) % 7 !== weekSlotOf('vid-7')) d = addDays(d, 1); return d })()
+    const db = setup({ all: [row(1, 1, { series_tier: 'diaria', series_tier_since: '2026-09-01' }), frozenRow(7, 407, { series_tier: 'semanal', series_tier_since: '2026-09-01' }), frozenRow(8, 408)] })
+    const log = { dailyCalls: [] as string[] }
+    const r = await syncCompetitorWeekly(ch, 'k', { now: new Date(day + 'T15:00:00.000Z'), fetchImpl: apiFetch(null, 200, { daily: silent, log }) })
+    expect(log.dailyCalls).toEqual([])
+    expect(r).toMatchObject({ due: 0, recorded: 0, deferred: 0, complete: true })
+    noFrozenUuid(db, ['v-7', 'v-8'])
+  })
+  it('4 (ponto 3): a página de uploads não reconcilia, captura, regrava nem pede o congelado; o novo entra; hitKnownVideo para a incremental', async () => {
+    const ids = ['vid-1', 'vid-f1', 'vid-f2', 'vid-novo']
+    const existing = [ROW1, { ...ROW1, id: 'v-f1', video_id: 'vid-f1', ...FROZEN }, { ...ROW1, id: 'v-f2', video_id: 'vid-f2', ...FROZEN }]
+    const db = setup({ lastDaily: '2026-10-24', existing, all: [row(1, 1), frozenRow('f1', 1), frozenRow('f2', 1)] })
+    const asked: string[] = []
+    const f = (async (input: RequestInfo | URL) => {
+      const u = String(input)
+      if (u.includes('/channels?')) return Response.json({ items: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
+      if (u.includes('/playlistItems?')) return Response.json({ items: ids.map(id => ({ snippet: { resourceId: { videoId: id } } })) })
+      if (u.includes('/videos?')) { asked.push(...idsOf(u)); return Response.json({ items: idsOf(u).filter(id => id === 'vid-1' || id === 'vid-novo').map(id => page({ id })) }) }
+      return Response.json({ items: [] })
+    }) as typeof fetch
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })
+    expect(inserts(db).map(i => i.video_id)).toEqual(['vid-novo'])
+    noFrozenUuid(db, ['v-f1', 'v-f2'])
+    expect(rpcCalls(db, 'competitor_mark_missing').flatMap(a => a.p_video_ids as string[]).some(id => id.startsWith('v-f'))).toBe(false)
+    expect(updatesOf(db, 'v-1').length).toBeGreaterThan(0) // o ativo continua sendo regravado
+  })
+  it('4b: página só com congelados: nada é inserido nem regravado e a incremental para (uma página)', async () => {
+    const existing = [{ ...ROW1, id: 'v-f1', video_id: 'vid-f1', ...FROZEN }, { ...ROW1, id: 'v-f2', video_id: 'vid-f2', ...FROZEN }]
+    const db = setup({ lastDaily: '2026-10-24', existing, all: [frozenRow('f1', 1), frozenRow('f2', 1)] })
+    let pages = 0
+    const f = (async (input: RequestInfo | URL) => {
+      const u = String(input)
+      if (u.includes('/channels?')) return Response.json({ items: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10', videoCount: '2' } }] })
+      if (u.includes('/playlistItems?')) { pages++; return Response.json({ nextPageToken: 'p' + pages, items: ['vid-f1', 'vid-f2'].map(id => ({ snippet: { resourceId: { videoId: id } } })) }) }
+      return Response.json({ items: idsOf(u).map(id => page({ id })) })
+    }) as typeof fetch
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })
+    expect(pages).toBe(1)
+    expect(inserts(db)).toEqual([])
+    noFrozenUuid(db, ['v-f1', 'v-f2'])
+  })
+  it('6 (fixados, Y6): o fixado congelado não é pedido nem capturado', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [], all: [row(1, 1, { series_tier: 'diaria', series_tier_since: '2026-09-01' }), frozenRow('pin', 400, { pinned_at: '2026-10-01T00:00:00.000Z', series_tier: null })] })
+    const log = { dailyCalls: [] as string[] }
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null, 200, { daily: silent, log }), ...quiet })
+    expect(log.dailyCalls.flatMap(idsOf)).not.toContain('vid-pin')
+    noFrozenUuid(db, ['v-pin'])
+  })
+  it('7 (Y7): a guarda de schema acusa a migration M10a quando falta archive_frozen_at', async () => {
+    const { schemaGroups, schemaTablesReady } = await import('@/lib/youtube/competitor-health')
+    const sb = { from: (t: string) => ({ select: (cols: string) => ({ limit: () => Promise.resolve(t === 'competitor_videos' && cols.includes('archive_frozen_at') ? { data: null, error: { code: '42703', message: 'column competitor_videos.archive_frozen_at does not exist' } } : { data: [], error: null }) }) }) }
+    const fal = await schemaTablesReady(sb as never, schemaGroups('e1e2'))
+    expect(fal?.tipo).toBe('ausente')
+    expect(fal?.texto).toMatch(/migration M10a não aplicada \(competitor_videos\).*archive_frozen_at/)
+  })
+  it('8 (Phil M-5): o select dos já gravados da página com erro lança; nunca trata todo vídeo como novo', async () => {
+    const db = setup({ lastDaily: '2026-10-24', existing: [], existingError: 'boom', all: [row(1, 1)] })
+    await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })).rejects.toThrow('competitor_videos (página de uploads): boom')
+    expect(inserts(db)).toEqual([])
+  })
+  it('9 (Phil M-2): ignorados_congelados > 0 no fechamento da faixa vai ao Sentry; zero não vai', async () => {
+    const Sentry = await import('@sentry/nextjs')
+    vi.mocked(Sentry.captureException).mockClear()
+    setup({ lastDaily: '2026-10-24', existing: [], all: [row(1, 1)], tierPlanResult: { changed: 1, ignorados_congelados: 2 } })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })
+    expect(vi.mocked(Sentry.captureException).mock.calls.some(([e]) => String((e as Error).message).includes('ignorou 2'))).toBe(true)
+    vi.mocked(Sentry.captureException).mockClear()
+    setup({ lastDaily: '2026-10-24', existing: [], all: [row(1, 1)], tierPlanResult: { changed: 1, ignorados_congelados: 0 } })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })
+    expect(vi.mocked(Sentry.captureException).mock.calls.some(([e]) => String((e as Error).message).includes('ignorou'))).toBe(false)
+  })
+})
