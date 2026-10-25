@@ -97,7 +97,7 @@ describe('tetos e folga', () => {
 describe('estadoV2DoTeste', () => {
   const cs = [ciclo(0, t0, null)]
   const em03 = new Date(boundsAnalytics('2026-02-20').start + 3 * H)
-  const v2 = (dias: number, em: Date) => ({ ultima_avaliacao: { em: em.toISOString(), acao: 'seguir' as const, dias_relogio: dias } })
+  const v2 = (dias: number, em: Date) => ({ ultima_avaliacao: { em: em.toISOString(), acao: 'seguir' as const, dias_relogio: dias, dias_validos: {}, blocos_completos: 0, volume: {} } })
   it('às 03:00 PT, dia igual ao dias_relogio da avaliação do dia anterior; idade > 26 h sinaliza velho', () => {
     const dia = relogioV2(cs, TESTE, em03).length
     const ontem = new Date(em03.getTime() - 27 * H)

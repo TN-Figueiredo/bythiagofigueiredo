@@ -5,6 +5,9 @@ import { diasDoTeste } from './atribuicao'
 import { estadoDoAlcance, type LinhaAlcance, type RelatorioDoDia } from './estado'
 import { diaComAlcanceValido, diaValido } from './placar'
 import type { EstadoAlcance, MetaDoDia } from './tipos'
+import type { DesfechoV2, ResultadoV2 } from '../ab-types'
+
+export type { DesfechoV2 }
 
 export const ATRASO_ALCANCE = 3
 export const V_MAXIMO_V2 = 3 // 4 variantes: recusar (padrão do plano); suportar = 4
@@ -14,9 +17,7 @@ export const tetoPadrao = (V: number): number => Math.max(15, tetoMinimo(V) + 1)
 
 export interface CicloComNumero extends AbCycle { cycle_number: number }
 
-/** Parte da `ultima_avaliacao` de `ResultadoV2` que o relógio lê (o tipo completo vem na T5). */
-export interface UltimaAvaliacaoV2 { em: string; acao: 'seguir' | 'encerrar_adiado'; dias_relogio: number }
-export interface ResultadoV2Relogio { ultima_avaliacao?: UltimaAvaliacaoV2 | null }
+export type UltimaAvaliacaoV2 = NonNullable<ResultadoV2['ultima_avaliacao']>
 
 /** Dias fechados com ciclo no ar, sem a janela de 40 dias do retrato (nunca hoje, PT). */
 export function relogioV2(ciclos: CicloComNumero[], teste: AbTest, agora: Date): DiaPt[] {
@@ -67,7 +68,7 @@ export interface EstadoV2 {
 }
 
 /** Fonte única do "dia X de T": tela e Cowork chamam esta função. `teto` vem da config do teste (ou tetoPadrao). */
-export function estadoV2DoTeste(teste: AbTest, ciclos: CicloComNumero[], v2: ResultadoV2Relogio | null, agora: Date, teto: number): EstadoV2 {
+export function estadoV2DoTeste(teste: AbTest, ciclos: CicloComNumero[], v2: ResultadoV2 | null, agora: Date, teto: number): EstadoV2 {
   const pausado = teste.status === 'paused'
   const ua = v2?.ultima_avaliacao ?? null
   const em = ua ? Date.parse(ua.em) : NaN
@@ -256,4 +257,84 @@ export function estatisticaV2(dias: readonly DiaDaDecisao[], originalId: string,
     por_variante.push({ variant_id: v, alfa, z, z_adj, p_adj, sinais_por_bloco: sinais, passa: p_adj < alfa && consistente, lift })
   }
   return { estado: 'calculada', phi, gl, por_variante }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pisos, desfecho e dia de encerramento (puras).
+// ---------------------------------------------------------------------------------------------
+
+export interface Pisos {
+  dias_validos: Record<string, number>; blocos_completos: number; piso_dias: boolean
+  volume: Record<string, number | null>; piso_volume: boolean; fechavel_por_aguardando: boolean
+}
+
+const PISO_DIAS_POR_VARIANTE = 4
+
+export function pisos(dias: readonly DiaDaDecisao[], variantes: readonly string[], n: number): Pisos {
+  const dias_validos: Record<string, number> = {}
+  const aguardando: Record<string, number> = {}
+  const impressoes: Record<string, number> = {}
+  const blocosPorVariante = new Map<string, Set<number>>()
+  for (const v of variantes) { dias_validos[v] = 0; aguardando[v] = 0; impressoes[v] = 0; blocosPorVariante.set(v, new Set()) }
+  for (const d of dias) {
+    const v = d.variant_id
+    if (v === null || !(v in dias_validos)) continue
+    if (diaValido(d)) {
+      dias_validos[v] = (dias_validos[v] ?? 0) + 1
+      impressoes[v] = (impressoes[v] ?? 0) + (d.impressoes as number)
+      if (d.bloco !== null) blocosPorVariante.get(v)?.add(d.bloco)
+    } else if (d.alcance_estado === 'aguardando') aguardando[v] = (aguardando[v] ?? 0) + 1
+  }
+  const todos = [...new Set([...blocosPorVariante.values()].flatMap(s => [...s]))]
+  const blocos_completos = todos.filter(b => variantes.every(v => blocosPorVariante.get(v)?.has(b))).length
+  const volume: Record<string, number | null> = {}
+  for (const v of variantes) volume[v] = (dias_validos[v] ?? 0) > 0 ? (impressoes[v] as number) : null
+  return {
+    dias_validos, blocos_completos,
+    piso_dias: variantes.every(v => (dias_validos[v] ?? 0) >= PISO_DIAS_POR_VARIANTE),
+    volume,
+    piso_volume: variantes.every(v => (volume[v] ?? 0) >= n),
+    fechavel_por_aguardando: variantes.every(v => (dias_validos[v] ?? 0) + (aguardando[v] ?? 0) >= PISO_DIAS_POR_VARIANTE),
+  }
+}
+
+/** ◆3: false = "segue até o teto" (padrão sem resposta); true = "encerra quando os pisos fecham". */
+export const ENCERRA_AO_FECHAR_PISOS = false
+
+export type DecisaoV2 = { acao: 'seguir' } | { acao: 'encerrar'; desfecho: DesfechoV2; vencedor_sugerido: string | null }
+
+export function decidirV2(i: { relogio: number; teto: number; pisos: Pisos; estatistica: EstatisticaV2; encerraAoFecharPisos?: boolean }): DecisaoV2 {
+  const noTeto = i.relogio >= i.teto
+  const { pisos: p } = i
+  if (p.piso_dias && p.piso_volume) {
+    if (!noTeto && !(i.encerraAoFecharPisos ?? ENCERRA_AO_FECHAR_PISOS)) return { acao: 'seguir' }
+    if (i.estatistica.estado === 'calculada') {
+      const melhor = i.estatistica.por_variante.filter(x => x.passa).sort((a, b) => a.p_adj - b.p_adj)[0]
+      if (melhor) return { acao: 'encerrar', desfecho: 'vencedor_provavel', vencedor_sugerido: melhor.variant_id }
+    }
+    return { acao: 'encerrar', desfecho: 'sem_diferenca_detectavel', vencedor_sugerido: null }
+  }
+  if (!noTeto) return { acao: 'seguir' }
+  const desfecho: DesfechoV2 = !p.piso_dias
+    ? (p.fechavel_por_aguardando ? 'aguardando_alcance' : !p.piso_volume ? 'inconclusivo_por_volume' : 'inconclusivo_por_dado')
+    : 'inconclusivo_por_volume'
+  return { acao: 'encerrar', desfecho, vencedor_sugerido: null }
+}
+
+/** Desfecho do teste recém-encerrado, só com dias <= encerradoEmDia; é "provisório" enquanto algum desses não é final. */
+export function desfechoProvisorio(i: { dias: readonly DiaDaDecisao[]; encerradoEmDia: DiaPt; variantes: readonly string[]; originalId: string; n: number }): {
+  desfecho: DesfechoV2; vencedor_sugerido: string | null; provisorio: boolean; estatistica: EstatisticaV2
+} {
+  const dias = i.dias.filter(d => d.day_pt <= i.encerradoEmDia)
+  const estatistica = estatisticaV2(dias, i.originalId, i.variantes)
+  const d = decidirV2({ relogio: Number.POSITIVE_INFINITY, teto: 0, pisos: pisos(dias, i.variantes, i.n), estatistica })
+  const provisorio = dias.some(x => !x.final)
+  return d.acao === 'encerrar'
+    ? { desfecho: d.desfecho, vencedor_sugerido: d.vencedor_sugerido, provisorio, estatistica }
+    : { desfecho: 'inconclusivo_por_dado', vencedor_sugerido: null, provisorio, estatistica }
+}
+
+/** Último dia PT fechado antes de completed_at. */
+export function encerradoEmDia(completedAt: string): DiaPt {
+  return addDays(dayPt(new Date(completedAt)), -1)
 }
