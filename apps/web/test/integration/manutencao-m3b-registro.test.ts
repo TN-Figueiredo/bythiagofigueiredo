@@ -108,6 +108,14 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 1: o registro', () => {
     })
   })
 
+  it('a soma do registro bate com a control_column da política, onde a tabela está nos dois (Yannis M3)', async () => {
+    await emTx(async () => {
+      const r = await c.query(`select p.table_name, p.control_column, g.sum_sql from public.obs_archive_policy() p join public.obs_archive_registry() g using (table_name)`)
+      expect(r.rows.length).toBeGreaterThan(0)
+      for (const x of r.rows) expect(x.sum_sql, x.table_name).toBe(x.control_column === null ? null : `t.${x.control_column}`)
+    })
+  })
+
   it('na M3b nenhuma classe está liberada (D12)', async () => {
     await emTx(async () => {
       expect(await escalar<boolean>(c, `select coalesce(bool_or(released), false) from public.obs_archive_policy()`)).toBe(false)
