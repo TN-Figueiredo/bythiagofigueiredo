@@ -4,6 +4,8 @@ import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export interface CompetitorRemovalImpact {
   name: string | null; videos: number; pinned: number; versions: number; dailyDays: number; bookmarks: number
+  /** M10a: vídeos em leitura mensal (já lidos só uma vez por mês) e vídeos já no arquivo (M10c); as duas parcelas somam parte de `videos` */
+  videosLeituraMensal: number; videosNoArquivo: number
   /** leituras da forja (`competitor_readings`) */
   readings: number
   /** o que a página de vídeo (watch) também perde: `competitor_channel_removal_extra` */
@@ -20,8 +22,8 @@ export function parseRemovalImpact(data: unknown): ImpactoBase | null {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new Error(FN + ': resposta inesperada')
   const d = data as Record<string, unknown>
   if (d.status === 'not_found') return null
-  if (d.status !== 'ok' || !isCount(d.videos) || !isCount(d.pinned) || !isCount(d.versions) || !isCount(d.daily_days) || !isCount(d.bookmarks)) throw new Error(FN + ': resposta inesperada')
-  return { name: typeof d.name === 'string' ? d.name : null, videos: d.videos, pinned: d.pinned, versions: d.versions, dailyDays: d.daily_days, bookmarks: d.bookmarks }
+  if (d.status !== 'ok' || !isCount(d.videos) || !isCount(d.pinned) || !isCount(d.versions) || !isCount(d.daily_days) || !isCount(d.bookmarks) || !isCount(d.videos_leitura_mensal) || !isCount(d.videos_no_arquivo)) throw new Error(FN + ': resposta inesperada')
+  return { name: typeof d.name === 'string' ? d.name : null, videos: d.videos, pinned: d.pinned, versions: d.versions, dailyDays: d.daily_days, bookmarks: d.bookmarks, videosLeituraMensal: d.videos_leitura_mensal, videosNoArquivo: d.videos_no_arquivo }
 }
 
 const EXTRA = 'competitor_channel_removal_extra'

@@ -10,8 +10,9 @@ import type { VideoRow, VersionRow, DailyRow, SnapshotRow, SpanRow } from './loa
  * entry outlives a deploy). test/youtube/observatorio/pack-shape.test.ts holds the portrait of the shape of this
  * version and fails when one changes without the other.
  * 1 = the first shape. 2 = A5 (E2): `series_tier` nos vídeos, a lista `spans`, e a série de todo vídeo datado.
+ * 3 = M10a: archive_frozen_at e archive_dropped_at nos vídeos.
  */
-export const PACK_VERSION = 2
+export const PACK_VERSION = 3
 /** Characters of a packed channel that are safe to store (limit 2 097 152, minus the entry envelope and a margin). */
 export const PACK_BUDGET = 2_000_000
 
