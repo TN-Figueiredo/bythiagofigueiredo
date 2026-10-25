@@ -53,10 +53,25 @@ export function textoAvisoOriginalBaixa(
 
 export type EstadoAviso = 'pendente' | null | AvisoOriginal   // pendente = leitura em andamento; null = alta ou tipo só título
 
-export function tituloDoBanner(aviso: EstadoAviso | undefined): string {
-  if (aviso === undefined || aviso === null) return 'Tudo pronto.'
-  if (aviso === 'pendente' || aviso.kind === 'indisponivel') return 'Pronto para ativar.'
-  return 'Pronto para ativar, com um aviso abaixo.'
+/** Forma do aviso de volume que importa ao banner (o tipo completo mora no hook, que importa este módulo). */
+type VolumeDoBanner = 'pendente' | 'indisponivel' | null | { estado: string; texto: string }
+
+/**
+ * Título do banner do Revisar (D-M6-8), nesta ordem: falta thumbnail ⇒ pede a imagem; algum aviso visível ⇒ "com um aviso abaixo";
+ * alguma leitura pendente ou indisponível ⇒ "Pronto para ativar."; senão "Tudo pronto." (nunca sem ter lido).
+ */
+export function tituloDoBanner(
+  aviso: EstadoAviso | undefined,
+  extra?: { volume?: VolumeDoBanner; faltaThumb?: string | null },
+): string {
+  if (extra?.faltaThumb) return `Falta a thumbnail da variante ${extra.faltaThumb}.`
+  const volume = extra?.volume
+  const avisoOriginalVisivel = aviso !== undefined && aviso !== null && aviso !== 'pendente' && aviso.kind !== 'indisponivel'
+  const avisoVolumeVisivel = typeof volume === 'object' && volume !== null
+  if (avisoOriginalVisivel || avisoVolumeVisivel) return 'Pronto para ativar, com um aviso abaixo.'
+  const originalSemLer = aviso === 'pendente' || (aviso !== undefined && aviso !== null && aviso.kind === 'indisponivel')
+  if (originalSemLer || volume === 'pendente' || volume === 'indisponivel') return 'Pronto para ativar.'
+  return 'Tudo pronto.'
 }
 
-export const NOTA_ATIVAR = 'Clique em Ativar teste para começar. As variantes passam a rotacionar na hora.'
+export const NOTA_ATIVAR = 'Clique em Ativar teste para começar. As variantes começam a alternar depois que o teste for ativado no YouTube.'

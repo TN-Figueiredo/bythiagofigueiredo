@@ -7,6 +7,7 @@ import { StepVariantes } from './step-variantes'
 import type { VariantData } from './step-variantes'
 import { PASSOS, ROTULO_DO_PASSO, ehPasso, indiceDoPasso, proximoPasso, passoAnterior, type Passo } from './wizard-passos'
 import { StepRevisar } from './step-revisar'
+import { faltaThumbDe } from './previa-por-tipo'
 import { LibraryPickerDialog } from './library-picker-dialog'
 import { ICONE_BUSY } from './etd-icone-busy'
 import { ICONE_ERRO } from './etd-icone-erro'
@@ -444,11 +445,12 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
   // D12: aviso de original baixa; só leitura, não valida passo nem envia
   const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step !== 'tipo')
 
+  const faltaThumb = state.type ? faltaThumbDe(state.type, state.variants) : null
   const avisoVolume = useAvisoVolume(avisoDeVolume, state.draftTestId, dialogoMontado && state.step === 'revisar', state.variants.length)
 
   // --- Escape key ---
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !fechaBloqueado) onClose() }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented && !fechaBloqueado) onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [onClose, fechaBloqueado])
@@ -823,6 +825,9 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
             onEscolherDaBiblioteca={escolherDaBiblioteca}
             avisoOriginal={avisoOriginal}
             avisoVolume={avisoVolume}
+            faltaThumb={faltaThumb}
+            ocupado={acao === 'salvar' || acao === 'ativar'}
+            comErro={aviso !== null}
           />
         )
       default:
@@ -949,7 +954,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
                     </button>
                     <button
                       onClick={() => (falhouAtivar ? tentarDeNovo() : void handleSubmit(true))}
-                      disabled={ocupado}
+                      disabled={ocupado || (faltaThumb !== null && !falhouAtivar)}
                       className={BTN_PRI}
                       style={estiloPri}
                     >
