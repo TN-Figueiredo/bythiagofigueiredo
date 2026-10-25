@@ -57,3 +57,12 @@ Verificação: `node verifica.mjs` (Playwright headless; refaz as 39 capturas e 
 
 ## Colisões
 - Nenhum ponto de Logan ou Naksu contradiz o brief m5-desenho-r1, a não ser L9: o brief limita "Aplicar" a vencedor de variante e não prevê reversão; "Voltar à original" é outra ação e foi incluída como proposta (ver Não verificado). Se o controlador não quiser, remover os dois botões e declarar que a reversão vive em outra tela.
+
+## r3: o que mudou (consertos finais de Logan e Naksu)
+1. Esc fecha qualquer confirmação aberta (Aplicar, Encerrar, Voltar à original) e devolve o foco ao botão que a abriu, com `aria-expanded="false"`.
+2. Depois de Aplicar e de Voltar à original, o foco vai à linha "No ar agora" (`tabindex="-1"`), alvo visível, não ao body.
+3. Texto do Voltar: "A miniatura volta a ser a de A agora no YouTube. O resultado do teste não muda e continua visível aqui."
+4. Depois do Voltar: linha "No ar agora: A (original). B deixou de ser aplicada." e selo neutro "Aplicação de B desfeita"; o selo do resultado fica como estava.
+5. Confirmar do Voltar ganhou o rótulo "Sim, voltar à original" (o gatilho segue "Voltar à original"): sem dois botões idênticos.
+6. `verifica.mjs` confere: Esc fecha cada confirmação e o foco volta ao gatilho; nenhum rótulo de botão duplicado com a confirmação aberta; foco após Aplicar/Voltar em `.noar`. Resultado: 39 capturas, 0 falhas.
+7. Capturas novas: `*-claro-390-confirma.png` e `*-claro-390-depois.png` (estados tocados).

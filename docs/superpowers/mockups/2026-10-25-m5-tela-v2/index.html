@@ -484,7 +484,7 @@ function desfecho(e){
  }
  if(e.aplicada&&!e.manual){
   btn='<div class="acts"><button class="btn alvo" type="button" data-abre="cfV" aria-expanded="false" aria-controls="cfV">Voltar à original</button></div>'
-  +'<div class="conf" id="cfV" hidden role="group" aria-labelledby="cfVt"><h3 id="cfVt">Voltar à original (A)?</h3><p>A miniatura muda agora no YouTube.</p><div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfV">Cancelar</button><button class="btn alvo pri" type="button" data-volta="cfV">Voltar à original</button></div></div>';
+  +'<div class="conf" id="cfV" hidden role="group" aria-labelledby="cfVt"><h3 id="cfVt">Voltar à original (A)?</h3><p>A miniatura volta a ser a de A agora no YouTube. O resultado do teste não muda e continua visível aqui.</p><div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfV">Cancelar</button><button class="btn alvo pri" type="button" data-volta="cfV">Sim, voltar à original</button></div></div>';
  }
  const extra=e.d==='ileg'?'<div class="acts"><button class="btn alvo" type="button">Tentar de novo</button></div>':'';
  return '<div class="desf"><span class="sel '+s.c+'" role="status"><span class="sy" aria-hidden="true">'+s.s+'</span>'+s.t+'</span>'+prov+noar(e)+btn+extra+'</div>';
@@ -540,13 +540,13 @@ function paint(){
  document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',!o);document.getElementById(b.getAttribute('aria-controls')).classList.toggle('open',!o)}));
  document.querySelectorAll('[data-abre]').forEach(b=>b.addEventListener('click',()=>{const f=b.closest('.frame'),c=f.querySelector('#'+b.dataset.abre);c.hidden=!c.hidden;b.setAttribute('aria-expanded',String(!c.hidden))}));
  document.querySelectorAll('[data-fecha]').forEach(b=>b.addEventListener('click',()=>{const f=b.closest('.frame'),c=f.querySelector('#'+b.dataset.fecha);c.hidden=true;const o=f.querySelector('[data-abre="'+b.dataset.fecha+'"]');if(o){o.setAttribute('aria-expanded','false');o.focus()}}));
- document.querySelectorAll('[data-volta]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');d.querySelector('.acts').remove();b.closest('.conf').remove();const t=d.querySelector('.noar');t.querySelector('.th').className='th tA';t.querySelector('.th').textContent='A';t.querySelector('span').innerHTML='No ar agora: <b>A (original)</b>.'}));
- document.querySelectorAll('[data-aplica]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');d.querySelector('.acts').remove();b.closest('.conf').remove();d.querySelector('.noar span').innerHTML='<b>'+E[estado].who+'</b> está no ar.'}));
+ document.querySelectorAll('[data-volta]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');const t=d.querySelector('.noar');const antes=t.querySelector('.th').textContent;d.querySelector('.acts').remove();b.closest('.conf').remove();t.querySelector('.th').className='th tA';t.querySelector('.th').textContent='A';t.querySelector('span').innerHTML='No ar agora: <b>A (original)</b>. '+antes+' deixou de ser aplicada.';if(!d.querySelector('.desfeito')){const sl=d.querySelector('.sel');const x=document.createElement('span');x.className='sel neu desfeito';x.setAttribute('role','status');x.innerHTML='<span class="sy" aria-hidden="true">◆</span>Aplicação de '+antes+' desfeita';sl.after(x)}t.tabIndex=-1;t.focus()}));
+ document.querySelectorAll('[data-aplica]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');d.querySelector('.acts').remove();b.closest('.conf').remove();const t=d.querySelector('.noar');t.querySelector('span').innerHTML='<b>'+E[estado].who+'</b> está no ar.';t.tabIndex=-1;t.focus()}));
  clearTimeout(skT);if(estado==='carregando')skT=setTimeout(()=>document.querySelectorAll('.skmsg').forEach(m=>{m.innerHTML='Está demorando; a conexão pode estar lenta. <button class="btn ghost" type="button">Tentar de novo</button>'}),8000);
  sync();
 }
 document.getElementById('sEstado').innerHTML=ORDEM.map(k=>'<button data-v="'+k+'">'+E[k].rot+'</button>').join('');
-document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;const o=document.querySelector('[data-info][aria-expanded="true"]');if(o){closeTips();o.focus()}});
+document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;const cf=document.querySelector('.conf:not([hidden])');if(cf){cf.hidden=true;const g=document.querySelector('[data-abre="'+cf.id+'"]');if(g){g.setAttribute('aria-expanded','false');g.focus()}return}const o=document.querySelector('[data-info][aria-expanded="true"]');if(o){closeTips();o.focus()}});
 document.addEventListener('click',ev=>{
  const b=ev.target.closest('.seg button');
  if(b){const g=b.parentElement.id;if(g==='sEstado')estado=b.dataset.v;if(g==='sTema')tema=b.dataset.v;if(g==='sLarg')larg=b.dataset.v;paint();return}

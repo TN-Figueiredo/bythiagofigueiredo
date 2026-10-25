@@ -63,6 +63,29 @@ if(ib[0]<44||ib[1]<44)ng('ⓘ '+ib);
 // grep color-mix
 const fs=await import('node:fs');
 if(/color-mix\(/.test(fs.readFileSync(path.join(dir,'index.html'),'utf8')))ng('color-mix presente');
+// Esc fecha cada confirmação e devolve o foco ao gatilho; sem rótulo de botão duplicado visível
+await pg.setViewportSize({width:390,height:900});
+for(const [k,id] of [['ativo-sinal','cfA'],['ativo-sinal','cfE'],['concluido-aplicado','cfV'],['concluido-vencedor-provisorio','cfA'],['concluido-aplicado-mudou','cfV']]){
+  await pg.goto(`${url}?estado=${k}&tema=claro&largura=390`);
+  const g=pg.locator(`.frame [data-abre="${id}"]`);
+  if(!await g.count())continue;
+  await g.click();
+  const rot=await pg.evaluate(()=>{const m={};[...document.querySelectorAll('.frame button')].filter(b=>b.offsetParent&&!b.hasAttribute('data-info')).forEach(b=>{const r=b.textContent.trim();if(!r)return;m[r]=(m[r]||0)+1});return Object.entries(m).filter(([,n])=>n>1).map(([r])=>r)});
+  if(rot.length)ng(`${k} ${id} rótulo duplicado: ${rot}`);
+  if(id==='cfV'||id==='cfA'){await pg.setViewportSize({width:430,height:900});await pg.locator('.frame').first().screenshot({path:path.join(dir,'shots',`${k}-claro-390-confirma.png`)});await pg.setViewportSize({width:390,height:900})}
+  await pg.keyboard.press('Escape');
+  const r2=await pg.evaluate((i)=>({oculta:document.getElementById(i).hidden,foco:document.activeElement?.dataset?.abre,exp:document.activeElement?.getAttribute('aria-expanded')}),id);
+  if(!r2.oculta||r2.foco!==id||r2.exp!=='false')ng(`${k} ${id} Esc: ${JSON.stringify(r2)}`);
+}
+// foco após Aplicar e Voltar vai a um alvo visível (.noar), não ao body
+for(const [k,sel] of [['concluido-vencedor-provisorio','[data-aplica]'],['concluido-aplicado','[data-volta]']]){
+  await pg.goto(`${url}?estado=${k}&tema=claro&largura=390`);
+  await pg.locator('.frame [data-abre]').first().click();
+  await pg.locator(`.frame ${sel}`).click();
+  const f=await pg.evaluate(()=>{const a=document.activeElement;return {cls:a.className,vis:!!a.offsetParent,body:a===document.body,txt:a.textContent.trim().slice(0,60)}});
+  if(f.body||!f.vis||f.cls!=='noar')ng(`${k} foco após ação: ${JSON.stringify(f)}`);
+  await pg.setViewportSize({width:430,height:900});await pg.locator('.frame').first().screenshot({path:path.join(dir,'shots',`${k}-claro-390-depois.png`)});await pg.setViewportSize({width:390,height:900});
+}
 await browser.close();
 console.log(`${nshots} capturas; ${falhas} falha(s)`);
 process.exit(falhas?1:0);
