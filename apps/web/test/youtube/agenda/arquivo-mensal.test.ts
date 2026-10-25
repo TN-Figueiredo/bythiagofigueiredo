@@ -19,8 +19,16 @@ describe('avaliarArquivo', () => {
     expect(r.motivo).toContain(k.slice(1))
   })
   it('sem leitura: vermelho, nunca verde', () => {
-    expect(avaliarArquivo({ porque: 'x', causa: 'schema_ausente', codigo: '42883' })).toEqual({ gravidade: 'vermelho', motivo: MOTIVO_SEM_LEITURA })
+    expect(avaliarArquivo({ porque: 'x', causa: 'schema_ausente', codigo: '42883' })).toEqual({ gravidade: 'vermelho', motivo: MOTIVO_SEM_LEITURA, causa: 'schema_ausente' })
   })
+  it.each(['prazo', 'excecao'] as const)('causa %s: amarelo (emenda M2 de 24/10)', causa => {
+    expect(avaliarArquivo({ porque: 'x', causa }).gravidade).toBe('amarelo')
+    expect(buildCronHealthReport([], new Date(), itensDoArquivo({ porque: 'x', causa })).status).toBe('degraded')
+  })
+  it.each(['schema_ausente', 'erro_do_banco', 'forma_invalida'] as const)('causa %s: vermelho', causa => {
+    expect(avaliarArquivo({ porque: 'x', causa }).gravidade).toBe('vermelho')
+  })
+  it('sem causa informada: vermelho (conservador)', () => { expect(avaliarArquivo({ porque: 'x' }).gravidade).toBe('vermelho') })
 })
 
 describe('itensDoArquivo no relatório', () => {
@@ -51,7 +59,26 @@ describe('lerArquivoParaVigia', () => {
   })
   it('rpc que lança: vermelho', async () => {
     const l = await lerArquivoParaVigia(sb(() => 'lanca'))
-    expect(avaliarArquivo(l)).toEqual({ gravidade: 'vermelho', motivo: MOTIVO_SEM_LEITURA })
+    const r = avaliarArquivo(l)
+    expect(r.gravidade).toBe('amarelo')
+    expect(r.motivo).toContain(MOTIVO_SEM_LEITURA)
+    expect(r.motivo).toContain('site s1')
+  })
+  it('motivo nomeia o site com problema', async () => {
+    const l = await lerArquivoParaVigia(sb(fn => (fn === 'obs_archive_atraso' ? { data: null, error: { code: 'XX' } } : boas(fn)), [{ id: 'aaaaaaaa-1' }, { id: 'bbbbbbbb-2' }]))
+    expect(avaliarArquivo(l).motivo).toMatch(/site (aaaaaaaa|bbbbbbbb)/)
+    expect(avaliarArquivo(l).gravidade).toBe('vermelho')
+  })
+  it('estrutural vence passageira quando há as duas', async () => {
+    const l = await lerArquivoParaVigia(sb(fn => (fn === 'obs_archive_atraso' ? 'lanca' : { data: null, error: { code: '42883' } })))
+    expect(avaliarArquivo(l).gravidade).toBe('vermelho')
+  })
+  it('RPCs em paralelo: todas disparadas antes de qualquer resposta', async () => {
+    let emVoo = 0, pico = 0
+    const cli = { from: () => ({ select: () => ({ abortSignal: () => Promise.resolve({ data: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], error: null }) }) }),
+      rpc: (fn: string) => ({ abortSignal: async () => { emVoo++; pico = Math.max(pico, emVoo); await new Promise(r => setTimeout(r, 10)); emVoo--; return boas(fn) } }) } as unknown as SupabaseClient
+    await lerArquivoParaVigia(cli)
+    expect(pico).toBe(6)
   })
   it('resposta nula ou fora da forma: vermelho, nunca zero', async () => {
     for (const data of [null, {}, { c1: 0 }, { amarelos: '0' }]) {
