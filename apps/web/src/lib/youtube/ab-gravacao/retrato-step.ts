@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { recordCronFailure } from '@/lib/cron-health'
 import { addDays, boundsAnalytics, dayPt, diffDias, ontemPt, type DiaPt } from '../coleta/day-pt'
-import type { AbCycle } from '../coleta/ab-seconds'
+import type { CicloComNumero } from './decisao-v2'
 import { lerPaginado, type LeituraPaginada } from '../coleta/paginar'
 import type { ErroBanco } from '../coleta/schema'
 import type { LinhaAlcance, MetaDoDia, RelatorioDoDia } from './tipos'
@@ -21,8 +21,23 @@ const TETO_TESTES = 5_000
 const TETO_LINHAS = 20_000
 const DIAS_RELATORIO_ABERTO = 11
 
+export interface EntradasParaDecisao {
+  porTeste: Map<string, TesteParaRetrato & { started_at: string | null }>
+  ciclosPorTeste: Map<string, CicloComNumero[]>
+  alcancePorVideoDia: Map<string, LinhaAlcance>
+  relatoriosPorCanalDia: Map<string, RelatorioDoDia[]>
+  metaPorVideoDia: Map<string, MetaDoDia>
+  /** vídeos cujas tabelas diárias foram lidas nesta rodada: distingue "não li" de "li e não há linha" */
+  videosLidos: Set<string>
+}
+
 export type ResultadoRetrato =
-  | { status: 'ok'; testes: number; linhas: number; fechadas_apagados: number; fechadas_antigas: number; fechadas_sem_alcance: number; notas: string[] }
+  | {
+    status: 'ok'; testes: number; linhas: number; fechadas_apagados: number; fechadas_antigas: number; fechadas_sem_alcance: number; notas: string[]
+    duracao_ms: number
+    /** Só para a decisão v2 (mesma rodada); a rota tira antes de devolver (Maps/Sets não vão ao wrapper nem ao log). */
+    entradas?: EntradasParaDecisao
+  }
   | { status: 'error'; error: string; health_written: true }
 
 type Linha = Record<string, unknown>
@@ -51,11 +66,12 @@ async function emBlocos<V, T>(valores: V[], fn: (bloco: V[]) => Promise<T[]>): P
   return out
 }
 
-const SELECT_TESTE = 'id, site_id, status, test_type, regra_duracao, paused_at, completed_at, original_title, started_at, youtube_videos!inner(youtube_video_id, channel_id)'
+const SELECT_TESTE = 'id, site_id, status, test_type, regra_duracao, paused_at, completed_at, original_title, started_at, result_metadata, config, youtube_videos!inner(youtube_video_id, channel_id)'
 
 interface TesteLido extends Linha {
   id: string; site_id: string; status: string; test_type: TesteParaRetrato['test_type']; regra_duracao: TesteParaRetrato['regra_duracao']
   paused_at: string | null; completed_at: string | null; original_title: string | null; started_at: string | null
+  result_metadata: unknown; config: unknown
   youtube_videos: { youtube_video_id: string; channel_id: string } | Array<{ youtube_video_id: string; channel_id: string }>
 }
 
@@ -65,6 +81,7 @@ function paraTeste(t: TesteLido): TesteParaRetrato & { started_at: string | null
     id: t.id, status: t.status, paused_at: t.paused_at, completed_at: t.completed_at, original_title: t.original_title,
     site_id: t.site_id, test_type: t.test_type, regra_duracao: t.regra_duracao,
     youtube_id: v.youtube_video_id, channel_id: v.channel_id, started_at: t.started_at,
+    result_metadata: t.result_metadata, config: t.config,
   }
 }
 
@@ -82,11 +99,24 @@ async function falha(msg: string): Promise<ResultadoRetrato> {
   return { status: 'error', error: msg, health_written: true }
 }
 
+const DIAS_ANTES_DO_INICIO_P1 = 14
+
+/** v2 sem `n` gravado precisa do p1 (14 dias antes do início): a leitura de alcance/meta/relatórios desce até lá. */
+function semNGravado(t: TesteParaRetrato & { started_at: string | null }): boolean {
+  if (t.regra_duracao !== 'v2' || !t.started_at) return false
+  const rm = t.result_metadata
+  const v2 = rm && typeof rm === 'object' ? (rm as { v2?: unknown }).v2 : null
+  const n = v2 && typeof v2 === 'object' ? (v2 as { n?: unknown }).n : null
+  return n === undefined || n === null
+}
+
 export async function rodarRetrato(sb: SupabaseClient, agora: Date): Promise<ResultadoRetrato> {
+  const t0 = Date.now()
   const ontem = ontemPt(agora)
   const desdeJanela = janelaDesde(ontem)
   let testes: Array<TesteParaRetrato & { started_at: string | null }>
   let apagados: string[]
+  let videosLidos = new Set<string>()
   let entradasBase: Omit<EntradasDoRetrato, 'testes' | 'desde'> | null = null
 
   try {
@@ -113,9 +143,14 @@ export async function rodarRetrato(sb: SupabaseClient, agora: Date): Promise<Res
       const ids = testes.map((t) => t.id)
       const videos = [...new Set(testes.map((t) => t.youtube_id))]
       const canais = [...new Set(testes.map((t) => t.channel_id))]
-      const desdeStr = desdeJanela
-      const ciclos = await emBlocos(ids, (bl) => ler<AbCycle>('ab_test_cycles', TETO_TESTES * 20, (de, ate) => sb.from('ab_test_cycles')
-        .select('id, test_id, variant_id, started_at, ended_at, applied_metadata').in('test_id', bl).order('id').range(de, ate)))
+      let desdeStr: DiaPt = desdeJanela
+      for (const t of testes) {
+        if (!semNGravado(t)) continue
+        const d = dayPt(new Date(Date.parse(t.started_at!) - DIAS_ANTES_DO_INICIO_P1 * DIA_MS))
+        if (d < desdeStr) desdeStr = d
+      }
+      const ciclos = await emBlocos(ids, (bl) => ler<CicloComNumero>('ab_test_cycles', TETO_TESTES * 20, (de, ate) => sb.from('ab_test_cycles')
+        .select('id, test_id, variant_id, started_at, ended_at, applied_metadata, cycle_number').in('test_id', bl).order('id').range(de, ate)))
       const metas = await emBlocos(videos, (bl) => ler<MetaDoDia & { youtube_video_id: string; day_pt: string }>('yt_own_video_meta_daily', TETO_LINHAS, (de, ate) => sb.from('yt_own_video_meta_daily')
         .select('youtube_video_id, day_pt, ab_test_id, ab_variant_id, seconds_on_air_analytics, captured_at')
         .in('youtube_video_id', bl).gte('day_pt', desdeStr).order('youtube_video_id').order('day_pt').range(de, ate)))
@@ -128,7 +163,7 @@ export async function rodarRetrato(sb: SupabaseClient, agora: Date): Promise<Res
         .gte('start_time', new Date(boundsAnalytics(desdeStr).start - DIA_MS).toISOString()).order('report_id').range(de, ate)))
       const views = await emBlocos(videos, (bl) => ler<LinhaViews & { youtube_video_id: string; day_pt: string }>('yt_own_video_daily', TETO_LINHAS, (de, ate) => sb.from('yt_own_video_daily')
         .select('youtube_video_id, day_pt, views, engaged_views, watch_time_minutes, avg_view_percentage, source, metric_version')
-        .in('youtube_video_id', bl).gte('day_pt', desdeStr).order('youtube_video_id').order('day_pt').range(de, ate)))
+        .in('youtube_video_id', bl).gte('day_pt', desdeJanela).order('youtube_video_id').order('day_pt').range(de, ate)))
       const cobertura = await emBlocos(videos, (bl) => ler<{ youtube_video_id: string; covered_from: string; covered_to: string }>('yt_own_video_coverage', TETO_LINHAS, (de, ate) => sb.from('yt_own_video_coverage')
         .select('youtube_video_id, covered_from, covered_to').in('youtube_video_id', bl).eq('metric_set', 'base')
         .order('youtube_video_id').order('covered_from').range(de, ate)))
@@ -136,7 +171,7 @@ export async function rodarRetrato(sb: SupabaseClient, agora: Date): Promise<Res
         .select('test_id, hora, lida_em, leitura_estado, variante_vista').in('test_id', bl).eq('leitura_estado', 'bate')
         .gte('hora', meiaNoite(addDays(ontem, -DIAS_RELATORIO_ABERTO))).order('test_id').order('hora').range(de, ate)))
 
-      const ciclosPorTeste = new Map<string, AbCycle[]>()
+      const ciclosPorTeste = new Map<string, CicloComNumero[]>()
       for (const c of ciclos) agrupar(ciclosPorTeste, c.test_id, c)
       const metaPorVideoDia = new Map<string, MetaDoDia>()
       for (const m of metas) metaPorVideoDia.set(chave(m.youtube_video_id, m.day_pt), m)
@@ -151,6 +186,7 @@ export async function rodarRetrato(sb: SupabaseClient, agora: Date): Promise<Res
       const sondasPorTesteDia = new Map<string, LinhaSonda[]>()
       for (const s of sondas) agrupar(sondasPorTesteDia, chave(s.test_id, dayPt(new Date(s.hora))), s)
       entradasBase = { ciclosPorTeste, metaPorVideoDia, alcancePorVideoDia, relatoriosPorCanalDia, viewsPorVideoDia, coberturaPorVideo, sondasPorTesteDia }
+      videosLidos = new Set(videos)
     }
   } catch (e) {
     if (e instanceof FalhaDeLeitura) return falha(e.message)
@@ -158,7 +194,7 @@ export async function rodarRetrato(sb: SupabaseClient, agora: Date): Promise<Res
   }
 
   if (testes.length === 0 && apagados.length === 0) {
-    return { status: 'ok', testes: 0, linhas: 0, fechadas_apagados: 0, fechadas_antigas: 0, fechadas_sem_alcance: 0, notas: [] }
+    return { status: 'ok', testes: 0, linhas: 0, fechadas_apagados: 0, fechadas_antigas: 0, fechadas_sem_alcance: 0, notas: [], duracao_ms: Date.now() - t0 }
   }
 
   // Montagem: o `desde` é por teste, max(janela, início do teste).
@@ -204,5 +240,18 @@ export async function rodarRetrato(sb: SupabaseClient, agora: Date): Promise<Res
       })
     }
   }
-  return { status: 'ok', testes: testes.length, linhas: linhas.length, fechadas_apagados: fechadasApagados, fechadas_antigas: fechadasAntigas, fechadas_sem_alcance: fechadasSemAlcance, notas }
+  const entradas: EntradasParaDecisao | undefined = entradasBase
+    ? {
+      porTeste: new Map(testes.map((t) => [t.id, t])),
+      ciclosPorTeste: entradasBase.ciclosPorTeste,
+      alcancePorVideoDia: entradasBase.alcancePorVideoDia,
+      relatoriosPorCanalDia: entradasBase.relatoriosPorCanalDia,
+      metaPorVideoDia: entradasBase.metaPorVideoDia,
+      videosLidos,
+    }
+    : undefined
+  return {
+    status: 'ok', testes: testes.length, linhas: linhas.length, fechadas_apagados: fechadasApagados, fechadas_antigas: fechadasAntigas,
+    fechadas_sem_alcance: fechadasSemAlcance, notas, duracao_ms: Date.now() - t0, entradas,
+  }
 }

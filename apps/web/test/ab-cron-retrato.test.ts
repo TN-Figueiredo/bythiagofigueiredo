@@ -46,4 +46,16 @@ describe('GET /api/cron/ab-retrato', () => {
     expect(recordCronFailure).toHaveBeenCalledTimes(1)
     expect(recordCronSuccess).not.toHaveBeenCalled()
   })
+
+  it('a resposta HTTP não carrega as entradas (Maps/Sets) da decisão', async () => {
+    const f = criarFakeSb({
+      ab_tests: [{ id: 't1', site_id: 's1', status: 'active', test_type: 'thumbnail', regra_duracao: 'v1', paused_at: null, completed_at: null, original_title: null, started_at: new Date(Date.now() - 5 * 86_400_000).toISOString(), youtube_videos: { youtube_video_id: 'abcdefghijk', channel_id: 'ch1' } }],
+      ab_test_cycles: [{ id: 'c1', test_id: 't1', variant_id: 'v-a', started_at: new Date(Date.now() - 5 * 86_400_000).toISOString(), ended_at: null, applied_metadata: null, cycle_number: 1 }],
+    })
+    ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(f.sb)
+    const corpo = await (await GET(pedido('Bearer test-secret'))).json()
+    expect(corpo.status).toBe('ok')
+    expect(corpo).not.toHaveProperty('entradas')
+    expect(typeof corpo.duracao_ms).toBe('number')
+  })
 })

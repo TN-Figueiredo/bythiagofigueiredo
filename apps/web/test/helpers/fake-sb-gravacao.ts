@@ -10,6 +10,8 @@ export interface FakeSb {
   tabelas: Record<string, Linha[]>
   erros: Record<string, string>
   lidas: Array<{ tabela: string; de: number }>
+  /** cada filtro `gte` pedido (tabela, coluna, valor) */
+  gtes: Array<{ tabela: string; coluna: string; valor: string }>
   rpcs: Array<{ nome: string; args: Record<string, unknown> }>
   rpcRetorno: Record<string, unknown>
   upserts: Array<{ tabela: string; linhas: Linha[]; opcoes: unknown }>
@@ -23,6 +25,7 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
     tabelas,
     erros: {},
     lidas: [],
+    gtes: [],
     rpcs: [],
     rpcRetorno: {},
     upserts: [],
@@ -42,7 +45,7 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
     q.eq = (c: string, v: unknown) => { filtros.push((l) => l[c] === v); return q }
     q.is = (c: string, v: unknown) => { filtros.push((l) => (l[c] ?? null) === v); return q }
     q.in = (c: string, vs: unknown[]) => { filtros.push((l) => vs.includes(l[c])); return q }
-    q.gte = (c: string, v: string) => { filtros.push((l) => String(l[c]) >= v); return q }
+    q.gte = (c: string, v: string) => { f.gtes.push({ tabela, coluna: c, valor: v }); filtros.push((l) => String(l[c]) >= v); return q }
     q.lt = (c: string, v: string) => { filtros.push((l) => String(l[c]) < v); return q }
     q.or = () => { usouOr = true; return q }
     q.order = () => q
