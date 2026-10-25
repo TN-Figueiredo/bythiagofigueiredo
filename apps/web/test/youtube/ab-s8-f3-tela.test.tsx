@@ -182,14 +182,14 @@ describe('S8-F3 T5: tela do placar', () => {
     expect(document.body.textContent).toContain('33,3%')
   })
 
-  it('8: ⓘ tem rótulo próprio, abre o balão e Esc fecha devolvendo o foco', () => {
+  it('8: ⓘ tem rótulo próprio, abre a caixa no #flut e Esc fecha devolvendo o foco', () => {
     renderPlacar(pl({ variantes: [pv('va', { impressoes: 3, impressoes_com_ctr: 3, cliques: 1 }), pv('vb', { impressoes: 2, impressoes_com_ctr: 2, cliques: 0 })] }), [dia('2026-10-18', 'va', 'medido')])
     const btn = screen.getByRole('button', { name: 'Como ler o placar' })
     expect(btn.getAttribute('aria-expanded')).toBe('false')
     btn.focus()
     fireEvent.click(btn)
     expect(btn.getAttribute('aria-expanded')).toBe('true')
-    expect(document.getElementById(btn.getAttribute('aria-controls')!)!.hasAttribute('hidden')).toBe(false)
+    expect(document.getElementById(btn.getAttribute('aria-controls')!)).not.toBeNull()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(btn.getAttribute('aria-expanded')).toBe('false')
     expect(document.activeElement).toBe(btn)

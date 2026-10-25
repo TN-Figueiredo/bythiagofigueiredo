@@ -3,10 +3,11 @@
 // Placar do teste A/B (S8-F3 T5). Desenho e cópia: mockup M4 r3.1 aprovado em 24/10.
 // Só contagens do YouTube: sem líder, sem lift, sem intervalo, sem ordem por CTR (voltam na F4).
 // Nulo quer dizer não medido: nunca vira 0 nem % aqui.
-import React, { useEffect, useId, useRef, useState } from 'react'
+import React, { useId, useState } from 'react'
 import type { DiaDaFaixa, Placar, PlacarVariante } from '@/lib/youtube/ab-gravacao/placar'
 import type { AbTestStatus, FullChartVariant, VariantDbEntry, VariantThumb } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
+import { InfoDica } from '../../_components/info-dica'
 import { NAO_MEDIDO } from './ab-constants'
 import { casoDoPlacar, dataCurta, dataEHora, faixaDoPlacar, fraseDoPlacar, n, ordenarPorRotulo } from './placar-texto'
 import './caminho-nativo.css'
@@ -44,35 +45,6 @@ const IcVelho = () => (
 const IcChevron = () => (
   <svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M3 5l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
 )
-
-/** ⓘ com rótulo próprio, balão em fluxo (irmão, ligado por id), Esc fecha e devolve o foco. */
-function Info({ label, children }: { label: string; children: React.ReactNode }) {
-  const id = useId()
-  const [aberto, setAberto] = useState(false)
-  const ref = useRef<HTMLButtonElement>(null)
-  useEffect(() => {
-    if (!aberto) return
-    const tecla = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setAberto(false); ref.current?.focus() }
-    }
-    const fora = (e: MouseEvent) => {
-      const alvo = e.target as Node
-      if (ref.current?.contains(alvo) || document.getElementById(id)?.contains(alvo)) return
-      setAberto(false)
-    }
-    document.addEventListener('keydown', tecla)
-    document.addEventListener('click', fora)
-    return () => { document.removeEventListener('keydown', tecla); document.removeEventListener('click', fora) }
-  }, [aberto, id])
-  return (
-    <>
-      <button ref={ref} type="button" className="pm4-info" aria-expanded={aberto} aria-controls={id} aria-describedby={id} aria-label={label} onClick={() => setAberto(a => !a)}>
-        <span aria-hidden="true">ⓘ</span>
-      </button>
-      <span id={id} className="pm4-tip" role="note" hidden={!aberto}>{children}</span>
-    </>
-  )
-}
 
 type CodigoDia = 'm' | 'z' | 'a' | 'g' | 'n' | 'f'
 const NOME_DIA: Record<CodigoDia, string> = {
@@ -211,9 +183,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
         <div className="pm4-sec">
           <div className="pm4-sh">
             <h3 style={{ margin: 0, font: 'inherit' }}>{titulo}</h3>
-            <Info label="Como ler o placar">
-              <b>Como ler este placar.</b> São contagens do YouTube dos dias fechados. Cliques ≈ é impressões × CTR de cada dia, somado (estimado, exato até 9.999 impressões por dia). O CTR é cliques ÷ impressões dos dias válidos e só aparece ao abrir a variante. Contagens do YouTube; sem comparação entre variantes por enquanto. “Dados do YouTube” é a cópia diária dos números do YouTube.
-            </Info>
+            <InfoDica rotulo="Como ler o placar" titulo="Como ler este placar" paragrafos={['São contagens do YouTube dos dias fechados. Cliques ≈ é impressões × CTR de cada dia, somado (estimado, exato até 9.999 impressões por dia). O CTR é cliques ÷ impressões dos dias válidos e só aparece ao abrir a variante. Contagens do YouTube; sem comparação entre variantes por enquanto. “Dados do YouTube” é a cópia diária dos números do YouTube.']} />
             {upd}
           </div>
 
@@ -262,13 +232,13 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
               {descartados > 0 && (
                 <span>
                   <IcFora /> {descartados} {descartados === 1 ? 'dia' : 'dias'} de troca ou dia parcial, fora do placar
-                  <Info label="Dia fora do placar"><b>Dia fora do placar.</b> Dia de troca de variante ou dia parcial. Eles não entram nas contagens.</Info>
+                  <InfoDica rotulo="Dia fora do placar" titulo="Dia fora do placar" paragrafos={['Dia de troca de variante ou dia parcial. Eles não entram nas contagens.']} />
                 </span>
               )}
               {foraDoCtr > 0 && (
                 <span>
                   {foraDoCtr} {foraDoCtr === 1 ? 'dia' : 'dias'} com impressões e sem CTR
-                  <Info label="Impressões sem CTR"><b>Impressões sem CTR.</b> As impressões desses dias contam no total, mas o CTR não as usa; por isso não viram cliques.</Info>
+                  <InfoDica rotulo="Impressões sem CTR" titulo="Impressões sem CTR" paragrafos={['As impressões desses dias contam no total, mas o CTR não as usa; por isso não viram cliques.']} />
                 </span>
               )}
             </div>
@@ -278,7 +248,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
             <div className="pm4-dias">
               <div className="pm4-sh">
                 Dias do teste
-                <Info label="Como ler os dias do teste"><b>Faixa de dias.</b> Um quadrado por dia, com a letra da variante. 0* quer dizer que o YouTube não listou o dia: não é zero medido nem falha da tela.</Info>
+                <InfoDica rotulo="Como ler os dias do teste" titulo="Faixa de dias" paragrafos={['Um quadrado por dia, com a letra da variante. 0* quer dizer que o YouTube não listou o dia: não é zero medido nem falha da tela.']} />
               </div>
               <div className="pm4-strip" role="list" aria-label={resumo}>
                 {celulas.map(({ d, c }, i) => {
@@ -311,7 +281,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
           <div className="pm4-sec" data-section="andamento">
             <div className="pm4-sh">
               Andamento do teste
-              <Info label="Como ler o andamento"><b>Andamento.</b> A barra mostra os dias já passados. {placar?.regra === 'v1' ? 'Este teste termina por duração.' : 'O teste termina quando chega ao último dia planejado.'} Não indica quem está na frente.</Info>
+              <InfoDica rotulo="Como ler o andamento" titulo="Andamento" paragrafos={[`A barra mostra os dias já passados. ${placar?.regra === 'v1' ? 'Este teste termina por duração.' : 'O teste termina quando chega ao último dia planejado.'} Não indica quem está na frente.`]} />
             </div>
             <div className="pm4-ruler">
               <div className="pm4-rbar" aria-hidden="true"><i style={{ width: `${pct}%` }} /></div>
