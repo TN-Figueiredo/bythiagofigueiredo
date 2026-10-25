@@ -12,7 +12,7 @@ import './linha-de-video.css'
 export function motivoDoBloqueio(v: EligibleVideo): string | null {
   if (v.statusDoTeste === 'draft') return 'Já tem um rascunho'
   if (v.statusDoTeste !== null || v.hasActiveTest) return 'Teste ativo em andamento'
-  if (v.bloqueio === 'short') return 'Short: o A/B Lab não testa Shorts'
+  if (v.bloqueio === 'short') return 'Shorts não entram no A/B Lab'
   if (v.bloqueio === 'sem_thumb_hq') return 'Sincronize o vídeo em Vídeos antes'
   return null
 }

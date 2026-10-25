@@ -164,6 +164,11 @@ export async function createAbTest(
     return { ok: false, codigo: 'video_nao_achado', error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' }
   }
 
+  // Duração 0 = ainda não sincronizado (não é Short)
+  if ((video.duration_seconds ?? 0) <= 0) {
+    return { ok: false, codigo: 'sem_thumb_hq', error: 'O Lab ainda não sincronizou este vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' }
+  }
+
   // Reject Shorts
   if (isCertainShort(video.duration_seconds ?? 0)) {
     return { ok: false, codigo: 'short', error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' }

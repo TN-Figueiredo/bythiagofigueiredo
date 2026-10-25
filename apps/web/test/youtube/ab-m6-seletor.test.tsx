@@ -53,7 +53,7 @@ describe('M6 seletor de vídeo', () => {
   })
   it('bloqueios de Short e de thumbnail HQ', () => {
     abrir([v({ id: 's', title: 'Curto', bloqueio: 'short' }), v({ id: 'h', title: 'Sem HQ', bloqueio: 'sem_thumb_hq' })])
-    expect(screen.getByText('Short: o A/B Lab não testa Shorts')).toBeTruthy()
+    expect(screen.getByText('Shorts não entram no A/B Lab')).toBeTruthy()
     expect(screen.getByText('Sincronize o vídeo em Vídeos antes')).toBeTruthy()
     expect((screen.getByRole('button', { name: /Curto/ }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: /Sem HQ/ }) as HTMLButtonElement).disabled).toBe(true)

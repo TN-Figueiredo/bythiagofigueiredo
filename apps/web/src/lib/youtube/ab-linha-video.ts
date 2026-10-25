@@ -66,6 +66,8 @@ export function statusAbertoDoVideo(statuses: ReadonlyArray<string>): AbTestStat
 
 /** Mesmas duas recusas de `createAbTest`: Short e vídeo sem thumbnail HQ. */
 export function bloqueioDoVideo(durationSeconds: number, thumbnailHqUrl: string | null): BloqueioDoVideo | null {
+  // Duração 0 (coluna NOT NULL default 0) é vídeo ainda não sincronizado, não Short: o remédio é sincronizar.
+  if (durationSeconds <= 0) return 'sem_thumb_hq'
   if (isCertainShort(durationSeconds)) return 'short'
   if (!thumbnailHqUrl) return 'sem_thumb_hq'
   return null

@@ -22,7 +22,7 @@ export async function lerVideoForaDosCem(sb: SupabaseClient, siteId: string, vid
     .maybeSingle()
   if (error || !v) return null
   const dur = typeof v.duration_seconds === 'number' ? v.duration_seconds : 0
-  if (isCertainShort(dur) || !v.thumbnail_hq_url) return null
+  if (dur <= 0 || isCertainShort(dur) || !v.thumbnail_hq_url) return null
   const { data: abertos, error: e2 } = await sb
     .from('ab_tests')
     .select('id, status')
