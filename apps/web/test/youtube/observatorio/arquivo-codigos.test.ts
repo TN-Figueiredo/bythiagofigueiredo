@@ -9,7 +9,7 @@ import { codigoE10, FRASES_E10, type CodigoE10 } from '@/lib/youtube/observatori
 import { RULES } from '@/lib/youtube/observatorio/rules'
 
 const TODOS = Object.keys(FRASES_E10) as CodigoE10[]
-const DO_BANCO = TODOS.filter(c => !['demorou_demais', 'schema_ausente', 'inesperado'].includes(c))
+const DO_BANCO = TODOS.filter(c => !['demorou_demais', 'schema_ausente', 'inesperado', 'apagar_com_arquivo'].includes(c))
 
 describe('A5 E10 T5: codigos', () => {
   it('um teste por código: a frase vem do catálogo e nenhuma parte da mensagem do banco aparece', () => {
@@ -22,6 +22,13 @@ describe('A5 E10 T5: codigos', () => {
       expect(frase.length).toBeGreaterThan(10)
       for (const parte of ['competitor_video_daily', 'banco=3', 'SEGREDO', 'E10:']) expect(frase).not.toContain(parte)
     }
+  })
+
+  it('M3b-apagar-sql: apagar_com_arquivo (P0001, sem prefixo E10) tem código e frase próprios; vizinhos não casam', () => {
+    expect(codigoE10({ message: 'apagar_com_arquivo', code: 'P0001' })).toBe('apagar_com_arquivo')
+    expect(FRASES_E10.apagar_com_arquivo).toBe('Este canal tem meses no arquivo e não pode ser apagado sem guardar.')
+    expect(codigoE10({ message: 'apagar_com_arquivo_x', code: 'P0001' })).toBe('inesperado')
+    expect(codigoE10({ message: 'x apagar_com_arquivo', code: 'P0001' })).toBe('inesperado')
   })
 
   it('mensagem sem o prefixo é inesperado (e prefixo de código que o catálogo não tem também)', () => {
@@ -63,8 +70,8 @@ describe('A5 E10 T5: codigos', () => {
     }
   })
 
-  it('toda frase é uma frase: começa em maiúscula, termina em ponto, e o catálogo cobre os 25 códigos', () => {
-    expect(TODOS).toHaveLength(25)
+  it('toda frase é uma frase: começa em maiúscula, termina em ponto, e o catálogo cobre os 26 códigos', () => {
+    expect(TODOS).toHaveLength(26)
     for (const c of TODOS) {
       expect(FRASES_E10[c], c).toMatch(/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/)
       expect(FRASES_E10[c], c).toMatch(/[.]$/)

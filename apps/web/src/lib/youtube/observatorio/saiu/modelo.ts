@@ -166,7 +166,7 @@ const FRASES_DE_ERRO: Record<CodigoDeErro, string> = {
   // M9 (aviso de 15/10): recusa de regra da manutenção, não falha; nada foi apagado
   arquivo_sem_apagar: 'Este item já tem cópia no arquivo, e apagar do arquivo ainda não está ligado. Nada foi apagado.',
   // M3b-apagar-sql (Phil a, 25/10): o banco recusa apagar canal com meses no arquivo; frase provisória
-  apagar_com_arquivo: 'Este canal tem meses no arquivo; use Guardar no NAS.',
+  apagar_com_arquivo: 'Este canal tem meses no arquivo e não pode ser apagado sem guardar.',
   mes_destacado_em_transito: 'Este mês está sendo enviado ao arquivo. Tente de novo depois que terminar.',
   // Yannis M1 (15/10): recusa do banco pós-M3b (competitor_channel_remove exige org_admin); não é falha
   sem_direito: 'Só quem administra a organização pode apagar canais. Nada foi apagado.',
