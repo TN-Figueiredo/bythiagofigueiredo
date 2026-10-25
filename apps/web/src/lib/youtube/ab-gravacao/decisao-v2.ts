@@ -206,6 +206,38 @@ const SINAL_BLOCO_SEM = -1_000_000 // bloco nulo: nunca participa do sinal
 
 interface Celula { imp: number; cliques: number; dias: Array<{ imp: number; cliques: number }> }
 
+/** Impressões e cliques somados por variante, só com os dias já filtrados como válidos (fonte única do total). */
+function totalPorVariante(validos: readonly DiaDaDecisao[]): Map<string, { imp: number; cliques: number }> {
+  const total = new Map<string, { imp: number; cliques: number }>()
+  for (const d of validos) {
+    const imp = d.impressoes as number
+    const v = d.variant_id as string
+    const t = total.get(v) ?? { imp: 0, cliques: 0 }
+    t.imp += imp; t.cliques += Math.round(imp * (d.ctr as number)); total.set(v, t)
+  }
+  return total
+}
+
+/**
+ * CTR (cliques/impressões dos dias válidos) e lift (ctrV/ctrO - 1) por variante: aritmética, sem estatística.
+ * Fonte única da frase do vencedor na tela v2 (P2). Variante sem dia válido, ou lift da original: null.
+ */
+export function ctrDosValidos(dias: readonly DiaDaDecisao[], variantes: readonly string[], originalId: string): Record<string, { ctr: number | null; lift: number | null }> {
+  const total = totalPorVariante(dias.filter(d => diaValido(d) && d.variant_id !== null && variantes.includes(d.variant_id)))
+  const ctrDe = (v: string): number | null => {
+    const t = total.get(v)
+    return t && t.imp > 0 ? t.cliques / t.imp : null
+  }
+  const ctrO = ctrDe(originalId)
+  const out: Record<string, { ctr: number | null; lift: number | null }> = {}
+  for (const v of variantes) {
+    const ctr = ctrDe(v)
+    const lift = v !== originalId && ctr !== null && ctrO !== null && ctrO > 0 ? ctr / ctrO - 1 : null
+    out[v] = { ctr, lift: lift !== null && Number.isFinite(lift) ? lift : null }
+  }
+  return out
+}
+
 /**
  * `variantes` lista todas as variantes do teste (a original inclusive): V = variantes.length define α
  * (0,05 com 2; 0,025 por comparação com 3). Compara cada não-original contra a original.
@@ -214,14 +246,12 @@ export function estatisticaV2(dias: readonly DiaDaDecisao[], originalId: string,
   const V = variantes.length
   const alfa = V <= 2 ? 0.05 : 0.025
   const validos = dias.filter(d => diaValido(d) && d.variant_id !== null && variantes.includes(d.variant_id))
-  const total = new Map<string, { imp: number; cliques: number }>()
+  const total = totalPorVariante(validos)
   const celulas = new Map<string, Celula>() // `${variante}|${bloco}`
   for (const d of validos) {
     const imp = d.impressoes as number
     const cliques = Math.round(imp * (d.ctr as number))
     const v = d.variant_id as string
-    const t = total.get(v) ?? { imp: 0, cliques: 0 }
-    t.imp += imp; t.cliques += cliques; total.set(v, t)
     const chave = `${v}|${d.bloco ?? SINAL_BLOCO_SEM}`
     const c = celulas.get(chave) ?? { imp: 0, cliques: 0, dias: [] }
     c.imp += imp; c.cliques += cliques; c.dias.push({ imp, cliques }); celulas.set(chave, c)
