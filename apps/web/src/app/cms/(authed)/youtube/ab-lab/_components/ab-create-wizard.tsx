@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useReducer, useEffect, useTransition, useCallback, useRef } from 'react'
+import { useState, useReducer, useEffect, useCallback, useRef } from 'react'
 import { Play, X, ArrowRight } from 'lucide-react'
 import { StepTipo } from './step-tipo'
 import { StepVariantes } from './step-variantes'
@@ -8,6 +8,10 @@ import type { VariantData } from './step-variantes'
 import { PASSOS, ROTULO_DO_PASSO, ehPasso, indiceDoPasso, proximoPasso, passoAnterior, type Passo } from './wizard-passos'
 import { StepRevisar } from './step-revisar'
 import { LibraryPickerDialog } from './library-picker-dialog'
+import { ICONE_BUSY } from './etd-icone-busy'
+import { ICONE_ERRO } from './etd-icone-erro'
+import { ICONE_AVISO } from './etd-icone-aviso'
+import './ab-end-test-dialog.css'
 import { duracaoDoVideo, dataDePublicacao } from '@/lib/youtube/ab-linha-video'
 import { initWizardConfig, wizardConfigToAbConfig } from '@/lib/youtube/ab-wizard-adapter'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
@@ -21,13 +25,14 @@ import {
   fetchAbBriefingData,
   fetchLibraryEntries,
   lerDimensoesDaOriginal,
+  type ResultadoCriarTeste,
 } from '../actions'
 import { useAvisoVolume, type LerAvisoDeVolume } from './use-aviso-volume'
 import { useAvisoOriginal } from './use-aviso-original'
 import { MAX_CHALLENGERS } from '@/lib/youtube/ab-wizard-reducer'
 import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
-import type { TestType, DisplayLabel, AbTestSiteSettings, ReferenciaDoTeste } from '@/lib/youtube/ab-types'
+import type { TestType, DisplayLabel, AbTestSiteSettings, AbTestStatus, ReferenciaDoTeste } from '@/lib/youtube/ab-types'
 import { YtPortal } from '../../_components/yt-portal'
 import type { CodigoRecusaNativa } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
@@ -77,6 +82,8 @@ interface Props {
   settings: AbTestSiteSettings
   onClose: () => void
   onCreated: (testId: string) => void
+  /** Abre o rascunho ou o teste que já existe para o vídeo; quem navega é o hospedeiro (o assistente não importa `next/navigation`). */
+  onAbrirExistente: (id: string, status: AbTestStatus) => void
   iniciarTeste: IniciarTeste
   /** S8-F4 T11c: `avisoDeVolumeDoTeste` vem da página (servidor); ausente = sem aviso. */
   avisoDeVolume?: LerAvisoDeVolume
@@ -101,8 +108,6 @@ interface WizardState {
   videoTitle: string
   originalThumbUrl: string | null
   draftTestId: string | null
-  isLaunching: boolean
-  error: string | null
 }
 
 type WizardAction =
@@ -113,8 +118,36 @@ type WizardAction =
   | { type: 'ADD_VARIANT' }
   | { type: 'REMOVE_VARIANT'; index: number }
   | { type: 'SET_DRAFT_ID'; id: string }
-  | { type: 'SET_LAUNCHING'; isLaunching: boolean }
-  | { type: 'SET_ERROR'; error: string | null }
+
+/** Cada espera mora no botão da ação (D-M6-4). */
+type AcaoDoAssistente = 'criar' | 'trocar' | 'salvar' | 'ativar'
+
+/** Mensagem do corpo do assistente (textos 2, 3, 4, 10, 19, 20 do plano). Nunca carrega o texto cru do servidor, salvo as recusas conhecidas. */
+type AvisoDoAssistente =
+  | { tipo: 'criar_falhou' }
+  | { tipo: 'trocar_falhou' }
+  | { tipo: 'servidor'; texto: string }
+  | { tipo: 'ja_existe'; id: string; status: AbTestStatus }
+  | { tipo: 'antes_de_ativar'; origem: 'ativar' | 'salvar' }
+  | { tipo: 'ativar_falhou' }
+  | { tipo: 'biblioteca'; texto: string }
+
+/** Recusa conhecida do servidor ao criar: o código decide a tela, não o texto. Sem código conhecido devolve `padrao`. */
+function avisoDaRecusaDeCriar<T extends AvisoDoAssistente | null>(r: ResultadoCriarTeste, padrao: T): AvisoDoAssistente | T {
+  if (r.codigo === 'ja_existe' && r.existente) return { tipo: 'ja_existe', id: r.existente.id, status: r.existente.status }
+  if (r.codigo) return { tipo: 'servidor', texto: r.error ?? '' }
+  return padrao
+}
+
+/** Todas as versões desafiantes já estão no banco, sem arquivo novo nem texto editado: só falta iniciar (Y2, derivado do estado). */
+function versoesGravadas(state: { type: TestType | null; variants: VariantData[] }): boolean {
+  const desafiantes = state.variants.filter(v => !v.isOriginal)
+  return desafiantes.length > 0 && desafiantes.every(v =>
+    Boolean(v.gravada)
+    && !v.thumbFile && !v.thumbUrl?.startsWith('data:') && v.origem !== 'biblioteca'
+    && (state.type === 'thumbnail' || v.titleText.trim() === (v.textoGravado ?? '')),
+  )
+}
 
 const TIPOS_DA_BIBLIOTECA = ['image/jpeg', 'image/png']
 const LIMITE_DA_BIBLIOTECA_BYTES = 2 * 1024 * 1024
@@ -227,7 +260,7 @@ function makeEmptyVariant(label: DisplayLabel): VariantData {
 function wizardReducer(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
     case 'SET_STEP':
-      return { ...state, step: action.step, error: null }
+      return { ...state, step: action.step }
 
     case 'SET_TYPE':
       return {
@@ -238,7 +271,6 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
           makeOriginalVariant(state.videoTitle, state.originalThumbUrl),
           makeEmptyVariant('B'),
         ],
-        error: null,
       }
 
     case 'SET_VARIANTS':
@@ -283,12 +315,6 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 
     case 'SET_DRAFT_ID':
       return { ...state, draftTestId: action.id }
-
-    case 'SET_LAUNCHING':
-      return { ...state, isLaunching: action.isLaunching }
-
-    case 'SET_ERROR':
-      return { ...state, error: action.error }
 
     default:
       return state
@@ -368,12 +394,10 @@ function estadoInicial({ video, settings, prefill, existingDraftId }: Pick<Props
     videoTitle: video.title,
     originalThumbUrl: video.thumbnailUrl,
     draftTestId: existingDraftId ?? saved?.draftTestId ?? null,
-    isLaunching: false,
-    error: null,
   }
 }
 
-export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, iniciarTeste, avisoDeVolume, prefill, existingDraftId, referencia, referenciaDados }: Props) {
+export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, onAbrirExistente, iniciarTeste, avisoDeVolume, prefill, existingDraftId, referencia, referenciaDados }: Props) {
   const [state, rawDispatch] = useReducer(wizardReducer, { video, settings, prefill, existingDraftId }, estadoInicial)
 
   // A chave dos 5 passos só é lida na montagem (para migrar); depois sai do armazenamento.
@@ -385,10 +409,18 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   const dispatch = useCallback((action: WizardAction) => { rawDispatch(action) }, [])
 
   useEffect(() => {
-    if (!state.isLaunching && !draftCleared.current) saveDraft(video.id, state)
+    if (!draftCleared.current) saveDraft(video.id, state)
   }, [video.id, state])
 
-  const [isPending, startTransition] = useTransition()
+  // Cada espera mora no seu botão (D-M6-4): `acao` é a fonte única de "ocupado". O ref fecha a janela entre o clique e a renderização.
+  const [acao, setAcao] = useState<AcaoDoAssistente | null>(null)
+  const acaoRef = useRef<AcaoDoAssistente | null>(null)
+  const mudarAcao = (a: AcaoDoAssistente | null) => { acaoRef.current = a; setAcao(a) }
+  const ocupado = acao !== null
+  // Fechar trava só enquanto salva ou ativa; criar/trocar fecham normalmente (o `ja_existe` recupera o rascunho).
+  const fechaBloqueado = acao === 'salvar' || acao === 'ativar'
+  const [aviso, setAviso] = useState<AvisoDoAssistente | null>(null)
+
   const dialogRef = useRef<HTMLDivElement | null>(null)
   // A leitura da original só começa depois que o diálogo (portal) está no DOM: ver use-aviso-original.ts
   const [dialogoMontado, setDialogoMontado] = useState(false)
@@ -410,16 +442,16 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
     if (i >= 0) void abrirBiblioteca(i)
   }
   // D12: aviso de original baixa; só leitura, não valida passo nem envia
-  const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step !== 'tipo' && !state.isLaunching)
+  const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step !== 'tipo')
 
-  const avisoVolume = useAvisoVolume(avisoDeVolume, state.draftTestId, dialogoMontado && state.step === 'revisar' && !state.isLaunching, state.variants.length)
+  const avisoVolume = useAvisoVolume(avisoDeVolume, state.draftTestId, dialogoMontado && state.step === 'revisar', state.variants.length)
 
   // --- Escape key ---
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !state.isLaunching) onClose() }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !fechaBloqueado) onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose, state.isLaunching])
+  }, [onClose, fechaBloqueado])
 
   // --- Focus trap ---
   useEffect(() => {
@@ -444,13 +476,19 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   }, [state.step])
 
   // --- Type selection handler (creates draft) ---
-  const handleTypeSelect = useCallback((testType: TestType) => {
+  const handleTypeSelect = async (testType: TestType) => {
+    if (acaoRef.current !== null) return
+    setRecusa(null)
+    setAviso(null)
     dispatch({ type: 'SET_TYPE', testType })
-    startTransition(async () => {
+    const trocando = Boolean(state.draftTestId)
+    mudarAcao(trocando ? 'trocar' : 'criar')
+    try {
       if (state.draftTestId) {
         const res = await updateAbTestType(state.draftTestId, testType)
         if (!res.ok) {
-          dispatch({ type: 'SET_ERROR', error: res.error ?? 'Failed to update test type' })
+          console.warn(res.error)
+          setAviso({ tipo: 'trocar_falhou' })
           return
         }
         dispatch({ type: 'SET_STEP', step: 'variantes' })
@@ -469,13 +507,16 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
       if (result.ok && result.id) {
         dispatch({ type: 'SET_DRAFT_ID', id: result.id })
         dispatch({ type: 'SET_STEP', step: 'variantes' })
-      } else if (result.error?.includes('already exists')) {
-        dispatch({ type: 'SET_ERROR', error: 'A draft already exists for this video. Close and reopen to continue.' })
       } else {
-        dispatch({ type: 'SET_ERROR', error: result.error ?? 'Failed to create draft' })
+        setAviso(avisoDaRecusaDeCriar(result, { tipo: 'criar_falhou' }))
       }
-    })
-  }, [state.draftTestId, state.config, siteId, video.id, video.title, referenciaDados])
+    } catch (e) {
+      console.warn(e)
+      setAviso({ tipo: trocando ? 'trocar_falhou' : 'criar_falhou' })
+    } finally {
+      mudarAcao(null)
+    }
+  }
 
   // --- Cowork briefing handler ---
   const handleCoworkClick = useCallback(async () => {
@@ -489,27 +530,36 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
     await navigator.clipboard.writeText(prompt)
   }, [video.id, state.type, state.draftTestId])
 
-  // Recusa do servidor ao iniciar: as duas frases do mockup (D-7) no lugar do texto cru; outro erro segue como estava.
-  const falhouAoIniciar = useCallback((res: ResultadoIniciar) => {
+  // Recusa do servidor ao iniciar: as duas frases do mockup (D-7) no lugar do texto cru; outro erro vira o texto 10.
+  const falhouAoIniciar = (res: ResultadoIniciar) => {
     if (res.codigo === 'teste_youtube' || res.codigo === 'guarda_falhou') {
       setRecusa({ codigo: res.codigo, ate: res.codigo === 'teste_youtube' && res.ate ? res.ate : null })
-      dispatch({ type: 'SET_ERROR', error: null })
+      setAviso(null)
       return
     }
+    console.warn(res.error)
     setRecusa(null)
-    dispatch({ type: 'SET_ERROR', error: res.error ?? 'Failed to start test' })
-  }, [])
+    setAviso({ tipo: 'ativar_falhou' })
+  }
 
   // Edição ou troca de passo invalida a recusa: as versões só são gravadas em `handleSubmit`, então "Tentar de novo" com versões editadas iniciaria as velhas.
-  const editar = useCallback((acao: WizardAction) => { setRecusa(null); dispatch(acao) }, [])
+  const editar = (acaoDoReducer: WizardAction) => { setRecusa(null); setAviso(null); dispatch(acaoDoReducer) }
 
   // --- Launch / save handler ---
-  const handleSubmit = useCallback((isLaunch: boolean) => {
+  const handleSubmit = async (isLaunch: boolean) => {
+    if (acaoRef.current !== null) return
     setRecusa(null)
-    dispatch({ type: 'SET_ERROR', error: null })
-    dispatch({ type: 'SET_LAUNCHING', isLaunching: true })
-
-    startTransition(async () => {
+    setAviso(null)
+    mudarAcao(isLaunch ? 'ativar' : 'salvar')
+    // Onde a exceção aconteceu decide o texto: antes de ativar (20), no início (10) ou depois, já navegando (nenhum).
+    let etapa: 'antes' | 'iniciar' | 'depois' = 'antes'
+    let navegando = false
+    // Falha de gravação das versões: nada foi ativado (texto 20); o motivo do servidor vai só para o diagnóstico.
+    const falhaAntes = (motivo?: unknown) => {
+      console.warn(motivo)
+      setAviso({ tipo: 'antes_de_ativar', origem: isLaunch ? 'ativar' : 'salvar' })
+    }
+    try {
       let testId = state.draftTestId
 
       // 1. Create test if no draft exists
@@ -523,8 +573,9 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
           ...(referenciaDados ? { referencia: referenciaDados } : {}),
         })
         if (!result.ok || !result.id) {
-          dispatch({ type: 'SET_ERROR', error: result.error ?? 'Failed to create test' })
-          dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+          const recusaDoServidor = avisoDaRecusaDeCriar(result, null)
+          if (recusaDoServidor) setAviso(recusaDoServidor)
+          else falhaAntes(result.error)
           return
         }
         testId = result.id
@@ -558,14 +609,11 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
               if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
               blob = await resp.blob()
             } catch (e) {
-              console.warn(e)
-              dispatch({ type: 'SET_ERROR', error: 'Failed to download library image' })
-              dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+              falhaAntes(e)
               return
             }
             if (!TIPOS_DA_BIBLIOTECA.includes(blob.type) || blob.size > LIMITE_DA_BIBLIOTECA_BYTES) {
-              dispatch({ type: 'SET_ERROR', error: FRASE_BIBLIOTECA_INVALIDA })
-              dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+              setAviso({ tipo: 'biblioteca', texto: FRASE_BIBLIOTECA_INVALIDA })
               return
             }
             daBiblioteca.set(v.label, blob)
@@ -573,8 +621,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
 
           const cleanupRes = await cleanupDraftVariants(testId, { manter: gravadasMantidas.map(v => v.label) })
           if (!cleanupRes.ok) {
-            dispatch({ type: 'SET_ERROR', error: cleanupRes.error ?? 'Failed to clean up draft' })
-            dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+            falhaAntes(cleanupRes.error ?? 'Failed to clean up draft')
             return
           }
 
@@ -595,8 +642,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             if (v.titleText?.trim()) fd.append('title_text', v.titleText.trim())
             const uploadResult = await uploadVariant(testId, fd)
             if (!uploadResult.ok) {
-              dispatch({ type: 'SET_ERROR', error: uploadResult.error ?? 'Failed to upload variant' })
-              dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+              falhaAntes(uploadResult.error ?? 'Failed to upload variant')
               return
             }
             if (uploadResult.variantId) {
@@ -611,8 +657,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
               if (v.titleText.trim() === (v.textoGravado ?? '')) continue
               const upd = await updateTextVariant(v.gravada!, { title_text: v.titleText.trim() })
               if (!upd.ok) {
-                dispatch({ type: 'SET_ERROR', error: upd.error ?? 'Failed to update variant' })
-                dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+                falhaAntes(upd.error ?? 'Failed to update variant')
                 return
               }
               marcarGravada(v.label, v.gravada!, v.titleText.trim())
@@ -630,8 +675,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
         // Só os rótulos que saíram do estado são apagados; o resto já está gravado
         const cleanupRes = await cleanupDraftVariants(testId, { manter: comTexto.filter(v => v.gravada).map(v => v.label) })
         if (!cleanupRes.ok) {
-          dispatch({ type: 'SET_ERROR', error: cleanupRes.error ?? 'Failed to clean up draft' })
-          dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+          falhaAntes(cleanupRes.error ?? 'Failed to clean up draft')
           return
         }
 
@@ -641,8 +685,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             if (texto === (tv.textoGravado ?? '')) continue
             const upd = await updateTextVariant(tv.gravada, { title_text: texto })
             if (!upd.ok) {
-              dispatch({ type: 'SET_ERROR', error: upd.error ?? 'Failed to update text variant' })
-              dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+              falhaAntes(upd.error ?? 'Failed to update text variant')
               return
             }
             marcarGravada(tv.label, tv.gravada, texto)
@@ -654,8 +697,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             label: tv.label,
           })
           if (!textResult.ok) {
-            dispatch({ type: 'SET_ERROR', error: textResult.error ?? 'Failed to create text variant' })
-            dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
+            falhaAntes(textResult.error ?? 'Failed to create text variant')
             return
           }
           if (textResult.id) marcarGravada(tv.label, textResult.id, texto)
@@ -664,10 +706,10 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
 
       // 4. Optionally launch
       if (isLaunch) {
+        etapa = 'iniciar'
         const startResult = await iniciarTeste(testId)
         if (!startResult.ok) {
           falhouAoIniciar(startResult)
-          dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
           return
         }
       }
@@ -675,42 +717,62 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
       draftCleared.current = true
       clearDraft(video.id)
       if (isLaunch) {
-        // Keep isLaunching=true so the wizard stays in "Ativando..." state
-        // until navigation completes — avoids flashing back to the dashboard.
+        // `acao` fica em 'ativar' até a navegação terminar (não pisca de volta para o painel). Se `onCreated` lançar, o `finally` limpa.
+        etapa = 'depois'
         onCreated(testId)
+        navegando = true
       } else {
-        dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
         onClose()
       }
-    })
-  }, [state.draftTestId, state.type, state.variants, state.config, siteId, video.id, video.title, referenciaDados, onCreated, onClose, iniciarTeste, falhouAoIniciar])
+    } catch (e) {
+      console.warn(e)
+      if (etapa === 'antes') setAviso({ tipo: 'antes_de_ativar', origem: isLaunch ? 'ativar' : 'salvar' })
+      else if (etapa === 'iniciar') setAviso({ tipo: 'ativar_falhou' })
+    } finally {
+      if (!navegando) mudarAcao(null)
+    }
+  }
 
   // "Tentar de novo": só o início (rascunho e versões já estão gravados; repetir o resto duplicaria versões de título).
-  const tentarIniciarDeNovo = useCallback(() => {
+  const tentarIniciarDeNovo = async () => {
     const testId = state.draftTestId
-    if (!testId) return
+    if (!testId || acaoRef.current !== null) return
     setRecusa(null)
-    dispatch({ type: 'SET_ERROR', error: null })
-    dispatch({ type: 'SET_LAUNCHING', isLaunching: true })
-    startTransition(async () => {
+    setAviso(null)
+    mudarAcao('ativar')
+    let navegando = false
+    try {
       const r = await iniciarTeste(testId)
       if (!r.ok) {
         falhouAoIniciar(r)
-        dispatch({ type: 'SET_LAUNCHING', isLaunching: false })
         return
       }
       draftCleared.current = true
       clearDraft(video.id)
       onCreated(testId)
-    })
-  }, [state.draftTestId, iniciarTeste, falhouAoIniciar, video.id, onCreated])
+      navegando = true
+    } catch (e) {
+      console.warn(e)
+      setAviso({ tipo: 'ativar_falhou' })
+    } finally {
+      if (!navegando) mudarAcao(null)
+    }
+  }
+
+  // "Tentar de novo" do primário: com as versões já gravadas repete só o início; senão repete o Ativar inteiro (idempotente, D-M6-16).
+  const tentarDeNovo = () => {
+    if (versoesGravadas(state)) void tentarIniciarDeNovo()
+    else void handleSubmit(true)
+  }
 
   // --- Step navigation helpers ---
   const canAdvance = stepIsValid(state.step, state)
   const goBack = () => {
+    if (acaoRef.current !== null) return
     editar({ type: 'SET_STEP', step: passoAnterior(state.step) })
   }
   const goNext = () => {
+    if (acaoRef.current !== null) return
     editar({ type: 'SET_STEP', step: proximoPasso(state.step) })
   }
 
@@ -721,7 +783,9 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
         return (
           <StepTipo
             selected={state.type}
-            onSelect={handleTypeSelect}
+            onSelect={t => void handleTypeSelect(t)}
+            pendente={acao === 'criar' || acao === 'trocar' ? state.type : null}
+            travado={ocupado}
           />
         )
       case 'variantes':
@@ -766,19 +830,28 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
     }
   }
 
+  const jaExiste = aviso?.tipo === 'ja_existe' ? aviso : null
+  const falhouAtivar = aviso?.tipo === 'ativar_falhou' || (aviso?.tipo === 'antes_de_ativar' && aviso.origem === 'ativar')
+  const BTN = 'inline-flex items-center gap-[7px] justify-center min-h-[44px] py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em]'
+  const BTN_SEC = `${BTN} text-cms-text disabled:text-cms-text-dim disabled:cursor-not-allowed`
+  const BTN_PRI = `${BTN} w-full min-[480px]:w-auto bg-cms-accent disabled:opacity-40 disabled:cursor-not-allowed`
+  const bordaSec = { border: '1px solid var(--cms-border, #332D25)' }
+  const estiloPri = { border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }
+  const spinner = <span className="etd-tok etd-spin pequeno inline-flex">{ICONE_BUSY}</span>
+
   return (
     <YtPortal>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       style={{ backdropFilter: 'blur(6px)' }}
-      onClick={state.isLaunching ? undefined : onClose}
+      onClick={fechaBloqueado ? undefined : onClose}
     >
       <div
         ref={refDialogo}
         role="dialog"
         aria-modal="true"
         aria-label="Novo Teste A/B"
-        className="flex flex-col mx-4 animate-ab-fade-up"
+        className="etd-tok flex flex-col mx-4 animate-ab-fade-up"
         style={{
           width: 'min(900px, 100%)',
           maxHeight: 'calc(100vh - 80px)',
@@ -796,22 +869,24 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             <h2 className="text-[18px] font-bold text-cms-text m-0">Novo teste A/B</h2>
             <div className="text-[12.5px] text-cms-text-dim mt-[3px] max-w-[580px] whitespace-nowrap overflow-hidden text-ellipsis">{video.title}</div>
           </div>
-          <button onClick={onClose} disabled={state.isLaunching} className="text-cms-text-dim p-[4px] shrink-0 disabled:opacity-40" style={{ background: 'transparent', border: 'none' }} aria-label="Fechar">
+          <button onClick={onClose} disabled={fechaBloqueado} className="inline-flex items-center justify-center w-11 h-11 -mt-[10px] -mr-[10px] text-cms-text-dim shrink-0 disabled:opacity-40" style={{ background: 'transparent', border: 'none' }} aria-label="Fechar">
             <X size={20} />
           </button>
         </div>
 
         {/* Step rail */}
-        <StepRail currentStep={state.step} onStepClick={s => editar({ type: 'SET_STEP', step: s })} />
+        <StepRail currentStep={state.step} travado={ocupado} onStepClick={s => { if (acaoRef.current === null) editar({ type: 'SET_STEP', step: s }) }} />
 
         {/* Body */}
         <div key={state.step} className="flex-1 overflow-y-auto p-[24px]" style={{ animation: 'fadeIn 150ms ease-out' }}>
-          {isPending && state.step === 'tipo' && (
-            <div className="absolute inset-0 flex items-center justify-center bg-cms-surface/80 rounded-lg z-10">
-              <p className="text-xs text-cms-text-dim animate-pulse">Criando rascunho...</p>
-            </div>
-          )}
           {renderStep()}
+          {state.step === 'revisar' && acao === 'ativar' ? (
+            <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Ativando o teste no YouTube</strong>Pode levar alguns segundos. Se fechar, o teste continua e aparece na lista.</div></div>
+          ) : null}
+          {state.step === 'revisar' && acao === 'salvar' ? (
+            <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Salvando o rascunho</strong>Leva alguns segundos.</div></div>
+          ) : null}
+          <MensagemDoAssistente aviso={aviso} onTentarDeNovo={() => { if (state.type) void handleTypeSelect(state.type) }} />
         </div>
 
         {/* Footer */}
@@ -823,66 +898,65 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
                   ? (recusa.ate ? FRASES.guarda.motivoRecusa(new Date(recusa.ate)) : FRASES.guarda.motivoRecusaSemData)
                   : FRASES.guarda.guardaFalhou}
                 {recusa.codigo === 'guarda_falhou' ? (
-                  <button type="button" onClick={tentarIniciarDeNovo} disabled={state.isLaunching} className="ml-[10px] underline font-semibold">
+                  <button type="button" onClick={() => void tentarIniciarDeNovo()} disabled={ocupado} className="ml-[10px] underline font-semibold">
                     {FRASES.guarda.tentarDeNovo}
                   </button>
                 ) : null}
               </span>
-            ) : state.error ? (
-              <span className="text-red-400">{state.error}</span>
+            ) : acao === 'criar' ? (
+              <div className="etd-msg busy compact" role="status">{ICONE_BUSY}<div><strong>Criando o rascunho…</strong>Leva alguns segundos.</div></div>
+            ) : acao === 'trocar' ? (
+              <div className="etd-msg busy compact" role="status">{ICONE_BUSY}<div><strong>Trocando o tipo…</strong>Leva alguns segundos.</div></div>
             ) : (
               `Passo ${indiceDoPasso(state.step) + 1} de ${PASSOS.length}`
             )}
           </span>
           <div className="flex flex-col-reverse min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-end gap-[10px] w-full min-[480px]:w-auto ml-auto">
-            {state.step === 'tipo' ? (
-              <button
-                onClick={onClose}
-                className="inline-flex items-center justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim"
-                style={{ border: '1px solid var(--cms-border, #332D25)' }}
-              >
-                Cancelar
-              </button>
-            ) : (
-              <button
-                onClick={goBack}
-                disabled={isPending || state.isLaunching}
-                className="inline-flex items-center justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim disabled:opacity-40"
-                style={{ border: '1px solid var(--cms-border, #332D25)' }}
-              >
-                Voltar
-              </button>
-            )}
-            {state.step !== 'revisar' && (
-              <button
-                onClick={goNext}
-                disabled={!canAdvance || isPending}
-                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
-              >
-                Próximo
-                <ArrowRight size={16} aria-hidden="true" />
-              </button>
-            )}
-            {state.step === 'revisar' && (
+            {jaExiste ? (
               <>
-                <button
-                  onClick={() => handleSubmit(false)}
-                  disabled={isPending || state.isLaunching}
-                  className="inline-flex items-center justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim disabled:opacity-40"
-                  style={{ border: '1px solid var(--cms-border, #332D25)' }}
-                >
-                  {isPending ? 'Salvando...' : 'Salvar rascunho'}
+                <button onClick={onClose} className={BTN_SEC} style={bordaSec}>Cancelar</button>
+                <button onClick={() => onAbrirExistente(jaExiste.id, jaExiste.status)} className={BTN_PRI} style={estiloPri}>
+                  {jaExiste.status === 'draft' ? 'Abrir rascunho' : 'Abrir o teste'}
+                  <ArrowRight size={16} aria-hidden="true" />
                 </button>
-                <button
-                  onClick={() => handleSubmit(true)}
-                  disabled={isPending || state.isLaunching}
-                  className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent disabled:opacity-40"
-                  style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
-                >
-                  <Play size={14} aria-hidden="true" />
-                  {isPending ? 'Ativando...' : 'Ativar teste'}
-                </button>
+              </>
+            ) : (
+              <>
+                {state.step === 'tipo' ? (
+                  <button onClick={onClose} className={BTN_SEC} style={bordaSec}>
+                    Cancelar
+                  </button>
+                ) : (
+                  <button onClick={goBack} disabled={ocupado} className={BTN_SEC} style={bordaSec}>
+                    Voltar
+                  </button>
+                )}
+                {state.step !== 'revisar' && (
+                  <button
+                    onClick={goNext}
+                    disabled={!canAdvance || ocupado}
+                    className={BTN_PRI}
+                    style={estiloPri}
+                  >
+                    Próximo
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                )}
+                {state.step === 'revisar' && (
+                  <>
+                    <button onClick={() => void handleSubmit(false)} disabled={ocupado} className={BTN_SEC} style={bordaSec}>
+                      {acao === 'salvar' ? <>{spinner}Salvando…</> : 'Salvar rascunho'}
+                    </button>
+                    <button
+                      onClick={() => (falhouAtivar ? tentarDeNovo() : void handleSubmit(true))}
+                      disabled={ocupado}
+                      className={BTN_PRI}
+                      style={estiloPri}
+                    >
+                      {acao === 'ativar' ? <>{spinner}Ativando…</> : falhouAtivar ? 'Tentar de novo' : <><Play size={14} aria-hidden="true" />Ativar teste</>}
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -908,10 +982,41 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
 }
 
 /* ------------------------------------------------------------------ */
+/*  Mensagens do corpo (erros em português, sem texto cru do servidor)  */
+/* ------------------------------------------------------------------ */
+
+function MensagemDoAssistente({ aviso, onTentarDeNovo }: { aviso: AvisoDoAssistente | null; onTentarDeNovo: () => void }) {
+  if (!aviso) return null
+  const tentar = (
+    <button type="button" onClick={onTentarDeNovo} className="mt-[6px] min-h-[44px] px-[4px] underline font-semibold text-[13px]" style={{ background: 'none', border: 0, color: 'inherit', cursor: 'pointer' }}>
+      Tentar de novo
+    </button>
+  )
+  switch (aviso.tipo) {
+    case 'criar_falhou':
+      return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Não foi possível criar o rascunho</strong>Nada foi salvo. Tente de novo.<div>{tentar}</div></div></div>
+    case 'trocar_falhou':
+      return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Não foi possível trocar o tipo</strong>O rascunho continua como estava.<div>{tentar}</div></div></div>
+    case 'servidor':
+      return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div>{aviso.texto}</div></div>
+    case 'biblioteca':
+      return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div>{aviso.texto}</div></div>
+    case 'ja_existe':
+      return aviso.status === 'draft'
+        ? <div className="etd-msg warn" role="status">{ICONE_AVISO}<div><strong>Já existe um rascunho deste vídeo</strong>Abra-o na lista de rascunhos para continuar de onde parou.</div></div>
+        : <div className="etd-msg warn" role="status">{ICONE_AVISO}<div><strong>Este vídeo já tem um teste</strong>Termine ou cancele esse teste antes de criar outro.</div></div>
+    case 'antes_de_ativar':
+      return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Não foi possível salvar as variantes</strong>Nada foi ativado. Tente de novo.</div></div>
+    case 'ativar_falhou':
+      return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Não foi possível ativar</strong>O rascunho ficou salvo. Você pode tentar de novo.</div></div>
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Step rail (sub-component)                                          */
 /* ------------------------------------------------------------------ */
 
-function StepRail({ currentStep, onStepClick }: { currentStep: Passo; onStepClick: (step: Passo) => void }) {
+function StepRail({ currentStep, travado, onStepClick }: { currentStep: Passo; travado: boolean; onStepClick: (step: Passo) => void }) {
   const atual = indiceDoPasso(currentStep)
   return (
     <div className="flex items-center py-[16px] px-[24px] shrink-0" style={{ borderBottom: '1px solid var(--cms-border, #332D25)' }}>
@@ -920,12 +1025,13 @@ function StepRail({ currentStep, onStepClick }: { currentStep: Passo; onStepClic
         const isCompleted = atual > visualIdx
         const isActive = atual === visualIdx
         const isFuture = atual < visualIdx
+        const clicavel = !isFuture && !travado
         return (
           <div key={passo} className="contents">
             <div
               className="flex items-center gap-[9px]"
-              style={{ cursor: isFuture ? 'default' : 'pointer' }}
-              onClick={() => !isFuture && onStepClick(passo)}
+              style={{ cursor: clicavel ? 'pointer' : 'default' }}
+              onClick={() => clicavel && onStepClick(passo)}
               {...(!isFuture ? { role: 'button' as const, tabIndex: 0, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStepClick(passo) } } } : {})}
             >
               <span

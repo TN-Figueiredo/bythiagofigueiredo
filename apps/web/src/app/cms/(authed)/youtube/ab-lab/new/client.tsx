@@ -79,6 +79,7 @@ export function NewTestClient({ siteId, iniciarTeste, avisoDeVolume, settings, e
         settings={settings}
         onClose={() => router.push('/cms/youtube/ab-lab')}
         onCreated={(testId) => router.push(`/cms/youtube/ab-lab/${testId}`)}
+        onAbrirExistente={(id, status) => router.push(status === 'draft' ? `/cms/youtube/ab-lab/new?draft=${id}` : `/cms/youtube/ab-lab/${id}`)}
         iniciarTeste={iniciarTeste}
         avisoDeVolume={avisoDeVolume}
         existingDraftId={draftPrefill?.id}

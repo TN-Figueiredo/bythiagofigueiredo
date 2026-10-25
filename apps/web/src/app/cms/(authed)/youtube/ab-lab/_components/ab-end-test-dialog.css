@@ -62,6 +62,7 @@
 .etd-btn:disabled { color: var(--etd-muted); cursor: not-allowed; }
 .etd-btn.over { background: var(--etd-amber); border-color: var(--etd-amber); color: #1A120A; }
 .etd-msg { display: grid; grid-template-columns: 20px 1fr; gap: 9px; border: 1px solid; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+.etd-msg.compact { margin-top: 0; padding: 6px 10px; font-size: 12px; }
 .etd-msg svg { width: 18px; height: 18px; margin-top: 1px; }
 .etd-msg strong { display: block; }
 .etd-msg.err { background: var(--etd-err-bg); border-color: var(--etd-err-line); }
@@ -71,7 +72,9 @@
 .etd-msg.busy { background: var(--etd-info-bg); border-color: var(--etd-info-line); }
 .etd-msg.busy svg { color: var(--etd-info); animation: etd-sp 1s linear infinite; }
 @keyframes etd-sp { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .etd-msg.busy svg { animation: none; } }
+.etd-spin svg { width: 20px; height: 20px; animation: etd-sp 1s linear infinite; }
+.etd-btn .etd-spin svg, .etd-spin.pequeno svg { width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) { .etd-msg.busy svg, .etd-spin svg { animation: none; } }
 .etd-lead { font-size: 14px; margin: 0 0 8px; }
 .etd-tiny { font-size: 12px; color: var(--etd-muted); margin: 0 0 12px; }
 .etd-sec { margin: 12px 0 -4px; font-size: 13px; font-weight: 700; }

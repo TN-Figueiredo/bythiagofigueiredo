@@ -446,6 +446,7 @@ export function AbLabDashboard({
       {/* 9. AbCreateWizard */}
       {wizardVideo && (
         <AbCreateWizard
+          key={continueDraft?.id ?? wizardVideo.id}
           video={wizardVideo}
           siteId={siteId}
           settings={settings}
@@ -457,6 +458,11 @@ export function AbLabDashboard({
             // Don't close the wizard — let it stay visible with "Ativando..."
             // loading state until router.push completes the navigation.
             router.push(`/cms/youtube/ab-lab/${testId}`)
+          }}
+          onAbrirExistente={(id, status) => {
+            // Rascunho que está na lista local abre no lugar; o resto navega (o assistente não importa next/navigation)
+            if (status === 'draft' && drafts.some(d => d.id === id)) handleContinueDraft(id)
+            else router.push(status === 'draft' ? `/cms/youtube/ab-lab/new?draft=${id}` : `/cms/youtube/ab-lab/${id}`)
           }}
           iniciarTeste={iniciarTeste}
           avisoDeVolume={avisoDeVolume}

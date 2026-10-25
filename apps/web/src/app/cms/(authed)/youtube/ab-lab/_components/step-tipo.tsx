@@ -5,10 +5,16 @@ import { Layers, Image, Type } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { TestType } from '@/lib/youtube/ab-types'
 import { FRASE_COMBO } from './ab-constants'
+import { ICONE_BUSY } from './etd-icone-busy'
+import './ab-end-test-dialog.css'
 
 interface StepTipoProps {
   selected: TestType | null
   onSelect: (type: TestType) => void
+  /** Tipo cujo rascunho está sendo criado/trocado: o cartão fica marcado e ocupado (`aria-busy`). */
+  pendente?: TestType | null
+  /** Enquanto há ação em andamento, os outros cartões não reagem (clique nem setas). */
+  travado?: boolean
 }
 
 const TYPES: Array<{
@@ -23,11 +29,15 @@ const TYPES: Array<{
   { type: 'title',     icon: Type,   title: 'Título',             desc: 'Só o título muda' },
 ]
 
-export function StepTipo({ selected, onSelect }: StepTipoProps) {
+export function StepTipo({ selected, onSelect, pendente = null, travado = false }: StepTipoProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (travado) {
+        if (e.key.startsWith('Arrow')) e.preventDefault()
+        return
+      }
       const currentIndex = TYPES.findIndex(t => t.type === selected)
       let nextIndex = currentIndex
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); nextIndex = (currentIndex + 1) % TYPES.length }
@@ -38,7 +48,7 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
       onSelect(next.type)
       containerRef.current?.querySelectorAll<HTMLDivElement>('[role="radio"]')?.[nextIndex]?.focus()
     },
-    [selected, onSelect],
+    [selected, onSelect, travado],
   )
 
   return (
@@ -54,19 +64,24 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
         onKeyDown={handleKeyDown}
       >
         {TYPES.map(({ type, icon: Icon, title, desc, extra }, index) => {
-          const isSelected = selected === type
+          const isPendente = pendente === type
+          const isSelected = selected === type || isPendente
+          const isTravado = travado && !isPendente
           return (
             <button
               key={type}
               type="button"
               role="radio"
               aria-checked={isSelected}
+              aria-busy={isPendente ? true : undefined}
+              aria-disabled={isTravado ? true : undefined}
               tabIndex={isSelected || (selected === null && type === TYPES[0]?.type) ? 0 : -1}
-              onClick={() => onSelect(type)}
+              onClick={() => { if (!travado) onSelect(type) }}
               className={`text-left rounded-[12px] p-[18px] cursor-pointer transition-[0.15s] focus:outline-none focus-visible:ring-2 focus-visible:ring-cms-accent relative${index === 0 ? ' min-[480px]:col-span-2' : ''}`}
               style={{
                 border: isSelected ? '1.5px solid var(--cms-accent)' : '1.5px solid var(--cms-border, #332D25)',
-                background: isSelected ? 'var(--accent-soft, rgba(255,130,64,0.08))' : 'var(--cms-surface-hover)',
+                background: isTravado ? 'transparent' : isSelected ? 'var(--accent-soft, rgba(255,130,64,0.08))' : 'var(--cms-surface-hover)',
+                cursor: isTravado ? 'default' : undefined,
               }}
             >
               {/* Icon row */}
@@ -80,7 +95,7 @@ export function StepTipo({ selected, onSelect }: StepTipoProps) {
                     color: isSelected ? 'rgb(26,18,12)' : 'var(--cms-text)',
                   }}
                 >
-                  <Icon size={20} aria-hidden="true" />
+                  {isPendente ? <span className="etd-tok etd-spin inline-flex h-5 w-5">{ICONE_BUSY}</span> : <Icon size={20} aria-hidden="true" style={isTravado ? { opacity: 0.55 } : undefined} />}
                 </div>
                 <span className="text-[16px] font-semibold text-cms-text">{title}</span>
               </div>

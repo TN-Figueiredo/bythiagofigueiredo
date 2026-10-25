@@ -21,6 +21,7 @@ import type {
   AbTestCreateInput,
   AbTestVariantRow,
   AbTestSiteSettings,
+  AbTestStatus,
   TestType,
   CreateTextVariantInput,
   VariantMetadata,
@@ -118,9 +119,22 @@ function referenciaValida(r: unknown): { refVideoId: string | null; refTroca: st
 // createAbTest
 // ---------------------------------------------------------------------------
 
+/** Recusa conhecida de `createAbTest`: o cliente decide a tela pelo código, nunca pelo texto de `error`. */
+export type CodigoCriarTeste = 'ja_existe' | 'short' | 'sem_thumb_hq' | 'video_nao_achado'
+export type ResultadoCriarTeste = {
+  ok: boolean
+  id?: string
+  error?: string
+  codigo?: CodigoCriarTeste
+  existente?: { id: string; status: AbTestStatus }
+}
+
+const FRASE_JA_EXISTE = 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.'
+const STATUS_ABERTOS = ['draft', 'active', 'paused', 'queued'] as const
+
 export async function createAbTest(
   input: AbTestCreateInput,
-): Promise<{ ok: boolean; id?: string; error?: string }> {
+): Promise<ResultadoCriarTeste> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
@@ -147,30 +161,36 @@ export async function createAbTest(
     .single()
 
   if (videoError || !video) {
-    return { ok: false, error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' }
+    return { ok: false, codigo: 'video_nao_achado', error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' }
   }
 
   // Reject Shorts
   if (isCertainShort(video.duration_seconds ?? 0)) {
-    return { ok: false, error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' }
+    return { ok: false, codigo: 'short', error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' }
   }
 
   if (!video.thumbnail_hq_url) {
-    return { ok: false, error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' }
+    return { ok: false, codigo: 'sem_thumb_hq', error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' }
   }
 
   // Check for existing active/draft/paused/queued test on the same video
-  const { data: existing } = await supabase
-    .from('ab_tests')
-    .select('id')
-    .eq('youtube_video_id', input.youtube_video_id)
-    .eq('site_id', siteId)
-    .in('status', ['draft', 'active', 'paused', 'queued'])
-    .limit(1)
-    .maybeSingle()
+  // Um `select id, status` só (ordem fixa para o `id` ser determinístico): a tela abre o rascunho ou o teste que já existe.
+  const lerExistente = async () => {
+    const { data } = await supabase
+      .from('ab_tests')
+      .select('id, status')
+      .eq('youtube_video_id', input.youtube_video_id)
+      .eq('site_id', siteId)
+      .in('status', [...STATUS_ABERTOS])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return data ? { id: data.id as string, status: data.status as AbTestStatus } : null
+  }
+  const existing = await lerExistente()
 
   if (existing) {
-    return { ok: false, error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.' }
+    return { ok: false, codigo: 'ja_existe', existente: existing, error: FRASE_JA_EXISTE }
   }
 
   // Merge config with defaults
@@ -279,7 +299,22 @@ export async function createAbTest(
     .select('id')
     .single()
 
+  // Blob guardado agora (não o do YouTube): se a criação falhar daqui em diante, sai para não ficar órfão a cada tentativa.
+  const apagarBlobGuardado = async () => {
+    if (!immutableOriginalUrl || immutableOriginalUrl === video.thumbnail_hq_url) return
+    try {
+      const { del } = await import('@vercel/blob')
+      await del(immutableOriginalUrl)
+    } catch { /* best effort */ }
+  }
+
   if (testError || !test) {
+    await apagarBlobGuardado()
+    // Duplo disparo: o índice único não cobre `queued`, e a mensagem crua do Postgres não vai à tela
+    if (testError?.code === '23505') {
+      const jaExiste = await lerExistente()
+      if (jaExiste) return { ok: false, codigo: 'ja_existe', existente: jaExiste, error: FRASE_JA_EXISTE }
+    }
     return { ok: false, error: testError?.message ?? 'Failed to create test' }
   }
 
@@ -298,6 +333,7 @@ export async function createAbTest(
   if (variantError) {
     // Roll back the test row on variant insert failure
     await supabase.from('ab_tests').delete().eq('id', test.id)
+    await apagarBlobGuardado()
     return { ok: false, error: variantError.message }
   }
 
