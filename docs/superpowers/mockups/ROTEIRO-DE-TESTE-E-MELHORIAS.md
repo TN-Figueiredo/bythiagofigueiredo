@@ -1355,3 +1355,32 @@ Abrir no Opera `file:///Users/figueiredo/Workspace/bythiagofigueiredo/docs/super
 1. O contador das abas (`.obs-ch-ct`) tem 11,5 px; só o da aba Sugestões foi levado a 12 px.
 2. As abas do Observatório medem 40/42 px de altura; só a aba Sugestões tem `min-height: 44px`.
 3. Plano B da aba Sugestões a 390 px: se o Gio medir a aba fora de 0..390 px, `tabs.tsx` rola a aba atual para a vista (`scrollIntoView({ inline: 'nearest' })`) e o Logan decide a ordem.
+
+## Remover canal (Concorrentes), dono, 19/10 (prints em produção)
+- **Fluxo:** o diálogo "Remover Ryan Otis?" deixa confirmar e só DEPOIS avisa, num toast, "Antes de remover, é preciso exportar este canal. Peça ao agente." O dono achou que o botão estava quebrado. Conserto a desenhar (Logan): o diálogo diz antes do clique que falta a exportação e o que fazer. "Peça ao agente" não basta: dizer o caminho (o comando do runbook E10 §3) ou, no mínimo, que é um passo do agente com o dono.
+- **Cor no modo escuro:** o vermelho do botão "Remover canal" e do toast ficou feio no escuro (Naksu mede contraste e tom).
+- Entra na revisão visual final (Logan + Naksu), com mockup antes do código.
+
+- 21/10 16:16, M1 do original em alta (aviso de 3 estados): aprovado pelo dono no Opera com um ajuste: banner do tema claro com fundo gelo em vez de verde-claro com texto escuro (aplicado no r3). Melhoria futura: rever o mesmo verde-claro em outros banners "Tudo pronto" do CMS no tema claro.
+
+## M2 — caminho do teste do YouTube (r2, 21/10, Logan 94 · Naksu 94)
+Arquivo: docs/superpowers/mockups/2026-10-21-m2-caminho-nativo/index.html · roteiro de 6 passos no README ("Como testar no Opera").
+Para a implementação (não volta ao mockup): a 390 em `ficha-ja-iniciei` há dois laranjas (Confirmar e Lembrar no computador); esqueleto da lista 32 px (1440) e 101 px (390) mais baixo que a lista final; 3 sugestões do Logan em .superpowers/sdd/ab-lab/m2/conferencia-r2-logan.md.
+Não verificado: rótulos reais do Teste e compare no Studio (Gio ou dono conferem antes do texto final).
+
+## M3 — lista "Sugestões (N)" (r2, 21/10, Logan 94 · Naksu 94)
+Arquivo: docs/superpowers/mockups/2026-10-21-m3-sugestoes/index.html · roteiro no README.
+Para a implementação: filtro fixo no topo (sticky; o mockup não mostra); tirar "(cálculo de hoje, 07:02)" da linha recolhida (~20 px a 390); "7" órfão na régua de 48,3×. Candidatos com "Iniciar Lote" fora do N: pendente do dono, padrão sim.
+
+## M4 placar (24/10, dono no Opera, r2.1)
+- Selo "Teste do Lab rodando, dia 1 de 14" quebrava em 2 linhas a 390; frase-resumo colada no cabeçalho (1440 e 390); espaçamento abaixo dos títulos incerto. → conserto r3.
+- Regra para próximas telas: selo/pílula nunca quebra no meio; frase-resumo sempre com respiro do bloco de título.
+
+## M5 tela v2 do A/B (25/10, dono no Opera, r3→r5; aprovado r5 10:50)
+- r3: ⓘ com balão em fluxo mudava a altura da tela; confirmação do Encerrar crescia para baixo, fora da vista. → r4 popover e diálogo.
+- r4: "esse padrão de informação nunca foi usado antes". → r5 copia InfoDica + Popover (#flut) do Observatório e o diálogo `.etd` do A/B.
+- Regra para próximas telas: ⓘ e confirmação SEMPRE pelos componentes existentes; o placar M4 em produção troca o balão em fluxo pelo InfoDica na T12.
+
+## M6 assistente "Novo teste A/B" (25/10, dono no Opera, r3; aprovado 20h50)
+- Clicar num tipo já cria o rascunho: aceitável, porque o Voltar desfaz.
+- "Pedir ideias a uma IA" prometia uma resposta que não existe; virou "Copiar briefing para IA" (só copia). A pergunta à IA de verdade (PerguntarIa) fica no backlog.
