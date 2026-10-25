@@ -147,6 +147,9 @@ const TABELAS_PERMITIDAS = [
   'apps/web/src/lib/youtube/observatorio/medidas/ler-comentarios.ts',
   'apps/web/src/lib/youtube/observatorio/saiu/ler-fila.ts',
   'apps/web/src/lib/youtube/observatorio/saiu/rotulos.ts',
+  // M10a: listas de dados (nomes de tabela), sem leitura nem gravação
+  'apps/web/src/lib/youtube/video-antigo/leitores-competitor-videos.ts',
+  'apps/web/src/lib/youtube/video-antigo/tabelas-fora-da-classe.ts',
 ].sort()
 const LEITORES_PERMITIDOS = [
   'apps/web/src/app/cms/(authed)/youtube/competitors/_canal/medidas/comentarios-do-canal.ts',

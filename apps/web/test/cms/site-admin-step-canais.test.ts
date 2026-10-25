@@ -125,8 +125,10 @@ describe('degrau "administrar o site" — canais', () => {
     arrange('editor')
     expect((await niches.setChannelNiche(UUID, null)).ok).toBe(true)
     expect(log.writes).toEqual([{ table: 'competitor_channels', op: 'update' }])
-    await competitors.pinVideo(UUID)
     await competitors.unpinVideo(UUID)
     expect(sess.rpcCalls).toEqual([])
+    // M10a (Tarefa 10): fixar PERGUNTA o degrau, só para saber se pode descongelar; a editora continua podendo fixar
+    await competitors.pinVideo(UUID)
+    expect(sess.rpcCalls).toEqual(['can_admin_site_users'])
   })
 })

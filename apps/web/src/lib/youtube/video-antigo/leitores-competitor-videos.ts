@@ -49,7 +49,7 @@ export const LEITORES_NO_CODIGO: readonly LeitorNoCodigo[] = [
   { arquivo: 'apps/web/src/lib/youtube/teste-youtube/observados/avisos.ts', ocorrencias: 1, trata: 'indiferente', motivo: 'lê published_at por video_id para a janela de 30 dias; o toco guarda published_at' },
   { arquivo: 'apps/web/src/lib/youtube/teste-youtube/observados/passo.ts', ocorrencias: 2, trata: 'indiferente', motivo: 'junção de publicação por canal do site; o toco guarda published_at' },
   { arquivo: 'apps/web/src/lib/youtube/video-antigo/esta-congelado.ts', ocorrencias: 1, trata: 'indiferente', motivo: 'só comentário; é o predicado' },
-  { arquivo: 'apps/web/src/lib/youtube/observatorio/load.ts', ocorrencias: 7, trata: 'inclui_e_rotula', motivo: 'ponto 6 (Tarefa 9): VIDEO_COLS pede a marca e rowsToDataset rotula o vídeo; readAll e loadLiveRows só embutem o canal da série diária (indiferente)', ponto: 6 },
+  { arquivo: 'apps/web/src/lib/youtube/observatorio/load.ts', ocorrencias: 7, trata: 'inclui_e_rotula', motivo: 'ponto 6 (Tarefa 9): VIDEO_COLS pede a marca e o conjunto de dados rotula o vídeo; readAll e loadLiveRows só embutem o canal da série diária (indiferente)', ponto: 6 },
   { arquivo: 'apps/web/src/lib/youtube/observatorio/load-channel.ts', ocorrencias: 2, trata: 'inclui_e_rotula', motivo: 'ponto 6 (Tarefa 9): lê VIDEO_COLS, com a marca', ponto: 6 },
   { arquivo: 'apps/web/src/lib/youtube/observatorio/types.ts', ocorrencias: 3, trata: 'indiferente', motivo: 'só comentário; ObsVideo.arquivo é a chave nova' },
   { arquivo: 'apps/web/src/lib/youtube/observatorio/cache-tag.ts', ocorrencias: 1, trata: 'indiferente', motivo: 'só comentário' },
