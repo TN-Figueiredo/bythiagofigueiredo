@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { RestoreStatus } from '@/lib/youtube/ab-restore'
 import type { DiaDaFaixa, Placar } from '@/lib/youtube/ab-gravacao/placar'
+import type { DiaDaDecisao } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
 export const VARIANT_LABELS = ['B', 'C', 'D'] as const
 export type VariantLabel = (typeof VARIANT_LABELS)[number]
 
@@ -343,6 +345,8 @@ export interface AbTestResults {
   placar: Placar | null
   /** Lista por dia para a tela (só o detalhe). */
   faixa_dias: DiaDaFaixa[]
+  /** Linhas de `ab_test_dias` no formato da decisão (`diasDaDecisao`, Y4); mesma leitura do placar, sem consulta nova (S8-F4 T12). */
+  dias_decisao: DiaDaDecisao[]
 }
 
 /* --- Chart variant hierarchy (Layer 1 redesign) --- */
@@ -522,6 +526,8 @@ export interface VariantDbEntry {
 }
 
 export interface AbTestBaseView {
+  /** Modelo da tela v2 (S8-F4 T12); nulo/ausente em teste v1 e nos v2 fora da decisão. */
+  v2?: TelaV2 | null
   /** Placar repassado sem transformação (S8-F3). */
   placar?: Placar | null
   faixa_dias?: DiaDaFaixa[]

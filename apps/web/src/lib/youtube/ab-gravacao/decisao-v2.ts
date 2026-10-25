@@ -64,6 +64,21 @@ export function blocoDoDia(cycleNumber: number, V: number): number {
 }
 
 /**
+ * Linhas de `ab_test_dias` -> dias da decisão (ciclo do dia e bloco). Fonte única: o passo da decisão e a tela
+ * (`getTestResults`) chamam esta função, nunca uma cópia (Y4).
+ */
+export function diasDaDecisao(
+  linhas: ReadonlyArray<{ day_pt: DiaPt; variant_id: string | null; alcance_estado: EstadoAlcance; impressoes: number | null; ctr: number | null; final: boolean }>,
+  ciclos: readonly CicloComNumero[],
+  V: number,
+): DiaDaDecisao[] {
+  return linhas.map((l) => {
+    const c = cicloDoDia(l.day_pt, ciclos, l.variant_id)
+    return { day_pt: l.day_pt, variant_id: l.variant_id, alcance_estado: l.alcance_estado, impressoes: l.impressoes, ctr: l.ctr, final: l.final, bloco: c ? blocoDoDia(c.cycle_number, V) : null }
+  })
+}
+
+/**
  * FOLGA por variante no teto T: dias válidos menos o piso de 4. Um ciclo por dia; o dia 0 (parcial) e os
  * ATRASO_ALCANCE últimos dias (aguardando alcance) ficam fora; a variante do ciclo n vem de getVariantForCycle.
  */
