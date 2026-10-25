@@ -381,6 +381,11 @@ describe('daily read bound', () => {
     const vs = [video({ id: 'a', published_at: iso(NOW - 1 * DAY) }), video({ id: 'b', published_at: iso(NOW - 2 * DAY) }), video({ id: 'c', published_at: iso(NOW - 3 * DAY) }), video({ id: 'n', published_at: null })]
     expect(trackedVideoIds(chs, vs).sort()).toEqual(['a', 'b'])
   })
+  it('Yannis M-3: um congelado mais novo que o limite não entra nos tracked e não gasta o limite', () => {
+    const chs = [channel({ video_limit: 2 })]
+    const vs = [video({ id: 'z', published_at: iso(NOW - 0.5 * DAY), archive_frozen_at: iso(NOW - 10 * DAY) }), video({ id: 'a', published_at: iso(NOW - 1 * DAY) }), video({ id: 'b', published_at: iso(NOW - 2 * DAY) }), video({ id: 'c', published_at: iso(NOW - 3 * DAY) })]
+    expect(trackedVideoIds(chs, vs).sort()).toEqual(['a', 'b'])
+  })
   it('reads from series start − 1 d, never older than 365 d, in SP dates', () => {
     expect(dailyReadFrom(NOW - 30 * DAY, NOW)).toBe('2026-09-23')
     expect(dailyReadFrom(NOW - 900 * DAY, NOW)).toBe(new Date(NOW - 365 * DAY - 3 * H).toISOString().slice(0, 10))

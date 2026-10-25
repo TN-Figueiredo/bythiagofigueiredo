@@ -135,12 +135,16 @@ describe.skipIf(pular)('M10a: a coleta com 20 ativos e 40 congelados (banco loca
     const fetchImpl = makeFetch(channelYt, videos, pedidos)
     const resultados: unknown[] = []
     resultados.push(await syncCompetitorChannel({ id: chId, channel_id: channelYt, site_id: site }, 'k', { now: N2, fetchImpl, deferBackfill: true })) // diária e página de uploads (2 congelados nela)
+    // Phil M-2: a página de uploads tem 50 ids (2 + 20 ativos + 28 congelados): 30 congelados pedidos, sem custo extra de cota
+    const naPagina = pedidos.filter(id => frozenYt.includes(id)).length
+    pedidos.length = 0
     for (let d = 0; d < 7; d++) resultados.push(await syncCompetitorWeekly({ id: chId, channel_id: channelYt, site_id: site }, 'k', { now: sp(addDays(D2, d), '12:00'), fetchImpl }))
     // nenhuma recusa video_congelado, nem no resultado, nem no Sentry
     expect(JSON.stringify(resultados)).not.toContain('video_congelado')
     expect(JSON.stringify(vi.mocked(Sentry.captureException).mock.calls.map(x => String((x[0] as Error)?.message ?? x[0])))).not.toContain('video_congelado')
     // a lista da página de uploads cita os congelados em videos.list (é uma chamada de 50 ids); fora dela nenhuma passada os pede
-    expect(pedidos.filter(id => frozenYt.includes(id)).length).toBeLessThanOrEqual(38)
+    expect(naPagina).toBe(30)
+    expect(pedidos.filter(id => frozenYt.includes(id)).length).toBe(0) // as 7 semanais: zero congelado pedido
     // os 20 ativos foram gravados
     const ativosDepois = await ativos()
     expect(ativosDepois.versions).toBeGreaterThan(ativosAntes.versions)

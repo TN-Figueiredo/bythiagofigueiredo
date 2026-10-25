@@ -2683,11 +2683,15 @@ describe('M10a: a coleta respeita a marca do vídeo antigo', () => {
       const u = String(input)
       if (u.includes('/channels?')) return Response.json({ items: [{ id: 'UC_test', contentDetails: { relatedPlaylists: { uploads: 'UU' } }, snippet: { title: 'Canal' }, statistics: { subscriberCount: '10' } }] })
       if (u.includes('/playlistItems?')) return Response.json({ items: ids.map(id => ({ snippet: { resourceId: { videoId: id } } })) })
-      if (u.includes('/videos?')) { asked.push(...idsOf(u)); return Response.json({ items: idsOf(u).filter(id => id === 'vid-1' || id === 'vid-novo').map(id => page({ id })) }) }
+      if (u.includes('/videos?')) { asked.push(...idsOf(u)); // o YouTube devolve também o congelado (a página pede os 50 ids); sem statistics, para o contador de partes faltantes acusar se ele fosse conferido
+      return Response.json({ items: idsOf(u).map(id => id.startsWith('vid-f') ? page({ id, statistics: undefined }) : page({ id })) }) }
       return Response.json({ items: [] })
     }) as typeof fetch
-    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })
+    const r4 = await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: f, ...quiet })
     expect(inserts(db).map(i => i.video_id)).toEqual(['vid-novo'])
+    // Yannis R1 (M-1/M3): o congelado não conta como checado nem como parte faltante (a resposta nem o traz)
+    expect(r4.videosChecked).toBe(2)
+    expect(r4.partsMissing ?? 0).toBe(0)
     noFrozenUuid(db, ['v-f1', 'v-f2'])
     expect(rpcCalls(db, 'competitor_mark_missing').flatMap(a => a.p_video_ids as string[]).some(id => id.startsWith('v-f'))).toBe(false)
     expect(updatesOf(db, 'v-1').length).toBeGreaterThan(0) // o ativo continua sendo regravado
@@ -2725,6 +2729,17 @@ describe('M10a: a coleta respeita a marca do vídeo antigo', () => {
     const db = setup({ lastDaily: '2026-10-24', existing: [], existingError: 'boom', all: [row(1, 1)] })
     await expect(syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(page()), ...quiet })).rejects.toThrow('competitor_videos (página de uploads): boom')
     expect(inserts(db)).toEqual([])
+  })
+  it('10 (Yannis M-6): resposta do plano sem a chave ignorados_congelados vai ao Sentry uma vez; com a chave não vai', async () => {
+    const Sentry = await import('@sentry/nextjs')
+    vi.mocked(Sentry.captureMessage).mockClear()
+    setup({ lastDaily: '2026-10-24', existing: [], all: [row(1, 1)] })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })
+    expect(vi.mocked(Sentry.captureMessage).mock.calls.filter(([m]) => String(m).includes('sem ignorados_congelados'))).toHaveLength(1)
+    vi.mocked(Sentry.captureMessage).mockClear()
+    setup({ lastDaily: '2026-10-24', existing: [], all: [row(1, 1)], tierPlanResult: { changed: 1, ignorados_congelados: 0 } })
+    await syncCompetitorChannel(ch, 'k', { now: EARLY, fetchImpl: apiFetch(null), ...quiet })
+    expect(vi.mocked(Sentry.captureMessage).mock.calls.some(([m]) => String(m).includes('sem ignorados_congelados'))).toBe(false)
   })
   it('9 (Phil M-2): ignorados_congelados > 0 no fechamento da faixa vai ao Sentry; zero não vai', async () => {
     const Sentry = await import('@sentry/nextjs')
