@@ -108,21 +108,21 @@ describe('a recusa apagar_com_arquivo no catálogo', () => {
 })
 
 describe('frase do Blob no diálogo (Q3)', () => {
-  it('sem imagens, nenhuma frase', () => { expect(fraseBlobDialogo(0, 'nao-sim', null)).toBeNull() })
-  it('47 imagens, limpeza sem data, página do Arquivo mostra', () => {
-    expect(fraseBlobDialogo(47, 'nao-sim', null)).toEqual({
+  it('sem imagens, nenhuma frase', () => { expect(fraseBlobDialogo(0)).toBeNull() })
+  it('47 imagens: diz o que o clique faz (I3)', () => {
+    expect(fraseBlobDialogo(47)).toEqual({
       linha1Antes: 'Este canal tem 47 imagens guardadas no Blob', linha1Depois: '. Ao apagar, elas ficam anotadas para apagar.',
-      linha2: 'A limpeza das imagens ainda não tem data para chegar; até lá elas continuam no Blob, e a página do Arquivo mostra quantas faltam.',
+      linha2: 'O site tenta apagar as imagens agora; o que não sair fica anotado, e o aviso depois do clique diz quantas sobraram.',
     })
   })
-  it('1 imagem, sem comando e sem página (nao-nao)', () => {
-    expect(fraseBlobDialogo(1, 'nao-nao', null)).toEqual({
+  it('1 imagem: singular', () => {
+    expect(fraseBlobDialogo(1)).toEqual({
       linha1Antes: 'Este canal tem 1 imagem guardada no Blob', linha1Depois: '. Ao apagar, ela fica anotada para apagar.',
-      linha2: 'A limpeza das imagens ainda não tem data para chegar; até lá ela continua no Blob. A página do Arquivo vai mostrar quantas faltam.',
+      linha2: 'O site tenta apagar a imagem agora; se não sair, fica anotada, e o aviso depois do clique diz se sobrou.',
     })
   })
-  it('com o comando ligado (sim)', () => {
-    expect(fraseBlobDialogo(47, 'sim', null)!.linha2).toBe('O site tenta apagá-las todo dia, e a página do Arquivo mostra quantas faltam.')
+  it('nada de "continuam no Blob" no diálogo; a frase de capacidade segue para o aviso', () => {
+    expect(fraseBlobDialogo(47)!.linha2).not.toMatch(/continuam? no Blob|sem data|não tem data/)
     expect(fraseCapacidade('sim', 1, null, 'dialogo')).toBe('O site tenta apagá-la todo dia, e a página do Arquivo mostra quantas faltam.')
   })
   it('com data: "chega em dd/mm"', () => {

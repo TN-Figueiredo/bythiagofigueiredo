@@ -111,7 +111,7 @@ describe('Q3 · a frase do Blob antes do clique (B2)', () => {
     const b = m.q('.fx-blob')!
     expect(b.textContent).toContain('Este canal tem 47 imagens guardadas no Blob')
     expect(b.textContent).toContain('Ao apagar, elas ficam anotadas para apagar.')
-    expect(b.textContent).toContain('A limpeza das imagens ainda não tem data para chegar; até lá elas continuam no Blob, e a página do Arquivo mostra quantas faltam.')
+    expect(b.textContent).toContain('O site tenta apagar as imagens agora; o que não sair fica anotado, e o aviso depois do clique diz quantas sobraram.')
     expect(b.textContent).not.toMatch(/comando/i)
     expect(b.querySelector('button.ri-ibtn')!.getAttribute('aria-label')).toBe('O que é o Blob')
   })
@@ -119,7 +119,7 @@ describe('Q3 · a frase do Blob antes do clique (B2)', () => {
     const m = mount({ impact: async () => resp({ imagensBlob: 1 }, { capacidade: 'nao-nao' }) }); await abrirApagar(m)
     expect(m.q('.fx-blob')!.textContent).toContain('Este canal tem 1 imagem guardada no Blob')
     expect(m.q('.fx-blob')!.textContent).toContain('ela fica anotada')
-    expect(m.q('.fx-blob')!.textContent).toContain('A página do Arquivo vai mostrar quantas faltam.')
+    expect(m.q('.fx-blob')!.textContent).toContain('o aviso depois do clique diz se sobrou.')
   })
   it('sem imagens: nenhuma frase', async () => {
     const m = mount(); await abrirApagar(m)

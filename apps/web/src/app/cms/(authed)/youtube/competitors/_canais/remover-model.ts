@@ -141,13 +141,14 @@ export function fraseCapacidade(cap: Capacidade, n: number, dataIso: string | nu
   return cap === 'nao-sim' ? `${ate}, e a página do Arquivo mostra quantas faltam.` : `${ate}. A página do Arquivo vai mostrar quantas faltam.`
 }
 /** Q3: a frase do Blob, em duas partes (o ⓘ entra entre `linha1Antes` e `linha1Depois`). Sem imagens, sem frase. */
-export function fraseBlobDialogo(n: number, cap: Capacidade, dataIso: string | null | undefined): { linha1Antes: string; linha1Depois: string; linha2: string } | null {
+/** I3 (dono, 25/10): a 2ª linha diz o que o clique faz (remover.ts apaga na hora; o que não sair fica em blob_urls_pending). A frase de capacidade fica só no aviso âmbar. */
+export function fraseBlobDialogo(n: number): { linha1Antes: string; linha1Depois: string; linha2: string } | null {
   if (n <= 0) return null
   const um = n === 1
   return {
     linha1Antes: `Este canal tem ${milhar(n)} ${um ? 'imagem guardada' : 'imagens guardadas'} no Blob`,
     linha1Depois: `. Ao apagar, ${um ? 'ela fica anotada' : 'elas ficam anotadas'} para apagar.`,
-    linha2: fraseCapacidade(cap, n, dataIso, 'dialogo'),
+    linha2: um ? 'O site tenta apagar a imagem agora; se não sair, fica anotada, e o aviso depois do clique diz se sobrou.' : 'O site tenta apagar as imagens agora; o que não sair fica anotado, e o aviso depois do clique diz quantas sobraram.',
   }
 }
 export const BLOB_INFO = { rotulo: 'O que é o Blob', titulo: 'O que é o Blob', itens: ['O Blob é o armazenamento de imagens do site, na Vercel.', 'A contagem vem do banco no momento em que esta janela abre.'] }

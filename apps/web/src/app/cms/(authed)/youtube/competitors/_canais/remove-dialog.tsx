@@ -211,7 +211,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
       : mostrarFalha ? TXT.falhaTitulo : ''
   const nums = impacto ? numerosDe(impacto) : null
   const arquivoLinha = linhaArquivo(arquivo)
-  const blob = caminho === 'apagar' && arquivo ? fraseBlobDialogo(arquivo.imagensBlob, capacidade, dataDoComando) : null
+  const blob = caminho === 'apagar' && arquivo ? fraseBlobDialogo(arquivo.imagensBlob) : null
   const lead = caminho === 'guardar' ? TXT.leadGuardar : TXT.leadApagar
   useEffect(() => { if (erro && (fase === 'erro' || fase === 'incerto')) faixaErro.current?.scrollIntoView?.({ block: 'center' }) }, [erro, fase]) // center: com nearest a barra sticky (.acts) cobre o alvo
   const frase = erro ? fraseDoErro(erro.codigo, erro.frase, erro.caminho) : null
