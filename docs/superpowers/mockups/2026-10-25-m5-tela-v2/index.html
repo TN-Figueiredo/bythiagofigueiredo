@@ -19,7 +19,8 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .figs{display:flex;flex-direction:column;gap:26px;align-items:flex-start;overflow-x:auto;max-width:100%}
 .fig{margin:0}.fig>figcaption{font-size:13px;color:var(--pgm);margin-bottom:8px}
 
-.frame{
+.frame,#flut,#dlg{
+  --shadow:0 12px 32px rgba(0,0,0,.45);
   --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
   --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
   --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
@@ -30,8 +31,11 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
   --skel:#2B2620;--skel2:#363028;
   --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;
   --va:#B8481A;--vb:#2B6DA8;--vc:#4C6B1F;--vd:#7A4FA0;--la:#E0703A;--lb:#6FA8DC;--lc:#9CC25A;--ld:#B895E0;
+}
+.frame{
   background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;border:1px solid var(--border);border-radius:10px;padding:24px;font-size:14px}
-.frame[data-theme="light"]{
+.frame[data-theme="light"],#flut[data-theme="light"],#dlg[data-theme="light"]{
+  --shadow:0 12px 32px rgba(60,40,10,.14);
   --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--sunk:#F2EBDF;
   --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
   --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
@@ -87,18 +91,27 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .sec>h3,.sec .sh{font:600 16px/1.3 Inter,system-ui,sans-serif;display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s3);flex-wrap:wrap}
 .sh .upd{font:400 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);margin-left:auto}
 .sh .upd.warn{color:var(--warn);font-weight:600;display:inline-flex;gap:5px;align-items:center}
-.info{display:inline-grid;place-items:center;width:24px;height:24px;border:0;background:transparent;color:var(--muted);font:600 12px/1 Inter,system-ui,sans-serif;cursor:pointer;position:relative;padding:0;flex:none}
-.info .ig{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--dim)}
-@container (max-width:640px){.info{width:44px;height:44px;margin:-10px}.info::before{inset:0}}
-.info::before{content:"";position:absolute;inset:-11px}
-/* balão em fluxo: ocupa a linha inteira do contêiner flex e empurra o conteúdo; nunca passa da moldura */
-.sec .sh,.dias .sh{position:relative}
-.tip{position:absolute;z-index:30;top:calc(100% - 6px);left:0;width:min(60ch,100%);padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--dim);box-shadow:0 6px 20px rgba(0,0,0,.45);color:var(--text);font:400 12px/1.45 Inter,system-ui,sans-serif;text-align:left;font-weight:400}
-.tip.up{top:auto;bottom:calc(100% - 6px)}
-@container (min-width:641px){.tip{top:0;bottom:auto;left:var(--tl,36px);width:360px}}
-.tip[hidden]{display:none}
-.tip b{font-weight:600}
-.tip b{font-weight:600}
+/* r5: ⓘ = InfoDica + Popover do produto. Origem (worktree bt-s8-f2, apps/web/src/app/cms/(authed)/youtube/competitors/):
+   .ibtn  _proprio/video.css:24-27 (24x24, sem borda, redondo, muted, svg 16) e 48 (44x44 no toque);
+   .vb-info _proprio/video-blocos.css:20-22 (margem -6px 0; 44x44 e -10px 0 no toque; .vb-info-p);
+   #flut .obs-fl-pop  _chrome/flut/flut.css:3-6 (caixa, raio 8, borda --border-strong, sombra --shadow, 12.5px/1.45, anel de foco);
+   .canal-tip  _canal/canal.css:130-131 (380px, padding 12px 14px, 13px, h3 600 13.5px); #flut  _chrome/camadas.css:12-18 (z 1000, fixed, inset 0). */
+.frame .ibtn{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%;flex:none}
+.frame .ibtn:hover{color:var(--text)}
+.frame .ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.frame .ibtn svg{width:16px;height:16px;display:inline-block;flex:none;vertical-align:middle;fill:none;stroke:currentColor}
+.frame .vb-info{margin:-6px 0}
+@media (pointer:coarse){.frame .ibtn.vb-info{width:44px;height:44px;margin:-10px 0}}
+@container (max-width:640px){.frame .ibtn.vb-info{width:44px;height:44px;margin:-10px 0}}
+#flut{position:fixed;inset:0;z-index:1000;pointer-events:none}
+#flut>*{pointer-events:auto}
+:where(#flut,#dlg) :where(h2,h3,h4,p){margin:0}
+#flut .obs-fl-pop{box-sizing:border-box;margin:0;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);font:400 12.5px/1.45 Inter,system-ui,sans-serif;text-align:left;-webkit-font-smoothing:antialiased}
+#flut .obs-fl-pop:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#flut .obs-fl-pop.canal-tip{width:380px;padding:12px 14px;font-size:13px;max-height:min(70vh,560px);overflow:auto}
+#flut .canal-tip h3{margin:0 0 6px;font:600 13.5px Inter,system-ui,sans-serif}
+#flut .canal-tip b{color:var(--text);font-weight:500}
+#flut .canal-tip .vb-info-p{margin:4px 0 0;font-size:13px;line-height:19px}
 
 /* placar: um grid por linha, mesma markup em 1440 e 390 */
 .card{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:6px 16px 4px;max-width:1040px}
@@ -205,16 +218,110 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .acts{display:flex;flex-wrap:wrap;gap:var(--s4);align-items:center}
 .btn.alvo{min-height:44px;padding:0 18px}
 .btn.sec2{background:transparent}
-.conf{border:1px solid var(--border-strong);background:var(--surface-2);border-radius:8px;padding:var(--s3) var(--s4);max-width:62ch}
-dialog.conf{color:var(--text);box-shadow:0 12px 40px rgba(0,0,0,.5);width:calc(100% - 32px);font:400 14px/1.5 Inter,system-ui,-apple-system,sans-serif;border-color:var(--dim);border-radius:10px;margin:auto}
-dialog.conf:not([open]){display:none}
-dialog.conf::backdrop{background:rgba(0,0,0,.6)}
-@media (max-width:640px){dialog.conf{margin:auto 0 0;width:100%;max-width:none;border-radius:12px 12px 0 0;border-bottom:0;padding-bottom:calc(var(--s4) + env(safe-area-inset-bottom))}}
-.conf h3{font:600 15px/1.35 Inter,system-ui,sans-serif}
-.conf p{color:var(--muted);font-size:13px;margin-top:4px}
-.conf .acts{margin-top:var(--s3);gap:var(--s3)}
-.conf label{display:flex;gap:10px;align-items:center;min-height:44px;font-size:14px;cursor:pointer}
-.conf input[type=radio]{width:20px;height:20px;accent-color:var(--accent)}
+/* r5: diálogo .etd copiado de ab-lab/_components/ab-end-test-dialog.css (worktree bt-s8-f2, youtube/ab-lab/_components/), linhas 1-97.
+   Só mudam os tokens: --theme-cms-* e --pb-accent viram os do mockup (--surface, --border, --text, --muted, --surface-2, --accent). Cores literais. */
+.etd-scrim { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(0,0,0,.55); }
+.etd {
+  --etd-err: #F87171; --etd-warn: #FBBF24; --etd-info: #38BDF8;
+  --etd-err-bg: rgba(217,97,74,.13); --etd-warn-bg: rgba(245,158,11,.13); --etd-info-bg: rgba(63,169,192,.13);
+  --etd-err-line: rgba(239,68,68,.55); --etd-warn-line: rgba(245,158,11,.5); --etd-info-line: rgba(6,182,212,.45);
+  --etd-amber: #E0A23C; --etd-sub: #C9BFAA; --etd-ctl: #928871;
+  --etd-text: var(--text); --etd-muted: var(--muted);
+  --etd-surface: var(--surface); --etd-border: var(--border);
+  --etd-accent: var(--accent); --etd-accent-soft: rgba(255,130,64,.14);
+  position: relative; width: 100%; max-width: 440px; max-height: calc(100dvh - 24px); display: flex; flex-direction: column;
+  background: var(--etd-surface); color: var(--etd-text); border: 1px solid var(--etd-border); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 24px 60px -20px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.4);
+}
+#dlg[data-theme="light"] .etd {
+  --etd-err: #A4261B; --etd-warn: #7A4E00; --etd-info: #0B5F82;
+  --etd-err-line: rgba(180,35,24,.55); --etd-warn-line: rgba(160,100,0,.55); --etd-info-line: rgba(14,116,144,.5);
+  --etd-sub: #3F3727; --etd-ctl: #756A51; --etd-accent-soft: rgba(185,66,16,.10);
+}
+.etd-h { display: flex; align-items: center; gap: 11px; padding: 10px 8px 10px 18px; border-bottom: 1px solid var(--etd-border); flex: none; }
+.etd-h h2 { flex: 1; margin: 0; font-size: 15px; font-weight: 700; }
+.etd-ico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; background: var(--etd-err-bg); color: var(--etd-err); }
+.etd-ico.w { background: var(--etd-warn-bg); color: var(--etd-warn); }
+.etd-x { width: 44px; height: 44px; border-radius: 8px; border: 0; background: transparent; color: var(--etd-muted); display: grid; place-items: center; flex: none; cursor: pointer; }
+.etd-x:hover { background: var(--surface-2); }
+.etd-b { padding: 16px 18px; overflow: auto; min-height: 0; flex: 1 1 auto; }
+.etd-state { color: var(--etd-muted); font-size: 13px; margin: 0 0 14px; }
+.etd-state b { color: var(--etd-text); font-weight: 600; }
+.etd fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.etd legend { font-size: 14px; font-weight: 700; padding: 0; margin-bottom: 8px; }
+.etd-opt { display: grid; grid-template-columns: 18px 84px 1fr; gap: 4px 11px; align-items: start; border: 1px solid var(--etd-border); border-radius: 10px; padding: 10px; margin-bottom: 8px; cursor: pointer; position: relative; }
+.etd-opt:hover { background: var(--surface-2); }
+.etd-opt input { margin: 3px 0 0; accent-color: var(--etd-accent); width: 16px; height: 16px; }
+.etd-opt input:focus-visible { outline: none; }
+.etd-opt:has(input:checked) { border-color: var(--etd-accent); background: var(--etd-accent-soft); }
+.etd-opt:has(input:focus-visible) { outline: 2px solid var(--etd-accent); outline-offset: 2px; }
+.etd-opt.dis { cursor: default; }
+.etd-opt.dis:hover { background: transparent; }
+.etd-opt.dis .etd-th { opacity: .55; }
+.etd-opt.dis .etd-ttl, .etd-opt.dis .etd-who { color: var(--etd-muted); }
+.etd-opt.dis.sel { border-color: var(--etd-accent); background: var(--etd-accent-soft); }
+.etd-opt.dis.sel .etd-ttl, .etd-opt.dis.sel .etd-who { color: var(--etd-text); }
+.etd-th { width: 84px; aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; border: 1px solid rgba(0,0,0,.25); background: var(--surface-2); display: grid; place-items: center; }
+.etd-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.etd-th.fail { color: var(--etd-muted); font-size: 12px; line-height: 14px; border: 1px dashed var(--etd-ctl); align-content: center; text-align: center; gap: 2px; }
+.etd-th.fail svg { width: 16px; height: 16px; justify-self: center; }
+.etd-body { grid-column: 3; min-width: 0; }
+.etd-who { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12.5px; font-weight: 700; }
+.etd-ttl { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: 13px; line-height: 18px; color: var(--etd-text); }
+.etd-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--etd-muted); }
+.etd-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; font-weight: 600; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--etd-info-line); background: var(--etd-info-bg); color: var(--etd-info); white-space: nowrap; }
+.etd-badge.low { border: 1px dashed var(--etd-ctl); background: transparent; color: var(--etd-muted); }
+.etd-f { display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; justify-content: flex-start; align-items: center; padding: 12px 18px 16px; border-top: 1px solid var(--etd-border); flex: none; }
+.etd-hint { order: -1; flex: 1 1 100%; font-size: 12px; color: var(--etd-muted); text-align: right; margin: 0; }
+.etd-btn { border-radius: 9px; border: 1px solid var(--etd-ctl); background: transparent; color: var(--etd-text); padding: 8px 14px; font-size: 13px; font-weight: 600; min-height: 44px; display: inline-flex; gap: 7px; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
+.etd-btn:hover { background: var(--surface-2); }
+.etd-btn:focus-visible { outline: 2px solid var(--etd-accent); outline-offset: 2px; }
+.etd-btn.pri { background: var(--etd-accent); border-color: var(--etd-accent); color: #1A120A; }
+.etd-btn.pri[aria-disabled="true"] { background: var(--surface-2); border-color: var(--etd-border); color: var(--etd-muted); cursor: not-allowed; }
+.etd-btn:disabled { color: var(--etd-muted); cursor: not-allowed; }
+.etd-btn.over { background: var(--etd-amber); border-color: var(--etd-amber); color: #1A120A; }
+.etd-msg { display: grid; grid-template-columns: 20px 1fr; gap: 9px; border: 1px solid; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+.etd-msg svg { width: 18px; height: 18px; margin-top: 1px; }
+.etd-msg strong { display: block; }
+.etd-msg.err { background: var(--etd-err-bg); border-color: var(--etd-err-line); }
+.etd-msg.err svg { color: var(--etd-err); }
+.etd-msg.warn { background: var(--etd-warn-bg); border-color: var(--etd-warn-line); }
+.etd-msg.warn svg { color: var(--etd-warn); }
+.etd-msg.busy { background: var(--etd-info-bg); border-color: var(--etd-info-line); }
+.etd-msg.busy svg { color: var(--etd-info); animation: etd-sp 1s linear infinite; }
+@keyframes etd-sp { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .etd-msg.busy svg { animation: none; } }
+.etd-lead { font-size: 14px; margin: 0 0 8px; }
+.etd-tiny { font-size: 12px; color: var(--etd-muted); margin: 0 0 12px; }
+.etd-sec { margin: 12px 0 -4px; font-size: 13px; font-weight: 700; }
+.etd-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.etd-cmp > div { border: 1px solid var(--etd-border); border-radius: 10px; padding: 10px; min-width: 0; }
+.etd-cmp .mine { border-color: var(--etd-accent); background: var(--etd-accent-soft); }
+.etd-cmp h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--etd-muted); }
+.etd-cmp p { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.etd-cmp .etd-th { width: 100%; }
+.etd-aviso { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; background: var(--surface); }
+.etd-aviso button { min-height: 44px; min-width: 44px; border: 0; background: transparent; color: inherit; cursor: pointer; font-weight: 600; }
+@media (max-width: 480px) {
+  .etd-opt { grid-template-columns: 18px 64px 1fr; }
+  .etd-th { width: 64px; }
+  .etd-ttl, .etd-sub, .etd-body { grid-column: 3; }
+  .etd-f { flex-direction: column-reverse; align-items: stretch; }
+  .etd-cmp { grid-template-columns: 1fr; }
+}
+
+/* Acento primário no claro: #1A120A sobre #B94210 dá 3,39:1; #FFF8F0 dá 5,18:1. */
+#dlg[data-theme="light"] .etd-btn.pri { color: #FFF8F0; }
+/* Cinza muted sobre o fundo âmbar da opção/cartão marcado dá 3,84:1 no escuro. */
+.etd-opt:has(input:checked) .etd-badge.low, .etd-opt.sel .etd-badge.low, .etd-opt:has(input:checked) .etd-sub, .etd-cmp .mine h4 { color: var(--etd-text); }
+/* A barra de abas inferior não pode cobrir o rodapé do diálogo alto a 390 px. */
+@media (max-width: 480px) { .etd-scrim { padding-bottom: calc(12px + env(safe-area-inset-bottom)); } }
+
+/* mockup: o fundo clicável do scrim (no produto é .absolute.inset-0 do Tailwind) e a miniatura sintética */
+.etd-scrim>.etd-bd{position:absolute;inset:0}
+.etd-th.tA,.etd-th.tB{color:rgba(255,255,255,.92);font:600 15px/1 Georgia,serif;border-color:rgba(0,0,0,.25)}
+.etd-th.tA{background:linear-gradient(135deg,#C2562E,#E8A15A 60%,#F3D19A)}.etd-th.tB{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+.etd{font:400 14px/1.5 Inter,system-ui,sans-serif}
 .band.neu{border-color:var(--border-strong);color:var(--text)}
 .band.neu p{color:var(--muted)}
 
@@ -274,6 +381,7 @@ dialog.conf::backdrop{background:rgba(0,0,0,.6)}
  <p class="lede">Mockup M5 r2 (S8-F4). Troque estado, tema e largura no topo ou pela URL (?estado=ativo-sinal&amp;tema=claro&amp;largura=390). Dados sintéticos. O placar M4 está intacto dentro de cada estado. Sem lift no teste ativo; lift e “vs A” só em vencedor de variante.</p>
  <div class="figs" id="figs"></div>
 </div>
+<div id="flut" data-obs></div><div id="dlg"></div>
 <script>
 const SV=(p,a='')=>'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" '+a+'>'+p+'</svg>';
 const I={
@@ -288,7 +396,10 @@ const I={
 const NMC='<span class="nm">não medido</span>';
 const n=x=>x.toLocaleString('pt-BR');
 let IC=0;
-function info(label,h){const id='tip'+(++IC);return '<button class="info" type="button" aria-expanded="false" aria-controls="'+id+'" aria-label="'+label+'" data-info><span class="ig" aria-hidden="true">ⓘ</span></button><span class="tip" id="'+id+'" role="note" hidden>'+h+'</span>'}
+const ICO_INFO='<svg class="obs-ch-i-s" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg>';
+const TIPS={};
+/* InfoDica: título (h3) + parágrafos; o corpo só existe no #flut enquanto aberto (como o Popover do produto) */
+function info(label,h){const id='vbi'+(++IC);const m=h.match(/^<b>(.*?)<\/b>\s*([\s\S]*)$/);TIPS[id]={t:m?m[1].replace(/\.$/,''):label,p:m?m[2]:h};return '<button class="ibtn vb-info" type="button" aria-expanded="false" aria-controls="'+id+'" aria-label="'+label+'" data-info>'+ICO_INFO+'</button>'}
 const T1='5 - Como somos controlados - Consistência e Compromisso (Part 4)';
 const T100='Eu testei 4 títulos diferentes no mesmo vídeo durante duas semanas e o resultado final me surpreendeu muito mesmo, veja';
 /* variante: l,t, st(ok|sem|ag|semctr|zero|aus|nt), imp, cl, ctr, val, ag, nm(dias não medidos), z(dias zero) */
@@ -450,13 +561,7 @@ function sinal(e){
  return '<div class="sinal"><div class="l"><span class="sy" aria-hidden="true">▲</span><span><b>Sinal provisório, não decide:</b> '+e.sinal+' está um pouco à frente.</span></div></div>';
 }
 function acoes(e){
- const aberto=e.abrirEncerrar;
- const conf='<dialog class="conf" id="cfE" '+(aberto?'data-open ':'')+'aria-labelledby="cfEt"><h3 id="cfEt">Encerrar o teste agora?</h3><p>No ar hoje: A (original).</p>'
- +'<div class="band neu calm" style="margin-top:8px"><span class="ic">'+I.warn+'</span><p>Encerrar à mão tira o teste da decisão: o resultado não será calculado.</p></div>'
- +'<p style="margin-top:12px">A miniatura que fica no ar é a que você escolher abaixo.</p>'
- +'<label><input type="radio" name="fica" checked> Voltar à original (A)</label>'+(e.sinal?'<label><input type="radio" name="fica"> Ficar com '+e.sinal+'</label>':'')
- +'<div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfE" autofocus>Cancelar</button><button class="btn alvo pri" type="button" data-fecha="cfE">Encerrar teste</button></div></dialog>';
- return '<div class="sec acoes"><div class="acts"><button class="btn alvo" type="button">Pausar</button><button class="btn alvo" type="button" aria-haspopup="dialog" data-abre="cfE">Encerrar</button></div>'+conf+'</div>';
+ return '<div class="sec acoes"><div class="acts"><button class="btn alvo" type="button">Pausar</button><button class="btn alvo" type="button" aria-haspopup="dialog" data-abre="cfE"'+(e.abrirEncerrar?' data-auto':'')+'>Encerrar</button></div></div>';
 }
 /* desfecho */
 const DS={
@@ -485,12 +590,10 @@ function desfecho(e){
   ?(e.prov?'<span class="provl">'+I.clock+'Provisório até '+e.prov+': pode mudar nos próximos dias.</span>':'<span class="provl"><span aria-hidden="true">■</span>Final: já não muda.</span>'):'';
  let btn='';
  if(e.d==='venc'&&!e.aplicada){
-  btn='<div class="acts"><button class="btn alvo pri" type="button" data-abre="cfA" aria-haspopup="dialog">Aplicar '+e.who+' ao vídeo</button></div>'
-  +'<dialog class="conf" id="cfA" aria-labelledby="cfAt"><h3 id="cfAt">Aplicar '+e.who+' ao vídeo?</h3><p>A miniatura muda agora no YouTube.'+(e.prov?' O desfecho ainda é provisório.':'')+'</p><div class="acts"><button class="btn alvo pri" type="button" data-aplica="cfA">Aplicar '+e.who+'</button><button class="btn alvo ghost" type="button" data-fecha="cfA" autofocus>Cancelar</button></div></dialog>';
+  btn='<div class="acts"><button class="btn alvo pri" type="button" data-abre="cfA" aria-haspopup="dialog">Aplicar '+e.who+' ao vídeo</button></div>';
  }
  if(e.aplicada&&!e.manual){
-  btn='<div class="acts"><button class="btn alvo" type="button" data-abre="cfV" aria-haspopup="dialog">Voltar à original</button></div>'
-  +'<dialog class="conf" id="cfV" aria-labelledby="cfVt"><h3 id="cfVt">Voltar à original (A)?</h3><p>A miniatura volta a ser a de A agora no YouTube. O resultado do teste não muda e continua visível aqui.</p><div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfV" autofocus>Cancelar</button><button class="btn alvo pri" type="button" data-volta="cfV">Sim, voltar à original</button></div></dialog>';
+  btn='<div class="acts"><button class="btn alvo" type="button" data-abre="cfV" aria-haspopup="dialog">Voltar à original</button></div>';
  }
  const extra=e.d==='ileg'?'<div class="acts"><button class="btn alvo" type="button">Tentar de novo</button></div>':'';
  return '<div class="desf"><span class="sel '+s.c+'" role="status"><span class="sy" aria-hidden="true">'+s.s+'</span>'+s.t+'</span>'+prov+noar(e)+btn+extra+'</div>';
@@ -535,38 +638,119 @@ let tema=Q.get('tema')==='claro'?'claro':'escuro';
 let larg=['1440','390'].includes(Q.get('largura'))?Q.get('largura'):'ambas';
 let skT;
 function sync(){history.replaceState(null,'','?'+new URLSearchParams({estado,tema,largura:larg}))}
-function closeTips(){document.querySelectorAll('[data-info]').forEach(x=>{x.setAttribute('aria-expanded','false');const t=document.getElementById(x.getAttribute('aria-controls'));if(t){t.hidden=true;t.classList.remove('up')}})}
-function openTip(b){const tip=document.getElementById(b.getAttribute('aria-controls')),fr=b.closest('.frame'),sh=b.closest('.sh');b.setAttribute('aria-expanded','true');tip.hidden=false;tip.classList.remove('up');
- const wide=fr.clientWidth-parseFloat(getComputedStyle(fr).paddingLeft)*2>640;
- if(wide){tip.style.setProperty('--tl',(b.offsetLeft+b.offsetWidth+8)+'px');return}
- // 390: acima do ⓘ; vira para baixo só sem espaço no topo da janela
- tip.classList.add('up');if(b.getBoundingClientRect().top-tip.offsetHeight-8<0)tip.classList.remove('up')}
+/* ---------- r5: camada única #flut (Popover do produto) e diálogo .etd ---------- */
+let FL=null; // {btn,el}: um só aberto por vez (claimFlut)
+const EDGE=8,GAP=6;
+function placeTip(){
+ if(!FL)return;const {btn,el}=FL;
+ if(!btn.isConnected){closeTips(false);return}
+ const a=btn.getBoundingClientRect(),vw=document.documentElement.clientWidth||innerWidth,vh=innerHeight;
+ if(a.bottom<0||a.top>vh||a.right<0||a.left>vw){el.style.visibility='hidden';return}
+ el.style.maxWidth=Math.min(380,vw-2*EDGE)+'px';el.style.maxHeight='';el.style.overflowY='';el.style.left='0px';el.style.top='0px';
+ const w=el.offsetWidth;let h=el.offsetHeight;
+ const below=vh-a.bottom-GAP-EDGE,above=a.top-GAP-EDGE;
+ const up=h<=below?false:h<=above?true:above>below;
+ const room=up?above:below;
+ if(h>room){const mh=Math.max(0,Math.min(room,vh-2*EDGE));h=mh;el.style.maxHeight=mh+'px';el.style.overflowY='auto'}
+ const x=Math.round(Math.max(EDGE,Math.min(a.left,vw-w-EDGE)));
+ const y=Math.round(Math.min(Math.max(EDGE,up?a.top-GAP-h:a.bottom+GAP),vh-h-EDGE));
+ el.style.left=x+'px';el.style.top=y+'px';el.dataset.lado=up?'cima':'baixo';el.style.visibility='';
+}
+function closeTips(focus){
+ if(!FL)return;const {btn,el}=FL;FL=null;el.remove();btn.setAttribute('aria-expanded','false');
+ if(focus)btn.focus({preventScroll:true});
+}
+function openTip(b){
+ closeTips(false);
+ const id=b.getAttribute('aria-controls'),d=TIPS[id];
+ const el=document.createElement('div');
+ el.id=id;el.className='obs-fl-pop canal-tip';el.setAttribute('role','dialog');el.setAttribute('aria-labelledby',id+'t');el.tabIndex=-1;el.style.position='fixed';el.style.left='0';el.style.top='0';
+ el.innerHTML='<h3 id="'+id+'t">'+d.t+'</h3><p class="vb-info-p">'+d.p+'</p>';
+ document.getElementById('flut').appendChild(el);
+ FL={btn:b,el};b.setAttribute('aria-expanded','true');
+ if(document.activeElement!==b&&!el.contains(document.activeElement))b.focus({preventScroll:true});
+ placeTip();
+}
+const tipInside=t=>t instanceof Node&&FL&&(FL.el.contains(t)||FL.btn.contains(t));
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&FL){ev.preventDefault();ev.stopPropagation();closeTips(true)}},true);
+document.addEventListener('mousedown',ev=>{if(FL&&!tipInside(ev.target))closeTips(false)},true);
+document.addEventListener('focusin',ev=>{if(FL&&!tipInside(ev.target))closeTips(false)});
+addEventListener('resize',placeTip);
+document.addEventListener('scroll',ev=>{if(FL&&!(ev.target instanceof Node&&FL.el.contains(ev.target)))placeTip()},{capture:true,passive:true});
+
+/* diálogo: estrutura e classes de ab-end-test-dialog.tsx (Escolha) e ab-confirmar-troca-dialog.tsx */
+const SVG_STOP='<svg width="16" height="16" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
+const SVG_WARN='<svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3L22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.3v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const SVG_AVISO='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.3v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const SVG_AR='<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const SVG_X='<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+let DLG=null; // {scrim,opener,onKey}
+function dlgHtml(id,e){
+ const head=(ico,t,tid)=>'<div class="etd-h"><span class="etd-ico'+(ico==='w'?' w':'')+'" aria-hidden="true">'+(ico==='w'?SVG_WARN:SVG_STOP)+'</span><h2 id="'+tid+'">'+t+'</h2><button type="button" class="etd-x" aria-label="Fechar" data-fecha>'+SVG_X+'</button></div>';
+ if(id==='cfE'){
+  const opt=(v,rot,sel,ar)=>'<label class="etd-opt'+(sel?' sel':'')+'"><input type="radio" name="etd-fica" value="'+v+'" data-rot="'+rot+'"'+(sel?' checked':'')+' aria-label="'+(v==='A'?rot:'Variante '+rot)+'"><span class="etd-th t'+v+'" aria-hidden="true">'+v+'</span><span class="etd-body"><span class="etd-who">'+rot+(ar?'<span class="etd-badge">'+SVG_AR+'no ar agora</span>':'')+'</span><span class="etd-ttl">'+T1+'</span></span></label>';
+  return '<div role="dialog" aria-modal="true" aria-labelledby="etd-t" aria-describedby="etd-d" class="etd">'+head('s','Encerrar teste','etd-t')
+  +'<div class="etd-b"><p class="etd-state" id="etd-d">A rotação para. No ar agora: <b>variante A</b>.</p><fieldset><legend>O que fica no vídeo?</legend>'
+  +opt('A','A (original)',true,true)+(e.sinal?opt(e.sinal,e.sinal,false,false):'')+'</fieldset>'
+  +'<div class="etd-msg warn">'+SVG_AVISO+'<div>Encerrar à mão tira o teste da decisão: o resultado não será calculado.</div></div></div>'
+  +'<div class="etd-f"><button type="button" class="etd-btn pri" data-encerra aria-describedby="etd-hint">Encerrar e ficar com A (original)</button><button type="button" class="etd-btn" data-fecha>Cancelar</button><span id="etd-hint" hidden></span></div></div>';
+ }
+ const ap=id==='cfA';
+ const lead=ap?'A miniatura muda agora no YouTube.':'A miniatura volta a ser a de A agora no YouTube.';
+ const tiny=ap?(e.prov?'O desfecho ainda é provisório.':''):'O resultado do teste não muda e continua visível aqui.';
+ return '<div role="alertdialog" aria-modal="true" aria-labelledby="etd-c-t" aria-describedby="etd-c-d'+(tiny?' etd-c-n':'')+'" class="etd">'+head('w',ap?'Aplicar '+e.who+' ao vídeo?':'Voltar à original (A)?','etd-c-t')
+ +'<div class="etd-b"><p class="etd-lead" id="etd-c-d">'+lead+'</p>'+(tiny?'<p class="etd-tiny" id="etd-c-n">'+tiny+'</p>':'')+'</div>'
+ +'<div class="etd-f"><button type="button" class="etd-btn over" '+(ap?'data-aplica':'data-volta')+'>'+(ap?'Aplicar '+e.who:'Sim, voltar à original')+'</button><button type="button" class="etd-btn" data-fecha data-ini>Voltar</button></div></div>';
+}
+function closeDlg(focus){
+ if(!DLG)return;const {scrim,opener,onKey}=DLG;DLG=null;document.removeEventListener('keydown',onKey);scrim.remove();
+ if(focus&&opener&&document.body.contains(opener))opener.focus();
+}
+function openDlg(opener,id){
+ closeTips(false);closeDlg(false);
+ const scrim=document.createElement('div');scrim.className='etd-scrim';
+ scrim.innerHTML='<div class="etd-bd" aria-hidden="true"></div>'+dlgHtml(id,E[estado]);
+ document.getElementById('dlg').appendChild(scrim);
+ const FOC='button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+ const onKey=ev=>{
+  if(ev.key==='Escape'){closeDlg(true);return}
+  if(ev.key!=='Tab')return;
+  const f=scrim.querySelectorAll(FOC),first=f[0],last=f[f.length-1];
+  if(ev.shiftKey&&document.activeElement===first){ev.preventDefault();last.focus()}
+  else if(!ev.shiftKey&&document.activeElement===last){ev.preventDefault();first.focus()}
+ };
+ DLG={scrim,opener,onKey};document.addEventListener('keydown',onKey);
+ scrim.querySelector('.etd-bd').addEventListener('click',()=>closeDlg(true));
+ scrim.querySelectorAll('[data-fecha]').forEach(b=>b.addEventListener('click',()=>closeDlg(true)));
+ scrim.querySelectorAll('input[name="etd-fica"]').forEach(r=>r.addEventListener('change',()=>{
+  scrim.querySelectorAll('.etd-opt').forEach(o=>o.classList.toggle('sel',o.contains(r)&&r.checked));
+  scrim.querySelector('[data-encerra]').textContent='Encerrar e ficar com '+r.dataset.rot}));
+ const en=scrim.querySelector('[data-encerra]');if(en)en.addEventListener('click',()=>closeDlg(true));
+ const ap=scrim.querySelector('[data-aplica]');if(ap)ap.addEventListener('click',()=>{closeDlg(false);aplica(opener)});
+ const vo=scrim.querySelector('[data-volta]');if(vo)vo.addEventListener('click',()=>{closeDlg(false);volta(opener)});
+ (scrim.querySelector('[data-ini]')||scrim.querySelector(FOC)).focus();
+}
+function aplica(op){const d=op.closest('.desf');op.closest('.acts').remove();const t=d.querySelector('.noar');t.querySelector('span').innerHTML='<b>'+E[estado].who+'</b> está no ar.';t.tabIndex=-1;t.focus()}
+function volta(op){const d=op.closest('.desf');const t=d.querySelector('.noar');const antes=t.querySelector('.th').textContent;op.closest('.acts').remove();t.querySelector('.th').className='th tA';t.querySelector('.th').textContent='A';t.querySelector('span').innerHTML='No ar agora: <b>A (original)</b>. '+antes+' deixou de ser aplicada.';if(!d.querySelector('.desfeito')){const sl=d.querySelector('.sel');const x=document.createElement('span');x.className='sel neu desfeito';x.setAttribute('role','status');x.innerHTML='<span class="sy" aria-hidden="true">◆</span>Aplicação de '+antes+' desfeita';sl.after(x)}t.tabIndex=-1;t.focus()}
 function paint(){
+ closeTips(false);closeDlg(false);
+ document.querySelectorAll('#flut,#dlg').forEach(h=>h.setAttribute('data-theme',tema==='claro'?'light':'dark'));
  const ws=larg==='ambas'?['1440','390']:[larg];
  document.getElementById('figs').innerHTML=ws.map(w=>'<figure class="fig"><figcaption>'+(w==='1440'?'Desktop 1440 px':'Celular 390 px')+'</figcaption><div class="frame w'+w+'" data-theme="'+(tema==='claro'?'light':'dark')+'">'+render(estado,w)+'</div></figure>').join('');
  document.querySelectorAll('#sEstado button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===estado));
  document.querySelectorAll('#sTema button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===tema));
  document.querySelectorAll('#sLarg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===larg));
- document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation();const o=b.getAttribute('aria-expanded')==='true';closeTips();if(!o)openTip(b)}));
- document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('focusout',ev=>{const t=document.getElementById(b.getAttribute('aria-controls'));if(b.getAttribute('aria-expanded')==='true'&&!(ev.relatedTarget&&(ev.relatedTarget===b||t.contains(ev.relatedTarget))))closeTips()}));
- document.querySelectorAll('.tip').forEach(t=>t.addEventListener('click',ev=>ev.stopPropagation()));
+ document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',()=>{if(FL&&FL.btn===b)closeTips(false);else openTip(b)}));
  document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',!o);document.getElementById(b.getAttribute('aria-controls')).classList.toggle('open',!o)}));
- document.querySelectorAll('[data-abre]').forEach(b=>b.addEventListener('click',()=>{closeTips();b.closest('.frame').querySelector('#'+b.dataset.abre).showModal()}));
- document.querySelectorAll('dialog.conf').forEach(c=>{c.addEventListener('click',ev=>{if(ev.target===c)c.close()});c.addEventListener('close',()=>{const o=c.closest('.frame')?.querySelector('[data-abre="'+c.id+'"]');if(o&&c.isConnected&&!c.dataset.feito)o.focus()});if(c.hasAttribute('data-open'))c.showModal()});
- document.querySelectorAll('[data-fecha]').forEach(b=>b.addEventListener('click',()=>{b.closest('dialog').close()}));
- document.querySelectorAll('[data-volta]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');const t=d.querySelector('.noar');const antes=t.querySelector('.th').textContent;d.querySelector('.acts').remove();b.closest('.conf').remove();t.querySelector('.th').className='th tA';t.querySelector('.th').textContent='A';t.querySelector('span').innerHTML='No ar agora: <b>A (original)</b>. '+antes+' deixou de ser aplicada.';if(!d.querySelector('.desfeito')){const sl=d.querySelector('.sel');const x=document.createElement('span');x.className='sel neu desfeito';x.setAttribute('role','status');x.innerHTML='<span class="sy" aria-hidden="true">◆</span>Aplicação de '+antes+' desfeita';sl.after(x)}t.tabIndex=-1;t.focus()}));
- document.querySelectorAll('[data-aplica]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');d.querySelector('.acts').remove();b.closest('.conf').remove();const t=d.querySelector('.noar');t.querySelector('span').innerHTML='<b>'+E[estado].who+'</b> está no ar.';t.tabIndex=-1;t.focus()}));
+ document.querySelectorAll('[data-abre]').forEach(b=>b.addEventListener('click',()=>openDlg(b,b.dataset.abre)));
+ const au=document.querySelector('[data-auto]');if(au)openDlg(au,au.dataset.abre);
  clearTimeout(skT);if(estado==='carregando')skT=setTimeout(()=>document.querySelectorAll('.skmsg').forEach(m=>{m.innerHTML='Está demorando; a conexão pode estar lenta. <button class="btn ghost" type="button">Tentar de novo</button>'}),8000);
  sync();
 }
 document.getElementById('sEstado').innerHTML=ORDEM.map(k=>'<button data-v="'+k+'">'+E[k].rot+'</button>').join('');
-document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(document.querySelector('dialog.conf[open]'))return;const o=document.querySelector('[data-info][aria-expanded="true"]');if(o){closeTips();o.focus()}});
-window.addEventListener('resize',closeTips);
-document.addEventListener('pointerdown',ev=>{if(!ev.target.closest('.tip,[data-info]'))closeTips()});
 document.addEventListener('click',ev=>{
  const b=ev.target.closest('.seg button');
- if(b){const g=b.parentElement.id;if(g==='sEstado')estado=b.dataset.v;if(g==='sTema')tema=b.dataset.v;if(g==='sLarg')larg=b.dataset.v;paint();return}
- closeTips();
+ if(b){const g=b.parentElement.id;if(g==='sEstado')estado=b.dataset.v;if(g==='sTema')tema=b.dataset.v;if(g==='sLarg')larg=b.dataset.v;paint()}
 });
 paint();
 </script></body></html>

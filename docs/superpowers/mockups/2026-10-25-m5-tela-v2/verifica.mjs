@@ -56,41 +56,64 @@ for(const [t,esp] of [['claro','rgb(30, 107, 67)'],['escuro','rgb(111, 207, 151)
   const c=await pg.$eval('.frame .sel',e=>getComputedStyle(e).color+'|'+getComputedStyle(e).fontSize);
   if(c!==esp+'|14px')ng(`selo vence ${t}: ${c}`);
 }
-// ⓘ 44 px a 390
+// ⓘ 44 px a 390 (container) e 24 px a 1440; classes e medidas do produto
 await pg.goto(`${url}?estado=ativo-sinal&tema=claro&largura=390`);
-const ib=await pg.$eval('.frame .info',e=>{const r=e.getBoundingClientRect();return [r.width,r.height]});
-if(ib[0]<44||ib[1]<44)ng('ⓘ '+ib);
+const ib=await pg.$eval('.frame .ibtn',e=>{const r=e.getBoundingClientRect();return [r.width,r.height]});
+if(ib[0]<44||ib[1]<44)ng('ⓘ 390 '+ib);
+await pg.setViewportSize({width:1500,height:900});
+await pg.goto(`${url}?estado=ativo-sinal&tema=escuro&largura=1440`);
+const i24=await pg.$eval('.frame .ibtn.vb-info',e=>{const r=e.getBoundingClientRect(),c=getComputedStyle(e),sv=getComputedStyle(e.querySelector('svg'));return [r.width,r.height,c.borderTopWidth,c.borderRadius,c.marginTop,sv.width,sv.height]});
+if(JSON.stringify(i24)!==JSON.stringify([24,24,'0px','50%','-6px','16px','16px']))ng('ibtn 1440 difere do produto: '+JSON.stringify(i24));
 // grep color-mix
 const fs=await import('node:fs');
 if(/color-mix\(/.test(fs.readFileSync(path.join(dir,'index.html'),'utf8')))ng('color-mix presente');
-// Esc fecha cada confirmação e devolve o foco ao gatilho; sem rótulo de botão duplicado visível
+// diálogo .etd: estrutura e medidas do produto; Esc fecha e devolve o foco; foco inicial como o produto (Encerrar: 1º focável = Fechar; troca: Voltar)
 await pg.setViewportSize({width:390,height:900});
-for(const [k,id] of [['ativo-sinal','cfA'],['ativo-sinal','cfE'],['concluido-aplicado','cfV'],['concluido-vencedor-provisorio','cfA'],['concluido-aplicado-mudou','cfV']]){
+for(const [k,id] of [['ativo-sinal','cfE'],['concluido-aplicado','cfV'],['concluido-vencedor-provisorio','cfA'],['concluido-aplicado-mudou','cfV']]){
   await pg.goto(`${url}?estado=${k}&tema=claro&largura=390`);
   const g=pg.locator(`.frame [data-abre="${id}"]`);
   if(!await g.count())continue;
   await g.click();
-  const m=await pg.evaluate((i)=>{const d=document.getElementById(i);const cs=getComputedStyle(d);const r=d.getBoundingClientRect();return {open:d.open,modal:d.matches(':modal'),foco:document.activeElement?.textContent.trim(),bg:cs.backgroundColor,w:Math.round(r.width),bottom:Math.round(innerHeight-r.bottom)}},id);
-  if(!m.open||!m.modal||m.foco!=='Cancelar')ng(`${k} ${id} dialog: ${JSON.stringify(m)}`);
+  const m=await pg.evaluate((i)=>{const d=document.querySelector('#dlg .etd');if(!d)return null;const cs=getComputedStyle(d),r=d.getBoundingClientRect(),sc=getComputedStyle(d.parentElement);const f=document.activeElement;const bt=[...d.querySelectorAll('.etd-btn,.etd-x')].map(b=>{const q=b.getBoundingClientRect();return [Math.round(q.width),Math.round(q.height)]});return {role:d.getAttribute('role'),modal:d.getAttribute('aria-modal'),foco:f.className+'|'+f.textContent.trim(),bg:cs.backgroundColor,rad:cs.borderTopLeftRadius,sh:cs.boxShadow,maxw:cs.maxWidth,pos:sc.position,z:sc.zIndex,w:Math.round(r.width),l:Math.round(r.left),rt:Math.round(innerWidth-r.right),b:Math.round(innerHeight-r.bottom),bt,ovf:document.documentElement.scrollWidth-innerWidth,fRev:getComputedStyle(d.querySelector('.etd-f')).flexDirection}},id);
+  if(!m){ng(`${k} ${id} diálogo não abriu`);continue}
+  const roleEsp=id==='cfE'?'dialog':'alertdialog';
+  if(m.role!==roleEsp||m.modal!=='true')ng(`${k} ${id} role ${m.role}`);
+  const focoEsp=id==='cfE'?'etd-x|':'etd-btn|Voltar';
+  if(m.foco!==focoEsp)ng(`${k} ${id} foco inicial ${m.foco} (esperado ${focoEsp})`);
   if(m.bg==='rgba(0, 0, 0, 0)'||m.bg==='transparent')ng(`${k} ${id} dialog sem fundo`);
-  if(m.w!==390||m.bottom>1)ng(`${k} ${id} 390 deveria colar ao rodapé: ${JSON.stringify(m)}`);
-  const rot=await pg.evaluate(()=>{const m={};[...document.querySelectorAll('.frame button')].filter(b=>b.offsetParent&&!b.hasAttribute('data-info')).forEach(b=>{const r=b.textContent.trim();if(!r)return;m[r]=(m[r]||0)+1});return Object.entries(m).filter(([,n])=>n>1).map(([r])=>r)});
+  if(m.rad!=='14px'||!/60px/.test(m.sh)||m.maxw!=='440px'||m.pos!=='fixed'||m.z!=='60')ng(`${k} ${id} medidas .etd: ${JSON.stringify(m)}`);
+  if(m.l<12||m.rt<12||m.ovf>0)ng(`${k} ${id} 390 fora das margens do scrim: ${JSON.stringify(m)}`);
+  if(m.fRev!=='column-reverse')ng(`${k} ${id} rodapé a 390 deveria ser column-reverse: ${m.fRev}`);
+  if(m.bt.some(([w,h])=>w<44||h<44))ng(`${k} ${id} alvo<44 no diálogo ${JSON.stringify(m.bt)}`);
+  const rot=await pg.evaluate(()=>{const m={};[...document.querySelectorAll('.frame button,#dlg button')].filter(b=>b.offsetParent&&!b.hasAttribute('data-info')).forEach(b=>{const r=b.textContent.trim();if(!r)return;m[r]=(m[r]||0)+1});return Object.entries(m).filter(([,n])=>n>1).map(([r])=>r)});
   if(rot.length)ng(`${k} ${id} rótulo duplicado: ${rot}`);
-  if(id==='cfV'||id==='cfA'){await pg.setViewportSize({width:430,height:900});await pg.locator('.frame').first().screenshot({path:path.join(dir,'shots',`${k}-claro-390-confirma.png`)});await pg.setViewportSize({width:390,height:900})}
+  if(id==='cfV'||id==='cfA')await pg.screenshot({path:path.join(dir,'shots',`${k}-claro-390-confirma.png`)});
   await pg.keyboard.press('Escape');
-  const r2=await pg.evaluate((i)=>({fechado:!document.getElementById(i).open,foco:document.activeElement?.dataset?.abre}),id);
+  const r2=await pg.evaluate((i)=>({fechado:!document.querySelector('#dlg .etd'),foco:document.activeElement?.dataset?.abre}),id);
   if(!r2.fechado||r2.foco!==id)ng(`${k} ${id} Esc: ${JSON.stringify(r2)}`);
+  // fundo clicável fecha e devolve o foco
+  await g.click();await pg.mouse.click(2,2);
+  const r3=await pg.evaluate(()=>({fechado:!document.querySelector('#dlg .etd'),foco:document.activeElement?.dataset?.abre}));
+  if(!r3.fechado||r3.foco!==id)ng(`${k} ${id} clique no fundo: ${JSON.stringify(r3)}`);
 }
+// 1440: diálogo centrado, largura 440
+await pg.setViewportSize({width:1500,height:900});
+await pg.goto(`${url}?estado=ativo-sinal&tema=escuro&largura=1440`);
+await pg.locator('.frame [data-abre="cfE"]').click();
+const dc=await pg.evaluate(()=>{const r=document.querySelector('#dlg .etd').getBoundingClientRect();return {w:Math.round(r.width),cx:Math.round(r.left+r.width/2),cy:Math.round(r.top+r.height/2),vcx:innerWidth/2,vcy:innerHeight/2,fRev:getComputedStyle(document.querySelector('#dlg .etd-f')).flexDirection}});
+if(dc.w!==440||Math.abs(dc.cx-dc.vcx)>1||Math.abs(dc.cy-dc.vcy)>1||dc.fRev!=='row-reverse')ng('diálogo 1440 '+JSON.stringify(dc));
+await pg.keyboard.press('Escape');
 // foco após Aplicar e Voltar vai a um alvo visível (.noar), não ao body
 for(const [k,sel] of [['concluido-vencedor-provisorio','[data-aplica]'],['concluido-aplicado','[data-volta]']]){
+  await pg.setViewportSize({width:390,height:900});
   await pg.goto(`${url}?estado=${k}&tema=claro&largura=390`);
   await pg.locator('.frame [data-abre]').first().click();
-  await pg.locator(`.frame ${sel}`).click();
-  const f=await pg.evaluate(()=>{const a=document.activeElement;return {cls:a.className,vis:!!a.offsetParent,body:a===document.body,txt:a.textContent.trim().slice(0,60)}});
-  if(f.body||!f.vis||f.cls!=='noar')ng(`${k} foco após ação: ${JSON.stringify(f)}`);
+  await pg.locator(`#dlg ${sel}`).click();
+  const f=await pg.evaluate(()=>{const a=document.activeElement;return {cls:a.className,vis:!!a.offsetParent,body:a===document.body,txt:a.textContent.trim().slice(0,60),aberto:!!document.querySelector('#dlg .etd')}});
+  if(f.body||!f.vis||f.cls!=='noar'||f.aberto)ng(`${k} foco após ação: ${JSON.stringify(f)}`);
   await pg.setViewportSize({width:430,height:900});await pg.locator('.frame').first().screenshot({path:path.join(dir,'shots',`${k}-claro-390-depois.png`)});await pg.setViewportSize({width:390,height:900});
 }
-// ⓘ: altura do documento igual aberto/fechado; popover dentro da moldura (390) e fecha por Esc, fora, outro ⓘ, Tab
+// ⓘ (popover do produto): altura do documento igual aberto/fechado; caixa dentro da janela; fecha por Esc, fora, outro ⓘ, Tab
 for(const [t,w] of [['escuro','1440'],['escuro','390'],['claro','390'],['claro','1440']]){
   await pg.setViewportSize({width:w==='390'?390:1500,height:900});
   await pg.goto(`${url}?estado=ativo-sinal&tema=${t}&largura=${w}`);
@@ -106,15 +129,18 @@ for(const [t,w] of [['escuro','1440'],['escuro','390'],['claro','390'],['claro',
     const h1=await pg.evaluate(()=>document.documentElement.scrollHeight);
     const y1=await pg.evaluate(()=>[...document.querySelectorAll('.frame .sec,.frame .dias')].map(e=>Math.round(e.getBoundingClientRect().height)));
     if(h0!==h1||JSON.stringify(y0)!==JSON.stringify(y1))ng(`ⓘ ${i} ${t} ${w} altera layout ${h0}->${h1}`);
-    const g=await pg.evaluate((id)=>{const e=document.getElementById(id),r=e.getBoundingClientRect(),f=document.querySelector('.frame').getBoundingClientRect(),cs=getComputedStyle(e);return {l:r.left-f.left,rt:f.right-r.right,t:r.top,b:innerHeight-r.bottom,pos:cs.position,bd:cs.borderTopColor,dby:document.querySelectorAll('[aria-describedby]').length}},tid);
-    if(g.pos!=='absolute'||g.l<-0.5||g.rt<-0.5)ng(`ⓘ ${i} ${t} ${w} fora da moldura ${JSON.stringify(g)}`);
-    if(w==='390'&&(g.t<0||g.b<0))ng(`ⓘ ${i} ${t} ${w} fora do viewport ${JSON.stringify(g)}`);
+    const g=await pg.evaluate(([id,bi])=>{const e=document.getElementById(id),r=e.getBoundingClientRect(),cs=getComputedStyle(e),br=document.querySelectorAll('.frame [data-info]')[bi].getBoundingClientRect(),h3=getComputedStyle(e.querySelector('h3')),p=getComputedStyle(e.querySelector('p'));return {pai:e.parentElement.id,cls:e.className,role:e.getAttribute('role'),lab:e.getAttribute('aria-labelledby'),l:r.left,rt:innerWidth-r.right,t:r.top,b:innerHeight-r.bottom,w:Math.round(r.width),pos:cs.position,bd:cs.borderTopColor,rad:cs.borderTopLeftRadius,pad:cs.padding,sh:cs.boxShadow,fs:cs.fontSize,h3:h3.fontSize+'/'+h3.fontWeight,p:p.fontSize+'/'+p.lineHeight,pm:p.marginTop,gap:Math.round(r.top>=br.bottom?r.top-br.bottom:br.top-r.bottom),dby:document.querySelectorAll('[aria-describedby]').length}},[tid,i]);
+    if(g.pai!=='flut'||g.cls!=='obs-fl-pop canal-tip'||g.role!=='dialog'||g.lab!==tid+'t'||g.pos!=='fixed')ng(`ⓘ ${i} ${t} ${w} estrutura ${JSON.stringify(g)}`);
+    if(g.rad!=='8px'||g.pad!=='12px 14px'||g.fs!=='13px'||g.h3!=='13.5px/600'||g.p!=='13px/19px'||g.pm!=='4px'||!/12px 32px/.test(g.sh))ng(`ⓘ ${i} ${t} ${w} medidas ${JSON.stringify(g)}`);
+    if(g.w>380||(w==='1440'&&g.w!==380))ng(`ⓘ ${i} ${t} ${w} largura ${g.w}`);
+    if(g.l<7.5||g.rt<7.5||g.t<7.5||g.b<7.5)ng(`ⓘ ${i} ${t} ${w} fora da janela (borda 8) ${JSON.stringify(g)}`);
+    if(g.gap<5||g.gap>7)ng(`ⓘ ${i} ${t} ${w} distância ao ⓘ ${g.gap} (produto: 6)`);
     if(g.dby)ng('aria-describedby presente');
-    if(i===0&&(t==='escuro')){await pg.screenshot({path:path.join(dir,'shots',`info-aberto-${t}-${w}.png`)}); /* sem resize: resize fecha o popover */}
+    if(i===0&&(t==='escuro')){await pg.screenshot({path:path.join(dir,'shots',`info-aberto-${t}-${w}.png`)}); /* sem resize: reposiciona */}
     // Esc fecha e devolve foco ao ⓘ
     await pg.keyboard.press('Escape');
-    const e1=await pg.evaluate(()=>({exp:document.activeElement.getAttribute('aria-expanded'),inf:document.activeElement.hasAttribute('data-info')}));
-    if(e1.exp!=='false'||!e1.inf)ng(`ⓘ ${i} Esc ${JSON.stringify(e1)}`);
+    const e1=await pg.evaluate(()=>({exp:document.activeElement.getAttribute('aria-expanded'),inf:document.activeElement.hasAttribute('data-info'),nada:!document.querySelector('#flut .obs-fl-pop')}));
+    if(e1.exp!=='false'||!e1.inf||!e1.nada)ng(`ⓘ ${i} Esc ${JSON.stringify(e1)}`);
     // toque fora
     await b.click();await pg.mouse.click(5,5);
     if(await b.getAttribute('aria-expanded')!=='false')ng(`ⓘ ${i} não fecha por toque fora`);
@@ -125,7 +151,8 @@ for(const [t,w] of [['escuro','1440'],['escuro','390'],['claro','390'],['claro',
   // abrir outro fecha o anterior
   const bs=pg.locator('.frame [data-info]');await bs.nth(0).click();await bs.nth(1).click();
   const ab=await pg.locator('.frame [data-info][aria-expanded="true"]').count();
-  if(ab!==1)ng(`ⓘ abertos simultâneos: ${ab}`);
+  const cx=await pg.locator('#flut .obs-fl-pop').count();
+  if(ab!==1||cx!==1)ng(`ⓘ abertos simultâneos: ${ab}/${cx}`);
 }
 // captura do Encerrar aberto (escuro 1440 e 390)
 for(const w of ['1440','390']){
