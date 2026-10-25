@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import vercelConfig from '../../../vercel.json'
 import { lerAgendaDoVigia, type ItemAgenda } from '@/lib/youtube/agenda/saude'
+import { avaliarComAgenda, lerMesesAFrenteComPrazo } from '@/lib/youtube/agenda/particoes'
 
 // Avaliação de saúde dos crons do `vercel.json`, extraída de
 // `src/app/api/health/route.ts` (2026-09-18) sem mudança de comportamento.
@@ -370,7 +371,7 @@ function itemDaAgenda(a: ItemAgenda): ICronHealthItem {
     name: `agenda:${a.nome}`,
     status: a.status,
     schedules: [],
-    severity: 'info',
+    severity: a.gravidade === 'vermelho' ? 'critical' : 'info',
     lastSuccessAt: a.ultimoOk,
     lastFailureAt: null,
     lastError: null,
@@ -409,10 +410,10 @@ export const CRON_HEALTH_COLUMNS =
   'cron_name, last_success_at, last_failure_at, last_error, consecutive_failures, severity'
 
 /**
- * A leitura da agenda para as duas rotas (`/api/health` e `cron-watchdog`). `lerAgendaDoVigia` nunca lança: o que não
- * puder ser lido sai como a entrada `agenda:leitura` (late) ou como `nota`, e o relatório dos crons de sempre sai inteiro.
- * O módulo é importado de forma ESTÁTICA: se ele não carregar, o build quebra (falha barulhenta), nunca um item mudo.
+ * A leitura da agenda para as duas rotas (`/api/health` e `cron-watchdog`), mais o invariante "meses à frente" (M2), que vale sem a E10
+ * e com a agenda desligada. Nada aqui lança: leitura que falha vira item `late` (o do invariante: amarelo se passageira, vermelho se estrutural).
  */
-export function lerAgendaParaRelatorio(sb: SupabaseClient, now: Date): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
-  return lerAgendaDoVigia(sb, now.getTime(), process.env)
+export async function lerAgendaParaRelatorio(sb: SupabaseClient, now: Date): Promise<{ itens: ItemAgenda[]; nota: string | null }> {
+  const [agenda, lido] = await Promise.all([lerAgendaDoVigia(sb, now.getTime(), process.env), lerMesesAFrenteComPrazo(sb)])
+  return { itens: [...agenda.itens, avaliarComAgenda(lido, agenda.itens, now.getTime())], nota: agenda.nota }
 }

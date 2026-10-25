@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID, createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
 import { aplicarM3b, sqlM3bAte, corridasLigadas, confirmarM3bParaCorridas, desfazerM3bDasCorridas, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
@@ -153,6 +154,26 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     expect(linha).toEqual({ sealed_kind: 'com_dado', rows_total: '58', days_measured: 29, days_in_month: 31 })
   }))
 
+  it('re-selo por expurgo de mês fora do banco guarda os dias do selo anterior (pedido da M9)', async () => emTx(async () => {
+    const { site, canal, videos } = await semearCanal(c, { videos: 2 })
+    await semearDiaria(c, videos, '2026-10-03', 29)
+    const u = await unidadePelaRota({ site, classe: 'serie', tabela: DAILY, canal, mes: MES })
+    await unidadePelaRota({ site, classe: 'serie', tabela: EARLY, canal, mes: MES })
+    await receber(site, [item(u)])
+    await receber(site, (await resumoPelaRota({ site, classe: 'serie', canal, mes: MES })).arquivos)
+    await receber(site, (await manifestoPelaRota({ site, classe: 'serie', mes: MES })).arquivos)
+    await c.query(`delete from public.competitor_video_daily where video_id = any($1::uuid[])`, [videos])
+    const reselar = async (marca: string, nulos = false): Promise<Record<string, unknown>> => {
+      await c.query(`update public.obs_archive_months set ${marca} = now(), unsealed_at = now(), unsealed_reason = 'expurgo'${nulos ? ', days_measured = null, days_in_month = null' : ''} where site_id = $1 and class = 'serie'`, [site])
+      expect(await escalar(c, `select public.obs_archive_seal($1, 'serie', $2::date)`, [site, MES])).toBe(1)
+      return (await c.query(`select days_measured, days_in_month, unsealed_reason from public.obs_archive_months where site_id = $1 and class = 'serie' and table_name = $2`, [site, DAILY])).rows[0]
+    }
+    expect(await reselar('detached_at')).toEqual({ days_measured: 29, days_in_month: 31, unsealed_reason: null })
+    expect(await reselar('dropped_at')).toEqual({ days_measured: 29, days_in_month: 31, unsealed_reason: null })
+    // mês fora do banco sem medida anterior fica sem medida (nulo, nunca 0)
+    expect(await reselar('detached_at', true)).toEqual({ days_measured: null, days_in_month: null, unsealed_reason: null })
+  }))
+
   it('canal sem linha tem unidade vazia com o nome do canal (item 26)', async () => emTx(async () => {
     const a = await semearCanal(c, { videos: 1 }); await semearDiaria(c, a.videos, '2026-10-01', 31)
     const b = await semearCanal(c, { site: a.site, videos: 0 })
@@ -268,6 +289,51 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     const linha = r.canal.find(l => col(r.colunas_canal, l, 'tabela') === DAILY)!
     expect(col(r.colunas_canal, linha, 'var_likes')).toBeNull()
     expect(col(r.colunas_canal, linha, 'var_views')).toBe('200')       // (200-100) + (200-100)
+  }))
+
+  it('Passo 1b: a saída do resumo depois de extrair a calc é IGUAL, byte a byte, à da função antiga congelada', async () => emTx(async () => {
+    // Escolha: diferencial vivo (a função de antes, congelada em test/fixtures-sql, roda ao lado da nova sobre os mesmos dados), não ouro gravado:
+    // o ouro envelhece com o esquema e o diferencial cai no dia em que alguém mexer na calc sem querer.
+    await c.query(readFileSync(resolve(__dirname, '../fixtures-sql/m3b-summary-rows-antes.sql'), 'utf8'))
+    const a = await semearCanal(c, { videos: 3 })
+    await duasPontas(a.videos[0]!, [0, 10], [0, 20])
+    await duasPontas(a.videos[1]!, [0, null], [0, 5])
+    await semearDiaria(c, [a.videos[2]!], '2026-10-03', 29)
+    await unidadesDoCanal(a.site, a.canal)
+    const vazio = await semearCanal(c, { videos: 1 })
+    await unidadesDoCanal(vazio.site, vazio.canal)
+    for (const k of [a, vazio]) {
+      const [antes, depois] = await Promise.all(['obs_archive_summary_rows_antes', 'obs_archive_summary_rows'].map(async f =>
+        (await c.query(`select public.${f}($1, 'serie', $2, $3::date)::text as r`, [k.site, k.canal, MES])).rows[0].r as string))
+      expect(depois).toBe(antes)
+      expect(depois.length).toBeGreaterThan(100)
+    }
+    // Phil M4 / Yannis M4: a classe `texto` (measured = false, o ramo do nulo) também passa pelo antes/depois
+    const tx = await semearCanal(c, { videos: 1 })
+    await c.query(`insert into public.competitor_video_comments (site_id, competitor_channel_id, video_id, youtube_comment_id, body, published_at, is_creator, first_seen_at, last_seen_at)
+      values ($1, $2, $3, 'cm1', 'um comentário', '2026-10-05T10:00:00Z', false, '2026-10-05T11:00:00Z', '2026-10-06T11:00:00Z')`, [tx.site, tx.canal, tx.videos[0]])
+    await fixaHoje('2026-12-15')                                  // o texto só fecha o mês no dia 15 (Phil C2)
+    for (const t of ['competitor_video_comments', 'competitor_video_comment_marks', 'competitor_raw']) {
+      const u = await unidadePelaRota({ site: tx.site, classe: 'texto', tabela: t, canal: tx.canal, mes: MES })
+      if (u.linhas > 0) await receber(tx.site, [item(u)])
+    }
+    const [antesT, depoisT] = await Promise.all(['obs_archive_summary_rows_antes', 'obs_archive_summary_rows'].map(async f =>
+      (await c.query(`select public.${f}($1, 'texto', $2, $3::date)::text as r`, [tx.site, tx.canal, MES])).rows[0].r as string))
+    expect(depoisT).toBe(antesT)
+    expect(depoisT.length).toBeGreaterThan(100)
+    const dados = JSON.parse((await c.query(`select public.obs_archive_summary_rows($1, 'serie', $2, $3::date)::text as r`, [a.site, a.canal, MES])).rows[0].r) as LinhasDoResumo
+    expect(dados.canal.length).toBeGreaterThan(0)
+    expect(dados.video.length).toBeGreaterThan(0)
+  }))
+
+  it('Passo 1b: a calc é interna (ninguém chama de fora) e é o único execute format do cálculo', async () => emTx(async () => {
+    for (const q of ['anon', 'authenticated', 'service_role']) {
+      expect(await escalar<boolean>(c, `select has_function_privilege($1, 'public.obs_archive_summary_calc(uuid,text,uuid,text,date,text,text)'::regprocedure, 'execute')`, [q]), q).toBe(false)
+    }
+    const rows = await escalar<string>(c, `select prosrc from pg_proc where proname = 'obs_archive_summary_rows' and pronamespace = 'public'::regnamespace`)
+    expect(rows).not.toMatch(/execute format/)
+    expect(rows).toMatch(/obs_archive_summary_calc\(/)
+    expect(await escalar<string>(c, `select provolatile::text from pg_proc where proname = 'obs_archive_summary_calc' and pronamespace = 'public'::regnamespace`)).toBe('s')
   }))
 
   it('sealed_kind e os números são por tabela (Phil I10)', async () => emTx(async () => {
@@ -472,8 +538,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     expect(ids).toEqual([`p:${p.id}:01`, `p:${p.id}:02`])
   }))
 
-  // SKIP 23/10/2026 (envio E0): este teste monta o banco com o corpo antigo (fixture MG6/E10 de 14/10) e a M2/M3b novas guardam por md5 o corpo da 0007 (M2:/M3b:competitor_channel_remove_archived_divergente). Religar na onda da M2 (11c) e M3b (md5 recomputado, yannis.md 3.3): `.skip` -> o `describe.skipIf(skipIfNoLocalDb())` original.
-  it.skip('remover o canal antes do recebimento: unit/received devolve canal_removido e não grava (item 159; a corrida de 20 rodadas está em manutencao-m3b-remocao.test.ts)', async () => {
+  it('remover o canal antes do recebimento: unit/received devolve canal_removido e não grava (item 159; a corrida de 20 rodadas está em manutencao-m3b-remocao.test.ts)', async () => {
     await c.query('begin')
     try {
       await aplicarM2(c); await c.query(readFileSync(M10A_SQL, 'utf8')); await aplicarM3b(c, 6)

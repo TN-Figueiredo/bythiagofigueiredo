@@ -308,7 +308,7 @@ describe('lerAgendaDoVigia', () => {
 
 describe('o vigia enxerga as nove tarefas (as duas da E14, a medida do banco e as marcas de idade inclusive)', () => {
   const HORAS = (n: number) => iso(AGORA - n * H)
-  const TODAS = ['leitura_horaria', 'anular_identidade', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal', 'sinais_do_nicho']
+  const TODAS = ['leitura_horaria', 'anular_identidade', 'particoes_a_frente', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal', 'sinais_do_nicho']
 
   it('o padrão do vigia são as nove, na ordem do catálogo', () => {
     expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(TODAS)
@@ -475,6 +475,11 @@ function sbDasRotas(agenda: () => Promise<Resp>) {
   const from = vi.fn(() => ({ select, upsert: vi.fn(() => Promise.resolve({ error: null })) }))
   const rpc = vi.fn((fn: string) => {
     if (fn === 'competitor_agenda_state') return { abortSignal: () => agenda() }
+    if (fn === 'obs_partitions_months_ahead') {
+      const conv = iso(Date.now() - 3_600_000)
+      const linhas = ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly'].map(table_name => ({ table_name, months_ahead: 12, converted_at: conv }))
+      return { abortSignal: () => Promise.resolve({ data: linhas, error: null }) }
+    }
     return Promise.resolve({ data: true, error: null })
   })
   return { from, rpc }
@@ -518,7 +523,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
     expect(res.status).toBe(200)
     expect(corpo.status).toBe('degraded')
     expect(corpo.crons.filter(c => c.status === 'late').map(c => c.name)).toEqual(['agenda:leitura'])
-    expect(corpo.crons.filter(c => c.name.startsWith('agenda:')).map(c => c.name)).toEqual(['agenda:leitura'])
+    expect(corpo.crons.filter(c => c.name.startsWith('agenda:')).map(c => c.name)).toEqual(['agenda:leitura', 'agenda:particoes_meses_a_frente'])
     expect(corpo.agendaNota).toBe('agenda não conferida: o banco não respondeu')
   })
 
@@ -546,7 +551,7 @@ describe('as duas rotas leem a agenda sem derrubar o resto', () => {
     const res = await healthGET(reqHealth())
     const corpo = await res.json() as { status: string; crons: Array<{ name: string; status: string }> }
     expect(corpo.status).toBe('degraded')
-    expect(corpo.crons.filter(c => c.name.startsWith('agenda:') && c.status === 'late').map(c => c.name)).toEqual(['agenda:anular_identidade'])
+    expect(corpo.crons.filter(c => c.name.startsWith('agenda:') && c.status === 'late').map(c => c.name)).toEqual(['agenda:anular_identidade', 'agenda:particoes_a_frente'])
   })
 
   it('cron-watchdog antes da MG10: ok e nenhum push', async () => {

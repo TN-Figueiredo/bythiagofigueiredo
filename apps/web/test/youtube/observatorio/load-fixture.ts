@@ -56,6 +56,7 @@ export function buildTables(o: FixtureOpts): Record<string, Row[]> {
         id, competitor_channel_id: ch, video_id: 'yt-' + id, title: 'Título ' + id, view_count: 1000 + v, like_count: 10, comment_count: 1, duration_seconds: 600,
         published_at: iso(pub), is_short: false, last_checked_at: seen, tags: ['viagem', 'vlog'], thumbnail_url: null, pinned_at: pinned ? iso(now - 3 * H) : null,
         series_tier: o.weekly === true ? (v < limit ? 'diaria' : 'semanal') : null,
+        archive_frozen_at: null, archive_dropped_at: null, // M10a: as duas colunas do toco, como o banco as devolve
       })
       const base = { video_id: id, thumb_blob_url: null, first_seen_at: iso(pub + H), last_seen_at: seen, window_start: null, precision: 'first', is_current: true }
       const changed = v === 0

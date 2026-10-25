@@ -2665,6 +2665,12 @@ export type Database = {
       }
       competitor_videos: {
         Row: {
+          archive_comment_count: number | null
+          archive_dropped_at: string | null
+          archive_frozen_at: string | null
+          archive_like_count: number | null
+          archive_stats_at: string | null
+          archive_view_count: number | null
           category_id: string | null
           comment_count: number | null
           competitor_channel_id: string
@@ -2687,6 +2693,12 @@ export type Database = {
           view_count: number | null
         }
         Insert: {
+          archive_comment_count?: number | null
+          archive_dropped_at?: string | null
+          archive_frozen_at?: string | null
+          archive_like_count?: number | null
+          archive_stats_at?: string | null
+          archive_view_count?: number | null
           category_id?: string | null
           comment_count?: number | null
           competitor_channel_id: string
@@ -2709,6 +2721,12 @@ export type Database = {
           view_count?: number | null
         }
         Update: {
+          archive_comment_count?: number | null
+          archive_dropped_at?: string | null
+          archive_frozen_at?: string | null
+          archive_like_count?: number | null
+          archive_stats_at?: string | null
+          archive_view_count?: number | null
           category_id?: string | null
           comment_count?: number | null
           competitor_channel_id?: string
@@ -6411,6 +6429,44 @@ export type Database = {
             foreignKeyName: "notifications_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obs_archive_video_policy: {
+        Row: {
+          h_meses: number
+          released: boolean
+          site_id: string
+          teto_auto_fracao: number
+          teto_auto_minimo: number
+          teto_unidade: number
+          updated_at: string
+        }
+        Insert: {
+          h_meses?: number
+          released?: boolean
+          site_id: string
+          teto_auto_fracao?: number
+          teto_auto_minimo?: number
+          teto_unidade?: number
+          updated_at?: string
+        }
+        Update: {
+          h_meses?: number
+          released?: boolean
+          site_id?: string
+          teto_auto_fracao?: number
+          teto_auto_minimo?: number
+          teto_unidade?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obs_archive_video_policy_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: true
             referencedRelation: "sites"
             referencedColumns: ["id"]
           },
@@ -11071,6 +11127,7 @@ export type Database = {
       pin_competitor_video: {
         Args: {
           p_limit: number
+          p_pode_descongelar?: boolean
           p_site_id: string
           p_user_id: string
           p_video_id: string

@@ -588,18 +588,18 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
   })
 
   // ───────────────────────── a prova ─────────────────────────
-  it('prova: site vazio devolve zeros, mapas vazios e primeira_coleta nula (e as 17 chaves, pelo banco e pelo TypeScript)', async () => {
+  it('prova: site vazio devolve zeros, mapas vazios e primeira_coleta nula (e as 19 chaves, pelo banco e pelo TypeScript)', async () => {
     const site = await novoSite()
     const p = await prova(site)
     expect(p).not.toBeNull()
     expect(Object.keys(p!).sort()).toEqual([
       'comentarios_ausentes_sem_decisao', 'comentarios_total', 'erros_por_motivo', 'identidade_de_criador', 'identidade_prazo_errado', 'identidade_vencida',
-      'identidades_total', 'perdidos_por_motivo', 'primeira_coleta', 'respostas_de_terceiros', 'retratos_atrasados', 'retratos_em_erro', 'retratos_na_janela',
-      'retratos_ok', 'retratos_perdidos_7d', 'retratos_total', 'ultima_coleta',
+      'identidades_total', 'perdidos_novos_por_motivo', 'perdidos_por_motivo', 'primeira_coleta', 'respostas_de_terceiros', 'retratos_atrasados', 'retratos_em_erro', 'retratos_na_janela',
+      'retratos_ok', 'retratos_perdidos_7d', 'retratos_perdidos_novos', 'retratos_total', 'ultima_coleta',
     ])
     expect(p).toEqual({
       identidade_vencida: 0, identidade_prazo_errado: 0, identidade_de_criador: 0, respostas_de_terceiros: 0, retratos_atrasados: 0, retratos_em_erro: 0,
-      erros_por_motivo: {}, retratos_na_janela: 0, retratos_perdidos_7d: 0, perdidos_por_motivo: {}, retratos_total: 0, retratos_ok: 0, primeira_coleta: null,
+      erros_por_motivo: {}, retratos_na_janela: 0, retratos_perdidos_7d: 0, perdidos_por_motivo: {}, retratos_perdidos_novos: 0, perdidos_novos_por_motivo: {}, retratos_total: 0, retratos_ok: 0, primeira_coleta: null,
       ultima_coleta: null, comentarios_total: 0, identidades_total: 0, comentarios_ausentes_sem_decisao: 0,
     })
     const viaTs = await lerProva(sb, { siteId: site, nowIso: iso(NOW), since: null })
@@ -674,7 +674,20 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
     await novoVideo(canal.id, { pubMs: NOW - 5 * D, descobertoMs: NOW - D })                  // descoberto tarde: não conta
     await novoVideo(canal.id, { pubMs: NOW - 8 * D })                                         // a janela abriu antes da primeira coleta: não conta
     const p = await prova(site)
-    expect(p).toMatchObject({ retratos_perdidos_7d: 2, perdidos_por_motivo: { sem_retrato: 1, proibido: 1 } })
+    expect(p).toMatchObject({ retratos_perdidos_7d: 2, perdidos_por_motivo: { sem_retrato: 1, proibido: 1 }, retratos_perdidos_novos: 0, perdidos_novos_por_motivo: {} })
+  })
+
+  it('prova (emenda 24/10): janela que fechou há 49 h conta só em _7d; a que fechou há 47 h conta também em _novos', async () => {
+    const site = await novoSite()
+    const canal = await novoCanal(site)
+    const primeiro = await novoVideo(canal.id, { pubMs: NOW - 6 * D - 30 * H })
+    await snapSql(primeiro.id, 1, { takenMs: NOW - 6 * D })
+    await novoVideo(canal.id, { pubMs: NOW - 72 * H - 49 * H })   // marco 1 fechou há 49 h, sem retrato
+    expect(await prova(site)).toMatchObject({ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 }, retratos_perdidos_novos: 0, perdidos_novos_por_motivo: {} })
+    await novoVideo(canal.id, { pubMs: NOW - 72 * H - 47 * H })   // marco 1 fechou há 47 h, sem retrato
+    expect(await prova(site)).toMatchObject({ retratos_perdidos_7d: 2, perdidos_por_motivo: { sem_retrato: 2 }, retratos_perdidos_novos: 1, perdidos_novos_por_motivo: { sem_retrato: 1 } })
+    // lerProva (o caminho de produção) tem de entregar cada campo no seu lugar, com os dois mapas diferentes
+    expect(await lerProva(sb, { siteId: site, nowIso: iso(NOW), since: null })).toEqual({ ok: true, prova: await prova(site) })
   })
 
   it('prova: site sem nada devolve zeros enquanto outro site tem dados (filtro por site)', async () => {
@@ -829,7 +842,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E14 (MG8): comentários de destaque, SQL 
     const cp = await novoCanal(perdeu)
     await novoVideo(cp.id, { pubMs: NOW - 4 * D })                 // a janela de 24 a 72 h fechou há 1 dia
     expect(await prova(perdeu)).toMatchObject({ retratos_perdidos_7d: 0 })
-    expect(await prova(perdeu, { since: NOW - 80 * H })).toMatchObject({ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 } })
+    expect(await prova(perdeu, { since: NOW - 80 * H })).toMatchObject({ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 }, retratos_perdidos_novos: 1, perdidos_novos_por_motivo: { sem_retrato: 1 } })
   })
 
   it('pool_stats e formato do motivo: número e sim/não grava; texto e lista são recusados; motivo com texto livre é recusado; cada item de MOTIVOS passa', async () => {

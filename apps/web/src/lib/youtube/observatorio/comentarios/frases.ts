@@ -23,7 +23,7 @@ export const FRASES_FIXAS: Record<CodigoExecucao, string> = {
   consulta_de_autores_falhou: 'a consulta de tamanho dos autores falhou em todas as tentativas da execução',
   conferencia_falhou: 'a conferência dos comentários guardados falhou em todas as tentativas da execução',
   retratos_atrasados: 'vídeos passaram do marco sem retrato e não estavam na lista',
-  retratos_perdidos: 'retratos perdidos nos últimos 7 dias (a janela fechou sem retrato)',
+  retratos_perdidos: 'retratos perdidos nas últimas 48 horas (a janela fechou sem retrato)',
   erros_presos: 'retratos presos no mesmo motivo',
   banco: 'o banco não respondeu a tempo ou recusou',
 }
@@ -102,8 +102,9 @@ const COM_NUMEROS: Record<CodigoExecucao, (n: Numeros) => string | null> = {
     return N === null ? null : `${N} vídeos passaram do marco sem retrato e não estavam na lista`
   },
   retratos_perdidos: (n) => {
-    const N = num(n, 'perdidos_fora_do_aceito')
-    return N === null ? null : `${N} retratos perdidos nos últimos 7 dias (a janela fechou sem retrato)`
+    const N = num(n, 'perdidos_novos_fora_do_aceito')
+    const M = num(n, 'perdidos_fora_do_aceito')
+    return N === null || M === null ? null : `${N} retratos perdidos nas últimas 48 horas (a janela fechou sem retrato); ${M} nos últimos 7 dias`
   },
   erros_presos: (n) => {
     const N = num(n, 'erros_presos_max')

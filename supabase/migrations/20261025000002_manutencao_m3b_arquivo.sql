@@ -129,7 +129,7 @@ create table if not exists public.obs_archive_months (
   detached_at timestamptz, detached_by uuid,
   dropped_at timestamptz, dropped_by uuid, drop_mode text check (drop_mode in ('clique', 'automatico')), rows_dropped bigint, bytes_freed bigint,
   closed_at timestamptz, closed_by uuid,
-  unsealed_at timestamptz, unsealed_reason text check (unsealed_reason in ('conteudo_mudou', 'mudou_no_destaque', 'unidade_nova')),
+  unsealed_at timestamptz, unsealed_reason text check (unsealed_reason in ('conteudo_mudou', 'mudou_no_destaque', 'unidade_nova', 'expurgo')),   -- expurgo: a M9 reabre o mês para refazer o manifesto
   unique (site_id, class, table_name, month)
 );
 create index if not exists idx_oam_detached on public.obs_archive_months (site_id) where detached_at is not null and dropped_at is null;
@@ -848,13 +848,13 @@ begin
     end if;
   end loop;
   -- grava por tabela (Phil I10)
-  for v_row in select m.table_name from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.month = p_month order by m.table_name loop
+  for v_row in select m.table_name, m.detached_at, m.dropped_at from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.month = p_month order by m.table_name loop
     select count(*), count(*) filter (where c.row_count = 0), coalesce(sum(c.row_count), 0) into v_total, v_vazias, v_linhas
       from public.obs_archive_current_units(p_site, p_class, p_month) c where c.table_name = v_row.table_name and c.purged_at is null;
     v_kind := case when v_total = 0 then 'sem_dado_a_guardar' when v_vazias = v_total then 'vazio_conferido' else 'com_dado' end;
     -- dias de São Paulo com linha, contados na tabela online pela mesma regra do leitor, na hora do selo
     v_dias := '{}'; v_dm := 0;
-    if v_kind = 'com_dado' and exists (select 1 from pg_catalog.pg_class where oid = pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(v_row.table_name))) then
+    if v_kind = 'com_dado' and v_row.detached_at is null and v_row.dropped_at is null and exists (select 1 from pg_catalog.pg_class where oid = pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(v_row.table_name))) then
       select * into v_ex from public.obs_archive_table_exprs(v_row.table_name);
       select * into v_src from public.obs_archive_unit_source(p_class, v_row.table_name);
       for v_ch in select c.channel_ref from public.obs_archive_current_units(p_site, p_class, p_month) c
@@ -867,7 +867,10 @@ begin
     end if;
     update public.obs_archive_months
        set sealed_at = now(), sealed_version = v_mv, units_total = v_total, units_empty = v_vazias, rows_total = v_linhas,
-           days_measured = v_dm, days_in_month = (v_seg - p_month), sealed_kind = v_kind, unsealed_at = null, unsealed_reason = null
+           -- mês fora do banco (detached/dropped) guarda os dias medidos no selo anterior: o online já não os tem (pedido da M9)
+           days_measured = case when detached_at is not null or dropped_at is not null then days_measured else v_dm end,
+           days_in_month = case when detached_at is not null or dropped_at is not null then days_in_month else (v_seg - p_month) end,
+           sealed_kind = v_kind, unsealed_at = null, unsealed_reason = null
      where site_id = p_site and class = p_class and month = p_month and table_name = v_row.table_name;
   end loop;
   -- versões anteriores de canal que existe (a de canal removido nunca: 02 §10.5) e os resumos anteriores
@@ -1070,16 +1073,49 @@ $$;
 revoke all on function public.obs_archive_channel_units(uuid, text, uuid, date) from public, anon, authenticated;
 grant execute on function public.obs_archive_channel_units(uuid, text, uuid, date) to service_role;
 
+-- O cálculo do resumo de UMA unidade (canal x tabela x mês), único bloco execute format dele (pedido da M7, TRAVA M7-0b).
+-- Os cinco set são os de obs_archive_summary_rows: o texto sai igual por quem chamar. Interna: ninguém chama de fora.
+create or replace function public.obs_archive_summary_calc(p_site uuid, p_class text, p_channel uuid, p_table text, p_month date, p_hash text, p_ver text)
+returns jsonb language plpgsql stable security definer
+set search_path = '' set timezone = 'UTC' set extra_float_digits = 3 set datestyle = 'ISO, YMD' set intervalstyle = 'postgres' set bytea_output = 'hex'
+as $$
+declare
+  v_ch text := p_channel::text; x record; v_src record; v_c jsonb; v_v jsonb; v_mes text := to_char(p_month, 'YYYY-MM');
+  v_ini timestamptz := (p_month::text || ' 00:00:00-03')::timestamptz;
+  v_fim timestamptz := (((p_month + interval '1 month')::date)::text || ' 00:00:00-03')::timestamptz;
+  v_seg date := (p_month + interval '1 month')::date;
+begin
+  select * into x from public.obs_archive_table_exprs(p_table);
+  select * into v_src from public.obs_archive_unit_source(p_class, p_table);
+  execute format($q$
+    with s as (select %1$s as v, %2$s as ts, %3$s as d, %4$s as a, %5$s as b, %6$s as c %7$s),
+    pv as (select v, count(*) as n, count(distinct d) as nd, min(ts) as t1, max(ts) as t2,
+                  (array_agg(a order by ts asc))[1] as a1, (array_agg(a order by ts desc))[1] as a2,
+                  (array_agg(b order by ts asc))[1] as b1, (array_agg(b order by ts desc))[1] as b2,
+                  (array_agg(c order by ts asc))[1] as c1, (array_agg(c order by ts desc))[1] as c2
+             from s group by v)
+    select to_jsonb(array[ $8, $9, $10, (select count(*) from pv)::text, (select count(*) from s)::text, (select count(distinct d) from s)::text, $7,
+                          (select min(t1) from pv)::text, (select max(t2) from pv)::text,
+                          (select case when count(*) filter (where a1 is null or a2 is null) > 0 then null else sum(a2 - a1)::text end from pv),
+                          (select case when count(*) filter (where b1 is null or b2 is null) > 0 then null else sum(b2 - b1)::text end from pv),
+                          (select case when count(*) filter (where c1 is null or c2 is null) > 0 then null else sum(c2 - c1)::text end from pv),
+                          $11, $12 ]::text[]),
+           (select coalesce(jsonb_agg(to_jsonb(array[ pv.v::text, $8, $9, $10, pv.n::text, pv.nd::text, pv.a1::text, pv.a2::text, pv.b1::text, pv.b2::text, pv.c1::text, pv.c2::text, $11, $12 ]::text[]) order by pv.v), '[]'::jsonb) from pv)
+  $q$, x.video_expr, x.ts_expr, x.day_expr,
+       case when x.measured then 't.views' else 'null::bigint' end, case when x.measured then 't.likes' else 'null::bigint' end, case when x.measured then 't.comments' else 'null::bigint' end,
+       v_src.from_where)
+    into v_c, v_v using p_site, p_channel, p_month, v_ini, v_fim, v_seg, (v_seg - p_month)::text, v_ch, p_table, v_mes, p_hash, p_ver;
+  return jsonb_build_object('canal', v_c, 'video', v_v);
+end $$;
+revoke all on function public.obs_archive_summary_calc(uuid, text, uuid, text, date, text, text) from public, anon, authenticated, service_role;
+
 create or replace function public.obs_archive_summary_rows(p_site uuid, p_class text, p_channel uuid, p_month date)
 returns jsonb language plpgsql security definer
 set search_path = '' set timezone = 'UTC' set extra_float_digits = 3 set datestyle = 'ISO, YMD' set intervalstyle = 'postgres' set bytea_output = 'hex'
 as $$
 declare
   v_ch text := p_channel::text; v_pend text; v_hashes jsonb; v_last record; v_ver integer; v_vazio boolean;
-  v_ini timestamptz := (p_month::text || ' 00:00:00-03')::timestamptz;
-  v_fim timestamptz := (((p_month + interval '1 month')::date)::text || ' 00:00:00-03')::timestamptz;
-  v_seg date := (p_month + interval '1 month')::date;
-  u record; x record; v_src record; v_canal jsonb := '[]'; v_video jsonb := '[]'; v_c jsonb; v_v jsonb; v_mes text := to_char(p_month, 'YYYY-MM');
+  u record; v_canal jsonb := '[]'; v_video jsonb := '[]'; v_c jsonb; v_v jsonb; v_c_v jsonb;
 begin
   if p_class = 'video_antigo' then raise exception 'resumo_da_m10b' using errcode = 'P0001'; end if;
   if p_month is null or p_month <> date_trunc('month', p_month)::date then raise exception 'mes_invalido' using errcode = 'P0001'; end if;
@@ -1105,26 +1141,8 @@ begin
   if not v_vazio then
     for u in select c.* from public.obs_archive_current_units(p_site, p_class, p_month) c
               where c.channel_ref = v_ch and c.purged_at is null and c.lost_at is null order by c.table_name loop
-      select * into x from public.obs_archive_table_exprs(u.table_name);
-      select * into v_src from public.obs_archive_unit_source(p_class, u.table_name);
-      execute format($q$
-        with s as (select %1$s as v, %2$s as ts, %3$s as d, %4$s as a, %5$s as b, %6$s as c %7$s),
-        pv as (select v, count(*) as n, count(distinct d) as nd, min(ts) as t1, max(ts) as t2,
-                      (array_agg(a order by ts asc))[1] as a1, (array_agg(a order by ts desc))[1] as a2,
-                      (array_agg(b order by ts asc))[1] as b1, (array_agg(b order by ts desc))[1] as b2,
-                      (array_agg(c order by ts asc))[1] as c1, (array_agg(c order by ts desc))[1] as c2
-                 from s group by v)
-        select to_jsonb(array[ $8, $9, $10, (select count(*) from pv)::text, (select count(*) from s)::text, (select count(distinct d) from s)::text, $7,
-                              (select min(t1) from pv)::text, (select max(t2) from pv)::text,
-                              (select case when count(*) filter (where a1 is null or a2 is null) > 0 then null else sum(a2 - a1)::text end from pv),
-                              (select case when count(*) filter (where b1 is null or b2 is null) > 0 then null else sum(b2 - b1)::text end from pv),
-                              (select case when count(*) filter (where c1 is null or c2 is null) > 0 then null else sum(c2 - c1)::text end from pv),
-                              $11, $12 ]::text[]),
-               (select coalesce(jsonb_agg(to_jsonb(array[ pv.v::text, $8, $9, $10, pv.n::text, pv.nd::text, pv.a1::text, pv.a2::text, pv.b1::text, pv.b2::text, pv.c1::text, pv.c2::text, $11, $12 ]::text[]) order by pv.v), '[]'::jsonb) from pv)
-      $q$, x.video_expr, x.ts_expr, x.day_expr,
-           case when x.measured then 't.views' else 'null::bigint' end, case when x.measured then 't.likes' else 'null::bigint' end, case when x.measured then 't.comments' else 'null::bigint' end,
-           v_src.from_where)
-        into v_c, v_v using p_site, p_channel, p_month, v_ini, v_fim, v_seg, (v_seg - p_month)::text, v_ch, u.table_name, v_mes, u.hash_conteudo, v_ver::text;
+      v_c_v := public.obs_archive_summary_calc(p_site, p_class, p_channel, u.table_name, p_month, u.hash_conteudo, v_ver::text);
+      v_c := v_c_v -> 'canal'; v_v := v_c_v -> 'video';
       v_canal := v_canal || jsonb_build_array(v_c);
       v_video := v_video || (select coalesce(jsonb_agg(e), '[]'::jsonb) from jsonb_array_elements(v_v) e);
     end loop;
@@ -2680,7 +2698,7 @@ begin
     raise exception 'M3b:competitor_channel_remove_archived_sem_m2' using errcode = 'P0001',
       detail = 'o corpo instalado não tem a guarda por folhas do bloco 11b: aplicar a M2 antes da M3b';
   end if;
-  if pg_catalog.md5(v_src) <> '428702cb04c1029a10a7aa3b53aac63e' then
+  if pg_catalog.md5(v_src) <> '96fccc5423bdf22ef680692adb5f99cd' then
     raise exception 'M3b:competitor_channel_remove_archived_divergente' using errcode = 'P0001',
       detail = 'o corpo instalado não é o do bloco 11b da M2: copiar o corpo instalado com a declaração para esta migration';
   end if;

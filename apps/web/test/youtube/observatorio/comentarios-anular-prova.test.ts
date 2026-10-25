@@ -22,7 +22,7 @@ const agora = (): number => NOW_MS
 // ───── a prova: tudo zero, e uma cópia por teste ─────
 const ZERO: ProvaComentarios = {
   identidade_vencida: 0, identidade_prazo_errado: 0, identidade_de_criador: 0, respostas_de_terceiros: 0, retratos_atrasados: 0,
-  retratos_em_erro: 0, erros_por_motivo: {}, retratos_na_janela: 0, retratos_perdidos_7d: 0, perdidos_por_motivo: {},
+  retratos_em_erro: 0, erros_por_motivo: {}, retratos_na_janela: 0, retratos_perdidos_7d: 0, perdidos_por_motivo: {}, retratos_perdidos_novos: 0, perdidos_novos_por_motivo: {},
   retratos_total: 0, retratos_ok: 0, primeira_coleta: null, ultima_coleta: null, comentarios_total: 0, identidades_total: 0,
   comentarios_ausentes_sem_decisao: 0,
 }
@@ -41,7 +41,7 @@ describe('veredito', () => {
       [{ identidade_de_criador: 1 }, 'identidade_invariante', 1],
       [{ respostas_de_terceiros: 3 }, 'identidade_invariante', 3],
       [{ retratos_atrasados: 4 }, 'retratos_atrasados', 4],
-      [{ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 } }, 'retratos_perdidos', 1],
+      [{ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 }, retratos_perdidos_novos: 1, perdidos_novos_por_motivo: { sem_retrato: 1 } }, 'retratos_perdidos', 1],
       [{ retratos_em_erro: 3, erros_por_motivo: { http_400: 3 } }, 'erros_presos', 3],
       [{ retratos_em_erro: 3, erros_por_motivo: { proibido: 3 } }, 'erros_presos', 3],
     ]
@@ -100,9 +100,9 @@ describe('veredito', () => {
     }
   })
 
-  it('cada uma das 17 chaves da prova é exigida, uma a uma: ausente, texto, nulo, -1 ou 1.5 é prova_ilegivel, nunca verde (guarda de LGPD)', () => {
-    expect(CHAVES_CONTAGEM).toHaveLength(13)
-    expect(CHAVES_MAPA).toHaveLength(2)
+  it('cada uma das 19 chaves da prova é exigida, uma a uma: ausente, texto, nulo, -1 ou 1.5 é prova_ilegivel, nunca verde (guarda de LGPD)', () => {
+    expect(CHAVES_CONTAGEM).toHaveLength(14)
+    expect(CHAVES_MAPA).toHaveLength(3)
     expect(CHAVES_DATA).toHaveLength(2)
     const ILEGIVEL = [{ codigo: 'prova_ilegivel', n: 1 }]
     const ctxs = [FILA_ZERADA, FILA_PENDENTE, { filaZerada: false, so: 'identidade' as const }]
@@ -138,22 +138,42 @@ describe('veredito', () => {
   })
 
   it('perdidos {sem_retrato: 1} é vermelho; {proibido: 2} não é; {proibido: 2, http_400: 1} é, com n = 1', () => {
-    expect(veredito(com({ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 } }), FILA_PENDENTE).vermelhos)
+    expect(veredito(com({ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 }, retratos_perdidos_novos: 1, perdidos_novos_por_motivo: { sem_retrato: 1 } }), FILA_PENDENTE).vermelhos)
       .toEqual([{ codigo: 'retratos_perdidos', n: 1 }])
-    expect(codigos(com({ retratos_perdidos_7d: 2, perdidos_por_motivo: { proibido: 2 } }), FILA_PENDENTE)).toEqual([])
-    const misto = veredito(com({ retratos_perdidos_7d: 3, perdidos_por_motivo: { proibido: 2, http_400: 1 } }), FILA_PENDENTE)
+    expect(codigos(com({ retratos_perdidos_7d: 2, perdidos_por_motivo: { proibido: 2 }, retratos_perdidos_novos: 2, perdidos_novos_por_motivo: { proibido: 2 } }), FILA_PENDENTE)).toEqual([])
+    const misto = veredito(com({ retratos_perdidos_7d: 3, perdidos_por_motivo: { proibido: 2, http_400: 1 }, retratos_perdidos_novos: 3, perdidos_novos_por_motivo: { proibido: 2, http_400: 1 } }), FILA_PENDENTE)
     expect(misto.vermelhos).toEqual([{ codigo: 'retratos_perdidos', n: 1 }])
     expect(misto.numeros.perdidos_fora_do_aceito).toBe(1)
     // vale com a fila pendente e com a zerada (perda não volta)
-    expect(codigos(com({ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 } }), FILA_ZERADA)).toEqual(['retratos_perdidos'])
+    expect(codigos(com({ retratos_perdidos_7d: 1, perdidos_por_motivo: { sem_retrato: 1 }, retratos_perdidos_novos: 1, perdidos_novos_por_motivo: { sem_retrato: 1 } }), FILA_ZERADA)).toEqual(['retratos_perdidos'])
+  })
+
+  it('emenda 24/10: perda de 21/10 vista em 24/10 (só no 7d) não acende vermelho; perda de hoje (novos) acende e a frase traz as duas contagens', () => {
+    const antiga = com({ retratos_perdidos_7d: 2, perdidos_por_motivo: { sem_retrato: 1, lista_vazia_com_contagem: 1 }, retratos_perdidos_novos: 0, perdidos_novos_por_motivo: {} })
+    expect(codigos(antiga, FILA_ZERADA)).toEqual([])
+    expect(codigos(antiga, FILA_PENDENTE)).toEqual([])
+    expect(veredito(antiga, FILA_ZERADA).numeros.perdidos_fora_do_aceito).toBe(2)
+    const hoje = veredito(com({ retratos_perdidos_7d: 2, perdidos_por_motivo: { sem_retrato: 2 }, retratos_perdidos_novos: 1, perdidos_novos_por_motivo: { sem_retrato: 1 } }), FILA_ZERADA)
+    expect(hoje.vermelhos).toEqual([{ codigo: 'retratos_perdidos', n: 1 }])
+    expect(hoje.numeros.perdidos_novos_fora_do_aceito).toBe(1)
+    expect(hoje.numeros.perdidos_fora_do_aceito).toBe(2)
+    expect(fraseDe('retratos_perdidos', hoje.numeros)).toBe('1 retratos perdidos nas últimas 48 horas (a janela fechou sem retrato); 2 nos últimos 7 dias')
+    expect(codigos(com({ retratos_perdidos_7d: 2, perdidos_por_motivo: { proibido: 2 }, retratos_perdidos_novos: 2, perdidos_novos_por_motivo: { proibido: 2 } }))).toEqual([])
+  })
+
+  it('emenda 24/10: prova sem a chave nova (função antiga no banco) é ilegível', () => {
+    const velha: Record<string, unknown> = { ...ZERO }
+    delete velha.retratos_perdidos_novos
+    delete velha.perdidos_novos_por_motivo
+    expect(codigos(velha as unknown as ProvaComentarios)).toEqual(['prova_ilegivel'])
   })
 
   it('perdidos: o total que o mapa não explica conta como fora do aceito (nunca verde por mapa incompleto)', () => {
-    const r = veredito(com({ retratos_perdidos_7d: 3, perdidos_por_motivo: { proibido: 2 } }), FILA_ZERADA)
+    const r = veredito(com({ retratos_perdidos_7d: 3, perdidos_por_motivo: { proibido: 2 }, retratos_perdidos_novos: 3, perdidos_novos_por_motivo: { proibido: 2 } }), FILA_ZERADA)
     expect(r.vermelhos).toEqual([{ codigo: 'retratos_perdidos', n: 1 }])
-    expect(codigos(com({ retratos_perdidos_7d: 2, perdidos_por_motivo: { proibido: 2 } }))).toEqual([])
+    expect(codigos(com({ retratos_perdidos_7d: 2, perdidos_por_motivo: { proibido: 2 }, retratos_perdidos_novos: 2, perdidos_novos_por_motivo: { proibido: 2 } }))).toEqual([])
     // total 0 e mapa explicando 1: o mapa manda
-    expect(codigos(com({ retratos_perdidos_7d: 0, perdidos_por_motivo: { http_400: 1 } }))).toEqual(['retratos_perdidos'])
+    expect(codigos(com({ retratos_perdidos_7d: 0, perdidos_por_motivo: { http_400: 1 }, retratos_perdidos_novos: 0, perdidos_novos_por_motivo: { http_400: 1 } }))).toEqual(['retratos_perdidos'])
   })
 
   it('erros_por_motivo {http_400: 3} é erros_presos; {http_400: 2} não é; {proibido: 3} é; {rede: 5} não é por esta regra', () => {
@@ -189,7 +209,7 @@ describe('veredito', () => {
   it('retratos_total 0 com tudo zero não é vermelho (primeiro dia sem vídeo); so: identidade ignora atrasados, perdidos e presos', () => {
     expect(codigos(com({ retratos_total: 0, retratos_na_janela: 0 }))).toEqual([])
     const ruidoso = com({
-      retratos_atrasados: 31, retratos_perdidos_7d: 5, perdidos_por_motivo: { sem_retrato: 5 },
+      retratos_atrasados: 31, retratos_perdidos_7d: 5, perdidos_por_motivo: { sem_retrato: 5 }, retratos_perdidos_novos: 5, perdidos_novos_por_motivo: { sem_retrato: 5 },
       retratos_em_erro: 4, erros_por_motivo: { http_400: 4 },
     })
     expect(codigos(ruidoso, FILA_ZERADA)).toEqual(['retratos_atrasados', 'retratos_perdidos', 'erros_presos'])
@@ -467,7 +487,7 @@ describe('anular (runAnularIdentidade)', () => {
   })
 
   it('a prova de depois só vermelha por coisa que NÃO é da identidade não derruba a anulação (atrasados, perdidos, presos)', async () => {
-    const ruidosa = com({ retratos_atrasados: 31, retratos_perdidos_7d: 2, perdidos_por_motivo: { sem_retrato: 2 }, retratos_em_erro: 3, erros_por_motivo: { http_400: 3 } })
+    const ruidosa = com({ retratos_atrasados: 31, retratos_perdidos_7d: 2, perdidos_por_motivo: { sem_retrato: 2 }, retratos_perdidos_novos: 2, perdidos_novos_por_motivo: { sem_retrato: 2 }, retratos_em_erro: 3, erros_por_motivo: { http_400: 3 } })
     const s = await rodar(bancoCom(ok(APAGOU(1)), ok(ruidosa)).sb)
     expect(s.status).toBe('ok')
     expect(captureMessage).not.toHaveBeenCalled()

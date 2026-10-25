@@ -129,7 +129,7 @@ const CHAVES: Record<string, string[]> = {
   consulta_de_autores_falhou: ['consultas_de_autor_falhas'],
   conferencia_falhou: ['conferencias_falhas'],
   retratos_atrasados: ['retratos_atrasados'],
-  retratos_perdidos: ['perdidos_fora_do_aceito'],
+  retratos_perdidos: ['perdidos_novos_fora_do_aceito', 'perdidos_fora_do_aceito'],
   erros_presos: ['erros_presos_max', 'motivo_preso'],
   banco: ['erros_de_gravacao'],
 }

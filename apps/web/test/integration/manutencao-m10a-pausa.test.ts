@@ -14,10 +14,10 @@ import { aplicarM2 } from '../helpers/m2'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
-const LINHA_REMENDO = /^[ \t]*or public\.competitor_channel_pause_covers\(c\.id, p_now, interval '3 days'\)\n/m
+// o remendo vai no fim de uma linha de `or` da prova da série (a migration o junta ao missing_since do canal)
+const LINHA_REMENDO = / or public\.competitor_channel_pause_covers\(c\.id, p_now, interval '3 days'\)/
 
-// SKIP 23/10/2026 (envio E0): este teste monta o banco com o corpo antigo (fixture MG6/E10 de 14/10) e a M2/M3b novas guardam por md5 o corpo da 0007 (M2:/M3b:competitor_channel_remove_archived_divergente). Religar na onda da M2 (11c) e M3b (md5 recomputado, yannis.md 3.3): `.skip` -> o `describe.skipIf(skipIfNoLocalDb())` original.
-describe.skip('M10a leva o remendo da pausa da E10', () => {
+describe.skipIf(skipIfNoLocalDb())('M10a leva o remendo da pausa da E10', () => {
   let pg: Client
   beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })
   afterAll(async () => { await pg.end() })
@@ -32,7 +32,7 @@ describe.skip('M10a leva o remendo da pausa da E10', () => {
 
   it('o SQL da M10a contém o remendo uma vez, na prova da série', () => {
     const sql = readFileSync(M10A_SQL, 'utf8')
-    expect(sql.match(new RegExp(LINHA_REMENDO.source, 'gm'))?.length).toBe(1)
+    expect(sql.match(new RegExp(LINHA_REMENDO.source, 'g'))?.length).toBe(1)
   })
 
   it('depois de M2 + E10 + M10a a pausa de canal funciona e o remendo está na função', async () => {
@@ -50,7 +50,7 @@ describe.skip('M10a leva o remendo da pausa da E10', () => {
   it('mutante: M10a sem o remendo é barrada pela própria guarda', async () => {
     await emTx(async () => {
       const mutante = readFileSync(M10A_SQL, 'utf8').replace(LINHA_REMENDO, '')
-      expect(mutante).not.toContain("interval '3 days')\n            or coalesce")
+      expect(mutante).not.toContain('competitor_channel_pause_covers(c.id')
       const t = await tenta(pg, mutante)
       expect(t.ok).toBe(false)
       if (!t.ok) expect(t.message).toContain('sem o remendo da E10')
