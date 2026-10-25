@@ -88,6 +88,7 @@ export const LEITORES_NAS_MIGRATIONS: readonly LeitorNaMigration[] = [
   { arquivo: '20261021000007_ab_native_observados_registro.sql', funcoes: ['competitor_channel_delete_unarchived', 'competitor_channel_remove_archived', 'obs_archive_registry', 'obs_unarchived_watch_sweep'], trata: 'indiferente', motivo: 'registro do arquivo e remoção de canal; o desenho com o toco é da M10c', pendenteAte: 'M10c' },
   { arquivo: '20261024000002_manutencao_m2_particoes.sql', funcoes: ['competitor_channel_delete_unarchived', 'competitor_channel_remove_archived', 'obs_archive_uncovered', 'obs_db_size_record', 'obs_part', 'obs_partitions_ensure', 'obs_partitions_months_ahead'], trata: 'indiferente', motivo: 'partições da M2; a retirada de canal sem arquivo é da M10c', pendenteAte: 'M10c' },
   { arquivo: '20261024000003_observatorio_m10a_video_antigo_base.sql', funcoes: ['apply_competitor_tier_plan', 'competitor_channel_removal_impact', 'competitor_series_health', 'competitor_videos_archive_guard', 'obs_video_antigo_guarda_insert', 'pin_competitor_video'], trata: 'indiferente', motivo: 'é a marca: colunas, gatilho de imutabilidade, guarda de insert e as quatro funções dos pontos 4, 5, 7 e 8 (que estão em FUNCOES_VIVAS)' },
+  { arquivo: '20261025000001_retratos_perda_nova.sql', funcoes: ['competitor_comment_health'], trata: 'indiferente', motivo: 'retratos perdidos novos; comentários só nos primeiros 37 dias' },
 ]
 
 export const FUNCOES_VIVAS: readonly FuncaoViva[] = [
