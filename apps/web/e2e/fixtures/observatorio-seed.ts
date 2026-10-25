@@ -33,6 +33,7 @@ import vm from 'node:vm'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { RequestState } from '../../src/lib/youtube/observatorio/types'
 import { COMMENT_RULES, ruleParams } from '../../src/lib/youtube/observatorio/comentarios/regras'
+import { apagarCanaisDeTeste } from '../../test/helpers/limpa-cena'
 import { OWN_PRESETS, OWN_EXTRA_IDS, applyOwnPreset, type OwnPreset } from '../../test/fixtures/observatorio/own-presets'
 
 export interface SeedOptions {
@@ -336,7 +337,8 @@ export async function clearObservatory(siteId: string, client?: SupabaseClient):
   await check('delete forja_heartbeat', sb.from('forja_heartbeat').delete().eq('site_id', siteId))
   await check('delete competitor_changes', sb.from('competitor_changes').delete().eq('site_id', siteId))
   // cascades: competitor_videos → versions, daily; snapshots
-  await check('delete competitor_channels', sb.from('competitor_channels').delete().eq('site_id', siteId))
+  // com a M3b o delete de canal exige o destino do arquivo declarado na mesma transação: pelo helper (conexão pg em SUPABASE_DB_URL)
+  await apagarCanaisDeTeste('site_id = $1', [siteId])
   await check('delete competitor_settings', sb.from('competitor_settings').delete().eq('site_id', siteId))
   // a execução da agenda que o grupo C (C5) grava: sem site, então só a linha dela (task + period_key), nunca outra
   await check('delete competitor_agenda_runs (C5)', sb.from('competitor_agenda_runs').delete().eq('task', C5.agenda.task).eq('period_key', C5.agenda.period))
