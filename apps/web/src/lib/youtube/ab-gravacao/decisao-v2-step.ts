@@ -249,7 +249,7 @@ export async function rodarDecisaoV2(sb: SupabaseClient, agora: Date, entradas: 
     if (d.acao === 'seguir') {
       const p: Record<string, unknown> = { ultima_avaliacao: ultima }
       if (!semN && pis.piso_dias && pis.piso_volume) {
-        const melhor = estatistica.estado === 'calculada' ? estatistica.por_variante.filter((x) => x.passa).sort((a, b) => a.p_adj - b.p_adj)[0] : undefined
+        const melhor = estatistica.estado === 'calculada' ? estatistica.por_variante.filter((x) => x.passa && x.z > 0).sort((a, b) => a.p_adj - b.p_adj)[0] : undefined
         p.vencedor_sugerido = melhor?.variant_id ?? null
         Object.assign(p, camposDeEstatistica(estatistica, melhor?.variant_id ?? null))
       }

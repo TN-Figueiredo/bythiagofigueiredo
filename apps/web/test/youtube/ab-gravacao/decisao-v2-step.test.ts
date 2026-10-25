@@ -234,6 +234,15 @@ describe('rodarDecisaoV2: ativos', () => {
     expect(p).toHaveProperty('por_variante')
   })
 
+  it('B1: variante significativamente pior não vira vencedor_sugerido; a melhor continua', async () => {
+    const pior = cenario({ nDias: 12, ctrNaoOriginal: 0.02 })
+    await rodar(pior)
+    expect(ultima(pior.f).vencedor_sugerido).toBeNull()
+    const melhor = cenario({ nDias: 12, ctrNaoOriginal: 0.08 })
+    await rodar(melhor)
+    expect(ultima(melhor.f).vencedor_sugerido).toBe('va')
+  })
+
   it('encerrar (teto): settle feito grava desfecho completo, tentativa_falhou null e p_hist', async () => {
     const c = cenario({ nDias: 14, teto: 14 })
     const r = await rodar(c)

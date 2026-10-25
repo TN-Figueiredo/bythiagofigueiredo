@@ -267,7 +267,7 @@ export function estatisticaV2(dias: readonly DiaDaDecisao[], originalId: string,
     }
     const sinalZ = z > 0 ? 1 : z < 0 ? -1 : 0
     const consistente = sinais.length > 0 && sinalZ !== 0 && sinais.every(s => s === sinalZ)
-    por_variante.push({ variant_id: v, alfa, z, z_adj, p_adj, sinais_por_bloco: sinais, passa: p_adj < alfa && consistente, lift })
+    por_variante.push({ variant_id: v, alfa, z, z_adj, p_adj, sinais_por_bloco: sinais, passa: p_adj < alfa && consistente && z > 0, lift })
   }
   return { estado: 'calculada', phi, gl, por_variante }
 }
@@ -322,7 +322,7 @@ export function decidirV2(i: { relogio: number; teto: number; pisos: Pisos; esta
   if (p.piso_dias && p.piso_volume) {
     if (!noTeto && !(i.encerraAoFecharPisos ?? ENCERRA_AO_FECHAR_PISOS)) return { acao: 'seguir' }
     if (i.estatistica.estado === 'calculada') {
-      const melhor = i.estatistica.por_variante.filter(x => x.passa).sort((a, b) => a.p_adj - b.p_adj)[0]
+      const melhor = i.estatistica.por_variante.filter(x => x.passa && x.z > 0).sort((a, b) => a.p_adj - b.p_adj)[0]
       if (melhor) return { acao: 'encerrar', desfecho: 'vencedor_provavel', vencedor_sugerido: melhor.variant_id }
     }
     return { acao: 'encerrar', desfecho: 'sem_diferenca_detectavel', vencedor_sugerido: null }

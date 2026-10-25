@@ -142,6 +142,23 @@ describe('estatisticaV2', () => {
   })
 })
 
+describe('estatisticaV2 sinal da vitória (B1)', () => {
+  const abba = (ctrO: number, ctrV: number, imp = 3000) => Array.from({ length: 12 }, (_, i) => {
+    const v = [0, 1, 1, 0][i % 4]!
+    return dia(i, v ? 'a' : 'o', imp, Math.round(imp * (v ? ctrV : ctrO)) + (i % 3), Math.floor(i / 4))
+  })
+  it('variante significativamente pior não passa', () => {
+    const r = estatisticaV2(abba(0.06, 0.04), 'o', ['o', 'a'])
+    expect(r.estado).toBe('calculada')
+    if (r.estado === 'calculada') { expect(r.por_variante[0]!.z).toBeLessThan(0); expect(r.por_variante[0]!.passa).toBe(false) }
+  })
+  it('o espelho (variante melhor) passa', () => {
+    const r = estatisticaV2(abba(0.04, 0.06), 'o', ['o', 'a'])
+    if (r.estado === 'calculada') expect(r.por_variante[0]!.passa).toBe(true)
+    else throw new Error('esperava calculada')
+  })
+})
+
 describe('estatisticaV2 simulações (mulberry32)', () => {
   const N_FP = 10000
 
