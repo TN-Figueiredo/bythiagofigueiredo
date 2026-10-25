@@ -54,7 +54,7 @@ const falha = (code: string, message = 'mensagem do banco'): Resp => ({ data: nu
 const NOW = '2026-01-14T12:00:00.000Z'
 const PROVA = {
   identidade_vencida: 0, identidade_prazo_errado: 0, identidade_de_criador: 0, respostas_de_terceiros: 0, retratos_atrasados: 0,
-  retratos_em_erro: 0, erros_por_motivo: {}, retratos_na_janela: 4, retratos_perdidos_7d: 0, perdidos_por_motivo: {},
+  retratos_em_erro: 0, erros_por_motivo: {}, retratos_na_janela: 4, retratos_perdidos_7d: 0, perdidos_por_motivo: {}, retratos_perdidos_novos: 0, perdidos_novos_por_motivo: {},
   retratos_total: 10, retratos_ok: 9, primeira_coleta: iso(T0), ultima_coleta: iso(T0 + H), comentarios_total: 50,
   identidades_total: 40, comentarios_ausentes_sem_decisao: 0,
 }

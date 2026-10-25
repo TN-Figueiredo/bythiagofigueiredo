@@ -17,10 +17,10 @@ export interface ContextoVeredito {
 
 export const CHAVES_CONTAGEM = [
   'identidade_vencida', 'identidade_prazo_errado', 'identidade_de_criador', 'respostas_de_terceiros', 'retratos_atrasados',
-  'retratos_em_erro', 'retratos_na_janela', 'retratos_perdidos_7d', 'retratos_total', 'retratos_ok', 'comentarios_total',
+  'retratos_em_erro', 'retratos_na_janela', 'retratos_perdidos_7d', 'retratos_perdidos_novos', 'retratos_total', 'retratos_ok', 'comentarios_total',
   'identidades_total', 'comentarios_ausentes_sem_decisao',
 ] as const
-export const CHAVES_MAPA = ['erros_por_motivo', 'perdidos_por_motivo'] as const
+export const CHAVES_MAPA = ['erros_por_motivo', 'perdidos_por_motivo', 'perdidos_novos_por_motivo'] as const
 export const CHAVES_DATA = ['primeira_coleta', 'ultima_coleta'] as const
 
 const ILEGIVEL: Veredito = { vermelhos: [{ codigo: 'prova_ilegivel', n: 1 }], numeros: {} }
@@ -57,11 +57,11 @@ const indiceDe = (motivo: string): number => {
  * Perdidos que NÃO são aceitos: a soma dos motivos fora de `MOTIVOS_PERDA_ACEITA`, mais o que o total diz e o mapa não explica
  * (mapa incompleto nunca esconde perda).
  */
-function perdidosForaDoAceito(p: ProvaComentarios): number {
+function perdidosForaDoAceito(total: number, mapa: Record<string, number>): number {
   const aceitos: readonly string[] = MOTIVOS_PERDA_ACEITA
   let fora = 0
-  for (const [motivo, n] of Object.entries(p.perdidos_por_motivo)) if (!aceitos.includes(motivo)) fora += n
-  const naoExplicado = Math.max(0, p.retratos_perdidos_7d - soma(p.perdidos_por_motivo))
+  for (const [motivo, n] of Object.entries(mapa)) if (!aceitos.includes(motivo)) fora += n
+  const naoExplicado = Math.max(0, total - soma(mapa))
   return fora + naoExplicado
 }
 
@@ -100,6 +100,7 @@ export function veredito(p: ProvaComentarios | null, ctx: ContextoVeredito): Ver
       retratos_atrasados: p.retratos_atrasados,
       retratos_em_erro: p.retratos_em_erro,
       retratos_perdidos_7d: p.retratos_perdidos_7d,
+      retratos_perdidos_novos: p.retratos_perdidos_novos,
       retratos_na_janela: p.retratos_na_janela,
       retratos_total: p.retratos_total,
       retratos_ok: p.retratos_ok,
@@ -114,9 +115,11 @@ export function veredito(p: ProvaComentarios | null, ctx: ContextoVeredito): Ver
 
     if (ctx.filaZerada && p.retratos_atrasados > 0) vermelhos.push({ codigo: 'retratos_atrasados', n: p.retratos_atrasados })
 
-    const perdidos = perdidosForaDoAceito(p)
-    numeros.perdidos_fora_do_aceito = perdidos
-    if (perdidos > 0) vermelhos.push({ codigo: 'retratos_perdidos', n: perdidos })
+    // 7 dias: só número (frase e tela). O vermelho é só a perda NOVA (janela fechada nas últimas 48 h), emenda 24/10 do dono.
+    numeros.perdidos_fora_do_aceito = perdidosForaDoAceito(p.retratos_perdidos_7d, p.perdidos_por_motivo)
+    const novos = perdidosForaDoAceito(p.retratos_perdidos_novos, p.perdidos_novos_por_motivo)
+    numeros.perdidos_novos_fora_do_aceito = novos
+    if (novos > 0) vermelhos.push({ codigo: 'retratos_perdidos', n: novos })
 
     const preso = erroPreso(p)
     numeros.erros_presos_max = preso === null ? 0 : preso.n
