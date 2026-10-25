@@ -121,14 +121,16 @@ describe('degrau "administrar o site" — canais', () => {
     })
   })
 
-  it('editora continua podendo: nicho de canal CONCORRENTE e fixar/desafixar vídeo (não perguntam pelo degrau)', async () => {
+  it('editora continua podendo: nicho de canal CONCORRENTE, desafixar sem perguntar o degrau, e fixar perguntando só para saber se descongela', async () => {
     arrange('editor')
     expect((await niches.setChannelNiche(UUID, null)).ok).toBe(true)
     expect(log.writes).toEqual([{ table: 'competitor_channels', op: 'update' }])
     await competitors.unpinVideo(UUID)
     expect(sess.rpcCalls).toEqual([])
     // M10a (Tarefa 10): fixar PERGUNTA o degrau, só para saber se pode descongelar; a editora continua podendo fixar
-    await competitors.pinVideo(UUID)
+    log.rpcData = { status: 'ok', already: false }
+    expect(await competitors.pinVideo(UUID)).toEqual({ ok: true })
+    expect(log.rpcs).toContain('pin_competitor_video')
     expect(sess.rpcCalls).toEqual(['can_admin_site_users'])
   })
 })

@@ -536,12 +536,12 @@ export async function readIn<T>(table: string, ids: readonly string[], build: (c
   for (let i = 0; i < ids.length; i += IN_CHUNK) chunks.push(ids.slice(i, i + IN_CHUNK))
   return (await mapLimit(chunks, IN_CHUNK_CONCURRENCY, chunk => readAll<T>(table, () => build(chunk)))).flat()
 }
-/** Ids of the videos the engine marks `tracked`: per channel, the `video_limit` most recent by `published_at` (same rule as rowsToDataset). */
-export function trackedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'video_limit'>[], videos: readonly Pick<VideoRow, 'id' | 'competitor_channel_id' | 'published_at'>[]): string[] {
+/** Ids of the videos the engine marks `tracked`: per channel, the `video_limit` most recent by `published_at` (same rule as rowsToDataset: o vídeo em leitura mensal não conta, M10a). */
+export function trackedVideoIds(channels: readonly Pick<ChannelRow, 'id' | 'video_limit'>[], videos: readonly Pick<VideoRow, 'id' | 'competitor_channel_id' | 'published_at' | 'archive_frozen_at'>[]): string[] {
   const by = groupBy(videos, v => v.competitor_channel_id), out: string[] = []
   for (const c of channels) {
     const limit = Math.min(c.video_limit, RULES.videoLimitMax)
-    const dated = (by.get(c.id) ?? []).map(v => ({ id: v.id, pub: ms(v.published_at) })).filter((x): x is { id: string; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
+    const dated = (by.get(c.id) ?? []).filter(v => !estaCongelado(v)).map(v => ({ id: v.id, pub: ms(v.published_at) })).filter((x): x is { id: string; pub: number } => x.pub != null).sort((a, b) => b.pub - a.pub)
     for (const x of dated.slice(0, limit)) out.push(x.id)
   }
   return out

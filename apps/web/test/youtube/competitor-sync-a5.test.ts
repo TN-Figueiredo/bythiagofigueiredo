@@ -2619,6 +2619,9 @@ describe('M10a: a coleta respeita a marca do vídeo antigo', () => {
   const silent = (_n: number, _u: string): Record<string, unknown>[] => [] // o YouTube não devolve ninguém: quem foi pedido vira falta
   const noFrozenUuid = (db: ReturnType<typeof setup>, ids: string[]) => {
     for (const id of ids) expect(updatesOf(db, id), 'update em ' + id).toEqual([])
+    // gravação em lote (`.in('id', lote)`), como a da extensão da promoção, também não pode citar o congelado
+    const emLote = db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'update' && c.ops.some(o => o[0] === 'in' && o[1][0] === 'id' && (o[1][1] as string[]).some(x => ids.includes(x))))
+    expect(emLote, 'update em lote citando congelado').toEqual([])
     expect(db.calls.filter(c => c.table.startsWith('rpc:') && ids.some(id => JSON.stringify(c.ops[0]![1][0]).includes('"' + id + '"')))
       .map(c => c.table).filter(t => t !== 'rpc:apply_competitor_tier_plan')).toEqual([])
   }
@@ -2647,6 +2650,20 @@ describe('M10a: a coleta respeita a marca do vídeo antigo', () => {
     expect(pedidos.some(id => id.startsWith('vid-f'))).toBe(false)
     noFrozenUuid(db, congelados.map(r => r.id as string))
     expect(db.calls.some(c => c.table === 'competitor_video_daily' && first(c) === 'upsert' && JSON.stringify(c.ops[0]![1][0]).includes('v-f'))).toBe(false)
+  })
+  it('2b (ponto 1, promoção): extendPromotions não recebe o congelado; o ativo promovido é estendido', async () => {
+    const HOJE = '2026-10-24'
+    const topo = row(1, 1, { series_tier: 'diaria' })
+    const ativo = row(900, 1300, { series_tier: 'diaria', daily_until: addDays(HOJE, 1) })
+    const congelado = frozenRow('p', 1400, { series_tier: 'diaria', daily_until: addDays(HOJE, 1) })
+    const pts = (id: string) => [{ video_id: id, snap_date: addDays(HOJE, -7), views: 4000 }, { video_id: id, snap_date: HOJE, views: 5000 }]
+    const all = [topo, ativo, congelado]
+    const db = setup({ all, recentDaily: [...pts('v-900'), ...pts('v-p')], dailyHave: all.map(r => r.id as string), existing: [], videoLimit: 1 })
+    await syncCompetitorChannel(ch, 'k', { now: NOW, fetchImpl: apiFetch(null, 200, { daily: echo }), ...quiet })
+    const estendidos = db.calls.filter(c => c.table === 'competitor_videos' && first(c) === 'update' && 'daily_until' in (arg(c, 'update') ?? {}))
+      .flatMap(c => c.ops.find(o => o[0] === 'in')![1][1] as string[])
+    expect(estendidos, 'contraprova: a extensão rodou para o ativo').toEqual(['v-900'])
+    noFrozenUuid(db, ['v-p'])
   })
   it('3 (ponto 2 / V5): a passada semanal não pede congelado e fecha com congelado sem faixa', async () => {
     const day = (() => { let d = '2026-10-24'; while (dayNumber(d) % 7 !== weekSlotOf('vid-7')) d = addDays(d, 1); return d })()

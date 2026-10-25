@@ -246,7 +246,7 @@ describe('M10a (V14): fixar vídeo em leitura mensal ou no arquivo', () => {
     expect(await a.pinVideo(VID)).toEqual({ ok: true })
     expect(a.adminCalls).toEqual(['s1'])
   })
-  it('falha de canAdminSiteUsers (falha fechada = não administra): o vídeo nunca é descongelado por engano', async () => {
+  it('admin indefinido = não administra: o pedido vai com p_pode_descongelar false e o congelado vira precisa_admin', async () => {
     const a = await load({ rpc: { data: { status: 'precisa_admin' }, error: null } }) // admin indefinido = false
     expect(await a.pinVideo(VID)).toEqual(PRECISA)
     expect(a.rpcCalls[0]![1]).toMatchObject({ p_pode_descongelar: false })

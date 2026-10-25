@@ -1107,7 +1107,7 @@ async function runChannel(
       }
 
       // Current versions of every known video in this page, one query
-      const currentByVideo = await loadCurrent((existingVideos ?? []).map(v => v.id as string))
+      const currentByVideo = await loadCurrent((existingVideos ?? []).filter(v => !estaCongelado(v)).map(v => v.id as string))
       const touchIds: string[] = []
       /** Os vídeos desta página que têm linha (novos e já gravados), para a captura no fim do laço. */
       const pagePairs: Array<{ uuid: string; item: unknown }> = []
@@ -1131,6 +1131,10 @@ async function runChannel(
           if (!semConferencia) removedSkipped++
           continue
         }
+        // M10a (M-1/M3): o vídeo em leitura mensal continua "conhecido" (a incremental para nele e ninguém o reinsere),
+        // mas não conta como checado nem é reconciliado, capturado ou regravado: a única leitura dele é a mensal (M10b).
+        const conhecido0 = existingMap.get(video.id as string)
+        if (conhecido0 && estaCongelado(conhecido0)) { hitKnownVideo = true; continue }
         videosChecked++
         const videoId = video.id as string
         const apiTitle = (video.snippet?.title as string | undefined) ?? ''
@@ -1158,9 +1162,6 @@ async function runChannel(
         if (observed.patch.duration_seconds === undefined && storedShort != null && existingMap.has(videoId)) isShort = storedShort
 
         const existing = existingMap.get(videoId) ?? null
-        // M10a (02 §10.8, ponto 3): o vídeo em leitura mensal continua "conhecido" (a incremental para nele e ninguém o
-        // reinsere), mas não é reconciliado, capturado nem regravado: a única leitura dele é a mensal (M10b).
-        if (existing && estaCongelado(existing)) { hitKnownVideo = true; continue }
         let videoUuid: string | null = existing ? (existing.id as string) : null
 
         if (!existing) {
@@ -1256,6 +1257,8 @@ async function runChannel(
       const { data: planRes, error } = await supabase.rpc('apply_competitor_tier_plan', { p_site_id: channelRow.site_id, p_channel_id: channelRow.id, p_changes: tierPlan.changes, p_today: snapDate })
       // M10a (M-2): o plano é feito só com os ativos; um congelado citado nele é defeito do código, e a guarda do banco o ignorou
       const ignorados = isRec(planRes) && typeof planRes.ignorados_congelados === 'number' ? planRes.ignorados_congelados : 0
+      // M10a (M-6): resposta sem a chave = migration revertida ou função redefinida; a defesa acima ficaria muda
+      if (!error && !(isRec(planRes) && typeof planRes.ignorados_congelados === 'number')) Sentry.captureMessage('apply_competitor_tier_plan sem ignorados_congelados', { level: 'warning', tags: { component: 'sync-youtube', mode: 'competitors-tier-plan-sem-chave' }, extra: { channelId: channelRow.id } })
       if (ignorados > 0) Sentry.captureException(new Error('apply_competitor_tier_plan ignorou ' + ignorados + ' vídeo(s) congelado(s) do plano'), { tags: { component: 'sync-youtube', mode: 'competitors-tier-plan-congelados' }, extra: { channelId: channelRow.id, ignorados } })
       // a faixa que não grava não impede a passada diária, que usa o plano em memória; o canal termina em erro
       if (!late('não foi possível gravar a faixa da série', error)) {
