@@ -120,6 +120,7 @@ type WizardAction =
   | { type: 'ADD_VARIANT' }
   | { type: 'REMOVE_VARIANT'; index: number }
   | { type: 'SET_DRAFT_ID'; id: string }
+  | { type: 'RESTAURAR_TIPO'; testType: TestType | null; variants: VariantData[] }
 
 /** Cada espera mora no botão da ação (D-M6-4). */
 type AcaoDoAssistente = 'criar' | 'trocar' | 'salvar' | 'ativar'
@@ -127,7 +128,7 @@ type AcaoDoAssistente = 'criar' | 'trocar' | 'salvar' | 'ativar'
 /** Mensagem do corpo do assistente (textos 2, 3, 4, 10, 19, 20 do plano). Nunca carrega o texto cru do servidor, salvo as recusas conhecidas. */
 type AvisoDoAssistente =
   | { tipo: 'criar_falhou' }
-  | { tipo: 'trocar_falhou' }
+  | { tipo: 'trocar_falhou'; pedido: TestType }
   | { tipo: 'servidor'; texto: string }
   | { tipo: 'ja_existe'; id: string; status: AbTestStatus }
   | { tipo: 'antes_de_ativar'; origem: 'ativar' | 'salvar' }
@@ -146,7 +147,7 @@ function versoesGravadas(state: { type: TestType | null; variants: VariantData[]
   const desafiantes = state.variants.filter(v => !v.isOriginal)
   return desafiantes.length > 0 && desafiantes.every(v =>
     Boolean(v.gravada)
-    && !v.thumbFile && !v.thumbUrl?.startsWith('data:') && v.origem !== 'biblioteca'
+    && !v.thumbFile && (v.imagemGravada || !v.thumbUrl?.startsWith('data:')) && v.origem !== 'biblioteca'
     && (state.type === 'thumbnail' || v.titleText.trim() === (v.textoGravado ?? '')),
   )
 }
@@ -283,6 +284,8 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       const proxima = { ...variants[action.index]!, ...action.data }
       // Trocar a imagem por outra (arquivo ou data URL) encerra a origem 'biblioteca'.
       if (!('origem' in action.data) && ('thumbUrl' in action.data || 'thumbFile' in action.data)) delete proxima.origem
+      // Imagem nova de verdade (não o carimbo de "já subiu") volta a valer um upload
+      if (!('imagemGravada' in action.data) && ('thumbUrl' in action.data || 'thumbFile' in action.data)) delete proxima.imagemGravada
       variants[action.index] = proxima
       return { ...state, variants }
     }
@@ -317,6 +320,10 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 
     case 'SET_DRAFT_ID':
       return { ...state, draftTestId: action.id }
+
+    // A troca de tipo falhou no servidor: volta ao tipo e às variantes de antes (Yannis I2)
+    case 'RESTAURAR_TIPO':
+      return { ...state, type: action.testType, variants: action.variants }
 
     default:
       return state
@@ -368,13 +375,14 @@ function estadoInicial({ video, settings, prefill, existingDraftId }: Pick<Props
     ? [makeOriginalVariant(video.title, video.thumbnailUrl), makeEmptyVariant('B')]
     : [makeOriginalVariant(video.title, video.thumbnailUrl)]
 
+  // A original no banco tem rótulo `original` e título nulo; o assistente a mostra como "A" com o título real do vídeo.
   const dbVariants = prefill?.draftVariants?.map(v => ({
-    label: v.label as DisplayLabel,
+    label: (v.isOriginal ? 'A' : v.label) as DisplayLabel,
     isOriginal: v.isOriginal,
     thumbUrl: v.thumbUrl ?? (v.isOriginal ? video.thumbnailUrl : null),
     thumbFile: null as File | null,
     thumbDataUrl: null as string | null,
-    titleText: v.titleText,
+    titleText: v.isOriginal ? video.title : v.titleText,
     ...(v.id && !v.isOriginal ? { gravada: v.id, textoGravado: v.titleText } : {}),
   })) as VariantData[] | undefined
 
@@ -481,8 +489,16 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
   // --- Type selection handler (creates draft) ---
   const handleTypeSelect = async (testType: TestType) => {
     if (acaoRef.current !== null) return
+    // Clicar no tipo que já está escolhido não é troca: segue, sem apagar o que já está gravado (Yannis I3)
+    if (testType === state.type && state.draftTestId) {
+      setRecusa(null)
+      setAviso(null)
+      dispatch({ type: 'SET_STEP', step: 'variantes' })
+      return
+    }
     setRecusa(null)
     setAviso(null)
+    const anterior = { type: state.type, variants: state.variants }
     dispatch({ type: 'SET_TYPE', testType })
     const trocando = Boolean(state.draftTestId)
     mudarAcao(trocando ? 'trocar' : 'criar')
@@ -491,7 +507,8 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
         const res = await updateAbTestType(state.draftTestId, testType)
         if (!res.ok) {
           console.warn(res.error)
-          setAviso({ tipo: 'trocar_falhou' })
+          dispatch({ type: 'RESTAURAR_TIPO', testType: anterior.type, variants: anterior.variants })
+          setAviso({ tipo: 'trocar_falhou', pedido: testType })
           return
         }
         dispatch({ type: 'SET_STEP', step: 'variantes' })
@@ -515,7 +532,12 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
       }
     } catch (e) {
       console.warn(e)
-      setAviso({ tipo: trocando ? 'trocar_falhou' : 'criar_falhou' })
+      if (trocando) {
+        dispatch({ type: 'RESTAURAR_TIPO', testType: anterior.type, variants: anterior.variants })
+        setAviso({ tipo: 'trocar_falhou', pedido: testType })
+      } else {
+        setAviso({ tipo: 'criar_falhou' })
+      }
     } finally {
       mudarAcao(null)
     }
@@ -596,7 +618,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
       // 2. Upload image variants (thumbnail/combo)
       if (state.type === 'thumbnail' || state.type === 'combo') {
         const variantsWithNewData = desafiantes.filter(v =>
-          v.thumbFile || v.thumbUrl?.startsWith('data:') || v.origem === 'biblioteca',
+          v.thumbFile || (v.thumbUrl?.startsWith('data:') && !v.imagemGravada) || v.origem === 'biblioteca',
         )
         // Gravadas que continuam no estado sem arquivo novo ficam como estão
         const gravadasMantidas = desafiantes.filter(v => v.gravada && !variantsWithNewData.includes(v))
@@ -620,6 +642,11 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
               return
             }
             daBiblioteca.set(v.label, blob)
+          }
+          // O arquivo baixado passa a viver na memória: se o upload falhar depois da limpeza, a nova tentativa não depende da URL apagada (Phil M1)
+          for (const [label, blob] of daBiblioteca) {
+            const index = state.variants.findIndex(x => x.label === label)
+            if (index >= 0) dispatch({ type: 'UPDATE_VARIANT', index, data: { thumbFile: new File([blob], `variant-${label}.jpg`, { type: blob.type }) } })
           }
 
           const cleanupRes = await cleanupDraftVariants(testId, { manter: gravadasMantidas.map(v => v.label) })
@@ -650,7 +677,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
             }
             if (uploadResult.variantId) {
               // O arquivo já subiu: não sobe de novo num "Tentar de novo" (a Biblioteca deixa de ser origem; o `data:` fica de prévia)
-              marcarGravada(v.label, uploadResult.variantId, v.titleText.trim(), { thumbFile: null, thumbDataUrl: null })
+              marcarGravada(v.label, uploadResult.variantId, v.titleText.trim(), { thumbFile: null, thumbDataUrl: null, imagemGravada: true })
             }
           }
 
@@ -894,7 +921,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
           {state.step === 'revisar' && acao === 'salvar' ? (
             <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Salvando o rascunho</strong>Leva alguns segundos.</div></div>
           ) : null}
-          <MensagemDoAssistente aviso={aviso} onTentarDeNovo={() => { if (state.type) void handleTypeSelect(state.type) }} />
+          <MensagemDoAssistente aviso={aviso} onTentarDeNovo={() => { const t = aviso?.tipo === 'trocar_falhou' ? aviso.pedido : state.type; if (t) void handleTypeSelect(t) }} />
         </div>
 
         {/* Footer */}
@@ -1014,7 +1041,7 @@ function MensagemDoAssistente({ aviso, onTentarDeNovo }: { aviso: AvisoDoAssiste
         ? <div className="etd-msg warn" role="status">{ICONE_AVISO}<div><strong>Já existe um rascunho deste vídeo</strong>Abra-o na lista de rascunhos para continuar de onde parou.</div></div>
         : <div className="etd-msg warn" role="status">{ICONE_AVISO}<div><strong>Este vídeo já tem um teste</strong>Termine ou cancele esse teste antes de criar outro.</div></div>
     case 'antes_de_ativar':
-      return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Não foi possível salvar as variantes</strong>Nada foi ativado. Tente de novo.</div></div>
+      return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Não foi possível salvar as variantes</strong>Suas variantes não foram salvas e nada foi ativado. Tente de novo.</div></div>
     case 'ativar_falhou':
       return <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Não foi possível ativar</strong>O rascunho ficou salvo. Você pode tentar de novo.</div></div>
   }

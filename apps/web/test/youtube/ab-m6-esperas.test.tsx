@@ -172,7 +172,7 @@ describe('M6 T4: ativar', () => {
     prox(); ativar()
     const a = await screen.findByRole('alert')
     expect(a.textContent).toContain('Não foi possível salvar as variantes')
-    expect(a.textContent).toContain('Nada foi ativado')
+    expect(a.textContent).toContain('nada foi ativado')
     expect(m.start).not.toHaveBeenCalled()
     expect(document.body.textContent).not.toContain('boom')
   })

@@ -74,6 +74,7 @@ export function NewTestClient({ siteId, iniciarTeste, avisoDeVolume, settings, e
   if (selectedVideo) {
     return (
       <AbCreateWizard
+        key={draftPrefill?.id ?? selectedVideo.id}
         video={selectedVideo}
         siteId={siteId}
         settings={settings}

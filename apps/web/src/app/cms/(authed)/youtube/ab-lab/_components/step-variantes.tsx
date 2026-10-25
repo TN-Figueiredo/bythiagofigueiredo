@@ -33,6 +33,8 @@ export interface VariantData {
   gravada?: string
   /** Texto que a linha gravada tem no banco; decide entre pular e `updateTextVariant`. */
   textoGravado?: string
+  /** A imagem já subiu para o servidor; o `data:` que sobra em `thumbUrl` é só prévia (não sobe de novo). */
+  imagemGravada?: boolean
 }
 
 export interface StepVariantesProps {
@@ -189,7 +191,7 @@ function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
     >
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleInputChange} />
       <ImageIcon size={24} strokeWidth={1.5} />
-      <span style={{ fontWeight: 600, fontSize: 12 }}>Solte a thumb {label}</span>
+      <span style={{ fontWeight: 600, fontSize: 12 }}>Solte a thumbnail {label}</span>
       <span className="text-[12px]" style={{ color: 'var(--cms-text-dim)' }}>
         Arraste ou clique para enviar
       </span>
@@ -381,7 +383,7 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
                     onClick={onPickFromLibrary}
                     className="flex-1 rounded-lg border border-dashed border-cms-border py-1.5 text-[12px] text-cms-text-muted hover:border-cms-accent hover:text-cms-accent transition-colors"
                   >
-                    📚 Escolher da Biblioteca
+                    Escolher da Biblioteca
                   </button>
                 )}
                 {onPickFromPipeline && (

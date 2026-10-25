@@ -158,7 +158,7 @@ describe('Biblioteca que grava (C2) e N2', () => {
     await escolherDaBiblioteca()
     fireEvent.click(screen.getByRole('button', { name: /Ativar teste/ }))
     await waitFor(() => expect(document.body.textContent).toContain('Não foi possível salvar as variantes'))
-    expect(document.body.textContent).toContain('Nada foi ativado')
+    expect(document.body.textContent).toContain('nada foi ativado')
     expect(document.body.textContent).not.toContain('Failed')
     expect(start).not.toHaveBeenCalled()
     expect(upload).not.toHaveBeenCalled()
