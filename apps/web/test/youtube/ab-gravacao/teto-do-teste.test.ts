@@ -19,6 +19,11 @@ describe('tetoDoTesteV2', () => {
     expect(tetoDoTesteV2({ max_duration_days: 14 }, 3, { soExplicito: true })).toBe(17)
     expect(tetoDoTesteV2({ max_duration_days: 30, teto_explicito: true }, 3, { soExplicito: true })).toBe(30)
   })
+  it('D4: teto_explicito false (rascunho v2) usa o padrão; config legada sem a chave segue valendo', () => {
+    expect(tetoDoTesteV2({ max_duration_days: 14, teto_explicito: false }, 2)).toBe(15)
+    expect(tetoDoTesteV2({ max_duration_days: 14 }, 2)).toBe(14)
+    expect(tetoDoTesteV2({ max_duration_days: 14, teto_explicito: true }, 2)).toBe(14)
+  })
   it('V fora de 2..3 é limitado ao intervalo', () => {
     expect(tetoDoTesteV2({}, 1)).toBe(15)
     expect(tetoDoTesteV2({}, 7)).toBe(17)

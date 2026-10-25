@@ -19,11 +19,12 @@ export const tetoPadrao = (V: number): number => Math.max(15, tetoMinimo(V) + 1)
 /**
  * Fonte única do teto (dias) de um teste v2: decisão, rede, projeção do Cowork e aviso de volume chamam esta função.
  * `max_duration_days` positivo vale; ausente ou inválido cai em `tetoPadrao(V)` (V limitado a 2..V_MAXIMO_V2).
+ * `teto_explicito: false` (rascunho v2 com o 14 do wizard) nunca vale; config legada sem a chave vale.
  * `soExplicito`: no rascunho o config pode trazer o 14 do wizard v1, que só vale com `teto_explicito === true`.
  */
 export function tetoDoTesteV2(config: unknown, V: number, opcoes: { soExplicito?: boolean } = {}): number {
   const c = config && typeof config === 'object' ? (config as { max_duration_days?: unknown; teto_explicito?: unknown }) : {}
-  const vale = !opcoes.soExplicito || c.teto_explicito === true
+  const vale = opcoes.soExplicito ? c.teto_explicito === true : c.teto_explicito !== false
   if (vale && typeof c.max_duration_days === 'number' && c.max_duration_days > 0) return c.max_duration_days
   return tetoPadrao(Math.min(Math.max(V, 2), V_MAXIMO_V2))
 }
