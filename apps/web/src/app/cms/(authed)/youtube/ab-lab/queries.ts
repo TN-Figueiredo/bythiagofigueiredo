@@ -1,4 +1,5 @@
 import { cache } from 'react'
+import { fmtRelative } from '@/lib/youtube/format'
 import * as Sentry from '@sentry/nextjs'
 import { statusAbertoDoVideo, bloqueioDoVideo } from '@/lib/youtube/ab-linha-video'
 import type { EligibleVideo } from './_components/video-picker-dialog'
@@ -499,19 +500,9 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   }
 }
 
-function relativeTime(dateStr: string): string {
-  const diffMs = Date.now() - new Date(dateStr).getTime()
-  const diffMinutes = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMinutes / 60)
-  const diffDays = Math.floor(diffHours / 24)
-  const diffWeeks = Math.floor(diffDays / 7)
-  const diffMonths = Math.floor(diffDays / 30)
-  if (diffMinutes < 1) return 'just now'
-  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`
-  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`
-  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`
-  if (diffWeeks < 5) return `${diffWeeks} week${diffWeeks !== 1 ? 's' : ''} ago`
-  return `${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`
+/** Passo do assistente de 3 passos (Tipo, Variantes, Revisar) em que o rascunho parou: o rascunho nasce ao escolher o tipo; com variante gravada o assistente o reabre no Revisar. */
+export function passoDoRascunho(variants: ReadonlyArray<{ is_original: boolean }>): 2 | 3 {
+  return variants.some(v => !v.is_original) ? 3 : 2
 }
 
 export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
@@ -523,10 +514,10 @@ export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
         id: d.id,
         name: d.name.replace(/^Test:\s*/i, ''),
         type: d.test_type,
-        step: d.variants.length,
+        step: passoDoRascunho(d.variants),
         thumbUrl: originalVariant?.blob_url ?? d.original_thumbnail_url ?? null,
         createdAt: d.created_at,
-        createdAgo: relativeTime(d.created_at),
+        createdAgo: fmtRelative(d.created_at),
         videoId: d.youtube_video_id,
         sourcePipelineId: d.source_pipeline_id,
         variants: d.variants.map(v => ({
