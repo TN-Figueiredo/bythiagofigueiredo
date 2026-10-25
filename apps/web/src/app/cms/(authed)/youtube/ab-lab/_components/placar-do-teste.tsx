@@ -147,7 +147,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
   const frase = placar
     ? fraseDoPlacar(placar, status, faixaDias, andamento, rotulosDe(placar, variantDb))
     : { principal: 'Ainda não há dados do YouTube para este teste.', apoio: '' }
-  const faixa = placar ? faixaDoPlacar(placar) : null
+  const faixa = placar ? faixaDoPlacar(placar, status) : null
   const caso = placar ? casoDoPlacar(placar) : 'sem_dia_fechado'
 
   const ultimoDia = faixaDias.length > 0 ? dataCurta(faixaDias.reduce((m, d) => (d.day_pt > m ? d.day_pt : m), faixaDias[0]!.day_pt)) : null

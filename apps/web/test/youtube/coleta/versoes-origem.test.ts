@@ -137,7 +137,7 @@ describe('atribuirOrigem', () => {
   })
 
   it('21. manual_no_apply e inconclusive: sem ciclo, restauro; com ciclo thumbAplicada na janela, nao_se_sabe incerta; ciclo 1 ms fora volta a restauro', () => {
-    for (const motivo of ['manual_no_apply', 'inconclusive'] as const) {
+    for (const motivo of ['manual_no_apply', 'inconclusive', 'regra_v2'] as const) {
       const t = teste({ tipo: 'thumbnail', concluidoEm: T(1000), motivoConclusao: motivo })
       expect(atribuirOrigem(thumb(), ab([t])).eventoAb).toBe('restauro')
       expect(atribuirOrigem(thumb(), ab([t], [ciclo({ thumbAplicada: true })]))).toEqual({
@@ -180,6 +180,9 @@ describe('atribuirOrigem', () => {
     for (const tipo of ['thumbnail', 'combo'] as const) {
       expect(atribuirOrigem(thumb(), ab([teste({ tipo, concluidoEm: T(1000), motivoConclusao: 'inconclusive' })])).eventoAb).toBe('restauro')
     }
+    // regra_v2 segue o mesmo ramo de inconclusive
+    expect(atribuirOrigem(thumb(), ab([teste({ tipo: 'title', concluidoEm: T(1000), motivoConclusao: 'regra_v2' })]))).toEqual(fora)
+    expect(atribuirOrigem(thumb(), ab([teste({ tipo: 'thumbnail', concluidoEm: T(1000), motivoConclusao: 'regra_v2' })])).eventoAb).toBe('restauro')
   })
 
   it('26. (portão 14/10, Phil m-5) 4b com dois testes na janela: o mais recente, em qualquer ordem de leitura', () => {

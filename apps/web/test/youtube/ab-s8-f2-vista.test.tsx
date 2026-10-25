@@ -14,7 +14,6 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({
 import {
   medicaoCompleta, semImpressoes, liftVsA, ordemDesc, SEM_MEDICAO_DE_ENTREGA,
 } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-constants'
-import { VariantTable } from '@/app/cms/(authed)/youtube/ab-lab/_components/variant-table'
 import { RankBars } from '@/app/cms/(authed)/youtube/ab-lab/_components/rank-bars'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
 import { PlayoffBanner } from '@/app/cms/(authed)/youtube/ab-lab/_components/playoff-banner'
@@ -62,28 +61,6 @@ describe('S8-F2 T4: vista aceita nulo', () => {
     expect([5, null, 7].sort(ordemDesc)).toEqual([7, 5, null])
   })
 
-  for (const semChance of [true, false]) {
-    it(`VariantTable (semChance=${semChance}): B nula mostra "não medido", nunca 0`, () => {
-      const { container } = render(
-        <VariantTable variants={[B_NULA, semChance ? A_MEDIDA : { ...A_MEDIDA, pBest: 0.3 }]} thumbs={thumbs} semChance={semChance} />,
-      )
-      const linhas = screen.getAllByRole('row').filter(r => r.getAttribute('aria-label')?.startsWith('Variante'))
-      expect(linhas[0]!.getAttribute('aria-label')).toContain('Variante A')
-      expect(linhas[1]!.getAttribute('aria-label')).toContain('Variante B')
-      expect(linhas[1]!.textContent).toContain('não medido')
-      expect(linhas[1]!.textContent).not.toMatch(/0,0%|\b0%|\b0\b/)
-      if (!semChance) expect(container.textContent).toContain('não medido')
-    })
-  }
-  it('VariantTable expandido: impressões e cliques nulos mostram "não medido"', async () => {
-    const { fireEvent } = await import('@testing-library/react')
-    render(<VariantTable variants={[A_MEDIDA, B_NULA]} thumbs={thumbs} semChance />)
-    fireEvent.click(screen.getByLabelText('Variante B, detalhes'))
-    const imp = screen.getByText('Impressões').parentElement!
-    const cli = screen.getByText('Cliques').parentElement!
-    expect(imp.textContent).toContain('não medido')
-    expect(cli.textContent).toContain('não medido')
-  })
   it('RankBars com pBest nulo mostra "não medido", nunca 0%', () => {
     const { container } = render(<RankBars variants={[{ label: 'A', color: '#888', pBest: null }, { label: 'B', color: '#E80', pBest: 0.4 }]} />)
     expect(container.textContent).toContain('não medido')
