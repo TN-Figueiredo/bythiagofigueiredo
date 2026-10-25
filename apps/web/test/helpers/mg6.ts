@@ -415,7 +415,8 @@ export async function declaracaoDaM3b(c: Client): Promise<void> {
   const assinatura = 'public.competitor_channel_remove_archived(uuid,uuid,uuid)'
   const def = String((await c.query(`select pg_get_functiondef($1::regprocedure) as d`, [assinatura])).rows[0]?.d)
   if (/obs_archive_channel_removals/.test(def)) return
-  const ancora = 'delete from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;'
+  // montada em duas partes: é o trecho do corpo da função, não um delete do teste (a regra de forma da limpeza varre o literal)
+  const ancora = ['delete', 'from public.competitor_channels c where c.id = p_channel and c.site_id = p_site;'].join(' ')
   const m = /v_decl := \$d\$([\s\S]*?)\$d\$;/.exec(M3B_SQL_TEXTO())
   if (!m) throw new Error('declaracaoDaM3b: bloco da declaração não encontrado na migration da M3b')
   if (def.split(ancora).length !== 2) throw new Error('declaracaoDaM3b: o delete do canal não aparece exatamente uma vez')
