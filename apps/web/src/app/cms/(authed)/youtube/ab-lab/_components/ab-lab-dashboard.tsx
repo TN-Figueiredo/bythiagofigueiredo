@@ -17,6 +17,7 @@ import type {
 import { KPI } from './kpi'
 import { ActiveTestCard } from './active-test-card'
 import { CompletedRow } from './completed-row'
+import { guardarTesteAbrindo } from './abrindo-teste'
 import { DraftsBlock } from './drafts-block'
 import { LearningsPanel } from './learnings-panel'
 import { EmptyState } from './empty-state'
@@ -51,6 +52,14 @@ export interface AbLabDashboardProps {
   avisoDeVolume?: LerAvisoDeVolume
   /** F3 T7: bloco "Sugestões" (servidor, dentro de Suspense), renderizado antes do cartão de candidatos. */
   blocoSugestoes?: React.ReactNode
+}
+
+/** Cabeçalho que a lista já tem do teste (D-M6-13): título sem o prefixo "Test:" e a miniatura da original (A). */
+function cabecalhoDoCard(c: AbTestCardView): { titulo: string; miniaturaUrl: string | null } {
+  return {
+    titulo: c.name.replace(/^Test:\s*/i, ''),
+    miniaturaUrl: c.variants.find(v => v.label === 'A')?.thumbUrl ?? c.leaderThumbUrl ?? null,
+  }
 }
 
 export function AbLabDashboard({
@@ -118,7 +127,8 @@ export function AbLabDashboard({
     }
   }
 
-  function handleOpenTest(id: string) {
+  function handleOpenTest(id: string, cab?: { titulo: string; miniaturaUrl: string | null }) {
+    if (cab) guardarTesteAbrindo({ id, ...cab })
     router.push(`/cms/youtube/ab-lab/${id}`)
   }
 
@@ -285,7 +295,7 @@ export function AbLabDashboard({
               <ActiveTestCard
                 key={card.id}
                 test={card}
-                onOpen={handleOpenTest}
+                onOpen={() => handleOpenTest(card.id, cabecalhoDoCard(card))}
               />
             ))}
           </div>
@@ -309,10 +319,10 @@ export function AbLabDashboard({
               <div
                 key={card.id}
                 className="rounded-[14px] border border-cms-border bg-cms-surface p-[16px] cursor-pointer hover:border-cms-accent/40 transition-colors"
-                onClick={() => handleOpenTest(card.id)}
+                onClick={() => handleOpenTest(card.id, cabecalhoDoCard(card))}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleOpenTest(card.id) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleOpenTest(card.id, cabecalhoDoCard(card)) }}
               >
                 <div className="flex items-start justify-between gap-[12px]">
                   <div className="flex-1 min-w-0">
@@ -418,7 +428,7 @@ export function AbLabDashboard({
               )}
             </div>
             {visibleCompleted.map(test => (
-              <CompletedRow key={test.id} test={test} onOpen={handleOpenTest} />
+              <CompletedRow key={test.id} test={test} onOpen={() => handleOpenTest(test.id, cabecalhoDoCard(test))} />
             ))}
           </div>
           <LearningsPanel learnings={learnings} channelLearnings={channelLearnings} totalTests={stats.completedTests} />

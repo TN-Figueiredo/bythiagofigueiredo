@@ -8,6 +8,7 @@ import type { VariantData } from './step-variantes'
 import { PASSOS, ROTULO_DO_PASSO, ehPasso, indiceDoPasso, proximoPasso, passoAnterior, type Passo } from './wizard-passos'
 import { StepRevisar } from './step-revisar'
 import { faltaThumbDe } from './previa-por-tipo'
+import { guardarTesteAbrindo } from './abrindo-teste'
 import { LibraryPickerDialog } from './library-picker-dialog'
 import { ICONE_BUSY } from './etd-icone-busy'
 import { ICONE_ERRO } from './etd-icone-erro'
@@ -721,6 +722,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
       if (isLaunch) {
         // `acao` fica em 'ativar' até a navegação terminar (não pisca de volta para o painel). Se `onCreated` lançar, o `finally` limpa.
         etapa = 'depois'
+        guardarTesteAbrindo({ id: testId, titulo: video.title, miniaturaUrl: state.originalThumbUrl ?? video.thumbnailUrl ?? null })
         onCreated(testId)
         navegando = true
       } else {
@@ -751,6 +753,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, on
       }
       draftCleared.current = true
       clearDraft(video.id)
+      guardarTesteAbrindo({ id: testId, titulo: video.title, miniaturaUrl: state.originalThumbUrl ?? video.thumbnailUrl ?? null })
       onCreated(testId)
       navegando = true
     } catch (e) {
