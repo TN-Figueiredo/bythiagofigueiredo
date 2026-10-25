@@ -207,7 +207,7 @@ Idas ao banco por execução: **6 fixas + 2 por retrato**, cada uma com `abortSi
 | `COMMENT_SINCE` ainda em `'a_decidir'` (emenda do portão: D-A6) | para antes de qualquer ida ao banco | nada | **vermelho**: "comentários: a data de início da coleta não foi decidida (COMMENT_SINCE). Nada foi coletado." |
 | A prova devolve **nulo** (algum parâmetro nulo; emenda do portão: D-A1) | igual a prova ilegível | nada | **vermelho** (nunca "tudo zero") |
 | `identidade_prazo_errado`, `identidade_de_criador` ou `respostas_de_terceiros` > 0, no começo ou no fim (emenda do portão: D-C1, S-I3) | a coleta **segue** (decisão da Tarefa 10); a execução termina em erro | os retratos | **vermelho**: "comentários: a guarda da identidade está quebrada (…)." |
-| Janela de marco fechou sem retrato final nos últimos 7 dias, por motivo que não é `proibido` (emenda do portão: D-A5) | nada a fazer (o retrato não volta) | nada | **vermelho por 7 dias**: "comentários: N retratos perdidos nos últimos 7 dias (a janela fechou sem retrato)." |
+| Janela de marco fechou sem retrato final nos últimos 7 dias, por motivo que não é `proibido` (emenda do portão: D-A5) | nada a fazer (o retrato não volta) | nada | **vermelho por 1 a 2 dias desde o fechamento (emenda 24/10, dono)**: só acende com perda NOVA, janela fechada nas últimas 48 h (`retratos_perdidos_novos`); a contagem de 7 dias segue na frase e na tela: "comentários: N retratos perdidos nas últimas 48 horas (a janela fechou sem retrato); M nos últimos 7 dias." |
 | Três ou mais retratos na janela presos em `erro` com o mesmo motivo "do vídeo" (emenda do portão: D-A5) | segue tentando a cada 20 h | os retratos `erro` | **vermelho**: "comentários: N retratos presos no mesmo motivo (X)." |
 | Lista de devidos não é lista (resposta nula, objeto) | falha de leitura, nunca "nada devido" | nada | **vermelho** |
 | Vídeo sem `published_at` | fora da lista (não há idade) | nada | hoje são 0; a prova não conta (limite conhecido, seção 13) |
@@ -296,7 +296,7 @@ Hipótese: MG8 aplicada antes; E16 parte 1 em `main`; **promoção antes das 13:
 8. **`edited_at`** só quando `updatedAt` difere de `publishedAt`.
 9. **O que se guarda do lote que não é guardado** (emenda do portão: D-A7): `pool_stats` no retrato, só com números e sim/não (13 contagens do lote e `conferencia_falhou`), e `creator_replied` em cada leitura por marco, com o que **aquela** leitura viu, sem a regra 2 (que vale para a coluna do comentário). Nenhum texto, nome ou id: o banco recusa.
 10. **O corte de início** (emenda do portão: D-A6): `COMMENT_SINCE` nulo = entra tudo o que estiver na tolerância; com data = só o marco **atingido** (`t0 + from_h`) nela ou depois. O mesmo valor vai à lista e à prova, sempre os dois.
-11. **Retrato perdido e retrato preso** (emenda do portão: D-A5): perdido = a janela do marco fechou nos últimos 7 dias sem retrato final; fica vermelho, salvo se o motivo do último erro é `proibido`. Preso = 3 ou mais retratos na janela em `erro` com o mesmo motivo que não é passageiro; fica vermelho, qualquer que seja o motivo.
+11. **Retrato perdido e retrato preso** (emenda do portão: D-A5): perdido = a janela do marco fechou nos últimos 7 dias sem retrato final; fica vermelho, salvo se o motivo do último erro é `proibido`. **(emenda 24/10, dono)** O vermelho vale só para a perda cuja janela fechou nas últimas 48 h (`retratos_perdidos_novos`, `perdidos_novos_por_motivo`); a contagem de 7 dias continua como número na frase e na tela. Preso = 3 ou mais retratos na janela em `erro` com o mesmo motivo que não é passageiro; fica vermelho, qualquer que seja o motivo.
 12. **Conferência por id tem teto** (emenda do portão: S-m1): no máximo 3 blocos de 50 por retrato; o que passar não é conferido naquele marco e não vira ausente.
 
 ---
@@ -571,7 +571,7 @@ export const CODIGOS_EXECUCAO = ['schema_ausente', 'prova_ilegivel', 'inicio_nao
 | `consulta_de_autores_falhou` | "a consulta de tamanho dos autores falhou N vezes seguidas" | "a consulta de tamanho dos autores falhou em todas as tentativas da execução" | N = `consultas_de_autor_falhas` |
 | `conferencia_falhou` | "a conferência dos comentários guardados falhou N vezes seguidas" | "a conferência dos comentários guardados falhou em todas as tentativas da execução" | N = `conferencias_falhas` |
 | `retratos_atrasados` | "N vídeos passaram do marco sem retrato e não estavam na lista" | "vídeos passaram do marco sem retrato e não estavam na lista" | N = `retratos_atrasados` |
-| `retratos_perdidos` | "N retratos perdidos nos últimos 7 dias (a janela fechou sem retrato)" | "retratos perdidos nos últimos 7 dias (a janela fechou sem retrato)" | N = `perdidos_fora_do_aceito` |
+| `retratos_perdidos` | "N retratos perdidos nas últimas 48 horas (a janela fechou sem retrato); M nos últimos 7 dias" (emenda 24/10, dono) | "retratos perdidos nas últimas 48 horas (a janela fechou sem retrato)" | N = `perdidos_novos_fora_do_aceito`, M = `perdidos_fora_do_aceito` |
 | `erros_presos` | "N retratos presos no mesmo motivo (X)" | "retratos presos no mesmo motivo" | N = `erros_presos_max`, X = `motivo_preso` |
 | `banco` | "o banco não respondeu a tempo ou recusou (N vezes)" | "o banco não respondeu a tempo ou recusou" | N = `erros_de_gravacao` |
 
@@ -772,7 +772,7 @@ export const CODIGOS_EXECUCAO = ['schema_ausente', 'prova_ilegivel', 'inicio_nao
 | `identidade_de_criador` | > 0 | `identidade_invariante` | idem |
 | `respostas_de_terceiros` | > 0 | `identidade_invariante` | idem |
 | `retratos_atrasados` | > 0 **e** `filaZerada` | `retratos_atrasados` | `coletar` no fim (inclusive quando a lista veio vazia) |
-| `retratos_perdidos_7d`, por `perdidos_por_motivo` | a soma dos motivos que **não** estão em `MOTIVOS_PERDA_ACEITA` é > 0 | `retratos_perdidos` | `coletar` no fim |
+| `retratos_perdidos_7d`, por `perdidos_por_motivo` | a soma dos motivos que **não** estão em `MOTIVOS_PERDA_ACEITA` é > 0, **lida em `retratos_perdidos_novos`/`perdidos_novos_por_motivo` (janela fechada nas últimas 48 h; emenda 24/10, dono)**; o 7d só alimenta a frase e a tela | `retratos_perdidos` | `coletar` no fim |
 | `retratos_em_erro`, por `erros_por_motivo` | algum motivo que não é passageiro tem `stuckSameReasonRed` (3) ou mais | `erros_presos` | `coletar` no fim |
 | `comentarios_ausentes_sem_decisao`, `retratos_total`, `retratos_ok`, `comentarios_total`, `identidades_total`, `retratos_na_janela`, as duas datas | **nunca: são informação, não prova** (a fila "Saíram do YouTube" é da E9) | — | vão em `numeros` |
 
