@@ -91,6 +91,14 @@ describe('avisoDeVolume (leitura)', () => {
     expect((await avisoDeVolume(fakeSb({ ab_tests: teste(1) }), 's', 't1', AGORA) as { aviso: { estado: string } }).aviso.estado).toBe('sem_variantes')
     expect((await avisoDeVolume(fakeSb({ ab_tests: teste(4) }), 's', 't1', AGORA) as { aviso: { estado: string } }).aviso.estado).toBe('variantes_demais')
   })
+  it('D1: só a original no banco e V=2 no pedido => não dá sem_variantes (maior V vence; teto do pedido vale)', async () => {
+    const sem = await avisoDeVolume(fakeSb({ ab_tests: teste(1) }), 's', 't1', AGORA, { V: 2 })
+    expect(sem.ok && sem.aviso.estado).toBe('sem_medicao')
+    const com = await avisoDeVolume(fakeSb({ ab_tests: teste(1), yt_own_video_reach_daily: alcance(() => 100_000) }), 's', 't1', AGORA, { V: 3, teto: 30 })
+    expect(com.ok && com.aviso.estado).toBe('ok')
+    const banco = await avisoDeVolume(fakeSb({ ab_tests: teste(3) }), 's', 't1', AGORA, { V: 1 })
+    expect(banco.ok && banco.aviso.estado).not.toBe('sem_variantes')
+  })
   it('V=3 sem teto explícito calcula sobre 17; com teto_explicito usa o teto escolhido', async () => {
     const sb = (cfg: unknown) => fakeSb({ ab_tests: teste(3, cfg), yt_own_video_reach_daily: alcance(() => 100_000) })
     const padrao = await avisoDeVolume(sb({ max_duration_days: 14 }), 's', 't1', AGORA)

@@ -1527,8 +1527,12 @@ export async function batchStartTests(
 // avisoDeVolumeDoTeste — o aviso nunca bloqueia o início (C-17)
 // ---------------------------------------------------------------------------
 
+const PedidoAvisoSchema = z.object({ V: z.number().int().min(1).max(4), teto: z.number().int().min(1).max(60).optional() }).strict()
+
+/** `pedido`: o V (e o teto) que o assistente tem na tela; as variantes só sobem no lançamento, então o banco pode ter menos. */
 export async function avisoDeVolumeDoTeste(
   testId: string,
+  pedido?: { V: number; teto?: number },
 ): Promise<{ ok: true; aviso: AvisoDeVolume } | { ok: false; error: string }> {
   let siteId: string
   try {
@@ -1536,6 +1540,8 @@ export async function avisoDeVolumeDoTeste(
   } catch (e) {
     return { ok: false, error: (e as Error).message }
   }
-  const r = await avisoDeVolume(getSupabaseServiceClient(), siteId, testId, new Date())
+  const p = pedido === undefined ? undefined : PedidoAvisoSchema.safeParse(pedido)
+  if (p && !p.success) return { ok: false, error: 'pedido inválido' }
+  const r = await avisoDeVolume(getSupabaseServiceClient(), siteId, testId, new Date(), p?.data)
   return r.ok ? { ok: true, aviso: r.aviso } : { ok: false, error: r.erro }
 }

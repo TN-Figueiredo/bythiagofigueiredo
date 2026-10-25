@@ -103,6 +103,13 @@ describe('aviso de volume no passo de início', () => {
 })
 
 describe('useAvisoVolume', () => {
+  it('D1: passa o V da tela ao leitor e refaz a leitura quando V muda', async () => {
+    const ler = vi.fn(async () => ({ ok: true as const, aviso: { estado: 'sem_medicao' as const, texto: 'sem medição para estimar o volume' as const } }))
+    const { rerender } = renderHook(({ v }) => useAvisoVolume(ler, 'd1', true, v), { initialProps: { v: 2 } })
+    await waitFor(() => expect(ler).toHaveBeenCalledWith('d1', { V: 2 }))
+    rerender({ v: 3 })
+    await waitFor(() => expect(ler).toHaveBeenCalledWith('d1', { V: 3 }))
+  })
   it('lê pelo rascunho e devolve o texto; o aviso nunca bloqueia', async () => {
     const ler = vi.fn(async () => ({ ok: true as const, aviso: { estado: 'sem_medicao' as const, texto: 'sem medição para estimar o volume' as const } }))
     const { result } = renderHook(() => useAvisoVolume(ler, 'd1', true))

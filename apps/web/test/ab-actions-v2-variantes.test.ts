@@ -58,7 +58,15 @@ describe('avisoDeVolumeDoTeste', () => {
   it('repassa o aviso (sem_medicao é ok: nunca bloqueia)', async () => {
     aviso.mockResolvedValue({ ok: true, aviso: { estado: 'sem_medicao', texto: 't' } })
     expect(await avisoDeVolumeDoTeste('t1')).toEqual({ ok: true, aviso: { estado: 'sem_medicao', texto: 't' } })
-    expect(aviso).toHaveBeenCalledWith(expect.anything(), 'site-1', 't1', expect.any(Date))
+    expect(aviso).toHaveBeenCalledWith(expect.anything(), 'site-1', 't1', expect.any(Date), undefined)
+  })
+  it('D1: o pedido válido chega ao cálculo; inválido é recusado sem calcular', async () => {
+    aviso.mockResolvedValue({ ok: true, aviso: { estado: 'sem_medicao', texto: 't' } })
+    await avisoDeVolumeDoTeste('t1', { V: 2 })
+    expect(aviso).toHaveBeenCalledWith(expect.anything(), 'site-1', 't1', expect.any(Date), { V: 2 })
+    aviso.mockClear()
+    expect(await avisoDeVolumeDoTeste('t1', { V: 9 })).toEqual({ ok: false, error: 'pedido inválido' })
+    expect(aviso).not.toHaveBeenCalled()
   })
   it('erro do cálculo vira { ok:false, error }', async () => {
     aviso.mockResolvedValue({ ok: false, erro: 'x' })

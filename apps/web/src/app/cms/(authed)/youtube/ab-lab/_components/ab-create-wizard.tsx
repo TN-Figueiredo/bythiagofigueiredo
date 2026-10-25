@@ -331,7 +331,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   // D12: aviso de original baixa; só leitura, não valida passo nem envia
   const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step >= LEITURA_A_PARTIR_DO_PASSO && !state.isLaunching)
 
-  const avisoVolume = useAvisoVolume(avisoDeVolume, state.draftTestId, dialogoMontado && state.step === 4 && !state.isLaunching)
+  const avisoVolume = useAvisoVolume(avisoDeVolume, state.draftTestId, dialogoMontado && state.step === 4 && !state.isLaunching, state.variants.length)
 
   // --- Escape key ---
   useEffect(() => {

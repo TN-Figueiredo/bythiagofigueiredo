@@ -91,15 +91,16 @@ function entregaPorDia(e: Entradas, video: { youtube_id: string; channel_id: str
 
 type Linha = Record<string, unknown>
 
-export async function avisoDeVolume(sb: SupabaseClient, siteId: string, testId: string, agora: Date): Promise<{ ok: true; aviso: AvisoDeVolume } | { ok: false; erro: string }> {
+/** `pedido`: o assistente ainda não subiu as variantes (V no banco é menor): vale o maior V; `teto` explícito do pedido vence o do banco. */
+export async function avisoDeVolume(sb: SupabaseClient, siteId: string, testId: string, agora: Date, pedido?: { V: number; teto?: number }): Promise<{ ok: true; aviso: AvisoDeVolume } | { ok: false; erro: string }> {
   const t = await sb.from('ab_tests')
     .select('id, config, youtube_videos!inner(youtube_video_id, channel_id), variants:ab_test_variants!test_id(id)')
     .eq('id', testId).eq('site_id', siteId).maybeSingle()
   if (t.error) return { ok: false, erro: 'leitura do teste falhou' }
   const row = t.data as Linha | null
   if (!row) return { ok: false, erro: 'teste não encontrado' }
-  const V = Array.isArray(row.variants) ? row.variants.length : 0
-  const teto = tetoDoTesteV2(row.config, V, { soExplicito: true })
+  const V = Math.max(Array.isArray(row.variants) ? row.variants.length : 0, pedido?.V ?? 0)
+  const teto = pedido?.teto ?? tetoDoTesteV2(row.config, V, { soExplicito: true })
   const hoje = dayPt(agora)
   if (V < 2 || V > V_MAXIMO_V2) {
     return { ok: true, aviso: montarAvisoDeVolume({ V, teto, p1: 0.04, base_estimada: true, impressoesDia: null, usouUltimos7: false, hoje }) }
