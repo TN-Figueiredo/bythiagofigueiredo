@@ -10,7 +10,7 @@ import { mkdtemp, rm, mkdir, writeFile, readFile, unlink, access, readdir } from
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { emTransacao, semearCena, semearWatchDoVideo, pausarEEnvelhecer, q1, escalar } from '../helpers/mg6'
+import { emTransacao, garantirComT13, semearCena, semearWatchDoVideo, pausarEEnvelhecer, q1, escalar } from '../helpers/mg6'
 import { exportarCanal, type Disco } from '@/lib/youtube/observatorio/arquivo/exportar'
 import { conferirLote } from '@/lib/youtube/observatorio/arquivo/conferir'
 import { colunasDaSoma, type ClienteSql } from '@/lib/youtube/observatorio/arquivo/sessao'
@@ -70,16 +70,35 @@ describe.skipIf(skipIfNoLocalDb())('M3b item 1: soma composta do registro no exp
     for (const p of pastas) await rm(p, { recursive: true, force: true })
   })
 
-  it('a soma do manifesto e a da conferência = sum(<expressão do registro>) no banco; a expressão é composta', async () => {
+  it('toda soma composta do registro (alvos, thumbs, ab_native_observados): manifesto e conferência = sum(<expressão>) do banco; a 2ª coluna pesa', async () => {
     await emTransacao(pg, async () => {
+      await garantirComT13(pg)   // ab_native_observados entra no registro (32) pela T13, só dentro da transação
       const c = await semearCena(pg, { semWatch: true })
       const yt = (await q1(pg, `select video_id from public.competitor_videos where id = $1`, [c.videoA])).video_id as string
-      await semearWatchDoVideo(pg, c.site, yt, { leituras: 0, miniaturas: 3, alvo: false })
-      const reg = (await q1(pg, `select sum_sql, filter_sql from public.obs_archive_registry() where table_name = 'yt_watch_thumbs'`))
-      const expressao = reg.sum_sql as string
-      expect(colunasDaSoma(expressao)?.length, 'o registro precisa dar soma composta (2+ colunas)').toBeGreaterThanOrEqual(2)
-      const esperado = await escalar<string>(pg, `select coalesce(sum(${expressao}), 0)::text from public.yt_watch_thumbs t where ${reg.filter_sql as string}`, [c.canalA])
-      expect(BigInt(esperado)).toBeGreaterThan(BigInt(0))
+      await semearWatchDoVideo(pg, c.site, yt, { leituras: 0, miniaturas: 3, alvo: true })
+      // valores variados na 2ª coluna: um mutante "id + contagem de linhas" (ou "só o id") não pode empatar com o certo (Phil M1)
+      await pg.query(`update public.yt_watch_thumbs set vistas = vistas + (id % 7) * 13 + 4 where site_id = $1`, [c.site])
+      await pg.query(`update public.yt_watch_alvos set rodadas = 9 where site_id = $1`, [c.site])
+      for (const [campo, n] of [['titulo', 3], ['miniatura', 11]] as const) {
+        await pg.query(
+          `insert into public.ab_native_observados (site_id, youtube_video_id, campo, tipo_troca, veredito, versao_regra, trocas, n_versoes, ficou_estado, primeira_troca_em)
+           values ($1, $2, $3, 'sequencial', 'troca_observada', 1, '[]'::jsonb, $4, 'estavel', now() - interval '3 days')`, [c.site, yt, campo, n])
+      }
+      const compostas = (await pg.query(`select table_name, sum_sql, filter_sql from public.obs_archive_registry() where sum_sql like '%+%' order by 1`)).rows as Array<{ table_name: string; sum_sql: string; filter_sql: string }>
+      expect(compostas.map(r => r.table_name)).toEqual(['ab_native_observados', 'yt_watch_alvos', 'yt_watch_thumbs'])
+      const esperados = new Map<string, string>()
+      for (const reg of compostas) {
+        const cols = colunasDaSoma(reg.sum_sql)
+        expect(cols?.length, `${reg.table_name}: soma composta (2+ colunas)`).toBeGreaterThanOrEqual(2)
+        // Phil M3: o TypeScript ignora o nulo coluna a coluna, o SQL descarta a linha; só dá igual com colunas not null
+        for (const col of cols ?? []) {
+          expect(await escalar<boolean>(pg, `select attnotnull from pg_attribute where attrelid = ('public.' || $1)::regclass and attname = $2`, [reg.table_name, col.replace(/^t\./, '')]), `${reg.table_name}.${col} not null`).toBe(true)
+        }
+        const q = await q1(pg, `select coalesce(sum(${reg.sum_sql}), 0)::text as soma, (coalesce(sum(${reg.sum_sql}), 0) - coalesce(sum(t.id), 0))::text as so_2a, count(*)::text as n from public.${reg.table_name} t where ${reg.filter_sql}`, [c.canalA])
+        expect(BigInt(q.soma as string), reg.table_name).toBeGreaterThan(BigInt(0))
+        expect(q.so_2a, `${reg.table_name}: a 2ª coluna não pode empatar com a contagem de linhas`).not.toBe(q.n)
+        esperados.set(reg.table_name, q.soma as string)
+      }
       await pausarEEnvelhecer(pg, c, c.canalA)
       const raiz = await mkdtemp(join(tmpdir(), 'obs-soma-teste-')); pastas.push(raiz)
       const r = await exportarCanal({
@@ -90,9 +109,12 @@ describe.skipIf(skipIfNoLocalDb())('M3b item 1: soma composta do registro no exp
       expect(r.ok, JSON.stringify(r)).toBe(true)
       const v = validarManifesto(JSON.parse(await readFile(join(raiz, LOTE, 'manifesto.json'), 'utf8')))
       if (!('valor' in v)) throw new Error(v.porque)
-      const doManifesto = v.valor.arquivos.filter(a => a.tabela === 'yt_watch_thumbs')
-      expect(doManifesto.length).toBeGreaterThan(0)
-      expect(doManifesto.reduce((s, a) => s + BigInt(a.soma ?? 'x'), BigInt(0)).toString()).toBe(esperado)
+      // k.soma do manifesto vem do SQL; quem prova a soma do TypeScript é o `r.ok` (exportar.ts recusa se u.soma !== k.soma) e o conferirLote abaixo
+      for (const [tabela, esperado] of esperados) {
+        const doManifesto = v.valor.arquivos.filter(a => a.tabela === tabela)
+        expect(doManifesto.length, tabela).toBeGreaterThan(0)
+        expect(doManifesto.reduce((s, a) => s + BigInt(a.soma ?? 'x'), BigInt(0)).toString(), tabela).toBe(esperado)
+      }
       // a conferência (conferir.ts:120) refaz a soma do CSV pelas mesmas colunas e aceita
       const conf = await conferirLote({ sql: clienteDoTeste(pg), disco: discoReal(), pastaRaiz: raiz, lote: LOTE, siteId: c.site, canalId: c.canalA })
       expect(conf.ok, JSON.stringify(conf)).toBe(true)
