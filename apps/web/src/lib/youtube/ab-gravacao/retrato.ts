@@ -1,5 +1,6 @@
 import { addDays, boundsAnalytics, ontemPt, type DiaPt } from '../coleta/day-pt'
-import type { AbCycle, AbTest } from '../coleta/ab-seconds'
+import type { AbTest } from '../coleta/ab-seconds'
+import type { CicloComNumero } from './decisao-v2'
 import type { LinhaAlcance, MetaDoDia, MotivoSemVariante, EstadoAlcance, EstadoViews, RelatorioDoDia } from './tipos'
 import { atribuirDia, diasDoTeste } from './atribuicao'
 import { ehFinal, estadoDasViews, estadoDoAlcance } from './estado'
@@ -18,6 +19,9 @@ export interface TesteParaRetrato extends AbTest {
   /** `youtube_videos.youtube_video_id` (11 caracteres); nunca `ab_tests.youtube_video_id`, que é o uuid. */
   youtube_id: string
   channel_id: string
+  /** só a decisão v2 usa (T7/S8-F4); o retrato em si não lê */
+  result_metadata?: unknown
+  config?: unknown
 }
 
 export interface LinhaViews {
@@ -33,7 +37,7 @@ export interface LinhaSonda { hora: string; lida_em: string; leitura_estado: str
 
 export interface EntradasDoRetrato {
   testes: TesteParaRetrato[]
-  ciclosPorTeste: Map<string, AbCycle[]>
+  ciclosPorTeste: Map<string, CicloComNumero[]>
   metaPorVideoDia: Map<string, MetaDoDia>
   alcancePorVideoDia: Map<string, LinhaAlcance>
   relatoriosPorCanalDia: Map<string, RelatorioDoDia[]>
@@ -55,7 +59,7 @@ export interface LinhaRetrato {
   segundos_no_ar: number | null
   segundos_do_dia: number
   dia_de_troca: boolean | null
-  ciclos: Array<{ id: string; started_at: string; ended_at: string | null }>
+  ciclos: Array<{ id: string; started_at: string; ended_at: string | null; cycle_number: number }>
   impressoes: number | null
   ctr: number | null
   alcance_estado: EstadoAlcance
@@ -118,7 +122,7 @@ export function montarRetrato(e: EntradasDoRetrato, agora: Date): LinhaRetrato[]
         dia_de_troca: diaDeTroca,
         ciclos: ciclos
           .filter(c => Date.parse(c.started_at) < b.end && (c.ended_at ? Date.parse(c.ended_at) : Number.POSITIVE_INFINITY) > b.start)
-          .map(c => ({ id: c.id, started_at: c.started_at, ended_at: c.ended_at })),
+          .map(c => ({ id: c.id, started_at: c.started_at, ended_at: c.ended_at, cycle_number: c.cycle_number })),
         impressoes: alcance?.thumbnail_impressions ?? null,
         ctr: alcance?.thumbnail_ctr ?? null,
         alcance_estado: estadoDoAlcance({ day, ontem, relatorios: e.relatoriosPorCanalDia.get(`${teste.channel_id}|${day}`) ?? [], linha: alcance }),

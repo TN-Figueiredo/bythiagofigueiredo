@@ -187,9 +187,9 @@ describe('(k) passo 0b depois de pulado_teste_youtube (Yannis C3)', () => {
 describe('guarda de linha confirmada dentro de settleOnAir e novaTentativa (T6, Yannis C2; sem flag)', () => {
   const confirmada = [{ id: 'n1', site_id: SITE, video_id: 'v-int', estado: 'em_andamento', confirmado_em: '2026-10-20T00:00:00Z', updated_at: '2026-10-20T00:00:00Z' }]
   const detectada = [{ ...confirmada[0]!, confirmado_em: null }]
-  const op = (motivo: 'pausa' | 'falha_api' | 'drift' | 'duracao_maxima' | 'encerrado' | 'reverter') => ({ siteId: SITE, destino: ORIGINAL, motivo })
+  const op = (motivo: 'pausa' | 'falha_api' | 'drift' | 'duracao_maxima' | 'regra_v2' | 'encerrado' | 'reverter') => ({ siteId: SITE, destino: ORIGINAL, motivo })
 
-  it.each(['pausa', 'falha_api', 'drift', 'duracao_maxima'] as const)('%s com linha confirmada: zero escrita, teste fica paused/pulado_teste_youtube', async (motivo) => {
+  it.each(['pausa', 'falha_api', 'drift', 'duracao_maxima', 'regra_v2'] as const)('%s com linha confirmada: zero escrita, teste fica paused/pulado_teste_youtube', async (motivo) => {
     const m = montar(retrato(), { nativas: confirmada })
     const res = await settleOnAir('t1', op(motivo), m.portas)
     expect(res).toMatchObject({ resultado: 'feito', pausadoPorTesteYoutube: true }) // Phil C1: o chamador distingue a pausa convertida
