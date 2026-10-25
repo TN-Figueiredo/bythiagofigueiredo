@@ -71,6 +71,7 @@ interface OpcoesTeste {
   comVencedorSugerido?: boolean
   carenciaAte?: 'futuro' | 'passado'
   consecutiveConfidentEvals?: number
+  regraDuracao?: 'v1' | 'v2'
 }
 
 function testeAtivo(o: OpcoesTeste = {}) {
@@ -88,6 +89,7 @@ function testeAtivo(o: OpcoesTeste = {}) {
     original_title: 'Original Title',
     original_thumbnail_url: o.originalNoBlob ? BLOB : FORA_DO_BLOB,
     consecutive_confident_evals: o.consecutiveConfidentEvals ?? 0,
+    regra_duracao: o.regraDuracao ?? 'v1',
     grace_expires_at: o.carenciaAte === 'futuro' ? new Date(Date.now() + DIA).toISOString()
       : o.carenciaAte === 'passado' ? new Date(Date.now() - 3_600_000).toISOString() : null,
     winner_variant_id: o.comVencedorSugerido ? 'v2' : null,
@@ -250,6 +252,15 @@ describe('phaseEvaluateActiveTests: ramo único', () => {
     expect(escritas()).toHaveLength(0)
     expect(setThumbnail).not.toHaveBeenCalled()
     expect(updateVideoMetadata).not.toHaveBeenCalled()
+  })
+
+  it('regra_duracao v2 com 30 dias em ms: a guarda v2 não chama settleOnAir (evaluated conta 1); v1 igual encerra', async () => {
+    vi.mocked(settle).mockClear()
+    const v2 = clienteCom([testeAtivo({ diasNoAr: 30, maxDuracao: 14, regraDuracao: 'v2' })])
+    expect(await phaseEvaluateActiveTests(v2.supabase)).toEqual({ evaluated: 1, resolved: 0, errors: 0 })
+    expect(settle).not.toHaveBeenCalled()
+    const v1 = clienteCom([testeAtivo({ diasNoAr: 30, maxDuracao: 14, regraDuracao: 'v1' })])
+    expect((await phaseEvaluateActiveTests(v1.supabase)).resolved).toBe(1)
   })
 
   it('config sem max_duration_days: usa 14 dias (padrão testado apagando a chave)', async () => {

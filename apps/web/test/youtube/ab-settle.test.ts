@@ -193,6 +193,7 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     ['encerrado', 'paused', 'completed', 'manual_archive', 'encerrado'],
     ['falha_api', 'active', 'paused', undefined, 'falha_api'],
     ['duracao_maxima', 'active', 'completed', 'inconclusive', 'duracao_maxima'],
+    ['regra_v2', 'active', 'completed', 'regra_v2', 'regra_v2'],
     ['drift', 'active', 'paused', undefined, 'drift'],
   ] as const)('%s de %s → %s', async (motivo, de, para, completedReason, endReason) => {
     const { banco, yt, portas, op } = await preparar({ status: de, testType: 'combo', noAr: { titulo: 'Título B', dhash: H.B } })

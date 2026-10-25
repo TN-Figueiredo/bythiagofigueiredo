@@ -4,7 +4,7 @@ export const VARIANT_LABELS = ['B', 'C', 'D'] as const
 export type VariantLabel = (typeof VARIANT_LABELS)[number]
 
 export type AbTestStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived' | 'queued'
-export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'manual_no_apply' | 'manual_apply' | 'max_duration' | 'inconclusive'
+export type CompletedReason = 'auto_resolve' | 'manual_winner' | 'manual_archive' | 'manual_no_apply' | 'manual_apply' | 'max_duration' | 'inconclusive' | 'regra_v2'
 export type BackfillStatus = 'pending' | 'partial' | 'confirmed' | 'no_data' | 'error'
 
 /** Razões de encerramento em que uma pessoa escolheu o vencedor. Nenhum caminho automático grava estas. */

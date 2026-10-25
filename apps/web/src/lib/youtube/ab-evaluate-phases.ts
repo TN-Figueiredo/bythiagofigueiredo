@@ -32,7 +32,7 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient, inicioD
 
   const { data: tests, error: erroLeitura } = await supabase
     .from('ab_tests')
-    .select('id, site_id, config, started_at, created_at')
+    .select('id, site_id, config, started_at, created_at, regra_duracao')
     .eq('status', 'active')
 
   if (erroLeitura) {
@@ -48,6 +48,8 @@ export async function phaseEvaluateActiveTests(supabase: SupabaseClient, inicioD
 
   for (const test of tests) {
     try {
+      // S8-F4: teste v2 tem a duração decidida pelo retrato diário (rede de segurança na T8).
+      if ((test as { regra_duracao?: string }).regra_duracao === 'v2') { evaluated++; continue }
       const config = test.config as AbTestConfig
       const startedAt = new Date(test.started_at ?? test.created_at)
       const daysSinceStart = Math.floor((Date.now() - startedAt.getTime()) / 86400000)
