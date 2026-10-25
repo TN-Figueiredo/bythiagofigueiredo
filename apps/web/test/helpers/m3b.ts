@@ -1,13 +1,13 @@
 /** Manutenção M3b: o SQL da migration vive em supabase/rascunhos/m3b.sql até a Tarefa 10 (TRAVA M3b-1). Este é o único lugar que a Tarefa 10 muda. */
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from './db-skip'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { garantirParticoesDaDiaria, travarDdl } from './ddl-testes'
 
-export const M3B_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m3b.sql')
-export const M3B_EM_MIGRATION = false
+export const M3B_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/migrations', readdirSync(resolve(__dirname, '../../../../supabase/migrations')).find(n => n.endsWith('_manutencao_m3b_arquivo.sql')) ?? 'manutencao_m3b_ausente.sql')
+export const M3B_EM_MIGRATION = true
 export const M3B_DESFAZER_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m3b-desfazer.sql')
 export const HASH_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/sql/obs-archive-hash.sql')
 export const M3B_SQL = (): string => readFileSync(M3B_SQL_CAMINHO, 'utf8')
