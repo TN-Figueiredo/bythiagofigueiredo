@@ -2,7 +2,7 @@
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tela v2 do teste A/B (mockup M5)</title>
 <style>
-/* Mockup M5 r1 (25/10/2026), S8-F4 T12. Cresce sobre o placar M4 r3.1 (intacto). Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS.
+/* Mockup M5 r2 (25/10/2026), S8-F4 T12. Cresce sobre o placar M4 r3.1 (intacto). Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS.
    Seletor por URL: ?estado=&tema=claro|escuro&largura=1440|390|ambas */
 *,*::before,*::after{box-sizing:border-box}
 :root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
@@ -87,7 +87,9 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .sec>h3,.sec .sh{font:600 16px/1.3 Inter,system-ui,sans-serif;display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s3);flex-wrap:wrap}
 .sh .upd{font:400 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);margin-left:auto}
 .sh .upd.warn{color:var(--warn);font-weight:600;display:inline-flex;gap:5px;align-items:center}
-.info{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--dim);background:transparent;color:var(--muted);font:600 12px/1 Inter,system-ui,sans-serif;cursor:pointer;position:relative;padding:0;flex:none}
+.info{display:inline-grid;place-items:center;width:24px;height:24px;border:0;background:transparent;color:var(--muted);font:600 12px/1 Inter,system-ui,sans-serif;cursor:pointer;position:relative;padding:0;flex:none}
+.info .ig{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--dim)}
+@container (max-width:640px){.info{width:44px;height:44px;margin:-10px}.info::before{inset:0}}
 .info::before{content:"";position:absolute;inset:-11px}
 /* balão em fluxo: ocupa a linha inteira do contêiner flex e empurra o conteúdo; nunca passa da moldura */
 .tip{order:9;flex:0 0 100%;max-width:60ch;padding:10px 12px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);font:400 12px/1.45 Inter,system-ui,sans-serif;text-align:left;font-weight:400}
@@ -184,7 +186,7 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .sel .sy{font-size:16px;line-height:1;flex:none;display:inline-grid;place-items:center;min-width:16px}
 .sel.vence{border-color:var(--ok-line);color:var(--ok);background:var(--ok-bg)}
 .sel.vence.prov{border-style:dashed;background:transparent}
-.sel.neu{border-color:var(--border-strong);color:var(--text)}
+.sel.neu{border-color:var(--dim);color:var(--text)}
 .sel.mut{border-color:var(--dim);color:var(--text);background:var(--surface-2)}
 .sel.nmf{border-color:var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
 .sel.esp{border-style:dashed;border-color:var(--yt-line);color:var(--yt);background:var(--yt-bg)}
@@ -193,7 +195,7 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .desf{margin-top:var(--s4);display:flex;flex-direction:column;gap:var(--s3);align-items:flex-start;max-width:1040px}
 .desf .linha{font-size:14px;color:var(--muted);max-width:78ch}
 .desf .linha b{color:var(--text);font-weight:600}
-.desf .prov{display:inline-flex;gap:7px;align-items:center;font-size:13px;color:var(--muted)}
+.desf .provl{display:inline-flex;gap:7px;align-items:center;font-size:13px;color:var(--muted)}
 .desf .noar{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
 .desf .noar .th{width:48px;font-size:12px}
 .desf .noar b{color:var(--text)}
@@ -228,13 +230,11 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 .pbar{position:relative;height:14px;background:var(--sunk);border:1px solid var(--border-strong);border-radius:7px;overflow:hidden}
 .pbar i{position:absolute;left:0;top:0;bottom:0;background:var(--muted)}
 .pbar.vz{border-style:dashed}
-.pbar.ok i{background:var(--text)}
 .pnum{font-size:13px;color:var(--muted);margin-top:4px;display:flex;gap:6px 14px;flex-wrap:wrap}
 .pnum b{color:var(--text);font-weight:600}
 .pdv{font-size:13px;color:var(--muted);text-align:right}
 .pdv b{color:var(--text)}
 .pdv .okk{color:var(--text)}
-.aviso-vol{margin-top:var(--s3);max-width:78ch}
 @container (max-width:640px){
  .pisos{padding:4px 12px}
  .pr{grid-template-columns:1fr;gap:8px}
@@ -244,8 +244,8 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 }
 /* sinal provisório */
 .sinal{margin-top:var(--s5);max-width:1040px;display:flex;flex-direction:column;gap:var(--s3);align-items:flex-start}
-.sinal .l{display:flex;gap:10px;align-items:center;padding:8px 14px;border:2px dashed var(--ok-line);border-radius:8px;color:var(--text);font-size:14px;max-width:100%}
-.sinal .l .sy{color:var(--ok)}
+.sinal .l{display:flex;gap:10px;align-items:center;padding:8px 14px;border:1px dashed var(--border-strong);background:transparent;border-radius:8px;color:var(--text);font-size:14px;max-width:100%}
+.sinal .l .sy{color:var(--text)}
 .sinal .l b{font-weight:600}
 .sinal .l span.r{color:var(--muted);font-size:13px}
 .sec.acoes{margin-top:var(--s5)}
@@ -265,7 +265,7 @@ h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
 </div>
 <div class="wrap">
  <h1>Tela v2 do teste A/B do YouTube</h1>
- <p class="lede">Mockup M5 r1 (S8-F4). Troque estado, tema e largura no topo ou pela URL (?estado=ativo-sinal&amp;tema=claro&amp;largura=390). Dados sintéticos. O placar M4 está intacto dentro de cada estado. Sem lift no teste ativo; lift e “vs A” só em vencedor de variante.</p>
+ <p class="lede">Mockup M5 r2 (S8-F4). Troque estado, tema e largura no topo ou pela URL (?estado=ativo-sinal&amp;tema=claro&amp;largura=390). Dados sintéticos. O placar M4 está intacto dentro de cada estado. Sem lift no teste ativo; lift e “vs A” só em vencedor de variante.</p>
  <div class="figs" id="figs"></div>
 </div>
 <script>
@@ -282,7 +282,7 @@ const I={
 const NMC='<span class="nm">não medido</span>';
 const n=x=>x.toLocaleString('pt-BR');
 let IC=0;
-function info(label,h){const id='tip'+(++IC);return '<button class="info" type="button" aria-expanded="false" aria-controls="'+id+'" aria-describedby="'+id+'" aria-label="'+label+'" data-info><span aria-hidden="true">ⓘ</span></button><span class="tip" id="'+id+'" role="note" hidden>'+h+'</span>'}
+function info(label,h){const id='tip'+(++IC);return '<button class="info" type="button" aria-expanded="false" aria-controls="'+id+'" aria-describedby="'+id+'" aria-label="'+label+'" data-info><span class="ig" aria-hidden="true">ⓘ</span></button><span class="tip" id="'+id+'" role="note" hidden>'+h+'</span>'}
 const T1='5 - Como somos controlados - Consistência e Compromisso (Part 4)';
 const T100='Eu testei 4 títulos diferentes no mesmo vídeo durante duas semanas e o resultado final me surpreendeu muito mesmo, veja';
 /* variante: l,t, st(ok|sem|ag|semctr|zero|aus|nt), imp, cl, ctr, val, ag, nm(dias não medidos), z(dias zero) */
@@ -301,7 +301,7 @@ function cells(v){
 }
 function apoio(v){
  if(v.st==='sem')return '';
- if(v.st==='nt')return '';
+ if(v.st==='nt'&&!v.nmd&&!v.val)return '';
  const p=[];
  p.push(v.val+(v.val===1?' válido':' válidos'));
  if(v.ag)p.push(v.ag+' aguardando '+I.clock);
@@ -347,69 +347,62 @@ const PV=10315,PD=4,TETO=15,TB='Consistência e Compromisso (Part 4)';
 const alt=(k,vs='AB')=>D(Array.from({length:k*vs.length},(_,i)=>vs[i%vs.length]+'m').join(' '));
 const SYM=(c,t)=>'<span class="sy" aria-hidden="true">'+c+'</span>';
 /* itens dos pisos: l, vol (null = não medido), dv */
-const P=(a,b,c)=>[a,b,c].filter(Boolean);
+/* pisos = SEMPRE derivados do placar (mesma fonte: ultima_avaliacao / v2.n): vol = impressões dos dias válidos, dv = dias válidos. Dado ausente = null ("—"), nunca 0 */
+const derivaPisos=v=>v.map(x=>({l:x.l,t:x.t,vol:(x.st==='ok'||x.st==='zero')?x.imp:null,dv:x.st==='sem'?null:x.val}));
 const E={};
-const add=(k,rot,o)=>{E[k]=Object.assign({k,rot,modo:'ativo',teto:TETO,upd:'24/10 06:10'},o)};
+const add=(k,rot,o)=>{E[k]=Object.assign({k,rot,modo:'ativo',teto:TETO,upd:'24/10 06:10'},o);if(o.v&&!o.v1&&o.modo!=='inicio')E[k].pisos=derivaPisos(o.v)};
 /* ---------- início ---------- */
 add('inicio-aviso','Início, com aviso de volume',{modo:'inicio',aviso:'Este vídeo recebe cerca de 900 impressões por semana. Com 2 versões, cada uma pode chegar a menos de 10.315 em 15 dias. O teste pode terminar sem resultado.'});
 add('inicio-sem-alcance','Início, sem alcance',{modo:'inicio',aviso:'Sem medição para estimar o volume.'});
 /* ---------- ativo ---------- */
 const V2=(a,b)=>[V('A',T1,a),V('B',TB,b)];
-add('ativo-antes-pisos','Ativo, antes dos pisos',{dia:1,band:'sem',prox:'03/11',upd:null,
- frase:['Dia 1 de 15. Ainda não decide: o YouTube não fechou nenhum dia.','A primeira avaliação sai até 24 horas depois do início.'],
- v:V2({st:'sem'},{st:'sem'}),dias:D('-g'),pisos:P({l:'A',t:T1,vol:null,dv:null},{l:'B',t:TB,vol:null,dv:null})});
+add('ativo-antes-pisos','Ativo, antes dos pisos',{dia:1,prox:'03/11',upd:null,
+ frase:['Ainda não decide: o YouTube não fechou nenhum dia.','A primeira avaliação sai até 24 horas depois do início.'],
+ v:V2({st:'sem'},{st:'sem'}),dias:D('-g')});
 add('ativo-sem-volume','Ativo, sem volume',{dia:8,
- frase:['Dia 8 de 15. Ainda não decide: faltam impressões.','Cada versão precisa de 10.315; B tem 388 até agora.'],
- v:V2({imp:412,cl:19,ctr:'4,6',val:3,ag:1},{imp:388,cl:21,ctr:'5,4',val:3,ag:1}),dias:D('Am Bm Am Bm Am Bm Ag Bg'),
- pisos:P({l:'A',t:T1,vol:412,dv:3},{l:'B',t:TB,vol:388,dv:3}),avisoVol:'Neste vídeo o volume provavelmente não chega antes do dia 15. Se for assim, o teste termina sem resultado e a original segue no ar.'});
+ frase:['Ainda não decide: faltam impressões.','Cada versão precisa de 10.315; A tem 412 e B tem 388.'],
+ v:V2({imp:412,cl:19,ctr:'4,6',val:3,ag:1},{imp:388,cl:21,ctr:'5,4',val:3,ag:1}),dias:D('Am Bm Am Bm Am Bm Ag Bg')});
 add('ativo-sinal','Ativo, com sinal provisório',{dia:11,
- frase:['Dia 11 de 15. Há um sinal de B, mas ainda não decide.','Os pisos fecharam. O teste segue até o fim para o resultado valer.'],
- v:V2({imp:11240,cl:517,ctr:'4,6',val:5},{imp:10980,cl:593,ctr:'5,4',val:5}),dias:alt(5),
- pisos:P({l:'A',t:T1,vol:11240,dv:5},{l:'B',t:TB,vol:10980,dv:5}),sinal:'B'});
+ frase:['Há um sinal de B, mas ainda não decide.','Os pisos fecharam. O teste segue até o fim para o resultado valer.'],
+ v:V2({imp:11240,cl:517,ctr:'4,6',val:5},{imp:10980,cl:593,ctr:'5,4',val:5}),dias:alt(5),sinal:'B'});
 add('ativo-encerrar','Ativo, confirmação de Encerrar',{dia:11,abrirEncerrar:1,
- frase:['Dia 11 de 15. Há um sinal de B, mas ainda não decide.','Os pisos fecharam. O teste segue até o fim para o resultado valer.'],
- v:V2({imp:11240,cl:517,ctr:'4,6',val:5},{imp:10980,cl:593,ctr:'5,4',val:5}),dias:alt(5),
- pisos:P({l:'A',t:T1,vol:11240,dv:5},{l:'B',t:TB,vol:10980,dv:5}),sinal:'B'});
+ frase:['Há um sinal de B, mas ainda não decide.','Os pisos fecharam. O teste segue até o fim para o resultado valer.'],
+ v:V2({imp:11240,cl:517,ctr:'4,6',val:5},{imp:10980,cl:593,ctr:'5,4',val:5}),dias:alt(5),sinal:'B'});
 add('ativo-teto-sem-volume','Ativo, perto do teto sem volume',{dia:14,
- frase:['Dia 14 de 15. Faltam impressões e o teste está no fim.','Amanhã o teste encerra sozinho e a original volta ao ar.'],
- v:V2({imp:1020,cl:47,ctr:'4,6',val:4},{imp:988,cl:53,ctr:'5,4',val:4}),dias:alt(7),
- pisos:P({l:'A',t:T1,vol:1020,dv:7},{l:'B',t:TB,vol:988,dv:7}),
- avisoVol:'O volume não vai chegar. Este vídeo recebe poucas impressões por dia.'});
+ frase:['Faltam impressões; o teste encerra amanhã.','No dia 15 a original volta ao ar. Cada versão precisa de 10.315; A tem 1.020 e B tem 988.'],
+ v:V2({imp:1020,cl:47,ctr:'4,6',val:7},{imp:988,cl:53,ctr:'5,4',val:7}),dias:alt(7)});
 add('v1-ativo','v1, ativo',{dia:8,v1:1,frase:['2 versões, 2.340 impressões no total.','Regra antiga: este teste encerra por duração, no dia 14. Sem estatística.'],
  v:V2({imp:1190,cl:52,ctr:'4,4',val:4},{imp:1150,cl:58,ctr:'5,0',val:4}),dias:alt(4),teto:14});
 /* ---------- concluído ---------- */
 const CV=(o)=>Object.assign({modo:'concluido',dia:15,enc:'24/10',upd:'24/10 14:00'},o);
-const volPlac=V2({imp:412,cl:19,ctr:'4,6',val:4},{imp:388,cl:21,ctr:'5,4',val:4});
-const okPlac=V2({imp:11240,cl:517,ctr:'4,6',val:5},{imp:10980,cl:593,ctr:'5,4',val:5});
-const okPis=P({l:'A',t:T1,vol:11240,dv:5},{l:'B',t:TB,vol:10980,dv:5});
-const volPis=P({l:'A',t:T1,vol:5120,dv:4},{l:'B',t:TB,vol:4880,dv:4});
-add('concluido-vencedor-provisorio','Concluído, vencedor provisório',CV({d:'venc',who:'B',prov:'04/11',ar:'A',v:okPlac,dias:alt(8),pisos:okPis,
+const volPlac=V2({imp:412,cl:19,ctr:'4,6',val:7},{imp:388,cl:21,ctr:'5,4',val:7});
+const okPlac=V2({imp:11240,cl:517,ctr:'4,6',val:7},{imp:10980,cl:593,ctr:'5,4',val:7});
+add('concluido-vencedor-provisorio','Concluído, vencedor provisório',CV({d:'venc',who:'B',prov:'04/11',ar:'A',v:okPlac,dias:alt(7),
  frase:['B provavelmente vence.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
-add('concluido-vencedor-final','Concluído, vencedor final',CV({d:'venc',who:'B',prov:null,ar:'A',v:okPlac,dias:alt(8),pisos:okPis,
- frase:['B venceu.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
-add('concluido-aplicado','Concluído, B aplicado',CV({d:'venc',who:'B',prov:'04/11',ar:'B',aplicada:'B',v:okPlac,dias:alt(8),pisos:okPis,
+add('concluido-vencedor-final','Concluído, vencedor final',CV({d:'venc',who:'B',prov:null,ar:'A',v:okPlac,dias:alt(7),
+ frase:['B vence.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
+add('concluido-aplicado','Concluído, B aplicado',CV({d:'venc',who:'B',prov:'04/11',ar:'B',aplicada:'B',v:okPlac,dias:alt(7),
  frase:['B provavelmente vence.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
-add('concluido-aplicado-mudou','Concluído, aplicado e o desfecho mudou',CV({d:'sdif',prov:'04/11',ar:'B',aplicada:'B',antes:'B vence',v:okPlac,dias:alt(8),pisos:okPis,
- frase:['Nenhuma diferença de 20% ou mais com este volume.','No encerramento o sinal era B. Com os dias que chegaram depois, já não é.']}));
-add('concluido-aplicado-outra','Concluído, outra versão aplicada à mão',CV({d:'venc',who:'B',prov:'04/11',ar:'C',aplicada:'C',manual:1,v:[V('A',T1,{imp:7410,cl:341,ctr:'4,6',val:5}),V('B',TB,{imp:7350,cl:397,ctr:'5,4',val:5}),V('C','Outro título curto',{imp:7290,cl:352,ctr:'4,8',val:5})],dias:alt(8,'ABC'),
- pisos:P({l:'A',t:T1,vol:7410,dv:5},{l:'B',t:TB,vol:7350,dv:5},{l:'C',t:'Outro título curto',vol:7290,dv:5}),
+add('concluido-aplicado-mudou','Concluído, aplicado e o desfecho mudou',CV({d:'sdif',prov:'04/11',ar:'B',aplicada:'B',v:okPlac,dias:alt(7),
+ frase:['Sem diferença clara entre A e B.','Agora não há diferença clara; ao encerrar, B parecia melhor.']}));
+add('concluido-aplicado-outra','Concluído, outra versão aplicada à mão',CV({d:'venc',who:'B',prov:'04/11',ar:'C',aplicada:'C',manual:1,v:[V('A',T1,{imp:10620,cl:489,ctr:'4,6',val:7}),V('B',TB,{imp:10480,cl:566,ctr:'5,4',val:7}),V('C','Outro título curto',{imp:10390,cl:499,ctr:'4,8',val:7})],dias:alt(7,'ABC'),
  frase:['B provavelmente vence.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
-add('concluido-original-vence','Concluído, a original vence',CV({d:'orig',prov:'04/11',ar:'A',v:V2({imp:11240,cl:577,ctr:'5,1',val:5},{imp:10980,cl:483,ctr:'4,4',val:5}),dias:alt(8),pisos:okPis,
+add('concluido-original-vence','Concluído, a original vence',CV({d:'orig',prov:'04/11',ar:'A',v:V2({imp:11240,cl:577,ctr:'5,1',val:7},{imp:10980,cl:483,ctr:'4,4',val:7}),dias:alt(7),
  frase:['A original se saiu melhor; nada a aplicar.','A original segue no ar.']}));
-add('concluido-sem-diferenca','Concluído, sem diferença',CV({d:'sdif',prov:'04/11',ar:'A',v:V2({imp:11240,cl:517,ctr:'4,6',val:5},{imp:10980,cl:512,ctr:'4,7',val:5}),dias:alt(8),pisos:okPis,
- frase:['Nenhuma diferença de 20% ou mais com este volume.','A original segue no ar.']}));
-add('concluido-inconclusivo-volume','Concluído, inconclusivo por volume',CV({d:'vol',prov:'04/11',ar:'A',v:volPlac,dias:alt(7),pisos:P({l:'A',t:T1,vol:412,dv:7},{l:'B',t:TB,vol:388,dv:7}),
+add('concluido-sem-diferenca','Concluído, sem diferença',CV({d:'sdif',prov:'04/11',ar:'A',v:V2({imp:11240,cl:517,ctr:'4,6',val:7},{imp:10980,cl:512,ctr:'4,7',val:7}),dias:alt(7),
+ frase:['Sem diferença clara entre A e B.','A original segue no ar.']}));
+add('concluido-inconclusivo-volume','Concluído, inconclusivo por volume',CV({d:'vol',prov:'04/11',ar:'A',v:volPlac,dias:alt(7),
  frase:['Faltou volume: B teve 388 de 10.315 impressões.','Este vídeo recebe poucas impressões para decidir. A original segue no ar.']}));
 add('concluido-inconclusivo-dado','Concluído, inconclusivo por dado',CV({d:'dado',prov:'04/11',ar:'A',
- v:V2({imp:9800,cl:451,ctr:'4,6',val:4},{st:'semctr',imp:10200,nmd:5}),dias:D('Am Bn Am Bn Am Bn Am Bn Am Bn Am Bm Am Bm'),pisos:P({l:'A',t:T1,vol:9800,dv:4},{l:'B',t:TB,vol:null,dv:2}),
+ v:V2({imp:9800,cl:451,ctr:'4,6',val:7},{st:'nt',val:2,nmd:5}),dias:D('Am Bn Am Bn Am Bn Am Bn Am Bn Am Bm Am Bm'),
  frase:['Faltaram dias medidos: B tem 2 de 4.','O YouTube não enviou o CTR de alguns dias. A original segue no ar.']}));
-add('concluido-inconclusivo-falha','Concluído, encerrado por falha',CV({d:'falha',ar:'A',v:volPlac,dias:alt(5),pisos:P({l:'A',t:T1,vol:412,dv:3},{l:'B',t:TB,vol:388,dv:3}),
+add('concluido-inconclusivo-falha','Concluído, encerrado por falha',CV({d:'falha',ar:'A',v:V2({imp:412,cl:19,ctr:'4,6',val:3},{imp:388,cl:21,ctr:'5,4',val:3}),dias:alt(3),
  frase:['O teste foi encerrado por segurança, não por resultado.','A original voltou ao ar.']}));
-add('concluido-aguardando','Concluído, aguardando alcance',CV({d:'agu',ar:'A',v:okPlac,dias:D('Am Bm Am Bm Am Bm Am Bm Am Bm Am Bm Ag Bg'),pisos:okPis,
+add('concluido-aguardando','Concluído, aguardando alcance',CV({d:'agu',ar:'A',v:V2({imp:11240,cl:517,ctr:'4,6',val:6,ag:1},{imp:10980,cl:593,ctr:'5,4',val:6,ag:1}),dias:D('Am Bm Am Bm Am Bm Am Bm Am Bm Am Bm Ag Bg'),
  frase:['O YouTube ainda não enviou o alcance dos últimos dias.','O desfecho pode mudar quando chegar.']}));
-add('concluido-pendente','Concluído, desfecho pendente',CV({d:'pend',ar:'A',v:okPlac,dias:alt(8),pisos:okPis,
+add('concluido-pendente','Concluído, desfecho pendente',CV({d:'pend',ar:'A',v:okPlac,dias:alt(7),
  frase:['Calculando o desfecho.','A conta roda uma vez por dia. Volte amanhã.']}));
-add('concluido-ilegivel','Concluído, desfecho ilegível',CV({d:'ileg',ar:'A',v:okPlac,dias:alt(8),pisos:okPis,
+add('concluido-ilegivel','Concluído, desfecho ilegível',CV({d:'ileg',ar:'A',v:okPlac,dias:alt(7),
  frase:['Não consegui ler o desfecho deste teste.','Os números abaixo são os gravados. Nada foi alterado.']}));
 add('v1-concluido','v1, concluído',{modo:'concluido',v1:1,dia:14,enc:'24/10',upd:'24/10 14:00',d:'v1',ar:'A',v:V2({imp:2380,cl:104,ctr:'4,4',val:7},{imp:2340,cl:117,ctr:'5,0',val:7}),dias:alt(7),
  frase:['2 versões, 4.720 impressões no total.','Regra antiga: encerrou por duração, no dia 14. Sem estatística.']});
@@ -424,17 +417,13 @@ function header(e){
  const selos=(e.v1?'<span class="selo old">'+I.old+'Regra antiga: encerra por duração</span>':'')+'<span class="selo lab">'+I.lab+'<span>'+ar+'</span></span>';
  return '<div class="hd"><div class="th tA">A</div><div class="ttl"><div class="crumb">A/B Lab / Vídeos / qIg9a7vqcNo</div><h2 title="'+T1+'">'+T1+'</h2><div class="selos">'+selos+'</div></div></div>';
 }
-function faixa(e){
- if(e.band==='sem')return '<div class="band yt" role="status"><span class="ic">'+I.clock+'</span><div><h3>Sem dia fechado</h3><p>O primeiro dia fecha em breve.</p></div></div>';
- return '';
-}
+function faixa(e){return ''}
 function relogio(e){
  const f=e.teto-e.dia, ticks=Array.from({length:e.teto},(_,i)=>'<i class="'+(i+1<e.dia?'p':(i+1===e.dia?'h':''))+'"></i>').join('');
- const perto=!e.v1&&e.dia>=e.teto-2;
- return '<div class="sec rel"><div class="sh">Andamento '+info('Como ler o andamento','<b>Andamento.</b> Um quadrado por dia corrido; o contorno forte é hoje. O teste também exige um mínimo de dias corridos antes de decidir, e encerra sozinho no dia '+e.teto+'. Isso não indica quem está na frente.')+'</div>'
+  return '<div class="sec rel"><div class="sh">Andamento '+info('Como ler o andamento','<b>Andamento.</b> Um quadrado por dia corrido; o contorno forte é hoje. O teste também exige um mínimo de dias corridos antes de decidir, e encerra sozinho no dia '+e.teto+'. Isso não indica quem está na frente.')+'</div>'
  +'<div class="top"><span class="dia num">Dia '+e.dia+' de '+e.teto+'</span><span class="falta">'+(f>0?'faltam '+f+(f===1?' dia':' dias'):'último dia')+'</span></div>'
  +'<div class="ticks" style="grid-template-columns:repeat('+e.teto+',1fr)" aria-hidden="true">'+ticks+'</div>'
- +(perto&&e.k!=='ativo-sinal'?'<p class="teto">'+I.clock+'<span>No dia '+e.teto+' o teste encerra sozinho e a original volta ao ar.</span></p>':'')+'</div>';
+ +'</div>';
 }
 function pisos(e,final){
  if(!e.pisos)return '';
@@ -448,24 +437,24 @@ function pisos(e,final){
   +'<div class="pdv">Dias válidos '+dvx+'</div></div>';
  }).join('');
  return '<div class="sec"><div class="sh"><h3 class="h" style="font:inherit">'+(final?'Quanto o teste alcançou':'Falta para decidir')+'</h3>'+tip+'</div><div class="pisos">'+rows+'</div>'
- +(e.avisoVol?'<div class="band neu aviso-vol" role="note"><span class="ic">'+I.clock+'</span><p>'+e.avisoVol+'</p></div>':'')+'</div>';
+ +'</div>';
 }
 function sinal(e){
  if(!e.sinal)return '';
- return '<div class="sinal"><div class="l"><span class="sy" aria-hidden="true">▲</span><span><b>Sinal provisório, não decide:</b> '+e.sinal+' está à frente.</span></div></div>';
+ return '<div class="sinal"><div class="l"><span class="sy" aria-hidden="true">▲</span><span><b>Sinal provisório, não decide:</b> '+e.sinal+' está um pouco à frente.</span></div></div>';
 }
 function acoes(e){
  const aberto=e.abrirEncerrar;
  const conf='<div class="conf" id="cfE" '+(aberto?'':'hidden')+' role="group" aria-labelledby="cfEt"><h3 id="cfEt">Encerrar o teste agora?</h3>'
- +'<p>A miniatura que fica no ar é a que você escolher abaixo.</p>'
+ +'<div class="band neu calm" style="margin-top:8px"><span class="ic">'+I.warn+'</span><p>Encerrar à mão tira o teste da decisão: o resultado não será calculado.</p></div>'
+ +'<p style="margin-top:12px">A miniatura que fica no ar é a que você escolher abaixo.</p>'
  +'<label><input type="radio" name="fica" checked> Voltar à original (A)</label>'+(e.sinal?'<label><input type="radio" name="fica"> Ficar com '+e.sinal+'</label>':'')
- +'<div class="band neu calm" style="margin-top:8px"><span class="ic">'+I.warn+'</span><p>Encerrar à mão tira este teste da decisão: o desfecho não será calculado nem revisado.</p></div>'
- +'<div class="acts"><button class="btn alvo pri" type="button" data-fecha="cfE">Encerrar teste</button><button class="btn alvo ghost" type="button" data-fecha="cfE">Cancelar</button></div></div>';
+ +'<div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfE">Cancelar</button><button class="btn alvo pri" type="button" data-fecha="cfE">Encerrar teste</button></div></div>';
  return '<div class="sec acoes"><div class="acts"><button class="btn alvo" type="button">Pausar</button><button class="btn alvo" type="button" aria-expanded="'+(aberto?'true':'false')+'" aria-controls="cfE" data-abre="cfE">Encerrar '+I.chev.replace('width="14" height="14"','width="14" height="14"')+'</button></div><div style="margin-top:12px">'+conf+'</div></div>';
 }
 /* desfecho */
 const DS={
- venc:e=>({c:'vence'+(e.prov?' prov':''),s:'▲',t:e.who+(e.prov?' vence (sugestão)':' venceu')}),
+ venc:e=>({c:'vence'+(e.prov?' prov':''),s:'▲',t:e.who+(e.prov?' vence (provisório)':' vence')}),
  orig:e=>({c:'neu',s:'◆',t:'A original vence'}),
  sdif:e=>({c:'mut',s:'=',t:'Sem diferença'}),
  vol:e=>({c:'mut',s:'◔',t:'Faltou volume'}),
@@ -480,19 +469,22 @@ function noar(e){
  const L={A:'tA',B:'tB',C:'tC'}[e.ar||'A'];
  let t;
  if(e.aplicada&&e.manual)t='Você aplicou '+e.aplicada+' à mão. No ar agora: <b>'+e.aplicada+'</b>.';
- else if(e.aplicada)t='Aplicada: <b>'+e.aplicada+'</b> está no ar.';
+ else if(e.aplicada)t='<b>'+e.aplicada+'</b> está no ar.';
  else t='No ar agora: <b>'+(e.ar==='A'?'A (original)':e.ar)+'</b>.';
- if(e.antes)t+=' No encerramento: '+e.antes+'. Agora: sem diferença detectável.';
  return '<div class="noar"><div class="th '+L+'">'+(e.ar||'A')+'</div><span>'+t+'</span></div>';
 }
 function desfecho(e){
  const s=DS[e.d](e);
  const prov=['venc','orig','sdif','vol','dado'].includes(e.d)
-  ?(e.prov?'<span class="prov">'+I.clock+'Provisório até '+e.prov+': pode mudar nos próximos dias.</span>':'<span class="prov"><span aria-hidden="true">■</span>Final: já não muda.</span>'):'';
+  ?(e.prov?'<span class="provl">'+I.clock+'Provisório até '+e.prov+': pode mudar nos próximos dias.</span>':'<span class="provl"><span aria-hidden="true">■</span>Final: já não muda.</span>'):'';
  let btn='';
  if(e.d==='venc'&&!e.aplicada){
   btn='<div class="acts"><button class="btn alvo pri" type="button" data-abre="cfA" aria-expanded="false" aria-controls="cfA">Aplicar '+e.who+' ao vídeo</button></div>'
   +'<div class="conf" id="cfA" hidden role="group" aria-labelledby="cfAt"><h3 id="cfAt">Aplicar '+e.who+' ao vídeo?</h3><p>A miniatura muda agora no YouTube.'+(e.prov?' O desfecho ainda é provisório.':'')+'</p><div class="acts"><button class="btn alvo pri" type="button" data-aplica="cfA">Aplicar '+e.who+'</button><button class="btn alvo ghost" type="button" data-fecha="cfA">Cancelar</button></div></div>';
+ }
+ if(e.aplicada&&!e.manual){
+  btn='<div class="acts"><button class="btn alvo" type="button" data-abre="cfV" aria-expanded="false" aria-controls="cfV">Voltar à original</button></div>'
+  +'<div class="conf" id="cfV" hidden role="group" aria-labelledby="cfVt"><h3 id="cfVt">Voltar à original (A)?</h3><p>A miniatura muda agora no YouTube.</p><div class="acts"><button class="btn alvo ghost" type="button" data-fecha="cfV">Cancelar</button><button class="btn alvo pri" type="button" data-volta="cfV">Voltar à original</button></div></div>';
  }
  const extra=e.d==='ileg'?'<div class="acts"><button class="btn alvo" type="button">Tentar de novo</button></div>':'';
  return '<div class="desf"><span class="sel '+s.c+'" role="status"><span class="sy" aria-hidden="true">'+s.s+'</span>'+s.t+'</span>'+prov+noar(e)+btn+extra+'</div>';
@@ -548,7 +540,8 @@ function paint(){
  document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',!o);document.getElementById(b.getAttribute('aria-controls')).classList.toggle('open',!o)}));
  document.querySelectorAll('[data-abre]').forEach(b=>b.addEventListener('click',()=>{const f=b.closest('.frame'),c=f.querySelector('#'+b.dataset.abre);c.hidden=!c.hidden;b.setAttribute('aria-expanded',String(!c.hidden))}));
  document.querySelectorAll('[data-fecha]').forEach(b=>b.addEventListener('click',()=>{const f=b.closest('.frame'),c=f.querySelector('#'+b.dataset.fecha);c.hidden=true;const o=f.querySelector('[data-abre="'+b.dataset.fecha+'"]');if(o){o.setAttribute('aria-expanded','false');o.focus()}}));
- document.querySelectorAll('[data-aplica]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');d.querySelector('.acts').remove();b.closest('.conf').remove();d.querySelector('.noar span').innerHTML='Aplicada: <b>'+E[estado].who+'</b> está no ar.'}));
+ document.querySelectorAll('[data-volta]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');d.querySelector('.acts').remove();b.closest('.conf').remove();const t=d.querySelector('.noar');t.querySelector('.th').className='th tA';t.querySelector('.th').textContent='A';t.querySelector('span').innerHTML='No ar agora: <b>A (original)</b>.'}));
+ document.querySelectorAll('[data-aplica]').forEach(b=>b.addEventListener('click',()=>{const d=b.closest('.desf');d.querySelector('.acts').remove();b.closest('.conf').remove();d.querySelector('.noar span').innerHTML='<b>'+E[estado].who+'</b> está no ar.'}));
  clearTimeout(skT);if(estado==='carregando')skT=setTimeout(()=>document.querySelectorAll('.skmsg').forEach(m=>{m.innerHTML='Está demorando; a conexão pode estar lenta. <button class="btn ghost" type="button">Tentar de novo</button>'}),8000);
  sync();
 }
