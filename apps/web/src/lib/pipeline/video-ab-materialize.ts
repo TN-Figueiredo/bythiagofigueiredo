@@ -1,4 +1,5 @@
 import type { ABDraft } from '@/lib/pipeline/video-schemas'
+import { V_MAXIMO_V2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
 
 export interface AbMaterializationPlan {
   /** The variant chosen to go live FIRST (firstOnAir) — seeds the Lab's is_original row. */
@@ -27,5 +28,21 @@ export function planAbMaterialization(draft: ABDraft): AbMaterializationPlan {
     original: { title: first.title, brief: first.brief },
     originalUpdate: { title_text: first.title, metadata: { visual_description: first.brief } },
     challengers: challengers.map(v => ({ title_text: v.title, metadata: { visual_description: v.brief } })),
+  }
+}
+
+/**
+ * S8-F4 (regra v2): o teste leva no máximo V_MAXIMO_V2 variantes (a original + V_MAXIMO_V2 - 1 desafiantes).
+ * Entram primeiro o desafiante de role 'winner', depois a ordem do rascunho; os demais vão para `descartadas`
+ * (nota do teste; o dono decide "vencedor + C" depois).
+ */
+export function escolherDesafiantes(draft: ABDraft): { escolhidas: AbMaterializationPlan['challengers']; descartadas: string[] } {
+  const first = draft.variants.find(v => v.id === draft.firstOnAir) ?? draft.variants[0]!
+  const resto = draft.variants.filter(v => v.id !== first.id)
+  const ordenadas = [...resto.filter(v => v.role === 'winner'), ...resto.filter(v => v.role !== 'winner')]
+  const mapa = (v: ABDraft['variants'][number]) => ({ title_text: v.title, metadata: { visual_description: v.brief } })
+  return {
+    escolhidas: ordenadas.slice(0, V_MAXIMO_V2 - 1).map(mapa),
+    descartadas: ordenadas.slice(V_MAXIMO_V2 - 1).map(v => `${v.id}: ${v.title}`),
   }
 }
