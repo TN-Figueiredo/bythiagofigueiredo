@@ -2,6 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Emenda 25/10 (dono, B3)
+
+Item novo: **frase fixa para `mes_destacado_em_transito`** no diálogo de remover da A5 (Logan B3; Hanna: entra na M6). Data no toast vai para o backlog. Fonte: `.superpowers/sdd/manutencao-nas/hanna-t12-b4-2510.md`.
+
 ## Emenda 23/10 (retomada)
 
 Origem: re-revisões de hoje, `.superpowers/sdd/manutencao-nas/replan-23-10/onda0-rerevisao-m6-m9-phil.md` (N6-1 a N6-4) e `...-yannis.md` (N-M6-1, N-M6-2). Onde os dois pedem a mesma coisa, uma emenda só. Tabela completa: `replan-23-10/onda0-emenda-m6-m9.md`.
