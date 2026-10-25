@@ -190,7 +190,7 @@ function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleInputChange} />
       <ImageIcon size={24} strokeWidth={1.5} />
       <span style={{ fontWeight: 600, fontSize: 12 }}>Solte a thumb {label}</span>
-      <span className="text-[11px]" style={{ color: 'var(--cms-text-dim)' }}>
+      <span className="text-[12px]" style={{ color: 'var(--cms-text-dim)' }}>
         Arraste ou clique para enviar
       </span>
     </div>
@@ -379,7 +379,7 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
                   <button
                     type="button"
                     onClick={onPickFromLibrary}
-                    className="flex-1 rounded-lg border border-dashed border-cms-border py-1.5 text-[11px] text-cms-text-muted hover:border-cms-accent hover:text-cms-accent transition-colors"
+                    className="flex-1 rounded-lg border border-dashed border-cms-border py-1.5 text-[12px] text-cms-text-muted hover:border-cms-accent hover:text-cms-accent transition-colors"
                   >
                     📚 Escolher da Biblioteca
                   </button>
