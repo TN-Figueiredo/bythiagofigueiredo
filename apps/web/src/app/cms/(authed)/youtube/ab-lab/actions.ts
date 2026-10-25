@@ -447,8 +447,10 @@ export async function uploadVariant(
   // Rótulo: o pedido pelo assistente, se for válido e livre; senão o primeiro livre (N1)
   const usedLabels = new Set((existingVariants ?? []).map(v => v.label))
   const pedido = formData.get('label')
-  const rotuloPedido = VARIANT_LABELS.find(l => l === pedido && !usedLabels.has(l))
-  const label = rotuloPedido ?? VARIANT_LABELS.find(l => !usedLabels.has(l))
+  const pedidoValido = VARIANT_LABELS.find(l => l === pedido)
+  // Rótulo pedido e ocupado: não troca em silêncio (o assistente guarda `gravada` por rótulo)
+  if (pedidoValido && usedLabels.has(pedidoValido)) return { ok: false, error: 'label_ocupado' }
+  const label = pedidoValido ?? VARIANT_LABELS.find(l => !usedLabels.has(l))
   if (!label) return { ok: false, error: 'No available variant label slot' }
 
   // Determine extension
@@ -470,7 +472,8 @@ export async function uploadVariant(
   const thumbnailDhash = await dhashOuNulo(buffer, `uploadVariant:${testId}`)
 
   // Insert variant row
-  const sortOrder = 1 + (existingVariants?.length ?? 0)
+  // A posição vem do rótulo (B=1, C=2, D=3): trocar a imagem de B com C gravada não repete sort_order
+  const sortOrder = VARIANT_LABELS.indexOf(label) + 1
   const { data: variant, error: insertError } = await supabase
     .from('ab_test_variants')
     .insert({
@@ -594,22 +597,15 @@ export async function cleanupDraftVariants(
   const apagar = manter ? (variants ?? []).filter(v => !manter.includes(v.label)) : (variants ?? [])
 
   if (apagar.length > 0) {
+    // Linhas primeiro; o blob só sai depois de o delete dar certo (senão a linha ficaria apontando para arquivo apagado)
+    const delQuery = supabase.from('ab_test_variants').delete().eq('test_id', testId)
+    const { error: delError } = await (manter
+      ? delQuery.in('id', apagar.map(v => v.id))
+      : delQuery.eq('is_original', false))
+    if (delError) return { ok: false, error: delError.message }
     const { del } = await import('@vercel/blob')
     for (const v of apagar) {
       if (v.blob_url) await del(v.blob_url).catch(() => {})
-    }
-    if (manter) {
-      await supabase
-        .from('ab_test_variants')
-        .delete()
-        .eq('test_id', testId)
-        .in('id', apagar.map(v => v.id))
-    } else {
-      await supabase
-        .from('ab_test_variants')
-        .delete()
-        .eq('test_id', testId)
-        .eq('is_original', false)
     }
   }
 
@@ -1001,7 +997,8 @@ export async function createTextVariant(
   if (regraDoTeste(test) === 'v2' && (count ?? 0) >= V_MAXIMO_V2) return { ok: false, error: MSG_VARIANTES_V2 }
   if ((count ?? 0) >= 4) return { ok: false, error: 'Maximum 4 variants per test' }
 
-  const sortOrder = (count ?? 0)
+  const posicao = input.label ? VARIANT_LABELS.findIndex(l => l === input.label) : -1
+  const sortOrder = posicao >= 0 ? posicao + 1 : (count ?? 0)
   const label = input.label ?? VARIANT_LABELS[sortOrder - 1] ?? `v${sortOrder + 1}`
 
   const { data: variant, error } = await supabase

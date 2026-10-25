@@ -180,6 +180,14 @@ describe('createTextVariant', () => {
     expect(vi.mocked(ensureTrackedLink)).not.toHaveBeenCalled()
   })
 
+  it.each([['C', 2, 3], ['B', 1, 3]] as const)('rótulo %s pedido: sort_order %i vem do rótulo, não da contagem', async (label, esperado, contagem) => {
+    enqueueResult({ data: { id: 'test-1', site_id: 'site-1', status: 'draft', test_type: 'title' } })
+    enqueueResult({ count: contagem })
+    enqueueResult({ data: { id: 'v' } })
+    await createTextVariant({ test_id: 'test-1', title_text: 'T', label })
+    expect(primeiraEscrita('ab_test_variants', 'insert')?.sort_order).toBe(esperado)
+  })
+
   it('teste gravado como description: recusa com a mensagem do 422, sem inserir nada', async () => {
     enqueueResult({ data: { id: 'test-1', site_id: 'site-1', status: 'draft', test_type: 'description' } })
 

@@ -28,12 +28,13 @@ vi.mock('@/lib/supabase/service', () => ({
     from: (table: string) => {
       const reg: (typeof m.froms)[number] = { table, deleteAll: false }
       m.froms.push(reg)
-      const resp = () => m.respostas[table] ?? { data: null, error: null }
+      let apagando = false
+      const resp = () => (apagando ? m.respostas[`delete:${table}`] : undefined) ?? m.respostas[table] ?? { data: null, error: null }
       const cadeia: Record<string, unknown> = {}
       cadeia.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(resp()).then(res, rej)
       for (const k of ['eq', 'order', 'limit']) cadeia[k] = () => cadeia
       cadeia.select = (s: string) => { reg.select = s; return cadeia }
-      cadeia.delete = () => { reg.deleteAll = true; return cadeia }
+      cadeia.delete = () => { reg.deleteAll = true; apagando = true; return cadeia }
       cadeia.in = (_c: string, ids: string[]) => { reg.deleteIn = ids; reg.deleteAll = false; return cadeia }
       cadeia.insert = (row: Record<string, unknown>) => { reg.insert = row; return cadeia }
       cadeia.single = () => Promise.resolve(resp())
@@ -87,6 +88,15 @@ describe('cleanupDraftVariants com `manter`', () => {
   })
 })
 
+describe('cleanupDraftVariants: erro do delete (Phil I1)', () => {
+  it('delete com erro devolve ok:false e não chama del dos blobs', async () => {
+    bancoDeVariantes([{ id: 'vb', label: 'B', blob_url: 'https://blob/B.jpg' }])
+    m.respostas['delete:ab_test_variants'] = { data: null, error: { message: 'falhou' } }
+    expect(await cleanupDraftVariants('t1', { manter: [] })).toEqual({ ok: false, error: 'falhou' })
+    expect(m.del).not.toHaveBeenCalled()
+  })
+})
+
 describe('uploadVariant: rótulo pedido (N1)', () => {
   function enviar(label: string | null, usados: string[]) {
     m.respostas.ab_tests = { data: { id: 't1', status: 'draft', regra_duracao: null }, error: null }
@@ -105,9 +115,21 @@ describe('uploadVariant: rótulo pedido (N1)', () => {
     expect(rotuloGravado()).toBe('C')
   })
 
-  it('rótulo ocupado: usa o primeiro livre', async () => {
-    await enviar('B', ['B'])
+  it('rótulo pedido e ocupado: recusa com label_ocupado, sem subir nada', async () => {
+    const r = await enviar('B', ['B'])
+    expect(r).toEqual({ ok: false, error: 'label_ocupado' })
+    expect(m.put).not.toHaveBeenCalled()
+  })
+
+  it('sort_order vem do rótulo: B com C gravada grava 1, não 2 (Yannis I1)', async () => {
+    await enviar('B', ['C'])
+    expect(m.froms.find(f => f.table === 'ab_test_variants' && f.insert)?.insert?.sort_order).toBe(1)
+  })
+
+  it('sem rótulo pedido: primeiro livre e sort_order dele', async () => {
+    await enviar(null, ['B'])
     expect(rotuloGravado()).toBe('C')
+    expect(m.froms.find(f => f.table === 'ab_test_variants' && f.insert)?.insert?.sort_order).toBe(2)
   })
 
   it('rótulo inválido ("Z") ou ausente: primeiro livre', async () => {
