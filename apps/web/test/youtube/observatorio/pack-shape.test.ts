@@ -15,10 +15,10 @@ import { packChannel, PACK_VERSION } from '@/lib/youtube/observatorio/pack'
  * o que o teste mostrar como recebido.
  */
 const PORTRAIT = {
-  version: 2,
+  version: 3,
   /** As colunas que a leitura por canal pede a cada tabela (load-channel.ts), na ordem das consultas. */
   selects: [
-    'competitor_videos: id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at, series_tier',
+    'competitor_videos: id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at, series_tier, archive_frozen_at, archive_dropped_at',
     'competitor_channel_snapshots: id, competitor_channel_id, snapshot_date, subscriber_count, view_count, video_count',
     'competitor_video_versions: id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current',
     'competitor_video_versions: id, video_id, field, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current',
@@ -29,7 +29,7 @@ const PORTRAIT = {
   /** As chaves do que é guardado: o envelope e, por lista, a união das chaves das linhas. */
   envelope: ['daily', 'snapshots', 'spans', 'v', 'versions', 'videos'],
   rows: {
-    videos: ['comment_count', 'competitor_channel_id', 'duration_seconds', 'id', 'is_short', 'last_checked_at', 'like_count', 'pinned_at', 'published_at', 'series_tier', 'tags', 'thumbnail_url', 'title', 'video_id', 'view_count'],
+    videos: ['archive_dropped_at', 'archive_frozen_at', 'comment_count', 'competitor_channel_id', 'duration_seconds', 'id', 'is_short', 'last_checked_at', 'like_count', 'pinned_at', 'published_at', 'series_tier', 'tags', 'thumbnail_url', 'title', 'video_id', 'view_count'],
     versions: ['field', 'first_seen_at', 'has_text', 'id', 'is_current', 'last_seen_at', 'precision', 'text_omitted', 'thumb_blob_url', 'value_hash', 'value_text', 'video_id', 'window_start'],
     daily: ['snap_date', 'taken_at', 'video_id', 'views'],
     snapshots: ['competitor_channel_id', 'id', 'snapshot_date', 'subscriber_count', 'video_count', 'view_count'],

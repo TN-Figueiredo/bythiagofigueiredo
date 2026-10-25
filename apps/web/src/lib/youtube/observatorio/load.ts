@@ -13,6 +13,7 @@ import { deriveSyncState, backfillProgress } from './channels'
 import { requestStateOf } from './forja/states'
 import { BUILTIN_NICHES, forjaOrder } from './niche'
 import { ObservatoryLoadError, nicheDefs, readNiches, type NicheRow } from './niches-db'
+import { estaCongelado, estaNoArquivo, marcaDoArquivo } from '@/lib/youtube/video-antigo/esta-congelado'
 export { ObservatoryLoadError } from './niches-db'
 
 /* ------------------------------------------------------------------ row shapes (mirror database.types.ts) */
@@ -34,6 +35,8 @@ export interface VideoRow {
   pinned_at?: string | null
   /** A5 (E2). competitor_videos.series_tier; ausente = ainda não classificado. */
   series_tier?: string | null
+  /** M10a (02 §10.8): a marca do vídeo antigo. Opcional no tipo (como `pinned_at`); a leitura do banco sempre as pede (COLUNAS_DA_MARCA). */
+  archive_frozen_at?: string | null; archive_dropped_at?: string | null
 }
 /** A5 (E2). Uma faixa no tempo de um vídeo (competitor_video_tier_spans). */
 export interface SpanRow { video_id: string; from_date: string; to_date: string | null; tier: string }
@@ -101,7 +104,7 @@ export interface SiteScope {
 
 /* ------------------------------------------------------------------ constants */
 const CHANNEL_COLS = 'id, channel_id, channel_name, thumbnail_url, subscriber_count, niche, video_limit, youtube_video_count, sync_status, sync_error, sync_error_since, last_ok_synced_at, last_synced_at, full_sync_completed_at, added_at, published_at, removal_requested_at'
-export const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at, series_tier'
+export const VIDEO_COLS = 'id, competitor_channel_id, video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, is_short, last_checked_at, tags, thumbnail_url, pinned_at, series_tier, archive_frozen_at, archive_dropped_at'
 /** A5 (E2). As colunas de uma faixa no tempo (competitor_video_tier_spans). */
 export const SPAN_COLS = 'video_id, from_date, to_date, tier'
 export const SNAPSHOT_COLS = 'id, competitor_channel_id, snapshot_date, subscriber_count, view_count, video_count'
@@ -275,7 +278,10 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       url: v.is_short ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id,
       views: v.view_count, likes: v.like_count, comments: v.comment_count, pinned: v.pinned_at != null, checkedAt: ms(v.last_checked_at),
     }))
-    const nTracked = Math.min(vs.length, limit)
+    // M10a (V4): o vídeo em leitura mensal não é acompanhado e não gasta o limite do canal; a posição que vale é a entre os ativos
+    const ativosDatados = vs.filter(({ v }) => !estaCongelado(v))
+    const nTracked = Math.min(ativosDatados.length, limit)
+    const posAtivo = new Map(ativosDatados.map(({ v }, i) => [v.id, i] as const))
     const state = deriveSyncState({ ...c, tracked: nTracked }, now)
     let lastIdx: number | null = null
     vs.forEach(({ v, pub }, k) => {
@@ -283,13 +289,15 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
       // D13: only the video's OWN check counts (the sync writes it whenever YouTube returns a pinned video). The channel's
       // last good sync is not a check of this video: after the pin it means the video was asked for and did not come back.
       const pinnedAt = ms(v.pinned_at), ownCheck = ms(v.last_checked_at), chOk = ms(c.last_ok_synced_at)
+      const k2 = posAtivo.get(v.id)
+      const tracked = k2 != null && k2 < nTracked // com zero congelado, k2 === k
       const pinState = pinnedAt == null ? null
-        : k < nTracked || (ownCheck != null && ownCheck >= pinnedAt) ? 'ativo' as const
+        : tracked || (ownCheck != null && ownCheck >= pinnedAt) ? 'ativo' as const
           : chOk != null && chOk > pinnedAt ? 'sem-resposta' as const : 'aguardando-primeira' as const
       // the instant of a record is its real taken_at (any rate / elapsed-time math needs it: a read at 14:40 is not a
       // read at 12:00). The nominal 12:00 SP of the snap_date is only the day label and the fallback for a row without a
       // usable taken_at (missing, unparseable, or outside its own SP day).
-      const observed = k < nTracked || v.pinned_at != null // o mesmo que isObserved: acompanhado ou fixado
+      const observed = tracked || v.pinned_at != null // o mesmo que isObserved: acompanhado ou fixado
       const points: SeriesPoint[] = (dailyBy.get(v.id) ?? []).map(d => {
         const idx = dayIndex(d.snap_date), nominal = snap0 + idx * DAY
         return { idx, t: realReadAt(d, spDateStart(d.snap_date)) ?? nominal, views: Number(d.views) }
@@ -304,8 +312,8 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
         .map(s => ({ from: dayIndex(s.from_date), to: s.to_date ? dayIndex(s.to_date) : null, tier: s.tier }))
         .sort((a, b) => a.from - b.from)
       const realTitles: TitleVersion[] = (versionsBy.get(v.id + '|title') ?? []).map(r => ({ ...baseOf(r), text: r.value_text ?? '' }))
-      let titles = withLegacy<TitleVersion>(legacyBy.get(v.id + '|title') ?? [], realTitles, pub, now, l => ({ text: l.old_title ?? '' }), l => ({ text: l.new_title ?? '' }), (l, r) => r.text === (l.new_title ?? ''))
-      if (!titles.length) titles = [{ id: v.id + '/title', first_seen: pub, last_seen: now, current: true, prec: 'first', window: null, text: v.title ?? '' }]
+      let titles = withLegacy<TitleVersion>((estaNoArquivo(v) ? [] : (legacyBy.get(v.id + '|title') ?? [])), realTitles, pub, now, l => ({ text: l.old_title ?? '' }), l => ({ text: l.new_title ?? '' }), (l, r) => r.text === (l.new_title ?? ''))
+      if (!titles.length && !estaCongelado(v)) titles = [{ id: v.id + '/title', first_seen: pub, last_seen: now, current: true, prec: 'first', window: null, text: v.title ?? '' }]
       const thumbs: ThumbVersion[] = (versionsBy.get(v.id + '|thumb') ?? []).map(r => ({ ...baseOf(r), key: r.value_hash, art: null, blobUrl: r.thumb_blob_url }))
       const descRows = versionsBy.get(v.id + '|desc') ?? []
       // A text left out on purpose is only legal for a description that never changed (nothing reads it). With two
@@ -317,12 +325,16 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
         // omitted: the text exists in the database and was not loaded → hasText stays true, with no lines to read
         return { ...baseOf(r), lines: !hasText ? null : omitted ? [] : r.value_text!.split('\n'), hasText }
       })
-      const descs = withLegacy<DescVersion>(legacyBy.get(v.id + '|description') ?? [], realDescs, pub, now, () => ({ lines: null, hasText: false }), () => ({ lines: null, hasText: false }))
-      const title = v.title ?? titles[titles.length - 1]!.text
+      const descs = withLegacy<DescVersion>((estaNoArquivo(v) ? [] : (legacyBy.get(v.id + '|description') ?? [])), realDescs, pub, now, () => ({ lines: null, hasText: false }), () => ({ lines: null, hasText: false }))
+      const title = v.title ?? titles[titles.length - 1]?.text ?? ''
+      const marca = marcaDoArquivo(v), desde = marca ? ms(marca.desde) : null
+      // marca com data ilegível: nunca vídeo "ativo" calado (Yannis Y8)
+      if (marca && desde == null) throw new ObservatoryLoadError('competitor_videos', 'OBS_ARCHIVE_DATE', 'archive_frozen_at ilegível (vídeo ' + v.id + ')')
       videos.push({
         id: v.id, ch: c.id, niche: isNiche(c.niche) ? c.niche : null, fmt, isShort: v.is_short ?? null, pub, ageDays: ageOf(pub, now),
-        tracked: k < nTracked, pinned: v.pinned_at != null, checkedAt: ms(v.last_checked_at),
+        tracked, pinned: v.pinned_at != null, checkedAt: ms(v.last_checked_at),
         ...(pinState ? { pinState } : {}),
+        ...(marca && desde != null ? { arquivo: { estado: marca.estado, desde } } : {}),
         title, theme: themes.get(v.id) ?? null, formulas: formulasOf(title),
         url: fmt === 'short' ? 'https://www.youtube.com/shorts/' + v.video_id : 'https://www.youtube.com/watch?v=' + v.video_id, ytId: v.video_id, dur: v.duration_seconds,
         views: v.view_count, viewsAt: ms(v.last_checked_at) ?? ms(c.last_ok_synced_at) ?? now, likes: v.like_count, comments: v.comment_count,

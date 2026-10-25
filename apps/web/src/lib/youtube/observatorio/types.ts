@@ -35,6 +35,11 @@ export interface ObsVideo {
    * said about "now". A null last_checked_at is never 'ativo' there.
    */
   pinState?: 'aguardando-primeira' | 'sem-resposta' | 'ativo'
+  /**
+   * M10a (02 §10.8): só o vídeo antigo marcado (em leitura mensal ou já no arquivo) leva esta chave; `desde` é `archive_frozen_at` em ms.
+   * Ausente = vídeo ativo, exatamente como antes da M10a. As telas que leem a chave são da M10b; até lá nada a lê.
+   */
+  arquivo?: { estado: 'leitura_mensal' | 'no_arquivo'; desde: number }
   /** competitor_videos.last_checked_at as it is stored; null when it was never written. No fallback (unlike viewsAt): a screen may print it. */
   checkedAt?: number | null
   title: string; theme: string | null; formulas: string[]; url: string; ytId: string; dur: number | null
