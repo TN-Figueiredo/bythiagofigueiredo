@@ -5,8 +5,12 @@ import { Lock, Plus, Trash2, Sparkles, ImageIcon, Image as ImageLucide } from 'l
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { VChip, Badge } from './ab-primitives'
 import { VARIANT_COLORS } from './ab-constants'
-import { MSG_VARIANTES_V2, V_MAXIMO_V2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { MSG_VARIANTES_V2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { MAX_CHALLENGERS } from '@/lib/youtube/ab-wizard-reducer'
+import { ICONE_BUSY } from './etd-icone-busy'
+import { ICONE_ERRO } from './etd-icone-erro'
+import { ICONE_OK } from './etd-icone-aviso'
+import './ab-end-test-dialog.css'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -25,6 +29,8 @@ export interface VariantData {
   classification?: 'hero' | 'challenger' | 'safety'
   /** 'biblioteca': a imagem é uma URL da Biblioteca e precisa ser baixada e enviada no Ativar. */
   origem?: 'biblioteca'
+  /** Id da linha já gravada no banco (rascunho reaberto ou depois de gravar); D-M6-16. */
+  gravada?: string
 }
 
 export interface StepVariantesProps {
@@ -36,6 +42,8 @@ export interface StepVariantesProps {
   onRemoveVariant: (index: number) => void
   onPickFromLibrary?: (variantIndex: number) => void
   onPickFromPipeline?: (variantIndex: number) => void
+  /** Copia o briefing para a área de transferência (D-M6-6); ausente = o link não aparece. */
+  onPedirIdeias?: () => Promise<void>
 }
 
 /* ------------------------------------------------------------------ */
@@ -65,7 +73,7 @@ function fileToDataUrl(file: File, maxWidth = 640): Promise<string> {
 
 const VARIANT_ROLE_LABELS: Record<string, string> = {
   hero: 'Hero',
-  challenger: 'Challenger',
+  challenger: 'Desafiante',
   safety: 'Safety',
 }
 
@@ -117,7 +125,7 @@ function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={url}
-          alt={`Thumbnail for variant ${label}`}
+          alt={`Thumbnail da variante ${label}`}
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover"
         />
@@ -152,7 +160,7 @@ function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
           background: 'var(--cms-surface)',
         }}
       >
-        <span className="text-[10px] text-cms-text-dim">Sem thumb</span>
+        <span className="text-[12px] text-cms-text-dim">Sem thumbnail</span>
       </div>
     )
   }
@@ -170,7 +178,7 @@ function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
       }}
       role="button"
       tabIndex={0}
-      aria-label={`Upload thumbnail variante ${label}`}
+      aria-label={`Enviar thumbnail da variante ${label}`}
       onClick={handleClick}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleClick() }}
       onDrop={handleDrop}
@@ -192,13 +200,14 @@ function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
 /* ------------------------------------------------------------------ */
 
 function CharCounter({ length }: { length: number }) {
+  if (length < 80) return null
   const overLimit = length > TITLE_MAX
   return (
     <span
-      className={`text-[11px] font-mono tabular-nums text-right ${overLimit ? 'text-red-400 font-semibold' : ''}`}
+      className={`text-[12px] font-mono tabular-nums text-right ${overLimit ? 'text-red-400 font-semibold' : ''}`}
       style={overLimit ? undefined : { color: 'var(--cms-text-dim)' }}
     >
-      {length}/{TITLE_MAX}
+      {length}/{TITLE_MAX} caracteres
     </span>
   )
 }
@@ -284,7 +293,7 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
     ? 'Original'
     : variant.classification
       ? VARIANT_ROLE_LABELS[variant.classification] ?? 'Challenger'
-      : `Challenger`
+      : 'Desafiante'
 
   // Colored border for challengers (color at 0.267 opacity)
   const variantColor = VARIANT_COLORS[variant.label]
@@ -331,8 +340,8 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
           <button
             type="button"
             onClick={onRemove}
-            aria-label={`Remove variant ${variant.label}`}
-            className="ml-auto p-1 rounded text-cms-text-dim hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            aria-label={`Remover variante ${variant.label}`}
+            className="ml-auto inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-1 rounded text-cms-text-dim hover:text-red-400 hover:bg-red-500/10 transition-colors"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
@@ -406,23 +415,26 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
                       background: 'var(--cms-surface)',
                     }}
                   >
-                    {variant.titleText || 'No title'}
+                    {variant.titleText || 'Sem título'}
                   </div>
                   {type === 'thumbnail' && (
-                    <p style={{ fontSize: '10.5px', color: 'var(--cms-text-dim)', marginTop: 6, margin: '6px 0 0 0' }}>
-                      Titulo mantido — so a thumbnail esta sendo testada.
+                    <p style={{ fontSize: '12px', color: 'var(--cms-text-dim)', marginTop: 6, margin: '6px 0 0 0' }}>
+                      Título mantido: só a thumbnail está sendo testada.
                     </p>
                   )}
                 </>
               ) : (
                 <>
+                  <label htmlFor={titleId} className="block text-[12px] font-semibold text-cms-text-dim" style={{ marginBottom: 6 }}>
+                    Título da variante {variant.label}
+                  </label>
                   <input
                     id={titleId}
                     type="text"
                     value={variant.titleText}
                     onChange={e => onUpdate({ titleText: e.target.value })}
-                    placeholder={`Title for variant ${variant.label}...`}
-                    aria-label={`Title for variant ${variant.label}`}
+                    placeholder={`Título da variante ${variant.label}…`}
+                    aria-label={`Título da variante ${variant.label}`}
                     maxLength={100}
                     className="w-full transition-colors"
                     style={{
@@ -455,6 +467,55 @@ function VariantCard({ variant, index, type, onUpdate, onRemove, onPickFromLibra
 }
 
 /* ------------------------------------------------------------------ */
+/*  Pedir ideias a uma IA (D-M6-6): copia o briefing, sem diálogo        */
+/* ------------------------------------------------------------------ */
+
+type EstadoIdeias = 'idle' | 'copiando' | 'copiado' | 'erro'
+
+function PedirIdeias({ onPedirIdeias }: { onPedirIdeias: () => Promise<void> }) {
+  const [estado, setEstado] = useState<EstadoIdeias>('idle')
+  const ocupado = useRef(false)
+
+  const pedir = async () => {
+    if (ocupado.current) return
+    ocupado.current = true
+    setEstado('copiando')
+    try {
+      await onPedirIdeias()
+      setEstado('copiado')
+    } catch (e) {
+      console.warn(e)
+      setEstado('erro')
+    } finally {
+      ocupado.current = false
+    }
+  }
+
+  return (
+    <div className="etd-tok">
+      <button
+        type="button"
+        onClick={pedir}
+        className="inline-flex items-center gap-[6px] min-h-[44px] px-[8px] -ml-[8px] text-[13px] font-semibold text-cms-text underline underline-offset-[3px]"
+        style={{ background: 'none', border: 0, cursor: 'pointer' }}
+      >
+        <Sparkles size={14} aria-hidden="true" style={{ color: 'var(--cms-accent)' }} />
+        Pedir ideias a uma IA
+      </button>
+      {estado === 'copiando' ? (
+        <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Montando o briefing…</strong>Leva alguns segundos.</div></div>
+      ) : null}
+      {estado === 'copiado' ? (
+        <div className="etd-msg" role="status" style={{ borderColor: 'var(--etd-border)' }}>{ICONE_OK}<div><strong>Briefing copiado</strong>Cole numa IA, como o Claude, e traga as ideias para os campos abaixo.</div></div>
+      ) : null}
+      {estado === 'erro' ? (
+        <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Não foi possível copiar o briefing</strong>Tente de novo.</div></div>
+      ) : null}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  StepVariantes (main export)                                        */
 /* ------------------------------------------------------------------ */
 
@@ -467,26 +528,25 @@ export function StepVariantes({
   onRemoveVariant,
   onPickFromLibrary,
   onPickFromPipeline,
+  onPedirIdeias,
 }: StepVariantesProps) {
   const challengers = variants.filter(v => !v.isOriginal)
   const canAdd = challengers.length < MAX_CHALLENGERS
 
   return (
     <div>
-      {/* Section header — design: text + badge in row */}
-      <div className="flex items-center justify-between gap-2" style={{ marginBottom: 14 }}>
+      {/* Cabeçalho: texto, contador e link para pedir ideias */}
+      <div className="flex items-start justify-between gap-2" style={{ marginBottom: 14 }}>
         <div>
           <h3 className="text-sm font-semibold text-cms-text" style={{ margin: 0 }}>Variantes</h3>
-          <p style={{ fontSize: '13.5px', color: 'var(--cms-text-dim)', maxWidth: 520, marginTop: 2, margin: '2px 0 0 0' }}>
-            Monte ate {MAX_CHALLENGERS} desafiantes. A original (A) fica travada como referencia.
+          <p style={{ fontSize: '13.5px', color: 'var(--cms-text-dim)', maxWidth: 520, margin: '2px 0 0 0' }}>
+            Monte até {MAX_CHALLENGERS} desafiantes. A original (A) fica travada como referência.
           </p>
+          {onPedirIdeias ? <PedirIdeias onPedirIdeias={onPedirIdeias} /> : null}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] text-cms-text-dim font-mono tabular-nums">
-            {challengers.length}/{MAX_CHALLENGERS} desafiantes
-          </span>
-          <Badge tone="neutral">MAX. {V_MAXIMO_V2} VARIANTES</Badge>
-        </div>
+        <span className="text-[12px] text-cms-text-dim font-mono tabular-nums shrink-0">
+          {challengers.length} de {MAX_CHALLENGERS} desafiantes
+        </span>
       </div>
 
       {/* Variant cards */}
@@ -542,7 +602,7 @@ export function StepVariantes({
             marginTop: 12,
           }}
         >
-          <p style={{ fontSize: 10, color: '#f59e0b', margin: 0 }}>
+          <p style={{ fontSize: 12, color: '#f59e0b', margin: 0 }}>
             Adicione pelo menos uma variante desafiante para continuar.
           </p>
         </div>

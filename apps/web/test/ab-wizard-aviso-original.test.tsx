@@ -10,7 +10,6 @@ vi.mock('../src/app/cms/(authed)/youtube/ab-lab/actions', () => ({
 }))
 
 import { AbCreateWizard } from '../src/app/cms/(authed)/youtube/ab-lab/_components/ab-create-wizard'
-import { initWizardConfig } from '../src/lib/youtube/ab-wizard-adapter'
 
 const settings = {} as never
 const video = { id: 'vid-1', title: 'Meu vídeo', thumbnailUrl: null, sourcePipelineId: null }
@@ -55,23 +54,23 @@ describe('passo Revisar: aviso da original (D12)', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Não consegui conferir'))
     expect((screen.getByRole('button', { name: /Ativar teste/ }) as HTMLButtonElement).disabled).toBe(false)
   })
-  it('C3: abre direto em Variantes (passo 2) e já lê a original', async () => {
-    // step inicial = prefillType || existingDraftId ? 2 : 0 quando não é continuingDraft (sem draftVariants > 1); localStorage limpo.
+  it('C3: abre direto em Variantes e já lê a original', async () => {
+    // step inicial = prefillType || existingDraftId ? 'variantes' : 'tipo' quando não é continuingDraft (sem draftVariants > 1); localStorage limpo.
     ler.mockResolvedValue({ ok: true, dimensions: '1280x720', medida: true })
     render(<AbCreateWizard video={video} siteId="s" settings={settings}
       onClose={vi.fn()} onCreated={vi.fn()} iniciarTeste={start} prefill={{ testType: 'thumbnail' } as never} existingDraftId="d2" />)
     await waitFor(() => expect(ler).toHaveBeenCalledWith('d2'))
     expect(ler).toHaveBeenCalledTimes(1)
   })
-  it('C3b: no passo 1 a leitura não começa', async () => {
-    // mesmo formato do rascunho local de ab-wizard-variante-vazia: chave `ab-wizard-draft-<videoId>`
-    localStorage.setItem('ab-wizard-draft-vid-1', JSON.stringify({
-      step: 1, type: 'thumbnail',
+  it('C3b: no passo Tipo a leitura não começa', async () => {
+    // mesmo formato do rascunho local v2 de ab-wizard-variante-vazia: chave `ab-wizard-draft-v2-<videoId>`
+    localStorage.setItem('ab-wizard-draft-v2-vid-1', JSON.stringify({
+      step: 'tipo', type: 'thumbnail',
       variants: [
         { label: 'A', isOriginal: true, thumbUrl: null, titleText: 'Meu vídeo' },
         { label: 'B', isOriginal: false, thumbUrl: null, titleText: '' },
       ],
-      config: initWizardConfig(settings), hypothesis: '', savedAt: Date.now(),
+      draftTestId: null, savedAt: Date.now(),
     }))
     render(<AbCreateWizard video={video} siteId="s" settings={settings}
       onClose={vi.fn()} onCreated={vi.fn()} iniciarTeste={start} prefill={{} as never} existingDraftId="d2" />)

@@ -8,8 +8,6 @@ export type LerDimensoesDaOriginal = (
 ) => Promise<{ ok: true; dimensions: string | null; medida: boolean } | { ok: false }>
 
 export const TEMPO_LIMITE_LEITURA_MS = 8000   // limite do esqueleto, não teto de custo (r6: não decide com perda)
-/** Trilho: Tipo 0, Ideias 1, Variantes 2, Config 3, Revisar 4. A linha is_original já existe ao escolher o tipo. */
-export const LEITURA_A_PARTIR_DO_PASSO = 2
 
 /**
  * D12: lê a original guardada do rascunho e devolve o aviso. Só leitura, nunca bloqueia.

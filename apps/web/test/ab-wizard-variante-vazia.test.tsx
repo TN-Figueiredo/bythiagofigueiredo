@@ -9,7 +9,6 @@ vi.mock('../src/app/cms/(authed)/youtube/ab-lab/actions', () => ({
 }))
 
 import { AbCreateWizard } from '../src/app/cms/(authed)/youtube/ab-lab/_components/ab-create-wizard'
-import { initWizardConfig } from '../src/lib/youtube/ab-wizard-adapter'
 
 const settings = {} as never
 const video = { id: 'vid-1', title: 'Meu vídeo', thumbnailUrl: null, sourcePipelineId: null }
@@ -34,26 +33,26 @@ describe('variante B nasce vazia (T3)', () => {
   })
 
   it('rascunho local de outro tipo para o mesmo vídeo não preenche a variante B (Yannis I2; avisar a sessão do A/B)', () => {
-    localStorage.setItem('ab-wizard-draft-vid-1', JSON.stringify({
-      step: 2, type: 'title',
+    localStorage.setItem('ab-wizard-draft-v2-vid-1', JSON.stringify({
+      step: 'variantes', type: 'title',
       variants: [
         { label: 'A', isOriginal: true, thumbUrl: null, titleText: 'Meu vídeo' },
         { label: 'B', isOriginal: false, thumbUrl: null, titleText: 'Texto antigo' },
       ],
-      config: initWizardConfig(settings), hypothesis: '', savedAt: Date.now(),
+      draftTestId: null, savedAt: Date.now(),
     }))
     montar('thumbnail')
     expect((screen.getByRole('button', { name: /Próximo/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('rascunho local do MESMO tipo continua restaurado', () => {
-    localStorage.setItem('ab-wizard-draft-vid-1', JSON.stringify({
-      step: 2, type: 'title',
+    localStorage.setItem('ab-wizard-draft-v2-vid-1', JSON.stringify({
+      step: 'variantes', type: 'title',
       variants: [
         { label: 'A', isOriginal: true, thumbUrl: null, titleText: 'Meu vídeo' },
         { label: 'B', isOriginal: false, thumbUrl: null, titleText: 'Texto antigo' },
       ],
-      config: initWizardConfig(settings), hypothesis: '', savedAt: Date.now(),
+      draftTestId: null, savedAt: Date.now(),
     }))
     montar('title')
     expect((screen.getByRole('button', { name: /Próximo/ }) as HTMLButtonElement).disabled).toBe(false)

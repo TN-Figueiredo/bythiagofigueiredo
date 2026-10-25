@@ -1,13 +1,12 @@
 /**
  * Comprehensive AB Lab wizard tests — state machine, step validation,
- * adapter functions, StepTipo component, and StepConfig component.
+ * adapter functions and StepTipo component.
  *
  * Consolidates and extends coverage for the five key areas:
  * 1. Wizard reducer (state machine actions)
  * 2. stepIsValid (per-step validation)
  * 3. WizardConfig adapter (initWizardConfig / wizardConfigToAbConfig)
  * 4. StepTipo component (type selection radiogroup)
- * 5. StepConfig component (config rows, sliders, toggles, estimate)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -31,7 +30,6 @@ import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import type { TestType } from '@/lib/youtube/ab-types'
 
 import { StepTipo } from '@/app/cms/(authed)/youtube/ab-lab/_components/step-tipo'
-import { StepConfig } from '@/app/cms/(authed)/youtube/ab-lab/_components/step-config'
 
 /* ------------------------------------------------------------------ */
 /*  Mock lucide-react icons used across step components                 */
@@ -838,131 +836,6 @@ describe('StepTipo component', () => {
     fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'Tab' })
     fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'Escape' })
     expect(onSelect).not.toHaveBeenCalled()
-  })
-})
-
-/* ================================================================== */
-/*  5. StepConfig COMPONENT                                            */
-/* ================================================================== */
-
-describe('StepConfig component', () => {
-  const defaultConfig: WizardConfig = {
-    confidence: 95,
-    duration: 14,
-    burnIn: 1,
-    rotation: 'abba' as const,
-    durationTouched: true,
-  }
-
-  function renderConfig(overrides?: Partial<WizardConfig>) {
-    const config = { ...defaultConfig, ...overrides }
-    const onChange = vi.fn()
-    const result = render(<StepConfig config={config} onChange={onChange} />)
-    return { config, onChange, ...result }
-  }
-
-  /* --- Config rows render ---------------------------------------- */
-
-  describe('config rows', () => {
-    it('renders the 3 Portuguese config labels', () => {
-      renderConfig()
-      expect(screen.getByText('Duração máxima')).toBeDefined()
-      expect(screen.getByText('Burn-in')).toBeDefined()
-      expect(screen.getByText('Padrão de rotação')).toBeDefined()
-    })
-
-    it('renders hint text for each config row', () => {
-      renderConfig()
-      expect(screen.getByText(/Fixa pela regra nova/)).toBeDefined()
-      expect(screen.getByTestId('duracao-fixa').textContent).toBe('Duração: 15 dias; mínimo 12')
-      expect(screen.getByText(/Período inicial/)).toBeDefined()
-      expect(screen.getByText(/usa só a rotação ABBA/)).toBeDefined()
-    })
-  })
-
-  /* --- Slider bounds --------------------------------------------- */
-
-  describe('slider bounds', () => {
-    it('sem slider de duração: só o burn-in (a duração é texto fixo)', () => {
-      renderConfig()
-      expect(screen.getAllByRole('slider')).toHaveLength(1)
-    })
-
-    it('burn-in slider: min=0 max=3', () => {
-      renderConfig()
-      const sliders = screen.getAllByRole('slider')
-      expect(sliders[0]!.getAttribute('min')).toBe('0')
-      expect(sliders[0]!.getAttribute('max')).toBe('3')
-    })
-
-    it('all sliders have step=1', () => {
-      renderConfig()
-      const sliders = screen.getAllByRole('slider')
-      for (const slider of sliders) {
-        expect(slider.getAttribute('step')).toBe('1')
-      }
-    })
-  })
-
-  /* --- Toggle states --------------------------------------------- */
-
-  describe('toggle states', () => {
-    it('não renderiza nenhum switch (aplicar vencedor e playoff saíram)', () => {
-      renderConfig()
-      expect(screen.queryAllByRole('switch')).toHaveLength(0)
-    })
-  })
-
-  /* --- Rotation segmented control -------------------------------- */
-
-  describe('rotation segmented control', () => {
-    it('rotação travada em ABBA: uma opção no radiogroup', () => {
-      renderConfig()
-      const radiogroup = screen.getByRole('radiogroup', { name: 'Padrão de rotação' })
-      expect(radiogroup).toBeDefined()
-      const radios = radiogroup.querySelectorAll('[role="radio"]')
-      expect(radios).toHaveLength(1)
-    })
-
-    it('mostra só ABBA', () => {
-      renderConfig()
-      expect(screen.getByText('ABBA')).toBeDefined()
-      expect(screen.queryByText('Sequencial')).toBeNull()
-    })
-  })
-
-  /* --- Estimate card --------------------------------------------- */
-
-  describe('estimate card', () => {
-    it('shows title "Estimativa"', () => {
-      renderConfig()
-      expect(screen.getByText('Estimativa')).toBeDefined()
-    })
-
-    it('shows subtitle with estimate description', () => {
-      renderConfig()
-      expect(screen.getByText(/Estimativa baseada na configuração/)).toBeDefined()
-    })
-
-    it('shows stat labels: Tempo estimado, Ciclos ABBA', () => {
-      renderConfig()
-      expect(screen.getByText('Tempo estimado')).toBeDefined()
-      expect(screen.getByText('Ciclos ABBA')).toBeDefined()
-    })
-
-    it('a estimativa é o teto padrão (15 dias, 16 ciclos com 2 variantes), venha o que vier em duration/confidence', () => {
-      for (const o of [{ duration: 14, confidence: 95 }, { duration: 28, confidence: 99 }, { duration: 7, confidence: 80 }]) {
-        const { unmount } = renderConfig(o)
-        expect(screen.getByText('~15 dias')).toBeDefined()
-        expect(screen.getByText('16')).toBeDefined()
-        unmount()
-      }
-    })
-
-    it('rodapé não fala de gates', () => {
-      renderConfig()
-      expect(screen.queryByText(/gates/i)).toBeNull()
-    })
   })
 })
 

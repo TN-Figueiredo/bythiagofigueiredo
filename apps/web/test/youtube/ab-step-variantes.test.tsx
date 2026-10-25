@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { StepVariantes } from '@/app/cms/(authed)/youtube/ab-lab/_components/step-variantes'
 import type { VariantData, StepVariantesProps } from '@/app/cms/(authed)/youtube/ab-lab/_components/step-variantes'
 
@@ -66,13 +66,13 @@ describe('StepVariantes', () => {
 
   it('non-original variants have remove button', () => {
     render(<StepVariantes {...defaultProps()} />)
-    expect(screen.getByLabelText('Remove variant B')).toBeDefined()
+    expect(screen.getByLabelText('Remover variante B')).toBeDefined()
   })
 
   it('clicking remove calls onRemoveVariant with correct index', () => {
     const onRemove = vi.fn()
     render(<StepVariantes {...defaultProps({ onRemoveVariant: onRemove })} />)
-    fireEvent.click(screen.getByLabelText('Remove variant B'))
+    fireEvent.click(screen.getByLabelText('Remover variante B'))
     expect(onRemove).toHaveBeenCalledOnce()
     expect(onRemove).toHaveBeenCalledWith(1) // index 1 (A=0, B=1)
   })
@@ -90,9 +90,9 @@ describe('StepVariantes', () => {
     expect(screen.queryByText('Adicionar variante')).toBeNull()
   })
 
-  it('shows "0/2 desafiantes" counter', () => {
+  it('shows "0 de 2 desafiantes" counter', () => {
     render(<StepVariantes {...defaultProps({ variants: [makeOriginal()] })} />)
-    expect(screen.getByText('0/2 desafiantes')).toBeDefined()
+    expect(screen.getByText('0 de 2 desafiantes')).toBeDefined()
   })
 
   it('warning message when no challengers', () => {
@@ -103,7 +103,7 @@ describe('StepVariantes', () => {
   it('title input fires onUpdateVariant for title type', () => {
     const onUpdate = vi.fn()
     render(<StepVariantes {...defaultProps({ type: 'title', onUpdateVariant: onUpdate })} />)
-    const input = screen.getByLabelText('Title for variant B')
+    const input = screen.getByLabelText('Título da variante B')
     fireEvent.change(input, { target: { value: 'New title' } })
     expect(onUpdate).toHaveBeenCalledOnce()
     expect(onUpdate).toHaveBeenCalledWith(1, { titleText: 'New title' })
@@ -112,14 +112,17 @@ describe('StepVariantes', () => {
   it('character counter shows count out of 100', () => {
     const variants = [makeOriginal(), makeChallenger('B', { titleText: 'Hello' })]
     render(<StepVariantes {...defaultProps({ type: 'title', variants })} />)
-    expect(screen.getByText('5/100')).toBeDefined()
+    expect(screen.queryByText(/\/100 caracteres/)).toBeNull()
+    cleanup()
+    render(<StepVariantes {...defaultProps({ type: 'title', variants: [makeOriginal(), makeChallenger('B', { titleText: 'a'.repeat(86) })] })} />)
+    expect(screen.getByText('86/100 caracteres')).toBeDefined()
   })
 
   it('counter turns red at 101+ characters', () => {
     const longTitle = 'a'.repeat(101)
     const variants = [makeOriginal(), makeChallenger('B', { titleText: longTitle })]
     const { container } = render(<StepVariantes {...defaultProps({ type: 'title', variants })} />)
-    const counter = screen.getByText('101/100')
+    const counter = screen.getByText('101/100 caracteres')
     expect(counter.className).toContain('text-red-400')
     expect(counter.className).toContain('font-semibold')
   })
@@ -133,7 +136,7 @@ describe('StepVariantes', () => {
   it('hides thumbnail slot for "title" type', () => {
     render(<StepVariantes {...defaultProps({ type: 'title' })} />)
     expect(screen.queryByText('Arraste ou clique para enviar')).toBeNull()
-    expect(screen.queryByText('Sem thumb')).toBeNull()
+    expect(screen.queryByText('Sem thumbnail')).toBeNull()
   })
 
   it.each(['combo', 'title', 'thumbnail'] as const)('em %s: nenhum campo de descrição nem o acordeão "Avançado"', (type) => {
@@ -145,16 +148,16 @@ describe('StepVariantes', () => {
 
   it('combo mostra o campo de título', () => {
     render(<StepVariantes {...defaultProps({ type: 'combo' })} />)
-    expect(screen.getByLabelText('Title for variant B')).toBeDefined()
+    expect(screen.getByLabelText('Título da variante B')).toBeDefined()
   })
 
-  it('"Titulo mantido" aparece só no tipo thumbnail', () => {
+  it('"Título mantido" aparece só no tipo thumbnail', () => {
     const { unmount } = render(<StepVariantes {...defaultProps({ type: 'thumbnail' })} />)
-    expect(screen.getByText(/Titulo mantido/)).toBeDefined()
+    expect(screen.getByText(/Título mantido/)).toBeDefined()
     unmount()
     for (const type of ['title', 'combo'] as const) {
       const r = render(<StepVariantes {...defaultProps({ type })} />)
-      expect(screen.queryByText(/Titulo mantido/)).toBeNull()
+      expect(screen.queryByText(/Título mantido/)).toBeNull()
       r.unmount()
     }
   })

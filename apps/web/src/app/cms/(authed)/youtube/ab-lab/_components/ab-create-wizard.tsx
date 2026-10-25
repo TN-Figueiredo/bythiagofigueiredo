@@ -3,10 +3,9 @@
 import { useState, useReducer, useEffect, useTransition, useCallback, useRef } from 'react'
 import { Play, X, ArrowRight } from 'lucide-react'
 import { StepTipo } from './step-tipo'
-import { StepIdeias } from './step-ideias'
 import { StepVariantes } from './step-variantes'
 import type { VariantData } from './step-variantes'
-import { StepConfig } from './step-config'
+import { PASSOS, ROTULO_DO_PASSO, ehPasso, indiceDoPasso, proximoPasso, passoAnterior, type Passo } from './wizard-passos'
 import { StepRevisar } from './step-revisar'
 import { LibraryPickerDialog } from './library-picker-dialog'
 import { duracaoDoVideo, dataDePublicacao } from '@/lib/youtube/ab-linha-video'
@@ -23,7 +22,7 @@ import {
   lerDimensoesDaOriginal,
 } from '../actions'
 import { useAvisoVolume, type LerAvisoDeVolume } from './use-aviso-volume'
-import { useAvisoOriginal, LEITURA_A_PARTIR_DO_PASSO } from './use-aviso-original'
+import { useAvisoOriginal } from './use-aviso-original'
 import { MAX_CHALLENGERS } from '@/lib/youtube/ab-wizard-reducer'
 import { TestTypeSchema } from '@/lib/youtube/ab-schemas'
 import { buildAbBriefingPrompt } from '@/lib/youtube/prompt-builders-ab'
@@ -92,7 +91,7 @@ interface Props {
 /* ------------------------------------------------------------------ */
 
 interface WizardState {
-  step: number // 0=tipo, 1=ideias, 2=variantes, 3=config, 4=revisar
+  step: Passo
   type: TestType | null
   variants: VariantData[]
   config: WizardConfig
@@ -102,21 +101,18 @@ interface WizardState {
   draftTestId: string | null
   isLaunching: boolean
   error: string | null
-  hypothesis: string
 }
 
 type WizardAction =
-  | { type: 'SET_STEP'; step: number }
+  | { type: 'SET_STEP'; step: Passo }
   | { type: 'SET_TYPE'; testType: TestType }
   | { type: 'SET_VARIANTS'; variants: VariantData[] }
   | { type: 'UPDATE_VARIANT'; index: number; data: Partial<VariantData> }
   | { type: 'ADD_VARIANT' }
   | { type: 'REMOVE_VARIANT'; index: number }
-  | { type: 'UPDATE_CONFIG'; key: keyof WizardConfig; value: WizardConfig[keyof WizardConfig] }
   | { type: 'SET_DRAFT_ID'; id: string }
   | { type: 'SET_LAUNCHING'; isLaunching: boolean }
   | { type: 'SET_ERROR'; error: string | null }
-  | { type: 'SET_HYPOTHESIS'; text: string }
 
 const TIPOS_DA_BIBLIOTECA = ['image/jpeg', 'image/png']
 const LIMITE_DA_BIBLIOTECA_BYTES = 2 * 1024 * 1024
@@ -124,16 +120,23 @@ const FRASE_BIBLIOTECA_INVALIDA = 'Esta imagem da Biblioteca não pode ser usada
 
 const NEXT_LABELS: DisplayLabel[] = ['B', 'C', 'D']
 
+/** Chave do rascunho local v2 (D-M6-3): passos por nome, sem `hypothesis` nem `config`. */
 function draftStorageKey(videoId: string): string {
+  return `ab-wizard-draft-v2-${videoId}`
+}
+
+/** Chave do rascunho local dos 5 passos; só lida uma vez, para migrar. */
+function chaveAntiga(videoId: string): string {
   return `ab-wizard-draft-${videoId}`
 }
 
+const VALIDADE_DO_RASCUNHO_MS = 7 * 24 * 60 * 60 * 1000
+
 interface PersistedDraft {
-  step: number
+  step: Passo
   type: TestType | null
   variants: Array<Omit<VariantData, 'thumbFile'> & { thumbFile?: null }>
-  config: WizardConfig
-  hypothesis: string
+  draftTestId: string | null
   savedAt: number
 }
 
@@ -147,29 +150,62 @@ function saveDraft(videoId: string, state: WizardState): void {
         thumbFile: null,
         thumbUrl: v.thumbDataUrl ?? (v.thumbUrl?.startsWith('blob:') ? null : v.thumbUrl),
       })),
-      config: state.config,
-      hypothesis: state.hypothesis,
+      draftTestId: state.draftTestId,
       savedAt: Date.now(),
     }
     localStorage.setItem(draftStorageKey(videoId), JSON.stringify(draft))
   } catch { /* quota exceeded — ignore */ }
 }
 
+function ehObjeto(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null && !Array.isArray(x)
+}
+
+function variantesDoRascunho(x: unknown): PersistedDraft['variants'] | null {
+  if (!Array.isArray(x)) return null
+  return x.every(ehObjeto) ? (x as PersistedDraft['variants']) : null
+}
+
+/** Passo antigo (0=tipo, 1=ideias, 2=variantes, 3=config, 4=revisar) → passo novo; 3 e 4 voltam a Variantes para revalidar. */
+function passoDoRascunhoAntigo(n: unknown): Passo | null {
+  if (typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n > 4) return null
+  return n === 0 ? 'tipo' : 'variantes'
+}
+
+/** Lê o rascunho local uma única vez. A v2 vence; sem ela, migra a chave antiga (descarta `hypothesis` e `config`). */
 function loadDraft(videoId: string): PersistedDraft | null {
+  const agora = Date.now()
   try {
     const raw = localStorage.getItem(draftStorageKey(videoId))
-    if (!raw) return null
-    const draft = JSON.parse(raw) as PersistedDraft
-    if (Date.now() - draft.savedAt > 7 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(draftStorageKey(videoId))
-      return null
+    if (raw !== null) {
+      const d: unknown = JSON.parse(raw)
+      const variants = ehObjeto(d) ? variantesDoRascunho(d.variants) : null
+      if (!ehObjeto(d) || !ehPasso(d.step) || !variants || typeof d.savedAt !== 'number' || agora - d.savedAt > VALIDADE_DO_RASCUNHO_MS) {
+        localStorage.removeItem(draftStorageKey(videoId))
+        return null
+      }
+      return {
+        step: d.step,
+        type: (d.type as TestType | null) ?? null,
+        variants,
+        draftTestId: typeof d.draftTestId === 'string' ? d.draftTestId : null,
+        savedAt: d.savedAt,
+      }
     }
-    return draft
+  } catch { return null }
+  try {
+    const rawAntigo = localStorage.getItem(chaveAntiga(videoId))
+    if (rawAntigo === null) return null
+    const d: unknown = JSON.parse(rawAntigo)
+    const passo = ehObjeto(d) ? passoDoRascunhoAntigo(d.step) : null
+    const variants = ehObjeto(d) ? variantesDoRascunho(d.variants) : null
+    if (!ehObjeto(d) || !passo || !variants || typeof d.savedAt !== 'number' || agora - d.savedAt > VALIDADE_DO_RASCUNHO_MS) return null
+    return { step: passo, type: (d.type as TestType | null) ?? null, variants, draftTestId: null, savedAt: d.savedAt }
   } catch { return null }
 }
 
 function clearDraft(videoId: string): void {
-  try { localStorage.removeItem(draftStorageKey(videoId)) } catch { /* ignore */ }
+  try { localStorage.removeItem(draftStorageKey(videoId)); localStorage.removeItem(chaveAntiga(videoId)) } catch { /* ignore */ }
 }
 
 /** Tipo restaurado de rascunho (localStorage ou banco): só vale se for um dos três atuais; o antigo ('description') vira null. */
@@ -235,9 +271,6 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, variants: relabeled }
     }
 
-    case 'UPDATE_CONFIG':
-      return { ...state, config: { ...state.config, [action.key]: action.value, ...(action.key === 'duration' ? { durationTouched: true } : {}) } }
-
     case 'SET_DRAFT_ID':
       return { ...state, draftTestId: action.id }
 
@@ -246,9 +279,6 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 
     case 'SET_ERROR':
       return { ...state, error: action.error }
-
-    case 'SET_HYPOTHESIS':
-      return { ...state, hypothesis: action.text }
 
     default:
       return state
@@ -259,18 +289,19 @@ function wizardReducer(state: WizardState, action: WizardAction): WizardState {
 /*  Step rail config                                                   */
 /* ------------------------------------------------------------------ */
 
-const STEP_LABELS = ['Tipo', 'Ideias', 'Variantes', 'Config', 'Revisar'] as const
-
-const VISIBLE_STEPS = STEP_LABELS
-  .map((label, i) => ({ label, stepIndex: i }))
-
-function stepIsValid(step: number, state: WizardState): boolean {
+function stepIsValid(step: Passo, state: WizardState): boolean {
   switch (step) {
-    case 0: return state.type !== null
-    case 1: return true // always valid — step is optional
-    case 2: return state.variants.some(v => !v.isOriginal && (v.titleText.trim() || v.thumbUrl))
-    case 3: return true // has defaults
-    case 4: return true
+    case 'tipo': return state.type !== null
+    case 'variantes': {
+      // Exige o que o tipo muda: título, imagem, ou os dois no combo (D-M6-11).
+      const tipo = state.type
+      return state.variants.some(v =>
+        !v.isOriginal
+        && (tipo === 'thumbnail' || Boolean(v.titleText.trim()))
+        && (tipo === 'title' || Boolean(v.thumbUrl)),
+      )
+    }
+    case 'revisar': return true
     default: return false
   }
 }
@@ -279,10 +310,11 @@ function stepIsValid(step: number, state: WizardState): boolean {
 /*  AbCreateWizard                                                     */
 /* ------------------------------------------------------------------ */
 
-export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, iniciarTeste, avisoDeVolume, prefill, existingDraftId, referencia, referenciaDados }: Props) {
+/** Estado inicial, calculado uma vez por montagem (lê o `localStorage` uma vez, não a cada render). */
+function estadoInicial({ video, settings, prefill, existingDraftId }: Pick<Props, 'video' | 'settings' | 'prefill' | 'existingDraftId'>): WizardState {
   const continuingDraft = Boolean(existingDraftId && prefill?.draftVariants && prefill.draftVariants.length > 1)
 
-  // When continuing a DB draft, ignore stale localStorage
+  // Ao continuar um rascunho do banco, o rascunho local velho é ignorado
   if (continuingDraft) clearDraft(video.id)
   const draftLocal = continuingDraft ? null : loadDraft(video.id)
 
@@ -312,19 +344,30 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
     thumbFile: null,
   })) as VariantData[] | undefined
 
-  const [state, rawDispatch] = useReducer(wizardReducer, {
-    step: continuingDraft && !tipoInvalido ? 4 : tipoInvalido ? 0 : (saved?.step ?? (prefillType || existingDraftId ? 2 : 0)),
-    type: prefillType ?? savedType,
+  const type = prefillType ?? savedType
+  const passoPedido: Passo = continuingDraft && !tipoInvalido ? 'revisar' : tipoInvalido ? 'tipo' : (saved?.step ?? (prefillType || existingDraftId ? 'variantes' : 'tipo'))
+  return {
+    // Sem tipo não há o que mostrar depois do passo Tipo
+    step: type === null ? 'tipo' : passoPedido,
+    type,
     variants: continuingDraft ? (dbVariants ?? defaultVariants) : (restoredVariants ?? dbVariants ?? defaultVariants),
-    config: saved?.config ?? initWizardConfig(settings),
+    config: initWizardConfig(settings),
     videoId: video.id,
     videoTitle: video.title,
     originalThumbUrl: video.thumbnailUrl,
-    draftTestId: existingDraftId ?? null,
+    draftTestId: existingDraftId ?? saved?.draftTestId ?? null,
     isLaunching: false,
     error: null,
-    hypothesis: saved?.hypothesis ?? '',
-  })
+  }
+}
+
+export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, iniciarTeste, avisoDeVolume, prefill, existingDraftId, referencia, referenciaDados }: Props) {
+  const [state, rawDispatch] = useReducer(wizardReducer, { video, settings, prefill, existingDraftId }, estadoInicial)
+
+  // A chave dos 5 passos só é lida na montagem (para migrar); depois sai do armazenamento.
+  useEffect(() => {
+    try { localStorage.removeItem(chaveAntiga(video.id)) } catch { /* ignore */ }
+  }, [video.id])
 
   const draftCleared = useRef(false)
   const dispatch = useCallback((action: WizardAction) => { rawDispatch(action) }, [])
@@ -355,9 +398,9 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
     if (i >= 0) void abrirBiblioteca(i)
   }
   // D12: aviso de original baixa; só leitura, não valida passo nem envia
-  const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step >= LEITURA_A_PARTIR_DO_PASSO && !state.isLaunching)
+  const avisoOriginal = useAvisoOriginal(lerDimensoesDaOriginal, state.draftTestId, state.type ?? '', dialogoMontado && state.step !== 'tipo' && !state.isLaunching)
 
-  const avisoVolume = useAvisoVolume(avisoDeVolume, state.draftTestId, dialogoMontado && state.step === 4 && !state.isLaunching, state.variants.length)
+  const avisoVolume = useAvisoVolume(avisoDeVolume, state.draftTestId, dialogoMontado && state.step === 'revisar' && !state.isLaunching, state.variants.length)
 
   // --- Escape key ---
   useEffect(() => {
@@ -398,7 +441,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
           dispatch({ type: 'SET_ERROR', error: res.error ?? 'Failed to update test type' })
           return
         }
-        dispatch({ type: 'SET_STEP', step: 1 })
+        dispatch({ type: 'SET_STEP', step: 'variantes' })
         return
       }
 
@@ -413,7 +456,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
 
       if (result.ok && result.id) {
         dispatch({ type: 'SET_DRAFT_ID', id: result.id })
-        dispatch({ type: 'SET_STEP', step: 1 })
+        dispatch({ type: 'SET_STEP', step: 'variantes' })
       } else if (result.error?.includes('already exists')) {
         dispatch({ type: 'SET_ERROR', error: 'A draft already exists for this video. Close and reopen to continue.' })
       } else {
@@ -430,10 +473,9 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
     const prompt = buildAbBriefingPrompt({
       testType: state.type,
       data: result.data,
-      focus: state.hypothesis.trim() || undefined,
     })
     await navigator.clipboard.writeText(prompt)
-  }, [video.id, state.type, state.draftTestId, state.hypothesis])
+  }, [video.id, state.type, state.draftTestId])
 
   // Recusa do servidor ao iniciar: as duas frases do mockup (D-7) no lugar do texto cru; outro erro segue como estava.
   const falhouAoIniciar = useCallback((res: ResultadoIniciar) => {
@@ -604,31 +646,23 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
   // --- Step navigation helpers ---
   const canAdvance = stepIsValid(state.step, state)
   const goBack = () => {
-    editar({ type: 'SET_STEP', step: Math.max(0, state.step - 1) })
+    editar({ type: 'SET_STEP', step: passoAnterior(state.step) })
   }
   const goNext = () => {
-    editar({ type: 'SET_STEP', step: Math.min(4, state.step + 1) })
+    editar({ type: 'SET_STEP', step: proximoPasso(state.step) })
   }
 
   // --- Render current step ---
   function renderStep() {
     switch (state.step) {
-      case 0:
+      case 'tipo':
         return (
           <StepTipo
             selected={state.type}
             onSelect={handleTypeSelect}
           />
         )
-      case 1:
-        return (
-          <StepIdeias
-            hypothesis={state.hypothesis}
-            onHypothesisChange={text => dispatch({ type: 'SET_HYPOTHESIS', text })}
-            onCoworkClick={handleCoworkClick}
-          />
-        )
-      case 2:
+      case 'variantes':
         return (
           <>
           {referencia}
@@ -640,25 +674,18 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
             onAddVariant={() => editar({ type: 'ADD_VARIANT' })}
             onRemoveVariant={i => editar({ type: 'REMOVE_VARIANT', index: i })}
             onPickFromLibrary={abrirBiblioteca}
+            onPedirIdeias={handleCoworkClick}
           />
           </>
         )
-      case 3:
-        return (
-          <StepConfig
-            config={state.config}
-            variantCount={state.variants.length}
-            onChange={(k, v) => editar({ type: 'UPDATE_CONFIG', key: k, value: v })}
-          />
-        )
-      case 4:
+      case 'revisar':
         return (
           <StepRevisar
             type={state.type!}
             variants={state.variants.map(v => ({
               label: v.label,
               thumbUrl: v.thumbUrl,
-              title: v.titleText || 'Untitled',
+              title: v.titleText || 'Sem título',
               isOriginal: v.isOriginal,
             }))}
             config={state.config}
@@ -673,7 +700,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
           />
         )
       default:
-        return <div className="py-12 text-center text-cms-text-dim">Step {state.step}</div>
+        return null
     }
   }
 
@@ -717,7 +744,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
 
         {/* Body */}
         <div key={state.step} className="flex-1 overflow-y-auto p-[24px]" style={{ animation: 'fadeIn 150ms ease-out' }}>
-          {isPending && state.step === 0 && (
+          {isPending && state.step === 'tipo' && (
             <div className="absolute inset-0 flex items-center justify-center bg-cms-surface/80 rounded-lg z-10">
               <p className="text-xs text-cms-text-dim animate-pulse">Criando rascunho...</p>
             </div>
@@ -741,14 +768,12 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
               </span>
             ) : state.error ? (
               <span className="text-red-400">{state.error}</span>
-            ) : state.step === 1 ? (
-              'A IA é opcional — pode pular'
             ) : (
-              `Passo ${state.step + 1} de 5`
+              `Passo ${indiceDoPasso(state.step) + 1} de ${PASSOS.length}`
             )}
           </span>
           <div className="flex flex-col-reverse min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-end gap-[10px] w-full min-[480px]:w-auto ml-auto">
-            {state.step === 0 ? (
+            {state.step === 'tipo' ? (
               <button
                 onClick={onClose}
                 className="inline-flex items-center justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim"
@@ -766,17 +791,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
                 Voltar
               </button>
             )}
-            {state.step === 1 && (
-              <button
-                onClick={goNext}
-                className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] w-full min-[480px]:w-auto whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent"
-                style={{ border: '1px solid var(--cms-accent)', color: 'rgb(26,18,12)' }}
-              >
-                Pular
-                <ArrowRight size={16} aria-hidden="true" />
-              </button>
-            )}
-            {state.step !== 1 && state.step < 4 && (
+            {state.step !== 'revisar' && (
               <button
                 onClick={goNext}
                 disabled={!canAdvance || isPending}
@@ -787,7 +802,7 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
                 <ArrowRight size={16} aria-hidden="true" />
               </button>
             )}
-            {state.step === 4 && (
+            {state.step === 'revisar' && (
               <>
                 <button
                   onClick={() => handleSubmit(false)}
@@ -834,27 +849,29 @@ export function AbCreateWizard({ video, siteId, settings, onClose, onCreated, in
 /*  Step rail (sub-component)                                          */
 /* ------------------------------------------------------------------ */
 
-function StepRail({ currentStep, onStepClick }: { currentStep: number; onStepClick: (step: number) => void }) {
+function StepRail({ currentStep, onStepClick }: { currentStep: Passo; onStepClick: (step: Passo) => void }) {
+  const atual = indiceDoPasso(currentStep)
   return (
     <div className="flex items-center py-[16px] px-[24px] shrink-0" style={{ borderBottom: '1px solid var(--cms-border, #332D25)' }}>
-      {VISIBLE_STEPS.map(({ label, stepIndex }, visualIdx) => {
-        const isCompleted = currentStep > stepIndex
-        const isActive = currentStep === stepIndex
-        const isFuture = currentStep < stepIndex
+      {PASSOS.map((passo, visualIdx) => {
+        const label = ROTULO_DO_PASSO[passo]
+        const isCompleted = atual > visualIdx
+        const isActive = atual === visualIdx
+        const isFuture = atual < visualIdx
         return (
-          <div key={label} className="contents">
+          <div key={passo} className="contents">
             <div
               className="flex items-center gap-[9px]"
               style={{ cursor: isFuture ? 'default' : 'pointer' }}
-              onClick={() => !isFuture && onStepClick(stepIndex)}
-              {...(!isFuture ? { role: 'button' as const, tabIndex: 0, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStepClick(stepIndex) } } } : {})}
+              onClick={() => !isFuture && onStepClick(passo)}
+              {...(!isFuture ? { role: 'button' as const, tabIndex: 0, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStepClick(passo) } } } : {})}
             >
               <span
                 className="flex items-center justify-center rounded-full font-mono text-[12px] font-bold shrink-0"
                 style={{
                   width: 26, height: 26,
                   background: isActive ? 'var(--cms-accent)' : isCompleted ? 'var(--cms-green)' : 'var(--cms-surface-3, var(--cms-surface-hover))',
-                  color: isActive || isCompleted ? 'rgb(21,18,13)' : 'var(--cms-text-dim)',
+                  color: isActive || isCompleted ? 'rgb(21,18,13)' : 'var(--cms-text-muted)',
                 }}
               >
                 {isCompleted ? (
@@ -865,7 +882,7 @@ function StepRail({ currentStep, onStepClick }: { currentStep: number; onStepCli
                 {label}
               </span>
             </div>
-            {visualIdx < VISIBLE_STEPS.length - 1 && (
+            {visualIdx < PASSOS.length - 1 && (
               <div className="flex-1 min-w-[8px] h-px mx-[6px] sm:mx-[12px]" style={{ background: 'var(--cms-border, #332D25)' }} />
             )}
           </div>
