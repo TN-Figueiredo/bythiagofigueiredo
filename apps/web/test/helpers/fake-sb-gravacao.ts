@@ -36,7 +36,8 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
     let faixa: [number, number] | null = null
     let usouOr = false
     const q: Record<string, unknown> = {}
-    q.select = () => q
+    let colunas: string[] | null = null
+    q.select = (cols?: string) => { if (tabela === 'ab_test_dias' && typeof cols === 'string' && !cols.includes('(')) colunas = cols.split(',').map((c) => c.trim()); return q }
     q.upsert = (linhas: Linha[], opcoes: unknown) => {
       f.upserts.push({ tabela, linhas, opcoes })
       if (f.erros[`upsert:${tabela}`]) return Promise.resolve({ data: null, error: { message: f.erros[`upsert:${tabela}`] } })
@@ -56,7 +57,8 @@ export function criarFakeSb(tabelas: Record<string, Linha[]> = {}): FakeSb {
       let hit = (f.tabelas[tabela] ?? []).filter((l) => filtros.every((g) => g(l)))
       if (usouOr) hit = hit.filter((l) => l._soNaSegunda !== true)
       if (faixa) hit = hit.slice(faixa[0], faixa[1] + 1)
-      return Promise.resolve({ data: hit.map((l) => ({ ...l })), error: null }).then(ok, ko)
+      const proj = (l: Linha): Linha => (colunas ? Object.fromEntries(Object.entries(l).filter(([k]) => colunas!.includes(k))) : { ...l })
+      return Promise.resolve({ data: hit.map(proj), error: null }).then(ok, ko)
     }
     return q
   }

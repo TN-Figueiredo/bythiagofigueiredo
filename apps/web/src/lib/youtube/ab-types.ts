@@ -209,6 +209,8 @@ export interface ResultadoV2 {
   /** Não congelada; a rede grava ANTES do settle (A9). */
   rede_tentou_em?: string | null
   finalizado_por_prazo?: boolean | null
+  /** O teste fechou mas o campo não voltou ao original; a vigia restaura. Falha à parte de `tentativa_falhou`. */
+  volta_falhou?: { em: string } | null
   historico?: Array<{ em: string; desfecho: DesfechoV2 }>
 }
 
@@ -232,6 +234,7 @@ export const ResultadoV2Schema: z.ZodType<ResultadoV2> = z.object({
   tentativa_falhou: z.object({ em: z.string(), motivo: z.string(), em_andamento_desde: z.string().optional() }).nullish(),
   rede_tentou_em: z.string().nullish(),
   finalizado_por_prazo: z.boolean().nullish(),
+  volta_falhou: z.object({ em: z.string() }).nullish(),
   historico: z.array(z.object({ em: z.string(), desfecho: DESFECHO_V2 })).optional(),
 })
 
