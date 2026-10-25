@@ -1222,6 +1222,34 @@ export async function revertWinner(testId: string, seqVisto: number): Promise<Re
   return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true, seqEsperado: seq.data }))
 }
 
+/**
+ * S8-F4 T11b: o humano põe no ar o vencedor SUGERIDO pela regra v2 num teste já concluído (completed_reason = regra_v2).
+ * Guarda: a variante tem de ser `result_metadata.v2.vencedor_sugerido`; CAS por seqVisto no settleOnAir.
+ */
+export async function aplicarSugerido(testId: string, varianteId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
+  const siteIdDaTela = (await getSiteContext()).siteId
+  const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'deixar uma variante no ar')
+  if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
+  let siteId: string
+  try {
+    siteId = await requireEditAccess()
+  } catch (e) {
+    return recusaDeSessao(e)
+  }
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  const { data, error } = await getSupabaseServiceClient()
+    .from('ab_tests').select('completed_reason, status, result_metadata').eq('id', testId).eq('site_id', siteId).maybeSingle()
+  if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
+  const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
+  const sugerido = meta?.v2?.vencedor_sugerido
+  if (!data || data.completed_reason !== 'regra_v2' || !sugerido || sugerido !== varianteId) {
+    return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+  }
+  if (varianteId === (await varianteOriginalId(testId, siteId))) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  return concluirSaida(settleOnAir(testId, { siteId, destino: { tipo: 'variante', id: varianteId }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: seq.data }))
+}
+
 // ---------------------------------------------------------------------------
 // fetchAbBriefingData
 // ---------------------------------------------------------------------------
