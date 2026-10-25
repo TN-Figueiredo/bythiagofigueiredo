@@ -3,6 +3,7 @@ import { ORIGINAL, settleOnAir } from '@/lib/youtube/ab-settle'
 import type { AbTestConfig } from '@/lib/youtube/ab-types'
 import { encerradoEmDia, relogioV2, tetoDoTesteV2, type CicloComNumero } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { lerPaginado } from '@/lib/youtube/coleta/paginar'
+import type { ErroBanco } from '@/lib/youtube/coleta/schema'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 type SupabaseClient = ReturnType<typeof getSupabaseServiceClient>
@@ -98,7 +99,7 @@ async function redeDeSegurancaV2(supabase: SupabaseClient, testes: TesteV2Rede[]
   const ids = testes.map((t) => t.id)
   const leitura = await lerPaginado<CicloLido>(
     (de, ate) => supabase.from('ab_test_cycles').select('id, test_id, variant_id, cycle_number, started_at, ended_at')
-      .in('test_id', ids).order('id').range(de, ate) as never,
+      .in('test_id', ids).order('id').range(de, ate) as PromiseLike<{ data: CicloLido[] | null; error: ErroBanco | null }>,
     50_000,
   )
   if (!leitura.ok) {

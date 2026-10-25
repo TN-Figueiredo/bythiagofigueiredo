@@ -88,7 +88,7 @@ type Variantes = { ids: string[]; originalId: string }
 async function lerEmLotes<T>(ids: string[], pagina: (lote: string[]) => (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>, teto: number): Promise<{ ok: true; linhas: T[] } | { ok: false; motivo: string }> {
   const linhas: T[] = []
   for (let i = 0; i < ids.length; i += LOTE) {
-    const r = await lerPaginado<T>(pagina(ids.slice(i, i + LOTE)) as never, teto)
+    const r = await lerPaginado<T>(pagina(ids.slice(i, i + LOTE)), teto)
     if (!r.ok) return { ok: false, motivo: r.motivo }
     linhas.push(...r.linhas)
   }
@@ -117,8 +117,8 @@ export async function rodarDecisaoV2(sb: SupabaseClient, agora: Date, entradas: 
 
   // (1) seleção: duas consultas, ramos de JSON filtrados em TS
   const corte = new Date(agora.getTime() - DIAS_JANELA_CONCLUIDOS * DIA_MS).toISOString()
-  const ativos = await lerPaginado<LinhaTeste>((de, ate) => sb.from('ab_tests').select(SELECT_TESTE).eq('regra_duracao', 'v2').eq('status', 'active').order('id').range(de, ate) as never, 5_000)
-  const concl = await lerPaginado<LinhaTeste>((de, ate) => sb.from('ab_tests').select(SELECT_TESTE).eq('regra_duracao', 'v2').in('status', ['completed', 'archived']).gte('completed_at', corte).order('id').range(de, ate) as never, 5_000)
+  const ativos = await lerPaginado<LinhaTeste>((de, ate) => sb.from('ab_tests').select(SELECT_TESTE).eq('regra_duracao', 'v2').eq('status', 'active').order('id').range(de, ate), 5_000)
+  const concl = await lerPaginado<LinhaTeste>((de, ate) => sb.from('ab_tests').select(SELECT_TESTE).eq('regra_duracao', 'v2').in('status', ['completed', 'archived']).gte('completed_at', corte).order('id').range(de, ate), 5_000)
   if (!ativos.ok || !concl.ok) {
     falhas.push(`selecao: ${(!ativos.ok ? ativos : (concl as { motivo: string })).motivo}`)
     return fim()
@@ -128,8 +128,8 @@ export async function rodarDecisaoV2(sb: SupabaseClient, agora: Date, entradas: 
   const ids = testes.map((t) => t.id)
 
   // (2) variantes e ciclos, uma leitura cada (em lotes de 100)
-  const lv = await lerEmLotes<{ id: string; test_id: string; is_original: boolean }>(ids, (l) => (de, ate) => sb.from('ab_test_variants').select('id, test_id, is_original').in('test_id', l).order('id').range(de, ate) as never, 5_000)
-  const lc = await lerEmLotes<unknown>(ids, (l) => (de, ate) => sb.from('ab_test_cycles').select('id, test_id, variant_id, started_at, ended_at, applied_metadata, cycle_number').in('test_id', l).order('id').range(de, ate) as never, 50_000)
+  const lv = await lerEmLotes<{ id: string; test_id: string; is_original: boolean }>(ids, (l) => (de, ate) => sb.from('ab_test_variants').select('id, test_id, is_original').in('test_id', l).order('id').range(de, ate), 5_000)
+  const lc = await lerEmLotes<unknown>(ids, (l) => (de, ate) => sb.from('ab_test_cycles').select('id, test_id, variant_id, started_at, ended_at, applied_metadata, cycle_number').in('test_id', l).order('id').range(de, ate), 50_000)
   if (!lv.ok || !lc.ok) {
     falhas.push(`leitura: ${!lv.ok ? lv.motivo : (lc as { motivo: string }).motivo}`)
     return fim()

@@ -112,14 +112,14 @@ export async function avisoDeVolume(sb: SupabaseClient, siteId: string, testId: 
 
   const m = await lerPaginado<MetaDoDia & { youtube_video_id: string; day_pt: string }>((de, ate) => sb.from('yt_own_video_meta_daily')
     .select('youtube_video_id, day_pt, ab_test_id, ab_variant_id, seconds_on_air_analytics, captured_at')
-    .eq('youtube_video_id', video.youtube_id).gte('day_pt', desde).order('day_pt').range(de, ate) as never, TETO_LEITURA)
+    .eq('youtube_video_id', video.youtube_id).gte('day_pt', desde).order('day_pt').range(de, ate), TETO_LEITURA)
   const a = await lerPaginado<LinhaAlcance & { youtube_video_id: string; day_pt: string }>((de, ate) => sb.from('yt_own_video_reach_daily')
     .select('youtube_video_id, day_pt, thumbnail_impressions, thumbnail_ctr, source_report_id, report_create_time')
-    .eq('youtube_video_id', video.youtube_id).gte('day_pt', desde).order('day_pt').range(de, ate) as never, TETO_LEITURA)
+    .eq('youtube_video_id', video.youtube_id).gte('day_pt', desde).order('day_pt').range(de, ate), TETO_LEITURA)
   const r = await lerPaginado<RelatorioDoDia & { channel_id: string; start_time: string }>((de, ate) => sb.from('yt_reporting_reports')
     .select('report_id, channel_id, status, create_time, normalized_at, start_time')
     .eq('report_type_id', 'channel_reach_basic_a1').eq('channel_id', video.channel_id)
-    .gte('start_time', new Date(Date.parse(`${desde}T00:00:00Z`) - DIA_MS).toISOString()).order('report_id').range(de, ate) as never, TETO_LEITURA)
+    .gte('start_time', new Date(Date.parse(`${desde}T00:00:00Z`) - DIA_MS).toISOString()).order('report_id').range(de, ate), TETO_LEITURA)
   if (!m.ok || !a.ok || !r.ok) return { ok: false, erro: 'leitura da entrega falhou' }
 
   const e: Entradas = { alcance: new Map(), relatorios: new Map(), meta: new Map() }
