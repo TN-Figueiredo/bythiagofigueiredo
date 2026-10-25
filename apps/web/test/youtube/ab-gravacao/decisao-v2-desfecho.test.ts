@@ -160,6 +160,14 @@ describe('encerradoEmDia e desfechoProvisorio', () => {
     expect(r2.provisorio).toBe(false)
     expect(['vencedor_provavel', 'sem_diferenca_detectavel']).toContain(r2.desfecho)
   })
+  it('B2: reprocesso de teste concluído em que toda variante é pior sugere a original (não rebaixa a sem_diferenca)', () => {
+    const p = [0, 1, 1, 0]
+    const dias = Array.from({ length: 12 }, (_, i) => dia(i, V2[p[i % 4]!]!, 100_000, 100_000 * (p[i % 4] ? 0.03 : 0.05), Math.floor(i / 4), i === 11 ? { final: false } : {}))
+    const r = desfechoProvisorio({ dias, encerradoEmDia: '2026-09-12', variantes: V2, originalId: 'o', n: 1000 })
+    expect(r).toMatchObject({ desfecho: 'vencedor_provavel', vencedor_sugerido: 'o', provisorio: true })
+    const fechado = desfechoProvisorio({ dias, encerradoEmDia: '2026-09-11', variantes: V2, originalId: 'o', n: 1000 })
+    expect(fechado).toMatchObject({ desfecho: 'vencedor_provavel', vencedor_sugerido: 'o', provisorio: false })
+  })
   it('sem piso de dias no provisório nunca vence', () => {
     const r = desfechoProvisorio({ dias: serie(12), encerradoEmDia: '2026-09-05', variantes: V2, originalId: 'o', n: 1000 })
     expect(r.desfecho).not.toBe('vencedor_provavel')
