@@ -123,24 +123,26 @@ function AvisoResolucao({ aviso }: { aviso: AvisoComSelo }) {
 /** Mesma altura mínima do cartão de aviso com uma linha: a troca de pendente para resolvido não empurra a página. */
 const ALTURA_AVISO_VOLUME = 'min-h-[92px]'
 
+function EsqueletoDeAviso({ texto, rotulo, atributo }: { texto: string; rotulo: string; atributo?: boolean }) {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={rotulo}
+      {...(atributo ? { 'data-aviso-volume-sk': '' } : {})}
+      className={`rv-vol ${ALTURA_AVISO_VOLUME} grid content-center gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text-muted`}
+    >
+      <span className="inline-flex items-center gap-1.5">
+        <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+        {texto}
+      </span>
+      <span className="block h-2 w-3/5 rounded bg-cms-surface-3 motion-safe:animate-pulse" aria-hidden="true" />
+    </div>
+  )
+}
+
 function AvisoVolume({ estado }: { estado: Exclude<EstadoAvisoVolume, null> }) {
-  if (estado === 'pendente') {
-    return (
-      <div
-        role="status"
-        aria-busy="true"
-        aria-label="Estimando o volume do teste"
-        data-aviso-volume-sk
-        className={`rv-vol ${ALTURA_AVISO_VOLUME} grid content-center gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text-muted`}
-      >
-        <span className="inline-flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5" aria-hidden="true" />
-          Conferindo o volume do vídeo…
-        </span>
-        <span className="block h-2 w-3/5 rounded bg-cms-surface-3 motion-safe:animate-pulse" aria-hidden="true" />
-      </div>
-    )
-  }
+  if (estado === 'pendente') return <EsqueletoDeAviso texto="Conferindo o volume do vídeo…" rotulo="Estimando o volume do teste" atributo />
   if (estado === 'indisponivel') {
     return <p role="status" data-aviso-volume className="m-0 text-[13px] text-cms-text-muted">{TEXTO_VOLUME_INDISPONIVEL}</p>
   }
@@ -192,9 +194,7 @@ export function StepRevisar({ type, variants, meta, onEscolherDaBiblioteca, avis
       <RegraDoTeste V={variants.length} />
 
       {avisoOriginal === 'pendente' ? (
-        <div aria-busy="true" aria-label="Lendo a resolução da original">
-          <span className="block h-5 w-3/5 rounded bg-cms-surface-3 motion-safe:animate-pulse" />
-        </div>
+        <EsqueletoDeAviso texto="Conferindo a resolução da miniatura original…" rotulo="Lendo a resolução da original" />
       ) : avisoOriginal ? (
         avisoOriginal.kind === 'indisponivel' ? (
           <p role="status" className="m-0 text-[13px] text-cms-text-muted">{avisoOriginal.texto}</p>

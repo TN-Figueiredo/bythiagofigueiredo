@@ -99,7 +99,7 @@ export interface EstadoV2 {
   estado: 'ativo' | 'pausado'
 }
 
-/** Fonte única do "dia X de T": tela e Cowork chamam esta função. `teto` vem da config do teste (ou tetoPadrao). */
+/** Fonte única do "dia X de T": tela e Cowork chamam esta função. `dia` = dias passados (0 no primeiro dia); a tela mostra `dia + 1` (andamentoDoDia). `teto` vem da config do teste (ou tetoPadrao). */
 export function estadoV2DoTeste(teste: AbTest, ciclos: CicloComNumero[], v2: ResultadoV2 | null, agora: Date, teto: number): EstadoV2 {
   const pausado = teste.status === 'paused'
   const ua = v2?.ultima_avaliacao ?? null

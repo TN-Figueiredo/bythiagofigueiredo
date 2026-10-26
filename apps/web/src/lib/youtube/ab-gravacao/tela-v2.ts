@@ -103,7 +103,7 @@ function fraseAtivo(e: {
   }
   const lista = `Cada versão precisa de ${N}; ${listaE(e.linhas.map(volTxt))}.`
   if (e.pausado) return { principal: 'Faltam impressões; o teste está pausado.', apoio: lista }
-  if (e.dia >= e.teto - 1) return { principal: 'Faltam impressões; o teste encerra amanhã.', apoio: `No dia ${e.teto} a original volta ao ar. ${lista}` }
+  if (e.dia >= e.teto - 1) return { principal: 'Faltam impressões; o teste encerra amanhã.', apoio: `Amanhã a original volta ao ar. ${lista}` }
   return { principal: 'Ainda não decide: faltam impressões.', apoio: lista }
 }
 

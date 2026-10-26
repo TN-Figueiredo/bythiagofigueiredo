@@ -17,7 +17,7 @@ export const ROTULO_TIPO_DESCONHECIDO = 'Teste de descrição (tipo retirado)'
 /** Para frases corridas ("Testar tipo antigo"). */
 export const ROTULO_TIPO_DESCONHECIDO_CURTO = 'tipo antigo'
 export const DICA_TIPO_DESCONHECIDO = 'A descrição não é mais testada no A/B Lab. Este teste fica só para consulta.'
-export const FRASE_COMBO = 'Se ganhar, você não vai saber se foi o título ou a thumbnail.'
+export const FRASE_COMBO = 'Se ganhar, você não vai saber se foi o título ou a miniatura.'
 
 export const TYPE_META: Record<TestType, { icon: string; label: string; hint: string }> = {
   thumbnail: { icon: 'Image', label: 'Miniatura', hint: 'Teste imagens de miniatura diferentes' },

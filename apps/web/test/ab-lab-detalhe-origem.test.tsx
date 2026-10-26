@@ -24,4 +24,8 @@ describe('página do teste: origem do Lab (M7 T18)', () => {
     monta('title', 'completed', { thumbUrl: null, concluidoEm: '10/10' })
     expect(screen.queryByTestId('origem-lab')).toBeNull()
   })
+  it('não iniciado: sem a frase (M5b)', () => {
+    monta('title', 'active', { thumbUrl: null, naoIniciado: true })
+    expect(screen.queryByTestId('origem-lab')).toBeNull()
+  })
 })

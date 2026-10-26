@@ -721,10 +721,10 @@ describe('StepTipo component', () => {
     expect(screen.getAllByRole('radio')).toHaveLength(3)
   })
 
-  it('displays the 3 type names: Título + thumbnail, Thumbnail, Título', () => {
+  it('displays the 3 type names: Título e miniatura, Miniatura, Título', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('Título + thumbnail')).toBeDefined()
-    expect(screen.getByText('Thumbnail')).toBeDefined()
+    expect(screen.getByText('Título e miniatura')).toBeDefined()
+    expect(screen.getByText('Miniatura')).toBeDefined()
     expect(screen.getByText('Título')).toBeDefined()
     expect(screen.queryByText(/Descrição/)).toBeNull()
   })
@@ -763,7 +763,7 @@ describe('StepTipo component', () => {
   it('clicking a card calls onSelect with correct TestType', () => {
     const onSelect = vi.fn()
     render(<StepTipo selected={null} onSelect={onSelect} />)
-    fireEvent.click(screen.getByText('Thumbnail').closest('[role="radio"]')!)
+    fireEvent.click(screen.getByText('Miniatura').closest('[role="radio"]')!)
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
   })
 

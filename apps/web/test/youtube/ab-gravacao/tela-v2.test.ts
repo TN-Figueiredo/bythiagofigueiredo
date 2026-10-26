@@ -111,7 +111,7 @@ describe('telaV2DoTeste: ativo', () => {
   it('ativo-teto-sem-volume (dia 14 de 15)', () => {
     const r = ativoDe(ativo({ dia: 14, v2: { n: 10315 }, dias: dias([O, B], 4, 100) }))
     expect(r.frase.principal).toBe('Faltam impressões; o teste encerra amanhã.')
-    expect(r.frase.apoio).toBe('No dia 15 a original volta ao ar. Cada versão precisa de 10.315; A tem 400 e B tem 400.')
+    expect(r.frase.apoio).toBe('Amanhã a original volta ao ar. Cada versão precisa de 10.315; A tem 400 e B tem 400.')
   })
   it('◆T 4: pausado com volume faltando', () => {
     const r = ativoDe(ativo({ status: 'paused', dia: 14, v2: { n: 10315 }, dias: dias([O, B], 4, 100) }))

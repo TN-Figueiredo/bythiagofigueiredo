@@ -6,7 +6,7 @@
 import React, { useId, useState } from 'react'
 import { PRAZO_FECHAMENTO_DIAS, type DiaDaFaixa, type Placar, type PlacarVariante } from '@/lib/youtube/ab-gravacao/placar'
 import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
-import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
+import { andamentoDoDia, rotuloDoDiaExtenso } from '@/lib/youtube/ab-rotulo-dia'
 import type { AbTestStatus, TestType, FullChartVariant, VariantDbEntry, VariantThumb } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 import { InfoDica } from '../../_components/info-dica'
@@ -292,7 +292,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
           )}
         </div>
       {andamento && (status === 'active' || status === 'paused') && placar?.iniciado !== false && (() => {
-        const f = Math.max(0, andamento.total - andamento.dayOf)
+        const { faltam: f, ultimo } = andamentoDoDia(andamento.dayOf, andamento.total)
         const pct = andamento.total > 0 ? Math.min(100, Math.round((andamento.dayOf / andamento.total) * 100)) : 0
         return (
           <div className="pm4-sec" data-section="andamento">
@@ -302,7 +302,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
             </div>
             <div className="pm4-ruler">
               <div className="pm4-rbar" aria-hidden="true"><i style={{ width: `${pct}%` }} /></div>
-              <div className="pm4-mark"><span>{rotuloDoDia(andamento.dayOf, andamento.total).replace('Dia ', 'dia ').replace('/', ' de ')}</span><span>{status === 'paused' ? 'pausado' : f > 0 ? `faltam ${f} ${f === 1 ? 'dia' : 'dias'}` : 'último dia'}</span></div>
+              <div className="pm4-mark"><span>{rotuloDoDiaExtenso(andamento.dayOf, andamento.total, { minusculo: true })}</span><span>{status === 'paused' ? 'pausado' : ultimo ? 'último dia' : `faltam ${f} ${f === 1 ? 'dia' : 'dias'}`}</span></div>
             </div>
           </div>
         )

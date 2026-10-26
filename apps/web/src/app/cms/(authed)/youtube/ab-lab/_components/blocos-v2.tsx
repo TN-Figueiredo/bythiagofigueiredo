@@ -2,7 +2,7 @@
 
 // Blocos da tela v2 do teste A/B (S8-F4 T12, T6). Só desenham o modelo `TelaV2`: nenhuma conta aqui.
 // Nulo é "não medido", nunca 0. Textos: mockup M5 r5 e tabela ◆T do plano.
-import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
+import { andamentoDoDia, rotuloDoDiaExtenso } from '@/lib/youtube/ab-rotulo-dia'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import type { ReactNode, RefObject } from 'react'
 import type { LinhaPisoV2, SeloV2, TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
@@ -30,18 +30,17 @@ export function ResumoV2({ frase, ilegivel }: { frase: { principal: string; apoi
 }
 
 export function AndamentoV2({ dia, teto, pausado }: { dia: number; teto: number; pausado: boolean }) {
-  const passou = dia > teto
-  const f = teto - dia
+  const { atual, faltam: f, ultimo, passou } = andamentoDoDia(dia, teto)
   const paragrafo = pausado
     ? 'Um quadrado por dia corrido; o contorno forte é hoje. O teste também exige um mínimo de dias corridos antes de decidir. Isso não indica quem está na frente.'
-    : `Um quadrado por dia corrido; o contorno forte é hoje. O teste também exige um mínimo de dias corridos antes de decidir, e encerra sozinho no dia ${teto}. Isso não indica quem está na frente.`
+    : `Um quadrado por dia corrido; o contorno forte é hoje. O teste também exige um mínimo de dias corridos antes de decidir, e encerra sozinho depois do dia ${teto}. Isso não indica quem está na frente.`
   return (
     <div className="pv2-sec pv2-rel" data-section="andamento-v2">
       <div className="pv2-sh">Andamento <InfoDica titulo="Andamento" paragrafos={[paragrafo]} rotulo="Como ler o andamento" /></div>
       <div className="pv2-top">
-        <span className="pv2-dia num">{passou ? `Dia ${dia} · passou do fim (${teto})` : `${rotuloDoDia(dia, teto).replace('/', ' de ')}`}</span>
+        <span className="pv2-dia num">{passou ? `Dia ${atual} · passou do fim (${teto})` : rotuloDoDiaExtenso(dia, teto)}</span>
         <span className="pv2-falta">
-          {pausado ? '⏸ pausado' : passou ? null : f > 0 ? `faltam ${f} ${f === 1 ? 'dia' : 'dias'}` : 'último dia'}
+          {pausado ? '⏸ pausado' : passou ? null : ultimo ? 'último dia' : `faltam ${f} ${f === 1 ? 'dia' : 'dias'}`}
         </span>
       </div>
       <div className="pv2-ticks" style={{ gridTemplateColumns: `repeat(${teto}, 1fr)` }} aria-hidden="true">

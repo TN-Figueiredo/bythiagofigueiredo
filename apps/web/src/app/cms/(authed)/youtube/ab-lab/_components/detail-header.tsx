@@ -1,6 +1,6 @@
 'use client'
 
-import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
+import { rotuloDoDia, rotuloDoDiaExtenso } from '@/lib/youtube/ab-rotulo-dia'
 import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
@@ -76,7 +76,7 @@ export function DetailHeader({
                     ? <span>Teste do Lab concluído em {lab.concluidoEm}</span>
                     : lab.naoIniciado
                       ? <span>Teste do Lab não iniciado</span>
-                      : dayInfo ? <span>Teste do Lab {situacao}, <span className="dhl-dia">{rotuloDoDia(dayInfo.dayOf, dayInfo.total).replace('Dia ', 'dia ').replace('/', ' de ')}</span></span> : null}
+                      : dayInfo && dayInfo.total >= 1 ? <span>Teste do Lab {situacao}, <span className="dhl-dia">{rotuloDoDiaExtenso(dayInfo.dayOf, dayInfo.total, { minusculo: true })}</span></span> : null}
                 </span>
               </div>
             )}
@@ -110,7 +110,7 @@ export function DetailHeader({
             Round {roundNumber}/{totalRounds}
           </Badge>
         )}
-        {dayInfo && (
+        {dayInfo && dayInfo.total >= 1 && (
           <Badge tone="green" dot={status === 'active'}>
             {rotuloDoDia(dayInfo.dayOf, dayInfo.total)}
           </Badge>

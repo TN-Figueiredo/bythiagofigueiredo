@@ -36,4 +36,12 @@ describe('passo Revisar: volume (M7 T15)', () => {
     expect(container.querySelector('[data-tom="verde"]')).toBeNull()
     expect(screen.queryByText('Tudo pronto.')).toBeNull()
   })
+  it('resolução da original pendente: tem texto, role status e a mesma altura mínima do cartão (M7 I3)', () => {
+    const { container } = render(<StepRevisar {...base} avisoVolume={null} avisoOriginal="pendente" />)
+    const caixa = container.querySelector('[aria-label="Lendo a resolução da original"]')!
+    expect(caixa.getAttribute('aria-busy')).toBe('true')
+    expect(caixa.getAttribute('role')).toBe('status')
+    expect(caixa.textContent).toContain('Conferindo a resolução')
+    expect(/min-h-\[92px\]/.test(caixa.className)).toBe(true)
+  })
 })

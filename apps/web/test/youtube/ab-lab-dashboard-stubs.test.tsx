@@ -284,7 +284,7 @@ describe('AbLabDashboard behavioral', () => {
     fireEvent.click(filterBtn)
 
     // Dropdown options appear
-    expect(screen.getByText('Thumbnail')).toBeDefined()
+    expect(screen.getByText('Miniatura')).toBeDefined()
     expect(screen.getByText('Título')).toBeDefined()
   })
 
@@ -300,7 +300,7 @@ describe('AbLabDashboard behavioral', () => {
 
     // The dropdown renders buttons inside a menu div — find all "Thumbnail" texts
     // and click the one that is a button (dropdown option)
-    const thumbnailOptions = screen.getAllByText('Thumbnail')
+    const thumbnailOptions = screen.getAllByText('Miniatura')
     const dropdownOption = thumbnailOptions.find(el => el.tagName === 'BUTTON')
     expect(dropdownOption).toBeDefined()
     fireEvent.click(dropdownOption!)

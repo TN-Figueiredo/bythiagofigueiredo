@@ -95,9 +95,9 @@ export function AbLabDashboard({
 
   const TYPE_FILTER_LABELS: Record<typeof typeFilter, string> = {
     all: 'Todos os tipos',
-    thumbnail: 'Thumbnail',
+    thumbnail: 'Miniatura',
     title: 'Título',
-    combo: 'Título + thumbnail',
+    combo: 'Título e miniatura',
   }
 
   const filterByType = <T extends { type?: string }>(items: T[]) =>
@@ -450,7 +450,7 @@ export function AbLabDashboard({
         <VideoPickerDialog
           eligibleVideos={eligibleVideos}
           onSelect={handleVideoPicked}
-          onContinuarRascunho={(draftId) => { setShowPicker(false); handleContinueDraft(draftId) }}
+          onContinuarRascunho={(draftId) => { setShowPicker(false); if (drafts.some(d => d.id === draftId)) handleContinueDraft(draftId); else router.push(`/cms/youtube/ab-lab/new?draft=${draftId}`) }}
           onClose={() => setShowPicker(false)}
         />
       )}

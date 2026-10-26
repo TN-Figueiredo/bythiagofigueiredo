@@ -65,7 +65,7 @@ describe('dia do teste: lista, cartão e detalhe mostram o mesmo dia', () => {
 
     const ativo = render(<ActiveDetail view={view} encerrar={{} as never} pausar={{} as never} />)
     expect(ativo.container.textContent).toContain('Teste do Lab rodando, dia 6 de 14')
-    expect(ativo.container.textContent).toContain('faltam 9 dias')
+    expect(ativo.container.textContent).toContain('faltam 8 dias')
     ativo.unmount()
 
     const cedo = render(<EarlyDetail view={view} encerrar={{} as never} pausar={{} as never} />)

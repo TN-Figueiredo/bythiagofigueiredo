@@ -82,7 +82,7 @@ describe('S8-F3 T5b: cabeçalho, datas, andamento, carregando', () => {
     expect(r).not.toBeNull()
     expect(r.textContent).toContain('Andamento do teste')
     expect(r.textContent).toContain(`dia ${view.dayOf + 1} de ${total}`)
-    expect(r.textContent).toContain(`faltam ${total - view.dayOf} dias`)
+    expect(r.textContent).toContain(`faltam ${total - view.dayOf - 1} dias`)
     expect(r.textContent).not.toMatch(/impress|%/)
     expect(container.querySelector('[data-section="lock-countdown"]')).toBeNull()
   })

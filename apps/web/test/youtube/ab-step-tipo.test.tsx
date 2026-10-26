@@ -33,7 +33,7 @@ describe('StepTipo', () => {
   it('clicking a card calls onSelect with the correct TestType', () => {
     const onSelect = vi.fn()
     render(<StepTipo selected={null} onSelect={onSelect} />)
-    fireEvent.click(screen.getByText('Thumbnail').closest('[role="radio"]')!)
+    fireEvent.click(screen.getByText('Miniatura').closest('[role="radio"]')!)
     expect(onSelect).toHaveBeenCalledWith('thumbnail')
   })
 
@@ -45,16 +45,16 @@ describe('StepTipo', () => {
     expect(radios[2]!.getAttribute('aria-checked')).toBe('true')
   })
 
-  it('três opções na ordem Título + thumbnail, Thumbnail, Título; sem Descrição, recomendado nem pontual', () => {
+  it('três opções na ordem Título e miniatura, Miniatura, Título; sem Descrição, recomendado nem pontual', () => {
     const { container } = render(<StepTipo selected={null} onSelect={vi.fn()} />)
     const titulos = screen.getAllByRole('radio').map(r => r.querySelector('span')?.textContent)
-    expect(titulos).toEqual(['Título + thumbnail', 'Thumbnail', 'Título'])
+    expect(titulos).toEqual(['Título e miniatura', 'Miniatura', 'Título'])
     expect(container.textContent).not.toMatch(/Descri|recomendado|pontual/i)
   })
 
   it('o cartão do combo traz a frase fechada pelo Logan e a introdução nova', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
-    expect(screen.getByText('Se ganhar, você não vai saber se foi o título ou a thumbnail.')).toBeDefined()
+    expect(screen.getByText('Se ganhar, você não vai saber se foi o título ou a miniatura.')).toBeDefined()
     expect(screen.getByText('Os dois mudam juntos.')).toBeDefined()
     expect(screen.getByText('Escolha o que vai ser rotacionado no YouTube.')).toBeDefined()
   })
@@ -107,7 +107,7 @@ describe('StepTipo', () => {
     render(<StepTipo selected={null} onSelect={vi.fn()} />)
     expect(screen.getByText('Os dois mudam juntos.')).toBeDefined()
     expect(screen.queryByText('Título e thumbnail mudam juntos')).toBeNull()
-    const frase = screen.getByText('Se ganhar, você não vai saber se foi o título ou a thumbnail.')
+    const frase = screen.getByText('Se ganhar, você não vai saber se foi o título ou a miniatura.')
     expect(frase.className).toContain('text-[12.5px]')
     expect(frase.className).toContain('text-cms-text-muted')
     expect(frase.className).not.toContain('opacity')

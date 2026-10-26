@@ -68,17 +68,17 @@ describe('T12 T6: blocos do ativo v2', () => {
     expect(pop?.textContent).not.toContain('encerra sozinho')
   })
 
-  it('andamento normal: "Dia 5 de 15", "faltam 10 dias", ⓘ abre no #flut com "encerra sozinho no dia 15"', () => {
+  it('andamento normal: "Dia 5 de 15", "faltam 9 dias", ⓘ abre no #flut com "encerra sozinho depois do dia 15"', () => {
     const { container } = render(<AndamentoV2 dia={5} teto={15} pausado={false} />)
     expect(container.textContent).toContain('Dia 6 de 15')
-    expect(container.textContent).toContain('faltam 10 dias')
+    expect(container.textContent).toContain('faltam 9 dias')
     fireEvent.click(screen.getByRole('button', { name: 'Como ler o andamento' }))
-    expect(document.getElementById('flut')?.textContent).toContain('encerra sozinho no dia 15')
+    expect(document.getElementById('flut')?.textContent).toContain('encerra sozinho depois do dia 15')
     expect(container.querySelectorAll('.pv2-ticks i')).toHaveLength(15)
   })
 
-  it('faltam 1 dia e último dia', () => {
-    const a = render(<AndamentoV2 dia={14} teto={15} pausado={false} />)
+  it('faltam 1 dia (dia 14 de 15) e último dia (dia 15 de 15)', () => {
+    const a = render(<AndamentoV2 dia={13} teto={15} pausado={false} />)
     expect(a.container.textContent).toContain('faltam 1 dia')
     expect(a.container.textContent).not.toContain('faltam 1 dias')
     a.unmount()
@@ -88,7 +88,7 @@ describe('T12 T6: blocos do ativo v2', () => {
 
   it('dia > teto: "passou do fim", nunca "faltam -"', () => {
     const { container } = render(<AndamentoV2 dia={17} teto={15} pausado={false} />)
-    expect(container.textContent).toContain('Dia 17 · passou do fim (15)')
+    expect(container.textContent).toContain('Dia 18 · passou do fim (15)')
     expect(container.textContent).not.toMatch(/faltam -/)
   })
 

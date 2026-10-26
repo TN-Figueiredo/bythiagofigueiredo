@@ -425,7 +425,7 @@ describe('AbLabDashboard', () => {
   it('menu de filtro usa o token --cms-surface (sem o inexistente surface-2)', () => {
     render(<AbLabDashboard {...baseProps} cards={[makeCardView()]} />)
     fireEvent.click(screen.getByRole('button', { name: /Todos os tipos/ }))
-    const opcao = screen.getAllByRole('button', { name: 'Título + thumbnail' }).pop()!
+    const opcao = screen.getAllByRole('button', { name: 'Título e miniatura' }).pop()!
     const menu = opcao.parentElement as HTMLElement
     expect(menu.getAttribute('style')).toContain('var(--cms-surface)')
     expect(menu.getAttribute('style')).not.toContain('surface-2')
