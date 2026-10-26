@@ -2,7 +2,7 @@
 // Composição da página (M7 T11): ordem das seções, Concluídos, Sugestões, painel e diálogo do dia 14 ligados.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
@@ -169,5 +169,15 @@ describe('página do A/B Lab: regras lidas na fonte', () => {
   })
   it('o dashboard (client) não importa a action de ajustes: ela chega por prop', () => {
     expect(fonte('ab-lab-dashboard.tsx')).not.toMatch(/from '\.\.\/actions'/)
+  })
+})
+
+describe('estilo da página do Lab (CSS como texto)', () => {
+  it('chip com aria-pressed tem estado visual por forma (sublinhado e peso), não só cor (Naksu C1)', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/app/cms/(authed)/youtube/ab-lab/_components/pagina/pagina-lab.css'), 'utf8')
+    expect(css).toMatch(/\.lab-btn\[aria-pressed="true"\][^}]*box-shadow: inset 0 -2px 0/)
+    expect(css).toMatch(/\.lab-btn\[aria-pressed="true"\][^}]*font-weight: 600/)
+    expect(css).toMatch(/\.lab-btn\[aria-pressed="false"\]/)
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('color-mix')
   })
 })

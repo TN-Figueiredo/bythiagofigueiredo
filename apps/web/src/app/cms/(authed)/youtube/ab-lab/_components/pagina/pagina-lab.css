@@ -29,6 +29,8 @@
 /* botões */
 .lab-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 0 16px; border: 1px solid var(--lab-border-strong); border-radius: 8px; background: var(--lab-surface-2); color: var(--lab-text); font-family: inherit; font-weight: 500; font-size: 14px; line-height: 18px; cursor: pointer; text-decoration: none; }
 .lab-btn:focus-visible, .lab-lk:focus-visible, .lab-opt:has(input:focus-visible) { outline: 2px solid var(--lab-accent); outline-offset: 2px; }
+.lab-btn[aria-pressed="true"] { background: var(--lab-surface-2); color: var(--lab-text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--lab-accent); }
+.lab-btn[aria-pressed="false"] { background: transparent; color: var(--lab-muted); }
 .lab-btn.pri { background: var(--lab-accent); border-color: var(--lab-accent); color: var(--lab-on-accent); font-weight: 600; }
 .lab-btn.ghost { background: transparent; }
 .lab-btn.txt { border-color: transparent; background: transparent; color: var(--lab-muted); padding: 0 10px; }
