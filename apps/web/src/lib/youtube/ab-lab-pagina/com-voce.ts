@@ -72,7 +72,8 @@ export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
   }
   for (const p of e.pausados) {
     if (p.pausaYoutube?.aberto) continue // vira cartão do Studio
-    const t = p.cycleStartedAt ? Date.parse(p.cycleStartedAt) : NaN
+    // desde quando está pausado: paused_at; sem ele, cai no início do ciclo; sem nenhum, 0
+    const t = Date.parse(p.pausedAt ?? p.cycleStartedAt ?? '')
     const dias = Number.isFinite(t) ? Math.max(0, Math.floor((e.agora.getTime() - t) / DIA_MS)) : 0
     retomar.push({ tipo: 'retomar', titulo: p.videoTitle ?? p.name, testId: p.id, pausadoHaDias: dias })
   }

@@ -43,6 +43,7 @@ const MOCK_CARDS: AbTestCardView[] = [
     createdAt: new Date(Date.now() - 9 * 86400000).toISOString(),
     statusNote: null,
     cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
+    pausedAt: null,
     queueStartAfter: null,
   },
   {
@@ -69,6 +70,7 @@ const MOCK_CARDS: AbTestCardView[] = [
     createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
     statusNote: null,
     cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
+    pausedAt: null,
     queueStartAfter: null,
   },
 ]
@@ -110,6 +112,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
     statusNote: null,
     cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
+    pausedAt: null,
     queueStartAfter: null,
   },
   {
@@ -135,6 +138,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
     statusNote: null,
     cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
+    pausedAt: null,
     queueStartAfter: null,
   },
   {
@@ -161,6 +165,7 @@ const MOCK_COMPLETED: AbTestCardView[] = [
     createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
     statusNote: null,
     cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
+    pausedAt: null,
     queueStartAfter: null,
   },
 ]

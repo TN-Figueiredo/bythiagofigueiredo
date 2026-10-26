@@ -418,6 +418,8 @@ export interface AbTestCardView {
   createdAt: string
   statusNote: string | null
   cycleStartedAt: string | null
+  /** `ab_tests.paused_at`: quando o teste foi pausado (nulo se nunca ou se não pausado). */
+  pausedAt: string | null
   queueStartAfter: string | null
   /** S8-F4 T11c: "Dia X/Y" de teste v2 (dias fechados com ciclo, de `estadoV2DoTeste`); ausente em v1. */
   diaV2?: { dia: number; teto: number }
