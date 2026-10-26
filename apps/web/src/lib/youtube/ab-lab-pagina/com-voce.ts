@@ -131,7 +131,7 @@ export function fraseDoTopo(p: { lab: number; studio: number; itens: ItemComVoce
   const coisas = `${n === 1 ? 'Uma' : capitalizar(porExtensoFem(n))} ${n === 1 ? 'coisa' : 'coisas'} com você`
   if (n > 2) return `${rodando} ${coisas}.`
   const verbos = itens.map(verboDe).filter((v): v is string => v !== null)
-  const lista = verbos.length > 1 ? `${verbos.slice(0, -1).join(', ')} e ${verbos[verbos.length - 1]}` : verbos[0] ?? ''
+  const lista = verbos.length === 2 && verbos[0] === verbos[1] ? `${verbos[0]} em dois testes` : verbos.length > 1 ? `${verbos.slice(0, -1).join(', ')} e ${verbos[verbos.length - 1]}` : verbos[0] ?? ''
   return `${rodando} ${coisas}${lista ? `: ${lista}` : ''}.`
 }
 

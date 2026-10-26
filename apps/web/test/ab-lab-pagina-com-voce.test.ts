@@ -78,6 +78,10 @@ describe('Com você, topo e Em teste agora', () => {
     expect(itens).toHaveLength(4)
     expect(fraseDoTopo({ lab: 0, studio: 0, itens, temHistorico: true })).toBe('Nenhum teste do Lab rodando. Quatro coisas com você.')
   })
+  it('dois itens com o mesmo verbo não repetem a frase (Logan S1)', () => {
+    const it2 = { tipo: 'aplicar', letra: 'B' } as never
+    expect(fraseDoTopo({ lab: 2, studio: 0, itens: [it2, it2], temHistorico: true })).toBe('2 testes rodando. Duas coisas com você: aplicar B em dois testes.')
+  })
   it('uma coisa só cita o verbo', () => {
     const itens = itensComVoce(base({ concluidos: [concluido(true)] }))
     expect(fraseDoTopo({ lab: 1, studio: 0, itens, temHistorico: true })).toBe('Um teste rodando. Uma coisa com você: aplicar B.')
