@@ -53,3 +53,38 @@ export interface LinhaConcluida {
   /** ISO usado para ordenar (mais recente primeiro) */
   ordem: string
 }
+
+// ---- Modelo da página (M7 T4) ----
+import type { AbTestCardView, AbTestDraft, AbTestWithVariants } from '../ab-types'
+import type { TelaV2 } from '../ab-gravacao/tela-v2'
+import type { LinhaDoCaminho } from '../teste-youtube/nativo/lista'
+
+export type ItemComVoce =
+  | { tipo: 'primeiro_teste' }
+  | { tipo: 'rascunho'; draftId: string; titulo: string; passo: number }
+  | { tipo: 'aplicar'; titulo: string; letra: string; motivo: string; painel: PainelDecisao }
+  | { tipo: 'dia14'; titulo: string; linha: LinhaDoCaminho; ytId: string; prazo: string; vencido: boolean }
+  | { tipo: 'conferir_studio'; titulo: string; ytId: string }
+  | { tipo: 'retomar'; titulo: string; testId: string; pausadoHaDias: number }
+
+export type CartaoEmTeste =
+  | { tipo: 'lab'; card: AbTestCardView; lider: { letra: string; ctrs: [string, string] } | null; semLider: 'poucos dados' | 'CTR não medido'; proximaTroca: string | null; painel: PainelDecisao | null }
+  | { tipo: 'studio'; linha: LinhaDoCaminho; titulos: Array<{ letra: string; titulo: string | null }>; labPausadoAte: string | null; dia14: boolean }
+
+export interface PaginaDoLab {
+  topo: { frase: string }
+  comVoce: { itens: ItemComVoce[]; vazio: string | null }
+  emTeste: CartaoEmTeste[]
+  concluidos: { linhas: LinhaConcluida[]; total: number; regua: { feitos: number; meta: 3 } | null }
+  temHistorico: boolean
+}
+
+export interface EntradaPagina {
+  ativos: Array<{ card: AbTestCardView; bruto: AbTestWithVariants; tela: Extract<TelaV2, { fase: 'ativo' }> | null; ctrs: Record<string, number | null> }>
+  concluidos: Array<{ card: AbTestCardView; bruto: AbTestWithVariants; tela: Extract<TelaV2, { fase: 'concluido' }> | null; ctrs: Record<string, number | null> }>
+  pausados: AbTestCardView[]
+  rascunhos: AbTestDraft[]
+  linhas: LinhaDoCaminho[]
+  podeDeixarVariante: boolean
+  agora: Date
+}

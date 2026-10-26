@@ -1,5 +1,6 @@
 'use client'
 
+import { proximaTrocaDe } from '@/lib/youtube/ab-lab-pagina/com-voce'
 import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
 import type React from 'react'
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
@@ -149,10 +150,7 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
         <div className="py-[13px] px-[16px] border-l border-cms-border">
           <div className="text-[9px] font-semibold text-cms-text-dim uppercase tracking-[0.08em] mb-[6px]">Próx. rotação</div>
           <div className="font-mono text-[16px] font-bold text-cms-text leading-none">
-            {test.cycleStartedAt ? (() => {
-              const hoursLeft = Math.max(0, 24 - (Date.now() - new Date(test.cycleStartedAt!).getTime()) / 3600000)
-              return <span>{hoursLeft < 1 ? '<1h' : `~${Math.round(hoursLeft)}h`}</span>
-            })() : <span className="text-cms-text-dim">—</span>}
+            {test.cycleStartedAt ? <span>{proximaTrocaDe(test.cycleStartedAt, new Date())}</span> : <span className="text-cms-text-dim">—</span>}
           </div>
           <div className="text-[10.5px] text-cms-text-dim mt-[5px]">
             {test.status === 'queued' ? 'Na fila' : test.cycleStartedAt ? 'ciclo automático' : 'aguardando'}
