@@ -91,7 +91,9 @@ function conferirProva(data: unknown): Lido<ProvaHoraria> {
     t[k] = v
   }
   // M5 (T6): campos novos; ausentes (função antiga, antes da migration) = nulo e 'hora', nunca erro.
-  let online: string | null = null
+  // Campo AUSENTE (função SQL antiga): antes da M5 nada saiu do banco, então o começo real é o começo online (online_desde = desde).
+  // Campo presente e nulo continua nulo.
+  let online: string | null = d.online_desde === undefined ? (t.desde ?? null) : null
   if (d.online_desde !== undefined && d.online_desde !== null) {
     if (!dataLegivel(d.online_desde)) return { porque: 'o campo online_desde da prova da leitura horária não é uma data legível' }
     online = d.online_desde

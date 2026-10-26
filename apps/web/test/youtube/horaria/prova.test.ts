@@ -98,7 +98,9 @@ describe('lerProvaHoraria', () => {
     expect(await lerCom(nova)).toEqual({ valor: nova })
     const { desde_precisao: _a, online_desde: _b, ...antiga } = prova()
     const r = await lerCom(antiga)
-    expect(r).toEqual({ valor: { ...prova(), online_desde: null, desde_precisao: 'hora' } })
+    // campo ausente: o começo online é o `desde` (antes da M5 nada saiu); presente e nulo continua nulo
+    expect(r).toEqual({ valor: { ...prova(), online_desde: prova().desde, desde_precisao: 'hora' } })
+    expect(await lerCom({ ...antiga, online_desde: null })).toEqual({ valor: { ...prova(), online_desde: null, desde_precisao: 'hora' } })
     expect(await lerCom({ ...prova(), online_desde: 'ontem' })).toHaveProperty('porque')
   })
 
@@ -488,8 +490,11 @@ describe('veredictoHorario', () => {
       expect(v.avisos.map(a => a.chave)).toEqual(['leitura_horaria_parada'])
     })
 
-    it('o mesmo vale quando só `online_desde` (concorrentes) prova a idade', () => {
-      const v = veredictoHorario(dono({ desde: atras(3 * 24 * H), online_desde: atras(3 * 24 * H), ultima_leitura: atras(10 * MIN), videos_na_lista: 55, proprios_desde: null }), opcoes({ agendaDesde: null }))
+    it('o mesmo vale quando só `desde` (concorrentes) prova a idade, com a resposta da função ANTIGA (sem os campos da M5)', async () => {
+      const { desde_precisao: _a, online_desde: _b, ...antiga } = dono({ desde: atras(3 * 24 * H), ultima_leitura: atras(10 * MIN), videos_na_lista: 55, proprios_desde: null })
+      const lida = await lerCom(antiga)
+      if (!('valor' in lida)) throw new Error('prova não lida')
+      const v = veredictoHorario(lida.valor, opcoes({ agendaDesde: null }))
       expect(v.problems).toEqual(['leitura horária do seu canal parada há 5 h', '2 vídeos do seu canal com leituras faltando nas últimas 24 horas'])
       expect(v.avisos).toHaveLength(1)
     })
@@ -635,5 +640,15 @@ describe('M5 T6: a idade da agenda vem do online desde, não do desde', () => {
   it('online_desde antigo prova agenda velha', () => {
     const v = veredictoHorario(prova({ desde: null, online_desde: atras(5 * H), ultima_leitura: null, horas_lidas_24h: 0 }), opcoes({ agendaDesde: null }))
     expect(v.problems).toContain('nenhuma leitura horária gravada')
+  })
+  it('a idade vem de online_desde (5 h), não do desde de 90 dias: agenda recente de verdade', () => {
+    const v = veredictoHorario(prova({ desde: atras(90 * 24 * H), online_desde: atras(5 * H), ultima_leitura: null, horas_lidas_24h: 0, videos_na_lista: 55, proprios_desde: null }), opcoes({ agendaDesde: null }))
+    expect(v.problems).not.toContain('nenhuma leitura horária gravada')
+  })
+  it('função antiga + agendaDesde nulo + dono sem leitura + concorrentes lidos há 3 dias: o vigia NÃO fica verde', async () => {
+    const { desde_precisao: _a, online_desde: _b, ...antiga } = prova({ desde: atras(3 * 24 * H), ultima_leitura: atras(10 * MIN), proprios_desde: null, proprios_ultima_leitura: null, proprios_na_lista: 3, proprios_cobrados: 3, proprios_abaixo_de_22h: 3 })
+    const lida = await lerCom(antiga)
+    if (!('valor' in lida)) throw new Error('prova não lida')
+    expect(lida.valor.online_desde).toBe(lida.valor.desde)
   })
 })
