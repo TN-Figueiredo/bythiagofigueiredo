@@ -478,6 +478,9 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   const confidence: number | null = null
 
   const variants = test.variants.map(v => ({
+    id: v.id,
+    isOriginal: v.is_original,
+    title: v.title_text ?? (v.is_original ? test.original_title ?? null : null),
     label: toDisplayLabel(v.label, v.is_original),
     color: variantColor(v.label, v.is_original),
     thumbUrl: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
@@ -501,6 +504,8 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     leaderColor: variantColor(leaderVariant?.label ?? 'original', leaderIsOriginal),
     leaderThumbUrl,
     variants,
+    videoTitle: test.original_title ?? test.name ?? null,
+    restoreSeq: test.restore_seq ?? 0,
     hasPlayoff: !!test.playoff_test_id,
     roundNumber: test.round_number,
     createdAt: test.created_at,
