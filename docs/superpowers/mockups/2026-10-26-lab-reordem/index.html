@@ -507,8 +507,8 @@ const respostas=w=>{const r=[{id:'venceu_original',t:'A (original) ficou',s:w.v[
 const ov=document.getElementById('ov'),dlg=document.getElementById('dlg');
 const FORA=['.stage','.ctl','.r2','.note'];
 let opener=null,curKey=null,RL=[];
-const rotulo=(P,l)=>!l?'Escolha uma versão':P.modo==='ativo'?(l==='A'?'Manter A (original)':`Aplicar ${l} ao vídeo`):(P.ap?'Voltar à original':'Aplicar B ao vídeo');
-const avisoTxt=(P,w,l)=>P.modo==='ativo'&&!w.sug?(l==='A'?'Manter A encerra o teste agora, sem aplicar outra versão.':l?`Escolher ${l} encerra o teste agora e coloca ${l} no ar.`:`Escolher encerra o teste agora, no dia ${DIA} de 15. O CTR ainda não foi medido.`):P.modo!=='ativo'||l===w.sug?'':(l==='A'?`O teste indicou ${w.sug}. Manter A encerra o teste agora, sem aplicar ${w.sug}.`:`O teste indicou ${w.sug}. Escolher ${l} encerra o teste agora e coloca ${l} no ar.`);
+const rotulo=(P,l)=>!l?'Escolha uma versão':P.modo==='ativo'?(l==='A'?'Encerrar e manter A (original)':`Encerrar e deixar ${l} no ar`):(P.ap?'Voltar à original':'Aplicar B ao vídeo');
+const avisoTxt=(P,w,l)=>P.modo==='ativo'&&!w.sug?(l==='A'?'Manter A encerra o teste agora, sem aplicar outra versão.':l?`Escolher ${l} encerra o teste agora e coloca ${l} no ar.`:`Escolher encerra o teste agora (dia ${DIA} de 15).`):P.modo!=='ativo'||l===w.sug?'':(l==='A'?`O teste indicou ${w.sug}. Manter A encerra o teste agora, sem aplicar ${w.sug}.`:`O teste indicou ${w.sug}. Escolher ${l} encerra o teste agora e coloca ${l} no ar.`);
 const msgErro=(P,w,l,tipo)=>{
  if(tipo==='rede')return 'A conexão caiu e não deu para confirmar se mudou. Confira o vídeo no YouTube antes de tentar de novo.';
  if(P.modo==='ativo')return l==='A'?'Não consegui encerrar o teste. Ele continua rodando.':`Não consegui aplicar ${l}. A original continua no ar.`;
