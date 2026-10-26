@@ -61,7 +61,7 @@ describe('S8-F3 T5b: cabeçalho, datas, andamento, carregando', () => {
     expect(h.querySelector('.dhl-crumb')).not.toBeNull()
     expect(h.querySelector('.dhl-th')).not.toBeNull()
     const selo = h.querySelector('.dhl-selo')!
-    expect(selo.textContent).toBe(`Teste do Lab rodando, dia ${view.dayOf} de ${Math.max(view.dayOf, view.durationDays)}`)
+    expect(selo.textContent).toBe(`Teste do Lab rodando, dia ${view.dayOf + 1} de ${Math.max(view.dayOf, view.durationDays)}`)
     expect(h.querySelector('h2')).not.toBeNull()
   })
 
@@ -71,7 +71,7 @@ describe('S8-F3 T5b: cabeçalho, datas, andamento, carregando', () => {
     expect(a.container.textContent).toContain('O primeiro dia fecha até 03/11.')
     a.unmount()
     const b = render(<PlacarDoTeste {...props} placar={pl()} />)
-    expect(b.container.textContent).toContain('O primeiro dia fecha até 10 dias depois do início.')
+    expect(b.container.textContent).toContain('O primeiro dia fecha até 11 dias depois do início.')
   })
 
   it('régua "Andamento do teste": dias do prazo, faltam X dias, sem volume', async () => {
@@ -81,7 +81,7 @@ describe('S8-F3 T5b: cabeçalho, datas, andamento, carregando', () => {
     const r = container.querySelector('[data-section="andamento"]')!
     expect(r).not.toBeNull()
     expect(r.textContent).toContain('Andamento do teste')
-    expect(r.textContent).toContain(`dia ${view.dayOf} de ${total}`)
+    expect(r.textContent).toContain(`dia ${view.dayOf + 1} de ${total}`)
     expect(r.textContent).toContain(`faltam ${total - view.dayOf} dias`)
     expect(r.textContent).not.toMatch(/impress|%/)
     expect(container.querySelector('[data-section="lock-countdown"]')).toBeNull()

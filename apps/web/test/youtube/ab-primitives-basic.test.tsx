@@ -83,8 +83,8 @@ describe('Badge extras', () => {
 })
 
 describe('TypeBadge', () => {
-  it('renders thumbnail label', () => { render(<TypeBadge type="thumbnail" />); expect(screen.getByText('Thumbnail')).toBeDefined() })
-  it('renders title label', () => { render(<TypeBadge type="title" />); expect(screen.getByText('Title')).toBeDefined() })
+  it('renders thumbnail label', () => { render(<TypeBadge type="thumbnail" />); expect(screen.getByText('Miniatura')).toBeDefined() })
+  it('renders title label', () => { render(<TypeBadge type="title" />); expect(screen.getByText('Título')).toBeDefined() })
   it('tipo antigo (description) não lança e mostra o rótulo de reserva', () => {
     render(<TypeBadge type={'description' as TestType} />)
     expect(screen.getByText('Teste de descrição (tipo retirado)')).toBeDefined()
@@ -93,5 +93,5 @@ describe('TypeBadge', () => {
     expect(badge.getAttribute('title')).toBe('A descrição não é mais testada no A/B Lab. Este teste fica só para consulta.')
     expect(badge.className).toContain('text-cms-text-muted')
   })
-  it('renders combo label', () => { render(<TypeBadge type="combo" />); expect(screen.getByText('Título + thumbnail')).toBeDefined() })
+  it('renders combo label', () => { render(<TypeBadge type="combo" />); expect(screen.getByText('Título e miniatura')).toBeDefined() })
 })

@@ -75,8 +75,8 @@ describe('telaV2DoTeste: ativo', () => {
   it('ativo-antes-pisos: sem linhas => dias e volume null, nunca 0', () => {
     const r = ativoDe(ativo())
     expect(r.pisos.every(p => p.dias_validos === null && p.volume === null)).toBe(true)
-    expect(r.frase.principal).toBe('Ainda não decide: o YouTube não fechou nenhum dia.')
-    expect(r.frase.apoio).toBe('A primeira avaliação sai até 24 horas depois do início.')
+    expect(r.frase.principal).toBe('Ainda não decide: o YouTube ainda não fechou nenhum dia.')
+    expect(r.frase.apoio).toBe('O YouTube fecha cada dia com até 11 dias de atraso. O Lab confere uma vez por dia.')
     expect(r.dia).toBe(6); expect(r.teto).toBe(15)
   })
   it('◆T 1: dias abertos, volume fechado', () => {

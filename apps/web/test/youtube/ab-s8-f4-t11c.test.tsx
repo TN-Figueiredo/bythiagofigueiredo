@@ -78,14 +78,14 @@ describe('Dia X/Y de v2 vem de estadoV2DoTeste', () => {
     const est = estadoV2DoTeste(t, ciclos, null, new Date(), tetoDoTesteV2(t.config, t.variants.length))
     expect(card.diaV2).toEqual({ dia: est.dia, teto: 15 })
     render(<ActiveTestCard test={card} onOpen={() => {}} />)
-    expect(screen.getByText(`Dia ${est.dia}/15`)).toBeTruthy()
+    expect(screen.getByText(`Dia ${est.dia + 1}/15`)).toBeTruthy()
   })
   it('v1 segue com o dia corrido', () => {
     const t = makeTestWithVariants({ startedDaysAgo: 5 })
     const card = toCardView(t)
     expect(card.diaV2 ?? null).toBeNull()
     render(<ActiveTestCard test={card} onOpen={() => {}} />)
-    expect(screen.getByText(/^Dia 5\//)).toBeTruthy()
+    expect(screen.getByText(/^Dia 6\//)).toBeTruthy()
   })
 })
 

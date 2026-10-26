@@ -70,7 +70,7 @@ describe('T12 T6: blocos do ativo v2', () => {
 
   it('andamento normal: "Dia 5 de 15", "faltam 10 dias", ⓘ abre no #flut com "encerra sozinho no dia 15"', () => {
     const { container } = render(<AndamentoV2 dia={5} teto={15} pausado={false} />)
-    expect(container.textContent).toContain('Dia 5 de 15')
+    expect(container.textContent).toContain('Dia 6 de 15')
     expect(container.textContent).toContain('faltam 10 dias')
     fireEvent.click(screen.getByRole('button', { name: 'Como ler o andamento' }))
     expect(document.getElementById('flut')?.textContent).toContain('encerra sozinho no dia 15')

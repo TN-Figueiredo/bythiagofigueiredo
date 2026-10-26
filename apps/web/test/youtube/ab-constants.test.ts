@@ -25,8 +25,8 @@ describe('TYPE_META', () => {
   it('covers the 3 test types', () => {
     expect(Object.keys(TYPE_META)).toEqual(['thumbnail', 'title', 'combo'])
   })
-  it('combo se chama "Título + thumbnail" e leva a frase fechada pelo Logan', () => {
-    expect(TYPE_META.combo.label).toBe('Título + thumbnail')
+  it('combo se chama "Título e miniatura" e leva a frase fechada pelo Logan', () => {
+    expect(TYPE_META.combo.label).toBe('Título e miniatura')
     expect(TYPE_META.combo.hint).toBe(FRASE_COMBO)
     expect(FRASE_COMBO).toBe('Se ganhar, você não vai saber se foi o título ou a thumbnail.')
   })
