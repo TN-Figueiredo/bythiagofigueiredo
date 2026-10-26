@@ -113,6 +113,13 @@ describe('página do A/B Lab: composição', () => {
     fireEvent.click(b)
     expect(push).not.toHaveBeenCalled()
   })
+  it('linha de Concluídos quebra a 390: wrap, miniatura menor e resultado em linha inteira (Logan C2)', () => {
+    const { container } = render(<AbLabDashboard {...propsDoLab({ pagina: paginaCheia() })} />)
+    const linha = container.querySelector('[data-concluido]') as HTMLElement
+    expect(linha.className).toContain('flex-wrap')
+    expect(linha.querySelector('.lab-th')!.className).toContain('max-sm:!w-16')
+    expect(linha.querySelector('.lab-btn')!.parentElement!.className).toContain('max-sm:basis-full')
+  })
   it('item "Aplicar B" da faixa e o botão do Concluído abrem o mesmo painel', () => {
     render(<AbLabDashboard {...propsDoLab({ pagina: paginaCheia() })} />)
     const botoes = screen.getAllByRole('button', { name: 'Aplicar B' })

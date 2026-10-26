@@ -17,21 +17,21 @@ export interface SecaoConcluidosProps {
 
 function Miniatura({ src }: { src: string | null }): ReactElement {
   const [falhou, setFalhou] = useState(false)
-  if (!src || falhou) return <div className="lab-th vazia !w-24" role="img" aria-label="Miniatura do vídeo">sem miniatura</div>
+  if (!src || falhou) return <div className="lab-th vazia !w-24 max-sm:!w-16" role="img" aria-label="Miniatura do vídeo">sem miniatura</div>
   // eslint-disable-next-line @next/next/no-img-element
-  return <div className="lab-th !w-24"><img src={src} alt="Miniatura do vídeo" onError={() => setFalhou(true)} /></div>
+  return <div className="lab-th !w-24 max-sm:!w-16"><img src={src} alt="Miniatura do vídeo" onError={() => setFalhou(true)} /></div>
 }
 
 function Linha({ l, onAbrirPainel }: { l: LinhaConcluida; onAbrirPainel: SecaoConcluidosProps['onAbrirPainel'] }): ReactElement {
   const acao = l.acao
   return (
-    <div className="flex min-h-[68px] items-center gap-3.5 border-t border-cms-border py-2 first:border-t-0" data-concluido={l.chave}>
+    <div className="flex min-h-[68px] flex-wrap items-center gap-x-3.5 gap-y-2 border-t border-cms-border py-2 first:border-t-0" data-concluido={l.chave}>
       <Miniatura src={l.miniaturaUrl} />
       <div className="min-w-0 flex-1">
         <b className="line-clamp-2 text-sm font-medium leading-[1.35]">{l.titulo}</b>
         <span className="text-xs text-cms-text-muted">{l.tipo}</span>
       </div>
-      <div className="flex flex-col items-end gap-1 text-right">
+      <div className="flex flex-col items-end gap-1 text-right max-sm:basis-full max-sm:items-start max-sm:text-left">
         <b className="text-[13px] font-semibold text-cms-text-muted">{l.resultado}</b>
         <span className="text-xs text-cms-text-muted">{l.apoio}</span>
         {acao ? (
