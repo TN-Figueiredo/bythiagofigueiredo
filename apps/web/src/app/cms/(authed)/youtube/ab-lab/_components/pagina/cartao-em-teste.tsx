@@ -71,7 +71,7 @@ export function CartaoEmTesteView({ cartao, unico, onAbrirPainel, onAbrirDia14 }
     )
   }
 
-  const { card, painel, pendencia } = cartao
+  const { card, painel } = cartao
   const ativo = card.status === 'active'
   const dia = card.diaV2
     ? rotuloDoDia(card.diaV2.dia, card.diaV2.teto)
@@ -138,12 +138,7 @@ export function CartaoEmTesteView({ cartao, unico, onAbrirPainel, onAbrirDia14 }
         {unico ? estatisticas : null}
       </div>
       {unico ? null : estatisticas}
-      {pendencia && painel ? (
-        <div className="lab-rodape pend">
-          <span>Com você: {pendencia.verbo}</span>
-          <button type="button" className="lab-btn lab-alvo lab-acima" onClick={e => onAbrirPainel(painel, e.currentTarget)}>{pendencia.botao}</button>
-        </div>
-      ) : ativo && painel ? (
+      {ativo && painel ? (
         <div className="lab-rodape neutro">
           <button type="button" className="lab-btn lab-alvo lab-acima" onClick={e => onAbrirPainel(painel, e.currentTarget)}>Encerrar e escolher</button>
         </div>

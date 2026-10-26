@@ -68,7 +68,7 @@ export type ItemComVoce =
   | { tipo: 'retomar'; titulo: string; testId: string; pausadoHaDias: number | null }
 
 export type CartaoEmTeste =
-  | { tipo: 'lab'; card: AbTestCardView; lider: { letra: string; ctrs: [string, string] } | null; semLider: 'poucos dados' | 'CTR não medido'; proximaTroca: string | null; painel: PainelDecisao | null; /** pendência do dono neste teste (rodapé âmbar); o modelo ainda não a preenche */ pendencia?: { verbo: string; botao: string } }
+  | { tipo: 'lab'; card: AbTestCardView; lider: { letra: string; ctrs: [string, string] } | null; semLider: 'poucos dados' | 'CTR não medido'; proximaTroca: string | null; painel: PainelDecisao | null }
   | { tipo: 'studio'; linha: LinhaDoCaminho; titulos: Array<{ letra: string; titulo: string | null }>; labPausadoAte: string | null; dia14: boolean }
 
 export interface PaginaDoLab {

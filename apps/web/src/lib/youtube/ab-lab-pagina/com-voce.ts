@@ -135,20 +135,6 @@ export function fraseDoTopo(p: { lab: number; studio: number; itens: ItemComVoce
   return `${rodando} ${coisas}${lista ? `: ${lista}` : ''}.`
 }
 
-function botaoDe(i: ItemComVoce): string | undefined {
-  if (i.tipo === 'retomar') return 'Retomar'
-  if (i.tipo === 'aplicar') return `Aplicar ${i.letra}`
-  return undefined
-}
-
-/** Pendência do dono neste teste: o item de "Com você" com o mesmo testId, com o verbo e o botão que ele já usa. */
-export function pendenciaDoTeste(itens: ItemComVoce[], testId: string): { verbo: string; botao: string } | undefined {
-  const i = itens.find(x => 'testId' in x && x.testId === testId)
-  const verbo = i ? verboDe(i) : null
-  const botao = i ? botaoDe(i) : undefined
-  return verbo && botao ? { verbo, botao } : undefined
-}
-
 export function cartoesEmTeste(e: EntradaPagina, itens: ItemComVoce[] = itensComVoce(e)): CartaoEmTeste[] {
   const out: CartaoEmTeste[] = []
   for (const a of e.ativos) {
@@ -167,8 +153,7 @@ export function cartoesEmTeste(e: EntradaPagina, itens: ItemComVoce[] = itensCom
     const painel = ativo
       ? painelDoAtivo(card, { ctrs: a.ctrs, noArLetra: noArDoAtivo(a), sugeridaId: sugeridaDoAtivo(a.bruto), regraV2: regraV2(a.bruto), podeDeixarVariante: e.podeDeixarVariante })
       : null
-    const pendencia = pendenciaDoTeste(itens, card.id)
-    out.push({ tipo: 'lab', card, lider, semLider: algumMedido ? 'poucos dados' : 'CTR não medido', proximaTroca: ativo ? proximaTrocaDe(card.cycleStartedAt, e.agora) : null, painel, ...(pendencia ? { pendencia } : {}) })
+    out.push({ tipo: 'lab', card, lider, semLider: algumMedido ? 'poucos dados' : 'CTR não medido', proximaTroca: ativo ? proximaTrocaDe(card.cycleStartedAt, e.agora) : null, painel })
   }
   for (const l of e.linhas) {
     if (l.estado !== 'em_teste_studio' || !l.registro) continue

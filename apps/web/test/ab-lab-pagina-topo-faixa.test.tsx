@@ -16,13 +16,12 @@ afterEach(cleanup)
 const mkv = (id: string, label: 'A' | 'B' | 'C', isOriginal: boolean, title: string | null) => ({ id, label, color: '#000', thumbUrl: null, title, isOriginal })
 const variants = [mkv('va', 'A', true, 'Título A'), mkv('vb', 'B', false, 'Título B')]
 
-function cartaoLab(o: { id?: string; status?: 'active' | 'queued'; type?: 'title' | 'thumbnail' | 'combo'; vars?: ReturnType<typeof mkv>[]; pendencia?: boolean; diaV2?: { dia: number; teto: number } } = {}): Extract<CartaoEmTeste, { tipo: 'lab' }> {
+function cartaoLab(o: { id?: string; status?: 'active' | 'queued'; type?: 'title' | 'thumbnail' | 'combo'; vars?: ReturnType<typeof mkv>[]; diaV2?: { dia: number; teto: number } } = {}): Extract<CartaoEmTeste, { tipo: 'lab' }> {
   const card = makeCardView({ id: o.id ?? 't1', status: o.status ?? 'active', type: o.type ?? 'title', variants: o.vars ?? variants, videoTitle: 'Vídeo do Lab', diaV2: o.diaV2 ?? { dia: 1, teto: 15 } })
   const ativo = card.status === 'active'
   const painel = ativo ? painelDoAtivo(card, { ctrs: {}, noArLetra: 'A', sugeridaId: null, regraV2: true, podeDeixarVariante: true }) : null
   return {
     tipo: 'lab', card, lider: null, semLider: 'CTR não medido', proximaTroca: ativo ? '~20h' : null, painel,
-    ...(o.pendencia ? { pendencia: { verbo: 'aplicar B', botao: 'Aplicar B' } } : {}),
   }
 }
 const linhaStudio = (): LinhaDoCaminho => ({
@@ -72,29 +71,11 @@ describe('Em teste agora', () => {
     secao([cartaoLab({ diaV2: { dia: 0, teto: 15 } })])
     expect(screen.getByText('Dia 1/15')).toBeTruthy()
   })
-  it('botão "Encerrar e escolher": ativo sem pendência = 1; ativo com pendência = 0; queued = 0; Studio = 0', () => {
+  it('botão "Encerrar e escolher": ativo = 1; queued = 0; Studio = 0', () => {
     const n = (c: CartaoEmTeste) => { const r = secao([c]); const k = screen.queryAllByRole('button', { name: 'Encerrar e escolher' }).length; r.unmount(); return k }
     expect(n(cartaoLab())).toBe(1)
-    expect(n(cartaoLab({ pendencia: true }))).toBe(0)
     expect(n(cartaoLab({ status: 'queued' }))).toBe(0)
     expect(n(cartaoStudio())).toBe(0)
-  })
-  it('cartão vindo do modelo, com item aplicar do mesmo testId: tem "Com você: aplicar B" e "Aplicar B" e não tem "Encerrar e escolher"', () => {
-    const base = cartaoLab({ id: 'c1' })
-    const entrada = { ativos: [{ card: base.card, bruto: { id: 'c1', result_metadata: null, current_cycle: null }, tela: null, ctrs: {} }], concluidos: [], pausados: [], rascunhos: [], linhas: [], podeDeixarVariante: true, agora: new Date('2026-10-26T15:00:00Z') } as unknown as Parameters<typeof cartoesEmTeste>[0]
-    const item: ItemComVoce = { tipo: 'aplicar', testId: 'c1', titulo: 'Aladdin', letra: 'B', motivo: 'sugerida pelo teste', painel: painelFake() }
-    const c = cartoesEmTeste(entrada, [item])
-    secao(c)
-    expect(screen.getByText('Com você: aplicar B')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Aplicar B' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Encerrar e escolher' })).toBeNull()
-  })
-  it('cartão com pendência mostra "Com você: aplicar B" e o botão abre o painel do cartão', () => {
-    const c = cartaoLab({ pendencia: true })
-    const { p } = secao([c])
-    expect(screen.getByText('Com você: aplicar B')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Aplicar B' }))
-    expect(p.onAbrirPainel).toHaveBeenCalledWith(c.painel, expect.any(HTMLElement))
   })
   it('nenhum botão dentro de link: clicar no botão chama onAbrirPainel com o painel do cartão', () => {
     const c = cartaoLab()
