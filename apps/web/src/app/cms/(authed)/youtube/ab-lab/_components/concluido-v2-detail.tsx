@@ -137,7 +137,7 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
         falhar({ texto: msgFalha(tipo, tipo === 'aplicar' ? letraAlvo : letraNoAr), recarregar: !naPagina, prazo: false }, true)
         return
       }
-      falhar({ texto: r.error, recarregar: r.resultado === 'erro', prazo: false })
+      falhar({ texto: r.error, recarregar: r.resultado === 'erro' || r.resultado === 'sem_permissao', prazo: false })
     } finally {
       voo.current = false
       setEnviando(false)

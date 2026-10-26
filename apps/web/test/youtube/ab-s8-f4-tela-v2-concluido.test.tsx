@@ -393,6 +393,7 @@ describe('T12 T7: concluído v2', () => {
       ['ja_encerrado', { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }, 'Recarregar'],
       ['ja_encerrado por outro teste', { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }, 'Recarregar'],
       ['em_andamento', { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }, 'Tentar de novo'],
+      ['sem_permissao', { ok: false, resultado: 'sem_permissao', error: 'Sem permissão.' }, 'Recarregar'],
     ])('C1: %s na página deixa um botão no alert', async (_n, resp, botao) => {
       montar(desf(), { aplicar: vi.fn().mockResolvedValue(resp) })
       abrirDeNovo(); confirmar('Aplicar B')
