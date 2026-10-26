@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tela v2 do teste A/B (mockup M5)</title>
+<style>
+/* Mockup M5 r2 (25/10/2026), S8-F4 T12. Cresce sobre o placar M4 r3.1 (intacto). Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS.
+   Seletor por URL: ?estado=&tema=claro|escuro&largura=1440|390|ambas */
+*,*::before,*::after{box-sizing:border-box}
+:root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
+html{background:var(--pg)}
+body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--pgt);background:var(--pg)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;background:var(--pgs);border-bottom:1px solid var(--pgb)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--pgm)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #40382D;border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:34px;padding:0 11px;border:0;background:transparent;color:var(--pgm);cursor:pointer}
+.seg button[aria-pressed="true"]{background:#F5EFE6;color:#100E0C;font-weight:600}
+.wrap{max-width:1520px;margin:0 auto;padding:24px 16px 80px}
+h1{font:600 26px/1.2 Georgia,serif;margin:8px 0}
+.lede{max-width:78ch;color:var(--pgm);margin:0 0 20px}
+.figs{display:flex;flex-direction:column;gap:26px;align-items:flex-start;overflow-x:auto;max-width:100%}
+.fig{margin:0}.fig>figcaption{font-size:13px;color:var(--pgm);margin-bottom:8px}
+
+.frame,#flut,#dlg{
+  --shadow:0 12px 32px rgba(0,0,0,.45);
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A251F;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;--faint:#5C5345;
+  --accent:#FF8240;--on-accent:#1A120A;--nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;--nm-fio:rgba(229,156,192,.14);
+  --warn:#F5B13D;--warn-bg:rgba(245,158,11,.10);--warn-line:#C98A1B;
+  --ok:#6FCF97;--ok-bg:rgba(111,207,151,.10);--ok-line:#3E8F63;--err:#F4A097;--err-line:#B85A50;--err-bg:rgba(244,160,151,.08);
+  --yt:#9FB4C9;--yt-bg:rgba(159,180,201,.08);--yt-line:#6B8199;
+  --skel:#2B2620;--skel2:#363028;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;
+  --va:#B8481A;--vb:#2B6DA8;--vc:#4C6B1F;--vd:#7A4FA0;--la:#E0703A;--lb:#6FA8DC;--lc:#9CC25A;--ld:#B895E0;
+}
+.frame{
+  background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;border:1px solid var(--border);border-radius:10px;padding:24px;font-size:14px}
+.frame[data-theme="light"],#flut[data-theme="light"],#dlg[data-theme="light"]{
+  --shadow:0 12px 32px rgba(60,40,10,.14);
+  --bg:#F7F2E9;--surface:#FBF7F0;--surface-2:#F2EBDF;--sunk:#F2EBDF;
+  --border:#DDD2BF;--border-subtle:#E7DECF;--border-strong:#C9BBA3;
+  --text:#231C14;--muted:#5E5240;--dim:#6E624E;--faint:#A69A84;
+  --accent:#B8481A;--on-accent:#FFF8F1;--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--nm-fio:rgba(142,42,98,.10);
+  --warn:#7A4F00;--warn-bg:rgba(138,90,0,.09);--warn-line:#8A5A00;
+  --ok:#1E6B43;--ok-bg:rgba(30,107,67,.09);--ok-line:#3E8F63;--err:#9E2A1E;--err-line:#B85A50;--err-bg:rgba(158,42,30,.07);
+  --yt:#34506B;--yt-bg:rgba(52,80,107,.07);--yt-line:#6B8199;
+  --skel:#E7DECF;--skel2:#F2EBDF;--la:#AB4216;--lb:#2B6DA8;--lc:#4C6B1F;--ld:#7A4FA0;color-scheme:light}
+.frame.w1440{width:1440px}.frame.w390{width:390px;padding:16px 12px}
+.frame :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.frame h2,.frame h3,.frame p{margin:0}
+.num{font-variant-numeric:tabular-nums;font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+.meta{font-size:12px;color:var(--muted)}
+.nm{display:inline-block;padding:1px 7px;border:1px solid var(--nm-line);border-radius:4px;color:var(--nm);font:400 12px/16px Inter,system-ui,sans-serif;background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 13px;border:1px solid var(--border-strong);border-radius:6px;background:var(--surface-2);color:var(--text);font:500 13px/18px Inter,system-ui,sans-serif;cursor:pointer;text-decoration:none}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.ghost{background:transparent}
+@container (max-width:640px){.btn{min-height:44px}}
+
+.th{display:grid;place-items:center;border-radius:5px;color:rgba(255,255,255,.92);font:600 15px/1 Georgia,serif;flex:none;aspect-ratio:16/9;width:80px}
+.tA{background:linear-gradient(135deg,#C2562E,#E8A15A 60%,#F3D19A)}
+.tB{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+.tC{background:linear-gradient(135deg,#3C5A1A,#7FA23D 60%,#CBE08E)}
+.tD{background:linear-gradient(135deg,#5B3A86,#9A74C9 60%,#D8C2F0)}
+
+.hd{display:flex;gap:var(--s4);align-items:center}
+.hd .th{width:128px}
+.hd h2{font:600 19px/1.3 Georgia,serif;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ttl{flex:1;min-width:0}
+.crumb{font-size:12px;color:var(--muted);margin-bottom:var(--s1)}
+.selos{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3)}
+.selo{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);white-space:nowrap;max-width:100%}
+.selo svg{flex:none}
+.selo.lab{border-color:var(--accent);color:var(--accent)}
+.selo.old{border:1px dashed var(--border-strong);color:var(--muted);font-weight:500}
+
+.frame .sum{margin:var(--s5) 0 0;font:600 21px/1.35 Georgia,serif;max-width:72ch;text-wrap:balance}
+.sum small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:var(--s2)}
+@container (max-width:640px){.sum{font-size:18px}.hd{flex-direction:column;align-items:flex-start;gap:var(--s3)}.hd .th{width:96px}.ttl{width:100%}}
+
+.band{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface);margin-top:var(--s2)}
+.sum+.band{margin-top:var(--s4)}
+.band .ic{flex:none;margin-top:2px}
+.band h3{font:600 14px/1.35 Inter,system-ui,sans-serif}
+.band p{font-size:14px;color:var(--muted);margin-top:2px;max-width:78ch}
+.band.warn{border-color:var(--warn-line);background:var(--warn-bg);border-left-width:4px;color:var(--warn)}
+.band.warn h3{color:var(--warn)}
+.band.yt{border:1px dashed var(--yt-line);background:var(--yt-bg);color:var(--yt)}
+.band.calm{padding:8px 12px;align-items:center}
+.band.calm p{margin:0;color:var(--muted)}
+
+.sec{margin-top:var(--s6)}
+.sec>h3,.sec .sh{font:600 16px/1.3 Inter,system-ui,sans-serif;display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s3);flex-wrap:wrap}
+.sh .upd{font:400 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);margin-left:auto}
+.sh .upd.warn{color:var(--warn);font-weight:600;display:inline-flex;gap:5px;align-items:center}
+/* r5: ⓘ = InfoDica + Popover do produto. Origem (worktree bt-s8-f2, apps/web/src/app/cms/(authed)/youtube/competitors/):
+   .ibtn  _proprio/video.css:24-27 (24x24, sem borda, redondo, muted, svg 16) e 48 (44x44 no toque);
+   .vb-info _proprio/video-blocos.css:20-22 (margem -6px 0; 44x44 e -10px 0 no toque; .vb-info-p);
+   #flut .obs-fl-pop  _chrome/flut/flut.css:3-6 (caixa, raio 8, borda --border-strong, sombra --shadow, 12.5px/1.45, anel de foco);
+   .canal-tip  _canal/canal.css:130-131 (380px, padding 12px 14px, 13px, h3 600 13.5px); #flut  _chrome/camadas.css:12-18 (z 1000, fixed, inset 0). */
+.frame .ibtn{width:24px;height:24px;border:0;background:none;padding:0;cursor:pointer;display:inline-grid;place-items:center;color:var(--muted);border-radius:50%;flex:none}
+.frame .ibtn:hover{color:var(--text)}
+.frame .ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.frame .ibtn svg{width:16px;height:16px;display:inline-block;flex:none;vertical-align:middle;fill:none;stroke:currentColor}
+.frame .vb-info{margin:-6px 0}
+@media (pointer:coarse){.frame .ibtn.vb-info{width:44px;height:44px;margin:-10px 0}}
+@container (max-width:640px){.frame .ibtn.vb-info{width:44px;height:44px;margin:-10px 0}}
+#flut{position:fixed;inset:0;z-index:1000;pointer-events:none}
+#flut>*{pointer-events:auto}
+:where(#flut,#dlg) :where(h2,h3,h4,p){margin:0}
+#flut .obs-fl-pop{box-sizing:border-box;margin:0;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);font:400 12.5px/1.45 Inter,system-ui,sans-serif;text-align:left;-webkit-font-smoothing:antialiased}
+#flut .obs-fl-pop:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#flut .obs-fl-pop.canal-tip{width:380px;padding:12px 14px;font-size:13px;max-height:min(70vh,560px);overflow:auto}
+#flut .canal-tip h3{margin:0 0 6px;font:600 13.5px Inter,system-ui,sans-serif}
+#flut .canal-tip b{color:var(--text);font-weight:500}
+#flut .canal-tip .vb-info-p{margin:4px 0 0;font-size:13px;line-height:19px}
+
+/* placar: um grid por linha, mesma markup em 1440 e 390 */
+.card{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:6px 16px 4px;max-width:1040px}
+.vhead,.vr{display:grid;grid-template-columns:minmax(0,1fr) 150px 170px 44px;gap:0 16px;align-items:center}
+.vhead{font:500 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);padding:8px 0;border-bottom:1px solid var(--border)}
+.vhead span:nth-child(2),.vhead span:nth-child(3){text-align:right}
+.vrow{border-bottom:1px solid var(--border-subtle)}
+.vrow:last-child{border-bottom:0}
+.vr{min-height:56px;padding:9px 0}
+.vh{display:flex;gap:10px;align-items:center;min-width:0}
+.vchip{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:5px;font:700 13px/1 Inter,system-ui,sans-serif;color:#fff;flex:none}
+.cA{background:var(--va)}.cB{background:var(--vb)}.cC{background:var(--vc)}.cD{background:var(--vd)}
+.vt{min-width:0}
+.vt b{display:block;font:600 14px/1.35 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vt .ap{font-size:12px;color:var(--muted);margin-top:1px;display:flex;gap:4px 10px;flex-wrap:wrap}
+.vi,.vc{text-align:right;font-size:14px}
+.vi .lb,.vc .lb{display:none}
+.vc .de{color:var(--muted);font-size:12px}
+.big{font-size:16px;font-weight:600}
+.ag{display:inline-flex;gap:6px;align-items:center;padding:1px 8px;border:1px dashed var(--yt-line);border-radius:999px;color:var(--yt);background:var(--yt-bg);font:500 12px/18px Inter,system-ui,sans-serif;white-space:nowrap}
+.dash{color:var(--muted)}
+.chev{width:44px;height:44px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center;border-radius:6px}
+.chev svg{transition:transform .15s}
+.chev[aria-expanded="true"] svg{transform:rotate(180deg)}
+.vx{padding:2px 0 14px 36px;font-size:13px;color:var(--muted);display:none}
+.vx.open{display:block}
+.vx b{color:var(--text);font-weight:600}
+.vx ul{margin:6px 0 0;padding-left:18px}
+@container (max-width:640px){
+ .card{padding:4px 10px}
+ .vhead{display:none}
+ .vr{grid-template-columns:1fr 1fr 44px;grid-template-areas:"h h h" "i c x";gap:8px 10px;padding:12px 0}
+ .vh{grid-area:h;align-items:flex-start}
+ .vh .th{width:72px}
+ .vt b{white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+ .vi{grid-area:i;text-align:left}.vc{grid-area:c;text-align:left}
+ .chev{grid-area:x}
+ .vi .lb,.vc .lb{display:block;font-size:12px;color:var(--muted)}
+ .vx{padding-left:0}
+ .vi,.vc{white-space:nowrap}
+ .vc .de{display:block}
+}
+.apoio{margin-top:var(--s3);display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.apoio>span{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+
+/* faixa de dias (bloco separável) */
+.dias{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--border)}
+.dias .sh{margin-bottom:var(--s3)}
+.strip{display:flex;flex-wrap:wrap;gap:6px}
+.dc{width:34px;height:42px;border-radius:5px;border:1px solid var(--dim);background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 12px/1.2 Inter,system-ui,sans-serif;gap:1px}
+.dc i{font-style:normal;font-weight:500;font-size:12px}
+.dc.m{background:var(--sunk)}
+.dc.z{background:transparent;font-weight:600}
+.dc.a{background:transparent;border-style:dotted;color:var(--muted);font-weight:400}.dc.a i{font-weight:400}
+.dc.g{border:1px dashed var(--yt-line);background:var(--yt-bg);color:var(--yt)}
+.dc.n{border-color:var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.dc.f{border-color:var(--dim);color:var(--muted);background:transparent;opacity:.9}
+.lv{color:inherit}
+.lA{color:var(--la)}.lB{color:var(--lb)}.lC{color:var(--lc)}.lD{color:var(--ld)}.lx{color:var(--muted)}
+.leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted);margin-top:8px}
+.leg span{display:inline-flex;gap:5px;align-items:center}
+@container (max-width:640px){.strip{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.dc{width:auto;height:44px}}
+
+/* régua */
+.ruler{max-width:760px}
+.rbar{position:relative;height:14px;background:var(--sunk);border:1px solid var(--border-subtle);border-radius:7px;overflow:hidden}
+.rbar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
+.mark{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
+
+/* carregando / erro. Alturas = as do estado real (medidas na r2): hd 75/125, sum 80/120, linha 63/150, faixa 41/59 */
+.skhd{height:79px;display:flex;gap:var(--s4);align-items:center}
+.sksum{height:105px;margin-top:var(--s5);max-width:72ch;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:0 14px;font:400 13px/1.4 Inter,system-ui,sans-serif;color:var(--muted)}
+.skband{height:41px;margin-top:var(--s4)}
+.skrow{height:63px;margin:6px 0}
+.skdias{display:flex;gap:6px;flex-wrap:wrap}.skdias .sk{width:34px;height:42px}
+@container (max-width:640px){.skhd{height:169px;flex-direction:column;align-items:flex-start}.sksum{height:160px}.skband{height:59px}.skrow{height:150px}.skdias{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.skdias .sk{width:auto;height:44px}}
+.sk{background:linear-gradient(90deg,var(--skel) 0,var(--skel2) 50%,var(--skel) 100%);background-size:200% 100%;border-radius:6px;animation:sh 1.4s linear infinite}
+@keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}.chev svg{transition:none}}
+.err{border:1px solid var(--border-strong);background:var(--surface);border-radius:10px;padding:18px;margin-top:18px;display:flex;gap:12px;align-items:flex-start;color:var(--text)}
+.err h3{font:600 16px/1.3 Inter,system-ui,sans-serif;color:var(--text)}
+.err p{color:var(--muted);margin-top:4px;font-size:14px}
+/* ---- M5 ---- */
+.sec>h3.h{margin:0}
+.selo.fam{font-size:13px;padding:4px 12px 4px 9px}
+/* selo do desfecho: 4 famílias de cor + símbolo + texto (lê em cinza); provisório = tracejado sem preenchimento, final = borda cheia */
+.sel{display:inline-flex;align-items:center;gap:8px;padding:5px 14px 5px 11px;border-radius:999px;font:600 14px/20px Inter,system-ui,sans-serif;border:2px solid var(--border-strong);color:var(--text);max-width:100%}
+.sel .sy{font-size:16px;line-height:1;flex:none;display:inline-grid;place-items:center;min-width:16px}
+.sel.vence{border-color:var(--ok-line);color:var(--ok);background:var(--ok-bg)}
+.sel.vence.prov{border-style:dashed;background:transparent}
+.sel.neu{border-color:var(--dim);color:var(--text)}
+.sel.mut{border-color:var(--dim);color:var(--text);background:var(--surface-2)}
+.sel.nmf{border-color:var(--nm-line);color:var(--nm);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
+.sel.esp{border-style:dashed;border-color:var(--yt-line);color:var(--yt);background:var(--yt-bg)}
+.sel.errf{border-color:var(--err-line);color:var(--err);background:var(--err-bg)}
+.sel.fort{border-color:var(--dim);color:var(--text);background:var(--surface-2);border-width:3px;border-style:double}
+.desf{margin-top:var(--s4);display:flex;flex-direction:column;gap:var(--s3);align-items:flex-start;max-width:1040px}
+.desf .linha{font-size:14px;color:var(--muted);max-width:78ch}
+.desf .linha b{color:var(--text);font-weight:600}
+.desf .provl{display:inline-flex;gap:7px;align-items:center;font-size:13px;color:var(--muted)}
+.desf .noar{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+.desf .noar .th{width:48px;font-size:12px}
+.desf .noar b{color:var(--text)}
+.acts{display:flex;flex-wrap:wrap;gap:var(--s4);align-items:center}
+.btn.alvo{min-height:44px;padding:0 18px}
+.btn.sec2{background:transparent}
+/* r5: diálogo .etd copiado de ab-lab/_components/ab-end-test-dialog.css (worktree bt-s8-f2, youtube/ab-lab/_components/), linhas 1-97.
+   Só mudam os tokens: --theme-cms-* e --pb-accent viram os do mockup (--surface, --border, --text, --muted, --surface-2, --accent). Cores literais. */
+.etd-scrim { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(0,0,0,.55); }
+.etd {
+  --etd-err: #F87171; --etd-warn: #FBBF24; --etd-info: #38BDF8;
+  --etd-err-bg: rgba(217,97,74,.13); --etd-warn-bg: rgba(245,158,11,.13); --etd-info-bg: rgba(63,169,192,.13);
+  --etd-err-line: rgba(239,68,68,.55); --etd-warn-line: rgba(245,158,11,.5); --etd-info-line: rgba(6,182,212,.45);
+  --etd-amber: #E0A23C; --etd-sub: #C9BFAA; --etd-ctl: #928871;
+  --etd-text: var(--text); --etd-muted: var(--muted);
+  --etd-surface: var(--surface); --etd-border: var(--border);
+  --etd-accent: var(--accent); --etd-accent-soft: rgba(255,130,64,.14);
+  position: relative; width: 100%; max-width: 440px; max-height: calc(100dvh - 24px); display: flex; flex-direction: column;
+  background: var(--etd-surface); color: var(--etd-text); border: 1px solid var(--etd-border); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 24px 60px -20px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.4);
+}
+#dlg[data-theme="light"] .etd {
+  --etd-err: #A4261B; --etd-warn: #7A4E00; --etd-info: #0B5F82;
+  --etd-err-line: rgba(180,35,24,.55); --etd-warn-line: rgba(160,100,0,.55); --etd-info-line: rgba(14,116,144,.5);
+  --etd-sub: #3F3727; --etd-ctl: #756A51; --etd-accent-soft: rgba(185,66,16,.10);
+}
+.etd-h { display: flex; align-items: center; gap: 11px; padding: 10px 8px 10px 18px; border-bottom: 1px solid var(--etd-border); flex: none; }
+.etd-h h2 { flex: 1; margin: 0; font-size: 15px; font-weight: 700; }
+.etd-ico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; flex: none; background: var(--etd-err-bg); color: var(--etd-err); }
+.etd-ico.w { background: var(--etd-warn-bg); color: var(--etd-warn); }
+.etd-x { width: 44px; height: 44px; border-radius: 8px; border: 0; background: transparent; color: var(--etd-muted); display: grid; place-items: center; flex: none; cursor: pointer; }
+.etd-x:hover { background: var(--surface-2); }
+.etd-b { padding: 16px 18px; overflow: auto; min-height: 0; flex: 1 1 auto; }
+.etd-state { color: var(--etd-muted); font-size: 13px; margin: 0 0 14px; }
+.etd-state b { color: var(--etd-text); font-weight: 600; }
+.etd fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.etd legend { font-size: 14px; font-weight: 700; padding: 0; margin-bottom: 8px; }
+.etd-opt { display: grid; grid-template-columns: 18px 84px 1fr; gap: 4px 11px; align-items: start; border: 1px solid var(--etd-border); border-radius: 10px; padding: 10px; margin-bottom: 8px; cursor: pointer; position: relative; }
+.etd-opt:hover { background: var(--surface-2); }
+.etd-opt input { margin: 3px 0 0; accent-color: var(--etd-accent); width: 16px; height: 16px; }
+.etd-opt input:focus-visible { outline: none; }
+.etd-opt:has(input:checked) { border-color: var(--etd-accent); background: var(--etd-accent-soft); }
+.etd-opt:has(input:focus-visible) { outline: 2px solid var(--etd-accent); outline-offset: 2px; }
+.etd-opt.dis { cursor: default; }
+.etd-opt.dis:hover { background: transparent; }
+.etd-opt.dis .etd-th { opacity: .55; }
+.etd-opt.dis .etd-ttl, .etd-opt.dis .etd-who { color: var(--etd-muted); }
+.etd-opt.dis.sel { border-color: var(--etd-accent); background: var(--etd-accent-soft); }
+.etd-opt.dis.sel .etd-ttl, .etd-opt.dis.sel .etd-who { color: var(--etd-text); }
+.etd-th { width: 84px; aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; border: 1px solid rgba(0,0,0,.25); background: var(--surface-2); display: grid; place-items: center; }
+.etd-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.etd-th.fail { color: var(--etd-muted); font-size: 12px; line-height: 14px; border: 1px dashed var(--etd-ctl); align-content: center; text-align: center; gap: 2px; }
+.etd-th.fail svg { width: 16px; height: 16px; justify-self: center; }
+.etd-body { grid-column: 3; min-width: 0; }
+.etd-who { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12.5px; font-weight: 700; }
+.etd-ttl { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: 13px; line-height: 18px; color: var(--etd-text); }
+.etd-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--etd-muted); }
+.etd-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; font-weight: 600; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--etd-info-line); background: var(--etd-info-bg); color: var(--etd-info); white-space: nowrap; }
+.etd-badge.low { border: 1px dashed var(--etd-ctl); background: transparent; color: var(--etd-muted); }
+.etd-f { display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; justify-content: flex-start; align-items: center; padding: 12px 18px 16px; border-top: 1px solid var(--etd-border); flex: none; }
+.etd-hint { order: -1; flex: 1 1 100%; font-size: 12px; color: var(--etd-muted); text-align: right; margin: 0; }
+.etd-btn { border-radius: 9px; border: 1px solid var(--etd-ctl); background: transparent; color: var(--etd-text); padding: 8px 14px; font-size: 13px; font-weight: 600; min-height: 44px; display: inline-flex; gap: 7px; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
+.etd-btn:hover { background: var(--surface-2); }
+.etd-btn:focus-visible { outline: 2px solid var(--etd-accent); outline-offset: 2px; }
+.etd-btn.pri { background: var(--etd-accent); border-color: var(--etd-accent); color: #1A120A; }
+.etd-btn.pri[aria-disabled="true"] { background: var(--surface-2); border-color: var(--etd-border); color: var(--etd-muted); cursor: not-allowed; }
+.etd-btn:disabled { color: var(--etd-muted); cursor: not-allowed; }
+.etd-btn.over { background: var(--etd-amber); border-color: var(--etd-amber); color: #1A120A; }
+.etd-msg { display: grid; grid-template-columns: 20px 1fr; gap: 9px; border: 1px solid; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+.etd-msg svg { width: 18px; height: 18px; margin-top: 1px; }
+.etd-msg strong { display: block; }
+.etd-msg.err { background: var(--etd-err-bg); border-color: var(--etd-err-line); }
+.etd-msg.err svg { color: var(--etd-err); }
+.etd-msg.warn { background: var(--etd-warn-bg); border-color: var(--etd-warn-line); }
+.etd-msg.warn svg { color: var(--etd-warn); }
+.etd-msg.busy { background: var(--etd-info-bg); border-color: var(--etd-info-line); }
+.etd-msg.busy svg { color: var(--etd-info); animation: etd-sp 1s linear infinite; }
+@keyframes etd-sp { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .etd-msg.busy svg { animation: none; } }
+.etd-lead { font-size: 14px; margin: 0 0 8px; }
+.etd-tiny { font-size: 12px; color: var(--etd-muted); margin: 0 0 12px; }
+.etd-sec { margin: 12px 0 -4px; font-size: 13px; font-weight: 700; }
+.etd-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.etd-cmp > div { border: 1px solid var(--etd-border); border-radius: 10px; padding: 10px; min-width: 0; }
+.etd-cmp .mine { border-color: var(--etd-accent); background: var(--etd-accent-soft); }
+.etd-cmp h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--etd-muted); }
+.etd-cmp p { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.etd-cmp .etd-th { width: 100%; }
+.etd-aviso { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; background: var(--surface); }
+.etd-aviso button { min-height: 44px; min-width: 44px; border: 0; background: transparent; color: inherit; cursor: pointer; font-weight: 600; }
+@media (max-width: 480px) {
+  .etd-opt { grid-template-columns: 18px 64px 1fr; }
+  .etd-th { width: 64px; }
+  .etd-ttl, .etd-sub, .etd-body { grid-column: 3; }
+  .etd-f { flex-direction: column-reverse; align-items: stretch; }
+  .etd-cmp { grid-template-columns: 1fr; }
+}
+
+/* Acento primário no claro: #1A120A sobre #B94210 dá 3,39:1; #FFF8F0 dá 5,18:1. */
+#dlg[data-theme="light"] .etd-btn.pri { color: #FFF8F0; }
+/* Cinza muted sobre o fundo âmbar da opção/cartão marcado dá 3,84:1 no escuro. */
+.etd-opt:has(input:checked) .etd-badge.low, .etd-opt.sel .etd-badge.low, .etd-opt:has(input:checked) .etd-sub, .etd-cmp .mine h4 { color: var(--etd-text); }
+/* A barra de abas inferior não pode cobrir o rodapé do diálogo alto a 390 px. */
+@media (max-width: 480px) { .etd-scrim { padding-bottom: calc(12px + env(safe-area-inset-bottom)); } }
+
+/* mockup: o fundo clicável do scrim (no produto é .absolute.inset-0 do Tailwind) e a miniatura sintética */
+.etd-scrim>.etd-bd{position:absolute;inset:0}
+.etd-th.tA,.etd-th.tB{color:rgba(255,255,255,.92);font:600 15px/1 Georgia,serif;border-color:rgba(0,0,0,.25)}
+.etd-th.tA{background:linear-gradient(135deg,#C2562E,#E8A15A 60%,#F3D19A)}.etd-th.tB{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+.etd{font:400 14px/1.5 Inter,system-ui,sans-serif}
+.band.neu{border-color:var(--border-strong);color:var(--text)}
+.band.neu p{color:var(--muted)}
+
+/* relógio + pisos */
+.rel{max-width:1040px}
+.rel .top{display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s2)}
+.rel .dia{font:600 17px/1.3 Inter,system-ui,sans-serif}
+.rel .falta{font-size:13px;color:var(--muted)}
+.ticks{display:grid;gap:3px;max-width:760px}
+.ticks i{height:12px;border-radius:3px;border:1px solid var(--border-strong);background:transparent}
+.ticks i.p{background:var(--muted);border-color:var(--muted)}
+.ticks i.h{border-color:var(--text);border-width:2px;background:var(--surface-2)}
+.rel .teto{margin-top:var(--s2);font-size:13px;color:var(--text);display:flex;gap:7px;align-items:flex-start;max-width:78ch}
+.pisos{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:4px 16px;max-width:1040px}
+.pr{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr) 190px;gap:6px 20px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border-subtle)}
+.pr:last-child{border-bottom:0}
+.pr .vh{gap:10px}
+.pr .vt b{font-size:14px}
+.pbar{position:relative;height:14px;background:var(--sunk);border:1px solid var(--border-strong);border-radius:7px;overflow:hidden}
+.pbar i{position:absolute;left:0;top:0;bottom:0;background:var(--muted)}
+.pbar.vz{border-style:dashed}
+.pnum{font-size:13px;color:var(--muted);margin-top:4px;display:flex;gap:6px 14px;flex-wrap:wrap}
+.pnum b{color:var(--text);font-weight:600}
+.pdv{font-size:13px;color:var(--muted);text-align:right}
+.pdv b{color:var(--text)}
+.pdv .okk{color:var(--text)}
+@container (max-width:640px){
+ .pisos{padding:4px 12px}
+ .pr{grid-template-columns:1fr;gap:8px}
+ .pr .vh{grid-area:auto;align-items:center}
+ .pr .vt b{display:block;white-space:nowrap;-webkit-line-clamp:unset}
+ .pdv{text-align:left}
+}
+/* sinal provisório */
+.sinal{margin-top:var(--s5);max-width:1040px;display:flex;flex-direction:column;gap:var(--s3);align-items:flex-start}
+.sinal .l{display:flex;gap:10px;align-items:center;padding:8px 14px;border:1px dashed var(--border-strong);background:transparent;border-radius:8px;color:var(--text);font-size:14px;max-width:100%}
+.sinal .l .sy{color:var(--text)}
+.sinal .l b{font-weight:600}
+.sinal .l span.r{color:var(--muted);font-size:13px}
+.sec.acoes{margin-top:var(--s5)}
+/* início */
+.ini{max-width:760px;border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:var(--s4)}
+.ini h3{font:600 16px/1.3 Inter,system-ui,sans-serif;margin-bottom:var(--s3)}
+.ini .vv{display:flex;gap:10px;align-items:center;padding:6px 0;font-size:14px;min-width:0}
+.ini .vv b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.ini .band{margin-top:var(--s3)}
+.ini .acts{margin-top:var(--s4)}
+.mock-ok{color:var(--ok)}
+</style></head><body>
+<div class="ctl">
+ <div class="grp">Estado <div class="seg" id="sEstado" role="group" aria-label="Estado"></div></div>
+ <div class="grp">Tema <div class="seg" id="sTema" role="group" aria-label="Tema"><button data-v="escuro">Escuro</button><button data-v="claro">Claro</button></div></div>
+ <div class="grp">Largura <div class="seg" id="sLarg" role="group" aria-label="Largura"><button data-v="ambas">1440 e 390</button><button data-v="1440">1440</button><button data-v="390">390</button></div></div>
+</div>
+<div class="wrap">
+ <h1>Tela v2 do teste A/B do YouTube</h1>
+ <p class="lede">Mockup M5 r2 (S8-F4). Troque estado, tema e largura no topo ou pela URL (?estado=ativo-sinal&amp;tema=claro&amp;largura=390). Dados sintéticos. O placar M4 está intacto dentro de cada estado. Sem lift no teste ativo; lift e “vs A” só em vencedor de variante.</p>
+ <div class="figs" id="figs"></div>
+</div>
+<div id="flut" data-obs></div><div id="dlg"></div>
+<script>
+const SV=(p,a='')=>'<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" '+a+'>'+p+'</svg>';
+const I={
+ clock:SV('<circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 4v3.2l2 1.3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'),
+ warn:SV('<path d="M7 1.5l6 10.5H1z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7 5.5v3M7 10.2v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'),
+ yt:SV('<rect x="1.5" y="3" width="11" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/><path d="M6 5.5v3l2.6-1.5z" fill="currentColor"/>'),
+ lab:SV('<path d="M5 1h4M6 1v4L2 12h10L8 5V1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'),
+ old:SV('<path d="M2 7h10M8 3l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'),
+ chev:SV('<path d="M3 5l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>','width="16" height="16"'),
+ skip:SV('<circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3.2 10.8l7.6-7.6" stroke="currentColor" stroke-width="1.5"/>')
+};
+const NMC='<span class="nm">não medido</span>';
+const n=x=>x.toLocaleString('pt-BR');
+let IC=0;
+const ICO_INFO='<svg class="obs-ch-i-s" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg>';
+const TIPS={};
+/* InfoDica: título (h3) + parágrafos; o corpo só existe no #flut enquanto aberto (como o Popover do produto) */
+function info(label,h){const id='vbi'+(++IC);const m=h.match(/^<b>(.*?)<\/b>\s*([\s\S]*)$/);TIPS[id]={t:m?m[1].replace(/\.$/,''):label,p:m?m[2]:h};return '<button class="ibtn vb-info" type="button" aria-expanded="false" aria-controls="'+id+'" aria-label="'+label+'" data-info>'+ICO_INFO+'</button>'}
+const T1='5 - Como somos controlados - Consistência e Compromisso (Part 4)';
+const T100='Eu testei 4 títulos diferentes no mesmo vídeo durante duas semanas e o resultado final me surpreendeu muito mesmo, veja';
+/* variante: l,t, st(ok|sem|ag|semctr|zero|aus|nt), imp, cl, ctr, val, ag, nm(dias não medidos), z(dias zero) */
+const V=(l,t,o)=>Object.assign({l,t,st:'ok',imp:0,cl:0,ctr:null,val:0,ag:0,nmd:0,z:0},o);
+/* dias: string "A m, B z, ..." -> usar helper D('Am Bz ... ') ; m medido, z zero, a ausente, g aguardando, n não medido, f fora */
+const D=s=>s.trim().split(/\s+/).map(t=>({v:t[0]==='-'?'':t[0],s:t[1]}));
+function cells(v){
+ const L=x=>'<span class="num">'+x+'</span>';
+ switch(v.st){
+  case 'nt':return ['<span class="dash">—</span>','<span class="dash">—</span>'];
+  case 'sem':return ['<span class="dash">—</span>','<span class="dash">—</span>'];
+  case 'semctr':return [L('<span class="big">'+n(v.imp)+'</span>'),NMC];
+  case 'zero':return [L('<span class="big">0</span>'),'<span class="dash" title="sem impressões, sem cliques">—</span>'];
+  default:return [L('<span class="big">'+n(v.imp)+'</span>'),L('<span class="big">'+n(v.cl)+'</span> <span class="de">de '+n(v.imp)+'</span>')];
+ }
+}
+function apoio(v){
+ if(v.st==='sem')return '';
+ if(v.st==='nt'&&!v.nmd&&!v.val)return '';
+ const p=[];
+ p.push(v.val+(v.val===1?' válido':' válidos'));
+ if(v.ag)p.push(v.ag+' aguardando '+I.clock);
+ if(v.nmd)p.push(v.nmd+' não medido ∅');
+ return p.map(x=>'<span>'+x+'</span>').join('');
+}
+function expand(v){
+ if(v.st==='sem'||v.st==='nt')return 'Sem dia fechado ainda: nada a mostrar.';
+ if(v.st==='semctr')return '<b>CTR: não medido.</b> O YouTube trouxe '+n(v.imp)+' impressões nos dias medidos, mas não o CTR. Os cliques não podem ser estimados e não são mostrados como 0.';
+ if(v.st==='zero')return '<b>Cliques: —.</b> O YouTube informou 0 impressões nos dias medidos; sem impressões não há cliques a mostrar.';
+ const p=(n(v.cl)+' '+(v.cl===1?'clique':'cliques')+' em '+n(v.imp)+' impressões');
+ return '<b>'+p+'</b> (CTR ≈ '+v.ctr+'%, dos dias válidos).'+(v.z?'<ul><li>'+v.z+' dias com 0 impressões informadas.</li></ul>':'');
+}
+function placar(e,w){
+ const hdr='<div class="vhead"><span>Variante</span><span>Impressões</span><span>Cliques ≈</span><span></span></div>';
+ const rows=e.v.map(v=>{
+  const c=cells(v), id='x'+w+v.l, nod=(v.st==='sem'||v.st==='nt');
+  return '<div class="vrow"><div class="vr" role="group" aria-label="Variante '+v.l+'"><div class="vh"><span class="vchip c'+v.l+'">'+v.l+'</span><div class="th t'+v.l+'">'+v.l+'</div><div class="vt"><b title="'+v.t+'">'+v.t+'</b><div class="ap">'+apoio(v)+'</div></div></div>'
+  +'<div class="vi"><span class="lb">Impressões</span>'+c[0]+'</div><div class="vc"><span class="lb">Cliques ≈</span>'+c[1]+'</div>'
+  +(nod?'<span class="chev" aria-hidden="true"></span>':'<button class="chev" type="button" aria-expanded="'+(v.expand?'true':'false')+'" aria-controls="'+id+'" aria-label="Detalhes da variante '+v.l+'" data-exp>'+I.chev+'</button>')+'</div>'
+  +(nod?'':'<div class="vx'+(v.expand?' open':'')+'" id="'+id+'">'+expand(v)+'</div>')+'</div>';
+ }).join('');
+ const upd=e.atras?'<span class="upd warn">'+I.warn+'Dados parados em '+e.atras+'</span>':(e.upd?'<span class="upd">Atualizado em '+e.upd.replace(' ',' às ')+'</span>':'<span class="upd">Sem leitura ainda</span>');
+ const tip=info('Como ler o placar','<b>Como ler este placar.</b> São contagens do YouTube dos dias fechados. Cliques ≈ é impressões × CTR de cada dia, somado (estimado, exato até 9.999 impressões por dia). O CTR é cliques ÷ impressões dos dias válidos e só aparece ao abrir a variante. Esta regra não compara variantes: sem líder, sem ganho. “Dados do YouTube” é a cópia diária dos números do YouTube.');
+ let ap='';
+ const ln=[];
+ if(e.desc)ln.push('<span>'+I.skip+' '+e.desc+(e.desc===1?' dia':' dias')+' de troca ou dia parcial, fora do placar '+info('Dia fora do placar','<b>Dia fora do placar.</b> Dia de troca de variante ou dia parcial. Eles não entram nas contagens.')+'</span>');
+ if(e.semctr)ln.push('<span>'+e.semctr+(e.semctr===1?' dia':' dias')+' com impressões e sem CTR '+info('Impressões sem CTR','<b>Impressões sem CTR.</b> As impressões desses dias contam no total, mas o CTR não as usa; por isso não viram cliques.')+'</span>');
+ if(ln.length)ap='<div class="apoio">'+ln.join('')+'</div>';
+ return '<div class="sec"><div class="sh"><h3 style="margin:0;font:inherit">Placar por variante</h3>'+tip+upd+'</div><div class="card">'+hdr+rows+'</div>'+ap+dias(e)+'</div>';
+}
+const SY={m:'■',z:'0',a:'0*',g:I.clock,n:'∅',f:I.skip};
+function dias(e){
+ if(!e.dias||!e.dias.length)return '';
+ const nm={m:'medido',z:'zero medido',a:'o YouTube não listou o dia',g:'aguardando',n:'não medido',f:'fora do placar'};
+ const cnt={};e.dias.forEach(d=>cnt[d.s]=(cnt[d.s]||0)+1);
+ const resumo=e.dias.length+(e.dias.length===1?' dia: ':' dias: ')+Object.keys(cnt).map(k=>cnt[k]+' '+nm[k]).join(', ');
+ const c=e.dias.map((d,i)=>'<div class="dc '+d.s+'" role="listitem" aria-label="dia '+(i+1)+', '+(d.v||'sem variante')+', '+nm[d.s]+'" title="Dia '+(i+1)+': '+nm[d.s]+'"><span class="l'+(d.v||'x')+'">'+(d.v||'–')+'</span><i>'+SY[d.s]+'</i></div>').join('');
+ const tip=info('Como ler os dias do teste','<b>Faixa de dias.</b> Um quadrado por dia, com a letra da variante. 0* quer dizer que o YouTube não listou o dia: não é zero medido nem falha da tela.');
+ return '<div class="dias"><div class="sh">Dias do teste '+tip+'</div><div class="strip" role="list" aria-label="'+resumo+'">'+c+'</div><div class="leg"><span>■ medido</span><span>0 zero</span><span>0* o YouTube não listou o dia</span><span>'+I.clock+' aguardando</span><span>∅ não medido</span><span>'+I.skip+' fora do placar</span></div></div>';
+}
+const PV=10315,PD=4,TETO=15,TB='Consistência e Compromisso (Part 4)';
+const alt=(k,vs='AB')=>D(Array.from({length:k*vs.length},(_,i)=>vs[i%vs.length]+'m').join(' '));
+const SYM=(c,t)=>'<span class="sy" aria-hidden="true">'+c+'</span>';
+/* itens dos pisos: l, vol (null = não medido), dv */
+/* pisos = SEMPRE derivados do placar (mesma fonte: ultima_avaliacao / v2.n): vol = impressões dos dias válidos, dv = dias válidos. Dado ausente = null ("—"), nunca 0 */
+const derivaPisos=v=>v.map(x=>({l:x.l,t:x.t,vol:(x.st==='ok'||x.st==='zero')?x.imp:null,dv:x.st==='sem'?null:x.val}));
+const E={};
+const add=(k,rot,o)=>{E[k]=Object.assign({k,rot,modo:'ativo',teto:TETO,upd:'24/10 06:10'},o);if(o.v&&!o.v1&&o.modo!=='inicio')E[k].pisos=derivaPisos(o.v)};
+/* ---------- início ---------- */
+add('inicio-aviso','Início, com aviso de volume',{modo:'inicio',aviso:'Este vídeo recebe cerca de 900 impressões por semana. Com 2 versões, cada uma pode chegar a menos de 10.315 em 15 dias. O teste pode terminar sem resultado.'});
+add('inicio-sem-alcance','Início, sem alcance',{modo:'inicio',aviso:'Sem medição para estimar o volume.'});
+/* ---------- ativo ---------- */
+const V2=(a,b)=>[V('A',T1,a),V('B',TB,b)];
+add('ativo-antes-pisos','Ativo, antes dos pisos',{dia:1,prox:'03/11',upd:null,
+ frase:['Ainda não decide: o YouTube não fechou nenhum dia.','A primeira avaliação sai até 24 horas depois do início.'],
+ v:V2({st:'sem'},{st:'sem'}),dias:D('-g')});
+add('ativo-sem-volume','Ativo, sem volume',{dia:8,
+ frase:['Ainda não decide: faltam impressões.','Cada versão precisa de 10.315; A tem 412 e B tem 388.'],
+ v:V2({imp:412,cl:19,ctr:'4,6',val:3,ag:1},{imp:388,cl:21,ctr:'5,4',val:3,ag:1}),dias:D('Am Bm Am Bm Am Bm Ag Bg')});
+add('ativo-sinal','Ativo, com sinal provisório',{dia:11,
+ frase:['Há um sinal de B, mas ainda não decide.','Os pisos fecharam. O teste segue até o fim para o resultado valer.'],
+ v:V2({imp:11240,cl:517,ctr:'4,6',val:5},{imp:10980,cl:593,ctr:'5,4',val:5}),dias:alt(5),sinal:'B'});
+add('ativo-encerrar','Ativo, confirmação de Encerrar',{dia:11,abrirEncerrar:1,
+ frase:['Há um sinal de B, mas ainda não decide.','Os pisos fecharam. O teste segue até o fim para o resultado valer.'],
+ v:V2({imp:11240,cl:517,ctr:'4,6',val:5},{imp:10980,cl:593,ctr:'5,4',val:5}),dias:alt(5),sinal:'B'});
+add('ativo-teto-sem-volume','Ativo, perto do teto sem volume',{dia:14,
+ frase:['Faltam impressões; o teste encerra amanhã.','No dia 15 a original volta ao ar. Cada versão precisa de 10.315; A tem 1.020 e B tem 988.'],
+ v:V2({imp:1020,cl:47,ctr:'4,6',val:7},{imp:988,cl:53,ctr:'5,4',val:7}),dias:alt(7)});
+add('v1-ativo','v1, ativo',{dia:8,v1:1,frase:['2 versões, 2.340 impressões no total.','Regra antiga: este teste encerra por duração, no dia 14. Sem estatística.'],
+ v:V2({imp:1190,cl:52,ctr:'4,4',val:4},{imp:1150,cl:58,ctr:'5,0',val:4}),dias:alt(4),teto:14});
+/* ---------- concluído ---------- */
+const CV=(o)=>Object.assign({modo:'concluido',dia:15,enc:'24/10',upd:'24/10 14:00'},o);
+const volPlac=V2({imp:412,cl:19,ctr:'4,6',val:7},{imp:388,cl:21,ctr:'5,4',val:7});
+const okPlac=V2({imp:11240,cl:517,ctr:'4,6',val:7},{imp:10980,cl:593,ctr:'5,4',val:7});
+add('concluido-vencedor-provisorio','Concluído, vencedor provisório',CV({d:'venc',who:'B',prov:'04/11',ar:'A',v:okPlac,dias:alt(7),
+ frase:['B provavelmente vence.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
+add('concluido-vencedor-final','Concluído, vencedor final',CV({d:'venc',who:'B',prov:null,ar:'A',v:okPlac,dias:alt(7),
+ frase:['B vence.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
+add('concluido-aplicado','Concluído, B aplicado',CV({d:'venc',who:'B',prov:'04/11',ar:'B',aplicada:'B',v:okPlac,dias:alt(7),
+ frase:['B provavelmente vence.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
+add('concluido-aplicado-mudou','Concluído, aplicado e o desfecho mudou',CV({d:'sdif',prov:'04/11',ar:'B',aplicada:'B',v:okPlac,dias:alt(7),
+ frase:['Sem diferença clara entre A e B.','Agora não há diferença clara; ao encerrar, B parecia melhor.']}));
+add('concluido-aplicado-outra','Concluído, outra versão aplicada à mão',CV({d:'venc',who:'B',prov:'04/11',ar:'C',aplicada:'C',manual:1,v:[V('A',T1,{imp:10620,cl:489,ctr:'4,6',val:7}),V('B',TB,{imp:10480,cl:566,ctr:'5,4',val:7}),V('C','Outro título curto',{imp:10390,cl:499,ctr:'4,8',val:7})],dias:alt(7,'ABC'),
+ frase:['B provavelmente vence.','CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).']}));
+add('concluido-original-vence','Concluído, a original vence',CV({d:'orig',prov:'04/11',ar:'A',v:V2({imp:11240,cl:577,ctr:'5,1',val:7},{imp:10980,cl:483,ctr:'4,4',val:7}),dias:alt(7),
+ frase:['A original se saiu melhor; nada a aplicar.','A original segue no ar.']}));
+add('concluido-sem-diferenca','Concluído, sem diferença',CV({d:'sdif',prov:'04/11',ar:'A',v:V2({imp:11240,cl:517,ctr:'4,6',val:7},{imp:10980,cl:512,ctr:'4,7',val:7}),dias:alt(7),
+ frase:['Sem diferença clara entre A e B.','A original segue no ar.']}));
+add('concluido-inconclusivo-volume','Concluído, inconclusivo por volume',CV({d:'vol',prov:'04/11',ar:'A',v:volPlac,dias:alt(7),
+ frase:['Faltou volume: B teve 388 de 10.315 impressões.','Este vídeo recebe poucas impressões para decidir. A original segue no ar.']}));
+add('concluido-inconclusivo-dado','Concluído, inconclusivo por dado',CV({d:'dado',prov:'04/11',ar:'A',
+ v:V2({imp:9800,cl:451,ctr:'4,6',val:7},{st:'nt',val:2,nmd:5}),dias:D('Am Bn Am Bn Am Bn Am Bn Am Bn Am Bm Am Bm'),
+ frase:['Faltaram dias medidos: B tem 2 de 4.','O YouTube não enviou o CTR de alguns dias. A original segue no ar.']}));
+add('concluido-inconclusivo-falha','Concluído, encerrado por falha',CV({d:'falha',ar:'A',v:V2({imp:412,cl:19,ctr:'4,6',val:3},{imp:388,cl:21,ctr:'5,4',val:3}),dias:alt(3),
+ frase:['O teste foi encerrado por segurança, não por resultado.','A original voltou ao ar.']}));
+add('concluido-aguardando','Concluído, aguardando alcance',CV({d:'agu',ar:'A',v:V2({imp:11240,cl:517,ctr:'4,6',val:6,ag:1},{imp:10980,cl:593,ctr:'5,4',val:6,ag:1}),dias:D('Am Bm Am Bm Am Bm Am Bm Am Bm Am Bm Ag Bg'),
+ frase:['O YouTube ainda não enviou o alcance dos últimos dias.','O desfecho pode mudar quando chegar.']}));
+add('concluido-pendente','Concluído, desfecho pendente',CV({d:'pend',ar:'A',v:okPlac,dias:alt(7),
+ frase:['Calculando o desfecho.','A conta roda uma vez por dia. Volte amanhã.']}));
+add('concluido-ilegivel','Concluído, desfecho ilegível',CV({d:'ileg',ar:'A',v:okPlac,dias:alt(7),
+ frase:['Não consegui ler o desfecho deste teste.','Os números abaixo são os gravados. Nada foi alterado.']}));
+add('v1-concluido','v1, concluído',{modo:'concluido',v1:1,dia:14,enc:'24/10',upd:'24/10 14:00',d:'v1',ar:'A',v:V2({imp:2380,cl:104,ctr:'4,4',val:7},{imp:2340,cl:117,ctr:'5,0',val:7}),dias:alt(7),
+ frase:['2 versões, 4.720 impressões no total.','Regra antiga: encerrou por duração, no dia 14. Sem estatística.']});
+add('carregando','Carregando',{modo:'carregando'});
+add('erro','Erro',{modo:'erro'});
+const ORDEM=Object.keys(E);
+const FULL={'ativo-sem-volume':1,'ativo-sinal':1,'concluido-vencedor-provisorio':1,'concluido-original-vence':1,'concluido-inconclusivo-volume':1};
+
+/* ---------- peças ---------- */
+function header(e){
+ const ar=e.modo==='concluido'?'Teste do Lab concluído em '+e.enc:(e.modo==='inicio'?'Novo teste do Lab':'Teste do Lab rodando, <span style="white-space:nowrap">dia '+e.dia+' de '+e.teto+'</span>');
+ const selos=(e.v1?'<span class="selo old">'+I.old+'Regra antiga: encerra por duração</span>':'')+'<span class="selo lab">'+I.lab+'<span>'+ar+'</span></span>';
+ return '<div class="hd"><div class="th tA">A</div><div class="ttl"><div class="crumb">A/B Lab / Vídeos / qIg9a7vqcNo</div><h2 title="'+T1+'">'+T1+'</h2><div class="selos">'+selos+'</div></div></div>';
+}
+function faixa(e){return ''}
+function relogio(e){
+ const f=e.teto-e.dia, ticks=Array.from({length:e.teto},(_,i)=>'<i class="'+(i+1<e.dia?'p':(i+1===e.dia?'h':''))+'"></i>').join('');
+  return '<div class="sec rel"><div class="sh">Andamento '+info('Como ler o andamento','<b>Andamento.</b> Um quadrado por dia corrido; o contorno forte é hoje. O teste também exige um mínimo de dias corridos antes de decidir, e encerra sozinho no dia '+e.teto+'. Isso não indica quem está na frente.')+'</div>'
+ +'<div class="top"><span class="dia num">Dia '+e.dia+' de '+e.teto+'</span><span class="falta">'+(f>0?'faltam '+f+(f===1?' dia':' dias'):'último dia')+'</span></div>'
+ +'<div class="ticks" style="grid-template-columns:repeat('+e.teto+',1fr)" aria-hidden="true">'+ticks+'</div>'
+ +'</div>';
+}
+function pisos(e,final){
+ if(!e.pisos)return '';
+ const tip=info(final?'Como ler a régua final':'Como ler os pisos','<b>'+(final?'Régua final.':'Pisos.')+'</b> O teste só decide se cada versão tiver pelo menos '+PD+' dias válidos e '+n(PV)+' impressões nos dias válidos. Os números vêm da última avaliação gravada; a tela não recalcula. “—” é não medido, não zero.');
+ const rows=e.pisos.map(p=>{
+  const has=p.vol!=null, pc=has?Math.min(100,Math.max(p.vol>0?2:0,p.vol/PV*100)):0, ok=has&&p.vol>=PV;
+  const dvx=p.dv==null?'<span class="dash">—</span> ∅':'<b class="num">'+p.dv+'</b>'+(p.dv>=PD?' (mínimo '+PD+') <span class="okk" aria-label="piso atingido">✓</span>':' de '+PD);
+  return '<div class="pr" role="group" aria-label="Variante '+p.l+'"><div class="vh"><span class="vchip c'+p.l+'">'+p.l+'</span><div class="vt"><b title="'+p.t+'">'+p.t+'</b></div></div>'
+  +'<div><div class="pbar'+(has?'':' vz')+(ok?' ok':'')+'" aria-hidden="true">'+(has?'<i style="width:'+pc+'%"></i>':'')+'</div>'
+  +'<div class="pnum"><span>Impressões '+(has?'<b class="num">'+n(p.vol)+'</b> de <span class="num">'+n(PV)+'</span>'+(ok?' <span class="okk">✓</span>':''):'<span class="dash">—</span> <span class="nm">não medido</span>')+'</span></div></div>'
+  +'<div class="pdv">Dias válidos '+dvx+'</div></div>';
+ }).join('');
+ return '<div class="sec"><div class="sh"><h3 class="h" style="font:inherit">'+(final?'Quanto o teste alcançou':'Falta para decidir')+'</h3>'+tip+'</div><div class="pisos">'+rows+'</div>'
+ +'</div>';
+}
+function sinal(e){
+ if(!e.sinal)return '';
+ return '<div class="sinal"><div class="l"><span class="sy" aria-hidden="true">▲</span><span><b>Sinal provisório, não decide:</b> '+e.sinal+' está um pouco à frente.</span></div></div>';
+}
+function acoes(e){
+ return '<div class="sec acoes"><div class="acts"><button class="btn alvo" type="button">Pausar</button><button class="btn alvo" type="button" aria-haspopup="dialog" data-abre="cfE"'+(e.abrirEncerrar?' data-auto':'')+'>Encerrar</button></div></div>';
+}
+/* desfecho */
+const DS={
+ venc:e=>({c:'vence'+(e.prov?' prov':''),s:'▲',t:e.who+(e.prov?' vence (provisório)':' vence')}),
+ orig:e=>({c:'neu',s:'◆',t:'A original vence'}),
+ sdif:e=>({c:'mut',s:'=',t:'Sem diferença'}),
+ vol:e=>({c:'mut',s:'◔',t:'Faltou volume'}),
+ dado:e=>({c:'nmf',s:'∅',t:'Dado não medido'}),
+ falha:e=>({c:'errf',s:'✕',t:'Encerrado por segurança'}),
+ agu:e=>({c:'esp',s:'◷',t:'Aguardando o YouTube'}),
+ pend:e=>({c:'esp',s:'◌',t:'Calculando'}),
+ ileg:e=>({c:'fort',s:'⚠',t:'Não consegui ler'}),
+ v1:e=>({c:'neu',s:'→',t:'Regra antiga: encerrou por duração'})
+};
+function noar(e){
+ const L={A:'tA',B:'tB',C:'tC'}[e.ar||'A'];
+ let t;
+ if(e.aplicada&&e.manual)t='Você aplicou '+e.aplicada+' à mão. No ar agora: <b>'+e.aplicada+'</b>.';
+ else if(e.aplicada)t='<b>'+e.aplicada+'</b> está no ar.';
+ else t='No ar agora: <b>'+(e.ar==='A'?'A (original)':e.ar)+'</b>.';
+ return '<div class="noar"><div class="th '+L+'">'+(e.ar||'A')+'</div><span>'+t+'</span></div>';
+}
+function desfecho(e){
+ const s=DS[e.d](e);
+ const prov=['venc','orig','sdif','vol','dado'].includes(e.d)
+  ?(e.prov?'<span class="provl">'+I.clock+'Provisório até '+e.prov+': pode mudar nos próximos dias.</span>':'<span class="provl"><span aria-hidden="true">■</span>Final: já não muda.</span>'):'';
+ let btn='';
+ if(e.d==='venc'&&!e.aplicada){
+  btn='<div class="acts"><button class="btn alvo pri" type="button" data-abre="cfA" aria-haspopup="dialog">Aplicar '+e.who+' ao vídeo</button></div>';
+ }
+ if(e.aplicada&&!e.manual){
+  btn='<div class="acts"><button class="btn alvo" type="button" data-abre="cfV" aria-haspopup="dialog">Voltar à original</button></div>';
+ }
+ const extra=e.d==='ileg'?'<div class="acts"><button class="btn alvo" type="button">Tentar de novo</button></div>':'';
+ return '<div class="desf"><span class="sel '+s.c+'" role="status"><span class="sy" aria-hidden="true">'+s.s+'</span>'+s.t+'</span>'+prov+noar(e)+btn+extra+'</div>';
+}
+function inicio(e){
+ return '<div class="sec"><div class="ini"><h3>Revisar e iniciar</h3>'
+ +'<div class="vv"><span class="vchip cA">A</span><b>'+T1+'</b></div><div class="vv"><span class="vchip cB">B</span><b>'+TB+'</b></div>'
+ +'<div class="band neu" role="note"><span class="ic">'+I.clock+'</span><p>'+e.aviso+'</p></div>'
+ +'<div class="acts"><button class="btn alvo pri" type="button">Iniciar teste</button><button class="btn alvo ghost" type="button">Voltar</button></div></div></div>';
+}
+function placar2(e,w){
+ return placar(e,w);
+}
+function skeleton2(){
+ return '<div class="skhd"><div class="sk" style="width:128px;aspect-ratio:16/9"></div><div style="flex:1;min-width:0"><div class="sk" style="height:14px;width:40%;margin-bottom:10px"></div><div class="sk" style="height:22px;width:85%"></div></div></div>'
+ +'<div class="sk sksum" role="status"><span class="skmsg">Carregando o teste</span></div>'
+ +'<div class="sec"><div class="sk" style="height:21px;width:160px;margin-bottom:var(--s3)"></div><div class="sk" style="height:12px;max-width:760px"></div></div>'
+ +'<div class="sec"><div class="sk" style="height:21px;width:200px;margin-bottom:var(--s3)"></div><div class="card" style="padding:4px 16px">'+[0,1].map(()=>'<div class="sk skrow"></div>').join('')+'</div></div>'
+ +'<div class="sec"><div class="sk" style="height:21px;width:200px;margin-bottom:var(--s3)"></div><div class="card" style="padding:4px 16px">'+[0,1].map(()=>'<div class="sk skrow"></div>').join('')+'</div></div>';
+}
+function erro2(){
+ return '<div class="hd"><div class="th tA">A</div><div class="ttl"><div class="crumb">A/B Lab / Vídeos / qIg9a7vqcNo</div><h2>'+T1+'</h2></div></div>'
+ +'<div class="err" role="alert"><span class="ic">'+I.warn+'</span><div><h3>Não consegui ler o teste agora.</h3><p>A tela só lê; o teste não foi alterado. Tente de novo; se persistir, a leitura falhou às 10:42.</p><div class="acts"><button class="btn pri alvo" type="button">Tentar de novo</button><a class="btn ghost alvo" href="#">Voltar aos testes</a></div></div></div>';
+}
+function render(k,w){
+ const e=E[k];
+ if(e.modo==='carregando')return skeleton2();
+ if(e.modo==='erro')return erro2();
+ if(e.modo==='inicio')return header(e)+inicio(e);
+ const sum='<p class="sum">'+e.frase[0]+'<small>'+e.frase[1]+'</small></p>';
+ if(e.modo==='ativo'){
+  return header(e)+sum+faixa(e)+(e.v1?'':relogio(e)+pisos(e,false)+sinal(e))+placar2(e,w)+acoes(e);
+ }
+ /* concluído */
+ if(e.v1)return header(e)+sum+desfecho(e)+placar2(e,w);
+ return header(e)+sum+desfecho(e)+pisos(e,true)+placar2(e,w);
+}
+/* ---------- seletor ---------- */
+const Q=new URLSearchParams(location.search);
+let estado=ORDEM.includes(Q.get('estado'))?Q.get('estado'):'ativo-sem-volume';
+let tema=Q.get('tema')==='claro'?'claro':'escuro';
+let larg=['1440','390'].includes(Q.get('largura'))?Q.get('largura'):'ambas';
+let skT;
+function sync(){history.replaceState(null,'','?'+new URLSearchParams({estado,tema,largura:larg}))}
+/* ---------- r5: camada única #flut (Popover do produto) e diálogo .etd ---------- */
+let FL=null; // {btn,el}: um só aberto por vez (claimFlut)
+const EDGE=8,GAP=6;
+function placeTip(){
+ if(!FL)return;const {btn,el}=FL;
+ if(!btn.isConnected){closeTips(false);return}
+ const a=btn.getBoundingClientRect(),vw=document.documentElement.clientWidth||innerWidth,vh=innerHeight;
+ if(a.bottom<0||a.top>vh||a.right<0||a.left>vw){el.style.visibility='hidden';return}
+ el.style.maxWidth=Math.min(380,vw-2*EDGE)+'px';el.style.maxHeight='';el.style.overflowY='';el.style.left='0px';el.style.top='0px';
+ const w=el.offsetWidth;let h=el.offsetHeight;
+ const below=vh-a.bottom-GAP-EDGE,above=a.top-GAP-EDGE;
+ const up=h<=below?false:h<=above?true:above>below;
+ const room=up?above:below;
+ if(h>room){const mh=Math.max(0,Math.min(room,vh-2*EDGE));h=mh;el.style.maxHeight=mh+'px';el.style.overflowY='auto'}
+ const x=Math.round(Math.max(EDGE,Math.min(a.left,vw-w-EDGE)));
+ const y=Math.round(Math.min(Math.max(EDGE,up?a.top-GAP-h:a.bottom+GAP),vh-h-EDGE));
+ el.style.left=x+'px';el.style.top=y+'px';el.dataset.lado=up?'cima':'baixo';el.style.visibility='';
+}
+function closeTips(focus){
+ if(!FL)return;const {btn,el}=FL;FL=null;el.remove();btn.setAttribute('aria-expanded','false');
+ if(focus)btn.focus({preventScroll:true});
+}
+function openTip(b){
+ closeTips(false);
+ const id=b.getAttribute('aria-controls'),d=TIPS[id];
+ const el=document.createElement('div');
+ el.id=id;el.className='obs-fl-pop canal-tip';el.setAttribute('role','dialog');el.setAttribute('aria-labelledby',id+'t');el.tabIndex=-1;el.style.position='fixed';el.style.left='0';el.style.top='0';
+ el.innerHTML='<h3 id="'+id+'t">'+d.t+'</h3><p class="vb-info-p">'+d.p+'</p>';
+ document.getElementById('flut').appendChild(el);
+ FL={btn:b,el};b.setAttribute('aria-expanded','true');
+ if(document.activeElement!==b&&!el.contains(document.activeElement))b.focus({preventScroll:true});
+ placeTip();
+}
+const tipInside=t=>t instanceof Node&&FL&&(FL.el.contains(t)||FL.btn.contains(t));
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&FL){ev.preventDefault();ev.stopPropagation();closeTips(true)}},true);
+document.addEventListener('mousedown',ev=>{if(FL&&!tipInside(ev.target))closeTips(false)},true);
+document.addEventListener('focusin',ev=>{if(FL&&!tipInside(ev.target))closeTips(false)});
+addEventListener('resize',placeTip);
+document.addEventListener('scroll',ev=>{if(FL&&!(ev.target instanceof Node&&FL.el.contains(ev.target)))placeTip()},{capture:true,passive:true});
+
+/* diálogo: estrutura e classes de ab-end-test-dialog.tsx (Escolha) e ab-confirmar-troca-dialog.tsx */
+const SVG_STOP='<svg width="16" height="16" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
+const SVG_WARN='<svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3L22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.3v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const SVG_AVISO='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.3v.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+const SVG_AR='<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const SVG_X='<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+let DLG=null; // {scrim,opener,onKey}
+function dlgHtml(id,e){
+ const head=(ico,t,tid)=>'<div class="etd-h"><span class="etd-ico'+(ico==='w'?' w':'')+'" aria-hidden="true">'+(ico==='w'?SVG_WARN:SVG_STOP)+'</span><h2 id="'+tid+'">'+t+'</h2><button type="button" class="etd-x" aria-label="Fechar" data-fecha>'+SVG_X+'</button></div>';
+ if(id==='cfE'){
+  const opt=(v,rot,sel,ar)=>'<label class="etd-opt'+(sel?' sel':'')+'"><input type="radio" name="etd-fica" value="'+v+'" data-rot="'+rot+'"'+(sel?' checked':'')+' aria-label="'+(v==='A'?rot:'Variante '+rot)+'"><span class="etd-th t'+v+'" aria-hidden="true">'+v+'</span><span class="etd-body"><span class="etd-who">'+rot+(ar?'<span class="etd-badge">'+SVG_AR+'no ar agora</span>':'')+'</span><span class="etd-ttl">'+T1+'</span></span></label>';
+  return '<div role="dialog" aria-modal="true" aria-labelledby="etd-t" aria-describedby="etd-d" class="etd">'+head('s','Encerrar teste','etd-t')
+  +'<div class="etd-b"><p class="etd-state" id="etd-d">A rotação para. No ar agora: <b>variante A</b>.</p><fieldset><legend>O que fica no vídeo?</legend>'
+  +opt('A','A (original)',true,true)+(e.sinal?opt(e.sinal,e.sinal,false,false):'')+'</fieldset>'
+  +'<div class="etd-msg warn">'+SVG_AVISO+'<div>Encerrar à mão tira o teste da decisão: o resultado não será calculado.</div></div></div>'
+  +'<div class="etd-f"><button type="button" class="etd-btn pri" data-encerra aria-describedby="etd-hint">Encerrar e ficar com A (original)</button><button type="button" class="etd-btn" data-fecha>Cancelar</button><span id="etd-hint" hidden></span></div></div>';
+ }
+ const ap=id==='cfA';
+ const lead=ap?'A miniatura muda agora no YouTube.':'A miniatura volta a ser a de A agora no YouTube.';
+ const tiny=ap?(e.prov?'O desfecho ainda é provisório.':''):'O resultado do teste não muda e continua visível aqui.';
+ return '<div role="alertdialog" aria-modal="true" aria-labelledby="etd-c-t" aria-describedby="etd-c-d'+(tiny?' etd-c-n':'')+'" class="etd">'+head('w',ap?'Aplicar '+e.who+' ao vídeo?':'Voltar à original (A)?','etd-c-t')
+ +'<div class="etd-b"><p class="etd-lead" id="etd-c-d">'+lead+'</p>'+(tiny?'<p class="etd-tiny" id="etd-c-n">'+tiny+'</p>':'')+'</div>'
+ +'<div class="etd-f"><button type="button" class="etd-btn over" '+(ap?'data-aplica':'data-volta')+'>'+(ap?'Aplicar '+e.who:'Sim, voltar à original')+'</button><button type="button" class="etd-btn" data-fecha data-ini>Voltar</button></div></div>';
+}
+function closeDlg(focus){
+ if(!DLG)return;const {scrim,opener,onKey}=DLG;DLG=null;document.removeEventListener('keydown',onKey);scrim.remove();
+ if(focus&&opener&&document.body.contains(opener))opener.focus();
+}
+function openDlg(opener,id){
+ closeTips(false);closeDlg(false);
+ const scrim=document.createElement('div');scrim.className='etd-scrim';
+ scrim.innerHTML='<div class="etd-bd" aria-hidden="true"></div>'+dlgHtml(id,E[estado]);
+ document.getElementById('dlg').appendChild(scrim);
+ const FOC='button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+ const onKey=ev=>{
+  if(ev.key==='Escape'){closeDlg(true);return}
+  if(ev.key!=='Tab')return;
+  const f=scrim.querySelectorAll(FOC),first=f[0],last=f[f.length-1];
+  if(ev.shiftKey&&document.activeElement===first){ev.preventDefault();last.focus()}
+  else if(!ev.shiftKey&&document.activeElement===last){ev.preventDefault();first.focus()}
+ };
+ DLG={scrim,opener,onKey};document.addEventListener('keydown',onKey);
+ scrim.querySelector('.etd-bd').addEventListener('click',()=>closeDlg(true));
+ scrim.querySelectorAll('[data-fecha]').forEach(b=>b.addEventListener('click',()=>closeDlg(true)));
+ scrim.querySelectorAll('input[name="etd-fica"]').forEach(r=>r.addEventListener('change',()=>{
+  scrim.querySelectorAll('.etd-opt').forEach(o=>o.classList.toggle('sel',o.contains(r)&&r.checked));
+  scrim.querySelector('[data-encerra]').textContent='Encerrar e ficar com '+r.dataset.rot}));
+ const en=scrim.querySelector('[data-encerra]');if(en)en.addEventListener('click',()=>closeDlg(true));
+ const ap=scrim.querySelector('[data-aplica]');if(ap)ap.addEventListener('click',()=>{closeDlg(false);aplica(opener)});
+ const vo=scrim.querySelector('[data-volta]');if(vo)vo.addEventListener('click',()=>{closeDlg(false);volta(opener)});
+ (scrim.querySelector('[data-ini]')||scrim.querySelector(FOC)).focus();
+}
+function aplica(op){const d=op.closest('.desf');op.closest('.acts').remove();const t=d.querySelector('.noar');t.querySelector('span').innerHTML='<b>'+E[estado].who+'</b> está no ar.';t.tabIndex=-1;t.focus()}
+function volta(op){const d=op.closest('.desf');const t=d.querySelector('.noar');const antes=t.querySelector('.th').textContent;op.closest('.acts').remove();t.querySelector('.th').className='th tA';t.querySelector('.th').textContent='A';t.querySelector('span').innerHTML='No ar agora: <b>A (original)</b>. '+antes+' deixou de ser aplicada.';if(!d.querySelector('.desfeito')){const sl=d.querySelector('.sel');const x=document.createElement('span');x.className='sel neu desfeito';x.setAttribute('role','status');x.innerHTML='<span class="sy" aria-hidden="true">◆</span>Aplicação de '+antes+' desfeita';sl.after(x)}t.tabIndex=-1;t.focus()}
+function paint(){
+ closeTips(false);closeDlg(false);
+ document.querySelectorAll('#flut,#dlg').forEach(h=>h.setAttribute('data-theme',tema==='claro'?'light':'dark'));
+ const ws=larg==='ambas'?['1440','390']:[larg];
+ document.getElementById('figs').innerHTML=ws.map(w=>'<figure class="fig"><figcaption>'+(w==='1440'?'Desktop 1440 px':'Celular 390 px')+'</figcaption><div class="frame w'+w+'" data-theme="'+(tema==='claro'?'light':'dark')+'">'+render(estado,w)+'</div></figure>').join('');
+ document.querySelectorAll('#sEstado button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===estado));
+ document.querySelectorAll('#sTema button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===tema));
+ document.querySelectorAll('#sLarg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===larg));
+ document.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click',()=>{if(FL&&FL.btn===b)closeTips(false);else openTip(b)}));
+ document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{const o=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',!o);document.getElementById(b.getAttribute('aria-controls')).classList.toggle('open',!o)}));
+ document.querySelectorAll('[data-abre]').forEach(b=>b.addEventListener('click',()=>openDlg(b,b.dataset.abre)));
+ const au=document.querySelector('[data-auto]');if(au)openDlg(au,au.dataset.abre);
+ clearTimeout(skT);if(estado==='carregando')skT=setTimeout(()=>document.querySelectorAll('.skmsg').forEach(m=>{m.innerHTML='Está demorando; a conexão pode estar lenta. <button class="btn ghost" type="button">Tentar de novo</button>'}),8000);
+ sync();
+}
+document.getElementById('sEstado').innerHTML=ORDEM.map(k=>'<button data-v="'+k+'">'+E[k].rot+'</button>').join('');
+document.addEventListener('click',ev=>{
+ const b=ev.target.closest('.seg button');
+ if(b){const g=b.parentElement.id;if(g==='sEstado')estado=b.dataset.v;if(g==='sTema')tema=b.dataset.v;if(g==='sLarg')larg=b.dataset.v;paint()}
+});
+paint();
+</script></body></html>

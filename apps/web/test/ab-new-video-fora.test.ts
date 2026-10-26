@@ -29,7 +29,7 @@ describe('lerVideoForaDosCem', () => {
   it('Short mantém o aviso', async () => expect(await lerVideoForaDosCem(fake(v({ duration_seconds: 45 }), []), 's1', U)).toBeNull())
   it('sem thumb HQ mantém o aviso', async () => expect(await lerVideoForaDosCem(fake(v({ thumbnail_hq_url: null }), []), 's1', U)).toBeNull())
   it('teste aberto (inclui queued) marca hasActiveTest', async () => {
-    expect((await lerVideoForaDosCem(fake(v(), [{ id: 'a' }]), 's1', U))?.hasActiveTest).toBe(true)
+    expect((await lerVideoForaDosCem(fake(v(), [{ id: 'a', status: 'queued' }]), 's1', U))?.hasActiveTest).toBe(true)
   })
   it('não uuid não consulta', async () => expect(await lerVideoForaDosCem(fake(v(), []), 's1', 'dQw4w9WgXcQ')).toBeNull())
 })

@@ -19,7 +19,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   forceRotate: vi.fn(), applyWinnerNow: vi.fn(), cancelGracePeriod: vi.fn(), acknowledgeAbTestDrift: vi.fn(),
   createAbTest: vi.fn(), uploadVariant: vi.fn(), createTextVariant: vi.fn(async () => ({ ok: true })), updateAbTestType: vi.fn(),
-  cleanupDraftVariants: vi.fn(), fetchAbBriefingData: vi.fn(), fetchLibraryEntries: vi.fn(), lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false })),
+  cleanupDraftVariants: vi.fn(async () => ({ ok: true })), fetchAbBriefingData: vi.fn(), fetchLibraryEntries: vi.fn(), lerDimensoesDaOriginal: vi.fn(async () => ({ ok: false })),
 }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({ usePollStats: () => ({ data: null, loading: false }) }))
 vi.mock('@/app/cms/(authed)/youtube/_components/yt-portal', () => ({ YtPortal: ({ children }: { children: React.ReactNode }) => <>{children}</> }))
@@ -217,10 +217,13 @@ describe('assistente: recusa da guarda ao iniciar o nosso teste (D-7)', () => {
       expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull()
     })
   })
-  it('outro erro do servidor segue como antes (texto cru, sem Tentar de novo)', async () => {
+  it('outro erro do servidor vira o texto 10 em português, sem o texto cru; o botão primário vira "Tentar de novo"', async () => {
     montar(vi.fn().mockResolvedValue({ ok: false, error: 'Quota excedida' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ativar teste' }))
-    await screen.findByText('Quota excedida')
-    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull()
+    const msg = await screen.findByRole('alert')
+    expect(msg.textContent).toContain('Não foi possível ativar')
+    expect(msg.textContent).toContain('O rascunho ficou salvo')
+    expect(document.body.textContent).not.toContain('Quota excedida')
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
   })
 })

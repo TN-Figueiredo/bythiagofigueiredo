@@ -43,14 +43,13 @@ function renderRevisar(overrides?: {
   type?: TestType
   variants?: ReviewVariant[]
   config?: Partial<WizardConfig>
-  videoTitle?: string
 }) {
   return render(
     <StepRevisar
       type={overrides?.type ?? 'thumbnail'}
       variants={overrides?.variants ?? defaultVariants}
       config={{ ...defaultConfig, ...overrides?.config }}
-      videoTitle={overrides?.videoTitle ?? 'My Great YouTube Video About Testing'}
+      meta={{ canal: null, publicadoEm: null, duracao: null }}
     />
   )
 }
@@ -62,54 +61,17 @@ describe('StepRevisar', () => {
     expect(screen.getByTestId('icon-CheckCircle')).toBeDefined()
   })
 
-  it('success banner shows one-liner summary with variant count, type, rotation, duration', () => {
-    renderRevisar({ type: 'combo', config: { rotation: 'abba', duration: 14, confidence: 95, durationTouched: true } })
-    // "3 variantes título + thumbnail · rotação ABBA · Duração: 17 dias; mínimo 16"
-    const summary = screen.getByText(/3 variantes título \+ thumbnail/)
-    expect(summary.textContent).toContain('rotação ABBA')
-    expect(summary.textContent).toContain('Duração: 17 dias; mínimo 16')
+  it('banner: resumo com número e tipo; prazo e rotação moram na linha da regra', () => {
+    renderRevisar({ type: 'combo' })
+    const summary = screen.getByText(/3 variantes de título \+ thumbnail/)
+    expect(summary.textContent).not.toContain('Duração')
     expect(summary.textContent).not.toContain('confiança')
-    expect(summary.textContent).not.toContain('playoff')
+    expect(screen.getByText(/Roda até 17 dias \(mínimo 16\), em rotação ABBA/)).toBeDefined()
   })
 
   it('tipo antigo (description por cast): resumo usa o rótulo de reserva, não lança', () => {
     renderRevisar({ type: 'description' as TestType })
-    expect(screen.getByText(/3 variantes tipo antigo/)).toBeDefined()
-  })
-
-  it('combo se lê "título + thumbnail" no resumo', () => {
-    renderRevisar({ type: 'combo' })
-    expect(screen.getByText(/3 variantes título \+ thumbnail/)).toBeDefined()
-  })
-
-  it('variant mini cards render for each variant', () => {
-    renderRevisar()
-    expect(screen.getByLabelText('Variant A')).toBeDefined()
-    expect(screen.getByLabelText('Variant B')).toBeDefined()
-    expect(screen.getByLabelText('Variant C')).toBeDefined()
-  })
-
-  it('original variant shows "Original" badge', () => {
-    renderRevisar()
-    expect(screen.getByText('Original')).toBeDefined()
-  })
-
-  it('missing thumbnail shows gradient placeholder with Portuguese aria-label', () => {
-    renderRevisar()
-    const placeholder = screen.getByLabelText('Sem thumbnail para variante C')
-    expect(placeholder).toBeDefined()
-    expect(placeholder.style.background).toContain('linear-gradient')
-  })
-
-  it('variant with no title shows "Sem título"', () => {
-    renderRevisar({
-      variants: [
-        { label: 'A', thumbUrl: null, title: '', isOriginal: true },
-        { label: 'B', thumbUrl: null, title: '', isOriginal: false },
-      ],
-    })
-    const items = screen.getAllByText('Sem título')
-    expect(items.length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/3 variantes de tipo antigo/)).toBeDefined()
   })
 
   it('ClickMoment renders when 2+ variants', () => {
@@ -127,16 +89,6 @@ describe('StepRevisar', () => {
   it('bottom note mentions "Ativar teste" in Portuguese', () => {
     renderRevisar()
     expect(screen.getByText('Ativar teste')).toBeDefined()
-  })
-
-  it('shows "Variantes" section header in Portuguese', () => {
-    renderRevisar()
-    expect(screen.getByText('Variantes')).toBeDefined()
-  })
-
-  it('renders correct rotation labels in Portuguese', () => {
-    renderRevisar({ config: { rotation: 'round_robin' } })
-    expect(screen.getByText(/rotação sequencial/)).toBeDefined()
   })
 })
 

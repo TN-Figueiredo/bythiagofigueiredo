@@ -171,6 +171,10 @@ describe('contagens do apagar (A4.9)', () => {
   it('os números vêm do que o banco apagou', async () => {
     expect(await (await carregar()).apagarCanalSemGuardarAction(UUID, 'X')).toEqual({ ok: true, videos: 340, leituras: 68, registrosDiarios: 4000 })
   })
+  it('T12/Q4: imagensRestantes passa adiante quando a F1 leu; ausente quando não leu', async () => {
+    f1.apagar.mockResolvedValue({ ok: true, videos: 340, miniaturasPendentes: 47, foraDoPrefixo: 0, imagensRestantes: 47 })
+    expect(await (await carregar()).apagarCanalSemGuardarAction(UUID, 'X')).toEqual({ ok: true, videos: 340, imagensRestantes: 47 })
+  })
   it('campo que a F1 não devolveu fica AUSENTE, nunca 0', async () => {
     f1.apagar.mockResolvedValue({ ok: true, videos: 340, miniaturasPendentes: 0, foraDoPrefixo: 0 })
     const r = await (await carregar()).apagarCanalSemGuardarAction(UUID, 'X')

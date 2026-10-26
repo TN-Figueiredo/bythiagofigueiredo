@@ -346,12 +346,12 @@ describe('toDraftList — field mapping', () => {
     expect(drafts[0]!.sourcePipelineId).toBeNull()
   })
 
-  it('computes step from variants length', () => {
+  it('computes step from the draft state (original + desafiante gravado = passo 3 de 3)', () => {
     const test = makeTestWithVariants()
     test.status = 'draft'
-    // makeTestWithVariants creates 2 variants
+    // makeTestWithVariants cria a original e um desafiante
     const drafts = toDraftList([test])
-    expect(drafts[0]!.step).toBe(2)
+    expect(drafts[0]!.step).toBe(3)
   })
 
   it('sorts by created_at descending (most recent first)', () => {

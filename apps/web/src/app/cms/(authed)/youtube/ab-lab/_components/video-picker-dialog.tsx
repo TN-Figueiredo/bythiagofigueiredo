@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { brDec } from '@/lib/youtube/format'
+import type { AbTestStatus } from '@/lib/youtube/ab-types'
+import { LinhaDeVideo } from './linha-de-video'
 import { Search, X } from 'lucide-react'
 import type { WizardVideo } from './ab-create-wizard'
 import { YtPortal } from '../../_components/yt-portal'
@@ -12,7 +13,15 @@ export interface EligibleVideo {
   thumbnailUrl: string | null
   durationSeconds: number
   channelHandle: string
+  /** Algum teste aberto (draft/active/paused/queued); `statusDoTeste` diz qual. */
   hasActiveTest: boolean
+  statusDoTeste: AbTestStatus | null
+  /** Short ou sem thumbnail HQ: as duas recusas de `createAbTest`. */
+  bloqueio: 'short' | 'sem_thumb_hq' | null
+  /** ISO; null quando o banco não tem */
+  publishedAt: string | null
+  /** null quando 0 ou ausente (a coluna grava 0 sem medição) */
+  viewCount: number | null
   previousLift: number | null
   sourcePipelineId: string | null
 }
@@ -75,7 +84,7 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Selecionar video"
+        aria-label="Selecionar vídeo"
         className="flex flex-col mx-4 animate-ab-fade-up"
         style={{
           width: 'min(900px, 100%)',
@@ -94,14 +103,14 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
           style={{ borderBottom: '1px solid var(--cms-border, #332D25)' }}
         >
           <div>
-            <h2 className="text-[18px] font-bold text-cms-text m-0">Selecionar video</h2>
+            <h2 className="text-[18px] font-bold text-cms-text m-0">Selecionar vídeo</h2>
             <p className="text-[12.5px] text-cms-text-dim mt-[3px] m-0">
-              Escolha um video para criar um novo teste A/B.
+              Escolha o vídeo. Os mais recentes aparecem primeiro.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-cms-text-dim p-[4px] shrink-0"
+            className="text-cms-text-dim p-[4px] shrink-0 min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
             style={{ background: 'transparent', border: 'none' }}
             aria-label="Fechar"
           >
@@ -119,7 +128,7 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
             />
             <input
               type="text"
-              placeholder="Buscar videos..."
+              placeholder="Buscar vídeos..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm rounded-[var(--cms-radius)] border border-cms-border bg-cms-bg text-cms-text placeholder:text-cms-text-dim focus:outline-none focus:ring-2 focus:ring-cms-accent"
@@ -132,52 +141,11 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
           <div className="space-y-2">
             {filtered.length === 0 && (
               <p className="text-sm text-cms-text-dim py-8 text-center">
-                {eligibleVideos.length === 0 ? 'Nenhum video disponivel.' : 'Nenhum video encontrado.'}
+                {eligibleVideos.length === 0 ? 'Nenhum vídeo disponível.' : 'Nenhum vídeo encontrado.'}
               </p>
             )}
             {filtered.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                disabled={v.hasActiveTest}
-                onClick={() =>
-                  onSelect({
-                    id: v.id,
-                    title: v.title,
-                    thumbnailUrl: v.thumbnailUrl,
-                    sourcePipelineId: v.sourcePipelineId,
-                  })
-                }
-                className="w-full flex items-center gap-3 p-3 rounded-[var(--cms-radius)] border border-cms-border bg-cms-surface hover:bg-cms-surface-hover transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none"
-              >
-                <div className="w-24 h-[54px] rounded bg-cms-bg shrink-0 overflow-hidden">
-                  {v.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={v.thumbnailUrl}
-                      alt=""
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-cms-text-dim text-xs">
-                      Sem thumb
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-cms-text truncate">{v.title}</p>
-                  <p className="text-2xs text-cms-text-muted">{v.channelHandle}</p>
-                  {v.hasActiveTest && (
-                    <p className="text-2xs text-amber-400 mt-0.5">Teste ativo em andamento</p>
-                  )}
-                  {v.previousLift != null && (
-                    <p className="text-2xs text-cms-text-dim mt-0.5">
-                      Lift anterior: {v.previousLift > 0 ? '+' : ''}{brDec(v.previousLift, 1)}%
-                    </p>
-                  )}
-                </div>
-              </button>
+              <LinhaDeVideo key={v.id} video={v} onEscolher={onSelect} />
             ))}
           </div>
         </div>

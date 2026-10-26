@@ -29,7 +29,7 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
   revalidateTag: vi.fn(),
 }))
-vi.mock('@vercel/blob', () => ({ put: vi.fn() }))
+vi.mock('@vercel/blob', () => ({ put: vi.fn(), del: vi.fn() }))
 vi.mock('@/lib/youtube/ab-types', async (importActual) => ({
   AB_TEST_CONFIG_DEFAULTS: (await importActual<typeof import('@/lib/youtube/ab-types')>()).AB_TEST_CONFIG_DEFAULTS,
   VARIANT_LABELS: ['A', 'B', 'C', 'D'],
@@ -49,7 +49,7 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/queries', () => ({
 
 import { createAbTest } from '@/app/cms/(authed)/youtube/ab-lab/actions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { put } from '@vercel/blob'
+import { put, del } from '@vercel/blob'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import type { AbTestCreateInput } from '@/lib/youtube/ab-types'
@@ -72,8 +72,10 @@ interface BuildMockOpts {
   /** Canal dono do vídeo (o que `youtube_videos → youtube_channels` devolve). */
   videoOwner?: { channel_id: string } | null
   video?: { id: string; youtube_video_id?: string; duration_seconds: number; thumbnail_hq_url: string | null } | null
-  existingTest?: { id: string } | null
-  insertTestResult?: { data: { id: string } | null; error: { message: string } | null }
+  existingTest?: { id: string; status?: string } | null
+  /** Resposta da 2ª leitura de teste existente (depois de um 23505 no insert). */
+  existingTestDepois?: { id: string; status?: string } | null
+  insertTestResult?: { data: { id: string } | null; error: { message: string; code?: string } | null }
   insertVariantResult?: { data: null; error: { message: string } | null }
   /** Resposta da conferência do vídeo de referência (competitor_videos, por chave primária e site). */
   refVideo?: { data: { id: string } | null; error: { code?: string; message: string } | null }
@@ -83,6 +85,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const {
     video = { id: 'video-1', youtube_video_id: 'abc', duration_seconds: 600, thumbnail_hq_url: 'https://i.ytimg.com/vi/abc/hqdefault.jpg' },
     existingTest = null,
+    existingTestDepois = null,
     insertTestResult = { data: { id: 'new-test-id' }, error: null },
     insertVariantResult = { data: null, error: null },
     videoOwner = { channel_id: 'UCpt' },
@@ -93,6 +96,8 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const deleteCalls: { table: string; id: string }[] = []
   const siteFilters: [string, string][] = []
   const statusFiltrados: unknown[] = []
+  const selectsDeTeste: Array<{ cols: string; order: unknown }> = []
+  let leiturasDeExistente = 0
 
   const refFiltros: [string, string][] = []
   const fromMock = vi.fn((table: string) => {
@@ -128,20 +133,22 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
 
     if (table === 'ab_tests') {
       return {
-        select: vi.fn().mockReturnValue({
+        select: vi.fn((cols: string) => ({
           eq: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               in: vi.fn((_c: string, v: unknown) => (statusFiltrados.push(v), {
-                limit: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockResolvedValue({
-                    data: existingTest,
-                    error: null,
+                order: vi.fn((col: string, o: unknown) => (selectsDeTeste.push({ cols, order: [col, o] }), {
+                  limit: vi.fn().mockReturnValue({
+                    maybeSingle: vi.fn().mockImplementation(async () => ({
+                      data: leiturasDeExistente++ === 0 ? existingTest : existingTestDepois,
+                      error: null,
+                    })),
                   }),
-                }),
+                })),
               })),
             }),
           }),
-        }),
+        })),
         insert: vi.fn((data: unknown) => {
           insertCalls.push({ table: 'ab_tests', data })
           return {
@@ -179,7 +186,7 @@ function buildSupabaseMock(opts: BuildMockOpts = {}) {
   const client = { from: fromMock }
   ;(getSupabaseServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(client)
 
-  return { client, fromMock, insertCalls, deleteCalls, siteFilters, statusFiltrados, refFiltros }
+  return { client, fromMock, insertCalls, deleteCalls, siteFilters, statusFiltrados, refFiltros, selectsDeTeste }
 }
 
 let JPEG_1280: Buffer
@@ -359,7 +366,7 @@ describe('createAbTest', () => {
 
     const result = await createAbTest(makeInput())
 
-    expect(result).toEqual({ ok: false, error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' })
+    expect(result).toEqual({ ok: false, codigo: 'short', error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' })
     // Should NOT have attempted to preserve thumbnail or insert
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(put).not.toHaveBeenCalled()
@@ -367,23 +374,62 @@ describe('createAbTest', () => {
 
   it('rejects when existing active/draft/paused test for same video', async () => {
     buildSupabaseMock({
-      existingTest: { id: 'existing-test-id' },
+      existingTest: { id: 'existing-test-id', status: 'draft' },
     })
 
     const result = await createAbTest(makeInput())
 
     expect(result).toEqual({
       ok: false,
+      codigo: 'ja_existe',
+      existente: { id: 'existing-test-id', status: 'draft' },
       error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.',
     })
     expect(put).not.toHaveBeenCalled()
   })
 
+  it('ja_existe: um `select id, status` com order created_at desc (sem consulta nova)', async () => {
+    const { selectsDeTeste } = buildSupabaseMock({ existingTest: { id: 'd9', status: 'draft' } })
+    const r = await createAbTest(makeInput())
+    expect(r.codigo).toBe('ja_existe')
+    expect(r.existente).toEqual({ id: 'd9', status: 'draft' })
+    expect(selectsDeTeste).toEqual([{ cols: 'id, status', order: ['created_at', { ascending: false }] }])
+  })
+
+  it('vídeo não achado: codigo video_nao_achado', async () => {
+    buildSupabaseMock({ video: null })
+    const r = await createAbTest(makeInput())
+    expect(r).toMatchObject({ ok: false, codigo: 'video_nao_achado' })
+  })
+
+  it('insert com 23505 (duplo disparo): refaz a leitura e devolve ja_existe, nunca a mensagem crua', async () => {
+    buildSupabaseMock({ insertTestResult: { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }, existingTestDepois: { id: 'd2', status: 'queued' } })
+    const r = await createAbTest(makeInput())
+    expect(r).toMatchObject({ ok: false, codigo: 'ja_existe', existente: { id: 'd2', status: 'queued' } })
+    expect(r.error).not.toContain('duplicate')
+  })
+
+  it('falha de insert depois de preserveOriginalThumbnail: o blob guardado é apagado (best effort)', async () => {
+    vi.mocked(put).mockResolvedValue({ url: BLOB_URL, pathname: 'ab-originals/uuid/original.jpg' } as never)
+    buildSupabaseMock({ insertTestResult: { data: null, error: { message: 'boom' } } })
+    const r = await createAbTest(makeInput({ test_type: 'thumbnail' } as never))
+    expect(r.ok).toBe(false)
+    expect(del).toHaveBeenCalledWith(BLOB_URL)
+  })
+
+  it('falha ao inserir a variante original: apaga o teste e o blob guardado', async () => {
+    vi.mocked(put).mockResolvedValue({ url: BLOB_URL, pathname: 'ab-originals/uuid/original.jpg' } as never)
+    buildSupabaseMock({ insertVariantResult: { data: null, error: { message: 'boom' } } })
+    const r = await createAbTest(makeInput({ test_type: 'thumbnail' } as never))
+    expect(r.ok).toBe(false)
+    expect(del).toHaveBeenCalledWith(BLOB_URL)
+  })
+
   it('teste queued no mesmo vídeo: a busca inclui queued, recusa com a frase nova e nada é criado', async () => {
-    const { insertCalls, statusFiltrados } = buildSupabaseMock({ existingTest: { id: 'fila-1' } })
+    const { insertCalls, statusFiltrados } = buildSupabaseMock({ existingTest: { id: 'fila-1', status: 'queued' } })
     const result = await createAbTest(makeInput())
     expect(statusFiltrados[0]).toEqual(expect.arrayContaining(['draft', 'active', 'paused', 'queued']))
-    expect(result).toEqual({ ok: false, error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.' })
+    expect(result).toEqual({ ok: false, codigo: 'ja_existe', existente: { id: 'fila-1', status: 'queued' }, error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.' })
     expect(insertCalls).toHaveLength(0)
     expect(put).not.toHaveBeenCalled()
   })
@@ -391,7 +437,7 @@ describe('createAbTest', () => {
   it('vídeo sem thumbnail: frase em português', async () => {
     buildSupabaseMock({ video: { id: 'video-1', duration_seconds: 600, thumbnail_hq_url: null } })
     const result = await createAbTest(makeInput())
-    expect(result).toEqual({ ok: false, error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' })
+    expect(result).toEqual({ ok: false, codigo: 'sem_thumb_hq', error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' })
   })
 
   it('creates original variant with blob_url matching test original_thumbnail_url', async () => {
@@ -459,7 +505,7 @@ describe('createAbTest', () => {
 
     const result = await createAbTest(makeInput())
 
-    expect(result).toEqual({ ok: false, error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' })
+    expect(result).toEqual({ ok: false, codigo: 'video_nao_achado', error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' })
     expect(fetchSpy).not.toHaveBeenCalled()
     expect(put).not.toHaveBeenCalled()
   })

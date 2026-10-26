@@ -89,12 +89,13 @@ describe('Dia X/Y de v2 vem de estadoV2DoTeste', () => {
   })
 })
 
-const props = { type: 'thumbnail' as const, variants: [{ label: 'A' as const, thumbUrl: null, title: 't', isOriginal: true }, { label: 'B' as const, thumbUrl: null, title: 't', isOriginal: false }], config: initWizardConfig(AB_SITE_SETTINGS_DEFAULTS), videoTitle: 'v' }
+const props = { type: 'thumbnail' as const, variants: [{ label: 'A' as const, thumbUrl: null, title: 't', isOriginal: true }, { label: 'B' as const, thumbUrl: null, title: 't', isOriginal: false }], config: initWizardConfig(AB_SITE_SETTINGS_DEFAULTS), meta: { canal: null, publicadoEm: null, duracao: null } }
 
 describe('aviso de volume no passo de início', () => {
-  it('mostra o texto em uma linha', () => {
-    render(<StepRevisar {...props} avisoVolume="este teste não chega ao volume em 15 dias" />)
-    expect(screen.getByText('este teste não chega ao volume em 15 dias')).toBeTruthy()
+  it('mostra o texto como cartão com selo, inicial maiúscula e ponto', () => {
+    render(<StepRevisar {...props} avisoVolume={{ estado: 'nao_chega', texto: 'este teste não chega ao volume em 15 dias' }} />)
+    expect(screen.getByText('Este teste não chega ao volume em 15 dias.')).toBeTruthy()
+    expect(screen.getByText('Volume insuficiente')).toBeTruthy()
   })
   it('sem texto (estado ok) não mostra nada', () => {
     const { container } = render(<StepRevisar {...props} avisoVolume={null} />)
@@ -102,30 +103,38 @@ describe('aviso de volume no passo de início', () => {
   })
 })
 
+const okSemMedicao = { ok: true as const, aviso: { estado: 'sem_medicao' as const, texto: 'sem medição para estimar o volume' as const } }
+
 describe('useAvisoVolume', () => {
   it('D1: passa o V da tela ao leitor e refaz a leitura quando V muda', async () => {
-    const ler = vi.fn(async () => ({ ok: true as const, aviso: { estado: 'sem_medicao' as const, texto: 'sem medição para estimar o volume' as const } }))
+    const ler = vi.fn(async () => okSemMedicao)
     const { rerender } = renderHook(({ v }) => useAvisoVolume(ler, 'd1', true, v), { initialProps: { v: 2 } })
     await waitFor(() => expect(ler).toHaveBeenCalledWith('d1', { V: 2 }))
     rerender({ v: 3 })
     await waitFor(() => expect(ler).toHaveBeenCalledWith('d1', { V: 3 }))
   })
-  it('lê pelo rascunho e devolve o texto; o aviso nunca bloqueia', async () => {
-    const ler = vi.fn(async () => ({ ok: true as const, aviso: { estado: 'sem_medicao' as const, texto: 'sem medição para estimar o volume' as const } }))
+  it('lê pelo rascunho e devolve o estado com o texto; o aviso nunca bloqueia', async () => {
+    const ler = vi.fn(async () => okSemMedicao)
     const { result } = renderHook(() => useAvisoVolume(ler, 'd1', true))
-    await waitFor(() => expect(result.current).toBe('sem medição para estimar o volume'))
+    await waitFor(() => expect(result.current).toEqual({ estado: 'sem_medicao', texto: 'sem medição para estimar o volume' }))
     expect(ler).toHaveBeenCalledWith('d1')
   })
-  it('erro ou estado ok ⇒ null', async () => {
+  it('estado ok ⇒ null; erro ⇒ indisponivel (nunca null)', async () => {
+    const ok = vi.fn(async () => ({ ok: true as const, aviso: { estado: 'ok' as const, texto: null, dias_previstos: 5, impressoes_dia: 1, n: 1, base_estimada: false } }))
+    const a = renderHook(() => useAvisoVolume(ok, 'd1', true))
+    await waitFor(() => expect(ok).toHaveBeenCalled())
+    await waitFor(() => expect(a.result.current).toBeNull())
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const ler = vi.fn(async () => ({ ok: false as const, error: 'x' }))
-    const { result } = renderHook(() => useAvisoVolume(ler, 'd1', true))
-    await waitFor(() => expect(ler).toHaveBeenCalled())
-    expect(result.current).toBeNull()
+    const b = renderHook(() => useAvisoVolume(ler, 'd1', true))
+    await waitFor(() => expect(b.result.current).toBe('indisponivel'))
   })
-  it('inativo ou sem rascunho não lê', () => {
+  it('inativo não lê; ativo sem rascunho ⇒ indisponivel', () => {
     const ler = vi.fn()
-    renderHook(() => useAvisoVolume(ler, null, true))
-    renderHook(() => useAvisoVolume(ler, 'd1', false))
+    const a = renderHook(() => useAvisoVolume(ler, null, true))
+    const b = renderHook(() => useAvisoVolume(ler, 'd1', false))
     expect(ler).not.toHaveBeenCalled()
+    expect(a.result.current).toBe('indisponivel')
+    expect(b.result.current).toBeNull()
   })
 })

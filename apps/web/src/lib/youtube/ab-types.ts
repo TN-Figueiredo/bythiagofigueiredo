@@ -416,6 +416,8 @@ export interface AbTestCardView {
 }
 
 export interface AbTestDraftVariant {
+  /** Id da linha gravada em `ab_test_variants` (rascunho reaberto não duplica nem apaga; D-M6-16). */
+  id?: string
   label: string
   isOriginal: boolean
   thumbUrl: string | null

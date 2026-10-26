@@ -17,7 +17,7 @@ import type { pedirRemocaoCanal, apagarCanalSemGuardarAction, desfazerRemocaoCan
 import { DEFAULT_SORT, type CanaisRow, type CanaisSort, type CanaisView, type DirecaoFiltro } from './view-model'
 import { FMT_LEMBRADO, FMT_PADRAO, anuncioFmt, parseCanaisFmt, type CanaisFmt } from './formato'
 import { useToast } from '../_chrome/toasts'
-import { TXT, pedidoAoAgente, toastApagadoCorpo } from './remover-model'
+import { TXT, imagensDe, pedidoAoAgente, toastApagado } from './remover-model'
 import { useDesfazer } from './use-desfazer'
 import { lerRemovido } from './removido-flag'
 import { useChromeSync } from '../_chrome/sync-context'
@@ -249,7 +249,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   // Esc closes the topmost layer (canais.html keydown). The row menu is not here: the floating layer closes it first and returns the focus.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      // uma camada de dentro (o ⓘ do diálogo, o próprio diálogo) já tratou este Esc
+      if (e.key !== 'Escape' || e.defaultPrevented) return
       if (confirm) { if (!bloqueado.current) closeConfirm(); return }
       if (addOpen) { closeAdd(); return }
       if (nicheOpen) { closeNiche(); return }
@@ -346,7 +347,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   // D13: o canal apagado na página do canal chega aqui pelo estado do navegador (não pela URL); o toast sai uma vez
   useEffect(() => {
     const d = lerRemovido()
-    if (d) toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(d.nome, { videos: d.videos, ...(d.registros !== undefined ? { registros: d.registros } : {}), ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
+    if (d) { const a = toastApagado(d.nome, { videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}), ...(d.imagens ?? {}) }); toast(a.kind, a.titulo, a.corpo, a.fixo ? { fixo: true } : {}) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const concluir = (d: Desfecho) => {
     if (!confirm) return
@@ -356,7 +357,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
     setConfirm(null); setFocoTitulo(n => n + 1)
     if (d.caminho === 'guardar') toast('ok', TXT.toastAgendadoTitulo, TXT.toastAgendadoCorpo, { acoes: [{ rotulo: 'Desfazer', onClick: () => { void desfazer(id, name) } }] })
     else {
-      toast('ok', TXT.toastApagadoTitulo, toastApagadoCorpo(name, { videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) }))
+      const a = toastApagado(name, { videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}), ...imagensDe(d) })
+      toast(a.kind, a.titulo, a.corpo, a.fixo ? { fixo: true } : {})
       if (panel?.id === id) { setClosedDrawer(id); go({ channel: null, tab: null }, { channel: null }) }
     }
     router.refresh()

@@ -18,11 +18,11 @@ export function VChip({ label, size = 22, ring, onClick }: VChipProps) {
   const color = VARIANT_COLORS[label]
   const Tag = onClick ? 'button' : 'span'
   return React.createElement(Tag, {
-    'aria-label': `Variant ${label}`,
+    'aria-label': `Variante ${label}`,
     ...(onClick ? { role: 'button', onClick, type: 'button' as const } : {}),
-    className: `inline-flex items-center justify-center rounded font-mono font-bold text-white shrink-0${onClick ? ' cursor-pointer' : ''}`,
+    className: `inline-flex items-center justify-center rounded font-mono font-bold shrink-0${onClick ? ' cursor-pointer' : ''}`,
     style: {
-      width: size, height: size, fontSize: size * 0.55, backgroundColor: color,
+      width: size, height: size, fontSize: size * 0.55, backgroundColor: color, color: '#1A120A',
       ...(ring ? { boxShadow: `0 0 0 2px ${color}44` } : {}),
     },
   }, label)

@@ -227,6 +227,7 @@ export function LibraryDashboard({
           settings={wizardSettings!}
           onClose={() => setSelectedVideo(null)}
           onCreated={(testId) => router.push(`/cms/youtube/ab-lab/${testId}`)}
+          onAbrirExistente={(id, status) => router.push(status === 'draft' ? `/cms/youtube/ab-lab/new?draft=${id}` : `/cms/youtube/ab-lab/${id}`)}
           iniciarTeste={iniciarTeste!}
           avisoDeVolume={avisoDeVolume}
         />

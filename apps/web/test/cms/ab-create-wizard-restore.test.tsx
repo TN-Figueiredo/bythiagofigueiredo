@@ -24,11 +24,11 @@ import type { AbTestSiteSettings } from '@/lib/youtube/ab-types'
 const video = { id: 'vid-1', title: 'Meu vídeo', thumbnailUrl: null }
 const settings = {} as AbTestSiteSettings
 
-function guardarRascunho(type: string | null, step = 2) {
-  localStorage.setItem('ab-wizard-draft-vid-1', JSON.stringify({
+function guardarRascunho(type: string | null, step = 'variantes') {
+  localStorage.setItem('ab-wizard-draft-v2-vid-1', JSON.stringify({
     step, type,
     variants: [{ label: 'A', isOriginal: true, thumbUrl: null, titleText: 'Meu vídeo' }],
-    config: {}, hypothesis: '', savedAt: Date.now(),
+    draftTestId: null, savedAt: Date.now(),
   }))
 }
 

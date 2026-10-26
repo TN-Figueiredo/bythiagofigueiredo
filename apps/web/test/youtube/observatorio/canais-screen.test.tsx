@@ -18,6 +18,7 @@ import { CanaisScreen, type CanaisScreenProps } from '@/app/cms/(authed)/youtube
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
 import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrome/sync-context'
 import { noJunkText, oneFilledButton, linkCountsMatch, forbiddenVocabulary, brokenLinks } from './audits'
+import { CONTAGEM_T12 } from '../../helpers/arquivo-vazio'
 
 const replace = vi.fn(), refresh = vi.fn(), push = vi.fn(), prefetch = vi.fn()
 let search = ''
@@ -227,7 +228,7 @@ describe('CanaisScreen', () => {
     const user = userEvent.setup()
     const onPedir = vi.fn(async () => ({ ok: true, jaPedido: false }))
     const impact = { name: 'Luke Damant', videos: 10, pinned: 0, versions: 12, dailyDays: 3, bookmarks: 0, readings: 1, watch: { readings: 0, thumbs: 0, alvos: 0 } }
-    mount({ onPedir, onRemovalImpact: async () => ({ ok: true, impact, semGuardar: { pode: false, porque: 'antigo' } }) })
+    mount({ onPedir, onRemovalImpact: async () => ({ ok: true, impact, semGuardar: { pode: false, porque: 'antigo' }, ...CONTAGEM_T12 }) })
     await user.click(screen.getByRole('button', { name: 'Mais ações para Luke Damant' }))
     await user.click(screen.getByRole('menuitem', { name: 'Remover canal…' }))
     const dlg = screen.getByRole('dialog', { name: 'Remover Luke Damant?' })

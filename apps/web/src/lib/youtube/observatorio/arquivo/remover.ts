@@ -109,7 +109,7 @@ export async function apagarCanalSemGuardar(
   sb: SupabaseClient,
   e: { siteId: string; canalId: string; actorId: string; nomeDigitado: string; motivo: string },
   deps: DepsDoBlob = {},
-): Promise<{ ok: true; videos: number; miniaturasPendentes: number; foraDoPrefixo: number; registrosDiarios?: number; leituras?: number } | Falha> {
+): Promise<{ ok: true; videos: number; miniaturasPendentes: number; foraDoPrefixo: number; registrosDiarios?: number; leituras?: number; imagensRestantes?: number } | Falha> {
   const r = await chamar(sb, 'competitor_channel_delete_unarchived', {
     p_site: e.siteId, p_channel: e.canalId, p_actor: e.actorId, p_confirm_name: e.nomeDigitado, p_motivo: e.motivo,
   })
@@ -142,6 +142,8 @@ export async function apagarCanalSemGuardar(
   const leituras = daForja !== undefined && daWatch !== undefined ? daForja + daWatch : undefined
   return {
     ok: true, videos: Number.isFinite(videos) ? videos : 0, miniaturasPendentes: urls.length - apagadas, foraDoPrefixo: fora.length,
+    // T12/Q4: o que sobrou no Blob, só quando o banco mandou a lista (sem `blob_urls` o número não existe, e a tela diz que não deu para conferir)
+    ...(Array.isArray(data.blob_urls) ? { imagensRestantes: urls.length - apagadas } : {}),
     ...(registrosDiarios !== undefined ? { registrosDiarios } : {}), ...(leituras !== undefined ? { leituras } : {}),
   }
 }

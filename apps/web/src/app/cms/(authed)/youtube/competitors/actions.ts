@@ -15,6 +15,8 @@ import { canalApagado, registrarVoltaDoCanal } from '@/lib/youtube/competitor-re
 import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/competitor-slots'
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { pedirRemocao, cancelarRemocao, apagarCanalSemGuardar } from '@/lib/youtube/observatorio/arquivo/remover'
+import { lerImpactoDoArquivo, type ImpactoDoArquivo } from '@/lib/youtube/observatorio/arquivo/impacto-arquivo'
+import { lerCapacidades } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
 import { FRASES_E10 } from '@/lib/youtube/observatorio/arquivo/codigos'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
@@ -278,7 +280,7 @@ export async function desfazerRemocaoCanal(id: string): Promise<RespostaRemocao<
 export async function apagarCanalSemGuardarAction(
   id: string,
   nomeDigitado: string,
-): Promise<RespostaRemocao<{ videos: number; leituras?: number; registrosDiarios?: number }>> {
+): Promise<RespostaRemocao<{ videos: number; leituras?: number; registrosDiarios?: number; imagensRestantes?: number }>> {
   const g = await guardaDaRemocao(id, 'apagar um canal concorrente sem guardar')
   if (!g.ok) return g
   const supabase = getSupabaseServiceClient()
@@ -288,7 +290,7 @@ export async function apagarCanalSemGuardarAction(
     // o nome vai como foi digitado: quem apara e normaliza é o banco (`obs_nome_normalizado`)
     const r = await apagarCanalSemGuardar(supabase, { siteId: g.siteId, canalId: id, actorId: g.userId, nomeDigitado: String(nomeDigitado ?? ''), motivo: MOTIVO.apagar })
     if (!r.ok) return recusa(r.codigo, r.frase)
-    return { ok: true, videos: r.videos, ...(r.leituras !== undefined ? { leituras: r.leituras } : {}), ...(r.registrosDiarios !== undefined ? { registrosDiarios: r.registrosDiarios } : {}) }
+    return { ok: true, videos: r.videos, ...(r.leituras !== undefined ? { leituras: r.leituras } : {}), ...(r.registrosDiarios !== undefined ? { registrosDiarios: r.registrosDiarios } : {}), ...(r.imagensRestantes !== undefined ? { imagensRestantes: r.imagensRestantes } : {}) }
   } finally {
     soltarCache(g.siteId)
   }
@@ -642,13 +644,25 @@ export async function unpinVideo(videoId: string): Promise<PinResult> {
 /**
  * What "Remover canal" would delete, for the confirmation dialog. `ok: false` covers no access, a channel of another
  * site and a failed count: the dialog then says it could not count, it never shows zeros.
+ * T12: the count, the archive (`obs_archive_channel_archive_impact`) and the Blob images come together or not at all; the capacity
+ * (what the server can do about the images) is read here because `lerCapacidades` is server-only.
  */
-export async function getCompetitorRemovalImpactAction(channelRowId: string): Promise<{ ok: true; impact: CompetitorRemovalImpact; semGuardar: SemGuardar } | { ok: false }> {
+export type RespostaDoImpacto =
+  | { ok: true; impact: CompetitorRemovalImpact; semGuardar: SemGuardar; arquivo: ImpactoDoArquivo; capacidade: 'sim' | 'nao-sim' | 'nao-nao'; dataDoComando: string | null }
+  | { ok: false }
+export async function getCompetitorRemovalImpactAction(channelRowId: string): Promise<RespostaDoImpacto> {
   let siteId: string
   try { siteId = await requireEditAccess() } catch { return { ok: false } }
   if (typeof channelRowId !== 'string' || !UUID_RE.test(channelRowId)) return { ok: false }
   try {
-    const r = await getCompetitorRemovalImpact(siteId, channelRowId)
-    return r ? { ok: true, impact: r.impact, semGuardar: semGuardarDe(r.addedAt, Date.now(), RULES.removal.semGuardarAteDias) } : { ok: false }
+    // as duas leituras são independentes: uma ida e volta só
+    const [r, arquivo] = await Promise.all([getCompetitorRemovalImpact(siteId, channelRowId), lerImpactoDoArquivo(getSupabaseServiceClient(), siteId, channelRowId)])
+    if (!r || !arquivo) return { ok: false }
+    const cap = lerCapacidades()
+    return {
+      ok: true, impact: r.impact, semGuardar: semGuardarDe(r.addedAt, Date.now(), RULES.removal.semGuardarAteDias), arquivo,
+      capacidade: cap.comandoDeLimpeza && cap.blocoCanaisRemovidos ? 'sim' : cap.blocoCanaisRemovidos ? 'nao-sim' : 'nao-nao',
+      dataDoComando: cap.dataDoComando,
+    }
   } catch { return { ok: false } }
 }

@@ -21,6 +21,7 @@ import type {
   AbTestCreateInput,
   AbTestVariantRow,
   AbTestSiteSettings,
+  AbTestStatus,
   TestType,
   CreateTextVariantInput,
   VariantMetadata,
@@ -118,9 +119,22 @@ function referenciaValida(r: unknown): { refVideoId: string | null; refTroca: st
 // createAbTest
 // ---------------------------------------------------------------------------
 
+/** Recusa conhecida de `createAbTest`: o cliente decide a tela pelo código, nunca pelo texto de `error`. */
+export type CodigoCriarTeste = 'ja_existe' | 'short' | 'sem_thumb_hq' | 'video_nao_achado'
+export type ResultadoCriarTeste = {
+  ok: boolean
+  id?: string
+  error?: string
+  codigo?: CodigoCriarTeste
+  existente?: { id: string; status: AbTestStatus }
+}
+
+const FRASE_JA_EXISTE = 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.'
+const STATUS_ABERTOS = ['draft', 'active', 'paused', 'queued'] as const
+
 export async function createAbTest(
   input: AbTestCreateInput,
-): Promise<{ ok: boolean; id?: string; error?: string }> {
+): Promise<ResultadoCriarTeste> {
   let siteId: string
   try {
     siteId = await requireEditAccess()
@@ -147,30 +161,41 @@ export async function createAbTest(
     .single()
 
   if (videoError || !video) {
-    return { ok: false, error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' }
+    return { ok: false, codigo: 'video_nao_achado', error: 'Não achamos este vídeo. Recarregue a página e tente de novo.' }
+  }
+
+  // Duração 0 = ainda não sincronizado (não é Short)
+  if ((video.duration_seconds ?? 0) <= 0) {
+    return { ok: false, codigo: 'sem_thumb_hq', error: 'O Lab ainda não sincronizou este vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' }
   }
 
   // Reject Shorts
   if (isCertainShort(video.duration_seconds ?? 0)) {
-    return { ok: false, error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' }
+    return { ok: false, codigo: 'short', error: 'O A/B Lab não testa Shorts (vídeos de até 60 s). Escolha outro vídeo.' }
   }
 
   if (!video.thumbnail_hq_url) {
-    return { ok: false, error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' }
+    return { ok: false, codigo: 'sem_thumb_hq', error: 'O Lab ainda não tem a thumbnail deste vídeo. Vá em Vídeos, use "Sincronizar agora" e tente de novo.' }
   }
 
   // Check for existing active/draft/paused/queued test on the same video
-  const { data: existing } = await supabase
-    .from('ab_tests')
-    .select('id')
-    .eq('youtube_video_id', input.youtube_video_id)
-    .eq('site_id', siteId)
-    .in('status', ['draft', 'active', 'paused', 'queued'])
-    .limit(1)
-    .maybeSingle()
+  // Um `select id, status` só (ordem fixa para o `id` ser determinístico): a tela abre o rascunho ou o teste que já existe.
+  const lerExistente = async () => {
+    const { data } = await supabase
+      .from('ab_tests')
+      .select('id, status')
+      .eq('youtube_video_id', input.youtube_video_id)
+      .eq('site_id', siteId)
+      .in('status', [...STATUS_ABERTOS])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return data ? { id: data.id as string, status: data.status as AbTestStatus } : null
+  }
+  const existing = await lerExistente()
 
   if (existing) {
-    return { ok: false, error: 'Este vídeo já tem um teste (em andamento, pausado, na fila ou em rascunho). Termine ou cancele esse antes de criar outro.' }
+    return { ok: false, codigo: 'ja_existe', existente: existing, error: FRASE_JA_EXISTE }
   }
 
   // Merge config with defaults
@@ -279,7 +304,22 @@ export async function createAbTest(
     .select('id')
     .single()
 
+  // Blob guardado agora (não o do YouTube): se a criação falhar daqui em diante, sai para não ficar órfão a cada tentativa.
+  const apagarBlobGuardado = async () => {
+    if (!immutableOriginalUrl || immutableOriginalUrl === video.thumbnail_hq_url) return
+    try {
+      const { del } = await import('@vercel/blob')
+      await del(immutableOriginalUrl)
+    } catch { /* best effort */ }
+  }
+
   if (testError || !test) {
+    await apagarBlobGuardado()
+    // Duplo disparo: o índice único não cobre `queued`, e a mensagem crua do Postgres não vai à tela
+    if (testError?.code === '23505') {
+      const jaExiste = await lerExistente()
+      if (jaExiste) return { ok: false, codigo: 'ja_existe', existente: jaExiste, error: FRASE_JA_EXISTE }
+    }
     return { ok: false, error: testError?.message ?? 'Failed to create test' }
   }
 
@@ -298,6 +338,7 @@ export async function createAbTest(
   if (variantError) {
     // Roll back the test row on variant insert failure
     await supabase.from('ab_tests').delete().eq('id', test.id)
+    await apagarBlobGuardado()
     return { ok: false, error: variantError.message }
   }
 
@@ -408,9 +449,13 @@ export async function uploadVariant(
     return { ok: false, error: 'Maximum of 3 non-original variants allowed' }
   }
 
-  // Determine next label
+  // Rótulo: o pedido pelo assistente, se for válido e livre; senão o primeiro livre (N1)
   const usedLabels = new Set((existingVariants ?? []).map(v => v.label))
-  const label = VARIANT_LABELS.find(l => !usedLabels.has(l))
+  const pedido = formData.get('label')
+  const pedidoValido = VARIANT_LABELS.find(l => l === pedido)
+  // Rótulo pedido e ocupado: não troca em silêncio (o assistente guarda `gravada` por rótulo)
+  if (pedidoValido && usedLabels.has(pedidoValido)) return { ok: false, error: 'label_ocupado' }
+  const label = pedidoValido ?? VARIANT_LABELS.find(l => !usedLabels.has(l))
   if (!label) return { ok: false, error: 'No available variant label slot' }
 
   // Determine extension
@@ -432,7 +477,8 @@ export async function uploadVariant(
   const thumbnailDhash = await dhashOuNulo(buffer, `uploadVariant:${testId}`)
 
   // Insert variant row
-  const sortOrder = 1 + (existingVariants?.length ?? 0)
+  // A posição vem do rótulo (B=1, C=2, D=3): trocar a imagem de B com C gravada não repete sort_order
+  const sortOrder = VARIANT_LABELS.indexOf(label) + 1
   const { data: variant, error: insertError } = await supabase
     .from('ab_test_variants')
     .insert({
@@ -524,6 +570,7 @@ export async function deleteVariant(
 
 export async function cleanupDraftVariants(
   testId: string,
+  opts?: { manter?: string[] },
 ): Promise<{ ok: boolean; error?: string }> {
   let siteId: string
   try {
@@ -546,20 +593,25 @@ export async function cleanupDraftVariants(
 
   const { data: variants } = await supabase
     .from('ab_test_variants')
-    .select('id, blob_url')
+    .select('id, label, blob_url')
     .eq('test_id', testId)
     .eq('is_original', false)
 
-  if (variants && variants.length > 0) {
+  // Com `manter`, só os rótulos fora da lista saem (rascunho reaberto não apaga o que já está gravado; D-M6-16).
+  const manter = opts?.manter
+  const apagar = manter ? (variants ?? []).filter(v => !manter.includes(v.label)) : (variants ?? [])
+
+  if (apagar.length > 0) {
+    // Linhas primeiro; o blob só sai depois de o delete dar certo (senão a linha ficaria apontando para arquivo apagado)
+    const delQuery = supabase.from('ab_test_variants').delete().eq('test_id', testId)
+    const { error: delError } = await (manter
+      ? delQuery.in('id', apagar.map(v => v.id))
+      : delQuery.eq('is_original', false))
+    if (delError) return { ok: false, error: delError.message }
     const { del } = await import('@vercel/blob')
-    for (const v of variants) {
+    for (const v of apagar) {
       if (v.blob_url) await del(v.blob_url).catch(() => {})
     }
-    await supabase
-      .from('ab_test_variants')
-      .delete()
-      .eq('test_id', testId)
-      .eq('is_original', false)
   }
 
   return { ok: true }
@@ -950,7 +1002,8 @@ export async function createTextVariant(
   if (regraDoTeste(test) === 'v2' && (count ?? 0) >= V_MAXIMO_V2) return { ok: false, error: MSG_VARIANTES_V2 }
   if ((count ?? 0) >= 4) return { ok: false, error: 'Maximum 4 variants per test' }
 
-  const sortOrder = (count ?? 0)
+  const posicao = input.label ? VARIANT_LABELS.findIndex(l => l === input.label) : -1
+  const sortOrder = posicao >= 0 ? posicao + 1 : (count ?? 0)
   const label = input.label ?? VARIANT_LABELS[sortOrder - 1] ?? `v${sortOrder + 1}`
 
   const { data: variant, error } = await supabase

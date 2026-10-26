@@ -8,7 +8,7 @@ vi.mock('@/lib/supabase/service', async () => {
   const { bancoFalso } = await import('../helpers/ab-banco-falso')
   return { getSupabaseServiceClient: () => bancoFalso({}) }
 })
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() }) }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() }), useParams: () => ({ testId: 't1' }) }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   forceRotate: vi.fn(), applyWinnerNow: vi.fn(), cancelGracePeriod: vi.fn(),
   acknowledgeAbTestDrift: vi.fn(), resumeAbTest: vi.fn(), revertWinner: vi.fn(), archiveAbTest: vi.fn(),
@@ -97,7 +97,7 @@ describe('S8-F3 T5b: cabeçalho, datas, andamento, carregando', () => {
     const { container } = render(<Carregando />)
     const st = container.querySelector('[role="status"]')!
     expect(st.textContent).toContain('Carregando o placar')
-    expect(container.querySelectorAll('.sk').length).toBeGreaterThan(10)
+    expect(container.querySelectorAll('.skdias, .skrow').length).toBe(0)
     const css = lerCss('_components/placar-esqueleto.css')
     expect(css).toMatch(/prefers-reduced-motion:\s*reduce\)\s*\{[^}]*\.sk[^}]*animation:\s*none/)
     for (const f of ['_components/placar-esqueleto.css', '_components/detail-header-lab.css']) {

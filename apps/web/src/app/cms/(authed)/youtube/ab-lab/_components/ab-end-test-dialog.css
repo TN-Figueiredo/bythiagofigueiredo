@@ -1,6 +1,6 @@
 /* Diálogo "O que fica no vídeo?" (A/B Lab P4a). Desenho do mockup aprovado; cores literais, sem color-mix (Opera). */
 .etd-scrim { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(0,0,0,.55); }
-.etd {
+.etd, .etd-tok {
   --etd-err: #F87171; --etd-warn: #FBBF24; --etd-info: #38BDF8;
   --etd-err-bg: rgba(217,97,74,.13); --etd-warn-bg: rgba(245,158,11,.13); --etd-info-bg: rgba(63,169,192,.13);
   --etd-err-line: rgba(239,68,68,.55); --etd-warn-line: rgba(245,158,11,.5); --etd-info-line: rgba(6,182,212,.45);
@@ -8,11 +8,13 @@
   --etd-text: var(--theme-cms-text); --etd-muted: var(--theme-cms-text-muted);
   --etd-surface: var(--theme-cms-surface); --etd-border: var(--theme-cms-border);
   --etd-accent: var(--pb-accent); --etd-accent-soft: rgba(255,130,64,.14);
+}
+.etd {
   position: relative; width: 100%; max-width: 440px; max-height: calc(100dvh - 24px); display: flex; flex-direction: column;
   background: var(--etd-surface); color: var(--etd-text); border: 1px solid var(--etd-border); border-radius: 14px; overflow: hidden;
   box-shadow: 0 24px 60px -20px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.4);
 }
-[data-theme="light"] .etd {
+[data-theme="light"] .etd, [data-theme="light"] .etd-tok {
   --etd-err: #A4261B; --etd-warn: #7A4E00; --etd-info: #0B5F82;
   --etd-err-line: rgba(180,35,24,.55); --etd-warn-line: rgba(160,100,0,.55); --etd-info-line: rgba(14,116,144,.5);
   --etd-sub: #3F3727; --etd-ctl: #756A51; --etd-accent-soft: rgba(185,66,16,.10);
@@ -60,6 +62,7 @@
 .etd-btn:disabled { color: var(--etd-muted); cursor: not-allowed; }
 .etd-btn.over { background: var(--etd-amber); border-color: var(--etd-amber); color: #1A120A; }
 .etd-msg { display: grid; grid-template-columns: 20px 1fr; gap: 9px; border: 1px solid; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+.etd-msg.compact { margin-top: 0; padding: 6px 10px; font-size: 12px; }
 .etd-msg svg { width: 18px; height: 18px; margin-top: 1px; }
 .etd-msg strong { display: block; }
 .etd-msg.err { background: var(--etd-err-bg); border-color: var(--etd-err-line); }
@@ -69,7 +72,9 @@
 .etd-msg.busy { background: var(--etd-info-bg); border-color: var(--etd-info-line); }
 .etd-msg.busy svg { color: var(--etd-info); animation: etd-sp 1s linear infinite; }
 @keyframes etd-sp { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .etd-msg.busy svg { animation: none; } }
+.etd-spin svg { width: 20px; height: 20px; animation: etd-sp 1s linear infinite; }
+.etd-btn .etd-spin svg, .etd-spin.pequeno svg { width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) { .etd-msg.busy svg, .etd-spin svg { animation: none; } }
 .etd-lead { font-size: 14px; margin: 0 0 8px; }
 .etd-tiny { font-size: 12px; color: var(--etd-muted); margin: 0 0 12px; }
 .etd-sec { margin: 12px 0 -4px; font-size: 13px; font-weight: 700; }

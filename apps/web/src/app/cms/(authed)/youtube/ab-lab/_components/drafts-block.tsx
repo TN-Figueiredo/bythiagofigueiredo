@@ -78,7 +78,7 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
                 {tipoMeta(draft.type).label}
               </span>
               <span className="text-[11.5px] text-cms-text-dim">
-                Parou no passo {draft.step} de 5 · criado {draft.createdAgo}
+                Parou no passo {draft.step} de 3 · criado {draft.createdAgo}
               </span>
             </div>
           </div>
@@ -90,7 +90,7 @@ export function DraftsBlock({ drafts, onContinue }: DraftsBlockProps) {
             className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent shrink-0 cursor-pointer"
             style={{ color: 'rgb(26, 18, 12)' }}
           >
-            Continuar setup
+            Continuar
             <ArrowRight size={14} aria-hidden="true" />
           </button>
         </div>

@@ -1,29 +1,22 @@
-/* Esqueleto do detalhe do teste (S8-F3 T5b). Alturas = as do estado real do mockup M4 r3.1:
-   cabeçalho 79/169, resumo 105/160, faixa 41/59, linha 63/150 (1440/390). Escala --s1..--s6 = 4/8/12/16/24/32. */
+/* Carregamento do detalhe do teste (M6, mockup r3): só o cabeçalho (.skhd, forma de `.ld .hd`) e a mensagem. Escala --s1..--s6 = 4/8/12/16/24/32. */
 .pm4-sk {
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
   padding: var(--s5);
 }
-.pm4-sk .sk { background: linear-gradient(90deg, var(--cn-skel) 0, var(--cn-surface-2) 50%, var(--cn-skel) 100%); background-size: 200% 100%; border-radius: 6px; animation: pm4-sh 1.4s linear infinite; }
-.pm4-sk .skhd { height: 79px; display: flex; gap: var(--s4); align-items: center; }
+.pm4-sk .sk { background: linear-gradient(90deg, var(--cn-skel) 0, var(--cn-skel-2) 50%, var(--cn-skel) 100%); background-size: 200% 100%; border-radius: 6px; animation: pm4-sh 1.4s linear infinite; }
+.pm4-sk .skhd { min-height: 79px; display: flex; gap: var(--s4); align-items: center; }
 .pm4-sk .skhd .th { width: 128px; aspect-ratio: 16 / 9; flex: none; }
 .pm4-sk .skhd .tt { flex: 1; min-width: 0; }
-.pm4-sk .sksum { height: 105px; margin-top: var(--s5); max-width: 72ch; display: flex; align-items: center; padding: 0 14px; font: 400 13px/1.4 Inter, system-ui, sans-serif; color: var(--cn-muted); }
-.pm4-sk .skband { height: 41px; margin-top: var(--s4); }
-.pm4-sk .sec { margin-top: var(--s6); }
-.pm4-sk .skrow { height: 63px; margin: 6px 0; }
-.pm4-sk .skdias { display: flex; gap: 6px; flex-wrap: wrap; margin-top: var(--s5); }
-.pm4-sk .skdias .sk { width: 34px; height: 42px; }
+.pm4-sk .skhd img.th { border-radius: 5px; object-fit: cover; }
+.pm4-sk .cr { font-size: 12.5px; color: var(--cn-muted); margin-bottom: 4px; }
+.pm4-sk h2 { margin: 0; font: 600 19px/1.3 Georgia, serif; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; color: var(--cn-text); }
+.pm4-sk .etd-msg { margin-top: var(--s5); max-width: 72ch; }
+.pm4-sk .etd-msg .acao { display: block; margin: 6px 0 0; padding: 0; text-align: left; color: var(--cms-text); text-decoration: underline; background: none; border: 0; cursor: pointer; font: inherit; }
 @container (max-width: 640px) {
   .pm4-sk { padding: var(--s4) var(--s3); }
-  .pm4-sk .skhd { height: 169px; flex-direction: column; align-items: flex-start; gap: var(--s3); }
+  .pm4-sk .skhd { min-height: 169px; flex-direction: column; align-items: flex-start; gap: var(--s3); }
   .pm4-sk .skhd .th { width: 96px; }
   .pm4-sk .skhd .tt { width: 100%; }
-  .pm4-sk .sksum { height: 160px; }
-  .pm4-sk .skband { height: 59px; }
-  .pm4-sk .skrow { height: 150px; }
-  .pm4-sk .skdias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-  .pm4-sk .skdias .sk { width: auto; height: 44px; }
 }
 @keyframes pm4-sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .pm4-sk .sk { animation: none; } }

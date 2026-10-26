@@ -201,7 +201,7 @@ describe('DraftsBlock', () => {
     const draft = makeDraft({ step: 3 })
     render(<DraftsBlock drafts={[draft]} onContinue={vi.fn()} />)
     expect(screen.getByText(draft.name)).toBeTruthy()
-    expect(screen.getByText(/Parou no passo 3 de 5/)).toBeTruthy()
+    expect(screen.getByText(/Parou no passo 3 de 3/)).toBeTruthy()
   })
 
   it('rascunho antigo de descrição mostra "Tipo antigo", nunca "description" cru', () => {
@@ -218,16 +218,16 @@ describe('DraftsBlock', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(trigger)
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.queryByText('Continuar setup')).toBeNull()
+    expect(screen.queryByText('Continuar')).toBeNull()
     fireEvent.click(trigger)
-    expect(screen.getByText('Continuar setup')).toBeTruthy()
+    expect(screen.getByText('Continuar')).toBeTruthy()
   })
 
   it('calls onContinue when CTA clicked', () => {
     const draft = makeDraft()
     const onContinue = vi.fn()
     render(<DraftsBlock drafts={[draft]} onContinue={onContinue} />)
-    fireEvent.click(screen.getByText('Continuar setup'))
+    fireEvent.click(screen.getByText('Continuar'))
     expect(onContinue).toHaveBeenCalledWith(draft.id)
   })
 })

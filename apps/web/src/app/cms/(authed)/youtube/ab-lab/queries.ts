@@ -1,4 +1,8 @@
 import { cache } from 'react'
+import { fmtRelative } from '@/lib/youtube/format'
+import * as Sentry from '@sentry/nextjs'
+import { statusAbertoDoVideo, bloqueioDoVideo } from '@/lib/youtube/ab-linha-video'
+import type { EligibleVideo } from './_components/video-picker-dialog'
 import { z } from 'zod'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { placarDoTeste, faixaDeDias, regraDoTeste } from '@/lib/youtube/ab-gravacao/placar'
@@ -16,6 +20,7 @@ import type {
   VariantStats,
   AbTestCardView,
   AbTestDraft,
+  AbTestDraftVariant,
   AbTestDetailView,
   AbTestActiveView,
   AbTestWinnerView,
@@ -134,19 +139,31 @@ export async function getAbDraftById(draftId: string): Promise<{
   thumbnailUrl: string | null
   testType: TestType
   sourcePipelineId: string | null
+  /** Variantes já gravadas do rascunho, em ordem (D-M6-16). */
+  variants: AbTestDraftVariant[]
 } | null> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { data, error } = await supabase
     .from('ab_tests')
-    .select('id, youtube_video_id, name, original_thumbnail_url, test_type, source_pipeline_id')
+    .select('id, youtube_video_id, name, original_thumbnail_url, test_type, source_pipeline_id, ab_test_variants!test_id(id, label, is_original, blob_url, title_text, sort_order)')
     .eq('id', draftId)
     .eq('site_id', siteId)
     .eq('status', 'draft')
     .single()
 
-  if (error || !data) return null
+  if (error) {
+    console.warn('[ab-lab] getAbDraftById falhou', error.message)
+    Sentry.captureException(error, { tags: { area: 'ab-rascunho-leitura' }, extra: { draftId } })
+    return null
+  }
+  if (!data) return null
+
+  const linhas = (data.ab_test_variants ?? []) as Array<{ id: string; label: string; is_original: boolean; blob_url: string | null; title_text: string | null; sort_order: number | null }>
+  const variants: AbTestDraftVariant[] = [...linhas]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map(v => ({ id: v.id, label: v.label, isOriginal: v.is_original, thumbUrl: v.blob_url ?? null, titleText: v.title_text ?? '' }))
 
   return {
     id: data.id as string,
@@ -155,6 +172,7 @@ export async function getAbDraftById(draftId: string): Promise<{
     thumbnailUrl: (data.original_thumbnail_url as string) || null,
     testType: data.test_type as TestType,
     sourcePipelineId: (data.source_pipeline_id as string) || null,
+    variants,
   }
 }
 
@@ -303,22 +321,13 @@ export async function getAbSiteSettings(): Promise<AbTestSiteSettings> {
 // getEligibleVideosForPicker
 // ---------------------------------------------------------------------------
 
-export async function getEligibleVideosForPicker(): Promise<Array<{
-  id: string
-  title: string
-  thumbnailUrl: string | null
-  durationSeconds: number
-  channelHandle: string
-  hasActiveTest: boolean
-  previousLift: number | null
-  sourcePipelineId: string | null
-}>> {
+export async function getEligibleVideosForPicker(): Promise<EligibleVideo[]> {
   const siteId = await requireEditAccess()
   const supabase = getSupabaseServiceClient()
 
   const { data: videos } = await supabase
     .from('youtube_videos')
-    .select('id, title, thumbnail_url, duration_seconds, youtube_channels!inner(handle)')
+    .select('id, title, thumbnail_url, thumbnail_hq_url, duration_seconds, published_at, view_count, youtube_channels!inner(handle)')
     .eq('site_id', siteId)
     .order('published_at', { ascending: false })
     .limit(100)
@@ -328,37 +337,40 @@ export async function getEligibleVideosForPicker(): Promise<Array<{
   const videoIds = videos.map(v => v.id as string)
   const { data: tests } = await supabase
     .from('ab_tests')
-    .select('youtube_video_id, status, result_metadata, source_pipeline_id')
+    .select('youtube_video_id, status, source_pipeline_id')
     .eq('site_id', siteId)
     .in('youtube_video_id', videoIds)
 
-  const testMap = new Map<string, { hasActive: boolean; lift: number | null; pipelineId: string | null }>()
+  const statusPorVideo = new Map<string, string[]>()
+  const pipelinePorVideo = new Map<string, string>()
   for (const t of (tests ?? [])) {
     const vid = t.youtube_video_id as string
-    const existing = testMap.get(vid)
-    const isActive = ['draft', 'active', 'paused', 'queued'].includes(t.status as string)
-    // P2: lift gravado pelo avaliador automático não aparece mais em tela nenhuma.
-    const lift: number | null = null
-
-    testMap.set(vid, {
-      hasActive: existing?.hasActive || isActive,
-      lift: lift ?? existing?.lift ?? null,
-      pipelineId: (t.source_pipeline_id as string | null) ?? existing?.pipelineId ?? null,
-    })
+    statusPorVideo.set(vid, [...(statusPorVideo.get(vid) ?? []), t.status as string])
+    const pipeline = t.source_pipeline_id as string | null
+    if (pipeline && !pipelinePorVideo.has(vid)) pipelinePorVideo.set(vid, pipeline)
   }
 
   return videos.map(v => {
     const channel = v.youtube_channels as unknown as { handle: string }
-    const testInfo = testMap.get(v.id as string)
+    const id = v.id as string
+    const statusDoTeste = statusAbertoDoVideo(statusPorVideo.get(id) ?? [])
+    const dur = (v.duration_seconds as number) ?? 0
+    const views = v.view_count as number | null
     return {
-      id: v.id as string,
+      id,
       title: v.title as string,
       thumbnailUrl: (v.thumbnail_url as string | null) ?? null,
-      durationSeconds: (v.duration_seconds as number) ?? 0,
+      durationSeconds: dur,
       channelHandle: channel?.handle ?? '',
-      hasActiveTest: testInfo?.hasActive ?? false,
-      previousLift: testInfo?.lift ?? null,
-      sourcePipelineId: testInfo?.pipelineId ?? null,
+      hasActiveTest: statusDoTeste !== null,
+      statusDoTeste,
+      bloqueio: bloqueioDoVideo(dur, (v.thumbnail_hq_url as string | null) ?? null),
+      publishedAt: (v.published_at as string | null) ?? null,
+      // A coluna é NOT NULL DEFAULT 0 e api-client.ts:145 grava 0 quando o YouTube não manda: 0 não é medição (nulo nunca é zero).
+      viewCount: typeof views === 'number' && views > 0 ? views : null,
+      // P2: lift gravado pelo avaliador automático não aparece mais em tela nenhuma.
+      previousLift: null,
+      sourcePipelineId: pipelinePorVideo.get(id) ?? null,
     }
   })
 }
@@ -488,19 +500,9 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   }
 }
 
-function relativeTime(dateStr: string): string {
-  const diffMs = Date.now() - new Date(dateStr).getTime()
-  const diffMinutes = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMinutes / 60)
-  const diffDays = Math.floor(diffHours / 24)
-  const diffWeeks = Math.floor(diffDays / 7)
-  const diffMonths = Math.floor(diffDays / 30)
-  if (diffMinutes < 1) return 'just now'
-  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''} ago`
-  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`
-  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`
-  if (diffWeeks < 5) return `${diffWeeks} week${diffWeeks !== 1 ? 's' : ''} ago`
-  return `${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`
+/** Passo do assistente de 3 passos (Tipo, Variantes, Revisar) em que o rascunho parou: o rascunho nasce ao escolher o tipo; com variante gravada o assistente o reabre no Revisar. */
+export function passoDoRascunho(variants: ReadonlyArray<{ is_original: boolean }>): 2 | 3 {
+  return variants.some(v => !v.is_original) ? 3 : 2
 }
 
 export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
@@ -512,13 +514,14 @@ export function toDraftList(drafts: AbTestWithVariants[]): AbTestDraft[] {
         id: d.id,
         name: d.name.replace(/^Test:\s*/i, ''),
         type: d.test_type,
-        step: d.variants.length,
+        step: passoDoRascunho(d.variants),
         thumbUrl: originalVariant?.blob_url ?? d.original_thumbnail_url ?? null,
         createdAt: d.created_at,
-        createdAgo: relativeTime(d.created_at),
+        createdAgo: fmtRelative(d.created_at),
         videoId: d.youtube_video_id,
         sourcePipelineId: d.source_pipeline_id,
         variants: d.variants.map(v => ({
+          id: v.id,
           label: v.label,
           isOriginal: v.is_original,
           thumbUrl: v.blob_url ?? null,

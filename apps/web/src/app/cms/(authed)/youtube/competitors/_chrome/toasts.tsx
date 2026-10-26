@@ -8,7 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Icon } from './icons'
 
 export type ToastKind = '' | 'ok' | 'warn' | 'bad' | 'forja'
-export interface ToastOpts { more?: string; selectable?: string; /** botões abaixo do texto; o toast com ação não sai sozinho (clicar fecha) */ acoes?: Array<{ rotulo: string; onClick: () => void }> }
+export interface ToastOpts { more?: string; selectable?: string; /** botões abaixo do texto; o toast com ação não sai sozinho (clicar fecha) */ acoes?: Array<{ rotulo: string; onClick: () => void }>; /** não sai sozinho: fica até o ✕ (aviso âmbar de "algo restou") */ fixo?: boolean }
 interface ToastItem { id: number; kind: ToastKind; title: string; text: string; opts: ToastOpts }
 type ToastFn = (kind: ToastKind, title: string, text: string, opts?: ToastOpts) => void
 
@@ -41,7 +41,7 @@ function Toast({ item, onClose }: { item: ToastItem; onClose: () => void }) {
   const back = useRef<HTMLElement | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const left = useRef(TOAST_MS), since = useRef(0)
-  const sticky = !!item.opts.selectable || !!item.opts.acoes?.length
+  const sticky = !!item.opts.selectable || !!item.opts.acoes?.length || !!item.opts.fixo
   const close = useCallback(() => {
     const had = !!ref.current && ref.current.contains(document.activeElement)
     if (timer.current) clearTimeout(timer.current)

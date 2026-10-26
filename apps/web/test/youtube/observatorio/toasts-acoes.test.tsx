@@ -24,6 +24,14 @@ describe('toast com ações', () => {
     act(() => { vi.advanceTimersByTime(10_000) })
     expect(r.container.querySelector('.obs-ch-toast')).not.toBeNull()
   })
+  it('T12/Q4 `fixo` (aviso âmbar de "algo restou"): não sai em 6,5 s nem em 60 s; sai no ✕', () => {
+    vi.useFakeTimers()
+    const r = montar({ fixo: true })
+    act(() => { vi.advanceTimersByTime(60_000) })
+    expect(r.container.querySelector('.obs-ch-toast')).not.toBeNull()
+    fireEvent.click(r.container.querySelector('.obs-ch-toast-x')!)
+    expect(r.container.querySelector('.obs-ch-toast')).toBeNull()
+  })
   it('TA.2 sem ação e sem texto selecionável, sai em 6,5 s (regressão)', () => {
     vi.useFakeTimers()
     const r = montar()

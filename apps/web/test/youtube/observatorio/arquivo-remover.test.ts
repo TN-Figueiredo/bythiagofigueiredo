@@ -204,7 +204,7 @@ describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemo
     expect(chamadas[0]).toEqual({ fn: 'competitor_channel_delete_unarchived', args: { p_site: SITE, p_channel: CANAL, p_actor: ATOR, p_confirm_name: 'Canal X', p_motivo: 'entrou_por_engano' } })
     expect(apagar).toHaveBeenCalledWith([url(1), url(2)])
     expect(chamadas.find(c => c.fn === 'obs_unarchived_blobs_done')?.args).toEqual({ p_site: SITE, p_id: 9, p_urls: [url(1), url(2)] })
-    expect(r).toEqual({ ok: true, videos: 2, miniaturasPendentes: 1, foraDoPrefixo: 1, registrosDiarios: 0, leituras: 0 })
+    expect(r).toEqual({ ok: true, videos: 2, miniaturasPendentes: 1, foraDoPrefixo: 1, imagensRestantes: 1, registrosDiarios: 0, leituras: 0 })
   })
 
   it('F2: devolve o que a F1 contou ao apagar (leituras da forja + da watch, registros diários); chave ausente em linhas é zero', async () => {
@@ -214,13 +214,24 @@ describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemo
     expect(await apagarCanalSemGuardar(sem.sb, e)).toMatchObject({ leituras: 0, registrosDiarios: 0 })
   })
 
+  it('T12/Q4: imagensRestantes é o que sobrou no Blob depois do laço; sem `blob_urls` na resposta o campo é AUSENTE (nunca 0)', async () => {
+    const parcial = falso({ competitor_channel_delete_unarchived: apagado([url(1), url(2), url(3)]), obs_unarchived_blobs_done: { data: 1, error: null } })
+    const falha = vi.fn(async () => { throw new Error('x') })
+    expect(await apagarCanalSemGuardar(parcial.sb, e, { apagarDoBlob: falha })).toMatchObject({ imagensRestantes: 3, miniaturasPendentes: 3 })
+    const limpo = falso({ competitor_channel_delete_unarchived: apagado([url(1)]), obs_unarchived_blobs_done: { data: 1, error: null } })
+    expect(await apagarCanalSemGuardar(limpo.sb, e, { apagarDoBlob: vi.fn(async () => undefined) })).toMatchObject({ imagensRestantes: 0 })
+    const sem = falso({ competitor_channel_delete_unarchived: { data: { status: 'apagado', deletion_id: 9, videos: 5 }, error: null } })
+    const r = await apagarCanalSemGuardar(sem.sb, e)
+    expect(r).toMatchObject({ ok: true }); expect('imagensRestantes' in r).toBe(false)
+  })
+
   it('F2: resposta sem linhas ou sem watch deixa os campos AUSENTES, nunca 0', async () => {
     const { sb } = falso({ competitor_channel_delete_unarchived: { data: { status: 'apagado', deletion_id: 9, videos: 5, blob_urls: [] }, error: null } })
     const r = await apagarCanalSemGuardar(sb, e)
-    expect(r).toEqual({ ok: true, videos: 5, miniaturasPendentes: 0, foraDoPrefixo: 0 })
+    expect(r).toEqual({ ok: true, videos: 5, miniaturasPendentes: 0, foraDoPrefixo: 0, imagensRestantes: 0 })
     const meio = falso({ competitor_channel_delete_unarchived: { data: { status: 'apagado', deletion_id: 9, videos: 5, linhas: { competitor_video_daily: 3 }, blob_urls: [] }, error: null } })
     const m = await apagarCanalSemGuardar(meio.sb, e)
-    expect(m).toEqual({ ok: true, videos: 5, miniaturasPendentes: 0, foraDoPrefixo: 0, registrosDiarios: 3 })
+    expect(m).toEqual({ ok: true, videos: 5, miniaturasPendentes: 0, foraDoPrefixo: 0, imagensRestantes: 0, registrosDiarios: 3 })
   })
 
   it('nome_nao_confere vira falha com a frase e não chama o Blob', async () => {

@@ -128,3 +128,15 @@ export async function desfazerM3bDasCorridas(): Promise<void> {
     if (guardaDasCorridas) { await guardaDasCorridas.end(); guardaDasCorridas = null }   // solta o lock de sessão
   }
 }
+
+/**
+ * Volta competitor_channel_remove ao corpo da 000004 quando a 000005 (v_cheias) já está no banco (CI aplica todas as migrations):
+ * os testes que reaplicam a 000004 precisam do corpo que a guarda de md5 dela aceita. Só dentro de transação: o begin/commit
+ * do desfazer sai, e o rollback do teste devolve o corpo vigente.
+ */
+export async function voltarA04(c: Client): Promise<void> {
+  const tem = await escalar<boolean>(c, `select prosrc ~ 'v_cheias' from pg_proc where oid = 'public.competitor_channel_remove(uuid,uuid,text,text,uuid)'::regprocedure`)
+  if (!tem) return
+  const sql = readFileSync(resolve(__dirname, '../../../../supabase/rascunhos/m3b-apagar-so-cheias-desfazer.sql'), 'utf8')
+  await c.query(sql.replace(/^begin;\s*$/m, '').replace(/^commit;\s*$/m, ''))
+}

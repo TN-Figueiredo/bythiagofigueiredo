@@ -9,6 +9,7 @@ import { buildCanalView } from '@/app/cms/(authed)/youtube/competitors/_canal/vi
 import { CanalScreen, type CanalActions } from '@/app/cms/(authed)/youtube/competitors/_canal/canal-screen'
 import { nicheOptions } from '@/app/cms/(authed)/youtube/competitors/_canais/view-model'
 import { ToastProvider } from '@/app/cms/(authed)/youtube/competitors/_chrome/toasts'
+import { CONTAGEM_T12 } from '../../helpers/arquivo-vazio'
 
 const push = vi.fn(), replace = vi.fn(), refresh = vi.fn()
 vi.mock('next/navigation', () => ({
@@ -298,7 +299,7 @@ describe('cabeçalho do canal', () => {
   it('"Remover canal…" abre a janela, o caminho guardar chama onPedir com o id e a página fica (aviso depois do refresh); Cancelar só fecha', async () => {
     const user = userEvent.setup()
     const impact = { name: 'X', videos: 3, pinned: 0, versions: 3, dailyDays: 1, bookmarks: 0, readings: 0, watch: { readings: 0, thumbs: 0, alvos: 0 } }
-    const a = actions({ onRemovalImpact: vi.fn(async (_id: string) => ({ ok: true as const, impact, semGuardar: { pode: true as const } })) })
+    const a = actions({ onRemovalImpact: vi.fn(async (_id: string) => ({ ok: true as const, impact, semGuardar: { pode: true as const }, ...CONTAGEM_T12 })) })
     const { view } = mount({ act: a })
     const openDlg = async () => {
       await user.click(screen.getByRole('button', { name: 'Ações do canal' }))

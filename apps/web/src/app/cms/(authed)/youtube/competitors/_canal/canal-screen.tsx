@@ -17,7 +17,7 @@ import { useThumbViewer } from '../_chrome/thumb-viewer/thumb-viewer'
 import { viewerSoAtual } from '../_chrome/thumb-viewer/thumb-viewer-versions'
 import { PinProvider, type PinAction } from '../_chrome/pin-kit'
 import { useToast } from '../_chrome/toasts'
-import { TXT } from '../_canais/remover-model'
+import { TXT, imagensDe } from '../_canais/remover-model'
 import { useDesfazer } from '../_canais/use-desfazer'
 import { marcarRemovido } from '../_canais/removido-flag'
 import type { Desfecho } from '../_canais/remove-dialog'
@@ -540,7 +540,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
       return
     }
     // apagar: a página deixa de existir. O toast sai na lista, pelo estado do navegador (não pela URL: link forjado não afirma "apagado")
-    marcarRemovido({ nome: h.name, videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}) })
+    marcarRemovido({ nome: h.name, videos: d.videos, ...(d.leituras !== undefined ? { leituras: d.leituras } : {}), imagens: imagensDe(d) })
     router.push(link.canais())
   }
   const conferir = () => { setConfirm(false); router.refresh() }

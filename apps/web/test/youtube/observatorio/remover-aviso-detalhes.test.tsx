@@ -18,6 +18,7 @@ import { ChromeSyncContext } from '@/app/cms/(authed)/youtube/competitors/_chrom
 import { TXT } from '@/app/cms/(authed)/youtube/competitors/_canais/remover-model'
 import { lerRemovido } from '@/app/cms/(authed)/youtube/competitors/_canais/removido-flag'
 import { link } from '@/lib/youtube/observatorio/links'
+import { CONTAGEM_T12 } from '../../helpers/arquivo-vazio'
 
 const push = vi.fn(), replace = vi.fn(), refresh = vi.fn()
 vi.mock('next/navigation', () => ({
@@ -27,7 +28,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 const DIA = 86_400_000
-const IMPACTO = { ok: true as const, impact: { name: 'X', videos: 3, pinned: 0, versions: 3, dailyDays: 1, bookmarks: 0, readings: 0, watch: { readings: 0, thumbs: 0, alvos: 0 } }, semGuardar: { pode: true as const } }
+const IMPACTO = { ok: true as const, impact: { name: 'X', videos: 3, pinned: 0, versions: 3, dailyDays: 1, bookmarks: 0, readings: 0, watch: { readings: 0, thumbs: 0, alvos: 0 } }, semGuardar: { pode: true as const }, ...CONTAGEM_T12 }
 beforeEach(() => { push.mockReset(); replace.mockReset(); refresh.mockReset(); siteAdmin.value = true; sessionStorage.clear(); window.history.replaceState(null, '', '/') })
 afterEach(() => { cleanup(); document.getElementById('flut')?.remove() })
 
@@ -136,7 +137,7 @@ describe('detalhes · canal agendado', () => {
     expect(act.onApagar).toHaveBeenCalled()
     expect(push).toHaveBeenCalledWith(link.canais())
     expect(String(push.mock.calls[0]![0])).not.toContain('removido')
-    expect(lerRemovido()).toEqual({ nome: m.view.header.name, videos: 3, leituras: 2 })
+    expect(lerRemovido()).toEqual({ nome: m.view.header.name, videos: 3, leituras: 2, imagens: { capacidade: 'nao-nao', imagensAoAbrir: 0 } })
     expect(lerRemovido()).toBeNull()
   })
 })

@@ -8,6 +8,7 @@ import type { CampoNome } from '@/lib/youtube/ab-restore'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { AbConfirmarTrocaDialog } from './ab-confirmar-troca-dialog'
 import { ICONE_ERRO } from './etd-icone-erro'
+import { ICONE_BUSY } from './etd-icone-busy'
 import type { OpcaoDoDialogo } from './encerrar-props'
 import './ab-end-test-dialog.css'
 
@@ -104,9 +105,6 @@ function Miniatura({ src }: { src: string | null }) {
 
 const ICONE_AVISO = (
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L22 20H2z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="M12 10v4.5M12 17.3v.2" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
-)
-const ICONE_BUSY = (
-  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" opacity=".3" /><path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
 )
 const ICONE_NONE = (
   <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="3 3" /><path d="M8 12h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>

@@ -77,7 +77,17 @@ describe('tituloDoBanner e NOTA_ATIVAR', () => {
     expect(tituloDoBanner(textoAvisoOriginalBaixa('480x360', true))).toBe('Pronto para ativar, com um aviso abaixo.')
     expect(tituloDoBanner(textoAvisoOriginalBaixa(null, false))).toBe('Pronto para ativar, com um aviso abaixo.')
   })
+  it('D-M6-8: ordem faltaThumb > aviso visível > leitura sem resposta > tudo pronto', () => {
+    const volume = { estado: 'nao_chega', texto: 'x' }
+    expect(tituloDoBanner(textoAvisoOriginalBaixa('480x360', true), { volume, faltaThumb: 'B' })).toBe('Falta a thumbnail da variante B.')
+    expect(tituloDoBanner('pendente', { volume })).toBe('Pronto para ativar, com um aviso abaixo.')
+    expect(tituloDoBanner(null, { volume })).toBe('Pronto para ativar, com um aviso abaixo.')
+    expect(tituloDoBanner(null, { volume: 'pendente' })).toBe('Pronto para ativar.')
+    expect(tituloDoBanner(null, { volume: 'indisponivel' })).toBe('Pronto para ativar.')
+    expect(tituloDoBanner(null, { volume: null })).toBe('Tudo pronto.')
+    expect(tituloDoBanner(undefined, {})).toBe('Tudo pronto.')
+  })
   it('a nota diz "para começar"', () => {
-    expect(NOTA_ATIVAR).toBe('Clique em Ativar teste para começar. As variantes passam a rotacionar na hora.')
+    expect(NOTA_ATIVAR).toBe('Clique em Ativar teste para começar. As variantes começam a alternar depois que o teste for ativado no YouTube.')
   })
 })
