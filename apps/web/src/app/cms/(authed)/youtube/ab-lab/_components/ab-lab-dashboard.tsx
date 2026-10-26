@@ -450,6 +450,7 @@ export function AbLabDashboard({
         <VideoPickerDialog
           eligibleVideos={eligibleVideos}
           onSelect={handleVideoPicked}
+          onContinuarRascunho={(draftId) => { setShowPicker(false); handleContinueDraft(draftId) }}
           onClose={() => setShowPicker(false)}
         />
       )}

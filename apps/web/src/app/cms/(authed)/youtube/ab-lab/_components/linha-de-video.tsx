@@ -9,8 +9,8 @@ import type { WizardVideo } from './ab-create-wizard'
 import './linha-de-video.css'
 
 /** Motivo (texto 22 do plano M6) por que a linha não pode ser escolhida; null = escolhível. */
-export function motivoDoBloqueio(v: EligibleVideo): string | null {
-  if (v.statusDoTeste === 'draft') return 'Já tem um rascunho'
+export function motivoDoBloqueio(v: EligibleVideo, podeContinuar = false): string | null {
+  if (v.statusDoTeste === 'draft') return podeContinuar && v.rascunhoId ? null : 'Já tem um rascunho'
   if (v.statusDoTeste !== null || v.hasActiveTest) return 'Teste ativo em andamento'
   if (v.bloqueio === 'short') return 'Shorts não entram no A/B Lab'
   if (v.bloqueio === 'sem_thumb_hq') return 'Sincronize o vídeo em Vídeos antes'
@@ -22,15 +22,17 @@ function dataValida(iso: string | null): iso is string {
 }
 
 /** Uma linha do seletor de vídeo. Mostra só o que existe: nada de número ou data inventados. */
-export function LinhaDeVideo({ video, onEscolher }: { video: EligibleVideo; onEscolher: (v: WizardVideo) => void }) {
-  const motivo = motivoDoBloqueio(video)
+export function LinhaDeVideo({ video, onEscolher, onContinuarRascunho }: { video: EligibleVideo; onEscolher: (v: WizardVideo) => void; onContinuarRascunho?: (draftId: string) => void }) {
+  const continuar = onContinuarRascunho !== undefined && video.statusDoTeste === 'draft' && Boolean(video.rascunhoId) ? video.rascunhoId! : null
+  const motivo = motivoDoBloqueio(video, onContinuarRascunho !== undefined)
   const duracao = duracaoDoVideo(video.durationSeconds)
   return (
     <button
       type="button"
       className="vp"
       disabled={motivo !== null}
-      onClick={() =>
+      onClick={() => {
+        if (continuar) { onContinuarRascunho!(continuar); return }
         onEscolher({
           id: video.id,
           title: video.title,
@@ -40,7 +42,7 @@ export function LinhaDeVideo({ video, onEscolher }: { video: EligibleVideo; onEs
           publishedAt: video.publishedAt,
           channelHandle: video.channelHandle,
         })
-      }
+      }}
     >
       <span className={`th${video.thumbnailUrl ? '' : ' semimg'}`}>
         {video.thumbnailUrl ? (
@@ -58,6 +60,7 @@ export function LinhaDeVideo({ video, onEscolher }: { video: EligibleVideo; onEs
           {video.viewCount !== null && video.viewCount > 0 && <span>{textoDeVisualizacoes(video.viewCount)}</span>}
         </span>
         {motivo && <span className="amb">{motivo}</span>}
+        {continuar && <span className="amb" data-continuar-rascunho>Continuar rascunho</span>}
         {video.previousLift != null && (
           <span className="lf">Lift anterior: {video.previousLift > 0 ? '+' : ''}{brDec(video.previousLift, 1)}%</span>
         )}

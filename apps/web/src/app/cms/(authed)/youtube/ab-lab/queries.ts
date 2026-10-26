@@ -338,14 +338,21 @@ export async function getEligibleVideosForPicker(): Promise<EligibleVideo[]> {
   const videoIds = videos.map(v => v.id as string)
   const { data: tests } = await supabase
     .from('ab_tests')
-    .select('youtube_video_id, status, source_pipeline_id')
+    .select('id, youtube_video_id, status, source_pipeline_id, created_at')
     .eq('site_id', siteId)
     .in('youtube_video_id', videoIds)
 
   const statusPorVideo = new Map<string, string[]>()
   const pipelinePorVideo = new Map<string, string>()
+  // Rascunho mais recente de cada vídeo (o seletor reabre esse).
+  const rascunhoPorVideo = new Map<string, { id: string; criadoEm: string }>()
   for (const t of (tests ?? [])) {
     const vid = t.youtube_video_id as string
+    if (t.status === 'draft' && typeof t.id === 'string') {
+      const criadoEm = (t.created_at as string | null) ?? ''
+      const atual = rascunhoPorVideo.get(vid)
+      if (!atual || criadoEm > atual.criadoEm) rascunhoPorVideo.set(vid, { id: t.id, criadoEm })
+    }
     statusPorVideo.set(vid, [...(statusPorVideo.get(vid) ?? []), t.status as string])
     const pipeline = t.source_pipeline_id as string | null
     if (pipeline && !pipelinePorVideo.has(vid)) pipelinePorVideo.set(vid, pipeline)
@@ -365,6 +372,7 @@ export async function getEligibleVideosForPicker(): Promise<EligibleVideo[]> {
       channelHandle: channel?.handle ?? '',
       hasActiveTest: statusDoTeste !== null,
       statusDoTeste,
+      rascunhoId: statusDoTeste === 'draft' ? (rascunhoPorVideo.get(id)?.id ?? null) : null,
       bloqueio: bloqueioDoVideo(dur, (v.thumbnail_hq_url as string | null) ?? null),
       publishedAt: (v.published_at as string | null) ?? null,
       // A coluna é NOT NULL DEFAULT 0 e api-client.ts:145 grava 0 quando o YouTube não manda: 0 não é medição (nulo nunca é zero).
