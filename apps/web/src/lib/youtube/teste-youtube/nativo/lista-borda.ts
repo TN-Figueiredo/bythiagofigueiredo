@@ -345,6 +345,14 @@ async function lerVolumesEmLotes(
   }
 }
 
+/** Formato é dado secundário: se a leitura falha, segue com formato desconhecido (nulo conta como testável; a ficha reconfere ao abrir) e avisa o Sentry. */
+async function lerFormatosSemDerrubar(sb: SupabaseClient, siteId: string, videos: { id: string; ytId: string }[]): Promise<Map<string, Formato>> {
+  try { return await lerFormatos(sb, siteId, videos) } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-nativo', acao: 'lerPaginaDoCanal.formato' } })
+    return new Map<string, Formato>()
+  }
+}
+
 export async function lerPaginaDoCanal(
   sb: SupabaseClient, siteId: string, agora: Date, leitura: LeituraPrivadaDoSite | null, r: RecorteDaLista,
 ): Promise<PaginaDoCanal> {
@@ -375,7 +383,7 @@ export async function lerPaginaDoCanal(
 
   // Página: precisa do formato dos acima do piso (para "testável") e dos vídeos que vão para a tela.
   // O recorte depende do formato, então primeiro os acima do piso; depois as linhas da página.
-  const formatosAcima = await lerFormatos(sb, siteId, acima.map((v) => ({ id: v.id, ytId: v.youtube_video_id })))
+  const formatosAcima = await lerFormatosSemDerrubar(sb, siteId, acima.map((v) => ({ id: v.id, ytId: v.youtube_video_id })))
   const testavel = new Set(acima.filter((v) => formatosAcima.get(v.id)?.isShort !== true).map((v) => v.id))
 
   const contagem: ContagemDoCanal = { testaveis: 0, semVolume: 0, naoLido: 0, total: publicos.length, motivoNaoLido: null }
@@ -406,7 +414,7 @@ export async function lerPaginaDoCanal(
 
   // Formato das linhas que ainda não foram lidas (fora dos acima do piso).
   const faltam = naTela.filter((v) => !formatosAcima.has(v.id))
-  const formatosExtras = faltam.length > 0 ? await lerFormatos(sb, siteId, faltam.map((v) => ({ id: v.id, ytId: v.youtube_video_id }))) : new Map<string, Formato>()
+  const formatosExtras = faltam.length > 0 ? await lerFormatosSemDerrubar(sb, siteId, faltam.map((v) => ({ id: v.id, ytId: v.youtube_video_id }))) : new Map<string, Formato>()
   const formatoDe = (id: string) => formatosAcima.get(id) ?? formatosExtras.get(id)
 
   const noFiltro = new Set(filtrados.map((v) => v.id))

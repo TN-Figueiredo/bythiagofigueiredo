@@ -41,6 +41,7 @@ interface Cfg {
   /** por id: [soma, diasCobertos, publico] */
   volume?: (id: string) => [number, number, boolean | null] | undefined
   volumeErro?: boolean
+  formatoErro?: boolean
   fichas?: unknown[]; testes?: unknown[]; nossos?: unknown[]
   isShort?: (ytId: string) => boolean | null
 }
@@ -78,6 +79,7 @@ function cliente(c: Cfg) {
     }
     const ids = args.p_ids as string[]
     calls.formato.push(ids.length)
+    if (c.formatoErro) return Promise.resolve({ data: null, error: { message: 'boom' } })
     return Promise.resolve({ data: ids.map((y) => ({ youtube_video_id: y, raw: null, is_short: c.isShort ? c.isShort(y) : false })), error: null })
   }
   return { sb: { from, rpc } as unknown as SupabaseClient, calls }
@@ -221,6 +223,14 @@ describe('lerPaginaDoCanal: busca e extras', () => {
     expect(p1.restantes).toBe(0)
     expect(p1.temMais).toBe(false)
     expect(p1.extrasForaDoFiltro).toBe(0)
+  })
+  it('RPC de formato com erro: a página volta com linhas e contagem (formato nulo conta como testável), Sentry avisa, não lança', async () => {
+    const videos = Array.from({ length: 5 }, (_, i) => vid(i))
+    const { sb } = cliente({ videos, volume: () => ACIMA, formatoErro: true })
+    const p = await real(sb, 's', agora, token, recorte({ filtro: 'testaveis' }))
+    expect(p.linhas).toHaveLength(5)
+    expect(p.contagem.testaveis).toBe(5)
+    expect(Sentry.captureException).toHaveBeenCalled()
   })
   it('incluirYtId fora da página entra nela; desconhecido é ignorado', async () => {
     const videos = Array.from({ length: 45 }, (_, i) => vid(i))
