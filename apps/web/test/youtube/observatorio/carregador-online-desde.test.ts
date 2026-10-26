@@ -1,10 +1,19 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
+vi.mock('server-only', () => ({}))
+vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { throw new Error('não usado') } }))
 import { dailyReadFrom, dailyCappedFrom, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { assembleRows } from '@/lib/youtube/observatorio/load-channel'
 import { viewsAtAge } from '@/lib/youtube/observatorio/series'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import type { OnlineDesde } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
+import * as Sentry from '@sentry/nextjs'
+import { fakeSupabase } from '../../helpers/fake-supabase'
+import { buildTables, ids } from './load-fixture'
+import { loadLiveRows, loadChannelLiveRows } from '@/lib/youtube/observatorio/load'
+import { _esquecerAvisos } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 import { rows, channel, video, daily, iso, ctxDe } from './helpers/fabrica-load'
 
 const DIA = 86_400_000
@@ -77,5 +86,51 @@ describe('carregador com online desde', () => {
     const sem = rowsToDataset({ ...base, videos: [outro], daily: dn }, AGORA)
     const curva = (ds: typeof com) => JSON.stringify(createObservatory(ds).expectedCurve('novo'))
     expect(curva(com)).toBe(curva(sem))
+  })
+})
+
+const linhaRpc = (t: string, d: string | null) => ({ class: t === 'competitor_video_hourly' ? 'horaria' : 'serie', table_name: t, online_since: d, divergencia: false })
+const rpcCom = (d: string | null) => ({ obs_archive_online_since: { data: ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly'].map(t => linhaRpc(t, d)), error: null } })
+const AGORA_V = Date.now()
+describe('fiação: o resultado do RPC chega ao retorno do carregador (Yannis I-3)', () => {
+  beforeEach(() => { vi.mocked(Sentry.captureMessage).mockClear(); _esquecerAvisos() })
+  const esperado = { lido: true, porTabela: { competitor_video_daily: Date.parse('2027-05-01T03:00:00Z'), competitor_video_early: Date.parse('2027-05-01T03:00:00Z'), competitor_video_hourly: Date.parse('2027-05-01T03:00:00Z') } }
+  it('loadLiveRows devolve a chave onlineDesde com o que o RPC respondeu, e o RPC recebe o siteId', async () => {
+    const db = fakeSupabase(buildTables({ siteId: 'a', now: AGORA_V }), { rpc: rpcCom('2027-05-01') })
+    const live = await loadLiveRows(db.client, 'a', AGORA_V)
+    expect(live).toHaveProperty('onlineDesde')
+    expect(live.onlineDesde).toStrictEqual(esperado)
+    expect(db.rpcArgs).toStrictEqual([{ fn: 'obs_archive_online_since', args: { p_site: 'a' } }])
+  })
+  it('loadChannelLiveRows devolve o mesmo', async () => {
+    const db = fakeSupabase(buildTables({ siteId: 'a', now: AGORA_V }), { rpc: rpcCom('2027-05-01') })
+    const live = await loadChannelLiveRows(db.client, 'a', ids.channel('a', 0), AGORA_V)
+    expect(live).not.toBeNull()
+    expect(live).toHaveProperty('onlineDesde')
+    expect(live!.onlineDesde).toStrictEqual(esperado)
+    expect(db.rpcArgs).toStrictEqual([{ fn: 'obs_archive_online_since', args: { p_site: 'a' } }])
+  })
+  it('RPC com falha: onlineDesde não lido, a página não cai', async () => {
+    const db = fakeSupabase(buildTables({ siteId: 'a', now: AGORA_V }), { rpc: rpcCom(null), failOn: 'rpc:obs_archive_online_since' })
+    const live = await loadLiveRows(db.client, 'a', AGORA_V)
+    expect(live.onlineDesde).toStrictEqual({ lido: false, porque: 'erro_do_banco' })
+    expect(rowsToDataset({ ...comOd(null), onlineDesde: live.onlineDesde }, AGORA).dailyCappedFrom).toBeNull()
+  })
+  it('rpc não simulada lança no fake (nunca devolve o payload de outra função)', async () => {
+    const db = fakeSupabase({})
+    await expect(db.client.rpc('obs_archive_pagina' as never)).rejects.toThrow(/não simulada/)
+  })
+})
+
+describe('alarme de série longa sem saída (Phil M4, Yannis m-4)', () => {
+  beforeEach(() => { vi.mocked(Sentry.captureMessage).mockClear(); _esquecerAvisos() })
+  const com = (diasDeSerie: number) => { const t = buildTables({ siteId: 'a', now: AGORA_V }); t.competitor_settings = t.competitor_settings!.map(r => ({ ...r, series_started_at: new Date(AGORA_V - diasDeSerie * DIA).toISOString() })); return fakeSupabase(t, { rpc: rpcCom(null) }) }
+  it('301 dias e nada saiu: avisa 1× mesmo com várias leituras', async () => {
+    for (let i = 0; i < 3; i++) await loadLiveRows(com(301).client, 'a', AGORA_V)
+    expect(vi.mocked(Sentry.captureMessage).mock.calls.filter(c => String(c[0]).includes('mais de 300 dias'))).toHaveLength(1)
+  })
+  it('299 dias: não avisa', async () => {
+    await loadLiveRows(com(299).client, 'a', AGORA_V)
+    expect(vi.mocked(Sentry.captureMessage).mock.calls.filter(c => String(c[0]).includes('mais de 300 dias'))).toHaveLength(0)
   })
 })

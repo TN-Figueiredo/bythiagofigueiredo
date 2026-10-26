@@ -8,7 +8,7 @@ export type TabelaDaSerie = 'competitor_video_daily' | 'competitor_video_early' 
 const TABELAS: readonly TabelaDaSerie[] = ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly']
 export type OnlineDesde =
   | { lido: true; porTabela: Record<TabelaDaSerie, number | null> }
-  | { lido: false; porque: 'funcao_ausente' | 'erro_do_banco' | 'fora_do_esquema' }
+  | { lido: false; porque: 'funcao_ausente' | 'erro_do_banco' | 'fora_do_esquema' | 'divergencia' }
 const DIA = 86_400_000
 /** Dias de cada mês de um ano não bissexto, em sequência circular: a menor soma de n meses seguidos é a garantia de dias online. */
 const MES = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
@@ -20,11 +20,22 @@ export function minDias(meses: number): number {
 /** Dias online garantidos pela política: a soma mínima de `window_months` meses seguidos (181 para a série, 89 para a horária). */
 export const JANELA_MINIMA_DIAS: Record<TabelaDaSerie, number> = { competitor_video_daily: minDias(6), competitor_video_early: minDias(6), competitor_video_hourly: minDias(3) }
 const Linha = z.object({ class: z.string(), table_name: z.string(), online_since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), divergencia: z.boolean() }).strict()
+const TAGS = { component: 'observatorio', step: 'online-desde' }
+const avisados = new Set<string>()
+/** Sentry com limite: cada tipo sai 1× por instância (o resto vira console.warn), para um estado repetido não gastar a cota de eventos. */
+export function avisarUmaVez(tipo: string, msg: string, level: 'warning' | 'error', extra?: Record<string, unknown>): void {
+  if (avisados.has(tipo)) { console.warn(msg); return }
+  avisados.add(tipo)
+  Sentry.captureMessage(msg, { level, tags: { ...TAGS, tipo }, ...(extra ? { extra } : {}) })
+}
+/** Só para teste: esquece o que já foi avisado. */
+export function _esquecerAvisos(): void { avisados.clear() }
 const NADA_SAIU: OnlineDesde = { lido: true, porTabela: { competitor_video_daily: null, competitor_video_early: null, competitor_video_hourly: null } }
 
 export function lerOnlineDesdeBruto(bruto: unknown): OnlineDesde {
   const r = z.array(Linha).safeParse(bruto)
-  if (!r.success || r.data.some(l => l.divergencia)) return { lido: false, porque: 'fora_do_esquema' }
+  if (!r.success) return { lido: false, porque: 'fora_do_esquema' }
+  if (r.data.some(l => l.divergencia)) return { lido: false, porque: 'divergencia' }
   const por = new Map(r.data.map(l => [l.table_name, l.online_since]))
   if (!TABELAS.every(t => por.has(t))) return { lido: false, porque: 'fora_do_esquema' }
   const porTabela = Object.fromEntries(TABELAS.map(t => { const d = por.get(t); return [t, d == null ? null : spDateStart(d)] })) as Record<TabelaDaSerie, number | null>
@@ -36,20 +47,22 @@ export async function lerOnlineDesde(sb: SupabaseClient, siteId: string, saidaDe
   // nunca lança: a leitura do online desde não derruba a página (falha vira "não lido")
   let res: { data: unknown; error: { code?: string } | null }
   try { res = await sb.rpc('obs_archive_online_since', { p_site: siteId }) } catch (e) {
-    Sentry.captureException(e, { tags: { component: 'observatorio', step: 'online-desde' } })
+    if (!avisados.has('excecao')) { avisados.add('excecao'); Sentry.captureException(e, { tags: { ...TAGS, tipo: 'excecao' } }) } else console.warn('obs_archive_online_since: exceção ao chamar o rpc')
     return { lido: false, porque: 'erro_do_banco' }
   }
   const { data, error } = res
   if (error) {
     if (error.code === '42883' || error.code === 'PGRST202') {
-      if (!saidaDeMesExiste) { Sentry.captureMessage('obs_archive_online_since ausente', 'warning'); return NADA_SAIU }
-      Sentry.captureMessage('obs_archive_online_since ausente com saída de mês existindo', 'error')
+      if (!saidaDeMesExiste) { avisarUmaVez('ausente', 'obs_archive_online_since ausente', 'warning'); return NADA_SAIU }
+      avisarUmaVez('ausente_com_saida', 'obs_archive_online_since ausente com saída de mês existindo', 'error')
       return { lido: false, porque: 'funcao_ausente' }
     }
-    Sentry.captureMessage('obs_archive_online_since: ' + (error.code ?? 'sem código'), 'error')
+    avisarUmaVez('erro_do_banco', 'obs_archive_online_since: ' + (error.code || 'sem código'), 'error', { message: (error as { message?: string }).message })
     return { lido: false, porque: 'erro_do_banco' }
   }
-  return lerOnlineDesdeBruto(data)
+  const o = lerOnlineDesdeBruto(data)
+  if (!o.lido) avisarUmaVez(o.porque, 'obs_archive_online_since: ' + (o.porque === 'divergencia' ? 'divergência entre o registro e as partições' : 'resposta fora do esquema'), 'error')
+  return o
 }
 
 /** Início (ms, meia-noite SP) a partir do qual há série online garantida: o online desde; não lido, agora menos a janela mínima. */

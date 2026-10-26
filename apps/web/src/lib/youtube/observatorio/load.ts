@@ -8,7 +8,7 @@ import { lerRetratosProprios, type RetratosProprios } from './retratos-proprios'
 import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot, UndatedVideo, SeriesTier, TierSpan } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
-import { lerOnlineDesde, type OnlineDesde } from './arquivo-mensal/online-desde'
+import { lerOnlineDesde, avisarUmaVez, type OnlineDesde } from './arquivo-mensal/online-desde'
 import { SAIDA_DE_MES_EXISTE } from './arquivo-mensal/capacidades'
 import { formulasOf, THEME } from './catalog'
 import { deriveSyncState, backfillProgress } from './channels'
@@ -619,7 +619,7 @@ export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: numb
   ] as const)}, true)
   // a primeira saída da série é em 05/2027: depois disso, nulo com série longa é sinal de que algo não saiu como previsto
   if (ssAt != null && now - ssAt > 300 * DAY && onlineDesde.lido && Object.values(onlineDesde.porTabela).every(d => d == null)) {
-    Sentry.captureMessage('online_since nulo com série de mais de 300 dias', 'warning')
+    avisarUmaVez('serie_longa_sem_saida', 'online_since nulo com série de mais de 300 dias', 'warning')
   }
   return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, onlineDesde, seriesStartAt: seriesStartAt(ssAt) }
 }

@@ -3,13 +3,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /** O banco falso responde `obs_archive_online_since` como o banco real sem nenhum mês fora: as três tabelas, online_since nulo (nada saiu; M5, pedido 11). */
-const RPC_ONLINE_SINCE = { data: ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly'].map(t => ({ class: t === 'competitor_video_hourly' ? 'horaria' : 'serie', table_name: t, online_since: null, divergencia: false })), error: null }
+export const RPC_ONLINE_SINCE = { data: ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly'].map(t => ({ class: t === 'competitor_video_hourly' ? 'horaria' : 'serie', table_name: t, online_since: null, divergencia: false })), error: null }
+
+/** Helper único: simula só `obs_archive_online_since` (nada saiu). Passe em `opts.rpc`; qualquer outra função lança. */
+export const RPC_NADA_SAIU: Record<string, { data: unknown; error: { code?: string; message?: string } | null }> = { obs_archive_online_since: RPC_ONLINE_SINCE }
 
 export type Row = Record<string, unknown>
 export interface FakeDb {
   client: SupabaseClient
   /** One table name per request, in order. */
   trips: string[]
+  /** Fn name and args of every rpc call, in order. */
+  rpcArgs: Array<{ fn: string; args: unknown }>
   /** The column list of every select, to prove a column was not asked for. */
   selects: Array<{ table: string; cols: string }>
   /** The `.range(a, b)` of every request that had one (null = no range), in order, next to its table: proves a read asked for one row. */
@@ -26,9 +31,9 @@ const FK: Record<string, Record<string, string>> = {
 }
 const cmp = (a: unknown, b: unknown) => (a === b ? 0 : (a as string | number) < (b as string | number) ? -1 : 1)
 
-/** `failOn`: every request to that table fails. `failIf`: only the requests whose table and `.eq()` filters it accepts fail (one channel of many). */
-export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: string; failCode?: string; failIf?: (table: string, eqs: Record<string, unknown>) => boolean } = {}): FakeDb {
-  const db = { trips: [] as string[], selects: [] as Array<{ table: string; cols: string }>, ranges: [] as Array<{ table: string; range: [number, number] | null }>, bytes: 0 }
+/** `rpc`: o que cada função simulada devolve (função fora do mapa LANÇA). `failOn`: every request to that table fails (`'rpc:<nome>'` falha a função). `failIf`: only the requests whose table and `.eq()` filters it accepts fail (one channel of many). */
+export function fakeSupabase(tables: Record<string, Row[]>, opts: { rpc?: Record<string, { data: unknown; error: { code?: string; message?: string } | null }>; failOn?: string; failCode?: string; failIf?: (table: string, eqs: Record<string, unknown>) => boolean } = {}): FakeDb {
+  const db = { trips: [] as string[], rpcArgs: [] as Array<{ fn: string; args: unknown }>, selects: [] as Array<{ table: string; cols: string }>, ranges: [] as Array<{ table: string; range: [number, number] | null }>, bytes: 0 }
   const from = (table: string) => {
     let rows = [...(tables[table] ?? [])]
     let cols: string[] | null = null
@@ -76,5 +81,14 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
     return q
   }
   // trips and selects are the live arrays; bytes is a number, so it is read through a getter
-  return { client: { from, rpc: async () => RPC_ONLINE_SINCE } as unknown as SupabaseClient, tables, trips: db.trips, selects: db.selects, ranges: db.ranges, get bytes() { return db.bytes } }
+  return { client: { from, rpc: async (fn: string, args?: unknown) => {
+    db.trips.push('rpc:' + fn); db.rpcArgs.push({ fn, args })
+    if (opts.failOn === 'rpc:' + fn) return { data: null, error: { message: 'falha simulada', code: opts.failCode ?? '57014' } }
+    const r = opts.rpc?.[fn]
+    if (r === undefined) throw new Error('fakeSupabase: rpc não simulada: ' + fn)
+    return r
+  } } as unknown as SupabaseClient, tables, trips: db.trips, rpcArgs: db.rpcArgs, selects: db.selects, ranges: db.ranges, get bytes() { return db.bytes } }
 }
+
+/** Atalho dos testes do carregador: o banco falso com `obs_archive_online_since` simulada (nada saiu); as opções do chamador prevalecem. */
+export const fakeSupabaseNadaSaiu = (tables: Record<string, Row[]>, opts: Parameters<typeof fakeSupabase>[1] = {}): FakeDb => fakeSupabase(tables, { rpc: RPC_NADA_SAIU, ...opts })
