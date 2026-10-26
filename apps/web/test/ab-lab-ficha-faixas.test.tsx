@@ -232,14 +232,14 @@ describe('faixa 0b: nosso teste rodando', () => {
     expect(studioBtn()?.disabled).toBe(false)
   })
 
-  it('precisa_confirmar abre o diálogo existente; Voltar fecha sem mais chamadas', async () => {
+  it('precisa_confirmar abre o diálogo existente; Cancelar fecha sem mais chamadas', async () => {
     const a = acoesMock()
     a.pauseAbTest.mockResolvedValue({ ok: true, resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: 'Título editado por fora' }] })
     montar(duas(), { nosso: NOSSO, a })
     await clicar(PAUSAR); await clicar(PAUSAR)
     expect(screen.getByRole('alertdialog')).toBeTruthy()
     expect(screen.getByText('Título editado por fora')).toBeTruthy()
-    await clicar('Voltar')
+    await clicar('Cancelar')
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(a.pauseAbTest).toHaveBeenCalledTimes(1)
   })
