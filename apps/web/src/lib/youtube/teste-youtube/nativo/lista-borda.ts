@@ -286,7 +286,12 @@ const LOTE_DE_VIDEOS = 1000
 export interface RecorteDaLista { busca: string | null; filtro: 'testaveis' | 'todos'; pagina: number; incluirYtId: string | null }
 export interface ContagemDoCanal { testaveis: number; semVolume: number; naoLido: number; total: number; motivoNaoLido: 'sem_leitura' | 'falha' | 'poucos_dias' | null }
 /** `contagem` é SEMPRE do canal inteiro (nunca muda com a busca); `totalDoFiltro` é o da busca + filtro. */
-export interface PaginaDoCanal { linhas: LinhaDoCaminho[]; contagem: ContagemDoCanal; totalDoFiltro: number; temMais: boolean; truncado: boolean; filtroEfetivo: 'testaveis' | 'todos' }
+export interface PaginaDoCanal { linhas: LinhaDoCaminho[]; contagem: ContagemDoCanal; totalDoFiltro: number; temMais: boolean;
+  /** Vídeos do filtro que ainda faltam mostrar (já descontadas as extras da página 0). */
+  restantes: number;
+  /** Na página 0: linhas na tela que o filtro não aceita (extras fixadas); somam ao denominador de "Mostrando N de M". */
+  extrasForaDoFiltro: number;
+  truncado: boolean; filtroEfetivo: 'testaveis' | 'todos' }
 
 export const PedidoVideosDoCanalSchema = z.object({
   busca: z.string().trim().max(100).nullable(),
@@ -404,8 +409,11 @@ export async function lerPaginaDoCanal(
   const formatosExtras = faltam.length > 0 ? await lerFormatos(sb, siteId, faltam.map((v) => ({ id: v.id, ytId: v.youtube_video_id }))) : new Map<string, Formato>()
   const formatoDe = (id: string) => formatosAcima.get(id) ?? formatosExtras.get(id)
 
+  const noFiltro = new Set(filtrados.map((v) => v.id))
   return {
     linhas: naTela.map((v) => montarLinha(v, b, volumes.get(v.id), formatoDe(v.id), agora)),
     contagem, totalDoFiltro: filtrados.length, temMais, truncado, filtroEfetivo,
+    restantes: Math.max(0, semExtras.length - (inicio + daPagina.length)),
+    extrasForaDoFiltro: r.pagina === 0 ? naTela.filter((v) => !noFiltro.has(v.id)).length : 0,
   }
 }

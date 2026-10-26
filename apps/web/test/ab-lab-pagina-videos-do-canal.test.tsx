@@ -22,7 +22,8 @@ function linha(n: number, o: Partial<LinhaDoCaminho> = {}): LinhaDoCaminho {
 }
 const pag = (linhas: LinhaDoCaminho[], o: Partial<PaginaDoCanal> = {}): PaginaDoCanal => ({
   linhas, contagem: { testaveis: 31, semVolume: 4, naoLido: 0, total: 35, motivoNaoLido: null },
-  totalDoFiltro: 31, temMais: true, truncado: false, filtroEfetivo: 'testaveis', ...o,
+  totalDoFiltro: 31, temMais: true, truncado: false, filtroEfetivo: 'testaveis',
+  restantes: Math.max(0, (o.totalDoFiltro ?? 31) - linhas.length), extrasForaDoFiltro: 0, ...o,
 })
 const acoes = { jaIniciei: vi.fn(), lembrarNoComputador: vi.fn() } as unknown as AcoesCaminho
 type Pedido = Parameters<React.ComponentProps<typeof VideosDoCanal>['ler']>[0]
@@ -124,6 +125,14 @@ describe('VideosDoCanal (M7 T10)', () => {
     expect(screen.getByText('Vídeo 0')).toBeTruthy()
     expect(screen.getByText('Vídeo 30')).toBeTruthy()
     expect(screen.getByText('Mostrando 31 de 31 testáveis')).toBeTruthy()
+  })
+  it('extras na página 0 (25 testáveis + 6 extras): "Mostrando 26 de 31", botão "Mostrar os 5 restantes", depois "Mostrando 31 de 31" sem botão', async () => {
+    montar(pag(lote(0, 26), { totalDoFiltro: 25, restantes: 5, extrasForaDoFiltro: 6, temMais: true }))
+    expect(screen.getByText('Mostrando 26 de 31 testáveis')).toBeTruthy()
+    ler.mockImplementationOnce(async () => ({ ok: true as const, pagina: pag(lote(26, 31), { totalDoFiltro: 25, restantes: 0, extrasForaDoFiltro: 0, temMais: false }) }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Mostrar os 5 restantes' })) })
+    expect(screen.getByText('Mostrando 31 de 31 testáveis')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Mostrar/ })).toBeNull()
   })
   it('com mais de 20 restantes o botão diz "Mostrar mais 20"', () => {
     montar(pag(lote(0, 20), { totalDoFiltro: 80 }))

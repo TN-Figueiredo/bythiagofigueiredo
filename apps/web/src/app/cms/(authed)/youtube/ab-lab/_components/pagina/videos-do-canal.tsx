@@ -54,6 +54,8 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
   const [carga, setCarga] = useState<Carga>('ok')
   const [aberto, setAberto] = useState(videoInicial !== null)
   const [pagina, setPagina] = useState(0)
+  // Extras fixadas na página 0 que o filtro não aceita: contam no denominador de "Mostrando N de M" (só a resposta da página 0 vale).
+  const [fora, setFora] = useState(inicial.extrasForaDoFiltro)
   const seq = useRef(0)
   const aplicada = useRef<string | null>(null)
   const filtroRef = useRef<Filtro>(inicial.filtroEfetivo)
@@ -62,7 +64,7 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
 
   // Depois de router.refresh() o servidor manda `inicial` novo: o anexo e a busca velhos somem (a linha mostra o estado novo).
   if (visto !== inicial) {
-    setVisto(inicial); setPag(inicial); setLinhas(inicial.linhas); setFiltro(inicial.filtroEfetivo); setBusca(''); setPagina(0); setCarga('ok')
+    setVisto(inicial); setPag(inicial); setLinhas(inicial.linhas); setFora(inicial.extrasForaDoFiltro); setFiltro(inicial.filtroEfetivo); setBusca(''); setPagina(0); setCarga('ok')
     seq.current += 1; aplicada.current = null; filtroRef.current = inicial.filtroEfetivo; ultimo.current = null
   }
 
@@ -75,6 +77,7 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
     if (n !== seq.current) return // chegou depois de um pedido mais novo
     if (!r.ok) { setCarga('erro'); return }
     setPag(r.pagina)
+    if (!anexar) setFora(r.pagina.extrasForaDoFiltro)
     setPagina(pedido.pagina)
     setLinhas(antes => {
       if (!anexar) return r.pagina.linhas
@@ -127,7 +130,7 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
   useEffect(() => { if (perguntaDe !== null) setAberto(true) }, [perguntaDe])
   const mostradas = daPergunta ? [...linhas, daPergunta] : linhas
   const c = pag.contagem
-  const resto = Math.max(0, pag.totalDoFiltro - linhas.length)
+  const resto = pag.restantes
   const termoAtivo = aplicada.current
   const semLinhas = mostradas.length === 0 && carga === 'ok'
   const resumo = `${c.testaveis} com volume para testar, ${c.semVolume} sem${c.naoLido > 0 ? `, ${c.naoLido} sem volume lido` : ''}${pag.truncado ? ' (dos 2.000 mais recentes)' : ''}`
@@ -186,8 +189,8 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
       ) : null}
       {linhas.length > 0 && carga !== 'erro' ? (
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <span className="text-sm text-cms-text-muted tabular-nums">Mostrando {linhas.length} de {pag.totalDoFiltro}{filtro === 'testaveis' ? ' testáveis' : ' vídeos'}</span>
-          {pag.temMais && resto > 0 ? (
+          <span className="text-sm text-cms-text-muted tabular-nums">Mostrando {linhas.length} de {pag.totalDoFiltro + fora}{filtro === 'testaveis' ? ' testáveis' : ' vídeos'}</span>
+          {pag.temMais ? (
             <button type="button" className="lab-btn lab-alvo" disabled={carga === 'mais'} onClick={() => { void pedir(pedidoBase({ pagina: pagina + 1 }), true) }}>
               {resto > POR_ANEXO ? `Mostrar mais ${POR_ANEXO}` : `Mostrar os ${resto} restantes`}
             </button>

@@ -19,7 +19,7 @@ export const paginaVazia = (o: Partial<PaginaDoLab> = {}): PaginaDoLab => ({
 export const listaDe = (linhas: LinhaDoCaminho[] = []): PaginaDoCanal => ({
   linhas,
   contagem: { testaveis: linhas.length, semVolume: 0, naoLido: 0, total: linhas.length, motivoNaoLido: null },
-  totalDoFiltro: linhas.length, temMais: false, truncado: false, filtroEfetivo: 'testaveis',
+  totalDoFiltro: linhas.length, temMais: false, restantes: 0, extrasForaDoFiltro: 0, truncado: false, filtroEfetivo: 'testaveis',
 })
 
 export function propsDoLab(o: Partial<AbLabDashboardProps> = {}): AbLabDashboardProps {
