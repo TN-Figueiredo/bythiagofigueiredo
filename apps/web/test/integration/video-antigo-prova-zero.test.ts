@@ -31,7 +31,11 @@ describe.skipIf(pular)('M10a: zero vídeo marcado, sobre a semente (colunas do t
     expect((data ?? []).length).toBeGreaterThan(0)
     expect((data ?? []).filter(v => v.archive_frozen_at !== null || v.archive_dropped_at !== null)).toEqual([])
     const ds = await loadDataset({ siteId, now: ORACLE_NOW, supabase: sb })
-    const atual = JSON.stringify(retrato(ds as unknown as Record<string, unknown>), null, 1) + '\n'
+    // M5 Tarefa 4: o Dataset ganhou `onlineDesde` (133 bytes); na semente nenhum mês saiu, com ou sem a função no banco.
+    // O ouro continua o de antes: compara-se o resto, byte a byte.
+    const { onlineDesde, ...resto } = ds as unknown as Record<string, unknown>
+    expect(onlineDesde).toStrictEqual({ lido: true, porTabela: { competitor_video_daily: null, competitor_video_early: null, competitor_video_hourly: null } })
+    const atual = JSON.stringify(retrato(resto), null, 1) + '\n'
     expect(existsSync(GOLDEN_SEMENTE)).toBe(true)
     expect(atual).toBe(readFileSync(GOLDEN_SEMENTE, 'utf8'))
   }, 120_000)

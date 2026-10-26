@@ -47,4 +47,7 @@ export async function prepararM5(c: Client, ate?: ParteM5): Promise<void> {
     for (const n of readdirSync(dir).filter(x => /_manutencao_m3b_(recusa|apagar_com_arquivo|apagar_so_cheias)\.sql$/.test(x)).sort()) await c.query(readFileSync(resolve(dir, n), 'utf8'))
   }
   await aplicarM5(c, ate)
+  // A saída é da tabela, não do site: mês fora deixado por outro arquivo de teste (num banco compartilhado, como o do CI)
+  // mudaria o `online desde` de todos. Dentro da transação do teste, desfeita no fim.
+  await c.query('delete from public.obs_archive_months where detached_at is not null or dropped_at is not null')
 }

@@ -9,8 +9,8 @@ import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { q1, SITE_TESTE, semearCanal } from '../helpers/m3b'
 import { prepararM5, M5_SQL_CAMINHO } from '../helpers/m5'
 
-/** Banco de integração (54422), nunca o 54322 do navegador. */
-const URL_INT = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54422/postgres'
+/** Padrão 54322 (o banco do CI, como test/helpers/m2.ts); local: SUPABASE_DB_URL do bythiago_int (54422). Tudo em begin … rollback. */
+const URL_INT = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 
 describe.skipIf(skipIfNoLocalDb())('M5 parte 1: online desde', () => {
   let c: Client
