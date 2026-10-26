@@ -9,14 +9,13 @@ import './pagina-lab.css'
 
 export interface SecaoEmTesteProps {
   cartoes: CartaoEmTeste[]
-  onAbrirTeste: (testId: string) => void
   onAbrirPainel: FaixaComVoceProps['onAbrirPainel']
   onAbrirDia14: FaixaComVoceProps['onAbrirDia14']
 }
 
 const VISIVEIS = 4
 
-export function SecaoEmTeste({ cartoes, onAbrirTeste, onAbrirPainel, onAbrirDia14 }: SecaoEmTesteProps): ReactElement | null {
+export function SecaoEmTeste({ cartoes, onAbrirPainel, onAbrirDia14 }: SecaoEmTesteProps): ReactElement | null {
   const [todos, setTodos] = useState(false)
   if (cartoes.length === 0) return null
   const n = cartoes.length
@@ -32,7 +31,7 @@ export function SecaoEmTeste({ cartoes, onAbrirTeste, onAbrirPainel, onAbrirDia1
           <CartaoEmTesteView
             key={c.tipo === 'lab' ? c.card.id : `studio-${c.linha.videoId}-${k}`}
             cartao={c} unico={n === 1}
-            onAbrirTeste={onAbrirTeste} onAbrirPainel={onAbrirPainel} onAbrirDia14={onAbrirDia14}
+            onAbrirPainel={onAbrirPainel} onAbrirDia14={onAbrirDia14}
           />
         ))}
       </div>

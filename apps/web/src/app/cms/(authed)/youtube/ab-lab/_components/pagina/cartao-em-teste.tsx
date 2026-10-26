@@ -2,6 +2,7 @@
 // Cartão de "Em teste agora" (M7 T7). HTML válido: o cartão não é um <a>; o link é o h3 (::after esticado)
 // e os botões são irmãos, acima do link (.lab-acima), nunca descendentes dele.
 import { useState, type ReactElement } from 'react'
+import Link from 'next/link'
 import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
 import { duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
 import type { CartaoEmTeste, PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
@@ -12,7 +13,6 @@ export interface CartaoEmTesteProps {
   cartao: CartaoEmTeste
   /** Só um cartão na seção = layout horizontal de largura cheia. */
   unico: boolean
-  onAbrirTeste: (testId: string) => void
   onAbrirPainel: (p: PainelDecisao, origem: HTMLElement) => void
   onAbrirDia14: (linha: LinhaDoCaminho, origem: HTMLElement) => void
 }
@@ -39,7 +39,7 @@ function Versao({ letra, texto, noAr, destaque }: { letra: string; texto: string
 
 const rotuloDoTipo = (t: 'thumbnail' | 'title' | 'combo'): string => t === 'title' ? 'Título' : t === 'thumbnail' ? 'Miniatura' : 'Título e miniatura'
 
-export function CartaoEmTesteView({ cartao, unico, onAbrirTeste, onAbrirPainel, onAbrirDia14 }: CartaoEmTesteProps): ReactElement {
+export function CartaoEmTesteView({ cartao, unico, onAbrirPainel, onAbrirDia14 }: CartaoEmTesteProps): ReactElement {
   const cls = `lab-pg lab-cartao${unico ? ' um' : ''}`
 
   if (cartao.tipo === 'studio') {
@@ -81,7 +81,7 @@ export function CartaoEmTesteView({ cartao, unico, onAbrirTeste, onAbrirPainel, 
   const nome = card.videoTitle ?? card.name
   const titulo = (
     <h3 className="m-0 text-[15px] font-semibold leading-[1.35]">
-      <a href="#" aria-label={`Abrir teste ${nome}`} onClick={e => { e.preventDefault(); onAbrirTeste(card.id) }}>{nome}</a>
+      <Link href={`/cms/youtube/ab-lab/${card.id}`}>{nome}</Link>
     </h3>
   )
   const mostrarPares = card.type === 'thumbnail'

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { fraseDoTopo, itensComVoce, proximaDecisao, proximaTrocaDe } from '@/lib/youtube/ab-lab-pagina/com-voce'
+import { fraseDoTopo, itensComVoce, proximaDecisao, proximaTrocaDe, geraItemDia14, cartoesEmTeste, pendenciaDoTeste } from '@/lib/youtube/ab-lab-pagina/com-voce'
 import { montarPaginaDoLab } from '@/lib/youtube/ab-lab-pagina/montar'
 import type { EntradaPagina } from '@/lib/youtube/ab-lab-pagina/tipos'
 import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
@@ -145,5 +145,21 @@ describe('Com você, topo e Em teste agora', () => {
     expect(proximaTrocaDe(null, agora)).toBeNull()
     expect(proximaTrocaDe(new Date(agora.getTime() - 3_600_000).toISOString(), agora)).toBe('~23h')
     expect(proximaTrocaDe(new Date(agora.getTime() - 24 * 3_600_000).toISOString(), agora)).toBe('<1h')
+  })
+  it('dia14 do cartão do Studio vem da mesma regra do item: só resultado_pronto e sem_resposta geram', () => {
+    expect(geraItemDia14(linha('resultado_pronto', { inicio: dias(-15) }))).toBe(true)
+    expect(geraItemDia14(linha('sem_resposta', { inicio: dias(-20) }))).toBe(true)
+    expect(geraItemDia14(linha('em_teste_studio'))).toBe(false)
+    const l = linha('em_teste_studio')
+    expect(cartoesEmTeste(base({ linhas: [l] }))[0]).toMatchObject({ tipo: 'studio', dia14: geraItemDia14(l) })
+  })
+  it('pendência do cartão do Lab vem do item de Com você com o mesmo testId; sem item, sem pendência', () => {
+    const itens = [{ tipo: 'retomar', titulo: 'x', testId: 't1', pausadoHaDias: 2 }] as const
+    expect(pendenciaDoTeste([...itens], 't1')).toEqual({ verbo: 'retomar o teste', botao: 'Retomar' })
+    expect(pendenciaDoTeste([...itens], 'outro')).toBeUndefined()
+    const com = cartoesEmTeste(base({ ativos: [ativo()] }), [...itens])[0]!
+    expect(com.tipo === 'lab' && com.pendencia).toEqual({ verbo: 'retomar o teste', botao: 'Retomar' })
+    const sem = cartoesEmTeste(base({ ativos: [ativo()] }), [])[0]!
+    expect(sem.tipo === 'lab' && 'pendencia' in sem).toBe(false)
   })
 })

@@ -7,7 +7,7 @@ import type { EntradaPagina, PaginaDoLab } from './tipos'
 
 export function montarPaginaDoLab(e: EntradaPagina): PaginaDoLab {
   const itens = itensComVoce(e)
-  const emTeste = cartoesEmTeste(e)
+  const emTeste = cartoesEmTeste(e, itens)
   const lab = emTeste.filter(c => c.tipo === 'lab').length
   const studio = emTeste.length - lab
   const temHistorico = e.ativos.length + e.concluidos.length + e.pausados.length + e.rascunhos.length > 0

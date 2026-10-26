@@ -31,7 +31,7 @@ const linhaStudio = (): LinhaDoCaminho => ({
 const cartaoStudio = (): CartaoEmTeste => ({ tipo: 'studio', linha: linhaStudio(), titulos: [{ letra: 'A', titulo: 'Original' }, { letra: 'B', titulo: 'Nova' }], labPausadoAte: null, dia14: false })
 
 function secao(cartoes: CartaoEmTeste[], o: Partial<SecaoEmTesteProps> = {}) {
-  const p: SecaoEmTesteProps = { cartoes, onAbrirTeste: vi.fn(), onAbrirPainel: vi.fn(), onAbrirDia14: vi.fn(), ...o }
+  const p: SecaoEmTesteProps = { cartoes, onAbrirPainel: vi.fn(), onAbrirDia14: vi.fn(), ...o }
   return { p, ...render(<SecaoEmTeste {...p} />) }
 }
 function faixa(itens: ItemComVoce[], o: Partial<FaixaComVoceProps> = {}) {
@@ -91,9 +91,9 @@ describe('Em teste agora', () => {
     expect(container.querySelector('a button')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Encerrar e escolher' }))
     expect(p.onAbrirPainel).toHaveBeenCalledWith(c.painel, expect.any(HTMLElement))
-    expect(p.onAbrirTeste).not.toHaveBeenCalled()
-    fireEvent.click(container.querySelector('h3 a')!)
-    expect(p.onAbrirTeste).toHaveBeenCalledWith('t1')
+    const link = container.querySelector('h3 a')!
+    expect(link.getAttribute('href')).toBe('/cms/youtube/ab-lab/t1')
+    expect(container.querySelector('a[href="#"]')).toBeNull()
   })
   it('layout: 2 a 4 em grade (sem classe um); 5 ou mais mostram 4 e "Ver todos (n)"; 0 some', () => {
     const cs = (n: number) => Array.from({ length: n }, (_, i) => cartaoLab({ id: `t${i}` }))

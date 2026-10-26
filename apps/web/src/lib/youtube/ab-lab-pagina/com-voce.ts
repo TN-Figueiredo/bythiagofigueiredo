@@ -6,6 +6,7 @@ import { prazoDoTeste } from '../teste-youtube/nativo/lista'
 import { porExtenso, porExtensoFem, capitalizar } from '../teste-youtube/nativo/frases'
 import { versoesDoDia14 } from '../teste-youtube/nativo/dia-14-estado'
 import { painelDoAtivo, painelDoConcluido } from './painel-decisao'
+import type { LinhaDoCaminho } from '../teste-youtube/nativo/lista'
 import type { CartaoEmTeste, EntradaPagina, ItemComVoce } from './tipos'
 
 export type { EntradaPagina, ItemComVoce, CartaoEmTeste } from './tipos'
@@ -46,6 +47,11 @@ function temHistoricoDe(e: EntradaPagina): boolean {
     || e.linhas.some(l => l.registro !== null || l.nosso !== null)
 }
 
+/** Estados em que a linha do Studio gera o item `dia14` em "Com você" (fonte única do item e do cartão). */
+export function geraItemDia14(l: LinhaDoCaminho): boolean {
+  return l.registro !== null && (l.estado === 'resultado_pronto' || l.estado === 'sem_resposta')
+}
+
 export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
   const vencidos: ItemComVoce[] = []
   const aplicar: ItemComVoce[] = []
@@ -56,7 +62,7 @@ export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
 
   for (const l of e.linhas) {
     if (!l.registro) continue
-    if (l.estado === 'resultado_pronto' || l.estado === 'sem_resposta') {
+    if (geraItemDia14(l)) {
       const vencido = l.estado === 'sem_resposta'
       const item: ItemComVoce = { tipo: 'dia14', titulo: l.titulo, linha: l, ytId: l.ytId, prazo: diaMesSp(prazoDoTeste(l.registro.inicio).toISOString()), vencido }
       ;(vencido ? vencidos : noPrazo).push(item)
@@ -129,7 +135,17 @@ export function fraseDoTopo(p: { lab: number; studio: number; itens: ItemComVoce
   return `${rodando} ${coisas}${lista ? `: ${lista}` : ''}.`
 }
 
-export function cartoesEmTeste(e: EntradaPagina): CartaoEmTeste[] {
+const BOTAO_DO_ITEM: Partial<Record<ItemComVoce['tipo'], string>> = { retomar: 'Retomar' }
+
+/** Pendência do dono neste teste: o item de "Com você" com o mesmo testId, com o verbo e o botão que ele já usa. */
+export function pendenciaDoTeste(itens: ItemComVoce[], testId: string): { verbo: string; botao: string } | undefined {
+  const i = itens.find(x => 'testId' in x && x.testId === testId)
+  const verbo = i ? verboDe(i) : null
+  const botao = i ? BOTAO_DO_ITEM[i.tipo] : undefined
+  return verbo && botao ? { verbo, botao } : undefined
+}
+
+export function cartoesEmTeste(e: EntradaPagina, itens: ItemComVoce[] = itensComVoce(e)): CartaoEmTeste[] {
   const out: CartaoEmTeste[] = []
   for (const a of e.ativos) {
     const { card } = a
@@ -147,13 +163,14 @@ export function cartoesEmTeste(e: EntradaPagina): CartaoEmTeste[] {
     const painel = ativo
       ? painelDoAtivo(card, { ctrs: a.ctrs, noArLetra: noArDoAtivo(a), sugeridaId: sugeridaDoAtivo(a.bruto), regraV2: regraV2(a.bruto), podeDeixarVariante: e.podeDeixarVariante })
       : null
-    out.push({ tipo: 'lab', card, lider, semLider: algumMedido ? 'poucos dados' : 'CTR não medido', proximaTroca: ativo ? proximaTrocaDe(card.cycleStartedAt, e.agora) : null, painel })
+    const pendencia = pendenciaDoTeste(itens, card.id)
+    out.push({ tipo: 'lab', card, lider, semLider: algumMedido ? 'poucos dados' : 'CTR não medido', proximaTroca: ativo ? proximaTrocaDe(card.cycleStartedAt, e.agora) : null, painel, ...(pendencia ? { pendencia } : {}) })
   }
   for (const l of e.linhas) {
     if (l.estado !== 'em_teste_studio' || !l.registro) continue
     const pergunta = versoesDoDia14(l.registro)
     const titulos = pergunta.tipo === 'versoes' ? pergunta.versoes.map(v => ({ letra: v.letra, titulo: v.titulo })) : []
-    out.push({ tipo: 'studio', linha: l, titulos, labPausadoAte: l.labPausadoAte, dia14: false })
+    out.push({ tipo: 'studio', linha: l, titulos, labPausadoAte: l.labPausadoAte, dia14: geraItemDia14(l) })
   }
   return out
 }
