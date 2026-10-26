@@ -13,6 +13,7 @@ import { RichText } from '../_mudancas/rich'
 import type { RangeId } from './many-versions'
 import { Lanes, type Geom, type GroupTip, type Hl } from './lanes'
 import { layoutLane, MINPX, MINPX_COARSE } from './lane-layout'
+import { TrechoDoEixo } from '../_chrome/eixo-arquivo'
 import { HIcon, TYPE_COLOR } from './icons'
 import { Thumb } from './thumb'
 
@@ -220,6 +221,11 @@ function ChartSvg({ chart, geom, pair, hlRange, acrescimos = null }: { chart: Ch
       parts.push(<line key="preline" x1={xb} x2={xb} y1={TOP} y2={TOP + PH} stroke="var(--border-strong)" strokeDasharray="2 3" />)
       chart.pre.lines.forEach((ln, i) => parts.push(<text key={'pn' + i} className="note" x={x(0) + 6} y={TOP + 18 + i * 16}>{ln}</text>))
     } else parts.push(<text key="pn" className="note" x={x(0) + 8} y={TOP + 18}>{chart.pre.lines[0]}</text>)
+  }
+  if (chart.arquivo) {
+    // peça 1: o trecho que saiu do banco, sem barra e sem número, com a frase "dd/mm a dd/mm/aaaa no arquivo" na borda esquerda
+    const x0 = x(chart.arquivo.fromH), x1 = x(chart.arquivo.toH)
+    parts.push(<TrechoDoEixo key="arquivo" estado={chart.arquivo.estado} x={x0} y={TOP} w={Math.max(0, x1 - x0)} h={PH} />)
   }
   if (hlRange) parts.push(<rect key="hl" data-hlrect="" x={x(Math.max(0, hlRange[0]))} y={TOP} width={Math.max(0, x(hlRange[1]) - x(Math.max(0, hlRange[0])))} height={PH} fill="var(--text)" opacity={0.07} />)
   if (acrescimos?.faixaAntes) {

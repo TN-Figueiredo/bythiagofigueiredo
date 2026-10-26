@@ -97,6 +97,8 @@ export const INVENTARIO_VIDEO: Inventario = {
   'chart.empty': CTRL, 'chart.empty.title': 'base', 'chart.empty.text': 'base', 'chart.empty.tail': 'base', 'chart.empty.last': CTRL,
   'chart.empty.last.views': 'numero', 'chart.empty.last.at': 'base', 'chart.empty.link': CTRL, 'chart.empty.link.*': END,
   'chart.bins[]*': GEO, 'chart.expectedSteps[]*': GEO, 'chart.yTicks[]*': GEO, 'chart.pre': GEO, 'chart.pre.*': GEO, 'chart.pre.lines[]': 'base',
+  // peça 1 (T5b): o trecho "no arquivo" do gráfico é desenho; a frase dele entra no pacote da IA junto com o resto de `_contexto-ia/empacotar-*` (pendente na M5)
+  'chart.arquivo': GEO,
   'chart.hatch': GEO, 'chart.hatch.*': GEO, 'chart.firstNote': CTRL, 'chart.firstNote.toH': GEO, 'chart.firstNote.text': 'base',
   'chart.xTicks[]*': GEO, 'chart.aria': REP, 'chart.fewAxis': GEO, 'chart.fewAxis[]*': GEO, 'chart.stale': CTRL, 'chart.stale.fromH': GEO, 'chart.stale.title': 'base',
   'chart.table': REP, 'chart.table[][]': REP,

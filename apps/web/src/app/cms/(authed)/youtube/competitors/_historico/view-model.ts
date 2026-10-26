@@ -11,6 +11,8 @@ import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/observatorio/types'
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
+import { coletaDoVideo, type EstadoPeca1 } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
+import { spDateOf, spDateStart, spDayStart } from '@/lib/youtube/observatorio/time'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { RUN_CAVEAT, runCardText, runCore, runShort, runText, runsOf } from '@/lib/youtube/observatorio/test-run'
 import { origemDoCanal } from './origem-canal'
@@ -147,6 +149,8 @@ export interface ChartView {
   expectedSteps: Array<{ a: number; b: number; y: number; joined: boolean }>
   yTicks: Array<{ y: number; label: string }>
   pre: { toH: number; lines: string[] } | null
+  /** Peça 1 da M5: o trecho da vida do vídeo que saiu do banco (mês no arquivo). Nele não há barra nem número; o gráfico diz "dd/mm a dd/mm/aaaa no arquivo". Ausente = a tela de hoje. */
+  arquivo?: { fromH: number; toH: number; estado: EstadoPeca1 } | null
   hatch: { fromH: number; note: string | null } | null
   firstNote: { toH: number; text: string } | null
   xTicks: Array<{ h: number; label: string }>
@@ -375,9 +379,14 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
   // ---------- series → bins (views/day between records) ----------
   const pts: SeriesPoint[] = v.series.slice()
+  // peça 1: o primeiro registro online é posterior ao que saiu do banco: o trecho antes dele é "no arquivo", e a média "desde a publicação" não existe (seria número interpolado)
+  const odDiaria = obs.ONLINE_DESDE && obs.ONLINE_DESDE.lido ? obs.ONLINE_DESDE.porTabela.competitor_video_daily : null
+  const coletaDoV = coletaDoVideo({ seriesStart: SS, addedAt: sy.added == null ? null : spDayStart(sy.added) })
+  const arqDe = Math.max(pub, coletaDoV)
+  const noArquivo = odDiaria !== null && pts.length > 0 && pts[0]!.t >= odDiaria && arqDe < odDiaria
   const bins: Array<{ a: number; b: number; v: number; from0: boolean; t: number }> = []
   let firstNote: { views: number; h: number; t: number } | null = null
-  if (pts.length && pub >= SS && !v.truncated) {
+  if (pts.length && pub >= SS && !v.truncated && !noArquivo) {
     const fh = (pts[0]!.t - pub) / H_MS
     if (fh >= 24) bins.push({ a: 0, b: hx(pts[0]!.t), v: pts[0]!.views / (fh / 24), from0: true, t: pts[0]!.t })
     else firstNote = { views: pts[0]!.views, h: fh, t: pts[0]!.t }
@@ -874,7 +883,10 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }),
     expectedSteps: expected.map((e, i) => ({ a: e.a, b: e.b, y: yf(e.v), joined: i > 0 && Math.abs(expected[i - 1]!.b - e.a) < 0.5 })),
     yTicks,
-    pre: pre && seriesStartH > fromH ? { toH: compress ? hx(SS) : seriesStartH, lines: compress ? ['antes de ' + S03, preDays + ' dias', 'comprimidos,', 'sem registro'] : ['sem registro por vídeo antes de ' + S03] } : null,
+    arquivo: noArquivo && hx(pts[0]!.t) > fromH
+      ? { fromH: Math.max(fromH, pub < SS ? hx(SS) : 0), toH: hx(pts[0]!.t), estado: { k: 'no_arquivo', de: spDateStart(spDateOf(arqDe).slice(0, 7) + '-01'), ate: odDiaria! - DAY } }
+      : null,
+    pre: pre && seriesStartH > fromH ? { toH: compress || noArquivo ? hx(SS) : seriesStartH, lines: compress ? ['antes de ' + S03, preDays + ' dias', 'comprimidos,', 'sem registro'] : ['sem registro por vídeo antes de ' + S03] } : null,
     hatch: lastBinB != null && H > lastBinB ? { fromH: lastBinB, note: gapText ?? (stale ? 'sem registro desde ' + D.dm(lastPt!.t) : null) } : null,
     firstNote: firstNote && !cut ? { toH: hx(firstNote.t), text: F.num(firstNote.views) + ' em ' + Math.round(firstNote.h) + ' h' } : null,
     xTicks,

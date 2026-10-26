@@ -32,6 +32,8 @@ export interface ContextoDoCanal {
   criador: CriadorDoFio
   trocas: readonly TrocaDoMotor[]
   /** C4: quem lê os comentários. Ausente = a leitura não é feita (célula "não pedida"). */
+  /** Peça 1 da M5: desde quando a leitura por hora está online (nulo = nada saiu) e se foi lida. Ausente = a tela de hoje. */
+  arquivo?: { horasDesde: number | null; lido: boolean }
   comentarios?: { siteId: string; channelId: string; nome: string; provas: ProvasDeQuemVe | null; permissaoFalhou?: boolean }
 }
 

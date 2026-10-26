@@ -97,7 +97,7 @@ export async function BlocosDoCanal({ medidas, contexto }: PropsDosBlocos): Prom
     foraEm: d.estado.tipo === 'saiu' ? d.estado.ate : null, hojeSP: contexto.hojeSP,
   })
   const cr = await criadorDe(medidas, contexto, c, d)
-  const modeloHoras = horasDoCanal({ videos: d.videos, horas, formato: d.formato, agoraMs: contexto.agoraMs })
+  const modeloHoras = horasDoCanal({ videos: d.videos, horas, formato: d.formato, agoraMs: contexto.agoraMs, ...(contexto.arquivo ? { arquivo: contexto.arquivo } : {}) })
   // Quem falhou, bloco a bloco. Cada BlocoComTentativa fica no MESMO lugar da árvore nos dois ramos (falhou e ok): é o que o router.refresh() preserva.
   const falhou = {
     direcao: direcao.queda.estado === 'nao_carregou' || direcao.linhas.some((l) => l.estado === 'nao_carregou'),

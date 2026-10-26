@@ -74,11 +74,11 @@ describe('arquivoDoVideo (a coleta é a DESTE vídeo)', () => {
   it('lido: o online desde da série por dia e a coleta pelo maior entre a série e o canal adicionado', () => {
     const od = { lido: true as const, porTabela: { competitor_video_daily: sp('2027-05-01'), competitor_video_early: null, competitor_video_hourly: null } }
     expect(arquivoDoVideo({ channel: canal(sp('2027-03-15') + 5 * 3_600_000), SERIES_START: sp('2026-10-03'), ONLINE_DESDE: od }, 'c1'))
-      .toEqual({ arquivo: { lido: true, onlineDesde: sp('2027-05-01'), coleta: sp('2027-03-15') } })
+      .toEqual({ arquivo: { lido: true, onlineDesde: sp('2027-05-01'), horasDesde: null, coleta: sp('2027-03-15') } })
     expect(arquivoDoVideo({ channel: canal(null), SERIES_START: sp('2026-10-03'), ONLINE_DESDE: od }, 'c1').arquivo?.coleta).toBe(sp('2026-10-03'))
   })
   it('não lido: lido falso e sem data', () => {
     expect(arquivoDoVideo({ channel: canal(null), SERIES_START: sp('2026-10-03'), ONLINE_DESDE: { lido: false, porque: 'erro_do_banco' } }, 'c1'))
-      .toEqual({ arquivo: { lido: false, onlineDesde: null, coleta: sp('2026-10-03') } })
+      .toEqual({ arquivo: { lido: false, onlineDesde: null, horasDesde: null, coleta: sp('2026-10-03') } })
   })
 })

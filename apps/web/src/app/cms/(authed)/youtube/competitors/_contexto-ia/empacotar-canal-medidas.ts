@@ -261,7 +261,7 @@ export function projetarMedidas(c: CanalInteiro, ctx: ContextoDoCanal, comentari
   })
   return {
     criador: cr.ia, direcao: direcaoIa(direcao), ritmo: ritmoIa(ritmo, MEASURE_RULES.rhythm.weeks),
-    lancamentos: lancamentosIa(d.lanc.modelo), horas: horasIa(horasDoCanal({ videos: d.videos, horas: horasLidas, formato: d.formato, agoraMs: ctx.agoraMs })), tempo: tempoIa(tempo),
+    lancamentos: lancamentosIa(d.lanc.modelo), horas: horasIa(horasDoCanal({ videos: d.videos, horas: horasLidas, formato: d.formato, agoraMs: ctx.agoraMs, ...(ctx.arquivo ? { arquivo: ctx.arquivo } : {}) })), tempo: tempoIa(tempo),
     topo: { faixa: COM_FAIXA.has(d.estado.tipo) ? d.estado.pastilha : null, frase: frase.texto },
     celulas: celulas.map((x): CelulaDeMedidaIa => {
       const det = x.detalhe

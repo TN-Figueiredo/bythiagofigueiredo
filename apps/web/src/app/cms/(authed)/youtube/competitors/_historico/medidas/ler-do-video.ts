@@ -65,6 +65,7 @@ export function arquivoDoVideo(obs: Pick<IObservatorioDaLeitura, 'channel' | 'SE
   return {
     arquivo: {
       lido: od.lido, onlineDesde: od.lido ? od.porTabela.competitor_video_daily : null,
+      horasDesde: od.lido ? od.porTabela.competitor_video_hourly : null,
       coleta: coletaDoVideo({ seriesStart: ss, addedAt: added === null ? null : spDayStart(added) }),
     },
   }

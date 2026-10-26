@@ -195,6 +195,7 @@ function horasIa(b: BlocoDeHoras): HorasVideoIa {
   if (b.tipo === 'nao_carregou') return { ...vazio, frase: b.frase, estado }
   if (b.tipo === 'ainda_nao_existe') return { ...vazio, frase: b.frase }
   if (b.tipo === 'nao_medido') return { ...vazio, frase: b.frase, extra: b.extra ?? '', estado }
+  if (b.tipo === 'no_arquivo') return { ...vazio, frase: b.frase, estado }
   const marcasN = b.regua.normal.tipo === 'medido' ? b.regua.normal.marcas : null
   return {
     ...vazio, estado, frase: b.frase,

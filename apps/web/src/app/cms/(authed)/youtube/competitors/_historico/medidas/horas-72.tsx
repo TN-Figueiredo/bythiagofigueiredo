@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
 import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { BlocoAindaNaoExiste, BlocoNaoMedido, CabecaDoBloco } from './hv-pecas'
+import { AusenciaPeca1 } from '../../_chrome/formas-arquivo'
 import { Regua72h } from './regua-72h'
 import { milhar } from './formatos'
 import type { BlocoDeHoras, BlocoDeHorasOk } from './horas-model'
@@ -97,6 +98,15 @@ export function Horas72({ bloco }: { bloco: BlocoDeHoras }) {
     )
   }
   if (bloco.tipo === 'ainda_nao_existe') return <BlocoAindaNaoExiste titulo={TITULO_DAS_HORAS} linhas={[bloco.frase]} />
+  if (bloco.tipo === 'no_arquivo') {
+    return (
+      <section className="hv-card" aria-labelledby="hHoras" data-bloco-estado="no_arquivo">
+        <CabecaDoBloco id="hHoras" titulo={TITULO_DAS_HORAS} info={INFO_DAS_HORAS} rotuloDoInfo={ROT} />
+        <p className="hv-fr"><AusenciaPeca1 forma={bloco.forma} texto={bloco.frase} /></p>
+        <Estado tipo={bloco.estado.tipo} texto={bloco.estado.texto} />
+      </section>
+    )
+  }
   if (bloco.tipo === 'nao_medido') {
     return (
       <BlocoNaoMedido id="hHoras" titulo={TITULO_DAS_HORAS} curta="não medido" motivo={bloco.frase} extra={bloco.extra} info={INFO_DAS_HORAS} rotuloDoInfo={ROT}>

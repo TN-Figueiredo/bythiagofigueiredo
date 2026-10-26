@@ -17,6 +17,8 @@ import { REGRAS_DAS_72_HORAS as R72, curvaDe72Horas, tracaoDoCanal, type VideoDa
 import { DAY, spDateOf } from '@/lib/youtube/observatorio/time'
 import type { UltimoVideo, VideoDaOracao } from './frase-do-topo'
 import type { FormatoDoCanal } from './cabecalho-model'
+import { fraseNormalDoCanal } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
+import { JANELA_MINIMA_DIAS } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 import { dec1, dm, ptn, quandoMs } from './formatos'
 
 export const QUANTOS_VIDEOS = 6
@@ -246,7 +248,7 @@ export function lancamentosDoCanal(o: EntradaDeLancamentos): ResultadoDeLancamen
 export type ModeloDe72Horas =
   | { tipo: 'nao_carregou'; motivo: string }
   | { tipo: 'nao_medido'; motivo: string }
-  | { tipo: 'medido'; frase: { negrito: string; resto: string }; fracaoPorHora: Array<number | null>; metade: number; umQuarto: number; tresQuartos: number; n: number; aviso: string | null }
+  | { tipo: 'medido'; frase: { negrito: string; resto: string }; fracaoPorHora: Array<number | null>; metade: number; umQuarto: number; tresQuartos: number; n: number; aviso: string | null; /** Peça 1: "Calculado com N vídeos; K estão no arquivo."; ausente = nada saiu. */ nota?: string | null }
 
 export interface EntradaDe72Horas {
   videos: readonly VideoLido[] | null
@@ -254,6 +256,8 @@ export interface EntradaDe72Horas {
   horas: HorasDoCanal | null
   formato: FormatoDoCanal
   agoraMs: number
+  /** Peça 1 da M5: desde quando a leitura por hora está online (nulo = nada saiu) e se foi lida. Ausente = a tela de hoje. */
+  arquivo?: { horasDesde: number | null; lido: boolean }
 }
 
 const hhmm = (ms: number): string => `${dm(spDateOf(ms))} ${new Date(ms - 3 * 3_600_000).toISOString().slice(11, 16)}`
@@ -274,7 +278,18 @@ export function horasDoCanal(o: EntradaDe72Horas): ModeloDe72Horas {
     })
   }
   const t = tracaoDoCanal(doTipo, { formato: o.formato.fmt, agoraMs: o.agoraMs })
+  // peça 1: os vídeos do formato cujas 72 horas já completaram e saíram do banco (a leitura por hora online só começa depois delas)
+  const a = o.arquivo
+  const semHoras = doTipo.filter(v => v.formato === o.formato.fmt && !v.aoVivo && !v.curva.primeiraContagem)
+  const noArquivo = !a || !a.lido || a.horasDesde === null ? 0 : semHoras.filter(v => v.publicadoEmMs + 72 * 3_600_000 <= a.horasDesde!).length
+  // não lido: os vídeos mais velhos que a garantia e sem hora não dizem se foram para o arquivo
+  const semSaberDesde = !a || a.lido ? 0 : semHoras.filter(v => v.publicadoEmMs + 72 * 3_600_000 < o.agoraMs - JANELA_MINIMA_DIAS.competitor_video_hourly * 86_400_000).length
   if (t.estado === 'nao_medido') {
+    if (t.motivo === 'poucos_videos' && noArquivo > 0) {
+      const fr = fraseNormalDoCanal({ n: t.n ?? 0, noArquivo, minimo: 3, desde: a!.horasDesde })
+      if (fr) return { tipo: 'nao_medido', motivo: fr }
+    }
+    if (t.motivo === 'poucos_videos' && semSaberDesde > 0) return { tipo: 'nao_medido', motivo: 'Não foi possível ler desde quando há dado online.' }
     return { tipo: 'nao_medido', motivo: FRASES_DAS_HORAS[t.motivo]({ n: t.n ?? 0, minimo: R72.MIN_VIDEOS }).longa }
   }
   const quem = o.formato.fmt === 'long' ? 'vídeos' : 'Shorts'
@@ -284,5 +299,7 @@ export function horasDoCanal(o: EntradaDe72Horas): ModeloDe72Horas {
     frase: { negrito: `Metade das views das primeiras 72 horas chega em ${t.valor.metade} ${t.valor.metade === 1 ? 'hora' : 'horas'}`, resto: ` (valor do meio de ${t.n} ${quem}).` },
     fracaoPorHora: t.valor.fracaoPorHora, metade: t.valor.metade, umQuarto: t.valor.umQuarto, tresQuartos: t.valor.tresQuartos, n: t.n,
     aviso: parada && horas.ultimoOkDaTarefaMs !== null ? FRASES_DAS_HORAS.leitura_por_hora_parada({ paradaDesde: hhmm(horas.ultimoOkDaTarefaMs) }).longa : null,
+    // só quando há vídeo no arquivo a chave existe: sem peça 1 o objeto é o de sempre
+    ...(noArquivo > 0 ? { nota: fraseNormalDoCanal({ n: t.n, noArquivo, minimo: 3, desde: a!.horasDesde }) } : {}),
   }
 }

@@ -30,6 +30,7 @@ export function contextoDoCanal(obs: Observatory, view: CanalView, agoraMs: numb
   const ch = obs.channel(view.header.id)
   return {
     comentarios: { siteId: quem.siteId, channelId: view.header.id, nome: view.header.name, provas: quem.provas, permissaoFalhou: quem.permissaoFalhou },
+    ...(obs.ONLINE_DESDE ? { arquivo: { lido: obs.ONLINE_DESDE.lido, horasDesde: obs.ONLINE_DESDE.lido ? obs.ONLINE_DESDE.porTabela.competitor_video_hourly : null } } : {}),
     F: obs.fmt, subs: ch?.subs ?? null,
     sync: { state: ch?.sync.state ?? 'ok', last: ch?.sync.last ?? null, errorSince: ch?.sync.errorSince ?? null },
     hojeSP: dayPt(new Date(agoraMs)), agoraMs, primeiraBusca: ch?.sync.state === 'backfill', semVideos: view.videos.videos.length === 0,

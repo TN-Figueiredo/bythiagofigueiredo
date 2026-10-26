@@ -6,6 +6,7 @@ import type { Leitura } from '@/lib/youtube/observatorio/medidas/m1'
 import { somaDias } from '@/lib/youtube/observatorio/medidas-telas/calendario'
 import { linhaDeCorteNaJanela } from '@/lib/youtube/observatorio/medidas-telas/calendario-das-paginas'
 import { DAY, H, spDateStart } from '@/lib/youtube/observatorio/time'
+import { estadoDaIdade, frasePeca1 } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
 import { dm, horaSP, milhar, spDateOfMs } from './formatos'
 import { MUITAS_MUDANCAS, type CampoDoVideo, type MudancaNumerada, type TipoDeMudanca } from './mudancas-model'
 
@@ -139,6 +140,8 @@ export interface DiaDaBarra {
   junto: number | null
   motivo: string | null
   fala: string
+  /** Peça 1: o dia está no arquivo (ou não se sabe desde quando há dado online); a barra é o trecho, nunca número. Ausente = a barra de hoje. */
+  peca1?: { forma: 'arquivo' | 'hachura' }
 }
 
 const dia12 = (ms: number): string => spDateOfMs(ms)
@@ -169,6 +172,8 @@ export function barrasPorDia(o: {
   agoraMs: number
   /** `AAAA-MM-DD` do primeiro dia sem contagem de um vídeo que saiu; nulo = continua no ar. */
   saiuEm: string | null
+  /** Peça 1 da M5: o online desde da série por dia (nulo e lido = nada saiu) e o início da coleta deste vídeo. Ausente = a tela de hoje. */
+  arquivo?: { onlineDesde: number | null; lido: boolean; coleta: number }
 }): DiaDaBarra[] {
   const lidas = porDia(o.leituras.filter((l) => Number.isFinite(l.t) && Number.isFinite(l.views)))
   const pub = spDateOfMs(o.publicadoEmMs)
@@ -225,8 +230,20 @@ export function barrasPorDia(o: {
     }
     anterior = { dia: d, views: v }
   }
-  for (const d of dias) out.push(montados.get(d)!)
+  for (const d of dias) {
+    const m = montados.get(d)!
+    out.push(o.arquivo && m.tipo === 'nm' ? comPeca1(m, o.arquivo, o.agoraMs) : m)
+  }
   return out
+}
+
+/** Peça 1: o dia sem leitura que saiu do banco diz "dd/mm a dd/mm/aaaa no arquivo" (sem os dois dias juntos: o número não existe); antes da coleta fica o texto de hoje. */
+function comPeca1(m: DiaDaBarra, a: NonNullable<Parameters<typeof barrasPorDia>[0]['arquivo']>, now: number): DiaDaBarra {
+  const est = estadoDaIdade({ pub: spDateStart(m.dia), idadeDias: 0, deMarca: false, onlineDesde: a.onlineDesde, lido: a.lido, coleta: a.coleta, now })
+  if (est.k !== 'no_arquivo' && est.k !== 'nao_medido') return m
+  const f = frasePeca1(est, 'edita')
+  if (f.forma !== 'arquivo' && f.forma !== 'hachura') return m
+  return { dia: m.dia, tipo: 'nm', ganho: null, junto: null, motivo: f.texto, fala: `${dm(m.dia)}: ${f.texto}.`, peca1: { forma: f.forma } }
 }
 
 /** Com mais de 12 barras, só o melhor dia e o último levam número. */

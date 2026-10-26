@@ -39,7 +39,10 @@ export interface PedidoDeDerivacao {
    * Peça 1 da M5: o que saiu do banco (o online desde da série por dia, lido ou não, e o início da coleta deste vídeo). Ausente = nada a dizer: a tela de hoje.
    * O relógio (`agoraMs`) e a âncora de idade são os do próprio pedido; aqui só vêm os dois campos que só o servidor sabe.
    */
-  arquivo?: Pick<EntradaDeArquivo, 'onlineDesde' | 'lido' | 'coleta'>
+  arquivo?: Pick<EntradaDeArquivo, 'onlineDesde' | 'lido' | 'coleta'> & {
+    /** T5b: desde quando a leitura por hora (as 72 horas) está online; nulo = nada saiu ou não lido. */
+    horasDesde?: number | null
+  }
 }
 
 export interface DerivadoDoVideo {
@@ -181,10 +184,11 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
     agoraMs, publicadoEmMs: baseMs, descobertoEmMs: descobertoMs, aoVivo, viewsAgora: video.viewsAgora,
     horas: horasLidas, leituras: horasLidas?.porVideo.get(video.id) ?? [], toleranciaH: TOLERANCIA_HORARIA_H,
     normal: normalHoras, contagemPorDiaDesde: primeiroDia,
+    ...(p.arquivo ? { arquivo: { horasDesde: p.arquivo.horasDesde ?? null, lido: p.arquivo.lido, coleta: p.arquivo.coleta } } : {}),
   })
 
   // ───── gráfico por dia (acréscimos) ─────
-  const dias = leituras === null ? [] : barrasPorDia({ leituras, publicadoEmMs: pub, agoraMs, saiuEm })
+  const dias = leituras === null ? [] : barrasPorDia({ leituras, publicadoEmMs: pub, agoraMs, saiuEm, ...(p.arquivo ? { arquivo: { onlineDesde: p.arquivo.onlineDesde, lido: p.arquivo.lido, coleta: p.arquivo.coleta } } : {}) })
   const eixo = { de: spDateOf(pub + p.eixoH.fromH * H), ate: spDateOf(pub + p.eixoH.H * H) }
   const semana = semanal && leituras !== null ? contagemPorSemana(leituras, pub) : null
   const acrescimos = acrescimosDoGrafico({ publicadoEmMs: pub, subidaDia, saiuEm, eixo, mudancas: numeradas, semanal: semana })
