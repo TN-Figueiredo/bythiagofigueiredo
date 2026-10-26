@@ -2,6 +2,7 @@
 // apps/web/test/youtube/competitor-removal-impact.test.ts
 import { describe, it, expect, vi } from 'vitest'
 import { parseRemovalImpact, semGuardarDe } from '@/lib/youtube/competitor-removal-impact'
+import { parseImpactoDoArquivo, registrosDoCanal } from '@/lib/youtube/observatorio/arquivo/impacto-arquivo'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 
 const OK = { status: 'ok', name: 'Canal Um', videos: 50, pinned: 2, versions: 180, daily_days: 12, bookmarks: 3, videos_leitura_mensal: 4, videos_no_arquivo: 1 }
@@ -189,5 +190,29 @@ describe('getCompetitorRemovalImpactAction', () => {
       const sem = await load({ canal: { data: { added_at: null }, error: null } })
       expect(await sem.act(CH)).toMatchObject({ ok: true, semGuardar: { pode: false, porque: 'sem_data' } })
     } finally { vi.useRealTimers() }
+  })
+})
+
+describe('M5 T6: as duas parcelas do que o canal tem (item 82)', () => {
+  const ANTES = { ...ARQ, meses: 2, registros: 40, fora_do_banco: { meses: 0, de: null, ate: null, registros: 0 } }
+  const DEPOIS = { ...ARQ, meses: 2, registros: 40, fora_do_banco: { meses: 1, de: '2026-09', ate: '2026-09', registros: 25 } }
+  it('lê fora_do_banco.registros; função de antes da M5 (sem o campo) não inventa zero', () => {
+    expect(parseImpactoDoArquivo(DEPOIS)!.foraDoBanco).toEqual({ meses: 1, de: '2026-09', ate: '2026-09', registros: 25 })
+    expect(parseImpactoDoArquivo(ARQ)!.foraDoBanco).toEqual({ meses: 0, de: null, ate: null })
+    expect(() => parseImpactoDoArquivo({ ...DEPOIS, fora_do_banco: { ...DEPOIS.fora_do_banco, registros: -1 } })).toThrow('obs_archive_channel_archive_impact')
+  })
+  it('antes e depois de uma saída: online + fora_do_banco é constante; os registros totais do arquivo NÃO entram', () => {
+    const antes = registrosDoCanal(100, parseImpactoDoArquivo(ANTES)!)
+    const depois = registrosDoCanal(75, parseImpactoDoArquivo(DEPOIS)!)   // 25 saíram do banco
+    expect(antes).toBe(100)
+    expect(depois).toBe(100)
+    expect(parseImpactoDoArquivo(DEPOIS)!.foraDoBanco.registros).toBe(25)
+  })
+  it('sem o campo e com mês fora do banco: não medido (null), nunca só a parcela online', () => {
+    expect(registrosDoCanal(100, parseImpactoDoArquivo({ ...ARQ, fora_do_banco: { meses: 1, de: '2026-09', ate: '2026-09' } })!)).toBeNull()
+    expect(registrosDoCanal(100, parseImpactoDoArquivo(ARQ)!)).toBe(100)
+  })
+  it('nenhum campo do arquivo diz "dias"', () => {
+    expect(JSON.stringify(parseImpactoDoArquivo(DEPOIS))).not.toMatch(/dias|days/i)
   })
 })

@@ -1,9 +1,11 @@
 // @vitest-environment node
 // A5 E4, Tarefa 13: os leitores de servidor das medidas.
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
   lerCanal, lerVideosDoCanal, lerMarcasDoCanal, lerRetratosDoCanal, lerSeriesDoCanal, lerMudancasDoCanal,
 } from '@/lib/youtube/observatorio/medidas/ler'
+import { spDateStart } from '@/lib/youtube/observatorio/time'
+import { _esquecerAvisos, type OnlineDesde } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 import { falsoPostgrest, type Linha } from './medidas-fixture'
 
 const SITE = 's1', OUTRO_SITE = 's2', CANAL = 'c1', OUTRO_CANAL = 'c2'
@@ -281,6 +283,27 @@ describe('provas por mutação (filtros)', () => {
       expect(await ler(sb)).toEqual({ lido: false, causa: 'canal_de_outro_site' })
       expect(consultas).toHaveLength(1)
       expect(consultas[0]?.tabela).toBe('competitor_channels')
+    }
+  })
+})
+
+describe('M5 T6: lerSeriesDoCanal com desde anterior ao online desde devolve cortadoEm', () => {
+  beforeEach(() => { _esquecerAvisos() })
+  const base = () => falsoPostgrest({
+    competitor_channels: canais(), competitor_videos: [video('a')],
+    competitor_video_daily: [{ video_id: 'a', snap_date: '2026-09-19', taken_at: iso(AGORA), views: 1, likes: null, comments: null }],
+    competitor_video_early: [],
+  })
+  const lidoCom = (daily: string | null, early: string | null): OnlineDesde =>
+    ({ lido: true, porTabela: { competitor_video_daily: daily ? spDateStart(daily) : null, competitor_video_early: early ? spDateStart(early) : null, competitor_video_hourly: null } })
+  it('desde antes do online desde: cortadoEm é a data (a mais antiga das duas tabelas)', async () => {
+    const r = await lerSeriesDoCanal(base().sb, { ...E, videoIds: ['a'], desde: DESDE, onlineDesde: lidoCom('2026-09-01', '2026-09-10') })
+    expect(r.lido && r.dados.cortadoEm).toBe('2026-09-01')
+  })
+  it('desde depois do online desde, nada saiu ou não lido: sem cortadoEm', async () => {
+    for (const o of [lidoCom('2026-07-01', '2026-07-01'), lidoCom(null, null), { lido: false, porque: 'erro_do_banco' } as OnlineDesde, undefined]) {
+      const r = await lerSeriesDoCanal(base().sb, { ...E, videoIds: ['a'], desde: DESDE, onlineDesde: o })
+      expect(r.lido && 'cortadoEm' in r.dados, JSON.stringify(o)).toBe(false)
     }
   })
 })

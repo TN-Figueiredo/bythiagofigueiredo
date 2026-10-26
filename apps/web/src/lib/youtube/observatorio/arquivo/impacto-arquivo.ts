@@ -5,7 +5,11 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export interface FaixaDeMeses { meses: number; de: string | null; ate: string | null }
+export interface FaixaDeMeses {
+  meses: number; de: string | null; ate: string | null
+  /** M5: registros dos meses que já saíram do banco. Ausente = função de antes da M5 (não medido; nunca zero). */
+  registros?: number
+}
 /** `de`/`ate`: 'YYYY-MM' (meses) ou 'YYYY-MM-DD' (vídeos retirados). */
 export interface ImpactoDoArquivo {
   meses: number; de: string | null; ate: string | null
@@ -29,10 +33,21 @@ export function parseImpactoDoArquivo(data: unknown): ImpactoDoArquivo | null {
   if (!objeto(fora) || !contagem(fora.meses) || !objeto(vr) || !contagem(vr.n)) return erro()
   return {
     meses: data.meses, de: dataOuNula(data.de), ate: dataOuNula(data.ate),
-    foraDoBanco: { meses: fora.meses, de: dataOuNula(fora.de), ate: dataOuNula(fora.ate) },
+    foraDoBanco: { meses: fora.meses, de: dataOuNula(fora.de), ate: dataOuNula(fora.ate), ...(fora.registros === undefined ? {} : { registros: contagem(fora.registros) ? fora.registros : erro() }) },
     videosRetirados: { n: vr.n, de: dataOuNula(vr.de), ate: dataOuNula(vr.ate) },
     imagensBlob: data.imagens_blob,
   }
+}
+
+/**
+ * O que o canal tem no total, sem contar duas vezes: o que está no banco agora MAIS o que já saiu do banco (`foraDoBanco.registros`), nunca os
+ * `registros` totais do arquivo (incluem o que ainda está no banco). Antes de qualquer saída é só a parcela online. null = há mês fora do banco
+ * e a função não diz quantos registros (antes da M5): não medido.
+ */
+export function registrosDoCanal(noBancoAgora: number, a: ImpactoDoArquivo): number | null {
+  const fora = a.foraDoBanco
+  if (fora.registros === undefined) return fora.meses > 0 ? null : noBancoAgora
+  return noBancoAgora + fora.registros
 }
 
 /** Cliente de serviço: quem chama já passou pela guarda do site. null = canal de outro site. Erro do banco ou forma errada lança. */
