@@ -161,6 +161,12 @@ describe('Com você', () => {
     const { container } = faixa([{ tipo: 'dia14', titulo: 'S', linha: linhaStudio(), ytId: 'y', prazo: '08/11', vencido: true }])
     expect(container.textContent).toContain('Prazo acabou em 08/11')
   })
+  it('retomar sem data da pausa: frase sem número; no mesmo dia: "Pausado hoje"', () => {
+    const { container } = faixa([{ tipo: 'retomar', titulo: 'TT', testId: 't9', pausadoHaDias: null }, { tipo: 'retomar', titulo: 'UU', testId: 't8', pausadoHaDias: 0 }])
+    expect(screen.getByText('Pausado. O Lab não retoma sozinho.')).toBeTruthy()
+    expect(screen.getByText('Pausado hoje. O Lab não retoma sozinho.')).toBeTruthy()
+    expect(container.textContent).not.toContain('há 0')
+  })
   it('rascunho, retomar, conferir_studio e primeiro_teste: texto e ação de cada um', () => {
     const { p } = faixa([
       { tipo: 'rascunho', draftId: 'd1', titulo: 'GB', passo: 2 },

@@ -99,11 +99,11 @@ describe('Com você, topo e Em teste agora', () => {
     expect(it1.tipo === 'dia14' && it1.linha).toBe(l)
     expect(itensComVoce(base({ linhas: [linha('em_teste_studio', { confirmadoEm: null })] }))[0]).toMatchObject({ tipo: 'conferir_studio', ytId: 'yt-1' })
   })
-  it('pausado há 3 dias com ciclo iniciado há 10: conta desde paused_at; sem paused_at cai no ciclo; sem nenhum, 0', () => {
+  it('pausado há 3 dias com ciclo iniciado há 10: conta desde paused_at; sem paused_at é nulo (nunca cai no ciclo nem em 0)', () => {
     const mk = (o: Partial<ReturnType<typeof makeCardView>>) => itensComVoce(base({ pausados: [makeCardView({ status: 'paused', ...o })] })).find(i => i.tipo === 'retomar')
     expect(mk({ pausedAt: dias(-3), cycleStartedAt: dias(-10) })).toMatchObject({ pausadoHaDias: 3 })
-    expect(mk({ pausedAt: null, cycleStartedAt: dias(-10) })).toMatchObject({ pausadoHaDias: 10 })
-    expect(mk({ pausedAt: null, cycleStartedAt: null })).toMatchObject({ pausadoHaDias: 0 })
+    expect(mk({ pausedAt: null, cycleStartedAt: dias(-10) })).toMatchObject({ pausadoHaDias: null })
+    expect(mk({ pausedAt: null, cycleStartedAt: null })).toMatchObject({ pausadoHaDias: null })
   })
   it('cartão queued: painel nulo; active: painel presente', () => {
     const p = montarPaginaDoLab(base({ ativos: [ativo({ status: 'queued' }), ativo({ id: 't2' })] }))

@@ -67,7 +67,7 @@ export function FaixaComVoce(p: FaixaComVoceProps): ReactElement {
       case 'retomar':
         return {
           urgente: false, titulo: `Retome o teste pausado de “${i.titulo}”`,
-          motivo: `Pausado há ${i.pausadoHaDias} ${i.pausadoHaDias === 1 ? 'dia' : 'dias'}. O Lab não retoma sozinho.`, prazo: 'pausado',
+          motivo: `${i.pausadoHaDias === null ? 'Pausado' : i.pausadoHaDias === 0 ? 'Pausado hoje' : `Pausado há ${i.pausadoHaDias} ${i.pausadoHaDias === 1 ? 'dia' : 'dias'}`}. O Lab não retoma sozinho.`, prazo: 'pausado',
           botao: <button type="button" className={BOTAO} onClick={() => p.onAbrirTeste(i.testId)}>Retomar</button>,
         }
       case 'conferir_studio':

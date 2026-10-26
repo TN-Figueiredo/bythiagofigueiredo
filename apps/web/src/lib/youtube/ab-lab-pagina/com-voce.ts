@@ -78,9 +78,9 @@ export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
   }
   for (const p of e.pausados) {
     if (p.pausaYoutube?.aberto) continue // vira cartão do Studio
-    // desde quando está pausado: paused_at; sem ele, cai no início do ciclo; sem nenhum, 0
-    const t = Date.parse(p.pausedAt ?? p.cycleStartedAt ?? '')
-    const dias = Number.isFinite(t) ? Math.max(0, Math.floor((e.agora.getTime() - t) / DIA_MS)) : 0
+    // desde quando está pausado: só paused_at. Sem ele, nulo (o início do ciclo não é a data da pausa; ausência nunca vira 0).
+    const t = p.pausedAt ? Date.parse(p.pausedAt) : NaN
+    const dias = Number.isFinite(t) ? Math.max(0, Math.floor((e.agora.getTime() - t) / DIA_MS)) : null
     retomar.push({ tipo: 'retomar', titulo: p.videoTitle ?? p.name, testId: p.id, pausadoHaDias: dias })
   }
   for (const d of e.rascunhos) rascunhos.push({ tipo: 'rascunho', draftId: d.id, titulo: d.name, passo: d.step })

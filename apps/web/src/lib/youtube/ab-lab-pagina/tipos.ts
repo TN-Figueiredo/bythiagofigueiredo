@@ -65,7 +65,7 @@ export type ItemComVoce =
   | { tipo: 'aplicar'; testId: string; titulo: string; letra: string; motivo: string; painel: PainelDecisao }
   | { tipo: 'dia14'; titulo: string; linha: LinhaDoCaminho; ytId: string; prazo: string; vencido: boolean }
   | { tipo: 'conferir_studio'; titulo: string; ytId: string }
-  | { tipo: 'retomar'; titulo: string; testId: string; pausadoHaDias: number }
+  | { tipo: 'retomar'; titulo: string; testId: string; pausadoHaDias: number | null }
 
 export type CartaoEmTeste =
   | { tipo: 'lab'; card: AbTestCardView; lider: { letra: string; ctrs: [string, string] } | null; semLider: 'poucos dados' | 'CTR não medido'; proximaTroca: string | null; painel: PainelDecisao | null; /** pendência do dono neste teste (rodapé âmbar); o modelo ainda não a preenche */ pendencia?: { verbo: string; botao: string } }
