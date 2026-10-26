@@ -39,7 +39,7 @@ const ctrTexto = (c: number | null): string => c === null ? 'CTR não medido' : 
 
 /** Aviso do teste ativo sem versão sugerida (desvio 5): o modelo só avisa quando há sugerida. */
 function avisoSemSugerida(p: PainelDecisao, o: OpcaoPainel | null): string {
-  if (!o) return 'Escolher encerra o teste agora.'
+  if (!o) return p.diaDeTeto ? `Escolher encerra o teste agora (${p.diaDeTeto}).` : 'Escolher encerra o teste agora.'
   return o.original
     ? `Manter ${o.letra} encerra o teste agora, sem aplicar outra versão.`
     : `Escolher ${o.letra} encerra o teste agora e coloca ${o.letra} no ar.`
@@ -230,7 +230,7 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 id="lab-painel-t" className="m-0 text-xl font-semibold leading-[1.3]" style={{ fontFamily: 'Georgia, serif' }}>O que fica no vídeo?</h2>
-                  <p className="m-0 mt-0.5 text-xs text-cms-text-muted">{painel.nomeVideo}{ativo ? ' · escolher encerra o teste agora' : ''}</p>
+                  <p className="m-0 mt-0.5 text-xs text-cms-text-muted">{painel.nomeVideo}</p>
                 </div>
                 <button type="button" className="lab-btn txt lab-alvo -mr-2 -mt-1.5 min-w-11 !px-0" aria-label="Fechar" aria-disabled={travado || undefined} onClick={fechar}>
                   <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>

@@ -2,6 +2,7 @@
 import type { AbTestCardView } from '../ab-types'
 import type { TelaV2 } from '../ab-gravacao/tela-v2'
 import { diaMesSp } from '../ab-data-curta'
+import { rotuloDoDiaExtenso } from '../ab-rotulo-dia'
 import type { EscolhaPainel, OpcaoPainel, PainelDecisao } from './tipos'
 
 type TelaConcluida = Extract<TelaV2, { fase: 'concluido' }>
@@ -15,6 +16,7 @@ function base(card: AbTestCardView, modo: PainelDecisao['modo'], p: Pick<PainelD
   return {
     testId: card.id, nomeVideo: card.videoTitle ?? card.name, tipo: card.type, modo,
     restoreSeq: card.restoreSeq, ...p,
+    ...(modo === 'ativo' && card.diaV2 ? { diaDeTeto: rotuloDoDiaExtenso(card.diaV2.dia, card.diaV2.teto, { minusculo: true }) } : {}),
   }
 }
 

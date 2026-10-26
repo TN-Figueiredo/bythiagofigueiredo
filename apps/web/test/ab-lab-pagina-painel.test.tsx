@@ -69,11 +69,17 @@ describe('Painel "O que fica no vídeo?" (M7 T8)', () => {
     await clica(primario())
     expect(a.encerrar).toHaveBeenCalledWith('t1', { destino: 'variante', varianteId: 'vc', seqVisto: 7 })
   })
-  it('aviso "escolher encerra o teste agora" aparece no subtítulo e junto ao primário, com role="status" em UM só', () => {
-    monta(ativoSemSug())
-    expect(screen.getByText(/Aladdin · escolher encerra o teste agora/)).toBeTruthy()
+  it('aviso "escolher encerra o teste agora" aparece UMA vez (só na faixa), com o dia, com role="status" em UM só', () => {
+    const p = { ...ativoSemSug(), diaDeTeto: 'dia 3 de 14' }
+    monta(p)
+    expect(screen.getByText('Aladdin')).toBeTruthy()
+    expect(screen.getAllByText(/encerra o teste agora/)).toHaveLength(1)
     expect(screen.getAllByRole('status')).toHaveLength(1)
     expect(document.querySelector('.lab-acoes')!.contains(screen.getByRole('status'))).toBe(true)
+    expect(screen.getByRole('status').textContent).toBe('Escolher encerra o teste agora (dia 3 de 14).')
+  })
+  it('sem o dia no dado, o aviso fica sem parênteses', () => {
+    monta(ativoSemSug())
     expect(screen.getByRole('status').textContent).toBe('Escolher encerra o teste agora.')
   })
   it('ativo com sugerida: B marcada, selo "Sugerida pelo teste", aviso só ao divergir e nota da regra v2', () => {

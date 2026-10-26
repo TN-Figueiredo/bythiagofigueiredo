@@ -30,6 +30,8 @@ export interface PainelDecisao {
   /** 'dd/mm' */
   voltarAte: string | null
   podeDeixarVariante: boolean
+  /** 'dia N de teto' do teste ativo (aviso do painel); ausente quando o dado não existe */
+  diaDeTeto?: string
 }
 
 export type EscolhaPainel =

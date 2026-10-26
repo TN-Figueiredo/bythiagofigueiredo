@@ -28,6 +28,10 @@ const pAplicado = painelDoConcluido(cardABC, tela({ noAr: { tipo: 'aplicada', le
 const srv = { tipo: 'servidor' as const, error: 'x' }
 
 describe('painelDoAtivo', () => {
+  it('diaDeTeto vem do card (dia 4 de 14) e some quando o card não tem o dia', () => {
+    expect(painelDoAtivo({ ...cardABC, diaV2: { dia: 3, teto: 14 } }, e).diaDeTeto).toBe('dia 4 de 14')
+    expect(painelDoAtivo(cardABC, e).diaDeTeto).toBeUndefined()
+  })
   it('todas escolhíveis; No ar na letra lida; sem sugerida nada marcado', () => {
     expect(pAtivoNoArB.opcoes.map(o => [o.letra, o.estado, o.noAr])).toEqual([['A', 'escolhivel', false], ['B', 'escolhivel', true], ['C', 'escolhivel', false]])
     expect(pAtivoNoArB.padrao).toBeNull()
