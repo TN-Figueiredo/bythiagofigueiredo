@@ -4,7 +4,7 @@ import type { TelaV2 } from '../ab-gravacao/tela-v2'
 import { camposDoTeste, paraRestoreStatus } from '../ab-restore'
 import type { LinhaDoCaminho } from '../teste-youtube/nativo/lista'
 import { diaMesSp } from '../ab-data-curta'
-import { versaoDoRespondido, versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
+import { versaoDoRespondido, versoesDoDia14 } from '@/lib/youtube/teste-youtube/nativo/dia-14-estado'
 import type { LinhaConcluida, PainelDecisao } from './tipos'
 
 export const CONCLUIDOS_VISIVEIS = 3
