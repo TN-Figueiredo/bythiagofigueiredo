@@ -104,6 +104,30 @@ describe('aplicarSugerido (T11b)', () => {
     expect(await aplicarSugerido('t1', varianteId, 9)).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
     expect(settle).not.toHaveBeenCalled()
   })
+  describe('aplicar de novo (selo depois do Voltar)', () => {
+    const DESFEITA = (extra: object = {}) => ({ data: { completed_reason: 'manual_winner', status: 'completed', winner_variant_id: 'B', winner_applied_at: null, result_metadata: { v2: { vencedor_sugerido: 'B' } }, ...extra }, error: null })
+    it('manual_winner com B definido e sem aplicação: chama settleOnAir(aplicar_sugerido) e dá feito', async () => {
+      linha.mockResolvedValueOnce(DESFEITA())
+      const r = await aplicarSugerido('t1', 'B', 9)
+      expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE, destino: { tipo: 'variante', id: 'B' }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: 9 })
+      expect(r).toMatchObject({ ok: true, resultado: 'feito' })
+    })
+    it.each([
+      ['ainda aplicada (winner_applied_at preenchido)', { winner_applied_at: '2026-10-20T00:00:00Z' }],
+      ['o vencedor gravado é outra variante', { winner_variant_id: 'C' }],
+      ['o desfecho já não sugere B', { result_metadata: { v2: { vencedor_sugerido: 'C' } } }],
+    ])('ja_encerrado quando %s', async (_n, extra) => {
+      linha.mockResolvedValueOnce(DESFEITA(extra))
+      expect(await aplicarSugerido('t1', 'B', 9)).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
+      expect(settle).not.toHaveBeenCalled()
+    })
+    it('outro teste aberto no vídeo continua barrado pelo settleOnAir', async () => {
+      linha.mockResolvedValueOnce(DESFEITA())
+      settle.mockResolvedValueOnce({ resultado: 'outro_teste', campos: null })
+      const r = await aplicarSugerido('t1', 'B', 9)
+      expect(r).toMatchObject({ ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE })
+    })
+  })
   describe('B2: a original vence', () => {
     const ORIG = (v2: object = {}) => ({ data: { completed_reason: 'regra_v2', status: 'completed', restore_seq: 9, result_metadata: { v2: { vencedor_sugerido: 'A', ...v2 } } }, error: null })
     beforeEach(() => { atualiza.mockResolvedValue({ data: [{ id: 't1' }], error: null }); linha.mockResolvedValue(ORIG()) })

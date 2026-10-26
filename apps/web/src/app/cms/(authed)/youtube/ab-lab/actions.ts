@@ -1294,11 +1294,13 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
   const seq = seqVistoSchema.safeParse(seqVisto)
   if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
   const { data, error } = await getSupabaseServiceClient()
-    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata, youtube_video_id').eq('id', testId).eq('site_id', siteId).maybeSingle()
+    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata, youtube_video_id, winner_variant_id, winner_applied_at').eq('id', testId).eq('site_id', siteId).maybeSingle()
   if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
   const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
   const sugerido = meta?.v2?.vencedor_sugerido
-  if (!data || data.completed_reason !== 'regra_v2' || !sugerido || sugerido !== varianteId) {
+  // "Aplicar de novo" (selo depois do Voltar): a aplicação foi desfeita (winner_applied_at nulo), a variante é a mesma e o desfecho ainda a sugere.
+  const reaplicar = data?.completed_reason === 'manual_winner' && data.winner_variant_id === varianteId && data.winner_applied_at === null
+  if (!data || (data.completed_reason !== 'regra_v2' && !reaplicar) || !sugerido || sugerido !== varianteId) {
     return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
   }
   if (varianteId === (await varianteOriginalId(testId, siteId))) {
