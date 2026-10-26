@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { fakeSupabase, type Row } from '../../helpers/fake-supabase'
+import { fakeSupabaseNadaSaiu, type Row } from '../../helpers/fake-supabase'
 import { createFakeNextCache, type FakeNextCache } from '../../helpers/fake-next-cache'
 import { buildTables, ids, spDate, heavyTrips } from './load-fixture'
 import { loadChannelLiveRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
@@ -21,7 +21,7 @@ function merged(...sets: Array<Record<string, Row[]>>): Record<string, Row[]> {
 async function setup(tables: Record<string, Row[]>, o: { failOn?: string; budget?: number; forceOmit?: boolean } = {}) {
   vi.resetModules()
   captureMessage.mockClear()
-  const cache: FakeNextCache = createFakeNextCache(), db = fakeSupabase(tables, { failOn: o.failOn })
+  const cache: FakeNextCache = createFakeNextCache(), db = fakeSupabaseNadaSaiu(tables, { failOn: o.failOn })
   vi.doMock('next/cache', () => cache.module)
   vi.doMock('@sentry/nextjs', () => ({ captureMessage }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => db.client }))
@@ -444,7 +444,7 @@ describe('loadChannelDataset — valores do site por leitura leve', () => {
     expect(idas.filter(r => r.range?.[0] === 0 && r.range?.[1] === 0)).toHaveLength(1)
   })
   it('o filtro de site da leitura leve só vale com a junção interna: o fake recusa o filtro aninhado sem !inner', async () => {
-    const db = fakeSupabase(tabelas())
+    const db = fakeSupabaseNadaSaiu(tabelas())
     expect(() => db.client.from('competitor_video_daily').select('snap_date, taken_at').eq('competitor_videos.competitor_channels.site_id', 'a')).toThrow(/needs competitor_videos!inner/)
     expect(() => db.client.from('competitor_video_daily').select('snap_date, competitor_videos!inner(competitor_channels(site_id))').eq('competitor_videos.competitor_channels.site_id', 'a')).toThrow(/needs competitor_channels!inner/)
   })

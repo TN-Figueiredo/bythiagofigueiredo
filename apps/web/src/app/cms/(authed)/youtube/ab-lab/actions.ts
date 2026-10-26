@@ -46,11 +46,12 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_FALHA_SAIDA, MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_OUTRO_TESTE, MSG_RESTORE_ILEGIVEL, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
-import { camposPendentes, paraRestoreStatus } from '@/lib/youtube/ab-restore'
+import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
+import { camposPendentes, paraRestoreStatus, restoreStatusIlegivel, voltaConcluida } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
@@ -68,7 +69,6 @@ export async function getVideoTestHistory(
 export type { OpcaoEncerrar, ResultadoAcaoSaida }
 
 /** Frase provisória da exceção inesperada em settleOnAir (T17: Logan fecha). */
-const MSG_FALHA_SAIDA = 'Não foi possível concluir agora. Recarregue a página e confira o estado do teste.'
 
 function invalidarTelasDoAbLab(): void {
   revalidateTag('youtube', { expire: 0 })
@@ -1294,15 +1294,27 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
   const seq = seqVistoSchema.safeParse(seqVisto)
   if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
   const { data, error } = await getSupabaseServiceClient()
-    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata').eq('id', testId).eq('site_id', siteId).maybeSingle()
+    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata, youtube_video_id, winner_variant_id, winner_applied_at, test_type').eq('id', testId).eq('site_id', siteId).maybeSingle()
   if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
   const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
   const sugerido = meta?.v2?.vencedor_sugerido
-  if (!data || data.completed_reason !== 'regra_v2' || !sugerido || sugerido !== varianteId) {
+  // "Aplicar de novo" (selo depois do Voltar): a aplicação foi desfeita (winner_applied_at nulo), a variante é a mesma e o desfecho ainda a sugere.
+  // Mesma regra da tela (voltaConcluida): só reaplica se a volta terminou ok com destino original; "aplicação que falhou em parte" é da novaTentativa.
+  const reaplicar = data?.completed_reason === 'manual_winner' && data.winner_variant_id === varianteId && data.winner_applied_at === null
+    && voltaConcluida(paraRestoreStatus(data.restore_status), data.test_type as 'thumbnail' | 'title' | 'combo')
+  if (!data || (data.completed_reason !== 'regra_v2' && !reaplicar) || !sugerido || sugerido !== varianteId) {
     return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
   }
   if (varianteId === (await varianteOriginalId(testId, siteId))) {
     // S8-F4 B2 "a original vence": o teste fechou com a original no ar. Decide pelo estado real da volta (restore_status), não pela flag volta_falhou, que nunca é limpa.
+    // Fail closed: restore_status que não se lê não pode contar como "sem pendente".
+    if (restoreStatusIlegivel(data.restore_status)) return { ok: false, resultado: 'erro', error: MSG_RESTORE_ILEGIVEL }
+    // Phil D4: outro teste aberto no mesmo vídeo barra (a volta escreve no YouTube e a vitória não pode valer sobre o ciclo dele).
+    const outro = await getSupabaseServiceClient().from('ab_tests').select('id')
+      .eq('site_id', siteId).eq('youtube_video_id', data.youtube_video_id as string).neq('id', testId)
+      .in('status', [...ABERTOS_NO_VIDEO]).limit(1)
+    if (outro.error) { Sentry.captureException(outro.error, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
+    if (((outro.data ?? []) as unknown[]).length > 0) return { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }
     let seqGrava = seq.data
     if (camposPendentes(paraRestoreStatus(data.restore_status), 'humano').length > 0) {
       const autorizar = async (): Promise<boolean> => true // o destino é sempre a original
@@ -1323,7 +1335,9 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
     }
     const { data: gravou, error: errGrava } = await getSupabaseServiceClient()
       .from('ab_tests').update({ completed_reason: 'manual_winner', winner_variant_id: varianteId })
-      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seqGrava).select('id')
+      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seqGrava)
+      .eq('result_metadata->v2->>vencedor_sugerido', varianteId) // Phil C1: a letra gravada tem de ser a da tela (tentarAgora leva segundos)
+      .select('id')
     if (errGrava) { Sentry.captureException(errGrava, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
     if (((gravou ?? []) as unknown[]).length === 0) return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
     revalidatePath('/cms/youtube/ab-lab')

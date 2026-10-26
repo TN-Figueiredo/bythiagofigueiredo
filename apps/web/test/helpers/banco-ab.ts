@@ -167,6 +167,7 @@ export function criarBanco(o: OpcoesBanco = {}) {
       // ab_settle_claim
       const extra = a.p_extra as Fila
       if (!(a.p_de as string[]).includes(String(t().status)) || t().restore_seq !== a.p_seq) return Promise.resolve({ data: [], error: null })
+      if (a.p_vencedor_esperado != null && ((t().result_metadata as { v2?: { vencedor_sugerido?: string } } | null)?.v2?.vencedor_sugerido) !== a.p_vencedor_esperado) return Promise.resolve({ data: [], error: null })
       Object.assign(t(), { status: a.p_para, restore_seq: t().restore_seq + 1, restore_status: a.p_restore_status, last_applied_variant_id: null })
       if (a.p_para === 'paused') t().paused_at = agora
       for (const k of ['status_note', 'completed_reason', 'winner_variant_id']) if (k in extra) t()[k] = extra[k]

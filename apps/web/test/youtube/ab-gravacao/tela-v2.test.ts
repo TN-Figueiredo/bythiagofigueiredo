@@ -27,7 +27,7 @@ function dias(vars: string[], porVariante: number, imp = 1000, ctrs: Record<stri
   return out
 }
 
-const OK = (extra: object = {}) => ({ estado: 'ok', destino: 'x', em: '2026-10-25T10:00:00Z', forcado: false, escreveu: true, attempts: 1, ...extra })
+const OK = (extra: object = {}) => ({ estado: 'ok', destino: 'original', em: '2026-10-25T10:00:00Z', forcado: false, escreveu: true, attempts: 1, ...extra })
 
 function ciclo(diasAtras: number): CicloComNumero {
   return { id: 'c1', test_id: 't', variant_id: O, started_at: new Date(AGORA.getTime() - diasAtras * 86_400_000).toISOString(), ended_at: null, applied_metadata: null, cycle_number: 1 }
@@ -38,7 +38,7 @@ function ativo(over: { dia?: number; v2?: unknown; dias?: DiaDaDecisao[]; vars?:
   return {
     teste: { id: 't', status: over.status ?? 'active', regra: 'v2', config: over.config ?? { max_duration_days: 15, teto_explicito: true }, paused_at: null, completed_at: null,
       completed_reason: null, winner_variant_id: null, winner_applied_at: null, revert_expires_at: null, restore_status: null, result_metadata: meta, original_title: 'T', test_type: 'thumbnail' },
-    variantes: over.vars ?? VAR2, ciclos: [ciclo(over.dia ?? 6)], dias: over.dias ?? [], agora: AGORA,
+    variantes: over.vars ?? VAR2, ciclos: [ciclo(over.dia ?? 6)], dias: over.dias ?? [], agora: AGORA, outroTesteAberto: false,
   }
 }
 
@@ -59,7 +59,7 @@ function concluido(o: {
       completed_reason: o.reason ?? 'regra_v2', winner_variant_id: o.winner ?? null, winner_applied_at: o.applied ?? null, revert_expires_at: o.revert ?? null,
       restore_status: o.restore ?? null, result_metadata: { v2 }, original_title: 'T', test_type: 'thumbnail' },
     variantes: vars, ciclos: [], dias: o.dias ?? dias(vars.map(v => v.id), 5, 1000, { [B]: 0.054, [O]: 0.046, [C]: 0.05 }),
-    agora: o.agora ?? AGORA,
+    agora: o.agora ?? AGORA, outroTesteAberto: false,
   }
 }
 
@@ -342,7 +342,7 @@ describe('telaV2DoTeste: regras do Phil e do Yannis', () => {
     const and = concDe(concluido({ ...base, restore: { thumbnail: OK({ estado: 'em_andamento' }) } }))
     expect(and.noAr).toEqual({ tipo: 'desconhecido' })
     const ok = concDe(concluido({ ...base, restore: { thumbnail: OK() } }))
-    expect(ok.noAr).toEqual({ tipo: 'desfeita', letra: 'B' })
+    expect(ok.noAr).toEqual({ tipo: 'desfeita', letra: 'B', desfechoMudou: false })
   })
   it('Foco 1: aplicada x desfeita só muda com winner_applied_at', () => {
     const b = { reason: 'manual_winner', winner: B, restore: { thumbnail: OK() }, revert: '2026-11-01T00:00:00Z' }
@@ -363,6 +363,63 @@ describe('telaV2DoTeste: regras do Phil e do Yannis', () => {
   it('Y5: winner = original, applied nulo => noAr.original, nunca desfeita', () => {
     const r = concDe(concluido({ reason: 'manual_winner', winner: O, applied: null }))
     expect(r.noAr).toEqual({ tipo: 'original' })
+  })
+  describe('selo depois do Voltar (desfeita)', () => {
+    const desf = (o: Parameters<typeof concluido>[0] = {}, outro?: boolean | 'sem_leitura') => {
+      const e = concluido({ reason: 'manual_winner', winner: B, applied: null, restore: { thumbnail: OK() }, ...o })
+      if (outro !== undefined) e.outroTesteAberto = outro
+      return concDe(e)
+    }
+    it('provisório: oferece aplicarDeNovo, frase nova com complemento e CTR no apoio', () => {
+      const r = desf({ provisorio: true })
+      expect(r.aplicarDeNovo).toEqual({ variant_id: B, letra: 'B' })
+      expect(r.bloqueio).toBeNull()
+      expect(r.aplicar).toBeNull()
+      expect(r.frase.principal).toBe('B ainda parece melhor, mas a original está no ar.')
+      expect(r.frase.apoio).toMatch(/^CTR ≈/)
+      expect(r.frase.complemento).toBe('Você voltou à original. Pode aplicar B de novo.')
+      expect(r.prazo?.tipo).toBe('provisorio')
+    })
+    it('final: mesmo botão, prazo final', () => {
+      const r = desf({ provisorio: false })
+      expect(r.aplicarDeNovo).toEqual({ variant_id: B, letra: 'B' })
+      expect(r.prazo).toEqual({ tipo: 'final' })
+    })
+    it('o desfecho mudou de letra: selo atual, sem botão e sem frase nova', () => {
+      const r = desf({ desfecho: 'sem_diferenca_detectavel', sugerido: null })
+      expect(r.noAr).toEqual({ tipo: 'desfeita', letra: 'B', desfechoMudou: true })
+      expect(r.aplicarDeNovo).toBeNull(); expect(r.bloqueio).toBeNull()
+      expect(r.frase.complemento).toBeUndefined()
+      expect(r.frase.principal).toBe('Sem diferença clara entre A e B.')
+    })
+    it('o desfecho é outra letra (C): sem botão', () => {
+      const r = desf({ vars: VAR3, sugerido: C })
+      expect(r.aplicarDeNovo).toBeNull()
+    })
+    it('outro teste aberto no vídeo: sem botão, bloqueio e apoio sem "Pode aplicar"', () => {
+      const r = desf({}, true)
+      expect(r.aplicarDeNovo).toBeNull()
+      expect(r.bloqueio).toBe('outro_teste')
+      expect(r.frase.complemento).toBe('Você voltou à original.')
+    })
+    it('restore_status não ok: continua desconhecido, sem botão', () => {
+      const r = desf({ restore: { thumbnail: OK({ estado: 'pulado_drift' }) } })
+      expect(r.noAr.tipo).toBe('desconhecido'); expect(r.aplicarDeNovo).toBeNull()
+    })
+    it('a consulta falhou (sem_leitura): sem botão, bloqueio próprio e apoio sem "Pode aplicar"', () => {
+      const r = desf({}, 'sem_leitura')
+      expect(r.aplicarDeNovo).toBeNull()
+      expect(r.bloqueio).toBe('sem_leitura')
+      expect(r.frase.complemento).toBe('Você voltou à original.')
+    })
+    it('P5: volta com destino que não é a original: desconhecido, sem botão', () => {
+      const r = desf({ restore: { thumbnail: OK({ destino: 'v-b' }) } })
+      expect(r.noAr.tipo).toBe('desconhecido'); expect(r.aplicarDeNovo).toBeNull()
+    })
+    it('aplicada e original: nunca têm aplicarDeNovo', () => {
+      expect(concDe(concluido({ reason: 'manual_winner', winner: B, applied: '2026-10-25T10:00:00Z' })).aplicarDeNovo).toBeNull()
+      expect(concDe(concluido()).aplicarDeNovo).toBeNull()
+    })
   })
   it('aplicar some quando já há winner', () => {
     expect(concDe(concluido({ winner: B })).aplicar).toBeNull()

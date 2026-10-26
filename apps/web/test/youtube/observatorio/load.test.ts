@@ -2,33 +2,11 @@
 // apps/web/test/youtube/observatorio/load.test.ts — pure rowsToDataset (Review Focus 2 and 4).
 import { describe, it, expect } from 'vitest'
 import { rowsToDataset, taskRowToRequest, nextSyncSlot, trackedVideoIds, observedVideoIds, dailyReadFrom, dailyCappedFrom, mapLimit, type ObservatoryRows, type ChannelRow, type VideoRow, type VersionRow, type LegacyChangeRow, type DailyRow, type ReadingRow, type OwnChannelRow, type OwnVideoRow, type TaskRow } from '@/lib/youtube/observatorio/load'
+import type { OnlineDesde } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { formulasOf } from '@/lib/youtube/observatorio/catalog'
 
-const DAY = 864e5, H = 36e5
-const sp = (iso: string) => Date.parse(iso + '-03:00')
-const iso = (ms: number) => new Date(ms).toISOString()
-const NOW = sp('2026-10-24T15:02:00')
-const SERIES = '2026-10-05T09:00:00-03:00' // deliberately not 03/10: nothing may assume the mockup's start
-
-function rows(o: Partial<ObservatoryRows> = {}): ObservatoryRows {
-  return { settings: null, channels: [], ownChannels: [], videos: [], ownVideos: [], versions: [], legacyChanges: [], daily: [], snapshots: [], readings: [], tasks: [], heartbeat: null, ...o }
-}
-const channel = (o: Partial<ChannelRow> = {}): ChannelRow => ({
-  id: 'ch1', channel_id: 'UC1', channel_name: 'Canal Um', thumbnail_url: null, subscriber_count: 1000, niche: 'viagem', video_limit: 50,
-  youtube_video_count: 300, sync_status: 'idle', sync_error: null, sync_error_since: null, last_ok_synced_at: iso(NOW - 2 * H), last_synced_at: iso(NOW - 2 * H),
-  full_sync_completed_at: null, added_at: iso(sp('2026-09-01T10:00:00')), removal_requested_at: null, ...o,
-})
-const video = (o: Partial<VideoRow> = {}): VideoRow => ({
-  id: 'v1', competitor_channel_id: 'ch1', video_id: 'yt1', title: 'Um título', view_count: 1000, like_count: 10, comment_count: 1, duration_seconds: 600,
-  published_at: iso(sp('2026-10-10T10:00:00')), is_short: false, last_checked_at: iso(NOW - 2 * H), tags: null, thumbnail_url: null, pinned_at: null, ...o,
-})
-const version = (o: Partial<VersionRow> = {}): VersionRow => ({
-  id: 'ver1', video_id: 'v1', field: 'title', value_text: 'Um título', value_hash: 'h1', has_text: true, thumb_blob_url: null,
-  first_seen_at: iso(sp('2026-10-10T12:00:00')), last_seen_at: iso(NOW - 2 * H), window_start: null, precision: 'first', is_current: true, ...o,
-})
-const legacy = (o: Partial<LegacyChangeRow> = {}): LegacyChangeRow => ({ id: 'lc1', video_id: 'v1', change_type: 'title', old_title: null, new_title: null, detected_at: iso(sp('2026-09-10T09:00:00')), ...o })
-const daily = (video_id: string, snap_date: string, views: number): DailyRow => ({ video_id, snap_date, views, likes: null, comments: null, taken_at: snap_date + 'T15:00:00Z' /* 12:00 SP: the nominal instant */ })
+import { NOW, H, DAY, sp, iso, SERIES, rows, channel, video, version, legacy, daily } from './helpers/fabrica-load'
 
 describe('rowsToDataset — empty rows (Review Focus 2)', () => {
   const ds = rowsToDataset(rows(), NOW)
@@ -386,9 +364,9 @@ describe('daily read bound', () => {
     const vs = [video({ id: 'z', published_at: iso(NOW - 0.5 * DAY), archive_frozen_at: iso(NOW - 10 * DAY) }), video({ id: 'a', published_at: iso(NOW - 1 * DAY) }), video({ id: 'b', published_at: iso(NOW - 2 * DAY) }), video({ id: 'c', published_at: iso(NOW - 3 * DAY) })]
     expect(trackedVideoIds(chs, vs).sort()).toEqual(['a', 'b'])
   })
-  it('reads from series start − 1 d, never older than 365 d, in SP dates', () => {
-    expect(dailyReadFrom(NOW - 30 * DAY, NOW)).toBe('2026-09-23')
-    expect(dailyReadFrom(NOW - 900 * DAY, NOW)).toBe(new Date(NOW - 365 * DAY - 3 * H).toISOString().slice(0, 10))
+  it('reads from series start − 1 d in SP dates, with no 365 d cap', () => {
+    expect(dailyReadFrom(NOW - 30 * DAY)).toBe('2026-09-23')
+    expect(dailyReadFrom(NOW - 900 * DAY)).toBe(new Date(NOW - 901 * DAY - 3 * H).toISOString().slice(0, 10))
   })
 })
 
@@ -407,22 +385,26 @@ describe('own channel that never synced', () => {
   })
 })
 
+// M5 (pedido 11): o corte vem do online desde do registro, não de um teto de 365 dias
+const OD = NOW - 500 * DAY
+const ODS: OnlineDesde = { lido: true, porTabela: { competitor_video_daily: OD, competitor_video_early: OD, competitor_video_hourly: null } }
 describe('daily lookback cap', () => {
   it('a series start older than the cap is flagged with the read start; a recent one is not', () => {
-    expect(dailyCappedFrom(NOW - 30 * DAY, NOW)).toBeNull()
-    const f = dailyCappedFrom(NOW - 900 * DAY, NOW)!
-    expect(f).toBe(Date.parse(dailyReadFrom(NOW - 900 * DAY, NOW) + 'T00:00:00-03:00'))
-    const ds = rowsToDataset(rows({ settings: { series_started_at: iso(NOW - 900 * DAY), channel_limit: 75 } }), NOW)
+    expect(dailyCappedFrom(NOW - 30 * DAY, null)).toBeNull()
+    const f = dailyCappedFrom(NOW - 900 * DAY, OD)!
+    expect(f).toBe(OD)
+    const ds = rowsToDataset(rows({ settings: { series_started_at: iso(NOW - 900 * DAY), channel_limit: 75 }, onlineDesde: ODS }), NOW)
     expect(ds.dailyCappedFrom).toBe(f)
     expect(rowsToDataset(rows(), NOW).dailyCappedFrom).toBeNull()
   })
   it('a video published after seriesStart but before the cap is truncated: no day-0 baseline; a newer one keeps it', () => {
-    const f = dailyCappedFrom(NOW - 900 * DAY, NOW)!
+    const f = dailyCappedFrom(NOW - 900 * DAY, OD)!
     const old = iso(f - 20 * DAY), fresh = iso(f + 20 * DAY)
     const dayOf = (ms: number) => new Date(ms - 3 * H).toISOString().slice(0, 10)
     const ds = rowsToDataset(rows({
       settings: { series_started_at: iso(NOW - 900 * DAY), channel_limit: 75 }, channels: [channel()],
       videos: [video({ id: 'old', video_id: 'yo', published_at: old }), video({ id: 'new', video_id: 'yn', published_at: fresh })],
+      onlineDesde: ODS,
       daily: [daily('old', dayOf(f + DAY), 100), daily('old', dayOf(f + 2 * DAY), 120), daily('new', dayOf(f + 21 * DAY), 10), daily('new', dayOf(f + 22 * DAY), 30)],
     }), NOW)
     const o = createObservatory(ds)

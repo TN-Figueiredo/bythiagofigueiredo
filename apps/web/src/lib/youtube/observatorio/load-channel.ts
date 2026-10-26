@@ -32,7 +32,7 @@ export async function loadChannelRows(sb: SupabaseClient, c: ChannelLoad): Promi
     readIn<VersionRow>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(VERSION_COLS).in('video_id', ids).neq('field', 'desc').order('id')),
     readIn<Omit<VersionRow, 'value_text'>>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(DESC_META_COLS).in('video_id', ids).eq('field', 'desc').order('id')),
     readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select(DAILY_COLS)
-      .in('video_id', ids).gte('snap_date', dailyReadFrom(seriesStart, c.now)).lte('snap_date', spDateOf(c.now)).order('video_id').order('snap_date')),
+      .in('video_id', ids).gte('snap_date', dailyReadFrom(seriesStart)).lte('snap_date', spDateOf(c.now)).order('video_id').order('snap_date')),
     readIn<SpanRow>('competitor_video_tier_spans', dailyIds, ids => sb.from('competitor_video_tier_spans').select(SPAN_COLS).in('video_id', ids).order('video_id').order('from_date')),
   ])
   // The description text is only ever read to compare two consecutive versions (changes.ts diffLines): it is fetched
@@ -52,12 +52,15 @@ export async function loadChannelRows(sb: SupabaseClient, c: ChannelLoad): Promi
  */
 export function assembleRows(live: LiveRows, parts: readonly ChannelRows[], seriesStart: number | null, now: number): ObservatoryRows {
   const omitted = parts.flatMap((p, i) => (p.weeklyOmitted ? [live.channels[i]!.id] : []))
-  const snapFrom = snapshotReadFrom(now), dailyFrom = dailyReadFrom(seriesStart ?? now, now), dailyTo = spDateOf(now)
+  const snapFrom = snapshotReadFrom(now), dailyFrom = dailyReadFrom(seriesStart ?? now), dailyTo = spDateOf(now)
+  // M5: um pacote em cache pode ter sido montado quando o mês ainda estava online; o que veio antes do online desde não vale
+  const od = live.onlineDesde?.lido ? live.onlineDesde.porTabela.competitor_video_daily : null
+  const onlineFrom = od != null ? spDateOf(od) : null
   return {
     ...live,
     videos: parts.flatMap(p => p.videos),
     versions: parts.flatMap(p => p.versions),
-    daily: parts.flatMap(p => p.daily).filter(d => d.snap_date >= dailyFrom && d.snap_date <= dailyTo),
+    daily: parts.flatMap(p => p.daily).filter(d => d.snap_date >= dailyFrom && d.snap_date <= dailyTo && (onlineFrom == null || d.snap_date >= onlineFrom)),
     snapshots: parts.flatMap(p => p.snapshots).filter(s => s.snapshot_date >= snapFrom),
     spans: parts.flatMap(p => p.spans),
     // the parts come in the order of live.channels (loadPageRows and loadChannelDataset map them in place); the key is

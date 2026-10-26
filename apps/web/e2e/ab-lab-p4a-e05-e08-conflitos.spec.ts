@@ -103,7 +103,7 @@ test.describe('admin', () => {
     void coleta
   })
 
-  test('E7a: título editado por fora: alertdialog "Trocar mesmo assim?", foco em Voltar, Voltar devolve à escolha com B marcada, só o botão de trocar envia forcar', async ({ page, context, baseURL }, info) => {
+  test('E7a: título editado por fora: alertdialog "Trocar mesmo assim?", foco em Cancelar, Cancelar devolve à escolha com B marcada, só o botão de trocar envia forcar', async ({ page, context, baseURL }, info) => {
     const tema = temaDoProjeto(info)
     const { t, coleta } = await preparar(page, context, baseURL!, tema, { nome: `E7a ${info.project.name}`, status: 'active' }, { youtube: { titulo: 'Título que alguém editou por fora' } })
     const corpos: string[] = []
@@ -119,13 +119,13 @@ test.describe('admin', () => {
     await expect(alerta.getByRole('button', { name: 'Trocar pelo título de B e encerrar' })).toBeVisible()
     expect((await estadoFalso()).escritas, 'nada escrito antes da confirmação').toEqual([])
     await foto(page, nomeDaFoto('E7', 'titulo-por-fora', info, tema))
-    // foco em Voltar
+    // foco em Cancelar
     const focado = await page.evaluate(() => { const a = document.activeElement as HTMLElement | null; return a ? `${a.tagName}:${(a.textContent ?? '').trim().slice(0, 30)}` : '' })
-    expect.soft(focado, 'foco inicial no alertdialog está em "Voltar"').toBe('BUTTON:Voltar')
+    expect.soft(focado, 'foco inicial no alertdialog está em "Cancelar"').toBe('BUTTON:Cancelar')
     expect(corpos.length).toBe(1)
     expect(corpos[0]).not.toMatch(/"forcar":\s*true|forcar.{0,6}true/)
-    // Voltar
-    await alerta.getByRole('button', { name: 'Voltar' }).click()
+    // Cancelar
+    await alerta.getByRole('button', { name: 'Cancelar' }).click()
     await expect(alerta).toHaveCount(0)
     await expect(dialogoEncerrar(page).getByRole('radio', { name: 'Variante B' })).toBeChecked()
     expect((await estadoFalso()).escritas).toEqual([])

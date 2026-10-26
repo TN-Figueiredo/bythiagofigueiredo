@@ -7,6 +7,7 @@ const varianteOriginalId = vi.fn()
 const requireSiteScope = vi.fn()
 const linha = vi.fn()
 const atualiza = vi.fn()
+const outro = vi.fn()
 const tentar = vi.fn()
 
 vi.mock('@/lib/youtube/ab-restore-acoes', async (orig) => ({
@@ -26,7 +27,7 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn() }))
 vi.mock('@/lib/supabase/service', () => ({
   getSupabaseServiceClient: () => ({
     from: () => ({
-      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => linha() }) }) }),
+      select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => linha(), neq: () => ({ in: () => ({ limit: () => outro() }) }) }) }) }),
       update: (...u: unknown[]) => {
         const cad = { eq: (...e: unknown[]) => { eqs.push(e); return cad }, select: () => atualiza(u, eqs) }
         const eqs: unknown[][] = []
@@ -44,7 +45,7 @@ vi.mock('@/lib/youtube/prompt-scoring', () => ({ scoreForPrompt: vi.fn() }))
 
 import { aplicarSugerido } from '@/app/cms/(authed)/youtube/ab-lab/actions'
 import { ehVitoriaHumana } from '@/lib/youtube/ab-types'
-import { MSG_JA_ENCERRADO, MSG_SEM_PERMISSAO_VARIANTE } from '@/lib/youtube/ab-acao-saida'
+import { MSG_JA_ENCERRADO, MSG_OUTRO_TESTE, MSG_RESTORE_ILEGIVEL, MSG_SEM_PERMISSAO_VARIANTE } from '@/lib/youtube/ab-acao-saida'
 
 const OK = { data: { completed_reason: 'regra_v2', status: 'completed', result_metadata: { v2: { vencedor_sugerido: 'B' } } }, error: null }
 const FEITO = { resultado: 'feito', campos: {} }
@@ -56,6 +57,7 @@ beforeEach(() => {
   varianteOriginalId.mockResolvedValue('A')
   requireSiteScope.mockResolvedValue({ ok: true })
   linha.mockResolvedValue(OK)
+  outro.mockResolvedValue({ data: [], error: null })
 })
 
 describe('aplicarSugerido (T11b)', () => {
@@ -102,6 +104,35 @@ describe('aplicarSugerido (T11b)', () => {
     expect(await aplicarSugerido('t1', varianteId, 9)).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
     expect(settle).not.toHaveBeenCalled()
   })
+  describe('aplicar de novo (selo depois do Voltar)', () => {
+    const VOLTA_OK = { thumbnail: { estado: 'ok', destino: 'original', em: '2026-10-20T00:00:00Z', forcado: false, escreveu: true, attempts: 1 } }
+    const DESFEITA = (extra: object = {}) => ({ data: { completed_reason: 'manual_winner', status: 'completed', winner_variant_id: 'B', winner_applied_at: null, test_type: 'thumbnail', restore_status: VOLTA_OK, result_metadata: { v2: { vencedor_sugerido: 'B' } }, ...extra }, error: null })
+    it('manual_winner com B definido e sem aplicação: chama settleOnAir(aplicar_sugerido) e dá feito', async () => {
+      linha.mockResolvedValueOnce(DESFEITA())
+      const r = await aplicarSugerido('t1', 'B', 9)
+      expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE, destino: { tipo: 'variante', id: 'B' }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: 9 })
+      expect(r).toMatchObject({ ok: true, resultado: 'feito' })
+    })
+    it.each([
+      ['ainda aplicada (winner_applied_at preenchido)', { winner_applied_at: '2026-10-20T00:00:00Z' }],
+      ['o vencedor gravado é outra variante', { winner_variant_id: 'C' }],
+      ['o desfecho já não sugere B', { result_metadata: { v2: { vencedor_sugerido: 'C' } } }],
+      ['a aplicação falhou em parte (restore_status falhou)', { restore_status: { thumbnail: { ...VOLTA_OK.thumbnail, estado: 'falhou', destino: 'B' } } }],
+      ['a volta não foi para a original (destino B)', { restore_status: { thumbnail: { ...VOLTA_OK.thumbnail, destino: 'B' } } }],
+      ['restore_status ilegível', { restore_status: 'lixo' }],
+      ['combo com só um campo ok', { test_type: 'combo' }],
+    ])('ja_encerrado quando %s', async (_n, extra) => {
+      linha.mockResolvedValueOnce(DESFEITA(extra))
+      expect(await aplicarSugerido('t1', 'B', 9)).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })
+      expect(settle).not.toHaveBeenCalled()
+    })
+    it('outro teste aberto no vídeo continua barrado pelo settleOnAir', async () => {
+      linha.mockResolvedValueOnce(DESFEITA())
+      settle.mockResolvedValueOnce({ resultado: 'outro_teste', campos: null })
+      const r = await aplicarSugerido('t1', 'B', 9)
+      expect(r).toMatchObject({ ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE })
+    })
+  })
   describe('B2: a original vence', () => {
     const ORIG = (v2: object = {}) => ({ data: { completed_reason: 'regra_v2', status: 'completed', restore_seq: 9, result_metadata: { v2: { vencedor_sugerido: 'A', ...v2 } } }, error: null })
     beforeEach(() => { atualiza.mockResolvedValue({ data: [{ id: 't1' }], error: null }); linha.mockResolvedValue(ORIG()) })
@@ -111,7 +142,7 @@ describe('aplicarSugerido (T11b)', () => {
       expect(atualiza).toHaveBeenCalledTimes(1)
       const [[upd], eqs] = atualiza.mock.calls[0]! as [[Record<string, unknown>], unknown[][]]
       expect(upd).toEqual({ completed_reason: 'manual_winner', winner_variant_id: 'A' })
-      expect(eqs).toEqual(expect.arrayContaining([['id', 't1'], ['site_id', SITE], ['completed_reason', 'regra_v2'], ['restore_seq', 9]]))
+      expect(eqs).toEqual(expect.arrayContaining([['id', 't1'], ['site_id', SITE], ['completed_reason', 'regra_v2'], ['restore_seq', 9], ['result_metadata->v2->>vencedor_sugerido', 'A']]))
       expect(settle).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
     })
     it('a vitória da original não conta como vitória de variante no winRate', () => {
@@ -148,6 +179,24 @@ describe('aplicarSugerido (T11b)', () => {
       tentar.mockResolvedValue({ resultado: 'em_andamento', campos: null })
       const r = await aplicarSugerido('t1', 'A', 9)
       expect(r).toMatchObject({ ok: false, resultado: 'em_andamento' })
+      expect(atualiza).not.toHaveBeenCalled()
+    })
+    it('item 1: restore_status ilegível: fail closed, não grava nem tenta a volta', async () => {
+      linha.mockResolvedValue(COM({ title: { estado: 'lixo' } }))
+      const r = await aplicarSugerido('t1', 'A', 9)
+      expect(r).toEqual({ ok: false, resultado: 'erro', error: MSG_RESTORE_ILEGIVEL })
+      expect(atualiza).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
+    })
+    it('item 2 (Phil D4): outro teste aberto no vídeo recusa, sem tentar a volta nem gravar', async () => {
+      linha.mockResolvedValue(COM(PEND))
+      outro.mockResolvedValue({ data: [{ id: 't2' }], error: null })
+      const r = await aplicarSugerido('t1', 'A', 9)
+      expect(r).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE })
+      expect(atualiza).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
+    })
+    it('item 2: erro ao consultar outros testes: erro, sem gravar', async () => {
+      outro.mockResolvedValue({ data: null, error: { message: 'x' } })
+      expect(await aplicarSugerido('t1', 'A', 9)).toMatchObject({ ok: false, resultado: 'erro' })
       expect(atualiza).not.toHaveBeenCalled()
     })
     it('seq mudou (CAS não casou): mudou, sem sucesso falso', async () => {

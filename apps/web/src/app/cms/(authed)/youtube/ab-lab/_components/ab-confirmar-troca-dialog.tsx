@@ -37,7 +37,7 @@ function Miniatura({ src, rotulo, semLeitura: falhou }: { src: string | null; ro
   return <div className="etd-th"><img src={src} alt={rotulo} /></div>
 }
 
-/** Casca comum dos diálogos `.etd` de confirmação (alertdialog): portal, fundo, cabeçalho com aviso, rodapé com a opção segura "Voltar" em foco inicial. */
+/** Casca comum dos diálogos `.etd` de confirmação (alertdialog): portal, fundo, cabeçalho com aviso, rodapé com a opção segura "Cancelar" em foco inicial. */
 export function CascaEtd({ titulo, children, rodape, onVoltar, voltarRef, ids, travado }: {
   titulo: string
   children: ReactNode
@@ -69,7 +69,7 @@ export function CascaEtd({ titulo, children, rodape, onVoltar, voltarRef, ids, t
           <div className="etd-b">{children}</div>
           <div className="etd-f">
             {rodape}
-            <button type="button" className="etd-btn" ref={voltarRef} disabled={travado === true} onClick={onVoltar}>Voltar</button>
+            <button type="button" className="etd-btn" ref={voltarRef} disabled={travado === true} onClick={onVoltar}>Cancelar</button>
           </div>
         </div>
       </div>

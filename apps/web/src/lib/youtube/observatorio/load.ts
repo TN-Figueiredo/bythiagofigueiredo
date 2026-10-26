@@ -8,6 +8,8 @@ import { lerRetratosProprios, type RetratosProprios } from './retratos-proprios'
 import type { Dataset, ObsChannel, ObsVideo, TitleVersion, ThumbVersion, DescVersion, SeriesPoint, Precision, Niche, Fmt, FrozenReading, ReadingBase, ReadingEffect, ForjaRequest, ChannelSnapshot, UndatedVideo, SeriesTier, TierSpan } from './types'
 import { DAY, H, spDayStart, spDateStart, spDateOf } from './time'
 import { RULES } from './rules'
+import { lerOnlineDesde, avisarUmaVez, type OnlineDesde } from './arquivo-mensal/online-desde'
+import { SAIDA_DE_MES_EXISTE } from './arquivo-mensal/capacidades'
 import { formulasOf, THEME } from './catalog'
 import { deriveSyncState, backfillProgress } from './channels'
 import { requestStateOf } from './forja/states'
@@ -91,6 +93,8 @@ export interface ObservatoryRows {
    * e Cowork leem a mesma conta). 'erro' = a leitura falhou (o motor mede "sem contagem", a lista mostra o motivo). Ausente = nenhum lido.
    */
   ownSnapshots?: Record<string, RetratosProprios> | 'erro'
+  /** Desde quando cada série está online (M5, pedido 11). Ausente = as linhas não o traziam (oracle, golden): nada é cortado. */
+  onlineDesde?: OnlineDesde
 }
 /** The site-wide facts a one-channel read still needs (a light read of two columns, never the videos). */
 export interface SiteScope {
@@ -123,13 +127,6 @@ const IN_CHUNK = 150
 /** Parallel `in()` chunk reads per table. */
 const IN_CHUNK_CONCURRENCY = 4
 const SNAPSHOT_DAYS = 90
-/**
- * Daily-record lookback cap. The engine reads the daily series in two ways: (1) expectedCurve/effect look at most 7 + 7 days
- * around a change, and changes only matter within 90 days; (2) vpdSince/vpd7 use the series from seriesStart. (1) is far
- * inside 365 d; (2) needs the whole series since seriesStart, so it is kept, but capped at 365 d (a video older than that
- * contributes its last year; nothing the screens show looks further back than 90 d + the 14 d change window).
- */
-const DAILY_MAX_DAYS = 365
 const READING_DAYS = 90
 const TASK_DAYS = 7
 /** No upload (any format) for this many days → 'parado'. The mockup fixes it in data; production derives it. */
@@ -254,7 +251,8 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   const snap0 = spDayStart(seriesStart) + 12 * H
   const dayIndex = (date: string) => Math.round((spDateStart(date) + 12 * H - snap0) / DAY)
   const next = nextSyncSlot(now)
-  const cappedFrom = dailyCappedFrom(seriesStart, now)
+  const od = rows.onlineDesde?.lido ? rows.onlineDesde.porTabela.competitor_video_daily : null
+  const cappedFrom = dailyCappedFrom(seriesStart, od)
   const themes = themeMap(rows.readings)
   const niches = nicheDefs(rows.niches), known: ReadonlySet<string> = new Set(niches.map(n => n.id)), isNiche = nicheIn(known)
   const versionsBy = groupBy([...rows.versions].sort((a, b) => (ms(a.first_seen_at) ?? 0) - (ms(b.first_seen_at) ?? 0)), v => v.video_id + '|' + v.field)
@@ -401,7 +399,7 @@ export function rowsToDataset(rows: ObservatoryRows, now: number): Dataset {
   // the instant of the site's newest daily record, as the series points above carry it (taken_at, else the nominal noon)
   const siteSeriesTs = (sc?.lastDaily ?? []).map(d => realReadAt(d, spDateStart(d.snap_date)) ?? snap0 + dayIndex(d.snap_date) * DAY)
   return {
-    now, seriesStart, snap0, dailyCappedFrom: cappedFrom, obsStart: firstAdded ?? seriesStart,
+    now, seriesStart, snap0, dailyCappedFrom: cappedFrom, ...(rows.onlineDesde ? { onlineDesde: rows.onlineDesde } : {}), obsStart: firstAdded ?? seriesStart,
     channels, videos, niches,
     ...(sc ? { lastSeriesAt: siteSeriesTs.length ? Math.max(...siteSeriesTs) : null, scope: 'canal' as const } : {}),
     sync: { last: lastOk, next },
@@ -566,12 +564,12 @@ export function datedVideoIds(videos: readonly Pick<VideoRow, 'id' | 'published_
 export async function readVideos(sb: SupabaseClient, channelIds: readonly string[]): Promise<VideoRow[]> {
   return readIn<VideoRow>('competitor_videos', channelIds, ids => sb.from('competitor_videos').select(VIDEO_COLS).in('competitor_channel_id', ids).order('id'))
 }
-/** First SP date of the daily read: one day before the series start (the day-0 baseline), never older than DAILY_MAX_DAYS. */
-export function dailyReadFrom(seriesStart: number, now: number): string { return spDate(Math.max(seriesStart - DAY, now - DAILY_MAX_DAYS * DAY)) }
+/** First SP date of the daily read: one day before the series start (the day-0 baseline). No lookback cap: a series is as old as the collection (2026-10-03). The online table has no rows before its `online desde`, so this read needs not wait for it. */
+export function dailyReadFrom(seriesStart: number): string { return spDate(seriesStart - DAY) }
 
-/** SP midnight of the daily read start when the lookback cap cut into the series (seriesStart − 1 d older than the cap); else null. */
-export function dailyCappedFrom(seriesStart: number, now: number): number | null {
-  return seriesStart - DAY < now - DAILY_MAX_DAYS * DAY ? spDateStart(dailyReadFrom(seriesStart, now)) : null
+/** SP midnight where the ONLINE series starts when that cut into the series (a month of the daily series left the online database); else null. */
+export function dailyCappedFrom(seriesStart: number, onlineDesde: number | null): number | null {
+  return onlineDesde != null && seriesStart - DAY < onlineDesde ? onlineDesde : null
 }
 
 /** First SP date of the channel snapshots read (SNAPSHOT_DAYS back). */
@@ -580,7 +578,7 @@ export function snapshotReadFrom(now: number): string { return spDate(now - SNAP
 export interface LoadOptions { siteId: string; now: number; supabase?: SupabaseClient }
 
 /** The small tables every render reads fresh: settings, channel rows, own channels and videos, niches and the forja queue. */
-export type LiveRows = Pick<ObservatoryRows, 'settings' | 'channels' | 'ownChannels' | 'ownVideos' | 'legacyChanges' | 'readings' | 'tasks' | 'heartbeat' | 'niches' | 'siteScope' | 'ownSnapshots'>
+export type LiveRows = Pick<ObservatoryRows, 'settings' | 'channels' | 'ownChannels' | 'ownVideos' | 'legacyChanges' | 'readings' | 'tasks' | 'heartbeat' | 'niches' | 'siteScope' | 'ownSnapshots' | 'onlineDesde'>
 
 /**
  * What loadLiveRows and loadChannelLiveRows read the same way: the site's settings and, in parallel with `specific`
@@ -592,7 +590,7 @@ async function readSiteLive<S>(sb: SupabaseClient, siteId: string, now: number, 
   if (st.error) throw new ObservatoryLoadError('competitor_settings', st.error.code, st.error.message)
   const settings = (st.data as SettingsRow | null) ?? null
   const ssAt = ms(settings?.series_started_at)
-  const [specificRows, legacyChanges, readings, tasks, heartbeats, niches] = await Promise.all([
+  const [specificRows, legacyChanges, readings, tasks, heartbeats, niches, onlineDesde] = await Promise.all([
     specific(ssAt),
     legacy ? readAll<LegacyChangeRow>('competitor_changes', () => sb.from('competitor_changes').select('id, video_id, change_type, old_title, new_title, detected_at')
       .eq('site_id', siteId).is('from_version_id', null).in('change_type', ['title', 'description']).order('id')) : Promise.resolve([] as LegacyChangeRow[]),
@@ -603,13 +601,15 @@ async function readSiteLive<S>(sb: SupabaseClient, siteId: string, now: number, 
     readAll<HeartbeatRow>('forja_heartbeat', () => sb.from('forja_heartbeat').select('last_poll_at, capabilities').eq('site_id', siteId).order('site_id')),
     // tabela ausente (a migration ainda não chegou a este banco) → null: valem os dois de fábrica; outro erro é lançado
     readNiches(sb, siteId),
+    // M5 (pedido 11): desde quando a série diária está online; nunca lança (falha vira { lido: false })
+    lerOnlineDesde(sb, siteId, SAIDA_DE_MES_EXISTE),
   ])
-  return { settings, ssAt, specificRows, legacyChanges, readings, tasks, heartbeat: heartbeats[0] ?? null, niches }
+  return { settings, ssAt, specificRows, legacyChanges, readings, tasks, heartbeat: heartbeats[0] ?? null, niches, onlineDesde }
 }
 
 /** `seriesStartAt`: SP midnight of the series start, or null while there is no daily record yet (never the clock). */
 export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: number): Promise<LiveRows & { seriesStartAt: number | null }> {
-  const { settings, ssAt, specificRows: [channels, ownChannels, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, () => {
+  const { settings, ssAt, specificRows: [channels, ownChannels, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches, onlineDesde } = await readSiteLive(sb, siteId, now, () => {
     const ownP = readOwnChannels(sb, siteId)
     return Promise.all([
     readAll<ChannelRow>('competitor_channels', () => sb.from('competitor_channels').select(CHANNEL_COLS).eq('site_id', siteId).order('id')),
@@ -617,7 +617,11 @@ export async function loadLiveRows(sb: SupabaseClient, siteId: string, now: numb
     readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('is_hidden', false).order('id')),
     ownP.then(o => readOwnSnapshots(sb, o, now)), // M2: encadeada na própria promessa, sem ida em série depois do Promise.all
   ] as const)}, true)
-  return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, seriesStartAt: seriesStartAt(ssAt) }
+  // a primeira saída da série é em 05/2027: depois disso, nulo com série longa é sinal de que algo não saiu como previsto
+  if (ssAt != null && now - ssAt > 300 * DAY && onlineDesde.lido && Object.values(onlineDesde.porTabela).every(d => d == null)) {
+    avisarUmaVez('serie_longa_sem_saida', 'online_since nulo com série de mais de 300 dias', 'warning')
+  }
+  return { settings, channels, ownChannels, ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, onlineDesde, seriesStartAt: seriesStartAt(ssAt) }
 }
 
 /**
@@ -644,7 +648,7 @@ const seriesStartAt = (ssAt: number | null): number | null => (ssAt != null ? sp
  * read would have: a database error throws, and "the site has no daily record" is `lastDaily: []`, never a guess.
  */
 export async function readSiteScope(sb: SupabaseClient, siteId: string, seriesStart: number | null, now: number): Promise<SiteScope> {
-  const from = dailyReadFrom(seriesStart ?? now, now), to = spDate(now)
+  const from = dailyReadFrom(seriesStart ?? now), to = spDate(now)
   const newest = () => sb.from('competitor_video_daily').select(DAILY_SITE_COLS).eq('competitor_videos.competitor_channels.site_id', siteId)
     .gte('snap_date', from).lte('snap_date', to).order('snap_date', { ascending: false }).order('taken_at', { ascending: false })
   const [chs, top] = await Promise.all([
@@ -681,12 +685,12 @@ export async function loadChannelLiveRows(sb: SupabaseClient, siteId: string, ch
   if (!channel && !own) return null
 
   // competitor_changes has no channel column, so the trade rows are the site's; only a competitor's videos can have them
-  const { settings, ssAt, specificRows: [siteScope, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches } = await readSiteLive(sb, siteId, now, ssAt => Promise.all([
+  const { settings, ssAt, specificRows: [siteScope, ownVideos, ownSnapshots], legacyChanges, readings, tasks, heartbeat, niches, onlineDesde } = await readSiteLive(sb, siteId, now, ssAt => Promise.all([
     readSiteScope(sb, siteId, seriesStartAt(ssAt), now),
     own ? readAll<OwnVideoRow>('youtube_videos', () => sb.from('youtube_videos').select(OWN_VIDEO_COLS).eq('site_id', siteId).eq('channel_id', id).eq('is_hidden', false).order('id')) : Promise.resolve([] as OwnVideoRow[]),
     readOwnSnapshots(sb, own ? [own] : [], now),
   ] as const), channel != null)
-  return { settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, seriesStartAt: seriesStartAt(ssAt), siteScope }
+  return { settings, channels: channel ? [channel] : [], ownChannels: own ? [own] : [], ownVideos, legacyChanges, readings, tasks, heartbeat, niches, ownSnapshots, onlineDesde, seriesStartAt: seriesStartAt(ssAt), siteScope }
 }
 
 export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
@@ -704,7 +708,7 @@ export async function loadRows(opts: LoadOptions): Promise<ObservatoryRows> {
   const videoIds = videos.map(v => v.id)
   // A5: the series of EVERY dated video is read (the weekly ones too), from dailyReadFrom to today (SP); rowsToDataset separates
   // the OBSERVED videos (tracked ∪ pinned, whose series the screens read) from the others (unobservedSeries)
-  const dailyIds = datedVideoIds(videos), dailyFrom = dailyReadFrom(seriesStart, now), dailyTo = spDate(now)
+  const dailyIds = datedVideoIds(videos), dailyFrom = dailyReadFrom(seriesStart), dailyTo = spDate(now)
   const [versions, daily, spans] = await Promise.all([
     readIn<VersionRow>('competitor_video_versions', videoIds, ids => sb.from('competitor_video_versions').select(VERSION_COLS).in('video_id', ids).order('id')),
     readIn<DailyRow>('competitor_video_daily', dailyIds, ids => sb.from('competitor_video_daily').select('video_id, snap_date, views, likes, comments, taken_at')

@@ -114,6 +114,11 @@ const Campo = z.object({
 })
 const Rs = z.object({ title: Campo.optional(), thumbnail: Campo.optional() })
 
+/** A volta à original terminou: todos os campos do teste ok e com destino 'original'. Regra única da tela e do servidor (selo depois do Voltar). */
+export function voltaConcluida(rs: RestoreStatus | null, testType: 'thumbnail' | 'title' | 'combo'): boolean {
+  return rs !== null && camposDoTeste(testType).every(c => rs[c]?.estado === 'ok' && rs[c]?.destino === 'original')
+}
+
 export function paraRestoreStatus(v: unknown): RestoreStatus | null {
   if (v === null || v === undefined) return null
   const r = Rs.safeParse(v)

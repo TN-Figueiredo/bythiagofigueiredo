@@ -10750,6 +10750,7 @@ export type Database = {
           p_restore_status: Json
           p_seq: number
           p_test_id: string
+          p_vencedor_esperado?: string
         }
         Returns: {
           claimed_seq: number

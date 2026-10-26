@@ -1,7 +1,7 @@
 // @vitest-environment node
 // apps/web/test/youtube/observatorio/load-measure.test.ts — round trips and bytes of one render, per data volume.
 import { describe, it, expect, vi } from 'vitest'
-import { fakeSupabase } from '../../helpers/fake-supabase'
+import { fakeSupabaseNadaSaiu } from '../../helpers/fake-supabase'
 import { createFakeNextCache } from '../../helpers/fake-next-cache'
 import { buildTables, ids, heavyTrips } from './load-fixture'
 import { loadRows } from '@/lib/youtube/observatorio/load'
@@ -15,7 +15,7 @@ const SHAPES = [
 
 describe('medição: carregador sem cache (loadRows)', () => {
   it.each(SHAPES)('$name', async shape => {
-    const db = fakeSupabase(buildTables({ siteId: 'site-m', now: NOW, ...shape }))
+    const db = fakeSupabaseNadaSaiu(buildTables({ siteId: 'site-m', now: NOW, ...shape }))
     const rows = await loadRows({ siteId: 'site-m', now: NOW, supabase: db.client })
     console.info('[medicao] sem cache |', shape.name, '| idas', db.trips.length, '| bytes', db.bytes, '| diários', rows.daily.length)
     expect(rows.daily).toHaveLength(13 * 50 * (shape.days + 1))
@@ -27,7 +27,7 @@ describe('medição: carregador sem cache (loadRows)', () => {
 describe('medição: carregador das páginas (cache por canal)', () => {
   it.each(SHAPES)('$name', async shape => {
     vi.resetModules()
-    const cache = createFakeNextCache(), db = fakeSupabase(buildTables({ siteId: 'site-m', now: NOW, ...shape }))
+    const cache = createFakeNextCache(), db = fakeSupabaseNadaSaiu(buildTables({ siteId: 'site-m', now: NOW, ...shape }))
     vi.doMock('next/cache', () => cache.module)
     vi.doMock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => db.client }))
@@ -40,14 +40,14 @@ describe('medição: carregador das páginas (cache por canal)', () => {
     expect(hit.daily).toHaveLength(13 * 50 * (shape.days + 1))
     expect(hit).toEqual(miss)
     expect(cache.rejected).toEqual([])
-    expect(db.trips.length - missTrips).toBe(10) // 9 + a leitura dos retratos MG20 do canal próprio (I-1)
+    expect(db.trips.length - missTrips).toBe(11) // 9 + a leitura dos retratos MG20 do canal próprio (I-1) + o rpc do online desde (M5)
   })
 })
 
 describe('medição: um canal só (loadChannelDataset)', () => {
   it.each(SHAPES)('$name', async shape => {
     vi.resetModules()
-    const cache = createFakeNextCache(), db = fakeSupabase(buildTables({ siteId: 'site-m', now: NOW, ...shape }))
+    const cache = createFakeNextCache(), db = fakeSupabaseNadaSaiu(buildTables({ siteId: 'site-m', now: NOW, ...shape }))
     vi.doMock('next/cache', () => cache.module)
     vi.doMock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
     vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => db.client }))

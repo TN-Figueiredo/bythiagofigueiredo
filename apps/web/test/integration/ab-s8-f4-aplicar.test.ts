@@ -31,4 +31,36 @@ describe.skipIf(skipIfNoLocalDb())('S8-F4 C-15: ab_settle_claim com o caminho ap
     const velho = await s.rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: antes.data!.restore_seq, p_de: c.de, p_para: c.para, p_end_reason: c.endReason, p_restore_status: {}, p_extra: c.extra })
     expect((velho.data as unknown[]).length).toBe(0)
   })
+
+  it('P3 do Phil: p_vencedor_esperado — letra igual reivindica; letra trocada não; sem o parâmetro = comportamento antigo', async () => {
+    const s = clienteServico()
+    const preparar = async () => {
+      const t = await semearTesteAb({ status: 'active', cicloAberto: 0 })
+      const fecha = await s.rpc('ab_settle_claim', { p_test_id: t.testId, p_seq: 0, p_de: ['active'], p_para: 'completed', p_end_reason: 'regra_v2', p_restore_status: {}, p_extra: { completed_reason: 'regra_v2' } })
+      expect(fecha.error).toBeNull()
+      await s.from('ab_tests').update({ result_metadata: { v2: { vencedor_sugerido: t.varB } } }).eq('id', t.testId)
+      const seq = (await s.from('ab_tests').select('restore_seq').eq('id', t.testId).single()).data!.restore_seq as number
+      const c = caminhoDe({ siteId: t.siteId, destino: { tipo: 'variante', id: t.varB }, motivo: 'aplicar_sugerido' }, { varianteId: t.varB })
+      const args = { p_test_id: t.testId, p_seq: seq, p_de: c.de, p_para: c.para, p_end_reason: c.endReason, p_restore_status: {}, p_extra: c.extra }
+      return { t, args }
+    }
+    const igual = await preparar()
+    expect(((await s.rpc('ab_settle_claim', { ...igual.args, p_vencedor_esperado: igual.t.varB })).data as unknown[]).length).toBe(1)
+    const outra = await preparar()
+    const r = await s.rpc('ab_settle_claim', { ...outra.args, p_vencedor_esperado: outra.t.varA })
+    expect(r.error).toBeNull()
+    expect((r.data as unknown[]).length).toBe(0)
+    expect((await s.from('ab_tests').select('restore_seq').eq('id', outra.t.testId).single()).data!.restore_seq).toBe(outra.args.p_seq)
+    // Phil M1: result_metadata nulo ou sem v2 + letra esperada => recusa (fail closed), seq intacto.
+    for (const meta of [null, {}, { v2: null }, { v2: { vencedor_sugerido: null } }]) {
+      const sv = await preparar()
+      await s.from('ab_tests').update({ result_metadata: meta }).eq('id', sv.t.testId)
+      const rv = await s.rpc('ab_settle_claim', { ...sv.args, p_vencedor_esperado: sv.t.varB })
+      expect(rv.error).toBeNull()
+      expect((rv.data as unknown[]).length).toBe(0)
+      expect((await s.from('ab_tests').select('restore_seq').eq('id', sv.t.testId).single()).data!.restore_seq).toBe(sv.args.p_seq)
+    }
+    const sem = await preparar()
+    expect(((await s.rpc('ab_settle_claim', sem.args)).data as unknown[]).length).toBe(1)
+  })
 })

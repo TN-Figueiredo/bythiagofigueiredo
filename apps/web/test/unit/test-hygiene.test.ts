@@ -43,6 +43,14 @@ const ALLOWLIST = new Set([
   // passado como argumento); nem teste nem código leem Date.now()
   'test/integration/manutencao-m3b-b2.test.ts',
   'test/youtube/observatorio/arquivo-mensal-estado.test.ts',
+  // M5: o mesmo relógio simulado (`obs_archive.hoje`/`agora`). Os `now()` do arquivo
+  // são só marcas de presença (sealed_at, lost_at, detached_at); dívida: trocar pelo
+  // relógio simulado antes de 2027-01-15 (ledger da M5, Tarefa 16)
+  'test/integration/manutencao-m5-leitores.test.ts',
+  // M5 Tarefa 4: relógio explícito (AGORA passado ao carregador); o único Date.now()
+  // é de um teste de fiação em que a data de 2027 só é repassada e comparada por igualdade
+  'test/youtube/observatorio/carregador-online-desde.test.ts',
+  'test/youtube/observatorio/online-desde.test.ts',
   // mocked refreshToken return value — only persisted via toISOString(), never
   // compared against Date.now() (verified in lib/social/workflows.ts)
   'test/lib/social/execute-with-retry.test.ts',

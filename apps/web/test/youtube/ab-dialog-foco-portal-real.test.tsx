@@ -45,7 +45,7 @@ describe('foco do diálogo com o YtPortal de verdade (D1)', () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(abrir))
   })
 
-  it('"Trocar mesmo assim?": o foco inicial é "Voltar"', async () => {
+  it('"Trocar mesmo assim?": o foco inicial é "Cancelar"', async () => {
     render(
       <AbConfirmarTrocaDialog
         campos={[{ campo: 'title', valor_atual: 'x' }]}
@@ -55,6 +55,6 @@ describe('foco do diálogo com o YtPortal de verdade (D1)', () => {
       />,
     )
     await act(async () => { await new Promise(r => setTimeout(r, 50)) })
-    expect(document.activeElement?.textContent).toMatch(/Voltar/)
+    expect(document.activeElement?.textContent).toMatch(/Cancelar/)
   })
 })

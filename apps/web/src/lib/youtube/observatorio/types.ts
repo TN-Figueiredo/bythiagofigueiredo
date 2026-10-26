@@ -1,4 +1,5 @@
 import type { Niche, NicheDef } from './niche'
+import type { OnlineDesde } from './arquivo-mensal/online-desde'
 export type { Niche, NicheScope, NicheDef } from './niche' // single definition
 export type Fmt = 'long' | 'short'
 export type Precision = 'min' | '6h' | '1d'
@@ -49,7 +50,7 @@ export interface ObsVideo {
   /** null = o YouTube não devolveu a contagem: "não medido", nunca 0 */
   comments: number | null
   series: SeriesPoint[]; firstIdx: number | null
-  /** The daily read was cut by the lookback cap (ds.dailyCappedFrom): the series does NOT start at publication, so no day-0 baseline may be assumed. */
+  /** The online series starts after the publication (a month of the daily series left the online database, ds.dailyCappedFrom): no day-0 baseline may be assumed. */
   truncated?: boolean
   /** A5 (E2). competitor_videos.series_tier. Ausente = ainda não classificado, conjunto antigo, ou canal próprio. */
   tier?: SeriesTier | null
@@ -130,8 +131,10 @@ export interface ForjaRequest {
 }
 export interface Dataset {
   now: number; seriesStart: number; snap0: number; obsStart: number
-  /** Start (ms, SP midnight) of the daily lookback when the cap cut into the series (seriesStart older than the cap); null = whole series read. */
+  /** Start (ms, SP midnight) of the online daily series when it starts after the series start (a month left the online database); null = whole series online. */
   dailyCappedFrom: number | null
+  /** Desde quando cada série está online (M5, pedido 11). Ausente = as linhas não o traziam (oracle, golden). */
+  onlineDesde?: OnlineDesde
   channels: ObsChannel[]; videos: ObsVideo[]
   /**
    * Only on the dataset of ONE channel: the instant of the newest daily record of the WHOLE site (null = the site has none).
