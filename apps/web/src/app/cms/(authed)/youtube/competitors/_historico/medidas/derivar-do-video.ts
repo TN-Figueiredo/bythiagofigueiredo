@@ -14,7 +14,7 @@ import { pontosDoVideoDeM1 } from '@/lib/youtube/observatorio/medidas-telas/pont
 import { curvaDe72Horas, tracaoDoCanal, type VideoDaTracao } from '@/lib/youtube/observatorio/medidas-telas/tracao-72h'
 import { DEFINICOES } from '@/lib/youtube/agenda/definicoes'
 import { DAY, H, spDateOf } from '@/lib/youtube/observatorio/time'
-import { blocoDeIdade, type BlocoDeIdade } from './idade-model'
+import { blocoDeIdade, type BlocoDeIdade, type EntradaDeArquivo } from './idade-model'
 import { blocoDeHoras, type BlocoDeHoras } from './horas-model'
 import { cartaoDaSubida, type CartaoDaSubida } from './subida-model'
 import { resumoDoVideo, type Resumo } from './resumo-model'
@@ -35,6 +35,11 @@ export interface PedidoDeDerivacao {
    * "não lida" (`null`), nunca lista vazia (portão Phil I2).
    */
   semLeitura?: { serie?: boolean; mudancas?: boolean; horas?: boolean }
+  /**
+   * Peça 1 da M5: o que saiu do banco (o online desde da série por dia, lido ou não, e o início da coleta deste vídeo). Ausente = nada a dizer: a tela de hoje.
+   * O relógio (`agoraMs`) e a âncora de idade são os do próprio pedido; aqui só vêm os dois campos que só o servidor sabe.
+   */
+  arquivo?: Pick<EntradaDeArquivo, 'onlineDesde' | 'lido' | 'coleta'>
 }
 
 export interface DerivadoDoVideo {
@@ -138,6 +143,7 @@ export function derivarDoVideo(c: CanalInteiro, p: PedidoDeDerivacao): DerivadoD
   const idade = blocoDeIdade({
     hojeSP, inicioDaContagem: INICIO_DAS_MARCAS, publicadoEm: spDateOf(pub), aoVivo, saiuDoYoutube: saiuEm !== null,
     horasAteEntrar, pontos, normal,
+    ...(p.arquivo ? { arquivo: { ...p.arquivo, baseMs, agoraMs } } : {}),
   })
 
   // ───── mudanças e subida ─────

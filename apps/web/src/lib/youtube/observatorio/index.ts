@@ -1,4 +1,5 @@
 import type { Dataset, ObsChannel, ObsVideo, Fmt as VideoFmt } from './types'
+import type { OnlineDesde } from './arquivo-mensal/online-desde'
 import { BUILTIN_NICHES, forjaOrder, nicheLabel, tabOrder, type NicheDef, type NicheScope } from './niche'
 export type { NicheDef, NicheScope } from './niche'
 export type { Dataset } from './types'
@@ -87,6 +88,8 @@ export interface Observatory {
   NOW: number; SERIES_START: number; DAY: number; H: number
   /** When the observatory began watching (the earliest channel added; dados.js OBS_START). */
   OBS_START: number
+  /** Manutenção M5: desde quando cada série está online (ausente = não lido nesta construção; os testes antigos não o trazem). */
+  ONLINE_DESDE?: OnlineDesde
   channels: ObsChannel[]; videos: (ObsVideo & Derived)[]
   channel(id: string): ObsChannel | undefined; video(id: string): (ObsVideo & Derived) | undefined
   seriesOf(id: string): ObsVideo['series']; viewsAt(id: string, idx: number): number | null; rate(id: string, a: number, b: number): number | null
@@ -214,7 +217,7 @@ export function createObservatory(input: Dataset, opts?: { seriesStartLabel?: st
     : { defs: niches, todos: forjaOrder(niches).filter(askable) }
   const forja = createForja(ctx, ds, clock, CH, V, nx, askable, opts?.testScenarios)
   return {
-    NOW: ds.now, SERIES_START: ds.seriesStart, OBS_START: ds.obsStart, DAY: 864e5, H: 36e5,
+    NOW: ds.now, SERIES_START: ds.seriesStart, OBS_START: ds.obsStart, ...(ds.onlineDesde ? { ONLINE_DESDE: ds.onlineDesde } : {}), DAY: 864e5, H: 36e5,
     channels: [...CH.values()], videos, channel: id => CH.get(id), video: id => V.get(id),
     seriesOf: id => vid(id).series, viewsAt: (id, idx) => viewsAtIdx(vid(id), idx), rate: (id, a, b) => rate(ctx, vid(id), a, b),
     periodRate: (id, f, t) => periodRate(ctx, id, f, t), weeklyRate: (id, f, t) => weeklyRate(ctx, id, f, t), expectedCurve: id => expectedCurve(ctx, id),

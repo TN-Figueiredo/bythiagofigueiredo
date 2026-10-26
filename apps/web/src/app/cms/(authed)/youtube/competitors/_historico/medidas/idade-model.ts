@@ -7,6 +7,7 @@ import type { PontoDaCurva } from '@/lib/youtube/observatorio/medidas/curva'
 import type { Medida } from '@/lib/youtube/observatorio/medidas/tipos'
 import type { PontoDoVideo } from '@/lib/youtube/observatorio/medidas-telas/pontos-por-idade'
 import { razaoEscrita } from '@/lib/youtube/observatorio/medidas-telas/faixa-do-normal'
+import { estadoDaIdade, frasePeca1, IDADES_DE_MARCA, type EstadoPeca1 } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
 import { abrev, dm, dmy, idadeTxt, larguraDaBarra, milhar } from './formatos'
 
 /** Os dez pontos do eixo por categoria (1, 2, 3, 5, 7, 14, 21, 30, 60, 90 dias). */
@@ -30,11 +31,28 @@ export interface EntradaDeIdade {
   pontos: readonly PontoDoVideo[] | null
   /** Nulo = o normal do canal não foi lido. */
   normal: Medida<PontoDaCurva[]> | null
+  /**
+   * Peça 1 da M5 (04 §14.1): o que saiu do banco. Ausente (ou `onlineDesde` nulo e lido) = a tela de hoje, sem uma palavra a mais. Com ele, um ponto que a
+   * contagem por dia não alcança porque o mês saiu diz "dd/mm a dd/mm/aaaa no arquivo" (nunca número interpolado); com o online desde não lido, a frase própria.
+   */
+  arquivo?: EntradaDeArquivo
+}
+
+export interface EntradaDeArquivo {
+  /** Início (meia-noite SP) do que está online na série por dia; nulo = nada saiu. */
+  onlineDesde: number | null
+  /** Falso = não se leu desde quando há dado online ("não medido", nunca 365 dias). */
+  lido: boolean
+  /** Dia SP de início da coleta DESTE vídeo (`coletaDoVideo`). */
+  coleta: number
+  /** A âncora de idade do vídeo (`baseDaIdade`), em ms. */
+  baseMs: number
+  agoraMs: number
 }
 
 export type VideoNaIdade =
   | { tipo: 'medido'; views: number }
-  | { tipo: 'nao_medido'; classe: 'nao_medido' | 'nao_carregou'; motivo: string; curto: string; longo: string }
+  | { tipo: 'nao_medido'; classe: 'nao_medido' | 'nao_carregou'; motivo: string; curto: string; longo: string; peca1?: { estado: EstadoPeca1; forma: 'arquivo' | 'hachura' } }
   | { tipo: 'ainda_nao_existe'; fechaEm: string | null }
 
 export type NormalNaIdade =
@@ -84,6 +102,15 @@ function videoNaIdade(p: PontoDoVideo, e: EntradaDeIdade): VideoNaIdade {
     case 'fecha_em':
       return { tipo: 'ainda_nao_existe', fechaEm: m.fechaEm ?? null }
     case 'leitura_comecou_depois': {
+      // peça 1: com o mês fora do banco, o ponto não é "publicado antes da contagem": o dado existiu e está no arquivo (ou não se sabe desde quando há dado online)
+      const a = e.arquivo
+      if (a) {
+        const est = estadoDaIdade({ pub: a.baseMs, idadeDias: p.idadeDias, deMarca: IDADES_DE_MARCA.includes(p.idadeDias), onlineDesde: a.onlineDesde, lido: a.lido, coleta: a.coleta, now: a.agoraMs })
+        if (est.k === 'no_arquivo' || est.k === 'nao_medido') {
+          const f = frasePeca1(est, 'edita')
+          if (f.forma === 'arquivo' || f.forma === 'hachura') return { tipo: 'nao_medido', classe: 'nao_medido', motivo: m.motivo, curto: f.texto, longo: f.texto, peca1: { estado: est, forma: f.forma } }
+        }
+      }
       const d = dm(e.inicioDaContagem)
       return nao('nao_medido', `publicado antes de ${d}`, `publicado antes de ${d}: a leitura por dia começou em ${d}`)
     }
@@ -141,7 +168,8 @@ function falaDoPonto(idade: number, v: VideoNaIdade, n: NormalNaIdade, razao: { 
   }
   const comRazao = n.tipo === 'medido' ? (razao && v.tipo === 'medido' ? `${normalFrase}: ${razao.texto}.` : `${normalFrase}.`) : normalFrase
   if (v.tipo === 'medido') return `${cab}o vídeo tinha ${milhar(v.views)} views.${comRazao}`
-  return `${cab}${v.classe === 'nao_carregou' ? '' : 'não medido: '}${v.longo}.${comRazao}`
+  // a frase da peça 1 já diz o que é ("no arquivo" não é "não medido"): sem o prefixo
+  return `${cab}${v.classe === 'nao_carregou' || v.peca1 ? '' : 'não medido: '}${v.longo}${v.longo.endsWith('.') ? '' : '.'}${comRazao}`
 }
 
 function paraOPar(p: PontoDeIdade): ParDeBarras {

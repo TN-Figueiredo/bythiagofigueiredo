@@ -1,6 +1,7 @@
 import 'server-only'
 // A5 · E5a, Tarefa 10a: a leitura do servidor para o bloco "Estourou e parou". Arquivo à parte de `_historico/` porque o teste da tela
 // proíbe que os componentes dali importem o motor (desvio declarado no relatório da tarefa).
+import type { OnlineDesde } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import * as Sentry from '@sentry/nextjs'
 import { carregarMedidasDoSite, type IObservatorioDeMedidas, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
@@ -14,7 +15,10 @@ import { leituraDoVideo, type Leitura } from './estourou-model'
 /** O pedaço do `Observatory` de que a leitura precisa: o vídeo e o canal dele, e o que o carregador das medidas pede. */
 export interface IObservatorioDaLeitura extends IObservatorioDeMedidas {
   video(id: string): { id: string; ch: string; ageDays: number; pub?: number } | undefined
-  channel(id: string): { id: string; name: string; own: boolean } | undefined
+  channel(id: string): { id: string; name: string; own: boolean; sync?: { added: number | null } } | undefined
+  /** Peça 1 da M5: início da série (meia-noite SP) e desde quando ela está online; ausentes = a tela de hoje. */
+  SERIES_START?: number
+  ONLINE_DESDE?: OnlineDesde
 }
 
 /**
