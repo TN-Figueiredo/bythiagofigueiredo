@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A/B Lab reordenado (mockup M7 r5)</title>
+<style>
+/* Mockup M7 r5 (26/10/2026; r4 + Studio com vídeo próprio, respostas do dia 14 geradas das versões, painel Aplicando/falha/sem conexão; r4 =  r3 + painel "O que fica no vídeo?", dia 14 em pergunta clara, Concluídos com vencedor). Reordena /cms/youtube/ab-lab: cabeçalho com frase, "Com você", "Em teste agora", sugestões, concluídos, vídeos recolhidos.
+   Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS (miniaturas são gradientes). Seletor por URL: ?estado=a|b|b2|c|d|e|f|g|g1|g2|g3|h|h2|i&largura=1440|390&videos=1 */
+*,*::before,*::after{box-sizing:border-box}
+:root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
+html{background:var(--pg)}
+body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--pgt);background:var(--pg)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;background:var(--pgs);border-bottom:1px solid var(--pgb)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--pgm)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #40382D;border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:34px;padding:0 11px;border:0;background:transparent;color:var(--pgm);cursor:pointer}
+.seg button[aria-pressed="true"]{background:#F5EFE6;color:#100E0C;font-weight:600}
+.note{max-width:92ch;color:var(--pgm);font-size:13px;margin:14px 16px 0}
+.stage{padding:16px;overflow-x:auto}
+
+.frame,.ov{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
+  --border:#332D25;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;
+  --accent:#FF8240;--on-accent:#1A120A;
+  --warn:#F5B13D;--warn-bg:rgba(245,158,11,.10);--warn-line:#C98A1B;
+  --ok:#6FCF97;--ok-bg:rgba(111,207,151,.10);--ok-line:#3E8F63;
+  --err:#F4A097;--err-line:#B85A50;--err-bg:rgba(244,160,151,.08);
+  --yt:#9FB4C9;--yt-bg:rgba(159,180,201,.08);--yt-line:#6B8199;
+  --skel:#2B2620;--skel2:#363028}
+.frame{
+  background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;
+  border:1px solid var(--border);border-radius:10px;padding:32px 24px 56px;margin:0 auto}
+.frame.w1440{width:1440px}.frame.w390{width:390px;padding:20px 12px 40px}
+.page{max-width:1010px;margin:0 auto}
+.frame :focus-visible,.ov :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.frame h1,.frame h2,.frame h3,.frame p,.ov h2,.ov p{margin:0}
+.num{font-variant-numeric:tabular-nums}
+.meta{font-size:12px;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 16px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);color:var(--text);font:500 14px/18px Inter,system-ui,sans-serif;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.ghost{background:transparent}
+.btn.txt{border-color:transparent;background:transparent;color:var(--muted);padding:0 10px}
+.btn svg,.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* 1. cabeçalho */
+.top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.top h1{font:600 30px/1.15 Georgia,serif}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.frame .resumo{font:600 21px/1.35 Georgia,serif;margin-top:10px;max-width:60ch;text-wrap:balance}
+.resumo small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:4px}
+
+/* 2. Com você */
+.voce{margin-top:24px;border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:6px 16px 8px}
+.voce>header{display:flex;align-items:center;gap:8px;padding:10px 0 6px;font:600 14px/1.3 Inter,system-ui,sans-serif}
+.voce>header .cnt{font-weight:400;color:var(--muted)}
+.item{display:grid;grid-template-columns:auto 1fr auto auto;gap:4px 14px;align-items:center;min-height:64px;padding:10px 0 10px 14px;border-top:1px solid var(--border);border-left:3px solid var(--border);margin-left:-1px}
+.item.urg{border-left-color:var(--warn)}
+.pzi{display:none}
+.item .mk{width:16px;height:16px}
+.item .tx{min-width:0}
+.item .tx b{display:block;font:600 14px/1.35 Inter,system-ui,sans-serif}
+.item .tx span{display:block;font-size:13px;color:var(--muted);max-width:70ch}
+.item .pz{font-size:13px;color:var(--muted);text-align:right;white-space:nowrap}
+.item.urg .pz{color:var(--warn);font-weight:600}
+.item.urg .pz .pzi{color:var(--warn);vertical-align:-2px}
+.calm{display:flex;gap:12px;align-items:flex-start;padding:10px 0 12px;border-top:1px solid var(--border)}
+.calm .ic{color:var(--ok);margin-top:3px}
+.calm b{font-weight:600}
+.calm p{font-size:14px;color:var(--muted);margin-top:2px;max-width:75ch}
+.calm .row{flex:1}
+.calm.err .ic{color:var(--err)}
+.calm.err b{color:var(--err)}
+.apoio{font-size:13px;color:var(--muted)}
+.auto{margin:0 0 8px;padding:10px 14px;border-radius:8px;background:var(--sunk);border:1px solid var(--border);font-size:13px;color:var(--muted);max-width:75ch}
+.voce>header .btn.txt[aria-expanded="true"]{color:var(--text)}
+.card{position:relative}
+.card h3 a{color:inherit;text-decoration:none}
+.card h3 a:hover{text-decoration:underline;text-underline-offset:3px}
+.card h3 a::after{content:"";position:absolute;inset:0;z-index:1}
+.card h3 a:focus-visible{outline:none}
+.card:has(h3 a:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.card .pend .btn{position:relative;z-index:2}
+.selo.st{border-color:var(--yt-line);color:var(--yt)}
+.r2{margin:14px 16px 0;max-width:92ch;border:1px solid #40382D;border-radius:8px;padding:10px 14px;background:var(--pgs);font-size:13px;color:var(--pgm)}
+.r2 b{color:var(--pgt)}.r2 ul{margin:6px 0 0;padding-left:18px}.r2 li{margin:2px 0}
+
+/* 3. Em teste agora */
+.sec{margin-top:36px}
+.sh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.sh h2{font:600 18px/1.3 Georgia,serif}
+.sh .meta{margin-left:auto}
+.cards{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.cards.um{grid-template-columns:1fr}
+.card{border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden;display:flex;flex-direction:column}
+.card .bd{padding:16px;display:flex;flex-direction:column;gap:12px;flex:1}
+.card .hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card h3{font:600 15px/1.35 Inter,system-ui,sans-serif}
+.selo{display:inline-flex;align-items:center;align-self:flex-start;height:24px;gap:6px;padding:2px 9px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);color:var(--muted);white-space:nowrap}
+.selo.dia{border-color:var(--ok-line);color:var(--ok)}
+.selo.lab{border-color:var(--border-strong);color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.cor{display:flex;gap:16px;align-items:flex-start}
+.card .main{display:flex;flex-direction:column;gap:12px;min-width:0}
+.cards:not(.um) .cor{flex-direction:column;gap:12px}
+.cards:not(.um) .cor .th{width:100%;max-width:none}
+.th{border-radius:6px;aspect-ratio:16/9;flex:none;width:136px;position:relative;overflow:hidden}
+.th::after{content:"";position:absolute;right:6px;bottom:6px;width:34px;height:26px;border-radius:4px;background:rgba(255,255,255,.28)}
+.g1{background:linear-gradient(135deg,#1F3B2E,#3F7A55 55%,#8DB69A)}
+.g2{background:linear-gradient(135deg,#5B2A1A,#C2562E 60%,#E8A15A)}
+.g3{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+.g4{background:linear-gradient(135deg,#3C5A1A,#7FA23D 60%,#CBE08E)}
+.g5{background:linear-gradient(135deg,#5B3A86,#9A74C9 60%,#D8C2F0)}
+.g6{background:linear-gradient(135deg,#443B30,#7A6B55 60%,#B5A688)}
+.vers{display:flex;flex-direction:column;gap:8px;flex:1;min-width:0}
+.ver{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.4}
+.ver .ch{flex:none;width:22px;height:22px;border-radius:5px;display:grid;place-items:center;font:700 12px/1 Inter,system-ui,sans-serif;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--muted)}
+.ver.b .ch{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.ver q{quotes:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ver .air{font-size:12px;color:var(--ok);white-space:nowrap}
+.pares{display:flex;gap:10px}
+.pares .par{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.pares .th{width:100%}
+.stats{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)}
+.stats>div{padding:10px 16px}
+.stats>div+div{border-left:1px solid var(--border)}
+.stats .k{font-size:12px;color:var(--muted)}
+.stats .v{font:600 16px/1.3 Inter,system-ui,sans-serif}
+.stats .s{font-size:12px;color:var(--dim)}
+.card .pend{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 16px 10px;border-top:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn);font-size:13px;font-weight:600}
+.card .pend span{display:inline-flex;gap:8px;align-items:center}
+.card.horiz .bd{flex-direction:row;gap:20px;align-items:center}
+.card.horiz .main{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.card.horiz .stats{grid-template-columns:auto;border-top:0;border-left:1px solid var(--border);align-self:stretch}
+.card.horiz .stats>div{padding:14px 22px;min-width:150px}
+.card.horiz .stats>div+div{border-left:0;border-top:1px solid var(--border)}
+.vazio{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px dashed var(--border-strong);border-radius:14px;padding:14px 16px;color:var(--muted)}
+
+/* 4. sugestões */
+.sug{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:28px;font-size:13px;color:var(--muted)}
+.sug .ic{color:var(--dim)}
+.sug a{color:var(--muted);text-decoration:underline;text-underline-offset:3px;min-height:44px;display:inline-flex;align-items:center}
+
+/* 5. concluídos */
+.conc{display:grid;grid-template-columns:1.6fr 1fr;gap:14px}
+.box{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:4px 16px}
+.cl{display:flex;gap:14px;align-items:center;min-height:68px;padding:8px 0}
+.cl+.cl{border-top:1px solid var(--border)}
+.cl .th{width:96px}
+.cl .tx{flex:1;min-width:0}
+.cl .tx b{display:block;font:500 14px/1.35 Inter,system-ui,sans-serif;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cl .tx span{font-size:12px;color:var(--muted)}
+.cl .res{font-size:13px;color:var(--muted);text-align:right}
+.rg{padding:16px;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.rg b{font:600 14px/1.35 Inter,system-ui,sans-serif}
+.reg{display:flex;gap:6px}
+.reg i{flex:1;height:8px;border-radius:4px;background:transparent;border:1px solid var(--border-strong)}
+.reg i.on{background:var(--dim);border-color:var(--dim)}
+
+/* 6. vídeos */
+details.vid{border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+details.vid>summary{list-style:none;display:flex;align-items:center;gap:10px;min-height:56px;padding:0 16px;cursor:pointer;font:600 15px/1.3 Inter,system-ui,sans-serif}
+details.vid>summary::-webkit-details-marker{display:none}
+details.vid>summary .ch{margin-left:auto;transition:transform .15s}
+details.vid[open]>summary .ch{transform:rotate(180deg)}
+details.vid>summary .meta{font-weight:400}
+.vbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:4px 16px 12px;border-top:1px solid var(--border);padding-top:12px}
+.vbar input{flex:1;min-width:180px;min-height:44px;border:1px solid #6B6150;border-radius:8px;background:var(--sunk);color:var(--text);font:400 14px Inter,system-ui,sans-serif;padding:0 12px}
+.vbar input::placeholder{color:var(--muted)}
+.chips{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden}
+.chips button{font:500 13px Inter,system-ui,sans-serif;min-height:44px;padding:0 14px;border:0;background:transparent;color:var(--muted);cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);box-shadow:inset 0 -2px 0 var(--accent)}
+.vl{display:flex;gap:14px;align-items:center;padding:10px 16px;border-top:1px solid var(--border);min-height:68px}
+.vl .th{width:96px}
+.vl .tx{flex:1;min-width:0}
+.vl .tx b{display:block;font:500 14px/1.35 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vl .tx span{font-size:12px;color:var(--muted)}
+.vl.em .btn{color:var(--ok);border-color:var(--ok-line)}
+.vmsg{padding:14px 16px;border-top:1px solid var(--border);color:var(--muted);font-size:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grupo{display:flex;gap:10px;align-items:center;padding:0 16px;min-height:56px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+.grupo b{font-weight:600;color:var(--text)}
+.vfim{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:6px 16px 10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+
+/* carregando / erro */
+.sk{background:linear-gradient(90deg,var(--skel) 0 40%,var(--skel2) 50%,var(--skel) 60%);background-size:300% 100%;border-radius:6px;animation:sk 1.6s linear infinite}
+@keyframes sk{from{background-position:100% 0}to{background-position:0 0}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}details.vid>summary .ch{transition:none}}
+.errbox{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid var(--err-line);background:var(--err-bg);border-radius:14px;padding:14px 16px}
+.errbox .l{display:flex;gap:10px;align-items:flex-start;color:var(--err)}
+.errbox .l b{display:block;font-weight:600}
+.errbox .l span{color:var(--muted);font-size:13px}
+.hidden{display:none!important}
+.sk.th::after{display:none}
+.skc{min-height:150px}.skcl{height:196px;border-radius:14px}
+.vl.em .btn{color:var(--ok);border-color:var(--ok-line)}
+.inv{display:block;margin-top:4px;font-size:12px;color:var(--pgm)}
+
+/* r4: pendência clicável, painel, concluídos */
+.lk{display:inline-flex;align-items:center;min-height:44px;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;text-decoration:underline;text-decoration-color:#6B6150;text-underline-offset:3px}
+.lk:hover{text-decoration-color:var(--text)}
+.lkm{display:inline-flex;align-items:center;min-height:44px;margin-left:8px;padding:0;border:0;background:none;color:var(--yt);font:inherit;font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.lkm[aria-disabled="true"]{color:var(--muted);cursor:default;margin-left:0}
+.card .pend .btn{white-space:normal;text-align:center}
+.selo.sug{border-color:var(--accent);color:var(--accent)}
+.selo.emb{border-style:dashed;color:var(--dim)}
+.cl .res b{display:block;font:600 13px/1.4 Inter,system-ui,sans-serif;color:var(--text)}
+.cl .res span{display:block;font-size:12px;color:var(--muted)}
+.cl .res .btn{margin-top:6px}
+.mais{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--border)}
+.ov{position:fixed;inset:0;z-index:50;background:rgba(10,8,6,.76);display:flex;align-items:center;justify-content:center;color:var(--text);color-scheme:dark;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+.ov[hidden]{display:none}
+.dlg{background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;width:min(580px,calc(100vw - 24px));max-height:calc(100vh - 40px);overflow:auto;padding:20px 20px 16px}
+.dlg:focus{outline:none}
+.dh{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.dh h2{font:600 20px/1.3 Georgia,serif}
+.dh .meta{margin-top:2px}
+.xb{min-width:44px;padding:0;margin:-6px -8px 0 0}
+.apoio2{margin-top:10px;font-size:13px;color:var(--muted);max-width:60ch}
+.opts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.opt{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:12px;align-items:center;min-height:56px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--sunk);cursor:pointer;font:inherit;color:var(--text);text-align:left;width:100%}
+.opt:has(input:checked){border-color:var(--accent);background:rgba(255,130,64,.08)}
+.opt:has(input:focus-visible),button.opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.opt.off{cursor:not-allowed;border-style:dashed;color:var(--dim)}
+.opt input{width:20px;height:20px;margin:0;accent-color:#FF8240}
+.opt .th{width:72px}
+.opt .ch{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;font:700 13px/1 Inter,system-ui,sans-serif;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--muted)}
+.opt .ot{min-width:0;display:flex;flex-direction:column;gap:4px}
+.opt .ot b{font:600 14px/1.35 Inter,system-ui,sans-serif}
+.opt .tt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.opt .tags{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-start;justify-content:flex-start;width:100%}
+.opt .tags .selo{margin:0}
+.opt.now{cursor:default;border-style:solid;color:var(--text)}
+.selo.acao{border-color:var(--accent);color:var(--accent)}
+.aviso.err{border-color:var(--err-line);background:var(--err-bg);color:var(--err)}
+.aviso.err:focus{outline:none}
+.btn.wait,.btn.wait:hover{background:#7A4A31;border-color:#7A4A31;color:#F5EFE6;cursor:progress}
+.btn[aria-disabled="true"]:not(.wait){cursor:progress}
+.opt.as{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.opt.as b{font:600 14px/1.35 Inter,system-ui,sans-serif}
+.opt.as span{font-size:12px;color:var(--muted)}
+.aviso{margin-top:12px;padding:8px 12px;border-radius:8px;border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn);font-size:13px}
+.foot{margin-top:12px}
+.dact{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
+.dact .btn{white-space:normal;text-align:center}
+.feito{display:flex;gap:12px;align-items:flex-start;margin-top:14px;font-size:14px}
+.feito .ic{color:var(--ok);margin-top:3px}
+.ov.sheet{align-items:flex-end}
+.ov.sheet .dlg{width:100%;max-width:390px;border-radius:16px 16px 0 0;max-height:90vh;padding:16px 14px 14px}
+.ov.sheet .dact{flex-wrap:nowrap;position:sticky;bottom:-14px;margin:12px -14px -14px;padding:10px 14px 14px;background:#221E1A;border-top:1px solid #332D25}
+.ov.sheet .dact .btn{flex:0 0 auto}
+.ov.sheet .dact .btn.pri{flex:1 1 auto}
+@media (max-width:700px){.ov{align-items:flex-end}.ov .dlg{width:100%;max-width:none;border-radius:16px 16px 0 0;max-height:90vh;padding:16px 14px 14px}.dact{flex-wrap:nowrap;position:sticky;bottom:-14px;margin:12px -14px -14px;padding:10px 14px 14px;background:#221E1A;border-top:1px solid #332D25}.dact .btn{flex:0 0 auto}.dact .btn.pri{flex:1 1 auto}}
+@media (prefers-reduced-motion:no-preference){.dlg{animation:subir .18s ease-out}}
+@keyframes subir{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+
+/* 390 */
+@container (max-width:700px){
+  .top h1{font-size:26px}.frame .resumo{font-size:18px}
+  .tools .btn{flex:1}.tools{width:100%}
+  .tools .btn.pri{order:-1;flex-basis:100%}
+  .item{grid-template-columns:minmax(0,1fr);gap:6px;padding-right:0}
+  .item .mk{display:none}
+  .pzi{display:inline-block}
+  .skc{min-height:424px}.skcl{height:353px}
+  .item .tx span{white-space:normal;overflow:visible}
+  .item .pz{text-align:left}
+  .item .btn{width:100%}
+  .calm .row{min-width:0}
+  .cor{flex-direction:column}.th{width:100%;max-width:240px}
+  .card.horiz .bd{flex-direction:column;align-items:stretch}
+  .card.horiz .stats{border-left:0;border-top:1px solid var(--border);grid-template-columns:1fr 1fr}
+  .card.horiz .stats>div+div{border-top:0;border-left:1px solid var(--border)}
+  .card.horiz .stats>div{min-width:0}
+  .conc{grid-template-columns:1fr}
+  .cl .th,.vl .th{width:72px}
+  .vl{flex-wrap:wrap}
+  .vl .tx{flex-basis:calc(100% - 90px)}
+  .vl .btn{flex-basis:100%;width:100%}
+  .vbar input{min-width:0}
+  .sh .meta{margin-left:0;width:100%}
+  .cl{flex-wrap:wrap}.cl .tx{flex-basis:calc(100% - 90px)}.cl .res{flex-basis:100%;text-align:left}
+  .lkm{margin-left:0}
+}
+</style></head>
+<body>
+<div class="ctl">
+  <div class="grp">Estado <span class="seg" id="segE" role="group" aria-label="Estado">
+    <button data-v="a">a. Hoje real (1 ativo)</button><button data-v="b">b. 0 ativos</button><button data-v="b2">b2. Canal sem histórico</button><button data-v="c">c. 3 ativos, 2 pendências</button><button data-v="d">d. Carregando</button><button data-v="e">e. Erro</button><button data-v="f">f. Só pendências</button><button data-v="g">g. Painel: teste ativo</button><button data-v="g1">g1. Painel: Aplicando…</button><button data-v="g2">g2. Painel: falha</button><button data-v="g3">g3. Painel: sem conexão</button><button data-v="h">h. Painel: concluído</button><button data-v="h2">h2. Painel: concluído, aplicado</button><button data-v="i">i. Painel: dia 14</button></span></div>
+  <div class="grp">Lista de vídeos <span class="seg" id="segV" role="group" aria-label="Lista de vídeos"><button data-v="lista">Lista</button><button data-v="carregando">Buscando</button><button data-v="vazio">Sem resultado</button></span></div>
+  <div class="grp">Ao confirmar <span class="seg" id="segS" role="group" aria-label="Resposta do servidor ao confirmar"><button data-v="ok">Dá certo</button><button data-v="busy">Fica em Aplicando…</button><button data-v="falha">Falha</button><button data-v="rede">Sem conexão</button></span></div>
+  <div class="grp">Largura <span class="seg" id="segL" role="group" aria-label="Largura"><button data-v="1440">1440</button><button data-v="390">390</button></span></div>
+</div>
+<div class="r2"><b>r5 (26/10).</b> O que mudou (Logan e Naksu, r4):<ul>
+<li>Teste do Studio e teste do Lab usam vídeos diferentes. O cartão do Studio (Sukhumvit) tem o selo “No Studio” e nenhum líder, CTR ou próxima troca. Os Concluídos têm outro vídeo contado do Studio. O dia 14 e o painel “O que o Studio mostrou?” são do Sukhumvit.</li>
+<li>Respostas do dia 14 geradas das versões reais do teste: A (original) ficou, B venceu (venceu_nova, n=2), C venceu (venceu_nova, n=3), Ficou igual, Inconclusivo, Não vi ainda. “Não vi ainda” responde “Certo”, não “Registrado”.</li>
+<li>Painel de decisão: “Aplicando…” (botão travado, opções e fechar bloqueados), falha (“Não consegui aplicar C. A original continua no ar.”) e conexão caída. Estados g1, g2, g3; em g, h e h2 o seletor “Ao confirmar” escolhe o que o servidor responde.</li>
+<li>Aviso amarelo cobre também “Manter A”, que encerra o teste na hora. Teste concluído e aplicado: B “No ar agora” sem edição e a ação “Voltar à original até 02/11”. “Em breve” sem sigla. T1 aparece nos Concluídos em f e h2 com “no ar desde”.</li>
+<li>Selos sem esticar (24px). A 390 o botão primário fica fixo no pé da folha. Foco inicial do painel do dia 14 no título (Enter não grava resposta por engano). Dados inventados: versões B e C, CTRs, datas.</li></ul></div>
+<p class="note" id="nota"></p>
+<div class="stage"><div class="frame w1440" id="frame"><div class="page" id="page"></div></div></div>
+
+<div class="ov" id="ov" hidden><div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1"></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+ <symbol id="i-ok" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></symbol>
+ <symbol id="i-ring" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2"/></symbol>
+ <symbol id="i-dot" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="currentColor"/></symbol>
+ <symbol id="i-x" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/></symbol>
+ <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v3.6M8 5.2v.1"/></symbol>
+ <symbol id="i-chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+ <symbol id="i-flask" viewBox="0 0 16 16"><path d="M6 2h4M7 2v4.5L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9 6.5V2"/></symbol>
+ <symbol id="i-pause" viewBox="0 0 16 16"><path d="M6 4v8M10 4v8"/></symbol>
+</svg>
+
+<script>
+const I=(n,c='ic')=>`<svg class="${c}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const T1='Main AD Diamante 2 - Lolzin raiz!';
+const T1B='Main AD no Diamante 2: partida comentada (LoL raiz)';
+const TT='Aladdin é muito bom!';
+const SKB='Sukhumvit Road: a rua mais selvagem de Bangkok';
+const SKC='Sukhumvit Road: o que ninguém conta sobre Bangkok';
+const TUK='Bangkok de tuk-tuk: quanto custa cada corrida';
+const GB='Vlogzeira #3 - Vida de formado e primeiro mês de trabalho!';
+const SK='Sukhumvit Road: Um mergulho profundo na rua mais selvagem de Bangkok';
+/* Ensaio: teste começou em 25/10 (dia 1); hoje 26/10 = dia 2 de 15; dia 14 = 08/11; fim = 09/11. */
+const DIA=2,D14='08/11',FIM='09/11';
+
+const topo=(resumo,sub)=>`
+<header class="top"><div><h1>A/B Lab</h1></div>
+ <div class="tools"><button class="btn ghost" type="button">Biblioteca</button><button class="btn ghost" type="button">Todos os tipos</button><button class="btn ghost" type="button" aria-label="Configurações">Ajustes</button><button class="btn pri" type="button">${I('plus')}Novo teste</button></div></header>
+<p class="resumo">${resumo}${sub?`<small>${sub}</small>`:''}</p>`;
+
+const AUTO='O Lab troca as versões, lê impressões e cliques e calcula o resultado. Escolher o vídeo, aplicar o vencedor, voltar à original e responder pelo Studio são com você.';
+const voceCab=(n)=>`<header><h2 style="font:600 18px/1.3 Georgia,serif">Com você</h2>${n?`<span class="cnt num">(${n})</span>`:''}<button class="btn txt" id="autoBtn" type="button" style="min-height:44px;margin-left:auto" aria-expanded="false" aria-controls="autoTx">${I('info')}O que é automático?</button></header><p class="auto hidden" id="autoTx">${AUTO}</p>`;
+
+const voceVazio=(txt)=>`<section class="voce" aria-label="Com você">${voceCab(0)}
+ <div class="calm">${I('ok')}<div class="row"><p style="margin:0"><b>Nada com você agora.</b> ${txt}</p></div></div></section>`;
+
+const item=(urg,ttl,why,pz,btn,pri,open)=>{const o=open?` data-open="${open}"`:'';return `<div class="item ${urg?'urg':''}">${I(urg?'dot':'ring','ic mk')}<div class="tx"><b>${open?`<button class="lk" type="button"${o}>${ttl}</button>`:ttl}</b><span>${why}</span></div><div class="pz num">${urg?I('dot','ic pzi')+'Prazo: ':''}${pz}</div><button class="btn ${pri?'pri':''}" type="button"${o}>${btn}</button></div>`};
+
+const statsH=(o)=>`<div class="stats"><div><div class="k">Líder</div><div class="v">${o.lider}</div><div class="s">${o.liderSub}</div></div><div><div class="k">Próxima troca</div><div class="v num">${o.prox}</div><div class="s">automática</div></div></div>`;
+const pendH=(o)=>o.pend?`<div class="pend"><span>${I('dot')}Com você: ${o.pend}</span><button class="btn" type="button"${o.open?` data-open="${o.open}"`:''}>${o.pendBtn}</button></div>`:'';
+
+const cardTitulo=(o)=>`
+<article class="card ${o.horiz?'horiz':''}"><div class="bd">
+ <div class="main">
+  <div class="hd"><span class="selo">Título</span>${o.studio?'<span class="selo st">No Studio</span>':`<span class="selo dia num"><span class="dot"></span>Dia ${o.dia}/15</span>`}</div>
+  <div class="cor"><div class="th ${o.g}" role="img" aria-label="Miniatura atual do vídeo"></div>
+   <div class="vers"><h3>${o.studio?o.nome:`<a href="#" aria-label="Abrir teste ${o.nome}">${o.nome}</a>`}</h3>
+    <div class="ver"><span class="ch">A</span><q title="${o.a}">${o.a}</q>${o.ar==='A'?'<span class="air">● no ar</span>':''}</div>
+    <div class="ver b"><span class="ch">B</span><q title="${o.b}">${o.b}</q>${o.ar==='B'?'<span class="air">● no ar</span>':''}</div></div></div>
+ </div>
+ ${o.studio?'':statsH(o)}</div>
+ ${pendH(o)}
+</article>`;
+
+const cardMiniatura=(o)=>`
+<article class="card"><div class="bd">
+  <div class="hd"><span class="selo">Miniatura</span><span class="selo dia num"><span class="dot"></span>Dia ${o.dia}/15</span></div>
+  <h3><a href="#" aria-label="Abrir teste ${o.nome}">${o.nome}</a></h3>
+  <div class="pares"><div class="par"><div class="th ${o.ga}" role="img" aria-label="Miniatura A"></div><div class="ver"><span class="ch">A</span>${o.ar==='A'?'<span class="air">● no ar</span>':'<span class="meta">original</span>'}</div></div>
+   <div class="par"><div class="th ${o.gb}" role="img" aria-label="Miniatura B"></div><div class="ver b"><span class="ch">B</span>${o.ar==='B'?'<span class="air">● no ar</span>':'<span class="meta">nova</span>'}</div></div></div></div>
+ ${statsH(o)}
+ ${pendH(o)}
+</article>`;
+
+const sugOff=`<p class="sug">${I('flask')}Sugestões de vídeos para testar: desligadas.<a href="#">Ver detalhes</a></p>`;
+
+const reg=`<div class="box rg"><b>Coletando dados: 2 de 3 testes concluídos</b><div class="reg" role="img" aria-label="2 de 3"><i class="on"></i><i class="on"></i><i></i></div><span class="meta">Com 3 testes o Lab começa a mostrar o que funciona no seu canal.</span></div>`;
+const clRow=(g,t,kind,res,sub,btn)=>`<div class="cl"><div class="th ${g}" role="img" aria-label="Miniatura do vídeo"></div><div class="tx"><b>${t}</b><span>${kind}</span></div><div class="res"><b>${res}</b><span>${sub}</span>${btn||''}</div></div>`;
+const concl=(o)=>{o=o||{};const n=2+(o.pend?1:0)+(o.t1?1:0);return `<section class="sec"><div class="sh"><h2>Concluídos</h2><span class="meta num">${n} ${n===1?'teste':'testes'}</span></div>
+<div class="conc"><div class="box">
+ ${o.pend?clRow('g5',TT,'Miniatura','B sugerido pelo teste','falta aplicar no vídeo','<button class="btn" type="button" data-open="alad-conc">Aplicar B</button>'):''}
+ ${o.t1?clRow('g1',T1,'Título','B venceu','no ar desde 26/10','<button class="btn" type="button" data-open="t1-conc">Voltar à original</button>'):''}
+ ${clRow('g6','4 - Como somos controlados - Consistência e Compromisso (Part 3)','Título e miniatura','B venceu','no ar desde 18/10')}
+ ${clRow('g3',TUK,'Título e miniatura','A (original) ficou','no ar desde 12/10 · você contou do Studio')}
+ <div class="mais"><button class="lkm" type="button" aria-disabled="true">Ver testes anteriores</button><span class="selo emb">Em breve</span></div></div>${reg}</div></section>`};
+const conclErr=`<section class="sec"><div class="sh"><h2>Concluídos</h2><span class="meta">Não deu para ler</span></div><div class="vazio"><span>Os concluídos vêm da mesma leitura dos testes. Use o botão “Tentar de novo” do bloco acima.</span></div></section>`;
+
+/* Vídeos: V = lista | carregando | vazio (demonstração dos estados da busca) */
+const vrow=(g,t,m,em)=>`<div class="vl ${em?'em':''}"><div class="th ${g}" role="img" aria-label="Miniatura"></div><div class="tx"><b>${t}</b><span class="num">${em?'Em teste · dia '+em+'/15':m}</span></div><button class="btn" type="button">${em?'Ver teste':'Novo teste'}</button></div>`;
+const vids=(open,em)=>{
+ em=em||{};
+ const corpo=V==='carregando'
+  ? [80,70,75].map((w,k)=>`<div class="vl"><div class="sk th" style="width:96px"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div class="sk" style="height:14px;width:${w}%"></div><div class="sk" style="height:12px;width:${50-k*4}%"></div></div></div>`).join('')
+  : V==='vazio'
+  ? `<div class="vmsg">Nenhum vídeo com “bankok”.<button class="btn txt" type="button">Limpar busca</button></div>`
+  : vrow('g1',T1,'Publicado há 41 dias · 380 impressões por dia',em.T1)+
+    vrow('g5',TT,'Publicado há 63 dias · 260 impressões por dia',em.TT)+
+    vrow('g4',GB,'Publicado há 98 dias · 231 impressões por dia',em.GB)+
+    `<div class="grupo"><b class="num">286 vídeos</b> com poucas impressões por dia (menos de 220). Escolha “Todos” para ver.</div>
+     <div class="vfim"><span class="num">Mostrando 3 de 14 testáveis</span><button class="btn ghost" type="button">Mostrar os 11 restantes</button></div>`;
+ return `<section class="sec"><details class="vid" id="vidDet" ${open||V!=='lista'?'open':''}><summary><span>Vídeos do canal</span><span class="meta num">14 com volume para testar, 286 sem</span>${I('chev','ic ch')}</summary>
+ <div class="vbar"><input type="search" placeholder="Buscar por título" aria-label="Buscar vídeo" ${V==='vazio'?'value="bankok"':''}><span class="chips" role="group" aria-label="Filtro"><button type="button" aria-pressed="true">Testáveis</button><button type="button" aria-pressed="false">Todos</button></span></div>
+ ${corpo}</details></section>`;
+};
+
+const skCard=`<div class="card skc"><div class="bd"><div class="sk" style="height:22px;width:40%"></div><div class="cor"><div class="sk th"></div><div style="flex:1;display:flex;flex-direction:column;gap:10px"><div class="sk" style="height:16px;width:90%"></div><div class="sk" style="height:16px;width:70%"></div></div></div></div><div class="stats"><div><div class="sk" style="height:34px"></div></div><div><div class="sk" style="height:34px"></div></div></div></div>`;
+
+const secAtivos=(n,cards,um)=>`<section class="sec"><div class="sh"><h2>Em teste agora</h2><span class="meta num">${n}</span></div><div class="cards ${um?'um':''}">${cards}</div></section>`;
+
+const estados={
+a:{nota:'Hoje real (r3): 1 teste de título ativo, dia 2 de 15 (começou em 25/10), nada com você, sugestões desligadas, 2 concluídos, 300 vídeos. Dado de exemplo: só o B do título (e o “~20h”). O cartão inteiro abre o detalhe.',
+ html:()=>topo('Um teste rodando. Nada com você agora.')+
+ voceVazio('Próxima decisão: '+D14+'.')+
+ secAtivos('1 teste',cardTitulo({horiz:1,dia:DIA,g:'g1',nome:T1,a:T1,b:T1B,ar:'A',lider:'Ainda sem líder',liderSub:'CTR não medido',prox:'~20h'}),1)+sugOff+concl()+vids(false,{T1:DIA})},
+b:{nota:'0 ativos com histórico (r2): resumo e Com você dizem o mesmo em 1 linha, sem convite repetido. Um único “Novo teste”, no cabeçalho. A seção Em teste agora some.',
+ html:()=>topo('Nenhum teste rodando. Nada com você agora.')+
+ voceVazio('Nenhum teste rodando; crie um quando quiser.')+sugOff+concl()+vids(false)},
+b2:{nota:'0 ativos e canal sem nenhum teste na história (novo, r2): aqui sim o convite ao primeiro teste, com o mesmo nome de botão do cabeçalho. Sem Concluídos.',
+ html:()=>topo('Nenhum teste ainda. Crie o primeiro quando quiser.')+
+ `<section class="voce" aria-label="Com você">${voceCab(0)}${item(0,'Crie o primeiro teste','O Lab não escolhe vídeo nem escreve versões; você faz isso no assistente, em 3 passos.','sem prazo','Novo teste',1)}</section>`+sugOff+vids(false)},
+c:{nota:'4 ativos (3 do Lab, 1 no Studio) e 2 pendências (r2): aplicar B e responder o dia 14 do teste do Studio, que é de outro vídeo (Sukhumvit) e não mostra líder, CTR nem próxima troca. Resumo curto (verbos), títulos na lista. Cada linha diz por que é com você. Na Tier list, A segue no ar e B é a nova. Na lista de vídeos, cada vídeo em teste mostra o dia e leva ao cartão. Dado de exemplo: a versão B de cada título, as pendências e os números (4,8%, 5,2%, 3,9%) são inventados; os títulos A são do canal.',
+ html:()=>topo('4 testes rodando (1 no Studio). Duas coisas com você: aplicar B e dizer o que o Studio escolheu.')+
+ `<section class="voce" aria-label="Com você">${voceCab(2)}`+
+ item(1,'Aplique B em “'+TT+'”','O Lab não troca sozinho. B na frente, 5,2% contra 3,9% de CTR (resultado final).','hoje','Aplicar B',1,'alad-ativo')+
+ item(1,'O teste do YouTube em “'+SK+'” terminou. Veja no Studio qual versão ganhou e conte aqui.','O Lab não lê o resultado do Studio.<a class="lkm" href="#">Abrir no Studio</a>','vence amanhã','Dizer o que o Studio escolheu',0,'d14')+`</section>`+
+ secAtivos('4 testes',
+ cardTitulo({dia:6,g:'g1',nome:T1,a:T1,b:T1B,ar:'B',lider:'B na frente',liderSub:'4,8% contra 4,1% de CTR',prox:'~3h'})+
+ cardMiniatura({dia:15,nome:TT,ga:'g5',gb:'g2',ar:'A',lider:'B na frente',liderSub:'5,2% contra 3,9% de CTR · final',prox:'fim',pend:'aplicar B',pendBtn:'Aplicar B',open:'alad-ativo'})+
+ cardTitulo({studio:1,g:'g3',nome:SK,a:SK,b:SKB,ar:'',pend:'dizer o que o Studio escolheu',pendBtn:'Dizer o que o Studio escolheu',open:'d14'})+
+ cardTitulo({dia:4,g:'g4',nome:GB,a:GB,b:'Vlogzeira #3: primeiro mês de trabalho depois de formado',ar:'A',lider:'Ainda sem líder',liderSub:'poucos dados',prox:'~11h'}),0)+sugOff+concl()+vids(false,{T1:6,TT:15,GB:4})},
+d:{nota:'Carregando (r2): resumo “Lendo os testes…”, sem afirmar nada; a página tem aria-busy. A faixa Com você tem esqueleto com a altura final.',
+ html:()=>`<header class="top"><div><h1>A/B Lab</h1></div><div class="tools"><button class="btn pri" type="button">${I('plus')}Novo teste</button></div></header>
+ <p class="resumo" style="color:var(--muted)">Lendo os testes…</p>
+ <section class="voce" aria-busy="true" aria-label="Com você">${voceCab(0)}<div class="calm"><div class="sk" style="height:56px;width:100%"></div></div></section>
+ <section class="sec"><div class="sh"><h2>Em teste agora</h2><span class="meta">Carregando…</span></div><div class="cards um">${skCard}</div></section>
+ <section class="sec"><div class="sh"><h2>Concluídos</h2><span class="meta">Carregando…</span></div><div class="sk skcl"></div></section>
+ <section class="sec"><details class="vid"><summary><span>Vídeos do canal</span><span class="meta">Carregando…</span>${I('chev','ic ch')}</summary></details></section>`},
+e:{nota:'Erro (r2): um aviso por bloco e um só “Tentar de novo” nos testes (refaz testes e pendências). Com você não afirma nada. Concluídos não finge ter lido. Vídeos têm leitura e botão próprios.',
+ html:()=>topo('Não deu para ler os testes agora.')+
+ `<section class="voce" aria-label="Com você">${voceCab(0)}<div class="calm err">${I('x')}<div class="row"><b>Não dá para saber se há algo com você enquanto os testes não carregam.</b></div></div></section>`+
+ `<section class="sec"><div class="sh"><h2>Em teste agora</h2></div><div class="errbox"><div class="l">${I('x')}<div><b>Não deu para ler os testes agora.</b><span>Se havia testes rodando, eles seguem; só a leitura falhou.</span></div></div><button class="btn" type="button">Tentar de novo</button></div></section>`+sugOff+conclErr+
+ `<section class="sec"><details class="vid"><summary><span>Vídeos do canal</span><span class="meta">Não deu para ler</span>${I('chev','ic ch')}</summary><div class="calm err" style="padding:12px 16px">${I('x')}<div class="row"><b>Não deu para ler os vídeos.</b></div><button class="btn" type="button">Tentar de novo</button></div></details></section>`},
+f:{nota:'Só pendências, sem teste do Lab rodando (r2, novo): rascunho, pausado, voltar à original e Studio, cada um com o motivo de ser com você. O teste do Studio aparece com o selo “No Studio”, sem link, sem “no ar” e sem estatística; o botão fica só na linha. T1 (B aplicada em 26/10) aparece nos Concluídos com “no ar desde”. Dado de exemplo: os quatro estados de pendência, o CTR 4,8%/3,6% e a versão B do Sukhumvit são inventados; os títulos são do canal.',
+ html:()=>topo('Nenhum teste do Lab rodando. Quatro coisas com você.')+
+ `<section class="voce" aria-label="Com você">${voceCab(4)}`+
+ item(0,'Continue o rascunho de “'+GB+'”','Você parou no passo 2 de 3. O Lab não cria o teste sozinho.','sem prazo','Continuar rascunho',0)+
+ item(0,'Retome o teste pausado de “'+TT+'”','Pausado há 5 dias. O Lab não retoma sozinho.','pausado','Retomar',0)+
+ item(1,'Volte à original em “'+T1+'”','Depois de aplicar B, o CTR caiu de 4,8% para 3,6%. O Lab não desfaz sozinho.','confira hoje','Voltar à original',1,'t1-conc')+
+ item(0,'Confira no Studio “'+SK+'”','Teste criado no Studio, sem ficha no Lab. O Lab não lê o resultado do Studio.','sem prazo','Abrir no Studio',0)+`</section>`+
+ secAtivos('1 no Studio',cardTitulo({studio:1,g:'g3',nome:SK,a:SK,b:'Sukhumvit Road: a rua mais selvagem de Bangkok',ar:''}),1)+sugOff+concl({t1:1})+vids(false)}
+};
+estados.g={open:'alad-ativo',html:estados.c.html,nota:'Painel com o teste ATIVO (miniatura, dia 15 de 15): A, B e C habilitadas, B sugerida e marcada; o botão acompanha a escolha e escolher diferente da sugerida mostra um aviso. Escolher encerra o teste com essa versão. CTRs e a versão C são inventados.'};
+estados.g1={open:'alad-ativo',sim:'busy',html:estados.c.html,nota:'Painel confirmado e esperando o servidor: botão “Aplicando…” travado, opções e fechar bloqueados (na demonstração, Esc fecha; no produto, não até responder).'};
+estados.g2={open:'alad-ativo',sim:'falha',html:estados.c.html,nota:'O servidor recusou: a mensagem diz o que aconteceu e o que continua no ar; a escolha fica marcada e o botão vira “Tentar de novo”.'};
+estados.g3={open:'alad-ativo',sim:'rede',html:estados.c.html,nota:'A conexão caiu: não dá para saber se mudou, então a mensagem manda conferir o vídeo antes de tentar de novo.'};
+estados.h={open:'alad-conc',html:()=>topo('Nenhum teste rodando. Uma coisa com você: aplicar B.')+`<section class="voce" aria-label="Com você">${voceCab(1)}`+item(1,'Aplique B em “'+TT+'”','O teste terminou. O Lab não troca sozinho. B na frente, 5,2% contra 3,9% de CTR.','hoje','Aplicar B',1,'alad-conc')+`</section>`+sugOff+concl({pend:1})+vids(false),nota:'Painel com teste CONCLUÍDO, B ainda não aplicada: só B (sugerida) fica ativa; A (manter a original) e C ficam desabilitadas com “Em breve”. O seletor “Ao confirmar” mostra Aplicando…, falha e sem conexão.'};
+estados.h2={open:'t1-conc',html:estados.f.html,nota:'Painel com teste CONCLUÍDO, B já no ar: “Voltar à original até 02/11” é a ação ativa (7 dias depois de aplicar); B aparece só como “No ar agora”, sem edição, e C como “Em breve”. Depois da data o botão some.'};
+estados.i={open:'d14',html:estados.c.html,nota:'Dia 14 de teste do Studio: painel “O que o Studio mostrou?” com as respostas que o servidor aceita. Um toque grava; “Mudar resposta” volta à lista. Responder não muda o YouTube. As respostas saem das versões do teste (A, B, C); “C venceu” é venceu_nova com n=3.'};
+const q=new URLSearchParams(location.search);
+let S='ok',busy=false;
+let E=estados[q.get('estado')]?q.get('estado'):'a',L=q.get('largura')==='390'?'390':'1440',V='lista',VO=q.get('videos')==='1';
+const page=document.getElementById('page');
+function draw(){
+ page.innerHTML=estados[E].html();
+ page.setAttribute('aria-busy',E==='d');
+ const det=document.getElementById('vidDet');
+ if(det){ if(VO)det.open=true; det.addEventListener('toggle',()=>{VO=det.open;const u=new URL(location.href);det.open?u.searchParams.set('videos','1'):u.searchParams.delete('videos');try{history.replaceState(null,'',u)}catch(e){}}) }
+ document.getElementById('nota').textContent=estados[E].nota;
+ ov.classList.toggle('sheet',L==='390');
+ document.querySelectorAll('#segS button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S));
+ if(estados[E].open){openPanel(estados[E].open,null);if(estados[E].sim){S=estados[E].sim;document.querySelectorAll('#segS button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S));document.getElementById('go').click()}}
+ document.getElementById('frame').className='frame w'+L;
+ document.querySelectorAll('#segE button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===E));
+ document.querySelectorAll('#segL button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===L));
+ document.querySelectorAll('#segV button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===V));
+}
+document.getElementById('segE').onclick=e=>{const v=e.target.dataset&&e.target.dataset.v;if(v){E=v;S='ok';busy=false;draw()}};
+document.getElementById('segS').onclick=e=>{const v=e.target.dataset&&e.target.dataset.v;if(v){S=v;document.querySelectorAll('#segS button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S))}};
+document.getElementById('segL').onclick=e=>{const v=e.target.dataset&&e.target.dataset.v;if(v){L=v;draw()}};
+document.getElementById('segV').onclick=e=>{const v=e.target.dataset&&e.target.dataset.v;if(v){V=v;VO=true;draw()}};
+/* "O que é automático?": abre/fecha parágrafo; Esc fecha e devolve o foco ao botão */
+function setAuto(open){const b=document.getElementById('autoBtn'),t=document.getElementById('autoTx');if(!b)return;b.setAttribute('aria-expanded',open);t.classList.toggle('hidden',!open);if(!open)b.focus()}
+page.addEventListener('click',e=>{const b=e.target.closest('#autoBtn');if(b)setAuto(b.getAttribute('aria-expanded')!=='true')});
+page.addEventListener('keydown',e=>{if(e.key==='Escape'){const b=document.getElementById('autoBtn');if(b&&b.getAttribute('aria-expanded')==='true')setAuto(false)}});
+
+/* ===== painel r4 ===== */
+const VERS={
+ alad:{tipo:'mini',nome:TT,sug:'B',v:[{l:'A',g:'g5',ctr:'3,9%'},{l:'B',g:'g2',ctr:'5,2%'},{l:'C',g:'g3',ctr:'4,1%'}]},
+ t1:{tipo:'tit',nome:T1,sug:'B',v:[{l:'A',t:T1,ctr:'4,1%'},{l:'B',t:T1B,ctr:'4,8%'},{l:'C',t:'Main AD no Diamante 2: o jogo que virou',ctr:'4,3%'}]},
+ sk:{tipo:'tit',nome:SK,v:[{l:'A',t:SK},{l:'B',t:SKB},{l:'C',t:SKC}]}};
+const PAN={'alad-ativo':{k:'alad',modo:'ativo'},'alad-conc':{k:'alad',modo:'conc',ap:false},'t1-conc':{k:'t1',modo:'conc',ap:true,ate:'02/11'},'d14':{k:'sk',modo:'d14'}};
+const respostas=w=>{const r=[{id:'venceu_original',t:'A (original) ficou',s:w.v[0].t,ok:'a versão A (original) ficou no ar.'}];
+ w.v.slice(1).forEach((v,k)=>r.push({id:'venceu_nova',n:k+2,t:v.l+' venceu',s:v.t,ok:`a versão ${v.l} ficou no ar.`}));
+ r.push({id:'ficou_igual',t:'Ficou igual',s:'Sem diferença que dê para ver.',ok:'as versões ficaram iguais.'},{id:'inconclusivo',t:'Inconclusivo',s:'O Studio não chegou a um resultado.',ok:'o resultado foi inconclusivo.'},{id:'nao_vi',t:'Não vi ainda',s:'O aviso continua até você responder.',ok:null});return r};
+const ov=document.getElementById('ov'),dlg=document.getElementById('dlg');
+const FORA=['.stage','.ctl','.r2','.note'];
+let opener=null,curKey=null,RL=[];
+const rotulo=(P,l)=>P.modo==='ativo'?(l==='A'?'Manter A (original)':`Aplicar ${l} ao vídeo`):(P.ap?'Voltar à original':'Aplicar B ao vídeo');
+const avisoTxt=(P,w,l)=>P.modo!=='ativo'||l===w.sug?'':(l==='A'?`O teste indicou ${w.sug}. Manter A encerra o teste agora, sem aplicar ${w.sug}.`:`O teste indicou ${w.sug}. Escolher ${l} encerra o teste agora e coloca ${l} no ar.`);
+const msgErro=(P,w,l,tipo)=>{
+ if(tipo==='rede')return 'A conexão caiu e não deu para confirmar se mudou. Confira o vídeo no YouTube antes de tentar de novo.';
+ if(P.modo==='ativo')return l==='A'?'Não consegui encerrar o teste. Ele continua rodando.':`Não consegui aplicar ${l}. A original continua no ar.`;
+ return P.ap?'Não consegui voltar à original. B continua no ar.':'Não consegui aplicar B. A original continua no ar.'};
+function viewDecisao(st){
+ st=st||{};
+ const P=PAN[curKey],w=VERS[P.k],conc=P.modo==='conc',ar=P.ap?w.sug:'A',dflt=st.sel||(P.ap?'A':w.sug),av=avisoTxt(P,w,dflt);
+ const opts=w.v.map(v=>{
+  const off=!conc?false:(P.ap?v.l!=='A':v.l!==w.sug),now=P.ap&&v.l===w.sug,tg=[];
+  if(v.l==='A')tg.push('<span class="selo">Original</span>');
+  if(v.l===ar)tg.push('<span class="selo dia">No ar agora</span>');
+  if(v.l===w.sug)tg.push('<span class="selo sug">Sugerida pelo teste</span>');
+  if(off&&!now)tg.push('<span class="selo emb">Em breve</span>');
+  if(P.ap&&v.l==='A')tg.push(`<span class="meta">Dá para voltar até ${P.ate}</span>`);
+  const vis=w.tipo==='mini'?`<div class="th ${v.g}" aria-hidden="true"></div>`:`<span class="ch" aria-hidden="true">${v.l}</span>`;
+  const tx=w.tipo==='mini'?`<b>Versão ${v.l}</b>`:`<b class="tt">${v.t}</b>`;
+  return `<label class="opt ${off?'off':''} ${now?'now':''}"><input type="radio" name="ver" value="${v.l}" ${off?'disabled':''} ${v.l===dflt?'checked':''}>${vis}<span class="ot">${tx}<span class="meta num">${w.tipo==='mini'?'Versão '+v.l+' · ':''}CTR ${v.ctr}</span><span class="tags">${tg.join('')}</span></span></label>`;
+ }).join('');
+ const foot=P.ap?`Dá para voltar à original até ${P.ate}, 7 dias depois de aplicar. Depois dessa data o botão some.`:'Mudar o que está no ar muda o YouTube agora. Dá para voltar à original por 7 dias.';
+ dlg.innerHTML=`<div class="dh"><div><h2 id="dt">O que fica no vídeo?</h2><p class="meta">${w.nome}${P.modo==='ativo'?' · escolher encerra o teste agora':''}</p></div><button class="btn txt xb" type="button" data-close aria-label="Fechar">${I('x')}</button></div>
+ <div class="opts" role="radiogroup" aria-labelledby="dt">${opts}</div><p class="aviso ${av?'':'hidden'}" id="aviso" role="status">${av}</p>${st.err?`<p class="aviso err" id="erro" role="alert" tabindex="-1">${st.err}</p>`:''}<p class="meta foot" id="st" role="status">${foot}</p>
+ <div class="dact"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn pri" type="button" id="go">${st.err?'Tentar de novo':rotulo(P,dflt)}</button></div>`;
+}
+function setBusy(){
+ busy=true;dlg.setAttribute('aria-busy','true');
+ const g=document.getElementById('go');g.textContent='Aplicando…';g.setAttribute('aria-disabled','true');g.classList.add('wait');
+ dlg.querySelector('.opts').inert=true;
+ dlg.querySelectorAll('[data-close]').forEach(b=>b.setAttribute('aria-disabled','true'));
+ const er=document.getElementById('erro');if(er)er.remove();
+ document.getElementById('st').textContent='Mudando no YouTube. Aguarde, não feche esta janela.';
+ if(S==='busy')busy='demo';
+}
+function viewFeito(txt,tit){busy=false;dlg.removeAttribute('aria-busy');dlg.innerHTML=`<div class="dh"><h2 id="dt">${tit||'Feito'}</h2></div><div class="feito" role="status">${I('ok')}<p>${txt}</p></div><div class="dact"><button class="btn pri" type="button" data-close id="fim">Fechar</button></div>`;document.getElementById('fim').focus()}
+function viewDia14(){
+ dlg.innerHTML=`<div class="dh"><div><h2 id="dt">O que o Studio mostrou?</h2><p class="meta">${VERS[PAN[curKey].k].nome}</p></div><button class="btn txt xb" type="button" data-close aria-label="Fechar">${I('x')}</button></div>
+ <p class="apoio2">O Lab não lê o resultado do Studio. Conte aqui para o histórico ficar certo. Responder não muda o YouTube; o Studio já aplicou a versão dele.<a class="lkm" href="#">Abrir no Studio</a></p>
+ <div class="opts">${(RL=respostas(VERS[PAN[curKey].k])).map((r,k)=>`<button class="opt as" type="button" data-r="${k}"><b>${r.t}</b><span>${r.s}</span></button>`).join('')}</div>
+ <p class="meta foot">Um toque responde; dá para mudar depois.</p>`;
+}
+function openPanel(key,_,el){
+ curKey=key;opener=el||null;ov.hidden=false;
+ FORA.forEach(q=>document.querySelectorAll(q).forEach(n=>n.inert=true));
+ PAN[key].modo==='d14'?viewDia14():viewDecisao();
+ if(PAN[key].modo==='d14')dlg.focus();else (dlg.querySelector('input:checked')||dlg.querySelector('button')).focus();
+}
+function closePanel(){
+ if(busy===true)return;busy=false;dlg.removeAttribute('aria-busy');
+ const k=curKey;ov.hidden=true;curKey=null;
+ FORA.forEach(q=>document.querySelectorAll(q).forEach(n=>n.inert=false));
+ const t=opener&&document.contains(opener)?opener:document.querySelector(`[data-open="${k}"]`);
+ if(t)t.focus();
+}
+page.addEventListener('click',e=>{const b=e.target.closest('[data-open]');if(b){e.preventDefault();openPanel(b.dataset.open,null,b)}});
+ov.addEventListener('click',e=>{if(e.target===ov||e.target.closest('[data-close]'))closePanel()});
+dlg.addEventListener('change',e=>{
+ if(e.target.name!=='ver')return;const P=PAN[curKey],w=VERS[P.k],l=e.target.value,av=document.getElementById('aviso');
+ document.getElementById('go').textContent=rotulo(P,l);
+ const t=avisoTxt(P,w,l);av.classList.toggle('hidden',!t);av.textContent=t;
+ const er=document.getElementById('erro');if(er)er.remove();
+});
+dlg.addEventListener('click',e=>{
+ const P=PAN[curKey];if(!P)return;
+ if(e.target.closest('#go')){
+  if(busy)return;
+  const l=dlg.querySelector('input:checked').value,w=VERS[P.k];
+  setBusy();
+  if(S==='busy')return;
+  setTimeout(()=>{
+   if(curKey===null)return;
+   if(S==='falha'||S==='rede'){busy=false;viewDecisao({sel:l,err:msgErro(P,w,l,S)});document.getElementById('erro').focus();return}
+   if(P.modo==='ativo')viewFeito(l==='A'?`Teste encerrado. Você manteve A (original).${w.sug!=='A'?' O teste indicava '+w.sug+'.':''}`:(l===w.sug?`Teste encerrado. ${l} no ar desde 26/10.`:`Teste encerrado. ${l} no ar desde 26/10. Você escolheu ${l}; o teste indicava ${w.sug}.`));
+   else if(P.ap)viewFeito('A original voltou ao ar.');
+   else viewFeito('B no ar desde 26/10. Dá para voltar à original até 02/11.');
+  },600);
+ }
+ const r=e.target.closest('[data-r]');
+ if(r){const x=RL[+r.dataset.r];
+  dlg.innerHTML=`<div class="dh"><h2 id="dt">${x.ok?'Registrado':'Certo'}</h2></div><div class="feito" role="status">${I('ok')}<p>${x.ok?'Registrado: '+x.ok:'O aviso continua até você responder.'}</p></div><div class="dact"><button class="btn ghost" type="button" id="mud">Mudar resposta</button><button class="btn pri" type="button" data-close id="fim">Fechar</button></div>`;
+  document.getElementById('fim').focus()}
+ if(e.target.closest('#mud')){viewDia14();dlg.focus()}
+});
+ov.addEventListener('keydown',e=>{
+ if(e.key==='Escape'){e.preventDefault();closePanel()}
+ else if(e.key==='Tab'){const f=[...dlg.querySelectorAll('button:not([disabled]),input:not([disabled]),a[href]')];if(!f.length)return;const a=f[0],z=f[f.length-1];
+  if(e.shiftKey&&(document.activeElement===a||document.activeElement===dlg)){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}}
+});
+draw();
+</script>
+</body></html>
