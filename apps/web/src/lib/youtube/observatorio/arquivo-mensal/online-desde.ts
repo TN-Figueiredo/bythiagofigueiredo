@@ -22,9 +22,11 @@ export const JANELA_MINIMA_DIAS: Record<TabelaDaSerie, number> = { competitor_vi
 const Linha = z.object({ class: z.string(), table_name: z.string(), online_since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), divergencia: z.boolean() }).strict()
 const TAGS = { component: 'observatorio', step: 'online-desde' }
 const avisados = new Set<string>()
+/** Teto de chaves distintas por instância (a chave de erro do banco leva o código: um timeout cedo não esconde um 42501 depois). */
+const MAX_AVISOS = 10
 /** Sentry com limite: cada tipo sai 1× por instância (o resto vira console.warn), para um estado repetido não gastar a cota de eventos. */
 export function avisarUmaVez(tipo: string, msg: string, level: 'warning' | 'error', extra?: Record<string, unknown>): void {
-  if (avisados.has(tipo)) { console.warn(msg); return }
+  if (avisados.has(tipo) || avisados.size >= MAX_AVISOS) { console.warn(msg); return }
   avisados.add(tipo)
   Sentry.captureMessage(msg, { level, tags: { ...TAGS, tipo }, ...(extra ? { extra } : {}) })
 }
@@ -57,11 +59,16 @@ export async function lerOnlineDesde(sb: SupabaseClient, siteId: string, saidaDe
       avisarUmaVez('ausente_com_saida', 'obs_archive_online_since ausente com saída de mês existindo', 'error')
       return { lido: false, porque: 'funcao_ausente' }
     }
-    avisarUmaVez('erro_do_banco', 'obs_archive_online_since: ' + (error.code || 'sem código'), 'error', { message: (error as { message?: string }).message })
+    const codigo = error.code || 'sem código'
+    avisarUmaVez('erro_do_banco:' + codigo, 'obs_archive_online_since: ' + codigo, 'error', { message: (error as { message?: string }).message })
     return { lido: false, porque: 'erro_do_banco' }
   }
   const o = lerOnlineDesdeBruto(data)
-  if (!o.lido) avisarUmaVez(o.porque, 'obs_archive_online_since: ' + (o.porque === 'divergencia' ? 'divergência entre o registro e as partições' : 'resposta fora do esquema'), 'error')
+  if (!o.lido && o.porque === 'divergencia') {
+    const linhas = z.array(Linha).safeParse(data)
+    const tabelas = linhas.success ? linhas.data.filter(l => l.divergencia).map(l => l.table_name) : []
+    avisarUmaVez(o.porque, 'obs_archive_online_since: divergência entre o registro e as partições', 'error', { tabelas })
+  } else if (!o.lido) avisarUmaVez(o.porque, 'obs_archive_online_since: resposta fora do esquema', 'error')
   return o
 }
 

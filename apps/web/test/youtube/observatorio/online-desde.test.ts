@@ -84,6 +84,18 @@ describe('online desde', () => {
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
     expect(Sentry.captureMessage).toHaveBeenCalledWith('obs_archive_online_since: 57014', expect.objectContaining({ level: 'error' }))
   })
+  it('Phil m-A / Yannis M-1: um timeout cedo não esconde outro código depois; teto de 10 chaves', async () => {
+    await lerOnlineDesde(sbCom({ code: '57014' }), 's', false)
+    await lerOnlineDesde(sbCom({ code: '42501' }), 's', false)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('obs_archive_online_since: 42501', expect.objectContaining({ level: 'error' }))
+    for (let i = 0; i < 20; i++) await lerOnlineDesde(sbCom({ code: 'X' + i }), 's', false)
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(10)
+  })
+  it('Phil m-B: a divergência diz qual tabela', async () => {
+    const t = tudo(null); t[2] = { ...t[2]!, divergencia: true }
+    await lerOnlineDesde(sbCom(null, t), 's', false)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(expect.stringContaining('divergência'), expect.objectContaining({ extra: { tabelas: ['competitor_video_hourly'] } }))
+  })
   it('Phil M2: rpc que lança, ou cliente sem rpc: erro_do_banco e captureException', async () => {
     expect(await lerOnlineDesde({ rpc: vi.fn().mockRejectedValue(new Error('rede')) } as never, 's', false)).toEqual({ lido: false, porque: 'erro_do_banco' })
     expect(Sentry.captureException).toHaveBeenCalledTimes(1)
