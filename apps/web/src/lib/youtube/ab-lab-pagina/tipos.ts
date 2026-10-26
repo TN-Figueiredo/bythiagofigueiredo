@@ -36,3 +36,20 @@ export type EscolhaPainel =
   | { tipo: 'encerrar'; varianteId: string; original: boolean }
   | { tipo: 'aplicar_sugerida'; varianteId: string }
   | { tipo: 'voltar' }
+
+export interface LinhaConcluida {
+  chave: string
+  origem: 'lab' | 'studio'
+  testId: string | null
+  ytId: string
+  titulo: string
+  miniaturaUrl: string | null
+  tipo: 'Título' | 'Miniatura' | 'Título e miniatura'
+  /** "B venceu" | "A (original) ficou" | "B sugerido pelo teste" | "Sem vencedor" */
+  resultado: string
+  /** "no ar desde 26/10" | "falta aplicar no vídeo" | "no ar desde 12/10 · você contou do Studio" | "no ar: não confirmado" */
+  apoio: string
+  acao: { rotulo: `Aplicar ${string}` | 'Voltar à original'; painel: PainelDecisao } | null
+  /** ISO usado para ordenar (mais recente primeiro) */
+  ordem: string
+}
