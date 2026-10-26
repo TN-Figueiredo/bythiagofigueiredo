@@ -67,6 +67,16 @@
 .pv2-sel.fort { border-color: var(--cn-dim); color: var(--cn-text); background: var(--cn-surface-2); border-width: 3px; border-style: double; }
 .pv2-desf { margin-top: var(--s4); display: flex; flex-direction: column; gap: var(--s3); align-items: flex-start; max-width: 1040px; }
 .pv2-desf .pv2-selos { margin-bottom: 0; }
+.pv2-selreg { display: flex; flex-direction: column; gap: var(--s3); align-items: flex-start; max-width: 100%; }
+.pv2-sel { white-space: normal; overflow-wrap: anywhere; border-radius: 20px; }
+.pv2-sel .sy svg { display: block; }
+.pv2-sel.neu { background: transparent; }
+.pv2-sel.desfeito { border-style: solid; background: var(--cn-surface-2); }
+.pv2-motivo { margin: 0; font-size: 13px; color: var(--cn-text); max-width: 60ch; border-left: 3px solid var(--cn-dim); padding: 2px 0 2px 10px; }
+.pv2-errb { display: flex; flex-direction: column; gap: var(--s3); align-items: flex-start; border: 1px solid var(--cn-err-line); background: rgba(244, 160, 151, 0.08); border-radius: 10px; padding: 10px 12px; max-width: 60ch; }
+.pv2-errb p { margin: 0; font-size: 13px; color: var(--cn-text); display: flex; gap: 8px; align-items: flex-start; }
+.pv2-errb p svg { color: var(--cn-err); margin-top: 2px; flex: none; }
+.pv2-btn[aria-disabled="true"] { cursor: progress; color: var(--cn-muted); background: var(--cn-surface-2); }
 .pv2-provl { display: inline-flex; gap: 7px; align-items: center; font-size: 13px; color: var(--cn-muted); }
 .pv2-noar { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--cn-muted); }
 .pv2-noar b { color: var(--cn-text); }

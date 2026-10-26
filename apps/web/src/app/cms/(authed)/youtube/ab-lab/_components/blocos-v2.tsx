@@ -13,7 +13,7 @@ import './blocos-v2.css'
 const PISO_DIAS = 4
 const milhar = (n: number): string => n.toLocaleString('pt-BR')
 
-export function ResumoV2({ frase, ilegivel }: { frase: { principal: string; apoio: string | null }; ilegivel?: boolean }) {
+export function ResumoV2({ frase, ilegivel }: { frase: { principal: string; apoio: string | null; complemento?: string }; ilegivel?: boolean }) {
   return (
     <>
       {ilegivel ? (
@@ -22,6 +22,7 @@ export function ResumoV2({ frase, ilegivel }: { frase: { principal: string; apoi
       <p className="pv2-sum">
         {frase.principal}
         {frase.apoio ? <small>{frase.apoio}</small> : null}
+        {frase.complemento ? <small>{frase.complemento}</small> : null}
       </p>
     </>
   )
@@ -134,6 +135,26 @@ const IcRelogio = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M7 4v3.2l2 1.3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
 )
 
+const IcLosangoCheio = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 1l6 6-6 6-6-6z" fill="currentColor" /></svg>
+)
+const IcLosangoVazado = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 1.9l5.1 5.1L7 12.1 1.9 7z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
+)
+const IcAviso = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 1.5l6 10.5H1z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M7 5.5v3M7 10.2v.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+)
+
+/** Pedido de Aplicar/Voltar visto na página (depois que o diálogo fecha): espera ou erro, com "Tentar de novo". */
+export interface AcaoEmCurso {
+  tipo: 'aplicar' | 'voltar'
+  fase: 'enviando' | 'erro'
+  texto?: string
+  /** Mostra "Tentar de novo" (falha de rede/erro genérico); recusas do servidor não repetem. */
+  tentar?: boolean
+  recarregar?: boolean
+}
+
 export interface DesfechoV2Props {
   tela: Extract<TelaV2, { fase: 'concluido' }>
   onAplicar: (gatilho: HTMLButtonElement) => void
@@ -141,23 +162,81 @@ export interface DesfechoV2Props {
   onTentarDeNovo: () => void
   /** Alvo do foco depois de aplicar/voltar (a linha "No ar agora"). */
   noArRef: RefObject<HTMLDivElement | null>
+  acao?: AcaoEmCurso | null
+  onTentarAcao?: () => void
+  onRecarregar?: () => void
 }
 
-export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef }: DesfechoV2Props) {
+const MOTIVO_BLOQUEIO = 'Há outro teste aberto neste vídeo. Encerre ou aguarde o outro teste.'
+
+export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef, acao, onTentarAcao, onRecarregar }: DesfechoV2Props) {
   const canAdmin = useCanAdminSite()
   const { c, s } = SELO[tela.selo.tipo]
   const prov = tela.selo.tipo === 'vence' && tela.selo.provisorio
   const noAr = tela.noAr
+  const desfeita = noAr.tipo === 'desfeita' ? noAr : null
+  // Aplicação desfeita com o mesmo desfecho: o resultado vira neutro vazado, no passado ("venceu"); o verde fica só para "vigente".
+  const venceuNeutro = desfeita !== null && !desfeita.desfechoMudou && tela.selo.tipo === 'vence'
   let linhaNoAr: ReactNode = null
   if (noAr.tipo === 'original') linhaNoAr = <>No ar agora: <b>A (original)</b>.</>
   else if (noAr.tipo === 'aplicada') linhaNoAr = <><b>{noAr.letra}</b> está no ar.</>
   else if (noAr.tipo === 'desfeita') linhaNoAr = <>No ar agora: <b>A (original)</b>. {noAr.letra} deixou de ser aplicada.</>
   const chipNoAr = noAr.tipo === 'aplicada' ? noAr.letra : 'A'
+  const alvo = tela.aplicar ?? tela.aplicarDeNovo
+  const deNovo = tela.aplicar === null && tela.aplicarDeNovo !== null
+  const rotuloAplicar = alvo ? (deNovo ? `Aplicar ${alvo.letra} de novo` : `Aplicar ${alvo.letra} ao vídeo`) : ''
+  const emCurso = acao?.fase === 'enviando' ? acao : null
+  const comErro = acao?.fase === 'erro' ? acao : null
+
+  const botao = (rotulo: string, espera: string, tipo: 'aplicar' | 'voltar', pri: boolean, onClick: (b: HTMLButtonElement) => void): ReactNode => {
+    const esperando = emCurso?.tipo === tipo
+    return (
+      <button
+        type="button"
+        className={`pv2-btn${pri ? ' pri' : ''}`}
+        aria-disabled={esperando ? true : undefined}
+        onClick={e => { if (!esperando) onClick(e.currentTarget) }}
+      >
+        {esperando ? <><IcRelogio />{espera}</> : rotulo}
+      </button>
+    )
+  }
+
+  let acoes: ReactNode = null
+  if (comErro) {
+    acoes = (
+      <div className="pv2-errb" role="alert">
+        <p><IcAviso /><span>{comErro.texto}</span></p>
+        <div className="pv2-acts">
+          {comErro.tentar ? <button type="button" className="pv2-btn" onClick={onTentarAcao}>Tentar de novo</button> : null}
+          {comErro.recarregar ? <button type="button" className="pv2-btn" onClick={onRecarregar}>Recarregar</button> : null}
+        </div>
+      </div>
+    )
+  } else if (alvo) {
+    acoes = canAdmin ? (
+      <div className="pv2-acts">
+        {botao(rotuloAplicar, `Aplicando ${alvo.letra}…`, 'aplicar', !deNovo, onAplicar)}
+        {!deNovo && tela.prazo?.tipo === 'provisorio' && tela.prazo.ate ? <span className="pv2-provl" data-testid="aplicar-provisorio">provisório até {tela.prazo.ate}</span> : null}
+      </div>
+    ) : <AdminOnlyNote action="aplicar a variante" className="text-cms-text-dim" />
+  } else if (tela.bloqueio === 'outro_teste') {
+    acoes = <p className="pv2-motivo">{MOTIVO_BLOQUEIO}</p>
+  } else if (tela.voltar) {
+    acoes = canAdmin ? (
+      <div className="pv2-acts">{botao('Voltar à original', 'Voltando à original…', 'voltar', false, onVoltar)}</div>
+    ) : <AdminOnlyNote action="voltar à original" className="text-cms-text-dim" />
+  }
+
   return (
     <div className="pv2-desf">
-      <div className="pv2-selos">
-        <span className={`pv2-sel ${c}${prov ? ' prov' : ''}`} role="status"><span className="sy" aria-hidden="true">{s}</span>{textoDoSelo(tela.selo)}</span>
-        {noAr.tipo === 'desfeita' ? <span className="pv2-sel mut"><span className="sy" aria-hidden="true">◆</span>Aplicação de {noAr.letra} desfeita</span> : null}
+      <div className="pv2-selreg" aria-live="polite">
+        {desfeita ? <span className="pv2-sel mut desfeito"><span className="sy" aria-hidden="true"><IcLosangoCheio /></span>Aplicação de {desfeita.letra} desfeita</span> : null}
+        {venceuNeutro && tela.selo.tipo === 'vence' ? (
+          <span className="pv2-sel neu"><span className="sy" aria-hidden="true"><IcLosangoVazado /></span>{tela.selo.letra} venceu o teste{tela.selo.provisorio ? ' · provisório' : ''}</span>
+        ) : (
+          <span className={`pv2-sel ${c}${prov ? ' prov' : ''}`}><span className="sy" aria-hidden="true">{s}</span>{textoDoSelo(tela.selo)}</span>
+        )}
       </div>
       {tela.prazo ? (
         <span className="pv2-provl">
@@ -172,15 +251,7 @@ export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef 
           <span>{linhaNoAr}</span>
         </div>
       ) : null}
-      {tela.aplicar ? (
-        canAdmin ? (
-          <div className="pv2-acts"><button type="button" className="pv2-btn pri" onClick={e => onAplicar(e.currentTarget)}>Aplicar {tela.aplicar.letra} ao vídeo</button>{tela.prazo?.tipo === 'provisorio' && tela.prazo.ate ? <span className="pv2-provl" data-testid="aplicar-provisorio">provisório até {tela.prazo.ate}</span> : null}</div>
-        ) : <AdminOnlyNote action="aplicar a variante" className="text-cms-text-dim" />
-      ) : tela.voltar ? (
-        canAdmin ? (
-          <div className="pv2-acts"><button type="button" className="pv2-btn" onClick={e => onVoltar(e.currentTarget)}>Voltar à original</button></div>
-        ) : <AdminOnlyNote action="voltar à original" className="text-cms-text-dim" />
-      ) : null}
+      {acoes}
       {tela.tentarDeNovo ? <div className="pv2-acts"><button type="button" className="pv2-btn" onClick={onTentarDeNovo}>Tentar de novo</button></div> : null}
     </div>
   )
