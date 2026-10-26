@@ -42,6 +42,6 @@ describe('passo Revisar: volume (M7 T15)', () => {
     expect(caixa.getAttribute('aria-busy')).toBe('true')
     expect(caixa.getAttribute('role')).toBe('status')
     expect(caixa.textContent).toContain('Conferindo a resolução')
-    expect(/min-h-\[92px\]/.test(caixa.className)).toBe(true)
+    expect(caixa.className).toContain("min-h-[180px] sm:min-h-[120px]")
   })
 })

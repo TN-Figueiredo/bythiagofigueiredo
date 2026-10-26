@@ -34,3 +34,16 @@ describe('seletor de vídeo: continuar rascunho (M7 T16)', () => {
     expect(screen.getByText('Já tem um rascunho')).toBeTruthy()
   })
 })
+
+describe('seletor: rascunho distinguível (envio 1)', () => {
+  it('mostra "Rascunho de DD/MM · tipo" e a ação com ícone', async () => {
+    const { rotuloDoRascunho } = await import('@/app/cms/(authed)/youtube/ab-lab/_components/linha-de-video')
+    expect(rotuloDoRascunho('2026-10-21T15:00:00Z', 'combo')).toBe('Rascunho de 21/10 · Título e miniatura')
+    expect(rotuloDoRascunho('2026-10-21T15:00:00Z', 'title')).toBe('Rascunho de 21/10 · Título')
+    expect(rotuloDoRascunho(null, 'thumbnail')).toBe('Rascunho · Miniatura')
+    expect(rotuloDoRascunho(null, null)).toBeNull()
+    render(<LinhaDeVideo video={{ ...base, rascunhoCriadoEm: '2026-10-21T15:00:00Z', rascunhoTipo: 'thumbnail' }} onEscolher={vi.fn()} onContinuarRascunho={vi.fn()} />)
+    expect(screen.getByText('Rascunho de 21/10 · Miniatura')).toBeTruthy()
+    expect(screen.getByText('Continuar rascunho').querySelector('svg')).not.toBeNull()
+  })
+})

@@ -137,7 +137,8 @@ describe('StepRevisar: aviso da original (D12, r5)', () => {
     expect(esqueleto).toBeTruthy()
     expect(esqueleto).toBe(status[0])
     expect(esqueleto.querySelector('[class*="h-2"]')).toBeTruthy()   // barra do esqueleto compartilhado
-    expect(esqueleto.className).toContain('min-h-[92px]')
+    expect(esqueleto.className).toContain('min-h-[180px]')
+    expect(esqueleto.className).toContain('sm:min-h-[120px]')
   })
   it('role="status" entra junto com o conteúdo, nunca vazio (Naksu S3)', () => {
     render(<StepRevisar {...base} avisoOriginal={textoAvisoOriginalBaixa('480x360', true)} />)
@@ -157,5 +158,25 @@ describe('StepRevisar: aviso da original (D12, r5)', () => {
     for (const proibido of ['#4ade80', '#22c55e', 'tone="amber"', '-subtle', 'color-mix(']) {
       expect(fonte.toLowerCase()).not.toContain(proibido)
     }
+  })
+})
+
+describe('envio 1: resolução sem pulo, texto curto e ⓘ da regra', () => {
+  it('cartão da resolução usa a mesma altura do esqueleto; texto curto', () => {
+    const aviso = textoAvisoOriginalBaixa(null, false)
+    const { container } = render(<StepRevisar {...base} avisoOriginal={aviso} />)
+    const cartao = container.querySelector('.rv-vol') as HTMLElement
+    expect(cartao.className).toContain('min-h-[180px]')
+    expect(cartao.className).toContain('sm:min-h-[120px]')
+    expect(screen.getByText('Resolução não medida. O teste mede ao ativar; se a miniatura no YouTube tiver menos de 1280 px, troque-a antes de ativar.')).toBeTruthy()
+  })
+  it('ⓘ da regra: aria-label "Como funciona", alvo 44px e última palavra em nowrap', () => {
+    const { container } = render(<StepRevisar {...base} />)
+    const regra = container.querySelector('[data-regra]') as HTMLElement
+    const botao = regra.querySelector('button') as HTMLButtonElement
+    expect(botao.getAttribute('aria-label')).toBe('Como funciona')
+    expect(botao.className).toContain('min-h-11')
+    expect(botao.className).toContain('min-w-11')
+    expect(regra.querySelector('.whitespace-nowrap')?.textContent).toBe('você.')
   })
 })

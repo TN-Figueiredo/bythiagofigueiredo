@@ -44,7 +44,7 @@ export function AndamentoV2({ dia, teto, pausado }: { dia: number; teto: number;
         </span>
       </div>
       <div className="pv2-ticks" style={{ gridTemplateColumns: `repeat(${teto}, 1fr)` }} aria-hidden="true">
-        {Array.from({ length: teto }, (_, i) => <i key={i} className={i + 1 < dia ? 'p' : i + 1 === dia ? 'h' : ''} />)}
+        {Array.from({ length: teto }, (_, i) => <i key={i} className={i + 1 < atual ? 'p' : i + 1 === atual ? 'h' : ''} />)}
       </div>
     </div>
   )

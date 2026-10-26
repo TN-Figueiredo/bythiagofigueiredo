@@ -18,6 +18,9 @@ export interface EligibleVideo {
   statusDoTeste: AbTestStatus | null
   /** Id do rascunho mais recente do vídeo (só quando `statusDoTeste` é draft); reabre o assistente. */
   rascunhoId?: string | null
+  /** ISO de criação e tipo (thumbnail/title/combo) do rascunho reaberto: distinguem rascunhos do mesmo vídeo. */
+  rascunhoCriadoEm?: string | null
+  rascunhoTipo?: string | null
   /** Short ou sem thumbnail HQ: as duas recusas de `createAbTest`. */
   bloqueio: 'short' | 'sem_thumb_hq' | null
   /** ISO; null quando o banco não tem */

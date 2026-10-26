@@ -1,5 +1,6 @@
 'use client'
 
+import { Lock, Pencil } from 'lucide-react'
 import { brDec } from '@/lib/youtube/format'
 import {
   dataHoraDePublicacao, duracaoDoVideo, textoDeVisualizacoes,
@@ -17,6 +18,18 @@ export function motivoDoBloqueio(v: EligibleVideo, podeContinuar = false): strin
   return null
 }
 
+const TIPO_RASCUNHO: Record<string, string> = { title: 'Título', thumbnail: 'Miniatura', combo: 'Título e miniatura' }
+
+/** "Rascunho de DD/MM · Tipo"; só o que existe (sem data válida, sem tipo conhecido, não inventa). */
+export function rotuloDoRascunho(criadoEm: string | null | undefined, tipo: string | null | undefined): string | null {
+  const data = criadoEm && !Number.isNaN(Date.parse(criadoEm))
+    ? new Date(criadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })
+    : null
+  const t = tipo ? (TIPO_RASCUNHO[tipo] ?? null) : null
+  if (!data && !t) return null
+  return `Rascunho${data ? ` de ${data}` : ''}${t ? ` · ${t}` : ''}`
+}
+
 function dataValida(iso: string | null): iso is string {
   return iso !== null && !Number.isNaN(Date.parse(iso))
 }
@@ -25,6 +38,7 @@ function dataValida(iso: string | null): iso is string {
 export function LinhaDeVideo({ video, onEscolher, onContinuarRascunho }: { video: EligibleVideo; onEscolher: (v: WizardVideo) => void; onContinuarRascunho?: (draftId: string) => void }) {
   const continuar = onContinuarRascunho !== undefined && video.statusDoTeste === 'draft' && Boolean(video.rascunhoId) ? video.rascunhoId! : null
   const motivo = motivoDoBloqueio(video, onContinuarRascunho !== undefined)
+  const rotulo = continuar ? rotuloDoRascunho(video.rascunhoCriadoEm, video.rascunhoTipo) : null
   const duracao = duracaoDoVideo(video.durationSeconds)
   return (
     <button
@@ -59,8 +73,19 @@ export function LinhaDeVideo({ video, onEscolher, onContinuarRascunho }: { video
           <span>{dataValida(video.publishedAt) ? `Publicado em ${dataHoraDePublicacao(video.publishedAt)}` : 'Data de publicação não informada'}</span>
           {video.viewCount !== null && video.viewCount > 0 && <span>{textoDeVisualizacoes(video.viewCount)}</span>}
         </span>
-        {motivo && <span className="amb">{motivo}</span>}
-        {continuar && <span className="amb" data-continuar-rascunho>Continuar rascunho</span>}
+        {motivo && (
+          <span className="amb">
+            <Lock size={12} aria-hidden="true" />
+            {motivo}
+          </span>
+        )}
+        {continuar && rotulo && <span className="m" data-rascunho-origem>{rotulo}</span>}
+        {continuar && (
+          <span className="acao" data-continuar-rascunho>
+            <Pencil size={13} aria-hidden="true" />
+            Continuar rascunho
+          </span>
+        )}
         {video.previousLift != null && (
           <span className="lf">Lift anterior: {video.previousLift > 0 ? '+' : ''}{brDec(video.previousLift, 1)}%</span>
         )}

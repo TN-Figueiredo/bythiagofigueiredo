@@ -65,9 +65,10 @@ function RegraDoTeste({ V }: { V: number }) {
   const seq = V >= 3 ? 'A, B, C, C, B, A' : 'A, B, B, A'
   return (
     <p className="m-0 flex flex-wrap items-center gap-x-1 text-[13px] leading-snug text-cms-text-muted" data-regra>
-      <span>Roda até {teto} dias (mínimo {minimo}), em rotação ABBA. Quem escolhe o vencedor é você.</span>
+      <span>Roda até {teto} dias (mínimo {minimo}), em rotação ABBA. Quem escolhe o vencedor é{' '}<span className="whitespace-nowrap">você.</span></span>
       <InfoDica
-        rotulo={`Por que ${teto} dias`}
+        rotulo="Como funciona"
+        className="min-h-11 min-w-11 -my-3"
         titulo={`Por que ${teto} dias`}
         paragrafos={[
           `O YouTube leva dias para enviar o alcance de cada vídeo; por isso o prazo é fixo: no mínimo ${minimo} e no máximo ${teto} dias.`,
@@ -92,12 +93,12 @@ const TEXTO_VOLUME_INDISPONIVEL = 'Não foi possível estimar o volume agora. Vo
 
 type AvisoComSelo = Exclude<AvisoOriginal, { kind: 'indisponivel' }>
 
-function CartaoDeAviso({ selo, ambar, texto, tracejado = false, atributo }: { selo: string; ambar: boolean; texto: string; tracejado?: boolean; atributo?: Record<string, string> }) {
+function CartaoDeAviso({ selo, ambar, texto, tracejado = false, atributo, altura = ALTURA_AVISO_VOLUME }: { selo: string; ambar: boolean; texto: string; tracejado?: boolean; atributo?: Record<string, string>; altura?: string }) {
   return (
     <div
       role="status"
       {...atributo}
-      className={`rv-vol ${ALTURA_AVISO_VOLUME} grid content-center justify-items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text`}
+      className={`rv-vol ${altura} grid content-center justify-items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text`}
     >
       <span
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-px text-[12px] font-semibold leading-5 ${ambar ? '' : 'bg-cms-surface-3 text-cms-text-muted'}`}
@@ -117,20 +118,22 @@ function CartaoDeAviso({ selo, ambar, texto, tracejado = false, atributo }: { se
 }
 
 function AvisoResolucao({ aviso }: { aviso: AvisoComSelo }) {
-  return <CartaoDeAviso selo={aviso.selo} ambar={aviso.kind === 'baixa'} texto={aviso.texto} />
+  return <CartaoDeAviso selo={aviso.selo} ambar={aviso.kind === 'baixa'} texto={aviso.texto} altura={ALTURA_AVISO_RESOLUCAO} />
 }
 
 /** Mesma altura mínima do cartão de aviso com uma linha: a troca de pendente para resolvido não empurra a página. */
 const ALTURA_AVISO_VOLUME = 'min-h-[92px]'
+/** Resolução: o texto resolvido quebra em mais linhas no celular; a mesma altura no esqueleto e no cartão evita o pulo. */
+const ALTURA_AVISO_RESOLUCAO = 'min-h-[180px] sm:min-h-[120px]'
 
-function EsqueletoDeAviso({ texto, rotulo, atributo }: { texto: string; rotulo: string; atributo?: boolean }) {
+function EsqueletoDeAviso({ texto, rotulo, atributo, altura = ALTURA_AVISO_VOLUME }: { texto: string; rotulo: string; atributo?: boolean; altura?: string }) {
   return (
     <div
       role="status"
       aria-busy="true"
       aria-label={rotulo}
       {...(atributo ? { 'data-aviso-volume-sk': '' } : {})}
-      className={`rv-vol ${ALTURA_AVISO_VOLUME} grid content-center gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text-muted`}
+      className={`rv-vol ${altura} grid content-center gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text-muted`}
     >
       <span className="inline-flex items-center gap-1.5">
         <Clock className="w-3.5 h-3.5" aria-hidden="true" />
@@ -194,7 +197,7 @@ export function StepRevisar({ type, variants, meta, onEscolherDaBiblioteca, avis
       <RegraDoTeste V={variants.length} />
 
       {avisoOriginal === 'pendente' ? (
-        <EsqueletoDeAviso texto="Conferindo a resolução da miniatura original…" rotulo="Lendo a resolução da original" />
+        <EsqueletoDeAviso texto="Conferindo a resolução da miniatura original…" rotulo="Lendo a resolução da original" altura={ALTURA_AVISO_RESOLUCAO} />
       ) : avisoOriginal ? (
         avisoOriginal.kind === 'indisponivel' ? (
           <p role="status" className="m-0 text-[13px] text-cms-text-muted">{avisoOriginal.texto}</p>

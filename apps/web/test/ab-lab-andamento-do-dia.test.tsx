@@ -51,3 +51,13 @@ describe('vocabulário: miniatura (M7 M2)', () => {
     expect(tipo).not.toContain('Thumbnail')
   })
 })
+
+describe('AndamentoV2: quadrado de hoje (envio 1)', () => {
+  it.each([[0, 1], [4, 5]])('com %i dias passados marca o quadrado %i como hoje', (dia, atual) => {
+    const { container } = render(<AndamentoV2 dia={dia} teto={15} pausado={false} />)
+    const q = Array.from(container.querySelectorAll('.pv2-ticks i'))
+    expect(q.findIndex(i => i.className === 'h')).toBe(atual - 1)
+    expect(q.filter(i => i.className === 'p').length).toBe(atual - 1)
+    cleanup()
+  })
+})

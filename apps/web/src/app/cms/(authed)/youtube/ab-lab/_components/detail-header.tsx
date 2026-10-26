@@ -1,6 +1,6 @@
 'use client'
 
-import { rotuloDoDia, rotuloDoDiaExtenso } from '@/lib/youtube/ab-rotulo-dia'
+import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
 import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
@@ -76,12 +76,12 @@ export function DetailHeader({
                     ? <span>Teste do Lab concluído em {lab.concluidoEm}</span>
                     : lab.naoIniciado
                       ? <span>Teste do Lab não iniciado</span>
-                      : dayInfo && dayInfo.total >= 1 ? <span>Teste do Lab {situacao}, <span className="dhl-dia">{rotuloDoDiaExtenso(dayInfo.dayOf, dayInfo.total, { minusculo: true })}</span></span> : null}
+                      : dayInfo && dayInfo.total >= 1 ? <span>Teste do Lab {situacao}</span> : null}
                 </span>
               </div>
             )}
             {(status === 'active' || status === 'paused') && !lab.concluidoEm && !lab.naoIniciado && (
-              <p className="dhl-origem" data-testid="origem-lab" style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--cms-text-muted)' }}>
+              <p className="dhl-origem" data-testid="origem-lab">
                 {fraseDeOrigemDoLab(flag)}
               </p>
             )}

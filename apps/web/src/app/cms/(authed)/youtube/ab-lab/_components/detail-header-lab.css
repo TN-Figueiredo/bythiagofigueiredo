@@ -14,3 +14,5 @@
   .dhl-th { width: 96px; }
   .dhl-ttl { width: 100%; }
 }
+
+.dhl-origem { margin: 6px 0 24px; font-size: 13px; line-height: 1.45; color: var(--cms-text-muted); }

@@ -71,12 +71,12 @@ describe('M6 T6: banner e selos', () => {
     expect(screen.getByText(/Roda até 15 dias \(mínimo 12\)/)).toBeTruthy()
     expect(document.body.textContent).not.toContain('Duração:')
     expect(screen.getByText(/2 variantes de título/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Por que 15 dias' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Como funciona' }))
     expect(document.body.textContent).toContain('(A, B, B, A)')
     a.unmount()
     render(<StepRevisar type="title" variants={v3} config={config} meta={meta} />)
     expect(screen.getByText(/Roda até 17 dias \(mínimo 16\)/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Por que 17 dias' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Como funciona' }))
     expect(document.body.textContent).toContain('(A, B, C, C, B, A)')
   })
   it('aviso da original visível junto do volume mantém a ordem original → volume', () => {
@@ -180,7 +180,7 @@ describe('M6 T6: no assistente', () => {
     montar({ existingDraftId: 'd1', prefill: { testType: 'title', draftVariants: [
       { id: 'va', label: 'A', isOriginal: true, thumbUrl: null, titleText: 'Meu vídeo' },
       { id: 'vb', label: 'B', isOriginal: false, thumbUrl: null, titleText: 'Outro' }] } }, onClose)
-    const i = await screen.findByRole('button', { name: 'Por que 15 dias' })
+    const i = await screen.findByRole('button', { name: 'Como funciona' })
     fireEvent.click(i)
     expect(i.getAttribute('aria-expanded')).toBe('true')
     fireEvent.keyDown(document, { key: 'Escape' })

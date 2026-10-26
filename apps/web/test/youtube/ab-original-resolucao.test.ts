@@ -53,9 +53,8 @@ describe('textoAvisoOriginalBaixa(dimensions, medida)', () => {
       const a = textoAvisoOriginalBaixa(d, false)
       expect(a?.kind).toBe('nao-medida')
       expect(a?.selo).toBe('Resolução não medida')
-      expect(a?.texto).toContain('ainda não foi medida; o teste mede ao ativar')
-      expect(a?.texto).toContain('Se a thumbnail do vídeo no YouTube tem 1280 px de largura ou mais, pode ativar')
-      expect(a?.texto).toContain('troque-a no YouTube antes de ativar')
+      expect(a?.texto).toContain('Resolução não medida. O teste mede ao ativar')
+      expect(a?.texto).toContain('troque-a antes de ativar')
       expect(a?.texto).not.toMatch(/baixa resolução|ative assim mesmo|undefined|null|NaN/i)
     }
   })
