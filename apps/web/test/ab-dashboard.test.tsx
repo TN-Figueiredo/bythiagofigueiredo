@@ -97,8 +97,8 @@ describe('ActiveTestCard', () => {
     const test = makeCardView({ dayOf: 7 })
     render(<ActiveTestCard test={test} onOpen={vi.fn()} />)
     expect(screen.getByText(test.name)).toBeTruthy()
-    // Badge renders "Dia {dayOf}/{total}" where total = dayOf + max(0, 14 - dayOf)
-    expect(screen.getByText('Dia 7/14')).toBeTruthy()
+    // Badge renders "Dia {dayOf+1}/{total}" where total = dayOf + max(0, 14 - dayOf)
+    expect(screen.getByText('Dia 8/14')).toBeTruthy()
   })
 
   it('confidence nula não vira "0%": mostra a frase fixa', () => {

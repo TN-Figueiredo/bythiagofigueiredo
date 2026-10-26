@@ -1138,6 +1138,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     gates,
     activeNow,
     createdAt: test.created_at,
+    startedAt: test.started_at ?? null,
     restoreStatus: paraRestoreStatus(test.restore_status),
     restoreSeq: test.restore_seq ?? 0,
     completedAt: test.completed_at ?? null,

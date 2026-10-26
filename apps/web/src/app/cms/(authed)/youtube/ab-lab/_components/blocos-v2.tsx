@@ -2,6 +2,7 @@
 
 // Blocos da tela v2 do teste A/B (S8-F4 T12, T6). Só desenham o modelo `TelaV2`: nenhuma conta aqui.
 // Nulo é "não medido", nunca 0. Textos: mockup M5 r5 e tabela ◆T do plano.
+import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import type { ReactNode, RefObject } from 'react'
 import type { LinhaPisoV2, SeloV2, TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
@@ -38,7 +39,7 @@ export function AndamentoV2({ dia, teto, pausado }: { dia: number; teto: number;
     <div className="pv2-sec pv2-rel" data-section="andamento-v2">
       <div className="pv2-sh">Andamento <InfoDica titulo="Andamento" paragrafos={[paragrafo]} rotulo="Como ler o andamento" /></div>
       <div className="pv2-top">
-        <span className="pv2-dia num">{passou ? `Dia ${dia} · passou do fim (${teto})` : `Dia ${dia} de ${teto}`}</span>
+        <span className="pv2-dia num">{passou ? `Dia ${dia} · passou do fim (${teto})` : `${rotuloDoDia(dia, teto).replace('/', ' de ')}`}</span>
         <span className="pv2-falta">
           {pausado ? '⏸ pausado' : passou ? null : f > 0 ? `faltam ${f} ${f === 1 ? 'dia' : 'dias'}` : 'último dia'}
         </span>

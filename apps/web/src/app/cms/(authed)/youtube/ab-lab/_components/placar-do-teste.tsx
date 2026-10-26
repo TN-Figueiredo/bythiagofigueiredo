@@ -4,8 +4,10 @@
 // Só contagens do YouTube: sem líder, sem lift, sem intervalo, sem ordem por CTR (voltam na F4).
 // Nulo quer dizer não medido: nunca vira 0 nem % aqui.
 import React, { useId, useState } from 'react'
-import type { DiaDaFaixa, Placar, PlacarVariante } from '@/lib/youtube/ab-gravacao/placar'
-import type { AbTestStatus, FullChartVariant, VariantDbEntry, VariantThumb } from '@/lib/youtube/ab-types'
+import { PRAZO_FECHAMENTO_DIAS, type DiaDaFaixa, type Placar, type PlacarVariante } from '@/lib/youtube/ab-gravacao/placar'
+import { addDays, dayPt } from '@/lib/youtube/coleta/day-pt'
+import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
+import type { AbTestStatus, TestType, FullChartVariant, VariantDbEntry, VariantThumb } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 import { InfoDica } from '../../_components/info-dica'
 import { NAO_MEDIDO } from './ab-constants'
@@ -23,6 +25,10 @@ export interface PlacarDoTesteProps {
   status: AbTestStatus
   andamento?: { dayOf: number; total: number }
   titulo?: string
+  /** Tipo do teste: só miniatura e combo desenham quadro de miniatura. Ausente = como antes. */
+  testType?: TestType
+  /** Início do teste (ISO); sem dia gravado, o texto do prazo sai dele. */
+  inicio?: string | null
   /** Tela v2: o resumo e o andamento vêm antes do placar (blocos-v2), então a frase `pm4-sum` não é desenhada aqui. */
   modoV2?: boolean
 }
@@ -111,10 +117,21 @@ function rotulosDe(placar: Placar, db: readonly VariantDbEntry[]): Record<string
   return r
 }
 
-export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = [], thumbs, videoTitle, status, andamento, titulo = 'Placar por variante', modoV2 = false }: PlacarDoTesteProps) {
+/** Sem dia gravado: o prazo vem do placar; sem ele, do dia do Pacífico do início + o prazo de fechamento (a mesma conta do placar). */
+export function prazoDoPrimeiroDia(proximoFechamento: string | null, inicio: string | null): string {
+  if (proximoFechamento) return `O primeiro dia fecha até ${dataCurta(proximoFechamento)}.`
+  if (inicio) {
+    const t = new Date(inicio)
+    if (Number.isFinite(t.getTime())) return `O primeiro dia fecha até ${dataCurta(addDays(dayPt(t), PRAZO_FECHAMENTO_DIAS))}.`
+  }
+  return `O primeiro dia fecha até ${PRAZO_FECHAMENTO_DIAS} dias depois do início.`
+}
+
+export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = [], thumbs, videoTitle, status, andamento, titulo = 'Placar por variante', modoV2 = false, testType, inicio = null }: PlacarDoTesteProps) {
   const [aberta, setAberta] = useState<string | null>(null)
   const idBase = useId()
   const ordenadas = ordenarPorRotulo(variants)
+  const comMiniatura = testType === undefined || testType === 'thumbnail' || testType === 'combo'
   const idDe = (label: string) => variantDb.find(d => d.label === label)?.id
   const letraDe = (id: string | null) => variantDb.find(d => d.id === id)?.label ?? null
 
@@ -175,7 +192,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
             <span className="ic"><IcRelogio /></span>
             <div>
               <h3>Sem dia fechado</h3>
-              <p>{placar?.proximo_fechamento ? `O primeiro dia fecha até ${dataCurta(placar.proximo_fechamento)}.` : 'O primeiro dia fecha até 10 dias depois do início.'}</p>
+              <p>{prazoDoPrimeiroDia(placar?.proximo_fechamento ?? null, inicio)}</p>
             </div>
           </div>
         )}
@@ -203,10 +220,10 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
                   <div className="pm4-vr" role="group" aria-label={`Variante ${variant.label}`}>
                     <div className="pm4-vh">
                       <span className={`pm4-chip pm4-c${variant.label}`}>{variant.label}</span>
-                      {thumb?.thumbUrl
+                      {comMiniatura && (thumb?.thumbUrl
                         // eslint-disable-next-line @next/next/no-img-element
-                        ? <img className="pm4-th" src={thumb.thumbUrl} alt={`Thumbnail ${variant.label}`} referrerPolicy="no-referrer" />
-                        : <span className="pm4-th" aria-hidden="true" />}
+                        ? <img className="pm4-th" src={thumb.thumbUrl} alt={`Miniatura ${variant.label}`} referrerPolicy="no-referrer" />
+                        : <span className="pm4-th pm4-th-vazia">Sem miniatura</span>)}
                       <div className="pm4-vt">
                         <b title={tituloLinha}>{tituloLinha}{thumb?.isOriginal && <span className="dash" style={{ fontWeight: 400 }}> · original</span>}</b>
                         <div className="ap"><Apoio v={v} /></div>
@@ -285,7 +302,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
             </div>
             <div className="pm4-ruler">
               <div className="pm4-rbar" aria-hidden="true"><i style={{ width: `${pct}%` }} /></div>
-              <div className="pm4-mark"><span>dia {andamento.dayOf} de {andamento.total}</span><span>{status === 'paused' ? 'pausado' : f > 0 ? `faltam ${f} ${f === 1 ? 'dia' : 'dias'}` : 'último dia'}</span></div>
+              <div className="pm4-mark"><span>{rotuloDoDia(andamento.dayOf, andamento.total).replace('Dia ', 'dia ').replace('/', ' de ')}</span><span>{status === 'paused' ? 'pausado' : f > 0 ? `faltam ${f} ${f === 1 ? 'dia' : 'dias'}` : 'último dia'}</span></div>
             </div>
           </div>
         )

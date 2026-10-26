@@ -20,9 +20,9 @@ export const DICA_TIPO_DESCONHECIDO = 'A descrição não é mais testada no A/B
 export const FRASE_COMBO = 'Se ganhar, você não vai saber se foi o título ou a thumbnail.'
 
 export const TYPE_META: Record<TestType, { icon: string; label: string; hint: string }> = {
-  thumbnail: { icon: 'Image', label: 'Thumbnail', hint: 'Test different thumbnail images' },
-  title:     { icon: 'Type', label: 'Title', hint: 'Test different video titles' },
-  combo:     { icon: 'Layers', label: 'Título + thumbnail', hint: FRASE_COMBO },
+  thumbnail: { icon: 'Image', label: 'Miniatura', hint: 'Teste imagens de miniatura diferentes' },
+  title:     { icon: 'Type', label: 'Título', hint: 'Teste títulos diferentes para o vídeo' },
+  combo:     { icon: 'Layers', label: 'Título e miniatura', hint: FRASE_COMBO },
 } as const
 
 /** Tipo lido do banco pode estar fora dos três (teste antigo de descrição): nunca undefined. */

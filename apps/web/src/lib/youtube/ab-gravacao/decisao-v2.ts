@@ -3,7 +3,7 @@ import type { AbCycle, AbTest } from '../coleta/ab-seconds'
 import { getVariantForCycle } from '../ab-rotation'
 import { diasDoTeste } from './atribuicao'
 import { estadoDoAlcance, type LinhaAlcance, type RelatorioDoDia } from './estado'
-import { diaComAlcanceValido, diaValido } from './placar'
+import { diaComAlcanceValido, diaValido, PRAZO_FECHAMENTO_DIAS } from './placar'
 import type { EstadoAlcance, MetaDoDia } from './tipos'
 import type { DesfechoV2, ResultadoV2 } from '../ab-types'
 
@@ -423,5 +423,5 @@ export function encerradoEmDia(completedAt: string): DiaPt {
  * fecha o último dia no caso normal; o reserva (`> 12`, grava em enc+13) não muda a data mostrada.
  */
 export function provisorioAte(enc: DiaPt): DiaPt {
-  return addDays(enc, 11)
+  return addDays(enc, PRAZO_FECHAMENTO_DIAS)
 }

@@ -7,6 +7,7 @@ import type { DisplayLabel } from '../ab-types'
 import { lerResultadoV2, type ResultadoV2 } from '../ab-types'
 import { paraRestoreStatus, voltaConcluida } from '../ab-restore'
 import { dayPt } from '../coleta/day-pt'
+import { PRAZO_FECHAMENTO_DIAS } from './placar'
 import { ctrDosValidos, estadoV2DoTeste, pisos, provisorioAte, tetoDoTesteV2, type CicloComNumero, type DiaDaDecisao } from './decisao-v2'
 
 export interface VarianteDaTela { id: string; letra: DisplayLabel; titulo: string; is_original: boolean }
@@ -76,7 +77,7 @@ function fraseAtivo(e: {
 }): { principal: string; apoio: string } {
   if (e.ilegivel) return { principal: 'Não consegui ler a avaliação; este teste não encerra sozinho.', apoio: 'Para decidir agora, use Encerrar.' }
   if (e.passouDoFim) return { principal: 'O encerramento atrasou; o teste tenta encerrar de novo na próxima avaliação diária.', apoio: '' }
-  if (e.nenhumDia) return { principal: 'Ainda não decide: o YouTube não fechou nenhum dia.', apoio: 'A primeira avaliação sai até 24 horas depois do início.' }
+  if (e.nenhumDia) return { principal: 'Ainda não decide: o YouTube ainda não fechou nenhum dia.', apoio: `O YouTube fecha cada dia com até ${PRAZO_FECHAMENTO_DIAS} dias de atraso. O Lab confere uma vez por dia.` }
   if (e.n === null) return { principal: 'Ainda não decide: falta calcular quantas impressões cada versão precisa.', apoio: 'A conta roda uma vez por dia.' }
   const N = milhar(e.n)
   const diasTxt = (l: LinhaPisoV2) => (l.dias_validos === null || l.dias_validos === 0 ? `${l.letra} ${SEM_DIA}` : `${l.letra} tem ${l.dias_validos}`)

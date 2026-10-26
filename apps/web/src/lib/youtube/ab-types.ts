@@ -554,6 +554,8 @@ export interface AbTestBaseView {
   gates: GateResult[]
   activeNow: DisplayLabel | null
   createdAt: string
+  /** Início do teste (ISO); nulo = não iniciado. */
+  startedAt?: string | null
   /** Retrato da restauração já validado; nulo = mundo antigo ou ilegível (a página distingue pelo jsonb cru). */
   restoreStatus: RestoreStatus | null
   /** Id do vídeo no YouTube (link do Studio); nulo = sem link. */

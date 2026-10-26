@@ -8,6 +8,9 @@ const ESTADOS_ALCANCE = ['medido', 'zero_medido', 'ausente_no_relatorio', 'aguar
 const ESTADOS_VIEWS = ['medido', 'zero_medido', 'nao_medido'] as const
 const MOTIVOS = ['menos_de_90', 'meta_ausente', 'meta_nula', 'dia_de_outro_teste', 'teste_apagado'] as const
 
+/** Um dia do YouTube fecha até 11 dias depois dele. Fonte única do número, do texto e da conta. */
+export const PRAZO_FECHAMENTO_DIAS = 11
+
 export interface LinhaDiaPlacar {
   test_id: string
   day_pt: string
@@ -260,7 +263,7 @@ export function placarDoTeste(i: {
     atrasado,
     todos_finais: todosFinais,
     iniciado,
-    proximo_fechamento: minAguardando === null ? null : addDays(minAguardando, 11),
+    proximo_fechamento: minAguardando === null ? null : addDays(minAguardando, PRAZO_FECHAMENTO_DIAS),
   }
 }
 
