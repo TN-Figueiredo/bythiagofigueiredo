@@ -87,7 +87,7 @@
 @media (max-width: 700px) {
   .lab-scrim { align-items: flex-end; padding: 0; }
   .lab-dlg { width: 100%; border-radius: 16px 16px 0 0; max-height: 90dvh; padding: 16px 14px 14px; }
-  .lab-acoes { flex-wrap: wrap; position: sticky; bottom: -14px; margin: 12px -14px -14px; padding: 10px 14px 14px; background: #221E1A; border-top: 1px solid #332D25; }
+  .lab-acoes { flex-wrap: wrap; position: sticky; bottom: -14px; margin: 12px -14px -14px; padding: 10px 14px 14px; background: var(--lab-surface); border-top: 1px solid var(--lab-border); }
   .lab-acoes .lab-btn.pri { flex: 1 1 auto; }
 }
 @media (prefers-reduced-motion: reduce) { .lab-scrim, .lab-dlg { animation: none; } }

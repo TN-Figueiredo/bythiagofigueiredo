@@ -144,15 +144,16 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
   )
 
   return (
-    <details className="lab-pg mt-9" open={aberto} onToggle={e => { const a = (e.currentTarget as HTMLDetailsElement).open; if (a !== aberto) aoAbrir(a) }} data-testid="videos-do-canal">
-      <summary className="lab-alvo cursor-pointer list-none">
+    <details className="group lab-pg mt-9" open={aberto} onToggle={e => { const a = (e.currentTarget as HTMLDetailsElement).open; if (a !== aberto) aoAbrir(a) }} data-testid="videos-do-canal">
+      <summary className="lab-alvo flex cursor-pointer list-none flex-wrap items-center gap-x-3">
+        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-cms-text-muted motion-safe:transition-transform group-open:rotate-90"><path d="M6 3l5 5-5 5" /></svg>
         <span className="text-[18px] font-semibold leading-[1.3]" style={{ fontFamily: 'Georgia, serif' }}>Vídeos do canal</span>
-        <span className="ml-3 text-sm text-cms-text-muted">{resumo}</span>
+        <span className="text-sm text-cms-text-muted">{resumo}</span>
       </summary>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <input
           type="search" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por título" aria-label="Buscar vídeo"
-          className="min-h-11 min-w-0 flex-1 rounded-lg border border-cms-border bg-cms-surface px-3 text-sm"
+          className="min-h-11 min-w-0 flex-1 rounded-lg border border-[#6B6252] bg-cms-surface px-3 text-sm"
         />
         <div role="group" aria-label="Filtro" className="flex gap-2">
           {(['testaveis', 'todos'] as const).map(f => (

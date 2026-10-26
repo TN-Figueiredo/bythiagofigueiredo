@@ -180,4 +180,12 @@ describe('estilo da página do Lab (CSS como texto)', () => {
     expect(css).toMatch(/\.lab-btn\[aria-pressed="false"\]/)
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain('color-mix')
   })
+  it('.lab-acoes usa tokens, não literais soltos (Naksu S6), e a busca tem borda de controle (S4)', () => {
+    const base = resolve(process.cwd(), 'src/app/cms/(authed)/youtube/ab-lab/_components/pagina')
+    const css = readFileSync(resolve(base, 'pagina-lab.css'), 'utf8')
+    const linha = css.split('\n').find(l => l.includes('.lab-acoes {') && l.includes('sticky'))!
+    expect(linha).toContain('var(--lab-surface)')
+    expect(linha).not.toMatch(/#221E1A|#332D25/)
+    expect(readFileSync(resolve(base, 'videos-do-canal.tsx'), 'utf8')).toContain('border-[#6B6252]')
+  })
 })

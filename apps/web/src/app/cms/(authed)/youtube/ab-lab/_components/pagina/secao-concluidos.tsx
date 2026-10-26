@@ -51,12 +51,12 @@ export function SecaoConcluidos({ concluidos, temHistorico, learnings, channelLe
         <h2 className="m-0 text-[18px] font-semibold leading-[1.3]" style={{ fontFamily: 'Georgia, serif' }}>Concluídos</h2>
         <span className="text-xs text-cms-text-muted tabular-nums sm:ml-auto">{total} {total === 1 ? 'teste' : 'testes'}</span>
       </div>
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.6fr_1fr]">
+      <div className="grid grid-cols-1 items-start gap-3.5 lg:grid-cols-[1.6fr_1fr]">
         <div className="rounded-[14px] border border-cms-border bg-cms-surface px-4 py-1">
           {linhas.map(l => <Linha key={l.chave} l={l} onAbrirPainel={onAbrirPainel} />)}
           <div className="flex flex-wrap items-center gap-2 border-t border-cms-border py-1">
             <button type="button" className="lab-btn txt lab-alvo underline underline-offset-[3px]" aria-disabled="true" onClick={e => e.preventDefault()}>Ver testes anteriores</button>
-            <span className="lab-selo inline-flex items-center rounded-full border border-dashed border-[#40382D] px-[9px] text-xs font-semibold leading-[18px] text-[#958A75]">Em breve</span>
+            <span className="lab-selo inline-flex items-center whitespace-nowrap !self-center rounded-full border border-dashed border-[#40382D] px-[9px] text-xs font-semibold leading-[18px] text-[#958A75]">Em breve</span>
           </div>
         </div>
         {regua ? (
