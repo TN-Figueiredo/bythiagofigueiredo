@@ -5,7 +5,8 @@
 -- Por tabela de série (horária e série; o texto e o vídeo antigo não têm data de série): o 1º dia do mês seguinte ao último mês com detached_at OU
 -- dropped_at. Nada saiu: nulo ("tudo online desde o começo da série"), nunca "sem dado". O mês destacado já conta como fora (a tabela-mãe não o lê).
 -- A saída é da TABELA inteira (obs_partitions_ensure não tem site_id): os meses fora são lidos sem filtro de site. `divergencia`: o registro diz "nada
--- saiu" mas a partição mais antiga presente começa depois do 1º mês da classe (obs_archive_switch.first_month): a tela trata como NÃO LIDO.
+-- saiu" mas há evidência de que um mês saiu do banco (buraco de partição desde o início da classe, ou unidade com dado anterior à partição mais antiga): a tela trata como NÃO LIDO.
+-- Tabela que simplesmente começou depois do first_month da classe NÃO é divergência (sem evidência).
 create or replace function public.obs_archive_online_since(p_site uuid)
 returns table (class text, table_name text, online_since date, divergencia boolean)
 language plpgsql stable security definer set search_path = '' as $$
@@ -21,8 +22,15 @@ begin
       if v_rel is not null and v_fm is not null and (select c.relkind from pg_catalog.pg_class c where c.oid = v_rel) = 'p' then
         select min(pg_catalog.to_date(pg_catalog.right(f.relname, 6), 'YYYYMM')) into v_min
           from pg_catalog.pg_inherits h join pg_catalog.pg_class f on f.oid = h.inhrelid join pg_catalog.pg_namespace n on n.oid = f.relnamespace
-         where h.inhparent = v_rel and n.nspname = 'obs_part';
-        divergencia := v_min is not null and v_min > v_fm;
+         where h.inhparent = v_rel and n.nspname = 'obs_part' and f.relname ~ '_[0-9]{6}$';
+        -- Evidência de que um mês saiu SEM registro, nunca só "a tabela começou depois do 1º mês da classe" (Phil I2: a tabela early pode começar depois da diária):
+        -- (a) buraco: mês entre a partição mais antiga presente (ou o início da classe, o que vier depois) e o mês corrente sem a sua partição (Yannis I-1);
+        -- (b) dado: unidade copiada com dado de um mês anterior à partição mais antiga presente (o mês mais velho saiu e não deixou buraco).
+        divergencia := v_min is not null and (
+          exists (select 1 from pg_catalog.generate_series(greatest(v_min, v_fm), pg_catalog.date_trunc('month', public.obs_archive_hoje_sp())::date, interval '1 month') g(m)
+                   where not exists (select 1 from pg_catalog.pg_inherits h join pg_catalog.pg_class f on f.oid = h.inhrelid join pg_catalog.pg_namespace n on n.oid = f.relnamespace
+                                      where h.inhparent = v_rel and n.nspname = 'obs_part' and f.relname = obs_part.nome_da_particao(t.tb, g.m::date)))
+          or exists (select 1 from public.obs_archive_units u where u.site_id = p_site and u.class = t.cl and u.table_name = t.tb and u.month < v_min and u.row_count > 0));
       end if;
     end if;
     return next;
@@ -34,6 +42,30 @@ grant execute on function public.obs_archive_online_since(uuid) to service_role;
 -- M5 PARTE 2: a leitura única da página do Arquivo (04 §14.2) e a leitura leve do aviso (18-v2). Só leem; nunca gravam.
 -- A GRADE (classe, tabela, mês) vem do início da classe até o mês corrente e NÃO das linhas do registro: a linha só nasce com a 1ª unidade recebida
 -- (obs_archive_record_core), então o mês que a casa nunca copiou não teria linha (Phil C1). O devido vem de obs_archive_expected_units (D19), nunca de count(*) das unidades.
+-- Os itens em atraso, mesma assinatura e mesmo resultado de obs_archive_atraso_itens da M3b, sem a consulta correlacionada (Phil I1 = Yannis I-2): o esperado e as
+-- unidades terminais saem UMA vez por (classe, mês), em vez de current_units rodar por par esperado (4 s na página e no aviso no caso cheio).
+create or replace function public.obs_archive_atraso_itens(p_site uuid)
+returns table (tipo text, classe text, tabela text, canal text, mes date, desde date)
+language plpgsql stable security definer set search_path = '' as $$
+declare r record; v_due date;
+begin
+  for r in select * from public.obs_archive_meses_devidos(p_site, false) loop
+    v_due := public.obs_archive_due_on(r.mes, r.margem);
+    return query
+      with e as materialized (select x.table_name, x.channel_ref from public.obs_archive_expected_units(p_site, r.classe, r.mes) x),
+           t as materialized (select cu.table_name, cu.channel_ref from public.obs_archive_current_units(p_site, r.classe, r.mes) cu
+                               where public.obs_archive_is_terminal(cu.received_at, cu.redo_reason, cu.row_count, cu.lost_at, cu.purged_at))
+      select 'unidade'::text, r.classe, e.table_name, e.channel_ref, r.mes, v_due
+        from e where not exists (select 1 from t where t.table_name = e.table_name and t.channel_ref = e.channel_ref)
+      union all
+      select 'mes'::text, r.classe, null::text, null::text, r.mes, v_due
+       where exists (select 1 from e)
+         and not exists (select 1 from public.obs_archive_months m where m.site_id = p_site and m.class = r.classe and m.month = r.mes
+                           and m.sealed_at is not null and m.unsealed_at is null);
+  end loop;
+end $$;
+revoke all on function public.obs_archive_atraso_itens(uuid) from public, anon, authenticated, service_role;
+
 create or replace function public.obs_archive_pagina(p_site uuid) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare
@@ -139,7 +171,7 @@ language sql stable security definer set search_path = '' as $$
     'primeira_devida_em', public.obs_archive_due_on(
         greatest(coalesce((select sw.first_month from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria'), date '2026-10-01'), date '2026-10-01'),
         (select min(p.seal_margin_days) from public.obs_archive_policy() p where p.class = 'horaria')),
-    'ultima_copia', (select max(u.received_at) from public.obs_archive_units u where u.site_id = p_site),
+    'ultima_copia', (select max(u.received_at) from public.obs_archive_units u where u.site_id = p_site and u.class in ('horaria', 'serie', 'texto')),
     'casa', coalesce((select jsonb_agg(jsonb_build_object('worker', h.worker, 'last_poll_at', h.last_poll_at, 'updated_at', h.updated_at, 'nas_ok', h.nas_ok,
               'nas_checked_at', h.nas_checked_at) order by h.worker) from public.obs_archive_heartbeat h where h.site_id = p_site), '[]'::jsonb),
     'vermelhos_n', cardinality(public.obs_archive_vermelhos(p_site)),
@@ -263,10 +295,10 @@ returns jsonb language sql stable strict security invoker set search_path = '' a
     union
     select h.hour_slot from public.yt_own_public_video_hourly h
      where h.site_id = p_site_id and h.hour_slot > p_now - interval '24 hours' and h.hour_slot <= p_now
-  ), n as (select count(*) as lidas from horas)
+  ), n as (select count(*) as lidas from horas), d as materialized (select x.desde, x.precisao from public.obs_archive_horaria_desde(p_site_id) x)
   select jsonb_build_object(
-    'desde', (select d.desde from public.obs_archive_horaria_desde(p_site_id) d),
-    'desde_precisao', (select d.precisao from public.obs_archive_horaria_desde(p_site_id) d),
+    'desde', (select d.desde from d),
+    'desde_precisao', (select d.precisao from d),
     'online_desde', (select min(h.hour_slot) from public.competitor_video_hourly h where h.site_id = p_site_id),
     -- (emenda do portão: D-m1) pelo índice da hora; max(taken_at) varria a tabela inteira a cada disparo
     'ultima_leitura', (select h.taken_at from public.competitor_video_hourly h where h.site_id = p_site_id

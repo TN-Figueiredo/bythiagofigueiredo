@@ -30,9 +30,16 @@ export async function aplicarM5(c: Client, ate?: ParteM5): Promise<void> { await
  * Divergência do plano (14/10): no banco de integração a M2, a M10a e a M3b já estão aplicadas (migrations); reaplicar tudo a cada teste
  * é caro. Só aplica o que falta (mesma guarda dos testes da M3b: `m3bNoBanco`). A M5 sempre se aplica.
  */
+/** M3b já aplicada E completa (a 03 define obs_archive_m9_pronto): M3b pela metade falha alto, nunca roda a M5 contra uma M3b diferente da da árvore (Yannis m-1). */
+async function m3bCompletaNoBanco(c: Client): Promise<boolean> {
+  if (!(await m3bNoBanco(c))) return false
+  const r = await c.query(`select to_regprocedure('public.obs_archive_m9_pronto(uuid)') is not null as ok`)
+  if (r.rows[0]?.ok !== true) throw new Error('banco de integração com a M3b incompleta (falta a migration 03 ou mais): recrie o banco ou aplique 02–05 antes da M5')
+  return true
+}
 export async function prepararM5(c: Client, ate?: ParteM5): Promise<void> {
   await travarDdl(c)
-  if (!(await m3bNoBanco(c))) {
+  if (!(await m3bCompletaNoBanco(c))) {
     await aplicarM2(c)
     await c.query(readFileSync(M10A_SQL, 'utf8'))
     await aplicarM3b(c)
