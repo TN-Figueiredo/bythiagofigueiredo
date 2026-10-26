@@ -122,7 +122,14 @@ export const FRASES = {
 
   /** T10b: a pergunta do dia 14 com duas versões (mockup M2 `d14`, ramo sem resposta). Nunca "variante" nem "ficha". */
   dia14: {
-    responder: 'Responder',
+    responder: 'Dizer o que o Studio escolheu',
+    responderCurto: 'Qual ganhou no Studio?',
+    naoViAinda: 'Não vi ainda',
+    tituloDialogo: 'O que o Studio mostrou?',
+    apoioDialogo: 'O Lab não lê o resultado do Studio. Conte aqui para o histórico ficar certo. Responder não muda o YouTube; o Studio já aplicou a versão dele.',
+    certo: 'Certo',
+    avisoContinua: 'O aviso continua até você responder.',
+    abrirNoStudio: 'Abrir no Studio',
     pergunta: 'Qual versão venceu no Studio?',
     apoio: (confirmadoEm: Date | null): string =>
       `${confirmadoEm ? `Teste confirmado em ${dataCurta(confirmadoEm)}. ` : ''}O resultado oficial está só no Studio.`,

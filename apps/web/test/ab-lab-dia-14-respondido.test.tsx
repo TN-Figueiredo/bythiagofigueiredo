@@ -451,7 +451,7 @@ describe('Conserto B1 (revisão Logan e Naksu do envio B)', () => {
     const aberta: LinhaDoCaminho = { ...linhaR('ficou_no_ar'), estado: 'resultado_pronto' as LinhaDoCaminho['estado'] }
     aberta.registro = { ...aberta.registro!, respostaDono: null }
     render(tela([aberta]))
-    fireEvent.click(within(li()).getByRole('button', { name: 'Responder' }))
+    fireEvent.click(within(li()).getByRole('button', { name: 'Dizer o que o Studio escolheu' }))
     fireEvent.click(within(li()).getByRole('button', { name: /B venceu/ }))
     await waitFor(() => expect(screen.getByTestId('anuncio-dia-14').textContent).toMatch(/^Registrado/))
   })
