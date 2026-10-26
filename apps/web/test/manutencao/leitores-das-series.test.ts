@@ -37,7 +37,7 @@ describe('janelas e datas fixas (item 83)', () => {
   let DIR_TEMP = '', ARQUIVO_TEMP = ''  // fora de src (Yannis r2 N-9): processo morto não deixa lixo na árvore; criado dentro do teste que usa
   afterEach(() => { if (DIR_TEMP) rmSync(DIR_TEMP, { recursive: true, force: true }); DIR_TEMP = '' })
   it('nenhum arquivo de código de tela escreve 365, 180 ou data de início de coleta, salvo a lista nomeada', () => {
-    const achados = achar('\\b(365|180)\\b|2026-10-0[1-3]', DIRS_DE_TELA.flatMap(d => SO_CODIGO.map(g => d + '/' + g)))
+    const achados = achar('(^|[^0-9A-Za-z_])(365|180)([^0-9A-Za-z_]|$)|2026-10-0[1-3]', DIRS_DE_TELA.flatMap(d => SO_CODIGO.map(g => d + '/' + g)))
     const permitidos = new Set(EXCECOES_DE_DATA_FIXA.map(e => e.arquivo))
     expect(achados.filter(a => !permitidos.has(a))).toEqual([])
   })
@@ -46,7 +46,7 @@ describe('janelas e datas fixas (item 83)', () => {
     DIR_TEMP = mkdtempSync(join(tmpdir(), 'item83-')); ARQUIVO_TEMP = join(DIR_TEMP, '__tmp_item83.ts')
     writeFileSync(ARQUIVO_TEMP, "export const X = '2026-10-02'\n")
     // a mesma função `achar`, com cwd no diretório temporário (fora do repositório, `--no-index`)
-    const achados = achar('\\b(365|180)\\b|2026-10-0[1-3]', ['*.ts'], DIR_TEMP)
+    const achados = achar('(^|[^0-9A-Za-z_])(365|180)([^0-9A-Za-z_]|$)|2026-10-0[1-3]', ['*.ts'], DIR_TEMP)
     expect(achados.some(a => a.endsWith('__tmp_item83.ts'))).toBe(true)
   })
   it('as telas de 180 dias dependem da janela online da política, lida e não escrita', () => {

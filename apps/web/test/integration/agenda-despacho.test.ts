@@ -736,7 +736,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 parte 1: o disparo inteiro da agenda 
     const vazio = await novoSite()
     const zero = await provaDe(vazio)
     expect(zero).toEqual({
-      desde: null, ultima_leitura: null, horas_lidas_24h: 0, videos_na_lista: 0, videos_fora_do_teto: 0, videos_cobrados: 0, videos_abaixo_de_22h: 0,
+      desde: null, desde_precisao: 'hora', online_desde: null, ultima_leitura: null, horas_lidas_24h: 0, videos_na_lista: 0, videos_fora_do_teto: 0, videos_cobrados: 0, videos_abaixo_de_22h: 0,
       videos_abaixo_do_lido: 0, proprios_desde: null, proprios_ultima_leitura: null, proprios_na_lista: 0, proprios_fora_do_teto: 0, proprios_sem_captura: 0,
       proprios_cobrados: 0, proprios_abaixo_de_22h: 0, proprios_abaixo_do_lido: 0, proprios_em_competitor: 0,
     })
