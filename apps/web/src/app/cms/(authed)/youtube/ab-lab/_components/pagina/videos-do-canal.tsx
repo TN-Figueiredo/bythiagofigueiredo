@@ -2,13 +2,14 @@
 // "Vídeos do canal" (M7 T10): lista recolhida com busca no servidor, filtro Testáveis/Todos e páginas de 20.
 // A leitura chega por props (`ler` = lerVideosDoCanal); nenhum client importa ../actions-nativo.
 // Respostas fora de ordem são descartadas por NÚMERO de pedido (server action não aceita AbortController).
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState, type ReactElement } from 'react'
 import type { z } from 'zod'
 import type { PaginaDoCanal, PedidoVideosDoCanalSchema } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { pisoPorDia } from '@/lib/youtube/teste-youtube/nativo/volume'
 import type { ResultadoVideosDoCanal } from '../../actions-nativo'
 import type { AcoesCaminho } from '../caminho-nativo/lista-caminho'
+import { ContextoAssistente } from '../caminho-nativo/assistente-contexto'
 import { ListaCaminhoComPaineis } from '../caminho-nativo/lista-caminho-paineis'
 import './pagina-lab.css'
 
@@ -121,10 +122,15 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
     setFiltro(f)
     void pedir(pedidoBase({ filtro: f }), false)
   }
+  // Guarda D-8: a pergunta mora na linha do vídeo. Se a busca/filtro a tirou da tela, a linha da 1ª página volta (e a lista abre).
+  const perguntaDe = useContext(ContextoAssistente).perguntaAberta
+  const daPergunta = perguntaDe !== null && !linhas.some(l => l.videoId === perguntaDe) ? inicial.linhas.find(l => l.videoId === perguntaDe) : undefined
+  useEffect(() => { if (perguntaDe !== null) setAberto(true) }, [perguntaDe])
+  const mostradas = daPergunta ? [...linhas, daPergunta] : linhas
   const c = pag.contagem
   const resto = Math.max(0, pag.totalDoFiltro - linhas.length)
   const termoAtivo = aplicada.current
-  const semLinhas = linhas.length === 0 && carga === 'ok'
+  const semLinhas = mostradas.length === 0 && carga === 'ok'
   const resumo = `${c.testaveis} com volume para testar, ${c.semVolume} sem${c.naoLido > 0 ? `, ${c.naoLido} sem volume lido` : ''}${pag.truncado ? ' (dos 2.000 mais recentes)' : ''}`
   const piso = pisoPorDia(2)
 
@@ -171,7 +177,7 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
               : <p className="m-0 text-sm text-cms-text-muted">Nenhum vídeo no canal.</p>
         ) : (
           <>
-            <ListaCaminhoComPaineis linhas={linhas} videoInicial={videoInicial} acoes={acoes} agrupar={false} />
+            <ListaCaminhoComPaineis linhas={mostradas} videoInicial={videoInicial} acoes={acoes} agrupar={false} />
             {carga === 'mais' ? esqueleto : null}
           </>
         )}

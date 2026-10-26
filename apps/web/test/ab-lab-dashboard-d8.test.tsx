@@ -58,6 +58,21 @@ describe('AbLabDashboard: guarda D-8 nas portas reais', () => {
     fireEvent.click(screen.getByText('Escolher Vídeo 1'))
     expect(screen.getByText(FRASES.guarda.pergunta)).toBeTruthy()
   })
+  it('busca ativa que não traz o vídeo: a ficha da 1ª página segue valendo (mescla por videoId) e a pergunta aparece', async () => {
+    const outra = linha({ videoId: 'uuid-9', ytId: 'vid00000009', titulo: 'Outro', fichaId: null, fichaEnviadaEm: null })
+    const lerVideos = vi.fn(async () => ({ ok: true as const, pagina: listaDe([outra]) }))
+    vi.useFakeTimers()
+    try {
+      render(<AbLabDashboard {...com([linha()], acoes(), { lerVideos })} />)
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar vídeo' }), { target: { value: 'ba' } })
+      await act(async () => { await vi.advanceTimersByTimeAsync(400) })
+      expect(lerVideos).toHaveBeenCalled()
+    } finally { vi.useRealTimers() }
+    fireEvent.click(screen.getByRole('button', { name: 'Novo teste' }))
+    fireEvent.click(screen.getByText('Escolher Vídeo 1'))
+    expect(screen.queryByTestId('wizard')).toBeNull()
+    expect(screen.getByText(FRASES.guarda.pergunta)).toBeTruthy()
+  })
   it('ficha de 15 d ou com registro_id: abre direto com o vídeo', () => {
     for (const l of [linha({ fichaEnviadaEm: dia(15) }), linha({ fichaEnviadaEm: null })]) {
       const r = render(<AbLabDashboard {...com([l])} />)

@@ -83,7 +83,7 @@ export function AbLabDashboard({
   const assistente = useControleAssistente({ onAbrir: setWizardVideo, atualizar: () => router.refresh(), comLista: false })
   const { abrirAssistente, registrarLinhas } = assistente
   // As linhas da 1ª página alimentam a guarda mesmo com "Vídeos do canal" recolhido ou vazio.
-  useEffect(() => { registrarLinhas(listaInicial.linhas) }, [listaInicial, registrarLinhas])
+  useEffect(() => { registrarLinhas(listaInicial.linhas, { substituir: true }) }, [listaInicial, registrarLinhas])
 
   const filtrarTipo = (t: string | TestType): boolean => typeFilter === 'all' || t === typeFilter || t === TIPO_ROTULO[typeFilter]
   const emTeste = pagina.emTeste.filter(c => filtrarTipo(tipoDoCartao(c)))
