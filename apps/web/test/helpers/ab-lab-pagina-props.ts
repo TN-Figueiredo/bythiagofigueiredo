@@ -33,6 +33,7 @@ export function propsDoLab(o: Partial<AbLabDashboardProps> = {}): AbLabDashboard
     acoesDecisao: { encerrar: vi.fn(), aplicarSugerido: vi.fn(), voltar: vi.fn() },
     acoesCaminho: { jaIniciei: vi.fn(), responderTesteDoYouTube: vi.fn(), mudarRespostaDoTesteDoYouTube: vi.fn() } as unknown as AcoesCaminho,
     lerVideos: vi.fn(),
+    salvarAjustes: vi.fn(async () => ({ ok: true })),
     listaInicial: listaDe(),
     videoInicial: null,
     learnings: null,

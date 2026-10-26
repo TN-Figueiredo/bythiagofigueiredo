@@ -14,7 +14,6 @@ import type {
   TestType,
 } from '@/lib/youtube/ab-types'
 import { SettingsDrawer } from './settings-drawer'
-import { updateAbSiteSettings } from '../actions'
 import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
 import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from './ab-create-wizard'
@@ -45,6 +44,8 @@ export interface AbLabDashboardProps {
   acoesDecisao: AcoesDecisao
   acoesCaminho: AcoesCaminho
   lerVideos: VideosDoCanalProps['ler']
+  /** `updateAbSiteSettings` vem da página (servidor): o client não importa a action. */
+  salvarAjustes: (changes: Partial<AbTestSiteSettings>) => Promise<{ ok: boolean; error?: string }>
   listaInicial: PaginaDoCanal
   videoInicial: string | null
   /** Bloco "Sugestões" (servidor, dentro de Suspense). */
@@ -64,7 +65,7 @@ const TYPE_FILTER_LABELS: Record<'all' | TestType, string> = {
 const tipoDoCartao = (c: CartaoEmTeste): TestType => (c.tipo === 'lab' ? c.card.type : 'title')
 
 export function AbLabDashboard({
-  pagina, settings, siteId, eligibleVideos, drafts, iniciarTeste, avisoDeVolume, acoesDecisao, acoesCaminho, lerVideos,
+  pagina, settings, siteId, eligibleVideos, drafts, iniciarTeste, avisoDeVolume, acoesDecisao, acoesCaminho, lerVideos, salvarAjustes,
   listaInicial, videoInicial, blocoSugestoes, learnings, channelLearnings,
 }: AbLabDashboardProps) {
   const router = useRouter()
@@ -129,7 +130,7 @@ export function AbLabDashboard({
   }
 
   async function handleSaveSettings(changes: Partial<AbTestSiteSettings>) {
-    const result = await updateAbSiteSettings(changes)
+    const result = await salvarAjustes(changes)
     if (!result.ok) throw new Error(result.error ?? 'Failed to save settings')
   }
 

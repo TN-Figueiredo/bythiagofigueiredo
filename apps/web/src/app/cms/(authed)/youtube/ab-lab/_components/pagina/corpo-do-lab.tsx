@@ -2,7 +2,7 @@
 // (nunca `await` no corpo do `page`). Uma leitura por visita: a lista é a 1ª página de `lerPaginaDoLab`, sem segunda ida ao banco.
 import type { ReactElement, ReactNode } from 'react'
 import { lerPaginaDoLab } from '../../pagina-borda'
-import { startAbTest, avisoDeVolumeDoTeste, endAbTest, aplicarSugerido, revertWinner, pauseAbTest, retryRestore } from '../../actions'
+import { startAbTest, updateAbSiteSettings, avisoDeVolumeDoTeste, endAbTest, aplicarSugerido, revertWinner, pauseAbTest, retryRestore } from '../../actions'
 import {
   abrirFicha, lerFichaDoVideo, recomecarFicha, salvarFicha, marcarStudioAberto, enviarImagemDaFicha, lembrarNoComputador,
   jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube, mudarRespostaDoTesteDoYouTube, lerVideosDoCanal,
@@ -34,6 +34,7 @@ export async function CorpoDoLab(
       acoesDecisao={ACOES_DECISAO}
       acoesCaminho={ACOES}
       lerVideos={lerVideosDoCanal}
+      salvarAjustes={updateAbSiteSettings}
       listaInicial={lida.listaInicial}
       videoInicial={videoInicial}
       blocoSugestoes={blocoSugestoes}

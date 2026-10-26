@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 // Composição da página (M7 T11): ordem das seções, Concluídos, Sugestões, painel e diálogo do dia 14 ligados.
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
@@ -148,5 +150,17 @@ describe('página do A/B Lab: composição', () => {
     const d = container.querySelector('[data-secao="videos-do-canal"] details') as HTMLDetailsElement
     expect(d.open).toBe(false)
     expect(within(d).getByText('Vídeos do canal')).toBeTruthy()
+  })
+})
+
+describe('página do A/B Lab: regras lidas na fonte', () => {
+  const raiz = join(process.cwd(), 'src/app/cms/(authed)/youtube/ab-lab/_components')
+  const fonte = (f: string): string => readFileSync(join(raiz, f), 'utf8')
+  const arquivosDaPagina = ['ab-lab-dashboard.tsx', ...readdirSync(join(raiz, 'pagina')).filter(f => f.endsWith('.tsx')).map(f => `pagina/${f}`)]
+  it('nada abaixo de 12 px: sem text-[9px], text-[10px] nem text-[11px] no dashboard e nos componentes da página', () => {
+    for (const f of arquivosDaPagina) expect(fonte(f).match(/text-\[(9|10|11)px\]/g), f).toBeNull()
+  })
+  it('o dashboard (client) não importa a action de ajustes: ela chega por prop', () => {
+    expect(fonte('ab-lab-dashboard.tsx')).not.toMatch(/from '\.\.\/actions'/)
   })
 })
