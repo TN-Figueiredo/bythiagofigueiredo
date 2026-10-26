@@ -6,7 +6,7 @@
  * Por quê: guardas de privacidade (ver "motivo" no JSON) exigem que os tipos gerados NÃO conheçam
  * tabelas de identidade/retenção; ninguém lê esse dado por tipo.
  *
- * Uso: `npm run db:types` (rede + supabase CLI logado). Teste do filtro: scripts/gen-db-types.test.mjs.
+ * Uso: `npm run db:types` (rede + supabase CLI logado). Teste do filtro e da regra: apps/web/test/types/db-types-excluidas.test.ts.
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -55,6 +55,21 @@ export function filtrar(src, excluidas) {
   return out.join('\n')
 }
 
+/**
+ * Regra de falha fechada, usada pelo script e pelo teste. Devolve a lista de problemas (vazia = ok).
+ * `removidos` (opcional): quantos objetos o filtro tirou; tem de ser igual ao tamanho da lista.
+ */
+export function conferir(src, excluidas, removidos) {
+  const erros = []
+  if (!/export type Database = \{/.test(src)) erros.push('saida do gen inesperada: falta `export type Database`')
+  const sobra = excluidas.filter((n) => new RegExp(`\\b${n}\\b`).test(src))
+  if (sobra.length) erros.push(`nomes excluidos ainda presentes: ${sobra.join(', ')}`)
+  if (removidos !== undefined && removidos !== excluidas.length) {
+    erros.push(`filtro removeu ${removidos} de ${excluidas.length}: lista velha ou formato do gerador mudou`)
+  }
+  return erros
+}
+
 function main() {
   const excluidas = carregarExcluidas()
   const bruto = execFileSync(
@@ -62,7 +77,14 @@ function main() {
     ['supabase@2.98.2', 'gen', 'types', 'typescript', '--project-id', PROJECT_ID, '--schema', 'public'],
     { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   )
-  writeFileSync(DESTINO, filtrar(bruto, excluidas))
+  const filtrado = filtrar(bruto, excluidas)
+  const erros = conferir(filtrado, excluidas, filtrar.removidos)
+  if (erros.length) {
+    for (const e of erros) console.error(`ERRO: ${e}`)
+    console.error('database.types.ts NAO foi gravado.')
+    process.exit(1)
+  }
+  writeFileSync(DESTINO, filtrado)
   console.log(`database.types.ts gravado; ${filtrar.removidos} objeto(s) filtrado(s) de ${excluidas.length} na lista`)
 }
 

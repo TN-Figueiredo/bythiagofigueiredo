@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const RAIZ = resolve(__dirname, '../../../..')
-interface IGen { filtrar: (src: string, excluidas: string[]) => string; carregarExcluidas: () => string[] }
+interface IGen { filtrar: ((src: string, excluidas: string[]) => string) & { removidos: number }; conferir: (src: string, excluidas: string[], removidos?: number) => string[]; carregarExcluidas: () => string[] }
 const carregar = async (): Promise<IGen> => (await import(pathToFileURL(resolve(RAIZ, 'scripts/gen-db-types.mjs')).href)) as IGen
 
 const SINTETICO = `export type Database = {
@@ -70,11 +70,29 @@ describe('filtro de tipos gerados', () => {
   })
 
   it('database.types.ts não contém nenhum nome da lista de exclusão', async () => {
-    const { carregarExcluidas } = await carregar()
+    const { carregarExcluidas, conferir } = await carregar()
     const nomes = carregarExcluidas()
     expect(nomes.length).toBeGreaterThan(0)
     const tipos = readFileSync(resolve(RAIZ, 'apps/web/src/types/database.types.ts'), 'utf8')
-    const achados = nomes.filter((n) => new RegExp(`\\b${n}\\b`).test(tipos))
-    expect(achados).toEqual([])
+    expect(conferir(tipos, nomes)).toEqual([])
+  })
+
+  it('falha fechada: formato do gerador mudou (reindentado) -> conferir acusa', async () => {
+    const { filtrar, conferir } = await carregar()
+    const reindentado = SINTETICO.split('\n').map((l) => l.replace(/^( +)/, (m) => ' '.repeat(m.length / 2 | 0))).join('\n')
+    const excl = ['sensivel', 'fn_sensivel']
+    const out = filtrar(reindentado, excl)
+    const erros = conferir(out, excl, filtrar.removidos)
+    expect(erros.length).toBeGreaterThan(0)
+    expect(erros.join(' ')).toMatch(/sensivel/)
+  })
+
+  it('falha fechada: saída sem `export type Database` ou contagem diferente -> erro; formato bom -> sem erro', async () => {
+    const { filtrar, conferir } = await carregar()
+    expect(conferir('', ['x']).join(' ')).toMatch(/export type Database/)
+    const excl = ['sensivel', 'fn_sensivel']
+    const out = filtrar(SINTETICO, excl)
+    expect(conferir(out, excl, filtrar.removidos)).toEqual([])
+    expect(conferir(out, [...excl, 'fantasma'], filtrar.removidos).join(' ')).toMatch(/removeu/)
   })
 })
