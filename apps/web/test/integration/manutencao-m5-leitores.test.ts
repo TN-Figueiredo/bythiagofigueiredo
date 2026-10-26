@@ -166,3 +166,74 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
     expect(r).toEqual({ a1: false, a2: false, a3: true, b1: false, b2: false, b3: true })
   })
 })
+
+describe.skipIf(skipIfNoLocalDb())('M5 parte 3: lista v2, desde da horária, impacto', () => {
+  let c: Client
+  beforeEach(async () => { c = new Client({ connectionString: URL_INT }); await c.connect(); await c.query('begin'); await prepararM5(c) })
+  afterEach(async () => { await c.query('rollback'); await c.end() })
+  const lista = async () => (await q1(c, `select public.obs_archive_removed_channel_list($1) as l`, [SITE_TESTE])).l as Record<string, unknown>[]
+  const U = (canal: string, tabela: string, mes: string, linhas = 5) =>
+    c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
+             values ($1, 'serie', $2, $3, $4, 1, $5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [SITE_TESTE, tabela, canal, mes, linhas])
+
+  it('lista v2: nome, removido_em e faixa para a remoção com linha', async () => {
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, name_at_removal, removed_at, removed_via, archive_decision, decided_at, units_at_removal, first_month, last_month, online_thumbs_known)
+                   values ($1, 'aaaaaaaa-0000-0000-0000-000000000001', 'Viagem Lenta', '2028-04-28', 'botao', 'apagar', '2028-04-28', 14, '2026-10-01', '2027-11-01', true)`, [SITE_TESTE])
+    const l = await lista()
+    expect(l[0]).toMatchObject({ versao: 2, nome: 'Viagem Lenta', primeiro_mes: '2026-10', ultimo_mes: '2027-11', removido_via: 'botao' })
+    expect(String(l[0]!.removido_em)).toMatch(/^2028-04-28/)
+  })
+  it('lista v2: linha da vigia sem nome nem data, com o código', async () => {
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known)
+                   values ($1, '7f3a91c2-0000-0000-0000-000000000002', 'vigia', 'apagar', now(), false)`, [SITE_TESTE])
+    expect((await lista())[0]).toMatchObject({ nome: null, removido_em: null, removido_via: 'vigia', channel_ref: '7f3a91c2-0000-0000-0000-000000000002' })
+  })
+  it('Phil I5: duas tabelas em três meses são 3 meses (não 6, não units_at_removal)', async () => {
+    const ref = 'aaaaaaaa-0000-0000-0000-000000000004'
+    // divergência do plano: o gatilho da M3b (canal_removido) recusa unidade depois da remoção; as unidades entram antes
+    for (const mes of ['2026-10-01', '2026-11-01', '2026-12-01']) for (const t of ['competitor_video_daily', 'competitor_video_early']) await U(ref, t, mes)
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, units_at_removal, online_thumbs_known) values ($1, $2, 'botao', 'apagar', now(), 99, true)`, [SITE_TESTE, ref])
+    expect((await lista())[0]).toMatchObject({ meses: 3, registros: 30, primeiro_mes: '2026-10', ultimo_mes: '2026-12' })
+  })
+  it('Phil I5: remoção sem nenhuma unidade tem meses e registros nulos, não zero', async () => {
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, units_at_removal, online_thumbs_known) values ($1, 'aaaaaaaa-0000-0000-0000-000000000005', 'botao', 'apagar', now(), 14, true)`, [SITE_TESTE])
+    const r = (await lista())[0]!
+    expect(r.meses).toBeNull(); expect(r.registros).toBeNull(); expect(r.estado).toBe('sem_arquivo')
+  })
+  it('Yannis I-14: horária com outubro fora diz 1º de outubro à meia-noite de São Paulo, precisão mês', async () => {
+    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, detached_at) values ($1, 'horaria', 'competitor_video_hourly', '2026-10-01', now(), 'com_dado', now())`, [SITE_TESTE])
+    const r = await q1(c, `select desde, precisao from public.obs_archive_horaria_desde($1)`, [SITE_TESTE])
+    expect(new Date(r.desde as string).toISOString()).toBe('2026-10-01T03:00:00.000Z')
+    expect(r.precisao).toBe('mes')
+  })
+  it('horária sem mês fora: desde é a primeira leitura, precisão hora', async () => {
+    const { canal } = await semearCanal(c, { site: SITE_TESTE, videos: 1 })
+    await c.query(`insert into public.competitor_video_hourly (video_id, hour_slot, taken_at, site_id, views) select v.id, '2026-11-02 14:00-03', '2026-11-02 14:00-03', $1, 10 from public.competitor_videos v where v.competitor_channel_id = $2`, [SITE_TESTE, canal])
+    const r = await q1(c, `select desde, precisao from public.obs_archive_horaria_desde($1)`, [SITE_TESTE])
+    expect(new Date(r.desde as string).toISOString()).toBe('2026-11-02T17:00:00.000Z'); expect(r.precisao).toBe('hora')
+  })
+  it('horária sem leitura nenhuma: desde e precisão nulos', async () => {
+    const r = await q1(c, `select desde, precisao from public.obs_archive_horaria_desde($1)`, [SITE_TESTE])
+    expect(r).toEqual({ desde: null, precisao: null })
+  })
+  it('hourly health: leva desde, desde_precisao e online_desde, com os 4 argumentos de hoje', async () => {
+    const h = (await q1(c, `select public.competitor_hourly_health($1, now(), 14, 100) as h`, [SITE_TESTE])).h as Record<string, unknown>
+    expect(h).toHaveProperty('desde'); expect(h).toHaveProperty('desde_precisao'); expect(h).toHaveProperty('online_desde')
+  })
+  it('impacto: fora_do_banco leva registros e por_tabela; a soma online + arquivo não cai depois de uma saída', async () => {
+    const { canal } = await semearCanal(c, { site: SITE_TESTE, videos: 0 })
+    await U(canal, 'competitor_video_daily', '2026-10-01', 10); await U(canal, 'competitor_video_early', '2026-10-01', 4)
+    const antes = (await q1(c, `select public.obs_archive_channel_archive_impact($1, $2) as r`, [SITE_TESTE, canal])).r as { registros: number; fora_do_banco: { registros: number } }
+    expect(antes.registros).toBe(14); expect(antes.fora_do_banco.registros).toBe(0)
+    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, dropped_at) values
+                   ($1, 'serie', 'competitor_video_daily', '2026-10-01', now(), 'com_dado', now()), ($1, 'serie', 'competitor_video_early', '2026-10-01', now(), 'com_dado', now())`, [SITE_TESTE])
+    const depois = (await q1(c, `select public.obs_archive_channel_archive_impact($1, $2) as r`, [SITE_TESTE, canal])).r as { registros: number; fora_do_banco: { registros: number; por_tabela: { table_name: string; registros: number }[] } }
+    expect(depois.registros).toBe(14)
+    expect(depois.fora_do_banco.registros).toBe(14)
+    expect(depois.fora_do_banco.por_tabela.map(t => t.table_name).sort()).toEqual(['competitor_video_daily', 'competitor_video_early'])
+  })
+  it('as duas funções novas são só de service_role', async () => {
+    const r = await q1(c, `select has_function_privilege('authenticated', 'public.obs_archive_horaria_desde(uuid)', 'execute') as a, has_function_privilege('service_role', 'public.obs_archive_horaria_desde(uuid)', 'execute') as b`)
+    expect(r).toEqual({ a: false, b: true })
+  })
+})
