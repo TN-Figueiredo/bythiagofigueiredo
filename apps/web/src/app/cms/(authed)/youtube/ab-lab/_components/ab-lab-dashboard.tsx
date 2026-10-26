@@ -29,6 +29,8 @@ import type { EligibleVideo } from './video-picker-dialog'
 import { pausaVisivel } from '@/lib/youtube/teste-youtube/nativo/pausa-visivel'
 import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
+import type { PaginaDoLab } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { PaginaDoCanal } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
 import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
 
 /** "Iniciar Lote": contorno, nunca o primário laranja (esse é do "Novo teste"). */
@@ -53,6 +55,9 @@ export interface AbLabDashboardProps {
   avisoDeVolume?: LerAvisoDeVolume
   /** F3 T7: bloco "Sugestões" (servidor, dentro de Suspense), renderizado antes do cartão de candidatos. */
   blocoSugestoes?: React.ReactNode
+  /** M7 T5: modelo da página nova e a 1ª página da lista, da leitura única; a tela os usa a partir da T7. */
+  pagina?: PaginaDoLab
+  listaInicial?: PaginaDoCanal
 }
 
 /** Cabeçalho que a lista já tem do teste (D-M6-13): título sem o prefixo "Test:" e a miniatura da original (A). */

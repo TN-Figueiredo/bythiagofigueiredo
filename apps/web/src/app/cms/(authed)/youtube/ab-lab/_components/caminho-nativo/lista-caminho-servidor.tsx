@@ -13,7 +13,7 @@ import { pauseAbTest, retryRestore } from '../../actions'
 import type { AcoesCaminho } from './lista-caminho'
 import { ListaCaminhoComPaineis } from './lista-caminho-paineis'
 
-const ACOES: AcoesCaminho = {
+export const ACOES: AcoesCaminho = {
   abrirFicha, lerFichaDoVideo, recomecarFicha, salvarFicha, marcarStudioAberto, enviarImagemDaFicha, lembrarNoComputador,
   jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube, mudarRespostaDoTesteDoYouTube, pauseAbTest, retryRestore,
 }
