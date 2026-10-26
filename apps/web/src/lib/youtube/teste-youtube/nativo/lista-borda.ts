@@ -4,8 +4,9 @@
 // (+ 1 em lote a yt_own_video_versions pelo título de antes, só quando há linha derivada; F1a-tela-2 T4, D-1). Os vídeos de ficha e de registro
 // vêm embutidos nas próprias consultas (FK), sem uma consulta extra por tabela. Nunca uma consulta por vídeo.
 import * as Sentry from '@sentry/nextjs'
+import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { diaDoTeste } from '@/lib/youtube/ab-dia-do-teste'
+import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { derivarFicha, type FichaLida, type FichaLinha } from './ficha'
 import { lerFormatos, type Formato } from './formato-borda'
@@ -141,27 +142,34 @@ function enviadaEm(f: FichaLida): string | null {
   return marcas.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a))
 }
 
-/**
- * `leitura` é a prova de que quem pede edita o site (`leituraDoEditor`): o volume sai de uma RPC que lê dado privado do canal.
- * Sem prova (nula, forjada ou de outro site) a lista abre SEM volume ("Volume ainda não lido"): não lança e não lê o privado.
- */
-export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, agora: Date, leitura: LeituraPrivadaDoSite | null): Promise<LinhaDoCaminho[]> {
+interface Base {
+  recentes: unknown[]
+  fichas: Map<string, FichaLida>
+  testes: Map<string, LinhaTeste>
+  extras: VideoLido[]
+  titulosAntes: Map<string, string>
+  nossos: Map<string, NonNullable<LinhaDoCaminho['nosso']>>
+}
+
+/** As leituras que não dependem de qual vídeo aparece: fichas abertas, registros, testes nossos e o título de antes. */
+async function lerBase(
+  sb: SupabaseClient, siteId: string, agora: Date,
+  recentesP: PromiseLike<{ data: unknown; error: { message: string } | null }>,
+): Promise<Base> {
   const iso30 = new Date(agora.getTime() - JANELA_FECHADOS_DIAS * DIA_MS).toISOString()
   const colunasFicha = `id, site_id, video_id, campos, variantes, criada_em, criada_por, atualizada_em, studio_aberto_em, lembrar_em, descartada_em, registro_id, video:youtube_videos(${COLUNAS_VIDEO})`
   const colunasTeste = `id, video_id, youtube_video_id, estado, confirmado_em, primeira_vista, ultima_vista, votos_titulo, created_at, updated_at, resposta_dono, variantes, variantes_titulo, campos, vencedor_fonte, vencedor_titulo, variante_vencedora, respondido_em, resposta_mudada_em, desfecho_em, video:youtube_videos(${COLUNAS_VIDEO})`
 
   const [recentes, fichasBrutas, testesBrutos, nossosBrutos] = await Promise.all([
-    ler<unknown>('youtube_videos', sb.from('youtube_videos').select(COLUNAS_VIDEO)
-      .eq('site_id', siteId).lte('published_at', agora.toISOString()).order('published_at', { ascending: false }).limit(RECENTES_LIDOS)),
+    ler<unknown>('youtube_videos', recentesP),
     ler<unknown>('ab_native_fichas', sb.from('ab_native_fichas').select(colunasFicha)
       .eq('site_id', siteId).is('registro_id', null).is('descartada_em', null)),
     ler<unknown>('ab_native_tests', sb.from('ab_native_tests').select(colunasTeste)
       .eq('site_id', siteId).or(`estado.eq.em_andamento,and(confirmado_em.not.is.null,encerrado_em.gte.${iso30})`)),
-    ler<unknown>('ab_tests', sb.from('ab_tests').select('id, youtube_video_id, status, started_at, restore_seq, restore_status')
+    ler<unknown>('ab_tests', sb.from('ab_tests').select('id, youtube_video_id, status, started_at, restore_seq, restore_status, config')
       .eq('site_id', siteId).in('status', ['active', 'paused'])),
   ])
 
-  const videos = new Map<string, VideoLido>()
   const extras: VideoLido[] = []
   const fichas = new Map<string, FichaLida>()
   for (const f of fichasBrutas) {
@@ -182,68 +190,222 @@ export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, ago
 
   const titulosAntes = await lerTitulosAntes(sb, siteId, [...testes.values()].filter(ehDerivada))
 
-  const recentesLidos = recentes.map(comoVideo).filter((v): v is VideoLido => v !== null)
-  const todos = new Map<string, VideoLido>()
-  for (const v of [...recentesLidos, ...extras]) todos.set(v.id, v)
-
-  const volumes: Map<string, VolumeLido> = leitura !== null && leituraValida(leitura) && leitura.siteId === siteId
-    ? await lerVolumes(sb, leitura, [...todos.keys()])
-    : new Map()
-  // Privado fica fora dos recentes (publico === false); desconhecido (nunca capturado) fica.
-  const publicos = recentesLidos.filter((v) => volumes.get(v.id)?.publico !== false).slice(0, LIMITE_RECENTES)
-  for (const v of [...publicos, ...extras]) videos.set(v.id, v)
-
-  const lista = [...videos.values()]
-  const formatos = await lerFormatos(sb, siteId, lista.map((v) => ({ id: v.id, ytId: v.youtube_video_id })))
-
   const nossos = new Map<string, NonNullable<LinhaDoCaminho['nosso']>>()
   for (const n of nossosBrutos) {
     const o = obj(n)
     if (!o || typeof o.youtube_video_id !== 'string' || typeof o.id !== 'string') continue
+    const config = obj(o.config)
     nossos.set(o.youtube_video_id, {
       testId: o.id, restoreSeq: typeof o.restore_seq === 'number' ? o.restore_seq : 0, restoreStatus: paraRestoreStatus(o.restore_status),
       dia: diaDoTeste(str(o.started_at), null, agora) ?? 0, status: o.status === 'paused' ? 'paused' : 'active',
+      teto: duracaoPrevista(config as { max_duration_days?: number } | null),
     })
   }
+  return { recentes, fichas, testes, extras, titulosAntes, nossos }
+}
 
-  const semFormato: Formato = { isShort: null, kids: null, adulto: null, aoVivo: null }
-  return lista.map((v): LinhaDoCaminho => {
-    const vol: VolumeLido | undefined = volumes.get(v.id)
-    const volume = volumeDoVideo(vol ? { soma: vol.soma, diasCobertos: vol.diasCobertos } : null, K_DA_LISTA)
-    const idadeDias = Math.max(0, Math.floor((agora.getTime() - Date.parse(v.published_at)) / DIA_MS))
-    const caminho = caminhoDoTeste({ formato: formatos.get(v.id) ?? semFormato, idadeDias, impressoesAcimaDoPiso: volume.acimaDoPiso })
-    const ficha = fichas.get(v.id) ?? null
-    const nosso = nossos.get(v.id) ?? null
-    const bruto = testes.get(v.id)
-    const registro = bruto ? registroDaLista(bruto, titulosAntes.get(bruto.id) ?? null) : null
-    const estado = estadoDaLinha({ caminho, ficha, registro, nosso }, agora)
+const SEM_FORMATO: Formato = { isShort: null, kids: null, adulto: null, aoVivo: null }
 
-    let linhaRegistro: LinhaDoCaminho['registro'] = null
-    let labPausadoAte: string | null = null
-    if (bruto && registro) {
-      const inicio = inicioDoTeste({ primeira_vista: registro.primeiraVista, confirmado_em: registro.confirmadoEm, created_at: registro.createdAt })
-      const variantes = variantesDe(bruto.variantes)
-      // Ficha ilegível (JSON fora da forma): o servidor também não a lê e NÃO cai na derivada; a lista idem (sem_versoes, nunca versões inventadas).
-      const fichaIlegivel = !ehDerivada(bruto) && variantes === null
-      linhaRegistro = {
-        id: bruto.id, updatedAt: String(bruto.updated_at), confirmadoEm: registro.confirmadoEm, primeiraVista: registro.primeiraVista,
-        diaDe14: diaDoTeste(inicio.toISOString(), null, agora) ?? 0,
-        ultimaVista: str(bruto.ultima_vista), votosTitulo: votosDe(bruto.votos_titulo),
-        variantes, variantesTitulo: fichaIlegivel ? null : titulosDe(bruto.variantes_titulo), campos: camposDe(bruto.campos),
-        respostaDono: registro.respostaDono === 'sem_resposta' ? null : registro.respostaDono as RespostaDono | null,
-        tituloAntes: titulosAntes.get(bruto.id) ?? null,
-        varianteVencedora: typeof bruto.variante_vencedora === 'number' ? bruto.variante_vencedora : null,
-        respondidoEm: str(bruto.respondido_em), respostaMudadaEm: str(bruto.resposta_mudada_em),
-        vencedorFonte: registro.vencedorFonte, vencedorTitulo: registro.vencedorTitulo, desfechoEm: str(bruto.desfecho_em),
-        inicio: inicio.toISOString(),
-      }
-      if (versoesDoDia14(linhaRegistro).tipo === 'sem_versoes' && (bruto.variantes != null || bruto.variantes_titulo != null)) avisarSemVersoes(bruto.id)
-      if (registro.estado === 'em_andamento' && nosso?.status === 'paused') labPausadoAte = retomarAPartirDe(registro).toISOString()
+/** Monta uma linha a partir do que já foi lido (mesma saída de sempre). */
+function montarLinha(v: VideoLido, b: Base, vol: VolumeLido | undefined, formato: Formato | undefined, agora: Date): LinhaDoCaminho {
+  const volume = volumeDoVideo(vol ? { soma: vol.soma, diasCobertos: vol.diasCobertos } : null, K_DA_LISTA)
+  const idadeDias = Math.max(0, Math.floor((agora.getTime() - Date.parse(v.published_at)) / DIA_MS))
+  const caminho = caminhoDoTeste({ formato: formato ?? SEM_FORMATO, idadeDias, impressoesAcimaDoPiso: volume.acimaDoPiso })
+  const ficha = b.fichas.get(v.id) ?? null
+  const nosso = b.nossos.get(v.youtube_video_id) ?? null
+  const bruto = b.testes.get(v.id)
+  const registro = bruto ? registroDaLista(bruto, b.titulosAntes.get(bruto.id) ?? null) : null
+  const estado = estadoDaLinha({ caminho, ficha, registro, nosso }, agora)
+
+  let linhaRegistro: LinhaDoCaminho['registro'] = null
+  let labPausadoAte: string | null = null
+  if (bruto && registro) {
+    const inicio = inicioDoTeste({ primeira_vista: registro.primeiraVista, confirmado_em: registro.confirmadoEm, created_at: registro.createdAt })
+    const variantes = variantesDe(bruto.variantes)
+    // Ficha ilegível (JSON fora da forma): o servidor também não a lê e NÃO cai na derivada; a lista idem (sem_versoes, nunca versões inventadas).
+    const fichaIlegivel = !ehDerivada(bruto) && variantes === null
+    linhaRegistro = {
+      id: bruto.id, updatedAt: String(bruto.updated_at), confirmadoEm: registro.confirmadoEm, primeiraVista: registro.primeiraVista,
+      diaDe14: diaDoTeste(inicio.toISOString(), null, agora) ?? 0,
+      ultimaVista: str(bruto.ultima_vista), votosTitulo: votosDe(bruto.votos_titulo),
+      variantes, variantesTitulo: fichaIlegivel ? null : titulosDe(bruto.variantes_titulo), campos: camposDe(bruto.campos),
+      respostaDono: registro.respostaDono === 'sem_resposta' ? null : registro.respostaDono as RespostaDono | null,
+      tituloAntes: b.titulosAntes.get(bruto.id) ?? null,
+      varianteVencedora: typeof bruto.variante_vencedora === 'number' ? bruto.variante_vencedora : null,
+      respondidoEm: str(bruto.respondido_em), respostaMudadaEm: str(bruto.resposta_mudada_em),
+      vencedorFonte: registro.vencedorFonte, vencedorTitulo: registro.vencedorTitulo, desfechoEm: str(bruto.desfecho_em),
+      inicio: inicio.toISOString(),
     }
-    return {
-      videoId: v.id, ytId: v.youtube_video_id, titulo: v.title, miniaturaUrl: v.thumbnail_url, publicadoEm: v.published_at,
-      estado, caminho, fichaId: ficha?.id ?? null, registro: linhaRegistro, labPausadoAte, nosso, impressoesPorDia: volume.porDia,
-      fichaEnviadaEm: ficha?.enviada ? enviadaEm(ficha) : null, fichaCompleta: ficha ? ficha.variantes.some((x) => x.n >= 2) : false,
-    }
-  })
+    if (versoesDoDia14(linhaRegistro).tipo === 'sem_versoes' && (bruto.variantes != null || bruto.variantes_titulo != null)) avisarSemVersoes(bruto.id)
+    if (registro.estado === 'em_andamento' && nosso?.status === 'paused') labPausadoAte = retomarAPartirDe(registro).toISOString()
+  }
+  return {
+    videoId: v.id, ytId: v.youtube_video_id, titulo: v.title, miniaturaUrl: v.thumbnail_url, publicadoEm: v.published_at,
+    estado, caminho, fichaId: ficha?.id ?? null, registro: linhaRegistro, labPausadoAte, nosso, impressoesPorDia: volume.porDia,
+    fichaEnviadaEm: ficha?.enviada ? enviadaEm(ficha) : null, fichaCompleta: ficha ? ficha.variantes.some((x) => x.n >= 2) : false,
+  }
+}
+
+const provaValida = (leitura: LeituraPrivadaDoSite | null, siteId: string): leitura is LeituraPrivadaDoSite =>
+  leitura !== null && leituraValida(leitura) && leitura.siteId === siteId
+
+/**
+ * `leitura` é a prova de que quem pede edita o site (`leituraDoEditor`): o volume sai de uma RPC que lê dado privado do canal.
+ * Sem prova (nula, forjada ou de outro site) a lista abre SEM volume ("Volume ainda não lido"): não lança e não lê o privado.
+ */
+export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, agora: Date, leitura: LeituraPrivadaDoSite | null): Promise<LinhaDoCaminho[]> {
+  const b = await lerBase(sb, siteId, agora, sb.from('youtube_videos').select(COLUNAS_VIDEO)
+    .eq('site_id', siteId).lte('published_at', agora.toISOString()).order('published_at', { ascending: false }).limit(RECENTES_LIDOS))
+
+  const recentesLidos = b.recentes.map(comoVideo).filter((v): v is VideoLido => v !== null)
+  const todos = new Map<string, VideoLido>()
+  for (const v of [...recentesLidos, ...b.extras]) todos.set(v.id, v)
+
+  const volumes: Map<string, VolumeLido> = provaValida(leitura, siteId) ? await lerVolumes(sb, leitura, [...todos.keys()]) : new Map()
+  // Privado fica fora dos recentes (publico === false); desconhecido (nunca capturado) fica.
+  const publicos = recentesLidos.filter((v) => volumes.get(v.id)?.publico !== false).slice(0, LIMITE_RECENTES)
+  const videos = new Map<string, VideoLido>()
+  for (const v of [...publicos, ...b.extras]) videos.set(v.id, v)
+
+  const lista = [...videos.values()]
+  const formatos = await lerFormatos(sb, siteId, lista.map((v) => ({ id: v.id, ytId: v.youtube_video_id })))
+  return lista.map((v) => montarLinha(v, b, volumes.get(v.id), formatos.get(v.id), agora))
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// M7 T6: o canal inteiro, com busca, filtro "Testáveis" e páginas de 20.
+// Dívida declarada: cada página e cada busca refazem a leitura inteira (1 a 2 selects de 1000 + até 4 RPCs de volume + formato).
+// Aceitável até o teto de 2000; gatilho para cursor por `published_at`: canal com mais de 1000 vídeos ou action acima de 2 s.
+// ---------------------------------------------------------------------------------------------------------------------
+
+export const POR_PAGINA = 20
+export const TETO_VIDEOS_DO_CANAL = 2000
+export const LOTE_DE_VOLUME = 500
+const LOTE_DE_VIDEOS = 1000
+
+export interface RecorteDaLista { busca: string | null; filtro: 'testaveis' | 'todos'; pagina: number; incluirYtId: string | null }
+export interface ContagemDoCanal { testaveis: number; semVolume: number; naoLido: number; total: number; motivoNaoLido: 'sem_leitura' | 'falha' | 'poucos_dias' | null }
+/** `contagem` é SEMPRE do canal inteiro (nunca muda com a busca); `totalDoFiltro` é o da busca + filtro. */
+export interface PaginaDoCanal { linhas: LinhaDoCaminho[]; contagem: ContagemDoCanal; totalDoFiltro: number; temMais: boolean; truncado: boolean; filtroEfetivo: 'testaveis' | 'todos' }
+
+export const PedidoVideosDoCanalSchema = z.object({
+  busca: z.string().trim().max(100).nullable(),
+  filtro: z.enum(['testaveis', 'todos']),
+  pagina: z.number().int().min(0).max(100),
+  incluirYtId: z.string().regex(/^[A-Za-z0-9_-]{11}$/).nullable(),
+})
+
+/** NFD, sem diacríticos, minúsculas, espaços colapsados. */
+export function normalizarBusca(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/** Mais novo primeiro; empate de `published_at` por `id` crescente (a mesma ordem do `order` do banco). */
+const maisNovoPrimeiro = (a: VideoLido, b: VideoLido): number =>
+  (Date.parse(b.published_at) - Date.parse(a.published_at)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+
+async function lerVideosDoSite(sb: SupabaseClient, siteId: string, agora: Date): Promise<{ videos: VideoLido[]; truncado: boolean }> {
+  const lidos: VideoLido[] = []
+  const bloco = (de: number, ate: number) => ler<unknown>('youtube_videos', sb.from('youtube_videos').select(COLUNAS_VIDEO)
+    .eq('site_id', siteId).lte('published_at', agora.toISOString())
+    .order('published_at', { ascending: false }).order('id', { ascending: true }).range(de, ate))
+  for (let de = 0; de < TETO_VIDEOS_DO_CANAL; de += LOTE_DE_VIDEOS) {
+    const linhas = await bloco(de, de + LOTE_DE_VIDEOS - 1)
+    for (const x of linhas) { const v = comoVideo(x); if (v) lidos.push(v) }
+    if (linhas.length < LOTE_DE_VIDEOS) return { videos: lidos.sort(maisNovoPrimeiro), truncado: false }
+  }
+  // Os dois blocos vieram cheios: existe mais um vídeo além do teto?
+  const alem = await bloco(TETO_VIDEOS_DO_CANAL, TETO_VIDEOS_DO_CANAL)
+  const truncado = alem.length > 0
+  if (truncado) Sentry.captureMessage('lista do A/B Lab: canal acima do teto de vídeos lidos', { level: 'warning', tags: { area: 'ab-nativo' }, extra: { teto: TETO_VIDEOS_DO_CANAL } })
+  return { videos: lidos.sort(maisNovoPrimeiro), truncado }
+}
+
+type MotivoNaoLido = ContagemDoCanal['motivoNaoLido']
+
+async function lerVolumesEmLotes(
+  sb: SupabaseClient, siteId: string, leitura: LeituraPrivadaDoSite | null, ids: string[],
+): Promise<{ volumes: Map<string, VolumeLido>; motivo: Exclude<MotivoNaoLido, 'poucos_dias'> }> {
+  if (!provaValida(leitura, siteId)) return { volumes: new Map(), motivo: 'sem_leitura' }
+  try {
+    const lotes: string[][] = []
+    for (let i = 0; i < ids.length; i += LOTE_DE_VOLUME) lotes.push(ids.slice(i, i + LOTE_DE_VOLUME))
+    const partes = await Promise.all(lotes.map((l) => lerVolumes(sb, leitura, l)))
+    const volumes = new Map<string, VolumeLido>()
+    for (const m of partes) for (const [k, v] of m) volumes.set(k, v)
+    return { volumes, motivo: null }
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-nativo', acao: 'lerPaginaDoCanal.volume' } })
+    return { volumes: new Map(), motivo: 'falha' }
+  }
+}
+
+export async function lerPaginaDoCanal(
+  sb: SupabaseClient, siteId: string, agora: Date, leitura: LeituraPrivadaDoSite | null, r: RecorteDaLista,
+): Promise<PaginaDoCanal> {
+  const semBase = { data: [] as unknown[], error: null }
+  const [{ videos, truncado }, b] = await Promise.all([
+    lerVideosDoSite(sb, siteId, agora),
+    lerBase(sb, siteId, agora, Promise.resolve(semBase)),
+  ])
+  const porId = new Map(videos.map((v) => [v.id, v]))
+  for (const v of b.extras) if (!porId.has(v.id)) porId.set(v.id, v)
+
+  const { volumes, motivo } = await lerVolumesEmLotes(sb, siteId, leitura, [...porId.keys()])
+
+  // Privado (publico === false) fica fora de tudo; publico nulo (nunca capturado) conta como público.
+  const publicos = videos.filter((v) => volumes.get(v.id)?.publico !== false)
+  const volumeDe = (v: VideoLido) => volumeDoVideo(volumes.get(v.id) ? { soma: volumes.get(v.id)!.soma, diasCobertos: volumes.get(v.id)!.diasCobertos } : null, K_DA_LISTA)
+  const acima = publicos.filter((v) => volumeDe(v).acimaDoPiso === true)
+
+  // Extras de hoje: fichas abertas, registros do Studio e testes nossos (na página 0, fora de busca).
+  const idsExtras = new Set<string>([...b.fichas.keys(), ...b.testes.keys()])
+  for (const v of porId.values()) if (b.nossos.has(v.youtube_video_id)) idsExtras.add(v.id)
+  const extras = [...idsExtras].map((id) => porId.get(id)).filter((v): v is VideoLido => v !== undefined).sort(maisNovoPrimeiro)
+
+  const buscaTxt = r.busca !== null && normalizarBusca(r.busca).length >= 2 ? normalizarBusca(r.busca) : null
+  const doFiltro = (lista: VideoLido[], filtro: 'testaveis' | 'todos', testavel: Set<string>) =>
+    (filtro === 'testaveis' ? lista.filter((v) => testavel.has(v.id)) : lista)
+      .filter((v) => buscaTxt === null || normalizarBusca(v.title).includes(buscaTxt))
+
+  // Página: precisa do formato dos acima do piso (para "testável") e dos vídeos que vão para a tela.
+  // O recorte depende do formato, então primeiro os acima do piso; depois as linhas da página.
+  const formatosAcima = await lerFormatos(sb, siteId, acima.map((v) => ({ id: v.id, ytId: v.youtube_video_id })))
+  const testavel = new Set(acima.filter((v) => formatosAcima.get(v.id)?.isShort !== true).map((v) => v.id))
+
+  const contagem: ContagemDoCanal = { testaveis: 0, semVolume: 0, naoLido: 0, total: publicos.length, motivoNaoLido: null }
+  for (const v of publicos) {
+    const a = volumeDe(v).acimaDoPiso
+    if (a === null) contagem.naoLido++
+    else if (a === false) contagem.semVolume++
+    else if (testavel.has(v.id)) contagem.testaveis++
+  }
+  if (contagem.naoLido > 0) {
+    contagem.motivoNaoLido = motivo ?? 'poucos_dias'
+  }
+
+  const filtroEfetivo: 'testaveis' | 'todos' = r.filtro === 'testaveis' && contagem.testaveis === 0 && contagem.naoLido > 0 ? 'todos' : r.filtro
+
+  const filtrados = doFiltro(publicos, filtroEfetivo, testavel)
+  const semExtras = buscaTxt === null ? filtrados.filter((v) => !idsExtras.has(v.id)) : filtrados
+  const inicio = r.pagina * POR_PAGINA
+  const daPagina = semExtras.slice(inicio, inicio + POR_PAGINA)
+  const temMais = inicio + POR_PAGINA < semExtras.length
+
+  const naTela: VideoLido[] = []
+  const vistos = new Set<string>()
+  const empurrar = (v: VideoLido | undefined) => { if (v && !vistos.has(v.id)) { vistos.add(v.id); naTela.push(v) } }
+  if (r.pagina === 0 && buscaTxt === null) extras.forEach(empurrar)
+  if (r.incluirYtId !== null) empurrar([...porId.values()].find((v) => v.youtube_video_id === r.incluirYtId))
+  daPagina.forEach(empurrar)
+
+  // Formato das linhas que ainda não foram lidas (fora dos acima do piso).
+  const faltam = naTela.filter((v) => !formatosAcima.has(v.id))
+  const formatosExtras = faltam.length > 0 ? await lerFormatos(sb, siteId, faltam.map((v) => ({ id: v.id, ytId: v.youtube_video_id }))) : new Map<string, Formato>()
+  const formatoDe = (id: string) => formatosAcima.get(id) ?? formatosExtras.get(id)
+
+  return {
+    linhas: naTela.map((v) => montarLinha(v, b, volumes.get(v.id), formatoDe(v.id), agora)),
+    contagem, totalDoFiltro: filtrados.length, temMais, truncado, filtroEfetivo,
+  }
 }
