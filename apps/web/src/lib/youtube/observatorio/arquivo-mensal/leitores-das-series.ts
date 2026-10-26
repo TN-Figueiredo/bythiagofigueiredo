@@ -41,6 +41,12 @@ export const LEITORES_DAS_SERIES: readonly LeitorDaSerie[] = [
   { arquivo: S + 'lib/youtube/observatorio/medidas/m1.ts', comoTrata: 'texto_online_desde' },
   { arquivo: S + 'lib/youtube/observatorio/medidas-telas/ler-horas.ts', comoTrata: 'janela_por_construcao' },
   { arquivo: S + 'lib/youtube/video-antigo/leitores-competitor-videos.ts', comoTrata: 'registro' },
+  // peça 1 (T5b): as telas do vídeo e do canal leem o online desde e dizem "no arquivo" ou "não medido"
+  { arquivo: S + 'app/cms/(authed)/youtube/competitors/_historico/view-model.ts', comoTrata: 'registro' },
+  { arquivo: S + 'app/cms/(authed)/youtube/competitors/_historico/medidas/horas-model.ts', comoTrata: 'registro' },
+  { arquivo: S + 'app/cms/(authed)/youtube/competitors/_historico/medidas/ler-do-video.ts', comoTrata: 'registro' },
+  { arquivo: S + 'app/cms/(authed)/youtube/competitors/_canal/medidas/lancamentos-model.ts', comoTrata: 'registro' },
+  { arquivo: S + 'app/cms/(authed)/youtube/competitors/_canal/medidas/contexto-do-canal.ts', comoTrata: 'registro' },
 ]
 
 /**
