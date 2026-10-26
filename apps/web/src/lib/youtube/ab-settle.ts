@@ -593,13 +593,17 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
     estado: 'em_andamento', destino: nomeDoDestino(destino), forcado: op.forcar === true, escreveu: null, erro: null,
     em: agora.toISOString(), attempts: 0, // abre corrente: nasce com 0
   }]))
+  const conferirLetra = op.motivo === 'aplicar_sugerido' && destino !== 'original'
   const claim = await portas.supabase.rpc('ab_settle_claim', {
     p_test_id: testId, p_seq: conv.seq, p_de: caminho.de, p_para: caminho.para,
     p_end_reason: caminho.endReason, p_restore_status: inicial, p_extra: caminho.extra,
+    // P3 do Phil: a letra que a tela mostrou tem de ser a gravada no instante do claim (o passo 0b leva segundos).
+    ...(conferirLetra ? { p_vencedor_esperado: destino.varianteId } : {}),
   })
   if (claim.error) throw new Error(`ab-settle: ab_settle_claim: ${claim.error.message}`)
   const seq = (claim.data as Array<{ claimed_seq: number }> | null)?.[0]?.claimed_seq
   if (seq === undefined) {
+    if (conferirLetra) return { resultado: 'mudou', campos: null } // recusa por seq ou por letra: a tela trata igual (recarregar)
     const { data, error } = await portas.supabase.from('ab_tests').select('status').eq('id', testId).maybeSingle()
     if (error) throw new Error(`ab-settle: status do teste ${testId}: ${(error as { message: string }).message}`)
     const status = (data as { status: string } | null)?.status

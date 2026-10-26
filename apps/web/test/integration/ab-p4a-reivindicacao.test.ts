@@ -5,7 +5,7 @@ import { semearTesteAb, clienteServico, q } from '../helpers/db-seed'
 // `semearTesteAb` cria site, vídeo, duas variantes (A original, B) e o ciclo 0 aberto.
 // Nenhuma função é chamada como anon/authenticated (SIGSEGV do Postgres local): permissão só por has_function_privilege.
 const FN = {
-  claim: 'public.ab_settle_claim(uuid,int,text[],text,text,jsonb,jsonb)',
+  claim: 'public.ab_settle_claim(uuid,int,text[],text,text,jsonb,jsonb,uuid)',
   rotate: 'public.ab_rotate_commit(uuid,int,uuid,int,jsonb,int,int)',
   resume: 'public.ab_resume_commit(uuid,int,text,uuid,jsonb)',
 }

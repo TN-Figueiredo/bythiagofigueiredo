@@ -86,6 +86,7 @@ function criarBanco(rel: { t: number }, inicial: { teste: Fila; variantes: Fila[
       }
       const t = teste(); const extra = a.p_extra as Fila
       if (t.id !== a.p_test_id || !(a.p_de as string[]).includes(t.status) || t.restore_seq !== a.p_seq) return Promise.resolve({ data: [], error: null })
+      if (a.p_vencedor_esperado != null && ((t.result_metadata as { v2?: { vencedor_sugerido?: string } } | null)?.v2?.vencedor_sugerido) !== a.p_vencedor_esperado) return Promise.resolve({ data: [], error: null })
       const agora = new Date(rel.t).toISOString(); const antes = t.status
       Object.assign(t, { status: a.p_para, restore_seq: t.restore_seq + 1, restore_status: a.p_restore_status, last_applied_variant_id: null, updated_at: agora })
       if (a.p_para === 'paused' && antes !== 'paused') t.paused_at = agora
@@ -266,7 +267,7 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
   })
   it('aplicar_sugerido (S8-F4 T11b): completed regra_v2 → completed manual_winner com B no ar, applied_by manual, sem fechar ciclo; sobre o original → destino_invalido; sobre ativo → ja_encerrado', async () => {
     const a = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A } })
-    a.banco.setTeste({ completed_reason: 'regra_v2', completed_at: '2026-10-20T00:00:00.000Z' })
+    a.banco.setTeste({ completed_reason: 'regra_v2', completed_at: '2026-10-20T00:00:00.000Z', result_metadata: { v2: { vencedor_sugerido: 'B' } } })
     const r = await settleOnAir(a.banco.testId, { ...a.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' } }, a.portas)
     expect(r.resultado).toBe('feito')
     expect(await dhashOf(a.yt.thumb)).toBe(H.B)
@@ -279,6 +280,25 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect((await settleOnAir(v.banco.testId, { ...v.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' } }, v.portas)).resultado).toBe('ja_encerrado')
     expect(v.yt.escritas()).toEqual([])
   })
+  it('P3 do Phil: aplicar_sugerido manda p_vencedor_esperado; letra trocada depois da tela ⇒ mudou, zero escrita; outros motivos não mandam o parâmetro', async () => {
+    const a = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A } })
+    a.banco.setTeste({ completed_reason: 'regra_v2', completed_at: '2026-10-20T00:00:00.000Z', result_metadata: { v2: { vencedor_sugerido: 'C' } } })
+    const chamadas: Array<Record<string, unknown>> = []
+    const rpc = a.portas.supabase.rpc.bind(a.portas.supabase) as (n: string, args: Record<string, unknown>) => unknown
+    ;(a.portas.supabase as unknown as { rpc: unknown }).rpc = (n: string, args: Record<string, unknown>) => { if (n === 'ab_settle_claim') chamadas.push(args); return rpc(n, args) }
+    const r = await settleOnAir(a.banco.testId, { ...a.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' } }, a.portas)
+    expect(r.resultado).toBe('mudou')
+    expect(chamadas[0]).toMatchObject({ p_vencedor_esperado: 'B' })
+    expect(a.banco.teste()).toMatchObject({ status: 'completed', restore_seq: 0 })
+    expect(a.yt.escritas()).toEqual([])
+    const e = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A } })
+    const ch2: Array<Record<string, unknown>> = []
+    const rpc2 = e.portas.supabase.rpc.bind(e.portas.supabase) as (n: string, args: Record<string, unknown>) => unknown
+    ;(e.portas.supabase as unknown as { rpc: unknown }).rpc = (n: string, args: Record<string, unknown>) => { if (n === 'ab_settle_claim') ch2.push(args); return rpc2(n, args) }
+    await settleOnAir(e.banco.testId, e.op('encerrado'), e.portas)
+    expect(ch2.length).toBeGreaterThan(0)
+    expect('p_vencedor_esperado' in ch2[0]!).toBe(false)
+  })
   it('Y-T12-1: aplicar_sugerido com outro teste aberto no mesmo vídeo → outro_teste, mesmo com forcar, zero escrita; outro concluído não bloqueia', async () => {
     const outro = (status: string) => [{ id: 'outro', site_id: SITE, youtube_video_id: 'video-interno', status, restore_seq: 0 }]
     const a = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A }, outros: outro('active') })
@@ -287,7 +307,7 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect(r.resultado).toBe('outro_teste')
     expect(a.yt.escritas()).toEqual([]); expect(a.banco.teste().restore_seq).toBe(0)
     const b = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A }, outros: outro('completed') })
-    b.banco.setTeste({ completed_reason: 'regra_v2' })
+    b.banco.setTeste({ completed_reason: 'regra_v2', result_metadata: { v2: { vencedor_sugerido: 'B' } } })
     expect((await settleOnAir(b.banco.testId, { ...b.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' }, forcar: true }, b.portas)).resultado).toBe('feito')
   })
   it('Y-T12-1: reverter com outro teste aberto no mesmo vídeo → outro_teste, mesmo com forcar, zero escrita', async () => {
