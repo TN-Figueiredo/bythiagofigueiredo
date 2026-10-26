@@ -2,6 +2,9 @@
 // real thing for the calls the loaders make, and every request is counted (one entry in `trips` per round trip).
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+/** O banco falso responde `obs_archive_online_since` como o banco real sem nenhum mês fora: as três tabelas, online_since nulo (nada saiu; M5, pedido 11). */
+const RPC_ONLINE_SINCE = { data: ['competitor_video_daily', 'competitor_video_early', 'competitor_video_hourly'].map(t => ({ class: t === 'competitor_video_hourly' ? 'horaria' : 'serie', table_name: t, online_since: null, divergencia: false })), error: null }
+
 export type Row = Record<string, unknown>
 export interface FakeDb {
   client: SupabaseClient
@@ -73,5 +76,5 @@ export function fakeSupabase(tables: Record<string, Row[]>, opts: { failOn?: str
     return q
   }
   // trips and selects are the live arrays; bytes is a number, so it is read through a getter
-  return { client: { from } as unknown as SupabaseClient, tables, trips: db.trips, selects: db.selects, ranges: db.ranges, get bytes() { return db.bytes } }
+  return { client: { from, rpc: async () => RPC_ONLINE_SINCE } as unknown as SupabaseClient, tables, trips: db.trips, selects: db.selects, ranges: db.ranges, get bytes() { return db.bytes } }
 }

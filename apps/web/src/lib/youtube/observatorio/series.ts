@@ -77,6 +77,7 @@ export function viewsAtAge(ctx: EngineCtx, u: ObsVideo, ageMs: number, tMax: num
   const T = u.pub + ageMs, lastI = Math.min(lastIdxOf(u), tMax == null ? 1e9 : tMax)
   if (T > pointTime(ctx, u, lastI) + 1) return null
   let a = earliestIdx(u, ctx.ds.seriesStart)
+  if (T < pointTime(ctx, u, a)) return null // before the first point: never extrapolate backwards
   for (let i = a; i <= lastI; i++) { if (pointTime(ctx, u, i) <= T) a = i; else break }
   const va = pointViews(ctx, u, a)
   if (pointTime(ctx, u, a) === T || a === lastI) return va

@@ -38,7 +38,7 @@ describe('loadLiveRows', () => {
     const tables = buildTables({ siteId: 'a', now: NOW, pinOldest: true })
     const { seriesStartAt: _s, ...live } = await loadLiveRows(fakeSupabase(tables).client, 'a', NOW)
     const rows = await loadRows({ siteId: 'a', now: NOW, supabase: fakeSupabase(tables).client })
-    expect({ settings: rows.settings, channels: rows.channels, ownChannels: rows.ownChannels, ownVideos: rows.ownVideos, legacyChanges: rows.legacyChanges, readings: rows.readings, tasks: rows.tasks, heartbeat: rows.heartbeat, niches: rows.niches, ownSnapshots: rows.ownSnapshots }).toEqual(live)
+    expect({ settings: rows.settings, channels: rows.channels, ownChannels: rows.ownChannels, ownVideos: rows.ownVideos, legacyChanges: rows.legacyChanges, readings: rows.readings, tasks: rows.tasks, heartbeat: rows.heartbeat, niches: rows.niches, ownSnapshots: rows.ownSnapshots, onlineDesde: rows.onlineDesde }).toEqual(live)
     expect(rows.videos).toHaveLength(8)
     // 3 tracked + 1 pinned per channel, 6 days each
     expect(rows.daily).toHaveLength(2 * 4 * 6)
