@@ -46,11 +46,11 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_OUTRO_TESTE, MSG_RESTORE_ILEGIVEL, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
-import { camposPendentes, paraRestoreStatus } from '@/lib/youtube/ab-restore'
+import { camposPendentes, paraRestoreStatus, restoreStatusIlegivel } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
@@ -1294,7 +1294,7 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
   const seq = seqVistoSchema.safeParse(seqVisto)
   if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
   const { data, error } = await getSupabaseServiceClient()
-    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata').eq('id', testId).eq('site_id', siteId).maybeSingle()
+    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata, youtube_video_id').eq('id', testId).eq('site_id', siteId).maybeSingle()
   if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
   const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
   const sugerido = meta?.v2?.vencedor_sugerido
@@ -1303,6 +1303,14 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
   }
   if (varianteId === (await varianteOriginalId(testId, siteId))) {
     // S8-F4 B2 "a original vence": o teste fechou com a original no ar. Decide pelo estado real da volta (restore_status), não pela flag volta_falhou, que nunca é limpa.
+    // Fail closed: restore_status que não se lê não pode contar como "sem pendente".
+    if (restoreStatusIlegivel(data.restore_status)) return { ok: false, resultado: 'erro', error: MSG_RESTORE_ILEGIVEL }
+    // Phil D4: outro teste aberto no mesmo vídeo barra (a volta escreve no YouTube e a vitória não pode valer sobre o ciclo dele).
+    const outro = await getSupabaseServiceClient().from('ab_tests').select('id')
+      .eq('site_id', siteId).eq('youtube_video_id', data.youtube_video_id as string).neq('id', testId)
+      .in('status', ['draft', 'queued', 'active', 'paused']).limit(1)
+    if (outro.error) { Sentry.captureException(outro.error, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
+    if (((outro.data ?? []) as unknown[]).length > 0) return { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }
     let seqGrava = seq.data
     if (camposPendentes(paraRestoreStatus(data.restore_status), 'humano').length > 0) {
       const autorizar = async (): Promise<boolean> => true // o destino é sempre a original
