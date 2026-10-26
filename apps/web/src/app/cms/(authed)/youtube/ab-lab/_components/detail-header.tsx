@@ -25,6 +25,12 @@ export interface DetailHeaderProps {
   lab?: { thumbUrl: string | null; naoIniciado?: boolean; /** Teste v2 concluído (T12 T7): "DD/MM" da conclusão; troca o selo "rodando, dia X de Y". */ concluidoEm?: string }
 }
 
+/** O que o Lab troca no YouTube, por tipo: o teste do Lab não é o "Testar e comparar" do Studio. */
+export function fraseDeOrigemDoLab(flag: TestType): string {
+  const alvo = flag === 'thumbnail' ? 'a miniatura pública' : flag === 'combo' ? 'o título e a miniatura públicos' : 'o título público'
+  return `Teste do A/B Lab: o Lab troca ${alvo} do vídeo no YouTube em rodízio, uma versão por vez. Não é o “Testar e comparar” do Studio.`
+}
+
 export function DetailHeader({
   title,
   flag,
@@ -73,6 +79,11 @@ export function DetailHeader({
                       : dayInfo ? <span>Teste do Lab {situacao}, <span className="dhl-dia">{rotuloDoDia(dayInfo.dayOf, dayInfo.total).replace('Dia ', 'dia ').replace('/', ' de ')}</span></span> : null}
                 </span>
               </div>
+            )}
+            {(status === 'active' || status === 'paused') && !lab.concluidoEm && !lab.naoIniciado && (
+              <p className="dhl-origem" data-testid="origem-lab" style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--cms-text-muted)' }}>
+                {fraseDeOrigemDoLab(flag)}
+              </p>
             )}
           </div>
         </div>
