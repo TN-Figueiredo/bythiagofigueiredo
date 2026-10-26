@@ -88,7 +88,7 @@ describe('M6 T6: banner e selos', () => {
     const semB = [v2[0]!, { ...v2[1]!, thumbUrl: null }]
     const r = render(<StepRevisar type="combo" variants={semB} config={config} meta={meta} faltaThumb="B" />)
     expect(screen.getByText('Falta a thumbnail da variante B.')).toBeTruthy()
-    expect(document.body.textContent).toContain('está desativado: a variante B ainda não tem thumbnail')
+    expect(document.body.textContent).toContain('está desativado: a variante B ainda não tem miniatura')
     r.rerender(<StepRevisar type="combo" variants={semB} config={config} meta={meta} faltaThumb="B" ocupado />)
     expect(document.querySelector('[data-nota-ativar]')).toBeNull()
   })
@@ -159,7 +159,7 @@ describe('M6 T6: no assistente', () => {
     expect(await screen.findByText('Falta a thumbnail da variante B.')).toBeTruthy()
     expect((screen.getByRole('button', { name: /Ativar teste/ }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: /Salvar rascunho/ }) as HTMLButtonElement).disabled).toBe(false)
-    expect(document.body.textContent).toContain('está desativado: a variante B ainda não tem thumbnail')
+    expect(document.body.textContent).toContain('está desativado: a variante B ainda não tem miniatura')
   })
   it('aviso estável: ativar não faz o selo sumir nem refaz a leitura', async () => {
     const ler = vi.fn(async (_id: string, _p?: { V: number }) => ({ ok: true as const, aviso: { estado: 'nao_chega' as const, texto: 'este teste não chega ao volume em 15 dias', dias_previstos: 20, impressoes_dia: 1, n: 1, base_estimada: false } }))

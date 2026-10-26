@@ -3,7 +3,8 @@
 .vp:hover:not(:disabled) { background: var(--cms-surface-hover); }
 .vp:focus-visible { outline: 2px solid var(--cms-accent); outline-offset: 2px; }
 .vp:disabled { cursor: not-allowed; }
-.vp:disabled .th, .vp:disabled .t { opacity: .5; }
+.vp:disabled .th:not(.semimg) { opacity: .5; }
+.vp:disabled .t { color: var(--cms-text-muted); }
 .vp .th { width: 96px; height: 54px; border-radius: 4px; background-color: var(--cms-bg); flex: none; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 14px; text-align: center; color: var(--cms-text-muted); }
 .vp .th.semimg { border: 1px dashed var(--cms-border-strong, var(--cms-border)); background: var(--cms-surface-hover); }
 .vp .tx { min-width: 0; flex: 1; display: block; }

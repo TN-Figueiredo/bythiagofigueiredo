@@ -22,7 +22,7 @@
 .pm4-selos + .pm4-sum { margin-top: var(--s5); }
 @container (max-width: 640px) { .pm4-sum { font-size: 18px; } .pm4-in { padding: var(--s5) var(--s3) var(--s4); } }
 
-.pm4-band { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--cn-border); background: var(--cn-surface); margin-top: var(--s4); }
+.pm4-band { max-width: 1040px; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--cn-border); background: var(--cn-surface); margin-top: var(--s4); }
 .pm4-sum + .pm4-band { margin-top: 0; }
 .pm4-band .ic { flex: none; margin-top: 2px; }
 .pm4-band h3 { font: 600 14px/1.35 Inter, system-ui, sans-serif; }

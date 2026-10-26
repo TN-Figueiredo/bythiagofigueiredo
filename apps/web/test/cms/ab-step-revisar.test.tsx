@@ -63,7 +63,7 @@ describe('StepRevisar', () => {
 
   it('banner: resumo com número e tipo; prazo e rotação moram na linha da regra', () => {
     renderRevisar({ type: 'combo' })
-    const summary = screen.getByText(/3 variantes de título \+ thumbnail/)
+    const summary = screen.getByText(/3 variantes de título \+ miniatura/)
     expect(summary.textContent).not.toContain('Duração')
     expect(summary.textContent).not.toContain('confiança')
     expect(screen.getByText(/Roda até 17 dias \(mínimo 16\), em rotação ABBA/)).toBeDefined()
@@ -193,7 +193,7 @@ describe('envio 1: resolução sem pulo, texto curto e ⓘ da regra', () => {
   it('banner reserva 2 linhas no mobile (sem pulo ao resolver o título)', () => {
     const { container } = render(<StepRevisar {...base} />)
     const p = container.querySelector('[data-banner-texto]') as HTMLElement
-    expect(p.className).toContain('min-h-[2.75em]')
+    expect(p.className).toContain('min-h-[4.125em]')
     expect(p.className).toContain('sm:min-h-0')
   })
 })

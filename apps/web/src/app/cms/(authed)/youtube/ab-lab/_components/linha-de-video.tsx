@@ -63,7 +63,7 @@ export function LinhaDeVideo({ video, onEscolher, onContinuarRascunho }: { video
           // eslint-disable-next-line @next/next/no-img-element
           <img src={video.thumbnailUrl} alt="" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
-          'Sem thumbnail'
+          <span className="text-cms-text-muted">Sem miniatura</span>
         )}
       </span>
       <span className="tx">

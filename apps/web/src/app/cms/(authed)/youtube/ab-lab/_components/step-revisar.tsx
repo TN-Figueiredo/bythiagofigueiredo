@@ -48,9 +48,9 @@ export interface StepRevisarProps {
 /* ------------------------------------------------------------------ */
 
 const TYPE_LABELS_PT: Record<TestType, string> = {
-  thumbnail:   'thumbnail',
+  thumbnail:   'miniatura',
   title:       'título',
-  combo:       'título + thumbnail',
+  combo:       'título + miniatura',
 }
 
 /** Resumo do banner: só o que o banner sabe dizer; prazo e rotação moram na linha da regra. */
@@ -191,7 +191,7 @@ export function StepRevisar({ type, variants, meta, onEscolherDaBiblioteca, avis
         {faltaThumb
           ? <AlertTriangle className="w-5 h-5 shrink-0 text-cms-text-muted" aria-hidden="true" />
           : <CheckCircle className={`w-5 h-5 shrink-0 ${pronto ? 'text-[var(--cms-green-icon)]' : 'text-cms-text-muted'}`} aria-hidden="true" />}
-        <p className="text-[13px] leading-snug text-cms-text m-0 min-h-[2.75em] sm:min-h-0" data-banner-texto>
+        <p className="text-[13px] leading-snug text-cms-text m-0 min-h-[4.125em] sm:min-h-0" data-banner-texto>
           <strong className={`font-semibold ${pronto ? 'text-[var(--cms-green-text)]' : 'text-cms-text'}`}>{titulo}</strong>{' '}
           <span className="text-cms-text">{faltaThumb ? 'Escolha uma imagem da Biblioteca para poder ativar o teste.' : summaryText}</span>
         </p>
@@ -228,7 +228,7 @@ export function StepRevisar({ type, variants, meta, onEscolherDaBiblioteca, avis
       {/* Nota: some durante salvar/ativar e no erro */}
       {ocupado || comErro ? null : faltaThumb ? (
         <p data-nota-ativar className="text-[12px] text-cms-text-dim text-center leading-snug px-2 m-0">
-          <strong className="text-cms-text-muted">Ativar teste</strong> está desativado: a variante {faltaThumb} ainda não tem thumbnail.
+          <strong className="text-cms-text-muted">Ativar teste</strong> está desativado: a variante {faltaThumb} ainda não tem miniatura.
         </p>
       ) : (
         <p data-nota-ativar className="text-[12px] text-cms-text-dim text-center leading-snug px-2 m-0">
