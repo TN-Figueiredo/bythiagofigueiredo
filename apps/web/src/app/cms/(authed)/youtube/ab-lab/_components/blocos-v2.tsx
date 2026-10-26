@@ -163,13 +163,16 @@ export interface DesfechoV2Props {
   /** Alvo do foco depois de aplicar/voltar (a linha "No ar agora"). */
   noArRef: RefObject<HTMLDivElement | null>
   acao?: AcaoEmCurso | null
+  /** Refresh em curso depois de uma ação: os botões ficam em espera (evita 2º clique com restoreSeq velho). */
+  atualizando?: boolean
   onTentarAcao?: () => void
   onRecarregar?: () => void
 }
 
 const MOTIVO_BLOQUEIO = 'Há outro teste aberto neste vídeo. Encerre ou aguarde o outro teste.'
+const MOTIVO_SEM_LEITURA = 'Não deu para conferir se há outro teste neste vídeo. Recarregue a página.'
 
-export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef, acao, onTentarAcao, onRecarregar }: DesfechoV2Props) {
+export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef, acao, atualizando, onTentarAcao, onRecarregar }: DesfechoV2Props) {
   const canAdmin = useCanAdminSite()
   const { c, s } = SELO[tela.selo.tipo]
   const prov = tela.selo.tipo === 'vence' && tela.selo.provisorio
@@ -190,12 +193,13 @@ export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef,
 
   const botao = (rotulo: string, espera: string, tipo: 'aplicar' | 'voltar', pri: boolean, onClick: (b: HTMLButtonElement) => void): ReactNode => {
     const esperando = emCurso?.tipo === tipo
+    const bloqueado = esperando || atualizando === true
     return (
       <button
         type="button"
         className={`pv2-btn${pri ? ' pri' : ''}`}
-        aria-disabled={esperando ? true : undefined}
-        onClick={e => { if (!esperando) onClick(e.currentTarget) }}
+        aria-disabled={bloqueado ? true : undefined}
+        onClick={e => { if (!bloqueado) onClick(e.currentTarget) }}
       >
         {esperando ? <><IcRelogio />{espera}</> : rotulo}
       </button>
@@ -222,6 +226,8 @@ export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef,
     ) : <AdminOnlyNote action="aplicar a variante" className="text-cms-text-dim" />
   } else if (tela.bloqueio === 'outro_teste') {
     acoes = <p className="pv2-motivo">{MOTIVO_BLOQUEIO}</p>
+  } else if (tela.bloqueio === 'sem_leitura') {
+    acoes = <p className="pv2-motivo">{MOTIVO_SEM_LEITURA}</p>
   } else if (tela.voltar) {
     acoes = canAdmin ? (
       <div className="pv2-acts">{botao('Voltar à original', 'Voltando à original…', 'voltar', false, onVoltar)}</div>

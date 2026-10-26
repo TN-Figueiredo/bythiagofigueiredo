@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AbTestDetailView } from '@/lib/youtube/ab-types'
 import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
-import { MSG_EM_ANDAMENTO, MSG_MUDOU, MSG_OUTRO_TESTE, type ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
+import { MSG_EM_ANDAMENTO, MSG_FALHA_SAIDA, MSG_MUDOU, MSG_OUTRO_TESTE, type ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { DetailHeader } from './detail-header'
 import { ResumoV2, PisosV2, DesfechoV2, type AcaoEmCurso } from './blocos-v2'
 import { PlacarDoTeste } from './placar-do-teste'
@@ -28,6 +28,7 @@ export interface ConcluidoV2DetailProps {
 
 const MSG_RECARREGUE = 'O teste mudou desde que você abriu a página. Recarregue para ver o estado atual.'
 const MSG_PRAZO_VOLTAR = 'O prazo de 7 dias para voltar acabou.'
+const MSG_SEM_RESPOSTA = 'Sem resposta do servidor. Recarregue para ver o que está no ar.'
 const MSG_VOLTA_NAO_CONCLUIDA = 'Não consegui concluir a volta. Recarregue a página para ver o estado atual.'
 const msgFalha = (tipo: 'aplicar' | 'voltar', letra: string): string =>
   tipo === 'aplicar' ? `Não consegui aplicar ${letra}. A original continua no ar.` : `Não consegui voltar à original. ${letra} continua no ar.`
@@ -69,6 +70,9 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
     }
   }, [focoNoAr, isPending])
 
+  // M1: depois do refresh (restoreSeq novo) o erro da leitura velha não vale mais.
+  useEffect(() => { setAcao(null) }, [view.restoreSeq])
+
   const fechar = useCallback(() => { setDialogo(null); setErro(null); setPendencia(null) }, [])
   const recarregar = useCallback(() => { router.refresh(); fechar(); setAcao(null) }, [router, fechar])
 
@@ -89,7 +93,7 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
     }
     if (naPagina) setDialogo(null)
     if (tipo === 'voltar' && revertExpiresAt && Date.parse(revertExpiresAt) <= Date.now()) {
-      falhar({ texto: MSG_PRAZO_VOLTAR, recarregar: false, prazo: true })
+      falhar({ texto: MSG_PRAZO_VOLTAR, recarregar: true, prazo: true })
       return
     }
     if (tipo === 'aplicar' && !alvo) return
@@ -104,7 +108,8 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
           ? (forcar ? await aplicar(alvo!.variant_id, view.restoreSeq, true) : await aplicar(alvo!.variant_id, view.restoreSeq))
           : await voltar(view.restoreSeq)
       } catch {
-        falhar({ texto: msgFalha(tipo, tipo === 'aplicar' ? letraAlvo : letraNoAr), recarregar: !naPagina, prazo: false }, true)
+        // Exceção = a ação pode ter chegado ao servidor: não afirma o que está no ar nem repete às cegas.
+        falhar({ texto: MSG_SEM_RESPOSTA, recarregar: true, prazo: false })
         return
       }
       if (r.ok && r.resultado === 'feito') {
@@ -122,12 +127,17 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
       }
       if (r.ok) { falhar({ texto: tipo === 'voltar' ? MSG_VOLTA_NAO_CONCLUIDA : MSG_RECARREGUE, recarregar: true, prazo: false }); return }
       if (r.resultado === 'ja_encerrado') {
-        falhar(r.error === MSG_OUTRO_TESTE ? { texto: r.error, recarregar: false, prazo: false } : { texto: MSG_RECARREGUE, recarregar: true, prazo: false })
+        falhar({ texto: r.error === MSG_OUTRO_TESTE ? r.error : MSG_RECARREGUE, recarregar: true, prazo: false })
         return
       }
-      if (r.resultado === 'mudou') { falhar({ texto: MSG_MUDOU, recarregar: false, prazo: false }); return }
-      if (r.resultado === 'em_andamento') { falhar({ texto: MSG_EM_ANDAMENTO, recarregar: false, prazo: false }); return }
-      falhar({ texto: r.error, recarregar: false, prazo: false }, true)
+      if (r.resultado === 'mudou') { falhar({ texto: MSG_MUDOU, recarregar: true, prazo: false }); return }
+      if (r.resultado === 'em_andamento') { falhar({ texto: MSG_EM_ANDAMENTO, recarregar: false, prazo: false }, true); return }
+      // Só a falha genérica do servidor repete (M5); o resto (sem permissão, volta ilegível, pedido inválido) não muda ao repetir.
+      if (r.resultado === 'erro' && r.error === MSG_FALHA_SAIDA) {
+        falhar({ texto: msgFalha(tipo, tipo === 'aplicar' ? letraAlvo : letraNoAr), recarregar: !naPagina, prazo: false }, true)
+        return
+      }
+      falhar({ texto: r.error, recarregar: r.resultado === 'erro', prazo: false })
     } finally {
       voo.current = false
       setEnviando(false)
@@ -165,6 +175,7 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
         <DesfechoV2
           tela={tela}
           acao={acao}
+          atualizando={isPending}
           onTentarAcao={() => { if (acao) void executar(acao.tipo, false) }}
           onRecarregar={recarregar}
           noArRef={noArRef}

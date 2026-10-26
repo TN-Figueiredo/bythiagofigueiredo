@@ -5,7 +5,7 @@
  */
 import type { DisplayLabel } from '../ab-types'
 import { lerResultadoV2, type ResultadoV2 } from '../ab-types'
-import { paraRestoreStatus, camposDoTeste } from '../ab-restore'
+import { paraRestoreStatus, voltaConcluida } from '../ab-restore'
 import { dayPt } from '../coleta/day-pt'
 import { ctrDosValidos, estadoV2DoTeste, pisos, provisorioAte, tetoDoTesteV2, type CicloComNumero, type DiaDaDecisao } from './decisao-v2'
 
@@ -26,7 +26,7 @@ export type TelaV2 =
       /** Aplicação desfeita (Voltar): reaplicar a mesma letra. Nulo se o desfecho mudou de letra ou há `bloqueio`. */
       aplicarDeNovo: { variant_id: string; letra: DisplayLabel } | null
       /** Motivo de não oferecer "Aplicar de novo" (só na desfeita com o mesmo desfecho). */
-      bloqueio: 'outro_teste' | null
+      bloqueio: 'outro_teste' | 'sem_leitura' | null
       n: number | null; pisos: LinhaPisoV2[] | null; tentarDeNovo: boolean }
 export interface EntradaTelaV2 {
   teste: { id: string; status: string; regra: 'v1' | 'v2'; config: unknown; paused_at: string | null; completed_at: string | null
@@ -34,8 +34,8 @@ export interface EntradaTelaV2 {
     revert_expires_at: string | null; restore_status: unknown; result_metadata: unknown; original_title: string | null; test_type: 'thumbnail' | 'title' | 'combo' }
   variantes: VarianteDaTela[]; ciclos: CicloComNumero[]; dias: DiaDaDecisao[]
   agora: Date
-  /** Há outro teste nosso aberto (draft/queued/active/paused) no mesmo vídeo? Só a desfeita usa; ausente = não. */
-  outroTesteAberto?: boolean
+  /** Há outro teste nosso aberto (draft/queued/active/paused) no mesmo vídeo? Só a desfeita usa. 'sem_leitura' = a consulta falhou (sem botão, motivo próprio). Obrigatório: esquecer não pode liberar o botão. */
+  outroTesteAberto: boolean | 'sem_leitura'
 }
 
 const PISO_DIAS = 4
@@ -167,7 +167,7 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     else if (teste.winner_applied_at !== null) noAr = { tipo: 'aplicada', letra, desfechoMudou: w !== (v2?.vencedor_sugerido ?? null) }
     else {
       const rs = paraRestoreStatus(teste.restore_status)
-      const tudoOk = rs !== null && camposDoTeste(teste.test_type).every(c => rs[c]?.estado === 'ok')
+      const tudoOk = voltaConcluida(rs, teste.test_type)
       noAr = teste.completed_reason === 'manual_winner' && tudoOk ? { tipo: 'desfeita', letra, desfechoMudou: w !== (v2?.vencedor_sugerido ?? null) } : { tipo: 'desconhecido' }
     }
   }
@@ -176,7 +176,7 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
 
   const sugeridoId = v2?.vencedor_sugerido ?? null
   const sugeridoLetra = letraDe(sugeridoId)
-  const base = { noAr, voltar, n, tentarDeNovo: false, aplicarDeNovo: null as null | { variant_id: string; letra: DisplayLabel }, bloqueio: null as 'outro_teste' | null }
+  const base = { noAr, voltar, n, tentarDeNovo: false, aplicarDeNovo: null as null | { variant_id: string; letra: DisplayLabel }, bloqueio: null as 'outro_teste' | 'sem_leitura' | null }
 
   let selo: SeloV2
   if (lido.estado === 'ilegivel') selo = { tipo: 'ilegivel' }
@@ -217,9 +217,10 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
   let frase: { principal: string; apoio: string | null; complemento?: string }
   const desfeitaMesmoDesfecho = noAr.tipo === 'desfeita' && !noAr.desfechoMudou && selo.tipo === 'vence' && sugeridoId !== null
   let aplicarDeNovo: { variant_id: string; letra: DisplayLabel } | null = null
-  let bloqueio: 'outro_teste' | null = null
+  let bloqueio: 'outro_teste' | 'sem_leitura' | null = null
   if (desfeitaMesmoDesfecho && selo.tipo === 'vence' && sugeridoId) {
     if (e.outroTesteAberto === true) bloqueio = 'outro_teste'
+    else if (e.outroTesteAberto === 'sem_leitura') bloqueio = 'sem_leitura'
     else aplicarDeNovo = { variant_id: sugeridoId, letra: selo.letra }
   }
   if (desfeitaMesmoDesfecho && selo.tipo === 'vence') {

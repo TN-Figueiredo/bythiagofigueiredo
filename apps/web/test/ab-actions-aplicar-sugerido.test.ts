@@ -105,7 +105,8 @@ describe('aplicarSugerido (T11b)', () => {
     expect(settle).not.toHaveBeenCalled()
   })
   describe('aplicar de novo (selo depois do Voltar)', () => {
-    const DESFEITA = (extra: object = {}) => ({ data: { completed_reason: 'manual_winner', status: 'completed', winner_variant_id: 'B', winner_applied_at: null, result_metadata: { v2: { vencedor_sugerido: 'B' } }, ...extra }, error: null })
+    const VOLTA_OK = { thumbnail: { estado: 'ok', destino: 'original', em: '2026-10-20T00:00:00Z', forcado: false, escreveu: true, attempts: 1 } }
+    const DESFEITA = (extra: object = {}) => ({ data: { completed_reason: 'manual_winner', status: 'completed', winner_variant_id: 'B', winner_applied_at: null, test_type: 'thumbnail', restore_status: VOLTA_OK, result_metadata: { v2: { vencedor_sugerido: 'B' } }, ...extra }, error: null })
     it('manual_winner com B definido e sem aplicação: chama settleOnAir(aplicar_sugerido) e dá feito', async () => {
       linha.mockResolvedValueOnce(DESFEITA())
       const r = await aplicarSugerido('t1', 'B', 9)
@@ -116,6 +117,10 @@ describe('aplicarSugerido (T11b)', () => {
       ['ainda aplicada (winner_applied_at preenchido)', { winner_applied_at: '2026-10-20T00:00:00Z' }],
       ['o vencedor gravado é outra variante', { winner_variant_id: 'C' }],
       ['o desfecho já não sugere B', { result_metadata: { v2: { vencedor_sugerido: 'C' } } }],
+      ['a aplicação falhou em parte (restore_status falhou)', { restore_status: { thumbnail: { ...VOLTA_OK.thumbnail, estado: 'falhou', destino: 'B' } } }],
+      ['a volta não foi para a original (destino B)', { restore_status: { thumbnail: { ...VOLTA_OK.thumbnail, destino: 'B' } } }],
+      ['restore_status ilegível', { restore_status: 'lixo' }],
+      ['combo com só um campo ok', { test_type: 'combo' }],
     ])('ja_encerrado quando %s', async (_n, extra) => {
       linha.mockResolvedValueOnce(DESFEITA(extra))
       expect(await aplicarSugerido('t1', 'B', 9)).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO })

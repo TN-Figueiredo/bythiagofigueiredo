@@ -13,6 +13,7 @@ export const MSG_MUDOU = 'O teste mudou em outra aba. Reabra para decidir.'
 export const MSG_PEDIDO_INVALIDO = 'Pedido inválido. Recarregue a página e tente de novo.'
 export const MSG_OUTRO_TESTE = 'Outro teste está em andamento neste vídeo. O Lab não troca título nem thumbnail daqui enquanto ele durar.'
 export const MSG_RESTORE_ILEGIVEL = 'Não consegui ler o estado da volta ao original. Nada foi alterado. Recarregue a página; se repetir, confira o vídeo no YouTube Studio.'
+export const MSG_FALHA_SAIDA = 'Não foi possível concluir agora. Recarregue a página e confira o estado do teste.'
 export const MSG_DESTINO_INVALIDO = 'Variante inválida para este teste.'
 
 /** Contrato do diálogo "O que fica no vídeo?" (Tarefa 15). */

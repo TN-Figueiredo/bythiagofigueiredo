@@ -5,6 +5,7 @@ import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { LIMITE_DA_CADEIA, camposDoTeste, camposPendentes, erroDeCota, inicioDoSim, paraRestoreStatus, proximaDoInterrompido, proximoDoVigia, simAindaVale } from '@/lib/youtube/ab-restore'
 import type { CampoNome, CampoRestauracao, ErroGravado, EstadoCampo, RestoreStatus } from '@/lib/youtube/ab-restore'
+import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
 import { decidirCampo, ultimaEscritaDoApp } from '@/lib/youtube/ab-settle-decidir'
 import type { Decisao, EntradaThumb, EntradaTitulo } from '@/lib/youtube/ab-settle-decidir'
 import { dhashDasVariantes } from '@/lib/youtube/ab-variant-dhash'
@@ -640,12 +641,11 @@ export interface OpcoesNovaTentativa {
   autorizar?: (destino: 'original' | 'variante') => Promise<boolean>
 }
 
-const ABERTOS_NO_VIDEO = ['draft', 'queued', 'active', 'paused']
 
 /** Há outro teste nosso aberto (draft/queued/active/paused) no mesmo vídeo? */
 async function outroTesteAberto(portas: PortasSaida, r: Retrato, testId: string): Promise<boolean> {
   const outro = await portas.supabase.from('ab_tests').select('id')
-    .eq('site_id', r.site_id).eq('youtube_video_id', r.youtube_video_id).neq('id', testId).in('status', ABERTOS_NO_VIDEO).limit(1)
+    .eq('site_id', r.site_id).eq('youtube_video_id', r.youtube_video_id).neq('id', testId).in('status', [...ABERTOS_NO_VIDEO]).limit(1)
   if (outro.error) throw new Error(`ab-settle: outro teste do vídeo ${r.youtube_video_id}: ${outro.error.message}`)
   return ((outro.data ?? []) as unknown[]).length > 0
 }

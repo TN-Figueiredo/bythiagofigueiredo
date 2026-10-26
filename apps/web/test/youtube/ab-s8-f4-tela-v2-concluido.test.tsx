@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, cleanup, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, cleanup, screen, fireEvent, waitFor, act, within } from '@testing-library/react'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
-import { MSG_OUTRO_TESTE, MSG_MUDOU } from '@/lib/youtube/ab-acao-saida'
+import { MSG_OUTRO_TESTE, MSG_MUDOU, MSG_JA_ENCERRADO, MSG_EM_ANDAMENTO, MSG_FALHA_SAIDA } from '@/lib/youtube/ab-acao-saida'
 
 const refresh = vi.hoisted(() => vi.fn())
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh, back: vi.fn() }) }))
@@ -350,8 +350,8 @@ describe('T12 T7: concluído v2', () => {
       expect(aplicar).toHaveBeenCalledTimes(1)
       await act(async () => { solta(FEITO) })
     })
-    it('erro de rede: role=alert com "Não consegui aplicar B. A original continua no ar." e Tentar de novo repete', async () => {
-      const aplicar = vi.fn().mockRejectedValueOnce(new Error('rede')).mockResolvedValueOnce(FEITO)
+    it('erro do servidor: role=alert com "Não consegui aplicar B. A original continua no ar." e Tentar de novo repete', async () => {
+      const aplicar = vi.fn().mockResolvedValueOnce({ ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }).mockResolvedValueOnce(FEITO)
       montar(desf(), { aplicar })
       abrirDeNovo(); confirmar('Aplicar B')
       const alerta = await screen.findByRole('alert')
@@ -363,7 +363,7 @@ describe('T12 T7: concluído v2', () => {
       await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     })
     it('Voltar: espera "Voltando à original…" e erro "Não consegui voltar à original. B continua no ar." com Tentar de novo', async () => {
-      const voltar = vi.fn().mockRejectedValueOnce(new Error('rede')).mockResolvedValueOnce(FEITO)
+      const voltar = vi.fn().mockResolvedValueOnce({ ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }).mockResolvedValueOnce(FEITO)
       montar(base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true }), { voltar, view: { revertExpiresAt: em(3) } })
       fireEvent.click(screen.getByRole('button', { name: 'Voltar à original' }))
       confirmar('Sim, voltar à original')
@@ -371,6 +371,55 @@ describe('T12 T7: concluído v2', () => {
       expect(alerta.textContent).toContain('Não consegui voltar à original. B continua no ar.')
       fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }))
       await waitFor(() => expect(voltar).toHaveBeenCalledTimes(2))
+    })
+    it('C2: a ação lançou (rede/timeout): texto neutro com Recarregar, nunca "continua no ar", sem Tentar de novo', async () => {
+      for (const tipo of ['aplicar', 'voltar'] as const) {
+        const rej = vi.fn().mockRejectedValue(new Error('timeout'))
+        if (tipo === 'aplicar') { montar(desf(), { aplicar: rej }); abrirDeNovo(); confirmar('Aplicar B') }
+        else {
+          montar(base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true }), { voltar: rej, view: { revertExpiresAt: em(3) } })
+          fireEvent.click(screen.getByRole('button', { name: 'Voltar à original' })); confirmar('Sim, voltar à original')
+        }
+        const alerta = await screen.findByRole('alert')
+        expect(alerta.textContent).toContain('Sem resposta do servidor. Recarregue para ver o que está no ar.')
+        expect(alerta.textContent).not.toContain('continua no ar')
+        expect(within(alerta).getByRole('button', { name: 'Recarregar' })).toBeTruthy()
+        expect(within(alerta).queryByRole('button', { name: 'Tentar de novo' })).toBeNull()
+        cleanup()
+      }
+    })
+    it.each([
+      ['mudou', { ok: false, resultado: 'mudou', error: MSG_MUDOU }, 'Recarregar'],
+      ['ja_encerrado', { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }, 'Recarregar'],
+      ['ja_encerrado por outro teste', { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }, 'Recarregar'],
+      ['em_andamento', { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }, 'Tentar de novo'],
+    ])('C1: %s na página deixa um botão no alert', async (_n, resp, botao) => {
+      montar(desf(), { aplicar: vi.fn().mockResolvedValue(resp) })
+      abrirDeNovo(); confirmar('Aplicar B')
+      const alerta = await screen.findByRole('alert')
+      expect(within(alerta).getByRole('button', { name: botao })).toBeTruthy()
+    })
+    it('C1: prazo do Voltar vencido deixa Recarregar no alert', () => {
+      montar(base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true }), { view: { revertExpiresAt: em(-1) } })
+      fireEvent.click(screen.getByRole('button', { name: 'Voltar à original' })); confirmar('Sim, voltar à original')
+      expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Recarregar' })).toBeTruthy()
+    })
+    it('M1: erro da leitura velha some quando o restoreSeq muda (refresh)', async () => {
+      const aplicar = vi.fn().mockResolvedValue({ ok: false, resultado: 'mudou', error: MSG_MUDOU })
+      const { rerender, voltar } = montar(desf(), { aplicar })
+      abrirDeNovo(); confirmar('Aplicar B')
+      await screen.findByRole('alert')
+      rerender(<ConcluidoV2Detail view={view(desf(), { restoreSeq: 8 })} aplicar={aplicar} voltar={voltar} />)
+      await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    })
+    it('sem_leitura: sem botão e motivo próprio (não diz que há outro teste)', () => {
+      const { container } = montar(desf({
+        aplicarDeNovo: null, bloqueio: 'sem_leitura',
+        frase: { principal: 'B ainda parece melhor, mas a original está no ar.', apoio: null, complemento: 'Você voltou à original.' },
+      }))
+      expect(screen.queryByRole('button', { name: /Aplicar/ })).toBeNull()
+      expect(container.textContent).toContain('Não deu para conferir se há outro teste neste vídeo. Recarregue a página.')
+      expect(container.textContent).not.toContain('Há outro teste aberto')
     })
     it('bloqueado por outro teste: sem botão, motivo com a emenda do dono; apoio sem "Pode aplicar"', () => {
       const { container } = montar(desf({
@@ -443,7 +492,7 @@ describe('T12 T7: modelo sem aplicar para noAr desconhecido', () => {
         original_title: 'x', test_type: 'thumbnail',
       },
       variantes: [{ id: 'v-a', letra: 'A', titulo: 'a', is_original: true }, { id: 'v-b', letra: 'B', titulo: 'b', is_original: false }],
-      ciclos: [], dias: [], agora: new Date('2026-10-25T12:00:00Z'),
+      ciclos: [], dias: [], agora: new Date('2026-10-25T12:00:00Z'), outroTesteAberto: false,
     })
     expect(t && t.fase === 'concluido' && t.noAr.tipo).toBe('desconhecido')
   })
