@@ -28,7 +28,7 @@ function Linha({ l, onAbrirPainel }: { l: LinhaConcluida; onAbrirPainel: SecaoCo
     <div className="flex min-h-[68px] flex-wrap items-center gap-x-3.5 gap-y-2 border-t border-cms-border py-2 first:border-t-0" data-concluido={l.chave}>
       <Miniatura src={l.miniaturaUrl} />
       <div className="min-w-0 flex-1">
-        <b className="line-clamp-2 text-sm font-medium leading-[1.35]">{l.titulo}</b>
+        <b className="line-clamp-2 text-sm font-medium leading-[1.35] max-sm:line-clamp-4" title={l.titulo}>{l.titulo}</b>
         <span className="text-xs text-cms-text-muted">{l.tipo}</span>
       </div>
       <div className="flex flex-col items-end gap-1 text-right max-sm:basis-full max-sm:items-start max-sm:text-left">
