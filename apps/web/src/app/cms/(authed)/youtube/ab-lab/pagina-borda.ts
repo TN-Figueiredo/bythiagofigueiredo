@@ -87,11 +87,16 @@ function ctrsDe(t: AbTestWithVariants, dias: DiaDaDecisao[]): Record<string, num
   return out
 }
 
+const semProvaAvisada = new Set<string>()
+
 export async function lerPaginaDoLab(siteId: string, agora: Date, videoInicial: string | null): Promise<PaginaLida> {
   const sb = getSupabaseServiceClient()
   // O volume vem de uma RPC que lê dado privado: a borda repete a prova de edição. Sem prova a lista abre sem volume.
   const leitura = await leituraDoEditor(siteId)
-  if (leitura === null) Sentry.captureMessage('ab-lab página: sem prova de edição; lista sem volume', { level: 'warning', tags: { component: 'ab-lab-pagina' }, extra: { siteId } })
+  if (leitura === null && !semProvaAvisada.has(siteId)) {
+    semProvaAvisada.add(siteId) // uma vez por processo: a página relê a cada visita
+    Sentry.captureMessage('ab-lab página: sem prova de edição; lista sem volume', { level: 'warning', tags: { component: 'ab-lab-pagina' }, extra: { siteId } })
+  }
 
   const [tests, listaInicial, eligibleVideos, settings, learnings, escopo] = await Promise.all([
     getAbTestsForSite(),

@@ -199,7 +199,6 @@ export function AbLabDashboard({
           <button
             type="button"
             onClick={() => setShowPicker(true)}
-            disabled={assistente.carregando}
             className="lab-btn pri lab-alvo"
           >
             <Plus size={16} aria-hidden="true" />

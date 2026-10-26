@@ -125,6 +125,13 @@ describe('lerPaginaDoLab: guarda do dado privado (Phil I1, herdada de ListaCamin
     expect(lerPaginaSpy.mock.calls[0]![3]).toBeNull()
     expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
   })
+  it('sem prova em visitas seguidas do mesmo site: o aviso ao Sentry sai uma vez só', async () => {
+    for (let i = 0; i < 3; i++) leituraDoEditorMock.mockResolvedValueOnce(null)
+    await lerPaginaDoLab('s-repetido', agora, null)
+    await lerPaginaDoLab('s-repetido', agora, null)
+    await lerPaginaDoLab('s-repetido', agora, null)
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('lerPaginaDoLab: uma leitura por visita', () => {
