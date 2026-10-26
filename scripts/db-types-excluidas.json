@@ -1,0 +1,13 @@
+{
+  "motivo": "Guardas de privacidade (apps/web/test/youtube/observatorio/comentarios-*, proprio-varredura) exigem que database.types.ts nao conheca estes objetos. Lista unica lida por scripts/gen-db-types.mjs e pelos testes.",
+  "tabelas": [
+    "competitor_video_comment_authors",
+    "competitor_video_comments",
+    "competitor_video_comment_marks",
+    "competitor_video_comment_snaps",
+    "yt_own_video_retention"
+  ],
+  "funcoes": [
+    "can_view_private_site_as"
+  ]
+}

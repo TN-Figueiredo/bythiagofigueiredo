@@ -28,14 +28,14 @@ const DIRS = ['src/lib/pipeline', 'src/app/api/pipeline']
  *  Dívida D-1 (Yannis, envio B): o gatilho para regenerar (`supabase gen types --linked`) é o próximo `db:push:prod`, ou antes de ligar a flag
  *  OBS_TROCAS_CONCORRENTE; dono: controlador.
  */
-const KNOWN_STALE_TYPES = new Set(['content_pipeline_history.changed_by_key_id', 'competitor_channels.removal_requested_at'])
+const KNOWN_STALE_TYPES = new Set<string>([])
 /**
  * Tabelas criadas por migration que `database.types.ts` ainda não tem: S7 fase 1 (ab_native_tests, ab_native_avaliacoes);
  * S4 (yt_watch_alvos, 20261018000005); T13 (ab_native_observados, ab_native_obs_cursor, 20261021000006). Qualquer coluna delas passa.
  * Colunas conferidas à mão contra o SQL na revisão do envio B (23/10). Sai desta lista quando os tipos forem regenerados
  * (`supabase gen types --linked`); gatilho D-1: o próximo `db:push:prod`, ou antes de ligar a flag.
  */
-const TABELAS_AINDA_SEM_TIPOS = new Set(['ab_native_tests', 'ab_native_avaliacoes', 'ab_native_observados', 'ab_native_obs_cursor', 'yt_watch_alvos'])
+const TABELAS_AINDA_SEM_TIPOS = new Set<string>([])
 
 /**
  * Funções `obs_archive_*` da M3b (migration 20261025000002, em produção desde 25/10): as rotas de /api/pipeline/archive as chamam por `rpc`,
