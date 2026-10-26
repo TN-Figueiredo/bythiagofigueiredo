@@ -16,10 +16,10 @@ select m.site_id, m.class, m.table_name, to_char(m.month, 'YYYY-MM') as mes, m.s
 
 ### 2. Vídeos por canal (item 80, emenda de 14/10)
 
-`ativos` = sem `archive_frozen_at`; `fora_da_coleta` = congelado e ainda online; `no_arquivo` = `archive_dropped_at` preenchido; `sem_data` = `published_at` nulo (conta à parte, entra em qualquer das três).
+`ativos` = sem `archive_frozen_at`; `leitura_mensal` = congelado e ainda online; `no_arquivo` = `archive_dropped_at` preenchido; `fora_da_coleta` = as duas últimas somadas (definição da M10a); `sem_data` = `published_at` nulo (conta à parte, entra em qualquer das outras).
 
 ```sql
-select c.site_id, c.id as canal, c.channel_name, count(v.id) filter (where v.archive_frozen_at is null) as ativos, count(v.id) filter (where v.archive_frozen_at is not null and v.archive_dropped_at is null) as fora_da_coleta, count(v.id) filter (where v.archive_dropped_at is not null) as no_arquivo, count(v.id) filter (where v.published_at is null) as sem_data from public.competitor_channels c left join public.competitor_videos v on v.competitor_channel_id = c.id group by c.site_id, c.id, c.channel_name order by c.site_id, c.channel_name;
+select c.site_id, c.id as canal, c.channel_name, count(v.id) filter (where v.archive_frozen_at is null) as ativos, count(v.id) filter (where v.archive_frozen_at is not null and v.archive_dropped_at is null) as leitura_mensal, count(v.id) filter (where v.archive_dropped_at is not null) as no_arquivo, count(v.id) filter (where v.archive_frozen_at is not null) as fora_da_coleta, count(v.id) filter (where v.published_at is null) as sem_data from public.competitor_channels c left join public.competitor_videos v on v.competitor_channel_id = c.id group by c.site_id, c.id, c.channel_name order by c.site_id, c.channel_name;
 ```
 
 ### 3. Órfãs por canal (item 80/145)
@@ -77,94 +77,66 @@ Depois dela o botão de remover canal continua declarando o destino do arquivo, 
 
 ### B2. A M3b inteira, só antes de 28/11 (nenhuma unidade existe)
 
-Condição: `select count(*) from public.obs_archive_units;` igual a **0**, lido **no mesmo dia** da migration (o bloco abaixo recusa sozinho se não for zero).
+Condição: zero unidades **e** zero remoções com limpeza pendente (`blobs_pending` não vazio ou `completed_at` nulo). O primeiro bloco da migration trava as duas tabelas (`lock ... access exclusive`) e recusa sozinho se qualquer condição falhar; a trava também segura um `obs_archive_record` concorrente. Antes da migration, o dono guarda o que a recusa pede: `npx supabase db query --linked "select * from public.obs_archive_channel_removals" > saidas/m3b-remocoes-antes-do-desfazer.txt`.
 
-Ordem (código antes do banco, o inverso da subida; sem isso o botão chama `competitor_channel_remove` ausente e responde "Não deu para remover"): primeiro reverter e publicar os commits das Tarefas **13, 12, 11 e 9a**, nessa ordem; só então a migration, criada por `npm run db:new manutencao_m3b_desfaz`:
+Ordem (código antes do banco, o inverso da subida; sem isso o botão chama `competitor_channel_remove` ausente e responde "Não deu para remover"): primeiro reverter e publicar os commits das Tarefas **13, 12, 11 e 9a**, nessa ordem; só então a migration, criada por `npm run db:new manutencao_m3b_desfaz`. O comando `obs-arquivo pode-desligar` (`arquivo/pode-desligar.ts`) e o `obs:arquivo` (peça 7, `arquivo-mensal/pendencias.ts`) passam a responder erro depois do desfazer: reverter os commits deles junto ou aceitar o erro. O `cli.ts` de remover usa `competitor_channel_remove_archived`, que a migration devolve: continua funcionando.
+
+**A migration não é escrita à mão: é a trava abaixo, seguida de `supabase/rascunhos/m3b-recusa-desfazer.sql` e de `supabase/rascunhos/m3b-desfazer.sql`, nessa ordem, sem os `begin;`/`commit;` dos rascunhos (a migration já é uma transação).** Os dois rascunhos conferem md5 e recusam sozinhos se o corpo não for o esperado. Do `m3b-recusa-desfazer.sql` vem a devolução dos corpos de `competitor_video_purge` e `competitor_comments_purge` (E9, que chamam `obs_archive_m9_pronto`; sem isso todo apagar de vídeo e comentário falharia com `42883` depois do desfazer) e o drop de `obs_archive_m9_pronto`. Do `m3b-desfazer.sql` vêm gatilhos, o corpo de `competitor_channel_remove_archived` anterior à M3b (md5 `96fccc5423bdf22ef680692adb5f99cd`), as funções e as tabelas. Ficam de propósito: `obs_archive_is_site_admin` e `obs_archive_rehearsal` (existem antes da M3b) e a coluna `competitor_removed_items.archive_note` (guarda de "canal apagado inteiro" já escrita; coluna nula não custa). O drop do papel `obs_arquivo_leitor` não entra: o papel não existe em produção. Cole só as partes do rascunho que ficam: do `m3b-desfazer.sql`, tudo menos o `alter table ... drop column archive_note`, o bloco final do papel e o `begin;`/`commit;`.
+
+Trava (primeiro bloco da migration):
 
 ```sql
-do $$
-declare r record; n bigint;
+do $trava$
+declare n bigint;
 begin
+  lock table public.obs_archive_units, public.obs_archive_channel_removals in access exclusive mode;
   select count(*) into n from public.obs_archive_units;
   if n <> 0 then raise exception 'M3b:desfazer_recusado: % unidades existem', n using errcode = 'P0001'; end if;
-  for r in select p.oid::regprocedure as sig from pg_proc p join pg_namespace s on s.oid = p.pronamespace
-            where s.nspname = 'public' and p.proname in (
-    'competitor_channel_remove', 'obs_archive_agora', 'obs_archive_atraso',
-    'obs_archive_atraso_itens', 'obs_archive_attest_b2', 'obs_archive_attest_b2_dono',
-    'obs_archive_attest_nas', 'obs_archive_b2_aceitar_paginas', 'obs_archive_b2_atrasados',
-    'obs_archive_b2_file_info', 'obs_archive_b2_franquia_mes', 'obs_archive_b2_month_state',
-    'obs_archive_b2_pede_completo', 'obs_archive_b2_plan', 'obs_archive_b2_recompute_month',
-    'obs_archive_b2_retirar', 'obs_archive_b2_run_gate', 'obs_archive_b2_teto_cor',
-    'obs_archive_b2_teto_dia', 'obs_archive_can_redo', 'obs_archive_channel_archive_impact',
-    'obs_archive_channel_blobs', 'obs_archive_channel_is_removed',
-    'obs_archive_channel_removal_decide', 'obs_archive_channel_unit_hashes',
-    'obs_archive_channel_units', 'obs_archive_class_table_guard', 'obs_archive_content_hash',
-    'obs_archive_current_units', 'obs_archive_descartados_sem_releitura',
-    'obs_archive_destino_declarado', 'obs_archive_due_on', 'obs_archive_expected_units',
-    'obs_archive_filho_do_arquivo', 'obs_archive_first_month', 'obs_archive_heartbeat_write',
-    'obs_archive_hoje_sp', 'obs_archive_insert_guard', 'obs_archive_is_terminal',
-    'obs_archive_m9_pronto', 'obs_archive_manifest_rows', 'obs_archive_mark_guard',
-    'obs_archive_mark_purged', 'obs_archive_mark_redo', 'obs_archive_meses_devidos',
-    'obs_archive_month_files', 'obs_archive_nas_cobertura', 'obs_archive_owner_pending',
-    'obs_archive_pending_units', 'obs_archive_plan', 'obs_archive_pode_desligar',
-    'obs_archive_policy', 'obs_archive_read_unit', 'obs_archive_receive',
-    'obs_archive_recompute_nas', 'obs_archive_record', 'obs_archive_record_core',
-    'obs_archive_record_manifest', 'obs_archive_removed_channel_list', 'obs_archive_resumo_devido',
-    'obs_archive_schema_fp', 'obs_archive_seal', 'obs_archive_summary_calc',
-    'obs_archive_summary_rows', 'obs_archive_table_exprs', 'obs_archive_unit_due',
-    'obs_archive_unit_part_info', 'obs_archive_unit_rehash', 'obs_archive_unit_source',
-    'obs_archive_vermelhos', 'obs_archive_vermelhos_remocao', 'obs_archive_video_antigo_months',
-    'obs_archive_vigia_remocao'
-            ) loop
-    execute format('drop function %s cascade', r.sig);
-  end loop;
-  drop table if exists
-    public.obs_archive_b2_files, public.obs_archive_b2_runs, public.obs_archive_canaries,
-    public.obs_archive_channel_removals, public.obs_archive_heartbeat, public.obs_archive_months,
-    public.obs_archive_prechecks, public.obs_archive_purges, public.obs_archive_restores,
-    public.obs_archive_summaries, public.obs_archive_sweeps, public.obs_archive_switch,
-    public.obs_archive_unit_attachments, public.obs_archive_unit_parts, public.obs_archive_units cascade;
-end $$;
+  select count(*) into n from public.obs_archive_channel_removals where cardinality(blobs_pending) > 0 or completed_at is null;
+  if n <> 0 then raise exception 'M3b:desfazer_recusado: % remoções com limpeza pendente; exportar antes (consulta 7 e \copy de obs_archive_channel_removals)', n using errcode = 'P0001'; end if;
+end $trava$;
 ```
 
-Duas coisas que o bloco não faz e a migration precisa fazer: (1) repor o corpo de `competitor_channel_remove_archived(uuid,uuid,uuid)` anterior à M3b (o da `20261024000002_manutencao_m2_particoes.sql`; a M3b o trocou por cópia com a declaração do destino); (2) manter `obs_archive_is_site_admin` e `obs_archive_rehearsal` (existem antes da M3b). A lista acima vem do catálogo: 73 funções criadas pelas migrations `000002` e `000003` (menos a `is_site_admin`, mais `competitor_channel_remove`) e as 15 tabelas de `000002`. Os gatilhos das tabelas e de `competitor_channels` caem junto das funções (`cascade`).
+As funções que o `m3b-desfazer.sql` derruba (por nome, todas as sobrecargas) são as 72 da seção D, fora `obs_archive_m9_pronto`, que cai no rascunho da recusa; conferidas contra o catálogo das migrations `000002` a `000005`.
+
+**Teste de ida e volta (26/10/2026, banco local 54422, em transação com rollback):** a trava recusou com 2 remoções pendentes; depois de limpar as remoções, a migration montada rodou inteira; `competitor_video_purge`, `competitor_comments_purge` e `competitor_channel_remove_archived` voltaram aos md5 `8c6d51b2…`, `2233c4ed…` e `96fccc54…`; `obs_archive_m9_pronto` e as tabelas sumiram; as migrations `000002` a `000005` reaplicaram limpas.
 
 **Depois de 28/11 não há volta atrás por migration**: só conserto para a frente.
 
 ## C. Conferências com data (Passo 4 da Tarefa 14)
 
-Cada uma por arquivo de comandos do dono, saída em `saidas/`. Qualquer diferença vira vermelho no ledger (`m3b-site-progresso.md`) e aviso ao controlador no mesmo dia.
+Cada uma por arquivo de comandos do dono, saída em `saidas/`. Cada conferência devolve uma coluna `veredito`. Zero linhas, erro do comando ou qualquer `VERMELHO` = vermelho no ledger (`m3b-site-progresso.md`) e aviso ao controlador no mesmo dia; `AMARELO` = conferir à mão (canal removido entre 01/11 e 28/11 aparece aqui, ver consulta 3). As consultas partem do que é esperado (sites com canal vezes as duas tabelas da série), então dado ausente aparece como `VERMELHO`, nunca como silêncio. Rodadas no 54422 sem selagem, as quatro dão `VERMELHO`, como devem.
 
 ### 28/11, depois das 16:00 de São Paulo (as duas execuções do dia)
 
-Série de `2026-10`, uma linha por tabela. Esperado: `selado` = t; `units_total` = `c_canais` (C: canais com `added_at` antes de 01/11); `sealed_kind` = `com_dado` na diária e `vazio_conferido` na early se ela seguir vazia; na diária `days_measured` = 29 e `days_in_month` = 31; `nas_atestado` = t; `channel_ref_distintos` = C (contado nas unidades não substituídas, que é o manifesto selado). Roda junto das consultas 1 a 4. É também a consulta do item 32.
+Série de `2026-10`, uma linha por site e tabela. Esperado: `veredito` = `ok` em todas. Confere: registrado e selado; `nas_attested_at` dentro das últimas 24 h (item 32 do spec 06); `units_total` = `esperados` (de `obs_archive_expected_units`) = `channel_ref_distintos` (unidades não substituídas, o manifesto selado); na diária `com_dado`, `days_in_month` = 31 e `days_measured` = 29. `c_canais` (canais de hoje com `added_at` antes de 01/11) diferente de `esperados` é `AMARELO`: canal removido ou sem linha. Roda junto das consultas 1 a 4.
 
 ```sql
-select m.site_id, m.table_name, m.sealed_at is not null as selado, m.units_total, (select count(*) from public.competitor_channels c where c.site_id = m.site_id and c.added_at < '2026-11-01') as c_canais, m.sealed_kind, m.days_measured, m.days_in_month, m.nas_attested_at is not null as nas_atestado, (select count(distinct u.channel_ref) from public.obs_archive_units u where u.site_id = m.site_id and u.class = m.class and u.table_name = m.table_name and u.month = m.month and u.superseded_at is null) as channel_ref_distintos from public.obs_archive_months m where m.class = 'serie' and m.month = date '2026-10-01' order by m.site_id, m.table_name;
+with s as (select k.id as site_id from public.sites k where exists (select 1 from public.competitor_channels c where c.site_id = k.id)), t(table_name) as (values ('competitor_video_daily'), ('competitor_video_early')), e as (select s.site_id, x.table_name, count(distinct x.channel_ref) as esperados from s cross join lateral public.obs_archive_expected_units(s.site_id, 'serie', date '2026-10-01') x group by 1, 2), l as (select s.site_id, t.table_name, m.month is not null as registrado, m.sealed_at, m.units_total, coalesce(e.esperados, 0) as esperados, (select count(*) from public.competitor_channels c where c.site_id = s.site_id and c.added_at < '2026-11-01') as c_canais, m.sealed_kind, m.days_measured, m.days_in_month, m.nas_attested_at, (select count(distinct u.channel_ref) from public.obs_archive_units u where u.site_id = s.site_id and u.class = 'serie' and u.table_name = t.table_name and u.month = date '2026-10-01' and u.superseded_at is null) as channel_ref_distintos from s cross join t left join public.obs_archive_months m on m.site_id = s.site_id and m.class = 'serie' and m.table_name = t.table_name and m.month = date '2026-10-01' left join e on e.site_id = s.site_id and e.table_name = t.table_name) select l.*, case when not l.registrado then 'VERMELHO: mês sem linha no registro' when l.sealed_at is null then 'VERMELHO: não selado' when l.nas_attested_at is null or l.nas_attested_at < now() - interval '24 hours' then 'VERMELHO: NAS sem atestado nas últimas 24 h' when l.units_total is distinct from l.esperados or l.channel_ref_distintos <> l.esperados then 'VERMELHO: unidades diferentes do esperado' when l.table_name = 'competitor_video_daily' and (l.sealed_kind <> 'com_dado' or l.days_in_month <> 31 or l.days_measured is distinct from 29) then 'VERMELHO: diária fora do esperado (29 de 31, com_dado)' when l.esperados <> l.c_canais then 'AMARELO: canais de hoje diferem dos esperados (canal removido ou sem linha); conferir' else 'ok' end as veredito from l order by 1, 2;
 ```
 
 ### 29/11, depois das 12:00
 
-`b2_forja_ok` = t nas duas linhas. Nulo: ler `conferir-b2.jsonl` na forja (canário, controle, sincronização do NAS para o B2).
+`ok` nas duas tabelas de cada site. `VERMELHO` com B2 não conferido: ler `conferir-b2.jsonl` na forja (canário, controle, sincronização do NAS para o B2).
 
 ```sql
-select m.site_id, m.table_name, m.b2_forja_ok_at, m.b2_forja_ok_at is not null as b2_forja_ok, m.b2_last_attempt_at, m.b2_last_attempt_result from public.obs_archive_months m where m.class = 'serie' and m.month = date '2026-10-01' order by m.site_id, m.table_name;
+select s.id as site_id, t.table_name, m.month is not null as registrado, m.b2_forja_ok_at, m.b2_last_attempt_at, m.b2_last_attempt_result, case when m.month is null then 'VERMELHO: mês sem linha no registro' when m.b2_forja_ok_at is null then 'VERMELHO: B2 não conferido pela forja; ler conferir-b2.jsonl' else 'ok' end as veredito from public.sites s cross join (values ('competitor_video_daily'), ('competitor_video_early')) t(table_name) left join public.obs_archive_months m on m.site_id = s.id and m.class = 'serie' and m.table_name = t.table_name and m.month = date '2026-10-01' where exists (select 1 from public.competitor_channels c where c.site_id = s.id) order by 1, 2;
 ```
 
 ### 03/12
 
-`amarelos` = 0 e `meses_sem_selo` = 0. Diferente: o mês de outubro está preso.
+`ok` por site. `VERMELHO` se o atraso (`amarelos`, `vermelhos`, `meses_sem_selo`) é diferente de zero, e também se está zerado mas outubro não está selado.
 
 ```sql
-select s.id as site_id, public.obs_archive_atraso(s.id) as atraso from public.sites s where exists (select 1 from public.obs_archive_months m where m.site_id = s.id) order by 1;
+select s.id as site_id, a.atraso, case when a.atraso is null then 'VERMELHO: sem leitura' when (a.atraso->>'amarelos')::int <> 0 or (a.atraso->>'vermelhos')::int <> 0 or (a.atraso->>'meses_sem_selo')::int <> 0 then 'VERMELHO: outubro preso (atraso diferente de zero)' when not exists (select 1 from public.obs_archive_months m where m.site_id = s.id and m.class = 'serie' and m.month = date '2026-10-01' and m.sealed_at is not null) then 'VERMELHO: atraso zero mas outubro não selado' else 'ok' end as veredito from public.sites s cross join lateral (select public.obs_archive_atraso(s.id) as atraso) a where exists (select 1 from public.competitor_channels c where c.site_id = s.id) order by 1;
 ```
 
 ### Primeira volta de casa desligada (mudança) ou ensaio de casa fora (Phil C2 da forja)
 
-Uma linha com `due_since` anterior ao desligamento e `finished_at` preenchido depois de 1 ou 2 execuções. Linha ausente: o defeito voltou.
+Passe a hora do desligamento: `bash .superpowers/sdd/manutencao-nas/m3b/m3b-14-consultas-prod.sh casa "2026-12-10 09:00-03"` (o texto abaixo leva `$D` no lugar da hora). `ok` = varredura com `due_since` até um dia depois do desligamento e `finished_at` preenchido (depois de 1 ou 2 execuções). `AMARELO` = aberta, rodar de novo depois da 2ª execução. `VERMELHO` = nenhuma varredura para este desligamento: o defeito voltou.
 
 ```sql
-select motivo, due_since, nas_back_at, started_at, finished_at from public.obs_archive_sweeps order by due_since desc limit 1;
+select s.id as site_id, w.motivo, w.due_since, w.nas_back_at, w.started_at, w.finished_at, case when w.id is null then 'VERMELHO: nenhuma varredura aberta para este desligamento (o defeito voltou)' when w.finished_at is null then 'AMARELO: varredura aberta, ainda não terminou (rodar de novo depois da 2ª execução)' else 'ok' end as veredito from public.sites s left join lateral (select * from public.obs_archive_sweeps x where x.site_id = s.id and x.due_since <= timestamptz '$D' + interval '1 day' and coalesce(x.finished_at, 'infinity') > timestamptz '$D' order by x.due_since desc limit 1) w on true where exists (select 1 from public.competitor_channels c where c.site_id = s.id) order by 1;
 ```
 
 ## D. Lista de funções e tabelas desta fase
