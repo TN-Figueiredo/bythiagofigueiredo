@@ -3,7 +3,7 @@ import type { AbCycle, AbTest } from '../coleta/ab-seconds'
 import { getVariantForCycle } from '../ab-rotation'
 import { diasDoTeste } from './atribuicao'
 import { estadoDoAlcance, type LinhaAlcance, type RelatorioDoDia } from './estado'
-import { diaComAlcanceValido, diaValido } from './placar'
+import { diaComAlcanceValido, diaValido, PRAZO_FECHAMENTO_DIAS } from './placar'
 import type { EstadoAlcance, MetaDoDia } from './tipos'
 import type { DesfechoV2, ResultadoV2 } from '../ab-types'
 
@@ -99,7 +99,7 @@ export interface EstadoV2 {
   estado: 'ativo' | 'pausado'
 }
 
-/** Fonte única do "dia X de T": tela e Cowork chamam esta função. `teto` vem da config do teste (ou tetoPadrao). */
+/** Fonte única do "dia X de T": tela e Cowork chamam esta função. `dia` = dias passados (0 no primeiro dia); a tela mostra `dia + 1` (andamentoDoDia). `teto` vem da config do teste (ou tetoPadrao). */
 export function estadoV2DoTeste(teste: AbTest, ciclos: CicloComNumero[], v2: ResultadoV2 | null, agora: Date, teto: number): EstadoV2 {
   const pausado = teste.status === 'paused'
   const ua = v2?.ultima_avaliacao ?? null
@@ -423,5 +423,5 @@ export function encerradoEmDia(completedAt: string): DiaPt {
  * fecha o último dia no caso normal; o reserva (`> 12`, grava em enc+13) não muda a data mostrada.
  */
 export function provisorioAte(enc: DiaPt): DiaPt {
-  return addDays(enc, 11)
+  return addDays(enc, PRAZO_FECHAMENTO_DIAS)
 }

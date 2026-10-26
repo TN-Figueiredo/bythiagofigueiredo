@@ -8,6 +8,8 @@ import { GraficoLegivel } from '../../_chrome/medidas/grafico-legivel'
 import { PastilhaAusencia } from '../../_chrome/ausencia/pastilhas'
 import { BlocoAindaNaoExiste, BlocoNaoMedido, CabecaDoBloco } from './hv-pecas'
 import { Pares } from './pares'
+import { TrechoDoEixo } from '../../_chrome/eixo-arquivo'
+import { IconeDeArquivo } from '../../_chrome/formas-arquivo'
 import { abrev, dm } from './formatos'
 import type { BlocoDeIdade, PontoDeIdade } from './idade-model'
 import './historico-medidas.css'
@@ -39,6 +41,10 @@ function Grafico({ pontos }: { pontos: PontoDeIdade[] }) {
   const X = (i: number): number => LM + (PW / n) * (i + 0.5)
   const Y = (v: number): number => TM + PH * (1 - v / ymax)
   const base = TM + PH
+  // peça 1: os pontos que saíram do banco (mês no arquivo) ganham a caixa de arquivo e, sob o eixo, o trecho com o rótulo na borda esquerda
+  const noArquivo = pontos.map((p, i) => ({ p, i })).filter(({ p }) => p.video.tipo === 'nao_medido' && p.video.peca1?.forma === 'arquivo')
+  const faixa = noArquivo.length > 0 ? { de: noArquivo[0]!, ate: noArquivo[noArquivo.length - 1]! } : null
+  const extra = faixa ? 30 : 0
   const trechos = (pega: (p: PontoDeIdade) => number | null): string[] => {
     const out: string[] = []
     let seg: string[] = []
@@ -50,7 +56,7 @@ function Grafico({ pontos }: { pontos: PontoDeIdade[] }) {
   const tv = trechos((p) => (p.video.tipo === 'medido' ? p.video.views : null))
   const tn = trechos((p) => (p.normal.tipo === 'medido' ? p.normal.views : null))
   return (
-    <svg className="ic-svg" viewBox={`0 0 ${W} ${base + BM}`} width={W} height={base + BM} aria-hidden="true">
+    <svg className="ic-svg" viewBox={`0 0 ${W} ${base + BM + extra}`} width={W} height={base + BM + extra} aria-hidden="true">
       {[0, 0.5, 1].map((f) => (
         <g key={f}>
           <line className="gl-grade" x1={LM} x2={W - RM} y1={Y(ymax * f)} y2={Y(ymax * f)} />
@@ -63,13 +69,18 @@ function Grafico({ pontos }: { pontos: PontoDeIdade[] }) {
         <g key={p.idade}>
           {p.normal.tipo === 'medido' ? <rect className="hv-nor-p" x={X(i) - 4.5} y={Y(p.normal.views) - 4.5} width={9} height={9} /> : null}
           {p.video.tipo === 'medido' ? <circle className="hv-vid-p" cx={X(i)} cy={Y(p.video.views)} r={5} /> : null}
-          {p.video.tipo === 'nao_medido' ? <rect className="gl-nm" x={X(i) - 8} y={base - 14} width={16} height={14} fill="url(#hv-hach)" /> : null}
+          {p.video.tipo === 'nao_medido' && p.video.peca1?.forma === 'arquivo'
+            ? <g className="obs-ea-ponto" data-forma="arquivo" transform={`translate(${X(i) - 8} ${base - 16})`}><rect className="obs-ea-rect arquivo" x={-1} y={-1} width={18} height={18} rx={3} /><g className="obs-ea-ico" aria-hidden="true"><rect x="2" y="3" width="12" height="3.5" rx="1" /><path d="M3 6.5V13h10V6.5M6.5 9.5h3" /></g></g>
+            : p.video.tipo === 'nao_medido' ? <rect className="gl-nm" x={X(i) - 8} y={base - 14} width={16} height={14} fill="url(#hv-hach)" /> : null}
           {p.video.tipo === 'ainda_nao_existe' ? <circle className="hv-ainda" cx={X(i)} cy={base - 8} r={6} /> : null}
           <text className="hv-rot t" x={X(i)} y={base + 16} textAnchor="middle">{p.rotulo}</text>
           <text className="hv-nrow" x={X(i)} y={base + 32} textAnchor="middle">{p.normal.tipo === 'medido' ? `n=${p.normal.n}` : p.normal.tipo === 'nao_medido' ? `n=${p.normal.n}` : ''}</text>
           <rect className="gl-alvo" data-i={i} x={X(i) - PW / n / 2} y={TM} width={PW / n} height={PH + 24} />
         </g>
       ))}
+      {faixa && faixa.de.p.video.tipo === 'nao_medido' && faixa.de.p.video.peca1
+        ? <TrechoDoEixo estado={faixa.de.p.video.peca1.estado} x={Math.min(Math.max(LM, X(faixa.de.i) - PW / n / 2), W - RM - Math.max(PW / n * (faixa.ate.i - faixa.de.i + 1), 250))} y={base + BM - 4} w={Math.max(PW / n * (faixa.ate.i - faixa.de.i + 1), 250)} h={26} />
+        : null}
       <defs>
         <pattern id="hv-hach" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" className="gl-nm-fundo" /><line x1="0" y1="0" x2="0" y2="6" className="gl-nm-risco" /></pattern>
       </defs>
@@ -117,6 +128,7 @@ export function CurvaPorIdade({ bloco }: { bloco: BlocoDeIdade }) {
                 {bloco.aoVivo ? null : <li><span className="hv-sw-nor" aria-hidden="true" /> normal do canal</li>}
                 <li><span className="hv-sw-ai" aria-hidden="true" /> ainda não existe</li>
                 <li><span className="hv-sw-bk" aria-hidden="true" /> não medido</li>
+                {bloco.pontos.some((p) => p.video.tipo === 'nao_medido' && p.video.peca1?.forma === 'arquivo') ? <li><IconeDeArquivo qual="arquivo" /> no arquivo</li> : null}
               </ul>
             }
           >

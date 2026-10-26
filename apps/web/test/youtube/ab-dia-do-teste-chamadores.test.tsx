@@ -13,7 +13,7 @@ describe('dia do teste: lista e cartão usam a mesma conta', () => {
     const view = toCardView(t)
     expect(view.dayOf).toBe(diaDoTeste(t.started_at, t.completed_at, new Date()))
     const { container } = render(<ActiveTestCard test={view} onOpen={() => {}} />)
-    expect(container.textContent).toContain('Dia 3/21')
+    expect(container.textContent).toContain('Dia 4/21')
   })
   it('sem config usa 14 e não encolhe abaixo do dia atual', () => {
     const view = toCardView(makeTestWithVariants({ startedDaysAgo: 16 }))

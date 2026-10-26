@@ -106,6 +106,8 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
           status={view.status}
+          testType={view.flag}
+          inicio={view.startedAt ?? null}
           titulo="Placar das variantes"
         />
       </section>

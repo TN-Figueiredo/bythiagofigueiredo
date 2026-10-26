@@ -1,5 +1,6 @@
 'use client'
 
+import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
 import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -94,9 +95,9 @@ export function AbLabDashboard({
 
   const TYPE_FILTER_LABELS: Record<typeof typeFilter, string> = {
     all: 'Todos os tipos',
-    thumbnail: 'Thumbnail',
+    thumbnail: 'Miniatura',
     title: 'Título',
-    combo: 'Título + thumbnail',
+    combo: 'Título e miniatura',
   }
 
   const filterByType = <T extends { type?: string }>(items: T[]) =>
@@ -328,7 +329,7 @@ export function AbLabDashboard({
                   <div className="flex-1 min-w-0">
                     <h4 className="text-[14px] font-semibold text-cms-text truncate m-0">{card.name}</h4>
                     <span className="text-[12px] text-cms-text-dim mt-[4px] block">
-                      Dia {card.dayOf}{card.confidence === null ? '' : <> &middot; {Math.round(card.confidence)}% confiança</>}
+                      {card.durationDays === undefined ? `Dia ${card.dayOf + 1}` : rotuloDoDia(card.dayOf, Math.max(card.dayOf, card.durationDays))}{card.confidence === null ? '' : <> &middot; {Math.round(card.confidence)}% confiança</>}
                     </span>
                   </div>
                   {card.statusNote && (
@@ -449,6 +450,7 @@ export function AbLabDashboard({
         <VideoPickerDialog
           eligibleVideos={eligibleVideos}
           onSelect={handleVideoPicked}
+          onContinuarRascunho={(draftId) => { setShowPicker(false); if (drafts.some(d => d.id === draftId)) handleContinueDraft(draftId); else router.push(`/cms/youtube/ab-lab/new?draft=${draftId}`) }}
           onClose={() => setShowPicker(false)}
         />
       )}

@@ -196,6 +196,8 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
           status={view.status}
+          testType={view.flag}
+          inicio={view.startedAt ?? null}
           modoV2
         />
       </section>

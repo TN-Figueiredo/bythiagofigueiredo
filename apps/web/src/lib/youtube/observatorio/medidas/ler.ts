@@ -1,6 +1,7 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { DAY } from '../time'
+import { DAY, spDateOf, spDateStart } from '../time'
+import type { OnlineDesde } from '../arquivo-mensal/online-desde'
 import { FALTAS_DE_MARCA, type FaltaDeMarca } from './tipos'
 import type { FaltaLida, IdadeDeMarca, Leitura, MarcaLida } from './m1'
 import type { RetratoDoCanal } from './direcao'
@@ -224,9 +225,19 @@ export async function lerRetratosDoCanal(sb: SupabaseClient, o: Escopo & { desde
 
 // ───── as séries ─────
 
-export interface SeriesDoCanal { series: Map<string, Leitura[]>; foraDoCanal: number }
+/** `cortadoEm` ('YYYY-MM-DD'): só quando o `desde` pedido é anterior ao online desde das séries diária/precoce; a tela diz "desde dd/mm". */
+export interface SeriesDoCanal { series: Map<string, Leitura[]>; foraDoCanal: number; cortadoEm?: string }
 
-export async function lerSeriesDoCanal(sb: SupabaseClient, o: Escopo & { videoIds: readonly string[]; desde: string }): Promise<Parte<SeriesDoCanal>> {
+function cortadoEmDe(desde: string, o: OnlineDesde | undefined): string | undefined {
+  if (!o || !o.lido) return undefined
+  const datas = [o.porTabela.competitor_video_daily, o.porTabela.competitor_video_early].filter((x): x is number => x !== null)
+  if (datas.length === 0) return undefined
+  // o ponto a partir do qual AS DUAS séries estão completas é o MAIOR dos cortes (com divergência entre elas, a mais curta também precisa ser avisada)
+  const inicio = Math.max(...datas)
+  return inicio > spDateStart(desde) ? spDateOf(inicio) : undefined
+}
+
+export async function lerSeriesDoCanal(sb: SupabaseClient, o: Escopo & { videoIds: readonly string[]; desde: string; onlineDesde?: OnlineDesde }): Promise<Parte<SeriesDoCanal>> {
   return comCanal(sb, o, async () => {
     const ids = await idsDoCanal(sb, o)
     if (!ids.lido) return naoLido(ids.causa)
@@ -256,7 +267,8 @@ export async function lerSeriesDoCanal(sb: SupabaseClient, o: Escopo & { videoId
       l.sort((a, b) => a.t - b.t)
       series.set(id, l.filter((x, i) => i === 0 || x.t !== l[i - 1]?.t))
     }
-    return lido({ series, foraDoCanal: o.videoIds.length - meus.length })
+    const cortadoEm = cortadoEmDe(o.desde, o.onlineDesde)
+    return lido({ series, foraDoCanal: o.videoIds.length - meus.length, ...(cortadoEm ? { cortadoEm } : {}) })
   })
 }
 

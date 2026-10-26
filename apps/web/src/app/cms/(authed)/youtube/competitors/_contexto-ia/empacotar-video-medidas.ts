@@ -116,7 +116,7 @@ function resumoIa(d: DerivadoDoVideo): ResumoIa {
   }
 }
 
-function idadeIa(b: BlocoDeIdade): IdadeIa {
+export function idadeIa(b: BlocoDeIdade): IdadeIa {
   if (b.tipo === 'nao_carregou') return { tipo: b.tipo, frase: b.frase, extra: '', pontos: [] }
   if (b.tipo === 'ainda_nao_existe') return { tipo: b.tipo, frase: b.frase, extra: '', pontos: [] }
   if (b.tipo === 'nao_medido') return { tipo: b.tipo, frase: b.motivo, extra: b.extra, pontos: [] }
@@ -195,6 +195,7 @@ function horasIa(b: BlocoDeHoras): HorasVideoIa {
   if (b.tipo === 'nao_carregou') return { ...vazio, frase: b.frase, estado }
   if (b.tipo === 'ainda_nao_existe') return { ...vazio, frase: b.frase }
   if (b.tipo === 'nao_medido') return { ...vazio, frase: b.frase, extra: b.extra ?? '', estado }
+  if (b.tipo === 'no_arquivo') return { ...vazio, frase: b.frase, estado }
   const marcasN = b.regua.normal.tipo === 'medido' ? b.regua.normal.marcas : null
   return {
     ...vazio, estado, frase: b.frase,

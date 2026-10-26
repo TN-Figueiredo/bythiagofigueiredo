@@ -12,6 +12,8 @@ export interface FalsoOpcoes {
   lancam?: string[]
   /** Colunas que "ainda não existem": pedir uma delas devolve 42703. */
   colunasAusentes?: Record<string, string[]>
+  /** Resposta (data ou erro) de uma função `rpc`; sem entrada, a função "não existe" (PGRST202). */
+  rpcs?: Record<string, { data?: unknown; error?: { code: string; message: string } }>
 }
 
 const comparavel = (v: unknown): string | number | null => (typeof v === 'number' || typeof v === 'string' ? v : null)
@@ -19,6 +21,10 @@ const comparavel = (v: unknown): string | number | null => (typeof v === 'number
 export function falsoPostgrest(tabelas: Record<string, Linha[]>, op: FalsoOpcoes = {}) {
   const consultas: Consulta[] = []
   const sb = {
+    rpc(nome: string) {
+      const r = op.rpcs?.[nome]
+      return Promise.resolve(r ? { data: r.data ?? null, error: r.error ?? null } : { data: null, error: { code: 'PGRST202', message: 'function not found' } })
+    },
     from(tabela: string) {
       const c: Consulta = { tabela, colunas: [], filtros: [], de: null, ate: null }
       let ordem: string[] = []

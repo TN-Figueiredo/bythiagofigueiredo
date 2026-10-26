@@ -164,7 +164,7 @@ function ThumbSlot({ url, locked, label, onFileSelect }: ThumbSlotProps) {
           background: 'var(--cms-surface)',
         }}
       >
-        <span className="text-[12px] text-cms-text-dim">Sem thumbnail</span>
+        <span className="text-[12px] text-cms-text-muted">Sem miniatura</span>
       </div>
     )
   }

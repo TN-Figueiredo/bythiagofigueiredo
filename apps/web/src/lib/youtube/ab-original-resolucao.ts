@@ -24,7 +24,7 @@ export const AVISO_INDISPONIVEL: AvisoOriginal = {
 
 const CAUDA_AVISO = 'o vídeo voltaria borrado a cada troca e ficaria assim depois do teste.'
 const SAIDA_AVISO = `Para evitar, troque no YouTube a thumbnail do vídeo por uma de ${LARGURA_ALTA} px ou mais e depois ative: o teste guarda a nova ao ativar, mesmo que este aviso continue aqui. Sem uma maior, pode ativar assim mesmo.`
-const TEXTO_NAO_MEDIDA = `A resolução da original ainda não foi medida; o teste mede ao ativar. Se a thumbnail do vídeo no YouTube tem ${LARGURA_ALTA} px de largura ou mais, pode ativar. Se tem menos, o vídeo voltaria borrado a cada troca: troque-a no YouTube antes de ativar.`
+const TEXTO_NAO_MEDIDA = `Resolução não medida. O teste mede ao ativar; se a miniatura no YouTube tiver menos de ${LARGURA_ALTA} px, troque-a antes de ativar.`
 
 /**
  * Aviso do passo Revisar (D12). null = original em alta, nada a dizer. Nunca bloqueia.

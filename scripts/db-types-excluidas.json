@@ -1,0 +1,13 @@
+{
+  "motivo": "Guardas de privacidade (apps/web/test/youtube/observatorio/comentarios-*, proprio-varredura) exigem que database.types.ts nao conheca estes objetos. Lista unica lida pelo gerador e por apps/web/test/types/db-types-excluidas.test.ts; as guardas de privacidade mantem listas proprias, e um nome novo nelas exige entrar aqui. E o que as guardas proibem, nao um inventario LGPD.",
+  "tabelas": [
+    "competitor_video_comment_authors",
+    "competitor_video_comments",
+    "competitor_video_comment_marks",
+    "competitor_video_comment_snaps",
+    "yt_own_video_retention"
+  ],
+  "funcoes": [
+    "can_view_private_site_as"
+  ]
+}

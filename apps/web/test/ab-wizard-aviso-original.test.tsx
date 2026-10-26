@@ -39,13 +39,13 @@ describe('passo Revisar: aviso da original (D12)', () => {
     fireEvent.click(ativar)
     await waitFor(() => expect(start).toHaveBeenCalledWith('d1'))
   })
-  it('leitura pendurada: botões habilitados, esqueleto e "Pronto para ativar." (nunca "Tudo pronto."), sem role=status', () => {
+  it('leitura pendurada: botões habilitados, esqueleto e "Pronto para ativar." (nunca "Tudo pronto."), a espera da original é um status com texto', () => {
     ler.mockReturnValueOnce(new Promise(() => {}))
     montar()
     expect((screen.getByRole('button', { name: /Ativar teste/ }) as HTMLButtonElement).disabled).toBe(false)
     expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
     expect(screen.queryByText('Tudo pronto.')).toBeNull()
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Conferindo a resolução')
     expect(document.querySelector('[aria-busy="true"]')).toBeTruthy()  // o assistente renderiza em portal
   })
   it('leitura que falha: linha neutra e Ativar teste habilitado', async () => {

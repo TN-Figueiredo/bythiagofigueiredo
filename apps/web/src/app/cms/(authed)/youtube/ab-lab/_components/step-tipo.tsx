@@ -24,8 +24,8 @@ const TYPES: Array<{
   desc: string
   extra?: string
 }> = [
-  { type: 'combo',     icon: Layers, title: 'Título + thumbnail', desc: 'Os dois mudam juntos.', extra: FRASE_COMBO },
-  { type: 'thumbnail', icon: Image,  title: 'Thumbnail',          desc: 'Só a miniatura muda' },
+  { type: 'combo',     icon: Layers, title: 'Título e miniatura', desc: 'Os dois mudam juntos.', extra: FRASE_COMBO },
+  { type: 'thumbnail', icon: Image,  title: 'Miniatura',          desc: 'Só a miniatura muda' },
   { type: 'title',     icon: Type,   title: 'Título',             desc: 'Só o título muda' },
 ]
 

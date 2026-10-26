@@ -49,6 +49,7 @@ export function HorasDoCanal({ modelo }: { modelo: ModeloDe72Horas }) {
     <>
       <p className="pc-fr3" data-frase-das-72h data-valor><b>{modelo.frase.negrito}</b>{modelo.frase.resto}</p>
       {modelo.aviso ? <p className="pc-pgl">{modelo.aviso}</p> : null}
+      {modelo.nota ? <p className="pc-pgl" data-nota-do-arquivo>{modelo.nota}</p> : null}
       <GraficoLegivel titulo={`Parte das views das primeiras 72 horas que já aconteceu em cada hora. Metade em ${modelo.metade} horas.`} pontos={pontos}>
         <div className="pc-h72"><Curva m={modelo} /></div>
       </GraficoLegivel>

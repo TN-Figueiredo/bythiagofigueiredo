@@ -16,6 +16,11 @@ export interface EligibleVideo {
   /** Algum teste aberto (draft/active/paused/queued); `statusDoTeste` diz qual. */
   hasActiveTest: boolean
   statusDoTeste: AbTestStatus | null
+  /** Id do rascunho mais recente do vídeo (só quando `statusDoTeste` é draft); reabre o assistente. */
+  rascunhoId?: string | null
+  /** ISO de criação e tipo (thumbnail/title/combo) do rascunho reaberto: distinguem rascunhos do mesmo vídeo. */
+  rascunhoCriadoEm?: string | null
+  rascunhoTipo?: string | null
   /** Short ou sem thumbnail HQ: as duas recusas de `createAbTest`. */
   bloqueio: 'short' | 'sem_thumb_hq' | null
   /** ISO; null quando o banco não tem */
@@ -29,10 +34,12 @@ export interface EligibleVideo {
 interface VideoPickerDialogProps {
   eligibleVideos: EligibleVideo[]
   onSelect: (video: WizardVideo) => void
+  /** Sem esta prop, vídeo com rascunho continua bloqueado. */
+  onContinuarRascunho?: (draftId: string) => void
   onClose: () => void
 }
 
-export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPickerDialogProps) {
+export function VideoPickerDialog({ eligibleVideos, onSelect, onContinuarRascunho, onClose }: VideoPickerDialogProps) {
   const [search, setSearch] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -145,7 +152,7 @@ export function VideoPickerDialog({ eligibleVideos, onSelect, onClose }: VideoPi
               </p>
             )}
             {filtered.map((v) => (
-              <LinhaDeVideo key={v.id} video={v} onEscolher={onSelect} />
+              <LinhaDeVideo key={v.id} video={v} onEscolher={onSelect} onContinuarRascunho={onContinuarRascunho} />
             ))}
           </div>
         </div>

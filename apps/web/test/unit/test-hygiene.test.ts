@@ -51,6 +51,13 @@ const ALLOWLIST = new Set([
   // é de um teste de fiação em que a data de 2027 só é repassada e comparada por igualdade
   'test/youtube/observatorio/carregador-online-desde.test.ts',
   'test/youtube/observatorio/online-desde.test.ts',
+  // M5 Tarefa 5-6 (peça 1): funções puras com relógio explícito (`now`/`agoraMs`/`hojeSP` passados);
+  // nenhum Date.now()/new Date() sem argumento nos arquivos, as datas de 2027 só entram como entrada
+  'test/youtube/observatorio/eixo-arquivo.test.tsx',
+  'test/youtube/observatorio/peca1.test.ts',
+  'test/youtube/observatorio/peca1-canal.test.ts',
+  'test/youtube/observatorio/peca1-telas.test.tsx',
+  'test/youtube/observatorio/peca1-videos.test.tsx',
   // mocked refreshToken return value — only persisted via toISOString(), never
   // compared against Date.now() (verified in lib/social/workflows.ts)
   'test/lib/social/execute-with-retry.test.ts',

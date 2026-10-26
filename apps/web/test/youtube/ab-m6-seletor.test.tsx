@@ -64,7 +64,7 @@ describe('M6 seletor de vídeo', () => {
   })
   it('dado ausente some ou diz "não informada"', () => {
     const { container } = render(<VideoPickerDialog eligibleVideos={[v({ thumbnailUrl: null, durationSeconds: 0, publishedAt: null, viewCount: null })]} onSelect={() => undefined} onClose={() => undefined} />)
-    expect(container.textContent).toContain('Sem thumbnail')
+    expect(container.textContent).toContain('Sem miniatura')
     expect(container.textContent).not.toContain('Duração')
     expect(container.textContent).toContain('Data de publicação não informada')
     expect(container.textContent).not.toContain('visualizaç')

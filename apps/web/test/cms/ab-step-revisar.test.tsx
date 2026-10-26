@@ -12,7 +12,7 @@ vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
   return {
     Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
-    Lock: icon('Lock'), Plus: icon('Plus'), Trash2: icon('Trash2'), Sparkles: icon('Sparkles'),
+    Lock: icon('Lock'), Clock: icon('Clock'), Plus: icon('Plus'), Trash2: icon('Trash2'), Sparkles: icon('Sparkles'),
     CheckCircle: icon('CheckCircle'), Play: icon('Play'), ChevronDown: icon('ChevronDown'),
     ChevronRight: icon('ChevronRight'), ArrowLeft: icon('ArrowLeft'), Copy: icon('Copy'),
     Download: icon('Download'), Pause: icon('Pause'), Square: icon('Square'),
@@ -63,7 +63,7 @@ describe('StepRevisar', () => {
 
   it('banner: resumo com número e tipo; prazo e rotação moram na linha da regra', () => {
     renderRevisar({ type: 'combo' })
-    const summary = screen.getByText(/3 variantes de título \+ thumbnail/)
+    const summary = screen.getByText(/3 variantes de título \+ miniatura/)
     expect(summary.textContent).not.toContain('Duração')
     expect(summary.textContent).not.toContain('confiança')
     expect(screen.getByText(/Roda até 17 dias \(mínimo 16\), em rotação ABBA/)).toBeDefined()
@@ -126,14 +126,19 @@ describe('StepRevisar: aviso da original (D12, r5)', () => {
     expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
     expect(screen.queryByText('Baixa resolução')).toBeNull()
   })
-  it('C5: leitura pendente: "Pronto para ativar.", esqueleto com aria-busy, nenhum role=status, nunca "Tudo pronto."', () => {
+  it('C5: leitura pendente: "Pronto para ativar.", esqueleto com aria-busy e único role=status, nunca "Tudo pronto."', () => {
     const { container } = render(<StepRevisar {...base} avisoOriginal="pendente" />)
     expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
     expect(screen.queryByText('Tudo pronto.')).toBeNull()
-    expect(screen.queryByRole('status')).toBeNull()
+    const status = screen.getAllByRole('status')
+    expect(status).toHaveLength(1)   // o do esqueleto (T15/I3)
+    expect(status[0]!.textContent).toContain('Conferindo a resolução')
     const esqueleto = container.querySelector('[aria-busy="true"]') as HTMLElement
     expect(esqueleto).toBeTruthy()
-    expect(esqueleto.querySelector('[class*="h-5"]')).toBeTruthy()   // 20 px
+    expect(esqueleto).toBe(status[0])
+    expect(esqueleto.querySelector('[class*="h-2"]')).toBeTruthy()   // barra do esqueleto compartilhado
+    expect(esqueleto.className).toContain('min-h-[180px]')
+    expect(esqueleto.className).toContain('sm:min-h-[120px]')
   })
   it('role="status" entra junto com o conteúdo, nunca vazio (Naksu S3)', () => {
     render(<StepRevisar {...base} avisoOriginal={textoAvisoOriginalBaixa('480x360', true)} />)
@@ -153,5 +158,42 @@ describe('StepRevisar: aviso da original (D12, r5)', () => {
     for (const proibido of ['#4ade80', '#22c55e', 'tone="amber"', '-subtle', 'color-mix(']) {
       expect(fonte.toLowerCase()).not.toContain(proibido)
     }
+  })
+})
+
+describe('envio 1: resolução sem pulo, texto curto e ⓘ da regra', () => {
+  it('cartão da resolução usa a mesma altura do esqueleto; texto curto', () => {
+    const aviso = textoAvisoOriginalBaixa(null, false)
+    const { container } = render(<StepRevisar {...base} avisoOriginal={aviso} />)
+    const cartao = container.querySelector('.rv-vol') as HTMLElement
+    expect(cartao.className).toContain('min-h-[180px]')
+    expect(cartao.className).toContain('sm:min-h-[120px]')
+    expect(screen.getByText('Resolução não medida. O teste mede ao ativar; se a miniatura no YouTube tiver menos de 1280 px, troque-a antes de ativar.')).toBeTruthy()
+  })
+  it('ⓘ da regra: aria-label "Como funciona", alvo 44px e última palavra em nowrap', () => {
+    const { container } = render(<StepRevisar {...base} />)
+    const regra = container.querySelector('[data-regra]') as HTMLElement
+    const botao = regra.querySelector('button') as HTMLButtonElement
+    expect(botao.getAttribute('aria-label')).toBe('Como funciona')
+    expect(botao.className).toContain('min-h-11')
+    expect(botao.className).toContain('min-w-11')
+    expect(regra.querySelector('.whitespace-nowrap')?.textContent).toBe('você.')
+  })
+  it('ⓘ na mesma linha: botão dentro do nowrap da última palavra, com margem negativa e sem flex no parágrafo', () => {
+    const { container } = render(<StepRevisar {...base} />)
+    const regra = container.querySelector('[data-regra]') as HTMLElement
+    const fim = regra.querySelector('[data-regra-fim]') as HTMLElement
+    const botao = fim.querySelector('button') as HTMLButtonElement
+    expect(fim.className).toContain('whitespace-nowrap')
+    expect(botao.className).toContain('-mr-3.5')
+    expect(botao.className).toContain('-ml-3')
+    expect(botao.className).toContain('align-middle')
+    expect(regra.className).not.toContain('flex')
+  })
+  it('banner reserva 2 linhas no mobile (sem pulo ao resolver o título)', () => {
+    const { container } = render(<StepRevisar {...base} />)
+    const p = container.querySelector('[data-banner-texto]') as HTMLElement
+    expect(p.className).toContain('min-h-[4.125em]')
+    expect(p.className).toContain('sm:min-h-0')
   })
 })

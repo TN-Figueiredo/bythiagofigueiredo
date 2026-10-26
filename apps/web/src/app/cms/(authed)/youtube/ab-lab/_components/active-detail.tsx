@@ -192,6 +192,8 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           thumbs={view.variantThumbs}
           videoTitle={view.videoTitle}
           status={view.status}
+          testType={view.flag}
+          inicio={view.startedAt ?? null}
           andamento={v2 ? undefined : { dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
           modoV2={v2 !== null}
         />

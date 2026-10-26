@@ -12,6 +12,8 @@ import {
 import type { HorasDoCanal, LeituraPorHora } from '@/lib/youtube/observatorio/medidas-telas/ler-horas'
 import { FRASES_DAS_HORAS, FRASES_DE_HORA, fraseDasHorasSemBarra, CLASSE_DO_MOTIVO, type ContextoDeHoras } from '@/lib/youtube/observatorio/medidas-telas/frases-das-horas'
 import { tarefaViva } from '@/lib/youtube/observatorio/medidas-telas/tarefa-viva'
+import { frase72h, comecoDaLeituraPorHora, textoDoComeco } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
+import { JANELA_MINIMA_DIAS } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 import { dataEHoraSP, dataSP, diaEDataSP, dm, duracaoHM, horaSP, milhar, plural, spDateOfMs } from './formatos'
 
 const MIN = 60_000
@@ -33,7 +35,7 @@ export interface EntradaDeHoras {
   /** As views de hoje, do cabeçalho (só para o estado "ainda não existe"). */
   viewsAgora: number | null
   /** Nulo = a leitura por hora não foi lida (falhou, ou o prazo estourou). */
-  horas: Pick<HorasDoCanal, 'primeiraHoraDoSiteMs' | 'ultimoOkDaTarefaMs' | 'primeiraExecucaoDaTarefaMs'> | null
+  horas: Pick<HorasDoCanal, 'primeiraHoraDoSiteMs' | 'comecouRealMs' | 'comecouRealPrecisao' | 'ultimoOkDaTarefaMs' | 'primeiraExecucaoDaTarefaMs'> | null
   /** As leituras DESTE vídeo. */
   leituras: readonly LeituraPorHora[]
   /** `toleranciaVigiaH` da definição da tarefa (`agenda/definicoes.ts`); nenhum número escrito aqui. */
@@ -42,6 +44,11 @@ export interface EntradaDeHoras {
   normal: (MedidaDeHoras<TracaoDoCanal> & { fora?: unknown }) | null
   /** Primeiro dia da contagem por dia do vídeo (`AAAA-MM-DD`), para a frase de "entrou tarde"; nulo = não se sabe. */
   contagemPorDiaDesde: string | null
+  /**
+   * Peça 1 da M5: desde quando a leitura por hora está online (`horasDesde`, nulo = nada saiu), se foi lida, e o início da coleta DESTE vídeo.
+   * Ausente = a tela de hoje. Com nada saiu e lido o bloco é o de sempre.
+   */
+  arquivo?: { horasDesde: number | null; lido: boolean; coleta: number }
 }
 
 export type EstadoDaLeituraPorHora =
@@ -136,12 +143,14 @@ export type BlocoDeHoras =
   | { tipo: 'nao_carregou'; estado: EstadoDaLeituraPorHora; frase: string }
   | { tipo: 'ainda_nao_existe'; estado: EstadoDaLeituraPorHora; frase: string; primeiraContagemEmMs: number }
   | { tipo: 'nao_medido'; estado: EstadoDaLeituraPorHora; motivo: MotivoDeHoras; classe: 'nao_medido' | 'nao_carregou'; frase: string; extra: string | null }
+  /** Peça 1: as 72 horas saíram do banco (`arquivo`) ou não se sabe desde quando há dado online (`hachura`). Sem curva, sem número. */
+  | { tipo: 'no_arquivo'; estado: EstadoDaLeituraPorHora; frase: string; forma: 'arquivo' | 'hachura' }
   | BlocoDeHorasOk
 
 // ───── o estado da leitura por hora ─────
 
 export function estadoDaLeituraPorHora(
-  h: Pick<HorasDoCanal, 'primeiraHoraDoSiteMs' | 'ultimoOkDaTarefaMs' | 'primeiraExecucaoDaTarefaMs'> | null,
+  h: Pick<HorasDoCanal, 'primeiraHoraDoSiteMs' | 'comecouRealMs' | 'comecouRealPrecisao' | 'ultimoOkDaTarefaMs' | 'primeiraExecucaoDaTarefaMs'> | null,
   toleranciaH: number,
   agoraMs: number,
 ): EstadoDaLeituraPorHora {
@@ -150,7 +159,7 @@ export function estadoDaLeituraPorHora(
   if (h.primeiraHoraDoSiteMs === null) return { tipo: 'nao_comecou', texto: 'ainda não começou' }
   const viva = tarefaViva({ ultimoOkMs: h.ultimoOkDaTarefaMs, primeiraExecucaoMs: h.primeiraExecucaoDaTarefaMs, toleranciaH, agoraMs })
   if (viva.estado === 'parada') return { tipo: 'parada', texto: `parada desde ${dataEHoraSP(viva.desdeMs)}` }
-  return { tipo: 'comecou', texto: `começou em ${dm(spDateOfMs(h.primeiraHoraDoSiteMs))}` }
+  return { tipo: 'comecou', texto: `começou em ${textoDoComeco(h)}` }
 }
 
 // ───── as 72 barras ─────
@@ -312,7 +321,7 @@ function reguaDe(e: EntradaDeHoras, curva: CurvaDe72Horas, barras: readonly Barr
 export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
   const estado = estadoDaLeituraPorHora(e.horas, e.toleranciaH, e.agoraMs)
   if (e.horas === null) return { tipo: 'nao_carregou', estado, frase: FRASES_DAS_HORAS.leitura_falhou({}).longa }
-  const comecouEm = e.horas.primeiraHoraDoSiteMs === null ? null : dm(spDateOfMs(e.horas.primeiraHoraDoSiteMs))
+  const comecouEm = textoDoComeco(e.horas)
   const pub = e.publicadoEmMs
   const nao = (motivo: MotivoDeHoras, ctx: ContextoDeHoras = {}): BlocoDeHoras => ({
     tipo: 'nao_medido', estado, motivo, classe: CLASSE_DO_MOTIVO[motivo], frase: FRASES_DAS_HORAS[motivo](ctx).longa,
@@ -326,8 +335,24 @@ export function blocoDeHoras(e: EntradaDeHoras): BlocoDeHoras {
 
   const primeiraLida = e.leituras.length > 0 ? Math.min(...e.leituras.map((l) => l.lidaEmMs)) : null
   const semLeitura = e.leituras.length === 0
+  // peça 1: o começo da coleta DESTE vídeo é o maior entre a coleta diária/do canal e o começo REAL da leitura por hora (nunca o `min(hour_slot)`, que muda quando um mês sai)
+  const a = e.arquivo
+  const comeco = comecoDaLeituraPorHora(e.horas)
+  const inicioDaColeta = a ? (comeco === null ? a.coleta : Math.max(a.coleta, comeco)) : null
+  // janela de 72 h parcialmente no arquivo (Phil I4): uma curva desenhada só com as horas que sobraram seria número parcial apresentado como inteiro
+  if (a && inicioDaColeta !== null && a.lido && a.horasDesde !== null && pub >= inicioDaColeta && pub < a.horasDesde && pub + HORAS * H > a.horasDesde) {
+    const f = frase72h({ horasNoArquivoDesde: a.horasDesde, lido: true, parcial: true })
+    if (f) return { tipo: 'no_arquivo', estado, frase: f.texto, forma: f.forma }
+  }
   if (semLeitura) {
     const m = motivoSemHoras({ publicadoEmMs: pub, descobertoEmMs: e.descobertoEmMs }, e.horas)
+    // peça 1: sem leitura porque o mês saiu do banco (ou porque não se sabe desde quando há dado), não porque a leitura por hora ainda não existia
+    if (a && inicioDaColeta !== null && (m === 'publicado_antes_da_leitura_por_hora' || (!a.lido && m === 'sem_contagem_nas_72_horas')) && pub >= inicioDaColeta && pub + HORAS * H <= e.agoraMs) {
+      const noArquivoDesde = a.lido && a.horasDesde !== null && pub + HORAS * H <= a.horasDesde ? a.horasDesde : null
+      const naoLidoEVelho = !a.lido && pub + HORAS * H < e.agoraMs - JANELA_MINIMA_DIAS.competitor_video_hourly * 24 * H
+      const f = noArquivoDesde !== null || naoLidoEVelho ? frase72h({ horasNoArquivoDesde: noArquivoDesde, lido: a.lido }) : null
+      if (f) return { tipo: 'no_arquivo', estado, frase: f.texto, forma: f.forma }
+    }
     if (m !== 'sem_contagem_nas_72_horas') return nao(m, ctxMotivo())
     if (estado.tipo === 'parada') return nao('leitura_por_hora_parada', { paradaDesde: estado.texto.replace('parada desde ', '') })
     if (e.agoraMs < pub + HORAS * H) {

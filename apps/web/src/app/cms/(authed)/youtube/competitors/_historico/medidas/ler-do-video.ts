@@ -12,7 +12,9 @@ import { completarVideoForaDaJanela } from '@/lib/youtube/observatorio/medidas-t
 import { leituraSemConsulta, lerLeituraDoConjunto, type IObservatorioDaLeitura } from '../../_chrome/medidas/estourou-leitura'
 import type { Leitura } from '../../_chrome/medidas/estourou-model'
 import type { HistoricoView } from '../view-model'
-import { derivarDoVideo, type DerivadoDoVideo } from './derivar-do-video'
+import { spDayStart } from '@/lib/youtube/observatorio/time'
+import { coletaDoVideo } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
+import { derivarDoVideo, type DerivadoDoVideo, type PedidoDeDerivacao } from './derivar-do-video'
 
 const H = 3_600_000
 
@@ -52,6 +54,23 @@ export function leituraSincronaDoHistorico(view: HistoricoView, obs: Pick<IObser
   return view.notFound || view.untracked || !view.video ? null : leituraSemConsulta(obs, view.video.id, agoraMs)
 }
 
+/**
+ * Peça 1 da M5: o que saiu do banco, para a derivação. Vazio (a tela de hoje) quando a construção do Observatório não trouxe o online desde. A coleta é a DESTE vídeo:
+ * o maior entre o começo da série e o dia em que o canal foi adicionado (`ds.obsStart` não serve: é a menor `added_at` do site).
+ */
+export function arquivoDoVideo(obs: Pick<IObservatorioDaLeitura, 'channel' | 'SERIES_START' | 'ONLINE_DESDE'>, canalId: string): { arquivo?: NonNullable<PedidoDeDerivacao['arquivo']> } {
+  const od = obs.ONLINE_DESDE, ss = obs.SERIES_START
+  if (!od || ss === undefined) return {}
+  const added = obs.channel(canalId)?.sync?.added ?? null
+  return {
+    arquivo: {
+      lido: od.lido, onlineDesde: od.lido ? od.porTabela.competitor_video_daily : null,
+      horasDesde: od.lido ? od.porTabela.competitor_video_hourly : null,
+      coleta: coletaDoVideo({ seriesStart: ss, addedAt: added === null ? null : spDayStart(added) }),
+    },
+  }
+}
+
 /** `null` = o conjunto do canal falhou (a base: canal, vídeos, marcas, retratos). Parte não lida de série, mudanças ou horas não é falha do conjunto. */
 export async function lerMedidasDoVideo(p: PedidoDeMedidasDoVideo): Promise<MedidasLidasDoVideo | null> {
   const sb = p.obterSb()
@@ -72,6 +91,7 @@ export async function lerMedidasDoVideo(p: PedidoDeMedidasDoVideo): Promise<Medi
     agoraMs: p.agoraMs,
     video: { id: p.video.id, publicadoEmMs: p.video.pub, viewsAgora: p.video.views, dur: p.video.dur },
     semLeitura: comVideo.semLeitura,
+    ...arquivoDoVideo(p.obs, p.video.ch),
     eixoH: chart ? { fromH: chart.fromH, H: chart.H } : { fromH: 0, H: Math.max(0, (p.agoraMs - p.video.pub) / H) },
   })
   const descobertoMs = lidoDoCanal?.discoveredAt ? Date.parse(lidoDoCanal.discoveredAt) : NaN

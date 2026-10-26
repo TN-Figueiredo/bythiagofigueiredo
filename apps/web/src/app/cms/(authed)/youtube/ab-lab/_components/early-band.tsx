@@ -1,5 +1,6 @@
 'use client'
 
+import { rotuloDoDiaExtenso } from '@/lib/youtube/ab-rotulo-dia'
 import { Timer } from 'lucide-react'
 
 export interface EarlyBandProps {
@@ -30,7 +31,7 @@ export function EarlyBand({ dayOf, totalDays }: EarlyBandProps) {
             Teste começou
           </span>
           <span className="mono text-[12px] text-cms-text-dim">
-            Dia {dayOf} de {totalDays}
+            {rotuloDoDiaExtenso(dayOf, totalDays)}
           </span>
         </div>
         <div

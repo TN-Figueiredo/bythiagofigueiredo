@@ -13,8 +13,11 @@ import { BANCO_MS, comPrazo } from '@/lib/youtube/agenda/relogio'
 import { RULES } from '@/lib/youtube/observatorio/rules'
 
 export interface ProvaHoraria {
-  desde: string | null; ultima_leitura: string | null; horas_lidas_24h: number
+  /** O começo real da série (pode ser de um mês que já saiu do banco); `desde_precisao` diz se é da hora, do dia ou do mês. */
+  desde: string | null; desde_precisao: 'hora' | 'dia' | 'mes'; ultima_leitura: string | null; horas_lidas_24h: number
   videos_na_lista: number; videos_fora_do_teto: number; videos_cobrados: number; videos_abaixo_de_22h: number; videos_abaixo_do_lido: number
+  /** M5: a primeira hora que ainda está no banco (idade da agenda). Nulo = nada online ou função antiga: não prova idade. */
+  online_desde: string | null
   proprios_desde: string | null; proprios_ultima_leitura: string | null
   proprios_na_lista: number; proprios_fora_do_teto: number; proprios_sem_captura: number
   proprios_cobrados: number; proprios_abaixo_de_22h: number; proprios_abaixo_do_lido: number; proprios_em_competitor: number
@@ -87,9 +90,18 @@ function conferirProva(data: unknown): Lido<ProvaHoraria> {
     if (!dataLegivel(v)) return { porque: 'o campo ' + k + ' da prova da leitura horária não é uma data legível' }
     t[k] = v
   }
+  // M5 (T6): campos novos; ausentes (função antiga, antes da migration) = nulo e 'hora', nunca erro.
+  // Campo AUSENTE (função SQL antiga): antes da M5 nada saiu do banco, então o começo real é o começo online (online_desde = desde).
+  // Campo presente e nulo continua nulo.
+  let online: string | null = d.online_desde === undefined ? (t.desde ?? null) : null
+  if (d.online_desde !== undefined && d.online_desde !== null) {
+    if (!dataLegivel(d.online_desde)) return { porque: 'o campo online_desde da prova da leitura horária não é uma data legível' }
+    online = d.online_desde
+  }
+  const precisao = d.desde_precisao === 'dia' || d.desde_precisao === 'mes' ? d.desde_precisao : 'hora'
   return {
     valor: {
-      desde: t.desde ?? null, ultima_leitura: t.ultima_leitura ?? null, horas_lidas_24h: n.horas_lidas_24h ?? 0,
+      desde: t.desde ?? null, desde_precisao: precisao, online_desde: online, ultima_leitura: t.ultima_leitura ?? null, horas_lidas_24h: n.horas_lidas_24h ?? 0,
       videos_na_lista: n.videos_na_lista ?? 0, videos_fora_do_teto: n.videos_fora_do_teto ?? 0, videos_cobrados: n.videos_cobrados ?? 0,
       videos_abaixo_de_22h: n.videos_abaixo_de_22h ?? 0, videos_abaixo_do_lido: n.videos_abaixo_do_lido ?? 0,
       proprios_desde: t.proprios_desde ?? null, proprios_ultima_leitura: t.proprios_ultima_leitura ?? null,
@@ -218,11 +230,12 @@ export function veredictoHorario(p: ProvaHoraria | null, o: OpcoesHorario): Heal
   if (!o.ligada) { notes.push('leitura horária desligada'); return pronto() }
   if (!p) { problems.push('não foi possível ler a prova da leitura horária'); return pronto() }
 
-  // idade da agenda: o MENOR instante entre `agendaDesde`, `desde` e `proprios_desde` (uma leitura já gravada prova que a agenda é pelo
-  // menos tão velha quanto ela, mesmo sem `agendaDesde`). `agendaDesde` ilegível conta como agenda velha; `desde`/`proprios_desde`
+  // idade da agenda: o MENOR instante entre `agendaDesde`, `online_desde` (M5: `desde` agora é o começo real, que pode ser de um mês já
+  // arquivado e não prova a idade da agenda) e `proprios_desde` (uma leitura já gravada prova que a agenda é pelo
+  // menos tão velha quanto ela, mesmo sem `agendaDesde`). `agendaDesde` ilegível conta como agenda velha; `online_desde`/`proprios_desde`
   // ilegíveis não contam. Nenhum dos três: sem agenda conhecida, a carência continua.
   const agendaIlegivel = o.agendaDesde !== null && Number.isNaN(Date.parse(o.agendaDesde))
-  const instantes = [o.agendaDesde, p.desde, p.proprios_desde]
+  const instantes = [o.agendaDesde, p.online_desde, p.proprios_desde]
     .map(x => (x === null ? Number.NaN : Date.parse(x)))
     .filter(n => !Number.isNaN(n))
   const agendaMs: number | null = instantes.length > 0 ? Math.min(...instantes) : null

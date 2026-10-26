@@ -11,6 +11,9 @@ import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import type { Niche, ObsChannel, ObsVideo, SeriesPoint } from '@/lib/youtube/observatorio/types'
 import type { TitleOp } from '@/lib/youtube/observatorio/text-diff'
+import { coletaDoVideo, type EstadoPeca1 } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
+import { JANELA_MINIMA_DIAS } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
+import { spDateOf, spDateStart, spDayStart } from '@/lib/youtube/observatorio/time'
 import { isObserved } from '@/lib/youtube/observatorio/observed'
 import { RUN_CAVEAT, runCardText, runCore, runShort, runText, runsOf } from '@/lib/youtube/observatorio/test-run'
 import { origemDoCanal } from './origem-canal'
@@ -147,6 +150,8 @@ export interface ChartView {
   expectedSteps: Array<{ a: number; b: number; y: number; joined: boolean }>
   yTicks: Array<{ y: number; label: string }>
   pre: { toH: number; lines: string[] } | null
+  /** Peça 1 da M5: o trecho da vida do vídeo que saiu do banco (mês no arquivo). Nele não há barra nem número; o gráfico diz "dd/mm a dd/mm/aaaa no arquivo". Ausente = a tela de hoje. */
+  arquivo?: { fromH: number; toH: number; estado: EstadoPeca1 } | null
   hatch: { fromH: number; note: string | null } | null
   firstNote: { toH: number; text: string } | null
   xTicks: Array<{ h: number; label: string }>
@@ -375,9 +380,16 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
 
   // ---------- series → bins (views/day between records) ----------
   const pts: SeriesPoint[] = v.series.slice()
+  // peça 1: o primeiro registro online é posterior ao que saiu do banco: o trecho antes dele é "no arquivo", e a média "desde a publicação" não existe (seria número interpolado)
+  const odDiaria = obs.ONLINE_DESDE && obs.ONLINE_DESDE.lido ? obs.ONLINE_DESDE.porTabela.competitor_video_daily : null
+  const coletaDoV = coletaDoVideo({ seriesStart: SS, addedAt: sy.added == null ? null : spDayStart(sy.added) })
+  const arqDe = Math.max(pub, coletaDoV)
+  const noArquivo = odDiaria !== null && pts.length > 0 && pts[0]!.t >= odDiaria && arqDe < odDiaria
+  // online desde NÃO lido (o rpc falhou) e vídeo mais velho que a garantia: não se sabe se o começo da vida está no banco; a média "desde a publicação" seria interpolada sobre dado que pode não existir (não medido)
+  const naoLidoOnline = !!obs.ONLINE_DESDE && !obs.ONLINE_DESDE.lido && pts.length > 0 && pub >= SS && pub < now - JANELA_MINIMA_DIAS.competitor_video_daily * DAY
   const bins: Array<{ a: number; b: number; v: number; from0: boolean; t: number }> = []
   let firstNote: { views: number; h: number; t: number } | null = null
-  if (pts.length && pub >= SS && !v.truncated) {
+  if (pts.length && pub >= SS && !v.truncated && !noArquivo && !naoLidoOnline) {
     const fh = (pts[0]!.t - pub) / H_MS
     if (fh >= 24) bins.push({ a: 0, b: hx(pts[0]!.t), v: pts[0]!.views / (fh / 24), from0: true, t: pts[0]!.t })
     else firstNote = { views: pts[0]!.views, h: fh, t: pts[0]!.t }
@@ -860,7 +872,7 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     compressedBefore: compress ? SS : null,
     H, fromH, B0: compress ? hx(SS) : null, few,
     src: few ? { bold: null, text: 'registro diário de views às ' + (lastPt ? D.hh(lastPt.t) : D.hh(nextSnapMs)) }
-      : { bold: F.plural(ptsIn.length, 'registro diário', 'registros diários'), text: ' (às ' + D.hh(lastPt!.t) + (pre ? ', desde ' + S03 : '') + '); views ganhas entre um registro e outro; último ' + dmhmY(lastPt!.t) },
+      : { bold: F.plural(ptsIn.length, 'registro diário', 'registros diários'), text: ' (às ' + D.hh(lastPt!.t) + (noArquivo || (v.truncated === true && odDiaria !== null) ? ', desde ' + D.dmOrDmy(odDiaria!) : pre ? ', desde ' + S03 : '') + '); views ganhas entre um registro e outro; último ' + dmhmY(lastPt!.t) },
     empty: few ? {
       title: 'Ainda não há curva: ' + (pts.length ? 'só 1 registro diário' : 'nenhum registro diário') + '.',
       text: 'O vídeo saiu ' + F.age(v) + ', em ' + dmhmY(pub) + '. A curva precisa de pelo menos 2 registros. ' + (!syncOk ? 'O próximo registro depende da sincronização do canal, hoje com problema: ' + syncPhrase() + '.' : 'O próximo é ' + nextSnap + '.'),
@@ -874,7 +886,13 @@ export function buildHistoricoView(obs: Observatory, id: string, p: Params, opts
     }),
     expectedSteps: expected.map((e, i) => ({ a: e.a, b: e.b, y: yf(e.v), joined: i > 0 && Math.abs(expected[i - 1]!.b - e.a) < 0.5 })),
     yTicks,
-    pre: pre && seriesStartH > fromH ? { toH: compress ? hx(SS) : seriesStartH, lines: compress ? ['antes de ' + S03, preDays + ' dias', 'comprimidos,', 'sem registro'] : ['sem registro por vídeo antes de ' + S03] } : null,
+    // o trecho começa na coleta DESTE vídeo (a maior entre a publicação, o começo da série e o dia em que o canal entrou), não no começo da série do site
+    arquivo: noArquivo && hx(pts[0]!.t) > fromH
+      ? { fromH: Math.max(fromH, hx(arqDe)), toH: hx(pts[0]!.t), estado: { k: 'no_arquivo', de: Math.max(spDateStart(spDateOf(arqDe).slice(0, 7) + '-01'), arqDe), ate: odDiaria! - DAY } }
+      : naoLidoOnline && hx(pts[0]!.t) > fromH
+        ? { fromH: Math.max(fromH, 0), toH: hx(pts[0]!.t), estado: { k: 'nao_medido' } }
+        : null,
+    pre: pre && seriesStartH > fromH ? { toH: compress || noArquivo ? hx(SS) : seriesStartH, lines: compress ? ['antes de ' + S03, preDays + ' dias', 'comprimidos,', 'sem registro'] : ['sem registro por vídeo antes de ' + S03] } : null,
     hatch: lastBinB != null && H > lastBinB ? { fromH: lastBinB, note: gapText ?? (stale ? 'sem registro desde ' + D.dm(lastPt!.t) : null) } : null,
     firstNote: firstNote && !cut ? { toH: hx(firstNote.t), text: F.num(firstNote.views) + ' em ' + Math.round(firstNote.h) + ' h' } : null,
     xTicks,

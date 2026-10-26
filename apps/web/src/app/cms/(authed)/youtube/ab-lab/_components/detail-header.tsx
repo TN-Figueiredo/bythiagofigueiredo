@@ -1,5 +1,6 @@
 'use client'
 
+import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
 import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
@@ -22,6 +23,12 @@ export interface DetailHeaderProps {
   actions?: React.ReactNode
   /** Variante do Lab (S8-F3 T5b): rastro com respiro, miniatura, selo "Teste do Lab". Sem a prop, o cabeçalho é o de sempre. */
   lab?: { thumbUrl: string | null; naoIniciado?: boolean; /** Teste v2 concluído (T12 T7): "DD/MM" da conclusão; troca o selo "rodando, dia X de Y". */ concluidoEm?: string }
+}
+
+/** O que o Lab troca no YouTube, por tipo: o teste do Lab não é o "Testar e comparar" do Studio. */
+export function fraseDeOrigemDoLab(flag: TestType): string {
+  const alvo = flag === 'thumbnail' ? 'a miniatura pública' : flag === 'combo' ? 'o título e a miniatura públicos' : 'o título público'
+  return `Teste do A/B Lab: o Lab troca ${alvo} do vídeo no YouTube em rodízio, uma versão por vez. Não é o “Testar e comparar” do Studio.`
 }
 
 export function DetailHeader({
@@ -69,9 +76,14 @@ export function DetailHeader({
                     ? <span>Teste do Lab concluído em {lab.concluidoEm}</span>
                     : lab.naoIniciado
                       ? <span>Teste do Lab não iniciado</span>
-                      : dayInfo ? <span>Teste do Lab {situacao}, <span className="dhl-dia">dia {dayInfo.dayOf} de {dayInfo.total}</span></span> : null}
+                      : dayInfo && dayInfo.total >= 1 ? <span>Teste do Lab {situacao}</span> : null}
                 </span>
               </div>
+            )}
+            {(status === 'active' || status === 'paused') && !lab.concluidoEm && !lab.naoIniciado && (
+              <p className="dhl-origem" data-testid="origem-lab">
+                {fraseDeOrigemDoLab(flag)}
+              </p>
             )}
           </div>
         </div>
@@ -98,9 +110,9 @@ export function DetailHeader({
             Round {roundNumber}/{totalRounds}
           </Badge>
         )}
-        {dayInfo && (
+        {dayInfo && dayInfo.total >= 1 && (
           <Badge tone="green" dot={status === 'active'}>
-            Dia {dayInfo.dayOf}/{dayInfo.total}
+            {rotuloDoDia(dayInfo.dayOf, dayInfo.total)}
           </Badge>
         )}
       </div>

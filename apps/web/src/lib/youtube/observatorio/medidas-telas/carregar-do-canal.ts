@@ -75,6 +75,8 @@ interface EntradaHoras {
   lidoEm: number
   pares: Array<[string, LeituraPorHora[]]>
   primeiraHoraDoSiteMs: number | null
+  comecouRealMs?: number | null
+  comecouRealPrecisao?: 'hora' | 'mes'
   ultimoOkDaTarefaMs: number | null
   primeiraExecucaoDaTarefaMs: number | null
   foraDoCanal: number
@@ -251,7 +253,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
         if (!r.lido) throw new ParteNaoLida(r.causa)
         const d = r.dados
         return {
-          lidoEm: agoraMs, pares: [...d.porVideo], primeiraHoraDoSiteMs: d.primeiraHoraDoSiteMs, ultimoOkDaTarefaMs: d.ultimoOkDaTarefaMs,
+          lidoEm: agoraMs, pares: [...d.porVideo], primeiraHoraDoSiteMs: d.primeiraHoraDoSiteMs, comecouRealMs: d.comecouRealMs ?? null, comecouRealPrecisao: d.comecouRealPrecisao ?? 'hora', ultimoOkDaTarefaMs: d.ultimoOkDaTarefaMs,
           primeiraExecucaoDaTarefaMs: d.primeiraExecucaoDaTarefaMs, foraDoCanal: d.foraDoCanal,
         }
       },
@@ -261,7 +263,7 @@ async function carregar(sb: SupabaseClient, p: PedidoDoCanalInteiro): Promise<Ca
     return {
       lido: true,
       dados: {
-        porVideo: new Map(e.pares), primeiraHoraDoSiteMs: e.primeiraHoraDoSiteMs, ultimoOkDaTarefaMs: e.ultimoOkDaTarefaMs,
+        porVideo: new Map(e.pares), primeiraHoraDoSiteMs: e.primeiraHoraDoSiteMs, comecouRealMs: e.comecouRealMs ?? null, comecouRealPrecisao: e.comecouRealPrecisao ?? 'hora', ultimoOkDaTarefaMs: e.ultimoOkDaTarefaMs,
         primeiraExecucaoDaTarefaMs: e.primeiraExecucaoDaTarefaMs, foraDoCanal: e.foraDoCanal,
       },
     }

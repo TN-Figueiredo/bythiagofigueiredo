@@ -1,5 +1,6 @@
 'use client'
 
+import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
 import type React from 'react'
 import type { AbTestCardView } from '@/lib/youtube/ab-types'
 import { VARIANT_COLORS, SEM_MEDICAO_CURTA } from './ab-constants'
@@ -51,8 +52,8 @@ export function ActiveTestCard({ test, onOpen }: ActiveTestCardProps) {
           ) : (
             <Badge tone="green" dot>
               {test.diaV2
-                ? `Dia ${test.diaV2.dia}/${test.diaV2.teto}`
-                : `Dia ${test.dayOf}/${Math.max(test.dayOf, duracaoPrevista({ max_duration_days: test.durationDays }))}`}
+                ? rotuloDoDia(test.diaV2.dia, test.diaV2.teto)
+                : rotuloDoDia(test.dayOf, Math.max(test.dayOf, duracaoPrevista({ max_duration_days: test.durationDays })))}
             </Badge>
           )}
           {cycleHealthDot(test.cycleStartedAt)}

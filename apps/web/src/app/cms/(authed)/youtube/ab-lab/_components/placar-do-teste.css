@@ -22,7 +22,7 @@
 .pm4-selos + .pm4-sum { margin-top: var(--s5); }
 @container (max-width: 640px) { .pm4-sum { font-size: 18px; } .pm4-in { padding: var(--s5) var(--s3) var(--s4); } }
 
-.pm4-band { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--cn-border); background: var(--cn-surface); margin-top: var(--s4); }
+.pm4-band { max-width: 1040px; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--cn-border); background: var(--cn-surface); margin-top: var(--s4); }
 .pm4-sum + .pm4-band { margin-top: 0; }
 .pm4-band .ic { flex: none; margin-top: 2px; }
 .pm4-band h3 { font: 600 14px/1.35 Inter, system-ui, sans-serif; }
@@ -46,6 +46,7 @@
 .pm4-vh { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .pm4-chip { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font: 700 13px/1 Inter, system-ui, sans-serif; color: var(--pm-on); flex: none; }
 .pm4-cA { background: var(--pm-va); } .pm4-cB { background: var(--pm-vb); } .pm4-cC { background: var(--pm-vc); } .pm4-cD { background: var(--pm-vd); }
+.pm4-th-vazia { display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; color: var(--cms-text-dim); border: 1px dashed var(--cms-border); background: transparent; }
 .pm4-th { display: block; border-radius: 5px; flex: none; aspect-ratio: 16 / 9; width: 80px; object-fit: cover; background: var(--cn-skel); }
 .pm4-vt { min-width: 0; }
 .pm4-vt b { display: block; font: 600 14px/1.35 Inter, system-ui, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

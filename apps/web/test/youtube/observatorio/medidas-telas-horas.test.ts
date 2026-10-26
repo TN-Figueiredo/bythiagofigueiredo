@@ -59,6 +59,28 @@ describe('E5a T14a: horas, dado ausente', () => {
   })
 })
 
+describe('M5 conserto r2: o começo REAL da leitura por hora (Phil C1)', () => {
+  const um = (ms: number, precisao: string) => ({ rpcs: { obs_archive_horaria_desde: { data: [{ desde: iso(ms), precisao }] } } })
+  it('vem de obs_archive_horaria_desde, com a precisão; min(hour_slot) fica separado', async () => {
+    const real = T0 - 90 * 24 * H
+    const f = falsoPostgrest(tabelas([hora('v1', T0 - 4 * H, 10)]), um(real, 'mes'))
+    const d = dados(await ler(f.sb, [{ id: 'v1', publicadoEmMs: T0 - 5 * H }]))
+    expect(d.comecouRealMs).toBe(real)
+    expect(d.comecouRealPrecisao).toBe('mes')
+    expect(d.primeiraHoraDoSiteMs).toBe(Math.floor((T0 - 4 * H) / H) * H)
+  })
+  it('função ainda não existe (antes da migration): nulo, e a leitura segue lida', async () => {
+    const f = falsoPostgrest(tabelas([hora('v1', T0 - 4 * H, 10)]))
+    const d = dados(await ler(f.sb, [{ id: 'v1', publicadoEmMs: T0 - 5 * H }]))
+    expect(d.comecouRealMs).toBeNull()
+    expect(d.comecouRealPrecisao).toBe('hora')
+  })
+  it('erro de verdade no rpc: a parte inteira é não lida (nada diz "começou" com metade)', async () => {
+    const f = falsoPostgrest(tabelas([hora('v1', T0 - 4 * H, 10)]), { rpcs: { obs_archive_horaria_desde: { error: { code: 'XX000', message: 'x' } } } })
+    expect(await ler(f.sb, [{ id: 'v1', publicadoEmMs: T0 - 5 * H }])).toEqual({ lido: false, causa: 'erro_do_banco' })
+  })
+})
+
 describe('E5a T14a: horas, o teto de 72 horas', () => {
   it('vídeo publicado às 10:20 e lido às 10:40 entra (a hora cheia no limite de baixo)', async () => {
     const pub = Date.UTC(2026, 9, 10, 10, 20)
