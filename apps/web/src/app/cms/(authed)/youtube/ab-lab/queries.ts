@@ -1078,6 +1078,17 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ? { label: toDisplayLabel(varNoAr.label, varNoAr.is_original), desde: ultimoFechado.started_at ?? null }
     : null
 
+  // Aplicação desfeita (selo depois do Voltar): "Aplicar de novo" só sem outro teste aberto no vídeo. Falha na leitura = bloqueado (fail closed).
+  let outroTesteAberto = false
+  if (test.status === 'completed' && test.winner_variant_id !== null && test.winner_applied_at === null) {
+    try {
+      const outro = await getSupabaseServiceClient().from('ab_tests').select('id')
+        .eq('site_id', test.site_id).eq('youtube_video_id', test.youtube_video_id).neq('id', test.id)
+        .in('status', ['draft', 'queued', 'active', 'paused']).limit(1)
+      outroTesteAberto = outro.error ? true : ((outro.data ?? []) as unknown[]).length > 0
+    } catch { outroTesteAberto = true }
+  }
+
   // Tela v2 (S8-F4 T12): só leitura do que a decisão gravou; v1 e v2 fora da decisão ficam sem modelo.
   const v2 = regraDoTeste(test) === 'v2'
     ? telaV2DoTeste({
@@ -1094,6 +1105,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         ciclos: results.timeline,
         dias: results.dias_decisao,
         agora: new Date(),
+        outroTesteAberto,
       })
     : null
   const v2Ativo = v2?.fase === 'ativo' ? v2 : null

@@ -342,7 +342,7 @@ describe('telaV2DoTeste: regras do Phil e do Yannis', () => {
     const and = concDe(concluido({ ...base, restore: { thumbnail: OK({ estado: 'em_andamento' }) } }))
     expect(and.noAr).toEqual({ tipo: 'desconhecido' })
     const ok = concDe(concluido({ ...base, restore: { thumbnail: OK() } }))
-    expect(ok.noAr).toEqual({ tipo: 'desfeita', letra: 'B' })
+    expect(ok.noAr).toEqual({ tipo: 'desfeita', letra: 'B', desfechoMudou: false })
   })
   it('Foco 1: aplicada x desfeita só muda com winner_applied_at', () => {
     const b = { reason: 'manual_winner', winner: B, restore: { thumbnail: OK() }, revert: '2026-11-01T00:00:00Z' }
@@ -363,6 +363,56 @@ describe('telaV2DoTeste: regras do Phil e do Yannis', () => {
   it('Y5: winner = original, applied nulo => noAr.original, nunca desfeita', () => {
     const r = concDe(concluido({ reason: 'manual_winner', winner: O, applied: null }))
     expect(r.noAr).toEqual({ tipo: 'original' })
+  })
+  describe('selo depois do Voltar (desfeita)', () => {
+    const desf = (o: Parameters<typeof concluido>[0] = {}, outro?: boolean) => {
+      const e = concluido({ reason: 'manual_winner', winner: B, applied: null, restore: { thumbnail: OK() }, ...o })
+      if (outro !== undefined) e.outroTesteAberto = outro
+      return concDe(e)
+    }
+    it('provisório: oferece aplicarDeNovo, frase nova com complemento e CTR no apoio', () => {
+      const r = desf({ provisorio: true })
+      expect(r.aplicarDeNovo).toEqual({ variant_id: B, letra: 'B' })
+      expect(r.bloqueio).toBeNull()
+      expect(r.aplicar).toBeNull()
+      expect(r.frase.principal).toBe('B ainda parece melhor, mas a original está no ar.')
+      expect(r.frase.apoio).toMatch(/^CTR ≈/)
+      expect(r.frase.complemento).toBe('Você voltou à original. Pode aplicar B de novo.')
+      expect(r.prazo?.tipo).toBe('provisorio')
+    })
+    it('final: mesmo botão, prazo final', () => {
+      const r = desf({ provisorio: false })
+      expect(r.aplicarDeNovo).toEqual({ variant_id: B, letra: 'B' })
+      expect(r.prazo).toEqual({ tipo: 'final' })
+    })
+    it('o desfecho mudou de letra: selo atual, sem botão e sem frase nova', () => {
+      const r = desf({ desfecho: 'sem_diferenca_detectavel', sugerido: null })
+      expect(r.noAr).toEqual({ tipo: 'desfeita', letra: 'B', desfechoMudou: true })
+      expect(r.aplicarDeNovo).toBeNull(); expect(r.bloqueio).toBeNull()
+      expect(r.frase.complemento).toBeUndefined()
+      expect(r.frase.principal).toBe('Sem diferença clara entre A e B.')
+    })
+    it('o desfecho é outra letra (C): sem botão', () => {
+      const r = desf({ vars: VAR3, sugerido: C })
+      expect(r.aplicarDeNovo).toBeNull()
+    })
+    it('outro teste aberto no vídeo: sem botão, bloqueio e apoio sem "Pode aplicar"', () => {
+      const r = desf({}, true)
+      expect(r.aplicarDeNovo).toBeNull()
+      expect(r.bloqueio).toBe('outro_teste')
+      expect(r.frase.complemento).toBe('Você voltou à original.')
+    })
+    it('restore_status não ok: continua desconhecido, sem botão', () => {
+      const r = desf({ restore: { thumbnail: OK({ estado: 'pulado_drift' }) } })
+      expect(r.noAr.tipo).toBe('desconhecido'); expect(r.aplicarDeNovo).toBeNull()
+    })
+    it('sem a entrada outroTesteAberto: conta como não aberto (default)', () => {
+      expect(desf().aplicarDeNovo).not.toBeNull()
+    })
+    it('aplicada e original: nunca têm aplicarDeNovo', () => {
+      expect(concDe(concluido({ reason: 'manual_winner', winner: B, applied: '2026-10-25T10:00:00Z' })).aplicarDeNovo).toBeNull()
+      expect(concDe(concluido()).aplicarDeNovo).toBeNull()
+    })
   })
   it('aplicar some quando já há winner', () => {
     expect(concDe(concluido({ winner: B })).aplicar).toBeNull()
