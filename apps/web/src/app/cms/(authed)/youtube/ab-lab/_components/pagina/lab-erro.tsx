@@ -1,7 +1,7 @@
 'use client'
 // Fronteira de erro da página (M7 T5, mockup estado e): a leitura dos testes falhou. Padrão de caminho-nativo/lista-erro.tsx.
 // Sentry sem `extra`; o texto do erro nunca aparece na tela.
-import { Component, type ErrorInfo, type ReactElement, type ReactNode } from 'react'
+import { Component, startTransition, type ErrorInfo, type ReactElement, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import * as Sentry from '@sentry/nextjs'
 
@@ -19,7 +19,7 @@ function Falha({ tentarDeNovo }: { tentarDeNovo: () => void }): ReactElement {
             type="button"
             className="btn"
             style={{ minHeight: 44 }}
-            onClick={() => { router.refresh(); tentarDeNovo() }}
+            onClick={() => { startTransition(() => { router.refresh(); tentarDeNovo() }) }}
           >
             Tentar de novo
           </button>
@@ -41,6 +41,10 @@ export class LabErro extends Component<Props, State> {
   static getDerivedStateFromError(): State { return { falhou: true } }
   componentDidCatch(error: Error, _info: ErrorInfo): void {
     Sentry.captureException(error, { tags: { area: 'ab-lab-pagina' } })
+  }
+  componentDidUpdate(anterior: Props): void {
+    // A carga nova do servidor trouxe filhos novos: sai da tela de erro e tenta renderizar de novo.
+    if (this.state.falhou && anterior.children !== this.props.children) this.setState({ falhou: false })
   }
   render(): ReactNode {
     if (!this.state.falhou) return this.props.children
