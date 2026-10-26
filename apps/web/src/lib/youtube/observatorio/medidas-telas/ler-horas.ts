@@ -16,6 +16,13 @@ export interface HorasDoCanal {
   porVideo: Map<string, LeituraPorHora[]>
   /** A primeira `hour_slot` do SITE (nula = a leitura por hora ainda não gravou nada). */
   primeiraHoraDoSiteMs: number | null
+  /**
+   * O começo REAL da série por hora (M5): o `desde` de `obs_archive_horaria_desde` (1ª hora lida; se um mês já saiu do banco, o dia 1 do mês
+   * mais antigo, com `comecouRealPrecisao: 'mes'`). `primeiraHoraDoSiteMs` é `min(hour_slot)` e MUDA quando um mês sai: não prova "desde quando".
+   * Ausente/nulo (função antiga, entrada de cache antiga): quem lê usa `primeiraHoraDoSiteMs`, que é o mesmo valor enquanto nada saiu.
+   */
+  comecouRealMs?: number | null
+  comecouRealPrecisao?: 'hora' | 'mes'
   /** Último `ok` da tarefa na agenda (do banco inteiro). */
   ultimoOkDaTarefaMs: number | null
   /** Primeira execução da tarefa (qualquer status): decide o caso sem `ok` nenhum. */
@@ -107,6 +114,26 @@ async function mapaComLimite<A, B>(itens: readonly A[], limite: number, f: (a: A
   return out
 }
 
+/** O começo real da série por hora. Função ausente (antes da migration da M5) = nada saiu: o começo é a 1ª hora lida (`ms: null` aqui, quem lê cai em `primeiraHoraDoSiteMs`). */
+async function comecoReal(sb: SupabaseClient, siteId: string): Promise<{ ok: true; ms: number | null; precisao: 'hora' | 'mes' } | { ok: false; causa: CausaNaoLida }> {
+  try {
+    const r = await sb.rpc('obs_archive_horaria_desde', { p_site: siteId })
+    if (r.error) {
+      const code = (r.error as { code?: unknown }).code
+      if (code === '42883' || code === 'PGRST202') return { ok: true, ms: null, precisao: 'hora' }
+      return { ok: false, causa: causaDoErro(r.error) }
+    }
+    const linha: unknown = Array.isArray(r.data) ? r.data[0] : r.data
+    if (linha === undefined || linha === null) return { ok: true, ms: null, precisao: 'hora' }
+    if (!ehObj(linha)) return { ok: false, causa: 'erro_do_banco' }
+    const ms = msDe(linha.desde)
+    if (ms === null) return { ok: true, ms: null, precisao: 'hora' }
+    return { ok: true, ms, precisao: linha.precisao === 'mes' ? 'mes' : 'hora' }
+  } catch {
+    return { ok: false, causa: 'erro_do_banco' }
+  }
+}
+
 export async function lerHorasDoCanal(
   sb: SupabaseClient,
   o: { siteId: string; channelId: string; videos: readonly VideoParaHoras[]; agoraMs: number },
@@ -114,14 +141,16 @@ export async function lerHorasDoCanal(
   try {
     const naoLido = (causa: CausaNaoLida): Parte<HorasDoCanal> => ({ lido: false, causa })
     // as três leituras de uma linha: se uma falha, a parte inteira é não lida (não se afirma "começou" com metade)
-    const [primeira, ultimoOk, primeiraExec] = await Promise.all([
+    const [primeira, ultimoOk, primeiraExec, real] = await Promise.all([
       umaData(() => sb.from('competitor_video_hourly').select('hour_slot').eq('site_id', o.siteId).order('hour_slot').limit(1), 'hour_slot'),
       umaData(() => sb.from('competitor_agenda_runs').select('finished_at').eq('task', TAREFA_HORARIA).eq('status', 'ok').order('finished_at', { ascending: false }).limit(1), 'finished_at'),
       umaData(() => sb.from('competitor_agenda_runs').select('started_at').eq('task', TAREFA_HORARIA).order('started_at').limit(1), 'started_at'),
+      comecoReal(sb, o.siteId),
     ])
     if (!primeira.ok) return naoLido(primeira.causa)
     if (!ultimoOk.ok) return naoLido(ultimoOk.causa)
     if (!primeiraExec.ok) return naoLido(primeiraExec.causa)
+    if (!real.ok) return naoLido(real.causa)
 
     // só os vídeos do canal (os que quem chama leu); nada de outro canal entra
     const meus = new Map<string, number>()
@@ -156,7 +185,7 @@ export async function lerHorasDoCanal(
     })
     if (estado.falha !== null) return naoLido(estado.falha)
     for (const l of porVideo.values()) l.sort((a, b) => a.lidaEmMs - b.lidaEmMs)
-    return { lido: true, dados: { porVideo, primeiraHoraDoSiteMs: primeira.ms, ultimoOkDaTarefaMs: ultimoOk.ms, primeiraExecucaoDaTarefaMs: primeiraExec.ms, foraDoCanal } }
+    return { lido: true, dados: { porVideo, primeiraHoraDoSiteMs: primeira.ms, comecouRealMs: real.ms, comecouRealPrecisao: real.precisao, ultimoOkDaTarefaMs: ultimoOk.ms, primeiraExecucaoDaTarefaMs: primeiraExec.ms, foraDoCanal } }
   } catch {
     return { lido: false, causa: 'erro_do_banco' }
   }

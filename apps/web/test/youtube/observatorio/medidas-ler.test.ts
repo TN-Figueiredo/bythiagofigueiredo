@@ -296,9 +296,15 @@ describe('M5 T6: lerSeriesDoCanal com desde anterior ao online desde devolve cor
   })
   const lidoCom = (daily: string | null, early: string | null): OnlineDesde =>
     ({ lido: true, porTabela: { competitor_video_daily: daily ? spDateStart(daily) : null, competitor_video_early: early ? spDateStart(early) : null, competitor_video_hourly: null } })
-  it('desde antes do online desde: cortadoEm é a data (a mais antiga das duas tabelas)', async () => {
+  it('desde antes do online desde: cortadoEm é a data em que as DUAS séries estão completas (a maior das duas tabelas)', async () => {
     const r = await lerSeriesDoCanal(base().sb, { ...E, videoIds: ['a'], desde: DESDE, onlineDesde: lidoCom('2026-09-01', '2026-09-10') })
-    expect(r.lido && r.dados.cortadoEm).toBe('2026-09-01')
+    expect(r.lido && r.dados.cortadoEm).toBe('2026-09-10')
+    const so = await lerSeriesDoCanal(base().sb, { ...E, videoIds: ['a'], desde: DESDE, onlineDesde: lidoCom('2026-09-01', null) })
+    expect(so.lido && so.dados.cortadoEm).toBe('2026-09-01')
+  })
+  it('desde IGUAL ao online desde: nada foi cortado, sem cortadoEm', async () => {
+    const r = await lerSeriesDoCanal(base().sb, { ...E, videoIds: ['a'], desde: DESDE, onlineDesde: lidoCom(DESDE, DESDE) })
+    expect(r.lido && 'cortadoEm' in r.dados).toBe(false)
   })
   it('desde depois do online desde, nada saiu ou não lido: sem cortadoEm', async () => {
     for (const o of [lidoCom('2026-07-01', '2026-07-01'), lidoCom(null, null), { lido: false, porque: 'erro_do_banco' } as OnlineDesde, undefined]) {

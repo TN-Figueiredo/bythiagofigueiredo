@@ -2,6 +2,8 @@
 import { describe, it, expect } from 'vitest'
 import { estadoDaIdade, coletaDoVideo, frasePeca1, frase72h, fraseNormalDoCanal, frasePeriodo, fraseComentarioSemTexto, fraseDesdeDaHoraria, IDADES_DE_MARCA } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
 
+import { MEASURE_RULES } from '@/lib/youtube/observatorio/medidas/regras'
+
 const sp = (d: string) => Date.parse(d + 'T03:00:00Z')
 const base = { pub: sp('2026-10-10'), deMarca: false, onlineDesde: sp('2027-05-01'), lido: true, coleta: sp('2026-10-03'), now: sp('2027-06-10') }
 
@@ -9,7 +11,22 @@ describe('peça 1', () => {
   it('nada saiu: a tela não muda, em toda idade', () => {
     for (const idadeDias of [2, 3, 5, 14, 21, 60, 90]) expect(estadoDaIdade({ ...base, onlineDesde: null, idadeDias })).toEqual({ k: 'nada_saiu' })
   })
-  it('14 dias com o dia 14 no arquivo: no arquivo, nunca número', () => expect(estadoDaIdade({ ...base, idadeDias: 14 })).toEqual({ k: 'no_arquivo', de: sp('2026-10-01'), ate: sp('2027-04-30') }))
+  it('14 dias com o dia 14 no arquivo: no arquivo, nunca número', () => expect(estadoDaIdade({ ...base, idadeDias: 14 })).toEqual({ k: 'no_arquivo', de: sp('2026-10-03'), ate: sp('2027-04-30') }))
+  it('Phil M4: o trecho começa no maior entre o início do mês e a coleta (nunca num dia anterior à coleta)', () => {
+    expect(estadoDaIdade({ ...base, idadeDias: 14, coleta: sp('2026-09-15') })).toEqual({ k: 'no_arquivo', de: sp('2026-10-01'), ate: sp('2027-04-30') })
+    expect(estadoDaIdade({ ...base, idadeDias: 14, coleta: sp('2026-10-12') })).toEqual({ k: 'no_arquivo', de: sp('2026-10-12'), ate: sp('2027-04-30') })
+  })
+  it('Yannis M-1: as idades de marca saem de MEASURE_RULES.ages (uma marca nova nunca vira "no arquivo")', () => {
+    expect(IDADES_DE_MARCA).toBe(MEASURE_RULES.ages)
+  })
+  it('Logan M2: sem nenhum vídeo com as 72 horas online, a frase não diz "só há 0 vídeos"', () => {
+    expect(fraseNormalDoCanal({ n: 0, noArquivo: 0, minimo: 3, desde: null })).toBe('Não medido: não há nenhum vídeo com as 72 horas online.')
+    expect(fraseNormalDoCanal({ n: 0, noArquivo: 2, minimo: 3, desde: sp('2027-03-01') })).toBe('Não medido: desde 01/03/2027 não há nenhum vídeo com as 72 horas online.')
+    expect(fraseNormalDoCanal({ n: 1, noArquivo: 0, minimo: 3, desde: null })).toBe('Não medido: só há 1 vídeo com as 72 horas online.')
+  })
+  it('Yannis M-3: o desde da horária aceita precisão de dia (desde dd/mm/aaaa)', () => {
+    expect(fraseDesdeDaHoraria({ desde: sp('2027-03-05'), precisao: 'dia' })).toBe('desde 05/03/2027')
+  })
   it('Phil I8: canal adicionado depois do começo da série: coleta por vídeo, antes_da_coleta e não no arquivo', () => {
     expect(coletaDoVideo({ seriesStart: sp('2026-10-03'), addedAt: sp('2027-03-15') })).toBe(sp('2027-03-15'))
     expect(coletaDoVideo({ seriesStart: sp('2026-10-03'), addedAt: null })).toBe(sp('2026-10-03'))
@@ -53,7 +70,8 @@ describe('peça 1', () => {
     expect(frasePeca1({ k: 'no_arquivo', de: sp('2027-08-25'), ate: sp('2027-09-30') }, 'so_le')).toEqual({ texto: '25/08 a 30/09/2027 no arquivo.', forma: 'arquivo', portaVerAntigo: false })
   })
   it('item 84: as 72 horas no arquivo (mockup: com o ano)', () => {
-    expect(frase72h({ horasNoArquivoDesde: sp('2027-02-01'), lido: true })).toEqual({ texto: 'As 72 primeiras horas deste vídeo estão no arquivo desde 01/02/2027. Não dá para calcular sem as horas.', forma: 'arquivo' })
+    expect(frase72h({ horasNoArquivoDesde: sp('2027-02-01'), lido: true })).toEqual({ texto: 'As 72 primeiras horas deste vídeo estão no arquivo (a leitura por hora online começa em 01/02/2027). A curva e o resumo "metade das views em N horas" não aparecem porque não dá para calcular sem as horas.', forma: 'arquivo' })
+    expect(frase72h({ horasNoArquivoDesde: sp('2027-02-01'), lido: true, parcial: true })?.texto).toMatch(/^Parte das 72 primeiras horas deste vídeo está no arquivo \(a leitura por hora online começa em 01\/02\/2027\)\./)
     expect(frase72h({ horasNoArquivoDesde: null, lido: true })).toBeNull()
     expect(frase72h({ horasNoArquivoDesde: null, lido: false })?.forma).toBe('hachura')
   })

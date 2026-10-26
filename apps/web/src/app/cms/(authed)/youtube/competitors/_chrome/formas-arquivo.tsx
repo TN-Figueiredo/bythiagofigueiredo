@@ -14,10 +14,12 @@ const CAMINHOS = {
 
 const ROTULO = { arquivo: 'no arquivo', meio: 'em leitura mensal', pontilhado: 'antes da coleta' } as const
 
-export function IconeDeArquivo({ qual, tamanho = 16 }: { qual: keyof typeof CAMINHOS; tamanho?: number }): ReactElement {
+/** `decorativo` (o padrão): o texto está ao lado e já diz o estado, então o leitor de tela pula o ícone. Só o ícone sozinho (`decorativo={false}`) leva `role="img"` e rótulo. */
+export function IconeDeArquivo({ qual, tamanho = 16, decorativo = true }: { qual: keyof typeof CAMINHOS; tamanho?: number; decorativo?: boolean }): ReactElement {
+  const a11y = decorativo ? { 'aria-hidden': true as const } : { role: 'img' as const, 'aria-label': ROTULO[qual] }
   return (
     <svg className={`obs-fa-ico obs-fa-${qual}`} viewBox="0 0 16 16" width={tamanho} height={tamanho} fill="none" stroke="currentColor" strokeWidth="1.5"
-      strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={ROTULO[qual]} focusable="false">{CAMINHOS[qual]}</svg>
+      strokeLinecap="round" strokeLinejoin="round" focusable="false" {...a11y}>{CAMINHOS[qual]}</svg>
   )
 }
 

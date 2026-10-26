@@ -54,3 +54,26 @@ describe('janelas e datas fixas (item 83)', () => {
     expect(JANELA_MINIMA_DIAS.competitor_video_hourly).toBeGreaterThanOrEqual(89)
   })
 })
+
+describe('comoTrata é verificado, não só registrado (Yannis M-4)', () => {
+  const MENCIONA_REGISTRO = /ONLINE_DESDE|onlineDesde|online_since|online_desde|obs_archive|horaria_desde|competitor_hourly_health|SERIES_START|archive_|horasDesde|registro/i
+  it('todo valor de comoTrata é um dos quatro', () => {
+    for (const l of LEITORES_DAS_SERIES) expect(['janela_por_construcao', 'registro', 'texto_online_desde', 'escritor'], l.arquivo).toContain(l.comoTrata)
+  })
+  it('quem diz "registro" ou "texto_online_desde" realmente consulta o registro ou o online desde', () => {
+    for (const l of LEITORES_DAS_SERIES.filter(x => x.comoTrata === 'registro' || x.comoTrata === 'texto_online_desde')) {
+      expect(MENCIONA_REGISTRO.test(readFileSync(resolve(RAIZ, l.arquivo), 'utf8')), l.arquivo).toBe(true)
+    }
+  })
+  it('escritor nunca decide janela: não lê o online desde', () => {
+    for (const l of LEITORES_DAS_SERIES.filter(x => x.comoTrata === 'escritor')) {
+      expect(/ONLINE_DESDE|onlineDesde|online_since|obs_archive_online/.test(readFileSync(resolve(RAIZ, l.arquivo), 'utf8')), l.arquivo).toBe(false)
+    }
+  })
+  it('as janelas de leitura de ler.ts (120 d da página do site, curva do canal) cabem na garantia da série diária', async () => {
+    const { MEASURE_RULES } = await import('@/lib/youtube/observatorio/medidas/regras')
+    expect(120).toBeLessThanOrEqual(JANELA_MINIMA_DIAS.competitor_video_daily)
+    expect(MEASURE_RULES.curve.windowDays).toBeLessThanOrEqual(JANELA_MINIMA_DIAS.competitor_video_daily)
+  })
+})
+

@@ -33,8 +33,8 @@ describe('peça 1 na curva por idade', () => {
     const b = blocoDeIdade({ ...ent, arquivo: arq() })
     if (b.tipo !== 'ok') throw new Error(b.tipo)
     const p14 = b.pontos.find((p) => p.idade === 14)!
-    expect(p14.video).toMatchObject({ tipo: 'nao_medido', curto: '01/10 a 30/04/2027 no arquivo', peca1: { forma: 'arquivo' } })
-    expect(p14.fala.startsWith('Com 14 dias: 01/10 a 30/04/2027 no arquivo.')).toBe(true)
+    expect(p14.video).toMatchObject({ tipo: 'nao_medido', curto: '03/10 a 30/04/2027 no arquivo', peca1: { forma: 'arquivo' } })
+    expect(p14.fala.startsWith('Com 14 dias: 03/10 a 30/04/2027 no arquivo.')).toBe(true)
     expect(p14.fala).not.toContain('não medido: 01/10')
     for (const i of [1, 7, 30]) expect(b.pontos.find((p) => p.idade === i)!.video.tipo).toBe('medido')
   })

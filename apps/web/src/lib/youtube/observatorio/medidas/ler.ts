@@ -232,7 +232,8 @@ function cortadoEmDe(desde: string, o: OnlineDesde | undefined): string | undefi
   if (!o || !o.lido) return undefined
   const datas = [o.porTabela.competitor_video_daily, o.porTabela.competitor_video_early].filter((x): x is number => x !== null)
   if (datas.length === 0) return undefined
-  const inicio = Math.min(...datas)
+  // o ponto a partir do qual AS DUAS séries estão completas é o MAIOR dos cortes (com divergência entre elas, a mais curta também precisa ser avisada)
+  const inicio = Math.max(...datas)
   return inicio > spDateStart(desde) ? spDateOf(inicio) : undefined
 }
 

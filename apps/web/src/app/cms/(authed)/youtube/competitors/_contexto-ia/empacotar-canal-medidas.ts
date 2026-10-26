@@ -76,6 +76,8 @@ export interface HorasIa {
   rotulo: string
   frase: string | null
   aviso: string | null
+  /** Peça 1: "Calculado com N vídeos; K estão no arquivo." (a mesma frase da tela). Ausente = nada saiu. */
+  nota?: string | null
   motivo: string | null
   marcos: Array<{ rotulo: string; valor: string }>
 }
@@ -184,11 +186,11 @@ function lancamentosIa(m: ModeloDeLancamentos): LancamentosIa {
   }
 }
 
-function horasIa(m: ModeloDe72Horas): HorasIa {
+export function horasIa(m: ModeloDe72Horas): HorasIa {
   if (m.tipo !== 'medido') return { rotulo: 'Primeiras 72 horas', frase: null, aviso: null, motivo: m.tipo === 'nao_carregou' ? NAO_CARREGOU_TELA : m.motivo, marcos: [] }
   const h = (n: number): string => `${n} ${n === 1 ? 'hora' : 'horas'} depois de publicar`
   return {
-    rotulo: 'Primeiras 72 horas', frase: `${m.frase.negrito}${m.frase.resto}`, aviso: m.aviso, motivo: null,
+    rotulo: 'Primeiras 72 horas', frase: `${m.frase.negrito}${m.frase.resto}`, aviso: m.aviso, ...(m.nota ? { nota: m.nota } : {}), motivo: null,
     marcos: [{ rotulo: '1/4 das views', valor: h(m.umQuarto) }, { rotulo: '1/2 das views', valor: h(m.metade) }, { rotulo: '3/4 das views', valor: h(m.tresQuartos) }],
   }
 }
@@ -306,7 +308,7 @@ export const INVENTARIO_MEDIDAS_CANAL: Inventario = {
   'derivado.medidas.lancamentos.normal[].idade': 'rotulo', 'derivado.medidas.lancamentos.normal[].videos': 'numero', 'derivado.medidas.lancamentos.semPonto': 'base',
 
   // as 72 horas
-  'derivado.medidas.horas.rotulo': 'rotulo', 'derivado.medidas.horas.frase': 'base', 'derivado.medidas.horas.aviso': 'base', 'derivado.medidas.horas.motivo': 'motivo',
+  'derivado.medidas.horas.rotulo': 'rotulo', 'derivado.medidas.horas.frase': 'base', 'derivado.medidas.horas.aviso': 'base', 'derivado.medidas.horas.nota': 'base', 'derivado.medidas.horas.motivo': 'motivo',
   'derivado.medidas.horas.marcos[].rotulo': 'rotulo', 'derivado.medidas.horas.marcos[].valor': 'numero',
 
   // Linha do tempo
@@ -460,7 +462,7 @@ export function tabelasDeMedidas(m: MedidasIa | null): { tabelas: Tabela[]; avis
       })) })
   }
   const avisosDoCriador = [cri.pastilha, ...cri.legenda, cri.lista?.aviso ?? null].flatMap((x) => (x === null ? [] : [x]))
-  const avisosDoBloco = [...avisosDoCriador, lan.frase, lan.semPonto, hor.frase, hor.aviso, tem.frase, tem.motivo, tem.nota, tem.corte].flatMap((x) => (x === null ? [] : [x]))
+  const avisosDoBloco = [...avisosDoCriador, lan.frase, lan.semPonto, hor.frase, hor.aviso, hor.nota ?? null, tem.frase, tem.motivo, tem.nota, tem.corte].flatMap((x) => (x === null ? [] : [x]))
   const ausentes = rit.raias.flatMap((r) => (r.ausente ? [r.ausente] : []))
   return { tabelas, avisos: [...(m.topo.faixa ? [m.topo.faixa] : []), dir.frase, ...(dir.queda.nota ? [dir.queda.nota] : []), rit.frase, ...ausentes, ...avisosDoBloco] }
 }

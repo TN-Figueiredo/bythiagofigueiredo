@@ -17,7 +17,7 @@ import { REGRAS_DAS_72_HORAS as R72, curvaDe72Horas, tracaoDoCanal, type VideoDa
 import { DAY, spDateOf } from '@/lib/youtube/observatorio/time'
 import type { UltimoVideo, VideoDaOracao } from './frase-do-topo'
 import type { FormatoDoCanal } from './cabecalho-model'
-import { fraseNormalDoCanal } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
+import { fraseNormalDoCanal, comecoDaLeituraPorHora } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
 import { JANELA_MINIMA_DIAS } from '@/lib/youtube/observatorio/arquivo-mensal/online-desde'
 import { dec1, dm, ptn, quandoMs } from './formatos'
 
@@ -281,9 +281,11 @@ export function horasDoCanal(o: EntradaDe72Horas): ModeloDe72Horas {
   // peça 1: os vídeos do formato cujas 72 horas já completaram e saíram do banco (a leitura por hora online só começa depois delas)
   const a = o.arquivo
   const semHoras = doTipo.filter(v => v.formato === o.formato.fmt && !v.aoVivo && !v.curva.primeiraContagem)
-  const noArquivo = !a || !a.lido || a.horasDesde === null ? 0 : semHoras.filter(v => v.publicadoEmMs + 72 * 3_600_000 <= a.horasDesde!).length
+  // só vídeo publicado DEPOIS do começo real da leitura por hora pode ter ido para o arquivo; os de antes nunca tiveram hora (e não entram na nota)
+  const comeco = comecoDaLeituraPorHora(horas) ?? 0
+  const noArquivo = !a || !a.lido || a.horasDesde === null ? 0 : semHoras.filter(v => v.publicadoEmMs >= comeco && v.publicadoEmMs + 72 * 3_600_000 <= a.horasDesde!).length
   // não lido: os vídeos mais velhos que a garantia e sem hora não dizem se foram para o arquivo
-  const semSaberDesde = !a || a.lido ? 0 : semHoras.filter(v => v.publicadoEmMs + 72 * 3_600_000 < o.agoraMs - JANELA_MINIMA_DIAS.competitor_video_hourly * 86_400_000).length
+  const semSaberDesde = !a || a.lido ? 0 : semHoras.filter(v => v.publicadoEmMs >= comeco && v.publicadoEmMs + 72 * 3_600_000 < o.agoraMs - JANELA_MINIMA_DIAS.competitor_video_hourly * 86_400_000).length
   if (t.estado === 'nao_medido') {
     if (t.motivo === 'poucos_videos' && noArquivo > 0) {
       const fr = fraseNormalDoCanal({ n: t.n ?? 0, noArquivo, minimo: 3, desde: a!.horasDesde })

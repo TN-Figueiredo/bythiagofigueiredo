@@ -7,6 +7,7 @@ import { _esquecerAvisos } from '@/lib/youtube/observatorio/arquivo-mensal/onlin
 import { IDADES_DE_MARCA } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
 import { naoMedido, medido } from '@/lib/youtube/observatorio/medidas/tipos'
 import { blocoDeIdade, type EntradaDeIdade } from '@/app/cms/(authed)/youtube/competitors/_historico/medidas/idade-model'
+import { horasIa } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-canal-medidas'
 import { idadeIa } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/empacotar-video-medidas'
 import { IDADES } from '@/app/cms/(authed)/youtube/competitors/_outliers/idade-model'
 
@@ -31,7 +32,7 @@ describe('pacote da IA (views por idade do vídeo)', () => {
     const i = idadeIa(blocoDeIdade({ ...ent, arquivo: arq() }))
     const p14 = i.pontos.find((p) => p.rotulo.includes('14'))!
     expect(p14.video).toBeNull()
-    expect(p14.videoMotivo).toBe('01/10 a 30/04/2027 no arquivo')
+    expect(p14.videoMotivo).toBe('03/10 a 30/04/2027 no arquivo')
     // as marcas (1, 7 e 30 dias) seguem com número
     expect(i.pontos.filter((p) => p.video !== null)).toHaveLength(3)
   })
@@ -46,5 +47,18 @@ describe('pacote da IA (views por idade do vídeo)', () => {
 describe('outliers: views aos 7 e 30 dias', () => {
   it('as duas idades são marcas (competitor_video_marks): nunca ficam "no arquivo", então a tela não muda', () => {
     for (const i of IDADES) expect(IDADES_DE_MARCA).toContain(i)
+  })
+})
+
+describe('pacote da IA do canal: a nota das 72 horas (Logan I1)', () => {
+  const medidoComNota = (nota?: string) => ({
+    tipo: 'medido' as const, frase: { negrito: 'Metade das views das primeiras 72 horas chega em 20 horas', resto: ' (valor do meio de 4 vídeos).' },
+    fracaoPorHora: [], metade: 20, umQuarto: 8, tresQuartos: 40, n: 4, aviso: null, ...(nota ? { nota } : {}),
+  })
+  it('com vídeos no arquivo a IA lê a mesma nota que a tela', () => {
+    expect(horasIa(medidoComNota('Calculado com 4 vídeos; 3 estão no arquivo.'))).toMatchObject({ nota: 'Calculado com 4 vídeos; 3 estão no arquivo.' })
+  })
+  it('nada saiu: o pacote é o de hoje, sem a chave', () => {
+    expect(horasIa(medidoComNota())).not.toHaveProperty('nota')
   })
 })

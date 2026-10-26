@@ -71,10 +71,11 @@ const soVideos = (f: (v: VideoLido) => boolean): Insumos => {
   return { ...ins, videos: { lido: true, dados: ins.videos.dados.filter(f) } }
 }
 
-interface Caso { canal: CanalInteiro; sync?: Sync; semVideos?: boolean; titulo?: (id: string) => string; lidos?: ComentariosDoCanal; permissaoFalhou?: boolean }
+interface Caso { arquivo?: { horasDesde: number | null; lido: boolean }; canal: CanalInteiro; sync?: Sync; semVideos?: boolean; titulo?: (id: string) => string; lidos?: ComentariosDoCanal; permissaoFalhou?: boolean }
 const CASOS: Array<[string, () => Caso]> = [
   ['cheio, ativo', () => ({ canal: canalDe(insumosCheios()) })],
   ['72 horas medidas', () => ({ canal: canalDe(insumosCheios(), horasDe(insumosCheios())) })],
+  ['72 horas medidas, com vídeos no arquivo (peça 1)', () => ({ canal: canalDe(insumosCheios(), horasDe(insumosCheios(), { comecouRealMs: AGORA_CHEIA - 120 * 24 * H })), arquivo: { horasDesde: AGORA_CHEIA - 24 * H, lido: true } })],
   ['72 horas: leitura por hora parada', () => ({ canal: canalDe(insumosCheios(), horasDe(insumosCheios(), { ultimoOkDaTarefaMs: AGORA_CHEIA - 5 * H })) })],
   ['72 horas: leitura por hora não começou', () => ({ canal: canalDe(insumosCheios(), horasDe(insumosCheios(), { primeiraHoraDoSiteMs: null, porVideo: new Map() })) })],
   ['só longos', () => ({ canal: canalDe(soVideos((v) => v.isShort === false)) })],
@@ -90,6 +91,7 @@ function contexto(caso: Caso): ContextoDoCanal {
   const ins = caso.canal.videos.lido ? caso.canal.videos.dados : []
   return {
     F: { num: (v: number | null) => (v === null ? '—' : String(Math.round(v))), subs: (v: number) => String(v) } as unknown as ContextoDoCanal['F'],
+    ...(caso.arquivo ? { arquivo: caso.arquivo } : {}),
     subs: 84_000, sync: caso.sync ?? SYNC_OK, hojeSP: HOJE_CHEIA, agoraMs: AGORA_CHEIA, primeiraBusca: caso.sync?.state === 'backfill', semVideos: caso.semVideos ?? false,
     titulos: ins.map((v) => [v.id, caso.titulo ? caso.titulo(v.id) : `Título ${v.id}`] as const), trocas: [],
     thumbs: ins.map((v) => [v.id, null] as const), criador: { nome: 'Matt Wolfe', avatar: null, ini: 'MW', color: '#336699' },
