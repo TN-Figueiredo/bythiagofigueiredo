@@ -142,7 +142,7 @@ describe('aplicarSugerido (T11b)', () => {
       expect(atualiza).toHaveBeenCalledTimes(1)
       const [[upd], eqs] = atualiza.mock.calls[0]! as [[Record<string, unknown>], unknown[][]]
       expect(upd).toEqual({ completed_reason: 'manual_winner', winner_variant_id: 'A' })
-      expect(eqs).toEqual(expect.arrayContaining([['id', 't1'], ['site_id', SITE], ['completed_reason', 'regra_v2'], ['restore_seq', 9]]))
+      expect(eqs).toEqual(expect.arrayContaining([['id', 't1'], ['site_id', SITE], ['completed_reason', 'regra_v2'], ['restore_seq', 9], ['result_metadata->v2->>vencedor_sugerido', 'A']]))
       expect(settle).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
     })
     it('a vitória da original não conta como vitória de variante no winRate', () => {

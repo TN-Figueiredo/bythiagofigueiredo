@@ -299,6 +299,16 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect(ch2.length).toBeGreaterThan(0)
     expect('p_vencedor_esperado' in ch2[0]!).toBe(false)
   })
+  it('Yannis M2: aplicar_sugerido recusado por SEQ (letra igual) → em_andamento, não mudou; zero escrita', async () => {
+    const a = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A } })
+    a.banco.setTeste({ completed_reason: 'regra_v2', completed_at: '2026-10-20T00:00:00.000Z', result_metadata: { v2: { vencedor_sugerido: 'B' } } })
+    const rpc = a.portas.supabase.rpc.bind(a.portas.supabase) as (n: string, args: Record<string, unknown>) => unknown
+    ;(a.portas.supabase as unknown as { rpc: unknown }).rpc = (n: string, args: Record<string, unknown>) => { if (n === 'ab_settle_claim') a.banco.incrementarSeq(); return rpc(n, args) }
+    const r = await settleOnAir(a.banco.testId, { ...a.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' } }, a.portas)
+    expect(r.resultado).toBe('em_andamento')
+    expect(a.banco.teste()).toMatchObject({ status: 'completed', restore_seq: 1 })
+    expect(a.yt.escritas()).toEqual([])
+  })
   it('Y-T12-1: aplicar_sugerido com outro teste aberto no mesmo vídeo → outro_teste, mesmo com forcar, zero escrita; outro concluído não bloqueia', async () => {
     const outro = (status: string) => [{ id: 'outro', site_id: SITE, youtube_video_id: 'video-interno', status, restore_seq: 0 }]
     const a = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título A', dhash: H.A }, outros: outro('active') })

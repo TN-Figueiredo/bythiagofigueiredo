@@ -603,10 +603,11 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (claim.error) throw new Error(`ab-settle: ab_settle_claim: ${claim.error.message}`)
   const seq = (claim.data as Array<{ claimed_seq: number }> | null)?.[0]?.claimed_seq
   if (seq === undefined) {
-    if (conferirLetra) return { resultado: 'mudou', campos: null } // recusa por seq ou por letra: a tela trata igual (recarregar)
-    const { data, error } = await portas.supabase.from('ab_tests').select('status').eq('id', testId).maybeSingle()
+    const { data, error } = await portas.supabase.from('ab_tests').select('status, restore_seq').eq('id', testId).maybeSingle()
     if (error) throw new Error(`ab-settle: status do teste ${testId}: ${(error as { message: string }).message}`)
     const status = (data as { status: string } | null)?.status
+    // Yannis M1: só a recusa por LETRA dá `mudou`; a recusa por seq (outra tentativa andando) segue o caminho antigo.
+    if (conferirLetra && (data as { restore_seq: number } | null)?.restore_seq === conv.seq) return { resultado: 'mudou', campos: null }
     return status && caminho.de.includes(status) ? { resultado: 'em_andamento', campos: null } : { resultado: 'ja_encerrado', campos: null }
   }
 

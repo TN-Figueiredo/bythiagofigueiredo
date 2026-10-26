@@ -51,6 +51,15 @@ describe.skipIf(skipIfNoLocalDb())('S8-F4 C-15: ab_settle_claim com o caminho ap
     expect(r.error).toBeNull()
     expect((r.data as unknown[]).length).toBe(0)
     expect((await s.from('ab_tests').select('restore_seq').eq('id', outra.t.testId).single()).data!.restore_seq).toBe(outra.args.p_seq)
+    // Phil M1: result_metadata nulo ou sem v2 + letra esperada => recusa (fail closed), seq intacto.
+    for (const meta of [null, {}, { v2: null }, { v2: { vencedor_sugerido: null } }]) {
+      const sv = await preparar()
+      await s.from('ab_tests').update({ result_metadata: meta }).eq('id', sv.t.testId)
+      const rv = await s.rpc('ab_settle_claim', { ...sv.args, p_vencedor_esperado: sv.t.varB })
+      expect(rv.error).toBeNull()
+      expect((rv.data as unknown[]).length).toBe(0)
+      expect((await s.from('ab_tests').select('restore_seq').eq('id', sv.t.testId).single()).data!.restore_seq).toBe(sv.args.p_seq)
+    }
     const sem = await preparar()
     expect(((await s.rpc('ab_settle_claim', sem.args)).data as unknown[]).length).toBe(1)
   })

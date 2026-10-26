@@ -1335,7 +1335,9 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
     }
     const { data: gravou, error: errGrava } = await getSupabaseServiceClient()
       .from('ab_tests').update({ completed_reason: 'manual_winner', winner_variant_id: varianteId })
-      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seqGrava).select('id')
+      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seqGrava)
+      .eq('result_metadata->v2->>vencedor_sugerido', varianteId) // Phil C1: a letra gravada tem de ser a da tela (tentarAgora leva segundos)
+      .select('id')
     if (errGrava) { Sentry.captureException(errGrava, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
     if (((gravou ?? []) as unknown[]).length === 0) return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
     revalidatePath('/cms/youtube/ab-lab')
