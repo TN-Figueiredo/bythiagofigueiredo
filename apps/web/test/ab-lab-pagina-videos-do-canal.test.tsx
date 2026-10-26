@@ -77,6 +77,19 @@ describe('VideosDoCanal (M7 T10)', () => {
     expect(screen.getByText('Água nova')).toBeTruthy()
     expect(screen.queryByText('Água velha')).toBeNull()
   })
+  it('voltar ao termo aplicado com o pedido em voo não deixa a busca presa no esqueleto', async () => {
+    const soltas: Array<(p: PaginaDoCanal) => void> = []
+    ler.mockImplementation(() => new Promise(r => { soltas.push(p => r({ ok: true, pagina: p })) }))
+    montar()
+    digitar('agua'); await passa(351)
+    digitar('aguaz'); await passa(100)
+    digitar('agua'); await passa(10)
+    soltas[0]!(pag([linha(90, { titulo: 'Água de coco' })], { totalDoFiltro: 1, temMais: false }))
+    await passa(1000)
+    expect(screen.getByText('Água de coco')).toBeTruthy()
+    expect(screen.queryByTestId('videos-esqueleto')).toBeNull()
+    expect(ler).toHaveBeenCalledTimes(1)
+  })
   it('"ag" → resposta → apagar para "a": ler é chamado com busca null e a lista volta à inicial; "ag" ainda em voo é descartado', async () => {
     montar()
     ler.mockImplementationOnce(async () => ({ ok: true as const, pagina: pag([linha(90, { titulo: 'Só água' })], { totalDoFiltro: 1, temMais: false }) }))

@@ -96,7 +96,6 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
     const t = busca.trim()
     const termo = t.length >= MIN_LETRAS ? t : null
     if (termo === aplicada.current) return
-    seq.current += 1 // o que estiver em voo já é velho
     const id = setTimeout(() => {
       aplicada.current = termo
       void pedir(pedidoBase({ busca: termo }), false)
