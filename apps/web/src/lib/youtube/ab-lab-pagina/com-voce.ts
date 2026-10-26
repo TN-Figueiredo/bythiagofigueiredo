@@ -74,7 +74,7 @@ export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
     if (!c.tela?.aplicar) continue
     const painel = painelDoConcluido(c.card, c.tela, { ctrs: c.ctrs, sugeridaId: c.tela.aplicar.variant_id, revertExpiresAt: c.bruto.revert_expires_at, agora: e.agora })
     if (!painel) continue
-    aplicar.push({ tipo: 'aplicar', titulo: c.card.videoTitle ?? c.card.name, letra: c.tela.aplicar.letra, motivo: 'sugerida pelo teste', painel })
+    aplicar.push({ tipo: 'aplicar', testId: c.card.id, titulo: c.card.videoTitle ?? c.card.name, letra: c.tela.aplicar.letra, motivo: 'sugerida pelo teste', painel })
   }
   for (const p of e.pausados) {
     if (p.pausaYoutube?.aberto) continue // vira cartão do Studio
@@ -135,13 +135,17 @@ export function fraseDoTopo(p: { lab: number; studio: number; itens: ItemComVoce
   return `${rodando} ${coisas}${lista ? `: ${lista}` : ''}.`
 }
 
-const BOTAO_DO_ITEM: Partial<Record<ItemComVoce['tipo'], string>> = { retomar: 'Retomar' }
+function botaoDe(i: ItemComVoce): string | undefined {
+  if (i.tipo === 'retomar') return 'Retomar'
+  if (i.tipo === 'aplicar') return `Aplicar ${i.letra}`
+  return undefined
+}
 
 /** Pendência do dono neste teste: o item de "Com você" com o mesmo testId, com o verbo e o botão que ele já usa. */
 export function pendenciaDoTeste(itens: ItemComVoce[], testId: string): { verbo: string; botao: string } | undefined {
   const i = itens.find(x => 'testId' in x && x.testId === testId)
   const verbo = i ? verboDe(i) : null
-  const botao = i ? BOTAO_DO_ITEM[i.tipo] : undefined
+  const botao = i ? botaoDe(i) : undefined
   return verbo && botao ? { verbo, botao } : undefined
 }
 

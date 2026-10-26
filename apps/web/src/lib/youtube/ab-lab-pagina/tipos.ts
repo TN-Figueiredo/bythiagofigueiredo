@@ -62,7 +62,7 @@ import type { LinhaDoCaminho } from '../teste-youtube/nativo/lista'
 export type ItemComVoce =
   | { tipo: 'primeiro_teste' }
   | { tipo: 'rascunho'; draftId: string; titulo: string; passo: number }
-  | { tipo: 'aplicar'; titulo: string; letra: string; motivo: string; painel: PainelDecisao }
+  | { tipo: 'aplicar'; testId: string; titulo: string; letra: string; motivo: string; painel: PainelDecisao }
   | { tipo: 'dia14'; titulo: string; linha: LinhaDoCaminho; ytId: string; prazo: string; vencido: boolean }
   | { tipo: 'conferir_studio'; titulo: string; ytId: string }
   | { tipo: 'retomar'; titulo: string; testId: string; pausadoHaDias: number }

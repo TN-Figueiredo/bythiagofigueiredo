@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { FaixaComVoce, TEXTO_AUTOMATICO, type FaixaComVoceProps } from '@/app/cms/(authed)/youtube/ab-lab/_components/pagina/faixa-com-voce'
 import { SecaoEmTeste, type SecaoEmTesteProps } from '@/app/cms/(authed)/youtube/ab-lab/_components/pagina/secao-em-teste'
+import { cartoesEmTeste } from '@/lib/youtube/ab-lab-pagina/com-voce'
 import { painelDoAtivo } from '@/lib/youtube/ab-lab-pagina/painel-decisao'
 import type { CartaoEmTeste, ItemComVoce, PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -78,6 +79,16 @@ describe('Em teste agora', () => {
     expect(n(cartaoLab({ status: 'queued' }))).toBe(0)
     expect(n(cartaoStudio())).toBe(0)
   })
+  it('cartão vindo do modelo, com item aplicar do mesmo testId: tem "Com você: aplicar B" e "Aplicar B" e não tem "Encerrar e escolher"', () => {
+    const base = cartaoLab({ id: 'c1' })
+    const entrada = { ativos: [{ card: base.card, bruto: { id: 'c1', result_metadata: null, current_cycle: null }, tela: null, ctrs: {} }], concluidos: [], pausados: [], rascunhos: [], linhas: [], podeDeixarVariante: true, agora: new Date('2026-10-26T15:00:00Z') } as unknown as Parameters<typeof cartoesEmTeste>[0]
+    const item: ItemComVoce = { tipo: 'aplicar', testId: 'c1', titulo: 'Aladdin', letra: 'B', motivo: 'sugerida pelo teste', painel: painelFake() }
+    const c = cartoesEmTeste(entrada, [item])
+    secao(c)
+    expect(screen.getByText('Com você: aplicar B')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Aplicar B' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Encerrar e escolher' })).toBeNull()
+  })
   it('cartão com pendência mostra "Com você: aplicar B" e o botão abre o painel do cartão', () => {
     const c = cartaoLab({ pendencia: true })
     const { p } = secao([c])
@@ -130,7 +141,7 @@ describe('Com você', () => {
     const painel = painelFake()
     const linha = linhaStudio()
     const { p, container } = faixa([
-      { tipo: 'aplicar', titulo: 'Aladdin', letra: 'B', motivo: 'sugerida pelo teste', painel },
+      { tipo: 'aplicar', testId: 'c1', titulo: 'Aladdin', letra: 'B', motivo: 'sugerida pelo teste', painel },
       { tipo: 'dia14', titulo: 'Sukhumvit', linha, ytId: 'yt9', prazo: '08/11', vencido: false },
     ])
     expect(container.textContent).toContain('Aplique B em “Aladdin”')
