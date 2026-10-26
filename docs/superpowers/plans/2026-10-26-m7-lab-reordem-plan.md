@@ -1,4 +1,4 @@
-# M7 — Página do A/B Lab reordenada: plano de implementação (r2)
+# M7 — Página do A/B Lab reordenada: plano de implementação (r3)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,11 +12,11 @@
 - Mockup aprovado pelo dono em 26/10 (r5): `docs/superpowers/mockups/2026-10-26-lab-reordem/index.html` — abrir com `?estado=<a|b|b2|c|d|e|f|g|g1|g2|g3|h|h2|i>&largura=<1440|390>`.
 - Decisões e escopo: `/Users/figueiredo/Workspace/bythiagofigueiredo/.superpowers/sdd/ab-lab/lab-reordem/sintese-r1.md` (decisões do dono no fim), `hanna-r4.md` (critérios de aceite M7-a..d), `logan-r4.md`, `logan-mockup-r4.md`, `naksu-mockup-r4.md`.
 
-## Dois envios e ordem obrigatória (r2, decisão de Hanna; consertos de Yannis)
+## Dois envios e ordem obrigatória (r2, decisão de Hanna; consertos de Yannis; r3 com as emendas R1 a R4 de Yannis e os desvios 5 e 6 decididos)
 
 **Envio 1 — achados do dono de 26/10 (Tasks 17 → 15, 16, 18).** Só arquivos que já existem; não toca a página do Lab nem depende das Tasks 1 a 6. Verificação curta no fim (typecheck + `npx vitest run test/ab-` + `npm run build:web`; é a Task 12 reduzida), revisão de Yannis só sobre o diff da Task 16 (query nova do seletor; Sonnet basta), prova do Gio limitada ao parágrafo "Gio, na Task 14, também confere" (fim da seção "Ajustes do assistente"). Depois, push e promoção. Estimativa do envio: ~250K de tarefas + ~25K de verificação + ~30K da revisão de Yannis + ~60K da prova do Gio = **~365K tokens**.
 
-**Envio 2 — a reordem (Tasks 1 a 14).** Estimativa: **~1,73M tokens** (T1 60K, T2 110K, T3 80K, T4 130K, T5 150K, T6 170K, T7 140K, T8 160K, T9 90K, T10 130K, T11 150K, T12 40K, T13 200K, T14 120K). O envio 2 só começa depois do envio 1 estar no staging (a T7 consome `rotuloDoDia`).
+**Envio 2 — a reordem (Tasks 1 a 14).** Estimativa r3: **~1,84M tokens** (T1 60K, T2 120K, T3 80K, T4 130K, T5 160K, T6 185K, T7 150K, T8 175K, T9 90K, T10 155K, T11 160K, T12 40K, T13 205K, T14 130K; a r2 dizia ~1,73M, a diferença de ~110K é a soma das emendas R1 a R4, dos menores de Yannis/Phil e dos desvios 5 e 6). O envio 1 não muda (~365K). O envio 2 só começa depois do envio 1 estar no staging (a T7 consome `rotuloDoDia`).
 
 **Ordem de execução (dependências explícitas; cada seta é obrigatória):**
 - Envio 1: `T17 → T15 → T16 → T18` (T17 primeiro por causa de `rotuloDoDia` e `TYPE_META`; as outras três não dependem entre si, mas rodam em série, ver regra de agentes).
@@ -52,18 +52,18 @@
 2. **"Não vi ainda" (estado i)** fecha o diálogo com "Certo — O aviso continua até você responder." **sem chamar o servidor** (o servidor grava `nao_vi` e encerra o registro como `sem_desfecho`, o que tiraria o item de "Com você" e contradiria o texto aprovado). A resposta `nao_vi` continua disponível na linha da lista, como hoje.
 3. **Falha no ativo:** o mockup diz "A original continua no ar"; no teste ativo quem está no ar é a versão da rotação. O texto usa a letra lida (`noArAgora`): "Não consegui aplicar C. B continua no ar." (quando a do ar é a original: "A original continua no ar.").
 4. **Sugerida no ativo:** teste ativo da regra v2 não tem vencedor sugerido gravado (só `sinal` quando os pisos fecham). O painel ativo marca "Sugerida pelo teste" só quando `result_metadata.v2.vencedor_sugerido` existir; sem ela, nada vem pré-marcado e o botão fica "Escolha uma versão" (desabilitado com `aria-disabled`).
-5. **[PENDENTE DO DONO (padrão: sim)] Entrada do painel ativo:** cada cartão de teste do Lab em andamento (`status = active`; `queued` não tem o botão) ganha o botão secundário "Escolher o que fica" no rodapé (o mockup só mostra o painel a partir de uma pendência; grep: zero ocorrências do texto). Necessário, não capricho: sem ele um teste ativo sem sugestão nem pendência não tem como chegar ao painel e "escolher qualquer versão no ativo" (síntese r1) fica inalcançável. O trabalho segue com o padrão "sim"; o dono vê a captura do Gio antes da promoção. Logan e Naksu confirmam na revisão da tela (Tarefa 13).
-6. **[PENDENTE DO DONO (padrão: sim)] Linhas de "Vídeos do canal"** mantêm a `LinhaCaminho` atual (ficha do Studio, "Já iniciei", cartão S7, `?video=`), sem os cabeçalhos de grupo nem o resumo próprio; o mockup mostra uma linha simplificada, que fica para o M6 (assistente novo). Muda a fonte (busca, filtro, páginas de 20), não a linha. O dono precisa saber que a lista continua com a cara de hoje até o M6; trocar a linha agora dobraria a Task 10.
+5. **[decidido 26/10 (Hanna, Logan, Naksu): entra no envio 2] Entrada do painel ativo:** cada cartão de teste do Lab em andamento (`status = active`; `queued` e Studio não têm o botão) e **sem pendência** ganha, no rodapé neutro, o botão **"Encerrar e escolher"** (texto de Logan: avisa a consequência antes do clique; "Escolher o que fica" foi descartado). Botão `.btn.txt` de 44 px, nunca junto com a pendência (a pendência abre o mesmo painel), nunca no cartão do Studio. O painel ativo **sem sugerida** (T8) abre sem nada marcado e com o primário "Escolha uma versão" desabilitado. Estados do mockup r6 (commit `f43456485`): `a-encerrar`, `a-pendencia`, `g-sem-sugerida`. A r7 do mockup pode ajustar o estilo do botão para **secundário com borda, sem chevron**, e tirar o aviso duplicado do subtítulo; o texto e o comportamento não mudam. Necessário, não capricho: sem ele um teste ativo sem sugestão nem pendência não chega ao painel e "escolher qualquer versão no ativo" (síntese r1) fica inalcançável. Logan e Naksu conferem na revisão da tela (Tarefa 13).
+6. **[decidido 26/10 (Hanna, Logan, Naksu): a `LinhaCaminho` fica] Linhas de "Vídeos do canal"** mantêm a `LinhaCaminho` atual (ficha do Studio, "Já iniciei", cartão S7, `?video=`), sem os cabeçalhos de grupo nem o resumo próprio. Muda a fonte (busca, filtro, páginas de 20), não a linha. A T10 ganha só três consertos: (a) botão de **44 px** em `.cn-vrow .cn-btn` (regra com escopo; `.cn-btn` global não muda); (b) **mesmo dia e mesmo teto** na linha e no cartão, da mesma fonte (R1); (c) **"Ver teste"** como nome único (R4). O invólucro novo da linha (tokens da página, grade `.vl`, apoio de 12 px, fim da repetição "Sem volume… piso 220") **vai para o M6**; volta antes só se o dono reclamar da cara da lista ao ver o envio 2 ou se o M6 escorregar para depois de jan/2027. Até lá a página tem duas caras de linha (cartão novo × linha antiga): dívida registrada na T13 Step 3b.
 7. **Candidatos (fora da contagem) e a faixa de KPIs saem da página** (síntese r1: "sem faixa de KPIs"; o mockup não tem Candidatos). `getSuggestedVideos` deixa de ser chamado pela página; a função fica.
 8. **Sugestões vazias:** com 0 itens o bloco vira uma linha discreta: "Sugestões de vídeos para testar: nenhuma agora." (`motivoVazio = 'nunca-calculado'` → "…: ainda não calculadas."), com o link "Ver detalhes" para `link.sugestoes()`. Sem acesso: nada.
 
-## Perguntas ao dono (com padrão; não param o trabalho)
+## Perguntas ao dono (com padrão; não param o trabalho; 1 e 2 decididas em 26/10)
 
-1. Desvio 5, botão "Escolher o que fica" no cartão do teste ativo. **Padrão: sim.**
-2. Desvio 6, "Vídeos do canal" mantém a linha atual até o M6. **Padrão: sim.**
+1. Desvio 5 (botão "Encerrar e escolher"): **decidido 26/10, entra no envio 2.**
+2. Desvio 6 (linha da lista): **decidido 26/10, a `LinhaCaminho` fica até o M6.**
 3. As três frases novas fora do mockup (T17: "Ainda não decide: o YouTube ainda não fechou nenhum dia." e o texto de 11 dias; T18: frase de origem do Lab). **Padrão: seguir com o texto do plano**; mostrar ao dono junto com o envio 1, sem esperar para codificar (ajuste = um commit).
 
-O controlador mostra as três ao dono e registra a resposta no ledger; o envio 2 só é dado como pronto com os desvios 5 e 6 confirmados.
+O controlador mostra a de número 3 ao dono e registra a resposta no ledger. Os itens 1 e 2 já estão decididos e não bloqueiam o envio 2.
 
 ## Review Focus
 
@@ -205,8 +205,10 @@ describe('painelDoAtivo', () => {
     expect(rotuloDoBotao(p, null)).toBe('Escolha uma versão')
   })
   it('rótulo acompanha a escolha', () => {
-    expect(rotuloDoBotao(pComSugB, 'vc')).toBe('Aplicar C ao vídeo')
-    expect(rotuloDoBotao(pComSugB, 'va')).toBe('Manter A (original)')
+    // ativo: o rótulo diz a consequência (ação irreversível; Yannis R3)
+    expect(rotuloDoBotao(pComSugB, 'vc')).toBe('Encerrar e deixar C no ar')
+    expect(rotuloDoBotao(pComSugB, 'va')).toBe('Encerrar e manter A (original)')
+    // concluído mantém 'Aplicar B ao vídeo' (rótulo do mockup)
   })
   it('aviso quando difere da sugerida, inclusive Manter A', () => {
     expect(avisoDaEscolha(pComSugB, 'vc')).toBe('O teste indicou B. Escolher C encerra o teste agora e coloca C no ar.')
@@ -229,6 +231,10 @@ describe('painelDoConcluido', () => {
   it('nenhuma opção não sugerida é escolhível no concluído (nada que o servidor recuse)', () => {
     for (const p of todosOsConcluidos) expect(p.opcoes.filter(o => o.estado === 'escolhivel' && !o.sugerida && !(p.modo === 'aplicado' && o.original))).toEqual([])
   })
+})
+describe('diaMesSp (ab-data-curta.ts)', () => {
+  it('fronteira do fuso: 2026-10-27T02:30:00Z é 23h30 de 26/10 em São Paulo', () => { expect(diaMesSp('2026-10-27T02:30:00Z')).toBe('26/10') })
+  it('nulo ou inválido devolve string vazia', () => { expect(diaMesSp(null)).toBe(''); expect(diaMesSp('lixo')).toBe('') })
 })
 describe('mensagens', () => {
   it('falha no ativo cita a letra no ar', () => expect(mensagemDeFalha(pAtivoNoArB, 'vc', { tipo: 'servidor', error: 'x' })).toBe('Não consegui aplicar C. B continua no ar.'))
@@ -366,7 +372,7 @@ it('estado b2: sem história → topo "Nenhum teste ainda. Crie o primeiro quand
 it('estado c: 3 do Lab + 1 Studio, aplicar B e dia 14 → topo "4 testes rodando (1 no Studio). Duas coisas com você: aplicar B e dizer o que o Studio escolheu."', () => {})
 it('estado f: sem Lab rodando, 4 itens → topo "Nenhum teste do Lab rodando. Quatro coisas com você." (sem item de voltar à original: desvio 1)', () => {})
 it('dia 14: linha resultado_pronto ou sem_resposta vira item dia14 CARREGANDO a LinhaDoCaminho inteira; em_teste_studio sem confirmadoEm vira conferir_studio', () => {})
-it('cartão queued: painel nulo (sem botão Escolher o que fica)', () => {})
+it('cartão queued: painel nulo (sem botão Encerrar e escolher)', () => {})
 it('pausado por teste do YouTube aberto (pausaYoutube.aberto) não vira "retomar": vira cartão studio com labPausadoAte', () => {})
 it('cartão lab: líder só com tela.sinal; ctrs formatados "4,8%" e "4,1%"; sem sinal → semLider "poucos dados" se algum CTR medido, senão "CTR não medido"', () => {})
 it('nulo nunca vira 0: CTR nulo não aparece como "0,0%" em lugar nenhum do modelo', () => {})
@@ -400,7 +406,7 @@ Números por extenso no topo até dez ("Duas", "Quatro"), como `porExtenso` de `
 **Interfaces:**
 - Consumes: `lerPaginaDoCanal` (Task 6); `getAbTestsForSite`, `toCardView`, `toDraftList`, `getAbSiteSettings`, `getChannelLearnings`, `getEligibleVideosForPicker` (`queries.ts`); `lerDiasDosTestes` (`lib/youtube/ab-gravacao/placar-leitura.ts`); `telaV2DoTeste`; `lerPausasYoutube`; `leituraDoEditor`; `requireSiteAdminScope(siteId)` de `@/lib/cms/auth-guards` (`.ok` é o mesmo valor que o `SiteAdminProvider` de `app/cms/(authed)/layout.tsx:89` entrega a `useCanAdminSite()`; só leitura, sem auditoria) para `podeDeixarVariante`; `montarPaginaDoLab` (Task 4).
 - Produces: `lerPaginaDoLab(siteId: string, agora: Date, videoInicial: string | null): Promise<{ pagina: PaginaDoLab; listaInicial: PaginaDoCanal; eligibleVideos: EligibleVideo[]; settings: AbTestSiteSettings; learnings: ChannelLearningsData | null; drafts: AbTestDraft[] }>`; `<CorpoDoLab siteId videoInicial />` (servidor) que renderiza `<AbLabDashboard … pagina={…} listaInicial={…} eligibleVideos={…} />`.
-- **Fluxo (uma leitura por visita):** `Promise.all` com `getAbTestsForSite`, `lerPaginaDoCanal(sb, siteId, agora, leitura, { busca: null, filtro: 'testaveis', pagina: 0, incluirYtId: videoInicial })` (UMA vez), `getEligibleVideosForPicker`, `getAbSiteSettings`, `getChannelLearnings`, `lerPausasYoutube`, `requireSiteAdminScope`. As linhas de Com você e Em teste agora são as de `listaInicial.linhas` (as extras da página 0 já trazem fichas abertas, registros do Studio e testes nossos). `lerLinhasDoCaminho` NÃO é chamada pela página.
+- **Fluxo (uma leitura por visita):** `Promise.all` com `getAbTestsForSite`, `lerPaginaDoCanal(sb, siteId, agora, leitura, { busca: null, filtro: 'testaveis', pagina: 0, incluirYtId: videoInicial })` (UMA vez), `getEligibleVideosForPicker`, `getAbSiteSettings`, `getChannelLearnings`, `lerPausasYoutube`, `requireSiteAdminScope`. As linhas de Com você e Em teste agora são as de `listaInicial.linhas` (as extras da página 0 trazem fichas abertas e registros do Studio; os testes nossos entram nelas só quando o vídeo já está na lista, e os cartões do Lab vêm de `getAbTestsForSite`, então nenhum cartão se perde; as extras escapam do filtro de privados, de propósito). `lerLinhasDoCaminho` NÃO é chamada pela página.
 - **`outroTesteAberto`:** na borda, `Set` de `youtube_video_id` dos testes com status `draft|queued|active|paused` do MESMO `getAbTestsForSite` (O(t), zero consulta extra); `outroTesteAberto = abertos.has(t.youtube_video_id)` ao chamar `telaV2DoTeste`. (Excluir o próprio teste do conjunto.) Nunca `false` fixo: `tela-v2.ts:37` exige o campo para "esquecer não liberar o botão".
 - **Dias:** `lerDiasDosTestes` uma vez, só com os ids dos ativos e dos concluídos com ação possível. `ok:false` lança (a fronteira mostra o estado e). Linhas `invalidos` não lançam: os CTRs daquele teste ficam nulos ("CTR não medido") e o resto da página segue normal.
 - **Volume:** falha da RPC de volume NÃO lança aqui: `lerPaginaDoCanal` (Task 6) devolve `motivoNaoLido: 'falha'` e a página monta (Com você não depende de volume).
@@ -416,6 +422,7 @@ it('dias até encerrado_em_dia no concluído (o CTR do painel é o da decisão)'
 it('erro em lerDiasDosTestes lança (a fronteira mostra o estado e); nunca devolve CTR 0', () => {})
 it('lerDiasDosTestes com linha inválida: CTRs daquele teste nulos, o resto da página normal, nada vira 0', () => {})
 it('concluído com rascunho (ou teste ativo) no mesmo vídeo: tela.aplicarDeNovo === null e a linha do Concluído sem ação', () => {})
+it('teste nosso ativo em vídeo fora da janela dos recentes: aparece em Em teste agora (vem de getAbTestsForSite) mesmo sem entrar nas extras da página 0', () => {})
 it('podeDeixarVariante vem de requireSiteAdminScope: usuário editor → B e C do painel "sem_permissao"', () => {})
 it('RPC de volume com erro: a página monta; listaInicial.contagem.motivoNaoLido === "falha"; Com você e Em teste normais', () => {})
 ```
@@ -441,7 +448,8 @@ it('RPC de volume com erro: a página monta; listaInicial.contagem.motivoNaoLido
 - Test: `apps/web/test/ab-lab-lista-borda-recorte.test.ts`
 
 **Interfaces:**
-- Dívida declarada (ledger): "Mostrar mais" refaz a leitura inteira a cada página, O(n·p); aceitável até o teto de 2000. Gatilho: canal com mais de 1000 vídeos ou action acima de 2 s → cursor por `published_at`.
+- Dívida declarada (ledger): "Mostrar mais" E cada busca (1 por pausa de 350 ms) refazem a leitura inteira (1 a 2 selects de 1000 + até 4 RPCs de volume + formato), O(n·p); com n≈300 são 1 select + 1 RPC, aceitável até o teto de 2000. Gatilho: canal com mais de 1000 vídeos ou action acima de 2 s → cursor por `published_at`. Alternativa barata depois: cache em memória de 30 s por `siteId` da lista de vídeos + volume dentro da action (não entra na v1). A T14 mede o custo por interação (Phil).
+- **Teto no dado da linha (Yannis R1):** `LinhaDoCaminho.nosso` (`lista-borda.ts:218-223`) ganha `teto: number` = `duracaoPrevista(config)` (mesma função do cartão); o `select` de `ab_tests` da lista (`lista-borda.ts:168`) passa a ler `config`. `nosso.dia` e `diaDe14` saem de `diaDoTeste`, que é 0-based: quem escreve o rótulo usa `rotuloDoDia` (T10), nunca soma 1 à mão.
 - Produces:
 ```ts
 export interface RecorteDaLista { busca: string | null; filtro: 'testaveis' | 'todos'; pagina: number; incluirYtId: string | null }
@@ -481,6 +489,7 @@ it('página 0 sem busca inclui as linhas extras de hoje (fichas abertas, registr
 it('incluirYtId desconhecido no recorte entra na página (abre ?video=)', () => {})
 it('formato (RPC ab_lab_formato_atual) só para os acima do piso e para as linhas da página, nunca para os 300', () => {})
 it('filtro padrão: se testaveis === 0 e naoLido > 0, filtroEfetivo é "todos" (a lista nunca abre vazia sem explicação)', () => {})
+it('nosso.teto: select de ab_tests lê config; teste v2 com max_duration_days 15 → teto 15 (duracaoPrevista); mesmo número que tetoDoTesteV2 usa no cartão, se divergirem vale o do cartão', () => {})
 it('lerVideosDoCanal: sem edição → sem_permissao; pedido fora do schema → pedido_invalido; erro de banco → falha + Sentry', () => {})
 ```
 
@@ -515,7 +524,7 @@ export interface SecaoEmTesteProps { cartoes: CartaoEmTeste[]; onAbrirTeste: (te
   - retomar: "Retome o teste pausado de “{título}”", "Pausado há {n} dias. O Lab não retoma sozinho.", "pausado", "Retomar" (navega para o detalhe, onde o Retomar existe).
   - conferir_studio: "Confira no Studio “{título}”", "Teste criado no Studio, sem ficha no Lab. O Lab não lê o resultado do Studio.", "sem prazo", "Abrir no Studio".
   - primeiro_teste: "Crie o primeiro teste", "O Lab não escolhe vídeo nem escreve versões; você faz isso no assistente, em 3 passos.", "sem prazo", "Novo teste" (primário).
-- "Em teste agora": 1 cartão = largura cheia (layout horizontal); 2–4 = grade de 2 colunas a ≥1024 px; 5 ou mais = 4 visíveis + "Ver todos ({n})"; 0 = seção some. Cartão de título: selo "Título" (português, nunca "TITLE"), selo "Dia {d}/{teto}", miniatura atual, h3 com o nome (link para o detalhe no Lab; texto sem link no Studio), linhas "A {título}" e "B {título}" (C quando houver) com "● no ar" na letra no ar, stats "Líder" e "Próxima troca … automática"; no Studio: selo "No Studio", sem stats nem "no ar". Cartão de miniatura: pares de miniaturas A/B com "original"/"nova"/"● no ar". Rodapé de pendência "Com você: {verbo}" + botão; cartão do Lab em andamento com `painel` não nulo tem o botão "Escolher o que fica" (desvio 5, pendente do dono, padrão sim); cartão sem `painel` (`queued`) não tem o botão.
+- "Em teste agora": 1 cartão = largura cheia (layout horizontal); 2–4 = grade de 2 colunas a ≥1024 px; 5 ou mais = 4 visíveis + "Ver todos ({n})"; 0 = seção some. Cartão de título: selo "Título" (português, nunca "TITLE"), selo "Dia {d}/{teto}", miniatura atual, h3 com o nome (link para o detalhe no Lab; texto sem link no Studio), linhas "A {título}" e "B {título}" (C quando houver) com "● no ar" na letra no ar, stats "Líder" e "Próxima troca … automática"; no Studio: selo "No Studio", sem stats nem "no ar". Cartão de miniatura: pares de miniaturas A/B com "original"/"nova"/"● no ar". Rodapé de pendência "Com você: {verbo}" + botão; cartão do Lab em andamento (`active`) com `painel` não nulo **e sem pendência** tem, no rodapé neutro (`border-top:1px solid var(--border)`, fundo `var(--surface)`, sem âmbar), o botão **"Encerrar e escolher"** (desvio 5, decidido; `.btn.txt` de 44 px, estados `a-encerrar` e `a-pendencia` do mockup r6; se a r7 trocar o estilo, vale a r7). Cartão sem `painel` (`queued`), do Studio ou com pendência não tem o botão. **HTML válido (Yannis R2):** o cartão NÃO é um `<a>`; o link é o `h3` (ou um `::after` esticado) e o botão é irmão do link, nunca descendente, com `position:relative; z-index:2`.
 
 - [ ] **Step 1: Escrever os testes que falham** (RTL, jsdom):
 
@@ -526,6 +535,8 @@ it('cartão do Studio não tem Líder, CTR nem Próxima troca e tem o selo "No S
 it('"O que é automático?" abre e fecha; Esc fecha e devolve o foco ao botão', () => {})
 it('item aplicar chama onAbrirPainel com o painel do modelo; dia14 chama onAbrirDia14 com a linha inteira do item', () => {})
 it('selo do dia usa rotuloDoDia: dia passado 0 de teto 15 → "Dia 1/15"', () => {})
+it('botão "Encerrar e escolher": ativo sem pendência = 1; ativo com pendência = 0; queued = 0; Studio = 0 (mutante: condição só `painel !== null` falha no caso da pendência)', () => {})
+it('nenhum botão dentro de link: container.querySelector("a button") é nulo; clicar no botão chama onAbrirPainel com o painel do cartão', () => {})
 it('todo botão de item tem min-height 44px (classe .lab-alvo) e nenhum texto usa classe abaixo de 12px', () => {})
 ```
 
@@ -566,6 +577,8 @@ export function PainelOQueFica(p: PainelOQueFicaProps): ReactElement
 
 ```tsx
 it('ativo: escolher C chama acoes.encerrar(testId, { destino: "variante", varianteId: "vc", seqVisto })', () => {})
+it('ativo sem sugerida: nada marcado; clicar em "Escolha uma versão" NÃO chama acoes.encerrar (aria-disabled não bloqueia clique, o handler começa com `if (!escolhaId) return`); marcar C e clicar chama encerrar com C e o botão diz "Encerrar e deixar C no ar"', () => {})
+it('aviso "escolher encerra o teste agora" aparece no topo e junto ao primário, com role="status" em UM só', () => {})
 it('ativo: escolher A chama encerrar com { destino: "original", seqVisto }', () => {})
 it('concluído: confirmar chama aplicarSugerido(testId, "vb", seq); aplicado chama voltar(testId, seq)', () => {})
 it('opção "Em breve" está disabled e não pode ser marcada', () => {})
@@ -580,7 +593,7 @@ it('feito: "Teste encerrado. C no ar desde 26/10. Você escolheu C; o teste indi
 ```
 
 - [ ] **Step 2: Rodar e ver falhar.**
-- [ ] **Step 3: Implementar.** Um só envio por vez (`useRef` de voo, como `ab-end-test-dialog.tsx:146-150`), mais a guarda de fechar, `expirou` e `montado` descritos acima.
+- [ ] **Step 3: Implementar.** O handler do primário começa com `if (!escolhaId || travado) return` (`aria-disabled` só informa o leitor de tela; Yannis R3). Painel ativo sem sugerida: estado `g-sem-sugerida` do mockup r6. Um só envio por vez (`useRef` de voo, como `ab-end-test-dialog.tsx:146-150`), mais a guarda de fechar, `expirou` e `montado` descritos acima.
 - [ ] **Step 4: Rodar** → PASS.
 - [ ] **Step 5: Commit** — `git commit -m "feat: painel O que fica no vídeo na página do Lab (M7 T8)"`.
 
@@ -632,12 +645,20 @@ it('nenhum texto do diálogo diz que o Lab leu o Studio', () => { expect(screen.
 - Create: `_components/pagina/videos-do-canal.tsx`
 - Modify: `_components/caminho-nativo/lista-caminho.tsx` (prop `agrupar?: boolean`, padrão `true`; com `false` some o resumo `cn-sum`, os cabeçalhos de grupo e a linha `cn-lhd`)
 - Modify: `_components/caminho-nativo/lista-caminho-paineis.tsx` (repassa `agrupar`)
+- Modify: `_components/caminho-nativo/linha-caminho.tsx` (rótulo do dia pelo `rotuloDoDia`, "Ver teste" único) e `_components/caminho-nativo.css` (regra `.cn-vrow .cn-btn{min-height:44px}`; `.cn-btn` global fica como está)
+- Test: `apps/web/test/ab-lab-linha-caminho-dia.test.tsx` (novo)
 - Test: `apps/web/test/ab-lab-pagina-videos-do-canal.test.tsx`
 
 **Interfaces:**
 - Consumes: `lerVideosDoCanal` (Task 6, por prop), `ListaCaminhoComPaineis`, `ACOES` de `lista-caminho-servidor.tsx`.
 - Produces: `VideosDoCanalProps { inicial: PaginaDoCanal; videoInicial: string | null; acoes: AcoesCaminho; ler: (p: z.infer<typeof PedidoVideosDoCanalSchema>) => Promise<ResultadoVideosDoCanal> }`.
 - Textos (mockup `index.html:102-116`): `<details>` com summary "Vídeos do canal" + "{t} com volume para testar, {s} sem" (+ ", {n} sem volume lido" quando `naoLido > 0`; + " (dos 2.000 mais recentes)" quando `truncado`, e a busca avisa que só procura neles); o chip ativo inicial é `inicial.filtroEfetivo`; busca `type="search"` placeholder "Buscar por título" `aria-label="Buscar vídeo"`; chips "Testáveis" (padrão, `aria-pressed`) e "Todos"; grupo "{s} vídeos com poucas impressões por dia (menos de 220). Escolha “Todos” para ver."; rodapé "Mostrando {k} de {total} testáveis" + "Mostrar os {resto} restantes" (até 20 por clique: "Mostrar mais 20" quando resto > 20); vazio com busca "Nenhum vídeo com “{busca}”." + "Limpar busca"; vazio de "Testáveis" sem busca por `motivoNaoLido`: `sem_leitura` → "O volume dos vídeos não pôde ser lido (sem acesso ao Analytics do canal). Escolha “Todos” para ver os vídeos."; `falha` → "Não deu para ler o volume agora." + "Tentar de novo"; `poucos_dias` → "O volume ainda está sendo lido (menos de 3 dias de relatório). Escolha “Todos”."; carregando = 3 linhas esqueleto; erro = "Não deu para ler os vídeos." + "Tentar de novo".
+- **Consertos da linha (desvio 6, Hanna H4 a H6 + Yannis R1/R4):**
+  - **44 px:** `.cn-vrow .cn-btn{min-height:44px}` (hoje `caminho-nativo.css:90` dá 36 px no mouse e só `:98` sobe para 44 em `pointer:coarse`). Teste lê a regra; o Gio mede na T14.
+  - **Mesmo dia e mesmo teto (R1):** `linha-caminho.tsx:173-182` hoje escreve "Dia {diaDe14} de 14" e "dia {nosso.dia} de 14" a partir de `diaDoTeste` (0-based): no 1º dia diz "dia 0 de 14". Passa a escrever `rotuloDoDia(nosso.dia, nosso.teto)` (teto vem do dado da linha, T6) e, no registro do Studio, `rotuloDoDia(diaDe14, 14)` (o Studio tem 14 dias; `rotuloDoDia` é pura em `(dias, teto)`). A linha e o cartão leem a mesma fonte.
+  - **"Ver teste" único (R4):** o texto visível é "Ver teste" em toda a página; o nome acessível é `aria-label="Ver teste de {nome}"` (contém o texto visível e começa por ele, WCAG 2.5.3 "Label in Name"); a string "Abrir teste" deixa de existir.
+  - **H1 (lista a 390):** a quebra abaixo de 640 px já existe (`lista-caminho.css:47-55`, `@container (max-width:640px)`) e depende de `container-type:inline-size` em `.cn-raiz` (`caminho-nativo.css:40`). A T10 mantém a lista dentro de `.cn-raiz` (teste: `container.querySelector('.cn-raiz .cn-vrow')` existe); o Gio prova a 390 com título de 100 caracteres (T14).
+- **Estado do cliente depois de `router.refresh()` (Yannis M-a):** `VideosDoCanal` guarda as linhas anexadas em estado; depois de encerrar/aplicar a página relê e `inicial` muda, mas o anexo ficaria velho. O componente reseta o estado quando `inicial` muda (`key` derivada de `inicial.linhas.map(l => l.videoId + l.estado)` no pai, ou efeito que reconcilia).
 - Anexo: ao pedir a página seguinte, o cliente junta as linhas por `Map<videoId, linha>` (nunca `key` repetida); `contagem` do resumo vem sempre da última resposta e é a do canal.
 - Busca: ao cair de 2+ letras para menos de 2, o cliente faz um pedido com `busca: null` (mesmo contador de pedido, descartando o termo velho se ainda em voo).
 - Estado na URL: aberto = `?videos=1` (`history.replaceState`, como o mockup `:180`); `?video=<id>` abre o `<details>` e manda `incluirYtId`.
@@ -653,13 +674,20 @@ it('"Mostrar os 11 restantes" pede a página seguinte e anexa as linhas', async 
 it('falha mostra "Não deu para ler os vídeos." e "Tentar de novo" repete o último pedido', async () => {})
 it('a lista não mostra os cabeçalhos "Precisa de você"/"Outros vídeos" (agrupar false)', () => {})
 it('"ag" → resposta → apagar para "a": ler é chamado com busca null e a lista volta à inicial; "ag" ainda em voo é descartado', async () => {})
+it('depois de router.refresh() (inicial novo), o anexo antigo some e a linha mostra o estado novo', () => {})
 it('anexo com linha repetida entre páginas não duplica (Map por videoId)', async () => {})
 it('Testáveis vazio sem busca mostra a frase do motivoNaoLido; filtroEfetivo "todos" abre com o chip Todos ativo', () => {})
 ```
 
 - [ ] **Step 2: Rodar e ver falhar.**
 - [ ] **Step 3: Implementar** (contador de pedido em `useRef`; `AbortController` não se aplica a server action, por isso o descarte é por número).
-- [ ] **Step 4: Rodar o novo e `test/ab-lab-lista-caminho.test.tsx`** → PASS.
+Testes de `ab-lab-linha-caminho-dia.test.tsx`:
+```tsx
+it('nosso iniciado há 0 dias com teto 15: linha e cartão dizem "Dia 1/15"; Studio no 3º dia (diaDe14 = 3) diz "Dia 4/14"; o texto da linha não contém " de 14"', () => {})
+it('getByRole("link", { name: /^Ver teste/ }) acha o link da linha; a string "Abrir teste" não existe na página', () => {})
+it('a linha da lista está dentro de .cn-raiz', () => {})
+```
+- [ ] **Step 4: Rodar o novo, `ab-lab-linha-caminho-dia.test.tsx` e `test/ab-lab-lista-caminho.test.tsx`** → PASS.
 - [ ] **Step 5: Commit** — `git commit -m "feat: Vídeos do canal recolhido com busca no servidor (M7 T10)"`.
 
 **Pronto quando:** com 300 vídeos a página abre sem a lista expandida e a busca não manda mais de um pedido por pausa de digitação.
@@ -679,6 +707,7 @@ it('Testáveis vazio sem busca mostra a frase do motivoNaoLido; filtroEfetivo "t
 - Consumes: tudo das Tasks 4–10.
 - Produces: `AbLabDashboardProps` passa a ser `{ pagina: PaginaDoLab; settings; siteId; eligibleVideos; drafts; iniciarTeste; avisoDeVolume?; acoesDecisao: AcoesDecisao; acoesCaminho: AcoesCaminho; lerVideos: VideosDoCanalProps['ler']; listaInicial: PaginaDoCanal; videoInicial: string | null; blocoSugestoes?: ReactNode; learnings: LearningsData | null; channelLearnings: ChannelLearningsData | null }`. `corpo-do-lab.tsx` monta `acoesDecisao = { encerrar: endAbTest, aplicarSugerido, voltar: revertWinner }` (importadas no servidor) e `acoesCaminho = ACOES` (exportar `ACOES` de `lista-caminho-servidor.tsx:16` ou movê-lo para `corpo-do-lab.tsx`; apagar `ListaCaminhoServidor` se ficar sem uso). `listaInicial` e `eligibleVideos` vêm de `lerPaginaDoLab` (Task 5); a T11 não faz leitura nova. O seletor mantém a ligação `onContinuarRascunho` → `handleContinueDraft` entregue pela T16 (envio 1).
 - Ordem renderizada: (1) topo `h1` "A/B Lab" + ferramentas "Biblioteca" (link para `/cms/youtube/ab-lab/library`, `next/link` importado no próprio client), "Todos os tipos" (filtro existente), "Ajustes" (`aria-label="Configurações"`), "Novo teste" primário + `p.resumo` com `pagina.topo.frase`; (2) Com você; (3) Em teste agora; (4) `blocoSugestoes`; (5) Concluídos; (6) Vídeos do canal; diálogos (painel, dia 14, assistente, ajustes, seletor) fora do fluxo. Some: KPI strip, `DraftsBlock` (rascunho virou item de Com você), Candidatos, grade de pausados (virou item ou cartão do Studio).
+- `VideosDoCanal` recebe `key` derivada da `listaInicial` (ver T10, estado depois de `router.refresh()`).
 - Item `dia14` da faixa abre o diálogo com a `linha` do próprio item (não procura na `listaInicial`, que muda com busca e filtro).
 - Concluídos (mockup `:90-98`): cabeçalho "Concluídos" + "{n} testes"; linha com miniatura real (`thumbnail_url`), título, tipo, resultado e apoio, botão da ação quando houver (abre o painel); "Ver testes anteriores" como `button aria-disabled="true"` + selo "Em breve"; régua "Coletando dados: {k} de 3 testes concluídos" com 3 marcas e "Com 3 testes o Lab começa a mostrar o que funciona no seu canal." quando `regua`; com 3 ou mais, o `LearningsPanel` existente no lugar da régua. Sem nenhum concluído e sem história: a seção some (estado b2).
 - `BlocoSugestoes`: desvio 8.
@@ -692,6 +721,7 @@ it('ordem das seções por data-secao, incluindo o slot de Sugestões', () => {
   expect(ordem).toEqual(['com-voce', 'em-teste', 'sugestoes', 'concluidos', 'videos-do-canal'])
   // mutante: trocar Sugestões de lugar ou omitir o slot faz falhar (sem filter(Boolean) no-op)
 })
+it('fixture do teste de ordem tem as 5 seções (com Sugestões e Concluídos presentes); outro teste confere que `concluidos` está ausente no estado b2', () => {})
 it('seletor de vídeo: linha com rascunhoId chama handleContinueDraft (a ligação da T16 sobrevive à reescrita das props)', () => {})
 it('buscar texto sem resultado e clicar "Dizer o que o Studio escolheu" na faixa abre o diálogo com as versões (a linha vem do item)', async () => {})
 it('sem faixa de KPIs e sem "Candidatos (fora da contagem)"', () => {})
@@ -729,10 +759,10 @@ it('BlocoSugestoes com 0 itens rende uma linha "Sugestões de vídeos para testa
 - [ ] **Step 1: Phil** revisa `pagina-borda.ts`, `lista-borda.ts` (recorte) e `actions-nativo.ts#lerVideosDoCanal`: conta de leituras por visita (meta: 1 `ab_tests` + 1 `lerPaginaDoCanal` + 1 `ab_test_dias` na página; a busca = vídeos em blocos de 1000 + volume em lotes de 500 + formato só dos acima do piso; ordem estável, `truncado`, `motivoNaoLido`), custo de `ab_lab_volume` com 300 ids (pedir `EXPLAIN (ANALYZE, BUFFERS)` no banco local de integração `bythiago_int`, porta 54422, com dado sintético de 300 vídeos × 28 dias), "nulo nunca é zero" em volume e CTR, e o critério M7-d (no ar desde = `restore_status`).
 - [ ] **Step 2: Yannis** revisa painel (concorrência do envio, CAS por `seqVisto`, Esc em voo, `precisa_confirmar`), descarte de resposta velha na busca, fronteira de erro e o `Suspense` único, e a ausência de import de action em client.
 - [ ] **Step 3:** consertos em commits próprios (`fix: … (M7 T13 Phil N)`), re-revisão de emenda por Sonnet, até acordo.
-- [ ] **Step 3b: Dívida técnica no ledger.** Registrar: (a) existente — `getAbTestsForSite` lê todos os testes e ciclos a cada visita (gatilho: mais de 200 testes ou leitura acima de 1 s no Sentry; conserto: concluídos paginados, 3 mais recentes + `count`); (b) criada — "Mostrar mais" refaz a leitura inteira, O(n·p) (gatilho: canal acima de 1000 vídeos ou action acima de 2 s; conserto: cursor por `published_at`).
-- [ ] **Step 4: Logan e Naksu** revisam a tela implementada (capturas do Gio a 1440 e 390) contra o mockup r5 e os desvios 5 e 6; consertos até nota ≥ 92 dos dois.
+- [ ] **Step 3b: Dívida técnica no ledger.** Registrar: (a) existente — `getAbTestsForSite` lê todos os testes e ciclos a cada visita (gatilho: mais de 200 testes ou leitura acima de 1 s no Sentry; conserto: concluídos paginados, 3 mais recentes + `count`); (b) criada — "Mostrar mais" e cada busca refazem a leitura inteira, O(n·p) (gatilho: canal acima de 1000 vídeos ou action acima de 2 s; conserto: cursor por `published_at`, ou cache de 30 s por `siteId`); (c) criada — duas caras de linha (cartão novo × `LinhaCaminho` antiga, 12 estados) até o M6 (gatilho: o dono reclamar ao ver o envio 2 ou o M6 escorregar para depois de jan/2027; dono e data no ledger).
+- [ ] **Step 4: Logan e Naksu** revisam a tela implementada (capturas do Gio a 1440 e 390) contra o mockup r5/r6 (e r7 se existir) e os desvios 5 e 6; consertos até nota ≥ 92 dos dois.
 
-- [ ] **Step 5: Janela do dono.** No fim desta tarefa, o controlador pede ao dono a janela e o teste escolhido para a escrita no YouTube do passo 3 da Task 14 (M7-c), para a prova do Gio não ficar parada esperando; e cobra a resposta dos desvios 5 e 6.
+- [ ] **Step 5: Janela do dono.** No fim desta tarefa, o controlador pede ao dono a janela e o teste escolhido para a escrita no YouTube do passo 3 da Task 14 (M7-c), para a prova do Gio não ficar parada esperando; (os desvios 5 e 6 já estão decididos).
 
 **Pronto quando:** Phil, Yannis, Logan e Naksu dão acordo escrito no ledger e a janela do dono está marcada.
 
@@ -749,12 +779,14 @@ Ambiente: `next dev` local apontando para o Supabase de produção (`.env.local`
 - [ ] **Step 3 (M7-c):** no ativo, escolher uma versão encerra com ela no ar (título/miniatura lidos no YouTube depois — só com o dono autorizando a escrita); no concluído, nenhum controle visível devolve `ja_encerrado`; o prazo de voltar mostrado = `revert_expires_at` (dd/mm SP).
 - [ ] **Step 4 (M7-d):** cada Concluído mostra vencedor e "no ar desde" iguais a `winner_variant_id` e `restore_status` do banco; "Sem vencedor" onde não houver.
 - [ ] **Step 4b:** conferir "Com você" e a frase "Próxima decisão: dd/mm" contra o banco (testes ativos, pendências reais, `started_at` + teto − 1 e prazo do dia 14); sem data calculável, a frase não aparece.
+- [ ] **Step 4c (desvios 5 e 6, Hanna/Yannis):** (i) cartão do Lab ativo sem pendência tem 1 botão "Encerrar e escolher" ≥44×44 a 1440 e 390; não aparece no Studio, no `queued` nem com pendência; abre o painel sem nada marcado e confirmar fica desabilitado até haver escolha; (ii) lista "Vídeos do canal" a 390 sem rolagem horizontal, título de 100 caracteres em até 2 linhas, botão na largura cheia na linha de baixo, botões da lista ≥44 px no mouse; (iii) o mesmo teste mostra o mesmo "Dia N/teto" na linha e no cartão.
+- [ ] **Step 4d (custo da busca, Phil):** medir no Sentry/rede quantas leituras e quantos ms cada busca e cada "Mostrar mais" custam (1 select + até 4 RPCs de volume); se a RPC passar de 200 ms, guardar a contagem da primeira página e não recalcular na busca (nota no ledger).
 - [ ] **Step 5:** estados d e e (rede lenta e leitura falhando via DevTools), busca ("agua", texto inexistente, 1 letra), filtro "Todos", "Mostrar os N restantes", painel em "Aplicando…" com Esc, 0 overflow horizontal a 390, contraste ≥ 4,5:1, nada abaixo de 12px, alvos ≥ 44px.
 - [ ] **Step 6:** relatório em `docs/superpowers/mockups/2026-10-26-lab-reordem/gio-m7-prova.md` (até 10 linhas no retorno; capturas em `…/gio-m7-shots/`); defeitos voltam como tarefas `fix:` e o Gio reprova até zerar.
 
 - [ ] **Step 7 (pós-deploy, o dono roda; só leitura, Phil):** (a) `select count(*) total, count(*) filter (where not exists (select 1 from yt_own_video_meta_daily m where m.youtube_video_id = y.youtube_video_id and m.privacy_status is not null)) com_publico_nulo from youtube_videos y where y.site_id = '<site>' and y.published_at <= now();` (esperado: total perto de 300, `com_publico_nulo` perto de 0; documenta o risco de `publico` nulo contar como testável); (b) `explain (analyze, buffers) select * from public.ab_lab_volume('<site>', (select array_agg(id) from youtube_videos where site_id = '<site>'));` (esperado abaixo de 200 ms); (c) no resumo da tela, N + M + K = total de (a) menos os privados.
 
-**Pronto quando:** M7-a..d passam com dado de produção (o M7-b em produção ou marcado pendente com prova local), o dono confirma e os desvios 5 e 6 estão respondidos.
+**Pronto quando:** M7-a..d passam com dado de produção (o M7-b em produção ou marcado pendente com prova local), o dono confirma e os desvios 5 e 6 (já decididos em 26/10) estão provados na tela.
 
 ---
 
@@ -923,9 +955,30 @@ Revisões: `yannis-plano-r1.md` (Y), `phil-plano-r1.md` (P), `hanna-plano-r1.md`
 | P conferências pós-deploy (SQL de leitura) | T14 Step 7 |
 | H1 fatiamento em 2 envios | "Dois envios e ordem"; Ordem e paralelismo; Ajustes do assistente |
 | H2 conflito T17 × T7 | "Dois envios e ordem" (T17 primeiro); T7 Consumes; T17 marcada como primeira |
-| H3 desvios 5 e 6 pendentes do dono | Desvios 5 e 6 ("pendente do dono, padrão: sim"); "Perguntas ao dono"; T14 Pronto quando |
+| H3 desvios 5 e 6 pendentes do dono | Desvios 5 e 6 (decididos 26/10 por Hanna, Logan e Naksu); "Perguntas ao dono"; T14 Pronto quando |
 | H4 copy nova fora do mockup | "Perguntas ao dono" item 3 (mostrar junto do envio 1) |
 | H5 M7-b sem onde ser provado | T14 Step 2 (caminho alternativo em `bythiago_int`, "pendente em produção") |
 | H6 M7-c precisa do dono presente | T13 Step 5 (janela do dono) |
 | H7 "Com você" e "Próxima decisão" sem conferência | T14 Step 4b |
 | H "não conferi": `handleContinueDraft` restaura o passo | T16 Step 3 (executor confirma no código) |
+
+## Achados da re-revisão r2 → onde foi tratado (r3)
+
+Revisões: `yannis-plano-r2.md` (91/100, acordo com 4 emendas), `phil-plano-r2.md` (93/100, acordo), `hanna-desvios.md`, em `.superpowers/sdd/ab-lab/lab-reordem/`.
+
+| Achado | Tratado em |
+|---|---|
+| Yannis R1 teto no dado da linha e dia 0-based ("dia 0 de 14") | T6 (`nosso.teto = duracaoPrevista(config)`, `config` no select, teste); T10 (`rotuloDoDia(nosso.dia, nosso.teto)`, Studio `rotuloDoDia(diaDe14, 14)`, testes "Dia 1/15" e "Dia 4/14") |
+| Yannis R2 botão no cartão: HTML válido e 4 casos | T7 (cartão não é `<a>`, botão irmão do link, testes `a button` nulo e os 4 casos com mutante) |
+| Yannis R3 `aria-disabled` não bloqueia clique; aviso duplicado; rótulo irreversível | T8 (`if (!escolhaId) return`, `role="status"` em um só, testes); T2 (`rotuloDoBotao` ativo "Encerrar e deixar C no ar" / "Encerrar e manter A (original)") |
+| Yannis R4 "Ver teste" × `aria-label` (WCAG 2.5.3) | T10 (`aria-label="Ver teste de {nome}"`, teste do link por nome) |
+| Yannis M-a estado do cliente depois de `router.refresh()` | T10 (reset do anexo) e T11 (`key`), teste |
+| Yannis M-b extras e "testes nossos" | T5 (frase corrigida, extras escapam do filtro de privados, teste do cartão fora da janela) |
+| Yannis M-c custo da busca por tecla | T6 (dívida), T13 Step 3b, T14 Step 4d |
+| Yannis M-d fixture do teste de ordem | T11 (fixture com as 5 seções; `concluidos` ausente no b2) |
+| Yannis Y11 teste de fronteira de `diaMesSp` (2026-10-27T02:30Z → 26/10; nulo/inválido → vazio) | T2 (testes) |
+| Yannis H1 lista dentro de `.cn-raiz` | T10 (teste `.cn-raiz .cn-vrow`); T14 Step 4c (390 com título de 100 caracteres) |
+| Phil menor: busca relê volume do canal inteiro | T6 (dívida), T13 Step 3b, T14 Step 4d (medir; guardar a contagem se RPC > 200 ms) |
+| H-desvio 5 (entra no envio 2, "Encerrar e escolher", painel ativo sem sugerida, r6/r7) | Desvio 5; T7; T8; T14 Step 4c |
+| H-desvio 6 (`LinhaCaminho` fica; 44 px, mesmo dia/teto, "Ver teste"; invólucro no M6) | Desvio 6; T10; T13 Step 3b (c); T14 Step 4c |
+| Hanna H1 a H6 (bloqueio a 390, texto, envio, dia, nome, 36 px) | = linhas acima (T7, T8, T10, T14) |
