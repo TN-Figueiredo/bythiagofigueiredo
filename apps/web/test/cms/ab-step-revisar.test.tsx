@@ -12,7 +12,7 @@ vi.mock('lucide-react', () => {
   const icon = (name: string) => (props: Record<string, unknown>) => <svg data-testid={`icon-${name}`} {...props} />
   return {
     Image: icon('Image'), Type: icon('Type'), FileText: icon('FileText'), Layers: icon('Layers'),
-    Lock: icon('Lock'), Plus: icon('Plus'), Trash2: icon('Trash2'), Sparkles: icon('Sparkles'),
+    Lock: icon('Lock'), Clock: icon('Clock'), Plus: icon('Plus'), Trash2: icon('Trash2'), Sparkles: icon('Sparkles'),
     CheckCircle: icon('CheckCircle'), Play: icon('Play'), ChevronDown: icon('ChevronDown'),
     ChevronRight: icon('ChevronRight'), ArrowLeft: icon('ArrowLeft'), Copy: icon('Copy'),
     Download: icon('Download'), Pause: icon('Pause'), Square: icon('Square'),
@@ -126,14 +126,18 @@ describe('StepRevisar: aviso da original (D12, r5)', () => {
     expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
     expect(screen.queryByText('Baixa resolução')).toBeNull()
   })
-  it('C5: leitura pendente: "Pronto para ativar.", esqueleto com aria-busy, nenhum role=status, nunca "Tudo pronto."', () => {
+  it('C5: leitura pendente: "Pronto para ativar.", esqueleto com aria-busy e único role=status, nunca "Tudo pronto."', () => {
     const { container } = render(<StepRevisar {...base} avisoOriginal="pendente" />)
     expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
     expect(screen.queryByText('Tudo pronto.')).toBeNull()
-    expect(screen.queryByRole('status')).toBeNull()
+    const status = screen.getAllByRole('status')
+    expect(status).toHaveLength(1)   // o do esqueleto (T15/I3)
+    expect(status[0]!.textContent).toContain('Conferindo a resolução')
     const esqueleto = container.querySelector('[aria-busy="true"]') as HTMLElement
     expect(esqueleto).toBeTruthy()
-    expect(esqueleto.querySelector('[class*="h-5"]')).toBeTruthy()   // 20 px
+    expect(esqueleto).toBe(status[0])
+    expect(esqueleto.querySelector('[class*="h-2"]')).toBeTruthy()   // barra do esqueleto compartilhado
+    expect(esqueleto.className).toContain('min-h-[92px]')
   })
   it('role="status" entra junto com o conteúdo, nunca vazio (Naksu S3)', () => {
     render(<StepRevisar {...base} avisoOriginal={textoAvisoOriginalBaixa('480x360', true)} />)
