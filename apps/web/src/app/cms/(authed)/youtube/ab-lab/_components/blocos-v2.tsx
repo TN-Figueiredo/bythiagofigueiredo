@@ -174,7 +174,7 @@ export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef 
       ) : null}
       {tela.aplicar ? (
         canAdmin ? (
-          <div className="pv2-acts"><button type="button" className="pv2-btn pri" onClick={e => onAplicar(e.currentTarget)}>Aplicar {tela.aplicar.letra} ao vídeo</button></div>
+          <div className="pv2-acts"><button type="button" className="pv2-btn pri" onClick={e => onAplicar(e.currentTarget)}>Aplicar {tela.aplicar.letra} ao vídeo</button>{tela.prazo?.tipo === 'provisorio' && tela.prazo.ate ? <span className="pv2-provl" data-testid="aplicar-provisorio">provisório até {tela.prazo.ate}</span> : null}</div>
         ) : <AdminOnlyNote action="aplicar a variante" className="text-cms-text-dim" />
       ) : tela.voltar ? (
         canAdmin ? (

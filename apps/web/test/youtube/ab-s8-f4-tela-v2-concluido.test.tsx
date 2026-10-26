@@ -69,6 +69,18 @@ describe('T12 T7: concluído v2', () => {
     expect(container.textContent).toContain('No ar agora: A (original).')
   })
 
+  it('item 5 (Yannis P1): provisório com data mostra "provisório até DD/MM" junto do botão', () => {
+    montar(base())
+    expect(screen.getByTestId('aplicar-provisorio').textContent).toBe('provisório até 04/11')
+  })
+  it('item 5: sem data (prazo vencido) ou final, o botão não mostra "provisório até"', () => {
+    montar(base({ prazo: { tipo: 'provisorio', ate: null } }))
+    expect(screen.queryByTestId('aplicar-provisorio')).toBeNull()
+    cleanup()
+    montar(base({ prazo: { tipo: 'final' }, selo: { tipo: 'vence', provisorio: false, letra: 'B' } }))
+    expect(screen.queryByTestId('aplicar-provisorio')).toBeNull()
+  })
+
   it('Aplicar abre o diálogo com foco em "Voltar"; confirmar com feito: 1 chamada (idB, restoreSeq), refresh e foco na .noar', async () => {
     const { aplicar, container } = montar(base())
     abrirAplicar()
