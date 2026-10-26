@@ -179,4 +179,21 @@ describe('envio 1: resolução sem pulo, texto curto e ⓘ da regra', () => {
     expect(botao.className).toContain('min-w-11')
     expect(regra.querySelector('.whitespace-nowrap')?.textContent).toBe('você.')
   })
+  it('ⓘ na mesma linha: botão dentro do nowrap da última palavra, com margem negativa e sem flex no parágrafo', () => {
+    const { container } = render(<StepRevisar {...base} />)
+    const regra = container.querySelector('[data-regra]') as HTMLElement
+    const fim = regra.querySelector('[data-regra-fim]') as HTMLElement
+    const botao = fim.querySelector('button') as HTMLButtonElement
+    expect(fim.className).toContain('whitespace-nowrap')
+    expect(botao.className).toContain('-mr-3.5')
+    expect(botao.className).toContain('-ml-3')
+    expect(botao.className).toContain('align-middle')
+    expect(regra.className).not.toContain('flex')
+  })
+  it('banner reserva 2 linhas no mobile (sem pulo ao resolver o título)', () => {
+    const { container } = render(<StepRevisar {...base} />)
+    const p = container.querySelector('[data-banner-texto]') as HTMLElement
+    expect(p.className).toContain('min-h-[2.75em]')
+    expect(p.className).toContain('sm:min-h-0')
+  })
 })

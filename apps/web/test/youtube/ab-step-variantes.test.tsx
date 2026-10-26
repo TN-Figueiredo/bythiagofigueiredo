@@ -133,6 +133,14 @@ describe('StepVariantes', () => {
     expect(screen.getByText('Arraste ou clique para enviar')).toBeDefined()
   })
 
+  it('original sem imagem: "Sem miniatura" com cor de contraste (muted, não dim)', () => {
+    render(<StepVariantes {...defaultProps({ type: 'thumbnail' })} />)
+    const t = screen.getByText('Sem miniatura')
+    expect(t.className).toContain('text-cms-text-muted')
+    expect(t.className).not.toContain('text-cms-text-dim')
+    expect(screen.queryByText('Sem thumbnail')).toBeNull()
+  })
+
   it('hides thumbnail slot for "title" type', () => {
     render(<StepVariantes {...defaultProps({ type: 'title' })} />)
     expect(screen.queryByText('Arraste ou clique para enviar')).toBeNull()

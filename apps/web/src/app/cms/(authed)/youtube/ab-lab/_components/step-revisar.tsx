@@ -64,17 +64,20 @@ function RegraDoTeste({ V }: { V: number }) {
   const minimo = tetoMinimo(V)
   const seq = V >= 3 ? 'A, B, C, C, B, A' : 'A, B, B, A'
   return (
-    <p className="m-0 flex flex-wrap items-center gap-x-1 text-[13px] leading-snug text-cms-text-muted" data-regra>
-      <span>Roda até {teto} dias (mínimo {minimo}), em rotação ABBA. Quem escolhe o vencedor é{' '}<span className="whitespace-nowrap">você.</span></span>
-      <InfoDica
-        rotulo="Como funciona"
-        className="min-h-11 min-w-11 -my-3"
-        titulo={`Por que ${teto} dias`}
-        paragrafos={[
-          `O YouTube leva dias para enviar o alcance de cada vídeo; por isso o prazo é fixo: no mínimo ${minimo} e no máximo ${teto} dias.`,
-          `A rotação ABBA alterna as versões em blocos (${seq}) para que cada uma passe por dias parecidos.`,
-        ]}
-      />
+    <p className="m-0 text-[13px] leading-snug text-cms-text-muted" data-regra>
+      Roda até {teto} dias (mínimo {minimo}), em rotação ABBA. Quem escolhe o vencedor é{' '}
+      <span className="whitespace-nowrap" data-regra-fim>
+        você.
+        <InfoDica
+          rotulo="Como funciona"
+          className="min-h-11 min-w-11 -ml-3 -mr-3.5 -my-3 align-middle"
+          titulo={`Por que ${teto} dias`}
+          paragrafos={[
+            `O YouTube leva dias para enviar o alcance de cada vídeo; por isso o prazo é fixo: no mínimo ${minimo} e no máximo ${teto} dias.`,
+            `A rotação ABBA alterna as versões em blocos (${seq}) para que cada uma passe por dias parecidos.`,
+          ]}
+        />
+      </span>
     </p>
   )
 }
@@ -188,7 +191,7 @@ export function StepRevisar({ type, variants, meta, onEscolherDaBiblioteca, avis
         {faltaThumb
           ? <AlertTriangle className="w-5 h-5 shrink-0 text-cms-text-muted" aria-hidden="true" />
           : <CheckCircle className={`w-5 h-5 shrink-0 ${pronto ? 'text-[var(--cms-green-icon)]' : 'text-cms-text-muted'}`} aria-hidden="true" />}
-        <p className="text-[13px] leading-snug text-cms-text m-0">
+        <p className="text-[13px] leading-snug text-cms-text m-0 min-h-[2.75em] sm:min-h-0" data-banner-texto>
           <strong className={`font-semibold ${pronto ? 'text-[var(--cms-green-text)]' : 'text-cms-text'}`}>{titulo}</strong>{' '}
           <span className="text-cms-text">{faltaThumb ? 'Escolha uma imagem da Biblioteca para poder ativar o teste.' : summaryText}</span>
         </p>

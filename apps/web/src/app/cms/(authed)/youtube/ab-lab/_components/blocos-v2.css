@@ -6,8 +6,9 @@
   --pv-va: #B8481A; --pv-vb: #2B6DA8; --pv-vc: #4C6B1F; --pv-vd: #7A4FA0;
   --muted: var(--cn-muted); --text: var(--cn-text); --accent: var(--cn-accent);
   container-type: inline-size;
-  padding: 0 0 var(--s4);
+  padding: 0 var(--s5) var(--s4); /* mesmo recuo do .pm4-in do Placar */
 }
+@media (max-width: 640px) { .pv2 { padding-inline: var(--s3); } }
 .pv2 h3, .pv2 p { margin: 0; }
 .pv2 .num { font-variant-numeric: tabular-nums; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
 .pv2 .dash { color: var(--cn-muted); }
