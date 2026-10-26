@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AbTestWithVariants } from '@/lib/youtube/ab-types'
 import { makeTestWithVariants } from './helpers/ab-fixtures'
@@ -8,8 +9,9 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 vi.mock('@/lib/youtube/ab-lab-acesso', () => ({ requireEditUser: vi.fn() }))
 vi.mock('@/lib/youtube/observatorio/proprio/leitura-privada', () => ({
   leituraValida: (l: unknown) => l !== null && typeof l === 'object' && 'siteId' in (l as object),
-  leituraDoEditor: async () => ({ siteId: 's' }),
+  leituraDoEditor: (...a: unknown[]) => leituraDoEditorMock(...a),
 }))
+const leituraDoEditorMock = vi.fn()
 const escopo = vi.fn()
 vi.mock('@/lib/cms/auth-guards', () => ({ requireSiteAdminScope: (...a: unknown[]) => escopo(...a) }))
 
@@ -102,7 +104,27 @@ beforeEach(() => {
   testes = { active: [], draft: [], completed: [], paused: [] }
   for (const m of [escopo, sugeridos, lerPaginaSpy, lerLinhasSpy, lerDiasSpy]) m.mockReset()
   escopo.mockResolvedValue({ ok: true })
+  leituraDoEditorMock.mockReset()
+  leituraDoEditorMock.mockResolvedValue({ siteId: 's' })
+  vi.mocked(Sentry.captureMessage).mockClear()
   cliente = stub().sb
+})
+
+describe('lerPaginaDoLab: guarda do dado privado (Phil I1, herdada de ListaCaminhoServidor)', () => {
+  it('com a prova de edição, passa o token à leitura da lista', async () => {
+    const token = { siteId: 's' }
+    leituraDoEditorMock.mockResolvedValueOnce(token)
+    await lerPaginaDoLab('s', agora, null)
+    expect(leituraDoEditorMock).toHaveBeenCalledWith('s')
+    expect(lerPaginaSpy.mock.calls[0]![3]).toBe(token)
+    expect(Sentry.captureMessage).not.toHaveBeenCalled()
+  })
+  it('sem prova: a lista abre SEM volume (token nulo, não erro) e o Sentry é avisado', async () => {
+    leituraDoEditorMock.mockResolvedValueOnce(null)
+    await expect(lerPaginaDoLab('s', agora, null)).resolves.toBeTruthy()
+    expect(lerPaginaSpy.mock.calls[0]![3]).toBeNull()
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('lerPaginaDoLab: uma leitura por visita', () => {

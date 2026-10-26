@@ -13,10 +13,10 @@ import { ctrDosValidos, diasDaDecisao, type CicloComNumero, type DiaDaDecisao } 
 import { montarPaginaDoLab } from '@/lib/youtube/ab-lab-pagina/montar'
 import type { EntradaPagina, PaginaDoLab } from '@/lib/youtube/ab-lab-pagina/tipos'
 import { lerResultadoV2 } from '@/lib/youtube/ab-types'
-import type { AbTestCardView, AbTestDraft, AbTestSiteSettings, AbTestWithVariants, ChannelLearningsData } from '@/lib/youtube/ab-types'
+import type { AbTestDraft, AbTestSiteSettings, AbTestWithVariants, ChannelLearningsData } from '@/lib/youtube/ab-types'
 import type { EligibleVideo } from './_components/video-picker-dialog'
 import {
-  getAbTestsForSite, getAbSiteSettings, getChannelLearnings, getEligibleVideosForPicker, toCardView, toDraftList, computeDashboardStats,
+  getAbTestsForSite, getAbSiteSettings, getChannelLearnings, getEligibleVideosForPicker, toCardView, toDraftList,
 } from './queries'
 import { toDisplayLabel } from './_components/ab-constants'
 
@@ -27,8 +27,6 @@ export interface PaginaLida {
   settings: AbTestSiteSettings
   learnings: ChannelLearningsData | null
   drafts: AbTestDraft[]
-  /** Painel atual (até a T7 trocar a tela): mesmos dados da mesma leitura, sem consulta extra. */
-  legado: { stats: ReturnType<typeof computeDashboardStats>; cards: AbTestCardView[]; completed: AbTestCardView[]; paused: AbTestCardView[] }
 }
 
 const ABERTOS = new Set(['draft', 'queued', 'active', 'paused'])
@@ -147,9 +145,5 @@ export async function lerPaginaDoLab(siteId: string, agora: Date, videoInicial: 
   const pagina = montarPaginaDoLab({
     ativos, concluidos, pausados, rascunhos: drafts, linhas: listaInicial.linhas, podeDeixarVariante: escopo.ok, agora,
   })
-  const legado = {
-    stats: computeDashboardStats(tests.active, tests.completed),
-    cards: ativos.map(a => a.card), completed: concluidos.map(c => c.card), paused: pausados,
-  }
-  return { pagina, listaInicial, eligibleVideos, settings, learnings, drafts, legado }
+  return { pagina, listaInicial, eligibleVideos, settings, learnings, drafts }
 }

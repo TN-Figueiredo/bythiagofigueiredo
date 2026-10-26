@@ -1,142 +1,115 @@
 'use client'
 
-import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
-import { useState, type ReactNode } from 'react'
+// Página do A/B Lab na ordem nova (M7 T11): topo com a frase, Com você, Em teste agora, Sugestões, Concluídos e Vídeos do canal.
+// Tudo vem do modelo `pagina` (leitura única do servidor). Nenhuma action é importada aqui: elas chegam por props.
+import { useEffect, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Filter, Settings, FlaskConical, Trophy, Sparkles, Pause, AlertTriangle, ImageIcon } from 'lucide-react'
+import { Plus, Filter, Settings, ImageIcon } from 'lucide-react'
 import type {
-  AbTestCardView,
   AbTestDraft,
   AbTestSiteSettings,
   ChannelLearningsData,
-  DashboardStats,
   LearningsData,
-  SuggestedVideo,
   TestType,
 } from '@/lib/youtube/ab-types'
-import { KPI } from './kpi'
-import { ActiveTestCard } from './active-test-card'
-import { CompletedRow } from './completed-row'
-import { guardarTesteAbrindo } from './abrindo-teste'
-import { DraftsBlock } from './drafts-block'
-import { LearningsPanel } from './learnings-panel'
-import { EmptyState } from './empty-state'
 import { SettingsDrawer } from './settings-drawer'
-import { updateAbSiteSettings, batchStartTests } from '../actions'
+import { updateAbSiteSettings } from '../actions'
 import { VideoPickerDialog } from './video-picker-dialog'
 import type { EligibleVideo } from './video-picker-dialog'
-import { pausaVisivel } from '@/lib/youtube/teste-youtube/nativo/pausa-visivel'
 import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
-import type { PaginaDoLab } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { PaginaDoLab, PainelDecisao, CartaoEmTeste } from '@/lib/youtube/ab-lab-pagina/tipos'
 import type { PaginaDoCanal } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
+import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
-
-/** "Iniciar Lote": contorno, nunca o primário laranja (esse é do "Novo teste"). */
-const BOTAO_LOTE = 'rounded-lg border border-cms-border bg-transparent px-4 py-2 text-sm font-medium text-cms-text hover:bg-cms-surface-hover transition-colors cursor-pointer'
+import { ListaErro } from './caminho-nativo/lista-erro'
+import type { AcoesCaminho } from './caminho-nativo/lista-caminho'
+import { FaixaComVoce } from './pagina/faixa-com-voce'
+import { SecaoEmTeste } from './pagina/secao-em-teste'
+import { SecaoConcluidos } from './pagina/secao-concluidos'
+import { PainelOQueFica, type AcoesDecisao } from './pagina/painel-o-que-fica'
+import { DialogoDia14 } from './pagina/dialogo-dia-14'
+import { VideosDoCanal, type VideosDoCanalProps } from './pagina/videos-do-canal'
+import './pagina/pagina-lab.css'
 
 export interface AbLabDashboardProps {
-  stats: DashboardStats
-  cards: AbTestCardView[]
-  drafts: AbTestDraft[]
-  completed: AbTestCardView[]
-  paused: AbTestCardView[]
-  learnings: LearningsData | null
-  channelLearnings: ChannelLearningsData | null
-  suggested: SuggestedVideo[]
+  pagina: PaginaDoLab
   settings: AbTestSiteSettings
   siteId: string
   eligibleVideos: EligibleVideo[]
-  /** Lista "Vídeos do A/B Lab" (filho assíncrono do servidor dentro de Suspense). Opcional: sem ela o painel é o de sempre. */
-  listaSlot?: ReactNode
+  drafts: AbTestDraft[]
   /** `startAbTest` vem da página (servidor): o assistente não importa a action. */
   iniciarTeste: IniciarTeste
   avisoDeVolume?: LerAvisoDeVolume
-  /** F3 T7: bloco "Sugestões" (servidor, dentro de Suspense), renderizado antes do cartão de candidatos. */
-  blocoSugestoes?: React.ReactNode
-  /** M7 T5: modelo da página nova e a 1ª página da lista, da leitura única; a tela os usa a partir da T7. */
-  pagina?: PaginaDoLab
-  listaInicial?: PaginaDoCanal
+  acoesDecisao: AcoesDecisao
+  acoesCaminho: AcoesCaminho
+  lerVideos: VideosDoCanalProps['ler']
+  listaInicial: PaginaDoCanal
+  videoInicial: string | null
+  /** Bloco "Sugestões" (servidor, dentro de Suspense). */
+  blocoSugestoes?: ReactNode
+  learnings: LearningsData | null
+  channelLearnings: ChannelLearningsData | null
 }
 
-/** Cabeçalho que a lista já tem do teste (D-M6-13): título sem o prefixo "Test:" e a miniatura da original (A). */
-function cabecalhoDoCard(c: AbTestCardView): { titulo: string; miniaturaUrl: string | null } {
-  return {
-    titulo: c.name.replace(/^Test:\s*/i, ''),
-    miniaturaUrl: c.variants.find(v => v.label === 'A')?.thumbUrl ?? c.leaderThumbUrl ?? null,
-  }
+const TIPO_ROTULO: Record<TestType, string> = { thumbnail: 'Miniatura', title: 'Título', combo: 'Título e miniatura' }
+const TYPE_FILTER_LABELS: Record<'all' | TestType, string> = {
+  all: 'Todos os tipos',
+  thumbnail: 'Miniatura',
+  title: 'Título',
+  combo: 'Título e miniatura',
 }
+
+const tipoDoCartao = (c: CartaoEmTeste): TestType => (c.tipo === 'lab' ? c.card.type : 'title')
 
 export function AbLabDashboard({
-  stats,
-  cards,
-  drafts,
-  completed,
-  paused,
-  learnings,
-  channelLearnings,
-  suggested,
-  settings,
-  siteId,
-  eligibleVideos,
-  listaSlot,
-  iniciarTeste,
-  avisoDeVolume,
-  blocoSugestoes,
+  pagina, settings, siteId, eligibleVideos, drafts, iniciarTeste, avisoDeVolume, acoesDecisao, acoesCaminho, lerVideos,
+  listaInicial, videoInicial, blocoSugestoes, learnings, channelLearnings,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
   const [wizardVideo, setWizardVideo] = useState<WizardVideo | null>(null)
   const [continueDraft, setContinueDraft] = useState<AbTestDraft | null>(null)
-  const [selectedForBatch, setSelectedForBatch] = useState<Set<string>>(new Set())
   const [typeFilter, setTypeFilter] = useState<'all' | TestType>('all')
   const [filterOpen, setFilterOpen] = useState(false)
-  const [showAllCompleted, setShowAllCompleted] = useState(false)
-  // Guarda D-8: UMA função (`abrirAssistente`) para as três portas do "Iniciar teste" do nosso; `handleContinueDraft` abre direto.
-  const assistente = useControleAssistente({ onAbrir: setWizardVideo, atualizar: () => router.refresh(), comLista: listaSlot !== undefined })
-  const { abrirAssistente } = assistente
+  const [painel, setPainel] = useState<{ dados: PainelDecisao; origem: HTMLElement | null } | null>(null)
+  const [dia14, setDia14] = useState<{ linha: LinhaDoCaminho; origem: HTMLElement | null } | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
 
-  const TYPE_FILTER_LABELS: Record<typeof typeFilter, string> = {
-    all: 'Todos os tipos',
-    thumbnail: 'Miniatura',
-    title: 'Título',
-    combo: 'Título e miniatura',
+  // Guarda D-8: UMA função (`abrirAssistente`) para as portas do "Iniciar teste" do nosso; `handleContinueDraft` abre direto.
+  // A página já chega com a lista (leitura única): não há estado "carregando" a esperar.
+  const assistente = useControleAssistente({ onAbrir: setWizardVideo, atualizar: () => router.refresh(), comLista: false })
+  const { abrirAssistente, registrarLinhas } = assistente
+  // As linhas da 1ª página alimentam a guarda mesmo com "Vídeos do canal" recolhido ou vazio.
+  useEffect(() => { registrarLinhas(listaInicial.linhas) }, [listaInicial, registrarLinhas])
+
+  const filtrarTipo = (t: string | TestType): boolean => typeFilter === 'all' || t === typeFilter || t === TIPO_ROTULO[typeFilter]
+  const emTeste = pagina.emTeste.filter(c => filtrarTipo(tipoDoCartao(c)))
+  const concluidos = typeFilter === 'all'
+    ? pagina.concluidos
+    : { ...pagina.concluidos, linhas: pagina.concluidos.linhas.filter(l => filtrarTipo(l.tipo)) }
+
+  function abrirPainel(p: PainelDecisao, origem: HTMLElement): void {
+    setAviso(null)
+    setPainel({ dados: p, origem })
   }
-
-  const filterByType = <T extends { type?: string }>(items: T[]) =>
-    typeFilter === 'all' ? items : items.filter(i => i.type === typeFilter)
-
-  const filteredCards = filterByType(cards)
-  const filteredCompleted = filterByType(completed)
-  const filteredPaused = filterByType(paused)
-  const filteredDrafts = filterByType(drafts)
-
-  const visibleCompleted = showAllCompleted ? filteredCompleted : filteredCompleted.slice(0, 3)
-
-  const toggleBatchSelect = (videoId: string) => {
-    setSelectedForBatch(prev => {
-      const next = new Set(prev)
-      next.has(videoId) ? next.delete(videoId) : next.add(videoId)
-      return next
-    })
+  function fecharPainel(): void {
+    const origem = painel?.origem ?? null
+    setPainel(null)
+    origem?.focus()
   }
-
-  const handleBatchStart = async () => {
-    const ids = [...selectedForBatch]
-    if (ids.length < 2) return
-    const result = await batchStartTests(ids)
-    if (result.ok) {
-      setSelectedForBatch(new Set())
-      router.refresh()
-    }
+  function abrirDia14(linha: LinhaDoCaminho, origem: HTMLElement): void { setDia14({ linha, origem }) }
+  function fecharDia14(): void {
+    const origem = dia14?.origem ?? null
+    setDia14(null)
+    origem?.focus()
   }
-
-  function handleOpenTest(id: string, cab?: { titulo: string; miniaturaUrl: string | null }) {
-    if (cab) guardarTesteAbrindo({ id, ...cab })
-    router.push(`/cms/youtube/ab-lab/${id}`)
-  }
+  // A linha VIVA: depois de responder a página relê e a linha muda (a resposta tem de citar o `updatedAt` novo, ou "Mudar resposta" é recusada).
+  const linhaDia14 = dia14
+    ? (listaInicial.linhas.find(l => l.videoId === dia14.linha.videoId) ?? dia14.linha)
+    : null
 
   function handleContinueDraft(id: string) {
     const draft = drafts.find(d => d.id === id)
@@ -150,12 +123,6 @@ export function AbLabDashboard({
     })
   }
 
-  function handleCreateTest(_videoId: string, _type: string) {
-    // Abre o seletor; a guarda D-8 roda quando o vídeo é escolhido (`handleVideoPicked`). Desabilitado enquanto a lista carrega.
-    if (assistente.carregando) return
-    setShowPicker(true)
-  }
-
   function handleVideoPicked(video: WizardVideo) {
     setShowPicker(false)
     abrirAssistente(video)
@@ -166,282 +133,131 @@ export function AbLabDashboard({
     if (!result.ok) throw new Error(result.error ?? 'Failed to save settings')
   }
 
-  const hasAnyData = cards.length > 0 || completed.length > 0 || drafts.length > 0 || paused.length > 0
-  const showEmpty = cards.length === 0 && completed.length === 0 && drafts.length === 0 && paused.length === 0
-
   return (
     <ContextoAssistente.Provider value={assistente}>
     <div data-dashboard-root className="animate-ab-fade-up">
-      {/* 1. Header */}
-      <div className="animate-ab-fade-up">
-        <div className="flex items-center justify-between flex-wrap gap-[12px] mb-[22px]">
-          <div className="flex items-baseline gap-[14px]">
-            <h2 className="text-[22px] font-bold tracking-[-0.01em] text-cms-text m-0">A/B Lab</h2>
-            <span className="text-[13px] text-cms-text-dim">
-              {cards.length > 0
-                ? `${cards.length} ${cards.length > 1 ? 'testes nossos ativos' : 'teste nosso ativo'}`
-                : 'Nenhum teste nosso ativo'}
-            </span>
-          </div>
-          <div className="flex items-center gap-[10px]">
-            <Link
-              href="/cms/youtube/ab-lab/library"
-              className="flex items-center gap-1.5 rounded-lg border border-cms-border px-3 py-1.5 text-sm text-cms-text-muted hover:bg-cms-surface-hover"
-            >
-              <ImageIcon className="h-4 w-4" />
-              Library
-            </Link>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setFilterOpen(prev => !prev)}
-                className="inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text cursor-pointer"
-                style={{ background: 'var(--cms-surface-hover)' }}
-              >
-                <Filter size={14} aria-hidden="true" />
-                {TYPE_FILTER_LABELS[typeFilter]}
-              </button>
-              {filterOpen && (
-                <div
-                  className="absolute right-0 top-full mt-1 z-50 min-w-[160px] rounded-[10px] border border-cms-border overflow-hidden shadow-lg"
-                  style={{ background: 'var(--cms-surface)' }}
-                >
-                  {(Object.keys(TYPE_FILTER_LABELS) as Array<typeof typeFilter>).map(key => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => { setTypeFilter(key); setFilterOpen(false) }}
-                      className="w-full text-left px-[12px] py-[8px] text-[12.5px] transition-colors cursor-pointer hover:bg-cms-surface-hover"
-                      style={{
-                        color: key === typeFilter ? 'var(--cms-accent)' : 'var(--cms-text)',
-                        fontWeight: key === typeFilter ? 600 : 400,
-                        background: 'transparent',
-                        border: 'none',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {TYPE_FILTER_LABELS[key]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+      {/* 1. Topo */}
+      <div className="lab-pg flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="m-0 text-[30px] font-semibold leading-[1.15]" style={{ fontFamily: 'Georgia, serif' }}>A/B Lab</h1>
+          <p className="resumo m-0 mt-2.5 max-w-[60ch] text-[21px] font-semibold leading-[1.35]" style={{ fontFamily: 'Georgia, serif', textWrap: 'balance' }}>{pagina.topo.frase}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/cms/youtube/ab-lab/library"
+            className="lab-btn lab-alvo"
+          >
+            <ImageIcon className="h-4 w-4" aria-hidden="true" />
+            Biblioteca
+          </Link>
+          <div className="relative">
             <button
               type="button"
-              onClick={() => setShowSettings(true)}
-              aria-label="Configurações"
-              className="inline-flex items-center justify-center py-[6px] px-[11px] rounded-[9px] border whitespace-nowrap transition-[0.15s] text-cms-text-dim hover:text-cms-text cursor-pointer"
-              style={{ borderColor: 'var(--cms-border)' }}
+              onClick={() => setFilterOpen(prev => !prev)}
+              aria-haspopup="true"
+              aria-expanded={filterOpen}
+              className="lab-btn lab-alvo"
             >
-              <Settings size={14} aria-hidden="true" />
+              <Filter size={14} aria-hidden="true" />
+              {TYPE_FILTER_LABELS[typeFilter]}
             </button>
-            <button
-              type="button"
-              onClick={() => setShowPicker(true)}
-              disabled={assistente.carregando}
-              className="inline-flex items-center gap-[7px] justify-center py-[9px] px-[15px] text-[13.5px] font-semibold rounded-[9px] border border-cms-accent whitespace-nowrap transition-[0.15s] tracking-[-0.01em] bg-cms-accent cursor-pointer"
-              style={{ color: 'rgb(26, 18, 12)' }}
-            >
-              <Plus size={16} aria-hidden="true" />
-              Novo teste
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. KPI Strip */}
-      {hasAnyData && (
-        <div className="kpi-strip mb-[26px] animate-ab-fade-up" data-kpi-strip>
-          <KPI
-            label="Nossos testes ativos"
-            value={stats.activeTests}
-            icon={FlaskConical}
-          />
-          {stats.winRate === null ? (
-            <KPI
-              label="Vencedores escolhidos"
-              value="—"
-              icon={Trophy}
-            />
-          ) : (
-            <KPI
-              label="Vencedores escolhidos"
-              value={`${stats.testsWon} de ${stats.winRateBase} testes`}
-              icon={Trophy}
-              compact
-            />
-          )}
-        </div>
-      )}
-
-      {/* 2b. Lista "Vídeos do A/B Lab" (caminho do teste do YouTube) */}
-      {listaSlot}
-
-      {/* 3. DraftsBlock */}
-      {filteredDrafts.length > 0 && (
-        <div className="animate-ab-fade-up">
-          <DraftsBlock drafts={filteredDrafts} onContinue={handleContinueDraft} />
-        </div>
-      )}
-
-      {/* 4. Active Grid */}
-      {filteredCards.length > 0 && (
-        <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
-          <div className="flex items-center justify-between mb-[14px]">
-            <div className="flex items-center gap-[8px]">
-              <span className="text-xs font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes</span>
-              <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase bg-cms-green-subtle text-cms-green font-mono">
-                <span className="size-[6px] rounded-full bg-cms-green animate-ab-slot-pulse" />
-                ativos
-              </span>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px]" data-active-grid>
-            {filteredCards.map(card => (
-              <ActiveTestCard
-                key={card.id}
-                test={card}
-                onOpen={() => handleOpenTest(card.id, cabecalhoDoCard(card))}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 4b. Paused tests */}
-      {filteredPaused.length > 0 && (
-        <div className="animate-ab-fade-up" style={{ margin: '26px 0 14px' }}>
-          <div className="flex items-center justify-between mb-[14px]">
-            <div className="flex items-center gap-[8px]">
-              <span className="text-xs font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Testes</span>
-              <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase font-mono" style={{ background: 'rgba(234, 179, 8, 0.08)', color: 'rgb(234, 179, 8)' }}>
-                <Pause size={10} aria-hidden="true" />
-                pausados
-              </span>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-[16px]" data-paused-grid>
-            {filteredPaused.map(card => (
+            {filterOpen && (
               <div
-                key={card.id}
-                className="rounded-[14px] border border-cms-border bg-cms-surface p-[16px] cursor-pointer hover:border-cms-accent/40 transition-colors"
-                onClick={() => handleOpenTest(card.id, cabecalhoDoCard(card))}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleOpenTest(card.id, cabecalhoDoCard(card)) }}
+                className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-[10px] border border-cms-border shadow-lg"
+                style={{ background: 'var(--cms-surface)' }}
               >
-                <div className="flex items-start justify-between gap-[12px]">
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-[14px] font-semibold text-cms-text truncate m-0">{card.name}</h4>
-                    <span className="text-[12px] text-cms-text-dim mt-[4px] block">
-                      {card.durationDays === undefined ? `Dia ${card.dayOf + 1}` : rotuloDoDia(card.dayOf, Math.max(card.dayOf, card.durationDays))}{card.confidence === null ? '' : <> &middot; {Math.round(card.confidence)}% confiança</>}
-                    </span>
-                  </div>
-                  {card.statusNote && (
-                    <span
-                      className="inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-[6px] text-xs font-medium shrink-0"
-                      style={{ background: 'rgba(234, 179, 8, 0.1)', color: 'rgb(234, 179, 8)' }}
-                    >
-                      <AlertTriangle size={11} aria-hidden="true" />
-                      {card.pausaYoutube ? (pausaVisivel(card.pausaYoutube, new Date()).frase ?? card.statusNote) : card.statusNote}
-                    </span>
-                  )}
-                </div>
+                {(Object.keys(TYPE_FILTER_LABELS) as Array<'all' | TestType>).map(key => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => { setTypeFilter(key); setFilterOpen(false) }}
+                    className="w-full min-h-11 cursor-pointer px-3 py-2 text-left text-[13px] transition-colors hover:bg-cms-surface-hover"
+                    style={{
+                      color: key === typeFilter ? 'var(--cms-accent)' : 'var(--cms-text)',
+                      fontWeight: key === typeFilter ? 600 : 400,
+                      background: 'transparent',
+                      border: 'none',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {TYPE_FILTER_LABELS[key]}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 4b. F3 T7: bloco Sugestões (servidor), antes dos candidatos */}
-      {blocoSugestoes && <div className="animate-ab-fade-up" style={{ margin: '26px 0 0' }}>{blocoSugestoes}</div>}
-
-      {/* 5. Candidatos (fora da contagem) — shown when available */}
-      {suggested.length > 0 && (
-        <div className="animate-ab-fade-up" style={{ margin: '26px 0 0' }}>
-          {/* Hero banner only when empty */}
-          {showEmpty && (
-            <div
-              className="rounded-[14px] p-[28px] mb-[26px] overflow-hidden relative"
-              style={{
-                background: 'linear-gradient(120deg, var(--cms-surface), var(--cms-bg-side))',
-                border: '1px solid var(--cms-border, #332D25)',
-              }}
-            >
-              <div className="absolute opacity-[0.06]" style={{ right: -30, top: -30 }}>
-                <FlaskConical size={200} aria-hidden="true" />
-              </div>
-              <div className="relative max-w-[560px]">
-                <span className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-[10.5px] font-semibold tracking-[0.06em] uppercase font-mono" style={{ background: 'var(--accent-soft, rgba(255,130,64,0.08))', color: 'var(--cms-accent)' }}>
-                  <Sparkles size={11} aria-hidden="true" />
-                  Sugerido pelo Intelligence Engine
-                </span>
-                <h3 className="text-[24px] font-semibold leading-[1.2] mt-[14px] mb-[8px] m-0">
-                  {suggested.length} {suggested.length > 1 ? 'vídeos que valem' : 'vídeo que vale'} a pena testar agora
-                </h3>
-                <p className="text-[14px] text-cms-text-dim leading-[1.5] m-0">
-                  O sistema monitora o CTR de cada vídeo contra a mediana do seu canal. Estes estão abaixo do potencial — um teste A/B pode recuperar cliques que você está perdendo todo dia.
-                </p>
-              </div>
-            </div>
-          )}
-          <div className="flex items-start justify-between gap-3 mb-[14px]">
-            <div>
-              <h2 className="text-[17px] font-semibold leading-[1.3] m-0 text-cms-text" style={{ fontFamily: 'Georgia, serif' }}>Candidatos (fora da contagem)</h2>
-              <p className="text-[12.5px] text-cms-text-muted m-0 mt-1">Vídeos seus com 1.000 views ou mais, publicados há mais de 14 dias e sem teste nos últimos 60 dias. Não entram no número de Sugestões.</p>
-            </div>
-            {!showEmpty && selectedForBatch.size >= 2 && (
-              <button type="button" onClick={handleBatchStart} className={BOTAO_LOTE}>
-                Iniciar Lote ({selectedForBatch.size})
-              </button>
             )}
           </div>
-          {showEmpty && selectedForBatch.size >= 2 && (
-            <div className="flex justify-end mb-[14px]">
-              <button
-                type="button"
-                onClick={handleBatchStart}
-                className={BOTAO_LOTE}
-              >
-                Iniciar Lote ({selectedForBatch.size})
-              </button>
-            </div>
-          )}
-          <EmptyState
-            suggested={suggested}
-            onCreate={handleCreateTest}
-            desabilitado={assistente.carregando}
-            selectedForBatch={selectedForBatch}
-            onToggleBatchSelect={toggleBatchSelect}
-          />
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            aria-label="Configurações"
+            className="lab-btn lab-alvo"
+          >
+            <Settings size={14} aria-hidden="true" />
+            <span className="sr-only sm:not-sr-only">Ajustes</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPicker(true)}
+            disabled={assistente.carregando}
+            className="lab-btn pri lab-alvo"
+          >
+            <Plus size={16} aria-hidden="true" />
+            Novo teste
+          </button>
+        </div>
+      </div>
+      {aviso ? <p className="lab-pg lab-aviso" role="status">{aviso}</p> : null}
+
+      {/* 2. Com você */}
+      <div data-secao="com-voce">
+        <FaixaComVoce
+          itens={pagina.comVoce.itens}
+          vazio={pagina.comVoce.vazio}
+          onAbrirPainel={abrirPainel}
+          onAbrirDia14={abrirDia14}
+          onContinuarRascunho={handleContinueDraft}
+          onNovoTeste={() => setShowPicker(true)}
+          onAbrirTeste={id => router.push(`/cms/youtube/ab-lab/${id}`)}
+        />
+      </div>
+
+      {/* 3. Em teste agora */}
+      {emTeste.length > 0 && (
+        <div data-secao="em-teste">
+          <SecaoEmTeste cartoes={emTeste} onAbrirPainel={abrirPainel} onAbrirDia14={abrirDia14} />
         </div>
       )}
 
-      {/* 6. Completed + Learnings */}
-      {filteredCompleted.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-[16px] mt-[26px] items-start animate-ab-fade-up">
-          <div className="rounded-[14px] border border-cms-border bg-cms-surface p-[16px]">
-            <div className="flex items-center justify-between mb-[14px]">
-              <span className="text-xs font-semibold text-cms-text-dim uppercase tracking-[0.08em]">Concluídos</span>
-              {filteredCompleted.length > 3 && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllCompleted(prev => !prev)}
-                  className="text-[12px] text-cms-text-dim hover:text-cms-accent transition-colors cursor-pointer"
-                >
-                  {showAllCompleted ? 'ver menos' : `ver todos (${filteredCompleted.length})`}
-                </button>
-              )}
-            </div>
-            {visibleCompleted.map(test => (
-              <CompletedRow key={test.id} test={test} onOpen={() => handleOpenTest(test.id, cabecalhoDoCard(test))} />
-            ))}
-          </div>
-          <LearningsPanel learnings={learnings} channelLearnings={channelLearnings} totalTests={stats.completedTests} />
-        </div>
+      {/* 4. Sugestões (servidor, em Suspense) */}
+      {blocoSugestoes ? <div data-secao="sugestoes" className="lab-pg mt-7 empty:hidden">{blocoSugestoes}</div> : null}
+
+      {/* 5. Concluídos */}
+      <SecaoConcluidos
+        concluidos={concluidos}
+        temHistorico={pagina.temHistorico}
+        learnings={learnings}
+        channelLearnings={channelLearnings}
+        onAbrirPainel={abrirPainel}
+      />
+
+      {/* 6. Vídeos do canal (recolhido) */}
+      <div data-secao="videos-do-canal">
+        <ListaErro>
+          <VideosDoCanal inicial={listaInicial} videoInicial={videoInicial} acoes={acoesCaminho} ler={lerVideos} />
+        </ListaErro>
+      </div>
+
+      {/* Diálogos, fora do fluxo */}
+      {painel && <PainelOQueFica painel={painel.dados} acoes={acoesDecisao} onFechar={fecharPainel} onAviso={setAviso} />}
+      {dia14 && linhaDia14 && (
+        <DialogoDia14
+          linha={linhaDia14}
+          acoes={acoesCaminho}
+          atualizar={() => router.refresh()}
+          onFechar={fecharDia14}
+        />
       )}
 
-      {/* 7. SettingsDrawer */}
       {showSettings && (
         <SettingsDrawer
           settings={settings}
@@ -450,7 +266,6 @@ export function AbLabDashboard({
         />
       )}
 
-      {/* 8. VideoPickerDialog */}
       {showPicker && (
         <VideoPickerDialog
           eligibleVideos={eligibleVideos}
@@ -460,7 +275,6 @@ export function AbLabDashboard({
         />
       )}
 
-      {/* 9. AbCreateWizard */}
       {wizardVideo && (
         <AbCreateWizard
           key={continueDraft?.id ?? wizardVideo.id}

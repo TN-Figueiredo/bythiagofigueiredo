@@ -29,8 +29,8 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/video-picker-dialog', () 
 
 import { NewTestClient } from '@/app/cms/(authed)/youtube/ab-lab/new/client'
 import { AbLabDashboard } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-lab-dashboard'
-import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import { makeDraft } from './helpers/ab-fixtures'
+import { propsDoLab } from './helpers/ab-lab-pagina-props'
 
 beforeEach(() => { push.mockClear(); vi.spyOn(console, 'error').mockImplementation(() => undefined) })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
@@ -44,14 +44,9 @@ describe('M6: onAbrirExistente nos hospedeiros', () => {
     fireEvent.click(screen.getByText('abrir-ativo'))
     expect(push).toHaveBeenLastCalledWith('/cms/youtube/ab-lab/x2')
   })
-  const base = {
-    stats: { activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 },
-    cards: [], completed: [], paused: [], learnings: null, channelLearnings: null, suggested: [],
-    settings: { ...AB_SITE_SETTINGS_DEFAULTS }, siteId: 's', eligibleVideos: [], iniciarTeste: vi.fn(),
-  }
   const abrirAssistente = () => { fireEvent.click(screen.getByRole('button', { name: 'Novo teste' })); fireEvent.click(screen.getByText('Escolher Vídeo 1')) }
   it('painel: rascunho fora da lista local navega; teste em outro status navega para a ficha', () => {
-    render(<AbLabDashboard {...base} drafts={[]} />)
+    render(<AbLabDashboard {...propsDoLab({ drafts: [] })} />)
     abrirAssistente()
     fireEvent.click(screen.getByText('abrir-draft'))
     expect(push).toHaveBeenLastCalledWith('/cms/youtube/ab-lab/new?draft=x1')
@@ -59,7 +54,7 @@ describe('M6: onAbrirExistente nos hospedeiros', () => {
     expect(push).toHaveBeenLastCalledWith('/cms/youtube/ab-lab/x2')
   })
   it('painel: rascunho que está na lista local abre no lugar, sem navegar', () => {
-    render(<AbLabDashboard {...base} drafts={[makeDraft({ id: 'x1', videoId: 'v-x1' })]} />)
+    render(<AbLabDashboard {...propsDoLab({ drafts: [makeDraft({ id: 'x1', videoId: 'v-x1' })] })} />)
     abrirAssistente()
     fireEvent.click(screen.getByText('abrir-draft'))
     expect(push).not.toHaveBeenCalled()

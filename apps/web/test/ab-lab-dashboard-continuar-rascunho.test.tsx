@@ -2,9 +2,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import { AbLabDashboard } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-lab-dashboard'
 import { makeDraft } from './helpers/ab-fixtures'
+import { propsDoLab } from './helpers/ab-lab-pagina-props'
 
 const push = vi.fn()
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
@@ -24,16 +24,11 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/video-picker-dialog', () 
   ),
 }))
 
-const base = {
-  stats: { activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 },
-  cards: [], drafts: [makeDraft({ videoId: 'uuid-1' })], completed: [], paused: [], learnings: null, channelLearnings: null,
-  suggested: [], settings: { ...AB_SITE_SETTINGS_DEFAULTS }, siteId: 's', eligibleVideos: [],
-}
 afterEach(() => { cleanup(); push.mockClear() })
 
 describe('seletor: continuar rascunho fora da lista local (M7 M1)', () => {
   it('id ausente de drafts abre pela rota com ?draft=, nunca fecha sem nada', () => {
-    render(<AbLabDashboard {...base} />)
+    render(<AbLabDashboard {...propsDoLab({ drafts: [makeDraft({ videoId: 'uuid-1' })] })} />)
     fireEvent.click(screen.getByRole('button', { name: 'Novo teste' }))
     fireEvent.click(screen.getByText('Continuar rascunho fantasma'))
     expect(push).toHaveBeenCalledWith('/cms/youtube/ab-lab/new?draft=draft-fora')

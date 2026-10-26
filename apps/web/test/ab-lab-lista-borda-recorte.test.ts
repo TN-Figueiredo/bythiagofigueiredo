@@ -246,5 +246,16 @@ describe('lerVideosDoCanal (action)', () => {
     expect(await lerVideosDoCanal(pedido)).toEqual({ ok: true, pagina: { linhas: [] } })
     expect(lerPaginaMock.mock.calls[1]![1]).toBe('site-da-sessao')
   })
+  it('guarda do dado privado: passa o token da prova de edição; sem prova passa nulo (lista sem volume, nunca erro)', async () => {
+    requireEditUser.mockResolvedValue({ siteId: 's', userId: 'u' })
+    lerPaginaMock.mockReset()
+    lerPaginaMock.mockResolvedValue({ linhas: [] })
+    vi.mocked(leituraDoEditor).mockResolvedValueOnce(token)
+    await lerVideosDoCanal(pedido)
+    expect(lerPaginaMock.mock.calls[0]![3]).toBe(token)
+    vi.mocked(leituraDoEditor).mockResolvedValueOnce(null)
+    expect(await lerVideosDoCanal(pedido)).toEqual({ ok: true, pagina: { linhas: [] } })
+    expect(lerPaginaMock.mock.calls[1]![3]).toBeNull()
+  })
 })
 void lerPaginaDoCanal

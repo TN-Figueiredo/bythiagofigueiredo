@@ -43,6 +43,7 @@ import { AbLabDashboard } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab
 import type { DashboardStats, AbTestSiteSettings } from '@/lib/youtube/ab-types'
 import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import { makeCardView, makeCompleted, makeDraft, makeLearnings, makeSuggestion, makeSuggestions } from './helpers/ab-fixtures'
+import { propsDoLab, paginaVazia } from './helpers/ab-lab-pagina-props'
 
 afterEach(() => cleanup())
 
@@ -355,75 +356,21 @@ describe('EmptyState', () => {
 })
 
 /* ============================================================
- * AbLabDashboard (shell)
+ * AbLabDashboard (casca; a composição inteira está em ab-lab-pagina-composicao.test.tsx)
  * ============================================================ */
 describe('AbLabDashboard', () => {
-  const baseStats: DashboardStats = {
-    activeTests: 2, winRate: 75,
-    completedTests: 4, winRateBase: 4, testsWon: 3,
-  }
-  const baseSettings: AbTestSiteSettings = { ...AB_SITE_SETTINGS_DEFAULTS }
-  const baseProps = {
-    stats: baseStats,
-    cards: [] as ReturnType<typeof makeCardView>[],
-    drafts: [] as ReturnType<typeof makeDraft>[],
-    completed: [] as ReturnType<typeof makeCompleted>[],
-    paused: [] as ReturnType<typeof makeCardView>[],
-    learnings: null,
-    channelLearnings: null,
-    suggested: [] as ReturnType<typeof makeSuggestion>[],
-    settings: baseSettings,
-    siteId: 'site-1',
-    eligibleVideos: [],
-  }
-
   beforeEach(() => {
     mockRouterPush.mockClear()
   })
 
-  it('renders KPI strip when completed tests exist', () => {
-    const { container } = render(
-      <AbLabDashboard {...baseProps} cards={[makeCardView()]} completed={[makeCompleted()]} />,
-    )
-    const kpiStrip = container.querySelector('[data-kpi-strip]')
-    expect(kpiStrip).toBeTruthy()
-    expect(screen.getAllByText('Nossos testes ativos').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Vencedores escolhidos')).toBeTruthy()
-    expect(screen.queryAllByText(/confiança média/i)).toHaveLength(0)
-    expect(screen.queryAllByText(/lift médio/i)).toHaveLength(0)
-  })
-
-  it('win rate null mostra a frase fixa, não 0%', () => {
-    render(
-      <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 }}
-        cards={[makeCardView()]} completed={[makeCompleted()]} />,
-    )
-    expect(screen.getByText('Vencedores escolhidos')).toBeTruthy()
-    expect(screen.queryAllByText('0')).toHaveLength(0)
-    expect(screen.queryByText(/Win rate/)).toBeNull()
-  })
-
-  it('win rate numérico aparece com o percentual', () => {
-    render(
-      <AbLabDashboard {...baseProps} stats={{ ...baseStats, winRate: 50, completedTests: 3, winRateBase: 2, testsWon: 1 }}
-        cards={[makeCardView()]} completed={[makeCompleted()]} />,
-    )
-    expect(screen.queryByText('50')).toBeNull()
-    expect(screen.getByText('1 de 2 testes')).toBeTruthy()
-  })
-
-  it('shows "Nenhum teste nosso ativo" when no active tests and no draft', () => {
-    render(
-      <AbLabDashboard
-        {...baseProps}
-        stats={{ activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 }}
-      />,
-    )
-    expect(screen.getByText('Nenhum teste nosso ativo')).toBeTruthy()
+  it('mostra a frase do topo do modelo', () => {
+    render(<AbLabDashboard {...propsDoLab({ pagina: paginaVazia({ topo: { frase: 'Um teste rodando. Nada com você agora.' } }) })} />)
+    expect(screen.getByRole('heading', { level: 1, name: 'A/B Lab' })).toBeTruthy()
+    expect(screen.getByText('Um teste rodando. Nada com você agora.')).toBeTruthy()
   })
 
   it('menu de filtro usa o token --cms-surface (sem o inexistente surface-2)', () => {
-    render(<AbLabDashboard {...baseProps} cards={[makeCardView()]} />)
+    render(<AbLabDashboard {...propsDoLab()} />)
     fireEvent.click(screen.getByRole('button', { name: /Todos os tipos/ }))
     const opcao = screen.getAllByRole('button', { name: 'Título e miniatura' }).pop()!
     const menu = opcao.parentElement as HTMLElement
@@ -432,28 +379,14 @@ describe('AbLabDashboard', () => {
   })
 
   it('opens Settings drawer when Settings button is clicked', () => {
-    render(<AbLabDashboard {...baseProps} cards={[makeCardView()]} />)
-    // Initially no dialog
+    render(<AbLabDashboard {...propsDoLab()} />)
     expect(screen.queryByRole('dialog')).toBeNull()
-    // Click settings
     fireEvent.click(screen.getByLabelText('Configurações'))
-    // Dialog should appear
     expect(screen.getByRole('dialog')).toBeTruthy()
   })
 
-  it('renders active cards in a 2-col grid', () => {
-    const cards = [makeCardView(), makeCardView()]
-    const { container } = render(<AbLabDashboard {...baseProps} cards={cards} />)
-    const grid = container.querySelector('[data-active-grid]')
-    expect(grid).toBeTruthy()
-    expect(grid?.className).toContain('lg:grid-cols-2')
-    // Should have 2 articles
-    const articles = grid?.querySelectorAll('article')
-    expect(articles?.length).toBe(2)
-  })
-
   it('has animate-ab-fade-up on root element', () => {
-    const { container } = render(<AbLabDashboard {...baseProps} />)
+    const { container } = render(<AbLabDashboard {...propsDoLab()} />)
     const root = container.querySelector('[data-dashboard-root]')
     expect(root).toBeTruthy()
     expect(root?.className).toContain('animate-ab-fade-up')

@@ -1,12 +1,22 @@
-// Corpo da página do A/B Lab (M7 T5): componente de servidor assíncrono. A leitura mora AQUI, dentro do <Suspense> da página
+// Corpo da página do A/B Lab (M7 T5/T11): componente de servidor assíncrono. A leitura mora AQUI, dentro do <Suspense> da página
 // (nunca `await` no corpo do `page`). Uma leitura por visita: a lista é a 1ª página de `lerPaginaDoLab`, sem segunda ida ao banco.
 import type { ReactElement, ReactNode } from 'react'
 import { lerPaginaDoLab } from '../../pagina-borda'
-import { startAbTest, avisoDeVolumeDoTeste } from '../../actions'
+import { startAbTest, avisoDeVolumeDoTeste, endAbTest, aplicarSugerido, revertWinner, pauseAbTest, retryRestore } from '../../actions'
+import {
+  abrirFicha, lerFichaDoVideo, recomecarFicha, salvarFicha, marcarStudioAberto, enviarImagemDaFicha, lembrarNoComputador,
+  jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube, mudarRespostaDoTesteDoYouTube, lerVideosDoCanal,
+} from '../../actions-nativo'
 import { AbLabDashboard } from '../ab-lab-dashboard'
-import { ListaErro } from '../caminho-nativo/lista-erro'
-import { ListaCaminhoComPaineis } from '../caminho-nativo/lista-caminho-paineis'
-import { ACOES } from '../caminho-nativo/lista-caminho-servidor'
+import type { AcoesCaminho } from '../caminho-nativo/lista-caminho'
+import type { AcoesDecisao } from './painel-o-que-fica'
+
+export const ACOES: AcoesCaminho = {
+  abrirFicha, lerFichaDoVideo, recomecarFicha, salvarFicha, marcarStudioAberto, enviarImagemDaFicha, lembrarNoComputador,
+  jaIniciei, confirmarDetectado, naoETeste, responderTesteDoYouTube, mudarRespostaDoTesteDoYouTube, pauseAbTest, retryRestore,
+}
+
+const ACOES_DECISAO: AcoesDecisao = { encerrar: endAbTest, aplicarSugerido, voltar: revertWinner }
 
 export async function CorpoDoLab(
   { siteId, videoInicial, blocoSugestoes }: { siteId: string; videoInicial: string | null; blocoSugestoes?: ReactNode },
@@ -15,26 +25,20 @@ export async function CorpoDoLab(
   return (
     <AbLabDashboard
       siteId={siteId}
-      stats={lida.legado.stats}
-      cards={lida.legado.cards}
-      drafts={lida.drafts}
-      completed={lida.legado.completed}
-      paused={lida.legado.paused}
-      learnings={lida.learnings?.combined ?? null}
-      channelLearnings={lida.learnings}
-      suggested={[]}
+      pagina={lida.pagina}
       settings={lida.settings}
       eligibleVideos={lida.eligibleVideos}
+      drafts={lida.drafts}
       iniciarTeste={startAbTest}
       avisoDeVolume={avisoDeVolumeDoTeste}
-      pagina={lida.pagina}
+      acoesDecisao={ACOES_DECISAO}
+      acoesCaminho={ACOES}
+      lerVideos={lerVideosDoCanal}
       listaInicial={lida.listaInicial}
-      listaSlot={
-        <ListaErro key="lista-caminho">
-          <ListaCaminhoComPaineis linhas={lida.listaInicial.linhas} videoInicial={videoInicial} acoes={ACOES} />
-        </ListaErro>
-      }
+      videoInicial={videoInicial}
       blocoSugestoes={blocoSugestoes}
+      learnings={lida.learnings?.combined ?? null}
+      channelLearnings={lida.learnings}
     />
   )
 }
