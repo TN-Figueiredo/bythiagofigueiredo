@@ -284,7 +284,8 @@ export const LOTE_DE_VOLUME = 500
 const LOTE_DE_VIDEOS = 1000
 
 export interface RecorteDaLista { busca: string | null; filtro: 'testaveis' | 'todos'; pagina: number; incluirYtId: string | null }
-export interface ContagemDoCanal { testaveis: number; semVolume: number; naoLido: number; total: number; motivoNaoLido: 'sem_leitura' | 'falha' | 'poucos_dias' | null }
+/** `shorts` = acima do piso mas Short (o Studio não testa): testaveis + semVolume + naoLido + shorts = total. */
+export interface ContagemDoCanal { testaveis: number; semVolume: number; naoLido: number; shorts: number; total: number; motivoNaoLido: 'sem_leitura' | 'falha' | 'poucos_dias' | 'sem_relatorio' | null }
 /** `contagem` é SEMPRE do canal inteiro (nunca muda com a busca); `totalDoFiltro` é o da busca + filtro. */
 export interface PaginaDoCanal { linhas: LinhaDoCaminho[]; contagem: ContagemDoCanal; totalDoFiltro: number; temMais: boolean;
   /** Vídeos do filtro que ainda faltam mostrar (já descontadas as extras da página 0). */
@@ -386,15 +387,18 @@ export async function lerPaginaDoCanal(
   const formatosAcima = await lerFormatosSemDerrubar(sb, siteId, acima.map((v) => ({ id: v.id, ytId: v.youtube_video_id })))
   const testavel = new Set(acima.filter((v) => formatosAcima.get(v.id)?.isShort !== true).map((v) => v.id))
 
-  const contagem: ContagemDoCanal = { testaveis: 0, semVolume: 0, naoLido: 0, total: publicos.length, motivoNaoLido: null }
+  const contagem: ContagemDoCanal = { testaveis: 0, semVolume: 0, naoLido: 0, shorts: 0, total: publicos.length, motivoNaoLido: null }
+  let naoLidoComRelatorio = 0
   for (const v of publicos) {
     const a = volumeDe(v).acimaDoPiso
-    if (a === null) contagem.naoLido++
+    if (a === null) { contagem.naoLido++; if ((volumes.get(v.id)?.diasCobertos ?? 0) > 0) naoLidoComRelatorio++ }
     else if (a === false) contagem.semVolume++
     else if (testavel.has(v.id)) contagem.testaveis++
+    else contagem.shorts++
   }
   if (contagem.naoLido > 0) {
-    contagem.motivoNaoLido = motivo ?? 'poucos_dias'
+    // nenhum dos não lidos tem um dia de relatório: o canal não tem relatório de alcance (espera eterna), não "poucos dias"
+    contagem.motivoNaoLido = motivo ?? (naoLidoComRelatorio === 0 ? 'sem_relatorio' : 'poucos_dias')
   }
 
   const filtroEfetivo: 'testaveis' | 'todos' = r.filtro === 'testaveis' && contagem.testaveis === 0 && contagem.naoLido > 0 ? 'todos' : r.filtro

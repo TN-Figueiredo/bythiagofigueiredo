@@ -21,7 +21,7 @@ function linha(n: number, o: Partial<LinhaDoCaminho> = {}): LinhaDoCaminho {
   }
 }
 const pag = (linhas: LinhaDoCaminho[], o: Partial<PaginaDoCanal> = {}): PaginaDoCanal => ({
-  linhas, contagem: { testaveis: 31, semVolume: 4, naoLido: 0, total: 35, motivoNaoLido: null },
+  linhas, contagem: { testaveis: 31, semVolume: 4, naoLido: 0, shorts: 0, total: 35, motivoNaoLido: null },
   totalDoFiltro: 31, temMais: true, truncado: false, filtroEfetivo: 'testaveis',
   restantes: Math.max(0, (o.totalDoFiltro ?? 31) - linhas.length), extrasForaDoFiltro: 0, ...o,
 })
@@ -49,10 +49,14 @@ describe('VideosDoCanal (M7 T10)', () => {
     const b = montar(pag(lote(0, 20)), ID(3))
     expect((b.container.querySelector('details') as HTMLDetailsElement).open).toBe(true)
   })
-  it('resumo com testáveis e sem volume; ", n sem volume lido" e "(dos 2.000 mais recentes)" só quando valem', () => {
-    montar(pag(lote(0, 20), { contagem: { testaveis: 31, semVolume: 4, naoLido: 7, total: 42, motivoNaoLido: null }, truncado: true }))
-    expect(screen.getByText('31 com volume para testar, 4 sem, 7 sem volume lido (dos 2.000 mais recentes)')).toBeTruthy()
+  it('resumo com testáveis e sem volume; ", n com volume ainda não lido" e "(dos 2.000 mais recentes)" só quando valem', () => {
+    montar(pag(lote(0, 20), { contagem: { testaveis: 31, semVolume: 4, naoLido: 7, shorts: 0, total: 42, motivoNaoLido: null }, truncado: true }))
+    expect(screen.getByText('31 com volume para testar, 4 sem, 7 com volume ainda não lido (dos 2.000 mais recentes)')).toBeTruthy()
     expect(screen.getByText('A busca procura só nos 2.000 vídeos mais recentes.')).toBeTruthy()
+  })
+  it('resumo diz quantos Shorts há (a soma das parcelas fecha com o total)', () => {
+    montar(pag(lote(0, 20), { contagem: { testaveis: 2, semVolume: 1, naoLido: 0, shorts: 1, total: 4, motivoNaoLido: null } }))
+    expect(screen.getByText('2 com volume para testar, 1 sem, 1 Short')).toBeTruthy()
   })
   it('digitar espera 350 ms e chama ler uma vez; menos de 2 letras não chama', async () => {
     montar()
@@ -177,9 +181,9 @@ describe('VideosDoCanal (M7 T10)', () => {
     expect(screen.getByText('Vídeo 0 já em teste')).toBeTruthy()
   })
   it('Testáveis vazio sem busca mostra a frase do motivoNaoLido; filtroEfetivo "todos" abre com o chip Todos ativo', () => {
-    const vazio = (motivo: PaginaDoCanal['contagem']['motivoNaoLido']) => pag([], { totalDoFiltro: 0, temMais: false, contagem: { testaveis: 0, semVolume: 0, naoLido: 5, total: 5, motivoNaoLido: motivo } })
+    const vazio = (motivo: PaginaDoCanal['contagem']['motivoNaoLido']) => pag([], { totalDoFiltro: 0, temMais: false, contagem: { testaveis: 0, semVolume: 0, naoLido: 5, shorts: 0, total: 5, motivoNaoLido: motivo } })
     const casos: Array<[PaginaDoCanal['contagem']['motivoNaoLido'], RegExp]> = [
-      ['sem_leitura', /sem acesso ao Analytics do canal/], ['falha', /Não deu para ler o volume agora\./], ['poucos_dias', /menos de 3 dias de relatório/],
+      ['sem_leitura', /sem acesso ao Analytics do canal/], ['falha', /Não deu para ler o volume agora\./], ['poucos_dias', /menos de 3 dias de relatório/], ['sem_relatorio', /ainda não tem relatório de alcance/],
     ]
     for (const [motivo, re] of casos) { const m = montar(vazio(motivo)); expect(screen.getByText(re)).toBeTruthy(); m.unmount() }
     montar(pag(lote(0, 3), { filtroEfetivo: 'todos', totalDoFiltro: 3, temMais: false }))

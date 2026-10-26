@@ -143,12 +143,19 @@ describe('lerPaginaDoCanal: volume e contagem', () => {
     const p = await real(sb, 's', agora, token, recorte())
     expect(p.contagem).toMatchObject({ naoLido: 2, semVolume: 0, testaveis: 0, motivoNaoLido: 'poucos_dias' })
   })
+  it('canal sem relatório de alcance (0 dias cobertos): sem_relatorio, não poucos_dias eterno', async () => {
+    const { sb } = cliente({ videos: [vid(0), vid(1)], volume: () => [0, 0, true] })
+    const p = await real(sb, 's', agora, token, recorte())
+    expect(p.contagem).toMatchObject({ naoLido: 2, motivoNaoLido: 'sem_relatorio' })
+  })
   it('classifica: acima do piso e não Short = testável; abaixo = sem volume; privado sai; publico nulo conta como público', async () => {
     const videos = [vid(0), vid(1), vid(2), vid(3), vid(4)]
     const vol: Record<string, [number, number, boolean | null]> = { [videos[0]!.id]: ACIMA, [videos[1]!.id]: ABAIXO, [videos[2]!.id]: [2200, 10, false], [videos[3]!.id]: [2200, 10, null], [videos[4]!.id]: ACIMA }
     const { sb } = cliente({ videos, volume: (id) => vol[id], isShort: (y) => y === videos[4]!.youtube_video_id })
     const p = await real(sb, 's', agora, token, recorte())
-    expect(p.contagem).toMatchObject({ total: 4, testaveis: 2, semVolume: 1, naoLido: 0, motivoNaoLido: null })
+    expect(p.contagem).toMatchObject({ total: 4, testaveis: 2, semVolume: 1, naoLido: 0, shorts: 1, motivoNaoLido: null })
+    const c = p.contagem
+    expect(c.testaveis + c.semVolume + c.naoLido + c.shorts).toBe(c.total)
   })
   it('contagem do canal não muda com a busca; totalDoFiltro muda', async () => {
     const videos = [vid(0, { title: 'Água de coco em Bangkok' }), vid(1), vid(2)]

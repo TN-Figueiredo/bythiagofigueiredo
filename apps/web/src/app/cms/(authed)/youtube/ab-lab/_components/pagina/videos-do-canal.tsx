@@ -41,6 +41,7 @@ function VazioDoFiltro({ motivo, aoTentar }: { motivo: PaginaDoCanal['contagem']
       </p>
     )
   }
+  if (motivo === 'sem_relatorio') return <p className="m-0 text-sm text-cms-text-muted">O canal ainda não tem relatório de alcance, então o volume não pode ser lido. Escolha “Todos” para ver os vídeos.</p>
   if (motivo === 'poucos_dias') return <p className="m-0 text-sm text-cms-text-muted">O volume ainda está sendo lido (menos de 3 dias de relatório). Escolha “Todos”.</p>
   return <p className="m-0 text-sm text-cms-text-muted">Nenhum vídeo com volume para testar agora. Escolha “Todos” para ver os vídeos.</p>
 }
@@ -133,7 +134,7 @@ export function VideosDoCanal({ inicial, videoInicial, acoes, ler }: VideosDoCan
   const resto = pag.restantes
   const termoAtivo = aplicada.current
   const semLinhas = mostradas.length === 0 && carga === 'ok'
-  const resumo = `${c.testaveis} com volume para testar, ${c.semVolume} sem${c.naoLido > 0 ? `, ${c.naoLido} sem volume lido` : ''}${pag.truncado ? ' (dos 2.000 mais recentes)' : ''}`
+  const resumo = `${c.testaveis} com volume para testar, ${c.semVolume} sem${c.naoLido > 0 ? `, ${c.naoLido} com volume ainda não lido` : ''}${c.shorts > 0 ? `, ${c.shorts} ${plural(c.shorts, 'Short', 'Shorts')}` : ''}${pag.truncado ? ' (dos 2.000 mais recentes)' : ''}`
   const piso = pisoPorDia(2)
 
   const esqueleto = (
