@@ -19,8 +19,8 @@ const duas = (o: Partial<FichaLida> = {}): FichaLida => fichaLida({
     { n: 2, tipo: 'combo', titulo: 'Título da B', imagem: IMG('b') },
   ], ...o,
 })
-type NossoT = { testId: string; restoreSeq: number; dia: number; status: 'active' | 'paused'; restoreStatus?: Record<string, unknown> | null }
-const NOSSO: NossoT = { testId: 'teste-1', restoreSeq: 4, dia: 5, status: 'active' }
+type NossoT = { testId: string; restoreSeq: number; dia: number; teto: number; status: 'active' | 'paused'; restoreStatus?: Record<string, unknown> | null }
+const NOSSO: NossoT = { testId: 'teste-1', restoreSeq: 4, dia: 5, teto: 14, status: 'active' }
 const linha = (nosso: NossoT | null = null) => ({ titulo: 'Rota 66', miniaturaUrl: null, nosso, ytId: 'abcDEF12345' })
 const ok = (campos: Record<string, unknown>): ResultadoAcaoSaida => ({ ok: true, resultado: 'feito', campos: campos as never })
 const campoOk = { estado: 'ok', destino: 'original', em: '2026-10-22T14:59:00.000Z', forcado: false, escreveu: true, erro: null, attempts: 1 }

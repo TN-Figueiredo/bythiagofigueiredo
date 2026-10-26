@@ -157,7 +157,7 @@ describe('ListaCaminho: estados de linha', () => {
   })
   it('em teste no Studio com nosso pausado: linha âmbar com a data de retomar', () => {
     const l = linha(1, {
-      estado: 'em_teste_studio', registro: reg(), nosso: { testId: 't', restoreSeq: 1, dia: 2, status: 'paused' },
+      estado: 'em_teste_studio', registro: reg(), nosso: { testId: 't', restoreSeq: 1, dia: 2, teto: 14, status: 'paused' },
       labPausadoAte: '2026-11-04T03:00:00.000Z',
     })
     render(<Harness linhas={[l]} />)
@@ -165,7 +165,7 @@ describe('ListaCaminho: estados de linha', () => {
     expect(document.body.textContent).toContain('porque há teste no Studio. Retomar fica disponível a partir de 04/11.')
   })
   it('I-3: linha ainda não confirmada diz "parece haver" no selo e na pausa; a confirmada diz "Em teste no Studio" e "há"', () => {
-    const nosso = { testId: 't', restoreSeq: 1, dia: 2, status: 'paused' as const }
+    const nosso = { testId: 't', restoreSeq: 1, dia: 2, teto: 14, status: 'paused' as const }
     render(<Harness linhas={[
       linha(1, { estado: 'em_teste_studio', registro: reg({ confirmadoEm: null }), nosso, labPausadoAte: '2026-11-04T03:00:00.000Z' }),
     ]} />)
@@ -180,7 +180,7 @@ describe('ListaCaminho: estados de linha', () => {
   })
   it('passada a data com o registro aberto: Retomar espera o resultado', () => {
     const l = linha(1, {
-      estado: 'em_teste_studio', registro: reg(), nosso: { testId: 't', restoreSeq: 1, dia: 2, status: 'paused' },
+      estado: 'em_teste_studio', registro: reg(), nosso: { testId: 't', restoreSeq: 1, dia: 2, teto: 14, status: 'paused' },
       labPausadoAte: dia(1),
     })
     render(<Harness linhas={[l]} />)

@@ -297,7 +297,7 @@ describe('Já iniciei e o 2º toque', () => {
 
   it('com o nosso teste rodando o Já iniciei fica desabilitado com o motivo', () => {
     const a = acoesMock()
-    render(<FichaComStudio linha={{ ...linha, nosso: { testId: 't', restoreSeq: 0, status: 'active', dia: 3 } }} inicial={enviada()} acoes={a as unknown as AcoesFichaStudio}
+    render(<FichaComStudio linha={{ ...linha, nosso: { testId: 't', restoreSeq: 0, status: 'active', dia: 3, teto: 14 } }} inicial={enviada()} acoes={a as unknown as AcoesFichaStudio}
       fechar={vi.fn()} agora={() => AGORA_FICHA} largura="larga" aoRegistrar={vi.fn()} aoAtualizar={vi.fn()} />)
     expect((jaIniciei() as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getAllByText(FRASES.ficha.primeiroPause).length).toBeGreaterThan(0)
