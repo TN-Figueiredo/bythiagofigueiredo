@@ -116,7 +116,7 @@ function resumoIa(d: DerivadoDoVideo): ResumoIa {
   }
 }
 
-function idadeIa(b: BlocoDeIdade): IdadeIa {
+export function idadeIa(b: BlocoDeIdade): IdadeIa {
   if (b.tipo === 'nao_carregou') return { tipo: b.tipo, frase: b.frase, extra: '', pontos: [] }
   if (b.tipo === 'ainda_nao_existe') return { tipo: b.tipo, frase: b.frase, extra: '', pontos: [] }
   if (b.tipo === 'nao_medido') return { tipo: b.tipo, frase: b.motivo, extra: b.extra, pontos: [] }
