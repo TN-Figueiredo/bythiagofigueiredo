@@ -679,9 +679,129 @@ Ambiente: `next dev` local apontando para o Supabase de produção (`.env.local`
 
 ---
 
+## Ajustes do assistente e da página do teste
+
+Acréscimo do dono em 26/10, depois de criar o primeiro teste pelo assistente (teste `bb0e0649`, Aladdin). Achados em `/Users/figueiredo/Workspace/bythiagofigueiredo/.superpowers/sdd/ab-lab/lab-reordem/achados-dono-assistente.md`. Entram aqui os itens 1, 2, 4 e 5. O item 3 (rascunhos quase invisíveis) já está coberto pelo item "Continue o rascunho" da faixa Com você (Tasks 4 e 7). Continua só tela, sem migration. As Tasks 15 a 18 rodam em paralelo com as Tasks 7 a 10. As Tasks 12 a 14 cobrem também esta seção.
+
+**O que o código diz sobre o item 4 (24 horas × 10 dias)**, conferido em 26/10:
+- `tela-v2.ts:79` diz "A primeira avaliação sai até 24 horas depois do início." **É falso como promessa.** O cron `ab-evaluate` roda uma vez por dia (`vercel.json`: `0 12 * * *`). Mas só conta dia válido (`diaValido`, `decisao-v2.ts:344`), e um dia com o alcance `aguardando` não é válido. O próprio placar calcula que um dia fecha até 11 dias depois dele: `proximo_fechamento = addDays(minAguardando, 11)`, em `placar.ts:263`. Em 24 h a avaliação roda, mas não tem dia para decidir.
+- `placar-do-teste.tsx:178` diz "O primeiro dia fecha até 10 dias depois do início." quando nenhum dia foi gravado. **O sentido está certo e o número está errado:** a regra do código é 11 dias.
+- "Dia 0 de 15" vem de `diaDoTeste` (`ab-dia-do-teste.ts:11`, `Math.floor`) e de `relogioV2(...).length`. Os dois contam os dias **passados**, por isso dão 0 nas primeiras 24 h. Só o rótulo muda. A conta continua igual, porque a lógica de decisão depende dela.
+
+### Task 15: Volume no passo Revisar do assistente sem caixa vazia nem pulo (item 1)
+
+**Estimativa:** ~50K tokens (Sonnet).
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/step-revisar.tsx:122-137` (`AvisoVolume`), `:143-196` (banner `tituloDoBanner`, borda `--cms-ban-bd`)
+- Test: `apps/web/test/ab-lab-step-revisar-volume.test.tsx`
+
+**Interfaces:**
+- Consumes: `EstadoAvisoVolume` (`use-aviso-volume.ts:13`), `CartaoDeAviso`, `seloDoAvisoDeVolume`.
+
+- [ ] **Step 1: Escrever o teste que falha**
+
+```tsx
+// @vitest-environment jsdom
+it('pendente: mostra o texto "Conferindo o volume do vídeo…" com role status e aria-busy, sem caixa vazia', () => {
+  render(<StepRevisar {...base} avisoVolume="pendente" />)
+  expect(screen.getByRole('status')).toHaveTextContent('Conferindo o volume do vídeo…')
+})
+it('pendente e resolvido ocupam a mesma altura mínima (classe .rv-vol, min-height igual à do CartaoDeAviso)', () => {})
+it('enquanto o volume está pendente, o banner do topo não fica com a borda verde de "pronto"', () => {})
+```
+
+- [ ] **Step 2: Rodar e ver falhar.**
+- [ ] **Step 3: Implementar.** O estado `pendente` vira uma linha com rótulo: ícone de relógio, o texto "Conferindo o volume do vídeo…" e a barra pulsante ao lado. O contêiner fica com `min-height` igual à altura do `CartaoDeAviso` com uma linha. Assim, a troca para "Volume insuficiente" não empurra a página. O banner só usa a borda e o ícone de "pronto" (verde) quando o volume já foi lido ou deu indisponível. Com `pendente`, usa `--cms-border`. Antes de mexer, o executor reproduz a caixa verde vazia com `avisoVolume="pendente"` e confirma qual dos dois elementos a desenha (o banner ou o esqueleto). A captura do dono está em `…/images/5.png` a `14.png`.
+- [ ] **Step 4: Rodar o novo e os testes do assistente** (`npx vitest run test/ab-create-wizard test/ab-lab-step-revisar`) → PASS.
+- [ ] **Step 5: Commit**: `git commit -m "fix: conferência de volume do assistente com rótulo e altura fixa (M7 T15)"`.
+
+**Pronto quando:** em nenhum momento do passo 3 aparece uma caixa sem texto, e a troca de pendente para resolvido não muda a altura do bloco.
+
+### Task 16: "Continuar rascunho" no seletor de vídeo (item 2)
+
+**Estimativa:** ~70K tokens (Sonnet).
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/queries.ts:340-372` (`getEligibleVideosForPicker`: ler também `id` dos testes `draft` e expor `rascunhoId: string | null`)
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/video-picker-dialog.tsx` (`EligibleVideo.rascunhoId`; prop `onContinuarRascunho: (draftId: string) => void`)
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/linha-de-video.tsx`
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/ab-lab-dashboard.tsx` (liga a prop a `handleContinueDraft`, a mesma função que o item "Continuar rascunho" da faixa Com você usa)
+- Test: `apps/web/test/ab-lab-linha-de-video-rascunho.test.tsx`; ajustar o teste de `getEligibleVideosForPicker` em `apps/web/test/ab-dashboard-queries.test.ts`
+
+**Interfaces:**
+- Produces: `EligibleVideo.rascunhoId: string | null`; `LinhaDeVideo({ video, onEscolher, onContinuarRascunho })`.
+
+- [ ] **Step 1: Escrever os testes que falham**
+
+```tsx
+it('vídeo com rascunho: a linha é clicável, mostra "Continuar rascunho" e chama onContinuarRascunho(rascunhoId)', () => {})
+it('teste ativo continua bloqueado com "Teste ativo em andamento"', () => {})
+it('getEligibleVideosForPicker devolve rascunhoId do teste draft do vídeo (o mais recente quando houver dois)', () => {})
+```
+
+- [ ] **Step 2: Rodar e ver falhar.**
+- [ ] **Step 3: Implementar.** `motivoDoBloqueio` deixa de bloquear o `draft`. A linha com `rascunhoId` mostra o selo "Continuar rascunho" no lugar de "Já tem um rascunho" e chama `onContinuarRascunho`. Isso fecha o seletor e abre o assistente no passo salvo, pelo `handleContinueDraft`.
+- [ ] **Step 4: Rodar** → PASS.
+- [ ] **Step 5: Commit**: `git commit -m "feat: continuar rascunho a partir do seletor de vídeo (M7 T16)"`.
+
+**Pronto quando:** dá para abrir um rascunho a partir do seletor e ele volta no passo em que o dono parou.
+
+### Task 17: Página do teste: miniatura vazia, selo em português, prazo verdadeiro e dia contado de 1 (item 4)
+
+**Estimativa:** ~90K tokens (Sonnet).
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/ab-constants.ts:22-26` (`TYPE_META`: `thumbnail` → `'Miniatura'`, `title` → `'Título'`, `combo` → `'Título e miniatura'`; `hint` em português)
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/placar-do-teste.tsx:178, 206-209`
+- Modify: `apps/web/src/lib/youtube/ab-gravacao/tela-v2.ts:79`
+- Create: `apps/web/src/lib/youtube/ab-rotulo-dia.ts`, com `rotuloDoDia(diasPassados: number, teto: number): string`
+- Modify: os usos do rótulo do dia: `detail-header.tsx:103` e os lugares que o executor achar com `grep -rn "dayOf}\|\.dia}" src/app/cms/(authed)/youtube/ab-lab/_components`. Inclui o cartão do M7 (Task 7, selo "Dia N/teto").
+- Test: `apps/web/test/ab-lab-pagina-teste-ajustes.test.tsx`; ajustar testes que fixam "Title", "Thumbnail", "24 horas", "10 dias" ou "Dia 0"
+
+**Interfaces:**
+- Produces: `rotuloDoDia(0, 15) === 'Dia 1/15'`, `rotuloDoDia(14, 15) === 'Dia 15/15'`, `rotuloDoDia(20, 15) === 'Dia 15/15'` (teto). Com `teto` menor que 1, devolve `''`. A conta `diaDoTeste` e `relogioV2` não muda.
+- Produces: `PRAZO_FECHAMENTO_DIAS = 11`, exportado de `placar.ts` e usado em `placar.ts:263` e nos dois textos abaixo, para o texto e a conta nunca divergirem.
+
+- [ ] **Step 1: Escrever os testes que falham**
+
+```tsx
+it('placar de teste de TÍTULO: nenhuma variante desenha caixa de miniatura vazia; a linha usa a letra e o título', () => {})
+it('teste de miniatura sem imagem: "Sem miniatura" escrito, nunca um quadro vazio', () => {})
+it('selo de tipo em português: "Título", "Miniatura", "Título e miniatura"', () => {})
+it('sem dia válido (tela v2): principal "Ainda não decide: o YouTube ainda não fechou nenhum dia." e apoio "O YouTube fecha cada dia com até 11 dias de atraso. O Lab confere uma vez por dia."', () => {})
+it('placar sem dia gravado: "O primeiro dia fecha até {dd/mm}." com dd/mm = dia do início + 11 (nunca "10 dias")', () => {})
+it('rotuloDoDia: 0→"Dia 1/15", 14→"Dia 15/15", 20→"Dia 15/15"', () => {})
+```
+
+- [ ] **Step 2: Rodar e ver falhar.**
+- [ ] **Step 3: Implementar.** No placar, a miniatura só aparece quando `test_type` é `thumbnail` ou `combo`. Em teste de título, a linha começa pelo chip da letra, que já existe, sem o `span.pm4-th` vazio. Se o tipo é miniatura e falta a imagem, a linha escreve "Sem miniatura" no quadro. O texto sem dia gravado usa `proximo_fechamento` quando existe. Senão, calcula `started_at` (dia SP) + `PRAZO_FECHAMENTO_DIAS`, passado ao placar como prop `inicio`. A tela v2 deixa de prometer 24 horas.
+- [ ] **Step 4: Rodar o novo e `npx vitest run test/ab-` (só falhas)** → PASS.
+- [ ] **Step 5: Commit**: `git commit -m "fix: página do teste com selo em português, prazo de 11 dias e dia contado de 1 (M7 T17)"`.
+
+**Pronto quando:** na página do `bb0e0649`, o placar não tem quadro vazio, o selo diz "Título", os dois textos de prazo dizem a mesma regra (11 dias) e o primeiro dia aparece como "Dia 1/15".
+
+### Task 18: A página do teste diz que é teste do Lab, não do Studio (item 5)
+
+**Estimativa:** ~40K tokens (Sonnet).
+
+**Files:**
+- Modify: `apps/web/src/app/cms/(authed)/youtube/ab-lab/_components/detail-header.tsx` (linha de explicação sob o título, para testes do Lab em `active` ou `paused`)
+- Test: `apps/web/test/ab-lab-detalhe-origem.test.tsx`
+
+- [ ] **Step 1: Escrever o teste que falha.** Num teste de título em andamento, a página mostra o texto "Teste do A/B Lab: o Lab troca o título público do vídeo no YouTube em rodízio, uma versão por vez. Não é o “Testar e comparar” do Studio." Em teste de miniatura, troca "o título" por "a miniatura". Em combo, por "o título e a miniatura".
+- [ ] **Step 2: Rodar e ver falhar.**
+- [ ] **Step 3: Implementar** a frase como `p` com 13px e `--cms-text-muted`, sem ícone de alerta. Cópia proposta pelo plano: Logan e Naksu a confirmam na Task 13.
+- [ ] **Step 4: Rodar** → PASS.
+- [ ] **Step 5: Commit**: `git commit -m "feat: página do teste explica que o teste é do Lab (M7 T18)"`.
+
+**Pronto quando:** quem abre a página de um teste do Lab lê, sem clicar, que o Lab troca o título ou a miniatura públicos em rodízio e que não é o teste do Studio.
+
+**Gio, na Task 14, também confere:** passo 3 do assistente sem caixa vazia nem pulo (com a rede lenta); "Continuar rascunho" no seletor; o `bb0e0649` com o placar sem quadro vazio, o selo "Título", o prazo de 11 dias e "Dia N/15" começando em 1; a frase de origem do Lab.
+
 ## Ordem e paralelismo
 
-Tasks 1 → 2, 3, 4 (2 e 3 em paralelo; 4 depois de 2 e 3) → 5 e 6 (paralelas) → 7, 8, 9, 10 (paralelas depois de 5/6) → 11 → 12 → 13 → 14. Estimativa total: ~1,8M tokens com revisões.
+Tasks 1 → 2, 3, 4 (2 e 3 em paralelo; 4 depois de 2 e 3) → 5 e 6 (paralelas) → 7, 8, 9, 10 e 15, 16, 17, 18 (paralelas depois de 5/6; a 17 antes da 7 se as duas tocarem o selo do dia) → 11 → 12 → 13 → 14. Estimativa total: ~2,05M tokens com revisões.
 
 ## Fora do M7 (não implementar)
 
