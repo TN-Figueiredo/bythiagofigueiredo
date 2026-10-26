@@ -364,6 +364,19 @@ describe('telaV2DoTeste: regras do Phil e do Yannis', () => {
     const r = concDe(concluido({ reason: 'manual_winner', winner: O, applied: null }))
     expect(r.noAr).toEqual({ tipo: 'original' })
   })
+  it('M7 T14 D1: sugerida por aplicar + outro teste aberto => bloqueio outro_teste; sem leitura => sem_leitura; sem outro => nulo', () => {
+    const com = (outro: boolean | 'sem_leitura') => { const e = concluido(); e.outroTesteAberto = outro; return concDe(e) }
+    expect(com(true).bloqueio).toBe('outro_teste')
+    expect(com('sem_leitura').bloqueio).toBe('sem_leitura')
+    expect(com(false).bloqueio).toBeNull()
+  })
+  it('M7 T14 D1: aplicada com prazo de voltar aberto + outro teste aberto => bloqueio', () => {
+    const e = concluido({ reason: 'manual_winner', winner: B, applied: '2026-10-25T09:00:00Z', revert: '2026-11-25T09:00:00Z' })
+    e.outroTesteAberto = true
+    const r = concDe(e)
+    expect(r.voltar).toBe(true)
+    expect(r.bloqueio).toBe('outro_teste')
+  })
   describe('selo depois do Voltar (desfeita)', () => {
     const desf = (o: Parameters<typeof concluido>[0] = {}, outro?: boolean | 'sem_leitura') => {
       const e = concluido({ reason: 'manual_winner', winner: B, applied: null, restore: { thumbnail: OK() }, ...o })

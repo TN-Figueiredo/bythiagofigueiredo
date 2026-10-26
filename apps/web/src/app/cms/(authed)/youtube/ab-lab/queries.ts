@@ -1095,9 +1095,9 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ? { label: toDisplayLabel(varNoAr.label, varNoAr.is_original), desde: ultimoFechado.started_at ?? null }
     : null
 
-  // Aplicação desfeita (selo depois do Voltar): "Aplicar de novo" só sem outro teste aberto no vídeo. Só na v2. Falha na leitura = 'sem_leitura' (sem botão, motivo próprio, Sentry).
+  // Concluído v2 (aplicar, voltar, aplicar de novo): os controles só sem outro teste aberto no vídeo. Só na v2. Falha na leitura = 'sem_leitura' (sem botão, motivo próprio, Sentry).
   let outroTesteAberto: boolean | 'sem_leitura' = false
-  if (regraDoTeste(test) === 'v2' && test.status === 'completed' && test.winner_variant_id !== null && test.winner_applied_at === null) {
+  if (regraDoTeste(test) === 'v2' && test.status === 'completed') {
     try {
       const outro = await getSupabaseServiceClient().from('ab_tests').select('id')
         .eq('site_id', test.site_id).eq('youtube_video_id', test.youtube_video_id).neq('id', test.id)

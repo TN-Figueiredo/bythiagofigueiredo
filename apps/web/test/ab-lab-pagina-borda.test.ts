@@ -228,6 +228,27 @@ describe('lerPaginaDoLab: outroTesteAberto por Set', () => {
   })
 })
 
+describe('lerPaginaDoLab: concluído com sugerida e outro teste aberto no vídeo (M7 T14 Gio D1)', () => {
+  it('sem outro teste: Com você oferece Aplicar B', async () => {
+    testes.completed = [comAplicar('c1', { video: 'vid-x' })]
+    const r = await lerPaginaDoLab('s', agora, null)
+    expect(r.pagina.comVoce.itens.some(i => i.tipo === 'aplicar')).toBe(true)
+  })
+  for (const status of ['queued', 'active', 'draft', 'paused'] as const) {
+    it(`com outro teste ${status} no mesmo vídeo: sem item aplicar, sem painel e sem ação`, async () => {
+      testes.completed = [comAplicar('c1', { video: 'vid-x' })]
+      const outro = teste('o1', { status, video: 'vid-x' })
+      if (status === 'queued' || status === 'active') testes.active = [outro]
+      else if (status === 'draft') testes.draft = [outro]
+      else testes.paused = [outro]
+      const r = await lerPaginaDoLab('s', agora, null)
+      expect(r.pagina.comVoce.itens.some(i => i.tipo === 'aplicar')).toBe(false)
+      expect(r.pagina.concluidos.linhas[0]!.acao).toBeNull()
+      expect(r.pagina.concluidos.linhas[0]!.painel ?? null).toBeNull()
+    })
+  }
+})
+
 describe('lerPaginaDoLab: permissão e volume', () => {
   it('usuário editor (requireSiteAdminScope.ok false): B do painel ativo fica "sem_permissao"', async () => {
     escopo.mockResolvedValue({ ok: false })

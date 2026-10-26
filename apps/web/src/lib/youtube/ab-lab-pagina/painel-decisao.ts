@@ -44,6 +44,7 @@ export function painelDoConcluido(
   tela: TelaConcluida,
   e: { ctrs: Record<string, number | null>; sugeridaId: string | null; revertExpiresAt: string | null; agora: Date },
 ): PainelDecisao | null {
+  if (tela.bloqueio !== null) return null // outro teste aberto no vídeo: o servidor recusaria
   const aplicada = tela.noAr.tipo === 'aplicada' ? tela.noAr : null
   // dupla guarda: o servidor recusa depois do prazo (revert_expires_at <= agora)
   const prazoAberto = e.revertExpiresAt !== null && Date.parse(e.revertExpiresAt) > e.agora.getTime()

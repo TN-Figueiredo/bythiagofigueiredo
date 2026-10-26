@@ -71,7 +71,7 @@ export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
     }
   }
   for (const c of e.concluidos) {
-    if (!c.tela?.aplicar) continue
+    if (!c.tela?.aplicar || c.tela.bloqueio !== null) continue
     const painel = painelDoConcluido(c.card, c.tela, { ctrs: c.ctrs, sugeridaId: c.tela.aplicar.variant_id, revertExpiresAt: c.bruto.revert_expires_at, agora: e.agora })
     if (!painel) continue
     aplicar.push({ tipo: 'aplicar', testId: c.card.id, titulo: c.card.videoTitle ?? c.card.name, letra: c.tela.aplicar.letra, motivo: 'sugerida pelo teste', painel })

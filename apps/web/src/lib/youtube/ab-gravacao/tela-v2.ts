@@ -224,6 +224,8 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     else if (e.outroTesteAberto === 'sem_leitura') bloqueio = 'sem_leitura'
     else aplicarDeNovo = { variant_id: sugeridoId, letra: selo.letra }
   }
+  // Aplicar/Voltar também escrevem no ciclo do vídeo: com outro teste aberto o servidor recusa (ja_encerrado/outro_teste), então a tela não os oferece.
+  if (bloqueio === null && (aplicar !== null || voltar) && e.outroTesteAberto !== false) bloqueio = e.outroTesteAberto === true ? 'outro_teste' : 'sem_leitura'
   if (desfeitaMesmoDesfecho && selo.tipo === 'vence') {
     const normal = fraseConcluida(selo, { variantes, linhas, n, ate, ids, originalId: original?.id ?? '', sugeridoId })
     frase = {
