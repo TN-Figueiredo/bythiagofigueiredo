@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>A/B Lab reordenado (mockup M7 r5)</title>
+<title>A/B Lab reordenado (mockup M7 r6)</title>
 <style>
 /* Mockup M7 r5 (26/10/2026; r4 + Studio com vídeo próprio, respostas do dia 14 geradas das versões, painel Aplicando/falha/sem conexão; r4 =  r3 + painel "O que fica no vídeo?", dia 14 em pergunta clara, Concluídos com vencedor). Reordena /cms/youtube/ab-lab: cabeçalho com frase, "Com você", "Em teste agora", sugestões, concluídos, vídeos recolhidos.
-   Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS (miniaturas são gradientes). Seletor por URL: ?estado=a|b|b2|c|d|e|f|g|g1|g2|g3|h|h2|i&largura=1440|390&videos=1 */
+   Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS (miniaturas são gradientes). Seletor por URL: ?estado=a|b|b2|c|d|e|f|g|g1|g2|g3|h|h2|i|a-encerrar|a-pendencia|g-sem-sugerida&largura=1440|390&videos=1 */
 *,*::before,*::after{box-sizing:border-box}
 :root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
 html{background:var(--pg)}
@@ -251,6 +251,14 @@ details.vid>summary .meta{font-weight:400}
 @media (prefers-reduced-motion:no-preference){.dlg{animation:subir .18s ease-out}}
 @keyframes subir{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
 
+/* r6: Encerrar e escolher (sem pendência) e painel sem sugerida */
+.card .enc{display:flex;justify-content:flex-end;padding:4px 10px;border-top:1px solid var(--border);background:var(--surface)}
+.card .enc .btn{position:relative;z-index:2}
+.card .enc .btn svg{transform:rotate(-90deg)}
+.btn.dis,.btn.dis:hover{background:#332D25;border-color:#40382D;color:#A89D88;cursor:not-allowed}
+.ov .dact.sem{flex-wrap:wrap!important}
+.dact .avp{flex:0 0 100%;margin:0;padding:8px 12px;border-radius:8px;border:1px solid var(--warn-line);background:var(--warn-bg);color:var(--warn);font-size:13px;text-align:left}
+.ov.sheet .dact.sem .btn.pri{flex:1 1 0}
 /* 390 */
 @container (max-width:700px){
   .top h1{font-size:26px}.frame .resumo{font-size:18px}
@@ -283,11 +291,12 @@ details.vid>summary .meta{font-weight:400}
 <body>
 <div class="ctl">
   <div class="grp">Estado <span class="seg" id="segE" role="group" aria-label="Estado">
-    <button data-v="a">a. Hoje real (1 ativo)</button><button data-v="b">b. 0 ativos</button><button data-v="b2">b2. Canal sem histórico</button><button data-v="c">c. 3 ativos, 2 pendências</button><button data-v="d">d. Carregando</button><button data-v="e">e. Erro</button><button data-v="f">f. Só pendências</button><button data-v="g">g. Painel: teste ativo</button><button data-v="g1">g1. Painel: Aplicando…</button><button data-v="g2">g2. Painel: falha</button><button data-v="g3">g3. Painel: sem conexão</button><button data-v="h">h. Painel: concluído</button><button data-v="h2">h2. Painel: concluído, aplicado</button><button data-v="i">i. Painel: dia 14</button></span></div>
+    <button data-v="a">a. Hoje real (1 ativo)</button><button data-v="b">b. 0 ativos</button><button data-v="b2">b2. Canal sem histórico</button><button data-v="c">c. 3 ativos, 2 pendências</button><button data-v="d">d. Carregando</button><button data-v="e">e. Erro</button><button data-v="f">f. Só pendências</button><button data-v="g">g. Painel: teste ativo</button><button data-v="g1">g1. Painel: Aplicando…</button><button data-v="g2">g2. Painel: falha</button><button data-v="g3">g3. Painel: sem conexão</button><button data-v="h">h. Painel: concluído</button><button data-v="h2">h2. Painel: concluído, aplicado</button><button data-v="i">i. Painel: dia 14</button><button data-v="a-encerrar">r6 a-encerrar</button><button data-v="a-pendencia">r6 a-pendencia</button><button data-v="g-sem-sugerida">r6 g-sem-sugerida</button></span></div>
   <div class="grp">Lista de vídeos <span class="seg" id="segV" role="group" aria-label="Lista de vídeos"><button data-v="lista">Lista</button><button data-v="carregando">Buscando</button><button data-v="vazio">Sem resultado</button></span></div>
   <div class="grp">Ao confirmar <span class="seg" id="segS" role="group" aria-label="Resposta do servidor ao confirmar"><button data-v="ok">Dá certo</button><button data-v="busy">Fica em Aplicando…</button><button data-v="falha">Falha</button><button data-v="rede">Sem conexão</button></span></div>
   <div class="grp">Largura <span class="seg" id="segL" role="group" aria-label="Largura"><button data-v="1440">1440</button><button data-v="390">390</button></span></div>
 </div>
+<div class="r2"><b>r6 (26/10, adendo).</b> Três quadros novos, sem mexer nos aprovados: <b>a-encerrar</b> (cartão do Lab ativo sem pendência com o botão “Encerrar e escolher” no rodapé), <b>a-pendencia</b> (o mesmo cartão ao lado de um com pendência, que não ganha o botão) e <b>g-sem-sugerida</b> (painel do teste ativo sem versão sugerida: nada marcado, “Escolha uma versão” desabilitado, aviso junto do botão). Cada um em 1440 e 390.</div>
 <div class="r2"><b>r5 (26/10).</b> O que mudou (Logan e Naksu, r4):<ul>
 <li>Teste do Studio e teste do Lab usam vídeos diferentes. O cartão do Studio (Sukhumvit) tem o selo “No Studio” e nenhum líder, CTR ou próxima troca. Os Concluídos têm outro vídeo contado do Studio. O dia 14 e o painel “O que o Studio mostrou?” são do Sukhumvit.</li>
 <li>Respostas do dia 14 geradas das versões reais do teste: A (original) ficou, B venceu (venceu_nova, n=2), C venceu (venceu_nova, n=3), Ficou igual, Inconclusivo, Não vi ainda. “Não vi ainda” responde “Certo”, não “Registrado”.</li>
@@ -339,6 +348,8 @@ const item=(urg,ttl,why,pz,btn,pri,open)=>{const o=open?` data-open="${open}"`:'
 const statsH=(o)=>`<div class="stats"><div><div class="k">Líder</div><div class="v">${o.lider}</div><div class="s">${o.liderSub}</div></div><div><div class="k">Próxima troca</div><div class="v num">${o.prox}</div><div class="s">automática</div></div></div>`;
 const pendH=(o)=>o.pend?`<div class="pend"><span>${I('dot')}Com você: ${o.pend}</span><button class="btn" type="button"${o.open?` data-open="${o.open}"`:''}>${o.pendBtn}</button></div>`:'';
 
+const encH=(o)=>(!o.pend&&!o.studio&&o.enc)?`<div class="enc"><button class="btn txt" type="button" data-open="${o.enc}">Encerrar e escolher${I('chev')}</button></div>`:'';
+
 const cardTitulo=(o)=>`
 <article class="card ${o.horiz?'horiz':''}"><div class="bd">
  <div class="main">
@@ -349,7 +360,7 @@ const cardTitulo=(o)=>`
     <div class="ver b"><span class="ch">B</span><q title="${o.b}">${o.b}</q>${o.ar==='B'?'<span class="air">● no ar</span>':''}</div></div></div>
  </div>
  ${o.studio?'':statsH(o)}</div>
- ${pendH(o)}
+ ${pendH(o)}${encH(o)}
 </article>`;
 
 const cardMiniatura=(o)=>`
@@ -439,6 +450,13 @@ f:{nota:'Só pendências, sem teste do Lab rodando (r2, novo): rascunho, pausado
  item(0,'Confira no Studio “'+SK+'”','Teste criado no Studio, sem ficha no Lab. O Lab não lê o resultado do Studio.','sem prazo','Abrir no Studio',0)+`</section>`+
  secAtivos('1 no Studio',cardTitulo({studio:1,g:'g3',nome:SK,a:SK,b:'Sukhumvit Road: a rua mais selvagem de Bangkok',ar:''}),1)+sugOff+concl({t1:1})+vids(false)}
 };
+const cardA6=()=>cardTitulo({horiz:1,dia:DIA,g:'g1',nome:T1,a:T1,b:T1B,ar:'A',lider:'Ainda sem líder',liderSub:'CTR não medido',prox:'~20h',enc:'t1-sem'});
+estados['a-encerrar']={nota:'r6, estado a com o botão novo: teste de título ativo, sem pendência. O rodapé do cartão é neutro (sem âmbar) e leva o botão “Encerrar e escolher” (alvo de 44 px, acima do link do cartão). Abre o mesmo painel “O que fica no vídeo?”. Não existe no cartão do Studio nem com pendência.',
+ html:()=>topo('Um teste rodando. Nada com você agora.')+voceVazio('Próxima decisão: '+D14+'.')+secAtivos('1 teste',cardA6(),1)+sugOff+concl()+vids(false,{T1:DIA})};
+estados['a-pendencia']={nota:'r6, dois cartões na grade de 2 colunas (300 px mínimos): o da esquerda, sem pendência, tem “Encerrar e escolher”; o da direita tem pendência (“Com você: aplicar B” + “Aplicar B”) e NÃO ganha o botão novo, porque a pendência já abre o mesmo painel.',
+ html:()=>topo('2 testes rodando. Uma coisa com você: aplicar B.')+`<section class="voce" aria-label="Com você">${voceCab(1)}`+item(1,'Aplique B em “'+TT+'”','O Lab não troca sozinho. B na frente, 5,2% contra 3,9% de CTR (resultado final).','hoje','Aplicar B',1,'alad-ativo')+`</section>`+
+ secAtivos('2 testes',cardTitulo({dia:2,g:'g1',nome:T1,a:T1,b:T1B,ar:'A',lider:'Ainda sem líder',liderSub:'CTR não medido',prox:'~20h',enc:'t1-sem'})+cardMiniatura({dia:15,nome:TT,ga:'g5',gb:'g2',ar:'A',lider:'B na frente',liderSub:'5,2% contra 3,9% de CTR · final',prox:'fim',pend:'aplicar B',pendBtn:'Aplicar B',open:'alad-ativo'}),0)+sugOff+concl()+vids(false,{T1:DIA,TT:15})};
+estados['g-sem-sugerida']={open:'t1-sem',html:estados['a-encerrar'].html,nota:'r6, painel do teste ativo SEM versão sugerida (poucos dados): nenhuma opção marcada, o primário diz “Escolha uma versão” e fica desabilitado, e o aviso “escolher encerra o teste agora” aparece também junto do botão. Ao marcar uma versão o botão vira “Aplicar B ao vídeo” (ou “Manter A (original)”) e habilita. A 390 é folha de baixo com o primário fixo no pé.'};
 estados.g={open:'alad-ativo',html:estados.c.html,nota:'Painel com o teste ATIVO (miniatura, dia 15 de 15): A, B e C habilitadas, B sugerida e marcada; o botão acompanha a escolha e escolher diferente da sugerida mostra um aviso. Escolher encerra o teste com essa versão. CTRs e a versão C são inventados.'};
 estados.g1={open:'alad-ativo',sim:'busy',html:estados.c.html,nota:'Painel confirmado e esperando o servidor: botão “Aplicando…” travado, opções e fechar bloqueados (na demonstração, Esc fecha; no produto, não até responder).'};
 estados.g2={open:'alad-ativo',sim:'falha',html:estados.c.html,nota:'O servidor recusou: a mensagem diz o que aconteceu e o que continua no ar; a escolha fica marcada e o botão vira “Tentar de novo”.'};
@@ -477,23 +495,24 @@ page.addEventListener('keydown',e=>{if(e.key==='Escape'){const b=document.getEle
 const VERS={
  alad:{tipo:'mini',nome:TT,sug:'B',v:[{l:'A',g:'g5',ctr:'3,9%'},{l:'B',g:'g2',ctr:'5,2%'},{l:'C',g:'g3',ctr:'4,1%'}]},
  t1:{tipo:'tit',nome:T1,sug:'B',v:[{l:'A',t:T1,ctr:'4,1%'},{l:'B',t:T1B,ctr:'4,8%'},{l:'C',t:'Main AD no Diamante 2: o jogo que virou',ctr:'4,3%'}]},
+ t1s:{tipo:'tit',nome:T1,sug:null,v:[{l:'A',t:T1,ctr:'ainda não medido'},{l:'B',t:T1B,ctr:'ainda não medido'}]},
  sk:{tipo:'tit',nome:SK,v:[{l:'A',t:SK},{l:'B',t:SKB},{l:'C',t:SKC}]}};
-const PAN={'alad-ativo':{k:'alad',modo:'ativo'},'alad-conc':{k:'alad',modo:'conc',ap:false},'t1-conc':{k:'t1',modo:'conc',ap:true,ate:'02/11'},'d14':{k:'sk',modo:'d14'}};
+const PAN={'alad-ativo':{k:'alad',modo:'ativo'},'alad-conc':{k:'alad',modo:'conc',ap:false},'t1-conc':{k:'t1',modo:'conc',ap:true,ate:'02/11'},'t1-sem':{k:'t1s',modo:'ativo'},'d14':{k:'sk',modo:'d14'}};
 const respostas=w=>{const r=[{id:'venceu_original',t:'A (original) ficou',s:w.v[0].t,ok:'a versão A (original) ficou no ar.'}];
  w.v.slice(1).forEach((v,k)=>r.push({id:'venceu_nova',n:k+2,t:v.l+' venceu',s:v.t,ok:`a versão ${v.l} ficou no ar.`}));
  r.push({id:'ficou_igual',t:'Ficou igual',s:'Sem diferença que dê para ver.',ok:'as versões ficaram iguais.'},{id:'inconclusivo',t:'Inconclusivo',s:'O Studio não chegou a um resultado.',ok:'o resultado foi inconclusivo.'},{id:'nao_vi',t:'Não vi ainda',s:'O aviso continua até você responder.',ok:null});return r};
 const ov=document.getElementById('ov'),dlg=document.getElementById('dlg');
 const FORA=['.stage','.ctl','.r2','.note'];
 let opener=null,curKey=null,RL=[];
-const rotulo=(P,l)=>P.modo==='ativo'?(l==='A'?'Manter A (original)':`Aplicar ${l} ao vídeo`):(P.ap?'Voltar à original':'Aplicar B ao vídeo');
-const avisoTxt=(P,w,l)=>P.modo!=='ativo'||l===w.sug?'':(l==='A'?`O teste indicou ${w.sug}. Manter A encerra o teste agora, sem aplicar ${w.sug}.`:`O teste indicou ${w.sug}. Escolher ${l} encerra o teste agora e coloca ${l} no ar.`);
+const rotulo=(P,l)=>!l?'Escolha uma versão':P.modo==='ativo'?(l==='A'?'Manter A (original)':`Aplicar ${l} ao vídeo`):(P.ap?'Voltar à original':'Aplicar B ao vídeo');
+const avisoTxt=(P,w,l)=>P.modo==='ativo'&&!w.sug?(l==='A'?'Manter A encerra o teste agora, sem aplicar outra versão.':l?`Escolher ${l} encerra o teste agora e coloca ${l} no ar.`:'Escolher encerra o teste agora.'):P.modo!=='ativo'||l===w.sug?'':(l==='A'?`O teste indicou ${w.sug}. Manter A encerra o teste agora, sem aplicar ${w.sug}.`:`O teste indicou ${w.sug}. Escolher ${l} encerra o teste agora e coloca ${l} no ar.`);
 const msgErro=(P,w,l,tipo)=>{
  if(tipo==='rede')return 'A conexão caiu e não deu para confirmar se mudou. Confira o vídeo no YouTube antes de tentar de novo.';
  if(P.modo==='ativo')return l==='A'?'Não consegui encerrar o teste. Ele continua rodando.':`Não consegui aplicar ${l}. A original continua no ar.`;
  return P.ap?'Não consegui voltar à original. B continua no ar.':'Não consegui aplicar B. A original continua no ar.'};
 function viewDecisao(st){
  st=st||{};
- const P=PAN[curKey],w=VERS[P.k],conc=P.modo==='conc',ar=P.ap?w.sug:'A',dflt=st.sel||(P.ap?'A':w.sug),av=avisoTxt(P,w,dflt);
+ const P=PAN[curKey],w=VERS[P.k],conc=P.modo==='conc',ar=P.ap?w.sug:'A',dflt=st.sel||(P.ap?'A':w.sug),av=avisoTxt(P,w,dflt),sem=P.modo==='ativo'&&!w.sug,nada=sem&&!dflt;
  const opts=w.v.map(v=>{
   const off=!conc?false:(P.ap?v.l!=='A':v.l!==w.sug),now=P.ap&&v.l===w.sug,tg=[];
   if(v.l==='A')tg.push('<span class="selo">Original</span>');
@@ -507,8 +526,8 @@ function viewDecisao(st){
  }).join('');
  const foot=P.ap?`Dá para voltar à original até ${P.ate}, 7 dias depois de aplicar. Depois dessa data o botão some.`:'Mudar o que está no ar muda o YouTube agora. Dá para voltar à original por 7 dias.';
  dlg.innerHTML=`<div class="dh"><div><h2 id="dt">O que fica no vídeo?</h2><p class="meta">${w.nome}${P.modo==='ativo'?' · escolher encerra o teste agora':''}</p></div><button class="btn txt xb" type="button" data-close aria-label="Fechar">${I('x')}</button></div>
- <div class="opts" role="radiogroup" aria-labelledby="dt">${opts}</div><p class="aviso ${av?'':'hidden'}" id="aviso" role="status">${av}</p>${st.err?`<p class="aviso err" id="erro" role="alert" tabindex="-1">${st.err}</p>`:''}<p class="meta foot" id="st" role="status">${foot}</p>
- <div class="dact"><button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn pri" type="button" id="go">${st.err?'Tentar de novo':rotulo(P,dflt)}</button></div>`;
+ <div class="opts" role="radiogroup" aria-labelledby="dt">${opts}</div><p class="aviso ${av&&!sem?'':'hidden'}" id="aviso" role="status">${av}</p>${st.err?`<p class="aviso err" id="erro" role="alert" tabindex="-1">${st.err}</p>`:''}<p class="meta foot" id="st" role="status">${foot}</p>
+ <div class="dact ${sem?'sem':''}">${sem?`<p class="avp" id="avp" role="status">${av}</p>`:''}<button class="btn ghost" type="button" data-close>Cancelar</button><button class="btn pri ${nada?'dis':''}" type="button" id="go" ${nada?'aria-disabled="true"':''}>${st.err?'Tentar de novo':rotulo(P,dflt)}</button></div>`;
 }
 function setBusy(){
  busy=true;dlg.setAttribute('aria-busy','true');
@@ -543,21 +562,22 @@ page.addEventListener('click',e=>{const b=e.target.closest('[data-open]');if(b){
 ov.addEventListener('click',e=>{if(e.target===ov||e.target.closest('[data-close]'))closePanel()});
 dlg.addEventListener('change',e=>{
  if(e.target.name!=='ver')return;const P=PAN[curKey],w=VERS[P.k],l=e.target.value,av=document.getElementById('aviso');
- document.getElementById('go').textContent=rotulo(P,l);
- const t=avisoTxt(P,w,l);av.classList.toggle('hidden',!t);av.textContent=t;
+ const gb=document.getElementById('go');gb.textContent=rotulo(P,l);gb.classList.remove('dis');gb.removeAttribute('aria-disabled');
+ const t=avisoTxt(P,w,l);const avp=document.getElementById('avp');if(avp)avp.textContent=t;av.classList.toggle('hidden',!t);av.textContent=t;
  const er=document.getElementById('erro');if(er)er.remove();
 });
 dlg.addEventListener('click',e=>{
  const P=PAN[curKey];if(!P)return;
  if(e.target.closest('#go')){
   if(busy)return;
+  if(!dlg.querySelector('input:checked'))return;
   const l=dlg.querySelector('input:checked').value,w=VERS[P.k];
   setBusy();
   if(S==='busy')return;
   setTimeout(()=>{
    if(curKey===null)return;
    if(S==='falha'||S==='rede'){busy=false;viewDecisao({sel:l,err:msgErro(P,w,l,S)});document.getElementById('erro').focus();return}
-   if(P.modo==='ativo')viewFeito(l==='A'?`Teste encerrado. Você manteve A (original).${w.sug!=='A'?' O teste indicava '+w.sug+'.':''}`:(l===w.sug?`Teste encerrado. ${l} no ar desde 26/10.`:`Teste encerrado. ${l} no ar desde 26/10. Você escolheu ${l}; o teste indicava ${w.sug}.`));
+   if(P.modo==='ativo')viewFeito(l==='A'?`Teste encerrado. Você manteve A (original).${w.sug&&w.sug!=='A'?' O teste indicava '+w.sug+'.':''}`:(l===w.sug||!w.sug?`Teste encerrado. ${l} no ar desde 26/10.`:`Teste encerrado. ${l} no ar desde 26/10. Você escolheu ${l}; o teste indicava ${w.sug}.`));
    else if(P.ap)viewFeito('A original voltou ao ar.');
    else viewFeito('B no ar desde 26/10. Dá para voltar à original até 02/11.');
   },600);
