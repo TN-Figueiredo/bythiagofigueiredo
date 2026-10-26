@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, CheckCircle, CircleHelp } from 'lucide-react'
+import { AlertTriangle, CheckCircle, CircleHelp, Clock } from 'lucide-react'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import type { WizardConfig } from '@/lib/youtube/ab-wizard-adapter'
 import { tetoMinimo, tetoPadrao } from '@/lib/youtube/ab-gravacao/decisao-v2'
@@ -97,7 +97,7 @@ function CartaoDeAviso({ selo, ambar, texto, tracejado = false, atributo }: { se
     <div
       role="status"
       {...atributo}
-      className="grid justify-items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text"
+      className={`rv-vol ${ALTURA_AVISO_VOLUME} grid content-center justify-items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text`}
     >
       <span
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-px text-[12px] font-semibold leading-5 ${ambar ? '' : 'bg-cms-surface-3 text-cms-text-muted'}`}
@@ -120,11 +120,24 @@ function AvisoResolucao({ aviso }: { aviso: AvisoComSelo }) {
   return <CartaoDeAviso selo={aviso.selo} ambar={aviso.kind === 'baixa'} texto={aviso.texto} />
 }
 
+/** Mesma altura mínima do cartão de aviso com uma linha: a troca de pendente para resolvido não empurra a página. */
+const ALTURA_AVISO_VOLUME = 'min-h-[92px]'
+
 function AvisoVolume({ estado }: { estado: Exclude<EstadoAvisoVolume, null> }) {
   if (estado === 'pendente') {
     return (
-      <div aria-busy="true" aria-label="Estimando o volume do teste" data-aviso-volume-sk>
-        <span className="block h-5 w-3/5 rounded bg-cms-surface-3 motion-safe:animate-pulse" />
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Estimando o volume do teste"
+        data-aviso-volume-sk
+        className={`rv-vol ${ALTURA_AVISO_VOLUME} grid content-center gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text-muted`}
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+          Conferindo o volume do vídeo…
+        </span>
+        <span className="block h-2 w-3/5 rounded bg-cms-surface-3 motion-safe:animate-pulse" aria-hidden="true" />
       </div>
     )
   }
