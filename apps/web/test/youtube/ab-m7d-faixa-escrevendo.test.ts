@@ -24,4 +24,14 @@ describe('M7d T3b: faixaDaPagina.escrevendo', () => {
   it('sem campo em andamento: false (ramo ativo sem faixa)', () => {
     expect(faixaDaPagina(view('active', null), null, AGORA).escrevendo).toBe(false)
   })
+  it('dois campos em andamento: a ilha usa o mais recente', () => {
+    const v = {
+      status: 'active', variantDb: [], youtubeVideoId: 'abc', noArAntes: null,
+      restoreStatus: {
+        title: { estado: 'em_andamento', destino: 'original', em: haMin(7), attempts: 1, escreveu: null, erro: null },
+        thumbnail: { estado: 'em_andamento', destino: 'original', em: haMin(1), attempts: 1, escreveu: null, erro: null },
+      },
+    } as unknown as AbTestBaseView
+    expect(faixaDaPagina(v, null, AGORA).emAndamentoDesde).toBe(haMin(1))
+  })
 })

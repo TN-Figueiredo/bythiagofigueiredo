@@ -111,6 +111,23 @@ describe('M7d T5: ForcarRotacao', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('x')
     expect(screen.getByRole('alertdialog')).toBeTruthy()
   })
+  it('forcar que lança: erro no diálogo e botões habilitados', async () => {
+    const forcar = vi.fn().mockRejectedValue(new Error('x'))
+    render(<ForcarRotacao testId="t1" atual="A" proxima="B" escrevendo={false} forcar={forcar} />)
+    clicar()
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Forçar rotação' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('Não foi possível falar com o servidor')
+    const d = screen.getByRole('alertdialog')
+    expect(within(d).getByRole('button', { name: 'Forçar rotação' }).hasAttribute('disabled')).toBe(false)
+    expect(within(d).getByRole('button', { name: 'Cancelar' }).hasAttribute('disabled')).toBe(false)
+  })
+  it('próxima igual à atual: não promete troca', () => {
+    render(<ForcarRotacao testId="t1" atual="B" proxima="B" escrevendo={false} forcar={vi.fn()} />)
+    clicar()
+    const t = screen.getByRole('alertdialog').textContent!
+    expect(t).toContain('A próxima versão do rodízio é a mesma que está no ar (B). Forçar só avança o rodízio; o título não muda agora.')
+    expect(t).not.toContain('será trocada')
+  })
   it('escrevendo: aria-disabled, apoio com role=status e clique sem efeito', () => {
     render(<ForcarRotacao testId="t1" atual="A" proxima="B" escrevendo forcar={vi.fn()} />)
     const b = screen.getByRole('button', { name: 'Forçar rotação' })

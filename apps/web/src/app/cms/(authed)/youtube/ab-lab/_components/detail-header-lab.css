@@ -36,3 +36,7 @@
 
 .dhl-rot-acao { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2, 8px); }
 @container (max-width: 640px) { .dhl-bt--rot { width: 100%; } .dhl-rot-acao { display: block; } }
+
+/* M7d D4: alvo de 44 px no link "A/B Lab" sem mudar o visual */
+.dhl-crumb a { position: relative; }
+.dhl-crumb a::after { content: ''; position: absolute; inset: -13px -6px; }

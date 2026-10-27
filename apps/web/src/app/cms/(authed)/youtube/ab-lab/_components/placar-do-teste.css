@@ -8,7 +8,7 @@
   --pm-la: #E0703A; --pm-lb: #6FA8DC; --pm-lc: #9CC25A; --pm-ld: #B895E0;
 }
 [data-theme="light"] .pm4 { --pm-la: #AB4216; --pm-lb: #2B6DA8; --pm-lc: #4C6B1F; --pm-ld: #7A4FA0; }
-.pm4-in { padding: var(--s5); } /* padding-top = ÚNICA fonte do espaço selo→frase (24 px); o cabeçalho não tem margem inferior */
+.pm4-in { padding: var(--s5) 0; } /* padding-top = ÚNICA fonte do espaço selo→frase (24 px); o cabeçalho não tem margem inferior */
 .pm4 h2, .pm4 h3, .pm4 p { margin: 0; }
 .pm4 .num { font-variant-numeric: tabular-nums; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
 .pm4 .dash { color: var(--cn-muted); }
@@ -20,7 +20,7 @@
 .pm4 .pm4-sum { margin: 0 0 var(--s4); font: 600 21px/1.35 Georgia, serif; max-width: 72ch; text-wrap: balance; }
 .pm4-sum small { display: block; font: 400 13px/1.45 Inter, system-ui, sans-serif; color: var(--cn-muted); margin-top: var(--s2); }
 .pm4-selos + .pm4-sum { margin-top: var(--s5); }
-@container (max-width: 640px) { .pm4-sum { font-size: 18px; } .pm4-in { padding: var(--s5) var(--s3) var(--s4); } }
+@container (max-width: 640px) { .pm4-sum { font-size: 18px; } .pm4-in { padding: var(--s5) 0 var(--s4); } }
 
 .pm4-band { max-width: 1040px; display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--cn-border); background: var(--cn-surface); margin-top: var(--s4); }
 .pm4-sum + .pm4-band { margin-top: 0; }
@@ -68,6 +68,8 @@
   .pm4-vr { grid-template-columns: 1fr 1fr 44px; grid-template-areas: "h h h" "i c x"; gap: 8px 10px; padding: 12px 0; }
   .pm4-vh { grid-area: h; align-items: flex-start; }
   .pm4-vh .pm4-th { width: 72px; }
+  .pm4-vh { flex-wrap: wrap; } /* M7d D5: o título desce para a largura inteira; 100 caracteres cabem em até 5 linhas */
+  .pm4-vt { flex: 1 1 100%; }
   .pm4-vt b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }
   .pm4-vi { grid-area: i; text-align: left; } .pm4-vc { grid-area: c; text-align: left; }
   .pm4-chev { grid-area: x; }
@@ -105,3 +107,11 @@
 .pm4-vt .ap svg, .pm4-leg svg { display: inline-block; vertical-align: -2px; }
 /* o ⓘ compartilhado: no toque a área de 44 px não pode crescer o cabeçalho */
 @media (pointer:coarse) { .pm4 .dica-i { margin: -10px 0; } }
+
+/* M7d D4: área de clique de 44 px no ⓘ sem mudar o visual */
+.pm4 .dica-i, .pv2 .dica-i { position: relative; }
+.pm4 .dica-i::after, .pv2 .dica-i::after { content: ''; position: absolute; inset: -10px; }
+
+/* M7d M3: selo "No ar" do placar, próprio (antes importava o CSS do diálogo Encerrar). Rgba literal, sem color-mix (Opera). */
+.pm4-noar { display: inline-flex; align-items: center; margin-left: 8px; font-size: 12px; line-height: 16px; font-weight: 600; padding: 1px 7px; border-radius: 99px; border: 1px solid rgba(6,182,212,.45); background: rgba(63,169,192,.13); color: #38BDF8; white-space: nowrap; }
+[data-theme="light"] .pm4-noar { border-color: rgba(14,116,144,.5); color: #0B5F82; }

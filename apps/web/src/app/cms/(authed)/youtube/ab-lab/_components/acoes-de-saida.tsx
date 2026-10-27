@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
+import * as Sentry from '@sentry/nextjs'
 import { Pause, Play, Square } from 'lucide-react'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
@@ -74,9 +75,15 @@ export function useRetomarDoCabecalho(
   const [ocupado, setOcupado] = useState(false)
   const executar = useCallback(async () => {
     setOcupado(true)
-    const res = await retomar(seqVisto)
-    if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setOcupado(false); return }
-    router.refresh()
+    try {
+      const res = await retomar(seqVisto)
+      if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setOcupado(false); return }
+      router.refresh()
+    } catch (e) {
+      Sentry.captureException(e, { tags: { area: 'ab-lab-retomar' } })
+      alert('Falha ao retomar: não foi possível falar com o servidor. Tente de novo.')
+      setOcupado(false)
+    }
   }, [retomar, seqVisto, router])
   return { executar: () => { void executar() }, ocupado, bloqueado }
 }

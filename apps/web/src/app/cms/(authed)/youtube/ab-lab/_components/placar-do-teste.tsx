@@ -14,7 +14,6 @@ import { NAO_MEDIDO } from './ab-constants'
 import { casoDoPlacar, dataCurta, dataEHora, faixaDoPlacar, fraseDoPlacar, n, ordenarPorRotulo } from './placar-texto'
 import './caminho-nativo.css'
 import './placar-do-teste.css'
-import './ab-end-test-dialog.css'
 
 export interface PlacarDoTesteProps {
   placar: Placar | null
@@ -228,7 +227,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
                         ? <img className="pm4-th" src={thumb.thumbUrl} alt={`Miniatura ${variant.label}`} referrerPolicy="no-referrer" />
                         : <span className="pm4-th pm4-th-vazia">Sem miniatura</span>)}
                       <div className="pm4-vt">
-                        <b title={tituloLinha}>{tituloLinha}{thumb?.isOriginal && <span className="dash" style={{ fontWeight: 400 }}> · original</span>}{noArLetra === variant.label && <span className="etd-tok" style={{ marginLeft: 8, fontWeight: 400 }}><span className="etd-badge">No ar</span></span>}</b>
+                        <b title={tituloLinha}>{tituloLinha}{thumb?.isOriginal && <span className="dash" style={{ fontWeight: 400 }}> · original</span>}{noArLetra === variant.label && <span className="pm4-noar">No ar</span>}</b>
                         <div className="ap"><Apoio v={v} /></div>
                       </div>
                     </div>

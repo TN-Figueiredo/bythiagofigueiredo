@@ -6,14 +6,15 @@ vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
   useCanAdminSite: () => true,
 }))
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
-import { EarlyDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/early-detail'
+import { isEarly } from '@/app/cms/(authed)/youtube/ab-lab/_components/is-early'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import type { AbTestActiveView } from '@/lib/youtube/ab-types'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 
-const ACOES = { encerrar: vi.fn(), pausar: vi.fn(), retomar: vi.fn() }
+const OK = { ok: true, resultado: 'ok' }
+const ACOES = { encerrar: vi.fn(), pausar: vi.fn(), retomar: vi.fn().mockResolvedValue(OK) }
 
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(() => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() })),
@@ -106,7 +107,7 @@ describe('M7d T3b: barra de ações no cabeçalho', () => {
     expect(document.getElementById('apoio-acoes')).toBeNull()
   })
   it('pausado comum: Retomar no cabeçalho chama retomar com restoreSeq', () => {
-    const retomar = vi.fn()
+    const retomar = vi.fn().mockResolvedValue(OK)
     const { container } = render(<ActiveDetail view={makeActiveView({ status: 'paused', restoreSeq: 7 })} encerrar={vi.fn()} pausar={vi.fn()} retomar={retomar} />)
     const b = screen.getByRole('button', { name: 'Retomar' })
     expect(container.querySelector('header')!.contains(b)).toBe(true)
@@ -114,11 +115,17 @@ describe('M7d T3b: barra de ações no cabeçalho', () => {
     fireEvent.click(b)
     expect(retomar).toHaveBeenCalledWith(7)
   })
-  it('EarlyDetail pausado também tem Retomar', () => {
-    const retomar = vi.fn()
-    render(<EarlyDetail view={makeActiveView({ status: 'paused', restoreSeq: 3 })} encerrar={vi.fn()} pausar={vi.fn()} retomar={retomar} />)
+  it('isEarly nunca vale para teste pausado (EarlyDetail não precisa de Retomar)', () => {
+    expect(isEarly(makeActiveView({ status: 'paused' }))).toBe(false)
+  })
+  it('Retomar que lança destrava o botão e avisa', async () => {
+    const retomar = vi.fn().mockRejectedValue(new Error('x'))
+    const alerta = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    render(<ActiveDetail view={makeActiveView({ status: 'paused', restoreSeq: 7 })} encerrar={vi.fn()} pausar={vi.fn()} retomar={retomar} />)
     fireEvent.click(screen.getByRole('button', { name: 'Retomar' }))
-    expect(retomar).toHaveBeenCalledWith(3)
+    await waitFor(() => expect(alerta).toHaveBeenCalled())
+    expect(screen.getByRole('button', { name: 'Retomar' })).toBeTruthy()
+    alerta.mockRestore()
   })
   it('deriva: sem Retomar no cabeçalho, com "Reconhecer e Retomar"', () => {
     render(<ActiveDetail view={makeActiveView({ status: 'paused', statusNote: DRIFT_STATUS_NOTE })} {...ACOES} />)
@@ -126,7 +133,7 @@ describe('M7d T3b: barra de ações no cabeçalho', () => {
     expect(screen.getByRole('button', { name: 'Reconhecer e Retomar' })).toBeTruthy()
   })
   it('pausa por teste do YouTube com retomarDesabilitado: Retomar aria-disabled e não chama', () => {
-    const retomar = vi.fn()
+    const retomar = vi.fn().mockResolvedValue(OK)
     render(<ActiveDetail view={makeActiveView({ status: 'paused', pausaYoutube: { aberto: true, ate: null } })} encerrar={vi.fn()} pausar={vi.fn()} retomar={retomar} />)
     const b = screen.getByRole('button', { name: 'Retomar' })
     expect(b.getAttribute('aria-disabled')).toBe('true')
