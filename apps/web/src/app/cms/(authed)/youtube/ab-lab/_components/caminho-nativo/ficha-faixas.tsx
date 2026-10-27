@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
-import { camposPendentes, type RestoreStatus } from '@/lib/youtube/ab-restore'
+import { camposPendentes, daEscolhaDoDono, type RestoreStatus } from '@/lib/youtube/ab-restore'
 import { FRASES, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
 import type { EntradaFicha } from '@/lib/youtube/teste-youtube/nativo/ficha-tela'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -35,7 +35,7 @@ export function originalDeVoltaDe(campos: RestoreStatus): 'sim' | 'restaurando' 
 /** Vale tentar de novo quando o retry humano aceita algum campo (`falhou`, ou `desistiu` fora de novo_teste/destino_invalido — mesma regra de `camposPendentes`). Pulado não volta sozinho. */
 export type MotivoNaoVolta = 'tentar' | 'conferir' | 'sem_registro'
 export function motivoDe(campos: RestoreStatus): MotivoNaoVolta {
-  return camposPendentes(campos, 'humano').length > 0 ? 'tentar' : 'conferir'
+  return camposPendentes(campos, 'humano').filter(k => !daEscolhaDoDono(campos[k]!)).length > 0 ? 'tentar' : 'conferir' // M7b: a escolha do dono se refaz pelo painel
 }
 
 const temRetrato = (rs: RestoreStatus | null | undefined): rs is RestoreStatus => rs !== null && rs !== undefined && Object.keys(rs).length > 0

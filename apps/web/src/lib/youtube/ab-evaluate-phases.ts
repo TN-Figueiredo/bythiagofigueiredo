@@ -63,6 +63,7 @@ export async function encerrarComPrazo(
           break
         }
         case 'em_andamento':
+        case 'perdido':
         case 'mudou':
           saidas.push({ testId: t.id, resultado: 'outro_escritor' })
           break

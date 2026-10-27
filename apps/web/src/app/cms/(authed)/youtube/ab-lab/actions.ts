@@ -51,7 +51,7 @@ import {
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
 import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
-import { camposPendentes, paraRestoreStatus, restoreStatusIlegivel, voltaConcluida } from '@/lib/youtube/ab-restore'
+import { camposPendentes, daEscolhaDoDono, paraRestoreStatus, restoreStatusIlegivel, voltaConcluida } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
@@ -90,7 +90,7 @@ async function concluirSaida(saida: Promise<ResultadoSaida>): Promise<ResultadoA
     return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
   }
   const out = traduzirSaida(r)
-  if (out.ok && out.resultado === 'feito') invalidarTelasDoAbLab()
+  if ((out.ok && out.resultado === 'feito') || r.resultado === 'perdido') invalidarTelasDoAbLab() // `perdido`: pode ter escrito no YouTube
   return out
 }
 
@@ -1316,7 +1316,8 @@ export async function aplicarSugerido(testId: string, varianteId: string, seqVis
     if (outro.error) { Sentry.captureException(outro.error, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
     if (((outro.data ?? []) as unknown[]).length > 0) return { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }
     let seqGrava = seq.data
-    if (camposPendentes(paraRestoreStatus(data.restore_status), 'humano').length > 0) {
+    const rsOriginal = paraRestoreStatus(data.restore_status)
+    if (camposPendentes(rsOriginal, 'humano').filter(k => !daEscolhaDoDono(rsOriginal![k]!)).length > 0) { // M7b: campo da escolha do dono não passa pela novaTentativa
       const autorizar = async (): Promise<boolean> => true // o destino é sempre a original
       let tentou: ResultadoSaida
       try {

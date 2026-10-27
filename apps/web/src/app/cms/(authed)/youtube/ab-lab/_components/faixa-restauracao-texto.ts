@@ -1,5 +1,5 @@
 import {
-  camposPendentes, lerCampoDeRestauracao, MAX_TENTATIVAS, podeDispensar, simAindaVale,
+  camposPendentes, daEscolhaDoDono, lerCampoDeRestauracao, MAX_TENTATIVAS, podeDispensar, simAindaVale,
   type CampoNome, type CampoRestauracao, type RestoreStatus,
 } from '@/lib/youtube/ab-restore'
 import { proximaVerificacao, vigiaAtrasado } from '@/lib/youtube/ab-vigia-horario'
@@ -90,7 +90,11 @@ function horaMinutoSP(d: Date): string {
 }
 
 /** Frase de nova tentativa do vigia (C, D, D2 e bloqueio). */
+/** M7b (T7a, texto do Logan): a escolha do dono que não foi aplicada nunca é repetida sozinha; o painel do teste é o caminho. */
+export const FRASE_ESCOLHA_NAO_APLICADA = 'Sua escolha não foi aplicada. Abra o painel do teste para tentar de novo. Não repetimos a troca sozinhos.'
+
 function fraseNovaTentativa(campo: CampoNome, c: CampoRestauracao, ctx: CtxFaixa): string {
+  if (daEscolhaDoDono(c)) return FRASE_ESCOLHA_NAO_APLICADA
   if (ctx.bloqueio === 'outro_teste') return 'Sem nova tentativa automática enquanto outro teste estiver em andamento neste vídeo.'
   if (ctx.bloqueio === 'pausado_variante') return 'Sem nova tentativa automática enquanto este teste estiver pausado.'
   const quando = vigiaAtrasado(ctx.vigiaUltimaExecucao, ctx.agora)
@@ -270,7 +274,7 @@ export function montarFaixa(rs: RestoreStatus | null, ctx: CtxFaixa): Faixa | nu
 const SEM_PERMISSAO = 'Só quem administra o site pode tentar de novo ou dispensar este aviso.'
 
 function acoesDaFaixa(rs: RestoreStatus, ctx: CtxFaixa): AcoesFaixa {
-  const pendentes = camposPendentes(rs, 'humano')
+  const pendentes = camposPendentes(rs, 'humano').filter(k => !daEscolhaDoDono(rs[k]!)) // a escolha do dono se refaz pelo painel
   const dispensar = (['title', 'thumbnail'] as const).filter(k => { const c = rs[k]; return c !== undefined && podeDispensar(c) })
   const comAcao = new Set<CampoNome>([...pendentes, ...dispensar])
   const exigeAdmin = [...comAcao].some(k => rs[k]?.destino !== 'original')
@@ -282,7 +286,7 @@ function acoesDaFaixa(rs: RestoreStatus, ctx: CtxFaixa): AcoesFaixa {
 /** A faixa enquanto "Tentar agora" corre (P4b-E1): os campos pendentes viram `em_andamento` agora. */
 export function faixaTentando(rs: RestoreStatus, ctx: CtxFaixa): Faixa | null {
   const agora = ctx.agora.toISOString()
-  const pendentes = camposPendentes(rs, 'humano')
+  const pendentes = camposPendentes(rs, 'humano').filter(k => !daEscolhaDoDono(rs[k]!))
   if (pendentes.length === 0) return montarFaixa(rs, ctx)
   const tentando: RestoreStatus = { ...rs }
   for (const k of pendentes) {
