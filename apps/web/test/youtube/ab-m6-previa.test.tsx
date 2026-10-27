@@ -83,10 +83,10 @@ describe('prévia do Revisar (revisar-titulo / -thumbnail / -combo)', () => {
     expect(container.textContent?.match(/TA/g)?.length).toBe(2)
   })
 
-  it('revisar-combo-sem-imagem: "Sem thumbnail" e botão da Biblioteca chamam o callback com B', () => {
+  it('revisar-combo-sem-imagem: "Sem miniatura" e botão da Biblioteca chamam o callback com B', () => {
     const cb = vi.fn()
     revisar('combo', [A, semB], { onEscolherDaBiblioteca: cb })
-    expect(screen.getByText('Sem thumbnail')).toBeTruthy()
+    expect(screen.getByText('Sem miniatura')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Escolher da Biblioteca' }))
     expect(cb).toHaveBeenCalledWith('B')
   })

@@ -205,7 +205,7 @@ describe('lerPaginaDoCanal: busca e extras', () => {
   it('página 0 sem busca inclui as extras de hoje mesmo fora do filtro; elas não reaparecem na página 1', async () => {
     const videos = Array.from({ length: 45 }, (_, i) => vid(i))
     const extra = videos[40]!
-    const nossos = [{ id: 't1', youtube_video_id: extra.youtube_video_id, status: 'active', started_at: agora.toISOString(), restore_seq: 0, restore_status: null, config: { max_duration_days: 15 } }]
+    const nossos = [{ id: 't1', youtube_video_id: extra.id, status: 'active', started_at: agora.toISOString(), restore_seq: 0, restore_status: null, config: { max_duration_days: 15 } }]
     const { sb } = cliente({ videos, volume: (id) => (id === extra.id ? ABAIXO : ACIMA), nossos })
     const p0 = await real(sb, 's', agora, token, recorte({ filtro: 'testaveis' }))
     expect(p0.linhas[0]!.videoId).toBe(extra.id)
@@ -217,7 +217,7 @@ describe('lerPaginaDoCanal: busca e extras', () => {
   it('25 testáveis + 6 extras fora do filtro: restantes = 5, página 1 traz 5 e fecha; extrasForaDoFiltro = 6', async () => {
     const videos = Array.from({ length: 31 }, (_, i) => vid(i))
     const extrasIds = new Set(videos.slice(25).map((v) => v.id))
-    const nossos = videos.slice(25).map((v, i) => ({ id: `t${i}`, youtube_video_id: v.youtube_video_id, status: 'active', started_at: agora.toISOString(), restore_seq: 0, restore_status: null, config: { max_duration_days: 15 } }))
+    const nossos = videos.slice(25).map((v, i) => ({ id: `t${i}`, youtube_video_id: v.id, status: 'active', started_at: agora.toISOString(), restore_seq: 0, restore_status: null, config: { max_duration_days: 15 } }))
     const { sb } = cliente({ videos, volume: (id) => (extrasIds.has(id) ? ABAIXO : ACIMA), nossos })
     const p0 = await real(sb, 's', agora, token, recorte({ filtro: 'testaveis' }))
     expect(p0.linhas).toHaveLength(26)
@@ -249,7 +249,7 @@ describe('lerPaginaDoCanal: busca e extras', () => {
   })
   it('nosso.teto: lê config; max_duration_days 15 → teto 15; sem config → padrão', async () => {
     const v = vid(0)
-    const nossos = [{ id: 't1', youtube_video_id: v.youtube_video_id, status: 'active', started_at: agora.toISOString(), restore_seq: 2, restore_status: null, config: { max_duration_days: 15 } }]
+    const nossos = [{ id: 't1', youtube_video_id: v.id, status: 'active', started_at: agora.toISOString(), restore_seq: 2, restore_status: null, config: { max_duration_days: 15 } }]
     const { sb } = cliente({ videos: [v], volume: () => ACIMA, nossos })
     const p = await real(sb, 's', agora, token, recorte())
     expect(p.linhas[0]!.nosso).toMatchObject({ testId: 't1', teto: 15, restoreSeq: 2 })

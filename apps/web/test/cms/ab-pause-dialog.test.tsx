@@ -52,7 +52,7 @@ describe('AbPauseDialog', () => {
 
   it('shows explanation text about restoring original thumbnail', () => {
     render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
-    expect(screen.getByText(/restaurar a thumbnail original/)).toBeTruthy()
+    expect(screen.getByText(/restaurar a miniatura original/)).toBeTruthy()
     expect(screen.getByText(/dados coletados ficam preservados/)).toBeTruthy()
     expect(screen.getByText(/retomar a qualquer momento/)).toBeTruthy()
   })

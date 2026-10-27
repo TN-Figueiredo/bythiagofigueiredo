@@ -103,12 +103,12 @@ const mockVariants = [
 const metaNula = { canal: null, publicadoEm: null, duracao: null }
 
 describe('ClickMoment', () => {
-  const props = { winnerLabel: 'B' as const, winnerColor: '#E8823C', meta: metaNula, descricao: 'Neste teste o título e a thumbnail mudam juntos.' }
+  const props = { winnerLabel: 'B' as const, winnerColor: '#E8823C', meta: metaNula, descricao: 'Neste teste o título e a miniatura mudam juntos.' }
 
   it('renderiza o cabeçalho e a frase do tipo, sem seletor Comparar/No feed', () => {
     const { container } = render(<ClickMoment variants={mockVariants} {...props} semCtr semVencedor />)
     expect(screen.getByText('O momento de clique')).toBeTruthy()
-    expect(container.textContent).toContain('É assim que cada variante aparece para o espectador. Neste teste o título e a thumbnail mudam juntos.')
+    expect(container.textContent).toContain('É assim que cada variante aparece para o espectador. Neste teste o título e a miniatura mudam juntos.')
     expect(container.textContent).not.toMatch(/Comparar|No feed/)
   })
 
@@ -140,13 +140,13 @@ describe('ClickMoment', () => {
     }
   })
 
-  it('sem miniatura: "Sem thumbnail" e botão da Biblioteca só nas não originais', () => {
+  it('sem miniatura: "Sem miniatura" e botão da Biblioteca só nas não originais', () => {
     const onEscolher = vi.fn()
     render(<ClickMoment variants={[
       { label: 'A', color: '#8A8F98', thumbUrl: null, title: 'TA', ctr: null },
       { label: 'B', color: '#E8823C', thumbUrl: null, title: 'TB', ctr: null },
     ]} {...props} semCtr semVencedor onEscolherDaBiblioteca={onEscolher} />)
-    expect(screen.getAllByText('Sem thumbnail').length).toBe(2)
+    expect(screen.getAllByText('Sem miniatura').length).toBe(2)
     const botoes = screen.getAllByRole('button', { name: 'Escolher da Biblioteca' })
     expect(botoes.length).toBe(1)
     fireEvent.click(botoes[0]!)
@@ -202,7 +202,7 @@ describe('ClickMoment (P2: semCtr / semVencedor)', () => {
     { label: 'B' as const, color: '#E8823C', thumbUrl: null, title: 'TB', ctr: 5.3 },
   ]
   const meta = { canal: null, publicadoEm: null, duracao: null }
-  const descricao = 'Neste teste o título e a thumbnail mudam juntos.'
+  const descricao = 'Neste teste o título e a miniatura mudam juntos.'
   it('prévia do wizard: sem selo de vencedor, sem CTR nem lift', () => {
     const { container } = render(<ClickMoment winnerLabel="B" winnerColor="#E8823C" variants={vs} semCtr semVencedor meta={meta} descricao={descricao} />)
     expect(container.textContent).not.toMatch(/vencedor/i)

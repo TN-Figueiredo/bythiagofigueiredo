@@ -86,31 +86,31 @@ export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, r
   const v = opcao.rotulo
 
   const lead = ambos
-    ? 'O título e a thumbnail no YouTube não são de nenhuma variante: alguém editou os dois por fora.'
+    ? 'O título e a miniatura no YouTube não são de nenhuma versão: alguém editou os dois por fora.'
     : titulo
-      ? 'O título no YouTube não é de nenhuma variante: alguém editou por fora.'
-      : 'A thumbnail no YouTube não é de nenhuma variante: alguém editou por fora.'
+      ? 'O título no YouTube não é de nenhuma versão: alguém editou por fora.'
+      : 'A miniatura no YouTube não é de nenhuma versão: alguém editou por fora.'
   const nota = ambos
-    ? `Se você continuar, o título e a thumbnail editados por fora saem do YouTube e os da variante ${v} entram no lugar. Copie o título e salve a imagem antes se quiser guardar.`
+    ? `Se você continuar, o título e a miniatura editados por fora saem do YouTube e os da versão ${v} entram no lugar. Copie o título e salve a imagem antes se quiser guardar.`
     : titulo
-      ? `Se você continuar, o título editado por fora sai do YouTube e o da variante ${v} entra no lugar. Copie-o antes se quiser guardar.`
-      : `Se você continuar, a thumbnail editada por fora sai do YouTube e a da variante ${v} entra no lugar. Salve a imagem antes se quiser guardar.`
+      ? `Se você continuar, o título editado por fora sai do YouTube e o da versão ${v} entra no lugar. Copie-o antes se quiser guardar.`
+      : `Se você continuar, a miniatura editada por fora sai do YouTube e a da versão ${v} entra no lugar. Salve a imagem antes se quiser guardar.`
   const botaoPadrao = ambos
-    ? `Trocar título e thumbnail por ${v} e encerrar`
+    ? `Trocar título e miniatura por ${v} e encerrar`
     : titulo
       ? `Trocar pelo título de ${v} e encerrar`
-      : `Trocar pela thumbnail de ${v} e encerrar`
+      : `Trocar pela miniatura de ${v} e encerrar`
 
   const compTitulo = titulo ? (
     <div className="etd-cmp">
       <div><h4>No YouTube agora</h4><p>{semLeitura(titulo.valor_atual) ? TEXTO_SEM_LEITURA : titulo.valor_atual}</p></div>
-      <div className="mine"><h4>Variante {v}</h4><p>{opcao.titulo ?? ''}</p></div>
+      <div className="mine"><h4>Versão {v}</h4><p>{opcao.titulo ?? ''}</p></div>
     </div>
   ) : null
   const compThumb = thumb ? (
     <div className="etd-cmp">
-      <div><h4>No YouTube agora</h4><Miniatura src={thumb.valor_atual || null} semLeitura={semLeitura(thumb.valor_atual)} rotulo="Thumbnail editada por fora" /></div>
-      <div className="mine"><h4>Variante {v}</h4><Miniatura src={opcao.miniatura} rotulo={`Thumbnail da variante ${v}`} /></div>
+      <div><h4>No YouTube agora</h4><Miniatura src={thumb.valor_atual || null} semLeitura={semLeitura(thumb.valor_atual)} rotulo="Miniatura editada por fora" /></div>
+      <div className="mine"><h4>Versão {v}</h4><Miniatura src={opcao.miniatura} rotulo={`Miniatura da versão ${v}`} /></div>
     </div>
   ) : null
 
@@ -134,7 +134,7 @@ export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, r
       <p className="etd-tiny" id="etd-c-n">{nota}</p>
       {ambos ? <h3 className="etd-sec">Título</h3> : null}
       {compTitulo}
-      {ambos ? <h3 className="etd-sec">Thumbnail</h3> : null}
+      {ambos ? <h3 className="etd-sec">Miniatura</h3> : null}
       {compThumb}
       {erro ? <div className="etd-msg err" role="alert">{ICONE_ERRO}<div>{erro}</div></div> : null}
     </CascaEtd>

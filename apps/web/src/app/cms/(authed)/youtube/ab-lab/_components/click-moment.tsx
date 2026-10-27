@@ -39,7 +39,7 @@ function YTThumb({ v, radius = 10, duracao, onEscolherDaBiblioteca }: { v: CardV
     return (
       <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16/9', borderRadius: radius }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={v.thumbUrl} alt={`Thumbnail variante ${v.label}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+        <img src={v.thumbUrl} alt={`Miniatura da versão ${v.label}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
         {duracao && <span className="absolute right-[6px] bottom-[6px] font-mono text-[12px] leading-4 font-semibold px-[5px] rounded" style={{ background: 'rgba(0,0,0,.8)', color: '#fff' }}>{duracao}</span>}
       </div>
     )
@@ -49,7 +49,7 @@ function YTThumb({ v, radius = 10, duracao, onEscolherDaBiblioteca }: { v: CardV
       className="semimg flex flex-col items-center justify-center gap-[4px] w-full overflow-hidden text-center text-[12px] leading-[14px]"
       style={{ aspectRatio: '16/9', borderRadius: radius, border: '1px dashed var(--etd-ctl)', color: 'var(--cms-text-muted)', background: 'var(--cms-surface-hover)' }}
     >
-      <span>Sem thumbnail</span>
+      <span>Sem miniatura</span>
       {onEscolherDaBiblioteca && v.label !== 'A' && (
         <button
           type="button"

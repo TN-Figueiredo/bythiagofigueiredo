@@ -53,7 +53,7 @@ describe('AbPauseDialog', () => {
 
   it('shows explanation text about restoring original thumbnail', () => {
     render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
-    expect(screen.getByText(/restaurar a thumbnail original/)).toBeTruthy()
+    expect(screen.getByText(/restaurar a miniatura original/)).toBeTruthy()
     expect(screen.getByText(/dados coletados ficam preservados/)).toBeTruthy()
     expect(screen.getByText(/retomar a qualquer momento/)).toBeTruthy()
   })
@@ -106,7 +106,7 @@ describe('AbPauseDialog', () => {
     render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
     expect(await screen.findByText('O teste mudou em outra aba. Reabra para decidir.')).toBeTruthy()
-    expect(screen.queryByText(/restaurar a thumbnail original/)).toBeNull()
+    expect(screen.queryByText(/restaurar a miniatura original/)).toBeNull()
     expect(screen.getByRole('button', { name: 'Recarregar' })).toBeTruthy()
     expect(screen.getAllByRole('button', { name: 'Fechar' }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
