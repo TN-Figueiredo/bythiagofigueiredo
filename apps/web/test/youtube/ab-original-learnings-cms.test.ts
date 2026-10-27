@@ -104,3 +104,37 @@ describe('M7b T7b: getLearnings conta o vencedor estatístico', () => {
     expect(await getLearnings(SITE)).toBeNull()
   })
 })
+
+describe('M7b P2: getChannelLearnings conta o vencedor estatístico (mesma regra do getLearnings)', () => {
+  const t = (id: string, over: Record<string, unknown> = {}) => ({
+    id, site_id: SITE, status: 'completed', winner_variant_id: `v-${id}`, test_type: 'thumbnail', result_metadata: null, youtube_video_id: 'yv1',
+    youtube_videos: { channel_id: 'ch1' }, ...over,
+  })
+  const vs = (id: string, tag: string, original = false) => ({ id: `v-${id}`, test_id: id, is_original: original, metadata: { thumbnail_tags: [tag] } })
+  const tabelas = (extra: Array<Record<string, unknown>>, extraV: Array<Record<string, unknown>>) => ({
+    tables: {
+      ab_tests: [t('a'), t('b'), ...extra], ab_test_variants: [vs('a', 'x'), vs('b', 'x'), ...extraV], youtube_channels: [{ id: 'ch1', name: 'Canal' }],
+    },
+    columns: {
+      ab_tests: ['id', 'site_id', 'status', 'winner_variant_id', 'test_type', 'result_metadata', 'youtube_video_id'],
+      ab_test_variants: ['id', 'test_id', 'metadata', 'is_original'], youtube_channels: ['id', 'name'],
+    },
+  })
+  it('sugerida B + escolha C: conta a tag de B, não a de C', async () => {
+    sb = fakePostgrest(tabelas(
+      [t('d', { winner_variant_id: 'v-d-c', result_metadata: { v2: { vencedor_sugerido: 'v-d-b' } } })],
+      [{ id: 'v-d-b', test_id: 'd', is_original: false, metadata: { thumbnail_tags: ['tag-b'] } }, { id: 'v-d-c', test_id: 'd', is_original: false, metadata: { thumbnail_tags: ['tag-c'] } }],
+    ))
+    const j = JSON.stringify(await getChannelLearnings(SITE))
+    expect(j).toContain('tag-b')
+    expect(j).not.toContain('tag-c')
+  })
+  it('sugerida = original + Manter: não conta; inconclusivo sem vencedor: não conta; arquivado: não conta', async () => {
+    sb = fakePostgrest(tabelas([t('d', { winner_variant_id: 'v-d-o', result_metadata: { v2: { vencedor_sugerido: 'v-d-o' } } })], [{ ...vs('d', 'tag-o', true), id: 'v-d-o' }]))
+    expect(await getChannelLearnings(SITE)).toBeNull()
+    sb = fakePostgrest(tabelas([t('d', { winner_variant_id: null })], [vs('d', 'tag-d')]))
+    expect(await getChannelLearnings(SITE)).toBeNull()
+    sb = fakePostgrest(tabelas([t('d', { status: 'archived' })], [vs('d', 'tag-d')]))
+    expect(await getChannelLearnings(SITE)).toBeNull()
+  })
+})
