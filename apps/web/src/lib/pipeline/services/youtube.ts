@@ -14,7 +14,7 @@ import { noArConfirmado, type TentativaNoAr } from '@/lib/youtube/ab-no-ar'
 import { lerHistoricoDeRestores } from '@/lib/youtube/ab-no-ar-leitura'
 import { lerRestauracao, paraRestoreStatus, restoreStatusIlegivel, type CampoNome, type LeituraCampo } from '@/lib/youtube/ab-restore'
 import { vencedorQueEnsina } from '@/lib/youtube/ab-aprendizado'
-import { ehVitoriaHumana, ehVitoriaDeVariante, lerResultadoV2, type DesfechoV2, type ResultadoV2, type TestType, type VariantMetadata, type VencedorEmbutido } from '@/lib/youtube/ab-types'
+import { toDisplayLabel, ehVitoriaHumana, ehVitoriaDeVariante, lerResultadoV2, type DesfechoV2, type ResultadoV2, type TestType, type VariantMetadata, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
 import { nicheLabel } from '@/lib/youtube/observatorio/niche'
@@ -1176,7 +1176,7 @@ function avisoAgregado(lidos: Iterable<LidoDoTeste>): AvisoAgregado {
 function escolhaENoAr(row: Record<string, unknown>, historico: TentativaNoAr[] | null): { escolha: { variant_id: string | null; letra: string | null; em: string } | null; no_ar: { letra: string | null; desde: string | null; confirmado: boolean } | null } {
   const variantes = ((row.variants ?? []) as Record<string, unknown>[]).map(v => ({
     id: String(v.id), is_original: v.is_original === true,
-    label: (v.is_original === true ? 'A' : String(v.label)) as 'A' | 'B' | 'C' | 'D',
+    label: toDisplayLabel(String(v.label), v.is_original === true),
   }))
   const letraDe = (id: string | null): string | null => (id ? variantes.find(v => v.id === id)?.label ?? null : null)
   const em = typeof row.escolha_em === 'string' ? row.escolha_em : null
