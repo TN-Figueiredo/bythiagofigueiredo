@@ -26,10 +26,12 @@ describe('página Arquivo', () => {
     render(<ArquivoScreen modelo={modeloVazio()} bloco={{ ok: false }} acesso="edita" />)
     expect(screen.getByText('Não foi possível ler os canais removidos.')).toBeTruthy()
   })
-  it('quem edita não vê "Ver os comandos" nem "Apagar do arquivo" (M9) nem o grupo de teste, e lê a frase do perfil', () => {
+  it('quem edita não vê "Ver os comandos" nem "Apagar do arquivo" (M9) nem o grupo de teste, e não lê "precisa de você" (Logan A5)', () => {
     render(<ArquivoScreen modelo={modeloCheio()} bloco={{ ok: true, bloco: blocoComSemDestino() }} acesso="edita" />)
     expect(screen.queryByText(/Ver os comandos|Apagar do arquivo|Dado de teste/)).toBeNull()
-    expect(screen.getByText(/esperam quem administra o site/)).toBeTruthy()
+    expect(document.querySelector('.arq-resumo-geral')?.textContent).toMatch(/precisa de quem administra o site/)
+    expect(document.body.textContent).not.toMatch(/precisa(m)? de você/)
+    expect(screen.queryByText(/Alguns passos esperam/)).toBeNull()
   })
   it('Gio D2b: a frase da casa que já é o resumo não aparece duas vezes; a da casa que não é o resumo aparece', () => {
     const m = modeloVazio(); m.ligado = true
@@ -38,8 +40,8 @@ describe('página Arquivo', () => {
     const { unmount } = render(<ArquivoScreen modelo={m} bloco={{ ok: false }} acesso="edita" />)
     expect(screen.getAllByText('A casa não respondeu desde 30/04 22:00.')).toHaveLength(1)
     unmount()
-    m.resumo = { texto: 'O arquivo tem 2 problemas que precisam de você', forma: 'octogono' }
-    render(<ArquivoScreen modelo={m} bloco={{ ok: false }} acesso="edita" />)
+    m.resumo = { texto: '2 meses precisam de você', forma: 'octogono' }
+    render(<ArquivoScreen modelo={m} bloco={{ ok: false }} acesso="administra" />)
     expect(screen.getAllByText('A casa não respondeu desde 30/04 22:00.')).toHaveLength(1)
   })
   it('Gio D1: a faixa do dado de teste é a do mockup TESTE-1, com "Dado de teste." em destaque', () => {

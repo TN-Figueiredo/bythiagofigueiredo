@@ -22,7 +22,7 @@ function Linha({ l }: { l: LinhaCanalRemovido }): ReactElement {
 /** O bloco "Canais removidos", só de leitura (M5): nenhum botão e nenhum comando (são da M9). */
 export function BlocoCanaisRemovidosView({ bloco }: { bloco: BlocoCanaisRemovidos }): ReactElement {
   return (
-    <section className="arq-card arq-removidos" aria-label="Canais removidos" data-secao="canais-removidos">
+    <section id="canais-removidos" className="arq-card arq-removidos" aria-label="Canais removidos" data-secao="canais-removidos">
       <header className="arq-card-h">
         <h3 className="arq-h3">Canais removidos</h3>
         <p className="arq-resumo">{bloco.resumo}</p>
@@ -41,7 +41,7 @@ export function BlocoCanaisRemovidosView({ bloco }: { bloco: BlocoCanaisRemovido
 /** O bloco não pôde ser lido: a frase em hachura, nunca lista vazia. */
 export function BlocoNaoLido(): ReactElement {
   return (
-    <section className="arq-card arq-removidos" aria-label="Canais removidos" data-secao="canais-removidos">
+    <section id="canais-removidos" className="arq-card arq-removidos" aria-label="Canais removidos" data-secao="canais-removidos">
       <p className="arq-ausente nm" data-forma="hachura"><span className="arq-hach" aria-hidden="true" /><span>Não foi possível ler os canais removidos.</span></p>
     </section>
   )

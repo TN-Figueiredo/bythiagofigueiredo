@@ -6,7 +6,7 @@ import { descreverVermelho } from '@/lib/youtube/observatorio/arquivo-mensal/ver
 import { paginaVazia, mesCom, AGORA } from '../youtube/observatorio/fixtures/arquivo-pagina'
 
 const liga = { arquivoLigado: true }
-const vermelho = () => mesCom({ devidoHa: 31, esperadas: 2, recebidas: 0, mesNum: 4 })
+const vermelho = () => mesCom({ devidoHa: 31, esperadas: 2, recebidas: 0, mesNum: 3 })
 const casaVelha = (h: number) => { const t = new Date(AGORA - h * 3_600_000).toISOString(); return [{ ...paginaVazia().casa[0]!, last_poll_at: t, updated_at: t }] }
 
 describe('A1: a frase do topo nomeia o mês e linka', () => {

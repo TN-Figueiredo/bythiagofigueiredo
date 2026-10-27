@@ -1,6 +1,5 @@
-/* Peça 7 (mockup 19, peca7.css), prefixo p7-. Só hex e rgba literais, nenhum color-mix. As variáveis --arq-* vêm de ../_arquivo/arquivo.css, que só as define dentro da página Arquivo: aqui no bloco. */
-.p7-bloco{--arq-ok:#22c55e;--arq-am:#f59e0b;--arq-am-text:#f59e0b;--arq-vm:#F26B6B;--arq-am-bg:rgba(245,158,11,.12);--arq-vm-bg:rgba(239,68,68,.12);margin:22px 0 8px}
-[data-theme="light"] .p7-bloco{--arq-ok:#11692F;--arq-am:#B45309;--arq-am-text:#92400E;--arq-vm:#B42318;--arq-am-bg:rgba(180,83,9,.10);--arq-vm-bg:rgba(180,35,24,.08)}
+/* Peça 7 (mockup 19, peca7.css), prefixo p7-. Só hex e rgba literais, nenhum color-mix. Cores: os tokens do chrome, como a página Arquivo. */
+.p7-bloco{margin:22px 0 8px}
 .p7-gt{margin:0 0 8px;font:600 15px/1.35 Inter,system-ui,sans-serif}
 .p7-res{display:flex;flex-direction:column;gap:6px;margin:0 0 12px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
 .p7-res p{margin:0;font-size:14.5px;line-height:1.5;max-width:80ch}
@@ -11,8 +10,8 @@
 .p7-esp{color:var(--muted)}
 .p7-ls{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:10px}
 .p7-it{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:8px 20px;align-items:start;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
-.p7-it.am{border:2px solid var(--arq-am);background:var(--arq-am-bg)}
-.p7-it.vm{border:2px solid var(--arq-vm);background:var(--arq-vm-bg)}
+.p7-it.am{border:2px solid var(--warning);background:var(--warn-subtle)}
+.p7-it.vm{border:2px solid var(--danger);background:var(--danger-subtle)}
 .p7-k{margin:0;color:var(--muted);font-size:12.5px}
 .p7-st{display:flex;gap:9px;align-items:flex-start;margin:2px 0 0;font-size:13.5px;line-height:1.5}
 .p7-st span{min-width:0;overflow-wrap:anywhere}
@@ -21,8 +20,8 @@
 .p7-id{display:flex;gap:8px;align-items:flex-start;margin:0;font-size:13.5px;line-height:1.45}
 .p7-age{position:relative;height:8px;margin:2px 0 16px;border-radius:4px;background:var(--sunk);border:1px solid var(--border)}
 .p7-age i{position:absolute;left:0;top:0;bottom:0;background:var(--muted)}
-.p7-age.am i{background:var(--arq-am)}
-.p7-age.vm i{background:var(--arq-vm)}
+.p7-age.am i{background:var(--warning)}
+.p7-age.vm i{background:var(--danger)}
 .p7-age b{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px solid var(--text)}
 .p7-age b.t30{left:50%}
 .p7-age b.t60{right:-1px}

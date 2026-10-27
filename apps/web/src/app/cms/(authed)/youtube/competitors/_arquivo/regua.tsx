@@ -4,7 +4,7 @@
  */
 import type { ReactElement } from 'react'
 import type { Etapa, Forma } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
-import { IconeDeArquivo } from '../_chrome/formas-arquivo'
+import { DESENHO_DA_FORMA, IconeDeArquivo } from '../_chrome/formas-arquivo'
 
 const NOME: Record<Forma, string> = {
   visto: 'feito', pontilhado: 'ainda não', pontilhado_ambar: 'ainda não, passou do prazo', triangulo: 'atenção', octogono: 'problema', hachura: 'não medido', arquivo: 'no arquivo', zero: 'zero', barra: 'em andamento',
@@ -18,11 +18,8 @@ export function FormaIcone({ forma, grande = false }: { forma: Forma; grande?: b
   const t = grande ? 24 : 16
   const base = { className: `arq-ico ${COR[forma]}`, viewBox: '0 0 16 16', width: t, height: t, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true as const, focusable: 'false' as const }
   switch (forma) {
-    case 'visto': return <svg {...base}><circle cx="8" cy="8" r="6.2" /><path d="M5 8.2l2.2 2.2L11.2 6" /></svg>
-    case 'pontilhado': return <svg {...base}><circle cx="8" cy="8" r="6.2" strokeDasharray="2.4 2.2" /></svg>
+    case 'visto': case 'pontilhado': case 'triangulo': case 'octogono': return <svg {...base}>{DESENHO_DA_FORMA[forma]}</svg>
     case 'pontilhado_ambar': return <svg {...base}><circle cx="8" cy="8" r="6.2" strokeDasharray="2.4 2.2" /><path d="M8 4.8V8l2 1.4" /></svg>
-    case 'triangulo': return <svg {...base}><path d="M8 2.2L14.4 13.4H1.6z" /><path d="M8 6.6v3M8 11.4v.2" /></svg>
-    case 'octogono': return <svg {...base}><path d="M5.2 1.8h5.6l3.4 3.4v5.6l-3.4 3.4H5.2l-3.4-3.4V5.2z" /><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" /></svg>
     case 'hachura': return <span className={`arq-hach${grande ? ' g' : ''}`} aria-hidden="true" />
     case 'arquivo': return <IconeDeArquivo qual="arquivo" tamanho={t} />
     case 'zero': return <span className={`arq-zero${grande ? ' g' : ''}`} aria-hidden="true">0</span>
