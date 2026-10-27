@@ -139,4 +139,13 @@ describe('M7b: iniciativa do dono', () => {
     const r = paraRestoreStatus({ title: { ...campo(), iniciativa: 'x' } })
     expect(r?.title?.estado).toBe('falhou'); expect(r?.title?.iniciativa).toBeUndefined()
   })
+  it('Yannis M3: um em_andamento velho do dono vira falhou/interrompido SEM perder a iniciativa; o vigia segue ignorando', async () => {
+    const { converterInterrompido, camposPendentes, proximaDoInterrompido } = await import('@/lib/youtube/ab-restore')
+    const velho = { ...campo('dono'), estado: 'em_andamento' as const, em: '2026-10-27T09:00:00.000Z', attempts: 0 }
+    const convertido = converterInterrompido(velho, new Date('2026-10-27T10:00:00.000Z'))
+    expect(convertido).toMatchObject({ estado: 'falhou', erro: 'interrompido', escreveu: null, iniciativa: 'dono' })
+    expect(proximaDoInterrompido(velho).iniciativa).toBe('dono')
+    expect(camposPendentes({ title: convertido! }, 'vigia')).toEqual([])
+    expect(camposPendentes({ title: convertido! }, 'humano')).toEqual(['title'])
+  })
 })

@@ -128,11 +128,11 @@ describe('M7b T11: painel de escolha de um teste concluído', () => {
     expect(screen.getByText(/Não temos a original guardada/)).toBeTruthy()
   })
 
-  it('d2 → d3a: rede cai logo depois do clique; a conferência acha C e vai a "no ar" com a data de hoje', async () => {
+  it('d2 → d3a: rede cai logo depois do clique; a conferência acha C no registro e vai a "no ar" com a data de hoje', async () => {
     vi.useFakeTimers()
     const a = acoes({
       escolher: async () => { throw new TypeError('fetch failed') },
-      conferir: async () => ({ ok: true, estado: 'lido', noAr: conf('C', '2026-10-27T18:00:00.000Z'), restoreSeq: 6, fonte: 'youtube' }),
+      conferir: async () => ({ ok: true, estado: 'lido', noAr: conf('C', '2026-10-27T18:00:00.000Z'), restoreSeq: 6, fonte: 'registro' }),
     })
     monta(entrada({ ar: 'B', sug: 'B' }), a)
     fireEvent.click(radio('Versão C'))
@@ -229,3 +229,76 @@ describe('M7b T11: painel de escolha de um teste concluído', () => {
     expect(screen.queryByRole('button', { name: /Deixar/ })).toBeNull()
   })
 })
+
+describe('M7b envio 2: consertos da revisão', () => {
+  const semRedeNoFetch = () => vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('Yannis I1: a conferência acha C só no YouTube → aviso "não ficou registrada" e "Registrar C"; o clique grava com o seq do servidor', async () => {
+    vi.useFakeTimers()
+    semRedeNoFetch()
+    const a = acoes({
+      escolher: vi.fn()
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce({ ok: true, resultado: 'no_ar', noAr: conf('C', null), restoreSeq: 7 }),
+      conferir: async () => ({ ok: true, estado: 'lido', noAr: conf('C'), restoreSeq: 6, fonte: 'youtube' }),
+    })
+    monta(entrada({ ar: 'B', sug: 'B' }), a)
+    fireEvent.click(radio('Versão C'))
+    await clica(botao('Deixar C no ar'))
+    await flush(0)
+    expect(screen.getByRole('alert').textContent).toContain('A versão C já está no YouTube, mas a escolha não ficou registrada.')
+    expect(screen.getByRole('alert').textContent).toContain('Toque em Registrar para guardar.')
+    await clica(botao('Registrar C'))
+    expect(a.escolher).toHaveBeenLastCalledWith('t1', 'vc', 6)
+  })
+
+  it('Gio G2: sessão expirada (a action é redirecionada para o login) → "Sua sessão expirou", link de login, nunca "privado"', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn(async () => ({ type: 'opaqueredirect', status: 0 })))
+    const a = acoes({ escolher: async () => { throw new TypeError('An unexpected response was received from the server.') } })
+    monta(entrada({ ar: 'A', sug: 'B' }), a)
+    fireEvent.click(radio('Original A'))
+    await clica(botao('Manter a original (A)'))
+    await flush(0)
+    const alerta = screen.getByRole('alert').textContent ?? ''
+    expect(alerta).toContain('Sua sessão expirou.')
+    expect(alerta).toContain('Entre de novo para continuar.')
+    expect(alerta).not.toMatch(/privado|apagado/)
+    expect((screen.getByRole('link', { name: 'Entrar de novo' }) as HTMLAnchorElement).getAttribute('href')).toMatch(/^\/cms\/login\?next=/)
+    expect(a.conferir).not.toHaveBeenCalled()
+  })
+
+  it('Gio G3: "Manter a original" sem rede não cai na conferência; ganha "Tentar de novo" e grava quando a rede volta', async () => {
+    vi.useFakeTimers()
+    semRedeNoFetch()
+    const a = acoes({
+      escolher: vi.fn()
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce({ ok: true, resultado: 'guardado', restoreSeq: 4 }),
+    })
+    monta(entrada({ ar: 'A', sug: 'B' }), a)
+    fireEvent.click(radio('Original A'))
+    await clica(botao('Manter a original (A)'))
+    await flush(0)
+    expect(a.conferir).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain('Não deu para guardar.')
+    expect(screen.getByRole('alert').textContent).not.toMatch(/privado|apagado|Não deu para conferir/)
+    await clica(botao('Tentar de novo'))
+    await flush(0)
+    expect(a.escolher).toHaveBeenCalledTimes(2)
+    expect(screen.getByText('Guardado.')).toBeTruthy()
+  })
+
+  it('Gio G4: aba velha ("mudou") com a versão pedida já no ar diz "A já está no ar", nunca "Não consegui"', async () => {
+    const a = acoes({ escolher: async () => ({ ok: false, resultado: 'mudou', error: 'O teste mudou em outra aba. Reabra para decidir.' }) })
+    monta(entrada({ ar: 'A', sug: 'B' }), a)
+    fireEvent.click(radio('Original A'))
+    await clica(botao('Manter a original (A)'))
+    const alerta = screen.getByRole('alert').textContent ?? ''
+    expect(alerta).toContain('A já está no ar.')
+    expect(alerta).toContain('O teste mudou em outra aba.')
+    expect(alerta).not.toContain('Não consegui')
+  })
+})
+

@@ -13,13 +13,13 @@ const noAr = (id: string, letra: 'A' | 'B' | 'C'): NoArConfirmado => ({ tipo: 'c
 
 const FASES: Record<(typeof TIPOS_DE_FASE)[number], FasePainel> = {
   escolha: { tipo: 'escolha', selId: 'vc', aviso: null, restoreSeq: null },
-  escrevendo: { tipo: 'escrevendo', selId: 'vc', anteriorId: 'vb', envioId: 7, demorando: false, forcar: false },
-  conferindo: { tipo: 'conferindo', selId: 'vc', anteriorId: 'vb', envioId: 7, leituras: 0 },
+  escrevendo: { tipo: 'escrevendo', selId: 'vc', anteriorId: 'vb', envioId: 7, demorando: false, forcar: false, seqEnviado: 3, semEscrita: false },
+  conferindo: { tipo: 'conferindo', selId: 'vc', anteriorId: 'vb', envioId: 7, leituras: 0, seqEnviado: 3 },
   no_ar: { tipo: 'no_ar', selId: 'vc', noAr: noAr('vc', 'C'), restoreSeq: 4, hoje: false },
   recusou: { tipo: 'recusou', selId: 'vc', porque: 'youtube', noAr: noAr('vb', 'B'), entrou: [], restoreSeq: 4, conferido: false, erro: 'x' },
-  sem_rede: { tipo: 'sem_rede', selId: 'vc', anteriorId: 'vb', envioId: 7, motivo: 'sem_conexao' },
+  sem_rede: { tipo: 'sem_rede', selId: 'vc', anteriorId: 'vb', envioId: 7, motivo: 'sem_conexao', seqEnviado: 3 },
   guardado: { tipo: 'guardado', selId: 'va', restoreSeq: 4 },
-  confirmar: { tipo: 'confirmar', selId: 'vc', campos: [{ campo: 'title', valor_atual: 'x' }] },
+  confirmar: { tipo: 'confirmar', selId: 'vc', campos: [{ campo: 'title', valor_atual: 'x' }], restoreSeq: null },
   erro: { tipo: 'erro', selId: 'vc', texto: 'x', recarregar: false },
 }
 const EVENTOS: Record<(typeof TIPOS_DE_EVENTO)[number], EventoPainel> = {
@@ -29,23 +29,24 @@ const EVENTOS: Record<(typeof TIPOS_DE_EVENTO)[number], EventoPainel> = {
   resposta: { tipo: 'resposta', envioId: 7, r: { ok: true, resultado: 'no_ar', noAr: noAr('vc', 'C'), restoreSeq: 4 } },
   sem_resposta_45s: { tipo: 'sem_resposta_45s' },
   falha_rede: { tipo: 'falha_rede' },
-  conferido: { tipo: 'conferido', r: { ok: true, estado: 'lido', noAr: noAr('vc', 'C'), restoreSeq: 4, fonte: 'youtube' } },
+  sessao_expirou: { tipo: 'sessao_expirou' },
+  conferido: { tipo: 'conferido', r: { ok: true, estado: 'lido', noAr: noAr('vc', 'C'), restoreSeq: 4, fonte: 'registro' } },
   conferir_15s: { tipo: 'conferir_15s' },
   voltar: { tipo: 'voltar' },
 }
 
 // Tabela inteira fase × evento: o tipo da fase que sai. '=' = continua na mesma fase.
 const TABELA: Record<(typeof TIPOS_DE_FASE)[number], Record<(typeof TIPOS_DE_EVENTO)[number], string>> = {
-  //            marcar    enviar      quinze_s  resposta  sem_resposta_45s falha_rede  conferido  conferir_15s voltar
-  escolha:    { marcar: '=', enviar: 'escrevendo', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
-  escrevendo: { marcar: '=', enviar: '=', quinze_s: '=', resposta: 'no_ar', sem_resposta_45s: 'conferindo', falha_rede: 'conferindo', conferido: '=', conferir_15s: '=', voltar: '=' },
-  conferindo: { marcar: '=', enviar: '=', quinze_s: '=', resposta: 'no_ar', sem_resposta_45s: 'sem_rede', falha_rede: '=', conferido: 'no_ar', conferir_15s: 'sem_rede', voltar: '=' },
-  no_ar:      { marcar: 'escolha', enviar: '=', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
-  recusou:    { marcar: '=', enviar: 'escrevendo', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
-  sem_rede:   { marcar: '=', enviar: '=', quinze_s: '=', resposta: 'no_ar', sem_resposta_45s: '=', falha_rede: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
-  guardado:   { marcar: '=', enviar: '=', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
-  confirmar:  { marcar: '=', enviar: 'escrevendo', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', conferido: '=', conferir_15s: '=', voltar: 'escolha' },
-  erro:       { marcar: 'escolha', enviar: 'escrevendo', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
+  //            marcar    enviar      quinze_s  resposta  sem_resposta_45s falha_rede  sessao_expirou conferido  conferir_15s voltar
+  escolha:    { marcar: '=', enviar: 'escrevendo', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', sessao_expirou: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
+  escrevendo: { marcar: '=', enviar: '=', quinze_s: '=', resposta: 'no_ar', sem_resposta_45s: 'conferindo', falha_rede: 'conferindo', sessao_expirou: 'erro', conferido: '=', conferir_15s: '=', voltar: '=' },
+  conferindo: { marcar: '=', enviar: '=', quinze_s: '=', resposta: 'no_ar', sem_resposta_45s: 'sem_rede', falha_rede: '=', sessao_expirou: 'erro', conferido: 'no_ar', conferir_15s: 'sem_rede', voltar: '=' },
+  no_ar:      { marcar: 'escolha', enviar: '=', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', sessao_expirou: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
+  recusou:    { marcar: '=', enviar: 'escrevendo', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', sessao_expirou: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
+  sem_rede:   { marcar: '=', enviar: '=', quinze_s: '=', resposta: 'no_ar', sem_resposta_45s: '=', falha_rede: '=', sessao_expirou: 'erro', conferido: '=', conferir_15s: '=', voltar: '=' },
+  guardado:   { marcar: '=', enviar: '=', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', sessao_expirou: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
+  confirmar:  { marcar: '=', enviar: 'escrevendo', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', sessao_expirou: '=', conferido: '=', conferir_15s: '=', voltar: 'escolha' },
+  erro:       { marcar: 'escolha', enviar: 'escrevendo', quinze_s: '=', resposta: '=', sem_resposta_45s: '=', falha_rede: '=', sessao_expirou: '=', conferido: '=', conferir_15s: '=', voltar: '=' },
 }
 
 describe('M7b T9: redutor das fases do painel', () => {
@@ -95,12 +96,50 @@ describe('M7b T9: redutor das fases do painel', () => {
 
   it('conferência: igual à escolhida → no_ar (hoje); à anterior → recusou conferido; a uma terceira → recusou com "No ar agora: X"', () => {
     const c = FASES.conferindo
-    const a = reduzir(c, { tipo: 'conferido', r: { ok: true, estado: 'lido', noAr: noAr('vc', 'C'), restoreSeq: 9, fonte: 'youtube' } }, CTX)
+    const a = reduzir(c, { tipo: 'conferido', r: { ok: true, estado: 'lido', noAr: noAr('vc', 'C'), restoreSeq: 9, fonte: 'registro' } }, CTX)
     expect(a).toMatchObject({ tipo: 'no_ar', hoje: true, restoreSeq: 9 })
     const b = reduzir(c, { tipo: 'conferido', r: { ok: true, estado: 'lido', noAr: noAr('vb', 'B'), restoreSeq: 9, fonte: 'youtube' } }, CTX)
     expect(b).toMatchObject({ tipo: 'recusou', conferido: true, restoreSeq: 9 })
     const t = reduzir(c, { tipo: 'conferido', r: { ok: true, estado: 'lido', noAr: noAr('va', 'A'), restoreSeq: 9, fonte: 'youtube' } }, CTX)
     expect(t).toMatchObject({ tipo: 'recusou', conferido: true, noAr: { varianteId: 'va', letra: 'A' } })
+  })
+
+  it('Yannis I1: achada só no YouTube (fonte youtube) → escolha com aviso nao_registrado e o seq do servidor; no registro → no_ar', () => {
+    const y = reduzir(FASES.conferindo, { tipo: 'conferido', r: { ok: true, estado: 'lido', noAr: noAr('vc', 'C'), restoreSeq: 9, fonte: 'youtube' } }, CTX)
+    expect(y).toMatchObject({ tipo: 'escolha', selId: 'vc', aviso: 'nao_registrado', restoreSeq: 9 })
+    const r = reduzir(FASES.conferindo, { tipo: 'conferido', r: { ok: true, estado: 'lido', noAr: noAr('vc', 'C'), restoreSeq: 9, fonte: 'registro' } }, CTX)
+    expect(r.tipo).toBe('no_ar')
+    const p = montarPainelEscolha({
+      testId: 't', nomeVideo: 'v', tipo: 'title', restoreSeq: 3, podeAdministrar: true, sugeridaId: 'vb', noAr: noAr('vb', 'B'), escolha: null,
+      variantes: [{ id: 'va', letra: 'A', original: true, titulo: 'a', miniatura: null, ctr: null }, { id: 'vb', letra: 'B', original: false, titulo: 'b', miniatura: null, ctr: null }, { id: 'vc', letra: 'C', original: false, titulo: 'c', miniatura: null, ctr: null }],
+      originalGuardada: { titulo: true, miniatura: true },
+    })
+    expect(seqParaEnviar(y, p)).toBe(9)
+  })
+
+  it('Yannis M1: recusou(6) → enviar → precisa_confirmar leva o seq 6 ao "mesmo assim" (e ao voltar)', () => {
+    const p = montarPainelEscolha({
+      testId: 't', nomeVideo: 'v', tipo: 'title', restoreSeq: 5, podeAdministrar: true, sugeridaId: 'vb', noAr: noAr('vb', 'B'), escolha: null,
+      variantes: [{ id: 'va', letra: 'A', original: true, titulo: 'a', miniatura: null, ctr: null }, { id: 'vb', letra: 'B', original: false, titulo: 'b', miniatura: null, ctr: null }, { id: 'vc', letra: 'C', original: false, titulo: 'c', miniatura: null, ctr: null }],
+      originalGuardada: { titulo: true, miniatura: true },
+    })
+    const recusou: FasePainel = { tipo: 'recusou', selId: 'vc', porque: 'youtube', noAr: noAr('vb', 'B'), entrou: [], restoreSeq: 6, conferido: false, erro: 'x' }
+    const esc = reduzir(recusou, { tipo: 'enviar', envioId: 1 }, { noArId: 'vb', restoreSeq: 6 })
+    const conf = reduzir(esc, { tipo: 'resposta', envioId: 1, r: { ok: true, resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: 'x' }] } }, CTX)
+    expect(conf).toMatchObject({ tipo: 'confirmar', restoreSeq: 6 })
+    expect(seqParaEnviar(conf, p)).toBe(6)
+    expect(seqParaEnviar(reduzir(conf, { tipo: 'voltar' }, CTX), p)).toBe(6)
+  })
+
+  it('Gio G3: falha de rede num "Manter" (sem escrita) vira erro "tentar de novo"; fora disso segue para a conferência', () => {
+    const e = reduzir(FASES.recusou, { tipo: 'enviar', envioId: 1, semEscrita: true }, CTX)
+    expect(reduzir(e, { tipo: 'falha_rede' }, CTX)).toMatchObject({ tipo: 'erro', modo: 'sem_escrita', recarregar: false, selId: 'vc' })
+    const w = reduzir(FASES.recusou, { tipo: 'enviar', envioId: 1 }, CTX)
+    expect(reduzir(w, { tipo: 'falha_rede' }, CTX).tipo).toBe('conferindo')
+  })
+
+  it('Gio G2: sessao_expirou em voo vira erro modo sessao (nunca "privado ou apagado")', () => {
+    for (const base of [FASES.escrevendo, FASES.conferindo, FASES.sem_rede]) expect(reduzir(base, { tipo: 'sessao_expirou' }, CTX)).toMatchObject({ tipo: 'erro', modo: 'sessao' })
   })
 
   it('nao_propagou → sem_rede (nunca recusou); lido_misto → recusou misto (nunca no_ar)', () => {

@@ -3,7 +3,7 @@ import type { CampoNome } from '../ab-restore'
 import type { FasePainel } from './painel-fases'
 import type { PainelEscolha } from './painel-escolha'
 import {
-  AVISO_DEMORANDO, AVISO_NAO_PROPAGOU, AVISO_NENHUMA_VERSAO, AVISO_SEM_CONEXAO, AVISO_SEM_LEITURA, RECUSA_SEM_RETENTATIVA,
+  AVISO_DEMORANDO, AVISO_NAO_GUARDOU, AVISO_NAO_PROPAGOU, AVISO_NENHUMA_VERSAO, AVISO_SESSAO_EXPIRADA, avisoNaoRegistrado, tituloJaEstaNoAr, AVISO_SEM_CONEXAO, AVISO_SEM_LEITURA, RECUSA_SEM_RETENTATIVA,
   detalheDaRecusa, detalheParcial, tituloDaRecusa, tituloParcial,
 } from './painel-textos'
 
@@ -28,7 +28,14 @@ export function avisoDoPainel(f: FasePainel, p: PainelEscolha): AvisoDados | nul
       const detalhe = f.conferido && S ? `Conferimos agora: a versão ${S} segue no ar.` : detalheDaRecusa(f.porque, { S, X })
       return { tom: 'err', icone: 'tri', titulo: tituloDaRecusa(X), detalhe }
     }
-    case 'erro': return { tom: 'err', icone: 'tri', titulo: tituloDaRecusa(letraDe(f.selId)), detalhe: f.texto }
+    case 'erro': {
+      if (f.modo === 'sessao') return { tom: 'err', icone: 'off', ...AVISO_SESSAO_EXPIRADA }
+      if (f.modo === 'sem_escrita') return { tom: 'err', icone: 'off', ...AVISO_NAO_GUARDOU }
+      const X = letraDe(f.selId)
+      // Gio G4: aba velha pedindo o que já está no ar e guardado: "Não consegui" seria falso.
+      if (f.recarregar && X && p.noAr.tipo === 'confirmado' && p.noAr.letra === X) return { tom: 'err', icone: 'tri', titulo: tituloJaEstaNoAr(X), detalhe: f.texto }
+      return { tom: 'err', icone: 'tri', titulo: tituloDaRecusa(X), detalhe: f.texto }
+    }
     case 'conferindo': {
       const X = letraDe(f.selId)
       return {
@@ -44,7 +51,11 @@ export function avisoDoPainel(f: FasePainel, p: PainelEscolha): AvisoDados | nul
         case 'demorando': return { tom: 'inc', icone: 'clock', ...AVISO_DEMORANDO }
       }
       return null
-    case 'escolha': return f.aviso === 'nenhuma_versao' ? { tom: 'inc', icone: 'info', ...AVISO_NENHUMA_VERSAO } : null
+    case 'escolha': {
+      if (f.aviso === 'nenhuma_versao') return { tom: 'inc', icone: 'info', ...AVISO_NENHUMA_VERSAO }
+      if (f.aviso === 'nao_registrado') { const X = letraDe(f.selId); return X ? { tom: 'inc', icone: 'info', ...avisoNaoRegistrado(X) } : null }
+      return null
+    }
     case 'escrevendo': case 'no_ar': case 'guardado': case 'confirmar': return null
   }
 }

@@ -13,9 +13,10 @@ import {
   faseDaFrase, faseInicial, painelVivo, reduzir, seqParaEnviar, travada, type EventoPainel, type FasePainel,
 } from '@/lib/youtube/ab-lab-pagina/painel-fases'
 import { avisoDoPainel, podeTentarDeNovo } from '@/lib/youtube/ab-lab-pagina/painel-aviso'
-import { AVISO_SEM_PERMISSAO, FRASE_FIXA, TEXTO_DEMORANDO, TITULO_DRIFT, corpoDrift } from '@/lib/youtube/ab-lab-pagina/painel-textos'
+import { AVISO_SEM_PERMISSAO, FRASE_FIXA, rotuloRegistrar, TEXTO_DEMORANDO, TITULO_DRIFT, corpoDrift } from '@/lib/youtube/ab-lab-pagina/painel-textos'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { AbConfirmarTrocaDialog } from '../ab-confirmar-troca-dialog'
+import { hrefDoLogin, sessaoExpirou } from '../ab-end-test-dialog'
 import { AvisoPainel } from './aviso-painel'
 import { Ic } from './icones-painel'
 import { OpcaoVersao } from './opcao-versao'
@@ -82,7 +83,7 @@ export function PainelConcluido({ painel, acoes, onFechar }: PainelConcluidoProp
     if (!o || o.bloqueio || acao.tipo === 'fechar' || (acao.tipo === 'deixar' && acao.desabilitado)) return
     const seq = seqParaEnviar(f, painel)
     const id = ++envio.current
-    aplicar({ tipo: 'enviar', envioId: id, forcar })
+    aplicar({ tipo: 'enviar', envioId: id, forcar, semEscrita: acao.tipo === 'manter_original' })
     limparTimers()
     timers.current.push(setTimeout(() => aplicar({ tipo: 'quinze_s' }), QUINZE_S))
     timers.current.push(setTimeout(() => aplicar({ tipo: 'sem_resposta_45s' }), QUARENTA_E_CINCO_S))
@@ -90,6 +91,8 @@ export function PainelConcluido({ painel, acoes, onFechar }: PainelConcluidoProp
     try {
       r = forcar ? await acoes.escolher(painel.testId, selId, seq, true) : await acoes.escolher(painel.testId, selId, seq)
     } catch {
+      // 307 para o login: o Next rejeita a chamada e nada foi gravado (Gio G2). Só então é "sessão expirada".
+      if (await sessaoExpirou()) { aplicar({ tipo: 'sessao_expirou' }); return }
       aplicar({ tipo: 'falha_rede' }) // a escrita pode ter entrado: confere em vez de dizer "falhou"
       return
     }
@@ -108,9 +111,10 @@ export function PainelConcluido({ painel, acoes, onFechar }: PainelConcluidoProp
     const espera = setTimeout(async () => {
       t15 = setTimeout(() => { if (vivoEfeito) aplicar({ tipo: 'conferir_15s' }) }, QUINZE_S)
       let r: ResultadoConferir
-      try { r = await acoes.conferir(painel.testId) } catch { r = { ok: false, estado: 'sem_leitura', error: '' } }
+      let expirou = false
+      try { r = await acoes.conferir(painel.testId) } catch { r = { ok: false, estado: 'sem_leitura', error: '' }; expirou = await sessaoExpirou() }
       if (t15) clearTimeout(t15)
-      if (vivoEfeito) aplicar({ tipo: 'conferido', r })
+      if (vivoEfeito) aplicar(expirou ? { tipo: 'sessao_expirou' } : { tipo: 'conferido', r })
     }, confLeituras === 0 ? 0 : RELEITURA_MS)
     return () => { vivoEfeito = false; clearTimeout(espera); if (t15) clearTimeout(t15) }
   }, [acoes, aplicar, confEnvio, confLeituras, painel.testId])
@@ -169,13 +173,18 @@ export function PainelConcluido({ painel, acoes, onFechar }: PainelConcluidoProp
   } else if (fase.tipo === 'recusou') {
     if (tentar && selId) acao = <><button type="button" className="lab-btn pri lab-alvo" onClick={() => { void enviar(false) }}>Tentar de novo</button>{fecharBtn}</>
     else { acao = fecharBtn; solo = true }
+  } else if (fase.tipo === 'erro' && fase.modo === 'sessao') {
+    acao = <><a className="lab-btn pri lab-alvo" href={hrefDoLogin()}>Entrar de novo</a>{fecharBtn}</>
+  } else if (fase.tipo === 'erro' && fase.modo === 'sem_escrita' && selId) {
+    acao = <><button type="button" className="lab-btn pri lab-alvo" onClick={() => { void enviar(false) }}>Tentar de novo</button>{fecharBtn}</>
   } else if (fase.tipo === 'erro' && fase.recarregar) {
     acao = <><button type="button" className="lab-btn pri lab-alvo" onClick={recarregar}>Recarregar</button>{fecharBtn}</>
   } else if (visao.acao.tipo === 'fechar') { acao = fecharBtn; solo = true }
   else if (visao.acao.tipo === 'manter_original') {
     acao = <><button type="button" className="lab-btn reg lab-alvo" onClick={() => { void enviar(false) }}>{visao.acao.rotulo}</button>{fecharBtn}</>
   } else {
-    acao = <><button type="button" className="lab-btn pri lab-alvo" disabled={visao.acao.desabilitado} onClick={() => { void enviar(false) }}>{visao.acao.rotulo}</button>{fecharBtn}</>
+    const registrar = fase.tipo === 'escolha' && fase.aviso === 'nao_registrado' ? vivo.opcoes.find(x => x.id === selId)?.letra : undefined
+    acao = <><button type="button" className="lab-btn pri lab-alvo" disabled={visao.acao.desabilitado} onClick={() => { void enviar(false) }}>{registrar ? rotuloRegistrar(registrar) : visao.acao.rotulo}</button>{fecharBtn}</>
   }
 
   return (

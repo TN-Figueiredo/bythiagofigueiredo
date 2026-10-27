@@ -7,37 +7,40 @@ import type { CampoNome } from '../ab-restore'
 import type { NoArConfirmado, NoArLido } from '../ab-no-ar'
 import type { PorqueRecusou, ResultadoConferir, ResultadoEscolha } from '../ab-acao-saida'
 import type { DisplayLabel } from '../ab-types'
+import { AVISO_NAO_GUARDOU, AVISO_SESSAO_EXPIRADA } from './painel-textos'
 import { montarPainelEscolha, type EntradaPainelEscolha, type FaseFrase, type PainelEscolha } from './painel-escolha'
 
 export const TETO_LEITURAS = 5
 
 export type MotivoSemRede = 'sem_conexao' | 'sem_leitura' | 'demorando' | 'nao_propagou'
-export type AvisoEscolha = 'nenhuma_versao'
+export type AvisoEscolha = 'nenhuma_versao' | 'nao_registrado'
 
 export type FasePainel =
   | { tipo: 'escolha'; selId: string | null; aviso: AvisoEscolha | null; restoreSeq: number | null }
-  | { tipo: 'escrevendo'; selId: string; anteriorId: string | null; envioId: number; demorando: boolean; forcar: boolean }
-  | { tipo: 'conferindo'; selId: string; anteriorId: string | null; envioId: number; leituras: number }
+  | { tipo: 'escrevendo'; selId: string; anteriorId: string | null; envioId: number; demorando: boolean; forcar: boolean; seqEnviado: number; semEscrita: boolean }
+  | { tipo: 'conferindo'; selId: string; anteriorId: string | null; envioId: number; leituras: number; seqEnviado: number }
   | { tipo: 'no_ar'; selId: string; noAr: NoArConfirmado; restoreSeq: number | null; hoje: boolean }
   | { tipo: 'recusou'; selId: string; porque: PorqueRecusou; noAr: NoArLido; entrou: CampoNome[]; restoreSeq: number | null; conferido: boolean; erro: string }
-  | { tipo: 'sem_rede'; selId: string; anteriorId: string | null; envioId: number; motivo: MotivoSemRede }
+  | { tipo: 'sem_rede'; selId: string; anteriorId: string | null; envioId: number; motivo: MotivoSemRede; seqEnviado: number }
   | { tipo: 'guardado'; selId: string; restoreSeq: number | null }
-  | { tipo: 'confirmar'; selId: string; campos: Array<{ campo: CampoNome; valor_atual: string }> }
-  | { tipo: 'erro'; selId: string | null; texto: string; recarregar: boolean }
+  | { tipo: 'confirmar'; selId: string; campos: Array<{ campo: CampoNome; valor_atual: string }>; restoreSeq: number | null }
+  /** `modo`: 'sessao' = sessão expirada (link de login); 'sem_escrita' = o "Manter" não chegou ao servidor (Tentar de novo). */
+  | { tipo: 'erro'; selId: string | null; texto: string; recarregar: boolean; modo?: 'sessao' | 'sem_escrita' }
 
 export type EventoPainel =
   | { tipo: 'marcar'; varianteId: string }
-  | { tipo: 'enviar'; envioId: number; forcar?: boolean }
+  | { tipo: 'enviar'; envioId: number; forcar?: boolean; semEscrita?: boolean }
   | { tipo: 'quinze_s' }
   | { tipo: 'resposta'; envioId: number; r: ResultadoEscolha }
   | { tipo: 'sem_resposta_45s' }
   | { tipo: 'falha_rede' }
+  | { tipo: 'sessao_expirou' }
   | { tipo: 'conferido'; r: ResultadoConferir }
   | { tipo: 'conferir_15s' }
   | { tipo: 'voltar' }
 
 export const TIPOS_DE_FASE = ['escolha', 'escrevendo', 'conferindo', 'no_ar', 'recusou', 'sem_rede', 'guardado', 'confirmar', 'erro'] as const
-export const TIPOS_DE_EVENTO = ['marcar', 'enviar', 'quinze_s', 'resposta', 'sem_resposta_45s', 'falha_rede', 'conferido', 'conferir_15s', 'voltar'] as const
+export const TIPOS_DE_EVENTO = ['marcar', 'enviar', 'quinze_s', 'resposta', 'sem_resposta_45s', 'falha_rede', 'sessao_expirou', 'conferido', 'conferir_15s', 'voltar'] as const
 
 export interface ContextoFases {
   /** versão confirmada no ar quando o dono clica (vira `anteriorId`) */
@@ -54,8 +57,12 @@ export function faseInicial(p: PainelEscolha): FasePainel {
 
 /** Seq que o próximo "Deixar X no ar" / "Tentar de novo" deve levar. */
 export function seqParaEnviar(f: FasePainel, p: PainelEscolha): number {
-  if ((f.tipo === 'recusou' || f.tipo === 'escolha' || f.tipo === 'no_ar' || f.tipo === 'guardado') && f.restoreSeq !== null) return f.restoreSeq
-  return p.restoreSeq
+  return seqDe(f, p.restoreSeq)
+}
+
+function seqDe(f: FasePainel, base: number): number {
+  if ((f.tipo === 'recusou' || f.tipo === 'escolha' || f.tipo === 'no_ar' || f.tipo === 'guardado' || f.tipo === 'confirmar') && f.restoreSeq !== null) return f.restoreSeq
+  return base
 }
 
 /** A fase de tela que a frase do topo e os selos usam. */
@@ -75,7 +82,7 @@ export function travada(f: FasePainel): boolean {
 }
 
 const semRede = (f: Extract<FasePainel, { tipo: 'escrevendo' | 'conferindo' | 'sem_rede' }>, motivo: MotivoSemRede): FasePainel =>
-  ({ tipo: 'sem_rede', selId: f.selId, anteriorId: f.anteriorId, envioId: f.envioId, motivo })
+  ({ tipo: 'sem_rede', selId: f.selId, anteriorId: f.anteriorId, envioId: f.envioId, motivo, seqEnviado: f.seqEnviado })
 
 type FaseEmVoo = Extract<FasePainel, { tipo: 'escrevendo' | 'conferindo' | 'sem_rede' }>
 
@@ -84,13 +91,13 @@ function aplicarResposta(f: FaseEmVoo, r: ResultadoEscolha): FasePainel {
     switch (r.resultado) {
       case 'no_ar': return { tipo: 'no_ar', selId: f.selId, noAr: r.noAr, restoreSeq: r.restoreSeq, hoje: false }
       case 'guardado': return { tipo: 'guardado', selId: f.selId, restoreSeq: r.restoreSeq }
-      case 'precisa_confirmar': return { tipo: 'confirmar', selId: f.selId, campos: r.campos }
+      case 'precisa_confirmar': return { tipo: 'confirmar', selId: f.selId, campos: r.campos, restoreSeq: f.seqEnviado }
       default: return assertNever(r)
     }
   }
   switch (r.resultado) {
     case 'recusou': return { tipo: 'recusou', selId: f.selId, porque: r.porque, noAr: r.noAr, entrou: r.entrou, restoreSeq: r.restoreSeq, conferido: false, erro: r.error }
-    case 'incerto': return f.tipo === 'escrevendo' ? { tipo: 'conferindo', selId: f.selId, anteriorId: f.anteriorId, envioId: f.envioId, leituras: 0 } : f
+    case 'incerto': return f.tipo === 'escrevendo' ? { tipo: 'conferindo', selId: f.selId, anteriorId: f.anteriorId, envioId: f.envioId, leituras: 0, seqEnviado: f.seqEnviado } : f
     case 'mudou': case 'ja_encerrado': return { tipo: 'erro', selId: f.selId, texto: r.error, recarregar: true }
     case 'em_andamento': case 'outro_teste': case 'teste_youtube': case 'sem_permissao': case 'erro':
       return { tipo: 'erro', selId: f.selId, texto: r.error, recarregar: false }
@@ -109,7 +116,12 @@ function aplicarConferencia(f: Extract<FasePainel, { tipo: 'conferindo' }>, r: R
       return leituras >= TETO_LEITURAS ? semRede(f, 'demorando') : { ...f, leituras }
     }
     case 'lido':
-      if (r.noAr.varianteId === f.selId) return { tipo: 'no_ar', selId: f.selId, noAr: r.noAr, restoreSeq: r.restoreSeq, hoje: true }
+      if (r.noAr.varianteId === f.selId) {
+        // Yannis I1: só o registro fecha a escolha. Achada só no YouTube, ela volta a `escolha` com o aviso e o clique seguinte registra.
+        return r.fonte === 'youtube'
+          ? { tipo: 'escolha', selId: f.selId, aviso: 'nao_registrado', restoreSeq: r.restoreSeq }
+          : { tipo: 'no_ar', selId: f.selId, noAr: r.noAr, restoreSeq: r.restoreSeq, hoje: true }
+      }
       return { tipo: 'recusou', selId: f.selId, porque: 'youtube', noAr: r.noAr, entrou: [], restoreSeq: r.restoreSeq, conferido: true, erro: '' }
     case 'nao_propagou': return semRede(f, 'nao_propagou')
     case 'lido_misto':
@@ -135,7 +147,7 @@ export function reduzir(f: FasePainel, ev: EventoPainel, ctx: ContextoFases): Fa
           if (f.selId === null) return f
           // "Tentar de novo" e "Deixar X no ar" saem sempre de um clique; de `no_ar` só depois de marcar outra.
           if (f.tipo === 'no_ar') return f
-          return { tipo: 'escrevendo', selId: f.selId, anteriorId: ctx.noArId, envioId: ev.envioId, demorando: false, forcar: ev.forcar === true }
+          return { tipo: 'escrevendo', selId: f.selId, anteriorId: ctx.noArId, envioId: ev.envioId, demorando: false, forcar: ev.forcar === true, seqEnviado: seqDe(f, ctx.restoreSeq), semEscrita: ev.semEscrita === true }
         }
         case 'escrevendo': case 'conferindo': case 'sem_rede': case 'guardado': return f
         default: return assertNever(f)
@@ -151,19 +163,26 @@ export function reduzir(f: FasePainel, ev: EventoPainel, ctx: ContextoFases): Fa
       }
     case 'sem_resposta_45s':
       switch (f.tipo) {
-        case 'escrevendo': return { tipo: 'conferindo', selId: f.selId, anteriorId: f.anteriorId, envioId: f.envioId, leituras: 0 }
+        case 'escrevendo': return { tipo: 'conferindo', selId: f.selId, anteriorId: f.anteriorId, envioId: f.envioId, leituras: 0, seqEnviado: f.seqEnviado }
         case 'conferindo': return semRede(f, 'demorando')
         case 'escolha': case 'no_ar': case 'recusou': case 'sem_rede': case 'guardado': case 'confirmar': case 'erro': return f
         default: return assertNever(f)
       }
     case 'falha_rede':
-      return f.tipo === 'escrevendo' ? { tipo: 'conferindo', selId: f.selId, anteriorId: f.anteriorId, envioId: f.envioId, leituras: 0 } : f
+      if (f.tipo !== 'escrevendo') return f
+      // Gio G3: o "Manter" não escreve no YouTube; a falha foi de chegar ao servidor. Não há o que conferir: tentar de novo.
+      if (f.semEscrita) return { tipo: 'erro', selId: f.selId, texto: AVISO_NAO_GUARDOU.detalhe, recarregar: false, modo: 'sem_escrita' }
+      return { tipo: 'conferindo', selId: f.selId, anteriorId: f.anteriorId, envioId: f.envioId, leituras: 0, seqEnviado: f.seqEnviado }
+    case 'sessao_expirou':
+      return f.tipo === 'escrevendo' || f.tipo === 'conferindo' || f.tipo === 'sem_rede'
+        ? { tipo: 'erro', selId: f.selId, texto: AVISO_SESSAO_EXPIRADA.detalhe, recarregar: false, modo: 'sessao' }
+        : f
     case 'conferido':
       return f.tipo === 'conferindo' ? aplicarConferencia(f, ev.r) : f
     case 'conferir_15s':
       return f.tipo === 'conferindo' ? semRede(f, 'sem_conexao') : f
     case 'voltar':
-      return f.tipo === 'confirmar' ? { tipo: 'escolha', selId: f.selId, aviso: null, restoreSeq: null } : f
+      return f.tipo === 'confirmar' ? { tipo: 'escolha', selId: f.selId, aviso: null, restoreSeq: f.restoreSeq } : f
     default: return assertNever(ev)
   }
 }

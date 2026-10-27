@@ -125,7 +125,9 @@ export function montarPainelEscolha(e: EntradaPainelEscolha): PainelEscolha {
       if (v.id === sugeridaId) selos.push('sugerida')
       else if (v.id === noArId && v.id === escolhaId) selos.push(v.original ? 'mantida' : 'escolhida')
       const bloqueada = originais.length !== 1 || v.original
-      const semOriginal = bloqueada && textoSemOriginal !== null
+      // Yannis M7: a original confirmada no ar não precisa de cópia para ser mantida (o passo só grava a escolha, sem tocar o YouTube).
+      const mantidaSemEscrita = originais.length === 1 && v.original && v.id === noArId
+      const semOriginal = bloqueada && textoSemOriginal !== null && !mantidaSemEscrita
       const bloqueio: BloqueioOpcao = !e.podeAdministrar ? 'sem_permissao' : semOriginal ? 'sem_original' : null
       return { ...v, selos: selos.slice(0, 2), bloqueio, textoBloqueio: bloqueio === 'sem_original' ? textoSemOriginal : null, ctrTexto: ctrTexto(v.ctr) }
     })

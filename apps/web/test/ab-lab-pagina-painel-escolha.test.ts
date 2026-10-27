@@ -188,10 +188,21 @@ describe('M7b T8: modelo do painel de escolha', () => {
   })
 
   it('sem mutação da entrada e padrão nulo quando a pré-marcada está bloqueada', () => {
-    const e = entrada({ ar: 'A', sug: 'A', since: null, ctr: 'norm' }, { originalGuardada: { titulo: false, miniatura: true } })
+    const e = entrada({ ar: 'B', sug: 'A', since: null, ctr: 'norm' }, { originalGuardada: { titulo: false, miniatura: true } })
     const copia = JSON.stringify(e)
     const p = montarPainelEscolha(e)
     expect(JSON.stringify(e)).toBe(copia)
     expect(p.padrao).toBeNull()
+  })
+
+  it('Yannis M7: a original CONFIRMADA no ar não fica bloqueada por falta de cópia (o passo só grava a escolha)', () => {
+    const e = entrada({ ar: 'A', sug: 'A', since: null, ctr: 'norm' }, { originalGuardada: { titulo: false, miniatura: true } })
+    const p = montarPainelEscolha(e)
+    const a = p.opcoes.find(o => o.original)!
+    expect(a.bloqueio).toBeNull()
+    expect(p.padrao).toBe(a.id)
+    // com a original fora do ar, continua bloqueada
+    const fora = montarPainelEscolha(entrada({ ar: 'B', sug: 'B', since: null, ctr: 'norm' }, { originalGuardada: { titulo: false, miniatura: true } }))
+    expect(fora.opcoes.find(o => o.original)!.bloqueio).toBe('sem_original')
   })
 })
