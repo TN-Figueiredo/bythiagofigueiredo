@@ -3,7 +3,7 @@
 import { BANCO_MS, comPrazo } from '@/lib/youtube/agenda/relogio'
 import { ehForma, erroDaApi, lerPaginaDeItens, lerPaginaDePlaylists, lerSecoes, type ItemLido, type PlaylistLida } from './ler-api'
 import { ErroX3, type EstadoDoCanal, type OpsX3, type PlaylistConhecida } from './gravar'
-import { calcularCiclo, playlistsDevidas } from './planejar'
+import { CORTES_POR_PLAYLIST, calcularCiclo, estadoCobre, playlistCoberta, playlistsDevidas } from './planejar'
 import { X3_RULES } from './regras'
 
 const API = 'https://www.googleapis.com/youtube/v3'
@@ -12,7 +12,7 @@ const API = 'https://www.googleapis.com/youtube/v3'
 export const PRIORIDADE_DE_MOTIVOS: readonly string[] = [
   'cota_esgotada', 'canal_pausado', 'gravacao_falhou', 'lista_cortada', 'api_falhou', 'resposta_invalida', 'contagem_difere', 'teto_por_canal',
   'itens_cortados', 'playlist_sumiu_no_meio', 'itens_incoerentes', 'teto_itens', 'saida_em_massa_a_confirmar', 'lista_vazia_a_confirmar',
-  'secoes_vazias_a_confirmar', 'teto_do_dia', 'sobrou',
+  'secoes_vazias_a_confirmar', 'lista_com_ocultas', 'teto_do_dia', 'sobrou',
 ]
 export const maisGrave = (motivos: readonly string[]): string | null => PRIORIDADE_DE_MOTIVOS.find(m => motivos.includes(m)) ?? null
 
@@ -55,7 +55,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
   let tetoPorCanal = false
   const motivos: string[] = []
   const motivo = (m: string): void => { if (!motivos.includes(m)) motivos.push(m) }
-  const numeros = { playlists_lidas: 0, playlists_com_itens: 0, itens_gravados: 0, itens_saidos: 0, playlists_sumidas: 0 }
+  const numeros = { playlists_lidas: 0, playlists_com_itens: 0, itens_gravados: 0, itens_saidos: 0, playlists_sumidas: 0, playlists_ocultas: 0, playlists_a_confirmar: 0, playlists_saidas_da_lista: 0 }
 
   const bloqueio = (): 'cota' | 'teto' | 'tempo' | null => {
     if (cotaEsgotada) return 'cota'
@@ -85,7 +85,11 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
 
   let leituraBoa = false
   let listaCompleta = false
+  let listaComOcultas = false
+  let listTotal: number | null = null
+  let listRead: number | null = null
   let listaVazia: boolean | null = null
+  let listaFechada = false
   let secoesVazias: boolean | null = null
   let canalPausado = false
   let gravacaoFalhou = false
@@ -93,6 +97,8 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
   let left: number | null = null
   let devidasN = 0
   let visitadas = 0
+  /** Estado final gravado de cada playlist lida NESTA visita (chave = id interno). */
+  const lidasAgora = new Map<string, { status: 'ok' | 'parcial' | 'erro'; reason: string | null }>()
 
   /** Uma ida de gravação: `ErroX3` aborta a visita (canal pausado ou gravação falhou); outro erro vira `gravacao_falhou`. */
   async function gravar<T>(f: () => Promise<T>): Promise<T | undefined> {
@@ -146,21 +152,35 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
     }
     listaLida = acabou
     if (acabou) {
+      listTotal = total
+      listRead = lidas.length + excluidas
       if (total !== null && total === lidas.length + excluidas) listaCompleta = true
-      else motivo('contagem_difere')
+      else if (total !== null && total > lidas.length + excluidas) {
+        // o YouTube conta playlists que a chave não vê (privadas): a volta fecha, a saída espera duas leituras
+        listaComOcultas = true
+        motivo('lista_com_ocultas')
+        numeros.playlists_ocultas = total - lidas.length - excluidas
+      } else motivo('contagem_difere')
     }
     numeros.playlists_lidas = lidas.length
+    listaFechada = listaCompleta || listaComOcultas
 
     const conhecidas = new Map(e.estado.playlists.map(p => [p.playlist_id, p]))
     const vistas = new Set(lidas.map(l => l.playlist_id))
-    if (listaCompleta && lidas.length === 0) {
+    if (listaComOcultas && lidas.length === 0) {
+      // só ocultas: nada visível a gravar, mas as conhecidas ganham a ausência (a função SQL trata `ocultas`)
+      const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: [], complete: false, ocultas: true }))
+      if (r?.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') }
+      if (r) { numeros.playlists_a_confirmar = r.aConfirmar; numeros.playlists_saidas_da_lista = r.sumidas }
+    } else if (listaCompleta && lidas.length === 0) {
       if (e.estado.empty_streak < 1) { listaVazia = true; motivo('lista_vazia_a_confirmar') } else {
-        const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: [], complete: true }))
+        const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: [], complete: true, ocultas: false }))
         if (r !== undefined) { listaVazia = true; if (r.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') } }
       }
     } else if (lidas.length > 0) {
-      const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: lidas, complete: listaCompleta }))
+      const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: lidas, complete: listaCompleta, ocultas: listaComOcultas }))
       if (r !== undefined) {
+        if (listaComOcultas) { numeros.playlists_a_confirmar = r.aConfirmar; numeros.playlists_saidas_da_lista = r.sumidas }
         if (r.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') } else {
           if (listaCompleta) listaVazia = false
           for (const l of lidas) {
@@ -171,7 +191,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
           }
         }
       }
-      if (!listaCompleta) for (const p of e.estado.playlists) if (p.missing_since === null && !vistas.has(p.playlist_id)) candidatas.push(p)
+      if (!listaFechada) for (const p of e.estado.playlists) if (p.missing_since === null && !vistas.has(p.playlist_id)) candidatas.push(p)
     } else if (!listaLida && lidas.length === 0 && leituraBoa) {
       // lista que nem a 1ª página trouxe: nada novo; as já conhecidas seguem candidatas aos itens
       candidatas = e.estado.playlists.filter(p => p.missing_since === null)
@@ -180,7 +200,9 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
 
   // 3. Os itens das playlists devidas
   if (!abortou() && !cotaEsgotada && candidatas.length > 0) {
-    const devidas = playlistsDevidas(candidatas, e.agora())
+    // não cobertas na frente (partição estável): uma cortada pelo teto não pode ir ao fim da fila atrás das que já estavam cobertas
+    const ordem = playlistsDevidas(candidatas, e.agora())
+    const devidas = [...ordem.filter(p => !playlistCoberta(p, e.estado.last_cycle_at)), ...ordem.filter(p => playlistCoberta(p, e.estado.last_cycle_at))]
     devidasN = devidas.length
     for (const p of devidas) {
       const b = bloqueio()
@@ -190,7 +212,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
       if (abortou()) break
     }
     left = devidasN - visitadas
-  } else if (listaCompleta && candidatas.length === 0) left = 0
+  } else if (listaFechada && candidatas.length === 0) left = 0
 
   async function lerItens(p: PlaylistConhecida): Promise<void> {
     const rows: ItemLido[] = []
@@ -226,6 +248,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
       numeros.playlists_com_itens++
       numeros.itens_gravados += r.gravados
       numeros.itens_saidos += r.saidos
+      lidasAgora.set(p.id, r.massa ? { status: 'parcial', reason: 'saida_em_massa_a_confirmar' } : { status, reason })
       return r
     }
     if (sumiu) { numeros.playlists_sumidas++; motivo('playlist_sumiu_no_meio'); await reg([], false, 'erro', 'playlist_sumiu_no_meio'); return }
@@ -255,7 +278,14 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
   // 4. Fecho e cota
   const final = maisGrave(motivos)
   const estadoFinal: 'ok' | 'parcial' | 'erro' = motivos.length === 0 ? 'ok' : leituraBoa && !canalPausado && !gravacaoFalhou ? 'parcial' : 'erro'
-  const ciclo = calcularCiclo({ playlistsLeft: left, listaCompleta, motivos })
+  const todasCobertas = candidatas.every(p => {
+    const agora = lidasAgora.get(p.id)
+    if (agora !== undefined && estadoCobre(agora.status, agora.reason)) return true
+    const soCortada = agora !== undefined && agora.status === 'parcial' && agora.reason !== null && CORTES_POR_PLAYLIST.has(agora.reason)
+    if (agora !== undefined && !soCortada) return false // erro ou saída em massa: não cobre
+    return playlistCoberta(p, e.estado.last_cycle_at) // não tocada, ou releitura só cortada: vale a leitura anterior desta volta
+  })
+  const ciclo = calcularCiclo({ listaCompleta: listaFechada, todasCobertas, motivos })
   let falhaDoFecho: string | null = null
   let cotaNaoRegistrada = 0
   try {
@@ -263,7 +293,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
       try {
         await e.ops.visitClose({
           siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), status: estadoFinal, reason: final, units: u, left,
-          listaVazia, secoesVazias, ciclo,
+          listaVazia, secoesVazias, ciclo, listTotal, listRead,
         })
       } catch (err) {
         falhaDoFecho = err instanceof ErroX3 ? err.codigo : 'gravacao_falhou'

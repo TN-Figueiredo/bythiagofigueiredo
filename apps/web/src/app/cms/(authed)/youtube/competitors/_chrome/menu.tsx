@@ -11,7 +11,7 @@ import { useJanelaEstreita } from './use-janela-estreita'
 export function Menu({ open, focusAt, btnRef, cowork, nicheEditorHref, onOpenNicheEditor, onToggle, onOpenAt, onClose, onCopy, onCopyReading, owns }: {
   open: boolean; focusAt: 'first' | 'last'
   btnRef: RefObject<HTMLButtonElement | null>
-  cowork: string; nicheEditorHref: string; onOpenNicheEditor?: () => void
+  /** nulo = sem o item (aba Arquivo) */ cowork: string | null; nicheEditorHref: string; onOpenNicheEditor?: () => void
   onToggle: () => void; onOpenAt: (at: 'first' | 'last') => void; onClose: (focusBtn: boolean) => void; onCopy: () => void
   /** Insights: "Copiar texto da leitura" (Task 35) — only when a reading is shown. */
   onCopyReading?: () => void
@@ -55,11 +55,13 @@ export function Menu({ open, focusAt, btnRef, cowork, nicheEditorHref, onOpenNic
               <hr />
             </>
           ) : null}
-          <button className="obs-ch-mi" role="menuitem" type="button" tabIndex={-1} aria-label="Copiar pedido para o Cowork" aria-describedby={prev} onClick={onCopy}>
-            <strong>{Icon.copy()}Copiar pedido para o Cowork</strong>
-            <span className="obs-ch-ctx">Copia este texto, montado a partir desta tela e do nicho atual. Depois, cole no Cowork com ⌘V.</span>
-            <span className="obs-ch-preview" id={prev}>{cowork}</span>
-          </button>
+          {cowork !== null ? (
+            <button className="obs-ch-mi" role="menuitem" type="button" tabIndex={-1} aria-label="Copiar pedido para o Cowork" aria-describedby={prev} onClick={onCopy}>
+              <strong>{Icon.copy()}Copiar pedido para o Cowork</strong>
+              <span className="obs-ch-ctx">Copia este texto, montado a partir desta tela e do nicho atual. Depois, cole no Cowork com ⌘V.</span>
+              <span className="obs-ch-preview" id={prev}>{cowork}</span>
+            </button>
+          ) : null}
           {onCopyReading ? (
             <button className="obs-ch-mi" role="menuitem" type="button" tabIndex={-1} onClick={onCopyReading}>
               <strong>{Icon.copy()}Copiar texto da leitura</strong><span className="obs-ch-ctx">Um bloco por fonte, com o selo e os dados enviados à forja.</span>

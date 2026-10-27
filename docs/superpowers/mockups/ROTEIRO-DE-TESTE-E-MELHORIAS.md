@@ -834,6 +834,10 @@ Opera real, leitor de tela, aparelho real, rede lenta; a tabela de coerência po
 ### 6. Retorno do dono e do uso real
 **APROVADO pelo dono em 14/10/2026**, no Opera, sem pedido de mudança.
 
+
+### Em produção (fase de manutenção, M5, 27/10/2026)
+Código: `071ab1612` (pastilha, painel, régua e a marca dos canais removidos, só para quem edita). A leitura do aviso custa ~4 s na 1ª consulta de cada minuto no caso cheio (achado do Phil, T16 decide Suspense ou cache). Sem a leitura do tamanho do banco a pastilha diz "Banco: Não medido". "Quem ocupa" e os chips do automático esperam a M6.
+
 ---
 
 ## 19. O que muda quando um mês sai do banco (casca e tabela de sincronia)
@@ -899,6 +903,10 @@ O mockup 21 está segurado; a janela de 6 e 12 meses é de exemplo. Leitor de te
 ### 6. Retorno do dono e do uso real
 14/10/2026: aprovado vendo um quadro só (P1-4, `series.html?e=p1-4`), com a explicação "hoje à esquerda, depois da fase à direita". Selos, "04 L77", a nota cinza e a faixa "Exemplo" são anotação de revisor e não vão ao site.
 
+
+### 7. Em produção (fase de manutenção, M5, 27/10/2026)
+Código: `c99edf3a5`, `749515728`, `061ee2067` (72 horas, barras por dia, normal do canal). Hoje nenhum mês saiu, então o que se vê é o de sempre; "desde dd/mm" e "no arquivo" só aparecem depois da 1ª saída (~28/11) ou se a leitura do "desde quando há dado online" falhar. Roteiro: (1) abrir um vídeo e o canal e conferir que nada mudou nas curvas, nas 72 horas e no normal do canal; (2) com a leitura falhando, os pontos mais velhos que 181 dias dizem "Não foi possível ler desde quando há dado online." e não viram zero. Pendente: comentários em destaque e seletor 6/12 meses (mockup 21 segurado) ainda sem tela ligada.
+
 ---
 ## 19b. Peça 2: a página do Arquivo
 
@@ -934,6 +942,10 @@ Opera real, leitor de tela, aparelho real, filtro de cinza do macOS. O contraste
 
 ### 6. Retorno do dono e do uso real
 14/10/2026: o índice do mockup 19 (`index.html`) não fez sentido para o dono ("Não estou entendendo nada deste mock up"): é um mapa de revisor, não uma tela. Com a explicação em três linhas (frase do topo, um cartão por tipo de dado, o caminho de cada mês), a página do Arquivo foi aprovada. Lição: mostrar ao dono a tela, não o índice, e abrir no caso que tem conteúdo.
+
+
+### 7. Em produção (fase de manutenção, M5, 27/10/2026)
+Código: `aa526fd57` (página Arquivo, só leitura; aba visível só a quem edita). Roteiro: (1) quem edita abre Observatório > Arquivo e vê a frase-resumo, a linha da casa e os três tipos de dado; hoje nenhum mês saiu, então os cartões dizem isso sem verde de enfeite; (2) o bloco "Canais removidos" mostra "não medido" se a leitura falhar; (3) perfil "só lê" pela barra de endereço vê "Esta página é de quem edita o site." e "Voltar para Canais". Os botões de tirar o mês são da M6.
 
 ---
 ## 19c. Peça 3: tirar o mês do banco
@@ -1227,6 +1239,10 @@ Abrir `http://127.0.0.1:47701/2026-10-14-manutencao-nas/19-mes-fora-do-banco/pec
 2. "Já rodei" refutado: ler se a frase diz o que a verificação achou e que o item voltou.
 3. Olhar de relance a barra de idade: dá para ver qual item está há mais tempo e qual passou de 30 e de 60 dias?
 4. "Apagar bloqueado": a fila diz por que não dá para apagar agora, sem parecer erro.
+
+
+### 7. Em produção (fase de manutenção, M5, 27/10/2026)
+Código: `8ad0d1cc9` (só leitura). Na fila "Saíram do YouTube" aparece o bloco do que espera você rodar os comandos, com a barra de idade e "Ver os comandos" só para quem administra. Itens pendentes mostram "Canal removido/Vídeo/Comentários" sem título (a leitura não traz título). Roteiro: abrir o filtro Saíram sem pendência (bloco ausente, não vazio-verde) e com pendência.
 
 ## 19g. Peça 8: os vídeos antigos
 

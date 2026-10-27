@@ -40,6 +40,16 @@ describe('chrome view model', () => {
   it('tab hrefs carry no niche (object links) and point at the routes', () => {
     expect(buildChromeView(obs, { tab: 'canais', niche: 'ia' }).tabs.map(t => t.href)).toEqual(['/cms/youtube/competitors', '/cms/youtube/competitors/mudancas', '/cms/youtube/competitors/outliers', '/cms/youtube/competitors/insights'])
   })
+  it('M5: a aba Arquivo só entra com arquivoVisivel, por último, com o href da rota e a marca de corrente; coworkText tem a chave', () => {
+    expect(buildChromeView(obs, { tab: 'canais', niche: 'todos' }).tabs.map(t => t.key)).not.toContain('arquivo')
+    expect(buildChromeView(obs, { tab: 'canais', niche: 'todos', arquivoVisivel: false }).tabs.map(t => t.key)).not.toContain('arquivo')
+    const com = buildChromeView(obs, { tab: 'arquivo', niche: 'todos', arquivoVisivel: true }).tabs
+    expect(com.at(-1)).toMatchObject({ key: 'arquivo', label: 'Arquivo', href: '/cms/youtube/competitors/arquivo', current: true })
+    expect(com.slice(0, -1).every(t => !t.current)).toBe(true)
+    // Yannis I-1: o MCP não lê o arquivo, então a aba não tem pedido para o Cowork (nem texto, nem item de menu)
+    expect(buildChromeView(obs, { tab: 'arquivo', niche: 'todos', arquivoVisivel: true }).cowork).toBeNull()
+    expect(buildChromeView(obs, { tab: 'canais', niche: 'todos' }).cowork).toEqual(expect.stringContaining('youtube_observatory'))
+  })
   it('marks only the current tab', () => {
     expect(buildChromeView(obs, { tab: 'outliers', niche: 'todos' }).tabs.map(t => t.current)).toEqual([false, false, true, false])
   })

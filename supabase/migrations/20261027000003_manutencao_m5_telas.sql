@@ -1,5 +1,7 @@
--- Manutenção M5: as telas (spec 2026-10-13-fase-manutencao-nas, 04 §14; 02 §10.4). RASCUNHO até a Tarefa 13 do plano M5 (TRAVA M5-1):
--- não mover para supabase/migrations à mão; o arquivo nasce por `npm run db:new manutencao_m5_telas`. Depende da M2, da M10a e da M3b em produção.
+-- =============================================================================
+-- MIGRATION: manutencao_m5_telas
+-- Manutenção M5: as telas (spec 2026-10-13-fase-manutencao-nas, 04 §14; 02 §10.4). Depende da M2, da M10a e da M3b em produção.
+-- =============================================================================
 
 -- M5 PARTE 1: online desde (02 §10.4)
 -- Por tabela de série (horária e série; o texto e o vídeo antigo não têm data de série): o 1º dia do mês seguinte ao último mês com detached_at OU
@@ -161,21 +163,35 @@ grant execute on function public.obs_archive_pagina(uuid) to service_role;
 -- por linha) não pode ir em cada navegação. Só o que o 18-v2 usa: o próximo mês pronto, a última cópia, a casa e os vermelhos CONTADOS.
 create or replace function public.obs_archive_aviso(p_site uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
+  with i as materialized (select * from public.obs_archive_atraso_itens(p_site)),
+       -- o mês mais atrasado: o item `unidade` de menor `desde`, desempate pelo menor mês (Phil I4: a TS não pode subtrair a margem, que é 28 ou 45 conforme a classe)
+       am as (select i2.mes from i i2 where i2.tipo = 'unidade' order by i2.desde, i2.mes limit 1)
   select jsonb_build_object(
     'versao', 1, 'lido_em', public.obs_archive_agora(), 'hoje', public.obs_archive_hoje_sp(),
-    'proximo_mes', (select jsonb_build_object('class', x.class, 'month', x.month, 'pronto_em', ((x.sealed_at at time zone 'America/Sao_Paulo')::date + k.wait_days))
-                      from public.obs_archive_months x
-                      join (select distinct p.class, p.wait_days from public.obs_archive_policy() p where p.class in ('horaria', 'serie')) k on k.class = x.class
-                     where x.site_id = p_site and x.sealed_at is not null and x.unsealed_at is null and x.detached_at is null and x.dropped_at is null
-                     order by x.month, x.class limit 1),
-    'primeira_devida_em', public.obs_archive_due_on(
-        greatest(coalesce((select sw.first_month from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria'), date '2026-10-01'), date '2026-10-01'),
-        (select min(p.seal_margin_days) from public.obs_archive_policy() p where p.class = 'horaria')),
+    -- Phil I1: o mês só sai das telas em (mês + 1 + janela) e o espaço volta wait_days depois disso; o selo só adia, nunca antecipa.
+    -- Quando a M6 entrar, esta conta passa a ser a função dela (obs_archive_pode_sair_em, com o piso) + wait_days.
+    'proximo_mes', (select jsonb_build_object('class', y.class, 'month', y.month, 'pronto_em', y.pronto)
+                      from (select x.class, x.month,
+                                   greatest((x.month + pg_catalog.make_interval(months => 1 + k.window_months))::date, (x.sealed_at at time zone 'America/Sao_Paulo')::date) + k.wait_days as pronto
+                              from public.obs_archive_months x
+                              join (select distinct p.class, p.wait_days, p.window_months from public.obs_archive_policy() p where p.class in ('horaria', 'serie')) k on k.class = x.class
+                             where x.site_id = p_site and x.sealed_at is not null and x.unsealed_at is null and x.detached_at is null and x.dropped_at is null) y
+                     order by y.pronto, y.month, y.class limit 1),
+    -- Phil r2 R1: o início vem do registro (obs_archive_switch.first_month), sem piso fixo no texto. Sem registro: nulos (a TS diz "Ainda não há cópia"), nunca uma data inventada.
+    'primeira_devida_em', (select public.obs_archive_due_on(sw.first_month, (select min(p.seal_margin_days) from public.obs_archive_policy() p where p.class = 'horaria'))
+                             from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria' and sw.first_month is not null),
+    'primeira_devida_mes', (select sw.first_month from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria'),
     'ultima_copia', (select max(u.received_at) from public.obs_archive_units u where u.site_id = p_site and u.class in ('horaria', 'serie', 'texto')),
     'casa', coalesce((select jsonb_agg(jsonb_build_object('worker', h.worker, 'last_poll_at', h.last_poll_at, 'updated_at', h.updated_at, 'nas_ok', h.nas_ok,
               'nas_checked_at', h.nas_checked_at) order by h.worker) from public.obs_archive_heartbeat h where h.site_id = p_site), '[]'::jsonb),
     'vermelhos_n', cardinality(public.obs_archive_vermelhos(p_site)),
-    'atraso', public.obs_archive_atraso(p_site))
+    -- as mesmas contas de obs_archive_atraso (m3b), sobre os itens lidos UMA vez
+    'atraso', (select jsonb_build_object(
+        'amarelos', count(*) filter (where i.tipo = 'unidade' and public.obs_archive_hoje_sp() - i.desde > 5 and public.obs_archive_hoje_sp() - i.desde <= 30),
+        'vermelhos', count(*) filter (where i.tipo = 'unidade' and public.obs_archive_hoje_sp() - i.desde > 30),
+        'mais_antiga', min(i.desde) filter (where i.tipo = 'unidade'),
+        'meses_sem_selo', count(*) filter (where i.tipo = 'mes')) from i),
+    'atraso_mes', (select am.mes from am))
 $$;
 revoke all on function public.obs_archive_aviso(uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_aviso(uuid) to service_role;
@@ -362,3 +378,28 @@ begin
 end $$;
 revoke all on function public.obs_archive_channel_archive_impact(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_channel_archive_impact(uuid, uuid) to service_role;
+
+-- M5 PARTE 4: liberar serie e horaria (TRAVA M5-3, item 87). Corpo da M3b, só `released` muda nas 3 linhas.
+create or replace function public.obs_archive_policy()
+returns table (class text, table_name text, exit_mode text, window_months int, seal_margin_days int, wait_days int,
+               auto_allowed text, released boolean, control_column text, filho text)
+language sql immutable set search_path = '' as $$
+  values
+    ('horaria', 'competitor_video_hourly', 'particao', 3, 28, 7, 'depois_de_3', true, 'views', 'numerico'),
+    ('serie', 'competitor_video_daily', 'particao', 6, 28, 7, 'depois_de_3', true, 'views', 'numerico'),
+    ('serie', 'competitor_video_early', 'particao', 6, 28, 7, 'depois_de_3_da_tabela', true, 'views', 'numerico'),
+    ('texto', 'competitor_video_comments', 'faixa', 6, 45, 0, 'nunca', false, null, 'texto'),
+    ('texto', 'competitor_video_comment_marks', 'faixa', 6, 45, 0, 'nunca', false, 'likes', 'texto'),
+    ('texto', 'competitor_raw', 'faixa', 6, 45, 0, 'nunca', false, null, 'texto'),
+    ('ensaio', 'obs_archive_rehearsal', 'particao', 6, 28, 1, 'nunca', false, 'views', 'numerico'),
+    ('video_antigo', 'competitor_video_versions', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_field_versions', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_raw', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_video_tier_spans', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_video_comment_snaps', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_hour_fold_log', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_changes', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_readings', 'lista', 0, 28, 0, 'nunca', false, null, 'texto')
+$$;
+revoke all on function public.obs_archive_policy() from public, anon, authenticated;
+grant execute on function public.obs_archive_policy() to service_role;

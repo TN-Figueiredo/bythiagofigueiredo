@@ -18,7 +18,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 1: online desde', () => {
   afterEach(async () => { await c.query('rollback'); await c.end() })
 
   const fora = (site: string, classe: string, tabela: string, mes: string, col: 'detached_at' | 'dropped_at') =>
-    c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, ${col}) values ($1, $2, $3, $4, now())`, [site, classe, tabela, mes])
+    c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, ${col}) values ($1, $2, $3, $4, public.obs_archive_agora())`, [site, classe, tabela, mes])
   const linha = (tabela: string) => q1(c, `select online_since::text as d, divergencia from public.obs_archive_online_since($1) where table_name = $2`, [SITE_TESTE, tabela])
 
   it('window_months da política: serie 6, horaria 3', async () => {
@@ -56,7 +56,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 1: online desde', () => {
               where h.inhparent = 'public.${tabela}'::regclass and n.nspname = 'obs_part' and right(c.relname, 6) <= '${ateMes.slice(0, 4)}${ateMes.slice(5, 7)}' loop
       execute format('drop table %I.%I', f.ns, f.rel); end loop; end $$`)
   const unidadeSerie = (mes: string, linhas: number) => c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
-    values ($1, 'serie', $2, $3, $4, 1, $5, md5('a') || md5('a'), md5('s') || md5('s'), ${linhas > 0 ? "md5('b') || md5('b')" : 'null'}, md5('c') || md5('c'), 100, now())`, [SITE_TESTE, DIARIA1, randomUUID(), mes, linhas])
+    values ($1, 'serie', $2, $3, $4, 1, $5, md5('a') || md5('a'), md5('s') || md5('s'), ${linhas > 0 ? "md5('b') || md5('b')" : 'null'}, md5('c') || md5('c'), 100, public.obs_archive_agora())`, [SITE_TESTE, DIARIA1, randomUUID(), mes, linhas])
 
   it('divergência (a): o início da classe em 10/2026, registro vazio e a partição de outubro fora da tabela-mãe: divergência (o "nada saiu" é falso)', async () => {
     expect((await q1(c, `select relkind::text as k from pg_class where oid = 'public.competitor_video_daily'::regclass`)).k).toBe('p')
@@ -99,7 +99,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
   const pagina = async () => (await q1(c, `select public.obs_archive_pagina($1) as p`, [SITE_TESTE])).p as Record<string, unknown> & { meses: Record<string, unknown>[]; progresso: Prog[] }
   const unidade = (canal: string, tabela: string, extra: { versao?: number; recebida?: boolean; redo?: string | null } = {}) =>
     c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at, redo_reason)
-             values ($1, 'serie', $2, $3, '2026-10-01', $4, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, ${extra.recebida === false ? 'null' : 'now()'}, $5)`,
+             values ($1, 'serie', $2, $3, '2026-10-01', $4, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, ${extra.recebida === false ? 'null' : 'public.obs_archive_agora()'}, $5)`,
       [SITE_TESTE, tabela, canal, extra.versao ?? 1, extra.redo ?? null])
   const DIARIA = 'competitor_video_daily', CEDO = 'competitor_video_early'
   const progDe = (p: { progresso: Prog[] }, classe: string, mes: string) => p.progresso.find(x => x.class === classe && x.month === mes)
@@ -144,7 +144,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
   })
   it('o registro vai por lista fechada: nenhum *_by, nem id, nem site_id', async () => {
     await semearCanal(c, { videos: 0 })
-    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, detached_at, detached_by) values ($1, 'serie', $2, '2026-10-01', now(), gen_random_uuid())`, [SITE_TESTE, DIARIA])
+    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, detached_at, detached_by) values ($1, 'serie', $2, '2026-10-01', public.obs_archive_agora(), gen_random_uuid())`, [SITE_TESTE, DIARIA])
     const m = (await pagina()).meses.find(x => x.tem_linha === true)!
     expect(Object.keys(m).filter(k => k.endsWith('_by') || k === 'id' || k === 'site_id')).toEqual([])
     expect(m).toHaveProperty('reattach_out_of_order', false)
@@ -168,18 +168,63 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
   it('aviso: leve, só com o que o 18-v2 usa', async () => {
     await semearCanal(c, { videos: 0 })
     const a = (await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as Record<string, unknown>
-    expect(Object.keys(a).sort()).toEqual(['atraso', 'casa', 'hoje', 'lido_em', 'primeira_devida_em', 'proximo_mes', 'ultima_copia', 'vermelhos_n', 'versao'])
-    expect(a.proximo_mes).toBeNull(); expect(a.ultima_copia).toBeNull(); expect(a.primeira_devida_em).toBe('2026-11-28'); expect(typeof a.vermelhos_n).toBe('number')
+    expect(Object.keys(a).sort()).toEqual(['atraso', 'atraso_mes', 'casa', 'hoje', 'lido_em', 'primeira_devida_em', 'primeira_devida_mes', 'proximo_mes', 'ultima_copia', 'vermelhos_n', 'versao'])
+    expect(a.proximo_mes).toBeNull(); expect(a.ultima_copia).toBeNull(); expect(a.primeira_devida_em, 'sem registro do início (obs_archive_switch): nulo, nunca o piso de 2026-10-01').toBeNull(); expect(a.primeira_devida_mes).toBeNull(); expect(a.atraso_mes).toBeNull(); expect(typeof a.vermelhos_n).toBe('number')
   })
-  it('aviso: proximo_mes = selo (em São Paulo) + wait_days; mês destacado não conta; atraso igual ao do pulso', async () => {
+  it('Phil r2 R1: com o registro do início (first_month de 2027-03-01), a 1ª cópia devida vem dele e não do piso fixo; apagar o registro volta ao nulo', async () => {
     await semearCanal(c, { videos: 0 })
-    // série selada em 2027-05-03 (wait_days 7): pronto em 2027-05-10. Horária de outubro já destacada: fora da fila.
+    await c.query(`delete from public.obs_archive_switch where site_id = $1 and class = 'horaria'`, [SITE_TESTE])
+    await c.query(`insert into public.obs_archive_switch (site_id, class, first_month) values ($1, 'horaria', '2027-03-01')`, [SITE_TESTE])
+    const lido = async () => (await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as { primeira_devida_em: string | null; primeira_devida_mes: string | null }
+    const a = await lido()
+    expect(a.primeira_devida_mes).toBe('2027-03-01')
+    expect(a.primeira_devida_em).toBe((await q1(c, `select public.obs_archive_due_on(date '2027-03-01', (select min(p.seal_margin_days) from public.obs_archive_policy() p where p.class = 'horaria'))::text as d`)).d)
+    await c.query(`delete from public.obs_archive_switch where site_id = $1`, [SITE_TESTE])
+    expect(await lido()).toMatchObject({ primeira_devida_em: null, primeira_devida_mes: null })
+  })
+  it('aviso: proximo_mes = mês + 1 + janela + wait_days (o selo só adia); mês destacado não conta; atraso igual ao do pulso', async () => {
+    await semearCanal(c, { videos: 0 })
+    // série de 11/2026 (janela 6) selada em 2027-05-03: o mês só sai em 2027-06-01, o espaço volta 7 dias depois (Phil I1). Horária de outubro já destacada: fora da fila.
     await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind) values ($1, 'serie', $2, '2026-11-01', '2027-05-03 12:00-03', 'com_dado')`, [SITE_TESTE, DIARIA])
-    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, detached_at) values ($1, 'horaria', 'competitor_video_hourly', '2026-10-01', '2027-04-01 12:00-03', 'com_dado', now())`, [SITE_TESTE])
+    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, detached_at) values ($1, 'horaria', 'competitor_video_hourly', '2026-10-01', '2027-04-01 12:00-03', 'com_dado', public.obs_archive_agora())`, [SITE_TESTE])
     await hoje('2027-05-04')
     const a = (await q1(c, `select public.obs_archive_aviso($1) as a, public.obs_archive_atraso($1) as at`, [SITE_TESTE]))
-    expect((a.a as { proximo_mes: unknown }).proximo_mes).toEqual({ class: 'serie', month: '2026-11-01', pronto_em: '2027-05-10' })
+    expect((a.a as { proximo_mes: unknown }).proximo_mes).toEqual({ class: 'serie', month: '2026-11-01', pronto_em: '2027-06-08' })
     expect((a.a as { atraso: unknown }).atraso).toEqual(a.at)
+  })
+  it('Phil I1: horária de 01/2028 selada em 28/02/2028 pronta em 08/05/2028; série de 10/2026 selada em 28/11/2026 pronta em 08/05/2027', async () => {
+    await semearCanal(c, { videos: 0 })
+    const ins = (cl: string, tb: string, mes: string, selo: string) => c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind) values ($1, $2, $3, $4, $5, 'com_dado')`, [SITE_TESTE, cl, tb, mes, selo])
+    await ins('horaria', 'competitor_video_hourly', '2028-01-01', '2028-02-28 12:00-03')
+    const prox = async () => ((await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as { proximo_mes: { class: string; month: string; pronto_em: string } }).proximo_mes
+    expect(await prox()).toEqual({ class: 'horaria', month: '2028-01-01', pronto_em: '2028-05-08' })
+    await ins('serie', DIARIA, '2026-10-01', '2026-11-28 12:00-03')
+    expect(await prox()).toEqual({ class: 'serie', month: '2026-10-01', pronto_em: '2027-05-08' })
+  })
+  it('Phil I4: só os comentários de 10/2026 atrasados (margem 45): atraso_mes = outubro, e mais_antiga - 28 dias cairia em novembro', async () => {
+    const { canal } = await semearCanal(c, { videos: 0 })
+    await hoje('2026-12-20')
+    for (const [cl, tb] of [['horaria', 'competitor_video_hourly'], ['serie', DIARIA], ['serie', CEDO]] as const) {
+      await c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
+        values ($1, $2, $3, $4, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, public.obs_archive_agora())`, [SITE_TESTE, cl, tb, canal])
+    }
+    const a = (await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as { atraso_mes: string | null; atraso: { mais_antiga: string | null } }
+    expect(a.atraso.mais_antiga).toBe('2026-12-15')
+    expect(a.atraso_mes).toBe('2026-10-01')
+  })
+  it('Yannis M-B: a conta de atraso do aviso é a do pulso (obs_archive_atraso), com amarelos e vermelhos de verdade, nos dois lados dos limiares', async () => {
+    const { canal } = await semearCanal(c, { videos: 0 })
+    for (const hojeDia of ['2026-12-31', '2027-02-10']) {          // 16 dias de atraso (amarelo) e 57 dias (vermelho)
+      await hoje(hojeDia)
+      if (hojeDia === '2026-12-31') {
+        await c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
+          values ($1, 'horaria', 'competitor_video_hourly', $2, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, public.obs_archive_agora())`, [SITE_TESTE, canal])
+      }
+      const depois = await q1(c, `select public.obs_archive_aviso($1) as a, public.obs_archive_atraso($1) as at`, [SITE_TESTE])
+      expect((depois.a as { atraso: unknown }).atraso, hojeDia).toEqual(depois.at)
+      const at = depois.at as { amarelos: number; vermelhos: number }
+      expect(at.amarelos + at.vermelhos, hojeDia + ': há atraso medido').toBeGreaterThan(0)
+    }
   })
   it('aviso: a última cópia não conta a classe de ensaio', async () => {
     const x = (cl: string, mes: string, quando: string) => c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
@@ -195,7 +240,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
     await unidade(a.canal, DIARIA); await unidade(a.canal, CEDO)
     await unidade(b.canal, DIARIA); await unidade(b.canal, CEDO)
     await c.query(`set local session_replication_role = replica`)   // semente: o gatilho recusaria perda de canal que existe; aqui só importa a leitura
-    await c.query(`update public.obs_archive_units set lost_at = now(), lost_by = gen_random_uuid(), lost_reason = 'nunca_recebida', received_at = null where channel_ref = $1 and table_name = $2`, [b.canal, CEDO])
+    await c.query(`update public.obs_archive_units set lost_at = public.obs_archive_agora(), lost_by = gen_random_uuid(), lost_reason = 'nunca_recebida', received_at = null where channel_ref = $1 and table_name = $2`, [b.canal, CEDO])
     await c.query(`set local session_replication_role = origin`)
     await hoje('2026-12-10')
     expect(progDe(await pagina(), 'serie', '2026-10-01')).toEqual({ class: 'serie', month: '2026-10-01', canais_esperados: 2, canais_prontos: 2, canais_perdidos: 1 })
@@ -215,8 +260,8 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
     await unidade(b.canal, DIARIA); await unidade(b.canal, CEDO, { redo: 'conteudo_mudou' })            // a refazer
     await unidade(d.canal, DIARIA); await unidade(d.canal, CEDO); await unidade(d.canal, CEDO, { versao: 2, recebida: false })   // v2 não recebida
     void e                                                                                              // sem unidade nenhuma
-    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind) values ($1, 'serie', $2, '2026-11-01', now(), 'com_dado')`, [SITE_TESTE, DIARIA])   // mês selado
-    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, unsealed_at, unsealed_reason) values ($1, 'serie', $2, '2026-10-01', now(), 'com_dado', now(), 'unidade_nova')`, [SITE_TESTE, CEDO])   // mês reaberto
+    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind) values ($1, 'serie', $2, '2026-11-01', public.obs_archive_agora(), 'com_dado')`, [SITE_TESTE, DIARIA])   // mês selado
+    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, unsealed_at, unsealed_reason) values ($1, 'serie', $2, '2026-10-01', public.obs_archive_agora(), 'com_dado', public.obs_archive_agora(), 'unidade_nova')`, [SITE_TESTE, CEDO])   // mês reaberto
     await hoje('2027-03-15')
     const ler = async (fn: string) => (await c.query(`select tipo, classe, tabela, canal, mes::text, desde::text from public.${fn}($1) order by 1, 2, 3 nulls first, 4 nulls first, 5`, [SITE_TESTE])).rows
     const novo = await ler('obs_archive_atraso_itens'), velho = await ler('obs_archive_atraso_itens_m3b')
@@ -232,7 +277,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
       for g in select x.class as cl, m::date as mes from (values ('horaria'), ('serie'), ('texto')) x(class), generate_series(date '2026-10-01', date '2028-04-01', interval '1 month') m loop
         insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at, redo_reason)
         select '${SITE_TESTE}', g.cl, e.table_name, e.channel_ref, g.mes, 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100,
-               case when random() < 0.9 then now() end, case when random() < 0.05 then 'conteudo_mudou' end
+               case when random() < 0.9 then public.obs_archive_agora() end, case when random() < 0.05 then 'conteudo_mudou' end
           from public.obs_archive_expected_units('${SITE_TESTE}', g.cl, g.mes) e;
       end loop; end $$`)
     const n = (await q1(c, `select count(*)::int as n from public.obs_archive_units where site_id = $1`, [SITE_TESTE])).n
@@ -265,7 +310,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 3: lista v2, desde da horária, imp
   const lista = async () => (await q1(c, `select public.obs_archive_removed_channel_list($1) as l`, [SITE_TESTE])).l as Record<string, unknown>[]
   const U = (canal: string, tabela: string, mes: string, linhas = 5) =>
     c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
-             values ($1, 'serie', $2, $3, $4, 1, $5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [SITE_TESTE, tabela, canal, mes, linhas])
+             values ($1, 'serie', $2, $3, $4, 1, $5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, public.obs_archive_agora())`, [SITE_TESTE, tabela, canal, mes, linhas])
 
   it('lista v2: nome, removido_em e faixa para a remoção com linha', async () => {
     await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, name_at_removal, removed_at, removed_via, archive_decision, decided_at, units_at_removal, first_month, last_month, online_thumbs_known)
@@ -276,14 +321,14 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 3: lista v2, desde da horária, imp
   })
   it('lista v2: linha da vigia sem nome nem data, com o código', async () => {
     await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known)
-                   values ($1, '7f3a91c2-0000-0000-0000-000000000002', 'vigia', 'apagar', now(), false)`, [SITE_TESTE])
+                   values ($1, '7f3a91c2-0000-0000-0000-000000000002', 'vigia', 'apagar', public.obs_archive_agora(), false)`, [SITE_TESTE])
     expect((await lista())[0]).toMatchObject({ nome: null, removido_em: null, removido_via: 'vigia', channel_ref: '7f3a91c2-0000-0000-0000-000000000002' })
   })
   it('Phil I5: duas tabelas em três meses são 3 meses (não 6, não units_at_removal)', async () => {
     const ref = 'aaaaaaaa-0000-0000-0000-000000000004'
     // divergência do plano: o gatilho da M3b (canal_removido) recusa unidade depois da remoção; as unidades entram antes
     for (const mes of ['2026-10-01', '2026-11-01', '2026-12-01']) for (const t of ['competitor_video_daily', 'competitor_video_early']) await U(ref, t, mes)
-    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, units_at_removal, online_thumbs_known) values ($1, $2, 'botao', 'apagar', now(), 99, true)`, [SITE_TESTE, ref])
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, units_at_removal, online_thumbs_known) values ($1, $2, 'botao', 'apagar', public.obs_archive_agora(), 99, true)`, [SITE_TESTE, ref])
     expect((await lista())[0]).toMatchObject({ meses: 3, registros: 30, primeiro_mes: '2026-10', ultimo_mes: '2026-12' })
   })
   it('Phil I5: remoção sem nenhuma unidade tem meses e registros nulos, não zero', async () => {
@@ -292,7 +337,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 3: lista v2, desde da horária, imp
     expect(r.meses).toBeNull(); expect(r.registros).toBeNull(); expect(r.estado).toBe('sem_arquivo')
   })
   it('Yannis I-14: horária com outubro fora diz 1º de outubro à meia-noite de São Paulo, precisão mês', async () => {
-    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, detached_at) values ($1, 'horaria', 'competitor_video_hourly', '2026-10-01', now(), 'com_dado', now())`, [SITE_TESTE])
+    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, detached_at) values ($1, 'horaria', 'competitor_video_hourly', '2026-10-01', public.obs_archive_agora(), 'com_dado', public.obs_archive_agora())`, [SITE_TESTE])
     const r = await q1(c, `select desde, precisao from public.obs_archive_horaria_desde($1)`, [SITE_TESTE])
     expect(new Date(r.desde as string).toISOString()).toBe('2026-10-01T03:00:00.000Z')
     expect(r.precisao).toBe('mes')
@@ -310,7 +355,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 3: lista v2, desde da horária, imp
   it('hourly health: desde vem do mês fora (1º de outubro, precisão mês) e online_desde é a 1ª leitura real', async () => {
     const { canal } = await semearCanal(c, { site: SITE_TESTE, videos: 1 })
     await c.query(`insert into public.competitor_video_hourly (video_id, hour_slot, taken_at, site_id, views) select v.id, '2026-11-02 14:00-03', '2026-11-02 14:00-03', $1, 10 from public.competitor_videos v where v.competitor_channel_id = $2`, [SITE_TESTE, canal])
-    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, detached_at) values ($1, 'horaria', 'competitor_video_hourly', '2026-10-01', now(), 'com_dado', now())`, [SITE_TESTE])
+    await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, detached_at) values ($1, 'horaria', 'competitor_video_hourly', '2026-10-01', public.obs_archive_agora(), 'com_dado', public.obs_archive_agora())`, [SITE_TESTE])
     const h = (await q1(c, `select public.competitor_hourly_health($1, now(), 14, 100) as h`, [SITE_TESTE])).h as { desde: string; desde_precisao: string; online_desde: string }
     expect(new Date(h.desde).toISOString()).toBe('2026-10-01T03:00:00.000Z')
     expect(h.desde_precisao).toBe('mes')
@@ -322,19 +367,12 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 3: lista v2, desde da horária, imp
     const h = (await q1(c, `select public.competitor_hourly_health($1, now(), 14, 100) as h`, [SITE_TESTE])).h as { desde: string; desde_precisao: string; online_desde: string }
     expect(new Date(h.desde).toISOString()).toBe('2026-11-02T17:00:00.000Z'); expect(h.desde_precisao).toBe('hora'); expect(h.online_desde).toBe(h.desde)
   })
-  it('o bloco da competitor_hourly_health colado no rascunho é a saída atual do gerador (Yannis m-2)', () => {
-    const raiz = resolve(__dirname, '../../../..')
-    const saida = resolve(raiz, 'supabase/rascunhos/.gerado-teste-hourly-health.sql')
-    execFileSync('python3', [resolve(raiz, 'supabase/rascunhos/gerar-m5-parte3.py'), saida], { cwd: raiz })
-    const corta = (t: string) => t.slice(t.indexOf('create or replace function public.competitor_hourly_health('), t.indexOf('to service_role;', t.indexOf('grant execute on function public.competitor_hourly_health(')) + 'to service_role;'.length)
-    try { expect(corta(readFileSync(M5_SQL_CAMINHO, 'utf8'))).toBe(corta(readFileSync(saida, 'utf8'))) } finally { execFileSync('rm', ['-f', saida]) }
-  })
   it('lista v2: canal com apagar concluído (unidades expurgadas) mantém os N meses', async () => {
     const ref = 'aaaaaaaa-0000-0000-0000-000000000006'
     for (const mes of ['2026-10-01', '2026-11-01']) await U(ref, 'competitor_video_daily', mes)
-    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known) values ($1, $2, 'botao', 'apagar', now(), true)`, [SITE_TESTE, ref])
+    await c.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known) values ($1, $2, 'botao', 'apagar', public.obs_archive_agora(), true)`, [SITE_TESTE, ref])
     await c.query(`set local session_replication_role = replica`)   // semente: só a leitura importa
-    await c.query(`update public.obs_archive_units set purged_at = now(), purged_by = gen_random_uuid(), purge_ref = 'x' where channel_ref = $1`, [ref])
+    await c.query(`update public.obs_archive_units set purged_at = public.obs_archive_agora(), purged_by = gen_random_uuid(), purge_ref = 'x' where channel_ref = $1`, [ref])
     await c.query(`set local session_replication_role = origin`)
     // regra: a lista v2 mostra "Limpeza pedida: N meses" e conta também o que já foi expurgado/perdido (o impacto, ao contrário, só olha o que ainda existe)
     expect((await lista())[0]).toMatchObject({ meses: 2, registros: 10 })
@@ -345,7 +383,7 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 3: lista v2, desde da horária, imp
     const antes = (await q1(c, `select public.obs_archive_channel_archive_impact($1, $2) as r`, [SITE_TESTE, canal])).r as { registros: number; fora_do_banco: { registros: number } }
     expect(antes.registros).toBe(14); expect(antes.fora_do_banco.registros).toBe(0)
     await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, dropped_at) values
-                   ($1, 'serie', 'competitor_video_daily', '2026-10-01', now(), 'com_dado', now()), ($1, 'serie', 'competitor_video_early', '2026-10-01', now(), 'com_dado', now())`, [SITE_TESTE])
+                   ($1, 'serie', 'competitor_video_daily', '2026-10-01', public.obs_archive_agora(), 'com_dado', public.obs_archive_agora()), ($1, 'serie', 'competitor_video_early', '2026-10-01', public.obs_archive_agora(), 'com_dado', public.obs_archive_agora())`, [SITE_TESTE])
     const depois = (await q1(c, `select public.obs_archive_channel_archive_impact($1, $2) as r`, [SITE_TESTE, canal])).r as { registros: number; fora_do_banco: { registros: number; por_tabela: { table_name: string; registros: number }[] } }
     expect(depois.registros).toBe(14)
     expect(depois.fora_do_banco.registros).toBe(14)

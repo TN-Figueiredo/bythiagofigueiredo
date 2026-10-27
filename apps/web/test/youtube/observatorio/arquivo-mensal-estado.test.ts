@@ -46,13 +46,13 @@ describe('capacidades (P54, item 163)', () => {
   it('variável apagada: o comando não existe', () => {
     delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL
     delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL_DATA
-    expect(lerCapacidades()).toEqual({ comandoDeLimpeza: false, blocoCanaisRemovidos: false, dataDoComando: null })
+    expect(lerCapacidades()).toEqual({ comandoDeLimpeza: false, blocoCanaisRemovidos: true, dataDoComando: null }) // M5 T9: o bloco foi entregue
   })
   it('só on liga', () => {
     for (const v of ['ON', '1', 'true', '', ' on']) expect(lerCapacidades({ OBS_ARQUIVO_LIMPEZA_CANAL: v } as NodeJS.ProcessEnv).comandoDeLimpeza).toBe(false)
   })
-  it('comando sim e bloco não volta como não, não', () => {
-    expect(lerCapacidades({ OBS_ARQUIVO_LIMPEZA_CANAL: 'on' } as NodeJS.ProcessEnv)).toMatchObject({ comandoDeLimpeza: false, blocoCanaisRemovidos: false })
+  it('com o bloco entregue (M5 T9), "on" liga o comando (a tabela do §14.3 cai na linha "bloco sim")', () => {
+    expect(lerCapacidades({ OBS_ARQUIVO_LIMPEZA_CANAL: 'on' } as NodeJS.ProcessEnv)).toMatchObject({ comandoDeLimpeza: true, blocoCanaisRemovidos: true })
   })
   it('a data é só texto', () => {
     expect(lerCapacidades({ OBS_ARQUIVO_LIMPEZA_CANAL_DATA: '02/03' } as NodeJS.ProcessEnv).dataDoComando).toBe('02/03')

@@ -6,9 +6,12 @@ import type { ReactNode, RefObject } from 'react'
 import type { ChromeView } from './view-model'
 import { Icon } from './icons'
 import { Popover } from './flut/flut'
+import { AvisoBancoNaFaixa } from './aviso-banco/pastilha'
 
-export function Freshness({ fresh, tzLabel, open, btnRef, onToggle, onClose, onSync, syncing, forjaSeg }: {
+export function Freshness({ fresh, avisoBanco, arquivoHref, tzLabel, open, btnRef, onToggle, onClose, onSync, syncing, forjaSeg }: {
   fresh: ChromeView['fresh']; tzLabel: string; open: boolean
+  /** M5 T11: a pastilha do banco e as marcas, irmãs da faixa (nunca dentro dela). */
+  avisoBanco?: ChromeView['avisoBanco']; arquivoHref?: string
   /** The forja heartbeat segment (Task 35), after the freshness button. */
   forjaSeg?: ReactNode
   btnRef: RefObject<HTMLButtonElement | null>
@@ -44,6 +47,7 @@ export function Freshness({ fresh, tzLabel, open, btnRef, onToggle, onClose, onS
           <FreshPopover fresh={fresh} onSync={onSync} syncing={syncing} />
         </Popover>
       </div>
+      {avisoBanco ? <AvisoBancoNaFaixa aviso={avisoBanco} arquivoHref={arquivoHref ?? '#'} /> : null}
       <span className="obs-ch-tz">{tzLabel}</span>
     </div>
   )

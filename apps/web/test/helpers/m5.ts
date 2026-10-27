@@ -1,4 +1,4 @@
-/** Manutenção M5: o SQL vive em supabase/rascunhos/m5.sql até a Tarefa 13 (TRAVA M5-1). Único lugar que a Tarefa 13 muda. */
+/** SQL da M5: a migration 20261027000003 (desde a Tarefa 13). Único lugar que aponta para ela nos testes. */
 import type { Client } from 'pg'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -7,8 +7,8 @@ import { travarDdl } from './ddl-testes'
 import { aplicarM3b, m3bNoBanco } from './m3b'
 import { M10A_SQL } from '../integration/video-antigo-m10a-caminho'
 
-export const M5_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m5.sql')
-export const M5_EM_MIGRATION = false
+export const M5_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/migrations/20261027000003_manutencao_m5_telas.sql')
+export const M5_EM_MIGRATION = true
 export type ParteM5 = 1 | 2 | 3 | 4
 
 /** O texto do rascunho até a parte `ate` (inclusive). Parte pedida que não existe, ou marcador faltando no meio, FALHA ALTO (nunca aplica "o que há"). */

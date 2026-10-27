@@ -88,6 +88,18 @@ describe('pendenciasParaTela (E-D4)', () => {
     expect(pendenciasParaTela(lerPendencias(base([])), { podeVerComandos: false, agora })).toMatchObject({ estado: 'zero', linha: null })
     expect(pendenciasParaTela(lerPendencias(null), { podeVerComandos: true, agora })).toEqual({ estado: 'nao_medido' })
   })
+  it('Yannis I-3: cada item leva o título resolvido pelos mapas (canal pelo id, vídeo pelo id do YouTube); sem nome, o mês; nada de apagar/b2_nomes', () => {
+    const c2 = '6f1c1b9e-0000-4000-8000-000000000002'
+    const l = lerPendencias(base([
+      canal(), canal({ item_id: 'canal:' + c2, channel_ref: c2, mes: '2028-03' }),
+      canal({ item_id: 'item:7', kind: 'video', channel_ref: null, youtube_id: 'abc123', mes: '2028-03' }),
+      canal({ item_id: 'item:8', kind: 'comentario', channel_ref: null, youtube_id: 'zzz', mes: '2028-04' }),
+      canal({ item_id: 'canal:6f1c1b9e-0000-4000-8000-000000000003', channel_ref: '6f1c1b9e-0000-4000-8000-000000000003', mes: null })]))
+    const t = pendenciasParaTela(l, { podeVerComandos: false, agora, nomes: { canais: new Map([['6f1c1b9e-0000-4000-8000-000000000001', 'Canal Um']]), videos: new Map([['abc123', 'O vídeo']]) } })
+    if (t.estado !== 'com_itens') throw new Error('esperava itens')
+    expect(t.itens.map(i => i.titulo)).toEqual(['Canal Um', 'março de 2028', 'O vídeo', 'abril de 2028', '6f1c1b9e'])   // canal sem nome e sem mês: o código, nunca o vazio (r2 R-1)
+    expect(JSON.stringify(t)).not.toMatch(/b2_nomes|sha256|apagar"/)
+  })
   it('o mais antigo vem do menor desde, mesmo fora de ordem', () => {
     const l = lerPendencias(base([canal({ desde: '2026-11-20T12:00:00Z' }), canal({ item_id: 'item:3', kind: 'video', channel_ref: null, desde: '2026-10-01T12:00:00Z' })]))
     expect(pendenciasParaTela(l, { podeVerComandos: false, agora })).toMatchObject({ n: 2, maisAntigoDias: 61 })

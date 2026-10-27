@@ -11,7 +11,7 @@ vi.mock('@/lib/youtube/observatorio/medidas-telas/carregar-do-site', () => ({ ca
 
 import { AbEntradasProvider, useAbEntradas } from '../../../src/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/contexto'
 import { podeEditarSite } from '../../../src/app/cms/(authed)/youtube/competitors/_chrome/ab-entradas/permissao'
-import { permissoesDoSite } from '../../../src/app/cms/(authed)/youtube/competitors/_canais/montar'
+import { permissoesDoSite } from '../../../src/app/cms/(authed)/youtube/competitors/_chrome/permissoes'
 
 function Prova() {
   const v = useAbEntradas()

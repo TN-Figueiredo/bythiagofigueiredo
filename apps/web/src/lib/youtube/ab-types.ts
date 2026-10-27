@@ -549,6 +549,8 @@ export interface AbTestBaseView {
   faixa_dias?: DiaDaFaixa[]
   id: string
   videoTitle: string
+  /** Concluído: o título que está no ar (a versão confirmada); ausente = usar `videoTitle`. */
+  tituloNoAr?: string
   flag: TestType
   status: AbTestStatus
   variants: FullChartVariant[]

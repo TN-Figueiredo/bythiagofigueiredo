@@ -62,6 +62,7 @@ export function EarlyDetail({ view, encerrar, pausar }: EarlyDetailProps) {
       <div data-section="header" className="mb-[16px]">
         <DetailHeader
           title={view.videoTitle}
+          youtubeVideoId={view.youtubeVideoId}
           flag={view.flag}
           status={view.status}
           roundNumber={1}

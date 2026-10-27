@@ -19,12 +19,14 @@ export interface EstadoDoCanal {
   playlists: PlaylistConhecida[]
   empty_streak: number
   sections_empty_streak: number
+  /** Fecho da volta anterior (`competitor_playlist_reads.last_cycle_at`); nulo = nenhuma volta fechada ainda. */
+  last_cycle_at: string | null
   /** A última versão de seções tinha lista vazia? `null` = nenhuma versão gravada ainda. */
   ultima_secao_vazia: boolean | null
 }
 export type LeituraDoCanal = LinhaDeLeitura & { empty_streak: number; sections_empty_streak: number }
 
-export interface RetornoPlaylists { ids: Map<string, string>; atrasada: boolean; sumidas: number; versoes: number }
+export interface RetornoPlaylists { ids: Map<string, string>; atrasada: boolean; sumidas: number; versoes: number; aConfirmar: number }
 export interface RetornoItens { gravados: number; saidos: number; massa: boolean; atrasada: boolean }
 
 export interface OpsX3 {
@@ -40,10 +42,10 @@ export interface OpsX3 {
   canaisComSecoes(channelIds: readonly string[]): Promise<number>
   /** Quantos itens presentes (não removidos) a playlist tem. */
   itensPresentes(playlistRef: string): Promise<number>
-  playlistsRecord(a: { siteId: string; channelId: string; nowMs: number; rows: readonly PlaylistLida[]; complete: boolean }): Promise<RetornoPlaylists>
+  playlistsRecord(a: { siteId: string; channelId: string; nowMs: number; rows: readonly PlaylistLida[]; complete: boolean; ocultas: boolean }): Promise<RetornoPlaylists>
   itemsRecord(a: { siteId: string; channelId: string; playlistRef: string; nowMs: number; rows: readonly ItemLido[]; complete: boolean; status: 'ok' | 'parcial' | 'erro'; reason: string | null }): Promise<RetornoItens>
   sectionsRecord(a: { siteId: string; channelId: string; nowMs: number; sha: string; raw: unknown }): Promise<number>
-  visitClose(a: { siteId: string; channelId: string; nowMs: number; status: 'ok' | 'parcial' | 'erro'; reason: string | null; units: number; left: number | null; listaVazia: boolean | null; secoesVazias: boolean | null; ciclo: boolean }): Promise<void>
+  visitClose(a: { siteId: string; channelId: string; nowMs: number; status: 'ok' | 'parcial' | 'erro'; reason: string | null; units: number; left: number | null; listaVazia: boolean | null; secoesVazias: boolean | null; ciclo: boolean; listTotal: number | null; listRead: number | null }): Promise<void>
   /** `recordQuota` com `mode: 'competitors_playlists'`. Lança em erro. */
   registrarCota(a: { siteId: string; nowMs: number; units: number; extra?: Record<string, number> }): Promise<void>
 }
@@ -152,7 +154,7 @@ export function criarOpsX3(sb: SupabaseClient): OpsX3 {
 
     async lerCanais(siteId, channelIds) {
       const out = new Map<string, EstadoDoCanal>()
-      for (const id of channelIds) out.set(id, { playlists: [], empty_streak: 0, sections_empty_streak: 0, ultima_secao_vazia: null })
+      for (const id of channelIds) out.set(id, { playlists: [], empty_streak: 0, sections_empty_streak: 0, last_cycle_at: null, ultima_secao_vazia: null })
       for (const bloco of blocos(channelIds)) {
         const playlists = await paginar((de, ate) => sb.from('competitor_playlists')
           .select('id, competitor_channel_id, playlist_id, items_read_at, items_status, items_reason, item_count, missing_since')
@@ -170,7 +172,7 @@ export function criarOpsX3(sb: SupabaseClient): OpsX3 {
         const leituras = await this.lerLeituras(bloco)
         for (const [canal, l] of leituras) {
           const est = out.get(canal)
-          if (est) { est.empty_streak = l.empty_streak; est.sections_empty_streak = l.sections_empty_streak }
+          if (est) { est.empty_streak = l.empty_streak; est.sections_empty_streak = l.sections_empty_streak; est.last_cycle_at = l.last_cycle_at }
         }
       }
       // a última versão de seções de cada canal: uma consulta de 1 linha por canal (poucos canais por disparo)
@@ -212,11 +214,11 @@ export function criarOpsX3(sb: SupabaseClient): OpsX3 {
     },
 
     async playlistsRecord(a) {
-      const d = await rpc(sb, 'competitor_x3_playlists_record', { p_site: a.siteId, p_channel: a.channelId, p_now: new Date(a.nowMs).toISOString(), p_rows: a.rows, p_complete: a.complete })
+      const d = await rpc(sb, 'competitor_x3_playlists_record', { p_site: a.siteId, p_channel: a.channelId, p_now: new Date(a.nowMs).toISOString(), p_rows: a.rows, p_complete: a.complete, p_ocultas: a.ocultas })
       if (!ehObj(d) || !ehObj(d.ids)) throw converter(null)
       const ids = new Map<string, string>()
       for (const [k, v] of Object.entries(d.ids)) if (typeof v === 'string') ids.set(k, v)
-      return { ids, atrasada: d.atrasada === true, sumidas: inteiro(d.sumidas), versoes: inteiro(d.versoes) }
+      return { ids, atrasada: d.atrasada === true, sumidas: inteiro(d.sumidas), versoes: inteiro(d.versoes), aConfirmar: inteiro(d.a_confirmar) }
     },
 
     async itemsRecord(a) {
@@ -238,6 +240,7 @@ export function criarOpsX3(sb: SupabaseClient): OpsX3 {
       await rpc(sb, 'competitor_x3_visit_close', {
         p_site: a.siteId, p_channel: a.channelId, p_now: new Date(a.nowMs).toISOString(), p_status: a.status, p_reason: a.reason,
         p_units: a.units, p_left: a.left, p_lista_vazia: a.listaVazia, p_secoes_vazias: a.secoesVazias, p_ciclo: a.ciclo,
+        p_list_total: a.listTotal ?? undefined, p_list_read: a.listRead ?? undefined,
       })
     },
 

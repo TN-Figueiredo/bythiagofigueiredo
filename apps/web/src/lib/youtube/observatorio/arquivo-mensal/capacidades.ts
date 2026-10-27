@@ -6,7 +6,7 @@ import 'server-only'
 
 export interface Capacidades { comandoDeLimpeza: boolean; blocoCanaisRemovidos: boolean; dataDoComando: string | null }
 /** Vira true no commit da M5 que traz o componente (04 §14.3). */
-export const BLOCO_CANAIS_REMOVIDOS = false
+export const BLOCO_CANAIS_REMOVIDOS = true
 
 /** Vira true no mesmo commit da M6 que traz a primeira função de saída de mês (D-M5-15): daí a função `obs_archive_online_since` ausente deixa de ser "nada saiu" e vira "não medido". */
 export const SAIDA_DE_MES_EXISTE = false

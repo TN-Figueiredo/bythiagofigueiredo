@@ -81,6 +81,14 @@ describe('ObservatoryChrome', () => {
     expect(screen.getAllByText('Horários em São Paulo').length).toBeGreaterThan(0)
     expect(screen.getByText('sincronizado há 3 h')).toBeInTheDocument()
   })
+  it('Yannis I-1: sem pedido para o Cowork (aba Arquivo) o item some do menu e o resto fica', async () => {
+    const user = userEvent.setup()
+    mount({ view: { ...view(), cowork: null } })
+    await user.click(screen.getByRole('button', { name: 'Mais ações' }))
+    const items = within(screen.getByRole('menu', { name: 'Mais ações' })).getAllByRole('menuitem')
+    expect(items.map(i => i.getAttribute('aria-label') ?? i.textContent)).toEqual([expect.stringContaining('Definir nicho dos canais')])
+    expect(screen.queryByText(/Copiar pedido para o Cowork/)).toBeNull()
+  })
   it('menu ⋯ opens with Enter, closes with Esc and gives the focus back', async () => {
     const user = userEvent.setup()
     mount()

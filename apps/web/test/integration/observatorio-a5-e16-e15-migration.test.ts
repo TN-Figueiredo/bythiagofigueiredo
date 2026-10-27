@@ -393,7 +393,8 @@ describe.skipIf(skipIfNoLocalDb())('A5 E16 e E15 parte 1: SQL da agenda e da lei
   it('prova: site sem nada', async () => {
     const r = await prova(await novoSite())
     expect(r).toEqual({
-      desde: null, ultima_leitura: null, horas_lidas_24h: 0, videos_na_lista: 0, videos_fora_do_teto: 0, videos_cobrados: 0, videos_abaixo_de_22h: 0, videos_abaixo_do_lido: 0,
+      // M5 (migration 20261027000003) acrescentou desde_precisao e online_desde; site vazio: ambos nulos
+      desde: null, desde_precisao: null, online_desde: null, ultima_leitura: null, horas_lidas_24h: 0, videos_na_lista: 0, videos_fora_do_teto: 0, videos_cobrados: 0, videos_abaixo_de_22h: 0, videos_abaixo_do_lido: 0,
       proprios_desde: null, proprios_ultima_leitura: null, proprios_na_lista: 0, proprios_fora_do_teto: 0, proprios_sem_captura: 0, proprios_cobrados: 0,
       proprios_abaixo_de_22h: 0, proprios_abaixo_do_lido: 0, proprios_em_competitor: 0,
     })

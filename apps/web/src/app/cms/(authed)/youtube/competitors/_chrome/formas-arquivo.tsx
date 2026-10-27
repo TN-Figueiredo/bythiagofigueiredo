@@ -5,6 +5,16 @@
  */
 import type { ReactElement } from 'react'
 import type { FormaPeca1 } from '@/lib/youtube/observatorio/arquivo-mensal/peca1'
+import type { Forma } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
+
+/** O desenho de cada forma de estado, UM só para a página Arquivo e para o aviso do banco (Naksu N2: o octógono era desenhado de dois jeitos, com X e com "!").
+ *  O octógono leva "!" (mockup 19, m19.js). Quem usa põe o `<svg>` em volta (viewBox 0 0 16 16, traço 1,5). */
+export const DESENHO_DA_FORMA: Partial<Record<Forma, ReactElement>> = {
+  visto: <><circle cx="8" cy="8" r="6.2" /><path d="M5.2 8.3 7.2 10.3 10.9 6" /></>,
+  triangulo: <><path d="M8 2.2 14.4 13.4H1.6Z" /><path d="M8 6.6v3.2M8 11.5v.1" /></>,
+  octogono: <><path d="M5.2 1.8h5.6l3.4 3.4v5.6l-3.4 3.4H5.2L1.8 10.8V5.2z" /><path d="M8 4.8v3.8M8 11v.1" /></>,
+  pontilhado: <circle cx="8" cy="8" r="6.2" strokeDasharray="2.4 2.2" />,
+}
 
 const CAMINHOS = {
   arquivo: <><rect x="2" y="3" width="12" height="3.5" rx="1" /><path d="M3 6.5V13h10V6.5M6.5 9.5h3" /></>,

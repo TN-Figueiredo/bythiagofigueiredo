@@ -140,7 +140,7 @@ describe('getCompetitorRemovalImpactAction', () => {
   })
   it('chama a função com o site do contexto e o canal pedido', async () => {
     const a = await load()
-    expect(await a.act(CH)).toEqual({ ok: true, impact: IMPACTO, semGuardar: { pode: true }, arquivo: ARQUIVO, capacidade: 'nao-nao', dataDoComando: null })
+    expect(await a.act(CH)).toEqual({ ok: true, impact: IMPACTO, semGuardar: { pode: true }, arquivo: ARQUIVO, capacidade: 'nao-sim', dataDoComando: null })
     expect(a.rpcCalls).toContainEqual(['competitor_channel_removal_impact', { p_site_id: 's1', p_channel_id: CH }])
     expect(a.order[0]).toBe('guard')
     expect(a.order.slice(1).every(x => x === 'db')).toBe(true)
@@ -161,12 +161,12 @@ describe('getCompetitorRemovalImpactAction', () => {
     const antes = { ...process.env }
     try {
       delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL; delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL_DATA
-      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'nao-nao', dataDoComando: null })
+      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'nao-sim', dataDoComando: null })
       process.env.OBS_ARQUIVO_LIMPEZA_CANAL = 'on'; process.env.OBS_ARQUIVO_LIMPEZA_CANAL_DATA = '2026-12-05'
-      // o bloco "Canais removidos" ainda não está em produção (BLOCO_CANAIS_REMOVIDOS = false): comando sim, bloco não vira "não, não"
-      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'nao-nao', dataDoComando: '2026-12-05' })
+      // M5 T9: o bloco "Canais removidos" foi entregue (BLOCO_CANAIS_REMOVIDOS = true): com o comando "on" a linha é "sim"; sem ele, "bloco sim, comando não"
+      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'sim', dataDoComando: '2026-12-05' })
       process.env.OBS_ARQUIVO_LIMPEZA_CANAL = 'ON'
-      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'nao-nao' })
+      expect(await (await load()).act(CH)).toMatchObject({ capacidade: 'nao-sim' })
     } finally { process.env = antes }
   })
   it('id que não é uuid é recusado sem tocar no banco', async () => {

@@ -1,7 +1,7 @@
 /* Tokens das telas de canal e vídeo (spec de telas v9, 19.2). Hex e rgba literais: nunca color-mix().
    Só o tema escuro tem valor aprovado; o claro é pendência da fase A1 (plano da A0, decisão D7). */
 [data-obs]{
-  --nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;
+  --nm:#E59CC0;--nm-line:#B0678F;--nm-bg:#3A2232;--nm-fio:rgba(229,156,192,.14);
   --lado-o:#FF8240;--lado-b:#7CC8F8;--lado-n:#D9C08F;--lado-n-line:#8C7748;--lado-n-bg:rgba(217,192,143,.08);--on-lado:#16130F;
   --terco-baixo:#F2C14E;--im-cl:#F5EFE6;--im-zero:#7A8FA6;
   /* direção (só direção, sempre com forma e palavra): subindo/acima, descendo/abaixo, na média */
@@ -14,7 +14,7 @@
   background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,rgba(229,156,192,.14) 6px 8px)}
 
 /* Tema claro: só os tokens que a página do canal usa (plano da A1, D7). Cor a confirmar com o dono. */
-[data-theme="light"] [data-obs]{--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--im-zero:#5B6F86}
+[data-theme="light"] [data-obs]{--nm:#8E2A62;--nm-line:#A85585;--nm-bg:#F7E1EC;--nm-fio:rgba(142,42,98,.10);--im-zero:#5B6F86}
 [data-theme="light"] [data-obs] .obs-ch-nm{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,rgba(142,42,98,.10) 6px 8px)}
 
 /* O QUADRADINHO de "não medido" (nm-q do cabeçalho, so-nm do cartão da comparação, a marca da leitura rápida e a legenda do gráfico): sem texto dentro,

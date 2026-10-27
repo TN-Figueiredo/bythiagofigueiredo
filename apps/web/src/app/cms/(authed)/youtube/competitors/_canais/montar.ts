@@ -1,12 +1,11 @@
 import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { carregarMedidasDoSite, type MedidasDoSite } from '@/lib/youtube/observatorio/medidas-telas/carregar-do-site'
-import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { DEFAULT_CHANNEL_LIMIT, UNLOCK_STEP } from '@/lib/youtube/competitor-slots'
 import type { RetratosProprios } from '@/lib/youtube/observatorio/retratos-proprios'
 import { parseNiche } from '@/lib/youtube/observatorio/niche'
 import type { EstadoDoPrivado } from '@/lib/youtube/observatorio/contexto-ia/tipos'
-import { podeEditarSite } from '../_chrome/ab-entradas/permissao'
+import { permissoesDoSite, type PermissoesDoSite } from '../_chrome/permissoes'
 import { openObservatoryPage, type ObservatoryPage } from '../_chrome/page-data'
 import { carregarExtrasProprio } from '../_proprio/carregar-extras'
 import type { ExtrasProprio } from '../_proprio/extras'
@@ -17,13 +16,7 @@ import { buildRiView, riEmErro } from './ri-model'
 import type { RiView } from './ri-tipos'
 
 type Obs = ObservatoryPage<unknown>['obs']
-export interface PermissoesDoSite { canUnlock: boolean; podeEditar: boolean }
-
-/** "+25" is for admins only: can_admin_site_users() (super_admin / org_admin) (unlockMoreChannels checks it again). `podeEditar`: quem só lê vê a lista com as ações desligadas. */
-export async function permissoesDoSite(siteId: string): Promise<PermissoesDoSite> {
-  if (!(await podeEditarSite(siteId))) return { canUnlock: false, podeEditar: false }
-  return { canUnlock: await canAdminSiteUsers(siteId), podeEditar: true }
-}
+export type { PermissoesDoSite } from '../_chrome/permissoes'
 
 /**
  * O acesso ao diário que a lista leu, por canal próprio, como o pacote o entende (E17 degrau 1, Tarefa 8a, emenda 1: D-I1). A lista só lê o diário

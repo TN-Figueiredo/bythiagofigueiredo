@@ -31,6 +31,7 @@ export const MOTIVOS_RECUPERAVEIS: ReadonlySet<string> = new Set([
   'lista_cortada', 'cota_esgotada', 'sobrou', 'itens_cortados', 'teto_por_canal', 'lista_vazia_a_confirmar', 'secoes_vazias_a_confirmar',
   'saida_em_massa_a_confirmar', 'playlist_sumiu_no_meio', 'resposta_invalida', 'api_falhou', 'gravacao_falhou', 'erro',
 ])
+// `lista_com_ocultas` fica FORA dos dois conjuntos: é nota (a lista fecha a volta), não falha nem recuperável.
 /** Motivos que não mudam relendo no dia seguinte: a visita fica `parcial` honesta e o retorno é o da semana seguinte. */
 export const MOTIVOS_ESTRUTURAIS: ReadonlySet<string> = new Set(['teto_itens', 'contagem_difere', 'itens_incoerentes'])
 export const ehRecuperavel = (motivo: string | null | undefined): boolean => motivo != null && MOTIVOS_RECUPERAVEIS.has(motivo)
@@ -118,10 +119,28 @@ export function planejarCanais(e: {
   return { devidos, cortadosPeloTeto: ordenados.length - devidos.length, canaisSemVolta14d: sem }
 }
 
+/** Cortes por orçamento/tempo/item: já aparecem na playlist (parcial recuperável = não coberta), então não vetam a volta inteira. */
+export const CORTES_POR_PLAYLIST: ReadonlySet<string> = new Set(['teto_por_canal', 'sobrou', 'itens_cortados'])
+
 /**
- * `p_ciclo`: a volta terminou. Verdadeiro só se não sobrou playlist devida (`playlistsLeft = 0`), a lista veio completa (ou vazia já
- * confirmada) e NENHUM motivo recuperável apareceu na visita inteira (lista, seções ou qualquer playlist). Motivos estruturais não contam.
+ * `p_ciclo`: a volta terminou. Verdadeiro só se a lista veio fechada (completa, com ocultas ou vazia já confirmada), TODA playlist ativa
+ * foi lida com sucesso (ou motivo estrutural) desde o fecho anterior (`todasCobertas`, calculado pela visita) e nenhum motivo recuperável
+ * de lista, seções, cota, gravação ou API apareceu. Cortes por teto/tempo/item vetam só a playlist, não a visita.
  */
-export function calcularCiclo(v: { playlistsLeft: number | null; listaCompleta: boolean; motivos: readonly (string | null | undefined)[] }): boolean {
-  return v.playlistsLeft === 0 && v.listaCompleta && !v.motivos.some(ehRecuperavel)
+export function calcularCiclo(v: { listaCompleta: boolean; todasCobertas: boolean; motivos: readonly (string | null | undefined)[] }): boolean {
+  return v.listaCompleta && v.todasCobertas && !v.motivos.some(m => ehRecuperavel(m) && !CORTES_POR_PLAYLIST.has(m as string))
 }
+
+/**
+ * Playlist coberta pela volta: lida (nesta visita ou depois do fecho anterior; qualquer leitura quando não há fecho) e com estado final
+ * `ok` ou `parcial` de motivo estrutural.
+ */
+export function playlistCoberta(p: { items_read_at: string | null; items_status: 'ok' | 'parcial' | 'erro' | null; items_reason: string | null }, lastCycleAt: string | null): boolean {
+  if (p.items_read_at === null) return false
+  if (lastCycleAt !== null && !(ms(p.items_read_at) > ms(lastCycleAt))) return false
+  return estadoCobre(p.items_status, p.items_reason)
+}
+
+/** O estado final de uma leitura cobre a playlist: `ok` ou `parcial` de motivo estrutural (independe de quando foi lida). */
+export const estadoCobre = (s: 'ok' | 'parcial' | 'erro' | null, r: string | null): boolean =>
+  s === 'ok' || (s === 'parcial' && r != null && MOTIVOS_ESTRUTURAIS.has(r))

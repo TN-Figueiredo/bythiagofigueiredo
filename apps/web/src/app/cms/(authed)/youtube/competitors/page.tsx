@@ -9,6 +9,7 @@ import { addChannelFromCanais, pedirRemocaoCanal, apagarCanalSemGuardarAction, d
 import { setChannelNiche, setOwnChannelNiche } from './niche-actions'
 import { askForjaReading } from './forja-actions'
 import { meuEmailDoSite } from './_canais/meu-email'
+import { lerPendenciasDaFila } from './_canais/pendencias-da-fila'
 
 export const metadata = { title: 'Competidores' }
 export const dynamic = 'force-dynamic'
@@ -29,14 +30,19 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   // O redirecionamento roda logo depois de abrir o conjunto e antes de qualquer leitura privada (montarCanais, aoAbrir).
   // O e-mail da sessão (só para admin) é lido em paralelo com a montagem; o redirecionamento de `aoAbrir` continua antes de qualquer leitura privada.
   const meuEmailP = meuEmailDoSite()
-  const [{ pagina: { obs, meuCanalLembrado, extra: permissoes }, view, ri }, meuEmail] = await Promise.all([
+  const [{ pagina: { siteId, now, obs, meuCanalLembrado, extra: permissoes }, view, ri }, meuEmail] = await Promise.all([
     montarCanais(flat, { aoAbrir: o => competitorChannelRedirect(o, flat.channel) }), meuEmailP,
   ])
+  // Peça 7 (M5 T10): lida só com o filtro "Saíram do YouTube" aberto e só depois da guarda de edição (dentro de lerPendenciasDaFila); sem edição, nem o cliente de serviço é criado.
+  // Os nomes saem de mapas montados uma vez (canal pelo id, vídeo pelo id do YouTube): nada de `find` por item.
+  const pendencias = view.filter === 'sairam'
+    ? await lerPendenciasDaFila(siteId, permissoes, new Date(now), { canais: new Map(obs.channels.map(c => [c.id, c.name])), videos: new Map(obs.videos.map(v => [v.ytId, v.title])) })
+    : null
   return (
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
-        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar}
+        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias}
         onAdd={addChannelFromCanais} onPedir={pedirRemocaoCanal} onApagar={apagarCanalSemGuardarAction} onDesfazer={desfazerRemocaoCanal} onUnlock={unlockMoreChannels}
         onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
         onPin={pinVideo} onUnpin={unpinVideo} onRemovalImpact={getCompetitorRemovalImpactAction}

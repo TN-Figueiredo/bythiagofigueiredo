@@ -15,6 +15,8 @@ export interface DadosDoDialogoEncerrar {
   noArAgora: { rotulo: string; desde: string }
   opcoes: OpcaoDoDialogo[]
   originalBaixaResolucao: boolean
+  /** Teste só de título: a miniatura do vídeo não muda, então todas as versões mostram a mesma (a original) com a nota "miniatura não muda". */
+  miniaturaNaoMuda: boolean
 }
 
 export { dataCurtaSp, diaMesSp } from '@/lib/youtube/ab-data-curta'
@@ -24,8 +26,9 @@ export function originalBaixaResolucao(dimensions: string | null | undefined): b
   return publicaBaixa(dimensoesDeTexto(dimensions)?.largura ?? null)
 }
 
-export function dadosDoDialogoEncerrar(view: Pick<AbTestBaseView, 'variantDb' | 'videoTitle' | 'noArAgora' | 'activeNow'>): DadosDoDialogoEncerrar {
+export function dadosDoDialogoEncerrar(view: Pick<AbTestBaseView, 'variantDb' | 'videoTitle' | 'noArAgora' | 'activeNow'> & Partial<Pick<AbTestBaseView, 'flag'>>): DadosDoDialogoEncerrar {
   const original = view.variantDb.find(v => v.is_original)
+  const miniaturaNaoMuda = view.flag === 'title'
   const opcoes = [...view.variantDb]
     .sort((a, b) => (a.is_original === b.is_original ? a.label.localeCompare(b.label) : a.is_original ? -1 : 1))
     .map(v => ({
@@ -33,12 +36,13 @@ export function dadosDoDialogoEncerrar(view: Pick<AbTestBaseView, 'variantDb' | 
       rotulo: v.is_original ? `${v.label} (original)` : v.label,
       isOriginal: v.is_original,
       titulo: v.title_text ?? view.videoTitle ?? null,
-      miniatura: v.blob_url,
+      miniatura: miniaturaNaoMuda ? (original?.blob_url ?? null) : v.blob_url,
     }))
   const rotulo = view.noArAgora?.label ?? view.activeNow ?? original?.label ?? 'A'
   return {
     noArAgora: { rotulo, desde: dataCurtaSp(view.noArAgora?.desde) },
     opcoes,
     originalBaixaResolucao: originalBaixaResolucao(original?.dimensions),
+    miniaturaNaoMuda,
   }
 }

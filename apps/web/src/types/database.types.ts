@@ -706,6 +706,7 @@ export type Database = {
           forcado: boolean
           gravado_em: string
           id: number
+          iniciativa: string | null
           motivo: string | null
           seq: number
           test_id: string
@@ -721,6 +722,7 @@ export type Database = {
           forcado: boolean
           gravado_em?: string
           id?: never
+          iniciativa?: string | null
           motivo?: string | null
           seq: number
           test_id: string
@@ -736,6 +738,7 @@ export type Database = {
           forcado?: boolean
           gravado_em?: string
           id?: never
+          iniciativa?: string | null
           motivo?: string | null
           seq?: number
           test_id?: string
@@ -889,6 +892,9 @@ export type Database = {
           consecutive_confident_evals: number
           created_at: string
           drift_acknowledged_at: string | null
+          escolha_em: string | null
+          escolha_por: string | null
+          escolha_variant_id: string | null
           grace_expires_at: string | null
           id: string
           last_applied_variant_id: string | null
@@ -928,6 +934,9 @@ export type Database = {
           consecutive_confident_evals?: number
           created_at?: string
           drift_acknowledged_at?: string | null
+          escolha_em?: string | null
+          escolha_por?: string | null
+          escolha_variant_id?: string | null
           grace_expires_at?: string | null
           id?: string
           last_applied_variant_id?: string | null
@@ -967,6 +976,9 @@ export type Database = {
           consecutive_confident_evals?: number
           created_at?: string
           drift_acknowledged_at?: string | null
+          escolha_em?: string | null
+          escolha_por?: string | null
+          escolha_variant_id?: string | null
           grace_expires_at?: string | null
           id?: string
           last_applied_variant_id?: string | null
@@ -997,6 +1009,13 @@ export type Database = {
           youtube_video_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "ab_tests_escolha_variant_id_fkey"
+            columns: ["escolha_variant_id"]
+            isOneToOne: false
+            referencedRelation: "ab_test_variants"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ab_tests_parent_test_id_fkey"
             columns: ["parent_test_id"]
@@ -3517,6 +3536,8 @@ export type Database = {
           last_units: number
           last_visit_at: string
           last_visit_day: string
+          list_read_n: number | null
+          list_total_results: number | null
           playlists_left: number | null
           sections_empty_streak: number
           site_id: string
@@ -3532,6 +3553,8 @@ export type Database = {
           last_units: number
           last_visit_at: string
           last_visit_day: string
+          list_read_n?: number | null
+          list_total_results?: number | null
           playlists_left?: number | null
           sections_empty_streak?: number
           site_id: string
@@ -3547,6 +3570,8 @@ export type Database = {
           last_units?: number
           last_visit_at?: string
           last_visit_day?: string
+          list_read_n?: number | null
+          list_total_results?: number | null
           playlists_left?: number | null
           sections_empty_streak?: number
           site_id?: string
@@ -3615,6 +3640,7 @@ export type Database = {
       }
       competitor_playlists: {
         Row: {
+          absent_day: string | null
           competitor_channel_id: string
           first_seen_at: string
           id: string
@@ -3634,6 +3660,7 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          absent_day?: string | null
           competitor_channel_id: string
           first_seen_at: string
           id?: string
@@ -3653,6 +3680,7 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          absent_day?: string | null
           competitor_channel_id?: string
           first_seen_at?: string
           id?: string
@@ -16325,6 +16353,7 @@ export type Database = {
           p_channel: string
           p_complete: boolean
           p_now: string
+          p_ocultas?: boolean
           p_rows: Json
           p_site: string
         }
@@ -16345,6 +16374,8 @@ export type Database = {
           p_channel: string
           p_ciclo: boolean
           p_left: number
+          p_list_read?: number
+          p_list_total?: number
           p_lista_vazia: boolean
           p_now: string
           p_reason: string
