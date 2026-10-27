@@ -314,7 +314,8 @@ describe('WinnerDetail', () => {
     render(<WinnerDetail view={view} />)
     const banner = screen.getByTestId('winner-banner')
     expect(banner.textContent).toContain('Vencedor do teste: B')
-    expect(screen.getByTestId('winner-no-ar').textContent).toBe('No ar agora: A (original)')
+    expect(screen.queryByTestId('winner-no-ar')).toBeNull()
+    expect(screen.getByTestId('ficou-no-ar').textContent).toContain('Ficou no ar: a versão A.')
     expect(screen.getByTestId('winner-chosen').textContent).toBe('Mantida por você')
     expect(banner.textContent).not.toContain('Escolhido por você')
     expect(banner.textContent).not.toContain('Escolhida por você')
@@ -326,10 +327,11 @@ describe('WinnerDetail', () => {
     expect(screen.queryByTestId('winner-chosen')).toBeNull()
   })
 
-  it('shows Duplicar and Download actions', () => {
+  it('M7d: Duplicar e Download saem; Arquivar fica', () => {
     render(<WinnerDetail view={makeWinnerView()} />)
-    expect(screen.getByText('Duplicar')).toBeDefined()
-    expect(screen.getByLabelText('Download')).toBeDefined()
+    expect(screen.queryByText('Duplicar')).toBeNull()
+    expect(screen.queryByLabelText('Download')).toBeNull()
+    expect(screen.getByText('Arquivar')).toBeDefined()
   })
 
   it('does not render LiveMonitor when view.monitor is undefined', () => {
@@ -363,8 +365,8 @@ describe('WinnerDetail', () => {
     expect(screen.queryByText('Duplicar')).toBeNull()
   })
 
-  it('teste combo ainda oferece Duplicar', () => {
+  it('M7d: teste combo também não oferece Duplicar', () => {
     render(<WinnerDetail view={makeWinnerView({ flag: 'combo' })} />)
-    expect(screen.getByText('Duplicar')).toBeDefined()
+    expect(screen.queryByText('Duplicar')).toBeNull()
   })
 })
