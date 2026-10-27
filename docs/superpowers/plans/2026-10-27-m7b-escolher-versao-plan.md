@@ -260,7 +260,7 @@ CSS (`pagina-lab.css`):
 - Miniatura de 56×32 a 390 px.
 - Rodapé fixo a 390 px, só quando há outra ação além de Fechar.
 - Laranja só no botão que escreve no YouTube. "Manter a original" em neutro claro. Âmbar só no estado "incerto".
-- `.frase` em Inter 600, 16 px.
+- `.frase` em Georgia (serif) 600, 18 px a 1440 e 16 px a 390: vale a fonte do mockup aprovado (Gio G8, envio 2). A tela segue o mockup.
 
 Fora do mockup, e o Logan precisa escrever o texto destes casos:
 - troca parcial em combo;
@@ -532,7 +532,7 @@ Ordem: T2 antes de T4, T5, T7 e T15b-2; T3 antes de T6; T7a antes de T8; T8 e T9
    - marcar C → estados b, c, e; o Studio mostra C; o vencedor continua B (conferir no SQL); contagem **X+1**;
    - "Deixar A no ar" → o `original_title` volta; contagem **X+1**;
    - no inconclusivo: f → marcar A → "Manter a original (A)" → f2. No SQL, `escolha_*` preenchidas e `restore_seq + 1`, sem `videos.update`;
-   - terceiro teste (sugerida = original): "Manter a original (A)" grava `manual_winner` e `winner_variant_id` = a original; a contagem sobe **+1**, por desenho (P2); sem `videos.update` se A já está no ar;
+   - terceiro teste (sugerida = original): "Manter a original (A)" grava `manual_winner` e `winner_variant_id` = a original; a contagem **não muda** (a original vencedora não ensina tag; Phil M3, envio 2); medir pelo `getLearnings` e pelo `getAbLearnings` (os dois dão o mesmo número); sem `videos.update` se A já está no ar;
    - estados d2 e d3c: DevTools offline logo depois do clique; depois de voltar online, o registro bate com o Studio.
 5. Vigia: `select seq, campo, estado, escreveu, motivo, iniciativa, em from ab_test_restores where test_id = '<id>' order by seq;` antes e depois de duas execuções do vigia. Esperado: nenhuma seq nova; `iniciativa = 'dono'` nas linhas do `escolher` e do `aplicar_sugerido`. Depois: `select ab_event, count(*) from yt_own_video_versions where origin='ab_lab' group by 1` com `escolha` só para destino ≠ vencedor. Que o vigia ignora uma **falha** de escolha só é provado no teste unitário (T4): não se força falha em produção.
 6. Arquivar os três testes (`status='archived'`, saem do `getLearnings`) e conferir que a contagem voltou a **X menos 2** (a de antes de criar os descartáveis); durante o roteiro ela não mudou com nenhum clique. Devolver o título original ao vídeo.
@@ -577,7 +577,7 @@ Ordem: T2 antes de T4, T5, T7 e T15b-2; T3 antes de T6; T7a antes de T8; T8 e T9
   - `regra_v2` sem sugerida (inconclusivo) continua não contando como vitória.
   - Testes:
     - sugerida B + escolha C → conta B;
-    - sugerida = original + "Manter" → conta 1 vez (sem dobrar);
+    - sugerida = original + "Manter" → não conta (a original vencedora não ensina tag);
     - inconclusivo → não conta;
     - teste arquivado → não conta.
   - Atualizar a T19 e o critério 3 do envio 2: a contagem esperada passa a incluir os concluídos v2 com sugerida.
