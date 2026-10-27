@@ -175,7 +175,7 @@ export const DEFINICAO_PLAYLISTS_SEMANAIS: Definicao = {
     cota_esgotada: 'cota do YouTube esgotada',
     lista_cortada: 'a lista de playlists de um canal ficou incompleta',
     contagem_difere: 'a contagem do YouTube não bate com o que foi lido',
-    lista_com_ocultas: 'a lista de playlists tem playlists que a chave não vê (privadas); a volta fecha e a saída espera dois dias',
+    lista_com_ocultas: 'a lista de playlists tem playlists que a chave não vê (privadas); a volta fecha; uma playlist que sumiu só é dada como saída na leitura seguinte da lista, em outro dia (em geral a da semana seguinte)',
     teto_por_canal: 'o teto de chamadas por canal cortou a leitura; o resto segue no dia seguinte',
     itens_cortados: 'a leitura dos itens de uma playlist foi interrompida',
     playlist_sumiu_no_meio: 'uma playlist sumiu entre a lista e os itens',

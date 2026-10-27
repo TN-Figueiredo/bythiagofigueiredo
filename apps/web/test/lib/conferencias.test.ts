@@ -1018,7 +1018,8 @@ describe('X3: conferências com data (A5 X3)', () => {
     expect(X3_LIGADA).toBe('2026-10-18')
     expect(conferenciasX3(null)).toEqual([])
     expect(CONFERENCIAS.filter(x => x.id.startsWith('x3-')).map(x => [x.id, x.data])).toEqual([
-      ['x3-d1', '2026-10-19'], ['x3-d7', '2026-10-25'], ['x3-d30', '2026-11-17'],
+      ['x3-d1', '2026-10-19'], ['x3-d7', '2026-10-25'],
+      ['x3-b1-d1', '2026-10-29'], ['x3-v2-30-10', '2026-10-30'], ['x3-v2-07-11', '2026-11-07'], ['x3-d30', '2026-11-17'],
     ])
   })
   it('com data: D+1, D+7 e D+30 em ordem, do agente, com a consulta', () => {
@@ -1039,7 +1040,7 @@ describe('reabertas (fecho da A5)', () => {
     for (const id of REABERTAS) {
       const c = CONFERENCIAS.find(x => x.id === id)
       expect(c, id).toBeDefined()
-      if (c?.feitaEm) continue // feita depois (lote de 27/10 em FEITAS): sai do vermelho por prova
+      if (c?.feitaEm) { expect(c.feitaEm >= '2026-10-23', id).toBe(true); continue } // feita depois (lote de 27/10 em FEITAS): sai do vermelho por prova
       expect(c?.reabertaEm, id).toBe(REABERTAS_EM)
       expect(diasDeAtraso(REABERTAS_EM, c!), id).toBe(0)
     }
