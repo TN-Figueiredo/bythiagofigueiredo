@@ -3,7 +3,7 @@
 import { BANCO_MS, comPrazo } from '@/lib/youtube/agenda/relogio'
 import { ehForma, erroDaApi, lerPaginaDeItens, lerPaginaDePlaylists, lerSecoes, type ItemLido, type PlaylistLida } from './ler-api'
 import { ErroX3, type EstadoDoCanal, type OpsX3, type PlaylistConhecida } from './gravar'
-import { calcularCiclo, playlistCoberta, playlistsDevidas } from './planejar'
+import { CORTES_POR_PLAYLIST, calcularCiclo, estadoCobre, playlistCoberta, playlistsDevidas } from './planejar'
 import { X3_RULES } from './regras'
 
 const API = 'https://www.googleapis.com/youtube/v3'
@@ -55,7 +55,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
   let tetoPorCanal = false
   const motivos: string[] = []
   const motivo = (m: string): void => { if (!motivos.includes(m)) motivos.push(m) }
-  const numeros = { playlists_lidas: 0, playlists_com_itens: 0, itens_gravados: 0, itens_saidos: 0, playlists_sumidas: 0, playlists_ocultas: 0 }
+  const numeros = { playlists_lidas: 0, playlists_com_itens: 0, itens_gravados: 0, itens_saidos: 0, playlists_sumidas: 0, playlists_ocultas: 0, playlists_a_confirmar: 0, playlists_saidas_da_lista: 0 }
 
   const bloqueio = (): 'cota' | 'teto' | 'tempo' | null => {
     if (cotaEsgotada) return 'cota'
@@ -171,6 +171,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
       // só ocultas: nada visível a gravar, mas as conhecidas ganham a ausência (a função SQL trata `ocultas`)
       const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: [], complete: false, ocultas: true }))
       if (r?.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') }
+      if (r) { numeros.playlists_a_confirmar = r.aConfirmar; numeros.playlists_saidas_da_lista = r.sumidas }
     } else if (listaCompleta && lidas.length === 0) {
       if (e.estado.empty_streak < 1) { listaVazia = true; motivo('lista_vazia_a_confirmar') } else {
         const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: [], complete: true, ocultas: false }))
@@ -179,6 +180,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
     } else if (lidas.length > 0) {
       const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: lidas, complete: listaCompleta, ocultas: listaComOcultas }))
       if (r !== undefined) {
+        if (listaComOcultas) { numeros.playlists_a_confirmar = r.aConfirmar; numeros.playlists_saidas_da_lista = r.sumidas }
         if (r.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') } else {
           if (listaCompleta) listaVazia = false
           for (const l of lidas) {
@@ -198,7 +200,9 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
 
   // 3. Os itens das playlists devidas
   if (!abortou() && !cotaEsgotada && candidatas.length > 0) {
-    const devidas = playlistsDevidas(candidatas, e.agora())
+    // não cobertas na frente (partição estável): uma cortada pelo teto não pode ir ao fim da fila atrás das que já estavam cobertas
+    const ordem = playlistsDevidas(candidatas, e.agora())
+    const devidas = [...ordem.filter(p => !playlistCoberta(p, e.estado.last_cycle_at)), ...ordem.filter(p => playlistCoberta(p, e.estado.last_cycle_at))]
     devidasN = devidas.length
     for (const p of devidas) {
       const b = bloqueio()
@@ -276,7 +280,10 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
   const estadoFinal: 'ok' | 'parcial' | 'erro' = motivos.length === 0 ? 'ok' : leituraBoa && !canalPausado && !gravacaoFalhou ? 'parcial' : 'erro'
   const todasCobertas = candidatas.every(p => {
     const agora = lidasAgora.get(p.id)
-    return playlistCoberta(agora !== undefined ? { items_read_at: 'agora', items_status: agora.status, items_reason: agora.reason } : p, agora !== undefined ? null : e.estado.last_cycle_at)
+    if (agora !== undefined && estadoCobre(agora.status, agora.reason)) return true
+    const soCortada = agora !== undefined && agora.status === 'parcial' && agora.reason !== null && CORTES_POR_PLAYLIST.has(agora.reason)
+    if (agora !== undefined && !soCortada) return false // erro ou saída em massa: não cobre
+    return playlistCoberta(p, e.estado.last_cycle_at) // não tocada, ou releitura só cortada: vale a leitura anterior desta volta
   })
   const ciclo = calcularCiclo({ listaCompleta: listaFechada, todasCobertas, motivos })
   let falhaDoFecho: string | null = null
