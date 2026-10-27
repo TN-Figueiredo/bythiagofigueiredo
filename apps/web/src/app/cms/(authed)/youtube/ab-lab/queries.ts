@@ -48,6 +48,7 @@ import { rotuloDeConcluido } from '@/lib/youtube/ab-rotulo-v2'
 import { diasDaDecisao, estadoV2DoTeste, tetoDoTesteV2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
 import { telaV2DoTeste } from '@/lib/youtube/ab-gravacao/tela-v2'
+import { lerHistoricoDeRestores } from '@/lib/youtube/ab-no-ar-leitura'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -1128,6 +1129,13 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     }
   }
 
+  // M7b: com a escolha do dono, o "no ar" vem do histórico de tentativas. Falha de leitura vai ao Sentry e o "no ar" fica desconhecido.
+  let historicoNoAr: Awaited<ReturnType<typeof lerHistoricoDeRestores>> | null = null
+  if (regraDoTeste(test) === 'v2' && test.status === 'completed' && test.escolha_em) {
+    historicoNoAr = await lerHistoricoDeRestores(getSupabaseServiceClient(), [test.id])
+    if (!historicoNoAr.ok) Sentry.captureMessage('ab-lab detalhe: histórico de restores não lido', { level: 'warning', tags: { area: 'ab-lab-detalhe' }, extra: { testId: test.id, motivo: historicoNoAr.motivo } })
+  }
+
   // Tela v2 (S8-F4 T12): só leitura do que a decisão gravou; v1 e v2 fora da decisão ficam sem modelo.
   const v2 = regraDoTeste(test) === 'v2'
     ? telaV2DoTeste({
@@ -1136,6 +1144,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
           completed_reason: test.completed_reason, winner_variant_id: test.winner_variant_id, winner_applied_at: test.winner_applied_at,
           revert_expires_at: test.revert_expires_at, restore_status: test.restore_status, result_metadata: test.result_metadata,
           original_title: test.original_title, test_type: test.test_type,
+          escolha_em: test.escolha_em ?? null, restore_seq: test.restore_seq ?? 0,
         },
         variantes: results.variants.map(v => ({
           id: v.variant_id, letra: toDisplayLabel(v.label, v.is_original), is_original: v.is_original,
@@ -1145,6 +1154,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         dias: results.dias_decisao,
         agora: new Date(),
         outroTesteAberto,
+        // histórico não lido (erro) com escolha: lista vazia faz o "no ar" cair em desconhecido, nunca em "sem histórico" confirmado
+        ...(historicoNoAr?.ok ? { historico: historicoNoAr.porTeste.get(test.id) ?? [] } : {}),
       })
     : null
   const v2Ativo = v2?.fase === 'ativo' ? v2 : null

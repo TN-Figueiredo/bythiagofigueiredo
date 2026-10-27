@@ -49,6 +49,8 @@ export interface AbLabDashboardProps {
   salvarAjustes: (changes: Partial<AbTestSiteSettings>) => Promise<{ ok: boolean; error?: string }>
   listaInicial: PaginaDoCanal
   videoInicial: string | null
+  /** `?painel=<testId>`: abre o painel desse concluído ao chegar (link da faixa de restauração e da ficha). */
+  painelInicial?: string | null
   /** Bloco "Sugestões" (servidor, dentro de Suspense). */
   blocoSugestoes?: ReactNode
   learnings: LearningsData | null
@@ -67,7 +69,7 @@ const tipoDoCartao = (c: CartaoEmTeste): TestType => (c.tipo === 'lab' ? c.card.
 
 export function AbLabDashboard({
   pagina, settings, siteId, eligibleVideos, drafts, iniciarTeste, avisoDeVolume, acoesDecisao, acoesCaminho, lerVideos, salvarAjustes,
-  listaInicial, videoInicial, blocoSugestoes, learnings, channelLearnings,
+  listaInicial, videoInicial, painelInicial = null, blocoSugestoes, learnings, channelLearnings,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
@@ -86,6 +88,15 @@ export function AbLabDashboard({
   const { abrirAssistente, registrarLinhas } = assistente
   // As linhas da 1ª página alimentam a guarda mesmo com "Vídeos do canal" recolhido ou vazio.
   useEffect(() => { registrarLinhas(listaInicial.linhas, { substituir: true }) }, [listaInicial, registrarLinhas])
+
+  // Link "Abrir o painel": abre o painel do concluído pedido na URL (uma vez por valor), se a página o montou.
+  useEffect(() => {
+    if (!painelInicial) return
+    const l = pagina.concluidos.linhas.find(x => x.testId === painelInicial && x.painel)
+    const dados = l?.painel ?? pagina.comVoce.itens.flatMap(i => ((i.tipo === 'aplicar' || i.tipo === 'escolher') && i.testId === painelInicial ? [i.painel] : []))[0]
+    if (dados) setPainel({ dados, origem: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [painelInicial])
 
   const filtrarTipo = (t: string | TestType): boolean => typeFilter === 'all' || t === typeFilter || t === TIPO_ROTULO[typeFilter]
   const emTeste = pagina.emTeste.filter(c => filtrarTipo(tipoDoCartao(c)))

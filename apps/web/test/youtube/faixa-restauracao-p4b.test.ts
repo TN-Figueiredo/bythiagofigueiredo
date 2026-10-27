@@ -109,7 +109,7 @@ describe('P4b: desistiu', () => {
   })
   it('desistiu/novo_teste → tentar false, dispensar com o campo', () => {
     const f = completa(montarFaixa(des('novo_teste'), ctx))
-    expect(f.acoes).toEqual({ tentar: false, dispensar: ['title'], motivoSemBotao: null })
+    expect(f.acoes).toEqual({ tentar: false, abrirPainel: false, dispensar: ['title'], motivoSemBotao: null })
   })
 })
 
@@ -117,14 +117,14 @@ describe('P4b: acoes', () => {
   it('I: destino variante sem admin → acoes vazias e motivoSemBotao', () => {
     const rs = falhou({ destino: 'vb' })
     const f = completa(montarFaixa(rs, { ...ctx, podeAdministrar: false }))
-    expect(f.acoes).toEqual({ tentar: false, dispensar: [], motivoSemBotao: 'Só quem administra o site pode tentar de novo ou dispensar este aviso.' })
-    expect(completa(montarFaixa(rs, ctx)).acoes).toEqual({ tentar: true, dispensar: ['title'], motivoSemBotao: null })
+    expect(f.acoes).toEqual({ tentar: false, abrirPainel: false, dispensar: [], motivoSemBotao: 'Só quem administra o site pode tentar de novo ou dispensar este aviso.' })
+    expect(completa(montarFaixa(rs, ctx)).acoes).toEqual({ tentar: true, abrirPainel: false, dispensar: ['title'], motivoSemBotao: null })
     // destino original não depende de administrar
     expect(completa(montarFaixa(falhou(), { ...ctx, podeAdministrar: false })).acoes.tentar).toBe(true)
   })
   it('pulado_drift → dispensar [thumbnail], tentar false', () => {
     const rs: RestoreStatus = { title: campo({}), thumbnail: campo({ estado: 'pulado_drift' }) }
-    expect(completa(montarFaixa(rs, ctx)).acoes).toEqual({ tentar: false, dispensar: ['thumbnail'], motivoSemBotao: null })
+    expect(completa(montarFaixa(rs, ctx)).acoes).toEqual({ tentar: false, abrirPainel: false, dispensar: ['thumbnail'], motivoSemBotao: null })
   })
   it('nenhuma faixa da P4b contém "Este aviso ainda não pode ser dispensado."', () => {
     const casos: RestoreStatus[] = [
@@ -144,7 +144,7 @@ describe('P4b: acoes', () => {
     const f = completa(montarFaixa(rs, ctx))
     expect(f.acoes.dispensar).toEqual(['title'])
     const so = completa(montarFaixa({ thumbnail: campo({ estado: 'pulado_teste_youtube' }) }, ctx))
-    expect(so.acoes).toEqual({ tentar: false, dispensar: [], motivoSemBotao: null })
+    expect(so.acoes).toEqual({ tentar: false, abrirPainel: false, dispensar: [], motivoSemBotao: null })
     expect(textoTodo(so)).not.toMatch(/undefined|null|NaN|Sem resposta/)
   })
 })
@@ -193,8 +193,11 @@ describe('M7b: campo da escolha do dono', () => {
     expect(textoTodo(f)).not.toContain('automática')
     expect(f.linhas[0].texto).toContain('Sua escolha não foi aplicada. Abra o painel do teste para tentar de novo. Não repetimos a troca sozinhos.')
     expect(f.acoes.tentar).toBe(false)
+    expect(f.acoes.abrirPainel).toBe(true) // link "Abrir o painel" no lugar de "Tentar agora"
   })
-  it('sem a marca, nada muda (oferece tentar)', () => {
-    expect(completa(montarFaixa(falhou(), ctx)).acoes.tentar).toBe(true)
+  it('sem a marca, nada muda (oferece tentar, sem link do painel)', () => {
+    const a = completa(montarFaixa(falhou(), ctx)).acoes
+    expect(a.tentar).toBe(true)
+    expect(a.abrirPainel).toBe(false)
   })
 })
