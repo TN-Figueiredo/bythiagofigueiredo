@@ -473,6 +473,10 @@ describe('telaV2DoTeste: escolha do dono (M7b T7)', () => {
     const e = comEscolha({}, ok(C)); e.historico = null
     expect(concDe(e).noAr).toEqual({ tipo: 'desconhecido' })
   })
+  it('D28: sem vencedor nem escolha, restore ok em B: o cartão diz B (mesma fonte do título e da faixa)', () => {
+    const e = concluido({ vars: VAR3, restore: ok(B) }); e.teste.test_type = 'title'
+    expect(concDe(e).noAr).toMatchObject({ tipo: 'aplicada', letra: 'B' })
+  })
   it('sem escolha, nada muda: sugerida B ainda oferece aplicar', () => {
     const r = concDe(concluido({}))
     expect(r.aplicar).toEqual({ variant_id: B, letra: 'B' })

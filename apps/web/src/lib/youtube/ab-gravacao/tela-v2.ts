@@ -180,17 +180,23 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     }
   }
   const escolhido = teste.escolha_em != null
-  if (escolhido) {
+  // D28: sem vencedor e sem escolha, o `restore_status` ainda pode dizer o que está no ar (caminho legado): mesma fonte única do título e da faixa.
+  const semVencedorNemEscolha = !escolhido && w === null
+  if (escolhido || semVencedorNemEscolha) {
     // M7b: com a escolha do dono, o vencedor não diz o que está no ar. Fonte única: noArConfirmado.
-    // `historico: null` = leitura falhou: o que está no ar é desconhecido (igual à linha de Concluídos). Ausente = sem histórico (lista vazia).
+    // `historico: null` = leitura falhou: desconhecido (igual à linha de Concluídos). Ausente = sem histórico (lista vazia).
     const lidoNoAr = e.historico === null ? null : noArConfirmado({
       test_type: teste.test_type, restore_status: teste.restore_status, restore_seq: teste.restore_seq ?? 0, completed_at: teste.completed_at,
       winner_variant_id: teste.winner_variant_id, winner_applied_at: teste.winner_applied_at,
       variantes: variantes.map(v => ({ id: v.id, label: v.letra, is_original: v.is_original })),
     }, e.historico ?? [])
-    if (lidoNoAr === null || lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
-    else if (lidoNoAr.varianteId === original?.id) noAr = { tipo: 'original' }
-    else noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
+    if (escolhido) {
+      if (lidoNoAr === null || lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
+      else if (lidoNoAr.varianteId === original?.id) noAr = { tipo: 'original' }
+      else noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
+    } else if (lidoNoAr?.tipo === 'confirmado' && lidoNoAr.varianteId !== original?.id) {
+      noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
+    }
   }
   const mudou = !escolhido && noAr.tipo === 'aplicada' && noAr.desfechoMudou // com escolha do dono a frase "ao encerrar, X parecia melhor" não vale
   const voltar = !escolhido && noAr.tipo === 'aplicada' && teste.revert_expires_at !== null && Date.parse(teste.revert_expires_at) > e.agora.getTime()
