@@ -1139,8 +1139,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         dias: results.dias_decisao,
         agora: new Date(),
         outroTesteAberto,
-        // histórico não lido (erro) com escolha: lista vazia faz o "no ar" cair em desconhecido, nunca em "sem histórico" confirmado
-        ...(historicoNoAr?.ok ? { historico: historicoNoAr.porTeste.get(test.id) ?? [] } : {}),
+        // histórico não lido (erro): null = "no ar" desconhecido na tela, nunca "sem histórico" confirmado
+        ...(historicoNoAr === null ? {} : { historico: historicoNoAr.ok ? (historicoNoAr.porTeste.get(test.id) ?? []) : null }),
       })
     : null
   const v2Ativo = v2?.fase === 'ativo' ? v2 : null

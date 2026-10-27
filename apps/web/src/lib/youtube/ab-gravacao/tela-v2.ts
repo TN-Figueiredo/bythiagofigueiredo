@@ -39,7 +39,7 @@ export interface EntradaTelaV2 {
   variantes: VarianteDaTela[]; ciclos: CicloComNumero[]; dias: DiaDaDecisao[]
   agora: Date
   /** M7b: histórico de ab_test_restores deste teste (lido pelo chamador); só vale com `escolha_em`. */
-  historico?: TentativaNoAr[]
+  historico?: TentativaNoAr[] | null
   /** Há outro teste nosso aberto (draft/queued/active/paused) no mesmo vídeo? Só a desfeita usa. 'sem_leitura' = a consulta falhou (sem botão, motivo próprio). Obrigatório: esquecer não pode liberar o botão. */
   outroTesteAberto: boolean | 'sem_leitura'
 }
@@ -182,12 +182,13 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
   const escolhido = teste.escolha_em != null
   if (escolhido) {
     // M7b: com a escolha do dono, o vencedor não diz o que está no ar. Fonte única: noArConfirmado.
-    const lidoNoAr = noArConfirmado({
+    // `historico: null` = leitura falhou: o que está no ar é desconhecido (igual à linha de Concluídos). Ausente = sem histórico (lista vazia).
+    const lidoNoAr = e.historico === null ? null : noArConfirmado({
       test_type: teste.test_type, restore_status: teste.restore_status, restore_seq: teste.restore_seq ?? 0, completed_at: teste.completed_at,
       winner_variant_id: teste.winner_variant_id, winner_applied_at: teste.winner_applied_at,
       variantes: variantes.map(v => ({ id: v.id, label: v.letra, is_original: v.is_original })),
     }, e.historico ?? [])
-    if (lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
+    if (lidoNoAr === null || lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
     else if (lidoNoAr.varianteId === original?.id) noAr = { tipo: 'original' }
     else noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
   }
