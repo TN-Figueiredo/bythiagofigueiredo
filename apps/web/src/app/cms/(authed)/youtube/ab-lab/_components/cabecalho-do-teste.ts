@@ -29,7 +29,7 @@ export function seloDoTeste(e: {
 
 export type FreioDoEncerrar = { tipo: 'sem_leitura' | 'faltam' | 'falta_1' | 'completo'; texto: string }
 
-export function freioDoEncerrar(e: { dayOf: number; durationDays: number; medidos: number; aguardando?: number }): FreioDoEncerrar {
+export function freioDoEncerrar(e: { dayOf: number; durationDays: number; medidos: number; aguardando?: number; resultadoPendente?: boolean }): FreioDoEncerrar {
   const total = totalDe(e.dayOf, e.durationDays)
   const { faltam } = andamentoDoDia(e.dayOf, total)
   const medidos = Math.min(e.medidos, total)
@@ -39,7 +39,8 @@ export function freioDoEncerrar(e: { dayOf: number; durationDays: number; medido
     // Prazo de calendário completo não é dia medido: o YouTube fecha o dia com atraso.
     if (medidos >= total) return { tipo: 'completo', texto: `Todos os ${total} dias foram medidos.` }
     const espera = aguardando > 0 ? `, ${aguardando} aguardando o YouTube` : ''
-    return { tipo: 'completo', texto: `O prazo terminou: ${medidos} dos ${total} dias medidos${espera}.` }
+    const aviso = e.resultadoPendente ? ' Esperar até amanhã calcula o resultado; encerrar agora, não.' : ''
+    return { tipo: 'completo', texto: `O prazo terminou: ${medidos} dos ${total} dias medidos${espera}.${aviso}` }
   }
   if (faltam === 1) return { tipo: 'falta_1', texto: 'Falta 1 dia.' }
   return { tipo: 'faltam', texto: `Faltam ${faltam} dias dos ${total}. Encerrar agora usa só os ${medidos} dias já medidos.` }

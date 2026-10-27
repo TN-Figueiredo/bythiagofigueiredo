@@ -147,7 +147,7 @@ describe('telaV2DoTeste: ativo', () => {
   it('P4: chave ausente + pisos fechados => ◆T 11, sem sinal', () => {
     const r = ativoDe(ativo({ v2: { n: 100 }, dias: dias([O, B], 5) }))
     expect(r.sinal).toBeNull()
-    expect(r.frase.principal).toBe('Os pisos fecharam; a conta de hoje ainda não rodou.')
+    expect(r.frase.principal).toBe('Os dias mínimos já foram atingidos; o resultado sai amanhã.')
     expect(r.frase.apoio).toBe('Volte amanhã.')
   })
   it('P5: dia = teto + 2 => passouDoFim, nunca "-2"', () => {

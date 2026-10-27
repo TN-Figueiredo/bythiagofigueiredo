@@ -20,6 +20,7 @@ import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
 import { AcoesDeSaida, useAvisoDePagina, useRetomarDoCabecalho } from './acoes-de-saida'
 import { ForcarRotacao } from './forcar-rotacao'
+import { TITULO_CONTA_PENDENTE } from '@/lib/youtube/ab-gravacao/tela-v2'
 import { freioDoEncerrar, contarDiasMedidos, contarDiasAguardando, fraseDaFaixaDePausa } from './cabecalho-do-teste'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
@@ -76,7 +77,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora, escrevend
   const v2 = view.v2?.fase === 'ativo' ? view.v2 : null
 
 
-  const freio = freioDoEncerrar({ dayOf: view.dayOf, durationDays: view.durationDays, medidos: contarDiasMedidos(view.faixa_dias), aguardando: contarDiasAguardando(view.faixa_dias) })
+  const freio = freioDoEncerrar({ dayOf: view.dayOf, durationDays: view.durationDays, medidos: contarDiasMedidos(view.faixa_dias), aguardando: contarDiasAguardando(view.faixa_dias), resultadoPendente: v2?.frase.principal === TITULO_CONTA_PENDENTE })
   const emDeriva = view.status === 'paused' && view.statusNote === DRIFT_STATUS_NOTE
   const retomarCab = useRetomarDoCabecalho(retomar, view.restoreSeq, pausaTeste?.retomarDesabilitado === true)
 
@@ -148,7 +149,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora, escrevend
 
       {/* ── Section 5: Placar das variantes ── */}
       {v2 && (
-        <div className="cn-raiz pv2 mb-[8px]" data-testid="tela-v2">
+        <div className="cn-raiz pv2 mb-[40px]" data-testid="tela-v2">
           <ResumoV2 frase={v2.frase} ilegivel={v2.ilegivel} />
           <AndamentoV2 dia={v2.dia} teto={v2.teto} pausado={v2.pausado} />
           <PisosV2 linhas={v2.pisos} n={v2.n} final={false} />
