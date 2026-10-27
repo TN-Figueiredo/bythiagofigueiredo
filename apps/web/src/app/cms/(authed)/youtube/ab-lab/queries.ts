@@ -40,7 +40,7 @@ import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
 import { toDisplayLabel, variantColor, ordemDesc } from './_components/ab-constants'
-import { tituloNoArDoConcluido } from '@/lib/youtube/ab-lab-pagina/concluidos'
+import { tituloNoArLido, noArDoTeste } from '@/lib/youtube/ab-lab-pagina/concluidos'
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
@@ -1143,7 +1143,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
 
   // M7b: com a escolha do dono, o "no ar" vem do histórico de tentativas. Falha de leitura vai ao Sentry e o "no ar" fica desconhecido.
   let historicoNoAr: Awaited<ReturnType<typeof lerHistoricoDeRestores>> | null = null
-  if (regraDoTeste(test) === 'v2' && test.status === 'completed' && test.escolha_em) {
+  if (regraDoTeste(test) === 'v2' && test.status === 'completed') {
     historicoNoAr = await lerHistoricoDeRestores(getSupabaseServiceClient(), [test.id])
     if (!historicoNoAr.ok) Sentry.captureMessage('ab-lab detalhe: histórico de restores não lido', { level: 'warning', tags: { area: 'ab-lab-detalhe' }, extra: { testId: test.id, motivo: historicoNoAr.motivo } })
   }
@@ -1177,12 +1177,15 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     id: test.id,
     videoTitle: test.original_title ?? test.name,
     ...(test.status === 'completed' && (test.test_type === 'title' || test.test_type === 'combo' || test.test_type === 'thumbnail')
-      ? {
-          tituloNoAr: tituloNoArDoConcluido(
+      ? (() => {
+          // Fonte única (M7b T15b-2): `noArConfirmado` com o histórico lido. Histórico não lido (erro) = desconhecido, nunca "sem histórico".
+          const lido = tituloNoArLido(
             { ...test, test_type: test.test_type },
             results.variants.map(v => ({ id: v.variant_id, letra: toDisplayLabel(v.label, v.is_original), is_original: v.is_original, title_text: v.title_text ?? null })),
-          ),
-        }
+            historicoNoAr === null ? [] : historicoNoAr.ok ? (historicoNoAr.porTeste.get(test.id) ?? []) : null,
+          )
+          return { tituloNoAr: lido.titulo, ...(lido.naUltimaLeitura ? { tituloNaUltimaLeitura: true } : {}) }
+        })()
       : {}),
     flag: test.test_type,
     status: test.status,
@@ -1413,10 +1416,27 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ? ((winnerCtr - originalCtr) / originalCtr) * 100
     : null
 
+  // D21: o que está no ar vem da fonte única; o vencedor do teste e a escolha do dono ficam separados.
+  const letraDeVariante = (id: string): string | null => {
+    const v = results.variants.find(x => x.variant_id === id)
+    return v ? toDisplayLabel(v.label, v.is_original) : null
+  }
+  const historicoDoTeste = historicoNoAr === null ? [] : historicoNoAr.ok ? (historicoNoAr.porTeste.get(test.id) ?? []) : null
+  const noArLido = historicoDoTeste === null
+    ? { letra: null, desde: null, confirmado: false }
+    : noArDoTeste(test, letraDeVariante, historicoDoTeste, results.variants.map(v => ({ id: v.variant_id, label: toDisplayLabel(v.label, v.is_original), is_original: v.is_original })))
+  const letraOriginal = originalVariant ? toDisplayLabel(originalVariant.label, true) : 'A'
+  const noAr = { letra: noArLido.confirmado ? noArLido.letra : null, original: noArLido.confirmado && noArLido.letra === letraOriginal }
+  let escolhaDoDono: 'escolhida' | 'mantida' | null = null
+  if (test.escolha_em) escolhaDoDono = test.escolha_variant_id != null && test.escolha_variant_id === originalVariant?.variant_id ? 'mantida' : 'escolhida'
+  else if (test.completed_reason === 'manual_winner' && noAr.letra !== null && noAr.letra === winnerLabel) escolhaDoDono = noAr.original ? 'mantida' : 'escolhida'
+
   return {
     ...base,
     status: 'completed' as const,
     outcome: 'winner' as const,
+    noAr,
+    escolhaDoDono,
     winnerLabel,
     winnerColor,
     lift,

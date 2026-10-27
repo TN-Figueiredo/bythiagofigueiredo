@@ -28,6 +28,7 @@ export function ConcluidoV2Detail({ view }: ConcluidoV2DetailProps) {
       <div data-section="header">
         <DetailHeader
           title={view.tituloNoAr ?? view.videoTitle}
+          tituloNaUltimaLeitura={view.tituloNaUltimaLeitura}
           youtubeVideoId={view.youtubeVideoId}
           flag={view.flag}
           status={view.status}

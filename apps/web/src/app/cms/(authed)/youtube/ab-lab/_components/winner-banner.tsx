@@ -17,12 +17,18 @@ export interface WinnerBannerProps {
     abbaCycles: number
     monthlyExtraClicks: number | null
   }
+  /** O que está no ar agora (fonte única); `letra: null` = não confirmado. Ausente = a linha não aparece. */
+  noAr?: { letra: string | null; original: boolean }
+  /** A escolha do dono, separada do vencedor estatístico; nula = ele não escolheu (ou a escolha dele não está no ar). */
+  escolhaDoDono?: 'escolhida' | 'mantida' | null
 }
 
 export function WinnerBanner({
   winnerLabel,
   lift,
   stats,
+  noAr,
+  escolhaDoDono,
 }: WinnerBannerProps) {
   const ctrMedido = stats.totalImpressions !== null && stats.totalImpressions > 0 && stats.ctrBefore !== null && stats.ctrAfter !== null
   return (
@@ -45,7 +51,7 @@ export function WinnerBanner({
             data-testid="icon-Trophy"
             aria-hidden="true"
           />
-          <div className="text-[12px] text-cms-text-dim mt-3 mb-1">Vencedor: {winnerLabel}</div>
+          <div className="text-[12px] text-cms-text-dim mt-3 mb-1">Vencedor do teste: {winnerLabel}</div>
           <div className="flex items-center gap-[9px]">
             <VChip label={winnerLabel} size={32} ring />
             {lift !== null && (
@@ -58,9 +64,16 @@ export function WinnerBanner({
               </span>
             )}
           </div>
-          <div className="text-[11.5px] text-cms-text mt-2">
-            <span data-testid="winner-chosen">Escolhido por você</span>
-          </div>
+          {noAr ? (
+            <div className="text-[11.5px] text-cms-text mt-2" data-testid="winner-no-ar">
+              {noAr.letra === null ? 'No ar: não confirmado' : <>No ar agora: <b>{noAr.letra}{noAr.original ? ' (original)' : ''}</b></>}
+            </div>
+          ) : null}
+          {escolhaDoDono ? (
+            <div className="text-[11.5px] text-cms-text mt-1">
+              <span data-testid="winner-chosen">{escolhaDoDono === 'mantida' ? 'Mantida por você' : 'Escolhida por você'}</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Col 2: CTR */}
