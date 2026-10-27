@@ -48,10 +48,10 @@ export const AVISO_NAO_PROPAGOU = { titulo: 'A miniatura pode demorar a aparecer
 export const AVISO_NENHUMA_VERSAO = { titulo: 'O que está no ar não é de nenhuma versão.', detalhe: 'Alguém mudou o vídeo fora daqui. Deixe uma versão no ar para voltar ao teste.' } as const
 /** Yannis I1: a conferência achou a versão no YouTube, mas o registro da escolha não fechou. O clique seguinte só registra. */
 export const avisoNaoRegistrado = (x: string): { titulo: string; detalhe: string } => ({
-  titulo: `A versão ${x} já está no YouTube, mas a escolha não ficou registrada.`,
-  detalhe: 'Toque em Registrar para guardar.',
+  titulo: `A versão ${x} já aparece no YouTube, mas a escolha não ficou registrada.`,
+  detalhe: `Toque em Deixar ${x} no ar para confirmar.`,
 })
-export const rotuloRegistrar = (x: string): string => `Registrar ${x}`
+export const rotuloRegistrar = (x: string): string => `Deixar ${x} no ar`
 /** Gio G2: sessão expirada com o painel aberto. Nada foi gravado. */
 export const AVISO_SESSAO_EXPIRADA = { titulo: 'Sua sessão expirou.', detalhe: 'Entre de novo para continuar.' } as const
 /** Gio G3: o "Manter" não escreve no YouTube; a falha foi de chegar ao nosso servidor. */

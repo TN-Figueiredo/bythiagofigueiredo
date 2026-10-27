@@ -196,6 +196,13 @@ describe('escolherVersaoCore: escrita no YouTube', () => {
     await escolherVersaoCore(entrada({ varianteId: VA }), { supabase: f.supabase, settle })
     expect(settle.mock.calls[0]![1]).toMatchObject({ motivo: 'escolher', extra: { completed_reason: 'manual_winner', winner_variant_id: VA }, vencedorEsperado: VA })
   })
+  it('Yannis N2: registro desconhecido e settle sem escrever (Deixar C no ar após a conferência pelo YouTube): no_ar, sem escrita', async () => {
+    settle.mockResolvedValue(feito({ title: campo('ok', VC, 9, false) }))
+    const f = fake({ teste: { restore_status: null } })
+    const r = await escolherVersaoCore(entrada({ varianteId: VC }), { supabase: f.supabase, settle })
+    expect(settle).toHaveBeenCalledTimes(1)
+    expect(r).toMatchObject({ ok: true, resultado: 'no_ar', noAr: { letra: 'C' }, restoreSeq: 5 })
+  })
   it('sugerida que não é variante do teste: tratada como sem sugerida (escolher, sem letra esperada) e Sentry avisa', async () => {
     settle.mockResolvedValue(feito({ title: campo('ok', VB, 9) }))
     const f = fake({ teste: { result_metadata: { v2: { desfecho: 'vencedor_provavel', vencedor_sugerido: VOUTRO } } } })
