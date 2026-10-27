@@ -21,7 +21,7 @@ beforeEach(() => vi.clearAllMocks())
 
 describe('S8-F2 T5b: derivados das views saem da tela', () => {
   it('getLearnings: avgLift nulo e nenhuma tag negative, mesmo com lift negativo guardado', async () => {
-    const tests = [1, 2, 3].map(i => ({ id: `t${i}`, winner_variant_id: `w${i}`, test_type: 'thumbnail', result_metadata: { ctr_lift_percent: -12 }, confidence_at_completion: 0.97 }))
+    const tests = [1, 2, 3].map(i => ({ id: `t${i}`, winner_variant_id: `w${i}`, test_type: 'thumbnail', result_metadata: { ctr_lift_percent: -12 }, confidence_at_completion: 0.97, variants: [{ id: `w${i}`, is_original: false, metadata: { thumbnail_tags: ['rosto'] } }] }))
     const winners = [1, 2, 3].map(i => ({ id: `w${i}`, metadata: { thumbnail_tags: ['rosto'] } }))
     vi.mocked(getSupabaseServiceClient).mockReturnValue(bancoFalso({ ab_tests: tests, ab_test_variants: winners }) as never)
     const r = await getLearnings('site-1')
