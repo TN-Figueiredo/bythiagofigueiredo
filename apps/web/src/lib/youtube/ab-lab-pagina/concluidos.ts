@@ -45,20 +45,46 @@ export function noArDoTeste(
 }
 
 /**
- * Título que está no ar num teste concluído (cabeçalho, M7b D19 / envio 1): com uma versão `confirmado` no ar, o `title_text` dela
- * (a original usa o título do vídeo); senão o original, nunca o de uma variante não confirmada.
+ * Título que está no ar num teste concluído (cabeçalho, M7b D19 / T15b-2), pela fonte única `noArConfirmado`:
+ * `confirmado` -> o título da versão (a original usa o título do vídeo); `desconhecido` com última leitura -> o título dela, marcado
+ * `naUltimaLeitura`; sem nada -> o original. Teste só de miniatura: sempre o original. `historico === null` (não lido) = desconhecido.
  */
+export function tituloNoArLido(
+  t: Parameters<typeof noArDoTeste>[0] & { original_title: string | null; name: string },
+  variantes: ReadonlyArray<{ id: string; letra: string; is_original: boolean; title_text: string | null }>,
+  historico: TentativaNoAr[] | null = [],
+): { titulo: string; naUltimaLeitura: boolean } {
+  const original = t.original_title ?? t.name
+  if (t.test_type === 'thumbnail') return { titulo: original, naUltimaLeitura: false }
+  const tituloDe = (letra: string): string | null => {
+    const v = variantes.find(x => x.letra === letra)
+    if (!v) return null
+    return v.is_original ? original : (v.title_text ?? original)
+  }
+  const lido = historico === null
+    ? { tipo: 'desconhecido' as const, ultima: null }
+    : noArConfirmado({
+      ...t, restore_seq: t.restore_seq ?? 0,
+      variantes: variantes.map(v => ({ id: v.id, label: v.letra as DisplayLabel, is_original: v.is_original })),
+    }, historico)
+  if (lido.tipo === 'confirmado') return { titulo: tituloDe(lido.letra) ?? original, naUltimaLeitura: false }
+  if (lido.tipo === 'misto') {
+    const l = lido.porCampo.title
+    return { titulo: (l ? tituloDe(l) : null) ?? original, naUltimaLeitura: false }
+  }
+  if (lido.ultima) {
+    const x = tituloDe(lido.ultima.letra)
+    if (x) return { titulo: x, naUltimaLeitura: true }
+  }
+  return { titulo: original, naUltimaLeitura: false }
+}
+
 export function tituloNoArDoConcluido(
   t: Parameters<typeof noArDoTeste>[0] & { original_title: string | null; name: string },
   variantes: ReadonlyArray<{ id: string; letra: string; is_original: boolean; title_text: string | null }>,
+  historico: TentativaNoAr[] | null = [],
 ): string {
-  const original = t.original_title ?? t.name
-  const letraDe = (id: string): string | null => variantes.find(v => v.id === id)?.letra ?? null
-  const noAr = noArDoTeste(t, letraDe)
-  if (!noAr.confirmado || !noAr.letra) return original
-  const v = variantes.find(x => x.letra === noAr.letra)
-  if (!v || v.is_original) return original
-  return v.title_text ?? original
+  return tituloNoArLido(t, variantes, historico).titulo
 }
 
 const SEM_VENCEDOR = new Set(['sem_diferenca', 'volume', 'dado', 'falha', 'aguardando', 'pendente', 'ilegivel'])

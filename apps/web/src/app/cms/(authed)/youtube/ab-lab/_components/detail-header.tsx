@@ -23,6 +23,8 @@ export interface DetailHeaderProps {
   actions?: React.ReactNode
   /** Id do vídeo no YouTube (`view.youtubeVideoId`); ausente = sem o botão "Abrir no YouTube". */
   youtubeVideoId?: string | null
+  /** O título é o da última leitura confirmada, não o de agora (M7b D19): mostra o selo "na última leitura". */
+  tituloNaUltimaLeitura?: boolean
   /** Variante do Lab (S8-F3 T5b): rastro com respiro, miniatura, selo "Teste do Lab". Sem a prop, o cabeçalho é o de sempre. */
   lab?: { thumbUrl: string | null; naoIniciado?: boolean; /** Teste v2 concluído (T12 T7): "DD/MM" da conclusão; troca o selo "rodando, dia X de Y". */ concluidoEm?: string }
 }
@@ -61,6 +63,7 @@ export function DetailHeader({
   dayInfo,
   actions,
   youtubeVideoId,
+  tituloNaUltimaLeitura,
   lab,
 }: DetailHeaderProps) {
   if (lab) {
@@ -88,6 +91,7 @@ export function DetailHeader({
               )}
             </div>
             <h2 className="dhl-h2" title={title}>{title}</h2>
+            {tituloNaUltimaLeitura ? <p className="dhl-origem" data-testid="titulo-ultima-leitura">na última leitura</p> : null}
             {(dayInfo || lab.concluidoEm) && (
               <div className="dhl-selos">
                 <span className="dhl-selo" data-testid="selo-lab">
@@ -144,6 +148,7 @@ export function DetailHeader({
 
       {/* Row 2: Title */}
       <h2 className="text-[28px] font-bold text-cms-text leading-[1.15] max-w-[720px] tracking-[-0.01em]">{title}</h2>
+      {tituloNaUltimaLeitura ? <p className="text-[12px] text-cms-text-dim mt-[4px]" data-testid="titulo-ultima-leitura">na última leitura</p> : null}
 
       {/* Row 3: Toolbar */}
       {(actions || youtubeVideoId) && (
