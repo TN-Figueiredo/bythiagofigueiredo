@@ -36,6 +36,7 @@ import type {
   TestType,
 } from '@/lib/youtube/ab-types'
 import { TIPOS_DE_TESTE } from '@/lib/youtube/ab-schemas'
+import { vencedorQueEnsina } from '@/lib/youtube/ab-aprendizado'
 import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
@@ -679,48 +680,43 @@ function buildInsightText(tags: LearningsTag[]): string {
 export async function getLearnings(siteId: string): Promise<LearningsData | null> {
   const supabase = getSupabaseServiceClient()
 
-  // M7b P2: conta o vencedor ESTATÍSTICO (v2.vencedor_sugerido), nunca a escolha do dono.
-  // Sem sugerida (inconclusivo ou regra antiga), vale o winner_variant_id.
-  const { data: lidos } = await supabase
+  // M7b P2: conta o vencedor ESTATÍSTICO (ver vencedorQueEnsina). As variantes vêm embutidas na
+  // mesma leitura (sem .in() com todos os concluídos); erro de leitura = null, nunca dado parcial.
+  const { data: lidos, error } = await supabase
     .from('ab_tests')
-    .select('id, result_metadata, winner_variant_id, test_type')
+    .select('id, result_metadata, winner_variant_id, test_type, variants:ab_test_variants!test_id(id, is_original, metadata)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
+  if (error) {
+    Sentry.captureException(error)
+    return null
+  }
 
-  const idsLidos = (lidos ?? []).map(t => t.id as string)
-  const { data: variantesLidas } = idsLidos.length
-    ? await supabase.from('ab_test_variants').select('id, test_id, is_original').in('test_id', idsLidos)
-    : { data: [] as Array<{ id: unknown; test_id: unknown; is_original: unknown }> }
-  const porId = new Map((variantesLidas ?? []).map(v => [v.id as string, v]))
-
-  const tests = (lidos ?? []).flatMap(t => {
-    const sug = (t.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null)?.v2?.vencedor_sugerido
-    const sugVar = sug ? porId.get(sug) : undefined
-    const efetivo = sugVar && sugVar.test_id === t.id ? sug! : (t.winner_variant_id as string | null)
-    if (!efetivo) return []
-    const v = porId.get(efetivo)
-    // S8-F4 B2: a original vencedora ("não mudar nada") não ensina tag nenhuma
-    if (v?.is_original === true) return []
-    return [{ ...t, winner_variant_id: efetivo }]
-  })
+  const { tests, winners, allVariants } = selecionarAprendizado(lidos ?? [])
   if (tests.length < 3) return null
 
-  const testIds = tests.map(t => t.id as string)
-  const winnerIds = tests.map(t => t.winner_variant_id as string)
-
-  const { data: winners } = await supabase
-    .from('ab_test_variants')
-    .select('id, metadata')
-    .in('id', winnerIds)
-
-  // Fetch all variants for total count (tag appeared on ANY variant)
-  const { data: allVariants } = await supabase
-    .from('ab_test_variants')
-    .select('id, metadata')
-    .in('test_id', testIds)
-
-  const tags = aggregateTags(winners ?? [], tests, allVariants ?? undefined)
+  const tags = aggregateTags(winners, tests, allVariants)
   return { tags, totalTests: tests.length, insightText: buildInsightText(tags) }
+}
+
+type VarianteEmbutida = { id: unknown; is_original?: unknown; metadata: unknown }
+
+/** Aplica a regra única (vencedorQueEnsina) e monta vencedoras e variantes a partir do embed. */
+function selecionarAprendizado<T extends { id: unknown; winner_variant_id: unknown; result_metadata: unknown; variants?: unknown }>(lidos: T[]) {
+  const tests: Array<T & { winner_variant_id: string }> = []
+  const winners: VarianteEmbutida[] = []
+  const allVariants: Array<VarianteEmbutida & { test_id: string }> = []
+  for (const t of lidos) {
+    const variantes = (Array.isArray(t.variants) ? t.variants : []) as VarianteEmbutida[]
+    const efetivo = vencedorQueEnsina(t, variantes)
+    if (!efetivo) continue
+    tests.push({ ...t, winner_variant_id: efetivo })
+    for (const v of variantes) {
+      allVariants.push({ ...v, test_id: t.id as string })
+      if (v.id === efetivo) winners.push(v)
+    }
+  }
+  return { tests, winners, allVariants }
 }
 
 // ---------------------------------------------------------------------------
@@ -730,26 +726,17 @@ export async function getLearnings(siteId: string): Promise<LearningsData | null
 export async function getChannelLearnings(siteId: string): Promise<ChannelLearningsData | null> {
   const supabase = getSupabaseServiceClient()
 
-  // M7b P2 (mesma regra do getLearnings): conta o vencedor ESTATÍSTICO (v2.vencedor_sugerido), nunca a escolha do dono.
-  // Sem sugerida, vale o winner_variant_id; a original vencedora não ensina tag.
-  const { data: lidos } = await supabase
+  // M7b P2 (mesma regra do getLearnings, via vencedorQueEnsina): variantes embutidas, erro = null.
+  const { data: lidos, error } = await supabase
     .from('ab_tests')
-    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id)')
+    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id), variants:ab_test_variants!test_id(id, is_original, metadata)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
-  const idsLidos = (lidos ?? []).map(t => t.id as string)
-  const { data: variantesLidas } = idsLidos.length
-    ? await supabase.from('ab_test_variants').select('id, test_id, is_original').in('test_id', idsLidos)
-    : { data: [] as Array<{ id: unknown; test_id: unknown; is_original: unknown }> }
-  const porId = new Map((variantesLidas ?? []).map(v => [v.id as string, v]))
-  const tests = (lidos ?? []).flatMap(t => {
-    const sug = (t.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null)?.v2?.vencedor_sugerido
-    const sugVar = sug ? porId.get(sug) : undefined
-    const efetivo = sugVar && sugVar.test_id === t.id ? sug! : (t.winner_variant_id as string | null)
-    if (!efetivo) return []
-    if (porId.get(efetivo)?.is_original === true) return []
-    return [{ ...t, winner_variant_id: efetivo }]
-  })
+  if (error) {
+    Sentry.captureException(error)
+    return null
+  }
+  const { tests, winners: allWinners, allVariants: everyVariant } = selecionarAprendizado(lidos ?? [])
 
   if (!tests?.length || tests.length < 3) {
     return null
@@ -775,20 +762,6 @@ export async function getChannelLearnings(siteId: string): Promise<ChannelLearni
     .in('id', channelIds)
 
   const channelNameMap = new Map((channels ?? []).map(c => [c.id as string, (c.name as string | null) ?? 'Canal']))
-
-  // Get all winner variants in one query
-  const allWinnerIds = tests.map(t => t.winner_variant_id as string)
-  const { data: allWinners } = await supabase
-    .from('ab_test_variants')
-    .select('id, metadata')
-    .in('id', allWinnerIds)
-
-  // Fetch ALL variants for total count
-  const allTestIds = tests.map(t => t.id as string)
-  const { data: everyVariant } = await supabase
-    .from('ab_test_variants')
-    .select('id, test_id, metadata')
-    .in('test_id', allTestIds)
 
   // Compute learnings per channel (only channels with 3+ tests)
   const channelLearnings: ChannelLearningsData['channels'] = []
