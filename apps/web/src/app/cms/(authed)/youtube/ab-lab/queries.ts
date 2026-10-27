@@ -1333,6 +1333,11 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       daysRemaining,
       statusNote: test.status_note ?? null,
       driftAcknowledgedAt: test.drift_acknowledged_at ?? null,
+      pausedAt: test.paused_at ?? null,
+      // Mesma função e mesma conta do forceRotate (actions.ts); `random` não é previsível.
+      proximaNaRotacao: test.config.rotation_pattern === 'random' || variants.length === 0
+        ? null
+        : (variants[getNextVariantIndex(test.config.rotation_pattern, variants.length, doneCycles + 1)]?.label ?? null),
       variantDb,
       graceExpiresAt: test.grace_expires_at,
       winnerAppliedAt: test.winner_applied_at,
