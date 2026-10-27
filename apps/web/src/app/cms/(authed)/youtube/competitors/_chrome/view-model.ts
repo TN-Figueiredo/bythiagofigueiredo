@@ -40,7 +40,7 @@ export interface ChromeView {
     problemsShort: string | null; problemsTitle: string | null
     rows: ChromeFreshRow[]; popoverSub: string; problemsHref: string
   }
-  addHref: string; nicheEditorHref: string; cowork: string
+  addHref: string; nicheEditorHref: string; /** nulo na aba Arquivo: o MCP não lê o arquivo (Yannis I-1), então não há pedido a copiar */ cowork: string | null
   /** Os canais próprios do site, para o atalho "Meu canal" ao lado de "Adicionar canal" (spec 15.2). */
   owns: OwnMenu
   /** The forja segment (Task 35): button, status and heartbeat of the screen's request type; null when the page has none. */
@@ -124,7 +124,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
       problemsHref: obs.link.canais({ filter: 'problemas' }),
     },
     addHref: obs.link.canais({ add: 1 }), nicheEditorHref: obs.link.canais({ nicheEditor: 1 }),
-    cowork: coworkText(o.tab === 'saiu' || o.tab === 'sugestoes' ? 'canais' : o.tab, niche, nl),
+    cowork: o.tab === 'arquivo' ? null : coworkText(o.tab === 'saiu' || o.tab === 'sugestoes' ? 'canais' : o.tab, niche, nl),
     owns: ownMenuOf(obs, o.lembrado ?? null),
     // Task 22's guard: the segment exists only when the forja tables are ready
     forja: o.forja && o.forja.ready ? o.forja : null,
@@ -133,14 +133,13 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
 }
 
 /** "Copiar pedido para o Cowork": the mockup's default text per tab (chrome.js coworkText). `label` = the niche's label (the built-in ones are known here). */
-export function coworkText(tab: AbaDoPacote | 'historico' | 'arquivo', niche: NicheScope, label: string = nicheLabel(BUILTIN_NICHES, niche)): string {
+export function coworkText(tab: AbaDoPacote | 'historico', niche: NicheScope, label: string = nicheLabel(BUILTIN_NICHES, niche)): string {
   const n = niche === 'todos' ? 'todos os nichos' : `nicho ${label}`
-  const base: Record<AbaDoPacote | 'historico' | 'arquivo', string> = {
+  const base: Record<AbaDoPacote | 'historico', string> = {
     canais: `Compare os canais monitorados no Observatório (${n}) via youtube_observatory: crescimento de views, frequência de publicação e frescor da sincronização. Aponte quem acelerou.`,
     mudancas: `Liste as trocas de título e thumbnail dos concorrentes (${n}, últimos 30 dias) via youtube_observatory. Para as que já têm 7 dias depois da troca, compare a média de views/dia observada com a esperada pela idade. Não afirme causa.`,
     outliers: `Liste os outliers dos concorrentes (${n}, longos, até 90 dias, 2× ou mais ajustado pela idade) via youtube_observatory e sugira 3 ângulos de vídeo para o meu canal.`,
     insights: `Leia as leituras da forja (${n}) via youtube_observatory e proponha 3 títulos para o meu próximo vídeo que sigam só as fórmulas que passam a regra.`,
-    arquivo: 'Leia o estado do arquivo mensal do Observatório (meses copiados, conferidos e o que espera por mim) e diga o que precisa de uma ação minha.',
     historico: 'Leia o histórico deste vídeo (títulos, thumbnails, descrições e a curva de views) via youtube_observatory e diga o que mudou e quando. Não afirme causa.',
   }
   return base[tab] + ' Use o MCP bythiagofigueiredo.'

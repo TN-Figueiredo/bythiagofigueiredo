@@ -46,7 +46,9 @@ describe('chrome view model', () => {
     const com = buildChromeView(obs, { tab: 'arquivo', niche: 'todos', arquivoVisivel: true }).tabs
     expect(com.at(-1)).toMatchObject({ key: 'arquivo', label: 'Arquivo', href: '/cms/youtube/competitors/arquivo', current: true })
     expect(com.slice(0, -1).every(t => !t.current)).toBe(true)
-    expect(coworkText('arquivo', 'todos')).toMatch(/arquivo mensal/)
+    // Yannis I-1: o MCP não lê o arquivo, então a aba não tem pedido para o Cowork (nem texto, nem item de menu)
+    expect(buildChromeView(obs, { tab: 'arquivo', niche: 'todos', arquivoVisivel: true }).cowork).toBeNull()
+    expect(buildChromeView(obs, { tab: 'canais', niche: 'todos' }).cowork).toEqual(expect.stringContaining('youtube_observatory'))
   })
   it('marks only the current tab', () => {
     expect(buildChromeView(obs, { tab: 'outliers', niche: 'todos' }).tabs.map(t => t.current)).toEqual([false, false, true, false])

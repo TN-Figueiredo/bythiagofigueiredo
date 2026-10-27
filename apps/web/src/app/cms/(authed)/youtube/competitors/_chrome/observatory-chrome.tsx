@@ -166,6 +166,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
 
   const copy = async () => {
     const text = view.cowork
+    if (text === null) return
     close(true)
     try {
       if (!navigator.clipboard?.writeText) throw new Error('sem área de transferência')
