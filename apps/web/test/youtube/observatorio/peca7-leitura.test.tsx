@@ -6,7 +6,7 @@ import { EsperamComandos } from '@/app/cms/(authed)/youtube/competitors/_canais/
 import { LINHA_DO_DONO, type PendenciasDaTela } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 
 const LIDO = new Date('2028-05-03T15:00:00Z')
-const item = (idadeDias: number, i: number) => ({ item_id: 'canal:aaaaaaaa-1111-2222-3333-44444444444' + i, kind: 'canal', tempo: 'sem_comando' as const, idadeDias })
+const item = (idadeDias: number, i: number) => ({ item_id: 'canal:aaaaaaaa-1111-2222-3333-44444444444' + i, kind: 'canal', tempo: 'sem_comando' as const, idadeDias, titulo: null as string | null })
 const tres = (linha: string | null): PendenciasDaTela => ({ estado: 'com_itens', lidoEm: LIDO, n: 3, maisAntigoDias: 63, itens: [item(63, 1), item(20, 2), item(3, 3)], linha })
 
 describe('peça 7, parte de leitura', () => {
@@ -40,6 +40,11 @@ describe('peça 7, parte de leitura', () => {
     expect(screen.getByText('Ver os comandos')).toBeTruthy()
     expect(document.body.textContent).toContain(LINHA_DO_DONO)
     expect(screen.getByRole('button', { name: /Copiar/ })).toBeTruthy()
+  })
+  it('Yannis I-3: dois canais removidos se distinguem pelo nome; sem nome aparece o mês', () => {
+    render(<EsperamComandos t={{ estado: 'com_itens', lidoEm: LIDO, n: 2, maisAntigoDias: 5, itens: [{ ...item(5, 1), titulo: 'Canal Um' }, { ...item(2, 2), titulo: 'março de 2028' }], linha: null }} />)
+    expect(screen.getByText('Canal removido · Canal Um')).toBeTruthy()
+    expect(screen.getByText('Canal removido · março de 2028')).toBeTruthy()
   })
   it('nunca "Já rodei" (é da M9)', () => {
     render(<EsperamComandos t={tres(LINHA_DO_DONO)} />)

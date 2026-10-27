@@ -34,7 +34,10 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
     montarCanais(flat, { aoAbrir: o => competitorChannelRedirect(o, flat.channel) }), meuEmailP,
   ])
   // Peça 7 (M5 T10): lida só com o filtro "Saíram do YouTube" aberto e só depois da guarda de edição (dentro de lerPendenciasDaFila); sem edição, nem o cliente de serviço é criado.
-  const pendencias = view.filter === 'sairam' ? await lerPendenciasDaFila(siteId, permissoes, new Date(now)) : null
+  // Os nomes saem de mapas montados uma vez (canal pelo id, vídeo pelo id do YouTube): nada de `find` por item.
+  const pendencias = view.filter === 'sairam'
+    ? await lerPendenciasDaFila(siteId, permissoes, new Date(now), { canais: new Map(obs.channels.map(c => [c.id, c.name])), videos: new Map(obs.videos.map(v => [v.ytId, v.title])) })
+    : null
   return (
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>

@@ -88,15 +88,20 @@ export function lerPendencias(bruto: unknown): LeituraPendencias {
 export type PendenciasDaTela =
   | { estado: 'nao_medido' }
   | { estado: 'zero'; lidoEm: Date; linha: string | null }
-  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; idadeDias: number }>; linha: string | null }
+  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null }>; linha: string | null }
 
 const DIA_MS = 86_400_000
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+const nomeDoMes = (m: string): string => `${MESES[Number(m.slice(5, 7)) - 1]} de ${m.slice(0, 4)}`
+/** Os nomes que a página já tem, montados UMA vez (O(c + v)): canal pelo id do registro, vídeo pelo id do YouTube. */
+export interface NomesDaFila { canais?: ReadonlyMap<string, string>; videos?: ReadonlyMap<string, string> }
 /** O que a tela recebe. `apagar` e `b2_nomes` nunca saem daqui; a linha só vai a quem administra o site (E-D4). */
-export function pendenciasParaTela(l: LeituraPendencias, o: { podeVerComandos: boolean; agora: Date }): PendenciasDaTela {
+export function pendenciasParaTela(l: LeituraPendencias, o: { podeVerComandos: boolean; agora: Date; nomes?: NomesDaFila }): PendenciasDaTela {
   if (!l.ok) return { estado: 'nao_medido' }
   const linha = o.podeVerComandos ? LINHA_DO_DONO : null
   if (l.itens.length === 0) return { estado: 'zero', lidoEm: l.lidoEm, linha }
   const idade = (d: Date): number => Math.max(0, Math.floor((o.agora.getTime() - d.getTime()) / DIA_MS))
-  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, idadeDias: idade(i.desde) }))
+  const titulo = (i: PendenciaDoDono): string | null => (i.channelRef ? o.nomes?.canais?.get(i.channelRef) : i.youtubeId ? o.nomes?.videos?.get(i.youtubeId) : undefined) ?? (i.mes ? nomeDoMes(i.mes) : null)
+  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, idadeDias: idade(i.desde), titulo: titulo(i) }))
   return { estado: 'com_itens', lidoEm: l.lidoEm, n: itens.length, maisAntigoDias: Math.max(...itens.map(i => i.idadeDias)), itens, linha }
 }

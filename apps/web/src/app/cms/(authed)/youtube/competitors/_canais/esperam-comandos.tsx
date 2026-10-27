@@ -46,7 +46,7 @@ function Item({ i }: { i: Itens[number] }): ReactElement {
   return (
     <li className={`p7-it ${f}`}>
       <div>
-        <p className="p7-k">{QUEM[i.kind] ?? 'Item'}</p>
+        <p className="p7-k">{QUEM[i.kind] ?? 'Item'}{i.titulo ? ` · ${i.titulo}` : ''}</p>
         <p className="p7-st"><FormaIcone forma="arquivo" /><span>{SITUACAO[i.tempo]}</span></p>
         {i.idadeDias >= DIAS_VERMELHO ? <p className="p7-lemb">Passou de 60 dias: é só um lembrete. Quando puder, rode a linha.</p> : null}
       </div>
