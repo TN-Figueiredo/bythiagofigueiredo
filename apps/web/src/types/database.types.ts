@@ -1010,6 +1010,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "ab_tests_escolha_variant_id_fkey"
+            columns: ["escolha_variant_id"]
+            isOneToOne: false
+            referencedRelation: "ab_test_variants"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ab_tests_parent_test_id_fkey"
             columns: ["parent_test_id"]
             isOneToOne: false
@@ -1035,13 +1042,6 @@ export type Database = {
             columns: ["source_pipeline_id"]
             isOneToOne: false
             referencedRelation: "content_pipeline"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ab_tests_escolha_variant_id_fkey"
-            columns: ["escolha_variant_id"]
-            isOneToOne: false
-            referencedRelation: "ab_test_variants"
             referencedColumns: ["id"]
           },
           {
