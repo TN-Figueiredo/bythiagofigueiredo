@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Teste rodando, largura única (mockup M7d r3)</title>
+<title>Teste rodando, largura única (mockup M7d r4)</title>
 <style>
 /* Mockup M7d r2 (27/10/2026). Base: página do teste do Lab (detail-header-lab.css, placar-do-teste.css, ab-end-test-dialog.css)
    e tokens dos mockups lab-reordem e M7b. Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS.
@@ -186,6 +186,28 @@ body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-se
 .etd-btn{border-radius:9px;border:1px solid var(--etd-ctl);background:transparent;color:var(--etd-text);padding:8px 14px;font:600 13px/18px Inter,system-ui,sans-serif;min-height:44px;display:inline-flex;gap:7px;align-items:center;justify-content:center;cursor:pointer}
 .etd-btn.pri{background:var(--etd-accent);border-color:var(--etd-accent);color:#1A120A}
 @container (max-width:480px){.etd-f{flex-direction:column-reverse;align-items:stretch}}
+/* ----- r4: estados de hover, foco e painel da seta (copiados do produto) ----- */
+.chev:hover{background:var(--surface-2);color:var(--text)}
+.chev svg{transition:transform .15s}
+.chev[aria-expanded="true"] svg{transform:rotate(180deg)}
+.vx{padding:2px 0 14px 36px;font-size:13px;color:var(--muted)}
+.vx[hidden]{display:none}
+.vx b{color:var(--text);font-weight:600}
+.vx ul{margin:6px 0 0;padding-left:18px}
+span.chev{pointer-events:none}
+@container (max-width:640px){.vx{padding-left:0}}
+.dhl-crumb a:hover{text-decoration:underline;color:var(--text)}
+.idica:hover{background:var(--surface-2)}
+.bt.yt:hover{background:var(--surface-2)}
+.etd-x:hover{background:rgba(245,239,230,.08);color:var(--etd-text)}
+.etd-btn:hover{background:rgba(245,239,230,.08)}
+.etd-btn.pri:hover{background:#FF9560;border-color:#FF9560}
+.etd-opt:hover{border-color:var(--etd-ctl)}
+.etd :focus-visible{outline:2px solid var(--etd-accent);outline-offset:2px}
+.etd-ico.amber{background:rgba(224,162,60,.12);color:#E0A23C}
+.etd p.pz{margin:0 0 10px;font-size:13px;line-height:1.55;color:var(--etd-muted)}
+.etd p.pz:last-child{margin:0}
+@media (prefers-reduced-motion:reduce){.chev svg{transition:none}}
 /* ----- "antes": como é hoje ----- */
 .antes{display:flex;flex-direction:column;gap:var(--s5);padding-inline:24px}
 .antes .hoje-hd{max-width:720px}
@@ -258,18 +280,18 @@ function selo(S){
  return `<span class="selo" data-testid="selo">${I('flask','ic sm')}Rodando · ${d}</span>`;
 }
 function acoes(S){
- const yt=`<a class="bt yt" href="#" data-testid="abrir-no-youtube">${I('ext')}Abrir no YouTube</a>`;
+ const yt=`<a class="bt yt" href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noopener noreferrer" data-act="abrir" data-testid="abrir-no-youtube">${I('ext')}Abrir no YouTube</a>`;
  if(S.fase==='concluido')return `<div class="acoes solo" data-bloco="acoes">${yt}</div>`;
  const off=S.fase==='escrevendo';
  const dis=off?' aria-disabled="true" aria-describedby="apoio-acoes"':'';
- const p=S.fase==='pausado'?`<button class="bt" type="button">${I('play')}Retomar</button>`:`<button class="bt" type="button"${dis}>${I('pause')}Pausar</button>`;
- const enc=`<button class="bt${S.pronto?' dest':''}" type="button"${dis}>${I('stop')}Encerrar</button>`;
+ const p=S.fase==='pausado'?`<button class="bt" type="button" data-act="retomar">${I('play')}Retomar</button>`:`<button class="bt" type="button" data-act="pausar"${dis}>${I('pause')}Pausar</button>`;
+ const enc=`<button class="bt${S.pronto?' dest':''}" type="button" data-act="encerrar"${dis}>${I('stop')}Encerrar</button>`;
  return `<div class="acoes" data-bloco="acoes">${p}${enc}${yt}</div>`+(off?`<p class="acoes-apoio" id="apoio-acoes" role="status">Gravando no YouTube. Pausar e Encerrar voltam em instantes.</p>`:'');
 }
 function cabecalho(S){
  return `<header data-bloco="cabecalho">
  <div class="dhl-hd">
-  <div class="dhl-crumb"><a href="#">${I('back')}A/B Lab</a><span>/</span><span class="tag">Título</span><span class="tag">${I('swap','ic sm')}Round 1/2</span></div>
+  <div class="dhl-crumb"><a href="#" data-act="rastro">${I('back')}A/B Lab</a><span>/</span><span class="tag">Título</span><span class="tag">${I('swap','ic sm')}Round 1/2</span></div>
   <span class="dhl-th" aria-hidden="true"></span>
   <div class="dhl-ttl">
    <h2 class="dhl-h2" title="${S.titulo}">${S.titulo}</h2>
@@ -294,7 +316,8 @@ function linha(v,S){
  return `<div class="vrow"><div class="vr"><div class="vh"><span class="chip c${v.k}">${v.k}</span><div class="vt"><b title="${VAR[v.k]}">${VAR[v.k]}</b><div class="ap">${v.k==='A'?'<span>Original</span>'+(S.fase==='concluido'?'<span class="etd-badge">No ar</span>':''):''}${ap}</div></div></div>
  <div class="vi"><span class="lb">Impressões</span><span class="big num">${imp}</span></div>
  <div class="vc"><span class="lb">Cliques</span><span class="big num">${cl}</span><span class="de num">${ctr}</span></div>
- <button class="chev" type="button" aria-expanded="false" aria-label="Ver detalhes da versão ${v.k}">${I('chev')}</button></div></div>`;
+ ${vis?`<button class="chev" type="button" aria-expanded="false" aria-controls="vx-${v.k}" aria-label="Detalhes da versão ${v.k}">${I('chev')}</button>`:'<span class="chev" aria-hidden="true"></span>'}</div>
+ ${vis?`<div class="vx" id="vx-${v.k}" hidden><b>${cl} cliques em ${imp} impressões</b> (CTR ≈ ${v.ctr}%, dos dias válidos).${v.k==='A'?'<ul><li>1 dia com 0 impressões informadas.</li></ul>':v.k==='B'?'<ul><li>1 dia que o YouTube não listou (0*).</li></ul>':''}</div>`:''}</div>`;
 }
 function dias(S,D){
  let cel='';
@@ -338,12 +361,17 @@ function rotacao(S){
  const parado=S.fase==='pausado';
  const slots=seq.map((l,i)=>`<div class="slot ${parado?'':(i<atual?'p':i===atual?'n':'')}" title="${['08','11','14','17','20','23','02','05'][i]}h">${l}</div>`).join('');
  const off=S.fase==='escrevendo';
- const botao=parado?'':`<button class="bt" type="button" data-testid="forcar-rotacao"${off?' aria-disabled="true" aria-describedby="apoio-rot"':''}>${I('refresh')}Forçar rotação</button>`;
+ const botao=parado?'':`<button class="bt" type="button" data-act="forcar" data-testid="forcar-rotacao"${off?' aria-disabled="true" aria-describedby="apoio-rot"':''}>${I('refresh')}Forçar rotação</button>`;
  return `<section class="rot" data-bloco="rotacao" aria-label="Rotação das versões"><div class="rot-top"><div class="tx"><h3>Rotação das versões</h3>
  <p>${parado?'A rotação está parada enquanto o teste está pausado.':'No ar agora: versão A, desde 17:00. Às 20:00 troca para a B.'}</p>${off?'<p id="apoio-rot" role="status">Gravando no YouTube. A rotação volta em instantes.</p>':''}</div>${botao}</div>
  <div class="slots" role="img" aria-label="Sequência de hoje: ${seq.join(', ')}">${slots}</div><div class="slots-m num"><span>08h</span><span>05h (amanhã)</span></div></section>`;
 }
 function dialogo(S,tipo){
+ if(tipo==='pausa'){
+  return `<div class="scrim" data-scrim><div class="etd" role="dialog" aria-modal="true" aria-label="Pausar teste" aria-labelledby="et"><div class="etd-h"><span class="etd-ico amber">${I('pause')}</span><h2 id="et">Pausar teste</h2><button class="etd-x" type="button" data-do="close" aria-label="Fechar">${I('x')}</button></div>
+  <div class="etd-b"><p class="pz">Pausar vai restaurar a miniatura original imediatamente.</p><p class="pz">O ciclo atual será fechado. Todos os dados coletados ficam preservados.</p><p class="pz">Você pode retomar a qualquer momento — o teste continua de onde parou.</p></div>
+  <div class="etd-f"><button class="etd-btn pri" type="button" data-do="confirm">Pausar teste</button><button class="etd-btn" type="button" data-do="close">Cancelar</button></div></div></div>`;
+ }
  if(tipo==='enc'){
   const D=S.dia,T=S.tot;
   const m=S.medidos!=null?S.medidos:(S.leitura?D-1:0);
@@ -352,15 +380,15 @@ function dialogo(S,tipo){
   else if(T-D===0)freio='';
   else if(T-D===1)freio=`<div class="etd-freio" role="status">${I('warn')}<span>Falta 1 dia.</span></div>`;
   else freio=`<div class="etd-freio" role="status">${I('warn')}<span>Faltam ${T-D} dias dos ${T}. Encerrar agora usa só os ${m} dias já medidos.</span></div>`;
-  const ops=['A','B','C'].map(k=>`<label class="etd-opt"><input type="radio" name="v" ${k==='A'?'checked':''}><span><span class="etd-who"><span class="chip c${k}">${k}</span>${k==='A'?'Original':'Versão '+k}${k==='A'?'<span class="etd-badge">No ar agora</span>':''}</span><span class="etd-ttl">${VAR[k]}</span></span></label>`).join('');
+  const ops=['A','B','C'].map(k=>`<label class="etd-opt"><input type="radio" name="v" ${k==='A'?'checked':''}><span><span class="etd-who"><span class="chip c${k}">${k}</span>${k==='A'?'Original':'Versão '+k}${k==='A'?'<span class="etd-badge">No ar agora</span>':''}</span><span class="etd-ttl" title="${VAR[k]}">${VAR[k]}</span></span></label>`).join('');
   
-  return `<div class="scrim"><div class="etd" role="dialog" aria-modal="true" aria-labelledby="et"><div class="etd-h"><span class="etd-ico">${I('stop')}</span><h2 id="et">Encerrar o teste?</h2><button class="etd-x" type="button" aria-label="Fechar">${I('x')}</button></div>
+  return `<div class="scrim" data-scrim><div class="etd" role="dialog" aria-modal="true" aria-labelledby="et"><div class="etd-h"><span class="etd-ico">${I('stop')}</span><h2 id="et">Encerrar o teste?</h2><button class="etd-x" type="button" data-do="close" aria-label="Fechar">${I('x')}</button></div>
   <div class="etd-b">${freio}${T-D===0?'<p class="etd-state" style="margin:0 0 10px">Todos os '+T+' dias foram medidos.</p>':''}<fieldset><legend>Qual versão fica no vídeo?</legend><p class="etd-state" style="margin:0 0 8px">A versão no ar já vem marcada; troque só se quiser.</p>${ops}</fieldset></div>
-  <div class="etd-f"><button class="etd-btn" type="button">Encerrar o teste</button><button class="etd-btn" type="button">Cancelar</button></div></div></div>`;
+  <div class="etd-f"><button class="etd-btn pri" type="button" data-do="confirm">Encerrar o teste</button><button class="etd-btn" type="button" data-do="close">Cancelar</button></div></div></div>`;
  }
- return `<div class="scrim"><div class="etd" role="dialog" aria-modal="true" aria-labelledby="et"><div class="etd-h"><span class="etd-ico">${I('refresh')}</span><h2 id="et">Forçar rotação agora?</h2><button class="etd-x" type="button" aria-label="Fechar">${I('x')}</button></div>
+ return `<div class="scrim" data-scrim><div class="etd" role="dialog" aria-modal="true" aria-labelledby="et"><div class="etd-h"><span class="etd-ico">${I('refresh')}</span><h2 id="et">Forçar rotação agora?</h2><button class="etd-x" type="button" data-do="close" aria-label="Fechar">${I('x')}</button></div>
  <div class="etd-b"><p class="etd-state" style="margin:0"><b>A versão atual será trocada no YouTube agora.</b> A versão A sai do ar e a B entra. O ritmo normal da rotação continua depois disso.</p></div>
- <div class="etd-f"><button class="etd-btn" type="button">Forçar rotação</button><button class="etd-btn" type="button">Cancelar</button></div></div></div>`;
+ <div class="etd-f"><button class="etd-btn pri" type="button" data-do="confirm">Forçar rotação</button><button class="etd-btn" type="button" data-do="close">Cancelar</button></div></div></div>`;
 }
 function antes(){
  const S=E.b,D=datas(S);
@@ -368,25 +396,65 @@ function antes(){
  <div>${placar(S,D).replace(/data-bloco="[^"]+"/g,'')}</div>
  <div class="hoje-bt"><span class="hb">${I('pause','ic sm')}Pausar</span><span class="hb">${I('stop','ic sm')}Encerrar</span><span class="hb">${I('refresh','ic sm')}Forçar rotação</span><span class="hb" aria-label="Configurações">⚙</span><span class="hb">${I('ext','ic sm')}Abrir no YouTube</span></div></div>`;
 }
+let cur,dlg,ovr={},opener=null,tocou=false;
+function init(){const e=E[est];if(e.base){cur=e.base;dlg=e.dlg;ovr={dia:e.dia,medidos:e.medidos}}else{cur=est;dlg=null;ovr={}}}
 function draw(){
- let S=E[est],dlg=null;
- if(S.base){dlg=S.dlg;S=Object.assign({},E[S.base],{dia:S.dia||E[S.base].dia,medidos:S.medidos,leitura:E[S.base].leitura});}
  const frame=document.getElementById('frame');
  frame.className='frame w'+larg+(dlg?' comdlg':'');
  document.getElementById('stage').className='stage s'+larg;
- const D=datas(S);
- frame.innerHTML=E[est].antes?antes():`<div class="ab" data-ab>${cabecalho(S)}${placar(S,D)}${rotacao(S)}</div>`+(dlg?dialogo(S,dlg):'');
- frame.style.minHeight=dlg?'1100px':'';
- frame.querySelectorAll('.idica').forEach(b=>b.addEventListener('click',()=>{const o=document.getElementById('origem');const x=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',!x);o.hidden=x}));
+ if(E[cur].antes){frame.innerHTML=antes();frame.style.minHeight='';}
+ else{
+  const S=Object.assign({},E[cur],ovr.dia?{dia:ovr.dia}:{},{medidos:ovr.medidos});
+  const D=datas(S);
+  frame.innerHTML=`<div class="ab" data-ab>${cabecalho(S)}${placar(S,D)}${rotacao(S)}</div>`+(dlg?dialogo(S,dlg):'');
+  frame.style.minHeight=dlg&&!tocou?'1100px':'';
+ }
  document.getElementById('nota').textContent=E[est].r;
  document.getElementById('selE').value=est;
  document.querySelectorAll('#segL button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===larg));
+ if(dlg){const d=frame.querySelector('.etd');if(d&&tocou)(d.querySelector('input:checked')||d.querySelector('[data-do="close"].etd-btn')).focus()}
 }
+function vai(estado,foco){est=estado;q.set('estado',estado);history.replaceState(null,'','?'+q.toString());init();tocou=true;dlg=null;opener=null;draw();if(foco){const el=document.querySelector('[data-act="'+foco+'"]');if(el)el.focus()}}
+function abre(tipo,act){tocou=true;opener=act;dlg=tipo;draw()}
+function fecha(){const o=opener;dlg=null;tocou=true;draw();if(o){const el=document.querySelector('[data-act="'+o+'"]');if(el)el.focus()}opener=null}
+function confirma(){
+ if(dlg==='pausa')vai('d','retomar');
+ else if(dlg==='enc')vai('f','abrir');
+ else fecha();
+}
+const frameEl=document.getElementById('frame');
+frameEl.addEventListener('click',e=>{
+ const t=e.target;
+ const idica=t.closest('.idica');
+ if(idica){const o=document.getElementById('origem');const x=idica.getAttribute('aria-expanded')==='true';idica.setAttribute('aria-expanded',!x);o.hidden=x;return}
+ const chev=t.closest('button.chev');
+ if(chev){const open=chev.getAttribute('aria-expanded')!=='true';frameEl.querySelectorAll('button.chev').forEach(c=>{c.setAttribute('aria-expanded','false');document.getElementById(c.getAttribute('aria-controls')).hidden=true});if(open){chev.setAttribute('aria-expanded','true');document.getElementById(chev.getAttribute('aria-controls')).hidden=false}return}
+ const dobtn=t.closest('[data-do]');
+ if(dobtn){dobtn.dataset.do==='confirm'?confirma():fecha();return}
+ if(t.hasAttribute&&t.hasAttribute('data-scrim')){fecha();return}
+ const b=t.closest('[data-act]');
+ if(!b)return;
+ if(b.dataset.act==='rastro'){e.preventDefault();return}
+ if(b.getAttribute('aria-disabled')==='true'){e.preventDefault();return}
+ const a=b.dataset.act;
+ if(a==='pausar')abre('pausa',a);
+ else if(a==='retomar')vai('b','pausar');
+ else if(a==='encerrar')abre('enc',a);
+ else if(a==='forcar')abre('rot',a);
+});
+document.addEventListener('keydown',e=>{
+ if(!dlg)return;
+ const d=frameEl.querySelector('.etd');if(!d)return;
+ if(e.key==='Escape'){e.preventDefault();fecha();return}
+ if(e.key==='Tab'){const f=[...d.querySelectorAll('button,input,a[href]')].filter(x=>!x.disabled);const i=f.indexOf(document.activeElement);
+  if(e.shiftKey&&(i<=0)){e.preventDefault();f[f.length-1].focus()}else if(!e.shiftKey&&(i===f.length-1||i<0)){e.preventDefault();f[0].focus()}}
+});
 const selE=document.getElementById('selE');
 selE.innerHTML=Object.keys(E).map(k=>`<option value="${k}">${E[k].r.split('.')[0]}${E[k].r.slice(E[k].r.indexOf('.')).slice(0,60)}</option>`).join('');
 function go(p,v){q.set(p,v);location.search=q.toString()}
 selE.addEventListener('change',()=>go('estado',selE.value));
 document.getElementById('segL').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go('largura',b.dataset.v)});
+init();
 draw();
 </script>
 </body></html>
