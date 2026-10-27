@@ -8,7 +8,7 @@ import { prepararM5 } from '../helpers/m5'
 import { CHAVES_LINHA_MES, CHAVES_CASA, lerPaginaBruta } from '@/lib/youtube/observatorio/arquivo-mensal/pagina'
 import { montarPagina } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 
-const URL_INT = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54422/postgres'
+const URL_INT = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const bruto = async (c: Client, sql: string, p: unknown[]) => (await q1(c, sql, p)).x // jsonb vem como objeto do `pg`, igual ao PostgREST
 
 describe.skipIf(skipIfNoLocalDb())('as chaves do SQL são as da lista fechada do Zod', () => {
