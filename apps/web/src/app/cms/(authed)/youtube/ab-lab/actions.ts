@@ -53,6 +53,8 @@ import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab
 import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
 import { camposPendentes, daEscolhaDoDono, paraRestoreStatus, restoreStatusIlegivel, voltaConcluida } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
+import { escolherVersaoCore } from '@/lib/youtube/ab-escolha'
+import type { ResultadoEscolha } from '@/lib/youtube/ab-acao-saida'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
 /** Guarda a maior cópia da original no Blob (P4a): url, dHash como o YouTube serve e dimensões. */
@@ -66,7 +68,7 @@ export async function getVideoTestHistory(
   return _getVideoTestHistory(...args)
 }
 
-export type { OpcaoEncerrar, ResultadoAcaoSaida }
+export type { OpcaoEncerrar, ResultadoAcaoSaida, ResultadoEscolha }
 
 /** Frase provisória da exceção inesperada em settleOnAir (T17: Logan fecha). */
 
@@ -1641,4 +1643,35 @@ export async function avisoDeVolumeDoTeste(
   if (p && !p.success) return { ok: false, error: 'pedido inválido' }
   const r = await avisoDeVolume(getSupabaseServiceClient(), siteId, testId, new Date(), p?.data)
   return r.ok ? { ok: true, aviso: r.aviso } : { ok: false, error: r.erro }
+}
+
+
+const EscolhaSchema = z.object({ testId: z.string().uuid(), varianteId: z.string().uuid(), forcar: z.boolean().optional() })
+
+/**
+ * M7b: o dono deixa qualquer versão no ar num teste concluído (ou mantém a que já está). Degrau "administrar o site", como
+ * `aplicarSugerido`/`revertWinner`. A escolha NUNCA muda `winner_variant_id`, salvo quando é a própria sugerida. Corpo em
+ * `lib/youtube/ab-escolha.ts`; aqui só a sessão, a validação e a invalidação das telas.
+ */
+export async function escolherVersao(testId: string, varianteId: string, seqVisto: number, forcar?: boolean): Promise<ResultadoEscolha> {
+  const siteIdDaTela = (await getSiteContext()).siteId
+  const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'deixar uma versão no ar')
+  if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
+  let user: { siteId: string; userId: string }
+  try {
+    user = await requireEditUser()
+  } catch (e) {
+    return { ok: false, resultado: 'sem_permissao', error: e instanceof Error ? e.message : 'forbidden' }
+  }
+  if (user.siteId !== siteIdDaTela) return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }
+  const parsed = EscolhaSchema.safeParse({ testId, varianteId, ...(forcar === undefined ? {} : { forcar }) })
+  const seq = seqVistoSchema.safeParse(seqVisto)
+  if (!parsed.success || !seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
+  const r = await escolherVersaoCore(
+    { testId: parsed.data.testId, varianteId: parsed.data.varianteId, seqVisto: seq.data, siteId: user.siteId, userId: user.userId, ...(parsed.data.forcar ? { forcar: true } : {}) },
+    { supabase: getSupabaseServiceClient(), settle: settleOnAir },
+  )
+  // Depois do claim ou do UPDATE, qualquer desfecho pode ter mudado o teste: invalida as telas.
+  if (r.ok ? r.resultado !== 'precisa_confirmar' : r.resultado === 'recusou' || r.resultado === 'incerto') invalidarTelasDoAbLab()
+  return r
 }

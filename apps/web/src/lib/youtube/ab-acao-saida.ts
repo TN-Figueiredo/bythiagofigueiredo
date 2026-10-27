@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import type { CampoNome, RestoreStatus } from '@/lib/youtube/ab-restore'
+import type { DisplayLabel } from '@/lib/youtube/ab-types'
+import type { NoArConfirmado, NoArLido } from '@/lib/youtube/ab-no-ar'
 import type { ResultadoSaida } from '@/lib/youtube/ab-settle'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
@@ -57,4 +59,34 @@ export async function varianteOriginalId(testId: string, siteId: string): Promis
   if (!teste) return null
   const { data } = await supabase.from('ab_test_variants').select('id').eq('test_id', testId).eq('is_original', true).maybeSingle()
   return (data?.id as string | undefined) ?? null
+}
+
+// ---- M7b: escolher qualquer versão num teste concluído ----
+
+/** Por que a escrita da escolha foi recusada; uma frase do Logan por valor (T7a). O YouTube só é culpado quando foi chamado. */
+export type PorqueRecusou = 'youtube' | 'drift' | 'sem_original' | 'sem_tempo' | 'arquivo_indisponivel'
+
+export type ResultadoEscolha =
+  | { ok: true; resultado: 'no_ar'; noAr: NoArConfirmado; restoreSeq: number }
+  | { ok: true; resultado: 'guardado'; restoreSeq: number }
+  | { ok: true; resultado: 'precisa_confirmar'; campos: Array<{ campo: CampoNome; valor_atual: string }> }
+  | { ok: false; resultado: 'recusou'; porque: PorqueRecusou; noAr: NoArLido; entrou: CampoNome[]; restoreSeq: number; error: string }
+  | { ok: false; resultado: 'incerto'; restoreSeq: number | null }
+  | { ok: false; resultado: 'mudou' | 'ja_encerrado' | 'em_andamento' | 'outro_teste' | 'teste_youtube' | 'sem_permissao' | 'erro'; error: string }
+
+export type ResultadoConferir =
+  | { ok: true; estado: 'escrevendo' }
+  | { ok: true; estado: 'lido'; noAr: NoArConfirmado; restoreSeq: number; fonte: 'registro' | 'youtube' }
+  | { ok: true; estado: 'nao_propagou'; noAr: NoArConfirmado; titulo: 'conferido' | 'nao_lido' }
+  | { ok: true; estado: 'lido_misto'; porCampo: Partial<Record<CampoNome, DisplayLabel>>; restoreSeq: number }
+  | { ok: true; estado: 'nenhuma_versao'; restoreSeq: number }
+  | { ok: false; estado: 'sem_leitura' | 'sem_permissao' | 'ja_encerrado'; error: string }
+
+/** Frases provisórias por motivo da recusa; o Logan fecha o texto na T7a. */
+export const MSG_RECUSA: Record<PorqueRecusou, string> = {
+  youtube: MSG_YOUTUBE_NAO_ACEITOU,
+  drift: 'O vídeo foi mudado no YouTube Studio depois do teste. Nada foi trocado.',
+  sem_original: 'A versão original não foi guardada; não dá para voltar a ela daqui.',
+  sem_tempo: 'Não deu tempo de terminar a troca. Tente de novo.',
+  arquivo_indisponivel: 'O arquivo da miniatura desta versão não está mais disponível.',
 }
