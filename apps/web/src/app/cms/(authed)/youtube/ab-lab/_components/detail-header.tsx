@@ -5,6 +5,8 @@ import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
 import { TypeBadge, Badge } from './ab-primitives'
+import { InfoDica } from '../../_components/info-dica'
+import { seloDoTeste, type TomDoSelo } from './cabecalho-do-teste'
 import { ChevronLeft, ExternalLink, Swords } from 'lucide-react'
 import './caminho-nativo.css'
 import './detail-header-lab.css'
@@ -26,7 +28,7 @@ export interface DetailHeaderProps {
   /** O título é o da última leitura confirmada, não o de agora (M7b D19): mostra o selo "na última leitura". */
   tituloNaUltimaLeitura?: boolean
   /** Variante do Lab (S8-F3 T5b): rastro com respiro, miniatura, selo "Teste do Lab". Sem a prop, o cabeçalho é o de sempre. */
-  lab?: { thumbUrl: string | null; naoIniciado?: boolean; /** Teste v2 concluído (T12 T7): "DD/MM" da conclusão; troca o selo "rodando, dia X de Y". */ concluidoEm?: string }
+  lab?: { thumbUrl: string | null; naoIniciado?: boolean; /** Escrevendo no YouTube agora (régua da faixa, 5 min): o selo muda para "Escrevendo no YouTube…". */ escrevendo?: boolean; /** Teste v2 concluído (T12 T7): "DD/MM" da conclusão; troca o selo "rodando, dia X de Y". */ concluidoEm?: string }
 }
 
 /** O que o Lab troca no YouTube, por tipo: o teste do Lab não é o "Testar e comparar" do Studio. */
@@ -52,6 +54,14 @@ export function AbrirNoYoutube({ youtubeVideoId }: { youtubeVideoId?: string | n
   )
 }
 
+function SeloIcone({ tom }: { tom: TomDoSelo }) {
+  const comum = { width: 13, height: 13, viewBox: '0 0 16 16', 'aria-hidden': true, focusable: false, fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
+  if (tom === 'pausado') return <svg {...comum}><path d="M5.5 3.5v9M10.5 3.5v9" /></svg>
+  if (tom === 'escrevendo') return <svg {...comum} className="dhl-giro"><path d="M8 2a6 6 0 1 0 6 6" /></svg>
+  if (tom === 'concluido') return <svg {...comum}><circle cx="8" cy="8" r="6" /><path d="M5.2 8.3l2 2 3.6-4" /></svg>
+  return <svg {...comum}><path d="M6 2h4M6.5 2v4L3 12.2a1 1 0 0 0 .9 1.5h8.2a1 1 0 0 0 .9-1.5L9.5 6V2" /></svg>
+}
+
 export function DetailHeader({
   title,
   flag,
@@ -67,7 +77,15 @@ export function DetailHeader({
   lab,
 }: DetailHeaderProps) {
   if (lab) {
-    const situacao = status === 'paused' ? 'pausado' : 'rodando'
+    const selo = seloDoTeste({
+      status,
+      dayOf: dayInfo?.dayOf ?? 0,
+      durationDays: dayInfo?.total ?? 0,
+      escrevendo: lab.escrevendo,
+      naoIniciado: lab.naoIniciado,
+      concluidoEm: lab.concluidoEm,
+    })
+    const comOrigem = (status === 'active' || status === 'paused') && !lab.concluidoEm && !lab.naoIniciado
     return (
       <header className="cn-raiz dhl">
         <div className="dhl-hd">
@@ -75,39 +93,33 @@ export function DetailHeader({
             // eslint-disable-next-line @next/next/no-img-element
             ? <img className="dhl-th" src={lab.thumbUrl} alt="" referrerPolicy="no-referrer" />
             : <span className="dhl-th" aria-hidden="true" />}
+          <div className="dhl-crumb">
+            <Link href="/cms/youtube/ab-lab" className="inline-flex items-center gap-[5px] font-medium hover:text-cms-text transition-colors">
+              <ChevronLeft size={15} aria-hidden="true" />
+              A/B Lab
+            </Link>
+            <span>/</span>
+            <TypeBadge type={flag} />
+            {totalRounds > 1 && (
+              <Badge tone="neutral">
+                <Swords size={11} aria-hidden="true" className="-translate-y-px" />
+                Round {roundNumber}/{totalRounds}
+              </Badge>
+            )}
+          </div>
           <div className="dhl-ttl">
-            <div className="dhl-crumb">
-              <Link href="/cms/youtube/ab-lab" className="inline-flex items-center gap-[5px] font-medium hover:text-cms-text transition-colors">
-                <ChevronLeft size={15} aria-hidden="true" />
-                A/B Lab
-              </Link>
-              <span>/</span>
-              <TypeBadge type={flag} />
-              {totalRounds > 1 && (
-                <Badge tone="neutral">
-                  <Swords size={11} aria-hidden="true" className="-translate-y-px" />
-                  Round {roundNumber}/{totalRounds}
-                </Badge>
-              )}
-            </div>
             <h2 className="dhl-h2" title={title}>{title}</h2>
             {tituloNaUltimaLeitura ? <p className="dhl-origem" data-testid="titulo-ultima-leitura">na última leitura</p> : null}
             {(dayInfo || lab.concluidoEm) && (
               <div className="dhl-selos">
-                <span className="dhl-selo" data-testid="selo-lab">
-                  <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5 1.5h4M5.5 1.5v4L2.5 11a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5l-3-5.5v-4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                  {lab.concluidoEm
-                    ? <span>Teste do Lab concluído em {lab.concluidoEm}</span>
-                    : lab.naoIniciado
-                      ? <span>Teste do Lab não iniciado</span>
-                      : dayInfo && dayInfo.total >= 1 ? <span>Teste do Lab {situacao}</span> : null}
+                <span className={`dhl-selo dhl-selo--${selo.tom}`} data-testid="selo-lab">
+                  <SeloIcone tom={selo.tom} />
+                  <span>{selo.texto}</span>
                 </span>
+                {comOrigem && (
+                  <InfoDica rotulo="O que é este teste" titulo="De onde vem este teste" paragrafos={[fraseDeOrigemDoLab(flag)]} />
+                )}
               </div>
-            )}
-            {(status === 'active' || status === 'paused') && !lab.concluidoEm && !lab.naoIniciado && (
-              <p className="dhl-origem" data-testid="origem-lab">
-                {fraseDeOrigemDoLab(flag)}
-              </p>
             )}
           </div>
         </div>
