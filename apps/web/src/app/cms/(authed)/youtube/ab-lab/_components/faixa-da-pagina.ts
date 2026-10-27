@@ -4,7 +4,7 @@ import type { AbTestBaseView } from '@/lib/youtube/ab-types'
 
 export interface FaixaDaPagina {
   faixa: Faixa | null
-  /** `em` do campo em_andamento mais antigo; nulo = não montar a ilha. */
+  /** `em` do campo em_andamento mais recente; nulo = não montar a ilha. */
   emAndamentoDesde: string | null
   ilegivel: boolean
   /** Algum campo em escrita há no máximo `SEM_RESPOSTA_MIN` min (mesma régua da faixa): selo "Escrevendo" e saídas travadas. */
@@ -25,7 +25,7 @@ export function faixaDaPagina(view: AbTestBaseView, bruto: unknown, agora: Date,
   const ilegivel = restoreStatusIlegivel(bruto)
   const rs = view.restoreStatus
   const ems = rs ? (['title', 'thumbnail'] as const).flatMap(k => (rs[k]?.estado === 'em_andamento' ? [rs[k]!.em] : [])) : []
-  const emAndamentoDesde = ems.length > 0 ? ems.sort()[0]! : null
+  const emAndamentoDesde = ems.length > 0 ? ems.sort().at(-1)! : null
   const ctxYoutube = { youtubeId: view.youtubeVideoId }
   const ativo = view.status === 'active' || view.status === 'queued' || view.status === 'draft'
   if (ilegivel) return { faixa: ativo ? null : faixaIlegivel(ctxYoutube), emAndamentoDesde: null, ilegivel: true, escrevendo: false, faixaTentando: null }

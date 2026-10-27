@@ -76,7 +76,7 @@ function Pagina({ children }: { children: React.ReactNode }) {
 function renderView(view: AbTestDetailView, { escrevendo }: { escrevendo: boolean }) {
   if (view.status !== 'completed') {
     const id = (view as AbTestActiveView).id
-    if (isEarly(view) && (view as AbTestActiveView).v2?.fase !== 'ativo') return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} retomar={resumeAbTest.bind(null, id)} escrevendo={escrevendo} />
+    if (isEarly(view) && (view as AbTestActiveView).v2?.fase !== 'ativo') return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} escrevendo={escrevendo} />
     return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} retomar={resumeAbTest.bind(null, id)} escrevendo={escrevendo} />
   }
   // Concluído v2 "da regra" (D-T12-2): a tela v2 (T12). Encerrado à mão no ativo segue nos detalhes de sempre.

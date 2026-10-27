@@ -21,7 +21,7 @@ describe('S8-F3 Gio r2', () => {
   it('B1: espaço selo→frase tem UMA fonte (padding-top de .pm4-in = --s5 = 24 px) e o cabeçalho não soma margem', () => {
     const css = lerArq('placar-do-teste.css')
     expect(css).toMatch(/--s5: 24px/)
-    expect(css).toMatch(/\.pm4-in \{ padding: var\(--s5\); \}/)
+    expect(css).toMatch(/\.pm4-in \{ padding: var\(--s5\) 0; \}/)
     expect(css).toMatch(/@container \(max-width: 640px\)[^\n]*\.pm4-in \{ padding: var\(--s5\) /)
     expect(css).toMatch(/\.pm4 \.pm4-sum \{ margin: 0 0 var\(--s4\)/) // frase → faixa 16
     expect(css).toMatch(/\.pm4-selos \+ \.pm4-sum \{ margin-top: var\(--s5\)/) // selo da regra antiga: também 24

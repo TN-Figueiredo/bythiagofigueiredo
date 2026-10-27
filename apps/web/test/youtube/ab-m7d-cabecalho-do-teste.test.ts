@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  seloDoTeste, freioDoEncerrar, contarDiasMedidos, fraseDaPausa, fraseDaFaixaDePausa, textoDoDialogoDePausa, linhaFicouNoAr,
+  seloDoTeste, freioDoEncerrar, contarDiasMedidos, contarDiasAguardando, fraseDaPausa, fraseDaFaixaDePausa, textoDoDialogoDePausa, linhaFicouNoAr,
 } from '../../src/app/cms/(authed)/youtube/ab-lab/_components/cabecalho-do-teste'
 import type { RestoreStatus } from '../../src/lib/youtube/ab-restore'
 import type { DiaDaFaixa } from '../../src/lib/youtube/ab-gravacao/placar'
@@ -24,8 +24,10 @@ describe('seloDoTeste', () => {
 })
 
 describe('freioDoEncerrar', () => {
-  it('completo com prazo vencido', () => expect(freioDoEncerrar({ dayOf: 20, durationDays: 14, medidos: 14 }).tipo).toBe('completo'))
-  it('completo texto', () => expect(freioDoEncerrar({ dayOf: 20, durationDays: 14, medidos: 14 }).texto).toBe('Todos os 20 dias foram medidos.'))
+  it('completo com prazo vencido', () => expect(freioDoEncerrar({ dayOf: 20, durationDays: 14, medidos: 20, aguardando: 0 }).tipo).toBe('completo'))
+  it('completo texto', () => expect(freioDoEncerrar({ dayOf: 20, durationDays: 14, medidos: 20, aguardando: 0 }).texto).toBe('Todos os 20 dias foram medidos.'))
+  it('prazo completo com dias aguardando (D3)', () => expect(freioDoEncerrar({ dayOf: 14, durationDays: 14, medidos: 12, aguardando: 2 })).toEqual({ tipo: 'completo', texto: 'O prazo terminou: 12 dos 14 dias medidos, 2 aguardando o YouTube.' }))
+  it('medidos acima do total não passa do total', () => expect(freioDoEncerrar({ dayOf: 5, durationDays: 14, medidos: 20, aguardando: 0 }).texto).toBe('Faltam 8 dias dos 14. Encerrar agora usa só os 14 dias já medidos.'))
   it('falta 1 (g3)', () => expect(freioDoEncerrar({ dayOf: 12, durationDays: 14, medidos: 12 })).toEqual({ tipo: 'falta_1', texto: 'Falta 1 dia.' }))
   it('faltam (g2)', () => expect(freioDoEncerrar({ dayOf: 5, durationDays: 14, medidos: 5 })).toEqual({ tipo: 'faltam', texto: 'Faltam 8 dias dos 14. Encerrar agora usa só os 5 dias já medidos.' }))
   it('sem leitura (g1)', () => expect(freioDoEncerrar({ dayOf: 1, durationDays: 14, medidos: 0 })).toEqual({ tipo: 'sem_leitura', texto: 'Ainda não há leitura. Encerrar agora não calcula resultado.' }))
