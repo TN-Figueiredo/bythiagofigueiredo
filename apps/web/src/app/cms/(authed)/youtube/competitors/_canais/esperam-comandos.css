@@ -13,6 +13,7 @@
 .p7-it.am{border:2px solid var(--warning);background:var(--warn-subtle)}
 .p7-it.vm{border:2px solid var(--danger);background:var(--danger-subtle)}
 .p7-k{margin:0;color:var(--muted);font-size:12.5px}
+.p7-t{margin:2px 0 4px;font-weight:600;font-size:14px;line-height:1.4;color:var(--text);overflow-wrap:anywhere}
 .p7-st{display:flex;gap:9px;align-items:flex-start;margin:2px 0 0;font-size:13.5px;line-height:1.5}
 .p7-st span{min-width:0;overflow-wrap:anywhere}
 .p7-lemb{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
@@ -42,3 +43,4 @@
   .p7-sh{flex-direction:column}
   .p7-sh .btn,.p7-ac>.btn{min-height:44px;align-self:stretch}
 }
+@media (pointer:coarse){.p7-sh .btn,.p7-ac>.btn{min-height:44px}}

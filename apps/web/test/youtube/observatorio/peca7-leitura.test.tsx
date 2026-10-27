@@ -6,7 +6,7 @@ import { EsperamComandos } from '@/app/cms/(authed)/youtube/competitors/_canais/
 import { LINHA_DO_DONO, type PendenciasDaTela } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 
 const LIDO = new Date('2028-05-03T15:00:00Z')
-const item = (idadeDias: number, i: number) => ({ item_id: 'canal:aaaaaaaa-1111-2222-3333-44444444444' + i, kind: 'canal', tempo: 'sem_comando' as const, idadeDias, titulo: null as string | null })
+const item = (idadeDias: number, i: number) => ({ item_id: 'canal:aaaaaaaa-1111-2222-3333-44444444444' + i, kind: 'canal', tempo: 'sem_comando' as const, idadeDias, titulo: null as string | null, desde: new Date(LIDO.getTime() - idadeDias * 86_400_000), codigo: 'abc12345' as string | null })
 const tres = (linha: string | null): PendenciasDaTela => ({ estado: 'com_itens', lidoEm: LIDO, n: 3, maisAntigoDias: 63, itens: [item(63, 1), item(20, 2), item(3, 3)], linha })
 
 describe('peça 7, parte de leitura', () => {
