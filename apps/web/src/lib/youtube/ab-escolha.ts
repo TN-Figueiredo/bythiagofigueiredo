@@ -10,7 +10,7 @@ import { camposDoTeste, paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import type { CampoNome, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { noArConfirmado } from '@/lib/youtube/ab-no-ar'
 import type { NoArConfirmado, TentativaNoAr } from '@/lib/youtube/ab-no-ar'
-import { lerResultadoV2 } from '@/lib/youtube/ab-types'
+import { lerResultadoV2, toDisplayLabel } from '@/lib/youtube/ab-types'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import { emAndamentoRecente } from '@/lib/youtube/ab-settle'
 import type { settleOnAir as SettleOnAir, OpcoesSaida, LeituraNoAr, lerNoArNoYouTube as LerNoAr } from '@/lib/youtube/ab-settle'
@@ -33,7 +33,6 @@ interface LinhaTeste {
 }
 interface LinhaVariante { id: string; label: string; is_original: boolean }
 
-const toLetra = (label: string, original: boolean): DisplayLabel => (original || label === 'original' ? 'A' : label === 'C' || label === 'D' ? label : 'B')
 
 /** Linhas do histórico que o `final` de uma reivindicação produziu (o histórico no banco só as ganha por gatilho). */
 export function linhasDe(final: RestoreStatus, seq: number): TentativaNoAr[] {
@@ -106,7 +105,7 @@ export async function escolherVersaoCore(e: EntradaEscolha, p: PortasEscolha): P
   const entrada = {
     test_type: teste.test_type, restore_status: teste.restore_status, restore_seq: teste.restore_seq, completed_at: teste.completed_at,
     winner_variant_id: teste.winner_variant_id, winner_applied_at: teste.winner_applied_at,
-    variantes: variantes.map((v) => ({ id: v.id, label: toLetra(v.label, v.is_original), is_original: v.is_original })),
+    variantes: variantes.map((v) => ({ id: v.id, label: toDisplayLabel(v.label, v.is_original), is_original: v.is_original })),
   }
   const noAr = noArConfirmado(entrada, historico)
   const vencedorPendente = teste.completed_reason === 'regra_v2' && teste.winner_variant_id === null
@@ -161,7 +160,7 @@ export async function escolherVersaoCore(e: EntradaEscolha, p: PortasEscolha): P
       if (ordem.every((c) => r.campos[c]?.estado === 'ok')) {
         const confirmado: NoArConfirmado = emMemoria.tipo === 'confirmado'
           ? emMemoria
-          : { tipo: 'confirmado', varianteId: e.varianteId, letra: toLetra(destino.label, destino.is_original), desde: null }
+          : { tipo: 'confirmado', varianteId: e.varianteId, letra: toDisplayLabel(destino.label, destino.is_original), desde: null }
         return { ok: true, resultado: 'no_ar', noAr: confirmado, restoreSeq: seq }
       }
       const porque = porqueDe(r.campos, ordem)
@@ -223,7 +222,7 @@ export async function conferirNoArCore(e: { testId: string; siteId: string }, p:
   const entrada = {
     test_type: teste.test_type, restore_status: teste.restore_status, restore_seq: teste.restore_seq, completed_at: teste.completed_at,
     winner_variant_id: teste.winner_variant_id, winner_applied_at: teste.winner_applied_at,
-    variantes: variantes.map((v) => ({ id: v.id, label: toLetra(v.label, v.is_original), is_original: v.is_original })),
+    variantes: variantes.map((v) => ({ id: v.id, label: toDisplayLabel(v.label, v.is_original), is_original: v.is_original })),
   }
   const registro = noArConfirmado(entrada, historico)
   if (registro.tipo === 'confirmado') return { ok: true, estado: 'lido', noAr: registro, restoreSeq: teste.restore_seq, fonte: 'registro' }
@@ -249,14 +248,14 @@ export async function conferirNoArCore(e: { testId: string; siteId: string }, p:
   })
   const letraDoId = (id: string): DisplayLabel => {
     const v = variantes.find((x) => x.id === id)
-    return v ? toLetra(v.label, v.is_original) : 'B'
+    return v ? toDisplayLabel(v.label, v.is_original) : 'B'
   }
   const campos = camposDoTeste(teste.test_type)
   const lidos = campos.map((c) => (c === 'title' ? q.porCampo.title : q.porCampo.thumbnail))
 
   // Miniatura recém-enviada (tentativa sem resposta há menos de 3 h) ainda mostrando a versão anterior: o CDN demora. Nunca "recusou".
   const ultima = registro.tipo === 'desconhecido' ? registro.ultima : null
-  const anteriorId = ultima ? variantes.find((v) => toLetra(v.label, v.is_original) === ultima.letra)?.id ?? null : null
+  const anteriorId = ultima ? variantes.find((v) => toDisplayLabel(v.label, v.is_original) === ultima.letra)?.id ?? null : null
   const linhasThumb = [...(rs?.thumbnail ? [{ ...rs.thumbnail, seq: teste.restore_seq }] : []), ...historico.filter((h) => h.campo === 'thumbnail')]
   const recente = linhasThumb.find((l) => l.escreveu === null && agora.getTime() - Date.parse(l.em) < CICLO_MINIMO_MS)
   if (campos.includes('thumbnail') && anteriorId !== null && recente !== undefined) {
