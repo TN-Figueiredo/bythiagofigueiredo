@@ -19,7 +19,7 @@ export function ArquivoScreen({ modelo, bloco, acesso }: { modelo: ModeloPagina;
       {modelo.ligado ? (
         <>
           {!administra ? <p className="arq-nota">Alguns passos esperam quem administra o site.</p> : null}
-          {modelo.casa.frase ? <p className="arq-casa"><FraseComForma forma={modelo.casa.forma}>{modelo.casa.frase}</FraseComForma></p> : null}
+          {modelo.casa.frase && modelo.casa.frase !== modelo.resumo.texto ? <p className="arq-casa"><FraseComForma forma={modelo.casa.forma}>{modelo.casa.frase}</FraseComForma></p> : null}
           <Legenda />
           {blocoSobe ? blocoNode : null}
           {modelo.problemas.length > 0 ? (
@@ -31,8 +31,8 @@ export function ArquivoScreen({ modelo, bloco, acesso }: { modelo: ModeloPagina;
           {modelo.tipos.map(t => <CartaoDoTipoView key={t.tipo} cartao={t} />)}
           {!blocoSobe ? blocoNode : null}
           {modelo.mesesAFrente.length > 0 ? (
-            <section className="arq-card" aria-label="Meses à frente das partições" data-secao="meses-a-frente">
-              <header className="arq-card-h"><h3 className="arq-h3">Meses à frente das partições</h3></header>
+            <section className="arq-card" aria-label="Meses criados à frente" data-secao="meses-a-frente">
+              <header className="arq-card-h"><h3 className="arq-h3">Meses criados à frente</h3></header>
               <ul className="arq-rows">{modelo.mesesAFrente.map(m => <li key={m.tabela} className="arq-mes arq-prob"><span className="arq-mn">{m.tabela}</span><FraseComForma forma={m.forma}>{m.frase}</FraseComForma></li>)}</ul>
             </section>
           ) : null}

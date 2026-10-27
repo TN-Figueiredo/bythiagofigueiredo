@@ -10,6 +10,8 @@ import { descreverVermelho, type LinhaDeProblema } from './vermelhos'
 export type { LinhaDeProblema } from './vermelhos'
 /** A frase da linha de um mês que voltou ao banco fora de ordem (M6 trata; a tela só avisa, em triângulo âmbar). */
 export const FRASE_FORA_DE_ORDEM = 'Voltou fora de ordem'
+/** A faixa do grupo "Dado de teste" (mockup 19, TESTE-1). */
+export const FAIXA_DO_TESTE = 'Dado de teste. Isto é um mês fictício, criado para você testar o caminho inteiro sem tocar no dado real. Nada que sair daqui libera espaço de verdade.'
 export type Forma = 'visto' | 'pontilhado' | 'pontilhado_ambar' | 'triangulo' | 'octogono' | 'hachura' | 'arquivo' | 'zero' | 'barra'
 export type Etapa = { rotulo: string; curto: string; forma: Forma }
 export type Gravidade = 'nenhuma' | 'ambar' | 'vermelho' | 'nao_medido'
@@ -19,7 +21,7 @@ export interface LinhaDoMes {
   acoes?: ReactNode
 }
 export interface CartaoDoTipo { tipo: 'horaria' | 'serie' | 'texto'; titulo: string; resumo: string; linhas: LinhaDoMes[]; anosNoArquivo: { ano: number; meses: number; todosConferidos: boolean }[]; acoes?: ReactNode }
-export interface Casa { estado: 'responde' | 'nao_respondeu' | 'nunca_deu_sinal' | 'programa_sem_sinal' | 'nas_fora' | 'nas_cheio' | 'nas_sem_verificar' | 'nao_medida'; desde: number | null; forma: Forma; frase: string }
+export interface Casa { estado: 'responde' | 'nao_respondeu' | 'nunca_deu_sinal' | 'programa_sem_sinal' | 'programa_atrasado' | 'nas_fora' | 'nas_cheio' | 'nas_sem_verificar' | 'nao_medida'; desde: number | null; forma: Forma; frase: string }
 export interface ModeloPagina {
   resumo: { texto: string; forma: Forma }; casa: Casa; tipos: CartaoDoTipo[]; problemas: LinhaDeProblema[]; mesesAFrente: { tabela: string; frase: string; forma: Forma }[]
   teste: null | { faixa: string; linhas: LinhaDoMes[]; encerradoEm: number | null }; ligado: boolean
@@ -211,32 +213,44 @@ function mesOnline(c: Ctx, r: LinhaMesLida, pg: Prog | undefined, recs: Rec[], c
 
 // ---------- a casa ----------
 const PROGRAMAS_ESPERADOS = ['copiador', 'conferir_b2'] as const
-const NOME_DO_PROGRAMA: Record<string, string> = { copiador: 'O copiador', conferir_b2: 'A conferência do B2', respondedor: 'O respondedor' }
-type Batimento = Partial<PaginaLida['casa'][number]> & { worker: string }
+const NOME_DO_PROGRAMA: Record<string, string> = { copiador: 'O copiador', conferir_b2: 'A conferência do B2' }
+/** As cinco chaves que `casaDe` lê: o aviso leve do chrome traz só estas, e o compilador avisa se alguém passar a ler outra (Phil M6, Yannis M-3). */
+type Batimento = Pick<PaginaLida['casa'][number], 'worker' | 'last_poll_at' | 'updated_at' | 'nas_ok' | 'nas_checked_at'>
+
+/** Prazos em horas, um por programa (Phil I2 + Gio D2, 27/10). A casa é o COPIADOR (bate a cada 12 h): triângulo acima de 18 h (o mockup pc1 mostra o triângulo a ~20,5 h),
+ *  octógono acima de 36 h (04 §14.1/11.6). A conferência do B2 bate UMA vez por dia, no FIM da execução (conferir.py): 30 h (um dia mais 6 h de duração) e 54 h, com frase
+ *  própria, e NÃO é "a casa não respondeu" (não manda religar a forja). O respondedor não é periódico e fica fora. */
+export const PRAZOS_DA_CASA = { copiadorTriangulo: 18, copiadorOctogono: 36, conferirTriangulo: 30, conferirOctogono: 54 } as const
 
 /** O sinal de cada programa é `max(last_poll_at, updated_at)`: `last_poll_at` só o copiador grava, os outros dois só `updated_at` (m3b, obs_archive_heartbeat_write).
- *  Limiares de 24 h e 36 h: a varredura do NAS abre com `nas_checked_at` anterior a 24 h (heartbeat_write, m3b); 36 h é o corte do octógono (04 §14.1/11.6).
- *  Precedência: não respondeu (octógono) > NAS fora > NAS cheio > não respondeu (triângulo) > NAS sem verificar > programa sem sinal > responde. */
-export function casaDe(batimentos: PaginaLida['casa'], vermelhos: readonly string[], agora: number): Casa {
+ *  A varredura do NAS abre com `nas_checked_at` anterior a 24 h (heartbeat_write, m3b).
+ *  Precedência: não respondeu (octógono) > NAS fora > NAS cheio > não respondeu (triângulo) > conferência atrasada > NAS sem verificar > programa sem sinal > responde. */
+export function casaDe(batimentos: readonly Batimento[], vermelhos: readonly string[], agora: number): Casa {
   const sinais = new Map<string, number>()
   let copiador: Batimento | undefined
-  for (const b of batimentos as Batimento[]) {
+  for (const b of batimentos) {
     const s = Math.max(tms(b.last_poll_at) ?? -Infinity, tms(b.updated_at) ?? -Infinity)
     if (Number.isFinite(s)) sinais.set(b.worker, s)
     if (b.worker === 'copiador') copiador = b
   }
   if (sinais.size === 0) return { estado: 'nunca_deu_sinal', desde: null, forma: 'triangulo', frase: 'A casa ainda não deu sinal' }
-  const maisVelho = [...sinais.entries()].sort((a, b) => a[1] - b[1])[0]!
-  const idadeH = (agora - maisVelho[1]) / H
-  const naoRespondeu = (forma: Forma): Casa => ({ estado: 'nao_respondeu', desde: maisVelho[1], forma, frase: `A casa não respondeu desde ${dmhm(maisVelho[1])}. Nada se perde: o mês só sai quando a casa voltar. Veja o que fazer no aviso do banco.` })
-  if (idadeH > 36) return naoRespondeu('octogono')
   const sinalCopiador = sinais.get('copiador')
+  const idadeC = sinalCopiador == null ? null : (agora - sinalCopiador) / H
+  const naoRespondeu = (forma: Forma): Casa => ({ estado: 'nao_respondeu', desde: sinalCopiador!, forma, frase: `A casa não respondeu desde ${dmhm(sinalCopiador!)}. Nada se perde: o mês só sai quando a casa voltar. Veja o que fazer no aviso do banco.` })
+  if (idadeC != null && idadeC > PRAZOS_DA_CASA.copiadorOctogono) return naoRespondeu('octogono')
   if (copiador && copiador.nas_ok === false) {
     const d = tms(copiador.nas_checked_at) ?? sinalCopiador ?? null
     return { estado: 'nas_fora', desde: d, forma: 'triangulo', frase: `O NAS não está acessível pela forja${d ? ` desde ${dmhm(d)}` : ''}. Nada se perde: o mês só sai quando o NAS voltar. O que fazer: confira se o NAS está ligado e se a pasta do arquivo está montada na forja (ver os comandos).` }
   }
   if (vermelhos.some(v => v.startsWith('nas_80:'))) return { estado: 'nas_cheio', desde: null, forma: 'triangulo', frase: 'O NAS está cheio: a cópia não coube. Nada se perde: o mês só sai depois que houver espaço. O que fazer: libere espaço no NAS (ver os comandos). A cópia é refeita sozinha em até 12 horas.' }
-  if (idadeH > 24) return naoRespondeu('triangulo')
+  if (idadeC != null && idadeC > PRAZOS_DA_CASA.copiadorTriangulo) return naoRespondeu('triangulo')
+  const sinalConferir = sinais.get('conferir_b2')
+  if (sinalConferir != null) {
+    const idadeB = (agora - sinalConferir) / H
+    if (idadeB > PRAZOS_DA_CASA.conferirTriangulo) {
+      return { estado: 'programa_atrasado', desde: sinalConferir, forma: idadeB > PRAZOS_DA_CASA.conferirOctogono ? 'octogono' : 'triangulo', frase: `A conferência do B2 não roda desde ${dmhm(sinalConferir)}` }
+    }
+  }
   if (copiador) {
     const v = tms(copiador.nas_checked_at)
     const vh = v == null ? null : (agora - v) / H
@@ -246,7 +260,7 @@ export function casaDe(batimentos: PaginaLida['casa'], vermelhos: readonly strin
   }
   const falta = PROGRAMAS_ESPERADOS.find(w => !sinais.has(w))
   if (falta) return { estado: 'programa_sem_sinal', desde: null, forma: 'triangulo', frase: `${NOME_DO_PROGRAMA[falta]} ainda não deu sinal` }
-  return { estado: 'responde', desde: maisVelho[1], forma: 'visto', frase: 'A casa responde' }
+  return { estado: 'responde', desde: sinalCopiador ?? null, forma: 'visto', frase: 'A casa responde' }
 }
 
 // ---------- a página ----------
@@ -263,7 +277,7 @@ export function modeloNaoLido(porque: 'funcao_ausente' | 'erro_do_banco' | 'fora
 
 function mesesAFrente(p: PaginaLida): ModeloPagina['mesesAFrente'] {
   return p.meses_a_frente.map(m => {
-    const tabela = NOME_DA_TABELA[m.table_name] ?? m.table_name
+    const tabela = NOME_DA_TABELA[m.table_name] ?? 'Outro dado'
     const n = m.months_ahead
     if (n == null) return { tabela, frase: 'Ainda sem meses à frente: não medido', forma: 'hachura' as const }
     if (n === -1) return { tabela, frase: 'O mês corrente não existe para estes dados. Rode a criação dos meses à frente.', forma: 'octogono' as const }
@@ -273,11 +287,12 @@ function mesesAFrente(p: PaginaLida): ModeloPagina['mesesAFrente'] {
   })
 }
 
-function linhaDeTeste(c: Ctx, t: PaginaLida['teste']['meses'][number]): LinhaDoMes {
+function linhaDeTeste(t: PaginaLida['teste']['meses'][number]): LinhaDoMes {
   const frase = t.dropped_at ? 'Saiu do banco (dado de teste)' : t.detached_at ? 'Saiu das telas (dado de teste)' : t.b2_attested_at ? 'No B2 (dado de teste)'
     : t.nas_attested_at ? 'No NAS (dado de teste)' : t.sealed_at ? 'Copiado (dado de teste)' : 'Em teste'
-  void c
-  return { chave: 'ensaio:' + t.month, mesNome: nomeDoMes(t.month), regua: r5([]), frase, secundaria: null, gravidade: 'nenhuma', sobeAoTopo: false }
+  // a régua acompanha o estágio, com as mesmas réguas dos meses reais (Gio D1: antes era toda pontilhada)
+  const regua = t.dropped_at ? rArq() : t.detached_at ? r2('visto', 'pontilhado') : t.b2_attested_at ? r5(['visto', 'visto']) : t.nas_attested_at ? r5(['visto']) : r5([])
+  return { chave: 'ensaio:' + t.month, mesNome: nomeDoMes(t.month), regua, frase, secundaria: null, gravidade: 'nenhuma', sobeAoTopo: false }
 }
 
 export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): ModeloPagina {
@@ -330,21 +345,26 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
   const amb = todas.filter(l => l.gravidade === 'ambar').length + problemas.filter(x => x.forma === 'triangulo').length
   const algoCopiado = todas.some(l => l.regua.some(e => e.forma === 'visto' || e.forma === 'arquivo' || e.forma === 'barra'))
   let resumo: ModeloPagina['resumo']
-  if (casa.estado !== 'responde') resumo = { texto: casa.frase, forma: casa.forma }
+  // a casa toma o resumo quando é octógono, ou triângulo sem nenhum problema em octógono (Phil I3: um triângulo não esconde octógonos)
+  if (casa.estado !== 'responde' && (casa.forma === 'octogono' || verm === 0)) resumo = { texto: casa.frase, forma: casa.forma }
   else if (verm > 0) resumo = { texto: `O arquivo tem ${verm} ${verm === 1 ? 'problema' : 'problemas'} que ${verm === 1 ? 'precisa' : 'precisam'} de você`, forma: 'octogono' }
   else if (amb > 0) resumo = { texto: `O arquivo tem ${amb} ${amb === 1 ? 'ponto' : 'pontos'} de atenção`, forma: 'triangulo' }
   else if (!algoCopiado) {
+    // M2: nada escrito à mão; a data e a margem vêm da classe. Sem first_month em nenhuma classe, a tela não inventa uma primeira cópia
     const prim = p.meses.length ? [...p.meses].sort((a, b) => (a.month < b.month ? -1 : 1))[0]! : null
-    const ini = p.classes.map(k => k.first_month).filter((x): x is string => x != null).sort()[0] ?? '2026-10-01'
-    const mesIni = prim ? prim.month : ini
-    const devido = prim ? prim.devido_em : (() => { const f = maisMeses(ini, 1); return spDateOf(spDateStart(f) - DAY + 28 * DAY) })()
-    resumo = { texto: `A primeira cópia é a de ${MESES[Number(mesIni.slice(5, 7)) - 1]}, a partir de ${dm(spDateStart(devido))}`, forma: 'pontilhado' }
+    const ini = p.classes.filter(k => k.first_month != null).sort((x, y) => (x.first_month! < y.first_month! ? -1 : 1))[0]
+    if (!prim && !ini) resumo = { texto: 'Nenhum tipo de dado foi liberado para o arquivo ainda', forma: 'pontilhado' }
+    else {
+      const mesIni = prim ? prim.month : ini!.first_month!
+      const devido = prim ? prim.devido_em : spDateOf(spDateStart(maisMeses(ini!.first_month!, 1)) - DAY + ini!.seal_margin_days * DAY)
+      resumo = { texto: `A primeira cópia é a de ${MESES[Number(mesIni.slice(5, 7)) - 1]}, a partir de ${dm(spDateStart(devido))}`, forma: 'pontilhado' }
+    }
   } else {
     const arq = tipos.reduce((s, t) => s + t.anosNoArquivo.reduce((x, a) => x + a.meses, 0), 0)
     const onl = todas.length - arq
     resumo = { texto: `Tudo em dia: ${arq} ${arq === 1 ? 'mês' : 'meses'} no arquivo e ${onl} online, nada precisa de você`, forma: 'visto' }
   }
   const t = p.teste
-  const teste = t.aberto || t.encerrado_em ? { faixa: t.aberto ? `Dado de teste: ${t.meses.length} ${t.meses.length === 1 ? 'mês' : 'meses'}` : 'Dado de teste encerrado', linhas: t.meses.map(m => linhaDeTeste(c, m)), encerradoEm: tms(t.encerrado_em) } : null
+  const teste = t.aberto || t.encerrado_em ? { faixa: t.aberto ? FAIXA_DO_TESTE : `Dado de teste encerrado${tms(t.encerrado_em) ? ` em ${dmy(tms(t.encerrado_em)!)}` : ''}.`, linhas: t.meses.map(linhaDeTeste), encerradoEm: tms(t.encerrado_em) } : null
   return { resumo, casa, tipos, problemas, mesesAFrente: mesesAFrente(p), teste, ligado: true }
 }

@@ -7,6 +7,9 @@ import { resolve } from 'node:path'
 const RAIZ = resolve(__dirname, '../../../..')
 const PROIBIDAS = ['lote', 'unidade', 'selar', 'selado', 'selagem', 'partição', 'cadeia', 'atestação', 'hash', 'ensaio', 'restauração', 'divergente',
   'ambiente', 'tabela', 'linhas', 'MB', 'toco', 'congelado', 'congelamento', 'estágio', 'classe']
+/** Cada palavra proibida com o plural opcional (Yannis I-2: "partições" escapava de "partição"). */
+const comPlural = (p: string): string => (p === 'MB' ? p : p.endsWith('ção') ? `${p.slice(0, -3)}(ção|ções)` : `${p}(s|es)?`)
+const achaProibida = (t: string): string[] => PROIBIDAS.filter(p => new RegExp(`(^|[^\\p{L}.])${comPlural(p)}([^\\p{L}]|$)`, p === 'MB' ? 'u' : 'iu').test(t))
 const C = 'apps/web/src/app/cms/(authed)/youtube/competitors'
 /** Os arquivos que a Tarefa 5 tocou para a peça 1 (ledger, Tarefa 5/5b/5c): textos de tela também. */
 // Fora da lista, de propósito: _historico/view-model.ts e views-chart.tsx têm texto ANTIGO com "tabela"/"linhas" (aria do gráfico, "Ver os registros diários em tabela"), não da fase; vão a Logan na T15.
@@ -47,9 +50,13 @@ describe('item 38: vocabulário das telas da fase', () => {
   it('o teste enxerga uma palavra proibida solta e ignora identificadores (teste do teste)', () => {
     expect(textosDeTela("const a = 'Unidade'; const b = 'competitor_video_daily'; const c = 'arq-contorno'")).toEqual(['Unidade'])
   })
+  it('o teste do teste pega o plural: "partições", "tabelas", "unidades", "selados", "hashes"', () => {
+    for (const t of ['Meses à frente das partições', 'Tabelas', 'unidades', 'selados', 'lotes', 'hashes']) expect(achaProibida(textosDeTela(`<h3>${t}</h3>`)[0]!), t).not.toEqual([])
+    expect(achaProibida('Meses criados à frente')).toEqual([])
+  })
   it.each([...new Set(ARQUIVOS)])('%s', arq => {
     const ruins = textosDeTela(readFileSync(resolve(RAIZ, arq), 'utf8'))
-      .flatMap(t => PROIBIDAS.filter(p => new RegExp(`(^|[^\\p{L}.])${p}([^\\p{L}]|$)`, p === 'MB' ? 'u' : 'iu').test(t)).map(p => `${p}: ${t.slice(0, 80)}`))
+      .flatMap(t => achaProibida(t).map(p => `${p}: ${t.slice(0, 80)}`))
     expect(ruins).toEqual([])
   })
 })

@@ -31,6 +31,29 @@ describe('página Arquivo', () => {
     expect(screen.queryByText(/Ver os comandos|Apagar do arquivo|Dado de teste/)).toBeNull()
     expect(screen.getByText(/esperam quem administra o site/)).toBeTruthy()
   })
+  it('Gio D2b: a frase da casa que já é o resumo não aparece duas vezes; a da casa que não é o resumo aparece', () => {
+    const m = modeloVazio(); m.ligado = true
+    m.casa = { estado: 'nao_respondeu', desde: 1, forma: 'octogono', frase: 'A casa não respondeu desde 30/04 22:00.' }
+    m.resumo = { texto: m.casa.frase, forma: 'octogono' }
+    const { unmount } = render(<ArquivoScreen modelo={m} bloco={{ ok: false }} acesso="edita" />)
+    expect(screen.getAllByText('A casa não respondeu desde 30/04 22:00.')).toHaveLength(1)
+    unmount()
+    m.resumo = { texto: 'O arquivo tem 2 problemas que precisam de você', forma: 'octogono' }
+    render(<ArquivoScreen modelo={m} bloco={{ ok: false }} acesso="edita" />)
+    expect(screen.getAllByText('A casa não respondeu desde 30/04 22:00.')).toHaveLength(1)
+  })
+  it('Gio D1: a faixa do dado de teste é a do mockup TESTE-1, com "Dado de teste." em destaque', () => {
+    const m = modeloCheio(); m.teste = { faixa: 'Dado de teste. Isto é um mês fictício, criado para você testar o caminho inteiro sem tocar no dado real. Nada que sair daqui libera espaço de verdade.', linhas: [], encerradoEm: null }
+    render(<ArquivoScreen modelo={m} bloco={{ ok: false }} acesso="administra" />)
+    const faixa = document.querySelector('.arq-teste-h')!
+    expect(faixa.textContent).toBe(m.teste.faixa)
+    expect(faixa.querySelector('b')?.textContent).toBe('Dado de teste.')
+  })
+  it('Yannis I-2: o título dos meses à frente não usa a palavra "partições"', () => {
+    const m = modeloCheio(); m.mesesAFrente = [{ tabela: 'Views por dia', frase: '12 meses à frente', forma: 'visto' }]
+    render(<ArquivoScreen modelo={m} bloco={{ ok: false }} acesso="edita" />)
+    expect(screen.getByRole('region', { name: 'Meses criados à frente' })).toBeTruthy()
+  })
   it('arquivo desligado: uma frase, sem cartões e sem o bloco', () => {
     render(<ArquivoScreen modelo={{ ...modeloVazio(), ligado: false }} bloco={{ ok: false }} acesso="edita" />)
     expect(document.querySelectorAll('[data-secao]')).toHaveLength(0)

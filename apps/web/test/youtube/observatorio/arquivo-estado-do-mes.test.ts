@@ -100,6 +100,86 @@ describe('Phil I2: a casa', () => {
   })
 })
 
+describe('Phil I2 + Gio D2 (r1): a casa pelo copiador, prazo próprio por programa', () => {
+  const h = (n: number) => new Date(AGORA - n * 3_600_000).toISOString()
+  const bat = (worker: string, o: Record<string, unknown>) => ({ worker, last_poll_at: null, updated_at: null, nas_ok: true, nas_checked_at: h(1), ...o })
+  const cop = (n: number) => bat('copiador', { last_poll_at: h(n), updated_at: h(n) })
+  const conf = (n: number) => bat('conferir_b2', { updated_at: h(n) })
+  it('copiador há 1 h e conferir_b2 há 24,5 h (a execução de hoje demora mais que a de ontem): a casa responde', () => {
+    expect(casaDe([cop(1), conf(24.5)] as never, [], AGORA).estado).toBe('responde')
+  })
+  it('conferir_b2 há 31 h: programa_atrasado em triângulo, com a frase própria; há 55 h: octógono', () => {
+    const c = casaDe([cop(1), conf(31)] as never, [], AGORA)
+    expect(c).toMatchObject({ estado: 'programa_atrasado', forma: 'triangulo' })
+    expect(c.frase).toMatch(/^A conferência do B2 não roda desde \d\d\/\d\d \d\d:\d\d/)
+    expect(casaDe([cop(1), conf(55)] as never, [], AGORA)).toMatchObject({ estado: 'programa_atrasado', forma: 'octogono' })
+  })
+  it('o respondedor (não periódico) fica fora do cálculo: há 10 dias, a casa responde', () => {
+    expect(casaDe([cop(1), conf(1), bat('respondedor', { updated_at: h(240) })] as never, [], AGORA).estado).toBe('responde')
+  })
+  it('mockup pc1: copiador há 20,5 h já é triângulo "não respondeu"; há 12 h responde; acima de 36 h é octógono', () => {
+    expect(casaDe([cop(20.5), conf(1)] as never, [], AGORA)).toMatchObject({ estado: 'nao_respondeu', forma: 'triangulo' })
+    expect(casaDe([cop(12), conf(1)] as never, [], AGORA).estado).toBe('responde')
+    expect(casaDe([cop(37), conf(1)] as never, [], AGORA)).toMatchObject({ estado: 'nao_respondeu', forma: 'octogono' })
+  })
+  it('o conferir_b2 atrasado não é "a casa não respondeu" (não aciona o aviso de religar)', () => {
+    expect(casaDe([cop(1), conf(60)] as never, [], AGORA).estado).not.toBe('nao_respondeu')
+  })
+})
+
+describe('Phil I3: um triângulo da casa não esconde octógonos no resumo', () => {
+  it('casa em triângulo (NAS sem verificar) + 1 problema em octógono: o resumo é o do problema', () => {
+    const casa = ['copiador', 'conferir_b2'].map(w => ({ ...paginaVazia().casa[0]!, worker: w, nas_checked_at: new Date(AGORA - 30 * 3_600_000).toISOString() }))
+    const p = montarPagina(paginaVazia({ casa, vermelhos: ['xyz:1'] }), { arquivoLigado: true })
+    expect(p.casa.estado).toBe('nas_sem_verificar')
+    expect(p.resumo).toEqual({ texto: 'O arquivo tem 1 problema que precisa de você', forma: 'octogono' })
+  })
+  it('casa em octógono continua mandando no resumo; casa em triângulo sem problema também', () => {
+    const velho = new Date(AGORA - 40 * 3_600_000).toISOString()
+    const oct = montarPagina(paginaVazia({ casa: [{ ...paginaVazia().casa[0]!, last_poll_at: velho, updated_at: velho }], vermelhos: ['xyz:1'] }), { arquivoLigado: true })
+    expect(oct.resumo.forma).toBe('octogono'); expect(oct.resumo.texto).toBe(oct.casa.frase)
+    const tri = montarPagina(paginaVazia({ casa: ['copiador', 'conferir_b2'].map(w => ({ ...paginaVazia().casa[0]!, worker: w, nas_checked_at: new Date(AGORA - 30 * 3_600_000).toISOString() })) }), { arquivoLigado: true })
+    expect(tri.resumo.texto).toBe(tri.casa.frase)
+  })
+})
+
+describe('Phil M2 (r1): sem first_month em nenhuma classe a primeira cópia não é inventada', () => {
+  it('nenhuma classe liberada com data: frase de "nada liberado", em pontilhado', () => {
+    const p = montarPagina(paginaVazia({ classes: paginaVazia().classes.map(k => ({ ...k, first_month: null })) }), { arquivoLigado: true })
+    expect(p.resumo).toEqual({ texto: 'Nenhum tipo de dado foi liberado para o arquivo ainda', forma: 'pontilhado' })
+  })
+  it('a margem vem da classe (45 dias para o texto), não de 28 escrito à mão', () => {
+    const classes = paginaVazia().classes.filter(k => k.class === 'texto').map(k => ({ ...k, first_month: '2026-10-01' }))
+    const p = montarPagina(paginaVazia({ classes }), { arquivoLigado: true })
+    expect(p.resumo.texto).toBe('A primeira cópia é a de outubro, a partir de 15/12')
+  })
+})
+
+describe('Gio D1 (r1): o grupo "Dado de teste"', () => {
+  const t = (m: Record<string, unknown>) => ({ month: '2028-01-01', sealed_at: null, nas_attested_at: null, b2_attested_at: null, detached_at: null, dropped_at: null, closed_at: null, ...m })
+  const linhas = (m: Record<string, unknown>) => montarPagina(paginaVazia({ teste: { aberto: true, meses: [t(m)], encerrado_em: null } }), { arquivoLigado: true }).teste!.linhas[0]!
+  const formas = (m: Record<string, unknown>) => linhas(m).regua.map(e => e.forma)
+  it('a régua acompanha o estágio: NAS marcado, depois B2; saiu das telas e saiu do banco usam as réguas reais', () => {
+    expect(formas({ sealed_at: 'x', nas_attested_at: '2028-05-01T00:00:00Z' })).toEqual(['visto', 'pontilhado', 'pontilhado', 'pontilhado', 'pontilhado'])
+    expect(formas({ sealed_at: 'x', nas_attested_at: 'x', b2_attested_at: 'x' }).slice(0, 2)).toEqual(['visto', 'visto'])
+    expect(formas({ detached_at: 'x' })).toEqual(['visto', 'pontilhado'])
+    expect(formas({ dropped_at: 'x' })).toEqual(['arquivo'])
+  })
+  it('a faixa é o texto do mockup TESTE-1; encerrado diz a data', () => {
+    const a = montarPagina(paginaVazia({ teste: { aberto: true, meses: [t({})], encerrado_em: null } }), { arquivoLigado: true }).teste!
+    expect(a.faixa).toBe('Dado de teste. Isto é um mês fictício, criado para você testar o caminho inteiro sem tocar no dado real. Nada que sair daqui libera espaço de verdade.')
+    const e = montarPagina(paginaVazia({ teste: { aberto: false, meses: [], encerrado_em: '2028-05-03T12:00:00-03:00' } }), { arquivoLigado: true }).teste!
+    expect(e.faixa).toBe('Dado de teste encerrado em 03/05/2028.')
+  })
+})
+
+describe('Yannis I-2 (menor): tabela sem nome de tela', () => {
+  it('a tabela desconhecida vira "Outro dado", nunca o nome interno', () => {
+    const p = montarPagina(paginaVazia({ meses_a_frente: [{ table_name: 'competitor_nova', months_ahead: 12, last_month: null, converted_at: null }] }), { arquivoLigado: true })
+    expect(p.mesesAFrente[0]!.tabela).toBe('Outro dado')
+  })
+})
+
 describe('Phil I1: os vermelhos do pulso chegam à página', () => {
   const PREFIXOS = ['atraso de cópia: 3 unidades', 'mês sem selo: 2026-10', 'NAS: a cópia sumiu', 'B2: arquivo ausente', 'conteúdo divergente em 2026-10', 'mês descartado sem releitura: 2026-10',
     'b2_atrasado', 'B2 recusou o fileId', 'canário do filho falhou', 'canario_regravado:2026-10', 'nas_ilegivel:2026-10', 'b2_ilegivel:2026-10', 'nas_80:numerico',
