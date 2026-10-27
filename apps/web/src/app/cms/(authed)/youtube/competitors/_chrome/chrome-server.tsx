@@ -20,7 +20,6 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { arquivoNoChrome } from './arquivo-do-chrome'
 import { montarAvisoV2, type AvisoV2 } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-v2'
 import { casaDe } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
-import type { PaginaLida } from '@/lib/youtube/observatorio/arquivo-mensal/pagina'
 import { lerCapacidades } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
 import { lerCanaisRemovidos, marcaAoLadoDaPastilha } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
@@ -59,7 +58,7 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   if (arquivo.arq.aviso.ok && arquivo.banco) {
     const agora = Date.now(), leve = arquivo.arq.aviso.leve
     // "NAS cheio" só aparece na página (vermelhos vazio aqui); a marca dos canais removidos só existe com o comando de limpeza (M9)
-    const casa = casaDe(leve.casa as unknown as PaginaLida['casa'], [], agora)
+    const casa = casaDe(leve.casa, [], agora)
     const cap = lerCapacidades()
     const lista = cap.comandoDeLimpeza ? await lerCanaisRemovidos(getSupabaseServiceClient(), arquivo.siteId) : null
     const marcaCanais = lista && lista.ok ? marcaAoLadoDaPastilha(lista.lista, { agora, casa, cap }) : null
