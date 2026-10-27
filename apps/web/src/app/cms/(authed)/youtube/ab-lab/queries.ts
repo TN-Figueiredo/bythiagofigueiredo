@@ -678,16 +678,31 @@ function buildInsightText(tags: LearningsTag[]): string {
 export async function getLearnings(siteId: string): Promise<LearningsData | null> {
   const supabase = getSupabaseServiceClient()
 
+  // M7b P2: conta o vencedor ESTATÍSTICO (v2.vencedor_sugerido), nunca a escolha do dono.
+  // Sem sugerida (inconclusivo ou regra antiga), vale o winner_variant_id.
   const { data: lidos } = await supabase
     .from('ab_tests')
-    .select('id, result_metadata, winner_variant_id, test_type, winner:ab_test_variants!winner_variant_id(is_original)')
+    .select('id, result_metadata, winner_variant_id, test_type')
     .eq('site_id', siteId)
     .eq('status', 'completed')
-    .not('winner_variant_id', 'is', null)
 
-  // S8-F4 B2: a original vencedora ("não mudar nada") não ensina tag nenhuma
-  const tests = lidos?.filter(t => !vencedorEhOriginal(t.winner as VencedorEmbutido))
-  if (!tests || tests.length < 3) return null
+  const idsLidos = (lidos ?? []).map(t => t.id as string)
+  const { data: variantesLidas } = idsLidos.length
+    ? await supabase.from('ab_test_variants').select('id, test_id, is_original').in('test_id', idsLidos)
+    : { data: [] as Array<{ id: unknown; test_id: unknown; is_original: unknown }> }
+  const porId = new Map((variantesLidas ?? []).map(v => [v.id as string, v]))
+
+  const tests = (lidos ?? []).flatMap(t => {
+    const sug = (t.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null)?.v2?.vencedor_sugerido
+    const sugVar = sug ? porId.get(sug) : undefined
+    const efetivo = sugVar && sugVar.test_id === t.id ? sug! : (t.winner_variant_id as string | null)
+    if (!efetivo) return []
+    const v = porId.get(efetivo)
+    // S8-F4 B2: a original vencedora ("não mudar nada") não ensina tag nenhuma
+    if (v?.is_original === true) return []
+    return [{ ...t, winner_variant_id: efetivo }]
+  })
+  if (tests.length < 3) return null
 
   const testIds = tests.map(t => t.id as string)
   const winnerIds = tests.map(t => t.winner_variant_id as string)
