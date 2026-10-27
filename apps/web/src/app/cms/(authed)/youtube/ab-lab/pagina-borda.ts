@@ -9,11 +9,11 @@ import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda
 import { lerDiasDosTestes } from '@/lib/youtube/ab-gravacao/placar-leitura'
 import { regraDoTeste, type LinhaDiaPlacar } from '@/lib/youtube/ab-gravacao/placar'
 import { telaV2DoTeste, type TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
-import { ctrDosValidos, diasDaDecisao, type CicloComNumero, type DiaDaDecisao } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { ctrDosValidos, diasDaDecisao, type DiaDaDecisao } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { montarPaginaDoLab } from '@/lib/youtube/ab-lab-pagina/montar'
 import type { EntradaPagina, PaginaDoLab } from '@/lib/youtube/ab-lab-pagina/tipos'
 import { lerResultadoV2 } from '@/lib/youtube/ab-types'
-import type { AbTestDraft, AbTestSiteSettings, AbTestWithVariants, ChannelLearningsData } from '@/lib/youtube/ab-types'
+import type { AbTestDraft, AbTestSiteSettings, AbTestWithVariants, ChannelLearningsData, CicloSemEntrega } from '@/lib/youtube/ab-types'
 import type { EligibleVideo } from './_components/video-picker-dialog'
 import {
   getAbTestsForSite, getAbSiteSettings, getChannelLearnings, getEligibleVideosForPicker, toCardView, toDraftList,
@@ -47,7 +47,7 @@ const ehV2 = (t: AbTestWithVariants): boolean => {
   try { return regraDoTeste(t) === 'v2' } catch { return false }
 }
 
-const ciclosDe = (t: AbTestWithVariants): CicloComNumero[] => (t.ciclos ?? []) as unknown as CicloComNumero[]
+const ciclosDe = (t: AbTestWithVariants): CicloSemEntrega[] => t.ciclos ?? []
 
 function telaDe(t: AbTestWithVariants, dias: DiaDaDecisao[], agora: Date, outroTesteAberto: boolean): TelaV2 | null {
   if (!ehV2(t)) return null
