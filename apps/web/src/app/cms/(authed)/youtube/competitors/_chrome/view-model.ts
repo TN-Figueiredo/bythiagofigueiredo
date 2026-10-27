@@ -2,6 +2,7 @@
  * View model of the Observatório chrome (port of chrome.js headHtml/navHtml/freshPopHtml/coworkText/defaultSync).
  * Pure: every number, date and sentence comes from the engine (Observatory); nothing here reads the clock.
  */
+import type { AvisoV2 } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-v2'
 import type { Observatory } from '@/lib/youtube/observatorio'
 import { BUILTIN_NICHES, nicheLabel, type NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Niche, ObsChannel } from '@/lib/youtube/observatorio/types'
@@ -21,6 +22,8 @@ export const CHROME_SUBTITLE = 'O que os canais que você acompanha mudaram, o q
 
 export interface ChromeFreshRow { id: string; name: string; niche: Niche | null; nicheLabel: string | null; situation: string; last: string | null; bad: boolean }
 export interface ChromeView {
+  /** M5 T11: pastilha do banco e marcas ao lado dela (só para quem edita o site). */
+  avisoBanco?: AvisoV2 | null
   title: 'Observatório de Competidores'; subtitle: string; tzLabel: 'Horários em São Paulo'
   niche: NicheScope; nicheLabel: string; nicheColor: { dark: string; light: string } | null
   tabs: Array<{ key: ChromeTab; label: string; href: string; count: number | null; /** "?" (contagem falhou) ou "—" (Sugestões ainda não calculadas) */ countText?: string; title: string; current: boolean
@@ -48,7 +51,7 @@ const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 export const nicheLabelOf = (obs: Observatory, n: NicheScope): string => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
 const colorOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? null : obs.nicheColor(n))
 
-export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** quantos itens esperam resposta na fila (n nulo = a contagem falhou); sem o campo não há quinta aba */ fila?: { n: number | null } | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null; /** F3 T6: a aba Sugestões (2ª); sem o campo ela não existe (quem só lê o site não a vê) */ sugestoes?: { n: number | null; velho: boolean; calculado: boolean } | null; /** M5: a aba Arquivo, a última; só para quem edita o site (sem o campo ela não existe) */ arquivoVisivel?: boolean }): ChromeView {
+export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** quantos itens esperam resposta na fila (n nulo = a contagem falhou); sem o campo não há quinta aba */ fila?: { n: number | null } | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null; /** F3 T6: a aba Sugestões (2ª); sem o campo ela não existe (quem só lê o site não a vê) */ sugestoes?: { n: number | null; velho: boolean; calculado: boolean } | null; /** M5: a aba Arquivo, a última; só para quem edita o site (sem o campo ela não existe) */ arquivoVisivel?: boolean; /** M5 T11: o aviso do banco (pastilha e marcas); sem o campo a faixa fica como era */ avisoBanco?: AvisoV2 | null }): ChromeView {
   const { niche } = o, F = obs.fmt, D = obs.date
   const counts = obs.tabCounts(niche)
   const countOf: Record<AbaDoPacote, number | null> = { canais: counts.canais, mudancas: counts.mud, outliers: counts.out, insights: null }
@@ -125,6 +128,7 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
     owns: ownMenuOf(obs, o.lembrado ?? null),
     // Task 22's guard: the segment exists only when the forja tables are ready
     forja: o.forja && o.forja.ready ? o.forja : null,
+    avisoBanco: o.avisoBanco ?? null,
   }
 }
 

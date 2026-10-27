@@ -17,7 +17,13 @@ import { contarParaAAba } from '../_saiu/dados'
 import { contarParaAAbaSugestoes } from '../_sugestoes/dados-da-tela'
 import type { PropsPerguntarIa } from './perguntar-ia/botao'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { podeEditarSite } from './permissoes'
+import { arquivoNoChrome, bancoNoChrome } from './arquivo-do-chrome'
+import { montarAvisoV2, type AvisoV2 } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-v2'
+import { casaDe } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
+import type { PaginaLida } from '@/lib/youtube/observatorio/arquivo-mensal/pagina'
+import { lerCapacidades } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
+import { lerCanaisRemovidos, marcaAoLadoDaPastilha } from '@/lib/youtube/observatorio/arquivo-mensal/canais-removidos'
+import { getSupabaseServiceClient } from '@/lib/supabase/service'
 
 export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, children }: {
   tab: ChromeTab; searchParams: ObsSearchParams | undefined
@@ -42,11 +48,26 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   // removed, a stale link) shows Todos, without error, and a ?niche= naming it is dropped from the URL like an invalid one.
   const wanted = nicheOverride ?? resolved.niche, niche = engine.scopeOf(wanted)
   const dropParam = resolved.dropParam || (nicheOverride == null && niche !== wanted && resolved.fromParam)
-  // M5 (Yannis I-10): a aba Arquivo é de quem edita o site, em toda aba do Observatório; a resposta vem do cache da requisição (`permissoesDoSite`/`podeEditarSite`)
-  const arquivoVisivelP = getSiteContext().then(({ siteId }) => podeEditarSite(siteId))
-  const [lembrado, aba, sug, arquivoVisivel] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba(), contarParaAAbaSugestoes(), arquivoVisivelP])
+  // M5 (Yannis I-10, T11): a guarda de edição (`podeEditarSite`, em cache) e a leitura leve do aviso correm junto com o resto; o aviso só é lido DEPOIS da guarda, e a página do Arquivo nunca é lida aqui
+  const arquivoP = getSiteContext().then(async ({ siteId }) => {
+    const arq = await arquivoNoChrome(siteId)
+    const banco = arq.aviso.ok ? await bancoNoChrome(siteId) : null
+    return { siteId, arq, banco }
+  })
+  const [lembrado, aba, sug, arquivo] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba(), contarParaAAbaSugestoes(), arquivoP])
+  const arquivoVisivel = arquivo.arq.arquivoVisivel
+  let avisoBanco: AvisoV2 | null = null
+  if (arquivo.arq.aviso.ok && arquivo.banco) {
+    const agora = Date.now(), leve = arquivo.arq.aviso.leve
+    // "NAS cheio" só aparece na página (vermelhos vazio aqui); a marca dos canais removidos só existe com o comando de limpeza (M9)
+    const casa = casaDe(leve.casa as unknown as PaginaLida['casa'], [], agora)
+    const cap = lerCapacidades()
+    const lista = cap.comandoDeLimpeza ? await lerCanaisRemovidos(getSupabaseServiceClient(), arquivo.siteId) : null
+    const marcaCanais = lista && lista.ok ? marcaAoLadoDaPastilha(lista.lista, { agora, casa, cap }) : null
+    avisoBanco = montarAvisoV2({ aviso: { banco: arquivo.banco }, leve, agora, casa, marcaCanais })
+  }
   // A5 E9: a quinta aba só existe para quem edita o site; a contagem que falha vira "?" (n nulo)
-  const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null, sugestoes: sug.visivel ? { n: sug.n, velho: sug.velho, calculado: sug.calculado } : null, arquivoVisivel })
+  const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null, sugestoes: sug.visivel ? { n: sug.n, velho: sug.velho, calculado: sug.calculado } : null, arquivoVisivel, avisoBanco })
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche, view.nicheLabel) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
       onAskForja={askForjaReading} readingCopy={readingCopy} perguntarIa={perguntarIa}>

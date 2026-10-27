@@ -216,7 +216,7 @@ function ChromeInner({ view, children, onSetNiche, onSyncNow, dropNicheParam, on
           </div>
         </div>
         <Freshness
-          fresh={view.fresh} tzLabel={view.tzLabel} open={pop === 'fresh'} btnRef={freshBtn}
+          fresh={view.fresh} avisoBanco={view.avisoBanco} arquivoHref={view.tabs.find(t => t.key === 'arquivo')?.href} tzLabel={view.tzLabel} open={pop === 'fresh'} btnRef={freshBtn}
           onToggle={() => setPop(p => (p === 'fresh' ? null : 'fresh'))} onClose={() => setPop(p => (p === 'fresh' ? null : p))} onSync={() => sync(true)} syncing={syncing}
           forjaSeg={forja ? <ForjaMachineSegment machine={forja.machine} /> : null}
         />
