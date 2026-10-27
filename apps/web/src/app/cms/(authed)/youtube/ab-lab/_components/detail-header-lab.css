@@ -16,8 +16,8 @@
 @media (prefers-reduced-motion: no-preference) { .dhl-giro { animation: dhl-giro 1s linear infinite; } }
 .dhl-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-top: var(--s4); }
 .dhl-bt { background: transparent; cursor: pointer; text-decoration: none; }
-.dhl-bt:hover { background: var(--cn-skel, rgba(255,255,255,.06)); }
-.dhl-bt[aria-disabled="true"] { border-color: var(--cn-line, rgba(255,255,255,.14)); color: var(--cn-muted); cursor: not-allowed; background: transparent; }
+.dhl-bt:hover { background: var(--cn-surface-2); }
+.dhl-bt[aria-disabled="true"] { border-color: var(--cn-border); color: var(--cn-muted); cursor: not-allowed; background: transparent; }
 .dhl-bt--yt { margin-left: auto; }
 .dhl-acoes--solo .dhl-bt--yt { margin-left: 0; }
 .dhl-bt--dest { border-color: var(--cn-accent); }
@@ -33,3 +33,6 @@
 }
 
 .dhl-origem { margin: 6px 0 24px; font-size: 13px; line-height: 1.45; color: var(--cms-text-muted); }
+
+.dhl-rot-acao { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2, 8px); }
+@container (max-width: 640px) { .dhl-bt--rot { width: 100%; } .dhl-rot-acao { display: block; } }

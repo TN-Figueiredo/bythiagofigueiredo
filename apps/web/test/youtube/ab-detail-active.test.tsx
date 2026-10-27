@@ -106,15 +106,17 @@ describe('ActiveDetail', () => {
 
   it('quem administra o site vê "Forçar rotação"; a editora vê o motivo no lugar, e segue com Pausar/Encerrar', () => {
     const admin = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
-    // M7d T3b: o botão saiu do cabeçalho; a T5 o recoloca no bloco de rotação (e restaura estes asserts).
+    expect(admin.getByText('Forçar rotação')).toBeTruthy()
     expect(admin.queryByTestId('admin-only-note')).toBeNull()
     admin.unmount()
 
     siteAdmin.value = false
     try {
       const editor = render(<ActiveDetail view={makeActiveView()} {...ACOES} />)
+      expect(editor.queryByText('Forçar rotação')).toBeNull()
       expect(editor.getByText('Pausar')).toBeTruthy()
       expect(editor.getByText('Encerrar')).toBeTruthy()
+      expect(editor.getByTestId('admin-only-note').textContent).toBe('Só quem administra o site pode forçar rotação.')
     } finally {
       siteAdmin.value = true
     }
