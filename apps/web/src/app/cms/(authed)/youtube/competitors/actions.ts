@@ -247,7 +247,8 @@ async function guardaDaRemocao(id: string, acao: string): Promise<{ ok: false; c
 function soltarCache(siteId: string): void {
   invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
-  revalidateTag(arquivoTag(siteId), { expire: 0 })   // o aviso do arquivo (300 s) conta canais removidos e vermelhos: não pode ficar velho depois de um comando do dono (Phil r2 R2)
+  const tagArquivo = arquivoTag(siteId)
+  revalidateTag(tagArquivo, { expire: 0 })   // o aviso do arquivo (300 s) conta canais removidos e vermelhos: não pode ficar velho depois de um comando do dono (Phil r2 R2)
 }
 
 /** Caminho 2 do "Remover canal": pausa na hora, libera a vaga e agenda o histórico para o NAS. O comando do agente termina o serviço. */
