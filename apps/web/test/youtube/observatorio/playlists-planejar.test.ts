@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { planejarCanais, canalDevido, playlistsDevidas, calcularCiclo, ehRecuperavel, estimativaDeUnidades, MOTIVOS_RECUPERAVEIS, MOTIVOS_ESTRUTURAIS, type CanalParaPlanejar, type LinhaDeLeitura, type PlaylistDoCanal } from '@/lib/youtube/observatorio/playlists/planejar'
+import { planejarCanais, canalDevido, playlistsDevidas, calcularCiclo, playlistCoberta, ehRecuperavel, estimativaDeUnidades, MOTIVOS_RECUPERAVEIS, MOTIVOS_ESTRUTURAIS, type CanalParaPlanejar, type LinhaDeLeitura, type PlaylistDoCanal } from '@/lib/youtube/observatorio/playlists/planejar'
 import { X3_RULES } from '@/lib/youtube/observatorio/playlists/regras'
 
 const DIA = 86_400_000
@@ -116,13 +116,27 @@ describe('X3 planejar: playlist devida', () => {
 })
 
 describe('X3 planejar: calcularCiclo (J1 = N1)', () => {
-  it('só com playlistsLeft 0, lista completa e nenhum motivo recuperável', () => {
-    expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: true, motivos: [null, 'teto_itens', 'contagem_difere'] })).toBe(true)
-    expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: true, motivos: ['lista_com_ocultas'] })).toBe(true)
-    expect(calcularCiclo({ playlistsLeft: 3, listaCompleta: true, motivos: [] })).toBe(false)
-    expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: false, motivos: [] })).toBe(false)
-    expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: true, motivos: ['contagem_difere', 'saida_em_massa_a_confirmar'] })).toBe(false)
-    expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: true, motivos: ['lista_vazia_a_confirmar'] })).toBe(false)
+  it('só com lista fechada, todas cobertas e nenhum motivo recuperável (cortes por playlist não vetam)', () => {
+    const ok = { listaCompleta: true, todasCobertas: true }
+    expect(calcularCiclo({ ...ok, motivos: [null, 'teto_itens', 'contagem_difere'] })).toBe(true)
+    expect(calcularCiclo({ ...ok, motivos: ['lista_com_ocultas'] })).toBe(true)
+    expect(calcularCiclo({ ...ok, motivos: ['teto_por_canal', 'sobrou', 'itens_cortados'] })).toBe(true)
+    expect(calcularCiclo({ ...ok, todasCobertas: false, motivos: [] })).toBe(false)
+    expect(calcularCiclo({ ...ok, listaCompleta: false, motivos: [] })).toBe(false)
+    expect(calcularCiclo({ ...ok, motivos: ['contagem_difere', 'saida_em_massa_a_confirmar'] })).toBe(false)
+    expect(calcularCiclo({ ...ok, motivos: ['lista_vazia_a_confirmar'] })).toBe(false)
+    expect(calcularCiclo({ ...ok, motivos: ['teto_por_canal', 'api_falhou'] })).toBe(false)
+  })
+  it('playlistCoberta: lida depois do fecho anterior com ok ou estrutural', () => {
+    const c = '2026-03-10T10:00:00Z'
+    const base = { items_read_at: '2026-03-12T10:00:00Z', items_status: 'ok' as const, items_reason: null }
+    expect(playlistCoberta(base, c)).toBe(true)
+    expect(playlistCoberta({ ...base, items_read_at: '2026-03-10T10:00:00Z' }, c)).toBe(false)
+    expect(playlistCoberta({ ...base, items_read_at: '2026-03-01T10:00:00Z' }, null)).toBe(true)
+    expect(playlistCoberta({ ...base, items_read_at: null }, null)).toBe(false)
+    expect(playlistCoberta({ ...base, items_status: 'parcial', items_reason: 'teto_itens' }, c)).toBe(true)
+    expect(playlistCoberta({ ...base, items_status: 'parcial', items_reason: 'itens_cortados' }, c)).toBe(false)
+    expect(playlistCoberta({ ...base, items_status: 'erro', items_reason: 'playlist_sumiu_no_meio' }, c)).toBe(false)
   })
   it('as duas listas de motivos não se cruzam e o recuperável é reconhecido', () => {
     for (const m of MOTIVOS_ESTRUTURAIS) expect(MOTIVOS_RECUPERAVEIS.has(m), m).toBe(false)

@@ -119,10 +119,24 @@ export function planejarCanais(e: {
   return { devidos, cortadosPeloTeto: ordenados.length - devidos.length, canaisSemVolta14d: sem }
 }
 
+/** Cortes por orçamento/tempo/item: já aparecem na playlist (parcial recuperável = não coberta), então não vetam a volta inteira. */
+const CORTES_POR_PLAYLIST: ReadonlySet<string> = new Set(['teto_por_canal', 'sobrou', 'itens_cortados'])
+
 /**
- * `p_ciclo`: a volta terminou. Verdadeiro só se não sobrou playlist devida (`playlistsLeft = 0`), a lista veio completa (ou vazia já
- * confirmada) e NENHUM motivo recuperável apareceu na visita inteira (lista, seções ou qualquer playlist). Motivos estruturais não contam.
+ * `p_ciclo`: a volta terminou. Verdadeiro só se a lista veio fechada (completa, com ocultas ou vazia já confirmada), TODA playlist ativa
+ * foi lida com sucesso (ou motivo estrutural) desde o fecho anterior (`todasCobertas`, calculado pela visita) e nenhum motivo recuperável
+ * de lista, seções, cota, gravação ou API apareceu. Cortes por teto/tempo/item vetam só a playlist, não a visita.
  */
-export function calcularCiclo(v: { playlistsLeft: number | null; listaCompleta: boolean; motivos: readonly (string | null | undefined)[] }): boolean {
-  return v.playlistsLeft === 0 && v.listaCompleta && !v.motivos.some(ehRecuperavel)
+export function calcularCiclo(v: { listaCompleta: boolean; todasCobertas: boolean; motivos: readonly (string | null | undefined)[] }): boolean {
+  return v.listaCompleta && v.todasCobertas && !v.motivos.some(m => ehRecuperavel(m) && !CORTES_POR_PLAYLIST.has(m as string))
+}
+
+/**
+ * Playlist coberta pela volta: lida (nesta visita ou depois do fecho anterior; qualquer leitura quando não há fecho) e com estado final
+ * `ok` ou `parcial` de motivo estrutural.
+ */
+export function playlistCoberta(p: { items_read_at: string | null; items_status: 'ok' | 'parcial' | 'erro' | null; items_reason: string | null }, lastCycleAt: string | null): boolean {
+  if (p.items_read_at === null) return false
+  if (lastCycleAt !== null && !(ms(p.items_read_at) > ms(lastCycleAt))) return false
+  return p.items_status === 'ok' || (p.items_status === 'parcial' && p.items_reason != null && MOTIVOS_ESTRUTURAIS.has(p.items_reason))
 }

@@ -3,7 +3,7 @@
 import { BANCO_MS, comPrazo } from '@/lib/youtube/agenda/relogio'
 import { ehForma, erroDaApi, lerPaginaDeItens, lerPaginaDePlaylists, lerSecoes, type ItemLido, type PlaylistLida } from './ler-api'
 import { ErroX3, type EstadoDoCanal, type OpsX3, type PlaylistConhecida } from './gravar'
-import { calcularCiclo, playlistsDevidas } from './planejar'
+import { calcularCiclo, playlistCoberta, playlistsDevidas } from './planejar'
 import { X3_RULES } from './regras'
 
 const API = 'https://www.googleapis.com/youtube/v3'
@@ -97,6 +97,8 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
   let left: number | null = null
   let devidasN = 0
   let visitadas = 0
+  /** Estado final gravado de cada playlist lida NESTA visita (chave = id interno). */
+  const lidasAgora = new Map<string, { status: 'ok' | 'parcial' | 'erro'; reason: string | null }>()
 
   /** Uma ida de gravação: `ErroX3` aborta a visita (canal pausado ou gravação falhou); outro erro vira `gravacao_falhou`. */
   async function gravar<T>(f: () => Promise<T>): Promise<T | undefined> {
@@ -165,7 +167,11 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
 
     const conhecidas = new Map(e.estado.playlists.map(p => [p.playlist_id, p]))
     const vistas = new Set(lidas.map(l => l.playlist_id))
-    if (listaCompleta && lidas.length === 0) {
+    if (listaComOcultas && lidas.length === 0) {
+      // só ocultas: nada visível a gravar, mas as conhecidas ganham a ausência (a função SQL trata `ocultas`)
+      const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: [], complete: false, ocultas: true }))
+      if (r?.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') }
+    } else if (listaCompleta && lidas.length === 0) {
       if (e.estado.empty_streak < 1) { listaVazia = true; motivo('lista_vazia_a_confirmar') } else {
         const r = await gravar(() => e.ops.playlistsRecord({ siteId: e.siteId, channelId: e.channelId, nowMs: e.agora(), rows: [], complete: true, ocultas: false }))
         if (r !== undefined) { listaVazia = true; if (r.atrasada) { gravacaoFalhou = true; motivo('gravacao_falhou') } }
@@ -238,6 +244,7 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
       numeros.playlists_com_itens++
       numeros.itens_gravados += r.gravados
       numeros.itens_saidos += r.saidos
+      lidasAgora.set(p.id, r.massa ? { status: 'parcial', reason: 'saida_em_massa_a_confirmar' } : { status, reason })
       return r
     }
     if (sumiu) { numeros.playlists_sumidas++; motivo('playlist_sumiu_no_meio'); await reg([], false, 'erro', 'playlist_sumiu_no_meio'); return }
@@ -267,7 +274,11 @@ export async function visitarCanal(e: EntradaDaVisita): Promise<ResultadoDaVisit
   // 4. Fecho e cota
   const final = maisGrave(motivos)
   const estadoFinal: 'ok' | 'parcial' | 'erro' = motivos.length === 0 ? 'ok' : leituraBoa && !canalPausado && !gravacaoFalhou ? 'parcial' : 'erro'
-  const ciclo = calcularCiclo({ playlistsLeft: left, listaCompleta: listaFechada, motivos })
+  const todasCobertas = candidatas.every(p => {
+    const agora = lidasAgora.get(p.id)
+    return playlistCoberta(agora !== undefined ? { items_read_at: 'agora', items_status: agora.status, items_reason: agora.reason } : p, agora !== undefined ? null : e.estado.last_cycle_at)
+  })
+  const ciclo = calcularCiclo({ listaCompleta: listaFechada, todasCobertas, motivos })
   let falhaDoFecho: string | null = null
   let cotaNaoRegistrada = 0
   try {

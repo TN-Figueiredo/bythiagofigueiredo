@@ -19,6 +19,8 @@ export interface EstadoDoCanal {
   playlists: PlaylistConhecida[]
   empty_streak: number
   sections_empty_streak: number
+  /** Fecho da volta anterior (`competitor_playlist_reads.last_cycle_at`); nulo = nenhuma volta fechada ainda. */
+  last_cycle_at: string | null
   /** A última versão de seções tinha lista vazia? `null` = nenhuma versão gravada ainda. */
   ultima_secao_vazia: boolean | null
 }
@@ -152,7 +154,7 @@ export function criarOpsX3(sb: SupabaseClient): OpsX3 {
 
     async lerCanais(siteId, channelIds) {
       const out = new Map<string, EstadoDoCanal>()
-      for (const id of channelIds) out.set(id, { playlists: [], empty_streak: 0, sections_empty_streak: 0, ultima_secao_vazia: null })
+      for (const id of channelIds) out.set(id, { playlists: [], empty_streak: 0, sections_empty_streak: 0, last_cycle_at: null, ultima_secao_vazia: null })
       for (const bloco of blocos(channelIds)) {
         const playlists = await paginar((de, ate) => sb.from('competitor_playlists')
           .select('id, competitor_channel_id, playlist_id, items_read_at, items_status, items_reason, item_count, missing_since')
@@ -170,7 +172,7 @@ export function criarOpsX3(sb: SupabaseClient): OpsX3 {
         const leituras = await this.lerLeituras(bloco)
         for (const [canal, l] of leituras) {
           const est = out.get(canal)
-          if (est) { est.empty_streak = l.empty_streak; est.sections_empty_streak = l.sections_empty_streak }
+          if (est) { est.empty_streak = l.empty_streak; est.sections_empty_streak = l.sections_empty_streak; est.last_cycle_at = l.last_cycle_at }
         }
       }
       // a última versão de seções de cada canal: uma consulta de 1 linha por canal (poucos canais por disparo)
