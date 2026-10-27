@@ -20,7 +20,7 @@ function props(over: Partial<AbEndTestDialogProps> = {}): AbEndTestDialogProps {
   return {
     aberto: true, onFechar: vi.fn(), testeNome: 'Teste', noArAgora: { rotulo: 'A', desde: '' }, opcoes,
     originalBaixaResolucao: false, podeDeixarVariante: true, seqVisto: 1,
-    encerrar: vi.fn<(o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>>(), ...over,
+    encerrar: vi.fn<(o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>>(), freio: { tipo: 'faltam', texto: 'Faltam 8 dias dos 14. Encerrar agora usa só os 5 dias já medidos.' }, ...over,
   }
 }
 
@@ -39,6 +39,6 @@ describe('T12 T8: aviso v2 no Encerrar', () => {
   it('sem a prop (v1) não mostra', () => {
     render(<AbEndTestDialog {...props()} />)
     expect(screen.queryByText(AVISO)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Encerrar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Encerrar e ficar com/ })).toBeTruthy()
   })
 })
