@@ -1,6 +1,7 @@
 /** Tipos do modelo da página do A/B Lab (puro: sem banco nem relógio próprio). */
 
-export type ModoPainel = 'ativo' | 'concluido' | 'aplicado'
+/** O painel de decisão de hoje é só o do teste rodando; o do concluído é o `PainelEscolha` (M7b). */
+export type ModoPainel = 'ativo'
 
 export interface OpcaoPainel {
   varianteId: string
@@ -36,8 +37,6 @@ export interface PainelDecisao {
 
 export type EscolhaPainel =
   | { tipo: 'encerrar'; varianteId: string; original: boolean }
-  | { tipo: 'aplicar_sugerida'; varianteId: string }
-  | { tipo: 'voltar' }
 
 export interface SeloDeLinha { texto: string; icone: 'star' | 'info' | 'dot' | 'user'; tom: 'neutro' | 'dia' | 'esc' }
 export type SelosDaLinha = [teste: SeloDeLinha, noAr: SeloDeLinha]
