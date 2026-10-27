@@ -4,6 +4,7 @@ import type { DisplayLabel } from '@/lib/youtube/ab-types'
 import type { NoArConfirmado, NoArLido } from '@/lib/youtube/ab-no-ar'
 import type { ResultadoSaida } from '@/lib/youtube/ab-settle'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
+import { detalheDaRecusa } from '@/lib/youtube/ab-lab-pagina/painel-textos'
 
 /** Frase única da recusa por tentativa em voo (F-D4). Usada por pausar, encerrar, reverter, retomar e forçar rotação. */
 export const MSG_VARIANTE_DA_VEZ = 'Não foi possível escolher a variante da vez. Recarregue a página e tente de novo.'
@@ -82,11 +83,11 @@ export type ResultadoConferir =
   | { ok: true; estado: 'nenhuma_versao'; restoreSeq: number }
   | { ok: false; estado: 'sem_leitura' | 'sem_permissao' | 'ja_encerrado'; error: string }
 
-/** Frases provisórias por motivo da recusa; o Logan fecha o texto na T7a. */
+/** Texto de `error` por motivo da recusa (T7a, Logan); a tela monta o aviso com as letras em `painel-textos.ts`. */
 export const MSG_RECUSA: Record<PorqueRecusou, string> = {
-  youtube: MSG_YOUTUBE_NAO_ACEITOU,
-  drift: 'O vídeo foi mudado no YouTube Studio depois do teste. Nada foi trocado.',
-  sem_original: 'A versão original não foi guardada; não dá para voltar a ela daqui.',
-  sem_tempo: 'Não deu tempo de terminar a troca. Tente de novo.',
-  arquivo_indisponivel: 'O arquivo da miniatura desta versão não está mais disponível.',
+  youtube: detalheDaRecusa('youtube', { S: null, X: null }),
+  drift: detalheDaRecusa('drift', { S: null, X: null }),
+  sem_original: detalheDaRecusa('sem_original', { S: null, X: null }),
+  sem_tempo: detalheDaRecusa('sem_tempo', { S: null, X: null }),
+  arquivo_indisponivel: detalheDaRecusa('arquivo_indisponivel', { S: null, X: null }),
 }
