@@ -222,7 +222,7 @@ export function conferenciasE14(deploy: string | null): Conferencia[] {
   }
   const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `e14-${id}`, etapa: 'E14', data: somaDias(deploy, mais), responsavel: 'agente', onde: `${PLANO_E14}: ${onde}`, feitaEm: null })
   return [
-    e('d1', 1, 'D+1: V5 a V8 da seção 11; `comentarios` em youtube_quota_usage.operations contra a soma de `units_used` dos retratos do dia (reconciliação); a primeira execução no retorno do cron; o primeiro dia teve o número de retratos que a resposta à pergunta 1 manda (cerca de 49 ou cerca de 12); select error_reason, count(*) from competitor_video_comment_snaps where status = \'erro\' group by 1. Se COMMENT_SINCE foi null, comparar o primeiro dia contra os 49: os perdidos de antes da primeira coleta não entram em retratos_perdidos_7d (dívida D-M5) e esta conferência fecha o buraco'),
+    e('d1', 1, 'D+1: V5, V6, V8 da seção 11 e o V7 da F2 (.superpowers/sdd/a5/phil-x3-e14-27-10.md, seção 1, item 2: esperado 0,0,0,0,0; o V7 da seção 11 é da fase 1 e foi superado em 17/10); `comentarios` em youtube_quota_usage.operations contra a soma de `units_used` dos retratos do dia (reconciliação); a primeira execução no retorno do cron; o primeiro dia teve o número de retratos que a resposta à pergunta 1 manda (cerca de 49 ou cerca de 12); select error_reason, count(*) from competitor_video_comment_snaps where status = \'erro\' group by 1. Se COMMENT_SINCE foi null, comparar o primeiro dia contra os 49: os perdidos de antes da primeira coleta não entram em retratos_perdidos_7d (dívida D-M5) e esta conferência fecha o buraco'),
     e('d7', 7, 'D+7: tamanho das quatro tabelas e unidades por canal e dia, contra 1,3 a 1,9 MB por canal por ano e 2,16 (itens 122 e 149; diferença acima de 30% corrige 9.5 e 9.6 do spec); quantos retratos ficaram em `proibido`. Com 3 ou mais vídeos presos em `proibido` ao mesmo tempo o cron fica vermelho (Tarefa 10, teste 10): se for recorrente e legítimo, a regra dos três presos é revista e `proibido` passa a ser aceito como preso; se for zero, MOTIVOS_PERDA_ACEITA pode esvaziar. Até esta conferência, o vermelho de código erros_presos cujo motivo mais comum é `proibido` é esperado; qualquer outro código vermelho é defeito'),
     e('d29', 29, 'D+29: a primeira anulação: `apagadas > 0` na linha de anular_identidade do dia, e V6 = 0, 0, 0'),
     e('d31', 31, 'D+31: identidade em comentário com author_purged_at = 0; comentários com missing_since existem; retratos_perdidos_7d e perdidos_por_motivo'),
@@ -513,7 +513,7 @@ export function conferenciasX3(ligada: string | null): Conferencia[] {
   }
   const e = (id: string, mais: number, onde: string): Conferencia => ({ id: `x3-${id}`, etapa: 'E21', data: somaDias(ligada, mais), responsavel: 'agente', onde: `${PLANO_X3}: ${onde}`, feitaEm: null })
   return [
-    e('d1', 1, 'D+1: a consulta do §11 devolve 0 linhas (todo canal ativo tem linha em competitor_playlist_reads); a unidade do dia em competitors_playlists está entre 200 e 400; C1 ampliada (playlists e itens por canal: máximo, mediana, soma; projeção soma x 330 B até 15 MB, senão desligar e voltar ao Phil); PORTÃO contagem_difere: `select items_reason, count(*) from public.competitor_playlists where missing_since is null group by 1;` e `select last_reason, count(*) from public.competitor_playlist_reads group by 1;` com contagem_difere em mais de 10% das playlists ou dos canais = desligar a coleta (OBS_X3_PLAYLISTS=off) e voltar ao Phil; C3'),
+    e('d1', 1, 'D+1: a consulta do §11 devolve 0 linhas (todo canal ativo tem linha em competitor_playlist_reads); a unidade do dia em competitors_playlists está entre 200 e 400; C1 ampliada (playlists e itens por canal: máximo, mediana, soma; projeção soma x 330 B até 15 MB, senão desligar e voltar ao Phil); PORTÃO DE PERDA (duro): `select items_reason, count(*) from public.competitor_playlists where missing_since is null group by 1;` com contagem_difere acima de 1% das playlists ativas = desligar (OBS_X3_PLAYLISTS=off) e voltar ao Phil; PORTÃO DA LISTA (observado, não desliga): `select last_reason, count(*) from public.competitor_playlist_reads group by 1;` com lista_com_ocultas (ou contagem_difere) em até 25% dos canais ativos e sempre os mesmos canais; canal novo no conjunto = voltar ao Phil; C3'),
     e('d7', 7, 'D+7: todo canal ativo com last_cycle_at em até 7 dias; canais_com_secoes > 0 (o número da C2); tamanho das cinco tabelas até 1,5 x a projeção da C1; nenhuma linha com reason = cota_nao_registrada; C4'),
     e('d30', 30, 'D+30: versões por playlist por mês até 1 (acima disso, rever o hash); removed_after preenchido em toda linha com removed_since, exceto a de playlist sem leitura completa anterior (items_complete_at nulo na época: nulo é honesto)'),
   ]
@@ -621,6 +621,35 @@ const FEITAS: Readonly<Record<string, string>> = {
   'e12-d7': '2026-10-20',
   'e5a-ri-d1-cortes': '2026-10-16',
   'e11-religar-ou-retirar': '2026-10-20',
+  // reabertas-27-10-resultado.md (dono, 27/10): ok
+  'e6-retrato': '2026-10-27',
+  'e10-d0': '2026-10-27',
+  'e16-d1': '2026-10-27',
+  'e16-k1': '2026-10-27',
+  'e8-primeira-execucao': '2026-10-27',
+  'e10-d1': '2026-10-27',
+  'e1e2-d3': '2026-10-27',
+  'e17d2-d1': '2026-10-27',
+  'e17d2-poda-p1': '2026-10-27',
+  'e6-p3-d1': '2026-10-27',
+  'e8-tempo-real': '2026-10-27',
+  'e11-d1': '2026-10-27',
+  'e9-d1': '2026-10-27',
+  'e7-l1-d7': '2026-10-27',
+  'e1e2-d7': '2026-10-27',
+  'e15-atraso-d7': '2026-10-27',
+  'e20-tamanho-d8': '2026-10-27',
+  'e10-d7': '2026-10-27',
+  'e5a-d7': '2026-10-27',
+  'e10-i4': '2026-10-27',
+  // aceitas como histórico
+  'i7-k6-d3': '2026-10-27',
+  'e15-np-d3': '2026-10-27',
+  'e8-tres-dias': '2026-10-27',
+  // aposentadas pelo dono (e1e2-d8: o R1 aposentado; K5/K11 ok)
+  'e9-d0': '2026-10-27',
+  'e1e2-d8': '2026-10-27',
+  'e19-15o-dia': '2026-10-26',
 }
 
 const TODAS: readonly Conferencia[] = [...BASE, ...conferenciasE1E2(E1_E2_DEPLOY), ...conferenciasE6P2(E6_P2_DEPLOY), ...conferenciasE6P3(E6_P3_APLICADA), ...conferenciasE18P2Cobertura(E18P2_COBERTURA_DEPLOY), ...conferenciasE6P4(E6_P4_APLICADA), ...conferenciasE18P2(E18P2_APLICADA), ...conferenciasE8Coleta(E8_COLETA_DEPLOY), ...conferenciasE14(E14_DEPLOY), ...conferenciasE10(E10_DEPLOY), ...conferenciasE5A(E5A_DEPLOY), ...conferenciasE5ARi(E5A_RI_DEPLOY), ...conferenciasE5AComentarios(E5A_COMENTARIOS_DEPLOY, E5A_COMENTARIOS_COLETA_LIGADA), ...conferenciasE16E15(E16_E15_DEPLOY), ...conferenciasE18(E18_DEPLOY), ...conferenciasE17D2(E17_D2_DEPLOY), ...conferenciasE17D2Abertura(E17_D2_ABERTURA), ...conferenciasE17D2Poda(E17_D2_PODA_DEPLOY), ...conferenciasE17D1(E17_D1_DEPLOY), ...conferenciasE17D1Nucleo(E17_D1_NUCLEO_DEPLOY), ...conferenciasX3(X3_LIGADA), ...conferenciasE11(E11_DEPLOY), ...conferenciasE9(E9_DEPLOY)].sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))

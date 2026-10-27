@@ -149,10 +149,10 @@ describe('conferências de E1 e E2 (relativas ao dia do envio)', () => {
     expect(conferenciasVencidas(dia(1), l).map(x => x.id)).toEqual(['e1e2-d0'])
     expect(conferenciasEmFalha(dia(8), l).map(x => x.id)).toEqual(['e1e2-d0'])
   })
-  it('com o deploy real (E1_E2_DEPLOY): a e1e2-d0 (13/10) e a e1e2-d1 (14/10) foram feitas e as demais e1e2-* seguem sem feitaEm', () => {
+  it('com o deploy real (E1_E2_DEPLOY): d0 (13/10), d1 (14/10) e d3, d7, d8 (27/10) foram feitas; as demais e1e2-* seguem sem feitaEm', () => {
     const l = CONFERENCIAS.filter(x => x.id.startsWith('e1e2-'))
     expect(l.map(x => x.id)).toEqual(IDS)
-    for (const x of l) expect(x.feitaEm, x.id).toBe(x.id === 'e1e2-d0' ? '2026-10-13' : x.id === 'e1e2-d1' ? '2026-10-14' : null)
+    for (const x of l) expect(x.feitaEm, x.id).toBe(x.id === 'e1e2-d0' ? '2026-10-13' : x.id === 'e1e2-d1' ? '2026-10-14' : ['e1e2-d3', 'e1e2-d7', 'e1e2-d8'].includes(x.id) ? '2026-10-27' : null)
     // a data é fato do envio real: um envio hipotético (outra data de deploy) não herda a conferência como feita
     expect(conferenciasE1E2(dia(-10)).every(x => x.feitaEm === null)).toBe(true)
   })
@@ -1039,12 +1039,20 @@ describe('reabertas (fecho da A5)', () => {
     for (const id of REABERTAS) {
       const c = CONFERENCIAS.find(x => x.id === id)
       expect(c, id).toBeDefined()
-      expect(c?.feitaEm ?? null, id).toBeNull()
+      if (c?.feitaEm) continue // feita depois (lote de 27/10 em FEITAS): sai do vermelho por prova
       expect(c?.reabertaEm, id).toBe(REABERTAS_EM)
       expect(diasDeAtraso(REABERTAS_EM, c!), id).toBe(0)
     }
   })
-  it('a data do plano fica: e7-l1-d7 segue devida em 19/10', () => {
-    expect(CONFERENCIAS.find(x => x.id === 'e7-l1-d7')).toMatchObject({ data: '2026-10-19', reabertaEm: REABERTAS_EM })
+  it('a data do plano fica: e7-l1-d7 segue com data de 19/10 (feita em 27/10)', () => {
+    expect(CONFERENCIAS.find(x => x.id === 'e7-l1-d7')).toMatchObject({ data: '2026-10-19', feitaEm: '2026-10-27' })
+  })
+  it('lote feitaEm de 27/10: todo id existe e tem a data (reabertas-27-10-resultado.md)', () => {
+    const ids = 'e6-retrato e10-d0 e16-d1 e16-k1 e8-primeira-execucao e10-d1 e1e2-d3 e17d2-d1 e17d2-poda-p1 e6-p3-d1 e8-tempo-real e11-d1 e9-d1 e7-l1-d7 e1e2-d7 e15-atraso-d7 e20-tamanho-d8 e10-d7 e5a-d7 e10-i4 i7-k6-d3 e15-np-d3 e8-tres-dias e9-d0 e1e2-d8 e19-15o-dia'.split(' ')
+    for (const id of ids) {
+      const c = CONFERENCIAS.find(x => x.id === id)
+      expect(c, id).toBeDefined()
+      expect(c?.feitaEm, id).toBe(id === 'e19-15o-dia' ? '2026-10-26' : '2026-10-27')
+    }
   })
 })
