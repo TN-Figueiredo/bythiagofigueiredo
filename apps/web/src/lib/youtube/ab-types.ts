@@ -613,6 +613,10 @@ export interface AbTestActiveView extends AbTestBaseView {
   /** T10: só no pausado por teste do YouTube; preenchido pela página (servidor). */
   pausaYoutube?: { aberto: boolean; ate: string | null }
   driftAcknowledgedAt: string | null
+  /** M7d T1b: quando o dono pausou (coluna paused_at); nulo fora da pausa. */
+  pausedAt: string | null
+  /** M7d T1b: variante que entra na próxima rotação (nulo no padrão random). */
+  proximaNaRotacao: DisplayLabel | null
   variantDb: VariantDbEntry[]
   graceExpiresAt?: string | null
   winnerAppliedAt?: string | null
