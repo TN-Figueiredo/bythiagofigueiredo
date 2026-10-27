@@ -22,12 +22,12 @@ describe('peça 7, parte de leitura', () => {
     expect(document.querySelector('[data-forma="hachura"]')).not.toBeNull()
   })
   it('3 itens com o mais antigo de 63 dias: resumo exato e octógono', () => {
-    render(<EsperamComandos t={tres(null)} />)
+    render(<EsperamComandos t={tres(LINHA_DO_DONO)} />)
     expect(screen.getByText('3 itens esperam você rodar os comandos; o mais antigo há 63 dias.')).toBeTruthy()
     expect(document.querySelector('[data-forma="octogono"]')).not.toBeNull()
   })
   it('1 item: singular', () => {
-    render(<EsperamComandos t={{ estado: 'com_itens', lidoEm: LIDO, n: 1, maisAntigoDias: 1, itens: [item(1, 1)], linha: null }} />)
+    render(<EsperamComandos t={{ estado: 'com_itens', lidoEm: LIDO, n: 1, maisAntigoDias: 1, itens: [item(1, 1)], linha: LINHA_DO_DONO }} />)
     expect(screen.getByText('1 item espera você rodar os comandos; o mais antigo há 1 dia.')).toBeTruthy()
   })
   it('só edita: sem a linha e sem "Ver os comandos"', () => {

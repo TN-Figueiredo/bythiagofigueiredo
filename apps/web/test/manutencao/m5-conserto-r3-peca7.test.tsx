@@ -38,19 +38,19 @@ describe('P2: o item tem uma linha em negrito que o distingue', () => {
 })
 describe('P3: nunca "há 0 dias"', () => {
   it('o mais antigo de hoje: "é de hoje"; o item: "hoje"', () => {
-    render(<EsperamComandos t={com([it1({})])} />)
+    render(<EsperamComandos t={com([it1({})], LINHA_DO_DONO)} />)
     expect(screen.getByText('1 item espera você rodar os comandos; o mais antigo é de hoje.')).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/há 0 dias?/)
     expect(screen.getByText('hoje')).toBeTruthy()
   })
   it('1 dia: "há 1 dia"', () => {
-    render(<EsperamComandos t={com([it1({ idadeDias: 1, desde: dia(1) })])} />)
+    render(<EsperamComandos t={com([it1({ idadeDias: 1, desde: dia(1) })], LINHA_DO_DONO)} />)
     expect(screen.getByText('1 item espera você rodar os comandos; o mais antigo há 1 dia.')).toBeTruthy()
   })
 })
 describe('P4: a frase do Tailscale', () => {
   it('está no resumo', () => {
-    render(<EsperamComandos t={com([it1({})])} />)
+    render(<EsperamComandos t={com([it1({})], LINHA_DO_DONO)} />)
     expect(screen.getByText('De fora do país, a linha funciona com o Tailscale ligado no Mac e a forja ligada.')).toBeTruthy()
   })
 })

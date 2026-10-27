@@ -20,7 +20,7 @@ describe('A1: a frase do topo nomeia o mês e linka', () => {
   it('a âncora é um id estável (tipo e mês), sem dois-pontos', () => { expect(ancoraDoMes('serie:2027-11-01')).toBe('mes-serie-2027-11-01') })
   it('vazio com o pulso em vermelho de mês (495 arquivos): não soma de novo e não diz "52 problemas"', () => {
     const p = montarPagina(paginaVazia({ vermelhos: ['atraso de cópia: 495 arquivos', 'mês sem selo há mais de 30 dias: 2'] }), liga)
-    expect(p.resumo.texto).toBe('2 outros problemas abaixo.')
+    expect(p.resumo.texto).toBe('1 outro problema abaixo.')
     expect(p.resumo.texto).not.toMatch(/495|52/)
   })
   it('canais sem destino contam como canais, não como "problemas"', () => {

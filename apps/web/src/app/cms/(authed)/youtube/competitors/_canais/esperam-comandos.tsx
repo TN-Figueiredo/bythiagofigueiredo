@@ -88,7 +88,7 @@ export function EsperamComandos({ t }: { t: PendenciasDaTela }): ReactElement {
       </section>
     )
   }
-  const resumo = `${t.n === 1 ? '1 item espera' : `${t.n} itens esperam`} você rodar os comandos; o mais antigo ${t.maisAntigoDias <= 0 ? 'é de hoje' : haQuanto(t.maisAntigoDias)}.`
+  const resumo = `${t.n === 1 ? '1 item espera' : `${t.n} itens esperam`} ${t.linha ? 'você rodar os comandos' : 'quem administra o site'}; o mais antigo ${t.maisAntigoDias <= 0 ? 'é de hoje' : haQuanto(t.maisAntigoDias)}.`
   return (
     <section className="p7-bloco" data-secao="esperam-comandos" aria-labelledby="p7-titulo">
       <h3 className="p7-gt" id="p7-titulo">Esperam você rodar os comandos ({t.n})</h3>

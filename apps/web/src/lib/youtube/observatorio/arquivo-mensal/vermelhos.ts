@@ -40,7 +40,7 @@ const REGRAS: readonly Regra[] = [
   // arq-dados.js (pn2): "O NAS está cheio"
   { prefixo: 'nas_80:', forma: 'triangulo', frase: () => 'O NAS passou de 80% do espaço. Libere espaço (ver os comandos).' },
   // revisão Logan
-  { prefixo: 'tabela_ausente:', forma: 'octogono', frase: r => `Falta no banco o lugar dos dados de ${NOME_DO_DADO[qual(r)] ?? 'um tipo de dado'}, que o arquivo copia. Nada desse tipo sai até ele voltar.` },
+  { prefixo: 'tabela_ausente:', forma: 'octogono', frase: r => `Falta no banco o lugar dos dados de ${NOME_DO_DADO[qual(r)] || 'um tipo de dado'}, que o arquivo copia. Nada desse tipo sai até ele voltar.` },
   // revisão Logan
   { prefixo: 'b2_piso_acima_do_teto', forma: 'triangulo', frase: () => 'O que o B2 recebe por dia já passa de metade do limite do mês.' },
   // revisão Logan

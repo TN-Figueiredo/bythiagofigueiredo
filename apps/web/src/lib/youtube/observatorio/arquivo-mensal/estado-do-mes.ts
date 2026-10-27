@@ -54,7 +54,7 @@ function maisMeses(d: string, n: number): string {
   const t = Number(d.slice(0, 4)) * 12 + (Number(d.slice(5, 7)) - 1) + n
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}-01`
 }
-export const NOME_DA_TABELA: Record<string, string> = { competitor_video_daily: 'Views por dia', competitor_video_early: 'Primeiras horas', competitor_video_hourly: 'Views por hora' }
+export const NOME_DA_TABELA: Record<string, string> = { competitor_video_daily: 'Views por dia', competitor_video_early: 'Primeiras horas', competitor_video_hourly: 'Views por hora', competitor_video_comments: 'Comentários e dados antigos do YouTube', competitor_video_comment_marks: 'Comentários e dados antigos do YouTube', competitor_raw: 'Comentários e dados antigos do YouTube' }
 const NOME_DO_TIPO: Record<'horaria' | 'serie' | 'texto', string> = { horaria: 'Views por hora', serie: 'Views por dia', texto: 'Comentários e dados antigos do YouTube' }
 
 interface Ctx { agora: number; hoje: string; hojeMs: number; mesCorrente: string; p: PaginaLida }
@@ -339,6 +339,18 @@ function linhaDeTeste(t: PaginaLida['teste']['meses'][number]): LinhaDoMes {
   return { chave: 'ensaio:' + t.month, mesNome: nomeDoMes(t.month), regua, frase, secundaria: null, gravidade: 'nenhuma', sobeAoTopo: false }
 }
 
+/** r5 (Logan r2 A4): o vermelho `b2_atrasado: N meses…` não traz o mês. Se, nos dados da página, só um mês selado sem B2 passou de 7 dias, ele é nomeado com a classe; senão a frase genérica fica (nada inventado). */
+function nomearB2Atrasado(l: LinhaDeProblema, p: PaginaLida, agora: number): LinhaDeProblema {
+  const limite = agora - 7 * DAY
+  const cand = new Map<string, string>()
+  for (const m of p.meses) {
+    const sel = tms(m.sealed_at)
+    if (sel !== null && sel <= limite && !m.b2_attested_at && !m.dropped_at) cand.set(`${m.class}:${m.month}`, `${NOME_DO_TIPO[m.class]}, ${nomeDoMes(m.month)}`)
+  }
+  if (cand.size !== 1) return l
+  return { ...l, frase: `O mês copiado de ${[...cand.values()][0]} ainda não chegou ao B2 depois de 7 dias. Nada se perde: a cópia do NAS continua. Veja a linha marcada.` }
+}
+
 export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): ModeloPagina {
   if (!o.arquivoLigado) return modeloDesligado()
   const agora = Date.parse(p.lido_em) // um relógio só: o do banco
@@ -389,7 +401,9 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
       linhas, anosNoArquivo: [...anos.entries()].sort((a, b) => b[0] - a[0]).map(([ano, v]) => ({ ano, ...v, itens: v.itens })),
     })
   }
-  const problemas = p.vermelhos.map(descreverVermelho)
+  // r5 (Logan r2): "atraso de cópia" e "mês sem selo" descrevem os mesmos meses; fica a que traz a contagem
+  const vermelhos = p.vermelhos.some(v => v.startsWith('mês sem selo')) ? p.vermelhos.filter(v => !v.startsWith('atraso de cópia')) : p.vermelhos
+  const problemas = vermelhos.map(descreverVermelho).map(l => (l.prefixo === 'b2_atrasado' ? nomearB2Atrasado(l, p, agora) : l))
   const todas = tipos.flatMap(t => t.linhas)
   const mesesVm = todas.filter(l => l.gravidade === 'vermelho')
   const probOct = problemas.filter(x => x.forma === 'octogono')
