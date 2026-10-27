@@ -32,7 +32,7 @@
 .bl-gh{position:absolute;top:1px;bottom:1px;border:2px dashed var(--warning);border-left:0;border-radius:0 4px 4px 0;box-sizing:border-box;background:transparent}
 .bl-gh.vermelho{border-color:var(--danger)}
 .bl-tk{position:absolute;top:-2px;bottom:-2px;width:2px;margin-left:-1px;background:var(--text)}
-.bl-ts{position:relative;height:18px;font:500 12px/18px var(--mono, monospace);color:var(--muted)}
+.bl-ts{position:relative;height:18px;font:500 12px/18px var(--font-mono, monospace);color:var(--muted)}
 .bl-ts span,.bl-ax span{white-space:nowrap}
 .bl-ts span{position:absolute;transform:translateX(-50%)}.bl-ts span:first-child{transform:none}.bl-ts span:last-child{transform:translateX(-100%)}
 .bl-pt{display:flex;align-items:flex-start;gap:6px;margin:6px 0 0;width:max-content;max-width:min(230px,calc(100vw - 48px));font-weight:500;font-size:13px;line-height:18px;color:var(--text)}
@@ -44,10 +44,10 @@
 .bl-mm{position:absolute;top:27px;width:16px;height:16px;margin-left:-8px;display:grid;place-items:center}
 .bl-mm i{width:12px;height:12px;transform:rotate(45deg);background:var(--danger);box-shadow:0 0 0 2px var(--bg)}
 .bl-trc{position:absolute;top:21px;height:48px;width:3px;margin-left:-1.5px;background:var(--text);box-shadow:0 0 0 1px var(--bg)}
-.bl-ax{position:absolute;left:0;right:0;top:47px;height:16px;font:500 12px/16px var(--mono, monospace);color:var(--muted)}
+.bl-ax{position:absolute;left:0;right:0;top:47px;height:16px;font:500 12px/16px var(--font-mono, monospace);color:var(--muted)}
 .bl-ax span{position:absolute;transform:translateX(-50%)}.bl-ax span:first-child{transform:none}.bl-ax span:last-child{transform:translateX(-100%)}
 .bl-ax span:nth-child(2){background:var(--surface);padding:0 3px;z-index:var(--z-marca)}
-.bl-l1,.bl-l2{position:absolute;white-space:nowrap;font:600 13px/18px var(--mono, monospace)}
+.bl-l1,.bl-l2{position:absolute;white-space:nowrap;font:600 13px/18px var(--font-mono, monospace)}
 .bl-l1{top:3px}.bl-l2{top:75px;padding-left:6px}
 .bl-l1.c,.bl-l2.c{transform:translateX(-50%)}.bl-l1.f,.bl-l2.f{transform:translateX(-100%)}
 .bl-l2.c{padding:0}.bl-l2.f{padding-left:0;padding-right:6px}
