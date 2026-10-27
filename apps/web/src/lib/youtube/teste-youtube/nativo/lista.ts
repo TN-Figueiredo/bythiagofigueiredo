@@ -34,7 +34,7 @@ export interface LinhaDoCaminho {
     inicio: string
   } | null
   labPausadoAte: string | null
-  nosso: { testId: string; restoreSeq: number; dia: number; status: 'active' | 'paused'; restoreStatus?: RestoreStatus | null } | null
+  nosso: { testId: string; restoreSeq: number; dia: number; /** Duração prevista (`duracaoPrevista(config)`), a mesma do cartão. */ teto: number; status: 'active' | 'paused'; restoreStatus?: RestoreStatus | null } | null
   impressoesPorDia: number | null
   /** T7 (D-8): quando a ficha aberta foi enviada ao Studio (último `studio_aberto_em`/`lembrar_em`, só se `enviada`); nulo = sem pergunta ao iniciar o nosso. */
   fichaEnviadaEm?: string | null

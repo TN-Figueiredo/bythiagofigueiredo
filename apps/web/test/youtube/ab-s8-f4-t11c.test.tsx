@@ -5,8 +5,6 @@ import { render, screen, cleanup, renderHook, waitFor } from '@testing-library/r
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) }))
 
 import { toCardView } from '@/app/cms/(authed)/youtube/ab-lab/queries'
-import { ActiveTestCard } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-test-card'
-import { CompletedRow } from '@/app/cms/(authed)/youtube/ab-lab/_components/completed-row'
 import { StepRevisar } from '@/app/cms/(authed)/youtube/ab-lab/_components/step-revisar'
 import { useAvisoVolume } from '@/app/cms/(authed)/youtube/ab-lab/_components/use-aviso-volume'
 import { rotuloDeConcluido } from '@/lib/youtube/ab-rotulo-v2'
@@ -54,9 +52,7 @@ describe('lista do concluído', () => {
     ['regra_v2 ilegível', { v2: { desfecho: 'xyz' } }, ILEGIVEL],
   ])('%s', (_n, meta, esperado) => {
     const card = toCardView(concluido('regra_v2', meta))
-    render(<CompletedRow test={card} onOpen={() => {}} />)
-    expect(screen.getByText(esperado)).toBeTruthy()
-    expect(screen.queryByText(/sem vencedor/i)).toBeNull()
+    expect(card.rotuloV2).toBe(esperado)
   })
   it('outro motivo não ganha rótulo', () => {
     const card = toCardView(concluido('manual_winner', null))
@@ -77,15 +73,12 @@ describe('Dia X/Y de v2 vem de estadoV2DoTeste', () => {
     const card = toCardView(t)
     const est = estadoV2DoTeste(t, ciclos, null, new Date(), tetoDoTesteV2(t.config, t.variants.length))
     expect(card.diaV2).toEqual({ dia: est.dia, teto: 15 })
-    render(<ActiveTestCard test={card} onOpen={() => {}} />)
-    expect(screen.getByText(`Dia ${est.dia + 1}/15`)).toBeTruthy()
   })
   it('v1 segue com o dia corrido', () => {
     const t = makeTestWithVariants({ startedDaysAgo: 5 })
     const card = toCardView(t)
     expect(card.diaV2 ?? null).toBeNull()
-    render(<ActiveTestCard test={card} onOpen={() => {}} />)
-    expect(screen.getByText(/^Dia 6\//)).toBeTruthy()
+    expect(card.dayOf).toBe(5)
   })
 })
 

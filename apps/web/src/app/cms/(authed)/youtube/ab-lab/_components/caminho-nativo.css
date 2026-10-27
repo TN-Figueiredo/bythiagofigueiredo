@@ -95,6 +95,8 @@
 .cn-meta .cn-chip { vertical-align: middle; margin: 0 2px; }
 .cn-btn[disabled] { color: var(--cn-muted); border-style: dashed; cursor: not-allowed; background: transparent; }
 .cn-lnk { font: inherit; font-size: 13.5px; color: var(--cn-yt); background: none; border: 0; padding: 0 2px; min-height: 24px; text-decoration: underline; cursor: pointer; text-align: left; }
+/* Linha da lista "Vídeos do canal": botão de 44 px também no mouse (o `.cn-btn` global fica como está). */
+.cn-vrow .cn-btn { min-height: 44px; }
 @media (pointer: coarse) { .cn-btn, .cn-lnk, .cn-segc button, .cn-addv { min-height: 44px; } }
 /* Hover e pressionado (Naksu U-4): hex literais, nunca color-mix */
 [data-theme="dark"] .cn-btn:hover:not([disabled]) { background: #2F2920; border-color: #A89D88; }

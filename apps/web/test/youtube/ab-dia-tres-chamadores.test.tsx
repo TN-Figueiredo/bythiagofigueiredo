@@ -18,7 +18,6 @@ vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
 }))
 
 import { toCardView, toDetailView } from '@/app/cms/(authed)/youtube/ab-lab/queries'
-import { ActiveTestCard } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-test-card'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
 import { EarlyDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/early-detail'
 import { diaDoTeste } from '@/lib/youtube/ab-dia-do-teste'
@@ -55,9 +54,6 @@ describe('dia do teste: lista, cartão e detalhe mostram o mesmo dia', () => {
 
     const card = toCardView({ ...results.test, variants: [] } as never)
     expect(card.dayOf).toBe(5)
-    const cartao = render(<ActiveTestCard test={card} onOpen={() => {}} />)
-    expect(cartao.container.textContent).toContain('Dia 6/14')
-    cartao.unmount()
 
     const view = (await toDetailView(results)) as AbTestActiveView
     expect(view.cycles.done).toBeLessThan(5)

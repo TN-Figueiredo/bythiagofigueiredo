@@ -129,7 +129,7 @@ describe('AbEndTestDialog: envio', () => {
     expect(encerrar).toHaveBeenCalledTimes(1)
     expect(encerrar).toHaveBeenCalledWith({ destino: 'variante', varianteId: 'v2' })
     expect(screen.getByRole('button', { name: 'Encerrando…' }).getAttribute('aria-disabled')).toBe('true')
-    expect(screen.getByText('Trocando título e thumbnail no YouTube')).toBeTruthy()
+    expect(screen.getByText('Trocando título e miniatura no YouTube')).toBeTruthy()
     expect(screen.getByText(/Pode levar até 1 minuto\. Se fechar, o resultado aparece no topo da página\./)).toBeTruthy()
     await act(async () => { vi.advanceTimersByTime(44_999) })
     expect(screen.queryByText('Sem resposta')).toBeNull()
@@ -228,7 +228,7 @@ describe('AbEndTestDialog: envio', () => {
 
   it('aviso de página por campo recusado: título, thumbnail e os dois', async () => {
     const casos: Array<[Array<'title' | 'thumbnail'>, string]> = [
-      [['title'], 'do título'], [['thumbnail'], 'da thumbnail'], [['title', 'thumbnail'], 'do título e da thumbnail'],
+      [['title'], 'do título'], [['thumbnail'], 'da miniatura'], [['title', 'thumbnail'], 'do título e da miniatura'],
     ]
     for (const [campos, frase] of casos) {
       cleanup(); onAviso.mockClear()
@@ -245,7 +245,7 @@ describe('AbEndTestDialog: envio', () => {
     render(<AbEndTestDialog {...props()} />)
     await marcarB(); await clicarEncerrar()
     const frase = onAviso.mock.calls[0]![0] as string
-    expect(frase).toContain('da thumbnail')
+    expect(frase).toContain('da miniatura')
     expect(frase).not.toContain('título')
     expect(frase).not.toMatch(/voltou ao original/)
   })
@@ -271,7 +271,7 @@ describe('AbEndTestDialog: precisa_confirmar', () => {
     expect(document.activeElement).toBe(within(d).getByRole('button', { name: 'Cancelar' }))
     expect(within(d).getByText('Título por fora')).toBeTruthy()
     expect(within(d).getByText('Título de B')).toBeTruthy()
-    expect(within(d).getByText('O título no YouTube não é de nenhuma variante: alguém editou por fora.')).toBeTruthy()
+    expect(within(d).getByText('O título no YouTube não é de nenhuma versão: alguém editou por fora.')).toBeTruthy()
     await userEvent.click(within(d).getByRole('button', { name: 'Cancelar' }))
     expect((screen.getByLabelText(/Variante B/) as HTMLInputElement).checked).toBe(true)
     expect(encerrar).toHaveBeenCalledTimes(1)
@@ -290,9 +290,9 @@ describe('AbEndTestDialog: precisa_confirmar', () => {
     render(<AbEndTestDialog {...props()} />)
     await marcarB(); await clicarEncerrar()
     const d = await screen.findByRole('alertdialog')
-    expect(within(d).getByRole('button', { name: 'Trocar pela thumbnail de B e encerrar' })).toBeTruthy()
-    expect(within(d).getByAltText('Thumbnail editada por fora').getAttribute('src')).toBe('https://yt/fora.jpg')
-    expect(within(d).getByAltText('Thumbnail da variante B').getAttribute('src')).toBe('https://x/b.jpg')
+    expect(within(d).getByRole('button', { name: 'Trocar pela miniatura de B e encerrar' })).toBeTruthy()
+    expect(within(d).getByAltText('Miniatura editada por fora').getAttribute('src')).toBe('https://yt/fora.jpg')
+    expect(within(d).getByAltText('Miniatura da versão B').getAttribute('src')).toBe('https://x/b.jpg')
   })
 
   it('os dois campos: um só diálogo, um só botão', async () => {
@@ -300,8 +300,8 @@ describe('AbEndTestDialog: precisa_confirmar', () => {
     render(<AbEndTestDialog {...props()} />)
     await marcarB(); await clicarEncerrar()
     const d = await screen.findByRole('alertdialog')
-    expect(within(d).getByRole('button', { name: 'Trocar título e thumbnail por B e encerrar' })).toBeTruthy()
-    expect(within(d).getByText('O título e a thumbnail no YouTube não são de nenhuma variante: alguém editou os dois por fora.')).toBeTruthy()
+    expect(within(d).getByRole('button', { name: 'Trocar título e miniatura por B e encerrar' })).toBeTruthy()
+    expect(within(d).getByText('O título e a miniatura no YouTube não são de nenhuma versão: alguém editou os dois por fora.')).toBeTruthy()
     expect(screen.getAllByRole('alertdialog')).toHaveLength(1)
   })
 })
@@ -380,7 +380,7 @@ describe('T15 r1', () => {
     rerender(<div />) // o pai fechou e desmontou o diálogo
     await act(async () => { resolver(pc([{ campo: 'title', valor_atual: 'Por fora' }])) })
     expect(onAviso).toHaveBeenCalledTimes(1)
-    expect(onAviso.mock.calls[0]![0]).toMatch(/^O teste ainda não foi encerrado: o título ou a thumbnail foi alterado no YouTube por fora\. Clique em Encerrar de novo/)
+    expect(onAviso.mock.calls[0]![0]).toMatch(/^O teste ainda não foi encerrado: o título ou a miniatura foi alterado no YouTube por fora\. Clique em Encerrar de novo/)
     expect(router.refresh).toHaveBeenCalledTimes(1)
   })
 

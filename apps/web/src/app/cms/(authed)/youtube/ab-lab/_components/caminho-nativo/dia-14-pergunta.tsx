@@ -39,6 +39,10 @@ export interface Dia14PerguntaProps {
   aoFechar: () => void
   /** A troca foi gravada e a lista não releu a tempo: a confirmação mostra o aviso e o "Atualizar". */
   releituraDemorou?: boolean
+  /** Dentro do diálogo da página: sem `h3` próprio, sem selo de topo e sem o apoio (o diálogo tem o dele). */
+  embutido?: boolean
+  /** Com ela, "Não vi" vira "Não vi ainda" e chama esta função em vez da action (nada é gravado). */
+  aoNaoViAinda?: () => void
 }
 
 type RespostaSemVencedor = 'ficou_igual' | 'inconclusivo' | 'nao_vi'
@@ -100,7 +104,7 @@ const OUTRAS: { resposta: RespostaSemVencedor; rotulo: string }[] = [
   { resposta: 'nao_vi', rotulo: FRASES.dia14.naoVi },
 ]
 
-export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVista, acoes, aoFechar, releituraDemorou = false }: Dia14PerguntaProps): ReactElement {
+export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVista, acoes, aoFechar, releituraDemorou = false, embutido = false, aoNaoViAinda }: Dia14PerguntaProps): ReactElement {
   const reg = linha.registro
   const mudar = modo === 'mudar'
   const [tela, setTela] = useState<Tela>({ t: 'pergunta' })
@@ -195,6 +199,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     if (p) void enviar(p, `v${v.n}`, v)
   }
   const toqueOutra = (resposta: RespostaSemVencedor) => (): void => {
+    if (resposta === 'nao_vi' && aoNaoViAinda) { aoNaoViAinda(); return }
     if (outraAtual(resposta)) { sair(); return }
     const p = base(resposta, null)
     if (p) void enviar(p, resposta, null)
@@ -210,7 +215,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
   if (tela.t === 'no_ar') {
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
-        <div className="cn-d14-res"><SeloCaminho tipo="ok">{tela.original ? FRASES.dia14.seloOriginal : FRASES.dia14.seloNoAr(tela.letra)}</SeloCaminho></div>
+        {embutido ? null : <div className="cn-d14-res"><SeloCaminho tipo="ok">{tela.original ? FRASES.dia14.seloOriginal : FRASES.dia14.seloNoAr(tela.letra)}</SeloCaminho></div>}
         <p className="cn-d14-q3" id={idQ} ref={resultadoRef} tabIndex={-1}>{tela.original ? FRASES.dia14.fraseOriginal(versoes.length) : FRASES.dia14.fraseNoAr(tela.letra)}</p>
         <p className="cn-meta">{FRASES.dia14.oficial}</p>
         {acoes.anunciar ? null : <p className="cn-sr" role="status">{confirmacao(tela.original, tela.letra)}</p>}
@@ -221,7 +226,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
     const frase = FRASES.dia14.registrada[tela.resposta]
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
-        <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.dia14.seloSemVencedor[tela.resposta]}</SeloCaminho></div>
+        {embutido ? null : <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.dia14.seloSemVencedor[tela.resposta]}</SeloCaminho></div>}
         <p className="cn-d14-q3" id={idQ} role={acoes.anunciar ? undefined : 'status'} ref={resultadoRef} tabIndex={-1}>{frase}</p>
         <p className="cn-meta">{FRASES.resposta.apoioSemVencedor}</p>
       </section>
@@ -230,7 +235,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
   if (tela.t === 'diferentes') {
     return (
       <section className="cn-d14" aria-labelledby={idQ}>
-        <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.dia14.respostasDiferentes}</SeloCaminho></div>
+        {embutido ? null : <div className="cn-d14-res"><SeloCaminho tipo="mute-neq">{FRASES.dia14.respostasDiferentes}</SeloCaminho></div>}
         <p className="cn-d14-q3" id={idQ} ref={resultadoRef} tabIndex={-1}>{FRASES.dia14.respostasDiferentesFrase}</p>
       </section>
     )
@@ -263,12 +268,12 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
 
   return (
     <section
-      className="cn-d14" {...(semVersoes ? { 'aria-label': rotuloGrupo.replace(/:$/, '') } : { 'aria-labelledby': idQ })}
+      className="cn-d14" {...(semVersoes || embutido ? { 'aria-label': semVersoes ? rotuloGrupo.replace(/:$/, '') : FRASES.dia14.pergunta } : { 'aria-labelledby': idQ })}
       onKeyDown={mudar ? (e) => { if (e.key === 'Escape' && !ocupado) { e.stopPropagation(); sair() } } : undefined}
     >
-      {semVersoes ? null : <h3 id={idQ} ref={tituloRef} tabIndex={-1}>{FRASES.dia14.pergunta}</h3>}
+      {semVersoes || embutido ? null : <h3 id={idQ} ref={tituloRef} tabIndex={-1}>{FRASES.dia14.pergunta}</h3>}
       {/* Sem versões não há título: o apoio recebe o foco ao abrir o modo mudar; o nome da seção é o rótulo curto do grupo. */}
-      <p className="cn-meta" {...(semVersoes ? { ref: apoioRef, tabIndex: -1 } : {})}>{apoio}</p>
+      {embutido && !semVersoes ? null : <p className="cn-meta" {...(semVersoes ? { ref: apoioRef, tabIndex: -1 } : {})}>{apoio}</p>}
       {tardia ? <p className="cn-meta">{tardia}</p> : null}
       <p className="cn-meta cn-d14-aviso">{mudar ? FRASES.dia14.avisoMudar : FRASES.dia14.avisoResponder}</p>
       {semVersoes ? null : (
@@ -310,7 +315,7 @@ export function Dia14Pergunta({ linha, pergunta, modo, respostaVista, varianteVi
             key={o.resposta} type="button" className="cn-btn" disabled={ocupado} aria-disabled={ocupado || undefined}
             aria-pressed={mudar ? outraAtual(o.resposta) : undefined} data-resposta={o.resposta} onClick={toqueOutra(o.resposta)}
           >
-            {tocado === o.resposta ? FRASES.dia14.salvando : <>{outraAtual(o.resposta) ? <span aria-hidden="true">✓ </span> : null}{o.rotulo}</>}
+            {tocado === o.resposta ? FRASES.dia14.salvando : <>{outraAtual(o.resposta) ? <span aria-hidden="true">✓ </span> : null}{o.resposta === 'nao_vi' && aoNaoViAinda ? FRASES.dia14.naoViAinda : o.rotulo}</>}
           </button>
         ))}
       </div>

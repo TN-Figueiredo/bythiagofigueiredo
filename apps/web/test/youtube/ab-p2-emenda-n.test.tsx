@@ -16,8 +16,7 @@ import { toDetailView } from '@/app/cms/(authed)/youtube/ab-lab/queries'
 import { WinnerDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/winner-detail'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
 import { EarlyDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/early-detail'
-import { SuggestedCard } from '@/app/cms/(authed)/youtube/ab-lab/_components/suggested-card'
-import { makeTestRow, makeSuggestion } from '../helpers/ab-fixtures'
+import { makeTestRow } from '../helpers/ab-fixtures'
 import type { AbTestResults, AbTestWinnerView, AbTestActiveView, FullChartVariant, VariantStats } from '@/lib/youtube/ab-types'
 
 const ACOES = { encerrar: vi.fn(), pausar: vi.fn() }
@@ -49,13 +48,6 @@ describe('emenda N (Gio)', () => {
     // S8-F3 T5: a linha do placar não mostra % (só contagens); o CTR segue uma vez no banner do vencedor.
     expect(t.match(/3,6%/g)?.length).toBeGreaterThanOrEqual(1)
     expect(t.match(/5,4%/g)?.length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('N1: sugeridos com CTR e sem impressões mostra "—" e nunca "0,0%"', () => {
-    const { container } = render(<SuggestedCard video={makeSuggestion({ ctr: 0, impressions: null })} onCreateTest={vi.fn()} />)
-    expect(container.textContent).not.toMatch(/0,0%/)
-    const comImp = render(<SuggestedCard video={makeSuggestion({ ctr: 4.2, impressions: 12000 })} onCreateTest={vi.fn()} />)
-    expect(comImp.container.textContent).toMatch(/4,2%/)
   })
 
   const vz = (label: 'A' | 'B'): FullChartVariant => ({ label, color: '#888', ctr: 0, impressions: 0, clicks: 0, pBest: 0.5 })

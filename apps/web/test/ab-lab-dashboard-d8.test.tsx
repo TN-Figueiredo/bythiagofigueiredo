@@ -4,11 +4,10 @@ import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
-import { AB_SITE_SETTINGS_DEFAULTS } from '@/lib/youtube/ab-types'
 import { AbLabDashboard } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-lab-dashboard'
-import { ListaCaminho, type AcoesCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho'
-import { ListaErro } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-erro'
-import { makeSuggestion, makeDraft } from './helpers/ab-fixtures'
+import type { AcoesCaminho } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/lista-caminho'
+import { makeDraft } from './helpers/ab-fixtures'
+import { propsDoLab, paginaVazia, listaDe } from './helpers/ab-lab-pagina-props'
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
 vi.mock('lucide-react', () => new Proxy({} as Record<string, unknown>, {
@@ -38,42 +37,45 @@ function linha(o: Partial<LinhaDoCaminho> = {}): LinhaDoCaminho {
     fichaId: 'ficha-1', fichaEnviadaEm: dia(3), fichaCompleta: true, registro: null, labPausadoAte: null, nosso: null, impressoesPorDia: 300, ...o,
   }
 }
-const acoes = (): AcoesCaminho => ({ jaIniciei: vi.fn() } as unknown as AcoesCaminho)
-
-const base = {
-  stats: { activeTests: 0, winRate: null, completedTests: 0, winRateBase: 0, testsWon: 0 },
-  cards: [], drafts: [], completed: [], paused: [], learnings: null, channelLearnings: null,
-  suggested: [makeSuggestion({ id: 'uuid-1', title: 'Vídeo 1' })], settings: { ...AB_SITE_SETTINGS_DEFAULTS }, siteId: 's', eligibleVideos: [],
-}
-const lista = (l: LinhaDoCaminho[], a = acoes()): ReactNode => (
-  <ListaCaminho linhas={l} videoInicial={null} acoes={a} painel={() => null} />
-)
-const Bomba = (): ReactNode => { throw new Error('boom') }
-const Pendente = (): ReactNode => <p>carregando a lista</p>
+const acoes = (): AcoesCaminho => ({ jaIniciei: vi.fn(), lembrarNoComputador: vi.fn() } as unknown as AcoesCaminho)
+const com = (l: LinhaDoCaminho[], a = acoes(), o: Parameters<typeof propsDoLab>[0] = {}) => propsDoLab({ listaInicial: listaDe(l), acoesCaminho: a, ...o })
 
 beforeEach(() => { refresh.mockClear(); vi.spyOn(console, 'error').mockImplementation(() => {}) })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('AbLabDashboard: guarda D-8 nas portas reais', () => {
   it('seletor de vídeo: ficha enviada há 3 d mostra a pergunta e não abre o assistente', () => {
-    render(<AbLabDashboard {...base} listaSlot={lista([linha()])} />)
+    render(<AbLabDashboard {...com([linha()])} />)
     fireEvent.click(screen.getByRole('button', { name: 'Novo teste' }))
     fireEvent.click(screen.getByText('Escolher Vídeo 1'))
     expect(screen.queryByTestId('wizard')).toBeNull()
     expect(screen.getByText(FRASES.guarda.pergunta)).toBeTruthy()
   })
-  it('Sugeridos: o cartão abre o seletor (não o assistente) e a escolha passa pela pergunta', () => {
-    render(<AbLabDashboard {...base} listaSlot={lista([linha()])} />)
-    fireEvent.click(screen.getByRole('button', { name: /^Testar / }))
-    expect(screen.queryByTestId('wizard')).toBeNull()
-    expect(screen.queryByText(FRASES.guarda.pergunta)).toBeNull()
+  it('a guarda vale mesmo com "Vídeos do canal" recolhido (as linhas da 1ª página são registradas pela página)', () => {
+    const { container } = render(<AbLabDashboard {...com([linha()])} />)
+    expect((container.querySelector('details') as HTMLDetailsElement).open).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Novo teste' }))
+    fireEvent.click(screen.getByText('Escolher Vídeo 1'))
+    expect(screen.getByText(FRASES.guarda.pergunta)).toBeTruthy()
+  })
+  it('busca ativa que não traz o vídeo: a ficha da 1ª página segue valendo (mescla por videoId) e a pergunta aparece', async () => {
+    const outra = linha({ videoId: 'uuid-9', ytId: 'vid00000009', titulo: 'Outro', fichaId: null, fichaEnviadaEm: null })
+    const lerVideos = vi.fn(async () => ({ ok: true as const, pagina: listaDe([outra]) }))
+    vi.useFakeTimers()
+    try {
+      render(<AbLabDashboard {...com([linha()], acoes(), { lerVideos })} />)
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar vídeo' }), { target: { value: 'ba' } })
+      await act(async () => { await vi.advanceTimersByTimeAsync(400) })
+      expect(lerVideos).toHaveBeenCalled()
+    } finally { vi.useRealTimers() }
+    fireEvent.click(screen.getByRole('button', { name: 'Novo teste' }))
     fireEvent.click(screen.getByText('Escolher Vídeo 1'))
     expect(screen.queryByTestId('wizard')).toBeNull()
     expect(screen.getByText(FRASES.guarda.pergunta)).toBeTruthy()
   })
   it('ficha de 15 d ou com registro_id: abre direto com o vídeo', () => {
     for (const l of [linha({ fichaEnviadaEm: dia(15) }), linha({ fichaEnviadaEm: null })]) {
-      const r = render(<AbLabDashboard {...base} listaSlot={lista([l])} />)
+      const r = render(<AbLabDashboard {...com([l])} />)
       fireEvent.click(screen.getByRole('button', { name: 'Novo teste' }))
       fireEvent.click(screen.getByText('Escolher Vídeo 1'))
       expect(screen.getByTestId('wizard').textContent).toBe('uuid-1')
@@ -81,17 +83,18 @@ describe('AbLabDashboard: guarda D-8 nas portas reais', () => {
       r.unmount()
     }
   })
-  it('handleContinueDraft abre direto, sem a pergunta', () => {
-    const d = makeDraft({ videoId: 'uuid-1' })
-    render(<AbLabDashboard {...base} drafts={[d]} listaSlot={lista([linha()])} />)
-    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }))
+  it('"Continuar rascunho" da faixa Com você abre direto, sem a pergunta', () => {
+    const d = makeDraft({ id: 'd1', videoId: 'uuid-1', name: 'Rascunho do Vídeo 1' })
+    const pagina = paginaVazia({ comVoce: { itens: [{ tipo: 'rascunho', draftId: 'd1', titulo: 'Rascunho do Vídeo 1', passo: 2 }], vazio: null } })
+    render(<AbLabDashboard {...com([linha()], acoes(), { drafts: [d], pagina })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar rascunho' }))
     expect(screen.getByTestId('wizard')).toBeTruthy()
     expect(screen.queryByText(FRASES.guarda.pergunta)).toBeNull()
   })
   it('"Já iniciei" confirmado: a pergunta fecha e a linha relê', async () => {
     const a = acoes()
     vi.mocked(a.jaIniciei).mockResolvedValue({ ok: true, registroId: 'r', pausados: [], naoPausados: [] })
-    render(<AbLabDashboard {...base} listaSlot={lista([linha()], a)} />)
+    render(<AbLabDashboard {...com([linha()], a)} />)
     fireEvent.click(screen.getByRole('button', { name: 'Iniciar teste' }))
     fireEvent.click(screen.getByRole('button', { name: 'Já iniciei' }))
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Confirmar' })) })
@@ -101,30 +104,15 @@ describe('AbLabDashboard: guarda D-8 nas portas reais', () => {
   })
 })
 
-describe('AbLabDashboard: lista carregando ou em erro (D-8 falha aberta)', () => {
-  it('enquanto a lista carrega as portas ficam desabilitadas e nada abre', () => {
-    render(<AbLabDashboard {...base} listaSlot={<Pendente />} />)
-    expect((screen.getByRole('button', { name: 'Novo teste' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: /^Testar / }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: /Começar do zero/ }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: /^Testar / }))
-    expect(screen.queryByText('Escolher Vídeo 1')).toBeNull()
-  })
-  it('quando a lista chega as portas habilitam', () => {
-    render(<AbLabDashboard {...base} listaSlot={lista([linha()])} />)
-    expect((screen.getByRole('button', { name: 'Novo teste' }) as HTMLButtonElement).disabled).toBe(false)
-    expect((screen.getByRole('button', { name: /^Testar / }) as HTMLButtonElement).disabled).toBe(false)
-  })
-  it('com a lista em erro: portas habilitadas e abrem sem perguntar', () => {
-    render(<AbLabDashboard {...base} listaSlot={<ListaErro><Bomba /></ListaErro>} />)
+describe('AbLabDashboard: lista em erro (D-8 falha aberta)', () => {
+  it('com a lista em erro: frase de erro, portas habilitadas e abrem sem perguntar; o resto da página segue', () => {
+    const quebrada = { ...listaDe([]), contagem: undefined } as unknown as ReturnType<typeof listaDe>
+    render(<AbLabDashboard {...propsDoLab({ listaInicial: quebrada })} />)
     expect(screen.getByText(FRASES.lista.leituraFalhou)).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'A/B Lab' })).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Novo teste' }) as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Novo teste' }))
     fireEvent.click(screen.getByText('Escolher Vídeo 1'))
     expect(screen.getByTestId('wizard').textContent).toBe('uuid-1')
-  })
-  it('sem listaSlot (página sem a lista): portas habilitadas', () => {
-    render(<AbLabDashboard {...base} />)
-    expect((screen.getByRole('button', { name: 'Novo teste' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })

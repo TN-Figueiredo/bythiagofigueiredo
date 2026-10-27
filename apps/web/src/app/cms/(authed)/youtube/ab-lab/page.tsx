@@ -1,23 +1,9 @@
 import { Suspense } from 'react'
 import { getSiteContext } from '@/lib/cms/site-context'
-import {
-  getAbTestsForSite,
-  getAbSiteSettings,
-  getChannelLearnings,
-  getSuggestedVideos,
-  getEligibleVideosForPicker,
-  toCardView,
-  toDraftList,
-  computeDashboardStats,
-} from './queries'
-import { AbLabDashboard } from './_components/ab-lab-dashboard'
-import { ListaCaminhoServidor } from './_components/caminho-nativo/lista-caminho-servidor'
-import { ListaEsqueleto } from './_components/caminho-nativo/lista-esqueleto'
-import { ListaErro } from './_components/caminho-nativo/lista-erro'
 import { videoDaUrl } from './video-param'
-import { startAbTest, avisoDeVolumeDoTeste } from './actions'
-import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
+import { CorpoDoLab } from './_components/pagina/corpo-do-lab'
+import { LabEsqueleto } from './_components/pagina/lab-esqueleto'
+import { LabErro } from './_components/pagina/lab-erro'
 import { BlocoSugestoes } from './_components/bloco-sugestoes'
 import { EsqueletoDaLista } from '../competitors/_sugestoes/esqueleto'
 
@@ -28,52 +14,18 @@ export const maxDuration = 60 // F-D3: settleOnAir (teto de 55 s) corre dentro d
 
 export default async function AbLabPage({ searchParams }: { searchParams: Promise<{ video?: string | string[] }> }) {
   const { siteId } = await getSiteContext()
-  // O formato é conferido antes de qualquer leitura; a lista em si é lida pelo filho assíncrono, dentro do Suspense.
+  // O formato é conferido antes de qualquer leitura; toda a leitura mora no filho assíncrono, dentro do Suspense.
   const videoInicial = videoDaUrl((await searchParams).video)
 
-  const [tests, settings, channelLearnings, suggested, eligibleVideos] = await Promise.all([
-    getAbTestsForSite(),
-    getAbSiteSettings(),
-    getChannelLearnings(siteId),
-    getSuggestedVideos(siteId),
-    getEligibleVideosForPicker(),
-  ])
-
-  const stats = computeDashboardStats(tests.active, tests.completed)
-  const cards = tests.active.map(toCardView)
-  const completedCards = tests.completed.map(toCardView)
-  // Pausados por teste do YouTube: a frase do card segue o registro (T10); sem isso o card mostraria só a nota crua.
-  const pausas = await lerPausasYoutube(getSupabaseServiceClient(), siteId, tests.paused)
-  const pausedCards = tests.paused.map((t) => {
-    const card = toCardView(t)
-    const pausa = pausas.get(t.id)
-    return pausa ? { ...card, pausaYoutube: pausa } : card
-  })
-  const drafts = toDraftList(tests.draft)
-
   return (
-    <AbLabDashboard
-      siteId={siteId}
-      stats={stats}
-      cards={cards}
-      drafts={drafts}
-      completed={completedCards}
-      paused={pausedCards}
-      learnings={channelLearnings?.combined ?? null}
-      channelLearnings={channelLearnings}
-      suggested={suggested}
-      settings={settings}
-      eligibleVideos={eligibleVideos}
-      iniciarTeste={startAbTest}
-      avisoDeVolume={avisoDeVolumeDoTeste}
-      listaSlot={
-        <ListaErro key="lista-caminho">
-          <Suspense fallback={<ListaEsqueleto />}>
-            <ListaCaminhoServidor siteId={siteId} videoInicial={videoInicial} />
-          </Suspense>
-        </ListaErro>
-      }
-      blocoSugestoes={<Suspense fallback={<EsqueletoDaLista linhas={3} modo="bloco" />}><BlocoSugestoes /></Suspense>}
-    />
+    <LabErro>
+      <Suspense fallback={<LabEsqueleto />}>
+        <CorpoDoLab
+          siteId={siteId}
+          videoInicial={videoInicial}
+          blocoSugestoes={<Suspense fallback={<EsqueletoDaLista linhas={3} modo="bloco" />}><BlocoSugestoes /></Suspense>}
+        />
+      </Suspense>
+    </LabErro>
   )
 }

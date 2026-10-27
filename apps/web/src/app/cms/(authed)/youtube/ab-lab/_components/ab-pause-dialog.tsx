@@ -122,7 +122,7 @@ export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDia
               <p role="alert" className="m-0 text-cms-red">O teste mudou em outra aba. Reabra para decidir.</p>
             ) : (
               <>
-              <p className="m-0">Pausar vai restaurar a thumbnail original imediatamente.</p>
+              <p className="m-0">Pausar vai restaurar a miniatura original imediatamente.</p>
               <p className="m-0">O ciclo atual será fechado. Todos os dados coletados ficam preservados.</p>
               <p className="m-0">Você pode retomar a qualquer momento — o teste continua de onde parou.</p>
               </>

@@ -400,12 +400,26 @@ export interface AbTestCardView {
   leader: DisplayLabel
   leaderColor: string
   leaderThumbUrl: string | null
-  variants: Array<{ label: DisplayLabel; color: string; thumbUrl: string | null }>
+  variants: Array<{
+    id: string
+    label: DisplayLabel
+    color: string
+    thumbUrl: string | null
+    /** Título da versão: `title_text`; a original cai no `original_title`; nulo = não gravado. */
+    title: string | null
+    isOriginal: boolean
+  }>
+  /** Título do vídeo: `original_title ?? name`. */
+  videoTitle: string | null
+  /** `restore_seq` na leitura (a tela devolve como `seqVisto`). */
+  restoreSeq: number
   hasPlayoff: boolean
   roundNumber: number
   createdAt: string
   statusNote: string | null
   cycleStartedAt: string | null
+  /** `ab_tests.paused_at`: quando o teste foi pausado (nulo se nunca ou se não pausado). */
+  pausedAt: string | null
   queueStartAfter: string | null
   /** S8-F4 T11c: "Dia X/Y" de teste v2 (dias fechados com ciclo, de `estadoV2DoTeste`); ausente em v1. */
   diaV2?: { dia: number; teto: number }

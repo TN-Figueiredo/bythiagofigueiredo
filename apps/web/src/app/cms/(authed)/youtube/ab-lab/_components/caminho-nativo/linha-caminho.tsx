@@ -2,7 +2,8 @@
 // Uma linha da lista "Vídeos do A/B Lab" (F1a-tela-1, T7). Mockup M2 `index.html:344-410` (R.l1..R.l10).
 // Slots: `responder` (T10b: botão "Responder"/pergunta do dia 14 de ficha com 2 versões); o painel (ficha T8, cartão S7 T10) é da lista.
 import type { ReactElement, ReactNode } from 'react'
-import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
+import Link from 'next/link'
+import { rotuloDoDia } from '@/lib/youtube/ab-rotulo-dia'
 import { FRASES, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { pisoPorDia } from '@/lib/youtube/teste-youtube/nativo/volume'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -172,16 +173,16 @@ export function LinhaCaminho(p: LinhaCaminhoProps): ReactElement {
       selo = SEL('yt', reg?.confirmadoEm ? FRASES.s7.selo2 : FRASES.s7.selo)
       const dia = reg?.diaDe14 ?? 0
       fr = reg?.confirmadoEm
-        ? `Você confirmou em ${dataCurta(new Date(reg.confirmadoEm))}. Dia ${dia} de 14.`
-        : `Parece haver um teste no Studio: o título alterna desde ${dataCurta(new Date(reg?.primeiraVista ?? reg?.updatedAt ?? agora))}. Dia ${dia} de 14.`
+        ? `Você confirmou em ${dataCurta(new Date(reg.confirmadoEm))}. ${rotuloDoDia(dia, 14)}.`
+        : `Parece haver um teste no Studio: o título alterna desde ${dataCurta(new Date(reg?.primeiraVista ?? reg?.updatedAt ?? agora))}. ${rotuloDoDia(dia, 14)}.`
       if (l.nosso?.status === 'paused') fr2 = <PausaLinha ate={l.labPausadoAte} agora={agora} confirmado={Boolean(reg?.confirmadoEm)} />
       ra = botaoAbrir('Ver teste', 's7')
       break
     }
     case 'nosso_rodando':
-      meta = `Nosso teste em andamento: dia ${l.nosso?.dia ?? 0} de 14`
+      meta = `Nosso teste em andamento: ${l.nosso ? rotuloDoDia(l.nosso.dia, l.nosso.teto) : ''}`
       fr = 'O nosso teste alterna título e miniatura por tempo e dá um indício, não o número do Studio.'
-      ra = l.nosso ? <CmsLink href={`/cms/youtube/ab-lab/${l.nosso.testId}`} className={`${BTN}`}>Ver teste</CmsLink> : null
+      ra = l.nosso ? <Link href={`/cms/youtube/ab-lab/${l.nosso.testId}`} className={`${BTN}`} aria-label={`Ver teste de ${l.titulo}`}>Ver teste</Link> : null
       break
     case 'resultado_pronto': {
       selo = SEL('yts', 'Resultado do YouTube pronto')

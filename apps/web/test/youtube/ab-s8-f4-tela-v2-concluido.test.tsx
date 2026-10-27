@@ -150,7 +150,7 @@ describe('T12 T7: concluído v2', () => {
     // título e miniatura da opção no diálogo de troca
     const dlg = screen.getByRole('alertdialog')
     expect(dlg.textContent).toContain('Título B')
-    expect(dlg.querySelector('img[alt="Thumbnail da variante B"]')).not.toBeNull()
+    expect(dlg.querySelector('img[alt="Miniatura da versão B"]')).not.toBeNull()
     fireEvent.click(mesmoAssim); fireEvent.click(mesmoAssim)
     await waitFor(() => expect(aplicar).toHaveBeenCalledTimes(2))
     expect(aplicar).toHaveBeenNthCalledWith(2, 'v-b', 7, true)

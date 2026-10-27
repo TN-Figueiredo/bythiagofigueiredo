@@ -15,6 +15,8 @@ import {
   abrirFichaCore, salvarFichaCore, lembrarNoComputadorCore, lerFichaDoVideoCore, recomecarFichaCore,
   type FichaLida, type FichaRascunho, type ResultadoLembrar, type ResultadoLeitura,
 } from '@/lib/youtube/teste-youtube/nativo/ficha'
+import { lerPaginaDoCanal, PedidoVideosDoCanalSchema, type PaginaDoCanal } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
+import { leituraDoEditor } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { marcarStudioAbertoComCopiaCore, jaIniciouCore } from '@/lib/youtube/teste-youtube/nativo/ficha-fluxo'
 
 /** Frase provisória da exceção inesperada (o Logan fecha na F1a-tela-1). */
@@ -187,4 +189,22 @@ export async function mudarRespostaDoTesteDoYouTube(pedido: PedidoMudarRespostaD
   try {
     return await mudarRespostaDia14({ sb: getSupabaseServiceClient(), siteId: a.siteId, userId: a.userId, orgId, ...v.data, tituloVisto: v.data.tituloVisto, agora: new Date() })
   } catch (e) { return { ...falha(e, 'mudarRespostaDoTesteDoYouTube'), erro: 'falha' } }
+}
+
+export type ResultadoVideosDoCanal = { ok: true; pagina: PaginaDoCanal } | { ok: false; erro: 'sem_permissao' | 'pedido_invalido' | 'falha' }
+
+/** Só leitura: uma página de "Vídeos do canal" (busca, filtro e página). O site vem da sessão, nunca do cliente. */
+export async function lerVideosDoCanal(pedido: unknown): Promise<ResultadoVideosDoCanal> {
+  const a = await acesso()
+  if ('ok' in a) return { ok: false, erro: 'sem_permissao' }
+  const p = PedidoVideosDoCanalSchema.safeParse(pedido)
+  if (!p.success) return { ok: false, erro: 'pedido_invalido' }
+  try {
+    const leitura = await leituraDoEditor(a.siteId)
+    const pagina = await lerPaginaDoCanal(getSupabaseServiceClient(), a.siteId, new Date(), leitura, p.data)
+    return { ok: true, pagina }
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-nativo', acao: 'lerVideosDoCanal' } })
+    return { ok: false, erro: 'falha' }
+  }
 }

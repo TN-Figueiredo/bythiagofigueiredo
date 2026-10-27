@@ -21,7 +21,7 @@ vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi
 // a prova de edição (`leituraDoEditor`) que a lista repete na borda: a guarda simulada aceita
 vi.mock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: vi.fn(async () => ({ ok: true, user: { id: 'u-teste' } })) }))
 import { responderTesteDoYouTube, type PedidoRespostaDia14 } from '@/app/cms/(authed)/youtube/ab-lab/actions-nativo'
-import { lerLinhasDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
+import { lerLinhasDoCaminho } from '../helpers/linhas-do-canal'
 import { leituraDoEditor, type LeituraPrivadaDoSite } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { versoesDoDia14 } from '@/app/cms/(authed)/youtube/ab-lab/_components/caminho-nativo/dia-14-estado'
 import { prazoDoDia14, type LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'

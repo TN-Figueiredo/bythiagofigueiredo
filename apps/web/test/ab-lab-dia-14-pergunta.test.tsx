@@ -437,7 +437,7 @@ describe('LinhaCaminho: "Responder" abre a pergunta na própria linha', () => {
   it('2 versões em resultado_pronto e em sem_resposta: botão "Responder" (único .pri da linha)', () => {
     for (const e of ['resultado_pronto', 'sem_resposta'] as const) {
       const { container } = li(props(linha(e)))
-      expect(screen.getByRole('button', { name: 'Responder' }).className).toContain('pri')
+      expect(screen.getByRole('button', { name: 'Dizer o que o Studio escolheu' }).className).toContain('pri')
       expect(container.querySelectorAll('.pri')).toHaveLength(1)
       cleanup()
     }
@@ -452,7 +452,7 @@ describe('LinhaCaminho: "Responder" abre a pergunta na própria linha', () => {
   it('o clique em "Responder" pede a abertura', () => {
     const aoMudarResponder = vi.fn()
     li(props(linha('resultado_pronto'), { aoMudarResponder }))
-    fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Dizer o que o Studio escolheu' }))
     expect(aoMudarResponder).toHaveBeenCalledWith(true)
   })
   it('tabela das 5 respostas: a linha relida mostra selo e frase exatos', () => {
@@ -487,7 +487,7 @@ describe('LinhaCaminho: nenhuma linha de dia 14 sem "Responder"', () => {
     for (const [nome, o] of variantes) {
       it(`${e} com ${nome}: botão "Responder" e nenhuma frase de "próxima atualização"`, () => {
         render(<ul><LinhaCaminho {...props(linha(e, o))} /></ul>)
-        expect(screen.getByRole('button', { name: 'Responder' })).toBeTruthy()
+        expect(screen.getByRole('button', { name: 'Dizer o que o Studio escolheu' })).toBeTruthy()
         expect(document.body.textContent).not.toContain('próxima atualização')
         cleanup()
       })
@@ -508,7 +508,7 @@ describe('ListaCaminho: dia 14 pelo botão e pelo aviso (?video=)', () => {
   it('sem ?video=: só o botão "Responder"; o toque abre a pergunta na linha e a resposta sai com o pedido certo', async () => {
     lista(null)
     expect(screen.queryByRole('heading', { name: 'Qual versão venceu no Studio?' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Dizer o que o Studio escolheu' }))
     fireEvent.click(await screen.findByRole('button', { name: /B venceu/ }))
     await waitFor(() => expect(responder).toHaveBeenCalledWith(expect.objectContaining({ resposta: 'venceu_nova', n: 2, registroId: 'reg-1' })))
   })

@@ -10,7 +10,8 @@ export interface VideoDoAssistente { id: string; title: string; thumbnailUrl: st
 
 export interface ControleAssistente {
   abrirAssistente: (video: VideoDoAssistente) => void
-  registrarLinhas: (linhas: LinhaDoCaminho[]) => void
+  /** Mescla por `videoId` (o novo vence); `substituir` troca tudo (o dashboard, a cada página nova do servidor). */
+  registrarLinhas: (linhas: LinhaDoCaminho[], opcoes?: { substituir?: boolean }) => void
   /** `videoId` (uuid) da linha com a pergunta D-8 aberta. */
   perguntaAberta: string | null
   fecharPergunta: () => void
@@ -40,7 +41,16 @@ export function useControleAssistente(p: { onAbrir: (v: VideoDoAssistente) => vo
     setPergunta(null)
     onAbrir(video)
   }, [onAbrir, agora, lista])
-  const registrarLinhas = useCallback((l: LinhaDoCaminho[]): void => { linhas.current = l; setLista('pronta') }, [])
+  const registrarLinhas = useCallback((l: LinhaDoCaminho[], opcoes?: { substituir?: boolean }): void => {
+    // Mescla por videoId: uma busca ou "Mostrar mais" nunca apaga a ficha conhecida (guarda D-8). Sobra de linha velha só faz perguntar a mais.
+    if (opcoes?.substituir) linhas.current = l
+    else {
+      const mapa = new Map<string, LinhaDoCaminho>(linhas.current.map(x => [x.videoId, x]))
+      for (const x of l) mapa.set(x.videoId, x)
+      linhas.current = [...mapa.values()]
+    }
+    setLista('pronta')
+  }, [])
   const registrarErro = useCallback((): void => setLista('erro'), [])
   const fecharPergunta = useCallback((): void => setPergunta(null), [])
   const seguirComNosso = useCallback((l: LinhaDoCaminho): void => { setPergunta(null); onAbrir(videoDaLinha(l)) }, [onAbrir])

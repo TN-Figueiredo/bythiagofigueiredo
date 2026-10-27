@@ -58,7 +58,7 @@ describe('ActiveDetail abre o diálogo novo com a ação por prop', () => {
     expect(encerrar).toHaveBeenCalledWith({ destino: 'variante', varianteId: 'v2' })
     // recusa do YouTube: o diálogo fecha e o aviso de página (status) aparece, com fechar
     expect(screen.queryByRole('dialog')).toBeNull()
-    const aviso = await screen.findByText('Teste encerrado. O YouTube recusou a troca da thumbnail: veja o aviso no topo.')
+    const aviso = await screen.findByText('Teste encerrado. O YouTube recusou a troca da miniatura: veja o aviso no topo.')
     expect(aviso.closest('[role="status"]')).toBeTruthy()
     await userEvent.click(screen.getByRole('button', { name: 'Fechar aviso' }))
     expect(screen.queryByText(/O YouTube recusou a troca/)).toBeNull()

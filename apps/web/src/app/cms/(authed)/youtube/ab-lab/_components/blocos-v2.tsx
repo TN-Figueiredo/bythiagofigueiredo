@@ -217,6 +217,10 @@ export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef,
         </div>
       </div>
     )
+  } else if (tela.bloqueio === 'outro_teste' && (alvo || tela.voltar)) {
+    acoes = <p className="pv2-motivo">{MOTIVO_BLOQUEIO}</p>
+  } else if (tela.bloqueio === 'sem_leitura' && (alvo || tela.voltar)) {
+    acoes = <p className="pv2-motivo">{MOTIVO_SEM_LEITURA}</p>
   } else if (alvo) {
     acoes = canAdmin ? (
       <div className="pv2-acts">

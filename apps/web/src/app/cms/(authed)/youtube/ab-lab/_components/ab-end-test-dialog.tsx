@@ -36,7 +36,7 @@ export interface AbEndTestDialogProps {
 type Fase = 'escolha' | 'enviando' | 'sem_resposta' | 'sessao_expirada' | 'mudou'
 type Pendencia = Array<{ campo: CampoNome; valor_atual: string }>
 
-const ROTULO_CAMPO: Record<string, string> = { title: 'do título', thumbnail: 'da thumbnail' }
+const ROTULO_CAMPO: Record<string, string> = { title: 'do título', thumbnail: 'da miniatura' }
 
 export function fraseDoAviso(campos: Array<'title' | 'thumbnail'>): string {
   const partes = (['title', 'thumbnail'] as const).filter(c => campos.includes(c)).map(c => ROTULO_CAMPO[c]!)
@@ -174,7 +174,7 @@ export function AbEndTestDialog(props: AbEndTestDialogProps) {
       onAviso?.(!r.ok && r.resultado === 'mudou'
         ? 'O teste mudou em outra aba antes de encerrar. Nada foi alterado.'
         : r.ok
-        ? 'O teste ainda não foi encerrado: o título ou a thumbnail foi alterado no YouTube por fora. Clique em Encerrar de novo para escolher o que fica no vídeo.'
+        ? 'O teste ainda não foi encerrado: o título ou a miniatura foi alterado no YouTube por fora. Clique em Encerrar de novo para escolher o que fica no vídeo.'
         : `O teste ainda não foi encerrado: ${textoDoErro(r, 'encerrar')}`)
       router.refresh()
       return
@@ -310,7 +310,7 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
               <div className="etd-msg warn">{ICONE_AVISO}<div>Encerrar à mão tira o teste da decisão: o resultado não será calculado.</div></div>
             ) : null}
             {enviando ? (
-              <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Trocando título e thumbnail no YouTube</strong>Pode levar até 1 minuto. Se fechar, o resultado aparece no topo da página.</div></div>
+              <div className="etd-msg busy" role="status">{ICONE_BUSY}<div><strong>Trocando título e miniatura no YouTube</strong>Pode levar até 1 minuto. Se fechar, o resultado aparece no topo da página.</div></div>
             ) : null}
             {semResposta ? (
               <div className="etd-msg err" role="alert">{ICONE_ERRO}<div><strong>Sem resposta</strong>Não sabemos se o encerramento foi feito. Recarregue a página para ver o resultado.</div></div>

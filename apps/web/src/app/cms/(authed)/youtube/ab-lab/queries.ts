@@ -478,6 +478,9 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
   const confidence: number | null = null
 
   const variants = test.variants.map(v => ({
+    id: v.id,
+    isOriginal: v.is_original,
+    title: v.title_text ?? (v.is_original ? test.original_title ?? null : null),
     label: toDisplayLabel(v.label, v.is_original),
     color: variantColor(v.label, v.is_original),
     thumbUrl: v.blob_url ?? (v.is_original ? test.original_thumbnail_url : null),
@@ -501,11 +504,14 @@ export function toCardView(test: AbTestWithVariants): AbTestCardView {
     leaderColor: variantColor(leaderVariant?.label ?? 'original', leaderIsOriginal),
     leaderThumbUrl,
     variants,
+    videoTitle: test.original_title ?? test.name ?? null,
+    restoreSeq: test.restore_seq ?? 0,
     hasPlayoff: !!test.playoff_test_id,
     roundNumber: test.round_number,
     createdAt: test.created_at,
     statusNote: test.status_note ?? null,
     cycleStartedAt: test.current_cycle?.started_at ?? null,
+    pausedAt: test.paused_at ?? null,
     queueStartAfter: test.queue_start_after ?? null,
     ...camposV2DoCartao(test),
   }
@@ -1089,9 +1095,9 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ? { label: toDisplayLabel(varNoAr.label, varNoAr.is_original), desde: ultimoFechado.started_at ?? null }
     : null
 
-  // Aplicação desfeita (selo depois do Voltar): "Aplicar de novo" só sem outro teste aberto no vídeo. Só na v2. Falha na leitura = 'sem_leitura' (sem botão, motivo próprio, Sentry).
+  // Concluído v2 (aplicar, voltar, aplicar de novo): os controles só sem outro teste aberto no vídeo. Só na v2. Falha na leitura = 'sem_leitura' (sem botão, motivo próprio, Sentry).
   let outroTesteAberto: boolean | 'sem_leitura' = false
-  if (regraDoTeste(test) === 'v2' && test.status === 'completed' && test.winner_variant_id !== null && test.winner_applied_at === null) {
+  if (regraDoTeste(test) === 'v2' && test.status === 'completed') {
     try {
       const outro = await getSupabaseServiceClient().from('ab_tests').select('id')
         .eq('site_id', test.site_id).eq('youtube_video_id', test.youtube_video_id).neq('id', test.id)

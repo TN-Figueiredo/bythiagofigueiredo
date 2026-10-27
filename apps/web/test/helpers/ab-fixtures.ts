@@ -62,12 +62,14 @@ export function makeCardView(overrides?: Partial<AbTestCardView>): AbTestCardVie
     dayOf: 5, confidence: 88, lift: 12.3, leader: 'B', leaderColor: '#E8823C',
     leaderThumbUrl: 'https://blob.vercel-storage.com/thumb-b.jpg',
     variants: [
-      { label: 'A', color: '#8A8F98', thumbUrl: 'https://img.youtube.com/vi/test/hqdefault.jpg' },
-      { label: 'B', color: '#E8823C', thumbUrl: 'https://blob.vercel-storage.com/thumb-b.jpg' },
+      { id: 'v-a', label: 'A', color: '#8A8F98', thumbUrl: 'https://img.youtube.com/vi/test/hqdefault.jpg', title: null, isOriginal: true },
+      { id: 'v-b', label: 'B', color: '#E8823C', thumbUrl: 'https://blob.vercel-storage.com/thumb-b.jpg', title: null, isOriginal: false },
     ],
+    videoTitle: null, restoreSeq: 0,
     hasPlayoff: false, roundNumber: 1, createdAt: new Date().toISOString(),
     statusNote: null,
     cycleStartedAt: new Date(Date.now() - 3600000).toISOString(),
+    pausedAt: null,
     queueStartAfter: null,
     ...overrides,
   }

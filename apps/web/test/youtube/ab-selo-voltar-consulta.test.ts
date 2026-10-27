@@ -103,12 +103,13 @@ describe('P6: consulta "outro teste aberto" do detalhe', () => {
     expect(d.v2 && d.v2.fase === 'concluido' && d.v2.aplicarDeNovo).toBeNull()
     expect(captura).toHaveBeenCalledWith(expect.anything(), { tags: { area: 'ab-lab-detalhe' } })
   })
-  it('portão: com a aplicação feita (winner_applied_at) a consulta nem roda', async () => {
+  // M7 T14 Gio D1: Aplicar/Voltar também escrevem no ciclo do vídeo, então a consulta roda em todo concluído v2.
+  it('com a aplicação feita (winner_applied_at) a consulta roda (o Voltar precisa dela)', async () => {
     await detalhe({ winner_applied_at: dias(1) })
-    expect(consultaOutro()).toHaveLength(0)
+    expect(consultaOutro()).toHaveLength(1)
   })
-  it('portão: teste não concluído ou sem vencedor não consulta', async () => {
+  it('concluído sem vencedor aplicado (sugerida por aplicar) também consulta', async () => {
     await detalhe({ winner_variant_id: null })
-    expect(consultaOutro()).toHaveLength(0)
+    expect(consultaOutro()).toHaveLength(1)
   })
 })

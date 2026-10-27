@@ -48,6 +48,8 @@ export interface ListaCaminhoProps {
   painel: SlotPainel
   responder?: SlotResponder
   agora?: () => Date
+  /** Padrão `true`. Com `false` somem o resumo, os cabeçalhos de grupo e a linha de contagem (a página nova põe os dela). */
+  agrupar?: boolean
 }
 
 const CHAVE_CONTAGEM = 'ab-lab:linhas'
@@ -77,7 +79,7 @@ function abertaInicial(linhas: LinhaDoCaminho[], yt: string | null): { aberta: A
   return { aberta: null, achada }
 }
 
-export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, agora }: ListaCaminhoProps): ReactElement {
+export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, agora, agrupar = true }: ListaCaminhoProps): ReactElement {
   const ctrl = useContext(ContextoAssistente)
   const relogio = useMemo(() => agora ?? (() => new Date()), [agora])
   const inicial = useRef(abertaInicial(linhas, videoInicial))
@@ -247,26 +249,32 @@ export function ListaCaminho({ linhas, videoInicial, acoes, painel, responder, a
 
   return (
     <section className="cn-raiz" aria-label="Vídeos do A/B Lab" ref={raiz}>
-      <p className="cn-sum">
-        {resumo.frase}
-        {resumo.apoio ? <small>{resumo.apoio}</small> : null}
-      </p>
+      {agrupar ? (
+        <p className="cn-sum">
+          {resumo.frase}
+          {resumo.apoio ? <small>{resumo.apoio}</small> : null}
+        </p>
+      ) : null}
       {haEscolha ? <p className="cn-meta" role="status">{FRASES.lista.caminhoTrocado.frase}</p> : null}
       <p className="cn-sr" role="status" data-testid="anuncio-dia-14">{anuncio}</p>
       <div className="cn-lista">
-        <div className="cn-lhd">
-          <span>{total === 1 ? '1 vídeo' : `${total} vídeos`}</span>
-          <span>{g.precisaDeVoce.length > 0 ? 'Primeiro o que espera resposta, depois os mais recentes' : 'Ordem: mais recentes'}</span>
-        </div>
-        {g.precisaDeVoce.length > 0 ? (
+        {agrupar ? (
+          <div className="cn-lhd">
+            <span>{total === 1 ? '1 vídeo' : `${total} vídeos`}</span>
+            <span>{g.precisaDeVoce.length > 0 ? 'Primeiro o que espera resposta, depois os mais recentes' : 'Ordem: mais recentes'}</span>
+          </div>
+        ) : null}
+        {agrupar && g.precisaDeVoce.length > 0 ? (
           <>
             <div className="cn-grp-h" data-testid="grupo"><span>Precisa de você</span><span>{contagem(g.precisaDeVoce.length)}</span></div>
             <ul className="cn-grupo" aria-label="Precisa de você" style={{ listStyle: 'none', margin: 0, padding: 0 }}>{g.precisaDeVoce.map(renderLinha)}</ul>
             <div className="cn-grp-h" data-testid="grupo"><span>Outros vídeos</span><span>{contagem(g.outros.length)}</span></div>
           </>
         ) : null}
-        <ul className="cn-grupo" aria-label="Outros vídeos" style={{ listStyle: 'none', margin: 0, padding: 0 }}>{g.outros.map(renderLinha)}</ul>
-        <p className="cn-rodape">{FRASES.lista.rodape}</p>
+        <ul className="cn-grupo" aria-label={agrupar ? 'Outros vídeos' : 'Vídeos do canal'} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {(agrupar ? g.outros : [...g.precisaDeVoce, ...g.outros]).map(renderLinha)}
+        </ul>
+        {agrupar ? <p className="cn-rodape">{FRASES.lista.rodape}</p> : null}
       </div>
     </section>
   )

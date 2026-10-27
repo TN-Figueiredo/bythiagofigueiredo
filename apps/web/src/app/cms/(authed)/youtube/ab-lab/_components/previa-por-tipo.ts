@@ -47,5 +47,5 @@ export function descricaoDaPrevia(tipo: TestType, quantas: number): string {
   const todas = quantas >= 3 ? 'três' : 'duas'
   if (tipo === 'title') return `Neste teste só o título muda: a miniatura é a mesma nas ${todas}.`
   if (tipo === 'thumbnail') return `Neste teste só a thumbnail muda: o título é o mesmo nas ${todas}.`
-  return 'Neste teste o título e a thumbnail mudam juntos.'
+  return 'Neste teste o título e a miniatura mudam juntos.'
 }
