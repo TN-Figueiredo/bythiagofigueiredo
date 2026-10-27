@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Escolher a versão (mockup M7b r4)</title>
+<style>
+/* Mockup M7b r4 (27/10/2026). Base: mockup M7 r5 (mesmos tokens e painel "O que fica no vídeo?").
+   Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS (miniaturas são gradientes).
+   Seletor por URL: ?estado=a|b|c|d|d2|d3a|d3b|d3c|e|f|f2|g2|h|i|j|k|k2&largura=1440|390 */
+*,*::before,*::after{box-sizing:border-box}
+:root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
+html{background:var(--pg)}
+body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--pgt);background:var(--pg)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;background:var(--pgs);border-bottom:1px solid var(--pgb)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--pgm);flex-wrap:wrap}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #40382D;border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:44px;padding:0 11px;border:0;background:transparent;color:var(--pgm);cursor:pointer}
+.seg button[aria-pressed="true"]{background:#F5EFE6;color:#100E0C;font-weight:600}
+.note{max-width:92ch;color:var(--pgm);font-size:13px;margin:14px 16px 0}
+.stage{padding:16px;overflow-x:auto}
+.stage.s390{overflow:visible}
+.ctl select{font:inherit;font-size:14px;min-height:44px;max-width:calc(100vw - 100px);text-overflow:ellipsis;padding:0 10px;border:1px solid #40382D;border-radius:6px;background:var(--pg);color:var(--pgt)}
+@media (max-width:420px){.stage{padding:8px 0}}
+
+.frame{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
+  --border:#332D25;--border-strong:#40382D;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;
+  --accent:#FF8240;--on-accent:#1A120A;
+  --ok:#6FCF97;--ok-bg:rgba(111,207,151,.10);--ok-line:#3E8F63;
+  --err:#F4A097;--err-line:#B85A50;--err-bg:rgba(244,160,151,.08);
+  --warn:#E8C170;--warn-line:#B8923F;--warn-bg:rgba(232,193,112,.08);--accent-wait:#7A4A31;--border-disabled:#7A6E5B;--border-sug:#6A5F4E;
+  --yt:#9FB4C9;--yt-bg:rgba(159,180,201,.10);--yt-line:#6B8199;
+  background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;
+  border:1px solid var(--border);border-radius:10px;padding:32px 24px 56px;margin:0 auto}
+.frame.w1440{width:1440px}.frame.w390{width:min(390px,100%);padding:16px 12px 40px}
+.page{max-width:1010px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.frame :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+:where(.frame) :where(h1,h2,h3,p){margin:0}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.num{font-variant-numeric:tabular-nums}
+.meta{font-size:12px;color:var(--muted)}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:8px 16px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);color:var(--text);font:500 14px/18px Inter,system-ui,sans-serif;cursor:pointer;text-align:center}
+.btn.reg{background:var(--text);border-color:var(--text);color:#1A1714;font-weight:600}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+.btn.ghost{background:transparent}
+.btn.txt{border-color:transparent;background:transparent;color:var(--muted);padding:0 10px}
+.btn.wait,.btn.wait:hover{background:var(--accent-wait);border-color:var(--accent-wait);color:#F5EFE6;cursor:progress}
+.btn[disabled]:not(.wait){background:var(--surface-2);border-color:var(--border-disabled);color:#A89D88;opacity:1;cursor:not-allowed;font-weight:500}
+
+/* painel */
+.dlg{background:var(--surface);border:1px solid var(--border-strong);border-radius:16px;width:600px;max-width:100%;margin:0 auto;padding:20px 20px 16px}
+.dh{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.dh h2{font:600 20px/1.3 Georgia,serif}
+.dh .meta{margin-top:2px}
+.xb{min-width:44px;padding:0;margin:-6px -8px 0 0}
+.frase{margin-top:18px;font:600 18px/1.4 Georgia,serif;text-wrap:balance}
+.fixa{margin-top:4px;font-size:12px;color:var(--muted)}
+.opts{display:flex;flex-direction:column;gap:8px;margin-top:14px;border:0;padding:0;min-width:0}
+.opt{display:grid;grid-template-columns:20px 72px minmax(0,1fr);gap:6px 12px;align-items:start;min-height:56px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--sunk);cursor:pointer;color:var(--text);width:100%}
+.opt:has(input:checked){border-color:var(--accent);background:rgba(255,130,64,.08)}
+.opt:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.opt input{width:20px;height:20px;margin:12px 0 0;accent-color:#FF8240}
+.opt.lock{cursor:progress}
+.th{border-radius:6px;aspect-ratio:16/9;flex:none;position:relative;overflow:hidden}
+.th.falha{background:#272219;border:1px solid var(--border-strong);display:grid;place-items:center;color:var(--muted)}
+.th.falha .ic{width:20px;height:20px}
+.th.falha::after{display:none}
+.th::after{content:"";position:absolute;right:5px;bottom:5px;width:22px;height:16px;border-radius:3px;background:rgba(255,255,255,.28)}
+.opt .th{width:72px;margin-top:2px}
+.g1{background:linear-gradient(135deg,#1F3B2E,#3F7A55 55%,#8DB69A)}
+.g2{background:linear-gradient(135deg,#5B2A1A,#C2562E 60%,#E8A15A)}
+.g3{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+.g5{background:linear-gradient(135deg,#5B3A86,#9A74C9 60%,#D8C2F0)}
+.gv{background:linear-gradient(135deg,#1F4E79,#3B8EC4 60%,#9BD0EE)}
+.g6{background:linear-gradient(135deg,#443B30,#7A6B55 60%,#B5A688)}
+.ot{min-width:0;display:flex;flex-direction:column;gap:4px}
+.ot .nm{display:flex;gap:8px;align-items:center;font:600 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted)}
+.ot .nm .ch{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;font:700 13px/1 Inter,system-ui,sans-serif;background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text)}
+.ot .tt{font:600 14px/1.35 Inter,system-ui,sans-serif;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:calc(2*1.35em)}
+.tags{display:flex;gap:6px;flex-wrap:wrap;grid-column:3}
+.selo{display:inline-flex;align-items:center;height:24px;gap:6px;padding:2px 9px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--border-strong);color:var(--muted);white-space:nowrap}
+.selo .ic{width:14px;height:14px}
+.selo.dia{border-color:var(--ok-line);color:var(--ok)}
+.selo.sug{border-color:var(--border-sug);color:var(--text)}
+.selo.esc{border-color:var(--yt-line);color:var(--yt);background:var(--yt-bg)}
+.nao{color:var(--dim)}
+.selo.ult{border-color:var(--border-strong);color:var(--muted);border-style:dashed}
+/* Sai / Entra */
+.troca{margin-top:14px;border:1px solid var(--border-strong);border-radius:10px;background:var(--sunk);padding:12px}
+.troca .par{display:grid;grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr);gap:10px;align-items:center}
+.troca .lado{display:flex;gap:10px;align-items:flex-start;min-width:0}
+.troca .lado .th{width:64px}
+.troca .lado .tx{min-width:0;display:flex;flex-direction:column;gap:2px}
+.troca .lado .k{font:700 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted)}
+.troca .lado.in .k{color:var(--accent)}
+.troca .lado .t{font:500 13px/1.35 Inter,system-ui,sans-serif;overflow-wrap:anywhere}
+.troca .seta{color:var(--dim)}
+.troca .linha{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--muted)}
+.troca .linha .ic{margin-top:2px;color:var(--dim)}
+.sem{margin-top:16px;display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--muted)}
+.sem .ic{margin-top:2px;color:var(--dim)}
+.aviso.err{margin-top:14px;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;border:1px solid var(--err-line);background:var(--err-bg);color:var(--err);font-size:13px}
+.aviso.err .ic{margin-top:2px}
+.aviso.err b{display:block;font-weight:600}
+.aviso.err span{color:var(--muted)}
+.aviso.err:focus{outline:2px solid var(--err);outline-offset:2px}
+.aviso.err.inc{border-color:var(--warn-line);background:var(--warn-bg);color:var(--warn)}
+.espera{margin-top:12px;font-size:13px;color:var(--muted)}
+.feito{display:flex;gap:12px;align-items:flex-start;margin-top:14px;padding:12px;border:1px solid var(--ok-line);background:var(--ok-bg);border-radius:10px;font-size:14px}
+.feito .ic{color:var(--ok);margin-top:3px}
+.dact.solo .btn{min-width:120px}
+.dact{display:flex;gap:10px;flex-direction:row-reverse;justify-content:flex-start;flex-wrap:wrap;margin-top:16px}
+
+/* Concluídos */
+.sh{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.sh h2{font:600 18px/1.3 Georgia,serif}
+.sh .meta{margin-left:auto}
+.box{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:4px 16px}
+.cl{display:flex;gap:14px;align-items:center;min-height:68px;padding:10px 28px 10px 0;position:relative;color:inherit;text-decoration:none}
+.cl:hover{background:var(--surface-2)}
+.cl .chev{position:absolute;right:0;top:50%;margin-top:-8px;color:var(--muted)}
+.abre{font:600 11px/1.3 Inter,system-ui,sans-serif;color:var(--pgm);border:1px dashed #6A5F4E;border-radius:4px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+.dica{margin:-4px 0 10px;font-size:12px;color:var(--muted)}
+.cl+.cl{border-top:1px solid var(--border)}
+.cl .th{width:96px}
+.cl .tx{flex:1;min-width:0}
+.cl .tx b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font:500 14px/1.35 Inter,system-ui,sans-serif}
+.cl .tx span{font-size:12px;color:var(--muted)}
+.cl .res{display:flex;flex-direction:column;gap:6px;align-items:flex-end;max-width:400px}
+.cl .res div{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+
+@keyframes giro{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:no-preference){.spin{animation:giro 1s linear infinite}}
+@container (max-width:700px){
+  .dlg{padding:16px 12px 0;border-radius:16px}
+  .dh h2{font-size:18px}
+  .frase{font-size:16px}
+  .opt{grid-template-columns:20px 56px minmax(0,1fr);gap:6px 10px;padding:10px}
+  .opt .th{width:56px}.opt input{margin-top:6px}
+  .tags{grid-column:2 / -1}
+  .troca{padding:10px}
+  .troca .par{grid-template-columns:minmax(0,1fr);gap:8px}
+  .troca .seta{display:none}
+  .troca .lado{gap:8px;align-items:center}
+  .troca .lado .th{width:40px}
+  .dact{position:sticky;bottom:0;margin:14px -12px 0;padding:12px 12px calc(12px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--border-strong);border-radius:0 0 16px 16px;flex-wrap:nowrap}
+  .dact .btn{flex:1 1 0;min-width:0}
+  .dact .btn.ghost{flex:0 0 auto}
+  .dact.solo{position:static;margin:14px 0 0;padding:0 0 12px;background:none;border-top:0;border-radius:0}
+  .dact.solo .btn{flex:1 1 0}
+  .cl{flex-wrap:wrap}.cl .th{width:72px}.cl .tx{flex-basis:calc(100% - 90px)}
+  .cl .tx b{-webkit-line-clamp:3}
+  .cl .res{flex-basis:100%;align-items:flex-start;max-width:none}
+  .cl .res div{justify-content:flex-start}
+}
+.r1{margin:14px 16px 0;max-width:92ch;border:1px solid #40382D;border-radius:8px;padding:10px 14px;background:var(--pgs);font-size:13px;color:var(--pgm)}
+.r1 b{color:var(--pgt)}.r1 ul{margin:6px 0 0;padding-left:18px}
+</style></head>
+<body>
+<div class="ctl">
+  <div class="grp"><label for="selE">Estado</label><select id="selE"></select></div>
+  <div class="grp">Largura <span class="seg" id="segL" role="group" aria-label="Largura"><button data-v="1440">1440</button><button data-v="390">390</button></span></div>
+</div>
+<details class="r1"><summary>Decisões do controlador (r1 a r4)</summary><b>r1 (27/10).</b><ul>
+<li>Sem diálogo: ao marcar uma versão diferente da que está no ar, “Sai / Entra” aparece no painel e o botão leva o nome da versão.</li>
+<li>Verbo único “Deixar X no ar”. A original no ar tem “Manter a original (A)”, que só guarda a escolha.</li>
+<li>Selo “Escolhida por você” só na versão no ar que não é a sugerida nem a original. Sem âmbar.</li></ul>
+<b>r2.</b><ul>
+<li>390 px: miniatura 56x32 à esquerda, selos em linha própria, Sai/Entra compacto, avisos numa linha, rodapé de ações fixo (primário primeiro no DOM).</li>
+<li>Laranja só escreve no YouTube. “Sugerida” e “Fechar” neutros; “Manter a original” é neutro claro. Desabilitado é cinza.</li>
+<li>Inconclusivo: marcar a original (A) também guarda a decisão (estado f2). g fundido em i.</li>
+<li>Concluídos com selos; teste de título com a mesma miniatura; estado j: imagem que falha ao carregar.</li></ul>
+<b>r3.</b><ul><li>Aviso de falha no topo do painel; reaberto depois de decidir (k, k2); Concluídos com no máximo 2 selos; d2 (não deu para confirmar) com “Conferindo…”.</li></ul>
+<b>r4.</b><ul>
+<li>k e k2: A marcada, selos “No ar agora” + “Mantida por você”; ramo morto apagado.</li>
+<li>c e d2: frase “Conferindo o que está no ar. Última leitura: B desde 26/10.” e selo “No ar na última leitura” (tracejado). Âmbar só no estado “incerto” (tokens --warn*), com ícone de relógio.</li>
+<li>d3a/d3b/d3c: as 3 saídas de “Conferindo…” (C entrou, B seguiu, releitura falhou). Nunca repete a troca sozinho.</li>
+<li>Concluídos: linha inteira é link com seta; a etiqueta tracejada “abre: X” é só anotação do mockup.</li>
+<li>c: a frase “Está demorando” só aparece após 15 s (aqui já visível). “Guardado” logo abaixo da frase. Spinner gira (sem movimento reduzido fica parado). Rodapé só com “Fechar” não fica fixo a 390.</li></ul></details>
+<p class="note" id="nota"></p>
+<div class="stage" id="stage"><div class="frame w1440" id="frame"><div class="page" id="page"></div></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="i-ok" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5"/></symbol>
+ <symbol id="i-dot" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="currentColor"/></symbol>
+ <symbol id="i-x" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/></symbol>
+ <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v3.6M8 5.2v.1"/></symbol>
+ <symbol id="i-star" viewBox="0 0 16 16"><path d="M8 2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.2 4.4 13.1l.7-4L2.2 6.3l4-.6z"/></symbol>
+ <symbol id="i-user" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.6"/><path d="M3 13.5c.6-2.6 2.6-3.8 5-3.8s4.4 1.2 5 3.8"/></symbol>
+ <symbol id="i-arrow" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></symbol>
+ <symbol id="i-tri" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.6M8 10.8v.1"/></symbol>
+ <symbol id="i-img" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.6"/><path d="M2.6 11l3-3 2.2 2.2M9.4 9.2l1.4-1.4 2.6 2.6M11 5.8v.1"/><path d="M13.6 2.4l-11 11"/></symbol>
+ <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.4"/></symbol>
+ <symbol id="i-off" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M3.8 12.2l8.4-8.4"/></symbol>
+ <symbol id="i-chev" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5"/></symbol>
+ <symbol id="i-spin" viewBox="0 0 16 16"><path d="M8 2a6 6 0 1 0 6 6"/></symbol>
+</svg>
+<script>
+const I=(n,c='ic')=>`<svg class="${c}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const NOME='Quanto custa viver em Bangkok com R$ 3 mil por mês (sem enrolação)';
+const V={
+ A:{l:'A',t:NOME,g:'g6',orig:true},
+ B:{l:'B',t:'Morei 30 dias em Bangkok com R$ 3 mil: o que realmente sobrou no fim',g:'g2'},
+ C:{l:'C',t:'Bangkok barata de verdade? Anotei cada gasto por 30 dias',g:'g3'}
+};
+const CTR={norm:{A:'3,9%',B:'5,2%',C:'4,4%'},inc:{A:'4,1%',B:'4,3%',C:null}};
+const num=s=>s==null?null:parseFloat(s.replace(',','.'));
+/* estado: ar = versão no ar; sug = sugerida (ou null); sel = marcada; fase = normal|busy|erro|guardado */
+const E={
+ a:{r:'Concluído · vencedora B · B no ar (nada a fazer)',ar:'B',sug:'B',sel:'B',since:'26/10',ctr:'norm'},
+ b:{r:'Mesmo teste, C marcada (Sai/Entra)',ar:'B',sug:'B',sel:'C',since:'26/10',ctr:'norm'},
+ c:{r:'Escrevendo no YouTube (a frase “Está demorando” só aparece após 15 s; antes só o botão)',ar:'B',sug:'B',sel:'C',since:'26/10',ctr:'norm',fase:'busy'},
+ d:{r:'Falha da escrita',ar:'B',sug:'B',sel:'C',since:'26/10',ctr:'norm',fase:'erro'},
+ e:{r:'C no ar, escolhida por você',ar:'C',sug:'B',sel:'C',since:'27/10',ctr:'norm',por:true},
+ f:{r:'Inconclusivo, sem pré-seleção',ar:'A',sug:null,sel:null,ctr:'inc',inc:true},
+ f2:{r:'Inconclusivo: original mantida (guardado)',ar:'A',sug:null,sel:'A',ctr:'inc',inc:true,fase:'guardado'},
+ g2:{r:'Guardado: original mantida (com sugerida)',ar:'A',sug:'B',sel:'A',ctr:'norm',fase:'guardado'},
+ i:{r:'Vencedora B, A no ar, B pré-marcada (marque A para Manter a original)',ar:'A',sug:'B',sel:'B',ctr:'norm'},
+ d2:{r:'Não deu para confirmar (tempo-limite / conexão caiu): conferindo',ar:'B',sug:'B',sel:'C',since:'26/10',ctr:'norm',fase:'incerto'},
+ d3a:{r:'Saída 1 de “Conferindo…”: a releitura mostra que a C entrou (vai a e)',ar:'C',sug:'B',sel:'C',since:'agora',ctr:'norm',por:true},
+ d3b:{r:'Saída 2: a releitura mostra que a B segue no ar (volta ao estado d, com “Tentar de novo”)',ar:'B',sug:'B',sel:'C',since:'26/10',ctr:'norm',fase:'erro',conferido:true},
+ d3c:{r:'Saída 3: a própria releitura falhou após ~15 s (só Fechar; nunca repete a troca sozinho)',ar:'B',sug:'B',sel:'C',since:'26/10',ctr:'norm',fase:'semrede'},
+ k:{r:'Reaberto depois de decidir: original mantida, B sugerida',ar:'A',sug:'B',sel:'A',ctr:'norm',decidido:true},
+ k2:{r:'Reaberto depois de decidir (inconclusivo): original mantida',ar:'A',sug:null,sel:'A',ctr:'inc',inc:true,decidido:true},
+ j:{r:'Imagem da miniatura falha ao carregar',ar:'B',sug:'B',sel:'C',since:'26/10',ctr:'norm',falha:true},
+ h:{r:'Linhas dos Concluídos. Tocar na linha abre o painel do teste: e (C no ar), k (já decidiu, original mantida), a (B no ar), k2 (já decidiu, sem diferença). Se ainda não decidiu: a, b ou i.',lista:true}
+};
+const q=new URLSearchParams(location.search);
+let est=E[q.get('estado')]?q.get('estado'):'a', larg=q.get('largura')==='390'?'390':'1440';
+let sel=null;
+
+function frase(S){
+ if(S.fase==='busy'||S.fase==='incerto')return `Conferindo o que está no ar. Última leitura: ${S.ar} desde ${S.since}.`;
+ if(S.fase==='semrede')return `Não deu para conferir o que está no ar. Última leitura: ${S.ar} desde ${S.since}.`;
+ if(S.fase==='guardado'||S.decidido)return S.sug?'Você manteve a original (A). O teste sugeria a B.':'Você manteve a original (A). O teste não mostrou diferença clara.';
+ if(S.inc)return 'O teste não mostrou diferença clara. O vídeo está com a original (A). Escolha qual fica.';
+ if(S.ar===S.sug)return `A versão ${S.sug} está no ar desde ${S.since}.`;
+ if(S.ar==='A')return `O teste sugeriu a versão ${S.sug}. O vídeo está com a original (A).`;
+ return `Você deixou a versão ${S.ar} no ar desde ${S.since}. O teste sugeria a ${S.sug}.`;
+}
+const th=(S,k,x='')=>S.falha?`<span class="th falha" aria-label="Miniatura não carregou" role="img">${I('img')}</span>`:`<span class="th gv" aria-hidden="true"></span>`;
+function opcao(S,k,sel,lock){
+ const v=V[k],c=CTR[S.ctr][k],tg=[];
+ const ult=S.fase==='busy'||S.fase==='incerto'||S.fase==='semrede';
+ if(k===S.ar)tg.push(ult?`<span class="selo ult">${I('clock')}No ar na última leitura</span>`:`<span class="selo dia">${I('dot')}No ar agora</span>`);
+ if(k===S.sug)tg.push(`<span class="selo sug">${I('star')}Sugerida pelo teste</span>`);
+ else if(k===S.ar&&S.por&&!v.orig)tg.push(`<span class="selo esc">${I('user')}Escolhida por você</span>`);
+ else if(k===S.ar&&S.decidido&&v.orig)tg.push(`<span class="selo esc">${I('user')}Mantida por você</span>`);
+ const ctr=c?`CTR ${c}`:`<span class="nao">CTR não medido</span>`;
+ return `<label class="opt ${lock?'lock':''}"><input type="radio" name="ver" value="${k}" ${sel===k?'checked':''} ${lock?'disabled':''}>
+ ${th(S,k)}
+ <span class="ot"><span class="nm"><span class="ch" aria-hidden="true">${k}</span>${v.orig?'Original':'Versão '+k} · <span class="num">${ctr}</span></span>
+ <span class="tt">${v.t}</span></span>${tg.length?`<span class="tags">${tg.join('')}</span>`:''}</label>`;
+}
+function lado(S,k,rot,cls){const v=V[k];return `<div class="lado ${cls}">${th(S,k)}<span class="tx"><span class="k">${rot}</span><span class="t">${v.t}</span></span></div>`}
+function painel(S){
+ const sel2=sel!==null?sel:S.sel, lock=S.fase==='busy'||S.fase==='guardado'||S.fase==='incerto'||S.fase==='semrede';
+ const opts=['A','B','C'].map(k=>opcao(S,k,sel2,lock)).join('');
+ let meio='',acao='',topo='';
+ const diverge=sel2&&sel2!==S.ar;
+ const fechar=`<button class="btn ghost" type="button">Fechar</button>`;
+ if(S.fase==='guardado'){
+  topo=`<div class="feito" role="status">${I('ok')}<div><b>Guardado.</b> O vídeo continua com a original (A). O teste sai da lista do que espera você.</div></div>`;
+  acao=fechar;
+ }else if(sel2==='A'&&S.ar==='A'&&S.decidido){
+  meio=`<p class="sem">${I('info')}<span>Sua escolha está guardada. Marque outra versão só se quiser mudar o vídeo.</span></p>`;
+  acao=fechar;
+ }else if(sel2==='A'&&S.ar==='A'){
+  meio=`<p class="sem">${I('info')}<span>O vídeo continua como está. Guardamos que você escolheu a original e o teste sai da lista do que espera você.</span></p>`;
+  acao=`<button class="btn reg" type="button">Manter a original (A)</button>`+fechar;
+ }else if(!diverge){
+  meio=sel2?`<p class="sem">${I('ok')}<span>Nada a fazer: a versão ${sel2} já está no ar.</span></p>`:'';
+  acao=sel2||S.decidido?fechar:`<button class="btn pri" type="button" disabled>Deixar no ar</button>`+fechar;
+ }else{
+  const ce=num(CTR[S.ctr][sel2]),ca=num(CTR[S.ctr][S.ar]),p=[];
+  if(S.sug&&sel2!==S.sug)p.push(`O teste sugeria a ${S.sug}.`);
+  if(S.sug&&ce!=null&&ca!=null&&ce<ca)p.push(`Esta versão teve CTR menor (${CTR[S.ctr][sel2]} contra ${CTR[S.ctr][S.ar]}).`);
+  if(CTR[S.ctr][sel2]==null)p.push('CTR não medido para esta versão.');
+  meio=`<div class="troca" aria-label="O que muda no YouTube"><div class="par">${lado(S,S.ar,'Sai','out')}<span class="seta">${I('arrow')}</span>${lado(S,sel2,'Entra','in')}</div>${p.length?`<div class="linha">${I('info')}<span>${p.join(' ')}</span></div>`:''}</div>`;
+  if(S.fase==='erro')topo=`<div class="aviso err" id="avs" tabindex="-1" role="alert">${I('tri')}<div><b>Não consegui deixar a ${sel2} no ar.</b><span>${S.conferido?`Conferimos agora: a versão ${S.ar} segue no ar.`:`O YouTube recusou a troca e a versão ${S.ar} continua no ar.`}</span></div></div>`;
+  if(S.fase==='incerto')topo=`<div class="aviso err inc" id="avs" tabindex="-1" role="alert">${I('clock')}<div><b>Não deu para confirmar se a ${sel2} entrou.</b><span>A conexão caiu ou o YouTube demorou. Conferindo o que está no ar agora; o botão volta quando terminar.</span></div></div>`;
+  if(S.fase==='semrede')topo=`<div class="aviso err inc" id="avs" tabindex="-1" role="alert">${I('off')}<div><b>Sem conexão para conferir.</b><span>Não repetimos a troca sozinhos. Feche e abra de novo quando tiver rede.</span></div></div>`;
+  if(S.fase==='busy'){acao=`<button class="btn pri wait" type="button" aria-disabled="true">${I('spin','ic spin')}Escrevendo no YouTube…</button>`+fechar;topo=`<p class="espera" role="status">Está demorando. Pode fechar: o que estiver no ar aparece atualizado quando você voltar.</p>`}
+  else if(S.fase==='incerto')acao=`<button class="btn pri" type="button" disabled>${I('spin','ic spin')}Conferindo…</button>`+fechar;
+  else if(S.fase==='semrede')acao=fechar;
+  else acao=`<button class="btn pri" type="button">${S.fase==='erro'?'Tentar de novo':`Deixar ${sel2} no ar`}</button>`+fechar;
+ }
+ return `<div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dt" aria-describedby="frs" ${S.fase==='busy'?'aria-busy="true"':''}>
+ <div class="dh"><div><h2 id="dt">O que fica no vídeo?</h2><p class="meta">Teste de título · vídeo sobre viver em Bangkok</p></div><button class="btn txt xb" type="button" aria-label="Fechar">${I('x')}</button></div>
+ <p class="frase" id="frs">${frase(S)}</p><p class="fixa">O resultado do teste não muda com a sua escolha.</p>
+ ${topo}<fieldset class="opts"><legend class="sr-only">Versão que fica no ar</legend>${opts}</fieldset>
+ ${meio}<div class="dact${acao===fechar?' solo':''}">${acao}</div></div>`;
+}
+function concl(){
+ const sug=k=>`<span class="selo">${I('star')}Teste: sugeriu ${k}</span>`;
+ const sem=`<span class="selo">${I('info')}Teste: sem diferença clara</span>`;
+ const dia=t=>`<span class="selo dia">${I('dot')}${t}</span>`;
+ const esc=t=>`<span class="selo esc">${I('user')}${t}</span>`;
+ const row=(g,t,d,teste,ar,ab)=>`<a class="cl" href="?estado=${ab}&largura=${larg}"><div class="th ${g}" role="img" aria-label="Miniatura do vídeo"></div><div class="tx"><b>${t}</b><span>Teste de título · concluído em ${d}<span class="abre">mockup: abre ${ab}</span></span></div><div class="res"><div>${teste}</div><div>${ar}</div></div><span class="chev">${I('chev')}</span></a>`;
+ return `<section aria-label="Concluídos"><div class="sh"><h2>Concluídos</h2><span class="meta num">4 testes</span></div><p class="dica">Toque numa linha para abrir o painel do teste.</p><div class="box">
+ ${row('g3','Bangkok barato: viver com R$ 3 mil por mês, quanto sobra de verdade no fim do mês','27/10',sug('B'),esc('C no ar desde 27/10 · escolhida por você'),'e')}
+ ${row('g5','Chiang Mai ou Bangkok para morar? Comparei aluguel, comida e transporte por 30 dias','27/10',sug('B'),esc('A (original) no ar · mantida por você'),'k')}
+ ${row('g1','Tuk-tuk em Bangkok: quanto custa cada corrida e como não ser enganado','18/10',sug('B'),dia('B no ar desde 18/10'),'a')}
+ ${row('g6','Sukhumvit Road: o que ninguém conta sobre a rua mais selvagem de Bangkok','12/10',sem,dia('A (original) no ar'),'k2')}
+ </div></section>`;
+}
+function draw(){
+ const S=E[est];
+ document.getElementById('frame').className='frame w'+larg;
+ document.getElementById('stage').className='stage s'+larg;
+ document.getElementById('page').innerHTML=S.lista?concl():painel(S);
+ document.getElementById('nota').textContent=S.r;
+ document.querySelectorAll('input[name=ver]').forEach(i=>i.addEventListener('change',()=>{sel=i.value;draw();const n=document.querySelector(`input[value=${sel}]`);n&&n.focus()}));
+ const av=document.getElementById('avs');if(av&&sel===null)av.focus({preventScroll:false});
+ document.getElementById('selE').value=est;
+ document.querySelectorAll('#segL button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===larg));
+}
+const selE=document.getElementById('selE');
+selE.innerHTML=Object.keys(E).map(k=>`<option value="${k}">${k}. ${E[k].r}</option>`).join('');
+function go(p,v){q.set(p,v);location.search=q.toString()}
+selE.addEventListener('change',()=>go('estado',selE.value));
+document.getElementById('segL').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go('largura',b.dataset.v)});
+draw();
+</script>
+</body></html>
