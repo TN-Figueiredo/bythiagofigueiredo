@@ -10,6 +10,8 @@ import type { BaselineVideoInput } from '@/lib/youtube/scoring'
 import { fetchYtDemographics, fetchYtSearchTerms } from '@/lib/youtube/analytics-client'
 import type { Axis, VideoScoreInput, TrafficSources, TrendData, UnavailableAxis } from '@/lib/youtube/scoring-types'
 import { latestRow } from '@/lib/youtube/rolling-window'
+import { noArConfirmado, type TentativaNoAr } from '@/lib/youtube/ab-no-ar'
+import { lerHistoricoDeRestores } from '@/lib/youtube/ab-no-ar-leitura'
 import { lerRestauracao, paraRestoreStatus, restoreStatusIlegivel, type CampoNome, type LeituraCampo } from '@/lib/youtube/ab-restore'
 import { ehVitoriaHumana, ehVitoriaDeVariante, lerResultadoV2, type DesfechoV2, type ResultadoV2, type TestType, type VariantMetadata, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
@@ -1166,11 +1168,51 @@ function avisoAgregado(lidos: Iterable<LidoDoTeste>): AvisoAgregado {
   return medido ? AVISO_SEM_ESTATISTICA : AVISO_SEM_METRICA_DE_ENTREGA
 }
 
+/**
+ * M7b T16: a escolha do dono e o que está no ar, pela fonte única `noArConfirmado`. Sem `escolha_por` (id de pessoa num pacote que vai
+ * para a IA). `historico === null` (não lido) deixa o "no ar" desconhecido; só concluído tem `no_ar`.
+ */
+function escolhaENoAr(row: Record<string, unknown>, historico: TentativaNoAr[] | null): { escolha: { variant_id: string | null; letra: string | null; em: string } | null; no_ar: { letra: string | null; desde: string | null; confirmado: boolean } | null } {
+  const variantes = ((row.variants ?? []) as Record<string, unknown>[]).map(v => ({
+    id: String(v.id), is_original: v.is_original === true,
+    label: (v.is_original === true ? 'A' : String(v.label)) as 'A' | 'B' | 'C' | 'D',
+  }))
+  const letraDe = (id: string | null): string | null => (id ? variantes.find(v => v.id === id)?.label ?? null : null)
+  const em = typeof row.escolha_em === 'string' ? row.escolha_em : null
+  const vid = typeof row.escolha_variant_id === 'string' ? row.escolha_variant_id : null
+  const escolha = em ? { variant_id: vid, letra: letraDe(vid), em } : null
+  if (row.status !== 'completed') return { escolha, no_ar: null }
+  const tipo = row.test_type
+  if (tipo !== 'thumbnail' && tipo !== 'title' && tipo !== 'combo') return { escolha, no_ar: null }
+  if (historico === null) return { escolha, no_ar: { letra: null, desde: null, confirmado: false } }
+  const lido = noArConfirmado({
+    test_type: tipo, restore_status: row.restore_status, restore_seq: typeof row.restore_seq === 'number' ? row.restore_seq : 0,
+    completed_at: typeof row.completed_at === 'string' ? row.completed_at : null,
+    winner_variant_id: typeof row.winner_variant_id === 'string' ? row.winner_variant_id : null,
+    winner_applied_at: typeof row.winner_applied_at === 'string' ? row.winner_applied_at : null,
+    variantes,
+  }, historico)
+  return { escolha, no_ar: lido.tipo === 'confirmado' ? { letra: lido.letra, desde: lido.desde, confirmado: true } : { letra: null, desde: null, confirmado: false } }
+}
+
+/** Uma leitura `in(test_id)` (paginada) para os concluídos da página; erro vai ao Sentry e o "no ar" fica desconhecido. */
+async function historicoDosConcluidos(supabase: ServiceContext['supabase'], linhas: Record<string, unknown>[]): Promise<Map<string, TentativaNoAr[]> | null> {
+  const ids = linhas.filter(r => r.status === 'completed').map(r => String(r.id))
+  if (ids.length === 0) return new Map()
+  const h = await lerHistoricoDeRestores(supabase as never, ids)
+  if (!h.ok) {
+    Sentry.captureMessage('mcp ab: histórico de restores não lido; no_ar fica desconhecido', { level: 'warning', extra: { motivo: h.motivo } })
+    return null
+  }
+  return h.porTeste
+}
+
 export function projetarTeste(
   row: Record<string, unknown>,
   agora: Date,
   placarBruto: Placar | null,
   placarErro?: 'linha_invalida',
+  historico: TentativaNoAr[] | null = null,
 ): Record<string, unknown> {
   let placar = placarBruto
   const meta = (row.result_metadata ?? null) as Record<string, unknown> | null
@@ -1194,6 +1236,9 @@ export function projetarTeste(
   const bruto = row.restore_status ?? null
   out.restore_status = bruto
   out.leitura = restoreStatusIlegivel(bruto) ? { ilegivel: true } : lerRestauracao(paraRestoreStatus(bruto), agora)
+  const { escolha, no_ar } = escolhaENoAr(row, historico)
+  out.escolha = escolha
+  out.no_ar = no_ar
   return out
 }
 
@@ -1225,10 +1270,12 @@ export async function listAbTests(
   if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
 
   const agora = new Date()
+  const historicos = await historicoDosConcluidos(supabase, linhas)
+  const hist = (id: string): TentativaNoAr[] | null => (historicos === null ? null : historicos.get(id) ?? [])
   return ok(linhas.map(r => {
     const id = String(r.id)
-    if (lido.invalidos.has(id)) return projetarTeste(r, agora, null, 'linha_invalida')
-    return projetarTeste(r, agora, placarDaLinha(r, lido.porTeste.get(id) ?? [], variantesOrdenadas(r), agora))
+    if (lido.invalidos.has(id)) return projetarTeste(r, agora, null, 'linha_invalida', hist(id))
+    return projetarTeste(r, agora, placarDaLinha(r, lido.porTeste.get(id) ?? [], variantesOrdenadas(r), agora), undefined, hist(id))
   }) as unknown as AbTestListItem[])
 }
 
@@ -1261,7 +1308,8 @@ export async function getAbTest(
   const lido = await lerDiasDoTeste(supabase, siteId, id)
   if (!lido.ok) return err('DB_ERROR', `Failed to load A/B scoreboard: ${lido.motivo}`, 500)
   const agora = new Date()
-  const detail = projetarTeste(row, agora, placarDaLinha(row, lido.dias, variantesOrdenadas(row), agora))
+  const historicos = await historicoDosConcluidos(supabase, [row])
+  const detail = projetarTeste(row, agora, placarDaLinha(row, lido.dias, variantesOrdenadas(row), agora), undefined, historicos === null ? null : historicos.get(id) ?? [])
   detail.cycles = ((row.cycles ?? []) as Record<string, unknown>[]).map(projetarCiclo)
   detail.tracked_links = []
   // Só rascunho que nasceu v2: o aviso prevê a regra v2 (N e teto 15/17), que não vale para um v1 (Phil D3).
