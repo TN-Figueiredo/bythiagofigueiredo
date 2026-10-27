@@ -7,6 +7,8 @@ import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import type { Faixa } from './faixa-restauracao-texto'
 import { FaixaRestauracao } from './faixa-restauracao'
 import { BTN_BASE, definirAviso } from './acoes-de-saida'
+import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
+import { hrefDoPainel } from '../painel-param'
 
 export interface FaixaComAcoesProps {
   testId: string
@@ -58,10 +60,11 @@ export function FaixaComAcoes({ testId, faixa, faixaTentando, seqVisto, tentar, 
   const mostrada = tentando && faixaTentando ? faixaTentando : faixa
   return (
     <FaixaRestauracao faixa={mostrada}>
-      {acoes && (acoes.motivoSemBotao || acoes.tentar || acoes.dispensar.length > 0) ? <>
+      {acoes && (acoes.motivoSemBotao || acoes.tentar || acoes.abrirPainel || acoes.dispensar.length > 0) ? <>
       {acoes.motivoSemBotao ? <p className="fr-fine">{acoes.motivoSemBotao}</p> : null}
-      {acoes && (acoes.tentar || acoes.dispensar.length > 0) ? (
+      {acoes && (acoes.tentar || acoes.abrirPainel || acoes.dispensar.length > 0) ? (
         <div className="fr-botoes">
+          {acoes.abrirPainel ? <CmsLink href={hrefDoPainel(testId)} className={BTN_PRI}>Abrir o painel</CmsLink> : null}
           {acoes.tentar ? (
             <button type="button" className={BTN_PRI} disabled={ocupado} aria-busy={ocupado} onClick={() => rodar(() => tentar(seqVisto), true)}>
               {tentando ? 'Tentando…' : 'Tentar agora'}

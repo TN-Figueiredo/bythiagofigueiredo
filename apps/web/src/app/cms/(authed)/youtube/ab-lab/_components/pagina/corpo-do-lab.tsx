@@ -19,7 +19,7 @@ export const ACOES: AcoesCaminho = {
 const ACOES_DECISAO: AcoesDecisao = { encerrar: endAbTest, aplicarSugerido, voltar: revertWinner, escolher: escolherVersao, conferir: conferirNoAr }
 
 export async function CorpoDoLab(
-  { siteId, videoInicial, blocoSugestoes }: { siteId: string; videoInicial: string | null; blocoSugestoes?: ReactNode },
+  { siteId, videoInicial, painelInicial = null, blocoSugestoes }: { siteId: string; videoInicial: string | null; painelInicial?: string | null; blocoSugestoes?: ReactNode },
 ): Promise<ReactElement> {
   const lida = await lerPaginaDoLab(siteId, new Date(), videoInicial)
   return (
@@ -37,6 +37,7 @@ export async function CorpoDoLab(
       salvarAjustes={updateAbSiteSettings}
       listaInicial={lida.listaInicial}
       videoInicial={videoInicial}
+      painelInicial={painelInicial}
       blocoSugestoes={blocoSugestoes}
       learnings={lida.learnings?.combined ?? null}
       channelLearnings={lida.learnings}

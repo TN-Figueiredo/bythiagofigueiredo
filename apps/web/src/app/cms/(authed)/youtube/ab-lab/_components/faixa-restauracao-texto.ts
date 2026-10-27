@@ -25,6 +25,8 @@ export interface FaixaCompleta {
 }
 export interface AcoesFaixa {
   tentar: boolean
+  /** M7b: há campo da escolha do dono por refazer; a faixa oferece "Abrir o painel" no lugar de "Tentar agora". */
+  abrirPainel: boolean
   dispensar: CampoNome[]
   /** Por que não há botão quando o motivo é falta de permissão (mockup I); nulo nos demais casos. */
   motivoSemBotao: string | null
@@ -275,12 +277,13 @@ const SEM_PERMISSAO = 'Só quem administra o site pode tentar de novo ou dispens
 
 function acoesDaFaixa(rs: RestoreStatus, ctx: CtxFaixa): AcoesFaixa {
   const pendentes = camposPendentes(rs, 'humano').filter(k => !daEscolhaDoDono(rs[k]!)) // a escolha do dono se refaz pelo painel
+  const abrirPainel = camposPendentes(rs, 'humano').some(k => daEscolhaDoDono(rs[k]!))
   const dispensar = (['title', 'thumbnail'] as const).filter(k => { const c = rs[k]; return c !== undefined && podeDispensar(c) })
   const comAcao = new Set<CampoNome>([...pendentes, ...dispensar])
   const exigeAdmin = [...comAcao].some(k => rs[k]?.destino !== 'original')
   // motivoSemBotao: texto do mockup I, mantido aqui literal
-  if (exigeAdmin && !ctx.podeAdministrar) return { tentar: false, dispensar: [], motivoSemBotao: SEM_PERMISSAO }
-  return { tentar: pendentes.length > 0, dispensar, motivoSemBotao: null }
+  if (exigeAdmin && !ctx.podeAdministrar) return { tentar: false, abrirPainel, dispensar: [], motivoSemBotao: SEM_PERMISSAO }
+  return { tentar: pendentes.length > 0, abrirPainel, dispensar, motivoSemBotao: null }
 }
 
 /** A faixa enquanto "Tentar agora" corre (P4b-E1): os campos pendentes viram `em_andamento` agora. */
@@ -308,6 +311,6 @@ export function faixaIlegivel(ctx: Pick<CtxFaixa, 'youtubeId'>): FaixaCompleta {
     linkStudio: ctx.youtubeId ? `https://studio.youtube.com/video/${ctx.youtubeId}/edit` : null,
     linkRotulo: ctx.youtubeId ? 'Abrir no YouTube Studio' : null,
     ajuda: null, fine: null, papel: 'status',
-    acoes: { tentar: false, dispensar: [], motivoSemBotao: null },
+    acoes: { tentar: false, abrirPainel: false, dispensar: [], motivoSemBotao: null },
   }
 }
