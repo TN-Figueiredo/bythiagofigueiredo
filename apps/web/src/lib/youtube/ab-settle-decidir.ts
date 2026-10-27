@@ -34,7 +34,7 @@ export interface EntradaThumb {
 }
 
 export const HORAS_THUMB_RECENTE = 3
-const limpo = (s: string) => s.trim()
+export const limpo = (s: string) => s.trim()
 
 export function decidirCampo(e: EntradaTitulo | EntradaThumb): Decisao {
   if (e.atual.tipo === 'video_inexistente') return { acao: 'desistir', motivo: 'video_inexistente' }
@@ -108,4 +108,54 @@ export function ultimaEscritaDoApp(
     .map((s) => (s ? Date.parse(s) : NaN))
     .filter(Number.isFinite)
   return cands.length ? new Date(Math.max(...cands)) : null
+}
+
+// ---- M7b T3: qual versão está no ar (leitura, nunca escreve) ----
+
+export interface EntradaQualVersao {
+  /** Valor lido no YouTube; ausente = campo não lido/não pedido. */
+  titulo?: string | null
+  dhash?: string | null
+  originalTitle: string | null
+  variantes: Array<{ id: string; title_text: string | null }>
+  dhashes: Map<string, DhashDaVariante>
+  idOriginal: string
+}
+export interface QualVersao {
+  /** Por campo lido: id da única versão que casa, ou null (nenhuma ou mais de uma). Campo não lido fica ausente. */
+  porCampo: { title?: string | null; thumbnail?: string | null }
+  /** false quando alguma versão não pôde ser comparada na miniatura (sem dhash e Blob indisponível). */
+  completo: boolean
+  /** Os campos lidos apontam todos a mesma versão; senão null. */
+  versao: string | null
+}
+
+export function qualVersaoNoAr(e: EntradaQualVersao): QualVersao {
+  const porCampo: QualVersao['porCampo'] = {}
+  let completo = true
+  if (e.titulo !== undefined) {
+    const lido = e.titulo === null ? null : limpo(e.titulo)
+    const ids = new Set<string>()
+    if (lido !== null && lido !== '') {
+      if (e.originalTitle !== null && limpo(e.originalTitle) === lido) ids.add(e.idOriginal)
+      for (const v of e.variantes) {
+        if (v.id !== e.idOriginal && v.title_text !== null && limpo(v.title_text) === lido) ids.add(v.id)
+      }
+    }
+    porCampo.title = ids.size === 1 ? [...ids][0]! : null
+  }
+  if (e.dhash !== undefined) {
+    const ids: string[] = []
+    if (e.dhash !== null) {
+      for (const [id, d] of e.dhashes) {
+        if (d.tipo !== 'ok') { completo = false; continue }
+        if (hamming(d.dhash, e.dhash) <= DHASH_MAX_SAME) ids.push(id)
+      }
+    } else completo = false
+    porCampo.thumbnail = ids.length === 1 ? ids[0]! : null
+  }
+  const lidos = Object.values(porCampo)
+  const primeiro = lidos[0] ?? null
+  const versao = primeiro !== null && lidos.every(x => x === primeiro) ? primeiro : null
+  return { porCampo, completo, versao }
 }
