@@ -376,3 +376,28 @@ begin
 end $$;
 revoke all on function public.obs_archive_channel_archive_impact(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_channel_archive_impact(uuid, uuid) to service_role;
+
+-- M5 PARTE 4: liberar serie e horaria (TRAVA M5-3, item 87). Corpo da M3b, só `released` muda nas 3 linhas.
+create or replace function public.obs_archive_policy()
+returns table (class text, table_name text, exit_mode text, window_months int, seal_margin_days int, wait_days int,
+               auto_allowed text, released boolean, control_column text, filho text)
+language sql immutable set search_path = '' as $$
+  values
+    ('horaria', 'competitor_video_hourly', 'particao', 3, 28, 7, 'depois_de_3', true, 'views', 'numerico'),
+    ('serie', 'competitor_video_daily', 'particao', 6, 28, 7, 'depois_de_3', true, 'views', 'numerico'),
+    ('serie', 'competitor_video_early', 'particao', 6, 28, 7, 'depois_de_3_da_tabela', true, 'views', 'numerico'),
+    ('texto', 'competitor_video_comments', 'faixa', 6, 45, 0, 'nunca', false, null, 'texto'),
+    ('texto', 'competitor_video_comment_marks', 'faixa', 6, 45, 0, 'nunca', false, 'likes', 'texto'),
+    ('texto', 'competitor_raw', 'faixa', 6, 45, 0, 'nunca', false, null, 'texto'),
+    ('ensaio', 'obs_archive_rehearsal', 'particao', 6, 28, 1, 'nunca', false, 'views', 'numerico'),
+    ('video_antigo', 'competitor_video_versions', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_field_versions', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_raw', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_video_tier_spans', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_video_comment_snaps', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_hour_fold_log', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_changes', 'lista', 0, 28, 0, 'nunca', false, null, 'texto'),
+    ('video_antigo', 'competitor_readings', 'lista', 0, 28, 0, 'nunca', false, null, 'texto')
+$$;
+revoke all on function public.obs_archive_policy() from public, anon, authenticated;
+grant execute on function public.obs_archive_policy() to service_role;
