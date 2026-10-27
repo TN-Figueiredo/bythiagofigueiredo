@@ -26,6 +26,18 @@
     ['Tirar o mês (diálogos e botões)', 'novo', 'Condições, simulação, confirmações, dois passos, trazer de volta', a('arquivo.html?e=todos-tirar', 'peça 3'), '3'],
     ['19 (este mockup)', 'novo', 'Os quadros das peças 1, 2 e 3 (as peças 4, 6, 7 e 8 vêm depois)', 'esta pasta', 'todas']
   ];
+  /* coluna Commit (item 86): hash de cada tela já implementada (M5, 27/10/2026); "—" = ainda sem código (peças 3, 4, 6, 8 e o diálogo de remover vêm depois) */
+  var COMMIT = {
+    '13 histórico do vídeo': 'c99edf3a5, 749515728, 061ee2067',
+    '15 página do canal': '749515728',
+    '20 comentários de destaque': 'não ligado (falta o online desde do texto)',
+    '21 ritmo por hora': 'não ligado (mockup segurado)',
+    '18 aviso do banco, versão 18-v2': '071ab1612',
+    'Fila “Saíram do YouTube”': '8ad0d1cc9',
+    'Faixa de frescor do Observatório': '071ab1612',
+    'Arquivo (página nova, no Observatório)': 'aa526fd57'
+  };
+  function commitDe(t){ var k = Object.keys(COMMIT).filter(function(n){ return t.indexOf(n) === 0; })[0]; return k ? COMMIT[k] : '—'; }
   var P1 = [['p1-0', 'Nada saiu ainda'], ['p1-1', '“desde dd/mm” junto do número'], ['p1-2', 'Medida precisa de ponto que saiu: “no arquivo”'], ['p1-3', 'Mês destacado, espaço não liberado'], ['p1-4', 'O gráfico alcança o arquivo'], ['p1-5', 'As 72 primeiras horas no arquivo'], ['p1-6', 'Normal do canal com menos vídeos'], ['p1-7', 'Período maior que o online'], ['p1-8', 'Comentário em destaque sem texto'], ['p1-9', 'Mês no arquivo que estava vazio'], ['p1-10', 'Antes do começo da coleta'], ['p1-11', 'Não medido: desde quando há dado online'], ['p1-12', 'Só leitura']];
   var T3 = [['t1', 'Desabilitado'], ['t2', 'Simulação'], ['t3', 'Habilitado'], ['t4', 'Confirmação'], ['t4a', 'Confirmação em dois passos'], ['t4b', 'Quarta saída em diante'], ['t4c', 'Comentários, frase digitada'], ['t5', 'Durante'], ['t6', 'Recusado na hora'], ['t7', 'Primeiro passo feito'], ['t7a', 'Depois dos 7 dias'], ['t8', 'Segundo passo'], ['t8r', 'Segundo passo recusado'], ['t8x', 'Segundo passo repetido'], ['t9', 'Feito'], ['t10', 'Trazer de volta'], ['t11', 'Banco em somente leitura']];
   function idx(arr, pg, serv, tt){ return arr.map(function(x){ return '<tr><td data-k="Estado">' + (x[2] || x[1]) + '</td><td data-k="Quadro">' + a(pg + 'e=' + x[0], x[0].toUpperCase()) + '</td><td data-k="Carregando">' + (typeof serv === 'function' ? serv(x) : serv) + '</td></tr>'; }).join(''); }
@@ -37,7 +49,7 @@
     idx(D.CAN.map(function(r){ return [r[0], 0, r[1]]; }), 'arquivo.html?', 'requisição: esqueleto com a altura final (quadro C-CARREGANDO)') +
     idx(T3, 'arquivo.html?', carr) + '</tbody></table></div>';
   var tabSinc = '<div class="m-tw"><table class="m-t"><thead><tr><th>Tela</th><th>Mockup aprovado e data</th><th>O que muda</th><th>Onde está o desenho</th><th>Peça</th><th>Logan</th><th>Dono</th><th>Commit</th></tr></thead><tbody>' + SINC.map(function(r){
-    return '<tr><td data-k="Tela">' + r[0] + '</td><td data-k="Aprovado" class="s">' + r[1] + '</td><td data-k="O que muda">' + r[2] + '</td><td data-k="Desenho" class="s">' + r[3] + '</td><td data-k="Peça" class="s">' + r[4] + '</td><td data-k="Logan">' + ap + '</td><td data-k="Dono">' + ap + '</td><td data-k="Commit">—</td></tr>'; }).join('') + '</tbody></table></div>';
+    return '<tr><td data-k="Tela">' + r[0] + '</td><td data-k="Aprovado" class="s">' + r[1] + '</td><td data-k="O que muda">' + r[2] + '</td><td data-k="Desenho" class="s">' + r[3] + '</td><td data-k="Peça" class="s">' + r[4] + '</td><td data-k="Logan">' + ap + '</td><td data-k="Dono">' + ap + '</td><td data-k="Commit" class="s">' + commitDe(r[0]) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   var barra = M.mock('índice', [], 'Mockup 19 (casca): sincronia das telas aprovadas, legenda das formas e índice de estados. Todo número de mês arquivado nestes mockups é exemplo. Selo: “ajuste de mockup aprovado: &lt;número&gt;, &lt;data&gt;” em cada tela tocada.');
   document.title = 'Mockup 19: o que muda quando um mês sai do banco';
   document.body.innerHTML = barra + M.obs('arquivo', 'cheio').replace(/<nav[\s\S]*<\/nav>/, '') + '<main id="m-main"><h2 class="m-h2">O que muda quando um mês sai do banco</h2>' +

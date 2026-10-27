@@ -123,8 +123,8 @@ describe('Phil M3: os meses à frente', () => {
       { table_name: 'competitor_video_early', months_ahead: null, last_month: null, converted_at: null },
       { table_name: 'competitor_video_hourly', months_ahead: 2, last_month: '2028-07-01', converted_at: '2028-01-01T00:00:00Z' }] }), { arquivoLigado: true })
     const f = p.mesesAFrente
-    expect(f[0]!.frase).toBe('O mês corrente não existe nesta tabela. Rode a criação de partições.'); expect(f[0]!.forma).toBe('octogono')
-    expect(f[1]!.frase).toMatch(/não particionada: não medido/); expect(f[1]!.forma).toBe('hachura')
+    expect(f[0]!.frase).toBe('O mês corrente não existe para estes dados. Rode a criação dos meses à frente.'); expect(f[0]!.forma).toBe('octogono')
+    expect(f[1]!.frase).toMatch(/Ainda sem meses à frente: não medido/); expect(f[1]!.forma).toBe('hachura')
     expect(f[2]!.forma).toBe('octogono')                                      // menos de 3
     expect(f.some(x => /-1|−1/.test(x.frase))).toBe(false)
   })

@@ -265,11 +265,11 @@ function mesesAFrente(p: PaginaLida): ModeloPagina['mesesAFrente'] {
   return p.meses_a_frente.map(m => {
     const tabela = NOME_DA_TABELA[m.table_name] ?? m.table_name
     const n = m.months_ahead
-    if (n == null) return { tabela, frase: 'Tabela ainda não particionada: não medido', forma: 'hachura' as const }
-    if (n === -1) return { tabela, frase: 'O mês corrente não existe nesta tabela. Rode a criação de partições.', forma: 'octogono' as const }
+    if (n == null) return { tabela, frase: 'Ainda sem meses à frente: não medido', forma: 'hachura' as const }
+    if (n === -1) return { tabela, frase: 'O mês corrente não existe para estes dados. Rode a criação dos meses à frente.', forma: 'octogono' as const }
     if (n >= 6) return { tabela, frase: `${n} meses à frente`, forma: 'visto' as const }
-    if (n >= 3) return { tabela, frase: `Só ${n} meses à frente. Rode a criação de partições.`, forma: 'triangulo' as const }
-    return { tabela, frase: `Só ${n} ${n === 1 ? 'mês à frente' : 'meses à frente'}. Rode a criação de partições já.`, forma: 'octogono' as const }
+    if (n >= 3) return { tabela, frase: `Só ${n} meses à frente. Rode a criação dos meses à frente.`, forma: 'triangulo' as const }
+    return { tabela, frase: `Só ${n} ${n === 1 ? 'mês à frente' : 'meses à frente'}. Rode a criação dos meses à frente já.`, forma: 'octogono' as const }
   })
 }
 
