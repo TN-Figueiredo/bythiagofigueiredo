@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Teste rodando, largura única (mockup M7d r3)</title>
+<style>
+/* Mockup M7d r2 (27/10/2026). Base: página do teste do Lab (detail-header-lab.css, placar-do-teste.css, ab-end-test-dialog.css)
+   e tokens dos mockups lab-reordem e M7b. Só hex/rgba literais (sem color-mix). Dados SINTÉTICOS.
+   URL: ?estado=a|b|c|d|e|f|g1|g2|g3|g4|h|antes&largura=1440|390 */
+*,*::before,*::after{box-sizing:border-box}
+:root{--pg:#100E0C;--pgt:#F5EFE6;--pgm:#A89D88;--pgb:#332D25;--pgs:#221E1A}
+html{background:var(--pg)}
+body{margin:0;font:400 14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--pgt);background:var(--pg)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 16px;background:var(--pgs);border-bottom:1px solid var(--pgb)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--pgm);flex-wrap:wrap}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid #40382D;border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;min-height:44px;padding:0 11px;border:0;background:transparent;color:var(--pgm);cursor:pointer}
+.seg button[aria-pressed="true"]{background:#F5EFE6;color:#100E0C;font-weight:600}
+.ctl select{font:inherit;font-size:14px;min-height:44px;max-width:calc(100vw - 100px);text-overflow:ellipsis;padding:0 10px;border:1px solid #40382D;border-radius:6px;background:var(--pg);color:var(--pgt)}
+.note{max-width:92ch;color:var(--pgm);font-size:13px;margin:14px 16px 0}
+.stage{padding:16px;overflow-x:auto}
+.stage.s390{overflow:visible}
+@media (max-width:420px){.stage{padding:8px 0}}
+.r1{margin:14px 16px 0;max-width:92ch;border:1px solid #40382D;border-radius:8px;padding:10px 14px;background:var(--pgs);font-size:13px;color:var(--pgm)}
+.r1 b{color:var(--pgt)}.r1 ul{margin:6px 0 0;padding-left:18px}
+
+/* ===== a página do CMS (moldura) ===== */
+.frame{
+  --bg:#1A1714;--surface:#221E1A;--surface-2:#272219;--sunk:#16130F;
+  --border:#332D25;--border-subtle:#2A2520;--border-strong:#40382D;--ctl:#928871;
+  --text:#F5EFE6;--muted:#A89D88;--dim:#958A75;
+  --accent:#FF8240;--on-accent:#1A120A;
+  --ok:#6FCF97;--ok-bg:rgba(111,207,151,.10);--ok-line:#3E8F63;
+  --err:#F4A097;--warn:#E8C170;--warn-line:#B8923F;--warn-bg:rgba(232,193,112,.08);
+  --yt:#9FB4C9;--yt-bg:rgba(159,180,201,.10);--yt-line:#6B8199;
+  --border-disabled:#7A6E5B;
+  --la:#E0703A;--lb:#6FA8DC;--lc:#9CC25A;
+  --va:#B8481A;--vb:#2B6DA8;--vc:#4C6B1F;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;
+  --ab-largura:1040px;--ab-recuo:24px;
+  background:var(--bg);color:var(--text);color-scheme:dark;container-type:inline-size;
+  border:1px solid var(--border);border-radius:10px;margin:0 auto;position:relative;padding:32px 0 64px}
+.frame.w1440{width:1440px}.frame.w390{width:min(390px,100%);padding:16px 0 40px}
+/* A LARGURA ÚNICA: um contêiner, token único. Todo bloco é 100% dele; só a prosa tem teto em ch. */
+.ab{width:100%;max-width:calc(var(--ab-largura) + 2*var(--ab-recuo));margin-inline:0;padding-inline:var(--ab-recuo);display:flex;flex-direction:column;gap:var(--s5)}
+@container (max-width:640px){.frame{--ab-recuo:16px}}
+.frame :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+:where(.frame) :where(h1,h2,h3,p){margin:0}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.num{font-variant-numeric:tabular-nums}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:14px;height:14px}
+@keyframes giro{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:no-preference){.spin{animation:giro 1s linear infinite}}
+
+/* ----- cabeçalho ----- */
+.dhl-hd{display:grid;grid-template-columns:128px minmax(0,1fr);grid-template-areas:"th crumb" "th ttl";column-gap:var(--s4);align-content:center;align-items:center}
+.dhl-th{grid-area:th;align-self:center;width:128px;aspect-ratio:16/9;border-radius:5px;display:block;background:linear-gradient(135deg,#443B30,#7A6B55 60%,#B5A688)}
+.dhl-ttl{grid-area:ttl;min-width:0}
+.dhl-crumb{grid-area:crumb;align-self:end;display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:var(--s1)}
+.dhl-crumb a{display:inline-flex;align-items:center;gap:5px;font-weight:500;color:inherit;text-decoration:none;min-height:24px}
+.tag{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border:1px solid var(--border-strong);border-radius:999px;font:500 12px/18px Inter,system-ui,sans-serif;color:var(--muted)}
+.dhl-h2{font:600 20px/1.3 Georgia,serif;color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.dhl-selos{margin-top:var(--s3);display:flex}
+.selo{display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 8px;border-radius:999px;font:600 12px/18px Inter,system-ui,sans-serif;border:1px solid var(--accent);color:var(--accent);white-space:nowrap;max-width:100%}
+.selo.pausa{border-color:var(--ctl);color:var(--text)}
+.selo.yt{border-color:var(--yt-line);color:var(--yt);background:var(--yt-bg)}
+.selo.ok{border-color:var(--ok-line);color:var(--ok)}
+.dhl-selos{align-items:center;gap:var(--s2);flex-wrap:wrap}
+.idica{width:44px;height:44px;margin:-10px -6px -10px -8px;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;border-radius:8px;padding:0}
+.idica:hover{color:var(--text)}
+.dhl-origem{margin-top:var(--s3);font-size:13px;line-height:1.45;color:var(--muted);max-width:78ch;border:1px solid var(--border-strong);background:var(--surface);border-radius:8px;padding:8px 12px}
+.dhl-origem[hidden]{display:none}
+@container (max-width:640px){
+  .dhl-hd{grid-template-columns:minmax(0,1fr);grid-template-areas:"crumb" "th" "ttl";row-gap:var(--s3);justify-items:start}
+  .dhl-crumb{margin-bottom:0}.dhl-th{width:96px}.dhl-ttl{width:100%}
+}
+/* barra de ações: em toda largura, abaixo do selo e da frase de origem */
+.acoes{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin-top:var(--s4)}
+.bt{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:8px 16px;border:1px solid var(--ctl);border-radius:9px;background:transparent;color:var(--text);font:600 13px/18px Inter,system-ui,sans-serif;cursor:pointer;text-decoration:none;white-space:nowrap}
+.bt:hover{background:var(--surface-2)}
+.bt[aria-disabled="true"]{border-color:var(--border-disabled);color:var(--muted);cursor:not-allowed;background:transparent}
+.bt[aria-disabled="true"]:hover{background:transparent}
+.bt.yt{margin-left:auto;color:var(--text)}
+.bt.dest{border-color:var(--accent)}
+.acoes.solo .bt.yt{margin-left:0}
+.acoes-apoio{margin-top:var(--s2);font-size:13px;color:var(--muted)}
+@container (max-width:640px){
+  .acoes{display:grid;grid-template-columns:1fr 1fr}
+  .bt.yt{grid-column:1/-1;margin-left:0}
+  .acoes.solo{grid-template-columns:1fr}
+}
+
+/* ----- placar ----- */
+.sum{font:600 21px/1.35 Georgia,serif;max-width:72ch;text-wrap:balance}
+.sum small{display:block;font:400 13px/1.45 Inter,system-ui,sans-serif;color:var(--muted);margin-top:var(--s2)}
+@container (max-width:640px){.sum{font-size:18px}}
+.band{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface)}
+.band .ic{margin-top:2px}
+.band h3{font:600 14px/1.35 Inter,system-ui,sans-serif}
+.band p{font-size:14px;color:var(--muted);margin-top:2px;max-width:78ch}
+.band.yt{border:1px dashed var(--yt-line);background:var(--yt-bg);color:var(--yt)}
+.band.warn{border-color:var(--warn-line);background:var(--warn-bg);border-left-width:4px;color:var(--warn)}
+.band.warn h3{color:var(--warn)}
+.band.ok{border-color:var(--ok-line);background:var(--ok-bg);color:var(--ok)}
+.band.ok h3{color:var(--text)}
+.sh{font:600 16px/1.3 Inter,system-ui,sans-serif;display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s3);flex-wrap:wrap}
+.sh .upd{font:400 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);margin-left:auto}
+.card{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:6px 16px 4px}
+.vhead,.vr{display:grid;grid-template-columns:minmax(0,1fr) 150px 170px 44px;gap:0 16px;align-items:center}
+.vhead{font:500 12px/1.3 Inter,system-ui,sans-serif;color:var(--muted);padding:8px 0;border-bottom:1px solid var(--border)}
+.vhead span:nth-child(2),.vhead span:nth-child(3){text-align:right}
+.vrow{border-bottom:1px solid var(--border-subtle)}.vrow:last-child{border-bottom:0}
+.vr{min-height:56px;padding:9px 0}
+.vh{display:flex;gap:10px;align-items:center;min-width:0}
+.chip{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:5px;font:700 13px/1 Inter,system-ui,sans-serif;color:#fff;flex:none}
+.cA{background:var(--va)}.cB{background:var(--vb)}.cC{background:var(--vc)}
+.vt{min-width:0}
+.vt b{display:block;font:600 14px/1.35 Inter,system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vt .ap{font-size:12px;color:var(--muted);margin-top:1px;display:flex;gap:4px 10px;flex-wrap:wrap}
+.vi,.vc{text-align:right;font-size:14px}
+.vi .lb,.vc .lb{display:none}
+.vc .de{color:var(--muted);font-size:12px;display:block}
+.big{font-size:16px;font-weight:600}
+.dash{color:var(--muted)}
+.chev{width:44px;height:44px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:grid;place-items:center;border-radius:6px;padding:0}
+.nm{display:inline-block;padding:1px 7px;border:1px dashed var(--border-strong);border-radius:4px;color:var(--muted);font:400 12px/16px Inter,system-ui,sans-serif}
+@container (max-width:640px){
+  .card{padding:4px 10px}
+  .vhead{display:none}
+  .vr{grid-template-columns:1fr 1fr 44px;grid-template-areas:"h h x" "i c .";gap:8px 10px;padding:12px 0}
+  .vh{grid-area:h;align-items:flex-start}
+  .vt b{white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  .vi{grid-area:i;text-align:left}.vc{grid-area:c;text-align:left}.chev{grid-area:x}
+  .vi .lb,.vc .lb{display:block;font-size:12px;color:var(--muted)}
+}
+/* dias */
+.strip{display:flex;flex-wrap:wrap;gap:6px}
+.dc{width:34px;height:42px;border-radius:5px;border:1px solid var(--dim);background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 12px/1.2 Inter,system-ui,sans-serif}
+.dc i{font-style:normal;font-weight:500;font-size:12px}
+.dc.g{border:1px dashed var(--yt-line);background:var(--yt-bg);color:var(--yt)}
+.dc.a{background:transparent;border-style:dotted;color:var(--muted);font-weight:400}
+.leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted);margin-top:8px}
+@container (max-width:640px){.strip{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.dc{width:auto;height:44px}}
+.rbar{position:relative;height:14px;background:var(--sunk);border:1px solid var(--border-subtle);border-radius:7px;overflow:hidden}
+.rbar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent)}
+.rbar.ok i{background:var(--ok-line)}
+.mark{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:var(--s1)}
+.sec{border-top:1px solid var(--border);padding-top:var(--s4)}
+/* rotação */
+.rot{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:16px}
+.rot-top{display:flex;gap:var(--s4);align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.rot-top .tx{min-width:0;flex:1 1 320px}
+.rot h3{font:600 16px/1.3 Inter,system-ui,sans-serif}
+.rot p{font-size:14px;color:var(--muted);margin-top:4px;max-width:78ch}
+.slots{display:flex;gap:4px;margin:14px 0 6px}
+.slot{flex:1;height:34px;border-radius:5px;border:1px solid var(--border-strong);display:grid;place-items:center;font:700 12px/1 Inter,system-ui,sans-serif;background:var(--sunk);color:var(--muted)}
+.slot.p{background:var(--surface-2);color:var(--text)}
+.slot.n{border:2px solid var(--accent);color:var(--text);background:rgba(255,130,64,.12)}
+.slots-m{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.admin{font-size:13px;color:var(--muted)}
+@container (max-width:640px){.rot{padding:12px}.rot-top .bt{width:100%}}
+/* ----- diálogo .etd (copiado de ab-end-test-dialog.css) ----- */
+.scrim{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:16px 12px;background:rgba(0,0,0,.55)}
+.etd{--etd-err:#F87171;--etd-warn:#FBBF24;--etd-info:#38BDF8;--etd-warn-bg:rgba(245,158,11,.13);--etd-warn-line:rgba(245,158,11,.5);--etd-info-bg:rgba(63,169,192,.13);--etd-info-line:rgba(6,182,212,.45);--etd-ctl:#928871;--etd-text:#F5EFE6;--etd-muted:#A89D88;--etd-surface:#221E1A;--etd-border:#332D25;--etd-accent:#FF8240;--etd-accent-soft:rgba(255,130,64,.14);
+ position:relative;width:100%;max-width:440px;max-height:calc(100dvh - 32px);display:flex;flex-direction:column;background:var(--etd-surface);color:var(--etd-text);border:1px solid var(--etd-border);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.7),0 2px 8px rgba(0,0,0,.4)}
+.etd-h{display:flex;align-items:center;gap:11px;padding:10px 8px 10px 18px;border-bottom:1px solid var(--etd-border)}
+.etd-h h2{flex:1;font-size:15px;font-weight:700}
+.etd-ico{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none;background:var(--etd-warn-bg);color:var(--etd-warn)}
+.etd-x{width:44px;height:44px;border-radius:8px;border:0;background:transparent;color:var(--etd-muted);display:grid;place-items:center;flex:none;cursor:pointer}
+.etd-b{padding:16px 18px;overflow-y:auto;min-height:0;flex:1 1 auto}
+.etd-h,.etd-f{flex:none}
+.etd-state{color:var(--etd-muted);font-size:13px;margin:0 0 14px}
+.etd-state b{color:var(--etd-text);font-weight:600}
+.etd-freio{display:grid;grid-template-columns:20px 1fr;gap:9px;border:1px solid var(--etd-warn-line);background:var(--etd-warn-bg);border-radius:10px;padding:10px 12px;font-size:13px;margin:0 0 14px}
+.etd-freio svg{width:18px;height:18px;margin-top:1px;color:var(--etd-warn)}
+.etd-freio.sem{border-color:var(--etd-info-line);background:var(--etd-info-bg)}
+.etd-freio.sem svg{color:var(--etd-info)}
+.etd fieldset{border:0;margin:0;padding:0;min-width:0}
+.etd legend{font-size:14px;font-weight:700;padding:0;margin-bottom:8px}
+.etd-opt{display:grid;grid-template-columns:18px 1fr;gap:4px 11px;align-items:start;border:1px solid var(--etd-border);border-radius:10px;padding:10px;margin-bottom:8px;cursor:pointer;position:relative}
+.etd-opt input{margin:3px 0 0;accent-color:var(--etd-accent);width:16px;height:16px}
+.etd-opt:has(input:checked){border-color:var(--etd-accent);background:var(--etd-accent-soft)}
+.etd-who{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:12.5px;font-weight:700}
+.etd-ttl{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:13px;line-height:18px}
+.etd-badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;line-height:16px;font-weight:600;padding:1px 7px;border-radius:99px;border:1px solid var(--etd-info-line);background:var(--etd-info-bg);color:var(--etd-info);white-space:nowrap}
+.etd-f{display:flex;flex-direction:row-reverse;flex-wrap:wrap;gap:8px;justify-content:flex-start;align-items:center;padding:12px 18px 16px;border-top:1px solid var(--etd-border)}
+.etd-btn{border-radius:9px;border:1px solid var(--etd-ctl);background:transparent;color:var(--etd-text);padding:8px 14px;font:600 13px/18px Inter,system-ui,sans-serif;min-height:44px;display:inline-flex;gap:7px;align-items:center;justify-content:center;cursor:pointer}
+.etd-btn.pri{background:var(--etd-accent);border-color:var(--etd-accent);color:#1A120A}
+@container (max-width:480px){.etd-f{flex-direction:column-reverse;align-items:stretch}}
+/* ----- "antes": como é hoje ----- */
+.antes{display:flex;flex-direction:column;gap:var(--s5);padding-inline:24px}
+.antes .hoje-hd{max-width:720px}
+.antes .hoje-bt{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}
+.antes .hb{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;font:600 12.5px/18px Inter,system-ui,sans-serif;border-radius:9px;border:1px solid var(--ctl);color:var(--muted);background:transparent}
+.antes .pm{padding:0}
+.antes .hoje-pad{padding-inline:0}
+.tagnote{display:inline-block;font:600 12px/1.3 Inter,system-ui,sans-serif;color:var(--pgm);border:1px dashed #6A5F4E;border-radius:4px;padding:1px 6px}
+</style></head>
+<body>
+<div class="ctl">
+  <div class="grp"><label for="selE">Estado</label><select id="selE"></select></div>
+  <div class="grp">Largura <span class="seg" id="segL" role="group" aria-label="Largura"><button data-v="1440">1440</button><button data-v="390">390</button></span></div>
+</div>
+<details class="r1"><summary>Decisões do controlador (r1)</summary><ul>
+<li>Contêiner único de 1040 px alinhado à esquerda (recuo 24 px, 16 px no celular). Cabeçalho, frase-resumo, placar, dias, régua de prazo e rotação têm a mesma borda esquerda e direita; só a prosa tem teto em ch.</li>
+<li>Selo único com ícone + texto + dia. Barra de ações abaixo do selo, de contorno, 44 px; Abrir no YouTube sempre à direita (390: linha de baixo).</li>
+<li>O freio do Encerrar vive só no diálogo. Forçar rotação mora no bloco de rotação, com diálogo no lugar do confirm().</li>
+<li>Dado sintético; miniaturas são gradientes. Textos dos estados e do freio vêm de logan-r2.md e naksu-r2.md.</li></ul></details>
+<p class="note" id="nota"></p>
+<div class="stage" id="stage"><div class="frame w1440" id="frame"></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="i-pause" viewBox="0 0 16 16"><path d="M5.5 3.5v9M10.5 3.5v9"/></symbol>
+ <symbol id="i-play" viewBox="0 0 16 16"><path d="M5 3.2l7 4.8-7 4.8z"/></symbol>
+ <symbol id="i-stop" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/></symbol>
+ <symbol id="i-ext" viewBox="0 0 16 16"><path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2.5"/></symbol>
+ <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3"/></symbol>
+ <symbol id="i-flask" viewBox="0 0 16 16"><path d="M6 2h4M6.5 2v4L3 12.2a1 1 0 0 0 .9 1.5h8.2a1 1 0 0 0 .9-1.5L9.5 6V2"/></symbol>
+ <symbol id="i-spin" viewBox="0 0 16 16"><path d="M8 2a6 6 0 1 0 6 6"/></symbol>
+ <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.4"/></symbol>
+ <symbol id="i-ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.2 8.3l2 2 3.6-4"/></symbol>
+ <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2l6.3 11H1.7z"/><path d="M8 6.5v3M8 11.4v.1"/></symbol>
+ <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v3.6M8 5.2v.1"/></symbol>
+ <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+ <symbol id="i-back" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5"/></symbol>
+ <symbol id="i-chev" viewBox="0 0 16 16"><path d="M3.5 6l4.5 4.5L12.5 6"/></symbol>
+ <symbol id="i-swap" viewBox="0 0 16 16"><path d="M3 5h9l-2.5-2.5M13 11H4l2.5 2.5"/></symbol>
+</svg>
+<script>
+const I=(n,c='ic')=>`<svg class="${c}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const T_LONGO='Morei 30 dias em Bangkok com R$ 3 mil por mês: quanto sobrou no fim, onde gastei mais do que devia e o que eu cortaria se fosse refazer a viagem inteira do zero, sem enrolação e sem patrocínio';
+const T_MEDIO='Quanto custa viver em Bangkok com R$ 3 mil por mês: o que sobrou no fim e onde gastei demais';
+const VAR={A:'Quanto custa viver em Bangkok com R$ 3 mil por mês (sem enrolação)',B:'Morei 30 dias em Bangkok com R$ 3 mil: o que realmente sobrou no fim',C:'Bangkok barata de verdade? Anotei cada gasto por 30 dias, sem esconder nada, e o total me surpreendeu'};
+/* dia = dia do teste; tot = prazo; fase = rodando|pausado|escrevendo|concluido; leitura = tem dia fechado */
+const E={
+ a:{r:'a. Rodando cedo (dia 2 de 14, sem leitura). Título de 3 linhas no 1440.',dia:2,tot:14,fase:'rodando',leitura:false,titulo:T_LONGO},
+ b:{r:'b. Rodando com placar (dia 6 de 14).',dia:6,tot:14,fase:'rodando',leitura:true,titulo:T_MEDIO},
+ c:{r:'c. Pronto para decidir (dia 14 de 14).',dia:14,tot:14,fase:'rodando',leitura:true,pronto:true,titulo:T_MEDIO},
+ d:{r:'d. Pausado (Retomar).',dia:6,tot:14,fase:'pausado',leitura:true,titulo:T_MEDIO},
+ e:{r:'e. Escrevendo no YouTube (Pausar e Encerrar indisponíveis por instantes).',dia:6,tot:14,fase:'escrevendo',leitura:true,titulo:T_MEDIO},
+ f:{r:'f. Concluído (só Abrir no YouTube).',dia:14,tot:14,fase:'concluido',leitura:true,pronto:true,titulo:T_MEDIO,fim:'24/10'},
+ g1:{r:'g1. Diálogo Encerrar aberto no estado a: freio “sem leitura”.',base:'a',dlg:'enc'},
+ g2:{r:'g2. Diálogo Encerrar aberto no estado b: freio com números (8 dias que faltam, 5 medidos).',base:'b',dlg:'enc'},
+ g3:{r:'g3. Diálogo Encerrar a 1 dia do fim (dia 13 de 14): “Falta 1 dia.”',base:'b',dlg:'enc',dia:13,medidos:12},
+ g4:{r:'g4. Diálogo Encerrar no prazo completo (dia 14 de 14): sem freio, “Todos os 14 dias foram medidos.”',base:'c',dlg:'enc'},
+ h:{r:'h. Bloco de rotação com Forçar rotação e o diálogo que substitui o confirm().',base:'b',dlg:'rot'},
+ antes:{r:'Antes. Estado b como é hoje: cabeçalho estreito (720 px) e ações pequenas abaixo do placar, o placar mais largo que o cabeçalho.',antes:true}
+};
+const q=new URLSearchParams(location.search);
+let est=E[q.get('estado')]?q.get('estado'):'b', larg=q.get('largura')==='390'?'390':'1440';
+
+function fmt(d){return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')}
+function datas(S){const hoje=new Date(2026,9,27);const ini=new Date(hoje);ini.setDate(hoje.getDate()-(S.dia-1));const fim=new Date(ini);fim.setDate(ini.getDate()+S.tot-1);return{ini:fmt(ini),fim:fmt(fim)}}
+
+function selo(S){
+ const d=`dia ${S.dia} de ${S.tot}`;
+ if(S.fase==='pausado')return `<span class="selo pausa" data-testid="selo">${I('pause','ic sm')}Pausado · ${d}</span>`;
+ if(S.fase==='escrevendo')return `<span class="selo yt" data-testid="selo">${I('spin','ic sm spin')}Escrevendo no YouTube… · ${d}</span>`;
+ if(S.fase==='concluido')return `<span class="selo ok" data-testid="selo">${I('ok','ic sm')}Concluído em ${S.fim}</span>`;
+ return `<span class="selo" data-testid="selo">${I('flask','ic sm')}Rodando · ${d}</span>`;
+}
+function acoes(S){
+ const yt=`<a class="bt yt" href="#" data-testid="abrir-no-youtube">${I('ext')}Abrir no YouTube</a>`;
+ if(S.fase==='concluido')return `<div class="acoes solo" data-bloco="acoes">${yt}</div>`;
+ const off=S.fase==='escrevendo';
+ const dis=off?' aria-disabled="true" aria-describedby="apoio-acoes"':'';
+ const p=S.fase==='pausado'?`<button class="bt" type="button">${I('play')}Retomar</button>`:`<button class="bt" type="button"${dis}>${I('pause')}Pausar</button>`;
+ const enc=`<button class="bt${S.pronto?' dest':''}" type="button"${dis}>${I('stop')}Encerrar</button>`;
+ return `<div class="acoes" data-bloco="acoes">${p}${enc}${yt}</div>`+(off?`<p class="acoes-apoio" id="apoio-acoes" role="status">Gravando no YouTube. Pausar e Encerrar voltam em instantes.</p>`:'');
+}
+function cabecalho(S){
+ return `<header data-bloco="cabecalho">
+ <div class="dhl-hd">
+  <div class="dhl-crumb"><a href="#">${I('back')}A/B Lab</a><span>/</span><span class="tag">Título</span><span class="tag">${I('swap','ic sm')}Round 1/2</span></div>
+  <span class="dhl-th" aria-hidden="true"></span>
+  <div class="dhl-ttl">
+   <h2 class="dhl-h2" title="${S.titulo}">${S.titulo}</h2>
+   <div class="dhl-selos">${selo(S)}${S.fase==='concluido'?'':`<button class="idica" type="button" aria-expanded="false" aria-controls="origem" aria-label="O que é este teste">${I('info')}</button>`}</div>
+   ${S.fase==='concluido'?'':`<p class="dhl-origem" id="origem" hidden>Teste do A/B Lab: o Lab troca o título público do vídeo no YouTube em rodízio, uma versão por vez. Não é o “Testar e comparar” do Studio.</p>`}
+  </div></div>
+ ${acoes(S)}</header>`;
+}
+/* placar */
+const DADOS=[
+ {k:'A',imp:'41.280',cl:'1.610',ctr:'3,9'},
+ {k:'B',imp:'40.912',cl:'2.128',ctr:'5,2'},
+ {k:'C',imp:'39.870',cl:'1.754',ctr:'4,4'}];
+function linha(v,S){
+ const fin=S.dia>=S.tot,mult=fin?2.4:1;
+ const f=s=>s;
+ const vis=S.leitura;
+ const ap=vis?`<span>${S.dia>=S.tot?14:Math.max(S.dia-1,1)} válidos</span>${S.fase==='escrevendo'||S.dia<S.tot?'<span>1 aguardando '+I('clock','ic sm')+'</span>':''}`:`<span>0 válidos</span><span>2 aguardando ${I('clock','ic sm')}</span>`;
+ const imp=vis?(fin?v.imp.replace(/^(\d+)\./,(m,a)=>String(Math.round(a*2.4))+'.'):v.imp):'<span class="dash">—</span>';
+ const cl=vis?(fin?String(Math.round(parseInt(v.cl.replace('.',''))*2.4)).replace(/\B(?=(\d{3})+$)/g,'.'):v.cl):'<span class="dash">—</span>';
+ const ctr=vis?`CTR ≈ ${v.ctr}%`:'<span class="nm">não medido</span>';
+ return `<div class="vrow"><div class="vr"><div class="vh"><span class="chip c${v.k}">${v.k}</span><div class="vt"><b title="${VAR[v.k]}">${VAR[v.k]}</b><div class="ap">${v.k==='A'?'<span>Original</span>'+(S.fase==='concluido'?'<span class="etd-badge">No ar</span>':''):''}${ap}</div></div></div>
+ <div class="vi"><span class="lb">Impressões</span><span class="big num">${imp}</span></div>
+ <div class="vc"><span class="lb">Cliques</span><span class="big num">${cl}</span><span class="de num">${ctr}</span></div>
+ <button class="chev" type="button" aria-expanded="false" aria-label="Ver detalhes da versão ${v.k}">${I('chev')}</button></div></div>`;
+}
+function dias(S,D){
+ let cel='';
+ const med=S.leitura?(S.dia>=S.tot?S.tot:S.dia-1):0;
+ for(let i=1;i<=S.tot;i++){
+  if(i<=med)cel+=`<div class="dc num" title="Dia ${i}: medido">${i}<i>■</i></div>`;
+  else if(i<=S.dia)cel+=`<div class="dc g num" title="Dia ${i}: aguardando o YouTube" aria-label="dia ${i}, aguardando o YouTube">${i}<i aria-hidden="true">◷</i></div>`;
+  else cel+=`<div class="dc a num" title="Dia ${i}: ainda não rodou">${i}<i>·</i></div>`;
+ }
+ const n=med;
+ return `<section data-bloco="dias" class="sec" aria-label="Dias do teste" title="Início ${D.ini} · fim ${D.fim}"><h3 class="sh">Dias do teste<span class="upd">${n} ${n===1?'dia medido':'dias medidos'} de ${S.tot}</span></h3><div class="strip">${cel}</div>
+ <div class="leg"><span>■ medido</span><span>◷ aguardando o YouTube</span><span>· ainda não rodou</span></div></section>`;
+}
+function regua(S,D){
+ const pct=Math.round(S.dia/S.tot*100);
+ return `<section data-bloco="regua" aria-label="Prazo do teste"><h3 class="sh">Prazo<span class="upd num">${S.dia>=S.tot?'Prazo completo':`Faltam ${S.tot-S.dia} dias`}</span></h3><div class="rbar ${S.fase==='concluido'?'ok':''}" role="img" aria-label="Dia ${S.dia} de ${S.tot}"><i style="width:${pct}%"></i></div><div class="mark num"><span>Início ${D.ini}</span><span>Fim ${D.fim}</span></div></section>`;
+}
+function placar(S,D){
+ let frase,band='';
+ if(!S.leitura){
+  frase=`O YouTube ainda não entregou nenhum dia fechado.<small>As contagens aparecem aqui assim que o YouTube fechar o primeiro dia.</small>`;
+ }else if(S.fase==='concluido'){
+  frase=`O teste terminou em ${S.fim}. Ficou no ar: a versão A.<small>O placar abaixo é o final: ${S.tot} dias medidos.</small>`;
+ }else if(S.pronto){
+  frase=`O placar está completo.<small>Falta só você escolher qual versão fica no vídeo.</small>`;
+  band=`<div class="band ok" role="status" data-bloco="faixa"><span>${I('ok')}</span><div><h3>Pronto para decidir</h3><p>Todos os ${S.tot} dias foram medidos. Use Encerrar para escolher a versão.</p></div></div>`;
+ }else{
+  frase=`O YouTube já fechou ${S.dia-1} dias; as contagens ainda podem mudar.<small>Atualizado em 27/10 às 07:40.</small>`;
+ }
+ if(S.fase==='pausado')frase=`Teste pausado. O YouTube fechou ${S.dia-1} dias antes da pausa.<small>Atualizado em 27/10 às 07:40.</small>`;
+ if(S.fase==='pausado')band=`<div class="band warn" role="status" data-bloco="faixa"><span>${I('pause')}</span><div><p>Você pausou em 25/10 às 16:40. A thumbnail original foi restaurada e nenhum dia novo entra no placar.</p></div></div>`;
+ return `<p class="sum" data-bloco="frase">${frase}</p>${band}
+ <section data-bloco="placar" aria-label="Placar por versão"><h3 class="sh">Placar por versão<span class="upd num">${S.leitura?'Atualizado em 27/10 às 07:40':'Sem leitura ainda'}</span></h3>
+ <div class="card"><div class="vhead"><span>Versão</span><span>Impressões</span><span>Cliques</span><span></span></div>${DADOS.map(v=>linha(v,S)).join('')}</div></section>
+ ${dias(S,D)}`;
+}
+function rotacao(S){
+ if(S.fase==='concluido')return '';
+ const seq=['A','B','B','A','B','B','A','A'];
+ const atual=3; /* índice do slot atual */
+ const parado=S.fase==='pausado';
+ const slots=seq.map((l,i)=>`<div class="slot ${parado?'':(i<atual?'p':i===atual?'n':'')}" title="${['08','11','14','17','20','23','02','05'][i]}h">${l}</div>`).join('');
+ const off=S.fase==='escrevendo';
+ const botao=parado?'':`<button class="bt" type="button" data-testid="forcar-rotacao"${off?' aria-disabled="true" aria-describedby="apoio-rot"':''}>${I('refresh')}Forçar rotação</button>`;
+ return `<section class="rot" data-bloco="rotacao" aria-label="Rotação das versões"><div class="rot-top"><div class="tx"><h3>Rotação das versões</h3>
+ <p>${parado?'A rotação está parada enquanto o teste está pausado.':'No ar agora: versão A, desde 17:00. Às 20:00 troca para a B.'}</p>${off?'<p id="apoio-rot" role="status">Gravando no YouTube. A rotação volta em instantes.</p>':''}</div>${botao}</div>
+ <div class="slots" role="img" aria-label="Sequência de hoje: ${seq.join(', ')}">${slots}</div><div class="slots-m num"><span>08h</span><span>05h (amanhã)</span></div></section>`;
+}
+function dialogo(S,tipo){
+ if(tipo==='enc'){
+  const D=S.dia,T=S.tot;
+  const m=S.medidos!=null?S.medidos:(S.leitura?D-1:0);
+  let freio;
+  if(!S.leitura)freio=`<div class="etd-freio sem" role="status">${I('info')}<span>Ainda não há leitura. Encerrar agora não calcula resultado.</span></div>`;
+  else if(T-D===0)freio='';
+  else if(T-D===1)freio=`<div class="etd-freio" role="status">${I('warn')}<span>Falta 1 dia.</span></div>`;
+  else freio=`<div class="etd-freio" role="status">${I('warn')}<span>Faltam ${T-D} dias dos ${T}. Encerrar agora usa só os ${m} dias já medidos.</span></div>`;
+  const ops=['A','B','C'].map(k=>`<label class="etd-opt"><input type="radio" name="v" ${k==='A'?'checked':''}><span><span class="etd-who"><span class="chip c${k}">${k}</span>${k==='A'?'Original':'Versão '+k}${k==='A'?'<span class="etd-badge">No ar agora</span>':''}</span><span class="etd-ttl">${VAR[k]}</span></span></label>`).join('');
+  
+  return `<div class="scrim"><div class="etd" role="dialog" aria-modal="true" aria-labelledby="et"><div class="etd-h"><span class="etd-ico">${I('stop')}</span><h2 id="et">Encerrar o teste?</h2><button class="etd-x" type="button" aria-label="Fechar">${I('x')}</button></div>
+  <div class="etd-b">${freio}${T-D===0?'<p class="etd-state" style="margin:0 0 10px">Todos os '+T+' dias foram medidos.</p>':''}<fieldset><legend>Qual versão fica no vídeo?</legend><p class="etd-state" style="margin:0 0 8px">A versão no ar já vem marcada; troque só se quiser.</p>${ops}</fieldset></div>
+  <div class="etd-f"><button class="etd-btn" type="button">Encerrar o teste</button><button class="etd-btn" type="button">Cancelar</button></div></div></div>`;
+ }
+ return `<div class="scrim"><div class="etd" role="dialog" aria-modal="true" aria-labelledby="et"><div class="etd-h"><span class="etd-ico">${I('refresh')}</span><h2 id="et">Forçar rotação agora?</h2><button class="etd-x" type="button" aria-label="Fechar">${I('x')}</button></div>
+ <div class="etd-b"><p class="etd-state" style="margin:0"><b>A versão atual será trocada no YouTube agora.</b> A versão A sai do ar e a B entra. O ritmo normal da rotação continua depois disso.</p></div>
+ <div class="etd-f"><button class="etd-btn" type="button">Forçar rotação</button><button class="etd-btn" type="button">Cancelar</button></div></div></div>`;
+}
+function antes(){
+ const S=E.b,D=datas(S);
+ return `<div class="antes" data-antes><div class="hoje-hd"><div class="dhl-hd" style="display:flex;gap:16px;align-items:center"><span class="dhl-th" aria-hidden="true" style="flex:none"></span><div class="dhl-ttl" style="flex:1"><div class="dhl-crumb" style="margin-bottom:4px"><a href="#">${I('back')}A/B Lab</a><span>/</span><span class="tag">Título</span><span class="tag">Round 1/2</span></div><h2 class="dhl-h2">${S.titulo}</h2><div class="dhl-selos"><span class="selo">${I('flask','ic sm')}Teste do Lab rodando</span></div><p class="dhl-origem" style="border:0;background:none;padding:0">Teste do A/B Lab: o Lab troca o título público do vídeo no YouTube em rodízio, uma versão por vez. Não é o “Testar e comparar” do Studio.</p></div></div></div>
+ <div>${placar(S,D).replace(/data-bloco="[^"]+"/g,'')}</div>
+ <div class="hoje-bt"><span class="hb">${I('pause','ic sm')}Pausar</span><span class="hb">${I('stop','ic sm')}Encerrar</span><span class="hb">${I('refresh','ic sm')}Forçar rotação</span><span class="hb" aria-label="Configurações">⚙</span><span class="hb">${I('ext','ic sm')}Abrir no YouTube</span></div></div>`;
+}
+function draw(){
+ let S=E[est],dlg=null;
+ if(S.base){dlg=S.dlg;S=Object.assign({},E[S.base],{dia:S.dia||E[S.base].dia,medidos:S.medidos,leitura:E[S.base].leitura});}
+ const frame=document.getElementById('frame');
+ frame.className='frame w'+larg+(dlg?' comdlg':'');
+ document.getElementById('stage').className='stage s'+larg;
+ const D=datas(S);
+ frame.innerHTML=E[est].antes?antes():`<div class="ab" data-ab>${cabecalho(S)}${placar(S,D)}${rotacao(S)}</div>`+(dlg?dialogo(S,dlg):'');
+ frame.style.minHeight=dlg?'1100px':'';
+ frame.querySelectorAll('.idica').forEach(b=>b.addEventListener('click',()=>{const o=document.getElementById('origem');const x=b.getAttribute('aria-expanded')==='true';b.setAttribute('aria-expanded',!x);o.hidden=x}));
+ document.getElementById('nota').textContent=E[est].r;
+ document.getElementById('selE').value=est;
+ document.querySelectorAll('#segL button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===larg));
+}
+const selE=document.getElementById('selE');
+selE.innerHTML=Object.keys(E).map(k=>`<option value="${k}">${E[k].r.split('.')[0]}${E[k].r.slice(E[k].r.indexOf('.')).slice(0,60)}</option>`).join('');
+function go(p,v){q.set(p,v);location.search=q.toString()}
+selE.addEventListener('change',()=>go('estado',selE.value));
+document.getElementById('segL').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go('largura',b.dataset.v)});
+draw();
+</script>
+</body></html>
