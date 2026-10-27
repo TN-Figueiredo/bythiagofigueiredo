@@ -234,7 +234,7 @@ describe('M7b envio 2: consertos da revisão', () => {
   const semRedeNoFetch = () => vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('Yannis I1: a conferência acha C só no YouTube → aviso "não ficou registrada" e "Registrar C"; o clique grava com o seq do servidor', async () => {
+  it('Yannis I1/N2: a conferência acha C só no YouTube → aviso "não ficou registrada" e "Deixar C no ar"; o clique grava com o seq do servidor', async () => {
     vi.useFakeTimers()
     semRedeNoFetch()
     const a = acoes({
@@ -247,9 +247,9 @@ describe('M7b envio 2: consertos da revisão', () => {
     fireEvent.click(radio('Versão C'))
     await clica(botao('Deixar C no ar'))
     await flush(0)
-    expect(screen.getByRole('alert').textContent).toContain('A versão C já está no YouTube, mas a escolha não ficou registrada.')
-    expect(screen.getByRole('alert').textContent).toContain('Toque em Registrar para guardar.')
-    await clica(botao('Registrar C'))
+    expect(screen.getByRole('alert').textContent).toContain('A versão C já aparece no YouTube, mas a escolha não ficou registrada.')
+    expect(screen.getByRole('alert').textContent).toContain('Toque em Deixar C no ar para confirmar.')
+    await clica(botao('Deixar C no ar'))
     expect(a.escolher).toHaveBeenLastCalledWith('t1', 'vc', 6)
   })
 
