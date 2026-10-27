@@ -76,6 +76,8 @@ function porLetra(a: LinhaPisoV2, b: LinhaPisoV2): number { return a.letra < b.l
 
 const SEM_DIA = 'ainda não tem dia medido'
 
+export const TITULO_CONTA_PENDENTE = 'Os dias mínimos já foram atingidos; o resultado sai amanhã.'
+
 function fraseAtivo(e: {
   linhas: LinhaPisoV2[]; n: number | null; p: ReturnType<typeof pisos>; dia: number; teto: number; pausado: boolean
   passouDoFim: boolean; ilegivel: boolean; nenhumDia: boolean; v2: ResultadoV2 | null; sinal: DisplayLabel | null
@@ -89,7 +91,7 @@ function fraseAtivo(e: {
   const volTxt = (l: LinhaPisoV2) => (l.volume === null ? `${l.letra} ${SEM_DIA}` : `${l.letra} tem ${milhar(l.volume)}`)
   if (e.p.piso_dias && e.p.piso_volume) {
     if (e.sinal) return { principal: `Há um sinal de ${e.sinal}, mas ainda não decide.`, apoio: 'Os pisos fecharam. O teste segue até o fim para o resultado valer.' }
-    if (e.v2 && !('vencedor_sugerido' in e.v2)) return { principal: 'Os pisos fecharam; a conta de hoje ainda não rodou.', apoio: 'Volte amanhã.' }
+    if (e.v2 && !('vencedor_sugerido' in e.v2)) return { principal: TITULO_CONTA_PENDENTE, apoio: 'Volte amanhã.' }
     return { principal: 'Os pisos fecharam; nenhuma versão está à frente da original.', apoio: 'O teste segue até o fim para o resultado valer.' }
   }
   if (!e.p.piso_dias) {

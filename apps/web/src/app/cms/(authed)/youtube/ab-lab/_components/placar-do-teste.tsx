@@ -166,7 +166,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
   const resumo = hojePendente ? '1 dia: 1 aguardando o YouTube' : `${faixaDias.length} ${faixaDias.length === 1 ? 'dia' : 'dias'}: ${(Object.keys(cont) as CodigoDia[]).map(k => `${cont[k]} ${NOME_DIA[k]}`).join(', ')}`
 
   return (
-    <div className="cn-raiz pm4" data-testid="placar-do-teste">
+    <div className="cn-raiz pm4" data-testid="placar-do-teste" data-v2={modoV2 ? '' : undefined}>
       <div className="pm4-in">
         {placar?.regra === 'v1' && (
           <div className="pm4-selos"><span className="pm4-selo"><IcVelho />Regra antiga: encerra por duração</span></div>
