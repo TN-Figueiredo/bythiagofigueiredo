@@ -125,11 +125,14 @@ describe('Com você', () => {
       { tipo: 'aplicar', testId: 'c1', titulo: 'Aladdin', letra: 'B', motivo: 'sugerida pelo teste', painel },
       { tipo: 'dia14', titulo: 'Sukhumvit', linha, ytId: 'yt9', prazo: '08/11', vencido: false },
     ])
-    expect(container.textContent).toContain('Aplique B em “Aladdin”')
-    expect(container.textContent).toContain('Prazo: hoje')
+    expect(container.textContent).toContain('Deixe a B no ar em “Aladdin”')
+    // Gio G1 (M7b): concluído não tem prazo nem o verbo "Aplicar"
+    const itemAplicar = container.querySelector('[data-item="aplicar"]')!.textContent ?? ''
+    expect(itemAplicar).not.toMatch(/Prazo|Aplique|Aplicar/)
+    expect(itemAplicar).toContain('sem prazo')
     expect(container.textContent).toContain('vence 08/11')
     expect(screen.getByText('(2)')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Aplicar B' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Deixar B no ar' }))
     expect(p.onAbrirPainel).toHaveBeenCalledWith(painel, expect.any(HTMLElement))
     fireEvent.click(screen.getByRole('button', { name: 'Dizer o que o Studio escolheu' }))
     expect(p.onAbrirDia14).toHaveBeenCalledWith(linha, expect.any(HTMLElement))

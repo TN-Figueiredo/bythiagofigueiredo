@@ -42,8 +42,9 @@ export function FaixaComVoce(p: FaixaComVoceProps): ReactElement {
     switch (i.tipo) {
       case 'aplicar':
         return {
-          urgente: true, titulo: `Aplique ${i.letra} em “${i.titulo}”`, motivo: i.motivo, prazo: 'Prazo: hoje',
-          botao: <button type="button" className={`${BOTAO} pri`} onClick={e => p.onAbrirPainel(i.painel, e.currentTarget)}>Aplicar {i.letra}</button>,
+          // M7b: sem prazo (o painel do concluído não tem) e o verbo único é "Deixar X no ar".
+          urgente: false, titulo: `Deixe a ${i.letra} no ar em “${i.titulo}”`, motivo: i.motivo, prazo: 'sem prazo',
+          botao: <button type="button" className={`${BOTAO} pri`} onClick={e => p.onAbrirPainel(i.painel, e.currentTarget)}>Deixar {i.letra} no ar</button>,
         }
       case 'escolher':
         return {

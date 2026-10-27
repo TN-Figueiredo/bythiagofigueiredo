@@ -41,6 +41,13 @@ beforeEach(() => { refresh.mockClear(); push.mockClear(); expirou.valor = false 
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
 describe('Painel "O que fica no vídeo?" (M7 T8)', () => {
+  it('Gio G7 (como o D18): teste só de título mostra a miniatura da original em todas as versões, com "miniatura não muda"', () => {
+    monta(ativoComSug())
+    const imgs = Array.from(document.querySelectorAll('.lab-opt img')) as HTMLImageElement[]
+    expect(imgs).toHaveLength(3)
+    expect(new Set(imgs.map(i => i.getAttribute('src')))).toEqual(new Set(['https://img/A.jpg']))
+    expect(screen.getAllByText('miniatura não muda')).toHaveLength(3)
+  })
   it('ativo: escolher C chama acoes.encerrar(testId, { destino: "variante", varianteId, seqVisto })', async () => {
     const { a } = monta(ativoComSug())
     fireEvent.click(radio('C'))

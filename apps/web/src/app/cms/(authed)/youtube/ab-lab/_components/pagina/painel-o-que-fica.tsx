@@ -205,6 +205,8 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
   const semPermissao = !painel.podeDeixarVariante
   const rodape = 'Mudar o que está no ar muda o YouTube agora. Dá para voltar à original por 7 dias.'
   const mostraEscolha = fase === 'escolha' || enviando
+  // Gio G7 (como o D18): teste só de título não muda a miniatura; todas as versões mostram a mesma (a da original) com a nota.
+  const miniaturaComum = painel.tipo === 'title' ? (painel.opcoes.find(o => o.original)?.miniatura ?? null) : null
 
   const rotuloPrimario = erro && fase === 'escolha' ? 'Tentar de novo' : enviando ? 'Aplicando…' : rotuloDoBotao(painel, escolhaId)
   const dentroAviso = aviso ? (
@@ -246,7 +248,10 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
                         onChange={() => { if (esc && !enviando) onEscolher(o.varianteId) }} aria-label={`Versão ${o.letra}`}
                       />
                       {vis
-                        ? <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-md border border-[#40382D] bg-[#272219] text-[13px] font-bold text-cms-text-muted">{o.letra}</span>
+                        ? miniaturaComum
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={miniaturaComum} alt="" aria-hidden="true" className="aspect-video w-[72px] rounded-md object-cover" />
+                          : <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-md border border-[#40382D] bg-[#272219] text-[13px] font-bold text-cms-text-muted">{o.letra}</span>
                         : o.miniatura
                           // eslint-disable-next-line @next/next/no-img-element
                           ? <img src={o.miniatura} alt="" aria-hidden="true" className="aspect-video w-[72px] rounded-md object-cover" />
@@ -254,6 +259,7 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
                       <span className="flex min-w-0 flex-col gap-1">
                         <b className="line-clamp-2 text-sm font-semibold leading-[1.35]">{vis ? (o.titulo ?? 'sem título gravado') : `Versão ${o.letra}`}</b>
                         <span className="text-xs text-cms-text-muted tabular-nums">{vis ? '' : `Versão ${o.letra} · `}{ctrTexto(o.ctr)}</span>
+                        {vis && miniaturaComum ? <span className="text-xs text-cms-text-muted">miniatura não muda</span> : null}
                         <span className="flex w-full flex-wrap items-start gap-1.5">
                           {o.original ? <Selo>Original</Selo> : null}
                           {o.noAr ? <Selo classe="border-[#3E8F63] text-[#6FCF97]">No ar agora</Selo> : null}

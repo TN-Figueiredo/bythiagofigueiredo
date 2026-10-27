@@ -127,7 +127,7 @@ export function proximaDecisao(e: EntradaPagina): Date | null {
 
 function verboDe(i: ItemComVoce): string | null {
   switch (i.tipo) {
-    case 'aplicar': return `aplicar ${i.letra}`
+    case 'aplicar': return `deixar ${i.letra} no ar`
     case 'escolher': return 'escolher a versão'
     case 'dia14': return 'dizer o que o Studio escolheu'
     case 'conferir_studio': return 'conferir o Studio'

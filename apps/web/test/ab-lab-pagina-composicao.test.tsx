@@ -123,9 +123,9 @@ describe('página do A/B Lab: composição', () => {
     expect(linha.querySelector('.lab-th')!.className).toContain('max-sm:!w-16')
     expect(linha.querySelector('b.text-\\[13px\\]')!.parentElement!.className).toContain('max-sm:basis-full')
   })
-  it('item "Aplicar B" da faixa e a linha do Concluído abrem o mesmo painel de escolha', () => {
+  it('item "Deixar B no ar" da faixa e a linha do Concluído abrem o mesmo painel de escolha', () => {
     const { container } = render(<AbLabDashboard {...propsDoLab({ pagina: paginaCheia() })} />)
-    const abrir = [screen.getByRole('button', { name: 'Aplicar B' }), container.querySelector('button[data-concluido]') as HTMLElement]
+    const abrir = [screen.getByRole('button', { name: 'Deixar B no ar' }), container.querySelector('button[data-concluido]') as HTMLElement]
     for (const b of abrir) {
       fireEvent.click(b)
       expect(screen.getByRole('dialog', { name: 'O que fica no vídeo?' })).toBeTruthy()
