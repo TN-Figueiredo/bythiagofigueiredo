@@ -49,7 +49,7 @@
 .pm4-th-vazia { display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; color: var(--cms-text-dim); border: 1px dashed var(--cms-border); background: transparent; }
 .pm4-th { display: block; border-radius: 5px; flex: none; aspect-ratio: 16 / 9; width: 80px; object-fit: cover; background: var(--cn-skel); }
 .pm4-vt { min-width: 0; }
-.pm4-vt b { display: block; font: 600 14px/1.35 Inter, system-ui, sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm4-vt b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font: 600 14px/1.35 Inter, system-ui, sans-serif; overflow: hidden; white-space: normal; overflow-wrap: anywhere; }
 .pm4-vt .ap { font-size: 12px; color: var(--cn-muted); margin-top: 1px; display: flex; gap: 4px 10px; flex-wrap: wrap; }
 .pm4-vi, .pm4-vc { text-align: right; font-size: 14px; }
 .pm4-vi .lb, .pm4-vc .lb { display: none; }
@@ -68,7 +68,7 @@
   .pm4-vr { grid-template-columns: 1fr 1fr 44px; grid-template-areas: "h h h" "i c x"; gap: 8px 10px; padding: 12px 0; }
   .pm4-vh { grid-area: h; align-items: flex-start; }
   .pm4-vh .pm4-th { width: 72px; }
-  .pm4-vt b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .pm4-vt b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }
   .pm4-vi { grid-area: i; text-align: left; } .pm4-vc { grid-area: c; text-align: left; }
   .pm4-chev { grid-area: x; }
   .pm4-vi .lb, .pm4-vc .lb { display: block; font-size: 12px; color: var(--cn-muted); }
