@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { placarVazio } from '../helpers/ab-placar-fixture'
 import { render, screen, cleanup } from '@testing-library/react'
 import { formatCtr } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-constants'
-import { ActiveTestCard } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-test-card'
 import { LearningsPanel } from '@/app/cms/(authed)/youtube/ab-lab/_components/learnings-panel'
 import { ActiveDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/active-detail'
 import { PlayoffDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/playoff-detail'
@@ -34,19 +33,6 @@ describe('emenda P1-P6 (Gio)', () => {
     expect(formatCtr(0, 0)).toBe('—')
     expect(formatCtr(0.05, null)).toBe('—')
     expect(formatCtr(0.05, 1000)).toBe('5,0%')
-  })
-
-  it('P1: card ativo sem medição não tem o rótulo "Confiança"', () => {
-    render(<ActiveTestCard test={makeCardView({ confidence: null, lift: null })} onOpen={vi.fn()} />)
-    expect(screen.queryByText('Confiança')).toBeNull()
-  })
-
-  it('P3 + P2 (card): frase da coluna Líder com text-cms-text e Líder mostra "—"', () => {
-    render(<ActiveTestCard test={makeCardView({ confidence: null, lift: null })} onOpen={vi.fn()} />)
-    const frase = screen.getByText('CTR não medido')
-    expect(frase.className).toMatch(/text-cms-text(?![-\w])/)
-    expect(frase.className).not.toMatch(/text-cms-text-(dim|muted)/)
-    expect(screen.getByText('—')).toBeTruthy()
   })
 
   it('P2: detalhe ativo sem impressões não tem faixa de CTR, nem "credibilidade", nem "últimos N dias"; frase uma vez', () => {

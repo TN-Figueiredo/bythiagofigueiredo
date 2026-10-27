@@ -33,13 +33,11 @@ vi.mock('@/app/cms/(authed)/youtube/ab-lab/queries', async (orig) => {
 })
 
 const lerPaginaSpy = vi.fn()
-const lerLinhasSpy = vi.fn()
 vi.mock('@/lib/youtube/teste-youtube/nativo/lista-borda', async (orig) => {
   const real = await orig<typeof import('@/lib/youtube/teste-youtube/nativo/lista-borda')>()
   return {
     ...real,
     lerPaginaDoCanal: (...a: Parameters<typeof real.lerPaginaDoCanal>) => { lerPaginaSpy(...a); return real.lerPaginaDoCanal(...a) },
-    lerLinhasDoCaminho: (...a: unknown[]) => lerLinhasSpy(...a),
   }
 })
 const lerDiasSpy = vi.fn()
@@ -102,7 +100,7 @@ const desfeita = (id: string, video: string) => teste(id, {
 
 beforeEach(() => {
   testes = { active: [], draft: [], completed: [], paused: [] }
-  for (const m of [escopo, sugeridos, lerPaginaSpy, lerLinhasSpy, lerDiasSpy]) m.mockReset()
+  for (const m of [escopo, sugeridos, lerPaginaSpy, lerDiasSpy]) m.mockReset()
   escopo.mockResolvedValue({ ok: true })
   leituraDoEditorMock.mockReset()
   leituraDoEditorMock.mockResolvedValue({ siteId: 's' })
@@ -147,11 +145,10 @@ describe('lerPaginaDoLab: uma leitura por visita', () => {
     expect(sugeridos).not.toHaveBeenCalled()
   })
 
-  it('lerPaginaDoCanal UMA vez, com o recorte inicial; as linhas alimentam a listaInicial; lerLinhasDoCaminho não é chamado', async () => {
+  it('lerPaginaDoCanal UMA vez, com o recorte inicial; as linhas alimentam a listaInicial', async () => {
     const r = await lerPaginaDoLab('s', agora, 'dQw4w9WgXcQ')
     expect(lerPaginaSpy).toHaveBeenCalledTimes(1)
     expect(lerPaginaSpy.mock.calls[0]![4]).toEqual({ busca: null, filtro: 'testaveis', pagina: 0, incluirYtId: 'dQw4w9WgXcQ' })
-    expect(lerLinhasSpy).not.toHaveBeenCalled()
     expect(r.listaInicial.linhas).toEqual([])
   })
 

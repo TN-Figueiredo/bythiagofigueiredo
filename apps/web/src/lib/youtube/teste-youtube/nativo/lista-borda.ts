@@ -21,9 +21,6 @@ import { leituraValida, type LeituraPrivadaDoSite } from '@/lib/youtube/observat
 import { volumeDoVideo } from './volume'
 import { lerVolumes, type VolumeLido } from './volume-leitor'
 
-export const LIMITE_RECENTES = 20
-/** Lê mais que 20 porque os privados saem depois da RPC de volume, que traz `publico`. */
-const RECENTES_LIDOS = 60
 const DIA_MS = 86_400_000
 /** Registro confirmado e fechado entra na lista por 30 dias. */
 const JANELA_FECHADOS_DIAS = 30
@@ -212,7 +209,7 @@ function montarLinha(v: VideoLido, b: Base, vol: VolumeLido | undefined, formato
   const idadeDias = Math.max(0, Math.floor((agora.getTime() - Date.parse(v.published_at)) / DIA_MS))
   const caminho = caminhoDoTeste({ formato: formato ?? SEM_FORMATO, idadeDias, impressoesAcimaDoPiso: volume.acimaDoPiso })
   const ficha = b.fichas.get(v.id) ?? null
-  const nosso = b.nossos.get(v.youtube_video_id) ?? null
+  const nosso = b.nossos.get(v.id) ?? null
   const bruto = b.testes.get(v.id)
   const registro = bruto ? registroDaLista(bruto, b.titulosAntes.get(bruto.id) ?? null) : null
   const estado = estadoDaLinha({ caminho, ficha, registro, nosso }, agora)
@@ -248,29 +245,6 @@ function montarLinha(v: VideoLido, b: Base, vol: VolumeLido | undefined, formato
 
 const provaValida = (leitura: LeituraPrivadaDoSite | null, siteId: string): leitura is LeituraPrivadaDoSite =>
   leitura !== null && leituraValida(leitura) && leitura.siteId === siteId
-
-/**
- * `leitura` é a prova de que quem pede edita o site (`leituraDoEditor`): o volume sai de uma RPC que lê dado privado do canal.
- * Sem prova (nula, forjada ou de outro site) a lista abre SEM volume ("Volume ainda não lido"): não lança e não lê o privado.
- */
-export async function lerLinhasDoCaminho(sb: SupabaseClient, siteId: string, agora: Date, leitura: LeituraPrivadaDoSite | null): Promise<LinhaDoCaminho[]> {
-  const b = await lerBase(sb, siteId, agora, sb.from('youtube_videos').select(COLUNAS_VIDEO)
-    .eq('site_id', siteId).lte('published_at', agora.toISOString()).order('published_at', { ascending: false }).limit(RECENTES_LIDOS))
-
-  const recentesLidos = b.recentes.map(comoVideo).filter((v): v is VideoLido => v !== null)
-  const todos = new Map<string, VideoLido>()
-  for (const v of [...recentesLidos, ...b.extras]) todos.set(v.id, v)
-
-  const volumes: Map<string, VolumeLido> = provaValida(leitura, siteId) ? await lerVolumes(sb, leitura, [...todos.keys()]) : new Map()
-  // Privado fica fora dos recentes (publico === false); desconhecido (nunca capturado) fica.
-  const publicos = recentesLidos.filter((v) => volumes.get(v.id)?.publico !== false).slice(0, LIMITE_RECENTES)
-  const videos = new Map<string, VideoLido>()
-  for (const v of [...publicos, ...b.extras]) videos.set(v.id, v)
-
-  const lista = [...videos.values()]
-  const formatos = await lerFormatos(sb, siteId, lista.map((v) => ({ id: v.id, ytId: v.youtube_video_id })))
-  return lista.map((v) => montarLinha(v, b, volumes.get(v.id), formatos.get(v.id), agora))
-}
 
 // ---------------------------------------------------------------------------------------------------------------------
 // M7 T6: o canal inteiro, com busca, filtro "Testáveis" e páginas de 20.
@@ -374,7 +348,7 @@ export async function lerPaginaDoCanal(
 
   // Extras de hoje: fichas abertas, registros do Studio e testes nossos (na página 0, fora de busca).
   const idsExtras = new Set<string>([...b.fichas.keys(), ...b.testes.keys()])
-  for (const v of porId.values()) if (b.nossos.has(v.youtube_video_id)) idsExtras.add(v.id)
+  for (const v of porId.values()) if (b.nossos.has(v.id)) idsExtras.add(v.id)
   const extras = [...idsExtras].map((id) => porId.get(id)).filter((v): v is VideoLido => v !== undefined).sort(maisNovoPrimeiro)
 
   const buscaTxt = r.busca !== null && normalizarBusca(r.busca).length >= 2 ? normalizarBusca(r.busca) : null
