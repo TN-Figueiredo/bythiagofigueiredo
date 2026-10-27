@@ -1,12 +1,12 @@
 /** Manutenção M5, Tarefa 7 (Phil I1): a tabela prefixo do vermelho do pulso -> frase e forma. Frases em linguagem do dono; as sem equivalente no mockup
  *  (arq-dados.js não desenhou os prefixos do pulso) ficam marcadas "revisão Logan" e entram na Tarefa 15. Prefixo desconhecido -> linha genérica, nunca engolido. */
 /** `tipo`: de que a linha fala. `mes` já está na linha do mês (não soma de novo no topo), `canal` é o bloco Canais removidos, `outro` é só desta lista. `n`: a contagem do canal. `ancora`: para onde o "ver" leva. */
+import { NOME_DA_TABELA as NOME_DO_DADO } from './estado-do-mes'
+
 export interface LinhaDeProblema { prefixo: string | null; frase: string; forma: 'octogono' | 'triangulo'; bruto: string; tipo?: 'mes' | 'canal' | 'outro'; n?: number; ancora?: string }
 
 type Regra = { prefixo: string; tipo?: 'mes' | 'canal'; forma: 'octogono' | 'triangulo'; frase: (resto: string) => string; /** o vermelho que começa por número ("3 canais removidos sem destino do arquivo") */ padrao?: RegExp }
 const num = (s: string): string => s.match(/\d+/)?.[0] ?? ''
-/** O nome que o dono lê para a base ausente (o interno nunca vai à tela). */
-const NOME_DA_AUSENTE: Record<string, string> = { competitor_video_daily: 'Views por dia', competitor_video_early: 'Primeiras horas', competitor_video_hourly: 'Views por hora' }
 /** O número no fim do texto ("mês sem selo há mais de 30 dias: 2" -> 2). */
 const fim = (s: string): string => s.match(/(\d+)\s*$/)?.[1] ?? ''
 const qual = (s: string): string => s.replace(/^[^:]*:/, '').trim()
@@ -40,7 +40,7 @@ const REGRAS: readonly Regra[] = [
   // arq-dados.js (pn2): "O NAS está cheio"
   { prefixo: 'nas_80:', forma: 'triangulo', frase: () => 'O NAS passou de 80% do espaço. Libere espaço (ver os comandos).' },
   // revisão Logan
-  { prefixo: 'tabela_ausente:', forma: 'octogono', frase: r => `Falta no banco o lugar dos dados de ${NOME_DA_AUSENTE[qual(r)] ?? 'um tipo de dado'}, que o arquivo copia. Nada desse tipo sai até ele voltar.` },
+  { prefixo: 'tabela_ausente:', forma: 'octogono', frase: r => `Falta no banco o lugar dos dados de ${NOME_DO_DADO[qual(r)] ?? 'um tipo de dado'}, que o arquivo copia. Nada desse tipo sai até ele voltar.` },
   // revisão Logan
   { prefixo: 'b2_piso_acima_do_teto', forma: 'triangulo', frase: () => 'O que o B2 recebe por dia já passa de metade do limite do mês.' },
   // revisão Logan

@@ -9,7 +9,7 @@ function Linha({ l }: { l: LinhaCanalRemovido }): ReactElement {
   const grav = l.gravidade === 'vermelho' ? ' vm' : l.gravidade === 'ambar' ? ' am' : l.gravidade === 'nao_medido' ? ' nm' : ''
   return (
     <li className={`arq-can${grav}${l.noTopo ? ' arq-contorno' : ''}`}>
-      <div className="arq-cn" title={l.rotulo} aria-label={l.rotulo}>{l.rotulo}</div>
+      <div className="arq-cn" title={l.rotulo}>{l.rotulo}</div>
       <div>
         <p className="arq-fr">{l.frase}</p>
         {l.blob ? <p className="arq-fr arq-sec" data-forma={l.blob.forma}>{l.blob.frase}</p> : null}

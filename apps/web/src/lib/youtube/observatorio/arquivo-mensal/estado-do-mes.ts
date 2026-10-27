@@ -54,7 +54,7 @@ function maisMeses(d: string, n: number): string {
   const t = Number(d.slice(0, 4)) * 12 + (Number(d.slice(5, 7)) - 1) + n
   return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}-01`
 }
-const NOME_DA_TABELA: Record<string, string> = { competitor_video_daily: 'Views por dia', competitor_video_early: 'Primeiras horas', competitor_video_hourly: 'Views por hora' }
+export const NOME_DA_TABELA: Record<string, string> = { competitor_video_daily: 'Views por dia', competitor_video_early: 'Primeiras horas', competitor_video_hourly: 'Views por hora' }
 const NOME_DO_TIPO: Record<'horaria' | 'serie' | 'texto', string> = { horaria: 'Views por hora', serie: 'Views por dia', texto: 'Comentários e dados antigos do YouTube' }
 
 interface Ctx { agora: number; hoje: string; hojeMs: number; mesCorrente: string; p: PaginaLida }
