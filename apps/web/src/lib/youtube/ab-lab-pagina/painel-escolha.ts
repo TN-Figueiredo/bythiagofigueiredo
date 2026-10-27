@@ -70,6 +70,8 @@ export interface PainelEscolha {
   decidido: boolean
   /** `escolha_em` gravada, mas a versão escolhida já não existe */
   escolhaApagadaEm: string | null
+  /** A entrada de origem: o painel refaz o modelo no cliente depois de cada resposta do servidor. */
+  entrada: EntradaPainelEscolha
 }
 
 const TIPO_ROTULO: Record<TipoTeste, string> = { title: 'título', thumbnail: 'miniatura', combo: 'título e miniatura' }
@@ -132,7 +134,7 @@ export function montarPainelEscolha(e: EntradaPainelEscolha): PainelEscolha {
     testId: e.testId, nomeVideo: e.nomeVideo, tipo: e.tipo, meta: `Teste de ${TIPO_ROTULO[e.tipo]} · ${e.nomeVideo}`, restoreSeq: e.restoreSeq,
     podeAdministrar: e.podeAdministrar, opcoes, padrao, noAr: e.noAr, noArId,
     sugeridaId, sugeridaLetra: sugeridaId ? e.variantes.find(v => v.id === sugeridaId)?.letra ?? null : null,
-    inconclusivo: sugeridaId === null, decidido, escolhaApagadaEm,
+    inconclusivo: sugeridaId === null, decidido, escolhaApagadaEm, entrada: e,
   }
 }
 
