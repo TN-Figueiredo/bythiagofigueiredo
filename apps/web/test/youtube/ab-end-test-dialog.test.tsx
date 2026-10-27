@@ -28,7 +28,7 @@ let onAviso: ReturnType<typeof vi.fn>
 function props(over: Partial<AbEndTestDialogProps> = {}): AbEndTestDialogProps {
   return {
     aberto: true, onFechar, testeNome: 'Teste', noArAgora: { rotulo: 'C', desde: '07/10 05:00' }, opcoes,
-    originalBaixaResolucao: false, podeDeixarVariante: true, encerrar, onAviso, ...over,
+    originalBaixaResolucao: false, podeDeixarVariante: true, encerrar, onAviso, freio: { tipo: 'faltam', texto: 'Faltam 8 dias dos 14. Encerrar agora usa só os 5 dias já medidos.' }, ...over,
   }
 }
 const feito = (campos: Record<string, { estado: string }>): ResultadoAcaoSaida =>
@@ -45,8 +45,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); cancelarFocoDaFaixa(); vi.useRealTimers() })
 
 describe('AbEndTestDialog: escolha', () => {
-  it('E1: nenhuma opção marcada, botão aria-disabled com "Escolha uma opção."; clicar não chama encerrar', async () => {
-    render(<AbEndTestDialog {...props()} />)
+  it('E1: sem versão no ar casando com as opções, nenhuma marcada; botão aria-disabled com "Escolha uma opção."; clicar não chama encerrar', async () => {
+    render(<AbEndTestDialog {...props({ noArAgora: { rotulo: 'Z', desde: '' } })} />)
     const b = screen.getByRole('button', { name: /Escolha uma opção|Encerrar/ })
     expect(b.getAttribute('aria-disabled')).toBe('true')
     expect(screen.getByText('Escolha uma opção.')).toBeTruthy()
@@ -63,13 +63,13 @@ describe('AbEndTestDialog: escolha', () => {
     expect(screen.getByRole('button', { name: 'Encerrar e ficar com A (original)' })).toBeTruthy()
   })
 
-  it('estrutura: dialog nomeado por "Encerrar teste", descrito pela frase, fieldset com legend, selo "no ar agora"', () => {
+  it('estrutura: dialog nomeado por "Encerrar o teste?", descrito pela frase, fieldset com legend, selo "No ar agora"', () => {
     render(<AbEndTestDialog {...props()} />)
-    const d = screen.getByRole('dialog', { name: 'Encerrar teste' })
+    const d = screen.getByRole('dialog', { name: 'Encerrar o teste?' })
     expect(d.getAttribute('aria-modal')).toBe('true')
     expect(document.getElementById(d.getAttribute('aria-describedby')!)!.textContent).toBe('A rotação para. No ar agora: variante C, desde 07/10 05:00.')
-    expect(screen.getByRole('group', { name: 'O que fica no vídeo?' })).toBeTruthy()
-    expect(screen.getAllByText('no ar agora')).toHaveLength(1)
+    expect(screen.getByRole('group', { name: 'Qual versão fica no vídeo?' })).toBeTruthy()
+    expect(screen.getAllByText('No ar agora')).toHaveLength(1)
   })
 
   it('aviso de baixa resolução só quando a prop liga', () => {

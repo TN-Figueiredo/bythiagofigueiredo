@@ -135,7 +135,7 @@ export function AcoesDeSaida({ view, encerrar, pausar, onAviso, escrevendo, reto
         Encerrar
       </button>
       {showPause && (
-        <AbPauseDialog pausar={pausar} seqVisto={view.restoreSeq} onClose={() => setShowPause(false)} onAviso={onAviso} />
+        <AbPauseDialog flag={view.flag} pausar={pausar} seqVisto={view.restoreSeq} onClose={() => setShowPause(false)} onAviso={onAviso} />
       )}
       {showEnd && (
         <AbEndTestDialog
@@ -148,6 +148,7 @@ export function AcoesDeSaida({ view, encerrar, pausar, onAviso, escrevendo, reto
           seqVisto={view.restoreSeq}
           onAviso={onAviso}
           regraV2={view.placar?.regra === 'v2'}
+          freio={freio}
         />
       )}
     </>

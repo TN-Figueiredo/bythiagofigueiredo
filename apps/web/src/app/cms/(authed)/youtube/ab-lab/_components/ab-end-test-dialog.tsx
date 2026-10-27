@@ -10,6 +10,7 @@ import { AbConfirmarTrocaDialog } from './ab-confirmar-troca-dialog'
 import { ICONE_ERRO } from './etd-icone-erro'
 import { ICONE_BUSY } from './etd-icone-busy'
 import type { OpcaoDoDialogo } from './encerrar-props'
+import type { FreioDoEncerrar } from './cabecalho-do-teste'
 import './ab-end-test-dialog.css'
 
 /** Depois deste tempo sem resposta o diálogo para de esperar (a escrita segue no servidor). */
@@ -33,6 +34,8 @@ export interface AbEndTestDialogProps {
   onAviso?: (texto: string) => void
   /** S8-F4 T12: teste com regra v2; encerrar à mão tira o teste da decisão. */
   regraV2?: boolean
+  /** M7d: o que falta para o teste fechar (aviso no topo do corpo; só `completo` deixa o botão cheio). */
+  freio: FreioDoEncerrar
 }
 
 type Fase = 'escolha' | 'enviando' | 'sem_resposta' | 'sessao_expirada' | 'mudou'
@@ -111,14 +114,21 @@ const ICONE_AVISO = (
 const ICONE_NONE = (
   <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="3 3" /><path d="M8 12h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
 )
+const ICONE_INFO = (
+  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M12 11v5.5M12 7.8v.2" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg>
+)
 const ICONE_AR = (
   <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12"><circle cx="12" cy="12" r="3.2" fill="currentColor" /><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
 )
 
+function ehNoAr(o: OpcaoDoDialogo, rotuloNoAr: string): boolean {
+  return o.rotulo === rotuloNoAr || o.rotulo === `${rotuloNoAr} (original)`
+}
+
 export function AbEndTestDialog(props: AbEndTestDialogProps) {
   const { aberto, onFechar, noArAgora, opcoes, originalBaixaResolucao, miniaturaNaoMuda, podeDeixarVariante, encerrar, seqVisto, onAviso } = props
   const router = useRouter()
-  const [escolhida, setEscolhida] = useState<string | null>(null)
+  const [escolhida, setEscolhida] = useState<string | null>(() => opcoes.find(o => ehNoAr(o, noArAgora.rotulo))?.id ?? null)
   const [fase, setFase] = useState<Fase>('escolha')
   const [erro, setErro] = useState<{ titulo: string; texto: string } | null>(null)
   const [pendencia, setPendencia] = useState<Pendencia | null>(null)
@@ -244,7 +254,7 @@ interface EscolhaProps extends AbEndTestDialogProps {
   onEnviar: () => void
 }
 
-function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, miniaturaNaoMuda, podeDeixarVariante, regraV2, escolhida, setEscolhida, fase, erro, opcao, onEnviar }: EscolhaProps) {
+function Escolha({ freio, onFechar, noArAgora, opcoes, originalBaixaResolucao, miniaturaNaoMuda, podeDeixarVariante, regraV2, escolhida, setEscolhida, fase, erro, opcao, onEnviar }: EscolhaProps) {
   const ref = useRef<HTMLDivElement>(null)
   const cancelarRef = useRef<HTMLButtonElement>(null)
   useModalFocusTrap(ref, true, onFechar, cancelarRef) // foco inicial na opção segura (Cancelar), não no X
@@ -268,15 +278,25 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, miniatur
             <span className="etd-ico" aria-hidden="true">
               <svg width="16" height="16" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" /></svg>
             </span>
-            <h2 id="etd-t">Encerrar teste</h2>
+            <h2 id="etd-t">Encerrar o teste?</h2>
             <button type="button" className="etd-x" aria-label="Fechar" onClick={onFechar}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
             </button>
           </div>
           <div className="etd-b">
+            {freio.tipo === 'completo' ? (
+              <p className="etd-state">{freio.texto}</p>
+            ) : (
+              <div className={`etd-freio${freio.tipo === 'sem_leitura' ? ' sem' : ''}`} role="status">
+                {freio.tipo === 'sem_leitura' ? ICONE_INFO : ICONE_AVISO}<span>{freio.texto}</span>
+              </div>
+            )}
             <p className="etd-state" id="etd-d">{desc}</p>
             <fieldset disabled={travado}>
-              <legend>O que fica no vídeo?</legend>
+              <legend>Qual versão fica no vídeo?</legend>
+              {opcoes.some(o => o.id === escolhida && ehNoAr(o, noArAgora.rotulo)) ? (
+                <p className="etd-state" style={{ margin: '0 0 8px' }}>A versão no ar já vem marcada; troque só se quiser.</p>
+              ) : null}
               {opcoes.map(o => {
                 const off = !o.isOriginal && !podeDeixarVariante
                 const marcada = escolhida === o.id
@@ -296,7 +316,7 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, miniatur
                       <span className="etd-who">
                         {o.rotulo}
                         {o.isOriginal && originalBaixaResolucao ? <span className="etd-badge low">{ICONE_NONE}Baixa resolução</span> : null}
-                        {o.rotulo === noArAgora.rotulo || o.rotulo === `${noArAgora.rotulo} (original)` ? <span className="etd-badge">{ICONE_AR}no ar agora</span> : null}
+                        {ehNoAr(o, noArAgora.rotulo) ? <span className="etd-badge">{ICONE_AR}No ar agora</span> : null}
                       </span>
                       <span className="etd-ttl" style={{ display: '-webkit-box' }}>{o.titulo ?? ''}</span>
                       {miniaturaNaoMuda ? <span className="etd-sub">miniatura não muda</span> : null}
@@ -346,7 +366,7 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, miniatur
               </>
             ) : (
               <>
-                <button type="button" className="etd-btn pri" aria-disabled={botaoOff} aria-describedby="etd-hint" onClick={() => { if (!botaoOff) onEnviar() }}>{rotuloBotao}</button>
+                <button type="button" className={`etd-btn${freio.tipo === 'completo' ? ' pri' : ''}`} aria-disabled={botaoOff} aria-describedby="etd-hint" onClick={() => { if (!botaoOff) onEnviar() }}>{rotuloBotao}</button>
                 <button type="button" className="etd-btn" ref={cancelarRef} disabled={enviando} onClick={onFechar}>Cancelar</button>
                 {!opcao ? <p className="etd-hint" id="etd-hint">Escolha uma opção.</p> : <span id="etd-hint" hidden />}
               </>
