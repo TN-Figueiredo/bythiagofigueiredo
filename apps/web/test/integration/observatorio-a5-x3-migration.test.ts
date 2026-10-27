@@ -18,10 +18,10 @@ const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@12
 const CINCO = ['competitor_playlist_reads', 'competitor_playlists', 'competitor_playlist_versions', 'competitor_playlist_items', 'competitor_channel_sections']
 const FUNCOES = [
   'competitor_x3_guard(uuid, uuid)',
-  'competitor_x3_playlists_record(uuid, uuid, timestamptz, jsonb, boolean)',
+  'competitor_x3_playlists_record(uuid, uuid, timestamptz, jsonb, boolean, boolean)',
   'competitor_x3_items_record(uuid, uuid, uuid, timestamptz, jsonb, boolean, text, text)',
   'competitor_x3_sections_record(uuid, uuid, timestamptz, text, jsonb)',
-  'competitor_x3_visit_close(uuid, uuid, timestamptz, text, text, integer, integer, boolean, boolean, boolean)',
+  'competitor_x3_visit_close(uuid, uuid, timestamptz, text, text, integer, integer, boolean, boolean, boolean, integer, integer)',
 ]
 
 /** Dia 10 de março de 2026, em UTC; o dia de São Paulo (UTC-3) é o mesmo entre 03:00Z e 23:59Z. */

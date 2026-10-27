@@ -6,7 +6,7 @@
  */
 import type { Client } from 'pg'
 import { iniciarComMg6, guardaPorFolhas } from './mg6'
-import { lerSqlDaX3, lerX3Registro } from './x3-sql'
+import { lerSqlDaX3, lerSqlDaX3Ocultas, lerX3Registro } from './x3-sql'
 import { lerSqlDaF1 } from './f1-sql'
 
 export { caminhoDaX3, lerSqlDaX3, lerX3Registro } from './x3-sql'
@@ -19,6 +19,8 @@ export async function garantirX3(c: Client): Promise<void> {
   if (comF1) await c.query(lerX3Registro())
   await c.query(sql)
   await c.query(sql)
+  // a emenda de 27/10 derruba as assinaturas antigas que a reaplicação acima recriou (sem ela, 42725: função ambígua no banco já migrado)
+  await c.query(lerSqlDaX3Ocultas())
   const f1 = lerSqlDaF1()
   if (comF1 && f1 !== null) await c.query(f1)
 }

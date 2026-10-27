@@ -18,6 +18,13 @@ export function lerSqlDaX3(): string {
   return readFileSync(caminhoDaX3(), 'utf8')
 }
 
+/** A emenda de 27/10 (lista com ocultas): troca as assinaturas de `competitor_x3_playlists_record` e `competitor_x3_visit_close`. */
+export function lerSqlDaX3Ocultas(): string {
+  const achados = readdirSync(MIGRATIONS).filter(n => n.endsWith('_observatorio_a5_x3_lista_com_ocultas.sql'))
+  if (achados.length !== 1) throw new Error(`esperava 1 migration da lista com ocultas, achei ${achados.length}`)
+  return readFileSync(MIGRATIONS + achados[0], 'utf8')
+}
+
 /** O trecho que recria o registro do export, entre os marcadores da migration. */
 export function lerX3Registro(): string {
   const sql = lerSqlDaX3()
