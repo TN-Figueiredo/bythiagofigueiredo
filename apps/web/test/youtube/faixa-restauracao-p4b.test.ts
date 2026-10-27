@@ -186,3 +186,15 @@ describe('P4b: hora prometida da nova tentativa (relógio do servidor)', () => {
     expect(f.linhas[0].texto).toContain(`por volta das ${hora} (horário de São Paulo)`)
   })
 })
+
+describe('M7b: campo da escolha do dono', () => {
+  it('o texto não promete nova tentativa automática, traz a frase do painel e a faixa não oferece "tentar"', () => {
+    const f = completa(montarFaixa(falhou({ iniciativa: 'dono' }), ctx))
+    expect(textoTodo(f)).not.toContain('automática')
+    expect(f.linhas[0].texto).toContain('Sua escolha não foi aplicada. Abra o painel do teste para tentar de novo. Não repetimos a troca sozinhos.')
+    expect(f.acoes.tentar).toBe(false)
+  })
+  it('sem a marca, nada muda (oferece tentar)', () => {
+    expect(completa(montarFaixa(falhou(), ctx)).acoes.tentar).toBe(true)
+  })
+})

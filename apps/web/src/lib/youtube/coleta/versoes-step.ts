@@ -106,6 +106,7 @@ interface RestauroLinha {
   estado: string
   escreveu: boolean | null
   em: string
+  iniciativa?: string | null
 }
 interface CicloLinha {
   id: string
@@ -116,7 +117,7 @@ interface CicloLinha {
 }
 
 const ESTADOS_RESTAURO: readonly string[] = ['ok', 'falhou', 'pulado_sem_original', 'pulado_drift', 'desistiu']
-const COLUNAS_RESTAUROS = 'test_id, seq, campo, destino, estado, escreveu, em'
+const COLUNAS_RESTAUROS = 'test_id, seq, campo, destino, estado, escreveu, em, iniciativa'
 // Fuso explícito (Z ou ±hh:mm): sem ele o V8 lê como horário local do servidor e a janela desloca em silêncio.
 const ISO_COM_FUSO = /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})$/
 const instanteLegivel = (x: unknown): x is string => typeof x === 'string' && ISO_COM_FUSO.test(x) && !Number.isNaN(Date.parse(x))
@@ -592,7 +593,7 @@ export async function passoVersoes(ctx: StepCtx & { ontem: string }): Promise<Ve
       const campo = x.campo === 'title' ? 'title' : x.campo === 'thumbnail' ? 'thumb' : null
       if (campo === null || !ESTADOS_RESTAURO.includes(x.estado) || !instanteLegivel(x.em)) return ilegivel()
       if (x.escreveu !== null && typeof x.escreveu !== 'boolean') return ilegivel()
-      restauros.push({ testId: x.test_id, seq: x.seq, campo, destino: x.destino, estado: x.estado as RestauroAb['estado'], escreveu: x.escreveu, em: x.em })
+      restauros.push({ testId: x.test_id, seq: x.seq, campo, destino: x.destino, estado: x.estado as RestauroAb['estado'], escreveu: x.escreveu, em: x.em, ...(x.iniciativa === 'dono' ? { iniciativa: 'dono' as const } : {}) })
     }
     return { ok: true, testes, ciclos, restauros }
   }

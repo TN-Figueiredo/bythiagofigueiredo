@@ -67,6 +67,15 @@ describe('faseNovaTentativa', () => {
     expect(r).toMatchObject({ tentadas: 1, falharam: 1, ok: 0 })
   })
 
+  it('M7b: campo falhou da escolha do dono: ignorados.escolha_do_dono, nenhuma tentativa, nenhuma leitura de claim', async () => {
+    const { sb, relogio } = montar(falhou({ iniciativa: 'dono' }))
+    const tentar = feito(falhou())
+    const r = await faseNovaTentativa(sb, relogio, undefined, 4, { tentar })
+    expect(tentar).not.toHaveBeenCalled()
+    expect(r.ignorados.escolha_do_dono).toBe(1)
+    expect(r.tentadas).toBe(0)
+  })
+
   it('teste_youtube: conta em ignorados, não em tentadas, e não avisa (Phil C2 / Yannis M5)', async () => {
     const { sb, relogio } = montar(falhou())
     const tentar = vi.fn<Tentar>(async () => ({ resultado: 'teste_youtube', motivo: 'x', campos: null }))
@@ -91,7 +100,7 @@ describe('faseNovaTentativa', () => {
     const { sb, relogio } = montar(falhou(), { extras: [{ id: 't2', status: 'active' }] })
     const tentar = feito({})
     const r = await faseNovaTentativa(sb, relogio, undefined, 4, { tentar })
-    expect(r.ignorados).toEqual({ outro_teste: 1, pausado_variante: 0, teste_youtube: 0 })
+    expect(r.ignorados).toEqual({ outro_teste: 1, pausado_variante: 0, teste_youtube: 0, escolha_do_dono: 0 })
     expect(r.tentadas).toBe(0)
     expect(tentar).not.toHaveBeenCalled()
   })

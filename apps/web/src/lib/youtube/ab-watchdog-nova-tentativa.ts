@@ -15,7 +15,7 @@ export interface ResultadoNovaTentativa {
   desistiram: number
   pulados: number
   cota: number
-  ignorados: { outro_teste: number; pausado_variante: number; teste_youtube: number }
+  ignorados: { outro_teste: number; pausado_variante: number; teste_youtube: number; escolha_do_dono: number }
   adiados: number
   falhas: number
   semDestinatario: number
@@ -30,7 +30,7 @@ const CAMPOS: CampoNome[] = ['title', 'thumbnail']
 
 export const zeroNovaTentativa = (): ResultadoNovaTentativa => ({
   tentadas: 0, ok: 0, falharam: 0, desistiram: 0, pulados: 0, cota: 0,
-  ignorados: { outro_teste: 0, pausado_variante: 0, teste_youtube: 0 }, adiados: 0, falhas: 0, semDestinatario: 0,
+  ignorados: { outro_teste: 0, pausado_variante: 0, teste_youtube: 0, escolha_do_dono: 0 }, adiados: 0, falhas: 0, semDestinatario: 0,
 })
 
 function ler<T>(r: { data: unknown; error: { message: string } | null }, contexto: string): T[] {
@@ -83,6 +83,7 @@ export async function faseNovaTentativa(
       continue
     }
     const pend = camposPendentes(rs, 'vigia')
+    if (pend.length === 0) { r.ignorados.escolha_do_dono++; continue } // M7b: só campos da escolha do dono; sem leitura nem claim
     if ([...(abertos.get(t.youtube_video_id) ?? [])].some((id) => id !== t.id)) { r.ignorados.outro_teste++; continue }
     if (t.status === 'paused' && pend.some((c) => rs[c]!.destino !== 'original')) { r.ignorados.pausado_variante++; continue }
     itens.push({ t, pend })

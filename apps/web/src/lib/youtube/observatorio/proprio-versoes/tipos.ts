@@ -9,7 +9,7 @@ export type CampoVersao = 'title' | 'thumb' | 'desc'
 /** 'cms' é só de leitura, reservado: nenhuma escrita o produz. */
 export type OrigemVersao = 'linha_de_base' | 'ab_lab' | 'fora_do_sistema' | 'nao_se_sabe' | 'cms'
 export type OrigemGravavel = Exclude<OrigemVersao, 'cms'>
-export type EventoAb = 'rotacao' | 'vencedor' | 'restauro'
+export type EventoAb = 'rotacao' | 'vencedor' | 'restauro' | 'escolha'
 export type PrecisaoJanela = 'first' | 'min' | '1d' | 'lacuna'
 
 export interface VersaoPropria {

@@ -219,6 +219,15 @@ describe('leitura de cada troca', () => {
     expect(edita.origem.frase).toBe('aplicado em 03/11, no fim do teste de 20/10 a 02/11')
     expect(troca1(buildTrocas(entrada(l, { podeEditar: false }))).origem.teste).toBe('sem-acesso')
   })
+  it('M7b: troca de origem escolha mostra o chip "Escolhida por você" e não conta em estadoInesperado', () => {
+    const vs = [troca('2026-11-03', { origem: 'ab_lab', eventoAb: 'escolha', abTestId: 't1' })]
+    const l = comAlcance([base(), ...vs], alcance(addDays(HOJE, -40), HOJE), undefined, { testes: { acesso: 'ok', dado: { testes: [teste()], descartados: 0 } } })
+    const v = buildTrocas(entrada(l))
+    const t = troca1(v)
+    expect(t.origem.chip).toBe('Escolhida por você')
+    expect(t.origem.frase).toBe('deixada no ar em 03/11, no fim do teste de 20/10')
+    expect(v.diagnostico.estadoInesperado).toBe(0)
+  })
   it('alcance em erro: lados com a forma erro e a vista não contém "não medido" nem "0 impressões"', () => {
     const v = buildTrocas(entrada(lidas([base(), troca('2026-11-03')], { alcance: { acesso: 'erro' } })))
     const t = troca1(v)

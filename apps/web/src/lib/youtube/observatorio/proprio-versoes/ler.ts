@@ -176,7 +176,7 @@ export async function titulosAntesDoTeste(sb: SupabaseClient, siteId: string, pe
   const teto = Math.max(...validos.map((r) => Date.parse(r.primeiraVista as string)))
   const { data, error } = await sb.from('yt_own_video_versions').select('youtube_video_id, value_text, first_seen_at')
     .eq('site_id', siteId).in('youtube_video_id', ids).eq('field', 'title').eq('pre_registro', false)
-    .or('origin.neq.ab_lab,ab_event.in.(vencedor,restauro)').lte('first_seen_at', new Date(teto).toISOString())
+    .or('origin.neq.ab_lab,ab_event.in.(vencedor,restauro,escolha)').lte('first_seen_at', new Date(teto).toISOString())
     .order('first_seen_at', { ascending: false })
   if (error) throw new Error(`yt_own_video_versions: ${error.message}`)
   const porVideo = new Map<string, Array<{ em: number; texto: string }>>()

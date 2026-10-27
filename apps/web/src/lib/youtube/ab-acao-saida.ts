@@ -35,6 +35,7 @@ export function traduzirSaida(r: ResultadoSaida): ResultadoAcaoSaida {
     case 'feito': return { ok: true, resultado: 'feito', campos: r.campos }
     case 'precisa_confirmar': return { ok: true, resultado: 'precisa_confirmar', campos: r.campos }
     case 'mudou': return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
+    case 'perdido': // M7b: o resultado não foi gravado; para as telas antigas é uma tentativa em curso (a escolha trata `perdido` à parte)
     case 'em_andamento': return { ok: false, resultado: 'em_andamento', error: MSG_EM_ANDAMENTO }
     case 'ja_encerrado': return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
     case 'sem_permissao': return { ok: false, resultado: 'sem_permissao', error: MSG_SEM_PERMISSAO_VARIANTE }

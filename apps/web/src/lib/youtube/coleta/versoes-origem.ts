@@ -37,6 +37,8 @@ export interface RestauroAb {
   escreveu: boolean | null
   /** Fim do campo no settle (depois da escrita, quando houve): entre o claim e claim + 55 s; não é o instante do claim. */
   em: string
+  /** M7b: 'dono' = a linha nasceu da escolha do dono (escolher/aplicar_sugerido). */
+  iniciativa?: 'dono'
 }
 
 export interface CicloAb {
@@ -159,6 +161,8 @@ function blocoR(
     const l = v.linha
     if (l.escreveu === null || l.estado !== 'ok') return incerta(v.teste) // R4: nulo ou contraditória (escreveu = true com estado != ok)
     if (l.destino === 'original') return { origem: 'ab_lab', eventoAb: 'restauro', abTestId: v.teste.id, abVariantId: null, instante: l.em } // R2
+    // M7b: escolha do dono por outra versão que não o vencedor gravado é 'escolha'; escolha = sugerida (aplicar_sugerido) segue 'vencedor'.
+    if (l.iniciativa === 'dono' && l.destino !== v.teste.varianteVencedora) return { origem: 'ab_lab', eventoAb: 'escolha', abTestId: v.teste.id, abVariantId: l.destino, instante: l.em }
     return { origem: 'ab_lab', eventoAb: 'vencedor', abTestId: v.teste.id, abVariantId: l.destino, instante: l.em } // R3
   }
 

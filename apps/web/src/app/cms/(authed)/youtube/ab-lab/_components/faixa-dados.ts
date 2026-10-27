@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { requireSiteAdminScope } from '@/lib/cms/auth-guards'
 import { getCronHealth } from '@/lib/cron-health'
-import { LIMITE_DA_CADEIA, inicioDoSim, camposPendentes, type CampoNome, type RestoreStatus } from '@/lib/youtube/ab-restore'
+import { LIMITE_DA_CADEIA, inicioDoSim, camposPendentes, daEscolhaDoDono, type CampoNome, type RestoreStatus } from '@/lib/youtube/ab-restore'
 import type { DadosDaFaixa } from './faixa-da-pagina'
 
 const ABERTOS = ['draft', 'queued', 'active', 'paused']
@@ -28,7 +28,7 @@ export async function carregarDadosDaFaixa(test: TesteDaFaixa, rs: RestoreStatus
   const variante = (['title', 'thumbnail'] as const).some(k => { const c = rs[k]; return c && c.destino !== 'original' && c.estado === 'falhou' })
   const bloqueio = temOutro ? 'outro_teste' : test.status === 'paused' && variante ? 'pausado_variante' : null
   const inicio: Partial<Record<CampoNome, string | null>> = {}
-  for (const c of camposPendentes(rs, 'humano')) {
+  for (const c of camposPendentes(rs, 'humano').filter(k => !daEscolhaDoDono(rs[k]!))) {
     const h = await supabase.from('ab_test_restores').select('em, forcado').eq('test_id', test.id).eq('campo', c).order('seq', { ascending: false }).limit(LIMITE_DA_CADEIA)
     inicio[c] = h.error ? null : inicioDoSim((h.data ?? []) as Array<{ em: string; forcado: boolean }>)
   }

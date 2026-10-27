@@ -344,6 +344,9 @@ export function buildTrocas(a: EntradaTrocas): TrocasView {
     else if (t.origem === 'ab_lab' && t.eventoAb === 'vencedor') {
       origemChip = 'Vencedor do teste A/B'
       origemFrase = lidaTeste ? `aplicado em ${e.dm(dia)}, no fim do teste de ${e.dm(e.diaPt(lidaTeste.inicio))}${testes.find(x => x.id === lidaTeste.id)?.ate ? ' a ' + e.dm(testes.find(x => x.id === lidaTeste.id)!.ate!) : ''}` : `aplicado em ${e.dm(dia)}`
+    } else if (t.origem === 'ab_lab' && t.eventoAb === 'escolha') {
+      origemChip = 'Escolhida por você'
+      origemFrase = lidaTeste ? `deixada no ar em ${e.dm(dia)}, no fim do teste de ${e.dm(e.diaPt(lidaTeste.inicio))}` : `deixada no ar em ${e.dm(dia)}`
     } else if (t.origem === 'ab_lab' && t.eventoAb === 'restauro') {
       origemChip = 'Teste parado, o original voltou'
       origemFrase = lidaTeste ? `o teste de ${e.dm(e.diaPt(lidaTeste.inicio))} foi parado em ${e.dm(dia)} e o ${campoNome(campo)} de antes voltou` : `o teste foi parado em ${e.dm(dia)} e o ${campoNome(campo)} de antes voltou`
