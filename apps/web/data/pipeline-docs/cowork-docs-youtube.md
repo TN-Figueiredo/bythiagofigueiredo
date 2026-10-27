@@ -1665,8 +1665,8 @@ Agrega padrões de aprendizado de testes A/B concluídos: taxa de vitória por t
 - `tagWinRates.kind`: `thumb` = thumbnail tags, `title` = title patterns, `desc` = description patterns
 - `avgLift` é sempre `null`: o A/B não tem métrica de entrega real, então nenhum lift (nem queda) é calculado nem citado
 - `channelInsights` não cita percentual; traz só o `aviso`
-- `wins`, `total` e `totalCompletedTests` contam só testes com vitória humana (`manual_winner`, `manual_apply`); vencedor de `auto_resolve` ou `manual_no_apply` não entra
-- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
+- `wins`, `total` e `totalCompletedTests` contam o vencedor estatístico do teste concluído (`result_metadata.v2.vencedor_sugerido`; sem ele, `winner_variant_id`), a mesma regra da tela do CMS; a escolha do dono não muda a contagem. A original vencedora ("não mudar nada") e o teste sem vencedor (inconclusivo) não contam; `auto_resolve` e `manual_no_apply` com vencedor gravado contam. Só o `learnings` conta assim: `get_performance`, `get_history` e as prompts do MCP seguem pela escolha humana
+- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Nas rotas de `winRate` (dashboard, history, performance) a vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`); o `learnings` é a exceção (vencedor estatístico, ver acima).
 
 ---
 
@@ -1741,7 +1741,7 @@ Retorna estatísticas agregadas do programa de A/B testing.
 - `avgConfidence` e `avgLift` são sempre `null` (sem métrica de entrega real)
 - `winRate`: percentual de testes root (excluindo playoffs) encerrados por pessoa ou por duração em que uma pessoa escolheu o vencedor. `auto_resolve` fica fora do numerador e do denominador. É `null` (nunca `0`) quando não sobra teste que conte
 - Testes com `parent_test_id` (playoff children) são excluídos de `winRate`
-- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
+- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Nas rotas de `winRate` (dashboard, history, performance) a vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`); o `learnings` é a exceção (vencedor estatístico, ver acima).
 
 ---
 
@@ -1787,7 +1787,7 @@ Retorna histórico completo de testes A/B para um vídeo específico.
 **Notas:**
 - `winner` é o label da variante vencedora, só quando a vitória é humana (`manual_winner`, `manual_apply`); senão `null`
 - `liftPercent` é sempre `null` (sem métrica de entrega real)
-- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
+- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Nas rotas de `winRate` (dashboard, history, performance) a vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`); o `learnings` é a exceção (vencedor estatístico, ver acima).
 - Ordenado por `created_at` descendente (mais recente primeiro)
 
 ---
@@ -1907,7 +1907,7 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 **Notas:**
 - `sourceType: "test_winner"` indica thumbnail importada de A/B test concluído
 - `lift` é sempre `null` (sem métrica de entrega real)
-- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
+- Campos de entrega (impressões, cliques, CTR, confiança, lift) saem `null` com `aviso: 'sem métrica de entrega'` enquanto o A/B não tiver medição real. Nas rotas de `winRate` (dashboard, history, performance) a vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`); o `learnings` é a exceção (vencedor estatístico, ver acima).
 - Import automático via `autoImportWinner()` quando teste é completado com vencedor
 - Thumbnails sem `sourceTestId` são uploads manuais
 
@@ -1915,7 +1915,7 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 
 ## A/B: funil, teste e lista de testes
 
-`GET /api/pipeline/youtube/ab-tests/{id}/funnel`, `GET /api/pipeline/youtube/ab-tests/{id}` e `GET /api/pipeline/youtube/ab-tests` (no MCP: `manage_ab_test` com `get_funnel`, `get_test` e `list_tests`). Os números de alcance vêm de `ab_test_dias` (dia do Pacífico, alcance do Reporting), os mesmos da tela, no campo `placar`. Confiança, vencedor sugerido e lift continuam `null`. Vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`).
+`GET /api/pipeline/youtube/ab-tests/{id}/funnel`, `GET /api/pipeline/youtube/ab-tests/{id}` e `GET /api/pipeline/youtube/ab-tests` (no MCP: `manage_ab_test` com `get_funnel`, `get_test` e `list_tests`). Os números de alcance vêm de `ab_test_dias` (dia do Pacífico, alcance do Reporting), os mesmos da tela, no campo `placar`. Confiança, vencedor sugerido e lift continuam `null`. Nas rotas de `winRate` (dashboard, history, performance) a vitória só conta quando humana (`completed_reason` `manual_winner` ou `manual_apply`); o `learnings` é a exceção (vencedor estatístico, ver acima).
 
 **`aviso`** muda com o dado:
 - `'sem métrica de entrega'`: o teste ainda não tem nenhum dia de volume (`placar` nulo ou toda variante com `impressoes` nula);
@@ -1949,7 +1949,7 @@ Lista thumbnails na biblioteca — incluindo vencedoras de A/B tests importadas 
 **Regra v2 (S8-F4), em `get_test`, `list_tests`, `get_dashboard`, `get_history`, `get_learnings`, `get_performance`:**
 - `result_metadata.v2` (só teste de regra v2; `{ "ilegivel": true }` quando não dá para ler): `desfecho`, `provisorio`, `n`, `p1`, `base_estimada`, `gl`, `p_adj`, `vencedor_sugerido`, `por_variante` (lift, p ajustado e sinais por variante, gravados pela decisão; nunca recalcule) e `relogio` (`dia`, `teto`, `estado` `ativo`/`pausado`, `ultima_avaliacao`, `idade_horas`; `dia` = dias corridos já passados, 0 no primeiro dia: a tela mostra **Dia `dia + 1`/`teto`**, limitado ao teto). Teste pausado nunca traz idade de avaliação. `provisorio_ate` (dia PT `AAAA-MM-DD`; nulo quando o desfecho é final ou o teste não encerrou pela regra; "pode mudar até esta data").
 - `result_metadata.ctr_lift_percent` é o lift gravado da variante sugerida, em %, só quando há variante sugerida com `p_adj` (na prática, `vencedor_provavel`); em `sem_diferenca_detectavel` e nos outros casos `null`. `placar.estatistica` é `calculada` só quando `p_adj` existe e então `aviso` é `null`.
-- **`vencedor_sugerido` é só sugestão**: vitória só conta quando uma pessoa escolhe (`winRate`, `winning_tags` e `tagWinRates` não o usam).
+- **`vencedor_sugerido` é só sugestão**: vitória só conta quando uma pessoa escolhe em `winRate` e `winning_tags` (dashboard, history, performance, prompts do MCP). Exceção: o `learnings` (`wins`, `total`, `totalCompletedTests` e `tagWinRates`) usa o `vencedor_sugerido`, a mesma regra da tela do CMS.
 - **`vencedor_provavel` pode sugerir a original**: quando TODA variante é pior de forma significativa, `vencedor_sugerido` é o id da original ("a original vence") e `por_variante` mostra os negativos; com uma pior e outra neutra o desfecho é `sem_diferenca_detectavel`. No meio do teste (sem `desfecho` final), `vencedor_sugerido` apontando para a original é só estado provisório, nunca decisão. Aplicar a original só registra a decisão (`manual_winner`, sem escrever no YouTube) e ela não conta como vitória de variante no `winRate`.
 - Rotas agregadas (`get_dashboard`, `get_history`, `get_learnings`, `get_performance`): `aviso` é `'placar medido; sem estatística de vencedor nesta regra'` quando algum teste tem placar medido, `'sem métrica de entrega'` quando nenhum tem, e `null` quando algum placar da resposta tem estatística calculada. A biblioteca de thumbnails (`lift: null`) não muda. Com mais de 500 concluídos, só os 100 mais recentes entram.
 - `get_dashboard`: `desfechos_v2` (contagem por desfecho nos concluídos), `desfecho_v2_nota` e `avgLift` (lift médio dos VENCEDORES, em %, com `p_adj`; `sem_diferenca_detectavel` não tem lift porque sem significância o lift é nulo; `null` se nenhum, nunca 0) e `vencedores_com_lift` (quantos vencedores entraram na média). `get_history`: `desfecho_v2` e `liftPercent` por teste (mesma regra).
