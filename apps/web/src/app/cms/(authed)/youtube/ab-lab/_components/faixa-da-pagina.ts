@@ -1,5 +1,5 @@
 import { montarFaixa, faixaTentando, faixaIlegivel, type Faixa, type CtxFaixa } from './faixa-restauracao-texto'
-import { restoreStatusIlegivel, lerCampoDeRestauracao } from '@/lib/youtube/ab-restore'
+import { restoreStatusIlegivel, lerCampoDeRestauracao, camposDoTeste } from '@/lib/youtube/ab-restore'
 import type { AbTestBaseView } from '@/lib/youtube/ab-types'
 
 export interface FaixaDaPagina {
@@ -30,6 +30,14 @@ export function faixaDaPagina(view: AbTestBaseView, bruto: unknown, agora: Date,
   const ativo = view.status === 'active' || view.status === 'queued' || view.status === 'draft'
   if (ilegivel) return { faixa: ativo ? null : faixaIlegivel(ctxYoutube), emAndamentoDesde: null, ilegivel: true, escrevendo: false, faixaTentando: null }
   if (ativo && emAndamentoDesde === null) return { faixa: null, emAndamentoDesde: null, ilegivel: false, escrevendo: false, faixaTentando: null }
+  // Pausa limpa (T3c): todos os campos do teste voltaram ao original, sem teste do YouTube na jogada. A frase da pausa
+  // (active-detail) já diz isso com a data; uma segunda faixa ("O título voltou ao original em 16:40.") só repetiria.
+  if (view.status === 'paused' && !(view as { pausaYoutube?: unknown }).pausaYoutube && rs && emAndamentoDesde === null) {
+    const campos = camposDoTeste(view.flag)
+    if (campos.length > 0 && campos.every(c => rs[c]?.estado === 'ok' && rs[c]?.destino === 'original')) {
+      return { faixa: null, emAndamentoDesde: null, ilegivel: false, escrevendo: false, faixaTentando: null }
+    }
+  }
   const rotuloDe = (id: string) => view.variantDb.find(v => v.id === id)?.label ?? id
   const ctx: CtxFaixa = {
     agora, rotulo: rotuloDe, noArAntes: view.noArAntes?.label ?? 'A', noArDesde: view.noArAntes?.desde ?? null, youtubeId: view.youtubeVideoId, ...dados,
