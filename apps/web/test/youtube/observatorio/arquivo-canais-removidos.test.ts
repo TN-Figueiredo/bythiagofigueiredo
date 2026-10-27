@@ -8,7 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn() }))
 
-const AGORA = Date.parse('2028-05-03T15:00:00Z'), D = 86_400_000
+const AGORA = Date.parse('2025-05-03T15:00:00Z'), D = 86_400_000
 const casa: Casa = { estado: 'responde', desde: null, forma: 'visto', frase: '' }
 const semCmd = { comandoDeLimpeza: false, blocoCanaisRemovidos: true, dataDoComando: null }
 const comCmd = { comandoDeLimpeza: true, blocoCanaisRemovidos: true, dataDoComando: null }
@@ -84,9 +84,9 @@ describe('bloco Canais removidos, só de leitura (item 163, parte M5)', () => {
     expect(b.linhas[0]!.gravidade).toBe('nao_medido'); expect(b.linhas[0]!.forma).toBe('hachura')
   })
   it('data do comando conhecida entra na frase', () => {
-    const b = montarBloco([linha({})], { agora: AGORA, casa, cap: { ...semCmd, dataDoComando: '2028-12-12' } })
-    expect(b.linhas[0]!.frase).toContain('chega em 12/12/2028')
-    expect(b.resumo).toBe('Canais removidos: 1 espera o comando de limpeza, que chega em 12/12/2028.')
+    const b = montarBloco([linha({})], { agora: AGORA, casa, cap: { ...semCmd, dataDoComando: '2025-12-12' } })
+    expect(b.linhas[0]!.frase).toContain('chega em 12/12/2025')
+    expect(b.resumo).toBe('Canais removidos: 1 espera o comando de limpeza, que chega em 12/12/2025.')
   })
   it('sem comando o resumo diz o que espera', () => {
     expect(montarBloco([linha({})], { agora: AGORA, casa, cap: semCmd }).resumo).toBe('Canais removidos: 1 espera o comando de limpeza, que ainda não tem data para chegar.')

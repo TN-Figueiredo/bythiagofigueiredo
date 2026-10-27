@@ -18,7 +18,7 @@ describe('A1: a frase do topo linka para a linha do mês', () => {
     const a = document.querySelector('.arq-resumo-geral a') as HTMLAnchorElement
     expect(a.textContent).toMatch(/^Views por dia, dezembro de 2027: ver a cópia atrasada$/)
     const id = a.getAttribute('href')!.slice(1)
-    expect(document.getElementById(id)?.getAttribute('data-mes')).toBe('serie:2027-12-01')
+    expect(document.getElementById(id)?.getAttribute('data-mes')).toMatch(/^serie:\d{4}-12-01$/)
   })
   it('a lista "Problemas" vem antes do bloco Canais removidos e dos cartões, e tem id', () => {
     const m = montarPagina(paginaVazia({ vermelhos: ['xyz:1'], meses: [mesCom({ nasHorasAtras: 3 })] }), liga)

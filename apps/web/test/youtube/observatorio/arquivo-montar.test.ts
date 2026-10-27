@@ -13,7 +13,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/page-data', () => ({ ope
 vi.mock('server-only', () => ({}))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
 
-const pagina = (perm: { canUnlock: boolean; podeEditar: boolean }) => ({ siteId: 's', now: Date.parse('2028-05-03T15:00:00Z'), obs: {}, meuCanalLembrado: null, savedNiche: 'todos', rows: {}, extra: perm })
+const pagina = (perm: { canUnlock: boolean; podeEditar: boolean }) => ({ siteId: 's', now: Date.parse('2025-05-03T15:00:00Z'), obs: {}, meuCanalLembrado: null, savedNiche: 'todos', rows: {}, extra: perm })
 const importar = async () => (await import('@/app/cms/(authed)/youtube/competitors/_arquivo/montar')).montarArquivo
 
 describe('montarArquivo', () => {

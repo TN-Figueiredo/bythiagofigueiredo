@@ -17,7 +17,7 @@ describe('A1: a frase do topo nomeia o mês e linka', () => {
     expect(p.resumo.texto).toBe(`1 mês precisa de você; o mais urgente: Views por dia, ${l.mesNome}: ver a cópia atrasada.`)
     expect(p.resumo.partes).toContainEqual({ texto: `Views por dia, ${l.mesNome}: ver a cópia atrasada`, ancora: ancoraDoMes(l.chave) })
   })
-  it('a âncora é um id estável (tipo e mês), sem dois-pontos', () => { expect(ancoraDoMes('serie:2027-11-01')).toBe('mes-serie-2027-11-01') })
+  it('a âncora é um id estável (tipo e mês), sem dois-pontos', () => { expect(ancoraDoMes('serie:2024-11-01')).toBe('mes-serie-2024-11-01') })
   it('vazio com o pulso em vermelho de mês (495 arquivos): não soma de novo e não diz "52 problemas"', () => {
     const p = montarPagina(paginaVazia({ vermelhos: ['atraso de cópia: 495 arquivos', 'mês sem selo há mais de 30 dias: 2'] }), liga)
     expect(p.resumo.texto).toBe('1 outro problema abaixo.')

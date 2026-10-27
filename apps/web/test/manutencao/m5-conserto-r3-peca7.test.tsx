@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react'
 import { EsperamComandos } from '@/app/cms/(authed)/youtube/competitors/_canais/esperam-comandos'
 import { LINHA_DO_DONO, type PendenciasDaTela } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 
-const LIDO = new Date('2028-05-03T15:00:00Z')
+const LIDO = new Date('2025-05-03T15:00:00Z')
 const dia = (n: number): Date => new Date(LIDO.getTime() - n * 86_400_000)
 const it1 = (o: Record<string, unknown>) => ({ item_id: 'item:1', kind: 'video', tempo: 'sem_comando' as const, idadeDias: 0, titulo: null as string | null, desde: dia(0), codigo: 'vid12345' as string | null, ...o })
 const com = (itens: ReturnType<typeof it1>[], linha: string | null = null): PendenciasDaTela =>
@@ -22,12 +22,12 @@ describe('P1: "Ver os comandos" fica no quadro do resumo, antes da lista', () =>
 })
 describe('P2: o item tem uma linha em negrito que o distingue', () => {
   it('vídeo sem título: o canal dono no kicker e "Apagado do site em dd/mm"', () => {
-    render(<EsperamComandos t={com([it1({ titulo: 'Nômade Raiz', idadeDias: 63, desde: new Date('2028-03-01T15:00:00Z') })])} />)
+    render(<EsperamComandos t={com([it1({ titulo: 'Nômade Raiz', idadeDias: 63, desde: new Date('2025-03-01T15:00:00Z') })])} />)
     expect(screen.getByText('Vídeo · Nômade Raiz')).toBeTruthy()
     expect(screen.getByText('Apagado do site em 01/03').className).toBe('p7-t')
   })
   it('canal removido: "Removido do site em"; sem nome nem mês, o código', () => {
-    render(<EsperamComandos t={com([it1({ kind: 'canal', item_id: 'canal:x', titulo: null, codigo: '6f1c1b9e', desde: new Date('2028-04-10T15:00:00Z'), idadeDias: 23 })])} />)
+    render(<EsperamComandos t={com([it1({ kind: 'canal', item_id: 'canal:x', titulo: null, codigo: '6f1c1b9e', desde: new Date('2025-04-10T15:00:00Z'), idadeDias: 23 })])} />)
     expect(screen.getByText('Canal removido · código 6f1c1b9e')).toBeTruthy()
     expect(screen.getByText('Removido do site em 10/04')).toBeTruthy()
   })

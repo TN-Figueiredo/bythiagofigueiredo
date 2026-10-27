@@ -72,7 +72,7 @@ describe('aviso do banco 18-v2: estados V', () => {
   })
   it('V8 curta (abaixo de 36 h): triângulo; o copiador há 20,5 h já é triângulo (mockup pc1), há 12 h responde', () => {
     expect(a('v8curta').casa?.forma).toBe('triangulo')
-    const agora = Date.parse('2027-02-20T15:00:00Z')
+    const agora = Date.parse('2024-02-20T15:00:00Z')
     const antes = (h: number) => new Date(agora - h * 3_600_000).toISOString()
     const cop = (h: number) => ({ worker: 'copiador', last_poll_at: antes(h), updated_at: antes(h), nas_ok: true, nas_checked_at: antes(1) })
     expect(casaDe([cop(20.5)], [], agora)).toMatchObject({ estado: 'nao_respondeu', forma: 'triangulo' })

@@ -8,12 +8,12 @@ vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => criar
 vi.mock('@sentry/nextjs', () => ({ captureMessage: (...a: unknown[]) => captureMessage(...a), captureException: (...a: unknown[]) => captureException(...a) }))
 vi.mock('server-only', () => ({}))
 
-const SITE = '00000000-0000-0000-0000-00000000a3b0', AGORA = new Date('2028-05-03T15:00:00Z')
-const ITEM = { item_id: 'canal:aaaaaaaa-1111-2222-3333-444444444444', kind: 'canal', tempo: 'apagar_antigas', desde: '2028-03-01T12:00:00Z', mes: null,
+const SITE = '00000000-0000-0000-0000-00000000a3b0', AGORA = new Date('2025-05-03T15:00:00Z')
+const ITEM = { item_id: 'canal:aaaaaaaa-1111-2222-3333-444444444444', kind: 'canal', tempo: 'apagar_antigas', desde: '2025-03-01T12:00:00Z', mes: null,
   channel_ref: 'aaaaaaaa-1111-2222-3333-444444444444', youtube_id: null, marcado_rodado_em: null,
   apagar: [{ filho: 'numerico', caminho: 'canal/x.csv', sha256: 'a'.repeat(64), nova: null }], b2_nomes: ['canal/b2-secreto.csv'] }
 // O Zod é estrito: `total` obrigatório e igual a itens.length; `apagar`/`b2_nomes` só existem (e não vazios) em 'apagar_antigas'.
-const CORPO = { versao: 1, lido_em: '2028-05-03T15:00:00Z', total: 1, itens: [ITEM] }
+const CORPO = { versao: 1, lido_em: '2025-05-03T15:00:00Z', total: 1, itens: [ITEM] }
 const chamar = async (perm: { podeEditar: boolean; canUnlock: boolean }) => (await import('@/app/cms/(authed)/youtube/competitors/_canais/pendencias-da-fila')).lerPendenciasDaFila(SITE, perm, AGORA)
 
 describe('lerPendenciasDaFila', () => {

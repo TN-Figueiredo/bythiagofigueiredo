@@ -13,10 +13,10 @@ import { caso } from '../youtube/observatorio/fixtures/aviso-v2-casos'
 import { paginaVazia, mesCom } from '../youtube/observatorio/fixtures/arquivo-pagina'
 
 const liga = { arquivoLigado: true }
-const LIDO = new Date('2028-05-03T15:00:00Z')
+const LIDO = new Date('2025-05-03T15:00:00Z')
 const itens = [{ item_id: 'item:1', kind: 'video', tempo: 'sem_comando' as const, idadeDias: 3, titulo: null as string | null, desde: LIDO, codigo: 'vid12345' as string | null }]
 const t: PendenciasDaTela = { estado: 'com_itens', lidoEm: LIDO, n: 6, maisAntigoDias: 3, itens, linha: LINHA_DO_DONO }
-const velho = <T extends { linha: { sealed_at: string | null } }>(m: T): T => { m.linha.sealed_at = new Date(Date.parse('2028-05-03T15:00:00Z') - 10 * 86_400_000).toISOString(); return m }
+const velho = <T extends { linha: { sealed_at: string | null } }>(m: T): T => { m.linha.sealed_at = new Date(Date.parse('2025-05-03T15:00:00Z') - 10 * 86_400_000).toISOString(); return m }
 const css = readFileSync('src/app/cms/(authed)/youtube/competitors/_arquivo/arquivo.css', 'utf8')
 
 describe('1: peça 7 para quem só edita', () => {

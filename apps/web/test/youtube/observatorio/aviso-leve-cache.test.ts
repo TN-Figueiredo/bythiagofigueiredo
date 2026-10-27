@@ -14,7 +14,7 @@ vi.mock('next/cache', () => ({
   },
 }))
 
-const BOM = { versao: 1, lido_em: '2028-05-03T15:00:00Z', hoje: '2028-05-03', proximo_mes: null, primeira_devida_em: null, primeira_devida_mes: null, atraso_mes: null, ultima_copia: null,
+const BOM = { versao: 1, lido_em: '2025-05-03T15:00:00Z', hoje: '2025-05-03', proximo_mes: null, primeira_devida_em: null, primeira_devida_mes: null, atraso_mes: null, ultima_copia: null,
   casa: [], vermelhos_n: 0, atraso: { amarelos: 0, vermelhos: 0, mais_antiga: null, meses_sem_selo: 0 } }
 
 describe('lerAvisoLeve: falha não fica em cache (Yannis M-A)', () => {

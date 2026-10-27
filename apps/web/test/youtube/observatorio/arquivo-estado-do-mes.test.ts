@@ -68,8 +68,8 @@ describe('peça 2: o caminho de cada mês (item 39)', () => {
     expect(p.resumo.texto).not.toMatch(/\b0 meses\b/)
   })
   it('a página usa o relógio do banco (lido_em), não o da máquina', () => {
-    const lido = Date.parse('2027-03-01T15:00:00Z')
-    const p = montarPagina(paginaVazia({ lido_em: new Date(lido).toISOString(), hoje: '2027-03-01', casa: [{ worker: 'copiador', last_poll_at: new Date(lido - 30 * 3_600_000).toISOString(), updated_at: new Date(lido - 30 * 3_600_000).toISOString() }] }), { arquivoLigado: true })
+    const lido = Date.parse('2024-03-01T15:00:00Z')
+    const p = montarPagina(paginaVazia({ lido_em: new Date(lido).toISOString(), hoje: '2024-03-01', casa: [{ worker: 'copiador', last_poll_at: new Date(lido - 30 * 3_600_000).toISOString(), updated_at: new Date(lido - 30 * 3_600_000).toISOString() }] }), { arquivoLigado: true })
     expect(p.casa.forma).toBe('triangulo')
   })
 })
@@ -165,11 +165,11 @@ describe('Phil M2 (r1): sem first_month em nenhuma classe a primeira cópia não
 })
 
 describe('Gio D1 (r1): o grupo "Dado de teste"', () => {
-  const t = (m: Record<string, unknown>) => ({ month: '2028-01-01', sealed_at: null, nas_attested_at: null, b2_attested_at: null, detached_at: null, dropped_at: null, closed_at: null, ...m })
+  const t = (m: Record<string, unknown>) => ({ month: '2025-01-01', sealed_at: null, nas_attested_at: null, b2_attested_at: null, detached_at: null, dropped_at: null, closed_at: null, ...m })
   const linhas = (m: Record<string, unknown>) => montarPagina(paginaVazia({ teste: { aberto: true, meses: [t(m)], encerrado_em: null } }), { arquivoLigado: true }).teste!.linhas[0]!
   const formas = (m: Record<string, unknown>) => linhas(m).regua.map(e => e.forma)
   it('a régua acompanha o estágio: NAS marcado, depois B2; saiu das telas e saiu do banco usam as réguas reais', () => {
-    expect(formas({ sealed_at: 'x', nas_attested_at: '2028-05-01T00:00:00Z' })).toEqual(['visto', 'pontilhado', 'pontilhado', 'pontilhado', 'pontilhado'])
+    expect(formas({ sealed_at: 'x', nas_attested_at: '2025-05-01T00:00:00Z' })).toEqual(['visto', 'pontilhado', 'pontilhado', 'pontilhado', 'pontilhado'])
     expect(formas({ sealed_at: 'x', nas_attested_at: 'x', b2_attested_at: 'x' }).slice(0, 2)).toEqual(['visto', 'visto'])
     expect(formas({ detached_at: 'x' })).toEqual(['visto', 'pontilhado'])
     expect(formas({ dropped_at: 'x' })).toEqual(['arquivo'])
@@ -177,8 +177,8 @@ describe('Gio D1 (r1): o grupo "Dado de teste"', () => {
   it('a faixa é o texto do mockup TESTE-1; encerrado diz a data', () => {
     const a = montarPagina(paginaVazia({ teste: { aberto: true, meses: [t({})], encerrado_em: null } }), { arquivoLigado: true }).teste!
     expect(a.faixa).toBe('Dado de teste. Isto é um mês fictício, criado para você testar o caminho inteiro sem tocar no dado real. Nada que sair daqui libera espaço de verdade.')
-    const e = montarPagina(paginaVazia({ teste: { aberto: false, meses: [], encerrado_em: '2028-05-03T12:00:00-03:00' } }), { arquivoLigado: true }).teste!
-    expect(e.faixa).toBe('Dado de teste encerrado em 03/05/2028.')
+    const e = montarPagina(paginaVazia({ teste: { aberto: false, meses: [], encerrado_em: '2025-05-03T12:00:00-03:00' } }), { arquivoLigado: true }).teste!
+    expect(e.faixa).toBe('Dado de teste encerrado em 03/05/2025.')
   })
 })
 
@@ -210,7 +210,7 @@ describe('Phil M3: os meses à frente', () => {
     const p = montarPagina(paginaVazia({ meses_a_frente: [
       { table_name: 'competitor_video_daily', months_ahead: -1, last_month: null, converted_at: null },
       { table_name: 'competitor_video_early', months_ahead: null, last_month: null, converted_at: null },
-      { table_name: 'competitor_video_hourly', months_ahead: 2, last_month: '2028-07-01', converted_at: '2028-01-01T00:00:00Z' }] }), { arquivoLigado: true })
+      { table_name: 'competitor_video_hourly', months_ahead: 2, last_month: '2025-07-01', converted_at: '2025-01-01T00:00:00Z' }] }), { arquivoLigado: true })
     const f = p.mesesAFrente
     expect(f[0]!.frase).toBe('O mês corrente não existe para estes dados. Rode a criação dos meses à frente.'); expect(f[0]!.forma).toBe('octogono')
     expect(f[1]!.frase).toMatch(/Ainda sem meses à frente: não medido/); expect(f[1]!.forma).toBe('hachura')

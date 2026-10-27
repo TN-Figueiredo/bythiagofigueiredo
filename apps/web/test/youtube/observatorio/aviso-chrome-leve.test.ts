@@ -11,7 +11,7 @@ vi.mock('@/app/cms/(authed)/youtube/competitors/_chrome/permissoes', () => ({ po
 vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown, chave: unknown, opcoes: unknown) => { cacheado(chave, opcoes); return fn } }))
 
 const SITE = '00000000-0000-0000-0000-00000000a3b0'
-const LEVE = { versao: 1, lido_em: '2028-05-03T15:00:00Z', hoje: '2028-05-03', proximo_mes: null, primeira_devida_em: '2026-11-28', primeira_devida_mes: '2026-10-01', atraso_mes: null, ultima_copia: null, casa: [], vermelhos_n: 0, atraso: { amarelos: 0, vermelhos: 0, mais_antiga: null, meses_sem_selo: 0 } }
+const LEVE = { versao: 1, lido_em: '2025-05-03T15:00:00Z', hoje: '2025-05-03', proximo_mes: null, primeira_devida_em: '2026-11-28', primeira_devida_mes: '2026-10-01', atraso_mes: null, ultima_copia: null, casa: [], vermelhos_n: 0, atraso: { amarelos: 0, vermelhos: 0, mais_antiga: null, meses_sem_selo: 0 } }
 const chamar = async () => (await import('@/app/cms/(authed)/youtube/competitors/_chrome/arquivo-do-chrome')).arquivoNoChrome(SITE)
 
 describe('o chrome e o aviso leve', () => {
