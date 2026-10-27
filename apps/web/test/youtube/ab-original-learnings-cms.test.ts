@@ -1,8 +1,14 @@
 // @vitest-environment node
 /** S8-F4 B2: a original vencedora ("não mudar nada") não ensina tag nenhuma nos aprendizados do CMS. */
 import { describe, it, expect, vi } from 'vitest'
-import { fakePostgrest } from '../helpers/fake-postgrest'
+import { fakePostgrest as fakePostgrestPuro, type FakePostgrestOptions } from '../helpers/fake-postgrest'
 
+/** O select embute as variantes (`variants:ab_test_variants!test_id(...)`): o fake só repassa a propriedade, então a montamos aqui. */
+function fakePostgrest(o: FakePostgrestOptions) {
+  const vars = (o.tables.ab_test_variants ?? []) as Array<Record<string, unknown>>
+  const tabelas = { ...o.tables, ab_tests: (o.tables.ab_tests ?? []).map(t => ({ ...t, variants: vars.filter(v => v.test_id === t.id) })) }
+  return fakePostgrestPuro({ ...o, tables: tabelas })
+}
 let sb = fakePostgrest({ tables: {} })
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => sb.client }))
 vi.mock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
@@ -136,5 +142,21 @@ describe('M7b P2: getChannelLearnings conta o vencedor estatístico (mesma regra
     expect(await getChannelLearnings(SITE)).toBeNull()
     sb = fakePostgrest(tabelas([t('d', { status: 'archived' })], [vs('d', 'tag-d')]))
     expect(await getChannelLearnings(SITE)).toBeNull()
+  })
+})
+
+describe('M7b I2: a leitura é uma só, com erro tratado', () => {
+  it('erro na leitura de ab_tests: getLearnings e getChannelLearnings devolvem null (nunca contam a original)', async () => {
+    const o = mundo()
+    sb = fakePostgrest({ ...o, fail: q => (q.table === 'ab_tests' ? { message: 'boom' } : null) })
+    expect(await getLearnings(SITE)).toBeNull()
+    expect(await getChannelLearnings(SITE)).toBeNull()
+  })
+  it('nenhuma consulta à tabela ab_test_variants (as variantes vêm embutidas)', async () => {
+    const consultadas: string[] = []
+    sb = fakePostgrest({ ...mundo(), fail: q => { consultadas.push(q.table); return null } })
+    expect((await getLearnings(SITE))?.totalTests).toBe(3)
+    await getChannelLearnings(SITE)
+    expect(consultadas).not.toContain('ab_test_variants')
   })
 })

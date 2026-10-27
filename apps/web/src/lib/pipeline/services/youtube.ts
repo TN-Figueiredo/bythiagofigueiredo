@@ -13,6 +13,7 @@ import { latestRow } from '@/lib/youtube/rolling-window'
 import { noArConfirmado, type TentativaNoAr } from '@/lib/youtube/ab-no-ar'
 import { lerHistoricoDeRestores } from '@/lib/youtube/ab-no-ar-leitura'
 import { lerRestauracao, paraRestoreStatus, restoreStatusIlegivel, type CampoNome, type LeituraCampo } from '@/lib/youtube/ab-restore'
+import { vencedorQueEnsina } from '@/lib/youtube/ab-aprendizado'
 import { ehVitoriaHumana, ehVitoriaDeVariante, lerResultadoV2, type DesfechoV2, type ResultadoV2, type TestType, type VariantMetadata, type VencedorEmbutido } from '@/lib/youtube/ab-types'
 import { applyCycleTransition } from '@/lib/youtube/optimization-loop'
 import { SYNC_WINDOW_DAYS } from '@/lib/youtube/analytics-window'
@@ -1708,38 +1709,36 @@ export async function getAbLearnings(
 ): Promise<ServiceResult<AbLearningsResponse>> {
   const { supabase, siteId } = ctx
 
-  // Completed tests with a winner; only a human win counts (filtered in memory, right after the read)
+  // M7b P2: mesma regra do CMS (vencedorQueEnsina): conta o vencedor estatístico, não a razão do
+  // encerramento. As variantes vêm embutidas na mesma leitura (sem .in() solto).
   const { data: lidos, error: lidosError } = await supabase
     .from('ab_tests')
-    .select('id, winner_variant_id, test_type, completed_reason, winner:ab_test_variants!winner_variant_id(is_original)')
+    .select('id, winner_variant_id, test_type, result_metadata, variants:ab_test_variants!test_id(id, is_original, metadata)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
-    .not('winner_variant_id', 'is', null)
   if (lidosError) return err('DB_ERROR', 'Failed to load completed A/B tests', 500)
 
-  const tests = (lidos ?? []).filter(t => ehVitoriaDeVariante({
-    completed_reason: (t.completed_reason as string | null) ?? null,
-    winner_variant_id: (t.winner_variant_id as string | null) ?? null,
-    winner: t.winner as VencedorEmbutido,
-  }))
+  type VarianteLida = { id: unknown; is_original?: unknown; metadata: unknown }
+  const tests: Array<{ id: unknown; winner_variant_id: string; test_type: unknown }> = []
+  const winners: VarianteLida[] = []
+  const allVariants: VarianteLida[] = []
+  for (const t of lidos ?? []) {
+    const variantes = (Array.isArray(t.variants) ? t.variants : []) as VarianteLida[]
+    const efetivo = vencedorQueEnsina(t, variantes)
+    if (!efetivo) continue
+    tests.push({ id: t.id, winner_variant_id: efetivo, test_type: t.test_type })
+    for (const v of variantes) {
+      allVariants.push(v)
+      if (v.id === efetivo) winners.push(v)
+    }
+  }
 
   if (tests.length === 0) {
     return ok({ tagWinRates: [], channelInsights: [], totalCompletedTests: 0, aviso: AVISO_SEM_METRICA_DE_ENTREGA })
   }
 
-  const winnerIds = tests.map(t => t.winner_variant_id as string)
   const testIds = tests.map(t => t.id as string)
   const lidosV2 = await lerPlacaresDosTestes(ctx, testIds, new Date())
-
-  const [winnersRes, allVariantsRes] = await Promise.all([
-    supabase.from('ab_test_variants').select('id, metadata').in('id', winnerIds),
-    supabase.from('ab_test_variants').select('id, metadata').in('test_id', testIds),
-  ])
-
-  if (winnersRes.error) return err('DB_ERROR', 'Failed to load winning variants', 500)
-  if (allVariantsRes.error) return err('DB_ERROR', 'Failed to load A/B variants', 500)
-  const winners = winnersRes.data ?? []
-  const allVariants = allVariantsRes.data ?? []
 
   // Build tag aggregation (mirroring queries.ts aggregateTags pattern)
   const tagMap = new Map<string, { wins: number; total: number; kind: 'thumb' | 'title' }>()
