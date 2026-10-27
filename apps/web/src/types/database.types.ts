@@ -706,6 +706,7 @@ export type Database = {
           forcado: boolean
           gravado_em: string
           id: number
+          iniciativa: string | null
           motivo: string | null
           seq: number
           test_id: string
@@ -721,6 +722,7 @@ export type Database = {
           forcado: boolean
           gravado_em?: string
           id?: never
+          iniciativa?: string | null
           motivo?: string | null
           seq: number
           test_id: string
@@ -736,6 +738,7 @@ export type Database = {
           forcado?: boolean
           gravado_em?: string
           id?: never
+          iniciativa?: string | null
           motivo?: string | null
           seq?: number
           test_id?: string
@@ -889,6 +892,9 @@ export type Database = {
           consecutive_confident_evals: number
           created_at: string
           drift_acknowledged_at: string | null
+          escolha_em: string | null
+          escolha_por: string | null
+          escolha_variant_id: string | null
           grace_expires_at: string | null
           id: string
           last_applied_variant_id: string | null
@@ -928,6 +934,9 @@ export type Database = {
           consecutive_confident_evals?: number
           created_at?: string
           drift_acknowledged_at?: string | null
+          escolha_em?: string | null
+          escolha_por?: string | null
+          escolha_variant_id?: string | null
           grace_expires_at?: string | null
           id?: string
           last_applied_variant_id?: string | null
@@ -967,6 +976,9 @@ export type Database = {
           consecutive_confident_evals?: number
           created_at?: string
           drift_acknowledged_at?: string | null
+          escolha_em?: string | null
+          escolha_por?: string | null
+          escolha_variant_id?: string | null
           grace_expires_at?: string | null
           id?: string
           last_applied_variant_id?: string | null
@@ -1023,6 +1035,13 @@ export type Database = {
             columns: ["source_pipeline_id"]
             isOneToOne: false
             referencedRelation: "content_pipeline"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ab_tests_escolha_variant_id_fkey"
+            columns: ["escolha_variant_id"]
+            isOneToOne: false
+            referencedRelation: "ab_test_variants"
             referencedColumns: ["id"]
           },
           {
