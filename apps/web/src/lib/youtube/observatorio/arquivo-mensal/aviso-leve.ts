@@ -47,7 +47,16 @@ async function buscar(siteId: string): Promise<LeituraAvisoLeve> {
 export const arquivoTag = (siteId: string): string => 'arquivo:' + siteId
 export const arquivoBancoTag = (siteId: string): string => 'arquivo-banco:' + siteId
 
-/** Nunca lança. O estado do arquivo muda nas execuções da forja (poucas por dia): 300 s bastam. */
+class FalhaDoAviso extends Error { constructor(readonly lido: { ok: false; porque: 'funcao_ausente' | 'erro_do_banco' }) { super('aviso leve: ' + lido.porque) } }
+
+/** Nunca lança. O estado do arquivo muda nas execuções da forja (poucas por dia): 300 s bastam. Só a leitura BOA entra no cache: a falha lança dentro do corpo e sai
+ *  daqui sem ser guardada (Yannis M-A), para que um erro passageiro ou a função ainda ausente não apague a pastilha por 5 min. */
 export async function lerAvisoLeve(siteId: string): Promise<LeituraAvisoLeve> {
-  return unstable_cache(() => buscar(siteId), ['arquivo-aviso-leve', siteId], { revalidate: 300, tags: [arquivoTag(siteId)] })()
+  try {
+    return await unstable_cache(async () => { const r = await buscar(siteId); if (!r.ok) throw new FalhaDoAviso(r); return r }, ['arquivo-aviso-leve', siteId], { revalidate: 300, tags: [arquivoTag(siteId)] })()
+  } catch (e) {
+    if (e instanceof FalhaDoAviso) return e.lido
+    Sentry.captureException(e, { tags: { component: 'observatorio', step: 'aviso-leve' } })
+    return { ok: false, porque: 'erro_do_banco' }
+  }
 }

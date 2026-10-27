@@ -169,7 +169,18 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
     await semearCanal(c, { videos: 0 })
     const a = (await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as Record<string, unknown>
     expect(Object.keys(a).sort()).toEqual(['atraso', 'atraso_mes', 'casa', 'hoje', 'lido_em', 'primeira_devida_em', 'primeira_devida_mes', 'proximo_mes', 'ultima_copia', 'vermelhos_n', 'versao'])
-    expect(a.proximo_mes).toBeNull(); expect(a.ultima_copia).toBeNull(); expect(a.primeira_devida_em).toBe('2026-11-28'); expect(a.primeira_devida_mes).toBe('2026-10-01'); expect(a.atraso_mes).toBeNull(); expect(typeof a.vermelhos_n).toBe('number')
+    expect(a.proximo_mes).toBeNull(); expect(a.ultima_copia).toBeNull(); expect(a.primeira_devida_em, 'sem registro do início (obs_archive_switch): nulo, nunca o piso de 2026-10-01').toBeNull(); expect(a.primeira_devida_mes).toBeNull(); expect(a.atraso_mes).toBeNull(); expect(typeof a.vermelhos_n).toBe('number')
+  })
+  it('Phil r2 R1: com o registro do início (first_month de 2027-03-01), a 1ª cópia devida vem dele e não do piso fixo; apagar o registro volta ao nulo', async () => {
+    await semearCanal(c, { videos: 0 })
+    await c.query(`delete from public.obs_archive_switch where site_id = $1 and class = 'horaria'`, [SITE_TESTE])
+    await c.query(`insert into public.obs_archive_switch (site_id, class, first_month) values ($1, 'horaria', '2027-03-01')`, [SITE_TESTE])
+    const lido = async () => (await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as { primeira_devida_em: string | null; primeira_devida_mes: string | null }
+    const a = await lido()
+    expect(a.primeira_devida_mes).toBe('2027-03-01')
+    expect(a.primeira_devida_em).toBe((await q1(c, `select public.obs_archive_due_on(date '2027-03-01', (select min(p.seal_margin_days) from public.obs_archive_policy() p where p.class = 'horaria'))::text as d`)).d)
+    await c.query(`delete from public.obs_archive_switch where site_id = $1`, [SITE_TESTE])
+    expect(await lido()).toMatchObject({ primeira_devida_em: null, primeira_devida_mes: null })
   })
   it('aviso: proximo_mes = mês + 1 + janela + wait_days (o selo só adia); mês destacado não conta; atraso igual ao do pulso', async () => {
     await semearCanal(c, { videos: 0 })
@@ -200,6 +211,20 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
     const a = (await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as { atraso_mes: string | null; atraso: { mais_antiga: string | null } }
     expect(a.atraso.mais_antiga).toBe('2026-12-15')
     expect(a.atraso_mes).toBe('2026-10-01')
+  })
+  it('Yannis M-B: a conta de atraso do aviso é a do pulso (obs_archive_atraso), com amarelos e vermelhos de verdade, nos dois lados dos limiares', async () => {
+    const { canal } = await semearCanal(c, { videos: 0 })
+    for (const hojeDia of ['2026-12-31', '2027-02-10']) {          // 16 dias de atraso (amarelo) e 57 dias (vermelho)
+      await hoje(hojeDia)
+      if (hojeDia === '2026-12-31') {
+        await c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
+          values ($1, 'horaria', 'competitor_video_hourly', $2, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [SITE_TESTE, canal])
+      }
+      const depois = await q1(c, `select public.obs_archive_aviso($1) as a, public.obs_archive_atraso($1) as at`, [SITE_TESTE])
+      expect((depois.a as { atraso: unknown }).atraso, hojeDia).toEqual(depois.at)
+      const at = depois.at as { amarelos: number; vermelhos: number }
+      expect(at.amarelos + at.vermelhos, hojeDia + ': há atraso medido').toBeGreaterThan(0)
+    }
   })
   it('aviso: a última cópia não conta a classe de ensaio', async () => {
     const x = (cl: string, mes: string, quando: string) => c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)

@@ -1,7 +1,7 @@
 // apps/web/test/youtube/observatorio/arquivo-estado-do-mes.test.ts
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { montarPagina, casaDe, modeloDesligado, modeloNaoLido } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
+import { montarPagina, casaDe, PRAZOS_DA_CASA, modeloDesligado, modeloNaoLido } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import { paginaVazia, mesCom, AGORA } from './fixtures/arquivo-pagina'
 
 // [nome do estado (04), mês semeado, frase que começa assim, forma da etapa que manda, gravidade]
@@ -83,6 +83,16 @@ describe('Phil I2: a casa', () => {
     // r2 N7/N-8: sem linha do copiador não é 'responde'
     expect(casaDe([bat('conferir_b2', { updated_at: h(1) })] as never, [], AGORA)).toMatchObject({ estado: 'programa_sem_sinal', forma: 'triangulo' })
     expect(casaDe([bat('copiador', { last_poll_at: h(1), updated_at: h(1), nas_checked_at: h(1) }), bat('conferir_b2', { updated_at: h(1) })] as never, [], AGORA).estado).toBe('responde')
+  })
+  it('fronteiras do copiador (Yannis r2): 17h59 responde, 18h01 triângulo; 35h59 triângulo, 36h01 octógono (um mutante 18→20 morre)', () => {
+    const min = (horas: number, m: number) => h(horas + m / 60)
+    const com = (idade: string) => casaDe([bat('copiador', { last_poll_at: idade, updated_at: idade, nas_checked_at: h(1) }), b2ok] as never, [], AGORA)
+    const tri = PRAZOS_DA_CASA.copiadorTriangulo, oct = PRAZOS_DA_CASA.copiadorOctogono
+    expect(tri).toBe(18); expect(oct).toBe(36)
+    expect(com(min(tri - 1, 59)).estado).toBe('responde')
+    expect(com(min(tri, 1))).toMatchObject({ estado: 'nao_respondeu', forma: 'triangulo' })
+    expect(com(min(oct - 1, 59))).toMatchObject({ estado: 'nao_respondeu', forma: 'triangulo' })
+    expect(com(min(oct, 1))).toMatchObject({ estado: 'nao_respondeu', forma: 'octogono' })
   })
   it('copiador há 25 h: triângulo; há 37 h: octógono', () => {
     expect(casaDe([bat('copiador', { last_poll_at: h(25), updated_at: h(25) })] as never, [], AGORA).forma).toBe('triangulo')

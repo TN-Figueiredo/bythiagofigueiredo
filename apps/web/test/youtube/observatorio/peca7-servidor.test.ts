@@ -56,4 +56,35 @@ describe('lerPendenciasDaFila', () => {
     expect(await chamar({ podeEditar: true, canUnlock: true })).toEqual({ estado: 'nao_medido' })
     expect(captureException).toHaveBeenCalled()
   })
+
+  describe('nome do canal que já saiu (Yannis R-1 = Gio D4)', () => {
+    const REF = ITEM.channel_ref
+    const SEM_COMANDO = { ...ITEM, tempo: 'sem_comando', apagar: [], b2_nomes: [] }
+    const linha = (nome: string | null) => ({ channel_ref: REF, versao: 2, estado: 'pedido', decided_at: null, nas_absent_at: null, b2_absent_at: null, snapshots_clear_on: null, reappeared_at: null,
+      reappeared_count: 0, online_thumbs_known: null, thumbs_unknown_ack_at: null, blobs_pendentes: 0, youtube_channel_id: null, nome, removido_em: null, removido_via: 'botao',
+      primeiro_mes: null, ultimo_mes: null, meses: null, registros: null, classes: [] })
+    const servir = (lista: unknown) => rpc.mockImplementation(async (fn: string) => fn === 'obs_archive_owner_pending'
+      ? { data: { ...CORPO, itens: [SEM_COMANDO] }, error: null } : { data: lista, error: null })
+    const tituloDe = (r: unknown): string | null => (r as { itens: Array<{ titulo: string | null }> }).itens[0]!.titulo
+    const perm = { podeEditar: true, canUnlock: false }
+    const chamarComNomes = async () => (await import('@/app/cms/(authed)/youtube/competitors/_canais/pendencias-da-fila')).lerPendenciasDaFila(SITE, perm, AGORA, { canais: new Map(), videos: new Map() })
+    it('canal fora de obs.channels mas na lista de removidos: mostra o nome de name_at_removal', async () => {
+      servir([linha('Rota Andina')])
+      expect(tituloDe(await chamarComNomes())).toBe('Rota Andina')
+    })
+    it('removido sem nome: cai no código de 8 caracteres, nunca no vazio', async () => {
+      servir([linha(null)])
+      expect(tituloDe(await chamarComNomes())).toBe(REF.slice(0, 8))
+    })
+    it('lista de removidos ilegível: ainda o código, nunca o vazio', async () => {
+      servir({ lixo: true })
+      expect(tituloDe(await chamarComNomes())).toBe(REF.slice(0, 8))
+    })
+    it('nome vivo vence o do registro e a lista de removidos nem é lida', async () => {
+      servir([linha('Nome velho')])
+      const r = await (await import('@/app/cms/(authed)/youtube/competitors/_canais/pendencias-da-fila')).lerPendenciasDaFila(SITE, perm, AGORA, { canais: new Map([[REF, 'Nome vivo']]) })
+      expect(tituloDe(r)).toBe('Nome vivo')
+      expect(rpc).not.toHaveBeenCalledWith('obs_archive_removed_channel_list', expect.anything())
+    })
+  })
 })

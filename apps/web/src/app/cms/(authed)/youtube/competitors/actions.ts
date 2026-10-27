@@ -1,6 +1,7 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { arquivoTag } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-leve'
 import { after } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { getSiteContext } from '@/lib/cms/site-context'
@@ -246,6 +247,7 @@ async function guardaDaRemocao(id: string, acao: string): Promise<{ ok: false; c
 function soltarCache(siteId: string): void {
   invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
+  revalidateTag(arquivoTag(siteId), { expire: 0 })   // o aviso do arquivo (300 s) conta canais removidos e vermelhos: não pode ficar velho depois de um comando do dono (Phil r2 R2)
 }
 
 /** Caminho 2 do "Remover canal": pausa na hora, libera a vaga e agenda o histórico para o NAS. O comando do agente termina o serviço. */

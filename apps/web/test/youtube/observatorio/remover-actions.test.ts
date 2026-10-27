@@ -15,6 +15,7 @@ const ordem: string[] = []
 const f1 = { pedir: vi.fn(), cancelar: vi.fn(), apagar: vi.fn() }
 const invalidate = vi.fn()
 const revalidate = vi.fn()
+const revalidateTag = vi.fn()
 let negado: { ok: false; error: string } | null = null
 let canal: { missing_since: string | null } | null = { missing_since: null }
 let esperando = { videos: 0, comentarios: 0 }
@@ -31,7 +32,7 @@ function carregar() {
   }))
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
-  vi.doMock('next/cache', () => ({ revalidatePath: revalidate, revalidateTag: vi.fn() }))
+  vi.doMock('next/cache', () => ({ revalidatePath: revalidate, revalidateTag }))
   vi.doMock('next/server', () => ({ after: vi.fn() }))
   vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
   vi.doMock('@/lib/youtube/observatorio/cache-tag', () => ({ invalidateObservatory: invalidate }))
@@ -145,6 +146,11 @@ describe('cache (A4.5)', () => {
     await rodar(await carregar(), qual)
     expect(invalidate).toHaveBeenCalledWith('s1')
     expect(revalidate).toHaveBeenCalledWith('/cms/youtube/competitors', 'layout')
+  })
+  it.each(TODAS)('%s: solta também o aviso do arquivo (Phil r2 R2)', async qual => {
+    revalidateTag.mockClear()
+    await rodar(await carregar(), qual)
+    expect(revalidateTag).toHaveBeenCalledWith('arquivo:s1', { expire: 0 })
   })
   it.each(TODAS)('%s: falha da F1 também solta', async qual => {
     const falha = { ok: false, codigo: 'sem_vaga', frase: 'f' }

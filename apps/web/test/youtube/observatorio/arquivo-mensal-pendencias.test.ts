@@ -97,7 +97,7 @@ describe('pendenciasParaTela (E-D4)', () => {
       canal({ item_id: 'canal:6f1c1b9e-0000-4000-8000-000000000003', channel_ref: '6f1c1b9e-0000-4000-8000-000000000003', mes: null })]))
     const t = pendenciasParaTela(l, { podeVerComandos: false, agora, nomes: { canais: new Map([['6f1c1b9e-0000-4000-8000-000000000001', 'Canal Um']]), videos: new Map([['abc123', 'O vídeo']]) } })
     if (t.estado !== 'com_itens') throw new Error('esperava itens')
-    expect(t.itens.map(i => i.titulo)).toEqual(['Canal Um', 'março de 2028', 'O vídeo', 'abril de 2028', null])
+    expect(t.itens.map(i => i.titulo)).toEqual(['Canal Um', 'março de 2028', 'O vídeo', 'abril de 2028', '6f1c1b9e'])   // canal sem nome e sem mês: o código, nunca o vazio (r2 R-1)
     expect(JSON.stringify(t)).not.toMatch(/b2_nomes|sha256|apagar"/)
   })
   it('o mais antigo vem do menor desde, mesmo fora de ordem', () => {

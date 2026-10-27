@@ -175,10 +175,10 @@ language sql stable security definer set search_path = '' as $$
                               join (select distinct p.class, p.wait_days, p.window_months from public.obs_archive_policy() p where p.class in ('horaria', 'serie')) k on k.class = x.class
                              where x.site_id = p_site and x.sealed_at is not null and x.unsealed_at is null and x.detached_at is null and x.dropped_at is null) y
                      order by y.pronto, y.month, y.class limit 1),
-    'primeira_devida_em', public.obs_archive_due_on(
-        greatest(coalesce((select sw.first_month from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria'), date '2026-10-01'), date '2026-10-01'),
-        (select min(p.seal_margin_days) from public.obs_archive_policy() p where p.class = 'horaria')),
-    'primeira_devida_mes', greatest(coalesce((select sw.first_month from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria'), date '2026-10-01'), date '2026-10-01'),
+    -- Phil r2 R1: o início vem do registro (obs_archive_switch.first_month), sem piso fixo no texto. Sem registro: nulos (a TS diz "Ainda não há cópia"), nunca uma data inventada.
+    'primeira_devida_em', (select public.obs_archive_due_on(sw.first_month, (select min(p.seal_margin_days) from public.obs_archive_policy() p where p.class = 'horaria'))
+                             from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria' and sw.first_month is not null),
+    'primeira_devida_mes', (select sw.first_month from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria'),
     'ultima_copia', (select max(u.received_at) from public.obs_archive_units u where u.site_id = p_site and u.class in ('horaria', 'serie', 'texto')),
     'casa', coalesce((select jsonb_agg(jsonb_build_object('worker', h.worker, 'last_poll_at', h.last_poll_at, 'updated_at', h.updated_at, 'nas_ok', h.nas_ok,
               'nas_checked_at', h.nas_checked_at) order by h.worker) from public.obs_archive_heartbeat h where h.site_id = p_site), '[]'::jsonb),
