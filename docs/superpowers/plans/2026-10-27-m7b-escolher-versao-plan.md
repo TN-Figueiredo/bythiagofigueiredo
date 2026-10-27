@@ -563,6 +563,25 @@ Ordem: T2 antes de T4, T5, T7 e T15b-2; T3 antes de T6; T7a antes de T8; T8 e T9
 - **Dono não responde as perguntas abaixo.** Valem os padrões indicados em cada uma; todos são uma constante ou um commit pequeno, sem migration.
 - **Volume de produção não medido.** Ninguém leu o tamanho real de `ab_tests`/`ab_test_restores` (sem autorização). Para o dono rodar quando quiser: `select count(*) filter (where status='completed'), (select count(*) from ab_test_restores) from ab_tests;`. O plano não depende do número (leitura limitada e paginada).
 
+
+### Respostas do dono (27/10)
+
+- **P1 = (a)** 30 dias.
+- **P2 = (b), mudar agora:** o `getLearnings` conta o vencedor estatístico (`result_metadata.v2.vencedor_sugerido`) mesmo quando o dono escolhe outra versão, desde já. Nova tarefa **T7b** (abaixo).
+- **P3 = recomendação do controlador:** apagar `revertWinner`, o ramo `reverter` e o "original vence" só depois que a T19 (prova em produção) passar; até lá, dívida registrada com data.
+- **P4 = (a)** sem janela.
+
+- [ ] **T7b (P2) `getLearnings` conta o vencedor estatístico (~60K, Sonnet; depois da T7).**
+  - Arquivo: `queries.ts:677`.
+  - Um teste concluído conta como aprendizado com vencedor quando tem `winner_variant_id` **ou** `result_metadata.v2.vencedor_sugerido` que seja variante do teste. A letra que conta é a do vencedor estatístico, nunca a da escolha do dono.
+  - `regra_v2` sem sugerida (inconclusivo) continua não contando como vitória.
+  - Testes:
+    - sugerida B + escolha C → conta B;
+    - sugerida = original + "Manter" → conta 1 vez (sem dobrar);
+    - inconclusivo → não conta;
+    - teste arquivado → não conta.
+  - Atualizar a T19 e o critério 3 do envio 2: a contagem esperada passa a incluir os concluídos v2 com sugerida.
+
 ### Perguntas ao dono (cada uma com padrão; nada decidido por ele)
 
 **P1. Quanto tempo um teste inconclusivo fica no "Com você" esperando a sua escolha?**
