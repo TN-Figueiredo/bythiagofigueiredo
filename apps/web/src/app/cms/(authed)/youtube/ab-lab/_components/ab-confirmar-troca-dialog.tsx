@@ -24,6 +24,8 @@ export interface AbConfirmarTrocaDialogProps {
   erro?: string
   /** Botão seguro extra da recusa (ex.: "Recarregar"). */
   acaoSegura?: { rotulo: string; onClick: () => void } | null
+  /** Textos próprios (M7b: painel de escolha sem prazo). Cada chave ausente mantém o texto padrão. */
+  textos?: { titulo?: string; lead?: string; nota?: string; voltar?: string }
 }
 
 /** Leitura que falhou depois do pulado: valor vazio ou o texto fixo (T10). Nunca caixa em branco. */
@@ -38,7 +40,7 @@ function Miniatura({ src, rotulo, semLeitura: falhou }: { src: string | null; ro
 }
 
 /** Casca comum dos diálogos `.etd` de confirmação (alertdialog): portal, fundo, cabeçalho com aviso, rodapé com a opção segura "Cancelar" em foco inicial. */
-export function CascaEtd({ titulo, children, rodape, onVoltar, voltarRef, ids, travado }: {
+export function CascaEtd({ titulo, children, rodape, onVoltar, voltarRef, ids, travado, rotuloVoltar }: {
   titulo: string
   children: ReactNode
   /** Botões do rodapé, sem o "Voltar" (a casca o põe depois, com o ref do foco inicial). */
@@ -48,6 +50,8 @@ export function CascaEtd({ titulo, children, rodape, onVoltar, voltarRef, ids, t
   ids: { titulo: string; lead: string; nota: string }
   /** Pedido em voo: o "Voltar" também fica desabilitado. */
   travado?: boolean
+  /** Texto do botão seguro (padrão "Cancelar"). */
+  rotuloVoltar?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   // O foco inicial é "Voltar" (a opção segura), não o 1º controle.
@@ -69,7 +73,7 @@ export function CascaEtd({ titulo, children, rodape, onVoltar, voltarRef, ids, t
           <div className="etd-b">{children}</div>
           <div className="etd-f">
             {rodape}
-            <button type="button" className="etd-btn" ref={voltarRef} disabled={travado === true} onClick={onVoltar}>Cancelar</button>
+            <button type="button" className="etd-btn" ref={voltarRef} disabled={travado === true} onClick={onVoltar}>{rotuloVoltar ?? 'Cancelar'}</button>
           </div>
         </div>
       </div>
@@ -77,7 +81,7 @@ export function CascaEtd({ titulo, children, rodape, onVoltar, voltarRef, ids, t
   )
 }
 
-export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, rotuloConfirmar, enviando, erro, acaoSegura }: AbConfirmarTrocaDialogProps) {
+export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, rotuloConfirmar, enviando, erro, acaoSegura, textos }: AbConfirmarTrocaDialogProps) {
   const voltarRef = useRef<HTMLButtonElement>(null)
 
   const titulo = campos.find(c => c.campo === 'title')
@@ -118,7 +122,8 @@ export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, r
 
   return (
     <CascaEtd
-      titulo="Trocar mesmo assim?"
+      titulo={textos?.titulo ?? 'Trocar mesmo assim?'}
+      rotuloVoltar={textos?.voltar}
       onVoltar={onVoltar}
       voltarRef={voltarRef}
       travado={enviando === true}
@@ -130,8 +135,8 @@ export function AbConfirmarTrocaDialog({ campos, opcao, onVoltar, onConfirmar, r
         </>
       }
     >
-      <p className="etd-lead" id="etd-c-d">{lead}</p>
-      <p className="etd-tiny" id="etd-c-n">{nota}</p>
+      <p className="etd-lead" id="etd-c-d">{textos?.lead ?? lead}</p>
+      <p className="etd-tiny" id="etd-c-n">{textos?.nota ?? nota}</p>
       {ambos ? <h3 className="etd-sec">Título</h3> : null}
       {compTitulo}
       {ambos ? <h3 className="etd-sec">Miniatura</h3> : null}
