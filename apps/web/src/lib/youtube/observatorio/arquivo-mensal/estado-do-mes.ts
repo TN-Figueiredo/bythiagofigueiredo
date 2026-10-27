@@ -8,6 +8,8 @@ import type { PaginaLida, LinhaMesLida } from './pagina'
 import { descreverVermelho, type LinhaDeProblema } from './vermelhos'
 
 export type { LinhaDeProblema } from './vermelhos'
+/** A frase da linha de um mês que voltou ao banco fora de ordem (M6 trata; a tela só avisa, em triângulo âmbar). */
+export const FRASE_FORA_DE_ORDEM = 'Voltou fora de ordem'
 export type Forma = 'visto' | 'pontilhado' | 'pontilhado_ambar' | 'triangulo' | 'octogono' | 'hachura' | 'arquivo' | 'zero' | 'barra'
 export type Etapa = { rotulo: string; curto: string; forma: Forma }
 export type Gravidade = 'nenhuma' | 'ambar' | 'vermelho' | 'nao_medido'
@@ -297,8 +299,10 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
       const r = juntarTabelas(rows)
       const pg = p.progresso.find(x => x.class === tipo && x.month === mes)
       const res = r.dropped_at ? mesDescartado(c, r) : r.detached_at ? mesDestacado(c, r, cl) : mesOnline(c, r, pg, recs, cl, tipo)
+      // M5 Tarefa 9 (Yannis I-12): a leitura de `reattach_out_of_order` é da M5 (o botão que trata é da M6)
+      const secundaria = [res.secundaria ?? null, rows.some(x => x.reattach_out_of_order) ? FRASE_FORA_DE_ORDEM : null].filter((x): x is string => x !== null).join(' ') || null
       const linha: LinhaDoMes = {
-        chave: `${tipo}:${mes}`, mesNome: nomeDoMes(mes), regua: res.regua, frase: res.frase, secundaria: res.secundaria ?? null, gravidade: res.gravidade,
+        chave: `${tipo}:${mes}`, mesNome: nomeDoMes(mes), regua: res.regua, frase: res.frase, secundaria, gravidade: res.gravidade,
         sobeAoTopo: res.gravidade === 'ambar' || res.gravidade === 'vermelho',
       }
       return { linha, grupo: res.grupo, mes }

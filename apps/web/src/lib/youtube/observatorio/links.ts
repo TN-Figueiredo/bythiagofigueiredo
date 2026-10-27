@@ -175,6 +175,11 @@ export const link = {
   },
 
   /** Link to the "Sugestões" list (F3 T6). No niche: the list is the site's. */
+  /** Link to the Arquivo screen (manutenção M5, Tarefa 9): quem edita o site. */
+  arquivo(): string {
+    return OBS_BASE + '/arquivo'
+  },
+
   sugestoes(): string {
     return OBS_BASE + '/sugestoes'
   },

@@ -8,9 +8,9 @@ import type { Niche, ObsChannel } from '@/lib/youtube/observatorio/types'
 import type { ForjaView } from './forja-view-model'
 import { ownMenuOf, type OwnMenu } from './own-menu'
 
-export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'saiu' | 'sugestoes'
-/** As abas que o pacote do engine conhece; "Saíram do YouTube" (A5 E9) e "Sugestões" (F3 T6) não vêm dele. */
-type AbaDoPacote = Exclude<ChromeTab, 'saiu' | 'sugestoes'>
+export type ChromeTab = 'canais' | 'mudancas' | 'outliers' | 'insights' | 'saiu' | 'sugestoes' | 'arquivo'
+/** As abas que o pacote do engine conhece; "Saíram do YouTube" (A5 E9), "Sugestões" (F3 T6) e "Arquivo" (manutenção M5) não vêm dele. */
+type AbaDoPacote = Exclude<ChromeTab, 'saiu' | 'sugestoes' | 'arquivo'>
 const TABS: readonly AbaDoPacote[] = ['canais', 'mudancas', 'outliers', 'insights']
 const TAB_NAME: Record<AbaDoPacote, string> = { canais: 'Canais', mudancas: 'Mudanças', outliers: 'Outliers', insights: 'Insights' }
 // Rótulo e títulos da quinta aba (revistos pelo Logan, 17/10) (o mockup fixa o rótulo "Saíram do YouTube"; os títulos não)
@@ -48,7 +48,7 @@ const cap = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s)
 export const nicheLabelOf = (obs: Observatory, n: NicheScope): string => (n === 'todos' ? 'Todos' : obs.nicheLabel(n))
 const colorOf = (obs: Observatory, n: NicheScope) => (n === 'todos' ? null : obs.nicheColor(n))
 
-export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** quantos itens esperam resposta na fila (n nulo = a contagem falhou); sem o campo não há quinta aba */ fila?: { n: number | null } | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null; /** F3 T6: a aba Sugestões (2ª); sem o campo ela não existe (quem só lê o site não a vê) */ sugestoes?: { n: number | null; velho: boolean; calculado: boolean } | null }): ChromeView {
+export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: NicheScope; forja?: ForjaView | null; /** quantos itens esperam resposta na fila (n nulo = a contagem falhou); sem o campo não há quinta aba */ fila?: { n: number | null } | null; /** a escolha do dono para "o meu canal" */ lembrado?: string | null; /** F3 T6: a aba Sugestões (2ª); sem o campo ela não existe (quem só lê o site não a vê) */ sugestoes?: { n: number | null; velho: boolean; calculado: boolean } | null; /** M5: a aba Arquivo, a última; só para quem edita o site (sem o campo ela não existe) */ arquivoVisivel?: boolean }): ChromeView {
   const { niche } = o, F = obs.fmt, D = obs.date
   const counts = obs.tabCounts(niche)
   const countOf: Record<AbaDoPacote, number | null> = { canais: counts.canais, mudancas: counts.mud, outliers: counts.out, insights: null }
@@ -78,6 +78,8 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
       current: o.tab === 'saiu',
     })
   }
+  // M5: a aba Arquivo é a última e só existe para quem edita o site (quem só lê nem a vê)
+  if (o.arquivoVisivel) tabs.push({ key: 'arquivo', label: 'Arquivo', href: obs.link.arquivo(), count: null, title: 'O que já foi copiado e conferido do arquivo mensal', current: o.tab === 'arquivo' })
 
   const competitors = obs.channels.filter(c => !c.own)
   const bad = competitors.filter(c => c.sync.state !== 'ok'), good = competitors.filter(c => c.sync.state === 'ok')
@@ -127,13 +129,14 @@ export function buildChromeView(obs: Observatory, o: { tab: ChromeTab; niche: Ni
 }
 
 /** "Copiar pedido para o Cowork": the mockup's default text per tab (chrome.js coworkText). `label` = the niche's label (the built-in ones are known here). */
-export function coworkText(tab: AbaDoPacote | 'historico', niche: NicheScope, label: string = nicheLabel(BUILTIN_NICHES, niche)): string {
+export function coworkText(tab: AbaDoPacote | 'historico' | 'arquivo', niche: NicheScope, label: string = nicheLabel(BUILTIN_NICHES, niche)): string {
   const n = niche === 'todos' ? 'todos os nichos' : `nicho ${label}`
-  const base: Record<AbaDoPacote | 'historico', string> = {
+  const base: Record<AbaDoPacote | 'historico' | 'arquivo', string> = {
     canais: `Compare os canais monitorados no Observatório (${n}) via youtube_observatory: crescimento de views, frequência de publicação e frescor da sincronização. Aponte quem acelerou.`,
     mudancas: `Liste as trocas de título e thumbnail dos concorrentes (${n}, últimos 30 dias) via youtube_observatory. Para as que já têm 7 dias depois da troca, compare a média de views/dia observada com a esperada pela idade. Não afirme causa.`,
     outliers: `Liste os outliers dos concorrentes (${n}, longos, até 90 dias, 2× ou mais ajustado pela idade) via youtube_observatory e sugira 3 ângulos de vídeo para o meu canal.`,
     insights: `Leia as leituras da forja (${n}) via youtube_observatory e proponha 3 títulos para o meu próximo vídeo que sigam só as fórmulas que passam a regra.`,
+    arquivo: 'Leia o estado do arquivo mensal do Observatório (meses copiados, conferidos e o que espera por mim) e diga o que precisa de uma ação minha.',
     historico: 'Leia o histórico deste vídeo (títulos, thumbnails, descrições e a curva de views) via youtube_observatory e diga o que mudou e quando. Não afirme causa.',
   }
   return base[tab] + ' Use o MCP bythiagofigueiredo.'

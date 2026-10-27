@@ -1,0 +1,80 @@
+/* Página Arquivo (manutenção M5, Tarefa 9): classes do mockup 19 (m19.css) com prefixo arq-, escopadas à tela.
+   Tokens do chrome ([data-obs]); só hex e rgba() literais em cor que carrega sentido (o Opera mostra transparente a mistura de cores). */
+[data-obs-screen="arquivo"]{--arq-ok:#22c55e;--arq-am:#f59e0b;--arq-am-text:#f59e0b;--arq-vm:#F26B6B;--arq-am-bg:rgba(245,158,11,.12);--arq-vm-bg:rgba(239,68,68,.12);--arq-fio:rgba(229,156,192,.14);font-size:14px;max-width:1120px;padding:20px 24px 80px}
+[data-theme="light"] [data-obs-screen="arquivo"]{--arq-ok:#11692F;--arq-am:#B45309;--arq-am-text:#92400E;--arq-vm:#B42318;--arq-am-bg:rgba(180,83,9,.10);--arq-vm-bg:rgba(180,35,24,.08);--arq-fio:rgba(142,42,98,.10)}
+@media (max-width:820px){[data-obs-screen="arquivo"]{padding:16px 16px 64px}}
+[data-obs-screen="arquivo"] :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.arq-h2{margin:0 0 6px;font:600 20px/1.3 Inter,system-ui,sans-serif}
+.arq-h3{margin:0;font:600 15px/1.35 Inter,system-ui,sans-serif}
+.arq-resumo-geral{margin:0 0 12px;font-size:15px;line-height:1.5;color:var(--text)}
+.arq-resumo-geral.calmo{color:var(--muted)}
+.arq-nota,.arq-casa{margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.5}
+.arq-fr-forma{display:inline-flex;gap:8px;align-items:flex-start}
+.arq-fr-forma>span:last-child{min-width:0;overflow-wrap:anywhere}
+.arq-ico{flex:none;vertical-align:-3px;margin-top:2px}
+.arq-ok{color:var(--arq-ok)}.arq-am{color:var(--arq-am-text)}.arq-vm{color:var(--arq-vm)}.arq-pt{color:var(--dim)}.arq-ar{color:var(--dim)}.arq-nm{color:var(--nm)}.arq-zr{color:var(--im-zero)}
+.arq-hach{display:inline-block;width:16px;height:16px;border-radius:3px;flex:none;border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm) 0 2px,var(--nm-bg) 2px 5px);vertical-align:-3px}
+.arq-hach.g{width:24px;height:24px;border-radius:5px}
+.arq-zero{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border:2px solid var(--im-zero);border-radius:3px;color:var(--text);font:500 12px/1 "JetBrains Mono",ui-monospace,monospace;flex:none}
+.arq-zero.g{min-width:24px;height:24px;border-radius:4px;font-size:13px}
+.arq-btn{display:inline-flex;align-items:center;min-height:36px;padding:5px 14px;border:1px solid var(--border-strong);border-radius:7px;background:var(--surface);color:var(--text);text-decoration:none;font:500 13.5px/1.2 Inter,system-ui,sans-serif}
+.arq-sole{padding:32px 24px;display:grid;gap:14px;justify-items:start;color:var(--text)}
+@media (max-width:820px){.arq-btn{min-height:44px}}
+
+/* legenda recolhida */
+.arq-leg{margin:0 0 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.arq-leg summary{padding:0 14px;min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600}
+.arq-leg-in{padding:2px 14px 14px;display:grid;gap:14px}
+.arq-leg ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:8px 18px}
+.arq-leg li{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--muted);line-height:1.45}
+.arq-leg li b{color:var(--text);font-weight:600}
+
+/* a régua de etapas */
+.arq-reg{display:flex;min-width:0}
+.arq-et{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;text-align:center;font-size:12px;line-height:1.25;color:var(--muted)}
+.arq-et::before{content:"";position:absolute;top:11px;right:calc(50% + 15px);left:calc(-50% + 15px);border-top:2px solid var(--border-strong)}
+.arq-et:first-child::before{display:none}
+.arq-et.pend::before{border-top:2px dotted var(--dim)}
+.arq-et.prob{color:var(--text)}
+.arq-et-l .s{display:none}
+@media (max-width:600px){.arq-et-l .l{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.arq-et-l .s{display:inline}}
+
+/* cartão do tipo e linha do mês */
+.arq-card{margin:0 0 20px;border:1px solid var(--border);border-radius:8px;background:var(--surface)}
+.arq-card-h{padding:14px 14px 10px;display:grid;gap:6px}
+.arq-card-top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.arq-resumo{margin:0;font-size:14.5px;line-height:1.5;color:var(--text);max-width:80ch}
+.arq-rows{list-style:none;margin:0;padding:0}
+.arq-mes{display:grid;grid-template-columns:140px minmax(0,1fr) 380px;gap:6px 16px;align-items:center;padding:12px 14px;border-top:1px solid var(--border-subtle)}
+.arq-mes .arq-mn{font-weight:600}
+.arq-mes .arq-fr{margin:0;color:var(--text);font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}
+.arq-sec{display:block;margin-top:2px;color:var(--muted);font-size:12.5px}
+.arq-ac{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:0;grid-column:1/-1}
+.arq-mes.arq-prob{grid-template-columns:minmax(0,1fr)}
+.arq-contorno{border:2px solid var(--arq-am);border-radius:8px;margin:6px 8px;background:var(--arq-am-bg)}
+.arq-contorno.vm{border-color:var(--arq-vm);background:var(--arq-vm-bg)}
+.arq-mes.nm{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--arq-fio) 6px 8px)}
+.arq-mes.teste{border-left:3px dotted var(--dim)}
+.arq-marca{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;margin-left:6px;border:1px dotted var(--dim);border-radius:4px;font-size:12px;font-weight:400}
+.arq-anos{border-top:1px solid var(--border-subtle);padding:8px 14px;display:grid;gap:4px}
+.arq-ano{margin:0;display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+@media (max-width:1200px){.arq-mes{grid-template-columns:130px minmax(0,1fr)}.arq-mes .arq-reg{grid-column:1/-1}}
+@media (max-width:600px){.arq-mes{grid-template-columns:minmax(0,1fr)}.arq-mes .arq-fr{order:2}.arq-mes .arq-reg{order:3}.arq-contorno{margin:6px 6px}}
+
+/* canais removidos */
+.arq-can{display:grid;grid-template-columns:150px minmax(0,1fr) 380px;gap:6px 16px;align-items:center;padding:12px 14px;border-top:1px solid var(--border-subtle)}
+.arq-cn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arq-can .arq-fr{margin:0;font-size:13.5px;line-height:1.5;overflow-wrap:anywhere}
+.arq-can.vm{border:2px solid var(--arq-vm);border-radius:8px;margin:6px 8px;background:var(--arq-vm-bg)}
+.arq-can.am{border:2px solid var(--arq-am);border-radius:8px;margin:6px 8px;background:var(--arq-am-bg)}
+.arq-can.nm{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--arq-fio) 6px 8px)}
+@media (max-width:1200px){.arq-can{grid-template-columns:minmax(0,1fr)}.arq-cn{white-space:normal;overflow-wrap:anywhere}}
+.arq-ja{border-top:1px solid var(--border-subtle)}
+.arq-ja summary{display:flex;align-items:center;min-height:44px;padding:0 14px;cursor:pointer}
+.arq-ja p{margin:0;padding:0 14px 10px;color:var(--muted);font-size:13px}
+.arq-ausente{display:flex;gap:10px;align-items:flex-start;margin:0;padding:10px 12px;border-radius:6px;font-size:13.5px;line-height:1.5}
+.arq-ausente.nm{border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--arq-fio) 6px 8px);color:var(--nm)}
+
+/* dado de teste */
+.arq-teste-h{margin:0;padding:10px 14px;border-bottom:1px dotted var(--dim);background:var(--sunk);border-radius:8px 8px 0 0;font-size:13.5px}
+@media (prefers-reduced-motion:reduce){[data-obs-screen="arquivo"] *{animation:none!important;transition:none!important}}

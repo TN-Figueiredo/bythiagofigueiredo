@@ -79,7 +79,10 @@ function entradasInvalidas(pastas: readonly string[], entradas: readonly PaginaS
   return problemas
 }
 
-const noDisco = pastasComPagina(COMPETITORS)
+// M5 Tarefa 9: `arquivo/` é página de operação do arquivo mensal (estado de cópia e de limpeza), não leitura de dado de canal: não tem tela no botão
+// "Perguntar a uma IA" nem empacotador. Fica fora da conferência de propósito, por nome; página nova de dado continua obrigada a ter dono.
+const PAGINAS_FORA_DO_BOTAO: readonly string[] = ['arquivo']
+const noDisco = pastasComPagina(COMPETITORS).filter((p) => !PAGINAS_FORA_DO_BOTAO.includes(p))
 
 describe('registro de telas (TELAS_IA)', () => {
   it('os onze ids são os da lista do spec', () => {

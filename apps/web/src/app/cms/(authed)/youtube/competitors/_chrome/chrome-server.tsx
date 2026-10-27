@@ -16,6 +16,8 @@ import { resolveNiche, type ObsSearchParams } from './resolve-niche'
 import { contarParaAAba } from '../_saiu/dados'
 import { contarParaAAbaSugestoes } from '../_sugestoes/dados-da-tela'
 import type { PropsPerguntarIa } from './perguntar-ia/botao'
+import { getSiteContext } from '@/lib/cms/site-context'
+import { podeEditarSite } from './permissoes'
 
 export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOverride, coworkFor, forja, readingCopy, meuCanalLembrado, perguntarIa, children }: {
   tab: ChromeTab; searchParams: ObsSearchParams | undefined
@@ -40,9 +42,11 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   // removed, a stale link) shows Todos, without error, and a ?niche= naming it is dropped from the URL like an invalid one.
   const wanted = nicheOverride ?? resolved.niche, niche = engine.scopeOf(wanted)
   const dropParam = resolved.dropParam || (nicheOverride == null && niche !== wanted && resolved.fromParam)
-  const [lembrado, aba, sug] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba(), contarParaAAbaSugestoes()])
+  // M5 (Yannis I-10): a aba Arquivo é de quem edita o site, em toda aba do Observatório; a resposta vem do cache da requisição (`permissoesDoSite`/`podeEditarSite`)
+  const arquivoVisivelP = getSiteContext().then(({ siteId }) => podeEditarSite(siteId))
+  const [lembrado, aba, sug, arquivoVisivel] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba(), contarParaAAbaSugestoes(), arquivoVisivelP])
   // A5 E9: a quinta aba só existe para quem edita o site; a contagem que falha vira "?" (n nulo)
-  const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null, sugestoes: sug.visivel ? { n: sug.n, velho: sug.velho, calculado: sug.calculado } : null })
+  const view = buildChromeView(engine, { tab, niche, forja, lembrado, fila: aba.visivel ? { n: aba.n } : null, sugestoes: sug.visivel ? { n: sug.n, velho: sug.velho, calculado: sug.calculado } : null, arquivoVisivel })
   return (
     <ObservatoryChrome view={{ ...view, ...(coworkFor ? { cowork: coworkText(coworkFor, niche, view.nicheLabel) } : {}) }} dropNicheParam={dropParam} onSetNiche={setUserNiche} onSyncNow={syncCompetitorsNow}
       onAskForja={askForjaReading} readingCopy={readingCopy} perguntarIa={perguntarIa}>
