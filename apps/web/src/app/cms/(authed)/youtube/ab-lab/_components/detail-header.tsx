@@ -5,7 +5,7 @@ import React from 'react'
 import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
 import { TypeBadge, Badge } from './ab-primitives'
-import { ChevronLeft, Swords } from 'lucide-react'
+import { ChevronLeft, ExternalLink, Swords } from 'lucide-react'
 import './caminho-nativo.css'
 import './detail-header-lab.css'
 
@@ -21,6 +21,8 @@ export interface DetailHeaderProps {
   outcome?: DetailOutcome
   dayInfo?: { dayOf: number; total: number }
   actions?: React.ReactNode
+  /** Id do vídeo no YouTube (`view.youtubeVideoId`); ausente = sem o botão "Abrir no YouTube". */
+  youtubeVideoId?: string | null
   /** Variante do Lab (S8-F3 T5b): rastro com respiro, miniatura, selo "Teste do Lab". Sem a prop, o cabeçalho é o de sempre. */
   lab?: { thumbUrl: string | null; naoIniciado?: boolean; /** Teste v2 concluído (T12 T7): "DD/MM" da conclusão; troca o selo "rodando, dia X de Y". */ concluidoEm?: string }
 }
@@ -29,6 +31,23 @@ export interface DetailHeaderProps {
 export function fraseDeOrigemDoLab(flag: TestType): string {
   const alvo = flag === 'thumbnail' ? 'a miniatura pública' : flag === 'combo' ? 'o título e a miniatura públicos' : 'o título público'
   return `Teste do A/B Lab: o Lab troca ${alvo} do vídeo no YouTube em rodízio, uma versão por vez. Não é o “Testar e comparar” do Studio.`
+}
+
+/** D20: link para o vídeo público (não confundir com o "Abrir no YouTube Studio" da faixa de restauração). Alvo de toque >= 44 px. */
+export function AbrirNoYoutube({ youtubeVideoId }: { youtubeVideoId?: string | null }) {
+  if (!youtubeVideoId) return null
+  return (
+    <a
+      href={`https://www.youtube.com/watch?v=${encodeURIComponent(youtubeVideoId)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid="abrir-no-youtube"
+      className="inline-flex items-center gap-[6px] min-h-[44px] px-[12px] text-[12.5px] font-medium text-cms-text-dim hover:text-cms-text transition-colors"
+    >
+      <ExternalLink size={14} aria-hidden="true" />
+      Abrir no YouTube
+    </a>
+  )
 }
 
 export function DetailHeader({
@@ -41,6 +60,7 @@ export function DetailHeader({
   outcome,
   dayInfo,
   actions,
+  youtubeVideoId,
   lab,
 }: DetailHeaderProps) {
   if (lab) {
@@ -87,7 +107,12 @@ export function DetailHeader({
             )}
           </div>
         </div>
-        {actions && <div className="dhl-acoes">{actions}</div>}
+        {(actions || youtubeVideoId) && (
+          <div className="dhl-acoes">
+            {actions}
+            <AbrirNoYoutube youtubeVideoId={youtubeVideoId} />
+          </div>
+        )}
       </header>
     )
   }
@@ -121,9 +146,10 @@ export function DetailHeader({
       <h2 className="text-[28px] font-bold text-cms-text leading-[1.15] max-w-[720px] tracking-[-0.01em]">{title}</h2>
 
       {/* Row 3: Toolbar */}
-      {actions && (
+      {(actions || youtubeVideoId) && (
         <div className="flex flex-wrap items-center gap-[9px] mt-[14px]">
           {actions}
+          <AbrirNoYoutube youtubeVideoId={youtubeVideoId} />
         </div>
       )}
     </header>

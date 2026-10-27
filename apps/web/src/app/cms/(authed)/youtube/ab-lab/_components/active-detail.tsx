@@ -107,6 +107,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       <div data-section="header">
         <DetailHeader
           title={view.videoTitle}
+          youtubeVideoId={view.youtubeVideoId}
           flag={view.flag}
           status={view.status}
           roundNumber={1}

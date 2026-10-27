@@ -160,6 +160,7 @@ export function ConcluidoV2Detail({ view, aplicar, voltar }: ConcluidoV2DetailPr
       <div data-section="header">
         <DetailHeader
           title={view.tituloNoAr ?? view.videoTitle}
+          youtubeVideoId={view.youtubeVideoId}
           flag={view.flag}
           status={view.status}
           roundNumber={1}

@@ -23,6 +23,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
       <div className="mb-[22px]">
         <DetailHeader
           title={view.tituloNoAr ?? view.videoTitle}
+          youtubeVideoId={view.youtubeVideoId}
           flag={view.flag}
           status={view.status}
           outcome="playoff"
