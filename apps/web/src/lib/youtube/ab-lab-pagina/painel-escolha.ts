@@ -50,6 +50,8 @@ export interface OpcaoEscolha extends VarianteEscolha {
 }
 
 export interface PainelEscolha {
+  /** discrimina de `PainelDecisao` (painel do teste ativo) */
+  modo: 'escolha'
   testId: string
   nomeVideo: string
   tipo: TipoTeste
@@ -131,7 +133,7 @@ export function montarPainelEscolha(e: EntradaPainelEscolha): PainelEscolha {
   let padrao: string | null = decidido ? escolhaId : sugeridaId
   if (padrao !== null && opcoes.find(o => o.id === padrao)?.bloqueio) padrao = null
   return {
-    testId: e.testId, nomeVideo: e.nomeVideo, tipo: e.tipo, meta: `Teste de ${TIPO_ROTULO[e.tipo]} · ${e.nomeVideo}`, restoreSeq: e.restoreSeq,
+    modo: 'escolha', testId: e.testId, nomeVideo: e.nomeVideo, tipo: e.tipo, meta: `Teste de ${TIPO_ROTULO[e.tipo]} · ${e.nomeVideo}`, restoreSeq: e.restoreSeq,
     podeAdministrar: e.podeAdministrar, opcoes, padrao, noAr: e.noAr, noArId,
     sugeridaId, sugeridaLetra: sugeridaId ? e.variantes.find(v => v.id === sugeridaId)?.letra ?? null : null,
     inconclusivo: sugeridaId === null, decidido, escolhaApagadaEm, entrada: e,

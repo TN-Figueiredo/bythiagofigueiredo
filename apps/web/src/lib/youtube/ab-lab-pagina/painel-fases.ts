@@ -172,7 +172,7 @@ export function reduzir(f: FasePainel, ev: EventoPainel, ctx: ContextoFases): Fa
 export function painelVivo(p: PainelEscolha, f: FasePainel, agoraIso: string): PainelEscolha {
   const e = p.entrada
   switch (f.tipo) {
-    case 'no_ar': return montarPainelEscolha({ ...e, noAr: f.noAr, restoreSeq: f.restoreSeq ?? e.restoreSeq, escolha: { varianteId: f.selId, em: agoraIso } })
+    case 'no_ar': return montarPainelEscolha({ ...e, noAr: { ...f.noAr, desde: f.noAr.desde ?? agoraIso }, restoreSeq: f.restoreSeq ?? e.restoreSeq, escolha: { varianteId: f.selId, em: agoraIso } })
     case 'guardado': {
       const v = e.variantes.find(x => x.id === f.selId)
       const noAr: NoArConfirmado | null = v ? { tipo: 'confirmado', varianteId: v.id, letra: v.letra, desde: e.noAr.tipo === 'confirmado' && e.noAr.varianteId === v.id ? e.noAr.desde : null } : null

@@ -12,11 +12,13 @@ import {
   avisoDaEscolha, escolhaDe, mensagemDeFalha, mensagemDeFeito, rotuloDoBotao,
 } from '@/lib/youtube/ab-lab-pagina/painel-decisao'
 import type { OpcaoPainel, PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { PainelEscolha } from '@/lib/youtube/ab-lab-pagina/painel-escolha'
 import { AbConfirmarTrocaDialog } from '../ab-confirmar-troca-dialog'
+import { PainelConcluido, type AcoesEscolha } from './painel-concluido'
 import { ESPERA_SEM_RESPOSTA_MS, hrefDoLogin, sessaoExpirou } from '../ab-end-test-dialog'
 import './pagina-lab.css'
 
-export interface AcoesDecisao {
+export interface AcoesDecisao extends AcoesEscolha {
   /** `endAbTest` com o id do teste */
   encerrar: (testId: string, o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
   aplicarSugerido: (testId: string, varianteId: string, seqVisto: number, forcar?: boolean) => Promise<ResultadoAcaoSaida>
@@ -25,7 +27,8 @@ export interface AcoesDecisao {
 }
 
 export interface PainelOQueFicaProps {
-  painel: PainelDecisao
+  /** `PainelEscolha` = teste concluído (M7b); `PainelDecisao` = teste rodando (e o legado do concluído, até a T13). */
+  painel: PainelDecisao | PainelEscolha
   acoes: AcoesDecisao
   onFechar: () => void
   /** Aviso de página quando a resposta chega depois de o painel fechar. */
@@ -46,6 +49,11 @@ function avisoSemSugerida(p: PainelDecisao, o: OpcaoPainel | null): string {
 }
 
 export function PainelOQueFica({ painel, acoes, onFechar, onAviso }: PainelOQueFicaProps): ReactElement {
+  if (painel.modo === 'escolha') return <PainelConcluido painel={painel} acoes={acoes} onFechar={onFechar} onAviso={onAviso} />
+  return <PainelDecisaoLegado painel={painel} acoes={acoes} onFechar={onFechar} onAviso={onAviso} />
+}
+
+function PainelDecisaoLegado({ painel, acoes, onFechar, onAviso }: Omit<PainelOQueFicaProps, 'painel'> & { painel: PainelDecisao }): ReactElement {
   const router = useRouter()
   const [escolhaId, setEscolhaId] = useState<string | null>(painel.padrao)
   const [fase, setFase] = useState<Fase>('escolha')
