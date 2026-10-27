@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { TestType, AbTestStatus } from '@/lib/youtube/ab-types'
 import { TypeBadge, Badge } from './ab-primitives'
 import { InfoDica } from '../../_components/info-dica'
+import { BTN_BASE } from './acoes-de-saida'
 import { seloDoTeste, type TomDoSelo } from './cabecalho-do-teste'
 import { ChevronLeft, ExternalLink, Swords } from 'lucide-react'
 import './caminho-nativo.css'
@@ -38,7 +39,7 @@ export function fraseDeOrigemDoLab(flag: TestType): string {
 }
 
 /** D20: link para o vídeo público (não confundir com o "Abrir no YouTube Studio" da faixa de restauração). Alvo de toque >= 44 px. */
-export function AbrirNoYoutube({ youtubeVideoId }: { youtubeVideoId?: string | null }) {
+export function AbrirNoYoutube({ youtubeVideoId, botao }: { youtubeVideoId?: string | null; botao?: boolean }) {
   if (!youtubeVideoId) return null
   return (
     <a
@@ -46,7 +47,9 @@ export function AbrirNoYoutube({ youtubeVideoId }: { youtubeVideoId?: string | n
       target="_blank"
       rel="noopener noreferrer"
       data-testid="abrir-no-youtube"
-      className="inline-flex items-center gap-[6px] min-h-[44px] px-[12px] text-[12.5px] font-medium text-cms-text-dim hover:text-cms-text transition-colors"
+      className={botao
+        ? `${BTN_BASE} dhl-bt dhl-bt--yt min-h-[44px] px-[16px] text-cms-text`
+        : 'inline-flex items-center gap-[6px] min-h-[44px] px-[12px] text-[12.5px] font-medium text-cms-text-dim hover:text-cms-text transition-colors'}
     >
       <ExternalLink size={14} aria-hidden="true" />
       Abrir no YouTube
@@ -124,10 +127,15 @@ export function DetailHeader({
           </div>
         </div>
         {(actions || youtubeVideoId) && (
-          <div className="dhl-acoes">
-            {actions}
-            <AbrirNoYoutube youtubeVideoId={youtubeVideoId} />
-          </div>
+          <>
+            <div className={`dhl-acoes${actions ? '' : ' dhl-acoes--solo'}`}>
+              {actions}
+              <AbrirNoYoutube youtubeVideoId={youtubeVideoId} botao />
+            </div>
+            {lab.escrevendo && actions ? (
+              <p id="apoio-acoes" role="status" className="dhl-apoio">Gravando no YouTube. Pausar e Encerrar voltam em instantes.</p>
+            ) : null}
+          </>
         )}
       </header>
     )

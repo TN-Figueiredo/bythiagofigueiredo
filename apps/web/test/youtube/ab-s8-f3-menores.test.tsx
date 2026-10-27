@@ -92,19 +92,19 @@ describe('S8-F3: menores do Gio (A3 a A6)', () => {
     expect(container.querySelector('.pm4-dias')).toBeNull()
   })
 
-  it('A6: selo, frase e faixa vêm antes dos botões e do Sinal ao vivo', async () => {
+  it('A6: selo e botões (no cabeçalho) vêm antes da frase, da faixa e do Sinal ao vivo', async () => {
     const view = await ativo(pl())
     const { container } = render(<ActiveDetail view={view} {...acoes} />)
     const selo = container.querySelector('.dhl-selo')!
     const frase = container.querySelector('.pm4-sum')!
     const faixa = container.querySelector('.pm4-band')!
-    const botoes = container.querySelector('[data-section="acoes"]')!
+    const botoes = container.querySelector('header.dhl .dhl-acoes')!
     const sinal = Array.from(container.querySelectorAll('span')).find(e => e.textContent === 'Sinal ao vivo')!
     expect(botoes).not.toBeNull()
-    expect(container.querySelector('header.dhl .dhl-acoes')).toBeNull()
-    expect(antes(selo, frase)).toBe(true)
+    // M7d T3b: a barra de ações subiu para o cabeçalho (depois do selo, antes do placar).
+    expect(antes(selo, botoes)).toBe(true)
+    expect(antes(botoes, frase)).toBe(true)
     expect(antes(frase, faixa)).toBe(true)
-    expect(antes(faixa, botoes)).toBe(true)
     expect(antes(faixa, sinal)).toBe(true)
     expect(botoes.textContent).toContain('Pausar')
   })

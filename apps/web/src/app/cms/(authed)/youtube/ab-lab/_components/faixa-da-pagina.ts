@@ -1,5 +1,5 @@
 import { montarFaixa, faixaTentando, faixaIlegivel, type Faixa, type CtxFaixa } from './faixa-restauracao-texto'
-import { restoreStatusIlegivel } from '@/lib/youtube/ab-restore'
+import { restoreStatusIlegivel, lerCampoDeRestauracao } from '@/lib/youtube/ab-restore'
 import type { AbTestBaseView } from '@/lib/youtube/ab-types'
 
 export interface FaixaDaPagina {
@@ -7,6 +7,8 @@ export interface FaixaDaPagina {
   /** `em` do campo em_andamento mais antigo; nulo = não montar a ilha. */
   emAndamentoDesde: string | null
   ilegivel: boolean
+  /** Algum campo em escrita há no máximo `SEM_RESPOSTA_MIN` min (mesma régua da faixa): selo "Escrevendo" e saídas travadas. */
+  escrevendo: boolean
   /** A faixa enquanto "Tentar agora" corre; nulo quando não há faixa. */
   faixaTentando: Faixa | null
 }
@@ -26,12 +28,13 @@ export function faixaDaPagina(view: AbTestBaseView, bruto: unknown, agora: Date,
   const emAndamentoDesde = ems.length > 0 ? ems.sort()[0]! : null
   const ctxYoutube = { youtubeId: view.youtubeVideoId }
   const ativo = view.status === 'active' || view.status === 'queued' || view.status === 'draft'
-  if (ilegivel) return { faixa: ativo ? null : faixaIlegivel(ctxYoutube), emAndamentoDesde: null, ilegivel: true, faixaTentando: null }
-  if (ativo && emAndamentoDesde === null) return { faixa: null, emAndamentoDesde: null, ilegivel: false, faixaTentando: null }
+  if (ilegivel) return { faixa: ativo ? null : faixaIlegivel(ctxYoutube), emAndamentoDesde: null, ilegivel: true, escrevendo: false, faixaTentando: null }
+  if (ativo && emAndamentoDesde === null) return { faixa: null, emAndamentoDesde: null, ilegivel: false, escrevendo: false, faixaTentando: null }
   const rotuloDe = (id: string) => view.variantDb.find(v => v.id === id)?.label ?? id
   const ctx: CtxFaixa = {
     agora, rotulo: rotuloDe, noArAntes: view.noArAntes?.label ?? 'A', noArDesde: view.noArAntes?.desde ?? null, youtubeId: view.youtubeVideoId, ...dados,
   }
   const faixa = montarFaixa(rs, ctx)
-  return { faixa, emAndamentoDesde, ilegivel: false, faixaTentando: rs && faixa ? faixaTentando(rs, ctx) : null }
+  const escrevendo = rs ? (['title', 'thumbnail'] as const).some(k => { const c = rs[k]; return c ? lerCampoDeRestauracao(c, agora).tipo === 'em_andamento' : false }) : false
+  return { faixa, emAndamentoDesde, ilegivel: false, escrevendo, faixaTentando: rs && faixa ? faixaTentando(rs, ctx) : null }
 }
