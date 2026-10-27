@@ -126,6 +126,46 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se�
     })
   })
 
+  it('lista com ocultas: a saída só vale na segunda leitura em outro dia; a playlist que volta zera absent_day; visit_close grava list_total/list_read', async () => {
+    await emTransacaoComX3(pg, async () => {
+      const sqlNovo = readFileSync(new URL('../../../../supabase/migrations/20261027000001_observatorio_a5_x3_lista_com_ocultas.sql', import.meta.url), 'utf8')
+      await pg.query(sqlNovo)
+      await pg.query(sqlNovo)   // idempotência
+      const c = await semearCena(pg, { semX3: true })
+      const oc = async (now: string, rows: unknown[], complete = false, ocultas = true) => (await q1(pg,
+        `select public.competitor_x3_playlists_record($1, $2, $3::timestamptz, $4::jsonb, $5, $6) as r`, [c.site, c.canalA, now, JSON.stringify(rows), complete, ocultas])).r as Record<string, unknown>
+      const est = (id: string) => q1(pg, `select absent_day::text as a, missing_since::text as m from public.competitor_playlists where playlist_id = $1 and competitor_channel_id = $2`, [id, c.canalA])
+      await oc(T(10), [pl('PLa'), pl('PLb')], true, false)
+      const r1 = await oc(T(11), [pl('PLa')])
+      expect(r1.a_confirmar).toBe(1)
+      expect(await est('PLb')).toMatchObject({ a: '2026-03-11', m: null })
+      const mesmoDia = await oc(T(11, 20), [pl('PLa')])
+      expect(mesmoDia.sumidas).toBe(0)
+      expect(await est('PLb')).toMatchObject({ a: '2026-03-11', m: null })
+      const r2 = await oc(T(12), [pl('PLa')])
+      expect(r2.sumidas).toBe(1)
+      expect(await est('PLb')).toMatchObject({ a: null, m: '2026-03-12' })
+      // volta: zera
+      await oc(T(13), [pl('PLa'), pl('PLb')])
+      expect(await est('PLb')).toMatchObject({ a: null, m: null })
+      await oc(T(14), [pl('PLa')])
+      await oc(T(15), [pl('PLa'), pl('PLb')])
+      expect(await est('PLb')).toMatchObject({ a: null, m: null })
+      await expect(oc(T(16), [pl('PLa')], true, true)).rejects.toThrow(/parametro_invalido/)
+    })
+  })
+
+  it('visit_close grava list_total_results e list_read_n (nulos quando não passados)', async () => {
+    await emTransacaoComX3(pg, async () => {
+      await pg.query(readFileSync(new URL('../../../../supabase/migrations/20261027000001_observatorio_a5_x3_lista_com_ocultas.sql', import.meta.url), 'utf8'))
+      const c = await semearCena(pg, { semX3: true })
+      await pg.query(`select public.competitor_x3_visit_close($1, $2, $3::timestamptz, 'parcial', 'lista_com_ocultas', 5, 0, false, false, true, 5, 3)`, [c.site, c.canalA, T(10)])
+      expect(await q1(pg, `select list_total_results as t, list_read_n as r from public.competitor_playlist_reads where competitor_channel_id = $1`, [c.canalA])).toMatchObject({ t: 5, r: 3 })
+      await pg.query(`select public.competitor_x3_visit_close($1, $2, $3::timestamptz, 'ok', null, 5, 0, false, false, true)`, [c.site, c.canalA, T(11)])
+      expect(await q1(pg, `select list_total_results as t, list_read_n as r from public.competitor_playlist_reads where competitor_channel_id = $1`, [c.canalA])).toMatchObject({ t: null, r: null })
+    })
+  })
+
   it('distinct on: a mesma playlist duplicada em p_rows gera uma versão só', async () => {
     await emTransacaoComX3(pg, async () => {
       const c = await semearCena(pg, { semX3: true })

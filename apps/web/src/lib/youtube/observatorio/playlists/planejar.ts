@@ -31,6 +31,7 @@ export const MOTIVOS_RECUPERAVEIS: ReadonlySet<string> = new Set([
   'lista_cortada', 'cota_esgotada', 'sobrou', 'itens_cortados', 'teto_por_canal', 'lista_vazia_a_confirmar', 'secoes_vazias_a_confirmar',
   'saida_em_massa_a_confirmar', 'playlist_sumiu_no_meio', 'resposta_invalida', 'api_falhou', 'gravacao_falhou', 'erro',
 ])
+/** `lista_com_ocultas` fica FORA dos dois conjuntos: é nota (a lista fecha a volta), não falha nem recuperável. */
 /** Motivos que não mudam relendo no dia seguinte: a visita fica `parcial` honesta e o retorno é o da semana seguinte. */
 export const MOTIVOS_ESTRUTURAIS: ReadonlySet<string> = new Set(['teto_itens', 'contagem_difere', 'itens_incoerentes'])
 export const ehRecuperavel = (motivo: string | null | undefined): boolean => motivo != null && MOTIVOS_RECUPERAVEIS.has(motivo)

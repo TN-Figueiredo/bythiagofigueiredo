@@ -3517,6 +3517,8 @@ export type Database = {
           last_units: number
           last_visit_at: string
           last_visit_day: string
+          list_read_n: number | null
+          list_total_results: number | null
           playlists_left: number | null
           sections_empty_streak: number
           site_id: string
@@ -3532,6 +3534,8 @@ export type Database = {
           last_units: number
           last_visit_at: string
           last_visit_day: string
+          list_read_n?: number | null
+          list_total_results?: number | null
           playlists_left?: number | null
           sections_empty_streak?: number
           site_id: string
@@ -3547,6 +3551,8 @@ export type Database = {
           last_units?: number
           last_visit_at?: string
           last_visit_day?: string
+          list_read_n?: number | null
+          list_total_results?: number | null
           playlists_left?: number | null
           sections_empty_streak?: number
           site_id?: string
@@ -3615,6 +3621,7 @@ export type Database = {
       }
       competitor_playlists: {
         Row: {
+          absent_day: string | null
           competitor_channel_id: string
           first_seen_at: string
           id: string
@@ -3634,6 +3641,7 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          absent_day?: string | null
           competitor_channel_id: string
           first_seen_at: string
           id?: string
@@ -3653,6 +3661,7 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          absent_day?: string | null
           competitor_channel_id?: string
           first_seen_at?: string
           id?: string
@@ -16325,6 +16334,7 @@ export type Database = {
           p_channel: string
           p_complete: boolean
           p_now: string
+          p_ocultas?: boolean
           p_rows: Json
           p_site: string
         }
@@ -16345,6 +16355,8 @@ export type Database = {
           p_channel: string
           p_ciclo: boolean
           p_left: number
+          p_list_read?: number
+          p_list_total?: number
           p_lista_vazia: boolean
           p_now: string
           p_reason: string

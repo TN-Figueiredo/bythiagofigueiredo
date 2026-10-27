@@ -118,6 +118,7 @@ describe('X3 planejar: playlist devida', () => {
 describe('X3 planejar: calcularCiclo (J1 = N1)', () => {
   it('só com playlistsLeft 0, lista completa e nenhum motivo recuperável', () => {
     expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: true, motivos: [null, 'teto_itens', 'contagem_difere'] })).toBe(true)
+    expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: true, motivos: ['lista_com_ocultas'] })).toBe(true)
     expect(calcularCiclo({ playlistsLeft: 3, listaCompleta: true, motivos: [] })).toBe(false)
     expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: false, motivos: [] })).toBe(false)
     expect(calcularCiclo({ playlistsLeft: 0, listaCompleta: true, motivos: ['contagem_difere', 'saida_em_massa_a_confirmar'] })).toBe(false)

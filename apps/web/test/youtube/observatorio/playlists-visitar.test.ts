@@ -46,7 +46,7 @@ function opsFalsos(sobre: Partial<OpsX3> = {}) {
     lerCanais: async () => new Map(),
     canaisComSecoes: async () => 0,
     itensPresentes: async () => 0,
-    playlistsRecord: vi.fn(async a => { log.push({ fn: 'playlistsRecord', a }); return { ids: new Map(a.rows.map(r => [r.playlist_id, `ref-${r.playlist_id.slice(2)}`])), atrasada: false, sumidas: 0, versoes: 0 } }),
+    playlistsRecord: vi.fn(async a => { log.push({ fn: 'playlistsRecord', a }); return { ids: new Map(a.rows.map(r => [r.playlist_id, `ref-${r.playlist_id.slice(2)}`])), atrasada: false, sumidas: 0, versoes: 0, aConfirmar: 0 } }),
     itemsRecord: vi.fn(async a => { log.push({ fn: 'itemsRecord', a }); return { gravados: a.rows.length, saidos: 0, massa: false, atrasada: false } }),
     sectionsRecord: vi.fn(async a => { log.push({ fn: 'sectionsRecord', a }); return 1 }),
     visitClose: vi.fn(async a => { log.push({ fn: 'visitClose', a }) }),
@@ -176,12 +176,44 @@ describe('X3 visitar: caminho feliz e lista', () => {
     expect(await visitar(m, ops)).toMatchObject({ estado: 'parcial', motivo: 'lista_vazia_a_confirmar' })
   })
 
-  it('pageInfo.totalResults 12 e 10 lidas sem nextPageToken: contagem_difere, sem p_complete', async () => {
-    const m = montar({ secoes: secoesOk, playlists: () => ({ json: paginaPlaylists([1, 2], undefined, 12) }), itens: () => ({ json: paginaItens(3, 0, undefined, 3) }) })
+  it('total 5, 3 lidas, sem página seguinte: lista_com_ocultas, fecha a volta e não lê itens da conhecida não vista', async () => {
+    const m = montar({ secoes: secoesOk, playlists: () => ({ json: paginaPlaylists([1, 2, 3], undefined, 5) }), itens: () => ({ json: paginaItens(3, 0, undefined, 3) }) })
+    const { ops, log } = opsFalsos()
+    const estado: EstadoDoCanal = { ...vazio(), playlists: [conhecida(9)] }
+    const r = await visitar(m, ops, estado)
+    expect(r.motivo).toBe('lista_com_ocultas')
+    expect(r.numeros.playlists_ocultas).toBe(2)
+    expect(log.find(l => l.fn === 'playlistsRecord')!.a).toMatchObject({ complete: false, ocultas: true })
+    expect(fechos(log)[0]).toMatchObject({ ciclo: true, listTotal: 5, listRead: 3 })
+    const lidasItens = log.filter(l => l.fn === 'itemsRecord').map(l => (l.a as { playlistRef: string }).playlistRef)
+    expect(lidasItens).not.toContain('ref-9')
+  })
+
+  it('total 2 e 3 lidas: contagem_difere, ocultas falso, sem ciclo', async () => {
+    const m = montar({ secoes: secoesOk, playlists: () => ({ json: paginaPlaylists([1, 2, 3], undefined, 2) }), itens: () => ({ json: paginaItens(3, 0, undefined, 3) }) })
     const { ops, log } = opsFalsos()
     const r = await visitar(m, ops)
     expect(r.motivo).toBe('contagem_difere')
-    expect((log.find(l => l.fn === 'playlistsRecord')!.a as { complete: boolean }).complete).toBe(false)
+    expect(log.find(l => l.fn === 'playlistsRecord')!.a).toMatchObject({ complete: false, ocultas: false })
+    expect(fechos(log)[0]).toMatchObject({ ciclo: false })
+  })
+
+  it('total ausente: contagem_difere', async () => {
+    const m = montar({ secoes: secoesOk, playlists: () => ({ json: paginaPlaylists([1, 2]) }), itens: () => ({ json: paginaItens(3, 0, undefined, 3) }) })
+    const { ops, log } = opsFalsos()
+    expect((await visitar(m, ops)).motivo).toBe('contagem_difere')
+    expect(log.find(l => l.fn === 'playlistsRecord')!.a).toMatchObject({ ocultas: false })
+  })
+
+  it('lista completa grava listTotal e listRead; lista cortada grava nulos', async () => {
+    const m = montar({ secoes: secoesOk, playlists: () => ({ json: paginaPlaylists([1, 2], undefined, 2) }), itens: () => ({ json: paginaItens(3, 0, undefined, 3) }) })
+    const a = opsFalsos()
+    await visitar(m, a.ops)
+    expect(fechos(a.log)[0]).toMatchObject({ listTotal: 2, listRead: 2 })
+    const m2 = montar({ secoes: secoesOk, playlists: () => ({ json: paginaPlaylists([1], 'tok', 5) }), itens: () => ({ json: paginaItens(3, 0, undefined, 3) }) })
+    const b = opsFalsos()
+    await visitar(m2, b.ops, vazio(), { })
+    expect(fechos(b.log)[0]).toMatchObject({ listTotal: null, listRead: null })
   })
 
   it('a playlist UU vinda da API nunca chega aos ops', async () => {
