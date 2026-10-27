@@ -37,7 +37,9 @@ import { ResumoBloco, EstadoDoFiltro } from './resumo-bloco'
 import { PePreso } from './pe-preso'
 import { RiAtalhos, RiSecoes } from './ri-secoes'
 import { RiFronteira } from './ri-fronteira'
+import { EsperamComandos } from './esperam-comandos'
 import type { RiView } from './ri-tipos'
+import type { PendenciasDaTela } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import { useFocoAoVoltar } from '../_chrome/gatilho-volta'
 import { fraseSeuCanal, ORDEM_EMPATE, ORDEM_POSICAO } from './posicao-model'
 import { comportamentoDeRolagem, contentorQueRola } from './rolagem'
@@ -69,6 +71,8 @@ export interface CanaisScreenProps {
   somenteLeitura?: boolean
   /** A5 E5a R5: Referências e Inscritos (modelo puro montado na página). Ausente = as seções não aparecem. */
   ri?: RiView
+  /** M5 T10, peça 7: o que espera quem administra rodar os comandos. Só desenhado com o filtro "Saíram do YouTube". Ausente/nulo = o bloco não aparece. */
+  pendencias?: PendenciasDaTela | null
 }
 
 /** A frase é a do mockup 16 (tabela de frases, "Só leitura"). */
@@ -134,7 +138,7 @@ function BarraDeOrdem({ sort, dir, onSort }: { sort: CanaisSort; dir: 'asc' | 'd
   )
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, meuEmail = null, somenteLeitura = false, ri }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, meuEmail = null, somenteLeitura = false, ri, pendencias = null }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -625,6 +629,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
             </p>
             </>
           ) : null}
+          {view.filter === 'sairam' && pendencias ? <EsperamComandos t={pendencias} /> : null}
           <div className="legend">
             <span><i aria-hidden="true" /> vídeo longo</span>
             <span><i className="s" aria-hidden="true" /> Short</span>
