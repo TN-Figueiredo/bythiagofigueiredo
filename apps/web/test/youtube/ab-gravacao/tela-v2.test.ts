@@ -469,6 +469,10 @@ describe('telaV2DoTeste: escolha do dono (M7b T7)', () => {
     const r = concDe(comEscolha({}, { title: { estado: 'falhou', destino: C, em: '2026-10-25T10:00:00Z', forcado: false, escreveu: null, erro: null, attempts: 1 } }))
     expect(r.noAr).toEqual({ tipo: 'desconhecido' })
   })
+  it('D23: histórico não lido (null) com escolha: desconhecido, mesmo com a linha atual ok', () => {
+    const e = comEscolha({}, ok(C)); e.historico = null
+    expect(concDe(e).noAr).toEqual({ tipo: 'desconhecido' })
+  })
   it('sem escolha, nada muda: sugerida B ainda oferece aplicar', () => {
     const r = concDe(concluido({}))
     expect(r.aplicar).toEqual({ variant_id: B, letra: 'B' })
