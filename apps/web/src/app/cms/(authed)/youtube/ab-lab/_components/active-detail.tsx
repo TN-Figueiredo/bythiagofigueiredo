@@ -19,6 +19,7 @@ import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
 import { AcoesDeSaida, useAvisoDePagina, useRetomarDoCabecalho } from './acoes-de-saida'
+import { ForcarRotacao } from './forcar-rotacao'
 import { freioDoEncerrar, contarDiasMedidos } from './cabecalho-do-teste'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
@@ -239,6 +240,15 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora, escrevend
             <RefreshCw size={15} className="text-cms-text-dim" aria-hidden="true" />
             <span className="text-[13px] font-semibold text-cms-text">Rotação ABBA</span>
             <span className="text-[11.5px] text-cms-text-dim ml-auto">{view.cycles.done}/{view.cycles.total} ciclos</span>
+          </div>
+          <div className="dhl-rot-acao px-[16px] pt-[14px]">
+            {view.status === 'paused' ? (
+              <p className="text-[13px] text-cms-text-dim m-0">A rotação está parada enquanto o teste está pausado.</p>
+            ) : canAdminSite ? (
+              <ForcarRotacao testId={view.id} atual={view.activeNow} proxima={view.proximaNaRotacao} escrevendo={!!escrevendo} forcar={forceRotate} />
+            ) : (
+              <AdminOnlyNote action="forçar rotação" className="text-cms-text-dim" />
+            )}
           </div>
           <div className="px-[16px] py-[14px]">
             <ABBATimeline
