@@ -1,5 +1,7 @@
--- Manutenção M5: as telas (spec 2026-10-13-fase-manutencao-nas, 04 §14; 02 §10.4). RASCUNHO até a Tarefa 13 do plano M5 (TRAVA M5-1):
--- não mover para supabase/migrations à mão; o arquivo nasce por `npm run db:new manutencao_m5_telas`. Depende da M2, da M10a e da M3b em produção.
+-- =============================================================================
+-- MIGRATION: manutencao_m5_telas
+-- Manutenção M5: as telas (spec 2026-10-13-fase-manutencao-nas, 04 §14; 02 §10.4). Depende da M2, da M10a e da M3b em produção.
+-- =============================================================================
 
 -- M5 PARTE 1: online desde (02 §10.4)
 -- Por tabela de série (horária e série; o texto e o vídeo antigo não têm data de série): o 1º dia do mês seguinte ao último mês com detached_at OU

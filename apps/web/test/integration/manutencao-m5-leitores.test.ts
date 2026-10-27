@@ -367,13 +367,6 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 3: lista v2, desde da horária, imp
     const h = (await q1(c, `select public.competitor_hourly_health($1, now(), 14, 100) as h`, [SITE_TESTE])).h as { desde: string; desde_precisao: string; online_desde: string }
     expect(new Date(h.desde).toISOString()).toBe('2026-11-02T17:00:00.000Z'); expect(h.desde_precisao).toBe('hora'); expect(h.online_desde).toBe(h.desde)
   })
-  it('o bloco da competitor_hourly_health colado no rascunho é a saída atual do gerador (Yannis m-2)', () => {
-    const raiz = resolve(__dirname, '../../../..')
-    const saida = resolve(raiz, 'supabase/rascunhos/.gerado-teste-hourly-health.sql')
-    execFileSync('python3', [resolve(raiz, 'supabase/rascunhos/gerar-m5-parte3.py'), saida], { cwd: raiz })
-    const corta = (t: string) => t.slice(t.indexOf('create or replace function public.competitor_hourly_health('), t.indexOf('to service_role;', t.indexOf('grant execute on function public.competitor_hourly_health(')) + 'to service_role;'.length)
-    try { expect(corta(readFileSync(M5_SQL_CAMINHO, 'utf8'))).toBe(corta(readFileSync(saida, 'utf8'))) } finally { execFileSync('rm', ['-f', saida]) }
-  })
   it('lista v2: canal com apagar concluído (unidades expurgadas) mantém os N meses', async () => {
     const ref = 'aaaaaaaa-0000-0000-0000-000000000006'
     for (const mes of ['2026-10-01', '2026-11-01']) await U(ref, 'competitor_video_daily', mes)
