@@ -4,9 +4,11 @@
 // Nulo é "não medido", nunca 0. Textos: mockup M5 r5 e tabela ◆T do plano.
 import { andamentoDoDia, rotuloDoDiaExtenso } from '@/lib/youtube/ab-rotulo-dia'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
+import Link from 'next/link'
 import type { ReactNode, RefObject } from 'react'
 import type { LinhaPisoV2, SeloV2, TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
+import { hrefDoPainel } from '../painel-param'
 import { InfoDica } from '../../_components/info-dica'
 import './caminho-nativo.css'
 import './blocos-v2.css'
@@ -141,38 +143,20 @@ const IcLosangoCheio = () => (
 const IcLosangoVazado = () => (
   <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 1.9l5.1 5.1L7 12.1 1.9 7z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /></svg>
 )
-const IcAviso = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 1.5l6 10.5H1z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" /><path d="M7 5.5v3M7 10.2v.1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-)
-
-/** Pedido de Aplicar/Voltar visto na página (depois que o diálogo fecha): espera ou erro, com "Tentar de novo". */
-export interface AcaoEmCurso {
-  tipo: 'aplicar' | 'voltar'
-  fase: 'enviando' | 'erro'
-  texto?: string
-  /** Mostra "Tentar de novo" (falha de rede/erro genérico); recusas do servidor não repetem. */
-  tentar?: boolean
-  recarregar?: boolean
-}
 
 export interface DesfechoV2Props {
   tela: Extract<TelaV2, { fase: 'concluido' }>
-  onAplicar: (gatilho: HTMLButtonElement) => void
-  onVoltar: (gatilho: HTMLButtonElement) => void
+  /** Id do teste: o botão "Escolher o que fica" abre o painel do Lab para ele (`?painel=`). */
+  testId: string
   onTentarDeNovo: () => void
-  /** Alvo do foco depois de aplicar/voltar (a linha "No ar agora"). */
+  /** Alvo do foco (a linha "No ar agora"). */
   noArRef: RefObject<HTMLDivElement | null>
-  acao?: AcaoEmCurso | null
-  /** Refresh em curso depois de uma ação: os botões ficam em espera (evita 2º clique com restoreSeq velho). */
-  atualizando?: boolean
-  onTentarAcao?: () => void
-  onRecarregar?: () => void
 }
 
 const MOTIVO_BLOQUEIO = 'Há outro teste aberto neste vídeo. Encerre ou aguarde o outro teste.'
 const MOTIVO_SEM_LEITURA = 'Não deu para conferir se há outro teste neste vídeo. Recarregue a página.'
 
-export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef, acao, atualizando, onTentarAcao, onRecarregar }: DesfechoV2Props) {
+export function DesfechoV2({ tela, testId, onTentarDeNovo, noArRef }: DesfechoV2Props) {
   const canAdmin = useCanAdminSite()
   const { c, s } = SELO[tela.selo.tipo]
   const prov = tela.selo.tipo === 'vence' && tela.selo.provisorio
@@ -185,58 +169,19 @@ export function DesfechoV2({ tela, onAplicar, onVoltar, onTentarDeNovo, noArRef,
   else if (noAr.tipo === 'aplicada') linhaNoAr = <><b>{noAr.letra}</b> está no ar.</>
   else if (noAr.tipo === 'desfeita') linhaNoAr = <>No ar agora: <b>A (original)</b>. {noAr.letra} deixou de ser aplicada.</>
   const chipNoAr = noAr.tipo === 'aplicada' ? noAr.letra : 'A'
-  const alvo = tela.aplicar ?? tela.aplicarDeNovo
-  const deNovo = tela.aplicar === null && tela.aplicarDeNovo !== null
-  const rotuloAplicar = alvo ? (deNovo ? `Aplicar ${alvo.letra} de novo` : `Aplicar ${alvo.letra} ao vídeo`) : ''
-  const emCurso = acao?.fase === 'enviando' ? acao : null
-  const comErro = acao?.fase === 'erro' ? acao : null
 
-  const botao = (rotulo: string, espera: string, tipo: 'aplicar' | 'voltar', pri: boolean, onClick: (b: HTMLButtonElement) => void): ReactNode => {
-    const esperando = emCurso?.tipo === tipo
-    const bloqueado = esperando || atualizando === true
-    return (
-      <button
-        type="button"
-        className={`pv2-btn${pri ? ' pri' : ''}`}
-        aria-disabled={bloqueado ? true : undefined}
-        onClick={e => { if (!bloqueado) onClick(e.currentTarget) }}
-      >
-        {esperando ? <><IcRelogio />{espera}</> : rotulo}
-      </button>
-    )
-  }
-
+  // Sem prazo e sem "Aplicar/Voltar": um só caminho, o painel de escolha do Lab (M7b T15). Teste ilegível não escolhe.
   let acoes: ReactNode = null
-  if (comErro) {
+  if (tela.tentarDeNovo) acoes = null
+  else if (tela.bloqueio === 'outro_teste') acoes = <p className="pv2-motivo">{MOTIVO_BLOQUEIO}</p>
+  else if (tela.bloqueio === 'sem_leitura') acoes = <p className="pv2-motivo">{MOTIVO_SEM_LEITURA}</p>
+  else if (canAdmin) {
     acoes = (
-      <div className="pv2-errb" role="alert">
-        <p><IcAviso /><span>{comErro.texto}</span></p>
-        <div className="pv2-acts">
-          {comErro.tentar ? <button type="button" className="pv2-btn" onClick={onTentarAcao}>Tentar de novo</button> : null}
-          {comErro.recarregar ? <button type="button" className="pv2-btn" onClick={onRecarregar}>Recarregar</button> : null}
-        </div>
+      <div className="pv2-acts">
+        <Link href={hrefDoPainel(testId)} className="pv2-btn pri" data-testid="escolher-o-que-fica">Escolher o que fica</Link>
       </div>
     )
-  } else if (tela.bloqueio === 'outro_teste' && (alvo || tela.voltar)) {
-    acoes = <p className="pv2-motivo">{MOTIVO_BLOQUEIO}</p>
-  } else if (tela.bloqueio === 'sem_leitura' && (alvo || tela.voltar)) {
-    acoes = <p className="pv2-motivo">{MOTIVO_SEM_LEITURA}</p>
-  } else if (alvo) {
-    acoes = canAdmin ? (
-      <div className="pv2-acts">
-        {botao(rotuloAplicar, `Aplicando ${alvo.letra}…`, 'aplicar', !deNovo, onAplicar)}
-        {!deNovo && tela.prazo?.tipo === 'provisorio' && tela.prazo.ate ? <span className="pv2-provl" data-testid="aplicar-provisorio">provisório até {tela.prazo.ate}</span> : null}
-      </div>
-    ) : <AdminOnlyNote action="aplicar a variante" className="text-cms-text-dim" />
-  } else if (tela.bloqueio === 'outro_teste') {
-    acoes = <p className="pv2-motivo">{MOTIVO_BLOQUEIO}</p>
-  } else if (tela.bloqueio === 'sem_leitura') {
-    acoes = <p className="pv2-motivo">{MOTIVO_SEM_LEITURA}</p>
-  } else if (tela.voltar) {
-    acoes = canAdmin ? (
-      <div className="pv2-acts">{botao('Voltar à original', 'Voltando à original…', 'voltar', false, onVoltar)}</div>
-    ) : <AdminOnlyNote action="voltar à original" className="text-cms-text-dim" />
-  }
+  } else acoes = <AdminOnlyNote action="escolher o que fica no vídeo" className="text-cms-text-dim" />
 
   return (
     <div className="pv2-desf">

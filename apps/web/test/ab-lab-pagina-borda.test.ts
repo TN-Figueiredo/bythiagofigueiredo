@@ -228,6 +228,39 @@ describe('lerPaginaDoLab: histórico de restores (M7b T12)', () => {
   })
 })
 
+describe('lerPaginaDoLab: ?painel= de qualquer concluído v2 (M7b T15)', () => {
+  /** Concluído antigo, decidido (A ficou), fora das 3 linhas e do "Com você". */
+  const antigo = (id: string, completed_at: string) => teste(id, {
+    status: 'completed', completed_reason: 'regra_v2', completed_at, winner_variant_id: 'var-a', restore_status: RESTORE_OK,
+    result_metadata: { v2: { desfecho: 'vencedor_provavel', vencedor_sugerido: 'var-b', provisorio: false, encerrado_em_dia: '2026-09-20' } },
+  } as Partial<AbTestWithVariants>)
+  const montarVarios = () => {
+    testes.completed = [
+      antigo('n1', '2026-10-25T00:00:00Z'), antigo('n2', '2026-10-24T00:00:00Z'), antigo('n3', '2026-10-23T00:00:00Z'), antigo('n4', '2026-10-22T00:00:00Z'),
+      antigo('velho', '2026-08-01T00:00:00Z'),
+    ]
+  }
+  it('o teste fora das 3 linhas visíveis e fora do "Com você" ganha painel quando a URL o pede', async () => {
+    montarVarios()
+    const sem = await lerPaginaDoLab('s', agora, null)
+    expect(sem.pagina.concluidos.linhas.some(l => l.testId === 'velho')).toBe(false)
+    expect(sem.pagina.comVoce.itens.some(i => 'testId' in i && i.testId === 'velho')).toBe(false)
+    expect(sem.painelDaUrl).toBeNull()
+    const com = await lerPaginaDoLab('s', agora, null, 'velho')
+    expect(com.painelDaUrl?.testId).toBe('velho')
+  })
+  it('lê o histórico dele (uma ida só) e id desconhecido não abre nada', async () => {
+    montarVarios()
+    const base = stub().sb
+    const idas: string[] = []
+    cliente = { from: (t: string) => { if (t === 'ab_test_restores') idas.push(t); return (base as unknown as { from: (x: string) => unknown }).from(t) }, rpc: (base as unknown as { rpc: unknown }).rpc } as unknown as SupabaseClient
+    const com = await lerPaginaDoLab('s', agora, null, 'velho')
+    expect(idas).toHaveLength(1)
+    expect(com.painelDaUrl?.noAr.tipo).not.toBe('desconhecido')
+    expect((await lerPaginaDoLab('s', agora, null, '00000000-0000-4000-8000-000000000000')).painelDaUrl).toBeNull()
+  })
+})
+
 describe('lerPaginaDoLab: dias e CTR', () => {
   it('no concluído o CTR é o dos dias até encerrado_em_dia (dia depois do encerramento não entra)', async () => {
     testes.completed = [comAplicar('c1')]

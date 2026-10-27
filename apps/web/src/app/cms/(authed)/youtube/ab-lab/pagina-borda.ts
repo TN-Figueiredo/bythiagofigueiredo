@@ -10,6 +10,8 @@ import { lerDiasDosTestes } from '@/lib/youtube/ab-gravacao/placar-leitura'
 import { regraDoTeste, type LinhaDiaPlacar } from '@/lib/youtube/ab-gravacao/placar'
 import { telaV2DoTeste, type TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
 import { ctrDosValidos, diasDaDecisao, type DiaDaDecisao } from '@/lib/youtube/ab-gravacao/decisao-v2'
+import { painelEscolhaDoConcluido } from '@/lib/youtube/ab-lab-pagina/painel-do-concluido'
+import type { PainelEscolha } from '@/lib/youtube/ab-lab-pagina/painel-escolha'
 import { montarPaginaDoLab } from '@/lib/youtube/ab-lab-pagina/montar'
 import { CONCLUIDOS_VISIVEIS, linhasConcluidas } from '@/lib/youtube/ab-lab-pagina/concluidos'
 import { pedeDecisao } from '@/lib/youtube/ab-lab-pagina/com-voce'
@@ -31,6 +33,8 @@ export interface PaginaLida {
   settings: AbTestSiteSettings
   learnings: ChannelLearningsData | null
   drafts: AbTestDraft[]
+  /** Painel do `?painel=<testId>` (qualquer concluído v2, visível ou não na lista); nulo se o teste não existe, não é v2 ou tem outro aberto. */
+  painelDaUrl: PainelEscolha | null
 }
 
 const ABERTOS = new Set(['draft', 'queued', 'active', 'paused'])
@@ -93,7 +97,7 @@ function ctrsDe(t: AbTestWithVariants, dias: DiaDaDecisao[]): Record<string, num
 
 const semProvaAvisada = new Set<string>()
 
-export async function lerPaginaDoLab(siteId: string, agora: Date, videoInicial: string | null): Promise<PaginaLida> {
+export async function lerPaginaDoLab(siteId: string, agora: Date, videoInicial: string | null, painelInicial: string | null = null): Promise<PaginaLida> {
   const sb = getSupabaseServiceClient()
   // O volume vem de uma RPC que lê dado privado: a borda repete a prova de edição. Sem prova a lista abre sem volume.
   const leitura = await leituraDoEditor(siteId)
@@ -128,7 +132,7 @@ export async function lerPaginaDoLab(siteId: string, agora: Date, videoInicial: 
   const visiveis = new Set(ordem.slice(0, CONCLUIDOS_VISIVEIS).map(l => l.testId).filter((x): x is string => x !== null))
   const usados = tests.completed.filter(t => {
     const tela = telaSemDias.get(t.id) ?? null
-    return tela !== null && !outroAberto(t) && (visiveis.has(t.id) || pedeDecisao({ tela, bruto: t }, agora) !== null)
+    return tela !== null && !outroAberto(t) && (visiveis.has(t.id) || t.id === painelInicial || pedeDecisao({ tela, bruto: t }, agora) !== null)
   })
   const idsAtivos = tests.active.filter(t => t.status === 'active').map(t => t.id)
   const idsDias = [...new Set([...idsAtivos, ...usados.map(t => t.id)])]
@@ -173,5 +177,8 @@ export async function lerPaginaDoLab(siteId: string, agora: Date, videoInicial: 
   const pagina = montarPaginaDoLab({
     ativos, concluidos, pausados, rascunhos: drafts, linhas: listaInicial.linhas, podeDeixarVariante: escopo.ok, agora,
   })
-  return { pagina, listaInicial, eligibleVideos, settings, learnings, drafts }
+  // `?painel=` abre o painel de qualquer concluído v2, mesmo fora das 3 linhas e do "Com você": o histórico e os dias dele já foram lidos acima.
+  const alvo = painelInicial ? concluidos.find(c => c.bruto.id === painelInicial) : undefined
+  const painelDaUrl = alvo ? painelEscolhaDoConcluido(alvo, escopo.ok) : null
+  return { pagina, listaInicial, eligibleVideos, settings, learnings, drafts, painelDaUrl }
 }
