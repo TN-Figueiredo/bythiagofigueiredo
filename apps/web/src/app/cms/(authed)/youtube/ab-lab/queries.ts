@@ -40,6 +40,7 @@ import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
 import { toDisplayLabel, variantColor, ordemDesc } from './_components/ab-constants'
+import { tituloNoArDoConcluido } from '@/lib/youtube/ab-lab-pagina/concluidos'
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
@@ -1137,6 +1138,14 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     v2,
     id: test.id,
     videoTitle: test.original_title ?? test.name,
+    ...(test.status === 'completed' && (test.test_type === 'title' || test.test_type === 'combo' || test.test_type === 'thumbnail')
+      ? {
+          tituloNoAr: tituloNoArDoConcluido(
+            { ...test, test_type: test.test_type },
+            results.variants.map(v => ({ id: v.variant_id, letra: toDisplayLabel(v.label, v.is_original), is_original: v.is_original, title_text: v.title_text ?? null })),
+          ),
+        }
+      : {}),
     flag: test.test_type,
     status: test.status,
     variants,

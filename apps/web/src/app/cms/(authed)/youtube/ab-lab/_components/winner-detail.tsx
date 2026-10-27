@@ -29,7 +29,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
       {/* 1. DetailHeader */}
       <div className="mb-[22px]">
         <DetailHeader
-          title={view.videoTitle}
+          title={view.tituloNoAr ?? view.videoTitle}
           flag={view.flag}
           status={view.status}
           outcome="winner"

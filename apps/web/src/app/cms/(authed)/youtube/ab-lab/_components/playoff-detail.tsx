@@ -22,7 +22,7 @@ export function PlayoffDetail({ view }: PlayoffDetailProps) {
       {/* 1. DetailHeader */}
       <div className="mb-[22px]">
         <DetailHeader
-          title={view.videoTitle}
+          title={view.tituloNoAr ?? view.videoTitle}
           flag={view.flag}
           status={view.status}
           outcome="playoff"
