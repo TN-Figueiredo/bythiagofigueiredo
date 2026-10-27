@@ -28,6 +28,7 @@ export const LEITORES_DAS_SERIES: readonly LeitorDaSerie[] = [
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/expurgo-filtro.ts', comoTrata: 'janela_por_construcao' },
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/expurgo-resumo.ts', comoTrata: 'janela_por_construcao' },
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/peca1.ts', comoTrata: 'janela_por_construcao' },
+  { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/estado-do-mes.ts', comoTrata: 'janela_por_construcao' }, // T9: só nomeia as tabelas nos rótulos (NOME_DA_TABELA); a janela vem do registro já lido pelo chamador
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/leitores-das-series.ts', comoTrata: 'janela_por_construcao' },
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/online-desde.ts', comoTrata: 'registro' },
   { arquivo: S + 'lib/youtube/observatorio/arquivo/remover.ts', comoTrata: 'registro' },
