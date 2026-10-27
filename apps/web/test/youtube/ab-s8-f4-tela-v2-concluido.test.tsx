@@ -58,7 +58,7 @@ describe('T12 T7 + M7b T15: concluído v2 sem prazo', () => {
     const { container } = montar(base())
     expect(container.textContent).toContain('▲B vence (provisório)')
     expect(container.textContent).toContain('Provisório até 04/11: pode mudar nos próximos dias.')
-    expect(container.textContent).toContain('Teste do Lab concluído em 24/10')
+    expect(container.textContent).toContain('Concluído em 24/10')
     expect(container.textContent).toContain('Quanto o teste alcançou')
     expect(container.textContent).toContain('No ar agora: A (original).')
   })

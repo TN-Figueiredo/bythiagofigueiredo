@@ -36,11 +36,13 @@ export interface ActiveDetailProps {
   retomar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
   /** Relógio injetável; só decide o texto da pausa por teste do YouTube (o botão depende do dado). */
   agora?: () => Date
+  /** Escrevendo no YouTube agora (régua da faixa, `faixaDaPagina`): selo e botões de saída reagem. */
+  escrevendo?: boolean
 }
 
 const BTN = BTN_SAIDA
 
-export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveDetailProps) {
+export function ActiveDetail({ view, encerrar, pausar, retomar, agora, escrevendo }: ActiveDetailProps) {
   const router = useRouter()
   const { setAviso } = useAvisoDePagina(view.id)
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
@@ -114,7 +116,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
-          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, naoIniciado: view.placar?.iniciado === false }}
+          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, naoIniciado: view.placar?.iniciado === false, escrevendo }}
         />
       </div>
 
