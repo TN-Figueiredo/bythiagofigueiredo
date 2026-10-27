@@ -11,6 +11,8 @@ describe('aviso do banco 18-v2: estados V', () => {
     const l = a('v0').linhaDaCopia
     expect(l.forma).toBe('pontilhado')
     expect(l.texto).toContain('A primeira cópia é a de outubro, a partir de 28/11')
+    const c = caso('v0')
+    expect(montarAvisoV2({ ...c, leve: { ...c.leve!, primeira_devida_mes: null } }).linhaDaCopia.texto).toContain('Ainda não há cópia.')
     expect(a('v0').regua).toBeNull()
   })
   it('V1: com folga, cópia em dia (visto), sem régua nem chega a', () => {
@@ -23,8 +25,15 @@ describe('aviso do banco 18-v2: estados V', () => {
   })
   it('V1a 12 dias: triângulo, porta para o Arquivo; 34 dias: octógono', () => {
     expect(a('v1a').linhaDaCopia).toMatchObject({ forma: 'triangulo', portaArquivo: true })
-    expect(a('v1a').linhaDaCopia.texto).toContain('atrasada há 12 dias')
+    expect(a('v1a').linhaDaCopia.texto).toBe('A cópia de janeiro está atrasada há 12 dias.')  // o mês vem do atraso_mes do banco, nunca de mais_antiga - 28 (Phil I4)
     expect(a('v1b').linhaDaCopia).toMatchObject({ forma: 'octogono', portaArquivo: true })
+  })
+  it('Phil I4: com margem de 45 dias a frase nomeia o mês do banco, não a data menos 28 dias', () => {
+    const c = caso('v1a')
+    const leve = { ...c.leve!, atraso: { ...c.leve!.atraso, mais_antiga: '2026-12-14' }, atraso_mes: '2026-10-01', hoje: '2026-12-20' }
+    expect(montarAvisoV2({ ...c, leve }).linhaDaCopia.texto).toBe('A cópia de outubro está atrasada há 6 dias.')
+    const semMes = { ...c.leve!, atraso_mes: null }
+    expect(montarAvisoV2({ ...c, leve: semMes }).linhaDaCopia.texto).toBe('Há cópia atrasada.')
   })
   it('V1n: cópia não medida é hachura, nunca visto, e a régua não desenha o traço da saída', () => {
     expect(a('v1n').linhaDaCopia.forma).toBe('hachura')
@@ -61,12 +70,25 @@ describe('aviso do banco 18-v2: estados V', () => {
     expect(x.casa!.oQueFazer[2]).toContain('pause a coleta')
     expect(x.linhaDaCopia.texto).toContain('A próxima espera a casa.')
   })
-  it('V8 curta (abaixo de 36 h): triângulo; e com 20 h a casa de verdade ainda "responde" (limiar de 24 h da T7)', () => {
+  it('V8 curta (abaixo de 36 h): triângulo; o copiador há 20,5 h já é triângulo (mockup pc1), há 12 h responde', () => {
     expect(a('v8curta').casa?.forma).toBe('triangulo')
     const agora = Date.parse('2027-02-20T15:00:00Z')
-    const antes = new Date(agora - 20 * 3_600_000).toISOString()
-    const c = casaDe([{ worker: 'copiador', last_poll_at: antes, updated_at: antes, nas_ok: true, nas_checked_at: antes } as never], [], agora)
-    expect(c.estado).not.toBe('nao_respondeu')
+    const antes = (h: number) => new Date(agora - h * 3_600_000).toISOString()
+    const cop = (h: number) => ({ worker: 'copiador', last_poll_at: antes(h), updated_at: antes(h), nas_ok: true, nas_checked_at: antes(1) })
+    expect(casaDe([cop(20.5)], [], agora)).toMatchObject({ estado: 'nao_respondeu', forma: 'triangulo' })
+    expect(casaDe([cop(12)], [], agora).estado).not.toBe('nao_respondeu')
+  })
+  it('M-6 (Yannis): âmbar só pela projeção, pausa inexistente, data da última cópia ilegível e sem régua por falta de ritmo', () => {
+    const c = caso('v2')
+    // ritmo de crescimento nulo: sem "chega a" e sem régua
+    const semRitmo = montarAvisoV2({ ...c, aviso: { banco: { valor: { ...(c.aviso.banco as { valor: never }).valor, tela: { ...(c.aviso.banco as { valor: { tela: { mb: object } } }).valor.tela, mb: { ...(c.aviso.banco as { valor: { tela: { mb: object } } }).valor.tela.mb, porDia: null } } } as never } } })
+    expect(semRitmo.barra.chegaAPct).toBeNull()
+    expect(semRitmo.regua).toMatchObject({ losango85: null })
+    // pastilha neutra que a projeção torna âmbar
+    expect(a('v2').pastilha).toMatchObject({ cor: 'ambar', texto: 'Enchendo' })
+    expect(a('v8a').casa!.oQueFazer[2]).toBe('A pausa da coleta de canais ainda não existe.')
+    const v1 = caso('v1')
+    expect(montarAvisoV2({ ...v1, leve: { ...v1.leve!, ultima_copia: 'não é data' } }).linhaDaCopia.texto).toContain('data ilegível')
   })
   it('V8a: sem o comando pausar o 3º item diz que a pausa ainda não existe', () => {
     expect(a('v8a').casa!.oQueFazer[2]).toBe('A pausa da coleta de canais ainda não existe.')

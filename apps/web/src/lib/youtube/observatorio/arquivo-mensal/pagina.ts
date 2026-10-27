@@ -1,4 +1,5 @@
 /** Manutenção M5, Tarefa 7 (04 §14.2): o leitor da página do Arquivo. Zod `.strict()` sobre a forma de `obs_archive_pagina` (m5.sql PARTE 2); chave a mais ou a menos = fora do esquema. */
+import { avisarFuncaoAusente } from './funcao-ausente'
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -66,7 +67,7 @@ export function lerPaginaBruta(bruto: unknown): ResultadoPagina {
   return r.success ? { ok: true, pagina: r.data } : { ok: false, porque: 'fora_do_esquema' }
 }
 
-/** Nunca lança. Função ausente (migration ainda não subiu): sem Sentry, a aba nem aparece. O resto vai ao Sentry como erro. */
+/** Nunca lança. Função ausente (migration ainda não subiu): a aba nem aparece; com OBS_ARQUIVO=on vai um aviso ao Sentry (Phil I5). O resto vai ao Sentry como erro. */
 export async function lerPagina(sb: SupabaseClient, siteId: string): Promise<ResultadoPagina> {
   let res: { data: unknown; error: { code?: string } | null }
   try { res = await sb.rpc('obs_archive_pagina', { p_site: siteId }) } catch {
@@ -74,7 +75,7 @@ export async function lerPagina(sb: SupabaseClient, siteId: string): Promise<Res
     return { ok: false, porque: 'erro_do_banco' }
   }
   if (res.error) {
-    if (res.error.code === '42883' || res.error.code === 'PGRST202') return { ok: false, porque: 'funcao_ausente' }
+    if (res.error.code === '42883' || res.error.code === 'PGRST202') { avisarFuncaoAusente('obs_archive_pagina'); return { ok: false, porque: 'funcao_ausente' } }
     Sentry.captureMessage('obs_archive_pagina falhou: ' + (res.error.code ?? 'sem código'), 'error')
     return { ok: false, porque: 'erro_do_banco' }
   }

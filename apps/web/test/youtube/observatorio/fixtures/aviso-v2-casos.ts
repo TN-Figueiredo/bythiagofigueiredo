@@ -66,7 +66,8 @@ export function caso(id: string): CasoV2 {
   const leve: AvisoLeve | null = d.copia.k === 'nm' ? null : {
     versao: 1, lido_em: new Date(agora).toISOString(), hoje: d.hoje,
     proximo_mes: d.pronto ? { class: 'serie', month: '2026-11-01', pronto_em: d.pronto } : null,
-    primeira_devida_em: '2026-11-28',
+    primeira_devida_em: '2026-11-28', primeira_devida_mes: '2026-10-01',
+    atraso_mes: d.copia.k === 'atrasada' ? '2027-01-01' : null,
     ultima_copia: d.copia.k === 'nunca' ? null : '2027-02-01T12:00:00Z',
     casa: [], vermelhos_n: 0, atraso,
   }

@@ -161,21 +161,35 @@ grant execute on function public.obs_archive_pagina(uuid) to service_role;
 -- por linha) não pode ir em cada navegação. Só o que o 18-v2 usa: o próximo mês pronto, a última cópia, a casa e os vermelhos CONTADOS.
 create or replace function public.obs_archive_aviso(p_site uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
+  with i as materialized (select * from public.obs_archive_atraso_itens(p_site)),
+       -- o mês mais atrasado: o item `unidade` de menor `desde`, desempate pelo menor mês (Phil I4: a TS não pode subtrair a margem, que é 28 ou 45 conforme a classe)
+       am as (select i2.mes from i i2 where i2.tipo = 'unidade' order by i2.desde, i2.mes limit 1)
   select jsonb_build_object(
     'versao', 1, 'lido_em', public.obs_archive_agora(), 'hoje', public.obs_archive_hoje_sp(),
-    'proximo_mes', (select jsonb_build_object('class', x.class, 'month', x.month, 'pronto_em', ((x.sealed_at at time zone 'America/Sao_Paulo')::date + k.wait_days))
-                      from public.obs_archive_months x
-                      join (select distinct p.class, p.wait_days from public.obs_archive_policy() p where p.class in ('horaria', 'serie')) k on k.class = x.class
-                     where x.site_id = p_site and x.sealed_at is not null and x.unsealed_at is null and x.detached_at is null and x.dropped_at is null
-                     order by x.month, x.class limit 1),
+    -- Phil I1: o mês só sai das telas em (mês + 1 + janela) e o espaço volta wait_days depois disso; o selo só adia, nunca antecipa.
+    -- Quando a M6 entrar, esta conta passa a ser a função dela (obs_archive_pode_sair_em, com o piso) + wait_days.
+    'proximo_mes', (select jsonb_build_object('class', y.class, 'month', y.month, 'pronto_em', y.pronto)
+                      from (select x.class, x.month,
+                                   greatest((x.month + pg_catalog.make_interval(months => 1 + k.window_months))::date, (x.sealed_at at time zone 'America/Sao_Paulo')::date) + k.wait_days as pronto
+                              from public.obs_archive_months x
+                              join (select distinct p.class, p.wait_days, p.window_months from public.obs_archive_policy() p where p.class in ('horaria', 'serie')) k on k.class = x.class
+                             where x.site_id = p_site and x.sealed_at is not null and x.unsealed_at is null and x.detached_at is null and x.dropped_at is null) y
+                     order by y.pronto, y.month, y.class limit 1),
     'primeira_devida_em', public.obs_archive_due_on(
         greatest(coalesce((select sw.first_month from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria'), date '2026-10-01'), date '2026-10-01'),
         (select min(p.seal_margin_days) from public.obs_archive_policy() p where p.class = 'horaria')),
+    'primeira_devida_mes', greatest(coalesce((select sw.first_month from public.obs_archive_switch sw where sw.site_id = p_site and sw.class = 'horaria'), date '2026-10-01'), date '2026-10-01'),
     'ultima_copia', (select max(u.received_at) from public.obs_archive_units u where u.site_id = p_site and u.class in ('horaria', 'serie', 'texto')),
     'casa', coalesce((select jsonb_agg(jsonb_build_object('worker', h.worker, 'last_poll_at', h.last_poll_at, 'updated_at', h.updated_at, 'nas_ok', h.nas_ok,
               'nas_checked_at', h.nas_checked_at) order by h.worker) from public.obs_archive_heartbeat h where h.site_id = p_site), '[]'::jsonb),
     'vermelhos_n', cardinality(public.obs_archive_vermelhos(p_site)),
-    'atraso', public.obs_archive_atraso(p_site))
+    -- as mesmas contas de obs_archive_atraso (m3b), sobre os itens lidos UMA vez
+    'atraso', (select jsonb_build_object(
+        'amarelos', count(*) filter (where i.tipo = 'unidade' and public.obs_archive_hoje_sp() - i.desde > 5 and public.obs_archive_hoje_sp() - i.desde <= 30),
+        'vermelhos', count(*) filter (where i.tipo = 'unidade' and public.obs_archive_hoje_sp() - i.desde > 30),
+        'mais_antiga', min(i.desde) filter (where i.tipo = 'unidade'),
+        'meses_sem_selo', count(*) filter (where i.tipo = 'mes')) from i),
+    'atraso_mes', (select am.mes from am))
 $$;
 revoke all on function public.obs_archive_aviso(uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_aviso(uuid) to service_role;

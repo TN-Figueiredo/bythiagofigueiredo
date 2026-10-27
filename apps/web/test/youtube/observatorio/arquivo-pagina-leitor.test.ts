@@ -20,9 +20,17 @@ describe('leitor da página', () => {
     await lerPagina(sbCom(null, { nada: true }), 's')
     expect(Sentry.captureMessage).toHaveBeenCalledWith('obs_archive_pagina fora do esquema', 'error')
   })
-  it('42883 e PGRST202: funcao_ausente, sem Sentry', async () => {
+  it('42883 e PGRST202 sem OBS_ARQUIVO (variável apagada): funcao_ausente, sem Sentry', async () => {
+    delete process.env.OBS_ARQUIVO
     for (const code of ['42883', 'PGRST202']) expect(await lerPagina(sbCom({ code }), 's')).toEqual({ ok: false, porque: 'funcao_ausente' })
     expect(Sentry.captureMessage).not.toHaveBeenCalled()
+  })
+  it('Phil I5: 42883 e PGRST202 com OBS_ARQUIVO=on: funcao_ausente E um aviso ao Sentry por chamada', async () => {
+    process.env.OBS_ARQUIVO = 'on'
+    for (const code of ['42883', 'PGRST202']) expect(await lerPagina(sbCom({ code }), 's')).toEqual({ ok: false, porque: 'funcao_ausente' })
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(2)
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('obs_archive_pagina ausente com OBS_ARQUIVO=on', 'warning')
+    delete process.env.OBS_ARQUIVO
   })
   it('outro erro: erro_do_banco, com Sentry', async () => {
     expect(await lerPagina(sbCom({ code: '57014' }), 's')).toEqual({ ok: false, porque: 'erro_do_banco' })

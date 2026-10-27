@@ -17,7 +17,7 @@ import { contarParaAAba } from '../_saiu/dados'
 import { contarParaAAbaSugestoes } from '../_sugestoes/dados-da-tela'
 import type { PropsPerguntarIa } from './perguntar-ia/botao'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { arquivoNoChrome, bancoNoChrome } from './arquivo-do-chrome'
+import { arquivoNoChrome } from './arquivo-do-chrome'
 import { montarAvisoV2, type AvisoV2 } from '@/lib/youtube/observatorio/arquivo-mensal/aviso-v2'
 import { casaDe } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import type { PaginaLida } from '@/lib/youtube/observatorio/arquivo-mensal/pagina'
@@ -51,8 +51,7 @@ export async function ObservatoryChromeServer({ tab, searchParams, obs, nicheOve
   // M5 (Yannis I-10, T11): a guarda de edição (`podeEditarSite`, em cache) e a leitura leve do aviso correm junto com o resto; o aviso só é lido DEPOIS da guarda, e a página do Arquivo nunca é lida aqui
   const arquivoP = getSiteContext().then(async ({ siteId }) => {
     const arq = await arquivoNoChrome(siteId)
-    const banco = arq.aviso.ok ? await bancoNoChrome(siteId) : null
-    return { siteId, arq, banco }
+    return { siteId, arq, banco: arq.banco ?? null }
   })
   const [lembrado, aba, sug, arquivo] = await Promise.all([meuCanalLembrado === undefined ? lerMeuCanalLembrado() : Promise.resolve(meuCanalLembrado), contarParaAAba(), contarParaAAbaSugestoes(), arquivoP])
   const arquivoVisivel = arquivo.arq.arquivoVisivel

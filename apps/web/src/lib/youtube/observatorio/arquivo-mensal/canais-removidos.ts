@@ -1,6 +1,7 @@
 /** Manutenção M5, Tarefa 8 (04 §14.2, item 163 parte M5): o bloco "Canais removidos" só de leitura e a marca ao lado da pastilha. PURO (exceto `lerCanaisRemovidos`).
  *  Tempo em ms; `corDaRemocao` recebe `Date` convertido uma vez na borda. Frases de `arq-dados.js` (CAN), números trocados por parâmetros.
  *  Sem o comando de limpeza (`cap.comandoDeLimpeza` falso, o caso da M5 até a M9): nenhuma cor por idade, "ver os comandos" e "Apagar do arquivo" não existem (M9). */
+import { avisarFuncaoAusente } from './funcao-ausente'
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -168,7 +169,8 @@ export async function lerCanaisRemovidos(sb: SupabaseClient, siteId: string): Pr
     return { ok: false }
   }
   if (res.error) {
-    if (res.error.code !== '42883' && res.error.code !== 'PGRST202') Sentry.captureMessage('obs_archive_removed_channel_list falhou: ' + (res.error.code ?? 'sem código'), 'error')
+    if (res.error.code === '42883' || res.error.code === 'PGRST202') avisarFuncaoAusente('obs_archive_removed_channel_list')
+    else Sentry.captureMessage('obs_archive_removed_channel_list falhou: ' + (res.error.code ?? 'sem código'), 'error')
     return { ok: false }
   }
   const r = ListaV2.safeParse(res.data)

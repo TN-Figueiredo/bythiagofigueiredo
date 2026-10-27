@@ -91,6 +91,18 @@ describe('bloco Canais removidos, só de leitura (item 163, parte M5)', () => {
   it('sem comando o resumo diz o que espera', () => {
     expect(montarBloco([linha({})], { agora: AGORA, casa, cap: semCmd }).resumo).toBe('Canais removidos: 1 esperam o comando de limpeza, que ainda não tem data para chegar.')
   })
+  it('Phil I5: função ausente avisa o Sentry só com OBS_ARQUIVO=on (variável apagada = silêncio)', async () => {
+    const { captureMessage } = await import('@sentry/nextjs')
+    const sb = { rpc: async () => ({ data: null, error: { code: 'PGRST202' } }) } as unknown as SupabaseClient
+    vi.mocked(captureMessage).mockClear()
+    delete process.env.OBS_ARQUIVO
+    expect(await lerCanaisRemovidos(sb, 's')).toEqual({ ok: false })
+    expect(captureMessage).not.toHaveBeenCalled()
+    process.env.OBS_ARQUIVO = 'on'
+    expect(await lerCanaisRemovidos(sb, 's')).toEqual({ ok: false })
+    expect(captureMessage).toHaveBeenCalledWith('obs_archive_removed_channel_list ausente com OBS_ARQUIVO=on', 'warning')
+    delete process.env.OBS_ARQUIVO
+  })
   it('lerCanaisRemovidos: erro, função ausente e fora do esquema viram ok:false; lista vazia é ok', async () => {
     const sb = (r: { data: unknown; error: { code?: string } | null }) => ({ rpc: async () => r }) as unknown as SupabaseClient
     expect(await lerCanaisRemovidos(sb({ data: null, error: { code: '42883' } }), 's')).toEqual({ ok: false })

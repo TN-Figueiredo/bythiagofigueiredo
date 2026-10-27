@@ -36,7 +36,7 @@ const NOME: Record<string, string> = { com_folga: 'Com folga', enchendo: 'Enchen
 function pastilhaEBarra(banco: AvisoDoArquivo['banco'], leve: AvisoLeve | null): { pastilha: AvisoV2['pastilha']; barra: AvisoV2['barra']; tam: { db: number; porDia: number | null; hoje: string; pct: number } | null } {
   if (!('valor' in banco)) return { pastilha: { pct: null, cor: 'nao_medido', texto: 'Não medido' }, barra: { hojePct: null, chegaAPct: null, rotuloChegaA: null }, tam: null }
   const s = banco.valor
-  if (s.estado === 'nunca_medido') return { pastilha: { pct: null, cor: 'nao_medido', texto: 'Sem medida' }, barra: { hojePct: null, chegaAPct: null, rotuloChegaA: null }, tam: null }
+  if (s.estado === 'nunca_medido') return { pastilha: { pct: null, cor: 'nao_medido', texto: 'Não medido' }, barra: { hojePct: null, chegaAPct: null, rotuloChegaA: null }, tam: null }
   if (s.estado === 'sem_leitura_hoje' || !s.tela || !s.ultima) {
     // como o 18: a última medida aparece (data e valor) e a cor nunca é verde
     const cor = s.cor === 'vermelho' ? 'vermelho' : s.cor === 'amarelo' ? 'ambar' : 'nao_medido'
@@ -88,14 +88,14 @@ function copiaDe(leve: AvisoLeve | null, casa: Casa): AvisoV2['linhaDaCopia'] {
   const a = leve.atraso
   if (a.amarelos + a.vermelhos > 0) {
     const dias = a.mais_antiga ? Math.max(0, nDias(a.mais_antiga, leve.hoje)) : null
-    const mes = a.mais_antiga ? mesDe(somaDias(a.mais_antiga, -28)) : null
+    const mes = leve.atraso_mes ? mesDe(leve.atraso_mes) : null // o mês vem do banco: a margem é 28 ou 45 conforme a classe (Phil I4)
     const octogono = a.vermelhos > 0 || (dias !== null && dias > 30)
     const texto = mes && dias !== null ? `A cópia de ${mes} está atrasada há ${plural(dias, 'dia', 'dias')}.` : 'Há cópia atrasada.'
     return { forma: octogono ? 'octogono' : 'triangulo', texto, portaArquivo: true }
   }
   if (leve.ultima_copia === null) {
     const d = leve.primeira_devida_em
-    return { forma: 'pontilhado', texto: d ? `${BASE_COPIA} A primeira cópia é a de ${mesDe(somaDias(d, -28))}, a partir de ${dm(d)}.` : `${BASE_COPIA} Ainda não há cópia.`, portaArquivo: false }
+    return { forma: 'pontilhado', texto: d && leve.primeira_devida_mes ? `${BASE_COPIA} A primeira cópia é a de ${mesDe(leve.primeira_devida_mes)}, a partir de ${dm(d)}.` : `${BASE_COPIA} Ainda não há cópia.`, portaArquivo: false }
   }
   const espera = casa.estado === 'nao_respondeu' ? ' A próxima espera a casa.' : casa.estado === 'nas_fora' || casa.estado === 'nas_cheio' ? ' A próxima espera o NAS.' : ''
   const ms = Date.parse(leve.ultima_copia)

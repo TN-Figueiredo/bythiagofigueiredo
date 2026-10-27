@@ -1,11 +1,11 @@
 /** Manutenção M5, Tarefa 11 (Phil I9, Yannis I-10): o leitor leve do chrome. Lê SÓ `obs_archive_aviso` (nunca `obs_archive_pagina`/`ModeloPagina`).
- *  Chamado só depois da guarda de edição. Zod `.strict()` sobre a forma de m5.sql PARTE 2. Cache de 60 s por site (a 1ª leitura do minuto é cara: ver ledger T2). */
+ *  Chamado só depois da guarda de edição. Zod `.strict()` sobre a forma de m5.sql PARTE 2. Cache de 300 s por site, etiqueta própria (a 1ª leitura do minuto é cara: ver ledger T2). */
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import { unstable_cache } from 'next/cache'
 import { z } from 'zod'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { observatoryTag } from '../cache-tag'
+import { avisarFuncaoAusente } from './funcao-ausente'
 
 const ts = z.string().nullable()
 const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -16,6 +16,8 @@ const AvisoLeveSchema = z.object({
   hoje: dia,
   proximo_mes: z.object({ class: z.string(), month: dia, pronto_em: dia }).strict().nullable(),
   primeira_devida_em: dia.nullable(),
+  primeira_devida_mes: dia.nullable(),
+  atraso_mes: dia.nullable(),
   ultima_copia: ts,
   casa: z.array(z.object({ worker: z.string(), last_poll_at: ts, updated_at: ts, nas_ok: z.boolean().nullable(), nas_checked_at: ts }).strict()),
   vermelhos_n: z.number(),
@@ -32,7 +34,7 @@ async function buscar(siteId: string): Promise<LeituraAvisoLeve> {
     return { ok: false, porque: 'erro_do_banco' }
   }
   if (res.error) {
-    if (res.error.code === '42883' || res.error.code === 'PGRST202') return { ok: false, porque: 'funcao_ausente' }
+    if (res.error.code === '42883' || res.error.code === 'PGRST202') { avisarFuncaoAusente('obs_archive_aviso'); return { ok: false, porque: 'funcao_ausente' } }
     Sentry.captureMessage('obs_archive_aviso: ' + (res.error.code ?? 'sem código'), 'error')
     return { ok: false, porque: 'erro_do_banco' }
   }
@@ -41,7 +43,11 @@ async function buscar(siteId: string): Promise<LeituraAvisoLeve> {
   return { ok: true, leve: r.data }
 }
 
-/** Nunca lança. */
+/** A etiqueta do arquivo: própria, para que a coleta (que expira a do Observatório a cada 20 min) não derrube a leitura fria do aviso (Phil M1). */
+export const arquivoTag = (siteId: string): string => 'arquivo:' + siteId
+export const arquivoBancoTag = (siteId: string): string => 'arquivo-banco:' + siteId
+
+/** Nunca lança. O estado do arquivo muda nas execuções da forja (poucas por dia): 300 s bastam. */
 export async function lerAvisoLeve(siteId: string): Promise<LeituraAvisoLeve> {
-  return unstable_cache(() => buscar(siteId), ['arquivo-aviso-leve', siteId], { revalidate: 60, tags: [observatoryTag(siteId)] })()
+  return unstable_cache(() => buscar(siteId), ['arquivo-aviso-leve', siteId], { revalidate: 300, tags: [arquivoTag(siteId)] })()
 }

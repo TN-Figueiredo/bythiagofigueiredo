@@ -168,18 +168,38 @@ describe.skipIf(skipIfNoLocalDb())('M5 parte 2: a página e o aviso', () => {
   it('aviso: leve, só com o que o 18-v2 usa', async () => {
     await semearCanal(c, { videos: 0 })
     const a = (await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as Record<string, unknown>
-    expect(Object.keys(a).sort()).toEqual(['atraso', 'casa', 'hoje', 'lido_em', 'primeira_devida_em', 'proximo_mes', 'ultima_copia', 'vermelhos_n', 'versao'])
-    expect(a.proximo_mes).toBeNull(); expect(a.ultima_copia).toBeNull(); expect(a.primeira_devida_em).toBe('2026-11-28'); expect(typeof a.vermelhos_n).toBe('number')
+    expect(Object.keys(a).sort()).toEqual(['atraso', 'atraso_mes', 'casa', 'hoje', 'lido_em', 'primeira_devida_em', 'primeira_devida_mes', 'proximo_mes', 'ultima_copia', 'vermelhos_n', 'versao'])
+    expect(a.proximo_mes).toBeNull(); expect(a.ultima_copia).toBeNull(); expect(a.primeira_devida_em).toBe('2026-11-28'); expect(a.primeira_devida_mes).toBe('2026-10-01'); expect(a.atraso_mes).toBeNull(); expect(typeof a.vermelhos_n).toBe('number')
   })
-  it('aviso: proximo_mes = selo (em São Paulo) + wait_days; mês destacado não conta; atraso igual ao do pulso', async () => {
+  it('aviso: proximo_mes = mês + 1 + janela + wait_days (o selo só adia); mês destacado não conta; atraso igual ao do pulso', async () => {
     await semearCanal(c, { videos: 0 })
-    // série selada em 2027-05-03 (wait_days 7): pronto em 2027-05-10. Horária de outubro já destacada: fora da fila.
+    // série de 11/2026 (janela 6) selada em 2027-05-03: o mês só sai em 2027-06-01, o espaço volta 7 dias depois (Phil I1). Horária de outubro já destacada: fora da fila.
     await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind) values ($1, 'serie', $2, '2026-11-01', '2027-05-03 12:00-03', 'com_dado')`, [SITE_TESTE, DIARIA])
     await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind, detached_at) values ($1, 'horaria', 'competitor_video_hourly', '2026-10-01', '2027-04-01 12:00-03', 'com_dado', now())`, [SITE_TESTE])
     await hoje('2027-05-04')
     const a = (await q1(c, `select public.obs_archive_aviso($1) as a, public.obs_archive_atraso($1) as at`, [SITE_TESTE]))
-    expect((a.a as { proximo_mes: unknown }).proximo_mes).toEqual({ class: 'serie', month: '2026-11-01', pronto_em: '2027-05-10' })
+    expect((a.a as { proximo_mes: unknown }).proximo_mes).toEqual({ class: 'serie', month: '2026-11-01', pronto_em: '2027-06-08' })
     expect((a.a as { atraso: unknown }).atraso).toEqual(a.at)
+  })
+  it('Phil I1: horária de 01/2028 selada em 28/02/2028 pronta em 08/05/2028; série de 10/2026 selada em 28/11/2026 pronta em 08/05/2027', async () => {
+    await semearCanal(c, { videos: 0 })
+    const ins = (cl: string, tb: string, mes: string, selo: string) => c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, sealed_at, sealed_kind) values ($1, $2, $3, $4, $5, 'com_dado')`, [SITE_TESTE, cl, tb, mes, selo])
+    await ins('horaria', 'competitor_video_hourly', '2028-01-01', '2028-02-28 12:00-03')
+    const prox = async () => ((await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as { proximo_mes: { class: string; month: string; pronto_em: string } }).proximo_mes
+    expect(await prox()).toEqual({ class: 'horaria', month: '2028-01-01', pronto_em: '2028-05-08' })
+    await ins('serie', DIARIA, '2026-10-01', '2026-11-28 12:00-03')
+    expect(await prox()).toEqual({ class: 'serie', month: '2026-10-01', pronto_em: '2027-05-08' })
+  })
+  it('Phil I4: só os comentários de 10/2026 atrasados (margem 45): atraso_mes = outubro, e mais_antiga - 28 dias cairia em novembro', async () => {
+    const { canal } = await semearCanal(c, { videos: 0 })
+    await hoje('2026-12-20')
+    for (const [cl, tb] of [['horaria', 'competitor_video_hourly'], ['serie', DIARIA], ['serie', CEDO]] as const) {
+      await c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
+        values ($1, $2, $3, $4, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [SITE_TESTE, cl, tb, canal])
+    }
+    const a = (await q1(c, `select public.obs_archive_aviso($1) as a`, [SITE_TESTE])).a as { atraso_mes: string | null; atraso: { mais_antiga: string | null } }
+    expect(a.atraso.mais_antiga).toBe('2026-12-15')
+    expect(a.atraso_mes).toBe('2026-10-01')
   })
   it('aviso: a última cópia não conta a classe de ensaio', async () => {
     const x = (cl: string, mes: string, quando: string) => c.query(`insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, received_at)
