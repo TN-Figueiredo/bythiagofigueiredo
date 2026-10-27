@@ -90,6 +90,9 @@ export interface AbTestRow {
   restore_status?: unknown
   /** Contador de reivindicações de saída (CAS do diálogo de pausar/encerrar). */
   restore_seq?: number
+  /** M7b: versão que o dono escolheu deixar no ar num teste concluído, e quando (nunca `escolha_por`: id de pessoa não sai do servidor). */
+  escolha_variant_id?: string | null
+  escolha_em?: string | null
 }
 
 export interface VariantMetadata {

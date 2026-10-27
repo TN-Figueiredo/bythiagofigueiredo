@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { linhasConcluidas, noArDoTeste } from '@/lib/youtube/ab-lab-pagina/concluidos'
-import { painelDoConcluido } from '@/lib/youtube/ab-lab-pagina/painel-decisao'
-import type { PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
+import { painelEscolhaDoConcluido } from '@/lib/youtube/ab-lab-pagina/painel-do-concluido'
+import type { PainelEscolha } from '@/lib/youtube/ab-lab-pagina/painel-escolha'
 import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
 import type { AbTestWithVariants } from '@/lib/youtube/ab-types'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -21,7 +21,7 @@ function bruto(o: Partial<AbTestWithVariants> = {}): AbTestWithVariants {
   return { ...makeTestWithVariants(), id: 't1', test_type: 'title', youtube_video_id: 'yt1', status: 'completed',
     completed_at: '2026-10-26T14:00:00Z', winner_applied_at: null, winner_variant_id: null, ...o } as AbTestWithVariants
 }
-function lab(b: AbTestWithVariants, t: Conc | null, painel: PainelDecisao | null = null, c = card) {
+function lab(b: AbTestWithVariants, t: Conc | null, painel: PainelEscolha | null = null, c = card) {
   return linhasConcluidas({ testes: [{ card: c, bruto: b, painel, tela: t }], linhasStudio: [], agora })[0]!
 }
 const letraDe = (id: string) => (id === 'vb' ? 'B' : id === 'va' ? 'A' : null)
@@ -49,31 +49,31 @@ describe('Concluídos do Lab', () => {
     const l = lab(b, null)
     expect(l.resultado).toBe('A (original) ficou'); expect(l.apoio).toBe('no ar desde 26/10')
   })
-  it('sugerida não aplicada: "B sugerido pelo teste", falta aplicar, ação Aplicar B', () => {
+  it('sugerida não aplicada: "B sugerido pelo teste", falta aplicar, linha abre o painel', () => {
     const t = tela({ aplicar: { variant_id: 'vb', letra: 'B' } })
-    const p = painelDoConcluido(card, t, { ctrs: {}, sugeridaId: 'vb', revertExpiresAt: null, agora })
-    const l = lab(bruto(), t, p)
+    const b = bruto()
+    const p = painelEscolhaDoConcluido({ card, bruto: b, tela: t, ctrs: {} }, true)
+    const l = lab(b, t, p)
     expect(l.resultado).toBe('B sugerido pelo teste'); expect(l.apoio).toBe('falta aplicar no vídeo')
-    expect(l.acao?.rotulo).toBe('Aplicar B')
+    expect(l.painel?.modo).toBe('escolha')
   })
-  it('aplicada com prazo aberto: Voltar à original; vencido: sem ação', () => {
+  it('aplicada: a linha também abre o painel; sem tela, não abre', () => {
     const t = tela({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, voltar: true })
     const b = bruto({ winner_variant_id: 'vb', restore_status: { title: campo('vb', '2026-10-26T13:00:00Z') } })
-    const aberto = painelDoConcluido(card, t, { ctrs: {}, sugeridaId: 'vb', revertExpiresAt: '2026-11-02T15:00:00Z', agora })
-    expect(lab(b, t, aberto).acao?.rotulo).toBe('Voltar à original')
-    const vencido = painelDoConcluido(card, t, { ctrs: {}, sugeridaId: 'vb', revertExpiresAt: new Date(agora.getTime() - 1000).toISOString(), agora })
-    expect(lab(b, t, vencido).acao).toBeNull()
+    expect(lab(b, t, painelEscolhaDoConcluido({ card, bruto: b, tela: t, ctrs: {} }, true)).painel).not.toBeNull()
+    expect(painelEscolhaDoConcluido({ card, bruto: b, tela: null, ctrs: {} }, true)).toBeNull()
   })
   it('desfecho sem vencedor', () => {
     for (const tipo of ['sem_diferenca', 'volume', 'dado', 'falha'] as const) {
       expect(lab(bruto(), tela({ selo: { tipo } })).resultado).toBe('Sem vencedor')
     }
   })
-  it('outro teste aberto no vídeo (aplicarDeNovo nulo): sem ação', () => {
+  it('outro teste aberto no vídeo: sem painel, linha não clicável', () => {
     const t = tela({ noAr: { tipo: 'desfeita', letra: 'B', desfechoMudou: false }, bloqueio: 'outro_teste' })
-    const p = painelDoConcluido(card, t, { ctrs: {}, sugeridaId: 'vb', revertExpiresAt: null, agora })
+    const b = bruto()
+    const p = painelEscolhaDoConcluido({ card, bruto: b, tela: t, ctrs: {}, outroAberto: true }, true)
     expect(p).toBeNull()
-    expect(lab(bruto(), t, p).acao).toBeNull()
+    expect(lab(b, t, p).painel).toBeNull()
   })
   it('teste v1 sem restore_status: usa winner_applied_at', () => {
     const b = bruto({ winner_variant_id: 'vb', winner_applied_at: '2026-10-20T12:00:00Z' })
@@ -94,7 +94,7 @@ describe('Concluídos do Studio e ordem', () => {
   it('ficou no ar: original, dd/mm do respondidoEm e "você contou do Studio"', () => {
     const l = linhasConcluidas({ testes: [], linhasStudio: [studio({})], agora })[0]!
     expect(l.resultado).toBe('A (original) ficou'); expect(l.apoio).toBe('no ar desde 12/10 · você contou do Studio')
-    expect(l.origem).toBe('studio'); expect(l.acao).toBeNull(); expect(l.tipo).toBe('Título')
+    expect(l.origem).toBe('studio'); expect(l.painel).toBeNull(); expect(l.selos).toBeNull(); expect(l.tipo).toBe('Título')
   })
   it('sem vencedor', () => {
     const l = linhasConcluidas({ testes: [], linhasStudio: [studio({ respostaDono: 'nenhum_venceu' as never }, 'respondido_sem_vencedor')], agora })[0]!

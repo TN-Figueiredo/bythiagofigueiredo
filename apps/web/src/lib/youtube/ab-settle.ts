@@ -122,7 +122,7 @@ export function ehCopiaNoBlob(url: string | null | undefined): url is string {
 }
 
 /** Fonte do original: a cópia do Blob da variante original ou a do teste; nula quando nenhuma é do Blob. */
-function fonteDoOriginal(r: Retrato): string | null {
+export function fonteDoOriginal(r: { variantes: ReadonlyArray<Pick<VarianteRetrato, 'is_original' | 'blob_url'>>; original_thumbnail_url: string | null }): string | null {
   const original = r.variantes.find((v) => v.is_original)
   return [original?.blob_url, r.original_thumbnail_url].find(ehCopiaNoBlob) ?? null
 }

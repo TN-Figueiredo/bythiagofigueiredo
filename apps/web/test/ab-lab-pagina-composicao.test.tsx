@@ -7,11 +7,12 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type { ReactNode } from 'react'
 import { FRASES } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { AbLabDashboard } from '@/app/cms/(authed)/youtube/ab-lab/_components/ab-lab-dashboard'
-import { painelDoAtivo, painelDoConcluido } from '@/lib/youtube/ab-lab-pagina/painel-decisao'
+import { painelDoAtivo } from '@/lib/youtube/ab-lab-pagina/painel-decisao'
+import { painelEscolhaDoConcluido } from '@/lib/youtube/ab-lab-pagina/painel-do-concluido'
 import type { CartaoEmTeste, LinhaConcluida, PaginaDoLab, PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
 import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
-import { makeCardView } from './helpers/ab-fixtures'
+import { makeCardView, makeTestWithVariants } from './helpers/ab-fixtures'
 import { propsDoLab, paginaVazia, listaDe } from './helpers/ab-lab-pagina-props'
 
 const push = vi.fn()
@@ -36,7 +37,9 @@ const telaConc = (o: Partial<Conc>): Conc => ({
   noAr: { tipo: 'original' }, aplicar: null, voltar: false, aplicarDeNovo: null, bloqueio: null, n: null, pisos: null, tentarDeNovo: false, ...o,
 })
 const painelAtivo = (): PainelDecisao => painelDoAtivo(card('t1'), { ctrs: {}, noArLetra: 'A', sugeridaId: 'vb', regraV2: true, podeDeixarVariante: true })
-const painelConc = (): PainelDecisao => painelDoConcluido(card('c1'), telaConc({ aplicar: { variant_id: 'vb', letra: 'B' } }), { ctrs: {}, sugeridaId: 'vb', revertExpiresAt: null, agora })!
+const painelConc = () => painelEscolhaDoConcluido({
+  card: card('c1'), bruto: { ...makeTestWithVariants(), id: 'c1', test_type: 'title', status: 'completed' }, tela: telaConc({ aplicar: { variant_id: 'vb', letra: 'B' } }), ctrs: {},
+}, true)!
 
 function linhaStudio(o: Partial<LinhaDoCaminho> = {}): LinhaDoCaminho {
   return {
@@ -55,7 +58,7 @@ function linhaStudio(o: Partial<LinhaDoCaminho> = {}): LinhaDoCaminho {
 const cartaoLab = (): CartaoEmTeste => ({ tipo: 'lab', card: card('t1'), lider: null, semLider: 'CTR não medido', proximaTroca: '~20h', painel: painelAtivo() })
 const linhaConc = (o: Partial<LinhaConcluida> = {}): LinhaConcluida => ({
   chave: 'lab:c1', origem: 'lab', testId: 'c1', ytId: 'yt1', titulo: 'Vídeo concluído', miniaturaUrl: 'https://img/c1.jpg', tipo: 'Título',
-  resultado: 'B sugerido pelo teste', apoio: 'falta aplicar no vídeo', acao: { rotulo: 'Aplicar B', painel: painelConc() }, ordem: '2026-10-20T00:00:00Z', ...o,
+  resultado: 'B sugerido pelo teste', apoio: 'falta aplicar no vídeo', painel: painelConc(), selos: null, concluidoEm: '20/10', ordem: '2026-10-20T00:00:00Z', ...o,
 })
 const paginaCheia = (): PaginaDoLab => ({
   topo: { frase: 'Um teste rodando. Uma coisa com você: aplicar B.' },
@@ -118,16 +121,15 @@ describe('página do A/B Lab: composição', () => {
     const linha = container.querySelector('[data-concluido]') as HTMLElement
     expect(linha.className).toContain('flex-wrap')
     expect(linha.querySelector('.lab-th')!.className).toContain('max-sm:!w-16')
-    expect(linha.querySelector('.lab-btn')!.parentElement!.className).toContain('max-sm:basis-full')
+    expect(linha.querySelector('b.text-\\[13px\\]')!.parentElement!.className).toContain('max-sm:basis-full')
   })
-  it('item "Aplicar B" da faixa e o botão do Concluído abrem o mesmo painel', () => {
-    render(<AbLabDashboard {...propsDoLab({ pagina: paginaCheia() })} />)
-    const botoes = screen.getAllByRole('button', { name: 'Aplicar B' })
-    expect(botoes).toHaveLength(2)
-    for (const b of botoes) {
+  it('item "Aplicar B" da faixa e a linha do Concluído abrem o mesmo painel de escolha', () => {
+    const { container } = render(<AbLabDashboard {...propsDoLab({ pagina: paginaCheia() })} />)
+    const abrir = [screen.getByRole('button', { name: 'Aplicar B' }), container.querySelector('button[data-concluido]') as HTMLElement]
+    for (const b of abrir) {
       fireEvent.click(b)
       expect(screen.getByRole('dialog', { name: 'O que fica no vídeo?' })).toBeTruthy()
-      fireEvent.click(screen.getByRole('button', { name: /Cancelar/ }))
+      fireEvent.click(screen.getAllByRole('button', { name: 'Fechar' })[0]!)
       expect(screen.queryByRole('dialog')).toBeNull()
     }
   })
