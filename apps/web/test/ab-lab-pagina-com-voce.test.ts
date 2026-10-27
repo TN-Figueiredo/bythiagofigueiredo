@@ -62,13 +62,13 @@ describe('Com você, topo e Em teste agora', () => {
     expect(p.comVoce.itens).toEqual([{ tipo: 'primeiro_teste' }])
     expect(p.temHistorico).toBe(false)
   })
-  it('estado c: 3 do Lab + 1 Studio, aplicar B e dia 14', () => {
+  it('estado c: 3 do Lab + 1 Studio, deixar B no ar e dia 14', () => {
     const p = montarPaginaDoLab(base({
       ativos: [ativo({ id: 'a1' }), ativo({ id: 'a2' }), ativo({ id: 'a3' })],
       concluidos: [concluido(true)],
       linhas: [linha('em_teste_studio'), linha('resultado_pronto', { inicio: dias(-15) })],
     }))
-    expect(p.topo.frase).toBe('4 testes rodando (1 no Studio). Duas coisas com você: aplicar B e dizer o que o Studio escolheu.')
+    expect(p.topo.frase).toBe('4 testes rodando (1 no Studio). Duas coisas com você: deixar B no ar e dizer o que o Studio escolheu.')
   })
   it('estado f: sem Lab rodando, 4 itens', () => {
     const itens = itensComVoce(base({
@@ -80,11 +80,11 @@ describe('Com você, topo e Em teste agora', () => {
   })
   it('dois itens com o mesmo verbo não repetem a frase (Logan S1)', () => {
     const it2 = { tipo: 'aplicar', letra: 'B' } as never
-    expect(fraseDoTopo({ lab: 2, studio: 0, itens: [it2, it2], temHistorico: true })).toBe('2 testes rodando. Duas coisas com você: aplicar B em dois testes.')
+    expect(fraseDoTopo({ lab: 2, studio: 0, itens: [it2, it2], temHistorico: true })).toBe('2 testes rodando. Duas coisas com você: deixar B no ar em dois testes.')
   })
   it('uma coisa só cita o verbo', () => {
     const itens = itensComVoce(base({ concluidos: [concluido(true)] }))
-    expect(fraseDoTopo({ lab: 1, studio: 0, itens, temHistorico: true })).toBe('Um teste rodando. Uma coisa com você: aplicar B.')
+    expect(fraseDoTopo({ lab: 1, studio: 0, itens, temHistorico: true })).toBe('Um teste rodando. Uma coisa com você: deixar B no ar.')
   })
   it('ordem: dia14 vencido, aplicar, dia14 no prazo, retomar, rascunho, conferir', () => {
     const itens = itensComVoce(base({
