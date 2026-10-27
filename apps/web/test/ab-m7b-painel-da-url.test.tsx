@@ -37,4 +37,12 @@ describe('M7b T15: ?painel= abre o painel de qualquer concluído v2', () => {
     render(<AbLabDashboard {...propsDoLab({ painelInicial: 'velho' })} />)
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+  it('D25: sem painel para abrir, avisa em vez de ficar mudo', () => {
+    render(<AbLabDashboard {...propsDoLab({ painelInicial: 'velho' })} />)
+    expect(screen.getByRole('status').textContent).toContain('Não deu para abrir esse teste aqui')
+  })
+  it('D25: com painel aberto, não há aviso', () => {
+    render(<AbLabDashboard {...propsDoLab({ painelInicial: 'velho', painelDaUrl: painel })} />)
+    expect(document.body.textContent).not.toContain('Não deu para abrir esse teste aqui')
+  })
 })
