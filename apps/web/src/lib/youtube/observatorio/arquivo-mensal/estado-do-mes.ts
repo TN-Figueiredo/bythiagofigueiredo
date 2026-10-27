@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { DAY, H, spDateOf, spDateStart } from '../time'
 import type { PaginaLida, LinhaMesLida } from './pagina'
 import { descreverVermelho, type LinhaDeProblema } from './vermelhos'
+import { INFO } from './info'
 
 export type { LinhaDeProblema } from './vermelhos'
 /** A frase da linha de um mês que voltou ao banco fora de ordem (M6 trata; a tela só avisa, em triângulo âmbar). */
@@ -17,13 +18,24 @@ export type Etapa = { rotulo: string; curto: string; forma: Forma }
 export type Gravidade = 'nenhuma' | 'ambar' | 'vermelho' | 'nao_medido'
 export interface LinhaDoMes {
   chave: string; mesNome: string; regua: Etapa[]; frase: string; secundaria: string | null; gravidade: Gravidade; sobeAoTopo: boolean
+  /** O que fazer, em poucas palavras, para a linha vermelha (entra no link da frase do topo). */
+  acao?: string | null
+  /** O texto do ⓘ "Por que se espera" (A3, Logan r1). */
+  info?: string | null
   /** O encaixe da M6: o botão (Sair do banco, Liberar, Trazer de volta) entra aqui; a M5 nunca o preenche. */
   acoes?: ReactNode
 }
-export interface CartaoDoTipo { tipo: 'horaria' | 'serie' | 'texto'; titulo: string; resumo: string; linhas: LinhaDoMes[]; anosNoArquivo: { ano: number; meses: number; todosConferidos: boolean }[]; acoes?: ReactNode }
+/** Um mês que já saiu do banco e só aparece dentro do `<details>` do ano (A2, Logan r1 / Naksu N1). `verificadoEm`: ms, ou nulo se nunca conferido. */
+export interface MesNoArquivo { mesNome: string; verificadoEm: number | null }
+export interface CartaoDoTipo { tipo: 'horaria' | 'serie' | 'texto'; titulo: string; resumo: string; linhas: LinhaDoMes[]; anosNoArquivo: { ano: number; meses: number; todosConferidos: boolean; semConferencia?: number; itens?: MesNoArquivo[] }[]; acoes?: ReactNode }
+/** A frase do topo em partes: texto solto ou link para uma âncora da página. */
+export type ParteDaFrase = string | { texto: string; ancora: string }
+export interface Topo { texto: string; forma: Forma; partes?: ParteDaFrase[] }
+/** A âncora (id) da linha de um mês: tipo e mês. */
+export const ancoraDoMes = (chave: string): string => 'mes-' + chave.replace(/[^a-z0-9-]/gi, '-')
 export interface Casa { estado: 'responde' | 'nao_respondeu' | 'nunca_deu_sinal' | 'programa_sem_sinal' | 'programa_atrasado' | 'nas_fora' | 'nas_cheio' | 'nas_sem_verificar' | 'nao_medida'; desde: number | null; forma: Forma; frase: string }
 export interface ModeloPagina {
-  resumo: { texto: string; forma: Forma }; casa: Casa; tipos: CartaoDoTipo[]; problemas: LinhaDeProblema[]; mesesAFrente: { tabela: string; frase: string; forma: Forma }[]
+  resumo: Topo; /** "Além disso: …": o que perdeu o cabeçalho para a casa, nunca some (A1c). */ alem?: Topo | null; casa: Casa; tipos: CartaoDoTipo[]; problemas: LinhaDeProblema[]; mesesAFrente: { tabela: string; frase: string; forma: Forma }[]
   teste: null | { faixa: string; linhas: LinhaDoMes[]; encerradoEm: number | null }; ligado: boolean
 }
 
@@ -53,7 +65,7 @@ const NOMES5: readonly (readonly [string, string])[] = [['No NAS', 'No NAS'], ['
 const r5 = (f: Forma[]): Etapa[] => NOMES5.map(([rotulo, curto], i) => ({ rotulo, curto, forma: f[i] ?? 'pontilhado' }))
 const r2 = (a: Forma, b: Forma): Etapa[] => [{ rotulo: 'Saiu das telas', curto: 'Saiu', forma: a }, { rotulo: 'Espaço liberado', curto: 'Espaço', forma: b }]
 const rArq = (problema?: Forma): Etapa[] => [{ rotulo: 'No arquivo', curto: 'Arquivo', forma: 'arquivo' }, ...(problema ? [{ rotulo: 'Verificação', curto: 'Verif.', forma: problema }] : [])]
-interface Res { frase: string; secundaria?: string | null; gravidade: Gravidade; regua: Etapa[]; grupo: 0 | 1 | 2 | 3 | 4 }
+interface Res { frase: string; secundaria?: string | null; acao?: string; info?: string; gravidade: Gravidade; regua: Etapa[]; grupo: 0 | 1 | 2 | 3 | 4 }
 const neutro = (frase: string, f: Forma[] = []): Res => ({ frase, gravidade: 'nenhuma', regua: r5(f), grupo: 3 })
 
 // ---------- juntar as tabelas de uma classe num mês ----------
@@ -75,7 +87,7 @@ export function juntarTabelas(rows: LinhaMesLida[]): LinhaMesLida {
   return base
 }
 
-interface Classe { wait: number; janela: number }
+interface Classe { wait: number; janela: number; margem: number }
 type Prog = PaginaLida['progresso'][number]
 type Rec = PaginaLida['recuperacao'][number]
 
@@ -86,14 +98,14 @@ function mesDescartado(c: Ctx, r: LinhaMesLida): Res {
   const nas = tms(r.nas_attested_at)
   const tent = r.b2_last_attempt_result
   if (r.manifest_nas_withdrawn_at) { // arq-dados.js:m11b
-    return { frase: `O arquivo de ${mes} no NAS está ausente ou diferente. Este mês já saiu do banco: a cópia que resta é a do B2. Confira o B2 agora e recupere dele (ver os comandos)`, gravidade: 'vermelho', regua: rArq('octogono'), grupo: 0 }
+    return { frase: `O arquivo de ${mes} no NAS está ausente ou diferente. Este mês já saiu do banco: a cópia que resta é a do B2. Confira o B2 agora e recupere dele (ver os comandos)`, acao: 'conferir o B2', gravidade: 'vermelho', regua: rArq('octogono'), grupo: 0 }
   }
   if (r.b2_withdrawn_at || (tent && ['divergente', 'arquivo_ausente', 'nao_decifra'].includes(tent))) { // m11c
     const em = tms(r.b2_last_attempt_at) ?? tms(r.b2_withdrawn_at)
-    return { frase: `A cópia de ${mes} no B2 falhou na conferência${em ? ` de ${dmy(em)}` : ''}. A cópia que resta é a do NAS. Rode a conferência de novo (ver o comando)`, gravidade: 'vermelho', regua: rArq('octogono'), grupo: 0 }
+    return { frase: `A cópia de ${mes} no B2 falhou na conferência${em ? ` de ${dmy(em)}` : ''}. A cópia que resta é a do NAS. Rode a conferência de novo (ver o comando)`, acao: 'rodar a conferência do B2', gravidade: 'vermelho', regua: rArq('octogono'), grupo: 0 }
   }
   const dd = Math.floor((c.agora - (nas ?? dropped)) / DAY)
-  if (dd > 45) return { frase: `No arquivo. Sem verificação há ${nDias(dd)}`, secundaria: 'O que fazer: religar a casa; nada mais.', gravidade: 'vermelho', regua: rArq('octogono'), grupo: 0 } // m11a2
+  if (dd > 45) return { frase: `No arquivo. Sem verificação há ${nDias(dd)}`, secundaria: 'O que fazer: religar a casa; nada mais.', acao: 'religar a casa', gravidade: 'vermelho', regua: rArq('octogono'), grupo: 0 } // m11a2
   if (dd > 21) return { frase: `No arquivo. Sem verificação há ${nDias(dd)}`, secundaria: 'O que fazer: religar a casa; nada mais.', gravidade: 'ambar', regua: rArq('triangulo'), grupo: 0 } // m11a
   return { frase: `No arquivo desde ${dmy(dropped)}${nas ? `. Verificado em ${dmy(nas)}` : ''}`, gravidade: 'nenhuma', regua: rArq(), grupo: 4 } // m11
 }
@@ -108,7 +120,7 @@ function mesDestacado(c: Ctx, r: LinhaMesLida, cl: Classe): Res {
   if (tent && ['divergente', 'arquivo_ausente', 'nao_decifra'].includes(tent)) motivos.push(`o do B2 falhou na conferência${tms(r.b2_last_attempt_at) ? ` de ${dmy(tms(r.b2_last_attempt_at)!)}` : ''}`)
   if (motivos.length) { // m9 e m9b
     const dd = dias >= 14
-    return { frase: `A cópia de ${mes} precisa ser refeita (${motivos.join(' e ')}), e para isso o mês tem de voltar ao banco. Traga de volta.`, gravidade: dd ? 'vermelho' : 'ambar', regua: r2(dd ? 'octogono' : 'triangulo', 'pontilhado'), grupo: 0 }
+    return { frase: `A cópia de ${mes} precisa ser refeita (${motivos.join(' e ')}), e para isso o mês tem de voltar ao banco. Traga de volta.`, acao: 'trazer de volta ao banco', gravidade: dd ? 'vermelho' : 'ambar', regua: r2(dd ? 'octogono' : 'triangulo', 'pontilhado'), grupo: 0 }
   }
   if (dias > 14) { // m8b
     return { frase: `Saiu das telas há ${nDias(dias)} e o espaço ainda não foi liberado. Enquanto isso não dá para remover canal nem apagar vídeo. Libere o espaço ou traga o mês de volta`, gravidade: 'ambar', regua: r2('visto', 'triangulo'), grupo: 0 }
@@ -134,7 +146,7 @@ function mesOnline(c: Ctx, r: LinhaMesLida, pg: Prog | undefined, recs: Rec[], c
   }
   if (!selado) {
     if (r.month === c.mesCorrente) return neutro('Em coleta', ['pontilhado']) // m1
-    if (c.hojeMs < devidoMs) return neutro(`Fechado. Cópia a partir de ${dmy(devidoMs)}`) // m2
+    if (c.hojeMs < devidoMs) return { ...neutro(`Fechado. Cópia a partir de ${dmy(devidoMs)}`), info: INFO(`A cópia espera o mês parar de mudar (${nDias(cl.margem)} depois de fechar), para não precisar ser refeita.`) } // m2
     if (!pg) return { frase: 'O andamento da cópia deste mês não foi medido', gravidade: 'nao_medido', regua: r5(['hachura']), grupo: 3 }
     if (pg.canais_esperados === 0) return { frase: 'Sem canais neste mês', gravidade: 'nenhuma', regua: [{ rotulo: 'Sem canais', curto: 'Sem canais', forma: 'zero' }], grupo: 3 }
     if (pg.canais_prontos < pg.canais_esperados) {
@@ -144,14 +156,14 @@ function mesOnline(c: Ctx, r: LinhaMesLida, pg: Prog | undefined, recs: Rec[], c
       const X = pg.canais_prontos
       const frase = X > 0 ? `Copiando: ${X} de ${pg.canais_esperados} canais${atraso > 5 ? `. Cópia atrasada há ${nDias(atraso)}` : ''}` // m3, pa1, pa2
         : atraso >= 1 ? `Cópia atrasada há ${nDias(atraso)}` : `Copiando: 0 de ${pg.canais_esperados} canais`
-      return { frase, gravidade: grav, regua: r5([forma]), grupo: grav === 'nenhuma' ? 3 : 0 }
+      return { frase, acao: grav === 'vermelho' ? 'ver a cópia atrasada' : undefined, gravidade: grav, regua: r5([forma]), grupo: grav === 'nenhuma' ? 3 : 0 }
     }
   }
   // copiado: a cadeia NAS -> B2 -> recuperação -> prazo -> pode sair
   const nasMs = tms(r.nas_attested_at)
   const nasH = nasMs == null ? null : Math.floor((c.agora - nasMs) / H)
   if (r.manifest_nas_withdrawn_at) { // pr1
-    return { frase: `O arquivo de ${mes} está diferente do que o site guardou. Nada sai deste mês até resolver`, gravidade: 'vermelho', regua: r5(['octogono']), grupo: 0 }
+    return { frase: `O arquivo de ${mes} está diferente do que o site guardou. Nada sai deste mês até resolver`, acao: 'ver o arquivo diferente', gravidade: 'vermelho', regua: r5(['octogono']), grupo: 0 }
   }
   const forjaOk = tms(r.b2_forja_ok_at), donoOk = tms(r.b2_dono_ok_at), diverg = tms(r.b2_forja_diverged_at)
   const forjaValida = forjaOk != null && c.agora - forjaOk < 7 * DAY
@@ -161,7 +173,7 @@ function mesOnline(c: Ctx, r: LinhaMesLida, pg: Prog | undefined, recs: Rec[], c
   const tentEm = tms(r.b2_last_attempt_at)
   const tentVia = r.b2.ultima_tentativa?.via === 'dono' ? 'por você' : 'pela forja'
   const jaConferiu = forjaOk != null || donoOk != null
-  const redB2 = (frase: string): Res => ({ frase, gravidade: 'vermelho', regua: r5([nasForma === 'triangulo' ? 'triangulo' : 'visto', 'octogono']), grupo: 0 })
+  const redB2 = (frase: string): Res => ({ frase, acao: 'conferir o B2', gravidade: 'vermelho', regua: r5([nasForma === 'triangulo' ? 'triangulo' : 'visto', 'octogono']), grupo: 0 })
   if (diverg != null && (forjaOk == null || diverg > forjaOk)) { // pd2
     return redB2(`A forja disse que o arquivo de ${mes} no B2 está ruim, e o seu Mac disse que está bom. Nada sai sozinho deste mês. O que fazer: rode a conferência de novo no seu Mac (ver o comando); se a diferença continuar, avise quem cuida do site.`)
   }
@@ -263,6 +275,38 @@ export function casaDe(batimentos: readonly Batimento[], vermelhos: readonly str
   return { estado: 'responde', desde: sinalCopiador ?? null, forma: 'visto', frase: 'A casa responde' }
 }
 
+// ---------- o cabeçalho da página ----------
+const GRAVIDADE_DA_FORMA: Partial<Record<Forma, number>> = { octogono: 2, triangulo: 1 }
+/** A REGRA DO CABEÇALHO, num lugar só (decisão dos 4 especialistas, 27/10; o dono pode inverter): a forma mais grave vence; no empate vence a casa; a outra desce para "Além disso:", nunca some.
+ *  Para inverter (casa vence todas, como no mockup 11.8), troque por `return true`. */
+export function casaVenceOTopo(formaDaCasa: Forma, formaDoProblema: Forma | null): boolean {
+  if (formaDoProblema == null) return true
+  return (GRAVIDADE_DA_FORMA[formaDaCasa] ?? 0) >= (GRAVIDADE_DA_FORMA[formaDoProblema] ?? 0)
+}
+
+const uns = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`
+/** A frase-resumo dos problemas, uma unidade por parte (Logan A1): meses (linhas vermelhas), canais (bloco) e outros (itens do pulso que não são de mês nem de canal). */
+function resumoDosProblemas(o: { tipos: CartaoDoTipo[]; mesesVm: LinhaDoMes[]; probOct: LinhaDeProblema[]; amb: number }): Topo | null {
+  const meses = o.mesesVm.length
+  const canais = o.probOct.filter(x => x.tipo === 'canal').reduce((s, x) => s + (x.n ?? 1), 0)
+  // o item do pulso que fala de mês já está na linha do mês; sem nenhuma linha vermelha ele passa a contar como "outro", para não sumir
+  const outros = o.probOct.filter(x => x.tipo === 'outro' || x.tipo == null || (x.tipo === 'mes' && meses === 0)).length
+  const partes: ParteDaFrase[] = []
+  if (meses > 0) {
+    const l = o.mesesVm[0]!
+    const t = o.tipos.find(x => x.linhas.includes(l))
+    partes.push(`${uns(meses, 'mês precisa', 'meses precisam')} de você; o mais urgente: `, { texto: `${t?.titulo ?? 'Mês'}, ${l.mesNome}: ${l.acao ?? 'ver a linha marcada'}`, ancora: ancoraDoMes(l.chave) }, '.')
+  }
+  if (canais > 0) partes.push(`${meses > 0 ? ' ' : ''}${uns(canais, 'canal removido está', 'canais removidos estão')} sem destino do arquivo (`, { texto: 'ver', ancora: 'canais-removidos' }, ').')
+  if (outros > 0) partes.push(`${meses > 0 || canais > 0 ? ' ' : ''}${uns(outros, 'outro problema', 'outros problemas')} `, { texto: 'abaixo', ancora: 'problemas' }, '.')
+  if (partes.length === 0) {
+    if (o.amb === 0) return null
+    return { texto: `O arquivo tem ${uns(o.amb, 'ponto', 'pontos')} de atenção`, forma: 'triangulo' }
+  }
+  if (o.amb > 0) partes.push(` ${uns(o.amb, 'ponto', 'pontos')} de atenção.`)
+  return { texto: partes.map(x => (typeof x === 'string' ? x : x.texto)).join(''), forma: 'octogono', partes }
+}
+
 // ---------- a página ----------
 const semCasa: Casa = { estado: 'nao_medida', desde: null, forma: 'hachura', frase: 'A casa não foi medida' }
 function modelo(texto: string, forma: Forma, ligado: boolean): ModeloPagina {
@@ -305,7 +349,7 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
   for (const tipo of TIPOS) {
     const info = p.classes.find(k => k.class === tipo)
     if (!info) continue
-    const cl: Classe = { wait: info.wait_days, janela: info.window_months }
+    const cl: Classe = { wait: info.wait_days, janela: info.window_months, margem: info.seal_margin_days }
     const recs = p.recuperacao.filter(r => r.class === tipo)
     const porMes = new Map<string, LinhaMesLida[]>()
     for (const r of p.meses.filter(m => m.class === tipo)) porMes.set(r.month, [...(porMes.get(r.month) ?? []), r])
@@ -313,42 +357,50 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
     const itens = [...porMes.entries()].map(([mes, rows]) => {
       const r = juntarTabelas(rows)
       const pg = p.progresso.find(x => x.class === tipo && x.month === mes)
+      const online = !r.dropped_at && !r.detached_at
       const res = r.dropped_at ? mesDescartado(c, r) : r.detached_at ? mesDestacado(c, r, cl) : mesOnline(c, r, pg, recs, cl, tipo)
       // M5 Tarefa 9 (Yannis I-12): a leitura de `reattach_out_of_order` é da M5 (o botão que trata é da M6)
       const secundaria = [res.secundaria ?? null, rows.some(x => x.reattach_out_of_order) ? FRASE_FORA_DE_ORDEM : null].filter((x): x is string => x !== null).join(' ') || null
       const linha: LinhaDoMes = {
         chave: `${tipo}:${mes}`, mesNome: nomeDoMes(mes), regua: res.regua, frase: res.frase, secundaria, gravidade: res.gravidade,
-        sobeAoTopo: res.gravidade === 'ambar' || res.gravidade === 'vermelho',
+        sobeAoTopo: res.gravidade === 'ambar' || res.gravidade === 'vermelho', ...(res.acao ? { acao: res.acao } : {}), ...(res.info ? { info: res.info } : {}),
       }
-      return { linha, grupo: res.grupo, mes }
+      return { linha, grupo: res.grupo, mes, online, verificadoEm: r.dropped_at ? tms(r.nas_attested_at) : null }
     })
-    // ordem: o que precisa do dono, o que já saiu das telas, o que pode sair, os online (do mais novo ao mais velho), o que está no arquivo
-    itens.sort((a, b) => a.grupo - b.grupo || (a.mes < b.mes ? 1 : -1))
-    const linhas = itens.map(i => i.linha)
+    // ordem: o que precisa do dono, o que já saiu das telas, o que pode sair, os online (do mais antigo ao corrente: "o caminho de cada mês"), o que está no arquivo
+    itens.sort((a, b) => a.grupo - b.grupo || (a.mes < b.mes ? -1 : 1))
     const noArquivo = itens.filter(i => i.grupo === 4)
-    const anos = new Map<number, { meses: number; todosConferidos: boolean }>()
+    // Naksu N1: o mês arquivado e conferido não vira linha; só entra no `<details>` do ano. O que pede atenção (grupo 0) continua linha.
+    const linhas = itens.filter(i => i.grupo !== 4).map(i => i.linha)
+    const anos = new Map<number, { meses: number; todosConferidos: boolean; semConferencia: number; itens: MesNoArquivo[] }>()
     for (const i of noArquivo) {
-      const ano = Number(i.mes.slice(0, 4)); const a = anos.get(ano) ?? { meses: 0, todosConferidos: true }
-      anos.set(ano, { meses: a.meses + 1, todosConferidos: a.todosConferidos && i.linha.gravidade === 'nenhuma' })
+      const ano = Number(i.mes.slice(0, 4)); const a = anos.get(ano) ?? { meses: 0, todosConferidos: true, semConferencia: 0, itens: [] }
+      anos.set(ano, { meses: a.meses + 1, todosConferidos: a.todosConferidos && i.verificadoEm != null, semConferencia: a.semConferencia + (i.verificadoEm == null ? 1 : 0), itens: [...a.itens, { mesNome: i.linha.mesNome, verificadoEm: i.verificadoEm }] })
     }
     const atencao = linhas.filter(l => l.sobeAoTopo).length
     const online = itens.length - noArquivo.length
+    // o próximo a sair: o mês online mais antigo que não é o corrente (A2c)
+    const prox = itens.find(i => i.online && i.mes !== c.mesCorrente && i.grupo !== 0)
+    const saidaProx = prox ? spDateStart(maisMeses(prox.mes, 1 + cl.janela)) : null
+    const proxima = prox && saidaProx != null ? `. ${nomeDoMes(prox.mes)[0]!.toUpperCase()}${nomeDoMes(prox.mes).slice(1)} pode sair ${c.hojeMs >= saidaProx ? 'agora' : `em ${dmy(saidaProx)}`}.` : ''
     tipos.push({
       tipo, titulo: NOME_DO_TIPO[tipo],
-      resumo: `${online} ${online === 1 ? 'mês online' : 'meses online'}, ${noArquivo.length} no arquivo${atencao ? `, ${atencao} ${atencao === 1 ? 'pede' : 'pedem'} atenção` : ''}`,
-      linhas, anosNoArquivo: [...anos.entries()].sort((a, b) => b[0] - a[0]).map(([ano, v]) => ({ ano, ...v })),
+      resumo: `${online} ${online === 1 ? 'mês online' : 'meses online'}, ${noArquivo.length} no arquivo${atencao ? `, ${atencao} ${atencao === 1 ? 'pede' : 'pedem'} atenção` : ''}${proxima}`,
+      linhas, anosNoArquivo: [...anos.entries()].sort((a, b) => b[0] - a[0]).map(([ano, v]) => ({ ano, ...v, itens: v.itens })),
     })
   }
   const problemas = p.vermelhos.map(descreverVermelho)
   const todas = tipos.flatMap(t => t.linhas)
-  const verm = todas.filter(l => l.gravidade === 'vermelho').length + problemas.filter(x => x.forma === 'octogono').length
+  const mesesVm = todas.filter(l => l.gravidade === 'vermelho')
+  const probOct = problemas.filter(x => x.forma === 'octogono')
+  const verm = mesesVm.length + probOct.length
   const amb = todas.filter(l => l.gravidade === 'ambar').length + problemas.filter(x => x.forma === 'triangulo').length
-  const algoCopiado = todas.some(l => l.regua.some(e => e.forma === 'visto' || e.forma === 'arquivo' || e.forma === 'barra'))
-  let resumo: ModeloPagina['resumo']
-  // a casa toma o resumo quando é octógono, ou triângulo sem nenhum problema em octógono (Phil I3: um triângulo não esconde octógonos)
-  if (casa.estado !== 'responde' && (casa.forma === 'octogono' || verm === 0)) resumo = { texto: casa.frase, forma: casa.forma }
-  else if (verm > 0) resumo = { texto: `O arquivo tem ${verm} ${verm === 1 ? 'problema' : 'problemas'} que ${verm === 1 ? 'precisa' : 'precisam'} de você`, forma: 'octogono' }
-  else if (amb > 0) resumo = { texto: `O arquivo tem ${amb} ${amb === 1 ? 'ponto' : 'pontos'} de atenção`, forma: 'triangulo' }
+  const algoCopiado = todas.some(l => l.regua.some(e => e.forma === 'visto' || e.forma === 'arquivo' || e.forma === 'barra')) || tipos.some(t => t.anosNoArquivo.length > 0)
+  const doProblema = resumoDosProblemas({ tipos, mesesVm, probOct, amb })
+  let resumo: Topo
+  let alem: Topo | null = null
+  if (casa.estado !== 'responde' && casaVenceOTopo(casa.forma, doProblema?.forma ?? null)) { resumo = { texto: casa.frase, forma: casa.forma }; alem = doProblema }
+  else if (doProblema) resumo = doProblema
   else if (!algoCopiado) {
     // M2: nada escrito à mão; a data e a margem vêm da classe. Sem first_month em nenhuma classe, a tela não inventa uma primeira cópia
     const prim = p.meses.length ? [...p.meses].sort((a, b) => (a.month < b.month ? -1 : 1))[0]! : null
@@ -361,10 +413,10 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
     }
   } else {
     const arq = tipos.reduce((s, t) => s + t.anosNoArquivo.reduce((x, a) => x + a.meses, 0), 0)
-    const onl = todas.length - arq
+    const onl = todas.length
     resumo = { texto: `Tudo em dia: ${arq} ${arq === 1 ? 'mês' : 'meses'} no arquivo e ${onl} online, nada precisa de você`, forma: 'visto' }
   }
   const t = p.teste
   const teste = t.aberto || t.encerrado_em ? { faixa: t.aberto ? FAIXA_DO_TESTE : `Dado de teste encerrado${tms(t.encerrado_em) ? ` em ${dmy(tms(t.encerrado_em)!)}` : ''}.`, linhas: t.meses.map(linhaDeTeste), encerradoEm: tms(t.encerrado_em) } : null
-  return { resumo, casa, tipos, problemas, mesesAFrente: mesesAFrente(p), teste, ligado: true }
+  return { resumo, alem, casa, tipos, problemas, mesesAFrente: mesesAFrente(p), teste, ligado: true }
 }

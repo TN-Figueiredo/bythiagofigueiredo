@@ -27,7 +27,6 @@ const CASOS: [string, ReturnType<typeof mesCom>, string, string, string][] = [
   ['Sem registro', mesCom({ vazioConferido: true }), 'Sem registro neste mês (conferimos em', 'zero', 'nenhuma'],
   ['Destacado', mesCom({ destacadoHa: 2 }), 'Saiu das telas em', 'pontilhado', 'nenhuma'],
   ['Destacado 15 dias', mesCom({ destacadoHa: 15 }), 'Saiu das telas há 15 dias', 'triangulo', 'ambar'],
-  ['No arquivo', mesCom({ descartadoHa: 30, nasHorasAtras: 5 }), 'No arquivo desde', 'arquivo', 'nenhuma'],
   ['No arquivo sem verificação 22 dias', mesCom({ descartadoHa: 60, nasHorasAtras: 22 * 24 }), 'No arquivo. Sem verificação há 22 dias', 'triangulo', 'ambar'],
   ['No arquivo sem verificação 46 dias', mesCom({ descartadoHa: 90, nasHorasAtras: 46 * 24 }), 'No arquivo. Sem verificação há 46 dias', 'octogono', 'vermelho'],
 ]
@@ -142,7 +141,7 @@ describe('Phil I3: um triângulo da casa não esconde octógonos no resumo', () 
     const casa = ['copiador', 'conferir_b2'].map(w => ({ ...paginaVazia().casa[0]!, worker: w, nas_checked_at: new Date(AGORA - 30 * 3_600_000).toISOString() }))
     const p = montarPagina(paginaVazia({ casa, vermelhos: ['xyz:1'] }), { arquivoLigado: true })
     expect(p.casa.estado).toBe('nas_sem_verificar')
-    expect(p.resumo).toEqual({ texto: 'O arquivo tem 1 problema que precisa de você', forma: 'octogono' })
+    expect(p.resumo).toMatchObject({ texto: '1 outro problema abaixo.', forma: 'octogono' })   // r3 A1: uma unidade por parte, sem "1 problema" solto
   })
   it('casa em octógono continua mandando no resumo; casa em triângulo sem problema também', () => {
     const velho = new Date(AGORA - 40 * 3_600_000).toISOString()
@@ -254,7 +253,7 @@ describe('o que acontece quando o dado não existe (acréscimos desta execução
       mesCom({ descartadoHa: 60, nasHorasAtras: 5, mesNum: 1 }), mesCom({ nasHorasAtras: 3, mesNum: 2 }),
       mesCom({ destacadoHa: 2, mesNum: 3 }), mesCom({ devidoHa: 31, esperadas: 2, recebidas: 0, mesNum: 4 }) ] })
     const fr = montarPagina(p, liga).tipos[0]!.linhas.map(l => l.frase.split(/[ .]/).slice(0, 2).join(' '))
-    expect(fr).toEqual(['Cópia atrasada', 'Saiu das', 'No NAS,', 'No arquivo'])
+    expect(fr).toEqual(['Cópia atrasada', 'Saiu das', 'No NAS,'])   // Naksu N1: o mês arquivado e conferido não é linha
   })
   it('limiares do atraso: 5 dias sem aviso, 6 âmbar, 30 âmbar, 31 vermelho (os mesmos de obs_archive_atraso)', () => {
     const g = (d: number) => montarPagina(paginaVazia({ meses: [mesCom({ devidoHa: d, esperadas: 2, recebidas: 0 })] }), liga).tipos[0]!.linhas[0]!.gravidade
@@ -262,6 +261,6 @@ describe('o que acontece quando o dado não existe (acréscimos desta execução
   })
   it('anosNoArquivo agrupa por ano e marca se todos estão conferidos', () => {
     const p = paginaVazia({ meses: [mesCom({ descartadoHa: 60, nasHorasAtras: 5, mesNum: 1 }), mesCom({ descartadoHa: 90, nasHorasAtras: 46 * 24, mesNum: 2 })] })
-    expect(montarPagina(p, liga).tipos[0]!.anosNoArquivo).toEqual([{ ano: 2027, meses: 1, todosConferidos: true }]) // o vermelho vai ao topo, não ao grupo do ano
+    expect(montarPagina(p, liga).tipos[0]!.anosNoArquivo).toMatchObject([{ ano: 2027, meses: 1, todosConferidos: true }]) // o vermelho vai ao topo, não ao grupo do ano
   })
 })

@@ -86,10 +86,10 @@ describe('bloco Canais removidos, só de leitura (item 163, parte M5)', () => {
   it('data do comando conhecida entra na frase', () => {
     const b = montarBloco([linha({})], { agora: AGORA, casa, cap: { ...semCmd, dataDoComando: '2028-12-12' } })
     expect(b.linhas[0]!.frase).toContain('chega em 12/12/2028')
-    expect(b.resumo).toBe('Canais removidos: 1 esperam o comando de limpeza, que chega em 12/12/2028.')
+    expect(b.resumo).toBe('Canais removidos: 1 espera o comando de limpeza, que chega em 12/12/2028.')
   })
   it('sem comando o resumo diz o que espera', () => {
-    expect(montarBloco([linha({})], { agora: AGORA, casa, cap: semCmd }).resumo).toBe('Canais removidos: 1 esperam o comando de limpeza, que ainda não tem data para chegar.')
+    expect(montarBloco([linha({})], { agora: AGORA, casa, cap: semCmd }).resumo).toBe('Canais removidos: 1 espera o comando de limpeza, que ainda não tem data para chegar.')
   })
   it('Phil I5: função ausente avisa o Sentry só com OBS_ARQUIVO=on (variável apagada = silêncio)', async () => {
     const { captureMessage } = await import('@sentry/nextjs')

@@ -137,7 +137,7 @@ export function montarBloco(lista: ListaRemovidosV2, o: Opcoes): BlocoCanaisRemo
   else {
     const p: string[] = []
     if (contagem.semDestino) p.push(`${contagem.semDestino} sem destino do arquivo`)
-    if (contagem.pedido) p.push(o.cap.comandoDeLimpeza ? `${contagem.pedido} com limpeza pedida` : `${contagem.pedido} esperam o comando de limpeza, que ${quando(o.cap)}`)
+    if (contagem.pedido) p.push(o.cap.comandoDeLimpeza ? `${contagem.pedido} com limpeza pedida` : `${contagem.pedido} ${contagem.pedido === 1 ? 'espera' : 'esperam'} o comando de limpeza, que ${quando(o.cap)}`)
     if (contagem.imagens) p.push(`${contagem.imagens} com imagens por apagar no Blob`)
     if (contagem.guardado) p.push(`${contagem.guardado} guardados no arquivo`)
     if (contagem.outros) p.push(`${contagem.outros} em limpeza`)
