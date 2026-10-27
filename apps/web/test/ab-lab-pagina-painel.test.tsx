@@ -3,9 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { PainelOQueFica, type AcoesDecisao } from '@/app/cms/(authed)/youtube/ab-lab/_components/pagina/painel-o-que-fica'
-import { painelDoAtivo, painelDoConcluido } from '@/lib/youtube/ab-lab-pagina/painel-decisao'
+import { painelDoAtivo } from '@/lib/youtube/ab-lab-pagina/painel-decisao'
 import type { PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
-import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
 import { makeCardView } from './helpers/ab-fixtures'
 
 const refresh = vi.fn()
@@ -23,18 +22,10 @@ const card = () => makeCardView({ id: 't1', type: 'title', variants: vars, video
 const ctrs = { va: 0.039, vb: 0.052, vc: 0.041 }
 const ativoComSug = (noAr = 'B') => painelDoAtivo(card(), { ctrs, noArLetra: noAr, sugeridaId: 'vb', regraV2: true, podeDeixarVariante: true })
 const ativoSemSug = (noAr = 'B') => painelDoAtivo(card(), { ctrs: {}, noArLetra: noAr, sugeridaId: null, regraV2: true, podeDeixarVariante: true })
-type Conc = Extract<TelaV2, { fase: 'concluido' }>
-const telaConc = (o: Partial<Conc>): Conc => ({
-  fase: 'concluido', selo: { tipo: 'vence', provisorio: false, letra: 'B' }, frase: { principal: '', apoio: null }, prazo: null,
-  noAr: { tipo: 'original' }, aplicar: null, voltar: false, aplicarDeNovo: null, bloqueio: null, n: null, pisos: null, tentarDeNovo: false, ...o,
-})
-const agora = new Date('2026-10-26T15:00:00Z')
-const concluido = (): PainelDecisao => painelDoConcluido(card(), telaConc({ aplicar: { variant_id: 'vb', letra: 'B' } }), { ctrs, sugeridaId: 'vb', revertExpiresAt: null, agora })!
-const aplicado = (): PainelDecisao => painelDoConcluido(card(), telaConc({ noAr: { tipo: 'aplicada', letra: 'B' } as Conc['noAr'], voltar: true }), { ctrs, sugeridaId: 'vb', revertExpiresAt: '2026-11-02T15:00:00Z', agora })!
 
 const feitoR: ResultadoAcaoSaida = { ok: true, resultado: 'feito', campos: {} as never }
 function acoes(o: Partial<{ [K in keyof AcoesDecisao]: ReturnType<typeof vi.fn> }> = {}) {
-  return { encerrar: vi.fn(async () => feitoR), aplicarSugerido: vi.fn(async () => feitoR), voltar: vi.fn(async () => feitoR), ...o } as unknown as AcoesDecisao & { encerrar: ReturnType<typeof vi.fn>; aplicarSugerido: ReturnType<typeof vi.fn>; voltar: ReturnType<typeof vi.fn> }
+  return { encerrar: vi.fn(async () => feitoR), ...o } as unknown as AcoesDecisao & { encerrar: ReturnType<typeof vi.fn>; }
 }
 function monta(painel: PainelDecisao, a = acoes(), extra: { onAviso?: (t: string) => void } = {}) {
   const onFechar = vi.fn()
@@ -98,25 +89,6 @@ describe('Painel "O que fica no vídeo?" (M7 T8)', () => {
     expect(primario().textContent).toBe('Encerrar e manter A (original)')
     await clica(primario())
     expect(a.encerrar).toHaveBeenCalledWith('t1', { destino: 'original', seqVisto: 7 })
-  })
-  it('concluído: confirmar chama aplicarSugerido(testId, "vb", seq); aplicado chama voltar(testId, seq)', async () => {
-    const c = monta(concluido())
-    expect(primario().textContent).toBe('Aplicar B ao vídeo')
-    await clica(primario())
-    expect(c.a.aplicarSugerido).toHaveBeenCalledWith('t1', 'vb', 7)
-    cleanup()
-    const d = monta(aplicado())
-    expect(screen.getByText('Dá para voltar à original até 02/11, 7 dias depois de aplicar. Depois dessa data o botão some.')).toBeTruthy()
-    await clica(primario())
-    expect(d.a.voltar).toHaveBeenCalledWith('t1', 7)
-  })
-  it('opção "Em breve" está disabled e não pode ser marcada', () => {
-    monta(concluido())
-    expect(radio('A').disabled).toBe(true)
-    expect(radio('C').disabled).toBe(true)
-    expect(screen.getAllByText('Em breve')).toHaveLength(2)
-    fireEvent.click(radio('A'))
-    expect(primario().textContent).toBe('Aplicar B ao vídeo') // o estado da escolha não mudou
   })
   it('durante Aplicando…: Esc, X, Cancelar e clique no fundo não chamam onFechar', async () => {
     let solta!: (r: ResultadoAcaoSaida) => void
@@ -183,13 +155,13 @@ describe('Painel "O que fica no vídeo?" (M7 T8)', () => {
   })
   it('precisa_confirmar abre a confirmação (no lugar do painel) e "Aplicar mesmo assim" reenvia com forcar true', async () => {
     const pc: ResultadoAcaoSaida = { ok: true, resultado: 'precisa_confirmar', campos: [{ campo: 'title', valor_atual: 'Editado por fora' }] }
-    const a = acoes({ aplicarSugerido: vi.fn().mockResolvedValueOnce(pc).mockResolvedValueOnce(feitoR) })
-    monta(concluido(), a)
+    const a = acoes({ encerrar: vi.fn().mockResolvedValueOnce(pc).mockResolvedValueOnce(feitoR) })
+    monta(ativoComSug(), a)
     await clica(primario())
     expect(screen.queryByText('O que fica no vídeo?')).toBeNull()
     expect(screen.getByText('Trocar mesmo assim?')).toBeTruthy()
     await clica(screen.getByRole('button', { name: 'Aplicar mesmo assim' }))
-    expect(a.aplicarSugerido).toHaveBeenLastCalledWith('t1', 'vb', 7, true)
+    expect(a.encerrar).toHaveBeenLastCalledWith('t1', { destino: 'variante', varianteId: 'vb', forcar: true, seqVisto: 7 })
     expect(screen.getByText('Feito')).toBeTruthy()
   })
   it('Esc na confirmação volta ao painel e não chama onFechar', async () => {

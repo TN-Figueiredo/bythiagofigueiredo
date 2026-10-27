@@ -26,7 +26,7 @@ function entrada(o: { ar: 'A' | 'B' | 'C'; sug: 'A' | 'B' | 'C' | null; escolha?
 const noArC: ResultadoEscolha = { ok: true, resultado: 'no_ar', noAr: conf('C', null), restoreSeq: 4 }
 function acoes(o: { escolher?: AcoesDecisao['escolher']; conferir?: AcoesDecisao['conferir'] } = {}) {
   return {
-    encerrar: vi.fn(), aplicarSugerido: vi.fn(), voltar: vi.fn(),
+    encerrar: vi.fn(),
     escolher: vi.fn(o.escolher ?? (async () => noArC)),
     conferir: vi.fn(o.conferir ?? (async (): Promise<ResultadoConferir> => ({ ok: false, estado: 'sem_leitura', error: 'x' }))),
   } as unknown as AcoesDecisao & { escolher: ReturnType<typeof vi.fn>; conferir: ReturnType<typeof vi.fn> }

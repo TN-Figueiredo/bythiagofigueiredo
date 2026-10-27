@@ -21,13 +21,10 @@ import './pagina-lab.css'
 export interface AcoesDecisao extends AcoesEscolha {
   /** `endAbTest` com o id do teste */
   encerrar: (testId: string, o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
-  aplicarSugerido: (testId: string, varianteId: string, seqVisto: number, forcar?: boolean) => Promise<ResultadoAcaoSaida>
-  /** `revertWinner` */
-  voltar: (testId: string, seqVisto: number) => Promise<ResultadoAcaoSaida>
 }
 
 export interface PainelOQueFicaProps {
-  /** `PainelEscolha` = teste concluído (M7b); `PainelDecisao` = teste rodando (e o legado do concluído, até a T13). */
+  /** `PainelEscolha` = teste concluído (M7b); `PainelDecisao` = teste rodando. */
   painel: PainelDecisao | PainelEscolha
   acoes: AcoesDecisao
   onFechar: () => void
@@ -103,16 +100,10 @@ function PainelDecisaoLegado({ painel, acoes, onFechar, onAviso }: Omit<PainelOQ
     const seq = painel.restoreSeq
     let r: ResultadoAcaoSaida
     try {
-      if (e.tipo === 'encerrar') {
-        const o: OpcaoEncerrar = e.original
-          ? { destino: 'original', seqVisto: seq }
-          : forcar ? { destino: 'variante', varianteId: e.varianteId, forcar: true, seqVisto: seq } : { destino: 'variante', varianteId: e.varianteId, seqVisto: seq }
-        r = await acoes.encerrar(painel.testId, o)
-      } else if (e.tipo === 'aplicar_sugerida') {
-        r = forcar ? await acoes.aplicarSugerido(painel.testId, e.varianteId, seq, true) : await acoes.aplicarSugerido(painel.testId, e.varianteId, seq)
-      } else {
-        r = await acoes.voltar(painel.testId, seq)
-      }
+      const o: OpcaoEncerrar = e.original
+        ? { destino: 'original', seqVisto: seq }
+        : forcar ? { destino: 'variante', varianteId: e.varianteId, forcar: true, seqVisto: seq } : { destino: 'variante', varianteId: e.varianteId, seqVisto: seq }
+      r = await acoes.encerrar(painel.testId, o)
     } catch {
       if (timer.current) clearTimeout(timer.current)
       const expirada = await sessaoExpirou()
@@ -128,7 +119,7 @@ function PainelDecisaoLegado({ painel, acoes, onFechar, onAviso }: Omit<PainelOQ
     if (timer.current) clearTimeout(timer.current)
     voo.current = false
     if (expirou.current) return // a tela já disse "sem resposta": nunca troca por "Feito" nem por falha
-    const variante = e.tipo === 'encerrar' ? !e.original : e.tipo === 'aplicar_sugerida'
+    const variante = !e.original
     if (r.ok && r.resultado === 'feito') {
       if (!montado.current) { router.refresh(); return }
       setFeito(mensagemDeFeito(painel, escolhaId, diaMesSp(new Date().toISOString())))
@@ -212,9 +203,7 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
   const idInicial = (escolhaId && opcao?.estado === 'escolhivel' ? escolhaId : painel.opcoes.find(o => o.estado === 'escolhivel')?.varianteId) ?? null
   const aviso = semSugerida ? avisoSemSugerida(painel, opcao) : avisoDaEscolha(painel, escolhaId)
   const semPermissao = !painel.podeDeixarVariante
-  const rodape = painel.modo === 'aplicado' && painel.voltarAte
-    ? `Dá para voltar à original até ${painel.voltarAte}, 7 dias depois de aplicar. Depois dessa data o botão some.`
-    : 'Mudar o que está no ar muda o YouTube agora. Dá para voltar à original por 7 dias.'
+  const rodape = 'Mudar o que está no ar muda o YouTube agora. Dá para voltar à original por 7 dias.'
   const mostraEscolha = fase === 'escolha' || enviando
 
   const rotuloPrimario = erro && fase === 'escolha' ? 'Tentar de novo' : enviando ? 'Aplicando…' : rotuloDoBotao(painel, escolhaId)
@@ -270,7 +259,6 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
                           {o.noAr ? <Selo classe="border-[#3E8F63] text-[#6FCF97]">No ar agora</Selo> : null}
                           {o.sugerida ? <Selo classe="border-cms-accent text-cms-accent">Sugerida pelo teste</Selo> : null}
                           {o.estado === 'em_breve' ? <Selo classe="border-dashed text-[#958A75]">Em breve</Selo> : null}
-                          {painel.modo === 'aplicado' && o.original && painel.voltarAte ? <span className="text-xs text-cms-text-muted">Dá para voltar até {painel.voltarAte}</span> : null}
                         </span>
                       </span>
                     </label>

@@ -26,7 +26,7 @@ function entrada(o: { ar: 'A' | 'B' | 'C'; sug: 'A' | 'B' | 'C' | null; escolha?
 const noArC: ResultadoEscolha = { ok: true, resultado: 'no_ar', noAr: conf('C', null), restoreSeq: 4 }
 function acoes(o: { escolher?: AcoesDecisao['escolher']; conferir?: AcoesDecisao['conferir'] } = {}) {
   return {
-    encerrar: vi.fn(), aplicarSugerido: vi.fn(), voltar: vi.fn(),
+    encerrar: vi.fn(),
     escolher: vi.fn(o.escolher ?? (async () => noArC)),
     conferir: vi.fn(o.conferir ?? (async (): Promise<ResultadoConferir> => ({ ok: false, estado: 'sem_leitura', error: 'x' }))),
   } as unknown as AcoesDecisao & { escolher: ReturnType<typeof vi.fn>; conferir: ReturnType<typeof vi.fn> }
@@ -41,13 +41,11 @@ beforeEach(() => { refresh.mockClear() })
 afterEach(cleanup)
 
 describe('M7b T14: porta única da escolha no concluído', () => {
-  it('"Aplicar" da sugerida (item do Com você) passa por escolherVersao; aplicarSugerido/voltar/encerrar nunca são chamadas', async () => {
+  it('"Aplicar" da sugerida (item do Com você) passa por escolherVersao; encerrar nunca é chamada', async () => {
     const a = acoes()
     render(<PainelOQueFica painel={montarPainelEscolha(entrada({ ar: 'A', sug: 'B' }))} acoes={a} onFechar={vi.fn()} />)
     await clica(screen.getByRole('button', { name: 'Deixar B no ar' }))
     expect(a.escolher).toHaveBeenCalledWith('t1', 'vb', 3)
-    expect(a.aplicarSugerido).not.toHaveBeenCalled()
-    expect(a.voltar).not.toHaveBeenCalled()
     expect(a.encerrar).not.toHaveBeenCalled()
   })
 })
