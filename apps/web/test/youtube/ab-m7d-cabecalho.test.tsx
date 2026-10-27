@@ -27,7 +27,7 @@ vi.mock('lucide-react', () => {
   return {
     Activity: icon('Activity'), BarChart3: icon('BarChart3'), ChevronDown: icon('ChevronDown'),
     ChevronLeft: icon('ChevronLeft'), ChevronRight: icon('ChevronRight'), Crosshair: icon('Crosshair'),
-    Eye: icon('Eye'), ExternalLink: icon('ExternalLink'), FileText: icon('FileText'), Filter: icon('Filter'), Image: icon('Image'),
+    Eye: icon('Eye'), LayoutGrid: icon('LayoutGrid'), ExternalLink: icon('ExternalLink'), FileText: icon('FileText'), Filter: icon('Filter'), Image: icon('Image'),
     Layers: icon('Layers'), Lock: icon('Lock'), Minus: icon('Minus'), Pause: icon('Pause'), Play: icon('Play'),
     RefreshCw: icon('RefreshCw'), Settings: icon('Settings'), Square: icon('Square'),
     Swords: icon('Swords'), TrendingDown: icon('TrendingDown'), TrendingUp: icon('TrendingUp'),
