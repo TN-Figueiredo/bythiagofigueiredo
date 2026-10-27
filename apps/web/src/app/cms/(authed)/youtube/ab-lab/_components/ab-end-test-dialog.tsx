@@ -22,6 +22,8 @@ export interface AbEndTestDialogProps {
   noArAgora: { rotulo: string; desde: string }
   opcoes: OpcaoDoDialogo[]
   originalBaixaResolucao: boolean
+  /** Teste só de título: as versões mostram a mesma miniatura (a do vídeo) e a nota "miniatura não muda". */
+  miniaturaNaoMuda?: boolean
   podeDeixarVariante: boolean
   /** Server action `endAbTest` já com o id do teste, montada no server component chamador. */
   encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
@@ -114,7 +116,7 @@ const ICONE_AR = (
 )
 
 export function AbEndTestDialog(props: AbEndTestDialogProps) {
-  const { aberto, onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeixarVariante, encerrar, seqVisto, onAviso } = props
+  const { aberto, onFechar, noArAgora, opcoes, originalBaixaResolucao, miniaturaNaoMuda, podeDeixarVariante, encerrar, seqVisto, onAviso } = props
   const router = useRouter()
   const [escolhida, setEscolhida] = useState<string | null>(null)
   const [fase, setFase] = useState<Fase>('escolha')
@@ -242,7 +244,7 @@ interface EscolhaProps extends AbEndTestDialogProps {
   onEnviar: () => void
 }
 
-function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeixarVariante, regraV2, escolhida, setEscolhida, fase, erro, opcao, onEnviar }: EscolhaProps) {
+function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, miniaturaNaoMuda, podeDeixarVariante, regraV2, escolhida, setEscolhida, fase, erro, opcao, onEnviar }: EscolhaProps) {
   const ref = useRef<HTMLDivElement>(null)
   const cancelarRef = useRef<HTMLButtonElement>(null)
   useModalFocusTrap(ref, true, onFechar, cancelarRef) // foco inicial na opção segura (Cancelar), não no X
@@ -297,6 +299,7 @@ function Escolha({ onFechar, noArAgora, opcoes, originalBaixaResolucao, podeDeix
                         {o.rotulo === noArAgora.rotulo || o.rotulo === `${noArAgora.rotulo} (original)` ? <span className="etd-badge">{ICONE_AR}no ar agora</span> : null}
                       </span>
                       <span className="etd-ttl" style={{ display: '-webkit-box' }}>{o.titulo ?? ''}</span>
+                      {miniaturaNaoMuda ? <span className="etd-sub">miniatura não muda</span> : null}
                       {o.isOriginal && originalBaixaResolucao ? <span className="etd-sub">O original foi guardado em baixa resolução.</span> : null}
                     </span>
                   </label>
