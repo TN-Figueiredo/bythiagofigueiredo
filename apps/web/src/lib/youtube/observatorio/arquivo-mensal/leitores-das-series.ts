@@ -58,7 +58,7 @@ export const LEITORES_DAS_SERIES: readonly LeitorDaSerie[] = [
 export const EXCECOES_DE_DATA_FIXA: readonly { arquivo: string; motivo: string }[] = [
   {
     arquivo: S + 'lib/youtube/observatorio/medidas-telas/calendario.ts',
-    motivo: 'INICIO_DAS_MARCAS é o início das marcas V1, V7 e V30 (competitor_video_marks), que nunca saem do banco; não é o início da série diária e não depende do online desde.',
+    motivo: 'INICIO_DAS_MARCAS é o início das marcas V1, V7 e V30 (competitor_video_marks), que não entram no arquivo mensal (só saem com o vídeo, na remoção do canal); não é o início da série diária e não depende do online desde. Conferência com data: em 15/12/2026 (aceite 12 do spec 02 §8.5), se as marcas passarem de 0,2 MB por canal por ano e entrarem numa classe da política, esta exceção cai e a tela passa a ler a data.',
   },
   // Triagem de 365/180 da M5 (r3): confirmação do Phil na Tarefa 16
   {
