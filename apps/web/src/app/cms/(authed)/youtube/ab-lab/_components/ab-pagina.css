@@ -1,0 +1,14 @@
+/* M7d T2: coluna única de 1040 px alinhada à esquerda (faixa, aviso e detalhe dentro dela). */
+.ab-pagina { container-type: inline-size; width: 100%; }
+.ab-coluna {
+  --ab-largura: 1040px;
+  --ab-recuo: 24px;
+  width: 100%;
+  max-width: calc(var(--ab-largura) + 2 * var(--ab-recuo));
+  margin-inline: 0;
+  padding-inline: var(--ab-recuo);
+  box-sizing: border-box;
+}
+@container (max-width: 640px) {
+  .ab-coluna { --ab-recuo: 16px; }
+}
