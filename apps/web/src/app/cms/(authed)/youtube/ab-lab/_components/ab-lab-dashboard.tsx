@@ -51,6 +51,8 @@ export interface AbLabDashboardProps {
   videoInicial: string | null
   /** `?painel=<testId>`: abre o painel desse concluído ao chegar (link da faixa de restauração e da ficha). */
   painelInicial?: string | null
+  /** Painel já montado para o `?painel=` (qualquer concluído v2); tem prioridade sobre o que a lista traz. */
+  painelDaUrl?: PainelEscolha | null
   /** Bloco "Sugestões" (servidor, dentro de Suspense). */
   blocoSugestoes?: ReactNode
   learnings: LearningsData | null
@@ -69,7 +71,7 @@ const tipoDoCartao = (c: CartaoEmTeste): TestType => (c.tipo === 'lab' ? c.card.
 
 export function AbLabDashboard({
   pagina, settings, siteId, eligibleVideos, drafts, iniciarTeste, avisoDeVolume, acoesDecisao, acoesCaminho, lerVideos, salvarAjustes,
-  listaInicial, videoInicial, painelInicial = null, blocoSugestoes, learnings, channelLearnings,
+  listaInicial, videoInicial, painelInicial = null, painelDaUrl = null, blocoSugestoes, learnings, channelLearnings,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
@@ -93,7 +95,7 @@ export function AbLabDashboard({
   useEffect(() => {
     if (!painelInicial) return
     const l = pagina.concluidos.linhas.find(x => x.testId === painelInicial && x.painel)
-    const dados = l?.painel ?? pagina.comVoce.itens.flatMap(i => ((i.tipo === 'aplicar' || i.tipo === 'escolher') && i.testId === painelInicial ? [i.painel] : []))[0]
+    const dados = painelDaUrl ?? l?.painel ?? pagina.comVoce.itens.flatMap(i => ((i.tipo === 'aplicar' || i.tipo === 'escolher') && i.testId === painelInicial ? [i.painel] : []))[0]
     if (dados) setPainel({ dados, origem: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painelInicial])

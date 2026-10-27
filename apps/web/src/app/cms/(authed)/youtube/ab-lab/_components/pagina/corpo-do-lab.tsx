@@ -21,7 +21,7 @@ const ACOES_DECISAO: AcoesDecisao = { encerrar: endAbTest, aplicarSugerido, volt
 export async function CorpoDoLab(
   { siteId, videoInicial, painelInicial = null, blocoSugestoes }: { siteId: string; videoInicial: string | null; painelInicial?: string | null; blocoSugestoes?: ReactNode },
 ): Promise<ReactElement> {
-  const lida = await lerPaginaDoLab(siteId, new Date(), videoInicial)
+  const lida = await lerPaginaDoLab(siteId, new Date(), videoInicial, painelInicial)
   return (
     <AbLabDashboard
       siteId={siteId}
@@ -38,6 +38,7 @@ export async function CorpoDoLab(
       listaInicial={lida.listaInicial}
       videoInicial={videoInicial}
       painelInicial={painelInicial}
+      painelDaUrl={lida.painelDaUrl}
       blocoSugestoes={blocoSugestoes}
       learnings={lida.learnings?.combined ?? null}
       channelLearnings={lida.learnings}
