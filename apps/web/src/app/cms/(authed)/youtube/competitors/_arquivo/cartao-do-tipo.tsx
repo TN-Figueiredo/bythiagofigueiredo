@@ -11,7 +11,7 @@ export function LinhaDeMes({ linha, teste = false }: { linha: LinhaDoMes; teste?
   return (
     <li id={teste ? undefined : ancoraDoMes(linha.chave)} className={`arq-mes${linha.sobeAoTopo ? ' arq-contorno' : ''}${grav}${teste ? ' teste' : ''}`} data-mes={linha.chave}>
       <div className="arq-mn">{linha.mesNome}{teste ? <span className="arq-marca">teste</span> : null}</div>
-      <p className="arq-fr">
+      <div className="arq-fr">
         {linha.frase}
         {linha.info ? <details className="arq-info"><summary aria-label="Por que se espera"><span aria-hidden="true">ⓘ</span></summary><span className="arq-info-t">{linha.info}</span></details> : null}
         {linha.secundaria ? (
@@ -19,7 +19,7 @@ export function LinhaDeMes({ linha, teste = false }: { linha: LinhaDoMes; teste?
             ? <span className="arq-sec"><FraseComForma forma="triangulo">{linha.secundaria}</FraseComForma></span>
             : <span className="arq-sec">{linha.secundaria}</span>
         ) : null}
-      </p>
+      </div>
       <Regua etapas={linha.regua} rotulo={`Etapas de ${linha.mesNome}`} />
       {linha.acoes ? <div className="arq-ac">{linha.acoes}</div> : null}
     </li>

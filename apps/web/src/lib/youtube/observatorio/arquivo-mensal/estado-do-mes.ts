@@ -123,11 +123,11 @@ function mesDestacado(c: Ctx, r: LinhaMesLida, cl: Classe): Res {
     return { frase: `A cópia de ${mes} precisa ser refeita (${motivos.join(' e ')}), e para isso o mês tem de voltar ao banco. Traga de volta.`, acao: 'trazer de volta ao banco', gravidade: dd ? 'vermelho' : 'ambar', regua: r2(dd ? 'octogono' : 'triangulo', 'pontilhado'), grupo: 0 }
   }
   if (dias > 14) { // m8b
-    return { frase: `Saiu das telas há ${nDias(dias)} e o espaço ainda não foi liberado. Enquanto isso não dá para remover canal nem apagar vídeo. Libere o espaço ou traga o mês de volta`, gravidade: 'ambar', regua: r2('visto', 'triangulo'), grupo: 0 }
+    return { frase: `Saiu das telas há ${nDias(dias)} e o espaço ainda não foi liberado. Enquanto isso não dá para remover canal nem apagar vídeo. Libere o espaço ou traga o mês de volta.`, gravidade: 'ambar', regua: r2('visto', 'triangulo'), grupo: 0 }
   }
   if (dias >= cl.wait) return { frase: 'Pronto para liberar o espaço. Ainda dá para trazer de volta', gravidade: 'nenhuma', regua: r2('visto', 'pontilhado'), grupo: 1 } // m8a
   return { // m8
-    frase: `Saiu das telas em ${dmy(det)}. O espaço ainda não voltou. Você pode trazer de volta a qualquer momento, até liberar o espaço. A partir de ${dmy(det + cl.wait * DAY)} você pode liberar o espaço. Até lá não dá para remover canal nem apagar vídeo`,
+    frase: `Saiu das telas em ${dmy(det)}. O espaço ainda não voltou. Você pode trazer de volta a qualquer momento, até liberar o espaço. A partir de ${dmy(det + cl.wait * DAY)} você pode liberar o espaço. Até lá não dá para remover canal nem apagar vídeo.`,
     gravidade: 'nenhuma', regua: r2('visto', 'pontilhado'), grupo: 1,
   }
 }

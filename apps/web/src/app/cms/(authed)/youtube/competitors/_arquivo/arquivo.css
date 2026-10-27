@@ -90,4 +90,5 @@
 @media (pointer:coarse){.arq-info summary{min-width:44px;min-height:44px}}
 .arq-alem{margin:0 0 12px;font-size:14px;line-height:1.5;color:var(--text)}
 .arq-fr-forma a,.arq-resumo-geral a,.arq-alem a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
-.arq-prob a{margin-left:6px}
+.arq-prob a{margin-left:6px;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+@media (pointer:coarse){.arq-prob a{display:inline-flex;align-items:center;min-height:44px}}
