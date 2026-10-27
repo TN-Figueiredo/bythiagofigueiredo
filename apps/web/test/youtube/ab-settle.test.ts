@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { settleOnAir, novaTentativa, ORIGINAL, destinoNormalizado, lerRetratoPadrao } from '@/lib/youtube/ab-settle'
+import { settleOnAir, novaTentativa, lerNoArNoYouTube, ORIGINAL, destinoNormalizado, lerRetratoPadrao } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, MotivoSaida, Retrato } from '@/lib/youtube/ab-settle'
 import { avisarRestauracao } from '@/lib/youtube/ab-restore-avisos'
 import { converterInterrompido } from '@/lib/youtube/ab-restore'
@@ -1050,5 +1050,27 @@ describe('M7b T4: escolher', () => {
     expect(r.resultado).toBe('ja_encerrado')
     expect(c.claims).toEqual([]); expect(c.yt.escritas()).toEqual([])
     expect(c.banco.atualizacoes.some((a) => 'winner_applied_at' in a.patch)).toBe(false)
+  })
+})
+
+describe('M7b T6: lerNoArNoYouTube', () => {
+  it('lê título e miniatura que estão no ar, sem escrever nada', async () => {
+    const c = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título C', dhash: H.C } })
+    const r = await lerNoArNoYouTube(c.banco.testId, SITE, c.portas)
+    expect(r).toMatchObject({ tipo: 'lido', titulo: 'Título C', dhash: H.C })
+    expect(c.yt.escritas()).toEqual([]); expect(c.banco.atualizacoes).toEqual([])
+  })
+  it('teste só de título não lê a miniatura', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' } })
+    const r = await lerNoArNoYouTube(c.banco.testId, SITE, c.portas)
+    expect(r.tipo).toBe('lido'); expect('dhash' in r).toBe(false)
+  })
+  it('vídeo apagado, token recusado e canal não identificado viram sem_leitura', async () => {
+    const a = await preparar({ status: 'completed', testType: 'title', videoApagado: true })
+    expect(await lerNoArNoYouTube(a.banco.testId, SITE, a.portas)).toEqual({ tipo: 'sem_leitura', motivo: 'video_inexistente' })
+    const b = await preparar({ status: 'completed', testType: 'title', token: 'recusado' })
+    expect(await lerNoArNoYouTube(b.banco.testId, SITE, b.portas)).toMatchObject({ tipo: 'sem_leitura' })
+    const d = await preparar({ status: 'completed', testType: 'title', canal: 'nao_identificado' })
+    expect(await lerNoArNoYouTube(d.banco.testId, SITE, d.portas)).toMatchObject({ tipo: 'sem_leitura' })
   })
 })
