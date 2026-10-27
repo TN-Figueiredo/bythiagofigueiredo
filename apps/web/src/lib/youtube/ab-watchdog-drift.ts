@@ -27,7 +27,7 @@ export const FIM_DAS_LEITURAS_MS = 50_000
 export const NAO_INICIA_SETTLE_DEPOIS_MS = 15_000
 export const PRAZO_DA_ROTA_MS = 55_000
 export const LIMITE_PADRAO = 4
-const CICLO_MINIMO_MS = 3 * 3_600_000 // o CDN do YouTube precisa de tempo para propagar a thumbnail enviada
+export const CICLO_MINIMO_MS = 3 * 3_600_000 // o CDN do YouTube precisa de tempo para propagar a thumbnail enviada
 
 export interface ResultadoDrift {
   verificados: number

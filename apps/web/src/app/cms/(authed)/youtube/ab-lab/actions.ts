@@ -43,7 +43,7 @@ import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import type { CodigoRecusaNativa } from '@/lib/youtube/teste-youtube/nativo/aplicar-guarda'
 import { retomarTeste, recusaTipoForaDeUso } from '@/lib/youtube/ab-resume'
 import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRotacaoSemConteudo } from '@/lib/youtube/ab-rotate-claim'
-import { settleOnAir, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
+import { settleOnAir, lerNoArNoYouTube, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
   MSG_FALHA_SAIDA, MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_OUTRO_TESTE, MSG_RESTORE_ILEGIVEL, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
@@ -53,8 +53,8 @@ import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab
 import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
 import { camposPendentes, daEscolhaDoDono, paraRestoreStatus, restoreStatusIlegivel, voltaConcluida } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
-import { escolherVersaoCore } from '@/lib/youtube/ab-escolha'
-import type { ResultadoEscolha } from '@/lib/youtube/ab-acao-saida'
+import { conferirNoArCore, escolherVersaoCore } from '@/lib/youtube/ab-escolha'
+import type { ResultadoConferir, ResultadoEscolha } from '@/lib/youtube/ab-acao-saida'
 import { getVideoTestHistory as _getVideoTestHistory, getLearnings } from './queries'
 
 /** Guarda a maior cópia da original no Blob (P4a): url, dHash como o YouTube serve e dimensões. */
@@ -68,7 +68,7 @@ export async function getVideoTestHistory(
   return _getVideoTestHistory(...args)
 }
 
-export type { OpcaoEncerrar, ResultadoAcaoSaida, ResultadoEscolha }
+export type { OpcaoEncerrar, ResultadoAcaoSaida, ResultadoConferir, ResultadoEscolha }
 
 /** Frase provisória da exceção inesperada em settleOnAir (T17: Logan fecha). */
 
@@ -1674,4 +1674,20 @@ export async function escolherVersao(testId: string, varianteId: string, seqVist
   // Depois do claim ou do UPDATE, qualquer desfecho pode ter mudado o teste: invalida as telas.
   if (r.ok ? r.resultado !== 'precisa_confirmar' : r.resultado === 'recusou' || r.resultado === 'incerto') invalidarTelasDoAbLab()
   return r
+}
+
+/**
+ * M7b: relê o que está no ar (registro primeiro, YouTube só se o registro não basta). Só lê: nunca escreve nem grava o que leu;
+ * quem acerta o registro é o "Tentar de novo" do dono pelo painel. Teste de outro site nunca chega ao YouTube.
+ */
+export async function conferirNoAr(testId: string): Promise<ResultadoConferir> {
+  let user: { siteId: string; userId: string }
+  try {
+    user = await requireEditUser()
+  } catch (e) {
+    return { ok: false, estado: 'sem_permissao', error: e instanceof Error ? e.message : 'forbidden' }
+  }
+  const id = z.string().uuid().safeParse(testId)
+  if (!id.success) return { ok: false, estado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+  return conferirNoArCore({ testId: id.data, siteId: user.siteId }, { supabase: getSupabaseServiceClient(), ler: lerNoArNoYouTube })
 }

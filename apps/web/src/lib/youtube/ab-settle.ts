@@ -552,6 +552,54 @@ async function gravarPuladoDefinitivo(portas: PortasSaida, r: Retrato, campos: C
   return { resultado: 'feito', campos: final, pausadoPorTesteYoutube: true } // pausa sem escrita: os chamadores não a tratam como a saída pedida
 }
 
+// ---------------------------------------------------------------------------
+// M7b T6: leitura do que está no ar (só lê; nunca escreve, nunca grava)
+// ---------------------------------------------------------------------------
+
+export type LeituraNoAr =
+  | { tipo: 'sem_leitura'; motivo: 'retrato' | 'acesso' | 'video_inexistente' | 'erro_youtube' | 'rede' }
+  | {
+      tipo: 'lido'; retrato: Retrato
+      /** Título lido; ausente quando o teste não mexe no título. */
+      titulo?: string
+      /** dHash da miniatura lida; `null` = a leitura falhou; ausente quando o teste não mexe na miniatura. */
+      dhash?: string | null
+      dhashes: Map<string, DhashDaVariante>
+    }
+
+/**
+ * Lê o título (`videos.list`, 1 unidade) e a miniatura (`hqdefault`, sem cota) que estão no ar, mais o dHash das versões.
+ * Reusa `resolverAcesso` + `lerNoYouTube` do settle. Vídeo apagado/privado, token, rede e API viram `sem_leitura`, nunca erro.
+ */
+export async function lerNoArNoYouTube(testId: string, siteId: string, p: Partial<PortasSaida> = {}): Promise<LeituraNoAr> {
+  const portas = portasPadrao(p)
+  const r = await (p.lerRetrato ?? ((id: string, site: string) => lerRetratoPadrao(portas.supabase, id, site)))(testId, siteId)
+  if (!r || !tipoConhecido(r.test_type)) return { tipo: 'sem_leitura', motivo: 'retrato' }
+  const campos = camposDoTeste(r.test_type)
+  let acesso: Acesso
+  try {
+    acesso = await resolverAcesso(portas, r)
+  } catch (e) {
+    if (e instanceof ErroConhecido) return { tipo: 'sem_leitura', motivo: 'acesso' }
+    Sentry.captureException(e, { tags: { area: 'ab-settle' } })
+    return { tipo: 'sem_leitura', motivo: 'acesso' }
+  }
+  let l: Leitura
+  try {
+    l = await lerNoYouTube(portas, acesso, r, campos)
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-settle' } })
+    return { tipo: 'sem_leitura', motivo: 'rede' }
+  }
+  if (l.snippet.tipo === 'video_inexistente') return { tipo: 'sem_leitura', motivo: 'video_inexistente' }
+  if (l.snippet.tipo === 'falha') return { tipo: 'sem_leitura', motivo: 'erro_youtube' }
+  return {
+    tipo: 'lido', retrato: r, dhashes: l.dhashes,
+    ...(campos.includes('title') ? { titulo: l.snippet.snippet.title } : {}),
+    ...(campos.includes('thumbnail') ? { dhash: l.thumb?.tipo === 'lido' ? l.thumb.dhash : null } : {}),
+  }
+}
+
 /** Algum campo escreveu no YouTube (true), não se sabe (null) ou nenhum escreveu (false). */
 function escreveuEm(rs: RestoreStatus, campos: CampoNome[]): boolean | null {
   const v = campos.map((c) => rs[c]?.escreveu ?? false)

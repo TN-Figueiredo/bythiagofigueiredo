@@ -6,17 +6,20 @@
  */
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { camposDoTeste } from '@/lib/youtube/ab-restore'
+import { camposDoTeste, paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import type { CampoNome, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { noArConfirmado } from '@/lib/youtube/ab-no-ar'
 import type { NoArConfirmado, TentativaNoAr } from '@/lib/youtube/ab-no-ar'
 import { lerResultadoV2 } from '@/lib/youtube/ab-types'
 import type { DisplayLabel } from '@/lib/youtube/ab-types'
-import type { settleOnAir as SettleOnAir, OpcoesSaida } from '@/lib/youtube/ab-settle'
+import { emAndamentoRecente } from '@/lib/youtube/ab-settle'
+import type { settleOnAir as SettleOnAir, OpcoesSaida, LeituraNoAr, lerNoArNoYouTube as LerNoAr } from '@/lib/youtube/ab-settle'
+import { qualVersaoNoAr } from '@/lib/youtube/ab-settle-decidir'
+import { CICLO_MINIMO_MS } from '@/lib/youtube/ab-watchdog-drift'
 import {
   MSG_FALHA_SAIDA, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_EM_ANDAMENTO, MSG_OUTRO_TESTE, MSG_RECUSA, MSG_DESTINO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE,
 } from '@/lib/youtube/ab-acao-saida'
-import type { PorqueRecusou, ResultadoEscolha } from '@/lib/youtube/ab-acao-saida'
+import type { PorqueRecusou, ResultadoConferir, ResultadoEscolha } from '@/lib/youtube/ab-acao-saida'
 
 const LIMITE_HISTORICO = 200
 
@@ -177,4 +180,105 @@ export async function escolherVersaoCore(e: EntradaEscolha, p: PortasEscolha): P
     case 'teste_youtube': return { ok: false, resultado: 'teste_youtube', error: r.motivo }
     case 'destino_invalido': return erro(MSG_DESTINO_INVALIDO)
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// conferirNoAr: só lê; quem acerta o registro é o "Tentar de novo" do dono
+// ---------------------------------------------------------------------------
+
+export interface PortasConferir { supabase: SupabaseClient; ler: typeof LerNoAr; agora?: () => Date }
+
+const MSG_SEM_LEITURA = 'Não foi possível ler o vídeo no YouTube agora.'
+
+export async function conferirNoArCore(e: { testId: string; siteId: string }, p: PortasConferir): Promise<ResultadoConferir> {
+  const { supabase } = p
+  const agora = (p.agora ?? (() => new Date()))()
+  let teste: LinhaTeste, variantes: LinhaVariante[], historico: TentativaNoAr[]
+  try {
+    // Guarda de site: o cliente de serviço ignora a RLS; teste de outro site nunca gasta cota com o token do canal dele.
+    const t = await supabase.from('ab_tests')
+      .select('id, site_id, test_type, status, restore_status, restore_seq, completed_at, completed_reason, winner_variant_id, winner_applied_at, result_metadata, escolha_variant_id, escolha_em')
+      .eq('id', e.testId).eq('site_id', e.siteId).maybeSingle()
+    if (t.error) throw new Error(t.error.message)
+    if (!t.data) return { ok: false, estado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+    teste = t.data as unknown as LinhaTeste
+    const [v, h] = await Promise.all([
+      supabase.from('ab_test_variants').select('id, label, is_original').eq('test_id', e.testId),
+      supabase.from('ab_test_restores').select('seq, campo, destino, estado, escreveu, em').eq('test_id', e.testId).order('seq', { ascending: false }).limit(LIMITE_HISTORICO),
+    ])
+    if (v.error) throw new Error(v.error.message)
+    if (h.error) throw new Error(h.error.message)
+    variantes = (v.data ?? []) as LinhaVariante[]
+    historico = (h.data ?? []) as TentativaNoAr[]
+  } catch (err) {
+    Sentry.captureException(err, { tags: { area: 'ab-escolha' } })
+    return { ok: false, estado: 'sem_leitura', error: MSG_SEM_LEITURA }
+  }
+  if (teste.status !== 'completed') return { ok: false, estado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
+
+  const rs = paraRestoreStatus(teste.restore_status)
+  if (emAndamentoRecente(rs, agora)) return { ok: true, estado: 'escrevendo' }
+
+  const entrada = {
+    test_type: teste.test_type, restore_status: teste.restore_status, restore_seq: teste.restore_seq, completed_at: teste.completed_at,
+    winner_variant_id: teste.winner_variant_id, winner_applied_at: teste.winner_applied_at,
+    variantes: variantes.map((v) => ({ id: v.id, label: toLetra(v.label, v.is_original), is_original: v.is_original })),
+  }
+  const registro = noArConfirmado(entrada, historico)
+  if (registro.tipo === 'confirmado') return { ok: true, estado: 'lido', noAr: registro, restoreSeq: teste.restore_seq, fonte: 'registro' }
+
+  // desconhecido ou misto: lê o YouTube
+  let leitura: LeituraNoAr
+  try {
+    leitura = await p.ler(e.testId, e.siteId)
+  } catch (err) {
+    Sentry.captureException(err, { tags: { area: 'ab-escolha' } })
+    return { ok: false, estado: 'sem_leitura', error: MSG_SEM_LEITURA }
+  }
+  if (leitura.tipo === 'sem_leitura') return { ok: false, estado: 'sem_leitura', error: MSG_SEM_LEITURA }
+
+  const r = leitura.retrato
+  const original = r.variantes.find((v) => v.is_original)
+  if (!original) return { ok: false, estado: 'sem_leitura', error: MSG_SEM_LEITURA }
+  const q = qualVersaoNoAr({
+    ...(leitura.titulo !== undefined ? { titulo: leitura.titulo } : {}),
+    ...(leitura.dhash !== undefined ? { dhash: leitura.dhash } : {}),
+    originalTitle: r.original_title, variantes: r.variantes.map((v) => ({ id: v.id, title_text: v.title_text })),
+    dhashes: leitura.dhashes, idOriginal: original.id,
+  })
+  const letraDoId = (id: string): DisplayLabel => {
+    const v = variantes.find((x) => x.id === id)
+    return v ? toLetra(v.label, v.is_original) : 'B'
+  }
+  const campos = camposDoTeste(teste.test_type)
+  const lidos = campos.map((c) => (c === 'title' ? q.porCampo.title : q.porCampo.thumbnail))
+
+  // Miniatura recém-enviada (tentativa sem resposta há menos de 3 h) ainda mostrando a versão anterior: o CDN demora. Nunca "recusou".
+  const ultima = registro.tipo === 'desconhecido' ? registro.ultima : null
+  const anteriorId = ultima ? variantes.find((v) => toLetra(v.label, v.is_original) === ultima.letra)?.id ?? null : null
+  const linhasThumb = [...(rs?.thumbnail ? [{ ...rs.thumbnail, seq: teste.restore_seq }] : []), ...historico.filter((h) => h.campo === 'thumbnail')]
+  const recente = linhasThumb.find((l) => l.escreveu === null && agora.getTime() - Date.parse(l.em) < CICLO_MINIMO_MS)
+  if (campos.includes('thumbnail') && anteriorId !== null && recente !== undefined) {
+    const destinoId = recente.destino === 'original' ? original.id : recente.destino
+    if (q.porCampo.thumbnail === anteriorId && destinoId !== anteriorId) {
+      const noAr: NoArConfirmado = { tipo: 'confirmado', varianteId: anteriorId, letra: letraDoId(anteriorId), desde: ultima?.desde ?? null }
+      const titulo = campos.includes('title') && q.porCampo.title === destinoId ? 'conferido' : 'nao_lido'
+      return { ok: true, estado: 'nao_propagou', noAr, titulo }
+    }
+  }
+
+  if (lidos.every((x): x is string => typeof x === 'string')) {
+    const primeiro = lidos[0]!
+    if (lidos.every((x) => x === primeiro)) {
+      const noAr: NoArConfirmado = { tipo: 'confirmado', varianteId: primeiro, letra: letraDoId(primeiro), desde: null }
+      return { ok: true, estado: 'lido', noAr, restoreSeq: teste.restore_seq, fonte: 'youtube' }
+    }
+    const porCampo: Partial<Record<CampoNome, DisplayLabel>> = {}
+    campos.forEach((c, i) => { porCampo[c] = letraDoId(lidos[i] as string) })
+    return { ok: true, estado: 'lido_misto', porCampo, restoreSeq: teste.restore_seq }
+  }
+  // Algum campo não casa com versão nenhuma: só afirma "nenhuma" se todas as versões foram comparadas.
+  if (!q.completo) return { ok: false, estado: 'sem_leitura', error: MSG_SEM_LEITURA }
+  return { ok: true, estado: 'nenhuma_versao', restoreSeq: teste.restore_seq }
 }
