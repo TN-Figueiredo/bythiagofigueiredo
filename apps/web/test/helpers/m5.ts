@@ -1,4 +1,4 @@
-/** Manutenção M5: o SQL vive em supabase/migrations/20261027000003_manutencao_m5_telas.sql até a Tarefa 13 (TRAVA M5-1). Único lugar que a Tarefa 13 muda. */
+/** SQL da M5: a migration 20261027000003 (desde a Tarefa 13). Único lugar que aponta para ela nos testes. */
 import type { Client } from 'pg'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
