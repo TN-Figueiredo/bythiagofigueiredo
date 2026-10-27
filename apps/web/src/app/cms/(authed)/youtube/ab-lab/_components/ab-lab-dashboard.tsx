@@ -19,6 +19,7 @@ import type { EligibleVideo } from './video-picker-dialog'
 import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
 import type { PaginaDoLab, PainelDecisao, CartaoEmTeste } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { PainelEscolha } from '@/lib/youtube/ab-lab-pagina/painel-escolha'
 import type { PaginaDoCanal } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
@@ -75,7 +76,7 @@ export function AbLabDashboard({
   const [continueDraft, setContinueDraft] = useState<AbTestDraft | null>(null)
   const [typeFilter, setTypeFilter] = useState<'all' | TestType>('all')
   const [filterOpen, setFilterOpen] = useState(false)
-  const [painel, setPainel] = useState<{ dados: PainelDecisao; origem: HTMLElement | null } | null>(null)
+  const [painel, setPainel] = useState<{ dados: PainelDecisao | PainelEscolha; origem: HTMLElement | null } | null>(null)
   const [dia14, setDia14] = useState<{ linha: LinhaDoCaminho; origem: HTMLElement | null } | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
 
@@ -92,7 +93,7 @@ export function AbLabDashboard({
     ? pagina.concluidos
     : { ...pagina.concluidos, linhas: pagina.concluidos.linhas.filter(l => filtrarTipo(l.tipo)) }
 
-  function abrirPainel(p: PainelDecisao, origem: HTMLElement): void {
+  function abrirPainel(p: PainelDecisao | PainelEscolha, origem: HTMLElement): void {
     setAviso(null)
     setPainel({ dados: p, origem })
   }

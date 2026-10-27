@@ -9,7 +9,7 @@ afterEach(cleanup)
 const TITULO = 'T'.repeat(100)
 const linha: LinhaConcluida = {
   chave: 'k1', origem: 'lab', testId: 't1', ytId: 'yt1', titulo: TITULO, miniaturaUrl: null, tipo: 'Título',
-  resultado: 'B venceu', apoio: 'no ar desde 26/10', acao: null, ordem: '2026-10-26T00:00:00Z',
+  resultado: 'B venceu', apoio: 'no ar desde 26/10', painel: null, selos: null, concluidoEm: null, ordem: '2026-10-26T00:00:00Z',
 }
 
 describe('Concluídos: título longo (M7 T14 Gio M3)', () => {

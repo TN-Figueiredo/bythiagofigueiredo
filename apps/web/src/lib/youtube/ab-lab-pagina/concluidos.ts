@@ -6,7 +6,8 @@ import { noArConfirmado, type TentativaNoAr } from '../ab-no-ar'
 import type { LinhaDoCaminho } from '../teste-youtube/nativo/lista'
 import { diaMesSp } from '../ab-data-curta'
 import { versaoDoRespondido, versoesDoDia14 } from '@/lib/youtube/teste-youtube/nativo/dia-14-estado'
-import type { LinhaConcluida, PainelDecisao } from './tipos'
+import type { PainelEscolha } from './painel-escolha'
+import type { LinhaConcluida, SeloDeLinha, SelosDaLinha } from './tipos'
 
 export const CONCLUIDOS_VISIVEIS = 3
 
@@ -63,10 +64,31 @@ export function tituloNoArDoConcluido(
 const SEM_VENCEDOR = new Set(['sem_diferenca', 'volume', 'dado', 'falha', 'aguardando', 'pendente', 'ilegivel'])
 const TIPO_LAB = { title: 'Título', thumbnail: 'Miniatura', combo: 'Título e miniatura' } as const
 
-function linhaDoLab(t: { card: AbTestCardView; bruto: AbTestWithVariants; painel: PainelDecisao | null; tela: TelaConcluida | null }): LinhaConcluida {
+/** Os dois selos da linha (mockup r4): o que o teste disse e o que está no ar. Nunca mais de dois. */
+function selosDaLinha(t: { card: AbTestCardView; bruto: AbTestWithVariants; tela: TelaConcluida; noAr: ReturnType<typeof noArDoTeste> }): SelosDaLinha {
+  const { card, bruto, tela, noAr } = t
+  const selo = tela.selo
+  const teste: SeloDeLinha = selo.tipo === 'vence' ? { texto: `Teste: sugeriu ${selo.letra}`, icone: 'star', tom: 'neutro' }
+    : selo.tipo === 'original' ? { texto: 'Teste: sugeriu A', icone: 'star', tom: 'neutro' }
+    : selo.tipo === 'sem_diferenca' ? { texto: 'Teste: sem diferença clara', icone: 'info', tom: 'neutro' }
+    : { texto: 'Teste: sem vencedor', icone: 'info', tom: 'neutro' }
+  if (!noAr.confirmado || !noAr.letra) return [teste, { texto: 'No ar: não confirmado', icone: 'info', tom: 'neutro' }]
+  const original = card.variants.find(v => v.isOriginal)
+  const ehOriginal = original?.label === noAr.letra || noAr.letra === 'A'
+  const dia = noAr.desde ? diaMesSp(noAr.desde) : ''
+  const base = ehOriginal ? `${noAr.letra} (original) no ar` : `${noAr.letra} no ar`
+  const noArId = card.variants.find(v => v.label === noAr.letra)?.id ?? null
+  const doDono = bruto.escolha_em != null && bruto.escolha_variant_id != null && bruto.escolha_variant_id === noArId
+  if (doDono) {
+    return [teste, { texto: `${base}${dia && !ehOriginal ? ` desde ${dia}` : ''} · ${ehOriginal ? 'mantida' : 'escolhida'} por você`, icone: 'user', tom: 'esc' }]
+  }
+  return [teste, { texto: `${base}${dia ? ` desde ${dia}` : ''}`, icone: 'dot', tom: 'dia' }]
+}
+
+function linhaDoLab(t: { card: AbTestCardView; bruto: AbTestWithVariants; painel: PainelEscolha | null; tela: TelaConcluida | null; historico?: TentativaNoAr[] | null }): LinhaConcluida {
   const { card, bruto, painel, tela } = t
   const letraDe = (id: string): string | null => card.variants.find(v => v.id === id)?.label ?? null
-  const noAr = noArDoTeste(bruto, letraDe)
+  const noAr = t.historico === null ? { letra: null, desde: null, confirmado: false } : noArDoTeste(bruto, letraDe, t.historico ?? [], card.variants.map(v => ({ id: v.id, label: v.label, is_original: v.isOriginal })))
   const original = card.variants.find(v => v.isOriginal)
   const w = bruto.winner_variant_id
   const wLetra = w && w !== original?.id ? letraDe(w) : null
@@ -97,18 +119,12 @@ function linhaDoLab(t: { card: AbTestCardView; bruto: AbTestWithVariants; painel
     apoio = apoioNoAr
   }
 
-  let acao: LinhaConcluida['acao'] = null
-  if (painel) {
-    if (painel.modo === 'aplicado') acao = { rotulo: 'Voltar à original', painel }
-    else {
-      const alvo = painel.opcoes.find(o => o.estado === 'escolhivel')
-      if (alvo) acao = { rotulo: `Aplicar ${alvo.letra}`, painel }
-    }
-  }
   return {
     chave: `lab:${card.id}`, origem: 'lab', testId: card.id, ytId: bruto.youtube_video_id,
     titulo: card.videoTitle ?? card.name, miniaturaUrl: original?.thumbUrl ?? card.leaderThumbUrl,
-    tipo: TIPO_LAB[card.type], resultado, apoio, acao,
+    tipo: TIPO_LAB[card.type], resultado, apoio, painel,
+    selos: tela ? selosDaLinha({ card, bruto, tela, noAr }) : null,
+    concluidoEm: bruto.completed_at ? (diaMesSp(bruto.completed_at) || null) : null,
     ordem: bruto.completed_at ?? bruto.winner_applied_at ?? card.createdAt,
   }
 }
@@ -132,12 +148,12 @@ function linhaDoStudio(l: LinhaDoCaminho): LinhaConcluida | null {
   }
   return {
     chave: `studio:${l.videoId}:${r.id}`, origem: 'studio', testId: null, ytId: l.ytId, titulo: l.titulo,
-    miniaturaUrl: l.miniaturaUrl, tipo, resultado, apoio, acao: null, ordem: r.respondidoEm ?? r.inicio ?? r.updatedAt,
+    miniaturaUrl: l.miniaturaUrl, tipo, resultado, apoio, painel: null, selos: null, concluidoEm: null, ordem: r.respondidoEm ?? r.inicio ?? r.updatedAt,
   }
 }
 
 export function linhasConcluidas(e: {
-  testes: Array<{ card: AbTestCardView; bruto: AbTestWithVariants; painel: PainelDecisao | null; tela: TelaConcluida | null }>
+  testes: Array<{ card: AbTestCardView; bruto: AbTestWithVariants; painel: PainelEscolha | null; tela: TelaConcluida | null; historico?: TentativaNoAr[] | null }>
   linhasStudio: LinhaDoCaminho[]
   agora: Date
 }): LinhaConcluida[] {

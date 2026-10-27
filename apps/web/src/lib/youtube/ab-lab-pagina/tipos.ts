@@ -39,6 +39,9 @@ export type EscolhaPainel =
   | { tipo: 'aplicar_sugerida'; varianteId: string }
   | { tipo: 'voltar' }
 
+export interface SeloDeLinha { texto: string; icone: 'star' | 'info' | 'dot' | 'user'; tom: 'neutro' | 'dia' | 'esc' }
+export type SelosDaLinha = [teste: SeloDeLinha, noAr: SeloDeLinha]
+
 export interface LinhaConcluida {
   chave: string
   origem: 'lab' | 'studio'
@@ -51,7 +54,12 @@ export interface LinhaConcluida {
   resultado: string
   /** "no ar desde 26/10" | "falta aplicar no vídeo" | "no ar desde 12/10 · você contou do Studio" | "no ar: não confirmado" */
   apoio: string
-  acao: { rotulo: `Aplicar ${string}` | 'Voltar à original'; painel: PainelDecisao } | null
+  /** M7b: a linha abre o painel de escolha; sem painel (Studio, ou fora da regra v2) ela não é clicável. */
+  painel: PainelEscolha | null
+  /** No máximo dois: o que o teste disse e o que está no ar. Só nas linhas do Lab. */
+  selos: SelosDaLinha | null
+  /** 'dd/mm' do fim do teste */
+  concluidoEm: string | null
   /** ISO usado para ordenar (mais recente primeiro) */
   ordem: string
 }
@@ -60,11 +68,14 @@ export interface LinhaConcluida {
 import type { AbTestCardView, AbTestDraft, AbTestWithVariants } from '../ab-types'
 import type { TelaV2 } from '../ab-gravacao/tela-v2'
 import type { LinhaDoCaminho } from '../teste-youtube/nativo/lista'
+import type { TentativaNoAr } from '../ab-no-ar'
+import type { PainelEscolha } from './painel-escolha'
 
 export type ItemComVoce =
   | { tipo: 'primeiro_teste' }
   | { tipo: 'rascunho'; draftId: string; titulo: string; passo: number }
-  | { tipo: 'aplicar'; testId: string; titulo: string; letra: string; motivo: string; painel: PainelDecisao }
+  | { tipo: 'aplicar'; testId: string; titulo: string; letra: string; motivo: string; painel: PainelEscolha }
+  | { tipo: 'escolher'; testId: string; titulo: string; motivo: string; painel: PainelEscolha }
   | { tipo: 'dia14'; titulo: string; linha: LinhaDoCaminho; ytId: string; prazo: string; vencido: boolean }
   | { tipo: 'conferir_studio'; titulo: string; ytId: string }
   | { tipo: 'retomar'; titulo: string; testId: string; pausadoHaDias: number | null }
@@ -83,7 +94,13 @@ export interface PaginaDoLab {
 
 export interface EntradaPagina {
   ativos: Array<{ card: AbTestCardView; bruto: AbTestWithVariants; tela: Extract<TelaV2, { fase: 'ativo' }> | null; ctrs: Record<string, number | null> }>
-  concluidos: Array<{ card: AbTestCardView; bruto: AbTestWithVariants; tela: Extract<TelaV2, { fase: 'concluido' }> | null; ctrs: Record<string, number | null> }>
+  concluidos: Array<{
+    card: AbTestCardView; bruto: AbTestWithVariants; tela: Extract<TelaV2, { fase: 'concluido' }> | null; ctrs: Record<string, number | null>
+    /** M7b: histórico de `ab_test_restores` deste teste; `null`/ausente = não lido */
+    historico?: TentativaNoAr[] | null
+    /** M7b: há outro teste aberto no mesmo vídeo (o servidor recusa a escolha) */
+    outroAberto?: boolean
+  }>
   pausados: AbTestCardView[]
   rascunhos: AbTestDraft[]
   linhas: LinhaDoCaminho[]

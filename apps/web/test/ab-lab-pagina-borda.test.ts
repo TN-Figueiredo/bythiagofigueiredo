@@ -152,7 +152,7 @@ describe('lerPaginaDoLab: uma leitura por visita', () => {
     expect(r.listaInicial.linhas).toEqual([])
   })
 
-  it('lerDiasDosTestes UMA vez, só com os ids dos ativos e dos concluídos com ação possível', async () => {
+  it('lerDiasDosTestes UMA vez, só com os ids dos ativos e dos concluídos usados pela página (linhas visíveis e Com você)', async () => {
     testes.active = [teste('a1'), teste('q1', { status: 'queued' })]
     testes.completed = [
       comAplicar('c-aplicar'),
@@ -160,13 +160,71 @@ describe('lerPaginaDoLab: uma leitura por visita', () => {
     ]
     await lerPaginaDoLab('s', agora, null)
     expect(lerDiasSpy).toHaveBeenCalledTimes(1)
-    expect([...(lerDiasSpy.mock.calls[0]![2] as string[])].sort()).toEqual(['a1', 'c-aplicar'])
+    expect([...(lerDiasSpy.mock.calls[0]![2] as string[])].sort()).toEqual(['a1', 'c-aplicar', 'c-sem-acao'])
   })
 
-  it('sem ativo nem concluído com ação: nenhuma ida a ab_test_dias', async () => {
-    testes.completed = [teste('c-sem-acao', { status: 'completed', completed_reason: 'regra_v2', result_metadata: { v2: { desfecho: 'sem_diferenca_detectavel', encerrado_em_dia: '2026-10-20' } } })]
+  it('sem ativo nem concluído com tela: nenhuma ida a ab_test_dias', async () => {
+    testes.completed = [teste('c-v1', { status: 'completed', completed_reason: 'manual_winner', regra_duracao: 'v1' } as Partial<AbTestWithVariants>)]
     await lerPaginaDoLab('s', agora, null)
     expect(lerDiasSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('lerPaginaDoLab: histórico de restores (M7b T12)', () => {
+  /** Stub com ab_test_restores: devolve `restores` fatiado por .range(), como o PostgREST. */
+  function comRestores(restores: unknown[], erro = false) {
+    const chamadas: Array<[number, number]> = []
+    const base = stub().sb
+    const from = (t: string) => {
+      if (t !== 'ab_test_restores') return (base as unknown as { from: (x: string) => unknown }).from(t)
+      const cadeia: Record<string, unknown> = new Proxy({}, {
+        get: (_t, k) => {
+          if (k === 'range') return (a: number, b: number) => { chamadas.push([a, b]); return Promise.resolve(erro ? { data: null, error: { message: 'boom' } } : { data: restores.slice(a, b + 1), error: null }) }
+          return () => cadeia
+        },
+      })
+      return cadeia
+    }
+    return { sb: { from, rpc: (base as unknown as { rpc: unknown }).rpc } as unknown as SupabaseClient, chamadas }
+  }
+  const restore = (seq: number, campo: 'title' | 'thumbnail', i = 0) => ({ test_id: 'c1', seq, campo, destino: 'var-b', estado: 'ok', escreveu: true, motivo: null, iniciativa: 'dono', em: `2026-10-22T10:${String(i % 60).padStart(2, '0')}:00Z` })
+
+  it('uma leitura lógica por visita: um teste concluído usado lê ab_test_restores uma vez', async () => {
+    testes.completed = [comAplicar('c1')]
+    const c = comRestores([])
+    cliente = c.sb
+    await lerPaginaDoLab('s', agora, null)
+    expect(c.chamadas).toEqual([[0, 999]])
+  })
+  it('a leitura cortada em 1000 pede a página 2', async () => {
+    testes.completed = [comAplicar('c1')]
+    const c = comRestores(Array.from({ length: 1001 }, (_, i) => restore(i + 1, 'title', i)))
+    cliente = c.sb
+    await lerPaginaDoLab('s', agora, null)
+    expect(c.chamadas).toEqual([[0, 999], [1000, 1999]])
+  })
+  it('sem concluído com tela, não há ida a ab_test_restores', async () => {
+    testes.active = [teste('a1')]
+    const c = comRestores([])
+    cliente = c.sb
+    await lerPaginaDoLab('s', agora, null)
+    expect(c.chamadas).toEqual([])
+  })
+  it('erro de leitura: "no ar" desconhecido (nunca "sem histórico"), aviso ao Sentry, a página abre', async () => {
+    testes.completed = [comAplicar('c1')]
+    const c = comRestores([], true)
+    cliente = c.sb
+    const r = await lerPaginaDoLab('s', agora, null)
+    expect(r.pagina.concluidos.linhas[0]!.painel!.noAr.tipo).toBe('desconhecido')
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1)
+  })
+  it('concluído com escolha do dono: CTR preenchido e uma só ida a ab_test_dias', async () => {
+    testes.completed = [comAplicar('c1', { escolha_variant_id: 'var-b', escolha_em: '2026-10-22T10:00:00Z' } as Partial<AbTestWithVariants>)]
+    const s = stub({ dias: [dia('2026-10-20', 'var-b', 0.07, 'c1')] })
+    cliente = s.sb
+    const r = await lerPaginaDoLab('s', agora, null)
+    expect(r.pagina.concluidos.linhas[0]!.painel!.opcoes.find(o => o.id === 'var-b')!.ctr).toBeCloseTo(0.07, 6)
+    expect(s.conta('ab_test_dias')).toBe(1)
   })
 })
 
@@ -175,8 +233,8 @@ describe('lerPaginaDoLab: dias e CTR', () => {
     testes.completed = [comAplicar('c1')]
     cliente = stub({ dias: [dia('2026-10-19', 'var-b', 0.05, 'c1'), dia('2026-10-20', 'var-b', 0.05, 'c1'), dia('2026-10-23', 'var-b', 0.5, 'c1')] }).sb
     const r = await lerPaginaDoLab('s', agora, null)
-    const painel = r.pagina.concluidos.linhas[0]!.acao!.painel
-    expect(painel.opcoes.find(o => o.varianteId === 'var-b')!.ctr).toBeCloseTo(0.05, 6)
+    const painel = r.pagina.concluidos.linhas[0]!.painel!
+    expect(painel.opcoes.find(o => o.id === 'var-b')!.ctr).toBeCloseTo(0.05, 6)
   })
 
   it('erro em lerDiasDosTestes lança (a fronteira mostra o estado e); nunca devolve CTR 0', async () => {
@@ -203,25 +261,25 @@ describe('lerPaginaDoLab: outroTesteAberto por Set', () => {
   it('aplicação desfeita sem outro teste aberto no vídeo: oferece "Aplicar B"', async () => {
     testes.completed = [desfeita('c1', 'vid-x')]
     const r = await lerPaginaDoLab('s', agora, null)
-    expect(r.pagina.concluidos.linhas[0]!.acao?.rotulo).toBe('Aplicar B')
+    expect(r.pagina.concluidos.linhas[0]!.painel?.modo).toBe('escolha')
   })
   it('com rascunho no mesmo vídeo: sem "Aplicar de novo" (a linha do Concluído sem ação)', async () => {
     testes.completed = [desfeita('c1', 'vid-x')]
     testes.draft = [teste('d1', { status: 'draft', video: 'vid-x' })]
     const r = await lerPaginaDoLab('s', agora, null)
-    expect(r.pagina.concluidos.linhas[0]!.acao).toBeNull()
+    expect(r.pagina.concluidos.linhas[0]!.painel).toBeNull()
   })
   it('com teste ativo no mesmo vídeo: sem "Aplicar de novo"', async () => {
     testes.completed = [desfeita('c1', 'vid-x')]
     testes.active = [teste('a1', { video: 'vid-x' })]
     const r = await lerPaginaDoLab('s', agora, null)
-    expect(r.pagina.concluidos.linhas[0]!.acao).toBeNull()
+    expect(r.pagina.concluidos.linhas[0]!.painel).toBeNull()
   })
   it('teste aberto em OUTRO vídeo não bloqueia', async () => {
     testes.completed = [desfeita('c1', 'vid-x')]
     testes.active = [teste('a1', { video: 'vid-y' })]
     const r = await lerPaginaDoLab('s', agora, null)
-    expect(r.pagina.concluidos.linhas[0]!.acao?.rotulo).toBe('Aplicar B')
+    expect(r.pagina.concluidos.linhas[0]!.painel?.modo).toBe('escolha')
   })
 })
 
@@ -240,8 +298,7 @@ describe('lerPaginaDoLab: concluído com sugerida e outro teste aberto no vídeo
       else testes.paused = [outro]
       const r = await lerPaginaDoLab('s', agora, null)
       expect(r.pagina.comVoce.itens.some(i => i.tipo === 'aplicar')).toBe(false)
-      expect(r.pagina.concluidos.linhas[0]!.acao).toBeNull()
-      expect(r.pagina.concluidos.linhas[0]!.painel ?? null).toBeNull()
+      expect(r.pagina.concluidos.linhas[0]!.painel).toBeNull()
     })
   }
 })

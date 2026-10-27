@@ -3,7 +3,9 @@
 // Sem concluído e sem história a seção some (estado b2). Com 3 ou mais testes concluídos o LearningsPanel ocupa o lugar da régua.
 import { useState, type ReactElement } from 'react'
 import type { ChannelLearningsData, LearningsData } from '@/lib/youtube/ab-types'
-import type { LinhaConcluida, PaginaDoLab, PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { LinhaConcluida, PaginaDoLab, PainelDecisao, SeloDeLinha } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { PainelEscolha } from '@/lib/youtube/ab-lab-pagina/painel-escolha'
+import { Ic } from './icones-painel'
 import { LearningsPanel } from '../learnings-panel'
 import './pagina-lab.css'
 
@@ -12,7 +14,7 @@ export interface SecaoConcluidosProps {
   temHistorico: boolean
   learnings: LearningsData | null
   channelLearnings: ChannelLearningsData | null
-  onAbrirPainel: (p: PainelDecisao, origem: HTMLElement) => void
+  onAbrirPainel: (p: PainelDecisao | PainelEscolha, origem: HTMLElement) => void
 }
 
 function Miniatura({ src }: { src: string | null }): ReactElement {
@@ -22,22 +24,48 @@ function Miniatura({ src }: { src: string | null }): ReactElement {
   return <div className="lab-th !w-24 max-sm:!w-16"><img src={src} alt="Miniatura do vídeo" onError={() => setFalhou(true)} /></div>
 }
 
+const CLASSE_SELO: Record<SeloDeLinha['tom'], string> = { neutro: '', dia: 'dia', esc: 'esc' }
+
+function SeloLinha({ s }: { s: SeloDeLinha }): ReactElement {
+  return <span className={`pe-selo ${CLASSE_SELO[s.tom]}`}><Ic n={s.icone} />{s.texto}</span>
+}
+
 function Linha({ l, onAbrirPainel }: { l: LinhaConcluida; onAbrirPainel: SecaoConcluidosProps['onAbrirPainel'] }): ReactElement {
-  const acao = l.acao
+  const painel = l.painel
+  const corpo = (
+    <>
+      <Miniatura src={l.miniaturaUrl} />
+      <span className="block min-w-0 flex-1">
+        <b className="line-clamp-2 block text-sm font-medium leading-[1.35] max-sm:line-clamp-4" title={l.titulo}>{l.titulo}</b>
+        <span className="text-xs text-cms-text-muted">{l.tipo}{l.concluidoEm ? ` · concluído em ${l.concluidoEm}` : ''}</span>
+      </span>
+      {l.selos ? (
+        <span className="flex flex-col items-end gap-1.5 max-sm:basis-full max-sm:items-start" data-selos>
+          {l.selos.map(s => <SeloLinha key={s.texto} s={s} />)}
+        </span>
+      ) : (
+        <span className="flex flex-col items-end gap-1 text-right max-sm:basis-full max-sm:items-start max-sm:text-left">
+          <b className="text-[13px] font-semibold text-cms-text-muted">{l.resultado}</b>
+          <span className="text-xs text-cms-text-muted">{l.apoio}</span>
+        </span>
+      )}
+    </>
+  )
+  if (painel) {
+    return (
+      <button
+        type="button" data-concluido={l.chave} onClick={e => onAbrirPainel(painel, e.currentTarget)}
+        className="relative flex min-h-[68px] w-full flex-wrap items-center gap-x-3.5 gap-y-2 border-0 border-t border-cms-border bg-transparent py-2 pr-7 text-left text-inherit first:border-t-0 hover:bg-cms-surface-hover"
+        style={{ font: 'inherit', cursor: 'pointer' }}
+      >
+        {corpo}
+        <span className="absolute right-0 top-1/2 -mt-2 text-cms-text-muted"><Ic n="chev" /></span>
+      </button>
+    )
+  }
   return (
     <div className="flex min-h-[68px] flex-wrap items-center gap-x-3.5 gap-y-2 border-t border-cms-border py-2 first:border-t-0" data-concluido={l.chave}>
-      <Miniatura src={l.miniaturaUrl} />
-      <div className="min-w-0 flex-1">
-        <b className="line-clamp-2 text-sm font-medium leading-[1.35] max-sm:line-clamp-4" title={l.titulo}>{l.titulo}</b>
-        <span className="text-xs text-cms-text-muted">{l.tipo}</span>
-      </div>
-      <div className="flex flex-col items-end gap-1 text-right max-sm:basis-full max-sm:items-start max-sm:text-left">
-        <b className="text-[13px] font-semibold text-cms-text-muted">{l.resultado}</b>
-        <span className="text-xs text-cms-text-muted">{l.apoio}</span>
-        {acao ? (
-          <button type="button" className="lab-btn lab-alvo" onClick={e => onAbrirPainel(acao.painel, e.currentTarget)}>{acao.rotulo}</button>
-        ) : null}
-      </div>
+      {corpo}
     </div>
   )
 }
@@ -53,6 +81,7 @@ export function SecaoConcluidos({ concluidos, temHistorico, learnings, channelLe
       </div>
       <div className="grid grid-cols-1 items-start gap-3.5 lg:grid-cols-[1.6fr_1fr]">
         <div className="rounded-[14px] border border-cms-border bg-cms-surface px-4 py-1">
+          {linhas.some(l => l.painel) ? <p className="m-0 pt-2 text-xs text-cms-text-muted">Toque numa linha para abrir o painel do teste.</p> : null}
           {linhas.map(l => <Linha key={l.chave} l={l} onAbrirPainel={onAbrirPainel} />)}
           <div className="flex flex-wrap items-center gap-2 border-t border-cms-border py-1">
             <button type="button" className="lab-btn txt lab-alvo underline underline-offset-[3px]" aria-disabled="true" onClick={e => e.preventDefault()}>Ver testes anteriores</button>

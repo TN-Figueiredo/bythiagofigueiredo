@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { fraseDoTopo, itensComVoce, proximaDecisao, proximaTrocaDe, geraItemDia14, cartoesEmTeste } from '@/lib/youtube/ab-lab-pagina/com-voce'
+import { pedeDecisao, fraseDoTopo, itensComVoce, proximaDecisao, proximaTrocaDe, geraItemDia14, cartoesEmTeste } from '@/lib/youtube/ab-lab-pagina/com-voce'
 import { montarPaginaDoLab } from '@/lib/youtube/ab-lab-pagina/montar'
 import type { EntradaPagina } from '@/lib/youtube/ab-lab-pagina/tipos'
 import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
@@ -157,4 +157,19 @@ describe('Com você, topo e Em teste agora', () => {
     const l = linha('em_teste_studio')
     expect(cartoesEmTeste(base({ linhas: [l] }))[0]).toMatchObject({ tipo: 'studio', dia14: geraItemDia14(l) })
   })
+})
+
+describe('pedeDecisao: Com você oferece Escolher (M7b T12)', () => {
+  const inconcl = (diasAtras: number, o: Partial<AbTestWithVariants> = {}): Pick<EntradaPagina['concluidos'][number], 'tela' | 'bruto'> => ({
+    tela: telaConc({ selo: { tipo: 'sem_diferenca' } }),
+    bruto: { ...makeTestWithVariants(), id: 'c1', status: 'completed', completed_reason: 'regra_v2', escolha_em: null,
+      completed_at: new Date(agora.getTime() - diasAtras * 86_400_000).toISOString(), ...o } as AbTestWithVariants,
+  })
+  it('inconclusivo sem escolha, dentro da janela: escolher', () => { expect(pedeDecisao(inconcl(5), agora)).toBe('escolher') })
+  it('além de 30 dias: nada (a linha segue clicável em Concluídos)', () => { expect(pedeDecisao(inconcl(31), agora)).toBeNull() })
+  it('com escolha do dono registrada: nada', () => { expect(pedeDecisao(inconcl(5, { escolha_em: new Date(agora.getTime() - 86_400_000).toISOString() }), agora)).toBeNull() })
+  it('sugerida por aplicar: aplicar', () => {
+    expect(pedeDecisao({ ...inconcl(5), tela: telaConc({ aplicar: { variant_id: 'vb', letra: 'B' } }) }, agora)).toBe('aplicar')
+  })
+  it('manual_winner inconclusivo não pede decisão', () => { expect(pedeDecisao(inconcl(5, { completed_reason: 'manual_winner' }), agora)).toBeNull() })
 })
