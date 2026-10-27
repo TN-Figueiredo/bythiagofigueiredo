@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { decidirCampo, ultimaEscritaDoApp, type EntradaTitulo, type EntradaThumb } from '@/lib/youtube/ab-settle-decidir'
+import { decidirCampo, qualVersaoNoAr, ultimaEscritaDoApp, type EntradaQualVersao, type EntradaTitulo, type EntradaThumb } from '@/lib/youtube/ab-settle-decidir'
 import type { DhashDaVariante } from '@/lib/youtube/ab-variant-dhash'
 import type { RestoreStatus } from '@/lib/youtube/ab-restore'
 import { YouTubeApiError } from '@/lib/youtube/youtube-api-error'
@@ -111,4 +111,40 @@ describe('ultimaEscritaDoApp', () => {
     expect(ultimaEscritaDoApp({ inicioUltimoCiclo: '2026-10-10T08:00:00Z', winnerAppliedAt: null, restoreStatus: rs }, 'thumbnail')).toEqual(new Date('2026-10-10T08:00:00Z'))
   })
   it('tudo nulo → null (nunca "agora")', () => expect(ultimaEscritaDoApp({ inicioUltimoCiclo: null, restoreStatus: null, winnerAppliedAt: null }, 'thumbnail')).toBeNull())
+})
+
+describe('qualVersaoNoAr (M7b T3)', () => {
+  const H0 = '0000000000000000'
+  const longe = 'ffffffffffffffff'
+  const perto = '0000000000000001'
+  const ent = (o: Partial<EntradaQualVersao>): EntradaQualVersao => ({
+    originalTitle: 'Original', idOriginal: 'vo',
+    variantes: [{ id: 'vo', title_text: null }, { id: 'vb', title_text: 'Titulo B' }, { id: 'vc', title_text: 'Titulo C' }],
+    dhashes: new Map([['vo', { tipo: 'ok', dhash: H0 }], ['vb', { tipo: 'ok', dhash: longe }], ['vc', { tipo: 'ok', dhash: 'f0f0f0f0f0f0f0f0' }]]),
+    ...o,
+  })
+  it('titulo casa por limpo contra variantes e original_title', () => {
+    expect(qualVersaoNoAr(ent({ titulo: '  Titulo C ' })).porCampo.title).toBe('vc')
+    expect(qualVersaoNoAr(ent({ titulo: 'Original' })).porCampo.title).toBe('vo')
+    expect(qualVersaoNoAr(ent({ titulo: 'Outro' })).porCampo.title).toBeNull()
+  })
+  it('original_title nulo nunca casa', () => {
+    expect(qualVersaoNoAr(ent({ titulo: '', originalTitle: null })).porCampo.title).toBeNull()
+    expect(qualVersaoNoAr(ent({ titulo: null, originalTitle: null })).porCampo.title).toBeNull()
+  })
+  it('miniatura por hamming; mais de uma dentro do limite -> null', () => {
+    expect(qualVersaoNoAr(ent({ dhash: perto })).porCampo.thumbnail).toBe('vo')
+    const dois = ent({ dhash: perto, dhashes: new Map([['vo', { tipo: 'ok', dhash: H0 }], ['vb', { tipo: 'ok', dhash: perto }]]) })
+    expect(qualVersaoNoAr(dois).porCampo.thumbnail).toBeNull()
+  })
+  it('versao sem dhash torna a comparacao incompleta', () => {
+    const e = ent({ dhash: longe, dhashes: new Map([['vb', { tipo: 'ok', dhash: longe }], ['vc', { tipo: 'sem_base', motivo: 'blob_404' }]]) })
+    const r = qualVersaoNoAr(e)
+    expect(r.completo).toBe(false)
+    expect(r.porCampo.thumbnail).toBe('vb')
+  })
+  it('combo: os dois campos tem de apontar a mesma versao', () => {
+    expect(qualVersaoNoAr(ent({ titulo: 'Titulo B', dhash: longe })).versao).toBe('vb')
+    expect(qualVersaoNoAr(ent({ titulo: 'Titulo C', dhash: longe })).versao).toBeNull()
+  })
 })
