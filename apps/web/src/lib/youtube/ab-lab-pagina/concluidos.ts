@@ -1,7 +1,8 @@
 /** Modelo puro de Concluídos: "quem venceu" e "no ar desde" (M7 T3). Só lê o que o banco gravou; nunca inventa data. */
-import type { AbTestCardView, AbTestWithVariants } from '../ab-types'
+import type { AbTestCardView, AbTestWithVariants, DisplayLabel } from '../ab-types'
 import type { TelaV2 } from '../ab-gravacao/tela-v2'
 import { camposDoTeste, paraRestoreStatus } from '../ab-restore'
+import { noArConfirmado, type TentativaNoAr } from '../ab-no-ar'
 import type { LinhaDoCaminho } from '../teste-youtube/nativo/lista'
 import { diaMesSp } from '../ab-data-curta'
 import { versaoDoRespondido, versoesDoDia14 } from '@/lib/youtube/teste-youtube/nativo/dia-14-estado'
@@ -11,30 +12,34 @@ export const CONCLUIDOS_VISIVEIS = 3
 
 type TelaConcluida = Extract<TelaV2, { fase: 'concluido' }>
 
+const LETRAS: ReadonlyArray<string> = ['A', 'B', 'C', 'D']
+
+/**
+ * Delega a `noArConfirmado` (M7b T2). `variantes` é opcional só para os chamadores antigos: sem ele, as variantes saem do que o
+ * próprio teste cita (vencedor e destinos do registro), com a original sob o id 'original' e a letra A.
+ */
 export function noArDoTeste(
   t: {
     test_type: 'thumbnail' | 'title' | 'combo'; restore_status?: unknown; winner_variant_id: string | null
-    winner_applied_at: string | null; completed_at: string | null
+    winner_applied_at: string | null; completed_at: string | null; restore_seq?: number
   },
   letraDe: (id: string) => string | null,
+  historico: TentativaNoAr[] = [],
+  variantes?: ReadonlyArray<{ id: string; label: DisplayLabel; is_original: boolean }>,
 ): { letra: string | null; desde: string | null; confirmado: boolean } {
-  const rs = paraRestoreStatus(t.restore_status)
-  if (rs) {
-    const campos = camposDoTeste(t.test_type).map(c => rs[c])
-    const todos = campos.every(c => c !== undefined && c.estado === 'ok')
-    const destino = campos[0]?.destino
-    if (todos && destino && campos.every(c => c?.destino === destino)) {
-      const letra = destino === 'original' ? 'A' : letraDe(destino)
-      const desde = campos.reduce<string | null>((m, c) => (c && (m === null || Date.parse(c.em) > Date.parse(m)) ? c.em : m), null)
-      return { letra, desde, confirmado: letra !== null }
-    }
-    return { letra: null, desde: null, confirmado: false }
+  let vs = variantes
+  if (!vs) {
+    const rs = paraRestoreStatus(t.restore_status)
+    const ids = new Set<string>()
+    if (t.winner_variant_id) ids.add(t.winner_variant_id)
+    for (const c of camposDoTeste(t.test_type)) { const d = rs?.[c]?.destino; if (d && d !== 'original') ids.add(d) }
+    for (const h of historico) if (h.destino !== 'original') ids.add(h.destino)
+    const sint: Array<{ id: string; label: DisplayLabel; is_original: boolean }> = [{ id: 'original', label: 'A', is_original: true }]
+    for (const id of ids) { const l = letraDe(id); if (l && LETRAS.includes(l)) sint.push({ id, label: l as DisplayLabel, is_original: false }) }
+    vs = sint
   }
-  // Teste concluído pelo caminho v1, sem `restore_status` (dado de antes do P4): `winner_applied_at` é o que há.
-  if (t.winner_variant_id && t.winner_applied_at) {
-    const letra = letraDe(t.winner_variant_id)
-    if (letra) return { letra, desde: t.winner_applied_at, confirmado: true }
-  }
+  const r = noArConfirmado({ ...t, restore_seq: t.restore_seq ?? 0, variantes: vs }, historico)
+  if (r.tipo === 'confirmado') return { letra: r.letra, desde: r.desde, confirmado: true }
   return { letra: null, desde: null, confirmado: false }
 }
 
