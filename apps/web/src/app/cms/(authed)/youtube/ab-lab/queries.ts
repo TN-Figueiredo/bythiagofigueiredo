@@ -730,14 +730,26 @@ export async function getLearnings(siteId: string): Promise<LearningsData | null
 export async function getChannelLearnings(siteId: string): Promise<ChannelLearningsData | null> {
   const supabase = getSupabaseServiceClient()
 
-  // Get all completed tests with winner, including channel info
+  // M7b P2 (mesma regra do getLearnings): conta o vencedor ESTATÍSTICO (v2.vencedor_sugerido), nunca a escolha do dono.
+  // Sem sugerida, vale o winner_variant_id; a original vencedora não ensina tag.
   const { data: lidos } = await supabase
     .from('ab_tests')
-    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id), winner:ab_test_variants!winner_variant_id(is_original)')
+    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
-    .not('winner_variant_id', 'is', null)
-  const tests = lidos?.filter(t => !vencedorEhOriginal(t.winner as VencedorEmbutido))
+  const idsLidos = (lidos ?? []).map(t => t.id as string)
+  const { data: variantesLidas } = idsLidos.length
+    ? await supabase.from('ab_test_variants').select('id, test_id, is_original').in('test_id', idsLidos)
+    : { data: [] as Array<{ id: unknown; test_id: unknown; is_original: unknown }> }
+  const porId = new Map((variantesLidas ?? []).map(v => [v.id as string, v]))
+  const tests = (lidos ?? []).flatMap(t => {
+    const sug = (t.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null)?.v2?.vencedor_sugerido
+    const sugVar = sug ? porId.get(sug) : undefined
+    const efetivo = sugVar && sugVar.test_id === t.id ? sug! : (t.winner_variant_id as string | null)
+    if (!efetivo) return []
+    if (porId.get(efetivo)?.is_original === true) return []
+    return [{ ...t, winner_variant_id: efetivo }]
+  })
 
   if (!tests?.length || tests.length < 3) {
     return null

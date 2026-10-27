@@ -11,7 +11,7 @@ Sem mudança de arquitetura; emendas de texto e de arquivos listados. Onde os do
 - **`daEscolhaDoDono` (T4; Yannis N1).** Predicado único exportado de `ab-restore.ts`, usado em todos os chamadores de `camposPendentes('humano')` (lista de arquivos na T4).
 - **`lido_misto` (T6/T9; Phil N3)** e **guarda de site na `conferirNoAr` (T6; Phil N4)**.
 - **Consumidores de `perdido` (T4; Yannis N5)**; **desempate `campo` e deduplicação por `(campo, em, destino, estado)` (T12/T2; Phil N5 + Yannis N6)**; **`add constraint … not valid` + `validate` (T1; Phil N6)**; **testes (c)/(d) com `supabase_auth_admin` (T1; Yannis N4)**; **faixa da escolha falhada não some (T18; Phil N7)**.
-- **P2 e T19:** a pergunta ganha "Manter a original com sugerida = original sobe o getLearnings em 1"; a T19 ganha um terceiro teste descartável para esse caso.
+- **P2 e T19:** a pergunta ganha "Manter a original com sugerida = original sobe o getLearnings em 1"; a T19 ganha um terceiro teste descartável para esse caso. Correção do envio 2: com a P2 como implementada na T7b, a original vencedora continua fora da contagem, então "Manter a original" NÃO sobe o getLearnings (o terceiro teste prova que não muda).
 
 ## Changelog r1 → r2 (27/10, 1ª revisão: Phil 66, Yannis 68, Hanna 76)
 
@@ -42,7 +42,7 @@ Aplicados todos os bloqueantes e importantes. Onde dois revisores pediam o mesmo
 
 **Spec (o executor lê):**
 - Mockup aprovado em 27/10: `docs/superpowers/mockups/2026-10-27-m7b-escolher-versao/index.html`. Abrir com `?estado=<a|b|c|d|e|f|f2|g2|i|d2|d3a|d3b|d3c|k|k2|j|h>&largura=<1440|390>`. A caixa "Decisões do controlador (r1 a r4)" vale como spec.
-- Decisões: `.superpowers/sdd/ab-lab/m7b/` (`sintese-r2.md`, `logan-r2.md`, `naksu-r2.md`, `logan-mockup-r4.md`, `naksu-mockup-r4.md`, `logan-alturas.md`, `naksu-alturas.md`), no checkout principal. Textos fora do mockup: `logan-textos-fora-do-mockup.md` (T7a).
+- Decisões: `.superpowers/sdd/ab-lab/m7b/` (`sintese-r2.md`, `logan-r2.md`, `naksu-r2.md`, `logan-mockup-r4.md`, `naksu-mockup-r4.md`, `logan-alturas.md`, `naksu-alturas.md`), no checkout principal. Textos fora do mockup: `logan-t7a-textos.md` (T7a).
 - D15 a D20: `.superpowers/sdd/ab-lab/lab-reordem/envio2/dividas-envio2.md`, no checkout principal.
 - Revisões do plano r1: `phil-plano-r1.md`, `yannis-plano-r1.md`, `hanna-plano-r1.md`, na mesma pasta `m7b/`.
 
@@ -415,7 +415,7 @@ Não há envio 3. Pushes: no máximo 3 por dia por terminal (crédito Vercel). E
   - Com `escolha_em` preenchida: `noAr` vem de `noArConfirmado`; a `EntradaTelaV2` ganha `historico?: TentativaNoAr[]`; e ficam `aplicar = null`, `aplicarDeNovo = null` e `voltar = false`.
   - Sem escolha, nada muda: incluir um teste de regressão com as fixtures atuais.
 - [ ] **T7a Textos do Logan fora do mockup (~30K, Sonnet; Naksu confere só o comprimento a 390 px).**
-  - Saída: `.superpowers/sdd/ab-lab/m7b/logan-textos-fora-do-mockup.md`. A T8 e a T11 citam esse arquivo como spec; **portão da T8**.
+  - Saída: `.superpowers/sdd/ab-lab/m7b/logan-t7a-textos.md`. A T8 e a T11 citam esse arquivo como spec; **portão da T8**.
   - Os 5 do plano: troca parcial em combo (`misto`); nada confirmado ao abrir; inconclusivo com C no ar; sugerida = original; `precisa_confirmar` (drift).
   - Derivados da revisão: uma frase por `porque` (`youtube`, `drift`, `sem_original`, `sem_tempo`, `arquivo_indisponivel`); `nao_propagou` (ideia: "Ainda não dá para conferir a miniatura; o YouTube leva até algumas horas para mostrar a nova."); `nenhuma_versao`; vídeo apagado/privado (`sem_leitura`); "Está demorando" no teto da conferência; escolha cuja variante foi apagada ("Sua escolha foi registrada em dd/mm, mas a versão não existe mais"); "O título original não foi guardado…" e "A miniatura original…"; frase da `novaTentativa` recusada e do texto da faixa para campo da escolha ("Sua escolha não foi aplicada. Abra o painel do teste para tentar de novo. Não repetimos a troca sozinhos."); `lido_misto`; chip "Escolhida por você" e a frase do Observatório ("deixada no ar em dd/mm, no fim do teste de dd/mm").
   - Não precisa de nova aprovação visual do dono (é texto dentro de estados já aprovados). Se o Logan disser que algum caso pede desenho novo, esse caso sai do M7b e o painel mostra o estado mais próximo já aprovado (d3c, "só Fechar").
@@ -514,7 +514,7 @@ Ordem: T2 antes de T4, T5, T7 e T15b-2; T3 antes de T6; T7a antes de T8; T8 e T9
 **Envio 2 — Gio (roteiro da T19) e, depois, o dono numa tela**
 1. Num concluído com B sugerida, marcar C: "Sai: B / Entra: C" dentro do painel, sem diálogo. "Deixar C no ar" muda o título no Studio para o de C; `winner_variant_id` continua B e a contagem do `getLearnings` é igual à de antes do clique.
 2. "Manter a original (A)" com A no ar não faz nenhuma chamada `videos.update`. Mostra "Guardado." e o teste sai do "Com você" na próxima visita.
-3. Com a sugerida = original, "Manter a original (A)" sobe a contagem do `getLearnings` em 1 (P2). Num inconclusivo dentro da janela da P1, o teste aparece no "Com você"; depois de "Manter a original", some.
+3. Com a sugerida = original, "Manter a original (A)" NÃO muda a contagem do `getLearnings` (a original vencedora não ensina tag; a P2 conta a sugerida, e ela é a original). A contagem é a de testes concluídos (não arquivados) cuja sugerida (ou, sem sugerida, `winner_variant_id`) existe e não é a original. Num inconclusivo dentro da janela da P1, o teste aparece no "Com você"; depois de "Manter a original", some.
 4. Uma escrita que falha mostra o aviso vermelho com "No ar agora" relido. Com a rede caída logo depois do clique, aparece o estado âmbar "Conferindo".
 5. A página do teste e o painel não mostram nenhum prazo ("até dd/mm", "7 dias", "reverter em até" dão zero no HTML de produção).
 6. O Cowork (`manage_ab_test`) devolve `escolha` e `no_ar` com a mesma letra que a tela mostra.
@@ -524,8 +524,8 @@ Ordem: T2 antes de T4, T5, T7 e T15b-2; T3 antes de T6; T7a antes de T8; T8 e T9
 ## Como se prova em produção (teste descartável)
 
 1. Usar um vídeo próprio **não listado**. Criar um teste de título com A, B e C, com o nome "[prova M7b] descartável".
-2. Iniciar o teste. Gravar o desfecho com a RPC `ab_test_v2_gravar` (vencedor provável B), pelo script de prova `scripts/ab-prova-m7b.ts`, que só lê e chama essa RPC. Encerrar pelo `settleOnAir` com o motivo `regra_v2`. Criar um segundo teste igual, que fica `sem_diferenca_detectavel`. Criar um **terceiro** descartável com a sugerida = original (caso do "Manter a original" que sobe o `getLearnings` em 1).
-3. Antes de clicar em qualquer coisa: anotar `select count(*) from ab_tests where status='completed' and winner_variant_id is not null and site_id=…` (valor X) e o `winner_variant_id` dos dois testes.
+2. Iniciar o teste. Gravar o desfecho com a RPC `ab_test_v2_gravar` (vencedor provável B), pelo script de prova `scripts/ab-prova-m7b.ts`, que só lê e chama essa RPC. Encerrar pelo `settleOnAir` com o motivo `regra_v2`. Criar um segundo teste igual, que fica `sem_diferenca_detectavel`. Criar um **terceiro** descartável com a sugerida = original (caso do "Manter a original": a contagem do `getLearnings` não muda).
+3. Antes de clicar em qualquer coisa: anotar a contagem do `getLearnings` (P2: testes `completed` cuja `result_metadata->'v2'->>'vencedor_sugerido'` é variante do teste, ou, sem sugerida, com `winner_variant_id`; a variante vencedora não pode ser a original; arquivado fora) como valor X, e o `winner_variant_id` dos dois testes. Medido depois de criar os três descartáveis: os dois com sugerida B já entram em X; o terceiro (sugerida = original) não entra. O passo 6 compara com a contagem de antes de criá-los (X menos 2).
 4. Roteiro, a 1440 e a 390 px:
    - estado i: A no ar, B marcada;
    - "Deixar B no ar" → estado a; no Studio, o título é o de B (motivo `aplicar_sugerido`: a contagem sobe para **X+1**, por desenho);
@@ -535,7 +535,7 @@ Ordem: T2 antes de T4, T5, T7 e T15b-2; T3 antes de T6; T7a antes de T8; T8 e T9
    - terceiro teste (sugerida = original): "Manter a original (A)" grava `manual_winner` e `winner_variant_id` = a original; a contagem sobe **+1**, por desenho (P2); sem `videos.update` se A já está no ar;
    - estados d2 e d3c: DevTools offline logo depois do clique; depois de voltar online, o registro bate com o Studio.
 5. Vigia: `select seq, campo, estado, escreveu, motivo, iniciativa, em from ab_test_restores where test_id = '<id>' order by seq;` antes e depois de duas execuções do vigia. Esperado: nenhuma seq nova; `iniciativa = 'dono'` nas linhas do `escolher` e do `aplicar_sugerido`. Depois: `select ab_event, count(*) from yt_own_video_versions where origin='ab_lab' group by 1` com `escolha` só para destino ≠ vencedor. Que o vigia ignora uma **falha** de escolha só é provado no teste unitário (T4): não se força falha em produção.
-6. Arquivar os três testes (`status='archived'`, saem do `getLearnings`) e conferir que a contagem do passo 3 voltou a **X**. Devolver o título original ao vídeo.
+6. Arquivar os três testes (`status='archived'`, saem do `getLearnings`) e conferir que a contagem voltou a **X menos 2** (a de antes de criar os descartáveis); durante o roteiro ela não mudou com nenhum clique. Devolver o título original ao vídeo.
 
 ## Riscos e perguntas ao dono
 
