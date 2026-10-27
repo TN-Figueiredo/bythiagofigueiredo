@@ -65,7 +65,7 @@ begin
   elsif p_ocultas then
     -- lista com ocultas: a saída só vale com duas leituras em dias diferentes sem a playlist
     update public.competitor_playlists p
-       set missing_since = v_hoje, absent_day = null
+       set missing_since = p.absent_day, absent_day = null
      where p.competitor_channel_id = p_channel and p.missing_since is null
        and p.absent_day is not null and p.absent_day < v_hoje
        and not (v_ids ? p.playlist_id);

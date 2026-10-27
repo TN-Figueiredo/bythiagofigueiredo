@@ -144,7 +144,7 @@ describe.skipIf(skipIfNoLocalDb())('A5 X3 Tarefa 1: migration de playlists e se�
       expect(await est('PLb')).toMatchObject({ a: '2026-03-11', m: null })
       const r2 = await oc(T(12), [pl('PLa')])
       expect(r2.sumidas).toBe(1)
-      expect(await est('PLb')).toMatchObject({ a: null, m: '2026-03-12' })
+      expect(await est('PLb')).toMatchObject({ a: null, m: '2026-03-11' }) // a data da 1ª ausência, não a da confirmação
       // volta: zera
       await oc(T(13), [pl('PLa'), pl('PLb')])
       expect(await est('PLb')).toMatchObject({ a: null, m: null })
