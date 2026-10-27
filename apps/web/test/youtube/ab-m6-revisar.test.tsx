@@ -37,9 +37,9 @@ beforeEach(() => { cleanup(); vi.useRealTimers() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('M6 T6: banner e selos', () => {
-  it('leitor pendente: esqueleto com aria-label e banner "Pronto para ativar."', () => {
+  it('leitor pendente: região viva ocupada com o esqueleto e banner "Pronto para ativar."', () => {
     render(<StepRevisar type="thumbnail" variants={v2} config={config} meta={meta} avisoVolume="pendente" />)
-    expect(document.querySelector('[aria-busy="true"]')?.getAttribute('aria-label')).toBe('Estimando o volume do teste')
+    expect(document.querySelector('[data-aviso-volume-sk]')?.parentElement?.getAttribute('aria-busy')).toBe('true')
     expect(screen.getByText('Pronto para ativar.')).toBeTruthy()
     expect(screen.queryByText('Tudo pronto.')).toBeNull()
   })
