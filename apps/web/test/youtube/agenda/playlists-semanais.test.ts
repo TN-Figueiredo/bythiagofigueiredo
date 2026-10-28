@@ -42,18 +42,18 @@ describe('playlists_semanais: interruptor ligaCom', () => {
     const r = tarefasDesligadas(env, CATALOGO)
     expect(r.desligadas.has('playlists_semanais')).toBe(true)
     expect(r.naoLigadas.has('playlists_semanais')).toBe(true)
-    expect([...r.naoLigadas]).toEqual(['playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'sinais_do_nicho'])
+    expect([...r.naoLigadas]).toEqual(['playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'sinais_do_nicho', 'medida_d2'])
   })
   it('com OBS_AGENDA_TASKS_OFF=marcas_de_idade: as duas desligadas', () => {
     const r = tarefasDesligadas({ OBS_AGENDA_TASKS_OFF: 'marcas_de_idade' }, CATALOGO)
-    expect([...r.desligadas].sort()).toEqual(['leitura_watch', 'marcas_de_idade', 'playlists_semanais', 'registro_teste_nativo', 'sinais_do_nicho'])
+    expect([...r.desligadas].sort()).toEqual(['leitura_watch', 'marcas_de_idade', 'medida_d2', 'playlists_semanais', 'registro_teste_nativo', 'sinais_do_nicho'])
   })
   it('só o valor exato on liga; ON, 1, vazio e " on" não', () => {
     expect(tarefasDesligadas({ OBS_X3_PLAYLISTS: 'on' }, CATALOGO).desligadas.has('playlists_semanais')).toBe(false)
     for (const v of ['ON', '1', '', ' on', 'true']) expect(tarefasDesligadas({ OBS_X3_PLAYLISTS: v }, CATALOGO).desligadas.has('playlists_semanais'), JSON.stringify(v)).toBe(true)
   })
   it('as únicas com ligaCom no catálogo são as esperadas', () => {
-    expect(CATALOGO.filter(t => t.ligaCom !== undefined).map(t => t.nome)).toEqual(['playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'sinais_do_nicho'])
+    expect(CATALOGO.filter(t => t.ligaCom !== undefined).map(t => t.nome)).toEqual(['playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'sinais_do_nicho', 'medida_d2'])
   })
   it('o catálogo recusa ligaCom junto com nuncaDesliga', () => {
     expect(() => validarCatalogo([{ nome: 'x', ligaCom: 'V', nuncaDesliga: true }])).toThrow()

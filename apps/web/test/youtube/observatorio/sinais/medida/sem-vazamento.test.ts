@@ -12,7 +12,7 @@ const IMPORTA_MEDIDA = /(?:from|import)\s*\(?\s*['"][^'"]*sinais\/medida(?:\/|['
 const IMPORTA_ESTIMADOR = /['"][^'"]*medida\/estimador['"]/
 const CITA_TABELA = /niche_signal_efeitos|niche_signal_efeito_bracos/
 
-const PODE_IMPORTAR = [/^apps\/web\/src\/lib\/youtube\/observatorio\/sinais\/medida\//, /^apps\/web\/src\/lib\/youtube\/observatorio\/agenda\/tarefas\/medida-d2\.ts$/]
+const PODE_IMPORTAR = [/^apps\/web\/src\/lib\/youtube\/observatorio\/sinais\/medida\//, /^apps\/web\/src\/lib\/youtube\/agenda\/tarefas\/medida-d2\.ts$/]
 const PODE_CITAR = [/^apps\/web\/src\/lib\/youtube\/observatorio\/sinais\/medida\//, /database\.types\.ts$/, /^supabase\/migrations\//]
 
 export function violacoes(arquivos: { caminho: string; texto: string }[]): string[] {
@@ -44,7 +44,7 @@ describe('F2b não vaza antes do gatilho', () => {
       { caminho: 'apps/web/src/lib/x/intruso.ts', texto: "import { janelasDoPar } from '@/lib/youtube/observatorio/sinais/medida/janela'" },
       { caminho: 'apps/web/src/app/y.ts', texto: "import { e } from '@/lib/youtube/observatorio/sinais/medida/estimador'" },
       { caminho: 'apps/api/src/z.ts', texto: "from('niche_signal_efeitos')" },
-      { caminho: 'apps/web/src/lib/youtube/observatorio/agenda/tarefas/medida-d2.ts', texto: "import { a } from '../../sinais/medida/janela'" },
+      { caminho: 'apps/web/src/lib/youtube/agenda/tarefas/medida-d2.ts', texto: "import { a } from '../../sinais/medida/janela'" },
     ])
     expect(r.some(s => s.startsWith('apps/web/src/lib/x/intruso.ts'))).toBe(true)
     expect(r.some(s => s.startsWith('apps/web/src/app/y.ts') && s.includes('estimador'))).toBe(true)
