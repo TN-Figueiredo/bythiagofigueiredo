@@ -69,11 +69,16 @@ const DOZE = [
  * do Analytics sai dali (a lista de sinais já é leitura de editor do site, via a guarda da rota/ação).
  * F2: `sinais/lugares-do-site.ts` (`lerProprios`, tarefa diária `sinais_do_nicho`) lê `yt_own_video_meta_daily` só `privacy_status` e `is_short` (janela de 7 dias,
  * para o casamento de lugar nos vídeos PÚBLICOS) e grava em `video_lugares`; nenhuma métrica de desempenho (D20), nada volta a tela por este arquivo.
+ * F2b T3: `proprio/consultas.ts` são as consultas SEM prova extraídas de `ler-dimensoes.ts` (que as chama com a prova); a única outra chamadora é `sinais/medida/series.ts`
+ * (tarefa `medida_d2`, cliente de serviço), que só devolve somas por janela e presença, nunca a linha do dia, e fica atrás do corte da §3.6 (sem leitura até o gatilho).
+ * Importar `proprio/consultas` é lista fechada (regra `PODE_IMPORTAR_CONSULTAS`).
  * S8-F4 T10b: `ab-gravacao/aviso-volume.ts` lê `yt_own_video_reach_daily` (14 dias) só para estimar quantos dias o teste v2 precisa (dias_previstos, n,
  * impressoes_dia); chamado só pelo `get_test` de rascunho (chave do Cowork) e pela ação do assistente (editor). PONTO PARA PORTÃO (Phil/Yannis): sai um
  * agregado, nunca a linha do dia.
  */
-const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/sinais/leitura.ts', 'lib/youtube/observatorio/sinais/lugares-do-site.ts', 'lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts', 'lib/youtube/ab-gravacao/aviso-volume.ts'])
+const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/sinais/leitura.ts', 'lib/youtube/observatorio/sinais/lugares-do-site.ts', 'lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts', 'lib/youtube/ab-gravacao/aviso-volume.ts', 'lib/youtube/observatorio/proprio/consultas.ts', 'lib/youtube/observatorio/sinais/medida/series.ts'])
+/** F2b T3: quem pode importar as consultas sem prova. */
+const PODE_IMPORTAR_CONSULTAS = new Set([LER_DIMENSOES, 'lib/youtube/observatorio/sinais/medida/series.ts', 'lib/youtube/observatorio/proprio/consultas.ts'])
 /**
  * PONTO PARA PORTÃO (E9, noite 15/10): dois pontos da fila "Saíram do YouTube" consultam `competitor_video_comments` SEM `leituraValida`.
  * Ambos já estão atrás da guarda de EDIÇÃO do site e usam o cliente de serviço com o site em todo filtro; nenhum recebe o token de leitura
@@ -151,6 +156,7 @@ export function violacoes(fontes: Record<string, string>): string[] {
       if (!/\bleituraValida\b/.test(s)) v.push(`${arq}: chama a RPC ab_lab_volume sem passar por leituraValida`)
       if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: chama a RPC ab_lab_volume com o token de edição`)
     }
+    if (!PODE_IMPORTAR_CONSULTAS.has(arq) && /from\s+['"][^'"]*proprio\/consultas['"]/.test(s)) v.push(`${arq}: importa as consultas sem prova do dado privado`)
     if (!arq.startsWith(COLETA_DIR) && lePorFrom(s) !== leSoColunasPermitidas(s)) v.push(`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`)
     if (!PODE_LER.has(arq) && /import\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
     if (!PODE_LER.has(arq) && /export\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)

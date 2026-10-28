@@ -33,27 +33,33 @@ export function prontoParaFechar(par: Pick<Par, 'pubDia'>, metrica: MetricaD2, h
   return idade >= REGRA_D2.desisteEmDias ? 'desiste' : 'aguarda'
 }
 
-export type SomaJanela = { soma: number } | { nao_medido: 'cobertura' | 'limiar'; diasSemCobertura: number }
+export type MotivoSoma = 'cobertura' | 'limiar' | 'em_revisao' | 'sem_valor'
+export type SomaJanela = { soma: number } | { nao_medido: MotivoSoma; diasSemCobertura: number }
 
 /**
- * Só `valor` e `zero_medido` somam. `zero_ou_abaixo_do_limiar` -> `limiar`; qualquer outro (fora da cobertura, em revisão,
- * base não medida, antes do início, valor sem número) -> `cobertura`. Sem linha nunca é zero.
+ * Só `valor` e `zero_medido` somam. Cada dia que não soma conta em `diasSemCobertura`; o motivo é o mais forte (R3-2):
+ * `cobertura` (fora da cobertura, base não medida, antes do início) > `em_revisao` (soma de origens > base) > `sem_valor` (linha
+ * existe e o número não veio: nulo não é zero) > `limiar` (sem linha e soma < base). Sem linha nunca é zero.
  */
 export function somarJanela(serie: Map<string, number>, dias: string[], estadoDe: (dia: string) => EstadoValor): SomaJanela {
   let soma = 0
-  let semCobertura = 0
+  let cobertura = 0
+  let revisao = 0
+  let semValor = 0
   let limiar = 0
   for (const dia of dias) {
     const e = estadoDe(dia)
     if (e.tipo === 'zero_medido') continue
     if (e.tipo === 'valor') {
       const v = serie.get(dia) ?? e.views
-      if (v === null || v === undefined || !Number.isFinite(v)) semCobertura++
+      if (v === null || v === undefined || !Number.isFinite(v)) semValor++
       else soma += v
     } else if (e.tipo === 'zero_ou_abaixo_do_limiar') limiar++
-    else semCobertura++
+    else if (e.tipo === 'em_revisao') revisao++
+    else cobertura++
   }
-  const falhas = semCobertura + limiar
+  const falhas = cobertura + revisao + semValor + limiar
   if (falhas === 0) return { soma }
-  return { nao_medido: semCobertura > 0 ? 'cobertura' : 'limiar', diasSemCobertura: falhas }
+  const nao_medido: MotivoSoma = cobertura > 0 ? 'cobertura' : revisao > 0 ? 'em_revisao' : semValor > 0 ? 'sem_valor' : 'limiar'
+  return { nao_medido, diasSemCobertura: falhas }
 }

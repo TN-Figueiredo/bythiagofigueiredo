@@ -13,7 +13,8 @@ import { leituraValida, type LeituraPrivadaDoSite } from './leitura-privada'
 import { TETO_VIDEOS_DIARIO } from './tipos'
 import type { AlcanceCanal, AlcanceLinha, DiarioCanal, DiarioLinha, DiaYt, Privado, RelatorioDia, StatusRelatorio } from './tipos'
 
-export const TIPO_ALCANCE = 'channel_reach_basic_a1'
+import { TIPO_ALCANCE } from './consultas'
+export { TIPO_ALCANCE }
 export const JANELA_DIARIO_DIAS = 28
 export { TETO_VIDEOS_DIARIO }
 

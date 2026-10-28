@@ -154,15 +154,24 @@ describe('somarJanela', () => {
     const est = (d: string): EstadoValor => (d === '2026-09-18' ? { tipo: 'zero_ou_abaixo_do_limiar' } : v(serie.get(d)!))
     expect(somarJanela(serie, dias, est)).toEqual({ nao_medido: 'limiar', diasSemCobertura: 1 })
   })
-  it('fora da cobertura, em revisão, antes do início -> cobertura, com contagem', () => {
+  it('fora da cobertura junto de revisão e limiar -> cobertura, com contagem', () => {
     const est = (d: string): EstadoValor =>
       d === '2026-09-16' ? { tipo: 'nao_medido', motivo: 'fora_da_cobertura', desde: null }
         : d === '2026-09-17' ? { tipo: 'em_revisao' }
           : { tipo: 'zero_ou_abaixo_do_limiar' }
     expect(somarJanela(serie, dias, est)).toEqual({ nao_medido: 'cobertura', diasSemCobertura: 3 })
   })
-  it('valor com views nulas não vira zero', () => {
+  it('R3-2: valor com views nulas (linha existe, número não veio) -> sem_valor, nunca zero', () => {
     const est = (): EstadoValor => ({ tipo: 'valor', views: null, minutos: null })
-    expect(somarJanela(new Map(), dias, est)).toEqual({ nao_medido: 'cobertura', diasSemCobertura: 3 })
+    expect(somarJanela(new Map(), dias, est)).toEqual({ nao_medido: 'sem_valor', diasSemCobertura: 3 })
+  })
+  it('R3-2: dia em revisão (soma de origens > base) -> em_revisao; cobertura ganha de em_revisao, que ganha de sem_valor e limiar', () => {
+    const rev = (d: string): EstadoValor => (d === '2026-09-17' ? { tipo: 'em_revisao' } : v(serie.get(d)!))
+    expect(somarJanela(serie, dias, rev)).toEqual({ nao_medido: 'em_revisao', diasSemCobertura: 1 })
+    const misto = (d: string): EstadoValor =>
+      d === '2026-09-16' ? { tipo: 'em_revisao' } : d === '2026-09-17' ? { tipo: 'valor', views: null, minutos: null } : { tipo: 'zero_ou_abaixo_do_limiar' }
+    expect(somarJanela(new Map(), dias, misto)).toEqual({ nao_medido: 'em_revisao', diasSemCobertura: 3 })
+    const semV = (d: string): EstadoValor => (d === '2026-09-16' ? { tipo: 'valor', views: null, minutos: null } : { tipo: 'zero_ou_abaixo_do_limiar' })
+    expect(somarJanela(new Map(), dias, semV)).toEqual({ nao_medido: 'sem_valor', diasSemCobertura: 3 })
   })
 })

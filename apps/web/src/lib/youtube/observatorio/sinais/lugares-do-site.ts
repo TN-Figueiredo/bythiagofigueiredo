@@ -8,7 +8,8 @@ import {
   type EntradaDeLugar, type IndiceDeLugar,
 } from '../lugar/casar'
 
-export interface ProprioRow { id: string; title: string; description: string | null; tags: string[]; is_short: boolean | null; published_at?: string | null }
+/** `youtube_video_id` e `published_at` (F2b T3, aditivo): a medida D2 casa as séries por id do YouTube; `calcularLugares` os ignora. */
+export interface ProprioRow { id: string; youtube_video_id: string; title: string; description: string | null; tags: string[]; is_short: boolean | null; published_at: string | null }
 
 /** Localização gravada pelo YouTube no vídeo do competidor (`competitor_raw.raw->recordingDetails`). */
 export interface RawDeLugar { locationDescription: string | null; lat: number | null; lng: number | null }
@@ -260,7 +261,7 @@ export async function lerProprios(sb: SupabaseClient, siteId: string, agora: Dat
   return videos
     .filter((v) => privacidade.get(v.youtube_video_id)?.status === 'public')
     .map((v) => ({
-      id: v.id, title: v.title ?? '', description: v.description, tags: v.tags ?? [], published_at: v.published_at,
+      id: v.id, youtube_video_id: v.youtube_video_id, title: v.title ?? '', description: v.description, tags: v.tags ?? [], published_at: v.published_at,
       is_short: maisNova.get(v.youtube_video_id)?.is_short ?? null,
     }))
 }

@@ -12,21 +12,23 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { addDays, diffDias } from '@/lib/youtube/coleta/day-pt'
 import { DIMENSOES_DESDE, LOTE_DESDE } from '@/lib/youtube/coleta/e11-config'
-import { TAMANHO_PAGINA } from '@/lib/youtube/coleta/paginar'
 import type { AttemptKind } from '@/lib/youtube/coleta/kinds'
 import { passoDesligado, type PassoComInterruptor } from '@/lib/youtube/coleta/passos-desligados'
-import { ehSchemaAusente } from '@/lib/youtube/coleta/schema'
 import { tipoDoDetalhe, type TipoDetalhe } from '@/lib/youtube/reporting/codigos'
 import {
   BENIGNOS, CONJUNTOS_DIMENSOES, classificarConjunto, rotuloDoValor,
   type ConjuntoDim, type ConjuntoDimensoes, type DiaLido, type DiaYt, type EstadoConjunto, type LinhaBasica,
 } from './dimensoes-estado'
+import {
+  TETO_VIDEOS_CONSULTA, lerBaseDiaria as consultaBaseDiaria, lerCobertura as consultaCobertura, lerDetalheDiario, lerDimDiaria, lerFaixa, lerReachBase, lerReachDimDiaria,
+  lerRelatorios, lerTudo, type CoberturaRow, type DetalheRow, type DiarioRow, type DimRow, type ReachBaseRow, type ReachDimRow, type RelatorioRow,
+} from './consultas'
 import { leituraValida } from './leitura-privada'
 import { TIPO_ALCANCE, type Pedido } from './ler'
 import type { Privado } from './tipos'
 
 export const JANELA_MAX_DIAS = 120
-export const TETO_VIDEOS_DIMENSOES = 50
+export const TETO_VIDEOS_DIMENSOES = TETO_VIDEOS_CONSULTA
 /** Linhas por leitura: acima disto o leitor lança (a janela e o teto de vídeos já limitam; passar daqui é anormal). */
 export const TETO_LINHAS_PADRAO = 100_000
 const TETO_LINHAS_TENTATIVAS = 5_000
@@ -87,58 +89,11 @@ export interface DetalheCanal {
   descartados: number
 }
 
-export type MotivoLeitura = 'erro_de_banco' | 'passou_do_teto'
-
-/** Falha de leitura. Sem o texto do banco (pode carregar conteúdo): só tabela, motivo, código e quantas linhas já tinham chegado. */
-export class ErroLeituraDimensoes extends Error {
-  readonly tabela: string
-  readonly motivo: MotivoLeitura
-  readonly codigo: string | null
-  readonly lidas: number
-  constructor(tabela: string, motivo: MotivoLeitura, codigo: string | null, lidas: number) {
-    super(`leitura de ${tabela} falhou: ${motivo === 'passou_do_teto' ? 'passou do teto de linhas' : 'erro de banco'}${codigo ? ` (código ${codigo})` : ''}, ${lidas} linhas lidas`)
-    this.name = 'ErroLeituraDimensoes'
-    this.tabela = tabela
-    this.motivo = motivo
-    this.codigo = codigo
-    this.lidas = lidas
-  }
-}
+export { ErroLeituraDimensoes, type MotivoLeitura } from './consultas'
 
 // ---------------------------------------------------------------------------------------------------------------
-// Leitura paginada
+// Leitura paginada: em `consultas.ts` (extraída para a medida D2 reusar)
 // ---------------------------------------------------------------------------------------------------------------
-
-interface ConsultaFaixa { range(de: number, ate: number): PromiseLike<{ data: unknown; error: { code?: string | null } | null }> }
-type Leitura<T> = { ausente: true } | { ausente: false; linhas: T[] }
-
-/** Uma faixa de uma consulta ordenada por chave única. Erro de banco lança; tabela ou coluna inexistente devolve `ausente`. */
-async function lerFaixa<T>(tabela: string, build: () => ConsultaFaixa, de: number, ate: number, lidas: number): Promise<Leitura<T>> {
-  let res: { data: unknown; error: { code?: string | null } | null }
-  try {
-    res = await build().range(de, ate)
-  } catch {
-    throw new ErroLeituraDimensoes(tabela, 'erro_de_banco', null, lidas)
-  }
-  if (res.error) {
-    if (ehSchemaAusente(res.error)) return { ausente: true }
-    throw new ErroLeituraDimensoes(tabela, 'erro_de_banco', res.error.code ?? null, lidas)
-  }
-  // Resposta sem lista NÃO é lista vazia.
-  if (!Array.isArray(res.data)) throw new ErroLeituraDimensoes(tabela, 'erro_de_banco', null, lidas)
-  return { ausente: false, linhas: res.data as T[] }
-}
-
-async function lerTudo<T>(tabela: string, build: () => ConsultaFaixa, teto: number): Promise<Leitura<T>> {
-  const todas: T[] = []
-  for (let de = 0; ; de += TAMANHO_PAGINA) {
-    const pag = await lerFaixa<T>(tabela, build, de, de + TAMANHO_PAGINA - 1, todas.length)
-    if (pag.ausente) return pag
-    for (const l of pag.linhas) todas.push(l)
-    if (todas.length > teto) throw new ErroLeituraDimensoes(tabela, 'passou_do_teto', null, todas.length)
-    if (pag.linhas.length < TAMANHO_PAGINA) return { ausente: false, linhas: todas }
-  }
-}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Pedido
@@ -182,25 +137,10 @@ class Medidas {
 const chave = (...p: string[]): string => p.join('\u0001')
 
 interface Intervalo { de: string; ate: string }
-interface CoberturaRow { youtube_video_id: string; metric_set: string; covered_from: string; covered_to: string }
-interface DiarioRow { youtube_video_id: string; day_pt: string; views: unknown }
 
-/** Cobertura por (vídeo, conjunto). Sem filtro de data: são poucos intervalos fundidos, e dizem se o conjunto já foi coletado fora da janela. */
-function lerCobertura(sb: SupabaseClient, a: Alvo, sets: readonly string[]): Promise<Leitura<CoberturaRow>> {
-  return lerTudo<CoberturaRow>('yt_own_video_coverage', () => sb.from('yt_own_video_coverage')
-    .select('youtube_video_id, metric_set, covered_from, covered_to')
-    .eq('site_id', a.siteId).eq('channel_id', a.canalId)
-    .in('youtube_video_id', a.ytIds).in('metric_set', [...sets])
-    .order('youtube_video_id').order('metric_set').order('covered_from'), a.teto)
-}
-
-function lerBaseDiaria(sb: SupabaseClient, a: Alvo): Promise<Leitura<DiarioRow>> {
-  return lerTudo<DiarioRow>('yt_own_video_daily', () => sb.from('yt_own_video_daily')
-    .select('youtube_video_id, day_pt, views')
-    .eq('site_id', a.siteId).eq('channel_id', a.canalId)
-    .in('youtube_video_id', a.ytIds).gte('day_pt', a.de).lte('day_pt', a.ate)
-    .order('youtube_video_id').order('day_pt'), a.teto)
-}
+/** Cobertura por (vídeo, conjunto): a consulta é de `consultas.ts`. */
+function lerCobertura(sb: SupabaseClient, a: Alvo, sets: readonly string[]) { return consultaCobertura(sb, a, sets) }
+function lerBaseDiaria(sb: SupabaseClient, a: Alvo) { return consultaBaseDiaria(sb, a) }
 
 function indexarCobertura(rows: readonly CoberturaRow[]): Map<string, Intervalo[]> {
   const m = new Map<string, Intervalo[]>()
@@ -256,10 +196,6 @@ const porValor = <L extends LinhaBasica>(linhas: L[]): L[] => linhas.sort((x, y)
 // lerDimensoes
 // ---------------------------------------------------------------------------------------------------------------
 
-interface DimRow { youtube_video_id: string; day_pt: string; dim_kind: string; dim_value: string; views: unknown; watch_time_minutes: unknown }
-interface ReachDimRow { youtube_video_id: string; day_pt: string; traffic_source_type: string; device_type: string; operating_system: string; thumbnail_impressions: unknown; thumbnail_clicks_est: unknown }
-interface ReachBaseRow { youtube_video_id: string; day_pt: string; thumbnail_impressions: unknown }
-interface RelatorioRow { start_time: string; normalized_at: string | null }
 
 /** Data UTC ('AAAA-MM-DD') de um timestamptz; inválido devolve null. */
 function diaUtc(ts: unknown): DiaYt | null {
@@ -279,25 +215,10 @@ export async function lerDimensoes(sb: SupabaseClient, p: PedidoDimensoes): Prom
   const [cob, diario, dims, reachDim, relatorios, reachBase, tentDim, tentAlc] = await Promise.all([
     lerCobertura(sb, a, ['base', ...CONJUNTOS_DIMENSOES]),
     lerBaseDiaria(sb, a),
-    lerTudo<DimRow>('yt_own_video_dim_daily', () => sb.from('yt_own_video_dim_daily')
-      .select('youtube_video_id, day_pt, dim_kind, dim_value, views, watch_time_minutes')
-      .eq('site_id', a.siteId).eq('channel_id', a.canalId)
-      .in('youtube_video_id', a.ytIds).gte('day_pt', a.de).lte('day_pt', a.ate)
-      .order('youtube_video_id').order('day_pt').order('dim_kind').order('dim_value'), a.teto),
-    lerTudo<ReachDimRow>('yt_own_video_reach_dim_daily', () => sb.from('yt_own_video_reach_dim_daily')
-      .select('youtube_video_id, day_pt, traffic_source_type, device_type, operating_system, thumbnail_impressions, thumbnail_clicks_est')
-      .eq('site_id', a.siteId).eq('channel_id', a.canalId)
-      .in('youtube_video_id', a.ytIds).gte('day_pt', a.de).lte('day_pt', a.ate)
-      .order('youtube_video_id').order('day_pt').order('traffic_source_type').order('device_type').order('operating_system'), a.teto),
-    lerTudo<RelatorioRow>('yt_reporting_reports', () => sb.from('yt_reporting_reports').select('start_time, normalized_at, report_id')
-      .eq('site_id', a.siteId).eq('channel_id', a.canalId).eq('report_type_id', TIPO_ALCANCE)
-      .gte('start_time', a.de + 'T00:00:00Z').lte('start_time', a.ate + 'T23:59:59Z')
-      .order('report_id'), a.teto),
-    lerTudo<ReachBaseRow>('yt_own_video_reach_daily', () => sb.from('yt_own_video_reach_daily')
-      .select('youtube_video_id, day_pt, thumbnail_impressions')
-      .eq('site_id', a.siteId).eq('channel_id', a.canalId)
-      .in('youtube_video_id', a.ytIds).gte('day_pt', a.de).lte('day_pt', a.ate)
-      .order('youtube_video_id').order('day_pt'), a.teto),
+    lerDimDiaria(sb, a),
+    lerReachDimDiaria(sb, a),
+    lerRelatorios(sb, a, TIPO_ALCANCE),
+    lerReachBase(sb, a),
     ultimaTentativa(sb, a, 'dimensoes'),
     ultimaTentativa(sb, a, 'normalizador_alcance_dim'),
   ])
@@ -391,7 +312,6 @@ export async function lerDimensoes(sb: SupabaseClient, p: PedidoDimensoes): Prom
 // lerDetalheDaOrigem
 // ---------------------------------------------------------------------------------------------------------------
 
-interface DetalheRow { youtube_video_id: string; day_pt: string; source_type: string; detail: string; detail_hash: string; views: unknown; watch_time_minutes: unknown }
 
 /**
  * O detalhe da origem (termo pesquisado, site, vídeo, canal) por vídeo e dia. `detail` e `source_type` vêm como no banco; quem traduz
@@ -403,11 +323,7 @@ export async function lerDetalheDaOrigem(sb: SupabaseClient, p: PedidoDimensoes)
   const [cob, diario, detalhes, tentativa] = await Promise.all([
     lerCobertura(sb, a, ['base', 'detalhe']),
     lerBaseDiaria(sb, a),
-    lerTudo<DetalheRow>('yt_own_video_traffic_detail_daily', () => sb.from('yt_own_video_traffic_detail_daily')
-      .select('youtube_video_id, day_pt, source_type, detail, detail_hash, views, watch_time_minutes')
-      .eq('site_id', a.siteId).eq('channel_id', a.canalId)
-      .in('youtube_video_id', a.ytIds).gte('day_pt', a.de).lte('day_pt', a.ate)
-      .order('youtube_video_id').order('day_pt').order('source_type').order('detail_hash'), a.teto),
+    lerDetalheDiario(sb, a),
     ultimaTentativa(sb, a, KIND_DA_TENTATIVA.detalhe),
   ])
   const medidas = new Medidas()
