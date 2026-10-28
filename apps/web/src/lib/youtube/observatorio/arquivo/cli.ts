@@ -13,6 +13,9 @@ import { passoDaRemocao } from './passo-da-remocao'
 import { exportarCanal, NOME_DE_LOTE, type Disco } from './exportar'
 import { nomeDoLote, validarManifesto, type Manifesto } from './manifesto'
 import type { Baixar } from './miniaturas'
+import type { PedirPendencias } from './credencial'
+import { lerPendencias } from '../arquivo-mensal/pendencias'
+import { scriptDasPendencias, scriptDeFalha } from './pendencias-script'
 import type { ClienteSql } from './sessao'
 import { sinalDoBanco, type LinhaBruta } from './sinal-do-banco'
 
@@ -30,6 +33,7 @@ export type Comando =
   | { nome: 'remover'; canal: string; por: string; site: string | null; pasta: string }
   | { nome: 'comandos-recarga'; lote: string; pasta: string }
   | { nome: 'pedidos'; por: string; site: string | null; pasta: string; destino: string | null }
+  | { nome: 'pendencias' }
 
 export const USO = [
   'uso: npx tsx scripts/obs-arquivo.ts <comando> [opções]',
@@ -42,6 +46,7 @@ export const USO = [
   '  confirmar-nas    --canal <uuid> --lote <nome> --por <e-mail> [--site <uuid>]',
   '  remover          --canal <uuid> --por <e-mail> [--site <uuid>]',
   '  pedidos          --por <e-mail> [--site <uuid>] [--pasta <raiz>] [--destino <usuario@host:/caminho>]   (remoções pedidas no CMS)',
+  '  pendencias       (sem opção; chave em ~/.config/obs-arquivo/chave; imprime o script da forja: npm run -s obs:arquivo | ssh forja \'bash -s\')',
   '  comandos-recarga --lote <nome> [--pasta <raiz>]                                    (só imprime)',
   'ambiente: OBS_ARQUIVO_DB_URL (conexão direta ao banco; o .env.local nunca é lido)',
 ]
@@ -59,6 +64,7 @@ const OPCOES: Record<string, { valor: string[]; bandeira: string[]; obrigatorias
   remover: { valor: ['canal', 'por', 'site', 'pasta'], bandeira: [], obrigatorias: ['canal', 'por'] },
   pedidos: { valor: ['por', 'site', 'pasta', 'destino'], bandeira: [], obrigatorias: ['por'] },
   'comandos-recarga': { valor: ['lote', 'pasta'], bandeira: [], obrigatorias: ['lote'] },
+  pendencias: { valor: [], bandeira: [], obrigatorias: [] },
 }
 
 export function pastaPadrao(env: NodeJS.ProcessEnv): string | null {
@@ -102,6 +108,7 @@ export function interpretar(argv: string[], env: NodeJS.ProcessEnv): Comando | {
   if (destino !== undefined && !DESTINO.test(destino)) return { erro: '--destino precisa ser usuario@host:/caminho' }
 
   switch (sub) {
+    case 'pendencias': return { nome: 'pendencias' }
     case 'estado': return { nome: 'estado', site, pasta: pasta! }
     case 'pausar': case 'despausar': return { nome: sub, canal: canal!, por: por!, site }
     case 'exportar': return { nome: 'exportar', canal: canal!, lote: lote ?? null, pasta: pasta!, refazer: bandeiras.has('refazer'), aceitarMiniaturasAusentes: bandeiras.has('aceitar-miniaturas-ausentes'), site }
@@ -126,8 +133,10 @@ export interface DepsDoComando {
   /** Lê uma linha digitada. Só é chamada com `ehTerminal` verdadeiro. */
   perguntar: (pergunta: string) => Promise<string>
   versaoDoScript: string
+  /** Só `pendencias`: a ida à rota C13 com a chave do arquivo (nula = a chave não foi lida). */
+  pedirPendencias?: PedirPendencias
 }
-export interface Saida { codigo: 0 | 1 | 2; saida: string[] }
+export interface Saida { codigo: 0 | 1 | 2; saida: string[]; erros?: string[] }
 
 const feito = (...saida: string[]): Saida => ({ codigo: 0, saida })
 const recusado = (...saida: string[]): Saida => ({ codigo: 1, saida })
@@ -159,6 +168,7 @@ async function administra(sql: ClienteSql, site: string, usuario: string): Promi
 }
 
 export async function rodar(c: Comando, d: DepsDoComando): Promise<Saida> {
+  if (c.nome === 'pendencias') return await pendencias(d)
   try {
     if (c.nome === 'comandos-nas') return comandosNas(c)
     if (c.nome === 'comandos-recarga') return await comandosRecarga(c, d)
@@ -178,6 +188,47 @@ export async function rodar(c: Comando, d: DepsDoComando): Promise<Saida> {
   } catch (e) {
     // nenhuma mensagem do banco sai daqui: só a frase do código
     return recusado(frase(erroDoBanco(e)))
+  }
+}
+
+// ───────────────────────── pendencias (peça 7, M3b-forja) ─────────────────────────
+
+/** Todo código ≠ 0 vira script de falha: `bash -s` com entrada vazia sairia 0 na forja (D-F22). */
+function falhaDaPendencias(codigo: 1 | 2, frase: string): Saida {
+  return { codigo, saida: scriptDeFalha(frase), erros: [frase] }
+}
+
+async function pendencias(d: DepsDoComando): Promise<Saida> {
+  try {
+    if (d.pedirPendencias === undefined) return falhaDaPendencias(1, 'obs:arquivo: a chave do arquivo não foi lida; nada foi feito')
+    let r: { status: number; corpo: string }
+    try {
+      r = await d.pedirPendencias()
+    } catch (e) {
+      const tempo = (e as { name?: string } | null)?.name === 'TimeoutError'
+      return falhaDaPendencias(1, tempo
+        ? 'obs:arquivo: o site não respondeu em 15 s; nada foi feito'
+        : 'obs:arquivo: não consegui falar com o site (rede); nada foi feito')
+    }
+    let json: unknown = undefined
+    let temJson = true
+    try { json = JSON.parse(r.corpo) } catch { temJson = false }
+    if (r.status !== 200) {
+      const codigo = temJson && typeof json === 'object' && json !== null ? ((json as { error?: { code?: unknown } }).error?.code) : undefined
+      if (r.status === 503 && codigo === 'arquivo_desligado') return falhaDaPendencias(1, 'obs:arquivo: o arquivo está desligado no site; nada foi feito')
+      if (r.status === 401 || r.status === 403) return falhaDaPendencias(1, 'obs:arquivo: o site recusou a chave; rode o m3b-obs-arquivo-credencial.sh')
+      return falhaDaPendencias(1, `obs:arquivo: o site não respondeu como esperado (HTTP ${r.status}); nada foi feito`)
+    }
+    if (!temJson) return falhaDaPendencias(1, 'obs:arquivo: a resposta do site veio sem JSON; não consegui ler as pendências')
+    const env = json as Record<string, unknown> | null
+    const dentro = typeof env === 'object' && env !== null && !Array.isArray(env) && Object.keys(env).length === 1 && 'data' in env ? env.data : undefined
+    const l = lerPendencias(dentro)
+    if (!l.ok) return falhaDaPendencias(1, `obs:arquivo: não consegui ler as pendências do site (${l.porque}); nada foi feito`)
+    const s = scriptDasPendencias(l, { versao: d.versaoDoScript })
+    if (!s.ok) return falhaDaPendencias(1, `obs:arquivo: ${s.porque}; nada foi feito`)
+    return { codigo: 0, saida: s.linhas, erros: [s.resumo] }
+  } catch {
+    return falhaDaPendencias(1, 'obs:arquivo: erro inesperado; nada foi feito')
   }
 }
 

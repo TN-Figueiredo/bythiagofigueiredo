@@ -10,6 +10,9 @@ import { createInterface } from 'node:readline'
 import { interpretar, rodar, USO } from '../apps/web/src/lib/youtube/observatorio/arquivo/cli'
 import { criarBaixar } from '../apps/web/src/lib/youtube/observatorio/arquivo/miniaturas'
 import type { Disco } from '../apps/web/src/lib/youtube/observatorio/arquivo/exportar'
+import { escreverTudo } from '../apps/web/src/lib/youtube/observatorio/arquivo/escrever'
+import { pendencias } from '../apps/web/src/lib/youtube/observatorio/arquivo/pendencias-main'
+import { scriptDeFalha } from '../apps/web/src/lib/youtube/observatorio/arquivo/pendencias-script'
 import type { ClienteSql } from '../apps/web/src/lib/youtube/observatorio/arquivo/sessao'
 
 const VERSAO = 'obs-arquivo 1.0.0'
@@ -51,6 +54,7 @@ async function main(): Promise<number> {
     console.error(comando.erro === USO.join('\n') ? comando.erro : `${comando.erro}\n\n${USO.join('\n')}`)
     return 2
   }
+  if (comando.nome === 'pendencias') return pendencias(VERSAO)
   const url = process.env.OBS_ARQUIVO_DB_URL
   let cliente: Client | null = null
   let sql: ClienteSql | null = null
@@ -79,4 +83,11 @@ async function main(): Promise<number> {
   }
 }
 
-main().then(c => process.exit(c), () => { console.error('erro inesperado'); process.exit(1) })
+main().then(
+  c => { process.exitCode = c },
+  async () => {
+    console.error('erro inesperado')
+    if (process.argv[2] === 'pendencias') await escreverTudo(scriptDeFalha('obs:arquivo: erro inesperado; nada foi feito').join('\n') + '\n')
+    process.exitCode = 1
+  },
+)
