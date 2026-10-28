@@ -18,7 +18,7 @@ type Conc = Extract<TelaV2, { fase: 'concluido' }>
 const telaAtiva = (o: Partial<Ativa> = {}): Ativa => ({ fase: 'ativo', dia: 1, teto: 15, pausado: false, passouDoFim: false, ilegivel: false, frase: { principal: '', apoio: '' }, n: null, pisos: [], sinal: null, ...o })
 const telaConc = (o: Partial<Conc> = {}): Conc => ({
   fase: 'concluido', selo: { tipo: 'vence', provisorio: false, letra: 'B' }, frase: { principal: '', apoio: null }, prazo: null,
-  noAr: { tipo: 'original' }, aplicar: null, voltar: false, aplicarDeNovo: null, bloqueio: null, n: null, pisos: null, tentarDeNovo: false, ...o,
+  noAr: { tipo: 'original' }, aplicar: null, aplicarDeNovo: null, bloqueio: null, n: null, pisos: null, tentarDeNovo: false, ...o,
 })
 function ativo(o: { id?: string; started?: string; status?: 'active' | 'queued'; tela?: Ativa | null; ctrs?: Record<string, number | null> } = {}): EntradaPagina['ativos'][number] {
   const bruto = { ...makeTestWithVariants(), id: o.id ?? 't1', started_at: o.started ?? '2026-10-25T12:00:00Z', youtube_video_id: 'yt1' } as AbTestWithVariants

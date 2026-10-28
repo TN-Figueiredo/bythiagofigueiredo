@@ -1429,7 +1429,6 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       monthlyExtraClicks: null,
     },
     learning: test.status_note ?? undefined,
-    revertExpiresAt: test.revert_expires_at,
     winnerAppliedAt: test.winner_applied_at,
   } satisfies AbTestWinnerView
 }

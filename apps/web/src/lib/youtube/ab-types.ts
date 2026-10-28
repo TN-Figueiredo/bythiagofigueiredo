@@ -645,7 +645,6 @@ export interface AbTestWinnerView extends AbTestBaseView {
   }
   monitor?: LiveMonitor
   learning?: string
-  revertExpiresAt?: string | null
   winnerAppliedAt?: string | null
   /** D21: o que está no ar agora (fonte única `noArConfirmado`); `letra: null` = não confirmado. Separado do vencedor estatístico (`winnerLabel`). */
   noAr?: { letra: string | null; original: boolean }

@@ -46,12 +46,10 @@ import { reivindicarRotacao, aplicarRotacao, motivoVarianteSemConteudo, avisarRo
 import { settleOnAir, lerNoArNoYouTube, ORIGINAL, TETO_MS } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
 import {
-  MSG_FALHA_SAIDA, MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_MUDOU, MSG_OUTRO_TESTE, MSG_RESTORE_ILEGIVEL, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
+  MSG_FALHA_SAIDA, MSG_EM_ANDAMENTO, MSG_JA_ENCERRADO, MSG_PEDIDO_INVALIDO, MSG_SEM_PERMISSAO_VARIANTE, seqVistoSchema, MSG_VARIANTE_DA_VEZ, recusaDeSessao, traduzirSaida, varianteOriginalId,
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
-import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
-import { camposPendentes, daEscolhaDoDono, paraRestoreStatus, restoreStatusIlegivel, voltaConcluida } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { conferirNoArCore, escolherVersaoCore } from '@/lib/youtube/ab-escolha'
 import type { ResultadoConferir, ResultadoEscolha } from '@/lib/youtube/ab-acao-saida'
@@ -1198,8 +1196,6 @@ export async function forceRotate(testId: string): Promise<ResultadoAcaoSaida> {
 }
 
 // ---------------------------------------------------------------------------
-// revertWinner — volta ao original (janela de 7 dias), por settleOnAir
-// ---------------------------------------------------------------------------
 // retryRestore / dismissRestore (P4b): "Tentar agora" e "Já corrigi no YouTube"
 // ---------------------------------------------------------------------------
 
@@ -1258,96 +1254,6 @@ export async function dismissRestore(testId: string, campos: CampoNome[], seqVis
   return concluirSaida(dispensarCampos(getSupabaseServiceClient(), testId, siteId, lista.data, seq.data, { userId, orgId }))
 }
 
-
-// ---------------------------------------------------------------------------
-
-export async function revertWinner(testId: string, seqVisto: number): Promise<ResultadoAcaoSaida> {
-  // Degrau "administrar o site": mexe no canal de verdade. No topo, antes de qualquer
-  // service client; falha fechado.
-  const siteIdDaTela = (await getSiteContext()).siteId
-  const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'reverter o vencedor de um teste A/B no canal')
-  if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
-  let siteId: string
-  try {
-    siteId = await requireEditAccess()
-  } catch (e) {
-    return recusaDeSessao(e)
-  }
-  const seq = seqVistoSchema.safeParse(seqVisto)
-  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: ORIGINAL, motivo: 'reverter', humano: true, seqEsperado: seq.data }))
-}
-
-/**
- * S8-F4 T11b: o humano põe no ar o vencedor SUGERIDO pela regra v2 num teste já concluído (completed_reason = regra_v2).
- * Guarda: a variante tem de ser `result_metadata.v2.vencedor_sugerido`; CAS por seqVisto no settleOnAir.
- * `forcar` (T12 Y2): só o "Aplicar mesmo assim" depois de `precisa_confirmar`; o ramo da original não usa.
- */
-export async function aplicarSugerido(testId: string, varianteId: string, seqVisto: number, forcar?: boolean): Promise<ResultadoAcaoSaida> {
-  const siteIdDaTela = (await getSiteContext()).siteId
-  const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'deixar uma variante no ar')
-  if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
-  let siteId: string
-  try {
-    siteId = await requireEditAccess()
-  } catch (e) {
-    return recusaDeSessao(e)
-  }
-  const seq = seqVistoSchema.safeParse(seqVisto)
-  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
-  const { data, error } = await getSupabaseServiceClient()
-    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata, youtube_video_id, winner_variant_id, winner_applied_at, test_type').eq('id', testId).eq('site_id', siteId).maybeSingle()
-  if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
-  const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
-  const sugerido = meta?.v2?.vencedor_sugerido
-  // "Aplicar de novo" (selo depois do Voltar): a aplicação foi desfeita (winner_applied_at nulo), a variante é a mesma e o desfecho ainda a sugere.
-  // Mesma regra da tela (voltaConcluida): só reaplica se a volta terminou ok com destino original; "aplicação que falhou em parte" é da novaTentativa.
-  const reaplicar = data?.completed_reason === 'manual_winner' && data.winner_variant_id === varianteId && data.winner_applied_at === null
-    && voltaConcluida(paraRestoreStatus(data.restore_status), data.test_type as 'thumbnail' | 'title' | 'combo')
-  if (!data || (data.completed_reason !== 'regra_v2' && !reaplicar) || !sugerido || sugerido !== varianteId) {
-    return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
-  }
-  if (varianteId === (await varianteOriginalId(testId, siteId))) {
-    // S8-F4 B2 "a original vence": o teste fechou com a original no ar. Decide pelo estado real da volta (restore_status), não pela flag volta_falhou, que nunca é limpa.
-    // Fail closed: restore_status que não se lê não pode contar como "sem pendente".
-    if (restoreStatusIlegivel(data.restore_status)) return { ok: false, resultado: 'erro', error: MSG_RESTORE_ILEGIVEL }
-    // Phil D4: outro teste aberto no mesmo vídeo barra (a volta escreve no YouTube e a vitória não pode valer sobre o ciclo dele).
-    const outro = await getSupabaseServiceClient().from('ab_tests').select('id')
-      .eq('site_id', siteId).eq('youtube_video_id', data.youtube_video_id as string).neq('id', testId)
-      .in('status', [...ABERTOS_NO_VIDEO]).limit(1)
-    if (outro.error) { Sentry.captureException(outro.error, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
-    if (((outro.data ?? []) as unknown[]).length > 0) return { ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE }
-    let seqGrava = seq.data
-    const rsOriginal = paraRestoreStatus(data.restore_status)
-    if (camposPendentes(rsOriginal, 'humano').filter(k => !daEscolhaDoDono(rsOriginal![k]!)).length > 0) { // M7b: campo da escolha do dono não passa pela novaTentativa
-      const autorizar = async (): Promise<boolean> => true // o destino é sempre a original
-      let tentou: ResultadoSaida
-      try {
-        tentou = await tentarAgora(getSupabaseServiceClient(), testId, siteId, seq.data, undefined, autorizar)
-      } catch (e) {
-        Sentry.captureException(e, { tags: { area: 'ab-acao-saida' } })
-        invalidarTelasDoAbLab()
-        return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
-      }
-      if (tentou.resultado !== 'feito') return concluirSaida(Promise.resolve(tentou))
-      invalidarTelasDoAbLab()
-      const { data: reli, error: errReler } = await getSupabaseServiceClient()
-        .from('ab_tests').select('restore_seq').eq('id', testId).eq('site_id', siteId).maybeSingle()
-      if (errReler || !reli) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
-      seqGrava = reli.restore_seq as number
-    }
-    const { data: gravou, error: errGrava } = await getSupabaseServiceClient()
-      .from('ab_tests').update({ completed_reason: 'manual_winner', winner_variant_id: varianteId })
-      .eq('id', testId).eq('site_id', siteId).eq('completed_reason', 'regra_v2').eq('restore_seq', seqGrava)
-      .eq('result_metadata->v2->>vencedor_sugerido', varianteId) // Phil C1: a letra gravada tem de ser a da tela (tentarAgora leva segundos)
-      .select('id')
-    if (errGrava) { Sentry.captureException(errGrava, { tags: { area: 'ab-acao-saida' } }); return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA } }
-    if (((gravou ?? []) as unknown[]).length === 0) return { ok: false, resultado: 'mudou', error: MSG_MUDOU }
-    revalidatePath('/cms/youtube/ab-lab')
-    return { ok: true, resultado: 'feito', campos: {} }
-  }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: { tipo: 'variante', id: varianteId }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: seq.data, ...(forcar === true ? { forcar: true } : {}) }))
-}
 
 // ---------------------------------------------------------------------------
 // fetchAbBriefingData
@@ -1649,8 +1555,7 @@ export async function avisoDeVolumeDoTeste(
 const EscolhaSchema = z.object({ testId: z.string().uuid(), varianteId: z.string().uuid(), forcar: z.boolean().optional() })
 
 /**
- * M7b: o dono deixa qualquer versão no ar num teste concluído (ou mantém a que já está). Degrau "administrar o site", como
- * `aplicarSugerido`/`revertWinner`. A escolha NUNCA muda `winner_variant_id`, salvo quando é a própria sugerida. Corpo em
+ * M7b: o dono deixa qualquer versão no ar num teste concluído (ou mantém a que já está). Degrau "administrar o site". A escolha NUNCA muda `winner_variant_id`, salvo quando é a própria sugerida. Corpo em
  * `lib/youtube/ab-escolha.ts`; aqui só a sessão, a validação e a invalidação das telas.
  */
 export async function escolherVersao(testId: string, varianteId: string, seqVisto: number, forcar?: boolean): Promise<ResultadoEscolha> {

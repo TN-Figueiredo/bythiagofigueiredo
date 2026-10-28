@@ -1,4 +1,4 @@
-// Degrau "administrar o site" — teste A/B. Deixar uma variante no ar, forçar rotação ou reverter
+// Degrau "administrar o site" — teste A/B. Deixar uma variante no ar, forçar rotação ou aplicar
 // vencedor troca título/thumbnail no canal de verdade: só quem administra.
 //   (a) editora → negado, service client nem é criado, YouTube não é chamado;
 //   (b) org_admin → passa do guarda (os caminhos felizes completos estão em
@@ -54,7 +54,6 @@ const isRefusal = (r: Res) => r.ok === false && /^Só quem administra o site pod
 
 const ALWAYS: Array<{ name: string; run: () => Promise<Res> }> = [
   { name: 'forceRotate', run: () => ab.forceRotate('test-1') },
-  { name: 'revertWinner', run: () => ab.revertWinner('test-1', 0) },
 ]
 
 function arrange(who: SessionWho, row: Record<string, unknown> = {}) {

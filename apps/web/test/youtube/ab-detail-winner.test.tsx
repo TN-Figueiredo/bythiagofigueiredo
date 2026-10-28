@@ -33,7 +33,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
-  revertWinner: vi.fn(),
+ 
   archiveAbTest: vi.fn(),
 }))
 
@@ -302,7 +302,7 @@ describe('WinnerDetail', () => {
   })
 
   it('T15b-2: sem a faixa "Vencedor aplicado - você pode reverter" nem o botão Reverter, mesmo dentro da janela de 7 dias', () => {
-    const view = makeWinnerView({ winnerAppliedAt: new Date().toISOString(), revertExpiresAt: new Date(Date.now() + 3 * 86400000).toISOString() })
+    const view = makeWinnerView({ winnerAppliedAt: new Date().toISOString() })
     const { container } = render(<WinnerDetail view={view} />)
     expect(container.textContent).not.toContain('reverter em até')
     expect(container.textContent).not.toContain('Restaura o thumbnail')

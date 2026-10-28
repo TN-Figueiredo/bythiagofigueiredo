@@ -7,7 +7,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 vi.mock('@/app/cms/(authed)/youtube/_components/yt-portal', () => ({
   YtPortal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
-vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({ revertWinner: vi.fn(), archiveAbTest: archive }))
+vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({ archiveAbTest: archive }))
 const admin = vi.hoisted(() => ({ value: true }))
 vi.mock('@/lib/cms/site-admin-context', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/cms/site-admin-context')>()),
@@ -140,7 +140,7 @@ describe('M7d T7: ConcluidoV2Detail', () => {
     const v = {
       id: 't1', videoTitle: 'Meu vídeo', flag: 'thumbnail', status: 'completed', outcome: 'winner', winnerLabel: 'B', winnerColor: '#888',
       lift: null, confidence: null, resultMeta: {}, variants: [], variantThumbs: [], totalRounds: 1, hasPlayoff: false, restoreSeq: 7,
-      placar: null, faixa_dias: [], completedAt: '2026-10-24T12:00:00Z', revertExpiresAt: null, noArAgora: null, activeNow: null, variantDb: [],
+      placar: null, faixa_dias: [], completedAt: '2026-10-24T12:00:00Z', noArAgora: null, activeNow: null, variantDb: [],
       v2: {
         fase: 'concluido', selo: { tipo: 'vence', provisorio: true, letra: 'B' },
         frase: { principal: 'B provavelmente vence.', apoio: 'x' }, prazo: { tipo: 'provisorio', ate: '04/11' }, noAr: { tipo: 'original' },
