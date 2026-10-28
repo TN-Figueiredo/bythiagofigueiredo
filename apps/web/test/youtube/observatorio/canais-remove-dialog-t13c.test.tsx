@@ -65,9 +65,12 @@ describe('T13c · recusa do apagar com mês fora', () => {
 describe('T13c · aviso ao abrir (guardar)', () => {
   it('com mês fora: aviso com a frase do pedido parado, e guardar segue ativo e funciona', async () => {
     const m = mount({ impact: async () => resp({ mesFora: MES }), hojeSP: '2026-10-28', podeAdministrar: false }); await act(async () => {})
-    const aviso = m.q('.fx-mes-fora')!
+    const aviso = m.q('.fx-mes-fora > span > span:first-child')!
     expect(aviso.textContent).toContain('Outubro de 2026 saiu das telas')
-    expect(aviso.textContent).toContain('o pedido fica parado até o mês voltar ou ser apagado')
+    expect(aviso.textContent).toContain('Você pode guardar o pedido, mas ele fica parado')
+    expect(aviso.textContent).not.toContain('ou ser apagado')
+    expect(m.q('.fx-mes-fora')!.classList.contains('fx-info')).toBe(false)
+    expect(m.q('.fx-mes-fora [data-fx-icon="warn"]')).not.toBeNull()
     expect(aviso.textContent).not.toContain('enquanto este diálogo')
     const guardar = m.btn(/Parar coleta e agendar/)
     expect(guardar.getAttribute('aria-disabled')).toBeNull()
@@ -83,9 +86,16 @@ describe('T13c · aviso ao abrir (guardar)', () => {
     expect(m.q('.fx-mes-fora')).toBeNull()
     expect(m.btn(/Parar coleta e agendar/).getAttribute('aria-disabled')).toBeNull()
   })
-  it('no apagar o aviso do guardar não aparece', async () => {
-    const m = mount({ impact: async () => resp({ mesFora: MES }) }); await act(async () => {})
+  it('no apagar o aviso continua, com o texto do apagar e sizer invisível do guardar; some na recusa vermelha', async () => {
+    const m = mount({ impact: async () => resp({ mesFora: MES }), apagar: recusaApagar(MES), hojeSP: '2026-10-28', podeAdministrar: true }); await act(async () => {})
     fireEvent.click(m.q('input[value="apagar"]')!)
+    const aviso = m.q('.fx-mes-fora > span > span:first-child')!
+    expect(aviso.textContent).toContain('Apagar não funciona enquanto isso: o banco recusa.')
+    expect(aviso.textContent).toContain('Guardar o pedido é possível, mas ele fica parado.')
+    expect(aviso.textContent).not.toContain('Você pode guardar o pedido')
+    expect(m.q('.fx-mes-fora > span > span[aria-hidden="true"]')!.textContent).toContain('Você pode guardar o pedido')
+    expect(m.q('.fx-mes-fora button')!.getAttribute('aria-label') ?? m.q('.fx-mes-fora')!.innerHTML).toContain('Por que não dá para apagar agora')
+    await tentarApagar(m)
     expect(m.q('.fx-mes-fora')).toBeNull()
   })
 })

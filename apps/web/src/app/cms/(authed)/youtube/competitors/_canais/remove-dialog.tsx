@@ -227,7 +227,8 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const semSaidaGuardar = erro?.caminho === 'apagar' && (erro.codigo === 'video_compartilhado' || forMesFora) // decisão C (T13c): na recusa do mês fora só Fechar; o aviso do guardar aparece no diálogo ao reabrir (a F1 aceita guardar nesse caso)
   const dadosMesFora = (m: MesForaDaRecusa, recusadoNoClique: boolean) => ({ ...m, recusadoNoClique, ...(hojeSP ? { hojeSP } : {}), ...(podeAdministrar !== undefined ? { podeAdministrar } : {}) })
   const fraseMes = forMesFora && erro?.mesFora ? fraseDoMesFora(dadosMesFora(erro.mesFora, true)) : null
-  const avisoMes = caminho === 'guardar' && mesForaAoAbrir && !comErro && !incerto ? fraseDoMesFora(dadosMesFora(mesForaAoAbrir, false)) : null
+  const avisoMes = mesForaAoAbrir && !comErro && !incerto ? fraseDoMesFora(dadosMesFora(mesForaAoAbrir, false), caminho) : null
+  const avisoMesOutro = mesForaAoAbrir && !comErro && !incerto ? fraseDoMesFora(dadosMesFora(mesForaAoAbrir, false), caminho === 'guardar' ? 'apagar' : 'guardar') : null
   const passageiroGuardar = erro?.caminho === 'guardar' && codigoPassageiro(erro.codigo)
 
   return (
@@ -328,13 +329,20 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
         ) : null}
 
         {avisoMes ? (
-          <div className="fx-msg fx-info fx-mes-fora" role="note">
-            <PinIcon name="info" />
-            <span>
-              <b>{avisoMes.negrito}</b> {avisoMes.resto} Se guardar agora, o pedido fica parado até o mês voltar ou ser apagado.{' '}
-              <RiInfo titulo="Por que o pedido fica parado" itens={[avisoMes.info]} rotuloBotao="Por que o pedido fica parado"
-                aoMudar={aoMudarInfo} />
-              {avisoMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
+          <div className="fx-msg fx-mes-fora" role="note">
+            <PinIcon name="warn" />
+            <span style={{ display: 'grid' }}>
+              <span style={{ gridArea: '1 / 1' }}>
+                <b>{avisoMes.negrito}</b> {avisoMes.resto}{' '}
+                <RiInfo titulo={caminho === 'guardar' ? 'Por que o pedido fica parado' : 'Por que não dá para apagar agora'} itens={[avisoMes.info]}
+                  rotuloBotao={caminho === 'guardar' ? 'Por que o pedido fica parado' : 'Por que não dá para apagar agora'} aoMudar={aoMudarInfo} />
+                {avisoMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
+              </span>
+              {avisoMesOutro ? (
+                <span aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden' }}>
+                  <b>{avisoMesOutro.negrito}</b> {avisoMesOutro.resto} Por que não dá para apagar agora{avisoMesOutro.linkArquivo ? ' Ir para o Arquivo' : ''}
+                </span>
+              ) : null}
             </span>
           </div>
         ) : null}
