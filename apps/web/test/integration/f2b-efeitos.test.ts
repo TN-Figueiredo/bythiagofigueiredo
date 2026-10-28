@@ -11,6 +11,7 @@ import { Client } from 'pg'
 import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { criarSite, escalar } from '../helpers/mg6'
+import { apagarSites } from '../helpers/limpa-cena'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const JANELA = 14
@@ -311,7 +312,7 @@ describe.skipIf(skipIfNoLocalDb())('F2b T2: efeitos da medida D2 (tabelas, fila,
       const v = randomUUID()
       const s = await sinal(site, 'pais:VN', 5, [{ video: v, canal: randomUUID(), pub: new Date(Date.now() - 6 * 86400000).toISOString() }])
       await gravar(site, [braco(s, v)], [linha(s, v)])
-      await pg.query(`delete from public.sites where id = $1`, [site])
+      await apagarSites(pg, 'id = $1', [site])
       expect(await escalar<number>(pg, `select count(*)::int from public.niche_signal_efeitos where site_id = $1`, [site])).toBe(0)
       expect(await escalar<number>(pg, `select count(*)::int from public.niche_signal_efeito_bracos where site_id = $1`, [site])).toBe(0)
     })

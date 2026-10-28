@@ -10,7 +10,7 @@ set lock_timeout = '5s';
 create table if not exists public.niche_signal_efeitos (
   site_id uuid not null references public.sites (id) on delete cascade,
   signal_id uuid not null references public.niche_signals (id) on delete cascade,
-  outlier_video_id uuid not null,              -- sem FK: apagar canal acompanhado apaga competitor_videos (D4)
+  outlier_video_id uuid not null,              -- sem FK: o vídeo do competidor pode sair com o canal acompanhado (D4)
   canal_id uuid not null,
   outlier_published_at timestamptz not null,
   papel text not null check (papel in ('alvo', 'controle')),     -- placebo = o mesmo braço com anos_atras > 0
