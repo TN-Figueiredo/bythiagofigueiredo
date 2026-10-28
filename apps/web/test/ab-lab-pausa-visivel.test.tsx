@@ -109,24 +109,24 @@ describe('ActiveDetail: nosso teste pausado por teste do YouTube', () => {
   it('registro aberto, antes da hora: a frase com dd/mm, HH:MM e Retomar desabilitado', () => {
     render(<ActiveDetail view={viewPausado({ pausaYoutube: { aberto: true, ate: ATE } })} {...props()} agora={() => ANTES} />)
     expect(screen.getByText('Lab pausado porque há teste no Studio. Retomar fica disponível a partir de 04/11, 22:00.')).toBeTruthy()
-    expect(botao().disabled).toBe(true)
+    expect(botao().getAttribute('aria-disabled')).toBe('true')
   })
   it('registro aberto, depois da hora: "Retomar espera o resultado..." e botão ainda desabilitado', () => {
     render(<ActiveDetail view={viewPausado({ pausaYoutube: { aberto: true, ate: ATE } })} {...props()} agora={() => DEPOIS} />)
     expect(screen.getByText(FRASES.s7.retomarEspera)).toBeTruthy()
-    expect(botao().disabled).toBe(true)
+    expect(botao().getAttribute('aria-disabled')).toBe('true')
   })
   it('registro que deixou de estar aberto: Retomar habilitado e chama a ação por prop com o restoreSeq', () => {
     const p = props()
     render(<ActiveDetail view={viewPausado({ pausaYoutube: { aberto: false, ate: null } })} {...p} agora={() => ANTES} />)
-    expect(botao().disabled).toBe(false)
+    expect(botao().getAttribute('aria-disabled')).toBeNull()
     expect(screen.queryByText(/Lab pausado porque há teste/)).toBeNull()
     fireEvent.click(botao())
     expect(p.retomar).toHaveBeenCalledWith(3)
   })
   it('pausa por outro motivo segue como antes (sem a frase do teste do YouTube)', () => {
     render(<ActiveDetail view={viewPausado({ statusNote: null })} {...props()} agora={() => ANTES} />)
-    expect(botao().disabled).toBe(false)
+    expect(botao().getAttribute('aria-disabled')).toBeNull()
     expect(screen.queryByText(/há teste no Studio/)).toBeNull()
   })
 })

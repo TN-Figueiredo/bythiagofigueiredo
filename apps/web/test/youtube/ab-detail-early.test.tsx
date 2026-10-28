@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 import { render } from '@testing-library/react'
 import { EarlyDetail } from '@/app/cms/(authed)/youtube/ab-lab/_components/early-detail'
 import type { AbTestActiveView, DisplayLabel } from '@/lib/youtube/ab-types'

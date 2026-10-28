@@ -355,6 +355,13 @@ export interface AbTestResults {
 /* --- Chart variant hierarchy (Layer 1 redesign) --- */
 export type DisplayLabel = 'A' | 'B' | 'C' | 'D'
 
+/** Fonte única da letra da variante (D24): original/'original' = A; B/C/D como vêm; qualquer outra coisa = B. */
+export function toDisplayLabel(dbLabel: string, isOriginal?: boolean): DisplayLabel {
+  if (isOriginal || dbLabel === 'original') return 'A'
+  if (dbLabel === 'B' || dbLabel === 'C' || dbLabel === 'D') return dbLabel
+  return 'B'
+}
+
 export interface ChartVariant {
   label: DisplayLabel
   color: string
@@ -613,6 +620,10 @@ export interface AbTestActiveView extends AbTestBaseView {
   /** T10: só no pausado por teste do YouTube; preenchido pela página (servidor). */
   pausaYoutube?: { aberto: boolean; ate: string | null }
   driftAcknowledgedAt: string | null
+  /** M7d T1b: quando o dono pausou (coluna paused_at); nulo fora da pausa. */
+  pausedAt: string | null
+  /** M7d T1b: variante que entra na próxima rotação (nulo no padrão random). */
+  proximaNaRotacao: DisplayLabel | null
   variantDb: VariantDbEntry[]
   graceExpiresAt?: string | null
   winnerAppliedAt?: string | null
@@ -634,7 +645,6 @@ export interface AbTestWinnerView extends AbTestBaseView {
   }
   monitor?: LiveMonitor
   learning?: string
-  revertExpiresAt?: string | null
   winnerAppliedAt?: string | null
   /** D21: o que está no ar agora (fonte única `noArConfirmado`); `letra: null` = não confirmado. Separado do vencedor estatístico (`winnerLabel`). */
   noAr?: { letra: string | null; original: boolean }

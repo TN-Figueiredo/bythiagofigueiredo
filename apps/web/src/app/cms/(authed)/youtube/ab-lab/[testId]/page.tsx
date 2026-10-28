@@ -17,6 +17,7 @@ import { carregarDadosDaFaixa } from '../_components/faixa-dados'
 import { AtualizarEnquantoEmAndamento } from '../_components/atualizar-enquanto-em-andamento'
 import { isEarly } from '../_components/is-early'
 import { faixaDaPagina } from '../_components/faixa-da-pagina'
+import '../_components/ab-pagina.css'
 import type { Metadata } from 'next'
 import type { AbTestDetailView, AbTestActiveView } from '@/lib/youtube/ab-types'
 import type { TelaV2 } from '@/lib/youtube/ab-gravacao/tela-v2'
@@ -68,11 +69,15 @@ async function getMockMap(): Promise<Record<string, AbTestDetailView>> {
   }
 }
 
-function renderView(view: AbTestDetailView) {
+function Pagina({ children }: { children: React.ReactNode }) {
+  return <div className="ab-pagina"><div className="ab-coluna">{children}</div></div>
+}
+
+function renderView(view: AbTestDetailView, { escrevendo }: { escrevendo: boolean }) {
   if (view.status !== 'completed') {
     const id = (view as AbTestActiveView).id
-    if (isEarly(view) && (view as AbTestActiveView).v2?.fase !== 'ativo') return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} />
-    return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} retomar={resumeAbTest.bind(null, id)} />
+    if (isEarly(view) && (view as AbTestActiveView).v2?.fase !== 'ativo') return <EarlyDetail view={view} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} escrevendo={escrevendo} />
+    return <ActiveDetail view={view as AbTestActiveView} encerrar={endAbTest.bind(null, id)} pausar={pauseAbTest.bind(null, id)} retomar={resumeAbTest.bind(null, id)} escrevendo={escrevendo} />
   }
   // Concluído v2 "da regra" (D-T12-2): a tela v2 (T12). Encerrado à mão no ativo segue nos detalhes de sempre.
   if (view.v2?.fase === 'concluido') {
@@ -91,7 +96,7 @@ export default async function AbTestDetailPage({
 
   const mockMap = await getMockMap()
   const mockView = mockMap[testId]
-  if (mockView) return <><AvisoDePagina testId={testId} />{renderView(mockView)}</>
+  if (mockView) return <Pagina><AvisoDePagina testId={testId} />{renderView(mockView, { escrevendo: false })}</Pagina>
 
   // O Next apaga a mensagem de erro de Server Component em produção: a falha de leitura do placar (D-F3-5)
   // é tratada aqui, no servidor, para a cópia do M4 chegar à tela.
@@ -101,7 +106,7 @@ export default async function AbTestDetailPage({
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('ab_lab_leitura')) {
       Sentry.captureException(e)
-      return <FalhaDeLeitura falhouAs={horaDaFalha(new Date())} />
+      return <Pagina><FalhaDeLeitura falhouAs={horaDaFalha(new Date())} /></Pagina>
     }
     throw e
   }
@@ -112,10 +117,10 @@ export default async function AbTestDetailPage({
   const pausa = (await lerPausasYoutube(getSupabaseServiceClient(), results.test.site_id, [results.test])).get(testId)
   const view = pausa && viewBase.status !== 'completed' ? { ...viewBase, pausaYoutube: pausa } : viewBase
   const dados = await carregarDadosDaFaixa(results.test, view.restoreStatus)
-  const { faixa, faixaTentando, emAndamentoDesde, ilegivel } = faixaDaPagina(view, results.test.restore_status, new Date(), dados)
+  const { faixa, faixaTentando, emAndamentoDesde, ilegivel, escrevendo } = faixaDaPagina(view, results.test.restore_status, new Date(), dados)
   if (ilegivel) Sentry.captureMessage('restore_status ilegível', { extra: { testId } })
   return (
-    <>
+    <Pagina>
       {faixa ? (
         <FaixaComAcoes
           testId={testId} faixa={faixa} faixaTentando={faixaTentando} seqVisto={view.restoreSeq}
@@ -124,7 +129,7 @@ export default async function AbTestDetailPage({
       ) : null}
       {emAndamentoDesde ? <AtualizarEnquantoEmAndamento emAndamentoDesde={emAndamentoDesde} /> : null}
       <AvisoDePagina testId={testId} />
-      {renderView(view)}
-    </>
+      {renderView(view, { escrevendo })}
+    </Pagina>
   )
 }

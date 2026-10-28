@@ -14,7 +14,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   forceRotate: vi.fn(), applyWinnerNow: vi.fn(), cancelGracePeriod: vi.fn(), endAbTest: vi.fn(), pauseAbTest: vi.fn(),
-  acknowledgeAbTestDrift: vi.fn(), resumeAbTest: vi.fn(), revertWinner: vi.fn(), archiveAbTest: vi.fn(), retryRestore: vi.fn(), dismissRestore: vi.fn(),
+  acknowledgeAbTestDrift: vi.fn(), resumeAbTest: vi.fn(), archiveAbTest: vi.fn(), retryRestore: vi.fn(), dismissRestore: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({ usePollStats: () => ({ data: null, loading: false }) }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))

@@ -23,7 +23,7 @@ type Concl = Extract<TelaV2, { fase: 'concluido' }>
 const base = (o: Partial<Concl> = {}): Concl => ({
   fase: 'concluido', selo: { tipo: 'vence', provisorio: true, letra: 'B' },
   frase: { principal: 'B provavelmente vence.', apoio: 'CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).' },
-  prazo: { tipo: 'provisorio', ate: '04/11' }, noAr: { tipo: 'original' }, aplicar: { variant_id: 'v-b', letra: 'B' }, voltar: false, aplicarDeNovo: null, bloqueio: null,
+  prazo: { tipo: 'provisorio', ate: '04/11' }, noAr: { tipo: 'original' }, aplicar: { variant_id: 'v-b', letra: 'B' }, aplicarDeNovo: null, bloqueio: null,
   n: 10315, pisos: [
     { variant_id: 'v-a', letra: 'A', titulo: 'Título A', volume: 11000, dias_validos: 4 },
     { variant_id: 'v-b', letra: 'B', titulo: 'Título B', volume: 10400, dias_validos: 4 },
@@ -34,7 +34,7 @@ function view(v2: Concl, o: Record<string, unknown> = {}): AbTestDetailView & { 
   return {
     id: 't1', videoTitle: 'Meu vídeo', flag: 'thumbnail', status: 'completed', outcome: 'winner', winnerLabel: 'B', winnerColor: '#888',
     lift: null, confidence: null, resultMeta: {}, variants: [], variantThumbs: [], totalRounds: 1, hasPlayoff: false, restoreSeq: 7,
-    placar: null, faixa_dias: [], completedAt: '2026-10-24T12:00:00Z', revertExpiresAt: null, noArAgora: null, activeNow: null,
+    placar: null, faixa_dias: [], completedAt: '2026-10-24T12:00:00Z', noArAgora: null, activeNow: null,
     variantDb: [
       { id: 'v-a', label: 'A', is_original: true, blob_url: null, title_text: 'Título A', dimensions: null },
       { id: 'v-b', label: 'B', is_original: false, blob_url: 'https://x/b.jpg', title_text: 'Título B', dimensions: null },
@@ -58,7 +58,7 @@ describe('T12 T7 + M7b T15: concluído v2 sem prazo', () => {
     const { container } = montar(base())
     expect(container.textContent).toContain('▲B vence (provisório)')
     expect(container.textContent).toContain('Provisório até 04/11: pode mudar nos próximos dias.')
-    expect(container.textContent).toContain('Teste do Lab concluído em 24/10')
+    expect(container.textContent).toContain('Concluído em 24/10')
     expect(container.textContent).toContain('Quanto o teste alcançou')
     expect(container.textContent).toContain('No ar agora: A (original).')
   })
@@ -73,7 +73,7 @@ describe('T12 T7 + M7b T15: concluído v2 sem prazo', () => {
 
   it('T15: o botão vale para qualquer concluído v2, aplicado, desfeito, original vence ou sem diferença', () => {
     const casos: Concl[] = [
-      base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true }),
+      base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null }),
       base({ noAr: { tipo: 'desfeita', letra: 'B', desfechoMudou: true }, aplicar: null, selo: { tipo: 'sem_diferenca' } }),
       base({ selo: { tipo: 'original' }, aplicar: null, prazo: { tipo: 'final' } }),
       base({ selo: { tipo: 'sem_diferenca' }, aplicar: null }),
@@ -86,7 +86,7 @@ describe('T12 T7 + M7b T15: concluído v2 sem prazo', () => {
   })
 
   it('aplicado: "B está no ar"', () => {
-    const { container } = montar(base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true }))
+    const { container } = montar(base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null }))
     expect(container.textContent).toContain('B está no ar.')
   })
 

@@ -69,6 +69,9 @@ const TYPE_FILTER_LABELS: Record<'all' | TestType, string> = {
 
 const tipoDoCartao = (c: CartaoEmTeste): TestType => (c.tipo === 'lab' ? c.card.type : 'title')
 
+/** `?painel=` que não abre (outro teste aberto no vídeo, fora da v2, id inexistente): texto provisório (D25), o do Logan não foi achado. */
+const AVISO_PAINEL_NAO_ABRIU = 'Não deu para abrir esse teste aqui. Abra pela lista.'
+
 export function AbLabDashboard({
   pagina, settings, siteId, eligibleVideos, drafts, iniciarTeste, avisoDeVolume, acoesDecisao, acoesCaminho, lerVideos, salvarAjustes,
   listaInicial, videoInicial, painelInicial = null, painelDaUrl = null, blocoSugestoes, learnings, channelLearnings,
@@ -97,6 +100,7 @@ export function AbLabDashboard({
     const l = pagina.concluidos.linhas.find(x => x.testId === painelInicial && x.painel)
     const dados = painelDaUrl ?? l?.painel ?? pagina.comVoce.itens.flatMap(i => ((i.tipo === 'aplicar' || i.tipo === 'escolher') && i.testId === painelInicial ? [i.painel] : []))[0]
     if (dados) setPainel({ dados, origem: null })
+    else setAviso(AVISO_PAINEL_NAO_ABRIU)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painelInicial])
 

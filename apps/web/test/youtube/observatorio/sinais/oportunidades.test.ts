@@ -53,7 +53,7 @@ describe('regra', () => {
   it('multSozinho reaproveita RULES.tiers.high; rule_version', () => {
     expect(REGRA_SINAIS.multSozinho).toBe(RULES.tiers.high)
     expect(REGRA_SINAIS.sozinhoNotificaIndividual).toBe(false)
-    expect(ruleVersionDe(3)).toBe('sinais-v1+semente-3')
+    expect(ruleVersionDe(3)).toBe('sinais-v1+lugar-v2+semente-3')
   })
 })
 

@@ -31,6 +31,8 @@ export interface PlacarDoTesteProps {
   inicio?: string | null
   /** Tela v2: o resumo e o andamento vêm antes do placar (blocos-v2), então a frase `pm4-sum` não é desenhada aqui. */
   modoV2?: boolean
+  /** Letra da versão que ficou no ar (concluído com `noAr`): a linha dela ganha o selo "No ar". */
+  noArLetra?: string | null
 }
 
 const Svg = ({ children, size = 14 }: { children: React.ReactNode; size?: number }) => (
@@ -127,7 +129,7 @@ export function prazoDoPrimeiroDia(proximoFechamento: string | null, inicio: str
   return `O primeiro dia fecha até ${PRAZO_FECHAMENTO_DIAS} dias depois do início.`
 }
 
-export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = [], thumbs, videoTitle, status, andamento, titulo = 'Placar por variante', modoV2 = false, testType, inicio = null }: PlacarDoTesteProps) {
+export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = [], thumbs, videoTitle, status, andamento, titulo = 'Placar por variante', modoV2 = false, testType, inicio = null, noArLetra = null }: PlacarDoTesteProps) {
   const [aberta, setAberta] = useState<string | null>(null)
   const idBase = useId()
   const ordenadas = ordenarPorRotulo(variants)
@@ -164,7 +166,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
   const resumo = hojePendente ? '1 dia: 1 aguardando o YouTube' : `${faixaDias.length} ${faixaDias.length === 1 ? 'dia' : 'dias'}: ${(Object.keys(cont) as CodigoDia[]).map(k => `${cont[k]} ${NOME_DIA[k]}`).join(', ')}`
 
   return (
-    <div className="cn-raiz pm4" data-testid="placar-do-teste">
+    <div className="cn-raiz pm4" data-testid="placar-do-teste" data-v2={modoV2 ? '' : undefined}>
       <div className="pm4-in">
         {placar?.regra === 'v1' && (
           <div className="pm4-selos"><span className="pm4-selo"><IcVelho />Regra antiga: encerra por duração</span></div>
@@ -225,7 +227,7 @@ export function PlacarDoTeste({ placar, faixaDias = [], variants, variantDb = []
                         ? <img className="pm4-th" src={thumb.thumbUrl} alt={`Miniatura ${variant.label}`} referrerPolicy="no-referrer" />
                         : <span className="pm4-th pm4-th-vazia">Sem miniatura</span>)}
                       <div className="pm4-vt">
-                        <b title={tituloLinha}>{tituloLinha}{thumb?.isOriginal && <span className="dash" style={{ fontWeight: 400 }}> · original</span>}</b>
+                        <b title={tituloLinha}>{tituloLinha}{thumb?.isOriginal && <span className="dash" style={{ fontWeight: 400 }}> · original</span>}{noArLetra === variant.label && <span className="pm4-noar">No ar</span>}</b>
                         <div className="ap"><Apoio v={v} /></div>
                       </div>
                     </div>

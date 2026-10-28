@@ -23,7 +23,7 @@ function Pai() {
       <button type="button" onClick={() => setAberto(true)}>Encerrar teste abrir</button>
       <AbEndTestDialog
         aberto={aberto} onFechar={() => setAberto(false)} testeNome="t" noArAgora={{ rotulo: 'B', desde: '' }}
-        opcoes={opcoes} originalBaixaResolucao={false} podeDeixarVariante encerrar={vi.fn()}
+        opcoes={opcoes} originalBaixaResolucao={false} podeDeixarVariante encerrar={vi.fn()} freio={{ tipo: 'faltam', texto: 'Faltam 8 dias dos 14.' }}
       />
     </>
   )

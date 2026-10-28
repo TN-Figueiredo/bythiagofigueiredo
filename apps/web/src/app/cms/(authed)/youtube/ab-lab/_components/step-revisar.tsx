@@ -96,10 +96,10 @@ const TEXTO_VOLUME_INDISPONIVEL = 'Não foi possível estimar o volume agora. Vo
 
 type AvisoComSelo = Exclude<AvisoOriginal, { kind: 'indisponivel' }>
 
-function CartaoDeAviso({ selo, ambar, texto, tracejado = false, atributo, altura = ALTURA_AVISO_VOLUME }: { selo: string; ambar: boolean; texto: string; tracejado?: boolean; atributo?: Record<string, string>; altura?: string }) {
+function CartaoDeAviso({ selo, ambar, texto, tracejado = false, atributo, altura = ALTURA_AVISO_VOLUME, comRole = true }: { selo: string; ambar: boolean; texto: string; tracejado?: boolean; atributo?: Record<string, string>; altura?: string; comRole?: boolean }) {
   return (
     <div
-      role="status"
+      {...(comRole ? { role: 'status' } : {})}
       {...atributo}
       className={`rv-vol ${altura} grid content-center justify-items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text`}
     >
@@ -129,32 +129,32 @@ const ALTURA_AVISO_VOLUME = 'min-h-[92px]'
 /** Resolução: o texto resolvido quebra em mais linhas no celular; a mesma altura no esqueleto e no cartão evita o pulo. */
 const ALTURA_AVISO_RESOLUCAO = 'min-h-[180px] sm:min-h-[120px]'
 
-function EsqueletoDeAviso({ texto, rotulo, atributo, altura = ALTURA_AVISO_VOLUME }: { texto: string; rotulo: string; atributo?: boolean; altura?: string }) {
+function EsqueletoDeAviso({ texto, rotulo, atributo, altura = ALTURA_AVISO_VOLUME }: { texto: string; rotulo?: string; atributo?: boolean; altura?: string }) {
+  // Volume (atributo): a região viva é o wrapper estável em StepRevisar; aqui não há role.
+  const regiao = atributo ? {} : { role: 'status', 'aria-busy': 'true' as const, 'aria-label': rotulo }
   return (
     <div
-      role="status"
-      aria-busy="true"
-      aria-label={rotulo}
+      {...regiao}
       {...(atributo ? { 'data-aviso-volume-sk': '' } : {})}
-      className={`rv-vol ${altura} grid content-center gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text-muted`}
+      className={`rv-vol ${altura} grid content-center justify-items-start gap-2 rounded-lg border border-cms-border bg-cms-surface px-4 py-3 text-[13px] leading-[1.55] text-cms-text-muted`}
     >
-      <span className="inline-flex items-center gap-1.5">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-cms-border bg-cms-surface-3 px-2.5 py-px text-[12px] font-semibold leading-5 text-cms-text-muted">
         <Clock className="w-3.5 h-3.5" aria-hidden="true" />
         {texto}
       </span>
-      <span className="block h-2 w-3/5 rounded bg-cms-surface-3 motion-safe:animate-pulse" aria-hidden="true" />
+      <span className="block h-2 w-3/5 rounded bg-cms-border motion-safe:animate-pulse" aria-hidden="true" />
     </div>
   )
 }
 
 function AvisoVolume({ estado }: { estado: Exclude<EstadoAvisoVolume, null> }) {
-  if (estado === 'pendente') return <EsqueletoDeAviso texto="Conferindo o volume do vídeo…" rotulo="Estimando o volume do teste" atributo />
+  if (estado === 'pendente') return <EsqueletoDeAviso texto="Conferindo o volume do vídeo…" atributo />
   if (estado === 'indisponivel') {
-    return <p role="status" data-aviso-volume className="m-0 text-[13px] text-cms-text-muted">{TEXTO_VOLUME_INDISPONIVEL}</p>
+    return <p data-aviso-volume className="m-0 text-[13px] text-cms-text-muted">{TEXTO_VOLUME_INDISPONIVEL}</p>
   }
   const selo = seloDoAvisoDeVolume(estado.estado)
-  if (!selo) return <p role="status" data-aviso-volume className="m-0 text-[13px] text-cms-text-muted">{fraseDeTela(estado.texto)}</p>
-  return <CartaoDeAviso selo={selo.selo} ambar={selo.tom === 'ambar'} texto={fraseDeTela(estado.texto)} atributo={{ 'data-aviso-volume': '' }} />
+  if (!selo) return <p data-aviso-volume className="m-0 text-[13px] text-cms-text-muted">{fraseDeTela(estado.texto)}</p>
+  return <CartaoDeAviso selo={selo.selo} ambar={selo.tom === 'ambar'} texto={fraseDeTela(estado.texto)} atributo={{ 'data-aviso-volume': '' }} comRole={false} />
 }
 
 /* ------------------------------------------------------------------ */
@@ -209,7 +209,11 @@ export function StepRevisar({ type, variants, meta, onEscolherDaBiblioteca, avis
         )
       ) : null}
 
-      {avisoVolume ? <AvisoVolume estado={avisoVolume} /> : null}
+      {avisoVolume ? (
+        <div role="status" aria-live="polite" aria-atomic="true" aria-busy={avisoVolume === 'pendente'}>
+          <AvisoVolume estado={avisoVolume} />
+        </div>
+      ) : null}
 
       {/* ClickMoment preview — only when 2+ variants */}
       {variants.length >= 2 && (

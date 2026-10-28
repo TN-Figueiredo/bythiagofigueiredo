@@ -92,7 +92,7 @@ export function noArConfirmado(t: EntradaNoAr, historico: ReadonlyArray<Tentativ
         resultado = { k: 'desc', ultima: ultimaAntes(validas.slice(i + 1)) }
       } else {
         // falhou/desistiu com escreveu !== false (null ou true), ou qualquer estado fora da lista: não se sabe o que ficou.
-        resultado = { k: 'desc', ultima: ultimaAntes(unicas.slice(unicas.indexOf(l) + 1)) }
+        resultado = { k: 'desc', ultima: ultimaAntes(validas.slice(i + 1)) }
       }
     }
     if (!resultado) {

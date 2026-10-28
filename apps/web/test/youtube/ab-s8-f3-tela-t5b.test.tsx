@@ -11,7 +11,7 @@ vi.mock('@/lib/supabase/service', async () => {
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() }), useParams: () => ({ testId: 't1' }) }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   forceRotate: vi.fn(), applyWinnerNow: vi.fn(), cancelGracePeriod: vi.fn(),
-  acknowledgeAbTestDrift: vi.fn(), resumeAbTest: vi.fn(), revertWinner: vi.fn(), archiveAbTest: vi.fn(),
+  acknowledgeAbTestDrift: vi.fn(), resumeAbTest: vi.fn(), archiveAbTest: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({
   usePollStats: () => ({ data: null, loading: false }),
@@ -61,7 +61,7 @@ describe('S8-F3 T5b: cabeçalho, datas, andamento, carregando', () => {
     expect(h.querySelector('.dhl-crumb')).not.toBeNull()
     expect(h.querySelector('.dhl-th')).not.toBeNull()
     const selo = h.querySelector('.dhl-selo')!
-    expect(selo.textContent).toBe("Teste do Lab rodando")
+    expect(selo.textContent).toBe("Rodando · dia 5 de 14")
     expect(h.querySelector('h2')).not.toBeNull()
   })
 

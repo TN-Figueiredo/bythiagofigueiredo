@@ -23,6 +23,7 @@
     "pipeline:audit": "cd apps/web && npx vitest run test/lib/pipeline/api-registry.test.ts",
     "postinstall": "npm run build:packages || echo '\u26a0\ufe0f  Workspace package build failed \u2014 run npm run build:packages to diagnose'",
     "db:new": "bash scripts/new-migration.sh",
+    "obs:arquivo": "tsx --tsconfig apps/web/tsconfig.json scripts/obs-arquivo.ts pendencias",
     "db:link:prod": "echo '[PROD] novkqtvcnsiwhkxihurk' && supabase link --project-ref novkqtvcnsiwhkxihurk",
     "db:push:prod": "npm run db:link:prod && bash scripts/db-push-prod.sh",
     "db:start": "supabase start",

@@ -147,7 +147,7 @@ describe('telaV2DoTeste: ativo', () => {
   it('P4: chave ausente + pisos fechados => ◆T 11, sem sinal', () => {
     const r = ativoDe(ativo({ v2: { n: 100 }, dias: dias([O, B], 5) }))
     expect(r.sinal).toBeNull()
-    expect(r.frase.principal).toBe('Os pisos fecharam; a conta de hoje ainda não rodou.')
+    expect(r.frase.principal).toBe('Os dias mínimos já foram atingidos; o resultado sai amanhã.')
     expect(r.frase.apoio).toBe('Volte amanhã.')
   })
   it('P5: dia = teto + 2 => passouDoFim, nunca "-2"', () => {
@@ -170,6 +170,10 @@ describe('telaV2DoTeste: ativo', () => {
 })
 
 describe('telaV2DoTeste: nulos', () => {
+  it('M7b P3 (I3): manual_winner sem encerrado_em_dia não gera tela concluída (a página não oferece "Escolher o que fica")', () => {
+    const e = concluido({ reason: 'manual_winner', winner: B, applied: '2026-10-25T10:00:00Z', enc: null })
+    expect(telaV2DoTeste(e)).toBeNull()
+  })
   it('v1 => null', () => {
     const e = ativo(); e.teste.regra = 'v1'
     expect(telaV2DoTeste(e)).toBeNull()
@@ -195,32 +199,31 @@ describe('telaV2DoTeste: concluído, um por estado', () => {
     expect(r.prazo).toEqual({ tipo: 'provisorio', ate: '04/11' })
     expect(r.aplicar).toEqual({ variant_id: B, letra: 'B' })
     expect(r.noAr).toEqual({ tipo: 'original' })
-    expect(r.voltar).toBe(false)
   })
   it('vencedor final: prazo final, "B vence."', () => {
     const r = concDe(concluido({ provisorio: false }))
     expect(r.frase.principal).toBe('B vence.')
     expect(r.prazo).toEqual({ tipo: 'final' })
   })
-  it('aplicado: noAr aplicada B, voltar na janela e não depois', () => {
+  it('aplicado: noAr aplicada B, sem aplicar; o prazo antigo não muda nada', () => {
     const dentro = concDe(concluido({ reason: 'manual_winner', winner: B, applied: '2026-10-25T10:00:00Z', revert: '2026-11-01T10:00:00Z' }))
     expect(dentro.noAr).toEqual({ tipo: 'aplicada', letra: 'B', desfechoMudou: false })
-    expect(dentro.voltar).toBe(true); expect(dentro.aplicar).toBeNull()
+    expect(dentro.aplicar).toBeNull()
     const fora = concDe(concluido({ reason: 'manual_winner', winner: B, applied: '2026-10-10T10:00:00Z', revert: '2026-10-17T10:00:00Z' }))
-    expect(fora.voltar).toBe(false)
+    expect(fora.noAr).toEqual(dentro.noAr)
   })
-  it('aplicado-mudou (Foco 2): sugerido nulo => desfechoMudou, voltar, sem aplicar', () => {
+  it('aplicado-mudou (Foco 2): sugerido nulo => desfechoMudou, sem aplicar', () => {
     const r = concDe(concluido({ desfecho: 'sem_diferenca_detectavel', sugerido: null, reason: 'manual_winner', winner: B, applied: '2026-10-25T10:00:00Z', revert: '2026-11-01T10:00:00Z' }))
     expect(r.noAr).toEqual({ tipo: 'aplicada', letra: 'B', desfechoMudou: true })
     expect(r.selo).toEqual({ tipo: 'sem_diferenca' })
     expect(r.frase.principal).toBe('Agora não há diferença clara; ao encerrar, B parecia melhor.')
-    expect(r.voltar).toBe(true); expect(r.aplicar).toBeNull()
+    expect(r.aplicar).toBeNull()
   })
   it('aplicado-outra (Y3/◆T 7b): aplicada B e sugerido passou a C', () => {
     const r = concDe(concluido({ vars: VAR3, sugerido: C, reason: 'manual_winner', winner: B, applied: '2026-10-25T10:00:00Z', revert: '2026-11-01T10:00:00Z' }))
     expect(r.noAr).toEqual({ tipo: 'aplicada', letra: 'B', desfechoMudou: true })
     expect(r.frase.principal).toBe('Agora C parece melhor; ao encerrar, B parecia melhor.')
-    expect(r.voltar).toBe(true); expect(r.aplicar).toBeNull()
+    expect(r.aplicar).toBeNull()
   })
   it('aplicado B e a original passou a vencer (Logan a): "Agora a original parece melhor; ao encerrar, B parecia melhor."', () => {
     const r = concDe(concluido({ sugerido: O, reason: 'manual_winner', winner: B, applied: '2026-10-25T10:00:00Z', revert: '2026-11-01T10:00:00Z' }))
@@ -370,12 +373,11 @@ describe('telaV2DoTeste: regras do Phil e do Yannis', () => {
     expect(com('sem_leitura').bloqueio).toBe('sem_leitura')
     expect(com(false).bloqueio).toBeNull()
   })
-  it('M7 T14 D1: aplicada com prazo de voltar aberto + outro teste aberto => bloqueio', () => {
+  it('M7b P3: aplicada com prazo antigo no futuro + outro teste aberto => sem bloqueio (o prazo não decide mais nada)', () => {
     const e = concluido({ reason: 'manual_winner', winner: B, applied: '2026-10-25T09:00:00Z', revert: '2026-11-25T09:00:00Z' })
     e.outroTesteAberto = true
     const r = concDe(e)
-    expect(r.voltar).toBe(true)
-    expect(r.bloqueio).toBe('outro_teste')
+    expect(r.bloqueio).toBeNull()
   })
   describe('selo depois do Voltar (desfeita)', () => {
     const desf = (o: Parameters<typeof concluido>[0] = {}, outro?: boolean | 'sem_leitura') => {
@@ -455,10 +457,10 @@ describe('telaV2DoTeste: escolha do dono (M7b T7)', () => {
     return e
   }
   const ok = (destino: string) => ({ title: { estado: 'ok', destino, em: '2026-10-25T10:00:00Z', forcado: false, escreveu: true, erro: null, attempts: 0 } })
-  it('C escolhida com o vencedor parado em B: no ar = C (aplicada), sem aplicar, sem voltar, sem frase de "ao encerrar"', () => {
+  it('C escolhida com o vencedor parado em B: no ar = C (aplicada), sem aplicar, sem frase de "ao encerrar"', () => {
     const r = concDe(comEscolha({ winner: B, applied: '2026-10-25T09:00:00Z', revert: '2026-11-01T09:00:00Z', reason: 'manual_winner' }, ok(C)))
     expect(r.noAr).toEqual({ tipo: 'aplicada', letra: 'C', desfechoMudou: true })
-    expect(r.aplicar).toBeNull(); expect(r.aplicarDeNovo).toBeNull(); expect(r.voltar).toBe(false)
+    expect(r.aplicar).toBeNull(); expect(r.aplicarDeNovo).toBeNull()
     expect(r.frase.principal).not.toContain('ao encerrar')
   })
   it('escolha = original: noAr original; sugerida pendente não oferece aplicar', () => {
@@ -468,6 +470,27 @@ describe('telaV2DoTeste: escolha do dono (M7b T7)', () => {
   it('escolha gravada mas o registro não confirma: desconhecido', () => {
     const r = concDe(comEscolha({}, { title: { estado: 'falhou', destino: C, em: '2026-10-25T10:00:00Z', forcado: false, escreveu: null, erro: null, attempts: 1 } }))
     expect(r.noAr).toEqual({ tipo: 'desconhecido' })
+  })
+  it('D23: histórico não lido (null) com escolha: desconhecido, mesmo com a linha atual ok', () => {
+    const e = comEscolha({}, ok(C)); e.historico = null
+    expect(concDe(e).noAr).toEqual({ tipo: 'desconhecido' })
+  })
+  it('D28: sem vencedor nem escolha, restore ok em B: o cartão diz B (mesma fonte do título e da faixa)', () => {
+    const e = concluido({ vars: VAR3, restore: ok(B), revert: '2026-11-01T09:00:00Z' }); e.teste.test_type = 'title'
+    const r = concDe(e)
+    expect(r.noAr).toMatchObject({ tipo: 'aplicada', letra: 'B' })
+    expect(r.aplicar).toBeNull() // Y1: não oferece aplicar o que já está no ar
+  })
+  it('Y2: restore falhou(B), sem vencedor nem escolha: desconhecido', () => {
+    const e = concluido({ vars: VAR3, restore: { title: { estado: 'falhou', destino: B, em: '2026-10-25T10:00:00Z', forcado: false, escreveu: null, erro: null, attempts: 1 } } }); e.teste.test_type = 'title'
+    expect(concDe(e).noAr).toEqual({ tipo: 'desconhecido' })
+  })
+  it('Y2: historico null com restore ok(B), sem vencedor nem escolha: desconhecido', () => {
+    const e = concluido({ vars: VAR3, restore: ok(B) }); e.teste.test_type = 'title'; e.historico = null
+    expect(concDe(e).noAr).toEqual({ tipo: 'desconhecido' })
+  })
+  it('Y2: sem restore, sem vencedor nem escolha: original (caso comum)', () => {
+    expect(concDe(concluido({ vars: VAR3 })).noAr).toEqual({ tipo: 'original' })
   })
   it('sem escolha, nada muda: sugerida B ainda oferece aplicar', () => {
     const r = concDe(concluido({}))

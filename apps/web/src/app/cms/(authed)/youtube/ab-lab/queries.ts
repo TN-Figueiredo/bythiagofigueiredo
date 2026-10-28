@@ -1139,8 +1139,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         dias: results.dias_decisao,
         agora: new Date(),
         outroTesteAberto,
-        // histórico não lido (erro) com escolha: lista vazia faz o "no ar" cair em desconhecido, nunca em "sem histórico" confirmado
-        ...(historicoNoAr?.ok ? { historico: historicoNoAr.porTeste.get(test.id) ?? [] } : {}),
+        // histórico não lido (erro): null = "no ar" desconhecido na tela, nunca "sem histórico" confirmado
+        ...(historicoNoAr === null ? {} : { historico: historicoNoAr.ok ? (historicoNoAr.porTeste.get(test.id) ?? []) : null }),
       })
     : null
   const v2Ativo = v2?.fase === 'ativo' ? v2 : null
@@ -1333,6 +1333,11 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       daysRemaining,
       statusNote: test.status_note ?? null,
       driftAcknowledgedAt: test.drift_acknowledged_at ?? null,
+      pausedAt: test.paused_at ?? null,
+      // Mesma função e mesma conta do forceRotate (actions.ts); `random` não é previsível.
+      proximaNaRotacao: test.config.rotation_pattern === 'random' || variants.length === 0
+        ? null
+        : (variants[getNextVariantIndex(test.config.rotation_pattern, variants.length, doneCycles + 1)]?.label ?? null),
       variantDb,
       graceExpiresAt: test.grace_expires_at,
       winnerAppliedAt: test.winner_applied_at,
@@ -1424,7 +1429,6 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
       monthlyExtraClicks: null,
     },
     learning: test.status_note ?? undefined,
-    revertExpiresAt: test.revert_expires_at,
     winnerAppliedAt: test.winner_applied_at,
   } satisfies AbTestWinnerView
 }

@@ -34,7 +34,7 @@ const card = (id: string) => makeCardView({ id, type: 'title', variants: vars, v
 type Conc = Extract<TelaV2, { fase: 'concluido' }>
 const telaConc = (o: Partial<Conc>): Conc => ({
   fase: 'concluido', selo: { tipo: 'vence', provisorio: false, letra: 'B' }, frase: { principal: '', apoio: null }, prazo: null,
-  noAr: { tipo: 'original' }, aplicar: null, voltar: false, aplicarDeNovo: null, bloqueio: null, n: null, pisos: null, tentarDeNovo: false, ...o,
+  noAr: { tipo: 'original' }, aplicar: null, aplicarDeNovo: null, bloqueio: null, n: null, pisos: null, tentarDeNovo: false, ...o,
 })
 const painelAtivo = (): PainelDecisao => painelDoAtivo(card('t1'), { ctrs: {}, noArLetra: 'A', sugeridaId: 'vb', regraV2: true, podeDeixarVariante: true })
 const painelConc = () => painelEscolhaDoConcluido({

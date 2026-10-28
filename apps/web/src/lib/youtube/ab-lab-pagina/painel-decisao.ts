@@ -8,7 +8,7 @@ function ordenadas(card: AbTestCardView): AbTestCardView['variants'] {
     a.isOriginal === b.isOriginal ? (a.label < b.label ? -1 : a.label > b.label ? 1 : 0) : a.isOriginal ? -1 : 1)
 }
 
-function base(card: AbTestCardView, modo: PainelDecisao['modo'], p: Pick<PainelDecisao, 'opcoes' | 'padrao' | 'sugeridaLetra' | 'noArLetra' | 'voltarAte' | 'podeDeixarVariante' | 'regraV2'>): PainelDecisao {
+function base(card: AbTestCardView, modo: PainelDecisao['modo'], p: Pick<PainelDecisao, 'opcoes' | 'padrao' | 'sugeridaLetra' | 'noArLetra' | 'podeDeixarVariante' | 'regraV2'>): PainelDecisao {
   return {
     testId: card.id, nomeVideo: card.videoTitle ?? card.name, tipo: card.type, modo,
     restoreSeq: card.restoreSeq, ...p,
@@ -31,7 +31,7 @@ export function painelDoAtivo(
   return base(card, 'ativo', {
     opcoes, padrao: sug?.varianteId ?? null,
     sugeridaLetra: opcoes.find(o => o.sugerida)?.letra ?? null,
-    noArLetra: e.noArLetra, voltarAte: null, podeDeixarVariante: e.podeDeixarVariante, regraV2: e.regraV2,
+    noArLetra: e.noArLetra, podeDeixarVariante: e.podeDeixarVariante, regraV2: e.regraV2,
   })
 }
 
