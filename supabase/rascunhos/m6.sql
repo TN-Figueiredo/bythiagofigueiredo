@@ -617,7 +617,7 @@ revoke all on function public.obs_archive_part_check(regclass, date) from public
 
 create or replace function public.obs_archive_detach_month(p_site uuid, p_table text, p_month date, p_by uuid,
                                                            p_mode text default 'clique', p_dry_run boolean default true)
-returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' as $$
+returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' set statement_timeout = '30s' as $$
 declare
   v_class text := public.obs_archive_exit_class(p_table);
   v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
@@ -643,7 +643,7 @@ begin
   if jsonb_array_length(f) > 0 then return jsonb_build_object('status', 'recusado', 'faltam', f); end if;
 
   if p_dry_run then   -- decisão 7: simulação não trava
-    t := public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel);
+    t := public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel, true);
     select coalesce(sum(x.rows_total), 0) into v_total from public.obs_archive_months x
      where x.class = v_class and x.table_name = p_table and x.detached_at is null and x.dropped_at is null;   -- m-4: sem count(*) da mãe
     return jsonb_build_object('status', 'simulado', 'linhas', t->'linhas', 'soma', t->'soma',
@@ -712,7 +712,7 @@ revoke all on function public.obs_archive_detach_month(uuid, text, date, uuid, t
 grant execute on function public.obs_archive_detach_month(uuid, text, date, uuid, text, boolean) to service_role;
 
 create or replace function public.obs_archive_reattach_month(p_site uuid, p_table text, p_month date, p_by uuid, p_dry_run boolean default true)
-returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' as $$
+returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' set statement_timeout = '30s' as $$
 declare
   v_class text := public.obs_archive_exit_class(p_table);
   v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
@@ -863,7 +863,7 @@ revoke all on function public.obs_archive_after_auto(uuid, text, date, jsonb, te
 
 create or replace function public.obs_archive_discard_month(p_site uuid, p_table text, p_month date, p_by uuid,
                                                             p_mode text default 'clique', p_dry_run boolean default true)
-returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' as $$
+returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' set statement_timeout = '30s' as $$
 declare
   v_class text := public.obs_archive_exit_class(p_table);
   v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
@@ -898,7 +898,7 @@ begin
     return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'faltam', f), p_mode, p_dry_run);
   end if;
   if p_dry_run then
-    return jsonb_build_object('status', 'simulado', 'linhas', (public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel))->'linhas',
+    return jsonb_build_object('status', 'simulado', 'linhas', (public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel, true))->'linhas',
                               'bytes', pg_catalog.pg_total_relation_size(v_rel));
   end if;
 exception
@@ -947,7 +947,7 @@ grant execute on function public.obs_archive_discard_month(uuid, text, date, uui
 -- Em um passo: destaque e descarte na MESMA transação (nunca abre a janela de "trazer de volta"); só depois de 3 descartes com linha DA TABELA.
 create or replace function public.obs_archive_drop_month(p_site uuid, p_table text, p_month date, p_by uuid,
                                                          p_mode text default 'clique', p_dry_run boolean default true)
-returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' as $$
+returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' set statement_timeout = '30s' as $$
 declare
   v_class text := public.obs_archive_exit_class(p_table);
   v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
@@ -977,7 +977,7 @@ begin
     return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'faltam', f), p_mode, p_dry_run);
   end if;
   if p_dry_run then
-    return jsonb_build_object('status', 'simulado', 'linhas', (public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel))->'linhas',
+    return jsonb_build_object('status', 'simulado', 'linhas', (public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel, true))->'linhas',
                               'bytes', pg_catalog.pg_total_relation_size(v_rel));
   end if;
 exception

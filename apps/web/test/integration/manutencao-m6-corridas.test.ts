@@ -456,6 +456,96 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
     await a.query(`select obs_part.criar_particao('public.competitor_video_daily'::regclass, '2026-04-01')`)
   })
 
+  // ───────── T11 consertos r1 (28/10): o limite EFETIVO pela API (portão D-6) ─────────
+  // Pelo PostgREST o service_role herda os 8 s do `authenticator` (o catálogo mostra rolconfig vazio e engana). As quatro funções da chamada final trazem
+  // `set statement_timeout = '30s'` na definição. Estas provas vão pela API de verdade (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY do int 54421).
+  const rest = (): { base: string; key: string } => {
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (!base || !key) throw new Error('portão D-6: exporte NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 e SUPABASE_SERVICE_ROLE_KEY (chave sb_secret do int) junto de M6_CORRIDAS=1')
+    if (!/:54421/.test(base)) throw new Error('portão D-6: a API do banco de integração é a 54421 (a 54321 é a do navegador)')
+    return { base, key }
+  }
+  const viaApi = async (fn: string, corpo: Record<string, unknown>): Promise<{ status: number; corpo: Record<string, unknown>; ms: number }> => {
+    const { base, key } = rest()
+    const t0 = Date.now()
+    const res = await fetch(`${base}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+    return { status: res.status, corpo: await res.json() as Record<string, unknown>, ms: Date.now() - t0 }
+  }
+  const recarregarApi = async (): Promise<void> => { await a.query(`notify pgrst, 'reload schema'`); await dorme(1_500) }
+  const chaveDaTrava = (tabela: string, mes: string): string => `select pg_advisory_lock(pg_catalog.hashtextextended('obs_archive_saida|${tabela}|${mes}', 0))`
+
+  it('D-6: as quatro funções da chamada final carregam statement_timeout = 30s na definição', async () => {
+    const r = await a.query(`select proname, proconfig from pg_proc where pronamespace = 'public'::regnamespace
+      and proname in ('obs_archive_detach_month', 'obs_archive_reattach_month', 'obs_archive_discard_month', 'obs_archive_drop_month') order by 1`)
+    expect(r.rows).toHaveLength(4)
+    for (const l of r.rows as Array<{ proname: string; proconfig: string[] | null }>) expect(l.proconfig ?? [], l.proname).toContain('statement_timeout=30s')
+  })
+
+  it('D-6: pela API, 9,5 s com o set na definição passa e sem o set cai em 57014 aos 8 s (3 vezes cada, em paralelo)', async () => {
+    try {
+      await a.query(`create or replace function public.zz_teto_com() returns int language plpgsql set statement_timeout = '30s' as $$ begin perform pg_sleep(9.5); return 1; end $$`)
+      await a.query(`create or replace function public.zz_teto_sem() returns int language plpgsql as $$ begin perform pg_sleep(9.5); return 1; end $$`)
+      await a.query(`grant execute on function public.zz_teto_com(), public.zz_teto_sem() to service_role`)
+      await recarregarApi()
+      const r = await Promise.all([1, 2, 3].flatMap(() => [viaApi('zz_teto_com', {}).then(x => ({ f: 'com', ...x })), viaApi('zz_teto_sem', {}).then(x => ({ f: 'sem', ...x }))]))
+      for (const x of r) {
+        if (x.f === 'com') { expect(x.status, JSON.stringify(x.corpo)).toBe(200); expect(x.ms).toBeGreaterThan(9_000) }
+        else { expect(JSON.stringify(x.corpo)).toContain('57014'); expect(x.ms).toBeLessThan(9_000) }
+      }
+    } finally { await a.query(`drop function if exists public.zz_teto_com(); drop function if exists public.zz_teto_sem()`) }
+  }, 60_000)
+
+  it('D-6: as quatro funções REAIS esperam a trava consultiva por 9,5 s pela API e passam dos 8 s sem 57014 (3 rodadas)', async () => {
+    await recarregarApi()
+    const corpo = { p_site: site, p_by: admin }
+    const alvos = [
+      { fn: 'obs_archive_detach_month', mes: '2020-01-01', args: { p_mode: 'clique', p_dry_run: false } },
+      { fn: 'obs_archive_reattach_month', mes: '2020-02-01', args: { p_dry_run: false } },
+      { fn: 'obs_archive_discard_month', mes: '2020-03-01', args: { p_mode: 'clique', p_dry_run: false } },
+      { fn: 'obs_archive_drop_month', mes: '2020-04-01', args: { p_mode: 'clique', p_dry_run: false } },
+    ]
+    for (let rodada = 0; rodada < 3; rodada++) {
+      for (const x of alvos) await b.query(chaveDaTrava(D, x.mes))
+      try {
+        const emVoo = Promise.all(alvos.map(x => viaApi(x.fn, { ...corpo, p_table: D, p_month: x.mes, ...x.args }).then(r => ({ fn: x.fn, ...r }))))
+        await dorme(9_500)
+        for (const x of alvos) await b.query(`select pg_advisory_unlock(pg_catalog.hashtextextended('obs_archive_saida|${D}|${x.mes}', 0))`)
+        for (const r of await emVoo) {
+          expect(JSON.stringify(r.corpo), `${r.fn} rodada ${rodada}`).not.toContain('57014')
+          expect(r.status, `${r.fn}: ${JSON.stringify(r.corpo)}`).toBe(200)
+          expect(r.corpo.codigo, r.fn).not.toBe('ocupado')
+          expect(r.ms, r.fn).toBeGreaterThan(9_000)
+        }
+      } finally { await b.query('select pg_advisory_unlock_all()') }
+    }
+  }, 120_000)
+
+  it('D-6: a espera da trava vai até 20 s pela API e volta `ocupado` (o 57014 de 8 s não chega antes)', async () => {
+    await recarregarApi()
+    await b.query(chaveDaTrava(D, '2020-05-01'))
+    try {
+      const r = await viaApi('obs_archive_detach_month', { p_site: site, p_table: D, p_month: '2020-05-01', p_by: admin, p_mode: 'clique', p_dry_run: false })
+      expect(r.status, JSON.stringify(r.corpo)).toBe(200)
+      expect(r.corpo).toMatchObject({ status: 'recusado', codigo: 'ocupado' })
+      expect(r.ms).toBeGreaterThan(19_000)
+      expect(r.ms).toBeLessThan(28_000)
+    } finally { await b.query('select pg_advisory_unlock_all()') }
+  }, 60_000)
+
+  it('Phil C-1(a): a simulação (resumo) dá o MESMO que o tally inteiro depois da conferência (linhas, soma, esperado, sites, código)', async () => {
+    await renovar()
+    const pr = await a.query(`select public.obs_archive_precheck_unit($1, $2, $3, $4) as r`, [site, D, MES, canal])
+    expect(pr.rows[0].r).toMatchObject({ ok: true })
+    const rel = particaoDe(D, MES)
+    const inteiro = (await a.query(`select public.obs_archive_tally($1, 'serie', $2, $3, $4::regclass, false) as t`, [site, D, MES, rel])).rows[0].t as Record<string, unknown>
+    const resumo = (await a.query(`select public.obs_archive_tally($1, 'serie', $2, $3, $4::regclass, true) as t`, [site, D, MES, rel])).rows[0].t as Record<string, unknown>
+    expect(resumo).toEqual(inteiro)
+    expect(resumo.codigo ?? null).toBeNull()
+    const sim = (await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', true) as r`, [site, D, MES, admin])).rows[0].r as Record<string, unknown>
+    expect(sim, JSON.stringify(sim)).toMatchObject({ status: 'simulado', linhas: inteiro.linhas, soma: inteiro.soma })
+    expect(sim.codigo ?? null).toBeNull()
+  }, 60_000)
+
   it('CP13 por razão medida: conferência por canal, a mãe travada e a ação ponta a ponta contra o maxDuration de 60 s, na diária E na horária (3 rodadas, vale a pior)', async () => {
     const canais = Number(process.env.M6_CANAIS ?? 75), porCanal = Number(process.env.M6_VIDEOS_POR_CANAL ?? 23)
     const H = 'competitor_video_hourly'
@@ -488,7 +578,7 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
       const lidas = async (tabela: string): Promise<number> => Number((await a.query(
         `select coalesce(sum(seq_tup_read + idx_tup_fetch), 0) as n from pg_stat_xact_user_tables where schemaname = 'obs_part' and relname like $1`, [`${tabela}\\_%`])).rows[0].n)
       for (const alvo of ALVOS) {
-        const pior = { inline: 0, maior: 0, travaDetach: 0, travaReattach: 0, ponta: 0, maeDetach: 0, maeReattach: 0, lidasPorLinha: 0 }
+        const pior = { simDepois: 0, inline: 0, maior: 0, travaDetach: 0, travaReattach: 0, ponta: 0, maeDetach: 0, maeReattach: 0, lidasPorLinha: 0 }
         const rodadasMaior: number[] = [], calibracoes: number[] = []
         const linhasDoCanal = new Map<string, number>()
         const linhasDaParticao = Number((await a.query(`select count(*) as n from ${particaoDe(alvo.tabela, MES)}`)).rows[0].n)
@@ -524,6 +614,10 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
             expect(lidasCanal, `${alvo.classe} canal ${c}: linhas lidas pela conferência (${linhas} no canal, ${linhasDaParticao} na partição)`).toBeLessThanOrEqual(3 * linhasDaParticao + 1_000)
           }
           pior.maior = Math.max(pior.maior, maiorDaRodada); rodadasMaior.push(maiorDaRodada)
+          // T11 r1 (Phil C-1a): a simulação que o botão faz DEPOIS da conferência (resumo fresco). Direto no banco: o relógio simulado é da sessão e a API não o enxerga.
+          t = Date.now()
+          await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', true)`, [site, alvo.tabela, MES, admin])
+          pior.simDepois = Math.max(pior.simDepois, Date.now() - t)
           t = Date.now()
           const r = (await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', false) as r`, [site, alvo.tabela, MES, admin])).rows[0].r as { status: string; codigo?: string; mae_travada_ms?: number }
           const trava = Date.now() - t
@@ -545,10 +639,11 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
         const tempo = carregada ? 'nao_medido' : (maiorQuieto * FATOR < 4_000 ? 'ok' : 'estourou')
         console.log('[m6-corridas] CP13', JSON.stringify({ alvo: alvo.classe, canais, porCanal, ...pior, tempo, load1: Math.round(loadavg()[0]! * 10) / 10, cpus: cpus().length,
           calibracoes, rodadasMaior, maior_quieto_x_fator_ms: Math.round(maiorQuieto * FATOR), lidas_por_linha_da_particao_max: Math.round(pior.lidasPorLinha * 100) / 100,
-          tally_horaria_ms: alvo.classe === 'horaria' ? Math.round(pior.inline * FATOR) : null, maior_conferencia_ms: Math.round(pior.maior * FATOR),
+          tally_horaria_ms: alvo.classe === 'horaria' ? Math.round(pior.inline * FATOR) : null, simulacao_apos_conferencia_x_fator_ms: Math.round(pior.simDepois * FATOR), maior_conferencia_ms: Math.round(pior.maior * FATOR),
           ponta_x_fator_ms: Math.round(pior.ponta * FATOR + RTT), mae_travada_detach_x_fator_ms: Math.round(pior.maeDetach * FATOR), mae_travada_reattach_x_fator_ms: Math.round(pior.maeReattach * FATOR) }))
         if (carregada) console.warn('[m6-corridas] CP13: tempo NAO_MEDIDO (load1 acima do número de CPUs); o trabalho foi afirmado, o relógio não')
         else expect(maiorQuieto * FATOR, 'melhor de 3 rodadas, normalizada pela calibração').toBeLessThan(4_000)
+        expect(pior.simDepois * FATOR, 'a simulação depois da conferência cabe nos 6 s (o limite efetivo pela API é de 8 s)').toBeLessThan(6_000)
         expect((pior.ponta * FATOR) + RTT).toBeLessThan(60_000)
         expect(pior.maeDetach * FATOR, 'mãe travada no detach (medida pela função)').toBeLessThan(2_000)
         expect(pior.maeReattach * FATOR, 'mãe travada no reattach (medida pela função)').toBeLessThan(2_000)
