@@ -57,6 +57,14 @@ describe('lerPendencias: a forma do C12', () => {
     ['youtube_id com crase', base([canal({ youtube_id: 'UC`id`' })])],
     ['sha curto', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a', sha256: 'abc', nova: null }] })])],
     ['mes inválido', base([canal({ mes: '2026-13' })])],
+    ['caminho com // (mesmo arquivo que o sem //; Phil I1)', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'texto//2026-10/v2.csv.gz', sha256: SHA, nova: { caminho: 'texto/2026-10/v2.csv.gz', sha256: SHA } }] })])],
+    ['caminho com / no fim', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'texto/2026-10/', sha256: SHA, nova: { caminho: 'texto/2026-10/v2.csv.gz', sha256: SHA } }] })])],
+    ['caminho da nova com //', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'a/v1', sha256: SHA, nova: { caminho: 'a//v2', sha256: SHA } }] })])],
+    ['antiga igual à nova (Phil I1)', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'a/v2', sha256: SHA, nova: { caminho: 'a/v2', sha256: SHA } }] })])],
+    ['antiga de um item é a nova de outro, mesmo filho (Phil I1)', base([
+      canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'a/v1', sha256: SHA, nova: { caminho: 'a/v2', sha256: SHA } }] }),
+      canal({ item_id: 'item:9', kind: 'video', channel_ref: null, youtube_id: 'x', tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'a/v2', sha256: SHA, nova: { caminho: 'a/v3', sha256: SHA } }] })])],
+    ['versão 1 sem nova (nova: null; Phil M1)', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'a/v1', sha256: SHA, nova: null }] })])],
   ])('%s: { ok: false }, nunca "nada pendente"', (_, bruto) => {
     expect(lerPendencias(bruto).ok).toBe(false)
   })
@@ -78,7 +86,7 @@ describe('pendenciasParaTela (E-D4)', () => {
     expect(pendenciasParaTela(lerPendencias(base([canal()])), { podeVerComandos: true, agora })).toMatchObject({ linha: LINHA_DO_DONO })
   })
   it('a tela nunca recebe apagar nem b2_nomes', () => {
-    const antigas = canal({ tempo: 'apagar_antigas', b2_nomes: ['serie/x'], apagar: [{ filho: 'texto', caminho: 'a/b', sha256: SHA, nova: null }] })
+    const antigas = canal({ tempo: 'apagar_antigas', b2_nomes: ['serie/x'], apagar: [{ filho: 'texto', caminho: 'a/b', sha256: SHA, nova: { caminho: 'a/c', sha256: SHA } }] })
     const t = pendenciasParaTela(lerPendencias(base([antigas])), { podeVerComandos: true, agora })
     expect(JSON.stringify(t)).not.toMatch(/apagar"|b2_nomes|sha256|caminho/)
     expect(t).toMatchObject({ estado: 'com_itens', itens: [{ item_id: antigas.item_id, kind: 'canal', tempo: 'apagar_antigas', idadeDias: 61 }] })

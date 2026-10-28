@@ -27,8 +27,9 @@ const dataBr = (d: Date): string => {
   return `${g('day')}/${g('month')} ${g('hour')}:${g('minute')}`
 }
 
+const TRAP =
+  'trap \'[ -n "${OBS_CHAMADO:-}" ] || { echo "OBS-ARQUIVO: NÃO RODOU: o script chegou incompleto; nada feito" >&2; exit 1; }\' EXIT'
 const CORPO_ABRE = [
-  'trap \'[ -n "${OBS_CHAMADO:-}" ] || { echo "OBS-ARQUIVO: NÃO RODOU: o script chegou incompleto; nada feito" >&2; exit 1; }\' EXIT',
   'obs_arquivo_main() {',
   '  OBS_CHAMADO=1',
   '  set -u',
@@ -39,8 +40,9 @@ const FUNCAO = [
   '  apaga_conferido() {   # filho caminho sha256 nova_caminho nova_sha256 (os dois últimos vazios = sem versão nova a exigir)',
   '    local base="$M/$1" alvo="$M/$1/$2"',
   '    if ! mountpoint -q "$base" || [ ! -f "$base/.arquivo-vivo" ]; then echo "PULADO $1/$2: o NAS não está montado ou sem a sentinela" >&2; falhas=$((falhas+1)); return 0; fi',
+  '    if [ -n "$4" ] && [ "$alvo" -ef "$base/$4" ]; then echo "PULADO $1/$2: a antiga e a nova são o mesmo arquivo" >&2; falhas=$((falhas+1)); return 0; fi',
   '    if [ -n "$4" ] && { [ ! -f "$base/$4" ] || [ "$(sha256sum < "$base/$4" | cut -c1-64)" != "$5" ]; }; then echo "PULADO $1/$2: a versão nova não está no NAS como o site registrou" >&2; falhas=$((falhas+1)); return 0; fi',
-  '    if [ ! -e "$alvo" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); return 0; fi',
+  '    if [ ! -e "$alvo" ]; then if [ -d "$(dirname "$alvo")" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: a pasta não existe (caminho errado no site?)" >&2; falhas=$((falhas+1)); fi; return 0; fi',
   '    if [ "$(sha256sum < "$alvo" | cut -c1-64)" != "$3" ]; then echo "PULADO $1/$2: o arquivo no NAS não é o que o site registrou" >&2; falhas=$((falhas+1)); return 0; fi',
   '    if rm -- "$alvo"; then echo "APAGADO $1/$2"; apagados=$((apagados+1)); elif [ ! -e "$alvo" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: o rm falhou" >&2; falhas=$((falhas+1)); fi',
   '  }',
@@ -80,10 +82,11 @@ export function scriptDasPendencias(
       : `  echo ${aspas(`OBS-ARQUIVO: NADA A RODAR AGORA (${l.itens.length} esperando)`)}`
   const linhas = [
     '#!/bin/bash',
+    TRAP,   // logo depois do shebang: a janela em que um corte sai 0 calado fica em ~12 bytes (Phil M2, Yannis M1)
     `# obs:arquivo pendencias, lido em ${l.lidoEm.toISOString()}, gerado por ${o.versao.replace(/[^A-Za-z0-9 ._-]/g, '?')}. Roda NA FORJA, pela linha da peça 7:`,
     "#   cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'",
     '# Toda execução termina numa linha "OBS-ARQUIVO: ..."; sem ela, nada rodou.',
-    '# O corpo é uma função chamada na MESMA linha do "}" que a fecha; se o script chegar cortado, o trap abaixo avisa e sai 1.',
+    '# O corpo é uma função chamada na MESMA linha do "}" que a fecha; se o script chegar cortado, o trap da linha 2 avisa e sai 1.',
     ...CORPO_ABRE,
     ...(temApagar ? FUNCAO : []),
     ...(temApagar ? TRAVA : []),

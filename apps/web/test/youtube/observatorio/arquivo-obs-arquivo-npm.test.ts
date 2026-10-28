@@ -30,6 +30,11 @@ describe('npm run -s obs:arquivo', () => {
     const r = spawnSync(process.execPath, [join(RAIZ, 'node_modules/.bin/tsx'), join(RAIZ, 'apps/web/test/fixtures/escreve-grande.ts')], { encoding: 'utf8', maxBuffer: 4_000_000, timeout: 30_000 })
     expect(r.stdout.length).toBe(1_000_001)   // 1.000.000 de 'x' e o \n; com process.exit logo após o write o macOS entregava 65.536
   }, 30_000)
+  it('ssh que cai antes de ler (EPIPE no stdout): sem pilha do node no terminal, a frase da chave aparece (Yannis M2)', () => {
+    const r = spawnSync('bash', ['-c', 'npm run -s obs:arquivo | (exec 0<&-; sleep 1)'], { cwd: RAIZ, encoding: 'utf8', env: env(), timeout: 60_000 })
+    expect(r.stderr).not.toContain('node:internal')
+    expect(r.stderr).toContain('.config/obs-arquivo/chave')
+  }, 30_000)
   it('por que o -s: sem ele o npm põe o cabeçalho no stdout, que viraria comando na forja', () => {
     const r = spawnSync('npm', ['run', 'obs:arquivo'], { cwd: RAIZ, encoding: 'utf8', env: env(), timeout: 60_000 })
     expect(r.stdout.trimStart().startsWith('> ')).toBe(true)   // se o npm parar de imprimir, rever E-D1 (a linha da peça 7)

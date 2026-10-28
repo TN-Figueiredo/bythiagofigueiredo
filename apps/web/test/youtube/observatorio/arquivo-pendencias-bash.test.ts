@@ -33,13 +33,51 @@ function rodarNaForja(linhas: string[], env: Record<string, string> = {}) {
     env: { PATH: `${bin}:/usr/bin:/bin`, HOME: raiz, ARQ_MONTAGEM_ESCRITA: M, ARQ_TRAVA_COPIADOR: join(raiz, 'copiador.lock'), ...env } })
 }
 const gerar = (l = leitura()) => { if (!l.ok) throw new Error(l.porque); const s = scriptDasPendencias(l, { versao: 't' }); if (!s.ok) throw new Error(s.porque); return s.linhas }
+const beforeCorte = () => writeFileSync(join(M, 'texto', 'texto', '2026-10', 'v1.csv.gz'), 'ANTIGA')
 const antiga = () => existsSync(join(M, 'texto', 'texto', '2026-10', 'v1.csv.gz'))
 const dito = (r: { stdout: string; stderr: string }) => r.stdout + r.stderr   // invariante do dono: toda execução diz OBS-ARQUIVO:
 const espera = (n: number) => lerPendencias({ versao: 1, lido_em: '2026-12-01T10:00:00Z', total: n, itens: ['sem_comando', 'conferir_b2', 'bloqueado'].slice(0, n).map((tempo, i) => ({
   item_id: `canal:6f1c1b9e-0000-4000-8000-00000000000${i + 1}`, kind: 'canal', tempo, desde: '2026-10-01T12:00:00Z', mes: null,
   channel_ref: `6f1c1b9e-0000-4000-8000-00000000000${i + 1}`, youtube_id: null, marcado_rodado_em: null, apagar: [], b2_nomes: [] })) })
 
+/** Leitura montada à mão, sem passar pelo leitor: prova que o SCRIPT sozinho barra o que o leitor também barra (defesa em profundidade). */
+const crua = (antigaCam: string, novaCam: string, shaAntiga = sha('NOVA'), shaNova = sha('NOVA')) => ({ ok: true as const, lidoEm: new Date('2026-12-01T10:00:00Z'), itens: [{
+  itemId: 'item:42', kind: 'comentario' as const, tempo: 'apagar_antigas' as const, desde: new Date('2026-10-25T12:00:00Z'), mes: '2026-10', channelRef: null, youtubeId: null,
+  marcadoRodadoEm: null, b2Nomes: [], apagar: [{ filho: 'texto' as const, caminho: antigaCam, sha256: shaAntiga, nova: { caminho: novaCam, sha256: shaNova } }] }] })
+const nova = () => existsSync(join(M, 'texto', 'texto', '2026-10', 'v2.csv.gz'))
+
 describe('o script impresso, na forja', () => {
+  it.each([['mesmo caminho', 'texto/2026-10/v2.csv.gz'], ['variante com //', 'texto//2026-10/v2.csv.gz']])('antiga e nova são o mesmo arquivo (%s): PULADO, status 1, a única cópia fica (Phil I1)', (_, antigaCam) => {
+    const r = rodarNaForja(gerar(crua(antigaCam, 'texto/2026-10/v2.csv.gz')))
+    expect(r.stderr).toContain('PULADO')
+    expect(r.stderr).toContain('o mesmo arquivo')
+    expect(r.stdout).not.toContain('APAGADO')
+    expect(r.status).toBe(1)
+    expect(nova()).toBe(true)
+  })
+  it('caminho antigo ausente em pasta que existe: JA-APAGADO; em pasta que nunca existiu: PULADO, caminho errado (Phil M4)', () => {
+    const ok = rodarNaForja(gerar(crua('texto/2026-10/v0.csv.gz', 'texto/2026-10/v2.csv.gz')))
+    expect(ok.stdout).toContain('JA-APAGADO texto/texto/2026-10/v0.csv.gz')
+    expect(ok.status).toBe(0)
+    const errado = rodarNaForja(gerar(crua('texto/2099-01/v1.csv.gz', 'texto/2026-10/v2.csv.gz')))
+    expect(errado.stdout).not.toContain('JA-APAGADO')
+    expect(errado.stderr).toContain('PULADO texto/texto/2099-01/v1.csv.gz: a pasta não existe')
+    expect(errado.status).toBe(1)
+  })
+  it('corta o script em bytes: nenhum corte sai 0 calado, e nenhum apaga pela metade (Phil M2, Yannis M1)', () => {
+    const txt = gerar().join('\n') + '\n'
+    const saida: string[] = []
+    const inicio = '#!/bin/bash\ntrap '.length   // até aqui o prefixo é só o shebang ou "trap"/"trap " (lista os traps, nada roda): único trecho que sai 0 calado
+    for (let k = 0; k <= txt.length; k += k < 600 ? 1 : 7) {
+      beforeCorte()
+      const r = spawnSync('bash', ['-s'], { input: txt.slice(0, k), encoding: 'utf8', env: { PATH: `${bin}:/usr/bin:/bin`, HOME: raiz, ARQ_MONTAGEM_ESCRITA: M, ARQ_TRAVA_COPIADOR: join(raiz, 'copiador.lock') } })
+      const calado = r.status === 0 && !/OBS-ARQUIVO/.test(r.stdout + r.stderr)
+      if (calado && k > inicio) saida.push(`k=${k} rc=0 calado`)
+      if (k < txt.length - 30 && !antiga()) saida.push(`k=${k} apagou antes do fim`)
+    }
+    expect(saida).toEqual([])
+  }, 120_000)
+
   it('apaga a antiga conferida, mostra o B2 para o painel, e rodar de novo não faz mal', () => {
     const r1 = rodarNaForja(gerar())
     expect(r1.status).toBe(0)

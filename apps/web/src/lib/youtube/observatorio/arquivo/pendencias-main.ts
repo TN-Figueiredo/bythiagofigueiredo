@@ -22,6 +22,8 @@ async function lerArquivoDaChave(caminho: string): Promise<LeituraDoArquivoDaCha
 
 /** `pendencias`: stdout só o script (escreverTudo), tudo o mais no stderr, sem banco e sem readline (D-F21, D-F23). */
 export async function pendencias(versao: string): Promise<number> {
+  // ssh que cai antes de ler fecha o pipe: EPIPE no stdout não pode despejar pilha do node no terminal (Yannis M2)
+  process.stdout.on('error', e => { if ((e as NodeJS.ErrnoException).code !== 'EPIPE') throw e })
   const falhar = async (codigo: number, frase: string): Promise<number> => {
     console.error(frase)
     await escreverTudo(scriptDeFalha(frase).join('\n') + '\n')
