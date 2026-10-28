@@ -139,7 +139,7 @@ describe('rodarSinaisDoNicho', () => {
     await rodar(d)
     const a = d.rpc.mock.calls[0]?.[1] as { p_vistos: unknown[]; p_estado: Record<string, unknown> }
     expect(a.p_vistos).toEqual([{ video_id: 'v1', canal_id: 'c1', formato: 'long', published_at: '2026-10-20T00:00:00.000Z', n_canal: 10, mult_max: 4, vpd7_max: 900, chaves: ['pt'] }])
-    expect(a.p_estado).toMatchObject({ rule_version: 'sinais-v1+semente-1', motivo_vazio: null })
+    expect(a.p_estado).toMatchObject({ rule_version: 'sinais-v1+lugar-v2+semente-1', motivo_vazio: null })
   })
 
   it('erro da RPC: gravar_falhou; SQLSTATE 42883: schema_ausente; sem texto do banco', async () => {

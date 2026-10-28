@@ -1,5 +1,6 @@
 // Parâmetros versionados dos sinais do nicho (F2 T5). Mudar um valor exige subir `versao`.
 import { RULES } from '../rules'
+import { LUGAR_REGRA_VERSAO } from '../lugar/casar'
 
 export const REGRA_SINAIS = {
   versao: 1,
@@ -25,7 +26,7 @@ export const REGRA_SINAIS = {
   tetoEvidenciaOutliers: 20,
 } as const
 
-/** `rule_version` gravado em `niche_signals`: versão da regra + semente de lugares. */
+/** `rule_version` gravado em `niche_signals`: versão da regra + regra de lugar + semente de lugares. */
 export function ruleVersionDe(semente: number): string {
-  return `sinais-v${REGRA_SINAIS.versao}+semente-${semente}`
+  return `sinais-v${REGRA_SINAIS.versao}+lugar-v${LUGAR_REGRA_VERSAO}+semente-${semente}`
 }
