@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { aplicarM2 } from './m2'
 import { travarDdl } from './ddl-testes'
 import { apagarCanais } from './limpa-cena'
-import { aplicarM3b, escalar, urlDasCorridas } from './m3b'
+import { aplicarM3b, escalar, urlDasCorridas, semearCanal, semearDiaria } from './m3b'
 import { skipIfNoLocalDb } from './db-skip'
 import { M10A_SQL } from '../integration/video-antigo-m10a-caminho'
 
@@ -141,4 +141,26 @@ export async function confirmarM6ParaCorridas(): Promise<void> {
 export async function desfazerM6DasCorridas(): Promise<void> {
   const x = new Client({ connectionString: urlDasCorridas() }); await x.connect()
   try { await x.query(readFileSync(M6_DESFAZER_CAMINHO, 'utf8')) } finally { await x.end() }
+}
+
+/** 24 meses selados e descartados (registro direto: o descarte de verdade está provado na Tarefa 5), cada um com a unidade relida há `dias`. */
+export async function vinteQuatroDescartados(c: Client, dias: number): Promise<{ site: string; admin: string; canal: string }> {
+  await relogio(c, '2027-05-02 12:00:00+00')
+  await liberarClasses(c, ['serie'])
+  const s = await semearCanal(c, { videos: 1 })
+  for (let i = 0; i < 24; i++) {
+    const mes = `${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`
+    await c.query(`select obs_part.criar_particao('public.competitor_video_daily'::regclass, $1)`, [mes])
+    await semearDiaria(c, s.videos, mes, 2)
+    await selarMes(c, { site: s.site, classe: 'serie', tabela: 'competitor_video_daily', mes })
+    await c.query(`update public.obs_archive_months set detached_at = public.obs_archive_agora() - interval '60 days', dropped_at = public.obs_archive_agora() - interval '50 days', rows_dropped = 2 where site_id = $1 and month = $2`, [s.site, mes])
+  }
+  // o lado B2 da conferência (obs_archive_month_files lê obs_archive_b2_files): sem estas linhas o b2_ok_at cai no dropped_at (50 dias) e o mês conta como sem releitura
+  await c.query(`insert into public.obs_archive_b2_files (site_id, arquivo_id, class, month, last_ok_at, last_ok_via)
+    select $1::uuid, f.arquivo_id, m.class, m.month, public.obs_archive_agora() - make_interval(days => $2), 'forja'
+      from public.obs_archive_months m cross join lateral public.obs_archive_month_files(m.site_id, m.class, m.month) f
+     where m.site_id = $1::uuid
+    on conflict (site_id, arquivo_id) do update set last_ok_at = excluded.last_ok_at`, [s.site, dias])
+  await c.query(`update public.obs_archive_units set received_at = public.obs_archive_agora() - interval '70 days', nas_reported_at = public.obs_archive_agora() - make_interval(days => $2) where site_id = $1`, [s.site, dias])
+  return { site: s.site, canal: s.canal, admin: await novoAdmin(c, s.site) }
 }
