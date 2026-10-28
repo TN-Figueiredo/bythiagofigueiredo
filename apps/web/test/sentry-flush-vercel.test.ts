@@ -27,6 +27,15 @@ describe('agendarFlushNaVercel', () => {
     agendarFlushNaVercel(); agendarFlushNaVercel()
     expect(waitUntil).toHaveBeenCalledTimes(1)
   })
+  it('evento capturado depois de o flush terminar agenda outro (não se perde na mesma requisição)', async () => {
+    const waitUntil = vi.fn()
+    const ctx = { waitUntil }
+    g[CHAVE] = { get: () => ctx }
+    agendarFlushNaVercel()
+    await waitUntil.mock.calls[0]![0]
+    agendarFlushNaVercel()
+    expect(waitUntil).toHaveBeenCalledTimes(2)
+  })
   it('sem contexto da Vercel (dev, teste, fora de requisição) não faz nada nem lança', () => {
     expect(() => agendarFlushNaVercel()).not.toThrow()
     expect(flush).not.toHaveBeenCalled()

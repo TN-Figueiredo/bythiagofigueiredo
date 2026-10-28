@@ -7,16 +7,17 @@ import * as Sentry from '@sentry/nextjs'
 
 interface ContextoVercel { waitUntil?: (tarefa: Promise<unknown>) => void }
 
-const jaAgendado = new WeakSet<object>()
+/** Um flush pendente por requisição; ao terminar, um evento capturado depois agenda outro. */
+const pendente = new WeakSet<object>()
 
 /** Chame após enfileirar um evento. No-op fora de uma requisição da Vercel. */
 export function agendarFlushNaVercel(): void {
   try {
     const global = globalThis as unknown as Record<symbol, { get?: () => ContextoVercel | undefined } | undefined>
     const ctx = global[Symbol.for('@vercel/request-context')]?.get?.()
-    if (!ctx?.waitUntil || jaAgendado.has(ctx)) return
-    jaAgendado.add(ctx)
-    ctx.waitUntil(Sentry.flush(2000))
+    if (!ctx?.waitUntil || pendente.has(ctx)) return
+    pendente.add(ctx)
+    ctx.waitUntil(Sentry.flush(2000).finally(() => pendente.delete(ctx)))
   } catch {
     // telemetria nunca derruba a requisição
   }
