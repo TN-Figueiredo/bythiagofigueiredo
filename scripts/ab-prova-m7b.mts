@@ -32,8 +32,8 @@ async function main(): Promise<void> {
   const { channelAccountIdForVideo } = await import('@/lib/youtube/channel-account')
   const { AB_TEST_CONFIG_DEFAULTS } = await import('@/lib/youtube/ab-types')
 
-  if (cmd !== 'registrar' && cmd !== 'criar' && cmd !== 'contar' && cmd !== 'vigia' && cmd !== 'limpar') {
-    console.log('subcomandos: registrar --video <youtubeVideoId> | criar --video <youtubeVideoId> | contar | vigia <testId> | limpar')
+  if (cmd !== 'registrar' && cmd !== 'escolher' && cmd !== 'conferir' && cmd !== 'criar' && cmd !== 'contar' && cmd !== 'vigia' && cmd !== 'limpar') {
+    console.log('subcomandos: escolher <testId> <letra> [--forcar] | conferir <testId> | registrar --video <youtubeVideoId> | criar --video <youtubeVideoId> | contar | vigia <testId> | limpar')
     return
   }
 
@@ -51,6 +51,39 @@ async function main(): Promise<void> {
       winner_variant_id: string | null; completed_reason: string | null; escolha_variant_id: string | null
       escolha_em: string | null; restore_seq: number; restore_status: unknown; created_at: string
     }>
+  }
+
+  // ---------------------------------------------------------------- escolher / conferir
+  // T19 sem navegador: o mesmo núcleo que a server action chama (escolherVersaoCore / conferirNoArCore), em produção.
+  // userId = AB_PROVA_USER_ID (o dono); nunca impresso. Imprime o resultado e o título que o YouTube serve agora.
+  if (cmd === 'escolher' || cmd === 'conferir') {
+    const testId = resto[0]
+    if (!testId) sair('informe <testId>')
+    const { data: t } = await sb.from('ab_tests').select('id, site_id, name, restore_seq, youtube_video_id').eq('id', testId).maybeSingle()
+    if (!t || !String(t.name).startsWith(PREFIXO)) sair('só testes da prova')
+    const { escolherVersaoCore, conferirNoArCore } = await import('@/lib/youtube/ab-escolha')
+    const { lerNoArNoYouTube } = await import('@/lib/youtube/ab-settle')
+    let r: unknown
+    if (cmd === 'escolher') {
+      const letra = resto[1]
+      const userId = process.env.AB_PROVA_USER_ID
+      if (!letra || !userId) sair('informe <letra> e AB_PROVA_USER_ID')
+      const { data: vs } = await sb.from('ab_test_variants').select('id, label').eq('test_id', testId)
+      const v = (vs ?? []).find((x) => x.label === letra)
+      if (!v) sair(`variante ${letra} não existe (${(vs ?? []).map((x) => x.label).join(',')})`)
+      r = await escolherVersaoCore(
+        { testId, varianteId: v.id as string, seqVisto: t.restore_seq as number, siteId: t.site_id as string, userId, ...(resto.includes('--forcar') ? { forcar: true } : {}) },
+        { supabase: sb as never, settle: settleOnAir },
+      )
+    } else {
+      r = await conferirNoArCore({ testId, siteId: t.site_id as string }, { supabase: sb as never, ler: lerNoArNoYouTube })
+    }
+    console.log(JSON.stringify(r))
+    const { data: vid } = await sb.from('youtube_videos').select('youtube_video_id').eq('id', t.youtube_video_id).maybeSingle()
+    const yt = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${vid?.youtube_video_id}&key=${process.env.YOUTUBE_API_KEY}`)
+    const yj = (await yt.json()) as { items?: Array<{ snippet: { title: string } }> }
+    console.log(`YouTube agora: "${yj.items?.[0]?.snippet.title ?? '?'}"`)
+    return
   }
 
   // ---------------------------------------------------------------- registrar
