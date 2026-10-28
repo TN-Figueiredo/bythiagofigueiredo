@@ -1,0 +1,11 @@
+-- Manutenção M6: a saída do mês. RASCUNHO (TRAVA M6-1): fora de supabase/migrations até a Tarefa 14 do plano
+-- docs/superpowers/plans/2026-10-14-manutencao-nas-m6-saida.md. Depende de M2 (obs_part, partições) e M3b (registro).
+-- M6 PARTE 1: o hash sobre uma relação (a partição anexada ou a tabela destacada)
+-- obs-archive-hash-rel.sql: início
+-- obs-archive-hash-rel.sql: fim
+-- M6 PARTE 2: o invariante do mês destacado
+-- M6 PARTE 3: colunas novas, o portão e a conferência por canal
+-- M6 PARTE 4: destacar e trazer de volta
+-- M6 PARTE 5: descartar e a composta
+-- M6 PARTE 6 [M6a]: contadores do interruptor, simulação vista, em trânsito, vermelhos da saída e encerrar o dado de teste
+-- M6 PARTE 7 [M6b]: o interruptor (estado, ligar, desligar, vigia), os candidatos, o vermelho do desarme e a próxima saída
