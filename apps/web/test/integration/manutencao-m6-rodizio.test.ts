@@ -44,4 +44,16 @@ describe.skipIf(skipIfNoLocalDb())('M6 item 116: o rodízio dos meses descartado
       expect((await escalar<string[]>(c, `select public.obs_archive_vermelhos($1)`, [site])).some(v => v.startsWith('mês descartado sem releitura'))).toBe(true)
     })
   })
+
+  it('r2 I-2: o lado B2 sozinho: NAS relido ontem e B2 sem ler há 22 dias é amarelo; há 46 é vermelho', async () => {
+    await emTransacao(async () => {
+      const { site } = await vinteQuatroDescartados(c, 21)
+      await c.query(`update public.obs_archive_units set nas_reported_at = public.obs_archive_agora() - interval '1 day' where site_id = $1`, [site])
+      expect(await escalar<number>(c, `select public.obs_archive_descartados_sem_releitura($1, 21)`, [site])).toBe(0)
+      await c.query(`update public.obs_archive_b2_files set last_ok_at = public.obs_archive_agora() - interval '22 days' where site_id = $1`, [site])
+      expect(await escalar<number>(c, `select public.obs_archive_descartados_sem_releitura($1, 21)`, [site])).toBe(24)
+      await c.query(`update public.obs_archive_b2_files set last_ok_at = public.obs_archive_agora() - interval '46 days' where site_id = $1`, [site])
+      expect((await escalar<string[]>(c, `select public.obs_archive_vermelhos($1)`, [site])).some(v => v.startsWith('mês descartado sem releitura'))).toBe(true)
+    })
+  })
 })

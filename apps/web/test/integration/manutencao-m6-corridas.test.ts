@@ -218,8 +218,7 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
       await b.query('commit')
       const v = await sim
       expect(v.erro, JSON.stringify(v)).toBeUndefined()
-      expect(v.x, JSON.stringify(v)).toMatchObject({ status: 'recusado' })
-      expect(CODIGOS_DE_QUEM_PERDEU, JSON.stringify(v)).toContain(v.x?.codigo)
+      expect(v.x, JSON.stringify(v)).toMatchObject({ status: 'recusado', codigo: 'ja_destacado' })   // r2 M-3: o código exato, não qualquer um dos 4
     } finally { await b.query('rollback').catch(() => undefined); await religar() }
   })
 
@@ -234,7 +233,7 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
       await b.query('commit')
       const v = await sim
       expect(v.erro, JSON.stringify(v)).toBeUndefined()
-      expect(CODIGOS_DE_QUEM_PERDEU, JSON.stringify(v)).toContain(v.x?.codigo)
+      expect(v.x, JSON.stringify(v)).toMatchObject({ status: 'recusado', codigo: 'nao_destacado' })   // r2 M-3
     } finally { await b.query('rollback').catch(() => undefined); await religar() }
   })
 
@@ -338,6 +337,81 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
     }
     await zerarMes('2026-04-01')
     await a.query(`select obs_part.criar_particao('public.competitor_video_daily'::regclass, '2026-04-01')`)
+  })
+
+  /**
+   * r2 I-3 (Phil I-3 = Yannis I-2): o molde determinístico do R-1 para discard, drop e precheck_unit, mais o ramo syntax_error (OID morto).
+   * B abre a ação sem confirmar (e, se pedido, segura uma tabela que o portão lê); A simula e fica esperando; B confirma; A tem de responder o código exato, sem erro.
+   * As corridas de 20 repetições acima são fumaça: passam até sem o handler (m6a-t7a-vermelho-corrida.txt).
+   */
+  async function simulaContraAcaoAberta<T>(acaoSql: string, params: unknown[], sim: () => Promise<T>, antes?: string): Promise<{ x?: T; erro?: string }> {
+    await b.query('begin')
+    try {
+      if (antes) await b.query(antes)
+      expect((await b.query(acaoSql, params)).rows[0].r, 'a ação de B').toMatchObject({ status: 'ok' })
+      const p = sim().then(x => ({ x, erro: undefined as string | undefined }), (e: Error) => ({ x: undefined, erro: e.message }))
+      await dorme(1000)
+      await b.query('commit')
+      return await p
+    } finally { await b.query('rollback').catch(() => undefined) }
+  }
+  async function prepararDescartavel(mes: string): Promise<void> {
+    await zerarMes(mes); await mesExtra(mes)
+    await relogioSessao('2027-05-02 12:00:00+00', '2027-05-02')
+    await renovar()
+    expect(await chamar(a, 'detach', mes, ", 'clique', false")).toMatchObject({ status: 'ok' })
+    await relogioSessao('2027-05-20 12:00:00+00', '2027-05-20')
+    await renovar()
+  }
+  async function restaurarMes(mes: string): Promise<void> {
+    await relogioSessao('2027-05-02 12:00:00+00', '2027-05-02')
+    await zerarMes(mes)
+    await a.query(`select obs_part.criar_particao('public.competitor_video_daily'::regclass, $1::date)`, [mes])
+  }
+  const acaoSql = (fn: string, extra: string): string => `select public.obs_archive_${fn}_month($1, $2, $3, $4${extra}) as r`
+
+  it('R-1 (determinístico): simulação do discard lendo enquanto a ação apaga a _saida responde ja_descartado, sem erro de banco', async () => {
+    await prepararDescartavel('2026-05-01')
+    try {
+      const v = await simulaContraAcaoAberta(acaoSql('discard', ", 'clique', false"), [site, D, '2026-05-01', admin], () => chamar(a, 'discard', '2026-05-01', ", 'clique', true"))
+      expect(v.erro, JSON.stringify(v)).toBeUndefined()
+      expect(v.x, JSON.stringify(v)).toMatchObject({ status: 'recusado', codigo: 'ja_descartado' })
+    } finally { await restaurarMes('2026-05-01') }
+  })
+
+  it('R-1 (determinístico): simulação do drop lendo enquanto a ação destaca e apaga a partição responde ja_descartado, sem erro de banco', async () => {
+    await tresDescartes(); await zerarMes('2026-04-01'); await mesExtra('2026-04-01'); await renovar()
+    try {
+      const v = await simulaContraAcaoAberta(acaoSql('drop', ", 'clique', false"), [site, D, '2026-04-01', admin], () => chamar(a, 'drop', '2026-04-01', ", 'clique', true"))
+      expect(v.erro, JSON.stringify(v)).toBeUndefined()
+      expect(v.x, JSON.stringify(v)).toMatchObject({ status: 'recusado', codigo: 'ja_descartado' })
+    } finally { await restaurarMes('2026-04-01') }
+  })
+
+  it('R-1 (determinístico): o precheck_unit lendo enquanto a ação destaca devolve mudou_durante_a_leitura, sem erro de banco', async () => {
+    await renovar()
+    try {
+      const v = await simulaContraAcaoAberta(acaoSql('detach', ", 'clique', false"), [site, D, MES, admin],
+        () => a.query(`select public.obs_archive_precheck_unit($1, $2, $3, $4) as r`, [site, D, MES, canal]).then(r => r.rows[0].r as { ok: boolean; codigo?: string }))
+      expect(v.erro, JSON.stringify(v)).toBeUndefined()
+      expect(v.x, JSON.stringify(v)).toEqual({ ok: false, codigo: 'mudou_durante_a_leitura' })
+    } finally { await religar() }
+  })
+
+  it('R-1 (determinístico, syntax_error): OID morto na hora de montar o SQL do portão (a ação apaga a partição enquanto a simulação espera dentro de invariante_faltam) responde ja_descartado', async () => {
+    // O SQL do portão formata o regclass com `%s`: o OID de uma relação já apagada vira número e o erro é de sintaxe (42601), não de relação ausente.
+    // Para a simulação esperar ANTES de formatar, invariante_faltam (lida depois de part_rel e antes do portão) ganha uma espera numa trava consultiva que B segura; restaurada no fim.
+    const original = (await a.query(`select pg_get_functiondef('public.obs_archive_invariante_faltam()'::regprocedure) as d`)).rows[0].d as string
+    const corpo = original.split('$function$')[1].trim().replace(/;$/, '')
+    await tresDescartes(); await zerarMes('2026-04-01'); await mesExtra('2026-04-01'); await renovar()
+    await a.query(`create or replace function public.obs_archive_invariante_faltam() returns text[] language plpgsql volatile security definer set search_path = '' as $$
+      begin perform pg_advisory_xact_lock(7771); return (${corpo}); end $$`)
+    try {
+      const v = await simulaContraAcaoAberta(acaoSql('drop', ", 'clique', false"), [site, D, '2026-04-01', admin],
+        () => chamar(a, 'drop', '2026-04-01', ", 'clique', true"), 'select pg_advisory_xact_lock(7771)')
+      expect(v.erro, JSON.stringify(v)).toBeUndefined()
+      expect(v.x, JSON.stringify(v)).toMatchObject({ status: 'recusado', codigo: 'ja_descartado' })
+    } finally { await a.query(original); await restaurarMes('2026-04-01') }
   })
 
   it('r1 I-1: a trava consultiva do mês: a ação espera até 20 s e responde ocupado; a simulação não espera; nada muda', async () => {

@@ -38,6 +38,47 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 6 [M6a]: contadores, trânsito e ve
   }
   const vermelhos = (site: string): Promise<string[]> => escalar<string[]>(c, `select public.obs_archive_vermelhos_saida($1)`, [site])
 
+  /** r2 I-1 (Phil, Yannis): defeito não é corrida. Tabela que o portão lê renomeada por uma migration: o erro SOBE, não vira "mudou durante a leitura". */
+  async function selado(): Promise<{ site: string; admin: string; canal: string }> {
+    await relogio(c, '2027-05-02 12:00:00+00')
+    await liberarClasses(c, ['serie'])
+    const s = await semearCanal(c, { videos: 2 })
+    await semearDiaria(c, s.videos, MES, 31)
+    await selarMes(c, { site: s.site, classe: 'serie', tabela: D, mes: MES })
+    await c.query(`insert into public.competitor_video_marks (video_id, age_days, site_id, views, gap_hours, age_base_at, read_before_at, read_after_at)
+                   select v, 30, $2, 1, 1, now(), now(), now() from unnest($1::uuid[]) v on conflict do nothing`, [s.videos, s.site])
+    return { site: s.site, admin: await novoAdmin(c, s.site), canal: s.canal }
+  }
+  const sobe = async (sql: string, args: unknown[]): Promise<string> => {
+    await c.query('savepoint sp')
+    try { await c.query(sql, args); return 'nao_subiu' } catch (e) { return (e as { code?: string }).code ?? String(e) } finally { await c.query('rollback to savepoint sp') }
+  }
+  it('r2 I-1: tabela do portão renomeada (defeito, relação viva): a simulação do detach e o precheck_unit levantam 42P01', async () => {
+    await emTransacao(async () => {
+      const { site, admin, canal } = await selado()
+      expect(await escalar<{ status: string }>(c, `select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', true)`, [site, D, MES, admin])).toMatchObject({ status: 'simulado' })
+      await c.query('alter table public.obs_archive_prechecks rename to obs_archive_prechecks_x')
+      expect(await sobe(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', true)`, [site, D, MES, admin])).toBe('42P01')
+      expect(await sobe(`select public.obs_archive_precheck_unit($1, $2, $3, $4)`, [site, D, MES, canal])).toBe('42P01')
+    })
+  })
+
+  it('r2 M-1 (Yannis): a _saida some entre a leitura do nome e o fingerprint (outra aba descartou): ja_descartado, nunca esquema_mudou', async () => {
+    await emTransacao(async () => {
+      const { site, admin } = await destacado()
+      await relogio(c, '2027-05-20 12:00:00+00')
+      // trecho entre part_rel e schema_fp do discard: o stub faz o que a outra aba faria (apaga a _saida e registra), de forma determinística
+      await c.query(`create or replace function public.obs_archive_invariante_faltam() returns text[] language plpgsql volatile security definer set search_path = '' as $$
+        begin
+          execute 'drop table ${particaoDe(D, MES)}_saida';
+          update public.obs_archive_months set dropped_at = now(), rows_dropped = 1 where site_id = '${site}' and table_name = '${D}' and month = '${MES}';
+          return '{}'::text[];
+        end $$`)
+      const r = await escalar<{ status: string; codigo: string }>(c, `select public.obs_archive_discard_month($1, $2, $3, $4, 'clique', true)`, [site, D, MES, admin])
+      expect(r, JSON.stringify(r)).toMatchObject({ status: 'recusado', codigo: 'ja_descartado' })
+    })
+  })
+
   it('em trânsito: mês destacado aparece com a data de liberar, mais antigo primeiro', async () => {
     await emTransacao(async () => {
       const { site } = await destacado()

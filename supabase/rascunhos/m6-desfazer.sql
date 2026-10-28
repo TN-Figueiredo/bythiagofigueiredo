@@ -28,6 +28,7 @@ do $$ declare f record; begin
               'obs_archive_part_bounds',
               'obs_archive_saida_trava',
               'obs_archive_saida_mudou',
+              'obs_archive_saida_era_corrida',
               'obs_archive_part_check',
               'obs_archive_part_rel',
               'obs_archive_piso_registro',

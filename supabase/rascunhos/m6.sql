@@ -504,6 +504,8 @@ begin
   return jsonb_build_object('ok', false, 'codigo', 'conteudo_mudou');
 exception
   when undefined_table or syntax_error then
+    -- r2 I-1: só é corrida se a relação lida morreu ou mudou de nome; senão é defeito e sobe (m ainda guarda o que foi lido)
+    if not public.obs_archive_saida_era_corrida(p_table, p_month, m.detached_at is not null, v_rel) then raise; end if;
     select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
     return jsonb_build_object('ok', false, 'codigo', case when m.dropped_at is not null then 'ja_descartado' else 'mudou_durante_a_leitura' end);
 end;
@@ -555,6 +557,17 @@ begin
   return jsonb_build_object('status', 'recusado', 'codigo', 'mudou_durante_a_leitura');
 end $$;
 revoke all on function public.obs_archive_saida_mudou(uuid, text, text, date, text) from public, anon, authenticated, service_role;
+
+-- r2 I-1 (Phil, Yannis): o handler só engole o erro se a relação que a simulação leu morreu (OID fora do catálogo: o `%s` vira número e dá syntax_error) ou mudou de nome
+-- (o part_rel de agora não é mais o mesmo OID). Relação viva com o mesmo nome = defeito (tabela renomeada por migration, format errado): o erro sobe.
+-- p_saida: true se a relação lida era a _saida (reattach, discard), false se a partição anexada (detach, drop).
+create or replace function public.obs_archive_saida_era_corrida(p_table text, p_month date, p_saida boolean, p_rel regclass) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select p_rel is not null
+     and (not exists (select 1 from pg_catalog.pg_class k where k.oid = p_rel)
+          or public.obs_archive_part_rel(p_table, p_month, p_saida) is distinct from p_rel)
+$$;
+revoke all on function public.obs_archive_saida_era_corrida(text, date, boolean, regclass) from public, anon, authenticated, service_role;
 
 -- M6 PARTE 4: destacar e trazer de volta
 -- r1 I-1: a trava consultiva por (tabela, mês), pega ANTES de qualquer leitura da partição, da _saida ou da mãe (as leituras da fase 1 seguram ACCESS SHARE e
@@ -640,7 +653,7 @@ begin
   end if;
 exception
   when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
-    if not p_dry_run then raise; end if;
+    if not p_dry_run or not public.obs_archive_saida_era_corrida(p_table, p_month, false, v_rel) then raise; end if;   -- r2 I-1: defeito sobe, só corrida vira resposta
     return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'detach');
 end;
 
@@ -754,7 +767,7 @@ begin
   end if;
 exception
   when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
-    if not p_dry_run then raise; end if;
+    if not p_dry_run or not public.obs_archive_saida_era_corrida(p_table, p_month, true, v_rel) then raise; end if;   -- r2 I-1: defeito sobe, só corrida vira resposta
     return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'reattach');
 end;
 
@@ -876,6 +889,8 @@ begin
   end if;
   -- I3: a mãe ganhou ou perdeu coluna depois do destaque: a cópia no B2 não tem a forma de hoje; apagar a tabela destacada seria perder a única cópia na forma nova.
   if public.obs_archive_schema_fp(v_rel) is distinct from public.obs_archive_schema_fp(v_mae) then
+    -- r2 M-1 (Yannis): fingerprint NULL de OID morto não é "a mãe mudou": se a _saida de agora não é a que li, outra aba chegou antes
+    if v_rel is distinct from public.obs_archive_part_rel(p_table, p_month, true) then return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'discard'); end if;
     return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', 'esquema_mudou'), p_mode, p_dry_run);
   end if;
   f := public.obs_archive_gate(p_site, v_class, p_table, p_month, p_by, p_mode, v_rel, array[1, 3, 4, 5, 6, 7, 10, 11, 13], p_dry_run);
@@ -888,7 +903,7 @@ begin
   end if;
 exception
   when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
-    if not p_dry_run then raise; end if;
+    if not p_dry_run or not public.obs_archive_saida_era_corrida(p_table, p_month, true, v_rel) then raise; end if;   -- r2 I-1: defeito sobe, só corrida vira resposta
     return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'discard');
 end;
 
@@ -967,7 +982,7 @@ begin
   end if;
 exception
   when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
-    if not p_dry_run then raise; end if;
+    if not p_dry_run or not public.obs_archive_saida_era_corrida(p_table, p_month, false, v_rel) then raise; end if;   -- r2 I-1: defeito sobe, só corrida vira resposta
     return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'drop');
 end;
 
