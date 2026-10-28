@@ -30,6 +30,7 @@ export const LEITORES_DAS_SERIES: readonly LeitorDaSerie[] = [
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/peca1.ts', comoTrata: 'janela_por_construcao' },
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/estado-do-mes.ts', comoTrata: 'janela_por_construcao' }, // T9: só nomeia as tabelas nos rótulos (NOME_DA_TABELA); a janela vem do registro já lido pelo chamador
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/leitores-das-series.ts', comoTrata: 'janela_por_construcao' },
+  { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/saida.ts', comoTrata: 'janela_por_construcao' }, // M6a T12: só nomeia as tabelas da saída (TABELAS_DA_SAIDA); esconder um mês é por tabela e mês, a janela vem do `exit_check` e da política lidos pelo servidor
   { arquivo: S + 'lib/youtube/observatorio/arquivo-mensal/online-desde.ts', comoTrata: 'registro' },
   { arquivo: S + 'lib/youtube/observatorio/arquivo/remover.ts', comoTrata: 'registro' },
   { arquivo: S + 'app/cms/(authed)/youtube/competitors/_canais/remover-model.ts', comoTrata: 'registro' },

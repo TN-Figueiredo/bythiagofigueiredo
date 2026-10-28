@@ -2,6 +2,9 @@
 /** Frases e estado da peça 4 (o automático). Puro. Literais do mockup aprovado (interruptor.js). M6a: só o mínimo; a Tarefa 12c [M6b] acrescenta motivos e frase digitada. */
 import type { EstadoInterruptor } from './saida'
 
+/** Quantas saídas feitas e simulações vistas o automático exige (a peça 4 e a frase da simulação usam o mesmo número). */
+export const DESCARTES_PARA_LIGAR = 3
+export const SIMULACOES_PARA_LIGAR = 2
 export const SO_ADMIN = 'Quem administra o site liga o automático.'
 
 const ddmmaaaa = (iso: string): string => { const d = new Date(Date.parse(iso) - 3 * 3_600_000).toISOString().slice(0, 10); return `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` }

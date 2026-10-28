@@ -46,10 +46,10 @@ const REGRAS: readonly Regra[] = [
     const tabela = corte < 0 ? resto : resto.slice(0, corte); const meses = corte < 0 ? '' : resto.slice(corte + 1)
     const lista = meses.split(',').filter(m => /^\d{4}-\d{2}$/.test(m)).map(m => nomeDoMes(`${m}-01`))
     const nome = NOME_DO_DADO[tabela] ?? 'um tipo de dado'
-    const aviso = 'Não libere o espaço nem traga de volta até avisar quem cuida do site. (código: saida_particao_ausente)'
-    if (lista.length === 0) return `Há mês de "${nome}" que saiu das telas, mas o lugar onde ele ficou guardado não existe mais no banco. ${aviso}`
+    const aviso = 'Não apague do banco nem mostre de novo até avisar quem cuida do site. (código: saida_particao_ausente)'
+    if (lista.length === 0) return `Há mês de "${nome}" que foi escondido das telas, mas o lugar onde ele ficou guardado não existe mais no banco. ${aviso}`
     return lista.length === 1
-      ? `O mês ${lista[0]} de "${nome}" saiu das telas, mas o lugar onde ele ficou guardado não existe mais no banco. ${aviso}`
+      ? `O mês ${lista[0]} de "${nome}" foi escondido das telas, mas o lugar onde ele ficou guardado não existe mais no banco. ${aviso}`
       : `${nome}: ${lista.length} meses sem o lugar onde ficaram guardados (${lista.join(', ')}). ${aviso}`
   } },
   // revisão Logan

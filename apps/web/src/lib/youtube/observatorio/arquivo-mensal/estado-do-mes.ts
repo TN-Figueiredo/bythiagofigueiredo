@@ -291,6 +291,17 @@ export function casaVenceOTopo(formaDaCasa: Forma, formaDoProblema: Forma | null
 }
 
 const uns = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`
+/** Resumo simétrico dos dois blocos da série (mockup 19 B r4): diária fora, early fora, ou as duas; nunca "segue online" para uma tabela que não é a do outro lado. Vazio quando nenhuma está escondida. */
+export function fraseDosEscondidos(linhas: { mes?: string; saidas?: LinhaDoMes['saidas'] }[]): string {
+  const maisAntigo = (t: string): string | null => { const ms = linhas.filter(l => l.mes && l.saidas?.some(x => x.tabela === t && x.fora === 'destacado')).map(l => l.mes!).sort(); return ms[0] ?? null }
+  const d = maisAntigo('competitor_video_daily'), e = maisAntigo('competitor_video_early')
+  const nomeD = NOME_DA_TABELA.competitor_video_daily!, nomeE = NOME_DA_TABELA.competitor_video_early!
+  if (d && e) return ` Os dois estão escondidos das telas e esperam o prazo para apagar do banco: ${nomeD} (${nomeDoMes(d)}) e ${nomeE} (${nomeDoMes(e)}).`
+  if (d) return ` ${nomeD}: ${nomeDoMes(d)} está escondido das telas e espera o prazo para apagar do banco. ${nomeE} segue online.`
+  if (e) return ` ${nomeE}: ${nomeDoMes(e)} está escondido das telas e espera o prazo para apagar do banco. ${nomeD} segue online.`
+  return ''
+}
+
 /** A frase-resumo dos problemas, uma unidade por parte (Logan A1): meses (linhas vermelhas), canais (bloco) e outros (itens do pulso que não são de mês nem de canal). */
 function resumoDosProblemas(o: { tipos: CartaoDoTipo[]; mesesVm: LinhaDoMes[]; probOct: LinhaDeProblema[]; amb: number }): Topo | null {
   const meses = o.mesesVm.length
@@ -410,9 +421,10 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
     const prox = itens.find(i => i.online && i.mes !== c.mesCorrente && i.grupo !== 0)
     const saidaProx = prox ? spDateStart(maisMeses(prox.mes, 1 + cl.janela)) : null
     const proxima = prox && saidaProx != null ? `. ${nomeDoMes(prox.mes)[0]!.toUpperCase()}${nomeDoMes(prox.mes).slice(1)} pode sair ${c.hojeMs >= saidaProx ? 'agora' : `em ${dmy(saidaProx)}`}.` : ''
+    const escondidos = fraseDosEscondidos(linhas.map(l => ({ mes: l.mes, saidas: l.saidas })))
     tipos.push({
       tipo, titulo: NOME_DO_TIPO[tipo],
-      resumo: `${online} ${online === 1 ? 'mês online' : 'meses online'}, ${noArquivo.length} no arquivo${atencao ? `, ${atencao} ${atencao === 1 ? 'pede' : 'pedem'} atenção` : ''}${proxima}`,
+      resumo: `${online} ${online === 1 ? 'mês online' : 'meses online'}, ${noArquivo.length} no arquivo${atencao ? `, ${atencao} ${atencao === 1 ? 'pede' : 'pedem'} atenção` : ''}${proxima}${escondidos}`,
       linhas, anosNoArquivo: [...anos.entries()].sort((a, b) => b[0] - a[0]).map(([ano, v]) => ({ ano, ...v, itens: v.itens })),
     })
   }

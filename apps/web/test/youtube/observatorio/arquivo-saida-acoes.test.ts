@@ -178,8 +178,8 @@ describe('ações da saída', () => {
 })
 
 // ───────── T11 consertos r1 (Phil 62, Yannis 72) ─────────
-const SEM_RESPOSTA_TIRAR = 'Não foi possível confirmar se o mês saiu. Recarregue a página antes de tentar de novo.'
-const NAO_LEU = 'Não foi possível tirar o mês agora. Nada foi tirado; tente de novo em alguns minutos. Se repetir, avise quem cuida do site. (código: banco)'   // falha de escrita: verbo da operação, nunca "ler" (Logan U3)
+const SEM_RESPOSTA_TIRAR = 'Não foi possível confirmar se o mês foi escondido. Recarregue a página antes de tentar de novo.'
+const NAO_LEU = 'Não foi possível esconder o mês agora. Nada foi escondido; tente de novo em alguns minutos. Se repetir, avise quem cuida do site. (código: banco)'   // falha de escrita: verbo da operação, nunca "ler" (Logan U3)
 const PREP = (extra: Record<string, R | R[]> = {}): void => { respostas = { obs_archive_exit_check: ok(EST_ONLINE), obs_archive_precheck_channels: ok([]), ...extra } }
 const ONLINE_DESTACADO = { ...EST_ONLINE, estado: 'destacado' }
 
@@ -190,11 +190,11 @@ describe('T11 r1: classificação do erro depois da chamada que muda (I-1)', () 
     const r = await a.tirarMes('competitor_video_daily', '2026-10-01')
     expect(r.ok).toBe(false)
     expect(r.error).toMatch(/não terminou a tempo/)
-    expect(r.error).toMatch(/Nada foi tirado/)
+    expect(r.error).toMatch(/Nada foi escondido/)
     expect(r.error).not.toBe(NAO_LEU)
     expect(r.error).not.toBe(SEM_RESPOSTA_TIRAR)
   })
-  it('rede caída, 502 sem SQLSTATE, exceção ou abort DEPOIS da chamada que muda = sem resposta, nunca "Nada foi tirado"', async () => {
+  it('rede caída, 502 sem SQLSTATE, exceção ou abort DEPOIS da chamada que muda = sem resposta, nunca "Nada foi escondido"', async () => {
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     for (const e of [{ code: '', message: 'TypeError: fetch failed' }, { message: '<html>502 Bad Gateway</html>' }, { code: undefined, message: 'AbortError: The operation was aborted due to timeout' }]) {
       PREP({ obs_archive_detach_month: { data: null, error: e } })
@@ -212,12 +212,12 @@ describe('T11 r1: classificação do erro depois da chamada que muda (I-1)', () 
       expect(await a.tirarMes('competitor_video_daily', '2026-10-01'), JSON.stringify(data)).toEqual({ ok: false, causa: 'prazo', error: SEM_RESPOSTA_TIRAR })
     }
   })
-  it('erro com SQLSTATE (o banco respondeu e desfez, ex.: P0001) segue "Nada foi tirado"', async () => {
+  it('erro com SQLSTATE (o banco respondeu e desfez, ex.: P0001) segue "Nada foi escondido"', async () => {
     PREP({ obs_archive_detach_month: { data: null, error: { code: 'P0001', message: 'x' } } })
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, causa: 'banco', error: NAO_LEU })
   })
-  it('a SIMULAÇÃO (não muda nada) com rede caída diz que não leu: nada foi tirado é verdade', async () => {
+  it('a SIMULAÇÃO (não muda nada) com rede caída diz que não leu: nada foi escondido é verdade', async () => {
     PREP({ obs_archive_detach_month: { data: null, error: { code: '', message: 'TypeError: fetch failed' } } })
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     expect(await a.simularSaida('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, causa: 'banco', error: NAO_LEU })
@@ -232,22 +232,22 @@ describe('T11 r1: classificação do erro depois da chamada que muda (I-1)', () 
 })
 
 describe('T11 r1: frase de incerteza certa por ação (Yannis I-2)', () => {
-  it('sem resposta: tirar diz "se o mês saiu", liberar "se o espaço foi liberado", trazer "se o mês voltou ao banco online"', async () => {
+  it('sem resposta: tirar diz "se o mês foi escondido", liberar "se o mês foi apagado do banco", trazer "se o mês voltou às telas"', async () => {
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     const erro = { data: null, error: { code: '', message: 'TypeError: fetch failed' } }
     PREP({ obs_archive_detach_month: erro, obs_archive_discard_month: erro, obs_archive_reattach_month: erro })
-    expect((await a.tirarMes('competitor_video_daily', '2026-10-01')).error).toMatch(/confirmar se o mês saiu/)
-    expect((await a.liberarEspaco('competitor_video_daily', '2026-10-01')).error).toMatch(/confirmar se o espaço foi liberado/)
-    expect((await a.trazerDeVolta('competitor_video_daily', '2026-10-01')).error).toMatch(/confirmar se o mês voltou ao banco online/)
+    expect((await a.tirarMes('competitor_video_daily', '2026-10-01')).error).toMatch(/confirmar se o mês foi escondido/)
+    expect((await a.liberarEspaco('competitor_video_daily', '2026-10-01')).error).toMatch(/confirmar se o mês foi apagado do banco/)
+    expect((await a.trazerDeVolta('competitor_video_daily', '2026-10-01')).error).toMatch(/confirmar se o mês voltou às telas/)
     for (const f of [a.tirarMes, a.liberarEspaco, a.trazerDeVolta]) expect((await f('competitor_video_daily', '2026-10-01')).error).toMatch(/Recarregue a página antes de tentar de novo/)
   })
-  it('57014 e "nada foi chamado" dizem o verbo da ação (tirado, liberado, trazido)', async () => {
+  it('57014 e "nada foi chamado" dizem o verbo da ação (escondido, apagado, mostrado de novo)', async () => {
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     const t = { data: null, error: { code: '57014', message: 'x' } }
     PREP({ obs_archive_detach_month: t, obs_archive_discard_month: t, obs_archive_reattach_month: t })
-    expect((await a.tirarMes('competitor_video_daily', '2026-10-01')).error).toMatch(/Nada foi tirado/)
-    expect((await a.liberarEspaco('competitor_video_daily', '2026-10-01')).error).toMatch(/Nada foi liberado/)
-    expect((await a.trazerDeVolta('competitor_video_daily', '2026-10-01')).error).toMatch(/Nada foi trazido/)
+    expect((await a.tirarMes('competitor_video_daily', '2026-10-01')).error).toMatch(/Nada foi escondido/)
+    expect((await a.liberarEspaco('competitor_video_daily', '2026-10-01')).error).toMatch(/Nada foi apagado/)
+    expect((await a.trazerDeVolta('competitor_video_daily', '2026-10-01')).error).toMatch(/Nada foi mostrado de novo/)
   })
 })
 
@@ -288,7 +288,7 @@ describe('T11 r1: lista fechada de códigos (Yannis M-1)', () => {
     }
     PREP({ obs_archive_detach_month: ok({ status: 'recusado', codigo: 'zz_inventado' }) })
     expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toMatchObject({ ok: true, resposta: { tipo: 'recusado', codigo: 'desconhecido' } })
-    expect(saida.FRASE_CODIGO_DESCONHECIDO).toBe('O banco recusou por um motivo que esta tela não conhece; nada foi tirado.')
+    expect(saida.FRASE_CODIGO_DESCONHECIDO).toBe('O banco recusou por um motivo que esta tela não conhece; nada foi escondido.')
   })
   it('todo código de recusa que o m6.sql devolve no topo está na lista', async () => {
     const { readFileSync } = await import('node:fs')
@@ -326,7 +326,7 @@ describe('T11 r1: relógio único contra o maxDuration da página (Phil I-4, Yan
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     const r = await a.tirarMes('competitor_video_daily', '2026-10-01')
     expect(r.ok).toBe(false)
-    expect(r.error).toMatch(/A conferência dos canais passou do tempo desta página\. Nada foi tirado; clique de novo para continuar de onde parou\./)
+    expect(r.error).toMatch(/A conferência dos canais passou do tempo desta página\. Nada foi escondido; clique de novo para continuar de onde parou\./)
     expect(chamadas.filter(c => c.fn === 'obs_archive_precheck_unit').length).toBeLessThan(10)
     expect(chamadas.some(c => c.fn === 'obs_archive_detach_month')).toBe(false)
   })
@@ -336,9 +336,9 @@ describe('T11 r1: relógio único contra o maxDuration da página (Phil I-4, Yan
     aoChamar = { obs_archive_exit_check: () => { vi.setSystemTime(Date.now() + 40_000) }, obs_archive_precheck_channels: () => { vi.setSystemTime(Date.now() + 40_000) } }
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     const r = await a.tirarMes('competitor_video_daily', '2026-10-01')
-    expect(r).toEqual({ ok: false, causa: 'sem_tempo', error: 'Faltou tempo nesta página para chamar o banco. Nada foi tirado; clique de novo.' })
+    expect(r).toEqual({ ok: false, causa: 'sem_tempo', error: 'Faltou tempo nesta página para chamar o banco. Nada foi escondido; clique de novo.' })
     chamadas.length = 0
-    expect((await a.liberarEspaco('competitor_video_daily', '2026-10-01')).error).toBe('Faltou tempo nesta página para chamar o banco. Nada foi liberado; clique de novo.')
+    expect((await a.liberarEspaco('competitor_video_daily', '2026-10-01')).error).toBe('Faltou tempo nesta página para chamar o banco. Nada foi apagado; clique de novo.')
     expect(chamadas.some(c => c.fn === 'obs_archive_discard_month')).toBe(false)
     aoChamar = { obs_archive_reattach_month: () => undefined }
   })

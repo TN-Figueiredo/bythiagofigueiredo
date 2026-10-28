@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { NOME_DA_TABELA, type CartaoDoTipo, type LinhaDoMes, type ModeloPagina } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import { TABELAS_DA_SAIDA, lerEstadoDoMes, lerInterruptor, type EstadoDoMes, type TabelaDaSaida } from '@/lib/youtube/observatorio/arquivo-mensal/saida'
 import { PecaTirarMes } from './peca-tirar-mes'
+import { SIMULACOES_PARA_LIGAR } from '@/lib/youtube/observatorio/arquivo-mensal/interruptor'
 import { PecaInterruptor } from './peca-interruptor'
 import { simularSaida, tirarMes, liberarEspaco, trazerDeVolta } from './acoes'
 
@@ -45,10 +46,10 @@ export async function encaixarSaida(modelo: ModeloPagina, c: CtxEncaixe): Promis
     // descartado: sem bloco; online que não é o mais antigo da SUA tabela: sem botão (nunca bloco vazio)
     const com = saidasDe(l).filter(s => s.fora === 'destacado' || (s.fora === 'online' && estados.has(chaveDoEstado(s.tabela, l.mes!))))
     if (com.length === 0) return l
-    const peca = (s: Saida) => createElement(PecaTirarMes, { key: s.tabela, tabela: s.tabela, mes: l.mes!, estado: estados.get(chaveDoEstado(s.tabela, l.mes!)) ?? null, hojeSP, pctDoBanco: null, ehAdmin: c.ehAdmin, esperaDias: l.esperaDias ?? null, contado: null, acoes: ACOES, soBloco: true })
-    // uma tabela só (horária, ensaio, M5 antiga): a peça direta. A série tem duas: cada bloco leva o nome da sua tabela (decisão do dono, 28/10)
+    const peca = (s: Saida, nome?: string) => createElement(PecaTirarMes, { key: s.tabela, ...(nome ? { nome } : {}), simulacoesExigidas: SIMULACOES_PARA_LIGAR, tabela: s.tabela, mes: l.mes!, estado: estados.get(chaveDoEstado(s.tabela, l.mes!)) ?? null, hojeSP, pctDoBanco: null, ehAdmin: c.ehAdmin, esperaDias: l.esperaDias ?? null, contado: null, acoes: ACOES, soBloco: true })
+    // uma tabela só (horária, ensaio, M5 antiga): a peça direta. A série tem duas: cada bloco leva o nome e o código da sua tabela (decisão do dono, 28/10)
     if (!l.saidas || l.saidas.length < 2) return { ...l, acoes: peca(com[0]!) }
-    return { ...l, acoes: createElement(Fragment, null, ...com.map(s => createElement('div', { key: s.tabela }, createElement('p', null, NOME_DA_TABELA[s.tabela]), peca(s)))) }
+    return { ...l, acoes: createElement(Fragment, null, ...com.map(s => peca(s, NOME_DA_TABELA[s.tabela]))) }
   }
   const cartao = (t: CartaoDoTipo): CartaoDoTipo => t.tipo === 'texto' ? t : {
     ...t, linhas: t.linhas.map(linhaComAcao),

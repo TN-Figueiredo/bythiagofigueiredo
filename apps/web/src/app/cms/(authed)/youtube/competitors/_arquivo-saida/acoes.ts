@@ -26,7 +26,7 @@ function fechar(r: RespostaSaida, op: Operacao): Retorno {
 }
 async function tirarOuSimular(tabela: string, mes: string, simular: boolean): Promise<Retorno> {
   const ate = Date.now() + PRAZO_TOTAL_MS   // o relógio único da ação, antes de qualquer ida à rede
-  const q = await quem('tirar um mês do banco online')
+  const q = await quem('esconder um mês das telas')
   if ('negado' in q) return q.negado
   const p = ChamadaSaida.safeParse({ tabela, mes })
   if (!p.success) return { ok: false, error: naoLeu('tirar') }
@@ -49,7 +49,7 @@ export async function tirarMes(tabela: string, mes: string): Promise<Retorno> { 
 
 export async function liberarEspaco(tabela: string, mes: string): Promise<Retorno> {
   const ate = Date.now() + PRAZO_TOTAL_MS
-  const q = await quem('liberar o espaço de um mês')
+  const q = await quem('apagar um mês do banco')
   if ('negado' in q) return q.negado
   const p = ChamadaSaida.safeParse({ tabela, mes })
   if (!p.success) return { ok: false, error: naoLeu('liberar') }
@@ -57,7 +57,7 @@ export async function liberarEspaco(tabela: string, mes: string): Promise<Retorn
 }
 export async function trazerDeVolta(tabela: string, mes: string): Promise<Retorno> {
   const ate = Date.now() + PRAZO_TOTAL_MS
-  const q = await quem('trazer um mês de volta ao banco online')
+  const q = await quem('mostrar um mês de novo')
   if ('negado' in q) return q.negado
   const p = ChamadaSaida.safeParse({ tabela, mes })
   if (!p.success) return { ok: false, error: naoLeu('trazer') }

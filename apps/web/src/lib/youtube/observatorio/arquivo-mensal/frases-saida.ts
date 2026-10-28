@@ -23,13 +23,14 @@ const n = (x: unknown): number | null => (typeof x === 'number' && Number.isFini
 const milhar = (x: number): string => x.toLocaleString('pt-BR')
 const AVISE = 'avise quem cuida do site'
 const comCodigo = (frase: string, codigo: string): string => `${frase} (código: ${codigo})`
-const VERBO: Record<Operacao, string> = { tirar: 'tirar o mês', liberar: 'liberar o espaço', trazer: 'trazer o mês de volta' }
+/** O verbo da tela, com o mês quando se sabe qual (mockup 19 B r4: "Não foi possível esconder janeiro de 2028 agora"). */
+const VERBO = (op: Operacao, mes?: string): string => { const m = mes ? nomeDoMes(mes) : 'o mês'; return op === 'tirar' ? `esconder ${m}` : op === 'liberar' ? `apagar ${m} do banco` : `mostrar ${m} de novo` }
 /** A leitura do estado do mês falhou (não é falha de escrita). Não afirma "nada foi tirado": o mês pode já ter saído antes. */
 export const FRASE_NAO_LEU_O_MES = 'Não foi possível ler o estado deste mês. Recarregue a página; esta leitura não mudou nada.'
 /** registro_diverge: o mesmo literal na falta (exit_check) e na recusa do servidor. */
 export const FRASE_REGISTRO_DIVERGE = `Os registros do banco não batem com a cópia. Nada foi alterado; ${AVISE}.`
-const FEITO: Record<Operacao, string> = { tirar: 'tirado', liberar: 'liberado', trazer: 'trazido' }
-const INCERTA: Record<Operacao, string> = { tirar: 'se o mês saiu', liberar: 'se o espaço foi liberado', trazer: 'se o mês voltou ao banco online' }
+const FEITO: Record<Operacao, string> = { tirar: 'escondido', liberar: 'apagado', trazer: 'mostrado de novo' }
+const INCERTA: Record<Operacao, string> = { tirar: 'se o mês foi escondido', liberar: 'se o mês foi apagado do banco', trazer: 'se o mês voltou às telas' }
 /** Nulo é "não medido", nunca 0 (o reattach nem manda linhas). */
 export const NAO_MEDIDO_TEXTO = 'não medido'
 
@@ -38,7 +39,7 @@ export const fraseCodigoDesconhecido = (op: Operacao): string => `O banco recuso
 export const FRASE_CODIGO_DESCONHECIDO = fraseCodigoDesconhecido('tirar')
 
 /** Frase de cada causa de falha, por ação (a mesma que o servidor devolvia só em `error`). */
-export function fraseDaFalha(causa: CausaDaFalha, op: Operacao, restantes?: number): string {
+export function fraseDaFalha(causa: CausaDaFalha, op: Operacao, restantes?: number, mes?: string): string {
   const feito = FEITO[op]
   switch (causa) {
     case 'somente_leitura': return 'O banco passou do limite e está em modo somente leitura. Siga o passo de emergência.'
@@ -49,12 +50,12 @@ export function fraseDaFalha(causa: CausaDaFalha, op: Operacao, restantes?: numb
       return `A conferência dos canais passou do tempo desta página. Nada foi ${feito}; ${falta}clique de novo para continuar de onde parou.`
     }
     case 'sem_tempo': return `Faltou tempo nesta página para chamar o banco. Nada foi ${feito}; clique de novo.`
-    default: return `Não foi possível ${VERBO[op]} agora. Nada foi ${feito}; tente de novo em alguns minutos. Se repetir, ${AVISE}. (código: ${causa})`   // banco, forma: falha de ESCRITA, nunca "ler" (Logan U3)
+    default: return `Não foi possível ${VERBO(op, mes)} agora. Nada foi ${feito}; tente de novo em alguns minutos. Se repetir, ${AVISE}. (código: ${causa})`   // banco, forma: falha de ESCRITA, nunca "ler" (Logan U3)
   }
 }
 
 export const TEXTO_SAIDA_FORA_DE_ORDEM = (mes: string, antes: string): string =>
-  `Antes de ${nomeDoMes(mes)}, ${nomeDoMes(antes)} ainda está no banco online. Tire os meses do mais antigo para o mais novo.`   // proposta; Logan revisa (Passo 6)
+  `Antes de ${nomeDoMes(mes)}, ${nomeDoMes(antes)} ainda não foi escondido das telas. Esconda os meses do mais antigo para o mais novo.`   // proposta; Logan revisa (Passo 6)
 
 export function fraseDaFalta(f: Falta, ctx: { mes: string; janelaMeses: number }): string {
   switch (f.codigo) {
@@ -63,57 +64,60 @@ export function fraseDaFalta(f: Falta, ctx: { mes: string; janelaMeses: number }
       ? 'A cópia na casa ainda não foi verificada. Nada se perde: o mês só sai quando a casa confirmar.'
       : `Cópia sem verificação há ${n(f.horas)} horas: a casa não respondeu. Nada se perde: o mês só sai quando a casa voltar. Veja o que fazer no aviso do banco.`
     case 'b2_sem_atestacao':
-      if (f.motivo === 'retirada') return `A última conferência do B2 falhou${emData(typeof f.em === 'string' ? f.em : null)}: nada foi tirado. A forja confere de novo amanhã; se quiser adiantar, rode a conferência no seu Mac.`
+      if (f.motivo === 'retirada') return `A última conferência do B2 falhou${emData(typeof f.em === 'string' ? f.em : null)}: nada foi escondido. A forja confere de novo amanhã; se quiser adiantar, rode a conferência no seu Mac.`
       if (n(f.dias_forja) !== null) return `A forja não confere o B2 há ${n(f.dias_forja)} dias.`
       return n(f.dias_dono) !== null ? `Falta conferir o B2 (última conferência há ${n(f.dias_dono)} dias).` : 'Falta conferir o B2.'
-    case 'classe_nao_liberada': return 'Este tipo de dado ainda não pode sair do banco online.'
+    case 'classe_nao_liberada': return 'Este tipo de dado ainda não pode sair do banco do site.'
     case 'nao_selado': return 'A cópia deste mês ainda não terminou.'
     case 'canal_sem_unidade': return 'Há canal com registros deste mês ainda sem cópia. O mês só sai depois da próxima cópia.'
-    case 'conteudo_mudou': return 'O dado mudou desde a cópia: nada foi tirado; o mês será copiado de novo.'
-    case 'restauracao_vencida': return 'O ensaio de restauração deste tipo de dado tem mais de 180 dias. Rode o ensaio antes de tirar.'
-    case 'esquema_mudou': return 'A tabela mudou desde o último ensaio de restauração. Rode o ensaio antes de tirar.'
+    case 'conteudo_mudou': return 'O dado mudou desde a cópia: nada foi escondido; o mês será copiado de novo.'
+    case 'restauracao_vencida': return 'O ensaio de restauração deste tipo de dado tem mais de 180 dias. Rode o ensaio antes de esconder.'
+    case 'esquema_mudou': return 'A tabela mudou desde o último ensaio de restauração. Rode o ensaio antes de esconder.'
     case 'dia_nao_somado': return 'Ainda há dia de leitura de hora em hora sem a soma do dia. O mês sai depois da soma.'
     case 'marca_pendente': return 'Ainda há vídeo deste mês sem a marca de 30 dias. O mês sai depois dela.'
     case 'marcas_ausentes': return `Falta uma parte do banco que guarda as marcas de 30 dias; ${AVISE}.`
     case 'expurgo_pendente': return 'Há vídeo apagado deste mês esperando sair do arquivo. O mês sai depois disso.'
-    case 'sem_direito': return 'Só quem administra o site tira um mês do banco.'
+    case 'sem_direito': return 'Só quem administra o site esconde um mês das telas.'
     case 'interruptor_desligado': return 'O automático está desligado.'
     case 'outro_site_na_particao': return 'Outro site tem registros neste mês que ainda não estão copiados.'
     case 'esquema_divergente': return 'A tabela deste mês mudou de forma desde a cópia. O mês será copiado de novo antes de sair.'
-    case 'fora_do_mes': return 'Há registros fora deste mês na cópia. Nada foi tirado.'
+    case 'fora_do_mes': return 'Há registros fora deste mês na cópia. Nada foi escondido.'
     case 'registro_diverge': return comCodigo(FRASE_REGISTRO_DIVERGE, 'registro_diverge')
     case 'saida_fora_de_ordem': return TEXTO_SAIDA_FORA_DE_ORDEM(ctx.mes, String(f.antes))
-    default: return comCodigo(`O banco recusou tirar este mês por um motivo que esta tela não conhece; ${AVISE}.`, String(f.codigo))
+    default: return comCodigo(`O banco recusou esconder este mês por um motivo que esta tela não conhece; ${AVISE}.`, String(f.codigo))
   }
 }
 
-export function fraseDaSimulacao(r: Extract<RespostaSaida, { tipo: 'simulado' }>, mes: string): string {
+/** Plural certo (mockup 19 B r4): "1 canal", "1 registro". */
+const plural = (x: number, um: string, varios: string): string => `${x} ${x === 1 ? um : varios}`
+export function fraseDaSimulacao(r: Extract<RespostaSaida, { tipo: 'simulado' }>, mes: string, nomeDoDado?: string): string {
+  const dado = nomeDoDado ? `“${nomeDoDado}”` : 'este tipo de dado'
   const conta = r.canalSemUnidade ? 'Contado agora: há registro sem cópia; nada sairia.' : 'Contado agora: tudo bate.'
-  const registros = r.linhas === null ? `registros: ${NAO_MEDIDO_TEXTO}` : `${milhar(r.linhas)} registros`
-  return `Se você tirasse ${nomeDoMes(mes)} agora: ${r.canais} canais, ${registros}, ${Math.round(r.fracao * 100)}% do que este tipo de dado ocupa. ${conta}`
+  const registros = r.linhas === null ? `registros: ${NAO_MEDIDO_TEXTO}` : plural(r.linhas, 'registro', 'registros').replace(String(r.linhas), milhar(r.linhas))
+  return `Se você apagasse ${nomeDoMes(mes)}${nomeDoDado ? ` de ${dado}` : ''} do banco agora: ${plural(r.canais, 'canal', 'canais')}, ${registros}, ${Math.round(r.fracao * 100)}% do que ${dado} ocupa. ${conta}`
 }
 
 type Tom = 'ok' | 'aviso' | 'erro'
-const TEXTO_PARTICAO_AUSENTE = 'A tabela deste mês não existe mais no banco online. Nada foi alterado; recarregue a página para ver o estado.'
+const TEXTO_PARTICAO_AUSENTE = 'A tabela deste mês não existe mais no banco do site. Nada foi alterado; recarregue a página para ver o estado.'
 export { TEXTO_PARTICAO_AUSENTE }
-type Ctx = { mes: string; doisPassos: boolean; hoje?: string; liberarAPartir?: string; pctDoBanco?: number | null }
+type Ctx = { mes: string; /** o nome do dado na tela (“Views por dia”), quando o bloco o conhece */ nomeDoDado?: string; doisPassos: boolean; hoje?: string; liberarAPartir?: string; pctDoBanco?: number | null }
 type Frase = { tom: Tom; texto: string }
 /** Uma frase própria por código da lista fechada (Record: código novo sem frase não compila; o teste cruza a lista do saida.ts com isto). */
 const FRASE_DO_CODIGO: Record<CodigoDaSaida, (op: Operacao, r: Extract<RespostaSaida, { tipo: 'recusado' }>, ctx: Ctx) => Frase> = {
   ocupado: () => ({ tom: 'aviso', texto: 'Ocupado: a coleta está gravando. Tente em alguns minutos.' }),
-  conteudo_mudou: () => ({ tom: 'aviso', texto: 'O dado mudou desde a cópia: nada foi tirado; o mês será copiado de novo.' }),
-  gatilho_ausente: () => ({ tom: 'erro', texto: `A proteção contra remoção durante a saída não está instalada: nada foi tirado. É defeito de instalação; ${AVISE}.` }),
+  conteudo_mudou: () => ({ tom: 'aviso', texto: 'O dado mudou desde a cópia: nada foi escondido; o mês será copiado de novo.' }),
+  gatilho_ausente: () => ({ tom: 'erro', texto: `A proteção contra remoção durante a saída não está instalada: nada foi escondido. É defeito de instalação; ${AVISE}.` }),
   ja_destacado: () => ({ tom: 'aviso', texto: 'Este mês já saiu das telas.' }),
-  esquema_divergente: () => ({ tom: 'aviso', texto: 'A tabela deste mês mudou de forma desde a cópia: nada foi tirado; o mês será copiado de novo.' }),
-  fora_do_mes: () => ({ tom: 'erro', texto: `Não foi possível trazer de volta: há registros fora deste mês. Nada foi alterado; o mês continua fora das telas. ${maiuscula(AVISE)}.` }),
-  ja_descartado: (_op, r) => ({ tom: 'aviso', texto: `O espaço deste mês já foi liberado${emData(r.descartadoEm)}.` }),
-  orfa_inesperada: () => ({ tom: 'erro', texto: `Não foi possível trazer de volta: o banco encontrou registros sem vídeo. Nada foi alterado; o mês continua fora das telas. ${maiuscula(AVISE)}.` }),
-  cedo_demais: (_op, r) => ({ tom: 'aviso', texto: ddmmaaaa(r.liberarAPartir) === null ? 'O espaço ainda não pode ser liberado (a data não foi medida).' : `O espaço só pode ser liberado a partir de ${ddmmaaaa(r.liberarAPartir)}.` }),
+  esquema_divergente: () => ({ tom: 'aviso', texto: 'A tabela deste mês mudou de forma desde a cópia: nada foi escondido; o mês será copiado de novo.' }),
+  fora_do_mes: () => ({ tom: 'erro', texto: `Não foi possível mostrar de novo: há registros fora deste mês. Nada foi alterado; o mês continua fora das telas. ${maiuscula(AVISE)}.` }),
+  ja_descartado: (_op, r) => ({ tom: 'aviso', texto: `Este mês já foi apagado do banco${emData(r.descartadoEm)}.` }),
+  orfa_inesperada: () => ({ tom: 'erro', texto: `Não foi possível mostrar de novo: o banco encontrou registros sem vídeo. Nada foi alterado; o mês continua fora das telas. ${maiuscula(AVISE)}.` }),
+  cedo_demais: (_op, r) => ({ tom: 'aviso', texto: ddmmaaaa(r.liberarAPartir) === null ? 'Ainda não dá para apagar do banco (a data não foi medida).' : `Só dá para apagar do banco a partir de ${ddmmaaaa(r.liberarAPartir)}.` }),
   particao_ausente: () => ({ tom: 'aviso', texto: TEXTO_PARTICAO_AUSENTE }),
-  nao_destacado: () => ({ tom: 'aviso', texto: 'Este mês não saiu das telas, então não há o que liberar nem trazer de volta. Nada foi alterado.' }),
+  nao_destacado: () => ({ tom: 'aviso', texto: 'Este mês não saiu das telas, então não há o que apagar do banco nem mostrar de novo. Nada foi alterado.' }),
   tabela_invalida: () => ({ tom: 'erro', texto: `Esta tela pediu uma tabela que o banco não aceita. Nada foi alterado; ${AVISE}.` }),
   sem_direito: (_op, _r, ctx) => ({ tom: 'aviso', texto: fraseDaFalta({ codigo: 'sem_direito' }, { mes: ctx.mes, janelaMeses: 6 }) }),
-  dois_passos_obrigatorios: () => ({ tom: 'aviso', texto: 'Por enquanto a saída é em dois passos: primeiro sai das telas, depois você libera o espaço. Nada foi alterado; recarregue a página.' }),
+  dois_passos_obrigatorios: () => ({ tom: 'aviso', texto: 'Por enquanto a saída é em dois passos: primeiro você esconde das telas, depois apaga do banco. Nada foi alterado; recarregue a página.' }),
   esquema_mudou: (_op, _r, ctx) => ({ tom: 'aviso', texto: fraseDaFalta({ codigo: 'esquema_mudou' }, { mes: ctx.mes, janelaMeses: 6 }) }),
   outro_site_na_particao: (_op, _r, ctx) => ({ tom: 'aviso', texto: fraseDaFalta({ codigo: 'outro_site_na_particao' }, { mes: ctx.mes, janelaMeses: 6 }) }),
   canal_sem_unidade: (_op, _r, ctx) => ({ tom: 'aviso', texto: fraseDaFalta({ codigo: 'canal_sem_unidade' }, { mes: ctx.mes, janelaMeses: 6 }) }),
@@ -124,24 +128,25 @@ const FRASE_DO_CODIGO: Record<CodigoDaSaida, (op: Operacao, r: Extract<RespostaS
 export function fraseDoRetorno(op: Operacao, r: RespostaSaida, ctx: Ctx): Frase {
   if (r.tipo === 'falhou') {
     const tom: Tom = r.causa === 'conferencia_parcial' || r.causa === 'sem_tempo' || r.causa === 'tempo_no_banco' ? 'aviso' : 'erro'
-    return { tom, texto: fraseDaFalha(r.causa, op, r.restantes) }
+    return { tom, texto: fraseDaFalha(r.causa, op, r.restantes, ctx.mes) }
   }
   if (r.tipo === 'recusado') {
     if (r.codigo === 'desconhecido') return { tom: 'erro', texto: fraseCodigoDesconhecido(op) }
     if (r.codigo !== null) return FRASE_DO_CODIGO[r.codigo](op, r, ctx)
     if (op === 'liberar' && r.faltam.some(f => f.codigo === 'b2_sem_atestacao' || f.codigo === 'nas_sem_atestacao'))
-      return { tom: 'aviso', texto: 'A cópia não pôde ser confirmada agora (o B2 não respondeu à conferência). O espaço não foi liberado e o mês continua podendo voltar.' }
+      return { tom: 'aviso', texto: 'A cópia não pôde ser confirmada agora (o B2 não respondeu à conferência). Nada foi apagado do banco e o mês continua podendo voltar às telas.' }
     const primeira = r.faltam[0]
     return { tom: 'aviso', texto: primeira ? fraseDaFalta(primeira, { mes: ctx.mes, janelaMeses: 6 }) : `O banco recusou; nada mudou. ${maiuscula(AVISE)}.` }
   }
-  if (r.tipo === 'simulado') return { tom: 'ok', texto: fraseDaSimulacao(r, ctx.mes) }
+  if (r.tipo === 'simulado') return { tom: 'ok', texto: fraseDaSimulacao(r, ctx.mes, ctx.nomeDoDado) }
   if (op === 'trazer') {
-    if (r.protecaoFaltam && r.protecaoFaltam.length > 0) return { tom: 'erro', texto: `O mês voltou. A proteção contra remoção durante a saída não está instalada; ${AVISE} antes de tirar outro mês.` }
-    const base = `${maiuscula(nomeDoMes(ctx.mes))} voltou ao banco online${emData(ctx.hoje)}.`
+    if (r.protecaoFaltam && r.protecaoFaltam.length > 0) return { tom: 'erro', texto: `O mês voltou às telas. A proteção contra remoção durante a saída não está instalada; ${AVISE} antes de esconder outro mês.` }
+    const base = `${maiuscula(nomeDoMes(ctx.mes))} aparece de novo nas telas${ctx.nomeDoDado ? ` de “${ctx.nomeDoDado}”` : ''}.`
     return { tom: r.conteudoMudou ? 'aviso' : 'ok', texto: r.conteudoMudou ? `${base} O dado dele não bateu com a cópia: o mês será copiado de novo.` : base }
   }
   // tirar (ok) e liberar (ok): a linha relida mostra T7/T9; o retorno é curto
-  return { tom: 'ok', texto: op === 'liberar' || !ctx.doisPassos ? `Saiu${emData(ctx.hoje)}.` : `Saiu das telas${emData(ctx.hoje)}.` }
+  const mesTxt = maiuscula(nomeDoMes(ctx.mes)); const deDado = ctx.nomeDoDado ? ` de “${ctx.nomeDoDado}”` : ''
+  return { tom: 'ok', texto: op === 'liberar' || !ctx.doisPassos ? `${mesTxt} foi apagado do banco${deDado}.` : `${mesTxt} foi escondido das telas${deDado}. Ainda não foi apagado do banco.` }
 }
 
 const diasEntre = (a: string, b: string): number => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000)
@@ -159,24 +164,24 @@ export function estadoDaLinha(e: EstadoDoMes, hojeSP: string): 'T1' | 'T3' | 'T7
 }
 
 export function fraseDaLinhaDestacada(e: EstadoDoMes, hojeSP: string, pctDoBanco: number | null): string {
-  const libera = pctDoBanco === null ? '' : ` Liberar o espaço devolve cerca de ${pctDoBanco}% do banco.`
+  const libera = pctDoBanco === null ? '' : ` Apagar do banco devolve cerca de ${pctDoBanco}% do banco.`
   const s = estadoDaLinha(e, hojeSP)
-  if (s === 'T7b') return `Saiu das telas há ${diasDesde(e.destacado_em, hojeSP)} dias e o espaço ainda não foi liberado. Enquanto isso não dá para remover canal nem apagar vídeo. Libere o espaço ou traga o mês de volta.`
-  if (s === 'T7a') return `Pronto para liberar o espaço. Ainda dá para trazer de volta.${libera}`
+  if (s === 'T7b') return `Escondido das telas há ${diasDesde(e.destacado_em, hojeSP)} dias e ainda não apagado do banco. Enquanto isso não dá para remover canal nem apagar vídeo. Apague do banco ou mostre o mês de novo.`
+  if (s === 'T7a') return `Pronto para apagar do banco. Ainda dá para mostrar de novo.${libera}`
   const aPartir = ddmmaaaa(e.liberar_a_partir)
-  return `Saiu das telas${emData(e.destacado_em)}. O espaço ainda não voltou. Você pode trazer de volta a qualquer momento, até liberar o espaço. ${aPartir === null ? 'A data em que o espaço pode ser liberado não foi medida.' : `A partir de ${aPartir} você pode liberar o espaço.`} Até lá não dá para remover canal nem apagar vídeo.${libera}`
+  return `Escondido das telas${emData(e.destacado_em)}. Você pode mostrar de novo até apagar do banco. ${aPartir === null ? 'A data em que dá para apagar do banco não foi medida.' : `A partir de ${aPartir} dá para apagar do banco.`} Até lá não dá para remover canal nem apagar vídeo.${libera}`
 }
 
 /** O retorno completo da ação do servidor: com resposta, a frase da resposta; sem resposta, a da `causa`; sem causa (guarda negada), o `error` do servidor. */
 export function fraseDoRetornoDaAcao(op: Operacao, ret: RetornoDaAcao, ctx: Ctx): Frase {
   if (ret.resposta) return fraseDoRetorno(op, ret.resposta, ctx)
   if (ret.causa) return fraseDoRetorno(op, { tipo: 'falhou', causa: ret.causa, restantes: ret.restantes }, ctx)
-  return { tom: 'erro', texto: ret.error ?? fraseDaFalha('forma', op) }
+  return { tom: 'erro', texto: ret.error ?? fraseDaFalha('forma', op, undefined, ctx.mes) }
 }
 
-/** T9: "Saiu em dd/mm/aaaa às hh:mm. Liberou N% do banco"; percentual nulo é "não medido", nunca 0%. */
+/** T9: "Apagado do banco em dd/mm/aaaa às hh:mm. Liberou N% do banco"; percentual nulo é "não medido", nunca 0%. */
 export function fraseDaLinhaDescartada(e: EstadoDoMes, pctDoBanco: number | null): string {
   const t = Date.parse(e.descartado_em ?? '')
   const quando = Number.isNaN(t) ? '' : `${emData(e.descartado_em)} às ${new Date(t - 3 * 3_600_000).toISOString().slice(11, 16)}`
-  return `Saiu${quando}. ${pctDoBanco === null ? `Liberou: ${NAO_MEDIDO_TEXTO}` : `Liberou ${pctDoBanco}% do banco`}`
+  return `Apagado do banco${quando}. ${pctDoBanco === null ? `Liberou: ${NAO_MEDIDO_TEXTO}` : `Liberou ${pctDoBanco}% do banco`}`
 }

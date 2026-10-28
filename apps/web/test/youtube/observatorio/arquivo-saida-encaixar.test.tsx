@@ -126,4 +126,23 @@ describe('encaixarSaida: série por tabela (Phil C1 / Yannis I-1, decisão do do
     expect(blocos(out.tipos[0]!.linhas[0]!).map(b => b.tabela)).toEqual([D, E])
     expect(out.tipos[0]!.linhas[1]!.acoes).toBeUndefined()
   })
+  it('layout r4: na série cada bloco recebe o nome da sua tabela; na horária o bloco não leva cabeçalho', async () => {
+    const { client } = sb()
+    const out = await encaixarSaida(modeloSerie([serie(1, 'online', 'online')]), { sb: client, site: 's', por: 'u', ehAdmin: true })
+    const nomes = ((out.tipos[0]!.linhas[0]!.acoes as { props: { children: { props: { nome?: string } }[] } }).props.children).map(c => c.props.nome)
+    expect(nomes).toEqual(['Views por dia', 'Primeiras horas'])
+    const h = await encaixarSaida(modelo(), { sb: client, site: 's', por: 'u', ehAdmin: true })
+    expect(propsDe(h.tipos[1]!.linhas[0]!)).not.toHaveProperty('nome')
+  })
+})
+
+import { fraseDosEscondidos } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
+describe('resumo do cartão da série: simétrico (mockup 19 B r4)', () => {
+  const sd = (d: 'online' | 'destacado', e: 'online' | 'destacado') => [{ mes: '2028-02-01', saidas: [{ tabela: 'competitor_video_daily', fora: d }] }, { mes: '2028-01-01', saidas: [{ tabela: 'competitor_video_early', fora: e }] }]
+  it('diária fora, early fora, as duas; nenhuma = vazio', () => {
+    expect(fraseDosEscondidos(sd('destacado', 'online'))).toBe(' Views por dia: fevereiro de 2028 está escondido das telas e espera o prazo para apagar do banco. Primeiras horas segue online.')
+    expect(fraseDosEscondidos(sd('online', 'destacado'))).toBe(' Primeiras horas: janeiro de 2028 está escondido das telas e espera o prazo para apagar do banco. Views por dia segue online.')
+    expect(fraseDosEscondidos(sd('destacado', 'destacado'))).toBe(' Os dois estão escondidos das telas e esperam o prazo para apagar do banco: Views por dia (fevereiro de 2028) e Primeiras horas (janeiro de 2028).')
+    expect(fraseDosEscondidos(sd('online', 'online'))).toBe('')
+  })
 })

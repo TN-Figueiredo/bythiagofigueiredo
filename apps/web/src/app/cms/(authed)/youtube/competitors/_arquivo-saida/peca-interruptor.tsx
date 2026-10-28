@@ -2,14 +2,17 @@
 
 import type { ReactElement } from 'react'
 import type { EstadoInterruptor } from '@/lib/youtube/observatorio/arquivo-mensal/saida'
-import { NAO_MEDIDO, NOTA_DESCARTES, SO_ADMIN, faltaParaLigar, tituloDoInterruptor } from '@/lib/youtube/observatorio/arquivo-mensal/interruptor'
+import { DESCARTES_PARA_LIGAR, SIMULACOES_PARA_LIGAR, NAO_MEDIDO, NOTA_DESCARTES, SO_ADMIN, faltaParaLigar, tituloDoInterruptor } from '@/lib/youtube/observatorio/arquivo-mensal/interruptor'
 
+/** "N de T" com o trilho sempre visível; cheio = verde com o ✓ (o símbolo carrega o sentido, a cor só reforça). */
 function Barra({ rotulo, feitas, total }: { rotulo: string; feitas: number; total: number }): ReactElement {
+  const v = Math.min(feitas, total)
+  const cheio = feitas >= total
   return (
-    <div>
-      <div><span>{rotulo}</span> <span>{feitas} de {total}</span></div>
-      <div role="progressbar" aria-label={rotulo} aria-valuenow={feitas} aria-valuemin={0} aria-valuemax={total}>
-        <i style={{ display: 'block', height: 6, width: `${Math.round((100 * Math.min(feitas, total)) / total)}%`, background: 'var(--accent)' }} />
+    <div className="arq-cont">
+      <div className="arq-cont-tx">{cheio ? <b className="arq-v" aria-hidden="true">✓</b> : null}<span>{rotulo}</span> <span>{v} de {total}{feitas > total ? ` (você já fez ${feitas})` : ''}</span></div>
+      <div className={`arq-trilho${cheio ? ' cheio' : ''}`} role="progressbar" aria-label={rotulo} aria-valuenow={v} aria-valuemin={0} aria-valuemax={total}>
+        <i style={{ width: `${Math.round((100 * v) / total)}%` }} />
       </div>
     </div>
   )
@@ -29,12 +32,12 @@ export function PecaInterruptor({ classe, estado, envOn, hojeSP, ehAdmin }: { cl
 }
 
 function NaoPode({ descartes, simulacoes }: { descartes: number; simulacoes: number }): ReactElement {
-  if (descartes >= 3 && simulacoes >= 2) return <p>O automático chega na próxima etapa.</p>
+  if (descartes >= DESCARTES_PARA_LIGAR && simulacoes >= SIMULACOES_PARA_LIGAR) return <p>O automático chega na próxima etapa.</p>
   return (
     <>
       <p>{faltaParaLigar(descartes, simulacoes)}</p>
-      <Barra rotulo="Saídas feitas por você" feitas={descartes} total={3} />
-      <Barra rotulo="Simulações vistas" feitas={simulacoes} total={2} />
+      <Barra rotulo="Saídas feitas por você" feitas={descartes} total={DESCARTES_PARA_LIGAR} />
+      <Barra rotulo="Simulações vistas" feitas={simulacoes} total={SIMULACOES_PARA_LIGAR} />
       <p>{NOTA_DESCARTES}</p>
     </>
   )
