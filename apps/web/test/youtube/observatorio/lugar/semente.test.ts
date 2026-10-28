@@ -8,13 +8,14 @@ import {
 import { normalizarLugar } from '../../../../src/lib/youtube/observatorio/lugar/normalizar'
 
 const RAIZ = resolve(__dirname, '../../../../../..')
-const JSON_V1 = resolve(__dirname, '../../../../data/lugares/semente-v1.json')
-const semente = lerSemente(readFileSync(JSON_V1, 'utf8'))
+const JSON_V2 = resolve(__dirname, '../../../../data/lugares/semente-v2.json')
+const semente = lerSemente(readFileSync(JSON_V2, 'utf8'))
 
 function blocoDaMigration(): string {
   const dir = resolve(RAIZ, 'supabase/migrations')
-  const arq = readdirSync(dir).find((f) => f.endsWith('_f2_lugares.sql'))
-  if (!arq) throw new Error('migration f2_lugares não encontrada')
+  // a última migration que carrega o bloco da semente (v2: lugar_semente_v2)
+  const arq = readdirSync(dir).filter((f) => f.endsWith('_lugar_semente_v2.sql')).sort().pop()
+  if (!arq) throw new Error('migration lugar_semente_v2 não encontrada')
   const sql = readFileSync(resolve(dir, arq), 'utf8')
   const ini = sql.indexOf(MARCA_INICIO)
   const fim = sql.indexOf(MARCA_FIM)
@@ -22,7 +23,7 @@ function blocoDaMigration(): string {
   return sql.slice(ini, fim + MARCA_FIM.length) + '\n'
 }
 
-describe('semente de lugares v1', () => {
+describe('semente de lugares v2', () => {
   it('deriva: o bloco colado na migration é idêntico ao SQL regenerado do JSON', () => {
     expect(blocoDaMigration()).toBe(gerarSql(semente))
   })

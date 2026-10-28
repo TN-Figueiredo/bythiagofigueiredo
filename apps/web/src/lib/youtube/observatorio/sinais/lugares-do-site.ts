@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { readAll, type ObservatoryRows } from '../load'
 import { BLOCO_DO_IN } from './leitura'
 import {
-  entradaHash, extrairLugares, montarIndice, paresPadrao, chaveDoPar,
+  entradaHash, extrairLugares, montarIndice, paresPadrao, chaveDoPar, paisesPadraoPorCanal,
   type EntradaDeLugar, type IndiceDeLugar,
 } from '../lugar/casar'
 
@@ -126,6 +126,11 @@ export function calcularLugares(args: {
     return { canal: v.competitor_channel_id, lat: r?.lat ?? null, lng: r?.lng ?? null }
   }))
 
+  const padraoDeTexto = paisesPadraoPorCanal(
+    rows.videos.map((v) => ({ canal: v.competitor_channel_id, tags: v.tags ?? [], descricaoInicio: descricao.get(v.id) ?? '' })),
+    indice,
+  )
+
   const linhas: LinhaDeLugar[] = []
   const textos = new Map<string, string>()
   const empurrar = (id: string, origem: LinhaDeLugar['origem'], e: EntradaDeLugar): void => {
@@ -142,6 +147,7 @@ export function calcularLugares(args: {
     empurrar(v.id, 'competidor', {
       titulo: t, tags, descricaoInicio: descricao.get(v.id) ?? '',
       locationDescription: r?.locationDescription ?? null, coordenadaPadraoDoCanal: padraoDoCanal,
+      paisesPadraoDoCanal: padraoDeTexto.get(v.competitor_channel_id) ?? [],
     })
   }
   for (const p of proprios) {

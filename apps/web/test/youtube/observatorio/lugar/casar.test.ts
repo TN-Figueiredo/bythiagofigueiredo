@@ -1,11 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import semente from '../../../../data/lugares/semente-v1.json'
+import semente from '../../../../data/lugares/semente-v2.json'
 import { normalizarLugar } from '../../../../src/lib/youtube/observatorio/lugar/normalizar'
 import {
   entradaHash,
   extrairLugares,
   montarIndice,
+  paisesPadraoPorCanal,
   type EntradaDeLugar,
 } from '../../../../src/lib/youtube/observatorio/lugar/casar'
 import { paresPadrao } from '../../../../src/lib/youtube/observatorio/lugar/coordenada'
@@ -43,7 +44,7 @@ describe('normalizarLugar', () => {
   ])('%s -> %s', (e, s) => expect(normalizarLugar(e)).toBe(s))
 })
 
-describe('semente-v1', () => {
+describe('semente-v2', () => {
   it('sem alias normalizado repetido entre slugs; todo local tem o pais', () => {
     const dono = new Map<string, string>()
     for (const l of linhas) {
@@ -100,9 +101,10 @@ describe('extrairLugares', () => {
     expect(ex('Tailândia, Vietnã e Camboja em 15 dias').chaves).toEqual(['pais:TH', 'pais:VN', 'pais:KH'])
     expect(ex('Tailândia, Vietnã, Camboja e Laos').chaves).toEqual(['pais:TH', 'pais:VN', 'pais:KH'])
   })
-  it('título antes de tags antes de descrição', () => {
-    const r = ex('Japão', { tags: ['Argentina'], descricaoInicio: 'Chile' })
-    expect(r.chaves).toEqual(['pais:JP', 'pais:AR', 'pais:CL'])
+  it('tags antes de descrição (sem chave no título; v2 b: com chave no título, tag/descrição não acrescentam país)', () => {
+    const r = ex('Minha viagem', { tags: ['Argentina'], descricaoInicio: 'Chile' })
+    expect(r.chaves).toEqual(['pais:AR', 'pais:CL'])
+    expect(ex('Japão', { tags: ['Argentina'], descricaoInicio: 'Chile' }).chaves).toEqual(['pais:JP'])
   })
   it('ambíguo em pt com preposição; em inglês não', () => {
     expect(ex('Viagem em Natal').chaves).toEqual(['local:br-natal', 'pais:BR'])
@@ -187,5 +189,76 @@ describe('entradaHash', () => {
     expect(entradaHash(e, 1)).toBe(entradaHash({ ...e }, 1))
     expect(entradaHash(e, 1)).toMatch(/^[0-9a-f]{64}$/)
     expect(entradaHash(e, 2)).not.toBe(entradaHash(e, 1))
+  })
+})
+
+describe('regra v2 (T6b)', () => {
+  const pais = (r: ReturnType<typeof extrairLugares>): string[] => r.chaves.filter((c) => c.startsWith('pais:'))
+
+  describe('c: bandeira emoji', () => {
+    it.each([
+      ['Entrei no MERCADO mais BIZARRO da Amazônia 🇵🇪', 'pais:PE'],
+      ['🇮🇹 Eu errei pra você acertar: pedágio de €3 virou multa de €80!', 'pais:IT'],
+      ['🇨🇳 DESCOBRIMOS COMO FUNCIONA A VIDA REAL NO INTERIOR', 'pais:CN'],
+      ['Trying Afghanistan’s National Dish 🇦🇫', 'pais:AF'],
+    ])('%s', (t, esperado) => expect(pais(ex(t))).toEqual([esperado]))
+
+    it('bandeira de país fora da semente não vira chave', () => {
+      expect(ex('Olá 🇧🇻').chaves).toEqual([])
+    })
+  })
+
+  describe('a: padrão do canal no texto', () => {
+    const tags = ['Vietnam', 'Thailand', 'Philippines']
+    it('país de tag que é padrão do canal não conta sozinho', () => {
+      const t = 'This Southeast Asia Retirement Loophole Blew My Mind!'
+      expect(ex(t, { tags }).chaves.length).toBeGreaterThan(0)
+      expect(ex(t, { tags, paisesPadraoDoCanal: ['VN', 'TH', 'PH'] }).chaves).toEqual([])
+    })
+    it('mas conta quando o título também o traz', () => {
+      expect(pais(ex('Comida de rua no Vietnã', { tags, paisesPadraoDoCanal: ['VN', 'TH', 'PH'] }))).toEqual(['pais:VN'])
+    })
+    it('paisesPadraoPorCanal: >= 50% dos vídeos, mínimo de 4 vídeos, só tag/descrição', () => {
+      const v = (canal: string, tags: string[]) => ({ canal, tags, descricaoInicio: '' })
+      const r = paisesPadraoPorCanal(
+        [
+          v('a', ['Thailand']), v('a', ['Thailand']), v('a', []), v('a', []),
+          v('b', ['Thailand']), v('b', ['Thailand']), v('b', ['Thailand']),
+          v('c', ['Thailand']), v('c', []), v('c', []), v('c', []),
+        ],
+        ind,
+      )
+      expect(r.get('a')).toEqual(['TH'])
+      expect(r.has('b')).toBe(false)
+      expect(r.has('c')).toBe(false)
+    })
+  })
+
+  describe('b: prioridade do título', () => {
+    it('com chave no título, tag/descrição não acrescentam país novo', () => {
+      const r = ex('Vietnamese Oil Shower Chicken 🇻🇳🍗', { tags: ['Thailand'], descricaoInicio: 'Filmed near Bangkok, Thailand and Cambodia' })
+      expect(pais(r)).toEqual(['pais:VN'])
+    })
+    it('mesmo país em tag continua valendo; sem chave no título, tag/descrição seguem valendo', () => {
+      expect(ex('Japan’s Fluffiest Egg Sandwich 🇯🇵🥪', { tags: ['Osaka'] }).chaves).toContain('local:jp-osaka')
+      expect(pais(ex('Fluffiest Egg Sandwich', { tags: ['Japan'] }))).toEqual(['pais:JP'])
+    })
+  })
+
+  describe('d: semente v2', () => {
+    it.each([
+      ['A CIDADE CHINESA DO LUXO, DINHEIRO, FAMA E OSTENTAÇÃO (Chengdu)', 'local:cn-chengdu', 'pais:CN'],
+      ['EXPLORANDO UBUD E CONHECENDO GENTE PELO CAMINHO...', 'local:id-ubud', 'pais:ID'],
+      ['The Transformers are having a short vacation in Jomtien!#jomtien #pattaya', 'local:th-jomtien', 'pais:TH'],
+      ['Seria essa a melhor capital do Nordeste? #joaopessoa #jampa #dicasdeviagem', 'local:br-joao-pessoa', 'pais:BR'],
+      ['A menor capital da Europa #malta  #europa #viagem #shorts', 'pais:MT', 'pais:MT'],
+    ])('%s', (t, a, b) => {
+      const r = ex(t)
+      expect(r.chaves).toContain(a)
+      expect(r.chaves).toContain(b)
+    })
+    it('"malta" sozinho continua ambíguo', () => {
+      expect(ex('A malta toda junta').chaves).toEqual([])
+    })
   })
 })

@@ -186,6 +186,17 @@ describe('sincronizarLugares', () => {
     expect(r2.lugarDe('v-turkey')).toEqual([])
   })
 
+  it('v2 a: país que está na tag de >= 50% dos vídeos do canal (>= 4) não conta sozinho', async () => {
+    const rows0 = rowsDe([canal('c1')], [
+      { id: 'p1', ch: 'c1', vpd: 100, title: 'Dicas de mala' }, { id: 'p2', ch: 'c1', vpd: 100, title: 'Dicas de mochila' },
+      { id: 'p3', ch: 'c1', vpd: 100, title: 'Dicas de voo' }, { id: 'p4', ch: 'c1', vpd: 100, title: 'Viagem ao Egito' },
+    ])
+    const rows = { ...rows0, videos: rows0.videos.map((v) => ({ ...v, tags: v.id === 'p4' ? ['Turquia'] : ['Egito'] })) }
+    const r = await sincroniza(falso(cenario().tabelas), rows)
+    expect(r.lugarDe('p1')).toEqual([])
+    expect(r.lugarDe('p4')).toEqual(['pais:EG'])
+  })
+
   it('o select de competitor_raw nunca pede o raw inteiro', async () => {
     const { tabelas } = cenario()
     const f = falso(tabelas)
