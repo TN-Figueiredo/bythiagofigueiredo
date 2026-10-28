@@ -129,7 +129,7 @@ const ALTURA_AVISO_VOLUME = 'min-h-[92px]'
 /** Resolução: o texto resolvido quebra em mais linhas no celular; a mesma altura no esqueleto e no cartão evita o pulo. */
 const ALTURA_AVISO_RESOLUCAO = 'min-h-[180px] sm:min-h-[120px]'
 
-function EsqueletoDeAviso({ texto, rotulo, atributo, altura = ALTURA_AVISO_VOLUME }: { texto: string; rotulo: string; atributo?: boolean; altura?: string }) {
+function EsqueletoDeAviso({ texto, rotulo, atributo, altura = ALTURA_AVISO_VOLUME }: { texto: string; rotulo?: string; atributo?: boolean; altura?: string }) {
   // Volume (atributo): a região viva é o wrapper estável em StepRevisar; aqui não há role.
   const regiao = atributo ? {} : { role: 'status', 'aria-busy': 'true' as const, 'aria-label': rotulo }
   return (
@@ -148,7 +148,7 @@ function EsqueletoDeAviso({ texto, rotulo, atributo, altura = ALTURA_AVISO_VOLUM
 }
 
 function AvisoVolume({ estado }: { estado: Exclude<EstadoAvisoVolume, null> }) {
-  if (estado === 'pendente') return <EsqueletoDeAviso texto="Conferindo o volume do vídeo…" rotulo="Estimando o volume do teste" atributo />
+  if (estado === 'pendente') return <EsqueletoDeAviso texto="Conferindo o volume do vídeo…" atributo />
   if (estado === 'indisponivel') {
     return <p data-aviso-volume className="m-0 text-[13px] text-cms-text-muted">{TEXTO_VOLUME_INDISPONIVEL}</p>
   }
