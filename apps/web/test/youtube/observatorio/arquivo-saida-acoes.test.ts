@@ -296,6 +296,8 @@ describe('T11 r1: lista fechada de códigos (Yannis M-1)', () => {
     const sql = readFileSync('../../supabase/rascunhos/m6.sql', 'utf8')
     const achados = new Set([...sql.matchAll(/'status', 'recusado', 'codigo', '([a-z_]+)'/g)].map(m => m[1]!))
     for (const c of ['conteudo_mudou', 'canal_sem_unidade', 'mudou_durante_a_leitura', 'registro_diverge']) achados.add(c)
+    // T13b: os dois códigos de `obs_archive_test_close` têm lista e frases próprias (encerrarDadoDeTeste), fora da saída do mês
+    for (const c of ['descarte_de_teste_nao_feito', 'recuperacao_nao_testada', 'mes_de_teste_em_transito']) achados.delete(c)
     expect(achados.size).toBeGreaterThan(10)
     expect([...achados].filter(c => !(saida.CODIGOS_DA_SAIDA as readonly string[]).includes(c))).toEqual([])
   })
@@ -347,4 +349,36 @@ describe('T11 r1: relógio único contra o maxDuration da página (Phil I-4, Yan
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toMatchObject({ ok: true, resposta: { tipo: 'ok' } })
   })
+})
+
+describe('M6a T13b: encerrarDadoDeTeste', () => {
+  const importar = () => import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
+  it('administrador: chama obs_archive_test_close com o site e o id da sessão; ok', async () => {
+    respostas = { obs_archive_test_close: ok({ status: 'ok', encerrados: 2 }) }
+    expect(await (await importar()).encerrarDadoDeTeste()).toEqual({ ok: true })
+    expect(chamadas).toEqual([{ fn: 'obs_archive_test_close', args: { p_site: 's1', p_by: 'u-admin' } }])
+  })
+  it.each([
+    ['descarte_de_teste_nao_feito', 'Ainda falta descartar um mês de teste.'],
+    ['recuperacao_nao_testada', 'Ainda falta testar a recuperação do dado de teste.'],
+    ['mes_de_teste_em_transito', 'Um mês de teste ainda está fora das telas sem ter sido descartado. Descarte ou traga de volta antes de encerrar.'],
+  ])('recusa %s vira a frase e o código nunca aparece', async (codigo, frase) => {
+    respostas = { obs_archive_test_close: ok({ status: 'recusado', codigo }) }
+    const r = await (await importar()).encerrarDadoDeTeste()
+    expect(r).toEqual({ ok: false, error: frase })
+    expect(JSON.stringify(r)).not.toContain(codigo)
+  })
+  it('editor: a frase de quem administra e o banco nem é chamado', async () => {
+    admin.ok = false
+    const r = await (await importar()).encerrarDadoDeTeste()
+    expect(r).toEqual({ ok: false, error: 'Só quem administra o site pode encerrar o dado de teste.' })
+    expect(chamadas).toEqual([])
+  })
+  it.each([[ok(null)], [ok('x')], [ok({ status: 'estranho' })], [{ data: null, error: { code: '42883', message: 'x' } }], [{ lanca: 'rede' }], [ok({ status: 'recusado', codigo: 'novo_codigo' })]])(
+    'dado ausente ou fora da forma (%j) nunca vira ok nem mostra código', async resp => {
+      respostas = { obs_archive_test_close: resp as R }
+      const r = await (await importar()).encerrarDadoDeTeste()
+      expect(r.ok).toBe(false)
+      expect(r.error).toBe('Não deu para confirmar se o dado de teste foi encerrado. Atualize a página antes de tentar de novo.')
+    })
 })
