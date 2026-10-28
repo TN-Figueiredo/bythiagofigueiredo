@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto'
 import { aplicarM2 } from './m2'
 import { travarDdl } from './ddl-testes'
 import { apagarCanais } from './limpa-cena'
-import { aplicarM3b, escalar } from './m3b'
+import { aplicarM3b, escalar, urlDasCorridas } from './m3b'
+import { skipIfNoLocalDb } from './db-skip'
 import { M10A_SQL } from '../integration/video-antigo-m10a-caminho'
 
 export const M6_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m6.sql')
@@ -118,4 +119,26 @@ export const semearEarly = (c: Client, videos: readonly string[], mes: string, l
 /** Apaga o canal pelo caminho que declara o destino (`apagarCanais` da M3b); não deixa resíduo em obs_archive_channel_removals. */
 export async function apagarCanalDeclarando(c: Client, _site: string, canal: string, _admin: string): Promise<void> {
   await apagarCanais(c, 'id = $1', [canal])
+}
+
+// ---- Corridas (Tarefa 6) ----
+export const M6_DESFAZER_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m6-desfazer.sql')
+export const corridasM6Ligadas = (): boolean => !skipIfNoLocalDb() && process.env.M6_CORRIDAS === '1'
+/**
+ * Desvio do plano (28/10): a M3b e a M5 já são migrations no banco de integração, então as corridas NÃO as confirmam nem as desfazem
+ * (o plano chamava confirmarM3bParaCorridas/desfazerM3bDasCorridas, que derrubariam a M3b real). Só a M6 é confirmada e desfeita.
+ */
+export async function confirmarM6ParaCorridas(): Promise<void> {
+  if (M6_EM_MIGRATION) throw new Error('as corridas da M6 só rodam antes da migration existir (M6_EM_MIGRATION = true): o desfazer derrubaria funções reais')
+  const x = new Client({ connectionString: urlDasCorridas() }); await x.connect()
+  try {
+    const r = await x.query(`select to_regclass('public.obs_archive_units') is not null as m3b, to_regprocedure('public.obs_archive_detach_month(uuid,text,date,uuid,text,boolean)') is not null as m6`)
+    if (!r.rows[0].m3b) throw new Error('corridas M6: a M3b precisa estar aplicada neste banco')
+    if (r.rows[0].m6) throw new Error('corridas M6: a M6 já está neste banco (resto de corrida anterior); rode m6-desfazer.sql antes')
+    await x.query(sqlM6Ate())
+  } finally { await x.end() }
+}
+export async function desfazerM6DasCorridas(): Promise<void> {
+  const x = new Client({ connectionString: urlDasCorridas() }); await x.connect()
+  try { await x.query(readFileSync(M6_DESFAZER_CAMINHO, 'utf8')) } finally { await x.end() }
 }
