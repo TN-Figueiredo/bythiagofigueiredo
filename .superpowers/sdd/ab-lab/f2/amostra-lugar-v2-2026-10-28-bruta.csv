@@ -1,0 +1,117 @@
+video_id,canal,formato,titulo,chaves_calculadas,fonte,chaves_corretas,fonte_chave,canal_tem_padrao
+0f5fe330-7037-4aaa-8c38-b7f5d946a2e2,Evan Eh! 🇨🇦,long,5 Countries Americans can Move in 24 Hours and No Income Required!,,texto,,,PH;TH;VN
+699108ec-b31d-4cc4-961d-6d7bdf7039ab,Sonhe Alto Viagens,long,ROTEIRO PARIS 6 DIAS: se apaixone pela cidade comigo!,local:fr-paris;pais:FR,texto,,local:fr-paris=titulo;pais:FR=titulo,coordenada
+34471a12-0840-4f45-af12-e9080d98e913,Estevam Pelo Mundo,short,A PIOR capital que eu já visitei na Europa,,texto,,,
+80706d7e-891e-4a16-b7c6-aaaae36072b3,Evan Eh! 🇨🇦,long,Stop Paying for Visas! These Countries Have FREE Residency,,texto,,,PH;TH;VN
+ccb4d86a-5ba8-4e1d-9743-d553cb2becfc,Travis Travels Vietnam,short,Its HOT in Vietnam,pais:VN;local:vn-da-nang,texto,,pais:VN=titulo;local:vn-da-nang=descricao,VN
+b3e0b69e-305c-4413-9aa4-e4848003f42f,Best Ever Food Review Show,short,"Bye, YouTube. I’m Quitting (Soon…)",,texto,,,
+0b1b5016-6372-4fcb-ba40-95112948f863,Arthur Aeli,long,O QUE ACONTECE QUANDO UM BRASILEIRO ANDA PELA CHINA 🇨🇳,pais:CN,texto,,pais:CN=bandeira,VN
+745d5668-4806-48e3-87f8-626221576b5c,Drew Binsky,short,The Truth About Paris’ Tiniest Apartments,local:fr-paris;pais:FR,texto,,local:fr-paris=titulo;pais:FR=titulo,
+8400e5c6-b3ff-4207-a277-a7a2d8464cd9,Arthur Aeli,short,Comunista e patriota. O Brasil buga com isso? 🇻🇳,pais:VN;pais:BR,texto,,pais:VN=bandeira;pais:BR=titulo,VN
+e852ebea-115a-440e-bf7f-e4258a0db830,Mark Wiens,short,Trying Afghanistan's National Dish (Kabuli Pulao) 🇦🇫,pais:AF,texto,,pais:AF=bandeira,
+9a9f78c0-a9a8-4b62-b128-a53fcd8d96b8,Onde tá o Verly?,long,O QUE ACONTECE QUANDO EU FALO QUE SOU BRASILEIRO NO VIETNÃ 🇻🇳,pais:VN;local:vn-ho-chi-minh;local:vn-da-nang,texto,,pais:VN=bandeira;local:vn-ho-chi-minh=tags;local:vn-da-nang=tags,TH;VN
+8bbcd064-8059-4821-8d88-526f3fd28e00,Arthur Aeli,long,FUI PARAR NUMA CIDADE DO VIETNÃ QUE NINGUÉM CONHECE 🇻🇳,pais:VN;local:vn-hanoi,texto,,pais:VN=bandeira;local:vn-hanoi=tags,VN
+9cc5a006-bd7e-4d94-95b2-62fb868255e5,Estevam Pelo Mundo,short,🇨🇿 QUEM MAIS AMA A TCHÉQUIA? 🤣2 dias são suficientes para conhecer o básico de Praga! 👟🇨🇿,pais:CZ;local:cz-praga,texto,,pais:CZ=bandeira;local:cz-praga=titulo,
+52e8022d-dd3b-4ecb-9a13-4b485e78dcc4,Por Onde INDO 🌏 Rony & Bruna,long,🇨🇳24 HORAS dentro da PRIMEIRA CIDADE ARTIFICIAL DO MUNDO na CHINA,pais:CN,texto,,pais:CN=bandeira,CN
+377559cc-1113-4cfb-8a1c-39e59758da1a,Best Ever Food Review Show,short,Country #65 POLAND 🇵🇱,pais:PL;local:pl-cracovia,texto+coordenada,,pais:PL=bandeira;local:pl-cracovia=localizacao,
+d32174f5-60b1-48e8-bcbc-eb4559aeb90a,Ryan Otis,long,I Bought Thai Gold — Then Tried to Sell It,,texto,,,TH;coordenada
+524b5c12-2724-4d7f-b5e8-10c84dda5cf6,Best Ever Food Review Show,short,Japan’s Fluffiest Egg Sandwich 🇯🇵🥪,pais:JP;local:jp-osaka,texto+coordenada,,pais:JP=bandeira;local:jp-osaka=localizacao,
+6dbdab59-3150-4bfb-be27-5be17daa4cce,Matheus Fonseca,long,FIQUEI SURPRESO COM ESSA TÉCNICA DE MASSAGEM NA TAILÂNDIA 🇹🇭,pais:TH,texto,,pais:TH=bandeira,TH;VN;coordenada
+fae1d7bd-d92d-48d6-81d4-64fb8ed64183,Onde tá o Verly?,long,O QUE ACONTECE QUANDO UM BRASILEIRO SAI SOZINHO NO VIETNÃ 🇻🇳,pais:VN;local:vn-hoi-an,texto,,pais:VN=bandeira;local:vn-hoi-an=tags,TH;VN
+a9317b3d-ea08-4cf9-a01e-3d63f9d0209f,Por Onde INDO 🌏 Rony & Bruna,long,"🇨🇳A CIDADE MAIS ESTREITA E SUFOCANTE DO MUNDO (CHINA, Yanjin)",pais:CN,texto,,pais:CN=bandeira,CN
+ac9bf941-bf6c-47b7-9856-869a92bd6233,Sonhe Alto Viagens,short,Como é se hospedar no primeiro resort pé na areia  João Pessoa #joaopessoa #tauá #paraiba #nordeste,local:br-joao-pessoa;pais:BR,texto,,local:br-joao-pessoa=titulo;pais:BR=titulo,coordenada
+8e9861cb-3ac4-4f17-adbc-0484947ac928,Best Ever Food Review Show,short,Vietnamese Oil Shower Chicken 🇻🇳🍗,pais:VN;local:vn-ho-chi-minh,texto+coordenada,,pais:VN=bandeira;local:vn-ho-chi-minh=localizacao,
+78827e84-0403-4efd-af24-f381d70c1d49,Sonhe Alto Viagens,short,Lugares para se sentir no Japão em São Paulo #saopaulo #dicasdeviagem #turismo,pais:JP;local:br-sao-paulo;pais:BR,texto,,pais:JP=titulo;local:br-sao-paulo=titulo;pais:BR=titulo,
+d559364b-ed23-48d8-b470-cc3e0c9c222d,Onde tá o Verly?,long,ASSIM UM BRASILEIRO É TRATADO POR UMA VIETNAMITA 🇻🇳,pais:VN;local:vn-ho-chi-minh,texto,,pais:VN=bandeira;local:vn-ho-chi-minh=tags,TH;VN
+9b6f5d1e-14d3-44db-b088-257da22aa3ee,Dan About Thailand,short,The Transformers are having a short vacation in Jomtien!#jomtien #pattaya,local:th-jomtien;pais:TH;local:th-pattaya,texto,,local:th-jomtien=titulo;pais:TH=titulo;local:th-pattaya=titulo,TH;coordenada
+cda194cf-3dc5-480a-8138-a88181242d4c,Estevam Pelo Mundo,short,Mas quem sou eu pra julgar né…👀,,texto,,,
+a82ad55e-a48b-412e-a723-ae3972122e2f,Ryan Otis,long,73-Year-Old Nicky: I Owned a Bar in Pattaya — It’s Not What You Think,local:th-pattaya;pais:TH,texto,,local:th-pattaya=titulo;pais:TH=titulo,TH;coordenada
+298ded53-547a-4e18-979f-fc0d655437ed,Aldinho,long,Dentro dos BAIRROS DOMINADOS de EL SALVADOR 🇸🇻,pais:SV,texto,,pais:SV=bandeira,
+6ba91715-46a5-4650-b42c-48a5ab58ce04,Fe Leal,long,FUI NO PAÍS MAIS FELIZ DO MUNDO QUE ESTÁ DESESPERADO POR BRASILEIROS,,texto,,,
+24e1f626-dba6-436a-a3bc-7e432d19b907,Onde tá o Verly?,long,ESSA VIETNAMITA ME LEVOU PRA CONHECER A CIDADE DELA 🇻🇳,pais:VN;local:vn-ho-chi-minh;local:vn-hanoi,texto,,pais:VN=bandeira;local:vn-ho-chi-minh=tags;local:vn-hanoi=tags,TH;VN
+0353540a-9871-436f-9eed-c61f38af7c31,Evan Eh! 🇨🇦,long,Thousands of Foreigners Are Leaving Vietnam — Here's Why,pais:VN,texto,,pais:VN=titulo,PH;TH;VN
+309558b8-ed62-4569-8992-68a4d2fb8bc1,Lucas Bigodinho,long,Entrei na PALESTINA e não saiu como esperado…,pais:PS,texto,,pais:PS=titulo,
+ebf67d24-6a51-4072-bc7d-f69a2e47e599,Lucas Bigodinho,long,AS COISAS FICARAM ESTRANHAS EM JERUSALÉM 🇮🇱,pais:IL;local:il-jerusalem,texto,,pais:IL=bandeira;local:il-jerusalem=titulo,
+1f5ac590-b1d2-49d7-89e7-cd5b5b845637,Mark Wiens,short,Afghanistan Village Food (Whole Lamb) 🇦🇫,pais:AF,texto,,pais:AF=bandeira,
+1e78b6bf-eb0b-443d-8b7b-74312fecdbbb,Sonhe Alto Viagens,short,Seria essa a melhor capital do Nordeste? #joaopessoa #jampa #dicasdeviagem #turismonordeste,local:br-joao-pessoa;pais:BR,texto,,local:br-joao-pessoa=titulo;pais:BR=titulo,coordenada
+1258de99-30d4-482c-a0f7-0d1d11f0d17d,Rafael Güeto Vlogs,long,FUI CONHECER UMA CACHOEIRA EM BALI E OLHA NO QUE DEU...,local:id-bali;pais:ID,texto,,local:id-bali=titulo;pais:ID=titulo,ID
+46bd0d9b-6e2d-44b7-b532-71a1f08707b9,Evan Eh! 🇨🇦,long,Slow Travel May Be Better Than Being an Expat!,,texto,,,PH;TH;VN
+9a75dbe7-b973-452f-9168-58d6242a6224,Estevam Pelo Mundo,short,Qual vc prefere? Já teve experiências ruins em alguma viagem? Onde?,,texto,,,
+320eb0fd-d244-4db2-ae79-a8c56600873f,Drew Binsky,short,I Investigated America's 3 Strictest Religious Groups,,texto,,,
+a173e673-0715-4e5d-b60b-10057c566be0,Sonhe Alto Viagens,short,RESTAURANTES QUE VALEM A PENA RIO DE JANEIRO #riodejaneiro #restaurantes #cidademaravilhosa,local:br-rio-de-janeiro;pais:BR,texto,,local:br-rio-de-janeiro=titulo;pais:BR=titulo,coordenada
+7d2c3956-caff-4252-9405-183fb6fdfdba,Matheus Fonseca,long,ESSA MASSAGEM NOS PÉS TOMOU UM RUMO QUE EU NÃO ESPERAVA 🇹🇭,pais:TH;local:th-bangkok,texto,,pais:TH=bandeira;local:th-bangkok=tags,TH;VN;coordenada
+2cb619f8-8395-4a79-a3b7-97025d2c794f,Evan Eh! 🇨🇦,long,Quit Now! You're Rich Enough to Retire in Vietnam.,pais:VN,texto,,pais:VN=titulo,PH;TH;VN
+a2ae6e40-479e-4317-a4c0-15f4f42b18f7,Drew Binsky,short,He Speaks 5 Languages But Can't Afford Food,,texto,,,
+149db1fb-da27-4c34-8350-750e8ed1afe1,Lucas Bigodinho,long,Essa é a ISRAEL que a TV não mostra 🇮🇱,pais:IL,texto,,pais:IL=bandeira,
+10386cfd-d6b4-456d-96c7-3420af52123d,Onde tá o Verly?,long,FUI NUM CASAMENTO INDONÉSIO E ACABEI CASANDO TAMBÉM 🇮🇩,pais:ID;local:id-bali;local:id-ubud,texto,,pais:ID=bandeira;local:id-bali=tags;local:id-ubud=tags,TH;VN
+dbe04c43-4c54-40d0-b1f3-5f21f06b0414,Drew Binsky,long,This American Town Is 36 Miles From Russia,pais:RU,texto,,pais:RU=titulo,
+5bd9d481-c19b-4d0c-94e1-8ab3202787a6,Por Onde INDO 🌏 Rony & Bruna,long,🇰🇵 SOZINHOS NA FRONTEIRA DA COREIA DO NORTE e FILMAMOS TUDO O QUE PUDEMOS,pais:KP,texto,,pais:KP=bandeira,CN
+970ffd8d-d48c-499c-a349-61a89244913c,Estevam Pelo Mundo,short,🇮🇹 Eu errei pra você acertar: pedágio de €3 virou multa de €80! E ainda tem a PID 😅,pais:IT,texto,,pais:IT=bandeira,
+78bf2814-5383-470d-be6b-40a6ed0c18ef,Best Ever Food Review Show,long,Eating with a Somali Pirate in Somalia!!,pais:SO,texto+coordenada,,pais:SO=titulo,
+10c4c5d8-6ed5-43c5-8194-7866b9912825,Arthur Aeli,short,Sommelier de gelo. O calor venceu. 🇻🇳,pais:VN,texto,,pais:VN=bandeira,VN
+57277bae-36e4-4d30-b73e-471f45075b1e,Lodir Negrini,long,Dentro do MAIOR MERCADO de FALSIFICADOS do MUNDO 🇹🇭,pais:TH;local:th-bangkok,texto,,pais:TH=bandeira;local:th-bangkok=tags,TH
+642a9ed4-bab9-4b8a-9962-38e9571a14c4,Onde tá o Verly?,long,24H NA VIDA DE UM BRASILEIRO NO VIETNÃ 🇻🇳,pais:VN;local:vn-ho-chi-minh;local:vn-da-nang,texto,,pais:VN=bandeira;local:vn-ho-chi-minh=tags;local:vn-da-nang=tags,TH;VN
+dd9f0d9c-5432-410b-9735-e6d693a00392,Best Ever Food Review Show,short,A4 Wagyu Katsu Sandwich 🥪🥩,local:jp-osaka;pais:JP,texto+coordenada,,local:jp-osaka=localizacao;pais:JP=localizacao,
+e55d42e8-1db2-4d4c-9d5a-b7db3ad85809,Estevam Pelo Mundo,short,🫢PREÇOS REAIS EM DUBAI!,local:ae-dubai;pais:AE,texto+coordenada,,local:ae-dubai=titulo;pais:AE=titulo,
+4ce064fa-b9d4-40e6-baff-7aad1b9a1cf2,Lodir Negrini,long,AQUI O SALÁRIO MÍNIMO BRASILEIRO VALE 8 MILHÕES 🇻🇳,pais:VN;local:vn-da-nang,texto,,pais:VN=bandeira;local:vn-da-nang=tags,TH
+9a7bf53d-760b-419f-8618-9283d6f47ca4,Ryan Otis,long,"37 Years in Thailand… “I Still Don’t Have a Thai Friend""",pais:TH,texto,,pais:TH=titulo,TH;coordenada
+a1dcb91b-3890-4fef-9d4f-6d3243242e0d,Aldinho,long,Comendo no PAÍS MAIS FALIDO da AMERICA DO SUL 🇻🇪,pais:VE,texto,,pais:VE=bandeira,
+e048edc4-4661-4c41-bbc4-74a4762c098e,GUY TRAVELS,long,"Do I Regret Leaving the UK? 🇬🇧 My Daily Life in Da Nang, Vietnam 🇻🇳",pais:GB;pais:VN;local:vn-da-nang,texto,,pais:GB=bandeira;pais:VN=bandeira;local:vn-da-nang=titulo,
+363dc622-4a6d-4444-bdf8-7b2e611be8c4,Estevam Pelo Mundo,short,O importante é alinhar sempre o roteiro! 😎,,texto,,,
+b2017f24-3b75-4ed2-9117-bf7d0a8b02e5,Aldinho,long,ME INFILTREI NO MAIOR MERCADO DE MAGIA NEGRA DO MÉXICO 🇲🇽,pais:MX,texto,,pais:MX=bandeira,
+6165b05f-2152-4e3e-b571-cb902a6218b9,Aldinho,long,Entrei no MERCADO mais BIZARRO da Amazônia 🇵🇪,pais:PE,texto,,pais:PE=bandeira,
+267a35dc-97bc-4c54-b06f-1cbd0f5f8e19,Matheus Fonseca,long,"ASSIM É UM SPA COM ""SERVIÇOS EXTRAS"" NA TAILANDIA 🇹🇭",pais:TH;local:th-bangkok,texto,,pais:TH=bandeira;local:th-bangkok=tags,TH;VN;coordenada
+b4fbb97d-4096-4a57-9d7f-2b4c4fee756b,GUY TRAVELS,long,Leaving the UK 🇬🇧… Here’s What I’ll Miss,pais:GB,texto,,pais:GB=bandeira,
+df7d91ba-955c-4438-8733-aa25b74736a9,Onde tá o Verly?,long,ENTREI NA CASA DE UMA VIETNAMITA E ISSO ME SURPREENDEU 🇻🇳,pais:VN;local:vn-ho-chi-minh;local:vn-hanoi,texto,,pais:VN=bandeira;local:vn-ho-chi-minh=tags;local:vn-hanoi=tags,TH;VN
+6a73191b-cede-41a1-b69d-2197749c4eac,GUY TRAVELS,long,Ho Chi Minh City Nightlife Is on Another Level 🇻🇳🔥,pais:VN;local:vn-ho-chi-minh,texto,,pais:VN=bandeira;local:vn-ho-chi-minh=titulo,
+44f70f35-4613-4834-add1-807bd5713f14,Estevam Pelo Mundo,short,👀Quem conhecia essa regra?Sabem de outra cidade que desliga o radar no sinal vermelho das 19h às 6h?,,texto,,,
+c0b572b0-efc0-44c1-b8f7-35f96a397d5c,Por Onde INDO 🌏 Rony & Bruna,long,🇨🇳 DESCOBRIMOS COMO FUNCIONA A VIDA REAL NO INTERIOR DA CHINA,pais:CN,texto,,pais:CN=bandeira,CN
+dab3b974-c44f-4994-a654-1ba102925d40,Lucas Bigodinho,long,Dentro da Rússia que a TV NÃO MOSTRA 🇷🇺,pais:RU;local:ru-moscou,texto,,pais:RU=bandeira;local:ru-moscou=tags,
+56e737eb-192b-43ae-96cd-33885bae40e4,Estevam Pelo Mundo,short,"Turbulência dá medo, mas não derruba avião! 🙏🏻 Força, Lito! Chegueiiii Budapeste! 🇭🇺✈️",pais:HU;local:hu-budapeste,texto,,pais:HU=bandeira;local:hu-budapeste=titulo,
+37da6838-3e04-4d94-a899-bb9f58e3114a,Evan Eh! 🇨🇦,long,This Southeast Asia Retirement Loophole Blew My Mind!,,texto,,,PH;TH;VN
+10a71a7b-5243-4d54-9edd-1e81dd630c2d,Por Onde INDO 🌏 Rony & Bruna,long,"🇨🇳A CIDADE CHINESA DO LUXO, DINHEIRO, FAMA E OSTENTAÇÃO (Chengdu)",pais:CN;local:cn-chengdu,texto,,pais:CN=bandeira;local:cn-chengdu=titulo,CN
+a59aaa7d-146f-4ed0-a4d5-d8cada25cc07,Rafael Güeto Vlogs,long,EXPLORANDO UBUD E CONHECENDO GENTE PPELO CAMINHO...,local:id-ubud;pais:ID,texto,,local:id-ubud=titulo;pais:ID=titulo,ID
+c5d5aca2-9b6a-4c97-8764-4c861ad05505,Estevam Pelo Mundo,short,"Chegamos à Bósnia 🇧🇦 País 100! Linda, mas marcada por uma história de guerra. 🥹",pais:BA,texto,,pais:BA=bandeira,
+c55be37f-d316-4410-8c39-1231e2088904,Evan Eh! 🇨🇦,long,How Long Does $100K Last in World's Cheapest Countries?,,texto,,,PH;TH;VN
+ad1b5f5b-809a-4578-9b98-9e5a905e1cab,Estevam Pelo Mundo,short,Então por que tu não faz e sai do meu Instagram? Eu hein.. sempre  tem um ne.. 😂,,texto,,,
+319657cb-b69c-4cb4-911c-b3d28afcceb0,Sonhe Alto Viagens,short,O NASCER DO SOL  MAIS LINDO DO RIO DE JANEIRO #riodejaneiro #dicasdeviagem #cidademaravilhosa,local:br-rio-de-janeiro;pais:BR,texto,,local:br-rio-de-janeiro=titulo;pais:BR=titulo,coordenada
+808d6230-21d3-4aef-9c24-114758f0c9f7,Sonhe Alto Viagens,short,A gente que cresce em Salvador,local:br-salvador;pais:BR,texto,,local:br-salvador=titulo;pais:BR=titulo,
+4534c60b-03d0-4d60-8eff-aec894b1db7f,Travis Travels Vietnam,short,How to pay in Vietnam,pais:VN,texto,,pais:VN=titulo,VN
+6a7bd2dc-1075-4edc-b3cd-a7d120b44736,Por Onde INDO 🌏 Rony & Bruna,long,"🇨🇳A CHINA ESTÁ EM 2060, NO FUTURO E ESSE VÍDEO PROVA ISSO",pais:CN,texto,,pais:CN=bandeira,CN
+07f44da7-c176-4f19-ad5e-135fd17d1a00,Arthur Aeli,short,"Na Índia, até ir ao banheiro virou perrengue. 🇮🇳",pais:IN,texto,,pais:IN=bandeira,VN
+9d8ea8d4-c69f-41c1-8290-23a937efe888,Drew Binsky,long,This Is The America You Never See (Rural Virginia),pais:US,texto,,pais:US=tags,
+9896e407-2e4e-4eed-b2bb-6fb014c90165,Dan About Thailand,long,Would I ever go back to live in England?  #livingabroad #england #thailand #expat,pais:GB;pais:TH,texto,,pais:GB=titulo;pais:TH=titulo,TH
+d9f6ec9b-9cbe-42ba-8aca-da9a40ff8c80,Evan Eh! 🇨🇦,long,5 Countries Practically Begging Americans to Retire There!,,texto,,,PH;TH;VN
+6536c2a5-e8c1-446d-ac9f-bb0edd0ba2e4,Evan Eh! 🇨🇦,long,Every Southeast Asian Country: Expensivest to Cheapest,,texto,,,PH;TH;VN
+6280f7ac-eb15-4b57-977a-022f5fcd95a1,GUY TRAVELS,short,BEST THING ABOUT A MALL IN THAILAND.    BANGKOK THAILAND #bangkok #bangkokcity #bkk,pais:TH;local:th-bangkok,texto,,pais:TH=titulo;local:th-bangkok=titulo,
+584c85e2-a951-4cae-a370-01afd05fcb47,Evan Eh! 🇨🇦,long,Almost Nobody Lives in These 5 Countries (But Retirees Love Them!),,texto,,,PH;TH;VN
+c9ae26ca-bc5a-47a8-8f56-6c8f6bf4363c,Aldinho,long,24 Horas provando COMIDA TÍPICA na Colômbia 🇨🇴,pais:CO;local:co-bogota,texto,,pais:CO=bandeira;local:co-bogota=tags,
+31b01ace-4b6b-463a-8343-0541d8850fc7,Vou sem volta,long,O POVO NEGRO NATURALMENTE LOIRO DAS ILHAS SALOMÃO,pais:SB,texto,,pais:SB=titulo,
+a1d5609d-1a6d-4688-aa52-cc49e3e8f906,Travis Travels Vietnam,short,Watch out for these Vietnam Scams,pais:VN,texto,,pais:VN=titulo,VN
+c5da323b-0cf2-4383-8de8-f50502a6c2ed,Sonhe Alto Viagens,short,A menor capital da Europa #malta  #europa #viagem #shorts  #brasileirosnaeuropa,pais:MT,texto+coordenada,,pais:MT=titulo,
+5a9f8635-ed14-485f-8a5a-76dc5c066551,Sonhe Alto Viagens,short,A comida de Londres não presta #londres #dicasdeviagem #inglaterra #gastronomia,local:gb-londres;pais:GB,texto+coordenada,,local:gb-londres=titulo;pais:GB=titulo,
+a4ef6e2b-0101-4941-ba4c-1d3b359530cc,Drew Binsky,short,3 Crazy Rules North Korean Children Have To Follow,pais:KP,texto,,pais:KP=descricao,
+fabf8b56-6b2b-4e2c-ac99-3e6e3ec0f8e1,Arthur Aeli,short,Brasileira em casamento: come e ainda leva pra casa. 🇻🇳,pais:VN,texto,,pais:VN=bandeira,VN
+1ee3f453-04ed-4b51-af3c-5ac53bb5170c,Sonhe Alto Viagens,short,"""Aí não vejo graça em Paris, nem é isso tudo"" #paris #dicasdeparis #dicasdeviagem",local:fr-paris;pais:FR,texto,,local:fr-paris=titulo;pais:FR=titulo,coordenada
+42eb2515-9ed2-4f77-ba58-0e3496884db8,Estevam Pelo Mundo,short,Por que as pessoas estão fazendo nas clínicas de SP? A resposta tá no meu insta: @Estevam,,texto,,,
+25c01093-da74-4c75-bca0-040288dbe875,GUY TRAVELS,long,Why I'll Never Buy a House in the UK Again,pais:GB,texto,,pais:GB=titulo,
+negativo-01,,,Trip to Georgia,,texto,,,
+negativo-02,,,Porto seguro de vida,,texto,,,
+negativo-03,,,Natal em família,,texto,,,
+negativo-04,,,Chad reage,,texto,,,
+negativo-05,,,Lima limão receita,,texto,,,
+negativo-06,,,Salvador Dalí documentário,,texto,,,
+negativo-07,,,Jordan Peterson entrevista,,texto,,,
+negativo-08,,,Cuba Gooding Jr melhores filmes,,texto,,,
+negativo-09,,,Vitória do time ontem,,texto,,,
+negativo-10,,,Belém do Pará culinária,,texto,,,
+negativo-11,,,Turkey sandwich recipe,,texto,,,
+negativo-12,,,Chad e Brad jogam,,texto,,,
+negativo-13,,,Natal de luz,,texto,,,
+negativo-14,,,Porto Alegre,,texto,,,
+negativo-15,,,Lima e limão,,texto,,,
+negativo-16,,,Georgia on my mind,,texto,,,
+negativo-17,,,Jordan vs Lebron,,texto,,,
+negativo-18,,,Turkey day dinner,,texto,,,
+negativo-19,,,Salvador Sobral canta,,texto,,,
+negativo-20,,,Receita de ceia de Natal,,texto,,,
