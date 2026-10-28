@@ -72,3 +72,20 @@ describe('6: painel do banco sem <details> dentro de <p>', () => {
     container.querySelectorAll('details').forEach(el => expect(el.closest('p')).toBeNull())
   })
 })
+
+describe('M6a T12 r1 (Gio 2, Logan U2): saida_particao_ausente com mês e tabela, agrupado', () => {
+  it('um mês: nomeia mês e tabela, não manda liberar nem trazer, cita o código', async () => {
+    const { descreverVermelho: d } = await import('@/lib/youtube/observatorio/arquivo-mensal/vermelhos')
+    const f = d('saida_particao_ausente:competitor_video_early:2026-10')
+    expect(f.frase).toContain('outubro de 2026'); expect(f.frase).toContain('Primeiras horas'); expect(f.frase).toContain('(código: saida_particao_ausente)')
+    expect(f.frase).not.toMatch(/ainda não descreve/); expect(f.forma).toBe('octogono')
+  })
+  it('vários meses da mesma tabela viram uma linha; tabelas diferentes, linhas diferentes', async () => {
+    const { agruparVermelhos, descreverVermelho: d } = await import('@/lib/youtube/observatorio/arquivo-mensal/vermelhos')
+    const g = agruparVermelhos(['saida_particao_ausente:competitor_video_daily:2026-09', 'saida_particao_ausente:competitor_video_daily:2026-10', 'saida_particao_ausente:competitor_video_hourly:2026-10', 'nas_80: 3'])
+    expect(g.length).toBe(3)
+    const f = d(g.find(x => x.includes('competitor_video_daily'))!)
+    expect(f.frase).toContain('Views por dia'); expect(f.frase).toContain('2 meses'); expect(f.frase).toContain('setembro de 2026'); expect(f.frase).toContain('outubro de 2026')
+    expect(g).toContain('nas_80: 3')
+  })
+})

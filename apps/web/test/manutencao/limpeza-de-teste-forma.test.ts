@@ -26,6 +26,8 @@ const EXCECOES: Record<string, string> = {
   'integration/manutencao-m3b-remocao.test.ts': 'prova o gatilho e limpa depois (deletes diretos de propósito: a corrida em 2ª conexão, linha 386, e a prova da recusa)',
   'integration/manutencao-m3b-apagar-corrida.test.ts': 'limpa a cena da corrida depois de desfazer a 000004 (delete direto de propósito, linha 88, melhor esforço)',
   'e2e/seeds/m5-arquivo.sql': 'semente do navegador (Gio, T14): recomeça a cena do site de teste no banco de integração 54422, rodada com psql, fora do vitest',
+  'integration/manutencao-m6-corridas.test.ts': 'prova a corrida do delete de canal contra o destaque do mês (linha 123): o delete direto é o objeto do teste, com o destino declarado à mão na mesma transação e rollback no fim',
+  'integration/manutencao-m6-invariante.test.ts': 'prova que o gatilho do mês destacado recusa delete e truncate de canal (linhas 67 a 120): a recusa é o objeto do teste, tudo dentro de transação desfeita, nada persiste',
   'integration/manutencao-m3b-pendencias.test.ts': 'prova o gatilho e limpa depois (deletes diretos de propósito, linhas 167 e 177, sob session_replication_role = replica, sem declarar)',
 }
 

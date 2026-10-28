@@ -264,3 +264,43 @@ describe('o que acontece quando o dado não existe (acréscimos desta execução
     expect(montarPagina(p, liga).tipos[0]!.anosNoArquivo).toMatchObject([{ ano: 2027, meses: 1, todosConferidos: true }]) // o vermelho vai ao topo, não ao grupo do ano
   })
 })
+
+describe('campos do encaixe da M6 (D-M5-14)', () => {
+  it('cada linha leva tabela, mês, onde está e a espera da política; o modelo leva o dia de hoje do banco', () => {
+    const m = montarPagina(paginaVazia({ meses: [mesCom({ nasHorasAtras: 3 }), mesCom({ classe: 'horaria', nasHorasAtras: 3 })] }), { arquivoLigado: true })
+    expect(m.hojeSP).toBe('2028-05-03')
+    const serie = m.tipos.find(t => t.tipo === 'serie')!.linhas[0]!
+    const hora = m.tipos.find(t => t.tipo === 'horaria')!.linhas[0]!
+    expect(serie).toMatchObject({ tabela: 'competitor_video_daily', fora: 'online', esperaDias: 7 })
+    expect(serie.mes).toMatch(/^\d{4}-\d{2}-01$/)
+    expect(hora.tabela).toBe('competitor_video_hourly')
+  })
+  it('mês destacado e descartado saem com fora certo; modelo desligado não leva hojeSP', () => {
+    const m = montarPagina(paginaVazia({ meses: [mesCom({ destacadoHa: 2 }), mesCom({ mesNum: 2, descartadoHa: 20 })] }), { arquivoLigado: true })
+    const fora = [...m.tipos.flatMap(t => t.linhas)].map(l => l.fora)
+    expect(fora).toContain('destacado')
+    expect(modeloDesligado().hojeSP).toBeUndefined()
+  })
+})
+
+describe('M6a T12 r1 (Phil C1 / Yannis I-1): a saída é por tabela, antes de juntar', () => {
+  const duas = (daily: { destacadoHa?: number; descartadoHa?: number }, early: { destacadoHa?: number; descartadoHa?: number }, mesNum = 1) => {
+    const d = mesCom({ nasHorasAtras: 3, mesNum, ...daily }).linha
+    const e = { ...mesCom({ nasHorasAtras: 3, mesNum, ...early }).linha, table_name: 'competitor_video_early' }
+    return [d, e]
+  }
+  it('diária descartada e early online: o fora juntado segue online, mas saidas[] diz o estado de cada tabela', () => {
+    const p = paginaVazia({}); p.meses = duas({ descartadoHa: 10 }, {})
+    const l = montarPagina(p, { arquivoLigado: true }).tipos[0]!.linhas[0]!
+    expect(l.fora).toBe('online')
+    expect(l.saidas).toEqual([{ tabela: 'competitor_video_daily', fora: 'descartado' }, { tabela: 'competitor_video_early', fora: 'online' }])
+  })
+  it('diária destacada e early online: saidas[] carrega destacado e online', () => {
+    const p = paginaVazia({}); p.meses = duas({ destacadoHa: 2 }, {})
+    expect(montarPagina(p, { arquivoLigado: true }).tipos[0]!.linhas[0]!.saidas).toEqual([{ tabela: 'competitor_video_daily', fora: 'destacado' }, { tabela: 'competitor_video_early', fora: 'online' }])
+  })
+  it('horária: uma só tabela em saidas[]', () => {
+    const p = paginaVazia({ meses: [mesCom({ classe: 'horaria', nasHorasAtras: 3 })] })
+    expect(montarPagina(p, { arquivoLigado: true }).tipos[0]!.linhas[0]!.saidas).toEqual([{ tabela: 'competitor_video_hourly', fora: 'online' }])
+  })
+})

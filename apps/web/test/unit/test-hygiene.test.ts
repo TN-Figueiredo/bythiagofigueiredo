@@ -39,6 +39,22 @@ function futureYearsIn(line: string): number[] {
 // Files verified to use future dates inertly (no wall-clock comparison on the
 // consuming path). Re-verify before adding to this list.
 const ALLOWLIST = new Set([
+  // M6a: relógio simulado do arquivo (`obs_archive.agora`/`hoje` por set_config, `relogio`/`relogioSessao`
+  // nos testes de integração; `hojeSP`/`agora` passados às funções puras). Os únicos Date.now() são medida
+  // de duração (corridas) ou relógio falso do vitest (ações); nenhum compara com a data real
+  'test/integration/manutencao-m6-corridas.test.ts',
+  'test/integration/manutencao-m6-descarte.test.ts',
+  'test/integration/manutencao-m6-destaque.test.ts',
+  'test/integration/manutencao-m6-portao.test.ts',
+  'test/integration/manutencao-m6-saida-estado.test.ts',
+  'test/integration/manutencao-m6-teste-encerrado.test.ts',
+  'test/youtube/observatorio/arquivo-estado-do-mes.test.ts',
+  'test/youtube/observatorio/arquivo-frases-saida.test.ts',
+  'test/youtube/observatorio/arquivo-interruptor.test.ts',
+  'test/youtube/observatorio/arquivo-mensal-frases-remocao.test.ts',
+  'test/youtube/observatorio/arquivo-pecas-saida.test.tsx',
+  'test/youtube/observatorio/arquivo-saida-acoes.test.ts',
+  'test/youtube/observatorio/arquivo-saida-encaixar.test.tsx',
   // M3b: relógio simulado do arquivo (`obs_archive.agora` por set_config e AGORA
   // passado como argumento); nem teste nem código leem Date.now()
   'test/integration/manutencao-m3b-b2.test.ts',

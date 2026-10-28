@@ -36,6 +36,8 @@ export interface ObservatoryPage<T> {
   /** The viewer's saved niche (form only; the page applies obs.scopeOf). A missing or unreadable preference is 'todos'. */
   savedNiche: NicheScope
   extra: T
+  /** Quem abriu a página (só `openObservatoryPage` preenche): quem precisa da pessoa não repete a checagem de sessão. */
+  userId?: string
 }
 
 /**
@@ -65,7 +67,7 @@ export async function openObservatoryPage<T = undefined>(extra?: (siteId: string
   const access = await requireSiteScope({ area: 'cms', siteId, mode: 'view' })
   // the same two exits as the CMS layout
   if (!access.ok) redirect(access.reason === 'unauthenticated' ? '/cms/login' : '/?error=insufficient_access')
-  return carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: access.user.id, meuCanalLembrado: lerMeuCanalLembrado(), extra })
+  return { ...(await carregarObservatorio({ siteId, now: observatoryNow(), userIdDaPreferencia: access.user.id, meuCanalLembrado: lerMeuCanalLembrado(), extra })), userId: access.user.id }
 }
 
 export interface ChannelPage {
