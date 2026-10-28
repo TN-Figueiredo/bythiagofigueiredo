@@ -103,7 +103,6 @@ export interface PortasSaida {
 export const TETO_MS = 55_000 // F-D3: ações humanas e crons que não passam `prazo`
 export const MARGEM_ESCRITA_MS = 25_000 // 20 s da escrita + 5 s do passo 4 e do aviso
 const RECENTE_MS = 2 * 60_000 // F-D4: 60 s do teto da função + folga
-const REVERT_MS = 7 * 86_400_000
 const MOTIVOS_QUE_PAUSAM_SEM_ESCREVER: readonly MotivoSaida[] = ['pausa', 'falha_api', 'drift', 'duracao_maxima', 'regra_v2']
 const JANELA_DA_COTA_MS = 72 * 3_600_000 // cota que dura mais que isso desde a âncora do "sim" conta como falha
 
@@ -184,6 +183,10 @@ export function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
       return { de: ['active'], para: 'paused', endReason: 'drift', extra: { status_note: DRIFT_STATUS_NOTE, limpar_drift_ack: true } }
     case 'teste_youtube':
       return { de: ['active', 'paused'], para: 'paused', endReason: 'teste_youtube', extra: { status_note: NOTA_TESTE_YOUTUBE } }
+    default: {
+      const nunca: never = op.motivo
+      throw new Error(`ab-settle: motivo desconhecido ${String(nunca)}`)
+    }
   }
 }
 
@@ -478,7 +481,6 @@ async function gravarResultado(
     vencedorAplicado = true
     Object.assign(patch, {
       winner_applied_at: agora.toISOString(), applied_by: 'manual',
-      revert_expires_at: new Date(agora.getTime() + REVERT_MS).toISOString(),
     })
     if (op.motivo === 'aplicar_sugerido') Object.assign(patch, escolha())
   }
@@ -840,7 +842,6 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
     vencedorAplicado = true
     Object.assign(patch, {
       winner_applied_at: agora.toISOString(), applied_by: 'manual',
-      revert_expires_at: new Date(agora.getTime() + REVERT_MS).toISOString(),
     })
   } else if (destino === 'original' && r.winner_applied_at !== null && tudoOk) {
     Object.assign(patch, { winner_applied_at: null, revert_expires_at: null, applied_by: null })

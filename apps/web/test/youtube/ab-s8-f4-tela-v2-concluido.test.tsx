@@ -23,7 +23,7 @@ type Concl = Extract<TelaV2, { fase: 'concluido' }>
 const base = (o: Partial<Concl> = {}): Concl => ({
   fase: 'concluido', selo: { tipo: 'vence', provisorio: true, letra: 'B' },
   frase: { principal: 'B provavelmente vence.', apoio: 'CTR ≈ 5,4% contra 4,6% de A (+17,4% vs A).' },
-  prazo: { tipo: 'provisorio', ate: '04/11' }, noAr: { tipo: 'original' }, aplicar: { variant_id: 'v-b', letra: 'B' }, voltar: false, aplicarDeNovo: null, bloqueio: null,
+  prazo: { tipo: 'provisorio', ate: '04/11' }, noAr: { tipo: 'original' }, aplicar: { variant_id: 'v-b', letra: 'B' }, aplicarDeNovo: null, bloqueio: null,
   n: 10315, pisos: [
     { variant_id: 'v-a', letra: 'A', titulo: 'Título A', volume: 11000, dias_validos: 4 },
     { variant_id: 'v-b', letra: 'B', titulo: 'Título B', volume: 10400, dias_validos: 4 },
@@ -73,7 +73,7 @@ describe('T12 T7 + M7b T15: concluído v2 sem prazo', () => {
 
   it('T15: o botão vale para qualquer concluído v2, aplicado, desfeito, original vence ou sem diferença', () => {
     const casos: Concl[] = [
-      base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true }),
+      base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null }),
       base({ noAr: { tipo: 'desfeita', letra: 'B', desfechoMudou: true }, aplicar: null, selo: { tipo: 'sem_diferenca' } }),
       base({ selo: { tipo: 'original' }, aplicar: null, prazo: { tipo: 'final' } }),
       base({ selo: { tipo: 'sem_diferenca' }, aplicar: null }),
@@ -86,7 +86,7 @@ describe('T12 T7 + M7b T15: concluído v2 sem prazo', () => {
   })
 
   it('aplicado: "B está no ar"', () => {
-    const { container } = montar(base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null, voltar: true }))
+    const { container } = montar(base({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, aplicar: null }))
     expect(container.textContent).toContain('B está no ar.')
   })
 

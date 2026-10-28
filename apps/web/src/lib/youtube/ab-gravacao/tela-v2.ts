@@ -24,7 +24,7 @@ export type TelaV2 =
       frase: { principal: string; apoio: string }; n: number | null; pisos: LinhaPisoV2[]; sinal: DisplayLabel | null }
   | { fase: 'concluido'; selo: SeloV2; frase: { principal: string; apoio: string | null; complemento?: string }
       prazo: { tipo: 'provisorio'; ate: string | null } | { tipo: 'final' } | null
-      noAr: NoArV2; aplicar: { variant_id: string; letra: DisplayLabel } | null; voltar: boolean
+      noAr: NoArV2; aplicar: { variant_id: string; letra: DisplayLabel } | null
       /** Aplicação desfeita (Voltar): reaplicar a mesma letra. Nulo se o desfecho mudou de letra ou há `bloqueio`. */
       aplicarDeNovo: { variant_id: string; letra: DisplayLabel } | null
       /** Motivo de não oferecer "Aplicar de novo" (só na desfeita com o mesmo desfecho). */
@@ -201,11 +201,10 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     }
   }
   const mudou = !escolhido && noAr.tipo === 'aplicada' && noAr.desfechoMudou // com escolha do dono a frase "ao encerrar, X parecia melhor" não vale
-  const voltar = !escolhido && w !== null && noAr.tipo === 'aplicada' && teste.revert_expires_at !== null && Date.parse(teste.revert_expires_at) > e.agora.getTime()
 
   const sugeridoId = v2?.vencedor_sugerido ?? null
   const sugeridoLetra = letraDe(sugeridoId)
-  const base = { noAr, voltar, n, tentarDeNovo: false, aplicarDeNovo: null as null | { variant_id: string; letra: DisplayLabel }, bloqueio: null as 'outro_teste' | 'sem_leitura' | null }
+  const base = { noAr, n, tentarDeNovo: false, aplicarDeNovo: null as null | { variant_id: string; letra: DisplayLabel }, bloqueio: null as 'outro_teste' | 'sem_leitura' | null }
 
   let selo: SeloV2
   if (lido.estado === 'ilegivel') selo = { tipo: 'ilegivel' }
@@ -252,8 +251,8 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     else if (e.outroTesteAberto === 'sem_leitura') bloqueio = 'sem_leitura'
     else aplicarDeNovo = { variant_id: sugeridoId, letra: selo.letra }
   }
-  // Aplicar/Voltar também escrevem no ciclo do vídeo: com outro teste aberto o servidor recusa (ja_encerrado/outro_teste), então a tela não os oferece.
-  if (bloqueio === null && (aplicar !== null || voltar) && e.outroTesteAberto !== false) bloqueio = e.outroTesteAberto === true ? 'outro_teste' : 'sem_leitura'
+  // Aplicar também escreve no ciclo do vídeo: com outro teste aberto o servidor recusa (ja_encerrado/outro_teste), então a tela não os oferece.
+  if (bloqueio === null && aplicar !== null && e.outroTesteAberto !== false) bloqueio = e.outroTesteAberto === true ? 'outro_teste' : 'sem_leitura'
   if (desfeitaMesmoDesfecho && selo.tipo === 'vence') {
     const normal = fraseConcluida(selo, { variantes, linhas, n, ate, ids, originalId: original?.id ?? '', sugeridoId })
     frase = {

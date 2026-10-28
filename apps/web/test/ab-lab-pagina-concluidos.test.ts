@@ -14,7 +14,7 @@ const card = makeCardView({ id: 't1', type: 'title', videoTitle: 'Vídeo X', var
 type Conc = Extract<TelaV2, { fase: 'concluido' }>
 const tela = (o: Partial<Conc> = {}): Conc => ({
   fase: 'concluido', selo: { tipo: 'vence', provisorio: false, letra: 'B' }, frase: { principal: '', apoio: null }, prazo: null,
-  noAr: { tipo: 'original' }, aplicar: null, voltar: false, aplicarDeNovo: null, bloqueio: null, n: null, pisos: null, tentarDeNovo: false, ...o,
+  noAr: { tipo: 'original' }, aplicar: null, aplicarDeNovo: null, bloqueio: null, n: null, pisos: null, tentarDeNovo: false, ...o,
 })
 const campo = (destino: string, em: string, estado = 'ok') => ({ estado, destino, em, forcado: false, escreveu: true, erro: null, attempts: 1 })
 function bruto(o: Partial<AbTestWithVariants> = {}): AbTestWithVariants {
@@ -58,7 +58,7 @@ describe('Concluídos do Lab', () => {
     expect(l.painel?.modo).toBe('escolha')
   })
   it('aplicada: a linha também abre o painel; sem tela, não abre', () => {
-    const t = tela({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false }, voltar: true })
+    const t = tela({ noAr: { tipo: 'aplicada', letra: 'B', desfechoMudou: false } })
     const b = bruto({ winner_variant_id: 'vb', restore_status: { title: campo('vb', '2026-10-26T13:00:00Z') } })
     expect(lab(b, t, painelEscolhaDoConcluido({ card, bruto: b, tela: t, ctrs: {} }, true)).painel).not.toBeNull()
     expect(painelEscolhaDoConcluido({ card, bruto: b, tela: null, ctrs: {} }, true)).toBeNull()

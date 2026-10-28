@@ -168,6 +168,7 @@ describe('P4a T7: chamadores humanos', () => {
   it('M7b P3: revertWinner não existe mais (voltar à original é escolherVersao)', async () => {
     const acoes = await import('@/app/cms/(authed)/youtube/ab-lab/actions')
     expect('revertWinner' in acoes).toBe(false)
+    expect('aplicarSugerido' in acoes).toBe(false)
     expect(fs.readFileSync('src/app/cms/(authed)/youtube/ab-lab/actions.ts', 'utf8')).not.toMatch(/revertWinner|motivo: 'reverter'/)
   })
 

@@ -1,4 +1,4 @@
-// Degrau "administrar o site" — teste A/B. Deixar uma variante no ar, forçar rotação ou reverter
+// Degrau "administrar o site" — teste A/B. Deixar uma variante no ar, forçar rotação ou aplicar
 // vencedor troca título/thumbnail no canal de verdade: só quem administra.
 //   (a) editora → negado, service client nem é criado, YouTube não é chamado;
 //   (b) org_admin → passa do guarda (os caminhos felizes completos estão em

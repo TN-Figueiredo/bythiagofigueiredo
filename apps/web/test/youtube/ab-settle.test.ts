@@ -215,7 +215,7 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     await settleOnAir(d.banco.testId, d.op('drift'), d.portas)
     expect(d.banco.teste().status_note).toBe(DRIFT_STATUS_NOTE)
   })
-  it('encerrar deixando B: manual_winner, winner_applied_at, applied_by manual, revert_expires_at +7d, autoImportWinner uma vez', async () => {
+  it('encerrar deixando B: manual_winner, winner_applied_at, applied_by manual, revert_expires_at não gravado, autoImportWinner uma vez', async () => {
     const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título C', dhash: H.C } })
     await settleOnAir(banco.testId, { ...op('encerrado'), destino: { tipo: 'variante', id: 'B' } }, portas)
     const t = banco.teste()
@@ -223,7 +223,7 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect(yt.titulo).toBe('Título B')
     expect(t).toMatchObject({ completed_reason: 'manual_winner', winner_variant_id: 'B', applied_by: 'manual' })
     expect(new Date(t.winner_applied_at!).getTime()).toBe(portas.agora().getTime())
-    expect(new Date(t.revert_expires_at!).getTime() - portas.agora().getTime()).toBe(7 * 86_400_000)
+    expect(t.revert_expires_at).toBeNull()
     expect(portas.autoImportWinner).toHaveBeenCalledTimes(1)
     banco.setTeste({ status: 'active', completed_reason: null })   // segunda saída: winner_applied_at já preenchido
     await settleOnAir(banco.testId, { ...op('encerrado'), destino: { tipo: 'variante', id: 'B' } }, portas)
@@ -307,8 +307,8 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     b.banco.setTeste({ completed_reason: 'regra_v2', result_metadata: { v2: { vencedor_sugerido: 'B' } } })
     expect((await settleOnAir(b.banco.testId, { ...b.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' }, forcar: true }, b.portas)).resultado).toBe('feito')
   })
-  it('M7b P3: o motivo reverter não existe mais (caminhoDe não devolve caminho)', () => {
-    expect(caminhoDe({ siteId: SITE, destino: ORIGINAL, motivo: 'reverter' as never }, 'original')).toBeUndefined()
+  it('M7b P3: o motivo reverter não existe mais (caminhoDe recusa)', () => {
+    expect(() => caminhoDe({ siteId: SITE, destino: ORIGINAL, motivo: 'reverter' as never }, 'original')).toThrow(/motivo desconhecido/)
   })
   it('PODE-5: encerrar um teste já completed → ja_encerrado, nada escrito', async () => {
     const c = await preparar({ status: 'completed', testType: 'combo' })
@@ -775,13 +775,13 @@ describe('novaTentativa', () => {
     expect(c.yt.chamadas).not.toContain('thumbnails.set')
     expect(c.banco.teste().winner_applied_at).not.toBeNull()
   })
-  it('retry acerta o último campo de destino variante → winner_applied_at, applied_by manual, revert +7 d; autoImportWinner 1 vez; sem pendente → ja_encerrado (P4b-I6)', async () => {
+  it('retry acerta o último campo de destino variante → winner_applied_at, applied_by manual, sem revert_expires_at; autoImportWinner 1 vez; sem pendente → ja_encerrado (P4b-I6)', async () => {
     const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título A' }, anterior: { title: falhou({ destino: 'B' }) } })
     expect((await novaTentativa(c.banco.testId, HUMANO, c.portas)).resultado).toBe('feito')
     const t = c.banco.teste()
     expect(t).toMatchObject({ applied_by: 'manual' })
     expect(new Date(t.winner_applied_at!).getTime()).toBe(c.portas.agora().getTime())
-    expect(new Date(t.revert_expires_at!).getTime() - c.portas.agora().getTime()).toBe(7 * 86_400_000)
+    expect(t.revert_expires_at).toBeNull()
     expect(c.portas.autoImportWinner).toHaveBeenCalledTimes(1)
     expect((await novaTentativa(c.banco.testId, HUMANO, c.portas)).resultado).toBe('ja_encerrado')
     expect(c.portas.autoImportWinner).toHaveBeenCalledTimes(1)

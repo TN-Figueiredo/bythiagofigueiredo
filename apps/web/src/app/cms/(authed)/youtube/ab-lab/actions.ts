@@ -50,7 +50,6 @@ import {
 } from '@/lib/youtube/ab-acao-saida'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { destinoDosCampos, dispensarCampos, tentarAgora } from '@/lib/youtube/ab-restore-acoes'
-import { paraRestoreStatus, voltaConcluida } from '@/lib/youtube/ab-restore'
 import type { CampoNome } from '@/lib/youtube/ab-restore'
 import { conferirNoArCore, escolherVersaoCore } from '@/lib/youtube/ab-escolha'
 import type { ResultadoConferir, ResultadoEscolha } from '@/lib/youtube/ab-acao-saida'
@@ -1256,40 +1255,6 @@ export async function dismissRestore(testId: string, campos: CampoNome[], seqVis
 }
 
 
-/**
- * S8-F4 T11b: o humano põe no ar o vencedor SUGERIDO pela regra v2 num teste já concluído (completed_reason = regra_v2).
- * Guarda: a variante tem de ser `result_metadata.v2.vencedor_sugerido`; CAS por seqVisto no settleOnAir.
- * `forcar` (T12 Y2): só o "Aplicar mesmo assim" depois de `precisa_confirmar`; o ramo da original não usa.
- */
-export async function aplicarSugerido(testId: string, varianteId: string, seqVisto: number, forcar?: boolean): Promise<ResultadoAcaoSaida> {
-  const siteIdDaTela = (await getSiteContext()).siteId
-  const negado = await denyUnlessSiteAdmin(siteIdDaTela, 'deixar uma variante no ar')
-  if (negado) return { ok: false, resultado: 'sem_permissao', error: negado.error }
-  let siteId: string
-  try {
-    siteId = await requireEditAccess()
-  } catch (e) {
-    return recusaDeSessao(e)
-  }
-  const seq = seqVistoSchema.safeParse(seqVisto)
-  if (!seq.success) return { ok: false, resultado: 'erro', error: MSG_PEDIDO_INVALIDO }
-  const { data, error } = await getSupabaseServiceClient()
-    .from('ab_tests').select('completed_reason, status, restore_status, restore_seq, result_metadata, youtube_video_id, winner_variant_id, winner_applied_at, test_type').eq('id', testId).eq('site_id', siteId).maybeSingle()
-  if (error) return { ok: false, resultado: 'erro', error: MSG_FALHA_SAIDA }
-  const meta = data?.result_metadata as { v2?: { vencedor_sugerido?: string | null } } | null | undefined
-  const sugerido = meta?.v2?.vencedor_sugerido
-  // "Aplicar de novo" (selo depois do Voltar): a aplicação foi desfeita (winner_applied_at nulo), a variante é a mesma e o desfecho ainda a sugere.
-  // Mesma regra da tela (voltaConcluida): só reaplica se a volta terminou ok com destino original; "aplicação que falhou em parte" é da novaTentativa.
-  const reaplicar = data?.completed_reason === 'manual_winner' && data.winner_variant_id === varianteId && data.winner_applied_at === null
-    && voltaConcluida(paraRestoreStatus(data.restore_status), data.test_type as 'thumbnail' | 'title' | 'combo')
-  if (!data || (data.completed_reason !== 'regra_v2' && !reaplicar) || !sugerido || sugerido !== varianteId) {
-    return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
-  }
-  // M7b P3: a original nunca é aplicada por aqui; voltar à original é `escolherVersao`.
-  if (varianteId === (await varianteOriginalId(testId, siteId))) return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
-  return concluirSaida(settleOnAir(testId, { siteId, destino: { tipo: 'variante', id: varianteId }, motivo: 'aplicar_sugerido', humano: true, seqEsperado: seq.data, ...(forcar === true ? { forcar: true } : {}) }))
-}
-
 // ---------------------------------------------------------------------------
 // fetchAbBriefingData
 // ---------------------------------------------------------------------------
@@ -1590,8 +1555,7 @@ export async function avisoDeVolumeDoTeste(
 const EscolhaSchema = z.object({ testId: z.string().uuid(), varianteId: z.string().uuid(), forcar: z.boolean().optional() })
 
 /**
- * M7b: o dono deixa qualquer versão no ar num teste concluído (ou mantém a que já está). Degrau "administrar o site", como
- * `aplicarSugerido`. A escolha NUNCA muda `winner_variant_id`, salvo quando é a própria sugerida. Corpo em
+ * M7b: o dono deixa qualquer versão no ar num teste concluído (ou mantém a que já está). Degrau "administrar o site". A escolha NUNCA muda `winner_variant_id`, salvo quando é a própria sugerida. Corpo em
  * `lib/youtube/ab-escolha.ts`; aqui só a sessão, a validação e a invalidação das telas.
  */
 export async function escolherVersao(testId: string, varianteId: string, seqVisto: number, forcar?: boolean): Promise<ResultadoEscolha> {
