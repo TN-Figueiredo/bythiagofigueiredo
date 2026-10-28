@@ -399,6 +399,37 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
     } finally { await religar() }
   })
 
+  /**
+   * T14 (Yannis I-1 = Phil I-1): inversão de ordem de trava. A segura uma partição (AccessShare, a de 05/2026, de OID mais novo) numa transação aberta; B, a ação, já travou a mãe,
+   * o alvo e as demais (ordem de OID) e espera essa; a simulação de A lê o alvo (e a condição 20 as anteriores): ciclo. deadlock_timeout curto em A e longo
+   * em B faz de A (a simulação) a vítima de forma determinística. Sem o `when deadlock_detected or lock_not_available` das simulações, A recebe 40P01.
+   */
+  it('I-1 (T14, determinístico): simulação do detach que fecha ciclo com a ação responde ocupado, nunca 40P01; depois do commit a ação segue e dá ok', async () => {
+    await renovar()
+    try {
+      await b.query(`set deadlock_timeout = '5s'`)
+      await a.query(`set deadlock_timeout = '200ms'`)
+      await a.query('begin')
+      await a.query(`select 1 from ${particaoDe(D, '2026-05-01')} limit 1`)   // a partição anterior recriada pela limparSite tem o OID mais novo: B trava o alvo e espera esta
+      const pidB = Number((await b.query('select pg_backend_pid() as p')).rows[0].p)
+      const acao = b.query(acaoSql('detach', ", 'clique', false"), [site, D, MES, admin]).then(r => ({ x: r.rows[0].r as { status: string; codigo?: string }, erro: undefined as string | undefined }), (e: Error) => ({ x: undefined, erro: e.message }))
+      let esperando = false
+      for (let i = 0; i < 100 && !esperando; i++) { await dorme(100); esperando = (await a.query(`select 1 from pg_locks where pid = $1 and not granted limit 1`, [pidB])).rowCount === 1 }
+      expect(esperando, 'B (a ação) tem de estar esperando a partição-alvo antes da simulação').toBe(true)
+      const sim = await chamar(a, 'detach', MES, ", 'clique', true").then(x => ({ x, erro: undefined as string | undefined }), (e: Error) => ({ x: undefined, erro: e.message }))
+      await a.query('rollback').catch(() => undefined)
+      expect(sim.erro, JSON.stringify(sim)).toBeUndefined()
+      expect(sim.x, JSON.stringify(sim)).toEqual({ status: 'recusado', codigo: 'ocupado' })
+      const ac = await acao
+      expect(ac.erro, JSON.stringify(ac)).toBeUndefined()
+      expect(ac.x, JSON.stringify(ac)).toMatchObject({ status: 'ok' })
+    } finally {
+      await a.query('rollback').catch(() => undefined)
+      await a.query('reset deadlock_timeout').catch(() => undefined); await b.query('reset deadlock_timeout').catch(() => undefined)
+      await religar()
+    }
+  })
+
   it('R-1 (determinístico, syntax_error): OID morto na hora de montar o SQL do portão (a ação apaga a partição enquanto a simulação espera dentro de invariante_faltam) responde ja_descartado', async () => {
     // O SQL do portão formata o regclass com `%s`: o OID de uma relação já apagada vira número e o erro é de sintaxe (42601), não de relação ausente.
     // Para a simulação esperar ANTES de formatar, invariante_faltam (lida depois de part_rel e antes do portão) ganha uma espera numa trava consultiva que B segura; restaurada no fim.

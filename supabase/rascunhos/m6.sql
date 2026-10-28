@@ -1,5 +1,6 @@
--- Manutenção M6: a saída do mês. RASCUNHO (TRAVA M6-1): fora de supabase/migrations até a Tarefa 14 do plano
--- docs/superpowers/plans/2026-10-14-manutencao-nas-m6-saida.md. Depende de M2 (obs_part, partições) e M3b (registro).
+-- Manutenção M6: a saída do mês (migration 1). Plano: docs/superpowers/plans/2026-10-14-manutencao-nas-m6-saida.md.
+-- Depende de M2 (obs_part, partições) e M3b (registro).
+set lock_timeout = '5s';
 -- M6 PARTE 1: o hash sobre uma relação (a partição anexada ou a tabela destacada)
 -- obs-archive-hash-rel.sql: início
 -- Tabela-mãe (p_rel nulo), partição anexada ou tabela destacada (_saida): o mesmo from_where da M3b, trocando só a relação (M6, decisão 5).
@@ -508,6 +509,8 @@ exception
     if not public.obs_archive_saida_era_corrida(p_table, p_month, m.detached_at is not null, v_rel) then raise; end if;
     select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
     return jsonb_build_object('ok', false, 'codigo', case when m.dropped_at is not null then 'ja_descartado' else 'mudou_durante_a_leitura' end);
+  when deadlock_detected or lock_not_available then   -- T14 (Yannis I-1): sem p_dry_run, o precheck só lê; perder a ordem de trava é 'ocupado'
+    return jsonb_build_object('ok', false, 'codigo', 'ocupado');
 end;
 end $$;
 revoke all on function public.obs_archive_precheck_unit(uuid, text, date, uuid) from public, anon, authenticated;
@@ -655,6 +658,9 @@ exception
   when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
     if not p_dry_run or not public.obs_archive_saida_era_corrida(p_table, p_month, false, v_rel) then raise; end if;   -- r2 I-1: defeito sobe, só corrida vira resposta
     return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'detach');
+  when deadlock_detected or lock_not_available then   -- T14 (Yannis I-1, Phil I-1): a simulação perdeu a ordem de trava para a ação; só a ação (não simulada) deixa subir
+    if not p_dry_run then raise; end if;
+    return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado');
 end;
 
   -- (2) o registro primeiro, na mesma ordem de toda função da M3b (site_id); (3) depois as tabelas: vídeos, mãe, partição.
@@ -769,6 +775,9 @@ exception
   when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
     if not p_dry_run or not public.obs_archive_saida_era_corrida(p_table, p_month, true, v_rel) then raise; end if;   -- r2 I-1: defeito sobe, só corrida vira resposta
     return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'reattach');
+  when deadlock_detected or lock_not_available then   -- T14 (Yannis I-1, Phil I-1): a simulação perdeu a ordem de trava para a ação; só a ação (não simulada) deixa subir
+    if not p_dry_run then raise; end if;
+    return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado');
 end;
 
   -- (2) o registro primeiro (mesma ordem da M3b); (3) vídeos e a tabela destacada. A mãe só DEPOIS de FK e CHECK validados (I-7): a trava
@@ -905,6 +914,9 @@ exception
   when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
     if not p_dry_run or not public.obs_archive_saida_era_corrida(p_table, p_month, true, v_rel) then raise; end if;   -- r2 I-1: defeito sobe, só corrida vira resposta
     return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'discard');
+  when deadlock_detected or lock_not_available then   -- T14 (Yannis I-1, Phil I-1): a simulação perdeu a ordem de trava para a ação; só a ação (não simulada) deixa subir
+    if not p_dry_run then raise; end if;
+    return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado');
 end;
 
   -- (2) o registro primeiro (ordem da M3b); (3) a tabela destacada
@@ -984,6 +996,9 @@ exception
   when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
     if not p_dry_run or not public.obs_archive_saida_era_corrida(p_table, p_month, false, v_rel) then raise; end if;   -- r2 I-1: defeito sobe, só corrida vira resposta
     return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'drop');
+  when deadlock_detected or lock_not_available then   -- T14 (Yannis I-1, Phil I-1): a simulação perdeu a ordem de trava para a ação; só a ação (não simulada) deixa subir
+    if not p_dry_run then raise; end if;
+    return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado');
 end;
 
   -- (2) o registro, (3) vídeos, mãe, partição
