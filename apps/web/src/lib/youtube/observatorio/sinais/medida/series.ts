@@ -218,10 +218,10 @@ export class SeriesDoSite {
   }
 
   /**
-   * Até onde a fonte está coberta NO BRAÇO (Yannis I3): o MÍNIMO entre os vídeos do braço, para esperar o mais atrasado (até `pub + 60`,
-   * depois a tarefa desiste). Analytics = `covered_to` do vídeo no conjunto; reporting (R2) = fim do relatório normalizado do canal do vídeo;
-   * R3/R5 = `covered_to` do vídeo + 1. Vídeo sem nenhuma cobertura da fonte não segura o fecho (ele já conta como falha no piso do braço);
-   * braço sem nenhuma cobertura = nulo.
+   * Até onde a fonte está coberta NO BRAÇO (Yannis I3, N1): a data que pelo menos `PISO_BRACO` dos vídeos já atingiram (quantil do piso,
+   * índice `ceil(0,8 * n) - 1` com as datas em ordem decrescente), não o mínimo: um vídeo apagado/privado com a coleta parada não trava o
+   * par até `pub + 60`. Vídeo sem cobertura conta como "não atingiu" (fica por último); se o quantil cai nele, o resultado é nulo. Analytics = `covered_to` do vídeo no conjunto; reporting (R2) = fim do relatório normalizado do canal do vídeo;
+   * R3/R5 = `covered_to` do vídeo + 1. Os vídeos abaixo do quantil viram falha contada em `somarBraco`; braço sem cobertura suficiente = nulo.
    */
   coberturaDeFechoDoBraco(fonte: FonteD2, ytIds: readonly string[]): CoberturaDeFecho {
     const mais1 = (d: string | null): string | null => (d === null ? null : addDays(d, 1))
@@ -231,8 +231,9 @@ export class SeriesDoSite {
       return m
     }
     const minimo = (l: Array<string | null>): string | null => {
-      const v = l.filter((x): x is string => x !== null)
-      return v.length === 0 ? null : v.reduce((a, b) => (a < b ? a : b))
+      if (l.length === 0) return null
+      const ord = [...l].sort((a, b) => (a === b ? 0 : a === null ? 1 : b === null ? -1 : a < b ? 1 : -1)) // decrescente, nulos no fim
+      return ord[Math.max(0, Math.ceil(PISO_BRACO * l.length - 1e-9) - 1)] ?? null
     }
     const analytics = (conjunto: string): string | null => minimo(ytIds.map(yt => ateVideo(yt, conjunto)))
     if (fonte === 'R1') return { ateReporting: null, ateAnalytics: analytics('base') }

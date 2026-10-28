@@ -49,6 +49,11 @@ do $$ begin
       (estado = 'medido' and motivo is null and pre is not null and pos is not null)
       or (estado = 'nao_medido' and motivo is not null));
   end if;
+  if not exists (select 1 from pg_constraint where conname = 'niche_signal_efeitos_medido_com_videos') then
+    -- linha medida sem videos_medidos faria o estimador dividir por nulo em silêncio
+    alter table public.niche_signal_efeitos add constraint niche_signal_efeitos_medido_com_videos check (
+      estado <> 'medido' or videos_medidos > 0);
+  end if;
   if not exists (select 1 from pg_constraint where conname = 'niche_signal_efeitos_par') then
     -- a linha `par` é de descarte do par inteiro: sempre nao_medido, anos_atras 0 e papel 'alvo' (a PK exige papel)
     alter table public.niche_signal_efeitos add constraint niche_signal_efeitos_par check (

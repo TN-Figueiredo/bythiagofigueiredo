@@ -194,18 +194,28 @@ describe('lerSeriesDoSite', () => {
     expect(s.somarBraco('views_total', [V], [dia(-1)], [dia(1)])).toEqual({ pre: 1, pos: 3, videosMedidos: 1, videosTotal: 1 })
   })
 
-  it('coberturaDeFechoDoBraco: mínimo entre os vídeos do braço; vídeo sem cobertura não segura; braço sem nada = nulo', async () => {
+  it('coberturaDeFechoDoBraco: quantil do piso entre os vídeos do braço; vídeo sem cobertura conta como não atingiu; braço sem nada = nulo', async () => {
     const db = fakeSupabase({
       yt_own_video_coverage: [cob(V, 'base', '2026-01-01', dia(7)), cob(W, 'base', '2026-01-01', dia(4)), cob(V, 'detalhe', '2026-09-08', dia(5))],
       yt_reporting_reports: [relatorio(dia(1), 'baixado', true), relatorio(dia(2), 'baixado', true)],
     })
     const s = await lerSeriesDoSite(db.client, { siteId: S, ytIds: [V, W, 'vid00000009'], faixas: FAIXA })
     expect(s.coberturaDeFechoDoBraco('R1', [V])).toEqual({ ateReporting: null, ateAnalytics: dia(7) })
-    expect(s.coberturaDeFechoDoBraco('R1', [V, W, 'vid00000009'])).toEqual({ ateReporting: null, ateAnalytics: dia(4) })
+    expect(s.coberturaDeFechoDoBraco('R1', [V, W])).toEqual({ ateReporting: null, ateAnalytics: dia(4) })
     expect(s.coberturaDeFechoDoBraco('R5', [V])).toEqual({ ateReporting: dia(6), ateAnalytics: null })
     expect(s.coberturaDeFechoDoBraco('R2', [V])).toEqual({ ateReporting: dia(3), ateAnalytics: null })
     expect(s.coberturaDeFechoDoBraco('R4', [V, W])).toEqual({ ateReporting: null, ateAnalytics: null })
     expect(s.coberturaDeFechoDoBraco('R1', ['vid00000009'])).toEqual({ ateReporting: null, ateAnalytics: null })
+  })
+
+  it('N1: 199 de 200 cobertos fecham; abaixo do piso (159 de 200) continua aberto', async () => {
+    const ids = Array.from({ length: 200 }, (_, i) => `v${String(i).padStart(10, '0')}`)
+    const monta = (cobertos: number) => lerSeriesDoSite(fakeSupabase({
+      yt_own_video_coverage: ids.slice(0, cobertos).map(id => cob(id, 'base', '2026-01-01', dia(7))),
+    }).client, { siteId: S, ytIds: ids, faixas: FAIXA })
+    expect((await monta(199)).coberturaDeFechoDoBraco('R1', ids)).toEqual({ ateReporting: null, ateAnalytics: dia(7) })
+    expect((await monta(160)).coberturaDeFechoDoBraco('R1', ids)).toEqual({ ateReporting: null, ateAnalytics: dia(7) })
+    expect((await monta(159)).coberturaDeFechoDoBraco('R1', ids)).toEqual({ ateReporting: null, ateAnalytics: null })
   })
 
   it('somarJanela do braço de 28 dias sem nenhum dado nunca devolve soma', async () => {
