@@ -474,8 +474,22 @@ describe('telaV2DoTeste: escolha do dono (M7b T7)', () => {
     expect(concDe(e).noAr).toEqual({ tipo: 'desconhecido' })
   })
   it('D28: sem vencedor nem escolha, restore ok em B: o cartão diz B (mesma fonte do título e da faixa)', () => {
-    const e = concluido({ vars: VAR3, restore: ok(B) }); e.teste.test_type = 'title'
-    expect(concDe(e).noAr).toMatchObject({ tipo: 'aplicada', letra: 'B' })
+    const e = concluido({ vars: VAR3, restore: ok(B), revert: '2026-11-01T09:00:00Z' }); e.teste.test_type = 'title'
+    const r = concDe(e)
+    expect(r.noAr).toMatchObject({ tipo: 'aplicada', letra: 'B' })
+    expect(r.aplicar).toBeNull() // Y1: não oferece aplicar o que já está no ar
+    expect(r.voltar).toBe(false) // Y1: sem vencedor gravado não há o que voltar
+  })
+  it('Y2: restore falhou(B), sem vencedor nem escolha: desconhecido', () => {
+    const e = concluido({ vars: VAR3, restore: { title: { estado: 'falhou', destino: B, em: '2026-10-25T10:00:00Z', forcado: false, escreveu: null, erro: null, attempts: 1 } } }); e.teste.test_type = 'title'
+    expect(concDe(e).noAr).toEqual({ tipo: 'desconhecido' })
+  })
+  it('Y2: historico null com restore ok(B), sem vencedor nem escolha: desconhecido', () => {
+    const e = concluido({ vars: VAR3, restore: ok(B) }); e.teste.test_type = 'title'; e.historico = null
+    expect(concDe(e).noAr).toEqual({ tipo: 'desconhecido' })
+  })
+  it('Y2: sem restore, sem vencedor nem escolha: original (caso comum)', () => {
+    expect(concDe(concluido({ vars: VAR3 })).noAr).toEqual({ tipo: 'original' })
   })
   it('sem escolha, nada muda: sugerida B ainda oferece aplicar', () => {
     const r = concDe(concluido({}))

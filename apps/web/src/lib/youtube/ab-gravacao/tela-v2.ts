@@ -194,12 +194,14 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
       if (lidoNoAr === null || lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
       else if (lidoNoAr.varianteId === original?.id) noAr = { tipo: 'original' }
       else noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
-    } else if (lidoNoAr?.tipo === 'confirmado' && lidoNoAr.varianteId !== original?.id) {
-      noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
+    } else if (paraRestoreStatus(teste.restore_status) !== null) {
+      // Y2: com restore_status gravado, leitura falha ou incompleta = desconhecido (igual ao título). Sem restore_status, o original no ar é o caso comum.
+      if (lidoNoAr === null || lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
+      else if (lidoNoAr.varianteId !== original?.id) noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
     }
   }
   const mudou = !escolhido && noAr.tipo === 'aplicada' && noAr.desfechoMudou // com escolha do dono a frase "ao encerrar, X parecia melhor" não vale
-  const voltar = !escolhido && noAr.tipo === 'aplicada' && teste.revert_expires_at !== null && Date.parse(teste.revert_expires_at) > e.agora.getTime()
+  const voltar = !escolhido && w !== null && noAr.tipo === 'aplicada' && teste.revert_expires_at !== null && Date.parse(teste.revert_expires_at) > e.agora.getTime()
 
   const sugeridoId = v2?.vencedor_sugerido ?? null
   const sugeridoLetra = letraDe(sugeridoId)
@@ -238,7 +240,7 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     } else prazo = { tipo: 'final' }
   }
 
-  const aplicar = !escolhido && selo.tipo === 'vence' && teste.completed_reason === 'regra_v2' && w === null && sugeridoId
+  const aplicar = !escolhido && selo.tipo === 'vence' && teste.completed_reason === 'regra_v2' && w === null && sugeridoId && !(noAr.tipo === 'aplicada' && noAr.letra === selo.letra)
     ? { variant_id: sugeridoId, letra: selo.letra } : null
 
   let frase: { principal: string; apoio: string | null; complemento?: string }
