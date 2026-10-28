@@ -30,7 +30,7 @@ export const CODIGOS_DA_SAIDA = [
 export type CodigoDaSaida = (typeof CODIGOS_DA_SAIDA)[number]
 const CODIGOS_CONHECIDOS: ReadonlySet<string> = new Set(CODIGOS_DA_SAIDA)
 /** Código que a tela não conhece vira 'desconhecido' (nunca passa cru); a Tarefa 12 mostra esta frase para ele. */
-export const FRASE_CODIGO_DESCONHECIDO = 'O banco recusou por um motivo que esta tela não conhece; nada foi tirado.'
+export { FRASE_CODIGO_DESCONHECIDO } from './frases-saida'   // a frase mora no módulo puro (o componente cliente não importa este arquivo)
 
 export type CausaDaFalha = 'somente_leitura' | 'prazo' | 'forma' | 'banco' | 'tempo_no_banco' | 'conferencia_parcial' | 'sem_tempo'
 
@@ -48,7 +48,7 @@ export type RespostaSaida =
   | { tipo: 'ok'; linhas: number | null; bytes: number | null; conteudoMudou?: boolean; voltaForaDeOrdem?: boolean; protecaoFaltam?: string[] }
   | { tipo: 'simulado'; linhas: number | null; bytes: number | null; canais: number; fracao: number; canalSemUnidade: boolean }
   | { tipo: 'recusado'; codigo: CodigoDaSaida | 'desconhecido' | null; faltam: Falta[]; liberarAPartir?: string; descartadoEm?: string }
-  | { tipo: 'falhou'; causa: CausaDaFalha }
+  | { tipo: 'falhou'; causa: CausaDaFalha; restantes?: number }   // restantes: canais ainda sem conferir, quando a conferência parcial souber
 
 export const EstadoDoMes = z.object({
   estado: z.enum(['online', 'destacado', 'descartado', 'invalido']), faltam: z.array(Falta), descartes: z.number().int(), dois_passos: z.boolean(),

@@ -90,7 +90,7 @@ describe('ações da saída', () => {
                   obs_archive_detach_month: { data: null, error: { code: '25006', message: 'cannot execute in a read-only transaction' } } }
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     const r = await a.tirarMes('competitor_video_daily', '2026-10-01')
-    expect(r).toEqual({ ok: false, error: 'O banco passou do limite e está em modo somente leitura. Siga o passo de emergência.' })
+    expect(r).toEqual({ ok: false, causa: 'somente_leitura', error: 'O banco passou do limite e está em modo somente leitura. Siga o passo de emergência.' })
   })
   it('o dado não existe: exit_check nulo ou fora da forma = não tira e diz que não leu', async () => {
     for (const ec of [ok(null), ok({ estado: 'qualquer' }), { data: null, error: { code: '42883', message: 'x' } }]) {
@@ -198,35 +198,35 @@ describe('T11 r1: classificação do erro depois da chamada que muda (I-1)', () 
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     for (const e of [{ code: '', message: 'TypeError: fetch failed' }, { message: '<html>502 Bad Gateway</html>' }, { code: undefined, message: 'AbortError: The operation was aborted due to timeout' }]) {
       PREP({ obs_archive_detach_month: { data: null, error: e } })
-      expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, error: SEM_RESPOSTA_TIRAR })
+      expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, causa: 'prazo', error: SEM_RESPOSTA_TIRAR })
     }
     for (const msg of ['fetch failed', 'The operation was aborted due to timeout', 'ECONNRESET']) {
       PREP({ obs_archive_detach_month: { lanca: msg } })
-      expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, error: SEM_RESPOSTA_TIRAR })
+      expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, causa: 'prazo', error: SEM_RESPOSTA_TIRAR })
     }
   })
   it('resposta fora da forma depois da chamada que muda = sem resposta (o banco pode ter confirmado)', async () => {
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     for (const data of [{ status: 'ok', linhas: 'x' }, { status: 'qualquer' }, null, { status: 'ok', bytes: 'muito' }]) {
       PREP({ obs_archive_detach_month: ok(data) })
-      expect(await a.tirarMes('competitor_video_daily', '2026-10-01'), JSON.stringify(data)).toEqual({ ok: false, error: SEM_RESPOSTA_TIRAR })
+      expect(await a.tirarMes('competitor_video_daily', '2026-10-01'), JSON.stringify(data)).toEqual({ ok: false, causa: 'prazo', error: SEM_RESPOSTA_TIRAR })
     }
   })
   it('erro com SQLSTATE (o banco respondeu e desfez, ex.: P0001) segue "Nada foi tirado"', async () => {
     PREP({ obs_archive_detach_month: { data: null, error: { code: 'P0001', message: 'x' } } })
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
-    expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, error: NAO_LEU })
+    expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, causa: 'banco', error: NAO_LEU })
   })
   it('a SIMULAÇÃO (não muda nada) com rede caída diz que não leu: nada foi tirado é verdade', async () => {
     PREP({ obs_archive_detach_month: { data: null, error: { code: '', message: 'TypeError: fetch failed' } } })
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
-    expect(await a.simularSaida('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, error: NAO_LEU })
+    expect(await a.simularSaida('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, causa: 'banco', error: NAO_LEU })
   })
   it('caminho de prazo da LEITURA: precheck_unit aborta = "não leu" e a chamada final nunca sai', async () => {
     PREP({ obs_archive_precheck_channels: ok(['00000000-0000-0000-0000-0000000000c1']), obs_archive_precheck_unit: { lanca: 'The operation was aborted due to timeout' },
            obs_archive_detach_month: ok({ status: 'ok', linhas: 1 }) })
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
-    expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, error: NAO_LEU })
+    expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, causa: 'banco', error: NAO_LEU })
     expect(chamadas.some(c => c.fn === 'obs_archive_detach_month')).toBe(false)
   })
 })
@@ -336,7 +336,7 @@ describe('T11 r1: relógio único contra o maxDuration da página (Phil I-4, Yan
     aoChamar = { obs_archive_exit_check: () => { vi.setSystemTime(Date.now() + 40_000) }, obs_archive_precheck_channels: () => { vi.setSystemTime(Date.now() + 40_000) } }
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
     const r = await a.tirarMes('competitor_video_daily', '2026-10-01')
-    expect(r).toEqual({ ok: false, error: 'Faltou tempo nesta página para chamar o banco. Nada foi tirado; clique de novo.' })
+    expect(r).toEqual({ ok: false, causa: 'sem_tempo', error: 'Faltou tempo nesta página para chamar o banco. Nada foi tirado; clique de novo.' })
     chamadas.length = 0
     expect((await a.liberarEspaco('competitor_video_daily', '2026-10-01')).error).toBe('Faltou tempo nesta página para chamar o banco. Nada foi liberado; clique de novo.')
     expect(chamadas.some(c => c.fn === 'obs_archive_discard_month')).toBe(false)
