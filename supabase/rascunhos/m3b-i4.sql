@@ -1,8 +1,9 @@
--- RASCUNHO M3b-I4 (29/10). NÃO é migration: sai por `npm run db:new m3b_i4_unidade_presa` depois do verde.
+-- RASCUNHO M3b-I4 (r1, 28/10). NÃO é migration: sai por `npm run db:new m3b_i4_unidade_presa` depois do verde.
 -- Troca só o ramo "versão em andamento com parte já recebida" de obs_archive_record_core. O resto é a definição da 000002 (a única vigente).
--- Efeito: parte_mudou / mudou_durante_a_leitura + mesmo hash -> as partes (recebidas ou não) são apagadas e regravadas, a unidade volta
--- a 'mesma' (received_at já é nulo nesse ramo). redo_reason nulo + parte recebida continua nao_devida (M16).
--- Dado ausente: partes > 1 sem o mesmo número de itens em parts -> exceção partes_invalidas (nunca 'mesma' com unidade sem partes).
+-- (1) parte_mudou / mudou_durante_a_leitura + parte já recebida -> versão seguinte (o else): regravar na mesma versão colidiria com a
+--     parte 1 que já está no NAS (o copiador nunca sobrescreve o final) e daria um divergente falso (Yannis I1).
+-- (2) redo_reason nulo + recebimento parcial cujas partes batem com o payload -> 'mesma' SEM apagar nada (Phil I1); se não batem, nao_devida (M16).
+-- (3) partes_invalidas vale para toda gravação de unidade, inclusive a primeira (Yannis M1 = Phil m1).
 create or replace function public.obs_archive_record_core(p_site uuid, p_kind text, p_payload jsonb, p_origem text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
@@ -27,6 +28,11 @@ begin
     end if;
   end if;
   if p_kind = 'unidade' then
+    -- Dado ausente (falha em verde): partes > 1 sem o mesmo número de itens em parts deixaria a unidade sem nunca fechar; partes = 1 manda parts vazio.
+    if jsonb_array_length(coalesce(p_payload->'parts', '[]'::jsonb))
+       <> (coalesce((p_payload->>'partes')::smallint, 1) > 1)::int * coalesce((p_payload->>'partes')::smallint, 1) then
+      raise exception 'partes_invalidas' using errcode = 'P0001';
+    end if;
     select * into v_pol from public.obs_archive_policy() p where p.class = v_class and p.table_name = v_table;
     if not found then raise exception 'classe_tabela_invalida' using errcode = 'P0001'; end if;
     if p_origem is distinct from 'expurgo' and public.obs_archive_due_on(v_month, v_pol.seal_margin_days) > public.obs_archive_hoje_sp() then
@@ -50,18 +56,21 @@ begin
     -- reaproveita a versão nunca recebida também quando ela só foi marcada parte_mudou ou mudou_durante_a_leitura (Phil M3)
     if found and v_last.hash_conteudo = p_payload->>'hash_conteudo' and v_last.received_at is null
        and (v_last.redo_reason is null or v_last.redo_reason in ('parte_mudou', 'mudou_durante_a_leitura'))
-       and v_last.superseded_at is null and p_origem is distinct from 'expurgo' then
-      -- versão em andamento com parte já recebida: não reescreve as partes (Yannis M16)
-      -- M3b-I4 (Yannis, 25/10): com redo_reason parte_mudou / mudou_durante_a_leitura as partes já recebidas são de um export que o
-      -- plano mandou descartar (C3). Devolver nao_devida aqui prendia a unidade para sempre (o hash não muda num mês passado). Só a
-      -- retentativa do copiador sem marca (redo_reason nulo, M16) segue nao_devida.
-      if v_last.redo_reason is null and exists (select 1 from public.obs_archive_unit_parts x where x.unit_id = v_last.id and x.received_at is not null) then
+       and v_last.superseded_at is null and p_origem is distinct from 'expurgo'
+       and not (coalesce(v_last.redo_reason in ('parte_mudou', 'mudou_durante_a_leitura'), false)
+                and exists (select 1 from public.obs_archive_unit_parts x where x.unit_id = v_last.id and x.received_at is not null)) then
+      -- versão em andamento com parte já recebida: não reescreve as partes (Yannis M16). Aqui só sobra redo_reason nulo (com marca, o if acima cai na v+1).
+      if exists (select 1 from public.obs_archive_unit_parts x where x.unit_id = v_last.id and x.received_at is not null) then
+        -- recebimento parcial (lote de recibos do copiador partido): as partes recebidas batem com o novo export -> 'mesma' sem apagar nada;
+        -- a rota devolve a parte 1 (o copiador acha o final e reinforma) e part_info libera só as que faltam (Phil I1). Se não batem, nao_devida.
+        if jsonb_array_length(coalesce(p_payload->'parts', '[]'::jsonb)) = v_last.parts
+           and not exists (select 1 from public.obs_archive_unit_parts x
+                            left join jsonb_array_elements(coalesce(p_payload->'parts', '[]'::jsonb)) j on (j->>'parte')::smallint = x.part
+                           where x.unit_id = v_last.id and x.received_at is not null
+                             and (j is null or x.sha256_bytes is distinct from j->>'sha256_bytes' or x.row_count is distinct from (j->>'row_count')::bigint)) then
+          return jsonb_build_object('status', 'mesma', 'arquivo_id', 'u:' || v_last.id, 'versao', v_last.version);
+        end if;
         return jsonb_build_object('status', 'nao_devida', 'arquivo_id', 'u:' || v_last.id, 'versao', v_last.version);
-      end if;
-      -- Dado ausente (falha em verde): reabrir sem as partes novas deixaria a unidade com partes > 0 e nenhuma linha, sem nunca fechar.
-      if coalesce((p_payload->>'partes')::smallint, 1) > 1
-         and jsonb_array_length(coalesce(p_payload->'parts', '[]'::jsonb)) <> coalesce((p_payload->>'partes')::smallint, 1) then
-        raise exception 'partes_invalidas' using errcode = 'P0001';
       end if;
       update public.obs_archive_units set sha256_bytes = nullif(p_payload->>'sha256_bytes', ''), csv_sha256 = nullif(p_payload->>'csv_sha256', ''),
              file_bytes = (p_payload->>'file_bytes')::bigint, parts = coalesce((p_payload->>'partes')::smallint, 1), min_key = p_payload->>'min_key', max_key = p_payload->>'max_key',
