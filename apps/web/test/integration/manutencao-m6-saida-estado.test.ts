@@ -63,6 +63,30 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 6 [M6a]: contadores, trânsito e ve
     })
   })
 
+  it('r2 T11 (Yannis R2-1): defeito sobe também no reattach (simulação), no discard e no drop: 42P01, nunca "mudou durante a leitura"', async () => {
+    await emTransacao(async () => {
+      const { site, admin } = await destacado()
+      await relogio(c, '2027-05-20 12:00:00+00')
+      // reattach: a simulação relê as unidades correntes e a mãe; o canal é lido pelo hash por canal (competitor_channels renomeada = defeito, relação viva); discard: o portão lê obs_archive_summaries (condição 5); drop: obs_archive_prechecks (condição 13)
+      expect(await escalar<{ status: string }>(c, `select public.obs_archive_reattach_month($1, $2, $3, $4, true)`, [site, D, MES, admin])).toMatchObject({ status: 'simulado' })
+      await c.query('alter table public.obs_archive_summaries rename to obs_archive_summaries_x')
+      expect(await sobe(`select public.obs_archive_discard_month($1, $2, $3, $4, 'clique', true)`, [site, D, MES, admin])).toBe('42P01')
+    })
+    await emTransacao(async () => {
+      const { site, admin } = await destacado()
+      await c.query('alter table public.competitor_channels rename to competitor_channels_x')
+      expect(await sobe(`select public.obs_archive_reattach_month($1, $2, $3, $4, true)`, [site, D, MES, admin])).toBe('42P01')
+    })
+    await emTransacao(async () => {
+      const { site, admin } = await selado()
+      // o drop só passa dos 3 descartes anteriores da tabela (senão responde dois_passos_obrigatorios antes de ler qualquer coisa)
+      await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, dropped_at, rows_dropped)
+                     select $1, 'serie', $2, m::date, now(), 1 from unnest(array['2026-05-01', '2026-06-01', '2026-07-01']) m`, [site, D])
+      await c.query('alter table public.obs_archive_prechecks rename to obs_archive_prechecks_x')   // condição 13 do drop
+      expect(await sobe(`select public.obs_archive_drop_month($1, $2, $3, $4, 'clique', true)`, [site, D, MES, admin])).toBe('42P01')
+    })
+  })
+
   it('r2 M-1 (Yannis): a _saida some entre a leitura do nome e o fingerprint (outra aba descartou): ja_descartado, nunca esquema_mudou', async () => {
     await emTransacao(async () => {
       const { site, admin } = await destacado()

@@ -4,6 +4,7 @@
  * Só com M6_CORRIDAS=1 e SUPABASE_DB_URL no 54422; em série: `npx vitest run --no-file-parallelism test/integration/manutencao-m6-corridas.test.ts`.
  * Desvios do plano (T6, 28/10): M3b/M5 já são migrations no int (só a M6 é confirmada/desfeita); reattach com p_dry_run = false explícito nos
  * finally (o default é true); renovar() antes das chamadas; política restaurada no afterAll.
+ * SE A SUÍTE PARAR NO MEIO (kill, timeout, queda do int): rode `supabase/rascunhos/m6-desfazer.sql` no int (54422) antes de qualquer outra suíte; a M6 fica confirmada se não.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
