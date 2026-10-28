@@ -9,7 +9,7 @@ export interface Capacidades { comandoDeLimpeza: boolean; blocoCanaisRemovidos: 
 export const BLOCO_CANAIS_REMOVIDOS = true
 
 /** Vira true no mesmo commit da M6 que traz a primeira função de saída de mês (D-M5-15): daí a função `obs_archive_online_since` ausente deixa de ser "nada saiu" e vira "não medido". */
-export const SAIDA_DE_MES_EXISTE = false
+export const SAIDA_DE_MES_EXISTE = true
 
 export function lerCapacidades(env: NodeJS.ProcessEnv = process.env): Capacidades {
   const data = env.OBS_ARQUIVO_LIMPEZA_CANAL_DATA
