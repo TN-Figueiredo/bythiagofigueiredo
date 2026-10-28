@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plantão multiprojeto — mockup</title>
+<style>
+:root{--bg:#f2f2f4;--fg:#1d1d1f;--sub:#5c5c5c;--line:#d8d8dc;--card:#fff;--acc:#0a5fd6}
+@media(prefers-color-scheme:dark){:root{--bg:#151517;--fg:#ececee;--sub:#a0a0a6;--line:#303034;--card:#1f1f22;--acc:#6aa8ff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif}
+main{max-width:1560px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+.lead{color:var(--sub);max-width:78ch;margin:0 0 28px}
+.lead b{color:var(--fg)}
+section.q{margin:0 0 56px;padding-top:24px;border-top:1px solid var(--line)}
+section.q h2{font-size:18px;margin:0 0 4px}
+section.q h2 .n{display:inline-block;min-width:30px;margin-right:6px;color:var(--acc);font-variant-numeric:tabular-nums}
+.test{margin:0 0 16px;color:var(--sub);max-width:92ch;font-size:14px}
+.test b{color:var(--fg)}
+.pair{display:flex;flex-wrap:wrap;gap:16px}
+.screens{display:flex;flex-direction:column;gap:20px}
+.scr>h3{margin:0 0 8px;font-size:13px;color:var(--sub);font-weight:600}
+.keys{font-size:12.5px;color:var(--sub);margin-top:6px}
+.scroll{overflow-x:auto;max-width:100%}
+.stage{position:relative;padding:34px 26px;border-radius:14px;min-width:0;flex:0 1 auto;overflow:hidden}
+.stage.light{background:linear-gradient(135deg,#9db8e6 0%,#d9b3d6 55%,#f0c9a8 100%)}
+.stage.dark{background:linear-gradient(135deg,#1d2447 0%,#3b2858 55%,#552c3c 100%)}
+.stage .tag{position:absolute;top:8px;left:12px;font-size:11px;font-weight:600;color:rgba(255,255,255,.85);text-shadow:0 1px 2px rgba(0,0,0,.4)}
+/* ---------- NSAlert ---------- */
+.alert{--lab:rgba(0,0,0,.85);--sec:#5c5c5c;--red:#be123c;--amb:#b45309;--grn:#15803d;
+ width:722px;max-width:100%;border-radius:12px;padding:22px;display:flex;gap:14px;color:var(--lab);
+ font:13px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;
+ background:rgba(236,236,236,.84);-webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);
+ box-shadow:0 0 0 .5px rgba(0,0,0,.35),0 18px 48px rgba(0,0,0,.35)}
+.alert.dark{--lab:rgba(255,255,255,.85);--sec:#ababab;--red:#fb7185;--amb:#fbbf24;--grn:#4ade80;
+ background:rgba(50,50,50,.84);box-shadow:0 0 0 .5px rgba(255,255,255,.22),0 18px 48px rgba(0,0,0,.55)}
+.ico{flex:0 0 64px;height:64px;position:relative}
+.ico svg{width:64px;height:64px;display:block}
+.col{flex:1;min-width:0}
+.mt{font-weight:700;margin:0 0 6px}
+.it{font-size:11px;color:var(--lab);margin:0 0 10px}
+.it p{margin:0}.it p+p{margin-top:3px;color:var(--sec)}
+.acc{margin:0 0 12px;font-size:13px}
+.r{display:grid;grid-template-columns:18px 1fr;white-space:nowrap}
+.r>span:last-child{overflow:hidden;text-overflow:ellipsis}
+.r.h{font-weight:700;margin-top:6px}.r.h:first-child{margin-top:0}
+.r.i{padding-left:20px}
+.r.n{padding-left:38px;font-size:12px;color:var(--sec);grid-template-columns:1fr}
+.r.n.err{color:var(--lab)}
+.r.n>span{white-space:normal}
+.r.n.more{padding-left:38px}
+.red{color:var(--red)}.amb{color:var(--amb)}.sub{color:var(--sec)}.grn{color:var(--grn)}
+.r>.s{font-weight:400}.r>.s.bold{font-weight:700}
+.btns{display:flex;flex-direction:row-reverse;gap:10px;margin-top:2px}
+.btns.v{flex-direction:column}
+.btn{font:13px/1 -apple-system,sans-serif;color:var(--lab);padding:6px 14px;border-radius:6px;text-align:center;
+ background:#fff;border:.5px solid rgba(0,0,0,.28);box-shadow:0 .5px 1px rgba(0,0,0,.18)}
+.dark .btn{background:rgba(255,255,255,.17);border:.5px solid rgba(255,255,255,.12);box-shadow:none}
+.btns.v .btn{width:100%}
+.btn.def{background:linear-gradient(#4b9bff,#0a6cf0);color:#fff;border-color:#0a5fd6}
+.dark .btn.def{background:linear-gradient(#3b8cff,#0a62e0);border-color:#0a62e0}
+.btn small{font-size:11px;opacity:.7;margin-left:6px}
+.pop{display:inline-flex;align-items:center;gap:8px;margin:0 0 10px}
+.pop .pb{display:inline-flex;gap:14px;align-items:center;padding:4px 8px 4px 12px;border-radius:6px;background:#fff;border:.5px solid rgba(0,0,0,.28);box-shadow:0 .5px 1px rgba(0,0,0,.18)}
+.dark .pop .pb{background:rgba(255,255,255,.17);border-color:rgba(255,255,255,.12);box-shadow:none}
+.pb i{font-style:normal;display:inline-block;width:16px;height:16px;border-radius:4px;background:#0a6cf0;color:#fff;text-align:center;font-size:9px;line-height:16px}
+.menu{margin:0 0 10px 62px;width:360px;max-width:calc(100% - 62px);border-radius:8px;padding:5px;background:rgba(246,246,246,.96);box-shadow:0 0 0 .5px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.3)}
+.dark .menu{background:rgba(60,60,60,.96);box-shadow:0 0 0 .5px rgba(255,255,255,.2),0 10px 28px rgba(0,0,0,.5)}
+.menu div{padding:3px 8px 3px 22px;border-radius:4px;position:relative}
+.menu div.on{background:#0a6cf0;color:#fff}
+.menu div.on::before{content:"✓";position:absolute;left:7px}
+/* notificação */
+.notif{width:360px;max-width:100%;border-radius:16px;padding:12px 14px;display:flex;gap:10px;font:13px/1.35 -apple-system,sans-serif;
+ background:rgba(240,240,240,.82);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);color:rgba(0,0,0,.85);box-shadow:0 8px 28px rgba(0,0,0,.3)}
+.dark .notif{background:rgba(48,48,48,.82);color:rgba(255,255,255,.88)}
+.notif .ico{flex:0 0 38px;height:38px}.notif .ico svg{width:38px;height:38px}
+.notif b{display:block}
+.notif span{color:inherit;opacity:.8}
+/* prompts / variantes */
+.code{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;max-width:880px}
+.code h4{margin:0 0 6px;font:600 13px -apple-system,sans-serif;color:var(--sub)}
+.code mark{background:rgba(245,158,11,.28);color:inherit;padding:0 2px;border-radius:3px}
+.vars{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px;margin-bottom:14px}
+.var{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.var h3{margin:0 0 4px;font-size:14px}
+.var .badge{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:99px;background:var(--acc);color:#fff;margin-left:6px;vertical-align:1px}
+.var p{margin:4px 0 0;color:var(--sub);font-size:13px}
+.symcmp{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0}
+.symcmp .r{white-space:normal}.symcmp .alert{max-width:100%;width:auto;padding:14px 18px;display:block}
+.rank{font-size:13px;margin:0}
+.rank td{padding:2px 14px 2px 0;vertical-align:top}
+@media(prefers-color-scheme:dark){.var .badge{color:#0b1020}}
+.changes{margin:0 0 18px;padding:8px 12px;border-left:3px solid var(--acc);background:var(--card);border-radius:0 8px 8px 0;max-width:92ch;font-size:13.5px}
+.sym{border-collapse:collapse;font-size:13px;margin:8px 0}.sym td,.sym th{padding:4px 14px 4px 0;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}.sym th{color:var(--sub);font-weight:600}
+.sym .g{font-size:15px;font-weight:700}
+.screen{position:relative;height:392px;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,#9db8e6 0%,#d9b3d6 55%,#f0c9a8 100%)}
+.screen .bar{position:absolute;left:0;right:0;top:0;height:18px;background:rgba(255,255,255,.55);font-size:11px;line-height:18px;padding:0 10px;color:#222}
+.screen .win{position:absolute;transform-origin:0 0}
+.screen .ghost{position:absolute;border:2px dashed rgba(190,18,60,.85);border-radius:8px;color:#be123c;font:600 11px/1.2 -apple-system,sans-serif;display:flex;align-items:flex-start;padding:4px 6px;background:rgba(255,255,255,.25)}
+.screen .cap{position:absolute;left:10px;bottom:8px;font:600 12px/1.3 -apple-system,sans-serif;color:#1d1d1f;background:rgba(255,255,255,.75);padding:3px 8px;border-radius:6px;max-width:calc(100% - 20px)}
+a.skip{position:absolute;left:-999px}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<h1>Plantão multiprojeto: janela agrupada por projeto</h1>
+<p class="lead">NSAlert feito por JXA, 600 px de área de detalhe, claro e escuro lado a lado sobre um fundo colorido (para ver o material translúcido). Texto e fixtures vêm de <b>p1-logan.md</b> e <b>p1-naksu.md</b>; hora fixa dos quadros: <b>qua 28/10, 09:00 BRT</b>, salvo o quadro 7. Quadro 10: 10a (botões com o nome do projeto) é o padrão; 10b (menu) fica como plano B no rodapé. Ids (<code>e18p2-cob-d7</code>, <code>c3-f2-d1</code>…) são os dos pareceres. Texto do mockup ainda não gerado pelo <code>--teste</code> (Y4): conferir contra o script quando houver.</p>
+<p class="changes"><b>r2: o que mudou.</b> Aplicados os 15 consertos do Logan (78) e da Naksu (86). Botões com “no VS Code: projeto”; Dispensar some quando o limite está a menos de 60 min do Lembrar; “Já colei” não marca resolvido (2c, novo 2d); títulos 3/4/8 e “1 de N”; prompts de ausente, quebrado e kit (9); tabela de símbolos (9); horas do 7 em Bangkok; notas 12 px; ⚠︎ e ✗ em negrito; cores só em rgba/hex literais; 10a é o padrão e a 10b virou plano B no rodapé; <b>quadro 11 novo</b>: a janela mantém a posição. <b>r2b:</b> título do quadro 3 com “1 de 2”; 2c/2d “dado expira · 2 de 2”; legenda do 11 em faixa própria (não cobre mais o botão a 390 px); estouro lateral a 390 px corrigido; aria-label nas miniaturas do 11. A r1 está em <code>index-r1.html</code>.</p>
+<div id="app"></div>
+</main>
+<script>
+const SYM={err:['✗','red'],data:['⚠︎','red'],you:['◆','red'],late:['○','amb'],next:['⧗','sub'],wait:['?','sub'],ok:['✓','grn'],alarm:['◷','sub']};
+const H=(k,t)=>({r:'h',k,t}), I=(k,t)=>({r:'i',k,t}), N=(t,more,err)=>({r:'n',t,more,err});
+const ICON={
+ warn:'<path d="M32 14 52 49H12Z" fill="#fbbf24" stroke="#b45309" stroke-width="2" stroke-linejoin="round"/><path d="M32 26v12" stroke="#1d1d1f" stroke-width="3.4" stroke-linecap="round"/><circle cx="32" cy="43.5" r="2.1" fill="#1d1d1f"/>',
+ err:'<path d="M23 12h18l11 11v18L41 52H23L12 41V23Z" fill="#e5484d" stroke="#9f1d22" stroke-width="2"/><path d="M24 24l16 16M40 24 24 40" stroke="#fff" stroke-width="4" stroke-linecap="round"/>',
+ info:'<circle cx="32" cy="32" r="20" fill="#3b82f6" stroke="#1d4ed8" stroke-width="2"/><path d="M32 29v13" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="22.5" r="2.4" fill="#fff"/>'
+};
+const icon=k=>`<div class="ico"><svg viewBox="0 0 64 64" aria-hidden="true">${ICON[k]}</svg></div>`;
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function row(x){
+ if(x.r==='n') return `<div class="r n${x.more?' more':''}${x.err?' err':''}"><span>${esc(x.t)}</span></div>`;
+ const [s,c]=SYM[x.k]; return `<div class="r ${x.r}"><span class="s ${c}${(x.k==='err'||x.k==='data')?' bold':''}">${s}</span><span>${esc(x.t)}</span></div>`;
+}
+function alertHTML(a,theme){
+ const bs=a.buttons, v=bs.length>3||bs.reduce((n,b)=>n+b.t.length,0)>62;
+ const btns=bs.map(b=>`<div class="btn${b.d?' def':''}">${esc(b.t)}</div>`);
+ return `<div class="alert ${theme}">${icon(a.icon)}<div class="col">
+ <div class="mt">${esc(a.title)}</div>
+ <div class="it">${a.info.map(t=>`<p>${esc(t)}</p>`).join('')}</div>
+ ${a.pop?a.pop:''}
+ <div class="acc">${a.rows.map(row).join('')}</div>
+ <div class="btns${v?' v':''}">${v?btns.join(''):btns.join('')}</div></div></div>`;
+}
+const pair=(a,keys)=>`<div class="pair">${['light','dark'].map(t=>`<div class="stage ${t}"><span class="tag">${t==='light'?'Claro':'Escuro'}</span><div class="scroll">${alertHTML(a,t)}</div></div>`).join('')}</div>${keys?`<div class="keys">${keys}</div>`:''}`;
+const B=(t,d)=>({t,d});
+const NL='Lembrar às 12:00', ND='Dispensar até amanhã 08:30';
+const OPEN=p=>B('Copiar e abrir no VS Code: '+p);
+
+const F=[];
+// 1
+F.push({n:1,h:'Um projeto com ação, outro em dia',test:'A linha <b>✓ bythiago</b> aparece mesmo sem ação (prova que foi lido). O nome do projeto está no botão padrão e no segundo. Esc = Lembrar. Lembrar e Dispensar valem para a janela toda.',
+ body:pair({icon:'warn',title:'Plantão: atrasado',info:['tonagarantia: 1 check atrasado. bythiago em dia.'],
+ rows:[H('late','tonagarantia · 1 atrasado'),I('late','Atrasado: c3-f2-d1 (há 4 d)'),H('ok','bythiago · em dia · próximo amanhã 09:30 BRT')],
+ buttons:[B('Copiar prompt: tonagarantia',1),OPEN('tonagarantia'),B(NL),B(ND)]},'Enter = Copiar prompt: tonagarantia · Esc = Lembrar')});
+// 2
+const r2a=[H('data','bythiago · 1 perde dado'),I('data','Perde dado em 4 h (hoje 13:00 BRT): e18p2-cob-d7'),H('late','tonagarantia · 2 atrasados'),I('late','Atrasado: c3-f2-d1 (há 4 d), c7ppp-d3 (há 25 h)')];
+F.push({n:2,h:'Dois projetos com ação: fila "1 de 2"',test:'Tela 1: o bythiago é a vez (perde dado). Tela 2, depois de Copiar: o botão vira <b>Já colei; próximo: tonagarantia</b> e o Lembrar cai para 30 min (Logan, objeção 1) para o Esc não calar o 2º por 3 h; Dispensar fica no limite prazo − 30 min (só aparece quando está a mais de 60 min do Lembrar). Tela 3: a janela remonta sozinha com o tonagarantia, sem esperar 15 min. <b>Regra:</b> “Já colei” não marca o item como resolvido; só o ACOMPANHAMENTO atualizado pela sessão tira o bythiago da lista (2c e 2d).',
+ body:`<div class="screens">
+ <div class="scr"><h3>2a · tela 1</h3>${pair({icon:'warn',title:'Plantão: dado expira · 1 de 2',info:['bythiago perde dado em 4 h. tonagarantia: 2 checks atrasados.'],rows:r2a,buttons:[B('Copiar prompt: bythiago',1),OPEN('bythiago'),B('Lembrar às 12:00')]},'Enter = Copiar prompt: bythiago · Esc = Lembrar às 12:00 (limite = prazo − 30 min = 12:30; sem Dispensar: só 30 min de diferença)')}</div>
+ <div class="scr"><h3>2b · depois de Copiar</h3>${pair({icon:'warn',title:'Plantão: dado expira · 1 de 2',info:['bythiago perde dado em 4 h. tonagarantia: 2 checks atrasados.','Copiado. Cole na sessão do bythiago e volte aqui.'],rows:r2a,buttons:[B('Copiar de novo'),B('Já colei; próximo: tonagarantia',1),B('Lembrar às 09:30'),B('Dispensar até 12:30')]},'Enter = Já colei; próximo · Esc = Lembrar às 09:30 (30 min, não 3 h)')}</div>
+ <div class="scr"><h3>2c · tela 2</h3>${pair({icon:'warn',title:'Plantão: dado expira · 2 de 2',info:['tonagarantia: 2 checks atrasados. bythiago: prompt copiado, ainda perde dado em 4 h.'],rows:[H('late','tonagarantia · 2 atrasados'),I('late','Atrasado: c3-f2-d1 (há 4 d), c7ppp-d3 (há 25 h)'),H('data','bythiago · prompt copiado; perde dado em 4 h (hoje 13:00 BRT)')],buttons:[B('Copiar prompt: tonagarantia',1),OPEN('tonagarantia'),B('Lembrar às 12:00')]},'O bythiago continua em vermelho, numa linha: nada foi conferido ainda. Sem Dispensar: o limite (12:30) está a 30 min do Lembrar.')}</div>
+ <div class="scr"><h3>2d · fim da fila (depois de Copiar o tonagarantia)</h3>${pair({icon:'warn',title:'Plantão: dado expira · 2 de 2',info:['tonagarantia: 2 checks atrasados. bythiago: prompt copiado, ainda perde dado em 4 h.','Copiado. Cole na sessão do tonagarantia e volte aqui.'],rows:[H('late','tonagarantia · 2 atrasados'),I('late','Atrasado: c3-f2-d1 (há 4 d), c7ppp-d3 (há 25 h)'),H('data','bythiago · prompt copiado; perde dado em 4 h (hoje 13:00 BRT)')],buttons:[B('Copiar de novo'),B('Já colei, fechar',1),B('Lembrar às 09:30')]},'Enter = Já colei, fechar · o Lembrar de 30 min vigia o que ainda está aberto')}</div></div>`});
+// 3
+F.push({n:3,h:'bythiago perde dado em 4 h + tonagarantia sem tabela',test:'Ordem do Logan, aceita pela Naksu: EXPIRA &lt; 6 h antes de erro, então o bythiago é a vez e o título nomeia os dois. O ✗ do tonagarantia fica visível, em negrito, com o caminho em 12 px na cor do texto. Sem Dispensar (limite a 30 min do Lembrar) e Lembrar curto: projeto sem leitura não espera 3 h.',
+ body:pair({icon:'warn',title:'Plantão: dado expira, arquivo ausente · 1 de 2',info:['bythiago perde dado em 4 h. tonagarantia: os checks dele não estão sendo lidos.'],
+ rows:[H('data','bythiago · 1 perde dado'),I('data','Perde dado em 4 h (hoje 13:00 BRT): e18p2-cob-d7'),H('err','tonagarantia · arquivo ausente'),N('~/Workspace/handoff/tonagarantia/ACOMPANHAMENTO.md não existe. Os checks dele não estão sendo lidos.',0,1)],
+ buttons:[B('Copiar prompt: bythiago',1),OPEN('bythiago'),B('Lembrar às 09:30')]},'Depois do 1º clique: “Já colei; próximo: tonagarantia” e o prompt “Ausente” do quadro 9 (recria a tabela)')});
+// 4
+F.push({n:4,h:'tonagarantia com linha quebrada; bythiago lido normalmente',test:'O erro nomeia a linha (até 3 linhas). O projeto lido sem problema continua numa linha ✓. O botão padrão leva ao prompt do projeto com erro.',
+ body:pair({icon:'err',title:'Plantão: erro na tabela',info:['tonagarantia: a linha 14 da tabela não foi lida. bythiago em dia.'],
+ rows:[H('err','tonagarantia · erro na tabela'),N("linha 14: estado '---'",0,1),H('ok','bythiago · em dia · próximo amanhã 09:30 BRT')],
+ buttons:[B('Copiar prompt: tonagarantia',1),OPEN('tonagarantia'),B(NL),B(ND)]},'Pergunta ao Yannis: o parser para ou pula a linha? A frase vale nos dois casos. O prompt “Quebrada” (quadro 9) manda consertar a linha.')});
+// 5
+F.push({n:5,h:'Lista de projetos ausente',test:'Nenhum nome de projeto no botão (não há projeto). Só 2 botões, sem Dispensar: calar por 23 h um alarme que não vigia nada seria esconder a cegueira. O prompt “Kit” (quadro 9) recria o arquivo.',
+ body:pair({icon:'err',title:'Plantão: lista de projetos sumiu',info:['Nenhum projeto foi lido. Sem a lista, nenhum prazo está sendo vigiado. Aviso de novo em 30 min.'],
+ rows:[H('err','Registro ausente'),N('Não achei ~/Workspace/handoff/.plantao/projetos.conf',0,1)],
+ buttons:[B('Copiar prompt',1),B('Lembrar às 09:30')]})});
+// 6
+const nt=(t)=>`<div class="stage ${t}"><span class="tag">${t==='light'?'Claro':'Escuro'}</span><div class="notif ${t}">${icon('info')}<div><b>Plantão</b><span>Em dia: bythiago, tonagarantia. Próximo: tonagarantia amanhã 04:30 BRT.</span></div></div></div>`;
+F.push({n:6,h:'Em dia: notificação diária e Plantão.app aberto à mão',test:'A notificação nomeia os projetos lidos (com 4 ou mais: "Em dia nos 4 projetos."). Aberto à mão, uma linha ✓ por projeto e só o botão Fechar. Em dia sem número nem nome não distingue "li 2" de "li 1 e o outro sumiu".',
+ body:`<div class="screens"><div class="scr"><h3>6a · notificação (1× por dia)</h3><div class="pair">${nt('light')}${nt('dark')}</div></div>
+ <div class="scr"><h3>6b · Plantão.app</h3>${pair({icon:'info',title:'Plantão: em dia',info:['Nenhum check pede ação agora.'],rows:[H('ok','bythiago · próximo amanhã 09:30 BRT'),H('ok','tonagarantia · próximo amanhã 04:30 BRT')],buttons:[B('Fechar',1)]})}</div></div>`});
+// 7
+F.push({n:7,h:'Ásia: Mac em Bangkok, dormiu 3 dias',test:'Fuso do Mac ≠ BRT: local primeiro, “hoje/amanhã” no relógio local, BRT entre parênteses com data e rótulo. Prazo vencido nunca no futuro: título “Prazo passou”, sem Dispensar. Os botões de hora seguem o relógio local (Lembrar = +3 h). A linha ✓ prova que o outro projeto foi lido. Agora: <b>qua 28/10 16:00 BRT = qui 29/10 02:00 em Bangkok</b>.',
+ body:pair({icon:'err',title:'Plantão: prazo passou',info:['Prazo passou há 2 d, e 2 checks atrasados.','Agora qui 29/10 02:00 aqui (Bangkok) · qua 28/10 16:00 BRT'],
+ rows:[H('err','bythiago · prazo passou, 2 atrasados'),I('err','exp-velho · há 2 d (seg 26/10 09:00 BRT): o dado pode ter se perdido. Conferir.'),I('late','Atrasado: c3-f2-d1 (há 4 d), c7ppp-d3 (há 4 d)'),I('next','Próximo em 17 h 30 min · hoje 19:30 aqui (qui 29/10 09:30 BRT): t9-t0-2h'),I('alarm','Alarme parado de dom 25/10 22:10 a qua 28/10 15:50 BRT (Mac dormindo)'),H('ok','tonagarantia · em dia · próximo hoje 14:30 aqui (qui 29/10 04:30 BRT)')],
+ buttons:[B('Copiar prompt: bythiago',1),OPEN('bythiago'),B('Lembrar às 05:00 aqui')]},'Rótulos de hora do botão também no relógio local. Fixture do Logan: prazo seg 26/10 09:00 BRT')});
+// 8
+F.push({n:8,h:'Limite: 5 projetos, 3 com ação',test:'12 linhas visuais (teto 14). Nenhum cabeçalho cortado; o excesso vira "e mais N itens" <b>dentro do bloco do projeto</b>; os em dia ficam numa linha só, com o nome longo cortado no meio. Acima de 5 projetos com ação ou 14 linhas: só cabeçalhos + página do status-kit. O nome de 40 caracteres e o id longo são fixture de estresse da Naksu.',
+ body:pair({icon:'warn',title:'Plantão: dado expira · 1 de 3',info:['3 projetos pedem ação: bythiago perde dado em 17 h. Os 2 em dia estão na última linha.'],
+ rows:[H('data','bythiago · 1 perde dado, 3 atrasados'),I('data','Perde dado em 17 h (amanhã 09:30 BRT): e18p2-cob-d7'),I('late','Atrasado: c3-f2-d1 (há 4 d), c7ppp-d3 (há 25 h), id-de-quarenta-caracteres-aaaaaaaa…'),I('you','Seu: t20 liberado'),I('next','Próximo em 1 h 10 min: t9-t0-2h'),N('e mais 3 itens',1),
+ H('late','tonagarantia · 4 atrasados'),I('late','Atrasado: x3-d7 (há 3 d), x3-d1-phil (há 26 h)'),N('e mais 2 itens',1),
+ H('you','descarregador · 1 seu'),I('you','Seu: mg17 liberado'),
+ H('ok','em dia: video-curator, projeto-com-nome-mui…ra-teste')],
+ buttons:[B('Copiar prompt: bythiago',1),OPEN('bythiago'),B(NL),B(ND)]})});
+// 9
+F.push({n:9,h:'O prompt copiado de cada projeto',test:'A primeira frase é a trava de pasta: colado no terminal errado, o Claude para e avisa em vez de rodar os checks com conta, CLAUDE.md e banco trocados. Há um prompt por situação: em dia/atrasado (normal), arquivo ausente, linha quebrada e lista de projetos ausente (kit). Sem eles, o botão dos quadros 3, 4 e 5 copiaria um texto que não conserta nada.',
+ body:`<div class="vars"><div class="code"><h4>Copiar prompt: bythiago (normal)</h4><mark>Acompanhamento do projeto bythiago. Se o diretório atual não for ~/Workspace/bythiagofigueiredo, pare e me diga para abrir a sessão lá.</mark> Siga ~/Workspace/handoff/bythiagofigueiredo/ACOMPANHAMENTO.md. Responda em português.</div>
+ <div class="code"><h4>Copiar prompt: tonagarantia (normal)</h4><mark>Acompanhamento do projeto tonagarantia. Se o diretório atual não for ~/Workspace/tonagarantia, pare e me diga para abrir a sessão lá.</mark> Siga ~/Workspace/handoff/tonagarantia/ACOMPANHAMENTO.md. Responda em português.</div>
+ <div class="code"><h4>Ausente (quadro 3)</h4><mark>Acompanhamento do projeto tonagarantia. Se o diretório atual não for ~/Workspace/tonagarantia, pare e me diga para abrir a sessão lá.</mark> O Plantão não achou ~/Workspace/handoff/tonagarantia/ACOMPANHAMENTO.md. Recrie a tabela de checks desse projeto no formato do ACOMPANHAMENTO do bythiagofigueiredo, confirme com --resumo e me diga o que faltou. Responda em português.</div>
+ <div class="code"><h4>Quebrada (quadro 4)</h4><mark>Acompanhamento do projeto tonagarantia. Se o diretório atual não for ~/Workspace/tonagarantia, pare e me diga para abrir a sessão lá.</mark> O Plantão não leu a linha 14 da tabela (estado '---'). Corrija essa linha, rode --resumo e me diga o resultado. Responda em português.</div>
+ <div class="code"><h4>Kit, sem projeto (quadro 5)</h4>O Plantão não achou ~/Workspace/handoff/.plantao/projetos.conf, então nenhum projeto está sendo vigiado. Recrie o arquivo com os projetos ativos (rótulo, pasta, ACOMPANHAMENTO), rode --resumo e me diga o que leu. Responda em português.</div></div>
+ <p class="keys">Destaque amarelo = trava de pasta (o prompt do kit não tem: não pertence a um projeto). “Copiar e abrir no VS Code” faz pbcopy + abre a raiz do repo do registro; a conta sai da função <code>claude()</code> do ~/.zshrc (tonagarantia usa ~/.claude-pessoal).</p>
+ <table class="sym"><tr><th>Símbolo</th><th>Estado</th><th>Cor (claro / escuro)</th><th>No kit da página de status</th></tr>
+ <tr><td class="g" style="color:#be123c">✗</td><td>erro, ausente, prazo passou</td><td>#BE123C / #FB7185</td><td>novo</td></tr>
+ <tr><td class="g" style="color:#be123c">⚠︎</td><td>perde dado (&lt; 24 h)</td><td>#BE123C / #FB7185</td><td>novo</td></tr>
+ <tr><td class="g" style="color:#be123c">◆</td><td>seu</td><td>#BE123C / #FB7185</td><td>igual (--you)</td></tr>
+ <tr><td class="g" style="color:#b45309">○</td><td>atrasado</td><td>#B45309 / #FBBF24</td><td>difere: no kit ○ é cinza</td></tr>
+ <tr><td class="g" style="color:#5c5c5c">⧗</td><td>próximo</td><td>#5C5C5C / #ABABAB</td><td>difere: ⏳ âmbar</td></tr>
+ <tr><td class="g" style="color:#5c5c5c">?</td><td>esperando</td><td>#5C5C5C / #ABABAB</td><td>difere: roxo</td></tr>
+ <tr><td class="g" style="color:#15803d">✓</td><td>em dia</td><td>#15803D / #4ADE80</td><td>igual (--ok)</td></tr></table>
+ <p class="keys">✗ e ⚠︎ em negrito (peso 700) para pesar mais que o ◆; se a largura de ⚠︎ em negrito passar de 12,4 px no AppKit, trocar por ▲ (U+25B2). Ordem no script: EXPIRA &lt; 6 h &gt; erro/ausente &gt; perde dado &gt; atrasado &gt; seu &gt; próximo &gt; em dia.</p>`});
+// 10
+const popA={icon:'warn',title:'Plantão: dado expira · 1 de 2',info:['bythiago perde dado em 4 h. tonagarantia: 2 checks atrasados.'],rows:r2a};
+const popB={...popA,title:'Plantão: dado expira'};
+const pbHTML=`<div class="pop"><span>Projeto:</span><span class="pb"><span>bythiago · perde dado em 4 h</span><i>⌃</i></span></div>`;
+const menu=`<div class="menu"><div class="on">bythiago · perde dado em 4 h</div><div>tonagarantia · 2 atrasados</div></div>`;
+const sc=(sym,txt)=>`<div class="r"><span class="s sub" style="font-size:13px">${sym}</span><span>${txt}</span></div>`;
+F.push({n:10,h:'Extra: botões com nome do projeto (padrão) e plano B',test:'<b>10a (padrão, Logan)</b>: o nome do projeto da vez está nos botões, fila "1 de 2", uma decisão por tela. <b>Decidido: 10a.</b> Dois projetos custam 4 cliques sem escolha. <b>10c</b>: ⏳ (kit) × ⧗ lado a lado; o ⧗ vence. A 10b (NSPopUpButton) ficou como <b>plano B</b>, no rodapé do quadro, só para se o teste do dono mostrar que ele quer escolher o projeto.',
+ body:`<div class="vars"><div class="var"><h3>10a · botões com o nome do projeto <span class="badge">padrão (Logan)</span></h3><p>Esc cala a janela só até o limite; o 2º projeto entra pela fila.</p></div>
+ </div>
+ <div class="screens"><div class="scr"><h3>10a</h3>${pair({...popA,buttons:[B('Copiar prompt: bythiago',1),OPEN('bythiago'),B('Lembrar às 12:00')]})}</div>
+ <div class="scr"><h3>10c · ⏳ × ⧗ (linha "Próximo")</h3><div class="pair">${['light','dark'].map(t=>`<div class="stage ${t}"><div class="symcmp"><div class="alert ${t}"><div class="col"><div class="acc" style="margin:0">
+ <div class="r"><span class="s sub" style="font-size:13px">⏳</span><span>Próximo em 1 h 10 min: t9-t0-2h <i style="opacity:.6">(kit: emoji colorido, 19 px, não aceita cor)</i></span></div>
+ <div class="r"><span class="s sub" style="font-size:13px">⧗</span><span>Próximo em 1 h 10 min: t9-t0-2h <i style="opacity:.6">(Naksu: 10 px, monocromático, em cinza)</i></span></div>
+ </div></div></div></div></div>`).join('')}</div><p class="keys">Padrão: ⧗ (o emoji quebra a coluna de símbolo). O ⧗ pode cair numa fonte de reserva no navegador; só o Gio confirma no AppKit. Se o dono preferir o ⏳ do kit, só muda uma constante.</p></div>
+ <div class="scr" style="border-top:1px dashed var(--line);padding-top:14px"><h3>Plano B (rodapé): 10b · menu suspenso no detalhe</h3><p class="keys" style="margin:0 0 8px">Descartada como padrão: o menu repete a lista logo abaixo, o botão “Copiar prompt” não diz em que projeto age e o título não tem “1 de 2” (não é fila).</p></div> <div class="scr"><h3>10b · menu fechado</h3>${pair({...popB,pop:pbHTML,buttons:[B('Copiar prompt',1),B('Copiar e abrir no VS Code'),B('Lembrar às 12:00')]})}</div>
+ <div class="scr"><h3>10b · menu aberto</h3>${pair({...popB,pop:pbHTML+menu,buttons:[B('Copiar prompt',1),B('Copiar e abrir no VS Code'),B('Lembrar às 12:00')]})}</div>
+</div>`});
+
+// 11
+const MINI=(o)=>`<div class="screen" role="img" aria-label="${o.label}" data-x="${o.x}" data-y="${o.y}" data-g="${o.gx??''}"><div class="bar"> Finder &nbsp; Arquivo &nbsp; Editar</div>${o.ghost?'<div class="ghost" data-ghost></div>':''}<div class="win" data-win>${alertHTML(o.a,'light')}</div><div class="cap">${o.cap}</div></div>`;
+const a11={icon:'warn',title:'Plantão: dado expira · 1 de 2',info:['bythiago perde dado em 4 h. tonagarantia: 2 checks atrasados.'],rows:r2a};
+F.push({n:11,h:'A janela fica onde o dono a deixou',test:'Pedido do dono (28/10). <b>Passo 1:</b> arraste a janela para um canto e clique <b>Copiar prompt: bythiago</b>. <b>Passo 2:</b> ela não pisca, não fecha e não volta ao centro; só os botões trocam (<b>Copiar de novo</b> e <b>Já colei; próximo</b>). Depois, feche com Lembrar, espere ela reabrir: abre no mesmo canto. Só se o canto salvo não existir mais (monitor desligado) ela cai no centro da tela principal. Gio prova movendo e clicando; vale como critério de aceite da fatia 3.',
+ body:`<div class="vars" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))">
+ <div class="scr"><h3>11a · passo 1: janela arrastada para o canto inferior direito</h3>${MINI({x:.50,y:.40,a:{...a11,buttons:[B('Copiar prompt: bythiago',1),OPEN('bythiago'),B('Lembrar às 12:00')]},label:'Miniatura da tela: janela do Plantão arrastada para o canto inferior direito, antes de clicar em Copiar prompt: bythiago',cap:'Dono arrastou a janela e clica em Copiar prompt'})}</div>
+ <div class="scr"><h3>11b · passo 2: depois de Copiar, continua no canto</h3>${MINI({x:.50,y:.40,ghost:1,a:{...a11,info:[...a11.info,'Copiado. Cole na sessão do bythiago e volte aqui.'],buttons:[B('Copiar de novo'),B('Já colei; próximo: tonagarantia',1),B('Lembrar às 09:30'),B('Dispensar até 12:30')]},label:'Miniatura da tela: após Copiar, a janela continua no mesmo canto; moldura tracejada mostra o centro onde a r1 a recolocava',cap:'Mesma posição; tracejado = onde a r1 a recolocava (não mais)'})}</div></div>
+ <p class="keys">Regra para a fatia 3: gravar o frame da janela ao arrastar (<code>setFrameAutosaveName</code> ou posição gravada), reaplicar a cada tela da fila e a cada reabertura do ciclo, e trocar só o conteúdo e os botões em vez de recriar o alerta. Frame fora de qualquer tela = centro da principal. Miniaturas em escala; o texto completo está nos quadros 2a e 2b.</p>`});
+document.getElementById('app').innerHTML=F.map(f=>`<section class="q" id="q${f.n}"><h2><span class="n">${f.n}</span>${f.h}</h2><p class="test"><b>Testar:</b> ${f.test}</p>${f.body}</section>`).join('');
+
+function layout(){document.querySelectorAll('.screen').forEach(sc=>{const W=sc.clientWidth,Hh=sc.clientHeight-52;const w=sc.querySelector('[data-win]');const k=Math.min(.58,W*.92/722)*(1);w.style.transform=`scale(${k})`;const aw=722*k,ah=w.firstElementChild.offsetHeight*k;const x=Math.max(8,W-aw-8),y=Math.max(24,Hh-ah-8);w.style.left=x+'px';w.style.top=y+'px';const g=sc.querySelector('[data-ghost]');if(g){g.style.width=aw+'px';g.style.height=ah+'px';g.style.left=(W-aw)/2+'px';g.style.top=(24+(Hh-24-ah)/2)+'px';g.textContent='r1: centro';}});}
+layout();addEventListener('resize',layout);
+</script>
+</body>
+</html>
