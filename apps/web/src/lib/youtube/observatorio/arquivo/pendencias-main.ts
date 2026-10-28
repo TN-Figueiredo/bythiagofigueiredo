@@ -8,7 +8,7 @@ import { saidaSegura, scriptDeFalha } from './pendencias-script'
 import type { Disco } from './exportar'
 
 const NAO = async (): Promise<never> => { throw new Error('pendencias não usa o disco') }
-const SEM_DISCO = { existe: NAO, listar: NAO, criarPasta: NAO, gravar: NAO, ler: NAO, apagar: NAO, dentroDeRepositorio: NAO } as unknown as Disco
+const SEM_DISCO = { existe: NAO, listar: NAO, criarPasta: NAO, gravar: NAO, ler: NAO, apagar: NAO, dentroDeRepositorio: NAO } satisfies Disco
 
 async function lerArquivoDaChave(caminho: string): Promise<LeituraDoArquivoDaChave> {
   try {

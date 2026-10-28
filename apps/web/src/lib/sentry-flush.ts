@@ -17,8 +17,8 @@ const MAX_VOLTAS = 5 // 5 × ~4 s no pior caso < maxDuration mínimo (30 s)
 /** Chame após enfileirar um evento. No-op fora de uma requisição da Vercel. */
 export function agendarFlushNaVercel(): void {
   try {
-    const global = globalThis as unknown as Record<symbol, { get?: () => ContextoVercel | undefined } | undefined>
-    const ctx = global[Symbol.for('@vercel/request-context')]?.get?.()
+    const fonte = Reflect.get(globalThis, Symbol.for('@vercel/request-context')) as { get?: () => ContextoVercel | undefined } | undefined
+    const ctx = fonte?.get?.()
     if (!ctx?.waitUntil) return
     if (pendente.has(ctx)) { sujo.add(ctx); return }
     pendente.add(ctx)
