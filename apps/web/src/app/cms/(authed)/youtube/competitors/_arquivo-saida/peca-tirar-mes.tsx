@@ -121,7 +121,7 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
   const moldura = (escondido: boolean, filhos: ReactNode): ReactElement => (
     <article className="arq-bl" aria-labelledby={nome ? titulo : undefined} aria-busy={ocupado}>
       {cabecalho}
-      {soBloco && !nome ? null : <p className="arq-mesb">Mês mais antigo no banco: <b>{C}</b>{escondido ? ' (escondido das telas)' : ''}</p>}
+      {soBloco && !nome ? null : <p className="arq-mesb"><span className="arq-mesb-r">Mês mais antigo no banco:</span> <b>{C}</b>{escondido ? ' (escondido das telas)' : ''}</p>}
       {filhos}
     </article>
   )
@@ -194,7 +194,7 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
       {ehAdmin ? (
         <div className="arq-ac2">
           <Acao rotulo="Esconder das telas" pesado off={!tirarOk || ocupado} refBtn={btnSair}
-            efeito={`${!tirarOk ? `Indisponível até ${faltas.some(f => f.codigo === 'ainda_na_janela') ? 'sair da janela dos 6 meses' : /b2/.test(faltas.map(f => f.codigo).join()) ? 'conferir o B2' : 'resolver o que está acima'}. ` : ''}${C} some das telas; os dados seguem no banco e dá para mostrar de novo. Enquanto escondido, não dá para remover canal.`}
+            efeito={`${!tirarOk ? `Indisponível até ${faltas.some(f => f.codigo === 'ainda_na_janela') ? 'sair da janela dos 6 meses' : /b2/.test(faltas.map(f => f.codigo).join()) ? 'conferir o B2' : 'resolver o que está acima'}. ` : ''}${C} some das telas; os dados seguem no banco e ${e.dois_passos ? 'dá' : 'não dá'} para mostrar de novo. Enquanto escondido, não dá para remover canal.`}
             onClick={() => { origem.current = btnSair.current; setDialogo('tirar') }} />
           <Acao rotulo="Ver o que sairia" off={ocupado} refBtn={btnSim} efeito="Só calcula canais, registros e % do banco. Nada muda."
             onClick={() => { origem.current = btnSim.current; void rodar('tirar', 'simulando', acoes.simular, true) }} />

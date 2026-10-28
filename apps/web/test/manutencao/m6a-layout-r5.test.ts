@@ -10,9 +10,9 @@ const peca = readFileSync(`${C}/_arquivo-saida/peca-tirar-mes.tsx`, 'utf8')
 const encaixe = readFileSync(`${C}/_arquivo-saida/encaixar.ts`, 'utf8')
 
 describe('layout r5', () => {
-  it('ⓘ da linha de efeito tem alvo de toque de 44px sem deslocar (margem negativa)', () => { expect(css).toMatch(/\.arq-efl \.dica-i\{width:44px;height:44px;margin:-10px/) })
+  it('ⓘ da linha de efeito tem alvo de toque de 44px sem deslocar (margem negativa)', () => { expect(css).toMatch(/\.arq-efl \.dica-i\{width:44px;height:44px;margin:-8px/) })
   it('régua e frase do bloco não herdam o order da linha do mês (combinador filho)', () => { expect(css).toMatch(/\.arq-mes>\.arq-reg\{order:3\}/); expect(css).not.toMatch(/\.arq-mes \.arq-reg\{order/) })
-  it('"Mês mais antigo no banco" usa classe própria, sem a grade da linha, e não quebra', () => { expect(peca).toContain('className="arq-mesb"'); expect(css).toMatch(/\.arq-mesb\{[^}]*white-space:nowrap/) })
+  it('"Mês mais antigo no banco" usa classe própria, sem a grade da linha, e não quebra', () => { expect(peca).toContain('className="arq-mesb"'); expect(css).toMatch(/\.arq-mesb-r\{white-space:nowrap\}/) })
   it('trilho do contador tem cor literal no escuro e o CSS não usa color-mix fora de comentário', () => {
     expect(css).toMatch(/\[data-theme="dark"\] \.arq-trilho[^{]*\{background:rgba\(/)
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/color-mix/)
