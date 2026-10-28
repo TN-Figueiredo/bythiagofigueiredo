@@ -184,6 +184,18 @@ const PREP = (extra: Record<string, R | R[]> = {}): void => { respostas = { obs_
 const ONLINE_DESTACADO = { ...EST_ONLINE, estado: 'destacado' }
 
 describe('T11 r1: classificação do erro depois da chamada que muda (I-1)', () => {
+  // T14 (Phil I-1): 40P01 (deadlock) e 55P03 (trava não obtida) = ocupado, a mesma frase da trava consultiva; nunca "banco" nem "sem resposta". Vale simulando e tirando.
+  it.each(['40P01', '55P03'])('%s na simulação e na ação: frase de ocupado, nunca falha do banco', async (code) => {
+    PREP({ obs_archive_detach_month: { data: null, error: { code, message: 'deadlock detected' } } })
+    const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
+    for (const r of [await a.simularSaida('competitor_video_daily', '2026-10-01'), await a.tirarMes('competitor_video_daily', '2026-10-01')]) {
+      expect(r, JSON.stringify(r)).toEqual({ ok: true, resposta: { tipo: 'recusado', codigo: 'ocupado', faltam: [] } })   // a mesma resposta da trava consultiva; a tela lê a frase 'Ocupado: ...'
+    }
+    const { fraseDoRetorno } = await import('@/lib/youtube/observatorio/arquivo-mensal/frases-saida')
+    const f = fraseDoRetorno('tirar', { tipo: 'recusado', codigo: 'ocupado', faltam: [] }, { mes: '2026-10-01' } as Parameters<typeof fraseDoRetorno>[2])
+    expect(f.texto).toMatch(/^Ocupado/)
+    expect(f.texto).not.toMatch(/banco/i)
+  })
   it('57014 (o banco cancelou e desfez) tem frase própria: não é "não foi possível ler" nem "sem resposta"', async () => {
     PREP({ obs_archive_detach_month: { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } } })
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
