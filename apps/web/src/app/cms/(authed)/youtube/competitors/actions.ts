@@ -17,7 +17,7 @@ import { getChannelSlots, UNLOCK_STEP, type ChannelSlots } from '@/lib/youtube/c
 import { loadRows, rowsToDataset } from '@/lib/youtube/observatorio/load'
 import { pedirRemocao, cancelarRemocao, apagarCanalSemGuardar } from '@/lib/youtube/observatorio/arquivo/remover'
 import { lerImpactoDoArquivo, type ImpactoDoArquivo } from '@/lib/youtube/observatorio/arquivo/impacto-arquivo'
-import { lerCapacidades } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
+import { lerCapacidades, SAIDA_DE_MES_EXISTE } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
 import { FRASES_E10 } from '@/lib/youtube/observatorio/arquivo/codigos'
 import { lerEmTransito } from '@/lib/youtube/observatorio/arquivo-mensal/saida'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
@@ -698,7 +698,8 @@ export async function getCompetitorRemovalImpactAction(channelRowId: string): Pr
   try {
     // as duas leituras são independentes: uma ida e volta só
     const sb = getSupabaseServiceClient()
-    const [r, arquivo, mesFora] = await Promise.all([getCompetitorRemovalImpact(siteId, channelRowId), lerImpactoDoArquivo(sb, siteId, channelRowId), lerMesFora(sb, siteId)])
+    const [r, arquivo, mesFora] = await Promise.all([getCompetitorRemovalImpact(siteId, channelRowId), lerImpactoDoArquivo(sb, siteId, channelRowId), SAIDA_DE_MES_EXISTE ? lerMesFora(sb, siteId) : Promise.resolve(null)])
+    // I-1 (Yannis r1 T13c): a RPC obs_archive_em_transito só existe depois do db:push:prod da T14; com a flag da M6 desligada não há leitura, aviso nem Sentry
     if (!r || !arquivo) return { ok: false }
     const cap = lerCapacidades()
     return {

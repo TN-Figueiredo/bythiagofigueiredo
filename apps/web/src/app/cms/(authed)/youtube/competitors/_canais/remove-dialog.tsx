@@ -222,8 +222,9 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const lead = caminho === 'guardar' ? TXT.leadGuardar : TXT.leadApagar
   useEffect(() => { if (erro && (fase === 'erro' || fase === 'incerto')) faixaErro.current?.scrollIntoView?.({ block: 'center' }) }, [erro, fase]) // center: com nearest a barra sticky (.acts) cobre o alvo
   const frase = erro ? fraseDoErro(erro.codigo, erro.frase, erro.caminho) : null
+  const aoMudarInfo = (a: boolean) => { infoAberto.current = a; if (!a) { if (fechouPorEsc.current) fechouPorEsc.current = false; else infoFechouEm.current = Date.now() } }
   const forMesFora = erro?.caminho === 'apagar' && erro.codigo === 'mes_destacado_em_transito'
-  const semSaidaGuardar = erro?.caminho === 'apagar' && (erro.codigo === 'video_compartilhado' || forMesFora) // a F1 também recusaria guardar (I6)
+  const semSaidaGuardar = erro?.caminho === 'apagar' && (erro.codigo === 'video_compartilhado' || forMesFora) // decisão C (T13c): na recusa do mês fora só Fechar; o aviso do guardar aparece no diálogo ao reabrir (a F1 aceita guardar nesse caso)
   const dadosMesFora = (m: MesForaDaRecusa, recusadoNoClique: boolean) => ({ ...m, recusadoNoClique, ...(hojeSP ? { hojeSP } : {}), ...(podeAdministrar !== undefined ? { podeAdministrar } : {}) })
   const fraseMes = forMesFora && erro?.mesFora ? fraseDoMesFora(dadosMesFora(erro.mesFora, true)) : null
   const avisoMes = caminho === 'guardar' && mesForaAoAbrir && !comErro && !incerto ? fraseDoMesFora(dadosMesFora(mesForaAoAbrir, false)) : null
@@ -299,7 +300,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
             <div className="fx-msg fx-info fx-blob" role="note">
               <PinIcon name="info" />
               <div>
-                <div className="fx-blob-p">{blob.linha1Antes}<RiInfo titulo={BLOB_INFO.titulo} itens={BLOB_INFO.itens} rotuloBotao={BLOB_INFO.rotulo} aoMudar={a => { infoAberto.current = a; if (!a) { if (fechouPorEsc.current) fechouPorEsc.current = false; else infoFechouEm.current = Date.now() } }} />{blob.linha1Depois}</div>
+                <div className="fx-blob-p">{blob.linha1Antes}<RiInfo titulo={BLOB_INFO.titulo} itens={BLOB_INFO.itens} rotuloBotao={BLOB_INFO.rotulo} aoMudar={aoMudarInfo} />{blob.linha1Depois}</div>
                 <p>{blob.linha2}</p>
               </div>
             </div>
@@ -318,7 +319,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
             <span>
               {fraseMes ? (<>
                 <b>{fraseMes.negrito}</b> {fraseMes.resto}{' '}
-                <RiInfo titulo="Por que não dá" itens={[fraseMes.info]} rotuloBotao="Por que não dá para remover agora" aoMudar={a => { infoAberto.current = a; if (!a) { if (fechouPorEsc.current) fechouPorEsc.current = false; else infoFechouEm.current = Date.now() } }} />
+                <RiInfo titulo="Por que não dá" itens={[fraseMes.info]} rotuloBotao="Por que não dá para remover agora" aoMudar={aoMudarInfo} />
                 {fraseMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
               </>) : (<><b>{frase.titulo}</b> {frase.corpo}</>)}
               <span className="code">código: {erro!.codigo}</span>
@@ -332,7 +333,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
             <span>
               <b>{avisoMes.negrito}</b> {avisoMes.resto} Se guardar agora, o pedido fica parado até o mês voltar ou ser apagado.{' '}
               <RiInfo titulo="Por que o pedido fica parado" itens={[avisoMes.info]} rotuloBotao="Por que o pedido fica parado"
-                aoMudar={a => { infoAberto.current = a; if (!a) { if (fechouPorEsc.current) fechouPorEsc.current = false; else infoFechouEm.current = Date.now() } }} />
+                aoMudar={aoMudarInfo} />
               {avisoMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
             </span>
           </div>
