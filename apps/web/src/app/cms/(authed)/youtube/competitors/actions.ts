@@ -230,21 +230,31 @@ async function travaDoSaiu(supabase: ReturnType<typeof getSupabaseServiceClient>
   return null
 }
 
+const FRASE_ALGUM_MES = 'Não dá para remover canal agora: algum mês saiu das telas.'
+
 /**
  * M6a T13: a recusa que vem da F1. Se o código é `mes_destacado_em_transito`, lê os meses em trânsito e devolve `mesFora` junto; a leitura que falha
  * ou volta vazia devolve só a frase (o diálogo mostra a forma curta, nunca "pode remover"). Não grava nada: a recusa do banco já foi a última palavra.
+ * Hoje só `apagarCanalSemGuardarAction` alcança o gatilho (pedir/desfazer só marcam e pausam, sem DELETE); o ramo nas outras duas é defesa contra mudança da F1.
+ * Com mais de um mês distinto a frase diz "algum mês"; a liberação é a data MAIS TARDE (a remoção só destrava quando todos saírem).
+ * Leitura que falha vai ao Sentry como aviso (Yannis M-2 r1): sem isso o diálogo perderia os meses para sempre sem ninguém saber.
  */
 async function recusaDaF1(supabase: ReturnType<typeof getSupabaseServiceClient>, siteId: string, codigo: CodigoTela, frase: string): Promise<{ ok: false; codigo: CodigoTela; frase: string; mesFora?: MesForaDaRecusa }> {
   const base = recusa(codigo, frase)
   if (codigo !== 'mes_destacado_em_transito') return base
+  const avisar = (): void => { Sentry.captureMessage('mes_fora_leitura_falhou', { level: 'warning', tags: { component: 'competitors', step: 'mes-fora' }, extra: { siteId } }) }
   try {
     const transito = await lerEmTransito(supabase, siteId)
-    if (!transito || transito.length === 0) return base
-    const nomes = [...new Set(transito.map(t => t.mes))].sort().slice(0, 2)
-    const liberarAPartir = transito.map(t => t.liberar_a_partir).sort()[0]
+    if (!transito) { avisar(); return base }
+    if (transito.length === 0) return base
+    const todos = [...new Set(transito.map(t => t.mes))].sort()
+    const nomes = todos.slice(0, 2)
+    const liberarAPartir = transito.map(t => t.liberar_a_partir).filter(Boolean).sort().at(-1)
     if (!liberarAPartir) return base
-    return { ...base, mesFora: { meses: nomes.length === 2 ? 2 : 1, nomes, liberarAPartir } }
+    const com = todos.length > 1 ? recusa(codigo, FRASE_ALGUM_MES) : base
+    return { ...com, mesFora: { meses: nomes.length === 2 ? 2 : 1, nomes, liberarAPartir } }
   } catch {
+    avisar()
     return base
   }
 }

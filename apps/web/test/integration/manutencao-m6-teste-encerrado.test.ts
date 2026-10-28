@@ -43,6 +43,28 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 6 [M6a]: encerrar o dado de teste',
       expect(await escalar<string>(c, `select closed_at::text from public.obs_archive_months where site_id = $1 and class = 'ensaio'`, [site])).toBe(antes)
     })
   })
+  it('I-1 r1: mês de teste ainda em trânsito (destacado, sem descarte) recusa mes_de_teste_em_transito e nada é encerrado', async () => {
+    await emTransacao(async () => {
+      const { site } = await semearCanal(c, { videos: 1 })
+      const admin = await novoAdmin(c, site)
+      await mesEnsaio(site); await restore(site, 0, 9)
+      await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, detached_at) values ($1, 'ensaio', $2, '2026-06-01', now())`, [site, T])
+      expect(await fechar(site, admin)).toMatchObject({ status: 'recusado', codigo: 'mes_de_teste_em_transito' })
+      expect(await escalar<number>(c, `select count(*)::int from public.obs_archive_months where site_id = $1 and class = 'ensaio' and closed_at is not null`, [site])).toBe(0)
+    })
+  })
+  it('M-3 r1: restore anterior ao descarte não vale: recuperacao_nao_testada; posterior vale (a trava de tabela do banco só aceita uma tabela de ensaio, então o casamento por tabela não tem como ser exercitado)', async () => {
+    await emTransacao(async () => {
+      const { site } = await semearCanal(c, { videos: 1 })
+      const admin = await novoAdmin(c, site)
+      await c.query(`insert into public.obs_archive_months (site_id, class, table_name, month, dropped_at, rows_dropped) values ($1, 'ensaio', $2, '2026-05-01', now(), 9)`, [site, T])
+      await c.query(`insert into public.obs_archive_restores (site_id, class, table_name, schema_fp, origem, chave, units_checked, rows_restored, diff_rows, done_by, done_at)
+                     values ($1, 'ensaio', $2, 'fp', 'b2', 'cofre', 1, 9, 0, 'dono@t.test', now() - interval '1 day')`, [site, T])
+      expect(await fechar(site, admin)).toMatchObject({ status: 'recusado', codigo: 'recuperacao_nao_testada' })
+      await restore(site, 0, 9)
+      expect(await fechar(site, admin)).toMatchObject({ status: 'ok', encerrados: 1 })
+    })
+  })
   it('quem não administra (ou ninguém) recebe sem_direito e nada é gravado', async () => {
     await emTransacao(async () => {
       const { site } = await semearCanal(c, { videos: 1 })

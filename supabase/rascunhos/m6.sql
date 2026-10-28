@@ -1210,8 +1210,13 @@ begin
   if p_by is null or not public.obs_archive_is_site_admin(p_site, p_by) then return jsonb_build_object('status', 'recusado', 'codigo', 'sem_direito'); end if;
   if not exists (select 1 from public.obs_archive_months m where m.site_id = p_site and m.class = 'ensaio' and m.dropped_at is not null) then
     return jsonb_build_object('status', 'recusado', 'codigo', 'descarte_de_teste_nao_feito'); end if;
-  if not exists (select 1 from public.obs_archive_restores r where r.site_id = p_site and r.class = 'ensaio' and r.diff_rows = 0 and r.rows_restored > 0) then
+  -- só vale o restore da MESMA tabela e POSTERIOR ao descarte (Phil M-3 / Yannis M-4 r1)
+  if not exists (select 1 from public.obs_archive_restores r join public.obs_archive_months m on m.site_id = r.site_id and m.class = r.class and m.table_name = r.table_name
+                  where r.site_id = p_site and r.class = 'ensaio' and m.dropped_at is not null and r.done_at >= m.dropped_at and r.diff_rows = 0 and r.rows_restored > 0) then
     return jsonb_build_object('status', 'recusado', 'codigo', 'recuperacao_nao_testada'); end if;
+  -- mês de teste ainda fora das telas e sem descarte: encerrar o esconderia da M5 e o gatilho seguiria travando (Phil/Yannis I-1 r1)
+  if exists (select 1 from public.obs_archive_months m where m.site_id = p_site and m.class = 'ensaio' and m.detached_at is not null and m.dropped_at is null) then
+    return jsonb_build_object('status', 'recusado', 'codigo', 'mes_de_teste_em_transito'); end if;
   update public.obs_archive_months m set closed_at = coalesce(m.closed_at, public.obs_archive_agora()), closed_by = coalesce(m.closed_by, p_by)
    where m.site_id = p_site and m.class = 'ensaio';
   get diagnostics v_n = row_count;

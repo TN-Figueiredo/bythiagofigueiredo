@@ -14,7 +14,7 @@ export interface MesFora {
   recusadoNoClique: boolean
   /** AAAA-MM-01 dos meses (no máximo 2). */
   nomes?: string[]
-  /** AAAA-MM-DD a partir de quando o espaço pode ser liberado. */
+  /** AAAA-MM-DD a partir de quando o espaço pode ser liberado: a data MAIS TARDE entre os meses (a remoção de canal só destrava quando todos saírem; Phil I-2 r1). */
   liberarAPartir?: string
   podeAdministrar?: boolean
   /** O dia de hoje em São Paulo, AAAA-MM-DD. */

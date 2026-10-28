@@ -22,6 +22,7 @@ let esperando = { videos: 0, comentarios: 0 }
 let leituraFalha = false
 let transito: Array<{ tabela: string; mes: string; destacado_em: string; liberar_a_partir: string }> | null = []
 const lerTransito = vi.fn(async () => transito)
+const captureMessage = vi.fn()
 
 function carregar() {
   vi.resetModules()
@@ -36,7 +37,7 @@ function carregar() {
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => ({ ok: true, user: { id: 'u1' } }) }))
   vi.doMock('next/cache', () => ({ revalidatePath: revalidate, revalidateTag }))
   vi.doMock('next/server', () => ({ after: vi.fn() }))
-  vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
+  vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage }))
   vi.doMock('@/lib/youtube/observatorio/cache-tag', () => ({ invalidateObservatory: invalidate }))
   vi.doMock('@/lib/youtube/observatorio/arquivo/remover', () => ({ pedirRemocao: f1.pedir, cancelarRemocao: f1.cancelar, apagarCanalSemGuardar: f1.apagar }))
   vi.doMock('@/lib/youtube/observatorio/arquivo-mensal/saida', () => ({ lerEmTransito: lerTransito }))
@@ -66,7 +67,7 @@ beforeEach(() => {
   f1.pedir.mockResolvedValue({ ok: true, jaPedido: false })
   f1.cancelar.mockResolvedValue({ ok: true, naoPedido: false, despausado: true })
   f1.apagar.mockResolvedValue({ ok: true, videos: 340, miniaturasPendentes: 0, foraDoPrefixo: 0, registrosDiarios: 4000, leituras: 68 })
-  lerTransito.mockClear(); transito = []
+  lerTransito.mockClear(); captureMessage.mockClear(); transito = []
   negado = null; canal = { missing_since: null }; esperando = { videos: 0, comentarios: 0 }; leituraFalha = false
 })
 
@@ -209,22 +210,33 @@ describe('M6a T13: recusa por mês em trânsito', () => {
   const FRASE = 'Não dá para remover canal agora: o mês saiu das telas.'
   const recusaMes = { ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE }
   const mes = (m: string, d: string) => ({ tabela: 'competitor_video_daily', mes: m, destacado_em: '2026-10-17T15:00:00Z', liberar_a_partir: d })
-  it.each(TODAS)('%s: devolve a frase e os meses (sem gravar nada por conta própria)', async qual => {
-    f1.pedir.mockResolvedValue(recusaMes); f1.cancelar.mockResolvedValue(recusaMes); f1.apagar.mockResolvedValue(recusaMes)
+  const FRASE_ALGUM = 'Não dá para remover canal agora: algum mês saiu das telas.'
+  // só `apagar` alcança o gatilho do banco: `pedir` e `desfazer` só marcam e pausam (F1 não faz DELETE), então não há recusa deles a simular
+  it('apagar, dois meses distintos: frase "algum mês" e os meses; a data de liberação é a MAIS TARDE (a remoção só destrava quando todos saírem)', async () => {
+    f1.apagar.mockResolvedValue(recusaMes)
     transito = [mes('2026-11-01', '2026-11-24'), mes('2026-10-01', '2026-10-24'), mes('2026-10-01', '2026-10-24')]
-    const r = await rodar(await carregar(), qual)
-    expect(r).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE, mesFora: { meses: 2, nomes: ['2026-10-01', '2026-11-01'], liberarAPartir: '2026-10-24' } })
+    const r = await rodar(await carregar(), 'apagar')
+    expect(r).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE_ALGUM, mesFora: { meses: 2, nomes: ['2026-10-01', '2026-11-01'], liberarAPartir: '2026-11-24' } })
     expect(lerTransito).toHaveBeenCalledWith(expect.anything(), 's1')
   })
-  it.each([[null], [[]]])('leitura dos meses falha ou vazia (%j): só a frase, sem mesFora', async t => {
+  it('apagar, um mês só (mesmo em duas tabelas): frase "o mês"', async () => {
+    f1.apagar.mockResolvedValue(recusaMes)
+    transito = [mes('2026-10-01', '2026-10-24'), { ...mes('2026-10-01', '2026-10-24'), tabela: 'outra' }]
+    const r = await rodar(await carregar(), 'apagar')
+    expect(r).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE, mesFora: { meses: 1, nomes: ['2026-10-01'], liberarAPartir: '2026-10-24' } })
+  })
+  it.each([[null], [[]]])('leitura dos meses falha ou vazia (%j): só a frase, sem mesFora; só a falha avisa o Sentry (Yannis M-2)', async t => {
     f1.apagar.mockResolvedValue(recusaMes)
     transito = t as typeof transito
     expect(await rodar(await carregar(), 'apagar')).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE })
+    if (t === null) { expect(captureMessage).toHaveBeenCalledTimes(1); expect(captureMessage).toHaveBeenCalledWith('mes_fora_leitura_falhou', expect.objectContaining({ level: 'warning' })) }
+    else expect(captureMessage).not.toHaveBeenCalled()
   })
-  it('a leitura dos meses lança: só a frase', async () => {
+  it('a leitura dos meses lança: só a frase, e avisa o Sentry', async () => {
     f1.apagar.mockResolvedValue(recusaMes)
     lerTransito.mockRejectedValueOnce(new Error('rede'))
     expect(await rodar(await carregar(), 'apagar')).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE })
+    expect(captureMessage).toHaveBeenCalledTimes(1)
   })
   it('outras recusas não leem o trânsito', async () => {
     f1.apagar.mockResolvedValue({ ok: false, codigo: 'sem_vaga', frase: 'f' })

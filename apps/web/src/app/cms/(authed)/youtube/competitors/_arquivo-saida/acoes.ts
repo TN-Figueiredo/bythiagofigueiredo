@@ -68,6 +68,7 @@ export async function trazerDeVolta(tabela: string, mes: string): Promise<Retorn
 const FRASES_ENCERRAR_TESTE: Record<string, string> = {
   descarte_de_teste_nao_feito: 'Ainda falta descartar um mês de teste.',
   recuperacao_nao_testada: 'Ainda falta testar a recuperação do dado de teste.',
+  mes_de_teste_em_transito: 'Um mês de teste ainda está fora das telas sem ter sido descartado. Descarte ou traga de volta antes de encerrar.',
   sem_direito: siteAdminOnlyMessage('encerrar o dado de teste'),
 }
 const FRASE_ENCERRAR_INCERTO = 'Não deu para confirmar se o dado de teste foi encerrado. Atualize a página antes de tentar de novo.'

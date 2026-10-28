@@ -297,7 +297,7 @@ describe('T11 r1: lista fechada de códigos (Yannis M-1)', () => {
     const achados = new Set([...sql.matchAll(/'status', 'recusado', 'codigo', '([a-z_]+)'/g)].map(m => m[1]!))
     for (const c of ['conteudo_mudou', 'canal_sem_unidade', 'mudou_durante_a_leitura', 'registro_diverge']) achados.add(c)
     // T13b: os dois códigos de `obs_archive_test_close` têm lista e frases próprias (encerrarDadoDeTeste), fora da saída do mês
-    for (const c of ['descarte_de_teste_nao_feito', 'recuperacao_nao_testada']) achados.delete(c)
+    for (const c of ['descarte_de_teste_nao_feito', 'recuperacao_nao_testada', 'mes_de_teste_em_transito']) achados.delete(c)
     expect(achados.size).toBeGreaterThan(10)
     expect([...achados].filter(c => !(saida.CODIGOS_DA_SAIDA as readonly string[]).includes(c))).toEqual([])
   })
@@ -361,6 +361,7 @@ describe('M6a T13b: encerrarDadoDeTeste', () => {
   it.each([
     ['descarte_de_teste_nao_feito', 'Ainda falta descartar um mês de teste.'],
     ['recuperacao_nao_testada', 'Ainda falta testar a recuperação do dado de teste.'],
+    ['mes_de_teste_em_transito', 'Um mês de teste ainda está fora das telas sem ter sido descartado. Descarte ou traga de volta antes de encerrar.'],
   ])('recusa %s vira a frase e o código nunca aparece', async (codigo, frase) => {
     respostas = { obs_archive_test_close: ok({ status: 'recusado', codigo }) }
     const r = await (await importar()).encerrarDadoDeTeste()
