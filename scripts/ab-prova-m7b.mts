@@ -1,25 +1,12 @@
 // Prova da T19 (M7b envio 2): três testes de título descartáveis, em um vídeo próprio não listado.
 // SÓ roda contra produção quando o controlador mandar. Uso (a partir da raiz do repo):
-//   npx tsx --env-file apps/web/.env.local scripts/ab-prova-m7b.ts criar --video <youtubeVideoId>
-//   npx tsx --env-file apps/web/.env.local scripts/ab-prova-m7b.ts contar
-//   npx tsx --env-file apps/web/.env.local scripts/ab-prova-m7b.ts vigia <testId>
-//   npx tsx --env-file apps/web/.env.local scripts/ab-prova-m7b.ts limpar
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts ../../scripts/ab-prova-m7b.mts criar --video <youtubeVideoId>)
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts ../../scripts/ab-prova-m7b.mts contar)
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts ../../scripts/ab-prova-m7b.mts vigia <testId>)
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts ../../scripts/ab-prova-m7b.mts limpar)
 //   (sem subcomando: imprime a ajuda e confere só que os módulos carregam; não toca banco nem rede)
-// Os imports do app usam o alias `@/`: o arquivo se relança uma vez com TSX_TSCONFIG_PATH=apps/web/tsconfig.json.
+// Roda pelo vite-node com a config do vitest: o alias `@/` e os pacotes só-ESM (@tn-figueiredo/social) não carregam pelo tsx em CJS.
 // Nunca imprime escolha_por; não cria nem revoga chave.
-import { spawnSync } from 'node:child_process'
-import path from 'node:path'
-
-const RAIZ = process.cwd()
-if (!process.env.TSX_TSCONFIG_PATH) {
-  const r = spawnSync('npx', ['tsx', ...process.argv.slice(1)], {
-    stdio: 'inherit',
-    cwd: process.cwd(),
-    env: { ...process.env, TSX_TSCONFIG_PATH: path.join(RAIZ, 'apps/web/tsconfig.json') },
-  })
-  process.exit(r.status ?? 1)
-}
-
 const PREFIXO = '[prova M7b]'
 const NOMES = [`${PREFIXO} descartável 1`, `${PREFIXO} descartável 2`, `${PREFIXO} descartável 3`] as const
 const TITULOS = [
