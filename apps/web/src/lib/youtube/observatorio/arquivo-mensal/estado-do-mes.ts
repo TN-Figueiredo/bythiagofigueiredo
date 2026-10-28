@@ -24,6 +24,8 @@ export interface LinhaDoMes {
   info?: string | null
   /** O encaixe da M6: o botão (Sair do banco, Liberar, Trazer de volta) entra aqui; a M5 nunca o preenche. */
   acoes?: ReactNode
+  /** Para o encaixe da M6 (D-M5-14): a tabela cuja saída o botão comanda, o mês ('AAAA-MM-01'), onde o mês está agora e a espera da política em dias. A M5 só os carrega. */
+  tabela?: string; mes?: string; fora?: 'online' | 'destacado' | 'descartado'; esperaDias?: number | null
 }
 /** Um mês que já saiu do banco e só aparece dentro do `<details>` do ano (A2, Logan r1 / Naksu N1). `verificadoEm`: ms, ou nulo se nunca conferido. */
 export interface MesNoArquivo { mesNome: string; verificadoEm: number | null }
@@ -35,6 +37,8 @@ export interface Topo { texto: string; forma: Forma; partes?: ParteDaFrase[] }
 export const ancoraDoMes = (chave: string): string => 'mes-' + chave.replace(/[^a-z0-9-]/gi, '-')
 export interface Casa { estado: 'responde' | 'nao_respondeu' | 'nunca_deu_sinal' | 'programa_sem_sinal' | 'programa_atrasado' | 'nas_fora' | 'nas_cheio' | 'nas_sem_verificar' | 'nao_medida'; desde: number | null; forma: Forma; frase: string }
 export interface ModeloPagina {
+  /** O dia de hoje em SP ('AAAA-MM-DD'), do relógio do banco; o encaixe da M6 o usa nas datas. Ausente nos modelos sem leitura. */
+  hojeSP?: string
   resumo: Topo; /** "Além disso: …": o que perdeu o cabeçalho para a casa, nunca some (A1c). */ alem?: Topo | null; casa: Casa; tipos: CartaoDoTipo[]; problemas: LinhaDeProblema[]; mesesAFrente: { tabela: string; frase: string; forma: Forma }[]
   teste: null | { faixa: string; linhas: LinhaDoMes[]; encerradoEm: number | null }; ligado: boolean
 }
@@ -336,7 +340,8 @@ function linhaDeTeste(t: PaginaLida['teste']['meses'][number]): LinhaDoMes {
     : t.nas_attested_at ? 'No NAS (dado de teste)' : t.sealed_at ? 'Copiado (dado de teste)' : 'Em teste'
   // a régua acompanha o estágio, com as mesmas réguas dos meses reais (Gio D1: antes era toda pontilhada)
   const regua = t.dropped_at ? rArq() : t.detached_at ? r2('visto', 'pontilhado') : t.b2_attested_at ? r5(['visto', 'visto']) : t.nas_attested_at ? r5(['visto']) : r5([])
-  return { chave: 'ensaio:' + t.month, mesNome: nomeDoMes(t.month), regua, frase, secundaria: null, gravidade: 'nenhuma', sobeAoTopo: false }
+  return { chave: 'ensaio:' + t.month, mesNome: nomeDoMes(t.month), regua, frase, secundaria: null, gravidade: 'nenhuma', sobeAoTopo: false,
+    tabela: 'obs_archive_rehearsal', mes: t.month, fora: t.dropped_at ? 'descartado' : t.detached_at ? 'destacado' : 'online', esperaDias: null }
 }
 
 /** r5 (Logan r2 A4): o vermelho `b2_atrasado: N meses…` não traz o mês. Se, nos dados da página, só um mês selado sem B2 passou de 7 dias, ele é nomeado com a classe; senão a frase genérica fica (nada inventado). */
@@ -350,6 +355,9 @@ function nomearB2Atrasado(l: LinhaDeProblema, p: PaginaLida, agora: number): Lin
   if (cand.size !== 1) return l
   return { ...l, frase: `O mês copiado de ${[...cand.values()][0]} ainda não chegou ao B2 depois de 7 dias. Nada se perde: a cópia do NAS continua. Veja a linha marcada.` }
 }
+
+/** A tabela cuja saída o botão de cada tipo comanda (a série sai pela diária; a horária pela dela). */
+const TABELA_DA_SAIDA_DO_TIPO: Record<'horaria' | 'serie' | 'texto', string | undefined> = { horaria: 'competitor_video_hourly', serie: 'competitor_video_daily', texto: undefined }
 
 export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): ModeloPagina {
   if (!o.arquivoLigado) return modeloDesligado()
@@ -375,6 +383,7 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
       const secundaria = [res.secundaria ?? null, rows.some(x => x.reattach_out_of_order) ? FRASE_FORA_DE_ORDEM : null].filter((x): x is string => x !== null).join(' ') || null
       const linha: LinhaDoMes = {
         chave: `${tipo}:${mes}`, mesNome: nomeDoMes(mes), regua: res.regua, frase: res.frase, secundaria, gravidade: res.gravidade,
+        tabela: TABELA_DA_SAIDA_DO_TIPO[tipo], mes, fora: r.dropped_at ? 'descartado' : r.detached_at ? 'destacado' : 'online', esperaDias: cl.wait,
         sobeAoTopo: res.gravidade === 'ambar' || res.gravidade === 'vermelho', ...(res.acao ? { acao: res.acao } : {}), ...(res.info ? { info: res.info } : {}),
       }
       return { linha, grupo: res.grupo, mes, online, verificadoEm: r.dropped_at ? tms(r.nas_attested_at) : null }
@@ -432,5 +441,5 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
   }
   const t = p.teste
   const teste = t.aberto || t.encerrado_em ? { faixa: t.aberto ? FAIXA_DO_TESTE : `Dado de teste encerrado${tms(t.encerrado_em) ? ` em ${dmy(tms(t.encerrado_em)!)}` : ''}.`, linhas: t.meses.map(linhaDeTeste), encerradoEm: tms(t.encerrado_em) } : null
-  return { resumo, alem, casa, tipos, problemas, mesesAFrente: mesesAFrente(p), teste, ligado: true }
+  return { hojeSP: p.hoje, resumo, alem, casa, tipos, problemas, mesesAFrente: mesesAFrente(p), teste, ligado: true }
 }

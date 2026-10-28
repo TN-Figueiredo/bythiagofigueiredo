@@ -92,3 +92,13 @@
 .arq-fr-forma a,.arq-resumo-geral a,.arq-alem a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .arq-prob a{margin-left:6px;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 @media (pointer:coarse){.arq-prob a{display:inline-flex;align-items:center;min-height:44px}}
+
+/* peças de saída (M6a, Tarefa 12b): diálogo e mensagens, só com os tokens da página; sem color-mix */
+.arq-dlg{flex:1 1 100%;margin:8px 0 0;padding:14px 16px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);line-height:1.5}
+.arq-dlg h2{margin:0 0 8px;font:600 15px/1.35 Inter,system-ui,sans-serif}
+.arq-dlg p{margin:0 0 8px;font-size:13.5px}
+.arq-dlg .arq-btn{margin-right:8px}
+.arq-saida-msg{flex:1 1 100%;margin:8px 0 0;padding:8px 12px;border-radius:6px;border:1px solid var(--border);font-size:13.5px;line-height:1.5}
+.arq-saida-msg.ok{border-color:var(--success);color:var(--text)}
+.arq-saida-msg.aviso{border-color:var(--warning);background:var(--warn-subtle);color:var(--text)}
+.arq-saida-msg.erro{border-color:var(--danger);background:var(--danger-subtle);color:var(--danger-text)}

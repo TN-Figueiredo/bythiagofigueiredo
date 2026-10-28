@@ -16,6 +16,10 @@ export type AcoesDaSaida = {
 }
 type Props = {
   tabela: string; mes: string; estado: EstadoDoMes | null; hojeSP: string; pctDoBanco: number | null; ehAdmin: boolean
+  /** A espera da política da classe, em dias (`wait_days`, lida pela página). Nulo = a página não a trouxe: o diálogo não inventa uma data. */
+  esperaDias?: number | null
+  /** O que foi contado AGORA no banco, quando o dado existir. O `exit_check` só confere os portões e não conta canais nem registros: sem a contagem, "não medido" (nunca 0). A conferência com números é "Ver o que sairia". */
+  contado?: { canais: number | null; registros: number | null } | null
   acoes: AcoesDaSaida
   /** Só o bloco de ação, sem a frase da linha (a M5 já a escreve; Tarefa 12b). */
   soBloco?: boolean
@@ -23,15 +27,13 @@ type Props = {
 type Fase = 'simulando' | 'tirando' | 'liberando' | 'trazendo'
 type Aviso = { tom: 'ok' | 'aviso' | 'erro'; texto: string }
 
-/** O dia em que o espaço poderá ser liberado se o dono tirar hoje: a espera de 7 dias do mockup (o banco confirma na hora com `liberar_a_partir`). */
-const DIAS_ATE_LIBERAR = 7
 const maisDias = (dia: string, n: number): string => new Date(Date.parse(`${dia}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
 
 function Dialogo({ titulo, corpo, rotuloOk, onOk, onCancela }: { titulo: string; corpo: ReactElement; rotuloOk: string; onOk: () => void; onCancela: () => void }): ReactElement {
   const cancelar = useRef<HTMLButtonElement>(null)
   useEffect(() => { cancelar.current?.focus() }, [])
   return (
-    <div role="dialog" aria-modal="true" aria-label={titulo} onKeyDown={e => { if (e.key === 'Escape') onCancela() }}>
+    <div className="arq-dlg" role="dialog" aria-modal="true" aria-label={titulo} onKeyDown={e => { if (e.key === 'Escape') onCancela() }}>
       <h2>{titulo}</h2>
       {corpo}
       <button type="button" className="arq-btn" onClick={onOk}>{rotuloOk}</button>
@@ -41,10 +43,10 @@ function Dialogo({ titulo, corpo, rotuloOk, onOk, onCancela }: { titulo: string;
 }
 
 function Mensagem({ a }: { a: Aviso }): ReactElement {
-  return a.tom === 'erro' ? <p role="alert">{a.texto}</p> : <p role="status">{a.texto}</p>
+  return a.tom === 'erro' ? <p className="arq-saida-msg erro" role="alert">{a.texto}</p> : <p className={`arq-saida-msg ${a.tom}`} role="status">{a.texto}</p>
 }
 
-export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin, acoes, soBloco }: Props): ReactElement {
+export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin, esperaDias = null, contado = null, acoes, soBloco }: Props): ReactElement {
   const [fase, setFase] = useState<Fase | null>(null)
   const [dialogo, setDialogo] = useState<'tirar' | 'liberar' | null>(null)
   const [aviso, setAviso] = useState<Aviso | null>(null)
@@ -102,7 +104,13 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
   // online (T1/T3)
   const faltas = e.faltam
   const tirarOk = faltas.length === 0
-  const quando = ddmmaaaa(maisDias(hojeSP, DIAS_ATE_LIBERAR))
+  // a data vem da política da classe; o banco confirma na hora com `liberar_a_partir` depois de tirar
+  const quando = esperaDias === null ? null : ddmmaaaa(maisDias(hojeSP, esperaDias))
+  const nCanais = contado?.canais ?? null
+  const nRegistros = contado?.registros ?? null
+  const contadoAgora = nCanais === null || nRegistros === null
+    ? 'não medido. A contagem é refeita na hora de tirar, e “Ver o que sairia” mostra os números antes.'
+    : `${nCanais.toLocaleString('pt-BR')} ${nCanais === 1 ? 'canal' : 'canais'}, ${nRegistros.toLocaleString('pt-BR')} registros de ${nome}, conferidos contra o NAS e o B2.`
   return (
     <div aria-busy={ocupado}>
       {faltas.length > 0 ? (
@@ -136,9 +144,10 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
           onCancela={() => setDialogo(null)} onOk={() => { setDialogo(null); void rodar('tirar', 'tirando', acoes.tirar) }}
           corpo={(
             <>
+              <p><strong>Contado agora, no banco:</strong> {contadoAgora}</p>
               <p><strong>Continua:</strong> o mês inteiro, no NAS e no B2. <strong>Para ver de novo:</strong> peça o período em “Ver antigo” (números por mês).</p>
               {e.dois_passos
-                ? <p><strong>Em dois passos:</strong> hoje sai das telas; a partir de {quando} você pode liberar o espaço. Dá para trazer de volta a qualquer momento, até você liberar o espaço. <strong>Enquanto o espaço não for liberado, não dá para remover canal nem apagar vídeo da fila “Saíram do YouTube”.</strong></p>
+                ? <p><strong>Em dois passos:</strong> hoje sai das telas; {quando === null ? 'o espaço só pode ser liberado depois da espera da política (a data aparece na linha do mês).' : <>a partir de {quando} você pode liberar o espaço.</>} Dá para trazer de volta a qualquer momento, até você liberar o espaço. <strong>Enquanto o espaço não for liberado, não dá para remover canal nem apagar vídeo da fila “Saíram do YouTube”.</strong></p>
                 : <p><strong>Não volta ao banco por este botão.</strong> Daqui em diante a saída é em um passo só e não há “trazer de volta”. Em “Views por dia”, as primeiras horas ainda podem voltar; os views por dia, não.</p>}
             </>
           )}

@@ -101,3 +101,26 @@ describe('T12: causa, não medido, partição ausente, nota dos descartes', () =
     expect(screen.getByText(/descartes feitos à mão nesta classe/)).toBeTruthy()
   })
 })
+
+describe('T12b: o diálogo de tirar', () => {
+  const abrir = (extra: Record<string, unknown>) => {
+    render(<PecaTirarMes tabela="competitor_video_daily" mes="2027-10-01" estado={ONLINE} hojeSP="2028-05-02" pctDoBanco={null} ehAdmin acoes={acoes()} {...extra} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Tirar outubro de 2027 do banco online' }))
+    return screen.getByRole('dialog').textContent ?? ''
+  }
+  it('sem contagem: "Contado agora, no banco" diz não medido, nunca 0', () => {
+    const t = abrir({ contado: null })
+    expect(t).toContain('Contado agora, no banco:'); expect(t).toContain('não medido'); expect(t).not.toMatch(/ 0 (canais|registros)/)
+  })
+  it('com contagem: mostra canais e registros', () => {
+    const t = abrir({ contado: { canais: 45, registros: 1234567 } })
+    expect(t).toContain('45 canais'); expect(t).toContain('1.234.567 registros')
+  })
+  it('a data de liberar vem da espera da política; sem espera, não inventa data', () => {
+    expect(abrir({ esperaDias: 9 })).toContain('a partir de 11/05/2028')
+  })
+  it('sem espera conhecida, o diálogo não traz data', () => {
+    const t = abrir({ esperaDias: null })
+    expect(t).not.toContain('a partir de'); expect(t).toContain('depois da espera da política')
+  })
+})

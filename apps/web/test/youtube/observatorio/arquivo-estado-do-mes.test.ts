@@ -264,3 +264,21 @@ describe('o que acontece quando o dado não existe (acréscimos desta execução
     expect(montarPagina(p, liga).tipos[0]!.anosNoArquivo).toMatchObject([{ ano: 2027, meses: 1, todosConferidos: true }]) // o vermelho vai ao topo, não ao grupo do ano
   })
 })
+
+describe('campos do encaixe da M6 (D-M5-14)', () => {
+  it('cada linha leva tabela, mês, onde está e a espera da política; o modelo leva o dia de hoje do banco', () => {
+    const m = montarPagina(paginaVazia({ meses: [mesCom({ nasHorasAtras: 3 }), mesCom({ classe: 'horaria', nasHorasAtras: 3 })] }), { arquivoLigado: true })
+    expect(m.hojeSP).toBe('2028-05-03')
+    const serie = m.tipos.find(t => t.tipo === 'serie')!.linhas[0]!
+    const hora = m.tipos.find(t => t.tipo === 'horaria')!.linhas[0]!
+    expect(serie).toMatchObject({ tabela: 'competitor_video_daily', fora: 'online', esperaDias: 7 })
+    expect(serie.mes).toMatch(/^\d{4}-\d{2}-01$/)
+    expect(hora.tabela).toBe('competitor_video_hourly')
+  })
+  it('mês destacado e descartado saem com fora certo; modelo desligado não leva hojeSP', () => {
+    const m = montarPagina(paginaVazia({ meses: [mesCom({ destacadoHa: 2 }), mesCom({ mesNum: 2, descartadoHa: 20 })] }), { arquivoLigado: true })
+    const fora = [...m.tipos.flatMap(t => t.linhas)].map(l => l.fora)
+    expect(fora).toContain('destacado')
+    expect(modeloDesligado().hojeSP).toBeUndefined()
+  })
+})
