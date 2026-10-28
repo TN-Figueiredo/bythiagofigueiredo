@@ -741,5 +741,198 @@ end $$;
 revoke all on function public.obs_archive_reattach_month(uuid, text, date, uuid, boolean) from public, anon, authenticated;
 grant execute on function public.obs_archive_reattach_month(uuid, text, date, uuid, boolean) to service_role;
 -- M6 PARTE 5: descartar e a composta
+create or replace function public.obs_archive_discard_core(p_site uuid, p_class text, p_table text, p_month date, p_rel regclass, p_by uuid, p_mode text)
+returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' as $$
+declare v_l bigint; v_b bigint; v_sites uuid[];
+begin
+  execute pg_catalog.format('select count(*) from %s', p_rel) into v_l;
+  v_b := pg_catalog.pg_total_relation_size(p_rel);
+  execute pg_catalog.format('select array_agg(distinct ch.site_id) from %s t join public.competitor_videos v on v.id = t.video_id
+                               join public.competitor_channels ch on ch.id = v.competitor_channel_id', p_rel) into v_sites;
+  execute pg_catalog.format('drop table %s', p_rel);
+  update public.obs_archive_months
+     set dropped_at = public.obs_archive_agora(), dropped_by = p_by, drop_mode = p_mode,
+         rows_dropped = case when site_id = p_site then v_l else rows_dropped end,
+         bytes_freed = case when site_id = p_site then v_b else 0 end           -- decisão 6: os bytes só na linha de quem tirou
+   where class = p_class and table_name = p_table and month = p_month and dropped_at is null
+     and (site_id = p_site or site_id = any(coalesce(v_sites, '{}'::uuid[])));
+  return jsonb_build_object('linhas', v_l, 'bytes', v_b);
+end $$;
+revoke all on function public.obs_archive_discard_core(uuid, text, text, date, regclass, uuid, text) from public, anon, authenticated, service_role;
+
+-- O que o automático faz com uma resposta (m-7: TODA recusa, inclusive as que voltam antes do portão). Fora do automático, ou em simulação, devolve a resposta.
+-- A função obs_archive_switch_after_refusal é da PARTE 7 [M6b]: na M6a não existe e só o `ok` zera os contadores.
+create or replace function public.obs_archive_after_auto(p_site uuid, p_class text, p_month date, p_resp jsonb, p_mode text, p_dry_run boolean) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+begin
+  if p_mode <> 'automatico' or p_dry_run then return p_resp; end if;
+  if p_resp->>'status' = 'ok' then
+    update public.obs_archive_switch set refusals_nas = 0, refusals_b2 = 0 where site_id = p_site and class = p_class;
+  elsif p_resp->>'status' = 'recusado' and pg_catalog.to_regprocedure('public.obs_archive_switch_after_refusal(uuid, text, date, jsonb)') is not null then
+    execute 'select public.obs_archive_switch_after_refusal($1, $2, $3, $4)' using p_site, p_class, p_month, p_resp;
+  end if;
+  return p_resp;
+end $$;
+revoke all on function public.obs_archive_after_auto(uuid, text, date, jsonb, text, boolean) from public, anon, authenticated, service_role;
+
+create or replace function public.obs_archive_discard_month(p_site uuid, p_table text, p_month date, p_by uuid,
+                                                            p_mode text default 'clique', p_dry_run boolean default true)
+returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' as $$
+declare
+  v_class text := public.obs_archive_exit_class(p_table);
+  v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
+  pol record; m public.obs_archive_months; v_rel regclass; f jsonb; t jsonb; v_lib date; r jsonb;
+begin
+  if v_class is null or v_mae is null or p_mode not in ('clique', 'automatico') then return jsonb_build_object('status', 'recusado', 'codigo', 'tabela_invalida'); end if;
+  select * into pol from public.obs_archive_policy() p where p.class = v_class and p.table_name = p_table;
+  -- (1) leituras e portão SEM trava
+  select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+  if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
+  if m.detached_at is null then return jsonb_build_object('status', 'recusado', 'codigo', 'nao_destacado'); end if;
+  v_rel := public.obs_archive_part_rel(p_table, p_month, true);
+  if v_rel is null then return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', 'particao_ausente'), p_mode, p_dry_run); end if;
+  v_lib := (m.detached_at at time zone 'America/Sao_Paulo')::date + pol.wait_days;     -- dias reais de SP (ensaio: 1)
+  if public.obs_archive_hoje_sp() < v_lib then
+    return jsonb_build_object('status', 'recusado', 'codigo', 'cedo_demais', 'liberar_a_partir', v_lib);
+  end if;
+  if cardinality(public.obs_archive_invariante_faltam()) > 0 then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', 'gatilho_ausente'), p_mode, p_dry_run);
+  end if;
+  -- I3: a mãe ganhou ou perdeu coluna depois do destaque: a cópia no B2 não tem a forma de hoje; apagar a tabela destacada seria perder a única cópia na forma nova.
+  if public.obs_archive_schema_fp(v_rel) is distinct from public.obs_archive_schema_fp(v_mae) then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', 'esquema_mudou'), p_mode, p_dry_run);
+  end if;
+  f := public.obs_archive_gate(p_site, v_class, p_table, p_month, p_by, p_mode, v_rel, array[1, 3, 4, 5, 6, 7, 10, 11, 13], p_dry_run);
+  if jsonb_array_length(f) > 0 then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'faltam', f), p_mode, p_dry_run);
+  end if;
+  if p_dry_run then
+    return jsonb_build_object('status', 'simulado', 'linhas', (public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel))->'linhas',
+                              'bytes', pg_catalog.pg_total_relation_size(v_rel));
+  end if;
+
+  -- (2) o registro primeiro (ordem da M3b); (3) a tabela destacada
+  perform pg_catalog.set_config('lock_timeout', '3s', true);
+  begin
+    perform 1 from public.obs_archive_months x where x.class = v_class and x.table_name = p_table and x.month = p_month order by x.site_id for update;
+    execute pg_catalog.format('lock table %s in access exclusive mode', v_rel);
+  exception
+    when undefined_table then   -- outra chamada apagou antes: a que perde a corrida acha ja_descartado
+      select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+      return jsonb_build_object('status', 'recusado', 'codigo', case when m.dropped_at is not null then 'ja_descartado' else 'particao_ausente' end, 'descartado_em', m.dropped_at);
+    when lock_not_available or deadlock_detected then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado');
+  end;
+
+  -- (4) sob a trava: relê e reavalia o barato (estado, prazo, atestação do B2, expurgo pendente), depois a contagem com o resumo da linha inteira
+  select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+  if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
+  if m.detached_at is null then return jsonb_build_object('status', 'recusado', 'codigo', 'nao_destacado'); end if;
+  if public.obs_archive_hoje_sp() < (m.detached_at at time zone 'America/Sao_Paulo')::date + pol.wait_days then
+    return jsonb_build_object('status', 'recusado', 'codigo', 'cedo_demais', 'liberar_a_partir', (m.detached_at at time zone 'America/Sao_Paulo')::date + pol.wait_days);
+  end if;
+  f := public.obs_archive_gate(p_site, v_class, p_table, p_month, p_by, p_mode, null, array[1, 3, 5, 6, 7, 10, 11], false);
+  if jsonb_array_length(f) > 0 then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'faltam', f), p_mode, false);
+  end if;
+  t := public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel, true);
+  if t->>'codigo' is not null then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', t->>'codigo'), p_mode, false);
+  end if;
+  if not public.obs_archive_outros_sites_ok(v_class, p_table, p_month, t) then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', 'outro_site_na_particao'), p_mode, false);
+  end if;
+  t := public.obs_archive_discard_core(p_site, v_class, p_table, p_month, v_rel, p_by, p_mode);
+  r := jsonb_build_object('status', 'ok', 'linhas', t->'linhas', 'bytes', t->'bytes', 'descartado_em', public.obs_archive_agora());
+  return public.obs_archive_after_auto(p_site, v_class, p_month, r, p_mode, false);
+end $$;
+revoke all on function public.obs_archive_discard_month(uuid, text, date, uuid, text, boolean) from public, anon, authenticated;
+grant execute on function public.obs_archive_discard_month(uuid, text, date, uuid, text, boolean) to service_role;
+
+-- Em um passo: destaque e descarte na MESMA transação (nunca abre a janela de "trazer de volta"); só depois de 3 descartes com linha DA TABELA.
+create or replace function public.obs_archive_drop_month(p_site uuid, p_table text, p_month date, p_by uuid,
+                                                         p_mode text default 'clique', p_dry_run boolean default true)
+returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' as $$
+declare
+  v_class text := public.obs_archive_exit_class(p_table);
+  v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
+  m public.obs_archive_months; v_rel regclass; v_nome text; f jsonb; t jsonb; r jsonb; v_desc integer; v_fk record; v_sites uuid[];
+begin
+  if v_class is null or v_mae is null or p_mode not in ('clique', 'automatico') then
+    return public.obs_archive_after_auto(p_site, coalesce(v_class, ''), p_month, jsonb_build_object('status', 'recusado', 'codigo', 'tabela_invalida'), p_mode, p_dry_run);
+  end if;
+  -- (1) leituras e portão completo SEM trava
+  select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+  if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
+  if m.detached_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_destacado'); end if;
+  select count(*) into v_desc from public.obs_archive_months x
+   where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.dropped_at is not null and coalesce(x.rows_dropped, 0) > 0;
+  if v_desc < 3 then return jsonb_build_object('status', 'recusado', 'codigo', 'dois_passos_obrigatorios', 'descartes', v_desc); end if;
+  v_nome := obs_part.nome_da_particao(p_table, p_month);
+  v_rel := public.obs_archive_part_rel(p_table, p_month, false);
+  if v_rel is null then return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', 'particao_ausente'), p_mode, p_dry_run); end if;
+  if cardinality(public.obs_archive_invariante_faltam()) > 0 then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', 'gatilho_ausente'), p_mode, p_dry_run);
+  end if;
+  f := public.obs_archive_gate(p_site, v_class, p_table, p_month, p_by, p_mode, v_rel, array[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 20], p_dry_run);
+  if jsonb_array_length(f) > 0 then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'faltam', f), p_mode, p_dry_run);
+  end if;
+  if p_dry_run then
+    return jsonb_build_object('status', 'simulado', 'linhas', (public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel))->'linhas',
+                              'bytes', pg_catalog.pg_total_relation_size(v_rel));
+  end if;
+
+  -- (2) o registro, (3) vídeos, mãe, partição
+  perform pg_catalog.set_config('lock_timeout', '3s', true);
+  begin
+    perform 1 from public.obs_archive_months x where x.class = v_class and x.table_name = p_table and x.month = p_month order by x.site_id for update;
+    lock table public.competitor_videos in share row exclusive mode;
+    execute pg_catalog.format('lock table %s in access exclusive mode', v_mae);
+    execute pg_catalog.format('lock table %s in access exclusive mode', v_rel);
+  exception
+    when undefined_table then
+      select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+      return jsonb_build_object('status', 'recusado', 'codigo', case when m.dropped_at is not null then 'ja_descartado' when m.detached_at is not null then 'ja_destacado' else 'particao_ausente' end);
+    when lock_not_available or deadlock_detected then
+      return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado');   -- ocupado não desarma (Tarefa 7b)
+  end;
+
+  -- (4) sob a trava: relê e reavalia (C-2): estado, 3 descartes, partição ainda filha da mãe, condições baratas (b2_withdrawn_at gravado por outra conexão, etc.)
+  select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+  if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
+  if m.detached_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_destacado'); end if;
+  if not exists (select 1 from pg_catalog.pg_inherits i where i.inhparent = v_mae and i.inhrelid = v_rel) then
+    return jsonb_build_object('status', 'recusado', 'codigo', 'ja_destacado');
+  end if;
+  f := public.obs_archive_gate(p_site, v_class, p_table, p_month, p_by, p_mode, null, array[1, 2, 3, 5, 6, 7, 10, 11, 20], false);
+  if jsonb_array_length(f) > 0 then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'faltam', f), p_mode, false);
+  end if;
+  -- C-1: UMA varredura com o resumo da linha inteira contra o que a conferência guardou; sites vêm dela (m-5)
+  t := public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel, true);
+  if t->>'codigo' is not null then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', t->>'codigo'), p_mode, false);
+  end if;
+  if not public.obs_archive_outros_sites_ok(v_class, p_table, p_month, t) then
+    return public.obs_archive_after_auto(p_site, v_class, p_month, jsonb_build_object('status', 'recusado', 'codigo', 'outro_site_na_particao'), p_mode, false);
+  end if;
+  v_sites := array[p_site] || coalesce((select array_agg(x::uuid) from jsonb_array_elements_text(t->'sites') x), '{}'::uuid[]);
+
+  execute pg_catalog.format('alter table %s detach partition %s', v_mae, v_rel);
+  for v_fk in select c.conname from pg_catalog.pg_constraint c where c.conrelid = v_rel and c.contype = 'f' loop
+    execute pg_catalog.format('alter table %s drop constraint %I', v_rel, v_fk.conname);
+  end loop;
+  -- m-2: o destaque em todos os sites da partição, como no detach (o descarte já grava dropped_at em todos)
+  update public.obs_archive_months set detached_at = public.obs_archive_agora(), detached_by = p_by
+   where class = v_class and table_name = p_table and month = p_month and site_id = any(v_sites);
+  if not found then
+    raise exception 'registro_ausente' using errcode = 'P0001';   -- o portão exige selo; sem linha no registro é defeito (aborta tudo)
+  end if;
+  t := public.obs_archive_discard_core(p_site, v_class, p_table, p_month, v_rel, p_by, p_mode);
+  r := jsonb_build_object('status', 'ok', 'linhas', t->'linhas', 'bytes', t->'bytes', 'descartado_em', public.obs_archive_agora());
+  return public.obs_archive_after_auto(p_site, v_class, p_month, r, p_mode, false);
+end $$;
+revoke all on function public.obs_archive_drop_month(uuid, text, date, uuid, text, boolean) from public, anon, authenticated;
+grant execute on function public.obs_archive_drop_month(uuid, text, date, uuid, text, boolean) to service_role;
 -- M6 PARTE 6 [M6a]: contadores do interruptor, simulação vista, em trânsito, vermelhos da saída e encerrar o dado de teste
 -- M6 PARTE 7 [M6b]: o interruptor (estado, ligar, desligar, vigia), os candidatos, o vermelho do desarme e a próxima saída
