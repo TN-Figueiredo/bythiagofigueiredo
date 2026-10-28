@@ -19,6 +19,7 @@ import { pedirRemocao, cancelarRemocao, apagarCanalSemGuardar } from '@/lib/yout
 import { lerImpactoDoArquivo, type ImpactoDoArquivo } from '@/lib/youtube/observatorio/arquivo/impacto-arquivo'
 import { lerCapacidades } from '@/lib/youtube/observatorio/arquivo-mensal/capacidades'
 import { FRASES_E10 } from '@/lib/youtube/observatorio/arquivo/codigos'
+import { lerEmTransito } from '@/lib/youtube/observatorio/arquivo-mensal/saida'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 import { createObservatory } from '@/lib/youtube/observatorio'
@@ -193,7 +194,9 @@ export async function addChannelFromCanais(input: { channel: string; niche: Nich
 }
 
 /** O que as 3 actions de remoção devolvem: a recusa traz o CÓDIGO e a frase do catálogo (nunca texto do banco). */
-export type RespostaRemocao<T> = ({ ok: true } & T) | { ok: false; codigo: CodigoTela; frase: string }
+/** M6a T13: os meses fora das telas que motivaram a recusa `mes_destacado_em_transito` (para o diálogo montar D7r). */
+export interface MesForaDaRecusa { meses: 1 | 2; nomes: string[]; liberarAPartir: string }
+export type RespostaRemocao<T> = ({ ok: true } & T) | { ok: false; codigo: CodigoTela; frase: string; mesFora?: MesForaDaRecusa }
 
 const FRASE_LEITURA = 'Não deu para conferir o canal agora. Nada mudou. Tente de novo.'
 const recusa = (codigo: CodigoTela, frase: string): { ok: false; codigo: CodigoTela; frase: string } => ({ ok: false, codigo, frase })
@@ -225,6 +228,25 @@ async function travaDoSaiu(supabase: ReturnType<typeof getSupabaseServiceClient>
     return recusa('leitura', FRASE_LEITURA)
   }
   return null
+}
+
+/**
+ * M6a T13: a recusa que vem da F1. Se o código é `mes_destacado_em_transito`, lê os meses em trânsito e devolve `mesFora` junto; a leitura que falha
+ * ou volta vazia devolve só a frase (o diálogo mostra a forma curta, nunca "pode remover"). Não grava nada: a recusa do banco já foi a última palavra.
+ */
+async function recusaDaF1(supabase: ReturnType<typeof getSupabaseServiceClient>, siteId: string, codigo: CodigoTela, frase: string): Promise<{ ok: false; codigo: CodigoTela; frase: string; mesFora?: MesForaDaRecusa }> {
+  const base = recusa(codigo, frase)
+  if (codigo !== 'mes_destacado_em_transito') return base
+  try {
+    const transito = await lerEmTransito(supabase, siteId)
+    if (!transito || transito.length === 0) return base
+    const nomes = [...new Set(transito.map(t => t.mes))].sort().slice(0, 2)
+    const liberarAPartir = transito.map(t => t.liberar_a_partir).sort()[0]
+    if (!liberarAPartir) return base
+    return { ...base, mesFora: { meses: nomes.length === 2 ? 2 : 1, nomes, liberarAPartir } }
+  } catch {
+    return base
+  }
 }
 
 /**
@@ -260,7 +282,7 @@ export async function pedirRemocaoCanal(id: string): Promise<RespostaRemocao<{ j
   if (trava) return trava
   try {
     const r = await pedirRemocao(supabase, { siteId: g.siteId, canalId: id, actorId: g.userId, motivo: MOTIVO.guardar })
-    return r.ok ? { ok: true, jaPedido: r.jaPedido } : recusa(r.codigo, r.frase)
+    return r.ok ? { ok: true, jaPedido: r.jaPedido } : await recusaDaF1(supabase, g.siteId, r.codigo, r.frase)
   } finally {
     soltarCache(g.siteId)
   }
@@ -273,7 +295,7 @@ export async function desfazerRemocaoCanal(id: string): Promise<RespostaRemocao<
   const supabase = getSupabaseServiceClient()
   try {
     const r = await cancelarRemocao(supabase, { siteId: g.siteId, canalId: id, actorId: g.userId })
-    return r.ok ? { ok: true, naoPedido: r.naoPedido, despausado: r.despausado } : recusa(r.codigo, r.frase)
+    return r.ok ? { ok: true, naoPedido: r.naoPedido, despausado: r.despausado } : await recusaDaF1(supabase, g.siteId, r.codigo, r.frase)
   } finally {
     soltarCache(g.siteId)
   }
@@ -292,7 +314,7 @@ export async function apagarCanalSemGuardarAction(
   try {
     // o nome vai como foi digitado: quem apara e normaliza é o banco (`obs_nome_normalizado`)
     const r = await apagarCanalSemGuardar(supabase, { siteId: g.siteId, canalId: id, actorId: g.userId, nomeDigitado: String(nomeDigitado ?? ''), motivo: MOTIVO.apagar })
-    if (!r.ok) return recusa(r.codigo, r.frase)
+    if (!r.ok) return recusaDaF1(supabase, g.siteId, r.codigo, r.frase)
     return { ok: true, videos: r.videos, ...(r.leituras !== undefined ? { leituras: r.leituras } : {}), ...(r.registrosDiarios !== undefined ? { registrosDiarios: r.registrosDiarios } : {}), ...(r.imagensRestantes !== undefined ? { imagensRestantes: r.imagensRestantes } : {}) }
   } finally {
     soltarCache(g.siteId)

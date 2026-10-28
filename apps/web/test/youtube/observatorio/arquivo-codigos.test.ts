@@ -9,7 +9,7 @@ import { codigoE10, FRASES_E10, type CodigoE10 } from '@/lib/youtube/observatori
 import { RULES } from '@/lib/youtube/observatorio/rules'
 
 const TODOS = Object.keys(FRASES_E10) as CodigoE10[]
-const DO_BANCO = TODOS.filter(c => !['demorou_demais', 'schema_ausente', 'inesperado', 'apagar_com_arquivo'].includes(c))
+const DO_BANCO = TODOS.filter(c => !['demorou_demais', 'schema_ausente', 'inesperado', 'apagar_com_arquivo', 'mes_destacado_em_transito'].includes(c))
 
 describe('A5 E10 T5: codigos', () => {
   it('um teste por código: a frase vem do catálogo e nenhuma parte da mensagem do banco aparece', () => {
@@ -42,6 +42,14 @@ describe('A5 E10 T5: codigos', () => {
     expect(codigoE10(undefined)).toBe('inesperado')
   })
 
+  it('M6a T13 (I6, Phil): mes_destacado_em_transito sem o prefixo E10 é um código do catálogo, com a frase da tela', () => {
+    expect(codigoE10({ code: 'P0001', message: 'mes_destacado_em_transito' })).toBe('mes_destacado_em_transito')
+    expect(codigoE10({ code: 'P0001', message: 'ERROR: mes_destacado_em_transito' })).toBe('mes_destacado_em_transito')
+    expect(FRASES_E10.mes_destacado_em_transito).toBe('Não dá para remover canal agora: o mês saiu das telas.')
+    expect(codigoE10({ code: 'P0001', message: 'outra_coisa' })).toBe('inesperado')
+    expect(codigoE10({ code: 'P0001', message: 'mes_destacado_em_transito_x' })).toBe('inesperado')
+  })
+
   it('função ausente é schema_ausente (PGRST202 e 42883), mesmo com mensagem E10', () => {
     expect(codigoE10({ code: 'PGRST202', message: 'Could not find the function' })).toBe('schema_ausente')
     expect(codigoE10({ code: '42883', message: 'function does not exist' })).toBe('schema_ausente')
@@ -70,8 +78,8 @@ describe('A5 E10 T5: codigos', () => {
     }
   })
 
-  it('toda frase é uma frase: começa em maiúscula, termina em ponto, e o catálogo cobre os 26 códigos', () => {
-    expect(TODOS).toHaveLength(26)
+  it('toda frase é uma frase: começa em maiúscula, termina em ponto, e o catálogo cobre os 27 códigos', () => {
+    expect(TODOS).toHaveLength(27)
     for (const c of TODOS) {
       expect(FRASES_E10[c], c).toMatch(/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/)
       expect(FRASES_E10[c], c).toMatch(/[.]$/)

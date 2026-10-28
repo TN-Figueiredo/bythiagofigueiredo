@@ -20,6 +20,8 @@ let negado: { ok: false; error: string } | null = null
 let canal: { missing_since: string | null } | null = { missing_since: null }
 let esperando = { videos: 0, comentarios: 0 }
 let leituraFalha = false
+let transito: Array<{ tabela: string; mes: string; destacado_em: string; liberar_a_partir: string }> | null = []
+const lerTransito = vi.fn(async () => transito)
 
 function carregar() {
   vi.resetModules()
@@ -37,6 +39,7 @@ function carregar() {
   vi.doMock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
   vi.doMock('@/lib/youtube/observatorio/cache-tag', () => ({ invalidateObservatory: invalidate }))
   vi.doMock('@/lib/youtube/observatorio/arquivo/remover', () => ({ pedirRemocao: f1.pedir, cancelarRemocao: f1.cancelar, apagarCanalSemGuardar: f1.apagar }))
+  vi.doMock('@/lib/youtube/observatorio/arquivo-mensal/saida', () => ({ lerEmTransito: lerTransito }))
   vi.doMock('@/lib/supabase/service', () => ({
     getSupabaseServiceClient: () => {
       ordem.push('cliente')
@@ -63,6 +66,7 @@ beforeEach(() => {
   f1.pedir.mockResolvedValue({ ok: true, jaPedido: false })
   f1.cancelar.mockResolvedValue({ ok: true, naoPedido: false, despausado: true })
   f1.apagar.mockResolvedValue({ ok: true, videos: 340, miniaturasPendentes: 0, foraDoPrefixo: 0, registrosDiarios: 4000, leituras: 68 })
+  lerTransito.mockClear(); transito = []
   negado = null; canal = { missing_since: null }; esperando = { videos: 0, comentarios: 0 }; leituraFalha = false
 })
 
@@ -198,5 +202,33 @@ describe('código morto (A4.8)', () => {
       expect(t, f).not.toContain('removerCanalArquivado')
       expect(t, f).not.toContain('SEM_LOTE_NA_TELA')
     }
+  })
+})
+
+describe('M6a T13: recusa por mês em trânsito', () => {
+  const FRASE = 'Não dá para remover canal agora: o mês saiu das telas.'
+  const recusaMes = { ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE }
+  const mes = (m: string, d: string) => ({ tabela: 'competitor_video_daily', mes: m, destacado_em: '2026-10-17T15:00:00Z', liberar_a_partir: d })
+  it.each(TODAS)('%s: devolve a frase e os meses (sem gravar nada por conta própria)', async qual => {
+    f1.pedir.mockResolvedValue(recusaMes); f1.cancelar.mockResolvedValue(recusaMes); f1.apagar.mockResolvedValue(recusaMes)
+    transito = [mes('2026-11-01', '2026-11-24'), mes('2026-10-01', '2026-10-24'), mes('2026-10-01', '2026-10-24')]
+    const r = await rodar(await carregar(), qual)
+    expect(r).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE, mesFora: { meses: 2, nomes: ['2026-10-01', '2026-11-01'], liberarAPartir: '2026-10-24' } })
+    expect(lerTransito).toHaveBeenCalledWith(expect.anything(), 's1')
+  })
+  it.each([[null], [[]]])('leitura dos meses falha ou vazia (%j): só a frase, sem mesFora', async t => {
+    f1.apagar.mockResolvedValue(recusaMes)
+    transito = t as typeof transito
+    expect(await rodar(await carregar(), 'apagar')).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE })
+  })
+  it('a leitura dos meses lança: só a frase', async () => {
+    f1.apagar.mockResolvedValue(recusaMes)
+    lerTransito.mockRejectedValueOnce(new Error('rede'))
+    expect(await rodar(await carregar(), 'apagar')).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: FRASE })
+  })
+  it('outras recusas não leem o trânsito', async () => {
+    f1.apagar.mockResolvedValue({ ok: false, codigo: 'sem_vaga', frase: 'f' })
+    await rodar(await carregar(), 'apagar')
+    expect(lerTransito).not.toHaveBeenCalled()
   })
 })
