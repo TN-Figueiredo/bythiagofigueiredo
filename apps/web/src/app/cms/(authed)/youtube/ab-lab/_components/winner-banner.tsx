@@ -21,6 +21,8 @@ export interface WinnerBannerProps {
   noAr?: { letra: string | null; original: boolean }
   /** A escolha do dono, separada do vencedor estatístico; nula = ele não escolheu (ou a escolha dele não está no ar). */
   escolhaDoDono?: 'escolhida' | 'mantida' | null
+  /** A tela já diz o que ficou no ar (frase "Ficou no ar"): a linha "No ar agora" sai daqui. */
+  semLinhaNoAr?: boolean
 }
 
 export function WinnerBanner({
@@ -29,6 +31,7 @@ export function WinnerBanner({
   stats,
   noAr,
   escolhaDoDono,
+  semLinhaNoAr,
 }: WinnerBannerProps) {
   const ctrMedido = stats.totalImpressions !== null && stats.totalImpressions > 0 && stats.ctrBefore !== null && stats.ctrAfter !== null
   return (
@@ -64,7 +67,7 @@ export function WinnerBanner({
               </span>
             )}
           </div>
-          {noAr ? (
+          {noAr && !semLinhaNoAr ? (
             <div className="text-[11.5px] text-cms-text mt-2" data-testid="winner-no-ar">
               {noAr.letra === null ? 'No ar: não confirmado' : <>No ar agora: <b>{noAr.letra}{noAr.original ? ' (original)' : ''}</b></>}
             </div>

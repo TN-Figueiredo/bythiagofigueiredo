@@ -15,8 +15,8 @@ export const TEMPOS_PENDENCIA = ['sem_comando', 'copiar', 'conferir_b2', 'apagar
 export type TempoPendencia = (typeof TEMPOS_PENDENCIA)[number]
 const KINDS = ['canal', 'video', 'comentario'] as const
 
-// Sem "..", sem "." isolado, sem "/" no começo, sem aspas, espaço, "$" ou crase.
-const CAMINHO_SEGURO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))[A-Za-z0-9_][A-Za-z0-9._/-]{0,299}$/
+// Sem "..", sem "." isolado, sem "/" no começo nem no fim, sem "//" (outro nome do mesmo arquivo), sem aspas, espaço, "$" ou crase.
+const CAMINHO_SEGURO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\/\/)(?!.*\/$)[A-Za-z0-9_][A-Za-z0-9._/-]{0,299}$/
 const ITEM_ID_RE = /^(?:canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|item:[1-9][0-9]{0,18})$/
 const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 const data = z.string().datetime({ offset: true })
@@ -27,7 +27,11 @@ const filho = z.enum(FILHOS)
 const Apagar = z.object({
   filho, caminho, sha256: z.string().regex(SHA_RE),
   nova: z.object({ caminho, sha256: z.string().regex(SHA_RE) }).strict().nullable(),
-}).strict()
+}).strict().superRefine((a, ctx) => {
+  // versao 1: sem versao nova no NAS nao ha o que conferir antes de apagar (Phil M1); a M9 abre o nulo junto com a versao 2.
+  if (a.nova === null) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'apagar sem versão nova' })
+  else if (a.nova.caminho === a.caminho) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'a antiga é a própria nova' })
+})
 
 const Item = z.object({
   item_id: z.string().regex(ITEM_ID_RE),
@@ -53,6 +57,9 @@ const Item = z.object({
 const Corpo = z.object({ versao: z.literal(VERSAO_PENDENCIAS), lido_em: data, total: z.number().int().nonnegative(), itens: z.array(Item) })
   .strict().superRefine((c, ctx) => {
     if (c.total !== c.itens.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'total diferente do tamanho da lista' })
+    const novas = new Set<string>(), antigas: string[] = []
+    for (const i of c.itens) for (const a of i.apagar) { antigas.push(`${a.filho}/${a.caminho}`); if (a.nova) novas.add(`${a.filho}/${a.nova.caminho}`) }
+    if (antigas.some(a => novas.has(a))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'uma antiga a apagar é a nova de outra' })
   })
 
 export interface PendenciaDoDono {

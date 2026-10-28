@@ -272,6 +272,8 @@ export const MOCK_EARLY: AbTestActiveView = {
   activeNow: 'A',
   statusNote: null,
   driftAcknowledgedAt: null,
+  pausedAt: null,
+  proximaNaRotacao: null,
   createdAt: '2026-06-01T10:00:00Z',
 }
 
@@ -320,6 +322,8 @@ export const MOCK_ACTIVE_MINIMAL: AbTestActiveView = {
   activeNow: 'B',
   statusNote: null,
   driftAcknowledgedAt: null,
+  pausedAt: null,
+  proximaNaRotacao: null,
   createdAt: '2026-05-28T10:00:00Z',
 }
 
@@ -360,4 +364,6 @@ export const MOCK_ACTIVE: AbTestActiveView = {
   },
   statusNote: null,
   driftAcknowledgedAt: null,
+  pausedAt: null,
+  proximaNaRotacao: null,
 }

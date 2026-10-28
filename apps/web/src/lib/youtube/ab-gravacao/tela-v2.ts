@@ -39,7 +39,7 @@ export interface EntradaTelaV2 {
   variantes: VarianteDaTela[]; ciclos: CicloComNumero[]; dias: DiaDaDecisao[]
   agora: Date
   /** M7b: histórico de ab_test_restores deste teste (lido pelo chamador); só vale com `escolha_em`. */
-  historico?: TentativaNoAr[]
+  historico?: TentativaNoAr[] | null
   /** Há outro teste nosso aberto (draft/queued/active/paused) no mesmo vídeo? Só a desfeita usa. 'sem_leitura' = a consulta falhou (sem botão, motivo próprio). Obrigatório: esquecer não pode liberar o botão. */
   outroTesteAberto: boolean | 'sem_leitura'
 }
@@ -76,6 +76,8 @@ function porLetra(a: LinhaPisoV2, b: LinhaPisoV2): number { return a.letra < b.l
 
 const SEM_DIA = 'ainda não tem dia medido'
 
+export const TITULO_CONTA_PENDENTE = 'Os dias mínimos já foram atingidos; o resultado sai amanhã.'
+
 function fraseAtivo(e: {
   linhas: LinhaPisoV2[]; n: number | null; p: ReturnType<typeof pisos>; dia: number; teto: number; pausado: boolean
   passouDoFim: boolean; ilegivel: boolean; nenhumDia: boolean; v2: ResultadoV2 | null; sinal: DisplayLabel | null
@@ -89,7 +91,7 @@ function fraseAtivo(e: {
   const volTxt = (l: LinhaPisoV2) => (l.volume === null ? `${l.letra} ${SEM_DIA}` : `${l.letra} tem ${milhar(l.volume)}`)
   if (e.p.piso_dias && e.p.piso_volume) {
     if (e.sinal) return { principal: `Há um sinal de ${e.sinal}, mas ainda não decide.`, apoio: 'Os pisos fecharam. O teste segue até o fim para o resultado valer.' }
-    if (e.v2 && !('vencedor_sugerido' in e.v2)) return { principal: 'Os pisos fecharam; a conta de hoje ainda não rodou.', apoio: 'Volte amanhã.' }
+    if (e.v2 && !('vencedor_sugerido' in e.v2)) return { principal: TITULO_CONTA_PENDENTE, apoio: 'Volte amanhã.' }
     return { principal: 'Os pisos fecharam; nenhuma versão está à frente da original.', apoio: 'O teste segue até o fim para o resultado valer.' }
   }
   if (!e.p.piso_dias) {
@@ -178,19 +180,28 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     }
   }
   const escolhido = teste.escolha_em != null
-  if (escolhido) {
+  // D28: sem vencedor e sem escolha, o `restore_status` ainda pode dizer o que está no ar (caminho legado): mesma fonte única do título e da faixa.
+  const semVencedorNemEscolha = !escolhido && w === null
+  if (escolhido || semVencedorNemEscolha) {
     // M7b: com a escolha do dono, o vencedor não diz o que está no ar. Fonte única: noArConfirmado.
-    const lidoNoAr = noArConfirmado({
+    // `historico: null` = leitura falhou: desconhecido (igual à linha de Concluídos). Ausente = sem histórico (lista vazia).
+    const lidoNoAr = e.historico === null ? null : noArConfirmado({
       test_type: teste.test_type, restore_status: teste.restore_status, restore_seq: teste.restore_seq ?? 0, completed_at: teste.completed_at,
       winner_variant_id: teste.winner_variant_id, winner_applied_at: teste.winner_applied_at,
       variantes: variantes.map(v => ({ id: v.id, label: v.letra, is_original: v.is_original })),
     }, e.historico ?? [])
-    if (lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
-    else if (lidoNoAr.varianteId === original?.id) noAr = { tipo: 'original' }
-    else noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
+    if (escolhido) {
+      if (lidoNoAr === null || lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
+      else if (lidoNoAr.varianteId === original?.id) noAr = { tipo: 'original' }
+      else noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
+    } else if (paraRestoreStatus(teste.restore_status) !== null) {
+      // Y2: com restore_status gravado, leitura falha ou incompleta = desconhecido (igual ao título). Sem restore_status, o original no ar é o caso comum.
+      if (lidoNoAr === null || lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
+      else if (lidoNoAr.varianteId !== original?.id) noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
+    }
   }
   const mudou = !escolhido && noAr.tipo === 'aplicada' && noAr.desfechoMudou // com escolha do dono a frase "ao encerrar, X parecia melhor" não vale
-  const voltar = !escolhido && noAr.tipo === 'aplicada' && teste.revert_expires_at !== null && Date.parse(teste.revert_expires_at) > e.agora.getTime()
+  const voltar = !escolhido && w !== null && noAr.tipo === 'aplicada' && teste.revert_expires_at !== null && Date.parse(teste.revert_expires_at) > e.agora.getTime()
 
   const sugeridoId = v2?.vencedor_sugerido ?? null
   const sugeridoLetra = letraDe(sugeridoId)
@@ -229,7 +240,7 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     } else prazo = { tipo: 'final' }
   }
 
-  const aplicar = !escolhido && selo.tipo === 'vence' && teste.completed_reason === 'regra_v2' && w === null && sugeridoId
+  const aplicar = !escolhido && selo.tipo === 'vence' && teste.completed_reason === 'regra_v2' && w === null && sugeridoId && !(noAr.tipo === 'aplicada' && noAr.letra === selo.letra)
     ? { variant_id: sugeridoId, letra: selo.letra } : null
 
   let frase: { principal: string; apoio: string | null; complemento?: string }

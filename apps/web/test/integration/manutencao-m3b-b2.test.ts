@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { randomUUID, createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
 import { aplicarM3b, escalar, q1, semearCanal, semearDiaria } from '../helpers/m3b'
@@ -18,13 +19,14 @@ import { serializarResumo, type LinhasDoResumo } from '@/lib/youtube/observatori
 import { montarManifesto, type LinhasDoManifesto } from '@/lib/youtube/observatorio/arquivo-mensal/manifesto-mensal'
 import { RespostaPlanoB2, RespostaAtestarB2 } from '@/lib/youtube/observatorio/arquivo-mensal/contrato'
 
+const M3B_FILE_ID_REAL = resolve(__dirname, '../../../../supabase/migrations/20261028000001_manutencao_m3b_file_id_real.sql')
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MES = '2026-10-01'
 const DAILY = 'competitor_video_daily'
 const EARLY = 'competitor_video_early'
 const sha = (b: Uint8Array): string => createHash('sha256').update(b).digest('hex')
 const HEX = (n: string): string => n.repeat(64).slice(0, 64)
-const FID = (n = 1): string => `4_z${n.toString(16).padStart(24, '0')}_f001_d20261029_m000000_c001_v0001`
+const FID = (n = 1): string => `4_z${n.toString(16).padStart(24, '0')}_f1003c83b5487736b_d20261029_m000000_c001_v0001_t0001_u01761556206000`   // forma real do B2 (28/10: 16 hex depois de _f)
 const T = (hora: string, dia = '2026-11-29'): string => `${dia} ${hora}-03`
 const CAN_NUM = HEX('a')
 const CAN_TEX = HEX('b')
@@ -51,6 +53,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 4: conferência do B2 pela forja',
       await aplicarM2(c)
       await c.query(readFileSync(M10A_SQL, 'utf8'))
       await aplicarM3b(c, 4)
+      await c.query(readFileSync(M3B_FILE_ID_REAL, 'utf8'))   // 28/10: fileId real do B2 (16 hex depois de _f)
       await c.query(`select set_config('obs_archive.hoje', '2026-11-28', true)`)
       await agora(T('12:00'))
       return await fn()

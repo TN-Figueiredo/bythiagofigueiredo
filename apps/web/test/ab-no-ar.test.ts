@@ -19,6 +19,10 @@ const h = (seq: number, c: 'title' | 'thumbnail', estado: TentativaNoAr['estado'
   ({ seq, campo: c, destino, estado, escreveu, em: t0(min) })
 
 describe('noArConfirmado', () => {
+  it('D23: ultima versao nao atravessa o fim do teste (tentativa anterior a janela e ignorada)', () => {
+    const r = noArConfirmado(base({ restore_seq: 2, restore_status: { title: campo('falhou', 'vc', 1, null) } }), [h(1, 'title', 'ok', 'vb', -10)])
+    expect(r).toEqual({ tipo: 'desconhecido', ultima: null })
+  })
   it('tudo ok -> confirmado', () => {
     const r = noArConfirmado(base({ restore_status: { title: campo('ok', 'vb', 1) } }), [])
     expect(r).toEqual({ tipo: 'confirmado', varianteId: 'vb', letra: 'B', desde: t0(1) })

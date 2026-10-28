@@ -8,6 +8,8 @@ import { focarFaixa, textoDoErro, sessaoExpirou, hrefDoLogin } from './ab-end-te
 import { YtPortal } from '../../_components/yt-portal'
 import { useModalFocusTrap } from '../../../_shared/editor/use-modal-focus-trap'
 import { Pause, X } from 'lucide-react'
+import type { TestType } from '@/lib/youtube/ab-types'
+import { textoDoDialogoDePausa } from './cabecalho-do-teste'
 
 interface AbPauseDialogProps {
   /** Server action `pauseAbTest` já com o id do teste, montada no server component chamador. */
@@ -15,11 +17,13 @@ interface AbPauseDialogProps {
   /** `restore_seq` que a tela leu ao abrir; a action recusa se o teste mudou desde então (D3). */
   seqVisto: number
   onClose: () => void
+  /** Tipo do teste: o texto diz o que a pausa restaura (título, miniatura ou os dois). */
+  flag: TestType
   /** Aviso de página para o que acontece depois de o diálogo fechar. */
   onAviso?: (texto: string, opcoes?: OpcoesAviso) => void
 }
 
-export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDialogProps) {
+export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso, flag }: AbPauseDialogProps) {
   const router = useRouter()
   const montado = useRef(true)
   useEffect(() => {
@@ -122,7 +126,7 @@ export function AbPauseDialog({ pausar, seqVisto, onClose, onAviso }: AbPauseDia
               <p role="alert" className="m-0 text-cms-red">O teste mudou em outra aba. Reabra para decidir.</p>
             ) : (
               <>
-              <p className="m-0">Pausar vai restaurar a miniatura original imediatamente.</p>
+              <p className="m-0">{textoDoDialogoDePausa(flag)}</p>
               <p className="m-0">O ciclo atual será fechado. Todos os dados coletados ficam preservados.</p>
               <p className="m-0">Você pode retomar a qualquer momento — o teste continua de onde parou.</p>
               </>

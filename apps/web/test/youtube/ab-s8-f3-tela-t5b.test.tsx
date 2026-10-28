@@ -61,7 +61,7 @@ describe('S8-F3 T5b: cabeçalho, datas, andamento, carregando', () => {
     expect(h.querySelector('.dhl-crumb')).not.toBeNull()
     expect(h.querySelector('.dhl-th')).not.toBeNull()
     const selo = h.querySelector('.dhl-selo')!
-    expect(selo.textContent).toBe("Teste do Lab rodando")
+    expect(selo.textContent).toBe("Rodando · dia 5 de 14")
     expect(h.querySelector('h2')).not.toBeNull()
   })
 

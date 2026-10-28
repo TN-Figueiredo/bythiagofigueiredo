@@ -50,7 +50,7 @@ describe('ActiveDetail abre o diálogo novo com a ação por prop', () => {
     const encerrar = vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: { thumbnail: { estado: 'falhou' } } })
     render(<><AvisoDePagina testId="test-1" /><ActiveDetail view={view()} encerrar={encerrar} pausar={vi.fn()} /></>)
     await userEvent.click(screen.getByRole('button', { name: /^Encerrar$/ }))
-    expect(screen.getByRole('dialog', { name: 'Encerrar teste' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'Encerrar o teste?' })).toBeTruthy()
     expect(screen.getByText('O original foi guardado em baixa resolução.')).toBeTruthy()
     expect(screen.getByText(/desde 07\/10 05:00/)).toBeTruthy()
     await userEvent.click(within(screen.getByRole('dialog')).getByLabelText(/Variante B/))

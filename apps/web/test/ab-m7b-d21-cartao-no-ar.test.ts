@@ -103,4 +103,10 @@ describe('M7b D21: o cartão do vencedor mostra o que está no ar', () => {
     expect(v.noAr.letra).toBe('A')
     expect(v.escolhaDoDono).toBeNull()
   })
+  it('Y6: leitura do histórico falha com escolha feita e restore ok: no ar desconhecido (nunca []/confirmado)', async () => {
+    semear(concluido({ escolha_variant_id: 'v-b', escolha_em: dias(1), restore_status: restoreOk('v-b', dias(1)) }))
+    estado.falha = q => (q.table === 'ab_test_restores' ? { message: 'boom' } : null)
+    const v = await toDetailView((await getTestResults('t1'))!)
+    expect(v.v2?.fase === 'concluido' && v.v2.noAr).toEqual({ tipo: 'desconhecido' })
+  })
 })

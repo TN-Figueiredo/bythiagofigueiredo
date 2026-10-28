@@ -1,3 +1,4 @@
+import { toDisplayLabel } from '@/lib/youtube/ab-types'
 import type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
 import { brDec } from '@/lib/youtube/format'
 export type { TestType, DisplayLabel } from '@/lib/youtube/ab-types'
@@ -31,11 +32,7 @@ export function tipoMeta(t: string): { icon: string; label: string; hint: string
     ?? { icon: 'HelpCircle', label: ROTULO_TIPO_DESCONHECIDO, hint: DICA_TIPO_DESCONHECIDO }
 }
 
-export function toDisplayLabel(dbLabel: string, isOriginal?: boolean): DisplayLabel {
-  if (isOriginal || dbLabel === 'original') return 'A'
-  if (dbLabel === 'B' || dbLabel === 'C' || dbLabel === 'D') return dbLabel
-  return 'B'
-}
+export { toDisplayLabel }
 
 export function variantColor(dbLabel: string, isOriginal?: boolean): string {
   return VARIANT_COLORS[toDisplayLabel(dbLabel, isOriginal)]

@@ -11,16 +11,19 @@ import { previaPorTipo, descricaoDaPrevia } from './previa-por-tipo'
 import { PlacarDoTeste } from './placar-do-teste'
 import { SectionLabel } from './ab-primitives'
 import { archiveAbTest } from '../actions'
-import { Copy, Archive, Download, Sparkles, LayoutGrid } from 'lucide-react'
+import { Archive, Sparkles, LayoutGrid } from 'lucide-react'
+import { BTN_SAIDA } from './acoes-de-saida'
+import { dataCurtaSp } from './encerrar-props'
+import { linhaFicouNoAr } from './cabecalho-do-teste'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
 }
 
-const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px] text-[12.5px] font-semibold rounded-[9px] border border-cms-border whitespace-nowrap transition-[0.15s] tracking-[-0.01em] text-cms-text-dim hover:text-cms-text focus-visible:ring-2 focus-visible:ring-cms-accent focus-visible:outline-none'
-
 export function WinnerDetail({ view }: WinnerDetailProps) {
   const router = useRouter()
+  const concluidoEm = view.completedAt ? dataCurtaSp(view.completedAt).slice(0, 5) : undefined
+  const ficouNoAr = linhaFicouNoAr(view.noAr, concluidoEm)
   return (
     <div data-testid="winner-detail">
       {/* 1. DetailHeader */}
@@ -35,27 +38,17 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           roundNumber={view.totalRounds}
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
+          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, concluidoEm }}
           actions={
-            <div className="flex flex-wrap gap-[9px]">
-              {(view.flag === 'title' || view.flag === 'thumbnail' || view.flag === 'combo') && (
-                <button type="button" className={BTN}>
-                  <Copy size={14} aria-hidden="true" />
-                  Duplicar
-                </button>
-              )}
-              <button type="button" onClick={async () => {
-                if (!confirm('Arquivar este teste? Os dados serão preservados mas o teste sairá da lista principal.')) return
-                const result = await archiveAbTest(view.id)
-                if (!result.ok) alert(result.error)
-                else router.push('/cms/youtube/ab-lab')
-              }} className={BTN}>
-                <Archive size={14} aria-hidden="true" />
-                Arquivar
-              </button>
-              <button type="button" aria-label="Download" className={BTN}>
-                <Download size={14} aria-hidden="true" />
-              </button>
-            </div>
+            <button type="button" onClick={async () => {
+              if (!confirm('Arquivar este teste? Os dados serão preservados mas o teste sairá da lista principal.')) return
+              const result = await archiveAbTest(view.id)
+              if (!result.ok) alert(result.error)
+              else router.push('/cms/youtube/ab-lab')
+            }} className={BTN_SAIDA}>
+              <Archive size={14} aria-hidden="true" />
+              Arquivar
+            </button>
           }
         />
       </div>
@@ -70,7 +63,9 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           stats={view.resultMeta}
           noAr={view.noAr}
           escolhaDoDono={view.escolhaDoDono}
+          semLinhaNoAr={ficouNoAr !== null}
         />
+        {ficouNoAr ? <div className="pm4"><p className="pm4-sum" data-testid="ficou-no-ar" style={{ marginTop: 16 }}>{ficouNoAr}</p></div> : null}
       </div>
 
       {/* 4. ComoEstaAgora + LiveMonitorCard (conditional) */}
@@ -131,6 +126,7 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           status={view.status}
           testType={view.flag}
           inicio={view.startedAt ?? null}
+          noArLetra={view.noAr?.letra ?? null}
         />
       </section>
 

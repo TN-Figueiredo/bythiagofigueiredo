@@ -47,12 +47,12 @@ const mockTest = {
 
 describe('AbPauseDialog', () => {
   it('renders with "Pausar teste" title', () => {
-    render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
+    render(<AbPauseDialog flag="thumbnail" pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
     expect(screen.getByRole('dialog', { name: 'Pausar teste' })).toBeTruthy()
   })
 
   it('shows explanation text about restoring original thumbnail', () => {
-    render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
+    render(<AbPauseDialog flag="thumbnail" pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
     expect(screen.getByText(/restaurar a miniatura original/)).toBeTruthy()
     expect(screen.getByText(/dados coletados ficam preservados/)).toBeTruthy()
     expect(screen.getByText(/retomar a qualquer momento/)).toBeTruthy()
@@ -60,13 +60,13 @@ describe('AbPauseDialog', () => {
 
   it('cancel button calls onClose', () => {
     const onClose = vi.fn()
-    render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={onClose} />)
+    render(<AbPauseDialog flag="thumbnail" pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={onClose} />)
     fireEvent.click(screen.getByText('Cancelar'))
     expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('Pausar teste button renders', () => {
-    render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
+    render(<AbPauseDialog flag="thumbnail" pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={vi.fn()} />)
     const buttons = screen.getAllByText('Pausar teste')
     const pauseButton = buttons.find((el) => el.tagName === 'BUTTON')
     expect(pauseButton).toBeTruthy()
@@ -74,7 +74,7 @@ describe('AbPauseDialog', () => {
 
   it('clicking backdrop calls onClose', () => {
     const onClose = vi.fn()
-    const { container } = render(<AbPauseDialog pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={onClose} />)
+    const { container } = render(<AbPauseDialog flag="thumbnail" pausar={vi.fn().mockResolvedValue({ ok: true, resultado: 'feito', campos: {} })} onClose={onClose} />)
     const backdrop = container.querySelector('[aria-hidden="true"]')!
     fireEvent.click(backdrop)
     expect(onClose).toHaveBeenCalledOnce()
@@ -82,7 +82,7 @@ describe('AbPauseDialog', () => {
 
   it('D4: forbidden cru vira frase em pt-BR', async () => {
     const pausar = vi.fn().mockResolvedValue({ ok: false, resultado: 'sem_permissao', error: 'forbidden' })
-    render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} />)
+    render(<AbPauseDialog flag="thumbnail" pausar={pausar} onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
     expect(await screen.findByText('Você não tem permissão para pausar este teste.')).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/forbidden/)
@@ -92,7 +92,7 @@ describe('AbPauseDialog', () => {
     const pausar = vi.fn().mockRejectedValue(new Error('An unexpected response was received from the server.'))
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ type: 'opaqueredirect', status: 0 }))
     window.history.pushState({}, '', '/cms/youtube/ab-lab/abc?x=1')
-    render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} />)
+    render(<AbPauseDialog flag="thumbnail" pausar={pausar} onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
     expect(await screen.findByText('Sua sessão expirou. Entre de novo para pausar o teste.')).toBeTruthy()
     expect(screen.queryByText(/Sem resposta/)).toBeNull()
@@ -103,7 +103,7 @@ describe('AbPauseDialog', () => {
 
   it('R4: mudou -> frase no lugar do corpo, Recarregar primário e Fechar', async () => {
     const pausar = vi.fn().mockResolvedValue({ ok: false, resultado: 'mudou', error: 'x' })
-    render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} />)
+    render(<AbPauseDialog flag="thumbnail" pausar={pausar} onClose={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
     expect(await screen.findByText('O teste mudou em outra aba. Reabra para decidir.')).toBeTruthy()
     expect(screen.queryByText(/restaurar a miniatura original/)).toBeNull()
@@ -116,7 +116,7 @@ describe('AbPauseDialog', () => {
     let resolver!: (r: unknown) => void
     const pausar = vi.fn().mockReturnValue(new Promise(res => { resolver = res }))
     const onAviso = vi.fn()
-    const { unmount } = render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
+    const { unmount } = render(<AbPauseDialog flag="thumbnail" pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
     unmount()
     await act(async () => { resolver({ ok: false, resultado: 'mudou', error: 'x' }) })
@@ -128,7 +128,7 @@ describe('AbPauseDialog', () => {
     let resolver!: (r: unknown) => void
     const pausar = vi.fn().mockReturnValue(new Promise(res => { resolver = res }))
     const onAviso = vi.fn()
-    const { unmount } = render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
+    const { unmount } = render(<AbPauseDialog flag="thumbnail" pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
     unmount()
     await act(async () => { resolver({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' }) })
@@ -141,7 +141,7 @@ describe('AbPauseDialog', () => {
     let rejeitar!: (e: unknown) => void
     const pausar = vi.fn().mockReturnValue(new Promise((_, rej) => { rejeitar = rej }))
     const onAviso = vi.fn()
-    const { unmount } = render(<AbPauseDialog pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
+    const { unmount } = render(<AbPauseDialog flag="thumbnail" pausar={pausar} onClose={vi.fn()} onAviso={onAviso} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pausar teste' }))
     unmount()
     await act(async () => { rejeitar(new Error('rede')) })

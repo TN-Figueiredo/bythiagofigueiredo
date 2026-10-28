@@ -18,11 +18,13 @@ import { pausaVisivel } from '@/lib/youtube/teste-youtube/nativo/pausa-visivel'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
 import { usePollStats } from './use-poll-stats'
 import { SignalCard } from './signal-card'
-import { AcoesDeSaida, BTN_SAIDA, useAvisoDePagina } from './acoes-de-saida'
+import { AcoesDeSaida, useAvisoDePagina, useRetomarDoCabecalho } from './acoes-de-saida'
+import { ForcarRotacao } from './forcar-rotacao'
+import { TITULO_CONTA_PENDENTE } from '@/lib/youtube/ab-gravacao/tela-v2'
+import { freioDoEncerrar, contarDiasMedidos, contarDiasAguardando, fraseDaFaixaDePausa } from './cabecalho-do-teste'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
 import {
-  Settings,
   TrendingUp, RefreshCw, Filter, Zap,
 } from 'lucide-react'
 
@@ -36,11 +38,11 @@ export interface ActiveDetailProps {
   retomar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
   /** Relógio injetável; só decide o texto da pausa por teste do YouTube (o botão depende do dado). */
   agora?: () => Date
+  /** Escrevendo no YouTube agora (régua da faixa, `faixaDaPagina`): selo e botões de saída reagem. */
+  escrevendo?: boolean
 }
 
-const BTN = BTN_SAIDA
-
-export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveDetailProps) {
+export function ActiveDetail({ view, encerrar, pausar, retomar, agora, escrevendo }: ActiveDetailProps) {
   const router = useRouter()
   const { setAviso } = useAvisoDePagina(view.id)
   // Degrau "administrar o site": forçar rotação e aplicar vencedor mexem no canal de verdade.
@@ -75,31 +77,9 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
   const v2 = view.v2?.fase === 'ativo' ? view.v2 : null
 
 
-  const actionButtons = (
-    <>
-      <AcoesDeSaida view={view} encerrar={encerrar} pausar={pausar} onAviso={setAviso} />
-      {canAdminSite ? (
-        <button
-          type="button"
-          className={BTN}
-          onClick={async () => {
-            if (!confirm('Forçar rotação agora? A variante atual será trocada imediatamente.')) return
-            const result = await forceRotate(view.id)
-            if (!result.ok) alert(result.error)
-            else router.refresh()
-          }}
-        >
-          <RefreshCw size={14} aria-hidden="true" />
-          Forçar rotação
-        </button>
-      ) : (
-        <AdminOnlyNote action="forçar rotação" className="text-cms-text-dim" />
-      )}
-      <button type="button" aria-label="Configurações" className={BTN}>
-        <Settings size={14} aria-hidden="true" />
-      </button>
-    </>
-  )
+  const freio = freioDoEncerrar({ dayOf: view.dayOf, durationDays: view.durationDays, medidos: contarDiasMedidos(view.faixa_dias), aguardando: contarDiasAguardando(view.faixa_dias), resultadoPendente: v2?.frase.principal === TITULO_CONTA_PENDENTE })
+  const emDeriva = view.status === 'paused' && view.statusNote === DRIFT_STATUS_NOTE
+  const retomarCab = useRetomarDoCabecalho(retomar, view.restoreSeq, pausaTeste?.retomarDesabilitado === true)
 
   return (
     <div data-testid="active-detail">
@@ -114,7 +94,8 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
-          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, naoIniciado: view.placar?.iniciado === false }}
+          actions={<AcoesDeSaida view={view} encerrar={encerrar} pausar={pausar} onAviso={setAviso} escrevendo={escrevendo} retomar={emDeriva ? undefined : retomarCab} freio={freio} />}
+          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, naoIniciado: view.placar?.iniciado === false, escrevendo }}
         />
       </div>
 
@@ -151,15 +132,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
       {view.status === 'paused' && view.statusNote !== DRIFT_STATUS_NOTE && (
         <div className="cn-raiz mx-0 mt-4 mb-4 rounded-lg px-4 py-3" style={{ border: '1px dashed var(--cn-yt-line)', background: 'var(--cn-yt-bg)' }}>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium" style={{ color: 'var(--cn-yt)' }}>{pausaTeste?.frase ?? 'Teste pausado. Reconecte o token do YouTube se necessário e retome a rotação.'}</p>
-            <button disabled={driftBusy || pausaTeste?.retomarDesabilitado === true} onClick={async () => {
-              setDriftBusy(true)
-              const res = await retomar(view.restoreSeq)
-              if (!res.ok) { alert(`Falha ao retomar: ${res.error}`); setDriftBusy(false); return }
-              router.refresh()
-            }} className="shrink-0 rounded-md bg-blue-500 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-400 disabled:opacity-50">
-              {driftBusy ? 'Retomando…' : 'Retomar Teste'}
-            </button>
+            <p role="status" className="text-sm font-medium" style={{ color: 'var(--cn-yt)' }}>{pausaTeste?.frase ?? fraseDaFaixaDePausa(view.flag, view.restoreStatus, view.pausedAt)}</p>
           </div>
         </div>
       )}
@@ -176,7 +149,7 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
 
       {/* ── Section 5: Placar das variantes ── */}
       {v2 && (
-        <div className="cn-raiz pv2 mb-[8px]" data-testid="tela-v2">
+        <div className="cn-raiz pv2 mb-[40px]" data-testid="tela-v2">
           <ResumoV2 frase={v2.frase} ilegivel={v2.ilegivel} />
           <AndamentoV2 dia={v2.dia} teto={v2.teto} pausado={v2.pausado} />
           <PisosV2 linhas={v2.pisos} n={v2.n} final={false} />
@@ -199,11 +172,6 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
           modoV2={v2 !== null}
         />
       </section>
-
-      {/* Ações do teste: depois do placar (ordem do M4 r3.1: rastro, título, selo, frase, faixa; o resto vem depois). */}
-      <div className="cn-raiz dhl mb-[24px]" data-section="acoes">
-        <div className="dhl-acoes" style={{ marginTop: 0 }}>{actionButtons}</div>
-      </div>
 
       {/* ── Section 4: Signal ao vivo + Métricas computadas (side by side) ── */}
       <div className={`grid grid-cols-1 ${view.outlier || view.daysRemaining ? 'md:grid-cols-2' : ''} gap-[16px] mb-[16px]`}>
@@ -273,6 +241,15 @@ export function ActiveDetail({ view, encerrar, pausar, retomar, agora }: ActiveD
             <RefreshCw size={15} className="text-cms-text-dim" aria-hidden="true" />
             <span className="text-[13px] font-semibold text-cms-text">Rotação ABBA</span>
             <span className="text-[11.5px] text-cms-text-dim ml-auto">{view.cycles.done}/{view.cycles.total} ciclos</span>
+          </div>
+          <div className="dhl-rot-acao px-[16px] pt-[14px]">
+            {view.status === 'paused' ? (
+              <p className="text-[13px] text-cms-text-dim m-0">A rotação está parada enquanto o teste está pausado.</p>
+            ) : canAdminSite ? (
+              <ForcarRotacao testId={view.id} atual={view.activeNow} proxima={view.proximaNaRotacao} escrevendo={!!escrevendo} forcar={forceRotate} />
+            ) : (
+              <AdminOnlyNote action="forçar rotação" className="text-cms-text-dim" />
+            )}
           </div>
           <div className="px-[16px] py-[14px]">
             <ABBATimeline

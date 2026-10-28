@@ -20,7 +20,7 @@ const base = { videoTitle: 'Vídeo', activeNow: 'A' as const, noArAgora: { label
 
 function abrir(flag: 'title' | 'thumbnail', db = variantDb) {
   const d = dadosDoDialogoEncerrar({ ...base, variantDb: db, flag })
-  render(<AbEndTestDialog aberto onFechar={vi.fn()} testeNome="T" {...d} podeDeixarVariante encerrar={vi.fn()} seqVisto={0} />)
+  render(<AbEndTestDialog aberto onFechar={vi.fn()} testeNome="T" {...d} podeDeixarVariante encerrar={vi.fn()} seqVisto={0} freio={{ tipo: 'faltam', texto: 'Faltam 8 dias dos 14. Encerrar agora usa só os 5 dias já medidos.' }} />)
   return d
 }
 

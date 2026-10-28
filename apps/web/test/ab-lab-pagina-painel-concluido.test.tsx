@@ -45,6 +45,9 @@ beforeEach(() => { refresh.mockClear() })
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
 describe('M7b T11: painel de escolha de um teste concluído', () => {
+  // A falha de rede chama sessaoExpirou(), que faz um fetch real: no Node 22 (CI) ele demora em tempo real e os relógios falsos não o esperam.
+  beforeEach(() => { vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') })) })
+  afterEach(() => { vi.unstubAllGlobals() })
   it('a: a marcada já está no ar → "Nada a fazer" e só Fechar; X com aria-label e alvo de 44 px; aria-describedby na frase', () => {
     monta(entrada({ ar: 'B', sug: 'B' }))
     expect(screen.getByText('Nada a fazer: a versão B já está no ar.')).toBeTruthy()

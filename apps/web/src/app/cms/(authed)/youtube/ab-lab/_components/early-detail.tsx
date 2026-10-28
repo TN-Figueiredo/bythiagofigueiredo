@@ -9,12 +9,15 @@ import type { EarlyCheckpoint } from './early-types'
 import { LayoutGrid } from 'lucide-react'
 import type { OpcaoEncerrar, ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
 import { AcoesDeSaida, useAvisoDePagina } from './acoes-de-saida'
+import { freioDoEncerrar, contarDiasMedidos, contarDiasAguardando } from './cabecalho-do-teste'
 
 export interface EarlyDetailProps {
   view: AbTestActiveView
   /** `endAbTest` e `pauseAbTest` com o id do teste, montadas na página (mesmas do ActiveDetail). */
   encerrar: (o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
   pausar: (seqVisto: number) => Promise<ResultadoAcaoSaida>
+  /** Escrevendo no YouTube agora (régua da faixa). */
+  escrevendo?: boolean
 }
 
 /** Default checkpoints for early state — computed from view data. */
@@ -39,7 +42,8 @@ function buildCheckpoints(view: AbTestActiveView): EarlyCheckpoint[] {
   ]
 }
 
-export function EarlyDetail({ view, encerrar, pausar }: EarlyDetailProps) {
+export function EarlyDetail({ view, encerrar, pausar, escrevendo }: EarlyDetailProps) {
+  const freio = freioDoEncerrar({ dayOf: view.dayOf, durationDays: view.durationDays, medidos: contarDiasMedidos(view.faixa_dias), aguardando: contarDiasAguardando(view.faixa_dias) })
   const { setAviso } = useAvisoDePagina(view.id)
   const checkpoints = buildCheckpoints(view)
 
@@ -69,7 +73,8 @@ export function EarlyDetail({ view, encerrar, pausar }: EarlyDetailProps) {
           totalRounds={view.totalRounds}
           hasPlayoff={view.hasPlayoff}
           dayInfo={{ dayOf: view.dayOf, total: Math.max(view.dayOf, view.durationDays) }}
-          actions={<AcoesDeSaida view={view} encerrar={encerrar} pausar={pausar} onAviso={setAviso} />}
+          lab={{ thumbUrl: view.variantThumbs.find(t => t.isOriginal)?.thumbUrl ?? view.variantThumbs[0]?.thumbUrl ?? null, naoIniciado: view.placar?.iniciado === false, escrevendo }}
+          actions={<AcoesDeSaida view={view} encerrar={encerrar} pausar={pausar} onAviso={setAviso} escrevendo={escrevendo} freio={freio} />}
         />
       </div>
 
