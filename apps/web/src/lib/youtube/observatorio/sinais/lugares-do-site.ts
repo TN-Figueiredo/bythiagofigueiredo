@@ -37,6 +37,8 @@ export interface CalculoDeLugares {
   orfaos: string[]
   /** Texto do competidor/próprio por vídeo (título + tags), para os tokens do `parecido`. */
   textoDe: (videoId: string) => string
+  /** Entrada exata de cada vídeo no `extrairLugares` (para a amostra reproduzir a produção). */
+  entradaDe: (videoId: string) => EntradaDeLugar | undefined
   /** Canal → países do padrão de texto detectado (log; `canais_com_padrao` = nº de chaves). */
   padroesDoCanal: Record<string, string[]>
   contagens: { canais_com_padrao: number; total: number; competidor: number; proprio: number; sem_lugar: number; regravados: number; inalterados: number; orfaos: number }
@@ -140,7 +142,9 @@ export function calcularLugares(args: {
 
   const linhas: LinhaDeLugar[] = []
   const textos = new Map<string, string>()
+  const entradas = new Map<string, EntradaDeLugar>()
   const empurrar = (id: string, origem: LinhaDeLugar['origem'], e: EntradaDeLugar): void => {
+    entradas.set(id, e)
     const { chaves, fonte } = extrairLugares(e, indice)
     linhas.push({ video_id: id, site_id: siteId, origem, chaves, fonte, entrada_hash: entradaHash(e, indice.versao), semente_versao: indice.versao, computado_em: computadoEm })
   }
@@ -177,6 +181,7 @@ export function calcularLugares(args: {
     conhecido: (id) => porVideo.has(id),
     regravar,
     orfaos,
+    entradaDe: (id) => entradas.get(id),
     textoDe: (id) => textos.get(id) ?? '',
     padroesDoCanal: Object.fromEntries([...padraoDeTexto, ...(padraoProprio.length ? [['proprio', padraoProprio] as [string, string[]]] : [])]),
     contagens: {

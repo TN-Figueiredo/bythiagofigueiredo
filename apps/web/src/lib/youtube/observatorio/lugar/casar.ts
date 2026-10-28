@@ -100,6 +100,18 @@ export function extrairLugares(
   e: EntradaDeLugar,
   ind: IndiceDeLugar,
 ): { chaves: string[]; fonte: 'texto' | 'texto+coordenada' } {
+  const { chaves, fonte } = extrairLugaresDetalhado(e, ind)
+  return { chaves, fonte }
+}
+
+/** Origem da primeira evidência de cada chave: `bandeira` (emoji) ou o campo (`titulo`/`tags`/`descricao`/`localizacao`). */
+export type OrigemDaChave = 'titulo' | 'tags' | 'descricao' | 'localizacao' | 'bandeira'
+
+/** Mesmo cálculo de `extrairLugares`, devolvendo também de onde veio cada chave (usado pela amostra de precisão). */
+export function extrairLugaresDetalhado(
+  e: EntradaDeLugar,
+  ind: IndiceDeLugar,
+): { chaves: string[]; fonte: 'texto' | 'texto+coordenada'; origens: Record<string, OrigemDaChave> } {
   const usaLocal = e.locationDescription !== null && !e.coordenadaPadraoDoCanal
   const padraoCanal = new Set(e.paisesPadraoDoCanal ?? [])
   const doTitulo = achar(e.titulo, 'titulo', ind)
@@ -131,6 +143,7 @@ export function extrairLugares(
   }
 
   const chaves: string[] = []
+  const origens: Record<string, OrigemDaChave> = {}
   const paises: string[] = []
   let viaCoordenada = false
   let tituloTemChave = false
@@ -149,8 +162,9 @@ export function extrairLugares(
         paises.push(a.pais)
       }
       const doPais = `pais:${a.pais}`
-      if (!chaves.includes(a.slug)) chaves.push(a.slug)
-      if (!chaves.includes(doPais)) chaves.push(doPais)
+      const origem: OrigemDaChave = a.alias.startsWith('bandeira ') ? 'bandeira' : a.origem
+      if (!chaves.includes(a.slug)) { chaves.push(a.slug); origens[a.slug] = origem }
+      if (!chaves.includes(doPais)) { chaves.push(doPais); origens[doPais] = origem }
       if (veioDoLocal) viaCoordenada = true
       if (a.origem === 'titulo') tituloTemChave = true
     }
@@ -160,7 +174,7 @@ export function extrairLugares(
   const paisesDoTexto = new Set(doTexto.filter((a) => !a.ambiguo || temSegundoSinal(a).ok).map((a) => a.pais))
   if (tituloTemChave || paisesDoTexto.size <= 1) processar(doTexto)
   processar(achados.filter((a) => a.origem === 'localizacao'))
-  return { chaves, fonte: viaCoordenada ? 'texto+coordenada' : 'texto' }
+  return { chaves, fonte: viaCoordenada ? 'texto+coordenada' : 'texto', origens }
 }
 
 export function entradaHash(e: EntradaDeLugar, versao: number): string {

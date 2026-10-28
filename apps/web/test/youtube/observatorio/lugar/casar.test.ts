@@ -312,3 +312,17 @@ describe('regra v2 (T6b)', () => {
     })
   })
 })
+
+describe('extrairLugaresDetalhado', () => {
+  it('mesmo resultado de extrairLugares e origem por chave (título, tags, bandeira)', async () => {
+    const { extrairLugares, extrairLugaresDetalhado } = await import('../../../../src/lib/youtube/observatorio/lugar/casar')
+    const base = { tags: [], descricaoInicio: '', locationDescription: null, coordenadaPadraoDoCanal: false }
+    for (const e of [{ ...base, titulo: 'Viagem ao Japão' }, { ...base, titulo: 'Tokyo', tags: ['japão'] }, { ...base, titulo: 'dia 🇯🇵' }, { ...base, titulo: 'Natal em família' }]) {
+      const d = extrairLugaresDetalhado(e, ind)
+      expect({ chaves: d.chaves, fonte: d.fonte }).toEqual(extrairLugares(e, ind))
+      expect(Object.keys(d.origens).sort()).toEqual([...d.chaves].sort())
+    }
+    expect(extrairLugaresDetalhado({ ...base, titulo: 'dia 🇯🇵' }, ind).origens['pais:JP']).toBe('bandeira')
+    expect(extrairLugaresDetalhado({ ...base, titulo: 'Viagem ao Japão' }, ind).origens['pais:JP']).toBe('titulo')
+  })
+})

@@ -2,7 +2,7 @@
 /** F2 · T6b: partes puras do script da amostra de precisão do lugar (sorteio, complemento, precisão `pais:` com Wilson, CSV). */
 import { describe, expect, it } from 'vitest'
 import {
-  aleatorio, embaralhar, sortearComComplemento, wilson, calcularPrecisaoPais, paraCsv, TITULOS_NEGATIVOS, soPais,
+  aleatorio, embaralhar, sortearComComplemento, wilson, calcularPrecisaoPais, paraCsv, TITULOS_NEGATIVOS, soPais, fonteDasChaves, descreverPadrao,
 } from '../../../../scripts/f2-amostra-lugar'
 
 const ids = Array.from({ length: 50 }, (_, i) => `v${String(i).padStart(2, '0')}`)
@@ -85,9 +85,14 @@ describe('calcularPrecisaoPais', () => {
 
 describe('paraCsv e negativos', () => {
   it('escapa vírgula e aspas, com coluna chaves_corretas vazia', () => {
-    const csv = paraCsv([{ video_id: 'a', canal: 'C, D', formato: 'long', titulo: 'Diz "oi"', chaves: ['local:x', 'pais:BR'], fonte: 'texto' }])
-    expect(csv.split('\n')[0]).toBe('video_id,canal,formato,titulo,chaves_calculadas,fonte,chaves_corretas')
-    expect(csv.split('\n')[1]).toBe('a,"C, D",long,"Diz ""oi""",local:x;pais:BR,texto,')
+    const csv = paraCsv([{ video_id: 'a', canal: 'C, D', formato: 'long', titulo: 'Diz "oi"', chaves: ['local:x', 'pais:BR'], fonte: 'texto', origens: { 'local:x': 'tags', 'pais:BR': 'tags' }, padrao: ['BR', 'coordenada'] }])
+    expect(csv.split('\n')[0]).toBe('video_id,canal,formato,titulo,chaves_calculadas,fonte,chaves_corretas,fonte_chave,canal_tem_padrao')
+    expect(csv.split('\n')[1]).toBe('a,"C, D",long,"Diz ""oi""",local:x;pais:BR,texto,,local:x=tags;pais:BR=tags,BR;coordenada')
+  })
+  it('fonte por chave e descrição do padrão do canal', () => {
+    expect(fonteDasChaves(['pais:JP', 'pais:KR'], { 'pais:JP': 'bandeira' })).toBe('pais:JP=bandeira;pais:KR=')
+    expect(descreverPadrao([], false)).toEqual([])
+    expect(descreverPadrao(['JP'], true)).toEqual(['JP', 'coordenada'])
   })
   it('são 20 títulos negativos distintos', () => {
     expect(new Set(TITULOS_NEGATIVOS).size).toBe(20)
