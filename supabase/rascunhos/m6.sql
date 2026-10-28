@@ -1201,4 +1201,22 @@ begin
 end $$;
 revoke all on function public.obs_archive_vermelhos(uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_vermelhos(uuid) to service_role;
+-- M6a T13b (item 121, Yannis I-6, D-M5-6): encerrar o dado de teste. Quem grava `closed_at` dos meses `ensaio` (a M5 lê `teste.encerrado_em` daqui).
+-- Recusa sem mês de ensaio descartado (nunca `ok` com 0 encerrados) e sem restore verde da classe (diff 0, algo restaurado). Idempotente: closed_at não muda.
+create or replace function public.obs_archive_test_close(p_site uuid, p_by uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare v_n int;
+begin
+  if p_by is null or not public.obs_archive_is_site_admin(p_site, p_by) then return jsonb_build_object('status', 'recusado', 'codigo', 'sem_direito'); end if;
+  if not exists (select 1 from public.obs_archive_months m where m.site_id = p_site and m.class = 'ensaio' and m.dropped_at is not null) then
+    return jsonb_build_object('status', 'recusado', 'codigo', 'descarte_de_teste_nao_feito'); end if;
+  if not exists (select 1 from public.obs_archive_restores r where r.site_id = p_site and r.class = 'ensaio' and r.diff_rows = 0 and r.rows_restored > 0) then
+    return jsonb_build_object('status', 'recusado', 'codigo', 'recuperacao_nao_testada'); end if;
+  update public.obs_archive_months m set closed_at = coalesce(m.closed_at, public.obs_archive_agora()), closed_by = coalesce(m.closed_by, p_by)
+   where m.site_id = p_site and m.class = 'ensaio';
+  get diagnostics v_n = row_count;
+  return jsonb_build_object('status', 'ok', 'encerrados', v_n);
+end $$;
+revoke all on function public.obs_archive_test_close(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_test_close(uuid, uuid) to service_role;
 -- M6 PARTE 7 [M6b]: o interruptor (estado, ligar, desligar, vigia), os candidatos, o vermelho do desarme e a próxima saída

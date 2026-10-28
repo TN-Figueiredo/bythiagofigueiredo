@@ -63,3 +63,27 @@ export async function trazerDeVolta(tabela: string, mes: string): Promise<Retorn
   if (!p.success) return { ok: false, error: naoLeu('trazer') }
   return fechar(await executarTrazer(getSupabaseServiceClient(), { site: q.site, tabela: p.data.tabela, mes: p.data.mes, por: q.por, ate }), 'trazer')
 }
+
+/** M6a T13b (item 121): as frases da recusa de `obs_archive_test_close`. O código nunca chega à tela. */
+const FRASES_ENCERRAR_TESTE: Record<string, string> = {
+  descarte_de_teste_nao_feito: 'Ainda falta descartar um mês de teste.',
+  recuperacao_nao_testada: 'Ainda falta testar a recuperação do dado de teste.',
+  sem_direito: siteAdminOnlyMessage('encerrar o dado de teste'),
+}
+const FRASE_ENCERRAR_INCERTO = 'Não deu para confirmar se o dado de teste foi encerrado. Atualize a página antes de tentar de novo.'
+/** Encerra o dado de teste (grava `closed_at` nos meses `ensaio`). Só administra; `p_by` vem da sessão. Resposta fora da forma = incerto, nunca "ok". */
+export async function encerrarDadoDeTeste(): Promise<{ ok: boolean; error?: string }> {
+  const q = await quem('encerrar o dado de teste')
+  if ('negado' in q) return { ok: false, error: q.negado.ok ? FRASE_ENCERRAR_INCERTO : q.negado.error }
+  try {
+    const r = await Promise.resolve(getSupabaseServiceClient().rpc('obs_archive_test_close', { p_site: q.site, p_by: q.por }).abortSignal(AbortSignal.timeout(8_500)))
+    const d: unknown = r.data
+    if (r.error || typeof d !== 'object' || d === null) return { ok: false, error: FRASE_ENCERRAR_INCERTO }
+    const x = d as { status?: unknown; codigo?: unknown }
+    if (x.status === 'ok') { revalidatePath(PAGINA, 'layout'); return { ok: true } }
+    if (x.status === 'recusado' && typeof x.codigo === 'string') return { ok: false, error: FRASES_ENCERRAR_TESTE[x.codigo] ?? FRASE_ENCERRAR_INCERTO }
+    return { ok: false, error: FRASE_ENCERRAR_INCERTO }
+  } catch {
+    return { ok: false, error: FRASE_ENCERRAR_INCERTO }
+  }
+}

@@ -55,7 +55,8 @@ do $$ declare f record; begin
               'obs_archive_switch_counts',
               'obs_archive_switch_sim_seen',
               'obs_archive_em_transito',
-              'obs_archive_vermelhos_saida')
+              'obs_archive_vermelhos_saida',
+              'obs_archive_test_close')
   loop execute format('drop function %s', f.sig); end loop;
 end $$;
 alter table public.obs_archive_switch drop constraint if exists obs_archive_switch_disarm_reason_check;
