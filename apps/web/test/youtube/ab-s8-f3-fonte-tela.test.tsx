@@ -9,7 +9,7 @@ vi.mock('@/lib/supabase/service', async () => {
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), back: vi.fn() }) }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/actions', () => ({
   forceRotate: vi.fn(), applyWinnerNow: vi.fn(), cancelGracePeriod: vi.fn(),
-  acknowledgeAbTestDrift: vi.fn(), resumeAbTest: vi.fn(), revertWinner: vi.fn(), archiveAbTest: vi.fn(),
+  acknowledgeAbTestDrift: vi.fn(), resumeAbTest: vi.fn(), archiveAbTest: vi.fn(),
 }))
 vi.mock('@/app/cms/(authed)/youtube/ab-lab/_components/use-poll-stats', () => ({
   usePollStats: () => ({ data: null, loading: false }),

@@ -76,13 +76,6 @@ describe('aplicarSugerido (T11b)', () => {
     await aplicarSugerido('t1', 'B', 9, false)
     for (const [, opcoes] of settle.mock.calls) expect('forcar' in (opcoes as object)).toBe(false)
   })
-  it('T12 Y2: o ramo da original ignora forcar', async () => {
-    linha.mockResolvedValue({ data: { completed_reason: 'regra_v2', status: 'completed', restore_seq: 9, result_metadata: { v2: { vencedor_sugerido: 'A' } } }, error: null })
-    atualiza.mockResolvedValue({ data: [{ id: 't1' }], error: null })
-    const r = await aplicarSugerido('t1', 'A', 9, true)
-    expect(r).toMatchObject({ ok: true, resultado: 'feito' })
-    expect(settle).not.toHaveBeenCalled()
-  })
   it('exige admin do site (variante no canal): sem permissão não toca no banco nem no settle', async () => {
     denyUnlessSiteAdmin.mockResolvedValueOnce({ error: 'negado' })
     expect(await aplicarSugerido('t1', 'B', 9)).toEqual({ ok: false, resultado: 'sem_permissao', error: 'negado' })
@@ -133,79 +126,16 @@ describe('aplicarSugerido (T11b)', () => {
       expect(r).toMatchObject({ ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE })
     })
   })
-  describe('B2: a original vence', () => {
-    const ORIG = (v2: object = {}) => ({ data: { completed_reason: 'regra_v2', status: 'completed', restore_seq: 9, result_metadata: { v2: { vencedor_sugerido: 'A', ...v2 } } }, error: null })
-    beforeEach(() => { atualiza.mockResolvedValue({ data: [{ id: 't1' }], error: null }); linha.mockResolvedValue(ORIG()) })
-    it('original já no ar: manual_winner com a original, sem settleOnAir nem YouTube', async () => {
-      const r = await aplicarSugerido('t1', 'A', 9)
-      expect(r).toMatchObject({ ok: true, resultado: 'feito' })
-      expect(atualiza).toHaveBeenCalledTimes(1)
-      const [[upd], eqs] = atualiza.mock.calls[0]! as [[Record<string, unknown>], unknown[][]]
-      expect(upd).toEqual({ completed_reason: 'manual_winner', winner_variant_id: 'A' })
-      expect(eqs).toEqual(expect.arrayContaining([['id', 't1'], ['site_id', SITE], ['completed_reason', 'regra_v2'], ['restore_seq', 9], ['result_metadata->v2->>vencedor_sugerido', 'A']]))
-      expect(settle).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
+  describe('M7b P3: sem o ramo "a original vence"', () => {
+    it('sugerido = original: ja_encerrado, sem gravar nem chamar settleOnAir (voltar à original é escolherVersao)', async () => {
+      linha.mockResolvedValue({ data: { completed_reason: 'regra_v2', status: 'completed', restore_seq: 9, result_metadata: { v2: { vencedor_sugerido: 'A' } } }, error: null })
+      const r = await aplicarSugerido('t1', 'A', 9, true)
+      expect(r).toMatchObject({ ok: false, resultado: 'ja_encerrado' })
+      expect(atualiza).not.toHaveBeenCalled(); expect(settle).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
     })
     it('a vitória da original não conta como vitória de variante no winRate', () => {
       expect(ehVitoriaHumana({ completed_reason: 'manual_winner', winner_variant_id: 'A', winner_is_original: true })).toBe(false)
       expect(ehVitoriaHumana({ completed_reason: 'manual_winner', winner_variant_id: 'B', winner_is_original: false })).toBe(true)
-    })
-    const campo = (estado: string) => ({ estado, destino: 'A', em: '2026-10-20T00:00:00Z', forcado: false, attempts: 1 })
-    const PEND = { title: campo('falhou'), thumbnail: campo('ok') }
-    const TODO_OK = { title: campo('ok'), thumbnail: campo('ok') }
-    const COM = (rs: object, v2: object = {}) => { const o = ORIG(v2); return { ...o, data: { ...o.data, restore_status: rs } } }
-    it('flag volta_falhou velha com restore_status todo ok: grava manual_winner sem tentar de novo', async () => {
-      linha.mockResolvedValue(COM(TODO_OK, { volta_falhou: { em: '2026-10-20' } }))
-      const r = await aplicarSugerido('t1', 'A', 9)
-      expect(r).toMatchObject({ ok: true, resultado: 'feito' })
-      expect(tentar).not.toHaveBeenCalled()
-      expect(atualiza).toHaveBeenCalledTimes(1)
-      expect((atualiza.mock.calls[0]![0] as unknown[])[0]).toEqual({ completed_reason: 'manual_winner', winner_variant_id: 'A' })
-    })
-    it('pendente real: tenta a volta e, com sucesso, grava manual_winner com o restore_seq relido', async () => {
-      linha.mockResolvedValueOnce(COM(PEND, { volta_falhou: { em: '2026-10-20' } }))
-      linha.mockResolvedValueOnce({ data: { restore_seq: 10 }, error: null })
-      tentar.mockResolvedValue(FEITO)
-      const r = await aplicarSugerido('t1', 'A', 9)
-      expect(tentar).toHaveBeenCalledTimes(1)
-      expect(tentar.mock.calls[0]!.slice(1, 4)).toEqual(['t1', SITE, 9])
-      expect(r).toMatchObject({ ok: true, resultado: 'feito' })
-      const [[upd], eqs] = atualiza.mock.calls[0]! as [[Record<string, unknown>], unknown[][]]
-      expect(upd).toEqual({ completed_reason: 'manual_winner', winner_variant_id: 'A' })
-      expect(eqs).toEqual(expect.arrayContaining([['completed_reason', 'regra_v2'], ['restore_seq', 10]]))
-      expect(settle).not.toHaveBeenCalled()
-    })
-    it('pendente real e a tentativa falhou: não grava, devolve o desfecho da tentativa', async () => {
-      linha.mockResolvedValue(COM(PEND))
-      tentar.mockResolvedValue({ resultado: 'em_andamento', campos: null })
-      const r = await aplicarSugerido('t1', 'A', 9)
-      expect(r).toMatchObject({ ok: false, resultado: 'em_andamento' })
-      expect(atualiza).not.toHaveBeenCalled()
-    })
-    it('item 1: restore_status ilegível: fail closed, não grava nem tenta a volta', async () => {
-      linha.mockResolvedValue(COM({ title: { estado: 'lixo' } }))
-      const r = await aplicarSugerido('t1', 'A', 9)
-      expect(r).toEqual({ ok: false, resultado: 'erro', error: MSG_RESTORE_ILEGIVEL })
-      expect(atualiza).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
-    })
-    it('item 2 (Phil D4): outro teste aberto no vídeo recusa, sem tentar a volta nem gravar', async () => {
-      linha.mockResolvedValue(COM(PEND))
-      outro.mockResolvedValue({ data: [{ id: 't2' }], error: null })
-      const r = await aplicarSugerido('t1', 'A', 9)
-      expect(r).toEqual({ ok: false, resultado: 'ja_encerrado', error: MSG_OUTRO_TESTE })
-      expect(atualiza).not.toHaveBeenCalled(); expect(tentar).not.toHaveBeenCalled()
-    })
-    it('item 2: erro ao consultar outros testes: erro, sem gravar', async () => {
-      outro.mockResolvedValue({ data: null, error: { message: 'x' } })
-      expect(await aplicarSugerido('t1', 'A', 9)).toMatchObject({ ok: false, resultado: 'erro' })
-      expect(atualiza).not.toHaveBeenCalled()
-    })
-    it('seq mudou (CAS não casou): mudou, sem sucesso falso', async () => {
-      atualiza.mockResolvedValue({ data: [], error: null })
-      expect(await aplicarSugerido('t1', 'A', 9)).toMatchObject({ ok: false, resultado: 'mudou' })
-    })
-    it('erro do banco ao gravar: erro', async () => {
-      atualiza.mockResolvedValue({ data: null, error: { message: 'x' } })
-      expect(await aplicarSugerido('t1', 'A', 9)).toMatchObject({ ok: false, resultado: 'erro' })
     })
   })
   it('seqVisto inválido recusa', async () => {

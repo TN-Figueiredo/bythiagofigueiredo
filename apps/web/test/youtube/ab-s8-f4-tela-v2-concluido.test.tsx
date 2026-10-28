@@ -34,7 +34,7 @@ function view(v2: Concl, o: Record<string, unknown> = {}): AbTestDetailView & { 
   return {
     id: 't1', videoTitle: 'Meu vídeo', flag: 'thumbnail', status: 'completed', outcome: 'winner', winnerLabel: 'B', winnerColor: '#888',
     lift: null, confidence: null, resultMeta: {}, variants: [], variantThumbs: [], totalRounds: 1, hasPlayoff: false, restoreSeq: 7,
-    placar: null, faixa_dias: [], completedAt: '2026-10-24T12:00:00Z', revertExpiresAt: null, noArAgora: null, activeNow: null,
+    placar: null, faixa_dias: [], completedAt: '2026-10-24T12:00:00Z', noArAgora: null, activeNow: null,
     variantDb: [
       { id: 'v-a', label: 'A', is_original: true, blob_url: null, title_text: 'Título A', dimensions: null },
       { id: 'v-b', label: 'B', is_original: false, blob_url: 'https://x/b.jpg', title_text: 'Título B', dimensions: null },

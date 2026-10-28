@@ -22,7 +22,7 @@ import { MOTIVO_RECUSA_NATIVO, lerLinhaConfirmada } from '@/lib/youtube/teste-yo
 import { TEXTO_SEM_LEITURA as TEXTO_SEM_LEITURA_TELA } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ErroConhecido, YouTubeApiError, paraErroGravado } from '@/lib/youtube/youtube-api-error'
 
-export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'regra_v2' | 'drift' | 'teste_youtube' | 'aplicar_sugerido' | 'escolher'
+export type MotivoSaida = 'pausa' | 'encerrado' | 'falha_api' | 'duracao_maxima' | 'regra_v2' | 'drift' | 'teste_youtube' | 'aplicar_sugerido' | 'escolher'
 /** Nota do teste pausado por haver teste do YouTube em andamento (F1a-dado): pausa definitiva, sem escrever no YouTube. */
 export const NOTA_TESTE_YOUTUBE = 'Em teste no Studio: pausado sem escrever no YouTube'
 /** Valor mostrado no diálogo de confirmação quando a leitura do título no YouTube falhou (a thumbnail sem leitura mostra o espaço reservado). */
@@ -164,8 +164,6 @@ export function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
           ? { completed_reason: 'manual_archive', winner_variant_id: null }
           : { completed_reason: 'manual_winner', winner_variant_id: destino.varianteId },
       }
-    case 'reverter':
-      return { de: ['completed'], para: 'completed', endReason: null, extra: {} }
     case 'escolher': // M7b: não toca vencedor, motivo do fim nem ciclos; o `extra` só vem preenchido quando o destino é a sugerida
       return { de: ['completed'], para: 'completed', endReason: null, extra: op.extra ?? {} }
     case 'aplicar_sugerido': // S8-F4 T11b: o humano põe no ar o sugerido da regra v2; completed_at e result_metadata.v2 ficam
@@ -251,10 +249,6 @@ export function emAndamentoRecente(rs: RestoreStatus | null, agora: Date): boole
     const campo = rs[c]
     return campo?.estado === 'em_andamento' && agora.getTime() - Date.parse(campo.em) < RECENTE_MS
   })
-}
-
-function reversaoAberta(r: Retrato, agora: Date): boolean {
-  return r.winner_applied_at !== null && r.revert_expires_at !== null && Date.parse(r.revert_expires_at) > agora.getTime()
 }
 
 // ---------------------------------------------------------------------------
@@ -477,14 +471,9 @@ async function gravarResultado(
     escolha_variant_id: destino === 'original' ? r.variantes.find((v) => v.is_original)?.id ?? null : destino.varianteId,
     escolha_em: agora.toISOString(), escolha_por: op.autor ?? null,
   })
-  if (op.motivo === 'reverter') {
-    if (tudoOk) {
-      Object.assign(patch, { winner_applied_at: null, revert_expires_at: null, applied_by: null })
-      if (op.autor) Object.assign(patch, escolha()) // decisão do dono: a original fica como escolha
-    }
-  } else if (op.motivo === 'escolher') {
+  if (op.motivo === 'escolher') {
     // M7b: não é "vencedor aplicado": sem winner_applied_at/applied_by/autoImportWinner; o prazo de 7 dias saiu do produto.
-    if (tudoOk) Object.assign(patch, { revert_expires_at: null }, escolha())
+    if (tudoOk) Object.assign(patch, { revert_expires_at: null }, escolha()) // revert_expires_at: zera o prazo antigo ainda gravado em testes velhos
   } else if (destino !== 'original' && tudoOk) {
     vencedorAplicado = true
     Object.assign(patch, {
@@ -622,10 +611,9 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (op.motivo === 'aplicar_sugerido' && destino === 'original') return { resultado: 'destino_invalido', campos: null } // o sugerido nunca é a original
   const caminho = caminhoDe(op, destino)
   if (!tipoConhecido(r.test_type) || !caminho.de.includes(r.status)) return { resultado: 'ja_encerrado', campos: r.restore_status }
-  if (op.motivo === 'reverter' && !reversaoAberta(r, agora)) return { resultado: 'ja_encerrado', campos: r.restore_status }
 
   // Y-T12-1: aplicar/voltar não escrevem sobre o ciclo aberto de outro teste nosso no vídeo (antes do passo 0b: `forcar` não atravessa).
-  if ((op.motivo === 'aplicar_sugerido' || op.motivo === 'reverter' || op.motivo === 'escolher') && (await outroTesteAberto(portas, r, testId))) return { resultado: 'outro_teste', campos: r.restore_status }
+  if ((op.motivo === 'aplicar_sugerido' || op.motivo === 'escolher') && (await outroTesteAberto(portas, r, testId))) return { resultado: 'outro_teste', campos: r.restore_status }
 
   const campos = camposDoTeste(r.test_type)
   // Guarda do teste do YouTube confirmado (F1a-dado, Yannis C2; sem flag): ponto único de escrita do nosso teste. Dispensada quando o motivo já é `teste_youtube`.

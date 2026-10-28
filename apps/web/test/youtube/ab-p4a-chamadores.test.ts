@@ -26,7 +26,7 @@ vi.mock('@/lib/youtube/thumbnail-library', () => ({ autoImportWinner: vi.fn() })
 vi.mock('@/lib/youtube/scoring', () => ({ getChannelTier: vi.fn() }))
 vi.mock('@/lib/youtube/prompt-scoring', () => ({ scoreForPrompt: vi.fn() }))
 
-import { pauseAbTest, endAbTest, revertWinner, startAbTest } from '@/app/cms/(authed)/youtube/ab-lab/actions'
+import { pauseAbTest, endAbTest, startAbTest } from '@/app/cms/(authed)/youtube/ab-lab/actions'
 import { startAbTestInternal } from '@/lib/youtube/ab-start'
 import { MSG_EM_ANDAMENTO } from '@/lib/youtube/ab-acao-saida'
 import { revalidatePath, revalidateTag } from 'next/cache'
@@ -74,11 +74,9 @@ describe('P4a T7: chamadores humanos', () => {
     expect(settle).not.toHaveBeenCalled()
   })
 
-  it('sessão expirada em endAbTest e revertWinner vira sem_permissao e não chama settleOnAir', async () => {
+  it('sessão expirada em endAbTest vira sem_permissao e não chama settleOnAir', async () => {
     requireSiteScope.mockResolvedValueOnce({ ok: false, reason: 'unauthenticated' })
     expect(await endAbTest('t1', { destino: 'original', seqVisto: 7 })).toEqual({ ok: false, resultado: 'sem_permissao', error: 'unauthenticated' })
-    requireSiteScope.mockResolvedValueOnce({ ok: false, reason: 'forbidden' })
-    expect(await revertWinner('t1', 7)).toEqual({ ok: false, resultado: 'sem_permissao', error: 'forbidden' })
     expect(settle).not.toHaveBeenCalled()
   })
 
@@ -167,24 +165,10 @@ describe('P4a T7: chamadores humanos', () => {
     expect(await endAbTest('t1', { destino: 'variante', varianteId: 'X', seqVisto: 7 })).toEqual({ ok: false, resultado: 'erro', error: 'Variante inválida para este teste.' })
   })
 
-  it('revertWinner mantém denyUnlessSiteAdmin e chama settleOnAir(original, reverter)', async () => {
-    await revertWinner('t1', 7)
-    expect(denyUnlessSiteAdmin).toHaveBeenCalledWith(SITE_DA_SESSAO, expect.any(String))
-    expect(settle).toHaveBeenCalledWith('t1', { siteId: SITE_DA_SESSAO, destino: { tipo: 'original' }, motivo: 'reverter', humano: true, seqEsperado: 7 })
-  })
-
-  it('revertWinner sem admin → sem_permissao, sem settleOnAir', async () => {
-    denyUnlessSiteAdmin.mockResolvedValueOnce({ ok: false, error: 'Só admin.' })
-    expect(await revertWinner('t1', 7)).toEqual({ ok: false, resultado: 'sem_permissao', error: 'Só admin.' })
-    expect(settle).not.toHaveBeenCalled()
-  })
-
-  it('P4b T9: revertWinner com seqVisto velho -> mudou (frase exata); seqVisto inválido -> erro sem settleOnAir', async () => {
-    settle.mockResolvedValueOnce({ resultado: 'mudou', campos: null })
-    expect(await revertWinner('t1', 6)).toEqual({ ok: false, resultado: 'mudou', error: 'O teste mudou em outra aba. Reabra para decidir.' })
-    settle.mockClear()
-    expect(await revertWinner('t1', -3)).toMatchObject({ ok: false, resultado: 'erro' })
-    expect(settle).not.toHaveBeenCalled()
+  it('M7b P3: revertWinner não existe mais (voltar à original é escolherVersao)', async () => {
+    const acoes = await import('@/app/cms/(authed)/youtube/ab-lab/actions')
+    expect('revertWinner' in acoes).toBe(false)
+    expect(fs.readFileSync('src/app/cms/(authed)/youtube/ab-lab/actions.ts', 'utf8')).not.toMatch(/revertWinner|motivo: 'reverter'/)
   })
 
   it('applyWinnerNow e cancelGracePeriod não existem mais', async () => {
@@ -214,7 +198,6 @@ describe('P4a T7: chamadores humanos', () => {
     const chamadas = [
       ['pauseAbTest', () => pauseAbTest('t1', 7)],
       ['endAbTest', () => endAbTest('t1', { destino: 'original', seqVisto: 7 })],
-      ['revertWinner', () => revertWinner('t1', 7)],
     ] as const
 
     it.each(chamadas)('DEVE-1: %s com feito revalida a tag youtube e a tela do A/B Lab', async (_n, run) => {

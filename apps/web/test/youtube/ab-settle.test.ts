@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { settleOnAir, novaTentativa, lerNoArNoYouTube, ORIGINAL, destinoNormalizado, lerRetratoPadrao } from '@/lib/youtube/ab-settle'
+import { settleOnAir, caminhoDe, novaTentativa, lerNoArNoYouTube, ORIGINAL, destinoNormalizado, lerRetratoPadrao } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, MotivoSaida, Retrato } from '@/lib/youtube/ab-settle'
 import { avisarRestauracao } from '@/lib/youtube/ab-restore-avisos'
 import { converterInterrompido } from '@/lib/youtube/ab-restore'
@@ -241,22 +241,9 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     expect(banco.teste()).toMatchObject({ winner_variant_id: 'B', winner_applied_at: null, revert_expires_at: null })
     expect(portas.autoImportWinner).toHaveBeenCalledTimes(0)
   })
-  it('reverter: (a) tudo ok → os três nulos; (b) título editado → pulado_drift e os três intactos; (c) revert_expires_at ontem → ja_encerrado, restore_seq igual, nenhuma escrita', async () => {
-    const a = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: true })
-    await settleOnAir(a.banco.testId, a.op('reverter'), a.portas)
-    expect(a.banco.teste()).toMatchObject({ winner_applied_at: null, revert_expires_at: null, applied_by: null })
-    const b = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Editado no Studio' }, vencedor: 'B', reversivel: true })
-    await settleOnAir(b.banco.testId, b.op('reverter'), b.portas)
-    expect(b.banco.teste().restore_status.title).toMatchObject({ estado: 'pulado_drift' })
-    expect(b.banco.teste().winner_applied_at).not.toBeNull()
-    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: false })
-    const r = await settleOnAir(c.banco.testId, c.op('reverter'), c.portas)
-    expect(r.resultado).toBe('ja_encerrado'); expect(c.banco.teste().restore_seq).toBe(0); expect(c.yt.escritas()).toEqual([])
-  })
   it.each([
     ['pausa', { status: 'active' }],
     ['encerrado', { status: 'active' }],
-    ['reverter', { status: 'completed', vencedor: 'B', reversivel: true }],
   ] as const)('DEVE-2: teste do tipo description (fora do escopo, Q8) em %s → ja_encerrado, sem escrever nem mudar estado', async (motivo, extra) => {
     const { banco, yt, portas, op } = await preparar({ ...extra, testType: 'description', noAr: { titulo: 'Título B' } })
     const antes = { ...banco.teste() }
@@ -320,22 +307,13 @@ describe('settleOnAir: um teste por linha da tabela 3.1 (aceite 15)', () => {
     b.banco.setTeste({ completed_reason: 'regra_v2', result_metadata: { v2: { vencedor_sugerido: 'B' } } })
     expect((await settleOnAir(b.banco.testId, { ...b.op('aplicar_sugerido'), destino: { tipo: 'variante', id: 'B' }, forcar: true }, b.portas)).resultado).toBe('feito')
   })
-  it('Y-T12-1: reverter com outro teste aberto no mesmo vídeo → outro_teste, mesmo com forcar, zero escrita', async () => {
-    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: true,
-      outros: [{ id: 'outro', site_id: SITE, youtube_video_id: 'video-interno', status: 'paused', restore_seq: 0 }] })
-    const r = await settleOnAir(c.banco.testId, { ...c.op('reverter'), forcar: true }, c.portas)
-    expect(r.resultado).toBe('outro_teste'); expect(c.yt.escritas()).toEqual([]); expect(c.banco.teste().restore_seq).toBe(0)
+  it('M7b P3: o motivo reverter não existe mais (caminhoDe não devolve caminho)', () => {
+    expect(caminhoDe({ siteId: SITE, destino: ORIGINAL, motivo: 'reverter' as never }, 'original')).toBeUndefined()
   })
   it('PODE-5: encerrar um teste já completed → ja_encerrado, nada escrito', async () => {
     const c = await preparar({ status: 'completed', testType: 'combo' })
     expect((await settleOnAir(c.banco.testId, c.op('encerrado'), c.portas)).resultado).toBe('ja_encerrado')
     expect(c.banco.teste().restore_seq).toBe(0); expect(c.yt.escritas()).toEqual([])
-  })
-  it('PODE-4: reverter com winner_applied_at nulo e revert_expires_at no futuro → ja_encerrado, nada escrito', async () => {
-    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: true })
-    c.banco.setTeste({ winner_applied_at: null })
-    const r = await settleOnAir(c.banco.testId, c.op('reverter'), c.portas)
-    expect(r.resultado).toBe('ja_encerrado'); expect(c.banco.teste().restore_seq).toBe(0); expect(c.yt.escritas()).toEqual([])
   })
   it('Y-D2: destino = variante de OUTRO teste → destino_invalido, nada gravado, nada escrito; teste de outro site → ja_encerrado', async () => {
     const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo', noAr: { titulo: 'Título B', dhash: H.B } })
@@ -1030,12 +1008,6 @@ describe('M7b T4: escolher', () => {
     expect(r.resultado).toBe('feito')
     expect(c.banco.teste()).toMatchObject({ winner_variant_id: 'B', applied_by: 'manual', escolha_variant_id: 'B', escolha_por: 'user-1' })
     expect(c.banco.teste().restore_status).toMatchObject({ title: { iniciativa: 'dono' } })
-  })
-  it('reverter ok com autor grava a original como escolha', async () => {
-    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: true })
-    const r = await settleOnAir(c.banco.testId, c.op('reverter', { humano: true, autor: 'user-1' }), c.portas)
-    expect(r.resultado).toBe('feito')
-    expect(c.banco.teste()).toMatchObject({ winner_applied_at: null, escolha_variant_id: 'A', escolha_por: 'user-1' })
   })
   it('motivos que não são do dono não levam iniciativa nem escolha_*', async () => {
     const c = await preparar({ status: 'active', testType: 'title', noAr: { titulo: 'Título B' } })
