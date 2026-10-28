@@ -83,3 +83,47 @@ describe('encaixarSaida (D-M5-14)', () => {
     expect(m.tipos[0]!.linhas.every(l => l.acoes === undefined)).toBe(true); expect(m.tipos[0]!.acoes).toBeUndefined()
   })
 })
+
+describe('encaixarSaida: série por tabela (Phil C1 / Yannis I-1, decisão do dono: um bloco por tabela)', () => {
+  const D = 'competitor_video_daily', E = 'competitor_video_early'
+  const serie = (mesNum: number, d: 'online' | 'destacado' | 'descartado', e: 'online' | 'destacado' | 'descartado'): LinhaDoMes =>
+    linha(D, `2027-${String(mesNum).padStart(2, '0')}-01`, d === e ? d : 'online', { chave: `serie:${mesNum}`, saidas: [{ tabela: D, fora: d }, { tabela: E, fora: e }] })
+  const modeloSerie = (linhas: LinhaDoMes[]): ModeloPagina => ({ hojeSP: '2028-05-02', resumo: { texto: 'r', forma: 'visto' }, casa: { estado: 'responde', desde: null, forma: 'visto', frase: '' }, problemas: [], mesesAFrente: [], teste: null, ligado: true,
+    tipos: [{ tipo: 'serie', titulo: 'Views por dia', resumo: '', anosNoArquivo: [], linhas }] })
+  const blocos = (l: LinhaDoMes): { tabela: string; mes: string }[] => {
+    const achar = (n: unknown): { tabela: string; mes: string }[] => {
+      if (Array.isArray(n)) return n.flatMap(achar)
+      if (!n || typeof n !== 'object') return []
+      const pr = (n as { props?: { tabela?: string; mes?: string; children?: unknown } }).props
+      if (!pr) return []
+      return pr.tabela ? [{ tabela: pr.tabela, mes: pr.mes! }] : achar(pr.children)
+    }
+    return achar(l.acoes)
+  }
+  it('(a) M com diária descartada e early online; M+1 online nas duas: early de M tem botão, diária de M+1 tem botão, diária de M não tem', async () => {
+    const { client } = sb()
+    const out = await encaixarSaida(modeloSerie([serie(1, 'descartado', 'online'), serie(2, 'online', 'online')]), { sb: client, site: 's', por: 'u', ehAdmin: true })
+    const [m, m1] = out.tipos[0]!.linhas
+    expect(blocos(m!)).toEqual([{ tabela: E, mes: '2027-01-01' }])
+    expect(blocos(m1!)).toEqual([{ tabela: D, mes: '2027-02-01' }])
+  })
+  it('(b) M totalmente online: dois blocos na linha M, um por tabela, e o banco é lido para a early', async () => {
+    const { rpc, client } = sb()
+    const out = await encaixarSaida(modeloSerie([serie(1, 'online', 'online'), serie(2, 'online', 'online')]), { sb: client, site: 's', por: 'u', ehAdmin: true })
+    expect(blocos(out.tipos[0]!.linhas[0]!)).toEqual([{ tabela: D, mes: '2027-01-01' }, { tabela: E, mes: '2027-01-01' }])
+    expect(blocos(out.tipos[0]!.linhas[1]!)).toEqual([])
+    expect(rpc.mock.calls.some(c => (c[1] as { p_table?: string }).p_table === E)).toBe(true)
+  })
+  it('(c) chamadas = 3 tabelas + destacados + 2', async () => {
+    const { rpc, client } = sb()
+    const m = modeloSerie([serie(1, 'destacado', 'online'), serie(2, 'online', 'online')]); m.tipos.push({ tipo: 'horaria', titulo: 'h', resumo: '', anosNoArquivo: [], linhas: mes12('competitor_video_hourly') })
+    await encaixarSaida(m, { sb: client, site: 's', por: 'u', ehAdmin: true })
+    expect(rpc).toHaveBeenCalledTimes(3 + 1 + 2)
+  })
+  it('tabela destacada mostra o estado dela e a outra, "Tirar"; descartada não vira bloco vazio', async () => {
+    const { client } = sb()
+    const out = await encaixarSaida(modeloSerie([serie(1, 'destacado', 'online'), serie(2, 'descartado', 'descartado')]), { sb: client, site: 's', por: 'u', ehAdmin: true })
+    expect(blocos(out.tipos[0]!.linhas[0]!).map(b => b.tabela)).toEqual([D, E])
+    expect(out.tipos[0]!.linhas[1]!.acoes).toBeUndefined()
+  })
+})

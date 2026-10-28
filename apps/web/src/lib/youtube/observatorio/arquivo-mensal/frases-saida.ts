@@ -9,14 +9,25 @@ export type Operacao = 'tirar' | 'liberar' | 'trazer'
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 export function nomeDoMes(mes: string): string { return `${MESES[Number(mes.slice(5, 7)) - 1]} de ${mes.slice(0, 4)}` }
 const maiuscula = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1)
-/** 'AAAA-MM-DD' ou instante ISO → dd/mm/aaaa no dia de São Paulo. */
-export function ddmmaaaa(iso: string): string {
-  const dia = iso.length === 10 ? iso : new Date(Date.parse(iso) - 3 * 3_600_000).toISOString().slice(0, 10)
+/** 'AAAA-MM-DD' ou instante ISO → dd/mm/aaaa no dia de São Paulo. Data ausente ou torta devolve `null` (nunca lança, nunca string vazia): quem escreve a frase a escreve sem a data (Yannis I-3). */
+export function ddmmaaaa(iso: string | null | undefined): string | null {
+  if (typeof iso !== 'string') return null
+  let dia: string
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) dia = iso
+  else { const t = Date.parse(iso); if (Number.isNaN(t)) return null; dia = new Date(t - 3 * 3_600_000).toISOString().slice(0, 10) }
   return `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`
 }
+/** " em dd/mm/aaaa", ou nada quando a data não veio. */
+const emData = (iso: string | null | undefined): string => { const d = ddmmaaaa(iso); return d === null ? '' : ` em ${d}` }
 const n = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null)
 const milhar = (x: number): string => x.toLocaleString('pt-BR')
 const AVISE = 'avise quem cuida do site'
+const comCodigo = (frase: string, codigo: string): string => `${frase} (código: ${codigo})`
+const VERBO: Record<Operacao, string> = { tirar: 'tirar o mês', liberar: 'liberar o espaço', trazer: 'trazer o mês de volta' }
+/** A leitura do estado do mês falhou (não é falha de escrita). Não afirma "nada foi tirado": o mês pode já ter saído antes. */
+export const FRASE_NAO_LEU_O_MES = 'Não foi possível ler o estado deste mês. Recarregue a página; esta leitura não mudou nada.'
+/** registro_diverge: o mesmo literal na falta (exit_check) e na recusa do servidor. */
+export const FRASE_REGISTRO_DIVERGE = `Os registros do banco não batem com a cópia. Nada foi alterado; ${AVISE}.`
 const FEITO: Record<Operacao, string> = { tirar: 'tirado', liberar: 'liberado', trazer: 'trazido' }
 const INCERTA: Record<Operacao, string> = { tirar: 'se o mês saiu', liberar: 'se o espaço foi liberado', trazer: 'se o mês voltou ao banco online' }
 /** Nulo é "não medido", nunca 0 (o reattach nem manda linhas). */
@@ -38,7 +49,7 @@ export function fraseDaFalha(causa: CausaDaFalha, op: Operacao, restantes?: numb
       return `A conferência dos canais passou do tempo desta página. Nada foi ${feito}; ${falta}clique de novo para continuar de onde parou.`
     }
     case 'sem_tempo': return `Faltou tempo nesta página para chamar o banco. Nada foi ${feito}; clique de novo.`
-    default: return `Não foi possível ler o estado deste mês. Nada foi ${feito}.`   // banco, forma
+    default: return `Não foi possível ${VERBO[op]} agora. Nada foi ${feito}; tente de novo em alguns minutos. Se repetir, ${AVISE}. (código: ${causa})`   // banco, forma: falha de ESCRITA, nunca "ler" (Logan U3)
   }
 }
 
@@ -47,12 +58,12 @@ export const TEXTO_SAIDA_FORA_DE_ORDEM = (mes: string, antes: string): string =>
 
 export function fraseDaFalta(f: Falta, ctx: { mes: string; janelaMeses: number }): string {
   switch (f.codigo) {
-    case 'ainda_na_janela': return `Ainda dentro dos ${ctx.janelaMeses} meses: pode sair em ${ddmmaaaa(String(f.pode_sair_em))}.`
+    case 'ainda_na_janela': { const d = ddmmaaaa(typeof f.pode_sair_em === 'string' ? f.pode_sair_em : null); return d === null ? `Ainda dentro dos ${ctx.janelaMeses} meses; a data em que pode sair não foi medida.` : `Ainda dentro dos ${ctx.janelaMeses} meses: pode sair em ${d}.` }
     case 'nas_sem_atestacao': return n(f.horas) === null
       ? 'A cópia na casa ainda não foi verificada. Nada se perde: o mês só sai quando a casa confirmar.'
       : `Cópia sem verificação há ${n(f.horas)} horas: a casa não respondeu. Nada se perde: o mês só sai quando a casa voltar. Veja o que fazer no aviso do banco.`
     case 'b2_sem_atestacao':
-      if (f.motivo === 'retirada') return `A última conferência do B2 falhou em ${ddmmaaaa(String(f.em))}: nada foi tirado. A forja confere de novo amanhã; se quiser adiantar, rode a conferência no seu Mac.`
+      if (f.motivo === 'retirada') return `A última conferência do B2 falhou${emData(typeof f.em === 'string' ? f.em : null)}: nada foi tirado. A forja confere de novo amanhã; se quiser adiantar, rode a conferência no seu Mac.`
       if (n(f.dias_forja) !== null) return `A forja não confere o B2 há ${n(f.dias_forja)} dias.`
       return n(f.dias_dono) !== null ? `Falta conferir o B2 (última conferência há ${n(f.dias_dono)} dias).` : 'Falta conferir o B2.'
     case 'classe_nao_liberada': return 'Este tipo de dado ainda não pode sair do banco online.'
@@ -70,8 +81,9 @@ export function fraseDaFalta(f: Falta, ctx: { mes: string; janelaMeses: number }
     case 'outro_site_na_particao': return 'Outro site tem registros neste mês que ainda não estão copiados.'
     case 'esquema_divergente': return 'A tabela deste mês mudou de forma desde a cópia. O mês será copiado de novo antes de sair.'
     case 'fora_do_mes': return 'Há registros fora deste mês na cópia. Nada foi tirado.'
+    case 'registro_diverge': return comCodigo(FRASE_REGISTRO_DIVERGE, 'registro_diverge')
     case 'saida_fora_de_ordem': return TEXTO_SAIDA_FORA_DE_ORDEM(ctx.mes, String(f.antes))
-    default: return `O banco recusou tirar este mês por um motivo que esta tela não conhece; ${AVISE}.`
+    default: return comCodigo(`O banco recusou tirar este mês por um motivo que esta tela não conhece; ${AVISE}.`, String(f.codigo))
   }
 }
 
@@ -94,9 +106,9 @@ const FRASE_DO_CODIGO: Record<CodigoDaSaida, (op: Operacao, r: Extract<RespostaS
   ja_destacado: () => ({ tom: 'aviso', texto: 'Este mês já saiu das telas.' }),
   esquema_divergente: () => ({ tom: 'aviso', texto: 'A tabela deste mês mudou de forma desde a cópia: nada foi tirado; o mês será copiado de novo.' }),
   fora_do_mes: () => ({ tom: 'erro', texto: `Não foi possível trazer de volta: há registros fora deste mês. Nada foi alterado; o mês continua fora das telas. ${maiuscula(AVISE)}.` }),
-  ja_descartado: (_op, r) => ({ tom: 'aviso', texto: `O espaço deste mês já foi liberado em ${ddmmaaaa(r.descartadoEm ?? '')}.` }),
+  ja_descartado: (_op, r) => ({ tom: 'aviso', texto: `O espaço deste mês já foi liberado${emData(r.descartadoEm)}.` }),
   orfa_inesperada: () => ({ tom: 'erro', texto: `Não foi possível trazer de volta: o banco encontrou registros sem vídeo. Nada foi alterado; o mês continua fora das telas. ${maiuscula(AVISE)}.` }),
-  cedo_demais: (_op, r) => ({ tom: 'aviso', texto: `O espaço só pode ser liberado a partir de ${ddmmaaaa(r.liberarAPartir ?? '')}.` }),
+  cedo_demais: (_op, r) => ({ tom: 'aviso', texto: ddmmaaaa(r.liberarAPartir) === null ? 'O espaço ainda não pode ser liberado (a data não foi medida).' : `O espaço só pode ser liberado a partir de ${ddmmaaaa(r.liberarAPartir)}.` }),
   particao_ausente: () => ({ tom: 'aviso', texto: TEXTO_PARTICAO_AUSENTE }),
   nao_destacado: () => ({ tom: 'aviso', texto: 'Este mês não saiu das telas, então não há o que liberar nem trazer de volta. Nada foi alterado.' }),
   tabela_invalida: () => ({ tom: 'erro', texto: `Esta tela pediu uma tabela que o banco não aceita. Nada foi alterado; ${AVISE}.` }),
@@ -106,7 +118,7 @@ const FRASE_DO_CODIGO: Record<CodigoDaSaida, (op: Operacao, r: Extract<RespostaS
   outro_site_na_particao: (_op, _r, ctx) => ({ tom: 'aviso', texto: fraseDaFalta({ codigo: 'outro_site_na_particao' }, { mes: ctx.mes, janelaMeses: 6 }) }),
   canal_sem_unidade: (_op, _r, ctx) => ({ tom: 'aviso', texto: fraseDaFalta({ codigo: 'canal_sem_unidade' }, { mes: ctx.mes, janelaMeses: 6 }) }),
   mudou_durante_a_leitura: () => ({ tom: 'aviso', texto: 'O dado mudou enquanto o banco conferia. Nada foi alterado; tente de novo em alguns minutos.' }),
-  registro_diverge: () => ({ tom: 'erro', texto: `Os registros do banco não batem com a cópia. Nada foi alterado; ${AVISE}.` }),
+  registro_diverge: () => ({ tom: 'erro', texto: comCodigo(FRASE_REGISTRO_DIVERGE, 'registro_diverge') }),
 }
 
 export function fraseDoRetorno(op: Operacao, r: RespostaSaida, ctx: Ctx): Frase {
@@ -125,20 +137,22 @@ export function fraseDoRetorno(op: Operacao, r: RespostaSaida, ctx: Ctx): Frase 
   if (r.tipo === 'simulado') return { tom: 'ok', texto: fraseDaSimulacao(r, ctx.mes) }
   if (op === 'trazer') {
     if (r.protecaoFaltam && r.protecaoFaltam.length > 0) return { tom: 'erro', texto: `O mês voltou. A proteção contra remoção durante a saída não está instalada; ${AVISE} antes de tirar outro mês.` }
-    const base = `${maiuscula(nomeDoMes(ctx.mes))} voltou ao banco online em ${ddmmaaaa(ctx.hoje ?? '')}.`
+    const base = `${maiuscula(nomeDoMes(ctx.mes))} voltou ao banco online${emData(ctx.hoje)}.`
     return { tom: r.conteudoMudou ? 'aviso' : 'ok', texto: r.conteudoMudou ? `${base} O dado dele não bateu com a cópia: o mês será copiado de novo.` : base }
   }
   // tirar (ok) e liberar (ok): a linha relida mostra T7/T9; o retorno é curto
-  return { tom: 'ok', texto: op === 'liberar' || !ctx.doisPassos ? `Saiu em ${ddmmaaaa(ctx.hoje ?? '')}.` : `Saiu das telas em ${ddmmaaaa(ctx.hoje ?? '')}.` }
+  return { tom: 'ok', texto: op === 'liberar' || !ctx.doisPassos ? `Saiu${emData(ctx.hoje)}.` : `Saiu das telas${emData(ctx.hoje)}.` }
 }
 
 const diasEntre = (a: string, b: string): number => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000)
-const diaSP = (iso: string): string => new Date(Date.parse(iso) - 3 * 3_600_000).toISOString().slice(0, 10)
+const diaSP = (iso: string): string | null => { const t = Date.parse(iso); return Number.isNaN(t) ? null : new Date(t - 3 * 3_600_000).toISOString().slice(0, 10) }
+const diasDesde = (iso: string | null | undefined, hojeSP: string): number | null => { const d = typeof iso === 'string' ? diaSP(iso) : null; return d === null ? null : diasEntre(d, hojeSP) }
 
 export function estadoDaLinha(e: EstadoDoMes, hojeSP: string): 'T1' | 'T3' | 'T7' | 'T7a' | 'T7b' | 'T9' {
   if (e.estado === 'descartado') return 'T9'
   if (e.estado === 'destacado') {
-    if (e.destacado_em && diasEntre(diaSP(e.destacado_em), hojeSP) > 15) return 'T7b'
+    const desde = diasDesde(e.destacado_em, hojeSP)
+    if (desde !== null && desde > 15) return 'T7b'
     return e.liberar_a_partir && hojeSP >= e.liberar_a_partir ? 'T7a' : 'T7'
   }
   return e.faltam.length > 0 ? 'T1' : 'T3'
@@ -147,9 +161,10 @@ export function estadoDaLinha(e: EstadoDoMes, hojeSP: string): 'T1' | 'T3' | 'T7
 export function fraseDaLinhaDestacada(e: EstadoDoMes, hojeSP: string, pctDoBanco: number | null): string {
   const libera = pctDoBanco === null ? '' : ` Liberar o espaço devolve cerca de ${pctDoBanco}% do banco.`
   const s = estadoDaLinha(e, hojeSP)
-  if (s === 'T7b') return `Saiu das telas há ${diasEntre(diaSP(e.destacado_em ?? ''), hojeSP)} dias e o espaço ainda não foi liberado. Enquanto isso não dá para remover canal nem apagar vídeo. Libere o espaço ou traga o mês de volta.`
+  if (s === 'T7b') return `Saiu das telas há ${diasDesde(e.destacado_em, hojeSP)} dias e o espaço ainda não foi liberado. Enquanto isso não dá para remover canal nem apagar vídeo. Libere o espaço ou traga o mês de volta.`
   if (s === 'T7a') return `Pronto para liberar o espaço. Ainda dá para trazer de volta.${libera}`
-  return `Saiu das telas em ${ddmmaaaa(e.destacado_em ?? '')}. O espaço ainda não voltou. Você pode trazer de volta a qualquer momento, até liberar o espaço. A partir de ${ddmmaaaa(e.liberar_a_partir ?? '')} você pode liberar o espaço. Até lá não dá para remover canal nem apagar vídeo.${libera}`
+  const aPartir = ddmmaaaa(e.liberar_a_partir)
+  return `Saiu das telas${emData(e.destacado_em)}. O espaço ainda não voltou. Você pode trazer de volta a qualquer momento, até liberar o espaço. ${aPartir === null ? 'A data em que o espaço pode ser liberado não foi medida.' : `A partir de ${aPartir} você pode liberar o espaço.`} Até lá não dá para remover canal nem apagar vídeo.${libera}`
 }
 
 /** O retorno completo da ação do servidor: com resposta, a frase da resposta; sem resposta, a da `causa`; sem causa (guarda negada), o `error` do servidor. */
@@ -161,6 +176,7 @@ export function fraseDoRetornoDaAcao(op: Operacao, ret: RetornoDaAcao, ctx: Ctx)
 
 /** T9: "Saiu em dd/mm/aaaa às hh:mm. Liberou N% do banco"; percentual nulo é "não medido", nunca 0%. */
 export function fraseDaLinhaDescartada(e: EstadoDoMes, pctDoBanco: number | null): string {
-  const hora = new Date(Date.parse(e.descartado_em ?? '') - 3 * 3_600_000).toISOString().slice(11, 16)
-  return `Saiu em ${ddmmaaaa(e.descartado_em ?? '')} às ${hora}. ${pctDoBanco === null ? `Liberou: ${NAO_MEDIDO_TEXTO}` : `Liberou ${pctDoBanco}% do banco`}`
+  const t = Date.parse(e.descartado_em ?? '')
+  const quando = Number.isNaN(t) ? '' : `${emData(e.descartado_em)} às ${new Date(t - 3 * 3_600_000).toISOString().slice(11, 16)}`
+  return `Saiu${quando}. ${pctDoBanco === null ? `Liberou: ${NAO_MEDIDO_TEXTO}` : `Liberou ${pctDoBanco}% do banco`}`
 }

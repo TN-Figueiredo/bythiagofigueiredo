@@ -28,7 +28,7 @@ describe('peça 3', () => {
   })
   it('estado não lido: diz que não leu, sem botão (nunca "pode sair")', () => {
     render(<PecaTirarMes tabela="competitor_video_daily" mes="2027-10-01" estado={null} hojeSP="2028-05-02" pctDoBanco={null} ehAdmin acoes={acoes()} />)
-    expect(screen.getByText('Não foi possível ler o estado deste mês. Nada foi tirado.')).toBeTruthy()
+    expect(screen.getByText('Não foi possível ler o estado deste mês. Recarregue a página; esta leitura não mudou nada.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Tirar/ })).toBeNull()
   })
 })
@@ -122,5 +122,18 @@ describe('T12b: o diálogo de tirar', () => {
   it('sem espera conhecida, o diálogo não traz data', () => {
     const t = abrir({ esperaDias: null })
     expect(t).not.toContain('a partir de'); expect(t).toContain('depois da espera da política')
+  })
+})
+
+describe('M6a T12 r1 (Yannis I-3): data ausente não derruba a peça', () => {
+  it('destacado sem liberar_a_partir: renderiza, sem "undefined" nem parênteses vazios', () => {
+    const dest = { estado: 'destacado' as const, faltam: [], descartes: 0, dois_passos: true, destacado_em: null, liberar_a_partir: null }
+    const { container } = render(<PecaTirarMes tabela="competitor_video_daily" mes="2027-10-01" estado={dest} hojeSP="2028-05-02" pctDoBanco={null} ehAdmin acoes={acoes()} />)
+    expect(container.textContent).not.toMatch(/undefined|NaN|\(disponível em \)|\/\//)
+    expect(screen.getByRole('button', { name: /Liberar o espaço/ })).toBeTruthy()
+  })
+  it('leitura do mês falhou: diz "ler" e que a leitura não mudou nada', () => {
+    render(<PecaTirarMes tabela="competitor_video_daily" mes="2027-10-01" estado={null} hojeSP="2028-05-02" pctDoBanco={null} ehAdmin acoes={acoes()} />)
+    expect(screen.getByText('Não foi possível ler o estado deste mês. Recarregue a página; esta leitura não mudou nada.')).toBeTruthy()
   })
 })

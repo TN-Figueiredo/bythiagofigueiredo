@@ -4,12 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteAdminScope, siteAdminOnlyMessage } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { fraseDaFalha, type Operacao, type RetornoDaAcao } from '@/lib/youtube/observatorio/arquivo-mensal/frases-saida'
+import { FRASE_NAO_LEU_O_MES, fraseDaFalha, type Operacao, type RetornoDaAcao } from '@/lib/youtube/observatorio/arquivo-mensal/frases-saida'
 import { ChamadaSaida, PRAZO_TOTAL_MS, TABELAS_DA_SAIDA, executarLiberar, executarSaida, executarTrazer, lerEstadoDoMes, type RespostaSaida } from '@/lib/youtube/observatorio/arquivo-mensal/saida'
 
 type Retorno = RetornoDaAcao
 const PAGINA = '/cms/youtube/competitors'
-const naoLeu = (op: Operacao): string => fraseDaFalha('forma', op)
+const naoLeu = (_op: Operacao): string => FRASE_NAO_LEU_O_MES   // leitura do estado, não escrita (Logan U3)
 
 /** O guarda no TOPO (antes do cliente de serviço), UMA vez só (Yannis M-2); o id de quem age vem da sessão, nunca do formulário. */
 async function quem(acao: string): Promise<{ site: string; por: string } | { negado: Retorno }> {

@@ -282,3 +282,25 @@ describe('campos do encaixe da M6 (D-M5-14)', () => {
     expect(modeloDesligado().hojeSP).toBeUndefined()
   })
 })
+
+describe('M6a T12 r1 (Phil C1 / Yannis I-1): a saída é por tabela, antes de juntar', () => {
+  const duas = (daily: { destacadoHa?: number; descartadoHa?: number }, early: { destacadoHa?: number; descartadoHa?: number }, mesNum = 1) => {
+    const d = mesCom({ nasHorasAtras: 3, mesNum, ...daily }).linha
+    const e = { ...mesCom({ nasHorasAtras: 3, mesNum, ...early }).linha, table_name: 'competitor_video_early' }
+    return [d, e]
+  }
+  it('diária descartada e early online: o fora juntado segue online, mas saidas[] diz o estado de cada tabela', () => {
+    const p = paginaVazia({}); p.meses = duas({ descartadoHa: 10 }, {})
+    const l = montarPagina(p, { arquivoLigado: true }).tipos[0]!.linhas[0]!
+    expect(l.fora).toBe('online')
+    expect(l.saidas).toEqual([{ tabela: 'competitor_video_daily', fora: 'descartado' }, { tabela: 'competitor_video_early', fora: 'online' }])
+  })
+  it('diária destacada e early online: saidas[] carrega destacado e online', () => {
+    const p = paginaVazia({}); p.meses = duas({ destacadoHa: 2 }, {})
+    expect(montarPagina(p, { arquivoLigado: true }).tipos[0]!.linhas[0]!.saidas).toEqual([{ tabela: 'competitor_video_daily', fora: 'destacado' }, { tabela: 'competitor_video_early', fora: 'online' }])
+  })
+  it('horária: uma só tabela em saidas[]', () => {
+    const p = paginaVazia({ meses: [mesCom({ classe: 'horaria', nasHorasAtras: 3 })] })
+    expect(montarPagina(p, { arquivoLigado: true }).tipos[0]!.linhas[0]!.saidas).toEqual([{ tabela: 'competitor_video_hourly', fora: 'online' }])
+  })
+})

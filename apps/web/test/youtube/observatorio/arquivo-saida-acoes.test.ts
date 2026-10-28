@@ -96,7 +96,7 @@ describe('ações da saída', () => {
     for (const ec of [ok(null), ok({ estado: 'qualquer' }), { data: null, error: { code: '42883', message: 'x' } }]) {
       respostas = { obs_archive_exit_check: ec }; chamadas.length = 0
       const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
-      expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, error: 'Não foi possível ler o estado deste mês. Nada foi tirado.' })
+      expect(await a.tirarMes('competitor_video_daily', '2026-10-01')).toEqual({ ok: false, error: 'Não foi possível ler o estado deste mês. Recarregue a página; esta leitura não mudou nada.' })
       expect(chamadas.map(c => c.fn)).toEqual(['obs_archive_exit_check'])
     }
   })
@@ -179,7 +179,7 @@ describe('ações da saída', () => {
 
 // ───────── T11 consertos r1 (Phil 62, Yannis 72) ─────────
 const SEM_RESPOSTA_TIRAR = 'Não foi possível confirmar se o mês saiu. Recarregue a página antes de tentar de novo.'
-const NAO_LEU = 'Não foi possível ler o estado deste mês. Nada foi tirado.'
+const NAO_LEU = 'Não foi possível tirar o mês agora. Nada foi tirado; tente de novo em alguns minutos. Se repetir, avise quem cuida do site. (código: banco)'   // falha de escrita: verbo da operação, nunca "ler" (Logan U3)
 const PREP = (extra: Record<string, R | R[]> = {}): void => { respostas = { obs_archive_exit_check: ok(EST_ONLINE), obs_archive_precheck_channels: ok([]), ...extra } }
 const ONLINE_DESTACADO = { ...EST_ONLINE, estado: 'destacado' }
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import type { EstadoDoMes } from '@/lib/youtube/observatorio/arquivo-mensal/saida'
 import {
-  TEXTO_PARTICAO_AUSENTE, ddmmaaaa, estadoDaLinha, fraseDaFalha, fraseDaFalta, fraseDaLinhaDescartada, fraseDaLinhaDestacada, fraseDaSimulacao,
+  FRASE_NAO_LEU_O_MES, TEXTO_PARTICAO_AUSENTE, ddmmaaaa, estadoDaLinha, fraseDaFalha, fraseDaFalta, fraseDaLinhaDescartada, fraseDaLinhaDestacada, fraseDaSimulacao,
   fraseDoRetornoDaAcao, nomeDoMes, type Operacao, type RetornoDaAcao,
 } from '@/lib/youtube/observatorio/arquivo-mensal/frases-saida'
 
@@ -27,7 +27,7 @@ type Props = {
 type Fase = 'simulando' | 'tirando' | 'liberando' | 'trazendo'
 type Aviso = { tom: 'ok' | 'aviso' | 'erro'; texto: string }
 
-const maisDias = (dia: string, n: number): string => new Date(Date.parse(`${dia}T12:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10)
+const maisDias = (dia: string, n: number): string => { const t = Date.parse(`${dia}T12:00:00Z`); return Number.isNaN(t) ? '' : new Date(t + n * 86_400_000).toISOString().slice(0, 10) }
 
 function Dialogo({ titulo, corpo, rotuloOk, onOk, onCancela }: { titulo: string; corpo: ReactElement; rotuloOk: string; onOk: () => void; onCancela: () => void }): ReactElement {
   const cancelar = useRef<HTMLButtonElement>(null)
@@ -65,7 +65,7 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
     } finally { setFase(null) }
   }
 
-  if (estado === null) return <p>Não foi possível ler o estado deste mês. Nada foi tirado.</p>
+  if (estado === null) return <p>{FRASE_NAO_LEU_O_MES}</p>
   const e = estado
   const ocupado = fase !== null
   const quem = !ehAdmin ? <p>Quem administra o site tira um mês do banco.</p> : null
@@ -85,7 +85,7 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
             <button type="button" className="arq-btn" disabled={ocupado} onClick={() => void rodar('trazer', 'trazendo', acoes.trazer)}>Trazer de volta</button>
             {podeLiberar
               ? <button type="button" className="arq-btn" disabled={ocupado} onClick={() => setDialogo('liberar')}>Liberar o espaço</button>
-              : <button type="button" className="arq-btn" aria-disabled="true" disabled>Liberar o espaço (disponível em {ddmmaaaa(e.liberar_a_partir ?? '')})</button>}
+              : <button type="button" className="arq-btn" aria-disabled="true" disabled>Liberar o espaço{ddmmaaaa(e.liberar_a_partir) === null ? ' (data não medida)' : ` (disponível em ${ddmmaaaa(e.liberar_a_partir)})`}</button>}
           </div>
         ) : quem}
         {fase === 'trazendo' || fase === 'liberando' ? <p role="status">{fase === 'liberando' ? 'Conferindo o banco contra o arquivo, depois liberando' : 'Trazendo de volta'}</p> : null}
@@ -105,7 +105,7 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
   const faltas = e.faltam
   const tirarOk = faltas.length === 0
   // a data vem da política da classe; o banco confirma na hora com `liberar_a_partir` depois de tirar
-  const quando = esperaDias === null ? null : ddmmaaaa(maisDias(hojeSP, esperaDias))
+  const quando = esperaDias === null ? null : ddmmaaaa(maisDias(hojeSP, esperaDias))   // nulo: o diálogo cai na frase sem data
   const nCanais = contado?.canais ?? null
   const nRegistros = contado?.registros ?? null
   const contadoAgora = nCanais === null || nRegistros === null

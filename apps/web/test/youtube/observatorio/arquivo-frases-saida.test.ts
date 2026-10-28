@@ -1,7 +1,7 @@
 // apps/web/test/youtube/observatorio/arquivo-frases-saida.test.ts
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
-import { nomeDoMes, fraseDaFalta, fraseDaSimulacao, fraseDoRetorno, estadoDaLinha, fraseDaLinhaDestacada, fraseDaFalha, fraseDoRetornoDaAcao, FRASE_CODIGO_DESCONHECIDO } from '@/lib/youtube/observatorio/arquivo-mensal/frases-saida'
+import { nomeDoMes, fraseDaFalta, fraseDaSimulacao, fraseDoRetorno, estadoDaLinha, fraseDaLinhaDestacada, fraseDaFalha, fraseDoRetornoDaAcao, FRASE_CODIGO_DESCONHECIDO, fraseDaLinhaDescartada, ddmmaaaa } from '@/lib/youtube/observatorio/arquivo-mensal/frases-saida'
 import { CODIGOS_DA_SAIDA, FRASE_CODIGO_DESCONHECIDO as DESCONHECIDO_DO_SAIDA } from '@/lib/youtube/observatorio/arquivo-mensal/saida'
 import { faltaParaLigar, NOTA_DESCARTES } from '@/lib/youtube/observatorio/arquivo-mensal/interruptor'
 
@@ -20,8 +20,9 @@ describe('frases da peça 3 (literais do arquivo.js)', () => {
       'outro_site_na_particao', 'saida_fora_de_ordem', 'esquema_divergente', 'fora_do_mes', 'codigo_que_nao_existe']) {
       const t = fraseDaFalta({ codigo, antes: '2027-09-01', pode_sair_em: '2028-06-01' }, { mes: MES, janelaMeses: 6 })
       expect(t, codigo).toMatch(/^[A-ZÀ-Ú]/)
-      expect(t, codigo).not.toContain(codigo)
-      expect(t, codigo).not.toContain('_')
+      const semCodigo = t.replace(/ \(código: [a-z_]+\)/, '')   // o código só aparece na marca discreta "(código: x)" (Logan U1)
+      expect(semCodigo, codigo).not.toContain(codigo)
+      expect(semCodigo, codigo).not.toContain('_')
     }
   })
   it('simulação', () => {
@@ -60,8 +61,8 @@ describe('T12: causa, não medido, código sem frase, descartes (Hanna, Phil, Ya
     expect(fraseDoRetorno('liberar', { tipo: 'falhou', causa: 'prazo' }, c).texto).toBe('Não foi possível confirmar se o espaço foi liberado. Recarregue a página antes de tentar de novo.')
     expect(fraseDoRetorno('trazer', { tipo: 'falhou', causa: 'tempo_no_banco' }, c).texto).toBe('O banco não terminou a tempo. Nada foi trazido; tente de novo em alguns minutos.')
     expect(fraseDoRetorno('tirar', { tipo: 'falhou', causa: 'sem_tempo' }, c).texto).toBe('Faltou tempo nesta página para chamar o banco. Nada foi tirado; clique de novo.')
-    expect(fraseDoRetorno('tirar', { tipo: 'falhou', causa: 'forma' }, c).texto).toBe('Não foi possível ler o estado deste mês. Nada foi tirado.')
-    expect(fraseDaFalha('banco', 'liberar')).toBe('Não foi possível ler o estado deste mês. Nada foi liberado.')
+    expect(fraseDoRetorno('tirar', { tipo: 'falhou', causa: 'forma' }, c).texto).toBe('Não foi possível tirar o mês agora. Nada foi tirado; tente de novo em alguns minutos. Se repetir, avise quem cuida do site. (código: forma)')
+    expect(fraseDaFalha('banco', 'liberar')).toMatch(/^Não foi possível liberar o espaço agora\. Nada foi liberado;/)
   })
   it('a retorno da ação (ok:false) usa a causa; sem causa usa o error; ok:true usa a resposta', () => {
     expect(fraseDoRetornoDaAcao('tirar', { ok: false, error: 'qualquer', causa: 'prazo' }, c).texto).toMatch(/^Não foi possível confirmar se o mês saiu/)
@@ -94,8 +95,9 @@ describe('T12: causa, não medido, código sem frase, descartes (Hanna, Phil, Ya
       const rotulo = `${codigo}/${op}`
       expect(t, rotulo).toMatch(/^[A-ZÀ-Ú]/)
       expect(GENERICAS.some(g => t.startsWith(g.slice(0, 30))), rotulo).toBe(false)
-      expect(t, rotulo).not.toContain(codigo)
-      expect(t, rotulo).not.toContain('_')
+      const semCodigo = t.replace(/ \(código: [a-z_]+\)/, '')
+      expect(semCodigo, rotulo).not.toContain(codigo)
+      expect(semCodigo, rotulo).not.toContain('_')
       expect(t, rotulo).not.toContain('undefined')
       vistas.set(rotulo, t)
     }
@@ -109,5 +111,47 @@ describe('T12: causa, não medido, código sem frase, descartes (Hanna, Phil, Ya
     const todas = [NOTA_DESCARTES, faltaParaLigar(1, 0), faltaParaLigar(3, 2)]
     expect(NOTA_DESCARTES).toContain('descartes feitos à mão nesta classe')
     for (const t of todas) if (/descarte/i.test(t)) { expect(t).toContain('à mão'); expect(t).toContain('nesta classe') }
+  })
+})
+
+describe('M6a T12 r1: frases (Gio 1, 2, 5; Logan U1-U3; Yannis I-3)', () => {
+  const ctx = { mes: MES, janelaMeses: 6 }
+  it('U1: registro_diverge tem frase própria e a que não tem cita o código', () => {
+    const t = fraseDaFalta({ codigo: 'registro_diverge' }, ctx)
+    expect(t).toMatch(/não batem com a cópia/); expect(t).not.toMatch(/não conhece/); expect(t).toContain('(código: registro_diverge)')
+    expect(fraseDaFalta({ codigo: 'qualquer_novo' }, ctx)).toContain('(código: qualquer_novo)')
+  })
+  it('U1: todo código da lista fechada que o exit_check devolve em faltam tem frase que não é a genérica', () => {
+    for (const codigo of CODIGOS_DA_SAIDA) {
+      const t = fraseDaFalta({ codigo }, ctx)
+      if (['ocupado', 'ja_destacado', 'ja_descartado', 'cedo_demais', 'particao_ausente', 'nao_destacado', 'tabela_invalida', 'dois_passos_obrigatorios', 'mudou_durante_a_leitura', 'gatilho_ausente', 'orfa_inesperada'].includes(codigo)) continue
+      expect(t, codigo).not.toMatch(/não conhece/)
+    }
+  })
+  it('U3: falha de escrita nunca diz "ler"; diz o verbo da operação e o código da causa', () => {
+    for (const op of ['tirar', 'liberar', 'trazer'] as const) for (const causa of ['banco', 'forma'] as const) {
+      const t = fraseDaFalha(causa, op)
+      expect(t, `${op}/${causa}`).not.toMatch(/ler/); expect(t).toMatch(/Nada foi (tirado|liberado|trazido)/); expect(t).toContain(`(código: ${causa})`)
+    }
+    expect(fraseDaFalha('banco', 'tirar')).toBe('Não foi possível tirar o mês agora. Nada foi tirado; tente de novo em alguns minutos. Se repetir, avise quem cuida do site. (código: banco)')
+    expect(fraseDaFalha('banco', 'liberar')).toMatch(/^Não foi possível liberar o espaço agora\./)
+    expect(fraseDaFalha('forma', 'trazer')).toMatch(/^Não foi possível trazer o mês de volta agora\./)
+  })
+  it('I-3: data ausente ou torta não lança e a frase sai sem a data', () => {
+    expect(ddmmaaaa(null)).toBeNull(); expect(ddmmaaaa(undefined)).toBeNull(); expect(ddmmaaaa('')).toBeNull(); expect(ddmmaaaa('lixo')).toBeNull()
+    expect(ddmmaaaa('2028-06-01')).toBe('01/06/2028'); expect(ddmmaaaa('2028-06-01T12:00:00Z')).toBe('01/06/2028')
+    expect(() => fraseDaFalta({ codigo: 'ainda_na_janela' }, ctx)).not.toThrow()
+    expect(fraseDaFalta({ codigo: 'ainda_na_janela' }, ctx)).not.toMatch(/undefined|em \./)
+    expect(fraseDaFalta({ codigo: 'b2_sem_atestacao', motivo: 'retirada' }, ctx)).not.toMatch(/undefined| em \./)
+    const c = { mes: MES, doisPassos: true }
+    const rec = (codigo: string, extra: object = {}) => fraseDoRetorno('liberar', { tipo: 'recusado', codigo, faltam: [], ...extra } as never, c).texto
+    expect(rec('ja_descartado')).not.toMatch(/undefined|em \./); expect(rec('cedo_demais')).not.toMatch(/undefined|NaN/)
+    expect(() => fraseDoRetorno('tirar', { tipo: 'ok', linhas: 1, bytes: null } as never, c)).not.toThrow()
+    expect(() => fraseDoRetorno('trazer', { tipo: 'ok', linhas: 1, bytes: null } as never, c)).not.toThrow()
+    const dest = { estado: 'destacado' as const, faltam: [], descartes: 0, dois_passos: true, destacado_em: null, liberar_a_partir: null }
+    expect(() => fraseDaLinhaDestacada(dest, '2028-05-02', null)).not.toThrow()
+    expect(fraseDaLinhaDestacada(dest, '2028-05-02', null)).not.toMatch(/undefined|NaN/)
+    expect(() => fraseDaLinhaDescartada({ estado: 'descartado', faltam: [], descartes: 0, dois_passos: true, descartado_em: null }, null)).not.toThrow()
+    expect(() => fraseDaLinhaDestacada({ ...dest, destacado_em: 'lixo' }, '2028-05-02', null)).not.toThrow()
   })
 })

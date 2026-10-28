@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react'
 import { DAY, H, spDateOf, spDateStart } from '../time'
 import type { PaginaLida, LinhaMesLida } from './pagina'
-import { descreverVermelho, type LinhaDeProblema } from './vermelhos'
+import { agruparVermelhos, descreverVermelho, type LinhaDeProblema } from './vermelhos'
 import { INFO } from './info'
 
 export type { LinhaDeProblema } from './vermelhos'
@@ -26,6 +26,8 @@ export interface LinhaDoMes {
   acoes?: ReactNode
   /** Para o encaixe da M6 (D-M5-14): a tabela cuja saída o botão comanda, o mês ('AAAA-MM-01'), onde o mês está agora e a espera da política em dias. A M5 só os carrega. */
   tabela?: string; mes?: string; fora?: 'online' | 'destacado' | 'descartado'; esperaDias?: number | null
+  /** M6a T12 r1 (Phil C1): a saída é por tabela, não pela classe. Uma entrada por tabela comandada, lida de cada linha ANTES de `juntarTabelas` (o `fora` juntado só avança quando as duas saem). */
+  saidas?: { tabela: string; fora: 'online' | 'destacado' | 'descartado' }[]
 }
 /** Um mês que já saiu do banco e só aparece dentro do `<details>` do ano (A2, Logan r1 / Naksu N1). `verificadoEm`: ms, ou nulo se nunca conferido. */
 export interface MesNoArquivo { mesNome: string; verificadoEm: number | null }
@@ -356,8 +358,11 @@ function nomearB2Atrasado(l: LinhaDeProblema, p: PaginaLida, agora: number): Lin
   return { ...l, frase: `O mês copiado de ${[...cand.values()][0]} ainda não chegou ao B2 depois de 7 dias. Nada se perde: a cópia do NAS continua. Veja a linha marcada.` }
 }
 
-/** A tabela cuja saída o botão de cada tipo comanda (a série sai pela diária; a horária pela dela). */
+/** A tabela cuja saída o botão de cada tipo comanda (a série sai pela diária; a horária pela dela). Fica para a M5 e para a linha de teste. */
 const TABELA_DA_SAIDA_DO_TIPO: Record<'horaria' | 'serie' | 'texto', string | undefined> = { horaria: 'competitor_video_hourly', serie: 'competitor_video_daily', texto: undefined }
+/** As tabelas que cada tipo comanda, na ordem da tela (M6a T12 r1, decisão do dono: um bloco por tabela). */
+const TABELAS_DA_SAIDA_DO_TIPO: Record<'horaria' | 'serie' | 'texto', readonly string[]> = { horaria: ['competitor_video_hourly'], serie: ['competitor_video_daily', 'competitor_video_early'], texto: [] }
+const foraDe = (r: { dropped_at?: string | null; detached_at?: string | null }): 'online' | 'destacado' | 'descartado' => (r.dropped_at ? 'descartado' : r.detached_at ? 'destacado' : 'online')
 
 export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): ModeloPagina {
   if (!o.arquivoLigado) return modeloDesligado()
@@ -383,7 +388,8 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
       const secundaria = [res.secundaria ?? null, rows.some(x => x.reattach_out_of_order) ? FRASE_FORA_DE_ORDEM : null].filter((x): x is string => x !== null).join(' ') || null
       const linha: LinhaDoMes = {
         chave: `${tipo}:${mes}`, mesNome: nomeDoMes(mes), regua: res.regua, frase: res.frase, secundaria, gravidade: res.gravidade,
-        tabela: TABELA_DA_SAIDA_DO_TIPO[tipo], mes, fora: r.dropped_at ? 'descartado' : r.detached_at ? 'destacado' : 'online', esperaDias: cl.wait,
+        tabela: TABELA_DA_SAIDA_DO_TIPO[tipo], mes, fora: foraDe(r), esperaDias: cl.wait,
+        saidas: TABELAS_DA_SAIDA_DO_TIPO[tipo].flatMap(t => { const x = rows.find(y => y.table_name === t); return x ? [{ tabela: t, fora: foraDe(x) }] : [] }),
         sobeAoTopo: res.gravidade === 'ambar' || res.gravidade === 'vermelho', ...(res.acao ? { acao: res.acao } : {}), ...(res.info ? { info: res.info } : {}),
       }
       return { linha, grupo: res.grupo, mes, online, verificadoEm: r.dropped_at ? tms(r.nas_attested_at) : null }
@@ -412,7 +418,7 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
   }
   // r5 (Logan r2): "atraso de cópia" e "mês sem selo" descrevem os mesmos meses; fica a que traz a contagem
   const vermelhos = p.vermelhos.some(v => v.startsWith('mês sem selo')) ? p.vermelhos.filter(v => !v.startsWith('atraso de cópia')) : p.vermelhos
-  const problemas = vermelhos.map(descreverVermelho).map(l => (l.prefixo === 'b2_atrasado' ? nomearB2Atrasado(l, p, agora) : l))
+  const problemas = agruparVermelhos(vermelhos).map(descreverVermelho).map(l => (l.prefixo === 'b2_atrasado' ? nomearB2Atrasado(l, p, agora) : l))
   const todas = tipos.flatMap(t => t.linhas)
   const mesesVm = todas.filter(l => l.gravidade === 'vermelho')
   const probOct = problemas.filter(x => x.forma === 'octogono')
