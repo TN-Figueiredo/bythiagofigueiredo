@@ -8528,6 +8528,126 @@ export type Database = {
           },
         ]
       }
+      niche_signal_efeito_bracos: {
+        Row: {
+          anos_atras: number
+          chave: string
+          chaves_em_evento: string[]
+          criado_em: string
+          outlier_video_id: string
+          papel: string
+          signal_id: string
+          site_id: string
+          videos: string[]
+        }
+        Insert: {
+          anos_atras?: number
+          chave: string
+          chaves_em_evento?: string[]
+          criado_em?: string
+          outlier_video_id: string
+          papel: string
+          signal_id: string
+          site_id: string
+          videos: string[]
+        }
+        Update: {
+          anos_atras?: number
+          chave?: string
+          chaves_em_evento?: string[]
+          criado_em?: string
+          outlier_video_id?: string
+          papel?: string
+          signal_id?: string
+          site_id?: string
+          videos?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "niche_signal_efeito_bracos_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "niche_signal_efeito_bracos_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "niche_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      niche_signal_efeitos: {
+        Row: {
+          anos_atras: number
+          canal_id: string
+          dias_sem_cobertura: number | null
+          estado: string
+          fechado_em: string
+          metrica: string
+          motivo: string | null
+          outlier_published_at: string
+          outlier_video_id: string
+          papel: string
+          pos: number | null
+          pre: number | null
+          signal_id: string
+          site_id: string
+          versao_regra: string
+        }
+        Insert: {
+          anos_atras?: number
+          canal_id: string
+          dias_sem_cobertura?: number | null
+          estado: string
+          fechado_em?: string
+          metrica: string
+          motivo?: string | null
+          outlier_published_at: string
+          outlier_video_id: string
+          papel: string
+          pos?: number | null
+          pre?: number | null
+          signal_id: string
+          site_id: string
+          versao_regra: string
+        }
+        Update: {
+          anos_atras?: number
+          canal_id?: string
+          dias_sem_cobertura?: number | null
+          estado?: string
+          fechado_em?: string
+          metrica?: string
+          motivo?: string | null
+          outlier_published_at?: string
+          outlier_video_id?: string
+          papel?: string
+          pos?: number | null
+          pre?: number | null
+          signal_id?: string
+          site_id?: string
+          versao_regra?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "niche_signal_efeitos_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "niche_signal_efeitos_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "niche_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       niche_signals: {
         Row: {
           acao: string
@@ -16638,6 +16758,36 @@ export type Database = {
           edition_id: string
           opened_at: string
           subscriber_email: string
+        }[]
+      }
+      niche_signal_efeitos_gravar: {
+        Args: { p_bracos: Json; p_linhas: Json; p_site: string }
+        Returns: Json
+      }
+      niche_signal_medida_contagem: {
+        Args: { p_janela_dias: number; p_site: string }
+        Returns: Json
+      }
+      niche_signal_pares_abertos: {
+        Args: { p_janela_dias: number; p_metricas: string[]; p_site: string }
+        Returns: {
+          canal_id: string
+          chave: string
+          metricas_faltantes: string[]
+          outlier_published_at: string
+          outlier_video_id: string
+          signal_id: string
+        }[]
+      }
+      niche_signal_pares_base: {
+        Args: { p_janela_dias: number; p_site: string }
+        Returns: {
+          canal_id: string
+          chave: string
+          em_evidence: boolean
+          outlier_published_at: string
+          outlier_video_id: string
+          signal_id: string
         }[]
       }
       niche_signals_adiar: {
