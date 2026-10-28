@@ -71,7 +71,7 @@ export async function escolherVersaoCore(e: EntradaEscolha, p: PortasEscolha): P
       .eq('id', e.testId).eq('site_id', e.siteId).maybeSingle()
     if (t.error) throw new Error(t.error.message)
     if (!t.data) return { ok: false, resultado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
-    teste = t.data as unknown as LinhaTeste
+    teste = t.data as LinhaTeste
     const [v, h] = await Promise.all([
       supabase.from('ab_test_variants').select('id, label, is_original').eq('test_id', e.testId),
       supabase.from('ab_test_restores').select('seq, campo, destino, estado, escreveu, em').eq('test_id', e.testId).order('seq', { ascending: false }).limit(LIMITE_HISTORICO),
@@ -202,7 +202,7 @@ export async function conferirNoArCore(e: { testId: string; siteId: string }, p:
       .eq('id', e.testId).eq('site_id', e.siteId).maybeSingle()
     if (t.error) throw new Error(t.error.message)
     if (!t.data) return { ok: false, estado: 'ja_encerrado', error: MSG_JA_ENCERRADO }
-    teste = t.data as unknown as LinhaTeste
+    teste = t.data as LinhaTeste
     const [v, h] = await Promise.all([
       supabase.from('ab_test_variants').select('id, label, is_original').eq('test_id', e.testId),
       supabase.from('ab_test_restores').select('seq, campo, destino, estado, escreveu, em').eq('test_id', e.testId).order('seq', { ascending: false }).limit(LIMITE_HISTORICO),
