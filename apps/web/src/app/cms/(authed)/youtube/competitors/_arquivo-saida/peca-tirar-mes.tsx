@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import type { EstadoDoMes } from '@/lib/youtube/observatorio/arquivo-mensal/saida'
 import {
@@ -85,6 +86,7 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
   const [dialogo, setDialogo] = useState<'tirar' | 'liberar' | null>(null)
   const [aviso, setAviso] = useState<Aviso | null>(null)
   const [simulacao, setSimulacao] = useState<string | null>(null)
+  const router = useRouter()
   const origem = useRef<HTMLButtonElement | null>(null)
   const btnSair = useRef<HTMLButtonElement>(null)
   const btnApagar = useRef<HTMLButtonElement>(null)
@@ -102,7 +104,7 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
     setFase(f); setAviso(null); setSimulacao(null)
     try {
       const ret = await fn(tabela, mes)
-      if (simular && ret.resposta?.tipo === 'simulado') setSimulacao(fraseDaSimulacao(ret.resposta, mes, nome))
+      if (simular && ret.resposta?.tipo === 'simulado') { setSimulacao(fraseDaSimulacao(ret.resposta, mes, nome)); router.refresh() }   // o contador do automático (servidor) conta esta simulação
       else setAviso(fraseDoRetornoDaAcao(op, ret, ctx))
     } catch {
       setAviso({ tom: 'erro', texto: fraseDaFalha('prazo', op, undefined, mes) })   // a chamada à ação não voltou: pode ter mudado, conferir antes de repetir
@@ -119,7 +121,7 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
   const moldura = (escondido: boolean, filhos: ReactNode): ReactElement => (
     <article className="arq-bl" aria-labelledby={nome ? titulo : undefined} aria-busy={ocupado}>
       {cabecalho}
-      {soBloco && !nome ? null : <p className="arq-mes">Mês mais antigo no banco: <b>{C}</b>{escondido ? ' (escondido das telas)' : ''}</p>}
+      {soBloco && !nome ? null : <p className="arq-mesb">Mês mais antigo no banco: <b>{C}</b>{escondido ? ' (escondido das telas)' : ''}</p>}
       {filhos}
     </article>
   )
@@ -187,12 +189,12 @@ export function PecaTirarMes({ tabela, mes, estado, hojeSP, pctDoBanco, ehAdmin,
             </li>
           ))}
         </ul>
-      ) : <p className="arq-fr"><b aria-hidden="true">✓</b><span>Pode ser escondido agora.<small>As cópias no NAS e no B2 foram conferidas.</small></span></p>}
+      ) : <p className="arq-fr"><b aria-hidden="true">✓</b><span>Pode sair agora.<small>Cópia no NAS e no B2 conferida hoje.</small></span></p>}
       {e.dois_passos ? <p className="arq-passo"><b>Passo 1 de 2:</b> esconder das telas. <b>Passo 2 de 2,</b> depois do prazo: apagar do banco.</p> : null}
       {ehAdmin ? (
         <div className="arq-ac2">
           <Acao rotulo="Esconder das telas" pesado off={!tirarOk || ocupado} refBtn={btnSair}
-            efeito={`${!tirarOk ? 'Indisponível até resolver o que está acima. ' : ''}${C} some das telas; os dados seguem no banco e dá para mostrar de novo. Enquanto escondido, não dá para remover canal.`}
+            efeito={`${!tirarOk ? `Indisponível até ${faltas.some(f => f.codigo === 'ainda_na_janela') ? 'sair da janela dos 6 meses' : /b2/.test(faltas.map(f => f.codigo).join()) ? 'conferir o B2' : 'resolver o que está acima'}. ` : ''}${C} some das telas; os dados seguem no banco e dá para mostrar de novo. Enquanto escondido, não dá para remover canal.`}
             onClick={() => { origem.current = btnSair.current; setDialogo('tirar') }} />
           <Acao rotulo="Ver o que sairia" off={ocupado} refBtn={btnSim} efeito="Só calcula canais, registros e % do banco. Nada muda."
             onClick={() => { origem.current = btnSim.current; void rodar('tirar', 'simulando', acoes.simular, true) }} />

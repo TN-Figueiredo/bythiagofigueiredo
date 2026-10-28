@@ -22,7 +22,7 @@ export interface LinhaDoMes {
   acao?: string | null
   /** O texto do ⓘ "Por que se espera" (A3, Logan r1). */
   info?: string | null
-  /** O encaixe da M6: o botão (Sair do banco, Liberar, Trazer de volta) entra aqui; a M5 nunca o preenche. */
+  /** O encaixe da M6: o botão (Esconder das telas, Apagar do banco, Mostrar de novo) entra aqui; a M5 nunca o preenche. */
   acoes?: ReactNode
   /** Para o encaixe da M6 (D-M5-14): a tabela cuja saída o botão comanda, o mês ('AAAA-MM-01'), onde o mês está agora e a espera da política em dias. A M5 só os carrega. */
   tabela?: string; mes?: string; fora?: 'online' | 'destacado' | 'descartado'; esperaDias?: number | null
@@ -69,7 +69,7 @@ const quando = (c: Ctx, ms: number): string => (spDateOf(ms) === c.hoje ? `hoje 
 // ---------- a régua ----------
 const NOMES5: readonly (readonly [string, string])[] = [['No NAS', 'No NAS'], ['No B2', 'No B2'], ['Recuperação', 'Recup.'], ['Prazo', 'Prazo'], ['Pode sair', 'Pode sair']]
 const r5 = (f: Forma[]): Etapa[] => NOMES5.map(([rotulo, curto], i) => ({ rotulo, curto, forma: f[i] ?? 'pontilhado' }))
-const r2 = (a: Forma, b: Forma): Etapa[] => [{ rotulo: 'Saiu das telas', curto: 'Saiu', forma: a }, { rotulo: 'Espaço liberado', curto: 'Espaço', forma: b }]
+const r2 = (a: Forma, b: Forma): Etapa[] => [{ rotulo: 'Escondido das telas', curto: 'Escondido', forma: a }, { rotulo: 'Apagado do banco', curto: 'Apagado', forma: b }]
 const rArq = (problema?: Forma): Etapa[] => [{ rotulo: 'No arquivo', curto: 'Arquivo', forma: 'arquivo' }, ...(problema ? [{ rotulo: 'Verificação', curto: 'Verif.', forma: problema }] : [])]
 interface Res { frase: string; secundaria?: string | null; acao?: string; info?: string; gravidade: Gravidade; regua: Etapa[]; grupo: 0 | 1 | 2 | 3 | 4 }
 const neutro = (frase: string, f: Forma[] = []): Res => ({ frase, gravidade: 'nenhuma', regua: r5(f), grupo: 3 })
@@ -126,14 +126,14 @@ function mesDestacado(c: Ctx, r: LinhaMesLida, cl: Classe): Res {
   if (tent && ['divergente', 'arquivo_ausente', 'nao_decifra'].includes(tent)) motivos.push(`o do B2 falhou na conferência${tms(r.b2_last_attempt_at) ? ` de ${dmy(tms(r.b2_last_attempt_at)!)}` : ''}`)
   if (motivos.length) { // m9 e m9b
     const dd = dias >= 14
-    return { frase: `A cópia de ${mes} precisa ser refeita (${motivos.join(' e ')}), e para isso o mês tem de voltar ao banco. Traga de volta.`, acao: 'trazer de volta ao banco', gravidade: dd ? 'vermelho' : 'ambar', regua: r2(dd ? 'octogono' : 'triangulo', 'pontilhado'), grupo: 0 }
+    return { frase: `A cópia de ${mes} precisa ser refeita (${motivos.join(' e ')}), e para isso o mês tem de voltar ao banco. Use Mostrar de novo.`, acao: 'Mostrar de novo', gravidade: dd ? 'vermelho' : 'ambar', regua: r2(dd ? 'octogono' : 'triangulo', 'pontilhado'), grupo: 0 }
   }
   if (dias > 14) { // m8b
-    return { frase: `Saiu das telas há ${nDias(dias)} e o espaço ainda não foi liberado. Enquanto isso não dá para remover canal nem apagar vídeo. Libere o espaço ou traga o mês de volta.`, gravidade: 'ambar', regua: r2('visto', 'triangulo'), grupo: 0 }
+    return { frase: `Saiu das telas há ${nDias(dias)} e ainda não foi apagado do banco. Enquanto isso não dá para remover canal nem apagar vídeo. Use Apagar do banco ou Mostrar de novo.`, gravidade: 'ambar', regua: r2('visto', 'triangulo'), grupo: 0 }
   }
-  if (dias >= cl.wait) return { frase: 'Pronto para liberar o espaço. Ainda dá para trazer de volta', gravidade: 'nenhuma', regua: r2('visto', 'pontilhado'), grupo: 1 } // m8a
+  if (dias >= cl.wait) return { frase: 'Pronto para apagar do banco. Ainda dá para Mostrar de novo', gravidade: 'nenhuma', regua: r2('visto', 'pontilhado'), grupo: 1 } // m8a
   return { // m8
-    frase: `Saiu das telas em ${dmy(det)}. O espaço ainda não voltou. Você pode trazer de volta a qualquer momento, até liberar o espaço. A partir de ${dmy(det + cl.wait * DAY)} você pode liberar o espaço. Até lá não dá para remover canal nem apagar vídeo.`,
+    frase: `Saiu das telas em ${dmy(det)}. Ainda não foi apagado do banco. Você pode usar Mostrar de novo a qualquer momento, até apagar do banco. A partir de ${dmy(det + cl.wait * DAY)} você pode usar Apagar do banco. Até lá não dá para remover canal nem apagar vídeo.`,
     gravidade: 'nenhuma', regua: r2('visto', 'pontilhado'), grupo: 1,
   }
 }

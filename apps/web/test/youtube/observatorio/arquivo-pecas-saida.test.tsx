@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 import { PecaTirarMes } from '@/app/cms/(authed)/youtube/competitors/_arquivo-saida/peca-tirar-mes'
 import { PecaInterruptor } from '@/app/cms/(authed)/youtube/competitors/_arquivo-saida/peca-interruptor'
 

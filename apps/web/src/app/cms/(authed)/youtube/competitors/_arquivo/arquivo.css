@@ -55,8 +55,8 @@
 .arq-mes.nm{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
 .arq-mes.teste{border-left:3px dotted var(--dim)}
 .arq-marca{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;margin-left:6px;border:1px dotted var(--dim);border-radius:4px;font-size:12px;font-weight:400}
-@media (max-width:1200px){.arq-mes{grid-template-columns:130px minmax(0,1fr)}.arq-mes .arq-reg{grid-column:1/-1}}
-@media (max-width:600px){.arq-mes{grid-template-columns:minmax(0,1fr)}.arq-mes .arq-fr{order:2}.arq-mes .arq-reg{order:3}.arq-contorno{margin:6px 6px}}
+@media (max-width:1200px){.arq-mes{grid-template-columns:130px minmax(0,1fr)}.arq-mes>.arq-reg{grid-column:1/-1}}
+@media (max-width:600px){.arq-mes{grid-template-columns:minmax(0,1fr)}.arq-mes>.arq-fr{order:2}.arq-mes>.arq-reg{order:3}.arq-contorno{margin:6px 6px}}
 
 /* canais removidos */
 .arq-can{display:grid;grid-template-columns:150px minmax(0,1fr) 380px;gap:6px 16px;align-items:center;padding:12px 14px;border-top:1px solid var(--border-subtle)}
@@ -108,8 +108,9 @@
 .arq-bl{flex:1 1 100%;display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);min-width:0;text-align:left}
 .arq-bl h4{margin:0;font:600 14.5px/1.35 Inter,system-ui,sans-serif;overflow-wrap:anywhere}
 .arq-tab{display:block;margin-top:1px;font:400 12px/1.4 ui-monospace,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}
-.arq-mes{margin:0;font-size:13.5px;color:var(--muted)}
-.arq-mes b{color:var(--text);font-weight:600}
+.arq-mesb{margin:0;font-size:13.5px;line-height:1.45;color:var(--muted);white-space:nowrap;overflow-wrap:normal}
+.arq-mesb small{white-space:normal}
+.arq-mesb b{color:var(--text);font-weight:600}
 .arq-fr{margin:0;display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--text)}
 .arq-fr>b{flex:none;color:var(--success);width:16px;text-align:center}
 .arq-fr small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
@@ -126,6 +127,8 @@
 .arq-acao .arq-btn{width:100%;justify-content:center}
 .arq-efl{display:flex;align-items:flex-start;gap:2px}
 .arq-efl .dica-i,.arq-efl .ibtn{flex:none}
+/* alvo de toque >= 44x44 sem deslocar o layout: o ícone segue em 16px, a área clicável cresce por margem negativa */
+.arq-efl .dica-i{width:44px;height:44px;margin:-10px -10px -10px -8px}
 .arq-ef{flex:1 1 auto;max-inline-size:60ch;font-size:12.5px;line-height:1.45;color:var(--muted)}
 .arq-acao:hover .arq-ef{color:var(--text)}
 .arq-saida-msg{display:flex;gap:8px;align-items:flex-start;flex:1 1 100%;margin:8px 0 0;padding:9px 12px;border-radius:6px;border:1.5px solid var(--border-strong);font-size:13.5px;line-height:1.5;color:var(--text)}
@@ -142,5 +145,7 @@
 .arq-cont-tx{font-size:13.5px;color:var(--text);display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
 .arq-cont-tx .arq-v{color:var(--success)}
 .arq-trilho{height:8px;border-radius:4px;background:var(--sunk);border:1px solid var(--border);overflow:hidden}
+/* trilho visível no escuro: literal rgba, nunca color-mix (o Opera o mostra transparente) */
+[data-theme="dark"] .arq-trilho,.dark .arq-trilho{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.38)}
 .arq-trilho i{display:block;height:100%;background:var(--muted)}
 .arq-trilho.cheio i{background:var(--success)}

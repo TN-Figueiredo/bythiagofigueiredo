@@ -114,11 +114,18 @@ describe('encaixarSaida: série por tabela (Phil C1 / Yannis I-1, decisão do do
     expect(blocos(out.tipos[0]!.linhas[1]!)).toEqual([])
     expect(rpc.mock.calls.some(c => (c[1] as { p_table?: string }).p_table === E)).toBe(true)
   })
-  it('(c) chamadas = 3 tabelas + destacados + 2', async () => {
+  it('(d) r5: diária escondida em M; M+1 online nas duas: M+1 não ganha bloco da diária (só o escondido), a early de M tem o dela', async () => {
+    const { client } = sb()
+    const out = await encaixarSaida(modeloSerie([serie(1, 'destacado', 'online'), serie(2, 'online', 'online')]), { sb: client, site: 's', por: 'u', ehAdmin: true })
+    const [m, m1] = out.tipos[0]!.linhas
+    expect(blocos(m!).map(b => b.tabela)).toEqual([D, E])
+    expect(blocos(m1!)).toEqual([])
+  })
+  it('(c) chamadas = 3 tabelas + destacados + 2, menos o online que segue o escondido (r5: a tabela com mês escondido não ganha bloco no mês seguinte)', async () => {
     const { rpc, client } = sb()
     const m = modeloSerie([serie(1, 'destacado', 'online'), serie(2, 'online', 'online')]); m.tipos.push({ tipo: 'horaria', titulo: 'h', resumo: '', anosNoArquivo: [], linhas: mes12('competitor_video_hourly') })
     await encaixarSaida(m, { sb: client, site: 's', por: 'u', ehAdmin: true })
-    expect(rpc).toHaveBeenCalledTimes(3 + 1 + 2)
+    expect(rpc).toHaveBeenCalledTimes(3 + 1 + 2 - 1)
   })
   it('tabela destacada mostra o estado dela e a outra, "Tirar"; descartada não vira bloco vazio', async () => {
     const { client } = sb()

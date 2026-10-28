@@ -10,9 +10,9 @@ const S = 'apps/web/src/'
 const C = `${S}app/cms/(authed)/youtube/competitors/`
 const ARQUIVOS = [
   `${C}_arquivo-saida/peca-tirar-mes.tsx`, `${C}_arquivo-saida/peca-interruptor.tsx`, `${C}_arquivo-saida/encaixar.ts`, `${C}_arquivo-saida/acoes.ts`,
-  `${S}lib/youtube/observatorio/arquivo-mensal/frases-saida.ts`, `${S}lib/youtube/observatorio/arquivo-mensal/interruptor.ts`, `${S}lib/youtube/observatorio/arquivo-mensal/vermelhos.ts`,
+  `${S}lib/youtube/observatorio/arquivo-mensal/frases-saida.ts`, `${S}lib/youtube/observatorio/arquivo-mensal/interruptor.ts`, `${S}lib/youtube/observatorio/arquivo-mensal/vermelhos.ts`, `${S}lib/youtube/observatorio/arquivo-mensal/estado-do-mes.ts`,
 ]
-const VELHOS = /\bTirar\b|\bTire\b|Trazer de volta|Liberar o espaço|Liberar espaço|banco online/
+const VELHOS = /\bTirar\b|\bTire\b|Trazer de volta|Liberar o espaço|Liberar espaço|banco online|trazer de volta|Traga de volta|Libere o espaço|liberar o espaço|Espaço liberado/
 const textos = (fonte: string): string[] => {
   const sem = fonte.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
   return [...sem.matchAll(/(['"`])((?:(?!\1)[^\\]|\\.)*)\1/g)].map(m => m[2]!).concat([...sem.matchAll(/>([^<>{}]*[a-zà-ú][^<>{}]*)</gi)].map(m => m[1]!))

@@ -31,7 +31,9 @@ async function lerEstados(linhas: LinhaDoMes[], c: CtxEncaixe): Promise<Map<stri
       if (s.fora === 'online') { const a = maisAntigo.get(s.tabela); if (a === undefined || l.mes! < a) maisAntigo.set(s.tabela, l.mes!) }
     }
   }
-  for (const [tabela, mes] of maisAntigo) alvos.set(chaveDoEstado(tabela, mes), { tabela, mes })
+  // com um mês já escondido na tabela, o próximo online não ganha bloco: o passo seguinte é apagar o escondido (mockup 19 B)
+  const comEscondido = new Set([...alvos.values()].map(a => a.tabela))
+  for (const [tabela, mes] of maisAntigo) if (!comEscondido.has(tabela)) alvos.set(chaveDoEstado(tabela, mes), { tabela, mes })
   const lidos = await Promise.all([...alvos.entries()].map(async ([k, a]) => [k, await lerEstadoDoMes(c.sb, c.site, a.tabela, a.mes, c.por)] as const))
   return new Map(lidos)
 }
