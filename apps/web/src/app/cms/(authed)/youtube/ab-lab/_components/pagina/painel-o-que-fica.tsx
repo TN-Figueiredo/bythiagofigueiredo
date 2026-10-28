@@ -12,20 +12,20 @@ import {
   avisoDaEscolha, escolhaDe, mensagemDeFalha, mensagemDeFeito, rotuloDoBotao,
 } from '@/lib/youtube/ab-lab-pagina/painel-decisao'
 import type { OpcaoPainel, PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { PainelEscolha } from '@/lib/youtube/ab-lab-pagina/painel-escolha'
 import { AbConfirmarTrocaDialog } from '../ab-confirmar-troca-dialog'
+import { PainelConcluido, type AcoesEscolha } from './painel-concluido'
 import { ESPERA_SEM_RESPOSTA_MS, hrefDoLogin, sessaoExpirou } from '../ab-end-test-dialog'
 import './pagina-lab.css'
 
-export interface AcoesDecisao {
+export interface AcoesDecisao extends AcoesEscolha {
   /** `endAbTest` com o id do teste */
   encerrar: (testId: string, o: OpcaoEncerrar) => Promise<ResultadoAcaoSaida>
-  aplicarSugerido: (testId: string, varianteId: string, seqVisto: number, forcar?: boolean) => Promise<ResultadoAcaoSaida>
-  /** `revertWinner` */
-  voltar: (testId: string, seqVisto: number) => Promise<ResultadoAcaoSaida>
 }
 
 export interface PainelOQueFicaProps {
-  painel: PainelDecisao
+  /** `PainelEscolha` = teste concluído (M7b); `PainelDecisao` = teste rodando. */
+  painel: PainelDecisao | PainelEscolha
   acoes: AcoesDecisao
   onFechar: () => void
   /** Aviso de página quando a resposta chega depois de o painel fechar. */
@@ -46,6 +46,11 @@ function avisoSemSugerida(p: PainelDecisao, o: OpcaoPainel | null): string {
 }
 
 export function PainelOQueFica({ painel, acoes, onFechar, onAviso }: PainelOQueFicaProps): ReactElement {
+  if (painel.modo === 'escolha') return <PainelConcluido painel={painel} acoes={acoes} onFechar={onFechar} onAviso={onAviso} />
+  return <PainelDecisaoLegado painel={painel} acoes={acoes} onFechar={onFechar} onAviso={onAviso} />
+}
+
+function PainelDecisaoLegado({ painel, acoes, onFechar, onAviso }: Omit<PainelOQueFicaProps, 'painel'> & { painel: PainelDecisao }): ReactElement {
   const router = useRouter()
   const [escolhaId, setEscolhaId] = useState<string | null>(painel.padrao)
   const [fase, setFase] = useState<Fase>('escolha')
@@ -95,16 +100,10 @@ export function PainelOQueFica({ painel, acoes, onFechar, onAviso }: PainelOQueF
     const seq = painel.restoreSeq
     let r: ResultadoAcaoSaida
     try {
-      if (e.tipo === 'encerrar') {
-        const o: OpcaoEncerrar = e.original
-          ? { destino: 'original', seqVisto: seq }
-          : forcar ? { destino: 'variante', varianteId: e.varianteId, forcar: true, seqVisto: seq } : { destino: 'variante', varianteId: e.varianteId, seqVisto: seq }
-        r = await acoes.encerrar(painel.testId, o)
-      } else if (e.tipo === 'aplicar_sugerida') {
-        r = forcar ? await acoes.aplicarSugerido(painel.testId, e.varianteId, seq, true) : await acoes.aplicarSugerido(painel.testId, e.varianteId, seq)
-      } else {
-        r = await acoes.voltar(painel.testId, seq)
-      }
+      const o: OpcaoEncerrar = e.original
+        ? { destino: 'original', seqVisto: seq }
+        : forcar ? { destino: 'variante', varianteId: e.varianteId, forcar: true, seqVisto: seq } : { destino: 'variante', varianteId: e.varianteId, seqVisto: seq }
+      r = await acoes.encerrar(painel.testId, o)
     } catch {
       if (timer.current) clearTimeout(timer.current)
       const expirada = await sessaoExpirou()
@@ -120,7 +119,7 @@ export function PainelOQueFica({ painel, acoes, onFechar, onAviso }: PainelOQueF
     if (timer.current) clearTimeout(timer.current)
     voo.current = false
     if (expirou.current) return // a tela já disse "sem resposta": nunca troca por "Feito" nem por falha
-    const variante = e.tipo === 'encerrar' ? !e.original : e.tipo === 'aplicar_sugerida'
+    const variante = !e.original
     if (r.ok && r.resultado === 'feito') {
       if (!montado.current) { router.refresh(); return }
       setFeito(mensagemDeFeito(painel, escolhaId, diaMesSp(new Date().toISOString())))
@@ -204,10 +203,10 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
   const idInicial = (escolhaId && opcao?.estado === 'escolhivel' ? escolhaId : painel.opcoes.find(o => o.estado === 'escolhivel')?.varianteId) ?? null
   const aviso = semSugerida ? avisoSemSugerida(painel, opcao) : avisoDaEscolha(painel, escolhaId)
   const semPermissao = !painel.podeDeixarVariante
-  const rodape = painel.modo === 'aplicado' && painel.voltarAte
-    ? `Dá para voltar à original até ${painel.voltarAte}, 7 dias depois de aplicar. Depois dessa data o botão some.`
-    : 'Mudar o que está no ar muda o YouTube agora. Dá para voltar à original por 7 dias.'
+  const rodape = 'Mudar o que está no ar muda o YouTube agora. Dá para voltar à original por 7 dias.'
   const mostraEscolha = fase === 'escolha' || enviando
+  // Gio G7 (como o D18): teste só de título não muda a miniatura; todas as versões mostram a mesma (a da original) com a nota.
+  const miniaturaComum = painel.tipo === 'title' ? (painel.opcoes.find(o => o.original)?.miniatura ?? null) : null
 
   const rotuloPrimario = erro && fase === 'escolha' ? 'Tentar de novo' : enviando ? 'Aplicando…' : rotuloDoBotao(painel, escolhaId)
   const dentroAviso = aviso ? (
@@ -249,7 +248,10 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
                         onChange={() => { if (esc && !enviando) onEscolher(o.varianteId) }} aria-label={`Versão ${o.letra}`}
                       />
                       {vis
-                        ? <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-md border border-[#40382D] bg-[#272219] text-[13px] font-bold text-cms-text-muted">{o.letra}</span>
+                        ? miniaturaComum
+                          // eslint-disable-next-line @next/next/no-img-element
+                          ? <img src={miniaturaComum} alt="" aria-hidden="true" className="aspect-video w-[72px] rounded-md object-cover" />
+                          : <span aria-hidden="true" className="grid h-7 w-7 place-items-center rounded-md border border-[#40382D] bg-[#272219] text-[13px] font-bold text-cms-text-muted">{o.letra}</span>
                         : o.miniatura
                           // eslint-disable-next-line @next/next/no-img-element
                           ? <img src={o.miniatura} alt="" aria-hidden="true" className="aspect-video w-[72px] rounded-md object-cover" />
@@ -257,12 +259,12 @@ function Folha({ painel, escolhaId, onEscolher, fase, erro, recarregar, feito, t
                       <span className="flex min-w-0 flex-col gap-1">
                         <b className="line-clamp-2 text-sm font-semibold leading-[1.35]">{vis ? (o.titulo ?? 'sem título gravado') : `Versão ${o.letra}`}</b>
                         <span className="text-xs text-cms-text-muted tabular-nums">{vis ? '' : `Versão ${o.letra} · `}{ctrTexto(o.ctr)}</span>
+                        {vis && miniaturaComum ? <span className="text-xs text-cms-text-muted">miniatura não muda</span> : null}
                         <span className="flex w-full flex-wrap items-start gap-1.5">
                           {o.original ? <Selo>Original</Selo> : null}
                           {o.noAr ? <Selo classe="border-[#3E8F63] text-[#6FCF97]">No ar agora</Selo> : null}
                           {o.sugerida ? <Selo classe="border-cms-accent text-cms-accent">Sugerida pelo teste</Selo> : null}
                           {o.estado === 'em_breve' ? <Selo classe="border-dashed text-[#958A75]">Em breve</Selo> : null}
-                          {painel.modo === 'aplicado' && o.original && painel.voltarAte ? <span className="text-xs text-cms-text-muted">Dá para voltar até {painel.voltarAte}</span> : null}
                         </span>
                       </span>
                     </label>

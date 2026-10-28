@@ -122,12 +122,14 @@ describe('getAbLearnings', () => {
         result_metadata: { ctr_lift_percent: 12 },
         winner_variant_id: VARIANT_A, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
+        variants: [{ id: VARIANT_A, is_original: false, metadata: { thumbnail_tags: ['bold-text', 'face-close'] } }, { id: VARIANT_C, is_original: false, metadata: { thumbnail_tags: ['face-close', 'minimal'] } }],
       },
       {
         id: TEST_ID_2,
         result_metadata: { ctr_lift_percent: 8 },
         winner_variant_id: VARIANT_B, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
+        variants: [{ id: VARIANT_B, is_original: false, metadata: { thumbnail_tags: ['bold-text', 'red-arrow'] } }],
       },
     ]
 
@@ -171,12 +173,14 @@ describe('getAbLearnings', () => {
         result_metadata: { ctr_lift_percent: 20 },
         winner_variant_id: VARIANT_A, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
+        variants: [{ id: VARIANT_A, is_original: false, metadata: { thumbnail_tags: ['emoji'] } }],
       },
       {
         id: TEST_ID_2,
         result_metadata: { ctr_lift_percent: 10 },
         winner_variant_id: VARIANT_B, completed_reason: 'manual_winner',
         test_type: 'thumbnail',
+        variants: [{ id: VARIANT_B, is_original: false, metadata: { thumbnail_tags: ['emoji'] } }],
       },
     ]
 

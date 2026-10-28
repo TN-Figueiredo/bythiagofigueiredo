@@ -5,13 +5,18 @@ import { diaMesSp } from '../ab-data-curta'
 import { prazoDoTeste } from '../teste-youtube/nativo/lista'
 import { porExtenso, porExtensoFem, capitalizar } from '../teste-youtube/nativo/frases'
 import { versoesDoDia14 } from '../teste-youtube/nativo/dia-14-estado'
-import { painelDoAtivo, painelDoConcluido } from './painel-decisao'
+import { painelDoAtivo } from './painel-decisao'
+import { painelEscolhaDoConcluido } from './painel-do-concluido'
 import type { LinhaDoCaminho } from '../teste-youtube/nativo/lista'
 import type { CartaoEmTeste, EntradaPagina, ItemComVoce } from './tipos'
 
 export type { EntradaPagina, ItemComVoce, CartaoEmTeste } from './tipos'
 
 const DIA_MS = 86_400_000
+
+/** P1 (dono, 27/10): um inconclusivo sem escolha fica em "Com você" por 30 dias depois do fim; depois sai sem pressão. */
+export const JANELA_ESCOLHA_INCONCLUSIVO_DIAS = 30
+const SELOS_INCONCLUSIVO = new Set(['sem_diferenca', 'volume', 'dado'])
 
 /** "~Nh" / "<1h" até a próxima rotação (24 h depois do início do ciclo); nulo sem ciclo. */
 export function proximaTrocaDe(cycleStartedAt: string | null, agora: Date): string | null {
@@ -52,9 +57,23 @@ export function geraItemDia14(l: LinhaDoCaminho): boolean {
   return l.registro !== null && (l.estado === 'resultado_pronto' || l.estado === 'sem_resposta')
 }
 
+/**
+ * O concluído pede uma decisão do dono? `aplicar`: a sugerida ainda não foi aplicada e o dono não escolheu. `escolher` (P1): inconclusivo
+ * sem escolha, até `JANELA_ESCOLHA_INCONCLUSIVO_DIAS` depois do fim. Decide só pelas colunas de `ab_tests` (`escolha_em`, `completed_at`).
+ */
+export function pedeDecisao(c: Pick<EntradaPagina['concluidos'][number], 'tela' | 'bruto'>, agora: Date): 'aplicar' | 'escolher' | null {
+  if (!c.tela || c.bruto.escolha_em) return null
+  if (c.tela.aplicar) return 'aplicar'
+  if (!SELOS_INCONCLUSIVO.has(c.tela.selo.tipo) || c.bruto.completed_reason !== 'regra_v2' || !c.bruto.completed_at) return null
+  const fim = Date.parse(c.bruto.completed_at)
+  if (!Number.isFinite(fim) || agora.getTime() - fim > JANELA_ESCOLHA_INCONCLUSIVO_DIAS * DIA_MS) return null
+  return 'escolher'
+}
+
 export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
   const vencidos: ItemComVoce[] = []
   const aplicar: ItemComVoce[] = []
+  const escolher: ItemComVoce[] = []
   const noPrazo: ItemComVoce[] = []
   const retomar: ItemComVoce[] = []
   const rascunhos: ItemComVoce[] = []
@@ -71,10 +90,13 @@ export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
     }
   }
   for (const c of e.concluidos) {
-    if (!c.tela?.aplicar || c.tela.bloqueio !== null) continue
-    const painel = painelDoConcluido(c.card, c.tela, { ctrs: c.ctrs, sugeridaId: c.tela.aplicar.variant_id, revertExpiresAt: c.bruto.revert_expires_at, agora: e.agora })
+    const pede = pedeDecisao(c, e.agora)
+    if (!pede) continue
+    const painel = painelEscolhaDoConcluido(c, e.podeDeixarVariante)
     if (!painel) continue
-    aplicar.push({ tipo: 'aplicar', testId: c.card.id, titulo: c.card.videoTitle ?? c.card.name, letra: c.tela.aplicar.letra, motivo: 'sugerida pelo teste', painel })
+    const titulo = c.card.videoTitle ?? c.card.name
+    if (pede === 'aplicar' && c.tela?.aplicar) aplicar.push({ tipo: 'aplicar', testId: c.card.id, titulo, letra: c.tela.aplicar.letra, motivo: 'sugerida pelo teste', painel })
+    else escolher.push({ tipo: 'escolher', testId: c.card.id, titulo, motivo: 'o teste não mostrou diferença clara', painel })
   }
   for (const p of e.pausados) {
     if (p.pausaYoutube?.aberto) continue // vira cartão do Studio
@@ -85,7 +107,7 @@ export function itensComVoce(e: EntradaPagina): ItemComVoce[] {
   }
   for (const d of e.rascunhos) rascunhos.push({ tipo: 'rascunho', draftId: d.id, titulo: d.name, passo: d.step })
 
-  const itens = [...vencidos, ...aplicar, ...noPrazo, ...retomar, ...rascunhos, ...conferir]
+  const itens = [...vencidos, ...aplicar, ...escolher, ...noPrazo, ...retomar, ...rascunhos, ...conferir]
   if (itens.length === 0 && !temHistoricoDe(e)) itens.push({ tipo: 'primeiro_teste' })
   return itens
 }
@@ -105,7 +127,8 @@ export function proximaDecisao(e: EntradaPagina): Date | null {
 
 function verboDe(i: ItemComVoce): string | null {
   switch (i.tipo) {
-    case 'aplicar': return `aplicar ${i.letra}`
+    case 'aplicar': return `deixar ${i.letra} no ar`
+    case 'escolher': return 'escolher a versão'
     case 'dia14': return 'dizer o que o Studio escolheu'
     case 'conferir_studio': return 'conferir o Studio'
     case 'rascunho': return 'terminar o rascunho'

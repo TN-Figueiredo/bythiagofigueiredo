@@ -42,7 +42,10 @@ export function useModalFocusTrap(
         if (tentativas++ < 30) raf = requestAnimationFrame(procurar)
         return
       }
-      (initialFocusRef?.current ?? dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR))?.focus()
+      // Foco determinístico (M7b D15): quem já tem o foco dentro do diálogo (um alerta, um `autoFocus`) o mantém. O nó do portal
+      // monta depois do efeito; mover o foco aqui tirava o alerta do lugar e deixava o leitor de tela sem o aviso.
+      if (dialog.contains(document.activeElement) && document.activeElement !== dialog) return
+      ;(initialFocusRef?.current ?? dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR))?.focus()
     }
 
     document.addEventListener('keydown', handleKeyDown)

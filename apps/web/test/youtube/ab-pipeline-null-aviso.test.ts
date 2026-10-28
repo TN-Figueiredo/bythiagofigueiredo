@@ -80,9 +80,9 @@ function mundoMisto(): FakePostgrestOptions {
     tables: {
       sites: [{ id: SITE }],
       ab_tests: [
-        testeCompleto({ id: 'ta', completed_reason: 'auto_resolve', winner_variant_id: 'va', youtube_video_id: 'yt-a', winner: w('tag-so-do-auto'), variants: [w('tag-so-do-auto')] }),
-        testeCompleto({ id: 'tm', completed_reason: 'manual_winner', winner_variant_id: 'vm', youtube_video_id: 'yt-m', winner: w('tag-so-do-manual'), variants: [w('tag-so-do-manual')] }),
-        testeCompleto({ id: 'tn', completed_reason: 'manual_no_apply', winner_variant_id: 'vn', youtube_video_id: 'yt-n', winner: w('tag-so-do-no-apply'), variants: [w('tag-so-do-no-apply')] }),
+        testeCompleto({ id: 'ta', completed_reason: 'auto_resolve', winner_variant_id: 'va', youtube_video_id: 'yt-a', winner: w('tag-so-do-auto'), variants: [{ ...w('tag-so-do-auto'), id: 'va', is_original: false }] }),
+        testeCompleto({ id: 'tm', completed_reason: 'manual_winner', winner_variant_id: 'vm', youtube_video_id: 'yt-m', winner: w('tag-so-do-manual'), variants: [{ ...w('tag-so-do-manual'), id: 'vm', is_original: false }] }),
+        testeCompleto({ id: 'tn', completed_reason: 'manual_no_apply', winner_variant_id: 'vn', youtube_video_id: 'yt-n', winner: w('tag-so-do-no-apply'), variants: [{ ...w('tag-so-do-no-apply'), id: 'vn', is_original: false }] }),
         testeCompleto({ id: 'ti', completed_reason: 'inconclusive', winner_variant_id: null, youtube_video_id: 'yt-i', winner: null, variants: [] }),
       ],
       ab_test_variants: [
@@ -288,17 +288,16 @@ describe('painel (getAbDashboard)', () => {
 })
 
 describe('vencedor automático ou "sem aplicar" não conta como vitória', () => {
-  it('getAbLearnings: só a vitória humana entra; avgLift null; aviso', async () => {
+  it('getAbLearnings: conta o vencedor estatístico (mesma regra do CMS); avgLift null; aviso', async () => {
     sb = fakePostgrest(mundoMisto())
     const { data } = await youtube.getAbLearnings(ctxOf())
     expect(data.aviso).toBe(AVISO)
     expect(data.tagWinRates.length).toBeGreaterThan(0)
     expect(data.tagWinRates.every(t => t.avgLift === null)).toBe(true)
     expect(data.tagWinRates.find(t => t.tag === 'tag-so-do-manual')).toBeDefined()
-    expect(data.totalCompletedTests).toBe(1)
+    // auto_resolve e manual_no_apply com vencedor gravado ensinam igual no CMS; o inconclusivo sem vencedor não
+    expect(data.totalCompletedTests).toBe(3)
     const json = JSON.stringify(data)
-    expect(json).not.toContain('tag-so-do-auto')
-    expect(json).not.toContain('tag-so-do-no-apply')
     expect(json).not.toMatch(/%/)
     expect(json).not.toContain('Not enough data')
   })
@@ -329,8 +328,8 @@ describe('vencedor automático ou "sem aplicar" não conta como vitória', () =>
     function mundoOriginal(): FakePostgrestOptions {
       const o = mundoMisto()
       o.tables.ab_tests = [
-        testeCompleto({ id: 'tv', completed_reason: 'manual_winner', winner_variant_id: 'vv', youtube_video_id: 'yt-v', winner: w('tag-da-variante', false), variants: [w('tag-da-variante', false)] }),
-        testeCompleto({ id: 'to', completed_reason: 'manual_winner', winner_variant_id: 'vo', youtube_video_id: 'yt-o', winner: w('tag-da-original', true), variants: [w('tag-da-original', true)] }),
+        testeCompleto({ id: 'tv', completed_reason: 'manual_winner', winner_variant_id: 'vv', youtube_video_id: 'yt-v', winner: w('tag-da-variante', false), variants: [{ ...w('tag-da-variante', false), id: 'vv' }] }),
+        testeCompleto({ id: 'to', completed_reason: 'manual_winner', winner_variant_id: 'vo', youtube_video_id: 'yt-o', winner: w('tag-da-original', true), variants: [{ ...w('tag-da-original', true), id: 'vo' }] }),
       ]
       o.tables.ab_test_variants = [
         { id: 'vv', test_id: 'tv', metadata: { thumbnail_tags: ['tag-da-variante'] } },
@@ -398,7 +397,7 @@ describe('aviso também com nenhum teste concluído (retorno antecipado)', () =>
 
   it('getAbLearnings sem vitória humana: retorno antecipado traz aviso e totalCompletedTests 0', async () => {
     const o = semTestes()
-    o.tables.ab_tests = [testeCompleto({ completed_reason: 'auto_resolve', winner_variant_id: 'v1' })]
+    o.tables.ab_tests = [testeCompleto({ completed_reason: 'inconclusive', winner_variant_id: null })]
     sb = fakePostgrest(o)
     const { data } = await youtube.getAbLearnings(ctxOf())
     expect(data).toEqual({ tagWinRates: [], channelInsights: [], totalCompletedTests: 0, aviso: AVISO })
@@ -410,7 +409,6 @@ describe('leitura com erro lança DB_ERROR 500, nunca zero com aviso', () => {
   it.each([
     ['getAbDashboard', 'ab_tests', () => youtube.getAbDashboard(ctxOf())],
     ['getAbLearnings', 'ab_tests', () => youtube.getAbLearnings(ctxOf())],
-    ['getAbLearnings (variantes)', 'ab_test_variants', () => youtube.getAbLearnings(ctxOf())],
     ['getAbPerformance', 'ab_tests', () => youtube.getAbPerformance(ctxOf())],
     ['getAbVideoHistory', 'ab_tests', () => youtube.getAbVideoHistory(ctxOf(), 'yt-m')],
   ])('%s', async (_nome, tabela, chamar) => {
@@ -488,5 +486,53 @@ describe('A/B P4a T12: restore_status, leitura e end_reason', () => {
     const leitura = (agora: string) => (projetarTeste(linha, new Date(agora), null).leitura as { title: { tipo: string } }).title.tipo
     expect(leitura('2026-10-12T08:03:00Z')).toBe('em_andamento')
     expect(leitura('2026-10-12T08:06:00Z')).toBe('sem_resposta')
+  })
+})
+
+describe('M7b I1: Cowork e CMS contam o mesmo "vencedor que ensina"', () => {
+  const t = (id: string, over: Record<string, unknown> = {}, vars: Array<Record<string, unknown>> = []) => testeCompleto({
+    id, winner_variant_id: `v-${id}`, youtube_video_id: `yt-${id}`, completed_reason: 'manual_winner', result_metadata: null,
+    variants: [{ id: `v-${id}`, is_original: false, metadata: { thumbnail_tags: ['x'] } }, ...vars], ...over,
+  })
+  const fixture = () => ({
+    tables: {
+      ...semTestes().tables,
+      ab_tests: [
+        t('a'), t('b'),
+        // sugerida B, o dono escolheu C (winner nulo): conta a tag de B
+        t('c', { winner_variant_id: null, result_metadata: { v2: { vencedor_sugerido: 'v-c-b' } }, variants: [
+          { id: 'v-c-b', is_original: false, metadata: { thumbnail_tags: ['tag-b'] } }, { id: 'v-c-c', is_original: false, metadata: { thumbnail_tags: ['tag-c'] } },
+        ] }),
+        // sugerida = original: não conta
+        t('d', { winner_variant_id: 'v-d-o', result_metadata: { v2: { vencedor_sugerido: 'v-d-o' } }, variants: [{ id: 'v-d-o', is_original: true, metadata: { thumbnail_tags: ['tag-o'] } }] }),
+        // inconclusivo: não conta
+        t('e', { winner_variant_id: null, result_metadata: { v2: { vencedor_sugerido: null } }, variants: [{ id: 'v-e', is_original: false, metadata: { thumbnail_tags: ['tag-e'] } }] }),
+        // arquivado: não conta
+        t('f', { status: 'archived' }),
+      ],
+    },
+    columns: semTestes().columns,
+  })
+  it('sugerida B + escolha C: conta B; original, inconclusivo e arquivado ficam fora', async () => {
+    sb = fakePostgrest(fixture())
+    const { data } = await youtube.getAbLearnings(ctxOf())
+    expect(data.totalCompletedTests).toBe(3)
+    const nomes = data.tagWinRates.map(x => x.tag)
+    expect(nomes).toContain('tag-b')
+    expect(nomes).not.toContain('tag-c')
+    expect(nomes).not.toContain('tag-o')
+    expect(nomes).not.toContain('tag-e')
+  })
+  it('o mesmo número no CMS (getLearnings) e no Cowork (getAbLearnings)', async () => {
+    const { getLearnings } = await import('@/app/cms/(authed)/youtube/ab-lab/queries')
+    sb = fakePostgrest(fixture())
+    const cms = await getLearnings(SITE)
+    const cowork = (await youtube.getAbLearnings(ctxOf())).data
+    expect(cms?.totalTests).toBe(cowork.totalCompletedTests)
+    const t = (nome: string) => cms?.tags.find(x => x.tag === nome)
+    for (const r of cowork.tagWinRates) {
+      expect(t(r.tag)?.wins).toBe(r.wins)
+      expect(t(r.tag)?.total).toBe(r.total)
+    }
   })
 })

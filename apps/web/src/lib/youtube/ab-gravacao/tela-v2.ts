@@ -6,6 +6,7 @@
 import type { DisplayLabel } from '../ab-types'
 import { lerResultadoV2, type ResultadoV2 } from '../ab-types'
 import { paraRestoreStatus, voltaConcluida } from '../ab-restore'
+import { noArConfirmado, type TentativaNoAr } from '../ab-no-ar'
 import { dayPt } from '../coleta/day-pt'
 import { PRAZO_FECHAMENTO_DIAS } from './placar'
 import { ctrDosValidos, estadoV2DoTeste, pisos, provisorioAte, tetoDoTesteV2, type CicloComNumero, type DiaDaDecisao } from './decisao-v2'
@@ -32,9 +33,13 @@ export type TelaV2 =
 export interface EntradaTelaV2 {
   teste: { id: string; status: string; regra: 'v1' | 'v2'; config: unknown; paused_at: string | null; completed_at: string | null
     completed_reason: string | null; winner_variant_id: string | null; winner_applied_at: string | null
-    revert_expires_at: string | null; restore_status: unknown; result_metadata: unknown; original_title: string | null; test_type: 'thumbnail' | 'title' | 'combo' }
+    revert_expires_at: string | null; restore_status: unknown; result_metadata: unknown; original_title: string | null; test_type: 'thumbnail' | 'title' | 'combo'
+    /** M7b: o dono já escolheu (escolha_em preenchida): o que está no ar vem de `noArConfirmado`, não do vencedor. */
+    escolha_em?: string | null; restore_seq?: number }
   variantes: VarianteDaTela[]; ciclos: CicloComNumero[]; dias: DiaDaDecisao[]
   agora: Date
+  /** M7b: histórico de ab_test_restores deste teste (lido pelo chamador); só vale com `escolha_em`. */
+  historico?: TentativaNoAr[]
   /** Há outro teste nosso aberto (draft/queued/active/paused) no mesmo vídeo? Só a desfeita usa. 'sem_leitura' = a consulta falhou (sem botão, motivo próprio). Obrigatório: esquecer não pode liberar o botão. */
   outroTesteAberto: boolean | 'sem_leitura'
 }
@@ -172,8 +177,20 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
       noAr = teste.completed_reason === 'manual_winner' && tudoOk ? { tipo: 'desfeita', letra, desfechoMudou: w !== (v2?.vencedor_sugerido ?? null) } : { tipo: 'desconhecido' }
     }
   }
-  const mudou = noAr.tipo === 'aplicada' && noAr.desfechoMudou
-  const voltar = noAr.tipo === 'aplicada' && teste.revert_expires_at !== null && Date.parse(teste.revert_expires_at) > e.agora.getTime()
+  const escolhido = teste.escolha_em != null
+  if (escolhido) {
+    // M7b: com a escolha do dono, o vencedor não diz o que está no ar. Fonte única: noArConfirmado.
+    const lidoNoAr = noArConfirmado({
+      test_type: teste.test_type, restore_status: teste.restore_status, restore_seq: teste.restore_seq ?? 0, completed_at: teste.completed_at,
+      winner_variant_id: teste.winner_variant_id, winner_applied_at: teste.winner_applied_at,
+      variantes: variantes.map(v => ({ id: v.id, label: v.letra, is_original: v.is_original })),
+    }, e.historico ?? [])
+    if (lidoNoAr.tipo !== 'confirmado') noAr = { tipo: 'desconhecido' }
+    else if (lidoNoAr.varianteId === original?.id) noAr = { tipo: 'original' }
+    else noAr = { tipo: 'aplicada', letra: lidoNoAr.letra, desfechoMudou: lidoNoAr.varianteId !== (v2?.vencedor_sugerido ?? null) }
+  }
+  const mudou = !escolhido && noAr.tipo === 'aplicada' && noAr.desfechoMudou // com escolha do dono a frase "ao encerrar, X parecia melhor" não vale
+  const voltar = !escolhido && noAr.tipo === 'aplicada' && teste.revert_expires_at !== null && Date.parse(teste.revert_expires_at) > e.agora.getTime()
 
   const sugeridoId = v2?.vencedor_sugerido ?? null
   const sugeridoLetra = letraDe(sugeridoId)
@@ -212,11 +229,11 @@ function telaConcluida(e: EntradaTelaV2): TelaV2 | null {
     } else prazo = { tipo: 'final' }
   }
 
-  const aplicar = selo.tipo === 'vence' && teste.completed_reason === 'regra_v2' && w === null && sugeridoId
+  const aplicar = !escolhido && selo.tipo === 'vence' && teste.completed_reason === 'regra_v2' && w === null && sugeridoId
     ? { variant_id: sugeridoId, letra: selo.letra } : null
 
   let frase: { principal: string; apoio: string | null; complemento?: string }
-  const desfeitaMesmoDesfecho = noAr.tipo === 'desfeita' && !noAr.desfechoMudou && selo.tipo === 'vence' && sugeridoId !== null
+  const desfeitaMesmoDesfecho = !escolhido && noAr.tipo === 'desfeita' && !noAr.desfechoMudou && selo.tipo === 'vence' && sugeridoId !== null
   let aplicarDeNovo: { variant_id: string; letra: DisplayLabel } | null = null
   let bloqueio: 'outro_teste' | 'sem_leitura' | null = null
   if (desfeitaMesmoDesfecho && selo.tipo === 'vence' && sugeridoId) {

@@ -144,7 +144,7 @@ describe('responderDia14', () => {
     const a = mk()
     expect(await responderDia14({ ...base, sb: a.sb, resposta: 'venceu_nova', n: 2 })).toEqual({ ok: false, erro: 'estado_mudou' })
     const q = a.chamadas.find((c) => c.alvo === 'yt_own_video_versions')!.metodos.join(' ')
-    expect(q).toContain('or("origin.neq.ab_lab,ab_event.in.(vencedor,restauro)")')
+    expect(q).toContain('or("origin.neq.ab_lab,ab_event.in.(vencedor,restauro,escolha)")')
     expect(q).toContain('lte("first_seen_at","2026-10-05T00:00:00.000Z")')
     expect(a.chamadas.some((c) => c.metodos.some((m) => m.startsWith('update')))).toBe(false)
     const b = mk()

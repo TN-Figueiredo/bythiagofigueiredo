@@ -36,11 +36,12 @@ import type {
   TestType,
 } from '@/lib/youtube/ab-types'
 import { TIPOS_DE_TESTE } from '@/lib/youtube/ab-schemas'
+import { vencedorQueEnsina } from '@/lib/youtube/ab-aprendizado'
 import { computeGates } from '@/lib/youtube/ab-gates'
 import { getNextVariantIndex } from '@/lib/youtube/ab-rotation'
 import { computeOutlierScore, computeDaysRemaining } from '@/lib/youtube/ab-computed'
 import { toDisplayLabel, variantColor, ordemDesc } from './_components/ab-constants'
-import { tituloNoArDoConcluido } from '@/lib/youtube/ab-lab-pagina/concluidos'
+import { tituloNoArLido, noArDoTeste } from '@/lib/youtube/ab-lab-pagina/concluidos'
 import { latestRowPerVideo } from '@/lib/youtube/rolling-window'
 import { paraRestoreStatus } from '@/lib/youtube/ab-restore'
 import { diaDoTeste, duracaoPrevista } from '@/lib/youtube/ab-dia-do-teste'
@@ -48,6 +49,7 @@ import { rotuloDeConcluido } from '@/lib/youtube/ab-rotulo-v2'
 import { diasDaDecisao, estadoV2DoTeste, tetoDoTesteV2 } from '@/lib/youtube/ab-gravacao/decisao-v2'
 import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
 import { telaV2DoTeste } from '@/lib/youtube/ab-gravacao/tela-v2'
+import { lerHistoricoDeRestores } from '@/lib/youtube/ab-no-ar-leitura'
 
 async function requireEditAccess(): Promise<string> {
   const { siteId } = await getSiteContext()
@@ -678,33 +680,43 @@ function buildInsightText(tags: LearningsTag[]): string {
 export async function getLearnings(siteId: string): Promise<LearningsData | null> {
   const supabase = getSupabaseServiceClient()
 
-  const { data: lidos } = await supabase
+  // M7b P2: conta o vencedor ESTATÍSTICO (ver vencedorQueEnsina). As variantes vêm embutidas na
+  // mesma leitura (sem .in() com todos os concluídos); erro de leitura = null, nunca dado parcial.
+  const { data: lidos, error } = await supabase
     .from('ab_tests')
-    .select('id, result_metadata, winner_variant_id, test_type, winner:ab_test_variants!winner_variant_id(is_original)')
+    .select('id, result_metadata, winner_variant_id, test_type, variants:ab_test_variants!test_id(id, is_original, metadata)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
-    .not('winner_variant_id', 'is', null)
+  if (error) {
+    Sentry.captureException(error)
+    return null
+  }
 
-  // S8-F4 B2: a original vencedora ("não mudar nada") não ensina tag nenhuma
-  const tests = lidos?.filter(t => !vencedorEhOriginal(t.winner as VencedorEmbutido))
-  if (!tests || tests.length < 3) return null
+  const { tests, winners, allVariants } = selecionarAprendizado(lidos ?? [])
+  if (tests.length < 3) return null
 
-  const testIds = tests.map(t => t.id as string)
-  const winnerIds = tests.map(t => t.winner_variant_id as string)
-
-  const { data: winners } = await supabase
-    .from('ab_test_variants')
-    .select('id, metadata')
-    .in('id', winnerIds)
-
-  // Fetch all variants for total count (tag appeared on ANY variant)
-  const { data: allVariants } = await supabase
-    .from('ab_test_variants')
-    .select('id, metadata')
-    .in('test_id', testIds)
-
-  const tags = aggregateTags(winners ?? [], tests, allVariants ?? undefined)
+  const tags = aggregateTags(winners, tests, allVariants)
   return { tags, totalTests: tests.length, insightText: buildInsightText(tags) }
+}
+
+type VarianteEmbutida = { id: unknown; is_original?: unknown; metadata: unknown }
+
+/** Aplica a regra única (vencedorQueEnsina) e monta vencedoras e variantes a partir do embed. */
+function selecionarAprendizado<T extends { id: unknown; winner_variant_id: unknown; result_metadata: unknown; variants?: unknown }>(lidos: T[]) {
+  const tests: Array<T & { winner_variant_id: string }> = []
+  const winners: VarianteEmbutida[] = []
+  const allVariants: Array<VarianteEmbutida & { test_id: string }> = []
+  for (const t of lidos) {
+    const variantes = (Array.isArray(t.variants) ? t.variants : []) as VarianteEmbutida[]
+    const efetivo = vencedorQueEnsina(t, variantes)
+    if (!efetivo) continue
+    tests.push({ ...t, winner_variant_id: efetivo })
+    for (const v of variantes) {
+      allVariants.push({ ...v, test_id: t.id as string })
+      if (v.id === efetivo) winners.push(v)
+    }
+  }
+  return { tests, winners, allVariants }
 }
 
 // ---------------------------------------------------------------------------
@@ -714,14 +726,17 @@ export async function getLearnings(siteId: string): Promise<LearningsData | null
 export async function getChannelLearnings(siteId: string): Promise<ChannelLearningsData | null> {
   const supabase = getSupabaseServiceClient()
 
-  // Get all completed tests with winner, including channel info
-  const { data: lidos } = await supabase
+  // M7b P2 (mesma regra do getLearnings, via vencedorQueEnsina): variantes embutidas, erro = null.
+  const { data: lidos, error } = await supabase
     .from('ab_tests')
-    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id), winner:ab_test_variants!winner_variant_id(is_original)')
+    .select('id, youtube_video_id, result_metadata, winner_variant_id, test_type, youtube_videos!inner(channel_id), variants:ab_test_variants!test_id(id, is_original, metadata)')
     .eq('site_id', siteId)
     .eq('status', 'completed')
-    .not('winner_variant_id', 'is', null)
-  const tests = lidos?.filter(t => !vencedorEhOriginal(t.winner as VencedorEmbutido))
+  if (error) {
+    Sentry.captureException(error)
+    return null
+  }
+  const { tests, winners: allWinners, allVariants: everyVariant } = selecionarAprendizado(lidos ?? [])
 
   if (!tests?.length || tests.length < 3) {
     return null
@@ -747,20 +762,6 @@ export async function getChannelLearnings(siteId: string): Promise<ChannelLearni
     .in('id', channelIds)
 
   const channelNameMap = new Map((channels ?? []).map(c => [c.id as string, (c.name as string | null) ?? 'Canal']))
-
-  // Get all winner variants in one query
-  const allWinnerIds = tests.map(t => t.winner_variant_id as string)
-  const { data: allWinners } = await supabase
-    .from('ab_test_variants')
-    .select('id, metadata')
-    .in('id', allWinnerIds)
-
-  // Fetch ALL variants for total count
-  const allTestIds = tests.map(t => t.id as string)
-  const { data: everyVariant } = await supabase
-    .from('ab_test_variants')
-    .select('id, test_id, metadata')
-    .in('test_id', allTestIds)
 
   // Compute learnings per channel (only channels with 3+ tests)
   const channelLearnings: ChannelLearningsData['channels'] = []
@@ -1113,6 +1114,13 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     }
   }
 
+  // M7b: com a escolha do dono, o "no ar" vem do histórico de tentativas. Falha de leitura vai ao Sentry e o "no ar" fica desconhecido.
+  let historicoNoAr: Awaited<ReturnType<typeof lerHistoricoDeRestores>> | null = null
+  if (regraDoTeste(test) === 'v2' && test.status === 'completed') {
+    historicoNoAr = await lerHistoricoDeRestores(getSupabaseServiceClient(), [test.id])
+    if (!historicoNoAr.ok) Sentry.captureMessage('ab-lab detalhe: histórico de restores não lido', { level: 'warning', tags: { area: 'ab-lab-detalhe' }, extra: { testId: test.id, motivo: historicoNoAr.motivo } })
+  }
+
   // Tela v2 (S8-F4 T12): só leitura do que a decisão gravou; v1 e v2 fora da decisão ficam sem modelo.
   const v2 = regraDoTeste(test) === 'v2'
     ? telaV2DoTeste({
@@ -1121,6 +1129,7 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
           completed_reason: test.completed_reason, winner_variant_id: test.winner_variant_id, winner_applied_at: test.winner_applied_at,
           revert_expires_at: test.revert_expires_at, restore_status: test.restore_status, result_metadata: test.result_metadata,
           original_title: test.original_title, test_type: test.test_type,
+          escolha_em: test.escolha_em ?? null, restore_seq: test.restore_seq ?? 0,
         },
         variantes: results.variants.map(v => ({
           id: v.variant_id, letra: toDisplayLabel(v.label, v.is_original), is_original: v.is_original,
@@ -1130,6 +1139,8 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
         dias: results.dias_decisao,
         agora: new Date(),
         outroTesteAberto,
+        // histórico não lido (erro) com escolha: lista vazia faz o "no ar" cair em desconhecido, nunca em "sem histórico" confirmado
+        ...(historicoNoAr?.ok ? { historico: historicoNoAr.porTeste.get(test.id) ?? [] } : {}),
       })
     : null
   const v2Ativo = v2?.fase === 'ativo' ? v2 : null
@@ -1139,12 +1150,15 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     id: test.id,
     videoTitle: test.original_title ?? test.name,
     ...(test.status === 'completed' && (test.test_type === 'title' || test.test_type === 'combo' || test.test_type === 'thumbnail')
-      ? {
-          tituloNoAr: tituloNoArDoConcluido(
+      ? (() => {
+          // Fonte única (M7b T15b-2): `noArConfirmado` com o histórico lido. Histórico não lido (erro) = desconhecido, nunca "sem histórico".
+          const lido = tituloNoArLido(
             { ...test, test_type: test.test_type },
             results.variants.map(v => ({ id: v.variant_id, letra: toDisplayLabel(v.label, v.is_original), is_original: v.is_original, title_text: v.title_text ?? null })),
-          ),
-        }
+            historicoNoAr === null ? [] : historicoNoAr.ok ? (historicoNoAr.porTeste.get(test.id) ?? []) : null,
+          )
+          return { tituloNoAr: lido.titulo, ...(lido.naUltimaLeitura ? { tituloNaUltimaLeitura: true } : {}) }
+        })()
       : {}),
     flag: test.test_type,
     status: test.status,
@@ -1375,10 +1389,27 @@ export async function toDetailView(results: AbTestResults): Promise<AbTestDetail
     ? ((winnerCtr - originalCtr) / originalCtr) * 100
     : null
 
+  // D21: o que está no ar vem da fonte única; o vencedor do teste e a escolha do dono ficam separados.
+  const letraDeVariante = (id: string): string | null => {
+    const v = results.variants.find(x => x.variant_id === id)
+    return v ? toDisplayLabel(v.label, v.is_original) : null
+  }
+  const historicoDoTeste = historicoNoAr === null ? [] : historicoNoAr.ok ? (historicoNoAr.porTeste.get(test.id) ?? []) : null
+  const noArLido = historicoDoTeste === null
+    ? { letra: null, desde: null, confirmado: false }
+    : noArDoTeste(test, letraDeVariante, historicoDoTeste, results.variants.map(v => ({ id: v.variant_id, label: toDisplayLabel(v.label, v.is_original), is_original: v.is_original })))
+  const letraOriginal = originalVariant ? toDisplayLabel(originalVariant.label, true) : 'A'
+  const noAr = { letra: noArLido.confirmado ? noArLido.letra : null, original: noArLido.confirmado && noArLido.letra === letraOriginal }
+  let escolhaDoDono: 'escolhida' | 'mantida' | null = null
+  if (test.escolha_em) escolhaDoDono = test.escolha_variant_id != null && test.escolha_variant_id === originalVariant?.variant_id ? 'mantida' : 'escolhida'
+  else if (test.completed_reason === 'manual_winner' && noAr.letra !== null && noAr.letra === winnerLabel) escolhaDoDono = noAr.original ? 'mantida' : 'escolhida'
+
   return {
     ...base,
     status: 'completed' as const,
     outcome: 'winner' as const,
+    noAr,
+    escolhaDoDono,
     winnerLabel,
     winnerColor,
     lift,

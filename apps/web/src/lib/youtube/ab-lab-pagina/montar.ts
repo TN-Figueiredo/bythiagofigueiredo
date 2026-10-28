@@ -1,6 +1,6 @@
 /** Junta o modelo da página do Lab (M7 T4). Puro: o `agora` vem na entrada. */
 import { linhasConcluidas, CONCLUIDOS_VISIVEIS } from './concluidos'
-import { painelDoConcluido } from './painel-decisao'
+import { painelEscolhaDoConcluido } from './painel-do-concluido'
 import { cartoesEmTeste, fraseDoTopo, itensComVoce, proximaDecisao } from './com-voce'
 import { diaMesSp } from '../ab-data-curta'
 import type { EntradaPagina, PaginaDoLab } from './tipos'
@@ -24,8 +24,8 @@ export function montarPaginaDoLab(e: EntradaPagina): PaginaDoLab {
 
   const todas = linhasConcluidas({
     testes: e.concluidos.map(c => ({
-      card: c.card, bruto: c.bruto, tela: c.tela,
-      painel: c.tela ? painelDoConcluido(c.card, c.tela, { ctrs: c.ctrs, sugeridaId: c.tela.aplicar?.variant_id ?? null, revertExpiresAt: c.bruto.revert_expires_at, agora: e.agora }) : null,
+      card: c.card, bruto: c.bruto, tela: c.tela, historico: c.historico,
+      painel: painelEscolhaDoConcluido(c, e.podeDeixarVariante),
     })),
     linhasStudio: e.linhas,
     agora: e.agora,

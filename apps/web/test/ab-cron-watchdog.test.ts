@@ -333,7 +333,7 @@ describe('ab-watchdog: fase nova (P4b T4)', () => {
     expect(body.status).toBe('ok')
     expect(body.nova_tentativa).toEqual({
       tentadas: 0, ok: 0, falharam: 0, desistiram: 0, pulados: 0, cota: 0,
-      ignorados: { outro_teste: 0, pausado_variante: 0, teste_youtube: 0 }, adiados: 0, sem_destinatario: 0,
+      ignorados: { outro_teste: 0, pausado_variante: 0, teste_youtube: 0, escolha_do_dono: 0 }, adiados: 0, sem_destinatario: 0,
     })
     expect(recordCronFailure).not.toHaveBeenCalled()
   })

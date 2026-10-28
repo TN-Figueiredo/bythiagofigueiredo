@@ -90,6 +90,9 @@ export interface AbTestRow {
   restore_status?: unknown
   /** Contador de reivindicações de saída (CAS do diálogo de pausar/encerrar). */
   restore_seq?: number
+  /** M7b: versão que o dono escolheu deixar no ar num teste concluído, e quando (nunca `escolha_por`: id de pessoa não sai do servidor). */
+  escolha_variant_id?: string | null
+  escolha_em?: string | null
 }
 
 export interface VariantMetadata {
@@ -551,6 +554,8 @@ export interface AbTestBaseView {
   videoTitle: string
   /** Concluído: o título que está no ar (a versão confirmada); ausente = usar `videoTitle`. */
   tituloNoAr?: string
+  /** O título acima é o da última leitura confirmada (o "no ar" agora é desconhecido). */
+  tituloNaUltimaLeitura?: boolean
   flag: TestType
   status: AbTestStatus
   variants: FullChartVariant[]
@@ -631,6 +636,10 @@ export interface AbTestWinnerView extends AbTestBaseView {
   learning?: string
   revertExpiresAt?: string | null
   winnerAppliedAt?: string | null
+  /** D21: o que está no ar agora (fonte única `noArConfirmado`); `letra: null` = não confirmado. Separado do vencedor estatístico (`winnerLabel`). */
+  noAr?: { letra: string | null; original: boolean }
+  /** D21: a escolha do dono, separada do vencedor do teste. Nula quando ele não escolheu ou a escolha dele não está mais no ar. */
+  escolhaDoDono?: 'escolhida' | 'mantida' | null
 }
 
 export interface AbTestPlayoffView extends AbTestBaseView {

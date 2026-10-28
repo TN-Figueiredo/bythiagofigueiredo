@@ -19,6 +19,7 @@ import type { EligibleVideo } from './video-picker-dialog'
 import { AbCreateWizard, type IniciarTeste, type LerAvisoDeVolume } from './ab-create-wizard'
 import type { WizardVideo } from './ab-create-wizard'
 import type { PaginaDoLab, PainelDecisao, CartaoEmTeste } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { PainelEscolha } from '@/lib/youtube/ab-lab-pagina/painel-escolha'
 import type { PaginaDoCanal } from '@/lib/youtube/teste-youtube/nativo/lista-borda'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import { ContextoAssistente, useControleAssistente } from './caminho-nativo/assistente-contexto'
@@ -48,6 +49,10 @@ export interface AbLabDashboardProps {
   salvarAjustes: (changes: Partial<AbTestSiteSettings>) => Promise<{ ok: boolean; error?: string }>
   listaInicial: PaginaDoCanal
   videoInicial: string | null
+  /** `?painel=<testId>`: abre o painel desse concluído ao chegar (link da faixa de restauração e da ficha). */
+  painelInicial?: string | null
+  /** Painel já montado para o `?painel=` (qualquer concluído v2); tem prioridade sobre o que a lista traz. */
+  painelDaUrl?: PainelEscolha | null
   /** Bloco "Sugestões" (servidor, dentro de Suspense). */
   blocoSugestoes?: ReactNode
   learnings: LearningsData | null
@@ -66,7 +71,7 @@ const tipoDoCartao = (c: CartaoEmTeste): TestType => (c.tipo === 'lab' ? c.card.
 
 export function AbLabDashboard({
   pagina, settings, siteId, eligibleVideos, drafts, iniciarTeste, avisoDeVolume, acoesDecisao, acoesCaminho, lerVideos, salvarAjustes,
-  listaInicial, videoInicial, blocoSugestoes, learnings, channelLearnings,
+  listaInicial, videoInicial, painelInicial = null, painelDaUrl = null, blocoSugestoes, learnings, channelLearnings,
 }: AbLabDashboardProps) {
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
@@ -75,7 +80,7 @@ export function AbLabDashboard({
   const [continueDraft, setContinueDraft] = useState<AbTestDraft | null>(null)
   const [typeFilter, setTypeFilter] = useState<'all' | TestType>('all')
   const [filterOpen, setFilterOpen] = useState(false)
-  const [painel, setPainel] = useState<{ dados: PainelDecisao; origem: HTMLElement | null } | null>(null)
+  const [painel, setPainel] = useState<{ dados: PainelDecisao | PainelEscolha; origem: HTMLElement | null } | null>(null)
   const [dia14, setDia14] = useState<{ linha: LinhaDoCaminho; origem: HTMLElement | null } | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
 
@@ -86,13 +91,22 @@ export function AbLabDashboard({
   // As linhas da 1ª página alimentam a guarda mesmo com "Vídeos do canal" recolhido ou vazio.
   useEffect(() => { registrarLinhas(listaInicial.linhas, { substituir: true }) }, [listaInicial, registrarLinhas])
 
+  // Link "Abrir o painel": abre o painel do concluído pedido na URL (uma vez por valor), se a página o montou.
+  useEffect(() => {
+    if (!painelInicial) return
+    const l = pagina.concluidos.linhas.find(x => x.testId === painelInicial && x.painel)
+    const dados = painelDaUrl ?? l?.painel ?? pagina.comVoce.itens.flatMap(i => ((i.tipo === 'aplicar' || i.tipo === 'escolher') && i.testId === painelInicial ? [i.painel] : []))[0]
+    if (dados) setPainel({ dados, origem: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [painelInicial])
+
   const filtrarTipo = (t: string | TestType): boolean => typeFilter === 'all' || t === typeFilter || t === TIPO_ROTULO[typeFilter]
   const emTeste = pagina.emTeste.filter(c => filtrarTipo(tipoDoCartao(c)))
   const concluidos = typeFilter === 'all'
     ? pagina.concluidos
     : { ...pagina.concluidos, linhas: pagina.concluidos.linhas.filter(l => filtrarTipo(l.tipo)) }
 
-  function abrirPainel(p: PainelDecisao, origem: HTMLElement): void {
+  function abrirPainel(p: PainelDecisao | PainelEscolha, origem: HTMLElement): void {
     setAviso(null)
     setPainel({ dados: p, origem })
   }

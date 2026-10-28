@@ -2,13 +2,14 @@
 // Faixa "Com você" (M7 T7): o que só o dono pode fazer. Nada de action aqui; tudo chega por props.
 import { useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
 import type { ItemComVoce, PainelDecisao } from '@/lib/youtube/ab-lab-pagina/tipos'
+import type { PainelEscolha } from '@/lib/youtube/ab-lab-pagina/painel-escolha'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
 import './pagina-lab.css'
 
 export interface FaixaComVoceProps {
   itens: ItemComVoce[]
   vazio: string | null
-  onAbrirPainel: (p: PainelDecisao, origem: HTMLElement) => void
+  onAbrirPainel: (p: PainelDecisao | PainelEscolha, origem: HTMLElement) => void
   onAbrirDia14: (linha: LinhaDoCaminho, origem: HTMLElement) => void
   onContinuarRascunho: (draftId: string) => void
   onNovoTeste: () => void
@@ -41,8 +42,14 @@ export function FaixaComVoce(p: FaixaComVoceProps): ReactElement {
     switch (i.tipo) {
       case 'aplicar':
         return {
-          urgente: true, titulo: `Aplique ${i.letra} em “${i.titulo}”`, motivo: i.motivo, prazo: 'Prazo: hoje',
-          botao: <button type="button" className={`${BOTAO} pri`} onClick={e => p.onAbrirPainel(i.painel, e.currentTarget)}>Aplicar {i.letra}</button>,
+          // M7b: sem prazo (o painel do concluído não tem) e o verbo único é "Deixar X no ar".
+          urgente: false, titulo: `Deixe a ${i.letra} no ar em “${i.titulo}”`, motivo: i.motivo, prazo: 'sem prazo',
+          botao: <button type="button" className={`${BOTAO} pri`} onClick={e => p.onAbrirPainel(i.painel, e.currentTarget)}>Deixar {i.letra} no ar</button>,
+        }
+      case 'escolher':
+        return {
+          urgente: false, titulo: `Escolha o que fica em “${i.titulo}”`, motivo: i.motivo, prazo: 'sem prazo',
+          botao: <button type="button" className={BOTAO} onClick={e => p.onAbrirPainel(i.painel, e.currentTarget)}>Escolher a versão</button>,
         }
       case 'dia14':
         return {

@@ -230,6 +230,16 @@ describe('atribuirOrigem', () => {
       expect(r).toEqual({ origem: 'ab_lab', eventoAb: 'vencedor', abTestId: 't-1', abVariantId: 'var-5', instante: T(1000) })
     })
 
+    it('M7b: iniciativa dono (a) aplicar_sugerido = vencedor gravado -> vencedor; (b) escolher C com vencedor B -> escolha; (c) destino = vencedor gravado -> vencedor; (d) original -> restauro; (e) sem a marca -> vencedor', () => {
+      const dono = (o: Partial<RestauroAb>): RestauroAb => rest({ iniciativa: 'dono', ...o })
+      const comVenc = (v: string | null): TesteAb => novo({ varianteVencedora: v })
+      expect(atribuirOrigem(thumb(), abn([comVenc('var-5')], [dono({ destino: 'var-5' })])).eventoAb).toBe('vencedor')
+      expect(atribuirOrigem(thumb(), abn([comVenc('var-2')], [dono({ destino: 'var-5' })]))).toEqual({ origem: 'ab_lab', eventoAb: 'escolha', abTestId: 't-1', abVariantId: 'var-5', instante: T(1000) })
+      expect(atribuirOrigem(thumb(), abn([comVenc('var-2')], [dono({ destino: 'var-2' })])).eventoAb).toBe('vencedor')
+      expect(atribuirOrigem(thumb(), abn([comVenc('var-2')], [dono({ destino: 'original' })])).eventoAb).toBe('restauro')
+      expect(atribuirOrigem(thumb(), abn([comVenc('var-2')], [rest({ destino: 'var-5' })])).eventoAb).toBe('vencedor')
+    })
+
     it('37. escreveu = false (ok, pulado_*, desistiu, falhou) com paused_at na janela: sem ciclo fora_do_sistema; com ciclo de thumb na janela rotacao', () => {
       for (const estado of ['ok', 'pulado_drift', 'pulado_sem_original', 'desistiu', 'falhou'] as const) {
         const t = novo({ pausadoEm: T(1000) })

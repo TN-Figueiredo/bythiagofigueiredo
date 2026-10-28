@@ -123,3 +123,29 @@ describe('constantes', () => {
     expect([...CHAMADAS_YOUTUBE]).toEqual(['videos.list', 'videos.update', 'thumbnails.set', 'blob'])
   })
 })
+
+describe('M7b: iniciativa do dono', () => {
+  const campo = (iniciativa?: 'dono') => ({ estado: 'falhou' as const, destino: 'vc', em: '2026-10-27T10:00:00.000Z', forcado: false, escreveu: false, erro: null, attempts: 1, ...(iniciativa ? { iniciativa } : {}) })
+  it('camposPendentes: o vigia pula o campo da escolha do dono; o humano não', async () => {
+    const { camposPendentes, daEscolhaDoDono } = await import('@/lib/youtube/ab-restore')
+    const rs = { title: campo('dono'), thumbnail: campo() }
+    expect(camposPendentes(rs, 'vigia')).toEqual(['thumbnail'])
+    expect(camposPendentes(rs, 'humano')).toEqual(['title', 'thumbnail'])
+    expect(daEscolhaDoDono(rs.title)).toBe(true); expect(daEscolhaDoDono(rs.thumbnail)).toBe(false)
+  })
+  it('paraRestoreStatus preserva a chave iniciativa e descarta valor desconhecido sem invalidar o resto', async () => {
+    const { paraRestoreStatus } = await import('@/lib/youtube/ab-restore')
+    expect(paraRestoreStatus({ title: campo('dono') })?.title?.iniciativa).toBe('dono')
+    const r = paraRestoreStatus({ title: { ...campo(), iniciativa: 'x' } })
+    expect(r?.title?.estado).toBe('falhou'); expect(r?.title?.iniciativa).toBeUndefined()
+  })
+  it('Yannis M3: um em_andamento velho do dono vira falhou/interrompido SEM perder a iniciativa; o vigia segue ignorando', async () => {
+    const { converterInterrompido, camposPendentes, proximaDoInterrompido } = await import('@/lib/youtube/ab-restore')
+    const velho = { ...campo('dono'), estado: 'em_andamento' as const, em: '2026-10-27T09:00:00.000Z', attempts: 0 }
+    const convertido = converterInterrompido(velho, new Date('2026-10-27T10:00:00.000Z'))
+    expect(convertido).toMatchObject({ estado: 'falhou', erro: 'interrompido', escreveu: null, iniciativa: 'dono' })
+    expect(proximaDoInterrompido(velho).iniciativa).toBe('dono')
+    expect(camposPendentes({ title: convertido! }, 'vigia')).toEqual([])
+    expect(camposPendentes({ title: convertido! }, 'humano')).toEqual(['title'])
+  })
+})

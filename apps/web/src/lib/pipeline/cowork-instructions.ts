@@ -22,7 +22,7 @@ const TEMPLATES: Record<InstructionTemplate, (p: Record<string, string>) => stri
   'pipeline-empty-section': (p) =>
     `Gere o conteúdo da seção '${p.section}' do item ${p.code} e salve com manage_sections action:update (lendo o roteiro/ideia com action:get pra derivar). ${MCP_SUFFIX}`,
   'youtube-ab-refine': (p) =>
-    `Refine as variantes do teste A/B ${p.testId} via manage_ab_test (list_variants pra ver, depois ajuste títulos/thumbs). ${MCP_SUFFIX}`,
+    `Refine as variantes do teste A/B ${p.testId} via manage_ab_test (list_variants pra ver, depois ajuste títulos/thumbs; get_test mostra escolha e no_ar, só leitura). ${MCP_SUFFIX}`,
   'youtube-intelligence': () =>
     `Analise a performance do canal via youtube_observatory e youtube_analytics (overview, outliers, learnings) e sugira próximos passos. ${MCP_SUFFIX}`,
   'youtube-video-optimize': (p) =>

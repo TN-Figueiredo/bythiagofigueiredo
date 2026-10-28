@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { releaseAlert } from '@/lib/ops/alert-state'
-import { camposPendentes, paraRestoreStatus, podeDispensar } from '@/lib/youtube/ab-restore'
+import { camposPendentes, daEscolhaDoDono, paraRestoreStatus, podeDispensar } from '@/lib/youtube/ab-restore'
 import type { CampoNome, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { novaTentativa } from '@/lib/youtube/ab-settle'
 import type { OpcoesNovaTentativa, PortasSaida, ResultadoSaida } from '@/lib/youtube/ab-settle'
@@ -77,7 +77,7 @@ export async function tentarAgora(supabase: SupabaseClient, testId: string, site
     await liberarAvisoDeDesistiu(supabase, testId, eramDesistiu.filter((c) => rsDepois?.[c]?.estado !== 'desistiu'))
   }
   if (res.resultado === 'feito' && antes) {
-    const tentados = camposPendentes(rsAntes, 'humano')
+    const tentados = camposPendentes(rsAntes, 'humano').filter(k => !daEscolhaDoDono(rsAntes![k]!))
     const noAr = await rotuloNoAr(supabase, { id: antes.id, site_id: antes.site_id }, res.campos, tentados).catch((e: unknown) => { Sentry.captureException(e, { tags: { area: 'ab-restore-acoes' } }); return null })
     await avisarNovaTentativa(supabase, { id: antes.id, site_id: antes.site_id, name: antes.name }, res.campos, noAr).catch((e: unknown) => { Sentry.captureException(e, { tags: { area: 'ab-restore-acoes' } }); return undefined })
   }

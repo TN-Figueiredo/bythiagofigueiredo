@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { settleOnAir, novaTentativa, ORIGINAL, destinoNormalizado, lerRetratoPadrao } from '@/lib/youtube/ab-settle'
+import { settleOnAir, novaTentativa, lerNoArNoYouTube, ORIGINAL, destinoNormalizado, lerRetratoPadrao } from '@/lib/youtube/ab-settle'
 import type { OpcoesSaida, MotivoSaida, Retrato } from '@/lib/youtube/ab-settle'
 import { avisarRestauracao } from '@/lib/youtube/ab-restore-avisos'
 import { converterInterrompido } from '@/lib/youtube/ab-restore'
@@ -357,7 +357,7 @@ describe('settleOnAir: ordem e corridas (3.2, 22, P4a-I1, I3)', () => {
     const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'thumbnail', noAr: { dhash: H.B } })
     banco.antesDaReleitura(() => banco.incrementarSeq())
     const r = await settleOnAir(banco.testId, op('pausa'), portas)
-    expect(r.resultado).toBe('em_andamento'); expect(yt.escritas()).toEqual([])
+    expect(r.resultado).toBe('perdido'); expect(yt.escritas()).toEqual([])
   })
   it('(Y-D8, literal) combo: a releitura de restore_seq vem imediatamente antes de CADA escrita', async () => {
     const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo' })
@@ -371,7 +371,7 @@ describe('settleOnAir: ordem e corridas (3.2, 22, P4a-I1, I3)', () => {
     const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'combo' })
     yt.depoisDeEscrever((c) => { if (c === 'videos.update') banco.incrementarSeq() })
     const r = await settleOnAir(banco.testId, op('pausa'), portas)
-    expect(r.resultado).toBe('em_andamento'); expect(yt.escritas()).toEqual(['videos.update'])
+    expect(r.resultado).toBe('perdido'); expect(yt.escritas()).toEqual(['videos.update'])
   })
   it('estado igual e restore_seq diferente → em_andamento, restore_seq inalterado pelo segundo, zero escrita', async () => {
     const { banco, yt, portas, op } = await preparar({ status: 'active', testType: 'thumbnail', noAr: { dhash: H.B } })
@@ -643,7 +643,7 @@ describe('Tarefa 6, rodada 1 (consertos dos pareceres)', () => {
     // incrementa DEPOIS da última releitura: a 2ª escrita termina e o seq já não é o reivindicado
     yt.depoisDeEscrever((c) => { if (c === 'thumbnails.set') banco.incrementarSeq() })
     const r = await settleOnAir(banco.testId, { ...op('encerrado'), destino: { tipo: 'variante', id: 'B' } }, portas)
-    expect(r.resultado).toBe('em_andamento')
+    expect(r.resultado).toBe('perdido')
     expect(banco.teste().restore_status).toMatchObject({ title: { estado: 'em_andamento' }, thumbnail: { estado: 'em_andamento' } })
     expect(banco.teste().winner_applied_at).toBeNull()
     expect(Sentry.captureMessage).toHaveBeenCalledWith('ab-settle: resultado perdido', expect.anything())
@@ -965,5 +965,112 @@ describe('novaTentativa', () => {
     const conv = c.banco.atualizacoes.find((u) => u.tabela === 'ab_tests' && u.patch.restore_seq === 1)
     expect((conv!.patch.restore_status as RestoreStatus).thumbnail).toMatchObject({ estado: 'falhou', erro: 'interrompido', escreveu: null, em, attempts: 1 })
     expect(c.banco.teste().restore_seq).toBe(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// M7b T4: motivo `escolher`, iniciativa do dono, `perdido`
+// ---------------------------------------------------------------------------
+describe('M7b T4: escolher', () => {
+  const concluido = async (o: Opcoes = {}) => {
+    const c = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título B', dhash: H.B }, ...o })
+    c.banco.setTeste({ completed_reason: 'regra_v2', completed_at: '2026-10-20T00:00:00.000Z', result_metadata: { v2: { vencedor_sugerido: 'B' } } })
+    const claims: Array<Record<string, unknown>> = []
+    const rpc = c.portas.supabase.rpc.bind(c.portas.supabase) as (n: string, args: Record<string, unknown>) => unknown
+    ;(c.portas.supabase as unknown as { rpc: unknown }).rpc = (n: string, args: Record<string, unknown>) => { if (n === 'ab_settle_claim') claims.push(args); return rpc(n, args) }
+    return { ...c, claims }
+  }
+  const escolher = (c: Cenario, id: string, extra: Partial<OpcoesSaida> = {}): OpcoesSaida =>
+    ({ ...c.op('escolher', { humano: true, autor: 'user-1' }), destino: { tipo: 'variante', id }, ...extra })
+
+  it('escolher C: claim com p_extra vazio e p_end_reason nulo; todos os campos nascem com iniciativa dono; patch com escolha_* e revert_expires_at nulo, sem winner_*', async () => {
+    const c = await concluido()
+    const r = await settleOnAir(c.banco.testId, escolher(c, 'C'), c.portas)
+    expect(r).toMatchObject({ resultado: 'feito', seq: 1 })
+    expect(c.claims[0]).toMatchObject({ p_extra: {}, p_end_reason: null, p_de: ['completed'], p_para: 'completed' })
+    expect('p_vencedor_esperado' in c.claims[0]!).toBe(false)
+    const inicial = c.claims[0]!.p_restore_status as RestoreStatus
+    expect(inicial.title?.iniciativa).toBe('dono'); expect(inicial.thumbnail?.iniciativa).toBe('dono')
+    const final = c.banco.teste()
+    expect(final.restore_status).toMatchObject({ title: { estado: 'ok', destino: 'C', iniciativa: 'dono' }, thumbnail: { estado: 'ok', iniciativa: 'dono' } })
+    const patch = c.banco.atualizacoes.map((a) => a.patch).find((p) => 'escolha_variant_id' in p)!
+    expect(patch).toMatchObject({ escolha_variant_id: 'C', escolha_por: 'user-1', revert_expires_at: null })
+    expect(typeof patch.escolha_em).toBe('string')
+    for (const k of ['winner_variant_id', 'winner_applied_at', 'applied_by', 'completed_reason']) expect(k in patch).toBe(false)
+    expect(final.winner_variant_id).toBeNull()
+    expect(c.portas.autoImportWinner).not.toHaveBeenCalled()
+  })
+  it('escolher a sugerida pelo caminho de escrita: extra e p_vencedor_esperado vão ao claim', async () => {
+    const c = await concluido()
+    const r = await settleOnAir(c.banco.testId, escolher(c, 'A', { extra: { completed_reason: 'manual_winner', winner_variant_id: 'A' }, vencedorEsperado: 'B' }), c.portas)
+    expect(r.resultado).toBe('feito')
+    expect(c.claims[0]).toMatchObject({ p_extra: { completed_reason: 'manual_winner', winner_variant_id: 'A' }, p_vencedor_esperado: 'B' })
+    expect(c.banco.atualizacoes.map((a) => a.patch).find((p) => 'escolha_variant_id' in p)).toMatchObject({ escolha_variant_id: 'A' }) // a original grava o id dela
+  })
+  it('outro teste aberto no vídeo barra a escolha', async () => {
+    const c = await concluido({ outros: [{ id: 'outro', site_id: SITE, youtube_video_id: 'video-interno', status: 'active' }] })
+    const r = await settleOnAir(c.banco.testId, escolher(c, 'C'), c.portas)
+    expect(r.resultado).toBe('outro_teste'); expect(c.yt.escritas()).toEqual([]); expect(c.claims).toEqual([])
+  })
+  it('seqEsperado velho dá mudou (tela humana)', async () => {
+    const c = await concluido()
+    const r = await settleOnAir(c.banco.testId, escolher(c, 'C', { seqEsperado: 7 }), c.portas)
+    expect(r.resultado).toBe('mudou'); expect(c.yt.escritas()).toEqual([])
+  })
+  it('restore_seq que muda depois do claim: perdido, sem gravar o resultado', async () => {
+    const c = await concluido()
+    c.banco.antesDaReleitura(() => c.banco.incrementarSeq())
+    const r = await settleOnAir(c.banco.testId, escolher(c, 'C'), c.portas)
+    expect(r).toMatchObject({ resultado: 'perdido', escreveu: false })
+    expect(c.banco.teste().restore_status).toMatchObject({ title: { estado: 'em_andamento' } })
+  })
+  it('aplicar_sugerido grava escolha_* e continua gravando o vencedor', async () => {
+    const c = await concluido({ noAr: { titulo: 'Título A', dhash: H.A } })
+    const r = await settleOnAir(c.banco.testId, { ...c.op('aplicar_sugerido', { humano: true, autor: 'user-1' }), destino: { tipo: 'variante', id: 'B' } }, c.portas)
+    expect(r.resultado).toBe('feito')
+    expect(c.banco.teste()).toMatchObject({ winner_variant_id: 'B', applied_by: 'manual', escolha_variant_id: 'B', escolha_por: 'user-1' })
+    expect(c.banco.teste().restore_status).toMatchObject({ title: { iniciativa: 'dono' } })
+  })
+  it('reverter ok com autor grava a original como escolha', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' }, vencedor: 'B', reversivel: true })
+    const r = await settleOnAir(c.banco.testId, c.op('reverter', { humano: true, autor: 'user-1' }), c.portas)
+    expect(r.resultado).toBe('feito')
+    expect(c.banco.teste()).toMatchObject({ winner_applied_at: null, escolha_variant_id: 'A', escolha_por: 'user-1' })
+  })
+  it('motivos que não são do dono não levam iniciativa nem escolha_*', async () => {
+    const c = await preparar({ status: 'active', testType: 'title', noAr: { titulo: 'Título B' } })
+    await settleOnAir(c.banco.testId, c.op('pausa'), c.portas)
+    expect(c.banco.teste().restore_status.title).not.toHaveProperty('iniciativa')
+    expect(c.banco.atualizacoes.some((a) => 'escolha_variant_id' in a.patch)).toBe(false)
+  })
+  it('novaTentativa humana sobre campo da escolha do dono: recusa, sem claim nem winner_applied_at', async () => {
+    const c = await concluido()
+    c.banco.setTeste({ restore_seq: 3, restore_status: { title: { estado: 'falhou', destino: 'C', forcado: false, escreveu: false, erro: { motivo: 'erro_interno' }, attempts: 1, em: new Date(T0 - 3_600_000).toISOString(), iniciativa: 'dono' } }, test_type: 'title' })
+    const r = await novaTentativa(c.banco.testId, { siteId: SITE, origem: 'humano' }, c.portas)
+    expect(r.resultado).toBe('ja_encerrado')
+    expect(c.claims).toEqual([]); expect(c.yt.escritas()).toEqual([])
+    expect(c.banco.atualizacoes.some((a) => 'winner_applied_at' in a.patch)).toBe(false)
+  })
+})
+
+describe('M7b T6: lerNoArNoYouTube', () => {
+  it('lê título e miniatura que estão no ar, sem escrever nada', async () => {
+    const c = await preparar({ status: 'completed', testType: 'combo', noAr: { titulo: 'Título C', dhash: H.C } })
+    const r = await lerNoArNoYouTube(c.banco.testId, SITE, c.portas)
+    expect(r).toMatchObject({ tipo: 'lido', titulo: 'Título C', dhash: H.C })
+    expect(c.yt.escritas()).toEqual([]); expect(c.banco.atualizacoes).toEqual([])
+  })
+  it('teste só de título não lê a miniatura', async () => {
+    const c = await preparar({ status: 'completed', testType: 'title', noAr: { titulo: 'Título B' } })
+    const r = await lerNoArNoYouTube(c.banco.testId, SITE, c.portas)
+    expect(r.tipo).toBe('lido'); expect('dhash' in r).toBe(false)
+  })
+  it('vídeo apagado, token recusado e canal não identificado viram sem_leitura', async () => {
+    const a = await preparar({ status: 'completed', testType: 'title', videoApagado: true })
+    expect(await lerNoArNoYouTube(a.banco.testId, SITE, a.portas)).toEqual({ tipo: 'sem_leitura', motivo: 'video_inexistente' })
+    const b = await preparar({ status: 'completed', testType: 'title', token: 'recusado' })
+    expect(await lerNoArNoYouTube(b.banco.testId, SITE, b.portas)).toMatchObject({ tipo: 'sem_leitura' })
+    const d = await preparar({ status: 'completed', testType: 'title', canal: 'nao_identificado' })
+    expect(await lerNoArNoYouTube(d.banco.testId, SITE, d.portas)).toMatchObject({ tipo: 'sem_leitura' })
   })
 })

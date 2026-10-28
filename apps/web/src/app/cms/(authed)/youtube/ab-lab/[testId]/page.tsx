@@ -6,7 +6,7 @@ import { PlayoffDetail } from '../_components/playoff-detail'
 import { ConcluidoV2Detail } from '../_components/concluido-v2-detail'
 import { EarlyDetail } from '../_components/early-detail'
 import { notFound } from 'next/navigation'
-import { endAbTest, pauseAbTest, resumeAbTest, retryRestore, dismissRestore, aplicarSugerido, revertWinner } from '../actions'
+import { endAbTest, pauseAbTest, resumeAbTest, retryRestore, dismissRestore } from '../actions'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerPausasYoutube } from '@/lib/youtube/teste-youtube/nativo/pausa-borda'
 import * as Sentry from '@sentry/nextjs'
@@ -76,13 +76,7 @@ function renderView(view: AbTestDetailView) {
   }
   // Concluído v2 "da regra" (D-T12-2): a tela v2 (T12). Encerrado à mão no ativo segue nos detalhes de sempre.
   if (view.v2?.fase === 'concluido') {
-    return (
-      <ConcluidoV2Detail
-        view={view as AbTestDetailView & { v2: Extract<TelaV2, { fase: 'concluido' }> }}
-        aplicar={aplicarSugerido.bind(null, view.id)}
-        voltar={revertWinner.bind(null, view.id)}
-      />
-    )
+    return <ConcluidoV2Detail view={view as AbTestDetailView & { v2: Extract<TelaV2, { fase: 'concluido' }> }} />
   }
   if (view.outcome === 'winner') return <WinnerDetail view={view} />
   return <PlayoffDetail view={view} />

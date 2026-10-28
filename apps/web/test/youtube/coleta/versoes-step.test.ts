@@ -486,7 +486,7 @@ describe('passoVersoes', () => {
     const restauro = (extra: Row = {}): Row => ({ test_id: 't1', seq: 1, campo: 'thumbnail', destino: 'original', estado: 'ok', escreveu: true, em: T20(1), motivo: `${SEGREDO} motivo`, erro: `${SEGREDO} erro`, ...extra })
     const NOTA_LAB = 'versões: A/B Lab não pôde ser lido; origem de 1 troca(s) ficou sem resposta'
 
-    it('46. histórico lido uma vez por canal, só com as 7 colunas, in(test_id) e janela alargada em 120 s; ab_tests ganha restore_status; sem teste ou sem troca, zero leitura; sem erro/motivo no resumo', async () => {
+    it('46. histórico lido uma vez por canal, só com as 8 colunas, in(test_id) e janela alargada em 120 s; ab_tests ganha restore_status; sem teste ou sem troca, zero leitura; sem erro/motivo no resumo', async () => {
       const c = cenario('thumb')
       c.m.db.tables.ab_tests = [combo({ restore_status: { thumbnail: { estado: 'ok', destino: 'original', em: T20(1), erro: `${SEGREDO} erro`, motivo: `${SEGREDO} motivo` } }, paused_at: T20(1) })]
       c.m.db.tables.ab_test_restores = [restauro()]
@@ -502,7 +502,7 @@ describe('passoVersoes', () => {
       const r = await rodar(c.m)
       expect(atual(c.m, 'thumb')).toMatchObject({ origin: 'ab_lab', ab_event: 'restauro', ab_test_id: 't1' })
       expect(c.m.db.leituras.ab_test_restores).toBe(1)
-      expect(leituras.filter(([t]) => t === 'ab_test_restores').map(([, col]) => col)).toEqual(['test_id, seq, campo, destino, estado, escreveu, em'])
+      expect(leituras.filter(([t]) => t === 'ab_test_restores').map(([, col]) => col)).toEqual(['test_id, seq, campo, destino, estado, escreveu, em, iniciativa'])
       expect(leituras.find(([t]) => t === 'ab_tests')![1]).toContain('restore_status')
       expect(Date.parse(gte.ab_test_restores as string)).toBe(Date.parse(gte.ab_test_cycles as string) - 120_000)
       expect(tudoTexto(c.m, r)).not.toContain(SEGREDO)

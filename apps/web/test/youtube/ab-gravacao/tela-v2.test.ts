@@ -447,3 +447,30 @@ describe('telaV2DoTeste: guarda de fonte', () => {
     }
   })
 })
+
+describe('telaV2DoTeste: escolha do dono (M7b T7)', () => {
+  const comEscolha = (o: Parameters<typeof concluido>[0], restore: unknown, historico: import('@/lib/youtube/ab-no-ar').TentativaNoAr[] = []): EntradaTelaV2 => {
+    const e = concluido({ vars: VAR3, ...o, restore })
+    e.teste.escolha_em = '2026-10-25T10:00:00Z'; e.teste.test_type = 'title'; e.historico = historico
+    return e
+  }
+  const ok = (destino: string) => ({ title: { estado: 'ok', destino, em: '2026-10-25T10:00:00Z', forcado: false, escreveu: true, erro: null, attempts: 0 } })
+  it('C escolhida com o vencedor parado em B: no ar = C (aplicada), sem aplicar, sem voltar, sem frase de "ao encerrar"', () => {
+    const r = concDe(comEscolha({ winner: B, applied: '2026-10-25T09:00:00Z', revert: '2026-11-01T09:00:00Z', reason: 'manual_winner' }, ok(C)))
+    expect(r.noAr).toEqual({ tipo: 'aplicada', letra: 'C', desfechoMudou: true })
+    expect(r.aplicar).toBeNull(); expect(r.aplicarDeNovo).toBeNull(); expect(r.voltar).toBe(false)
+    expect(r.frase.principal).not.toContain('ao encerrar')
+  })
+  it('escolha = original: noAr original; sugerida pendente não oferece aplicar', () => {
+    const r = concDe(comEscolha({}, ok('o')))
+    expect(r.noAr).toEqual({ tipo: 'original' }); expect(r.aplicar).toBeNull()
+  })
+  it('escolha gravada mas o registro não confirma: desconhecido', () => {
+    const r = concDe(comEscolha({}, { title: { estado: 'falhou', destino: C, em: '2026-10-25T10:00:00Z', forcado: false, escreveu: null, erro: null, attempts: 1 } }))
+    expect(r.noAr).toEqual({ tipo: 'desconhecido' })
+  })
+  it('sem escolha, nada muda: sugerida B ainda oferece aplicar', () => {
+    const r = concDe(concluido({}))
+    expect(r.aplicar).toEqual({ variant_id: B, letra: 'B' })
+  })
+})

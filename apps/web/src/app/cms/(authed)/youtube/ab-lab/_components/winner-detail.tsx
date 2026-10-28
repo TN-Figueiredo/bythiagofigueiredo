@@ -10,9 +10,8 @@ import { ClickMoment } from './click-moment'
 import { previaPorTipo, descricaoDaPrevia } from './previa-por-tipo'
 import { PlacarDoTeste } from './placar-do-teste'
 import { SectionLabel } from './ab-primitives'
-import { revertWinner, archiveAbTest } from '../actions'
-import { useCanAdminSite, AdminOnlyNote } from '@/lib/cms/site-admin-context'
-import { Copy, Archive, Download, Sparkles, LayoutGrid, Undo2 } from 'lucide-react'
+import { archiveAbTest } from '../actions'
+import { Copy, Archive, Download, Sparkles, LayoutGrid } from 'lucide-react'
 
 export interface WinnerDetailProps {
   view: AbTestWinnerView
@@ -22,14 +21,13 @@ const BTN = 'inline-flex items-center gap-[7px] justify-center py-[6px] px-[11px
 
 export function WinnerDetail({ view }: WinnerDetailProps) {
   const router = useRouter()
-  // Degrau "administrar o site": reverter o vencedor mexe no canal de verdade.
-  const canAdminSite = useCanAdminSite()
   return (
     <div data-testid="winner-detail">
       {/* 1. DetailHeader */}
       <div className="mb-[22px]">
         <DetailHeader
           title={view.tituloNoAr ?? view.videoTitle}
+          tituloNaUltimaLeitura={view.tituloNaUltimaLeitura}
           youtubeVideoId={view.youtubeVideoId}
           flag={view.flag}
           status={view.status}
@@ -70,41 +68,10 @@ export function WinnerDetail({ view }: WinnerDetailProps) {
           lift={null}
           confidence={null}
           stats={view.resultMeta}
+          noAr={view.noAr}
+          escolhaDoDono={view.escolhaDoDono}
         />
       </div>
-
-      {/* Revert Banner — visible during 7-day revert window */}
-      {view.winnerAppliedAt && view.revertExpiresAt && new Date(view.revertExpiresAt) > new Date() && (
-        <div className="mx-0 mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-blue-300">
-                Vencedor aplicado — você pode reverter em até{' '}
-                {Math.max(0, Math.ceil((new Date(view.revertExpiresAt).getTime() - Date.now()) / 86400000))} dias
-              </p>
-              <p className="text-xs text-blue-400/70 mt-0.5">
-                Restaura o thumbnail/título/descrição original no YouTube.
-              </p>
-            </div>
-            {canAdminSite ? (
-              <button
-                onClick={async () => {
-                  if (!confirm('Reverter para o original? Isso desfaz a aplicação do vencedor no YouTube.')) return
-                  const result = await revertWinner(view.id, view.restoreSeq)
-                  if (!result.ok) alert(result.error)
-                  else router.refresh()
-                }}
-                className="inline-flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500"
-              >
-                <Undo2 size={12} aria-hidden="true" />
-                Reverter
-              </button>
-            ) : (
-              <AdminOnlyNote action="reverter o vencedor no canal" className="text-blue-300" />
-            )}
-          </div>
-        </div>
-      )}
 
       {/* 4. ComoEstaAgora + LiveMonitorCard (conditional) */}
       {view.monitor && (

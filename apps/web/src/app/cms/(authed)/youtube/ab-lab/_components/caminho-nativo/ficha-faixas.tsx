@@ -4,8 +4,9 @@
 // O estado do nosso teste vive no hook `useNossoDaFicha`, para a `FichaComStudio` passar `entrada.nosso` real à `vistaDaFicha`.
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import CmsLink from '@/app/cms/(authed)/_shared/cms-link'
+import { hrefDoPainel } from '../../painel-param'
 import type { ResultadoAcaoSaida } from '@/lib/youtube/ab-acao-saida'
-import { camposPendentes, type RestoreStatus } from '@/lib/youtube/ab-restore'
+import { camposPendentes, daEscolhaDoDono, type RestoreStatus } from '@/lib/youtube/ab-restore'
 import { FRASES, dataCurta } from '@/lib/youtube/teste-youtube/nativo/frases'
 import type { EntradaFicha } from '@/lib/youtube/teste-youtube/nativo/ficha-tela'
 import type { LinhaDoCaminho } from '@/lib/youtube/teste-youtube/nativo/lista'
@@ -33,9 +34,11 @@ export function originalDeVoltaDe(campos: RestoreStatus): 'sim' | 'restaurando' 
 }
 
 /** Vale tentar de novo quando o retry humano aceita algum campo (`falhou`, ou `desistiu` fora de novo_teste/destino_invalido — mesma regra de `camposPendentes`). Pulado não volta sozinho. */
-export type MotivoNaoVolta = 'tentar' | 'conferir' | 'sem_registro'
+export type MotivoNaoVolta = 'tentar' | 'conferir' | 'sem_registro' | 'escolha'
 export function motivoDe(campos: RestoreStatus): MotivoNaoVolta {
-  return camposPendentes(campos, 'humano').length > 0 ? 'tentar' : 'conferir'
+  const pend = camposPendentes(campos, 'humano')
+  if (pend.some(k => !daEscolhaDoDono(campos[k]!))) return 'tentar'
+  return pend.length > 0 ? 'escolha' : 'conferir' // M7b: a escolha do dono se refaz pelo painel, nunca por "Tentar de novo"
 }
 
 const temRetrato = (rs: RestoreStatus | null | undefined): rs is RestoreStatus => rs !== null && rs !== undefined && Object.keys(rs).length > 0
@@ -55,6 +58,8 @@ const RELEITURA_MS = 5000
 const RELEITURAS_MAX = 12
 
 export interface NossoDaFicha {
+  /** id do teste nosso da linha; alvo do link "Abrir o painel" (M7b) */
+  testId: string | null
   nosso: EntradaFicha['nosso']
   restauradaEm: Date | null
   pausaAberta: boolean
@@ -162,6 +167,7 @@ export function useNossoDaFicha(linhaNosso: LinhaDoCaminho['nosso'], acoes: Acoe
     abrirPausa: () => setPausaAberta(true),
     cancelarPausa: () => setPausaAberta(false),
     pausar: (forcar) => { void rodar(() => (forcar === true ? acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0, true) : acoes.pauseAbTest(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0)), false) },
+    testId: linhaNosso?.testId ?? null,
     tentarDeNovo: () => { void rodar(() => acoes.retryRestore(linhaNosso?.testId ?? '', linhaNosso?.restoreSeq ?? 0), true) },
     fecharConfirmar: () => setParaConfirmar(null),
     conferirESeguir: () => {
@@ -206,6 +212,14 @@ export function FaixasFicha({ ctx, n, registroDetectado }: {
           acoes={<button type="button" className="cn-btn" onClick={n.conferirESeguir}>{FRASES.ficha.conferiESeguir}</button>}
         >
           {(n.motivo === 'conferir' ? FRASES.ficha.faixaRestaurarNaoVolta : FRASES.ficha.faixaSemRegistro).apoio}
+        </FaixaCaminho>
+      ) : null}
+      {faixa === 'falhou' && n.motivo === 'escolha' ? (
+        <FaixaCaminho
+          tom="err" role="alert" titulo="Sua escolha não foi aplicada."
+          acoes={n.testId ? <CmsLink href={hrefDoPainel(n.testId)} className="cn-btn pri">Abrir o painel</CmsLink> : undefined}
+        >
+          Abra o painel do teste para tentar de novo. Não repetimos a troca sozinhos.
         </FaixaCaminho>
       ) : null}
       {faixa === 'falhou' && n.motivo === 'tentar' ? (

@@ -124,12 +124,14 @@ describe('WinnerBanner', () => {
         lift={null}
         confidence={null}
         stats={{ ctrBefore: 0, ctrAfter: 0, totalImpressions: 0, abbaCycles: 12, monthlyExtraClicks: null }}
+        noAr={{ letra: 'B', original: false }}
+        escolhaDoDono="escolhida"
       />,
     )
     const banner = screen.getByTestId('winner-banner')
     expect(banner.textContent).toContain('CTR ainda não medido. Você decide o vencedor.')
-    expect(banner.textContent).toContain('Vencedor: B')
-    expect(banner.textContent).toContain('Escolhido por você')
+    expect(banner.textContent).toContain('Vencedor do teste: B')
+    expect(banner.textContent).toContain('Escolhida por você')
     expect(banner.textContent).not.toMatch(/cliques\/mes a mais/)
   })
 
@@ -199,7 +201,6 @@ describe('WinnerBanner', () => {
       />,
     )
     expect(screen.queryAllByText(/confian/i)).toHaveLength(0)
-    expect(screen.getByTestId('winner-banner').textContent).toContain('Escolhido por você')
   })
 
   it('renders 3 stat cells', () => {
@@ -287,8 +288,8 @@ describe('WinnerDetail', () => {
   })
 
   it('o vencedor é decisão humana: sem texto de automação, sem confiança, sem coluna de chance', () => {
-    const { container } = render(<WinnerDetail view={makeWinnerView({ winnerLabel: 'B' })} />)
-    expect(screen.getByText('Escolhido por você')).toBeDefined()
+    const { container } = render(<WinnerDetail view={makeWinnerView({ winnerLabel: 'B', noAr: { letra: 'B', original: false }, escolhaDoDono: 'escolhida' })} />)
+    expect(screen.getByText('Escolhida por você')).toBeDefined()
     const t = container.textContent ?? ''
     expect(t).not.toMatch(/o sistema cravou/)
     expect(t).not.toMatch(/empate que vira playoff/)
@@ -298,6 +299,31 @@ describe('WinnerDetail', () => {
     expect(screen.queryByRole('columnheader', { name: /Chance de vencer/ })).toBeNull()
     expect(t).not.toMatch(/ordenado por chance de vencer/)
     expect(screen.queryByTestId('winner-lift')).toBeNull()
+  })
+
+  it('T15b-2: sem a faixa "Vencedor aplicado - você pode reverter" nem o botão Reverter, mesmo dentro da janela de 7 dias', () => {
+    const view = makeWinnerView({ winnerAppliedAt: new Date().toISOString(), revertExpiresAt: new Date(Date.now() + 3 * 86400000).toISOString() })
+    const { container } = render(<WinnerDetail view={view} />)
+    expect(container.textContent).not.toContain('reverter em até')
+    expect(container.textContent).not.toContain('Restaura o thumbnail')
+    expect(screen.queryByRole('button', { name: /Reverter/ })).toBeNull()
+  })
+
+  it('D21: B escolhida, depois Reverter: o cartão mostra a original no ar, "Mantida por você", e o vencedor do teste separado', () => {
+    const view = makeWinnerView({ winnerLabel: 'B', noAr: { letra: 'A', original: true }, escolhaDoDono: 'mantida' })
+    render(<WinnerDetail view={view} />)
+    const banner = screen.getByTestId('winner-banner')
+    expect(banner.textContent).toContain('Vencedor do teste: B')
+    expect(screen.getByTestId('winner-no-ar').textContent).toBe('No ar agora: A (original)')
+    expect(screen.getByTestId('winner-chosen').textContent).toBe('Mantida por você')
+    expect(banner.textContent).not.toContain('Escolhido por você')
+    expect(banner.textContent).not.toContain('Escolhida por você')
+  })
+
+  it('D21: sem escolha do dono, não afirma que ele escolheu; no ar não confirmado é dito', () => {
+    render(<WinnerDetail view={makeWinnerView({ noAr: { letra: null, original: false }, escolhaDoDono: null })} />)
+    expect(screen.getByTestId('winner-no-ar').textContent).toBe('No ar: não confirmado')
+    expect(screen.queryByTestId('winner-chosen')).toBeNull()
   })
 
   it('shows Duplicar and Download actions', () => {

@@ -184,3 +184,13 @@ describe('faixaDaPagina com os dados do servidor', () => {
     expect(r.faixaTentando && r.faixaTentando.tom !== 'ok' && r.faixaTentando.lbl).toBe('Voltando ao original…')
   })
 })
+
+describe('FaixaComAcoes: campo da escolha do dono (M7b)', () => {
+  const D: RestoreStatus = { title: campo({ estado: 'falhou', erro: recusa, iniciativa: 'dono', destino: 'vb' }), thumbnail: campo({}) }
+  it('oferece o link "Abrir o painel" para o teste e nenhum "Tentar agora"', () => {
+    montar(D, ctx, { testId: '0f8fad5b-d9cb-469f-a165-70867728950e' })
+    const a = screen.getByRole('link', { name: 'Abrir o painel' })
+    expect(a.getAttribute('href')).toBe('/cms/youtube/ab-lab?painel=0f8fad5b-d9cb-469f-a165-70867728950e')
+    expect(screen.queryByRole('button', { name: /Tentar agora/ })).toBeNull()
+  })
+})

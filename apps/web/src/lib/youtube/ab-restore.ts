@@ -38,7 +38,11 @@ export interface CampoRestauracao {
   motivo?: string | null // 'sem_base_de_comparacao' | 'video_inexistente' | 'novo_teste'
   erro: ErroGravado
   attempts: number
+  /** M7b: 'dono' = campo aberto pela escolha do dono (escolher/aplicar_sugerido). O vigia o ignora; só o painel tenta de novo. */
+  iniciativa?: 'dono'
 }
+/** Único predicado da "escolha do dono": recusa da novaTentativa, camposPendentes('vigia') e os textos/ações da faixa. */
+export const daEscolhaDoDono = (c: CampoRestauracao): boolean => c.iniciativa === 'dono'
 export type RestoreStatus = Partial<Record<CampoNome, CampoRestauracao>>
 
 export const SEM_RESPOSTA_MIN = 5
@@ -111,6 +115,7 @@ const Campo = z.object({
   motivo: z.string().nullable().optional(),
   erro: z.union([z.string(), z.object({ status: z.number(), reason: z.string(), chamada: z.enum(CHAMADAS_YOUTUBE).optional() }), z.object({ motivo: z.string() }), z.null()]).optional().transform(v => v ?? null),
   attempts: z.number().int().min(0),
+  iniciativa: z.literal('dono').optional().catch(undefined),
 })
 const Rs = z.object({ title: Campo.optional(), thumbnail: Campo.optional() })
 
@@ -184,6 +189,7 @@ export function camposPendentes(rs: RestoreStatus | null, origem: 'vigia' | 'hum
   for (const k of ['title', 'thumbnail'] as const) {
     const c = rs[k]
     if (!c) continue
+    if (origem === 'vigia' && daEscolhaDoDono(c)) continue // M7b: a escolha do dono nunca é repetida sozinha
     if (c.estado === 'falhou') out.push(k)
     else if (origem === 'humano' && c.estado === 'desistiu' && c.motivo !== 'novo_teste' && c.motivo !== 'destino_invalido') out.push(k)
   }

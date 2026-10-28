@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { ensureFreshToken } from '@/lib/social/token-refresh'
 import { DRIFT_STATUS_NOTE } from '@/lib/youtube/ab-types'
-import { LIMITE_DA_CADEIA, camposDoTeste, camposPendentes, erroDeCota, inicioDoSim, paraRestoreStatus, proximaDoInterrompido, proximoDoVigia, simAindaVale } from '@/lib/youtube/ab-restore'
+import { LIMITE_DA_CADEIA, camposDoTeste, daEscolhaDoDono, camposPendentes, erroDeCota, inicioDoSim, paraRestoreStatus, proximaDoInterrompido, proximoDoVigia, simAindaVale } from '@/lib/youtube/ab-restore'
 import type { CampoNome, CampoRestauracao, ErroGravado, EstadoCampo, RestoreStatus } from '@/lib/youtube/ab-restore'
 import { ABERTOS_NO_VIDEO } from '@/lib/youtube/ab-status-abertos'
 import { decidirCampo, ultimaEscritaDoApp } from '@/lib/youtube/ab-settle-decidir'
@@ -22,7 +22,7 @@ import { MOTIVO_RECUSA_NATIVO, lerLinhaConfirmada } from '@/lib/youtube/teste-yo
 import { TEXTO_SEM_LEITURA as TEXTO_SEM_LEITURA_TELA } from '@/lib/youtube/teste-youtube/nativo/frases'
 import { ErroConhecido, YouTubeApiError, paraErroGravado } from '@/lib/youtube/youtube-api-error'
 
-export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'regra_v2' | 'drift' | 'teste_youtube' | 'aplicar_sugerido'
+export type MotivoSaida = 'pausa' | 'encerrado' | 'reverter' | 'falha_api' | 'duracao_maxima' | 'regra_v2' | 'drift' | 'teste_youtube' | 'aplicar_sugerido' | 'escolher'
 /** Nota do teste pausado por haver teste do YouTube em andamento (F1a-dado): pausa definitiva, sem escrever no YouTube. */
 export const NOTA_TESTE_YOUTUBE = 'Em teste no Studio: pausado sem escrever no YouTube'
 /** Valor mostrado no diálogo de confirmação quando a leitura do título no YouTube falhou (a thumbnail sem leitura mostra o espaço reservado). */
@@ -39,13 +39,21 @@ export interface OpcoesSaida {
   consecutiveFailures?: number // falha_api
   prazo?: number // epoch ms absoluto (F-D3, Y-D7); padrão início + 55_000
   seqEsperado?: number // Y-D13: o vigia passa o restore_seq lido
+  /** M7b: quem escolheu (grava `escolha_por`); nunca vai para log, Sentry nem resposta. */
+  autor?: string
+  /** M7b `escolher`: campos extras do claim (destino = sugerida: completed_reason/winner_variant_id). Só vale para `escolher`. */
+  extra?: Record<string, unknown>
+  /** M7b: letra que a tela mostrou, conferida no claim (`p_vencedor_esperado`). */
+  vencedorEsperado?: string
 }
 
 export type ResultadoSaida =
-  | { resultado: 'feito'; campos: RestoreStatus; aviso?: ResultadoAviso; pausadoPorTesteYoutube?: true } // aviso: 'sem_destinatario'/'falha_de_envio' sobem ao chamador (Y-P3)
+  | { resultado: 'feito'; campos: RestoreStatus; seq?: number; aviso?: ResultadoAviso; pausadoPorTesteYoutube?: true } // aviso: 'sem_destinatario'/'falha_de_envio' sobem ao chamador (Y-P3)
   | { resultado: 'precisa_confirmar'; campos: Array<{ campo: CampoNome; valor_atual: string }> }
   | { resultado: 'ja_encerrado'; campos: RestoreStatus | null }
   | { resultado: 'em_andamento'; campos: RestoreStatus | null }
+  /** M7b: depois do claim, o resultado não foi gravado (outro escritor ou CAS perdida). `escreveu`: alguma escrita no YouTube pode ter acontecido (true), não se sabe (null) ou nenhuma (false). */
+  | { resultado: 'perdido'; escreveu: boolean | null; campos: RestoreStatus | null }
   | { resultado: 'destino_invalido'; campos: null }
   | { resultado: 'outro_teste'; campos: RestoreStatus | null } // P4b Y-5: outro teste aberto no mesmo vídeo; o Lab não escreve
   | { resultado: 'sem_permissao'; campos: RestoreStatus | null } // P4b Y-A1: `autorizar` recusou o destino do retrato reivindicado
@@ -114,7 +122,7 @@ export function ehCopiaNoBlob(url: string | null | undefined): url is string {
 }
 
 /** Fonte do original: a cópia do Blob da variante original ou a do teste; nula quando nenhuma é do Blob. */
-function fonteDoOriginal(r: Retrato): string | null {
+export function fonteDoOriginal(r: { variantes: ReadonlyArray<Pick<VarianteRetrato, 'is_original' | 'blob_url'>>; original_thumbnail_url: string | null }): string | null {
   const original = r.variantes.find((v) => v.is_original)
   return [original?.blob_url, r.original_thumbnail_url].find(ehCopiaNoBlob) ?? null
 }
@@ -158,6 +166,8 @@ export function caminhoDe(op: OpcoesSaida, destino: Destino): Caminho {
       }
     case 'reverter':
       return { de: ['completed'], para: 'completed', endReason: null, extra: {} }
+    case 'escolher': // M7b: não toca vencedor, motivo do fim nem ciclos; o `extra` só vem preenchido quando o destino é a sugerida
+      return { de: ['completed'], para: 'completed', endReason: null, extra: op.extra ?? {} }
     case 'aplicar_sugerido': // S8-F4 T11b: o humano põe no ar o sugerido da regra v2; completed_at e result_metadata.v2 ficam
       return { de: ['completed'], para: 'completed', endReason: null, extra: { completed_reason: 'manual_winner', winner_variant_id: destino === 'original' ? null : destino.varianteId } }
     case 'falha_api':
@@ -349,7 +359,7 @@ function classificar(e: unknown): { erro: ErroGravado; escreveu: boolean | null 
 
 interface PoliticaVigia { cotaVencida: (c: CampoNome) => boolean }
 
-interface Base { destino: string; forcado: boolean; anterior: number }
+interface Base { destino: string; forcado: boolean; anterior: number; iniciativa?: 'dono' }
 
 /**
  * `em` de um campo FINAL = instante em que o settle concluiu aquele campo (depois da escrita, quando houve):
@@ -362,6 +372,7 @@ function montarCampo(b: Base, agora: Date, p: { estado: EstadoCampo; escreveu: b
     ...(p.motivo ? { motivo: p.motivo } : {}),
     erro: p.erro ?? null,
     attempts: p.estado === 'falhou' ? 1 : b.anterior, // falhou = a chamada original; o resto herda
+    ...(b.iniciativa ? { iniciativa: b.iniciativa } : {}),
   }
 }
 
@@ -371,9 +382,10 @@ async function restaurarCampos(
   forcar: boolean, seq: number, prazo: number,
   anterior: (c: CampoNome) => number, // Y-8: attempts dos estados finais ok/pulado_*: 0 no caminho humano, o da reivindicação no do vigia
   vigia?: PoliticaVigia,
+  iniciativa?: (c: CampoNome) => 'dono' | undefined, // M7b: a marca do claim passa para o campo final
 ): Promise<RestoreStatus | { perdeu: true; parcial: RestoreStatus }> {
   const final: RestoreStatus = {}
-  const base = (c: CampoNome): Base => ({ destino: nomeDoDestino(destino), forcado: forcar, anterior: anterior(c) })
+  const base = (c: CampoNome): Base => ({ destino: nomeDoDestino(destino), forcado: forcar, anterior: anterior(c), ...(iniciativa?.(c) ? { iniciativa: 'dono' as const } : {}) })
   const montar = (c: CampoNome, p: Parameters<typeof montarCampo>[2]): CampoRestauracao => {
     const campo = montarCampo(base(c), portas.agora(), p)
     const ant = r.restore_status?.[c]
@@ -461,14 +473,25 @@ async function gravarResultado(
   const agora = portas.agora()
   const patch: Record<string, unknown> = { restore_status: final }
   let vencedorAplicado = false
+  const escolha = (): Record<string, unknown> => ({
+    escolha_variant_id: destino === 'original' ? r.variantes.find((v) => v.is_original)?.id ?? null : destino.varianteId,
+    escolha_em: agora.toISOString(), escolha_por: op.autor ?? null,
+  })
   if (op.motivo === 'reverter') {
-    if (tudoOk) Object.assign(patch, { winner_applied_at: null, revert_expires_at: null, applied_by: null })
+    if (tudoOk) {
+      Object.assign(patch, { winner_applied_at: null, revert_expires_at: null, applied_by: null })
+      if (op.autor) Object.assign(patch, escolha()) // decisão do dono: a original fica como escolha
+    }
+  } else if (op.motivo === 'escolher') {
+    // M7b: não é "vencedor aplicado": sem winner_applied_at/applied_by/autoImportWinner; o prazo de 7 dias saiu do produto.
+    if (tudoOk) Object.assign(patch, { revert_expires_at: null }, escolha())
   } else if (destino !== 'original' && tudoOk) {
     vencedorAplicado = true
     Object.assign(patch, {
       winner_applied_at: agora.toISOString(), applied_by: 'manual',
       revert_expires_at: new Date(agora.getTime() + REVERT_MS).toISOString(),
     })
+    if (op.motivo === 'aplicar_sugerido') Object.assign(patch, escolha())
   }
   const { data, error } = await portas.supabase.from('ab_tests').update(patch).eq('id', r.id).eq('restore_seq', seq).select('id')
   if (error) throw new Error(`ab-settle: gravar resultado do teste ${r.id}: ${error.message}`)
@@ -529,6 +552,61 @@ async function gravarPuladoDefinitivo(portas: PortasSaida, r: Retrato, campos: C
   return { resultado: 'feito', campos: final, pausadoPorTesteYoutube: true } // pausa sem escrita: os chamadores não a tratam como a saída pedida
 }
 
+// ---------------------------------------------------------------------------
+// M7b T6: leitura do que está no ar (só lê; nunca escreve, nunca grava)
+// ---------------------------------------------------------------------------
+
+export type LeituraNoAr =
+  | { tipo: 'sem_leitura'; motivo: 'retrato' | 'acesso' | 'video_inexistente' | 'erro_youtube' | 'rede' }
+  | {
+      tipo: 'lido'; retrato: Retrato
+      /** Título lido; ausente quando o teste não mexe no título. */
+      titulo?: string
+      /** dHash da miniatura lida; `null` = a leitura falhou; ausente quando o teste não mexe na miniatura. */
+      dhash?: string | null
+      dhashes: Map<string, DhashDaVariante>
+    }
+
+/**
+ * Lê o título (`videos.list`, 1 unidade) e a miniatura (`hqdefault`, sem cota) que estão no ar, mais o dHash das versões.
+ * Reusa `resolverAcesso` + `lerNoYouTube` do settle. Vídeo apagado/privado, token, rede e API viram `sem_leitura`, nunca erro.
+ */
+export async function lerNoArNoYouTube(testId: string, siteId: string, p: Partial<PortasSaida> = {}): Promise<LeituraNoAr> {
+  const portas = portasPadrao(p)
+  const r = await (p.lerRetrato ?? ((id: string, site: string) => lerRetratoPadrao(portas.supabase, id, site)))(testId, siteId)
+  if (!r || !tipoConhecido(r.test_type)) return { tipo: 'sem_leitura', motivo: 'retrato' }
+  const campos = camposDoTeste(r.test_type)
+  let acesso: Acesso
+  try {
+    acesso = await resolverAcesso(portas, r)
+  } catch (e) {
+    if (e instanceof ErroConhecido) return { tipo: 'sem_leitura', motivo: 'acesso' }
+    Sentry.captureException(e, { tags: { area: 'ab-settle' } })
+    return { tipo: 'sem_leitura', motivo: 'acesso' }
+  }
+  let l: Leitura
+  try {
+    l = await lerNoYouTube(portas, acesso, r, campos)
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'ab-settle' } })
+    return { tipo: 'sem_leitura', motivo: 'rede' }
+  }
+  if (l.snippet.tipo === 'video_inexistente') return { tipo: 'sem_leitura', motivo: 'video_inexistente' }
+  if (l.snippet.tipo === 'falha') return { tipo: 'sem_leitura', motivo: 'erro_youtube' }
+  return {
+    tipo: 'lido', retrato: r, dhashes: l.dhashes,
+    ...(campos.includes('title') ? { titulo: l.snippet.snippet.title } : {}),
+    ...(campos.includes('thumbnail') ? { dhash: l.thumb?.tipo === 'lido' ? l.thumb.dhash : null } : {}),
+  }
+}
+
+/** Algum campo escreveu no YouTube (true), não se sabe (null) ou nenhum escreveu (false). */
+function escreveuEm(rs: RestoreStatus, campos: CampoNome[]): boolean | null {
+  const v = campos.map((c) => rs[c]?.escreveu ?? false)
+  if (v.some((x) => x === true)) return true
+  return campos.some((c) => rs[c] !== undefined && rs[c]!.escreveu === null) ? null : false
+}
+
 export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<PortasSaida> = {}): Promise<ResultadoSaida> {
   const portas = portasPadrao(p)
   const agora = portas.agora()
@@ -547,7 +625,7 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (op.motivo === 'reverter' && !reversaoAberta(r, agora)) return { resultado: 'ja_encerrado', campos: r.restore_status }
 
   // Y-T12-1: aplicar/voltar não escrevem sobre o ciclo aberto de outro teste nosso no vídeo (antes do passo 0b: `forcar` não atravessa).
-  if ((op.motivo === 'aplicar_sugerido' || op.motivo === 'reverter') && (await outroTesteAberto(portas, r, testId))) return { resultado: 'outro_teste', campos: r.restore_status }
+  if ((op.motivo === 'aplicar_sugerido' || op.motivo === 'reverter' || op.motivo === 'escolher') && (await outroTesteAberto(portas, r, testId))) return { resultado: 'outro_teste', campos: r.restore_status }
 
   const campos = camposDoTeste(r.test_type)
   // Guarda do teste do YouTube confirmado (F1a-dado, Yannis C2; sem flag): ponto único de escrita do nosso teste. Dispensada quando o motivo já é `teste_youtube`.
@@ -589,16 +667,19 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   if (conv === 'perdeu') return { resultado: 'em_andamento', campos: null }
 
   // Passo 1: reivindica.
+  const doDono = op.humano === true && (op.motivo === 'escolher' || op.motivo === 'aplicar_sugerido')
   const inicial: RestoreStatus = Object.fromEntries(campos.map((c) => [c, {
     estado: 'em_andamento', destino: nomeDoDestino(destino), forcado: op.forcar === true, escreveu: null, erro: null,
     em: agora.toISOString(), attempts: 0, // abre corrente: nasce com 0
+    ...(doDono ? { iniciativa: 'dono' as const } : {}),
   }]))
-  const conferirLetra = op.motivo === 'aplicar_sugerido' && destino !== 'original'
+  const conferirLetra = (op.motivo === 'aplicar_sugerido' && destino !== 'original') || op.vencedorEsperado !== undefined
+  const letraEsperada = op.vencedorEsperado ?? (destino !== 'original' ? destino.varianteId : undefined)
   const claim = await portas.supabase.rpc('ab_settle_claim', {
     p_test_id: testId, p_seq: conv.seq, p_de: caminho.de, p_para: caminho.para,
     p_end_reason: caminho.endReason, p_restore_status: inicial, p_extra: caminho.extra,
     // P3 do Phil: a letra que a tela mostrou tem de ser a gravada no instante do claim (o passo 0b leva segundos).
-    ...(conferirLetra ? { p_vencedor_esperado: destino.varianteId } : {}),
+    ...(conferirLetra && letraEsperada ? { p_vencedor_esperado: letraEsperada } : {}),
   })
   if (claim.error) throw new Error(`ab-settle: ab_settle_claim: ${claim.error.message}`)
   const seq = (claim.data as Array<{ claimed_seq: number }> | null)?.[0]?.claimed_seq
@@ -612,17 +693,17 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   }
 
   // Passos 2 e 3: só erro CONHECIDO vira falhou; o resto relança e o campo fica em_andamento para o vigia.
-  const final = await restaurarCampos(portas, r, campos, destino, contexto, op.forcar === true, seq, prazo, () => 0)
+  const final = await restaurarCampos(portas, r, campos, destino, contexto, op.forcar === true, seq, prazo, () => 0, undefined, doDono ? () => 'dono' : undefined)
   if ('perdeu' in final) {
     // Outro escritor é dono do restore_status; mas escrita já aceita no YouTube não pode ficar sem rastro.
     if (campos.some((c) => final.parcial[c] && final.parcial[c]!.escreveu !== false)) {
       Sentry.captureMessage('ab-settle: resultado perdido', { extra: { testId: r.id, seq, restoreStatus: final.parcial } })
     }
-    return { resultado: 'em_andamento', campos: null }
+    return { resultado: 'perdido', escreveu: escreveuEm(final.parcial, campos), campos: null }
   }
 
   const { gravou, vencedorAplicado } = await gravarResultado(portas, r, seq, final, campos, destino, op)
-  if (!gravou) return { resultado: 'em_andamento', campos: null }
+  if (!gravou) return { resultado: 'perdido', escreveu: escreveuEm(final, campos), campos: null }
   if (vencedorAplicado && r.winner_applied_at === null) { // 32 j: só na primeira aplicação
     await portas.autoImportWinner(testId, r.site_id).catch((e: unknown) => Sentry.captureException(e, { tags: { area: 'ab-settle' } }))
   }
@@ -630,7 +711,7 @@ export async function settleOnAir(testId: string, op: OpcoesSaida, p: Partial<Po
   // Passo 5: avisos.
   const aviso = await avisarRestauracao(portas.supabase, { id: r.id, site_id: r.site_id, name: r.name, restore_seq: seq }, final)
     .catch((e: unknown) => { Sentry.captureException(e, { tags: { area: 'ab-settle' } }); return undefined })
-  return { resultado: 'feito', campos: final, ...(aviso ? { aviso } : {}) }
+  return { resultado: 'feito', campos: final, seq, ...(aviso ? { aviso } : {}) }
 }
 
 // ---------------------------------------------------------------------------
@@ -681,6 +762,8 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
   const rs0 = r.restore_status
   const pend = camposPendentes(rs0, op.origem)
   if (!rs0 || pend.length === 0) return { resultado: 'ja_encerrado', campos: r.restore_status }
+  // M7b: a escolha do dono só é refeita pelo painel (escolherVersao): a nova tentativa grava winner_applied_at e importa a miniatura.
+  if (pend.some((c) => daEscolhaDoDono(rs0[c]!))) return { resultado: 'ja_encerrado', campos: r.restore_status }
 
   // Guarda do teste do YouTube confirmado (F1a-dado, Yannis C2): nova tentativa escreveria no vídeo.
   if ((await lerLinhaConfirmada(portas.supabase, r.site_id, r.youtube_video_id)) !== null) return { resultado: 'teste_youtube', motivo: MOTIVO_RECUSA_NATIVO, campos: null }
@@ -726,6 +809,7 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
     inicial[c] = {
       estado: 'em_andamento', destino: nomeDoDestino(destino), forcado: forcar, escreveu: null, erro: null,
       em: agora.toISOString(), attempts: op.origem === 'humano' ? 0 : rs0[c]!.attempts,
+      ...(rs0[c]!.iniciativa ? { iniciativa: rs0[c]!.iniciativa } : {}),
     }
   }
   const claim = await portas.supabase.rpc('ab_settle_claim', {
@@ -750,6 +834,7 @@ export async function novaTentativa(testId: string, op: OpcoesNovaTentativa, p: 
     portas, { ...r, restore_status: rs }, pend, destino, contexto, forcar, seq, prazo,
     op.origem === 'humano' ? () => 0 : (c) => rs0[c]!.attempts,
     op.origem === 'vigia' ? { cotaVencida } : undefined,
+    (c) => rs0[c]?.iniciativa,
   )
   if ('perdeu' in parcial) {
     if (pend.some((c) => parcial.parcial[c] && parcial.parcial[c]!.escreveu !== false)) {
