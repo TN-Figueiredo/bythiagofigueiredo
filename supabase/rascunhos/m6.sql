@@ -147,6 +147,381 @@ drop trigger if exists obs_archive_a_unidade_em_mes_destacado on public.obs_arch
 create trigger obs_archive_a_unidade_em_mes_destacado before insert on public.obs_archive_units
   for each row execute function public.obs_archive_unit_in_detached_month();
 -- M6 PARTE 3: colunas novas, o portão e a conferência por canal
+alter table public.obs_archive_prechecks add column if not exists row_digest numeric;
+comment on column public.obs_archive_prechecks.row_digest is 'M6 (C-1): soma de hashtextextended(t::text, 0) das linhas do canal no mês, medida na conferência; o tally a compara sob a trava.';
+alter table public.obs_archive_switch add column if not exists sims_seen integer not null default 0;
+alter table public.obs_archive_switch add column if not exists last_sim_at timestamptz;
+alter table public.obs_archive_switch add column if not exists refusals_b2 integer not null default 0;
+alter table public.obs_archive_switch add column if not exists disarm_month date;
+alter table public.obs_archive_switch add column if not exists disarm_detail jsonb;
+alter table public.obs_archive_switch add column if not exists disarm_seen_at timestamptz;
+alter table public.obs_archive_switch drop constraint if exists obs_archive_switch_disarm_reason_check;
+alter table public.obs_archive_switch add constraint obs_archive_switch_disarm_reason_check
+  check (disarm_reason is null or disarm_reason in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '13', 'manual'));
+comment on column public.obs_archive_switch.disarm_reason is 'M6: motivo do desligamento, na numeração da lista fechada de 03 §12.4 (o 12 foi retirado); manual = "Desligar" do dono.';
+alter table public.obs_archive_months add column if not exists reattached_at timestamptz;
+alter table public.obs_archive_months add column if not exists reattach_out_of_order boolean not null default false;
+comment on column public.obs_archive_months.reattach_out_of_order is 'M6 (R27, segunda causa): o mês voltou com mês posterior da mesma tabela ainda fora; a página (M5) marca a linha e o "online desde".';
+
+-- Decisão 13: a data de "pode sair" é UMA função (a mesma da Tarefa 4 do plano da M7, D15). `create or replace` idêntica: a que chegar segunda não muda nada.
+create or replace function public.obs_archive_piso_registro() returns date
+language sql immutable set search_path = '' as $$ select date '2026-10-01' $$;
+revoke all on function public.obs_archive_piso_registro() from public, anon, authenticated, service_role;
+create or replace function public.obs_archive_pode_sair_em(p_month date, p_window integer) returns date
+language sql immutable set search_path = '' as $$
+  select (greatest(date_trunc('month', p_month)::date, public.obs_archive_piso_registro()) + pg_catalog.make_interval(months => p_window + 1))::date
+$$;
+revoke all on function public.obs_archive_pode_sair_em(date, integer) from public, anon, authenticated, service_role;
+
+create or replace function public.obs_archive_exit_class(p_table text) returns text
+language sql stable security definer set search_path = '' as $$
+  select p.class from public.obs_archive_policy() p where p.table_name = p_table and p.exit_mode = 'particao'
+$$;
+revoke all on function public.obs_archive_exit_class(text) from public, anon, authenticated, service_role;
+
+create or replace function public.obs_archive_part_rel(p_table text, p_month date, p_saida boolean) returns regclass
+language sql stable security definer set search_path = '' as $$
+  select pg_catalog.to_regclass(pg_catalog.format('obs_part.%I', obs_part.nome_da_particao(p_table, p_month) || case when p_saida then '_saida' else '' end))
+$$;
+revoke all on function public.obs_archive_part_rel(text, date, boolean) from public, anon, authenticated, service_role;
+
+create or replace function public.obs_archive_month_green(p_site uuid, p_class text, p_table text, p_month date) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.obs_archive_months m
+    where m.site_id = p_site and m.class = p_class and m.table_name = p_table and m.month = p_month
+      and m.sealed_at is not null and m.unsealed_at is null
+      and m.nas_attested_at >= public.obs_archive_agora() - interval '24 hours'
+      and m.b2_withdrawn_at is null
+      and ((m.b2_forja_ok_at >= public.obs_archive_agora() - interval '7 days' and m.b2_forja_manifest_sha256 = m.manifest_sha256)
+        or (m.b2_dono_ok_at >= public.obs_archive_agora() - interval '35 days' and m.b2_dono_manifest_sha256 = m.manifest_sha256)))
+$$;
+revoke all on function public.obs_archive_month_green(uuid, text, text, date) from public, anon, authenticated, service_role;
+
+-- UMA varredura da relação, agrupada por canal: contagem, soma da coluna de controle e (C-1) o resumo da linha inteira. Linha sobrando = canal_sem_unidade;
+-- faltando, soma diferente, ou (com p_resumo) resumo diferente do que a conferência guardou, ou conferência ausente = conteudo_mudou (02 §10.5, canal removido).
+-- Devolve também os OUTROS sites com linha na relação (m-5), para a condição 13 sob a trava sem nova varredura.
+create or replace function public.obs_archive_tally(p_site uuid, p_class text, p_table text, p_month date, p_rel regclass, p_resumo boolean default false)
+returns jsonb language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_l bigint := 0; v_s numeric := 0; e_l bigint; e_s numeric; v_col text; g record; v_outros uuid[] := '{}'; v_dif boolean := false;
+  v_vistos text[] := '{}'; v_pc numeric;
+begin
+  select p.control_column into v_col from public.obs_archive_policy() p where p.class = p_class and p.table_name = p_table;
+  for g in execute pg_catalog.format(
+    'select ch.site_id, ch.id::text as canal, count(*) as n, coalesce(sum(t.%I::numeric), 0) as s,
+            coalesce(sum(pg_catalog.hashtextextended(t::text, 0)::numeric), 0) as d
+       from %s t join public.competitor_videos v on v.id = t.video_id join public.competitor_channels ch on ch.id = v.competitor_channel_id
+      group by ch.site_id, ch.id', v_col, p_rel)
+  loop
+    if g.site_id <> p_site then v_outros := v_outros || g.site_id; continue; end if;
+    continue when exists (select 1 from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = g.canal);
+    v_l := v_l + g.n; v_s := v_s + g.s; v_vistos := v_vistos || g.canal;
+    if p_resumo then
+      select pc.row_digest into v_pc from public.obs_archive_prechecks pc
+       where pc.site_id = p_site and pc.class = p_class and pc.table_name = p_table and pc.month = p_month and pc.channel_ref = g.canal;
+      if v_pc is distinct from g.d then v_dif := true; end if;
+    end if;
+  end loop;
+  select coalesce(sum(u.row_count), 0), coalesce(sum(u.control_sum), 0) into e_l, e_s
+    from public.obs_archive_current_units(p_site, p_class, p_month) u
+   where u.table_name = p_table and u.lost_at is null and u.purged_at is null
+     and exists (select 1 from public.competitor_channels ch where ch.id::text = u.channel_ref and ch.site_id = p_site)
+     and not exists (select 1 from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = u.channel_ref);
+  if p_resumo then
+    -- unidade sem conferência com resumo, ou conferência de canal que agora não tem linha mas tinha: o dado mudou (ou nunca foi conferido)
+    if exists (select 1 from public.obs_archive_current_units(p_site, p_class, p_month) u
+                where u.table_name = p_table and u.lost_at is null and u.purged_at is null
+                  and exists (select 1 from public.competitor_channels ch where ch.id::text = u.channel_ref and ch.site_id = p_site)
+                  and not exists (select 1 from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = u.channel_ref)
+                  and not exists (select 1 from public.obs_archive_prechecks pc where pc.site_id = p_site and pc.class = p_class and pc.table_name = p_table
+                                     and pc.month = p_month and pc.channel_ref = u.channel_ref and pc.row_digest is not null))
+       or exists (select 1 from public.obs_archive_prechecks pc where pc.site_id = p_site and pc.class = p_class and pc.table_name = p_table
+                     and pc.month = p_month and pc.row_digest <> 0 and pc.channel_ref <> all (v_vistos)) then
+      v_dif := true;
+    end if;
+  end if;
+  return jsonb_build_object('linhas', v_l, 'soma', v_s, 'esperado_linhas', e_l, 'esperado_soma', e_s,
+    'sites', pg_catalog.to_jsonb(coalesce((select array_agg(distinct x) from unnest(v_outros) x), '{}'::uuid[])),
+    'codigo', case when v_l > e_l then 'canal_sem_unidade' when v_l < e_l or v_s <> e_s or v_dif then 'conteudo_mudou' end);
+end $$;
+revoke all on function public.obs_archive_tally(uuid, text, text, date, regclass, boolean) from public, anon, authenticated, service_role;
+
+create or replace function public.obs_archive_outros_sites_ok(p_class text, p_table text, p_month date, p_tally jsonb) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select not exists (select 1 from jsonb_array_elements_text(coalesce(p_tally->'sites', '[]'::jsonb)) o(s)
+                      where not public.obs_archive_month_green(o.s::uuid, p_class, p_table, p_month))
+$$;
+revoke all on function public.obs_archive_outros_sites_ok(text, text, date, jsonb) from public, anon, authenticated, service_role;
+
+-- C-1: o resumo da linha inteira, o hash e o resumo de novo; os dois resumos têm de ser iguais (o dado não mudou DURANTE a conferência).
+-- Com p_gravar: grava a conferência com o resumo, ou apaga a anterior se não bate (M2).
+create or replace function public.obs_archive_conferir_canal(p_site uuid, p_class text, p_table text, p_rel regclass, p_channel uuid, p_month date,
+                                                             p_row_count bigint, p_control_sum numeric, p_hash text, p_gravar boolean)
+returns boolean language plpgsql volatile security definer set search_path = '' as $$
+declare d1 numeric; d2 numeric; h record; v_ok boolean;
+begin
+  d1 := public.obs_archive_row_digest_rel(p_site, p_class, p_table, p_rel, p_channel, p_month);
+  select * into h from public.obs_archive_content_hash_rel(p_site, p_class, p_table, p_rel, p_channel, p_month);
+  d2 := public.obs_archive_row_digest_rel(p_site, p_class, p_table, p_rel, p_channel, p_month);
+  v_ok := h.row_count = p_row_count and h.control_sum::numeric is not distinct from p_control_sum and h.hash_conteudo = p_hash and d1 = d2;
+  if p_gravar then
+    if v_ok then
+      insert into public.obs_archive_prechecks (site_id, class, table_name, month, channel_ref, checked_at, row_digest)
+      values (p_site, p_class, p_table, p_month, p_channel::text, public.obs_archive_agora(), d2)
+      on conflict (site_id, class, table_name, month, channel_ref) do update set checked_at = excluded.checked_at, row_digest = excluded.row_digest;
+    else
+      delete from public.obs_archive_prechecks pc where pc.site_id = p_site and pc.class = p_class and pc.table_name = p_table and pc.month = p_month and pc.channel_ref = p_channel::text;
+    end if;
+  end if;
+  return v_ok;
+end $$;
+revoke all on function public.obs_archive_conferir_canal(uuid, text, text, regclass, uuid, date, bigint, numeric, text, boolean) from public, anon, authenticated, service_role;
+
+-- O portão (02 §10.5). p_conds: os números da tabela de condições (12 é a trava, medida pela operação; 20 = R27, saída fora de ordem).
+-- p_rel: a partição anexada (detach, drop, check) ou a tabela destacada (discard). Fora da simulação, conteudo_mudou dessela o mês.
+create or replace function public.obs_archive_gate(p_site uuid, p_class text, p_table text, p_month date, p_by uuid, p_mode text,
+                                                   p_rel regclass, p_conds integer[], p_dry_run boolean)
+returns jsonb language plpgsql volatile security definer set search_path = '' set timezone = 'UTC' as $$
+declare
+  f jsonb := '[]'::jsonb;
+  pol record; m public.obs_archive_months; sw public.obs_archive_switch; u record; h record; v_rst record;
+  v_agora timestamptz := public.obs_archive_agora();
+  v_hoje date := public.obs_archive_hoje_sp();
+  v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
+  v_join text := 'join public.competitor_videos v on v.id = t.video_id join public.competitor_channels ch on ch.id = v.competitor_channel_id';
+  v_ini timestamptz := (p_month::text || ' 00:00:00-03')::timestamptz;
+  v_fim timestamptz := (((p_month + interval '1 month')::date)::text || ' 00:00:00-03')::timestamptz;
+  v_lista text[]; v_sites uuid[]; v_mudou uuid[] := '{}'; v_canais text[] := '{}'; v_n bigint; v_pode date; pr record; v_tem boolean; v_pode_txt text;
+begin
+  select * into pol from public.obs_archive_policy() p where p.class = p_class and p.table_name = p_table;
+  select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.table_name = p_table and x.month = p_month;
+
+  if 1 = any(p_conds) and not pol.released then
+    f := f || jsonb_build_array(jsonb_build_object('codigo', 'classe_nao_liberada', 'classe', p_class));
+  end if;
+
+  if 2 = any(p_conds) then
+    v_pode := public.obs_archive_pode_sair_em(p_month, pol.window_months);       -- Decisão 13 (M7 D15)
+    if v_hoje < v_pode then f := f || jsonb_build_array(jsonb_build_object('codigo', 'ainda_na_janela', 'pode_sair_em', v_pode)); end if;
+  end if;
+
+  if 3 = any(p_conds) then
+    if m.id is null or m.sealed_at is null or m.unsealed_at is not null then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'nao_selado'));
+    elsif p_rel is not null then
+      execute pg_catalog.format(
+        'select array_agg(distinct v.competitor_channel_id::text order by v.competitor_channel_id::text) from %s t %s
+          where ch.site_id = $1 and not exists (select 1 from public.obs_archive_current_units($1, $2, $3) cu
+                                                 where cu.table_name = $4 and cu.channel_ref = v.competitor_channel_id::text)', p_rel, v_join)
+        into v_lista using p_site, p_class, p_month, p_table;
+      if v_lista is not null then f := f || jsonb_build_array(jsonb_build_object('codigo', 'canal_sem_unidade', 'canais', pg_catalog.to_jsonb(v_lista))); end if;
+    end if;
+  end if;
+
+  if 4 = any(p_conds) and p_rel is not null and m.sealed_at is not null and m.unsealed_at is null then
+    for u in select cu.id, cu.channel_ref, cu.row_count, cu.control_sum, cu.hash_conteudo
+               from public.obs_archive_current_units(p_site, p_class, p_month) cu
+              where cu.table_name = p_table and cu.purged_at is null and cu.lost_at is null
+                and exists (select 1 from public.competitor_channels ch where ch.id::text = cu.channel_ref and ch.site_id = p_site)
+                and not exists (select 1 from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = cu.channel_ref)
+    loop
+      continue when exists (select 1 from public.obs_archive_prechecks pc
+                             where pc.site_id = p_site and pc.class = p_class and pc.table_name = p_table and pc.month = p_month
+                               and pc.channel_ref = u.channel_ref and pc.row_digest is not null and pc.checked_at >= v_agora - interval '10 minutes'
+                               and pc.checked_at >= m.sealed_at and pc.checked_at >= coalesce(m.detached_at, '-infinity'::timestamptz));
+      -- sem conferência fresca: hash, resumo antes e depois (C-1); fora da simulação a conferência é gravada para o tally da trava comparar
+      if not public.obs_archive_conferir_canal(p_site, p_class, p_table, p_rel, u.channel_ref::uuid, p_month, u.row_count, u.control_sum, u.hash_conteudo, not p_dry_run) then
+        v_mudou := v_mudou || u.id; v_canais := v_canais || u.channel_ref;
+      end if;
+    end loop;
+    if cardinality(v_mudou) > 0 then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'conteudo_mudou', 'canais', pg_catalog.to_jsonb(v_canais)));
+      if not p_dry_run then
+        update public.obs_archive_units set redo_reason = 'conteudo_mudou' where id = any(v_mudou);
+        update public.obs_archive_months set unsealed_at = v_agora, unsealed_reason = 'conteudo_mudou'
+         where site_id = p_site and class = p_class and month = p_month and sealed_at is not null and unsealed_at is null;
+      end if;
+    end if;
+  end if;
+
+  if 5 = any(p_conds) and (m.nas_attested_at is null or m.nas_attested_at < v_agora - interval '24 hours') then
+    select array_agg(distinct cu.channel_ref order by cu.channel_ref) into v_lista
+      from public.obs_archive_current_units(p_site, p_class, p_month) cu
+     where cu.table_name = p_table and cu.purged_at is null and cu.lost_at is null
+       and not exists (select 1 from public.obs_archive_summaries s
+                        where s.site_id = p_site and s.class = p_class and s.channel_ref = cu.channel_ref and s.month = p_month
+                          and s.superseded_at is null and s.purged_at is null and s.lost_at is null and s.nas_attested_at >= v_agora - interval '24 hours');
+    f := f || jsonb_build_array(jsonb_build_object('codigo', 'nas_sem_atestacao',
+           'horas', case when m.nas_attested_at is null then null else floor(extract(epoch from (v_agora - m.nas_attested_at)) / 3600)::int end,
+           'canais_sem_resumo', coalesce(pg_catalog.to_jsonb(v_lista), '[]'::jsonb)));
+  end if;
+
+  if 6 = any(p_conds) then
+    if m.b2_withdrawn_at is not null then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'b2_sem_atestacao', 'motivo', 'retirada', 'em', m.b2_withdrawn_at, 'razao', m.b2_withdrawn_reason));
+    elsif not coalesce((m.b2_forja_ok_at >= v_agora - interval '7 days' and m.b2_forja_manifest_sha256 = m.manifest_sha256)
+                    or (m.b2_dono_ok_at >= v_agora - interval '35 days' and m.b2_dono_manifest_sha256 = m.manifest_sha256), false) then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'b2_sem_atestacao', 'motivo', 'prazo',
+             'dias_forja', case when m.b2_forja_ok_at is null then null else floor(extract(epoch from (v_agora - m.b2_forja_ok_at)) / 86400)::int end,
+             'dias_dono', case when m.b2_dono_ok_at is null then null else floor(extract(epoch from (v_agora - m.b2_dono_ok_at)) / 86400)::int end));
+    end if;
+  end if;
+
+  if 7 = any(p_conds) then
+    select r.done_at, r.schema_fp into v_rst from public.obs_archive_restores r
+     where r.site_id = p_site and r.class = p_class and r.table_name = p_table and r.units_checked > 0 and r.rows_restored > 0 and r.diff_rows = 0
+     order by r.done_at desc limit 1;
+    if v_rst.done_at is null or v_rst.done_at < v_agora - interval '180 days' then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'restauracao_vencida', 'classe', p_class, 'tabela', p_table, 'ultima', v_rst.done_at));
+    elsif v_rst.schema_fp <> public.obs_archive_schema_fp(v_mae) then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'esquema_mudou', 'tabela', p_table));
+    end if;
+  end if;
+
+  if 8 = any(p_conds) and p_class = 'horaria' and p_rel is not null then
+    execute pg_catalog.format(
+      'select count(*) from (select distinct t.video_id, (t.hour_slot at time zone ''America/Sao_Paulo'')::date as d from %s t %s where ch.site_id = $1) x
+        where not exists (select 1 from public.competitor_hour_fold_log l where l.video_id = x.video_id and l.day = x.d)', p_rel, v_join)
+      into v_n using p_site;
+    if v_n > 0 then f := f || jsonb_build_array(jsonb_build_object('codigo', 'dia_nao_somado', 'pares', v_n)); end if;
+  end if;
+
+  if 9 = any(p_conds) and p_class = 'serie' then
+    if pg_catalog.to_regclass('public.competitor_video_marks') is null or pg_catalog.to_regclass('public.competitor_video_mark_misses') is null then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'marcas_ausentes'));
+    else
+      execute 'select count(*) from public.competitor_videos v join public.competitor_channels ch on ch.id = v.competitor_channel_id
+                where ch.site_id = $1
+                  and greatest(v.published_at, v.live_actual_start_at) + interval ''30 days'' >= $2
+                  and greatest(v.published_at, v.live_actual_start_at) + interval ''30 days'' < $3
+                  and not exists (select 1 from public.competitor_video_marks k where k.video_id = v.id and k.age_days = 30)
+                  and not exists (select 1 from public.competitor_video_mark_misses k where k.video_id = v.id and k.age_days = 30)'
+        into v_n using p_site, v_ini, v_fim;
+      if v_n > 0 then f := f || jsonb_build_array(jsonb_build_object('codigo', 'marca_pendente', 'videos', v_n)); end if;
+    end if;
+  end if;
+
+  if 10 = any(p_conds) then
+    select count(*) into v_n from public.competitor_removed_items i
+     where i.site_id = p_site and i.archive_pending and i.kind = 'video'
+       and exists (select 1 from public.obs_archive_current_units(p_site, p_class, p_month) cu
+                    where cu.table_name = p_table and cu.channel_ref = i.competitor_channel_id::text and cu.purged_at is null);
+    if v_n > 0 then f := f || jsonb_build_array(jsonb_build_object('codigo', 'expurgo_pendente', 'itens', v_n)); end if;
+  end if;
+
+  if 11 = any(p_conds) then
+    if p_mode = 'automatico' then
+      select * into sw from public.obs_archive_switch s where s.site_id = p_site and s.class = p_class;
+      if p_class not in ('horaria', 'serie') or sw.armed_at is null or sw.disarmed_at is not null or sw.expires_at <= v_agora then
+        f := f || jsonb_build_array(jsonb_build_object('codigo', 'interruptor_desligado'));
+      end if;
+    elsif p_by is null or not public.obs_archive_is_site_admin(p_site, p_by) then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'sem_direito'));
+    end if;
+  end if;
+
+  if 13 = any(p_conds) and p_rel is not null then
+    execute pg_catalog.format('select array_agg(distinct ch.site_id) from %s t %s where ch.site_id <> $1', p_rel, v_join) into v_sites using p_site;
+    if exists (select 1 from unnest(coalesce(v_sites, '{}'::uuid[])) o(s) where not public.obs_archive_month_green(o.s, p_class, p_table, p_month)) then
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'outro_site_na_particao'));
+    end if;
+  end if;
+
+  if 20 = any(p_conds) then
+    -- R27 + I7 (Phil): mês anterior com linha ainda online, pelo registro OU por partição anexada com linha (mesmo sem registro de mês: defeito, não "vazio")
+    select array_agg(pg_catalog.to_char(x.month, 'YYYY-MM-DD') order by x.month) into v_lista from public.obs_archive_months x
+     where x.site_id = p_site and x.class = p_class and x.table_name = p_table and x.month < p_month
+       and coalesce(x.rows_total, 0) > 0 and x.detached_at is null and x.dropped_at is null;
+    for pr in select pg_catalog.to_char(pg_catalog.to_date(pg_catalog.right(c.relname::text, 6), 'YYYYMM'), 'YYYY-MM-DD') as mes, c.oid::regclass as rel
+                from pg_catalog.pg_inherits i join pg_catalog.pg_class c on c.oid = i.inhrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+               where i.inhparent = v_mae and n.nspname = 'obs_part' and c.relname::text ~ ('^' || p_table || '_[0-9]{6}$')
+                 and pg_catalog.to_date(pg_catalog.right(c.relname::text, 6), 'YYYYMM') < p_month
+                 and not exists (select 1 from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.table_name = p_table
+                                    and x.month = pg_catalog.to_date(pg_catalog.right(c.relname::text, 6), 'YYYYMM') and (x.detached_at is not null or x.dropped_at is not null)) loop
+      execute pg_catalog.format('select exists (select 1 from %s limit 1)', pr.rel) into v_tem;
+      if v_tem then v_lista := coalesce(v_lista, '{}'::text[]) || pr.mes; end if;
+    end loop;
+    if v_lista is not null then
+      select min(z) into v_pode_txt from unnest(v_lista) z;
+      f := f || jsonb_build_array(jsonb_build_object('codigo', 'saida_fora_de_ordem', 'antes', v_pode_txt));
+    end if;
+  end if;
+
+  return f;
+end $$;
+revoke all on function public.obs_archive_gate(uuid, text, text, date, uuid, text, regclass, integer[], boolean) from public, anon, authenticated, service_role;
+
+-- A conferência por canal (CP13): uma chamada por canal, cada uma bem abaixo dos 8 s; vale 10 minutos para a condição 4 (e o resumo da linha inteira dela
+-- é o que a trava compara). Com p_only_stale, só os canais sem conferência de menos de 8 minutos (a ação e a tarefa passam true; Phil M5).
+create or replace function public.obs_archive_precheck_channels(p_site uuid, p_table text, p_month date, p_only_stale boolean default false) returns text[]
+language sql stable security definer set search_path = '' as $$
+  select coalesce(array_agg(cu.channel_ref order by cu.channel_ref), '{}'::text[])
+    from public.obs_archive_current_units(p_site, public.obs_archive_exit_class(p_table), p_month) cu
+   where cu.table_name = p_table and cu.purged_at is null and cu.lost_at is null
+     and exists (select 1 from public.competitor_channels ch where ch.id::text = cu.channel_ref and ch.site_id = p_site)
+     and not exists (select 1 from public.obs_archive_channel_removals r where r.site_id = p_site and r.channel_ref = cu.channel_ref)
+     and (not p_only_stale or not exists (
+           select 1 from public.obs_archive_prechecks pc
+            where pc.site_id = p_site and pc.class = public.obs_archive_exit_class(p_table) and pc.table_name = p_table and pc.month = p_month
+              and pc.channel_ref = cu.channel_ref and pc.row_digest is not null and pc.checked_at >= public.obs_archive_agora() - interval '8 minutes'
+              and pc.checked_at >= coalesce((select mm.detached_at from public.obs_archive_months mm where mm.site_id = p_site
+                                               and mm.class = public.obs_archive_exit_class(p_table) and mm.table_name = p_table and mm.month = p_month), '-infinity'::timestamptz)))
+$$;
+revoke all on function public.obs_archive_precheck_channels(uuid, text, date, boolean) from public, anon, authenticated;
+grant execute on function public.obs_archive_precheck_channels(uuid, text, date, boolean) to service_role;
+
+create or replace function public.obs_archive_precheck_unit(p_site uuid, p_table text, p_month date, p_channel uuid) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_class text := public.obs_archive_exit_class(p_table);
+  m public.obs_archive_months; u public.obs_archive_units; v_rel regclass;
+begin
+  if v_class is null then return jsonb_build_object('ok', false, 'codigo', 'tabela_invalida'); end if;
+  select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+  if m.id is null or m.sealed_at is null or m.unsealed_at is not null then return jsonb_build_object('ok', false, 'codigo', 'nao_selado'); end if;
+  if m.dropped_at is not null then return jsonb_build_object('ok', false, 'codigo', 'ja_descartado'); end if;
+  v_rel := public.obs_archive_part_rel(p_table, p_month, m.detached_at is not null);
+  if v_rel is null then return jsonb_build_object('ok', false, 'codigo', 'particao_ausente'); end if;
+  select cu.* into u from public.obs_archive_current_units(p_site, v_class, p_month) cu where cu.table_name = p_table and cu.channel_ref = p_channel::text;
+  if u.id is null then return jsonb_build_object('ok', false, 'codigo', 'canal_sem_unidade'); end if;
+  if public.obs_archive_conferir_canal(p_site, v_class, p_table, v_rel, p_channel, p_month, u.row_count, u.control_sum, u.hash_conteudo, true) then
+    return jsonb_build_object('ok', true);
+  end if;
+  return jsonb_build_object('ok', false, 'codigo', 'conteudo_mudou');
+end $$;
+revoke all on function public.obs_archive_precheck_unit(uuid, text, date, uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_precheck_unit(uuid, text, date, uuid) to service_role;
+
+-- O estado da linha do mês, barato (sem hash, sem varrer a série): é o que a página lê para T1, T3, T7, T7a, T9.
+create or replace function public.obs_archive_exit_check(p_site uuid, p_table text, p_month date, p_by uuid) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+declare
+  v_class text := public.obs_archive_exit_class(p_table);
+  m public.obs_archive_months; pol record; v_desc integer; v_rel regclass; f jsonb;
+  v_liberar date;
+begin
+  if v_class is null then return jsonb_build_object('estado', 'invalido', 'faltam', jsonb_build_array(jsonb_build_object('codigo', 'tabela_invalida'))); end if;
+  select * into pol from public.obs_archive_policy() p where p.class = v_class and p.table_name = p_table;
+  select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+  select count(*) into v_desc from public.obs_archive_months x
+   where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.dropped_at is not null and coalesce(x.rows_dropped, 0) > 0;
+  if m.dropped_at is not null then
+    return jsonb_build_object('estado', 'descartado', 'descartado_em', m.dropped_at, 'bytes_freed', m.bytes_freed, 'faltam', '[]'::jsonb, 'descartes', v_desc, 'dois_passos', v_desc < 3);
+  end if;
+  if m.detached_at is not null then
+    v_liberar := (m.detached_at at time zone 'America/Sao_Paulo')::date + pol.wait_days;
+    v_rel := public.obs_archive_part_rel(p_table, p_month, true);
+    f := public.obs_archive_gate(p_site, v_class, p_table, p_month, p_by, 'clique', v_rel, array[1, 3, 5, 6, 7, 10, 11], true);
+    return jsonb_build_object('estado', 'destacado', 'destacado_em', m.detached_at, 'liberar_a_partir', v_liberar,
+                              'faltam', f, 'protecao_faltam', pg_catalog.to_jsonb(public.obs_archive_invariante_faltam()),
+                              'particao_ausente', v_rel is null, 'descartes', v_desc, 'dois_passos', v_desc < 3);
+  end if;
+  v_rel := public.obs_archive_part_rel(p_table, p_month, false);
+  f := public.obs_archive_gate(p_site, v_class, p_table, p_month, p_by, 'clique', null, array[1, 2, 3, 5, 6, 7, 10, 11, 20], true);
+  return jsonb_build_object('estado', 'online', 'faltam', f, 'descartes', v_desc, 'dois_passos', v_desc < 3, 'particao_ausente', v_rel is null);
+end $$;
+revoke all on function public.obs_archive_exit_check(uuid, text, date, uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_exit_check(uuid, text, date, uuid) to service_role;
 -- M6 PARTE 4: destacar e trazer de volta
 -- M6 PARTE 5: descartar e a composta
 -- M6 PARTE 6 [M6a]: contadores do interruptor, simulação vista, em trânsito, vermelhos da saída e encerrar o dado de teste
