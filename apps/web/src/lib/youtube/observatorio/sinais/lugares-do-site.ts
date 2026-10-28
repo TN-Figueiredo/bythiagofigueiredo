@@ -4,11 +4,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { readAll, type ObservatoryRows } from '../load'
 import { BLOCO_DO_IN } from './leitura'
 import {
-  entradaHash, extrairLugares, montarIndice, paresPadrao, chaveDoPar,
+  entradaHash, extrairLugares, montarIndice, paresPadrao, chaveDoPar, paisesPadraoPorCanal,
   type EntradaDeLugar, type IndiceDeLugar,
 } from '../lugar/casar'
 
-export interface ProprioRow { id: string; title: string; description: string | null; tags: string[]; is_short: boolean | null }
+export interface ProprioRow { id: string; title: string; description: string | null; tags: string[]; is_short: boolean | null; published_at?: string | null }
 
 /** Localização gravada pelo YouTube no vídeo do competidor (`competitor_raw.raw->recordingDetails`). */
 export interface RawDeLugar { locationDescription: string | null; lat: number | null; lng: number | null }
@@ -37,7 +37,11 @@ export interface CalculoDeLugares {
   orfaos: string[]
   /** Texto do competidor/próprio por vídeo (título + tags), para os tokens do `parecido`. */
   textoDe: (videoId: string) => string
-  contagens: { total: number; competidor: number; proprio: number; sem_lugar: number; regravados: number; inalterados: number; orfaos: number }
+  /** Entrada exata de cada vídeo no `extrairLugares` (para a amostra reproduzir a produção). */
+  entradaDe: (videoId: string) => EntradaDeLugar | undefined
+  /** Canal → países do padrão de texto detectado (log; `canais_com_padrao` = nº de chaves). */
+  padroesDoCanal: Record<string, string[]>
+  contagens: { canais_com_padrao: number; total: number; competidor: number; proprio: number; sem_lugar: number; regravados: number; inalterados: number; orfaos: number }
 }
 
 export class ErroSementeIncompleta extends Error {
@@ -126,9 +130,21 @@ export function calcularLugares(args: {
     return { canal: v.competitor_channel_id, lat: r?.lat ?? null, lng: r?.lng ?? null }
   }))
 
+  const padraoDeTexto = paisesPadraoPorCanal(
+    rows.videos.map((v) => ({ canal: v.competitor_channel_id, tags: v.tags ?? [], descricaoInicio: descricao.get(v.id) ?? '', publicadoEm: v.published_at })),
+    indice,
+  )
+  // I-4: os próprios formam um "canal" só ('proprio'), com a mesma base e o mesmo mínimo.
+  const padraoProprio = paisesPadraoPorCanal(
+    proprios.map((p) => ({ canal: 'proprio', tags: p.tags, descricaoInicio: p.description ?? '', publicadoEm: p.published_at })),
+    indice,
+  ).get('proprio') ?? []
+
   const linhas: LinhaDeLugar[] = []
   const textos = new Map<string, string>()
+  const entradas = new Map<string, EntradaDeLugar>()
   const empurrar = (id: string, origem: LinhaDeLugar['origem'], e: EntradaDeLugar): void => {
+    entradas.set(id, e)
     const { chaves, fonte } = extrairLugares(e, indice)
     linhas.push({ video_id: id, site_id: siteId, origem, chaves, fonte, entrada_hash: entradaHash(e, indice.versao), semente_versao: indice.versao, computado_em: computadoEm })
   }
@@ -142,12 +158,14 @@ export function calcularLugares(args: {
     empurrar(v.id, 'competidor', {
       titulo: t, tags, descricaoInicio: descricao.get(v.id) ?? '',
       locationDescription: r?.locationDescription ?? null, coordenadaPadraoDoCanal: padraoDoCanal,
+      paisesPadraoDoCanal: padraoDeTexto.get(v.competitor_channel_id) ?? [],
     })
   }
   for (const p of proprios) {
     textos.set(p.id, [p.title, ...p.tags].join(' '))
     empurrar(p.id, 'proprio', {
       titulo: p.title, tags: p.tags, descricaoInicio: p.description ?? '', locationDescription: null, coordenadaPadraoDoCanal: false,
+      paisesPadraoDoCanal: padraoProprio,
     })
   }
 
@@ -163,8 +181,11 @@ export function calcularLugares(args: {
     conhecido: (id) => porVideo.has(id),
     regravar,
     orfaos,
+    entradaDe: (id) => entradas.get(id),
     textoDe: (id) => textos.get(id) ?? '',
+    padroesDoCanal: Object.fromEntries([...padraoDeTexto, ...(padraoProprio.length ? [['proprio', padraoProprio] as [string, string[]]] : [])]),
     contagens: {
+      canais_com_padrao: padraoDeTexto.size + (padraoProprio.length ? 1 : 0),
       total: linhas.length,
       competidor: rows.videos.length,
       proprio: proprios.length,
@@ -206,6 +227,7 @@ export async function sincronizarLugares(
   const { raws, existentes } = await lerEntradasDeLugar(sb, siteId)
   const calculo = calcularLugares({ siteId, rows, proprios, indice, raws, existentes, agora })
   await gravarLugares(sb, siteId, calculo)
+  console.info('[lugares] canais_com_padrao', calculo.contagens.canais_com_padrao, JSON.stringify(calculo.padroesDoCanal))
   return { lugarDe: calculo.lugarDe, regravados: calculo.regravar.length, inalterados: calculo.linhas.length - calculo.regravar.length }
 }
 
@@ -220,8 +242,8 @@ const TRES_H = 3 * 3_600_000
 export async function lerProprios(sb: SupabaseClient, siteId: string, agora: Date): Promise<ProprioRow[]> {
   const corte = new Date(agora.getTime() - TRES_H - 7 * 86_400_000).toISOString().slice(0, 10)
   const [videos, meta] = await Promise.all([
-    readAll<{ id: string; youtube_video_id: string; title: string | null; description: string | null; tags: string[] | null }>('youtube_videos', () =>
-      sb.from('youtube_videos').select('id, youtube_video_id, title, description, tags').eq('site_id', siteId).eq('is_hidden', false).order('id')),
+    readAll<{ id: string; youtube_video_id: string; title: string | null; description: string | null; tags: string[] | null; published_at: string | null }>('youtube_videos', () =>
+      sb.from('youtube_videos').select('id, youtube_video_id, title, description, tags, published_at').eq('site_id', siteId).eq('is_hidden', false).order('id')),
     readAll<{ youtube_video_id: string; day_pt: string; privacy_status: string | null; is_short: boolean | null }>('yt_own_video_meta_daily', () =>
       sb.from('yt_own_video_meta_daily').select('youtube_video_id, day_pt, privacy_status, is_short').eq('site_id', siteId).gte('day_pt', corte).order('youtube_video_id').order('day_pt')),
   ])
@@ -238,7 +260,7 @@ export async function lerProprios(sb: SupabaseClient, siteId: string, agora: Dat
   return videos
     .filter((v) => privacidade.get(v.youtube_video_id)?.status === 'public')
     .map((v) => ({
-      id: v.id, title: v.title ?? '', description: v.description, tags: v.tags ?? [],
+      id: v.id, title: v.title ?? '', description: v.description, tags: v.tags ?? [], published_at: v.published_at,
       is_short: maisNova.get(v.youtube_video_id)?.is_short ?? null,
     }))
 }

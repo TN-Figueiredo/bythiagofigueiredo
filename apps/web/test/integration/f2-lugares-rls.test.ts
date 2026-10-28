@@ -120,10 +120,10 @@ describe.skipIf(skipIfNoLocalDb())('F2 T2: RLS de video_lugares, lugares e lugar
     })
   })
 
-  it('o total de aliases no banco é o total do JSON', async () => {
+  it('o total de aliases no banco é o total do JSON da semente vigente (v2)', async () => {
     const { readFileSync } = await import('node:fs')
     const { resolve } = await import('node:path')
-    const j = JSON.parse(readFileSync(resolve(__dirname, '../../data/lugares/semente-v1.json'), 'utf8')) as { lugares: Array<{ aliases: unknown[] }> }
+    const j = JSON.parse(readFileSync(resolve(__dirname, '../../data/lugares/semente-v2.json'), 'utf8')) as { lugares: Array<{ aliases: unknown[] }> }
     const total = j.lugares.reduce((n, l) => n + l.aliases.length, 0)
     expect(await escalar<number>(pg, `select count(*)::int from public.lugar_aliases`)).toBe(total)
   })

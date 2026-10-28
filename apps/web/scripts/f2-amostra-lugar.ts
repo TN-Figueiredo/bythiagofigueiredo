@@ -7,8 +7,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { loadRows, readAll, rowsToDataset } from '../src/lib/youtube/observatorio/load'
 import { createObservatory } from '../src/lib/youtube/observatorio'
-import { extrairLugares } from '../src/lib/youtube/observatorio/lugar/casar'
-import { calcularLugares, lerIndiceDeLugar, type RawDeLugar } from '../src/lib/youtube/observatorio/sinais/lugares-do-site'
+import { extrairLugaresDetalhado, type OrigemDaChave } from '../src/lib/youtube/observatorio/lugar/casar'
+import { calcularLugares, lerIndiceDeLugar, lerProprios, type RawDeLugar } from '../src/lib/youtube/observatorio/sinais/lugares-do-site'
 import type { Fmt } from '../src/lib/youtube/observatorio/types'
 import { ehRelacaoAusente, somenteLeitura } from './f2-medir-gravador'
 
@@ -120,10 +120,24 @@ export function calcularPrecisaoPais(linhas: readonly LinhaRotulada[]): Precisao
 }
 
 const escapar = (v: string): string => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
-export const CABECALHO_CSV = ['video_id', 'canal', 'formato', 'titulo', 'chaves_calculadas', 'fonte', 'chaves_corretas'] as const
-export interface LinhaCsv { video_id: string; canal: string; formato: string; titulo: string; chaves: readonly string[]; fonte: string }
+export const CABECALHO_CSV = ['video_id', 'canal', 'formato', 'titulo', 'chaves_calculadas', 'fonte', 'chaves_corretas', 'fonte_chave', 'canal_tem_padrao'] as const
+export interface LinhaCsv {
+  video_id: string; canal: string; formato: string; titulo: string; chaves: readonly string[]; fonte: string
+  /** origem de cada chave (`chave=titulo|tags|descricao|localizacao|bandeira`); a segunda fonte do padrão do canal entra em `canal_tem_padrao` */
+  origens?: Readonly<Record<string, OrigemDaChave>>
+  /** países do padrão de texto do canal (a regra a/a' os usa) ou `coordenada` se a localização é padrão do canal; vazio = canal sem padrão */
+  padrao?: readonly string[]
+}
+/** `pais:BR=titulo;local:x=tags` (só as chaves calculadas, na ordem delas). */
+export function fonteDasChaves(chaves: readonly string[], origens: Readonly<Record<string, OrigemDaChave>> | undefined): string {
+  return chaves.map(c => `${c}=${origens?.[c] ?? ''}`).join(SEPARADOR_CHAVES)
+}
+/** Países do padrão de texto do canal + `coordenada` quando a coordenada do vídeo é padrão do canal (a localização é então ignorada). */
+export function descreverPadrao(paisesPadrao: readonly string[], coordenadaPadrao: boolean): string[] {
+  return [...paisesPadrao, ...(coordenadaPadrao ? ['coordenada'] : [])]
+}
 export function paraCsv(linhas: readonly LinhaCsv[]): string {
-  const corpo = linhas.map(l => [l.video_id, l.canal, l.formato, l.titulo, l.chaves.join(SEPARADOR_CHAVES), l.fonte, ''].map(escapar).join(','))
+  const corpo = linhas.map(l => [l.video_id, l.canal, l.formato, l.titulo, l.chaves.join(SEPARADOR_CHAVES), l.fonte, '', fonteDasChaves(l.chaves, l.origens), (l.padrao ?? []).join(SEPARADOR_CHAVES)].map(escapar).join(','))
   return [CABECALHO_CSV.join(','), ...corpo].join('\n') + '\n'
 }
 
@@ -175,13 +189,14 @@ async function main(): Promise<number> {
   const raws = new Map<string, RawDeLugar>()
   for (const r of rawRows) if (r.video_id) raws.set(r.video_id, rawDe(r.rd))
 
-  const calculo = calcularLugares({ siteId, rows, proprios: [], indice, raws, existentes: new Map(), agora: new Date(now) })
+  const proprios = await lerProprios(sb, siteId, new Date(now)) // só leitura; igual à produção (gravador.ts)
+  const calculo = calcularLugares({ siteId, rows, proprios, indice, raws, existentes: new Map(), agora: new Date(now) })
   const linhaDe = new Map(calculo.linhas.map(l => [l.video_id, l]))
   const tituloDe = new Map(obs.videos.map(v => [v.id, v.title]))
 
   const negativas = TITULOS_NEGATIVOS.map((titulo, i) => {
-    const r = extrairLugares({ titulo, tags: [], descricaoInicio: '', locationDescription: null, coordenadaPadraoDoCanal: false }, indice)
-    return { video_id: `negativo-${String(i + 1).padStart(2, '0')}`, canal: '', formato: '', titulo, chaves: r.chaves, fonte: r.fonte as string }
+    const r = extrairLugaresDetalhado({ titulo, tags: [], descricaoInicio: '', locationDescription: null, coordenadaPadraoDoCanal: false, paisesPadraoDoCanal: [] }, indice)
+    return { video_id: `negativo-${String(i + 1).padStart(2, '0')}`, canal: '', formato: '', titulo, chaves: r.chaves, fonte: r.fonte as string, origens: r.origens, padrao: [] }
   })
   const paisesFixos = negativas.reduce((s, l) => s + soPais(l.chaves).length, 0)
 
@@ -192,7 +207,12 @@ async function main(): Promise<number> {
   const sorteadas: LinhaCsv[] = r.sorteados.map(x => {
     const l = linhaDe.get(x.id)
     const v = obs.videos.find(y => y.id === x.id)
-    return { video_id: x.id, canal: canal.get(v?.ch ?? '') ?? v?.ch ?? '', formato: x.fmt, titulo: tituloDe.get(x.id) ?? '', chaves: l?.chaves ?? [], fonte: l?.fonte ?? 'texto' }
+    const e = calculo.entradaDe(x.id) // a mesma entrada que a produção deu ao extrator
+    const origens = e ? extrairLugaresDetalhado(e, indice).origens : undefined
+    return {
+      video_id: x.id, canal: canal.get(v?.ch ?? '') ?? v?.ch ?? '', formato: x.fmt, titulo: tituloDe.get(x.id) ?? '',
+      chaves: l?.chaves ?? [], fonte: l?.fonte ?? 'texto', origens, padrao: descreverPadrao(e?.paisesPadraoDoCanal ?? [], e?.coordenadaPadraoDoCanal ?? false),
+    }
   })
 
   const dia = new Date(now).toLocaleDateString('sv', { timeZone: 'America/Sao_Paulo' })
