@@ -23,7 +23,8 @@ describe('M6 desfazer das corridas: cobre toda função do m6.sql', () => {
     const criadas = [...new Set([...readFileSync(M6_SQL_CAMINHO, 'utf8').matchAll(/function public\.(obs_archive_[a-z_0-9]*)/g)].map(m => m[1]))]
     const desfazer = readFileSync(M6_DESFAZER_CAMINHO, 'utf8')
     expect(criadas.length).toBeGreaterThan(20)
-    expect(criadas.filter(f => !desfazer.includes(`'${f}'`))).toEqual([])
+    // obs_archive_vermelhos é função da M3b que a M6 só redefine (os blocos novos ficam atrás de to_regprocedure): o desfazer não a derruba
+    expect(criadas.filter(f => f !== 'obs_archive_vermelhos' && !desfazer.includes(`'${f}'`))).toEqual([])
     void resolve
   })
 })
@@ -200,6 +201,62 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
       expect(d, `rep ${rep}`).toMatchObject({ status: 'ok' })
       try { await disputa('reattach', MES, ', false', 'nao_destacado', rep) } finally { await religar() }
     }
+  })
+
+  /**
+   * Re-revisão r1 (Phil item 2 = Yannis R-1): a simulação não trava e lê o nome da relação que a ação está renomeando. O erro cru
+   * (relation ... does not exist) vira a resposta do que mudou: nunca erro de banco para quem só olhava.
+   */
+  const CODIGOS_DE_QUEM_PERDEU = ['ja_destacado', 'nao_destacado', 'ja_descartado', 'mudou_durante_a_leitura']
+  it('R-1 (determinístico): simulação do detach lendo enquanto a ação renomeia a partição responde ja_destacado, sem erro de banco', async () => {
+    await renovar()
+    try {
+      await b.query('begin')
+      expect((await b.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', false) as r`, [site, D, MES, admin])).rows[0].r).toMatchObject({ status: 'ok' })
+      const sim = chamar(a, 'detach', MES, ", 'clique', true").then(x => ({ x, erro: undefined as string | undefined }), (e: Error) => ({ x: undefined, erro: e.message }))
+      await dorme(1000)
+      await b.query('commit')
+      const v = await sim
+      expect(v.erro, JSON.stringify(v)).toBeUndefined()
+      expect(v.x, JSON.stringify(v)).toMatchObject({ status: 'recusado' })
+      expect(CODIGOS_DE_QUEM_PERDEU, JSON.stringify(v)).toContain(v.x?.codigo)
+    } finally { await b.query('rollback').catch(() => undefined); await religar() }
+  })
+
+  it('R-1 (determinístico): simulação do reattach lendo enquanto a ação renomeia a _saida responde nao_destacado, sem erro de banco', async () => {
+    await renovar()
+    try {
+      expect(await chamar(a, 'detach', MES, ", 'clique', false")).toMatchObject({ status: 'ok' })
+      await b.query('begin')
+      expect((await b.query(`select public.obs_archive_reattach_month($1, $2, $3, $4, false) as r`, [site, D, MES, admin])).rows[0].r).toMatchObject({ status: 'ok' })
+      const sim = chamar(a, 'reattach', MES, ', true').then(x => ({ x, erro: undefined as string | undefined }), (e: Error) => ({ x: undefined, erro: e.message }))
+      await dorme(1000)
+      await b.query('commit')
+      const v = await sim
+      expect(v.erro, JSON.stringify(v)).toBeUndefined()
+      expect(CODIGOS_DE_QUEM_PERDEU, JSON.stringify(v)).toContain(v.x?.codigo)
+    } finally { await b.query('rollback').catch(() => undefined); await religar() }
+  })
+
+  async function simulacaoContraAcao(fnSim: string, fnAcao: string, extraAcao: string, preparar: () => Promise<void>): Promise<void> {
+    for (let rep = 0; rep < REPETICOES; rep++) {
+      await renovar(); await preparar()
+      try {
+        const [s, ac] = await Promise.allSettled([chamar(a, fnSim, MES, fnSim === 'detach' ? ", 'clique', true" : ', true'), chamar(b, fnAcao, MES, extraAcao)])
+        const ctx = `${fnSim} x ${fnAcao} rep ${rep}: ${JSON.stringify([s, ac])}`
+        expect(s.status, ctx).toBe('fulfilled')                       // a simulação nunca pode devolver erro de banco
+        expect(ac.status, ctx).toBe('fulfilled')
+        const sv = (s as PromiseFulfilledResult<{ status: string; codigo?: string }>).value
+        if (sv.status === 'recusado' && CODIGOS_DE_QUEM_PERDEU.includes(sv.codigo ?? '')) continue
+        expect(['simulado', 'recusado'], ctx).toContain(sv.status)
+      } finally { await religar() }
+    }
+  }
+  it(`R-1: simulação do detach contra a ação do detach, ${REPETICOES} vezes: nunca erro de banco`, async () => {
+    await simulacaoContraAcao('detach', 'detach', ", 'clique', false", async () => undefined)
+  })
+  it(`R-1: simulação do reattach contra a ação do reattach, ${REPETICOES} vezes: nunca erro de banco`, async () => {
+    await simulacaoContraAcao('reattach', 'reattach', ', false', async () => { await chamar(a, 'detach', MES, ", 'clique', false") })
   })
 
   it('(iv) coleta já escreveu na série e vai escrever nos vídeos: o destaque cede (ocupado), a coleta nunca é a abortada', async () => {

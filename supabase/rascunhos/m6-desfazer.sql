@@ -1,6 +1,7 @@
 -- supabase/rascunhos/m6-desfazer.sql — volta o banco de integração ao estado sem a M6 (as corridas confirmam a M6). Nunca em produção.
 -- Desvio do plano (28/10): a M3b já é migration no int (e a M5 também); o desfazer NÃO toca nelas, só no que o m6.sql cria. Por isso inclui
 -- obs_archive_piso_registro e obs_archive_pode_sair_em (a M7 ainda não existe no int e o m6.sql as cria).
+-- obs_archive_vermelhos (M3b) é só redefinida pela M6: não é derrubada; sem as funções da saída, os blocos novos (to_regprocedure) não rodam.
 drop trigger if exists obs_archive_a_mes_destacado on public.competitor_videos;
 drop trigger if exists obs_archive_a_mes_destacado_truncate on public.competitor_videos;
 drop trigger if exists obs_archive_a_mes_destacado on public.competitor_channels;
@@ -26,6 +27,7 @@ do $$ declare f record; begin
               'obs_archive_outros_sites_ok',
               'obs_archive_part_bounds',
               'obs_archive_saida_trava',
+              'obs_archive_saida_mudou',
               'obs_archive_part_check',
               'obs_archive_part_rel',
               'obs_archive_piso_registro',
@@ -47,7 +49,12 @@ do $$ declare f record; begin
               'obs_archive_exit_candidates',
               'obs_archive_switch_armed_sites',
               'obs_archive_next_exit',
-              'obs_archive_vermelhos_automatico')
+              'obs_archive_vermelhos_automatico',
+              -- M6a parte 6
+              'obs_archive_switch_counts',
+              'obs_archive_switch_sim_seen',
+              'obs_archive_em_transito',
+              'obs_archive_vermelhos_saida')
   loop execute format('drop function %s', f.sig); end loop;
 end $$;
 alter table public.obs_archive_switch drop constraint if exists obs_archive_switch_disarm_reason_check;

@@ -490,6 +490,7 @@ declare
   m public.obs_archive_months; u public.obs_archive_units; v_rel regclass;
 begin
   if v_class is null then return jsonb_build_object('ok', false, 'codigo', 'tabela_invalida'); end if;
+  begin   -- r1 R-1: a ação de outra aba pode renomear a relação no meio da conferência
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
   if m.id is null or m.sealed_at is null or m.unsealed_at is not null then return jsonb_build_object('ok', false, 'codigo', 'nao_selado'); end if;
   if m.dropped_at is not null then return jsonb_build_object('ok', false, 'codigo', 'ja_descartado'); end if;
@@ -501,6 +502,11 @@ begin
     return jsonb_build_object('ok', true);
   end if;
   return jsonb_build_object('ok', false, 'codigo', 'conteudo_mudou');
+exception
+  when undefined_table or syntax_error then
+    select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
+    return jsonb_build_object('ok', false, 'codigo', case when m.dropped_at is not null then 'ja_descartado' else 'mudou_durante_a_leitura' end);
+end;
 end $$;
 revoke all on function public.obs_archive_precheck_unit(uuid, text, date, uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_precheck_unit(uuid, text, date, uuid) to service_role;
@@ -535,6 +541,21 @@ begin
 end $$;
 revoke all on function public.obs_archive_exit_check(uuid, text, date, uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_exit_check(uuid, text, date, uuid) to service_role;
+-- r1 R-1 (Yannis) = item 2 (Phil): a simulação não trava e lê pelo nome da relação que a ação do vencedor está renomeando ou apagando. O erro cru
+-- (undefined_table; syntax_error para o nome que o rename deixou torto) vira a resposta do que mudou: relê o registro e diz quem chegou antes.
+-- p_quem: 'detach'/'drop' (esperam mês online: o outro lado destacou ou descartou), 'reattach'/'discard' (esperam mês destacado: o outro lado voltou ou descartou).
+create or replace function public.obs_archive_saida_mudou(p_site uuid, p_class text, p_table text, p_month date, p_quem text) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare m public.obs_archive_months;
+begin
+  select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.table_name = p_table and x.month = p_month;
+  if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
+  if p_quem in ('detach', 'drop') and m.detached_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_destacado'); end if;
+  if p_quem in ('reattach', 'discard') and m.id is not null and m.detached_at is null then return jsonb_build_object('status', 'recusado', 'codigo', 'nao_destacado'); end if;
+  return jsonb_build_object('status', 'recusado', 'codigo', 'mudou_durante_a_leitura');
+end $$;
+revoke all on function public.obs_archive_saida_mudou(uuid, text, text, date, text) from public, anon, authenticated, service_role;
+
 -- M6 PARTE 4: destacar e trazer de volta
 -- r1 I-1: a trava consultiva por (tabela, mês), pega ANTES de qualquer leitura da partição, da _saida ou da mãe (as leituras da fase 1 seguram ACCESS SHARE e
 -- resolvem o nome da relação que o vencedor está renomeando ou apagando). Sem o site: a partição é de todos os sites. Só a ação pega; a simulação não.
@@ -595,6 +616,7 @@ begin
   if not p_dry_run and not public.obs_archive_saida_trava(p_table, p_month) then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado'); end if;
 
   -- (1) leituras e o portão completo, SEM trava (o recálculo do hash é a parte cara; CP13).
+  begin   -- r1 R-1: a simulação pode ler uma relação que a ação de outra aba está renomeando
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
   if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado'); end if;
   if m.detached_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_destacado'); end if;
@@ -616,6 +638,11 @@ begin
       'fracao_da_classe', case when v_total > 0 then round(least((t->>'linhas')::numeric / v_total, 1), 4) else 0 end,
       'codigo', t->'codigo');
   end if;
+exception
+  when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
+    if not p_dry_run then raise; end if;
+    return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'detach');
+end;
 
   -- (2) o registro primeiro, na mesma ordem de toda função da M3b (site_id); (3) depois as tabelas: vídeos, mãe, partição.
   perform pg_catalog.set_config('lock_timeout', '3s', true);
@@ -685,6 +712,7 @@ begin
   if not p_dry_run and not public.obs_archive_saida_trava(p_table, p_month) then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado'); end if;
 
   -- (1) leituras e conferência, SEM trava (a tabela destacada ninguém escreve).
+  begin   -- r1 R-1
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
   if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
   if m.detached_at is null then return jsonb_build_object('status', 'recusado', 'codigo', 'nao_destacado'); end if;
@@ -724,6 +752,11 @@ begin
   if p_dry_run then
     return jsonb_build_object('status', 'simulado', 'conteudo_mudou', v_mudou, 'volta_fora_de_ordem', v_fora);
   end if;
+exception
+  when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
+    if not p_dry_run then raise; end if;
+    return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'reattach');
+end;
 
   -- (2) o registro primeiro (mesma ordem da M3b); (3) vídeos e a tabela destacada. A mãe só DEPOIS de FK e CHECK validados (I-7): a trava
   -- exclusiva da mãe dura o rename e o attach, não a varredura.
@@ -828,6 +861,7 @@ begin
   if not p_dry_run and not public.obs_archive_saida_trava(p_table, p_month) then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado'); end if;
   select * into pol from public.obs_archive_policy() p where p.class = v_class and p.table_name = p_table;
   -- (1) leituras e portão SEM trava
+  begin   -- r1 R-1
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
   if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
   if m.detached_at is null then return jsonb_build_object('status', 'recusado', 'codigo', 'nao_destacado'); end if;
@@ -852,6 +886,11 @@ begin
     return jsonb_build_object('status', 'simulado', 'linhas', (public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel))->'linhas',
                               'bytes', pg_catalog.pg_total_relation_size(v_rel));
   end if;
+exception
+  when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
+    if not p_dry_run then raise; end if;
+    return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'discard');
+end;
 
   -- (2) o registro primeiro (ordem da M3b); (3) a tabela destacada
   perform pg_catalog.set_config('lock_timeout', '3s', true);
@@ -905,6 +944,7 @@ begin
   -- r1 I-1: a trava consultiva do mês antes de qualquer leitura (só na ação)
   if not p_dry_run and not public.obs_archive_saida_trava(p_table, p_month) then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado'); end if;
   -- (1) leituras e portão completo SEM trava de relação
+  begin   -- r1 R-1
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
   if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
   if m.detached_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_destacado'); end if;
@@ -925,6 +965,11 @@ begin
     return jsonb_build_object('status', 'simulado', 'linhas', (public.obs_archive_tally(p_site, v_class, p_table, p_month, v_rel))->'linhas',
                               'bytes', pg_catalog.pg_total_relation_size(v_rel));
   end if;
+exception
+  when undefined_table or syntax_error then   -- r1 R-1: a ação de outra aba renomeou ou apagou a relação no meio da leitura
+    if not p_dry_run then raise; end if;
+    return public.obs_archive_saida_mudou(p_site, v_class, p_table, p_month, 'drop');
+end;
 
   -- (2) o registro, (3) vídeos, mãe, partição
   perform pg_catalog.set_config('lock_timeout', '3s', true);
@@ -979,4 +1024,166 @@ end $$;
 revoke all on function public.obs_archive_drop_month(uuid, text, date, uuid, text, boolean) from public, anon, authenticated;
 grant execute on function public.obs_archive_drop_month(uuid, text, date, uuid, text, boolean) to service_role;
 -- M6 PARTE 6 [M6a]: contadores do interruptor, simulação vista, em trânsito, vermelhos da saída e encerrar o dado de teste
+create or replace function public.obs_archive_switch_counts(p_site uuid, p_class text) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'descartes', (select count(*) from public.obs_archive_months m where m.site_id = p_site and m.class = p_class and m.dropped_at is not null
+                    and coalesce(m.rows_dropped, 0) > 0 and coalesce(m.drop_mode, 'clique') = 'clique'),
+    'simulacoes', coalesce((select s.sims_seen from public.obs_archive_switch s where s.site_id = p_site and s.class = p_class), 0))
+$$;
+revoke all on function public.obs_archive_switch_counts(uuid, text) from public, anon, authenticated;
+grant execute on function public.obs_archive_switch_counts(uuid, text) to service_role;   -- M6a: o leitor mínimo dos contadores (Hanna H-1)
+
+create or replace function public.obs_archive_switch_sim_seen(p_site uuid, p_class text, p_by uuid) returns jsonb
+language plpgsql volatile security definer set search_path = '' as $$
+begin
+  if p_class not in ('horaria', 'serie') then return jsonb_build_object('simulacoes', 0); end if;
+  if p_by is null or not public.obs_archive_is_site_admin(p_site, p_by) then return jsonb_build_object('status', 'recusado', 'codigo', 'sem_direito'); end if;
+  insert into public.obs_archive_switch (site_id, class, sims_seen, last_sim_at) values (p_site, p_class, 1, public.obs_archive_agora())
+  on conflict (site_id, class) do update set sims_seen = least(public.obs_archive_switch.sims_seen + 1, 2), last_sim_at = excluded.last_sim_at;
+  return jsonb_build_object('simulacoes', (select s.sims_seen from public.obs_archive_switch s where s.site_id = p_site and s.class = p_class));
+end $$;
+revoke all on function public.obs_archive_switch_sim_seen(uuid, text, uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_switch_sim_seen(uuid, text, uuid) to service_role;
+
+create or replace function public.obs_archive_em_transito(p_site uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_agg(jsonb_build_object('tabela', m.table_name, 'mes', m.month, 'destacado_em', m.detached_at,
+           'liberar_a_partir', (m.detached_at at time zone 'America/Sao_Paulo')::date + p.wait_days) order by m.month, m.table_name), '[]'::jsonb)
+    from public.obs_archive_months m join public.obs_archive_policy() p on p.class = m.class and p.table_name = m.table_name
+   where m.detached_at is not null and m.dropped_at is null and (m.site_id = p_site or p_site is null)
+$$;
+revoke all on function public.obs_archive_em_transito(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_em_transito(uuid) to service_role;
+
+create or replace function public.obs_archive_vermelhos_saida(p_site uuid) returns text[]
+language plpgsql stable security definer set search_path = '' as $$
+declare v text[] := '{}'; i record; f text; v_mae regclass; v_rel regclass; v_lib date;
+begin
+  if exists (select 1 from public.obs_archive_months m where m.detached_at is not null and m.dropped_at is null) then
+    foreach f in array public.obs_archive_invariante_faltam() loop v := v || ('saida_protecao_ausente:' || f); end loop;
+  end if;
+  for i in select m.table_name, m.month, m.detached_at, p.wait_days from public.obs_archive_months m
+             join public.obs_archive_policy() p on p.class = m.class and p.table_name = m.table_name
+            where m.site_id = p_site and m.detached_at is not null and m.dropped_at is null order by m.month, m.table_name loop
+    v_rel := public.obs_archive_part_rel(i.table_name, i.month, true);
+    if v_rel is null then
+      v := v || ('saida_particao_ausente:' || i.table_name || ':' || pg_catalog.to_char(i.month, 'YYYY-MM'));
+      continue;
+    end if;
+    -- Yannis I-3 / Phil I5: mês em trânsito há mais de 14 dias depois da data de liberar ninguém liberou nem trouxe de volta: vermelho
+    v_lib := (i.detached_at at time zone 'America/Sao_Paulo')::date + i.wait_days;
+    if public.obs_archive_hoje_sp() > v_lib + 14 then
+      v := v || ('saida_transito_longo:' || i.table_name || ':' || pg_catalog.to_char(i.month, 'YYYY-MM'));
+    end if;
+    -- I3: a mãe mudou de forma depois do destaque; liberar recusa esquema_mudou e a volta acrescenta colunas: o dono precisa saber
+    v_mae := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(i.table_name));
+    if v_mae is not null and public.obs_archive_schema_fp(v_rel) is distinct from public.obs_archive_schema_fp(v_mae) then
+      v := v || ('saida_esquema_divergente:' || i.table_name || ':' || pg_catalog.to_char(i.month, 'YYYY-MM'));
+    end if;
+  end loop;
+  -- r1 (b) = consulta (1) do m6-pre-migration.sql: mês destacado e não descartado, de OUTRO site, cuja tabela _saida não existe. O gatilho do invariante
+  -- recusa todo apagamento de todos os sites enquanto ele existir; o dono precisa ver QUAL site, tabela e mês. Não é correção automática. (O do próprio
+  -- site já sai como saida_particao_ausente acima.)
+  for i in select m.site_id, m.table_name, m.month from public.obs_archive_months m
+            where m.detached_at is not null and m.dropped_at is null and m.site_id is distinct from p_site
+              and pg_catalog.to_regclass(pg_catalog.format('obs_part.%I', obs_part.nome_da_particao(m.table_name, m.month) || '_saida')) is null
+            order by m.site_id, m.table_name, m.month loop
+    v := v || ('mes_destacado_sem_tabela:' || i.site_id || ':' || i.table_name || ':' || pg_catalog.to_char(i.month, 'YYYY-MM'));
+  end loop;
+  return v;
+end $$;
+revoke all on function public.obs_archive_vermelhos_saida(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_vermelhos_saida(uuid) to service_role;
+
+create or replace function public.obs_archive_vermelhos(p_site uuid) returns text[]
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  v text[] := '{}'; n integer; i record; v_hoje date := public.obs_archive_hoje_sp(); v_agora timestamptz := public.obs_archive_agora(); v_cor text; v_h public.obs_archive_heartbeat;
+  v_run public.obs_archive_b2_runs; f text;
+begin
+  select count(*) into n from public.obs_archive_atraso_itens(p_site) a where a.tipo = 'unidade' and v_hoje - a.desde > 30;
+  if n > 0 then v := v || format('atraso de cópia: %s unidades há mais de 30 dias', n); end if;
+  select count(*) into n from public.obs_archive_atraso_itens(p_site) a where a.tipo = 'mes' and v_hoje - a.desde > 30;
+  if n > 0 then v := v || format('mês sem selo há mais de 30 dias: %s', n); end if;
+  select (select count(*) from public.obs_archive_units u where u.site_id = p_site and u.nas_withdrawn_at is not null and u.nas_withdrawn_reason in ('ausente', 'divergente') and u.purged_at is null and u.lost_at is null and u.superseded_at is null)
+       + (select count(*) from public.obs_archive_unit_parts pt join public.obs_archive_units u on u.id = pt.unit_id where u.site_id = p_site and pt.nas_withdrawn_at is not null and pt.nas_withdrawn_reason in ('ausente', 'divergente') and u.purged_at is null and u.lost_at is null and u.superseded_at is null)
+       + (select count(*) from public.obs_archive_summaries s where s.site_id = p_site and s.nas_withdrawn_at is not null and s.nas_withdrawn_reason in ('ausente', 'divergente') and s.purged_at is null and s.lost_at is null and s.superseded_at is null)
+       + (select count(*) from public.obs_archive_months m where m.site_id = p_site and m.manifest_nas_withdrawn_at is not null) into n;
+  if n > 0 then v := v || format('NAS: %s arquivos ausentes ou diferentes', n); end if;
+  select count(distinct (m.class, m.month)) into n from public.obs_archive_months m where m.site_id = p_site and m.b2_withdrawn_at is not null;
+  if n > 0 then v := v || format('B2: %s meses com a conferência retirada', n); end if;
+  select (select count(*) from public.obs_archive_units u where u.site_id = p_site and u.nas_withdrawn_reason = 'conteudo_divergente' and u.nas_withdrawn_at is not null and u.purged_at is null and u.lost_at is null and u.superseded_at is null)
+       + (select count(*) from public.obs_archive_unit_parts pt join public.obs_archive_units u on u.id = pt.unit_id where u.site_id = p_site and pt.nas_withdrawn_reason = 'conteudo_divergente' and pt.nas_withdrawn_at is not null and u.purged_at is null and u.lost_at is null and u.superseded_at is null)
+       + (select count(*) from public.obs_archive_summaries s where s.site_id = p_site and s.nas_withdrawn_reason = 'conteudo_divergente' and s.nas_withdrawn_at is not null and s.purged_at is null and s.lost_at is null and s.superseded_at is null) into n;
+  if n > 0 then v := v || format('conteúdo divergente em %s arquivos', n); end if;
+  n := public.obs_archive_descartados_sem_releitura(p_site, 45);
+  if n > 0 then v := v || format('mês descartado sem releitura há mais de 45 dias: %s', n); end if;
+  n := public.obs_archive_b2_atrasados(p_site, 7);
+  if n > 0 then v := v || format('b2_atrasado: %s meses selados não descartados com algum arquivo sem b2_ok_at há mais de 7 dias', n); end if;
+  -- a mesma recusa de fileId em 3 execuções seguidas (as 3 mais recentes do site)
+  if (select count(*) filter (where q.file_id_recusado) from (select r.file_id_recusado from public.obs_archive_b2_runs r where r.site_id = p_site order by r.started_at desc limit 3) q) = 3 then
+    v := pg_catalog.array_append(v, 'B2 recusou o fileId em 3 execuções seguidas');
+  end if;
+  -- canário de um filho sem chegar ao B2 (>= 5 dias): o mais antigo informado depois do último que o B2 achou
+  for i in select fl.filho,
+                  (select min(c.informed_at) from public.obs_archive_canaries c where c.site_id = p_site and c.filho = fl.filho and c.b2_ok_at is null
+                      and c.informed_at > coalesce((select max(k.informed_at) from public.obs_archive_canaries k where k.site_id = p_site and k.filho = fl.filho and k.b2_ok_at is not null), '-infinity'::timestamptz)) as desde
+             from (values ('numerico'), ('texto')) fl(filho) loop
+    if i.desde is not null and i.desde <= v_agora - interval '5 days' then
+      v := v || format('canário do filho %s sem chegar ao B2 há %s dias', i.filho, floor(extract(epoch from (v_agora - i.desde)) / 86400)::int);
+    end if;
+  end loop;
+  -- Phil M3: o alarme dura 30 dias E vai até um canário NOVO do mesmo filho chegar ao B2 (termina por evidência, não só pelo relógio; o dono pode estar fora)
+  for i in select distinct c.filho from public.obs_archive_canaries c
+            where c.site_id = p_site and c.regravado_at is not null
+              and (c.regravado_at > v_agora - interval '30 days'
+                   or not exists (select 1 from public.obs_archive_canaries k where k.site_id = p_site and k.filho = c.filho and k.b2_ok_at is not null and k.b2_ok_at > c.regravado_at))
+            order by 1 loop
+    v := v || ('canario_regravado:' || i.filho);
+  end loop;
+  for i in select 'u:' || u.id as id from public.obs_archive_units u where u.site_id = p_site and u.nas_unreadable_at is not null and u.purged_at is null and u.lost_at is null
+           union all select 'p:' || pt.unit_id || ':' || lpad(pt.part::text, 2, '0') from public.obs_archive_unit_parts pt join public.obs_archive_units u on u.id = pt.unit_id where u.site_id = p_site and pt.nas_unreadable_at is not null
+           union all select 's:' || s.id from public.obs_archive_summaries s where s.site_id = p_site and s.nas_unreadable_at is not null
+           order by 1 loop
+    v := v || ('nas_ilegivel:' || i.id);
+  end loop;
+  for i in select b.arquivo_id from public.obs_archive_b2_files b where b.site_id = p_site and b.ilegivel_at is not null and (b.last_ok_at is null or b.last_ok_at < b.ilegivel_at) order by 1 loop
+    v := v || ('b2_ilegivel:' || i.arquivo_id);
+  end loop;
+  select * into v_h from public.obs_archive_heartbeat h where h.site_id = p_site and h.worker = 'copiador';
+  if found then
+    foreach f in array array['numerico', 'texto'] loop
+      if coalesce((v_h.total_bytes->>f)::numeric, 0) > 0 and (v_h.free_bytes->>f) is not null
+         and ((v_h.total_bytes->>f)::numeric - (v_h.free_bytes->>f)::numeric) / (v_h.total_bytes->>f)::numeric >= 0.8 then
+        v := v || ('nas_80:' || f);
+      end if;
+    end loop;
+  end if;
+  for i in select p.table_name from public.obs_archive_policy() p where p.class in ('horaria', 'serie', 'texto') and pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p.table_name)) is null order by 1 loop
+    v := v || ('tabela_ausente:' || i.table_name);
+  end loop;
+  if public.obs_archive_b2_teto_dia(p_site) > public.obs_archive_b2_franquia_mes() / 2 then v := pg_catalog.array_append(v, 'b2_piso_acima_do_teto'); end if;
+  select * into v_run from public.obs_archive_b2_runs r where r.site_id = p_site and r.modo = 'completo' order by r.started_at desc limit 1;
+  if found and v_run.completo_fechado_em is null and v_run.completo_desde < v_agora - interval '35 days' then
+    v := v || format('b2_completo_atrasado: conferência completa do B2 aberta há %s dias: rode conferir-b2 --completo até fechar', floor(extract(epoch from (v_agora - v_run.completo_desde)) / 86400)::int);
+  end if;
+  v_cor := public.obs_archive_b2_teto_cor(p_site);
+  if v_cor = 'vermelho' then v := pg_catalog.array_append(v, 'b2_teto_2_dias'); end if;
+  -- da fatia 12a (Tarefa 8): canais removidos sem destino e a vigia da remoção; a função nasce lá
+  if pg_catalog.to_regprocedure('public.obs_archive_vermelhos_remocao(uuid)') is not null then
+    execute 'select $1 || public.obs_archive_vermelhos_remocao($2)' into v using v, p_site;
+  end if;
+  -- M6a: os vermelhos da saída (proteção ausente, tabela destacada sumida, trânsito longo, esquema divergente)
+  if pg_catalog.to_regprocedure('public.obs_archive_vermelhos_saida(uuid)') is not null then
+    execute 'select $1 || public.obs_archive_vermelhos_saida($2)' into v using v, p_site;
+  end if;
+  -- M6b: o automático desligou sozinho nas últimas 72 h (a função só existe depois da migration da Tarefa 14b)
+  if pg_catalog.to_regprocedure('public.obs_archive_vermelhos_automatico(uuid)') is not null then
+    execute 'select $1 || public.obs_archive_vermelhos_automatico($2)' into v using v, p_site;
+  end if;
+  return coalesce(v, '{}'::text[]);
+end $$;
+revoke all on function public.obs_archive_vermelhos(uuid) from public, anon, authenticated;
+grant execute on function public.obs_archive_vermelhos(uuid) to service_role;
 -- M6 PARTE 7 [M6b]: o interruptor (estado, ligar, desligar, vigia), os candidatos, o vermelho do desarme e a próxima saída
