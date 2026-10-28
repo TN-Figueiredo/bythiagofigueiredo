@@ -1,9 +1,10 @@
 // Prova da T19 (M7b envio 2): três testes de título descartáveis, em um vídeo próprio não listado.
 // SÓ roda contra produção quando o controlador mandar. Uso (a partir da raiz do repo):
-//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts ../../scripts/ab-prova-m7b.mts criar --video <youtubeVideoId>)
-//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts ../../scripts/ab-prova-m7b.mts contar)
-//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts ../../scripts/ab-prova-m7b.mts vigia <testId>)
-//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts ../../scripts/ab-prova-m7b.mts limpar)
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts --options.deps.inline=@tn-figueiredo/auth-nextjs ../../scripts/ab-prova-m7b.mts criar --video <youtubeVideoId>)
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts --options.deps.inline=@tn-figueiredo/auth-nextjs ../../scripts/ab-prova-m7b.mts contar)
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts --options.deps.inline=@tn-figueiredo/auth-nextjs ../../scripts/ab-prova-m7b.mts vigia <testId>)
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts --options.deps.inline=@tn-figueiredo/auth-nextjs ../../scripts/ab-prova-m7b.mts limpar)
+//   (cd apps/web && node --env-file=.env.local ../../node_modules/.bin/vite-node --config vitest.config.ts --options.deps.inline=@tn-figueiredo/auth-nextjs ../../scripts/ab-prova-m7b.mts registrar --video <youtubeVideoId>)  (antes de criar, para vídeo não listado)
 //   (sem subcomando: imprime a ajuda e confere só que os módulos carregam; não toca banco nem rede)
 // Roda pelo vite-node com a config do vitest: o alias `@/` e os pacotes só-ESM (@tn-figueiredo/social) não carregam pelo tsx em CJS.
 // Nunca imprime escolha_por; não cria nem revoga chave.
@@ -31,8 +32,8 @@ async function main(): Promise<void> {
   const { channelAccountIdForVideo } = await import('@/lib/youtube/channel-account')
   const { AB_TEST_CONFIG_DEFAULTS } = await import('@/lib/youtube/ab-types')
 
-  if (cmd !== 'criar' && cmd !== 'contar' && cmd !== 'vigia' && cmd !== 'limpar') {
-    console.log('subcomandos: criar --video <youtubeVideoId> | contar | vigia <testId> | limpar')
+  if (cmd !== 'registrar' && cmd !== 'criar' && cmd !== 'contar' && cmd !== 'vigia' && cmd !== 'limpar') {
+    console.log('subcomandos: registrar --video <youtubeVideoId> | criar --video <youtubeVideoId> | contar | vigia <testId> | limpar')
     return
   }
 
@@ -50,6 +51,35 @@ async function main(): Promise<void> {
       winner_variant_id: string | null; completed_reason: string | null; escolha_variant_id: string | null
       escolha_em: string | null; restore_seq: number; restore_status: unknown; created_at: string
     }>
+  }
+
+  // ---------------------------------------------------------------- registrar
+  // O sync lê a playlist de uploads com a chave pública e nunca vê vídeo não listado; por id ele aparece.
+  // Grava a linha como o syncChannel grava (sem categoria), só se o vídeo for do canal próprio.
+  if (cmd === 'registrar') {
+    const i = resto.indexOf('--video')
+    const ytId = i >= 0 ? resto[i + 1] : undefined
+    if (!ytId) sair('informe --video <youtubeVideoId>')
+    const apiKey = process.env.YOUTUBE_API_KEY
+    if (!apiKey) sair('YOUTUBE_API_KEY ausente')
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${encodeURIComponent(ytId)}&key=${apiKey}`)
+    const j = (await r.json()) as { items?: Array<{ snippet: { channelId: string }; status: { privacyStatus: string } }> }
+    const item = j.items?.[0]
+    if (!item) sair('vídeo não encontrado no YouTube')
+    if (item.status.privacyStatus !== 'unlisted') sair(`vídeo não é não listado (${item.status.privacyStatus}); recusado`)
+    const { data: canal } = await sb.from('youtube_channels').select('id, site_id').eq('channel_id', item.snippet.channelId).maybeSingle()
+    if (!canal) sair('o vídeo não é de um canal próprio; recusado')
+    const { fetchVideoDetails } = await import('@/lib/youtube/api-client')
+    const [v] = await fetchVideoDetails([ytId], apiKey)
+    if (!v) sair('detalhes do vídeo indisponíveis')
+    const { error } = await sb.from('youtube_videos').upsert({
+      site_id: canal.site_id, channel_id: canal.id, youtube_video_id: v.youtubeVideoId, title: v.title, description: v.description,
+      duration: v.duration, duration_seconds: v.durationSeconds, published_at: v.publishedAt, thumbnail_url: v.thumbnailUrl,
+      thumbnail_hq_url: v.thumbnailHqUrl, tags: v.tags, view_count: v.viewCount, like_count: v.likeCount, comment_count: v.commentCount,
+    }, { onConflict: 'site_id,youtube_video_id' })
+    if (error) sair(`falha gravando o vídeo: ${error.message}`)
+    console.log(`registrado: ${ytId} "${v.title}" (canal ${canal.id})`)
+    return
   }
 
   // ---------------------------------------------------------------- criar
