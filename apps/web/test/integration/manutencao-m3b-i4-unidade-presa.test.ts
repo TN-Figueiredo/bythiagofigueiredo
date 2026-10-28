@@ -2,13 +2,13 @@
 // @vitest-environment node
 /**
  * M3b-I4 (Yannis, revisão T11): `parte_mudou` com uma parte já recebida prendia a unidade para sempre (record_core devolvia nao_devida).
- * Banco: SÓ o `bythiago_int` (54422). Tudo em `begin … rollback`. Com o rascunho supabase/rascunhos/m3b-i4.sql aplicado, passa.
+ * Banco: SÓ o `bythiago_int` (54422). Tudo em `begin … rollback`. A migration 20261028000003 entra por cima da M3b reaplicada.
  *   HAS_LOCAL_DB=1 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54421 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54422/postgres \
  *   npx vitest run test/integration/manutencao-m3b-i4-unidade-presa.test.ts --no-file-parallelism
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
@@ -19,7 +19,8 @@ const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@12
 const MES = '2026-10-01'
 const DAILY = 'competitor_video_daily'
 const HEX = (n: string): string => n.repeat(64).slice(0, 64)
-const RASCUNHO = resolve(__dirname, '../../../../supabase/rascunhos/m3b-i4.sql')
+// aplicarM3b reaplica a 000002 na transação e devolve a função antiga; a migration do I4 entra por cima, como em produção.
+const I4_SQL = resolve(__dirname, '../../../../supabase/migrations/20261028000003_m3b_i4_unidade_presa.sql')
 
 describe.skipIf(skipIfNoLocalDb())('M3b-I4: parte_mudou com parte recebida não prende a unidade', () => {
   let c: Client
@@ -32,8 +33,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b-I4: parte_mudou com parte recebida não 
       await aplicarM2(c)
       await c.query(readFileSync(M10A_SQL, 'utf8'))
       await aplicarM3b(c, 5)
-      // O rascunho só entra quando I4_APLICAR=1: sem ele o teste roda contra o SQL vigente (o vermelho).
-      if (process.env.I4_APLICAR === '1' && existsSync(RASCUNHO)) await c.query(readFileSync(RASCUNHO, 'utf8'))
+      await c.query(readFileSync(I4_SQL, 'utf8'))
       await c.query(`select set_config('obs_archive.hoje', '2026-11-28', true)`)
       return await fn()
     } finally { await c.query('rollback') }
