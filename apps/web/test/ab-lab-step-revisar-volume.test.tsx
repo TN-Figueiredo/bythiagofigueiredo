@@ -29,10 +29,14 @@ describe('passo Revisar: volume (M7 T15)', () => {
   it('a região viva é a mesma na troca de pendente para resolvido (aria-busy sai)', () => {
     const { container, rerender } = render(<StepRevisar {...base} avisoVolume="pendente" />)
     const antes = container.querySelector('[data-aviso-volume-sk]')!.parentElement!
+    expect(antes.querySelectorAll('[role=status]').length).toBe(0) // nada aninhado no estado pendente
     rerender(<StepRevisar {...base} avisoVolume={{ estado: 'nao_chega', texto: 'este teste não chega ao volume em 15 dias' }} />)
     const depois = container.querySelector('[data-aviso-volume]')!.parentElement!
     expect(depois).toBe(antes)
     expect(depois.getAttribute('aria-busy')).toBe('false')
+    expect(antes.getAttribute('role')).toBe('status')
+    expect(depois.getAttribute('role')).toBe('status')
+    expect(depois.querySelectorAll('[role=status]').length).toBe(0) // nada aninhado no estado resolvido
   })
   it('o esqueleto do volume não usa nenhum token verde (guarda contra regressão)', () => {
     render(<StepRevisar {...base} avisoVolume="pendente" />)
