@@ -23,6 +23,8 @@ export interface EntradaDeLugar {
   paisesPadraoDoCanal?: readonly string[]
 }
 
+/** Versão da regra de lugar (entra no hash e no `rule_version`): sobe a cada mudança de regra, mesmo sem campo novo. */
+export const LUGAR_REGRA_VERSAO = 2
 const MAX_PAISES = 3
 const DESCRICAO_MAX = 300
 const PREPOSICOES_PT = new Set(['em'])
@@ -56,12 +58,23 @@ interface Achado {
   anterior: string | null
 }
 
+const RE_BANDEIRA = /[\u{1F1E6}-\u{1F1FF}]{2}/gu
+
+/** ISO2 das bandeiras emoji do texto (ordem de aparição, sem repetir), só o que o regex reconhece; o filtro da semente é de `achar`. */
+export function bandeirasDe(texto: string): string[] {
+  const out: string[] = []
+  for (const m of texto.matchAll(RE_BANDEIRA)) {
+    const iso = [...m[0]].map((c) => String.fromCharCode((c.codePointAt(0) as number) - 0x1f1e6 + 65)).join('')
+    if (!out.includes(iso)) out.push(iso)
+  }
+  return out
+}
+
 /** Janela deslizante: n de nMax a 1, o maior vence e consome os tokens. O(T·nMax). */
 function achar(texto: string, origem: Origem, ind: IndiceDeLugar): Achado[] {
   const out: Achado[] = []
   // v2 c: bandeira emoji (dois indicadores regionais) = país, determinístico.
-  for (const m of texto.matchAll(/[\u{1F1E6}-\u{1F1FF}]{2}/gu)) {
-    const iso = [...m[0]].map((c) => String.fromCharCode((c.codePointAt(0) as number) - 0x1f1e6 + 65)).join('')
+  for (const iso of bandeirasDe(texto)) {
     if (ind.paises.has(iso)) out.push({ origem, alias: `bandeira ${iso}`, slug: `pais:${iso}`, ambiguo: false, pais: iso, anterior: null })
   }
   const tokens = normalizarLugar(texto).split(' ').filter(Boolean)
@@ -121,31 +134,40 @@ export function extrairLugares(
   const paises: string[] = []
   let viaCoordenada = false
   let tituloTemChave = false
-  for (const a of achados) {
-    // v2 b: com chave no título, tag/descrição não acrescentam país novo.
-    if (tituloTemChave && (a.origem === 'tags' || a.origem === 'descricao') && !paises.includes(a.pais)) continue
-    let veioDoLocal = a.origem === 'localizacao'
-    if (a.ambiguo) {
-      const s = temSegundoSinal(a)
-      if (!s.ok) continue
-      veioDoLocal = veioDoLocal || s.viaLocal
+  const processar = (lista: readonly Achado[]): void => {
+    for (const a of lista) {
+      // v2 b: com chave no título, tag/descrição não acrescentam país novo.
+      if (tituloTemChave && (a.origem === 'tags' || a.origem === 'descricao') && !paises.includes(a.pais)) continue
+      let veioDoLocal = a.origem === 'localizacao'
+      if (a.ambiguo) {
+        const s = temSegundoSinal(a)
+        if (!s.ok) continue
+        veioDoLocal = veioDoLocal || s.viaLocal
+      }
+      if (!paises.includes(a.pais)) {
+        if (paises.length >= MAX_PAISES) continue
+        paises.push(a.pais)
+      }
+      const doPais = `pais:${a.pais}`
+      if (!chaves.includes(a.slug)) chaves.push(a.slug)
+      if (!chaves.includes(doPais)) chaves.push(doPais)
+      if (veioDoLocal) viaCoordenada = true
+      if (a.origem === 'titulo') tituloTemChave = true
     }
-    if (!paises.includes(a.pais)) {
-      if (paises.length >= MAX_PAISES) continue
-      paises.push(a.pais)
-    }
-    const doPais = `pais:${a.pais}`
-    if (!chaves.includes(a.slug)) chaves.push(a.slug)
-    if (!chaves.includes(doPais)) chaves.push(doPais)
-    if (veioDoLocal) viaCoordenada = true
-    if (a.origem === 'titulo') tituloTemChave = true
   }
+  processar(doTitulo)
+  // v2 a': sem chave no título, tag/descrição só valem se apontam UM único país (lista de países em tag é tag genérica).
+  const paisesDoTexto = new Set(doTexto.filter((a) => !a.ambiguo || temSegundoSinal(a).ok).map((a) => a.pais))
+  if (tituloTemChave || paisesDoTexto.size <= 1) processar(doTexto)
+  processar(achados.filter((a) => a.origem === 'localizacao'))
   return { chaves, fonte: viaCoordenada ? 'texto+coordenada' : 'texto' }
 }
 
 export function entradaHash(e: EntradaDeLugar, versao: number): string {
   const json = JSON.stringify({
     v: versao,
+    r: LUGAR_REGRA_VERSAO,
+    b: bandeirasDe([e.titulo, ...e.tags, e.descricaoInicio.slice(0, DESCRICAO_MAX)].join('\n')),
     t: normalizarLugar(e.titulo),
     g: e.tags.map(normalizarLugar),
     d: normalizarLugar(e.descricaoInicio.slice(0, DESCRICAO_MAX)),
@@ -157,33 +179,41 @@ export function entradaHash(e: EntradaDeLugar, versao: number): string {
 }
 
 const MINIMO_VIDEOS_PADRAO = 4
+const JANELA_PADRAO = 30
 
 /**
- * Padrão do canal no texto (v2 a): para cada canal, os ISO2 que aparecem em tag/descrição de ≥ 50% dos seus vídeos
- * (mínimo de 4 vídeos, para um canal pequeno não ser tratado como padrão). Título não entra na conta.
+ * Padrão do canal no texto (v2 a): para cada canal, os ISO2 que aparecem em tag/descrição de ≥ 50% dos seus
+ * {@link JANELA_PADRAO} vídeos mais recentes COM texto (tag ou descrição; vídeo sem texto não entra no denominador),
+ * mínimo de 4 nessa base. Título não entra na conta. Sem `publicadoEm`, vale a ordem de entrada (últimos por último).
  */
 export function paisesPadraoPorCanal(
-  videos: ReadonlyArray<{ canal: string; tags: readonly string[]; descricaoInicio: string }>,
+  videos: ReadonlyArray<{ canal: string; tags: readonly string[]; descricaoInicio: string; publicadoEm?: string | null }>,
   ind: IndiceDeLugar,
 ): Map<string, string[]> {
-  const total = new Map<string, number>()
-  const contagem = new Map<string, Map<string, number>>()
+  const porCanal = new Map<string, typeof videos[number][]>()
   for (const v of videos) {
-    total.set(v.canal, (total.get(v.canal) ?? 0) + 1)
-    const paises = new Set([
-      ...v.tags.flatMap((t) => achar(t, 'tags', ind)),
-      ...achar(v.descricaoInicio.slice(0, DESCRICAO_MAX), 'descricao', ind),
-    ].filter((a) => !a.ambiguo).map((a) => a.pais))
-    if (paises.size === 0) continue
-    const c = contagem.get(v.canal) ?? new Map<string, number>()
-    for (const p of paises) c.set(p, (c.get(p) ?? 0) + 1)
-    contagem.set(v.canal, c)
+    if (v.tags.length === 0 && v.descricaoInicio.trim() === '') continue
+    const l = porCanal.get(v.canal) ?? []
+    l.push(v)
+    porCanal.set(v.canal, l)
   }
   const saida = new Map<string, string[]>()
-  for (const [canal, c] of contagem) {
-    const n = total.get(canal) ?? 0
-    if (n < MINIMO_VIDEOS_PADRAO) continue
-    const padrao = [...c].filter(([, k]) => k / n >= 0.5).map(([p]) => p).sort()
+  for (const [canal, todos] of porCanal) {
+    const base = todos
+      .map((v, i) => ({ v, i }))
+      .sort((a, b) => (b.v.publicadoEm ?? '').localeCompare(a.v.publicadoEm ?? '') || a.i - b.i)
+      .slice(0, JANELA_PADRAO)
+      .map((x) => x.v)
+    if (base.length < MINIMO_VIDEOS_PADRAO) continue
+    const c = new Map<string, number>()
+    for (const v of base) {
+      const paises = new Set([
+        ...v.tags.flatMap((t) => achar(t, 'tags', ind)),
+        ...achar(v.descricaoInicio.slice(0, DESCRICAO_MAX), 'descricao', ind),
+      ].filter((a) => !a.ambiguo).map((a) => a.pais))
+      for (const p of paises) c.set(p, (c.get(p) ?? 0) + 1)
+    }
+    const padrao = [...c].filter(([, k]) => k / base.length >= 0.5).map(([p]) => p).sort()
     if (padrao.length > 0) saida.set(canal, padrao)
   }
   return saida

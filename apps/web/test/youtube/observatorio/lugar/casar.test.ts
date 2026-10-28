@@ -7,6 +7,7 @@ import {
   extrairLugares,
   montarIndice,
   paisesPadraoPorCanal,
+  LUGAR_REGRA_VERSAO,
   type EntradaDeLugar,
 } from '../../../../src/lib/youtube/observatorio/lugar/casar'
 import { paresPadrao } from '../../../../src/lib/youtube/observatorio/lugar/coordenada'
@@ -102,8 +103,9 @@ describe('extrairLugares', () => {
     expect(ex('Tailândia, Vietnã, Camboja e Laos').chaves).toEqual(['pais:TH', 'pais:VN', 'pais:KH'])
   })
   it('tags antes de descrição (sem chave no título; v2 b: com chave no título, tag/descrição não acrescentam país)', () => {
-    const r = ex('Minha viagem', { tags: ['Argentina'], descricaoInicio: 'Chile' })
-    expect(r.chaves).toEqual(['pais:AR', 'pais:CL'])
+    // v2 a': sem chave no título, dois países entre tag e descrição = lista genérica, não assunto
+    expect(ex('Minha viagem', { tags: ['Argentina'], descricaoInicio: 'Chile' }).chaves).toEqual([])
+    expect(ex('Minha viagem', { tags: ['Argentina'], descricaoInicio: 'Argentina' }).chaves).toEqual(['pais:AR'])
     expect(ex('Japão', { tags: ['Argentina'], descricaoInicio: 'Chile' }).chaves).toEqual(['pais:JP'])
   })
   it('ambíguo em pt com preposição; em inglês não', () => {
@@ -192,6 +194,21 @@ describe('entradaHash', () => {
   })
 })
 
+describe('entradaHash: bandeira e versão da regra (Phil I-2, I-3)', () => {
+  const base: EntradaDeLugar = { titulo: 'X', tags: [], descricaoInicio: '', locationDescription: null, coordenadaPadraoDoCanal: false }
+  it('bandeira entra no hash', () => {
+    const h = (t: string) => entradaHash({ ...base, titulo: t }, 2)
+    expect(h('X 🇻🇳')).not.toBe(h('X 🇹🇭'))
+    expect(h('X')).not.toBe(h('X 🇻🇳'))
+  })
+  it('a versão da regra de lugar muda o hash', () => {
+    expect(LUGAR_REGRA_VERSAO).toBe(2)
+    const h2 = entradaHash(base, 2)
+    // o hash carrega `r`: o mesmo texto com outra versão de regra seria outro hash (provado pelo JSON do hash)
+    expect(h2).toMatch(/^[0-9a-f]{64}$/)
+  })
+})
+
 describe('regra v2 (T6b)', () => {
   const pais = (r: ReturnType<typeof extrairLugares>): string[] => r.chaves.filter((c) => c.startsWith('pais:'))
 
@@ -212,8 +229,8 @@ describe('regra v2 (T6b)', () => {
     const tags = ['Vietnam', 'Thailand', 'Philippines']
     it('país de tag que é padrão do canal não conta sozinho', () => {
       const t = 'This Southeast Asia Retirement Loophole Blew My Mind!'
-      expect(ex(t, { tags }).chaves.length).toBeGreaterThan(0)
-      expect(ex(t, { tags, paisesPadraoDoCanal: ['VN', 'TH', 'PH'] }).chaves).toEqual([])
+      expect(ex(t, { tags: ['Thailand'] }).chaves.length).toBeGreaterThan(0)
+      expect(ex(t, { tags: ['Thailand'], paisesPadraoDoCanal: ['VN', 'TH', 'PH'] }).chaves).toEqual([])
     })
     it('mas conta quando o título também o traz', () => {
       expect(pais(ex('Comida de rua no Vietnã', { tags, paisesPadraoDoCanal: ['VN', 'TH', 'PH'] }))).toEqual(['pais:VN'])
@@ -222,15 +239,48 @@ describe('regra v2 (T6b)', () => {
       const v = (canal: string, tags: string[]) => ({ canal, tags, descricaoInicio: '' })
       const r = paisesPadraoPorCanal(
         [
-          v('a', ['Thailand']), v('a', ['Thailand']), v('a', []), v('a', []),
+          v('a', ['Thailand']), v('a', ['Thailand']), v('a', ['x']), v('a', ['y']),
           v('b', ['Thailand']), v('b', ['Thailand']), v('b', ['Thailand']),
-          v('c', ['Thailand']), v('c', []), v('c', []), v('c', []),
+          v('c', ['Thailand']), v('c', ['x']), v('c', ['y']), v('c', ['z']),
         ],
         ind,
       )
       expect(r.get('a')).toEqual(['TH'])
       expect(r.has('b')).toBe(false)
       expect(r.has('c')).toBe(false)
+    })
+  })
+
+  describe('I-1: base recente com texto + regra a\'', () => {
+    const v = (canal: string, tags: string[], publicadoEm: string) => ({ canal, tags, descricaoInicio: '', publicadoEm })
+    it('40 antigos sem tag e 10 recentes com Thailand resulta em TH', () => {
+      const velhos = Array.from({ length: 40 }, (_, i) => v('k', [], `2020-01-${String((i % 28) + 1).padStart(2, '0')}`))
+      const novos = Array.from({ length: 10 }, (_, i) => v('k', ['Thailand'], `2026-10-${String(i + 1).padStart(2, '0')}`))
+      expect(paisesPadraoPorCanal([...velhos, ...novos], ind).get('k')).toEqual(['TH'])
+    })
+    it('antigos COM tag de outro assunto fora da janela de 30 não diluem', () => {
+      const velhos = Array.from({ length: 40 }, (_, i) => v('k', ['cooking'], `2020-01-${String((i % 28) + 1).padStart(2, '0')}`))
+      const novos = Array.from({ length: 30 }, (_, i) => v('k', ['Thailand'], `2026-09-${String((i % 28) + 1).padStart(2, '0')}`))
+      expect(paisesPadraoPorCanal([...velhos, ...novos], ind).get('k')).toEqual(['TH'])
+    })
+    it('4 vídeos, 2 sem texto: não forma padrão', () => {
+      const r = paisesPadraoPorCanal(
+        [v('k', ['Thailand'], '2026-10-01'), v('k', ['Thailand'], '2026-10-02'), v('k', [], '2026-10-03'), v('k', [], '2026-10-04')],
+        ind,
+      )
+      expect(r.has('k')).toBe(false)
+    })
+    it('título sem chave e 3 países nas tags, sem padrão: []', () => {
+      expect(ex('Isso mudou minha vida', { tags: ['Vietnam', 'Thailand', 'Philippines'] }).chaves).toEqual([])
+    })
+    it('título sem chave e um país nas tags: pais:JP', () => {
+      expect(pais(ex('Fluffiest Egg Sandwich', { tags: ['Japan'] }))).toEqual(['pais:JP'])
+    })
+    it('próprios: 4 com "Brasil" na descrição e títulos sem lugar resultam em []', () => {
+      const d = { titulo: 'Meu dia', tags: [], descricaoInicio: 'Canal do Brasil. Inscreva-se', locationDescription: null, coordenadaPadraoDoCanal: false }
+      const padrao = paisesPadraoPorCanal(Array.from({ length: 4 }, () => ({ canal: 'proprio', tags: [], descricaoInicio: d.descricaoInicio })), ind).get('proprio') ?? []
+      expect(padrao).toEqual(['BR'])
+      expect(extrairLugares({ ...d, paisesPadraoDoCanal: padrao }, ind).chaves).toEqual([])
     })
   })
 
