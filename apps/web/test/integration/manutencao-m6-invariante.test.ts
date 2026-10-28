@@ -102,18 +102,28 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 2: o invariante do mês destacado',
     })
   })
 
-  it('o detail traz a tabela e o mês (mm/aaaa) de cada mês destacado; vale para outro site e para a classe ensaio', async () => {
+  it('o detail traz a tabela e o mês (mm/aaaa) dos meses destacados do PRÓPRIO site (ensaio incluso); mês de outro site recusa sem aparecer no detail (r1 I-4)', async () => {
     await emTransacao(async () => {
       const { canal } = await semearCanal(c, { videos: 1 })
-      await destacar('00000000-0000-0000-0000-0000000000f1', 'ensaio', 'obs_archive_rehearsal', '2026-03-01')
+      await destacar(SITE_TESTE, 'ensaio', 'obs_archive_rehearsal', '2026-03-01')
       await destacar('00000000-0000-0000-0000-0000000000f2', 'serie', 'competitor_video_early', '2026-11-01')
       await c.query('savepoint s')
       try { await c.query(`delete from public.competitor_channels where id = $1`, [canal]); throw new Error('não recusou') } catch (e) {
         const d = (e as { detail?: string }).detail ?? ''
         expect(d).toContain('obs_archive_rehearsal 03/2026')
-        expect(d).toContain('competitor_video_early 11/2026')
+        expect(d).not.toContain('competitor_video_early')
       }
       await c.query('rollback to savepoint s')
+      // só outro site tem mês destacado: a recusa continua global, mas o detail não revela tabela nem mês alheio
+      await c.query(`update public.obs_archive_months set dropped_at = now() where site_id = $1`, [SITE_TESTE])
+      await c.query('savepoint s2')
+      try { await c.query(`delete from public.competitor_channels where id = $1`, [canal]); throw new Error('não recusou') } catch (e) {
+        const x = e as { message?: string; detail?: string }
+        expect(x.message).toBe('mes_destacado_em_transito')
+        expect(x.detail ?? '').not.toContain('competitor_video_early')
+        expect(x.detail ?? '').not.toMatch(/\d\d\/20\d\d/)
+      }
+      await c.query('rollback to savepoint s2')
     })
   })
 

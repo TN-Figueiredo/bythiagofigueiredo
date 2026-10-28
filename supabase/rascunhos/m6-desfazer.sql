@@ -25,6 +25,7 @@ do $$ declare f record; begin
               'obs_archive_month_green',
               'obs_archive_outros_sites_ok',
               'obs_archive_part_bounds',
+              'obs_archive_saida_trava',
               'obs_archive_part_check',
               'obs_archive_part_rel',
               'obs_archive_piso_registro',

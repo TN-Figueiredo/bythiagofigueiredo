@@ -91,13 +91,20 @@ revoke all on function public.obs_archive_row_digest_rel(uuid, text, text, regcl
 -- confirmado enquanto o apagamento esperava a trava.
 create or replace function public.obs_archive_block_delete_while_detached()
 returns trigger language plpgsql volatile security definer set search_path = '' as $$
-declare v_meses text;
+declare v_meses text; v_n integer; v_site uuid;
 begin
-  select string_agg(m.table_name || ' ' || pg_catalog.to_char(m.month, 'MM/YYYY'), ', ' order by m.month, m.table_name) into v_meses
+  -- A recusa é global (a partição é de todos os sites, decisão 3), mas o detail lista só os meses do site do que se apaga (r1 I-4, Yannis):
+  -- o dono de um site não vê tabela nem mês de outro. TRUNCATE não tem linha: lista todos (só o administrador chega lá).
+  if tg_level = 'ROW' then
+    if tg_table_name = 'competitor_channels' then v_site := old.site_id;
+    else select ch.site_id into v_site from public.competitor_channels ch where ch.id = old.competitor_channel_id; end if;
+  end if;
+  select count(*), string_agg(m.table_name || ' ' || pg_catalog.to_char(m.month, 'MM/YYYY'), ', ' order by m.month, m.table_name) filter (where v_site is null or m.site_id = v_site)
+    into v_n, v_meses
     from public.obs_archive_months m
    where m.detached_at is not null and m.dropped_at is null;
-  if v_meses is not null then
-    raise exception 'mes_destacado_em_transito' using errcode = 'P0001', detail = v_meses;
+  if v_n > 0 then
+    raise exception 'mes_destacado_em_transito' using errcode = 'P0001', detail = coalesce(v_meses, 'mes destacado em outro site');
   end if;
   if tg_level = 'ROW' then return old; end if;
   return null;
@@ -432,14 +439,20 @@ begin
     select array_agg(pg_catalog.to_char(x.month, 'YYYY-MM-DD') order by x.month) into v_lista from public.obs_archive_months x
      where x.site_id = p_site and x.class = p_class and x.table_name = p_table and x.month < p_month
        and coalesce(x.rows_total, 0) > 0 and x.detached_at is null and x.dropped_at is null;
+    -- r1 I-2: o catálogo manda. Partição anexada com linha é dado online, diga o registro o que disser; se o registro diz que o mês saiu, o registro mente: registro_diverge.
     for pr in select pg_catalog.to_char(pg_catalog.to_date(pg_catalog.right(c.relname::text, 6), 'YYYYMM'), 'YYYY-MM-DD') as mes, c.oid::regclass as rel
                 from pg_catalog.pg_inherits i join pg_catalog.pg_class c on c.oid = i.inhrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace
                where i.inhparent = v_mae and n.nspname = 'obs_part' and c.relname::text ~ ('^' || p_table || '_[0-9]{6}$')
-                 and pg_catalog.to_date(pg_catalog.right(c.relname::text, 6), 'YYYYMM') < p_month
-                 and not exists (select 1 from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.table_name = p_table
-                                    and x.month = pg_catalog.to_date(pg_catalog.right(c.relname::text, 6), 'YYYYMM') and (x.detached_at is not null or x.dropped_at is not null)) loop
+                 and pg_catalog.to_date(pg_catalog.right(c.relname::text, 6), 'YYYYMM') < p_month loop
       execute pg_catalog.format('select exists (select 1 from %s limit 1)', pr.rel) into v_tem;
-      if v_tem then v_lista := coalesce(v_lista, '{}'::text[]) || pr.mes; end if;
+      if v_tem then
+        if exists (select 1 from public.obs_archive_months x where x.site_id = p_site and x.class = p_class and x.table_name = p_table
+                      and x.month = pr.mes::date and (x.detached_at is not null or x.dropped_at is not null)) then
+          f := f || jsonb_build_array(jsonb_build_object('codigo', 'registro_diverge', 'mes', pr.mes));
+        else
+          v_lista := coalesce(v_lista, '{}'::text[]) || pr.mes;
+        end if;
+      end if;
     end loop;
     if v_lista is not null then
       select min(z) into v_pode_txt from unnest(v_lista) z;
@@ -523,6 +536,25 @@ end $$;
 revoke all on function public.obs_archive_exit_check(uuid, text, date, uuid) from public, anon, authenticated;
 grant execute on function public.obs_archive_exit_check(uuid, text, date, uuid) to service_role;
 -- M6 PARTE 4: destacar e trazer de volta
+-- r1 I-1: a trava consultiva por (tabela, mês), pega ANTES de qualquer leitura da partição, da _saida ou da mãe (as leituras da fase 1 seguram ACCESS SHARE e
+-- resolvem o nome da relação que o vencedor está renomeando ou apagando). Sem o site: a partição é de todos os sites. Só a ação pega; a simulação não.
+-- Espera até 20 s o vencedor terminar (pior ação medida 10,5 s); passou disso, false (o chamador responde `ocupado`). Devolve com lock_timeout de 3 s,
+-- o das travas de relação que vêm depois. Ordem total: consultiva, registro, vídeos, mãe, partição. A M3b nunca pega a consultiva: não nasce ciclo.
+create or replace function public.obs_archive_saida_trava(p_table text, p_month date) returns boolean
+language plpgsql volatile security definer set search_path = '' as $$
+begin
+  perform pg_catalog.set_config('lock_timeout', '20s', true);
+  begin
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('obs_archive_saida|' || p_table || '|' || p_month::text, 0));
+  exception when lock_not_available then
+    perform pg_catalog.set_config('lock_timeout', '3s', true);
+    return false;
+  end;
+  perform pg_catalog.set_config('lock_timeout', '3s', true);
+  return true;
+end $$;
+revoke all on function public.obs_archive_saida_trava(text, date) from public, anon, authenticated, service_role;
+
 -- Os limites da partição de um mês na mãe, no tipo da chave (date para daily/early/ensaio; timestamptz em hora de SP para a horária).
 create or replace function public.obs_archive_part_bounds(p_mae regclass, p_month date) returns text
 language plpgsql stable security definer set search_path = '' as $$
@@ -555,10 +587,12 @@ returns jsonb language plpgsql volatile security definer set search_path = '' se
 declare
   v_class text := public.obs_archive_exit_class(p_table);
   v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
-  v_rel regclass; v_nome text; m public.obs_archive_months; f jsonb; t jsonb; v_fk record; v_sites uuid[]; v_total numeric;
+  v_rel regclass; v_nome text; m public.obs_archive_months; f jsonb; t jsonb; v_fk record; v_sites uuid[]; v_total numeric; v_t0 timestamptz;
 begin
   if v_class is null or v_mae is null then return jsonb_build_object('status', 'recusado', 'codigo', 'tabela_invalida'); end if;
   if p_mode not in ('clique', 'automatico') then return jsonb_build_object('status', 'recusado', 'codigo', 'tabela_invalida'); end if;
+  -- r1 I-1: a trava consultiva do mês antes de qualquer leitura (só na ação; a simulação não trava, decisão 7)
+  if not p_dry_run and not public.obs_archive_saida_trava(p_table, p_month) then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado'); end if;
 
   -- (1) leituras e o portão completo, SEM trava (o recálculo do hash é a parte cara; CP13).
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
@@ -589,6 +623,7 @@ begin
     perform 1 from public.obs_archive_months x where x.class = v_class and x.table_name = p_table and x.month = p_month order by x.site_id for update;
     lock table public.competitor_videos in share row exclusive mode;
     execute pg_catalog.format('lock table %s in access exclusive mode', v_mae);
+    v_t0 := pg_catalog.clock_timestamp();   -- r1 I-3: a mãe fica travada daqui até o fim da função (o tally e o detach)
     execute pg_catalog.format('lock table %s in access exclusive mode', v_rel);
   exception
     when undefined_table then   -- a partição mudou de nome ou sumiu enquanto esperava: outra chamada chegou antes (a conexão que perde a corrida)
@@ -630,7 +665,8 @@ begin
   -- Decisão 6: todo site com linha na partição ganha o destaque na mesma transação (os sites vêm do tally: sem segunda varredura, m-5).
   update public.obs_archive_months set detached_at = public.obs_archive_agora(), detached_by = p_by, reattached_at = null, reattach_out_of_order = false
    where class = v_class and table_name = p_table and month = p_month and site_id = any(v_sites);
-  return jsonb_build_object('status', 'ok', 'linhas', t->'linhas', 'soma', t->'soma', 'sites', pg_catalog.to_jsonb(v_sites));
+  return jsonb_build_object('status', 'ok', 'linhas', t->'linhas', 'soma', t->'soma', 'sites', pg_catalog.to_jsonb(v_sites),
+                            'mae_travada_ms', round(extract(epoch from pg_catalog.clock_timestamp() - v_t0) * 1000));
 end $$;
 revoke all on function public.obs_archive_detach_month(uuid, text, date, uuid, text, boolean) from public, anon, authenticated;
 grant execute on function public.obs_archive_detach_month(uuid, text, date, uuid, text, boolean) to service_role;
@@ -641,10 +677,12 @@ declare
   v_class text := public.obs_archive_exit_class(p_table);
   v_mae regclass := pg_catalog.to_regclass('public.' || pg_catalog.quote_ident(p_table));
   v_rel regclass; v_nome text; m public.obs_archive_months; u record; h record; v_fk record; v_col record;
-  v_mudou boolean := false; v_fora boolean; v_faltam_col text[] := '{}';
+  v_mudou boolean := false; v_fora boolean; v_faltam_col text[] := '{}'; v_t0 timestamptz;
 begin
   if v_class is null or v_mae is null then return jsonb_build_object('status', 'recusado', 'codigo', 'tabela_invalida'); end if;
   if p_by is null or not public.obs_archive_is_site_admin(p_site, p_by) then return jsonb_build_object('status', 'recusado', 'codigo', 'sem_direito'); end if;
+  -- r1 I-1: a trava consultiva do mês antes de qualquer leitura (só na ação)
+  if not p_dry_run and not public.obs_archive_saida_trava(p_table, p_month) then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado'); end if;
 
   -- (1) leituras e conferência, SEM trava (a tabela destacada ninguém escreve).
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
@@ -720,6 +758,7 @@ begin
     execute pg_catalog.format('alter table %s validate constraint m6_limites', v_rel);
     -- Só agora a mãe (ACCESS EXCLUSIVE): rename e attach, que adota as FK iguais (PG17) e pula a varredura.
     execute pg_catalog.format('lock table %s in access exclusive mode', v_mae);
+    v_t0 := pg_catalog.clock_timestamp();   -- r1 I-3: a mãe fica travada daqui até o attach
     execute pg_catalog.format('alter table %s rename to %I', v_rel, v_nome);
     execute pg_catalog.format('alter table %s attach partition obs_part.%I for values %s', v_mae, v_nome, public.obs_archive_part_bounds(v_mae, p_month));
     execute pg_catalog.format('alter table obs_part.%I drop constraint m6_limites', v_nome);
@@ -736,7 +775,8 @@ begin
          unsealed_reason = case when v_mudou then 'mudou_no_destaque' else unsealed_reason end
    where class = v_class and table_name = p_table and month = p_month and detached_at is not null and dropped_at is null;
   return jsonb_build_object('status', 'ok', 'conteudo_mudou', v_mudou, 'volta_fora_de_ordem', v_fora,
-                            'protecao_faltam', pg_catalog.to_jsonb(public.obs_archive_invariante_faltam()));
+                            'protecao_faltam', pg_catalog.to_jsonb(public.obs_archive_invariante_faltam()),
+                            'mae_travada_ms', round(extract(epoch from pg_catalog.clock_timestamp() - v_t0) * 1000));
 end $$;
 revoke all on function public.obs_archive_reattach_month(uuid, text, date, uuid, boolean) from public, anon, authenticated;
 grant execute on function public.obs_archive_reattach_month(uuid, text, date, uuid, boolean) to service_role;
@@ -784,6 +824,8 @@ declare
   pol record; m public.obs_archive_months; v_rel regclass; f jsonb; t jsonb; v_lib date; r jsonb;
 begin
   if v_class is null or v_mae is null or p_mode not in ('clique', 'automatico') then return jsonb_build_object('status', 'recusado', 'codigo', 'tabela_invalida'); end if;
+  -- r1 I-1: a trava consultiva do mês antes de qualquer leitura (só na ação)
+  if not p_dry_run and not public.obs_archive_saida_trava(p_table, p_month) then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado'); end if;
   select * into pol from public.obs_archive_policy() p where p.class = v_class and p.table_name = p_table;
   -- (1) leituras e portão SEM trava
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
@@ -860,7 +902,9 @@ begin
   if v_class is null or v_mae is null or p_mode not in ('clique', 'automatico') then
     return public.obs_archive_after_auto(p_site, coalesce(v_class, ''), p_month, jsonb_build_object('status', 'recusado', 'codigo', 'tabela_invalida'), p_mode, p_dry_run);
   end if;
-  -- (1) leituras e portão completo SEM trava
+  -- r1 I-1: a trava consultiva do mês antes de qualquer leitura (só na ação)
+  if not p_dry_run and not public.obs_archive_saida_trava(p_table, p_month) then return jsonb_build_object('status', 'recusado', 'codigo', 'ocupado'); end if;
+  -- (1) leituras e portão completo SEM trava de relação
   select * into m from public.obs_archive_months x where x.site_id = p_site and x.class = v_class and x.table_name = p_table and x.month = p_month;
   if m.dropped_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_descartado', 'descartado_em', m.dropped_at); end if;
   if m.detached_at is not null then return jsonb_build_object('status', 'recusado', 'codigo', 'ja_destacado'); end if;

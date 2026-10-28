@@ -10,7 +10,7 @@ import { prepararM6, relogio, liberarClasses, novoAdmin, selarMes, particaoDe } 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 const MES = '2026-10-01'
 const D = 'competitor_video_daily'
-type Resp = { status: string; codigo?: string; faltam?: Array<{ codigo: string }>; linhas?: number; volta_fora_de_ordem?: boolean; conteudo_mudou?: boolean; protecao_faltam?: string[] }
+type Resp = { status: string; codigo?: string; faltam?: Array<{ codigo: string }>; linhas?: number; volta_fora_de_ordem?: boolean; conteudo_mudou?: boolean; protecao_faltam?: string[]; mae_travada_ms?: number }
 
 describe.skipIf(skipIfNoLocalDb())('M6 parte 4: tirar das telas e trazer de volta', () => {
   let c: Client
@@ -42,6 +42,8 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 4: tirar das telas e trazer de volt
       const antes = await escalar<string>(c, `select count(*)::text from public.competitor_video_daily where snap_date >= $1 and snap_date < ($1::date + interval '1 month')`, [MES])
       const r = await detach(site, admin)
       expect(r).toMatchObject({ status: 'ok', linhas: Number(antes) })
+      expect(r.mae_travada_ms, 'r1 I-3: a função mede quanto tempo segurou a mãe').toEqual(expect.any(Number))   // medida pela função, não pelo relógio de quem chama
+      expect(r.mae_travada_ms as number).toBeGreaterThanOrEqual(0)
       expect(await existe(particaoDe(D, MES))).toBe(false)
       expect(await existe(particaoDe(D, MES) + '_saida')).toBe(true)
       expect(await escalar<string>(c, `select count(*)::text from public.competitor_video_daily where snap_date >= $1 and snap_date < ($1::date + interval '1 month')`, [MES])).toBe('0')
@@ -105,6 +107,7 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 4: tirar das telas e trazer de volt
       await detach(site, admin)
       const r = await reattach(site, admin)
       expect(r).toMatchObject({ status: 'ok', conteudo_mudou: false, volta_fora_de_ordem: false, protecao_faltam: [] })
+      expect(r.mae_travada_ms, 'r1 I-3').toEqual(expect.any(Number))
       expect(await existe(particaoDe(D, MES))).toBe(true)
       expect(await escalar<string>(c, `select sum(views)::text from public.competitor_video_daily where snap_date >= $1 and snap_date < ($1::date + interval '1 month')`, [MES])).toBe(soma)
       expect(await escalar<boolean>(c, `select bool_and(convalidated) from pg_constraint where conrelid = to_regclass($1) and contype = 'f'`, [particaoDe(D, MES)])).toBe(true)

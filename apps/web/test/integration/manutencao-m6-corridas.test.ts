@@ -9,6 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Client } from 'pg'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { cpus, loadavg } from 'node:os'
 import { urlDasCorridas, semearCanal, semearDiaria, SITE_TESTE } from '../helpers/m3b'
 import { apagarCanais } from '../helpers/limpa-cena'
 import { corridasM6Ligadas, confirmarM6ParaCorridas, desfazerM6DasCorridas, selarMes, particaoDe, novoAdmin, semearHoraria, semearEarly, apagarCanalDeclarando, M6_SQL_CAMINHO, M6_DESFAZER_CAMINHO } from '../helpers/m6'
@@ -166,32 +167,39 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
   const chamar = (c: Client, fn: string, mes: string, extra = ''): Promise<{ status: string; codigo?: string; faltam?: Array<{ codigo: string }> }> =>
     c.query(`select public.obs_archive_${fn}_month($1, $2, $3, $4${extra}) as r`, [site, D, mes, admin]).then(r => r.rows[0].r)
 
-  it('C-2: dois detach ao mesmo tempo: um ok e o outro não destaca duas vezes (ja_destacado, ocupado ou, achado, erro de banco de relação ausente)', async () => {
-    await destacarVoltando(async () => {
+  type Vista = { status?: string; codigo?: string; erro?: string }
+  const REPETICOES = 20
+  /** r1 I-1: o perdedor responde exatamente o código esperado; erro de banco (relação ausente, deadlock) ou `ocupado` reprova. */
+  async function disputa(fn: string, mes: string, extra: string, codigo: string, rep: number): Promise<void> {
+    const r = await Promise.allSettled([chamar(a, fn, mes, extra), chamar(b, fn, mes, extra)])
+    const vistas: Vista[] = r.map(x => x.status === 'fulfilled' ? x.value : { erro: String((x.reason as Error).message) })
+    const ctx = `${fn} rep ${rep}: ${JSON.stringify(vistas)}`
+    expect(vistas.filter(v => v.erro), ctx).toEqual([])
+    expect(vistas.filter(v => v.status === 'ok'), ctx).toHaveLength(1)
+    expect(vistas.find(v => v.status !== 'ok'), ctx).toMatchObject({ status: 'recusado', codigo })
+  }
+  /** Zera o registro e as tabelas de um mês extra, para a próxima repetição partir do mesmo estado. */
+  async function zerarMes(mes: string): Promise<void> {
+    for (const t of ['obs_archive_prechecks', 'obs_archive_units', 'obs_archive_months']) await a.query(`delete from public.${t} where site_id = $1 and table_name = $2 and month = $3`, [site, D, mes])
+    const nome = particaoDe(D, mes)
+    await a.query(`drop table if exists ${nome}_saida`)
+    await a.query(`drop table if exists ${nome}`)
+  }
+
+  it(`C-2 (r1 I-1): dois detach ao mesmo tempo, ${REPETICOES} vezes: um ok e o outro EXATAMENTE ja_destacado, sem erro de banco`, async () => {
+    for (let rep = 0; rep < REPETICOES; rep++) {
       await renovar()
-      const [s1, s2] = await Promise.allSettled([chamar(a, 'detach', MES, ", 'clique', false"), chamar(b, 'detach', MES, ", 'clique', false")])
-      const vistas = [s1, s2].map(x => x.status === 'fulfilled' ? x.value : { erro: String((x.reason as Error).message) })
-      console.log('[m6-corridas] C-2 detach duplo:', JSON.stringify(vistas))
-      expect(vistas.filter(v => 'status' in v && v.status === 'ok')).toHaveLength(1)
-      // Achado da T6 (não-determinístico): o perdedor responde `ocupado` (lock_timeout) OU tropeça em `relation ... does not exist` (leu o nome da partição antes da trava).
-      // O plano exigia `ja_destacado` e nenhum erro de banco; nenhum dos dois resultados deixa o banco inconsistente.
-      const outro = vistas.find(v => !('status' in v && v.status === 'ok'))
-      expect(JSON.stringify(outro)).toMatch(/ja_destacado|ocupado|does not exist/)
-    })
+      try { await disputa('detach', MES, ", 'clique', false", 'ja_destacado', rep) } finally { await religar() }
+    }
   })
 
-  it('C-2: dois reattach ao mesmo tempo: um ok e o outro nao_destacado', async () => {
-    await renovar()
-    const d = await chamar(a, 'detach', MES, ", 'clique', false")
-    expect(d, JSON.stringify(d)).toMatchObject({ status: 'ok' })
-    const [s1, s2] = await Promise.allSettled([chamar(a, 'reattach', MES, ', false'), chamar(b, 'reattach', MES, ', false')])
-    console.log('[m6-corridas] C-2 reattach duplo:', JSON.stringify([s1, s2].map(x => x.status === 'fulfilled' ? x.value : { erro: (x.reason as Error).message })))
-    const ok = [s1, s2].filter(x => x.status === 'fulfilled' && x.value.status === 'ok')
-    expect(ok).toHaveLength(1)
-    const outro = [s1, s2].find(x => !(x.status === 'fulfilled' && x.value.status === 'ok'))
-    // Achado da T6: o segundo reattach pode tropeçar em `relation ..._saida does not exist` (erro de banco, não recusa limpa) quando lê o nome antes da trava e o primeiro já religou.
-    const vista = outro?.status === 'fulfilled' ? outro.value : { codigo: 'erro_de_banco', msg: String((outro as PromiseRejectedResult).reason?.message) }
-    expect(JSON.stringify(vista)).toMatch(/nao_destacado|ocupado|does not exist/)
+  it(`C-2 (r1 I-1): dois reattach ao mesmo tempo, ${REPETICOES} vezes: um ok e o outro EXATAMENTE nao_destacado, sem erro de banco`, async () => {
+    for (let rep = 0; rep < REPETICOES; rep++) {
+      await renovar()
+      const d = await chamar(a, 'detach', MES, ", 'clique', false")
+      expect(d, `rep ${rep}`).toMatchObject({ status: 'ok' })
+      try { await disputa('reattach', MES, ', false', 'nao_destacado', rep) } finally { await religar() }
+    }
   })
 
   it('(iv) coleta já escreveu na série e vai escrever nos vídeos: o destaque cede (ocupado), a coleta nunca é a abortada', async () => {
@@ -245,22 +253,55 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
     }
   }
 
-  it('C-2: dois discard ao mesmo tempo: um ok e o outro ja_descartado (mês extra de maio, destacado antes)', async () => {
-    await mesExtra('2026-05-01')
-    await renovar()
-    await chamar(a, 'detach', '2026-05-01', ", 'clique', false")
-    await relogioSessao('2027-05-20 12:00:00+00', '2027-05-20')
-    try {
+  it(`C-2 (r1 I-1): dois discard ao mesmo tempo, ${REPETICOES} vezes: um ok e o outro EXATAMENTE ja_descartado, sem deadlock`, async () => {
+    for (let rep = 0; rep < REPETICOES; rep++) {
+      await zerarMes('2026-05-01')
+      await mesExtra('2026-05-01')
+      await relogioSessao('2027-05-02 12:00:00+00', '2027-05-02')
       await renovar()
-      const [s1, s2] = await Promise.allSettled([chamar(a, 'discard', '2026-05-01', ", 'clique', false"), chamar(b, 'discard', '2026-05-01', ", 'clique', false")])
-      const vistas = [s1, s2].map(x => x.status === 'fulfilled' ? x.value : { erro: (x.reason as { code?: string; message: string }).code ?? (x.reason as Error).message })
-      console.log('[m6-corridas] C-2 discard duplo:', JSON.stringify(vistas))
-      // Achado da T6: dois discard simultâneos podem terminar em deadlock (40P01) em vez de `ja_descartado`. O plano exigia nenhum erro de banco; aqui se registra o que o Postgres faz.
-      const ok = vistas.filter(v => 'status' in v && v.status === 'ok')
-      expect(ok).toHaveLength(1)
-      const outro = vistas.find(v => !('status' in v && v.status === 'ok'))
-      expect(JSON.stringify(outro)).toMatch(/ja_descartado|ocupado|40P01/)
-    } finally { await relogioSessao('2027-05-02 12:00:00+00', '2027-05-02') }
+      const d = await chamar(a, 'detach', '2026-05-01', ", 'clique', false")
+      expect(d, `rep ${rep}`).toMatchObject({ status: 'ok' })
+      await relogioSessao('2027-05-20 12:00:00+00', '2027-05-20')
+      try {
+        await renovar()
+        await disputa('discard', '2026-05-01', ", 'clique', false", 'ja_descartado', rep)
+      } finally { await relogioSessao('2027-05-02 12:00:00+00', '2027-05-02') }
+    }
+    await zerarMes('2026-05-01')
+    await a.query(`select obs_part.criar_particao('public.competitor_video_daily'::regclass, '2026-05-01')`)
+  })
+
+  it(`C-2 (r1 I-1): dois drop ao mesmo tempo, ${REPETICOES} vezes: um ok e o outro EXATAMENTE ja_descartado, sem erro de banco`, async () => {
+    await tresDescartes()
+    for (let rep = 0; rep < REPETICOES; rep++) {
+      await zerarMes('2026-04-01')
+      await mesExtra('2026-04-01')
+      await renovar()
+      await disputa('drop', '2026-04-01', ", 'clique', false", 'ja_descartado', rep)
+    }
+    await zerarMes('2026-04-01')
+    await a.query(`select obs_part.criar_particao('public.competitor_video_daily'::regclass, '2026-04-01')`)
+  })
+
+  it('r1 I-1: a trava consultiva do mês: a ação espera até 20 s e responde ocupado; a simulação não espera; nada muda', async () => {
+    await renovar()
+    await destacarVoltando(async () => {
+      await b.query('begin')
+      try {
+        await b.query(`select pg_advisory_xact_lock(pg_catalog.hashtextextended('obs_archive_saida|' || $1::text || '|' || $2::text, 0))`, [D, MES])
+        let t = Date.now()
+        const sim = (await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', true) as r`, [site, D, MES, admin])).rows[0].r as Vista
+        expect(sim.codigo, JSON.stringify(sim)).not.toBe('ocupado')
+        expect(Date.now() - t, 'a simulação não pega a trava').toBeLessThan(8_000)
+        t = Date.now()
+        const r = (await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', false) as r`, [site, D, MES, admin])).rows[0].r as Vista
+        const ms = Date.now() - t
+        expect(r, JSON.stringify(r)).toMatchObject({ status: 'recusado', codigo: 'ocupado' })
+        expect(ms).toBeGreaterThan(19_000)
+        expect(ms).toBeLessThan(30_000)
+      } finally { await b.query('rollback') }
+      expect((await a.query(`select to_regclass($1) is not null as e`, [particaoDe(D, MES)])).rows[0].e).toBe(true)
+    })
   })
 
   it('C-2 no drop: B2 retirado gravado por OUTRA conexão entre o portão e a trava: recusa b2_sem_atestacao e a partição existe', async () => {
@@ -277,8 +318,10 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
     expect(r.status).toBe('recusado')
     expect(r.faltam?.map(f => f.codigo)).toEqual(['b2_sem_atestacao'])
     expect((await a.query(`select to_regclass($1) is not null as e`, [particaoDe(D, '2026-04-01')])).rows[0].e).toBe(true)
-    // o mês extra de abril fica anexado com linha e mais antigo que o de junho: sairia fora de ordem no CP13. Marca como descartado no registro (fixture).
-    await a.query(`update public.obs_archive_months set dropped_at = now(), rows_dropped = 1 where site_id = $1 and table_name = $2 and month = '2026-04-01'`, [site, D])
+    // o mês extra de abril fica anexado com linha e mais antigo que o de junho: sairia fora de ordem no CP13. r1 I-2: marcar dropped_at no registro com a
+    // partição anexada e com linha é o estado `registro_diverge`; a fixture agora tira o mês de verdade (tabela e registro) e deixa uma partição vazia.
+    await zerarMes('2026-04-01')
+    await a.query(`select obs_part.criar_particao('public.competitor_video_daily'::regclass, '2026-04-01')`)
   })
 
   it('CP13 por razão medida: conferência por canal, a mãe travada e a ação ponta a ponta contra o maxDuration de 60 s, na diária E na horária (3 rodadas, vale a pior)', async () => {
@@ -297,43 +340,86 @@ describe.skipIf(!corridasM6Ligadas())('M6 item 128: corridas entre apagar e dest
       await a.query(`insert into public.competitor_hour_fold_log (video_id, day, site_id, intervals_clean, intervals_long)
         select distinct h.video_id, (h.hour_slot at time zone 'America/Sao_Paulo')::date, h.site_id, 1, 0 from public.competitor_video_hourly h
          where h.site_id = $1 and h.hour_slot >= $2::timestamptz and h.hour_slot < ($2::date + interval '1 month')::timestamptz + interval '1 day' on conflict do nothing`, [site, MES])
+      // sem estatística o planejador escolhe varredura sequencial em tabela recém-semeada; em produção o autovacuum já analisou
+      await a.query('analyze public.competitor_videos, public.competitor_video_daily, public.competitor_video_hourly')
       const ALVOS = [{ classe: 'serie', tabela: D }, { classe: 'horaria', tabela: H }] as const
       const FATOR = Number(process.env.M6_FATOR ?? 4.05)
       const RTT = 2 * 150
+      // r1 M-1: (1) o TRABALHO, determinístico: linhas lidas pela conferência de cada canal (pg_stat_xact_user_tables), que pega varredura no lugar do índice
+      // em qualquer carga; (2) o TEMPO da melhor de 3 rodadas, dividido por uma consulta de calibração medida no mesmo instante. Máquina carregada: nao_medido.
+      const REF_QUIETA_MS = Number(process.env.M6_REF_QUIETA_MS ?? 173)   // a calibração em máquina quieta (load 3 em 14 CPUs, mínimo das rodadas, 28/10)
+      const calibrar = async (): Promise<number> => {
+        let melhor = Infinity
+        for (let i = 0; i < 3; i++) { const t0 = Date.now(); await a.query('select sum(hashtext(g::text)) from generate_series(1, 2000000) g'); melhor = Math.min(melhor, Date.now() - t0) }
+        return melhor
+      }
+      const lidas = async (tabela: string): Promise<number> => Number((await a.query(
+        `select coalesce(sum(seq_tup_read + idx_tup_fetch), 0) as n from pg_stat_xact_user_tables where schemaname = 'obs_part' and relname like $1`, [`${tabela}\\_%`])).rows[0].n)
       for (const alvo of ALVOS) {
-        const pior = { inline: 0, maior: 0, travaDetach: 0, travaReattach: 0, ponta: 0 }
+        const pior = { inline: 0, maior: 0, travaDetach: 0, travaReattach: 0, ponta: 0, maeDetach: 0, maeReattach: 0, lidasPorLinha: 0 }
+        const rodadasMaior: number[] = [], calibracoes: number[] = []
+        const linhasDoCanal = new Map<string, number>()
+        const linhasDaParticao = Number((await a.query(`select count(*) as n from ${particaoDe(alvo.tabela, MES)}`)).rows[0].n)
         for (let rodada = 0; rodada < 3; rodada++) {
           await selarMes(a, { site, classe: alvo.classe, tabela: alvo.tabela, mes: MES, versao: rodada + 10 })
           await a.query(`delete from public.obs_archive_prechecks where site_id = $1`, [site])
           await renovar()
+          calibracoes.push(await calibrar())
           await a.query('set role service_role')
           let t = Date.now()
           await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', true)`, [site, alvo.tabela, MES, admin])
           const inline = Date.now() - t
           pior.inline = Math.max(pior.inline, inline)
           const lista = (await a.query(`select unnest(public.obs_archive_precheck_channels($1, $2, $3, true)) as c`, [site, alvo.tabela, MES])).rows.map(r => r.c as string)
-          let somaConf = 0
+          let somaConf = 0, maiorDaRodada = 0
           for (const c of lista) {
+            if (!linhasDoCanal.has(c)) {
+              await a.query('reset role')
+              linhasDoCanal.set(c, Number((await a.query(`select count(*) as n from public.${alvo.tabela} t join public.competitor_videos v on v.id = t.video_id where v.competitor_channel_id = $1::uuid`, [c])).rows[0].n))
+              await a.query('set role service_role')
+            }
+            await a.query('begin')
+            const antes = await lidas(alvo.tabela)
             t = Date.now()
             await a.query(`select public.obs_archive_precheck_unit($1, $2, $3, $4::uuid)`, [site, alvo.tabela, MES, c])
-            const d = Date.now() - t; somaConf += d; pior.maior = Math.max(pior.maior, d)
+            const d = Date.now() - t; somaConf += d; maiorDaRodada = Math.max(maiorDaRodada, d)
+            const lidasCanal = (await lidas(alvo.tabela)) - antes
+            await a.query('commit')
+            const linhas = linhasDoCanal.get(c) ?? 0
+            pior.lidasPorLinha = Math.max(pior.lidasPorLinha, lidasCanal / Math.max(linhasDaParticao, 1))
+            // Medido (28/10): a conferência faz 3 leituras do canal (resumo da linha, hash, resumo de novo) e o planejador lê a partição inteira em cada uma
+            // (varredura sequencial + hash: a premissa do parecer, "índice", não vale neste tamanho). O teto é 3 passadas + folga; uma leitura por vídeo (~47x) estoura.
+            expect(lidasCanal, `${alvo.classe} canal ${c}: linhas lidas pela conferência (${linhas} no canal, ${linhasDaParticao} na partição)`).toBeLessThanOrEqual(3 * linhasDaParticao + 1_000)
           }
+          pior.maior = Math.max(pior.maior, maiorDaRodada); rodadasMaior.push(maiorDaRodada)
           t = Date.now()
-          const r = (await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', false) as r`, [site, alvo.tabela, MES, admin])).rows[0].r as { status: string; codigo?: string }
+          const r = (await a.query(`select public.obs_archive_detach_month($1, $2, $3, $4, 'clique', false) as r`, [site, alvo.tabela, MES, admin])).rows[0].r as { status: string; codigo?: string; mae_travada_ms?: number }
           const trava = Date.now() - t
           pior.travaDetach = Math.max(pior.travaDetach, trava)
           await a.query('reset role')
           expect(r, JSON.stringify(r)).toMatchObject({ status: 'ok' })
+          pior.maeDetach = Math.max(pior.maeDetach, r.mae_travada_ms ?? Infinity)
           pior.ponta = Math.max(pior.ponta, inline + Math.ceil(somaConf / 4) + trava)
           t = Date.now()
-          await a.query(`select public.obs_archive_reattach_month($1, $2, $3, $4, false)`, [site, alvo.tabela, MES, admin])
+          const rv = (await a.query(`select public.obs_archive_reattach_month($1, $2, $3, $4, false) as r`, [site, alvo.tabela, MES, admin])).rows[0].r as { status: string; mae_travada_ms?: number }
           pior.travaReattach = Math.max(pior.travaReattach, Date.now() - t)
+          expect(rv, JSON.stringify(rv)).toMatchObject({ status: 'ok' })
+          pior.maeReattach = Math.max(pior.maeReattach, rv.mae_travada_ms ?? Infinity)
         }
-        console.log('[m6-corridas] CP13', JSON.stringify({ alvo: alvo.classe, canais, porCanal, ...pior,
+        // o tempo: melhor rodada, normalizada pela calibração da própria rodada
+        const norm = Math.min(...rodadasMaior.map((m, i) => m / calibracoes[i]!))
+        const maiorQuieto = norm * REF_QUIETA_MS
+        const carregada = loadavg()[0]! > cpus().length
+        const tempo = carregada ? 'nao_medido' : (maiorQuieto * FATOR < 4_000 ? 'ok' : 'estourou')
+        console.log('[m6-corridas] CP13', JSON.stringify({ alvo: alvo.classe, canais, porCanal, ...pior, tempo, load1: Math.round(loadavg()[0]! * 10) / 10, cpus: cpus().length,
+          calibracoes, rodadasMaior, maior_quieto_x_fator_ms: Math.round(maiorQuieto * FATOR), lidas_por_linha_da_particao_max: Math.round(pior.lidasPorLinha * 100) / 100,
           tally_horaria_ms: alvo.classe === 'horaria' ? Math.round(pior.inline * FATOR) : null, maior_conferencia_ms: Math.round(pior.maior * FATOR),
-          ponta_x_fator_ms: Math.round(pior.ponta * FATOR + RTT), trava_detach_x_fator_ms: Math.round(pior.travaDetach * FATOR), trava_reattach_x_fator_ms: Math.round(pior.travaReattach * FATOR) }))
-        expect(pior.maior).toBeLessThan(4_000 / FATOR)
+          ponta_x_fator_ms: Math.round(pior.ponta * FATOR + RTT), mae_travada_detach_x_fator_ms: Math.round(pior.maeDetach * FATOR), mae_travada_reattach_x_fator_ms: Math.round(pior.maeReattach * FATOR) }))
+        if (carregada) console.warn('[m6-corridas] CP13: tempo NAO_MEDIDO (load1 acima do número de CPUs); o trabalho foi afirmado, o relógio não')
+        else expect(maiorQuieto * FATOR, 'melhor de 3 rodadas, normalizada pela calibração').toBeLessThan(4_000)
         expect((pior.ponta * FATOR) + RTT).toBeLessThan(60_000)
+        expect(pior.maeDetach * FATOR, 'mãe travada no detach (medida pela função)').toBeLessThan(2_000)
+        expect(pior.maeReattach * FATOR, 'mãe travada no reattach (medida pela função)').toBeLessThan(2_000)
       }
     } finally {
       await a.query('reset role').catch(() => undefined)

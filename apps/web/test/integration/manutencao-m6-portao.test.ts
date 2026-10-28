@@ -251,9 +251,25 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 3: o portão', () => {
       await semearDiaria(c, videos, '2026-09-01', 30)
       await selarMes(c, { site, classe: 'serie', tabela: D, mes: '2026-09-01' })
       expect(await portao(site, admin, [20])).toEqual([{ codigo: 'saida_fora_de_ordem', antes: '2026-09-01' }])
-      await c.query(`update public.obs_archive_months set dropped_at = now() where site_id = $1 and month = '2026-09-01'`, [site])
+      // r1 I-2: uma saída real de setembro (a partição sai da mãe e o registro diz que saiu), não só uma marca no registro
+      await c.query(`alter table public.competitor_video_daily detach partition ${particaoDe(D, '2026-09-01')}`)
+      await c.query(`alter table ${particaoDe(D, '2026-09-01')} rename to competitor_video_daily_202609_saida`)
+      await c.query(`update public.obs_archive_months set detached_at = now() where site_id = $1 and month = '2026-09-01'`, [site])
       expect(await portao(site, admin, [20])).toEqual([])
     })
+  })
+
+  it('r1 I-2: registro diz dropped_at ou detached_at mas a partição segue anexada com linha: registro_diverge (nunca passa calado), nada muda', async () => {
+    for (const marca of ['dropped_at', 'detached_at']) {
+      await emTransacao(async () => {
+        const { site, admin, videos } = await cenario()
+        await semearDiaria(c, videos, '2026-09-01', 30)
+        await selarMes(c, { site, classe: 'serie', tabela: D, mes: '2026-09-01' })
+        await c.query(`update public.obs_archive_months set ${marca} = now() where site_id = $1 and month = '2026-09-01'`, [site])
+        expect(await portao(site, admin, [20]), marca).toEqual([{ codigo: 'registro_diverge', mes: '2026-09-01' }])
+        expect(await escalar<boolean>(c, `select to_regclass($1) is not null`, [particaoDe(D, '2026-09-01')])).toBe(true)
+      })
+    }
   })
 
   it('I7 (Phil): partição anexada de mês anterior com linha e SEM registro também bloqueia a saída de outubro', async () => {
