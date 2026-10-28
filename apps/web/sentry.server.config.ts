@@ -4,6 +4,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { scrubBreadcrumbPii, scrubEventPii } from './src/lib/sentry-pii'
 import { registerSecretLiteral } from './src/lib/redact-secrets'
+import { agendarFlushNaVercel } from './src/lib/sentry-flush'
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN
 
@@ -27,7 +28,12 @@ if (dsn) {
     sendDefaultPii: false,
     // H1 — strip email/phone/CPF substrings from messages, exceptions,
     // breadcrumbs, and request headers/data.
-    beforeSend: scrubEventPii,
+    // Node na Vercel congela ao responder: sem isto o evento fica na fila (ver sentry-flush.ts).
+    beforeSend: (event) => {
+      const limpo = scrubEventPii(event)
+      agendarFlushNaVercel()
+      return limpo
+    },
     // C2: transaction events (10% of tracesSampleRate) carry http.client
     // spans with the full URL in description/data — without this, those
     // spans skip the scrubber entirely.
