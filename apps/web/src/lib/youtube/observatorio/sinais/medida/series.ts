@@ -6,15 +6,17 @@
 // Sem linha NUNCA é zero por si só: R1 e R2 sem limiar de privacidade (dia coberto sem linha = 0 medido), R3/R4 pelo limiar (`soma` vs `base`),
 // R5 é top-N (ausência = "não apareceu", nunca views 0). Privacidade: R5 lê só `source_type = '7'` e só os `detail` pedidos, e o texto
 // nunca sai daqui (a comparação é por id e a saída é contagem de dias).
+import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { addDays } from '../../../coleta/day-pt'
 import { DIMENSOES_DESDE, LOTE_DESDE } from '../../../coleta/e11-config'
 import {
-  TETO_VIDEOS_CONSULTA, TIPO_ALCANCE, lerBaseDiaria, lerCobertura, lerDetalheDiario, lerDimDiaria, lerReachBase, lerReachDimDiaria, lerRelatorios,
+  TETO_VIDEOS_CONSULTA, lerBaseDiaria, lerCobertura, lerDetalheDiario, lerDimDiaria, lerReachBase, lerReachDimDiaria, lerRelatorios,
   type AlvoConsulta, type Leitura,
 } from '../../proprio/consultas'
+import { TIPO_ALCANCE } from '../../proprio/tipos'
 import { estadoDoDia, type EstadoValor, type LinhaBasica, type ParamsDoDia } from '../../proprio/dimensoes-estado'
-import { somarJanela, type CoberturaDeFecho, type SomaJanela } from './janela'
+import { somarJanela, type CoberturaDeFecho, type MotivoSoma, type SomaJanela } from './janela'
 import { CODIGO_DA_METRICA, FONTE_DA_METRICA, type FonteD2, type MetricaD2 } from './regra-d2'
 
 /** Linhas por chamada à tabela (um bloco de 50 vídeos numa faixa de até ~6 meses, com aparelho e sistema); acima lança. */
@@ -22,6 +24,12 @@ const TETO_LINHAS_SERIES = 400_000
 const SEPARADOR = '\u0001'
 /** Origem do detalhe que a prova direta lê (`RELATED_VIDEO`): nunca o texto de busca (`source_type = '5'`). */
 const ORIGEM_DETALHE_RELATED = CODIGO_DA_METRICA.prova_related
+
+/** Fração mínima dos vídeos do braço que precisa somar (pré e pós) para a métrica ser `medido`; abaixo vira `nao_medido`. */
+export const PISO_BRACO = 0.8
+export type SomaBraco =
+  | { pre: number; pos: number; videosMedidos: number; videosTotal: number }
+  | { nao_medido: MotivoSoma; diasSemCobertura: number }
 
 export interface FaixaDeDias { de: string; ate: string }
 
@@ -82,7 +90,6 @@ export class SeriesDoSite {
   constructor(private readonly d: {
     cobertura: Map<string, Intervalo[]>
     canalDe: Map<string, string>
-    maxCoberto: Map<string, string>
     base: Map<string, number | null>
     impressoes: Map<string, number | null>
     impressoesNulas: Set<string>
@@ -167,21 +174,33 @@ export class SeriesDoSite {
   }
 
   /**
-   * A soma da métrica de um braço (vários vídeos). Um vídeo que não soma derruba o braço: `nao_medido` com o motivo mais forte
-   * (cobertura > em_revisao > sem_valor > limiar) e os dias contados em todos os vídeos.
+   * A soma da métrica de um braço (vários vídeos), pré e pós JUNTOS: só entra o vídeo que soma nas DUAS janelas (senão pré e pós
+   * seriam populações diferentes). Os que não somam ficam de fora e viram `videosMedidos < videosTotal`; abaixo do piso
+   * (`PISO_BRACO`) o braço é `nao_medido` com o motivo mais forte entre os que falharam (cobertura > em_revisao > sem_valor > limiar)
+   * e `diasSemCobertura` em VÍDEO-DIAS (soma dos dias que não somaram, em todos os vídeos que falharam).
    */
-  somarBraco(metrica: Exclude<MetricaD2, 'prova_related'>, ytIds: readonly string[], dias: string[]): SomaJanela {
+  somarBraco(metrica: Exclude<MetricaD2, 'prova_related'>, ytIds: readonly string[], pre: string[], pos: string[]): SomaBraco {
     const ordem = ['cobertura', 'em_revisao', 'sem_valor', 'limiar'] as const
-    let soma = 0
+    let somaPre = 0
+    let somaPos = 0
+    let entraram = 0
     let forte: number = ordem.length // índice do motivo mais forte visto (0 = cobertura); `ordem.length` = nenhum
-    let dias_ = 0
+    let dias = 0
     for (const yt of ytIds) {
-      const r = this.somar(metrica, yt, dias)
-      if ('soma' in r) soma += r.soma
-      else { forte = Math.min(forte, ordem.indexOf(r.nao_medido)); dias_ += r.diasSemCobertura }
+      const a = this.somar(metrica, yt, pre)
+      const b = this.somar(metrica, yt, pos)
+      if ('soma' in a && 'soma' in b) { somaPre += a.soma; somaPos += b.soma; entraram++; continue }
+      for (const r of [a, b]) {
+        if ('soma' in r) continue
+        forte = Math.min(forte, ordem.indexOf(r.nao_medido))
+        dias += r.diasSemCobertura
+      }
     }
-    if (forte === ordem.length) return { soma }
-    return { nao_medido: ordem[forte]!, diasSemCobertura: dias_ }
+    if (ytIds.length === 0) return { nao_medido: 'cobertura', diasSemCobertura: 0 }
+    if (entraram / ytIds.length < PISO_BRACO) {
+      return { nao_medido: forte === ordem.length ? 'cobertura' : ordem[forte]!, diasSemCobertura: dias }
+    }
+    return { pre: somaPre, pos: somaPos, videosMedidos: entraram, videosTotal: ytIds.length }
   }
 
   /**
@@ -198,18 +217,31 @@ export class SeriesDoSite {
     return { apareceu, semCobertura }
   }
 
-  /** Até onde a fonte está coberta no canal do vídeo: reporting em "fim do relatório" (1º dia sem dado), Analytics em `covered_to`. */
-  coberturaDeFecho(fonte: FonteD2, yt: string): CoberturaDeFecho {
-    const canal = this.d.canalDe.get(yt)
-    const nada: CoberturaDeFecho = { ateReporting: null, ateAnalytics: null }
-    if (canal === undefined) return nada
-    const ate = (conjunto: string): string | null => this.d.maxCoberto.get(chave(canal, conjunto)) ?? null
+  /**
+   * Até onde a fonte está coberta NO BRAÇO (Yannis I3): o MÍNIMO entre os vídeos do braço, para esperar o mais atrasado (até `pub + 60`,
+   * depois a tarefa desiste). Analytics = `covered_to` do vídeo no conjunto; reporting (R2) = fim do relatório normalizado do canal do vídeo;
+   * R3/R5 = `covered_to` do vídeo + 1. Vídeo sem nenhuma cobertura da fonte não segura o fecho (ele já conta como falha no piso do braço);
+   * braço sem nenhuma cobertura = nulo.
+   */
+  coberturaDeFechoDoBraco(fonte: FonteD2, ytIds: readonly string[]): CoberturaDeFecho {
     const mais1 = (d: string | null): string | null => (d === null ? null : addDays(d, 1))
-    if (fonte === 'R1') return { ateReporting: null, ateAnalytics: ate('base') }
-    if (fonte === 'R4') return { ateReporting: null, ateAnalytics: ate('trafego') }
-    if (fonte === 'R2') return { ateReporting: this.d.fimDeRelatorio.get(canal) ?? null, ateAnalytics: null }
-    if (fonte === 'R3') return { ateReporting: mais1(ate('alcance_dim')), ateAnalytics: null }
-    return { ateReporting: mais1(ate('detalhe')), ateAnalytics: null }
+    const ateVideo = (yt: string, conjunto: string): string | null => {
+      let m: string | null = null
+      for (const i of this.d.cobertura.get(chave(yt, conjunto)) ?? []) if (m === null || i.ate > m) m = i.ate
+      return m
+    }
+    const minimo = (l: Array<string | null>): string | null => {
+      const v = l.filter((x): x is string => x !== null)
+      return v.length === 0 ? null : v.reduce((a, b) => (a < b ? a : b))
+    }
+    const analytics = (conjunto: string): string | null => minimo(ytIds.map(yt => ateVideo(yt, conjunto)))
+    if (fonte === 'R1') return { ateReporting: null, ateAnalytics: analytics('base') }
+    if (fonte === 'R4') return { ateReporting: null, ateAnalytics: analytics('trafego') }
+    if (fonte === 'R2') {
+      return { ateReporting: minimo(ytIds.map(yt => { const c = this.d.canalDe.get(yt); return c === undefined ? null : this.d.fimDeRelatorio.get(c) ?? null })), ateAnalytics: null }
+    }
+    if (fonte === 'R3') return { ateReporting: mais1(analytics('alcance_dim')), ateAnalytics: null }
+    return { ateReporting: mais1(analytics('detalhe')), ateAnalytics: null }
   }
 }
 
@@ -223,7 +255,6 @@ export async function lerSeriesDoSite(sb: SupabaseClient, p: PedidoSeries): Prom
   const outliers = [...new Set(p.outliersYt ?? [])]
   const cobertura = new Map<string, Intervalo[]>()
   const canalDe = new Map<string, string>()
-  const maxCoberto = new Map<string, string>()
   const base = new Map<string, number | null>()
   /** soma por (vídeo, dia); chave presente com nulo = a linha existe e o número não veio */
   const impressoes = new Map<string, number | null>()
@@ -246,9 +277,6 @@ export async function lerSeriesDoSite(sb: SupabaseClient, p: PedidoSeries): Prom
       cobertura.set(k, l)
       if (typeof r.channel_id === 'string') {
         canalDe.set(r.youtube_video_id, r.channel_id)
-        const kc = chave(r.channel_id, r.metric_set)
-        const m = maxCoberto.get(kc)
-        if (m === undefined || r.covered_to > m) maxCoberto.set(kc, r.covered_to)
       }
     }
     for (const f of faixas) {
@@ -299,5 +327,5 @@ export async function lerSeriesDoSite(sb: SupabaseClient, p: PedidoSeries): Prom
       if (fim !== null && fim > (fimDeRelatorio.get(r.channel_id) ?? '')) fimDeRelatorio.set(r.channel_id, fim)
     }
   }
-  return new SeriesDoSite({ cobertura, canalDe, maxCoberto, base, impressoes, impressoesNulas, diasComRelatorio, fimDeRelatorio, alcanceDim, origem, detalhe })
+  return new SeriesDoSite({ cobertura, canalDe, base, impressoes, impressoesNulas, diasComRelatorio, fimDeRelatorio, alcanceDim, origem, detalhe })
 }

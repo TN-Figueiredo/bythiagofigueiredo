@@ -10,10 +10,9 @@ import { ObservatoryLoadError } from '../niches-db'
 import { materializarZeros, type IntervaloCoberto } from './cobertura-leitor'
 import { JANELA_LEITURA_ALCANCE_DIAS } from './dias'
 import { leituraValida, type LeituraPrivadaDoSite } from './leitura-privada'
-import { TETO_VIDEOS_DIARIO } from './tipos'
+import { TETO_VIDEOS_DIARIO, TIPO_ALCANCE } from './tipos'
 import type { AlcanceCanal, AlcanceLinha, DiarioCanal, DiarioLinha, DiaYt, Privado, RelatorioDia, StatusRelatorio } from './tipos'
 
-import { TIPO_ALCANCE } from './consultas'
 export { TIPO_ALCANCE }
 export const JANELA_DIARIO_DIAS = 28
 export { TETO_VIDEOS_DIARIO }

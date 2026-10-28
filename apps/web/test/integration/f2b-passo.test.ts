@@ -79,7 +79,7 @@ describe.skipIf(skipIfNoLocalDb())('F2b T4: medirD2 contra o banco de integraÃ§Ã
   afterAll(async () => {
     delete process.env.OBS_SINAIS_NICHO
     try {
-      for (const t of ['niche_signals', 'niche_outliers_vistos', 'video_lugares', 'yt_own_video_daily', 'yt_own_video_coverage', 'yt_own_video_meta_daily', 'youtube_videos', 'youtube_channels'])
+      for (const t of ['niche_signal_efeito_bracos', 'niche_signal_efeitos', 'niche_signals', 'niche_outliers_vistos', 'video_lugares', 'yt_own_video_daily', 'yt_own_video_coverage', 'yt_own_video_meta_daily', 'youtube_videos', 'youtube_channels'])
         await pg.query(`delete from public.${t} where site_id = $1`, [site])
       await apagarCanais(pg, 'site_id = $1', [site])
       await apagarSites(pg, 'id = $1', [site])

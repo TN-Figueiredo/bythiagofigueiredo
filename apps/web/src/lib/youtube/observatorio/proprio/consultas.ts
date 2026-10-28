@@ -3,12 +3,11 @@
 // (`ler-dimensoes.ts`) continuam sendo a porta das telas e chamam estas funções; a prova fica lá. Quem chama daqui sem prova é só
 // `sinais/medida/series.ts` (tarefa de servidor com cliente de serviço; sai agregado, nunca a linha do dia). O erro lançado leva só tabela,
 // motivo, código e contagem: a mensagem do banco é descartada (pode carregar conteúdo).
+import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TAMANHO_PAGINA } from '@/lib/youtube/coleta/paginar'
 import { ehSchemaAusente } from '@/lib/youtube/coleta/schema'
 
-/** O relatório do alcance básico (R2): impressões por vídeo e dia. */
-export const TIPO_ALCANCE = 'channel_reach_basic_a1'
 /** Vídeos por consulta (o `in` do PostgREST); os leitores e a medida D2 leem em blocos deste tamanho. */
 export const TETO_VIDEOS_CONSULTA = 50
 

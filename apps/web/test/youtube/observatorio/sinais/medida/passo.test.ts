@@ -20,7 +20,7 @@ const presenca = vi.fn()
 vi.mock('@/lib/youtube/observatorio/sinais/medida/series', () => ({
   ehSchemaAusenteDaMedida: () => false,
   lerSeriesDoSite: async () => ({
-    somarBraco, presenca, coberturaDeFecho: () => ({ ateReporting: '2026-12-15', ateAnalytics: '2026-12-15' }),
+    somarBraco, presenca, coberturaDeFechoDoBraco: () => ({ ateReporting: '2026-12-15', ateAnalytics: '2026-12-15' }),
   }),
 }))
 
@@ -59,7 +59,7 @@ const ctx = (sb: ReturnType<typeof montar>['sb'], over: { fimMs?: number } = {})
 
 beforeEach(() => {
   gravadorSpy.mockReset()
-  somarBraco.mockReset().mockImplementation((_m: string, ids: string[], dias: string[]) => ({ soma: ids.length * dias.length }))
+  somarBraco.mockReset().mockImplementation((_m: string, ids: string[], pre: string[], pos: string[]) => ({ pre: ids.length * pre.length, pos: ids.length * pos.length, videosMedidos: ids.length, videosTotal: ids.length }))
   presenca.mockReset().mockReturnValue({ apareceu: 2, semCobertura: 0 })
   process.env.OBS_SINAIS_NICHO = 'on'
 })
@@ -98,12 +98,12 @@ describe('medirD2', () => {
   })
 
   it('métrica sem cobertura vira nao_medido com motivo e dias; pre/pos nulos', async () => {
-    somarBraco.mockImplementation((m: string) => (m === 'views_busca' ? { nao_medido: 'limiar', diasSemCobertura: 3 } : { soma: 5 }))
+    somarBraco.mockImplementation((m: string) => (m === 'views_busca' ? { nao_medido: 'limiar', diasSemCobertura: 3 } : { pre: 5, pos: 5, videosMedidos: 1, videosTotal: 1 }))
     const { sb, rpc } = montar()
     const r = await medirD2(ctx(sb))
     const l = (rpc.find(x => x.nome === 'niche_signal_efeitos_gravar')!.args as { p_linhas: Array<{ metrica: string; papel: string; estado: string; motivo: string | null; dias_sem_cobertura: number | null; pre: number | null }> }).p_linhas
       .find(x => x.metrica === 'views_busca' && x.papel === 'alvo')!
-    expect(l).toMatchObject({ estado: 'nao_medido', motivo: 'limiar', dias_sem_cobertura: 6, pre: null })
+    expect(l).toMatchObject({ estado: 'nao_medido', motivo: 'limiar', dias_sem_cobertura: 3, pre: null })
     expect(r.detalhe.d2_nao_medidos_hoje).toBe(1)
   })
 

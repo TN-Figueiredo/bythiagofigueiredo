@@ -9,7 +9,7 @@ set lock_timeout = '5s';
 
 create table if not exists public.niche_signal_efeitos (
   site_id uuid not null references public.sites (id) on delete cascade,
-  signal_id uuid not null references public.niche_signals (id) on delete cascade,
+  signal_id uuid not null references public.niche_signals (id) on delete no action,
   outlier_video_id uuid not null,              -- sem FK: o vídeo do competidor pode sair com o canal acompanhado (D4)
   canal_id uuid not null,
   outlier_published_at timestamptz not null,
@@ -23,7 +23,8 @@ create table if not exists public.niche_signal_efeitos (
   motivo text check (motivo in ('cobertura', 'limiar', 'detalhe_ausente', 'pre_contaminado', 'contaminacao_desconhecida',
                                  'sem_alvo', 'sem_controle', 'outlier_apagado', 'base_zero', 'volume',
                                  'em_revisao', 'sem_valor')),
-  dias_sem_cobertura smallint,
+  dias_sem_cobertura integer,                  -- vídeo-dias sem soma no braço (não cabe em smallint: 600 vídeos x 58 dias)
+  videos_medidos integer,                      -- vídeos do braço que entraram na soma (nulo na linha `par` e quando nao_medido)
   fechado_em timestamptz not null default now(),
   versao_regra text not null,
   primary key (signal_id, outlier_video_id, papel, metrica, anos_atras)
@@ -31,7 +32,7 @@ create table if not exists public.niche_signal_efeitos (
 
 create table if not exists public.niche_signal_efeito_bracos (          -- braço guardado UMA vez por par
   site_id uuid not null references public.sites (id) on delete cascade,
-  signal_id uuid not null references public.niche_signals (id) on delete cascade,
+  signal_id uuid not null references public.niche_signals (id) on delete no action,
   outlier_video_id uuid not null,
   papel text not null check (papel in ('alvo', 'controle')),
   anos_atras smallint not null default 0 check (anos_atras in (0, 1, 2)),
@@ -62,6 +63,8 @@ alter table public.niche_signal_efeito_bracos enable row level security;
 -- sem policy e sem grant para authenticated até o gatilho: só service_role
 revoke all on public.niche_signal_efeitos, public.niche_signal_efeito_bracos from public, anon, authenticated;
 grant select, insert on public.niche_signal_efeitos, public.niche_signal_efeito_bracos to service_role;
+-- os privilégios padrão do Supabase dão ALL ao service_role: tira o resto (linha fechada é imutável; a cascata de FK roda como dono)
+revoke update, delete, truncate on public.niche_signal_efeitos, public.niche_signal_efeito_bracos from service_role;
 
 -- ---------------------------------------------------------------- funções (todas service_role)
 
@@ -114,10 +117,14 @@ $$;
 -- Fila "par x métrica sem linha": a métrica só sai quando existem as linhas de `alvo` E `controle` com anos_atras = 0;
 -- uma linha `par` (descarte) encerra o par. O catálogo de métricas vem por parâmetro.
 create or replace function public.niche_signal_pares_abertos(p_site uuid, p_metricas text[], p_janela_dias int)
-returns table (signal_id uuid, outlier_video_id uuid, canal_id uuid, outlier_published_at timestamptz, chave text, metricas_faltantes text[])
+returns table (signal_id uuid, outlier_video_id uuid, canal_id uuid, outlier_published_at timestamptz, chave text, metricas_faltantes text[],
+               videos_alvo text[], videos_controle text[])
 language sql stable security invoker set search_path = '' as $$
-  select b.signal_id, b.outlier_video_id, b.canal_id, b.outlier_published_at, b.chave, f.faltam
+  select b.signal_id, b.outlier_video_id, b.canal_id, b.outlier_published_at, b.chave, f.faltam, ba.videos, bc.videos
     from public.niche_signal_pares_base(p_site, p_janela_dias) b
+    -- braço fixado na 1ª gravação (nulo enquanto o par não tem braço): o recálculo do dia nunca o troca
+    left join public.niche_signal_efeito_bracos ba on ba.signal_id = b.signal_id and ba.outlier_video_id = b.outlier_video_id and ba.papel = 'alvo' and ba.anos_atras = 0
+    left join public.niche_signal_efeito_bracos bc on bc.signal_id = b.signal_id and bc.outlier_video_id = b.outlier_video_id and bc.papel = 'controle' and bc.anos_atras = 0
    cross join lateral (
      select coalesce(array_agg(m.metrica order by m.ord), '{}'::text[]) as faltam
        from unnest(p_metricas) with ordinality m(metrica, ord)
@@ -160,14 +167,14 @@ begin
   with r as (
     select * from jsonb_to_recordset(p_linhas) as x(signal_id uuid, outlier_video_id uuid, canal_id uuid, outlier_published_at timestamptz,
                                                     papel text, metrica text, anos_atras smallint, pre numeric, pos numeric,
-                                                    estado text, motivo text, dias_sem_cobertura smallint, versao_regra text)
+                                                    estado text, motivo text, dias_sem_cobertura integer, videos_medidos integer, versao_regra text)
   ), ok as (
     select r.* from r join public.niche_signals s on s.id = r.signal_id and s.site_id = p_site
   ), ins as (
     insert into public.niche_signal_efeitos (site_id, signal_id, outlier_video_id, canal_id, outlier_published_at, papel, metrica, anos_atras,
-                                             pre, pos, estado, motivo, dias_sem_cobertura, versao_regra)
+                                             pre, pos, estado, motivo, dias_sem_cobertura, videos_medidos, versao_regra)
     select p_site, ok.signal_id, ok.outlier_video_id, ok.canal_id, ok.outlier_published_at, ok.papel, ok.metrica, coalesce(ok.anos_atras, 0),
-           ok.pre, ok.pos, ok.estado, ok.motivo, ok.dias_sem_cobertura, ok.versao_regra
+           ok.pre, ok.pos, ok.estado, ok.motivo, ok.dias_sem_cobertura, ok.videos_medidos, ok.versao_regra
       from ok
     on conflict do nothing
     returning 1
@@ -182,7 +189,7 @@ end $$;
 
 -- Contagem só com números (a tarefa publica no `detalhe`), mais `v0` (data PT de min(primeiro_visto_em), ou nulo), que a
 -- tarefa usa só para montar os pares e nunca publica. `pares_abertos` = pares sem linha `par` e sem `views_total` fechada
--- nos dois papéis (a 1ª métrica a fechar).
+-- nos dois papéis (R2/R3/R5 fecham em pub+34, antes de R1; `views_total` é só o marcador de "par ainda aberto").
 create or replace function public.niche_signal_medida_contagem(p_site uuid, p_janela_dias int) returns jsonb
 language sql stable security invoker set search_path = '' as $$
   with base as (select * from public.niche_signal_pares_base(p_site, p_janela_dias)),
@@ -197,7 +204,7 @@ language sql stable security invoker set search_path = '' as $$
                and exists (select 1 from public.niche_signal_efeitos x where x.signal_id = b.signal_id and x.outlier_video_id = b.outlier_video_id
                              and x.metrica = 'views_total' and x.anos_atras = 0 and x.papel = 'controle'))),
     'eventos_fechados', (select count(distinct x.signal_id) from public.niche_signal_efeitos x
-        where x.site_id = p_site and x.estado = 'medido' and x.metrica <> 'par'),
+        where x.site_id = p_site and x.estado = 'medido' and x.metrica <> 'par' and x.papel = 'alvo' and x.anos_atras = 0),
     'sem_ancora', (select count(*) from vivos v where not exists (select 1 from base b where b.signal_id = v.id)),
     'fora_de_evidence', (select count(*) from base b where not b.em_evidence),
     'sem_entrada', case when exists (select 1 from public.niche_outliers_vistos where site_id = p_site)

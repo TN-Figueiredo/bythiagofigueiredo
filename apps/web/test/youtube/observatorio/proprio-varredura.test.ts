@@ -3,7 +3,7 @@
 // Nenhum arquivo fora do módulo da guarda constrói o token, pede a prova de edição ou chama os leitores.
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { join, posix, relative, sep } from 'node:path'
 
 const SRC = join(__dirname, '../../../src')
 const EDICAO = 'lib/youtube/observatorio/proprio/edicao.ts'
@@ -77,6 +77,20 @@ const DOZE = [
  * agregado, nunca a linha do dia.
  */
 const GRAVADORES_QUE_LEEM = new Set(['lib/youtube/observatorio/sinais/leitura.ts', 'lib/youtube/observatorio/sinais/lugares-do-site.ts', 'lib/youtube/observatorio/comentarios/gravar.ts', 'lib/youtube/horaria/gravar.ts', 'lib/youtube/ab-gravacao/retrato-step.ts', 'lib/youtube/ab-gravacao/aviso-volume.ts', 'lib/youtube/observatorio/proprio/consultas.ts', 'lib/youtube/observatorio/sinais/medida/series.ts'])
+
+/**
+ * Yannis I4: o especificador é RESOLVIDO contra a pasta do arquivo (`./consultas` dentro de `proprio/` também vale), para
+ * `import`, `export ... from`, `import()` e `require()`; `@/` aponta para `src/`.
+ */
+const CONSULTAS = 'lib/youtube/observatorio/proprio/consultas'
+export function importaConsultas(arq: string, s: string): boolean {
+  for (const m of s.matchAll(/(?:\bfrom|\bimport\s*\(|\brequire\s*\()\s*['"]([^'"]+)['"]/g)) {
+    const spec = m[1]!
+    const alvo = spec.startsWith('.') ? posix.join(posix.dirname(arq), spec) : spec.startsWith('@/') ? spec.slice(2) : spec
+    if (alvo.replace(/\.(ts|tsx)$/, '') === CONSULTAS) return true
+  }
+  return false
+}
 /** F2b T3: quem pode importar as consultas sem prova. */
 const PODE_IMPORTAR_CONSULTAS = new Set([LER_DIMENSOES, 'lib/youtube/observatorio/sinais/medida/series.ts', 'lib/youtube/observatorio/proprio/consultas.ts'])
 /**
@@ -156,7 +170,7 @@ export function violacoes(fontes: Record<string, string>): string[] {
       if (!/\bleituraValida\b/.test(s)) v.push(`${arq}: chama a RPC ab_lab_volume sem passar por leituraValida`)
       if (/\bEdicaoDoSite\b|\bedicaoValida\b/.test(s)) v.push(`${arq}: chama a RPC ab_lab_volume com o token de edição`)
     }
-    if (!PODE_IMPORTAR_CONSULTAS.has(arq) && /from\s+['"][^'"]*proprio\/consultas['"]/.test(s)) v.push(`${arq}: importa as consultas sem prova do dado privado`)
+    if (!PODE_IMPORTAR_CONSULTAS.has(arq) && importaConsultas(arq, s)) v.push(`${arq}: importa as consultas sem prova do dado privado`)
     if (!arq.startsWith(COLETA_DIR) && lePorFrom(s) !== leSoColunasPermitidas(s)) v.push(`${arq}: lê yt_own_collection_attempts além de attempt_day e outcome`)
     if (!PODE_LER.has(arq) && /import\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
     if (!PODE_LER.has(arq) && /export\s+(?!type\b)[^'";]*?from\s+['"][^'"]*proprio\/ler(-retencao|-dimensoes|-diario-periodo)?['"]/.test(s)) v.push(`${arq}: importa os leitores do dado privado`)
@@ -228,6 +242,14 @@ describe('varredura: o dado privado do canal próprio', () => {
   })
   describe('controles negativos: a varredura pega o que deve pegar', () => {
     const base = { [EDICAO]: '', [LER]: '', [DADOS]: '' }
+    it('import relativo das consultas sem prova é pego (Yannis I4), com import, export-from e import()', () => {
+      const novo = 'lib/youtube/observatorio/proprio/novo.ts'
+      expect(violacoes({ ...base, [novo]: "import { lerBaseDiaria } from './consultas'" })).toEqual([`${novo}: importa as consultas sem prova do dado privado`])
+      expect(violacoes({ ...base, [novo]: "export { lerBaseDiaria } from './consultas'" })).toHaveLength(1)
+      expect(violacoes({ ...base, [novo]: "const m = await import('../proprio/consultas')" })).toHaveLength(1)
+      expect(violacoes({ ...base, 'lib/youtube/observatorio/outro/x.ts': "import { a } from '@/lib/youtube/observatorio/proprio/consultas'" })).toHaveLength(1)
+      expect(violacoes({ ...base, [novo]: "import { a } from './tipos'" })).toEqual([])
+    })
     it('chamar um leitor fora do módulo', () => {
       expect(violacoes({ ...base, 'app/x/page.tsx': 'await lerDiario(sb, p)' })).toEqual(['app/x/page.tsx: chama um leitor do dado privado'])
       expect(violacoes({ ...base, 'app/x/page.tsx': 'await lerAlcance(sb, p)' })).toHaveLength(1)

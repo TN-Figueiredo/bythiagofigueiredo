@@ -83,14 +83,14 @@ interface LinhaEfeito {
   signal_id: string; outlier_video_id: string; canal_id: string; outlier_published_at: string
   papel: 'alvo' | 'controle'; metrica: MetricaLinha; anos_atras: number
   pre: number | null; pos: number | null; estado: 'medido' | 'nao_medido'; motivo: string | null
-  dias_sem_cobertura: number | null; versao_regra: string
+  dias_sem_cobertura: number | null; videos_medidos: number | null; versao_regra: string
 }
 interface Braco {
   signal_id: string; outlier_video_id: string; papel: 'alvo' | 'controle'; anos_atras: number
   chave: string; videos: string[]; chaves_em_evento: string[]
 }
 
-type Medida = { estado: 'medido'; pre: number; pos: number } | { estado: 'nao_medido'; motivo: string; dias: number }
+type Medida = { estado: 'medido'; pre: number; pos: number; videos: number } | { estado: 'nao_medido'; motivo: string; dias: number }
 
 const deslocar = (dias: string[], anos: number): string[] => dias.map(d => dayPt(new Date(Date.parse(d + 'T12:00:00Z') - anos * 365 * 86_400_000)))
 
@@ -100,14 +100,12 @@ function medirBraco(series: SeriesDoSite, metrica: MetricaD2, ids: readonly stri
     let apareceu = 0
     let sem = 0
     for (const yt of ids) { const p = series.presenca(yt, outlierYt, pos); apareceu += p.apareceu; sem += p.semCobertura }
-    return sem > 0 ? { estado: 'nao_medido', motivo: 'cobertura', dias: sem } : { estado: 'medido', pre: 0, pos: apareceu }
+    return sem > 0 ? { estado: 'nao_medido', motivo: 'cobertura', dias: sem } : { estado: 'medido', pre: 0, pos: apareceu, videos: ids.length }
   }
-  const a = series.somarBraco(metrica, ids, pre)
-  const b = series.somarBraco(metrica, ids, pos)
-  if ('soma' in a && 'soma' in b) return { estado: 'medido', pre: a.soma, pos: b.soma }
-  const falha = 'soma' in a ? b : a
-  if ('soma' in falha) return { estado: 'nao_medido', motivo: 'sem_valor', dias: 0 }
-  return { estado: 'nao_medido', motivo: falha.nao_medido, dias: (('soma' in a ? 0 : a.diasSemCobertura)) + (('soma' in b ? 0 : b.diasSemCobertura)) }
+  // só entram os vídeos que somam em pré e pós; abaixo do piso do braço (series.ts) vira nao_medido com o motivo mais forte
+  const b = series.somarBraco(metrica, ids, pre, pos)
+  if ('nao_medido' in b) return { estado: 'nao_medido', motivo: b.nao_medido, dias: b.diasSemCobertura }
+  return { estado: 'medido', pre: b.pre, pos: b.pos, videos: b.videosMedidos }
 }
 
 function linhaDe(par: ParDaFila & { signalId: string; videoId: string; canalId: string }, papel: 'alvo' | 'controle', metrica: MetricaLinha, anos: number, m: Medida): LinhaEfeito {
@@ -116,8 +114,8 @@ function linhaDe(par: ParDaFila & { signalId: string; videoId: string; canalId: 
     papel, metrica, anos_atras: anos, versao_regra: VERSAO_REGRA_D2,
   }
   return m.estado === 'medido'
-    ? { ...base, pre: m.pre, pos: m.pos, estado: 'medido', motivo: null, dias_sem_cobertura: null }
-    : { ...base, pre: null, pos: null, estado: 'nao_medido', motivo: m.motivo, dias_sem_cobertura: m.dias }
+    ? { ...base, pre: m.pre, pos: m.pos, estado: 'medido', motivo: null, dias_sem_cobertura: null, videos_medidos: m.videos }
+    : { ...base, pre: null, pos: null, estado: 'nao_medido', motivo: m.motivo, dias_sem_cobertura: m.dias, videos_medidos: null }
 }
 
 const emBlocos = <T>(l: readonly T[], n: number): T[][] => Array.from({ length: Math.ceil(l.length / n) }, (_, i) => l.slice(i * n, (i + 1) * n))
@@ -274,7 +272,8 @@ async function medirSite(c: ContextoDoPasso, siteId: string, agora: Date, restan
 
     for (const { par, meta } of candidatos) {
       const j = janelasDoPar(par.pubDia)
-      const cobertura = (m: MetricaD2) => series.coberturaDeFecho(FONTE_DA_METRICA[m], par.alvo[0]!)
+      // fecha pelo MÍNIMO de cobertura dos vídeos do par (alvo e controle): espera o mais atrasado até desistir
+      const cobertura = (m: MetricaD2) => series.coberturaDeFechoDoBraco(FONTE_DA_METRICA[m], [...par.alvo, ...par.controle])
       let gravouAlgo = false
       for (const m of meta.faltantes) {
         const prontidao = prontoParaFechar(par, m, hoje, cobertura(m))

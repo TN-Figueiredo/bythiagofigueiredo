@@ -18,7 +18,7 @@ const JANELA = 14
 const METRICAS = ['views_total', 'impressoes_total', 'impressoes_busca', 'impressoes_canal', 'impressoes_sugeridos',
   'impressoes_inicio', 'views_sugeridos', 'views_busca', 'views_inicio', 'prova_related']
 
-interface Fila { signal_id: string; outlier_video_id: string; canal_id: string; chave: string; metricas_faltantes: string[]; outlier_published_at: Date }
+interface Fila { videos_alvo: string[] | null; videos_controle: string[] | null; signal_id: string; outlier_video_id: string; canal_id: string; chave: string; metricas_faltantes: string[]; outlier_published_at: Date }
 
 describe.skipIf(skipIfNoLocalDb())('F2b T2: efeitos da medida D2 (tabelas, fila, gravar, contagem)', () => {
   let pg: Client
@@ -62,7 +62,7 @@ describe.skipIf(skipIfNoLocalDb())('F2b T2: efeitos da medida D2 (tabelas, fila,
   }
   function linha(signal: string, video: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
     return { signal_id: signal, outlier_video_id: video, canal_id: randomUUID(), outlier_published_at: '2026-09-01T00:00:00Z', papel: 'alvo', metrica: 'views_total',
-      anos_atras: 0, pre: 10, pos: 20, estado: 'medido', motivo: null, dias_sem_cobertura: null, versao_regra: 'd2-v1', ...extra }
+      anos_atras: 0, pre: 10, pos: 20, estado: 'medido', motivo: null, dias_sem_cobertura: null, videos_medidos: 2, versao_regra: 'd2-v1', ...extra }
   }
   function braco(signal: string, video: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
     return { signal_id: signal, outlier_video_id: video, papel: 'alvo', anos_atras: 0, chave: 'pais:VN', videos: ['a', 'b'], chaves_em_evento: [], ...extra }
@@ -303,6 +303,64 @@ describe.skipIf(skipIfNoLocalDb())('F2b T2: efeitos da medida D2 (tabelas, fila,
       await gravar(site, [], [linha(s, v2, { papel: 'alvo' }), linha(s, v2, { papel: 'controle' })])
       const r2 = (await pg.query(`select public.niche_signal_medida_contagem($1, $2) as r`, [site, JANELA])).rows[0].r
       expect(r2).toMatchObject({ pares_abertos: 1, eventos_fechados: 1 })
+    })
+  })
+
+  it('contagem: eventos_fechados conta só o alvo de anos_atras = 0 (controle e placebo sozinhos não contam)', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      const v = randomUUID()
+      const s = await sinal(site, 'pais:VN', 5, [{ video: v, canal: randomUUID(), pub: new Date(Date.now() - 6 * 86400000).toISOString() }])
+      await gravar(site, [], [linha(s, v, { papel: 'controle' }), linha(s, v, { papel: 'alvo', anos_atras: 1 }), linha(s, v, { papel: 'controle', anos_atras: 1 })])
+      const c = async (): Promise<number> => (await pg.query(`select public.niche_signal_medida_contagem($1, $2) as r`, [site, JANELA])).rows[0].r.eventos_fechados
+      expect(await c()).toBe(0)
+      await gravar(site, [], [linha(s, v, { papel: 'alvo', metrica: 'views_busca' })])
+      expect(await c()).toBe(1)
+    })
+  })
+
+  it('pares_abertos devolve videos_alvo/videos_controle do braço gravado (nulos antes da 1ª gravação)', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      const v = randomUUID()
+      const s = await sinal(site, 'pais:VN', 5, [{ video: v, canal: randomUUID(), pub: new Date(Date.now() - 6 * 86400000).toISOString() }])
+      const antes = (await fila(site))[0]!
+      expect(antes.videos_alvo).toBeNull()
+      expect(antes.videos_controle).toBeNull()
+      await gravar(site, [braco(s, v, { videos: ['a', 'b'] }), braco(s, v, { papel: 'controle', videos: ['c'] })], [linha(s, v, { metrica: 'views_busca' })])
+      const depois = (await fila(site))[0]!
+      expect(depois.videos_alvo).toEqual(['a', 'b'])
+      expect(depois.videos_controle).toEqual(['c'])
+    })
+  })
+
+  it('dias_sem_cobertura é integer (40000 cabe) e videos_medidos vai para a linha', async () => {
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      const v = randomUUID()
+      const s = await sinal(site, 'pais:VN', 5, [{ video: v, canal: randomUUID(), pub: new Date(Date.now() - 6 * 86400000).toISOString() }])
+      expect(await gravar(site, [], [
+        linha(s, v, { metrica: 'views_busca', estado: 'nao_medido', motivo: 'cobertura', pre: null, pos: null, dias_sem_cobertura: 40000, videos_medidos: null }),
+        linha(s, v, { metrica: 'views_total', videos_medidos: 7 })])).toMatchObject({ inseridas: 2 })
+      expect(await escalar<number>(pg, `select dias_sem_cobertura from public.niche_signal_efeitos where signal_id = $1 and metrica = 'views_busca'`, [s])).toBe(40000)
+      expect(await escalar<number>(pg, `select videos_medidos from public.niche_signal_efeitos where signal_id = $1 and metrica = 'views_total'`, [s])).toBe(7)
+    })
+  })
+
+  it('service_role não tem update/delete/truncate; apagar só o sinal falha com 23503 (no action)', async () => {
+    for (const t of ['niche_signal_efeitos', 'niche_signal_efeito_bracos']) {
+      for (const p of ['update', 'delete', 'truncate']) {
+        expect(await escalar<boolean>(pg, `select has_table_privilege('service_role', 'public.${t}', '${p}')`), `${t} ${p}`).toBe(false)
+      }
+    }
+    await tx(async () => {
+      const { site } = await criarSite(pg)
+      const v = randomUUID()
+      const s = await sinal(site, 'pais:VN', 5, [{ video: v, canal: randomUUID(), pub: new Date(Date.now() - 6 * 86400000).toISOString() }])
+      await gravar(site, [braco(s, v)], [linha(s, v)])
+      await pg.query('savepoint d')
+      await expect(pg.query(`delete from public.niche_signals where id = $1`, [s])).rejects.toMatchObject({ code: '23503' })
+      await pg.query('rollback to savepoint d')
     })
   })
 

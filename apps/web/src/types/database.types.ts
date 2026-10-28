@@ -8596,6 +8596,7 @@ export type Database = {
           signal_id: string
           site_id: string
           versao_regra: string
+          videos_medidos: number | null
         }
         Insert: {
           anos_atras?: number
@@ -8613,6 +8614,7 @@ export type Database = {
           signal_id: string
           site_id: string
           versao_regra: string
+          videos_medidos?: number | null
         }
         Update: {
           anos_atras?: number
@@ -8630,6 +8632,7 @@ export type Database = {
           signal_id?: string
           site_id?: string
           versao_regra?: string
+          videos_medidos?: number | null
         }
         Relationships: [
           {
@@ -16777,6 +16780,8 @@ export type Database = {
           outlier_published_at: string
           outlier_video_id: string
           signal_id: string
+          videos_alvo: string[]
+          videos_controle: string[]
         }[]
       }
       niche_signal_pares_base: {

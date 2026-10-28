@@ -163,27 +163,49 @@ describe('lerSeriesDoSite', () => {
     expect(ehSchemaAusenteDaMedida(erro)).toBe(true)
   })
 
-  it('somarBraco: um vídeo sem cobertura derruba o braço; motivo mais forte; dias somados', async () => {
+  it('somarBraco: pré e pós juntos; piso de 0,8; vídeo que falha sai da soma; motivo mais forte; dias em vídeo-dias', async () => {
+    const X = ['vid0000000' + '3', 'vid0000000' + '4', 'vid0000000' + '5', 'vid0000000' + '6']
+    const todos = [V, ...X]
     const db = fakeSupabase({
-      yt_own_video_coverage: [cob(V, 'base', '2026-01-01', dia(10))], // W sem cobertura
-      yt_own_video_daily: [diario(V, dia(1), 5)],
+      yt_own_video_coverage: todos.map(v => cob(v, 'base', '2026-01-01', dia(10))).concat([cob(W, 'base', '2026-01-01', dia(2))]),
+      yt_own_video_daily: todos.map(v => diario(v, dia(1), 5)).concat([diario(V, dia(-1), 2)]),
     })
-    const s = await lerSeriesDoSite(db.client, { siteId: S, ytIds: [V, W], faixas: FAIXA })
-    expect(s.somarBraco('views_total', [V], [dia(1), dia(2)])).toEqual({ soma: 5 })
-    expect(s.somarBraco('views_total', [V, W], [dia(1), dia(2)])).toEqual({ nao_medido: 'cobertura', diasSemCobertura: 2 })
+    const s = await lerSeriesDoSite(db.client, { siteId: S, ytIds: [...todos, W], faixas: FAIXA })
+    const pre = [dia(-1), dia(0)], pos = [dia(1), dia(2)]
+    // 1 vídeo medido nas duas janelas
+    expect(s.somarBraco('views_total', [V], pre, pos)).toEqual({ pre: 2, pos: 5, videosMedidos: 1, videosTotal: 1 })
+    // 4 de 5 (= piso 0,8): o vídeo sem cobertura sai e o braço mede os outros 4
+    const sem = 'vid0000000' + '9'
+    const r5 = s.somarBraco('views_total', [V, ...X.slice(0, 3), sem], pre, pos)
+    expect(r5).toEqual({ pre: 2, pos: 20, videosMedidos: 4, videosTotal: 5 })
+    // 3 de 5 (0,6 < piso): nao_medido, dias de todos que falharam (2 vídeos x 4 dias)
+    const r3 = s.somarBraco('views_total', [V, X[0]!, X[1]!, sem, 'vid0000000x'], pre, pos)
+    expect(r3).toEqual({ nao_medido: 'cobertura', diasSemCobertura: 8 })
+    expect(s.somarBraco('views_total', [], pre, pos)).toEqual({ nao_medido: 'cobertura', diasSemCobertura: 0 })
   })
 
-  it('coberturaDeFecho: Analytics pelo covered_to do canal; reporting pelo fim do relatório; sem cobertura = nulo', async () => {
+  it('somarBraco: vídeo que soma só no pré (falha no pós) fica fora das duas janelas', async () => {
     const db = fakeSupabase({
-      yt_own_video_coverage: [cob(V, 'base', '2026-01-01', dia(7)), cob(V, 'detalhe', '2026-09-08', dia(5))],
-      yt_reporting_reports: [relatorio(dia(1), 'baixado', true), relatorio(dia(2), 'baixado', true)],
+      yt_own_video_coverage: [cob(V, 'base', '2026-01-01', dia(10)), cob(W, 'base', '2026-01-01', dia(0))], // W cobre só o pré
+      yt_own_video_daily: [diario(V, dia(-1), 1), diario(V, dia(1), 3), diario(W, dia(-1), 100)],
     })
     const s = await lerSeriesDoSite(db.client, { siteId: S, ytIds: [V, W], faixas: FAIXA })
-    expect(s.coberturaDeFecho('R1', V)).toEqual({ ateReporting: null, ateAnalytics: dia(7) })
-    expect(s.coberturaDeFecho('R5', V)).toEqual({ ateReporting: dia(6), ateAnalytics: null })
-    expect(s.coberturaDeFecho('R2', V)).toEqual({ ateReporting: dia(3), ateAnalytics: null })
-    expect(s.coberturaDeFecho('R4', V)).toEqual({ ateReporting: null, ateAnalytics: null })
-    expect(s.coberturaDeFecho('R1', W)).toEqual({ ateReporting: null, ateAnalytics: null })
+    expect(s.somarBraco('views_total', [V, W], [dia(-1)], [dia(1)])).toEqual({ nao_medido: 'cobertura', diasSemCobertura: 1 }) // 1/2 < 0,8
+    expect(s.somarBraco('views_total', [V], [dia(-1)], [dia(1)])).toEqual({ pre: 1, pos: 3, videosMedidos: 1, videosTotal: 1 })
+  })
+
+  it('coberturaDeFechoDoBraco: mínimo entre os vídeos do braço; vídeo sem cobertura não segura; braço sem nada = nulo', async () => {
+    const db = fakeSupabase({
+      yt_own_video_coverage: [cob(V, 'base', '2026-01-01', dia(7)), cob(W, 'base', '2026-01-01', dia(4)), cob(V, 'detalhe', '2026-09-08', dia(5))],
+      yt_reporting_reports: [relatorio(dia(1), 'baixado', true), relatorio(dia(2), 'baixado', true)],
+    })
+    const s = await lerSeriesDoSite(db.client, { siteId: S, ytIds: [V, W, 'vid00000009'], faixas: FAIXA })
+    expect(s.coberturaDeFechoDoBraco('R1', [V])).toEqual({ ateReporting: null, ateAnalytics: dia(7) })
+    expect(s.coberturaDeFechoDoBraco('R1', [V, W, 'vid00000009'])).toEqual({ ateReporting: null, ateAnalytics: dia(4) })
+    expect(s.coberturaDeFechoDoBraco('R5', [V])).toEqual({ ateReporting: dia(6), ateAnalytics: null })
+    expect(s.coberturaDeFechoDoBraco('R2', [V])).toEqual({ ateReporting: dia(3), ateAnalytics: null })
+    expect(s.coberturaDeFechoDoBraco('R4', [V, W])).toEqual({ ateReporting: null, ateAnalytics: null })
+    expect(s.coberturaDeFechoDoBraco('R1', ['vid00000009'])).toEqual({ ateReporting: null, ateAnalytics: null })
   })
 
   it('somarJanela do braço de 28 dias sem nenhum dado nunca devolve soma', async () => {
