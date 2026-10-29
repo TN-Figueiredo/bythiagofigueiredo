@@ -74,9 +74,9 @@ describe.skipIf(skipIfNoLocalDb())('M9 contrato Zod contra o SQL da Tarefa 3', (
 
   it('bloquear: corpo do contrato e respostas ok e recusa passam por RespostaBloquear', async () => cena(async c => {
     const b = CorpoBloquear.parse({ passo: 'bloquear', item_id: 'item:1', alvo_id: c.alvo, motivo: 'antiga_ausente' })
-    const ok = await chamar(`select public.obs_archive_expurgo_block($1, $2, $3) as r`, [c.site, b.alvo_id, b.motivo])
+    const ok = await chamar(`select public.obs_archive_expurgo_block($1, 1, $2, $3) as r`, [c.site, b.alvo_id, b.motivo])
     expect(RespostaBloquear.parse(ok)).toMatchObject({ status: 'ok' })
-    const de_novo = await chamar(`select public.obs_archive_expurgo_block($1, $2, $3) as r`, [c.site, b.alvo_id, b.motivo])
+    const de_novo = await chamar(`select public.obs_archive_expurgo_block($1, 1, $2, $3) as r`, [c.site, b.alvo_id, b.motivo])
     expect(RespostaBloquear.parse(de_novo)).toMatchObject({ status: 'recusado', motivo: 'alvo_fora_de_copiar', alvo_id: c.alvo })
   }))
 })

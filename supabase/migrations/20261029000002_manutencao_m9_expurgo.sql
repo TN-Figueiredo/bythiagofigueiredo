@@ -660,7 +660,7 @@ end $$;
 revoke all on function public.obs_archive_expurgo_record(uuid, bigint, jsonb) from public, anon, authenticated;
 grant execute on function public.obs_archive_expurgo_record(uuid, bigint, jsonb) to service_role;
 
-create or replace function public.obs_archive_expurgo_block(p_site uuid, p_alvo bigint, p_motivo text) returns jsonb
+create or replace function public.obs_archive_expurgo_block(p_site uuid, p_item_id bigint, p_alvo bigint, p_motivo text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare a public.obs_archive_item_targets;
 begin
@@ -669,12 +669,13 @@ begin
   end if;
   select * into a from public.obs_archive_item_targets t where t.id = p_alvo and t.site_id = p_site for update;
   if a.id is null then raise exception 'item_desconhecido' using errcode = 'P0001'; end if;
+  if a.item_id is distinct from p_item_id then return jsonb_build_object('status', 'recusado', 'motivo', 'alvo_de_outro_item', 'alvo_id', a.id); end if;
   if a.estado <> 'copiar' then return jsonb_build_object('status', 'recusado', 'motivo', 'alvo_fora_de_copiar', 'alvo_id', a.id); end if;
   update public.obs_archive_item_targets set estado = 'bloqueado', motivo = p_motivo, updated_at = now() where id = a.id;
   return jsonb_build_object('status', 'ok', 'alvo_id', a.id);
 end $$;
-revoke all on function public.obs_archive_expurgo_block(uuid, bigint, text) from public, anon, authenticated;
-grant execute on function public.obs_archive_expurgo_block(uuid, bigint, text) to service_role;
+revoke all on function public.obs_archive_expurgo_block(uuid, bigint, bigint, text) from public, anon, authenticated;
+grant execute on function public.obs_archive_expurgo_block(uuid, bigint, bigint, text) to service_role;
 
 -- Só o dono, pelo SQL do painel (D-M9-5): volta um alvo bloqueado a copiar. depende_m10b só sai quando a M10b existir.
 create or replace function public.obs_archive_expurgo_unblock(p_site uuid, p_alvo bigint) returns jsonb
@@ -1316,10 +1317,10 @@ begin
            case when c.n_abertas > 0 and c.et = 'apagar_antigas' and c.n_arquivos > 0 then public.obs_archive_arquivos_do_canal(v_site, c.channel_ref) else '[]'::jsonb end as apagar,
            case when c.n_abertas > 0 and c.et = 'conferir_b2' then (select coalesce(jsonb_agg(a.filho || '/' || n order by a.filho, n), '[]'::jsonb)
                                                                     from public.obs_archive_absence a cross join lateral unnest(a.b2_nomes) n
-                                                                   where a.alvo = 'canal:' || c.channel_ref and a.encerrada_at is null and a.b2_absent_at is null)
+                                                                   where a.site_id = v_site and a.alvo = 'canal:' || c.channel_ref and a.encerrada_at is null and a.b2_absent_at is null)
                 else '[]'::jsonb end as b2_nomes,
            (select coalesce(jsonb_agg(a.prefixo order by a.prefixo), '[]'::jsonb) from public.obs_archive_absence a
-             where a.alvo = 'canal:' || c.channel_ref and a.prefixo not like '\_recebendo/%') as prefixos
+             where a.site_id = v_site and a.alvo = 'canal:' || c.channel_ref and a.prefixo not like '\_recebendo/%') as prefixos
       from canal_tempo c
   ), antiga as (
     select a.alvo as item_id, 'versao'::text as kind,
@@ -1330,12 +1331,12 @@ begin
            case when e.et = 'apagar_antigas' then public.obs_archive_apagar_da_antiga(v_site, a.alvo) else '[]'::jsonb end as apagar,
            case when e.et = 'conferir_b2' then (select coalesce(jsonb_agg(a2.filho || '/' || n order by a2.filho, n), '[]'::jsonb)
                                                   from public.obs_archive_absence a2 cross join lateral unnest(a2.b2_nomes) n
-                                                 where a2.alvo = a.alvo and a2.encerrada_at is null and a2.b2_absent_at is null) else '[]'::jsonb end as b2_nomes,
+                                                 where a2.site_id = v_site and a2.alvo = a.alvo and a2.encerrada_at is null and a2.b2_absent_at is null) else '[]'::jsonb end as b2_nomes,
            '[]'::jsonb as prefixos
       from public.obs_archive_absence a join public.obs_archive_units u on u.id = a.unidade_id
       cross join lateral (select public.obs_archive_etapa(count(*) filter (where z.nas_absent_first_at is null), count(*) filter (where z.nas_absent_at is null),
                                   count(*) filter (where z.snap_absent_at is null), min(z.nas_last_absent_at), count(*) filter (where z.b2_checked_at is null), v_lig, v_agora) as et
-                            from public.obs_archive_absence z where z.alvo = a.alvo and z.encerrada_at is null and z.liberado_em is not null and z.b2_absent_at is null) e
+                            from public.obs_archive_absence z where z.site_id = v_site and z.alvo = a.alvo and z.encerrada_at is null and z.liberado_em is not null and z.b2_absent_at is null) e
      where a.site_id = v_site and a.alvo like 'antiga:%' and a.encerrada_at is null and a.b2_absent_at is null
      group by a.alvo, e.et
   ), tudo (item_id, kind, tempo, falta, motivo, desde, mes, channel_ref, youtube_id, marcado, bloqueados, snap_oldest, apagar, b2_nomes, prefixos) as (

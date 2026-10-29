@@ -385,9 +385,13 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 3: abrir, registrar, bloquear e des
     await emTx(async c => {
       const u = await unidade(c)
       const a = await alvo(c, u)
-      const blq = (alvoId: number, m: string) => tenta(pg, `select public.obs_archive_expurgo_block($1, $2, $3) as r`, [c.site, alvoId, m])
+      const blq = (alvoId: number, m: string) => tenta(pg, `select public.obs_archive_expurgo_block($1, $2, $3, $4) as r`, [c.site, 1, alvoId, m])
       const desb = (alvoId: number) => tenta(pg, `select public.obs_archive_expurgo_unblock($1, $2) as r`, [c.site, alvoId])
       expect(await ok(await blq(a.id, 'depende_m10b'))).toMatchObject({ status: 'recusado', motivo: 'forma' })
+      // I1 (Yannis, conserto do lote 2): o alvo tem de ser do item pedido
+      const deOutro = await tenta(pg, `select public.obs_archive_expurgo_block($1, 2, $2, 'antiga_ausente') as r`, [c.site, a.id])
+      expect(await ok(deOutro)).toMatchObject({ status: 'recusado', motivo: 'alvo_de_outro_item', alvo_id: a.id })
+      expect(await alvoLinha(a.id)).toMatchObject({ estado: 'copiar', motivo: null })
       expect(await alvoLinha(a.id)).toMatchObject({ estado: 'copiar' })
       expect(await ok(await blq(a.id, 'antiga_ausente'))).toMatchObject({ status: 'ok' })
       expect(await alvoLinha(a.id)).toMatchObject({ estado: 'bloqueado', motivo: 'antiga_ausente' })
@@ -404,7 +408,7 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 3: abrir, registrar, bloquear e des
   it('permissões (has_function_privilege)', async () => {
     await emTx(async () => {
       const prv = (fn: string, role: string) => escalar<boolean>(pg, `select has_function_privilege($1, $2, 'EXECUTE')`, [role, fn])
-      for (const fn of ['obs_archive_expurgo_open(uuid,bigint)', 'obs_archive_expurgo_record(uuid,bigint,jsonb)', 'obs_archive_expurgo_block(uuid,bigint,text)']) {
+      for (const fn of ['obs_archive_expurgo_open(uuid,bigint)', 'obs_archive_expurgo_record(uuid,bigint,jsonb)', 'obs_archive_expurgo_block(uuid,bigint,bigint,text)']) {
         expect(await prv(`public.${fn}`, 'service_role'), fn).toBe(true)
         expect(await prv(`public.${fn}`, 'anon'), fn).toBe(false)
         expect(await prv(`public.${fn}`, 'authenticated'), fn).toBe(false)

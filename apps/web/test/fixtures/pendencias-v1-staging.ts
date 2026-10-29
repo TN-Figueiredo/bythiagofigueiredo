@@ -1,0 +1,96 @@
+// Cópia congelada do leitor v1 de `origin/staging` (pendencias.ts, antes da M9; só até lerPendencias). Usada pelo teste da emergência (m9-emergencia.sql).
+// NÃO atualizar: é justamente o leitor que o código antigo roda se ele precisar voltar.
+// apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts
+/**
+ * Manutenção M3b, emenda de 14/10 (peça 7): o leitor puro da leitura C12 (`obs_archive_owner_pending`), usado pela página e pelo comando
+ * `npm run -s obs:arquivo`. Puro: só `zod` e o contrato; o `tsx` da raiz o importa. Estrito de propósito: qualquer desvio da forma é
+ * `{ ok: false }`, que a tela mostra como "não medido" e o comando trata como erro, nunca como "nada pendente" (o sistema falha em verde).
+ * Os caminhos de `apagar` viram argumento de `rm` na forja: nada vindo do banco vira pedaço de comando sem passar por aqui.
+ */
+import { z } from 'zod'
+import { MES_RE, SHA_RE, UUID_RE, type Filho } from '@/lib/youtube/observatorio/arquivo-mensal/contrato'
+
+export const LINHA_DO_DONO = "cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'"
+export const VERSAO_PENDENCIAS = 1
+
+export const TEMPOS_PENDENCIA = ['sem_comando', 'copiar', 'conferir_b2', 'apagar_antigas', 'bloqueado'] as const
+export type TempoPendencia = (typeof TEMPOS_PENDENCIA)[number]
+const KINDS = ['canal', 'video', 'comentario'] as const
+
+// Sem "..", sem "." isolado, sem "/" no começo nem no fim, sem "//" (outro nome do mesmo arquivo), sem aspas, espaço, "$" ou crase.
+const CAMINHO_SEGURO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\/\/)(?!.*\/$)[A-Za-z0-9_][A-Za-z0-9._/-]{0,299}$/
+const ITEM_ID_RE = /^(?:canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|item:[1-9][0-9]{0,18})$/
+const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
+const data = z.string().datetime({ offset: true })
+const caminho = z.string().regex(CAMINHO_SEGURO)
+const FILHOS = ['numerico', 'texto'] as const satisfies readonly Filho[]
+const filho = z.enum(FILHOS)
+
+const Apagar = z.object({
+  filho, caminho, sha256: z.string().regex(SHA_RE),
+  nova: z.object({ caminho, sha256: z.string().regex(SHA_RE) }).strict().nullable(),
+}).strict().superRefine((a, ctx) => {
+  // versao 1: sem versao nova no NAS nao ha o que conferir antes de apagar (Phil M1); a M9 abre o nulo junto com a versao 2.
+  if (a.nova === null) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'apagar sem versão nova' })
+  else if (a.nova.caminho === a.caminho) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'a antiga é a própria nova' })
+})
+
+const Item = z.object({
+  item_id: z.string().regex(ITEM_ID_RE),
+  kind: z.enum(KINDS),
+  tempo: z.enum(TEMPOS_PENDENCIA),
+  desde: data,
+  mes: z.string().regex(MES_RE).nullable(),
+  channel_ref: z.string().regex(UUID_RE).nullable(),
+  youtube_id: z.string().regex(YOUTUBE_ID_RE).nullable(),
+  marcado_rodado_em: data.nullable(),
+  apagar: z.array(Apagar),
+  b2_nomes: z.array(caminho),
+}).strict().superRefine((i, ctx) => {
+  const falha = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }) }
+  const apagarAntigas = i.tempo === 'apagar_antigas'
+  if ((i.apagar.length > 0) !== apagarAntigas) falha('apagar só existe em apagar_antigas, e lá não é vazio')
+  if (!apagarAntigas && i.b2_nomes.length > 0) falha('b2_nomes só existe em apagar_antigas')
+  const deCanal = i.item_id.startsWith('canal:')
+  if (deCanal !== (i.kind === 'canal')) falha('kind canal se e só se item_id começa por canal:')
+  if (deCanal && i.item_id.slice('canal:'.length) !== i.channel_ref) falha('canal:<uuid> diferente de channel_ref')
+})
+
+const Corpo = z.object({ versao: z.literal(VERSAO_PENDENCIAS), lido_em: data, total: z.number().int().nonnegative(), itens: z.array(Item) })
+  .strict().superRefine((c, ctx) => {
+    if (c.total !== c.itens.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'total diferente do tamanho da lista' })
+    const novas = new Set<string>(), antigas: string[] = []
+    for (const i of c.itens) for (const a of i.apagar) { antigas.push(`${a.filho}/${a.caminho}`); if (a.nova) novas.add(`${a.filho}/${a.nova.caminho}`) }
+    if (antigas.some(a => novas.has(a))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'uma antiga a apagar é a nova de outra' })
+  })
+
+export interface PendenciaDoDono {
+  itemId: string
+  kind: (typeof KINDS)[number]
+  tempo: TempoPendencia
+  desde: Date
+  mes: string | null
+  channelRef: string | null
+  youtubeId: string | null
+  marcadoRodadoEm: Date | null
+  apagar: Array<{ filho: Filho; caminho: string; sha256: string; nova: { caminho: string; sha256: string } | null }>
+  b2Nomes: string[]
+}
+export type LeituraPendencias = { ok: true; lidoEm: Date; itens: PendenciaDoDono[] } | { ok: false; porque: string }
+
+/** Lê a resposta do C12. Nunca devolve lista vazia no lugar de um erro. A razão da recusa não repete o valor recebido. */
+export function lerPendencias(bruto: unknown): LeituraPendencias {
+  const r = Corpo.safeParse(bruto)
+  if (!r.success) {
+    const e = r.error.issues[0]
+    return { ok: false, porque: e ? `${e.path.join('.') || 'corpo'}: ${e.message}` : 'forma inválida' }
+  }
+  return {
+    ok: true, lidoEm: new Date(r.data.lido_em),
+    itens: r.data.itens.map(i => ({
+      itemId: i.item_id, kind: i.kind, tempo: i.tempo, desde: new Date(i.desde), mes: i.mes, channelRef: i.channel_ref, youtubeId: i.youtube_id,
+      marcadoRodadoEm: i.marcado_rodado_em ? new Date(i.marcado_rodado_em) : null, apagar: i.apagar, b2Nomes: i.b2_nomes,
+    })),
+  }
+}
+

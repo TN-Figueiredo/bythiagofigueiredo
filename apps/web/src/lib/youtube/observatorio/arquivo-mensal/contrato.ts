@@ -79,7 +79,8 @@ const estadoDoFilho = z.object({ montado: z.boolean(), sentinela: z.boolean() })
 // M9 (C4, resolve C10): a prova de ausência por prefixo. Mesmo alfabeto do check do banco (`obs_archive_absence.prefixo`), sem `..`, sem `//`, sem barra no começo.
 export const CAMINHO_SEGURO_PREFIXO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\/\/)[A-Za-z0-9_][A-Za-z0-9._/-]{0,299}$/
 export const NOME_B2 = /^(?!.*\.\.)[A-Za-z0-9._/-]{1,600}$/
-const ALVO_PREFIXO = /^(item:[1-9][0-9]{0,18}|canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|antiga:[1-9][0-9]{0,18})$/
+// O banco é a fonte (check de obs_archive_absence.alvo): `alvo:<n>` (alvo de item), `canal:<uuid>` e `antiga:<uuid>` (id da unidade superada). `item:<n>` nunca é gravado.
+const ALVO_PREFIXO = /^(alvo:[1-9][0-9]{0,18}|canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|antiga:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 const prefixoBase = { alvo: z.string().regex(ALVO_PREFIXO), filho: z.enum(['numerico', 'texto']), prefixo: z.string().regex(CAMINHO_SEGURO_PREFIXO), estado: z.enum(['ausente', 'presente']) }
 /** `snapshots` e `snapshot_mais_antigo` só valem na fonte `nas`; `nomes` só na `b2` (a outra combinação cai no `.strict()`: 400). */
 const PrefixoNas = z.object({ ...prefixoBase, snapshots: z.enum(['ausente', 'presente', 'indisponivel']).optional(), snapshot_mais_antigo: z.string().max(80).optional() }).strict()

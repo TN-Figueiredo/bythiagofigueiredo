@@ -5,7 +5,7 @@ import { parseBody, pipelineError, pipelineSuccess } from '@/lib/pipeline/helper
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { erroDoRpc } from '@/lib/youtube/observatorio/arquivo-mensal/exportar-do-banco'
 import {
-  CorpoExpurgo, RespostaAbrir, RespostaBloquear, RespostaCanal, RespostaRegistrar,
+  CorpoExpurgo, RespostaAbrir, RespostaBloquear, RespostaCanal, RespostaRecusa, RespostaRegistrar,
 } from '@/lib/youtube/observatorio/arquivo-mensal/expurgo-contrato'
 
 export const dynamic = 'force-dynamic'
@@ -27,8 +27,10 @@ function chamada(site: string, c: Exclude<Corpo, { passo: 'canal' }>): Rpc | nul
       const { passo: _passo, item_id: _item, ...grupo } = c
       return { fn: 'obs_archive_expurgo_record', args: { p_site: site, p_item_id: m[1], p_grupo: grupo }, esquema: RespostaRegistrar }
     }
-    case 'bloquear':
-      return { fn: 'obs_archive_expurgo_block', args: { p_site: site, p_alvo: c.alvo_id, p_motivo: c.motivo }, esquema: RespostaBloquear }
+    case 'bloquear': {
+      const m = ITEM.exec(c.item_id)
+      return m ? { fn: 'obs_archive_expurgo_block', args: { p_site: site, p_item_id: m[1], p_alvo: c.alvo_id, p_motivo: c.motivo }, esquema: RespostaBloquear } : null
+    }
   }
 }
 
@@ -45,7 +47,7 @@ async function motivoDoCanal(site: string, ref: string): Promise<RespostaCanal> 
 
 /**
  * C14 (M9): o expurgo enxuto em quatro passos (`abrir`, `registrar`, `bloquear`, `canal`), só com chave `archive_owner`.
- * Recusa da função (`{ status: 'recusado', motivo }`) é 409 com o motivo dela; a rota não mantém lista de códigos, então código novo na SQL não pede mexer aqui.
+ * Recusa da função (`{ status: 'recusado', motivo }`) é 409 com o motivo dela; o motivo tem de estar em `MOTIVOS_RECUSA` (lista fechada no contrato); código novo na SQL pede acrescentar lá, senão vira 500 com Sentry.
  * Recusa não é exceção: Sentry só no caminho de falha. `unblock` e `obs_archive_m9_ligar` não têm rota (só o painel).
  */
 export async function POST(req: NextRequest) {
@@ -68,10 +70,15 @@ export async function POST(req: NextRequest) {
       if (error.code === 'P0001' && /^mes_destacado_em_transito\b/.test(error.message)) return pipelineError('mes_destacado_em_transito', 'mes destacado em transito', 409, a.auth)
       return erroDoRpc(error, a.auth)
     }
-    const recusa = (data ?? null) as { status?: unknown; motivo?: unknown; alvo_id?: unknown } | null
-    if (recusa !== null && typeof recusa === 'object' && recusa.status === 'recusado') {
-      const motivo = typeof recusa.motivo === 'string' && recusa.motivo.length > 0 ? recusa.motivo : 'recusado'
-      return pipelineError(motivo, motivo.replaceAll('_', ' '), 409, a.auth, typeof recusa.alvo_id === 'number' ? { alvo_id: recusa.alvo_id } : undefined)
+    // recusa da função: motivo da lista fechada (`MOTIVOS_RECUSA`) vira 409 sem Sentry; recusa com motivo fora da lista é defeito (500 com Sentry)
+    const recusada = typeof data === 'object' && data !== null && (data as { status?: unknown }).status === 'recusado'
+    if (recusada) {
+      const r = RespostaRecusa.safeParse(data)
+      if (!r.success) {
+        Sentry.captureMessage(`archive ${rpc.fn} recusa fora do esquema`, 'error')
+        return pipelineError('erro_do_banco', 'erro do banco', 500, a.auth)
+      }
+      return pipelineError(r.data.motivo, r.data.motivo.replaceAll('_', ' '), 409, a.auth, r.data.alvo_id !== undefined ? { alvo_id: r.data.alvo_id } : undefined)
     }
     const lido = rpc.esquema.safeParse(data)
     if (!lido.success) {

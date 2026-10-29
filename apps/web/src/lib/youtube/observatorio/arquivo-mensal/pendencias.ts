@@ -23,7 +23,7 @@ const NOME_B2 = /^[A-Za-z0-9._/-]{1,600}$/
 
 // Sem "..", sem "." isolado, sem "/" no começo nem no fim, sem "//" (outro nome do mesmo arquivo), sem aspas, espaço, "$" ou crase.
 const CAMINHO_SEGURO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\/\/)(?!.*\/$)[A-Za-z0-9_][A-Za-z0-9._/-]{0,299}$/
-const ITEM_ID_RE = /^(?:canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|item:[1-9][0-9]{0,18}|antiga:[1-9][0-9]{0,18})$/
+const ITEM_ID_RE = /^(?:canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|item:[1-9][0-9]{0,18}|antiga:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 const data = z.string().datetime({ offset: true })
 const caminho = z.string().regex(CAMINHO_SEGURO)

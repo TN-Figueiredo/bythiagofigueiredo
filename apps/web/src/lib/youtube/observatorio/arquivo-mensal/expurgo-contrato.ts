@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import { CLASSES, MES_RE, SHA_RE, UUID_RE } from './contrato'
 
-export const ITEM_ID_EXPURGO_RE = /^(?:item:\d{1,18}|canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|antiga:\d{1,18})$/
+export const ITEM_ID_EXPURGO_RE = /^(?:item:\d{1,18}|canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|antiga:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 const item_id = z.string().regex(ITEM_ID_EXPURGO_RE)
 const sha = z.string().regex(SHA_RE)
 const inteiro = z.number().int().min(0)
@@ -74,7 +74,10 @@ export const RespostaAbrir = z.object({
   esperando: inteiro,
 })
 
-const Recusa = z.object({ status: z.literal('recusado'), motivo: z.string(), alvo_id: inteiro.optional() })
+/** Lista fechada: os motivos que `obs_archive_expurgo_open/record/block` devolvem. A rota põe o motivo no `code` do erro; motivo novo na SQL exige acrescentar aqui (fora da lista = 500 com Sentry, nunca 409). */
+export const MOTIVOS_RECUSA = ['alvo_de_outro_item', 'alvo_fora_de_copiar', 'base_mudou', 'contagem_divergente', 'forma', 'grupo_incompleto',
+  'resumo_com_unidade_nao_lida', 'resumo_forma', 'resumo_versao_mudou'] as const
+export const RespostaRecusa = z.object({ status: z.literal('recusado'), motivo: z.enum(MOTIVOS_RECUSA), alvo_id: inteiro.optional() })
 
 export const RespostaRegistrar = z.discriminatedUnion('status', [
   z.object({
@@ -84,10 +87,10 @@ export const RespostaRegistrar = z.discriminatedUnion('status', [
     })),
     resumo: z.object({ arquivo_id: arquivoId, versao: inteiro }).nullable(),
   }),
-  Recusa,
+  RespostaRecusa,
 ])
 
-export const RespostaBloquear = z.discriminatedUnion('status', [z.object({ status: z.literal('ok') }), Recusa])
+export const RespostaBloquear = z.discriminatedUnion('status', [z.object({ status: z.literal('ok') }), RespostaRecusa])
 
 export const RespostaCanal = z.object({
   motivo: z.enum(['ok', 'canal_desconhecido', 'canal_nao_removido', 'canal_guardado', 'sem_destino']),

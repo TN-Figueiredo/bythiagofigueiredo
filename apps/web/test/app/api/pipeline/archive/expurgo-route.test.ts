@@ -144,7 +144,7 @@ describe('C14 expurgo: registrar', () => {
   })
   it('toda recusa da função vira 409 com o mesmo código (alvo_id junto) e não vai ao Sentry', async () => {
     const codigos = ['resumo_versao_mudou', 'base_mudou', 'contagem_divergente', 'grupo_incompleto', 'resumo_com_unidade_nao_lida', 'alvo_de_outro_item',
-      'alvo_fora_de_copiar', 'mes_destacado_em_transito', 'expurgo_em_curso', 'sem_destino', 'canal_removido', 'um_codigo_novo_da_sql']
+      'alvo_fora_de_copiar', 'forma', 'resumo_forma']
     for (const motivo of codigos) {
       rpcs.tabela.obs_archive_expurgo_record = async () => ok({ status: 'recusado', motivo, alvo_id: 5 })
       const r = await chamar(postExpurgo, { corpo: registrar })
@@ -191,7 +191,7 @@ describe('C14 expurgo: bloquear e canal', () => {
     rpcs.tabela.obs_archive_expurgo_block = async () => ok({ status: 'ok' })
     const r = await chamar(postExpurgo, { corpo: { passo: 'bloquear', item_id: 'item:7', alvo_id: 5, motivo: 'antiga_ausente' } })
     expect(r.status).toBe(200)
-    expect(rpcs.chamadas[0]).toEqual({ fn: 'obs_archive_expurgo_block', args: { p_site: 'site-1', p_alvo: 5, p_motivo: 'antiga_ausente' } })
+    expect(rpcs.chamadas[0]).toEqual({ fn: 'obs_archive_expurgo_block', args: { p_site: 'site-1', p_item_id: '7', p_alvo: 5, p_motivo: 'antiga_ausente' } })
     expect((await chamar(postExpurgo, { corpo: { passo: 'bloquear', item_id: 'item:7', alvo_id: 5, motivo: 'outro' } })).status).toBe(400)
   })
   it('bloquear: alvo fora de copiar é 409; alvo desconhecido é 404', async () => {
@@ -199,6 +199,27 @@ describe('C14 expurgo: bloquear e canal', () => {
     expect((await chamar(postExpurgo, { corpo: { passo: 'bloquear', item_id: 'item:7', alvo_id: 5, motivo: 'antiga_ausente' } })).status).toBe(409)
     rpcs.tabela.obs_archive_expurgo_block = async () => erro('item_desconhecido')
     expect((await chamar(postExpurgo, { corpo: { passo: 'bloquear', item_id: 'item:7', alvo_id: 5, motivo: 'antiga_ausente' } })).status).toBe(404)
+  })
+  it('bloquear: item_id que não é item:<n> (canal, antiga) não tem função: 400 sem rpc', async () => {
+    for (const item_id of [`canal:${CANAL}`, 'antiga:11111111-1111-4111-8111-111111111111']) {
+      expect((await chamar(postExpurgo, { corpo: { passo: 'bloquear', item_id, alvo_id: 5, motivo: 'antiga_ausente' } })).status).toBe(400)
+    }
+    expect(rpcs.chamadas).toHaveLength(0)
+  })
+  it('bloquear: alvo de outro item é 409 alvo_de_outro_item sem Sentry', async () => {
+    rpcs.tabela.obs_archive_expurgo_block = async () => ok({ status: 'recusado', motivo: 'alvo_de_outro_item', alvo_id: 5 })
+    const r = await chamar(postExpurgo, { corpo: { passo: 'bloquear', item_id: 'item:7', alvo_id: 5, motivo: 'antiga_ausente' } })
+    expect(r.status).toBe(409); expect((await json(r)).error?.code).toBe('alvo_de_outro_item')
+    expect(sentry.captureException).not.toHaveBeenCalled(); expect(sentry.captureMessage).not.toHaveBeenCalled()
+  })
+  it('recusa com motivo fora da lista fechada: 500 com Sentry, nunca 409 (Yannis P3/M1)', async () => {
+    for (const motivo of ['Motivo Torto', '', 'codigo_novo_sem_lista', 'x'.repeat(200)]) {
+      rpcs.tabela.obs_archive_expurgo_block = async () => ok({ status: 'recusado', motivo })
+      const r = await chamar(postExpurgo, { corpo: { passo: 'bloquear', item_id: 'item:7', alvo_id: 5, motivo: 'antiga_ausente' } })
+      expect(r.status, motivo).toBe(500)
+      expect(JSON.stringify(await json(r))).not.toContain('torto')
+    }
+    expect(sentry.captureMessage).toHaveBeenCalledTimes(4)
   })
   it('canal: uuid sem remoção nem canal é 200 canal_desconhecido; canal vivo é canal_nao_removido; sem rpc', async () => {
     let r = await chamar(postExpurgo, { corpo: { passo: 'canal', channel_ref: CANAL } })
@@ -238,7 +259,7 @@ describe('attest com prefixos (C4, resolve C10)', () => {
   it('b2: execucao_id e nomes vão à função', async () => {
     rpcs.tabela.obs_archive_attest_b2 = async () => ok(respB2)
     rpcs.tabela.obs_archive_attest_prefixos = async () => ok({ prefixos: [] })
-    const pref = { alvo: `item:7`, filho: 'numerico', prefixo: 'serie/x/', estado: 'presente', nomes: ['serie/x/a.csv.gz'] }
+    const pref = { alvo: `alvo:7`, filho: 'numerico', prefixo: 'serie/x/', estado: 'presente', nomes: ['serie/x/a.csv.gz'] }
     const r = await chamar(postAttest, { perms: ['archive_b2'], corpo: { ...atestarB2, prefixos: [pref] } })
     expect(r.status).toBe(200)
     expect(rpcs.chamadas[1]!.args).toEqual({ p_site: 'site-1', p_fonte: 'b2', p_execucao: UUID, p_filhos: {}, p_prefixos: [pref] })
@@ -255,10 +276,10 @@ describe('attest com prefixos (C4, resolve C10)', () => {
   })
   it('b2 sem execucao_id: 400', async () => {
     const { execucao_id: _e, ...semExec } = atestarB2
-    expect((await chamar(postAttest, { perms: ['archive_b2'], corpo: { ...semExec, prefixos: [{ alvo: 'item:7', filho: 'numerico', prefixo: 'a/', estado: 'ausente' }] } })).status).toBe(400)
+    expect((await chamar(postAttest, { perms: ['archive_b2'], corpo: { ...semExec, prefixos: [{ alvo: 'alvo:7', filho: 'numerico', prefixo: 'a/', estado: 'ausente' }] } })).status).toBe(400)
   })
   it('combinação errada é 400: snapshots no b2, nomes no nas', async () => {
-    const b2 = { alvo: 'item:7', filho: 'numerico', prefixo: 'a/', estado: 'ausente' }
+    const b2 = { alvo: 'alvo:7', filho: 'numerico', prefixo: 'a/', estado: 'ausente' }
     expect((await chamar(postAttest, { perms: ['archive_b2'], corpo: { ...atestarB2, prefixos: [{ ...b2, snapshots: 'ausente' }] } })).status).toBe(400)
     expect((await chamar(postAttest, { perms: ['archive_copy'], corpo: { ...atestarNas, prefixos: [{ ...prefNas, nomes: ['a'] }] } })).status).toBe(400)
     expect(rpcs.chamadas).toHaveLength(0)
@@ -266,9 +287,9 @@ describe('attest com prefixos (C4, resolve C10)', () => {
   it('recusa prefixo inseguro, alvo fora do formato, mais de 20 nomes e nome fora do alfabeto', async () => {
     const mal = (p: Record<string, unknown>, fonte: 'nas' | 'b2' = 'nas') => chamar(postAttest, fonte === 'nas'
       ? { perms: ['archive_copy'], corpo: { ...atestarNas, prefixos: [{ ...prefNas, ...p }] } }
-      : { perms: ['archive_b2'], corpo: { ...atestarB2, prefixos: [{ alvo: 'item:7', filho: 'numerico', prefixo: 'a/', estado: 'presente', nomes: ['a'], ...p }] } })
+      : { perms: ['archive_b2'], corpo: { ...atestarB2, prefixos: [{ alvo: 'alvo:7', filho: 'numerico', prefixo: 'a/', estado: 'presente', nomes: ['a'], ...p }] } })
     for (const prefixo of ['../x/', 'a/../b/', '/abs/', 'a//b/', '.', '']) expect((await mal({ prefixo })).status).toBe(400)
-    expect((await mal({ alvo: 'item:0' })).status).toBe(400)
+    expect((await mal({ alvo: 'alvo:0' })).status).toBe(400)
     expect((await mal({ alvo: 'canal:xyz' })).status).toBe(400)
     expect((await mal({ nomes: Array.from({ length: 21 }, (_, i) => `a${i}`) }, 'b2')).status).toBe(400)
     expect((await mal({ nomes: ['a b'] }, 'b2')).status).toBe(400)
@@ -299,7 +320,7 @@ describe('plan e pending (C5, C13)', () => {
     expect(r.status).toBe(500)
   })
   it('b2/plan: prefixos_ausentes sem provar_snapshots', async () => {
-    const linha = { alvo: 'item:7', filho: 'numerico', prefixo: 'serie/x/', e_prefixo: true }
+    const linha = { alvo: 'alvo:7', filho: 'numerico', prefixo: 'serie/x/', e_prefixo: true }
     rpcs.tabela.obs_archive_b2_plan = async () => ok({
       execucao_id: UUID, gerado_em: '2026-11-28T10:00:00+00:00', modo: 'normal', cursor_seguinte: null, primeira_selagem: null, vermelhos: [],
       estado: { numerico: 'nada_devido', texto: 'nada_devido' }, teto_bytes_dia: 1, teto_bytes_mes: 1,

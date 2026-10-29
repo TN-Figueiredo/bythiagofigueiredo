@@ -58,7 +58,7 @@ describe('lerPendencias: a forma do C12', () => {
     ['motivo fora de bloqueado', base([canal({ motivo: 'depende_m10b' })])],
     ['bloqueado sem motivo', base([canal({ tempo: 'bloqueado', falta: null })])],
     ['motivo desconhecido', base([canal({ tempo: 'bloqueado', falta: null, motivo: 'outro' })])],
-    ['antiga: com kind video', base([canal({ item_id: 'antiga:5', kind: 'video', channel_ref: null })])],
+    ['antiga: com kind video', base([canal({ item_id: 'antiga:11111111-1111-4111-8111-111111111115', kind: 'video', channel_ref: null })])],
     ['kind versao sem antiga:', base([canal({ item_id: 'item:5', kind: 'versao', channel_ref: null })])],
     ['prefixos fora de canal', base([canal({ item_id: 'item:5', kind: 'video', channel_ref: null, prefixos: ['a/b'] })])],
     ['caminho com ..', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: '../etc/x', sha256: SHA, nova: null }] })])],
@@ -97,13 +97,13 @@ describe('lerPendencias: a versao 2 (M9)', () => {
     const c2 = '6f1c1b9e-0000-4000-8000-000000000002'
     const l = lerPendencias(base([
       canal({ falta: 'snapshots', snapshot_mais_antigo: '2026-11-01T00:00:00Z', bloqueados: 2, marcado_rodado_em: '2026-11-02T00:00:00Z' }),
-      canal({ item_id: 'antiga:7', kind: 'versao', channel_ref: null, youtube_id: null, falta: 'segunda_conferencia', mes: '2026-09' }),
+      canal({ item_id: 'antiga:11111111-1111-4111-8111-111111111117', kind: 'versao', channel_ref: null, youtube_id: null, falta: 'segunda_conferencia', mes: '2026-09' }),
       canal({ item_id: 'item:9', kind: 'video', channel_ref: null, tempo: 'bloqueado', falta: null, motivo: 'grande_demais' }),
       canal({ item_id: 'canal:' + c2, channel_ref: c2, tempo: 'apagar_antigas', falta: null, prefixos: ['serie/canais/x'], apagar: [{ filho: 'numerico', caminho: 'serie/canais/x/a.csv.gz', sha256: SHA, nova: null }] }),
       canal({ item_id: 'item:11', kind: 'video', channel_ref: null, tempo: 'conferir_b2', falta: null, b2_nomes: ['numerico/serie/x.csv.gz'] })]))
     if (!l.ok) throw new Error(l.porque)
     expect(l.itens[0]).toMatchObject({ falta: 'snapshots', motivo: null, bloqueados: 2, snapshotMaisAntigo: '2026-11-01T00:00:00Z', marcadoRodadoEm: new Date('2026-11-02T00:00:00Z'), prefixos: [] })
-    expect(l.itens[1]).toMatchObject({ kind: 'versao', itemId: 'antiga:7', falta: 'segunda_conferencia' })
+    expect(l.itens[1]).toMatchObject({ kind: 'versao', itemId: 'antiga:11111111-1111-4111-8111-111111111117', falta: 'segunda_conferencia' })
     expect(l.itens[2]).toMatchObject({ tempo: 'bloqueado', motivo: 'grande_demais' })
     expect(l.itens[3]).toMatchObject({ prefixos: ['serie/canais/x'], apagar: [{ nova: null }] })
     expect(l.itens[4]!.b2Nomes).toEqual(['numerico/serie/x.csv.gz'])

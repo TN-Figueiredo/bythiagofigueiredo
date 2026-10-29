@@ -296,7 +296,7 @@ describe('M9 T7: copiar, apagar e conferir B2 na versao 2', () => {
     expect(Object.keys(FRASE_DO_MOTIVO).sort()).toEqual([...MOTIVOS].sort())
   })
   it('item antiga: (versão superada) apaga a antiga com o mesmo apaga_conferido', () => {
-    const v = it2({ item_id: 'antiga:5', kind: 'versao', tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'texto/2026-10/v1.csv.gz', sha256: sha('ANTIGA'), nova: { caminho: 'texto/2026-10/v2.csv.gz', sha256: sha('NOVA') } }] })
+    const v = it2({ item_id: 'antiga:11111111-1111-4111-8111-111111111115', kind: 'versao', tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'texto/2026-10/v1.csv.gz', sha256: sha('ANTIGA'), nova: { caminho: 'texto/2026-10/v2.csv.gz', sha256: sha('NOVA') } }] })
     const r = rodarNaForja(gerar2([v]))
     expect(r.stdout).toContain('APAGADO texto/texto/2026-10/v1.csv.gz')
   })
