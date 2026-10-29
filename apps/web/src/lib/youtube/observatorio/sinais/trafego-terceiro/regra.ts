@@ -37,7 +37,7 @@ export interface EntradaDoPar {
   hoje: string
   intervalos: ReadonlyArray<{ de: string; ate: string }>
   linhas: ReadonlyArray<{ dia: string; views: number | null }>
-  /** Dias com origem '7' de detail vazio, do vídeo nosso. */
+  /** Dias de origem sugeridos com detail vazio, do vídeo nosso. */
   diasSemOrigem: ReadonlyArray<string>
 }
 
