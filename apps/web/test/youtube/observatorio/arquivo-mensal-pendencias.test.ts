@@ -113,6 +113,13 @@ describe('lerPendencias: a versao 2 (M9)', () => {
     expect(l.ok).toBe(false)
     if (!l.ok) expect(l.porque).toContain('versao')
   })
+  it('Phil: até 2000 prefixos passa; 2001 é recusado (o teto do attest do site)', () => {
+    const pref = (n: number) => Array.from({ length: n }, (_, i) => `serie/canais/x${i}`)
+    expect(lerPendencias(base([canal({ prefixos: pref(2000) })])).ok).toBe(true)
+    const l = lerPendencias(base([canal({ prefixos: pref(2001) })]))
+    expect(l.ok).toBe(false)
+    if (!l.ok) expect(l.porque).toContain('prefixos')
+  })
   it('nome de B2 seguro passa', () => {
     expect(lerPendencias(base([canal({ tempo: 'conferir_b2', falta: null, b2_nomes: ['numerico/serie/canais/x_y-1.csv.gz'] })])).ok).toBe(true)
   })

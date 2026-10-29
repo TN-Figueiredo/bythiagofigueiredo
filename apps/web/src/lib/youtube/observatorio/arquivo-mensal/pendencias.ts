@@ -51,7 +51,7 @@ const Item = z.object({
   b2_nomes: z.array(z.string().regex(NOME_B2).refine(n => !n.includes('..'), 'nome de B2 com ..')),
   falta: z.enum(FALTAS).nullable(),
   motivo: z.enum(MOTIVOS).nullable(),
-  prefixos: z.array(caminho),
+  prefixos: z.array(caminho).max(2000),
   bloqueados: z.number().int().min(0),
   snapshot_mais_antigo: z.string().nullable(),
 }).strict().superRefine((i, ctx) => {
