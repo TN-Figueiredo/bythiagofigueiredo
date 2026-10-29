@@ -6,7 +6,7 @@ import type { AcaoDaLinha, DesfechoDaLinha, TipoDeErro } from './estado-da-lista
 import { Ic } from './icones'
 import { ReguaMult } from './regua-mult'
 import type { MotivoDaTela } from './tipos'
-import { INFO_QUANDO_NAO, INFO_REGRA_TRAFEGO } from './trafego'
+import { INFO_QUANDO_NAO, INFO_REGRA_TRAFEGO, resumirTrafego, type SegmentoDaBarra } from './trafego'
 import { dataSP, diaSP, type LinhaDaVista } from './view-model'
 
 const MLAB: Record<MotivoDaTela, string> = { lugar_errado: 'lugar errado', nao_interessa: 'não me interessa', nao_e_parecido: 'não é parecido', ja_fiz: 'já fiz' }
@@ -81,6 +81,39 @@ function LinhaDeTrafego(p: { l: LinhaDaVista; info: boolean; onInfo(): void }) {
       <span className="sg-trf-a">
         <button type="button" className="sg-ib" aria-expanded={p.info} aria-label="Como esta sugestão foi calculada e medida" onClick={p.onInfo}>i</button>
       </span>
+    </div>
+  )
+}
+
+const CLASSE_DA_BARRA: Record<SegmentoDaBarra['estado'], string> = { sim: 'b-s', nao: 'b-n', nao_medido: 'b-m', erro: 'b-e' }
+function Barra(p: { barra: SegmentoDaBarra[]; margem?: number }) {
+  return (
+    <div className="sg-bar" aria-hidden="true" style={p.margem ? { marginTop: p.margem } : undefined}>
+      {p.barra.map((b) => <span key={b.estado} className={CLASSE_DA_BARRA[b.estado]} style={{ flex: `${b.n} 1 0` }} />)}
+    </div>
+  )
+}
+
+/** F4: frase-resumo + barra no topo da lista (régua estável) ou a faixa única do motivo geral. No bloco do A/B Lab, a frase só entra se algum cartão disser "sim". */
+export function ResumoDeTrafegoNaTela(p: { linhas: ReadonlyArray<LinhaDaVista>; modo: 'pagina' | 'bloco' }) {
+  const r = resumirTrafego(p.linhas)
+  if (!r) return null
+  if (r.geral) {
+    return (
+      <>
+        <div className={`sg-band sg-trfgeral ${r.geral.tom === 'err' ? 'sg-err' : 'sg-warn'}`} role="status">
+          <span className="sg-ic">{Ic.warn()}</span>
+          <div><p style={{ margin: 0, color: 'var(--text)', fontSize: 14 }}>{r.geral.texto}</p></div>
+        </div>
+        <Barra barra={r.barra} margem={12} />
+      </>
+    )
+  }
+  if (p.modo === 'bloco' && !r.barra.some((b) => b.estado === 'sim')) return null
+  return (
+    <div className="sg-trfsum">
+      <p>{r.frase}</p>
+      <Barra barra={r.barra} />
     </div>
   )
 }

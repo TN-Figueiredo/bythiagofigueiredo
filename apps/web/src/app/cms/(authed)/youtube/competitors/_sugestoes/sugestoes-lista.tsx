@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import CmsLink from '../../../_shared/cms-link'
 import { contagens, estadoInicial, reduzirLista, vistaVisivel, type AcaoDaLinha } from './estado-da-lista'
 import { Ic } from './icones'
-import { Confirmacao, Linha } from './linha'
+import { Confirmacao, Linha, ResumoDeTrafegoNaTela } from './linha'
 import type { AcoesDaLista, MotivoDaTela } from './tipos'
 import { VazioDaLista } from './vazio'
 import { filtrarVista, linhaDasAdiadas, type FiltroDaLista, type LinhaDaVista, type VistaDaLista } from './view-model'
@@ -196,6 +196,8 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
         </div>
       )}
       <p className="sg-sum" tabIndex={-1} ref={resumoRef}>{semLeitura && !vazio ? 'Não deu para ler as sugestões.' : mostrada.resumo}{modo === 'pagina' && vivas.length > 0 && <small>Da mais forte para a mais fraca.</small>}</p>
+
+      {vivas.length > 0 && <ResumoDeTrafegoNaTela linhas={vivas} modo={modo} />}
 
       {vivas.length > 0 && linhaDasAdiadas(visivel.adiadas) && (
         <p className="sg-adl sg-meta" id={modo === 'pagina' ? 'sg-adiadas' : undefined}>{Ic.wait(14)}<span>{linhaDasAdiadas(visivel.adiadas)}</span></p>

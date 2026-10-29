@@ -88,3 +88,30 @@ describe('CSS', () => {
     expect(css).toMatch(/\.sg-row:not\(\.sg-open\) \.sg-trf:not\(\.t-sim\):not\(\.t-erro\)\{display:none\}/)
   })
 })
+
+describe('frase-resumo, barra e faixa geral na lista', () => {
+  it('frase sempre visível com barra marcada por estado; aria-hidden na barra', () => {
+    const itens = [item('a', t({ estado: 'sim', videos_com_trafego: 1, views: 10 })), item('b', t({})), item('c', t({}))]
+    const { container } = render(<SugestoesLista modo="pagina" vista={vista(itens)} acoes={null} verTodasHref="/x" />)
+    expect(container.querySelector('.sg-trfsum p')!.textContent).toBe('Visitas vindas dos concorrentes: 1 de 3 já te manda visitas; 2 não mandam (dado até 27/10).')
+    const bar = container.querySelector('.sg-bar')!
+    expect(bar.getAttribute('aria-hidden')).toBe('true')
+    expect([...bar.children].map((c) => c.className)).toEqual(['b-s', 'b-n'])
+  })
+  it('motivo geral vira faixa única; frase não aparece', () => {
+    const itens = [item('a', t({ estado: 'nao_medido', motivo: 'cobertura_velha', ate: null })), item('b', t({ estado: 'nao_medido', motivo: 'cobertura_velha', ate: null }))]
+    const { container } = render(<SugestoesLista modo="pagina" vista={vista(itens)} acoes={null} verTodasHref="/x" />)
+    expect(container.querySelector('.sg-trfsum')).toBeNull()
+    expect(container.querySelector('.sg-trfgeral')!.textContent).toContain('A coleta da origem das visitas parou em 27/10.')
+  })
+  it('bloco do A/B Lab: sem nenhum "sim", sem frase (só a faixa geral, se houver)', () => {
+    const { container } = render(<SugestoesLista modo="bloco" vista={vista([item('a', t({})), item('b', t({}))])} acoes={null} verTodasHref="/x" />)
+    expect(container.querySelector('.sg-trfsum')).toBeNull()
+    const c2 = render(<SugestoesLista modo="bloco" vista={vista([item('a', t({ estado: 'sim', videos_com_trafego: 1, views: 5 }))])} acoes={null} verTodasHref="/x" />).container
+    expect(c2.querySelector('.sg-trfsum')).not.toBeNull()
+  })
+  it('sem cartão com linha: nada', () => {
+    const { container } = render(<SugestoesLista modo="pagina" vista={vista([item('a', t({ estado: 'nao_se_aplica' }))])} acoes={null} verTodasHref="/x" />)
+    expect(container.querySelector('.sg-trfsum, .sg-trfgeral')).toBeNull()
+  })
+})

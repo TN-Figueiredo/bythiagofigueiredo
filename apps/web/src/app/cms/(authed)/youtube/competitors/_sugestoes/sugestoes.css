@@ -231,6 +231,16 @@
  .sg p.sg-venm{margin-top:8px}
 }
 
+/* F4 T4: frase-resumo + barra (topo da lista e do bloco). Forma além da cor: cheio / vazado / listrado. */
+.sg-trfsum{margin-top:16px}
+.sg-trfsum p{font-size:13.5px;color:var(--text);max-width:84ch}
+.sg-bar{display:flex;gap:3px;margin-top:8px;max-width:520px}
+.sg-bar span{flex:1 1 0;height:8px;border-radius:2px;min-width:6px}
+.sg-bar .b-s{background:var(--ok)}
+.sg-bar .b-n{border:1px solid var(--dim);background:transparent}
+.sg-bar .b-m{border:1px solid var(--nm-line);background:repeating-linear-gradient(135deg,var(--nm-bg) 0 3px,var(--nm-fio) 3px 5px)}
+.sg-bar .b-e{background:var(--err)}
+.sg[data-modo="bloco"] .sg-trfsum{margin-top:8px}
 /* ===== F4 T4: linha de tráfego .sg-trf (mockup 2026-10-29-f4-trafego-e-titulos; variante A no 390). Cores literais. ===== */
 .sg-trf{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:0 8px;align-items:start;margin-top:8px;min-height:40px;font-size:13.5px;line-height:20px;color:var(--muted);position:relative}
 .sg-trf .t-txt{max-width:92ch}
