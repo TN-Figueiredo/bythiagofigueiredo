@@ -323,7 +323,9 @@ export function AbaVideos({ videos, state, lista, pg, set, nome, channelId, onSy
   )
 }
 
-export function CanalScreen({ view, niches, canAdmin, leitura, actions, compararHref = null, topo = null, celulas = null, blocos = null }: {
+export function CanalScreen({ view, niches, canAdmin, leitura, actions, compararHref = null, topo = null, celulas = null, blocos = null, hojeSP }: {
+  /** M6a T13c: hoje em São Paulo, para a frase do mês fora no diálogo de remover. */
+  hojeSP?: string;
   view: CanalView; niches: NicheOption[]; canAdmin: boolean; leitura: ReactNode | null; actions: CanalActions
   /** E5a T19: a frase do topo e a faixa de estado, as cinco células e os blocos, como ELEMENTO pronto de servidor (cada um no seu `<Suspense>`); nunca componente. Ausentes = a tela de antes, sem os blocos. */
   topo?: ReactNode; celulas?: ReactNode; blocos?: ReactNode
@@ -564,7 +566,7 @@ export function CanalScreen({ view, niches, canAdmin, leitura, actions, comparar
           ) : null}
           {state.tab === 'leitura' ? leitura : null}
           {viewerNode}
-          {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onPedir={actions.onPedir} onApagar={actions.onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} trap={trapTab} /> : null}
+          {confirm ? <RemoveDialog id={h.id} name={h.name} onImpact={actions.onRemovalImpact} onPedir={actions.onPedir} onApagar={actions.onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} hojeSP={hojeSP} podeAdministrar={canAdmin} trap={trapTab} /> : null}
         </div>
       </NichePendingContext.Provider>
     </NicheOptionsContext.Provider>

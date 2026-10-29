@@ -239,24 +239,30 @@ const FRASE_ALGUM_MES = 'Não dá para remover canal agora: algum mês saiu das 
  * Com mais de um mês distinto a frase diz "algum mês"; a liberação é a data MAIS TARDE (a remoção só destrava quando todos saírem).
  * Leitura que falha vai ao Sentry como aviso (Yannis M-2 r1): sem isso o diálogo perderia os meses para sempre sem ninguém saber.
  */
-async function recusaDaF1(supabase: ReturnType<typeof getSupabaseServiceClient>, siteId: string, codigo: CodigoTela, frase: string): Promise<{ ok: false; codigo: CodigoTela; frase: string; mesFora?: MesForaDaRecusa }> {
-  const base = recusa(codigo, frase)
-  if (codigo !== 'mes_destacado_em_transito') return base
+async function lerMesFora(supabase: ReturnType<typeof getSupabaseServiceClient>, siteId: string): Promise<MesForaDaRecusa | null> {
   const avisar = (): void => { Sentry.captureMessage('mes_fora_leitura_falhou', { level: 'warning', tags: { component: 'competitors', step: 'mes-fora' }, extra: { siteId } }) }
   try {
     const transito = await lerEmTransito(supabase, siteId)
-    if (!transito) { avisar(); return base }
-    if (transito.length === 0) return base
+    if (!transito) { avisar(); return null }
+    if (transito.length === 0) return null
     const todos = [...new Set(transito.map(t => t.mes))].sort()
     const nomes = todos.slice(0, 2)
     const liberarAPartir = transito.map(t => t.liberar_a_partir).filter(Boolean).sort().at(-1)
-    if (!liberarAPartir) return base
-    const com = todos.length > 1 ? recusa(codigo, FRASE_ALGUM_MES) : base
-    return { ...com, mesFora: { meses: nomes.length === 2 ? 2 : 1, nomes, liberarAPartir } }
+    if (!liberarAPartir) return null
+    return { meses: nomes.length === 2 ? 2 : 1, nomes, liberarAPartir }
   } catch {
     avisar()
-    return base
+    return null
   }
+}
+
+async function recusaDaF1(supabase: ReturnType<typeof getSupabaseServiceClient>, siteId: string, codigo: CodigoTela, frase: string): Promise<{ ok: false; codigo: CodigoTela; frase: string; mesFora?: MesForaDaRecusa }> {
+  const base = recusa(codigo, frase)
+  if (codigo !== 'mes_destacado_em_transito') return base
+  const mesFora = await lerMesFora(supabase, siteId)
+  if (!mesFora) return base
+  const com = mesFora.meses === 2 ? recusa(codigo, FRASE_ALGUM_MES) : base
+  return { ...com, mesFora }
 }
 
 /**
@@ -683,7 +689,7 @@ export async function unpinVideo(videoId: string): Promise<PinResult> {
  * (what the server can do about the images) is read here because `lerCapacidades` is server-only.
  */
 export type RespostaDoImpacto =
-  | { ok: true; impact: CompetitorRemovalImpact; semGuardar: SemGuardar; arquivo: ImpactoDoArquivo; capacidade: 'sim' | 'nao-sim' | 'nao-nao'; dataDoComando: string | null }
+  | { ok: true; impact: CompetitorRemovalImpact; semGuardar: SemGuardar; arquivo: ImpactoDoArquivo; capacidade: 'sim' | 'nao-sim' | 'nao-nao'; dataDoComando: string | null; mesFora?: MesForaDaRecusa }
   | { ok: false }
 export async function getCompetitorRemovalImpactAction(channelRowId: string): Promise<RespostaDoImpacto> {
   let siteId: string
@@ -691,13 +697,15 @@ export async function getCompetitorRemovalImpactAction(channelRowId: string): Pr
   if (typeof channelRowId !== 'string' || !UUID_RE.test(channelRowId)) return { ok: false }
   try {
     // as duas leituras são independentes: uma ida e volta só
-    const [r, arquivo] = await Promise.all([getCompetitorRemovalImpact(siteId, channelRowId), lerImpactoDoArquivo(getSupabaseServiceClient(), siteId, channelRowId)])
+    const sb = getSupabaseServiceClient()
+    const [r, arquivo, mesFora] = await Promise.all([getCompetitorRemovalImpact(siteId, channelRowId), lerImpactoDoArquivo(sb, siteId, channelRowId), lerMesFora(sb, siteId)])
     if (!r || !arquivo) return { ok: false }
     const cap = lerCapacidades()
     return {
       ok: true, impact: r.impact, semGuardar: semGuardarDe(r.addedAt, Date.now(), RULES.removal.semGuardarAteDias), arquivo,
       capacidade: cap.comandoDeLimpeza && cap.blocoCanaisRemovidos ? 'sim' : cap.blocoCanaisRemovidos ? 'nao-sim' : 'nao-nao',
       dataDoComando: cap.dataDoComando,
+      ...(mesFora ? { mesFora } : {}), // M6a T13c: só avisa; a leitura que falha ou vem vazia não muda nada
     }
   } catch { return { ok: false } }
 }
