@@ -27,6 +27,7 @@ vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId
 import { listNicheSignals } from '@/lib/pipeline/services/niche-signals'
 import { youtubeObservatory } from '@/lib/pipeline/mcp/services/youtube-observatory'
 import { montarSugestoes } from '@/app/cms/(authed)/youtube/competitors/_sugestoes/montar'
+import { SUGESTOES_NO_PACOTE } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/sugestoes'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { CONTEXTO } from '../youtube/observatorio/contexto-ia-fixture'
@@ -120,7 +121,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     expect(a.motivoVazio).toBeNull(); expect(b.motivoVazio).toBeNull(); expect(c.vazio).toBeNull()
   })
 
-  it('mais de 20 abertas: mesmo n e mesmo motivoVazio; os ids da sugestoes (20 mais fortes) são o PREFIXO, na mesma ordem, dos ids da rota e do get_signals', async () => {
+  it('mais de 20 abertas: mesmo n e mesmo motivoVazio; os ids da sugestoes (SUGESTOES_NO_PACOTE mais fortes) são o PREFIXO, na mesma ordem, dos ids da rota e do get_signals', async () => {
     await limpar()
     for (let k = 1; k <= 25; k++) await sinal(k, `pais:P${k}`, { forca: 100 - k })
     await estado(null, { canais_total: 5 })
@@ -129,8 +130,8 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     expect(b.n).toBe(25); expect(c.n).toBe(25)
     expect(a.itens).toHaveLength(25)
     expect(b.itens.map((i) => i.id)).toEqual(a.itens.map((i) => i.id))
-    expect(c.ids).toHaveLength(20)
-    expect(c.ids).toEqual(a.itens.slice(0, 20).map((i) => i.id))
+    expect(c.ids).toHaveLength(SUGESTOES_NO_PACOTE)
+    expect(c.ids).toEqual(a.itens.slice(0, SUGESTOES_NO_PACOTE).map((i) => i.id))
     expect(a.motivoVazio).toBeNull(); expect(b.motivoVazio).toBeNull(); expect(c.vazio).toBeNull()
   })
 
