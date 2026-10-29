@@ -48,4 +48,11 @@ describe('M6a T13: D7 e D7r (mês fora das telas)', () => {
     }
     expect(fraseDoMesFora(um).resto).toContain('Enquanto isso não dá para remover canal nem apagar vídeo.')
   })
+  it('T13c Gio: com dois meses a cauda concorda no plural', () => {
+    const dois = { meses: 2 as const, recusadoNoClique: false, nomes: ['2026-10-01', '2026-11-01'], liberarAPartir: '2026-10-24', podeAdministrar: true, hojeSP: '2026-10-20' }
+    expect(fraseDoMesFora(dois).resto).toContain('até lá, o que dá para fazer é trazer os dois meses de volta.')
+    expect(fraseDoMesFora({ ...dois, hojeSP: '2026-10-25' }).resto).toContain('ou trazer os dois meses de volta.')
+    expect(fraseDoMesFora({ ...dois, hojeSP: '2026-10-25', podeAdministrar: false }).resto).toContain('os dois meses também podem voltar')
+    for (const c of ['guardar', 'apagar'] as const) expect(fraseDoMesFora(dois, c).resto).not.toMatch(/o mês/)
+  })
 })

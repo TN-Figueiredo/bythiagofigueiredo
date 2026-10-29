@@ -98,4 +98,19 @@ describe('T13c · aviso ao abrir (guardar)', () => {
     await tentarApagar(m)
     expect(m.q('.fx-mes-fora')).toBeNull()
   })
+  it('Gio: o aviso do mês fora vem antes da lista e do bloco de baixo, nos dois caminhos; reserva usa o mesmo rótulo', async () => {
+    const m = mount({ impact: async () => resp({ mesFora: MES }), hojeSP: '2026-10-28', podeAdministrar: true }); await act(async () => {})
+    for (const c of ['guardar', 'apagar']) {
+      fireEvent.click(m.q(`input[value="${c}"]`)!)
+      const aviso = m.q('.fx-mes-fora')!
+      expect(aviso).not.toBeNull()
+      expect(aviso.compareDocumentPosition(m.q('.fx-loss-box')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(aviso.compareDocumentPosition(m.q('.acts')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    fireEvent.click(m.q('input[value="guardar"]')!)
+    const oculto = m.q('.fx-mes-fora span[aria-hidden="true"]')!
+    expect(oculto.querySelector('.ri-ibtn')!.getAttribute('aria-label')).toBe('Por que não dá para apagar agora')
+    fireEvent.click(m.q('input[value="apagar"]')!)
+    expect(m.q('.fx-mes-fora span[aria-hidden="true"] .ri-ibtn')!.getAttribute('aria-label')).toBe('Por que o pedido fica parado')
+  })
 })
