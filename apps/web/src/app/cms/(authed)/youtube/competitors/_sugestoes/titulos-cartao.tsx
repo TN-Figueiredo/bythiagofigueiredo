@@ -6,14 +6,18 @@ import { useRouter } from 'next/navigation'
 import { Ic } from './icones'
 import type { AcoesDaLista } from './tipos'
 import {
-  fraseDoDescarte, hmSP, TEXTO_AVISO_IDEIAS, TEXTO_FALHOU, TEXTO_LEITURA_FALHOU, TEXTO_NADA_MOSTRADO, TEXTO_PEDIR_DE_NOVO, TEXTO_SEM_CAPACIDADE, TEXTO_SEM_REDE,
+  fraseDoDescarte, hmSP, TEXTO_AVISO_IDEIAS, TEXTO_CANCELAR_FALHOU, TEXTO_CANCELAR_SEM_PERMISSAO, TEXTO_PEDIDO_SEM_CAPACIDADE, TEXTO_FALHOU, TEXTO_LEITURA_FALHOU, TEXTO_NADA_MOSTRADO, TEXTO_PEDIR_DE_NOVO, TEXTO_SEM_CAPACIDADE, TEXTO_SEM_REDE,
   type TitulosDaVista, type VideoDosTitulos,
 } from './titulos'
 import type { ParDeTitulos } from '@/lib/youtube/observatorio/sinais/titulos-complementares/ler'
 
-const REFRESCA_MS = 20_000
+// A forja passa a cada 10 min: um refresh por minuto basta (cada um refaz a página inteira no servidor). Só espera quem está na fila ou escrevendo;
+// forja parada ou sem a capacidade não muda sozinha (nada a atualizar), e a aba escondida não gasta nada. Teto de 30 min (o vigia solta a tarefa em 30).
+export const REFRESCA_MS = 60_000
+export const TETO_DO_REFRESH_MS = 30 * 60_000
 const ETAPAS = ['Na fila', 'Escrevendo', 'Pronta'] as const
-const ATIVOS: ReadonlySet<string> = new Set(['fila', 'gerando', 'parada'])
+const ATIVOS: ReadonlySet<string> = new Set(['fila', 'gerando', 'parada', 'sem_capacidade'])
+const ESPERA_COM_REFRESH: ReadonlySet<string> = new Set(['fila', 'gerando'])
 
 type Erro = { tipo: 'rede' } | { tipo: 'texto'; texto: string }
 /** Resposta local depois de pedir/cancelar: vale só enquanto o servidor ainda mostra o mesmo que mostrava (`base`). */
@@ -87,15 +91,26 @@ export function TitulosDoCartao(p: { titulos: TitulosDaVista; acoes: Pick<AcoesD
   const local = locais.get(sel.id)
   const par: ParDeTitulos | null = local && local.base === chaveDoPar(sel.par) ? local.par : sel.par
   const estado = par?.estado ?? null
-  const ativo = estado !== null && ATIVOS.has(estado)
+  const espera = estado !== null && ESPERA_COM_REFRESH.has(estado)
+  const [cansou, setCansou] = useState(false)
   const marcar = (id: string, base: ParDeTitulos | null, novo: ParDeTitulos | null) => setLocais((m) => new Map(m).set(id, { base: chaveDoPar(base), par: novo }))
 
   // Enquanto algo espera ou escreve, a tela se atualiza sozinha (a forja passa a cada 10 min); sem isso o "Na fila" nunca mudaria.
+  const routerRef = useRef(router)
+  routerRef.current = router // o intervalo não reinicia (nem o teto) só porque o objeto do router mudou
   useEffect(() => {
-    if (!ativo) return
-    const id = setInterval(() => router.refresh(), REFRESCA_MS)
-    return () => clearInterval(id)
-  }, [ativo, router])
+    if (!espera) return
+    const inicio = Date.now()
+    setCansou(false)
+    const id = setInterval(() => {
+      if (Date.now() - inicio >= TETO_DO_REFRESH_MS) { clearInterval(id); setCansou(true); return }
+      if (document.hidden) return
+      routerRef.current.refresh()
+    }, REFRESCA_MS)
+    const voltou = () => { if (!document.hidden && Date.now() - inicio < TETO_DO_REFRESH_MS) routerRef.current.refresh() }
+    document.addEventListener('visibilitychange', voltou)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', voltou) }
+  }, [espera])
 
   async function pedirAgora() {
     if (enviando || !pedir || !t.sabePedir) return
@@ -117,8 +132,11 @@ export function TitulosDoCartao(p: { titulos: TitulosDaVista; acoes: Pick<AcoesD
     try {
       const r = await cancelar(sel.id, t.sinalId)
       if (r.ok) { marcar(sel.id, sel.par, null); router.refresh() }
-      else if (r.motivo === 'recusado') setErro({ tipo: 'texto', texto: r.texto })
-      else setErro({ tipo: 'rede' })
+      else if (r.motivo === 'recusado') { setErro({ tipo: 'texto', texto: r.texto }); router.refresh() } // o pedido já saiu da fila: a tela precisa mostrar o que há agora
+      else {
+        if (r.motivo === 'sem_permissao') setErro({ tipo: 'texto', texto: TEXTO_CANCELAR_SEM_PERMISSAO })
+        else setErro({ tipo: 'texto', texto: TEXTO_CANCELAR_FALHOU })
+      }
     } catch { setErro({ tipo: 'rede' }) } finally { setEnviando(false) }
   }
 
@@ -162,8 +180,23 @@ export function TitulosDoCartao(p: { titulos: TitulosDaVista; acoes: Pick<AcoesD
         {par.estado === 'parada' && (
           <Faixa tom="warn" titulo={`Pedido guardado às ${hm}. A forja está parada${hmSP(par.parada_desde) ? ` desde ${hmSP(par.parada_desde)}` : ''}; o pedido sai quando ela voltar.`} />
         )}
+        {cansou && espera && <p className="sg-hint" role="status">Parei de atualizar sozinha. Atualize a página para ver o andamento.</p>}
         {erro && <p className="sg-errl" role="alert">{Ic.warn()}<span>{erro.tipo === 'rede' ? TEXTO_SEM_REDE : erro.texto}</span></p>}
         {cancelar && par.estado !== 'gerando' && <div className="sg-acts"><button type="button" className="sg-lnk" disabled={enviando} onClick={() => void cancelarAgora()}>Cancelar pedido</button></div>}
+      </>,
+    )
+  }
+
+  // pedido guardado e a forja viva sem a capacidade: não sai sozinho; só cancelar
+  if (par && par.estado === 'sem_capacidade') {
+    return envolver(
+      <>
+        {h5('Ideias de título pela forja')}
+        <Etapas atual={0} atrasada />
+        <p className="sg-who">{`para “${sel.titulo}”`}</p>
+        <Faixa tom="warn" titulo={TEXTO_PEDIDO_SEM_CAPACIDADE} />
+        {erro && <p className="sg-errl" role="alert">{Ic.warn()}<span>{erro.tipo === 'rede' ? TEXTO_SEM_REDE : erro.texto}</span></p>}
+        {cancelar && <div className="sg-acts"><button type="button" className="sg-lnk" disabled={enviando} onClick={() => void cancelarAgora()}>Cancelar pedido</button></div>}
       </>,
     )
   }
@@ -188,7 +221,7 @@ export function TitulosDoCartao(p: { titulos: TitulosDaVista; acoes: Pick<AcoesD
         </>
       )}
       {descarte && <Faixa tom="err" titulo={descarte.titulo} texto={descarte.resto} />}
-      {par && par.estado === 'falhou' && <Faixa tom="err" titulo={TEXTO_FALHOU} texto={`${TEXTO_NADA_MOSTRADO} ${TEXTO_PEDIR_DE_NOVO}`} />}
+      {par && par.estado === 'falhou' && <Faixa tom="err" titulo={TEXTO_FALHOU} texto={par.motivo_forja ? `${par.motivo_forja.charAt(0).toUpperCase()}${par.motivo_forja.slice(1)} ${TEXTO_NADA_MOSTRADO}` : `${TEXTO_NADA_MOSTRADO} ${TEXTO_PEDIR_DE_NOVO}`} />}
       {erro && <p className="sg-errl" role="alert">{Ic.warn()}<span>{erro.tipo === 'rede' ? <><b>Não deu para enviar o pedido:</b> a conexão caiu. Nada foi guardado.</> : erro.texto}</span></p>}
       {pedir && (
         <div className="sg-acts">

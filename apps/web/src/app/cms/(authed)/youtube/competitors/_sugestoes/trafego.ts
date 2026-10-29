@@ -53,8 +53,8 @@ export function montarTrafego(t: TrafegoDoTerceiro | null | undefined, hoje: str
     const parcial = t.videos_medidos > 0 && t.videos_medidos < M ? ` Medido em ${t.videos_medidos} de ${M} ${vid(M)}.` : ''
     // `views` 0 ou nulo: a linha existe, mas nunca se escreve "0 visitas".
     const texto = t.views !== null && t.views > 0
-      ? `Já te manda visitas: ${fmt(t.views)} em ${t.videos_com_trafego} de ${M} vídeos seus${fim}${parcial}`
-      : `Já te manda visitas para ${t.videos_com_trafego} de ${M} vídeos seus (o YouTube não disse quantas)${fim}${parcial}`
+      ? `Já te manda visitas: ${fmt(t.views)} em ${t.videos_com_trafego} de ${M} ${vid(M)}${fim}${parcial}`
+      : `Já te manda visitas para ${t.videos_com_trafego} de ${M} ${vid(M)} (o YouTube não disse quantas)${fim}${parcial}`
     return { ...base, estado: 'sim', texto, curto: `Já te manda visitas · ${t.videos_com_trafego} de ${M}` }
   }
 
@@ -62,7 +62,7 @@ export function montarTrafego(t: TrafegoDoTerceiro | null | undefined, hoje: str
     const ate = ddmm(t.ate)
     return {
       ...base, estado: 'nao', podePedir: true,
-      texto: `Não te manda visitas: nenhum dos seus ${M} vídeos recebeu visita dele${ate === null ? '.' : `, até ${ate}.`}`,
+      texto: `Não te manda visitas: ${M === 1 ? 'o seu vídeo não recebeu' : `nenhum dos seus ${M} vídeos recebeu`} visita dele${ate === null ? '.' : `, até ${ate}.`}`,
       curto: ate === null ? 'Não te manda visitas' : `Não te manda visitas · até ${ate}`,
     }
   }

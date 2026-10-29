@@ -29,9 +29,10 @@ export interface TitulosDaVista {
 
 export function montarTitulos(it: ItemDeSinal, amostra: ReadonlyMap<string, AmostraDoVideo>, lugar: string, forja: TitulosDaForja | undefined): TitulosDaVista | null {
   const ids = it.proprios_agora ?? []
-  if (ids.length === 0) return null
   const pares = new Map((it.titulos_complementares ?? []).map((p) => [p.own_video_id, p]))
-  const escolhidos = [...new Set([...ids.slice(0, VIDEOS_NA_SECAO), ...ids.filter((i) => pares.has(i))])]
+  // pedido que já existe nunca some da tela, mesmo se o vídeo saiu de `proprios_agora` (a rota e o MCP o mostram): tela = rota = MCP
+  if (ids.length === 0 && pares.size === 0) return null
+  const escolhidos = [...new Set([...ids.slice(0, VIDEOS_NA_SECAO), ...pares.keys()])]
   const videos = escolhidos.flatMap((id): VideoDosTitulos[] => {
     const a = amostra.get(id)
     return a ? [{ id, titulo: a.titulo, par: pares.get(id) ?? null }] : []
@@ -56,14 +57,19 @@ export const MOTIVOS_DO_DESCARTE: Readonly<Record<string, string>> = {
   longo: 'um título passou de 100 caracteres',
   repetido: 'repetiu um título que já existe, seu ou do concorrente',
   numero_fora: 'usou um número que não está nos dados (por exemplo “7 dias”)',
+  reprovado: 'nenhuma das tentativas respeitou as regras de tamanho, repetição e números',
 }
 export const TEXTO_SEM_CAPACIDADE = 'A forja ainda não sabe fazer este pedido: o kit dela precisa ser atualizado. Nada foi enviado.'
+/** Pedido já guardado e a forja viva sem a capacidade: o pedido não sai sozinho; só cancelar resolve. */
+export const TEXTO_PEDIDO_SEM_CAPACIDADE = 'A forja ainda não sabe fazer este pedido: o kit dela precisa ser atualizado. O pedido fica guardado, mas não sai até lá; cancele se não quiser esperar.'
 export const TEXTO_ZERO = 'A forja não devolveu nenhum título válido.'
 export const TEXTO_NADA_MOSTRADO = 'Nada foi mostrado.'
 export const TEXTO_PEDIR_DE_NOVO = 'Peça de novo; cada pedido gera títulos novos.'
 export const TEXTO_AVISO_IDEIAS = 'Ideias para partir, não para copiar: confira se não repete o título dele.'
 export const TEXTO_LEITURA_FALHOU = 'Não deu para ler os pedidos de título agora. Recarregue a página em alguns minutos.'
 export const TEXTO_FALHOU = 'A forja não conseguiu gerar os títulos desta vez.'
+export const TEXTO_CANCELAR_SEM_PERMISSAO = 'Só quem administra o site pode cancelar o pedido.'
+export const TEXTO_CANCELAR_FALHOU = 'Não deu para cancelar o pedido agora. Tente de novo em instantes.'
 export const TEXTO_SEM_REDE = 'Não deu para enviar o pedido: a conexão caiu. Nada foi guardado.'
 
 /** Frase de descarte: sempre com o motivo, nunca uma lista vazia calada. `vazio` = nenhum título válido. */

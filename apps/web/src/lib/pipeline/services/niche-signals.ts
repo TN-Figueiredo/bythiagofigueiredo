@@ -1,5 +1,5 @@
 // Serviço dos sinais do nicho (F2 T8) para a rota do pipeline e o MCP `youtube_observatory`. Delega a `listarSinaisDoNicho`
-// (o mesmo leitor da tela e da ação `sugestoes`); nunca consulta tabela aqui. Payload só com ids, números e chaves de lugar (D5/D8).
+// (o mesmo leitor da tela e da ação `sugestoes`); nunca consulta tabela aqui. Payload com ids, números e chaves de lugar (D5/D8) e, desde a F4, os títulos que a forja gerou (até 5 x 100 caracteres por pedido: texto do modelo local, já validado, não dado de terceiro).
 import { z } from 'zod'
 import { calculoLigadoNoAmbiente, dispensarSinal, listarSinaisDoNicho, type ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import { err, ok, type ServiceContext, type ServiceResult } from './types'

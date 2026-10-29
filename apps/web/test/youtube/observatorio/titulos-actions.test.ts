@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const OWN = '11111111-1111-4111-8111-111111111111'
 const SIG = '22222222-2222-4222-8222-222222222222'
-interface Opcoes { admin?: boolean; edit?: boolean; ask?: unknown; cancel?: unknown; lanca?: boolean }
+interface Opcoes { admin?: boolean; edit?: boolean; ask?: unknown; cancel?: unknown; lanca?: boolean; lanca400?: boolean }
 
 const sentry = { captureException: vi.fn(), captureMessage: vi.fn() }
 
@@ -29,7 +29,7 @@ async function montar(o: Opcoes = {}) {
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => { ordem.push('service'); return { marca: 'sb' } } }))
   vi.doMock('@/lib/youtube/observatorio/sinais/leitura', () => ({ adiarSinal: vi.fn(), dispensarSinal: vi.fn() }))
   vi.doMock('@/lib/pipeline/services/forja-queue', () => ({
-    askReading: async (...a: unknown[]) => { ordem.push('ask'); pedidos.push(a); if (o.lanca) throw new Error('postgres: secret'); return o.ask ?? { data: { ok: true, reason: null, results: [] } } },
+    askReading: async (...a: unknown[]) => { ordem.push('ask'); pedidos.push(a); if (o.lanca400) throw Object.assign(new Error('sinal sem nicho'), { name: 'PipelineServiceError', status: 400 }); if (o.lanca) throw new Error('postgres: secret'); return o.ask ?? { data: { ok: true, reason: null, results: [] } } },
     cancelReading: async (...a: unknown[]) => { ordem.push('cancel'); cancelados.push(a); if (o.lanca) throw new Error('postgres: secret'); return o.cancel ?? { data: { cancelled: true } } },
   }))
   const mod = await import('@/app/cms/(authed)/youtube/competitors/_sugestoes/actions')
@@ -63,6 +63,11 @@ describe('pedirTitulos', () => {
   it('recusa do motor volta com a frase dele', async () => {
     const { pedirTitulos } = await montar({ ask: { data: { ok: false, reason: 'Nada enviado: já há um pedido de títulos para este vídeo e este sinal.', results: [] } } })
     expect(await pedirTitulos(OWN, SIG)).toEqual({ ok: false, motivo: 'recusado', texto: 'Nada enviado: já há um pedido de títulos para este vídeo e este sinal.' })
+  })
+  it('P7: 400 do motor (entrada nossa malformada) vira "falhou" fixo, sem a frase do motor e sem Sentry', async () => {
+    const { pedirTitulos } = await montar({ lanca400: true })
+    expect(await pedirTitulos(OWN, SIG)).toEqual({ ok: false, motivo: 'falhou' })
+    expect(sentry.captureException).not.toHaveBeenCalled()
   })
   it('exceção: "falhou" sem vazar a mensagem, e Sentry', async () => {
     const { pedirTitulos } = await montar({ lanca: true })

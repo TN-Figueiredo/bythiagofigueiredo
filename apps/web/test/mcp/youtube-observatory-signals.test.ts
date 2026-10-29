@@ -128,6 +128,20 @@ describe('cabeNoLimite: nunca devolve texto acima do teto', () => {
     expect(Number(/\d+/.exec(j.aviso ?? '')![0]) + j.itens.length).toBe(50)
     expect(j.itens.map((i) => i.id)).toEqual(itens.slice(0, j.itens.length).map((i) => i.id))
   })
+  it('F4 P6: no teto, os títulos prontos viram titulos_n ANTES de perder sugestões inteiras', () => {
+    const titulos = Array.from({ length: 5 }, (_, k) => `Título de teste número ${k} com bastante texto para pesar ${'x'.repeat(80)}`)
+    const itens = Array.from({ length: 50 }, (_, i) => ({
+      ...item(i, 3),
+      titulos_complementares: [0, 1, 2].map((k) => ({ own_video_id: `v-${i}-${k}`, estado: 'pronto' as const, titulos, gerado_em: agoraIso })),
+    }))
+    const sem = JSON.stringify(lista(itens.map((i) => ({ ...i, titulos_complementares: undefined }))))
+    const r = cabeNoLimite(lista(itens), sem.length + 20_000)
+    const j = JSON.parse(r.texto) as ListaDeSinais
+    expect(r.texto.length).toBeLessThanOrEqual(sem.length + 20_000)
+    expect(j.itens).toHaveLength(50) // nenhuma sugestão perdida
+    expect(j.aviso).toMatch(/títulos de 150 pedidos resumidos/)
+    expect(j.itens[0]!.titulos_complementares![0]).toMatchObject({ estado: 'pronto', titulos: [], titulos_n: 5 })
+  })
   it('teto absurdo de pequeno: lista vazia com aviso, ainda abaixo do teto', () => {
     const r = cabeNoLimite(lista([item(0, 20)]), 400)
     expect(JSON.parse(r.texto).itens).toEqual([])

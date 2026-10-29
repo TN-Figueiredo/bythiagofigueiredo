@@ -112,11 +112,99 @@ describe('TitulosDoCartao', () => {
     expect(screen.getByText('Pedido guardado às 19h59. A forja está parada desde 14h10; o pedido sai quando ela voltar.')).toBeTruthy()
     expect(screen.getByText('Cancelar pedido')).toBeTruthy()
   })
-  it('enquanto espera, a tela se atualiza sozinha a cada 20 s', () => {
+  const FILA: ParDeTitulos = { own_video_id: V1, estado: 'fila', pedido_em: quando }
+  const escondida = (v: boolean) => Object.defineProperty(document, 'hidden', { configurable: true, get: () => v })
+  afterEach(() => { escondida(false) })
+  it('P1/M1: na fila atualiza a cada 60 s (não 20)', () => {
     vi.useFakeTimers()
-    render(<TitulosDoCartao titulos={vista({ par: { own_video_id: V1, estado: 'fila', pedido_em: quando } })} acoes={acoes()} />)
-    act(() => { vi.advanceTimersByTime(40_000) })
+    render(<TitulosDoCartao titulos={vista({ par: FILA })} acoes={acoes()} />)
+    act(() => { vi.advanceTimersByTime(59_000) })
+    expect(nav.refresh).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(61_000) })
     expect(nav.refresh).toHaveBeenCalledTimes(2)
+  })
+  it('P1/M1: gerando atualiza; parada, sem_capacidade, pronto, recusado e falhou NUNCA atualizam sozinhos', () => {
+    vi.useFakeTimers()
+    const gera = render(<TitulosDoCartao titulos={vista({ par: { own_video_id: V1, estado: 'gerando', pedido_em: quando } })} acoes={acoes()} />)
+    act(() => { vi.advanceTimersByTime(60_000) })
+    expect(nav.refresh).toHaveBeenCalledTimes(1)
+    gera.unmount(); nav.refresh.mockClear()
+    const pares: ParDeTitulos[] = [
+      { own_video_id: V1, estado: 'parada', pedido_em: quando, parada_desde: quando }, { own_video_id: V1, estado: 'sem_capacidade', pedido_em: quando },
+      { own_video_id: V1, estado: 'pronto', titulos: ['A'], gerado_em: quando }, { own_video_id: V1, estado: 'recusado', motivo: 'longo', pedido_em: quando }, { own_video_id: V1, estado: 'falhou', pedido_em: quando },
+    ]
+    for (const par of pares) {
+      const r = render(<TitulosDoCartao titulos={vista({ par })} acoes={acoes()} />)
+      act(() => { vi.advanceTimersByTime(10 * 60_000) })
+      r.unmount()
+    }
+    expect(nav.refresh).not.toHaveBeenCalled()
+  })
+  it('P1/M1: aba escondida não atualiza; ao voltar, atualiza na hora', () => {
+    vi.useFakeTimers()
+    render(<TitulosDoCartao titulos={vista({ par: FILA })} acoes={acoes()} />)
+    escondida(true)
+    act(() => { vi.advanceTimersByTime(5 * 60_000) })
+    expect(nav.refresh).not.toHaveBeenCalled()
+    escondida(false)
+    act(() => { document.dispatchEvent(new Event('visibilitychange')) })
+    expect(nav.refresh).toHaveBeenCalledTimes(1)
+  })
+  it('P1/M1: para sozinho depois de 30 min e diz para atualizar a página', () => {
+    vi.useFakeTimers()
+    render(<TitulosDoCartao titulos={vista({ par: FILA })} acoes={acoes()} />)
+    act(() => { vi.advanceTimersByTime(31 * 60_000) })
+    const feitos = nav.refresh.mock.calls.length
+    expect(feitos).toBeGreaterThan(0)
+    expect(feitos).toBeLessThanOrEqual(30)
+    act(() => { vi.advanceTimersByTime(20 * 60_000) })
+    expect(nav.refresh).toHaveBeenCalledTimes(feitos)
+    expect(screen.getByText(/Atualize a página para ver o andamento/)).toBeTruthy()
+  })
+  it('P1/M1: trocar de fila para pronto (rerender) e desmontar param o intervalo', () => {
+    vi.useFakeTimers()
+    const r = render(<TitulosDoCartao titulos={vista({ par: FILA })} acoes={acoes()} />)
+    r.rerender(<TitulosDoCartao titulos={vista({ par: { own_video_id: V1, estado: 'pronto', titulos: ['A'], gerado_em: quando } })} acoes={acoes()} />)
+    act(() => { vi.advanceTimersByTime(5 * 60_000) })
+    expect(nav.refresh).not.toHaveBeenCalled()
+    r.unmount()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+  it('M3: sem_capacidade mostra o texto da forja sem o kit e "Cancelar pedido", que chama a ação', async () => {
+    const cancelar = vi.fn(ok)
+    render(<TitulosDoCartao titulos={vista({ par: { own_video_id: V1, estado: 'sem_capacidade', pedido_em: quando } })} acoes={acoes(vi.fn(ok), cancelar)} />)
+    expect(screen.getByText(/A forja ainda não sabe fazer este pedido: o kit dela precisa ser atualizado\. O pedido fica guardado/)).toBeTruthy()
+    expect(screen.queryByText(/parada desde/)).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByText('Cancelar pedido')) })
+    expect(cancelar).toHaveBeenCalledExactlyOnceWith(V1, SINAL)
+  })
+  it('M2: recusado "reprovado" tem frase própria; falhou com motivo da forja mostra o motivo', () => {
+    expect(fraseDoDescarte('reprovado').titulo).toMatch(/^A forja descartou os títulos: .+\.$/)
+    expect(fraseDoDescarte('reprovado').titulo).not.toContain('a resposta não pôde ser usada')
+    render(<TitulosDoCartao titulos={vista({ par: { own_video_id: V1, estado: 'falhou', pedido_em: quando, motivo_forja: 'a máquina recebeu dados anteriores à última sincronização. Peça de novo.' } })} acoes={acoes()} />)
+    expect(screen.getByRole('alert').textContent).toContain('A máquina recebeu dados anteriores à última sincronização. Peça de novo.')
+  })
+  it('m1: cancelar recusado atualiza a tela; sem permissão e falha não dizem "conexão"', async () => {
+    const recusa = vi.fn(async (): Promise<RespostaDoPedidoDeTitulos> => ({ ok: false, motivo: 'recusado', texto: 'Nada cancelado: o pedido já saiu da fila ou está sendo escrito.' }))
+    const r = render(<TitulosDoCartao titulos={vista({ par: FILA })} acoes={acoes(vi.fn(ok), recusa)} />)
+    await act(async () => { fireEvent.click(screen.getByText('Cancelar pedido')) })
+    expect(nav.refresh).toHaveBeenCalled()
+    r.unmount()
+    for (const motivo of ['sem_permissao', 'falhou'] as const) {
+      const c = vi.fn(async (): Promise<RespostaDoPedidoDeTitulos> => ({ ok: false, motivo }))
+      const x = render(<TitulosDoCartao titulos={vista({ par: FILA })} acoes={acoes(vi.fn(ok), c)} />)
+      await act(async () => { fireEvent.click(screen.getByText('Cancelar pedido')) })
+      expect(screen.getByRole('alert').textContent).not.toMatch(/conexão/)
+      x.unmount()
+    }
+  })
+  it('D1: toda classe da seção tem regra no sugestoes.css, em hex/rgba literais (sem mistura de cores)', async () => {
+    const fs = await import('node:fs'); const path = await import('node:path')
+    const css = fs.readFileSync(path.join(process.cwd(), 'src/app/cms/(authed)/youtube/competitors/_sugestoes/sugestoes.css'), 'utf8')
+    for (const c of ['.sg-tit', '.sg-steps', '.sg-ol-list', '.sg-ti', '.sg-vids', '.sg-who', '.sg-hint', '.sg-fb', '.sg-acts', '.sg-big']) expect(css, c).toContain(c)
+    expect(css).not.toContain('color-mix')
+    expect(css).toMatch(/\.sg\{--forja:#5CC3B2\}/)
+    expect(css).toMatch(/\[data-theme="light"\] \.sg\{--forja:#17695C\}/)
   })
   it('recusa do motor volta com a frase dele; conexão caída diz que nada foi guardado', async () => {
     const recusa = vi.fn(async (): Promise<RespostaDoPedidoDeTitulos> => ({ ok: false, motivo: 'recusado', texto: 'Nada enviado: já há um pedido de títulos para este vídeo e este sinal.' }))

@@ -87,7 +87,7 @@ const EntradaTitulos = z.object({ ownVideoId: z.string().uuid(), signalId: z.str
 const ACAO_TITULOS = 'pedir títulos à forja'
 const NADA_CANCELADO = 'Nada cancelado: o pedido já saiu da fila ou está sendo escrito.'
 
-/** Pedido que nomeia a entrada da pessoa (400) é dito a ela; o resto é erro nosso. */
+/** 400 = entrada nossa malformada (o motor recusou o formato): vira `falhou` sem texto e sem Sentry; a frase do motor só sai pelo ramo `recusado`. */
 const ehEntradaRuim = (e: unknown): e is PipelineServiceError =>
   (e instanceof PipelineServiceError || (e instanceof Error && e.name === 'PipelineServiceError')) && (e as PipelineServiceError).status === 400
 

@@ -14,6 +14,10 @@ const t = (o: Partial<TrafegoDoTerceiro>): TrafegoDoTerceiro => ({ ...base, ...o
 const m = (o: Partial<TrafegoDoTerceiro>) => montarTrafego(t(o), HOJE)
 
 describe('montarTrafego', () => {
+  it('D2: singular com 1 vídeo ("1 de 1 vídeo seu", "o seu vídeo")', () => {
+    expect(m({ estado: 'sim', motivo: null, views: 120, videos_com_trafego: 1, videos_medidos: 1, videos_total: 1 })!.texto).toBe('Já te manda visitas: 120 em 1 de 1 vídeo seu, até 27/10.')
+    expect(m({ estado: 'nao', motivo: null, videos_medidos: 1, videos_total: 1, ate: '2026-10-27' })!.texto).not.toMatch(/1 vídeos|seus 1/)
+  })
   it('sim com número: peso, total, vídeos e "até"', () => {
     expect(m({ estado: 'sim', motivo: null, views: 1234, videos_com_trafego: 2, videos_medidos: 36 })).toMatchObject({
       estado: 'sim', texto: 'Já te manda visitas: 1.234 em 2 de 36 vídeos seus, até 27/10.',

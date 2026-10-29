@@ -66,11 +66,25 @@ export function cabeNoLimite(lista: ListaDeSinais, limite: number = LIMITE_DO_TE
     ultimo = { texto: JSON.stringify(cortada), lista: cortada }
     if (ultimo.texto.length <= limite) return ultimo
   }
+  // F4: antes de perder sugestões inteiras, resume os títulos prontos (`titulos` -> `titulos_n`, o estado do par fica) e DIZ quantos pares.
+  let resumidos = 0
+  const resumida: ListaDeSinais = {
+    ...ultimo.lista,
+    itens: ultimo.lista.itens.map((i) => i.titulos_complementares === undefined ? i : {
+      ...i,
+      titulos_complementares: i.titulos_complementares.map((p) => { if (p.estado !== 'pronto') return p; resumidos++; return { ...p, titulos: [], titulos_n: p.titulos.length } }),
+    }),
+  }
+  if (resumidos > 0) {
+    const comAviso: ListaDeSinais = { ...resumida, aviso: `resposta cortada: títulos de ${resumidos} pedidos resumidos em titulos_n` }
+    ultimo = { texto: JSON.stringify(comAviso), lista: comAviso }
+    if (ultimo.texto.length <= limite) return ultimo
+  }
   // Nem sem outliers coube: tira sugestões do fim (as mais fracas) e DIZ quantas, nunca devolve texto acima do teto. `n`, `motivoVazio` seguem os reais.
   const base = ultimo.lista
   for (let ficam = base.itens.length - 1; ficam >= 0; ficam--) {
     const omitidos = base.itens.length - ficam
-    const enxuta: ListaDeSinais = { ...base, itens: base.itens.slice(0, ficam), aviso: `resposta cortada: ${omitidos} itens não couberam` }
+    const enxuta: ListaDeSinais = { ...base, itens: base.itens.slice(0, ficam), aviso: `${base.aviso ? `${base.aviso}; ` : ''}resposta cortada: ${omitidos} itens não couberam` }
     const texto = JSON.stringify(enxuta)
     if (texto.length <= limite) return { texto, lista: enxuta }
   }

@@ -26,7 +26,7 @@ const V = (n: number) => `bbbbbbbb-0000-4000-8000-${String(n).padStart(12, '0')}
 const T = (n: number) => `cccccccc-0000-4000-8000-${String(n).padStart(12, '0')}`
 
 type Tarefa = Record<string, unknown>
-const tarefa = (o: Tarefa): Tarefa => ({ id: T(1), status: 'pending', requested_at: min(5), started_at: null, completed_at: null, failed_at: null, refused_at: null, released_at: null, retry_count: 0, refused_reason: null, target_own_video_id: V(1), target_signal_id: S(1), ...o })
+const tarefa = (o: Tarefa): Tarefa => ({ id: T(1), status: 'pending', requested_at: min(5), started_at: null, completed_at: null, failed_at: null, refused_at: null, released_at: null, retry_count: 0, refused_reason: null, error_message: null, target_own_video_id: V(1), target_signal_id: S(1), ...o })
 const beat = (lastMin: number, caps: string[] = ['titulo-complementar']) => [{ last_poll_at: min(lastMin), capabilities: caps }]
 
 function sbCom(o: { beat?: unknown[]; tarefas?: Tarefa[]; leituras?: Tarefa[]; erro?: string }) {
@@ -67,6 +67,42 @@ describe('lerTitulosDosSinais', () => {
     const pares = r.porSinal.get(S(1))!
     expect(pares.find((p) => p.own_video_id === V(1))).toMatchObject({ estado: 'recusado', motivo: 'longo' })
     expect(pares.find((p) => p.own_video_id === V(2))).toMatchObject({ estado: 'fila' })
+  })
+  it('M2: failed com error_message "validador" (o kit gastou as tentativas) é recusado "reprovado"; outro failed segue falhou', async () => {
+    expect(await par({ beat: beat(3), tarefas: [tarefa({ status: 'failed', error_message: 'validador', failed_at: min(1), retry_count: 2 })] })).toMatchObject({ estado: 'recusado', motivo: 'reprovado' })
+    expect(await par({ beat: beat(3), tarefas: [tarefa({ status: 'failed', error_message: 'travou-3x' })] })).toMatchObject({ estado: 'falhou' })
+  })
+  it('P5: recusa da forja por outra causa mantém o motivo (frase de refusedReasonText), sem virar "recusado pelo validador"', async () => {
+    const p = await par({ beat: beat(3), tarefas: [tarefa({ status: 'refused', refused_reason: 'dado-velho' })] })
+    expect(p).toMatchObject({ estado: 'falhou', motivo_forja: 'a máquina recebeu dados anteriores à última sincronização. Peça de novo.' })
+    expect(await par({ beat: beat(3), tarefas: [tarefa({ status: 'failed' })] })).not.toHaveProperty('motivo_forja')
+  })
+  it('M3: pedido pendente e heartbeat vivo SEM a capacidade é sem_capacidade (nunca parada com hora de agora), mesmo após 25 h', async () => {
+    const velha = tarefa({ requested_at: min(25 * 60) })
+    const p = await par({ beat: beat(2, ['temas']), tarefas: [velha] })
+    expect(p).toMatchObject({ estado: 'sem_capacidade' })
+    expect(p).not.toHaveProperty('parada_desde')
+    expect(await par({ beat: beat(2, ['temas']), tarefas: [tarefa({ status: 'running', started_at: min(1) })] })).toMatchObject({ estado: 'gerando' })
+  })
+  it('P4: heartbeat vivo com capacidade e pedido velho (>24 h) é parada SEM "desde"; só heartbeat morto de verdade leva o horário', async () => {
+    expect(await par({ beat: beat(2), tarefas: [tarefa({ requested_at: min(25 * 60) })] })).toMatchObject({ estado: 'parada', parada_desde: null })
+    expect(await par({ beat: beat(31), tarefas: [tarefa({})] })).toMatchObject({ estado: 'parada', parada_desde: min(31) })
+  })
+  it('P3: as leituras são buscadas por task_id só das concluídas que valem; bater o teto de pedidos avisa no Sentry', async () => {
+    const consultas: Consulta[] = []
+    const sb = fakeSb((c: Consulta): Resposta => {
+      consultas.push(c)
+      if (c.tabela === 'forja_heartbeat') return { data: beat(3) }
+      if (c.tabela === 'youtube_intelligence_tasks') return { data: Array.from({ length: 1000 }, (_, i) => tarefa({ id: T(100 + i), status: 'completed', requested_at: min(10 + i), target_own_video_id: i === 0 ? V(1) : V(2000 + i) })) }
+      return { data: [] }
+    }).sb
+    const r = await lerTitulosDosSinais(sb, SITE, [S(1)], AGORA)
+    const cols = consultas.filter((c) => c.tabela === 'competitor_readings').flatMap((c) => c.filtros.map((f) => f.col))
+    expect(cols).toContain('task_id')
+    expect(cols).not.toContain('signal_id')
+    expect(r.porSinal.get(S(1))!.every((p) => p.estado === 'falhou')).toBe(true) // concluídas sem leitura: falha dita, não "pronto"
+    const Sentry = await import('@sentry/nextjs')
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('titulos.teto_de_tarefas', expect.anything())
   })
   it('capacidade: lista a do heartbeat; sem heartbeat é null (nunca true)', async () => {
     expect((await ler({ beat: beat(3) })).forjaSabePedir).toBe(true)
@@ -115,7 +151,8 @@ describe('F4 T9: Cowork lê os mesmos títulos que a tela', () => {
     expect(par).toMatchObject({ estado: 'pronto', titulos: TITULOS })
     // o Cowork não pede: nenhuma ação do MCP aceita pedir títulos
     const r = await youtubeObservatory({ action: 'pedir_titulos' } as never)
-    expect(JSON.stringify(r)).toMatch(/unknown|desconhec|invalid|inv[aá]lid|não|not/i)
+    expect(r.isError).toBe(true)
+    expect(r.content[0]!.text).toMatch(/Unknown action .*pedir_titulos/)
   })
   it('sem nenhum pedido: o item não leva o campo (resposta enxuta) e a lista diz que leu', async () => {
     montarMundo({ beat: beat(3), tarefas: [], leituras: [] })
