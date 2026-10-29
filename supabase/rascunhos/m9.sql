@@ -681,3 +681,210 @@ begin
   return jsonb_build_object('status', 'ok', 'alvo_id', a.id);
 end $$;
 revoke all on function public.obs_archive_expurgo_unblock(uuid, bigint) from public, anon, authenticated, service_role;
+
+-- M9 PARTE 4: prova de ausência, marcos da remoção, reaparecimento
+
+-- Os prefixos do canal: um por (filho, classe) com unidade ou resumo, mais os dois de _recebendo. Idempotente.
+create or replace function public.obs_archive_removal_open_rows(p_site uuid, p_channel text) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare r record; v_n integer := 0;
+begin
+  for r in
+    select distinct pol.filho, c.class
+      from (select u.class from public.obs_archive_units u where u.site_id = p_site and u.channel_ref = p_channel
+            union select s.class from public.obs_archive_summaries s where s.site_id = p_site and s.channel_ref = p_channel) c
+      join (select distinct class, filho from public.obs_archive_policy()) pol on pol.class = c.class
+  loop
+    insert into public.obs_archive_absence (site_id, alvo, canal_ref, filho, prefixo, e_prefixo, liberado_em)
+    select p_site, 'canal:' || p_channel, p_channel, r.filho, x.prefixo, true, now()
+      from (values (r.class || '/canais/' || p_channel), ('_recebendo/' || r.class || '/canais/' || p_channel),
+                   ('_recebendo/_quarentena/' || r.class || '/canais/' || p_channel)) x(prefixo)
+    on conflict (site_id, alvo, filho, prefixo) do nothing;
+    get diagnostics v_n = row_count;
+  end loop;
+  return v_n;
+end $$;
+revoke all on function public.obs_archive_removal_open_rows(uuid, text) from public, anon, authenticated, service_role;
+
+-- "Apagar canal" (decisão apagar): fecha os alvos de item em voo (Phil C6, Yannis I7) e abre as linhas do canal.
+create or replace function public.obs_archive_canal_apagado() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.archive_decision = 'apagar' then
+    update public.obs_archive_absence a set encerrada_at = now()
+     where a.site_id = new.site_id and a.encerrada_at is null
+       and ((a.alvo_id is not null and exists (select 1 from public.obs_archive_item_targets t where t.id = a.alvo_id and t.channel_ref = new.channel_ref and t.done_at is null))
+         or (a.unidade_id is not null and exists (select 1 from public.obs_archive_units u where u.id = a.unidade_id and u.channel_ref = new.channel_ref)));
+    update public.obs_archive_item_targets t
+       set estado = 'concluido', motivo = null, motivo_fim = 'canal_apagado', done_at = now(), updated_at = now()
+     where t.site_id = new.site_id and t.channel_ref = new.channel_ref and t.done_at is null;
+    perform public.obs_archive_removal_open_rows(new.site_id, new.channel_ref);
+  end if;
+  return null;
+end $$;
+revoke all on function public.obs_archive_canal_apagado() from public, anon, authenticated, service_role;
+drop trigger if exists obs_archive_canal_apagado on public.obs_archive_channel_removals;
+create trigger obs_archive_canal_apagado after insert or update of archive_decision on public.obs_archive_channel_removals
+  for each row execute function public.obs_archive_canal_apagado();
+
+-- Remoções que já existiam antes da M9 ganham as linhas.
+select public.obs_archive_removal_open_rows(site_id, channel_ref) from public.obs_archive_channel_removals
+ where archive_decision = 'apagar' and completed_at is null;
+
+create or replace function public.obs_archive_prefixos_ausentes(p_site uuid, p_origem text) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not public.obs_archive_m9_ligado(p_site) then return '[]'::jsonb; end if;
+  if p_origem = 'nas' then
+    return coalesce((select jsonb_agg(jsonb_build_object('alvo', q.alvo, 'filho', q.filho, 'prefixo', q.prefixo, 'e_prefixo', q.e_prefixo,
+                      'provar_snapshots', q.nas_absent_at is not null and q.snap_absent_at is null) order by q.ord, q.id)
+                      from (select a.*, coalesce(a.nas_last_absent_at, a.nas_present_at) is not null as ord_f,
+                                   row_number() over (order by coalesce(a.nas_last_absent_at, a.nas_present_at) nulls first, a.id) as ord
+                              from public.obs_archive_absence a
+                             where a.site_id = p_site and a.liberado_em is not null and a.encerrada_at is null
+                             order by coalesce(a.nas_last_absent_at, a.nas_present_at) nulls first, a.id limit 2000) q), '[]'::jsonb);
+  elsif p_origem = 'b2' then
+    return coalesce((select jsonb_agg(jsonb_build_object('alvo', q.alvo, 'filho', q.filho, 'prefixo', q.prefixo, 'e_prefixo', q.e_prefixo) order by q.id)
+                      from (select a.* from public.obs_archive_absence a
+                             where a.site_id = p_site and a.liberado_em is not null and a.encerrada_at is null
+                               and a.snap_absent_at is not null and a.b2_absent_at is null and a.nas_last_absent_at > now() - interval '24 hours'
+                             order by a.b2_checked_at nulls first, a.id limit 2000) q), '[]'::jsonb);
+  end if;
+  return '[]'::jsonb;
+end $$;
+revoke all on function public.obs_archive_prefixos_ausentes(uuid, text) from public, anon, authenticated;
+grant execute on function public.obs_archive_prefixos_ausentes(uuid, text) to service_role;
+
+-- Reaparecimento: o arquivo voltou DEPOIS de ter sido dado como ausente (nível 'nas': recomeça tudo; 'b2': só o estágio B2).
+create or replace function public.obs_archive_reabrir(p_linha bigint, p_nivel text) returns void
+language plpgsql security definer set search_path = '' as $$
+declare a public.obs_archive_absence;
+begin
+  select * into a from public.obs_archive_absence x where x.id = p_linha for update;
+  if a.id is null then return; end if;
+  if p_nivel = 'nas' then
+    update public.obs_archive_absence set nas_absent_first_at = null, nas_absent_at = null, nas_last_absent_at = null, nas_present_at = now(),
+           snap_absent_at = null, snap_oldest = null, snap_checked_at = null, b2_absent_at = null, b2_checked_at = null, b2_nomes = '{}', encerrada_at = null
+     where id = a.id;
+  else
+    update public.obs_archive_absence set b2_absent_at = null, b2_present_at = now(), encerrada_at = null where id = a.id;
+  end if;
+  if a.alvo_id is not null then
+    update public.obs_archive_item_targets t
+       set estado = case when p_nivel = 'nas' then 'apagar_antigas' else 'conferir_b2' end, done_at = null, motivo_fim = null, updated_at = now()
+     where t.id = a.alvo_id and t.estado in ('conferir_b2', 'concluido', 'apagar_antigas') and t.motivo_fim is null;
+    -- religa a bandeira do item (Phil m3)
+    update public.competitor_removed_items i set archive_pending = true, archive_note = null
+     where i.site_id = a.site_id and exists (select 1 from public.obs_archive_item_targets t where t.id = a.alvo_id and t.item_kind = i.kind and i.youtube_id = any(t.item_refs));
+  elsif a.canal_ref is not null then
+    update public.obs_archive_channel_removals r
+       set completed_at = null, b2_absent_at = null, snapshots_clear_on = null,
+           nas_absent_at = case when p_nivel = 'nas' then null else r.nas_absent_at end,
+           nas_absent_first_at = case when p_nivel = 'nas' then null else r.nas_absent_first_at end,
+           reappeared_at = now(), reappeared_count = r.reappeared_count + 1
+     where r.site_id = a.site_id and r.channel_ref = a.canal_ref;
+  end if;
+end $$;
+revoke all on function public.obs_archive_reabrir(bigint, text) from public, anon, authenticated, service_role;
+
+create or replace function public.obs_archive_attest_prefixos(p_site uuid, p_fonte text, p_execucao uuid, p_filhos jsonb, p_prefixos jsonb) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  it jsonb; a public.obs_archive_absence; v_saida jsonb := '[]'::jsonb; v_resp text; v_mot text; v_run public.obs_archive_b2_runs; v_nomes text[]; v_estado text; v_snap text;
+  v_filho_ok boolean; v_controle boolean := false;
+begin
+  if p_fonte not in ('nas', 'b2') then raise exception 'forma' using errcode = 'P0001'; end if;
+  if p_fonte = 'b2' then
+    select * into v_run from public.obs_archive_b2_runs r where r.id = p_execucao and r.site_id = p_site;
+    v_controle := v_run.id is not null and v_run.estado = 'controle_ok' and v_run.expires_at > now();
+  end if;
+  for it in select x from jsonb_array_elements(coalesce(p_prefixos, '[]'::jsonb)) x loop
+    v_resp := 'recusado'; v_mot := null;
+    select * into a from public.obs_archive_absence x
+     where x.site_id = p_site and x.alvo = it->>'alvo' and x.filho = it->>'filho' and x.prefixo = it->>'prefixo' for update;
+    v_estado := it->>'estado';
+    if a.id is null then v_mot := 'desconhecido';
+    elsif a.liberado_em is null or a.encerrada_at is not null then v_mot := 'nao_aberto';
+    elsif p_fonte = 'nas' then
+      v_filho_ok := coalesce((p_filhos->(a.filho)->>'montado')::boolean, false) and coalesce((p_filhos->(a.filho)->>'sentinela')::boolean, false);
+      v_snap := it->>'snapshots';
+      if not v_filho_ok then v_mot := 'filho_fora';
+      elsif v_estado = 'presente' then
+        if a.nas_absent_at is not null then perform public.obs_archive_reabrir(a.id, 'nas');
+        else update public.obs_archive_absence set nas_absent_first_at = null, nas_last_absent_at = null, nas_present_at = now() where id = a.id; end if;
+        v_resp := 'aceito';
+      elsif v_estado = 'ausente' then
+        update public.obs_archive_absence set
+               nas_absent_first_at = coalesce(nas_absent_first_at, now()),
+               nas_last_absent_at = now(),
+               nas_absent_at = case when nas_absent_at is not null then nas_absent_at
+                                    when nas_absent_first_at is not null and now() - nas_absent_first_at >= interval '11 hours' then now() end
+         where id = a.id returning * into a;
+        -- snapshots: só valem com a ausência no dataset já provada (duas execuções)
+        if a.nas_absent_at is not null and v_snap in ('ausente', 'presente', 'indisponivel') then
+          update public.obs_archive_absence set
+                 snap_checked_at = now(),
+                 snap_oldest = case when v_snap = 'indisponivel' then snap_oldest else nullif(it->>'snapshot_mais_antigo', '')::date end,
+                 snap_absent_at = case when v_snap = 'ausente' then coalesce(snap_absent_at, now()) when v_snap = 'presente' then null else snap_absent_at end
+           where id = a.id;
+        end if;
+        v_resp := 'aceito';
+      else v_mot := 'forma';
+      end if;
+    else   -- b2
+      if not v_controle then v_mot := 'controle_pendente';
+      elsif v_estado = 'ausente' and a.snap_absent_at is null then v_mot := 'snapshots_pendentes';
+      elsif v_estado = 'ausente' and not (a.nas_last_absent_at > now() - interval '24 hours') then v_mot := 'conferencia_nas_velha';
+      elsif v_estado in ('ausente', 'presente') then
+        select coalesce(array_agg(x), '{}') into v_nomes from (select jsonb_array_elements_text(coalesce(it->'nomes', '[]'::jsonb)) x limit 20) q;
+        if v_estado = 'presente' and cardinality(v_nomes) = 0 then v_mot := 'forma';
+        elsif v_estado = 'ausente' and coalesce(jsonb_array_length(it->'nomes'), 0) > 0 then v_mot := 'forma';
+        elsif v_estado = 'presente' then
+          if a.b2_absent_at is not null then perform public.obs_archive_reabrir(a.id, 'b2'); end if;
+          update public.obs_archive_absence set b2_present_at = now(), b2_checked_at = now(), b2_nomes = v_nomes where id = a.id;
+          v_resp := 'aceito';
+        else
+          update public.obs_archive_absence set b2_absent_at = coalesce(b2_absent_at, now()), b2_checked_at = now(), b2_nomes = '{}' where id = a.id;
+          v_resp := 'aceito';
+        end if;
+      else v_mot := 'forma';
+      end if;
+    end if;
+    v_saida := v_saida || jsonb_strip_nulls(jsonb_build_object('alvo', it->>'alvo', 'filho', it->>'filho', 'prefixo', it->>'prefixo', 'resposta', v_resp, 'motivo', v_mot));
+  end loop;
+  perform public.obs_archive_removal_advance(p_site);
+  perform public.obs_archive_item_advance(p_site);
+  return jsonb_build_object('prefixos', v_saida);
+end $$;
+revoke all on function public.obs_archive_attest_prefixos(uuid, text, uuid, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.obs_archive_attest_prefixos(uuid, text, uuid, jsonb, jsonb) to service_role;
+
+create or replace function public.obs_archive_removal_advance(p_site uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare r record; g record; v_conclui boolean;
+begin
+  if not public.obs_archive_m9_ligado(p_site) then return; end if;
+  for r in select * from public.obs_archive_channel_removals x
+            where x.site_id = p_site and x.archive_decision = 'apagar' and x.completed_at is null order by x.channel_ref for update loop
+    select count(*) as n, count(*) filter (where a.nas_absent_at is not null) as n_nas, count(*) filter (where a.snap_absent_at is not null) as n_snap,
+           count(*) filter (where a.b2_absent_at is not null) as n_b2, min(a.nas_absent_first_at) as primeiro, max(a.nas_absent_at) as nas_em,
+           min(a.nas_last_absent_at) as ultimo, max(a.snap_absent_at) as snap_em, max(a.b2_absent_at) as b2_em
+      into g from public.obs_archive_absence a
+     where a.site_id = p_site and a.alvo = 'canal:' || r.channel_ref and a.encerrada_at is null;
+    update public.obs_archive_channel_removals set
+           nas_absent_first_at = coalesce(g.primeiro, nas_absent_first_at),
+           nas_absent_at = case when g.n > 0 and g.n_nas = g.n then g.nas_em else null end,
+           nas_last_absent_at = case when g.n > 0 and g.n_nas = g.n then g.ultimo else nas_last_absent_at end,
+           snapshots_clear_on = case when g.n > 0 and g.n_snap = g.n then (g.snap_em at time zone 'America/Sao_Paulo')::date else null end,
+           b2_absent_at = case when g.n > 0 and g.n_b2 = g.n then g.b2_em else null end
+     where site_id = r.site_id and channel_ref = r.channel_ref;
+    v_conclui := (g.n = 0 or g.n_b2 = g.n)
+             and cardinality(r.blobs_pending) = 0 and (r.online_thumbs_known or r.thumbs_unknown_ack_at is not null)
+             and not exists (select 1 from public.obs_archive_batches b where b.site_id = r.site_id and b.kind = 'canal' and b.channel_ref = r.channel_ref and b.deleted_at is null and b.closed_at is null);
+    if v_conclui then
+      update public.obs_archive_channel_removals set completed_at = now() where site_id = r.site_id and channel_ref = r.channel_ref;
+      update public.obs_archive_absence set encerrada_at = now() where site_id = p_site and alvo = 'canal:' || r.channel_ref and encerrada_at is null;
+    end if;
+  end loop;
+end $$;
+revoke all on function public.obs_archive_removal_advance(uuid) from public, anon, authenticated, service_role;
