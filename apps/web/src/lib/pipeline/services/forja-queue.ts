@@ -300,16 +300,19 @@ async function askTitulo(
   return ok({ ok: true, reason: null, results: [{ niche, ok: true, reason: null, taskId: (data as { id: string }).id }] })
 }
 
-const CancelSchema = z.object({ type: z.enum(OBS_TYPES), niche: z.string().refine(isNicheSlug, { message: 'expected a niche slug' }), videoId: z.string().uuid().optional(), ownVideoId: z.string().uuid().optional(), signalId: z.string().uuid().optional() })
+const CancelSchema = z.object({ type: z.enum(OBS_TYPES), niche: z.string().refine(isNicheSlug, { message: 'expected a niche slug' }).optional(), videoId: z.string().uuid().optional(), ownVideoId: z.string().uuid().optional(), signalId: z.string().uuid().optional() })
   .refine(c => c.type !== 'leitura-video' || !!c.videoId, { message: 'videoId: required for leitura-video', path: ['videoId'] })
+  .refine(c => c.type === 'titulo-complementar' || !!c.niche, { message: 'niche: required', path: ['niche'] })
   .refine(c => c.type !== 'titulo-complementar' || (!!c.ownVideoId && !!c.signalId), { message: 'ownVideoId and signalId: required for titulo-complementar', path: ['ownVideoId'] })
 
 /** Cancel a request that is still waiting. A running one belongs to the machine and is not cancelled. */
-export async function cancelReading(ctx: ServiceContext, input: { type: ObsType; niche: Niche; videoId?: string; ownVideoId?: string; signalId?: string }): Promise<ServiceResult<{ cancelled: boolean }>> {
+export async function cancelReading(ctx: ServiceContext, input: { type: ObsType; niche?: Niche; videoId?: string; ownVideoId?: string; signalId?: string }): Promise<ServiceResult<{ cancelled: boolean }>> {
   const parsed = CancelSchema.safeParse(input)
   if (!parsed.success) return err('VALIDATION_ERROR', validationMessage(parsed.error), 400)
   const { type, niche, videoId, ownVideoId, signalId } = parsed.data
-  let q = ctx.supabase.from(TASKS).delete().eq('site_id', ctx.siteId).eq('task_type', type).eq('target_niche', niche).eq('status', 'pending')
+  let q = ctx.supabase.from(TASKS).delete().eq('site_id', ctx.siteId).eq('task_type', type).eq('status', 'pending')
+  // titulo-complementar: o par é único (índice parcial) e o nicho foi derivado no servidor no pedido; filtrar por ele faria o cancelamento falhar calado se o nicho mudasse (C-P7)
+  if (type !== 'titulo-complementar' && niche) q = q.eq('target_niche', niche)
   if (type === 'leitura-video' && videoId) q = q.eq('target_video_id', videoId)
   // titulo-complementar: so o par (video nosso x sinal); o delete por nicho apagaria os pendentes de outros videos (R2-Y1)
   if (type === 'titulo-complementar') q = q.eq('target_own_video_id', ownVideoId as string).eq('target_signal_id', signalId as string)
@@ -351,12 +354,12 @@ async function heldObsTask(ctx: ServiceContext, taskId: string, cols: string): P
  * ('dado-velho'); the screen maps it to the canonical sentence (forja/states.ts refusedReasonText). A refusal does not
  * block a new request.
  */
-export async function refuseTask(ctx: ServiceContext, taskId: string, reason: string, now: number = Date.now()): Promise<ServiceResult<{ id: string; status: 'refused' }>> {
+export async function refuseTask(ctx: ServiceContext, taskId: string, reason: string, now: number = Date.now(), extra: Record<string, unknown> = {}): Promise<ServiceResult<{ id: string; status: 'refused' }>> {
   const code = typeof reason === 'string' ? reason.trim() : ''
   if (!code || code.length > REFUSED_REASON_MAX) return err('VALIDATION_ERROR', `reason: required, at most ${REFUSED_REASON_MAX} characters`, 400)
   const { task, previous } = await heldObsTask(ctx, taskId, HELD_COLS)
   let cas = ctx.supabase.from(TASKS)
-    .update({ status: 'refused', refused_at: iso(now), refused_reason: code, result_summary: { ...previous, closed_by: ctx.keyId ?? null } })
+    .update({ status: 'refused', refused_at: iso(now), refused_reason: code, result_summary: { ...previous, ...extra, closed_by: ctx.keyId ?? null } })
     .eq('id', taskId).eq('site_id', ctx.siteId).eq('status', 'running').eq('started_at', task.started_at as string)
   if (!isWideKey(ctx)) cas = cas.eq('result_summary->>claimed_by', ctx.keyId as string)
   const { data, error } = await cas.select('id, status').maybeSingle()
@@ -391,17 +394,17 @@ async function alvoTitulo(ctx: ServiceContext, task: HeldTask): Promise<AlvoTitu
   const ownId = task.target_own_video_id, signalId = task.target_signal_id
   if (!ownId || !signalId) throw new Error('titulo-complementar task without its target')
   const [{ data: vid, error: vErr }, { data: sig, error: sErr }] = await Promise.all([
-    ctx.supabase.from('youtube_videos').select('id, description').eq('id', ownId).maybeSingle(),
+    ctx.supabase.from('youtube_videos').select('id, description').eq('id', ownId).eq('site_id', ctx.siteId).maybeSingle(),
     ctx.supabase.from('niche_signals').select('id, subject_key, status, evidence').eq('site_id', ctx.siteId).eq('id', signalId).maybeSingle(),
   ])
-  if (vErr || sErr) throw new Error('titulo-complementar: failed to read the target: ' + (vErr?.message ?? sErr?.message))
+  if (vErr || sErr) throw new Error('titulo-complementar: failed to read the target (' + (vErr ? 'youtube_videos' : 'niche_signals') + ')')
   if (!vid) return null
   const s = sig as { subject_key: string; status: string; evidence: unknown } | null
   const aberto = s != null && s.status === 'aberto'
   return {
     ownVideoId: ownId, signalId, descricao: (vid as { description: string | null }).description ?? null, congelado: pedidoDe(task.sent),
     // the signal's outliers only count while it is open; their titles are the ones frozen at the request (the dataset prunes), so none here
-    sinal: aberto ? { subjectKey: s.subject_key, outliers: [] } : null,
+    sinal: aberto ? { subjectKey: s.subject_key, outliers: [] } : null, // `outliers` fica vazio de propósito: o sinal só dá o `subjectKey` (C-Y13)
   }
 }
 
@@ -437,7 +440,8 @@ export async function readSent(ctx: ServiceContext, taskId: string, now: number 
     const obs = createObservatory(await loadDataset({ siteId: ctx.siteId, now, supabase: ctx.supabase }))
     if (task.task_type === 'titulo-complementar') {
       const alvo = await alvoTitulo(ctx, task)
-      if (!alvo) return err('TARGET_UNAVAILABLE', 'The target of this task is no longer available', 422)
+      // `err` THROWS: dentro do try o catch o viraria 500 + Sentry; o erro de domínio cai no ramo do 422 abaixo
+      if (!alvo) throw new TargetUnavailableError('titulo-complementar: the own video is gone')
       sent = buildSent(obs, task.task_type, { niche: task.target_niche as Niche | null, titulo: alvo })
     } else {
       sent = buildSent(obs, task.task_type, { niche: task.target_niche as Niche | null, videoId: task.target_video_id, fmt: task.target_fmt as Fmt | null })
@@ -510,7 +514,9 @@ export async function completeReading(ctx: ServiceContext, input: ReadingSubmiss
     const v = validarTitulosComplementares(sent.data as unknown as SentPack, sub.text.items)
     if (!v.ok) {
       // the screen shows it refused, with the reason; a refusal that fails (the task moved on) still answers 400
-      try { await refuseTask(ctx, task.id, 'validador-' + v.motivo, now) } catch { /* the 400 below is the answer */ }
+      // os títulos recusados (<= 5 x 100 caracteres) ficam em result_summary.recusados: sem eles não dá para afinar o prompt nem ver a divergência site x kit
+      const recusados = sub.text.items.slice(0, REGRA_F4_TITULO.k).map(i => [...i].slice(0, REGRA_F4_TITULO.maxCaracteres).join(''))
+      try { await refuseTask(ctx, task.id, 'validador-' + v.motivo, now, { recusados }) } catch { /* the 400 below is the answer */ }
       return err('VALIDATION_ERROR', 'titles refused by the validator: ' + v.motivo + ' (' + MOTIVO_TITULO_TEXT[v.motivo] + ')', 400)
     }
   }

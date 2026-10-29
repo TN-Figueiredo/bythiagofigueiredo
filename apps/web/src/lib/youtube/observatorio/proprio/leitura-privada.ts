@@ -132,3 +132,14 @@ export const leituraDoEditor = async (siteId: string): Promise<LeituraPrivadaDoS
   const a = await provarAcessoPrivado(siteId)
   return a.edita ? a.leitura : null
 }
+
+/**
+ * F4 (C-Y2): o acesso de quem EDITA o site, com a negativa preservada para a borda do tráfego do terceiro. Quem edita: o acesso inteiro. Quem não edita nunca ganha
+ * leitura (`leitura: null`), mas a negativa diz o que houve: sem resposta confiável (ou edição não conferida com a leitura concedida) = `nao_foi_possivel_conferir`,
+ * senão `sem_direito`. Assim "não deu para conferir" não vira "sem direito" no próprio site. Nunca lança.
+ */
+export const acessoDoEditor = async (siteId: string): Promise<AcessoPrivado> => {
+  const a = await provarAcessoPrivado(siteId)
+  if (a.edita) return a
+  return { leitura: null, edita: false, negativa: a.negativa === 'nao_foi_possivel_conferir' || a.leitura !== null ? 'nao_foi_possivel_conferir' : 'sem_direito' }
+}

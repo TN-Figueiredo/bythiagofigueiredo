@@ -23,7 +23,7 @@ async function montar(o: Opcoes = {}) {
     contarSinaisAbertos: async (...a: unknown[]) => { r.contarArgs.push(a); if (o.contar === 'lanca') throw new Error('boom'); return o.contar === undefined ? 3 : o.contar },
     lerEstadoDaAba: async (...a: unknown[]) => { r.estadoArgs.push(a); if (o.estado === 'lanca') throw new Error('boom'); return o.estado === undefined ? { calculado: true, velho: false, computado_em: '2026-10-23T08:00:00Z' } : o.estado },
   }))
-  vi.doMock('@/lib/youtube/observatorio/proprio/leitura-privada', () => ({ leituraDoEditor: async () => { r.ordem.push('leitura'); return { marca: 'leitura' } } }))
+  vi.doMock('@/lib/youtube/observatorio/proprio/leitura-privada', () => ({ acessoDoEditor: async () => { r.ordem.push('leitura'); return { marca: 'leitura' } } }))
   vi.doMock('@/lib/youtube/observatorio/sinais/amostra', () => ({
     lerAmostraDasLinhas: async (_sb: unknown, _s: string, ids: string[]) => { r.amostraIds.push(ids); if (o.amostraLanca) throw new Error('boom'); return new Map() },
   }))

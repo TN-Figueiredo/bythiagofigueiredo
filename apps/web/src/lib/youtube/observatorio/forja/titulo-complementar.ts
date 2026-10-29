@@ -74,9 +74,9 @@ export function tituloComplementarPack(ctx: ForjaCtx, alvo: AlvoTitulo): SentTit
 
   const descricao = (alvo.descricao ?? '').trim().slice(0, DESCRICAO_MAX_CARACTERES)
   const items: Array<Record<string, SentCell>> = [
-    { kind: 'vídeo nosso', id: alvoV.id, title: alvoV.title, description: descricao || null, lugar },
-    ...enviados.map(t => ({ kind: 'título do dono', title: t })),
-    ...outliers.map(o => ({ kind: 'outlier', id: o.video_id, channel: o.canal, title: o.titulo, mult: fmt.mult(o.mult_vpd7), viewsPerDay: fmt.num(o.vpd7) })),
+    { kind: KINDS_TITULO.alvo, id: alvoV.id, title: alvoV.title, description: descricao || null, lugar },
+    ...enviados.map(t => ({ kind: KINDS_TITULO.dono, title: t })),
+    ...outliers.map(o => ({ kind: KINDS_TITULO.outlier, id: o.video_id, channel: o.canal, title: o.titulo, mult: fmt.mult(o.mult_vpd7), viewsPerDay: fmt.num(o.vpd7) })),
   ]
   // números citáveis: múltiplos e views/dia dos outliers e os que aparecem nos títulos ENVIADOS (Y3b); a descrição fica de fora
   const nums = new Set<string>()
@@ -99,6 +99,9 @@ export function tituloComplementarPack(ctx: ForjaCtx, alvo: AlvoTitulo): SentTit
   }
 }
 
+/** Os rótulos `kind` do pacote: contrato com o kit (que acha o alvo por eles); a fixture de casos os grava em `kinds` e os dois lados leem de lá. */
+export const KINDS_TITULO = { alvo: 'vídeo nosso', dono: 'título do dono', outlier: 'outlier' } as const
+
 export type MotivoTitulo = 'demais' | 'longo' | 'repetido' | 'numero_fora' | 'vazio'
 export type ResultadoTitulo = { ok: true; itens: string[] } | { ok: false; motivo: MotivoTitulo }
 
@@ -113,9 +116,12 @@ export function validarTitulosComplementares(sent: { numbers: readonly string[];
   const limpos = itens.map(i => i.trim())
   if (limpos.some(i => i === '')) return { ok: false, motivo: 'vazio' }
   if (limpos.some(i => [...i].length > REGRA_F4_TITULO.maxCaracteres)) return { ok: false, motivo: 'longo' }
-  const x = temExtra(sent) ? sent.titulo_complementar : {}
+  // sem o contexto do pedido "repetido" nunca dispararia (falha em verde): sem ele a regra não valida nada (C-Y7)
+  if (!temExtra(sent)) return { ok: false, motivo: 'vazio' }
+  const x = sent.titulo_complementar
   const passados = new Set([...strs(x.normalizados_proprios), ...strs(x.normalizados_outliers)])
   if (limpos.some(i => passados.has(normTitulo(i)))) return { ok: false, motivo: 'repetido' }
+  if (new Set(limpos.map(normTitulo)).size !== limpos.length) return { ok: false, motivo: 'repetido' } // repetido dentro da própria lista (C-Y8)
   const permitidos = new Set(strs([...sent.numbers]).map(n => normalizeNumberToken(n) || n))
   if (limpos.some(i => canonicalNumberTokens(i).some(n => !permitidos.has(n)))) return { ok: false, motivo: 'numero_fora' }
   return { ok: true, itens: limpos }

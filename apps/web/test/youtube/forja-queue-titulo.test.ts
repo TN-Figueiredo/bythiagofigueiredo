@@ -32,7 +32,7 @@ vi.mock('@/lib/youtube/observatorio', async () => {
   }) }
 })
 
-import { askReading, cancelReading, completeReading, claimFilter } from '@/lib/pipeline/services/forja-queue'
+import { askReading, cancelReading, completeReading, claimFilter, readSent } from '@/lib/pipeline/services/forja-queue'
 
 interface Op { op: string; args: unknown[] }
 interface Query { table: string; ops: Op[] }
@@ -139,6 +139,16 @@ describe('cancelReading titulo-complementar (R2-Y1)', () => {
     expect(has(q, 'eq', 'target_signal_id', SIG)).toBe(true)
     expect(has(q, 'eq', 'status', 'pending')).toBe(true)
   })
+  it('C-P7: o nicho nem entra no filtro (o par é único): cancela mesmo se o nicho do pedido mudou, e sem nicho', async () => {
+    const f = fakeClient(() => ({ data: [{ id: T1 }], error: null }))
+    const r = await cancelReading(ctxOf(f.client), { type: 'titulo-complementar', ownVideoId: OWN_VID, signalId: SIG })
+    expect(r.data?.cancelled).toBe(true)
+    expect(f.queries[0]!.ops.some(o => o.op === 'eq' && o.args[0] === 'target_niche')).toBe(false)
+  })
+  it('leitura-video continua exigindo nicho', async () => {
+    const f = fakeClient(() => ({ data: [], error: null }))
+    await expect(cancelReading(ctxOf(f.client), { type: 'leitura-video', videoId: OWN_VID } as never)).rejects.toMatchObject({ status: 400 })
+  })
   it('sem ownVideoId/signalId: 400, nada apagado', async () => {
     const f = fakeClient(() => ({ data: [], error: null }))
     await expect(cancelReading(ctxOf(f.client), { type: 'titulo-complementar', niche: 'viagem' })).rejects.toMatchObject({ status: 400 })
@@ -160,6 +170,15 @@ describe('claim e conclusão', () => {
     const upd = f.queries.find(q => q.ops.some(o => o.op === 'update'))!
     expect((upd.ops.find(o => o.op === 'update')!.args[0] as { refused_reason: string }).refused_reason).toBe('validador-repetido')
   })
+  it('C-P6: a recusa do validador guarda os títulos recusados (<= 5, cortados a 100) em result_summary.recusados', async () => {
+    const f = fakeClient(q => ({ data: q.table === 'youtube_intelligence_tasks' && q.ops.some(o => o.op === 'select') && !q.ops.some(o => o.op === 'update') ? held(frozen) : { id: T1, status: 'refused' }, error: null }))
+    const longo = 'x'.repeat(130)
+    await expect(completeReading(ctxOf(f.client), sub(['Vietnã em 3 dias', longo]), OBS_NOW)).rejects.toMatchObject({ status: 400 })
+    const upd = f.queries.find(q => q.ops.some(o => o.op === 'update'))!
+    const rs = (upd.ops.find(o => o.op === 'update')!.args[0] as { result_summary: { recusados: string[]; claimed_by: string } }).result_summary
+    expect(rs.recusados).toEqual(['Vietnã em 3 dias', 'x'.repeat(100)])
+    expect(rs.claimed_by).toBe('key-forja')
+  })
   it('títulos válidos: a leitura grava own_video_id e signal_id', async () => {
     const f = fakeClient(q => {
       if (q.table === 'competitor_readings') return { data: { id: 'r1' }, error: null }
@@ -174,5 +193,24 @@ describe('claim e conclusão', () => {
   it('sent só com o contexto do pedido (sem numbers) ainda não foi lido: TASK_NOT_READY', async () => {
     const f = fakeClient(() => ({ data: held({ pedido: { subject_key: 'pais:vn', lugar: 'Vietnã', outliers: [] } }), error: null }))
     await expect(completeReading(ctxOf(f.client), sub(['Hoi An em 3 dias']), OBS_NOW)).rejects.toMatchObject({ status: 409, code: 'TASK_NOT_READY' })
+  })
+})
+
+describe('readSent titulo-complementar (C-Y4)', () => {
+  const heldRun = (sent: unknown) => ({ id: T1, status: 'running', task_type: 'titulo-complementar', target_niche: 'viagem', target_video_id: null, target_own_video_id: OWN_VID, target_signal_id: SIG, target_fmt: null, result_summary: { claimed_by: 'key-forja' }, started_at: 'x', sent })
+  it('sent já congelado (com numbers): devolve a cópia e NÃO faz update nem lê o dataset do vídeo', async () => {
+    const congelado = { text: 't', ids: [], numbers: ['3'], titulo_complementar: {} }
+    const f = fakeClient(() => ({ data: heldRun(congelado), error: null }))
+    const r = await readSent(ctxOf(f.client), T1, OBS_NOW)
+    expect(r.data.sent).toEqual(congelado)
+    expect(f.queries.some(q => q.ops.some(o => o.op === 'update'))).toBe(false)
+    expect(f.queries.some(q => q.table === 'youtube_videos')).toBe(false)
+  })
+  it('vídeo nosso apagado: 422 TARGET_UNAVAILABLE, nada congelado; a leitura do vídeo filtra pelo site', async () => {
+    const f = fakeClient(q => q.table === 'youtube_intelligence_tasks' ? { data: heldRun({ pedido: { subject_key: 'pais:vn', lugar: 'Vietnã', outliers: [] } }), error: null } : { data: null, error: null })
+    await expect(readSent(ctxOf(f.client), T1, OBS_NOW)).rejects.toMatchObject({ status: 422, code: 'TARGET_UNAVAILABLE' })
+    expect(f.queries.some(q => q.ops.some(o => o.op === 'update'))).toBe(false)
+    const v = f.queries.find(q => q.table === 'youtube_videos')!
+    expect(has(v, 'eq', 'site_id', 'site-1')).toBe(true)
   })
 })

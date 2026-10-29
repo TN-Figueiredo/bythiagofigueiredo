@@ -49,6 +49,9 @@ alter table competitor_readings add constraint competitor_readings_alvo_titulo_c
 create index if not exists idx_competitor_readings_own_video
   on competitor_readings (site_id, task_type, own_video_id, generated_at desc) where own_video_id is not null;
 
+-- ORDEM DA VOLTA (C-Y5): kit -> site -> migration, nunca parcial. 0) kit: rollback da T8 (a forja deixa de anunciar `titulo-complementar`); 1) site: revert de T7/T9 e promocao
+-- (o codigo novo le target_own_video_id/target_signal_id em TODO tipo: com o `drop column` e a T7 no ar o claim quebra para diagnostico, padroes e temas);
+-- 2) so entao o bloco abaixo. Ida: esta migration ANTES do deploy da T7.
 -- CAMINHO DE VOLTA (rodar nesta ordem; antes de recriar os CHECKs/indice antigos, senao o rollback falha por linha que viola o CHECK velho):
 --   -- 0) antes de tudo, exportar (texto do modelo nao e reproduzivel): \copy (select * from competitor_readings where task_type='titulo-complementar') to 'leituras-titulo-complementar-AAAAMMDD.csv' csv header
 --   delete from youtube_intelligence_tasks where task_type = 'titulo-complementar';

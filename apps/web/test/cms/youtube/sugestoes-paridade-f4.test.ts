@@ -14,10 +14,10 @@ vi.mock('@/lib/pipeline/mcp/context', () => ({ getMcpContext: () => ({ siteId: S
 vi.mock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => mundo.sb }))
 
 import type { ItemDeSinal, ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
-import type { TrafegoDoTerceiro } from '@/lib/youtube/observatorio/sinais/trafego-terceiro/regra'
+import { estadoDaSugestao } from '@/lib/youtube/observatorio/sinais/trafego-terceiro/regra'
 import { youtubeObservatory, cabeNoLimite, LIMITE_DO_TEXTO_DA_FERRAMENTA } from '@/lib/pipeline/mcp/services/youtube-observatory'
 import { listNicheSignals } from '@/lib/pipeline/services/niche-signals'
-import { empacotarSugestoes, modeloDeSugestoes, INVENTARIO_SUGESTOES } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/sugestoes'
+import { empacotarSugestoes, modeloDeSugestoes, privadoDaLista, INVENTARIO_SUGESTOES } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/sugestoes'
 import { semDestino, semUso } from '@/lib/youtube/observatorio/contexto-ia/inventario'
 
 const agoraIso = new Date().toISOString()
@@ -37,9 +37,11 @@ function montar(n: number): void {
 }
 const ctx = () => ({ siteId: SITE, permissions: ['read'], keyHash: 'h', keyId: 'k', supabase: mundo.sb, source: 'api_key' }) as never
 
-const SIM: TrafegoDoTerceiro = { estado: 'sim', motivo: null, terceiro_video_id: 'TERC000001a', videos_com_trafego: 2, videos_medidos: 3, videos_total: 3, views: 1234, ate: null, regra: 'f4-trafego-v1' }
-const NAO: TrafegoDoTerceiro = { estado: 'nao', motivo: null, terceiro_video_id: 'TERC000002b', videos_com_trafego: 0, videos_medidos: 3, videos_total: 3, views: null, ate: '2026-10-27', regra: 'f4-trafego-v1' }
-const NM: TrafegoDoTerceiro = { estado: 'nao_medido', motivo: 'cobertura_velha', terceiro_video_id: 'TERC000003c', videos_com_trafego: 0, videos_medidos: 0, videos_total: 3, views: null, ate: null, regra: 'f4-trafego-v1' }
+// fixtures GERADAS por `estadoDaSugestao` (nunca literal): campo novo no tipo aparece aqui sem editar o teste (C-Y3)
+const CTX = { desde: '2026-10-20', coberto_ate: '2026-10-28' }
+const SIM = estadoDaSugestao([{ estado: 'sim', views: 1000, dias: 1 }, { estado: 'sim', views: 234, dias: 1 }, { estado: 'nao', diasCobertos: 7, ate: '2026-10-27' }], 'TERC000001a', null, 3, false, CTX)
+const NAO = estadoDaSugestao([{ estado: 'nao', diasCobertos: 7, ate: '2026-10-27' }, { estado: 'nao', diasCobertos: 7, ate: '2026-10-28' }, { estado: 'nao', diasCobertos: 7, ate: '2026-10-27' }], 'TERC000002b', null, 3, false, CTX)
+const NM = estadoDaSugestao([], 'TERC000003c', 'cobertura_velha', 3, false, { desde: '2026-10-20', coberto_ate: null })
 
 /** A lista REAL (rota/serviço) com a prova trocada nos 3 itens: o que a tela e o pacote veem quando a leitura foi provada. */
 async function listaComProva(): Promise<ListaDeSinais> {
@@ -59,7 +61,7 @@ async function tela(lista: ListaDeSinais): Promise<ListaDeSinais> {
   vi.doMock('@/lib/cms/auth-guards', () => ({ requireSiteAdminScope: async () => ({ ok: true }) }))
   vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => ({}) }))
   vi.doMock('@/lib/youtube/observatorio/sinais/leitura', () => ({ listarSinaisDoNicho: async () => lista, calculoLigadoNoAmbiente: () => true }))
-  vi.doMock('@/lib/youtube/observatorio/proprio/leitura-privada', () => ({ leituraDoEditor: async () => ({ marca: 'leitura' }) }))
+  vi.doMock('@/lib/youtube/observatorio/proprio/leitura-privada', () => ({ acessoDoEditor: async () => ({ marca: 'leitura' }) }))
   vi.doMock('@/lib/youtube/observatorio/sinais/amostra', () => ({ lerAmostraDasLinhas: async () => new Map() }))
   const { abrirListaDaTela } = await import('@/app/cms/(authed)/youtube/competitors/_sugestoes/dados-da-tela')
   const r = await abrirListaDaTela(new Date(), 100)
@@ -73,7 +75,7 @@ describe('F4 T3: paridade do trafego_do_terceiro', () => {
   it('(i) tela e pacote devolvem o mesmo estado, motivo, números e ate por id', async () => {
     const lista = await listaComProva()
     const daTela = (await tela(lista)).itens
-    const t = empacotarSugestoes(modeloDeSugestoes(lista, new Date())).tabelas.find((x) => x.id === 'sugestoes-trafego')!
+    const t = empacotarSugestoes(modeloDeSugestoes(lista, new Date()), privadoDaLista(lista)).tabelas.find((x) => x.id === 'sugestoes-trafego')!
     expect(t.linhas).toHaveLength(3)
     const rotuloDoEstado = { sim: 'sim', nao: 'não', nao_medido: 'não medido', nao_se_aplica: 'não se aplica' } as const
     for (const it of daTela) {
@@ -87,8 +89,10 @@ describe('F4 T3: paridade do trafego_do_terceiro', () => {
       if (f.views !== null) expect(texto(l[6] as never)).toBe(String(f.views))
       else expect((l[6] as { estado: string }).estado).toBe('nao_medido')
       expect(texto(l[7] as never)).toBe(f.ate ?? '—')
-      expect(texto(l[8] as never)).toBe(f.terceiro_video_id ?? '—')
-      expect(texto(l[9] as never)).toBe(f.regra)
+      expect(texto(l[8] as never)).toBe(f.desde ?? 'o dado não informa essa data')
+      expect(texto(l[9] as never)).toBe(f.coberto_ate ?? 'o dado não informa essa data')
+      expect(texto(l[10] as never)).toBe(f.terceiro_video_id ?? '—')
+      expect(texto(l[11] as never)).toBe(f.regra)
     }
     // "não medido" nunca vira "não" nem 0 no pacote
     const nm = t.linhas.find((x) => texto(x[0] as never) === lista.itens[2]!.id)!
@@ -152,5 +156,25 @@ describe('F4 T3: paridade do trafego_do_terceiro', () => {
     // medido (fixture de 20 outliers, 10 próprios, 50 itens): sem o campo sobra 1 outlier por item; com ele, 0 (a lista dos 50 itens segue inteira)
     expect([sobramSem, sobramCom]).toEqual([1, 0])
     expect(sobramSem - sobramCom).toBeLessThanOrEqual(1)
+  })
+
+  it('(vi) C-Y2: guarda de leitura sem resposta no próprio site: a tela diz nao_conferido (não sem_direito) e zero consultas ao detalhe', async () => {
+    montar(3)
+    vi.resetModules()
+    for (const m of ['sinais/leitura', 'proprio/leitura-privada']) vi.doUnmock(`@/lib/youtube/observatorio/${m}`)
+    vi.doMock('server-only', () => ({}))
+    vi.doMock('@sentry/nextjs', () => ({ captureMessage: vi.fn(), captureException: vi.fn() }))
+    vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: SITE }) }))
+    vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({
+      requireSiteScope: async (a: { mode: string }) => { if (a.mode === 'edit') return { ok: true, user: { id: 'u' } }; throw new Error('guarda caiu') },
+    }))
+    vi.doMock('@/lib/cms/auth-guards', () => ({ requireSiteAdminScope: async () => ({ ok: true }) }))
+    vi.doMock('@/lib/supabase/service', () => ({ getSupabaseServiceClient: () => mundo.sb }))
+    vi.doMock('@/lib/youtube/observatorio/proprio/edicao', () => ({ provarEdicaoComAviso: async () => ({ token: null, avisou: false }), edicaoValida: () => false }))
+    const { abrirListaDaTela } = await import('@/app/cms/(authed)/youtube/competitors/_sugestoes/dados-da-tela')
+    const r = await abrirListaDaTela(new Date(), 100)
+    if (r.estado !== 'ok') throw new Error('tela não abriu')
+    expect(r.lista.itens.length).toBeGreaterThan(0)
+    for (const i of r.lista.itens) expect(i.trafego_do_terceiro).toMatchObject({ estado: 'nao_medido', motivo: 'nao_conferido' })
   })
 })

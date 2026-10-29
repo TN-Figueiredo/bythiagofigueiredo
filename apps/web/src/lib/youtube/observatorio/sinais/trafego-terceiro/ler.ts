@@ -4,6 +4,7 @@
 // Falha em verde é o risco: dado ausente vira `nao_medido` com motivo, nunca `nao`. Qualquer exceção vira `erro_de_leitura` (a lista não cai).
 // Não grava `detail` nem id de terceiro em log; o `detail` vazio só vira "dia sem origem informada".
 import 'server-only'
+import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { addDays, dayPt } from '../../../coleta/day-pt'
 import { passoDesligado } from '../../../coleta/passos-desligados'
@@ -79,7 +80,11 @@ export async function lerTrafegoDoTerceiro(
   try {
     if (passoDesligado('normalizadores', env)) return { porItem: doMotivo(itens, 'coleta_desligada'), codigo32: null }
     return await ler(sb, siteId, itens, hoje)
-  } catch {
+  } catch (e) {
+    // alarme sem conteúdo: nunca `e.message` (pode carregar `detail`/id de terceiro); só o tipo
+    Sentry.captureException(new Error('f4: leitura do tráfego do terceiro falhou'), {
+      tags: { f4: 'trafego' }, extra: { tipo: e instanceof Error ? e.name : 'desconhecido' },
+    })
     return { porItem: doMotivo(itens, 'erro_de_leitura'), codigo32: null }
   }
 }
@@ -103,7 +108,7 @@ async function ler(sb: SupabaseClient, siteId: string, itens: ReadonlyArray<Item
   const nossos = new Map<string, string>() // id → youtube_video_id
   const proprioYt = new Set<string>()
   for (let de = 0; ; de += 1000) {
-    const r = await sb.from('youtube_videos').select('id, youtube_video_id').eq('site_id', siteId).range(de, de + 999)
+    const r = await sb.from('youtube_videos').select('id, youtube_video_id').eq('site_id', siteId).order('id').range(de, de + 999)
     if (r.error) throw new Error('f4: leitura de youtube_videos falhou')
     const linhas = (Array.isArray(r.data) ? r.data : []) as Array<{ id: string; youtube_video_id: string | null }>
     for (const l of linhas) if (l.youtube_video_id) { nossos.set(l.id, l.youtube_video_id); proprioYt.add(l.youtube_video_id) }

@@ -340,6 +340,10 @@ T6, T7 e T8 não têm tela e não dependem da F4-1: rodam em paralelo com T2/T3 
 | B2 (forja, dono) | kit T8 | B1 no ar; comandos pelo runbook §2/§4, na hora | botão ativo, títulos |
 | F4-2, F4-4 | planos próprios | G2, G4 | — |
 
+**Ordem da ida (portão duro, Phil):** B0 (`db:push:prod`) → conferir que `target_own_video_id` e `target_signal_id` existem → só então o deploy do código da T7 (`CLAIM_COLS`, `HELD_COLS` e `TASK_COLS` pedem as colunas para TODO tipo: sem a migration, a fila inteira da forja para, não só o título). Conferência logo após o deploy: `select task_type, status, count(*) from youtube_intelligence_tasks where requested_at > now() - interval '2 hours' group by 1,2;` (diagnóstico e padrões seguem indo a `done`, sem `failed` novo).
+
+**Ordem da volta (C-Y5, Yannis):** kit → site → migration, nunca parcial. (1) kit: T8 "Rollback concreto" (a forja deixa de anunciar `titulo-complementar`; `KIT-IGUAL` conferido); (2) site: `git revert` de T7/T9 e promoção; (3) só então o bloco "CAMINHO DE VOLTA" da migration `20261029000003` (que faz `drop column`). Reverter só o site com o kit novo instalado faz o claim ser recusado e a fila para calada; rodar o `drop column` com a T7 no ar faz o claim dar erro para diagnóstico, padrões e temas. A mesma ordem vai no passo de rollback da T10 (e em `t8-instalar.md`, a cargo do executor do kit).
+
 Ordem de execução: (1) T0 e T1; (2) T2, T3, T6, T7 e o mockup M em paralelo (executores separados); (3) T8 (kit local, sem instalar); (4) dono aprova o mockup, depois T4 e T9; (5) T5 sobre T1–T4 e, separada, a revisão da T6; a T10 sobre T7–T9 depois ou junto. Datas: nenhuma espera dado; as esperas são a aprovação do mockup e a instalação do kit pelo dono.
 
 ## Decisões em aberto para o dono

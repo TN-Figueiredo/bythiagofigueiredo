@@ -2,18 +2,31 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { REGRA_F4_TITULO, tituloComplementarPack, validarTitulosComplementares, novidadeTitulo, type AlvoTitulo, type OutlierCongelado } from '@/lib/youtube/observatorio/forja/titulo-complementar'
+import { createHash } from 'node:crypto'
+import { REGRA_F4_TITULO, KINDS_TITULO, tituloComplementarPack, validarTitulosComplementares, novidadeTitulo, type AlvoTitulo, type OutlierCongelado } from '@/lib/youtube/observatorio/forja/titulo-complementar'
 import { TargetUnavailableError } from '@/lib/youtube/observatorio/forja/sent'
 import type { ForjaCtx } from '@/lib/youtube/observatorio/forja/scope'
 
 const casos = JSON.parse(readFileSync(join(__dirname, '../../../fixtures/titulo-complementar-casos.json'), 'utf8')) as {
-  sent: { numbers: string[]; titulo_complementar: unknown }; casos: Array<{ nome: string; itens: string[]; esperado: string }>
+  kinds: typeof KINDS_TITULO; sent: { numbers: string[]; titulo_complementar: unknown }; casos: Array<{ nome: string; sent?: { numbers: string[]; titulo_complementar?: unknown }; itens: string[]; esperado: string }>
 }
+
+/** Deriva fixture site x kit (dois gits, sem CI em comum): quem muda a fixture muda este hash e copia o arquivo para o kit (SHA256_CASOS de lá). */
+const SHA256_CASOS = '155cc48802ee3841e0a6b2c0d33f24a4daadd12f51b6bac2b9219e08460e49dc'
+describe('fixture de casos: guarda de deriva', () => {
+  it('o SHA-256 do arquivo é o fixado (mudou? copie para o kit e atualize o hash dos dois lados)', () => {
+    const bytes = readFileSync(join(__dirname, '../../../fixtures/titulo-complementar-casos.json'))
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(SHA256_CASOS)
+  })
+  it('os rótulos kind do pacote são os da fixture e o pack só usa esses', () => {
+    expect(casos.kinds).toEqual(KINDS_TITULO)
+  })
+})
 
 describe('validarTitulosComplementares (casos compartilhados com o kit)', () => {
   for (const c of casos.casos) {
     it(c.nome, () => {
-      const r = validarTitulosComplementares(casos.sent, c.itens)
+      const r = validarTitulosComplementares((c.sent ?? casos.sent) as never, c.itens)
       expect(r.ok ? 'ok' : r.motivo).toBe(c.esperado)
     })
   }
@@ -36,6 +49,10 @@ const alvo = (over: Partial<AlvoTitulo> = {}): AlvoTitulo => ({
 })
 
 describe('tituloComplementarPack', () => {
+  it('só usa os kinds da fixture (o kit acha o alvo por eles)', () => {
+    const p = tituloComplementarPack(ctxCom(2), alvo())
+    expect(new Set(p.items.map(i => i.kind))).toEqual(new Set(Object.values(casos.kinds)))
+  })
   it('250 títulos passados: respeita o teto de caracteres, grava titulos_enviados_n e os normalizados de TODOS', () => {
     const p = tituloComplementarPack(ctxCom(250), alvo())
     const t = p.titulo_complementar

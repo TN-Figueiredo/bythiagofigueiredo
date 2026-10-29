@@ -39,7 +39,7 @@ interface Mundo {
   erro?: string
 }
 const mundo = (m: Mundo) => fakeSb((c: Consulta): Resposta => {
-  if (m.erro === c.tabela) throw new TypeError('boom')
+  if (m.erro === c.tabela) throw new TypeError('detail=abc123')
   if (c.tabela === 'youtube_videos') return { data: m.nossos ?? [] }
   if (c.tabela === 'competitor_videos') {
     const ids = c.filtros.find((f) => f.op === 'in')?.val as string[]
@@ -212,6 +212,18 @@ describe('lerTrafegoDoTerceiro: com prova', () => {
     const r = await rodar({ ...base, erro: 'competitor_videos' }, [item(['n1']), item(['n1'], 1, 'b')])
     expect(estado(r)).toMatchObject({ estado: 'nao_medido', motivo: 'erro_de_leitura' })
     expect(r.porItem.get('b')).toMatchObject({ motivo: 'erro_de_leitura' })
+  })
+  it('exceção: um captureException sem conteúdo (nem detail nem message)', async () => {
+    vi.mocked(Sentry.captureException).mockClear()
+    const r = await rodar({ ...base, erro: 'competitor_videos' }, [item(['n1']), item(['n1'], 1, 'b')])
+    expect(r.porItem.get(ITEM)).toMatchObject({ motivo: 'erro_de_leitura' })
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(vi.mocked(Sentry.captureException).mock.calls)).not.toContain('abc123')
+  })
+  it('a paginação de youtube_videos ordena por id', async () => {
+    const r = await rodar(base)
+    const c = r.w.consultas.find((x) => x.tabela === 'youtube_videos')!
+    expect(c.ordem).toEqual([{ col: 'id', asc: true }])
   })
   it('erro de banco na cobertura: erro_de_leitura', async () => {
     const w = fakeSb((c) => (c.tabela === 'yt_own_video_coverage' ? { data: null, error: { code: 'XX000', message: 'segredo' } } : mundo(base).sb ? { data: c.tabela === 'youtube_videos' ? base.nossos : c.tabela === 'competitor_videos' ? base.terceiros : [] } : { data: [] }))

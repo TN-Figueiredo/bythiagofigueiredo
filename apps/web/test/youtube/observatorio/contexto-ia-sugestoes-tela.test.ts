@@ -33,7 +33,7 @@ const item = (i: number): ItemDeSinal => ({
   id: `aaaaaaaa-0000-4000-8000-${String(i).padStart(12, '0')}`, kind: 'destino', subject_key: `pais:P${i}`, acao: 'titulo_descricao', rotulo_acao: 'abrir-seus', n_proprios: 2,
   acao_gravada: 'video_novo', forca: 20 - i, motivo: 'dois canais estouraram', rule_version: 'sinais-v1', first_seen_at: agoraIso, expires_at: agoraIso,
   proprios_agora: ['bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002'], proprios_agora_n: 2,
-  trafego_do_terceiro: { estado: 'nao', motivo: null, terceiro_video_id: 'cccccccc-0000-4000-8000-000000000001', videos_com_trafego: 0, videos_medidos: 2, videos_total: 2, views: null, ate: '2026-10-27', regra: 'f4-trafego-v1' },
+  trafego_do_terceiro: { estado: 'nao', motivo: null, terceiro_video_id: 'cccccccc-0000-4000-8000-000000000001', videos_com_trafego: 0, videos_medidos: 2, videos_total: 2, views: null, ate: '2026-10-27', desde: '2026-10-20', coberto_ate: '2026-10-28', regra: 'f4-trafego-v1' },
   evidence: { outliers: [{ video_id: 'cccccccc-0000-4000-8000-000000000001', canal_id: 'dddddddd-0000-4000-8000-000000000001', published_at: agoraIso, mult_vpd7: 6, mult_tela: 3, vpd7: 900, formato: 'long' }], outliers_total: 2, canais: 2, proprios: [] },
 })
 const lista = (n: number): ListaDeSinais => ({ n, itens: Array.from({ length: n }, (_, i) => item(i + 1)), computado_em: agoraIso, desatualizado: false, motivoVazio: null, contagens: { canais_total: 5 }, calculoLigado: true })
@@ -71,13 +71,23 @@ describe('sugestoes: a guarda e o pedido', () => {
 })
 
 describe('sugestoes: o registro e o direito', () => {
-  it('uma linha gravada: tela sugestoes, sem privado (na), zero medidos privados, sem comentários', async () => {
+  it('uma linha gravada: tela sugestoes; o tráfego do terceiro é privado (C-P1): privado incluído, com células privadas medidas, sem comentários', async () => {
     const r = await pedir()
     expect(r.ok).toBe(true)
     expect(registro).toHaveBeenCalledTimes(1)
     const l = registro.mock.calls[0]![0]
-    expect(l).toMatchObject({ siteId: SITE, userId: USUARIO, tela: 'sugestoes', incluiuPrivado: false })
-    expect(l.params).toMatchObject({ tela: 'sugestoes', privado: 'na', privado_medidos: 0, comentarios: 'na' })
+    expect(l).toMatchObject({ siteId: SITE, userId: USUARIO, tela: 'sugestoes', incluiuPrivado: true })
+    expect(l.params).toMatchObject({ tela: 'sugestoes', privado: 'incluido', comentarios: 'na' })
+    expect(l.params.privado_medidos).toBeGreaterThan(0)
+  })
+  it('sem direito de leitura do privado: o pacote sai excluído, sem a tabela de tráfego, e o registro não marca privado', async () => {
+    st.lista = lista(3)
+    for (const i of (st.lista as ListaDeSinais).itens) i.trafego_do_terceiro = { ...i.trafego_do_terceiro, estado: 'nao_medido', motivo: 'sem_direito', ate: null }
+    const r = await pedir()
+    expect(r.ok).toBe(true)
+    const l = registro.mock.calls[0]![0]
+    expect(l).toMatchObject({ incluiuPrivado: false })
+    expect(l.params).toMatchObject({ privado: 'excluido:sem_direito', privado_medidos: 0 })
   })
   it('lista vazia: ainda registra e o pacote diz o motivo (nunca sai mudo)', async () => {
     st.lista = { n: 0, itens: [], computado_em: null, desatualizado: true, motivoVazio: 'nunca-calculado', contagens: {}, calculoLigado: false }

@@ -55,6 +55,8 @@ export interface ListaDeSinais {
   /** `adiados` (só os que voltam) existe só quando MEDIDO; chave ausente = "não medido", nunca 0. */
   contagens: Record<string, number>
   calculoLigado: boolean
+  /** F4 (C-P2): sentinela da origem "sem par" (código 32) medida na leitura; ausente = não medido. Fora de `contagens` e fora do pacote. */
+  sentinelaF4?: { codigo32: number | null }
   /** Só no `get_signals` do Cowork: a resposta foi cortada para caber no teto de texto. */
   aviso?: string
 }
@@ -263,8 +265,8 @@ export async function listarSinaisDoNicho(
   // F4: o tráfego do vídeo do terceiro (nunca derruba a lista: a borda captura toda exceção como `erro_de_leitura`)
   const trafego = await lerTrafegoDoTerceiro(sb, siteId, leitura, itens, dayPt(agora))
   for (const it of itens) it.trafego_do_terceiro = trafego.porItem.get(it.id) ?? it.trafego_do_terceiro
-  if (trafego.codigo32 !== null) contagens.f4_codigo_32 = trafego.codigo32
-  return { n, itens, computado_em, desatualizado, motivoVazio: null, motivoDoCalculo: null, proximaVolta, contagens, calculoLigado }
+  // a sentinela fica FORA de `contagens` (que é "o que o cálculo contou"): é medida de agora, derivada de dado privado, e não vai ao pacote
+  return { n, itens, computado_em, desatualizado, motivoVazio: null, motivoDoCalculo: null, proximaVolta, contagens, calculoLigado, ...(trafego.codigo32 !== null ? { sentinelaF4: { codigo32: trafego.codigo32 } } : {}) }
 }
 
 export type StatusDeResposta = 'dispensado' | 'feito'

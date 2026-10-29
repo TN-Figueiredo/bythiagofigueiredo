@@ -4,14 +4,16 @@
  * `proprios_agora`). Puro: nada de banco nem de relógio (quem lê é `_sugestoes/dados.ts`; o texto do vazio nasce em `modeloDeSugestoes`).
  *
  * O que NÃO entra, e o teste prova: título e miniatura de vídeo de concorrente (só ids), texto de comentário, URL de imagem, qualquer
- * coluna de desempenho do vídeo próprio (D20). `privado` é `na`: os alvos são ids de vídeos PRÓPRIOS PÚBLICOS (privado e oculto já saem na leitura)
- * e nenhum número deles vem do Analytics, então `incluiuPrivado` é falso.
+ * coluna de desempenho do vídeo próprio (D20). Dado privado (F4, C-P1): a tabela `sugestoes-trafego` vem das visitas por origem do Analytics do
+ * canal próprio, então é `privada: true` (título com `TITULO_PRIVADO`) e segue o `EstadoDoPrivado`, como o pacote do canal próprio: `incluido` com
+ * a prova de leitura, `excluido` (sem a tabela) sem ela. Sem itens não há tabela e o estado é `na`.
  */
 import type { Inventario } from '@/lib/youtube/observatorio/contexto-ia/inventario'
-import type { Celula, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
+import type { Celula, EstadoDoPrivado, PacoteModelo, Tabela } from '@/lib/youtube/observatorio/contexto-ia/tipos'
 import { RODAPE_SUGESTOES } from '@/lib/youtube/observatorio/acesso-ia/frases'
 import type { ItemDeSinal, ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import { textoDaAcao, textoDoVazio } from '@/lib/youtube/observatorio/sinais/frases'
+import { TITULO_PRIVADO } from './empacotar-canal-proprio'
 
 export type ItemDoModelo = Omit<ItemDeSinal, 'evidence'> & { evidence: Omit<ItemDeSinal['evidence'], 'proprios'> }
 export interface ModeloSugestoes {
@@ -64,6 +66,8 @@ export const INVENTARIO_SUGESTOES: Inventario = {
   'itens[].trafego_do_terceiro.terceiro_video_id': ID, 'itens[].trafego_do_terceiro.ate': 'base',
   'itens[].trafego_do_terceiro.videos_com_trafego': 'numero', 'itens[].trafego_do_terceiro.videos_medidos': 'numero', 'itens[].trafego_do_terceiro.videos_total': 'numero',
   'itens[].trafego_do_terceiro.views': 'numero',
+  // `desde` (dia da publicação do vídeo dele) e `coberto_ate` (até quando há dado nosso): datas em dia PT, para a frase "ainda cedo / coleta parada desde …"
+  'itens[].trafego_do_terceiro.desde': 'base', 'itens[].trafego_do_terceiro.coberto_ate': 'base',
 }
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste. */
@@ -92,7 +96,7 @@ function numero(valor: number, origem: string): Celula {
   return valor === 0 ? { papel: 'numero', estado: 'zero_medido', texto: '0', x: 0, origem } : { papel: 'numero', estado: 'medido', texto: t, x: valor, origem }
 }
 const tabelaFixa = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'fixa', nomeNoCorte, privada: false, colunas, linhas })
-const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][]): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada: false, colunas, linhas })
+const tabelaLista = (id: string, titulo: string, nomeNoCorte: string, colunas: string[], linhas: Celula[][], privada = false): Tabela => ({ id, titulo, tipo: 'lista', nomeNoCorte, privada, colunas, linhas })
 
 export const dataSp = (iso: string): string => {
   const ms = Date.parse(iso)
@@ -134,11 +138,31 @@ function tabelaItens(m: ModeloSugestoes): Tabela[] {
 
 const ROTULO_DO_ESTADO_F4: Record<string, string> = { sim: 'sim', nao: 'não', nao_medido: 'não medido', nao_se_aplica: 'não se aplica' }
 
-/** F4: uma linha por sugestão. `nao_medido` leva o motivo e nunca vira "não" nem 0; `views` só existe com prova (senão "não medido" com o motivo). */
+export const ITENS_PRIVADOS_SUGESTOES = 'se o vídeo do concorrente já manda visitas para vídeos seus (origem "vídeos sugeridos" do YouTube Analytics) e quantas'
+const SEM_DATA = 'o dado não informa essa data'
+
+/** Data opcional: o dia quando existe; `nao_medido` explícito quando falta (nunca um traço que pareça valor). */
+const dataOuNaoMedido = (v: string | null | undefined, origem: string): Celula =>
+  v === null || v === undefined ? { papel: 'numero', estado: 'nao_medido', motivo: SEM_DATA, origem } : base(v, origem)
+
+/**
+ * O estado do dado privado do pacote, derivado da lista lida (todos os itens compartilham a mesma prova): sem itens, `na`; algum item negado por
+ * `sem_direito`/`nao_conferido`, `negado`; todos com `erro_de_leitura`, `erro`; senão `ok`. Quem lê a lista passa isto ao empacotador.
+ */
+export function privadoDaLista(lista: { itens: ReadonlyArray<{ trafego_do_terceiro: Pick<ItemDeSinal['trafego_do_terceiro'], 'motivo'> }> }): EstadoDoPrivado {
+  if (lista.itens.length === 0) return { acessoPorCanal: {}, negativa: null }
+  const motivos = lista.itens.map((i) => i.trafego_do_terceiro.motivo)
+  if (motivos.includes('sem_direito')) return { acessoPorCanal: { sugestoes: { diario: 'negado' } }, negativa: 'sem_direito' }
+  if (motivos.includes('nao_conferido')) return { acessoPorCanal: { sugestoes: { diario: 'negado' } }, negativa: 'nao_foi_possivel_conferir' }
+  if (motivos.every((x) => x === 'erro_de_leitura')) return { acessoPorCanal: { sugestoes: { diario: 'erro' } }, negativa: null }
+  return { acessoPorCanal: { sugestoes: { diario: 'ok' } }, negativa: null }
+}
+
+/** F4: uma linha por sugestão. `nao_medido` leva o motivo e nunca vira "não" nem 0; `views` só existe com prova (senão "não medido" com o motivo). Tabela PRIVADA. */
 function tabelaTrafego(m: ModeloSugestoes): Tabela[] {
   if (m.itens.length === 0) return []
-  return [tabelaLista('sugestoes-trafego', 'O vídeo do concorrente já manda visitas para algum vídeo seu? (por sugestão)', 'tabela de tráfego do vídeo do concorrente',
-    ['Código da sugestão', 'Já recebo tráfego dele', 'Motivo (quando não medido)', 'Vídeos seus com tráfego', 'Vídeos seus medidos', 'Vídeos seus no total', 'Visitas vindas dele', 'Conferido até', 'Código do vídeo do concorrente', 'Regra'],
+  return [tabelaLista('sugestoes-trafego', `O vídeo do concorrente já manda visitas para algum vídeo seu? (por sugestão)${TITULO_PRIVADO}`, 'tabela de tráfego do vídeo do concorrente',
+    ['Código da sugestão', 'Já recebo tráfego dele', 'Motivo (quando não medido)', 'Vídeos seus com tráfego', 'Vídeos seus medidos', 'Vídeos seus no total', 'Visitas vindas dele', 'Conferido até', 'Vídeo dele publicado em', 'Seus dados coletados até', 'Código do vídeo do concorrente', 'Regra'],
     m.itens.map((i, k): Celula[] => {
       const t = i.trafego_do_terceiro
       const p = `modelo.itens[${k}].trafego_do_terceiro`
@@ -150,9 +174,10 @@ function tabelaTrafego(m: ModeloSugestoes): Tabela[] {
         base(i.id, `modelo.itens[${k}].id`), rotulo(ROTULO_DO_ESTADO_F4[t.estado] ?? t.estado, `${p}.estado`),
         t.motivo === null ? rotulo('—', `${p}.motivo`) : rotulo(t.motivo, `${p}.motivo`),
         numero(t.videos_com_trafego, `${p}.videos_com_trafego`), numero(t.videos_medidos, `${p}.videos_medidos`), numero(t.videos_total, `${p}.videos_total`),
-        views, base(t.ate ?? '—', `${p}.ate`), base(t.terceiro_video_id ?? '—', `${p}.terceiro_video_id`), rotulo(t.regra, `${p}.regra`),
+        views, base(t.ate ?? '—', `${p}.ate`), dataOuNaoMedido(t.desde, `${p}.desde`), dataOuNaoMedido(t.coberto_ate, `${p}.coberto_ate`),
+        base(t.terceiro_video_id ?? '—', `${p}.terceiro_video_id`), rotulo(t.regra, `${p}.regra`),
       ]
-    }))]
+    }), true)]
 }
 
 /** Os códigos dos vídeos seus de cada sugestão, UMA linha por sugestão (até 20 códigos numa célula, mais o total real): 50 sugestões não viram 500 linhas. */
@@ -182,27 +207,37 @@ function tabelaEstouros(m: ModeloSugestoes): Tabela[] {
 }
 
 // ───────────────────────── o empacotador
-export function empacotarSugestoes(modelo: ModeloSugestoes): PacoteModelo {
+export function empacotarSugestoes(modelo: ModeloSugestoes, privado: EstadoDoPrivado): PacoteModelo {
   const avisos = [RODAPE_SUGESTOES]
   const regras = [...new Set(modelo.itens.map((i) => i.rule_version))]
   if (regras.length > 0) avisos.push(`Regra de cálculo: ${regras.join(', ')}.`)
   if (modelo.n > modelo.itens.length) avisos.push(`A lista leva as ${modelo.itens.length} mais fortes de ${modelo.n} sugestões abertas.`)
   if (modelo.desatualizado && modelo.computadoEm !== null) avisos.push('O último cálculo tem mais de 36 horas: o que está aqui pode já ter mudado.')
+  // o estado do dado privado (seção 4.4): só o que a leitura entregou. Sem itens não há tabela de tráfego: `na`.
+  const leitura = Object.values(privado.acessoPorCanal)[0]?.diario
+  const temTrafego = modelo.itens.length > 0
+  let estadoPrivado: PacoteModelo['privado'] = { estado: 'na' }
+  let trafego: Tabela[] = []
+  if (temTrafego) {
+    if (leitura === 'ok') { estadoPrivado = { estado: 'incluido', itens: ITENS_PRIVADOS_SUGESTOES }; trafego = tabelaTrafego(modelo) }
+    else if (leitura === 'erro') estadoPrivado = { estado: 'excluido', motivo: 'leitura_falhou', itens: ITENS_PRIVADOS_SUGESTOES }
+    else estadoPrivado = { estado: 'excluido', motivo: privado.negativa === 'sem_direito' ? 'sem_direito' : 'nao_conferido', itens: ITENS_PRIVADOS_SUGESTOES }
+  }
   return {
     tela: 'sugestoes',
     janela: `Sugestões do nicho, ${modelo.itens.length} de ${modelo.n} abertas`,
     foco: [],
-    tabelas: [...tabelaResumo(modelo), ...tabelaContagens(modelo), ...tabelaItens(modelo), ...tabelaTrafego(modelo), ...tabelaSeusVideos(modelo), ...tabelaEstouros(modelo)],
+    tabelas: [...tabelaResumo(modelo), ...tabelaContagens(modelo), ...tabelaItens(modelo), ...trafego, ...tabelaSeusVideos(modelo), ...tabelaEstouros(modelo)],
     citados: [],
     definicoes: [
-      { medida: 'Já recebo tráfego dele', frase: 'Se o YouTube informou visitas vindas do vídeo do concorrente (origem "vídeos sugeridos") para algum vídeo seu desde que ele foi publicado. "Não medido" não é "não": falta dado, cobertura ou direito de leitura, e o motivo vem na coluna ao lado; o "não" só vale até a data conferida.', limiares: [] },
+      ...(estadoPrivado.estado === 'incluido' ? [{ medida: 'Já recebo tráfego dele', frase: 'Se o YouTube informou visitas vindas do vídeo do concorrente (origem "vídeos sugeridos") para algum vídeo seu desde que ele foi publicado. "Não medido" não é "não": falta dado, cobertura ou direito de leitura, e o motivo vem na coluna ao lado; o "não" só vale até a data conferida. "Vídeo dele publicado em" e "Seus dados coletados até" dizem se ainda é cedo ou se a coleta parou.', limiares: [] as string[], privado: true }] : []),
       { medida: 'Força', frase: 'Combina quanto cada vídeo estourou acima do normal do canal, quantos canais estouraram no mesmo lugar e há quantos dias; serve para ordenar, não é uma nota de resultado.', limiares: [] },
       { medida: 'Vezes acima da mediana do canal', frase: 'Visualizações por dia nos 7 primeiros dias do vídeo dividido pela mediana dos vídeos do canal no mesmo formato; não é o multiplicador mostrado na tela.', limiares: [] },
       { medida: 'Seus vídeos sobre o lugar hoje', frase: 'Quantos vídeos públicos seus citam o lugar agora; "não medido" quando os lugares dos seus vídeos ainda não foram calculados.', limiares: [] },
     ],
     avisos,
     naoMede: [NAO_MEDE_CAUSA, NAO_MEDE_PROPRIO, NAO_MEDE_TEXTO],
-    privado: { estado: 'na' },
+    privado: estadoPrivado,
     comentarios: { estado: 'na' },
     vazio: modelo.textoDoVazio,
     motivoDoMagro: null,

@@ -19,7 +19,7 @@ vi.mock('@/lib/youtube/observatorio/sinais/leitura', async (orig) => ({
   listarSinaisDoNicho: vi.fn(async (...a: unknown[]) => { leitura.chamadas.push(a); return leitura.lista }),
 }))
 
-import { empacotarSugestoes, modeloDeSugestoes, INVENTARIO_SUGESTOES, SEM_FOLHA_NA_MATRIZ_SUGESTOES, SUGESTOES_NO_PACOTE, type ModeloSugestoes } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/sugestoes'
+import { empacotarSugestoes as empacotarComEstado, modeloDeSugestoes, privadoDaLista, INVENTARIO_SUGESTOES, SEM_FOLHA_NA_MATRIZ_SUGESTOES, SUGESTOES_NO_PACOTE, type ModeloSugestoes } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/sugestoes'
 import { montarSugestoes } from '@/app/cms/(authed)/youtube/competitors/_sugestoes/montar'
 import type { ItemDeSinal, ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
@@ -38,7 +38,7 @@ function item(i: number, o: Partial<ItemDeSinal> = {}, nOut = 3): ItemDeSinal {
     rule_version: 'sinais-v1+semente-1', evidence: { outliers: Array.from({ length: nOut }, (_, k) => outlier(k)), outliers_total: nOut + 5, canais: 3, proprios: ['foto'] },
     first_seen_at: '2026-10-20T12:00:00Z', expires_at: '2026-11-19T12:00:00Z', adiada_em: null,
     proprios_agora: ['bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002'], proprios_agora_n: 2,
-    trafego_do_terceiro: { estado: 'nao', motivo: null, terceiro_video_id: 'cccccccc-0000-4000-8000-000000000001', videos_com_trafego: 0, videos_medidos: 2, videos_total: 2, views: null, ate: '2026-10-27', regra: 'f4-trafego-v1' },
+    trafego_do_terceiro: { estado: 'nao', motivo: null, terceiro_video_id: 'cccccccc-0000-4000-8000-000000000001', videos_com_trafego: 0, videos_medidos: 2, videos_total: 2, views: null, ate: '2026-10-27', desde: '2026-10-20', coberto_ate: '2026-10-28', regra: 'f4-trafego-v1' },
     ...o,
   }
 }
@@ -56,6 +56,8 @@ const MATRIZ: Array<[string, () => ListaDeSinais]> = [
   ...(['nunca-calculado', 'tudo-respondido', 'sem-lugar', 'sync-atrasado', 'sem-historico', 'sem-terceiro-outlier', 'abaixo-do-minimo', 'sem-grupo'] as const)
     .map((m): [string, () => ListaDeSinais] => [`vazio ${m}`, () => vazia(m, { canais_total: 5, outliers_total: 3, respondidos_30d: 2 }, m === 'nunca-calculado' ? { computado_em: null, contagens: {} } : {})]),
 ]
+/** O estado do privado sai da própria lista (como em `montarSugestoes`). */
+const empacotarSugestoes = (m: ModeloSugestoes, p = privadoDaLista(m)) => empacotarComEstado(m, p)
 const modeloDe = (l: ListaDeSinais): ModeloSugestoes => modeloDeSugestoes(l, AGORA)
 const textoDe = (p: ReturnType<typeof empacotarSugestoes>, limite = 1_000_000): string => montarTexto(segmentar(p, CONTEXTO), '', limite, 'todos').texto
 
@@ -88,17 +90,59 @@ describe('Sugestões: o pacote', () => {
     expect(texto).toContain(ids[19]!)
     expect(texto).toMatch(/Total de vídeos seus/)
   })
-  it('dimensões: tela, privado na (alvos são vídeos próprios PÚBLICOS, sem número do Analytics), sem comentários; incluiuPrivado é falso', () => {
+  it('dimensões: tela, privado incluído só com itens e prova (tabela de tráfego PRIVADA), sem comentários; sem itens é na', () => {
     for (const [nome, fazer] of MATRIZ) {
-      const p = empacotarSugestoes(modeloDe(fazer()))
+      const m = modeloDe(fazer())
+      const p = empacotarSugestoes(m)
       expect(p.tela, nome).toBe('sugestoes')
-      expect(p.privado, nome).toEqual({ estado: 'na' })
       expect(p.comentarios, nome).toEqual({ estado: 'na' })
-      expect(p.tabelas.every((t) => !t.privada), nome).toBe(true)
+      if (m.itens.length === 0) { expect(p.privado, nome).toEqual({ estado: 'na' }); expect(p.tabelas.some((t) => t.privada), nome).toBe(false) }
+      else {
+        expect(p.privado.estado, nome).toBe('incluido')
+        expect(p.tabelas.filter((t) => t.privada).map((t) => t.id), nome).toEqual(['sugestoes-trafego'])
+      }
       const s = segmentar(p, CONTEXTO)
-      expect(s.privado.estado, nome).toBe('na')
-      expect(s.privado.estado === 'incluido' || s.comentarios.estado === 'incluido', nome).toBe(false)
+      expect(s.privado.estado, nome).toBe(m.itens.length === 0 ? 'na' : 'incluido')
     }
+  })
+
+  it('C-P1: sem direito / não conferido / leitura falhou, o pacote sai SEM a tabela de tráfego e excluído (o dono não recebe nem vê o privado)', () => {
+    const casos: Array<[Partial<ItemDeSinal['trafego_do_terceiro']>, string]> = [
+      [{ estado: 'nao_medido', motivo: 'sem_direito', views: null, ate: null }, 'sem_direito'],
+      [{ estado: 'nao_medido', motivo: 'nao_conferido', views: null, ate: null }, 'nao_conferido'],
+      [{ estado: 'nao_medido', motivo: 'erro_de_leitura', views: null, ate: null }, 'leitura_falhou'],
+    ]
+    for (const [t, motivo] of casos) {
+      const l = lista([item(1, { trafego_do_terceiro: { ...item(1).trafego_do_terceiro, ...t } })])
+      const p = empacotarSugestoes(modeloDe(l))
+      expect(p.privado).toMatchObject({ estado: 'excluido', motivo })
+      expect(p.tabelas.some((x) => x.id === 'sugestoes-trafego')).toBe(false)
+      expect(() => segmentar(p, CONTEXTO)).not.toThrow()
+      expect(textoDe(p)).not.toContain('f4-trafego-v1')
+    }
+  })
+
+  it('C-P1: a validação barra tabela privada com privado "na" (defeito do empacotador não passa calado)', () => {
+    const m = modeloDe(lista([item(1)]))
+    const p = empacotarSugestoes(m)
+    expect(() => segmentar({ ...p, privado: { estado: 'na' } }, CONTEXTO)).toThrow(/privado "na"/)
+    expect(() => segmentar({ ...p, privado: { estado: 'excluido', motivo: 'sem_direito', itens: 'x' } }, CONTEXTO)).toThrow(/privado exclu/)
+  })
+
+  it('C-P1: com prova, a tabela de tráfego leva a marca de privado e as colunas desde/coberto_ate', () => {
+    const l = lista([item(1, { trafego_do_terceiro: { ...item(1).trafego_do_terceiro, desde: '2026-10-01', coberto_ate: null } })])
+    const p = empacotarSugestoes(modeloDe(l))
+    const t = p.tabelas.find((x) => x.id === 'sugestoes-trafego')!
+    expect(t.privada).toBe(true)
+    expect(t.colunas).toEqual(expect.arrayContaining(['Vídeo dele publicado em', 'Seus dados coletados até']))
+    const i = t.colunas.indexOf('Seus dados coletados até')
+    expect(t.linhas[0]![i]).toMatchObject({ papel: 'numero', estado: 'nao_medido' })
+    expect(textoDe(p)).toContain('dado privado do canal')
+  })
+
+  it('C-P2: a sentinela do código 32 não entra na tabela de contagens do cálculo', () => {
+    const l = lista([item(1)], { sentinelaF4: { codigo32: 3 } })
+    expect(textoDe(empacotarSugestoes(modeloDe(l)))).not.toMatch(/f4_codigo_32|codigo32/)
   })
 
   it('o texto traz n, os ids, as subject_keys e o rodapé; "pode ajudar", nunca "vai ajudar"', () => {
