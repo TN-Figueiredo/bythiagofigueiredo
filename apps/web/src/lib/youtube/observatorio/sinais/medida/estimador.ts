@@ -50,7 +50,9 @@ type Sinal = { signalId: string; dispensaMotivo: string | null }
 /** Métrica-marcador do gatilho: views totais (R1), a que todo par fechado tem. */
 const METRICA_DO_GATILHO: MetricaD2 = 'views_total'
 
-export interface ParCalc { signal: string; deltaA: number; deltaC: number; preA: number; preC: number; razao: number | null; emEvento: boolean }
+export interface ParCalc { signal: string; deltaA: number; deltaC: number; preA: number; preC: number; razao: number | null; razaoZero: boolean
+  /** `null` = sem braço gravado: não se sabe se há outro destino quente, não é "limpo" */
+  emEvento: boolean | null }
 
 const chave = (...p: (string | number)[]): string => p.join('|')
 const media = (v: number[]): number => v.reduce((a, b) => a + b, 0) / v.length
@@ -92,8 +94,9 @@ export function paresValidos(p: {
       signal: a.signal_id, preA: a.pre, preC: c.pre,
       // razão <= 0 não entra na média geométrica (log); fica fora, não vira número
       razao: bruta !== null && bruta > 0 && Number.isFinite(bruta) ? bruta : null,
+      razaoZero: bruta === 0,
       deltaA: delta(a.pre, a.pos, a.videos_medidos), deltaC: delta(c.pre, c.pos, c.videos_medidos),
-      emEvento: (ba?.chaves_em_evento.length ?? 0) > 0 || (bc?.chaves_em_evento.length ?? 0) > 0,
+      emEvento: !ba || !bc ? null : ba.chaves_em_evento.length > 0 || bc.chaves_em_evento.length > 0,
     })
   }
   return { validos, naoMedidos, autodeclarados: autos }
@@ -168,8 +171,14 @@ export type EstimativaMedida = {
   /** mesma diferença sem os pares com outro destino quente na janela (M6) */
   diferencaSemChavesEmEvento: number | null
   eventosSemChavesEmEvento: number
+  /** pares (no piso) sem braço gravado: ficam fora da sensibilidade, contados aqui */
+  bracoAusente: number
+  /** eventos no piso sem razão (todos os pares com razão <= 0 ou sem piso nos dois braços): a razão cobre `eventos - eventosSemRazao` */
+  eventosSemRazao: number
+  /** pares no piso cujo alvo caiu a 0 (razão 0, fora do log) */
+  paresRazaoZero: number
   /** diferença por ano anterior; só com par acima do piso, nunca 0 por ausência */
-  placebo?: Partial<Record<1 | 2, number>>
+  placebo?: Partial<Record<1 | 2, { valor: number; eventos: number }>>
 }
 export type Estimativa =
   | EstimativaMedida
@@ -213,14 +222,14 @@ export function estimar(p: {
     }
     const paresNoPiso = noPiso.flatMap(e => e.pares)
     const efeitos = noPiso.map(e => e.efeito)
-    const efeitosSem = agruparEventos(paresNoPiso.filter(v => !v.emEvento)).map(e => e.efeito)
+    const efeitosSem = agruparEventos(paresNoPiso.filter(v => v.emEvento === false)).map(e => e.efeito)
     const logs = noPiso.map(e => e.logRazao).filter((r): r is number => r !== null)
 
-    // piso do placebo é aplicado aqui: par com Σpré do alvo abaixo de `pisoPre` não entra (placebo é descritivo)
-    const placebo: Partial<Record<1 | 2, number>> = {}
+    // piso do placebo pela média por evento (como o resto); `eventos` vai junto: a frase só usa com >= eventosMinimos
+    const placebo: Partial<Record<1 | 2, { valor: number; eventos: number }>> = {}
     for (const ano of [1, 2] as const) {
-      const pl = paresValidos({ linhas, bracos: braco, autodeclarado, anos: ano }).validos.filter(v => v.preA >= REGRA_D2.pisoPre)
-      if (pl.length > 0) placebo[ano] = media(agruparEventos(pl).map(e => e.efeito))
+      const pl = agruparEventos(paresValidos({ linhas, bracos: braco, autodeclarado, anos: ano }).validos).filter(e => e.preMedio >= REGRA_D2.pisoPre)
+      if (pl.length > 0) placebo[ano] = { valor: media(pl.map(e => e.efeito)), eventos: pl.length }
     }
 
     const est: EstimativaMedida = {
@@ -236,6 +245,9 @@ export function estimar(p: {
       autodeclarados: autos,
       diferencaSemChavesEmEvento: efeitosSem.length > 0 ? media(efeitosSem) : null,
       eventosSemChavesEmEvento: efeitosSem.length,
+      bracoAusente: paresNoPiso.filter(v => v.emEvento === null).length,
+      eventosSemRazao: noPiso.length - logs.length,
+      paresRazaoZero: paresNoPiso.filter(v => v.razaoZero).length,
     }
     if (Object.keys(placebo).length > 0) est.placebo = placebo
     return est

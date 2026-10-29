@@ -159,7 +159,7 @@ describe('estimar', () => {
     const baixo = estimar({ linhas: [...linhas, ...pl(10)], bracos, sinais: sinais(10), ...base }).views_total
     expect(baixo.estado === 'medido' && baixo.placebo !== undefined).toBe(false)
     const alto = estimar({ linhas: [...linhas, ...pl(100)], bracos, sinais: sinais(10), ...base }).views_total
-    expect(alto.estado === 'medido' && Number.isFinite(alto.placebo?.[1])).toBe(true)
+    expect(alto.estado === 'medido' && Number.isFinite(alto.placebo?.[1]?.valor) && alto.placebo?.[1]?.eventos === 10).toBe(true)
     expect(alto.estado === 'medido' && alto.placebo?.[2]).toBeUndefined()
   })
   it('sensibilidade: sem os pares com outros destinos quentes (M6)', () => {
@@ -226,6 +226,31 @@ describe('consertos T5 r1', () => {
     const e = estimar({ linhas, bracos, sinais: sinais(10), ...base })
     expect(e.views_total).toMatchObject({ descartados: { contaminacao_desconhecida: 1, sem_controle: 1 } })
     expect(e.prova_related).toMatchObject({ estado: 'presenca', naoMedidos: 1, descartados: { contaminacao_desconhecida: 1, sem_controle: 1 } })
+  })
+})
+
+describe('consertos T5 r2', () => {
+  const base = { semente: 7, reamostras: 100 }
+  it('R1: par sem braço fica fora da sensibilidade e é contado em bracoAusente', () => {
+    const { linhas, bracos } = eventos(10, 100)
+    const sem = bracos.filter(b => b.signal_id !== sig(1))
+    const e = estimar({ linhas, bracos: sem, sinais: sinais(10), ...base }).views_total
+    expect(e).toMatchObject({ estado: 'medido', eventos: 10, eventosSemChavesEmEvento: 9, bracoAusente: 1 })
+  })
+  it('R2: 2 de 10 eventos com alvo pós 0: eventosSemRazao 2, paresRazaoZero 2', () => {
+    const { linhas, bracos } = eventos(10, 100)
+    linhas.forEach((l, i) => { if (l.papel === 'alvo' && (l.signal_id === sig(1) || l.signal_id === sig(2))) linhas[i] = { ...l, pos: 0 } })
+    const e = estimar({ linhas, bracos, sinais: sinais(10), ...base }).views_total
+    expect(e).toMatchObject({ estado: 'medido', eventos: 10, eventosSemRazao: 2, paresRazaoZero: 2 })
+  })
+  it('R3: placebo de 1 evento devolve eventos 1; piso pela média por evento', () => {
+    const { linhas, bracos } = eventos(10, 100)
+    linhas.push(
+      linha({ n: 1, papel: 'alvo', metrica: 'views_total', anos_atras: 1, pre: 100, pos: 100 }),
+      linha({ n: 1, papel: 'controle', metrica: 'views_total', anos_atras: 1, pre: 1000, pos: 1000 }),
+    )
+    const e = estimar({ linhas, bracos, sinais: sinais(10), ...base }).views_total
+    expect(e.estado === 'medido' && e.placebo?.[1]?.eventos).toBe(1)
   })
 })
 
