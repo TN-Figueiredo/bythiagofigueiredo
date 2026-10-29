@@ -117,7 +117,7 @@ describe('claimNextTask', () => {
     // exact string (not just "not '*'") also catches those columns creeping back in.
     expect(casCalls).toContainEqual({
       op: 'select',
-      args: ['id, site_id, channel_id, trigger_type, requested_at, started_at, task_type, target_niche, target_video_id, target_fmt'],
+      args: ['id, site_id, channel_id, trigger_type, requested_at, started_at, task_type, target_niche, target_video_id, target_fmt, target_own_video_id, target_signal_id'],
     })
   })
 

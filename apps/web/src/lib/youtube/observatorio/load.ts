@@ -133,7 +133,7 @@ const TASK_DAYS = 7
 const PAUSED_AFTER_DAYS = 30
 /** The forja cron drains the queue every 10 minutes (CLAUDE.md, "A forja"). */
 const FORJA_TICK_MINUTES = 10
-const OBS_TASK_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] as const
+const OBS_TASK_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video', 'titulo-complementar'] as const
 const CHANNEL_COLORS = ['#E8823C', '#A77CE8', '#3FA9C0', '#D9614A', '#60A5FA', '#46B17E', '#E0A23C', '#BE5A96', '#78B450']
 const OWN_COLOR = '#B8481A'
 
