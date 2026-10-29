@@ -33,6 +33,7 @@ const item = (i: number): ItemDeSinal => ({
   id: `aaaaaaaa-0000-4000-8000-${String(i).padStart(12, '0')}`, kind: 'destino', subject_key: `pais:P${i}`, acao: 'titulo_descricao', rotulo_acao: 'abrir-seus', n_proprios: 2,
   acao_gravada: 'video_novo', forca: 20 - i, motivo: 'dois canais estouraram', rule_version: 'sinais-v1', first_seen_at: agoraIso, expires_at: agoraIso,
   proprios_agora: ['bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002'], proprios_agora_n: 2,
+  trafego_do_terceiro: { estado: 'nao', motivo: null, terceiro_video_id: 'cccccccc-0000-4000-8000-000000000001', videos_com_trafego: 0, videos_medidos: 2, videos_total: 2, views: null, ate: '2026-10-27', regra: 'f4-trafego-v1' },
   evidence: { outliers: [{ video_id: 'cccccccc-0000-4000-8000-000000000001', canal_id: 'dddddddd-0000-4000-8000-000000000001', published_at: agoraIso, mult_vpd7: 6, mult_tela: 3, vpd7: 900, formato: 'long' }], outliers_total: 2, canais: 2, proprios: [] },
 })
 const lista = (n: number): ListaDeSinais => ({ n, itens: Array.from({ length: n }, (_, i) => item(i + 1)), computado_em: agoraIso, desatualizado: false, motivoVazio: null, contagens: { canais_total: 5 }, calculoLigado: true })

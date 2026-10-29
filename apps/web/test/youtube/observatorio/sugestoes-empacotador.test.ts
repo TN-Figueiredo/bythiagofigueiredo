@@ -37,7 +37,9 @@ function item(i: number, o: Partial<ItemDeSinal> = {}, nOut = 3): ItemDeSinal {
     acao: 'titulo_descricao', rotulo_acao: 'abrir-seus', n_proprios: 2, acao_gravada: 'video_novo', forca: 12.5 + i, motivo: 'dois canais estouraram no mesmo lugar nos últimos 14 dias',
     rule_version: 'sinais-v1+semente-1', evidence: { outliers: Array.from({ length: nOut }, (_, k) => outlier(k)), outliers_total: nOut + 5, canais: 3, proprios: ['foto'] },
     first_seen_at: '2026-10-20T12:00:00Z', expires_at: '2026-11-19T12:00:00Z', adiada_em: null,
-    proprios_agora: ['bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002'], proprios_agora_n: 2, ...o,
+    proprios_agora: ['bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-0000-4000-8000-000000000002'], proprios_agora_n: 2,
+    trafego_do_terceiro: { estado: 'nao', motivo: null, terceiro_video_id: 'cccccccc-0000-4000-8000-000000000001', videos_com_trafego: 0, videos_medidos: 2, videos_total: 2, views: null, ate: '2026-10-27', regra: 'f4-trafego-v1' },
+    ...o,
   }
 }
 const lista = (itens: ItemDeSinal[], o: Partial<ListaDeSinais> = {}): ListaDeSinais => ({

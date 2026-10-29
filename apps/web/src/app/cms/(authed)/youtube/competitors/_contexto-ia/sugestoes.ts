@@ -59,6 +59,11 @@ export const INVENTARIO_SUGESTOES: Inventario = {
   'itens[].evidence.outliers[].mult_vpd7': 'numero', 'itens[].evidence.outliers[].mult_tela': 'numero', 'itens[].evidence.outliers[].vpd7': 'numero',
   'itens[].evidence.outliers[].formato': 'rotulo',
   'itens[].evidence.outliers_total': 'numero', 'itens[].evidence.canais': 'numero',
+  // F4: o vídeo do terceiro que puxa o sinal já nos manda tráfego? Estado/motivo/regra são rótulos; contagens e `views` são números (`views` só com prova).
+  'itens[].trafego_do_terceiro.estado': 'rotulo', 'itens[].trafego_do_terceiro.motivo': 'rotulo', 'itens[].trafego_do_terceiro.regra': 'rotulo',
+  'itens[].trafego_do_terceiro.terceiro_video_id': ID, 'itens[].trafego_do_terceiro.ate': 'base',
+  'itens[].trafego_do_terceiro.videos_com_trafego': 'numero', 'itens[].trafego_do_terceiro.videos_medidos': 'numero', 'itens[].trafego_do_terceiro.videos_total': 'numero',
+  'itens[].trafego_do_terceiro.views': 'numero',
 }
 
 /** Chaves do inventário cuja folha não aparece em nenhum estado da matriz do teste. */
@@ -127,6 +132,29 @@ function tabelaItens(m: ModeloSugestoes): Tabela[] {
     }))]
 }
 
+const ROTULO_DO_ESTADO_F4: Record<string, string> = { sim: 'sim', nao: 'não', nao_medido: 'não medido', nao_se_aplica: 'não se aplica' }
+
+/** F4: uma linha por sugestão. `nao_medido` leva o motivo e nunca vira "não" nem 0; `views` só existe com prova (senão "não medido" com o motivo). */
+function tabelaTrafego(m: ModeloSugestoes): Tabela[] {
+  if (m.itens.length === 0) return []
+  return [tabelaLista('sugestoes-trafego', 'O vídeo do concorrente já manda visitas para algum vídeo seu? (por sugestão)', 'tabela de tráfego do vídeo do concorrente',
+    ['Código da sugestão', 'Já recebo tráfego dele', 'Motivo (quando não medido)', 'Vídeos seus com tráfego', 'Vídeos seus medidos', 'Vídeos seus no total', 'Visitas vindas dele', 'Conferido até', 'Código do vídeo do concorrente', 'Regra'],
+    m.itens.map((i, k): Celula[] => {
+      const t = i.trafego_do_terceiro
+      const p = `modelo.itens[${k}].trafego_do_terceiro`
+      const motivo = t.motivo ?? 'não informado'
+      const views: Celula = t.views === null
+        ? { papel: 'numero', estado: 'nao_medido', motivo: t.estado === 'sim' ? 'o YouTube não informou as visitas desses dias' : t.estado === 'nao' ? 'não se aplica: não há visita' : motivo, origem: `${p}.views` }
+        : numero(t.views, `${p}.views`)
+      return [
+        base(i.id, `modelo.itens[${k}].id`), rotulo(ROTULO_DO_ESTADO_F4[t.estado] ?? t.estado, `${p}.estado`),
+        t.motivo === null ? rotulo('—', `${p}.motivo`) : rotulo(t.motivo, `${p}.motivo`),
+        numero(t.videos_com_trafego, `${p}.videos_com_trafego`), numero(t.videos_medidos, `${p}.videos_medidos`), numero(t.videos_total, `${p}.videos_total`),
+        views, base(t.ate ?? '—', `${p}.ate`), base(t.terceiro_video_id ?? '—', `${p}.terceiro_video_id`), rotulo(t.regra, `${p}.regra`),
+      ]
+    }))]
+}
+
 /** Os códigos dos vídeos seus de cada sugestão, UMA linha por sugestão (até 20 códigos numa célula, mais o total real): 50 sugestões não viram 500 linhas. */
 function tabelaSeusVideos(m: ModeloSugestoes): Tabela[] {
   const linhas = m.itens.flatMap((i, k): Celula[][] => (i.proprios_agora && i.proprios_agora.length > 0
@@ -137,8 +165,8 @@ function tabelaSeusVideos(m: ModeloSugestoes): Tabela[] {
 
 /** Quantos estouros por sugestão o pacote lista (os mais fortes); o número verdadeiro vai na coluna "Vídeos estourando" da tabela principal. */
 export const ESTOUROS_POR_SUGESTAO_NO_PACOTE = 1
-/** As sugestões que o pacote lê (as mais fortes): 20 com o estouro máximo cabem nos 60.000 caracteres da ação sem o corte por tamanho tirar linha; o `n` verdadeiro segue dito. */
-export const SUGESTOES_NO_PACOTE = 20
+/** As sugestões que o pacote lê (as mais fortes): 18 (eram 20 até a tabela de tráfego da F4, que sozinha pesa ~150 caracteres por sugestão; com 19 sobravam 17 caracteres) com o estouro máximo cabem nos 60.000 caracteres da ação sem o corte por tamanho tirar linha; o `n` verdadeiro segue dito. */
+export const SUGESTOES_NO_PACOTE = 18
 
 function tabelaEstouros(m: ModeloSugestoes): Tabela[] {
   const linhas = m.itens.flatMap((i, k) => i.evidence.outliers.map((o, j) => ({ o, j })).sort((a, b) => b.o.mult_vpd7 - a.o.mult_vpd7 || a.j - b.j).slice(0, ESTOUROS_POR_SUGESTAO_NO_PACOTE).map(({ o, j }): Celula[] => {
@@ -164,9 +192,10 @@ export function empacotarSugestoes(modelo: ModeloSugestoes): PacoteModelo {
     tela: 'sugestoes',
     janela: `Sugestões do nicho, ${modelo.itens.length} de ${modelo.n} abertas`,
     foco: [],
-    tabelas: [...tabelaResumo(modelo), ...tabelaContagens(modelo), ...tabelaItens(modelo), ...tabelaSeusVideos(modelo), ...tabelaEstouros(modelo)],
+    tabelas: [...tabelaResumo(modelo), ...tabelaContagens(modelo), ...tabelaItens(modelo), ...tabelaTrafego(modelo), ...tabelaSeusVideos(modelo), ...tabelaEstouros(modelo)],
     citados: [],
     definicoes: [
+      { medida: 'Já recebo tráfego dele', frase: 'Se o YouTube informou visitas vindas do vídeo do concorrente (origem "vídeos sugeridos") para algum vídeo seu desde que ele foi publicado. "Não medido" não é "não": falta dado, cobertura ou direito de leitura, e o motivo vem na coluna ao lado; o "não" só vale até a data conferida.', limiares: [] },
       { medida: 'Força', frase: 'Combina quanto cada vídeo estourou acima do normal do canal, quantos canais estouraram no mesmo lugar e há quantos dias; serve para ordenar, não é uma nota de resultado.', limiares: [] },
       { medida: 'Vezes acima da mediana do canal', frase: 'Visualizações por dia nos 7 primeiros dias do vídeo dividido pela mediana dos vídeos do canal no mesmo formato; não é o multiplicador mostrado na tela.', limiares: [] },
       { medida: 'Seus vídeos sobre o lugar hoje', frase: 'Quantos vídeos públicos seus citam o lugar agora; "não medido" quando os lugares dos seus vídeos ainda não foram calculados.', limiares: [] },

@@ -1097,7 +1097,8 @@ Sugestões do nicho: lugares onde vídeos de concorrentes estouraram (régua do 
       "evidence": { "outliers": [{ "video_id": "uuid", "canal_id": "uuid", "published_at": "ISO", "mult_vpd7": 6.1, "mult_tela": 3.2, "vpd7": 900, "formato": "long" }], "outliers_total": 4, "canais": 2, "proprios": [] },
       "first_seen_at": "ISO", "expires_at": "ISO",
       "proprios_agora": ["uuid do seu vídeo público sobre o lugar"],
-      "proprios_agora_n": 1
+      "proprios_agora_n": 1,
+      "trafego_do_terceiro": { "estado": "nao_medido", "motivo": "sem_direito", "terceiro_video_id": null, "videos_com_trafego": 0, "videos_medidos": 0, "videos_total": 0, "views": null, "ate": null, "regra": "f4-trafego-v1" }
     }
   ],
   "computado_em": "ISO", "desatualizado": false, "motivoVazio": null, "contagens": { "canais_total": 5 }, "calculoLigado": true
@@ -1112,6 +1113,8 @@ Sugestões do nicho: lugares onde vídeos de concorrentes estouraram (régua do 
 - `proprios_agora` leva no máximo 20 ids; `proprios_agora_n` é o total real (e o `n_proprios`). `null` nos dois = não medido.
 - Se a resposta passar do teto, vem um campo `aviso` ("resposta cortada: N itens não couberam"): as sugestões do fim saíram, `n` continua o total real.
 - `evidence.proprios` é a foto de quando a sugestão nasceu; use `proprios_agora`.
+- `trafego_do_terceiro` (F4): "o vídeo do concorrente que puxa a sugestão já manda visitas para algum vídeo seu?" (origem "vídeos sugeridos" do YouTube). `estado`: `sim` (`videos_com_trafego` de `videos_medidos`; `views` só quando o total foi medido), `nao` (com `ate`: conferido até essa data, não depois), `nao_medido` (com `motivo`) ou `nao_se_aplica`. **Não medido não é não e nunca é 0:** falta dado, cobertura ou direito de leitura, e o `motivo` diz qual (`sem_direito`, `nao_conferido`, `cobertura_velha`, `pouca_cobertura`, `origem_nao_informada`, `lista_truncada`, `sem_id`, `coleta_desligada`, entre outros). O "não" é raro de propósito: se o YouTube informou qualquer visita sem origem identificada na janela, ele não é afirmado. Cite o `ate` e a `regra` (`f4-trafego-v1`); nunca escreva "0 visitas".
+- **Neste caminho (rota e `get_signals`) o campo vem sempre `nao_medido` com `motivo: "sem_direito"`**, até a porta do perfil ligar no MCP (decisão D-F4-1): a leitura de tráfego exige a prova de leitura do dono, que a chave do Cowork ainda não carrega. A tela do CMS e o pacote "Sugestões" do botão de contexto trazem o valor real (mesmo `estado`, `motivo`, números e `ate` por sugestão). Não conclua "não recebe tráfego" a partir de `sem_direito`.
 - Só ids, números e chaves de lugar: a rota não traz título, miniatura nem texto de comentário. O desempenho dos seus vídeos não entra na força nem na ordem.
 - **Lista vazia nunca é "nada no nicho".** Com `n: 0`, `motivoVazio` diz por quê e deve ser **citado como está**: `nunca-calculado`, `tudo-respondido` (use `contagens.respondidos_30d`), `sem-historico`, `sync-atrasado`, `sem-terceiro-outlier`, `sem-lugar`, `abaixo-do-minimo`, `sem-grupo` ou `adiado` (o dono adiou 7 dias as sugestões que existiam: `contagens.adiados` quantas voltam, `proximaVolta` quando; `motivoDoCalculo` traz o motivo do cálculo; chave `adiados` ausente = não medido, nunca 0). Os números do motivo estão em `contagens`.
 - `desatualizado: true`: o último cálculo tem mais de 36 horas; cite a data (`computado_em`).
