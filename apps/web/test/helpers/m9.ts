@@ -83,4 +83,12 @@ export async function aplicarM9(c: Client, ate?: ParteM9): Promise<void> {
   await semearE9(c)
   await semearWatch(c)
   await c.query(await sqlM9Resolvido(c, ate))
+  await aplicarSnapPorTempo(c)
+}
+
+/** M9-snap (D-M9-9b): a migration `*_manutencao_m9_snap_por_tempo.sql` vai por cima da M9 (ela redefine attest_prefixos e owner_pending). */
+export async function aplicarSnapPorTempo(c: Client): Promise<void> {
+  const nome = readdirSync(DIR_MIG_M9).find(n => n.includes('_manutencao_m9_snap_por_tempo'))
+  if (!nome) throw new Error('migration *_manutencao_m9_snap_por_tempo ausente')
+  await c.query(readFileSync(resolve(DIR_MIG_M9, nome), 'utf8'))
 }

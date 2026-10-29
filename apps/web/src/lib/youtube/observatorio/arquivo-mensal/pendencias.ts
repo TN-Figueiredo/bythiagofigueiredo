@@ -38,6 +38,21 @@ const Apagar = z.object({
   if (a.nova !== null && a.nova.caminho === a.caminho) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'a antiga é a própria nova' })
 })
 
+export const SNAP_BLOQUEIOS = ['ilegivel', 'lista_vazia', 'fora_do_padrao', 'mtime_diverge', 'relogio', 'retido'] as const
+export type SnapBloqueio = (typeof SNAP_BLOQUEIOS)[number]
+
+/** Motivos em palavras (M9-snap, passo 5): o que o dono lê quando a espera por snapshot não termina sozinha. */
+export const MOTIVO_SNAP_EM_PALAVRAS: Record<SnapBloqueio, string> = {
+  fora_do_padrao: 'há snapshot manual ou de outra tarefa',
+  retido: 'há snapshot de antes da remoção que não expira (hold ou retenção maior que 14 dias)',
+  lista_vazia: 'a forja não vê nenhum snapshot',
+  mtime_diverge: 'a hora dos snapshots não confere',
+  relogio: 'a hora dos snapshots não confere',
+  ilegivel: 'a forja não conseguiu ler a lista',
+}
+/** A frase âmbar do ramo (b). Nunca diz "libera DD/MM". */
+export const fraseSnapBloqueado = (b: SnapBloqueio): string => `Os snapshots do NAS não liberam sozinhos (${MOTIVO_SNAP_EM_PALAVRAS[b]}). Veja o runbook, Tarefa 14, Passo 2.`
+
 const Item = z.object({
   item_id: z.string().regex(ITEM_ID_RE),
   kind: z.enum(KINDS),
@@ -54,6 +69,10 @@ const Item = z.object({
   prefixos: z.array(caminho).max(2000),
   bloqueados: z.number().int().min(0),
   snapshot_mais_antigo: z.string().nullable(),
+  // M9-snap: opcionais porque o código vai ao ar ANTES da migration (o leitor é .strict()); ausentes = sem espera por snapshot
+  snap_espera_desde: data.nullable().optional(),
+  snap_libera_em: data.nullable().optional(),
+  snap_bloqueio: z.enum(SNAP_BLOQUEIOS).nullable().optional(),
 }).strict().superRefine((i, ctx) => {
   const falha = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }) }
   if ((i.apagar.length > 0) !== (i.tempo === 'apagar_antigas')) falha('apagar só existe em apagar_antigas, e lá não é vazio')
@@ -91,6 +110,9 @@ export interface PendenciaDoDono {
   prefixos: string[]
   bloqueados: number
   snapshotMaisAntigo: string | null
+  snapEsperaDesde: Date | null
+  snapLiberaEm: Date | null
+  snapBloqueio: SnapBloqueio | null
 }
 export type LeituraPendencias = { ok: true; lidoEm: Date; itens: PendenciaDoDono[] } | { ok: false; porque: string }
 
@@ -107,6 +129,8 @@ export function lerPendencias(bruto: unknown): LeituraPendencias {
       itemId: i.item_id, kind: i.kind, tempo: i.tempo, desde: new Date(i.desde), mes: i.mes, channelRef: i.channel_ref, youtubeId: i.youtube_id,
       marcadoRodadoEm: i.marcado_rodado_em ? new Date(i.marcado_rodado_em) : null, apagar: i.apagar, b2Nomes: i.b2_nomes,
       falta: i.falta, motivo: i.motivo, prefixos: i.prefixos, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshot_mais_antigo,
+      snapEsperaDesde: i.snap_espera_desde ? new Date(i.snap_espera_desde) : null, snapLiberaEm: i.snap_libera_em ? new Date(i.snap_libera_em) : null,
+      snapBloqueio: i.snap_bloqueio ?? null,
     })),
   }
 }
@@ -114,7 +138,7 @@ export function lerPendencias(bruto: unknown): LeituraPendencias {
 export type PendenciasDaTela =
   | { estado: 'nao_medido' }
   | { estado: 'zero'; lidoEm: Date; linha: string | null }
-  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; falta: Falta | null; motivo: Motivo | null; bloqueados: number; snapshotMaisAntigo: string | null; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null; /** desde quando o item espera (a data de saída do site) */ desde: Date; /** o código curto, para o item sem nome: o do YouTube ou os 8 primeiros do registro */ codigo: string | null }>; linha: string | null }
+  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; falta: Falta | null; motivo: Motivo | null; bloqueados: number; snapshotMaisAntigo: string | null; /** dias desde o início da espera por snapshot (nulo = sem espera) */ snapEsperaDias: number | null; snapLiberaEm: Date | null; /** a data de liberar já passou */ snapLiberaHoje: boolean; snapBloqueio: SnapBloqueio | null; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null; /** desde quando o item espera (a data de saída do site) */ desde: Date; /** o código curto, para o item sem nome: o do YouTube ou os 8 primeiros do registro */ codigo: string | null }>; linha: string | null }
 
 const DIA_MS = 86_400_000
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
@@ -128,6 +152,6 @@ export function pendenciasParaTela(l: LeituraPendencias, o: { podeVerComandos: b
   if (l.itens.length === 0) return { estado: 'zero', lidoEm: l.lidoEm, linha }
   const idade = (d: Date): number => Math.max(0, Math.floor((o.agora.getTime() - d.getTime()) / DIA_MS))
   const titulo = (i: PendenciaDoDono): string | null => (i.channelRef ? o.nomes?.canais?.get(i.channelRef) : i.youtubeId ? o.nomes?.videos?.get(i.youtubeId) : undefined) ?? (i.mes ? nomeDoMes(i.mes) : i.kind === 'canal' && i.channelRef ? i.channelRef.slice(0, 8) : null)
-  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, falta: i.falta, motivo: i.motivo, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshotMaisAntigo, idadeDias: idade(i.desde), titulo: titulo(i), desde: i.desde, codigo: i.youtubeId ?? (i.channelRef ? i.channelRef.slice(0, 8) : null) }))
+  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, falta: i.falta, motivo: i.motivo, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshotMaisAntigo, snapEsperaDias: i.snapEsperaDesde ? idade(i.snapEsperaDesde) : null, snapLiberaEm: i.snapLiberaEm, snapLiberaHoje: i.snapLiberaEm ? i.snapLiberaEm.getTime() <= o.agora.getTime() : false, snapBloqueio: i.snapBloqueio, idadeDias: idade(i.desde), titulo: titulo(i), desde: i.desde, codigo: i.youtubeId ?? (i.channelRef ? i.channelRef.slice(0, 8) : null) }))
   return { estado: 'com_itens', lidoEm: l.lidoEm, n: itens.length, maisAntigoDias: Math.max(...itens.map(i => i.idadeDias)), itens, linha }
 }

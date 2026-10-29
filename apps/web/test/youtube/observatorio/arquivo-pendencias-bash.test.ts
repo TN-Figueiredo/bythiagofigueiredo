@@ -281,9 +281,13 @@ describe('M9 T7: copiar, apagar e conferir B2 na versao 2', () => {
     expect(new Set(frases).size).toBe(FALTAS.length)
     expect(Object.keys(FRASE_DA_FALTA).sort()).toEqual([...FALTAS].sort())
   })
-  it('snapshots acrescenta a data do mais antigo', () => {
-    const r = rodarNaForja(gerar2([it2({ falta: 'snapshots', snapshot_mais_antigo: '2026-11-03T15:00:00Z' })]))
-    expect(r.stdout).toMatch(/mais antigo: 03\/11 12:00/)
+  it('snapshots (M9-snap): sufixo "libera por volta de DD/MM" no ramo (a), a frase âmbar no (b); nunca "mais antigo"', () => {
+    const a = rodarNaForja(gerar2([it2({ falta: 'snapshots', snapshot_mais_antigo: '2026-11-03T15:00:00Z', snap_espera_desde: '2026-11-20T12:00:00Z', snap_libera_em: '2026-12-04T20:00:00Z' })]))
+    expect(a.stdout).toMatch(/ainda não expiraram \(14 dias\); a limpeza segue sozinha; libera por volta de 04\/12/)
+    expect(a.stdout).not.toContain('mais antigo')
+    const b = rodarNaForja(gerar2([it2({ falta: 'snapshots', snap_bloqueio: 'retido', snap_libera_em: '2026-12-04T20:00:00Z' })]))
+    expect(b.stdout).toContain('Os snapshots do NAS não liberam sozinhos (há snapshot de antes da remoção que não expira')
+    expect(b.stdout).not.toContain('libera por volta')
   })
   it('bloqueado diz o motivo: uma frase por valor de MOTIVOS', () => {
     const frases = MOTIVOS.map(m => {

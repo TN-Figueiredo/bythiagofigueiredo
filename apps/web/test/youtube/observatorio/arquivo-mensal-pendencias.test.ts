@@ -127,6 +127,18 @@ describe('lerPendencias: a versao 2 (M9)', () => {
     const t = pendenciasParaTela(lerPendencias(base([canal({ falta: 'snapshots', snapshot_mais_antigo: '2026-11-01T00:00:00Z', bloqueados: 3 })])), { podeVerComandos: false, agora: new Date('2026-12-01T12:00:00Z') })
     expect(t).toMatchObject({ estado: 'com_itens', itens: [{ falta: 'snapshots', motivo: null, bloqueados: 3, snapshotMaisAntigo: '2026-11-01T00:00:00Z' }] })
   })
+  it('M9-snap: o leitor aceita o item com e sem as três chaves de espera por snapshot, e a tela leva os dias e a data', () => {
+    const sem = lerPendencias(base([canal({ falta: 'snapshots' })]))
+    expect(sem.ok && sem.itens[0]).toMatchObject({ snapEsperaDesde: null, snapLiberaEm: null, snapBloqueio: null })
+    const com = lerPendencias(base([canal({ falta: 'snapshots', snap_espera_desde: '2026-11-22T12:00:00Z', snap_libera_em: '2026-12-06T20:00:00Z', snap_bloqueio: null })]))
+    expect(com.ok && com.itens[0]).toMatchObject({ snapEsperaDesde: new Date('2026-11-22T12:00:00Z'), snapLiberaEm: new Date('2026-12-06T20:00:00Z'), snapBloqueio: null })
+    const t = pendenciasParaTela(com, { podeVerComandos: false, agora: new Date('2026-12-01T12:00:00Z') })
+    expect(t).toMatchObject({ itens: [{ snapEsperaDias: 9, snapLiberaHoje: false }] })
+    const vencida = pendenciasParaTela(com, { podeVerComandos: false, agora: new Date('2026-12-07T12:00:00Z') })
+    expect(vencida).toMatchObject({ itens: [{ snapLiberaHoje: true }] })
+    expect(lerPendencias(base([canal({ falta: 'snapshots', snap_bloqueio: 'retido' })])).ok).toBe(true)
+    expect(lerPendencias(base([canal({ falta: 'snapshots', snap_bloqueio: 'anterior' })])).ok).toBe(false)
+  })
   it('FALTAS e MOTIVOS são as listas do contrato', () => {
     expect(FALTAS).toHaveLength(14)
     expect(MOTIVOS).toEqual(['antiga_ausente', 'antiga_divergente', 'depende_m10b', 'grande_demais', 'contagem_divergente'])

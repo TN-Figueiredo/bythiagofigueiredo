@@ -227,37 +227,200 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 4: prova de ausência, reaparecimen
     })
   })
 
-  it('snapshot_presente_segura_o_b2', async () => {
+  // ---- M9-snap (D-M9-9b): snapshots por TEMPO. O kit manda a lista (hora do mais antigo e do mais novo); o banco compara com a hora da ausência. ----
+  /** Segundos Unix de `now() + intervalo` no relógio do BANCO (a transação inteira vê o mesmo now()). */
+  const seg = (intervalo: string): Promise<number> => escalar<number>(pg, `select extract(epoch from now() + $1::interval)::bigint::int`, [intervalo])
+  /** Item `por_tempo` com as horas relativas ao now(); nunca datas fixas. */
+  const porTempo = async (antigo: string, novo: string, prefixo: string, c: Cena, n = 56) =>
+    item(c, 'ausente', { snapshots: 'por_tempo', snap_mais_antigo_s: await seg(antigo), snap_mais_novo_s: await seg(novo), snap_n: n }, prefixo)
+  /** Linha com a ausência no NAS provada (duas execuções) e o primeiro "ausente" há `first` atrás. */
+  const linhaAusente = (c: Cena, prefixo: string, first: string, extra = '') =>
+    linhaCanal(c, prefixo, `nas_absent_first_at = now() - interval '${first}', nas_absent_at = now() - interval '${first}' + interval '12 hours', nas_last_absent_at = now() - interval '1 hour'${extra}`)
+  const prefixosB2 = async (c: Cena): Promise<string[]> => (JSON.parse(await escalar<string>(pg, `select public.obs_archive_prefixos_ausentes($1, 'b2')::text`, [c.site])) as Linha[]).map(x => x.prefixo as string)
+
+  it('snap_tempo_posterior_libera (a)', async () => {
     await emTx(async c => {
       await ligar(c)
-      const nasOk = "nas_absent_first_at = now() - interval '20 hours', nas_absent_at = now() - interval '5 hours'"
-      const id = await linhaCanal(c, 'serie/s1', nasOk)
-      await attest(c, 'nas', [item(c, 'ausente', { snapshots: 'presente', snapshot_mais_antigo: '2026-10-15' }, 'serie/s1')])
-      let l = await lerLinha(id)
-      expect(l.snap_checked_at).not.toBeNull(); expect(String(l.snap_oldest)).toContain('2026'); expect(l.snap_absent_at).toBeNull()
-      expect(JSON.parse(await escalar<string>(pg, `select public.obs_archive_prefixos_ausentes($1, 'b2')::text`, [c.site]))).toEqual([])
-      // indisponível: só snap_checked_at (a data não muda)
-      const oldest = l.snap_oldest
-      await pg.query(`update public.obs_archive_absence set snap_checked_at = null where id = $1`, [id])
-      await attest(c, 'nas', [item(c, 'ausente', { snapshots: 'indisponivel' }, 'serie/s1')])
-      l = await lerLinha(id)
-      expect(l.snap_checked_at).not.toBeNull(); expect(l.snap_oldest).toEqual(oldest); expect(l.snap_absent_at).toBeNull()
-      // ausente antes de nas_absent_at: ignorado
-      const id2 = await linhaCanal(c, 'serie/s2')
-      await attest(c, 'nas', [item(c, 'ausente', { snapshots: 'ausente' }, 'serie/s2')])
-      l = await lerLinha(id2)
-      expect(l.nas_absent_at).toBeNull(); expect(l.snap_absent_at).toBeNull(); expect(l.snap_checked_at).toBeNull()
+      const id = await linhaAusente(c, 'serie/s1', '15 days')
+      // lista realista: a retenção é de 14 d, então o mais antigo vivo tem ~14 d e é posterior à ausência (first = 15 d atrás)
+      await attest(c, 'nas', [await porTempo('-14 days', '-1 hour', 'serie/s1', c)])
+      const l = await lerLinha(id)
+      expect(l.snap_absent_at).not.toBeNull(); expect(l.snap_motivo).toBeNull(); expect(l.snap_checked_at).not.toBeNull()
+      expect(String(l.snap_oldest)).toContain('2026')
+      expect(await escalar<string>(pg, `select ((now() - interval '14 days') at time zone 'America/Sao_Paulo')::date = $1::date`, [l.snap_oldest as Date])).toBeTruthy()
+      expect(await prefixosB2(c)).toEqual(['serie/s1'])
     })
   })
 
-  it('snapshot ausente libera o b2', async () => {
+  it.each([
+    ['antigo = first - 1 h', '-15 days -1 hour'],
+    ['antigo = first + 30 min (margem de 1 h)', '-15 days 30 minutes'],
+    ['antigo = first', '-15 days'],
+  ])('snap_tempo_anterior_segura (a): %s', async (_n, antigo) => {
     await emTx(async c => {
       await ligar(c)
-      const id = await linhaCanal(c, 'serie/s1', "nas_absent_first_at = now() - interval '20 hours', nas_absent_at = now() - interval '5 hours'")
-      await attest(c, 'nas', [item(c, 'ausente', { snapshots: 'ausente' }, 'serie/s1')])
-      expect((await lerLinha(id)).snap_absent_at).not.toBeNull()
-      const b2 = JSON.parse(await escalar<string>(pg, `select public.obs_archive_prefixos_ausentes($1, 'b2')::text`, [c.site])) as Linha[]
-      expect(b2.map(x => x.prefixo)).toEqual(['serie/s1'])
+      const id = await linhaAusente(c, 'serie/s1', '15 days')
+      await attest(c, 'nas', [await porTempo(antigo, '-1 hour', 'serie/s1', c)])
+      const l = await lerLinha(id)
+      expect(l.snap_absent_at).toBeNull(); expect(l.snap_checked_at).not.toBeNull()
+      expect(l.snap_motivo).toBe('retido')    // first = 15 d atrás: a retenção (14 d) já passou e o mais antigo continua anterior
+      expect(await prefixosB2(c)).toEqual([])
+    })
+  })
+
+  it('snap_anterior_dentro_da_retencao: motivo "anterior" antes de 15 dias', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '3 days')
+      await attest(c, 'nas', [await porTempo('-3 days -1 hour', '-1 hour', 'serie/s1', c)])
+      expect((await lerLinha(id)).snap_motivo).toBe('anterior')
+    })
+  })
+
+  it('snap_piso_14_dias (c): ausente há 13 dias nunca libera, mesmo com o mais antigo posterior', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '13 days')
+      await attest(c, 'nas', [await porTempo('-12 days', '-1 hour', 'serie/s1', c)])
+      const l = await lerLinha(id)
+      expect(l.snap_absent_at).toBeNull(); expect(l.snap_motivo).toBe('anterior')
+    })
+  })
+
+  it('snap_hold_segura (b): o retido (30 d) deixa a amplitude maior que 14 d 6 h', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '15 days')
+      await attest(c, 'nas', [await porTempo('-30 days', '-1 hour', 'serie/s1', c)])
+      expect((await lerLinha(id)).snap_absent_at).toBeNull()
+    })
+  })
+
+  it('snap_amplitude_maior_que_retencao', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '16 days')
+      await attest(c, 'nas', [await porTempo('-16 days 2 hours', '-1 day 2 hours', 'serie/s1', c)])   // amplitude 15 d
+      expect((await lerLinha(id)).snap_absent_at).toBeNull()
+    })
+  })
+
+  it('snap_retido_vira_bloqueio: o painel recebe snap_bloqueio = retido', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '16 days')
+      await attest(c, 'nas', [await porTempo('-16 days -1 hour', '-1 hour', 'serie/s1', c)])
+      const l = await lerLinha(id)
+      expect(l.snap_absent_at).toBeNull(); expect(l.snap_motivo).toBe('retido')
+    })
+  })
+
+  it('snap_futuro_segura: o mais novo à frente do relógio do banco', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '15 days')
+      await attest(c, 'nas', [await porTempo('-15 days 2 hours', '1 hour', 'serie/s1', c)])
+      const l = await lerLinha(id)
+      expect(l.snap_absent_at).toBeNull(); expect(l.snap_motivo).toBe('relogio')
+    })
+  })
+
+  it('snap_indisponivel_so_marca (b): só snap_checked_at e snap_motivo; snap_absent_at e snap_oldest intactos', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '15 days', ", snap_oldest = '2026-10-15'")
+      const antes = await lerLinha(id)
+      await attest(c, 'nas', [item(c, 'ausente', { snapshots: 'indisponivel', snap_motivo: 'fora_do_padrao' }, 'serie/s1')])
+      const l = await lerLinha(id)
+      expect(l.snap_checked_at).not.toBeNull(); expect(l.snap_motivo).toBe('fora_do_padrao')
+      expect(l.snap_absent_at).toBeNull(); expect(l.snap_oldest).toEqual(antes.snap_oldest)
+    })
+  })
+
+  it('snap_motivo_estranho_nao_500: motivo fora da lista por SQL direto vira ilegivel', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '15 days')
+      const r = await attest(c, 'nas', [item(c, 'ausente', { snapshots: 'indisponivel', snap_motivo: 'xyz' }, 'serie/s1')])
+      await ok(r)
+      expect((await lerLinha(id)).snap_motivo).toBe('ilegivel')
+    })
+  })
+
+  it('snap_sem_nas_absent_ignora: sem a ausência provada no NAS nada de snapshot muda', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaCanal(c, 'serie/s2')
+      await attest(c, 'nas', [await porTempo('-15 days 2 hours', '-1 hour', 'serie/s2', c)])
+      const l = await lerLinha(id)
+      expect(l.nas_absent_at).toBeNull(); expect(l.snap_absent_at).toBeNull(); expect(l.snap_checked_at).toBeNull(); expect(l.snap_motivo).toBeNull()
+    })
+  })
+
+  it('snap_gravado_nao_regride (M2): snap_absent_at gravado não muda, sem exceção, snap_motivo segue nulo; a lista não pede mais a prova', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '15 days', ', snap_absent_at = now() - interval \'1 day\'')
+      const antes = await lerLinha(id)
+      await ok(await attest(c, 'nas', [await porTempo('-15 days -1 hour', '-1 hour', 'serie/s1', c)]))
+      const l = await lerLinha(id)
+      expect(l.snap_absent_at).toEqual(antes.snap_absent_at); expect(l.snap_motivo).toBeNull()
+      await pg.query(`update public.obs_archive_absence set b2_absent_at = now(), b2_checked_at = now() where id = $1`, [id])
+      await ok(await attest(c, 'nas', [await porTempo('-15 days -1 hour', '-1 hour', 'serie/s1', c)]))
+      expect((await lerLinha(id)).snap_absent_at).toEqual(antes.snap_absent_at)
+      const nas = JSON.parse(await escalar<string>(pg, `select public.obs_archive_prefixos_ausentes($1, 'nas')::text`, [c.site])) as Linha[]
+      expect(nas.find(x => x.prefixo === 'serie/s1')).toMatchObject({ provar_snapshots: false })
+    })
+  })
+
+  it.each([['abc'], [1.5], ['12345678901']])('snap_forma_ruim_nao_500: snap_mais_antigo_s = %s por SQL direto fica pendente', async (v) => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '15 days')
+      await ok(await attest(c, 'nas', [item(c, 'ausente', { snapshots: 'por_tempo', snap_mais_antigo_s: v, snap_mais_novo_s: await seg('-1 hour'), snap_n: 3 }, 'serie/s1')]))
+      const l = await lerLinha(id)
+      expect(l.snap_absent_at).toBeNull(); expect(l.snap_motivo).toBe('ilegivel')
+    })
+  })
+
+  it('snap_ausente_legado_ignorado: snapshots = ausente por SQL direto não libera (o banco não aceita mais a declaração)', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const id = await linhaAusente(c, 'serie/s1', '20 days')
+      await ok(await attest(c, 'nas', [item(c, 'ausente', { snapshots: 'ausente' }, 'serie/s1')]))
+      const l = await lerLinha(id)
+      expect(l.snap_absent_at).toBeNull(); expect(l.snap_checked_at).toBeNull()
+    })
+  })
+
+  it('snap_b2_so_depois_da_prova: o B2 recusa enquanto snap_absent_at é nulo', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      await linhaAusente(c, 'serie/s1', '15 days')
+      expect(await prefixosB2(c)).toEqual([])
+    })
+  })
+
+  it('pendencias_espera_snapshots (d): as três chaves no owner_pending', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      await linhaAusente(c, 'serie/s1', '3 days')
+      await removerCanal(c)
+      const lido = async (): Promise<Linha> => {
+        const j = JSON.parse(await escalar<string>(pg, `select public.obs_archive_owner_pending($1)::text`, [c.site])) as { itens: Linha[] }
+        return j.itens.find(x => x.item_id === `canal:${c.canal}`) as Linha
+      }
+      await attest(c, 'nas', [await porTempo('-3 days -1 hour', '-1 hour', 'serie/s1', c)])
+      let it = await lido()
+      expect(it).toBeDefined()
+      expect(await escalar<boolean>(pg, `select $1::timestamptz = now() - interval '3 days'`, [it.snap_espera_desde])).toBe(true)
+      expect(await escalar<boolean>(pg, `select $1::timestamptz = now() - interval '3 days' + interval '14 days 8 hours'`, [it.snap_libera_em])).toBe(true)
+      expect(it.snap_bloqueio).toBeNull()
+      // retido: vira bloqueio
+      await pg.query(`update public.obs_archive_absence set nas_absent_first_at = now() - interval '16 days', nas_absent_at = now() - interval '15 days' where site_id = $1`, [c.site])
+      await attest(c, 'nas', [await porTempo('-16 days -1 hour', '-1 hour', 'serie/s1', c)])
+      it = await lido()
+      expect(it.snap_bloqueio).toBe('retido')
     })
   })
 

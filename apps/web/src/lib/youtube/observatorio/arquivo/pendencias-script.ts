@@ -2,7 +2,7 @@
  * Peça 7 (M3b-forja, Tarefa 7a, D-F24/D-F25): o script `bash` que o Mac imprime e o `ssh forja 'bash -s'` roda na forja.
  * Puro. Todo valor do banco entra entre aspas simples; toda saída termina numa linha `OBS-ARQUIVO: ...`.
  */
-import type { Falta, Motivo, LeituraPendencias } from '../arquivo-mensal/pendencias'
+import { fraseSnapBloqueado, type Falta, type Motivo, type LeituraPendencias } from '../arquivo-mensal/pendencias'
 import type { Filho } from '../arquivo-mensal/contrato'
 
 /** O que o Mac já registrou nesta execução (M9, Tarefa 8): o arquivo da versão nova, em base64, para o script gravar em `_recebendo`. */
@@ -15,7 +15,7 @@ export const FRASE_DA_FALTA: Record<Falta, string> = {
   b2_nova: 'a versão nova ainda não chegou ao B2; a sincronização a envia',
   versao_em_curso: 'há uma versão nova em curso; espere ela terminar',
   segunda_conferencia: 'falta a segunda conferência de ausência no NAS; ela roda sozinha',
-  snapshots: 'ainda há snapshot do NAS com o arquivo; ele sai pelo ciclo normal ou por decisão do dono (veja o runbook)',
+  snapshots: 'os snapshots do NAS de antes da remoção ainda não expiraram (14 dias); a limpeza segue sozinha',
   conferencia_nas_recente: 'a última conferência no NAS é recente demais; espere a próxima',
   b2_sync: 'o B2 ainda não sincronizou a remoção; ele roda sozinho',
   blobs: 'ainda há blobs (anexos) do canal a tratar; eles saem pelo ciclo normal',
@@ -118,7 +118,8 @@ export function scriptDasPendencias(
     switch (i.tempo) {
       case 'sem_comando': {
         let frase = i.falta ? FRASE_DA_FALTA[i.falta] : 'o comando ainda não está liberado'
-        if (i.falta === 'snapshots' && i.snapshotMaisAntigo && !Number.isNaN(Date.parse(i.snapshotMaisAntigo))) frase += `; mais antigo: ${dataBr(new Date(i.snapshotMaisAntigo))}`
+        if (i.falta === 'snapshots' && i.snapBloqueio) frase = fraseSnapBloqueado(i.snapBloqueio)          // ramo (b): não libera sozinho
+        else if (i.falta === 'snapshots' && i.snapLiberaEm) frase += i.snapLiberaEm.getTime() <= l.lidoEm.getTime() ? '; libera hoje' : `; libera por volta de ${dataBr(i.snapLiberaEm).slice(0, 5)}`   // ramo (a), sem data no passado
         itens.push(esp(`ESPERA ${i.itemId}: ${frase}`)); break
       }
       case 'bloqueado': itens.push(esp(`BLOQUEADO ${i.itemId}: ${i.motivo ? FRASE_DO_MOTIVO[i.motivo] : 'apagar está indisponível agora (veja o aviso na página)'}`)); break

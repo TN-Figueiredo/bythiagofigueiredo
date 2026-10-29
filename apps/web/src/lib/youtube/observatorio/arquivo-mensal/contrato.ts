@@ -82,8 +82,23 @@ export const NOME_B2 = /^(?!.*\.\.)[A-Za-z0-9._/-]{1,600}$/
 // O banco é a fonte (check de obs_archive_absence.alvo): `alvo:<n>` (alvo de item), `canal:<uuid>` e `antiga:<uuid>` (id da unidade superada). `item:<n>` nunca é gravado.
 const ALVO_PREFIXO = /^(alvo:[1-9][0-9]{0,18}|canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|antiga:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 const prefixoBase = { alvo: z.string().regex(ALVO_PREFIXO), filho: z.enum(['numerico', 'texto']), prefixo: z.string().regex(CAMINHO_SEGURO_PREFIXO), estado: z.enum(['ausente', 'presente']) }
-/** `snapshots` e `snapshot_mais_antigo` só valem na fonte `nas`; `nomes` só na `b2` (a outra combinação cai no `.strict()`: 400). */
-const PrefixoNas = z.object({ ...prefixoBase, snapshots: z.enum(['ausente', 'presente', 'indisponivel']).optional(), snapshot_mais_antigo: z.string().max(80).optional() }).strict()
+/**
+ * Contrato r2.7 (M9-snap, D-M9-9b): `snapshots` e as medidas só valem na fonte `nas`; `nomes` só na `b2` (a outra combinação cai no `.strict()`: 400).
+ * O kit não enxerga dentro do snapshot (a NFS mostra vazio): informa a LISTA (`por_tempo`: hora do mais antigo e do mais novo, em segundos Unix, e quantos)
+ * ou `indisponivel` com o motivo. `'ausente'` e `'presente'` deixaram de existir: quem decide é o banco, com a hora da ausência.
+ */
+const segundos = z.number().int().min(1_600_000_000).max(4_102_444_800)
+const PrefixoNas = z.object({
+  ...prefixoBase,
+  snapshots: z.enum(['por_tempo', 'indisponivel']).optional(),
+  snap_mais_antigo_s: segundos.optional(), snap_mais_novo_s: segundos.optional(), snap_n: z.number().int().min(1).max(10_000).optional(),
+  snap_motivo: z.enum(['lista_vazia', 'fora_do_padrao', 'mtime_diverge', 'ilegivel']).optional(),
+}).strict()
+  .refine(p => {
+    const m = [p.snap_mais_antigo_s, p.snap_mais_novo_s, p.snap_n]
+    return p.snapshots === 'por_tempo' ? m.every(x => x !== undefined) : m.every(x => x === undefined)   // nem uma medida solta fora do por_tempo
+  }, 'por_tempo exige as três medidas, e só ele as tem')
+  .refine(p => (p.snapshots === 'indisponivel') === (p.snap_motivo !== undefined), 'indisponivel exige snap_motivo, e só ele o tem')
 const PrefixoB2 = z.object({ ...prefixoBase, nomes: z.array(z.string().regex(NOME_B2)).max(20).optional() }).strict()
 const AtestarNas = z.object({
   fonte: z.literal('nas'), plano_id: canal,
