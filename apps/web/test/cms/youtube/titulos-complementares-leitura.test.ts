@@ -76,6 +76,7 @@ describe('lerTitulosDosSinais', () => {
     const p = await par({ beat: beat(3), tarefas: [tarefa({ status: 'refused', refused_reason: 'dado-velho' })] })
     expect(p).toMatchObject({ estado: 'falhou', motivo_forja: 'a máquina recebeu dados anteriores à última sincronização. Peça de novo.' })
     expect(await par({ beat: beat(3), tarefas: [tarefa({ status: 'failed' })] })).not.toHaveProperty('motivo_forja')
+    expect(await par({ beat: beat(3), tarefas: [tarefa({ status: 'refused', refused_reason: 'alvo-x' })] })).not.toHaveProperty('motivo_forja')
   })
   it('M3: pedido pendente e heartbeat vivo SEM a capacidade é sem_capacidade (nunca parada com hora de agora), mesmo após 25 h', async () => {
     const velha = tarefa({ requested_at: min(25 * 60) })

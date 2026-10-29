@@ -3,7 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import * as Sentry from '@sentry/nextjs'
-import { FORJA_QUEUE, refusedReasonText, requestStateOf } from '@/lib/youtube/observatorio/forja/states'
+import { FORJA_QUEUE, REFUSED_REASON_TEXT, refusedReasonText, requestStateOf } from '@/lib/youtube/observatorio/forja/states'
 import type { MotivoTitulo } from '@/lib/youtube/observatorio/forja/titulo-complementar'
 
 export const TIPO_TITULO = 'titulo-complementar'
@@ -108,7 +108,7 @@ export async function lerTitulosDosSinais(sb: SupabaseClient, siteId: string, si
     } else if (t.status === 'refused') {
       const m = t.refused_reason?.startsWith('validador-') ? t.refused_reason.slice('validador-'.length) : null
       if (m !== null && MOTIVOS.has(m)) par = { ...base, estado: 'recusado', motivo: m as MotivoTitulo, pedido_em }
-      else { const frase = refusedReasonText(t.refused_reason); par = { ...base, estado: 'falhou', pedido_em, ...(frase ? { motivo_forja: frase } : {}) } }
+      else { const frase = t.refused_reason != null && Object.prototype.hasOwnProperty.call(REFUSED_REASON_TEXT, t.refused_reason) ? refusedReasonText(t.refused_reason) : null; par = { ...base, estado: 'falhou', pedido_em, ...(frase ? { motivo_forja: frase } : {}) } }
     } else if (t.status === 'failed' && t.error_message === 'validador') {
       par = { ...base, estado: 'recusado', motivo: 'reprovado', pedido_em } // o kit gastou as tentativas e o validador reprovou todas
     } else par = { ...base, estado: 'falhou', pedido_em }

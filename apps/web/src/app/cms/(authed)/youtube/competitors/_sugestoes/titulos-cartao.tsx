@@ -50,17 +50,21 @@ function Faixa(p: { tom: 'err' | 'warn'; titulo: string; texto?: string }) {
   )
 }
 
-function Ideia(p: { texto: string; n: number }) {
+const COPIADO_MS = 2500
+
+function Ideia(p: { texto: string; n: number; copiado: boolean; aoCopiar: (n: number) => void; aoLimpar: () => void }) {
   const ref = useRef<HTMLParagraphElement | null>(null)
-  const [estado, setEstado] = useState<'' | 'copiado' | 'selecionado'>('')
+  const [estado, setEstado] = useState<'' | 'selecionado'>('')
   async function copiar() {
     try {
       await navigator.clipboard.writeText(p.texto)
-      setEstado('copiado')
+      setEstado('')
+      p.aoCopiar(p.n)
     } catch {
       // sem permissão de área de transferência: seleciona o texto para a pessoa copiar (Ctrl+C)
       const el = ref.current
       if (el) { const r = document.createRange(); r.selectNodeContents(el); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r) }
+      p.aoLimpar()
       setEstado('selecionado')
     }
   }
@@ -68,7 +72,7 @@ function Ideia(p: { texto: string; n: number }) {
     <li className="sg-ti">
       <p ref={ref}>{p.texto}</p>
       <span className="sg-n">{`${[...p.texto].length}/100`}</span>
-      <button type="button" className="sg-btn" aria-label={`Copiar título ${p.n}`} onClick={() => void copiar()}>{estado === 'copiado' ? 'Copiado' : estado === 'selecionado' ? 'Selecionado' : 'Copiar'}</button>
+      <button type="button" className="sg-btn" aria-label={`Copiar título ${p.n}`} onClick={() => void copiar()}>{p.copiado ? 'Copiado' : estado === 'selecionado' ? 'Selecionado' : 'Copiar'}</button>
       {estado === 'selecionado' && <span className="sg-fb" role="status">Selecionado: use Ctrl+C.</span>}
     </li>
   )
@@ -93,6 +97,11 @@ export function TitulosDoCartao(p: { titulos: TitulosDaVista; acoes: Pick<AcoesD
   const estado = par?.estado ?? null
   const espera = estado !== null && ESPERA_COM_REFRESH.has(estado)
   const [cansou, setCansou] = useState(false)
+  const [copiadoN, setCopiadoN] = useState<number | null>(null)
+  const timerCopia = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const limparCopia = () => { if (timerCopia.current) clearTimeout(timerCopia.current); timerCopia.current = null; setCopiadoN(null) }
+  const marcarCopia = (n: number) => { if (timerCopia.current) clearTimeout(timerCopia.current); setCopiadoN(n); timerCopia.current = setTimeout(() => { timerCopia.current = null; setCopiadoN(null) }, COPIADO_MS) }
+  useEffect(() => () => { if (timerCopia.current) clearTimeout(timerCopia.current) }, [])
   const marcar = (id: string, base: ParDeTitulos | null, novo: ParDeTitulos | null) => setLocais((m) => new Map(m).set(id, { base: chaveDoPar(base), par: novo }))
 
   // Enquanto algo espera ou escreve, a tela se atualiza sozinha (a forja passa a cada 10 min); sem isso o "Na fila" nunca mudaria.
@@ -155,7 +164,8 @@ export function TitulosDoCartao(p: { titulos: TitulosDaVista; acoes: Pick<AcoesD
       <>
         {h5(`${n} ${n === 1 ? 'ideia' : 'ideias'} de título para “${sel.titulo}”`)}
         <p className="sg-hint">{TEXTO_AVISO_IDEIAS}</p>
-        <ol className="sg-ol-list">{par.titulos.map((x, i) => <Ideia key={`${i}-${x}`} texto={x} n={i + 1} />)}</ol>
+        <ol className="sg-ol-list">{par.titulos.map((x, i) => <Ideia key={`${i}-${x}`} texto={x} n={i + 1} copiado={copiadoN === i + 1} aoCopiar={marcarCopia} aoLimpar={limparCopia} />)}</ol>
+        <span className="sr-only" role="status" aria-live="polite">{copiadoN !== null ? `Título ${copiadoN} copiado` : ''}</span>
         {(pedir || t.videos.length > 1) && (
           <div className="sg-acts">
             {pedir && <button type="button" className="sg-lnk" disabled={enviando || !t.sabePedir} onClick={() => void pedirAgora()}>Pedir de novo</button>}
@@ -178,7 +188,7 @@ export function TitulosDoCartao(p: { titulos: TitulosDaVista; acoes: Pick<AcoesD
         {par.estado === 'fila' && <p className="sg-hint" role="status" aria-live="polite">{`Pedido às ${hm}. A forja passa a cada 10 minutos; pode sair da página.`}</p>}
         {par.estado === 'gerando' && <p className="sg-hint" role="status" aria-live="polite">A forja está escrevendo os títulos. Pode sair da página: o pedido continua.</p>}
         {par.estado === 'parada' && (
-          <Faixa tom="warn" titulo={`Pedido guardado às ${hm}. A forja está parada${hmSP(par.parada_desde) ? ` desde ${hmSP(par.parada_desde)}` : ''}; o pedido sai quando ela voltar.`} />
+          <Faixa tom="warn" titulo={`Pedido guardado às ${hm}. A forja está parada${hmSP(par.parada_desde) ? ` desde ${hmSP(par.parada_desde)}` : ''}; o pedido sai quando ela voltar. Esta tela não se atualiza sozinha: recarregue a página para ver se voltou.`} />
         )}
         {cansou && espera && <p className="sg-hint" role="status">Parei de atualizar sozinha. Atualize a página para ver o andamento.</p>}
         {erro && <p className="sg-errl" role="alert">{Ic.warn()}<span>{erro.tipo === 'rede' ? TEXTO_SEM_REDE : erro.texto}</span></p>}

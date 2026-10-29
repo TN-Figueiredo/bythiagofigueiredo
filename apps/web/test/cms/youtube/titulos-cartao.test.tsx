@@ -89,6 +89,24 @@ describe('TitulosDoCartao', () => {
     expect(escrever).toHaveBeenCalledWith('Dois')
     expect(screen.getByLabelText('Copiar título 2').textContent).toBe('Copiado')
   })
+  it('"Copiado" volta a "Copiar" em 2,5 s, copiar outro reseta o anterior e a região aria-live anuncia', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: vi.fn(async () => undefined) }, configurable: true })
+    const { container } = render(<TitulosDoCartao titulos={vista({ par: { own_video_id: V1, estado: 'pronto', titulos: ['A', 'B'], gerado_em: quando } })} acoes={acoes()} />)
+    const live = container.querySelector('[aria-live="polite"]')!
+    await act(async () => { fireEvent.click(screen.getByLabelText('Copiar título 1')) })
+    expect(screen.getByLabelText('Copiar título 1').textContent).toBe('Copiado')
+    expect(live.textContent).toBe('Título 1 copiado')
+    await act(async () => { vi.advanceTimersByTime(1500) })
+    await act(async () => { fireEvent.click(screen.getByLabelText('Copiar título 2')) })
+    expect(screen.getByLabelText('Copiar título 1').textContent).toBe('Copiar')
+    expect(screen.getByLabelText('Copiar título 2').textContent).toBe('Copiado')
+    await act(async () => { vi.advanceTimersByTime(1500) })
+    expect(screen.getByLabelText('Copiar título 2').textContent).toBe('Copiado')
+    await act(async () => { vi.advanceTimersByTime(1100) })
+    expect(screen.getByLabelText('Copiar título 2').textContent).toBe('Copiar')
+    expect(live.textContent).toBe('')
+  })
   it('sem área de transferência: "Selecionado" e a instrução Ctrl+C', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => { throw new Error('negado') } }, configurable: true })
     render(<TitulosDoCartao titulos={vista({ par: { own_video_id: V1, estado: 'pronto', titulos: ['A'], gerado_em: quando } })} acoes={acoes()} />)
@@ -109,7 +127,7 @@ describe('TitulosDoCartao', () => {
     expect(screen.queryByText('Cancelar pedido')).toBeNull()
     unmount()
     render(<TitulosDoCartao titulos={vista({ par: { own_video_id: V1, estado: 'parada', pedido_em: quando, parada_desde: '2026-10-29T17:10:00Z' } })} acoes={acoes()} />)
-    expect(screen.getByText('Pedido guardado às 19h59. A forja está parada desde 14h10; o pedido sai quando ela voltar.')).toBeTruthy()
+    expect(screen.getByText('Pedido guardado às 19h59. A forja está parada desde 14h10; o pedido sai quando ela voltar. Esta tela não se atualiza sozinha: recarregue a página para ver se voltou.')).toBeTruthy()
     expect(screen.getByText('Cancelar pedido')).toBeTruthy()
   })
   const FILA: ParDeTitulos = { own_video_id: V1, estado: 'fila', pedido_em: quando }
