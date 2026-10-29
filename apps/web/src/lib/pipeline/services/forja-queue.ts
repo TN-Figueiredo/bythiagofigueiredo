@@ -511,7 +511,7 @@ export async function completeReading(ctx: ServiceContext, input: ReadingSubmiss
 
   if (task.task_type === 'titulo-complementar') {
     // F4: the list of titles is the reading; the rule (<= 5, 1..100 chars, none already published, numbers from the pack) is the same the kit applies
-    const v = validarTitulosComplementares(sent.data as unknown as SentPack, sub.text.items)
+    const v = validarTitulosComplementares(sent.data, sub.text.items)
     if (!v.ok) {
       // the screen shows it refused, with the reason; a refusal that fails (the task moved on) still answers 400
       // os títulos recusados (<= 5 x 100 caracteres) ficam em result_summary.recusados: sem eles não dá para afinar o prompt nem ver a divergência site x kit
