@@ -41,15 +41,16 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 5: avanço dos itens, versões supe
     `insert into public.obs_archive_m9_interruptor (site_id, ligado) values ($1, $2) on conflict (site_id) do update set ligado = excluded.ligado`, [c.site, v])
 
   /** Uma unidade. `idade` em dias para trás nos marcos de recebimento/atestado. */
-  async function unidade(c: Cena, o: { v: number; tabela?: string; classe?: string; linhas?: number; recebida?: boolean; atestada?: boolean; superada?: boolean; partes?: number; idade?: number }): Promise<string> {
+  async function unidade(c: Cena, o: { v: number; tabela?: string; classe?: string; linhas?: number; recebida?: boolean; atestada?: boolean; superada?: boolean; partes?: number; idade?: number; atestadaHa?: string; retirada?: boolean; perdida?: boolean }): Promise<string> {
     const idade = `${o.idade ?? 1} days`
     const id = (await pg.query(
       `insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, control_sum, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, parts,
-         received_at, nas_attested_at, superseded_at)
+         received_at, nas_attested_at, superseded_at, nas_withdrawn_at, nas_withdrawn_reason, lost_at, lost_by, lost_reason)
        values ($1, $2, $3, $4, $5::date, $6, $7, 100, $8, $9, $10, $11, 100, $12,
-         case when $13 then now() - $15::interval end, case when $14 then now() - $15::interval end, case when $16 then now() - interval '1 hour' end) returning id`,
+         case when $13 then now() - $15::interval end, case when $14 then now() - coalesce($17, $15)::interval end, case when $16 then now() - interval '1 hour' end,
+         case when $18 then now() end, case when $18 then 'ausente' end, case when $19 then now() end, case when $19 then 'teste' end, case when $19 then 'nunca_recebida' end) returning id`,
       [c.site, o.classe ?? 'serie', o.tabela ?? DAILY, c.canal, MES, o.v, o.linhas ?? 10, H('a'), H('b'), H(String(o.v)), H('c'), o.partes ?? 1,
-       o.recebida ?? true, o.atestada ?? true, idade, o.superada ?? false])).rows[0].id as string
+       o.recebida ?? true, o.atestada ?? true, idade, o.superada ?? false, o.atestadaHa ?? null, o.retirada ?? false, o.perdida ?? false])).rows[0].id as string
     if ((o.partes ?? 1) > 1) {
       for (let p = 1; p <= (o.partes ?? 1); p++) {
         await pg.query(`insert into public.obs_archive_unit_parts (unit_id, part, sha256_bytes, csv_sha256, file_bytes, row_count, control_sum, row_offset) values ($1, $2, $3, $4, 50, 5, 50, $5)`,
@@ -226,6 +227,38 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 5: avanço dos itens, versões supe
     })
   })
 
+  it('reabrir: linha de alvo concluído não muda nada e não erra (ponto 2 do controlador; check D-M9-25b intacto)', async () => {
+    await emTx(async c => {
+      await ligar(c)
+      const i1 = await itemRemovido(c, 'yt1')
+      const v1 = await unidade(c, { v: 1, idade: 5 })
+      const v2 = await unidade(c, { v: 2 })
+      const t = await alvo(c, v1, v2, { estado: 'apagar_antigas', item: Number(i1) })
+      const linha = await ausencia(c, t, 'serie/a.csv.gz', `liberado_em = now(), nas_absent_first_at = now(), nas_absent_at = now(), snap_absent_at = now(), b2_absent_at = now(), encerrada_at = now()`)
+      await advance(c)
+      const antes = await lerAlvo(t)
+      expect(antes.estado).toBe('concluido'); expect(antes.keys).toEqual([])
+      const ausAntes = await lerAus(linha)
+      const flagAntes = (await pg.query(`select archive_pending, archive_note from public.competitor_removed_items where id = $1`, [i1])).rows[0]
+      for (const nivel of ['nas', 'b2']) {
+        const r = await tenta(pg, `select public.obs_archive_reabrir($1, $2)`, [linha, nivel])
+        expect(r.ok, JSON.stringify(r)).toBe(true)
+      }
+      expect(await lerAlvo(t)).toEqual(antes)
+      expect(await lerAus(linha)).toEqual(ausAntes)
+      expect((await pg.query(`select archive_pending, archive_note from public.competitor_removed_items where id = $1`, [i1])).rows[0]).toEqual(flagAntes)
+    })
+  })
+
+  it('índices da ausência: (site_id, prefixo) existe e item_advance filtra por site_id', async () => {
+    await emTx(async () => {
+      expect(await escalar<number>(pg, `select count(*)::int from pg_indexes where schemaname = 'public' and tablename = 'obs_archive_absence' and indexname = 'idx_oaa_prefixo' and indexdef like '%(site_id, prefixo)%'`)).toBe(1)
+      const src = await escalar<string>(pg, `select prosrc from pg_proc where oid = 'public.obs_archive_item_advance(uuid)'::regprocedure`)
+      expect(src).not.toMatch(/obs_archive_absence a where a\.alvo_id/)
+      expect(src).not.toMatch(/absence set encerrada_at = now\(\) where alvo_id/)
+    })
+  })
+
   it('manifesto antigo', async () => {
     await emTx(async c => {
       const v1 = await unidade(c, { v: 1, idade: 5 })
@@ -262,8 +295,8 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 5: avanço dos itens, versões supe
     await emTx(async c => {
       const o = { classe: 'texto', tabela: COMENT } as const
       const v1 = await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
-      const v2 = await unidade(c, { ...o, v: 2, idade: 31 })
-      await b2(c, `u:${v2}`, 'texto', 31)
+      const v2 = await unidade(c, { ...o, v: 2, idade: 31, atestadaHa: '1 hour' })   // recebida há 31 d, o NAS a confirmou há 1 h (Phil C1 a)
+      await b2(c, `u:${v2}`, 'texto', 1)
       expect(await escalar<number>(pg, `select public.obs_archive_antigas_open($1)`, [c.site])).toBe(1)
       const l = (await antigasQ(c)).rows
       expect(l).toHaveLength(1)
@@ -274,29 +307,29 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 5: avanço dos itens, versões supe
     await emTx(async c => {   // 29 dias: nada
       const o = { classe: 'texto', tabela: COMENT } as const
       await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
-      const v2 = await unidade(c, { ...o, v: 2, idade: 29 })
-      await b2(c, `u:${v2}`, 'texto', 29)
+      const v2 = await unidade(c, { ...o, v: 2, idade: 29, atestadaHa: '1 hour' })
+      await b2(c, `u:${v2}`, 'texto', 1)
       expect(await escalar<number>(pg, `select public.obs_archive_antigas_open($1)`, [c.site])).toBe(0)
     })
     await emTx(async c => {   // classe serie: nunca
       await unidade(c, { v: 1, superada: true, idade: 60 })
-      const v2 = await unidade(c, { v: 2, idade: 40 })
-      await b2(c, `u:${v2}`, 'serie', 40)
+      const v2 = await unidade(c, { v: 2, idade: 40, atestadaHa: '1 hour' })
+      await b2(c, `u:${v2}`, 'serie', 1)
       expect(await escalar<number>(pg, `select public.obs_archive_antigas_open($1)`, [c.site])).toBe(0)
     })
     await emTx(async c => {   // canal com remoção: nunca
       const o = { classe: 'texto', tabela: COMENT } as const
       await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
-      const v2 = await unidade(c, { ...o, v: 2, idade: 40 })
-      await b2(c, `u:${v2}`, 'texto', 40)
+      const v2 = await unidade(c, { ...o, v: 2, idade: 40, atestadaHa: '1 hour' })
+      await b2(c, `u:${v2}`, 'texto', 1)
       await pg.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known) values ($1, $2, 'botao', 'apagar', now(), true)`, [c.site, c.canal])
       expect(await escalar<number>(pg, `select public.obs_archive_antigas_open($1)`, [c.site])).toBe(0)
     })
     await emTx(async c => {   // versão com linha alvo: do expurgo: nunca duplica
       const o = { classe: 'texto', tabela: COMENT } as const
       const v1 = await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
-      const v2 = await unidade(c, { ...o, v: 2, idade: 40 })
-      await b2(c, `u:${v2}`, 'texto', 40)
+      const v2 = await unidade(c, { ...o, v: 2, idade: 40, atestadaHa: '1 hour' })
+      await b2(c, `u:${v2}`, 'texto', 1)
       const cam = await escalar<string>(pg, `select (public.obs_archive_arquivos_da_unidade($1)->0->>'caminho')`, [v1])
       const t = await alvo(c, v1, v2, { estado: 'apagar_antigas', item: 1 })
       await pg.query(`update public.obs_archive_item_targets set class = 'texto', table_name = $2 where id = $1`, [t, COMENT])
@@ -305,15 +338,51 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 5: avanço dos itens, versões supe
     })
   })
 
-  it('texto superado em partes: uma linha por parte', async () => {
-    // O plano (l.1404) diz "uma por parte se parts > 1" e a l.1405 diz "não vira antiga"; o SQL do plano (arquivos_da_unidade) cobre as partes. Segui o SQL: ver ledger.
+  it('texto superado em partes da antiga: uma linha por parte (ponto 1 do controlador)', async () => {
     await emTx(async c => {
       const o = { classe: 'texto', tabela: COMENT } as const
       await unidade(c, { ...o, v: 1, superada: true, idade: 60, partes: 2 })
-      const v2 = await unidade(c, { ...o, v: 2, idade: 40 })
-      await b2(c, `u:${v2}`, 'texto', 40)
+      const v2 = await unidade(c, { ...o, v: 2, idade: 40, atestadaHa: '1 hour' })
+      await b2(c, `u:${v2}`, 'texto', 1)
       expect(await escalar<number>(pg, `select public.obs_archive_antigas_open($1)`, [c.site])).toBe(2)
       expect((await antigasQ(c)).rows).toHaveLength(2)
+    })
+  })
+
+  it('antigas_open: os 30 dias contam do recebimento da nova, não da última conferência (Phil C1, b a e)', async () => {
+    const o = { classe: 'texto', tabela: COMENT } as const
+    const abre = (c: Cena) => escalar<number>(pg, `select public.obs_archive_antigas_open($1)`, [c.site])
+    await emTx(async c => {   // b: recebida há 31 d, atestada há 31 d (copiador parado) => 0
+      await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
+      const v2 = await unidade(c, { ...o, v: 2, idade: 31 })
+      await b2(c, `u:${v2}`, 'texto', 1)
+      expect(await abre(c)).toBe(0)
+    })
+    await emTx(async c => {   // B2 conferiu há 31 d (rodízio parado) => 0
+      await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
+      const v2 = await unidade(c, { ...o, v: 2, idade: 31, atestadaHa: '1 hour' })
+      await b2(c, `u:${v2}`, 'texto', 31)
+      expect(await abre(c)).toBe(0)
+    })
+    await emTx(async c => {   // c: nova retirada do NAS (nas_withdrawn_at) => 0
+      await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
+      const v2 = await unidade(c, { ...o, v: 2, idade: 31, atestadaHa: '1 hour', retirada: true })
+      await b2(c, `u:${v2}`, 'texto', 1)
+      expect(await abre(c)).toBe(0)
+    })
+    await emTx(async c => {   // d: nova com 2 partes, só a :01 no B2 => 0; as duas => 2 linhas (antiga inteira, 1 parte)
+      await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
+      const v2 = await unidade(c, { ...o, v: 2, idade: 31, atestadaHa: '1 hour', partes: 2 })
+      await b2(c, `p:${v2}:01`, 'texto', 1)
+      expect(await abre(c)).toBe(0)
+      await b2(c, `p:${v2}:02`, 'texto', 1)
+      expect(await abre(c)).toBe(1)
+    })
+    await emTx(async c => {   // e: a nova está perdida (lost_at) e a anterior superada => 0
+      await unidade(c, { ...o, v: 1, superada: true, idade: 60 })
+      const v2 = await unidade(c, { ...o, v: 2, idade: 31, atestadaHa: '1 hour', perdida: true })
+      await b2(c, `u:${v2}`, 'texto', 1)
+      expect(await abre(c)).toBe(0)
     })
   })
 

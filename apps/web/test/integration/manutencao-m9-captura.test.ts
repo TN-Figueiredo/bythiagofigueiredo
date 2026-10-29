@@ -107,6 +107,14 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 2: captura, bandeira, guarda do rec
     })
   })
 
+  it('captura_presente: o nome só num comentário não conta (Phil M3)', async () => {
+    await emTx(async c => {
+      const def = (await pg.query(`select pg_get_functiondef('public.competitor_video_purge(uuid,uuid,uuid,integer,text,text)'::regprocedure) as d`)).rows[0].d as string
+      await pg.query(def.replace(/perform public\.obs_archive_item_capture\([^;]*;/, '-- obs_archive_item_capture saiu daqui\n'))
+      expect(await escalar<boolean>(pg, `select public.obs_archive_m9_captura_presente()`)).toBe(false)
+    })
+  })
+
   it('service_role_apaga_video_e_comentarios: sem 42501, alvos antes da cascata, watch limpa só deste site, bandeira ligada', async () => {
     await emTx(async c => {
       await sinal(c, c.videos[0]!)
@@ -190,6 +198,38 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 2: captura, bandeira, guarda do rec
       expect(await escalar(pg, `select count(*)::int from public.yt_watch_alvos where site_id = $1`, [outro])).toBe(2)
       expect(await escalar(pg, `select count(*)::int from public.obs_archive_channel_removals where site_id = $1 and archive_decision = 'apagar' and removed_via = 'fila'`, [c.site])).toBe(1)
       expect(await escalar(pg, `select count(*)::int from public.competitor_channels where id = $1`, [c.canal])).toBe(0)
+    })
+  })
+
+  const apagarCanal = async (c: Cena) => {
+    await pg.query(`update public.competitor_channels set missing_since = current_date - 3 where id = $1`, [c.canal])
+    return comoServico(() => tenta(pg, `select public.competitor_channel_purge($1, $2, $3, 60, null, null) as r`, [c.site, c.canal, c.actor]))
+  }
+  const watchDe = (c: Cena, yt: string) => pg.query(
+    `select (select count(*)::int from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2) as alvos,
+            (select count(*)::int from public.yt_watch_readings where site_id = $1 and youtube_video_id = $2) as leituras`, [c.site, yt]).then(r => r.rows[0] as { alvos: number; leituras: number })
+
+  it('channel_purge, watch: vídeo também em OUTRO canal do mesmo site não perde a watch (cláusula competitor_channel_id <> p_channel)', async () => {
+    await emTx(async c => {
+      const outroCanal = randomUUID()
+      await pg.query(`insert into public.competitor_channels (id, site_id, channel_id, channel_name, added_at) values ($1, $2, 'UC' || substr(md5($1::uuid::text), 1, 22), 'b', now())`, [outroCanal, c.site])
+      await pg.query(`insert into public.competitor_videos (competitor_channel_id, video_id, title, published_at) values ($1, $2, 'v', now())`, [outroCanal, c.yt[0]])
+      for (const yt of c.yt) { await alvoWatch(c.site, yt); await leituraWatch(c.site, yt) }
+      const r = await apagarCanal(c)
+      expect(r.ok, JSON.stringify(r)).toBe(true)
+      expect(await watchDe(c, c.yt[0]!)).toEqual({ alvos: 1, leituras: 1 })          // do outro canal: fica
+      expect(await watchDe(c, c.yt[1]!)).toEqual({ alvos: 0, leituras: 0 })          // só deste canal: sai
+    })
+  })
+
+  it('channel_purge, watch: alvo que não é de concorrente (tipo proprio) não é apagado (cláusula tipo <> concorrente)', async () => {
+    await emTx(async c => {
+      await alvoWatch(c.site, c.yt[0]!); await leituraWatch(c.site, c.yt[0]!)
+      await alvoWatch(c.site, c.yt[1]!, 'proprio'); await leituraWatch(c.site, c.yt[1]!)
+      const r = await apagarCanal(c)
+      expect(r.ok, JSON.stringify(r)).toBe(true)
+      expect(await watchDe(c, c.yt[0]!)).toEqual({ alvos: 0, leituras: 0 })
+      expect(await watchDe(c, c.yt[1]!)).toEqual({ alvos: 1, leituras: 1 })          // próprio: fica
     })
   })
 

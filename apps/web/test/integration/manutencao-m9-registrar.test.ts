@@ -333,6 +333,26 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 3: abrir, registrar, bloquear e des
       expect(r).toMatchObject({ status: 'recusado', motivo: 'contagem_divergente' })
       expect(await alvoLinha(a.id)).toMatchObject({ estado: 'bloqueado', motivo: 'contagem_divergente' })
     })
+    await emTx(async c => {   // Yannis I-1: OUTRA tabela da classe fora do banco, a do alvo online => continua bloqueando
+      const u = await unidade(c)
+      const a = await alvo(c, u, { esperadas: null })
+      await mesSelado(c, { fora: true, tabela: 'competitor_video_early' })   // inserida primeiro: o antigo limit 1 a escolhia
+      await mesSelado(c)                                                      // DAILY, online
+      const r = await ok(await registrar(c, corpoPadrao(c, a, 0, 10)))
+      expect(r).toMatchObject({ status: 'recusado', motivo: 'contagem_divergente' })
+      expect(await alvoLinha(a.id)).toMatchObject({ estado: 'bloqueado', motivo: 'contagem_divergente' })
+    })
+  })
+
+  it('open: mes_online olha a tabela do alvo, não qualquer linha do mês (Yannis I-1)', async () => {
+    await emTx(async c => {
+      const u = await unidade(c)
+      await alvo(c, u, { esperadas: null })
+      await mesSelado(c, { fora: true, tabela: 'competitor_video_early' })
+      await mesSelado(c)
+      const g = ((await ok(await abrir(c))).grupos as Linha[])[0]!
+      expect(g.mes_online).toBe(true)
+    })
   })
 
   it('record: guarda do insert (mês dropped passa pelo record; insert direto sem a marca falha)', async () => {
@@ -342,7 +362,7 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 3: abrir, registrar, bloquear e des
       const a = await alvo(c, u, { esperadas: 4 })
       const r = await ok(await registrar(c, corpoPadrao(c, a)))
       expect(r.status).toBe('ok')
-      await pg.query(`select set_config('obs_archive.origem', '', true)`)      // a marca vale a transação inteira: o teste a limpa
+      // sem limpar a marca à mão: o expurgo_record a zera ao sair (conserto do lote 1, ponto 3)
       const dir = await tenta(pg, `insert into public.obs_archive_units (site_id, class, table_name, channel_ref, month, version, row_count, hash_conteudo, schema_fp)
         values ($1, 'serie', $2, $3, $4::date, 9, 0, $5, $5)`, [c.site, DAILY, c.canal, MES, H('a')])
       expect(dir).toMatchObject({ ok: false, message: 'unidade_retirada' })
