@@ -9,7 +9,6 @@ import { addChannelFromCanais, pedirRemocaoCanal, apagarCanalSemGuardarAction, d
 import { setChannelNiche, setOwnChannelNiche } from './niche-actions'
 import { askForjaReading } from './forja-actions'
 import { meuEmailDoSite } from './_canais/meu-email'
-import { canAdminSiteUsers } from '@/lib/youtube/competitor-admin'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import { lerPendenciasDaFila } from './_canais/pendencias-da-fila'
 
@@ -40,12 +39,11 @@ export default async function CompetitorsPage({ searchParams }: { searchParams: 
   const pendencias = view.filter === 'sairam'
     ? await lerPendenciasDaFila(siteId, permissoes, new Date(now), { canais: new Map(obs.channels.map(c => [c.id, c.name])), videos: new Map(obs.videos.map(v => [v.ytId, v.title])) })
     : null
-  const podeAdministrar = permissoes.podeEditar ? await canAdminSiteUsers(siteId).catch(() => false) : false
   return (
     <ObservatoryChromeServer tab="canais" searchParams={sp} obs={obs} forja={view.forja} meuCanalLembrado={meuCanalLembrado}
       perguntarIa={{ tela: 'canais', nomeDaTela: TELAS_IA['canais'].nome, exemplos: TELAS_IA['canais'].exemplos, onGerar: gerarPacoteIa }}>
       <CanaisScreen
-        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} hojeSP={dayPt(new Date(now))} podeAdministrar={podeAdministrar}
+        view={view} ri={ri} meuEmail={meuEmail} canUnlock={permissoes.canUnlock} somenteLeitura={!permissoes.podeEditar} pendencias={pendencias} hojeSP={dayPt(new Date(now))} podeAdministrar={permissoes.canUnlock}
         onAdd={addChannelFromCanais} onPedir={pedirRemocaoCanal} onApagar={apagarCanalSemGuardarAction} onDesfazer={desfazerRemocaoCanal} onUnlock={unlockMoreChannels}
         onSetNiche={setChannelNiche} onSetOwnNiche={setOwnChannelNiche} onSyncOne={syncCompetitorNow} onAskForja={askForjaReading}
         onPin={pinVideo} onUnpin={unpinVideo} onRemovalImpact={getCompetitorRemovalImpactAction}
