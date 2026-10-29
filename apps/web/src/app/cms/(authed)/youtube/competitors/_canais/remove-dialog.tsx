@@ -228,6 +228,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const dadosMesFora = (m: MesForaDaRecusa, recusadoNoClique: boolean) => ({ ...m, recusadoNoClique, ...(hojeSP ? { hojeSP } : {}), ...(podeAdministrar !== undefined ? { podeAdministrar } : {}) })
   const fraseMes = forMesFora && erro?.mesFora ? fraseDoMesFora(dadosMesFora(erro.mesFora, true)) : null
   const avisoMes = mesForaAoAbrir && !comErro && !incerto ? fraseDoMesFora(dadosMesFora(mesForaAoAbrir, false), caminho) : null
+  const rotuloOutro = caminho === 'guardar' ? 'Por que não dá para apagar agora' : 'Por que o pedido fica parado'
   const avisoMesOutro = mesForaAoAbrir && !comErro && !incerto ? fraseDoMesFora(dadosMesFora(mesForaAoAbrir, false), caminho === 'guardar' ? 'apagar' : 'guardar') : null
   const passageiroGuardar = erro?.caminho === 'guardar' && codigoPassageiro(erro.codigo)
 
@@ -267,6 +268,28 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
 
         <p className={'fx-never rm-lead' + (caminho === 'apagar' ? ' after' : '')} id={ids.lead} hidden={mostrarFalha}>{lead}</p>
         {/* o sizer é o estado mais alto (todas as linhas com a explicação mais longa), invisível e na mesma célula do que aparece */}
+        {/* o aviso do mês fora fica no topo, logo abaixo da frase de impacto, para não ficar abaixo da dobra (Gio 29/10) */}
+        {avisoMes ? (
+          <div className="fx-msg fx-mes-fora" role="note">
+            <PinIcon name="warn" />
+            <span style={{ display: 'grid' }}>
+              <span style={{ gridArea: '1 / 1' }}>
+                <b>{avisoMes.negrito}</b> {avisoMes.resto}{' '}
+                <RiInfo titulo={caminho === 'guardar' ? 'Por que o pedido fica parado' : 'Por que não dá para apagar agora'} itens={[avisoMes.info]}
+                  rotuloBotao={caminho === 'guardar' ? 'Por que o pedido fica parado' : 'Por que não dá para apagar agora'} aoMudar={aoMudarInfo} />
+                {avisoMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
+              </span>
+              {avisoMesOutro ? (
+                <span aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden' }}>
+                  <b>{avisoMesOutro.negrito}</b> {avisoMesOutro.resto}{' '}
+                  <RiInfo titulo={rotuloOutro} itens={[avisoMesOutro.info]} rotuloBotao={rotuloOutro} />
+                  {avisoMesOutro.linkArquivo ? <>{' '}<a href={link.arquivo()} tabIndex={-1}>Ir para o Arquivo</a></> : null}
+                </span>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
+
         <div className="fx-loss-box">
           {/* no caminho apagar, já contado, a reserva só deixaria vazio (Gio r4) */}
           {mostrarFalha || (caminho === 'apagar' && nums) ? null : <div className="fx-sizer" aria-hidden="true">
@@ -324,25 +347,6 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
                 {fraseMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
               </>) : (<><b>{frase.titulo}</b> {frase.corpo}</>)}
               <span className="code">código: {erro!.codigo}</span>
-            </span>
-          </div>
-        ) : null}
-
-        {avisoMes ? (
-          <div className="fx-msg fx-mes-fora" role="note">
-            <PinIcon name="warn" />
-            <span style={{ display: 'grid' }}>
-              <span style={{ gridArea: '1 / 1' }}>
-                <b>{avisoMes.negrito}</b> {avisoMes.resto}{' '}
-                <RiInfo titulo={caminho === 'guardar' ? 'Por que o pedido fica parado' : 'Por que não dá para apagar agora'} itens={[avisoMes.info]}
-                  rotuloBotao={caminho === 'guardar' ? 'Por que o pedido fica parado' : 'Por que não dá para apagar agora'} aoMudar={aoMudarInfo} />
-                {avisoMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
-              </span>
-              {avisoMesOutro ? (
-                <span aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden' }}>
-                  <b>{avisoMesOutro.negrito}</b> {avisoMesOutro.resto} Por que não dá para apagar agora{avisoMesOutro.linkArquivo ? ' Ir para o Arquivo' : ''}
-                </span>
-              ) : null}
             </span>
           </div>
         ) : null}

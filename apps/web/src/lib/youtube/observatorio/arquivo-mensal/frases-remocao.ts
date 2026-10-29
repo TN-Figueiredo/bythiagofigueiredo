@@ -54,12 +54,12 @@ export function fraseDoMesFora(m: MesFora, caminho?: 'guardar' | 'apagar'): { ne
   let linkArquivo = false
   if (m.liberarAPartir && m.hojeSP && m.podeAdministrar !== undefined) {
     const depois = m.hojeSP >= m.liberarAPartir
-    const antes = `O espaço só pode ser liberado a partir de ${ddmm(m.liberarAPartir)}; até lá, o que dá para fazer é trazer o mês de volta.`
+    const antes = `O espaço só pode ser liberado a partir de ${ddmm(m.liberarAPartir)}; até lá, o que dá para fazer é trazer ${dois ? 'os dois meses' : 'o mês'} de volta.`
     if (m.podeAdministrar) {
-      resto += depois ? ' Você já pode liberar o espaço ou trazer o mês de volta.' : ` ${antes}`
+      resto += depois ? ` Você já pode liberar o espaço ou trazer ${dois ? 'os dois meses' : 'o mês'} de volta.` : ` ${antes}`
       linkArquivo = depois
     } else {
-      resto += depois ? ' O espaço já pode ser liberado, e o mês também pode voltar, por quem administra o site.' : ` ${antes} Quem só edita o site: peça a quem o administra.`
+      resto += depois ? ` O espaço já pode ser liberado, e ${dois ? 'os dois meses também podem voltar' : 'o mês também pode voltar'}, por quem administra o site.` : ` ${antes} Quem só edita o site: peça a quem o administra.`
     }
   }
   if (caminho === 'apagar') resto += ' Guardar o pedido é possível, mas ele fica parado.'
