@@ -398,10 +398,10 @@
 [data-obs-screen="canais"] .modal .fx-blob > .fx-i{color:var(--muted)}
 [data-obs-screen="canais"] .modal .fx-blob p,[data-obs-screen="canais"] .modal .fx-blob .fx-blob-p{margin:0 0 6px;color:var(--text);font-size:12.5px}
 [data-obs-screen="canais"] .modal .fx-blob p:last-child{margin:0}
-[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:0;min-height:0;vertical-align:middle;margin:-4px 1px -4px 1px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:6px;padding:0}
-[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn::after{content:"";position:absolute;inset:-11px}
-[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn:hover,[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn[aria-expanded=true]{color:var(--text);background:var(--surface-2)}
-[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn,[data-obs-screen="canais"] .modal .fx-mes-fora .ri-ibtn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;min-width:0;min-height:0;vertical-align:middle;margin:-4px 1px -4px 1px;border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:6px;padding:0}
+[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn::after,[data-obs-screen="canais"] .modal .fx-mes-fora .ri-ibtn::after{content:"";position:absolute;inset:-11px}
+[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn:hover,[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn[aria-expanded=true],[data-obs-screen="canais"] .modal .fx-mes-fora .ri-ibtn:hover,[data-obs-screen="canais"] .modal .fx-mes-fora .ri-ibtn[aria-expanded=true]{color:var(--text);background:var(--surface-2)}
+[data-obs-screen="canais"] .modal .fx-blob .ri-ibtn:focus-visible,[data-obs-screen="canais"] .modal .fx-mes-fora .ri-ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 [data-obs-screen="canais"] .modal .fx-blob .ri-pop{position:fixed;inset:auto;margin:0;width:min(380px,calc(100vw - 24px));overflow:auto;max-height:min(80vh,620px);padding:12px 14px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);box-shadow:var(--shadow);font-size:13px;line-height:1.5}
 [data-obs-screen="canais"] .modal .fx-blob .ri-pop h3{margin:0 0 6px;font-size:14px}
 [data-obs-screen="canais"] .modal .fx-blob .ri-pop ul{margin:0;padding-left:18px}
