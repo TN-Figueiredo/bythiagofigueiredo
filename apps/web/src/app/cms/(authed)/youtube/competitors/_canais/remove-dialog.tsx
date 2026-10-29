@@ -9,7 +9,9 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import type { CompetitorRemovalImpact, SemGuardar } from '@/lib/youtube/competitor-removal-impact'
-import type { RespostaRemocao, RespostaDoImpacto } from '../actions'
+import type { RespostaRemocao, RespostaDoImpacto, MesForaDaRecusa } from '../actions'
+import { fraseDoMesFora } from '@/lib/youtube/observatorio/arquivo-mensal/frases-remocao'
+import { link } from '@/lib/youtube/observatorio/links'
 import { PinIcon } from '../_chrome/pin-kit'
 import { RiInfo } from './ri-info'
 import {
@@ -23,7 +25,7 @@ export type Desfecho =
   | { caminho: 'guardar'; jaPedido: boolean }
   | ({ caminho: 'apagar'; videos: number; leituras?: number; registrosDiarios?: number } & ImagensDoAviso)
 
-type Erro = { codigo: CodigoTela | 'sem-resposta'; frase?: string; caminho: Caminho }
+type Erro = { codigo: CodigoTela | 'sem-resposta'; frase?: string; caminho: Caminho; mesFora?: MesForaDaRecusa }
 /** O Esc que fechou o ⓘ ainda chega ao diálogo dentro deste prazo; passado ele, o Esc volta a fechar o diálogo. */
 const JANELA_ESC_INFO_MS = 250
 /** A explicação mais longa da 1ª linha (cinco dígitos de versões): o que o sizer reserva. */
@@ -47,8 +49,11 @@ function subDe(k: ChaveLinha, m: CompetitorRemovalImpact | null): string {
   return m ? TXT.subFixados(m.pinned, m.bookmarks) : TXT.subFixados(99, 99)
 }
 
-export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, onDone, onConferir, onBloqueio, onCopiarPedido, trap }: {
+export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, onDone, onConferir, onBloqueio, onCopiarPedido, hojeSP, podeAdministrar, trap }: {
   id: string; name: string
+  /** M6a T13c: o dia de hoje em São Paulo (AAAA-MM-DD) e se quem usa administra o site; entram na frase do mês fora. Ausentes = forma curta. */
+  hojeSP?: string
+  podeAdministrar?: boolean
   /** Server action getCompetitorRemovalImpactAction, por props. Ausente = a contagem não pode ser pedida. */
   onImpact?: (id: string) => Promise<ImpactAnswer>
   onPedir: (id: string) => Promise<RespostaRemocao<{ jaPedido: boolean }>>
@@ -74,6 +79,8 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
   const [capacidade, setCapacidade] = useState<Capacidade>('nao-nao')
   const [dataDoComando, setDataDoComando] = useState<string | null>(null)
   const [corrida, setCorrida] = useState(false)
+  /** M6a T13c: meses fora das telas lidos ao abrir. Só avisa no pedir; nunca bloqueia. */
+  const [mesForaAoAbrir, setMesForaAoAbrir] = useState<MesForaDaRecusa | null>(null)
   const infoAberto = useRef(false)
   /** O popover nativo fecha no Esc e dispara `toggle` ANTES do keydown chegar aqui: sem este carimbo o Esc do ⓘ fecharia o diálogo também. */
   const infoFechouEm = useRef(0)
@@ -105,7 +112,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
       clearTimeout(timer)
       if (!r.ok || !r.arquivo) { falhar(); return } // resposta sem o arquivo: nunca liga o apagar
       tokContagem.current++
-      setImpacto(r.impact); setSemGuardar(r.semGuardar); setArquivo(r.arquivo); setCapacidade(r.capacidade ?? 'nao-nao'); setDataDoComando(r.dataDoComando ?? null); setCorrida(false); setFase('pronto')
+      setImpacto(r.impact); setSemGuardar(r.semGuardar); setArquivo(r.arquivo); setCapacidade(r.capacidade ?? 'nao-nao'); setDataDoComando(r.dataDoComando ?? null); setMesForaAoAbrir(r.mesFora ?? null); setCorrida(false); setFase('pronto')
     }).catch(falhar)
     return () => clearTimeout(timer)
   }, [id])
@@ -117,7 +124,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
     const tok = ++tokContagem.current
     pedir(id).then(r => {
       if (tok !== tokContagem.current || !vivo.current || !r.ok || !r.arquivo) return
-      setImpacto(r.impact); setSemGuardar(r.semGuardar); setArquivo(r.arquivo); setCapacidade(r.capacidade ?? 'nao-nao'); setDataDoComando(r.dataDoComando ?? null)
+      setImpacto(r.impact); setSemGuardar(r.semGuardar); setArquivo(r.arquivo); setCapacidade(r.capacidade ?? 'nao-nao'); setDataDoComando(r.dataDoComando ?? null); setMesForaAoAbrir(r.mesFora ?? null)
     }).catch(() => { /* a lista segue como estava */ })
   }
 
@@ -158,7 +165,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
       if (!r.ok) {
         // corrida: o arquivo nasceu entre a contagem e o clique. A opção de apagar se desliga com a frase do Q2 e Guardar é a saída
         if (c === 'apagar' && r.codigo === 'apagar_com_arquivo') { setCorrida(true); setCaminho('guardar'); recontarEmSegundoPlano() }
-        setErro({ codigo: r.codigo, frase: r.frase, caminho: c }); sair('erro'); return
+        setErro({ codigo: r.codigo, frase: r.frase, caminho: c, ...(r.mesFora ? { mesFora: r.mesFora } : {}) }); sair('erro'); return
       }
       onBloqueioRef.current(false)
       if (c === 'guardar') onDone({ caminho: 'guardar', jaPedido: (r as { jaPedido: boolean }).jaPedido })
@@ -210,12 +217,22 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
     : enviando ? (caminho === 'apagar' ? `Apagando ${name}. Aguarde.` : `Parando a coleta de ${name}. Aguarde.`)
       : mostrarFalha ? TXT.falhaTitulo : ''
   const nums = impacto ? numerosDe(impacto) : null
+  // M3b-G5: depois de ver a lista contada no apagar, voltar a guardar não reserva de novo (a reserva só protege a chegada da contagem)
+  const [semReserva, setSemReserva] = useState(false)
+  useEffect(() => { if (caminho === 'apagar' && nums) setSemReserva(true) }, [caminho, nums])
   const arquivoLinha = linhaArquivo(arquivo)
   const blob = caminho === 'apagar' && arquivo ? fraseBlobDialogo(arquivo.imagensBlob) : null
   const lead = caminho === 'guardar' ? TXT.leadGuardar : TXT.leadApagar
   useEffect(() => { if (erro && (fase === 'erro' || fase === 'incerto')) faixaErro.current?.scrollIntoView?.({ block: 'center' }) }, [erro, fase]) // center: com nearest a barra sticky (.acts) cobre o alvo
   const frase = erro ? fraseDoErro(erro.codigo, erro.frase, erro.caminho) : null
-  const semSaidaGuardar = erro?.caminho === 'apagar' && erro.codigo === 'video_compartilhado' // a F1 também recusaria guardar (I6)
+  const aoMudarInfo = (a: boolean) => { infoAberto.current = a; if (!a) { if (fechouPorEsc.current) fechouPorEsc.current = false; else infoFechouEm.current = Date.now() } }
+  const forMesFora = erro?.caminho === 'apagar' && erro.codigo === 'mes_destacado_em_transito'
+  const semSaidaGuardar = erro?.caminho === 'apagar' && (erro.codigo === 'video_compartilhado' || forMesFora) // decisão C (T13c): na recusa do mês fora só Fechar; o aviso do guardar aparece no diálogo ao reabrir (a F1 aceita guardar nesse caso)
+  const dadosMesFora = (m: MesForaDaRecusa, recusadoNoClique: boolean) => ({ ...m, recusadoNoClique, ...(hojeSP ? { hojeSP } : {}), ...(podeAdministrar !== undefined ? { podeAdministrar } : {}) })
+  const fraseMes = forMesFora && erro?.mesFora ? fraseDoMesFora(dadosMesFora(erro.mesFora, true)) : null
+  const avisoMes = mesForaAoAbrir && !comErro && !incerto ? fraseDoMesFora(dadosMesFora(mesForaAoAbrir, false), caminho) : null
+  const rotuloOutro = caminho === 'guardar' ? 'Por que não dá para apagar agora' : 'Por que o pedido fica parado'
+  const avisoMesOutro = mesForaAoAbrir && !comErro && !incerto ? fraseDoMesFora(dadosMesFora(mesForaAoAbrir, false), caminho === 'guardar' ? 'apagar' : 'guardar') : null
   const passageiroGuardar = erro?.caminho === 'guardar' && codigoPassageiro(erro.codigo)
 
   return (
@@ -254,9 +271,31 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
 
         <p className={'fx-never rm-lead' + (caminho === 'apagar' ? ' after' : '')} id={ids.lead} hidden={mostrarFalha}>{lead}</p>
         {/* o sizer é o estado mais alto (todas as linhas com a explicação mais longa), invisível e na mesma célula do que aparece */}
+        {/* o aviso do mês fora fica no topo, logo abaixo da frase de impacto, para não ficar abaixo da dobra (Gio 29/10) */}
+        {avisoMes ? (
+          <div className="fx-msg fx-mes-fora" role="note">
+            <PinIcon name="warn" />
+            <span style={{ display: 'grid' }}>
+              <span style={{ gridArea: '1 / 1' }}>
+                <b>{avisoMes.negrito}</b> {avisoMes.resto}{' '}
+                <RiInfo titulo={caminho === 'guardar' ? 'Por que o pedido fica parado' : 'Por que não dá para apagar agora'} itens={[avisoMes.info]}
+                  rotuloBotao={caminho === 'guardar' ? 'Por que o pedido fica parado' : 'Por que não dá para apagar agora'} aoMudar={aoMudarInfo} />
+                {avisoMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
+              </span>
+              {avisoMesOutro ? (
+                <span aria-hidden="true" style={{ gridArea: '1 / 1', visibility: 'hidden' }}>
+                  <b>{avisoMesOutro.negrito}</b> {avisoMesOutro.resto}{' '}
+                  <RiInfo titulo={rotuloOutro} itens={[avisoMesOutro.info]} rotuloBotao={rotuloOutro} />
+                  {avisoMesOutro.linkArquivo ? <>{' '}<a href={link.arquivo()} tabIndex={-1}>Ir para o Arquivo</a></> : null}
+                </span>
+              ) : null}
+            </span>
+          </div>
+        ) : null}
+
         <div className="fx-loss-box">
           {/* no caminho apagar, já contado, a reserva só deixaria vazio (Gio r4) */}
-          {mostrarFalha || (caminho === 'apagar' && nums) ? null : <div className="fx-sizer" aria-hidden="true">
+          {mostrarFalha || (caminho === 'apagar' && nums) || (semReserva && nums) ? null : <div className="fx-sizer" aria-hidden="true">
             <ul className="fx-lossz">
               {LINHAS.map(l => <li key={l.k}><b className="fx-wait">contando…</b><span>{l.varios}<span>{subDe(l.k, null) + TXT.subLeiturasExtra}</span></span></li>)}
               {caminho === 'guardar' ? <li><b className="fx-wait">contando…</b><span>meses já no arquivo<span>{SIZER_SUB_ARQUIVO}</span></span></li> : null}
@@ -288,7 +327,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
             <div className="fx-msg fx-info fx-blob" role="note">
               <PinIcon name="info" />
               <div>
-                <div className="fx-blob-p">{blob.linha1Antes}<RiInfo titulo={BLOB_INFO.titulo} itens={BLOB_INFO.itens} rotuloBotao={BLOB_INFO.rotulo} aoMudar={a => { infoAberto.current = a; if (!a) { if (fechouPorEsc.current) fechouPorEsc.current = false; else infoFechouEm.current = Date.now() } }} />{blob.linha1Depois}</div>
+                <div className="fx-blob-p">{blob.linha1Antes}<RiInfo titulo={BLOB_INFO.titulo} itens={BLOB_INFO.itens} rotuloBotao={BLOB_INFO.rotulo} aoMudar={aoMudarInfo} />{blob.linha1Depois}</div>
                 <p>{blob.linha2}</p>
               </div>
             </div>
@@ -305,7 +344,11 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
           <div className="fx-msg fx-err" role="alert" ref={faixaErro}>
             <PinIcon name="err" />
             <span>
-              <b>{frase.titulo}</b> {frase.corpo}
+              {fraseMes ? (<>
+                <b>{fraseMes.negrito}</b> {fraseMes.resto}{' '}
+                <RiInfo titulo="Por que não dá" itens={[fraseMes.info]} rotuloBotao="Por que não dá para remover agora" aoMudar={aoMudarInfo} />
+                {fraseMes.linkArquivo ? <>{' '}<a href={link.arquivo()}>Ir para o Arquivo</a></> : null}
+              </>) : (<><b>{frase.titulo}</b> {frase.corpo}</>)}
               <span className="code">código: {erro!.codigo}</span>
             </span>
           </div>

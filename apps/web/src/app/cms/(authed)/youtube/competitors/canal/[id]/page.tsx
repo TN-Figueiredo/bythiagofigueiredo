@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from 'react'
 import { link } from '@/lib/youtube/observatorio/links'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { ObsSearchParams } from '../../_chrome/resolve-niche'
 import { TrailChrome } from '../../_chrome/trail-chrome'
 import { gerarPacoteIa } from '../../contexto-ia-actions'
@@ -108,7 +109,7 @@ export default async function CanalPage({ params, searchParams }: { params: Prom
     <TrailChrome crumbs={[{ text: view.origemText, href: view.canaisHref }, { text: view.header.name }]} owns={owns}
       perguntarIa={{ tela: 'canal', id: id, nomeDaTela: TELAS_IA['canal'].nome, exemplos: TELAS_IA['canal'].exemplos, onGerar: gerarPacoteIa }}>
       <AbEntradasProvider valor={valorAbEntradas({ podeEditar: m.pagina.canEdit, abertos: null })}>
-      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} leitura={leitura} compararHref={owns.principal ? link.comparar(owns.principal.id, id) : null}
+      <CanalScreen view={view} niches={nicheOptions(obs)} canAdmin={canAdmin} hojeSP={dayPt(new Date(m.pagina.now))} leitura={leitura} compararHref={owns.principal ? link.comparar(owns.principal.id, id) : null}
         topo={topo} celulas={celulas} blocos={blocos}
         actions={{ onSyncOne: syncCompetitorNow, onPedir: pedirRemocaoCanal, onDesfazer: desfazerRemocaoCanal, onApagar: apagarCanalSemGuardarAction, onRemovalImpact: getCompetitorRemovalImpactAction, onSetNiche: setChannelNiche, onPin: pinVideo, onUnpin: unpinVideo }} />
       </AbEntradasProvider>

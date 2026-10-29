@@ -49,6 +49,9 @@ interface Cenario {
   allowed?: boolean
   rpc?: Record<string, { data: unknown; error: { message: string } | null }>
   readings?: { count: number | null; error: { message: string } | null }
+  saida?: boolean
+  transito?: unknown
+  captura?: ReturnType<typeof vi.fn>
   canal?: { data: { added_at: string | null } | null; error: { message: string } | null }
 }
 async function load(o: Cenario = {}) {
@@ -58,6 +61,11 @@ async function load(o: Cenario = {}) {
   vi.doMock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId: 's1' }) }))
   vi.doMock('@tn-figueiredo/auth-nextjs/server', () => ({ requireSiteScope: async () => { order.push('guard'); return o.allowed === false ? { ok: false, reason: 'forbidden' } : { ok: true, user: { id: 'u1' } } } }))
   vi.doMock('next/cache', () => ({ revalidatePath: vi.fn() }))
+  const captura = o.captura ?? vi.fn()
+  vi.doMock('@sentry/nextjs', () => ({ captureMessage: captura, captureException: vi.fn() }))
+  vi.doMock('@/lib/youtube/observatorio/arquivo-mensal/capacidades', async (orig) => ({ ...(await orig<Record<string, unknown>>()), SAIDA_DE_MES_EXISTE: o.saida === true }))
+  const lerEmTransito = vi.fn(async () => { if (o.transito instanceof Error) throw o.transito; return o.transito === undefined ? [] : o.transito })
+  vi.doMock('@/lib/youtube/observatorio/arquivo-mensal/saida', () => ({ lerEmTransito }))
   const rpcs = { competitor_channel_removal_impact: { data: OK, error: null }, competitor_channel_removal_extra: { data: EXTRA_OK, error: null }, obs_archive_channel_archive_impact: { data: ARQ, error: null }, ...(o.rpc ?? {}) }
   const from = (tabela: string) => {
     const q = {
@@ -74,7 +82,7 @@ async function load(o: Cenario = {}) {
   } }))
   const { getCompetitorRemovalImpactAction } = await import('@/app/cms/(authed)/youtube/competitors/actions')
   const lib = await import('@/lib/youtube/competitor-removal-impact')
-  return { act: getCompetitorRemovalImpactAction, lib, order, rpcCalls, eqs, selects }
+  return { act: getCompetitorRemovalImpactAction, lib, captura, lerEmTransito, order, rpcCalls, eqs, selects }
 }
 
 describe('semGuardarDe (I2.1)', () => {
@@ -190,6 +198,37 @@ describe('getCompetitorRemovalImpactAction', () => {
       const sem = await load({ canal: { data: { added_at: null }, error: null } })
       expect(await sem.act(CH)).toMatchObject({ ok: true, semGuardar: { pode: false, porque: 'sem_data' } })
     } finally { vi.useRealTimers() }
+  })
+})
+
+describe('M6a T13c: mesFora no impacto (I-1, I-2)', () => {
+  const TRANS = [{ mes: '2026-08', liberar_a_partir: '2026-12-01' }, { mes: '2026-09', liberar_a_partir: '2026-12-05' }]
+  it('flag da saída de mês desligada: nenhuma leitura, nenhum aviso, nenhum Sentry', async () => {
+    const a = await load({ saida: false, transito: TRANS })
+    const r = await a.act(CH)
+    expect(r).toMatchObject({ ok: true })
+    expect(r).not.toHaveProperty('mesFora')
+    expect(a.lerEmTransito).not.toHaveBeenCalled()
+    expect(a.captura).not.toHaveBeenCalled()
+  })
+  it('flag ligada com mês em trânsito: devolve mesFora (liberação = a data mais tarde)', async () => {
+    const a = await load({ saida: true, transito: TRANS })
+    expect(await a.act(CH)).toMatchObject({ ok: true, mesFora: { meses: 2, nomes: ['2026-08', '2026-09'], liberarAPartir: '2026-12-05' } })
+    expect(a.captura).not.toHaveBeenCalled()
+  })
+  it('flag ligada sem mês em trânsito: mesFora ausente', async () => {
+    const a = await load({ saida: true, transito: [] })
+    const r = await a.act(CH)
+    expect(r).toMatchObject({ ok: true })
+    expect(r).not.toHaveProperty('mesFora')
+  })
+  it.each([['leitura devolve nulo', null], ['leitura lança', new Error('x')]])('%s: ok, sem mesFora, Sentry de aviso 1x', async (_n, transito) => {
+    const a = await load({ saida: true, transito })
+    const r = await a.act(CH)
+    expect(r).toMatchObject({ ok: true, impact: IMPACTO, arquivo: ARQUIVO })
+    expect(r).not.toHaveProperty('mesFora')
+    expect(a.captura).toHaveBeenCalledTimes(1)
+    expect(a.captura).toHaveBeenCalledWith('mes_fora_leitura_falhou', expect.objectContaining({ level: 'warning' }))
   })
 })
 

@@ -69,6 +69,9 @@ export interface CanaisScreenProps {
   onRemovalImpact?: (id: string) => Promise<ImpactAnswer>
   /** A5 E5a T5: quem só lê o site: sincronizar, adicionar e remover ficam desligados e a tela diz isso (os números são os mesmos). */
   somenteLeitura?: boolean
+  /** M6a T13c: hoje em São Paulo e se quem usa administra o site, para a frase do mês fora no diálogo de remover. */
+  hojeSP?: string
+  podeAdministrar?: boolean
   /** A5 E5a R5: Referências e Inscritos (modelo puro montado na página). Ausente = as seções não aparecem. */
   ri?: RiView
   /** M5 T10, peça 7: o que espera quem administra rodar os comandos. Só desenhado com o filtro "Saíram do YouTube". Ausente/nulo = o bloco não aparece. */
@@ -138,7 +141,7 @@ function BarraDeOrdem({ sort, dir, onSort }: { sort: CanaisSort; dir: 'asc' | 'd
   )
 }
 
-export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, meuEmail = null, somenteLeitura = false, ri, pendencias = null }: CanaisScreenProps) {
+export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesfazer, onUnlock, onSetNiche, onSetOwnNiche, onSyncOne, onAskForja, onPin, onUnpin, onRemovalImpact, meuEmail = null, somenteLeitura = false, hojeSP, podeAdministrar, ri, pendencias = null }: CanaisScreenProps) {
   const router = useRouter(), pathname = usePathname(), search = useSearchParams()
   const toast = useToast()
   const wide = useWide()
@@ -666,7 +669,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
           onRemove={() => askRemove(menuRow.id, rowMenuButton(menuRow.id))} />
       ) : null}
 
-      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onPedir={onPedir} onApagar={onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} onCopiarPedido={() => { void copiarPedido({ name: confirm.name }) }} trap={trapTab} /> : null}
+      {confirm ? <RemoveDialog id={confirm.id} name={confirm.name} onImpact={onRemovalImpact} onPedir={onPedir} onApagar={onApagar} onCancel={closeConfirm} onDone={concluir} onConferir={conferir} onBloqueio={b => { bloqueado.current = b }} onCopiarPedido={() => { void copiarPedido({ name: confirm.name }) }} hojeSP={hojeSP} podeAdministrar={podeAdministrar} trap={trapTab} /> : null}
 
       {addOpen ? (
         <AddChannelForm view={view} onAdd={onAdd} onClose={closeAdd} trap={trapTab}
