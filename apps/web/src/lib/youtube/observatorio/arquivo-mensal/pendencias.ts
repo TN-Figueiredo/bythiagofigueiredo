@@ -68,7 +68,7 @@ export const fraseSnapBloqueado = (b: SnapBloqueio): string => `Atenção: os sn
  */
 export function fraseSnapEspera(a: { bloqueio: SnapBloqueio | null; esperaDesde: Date | null; liberaEm: Date | null; passou: boolean; atrasada: boolean }, dm: (d: Date) => string): { ambar: boolean; texto: string } {
   if (a.bloqueio && a.bloqueio !== 'ilegivel') return { ambar: true, texto: fraseSnapBloqueado(a.bloqueio) }
-  if (a.liberaEm && a.atrasada && !a.bloqueio) return { ambar: true, texto: `Atenção: o prazo dos snapshots do NAS (${dm(a.liberaEm)}) passou; aguarda a próxima conferência da forja. Se passar de 2 dias, veja se o copiador está rodando.` }
+  if (a.liberaEm && a.atrasada && !a.bloqueio) return { ambar: true, texto: `Atenção: o prazo dos snapshots do NAS (${dm(a.liberaEm)}) passou; aguarda a próxima conferência da forja. Se passar de 2 dias, veja se a rotina da forja está rodando.` }
   const desde = a.esperaDesde ? ` desde ${dm(a.esperaDesde)}` : ''
   if (a.bloqueio === 'ilegivel') return { ambar: false, texto: `Aguardando os snapshots do NAS${desde}; a última leitura da lista falhou e a próxima rodada tenta de novo. Nada a fazer até lá.` }
   if (!a.esperaDesde && !a.liberaEm) return { ambar: false, texto: 'Aguardando os snapshots do NAS.' }
