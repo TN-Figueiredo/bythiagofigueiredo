@@ -8,7 +8,7 @@ import { TELAS_IA } from '@/lib/youtube/observatorio/contexto-ia/telas'
 import { ObservatoryChromeServer } from '../_chrome/chrome-server'
 import type { ObsSearchParams } from '../_chrome/resolve-niche'
 import { gerarPacoteIa } from '../contexto-ia-actions'
-import { adiarSugestao, dispensarSugestao } from '../_sugestoes/actions'
+import { adiarSugestao, cancelarTitulos, dispensarSugestao, pedirTitulos } from '../_sugestoes/actions'
 import { saiuDoAviso } from '../_sugestoes/aviso'
 import { abrirListaDaTela } from '../_sugestoes/dados-da-tela'
 import { SugestoesLista } from '../_sugestoes/sugestoes-lista'
@@ -52,7 +52,7 @@ export default async function SugestoesPage({ searchParams }: { searchParams: Pr
     case 'ok': {
       const saiu = await avisoDoSino(sp ?? {}, agora)
       const vista = montarVistaDaLista({ lista: leitura.lista, amostra: leitura.amostra, agora, filtro: 'todas', saiuDoAviso: saiu, limite: LIMITE })
-      const acoes: AcoesDaLista | null = leitura.podeResponder ? { dispensar: dispensarSugestao, adiar: adiarSugestao } : null
+      const acoes: AcoesDaLista | null = leitura.podeResponder ? { dispensar: dispensarSugestao, adiar: adiarSugestao, pedirTitulos, cancelarTitulos } : null
       corpo = <SugestoesLista modo="pagina" vista={vista} acoes={acoes} verTodasHref={link.sugestoes()} />
       break
     }

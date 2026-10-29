@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import CmsLink from '../../../_shared/cms-link'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { link } from '@/lib/youtube/observatorio/links'
-import { adiarSugestao, dispensarSugestao } from '../../competitors/_sugestoes/actions'
+import { adiarSugestao, cancelarTitulos, dispensarSugestao, pedirTitulos } from '../../competitors/_sugestoes/actions'
 import { abrirListaDaTela } from '../../competitors/_sugestoes/dados-da-tela'
 import { SugestoesLista } from '../../competitors/_sugestoes/sugestoes-lista'
 import { montarVistaDaLista, VISTA_COM_ERRO } from '../../competitors/_sugestoes/view-model'
@@ -41,7 +41,7 @@ export async function BlocoSugestoes(): Promise<ReactNode> {
       return <LinhaDiscreta texto={nunca ? LINHA_SUGESTOES_NAO_CALCULADAS : LINHA_SEM_SUGESTOES} />
     }
     const vista = montarVistaDaLista({ lista: leitura.lista, amostra: leitura.amostra, agora, filtro: 'todas', saiuDoAviso: false, limite: LINHAS })
-    const acoes: AcoesDaLista | null = leitura.podeResponder ? { dispensar: dispensarSugestao, adiar: adiarSugestao } : null
+    const acoes: AcoesDaLista | null = leitura.podeResponder ? { dispensar: dispensarSugestao, adiar: adiarSugestao, pedirTitulos, cancelarTitulos } : null
     return <SugestoesLista modo="bloco" vista={vista} acoes={acoes} verTodasHref={link.sugestoes()} />
   } catch (e) {
     Sentry.captureException(e, { tags: { component: 'sugestoes', step: 'bloco-ab-lab' } })

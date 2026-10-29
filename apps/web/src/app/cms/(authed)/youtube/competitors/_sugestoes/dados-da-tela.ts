@@ -28,6 +28,9 @@ function idsDaAmostra(lista: ListaDeSinais, limite: number): string[] {
     const forte = outlierMaisForte(it.evidence)
     if (forte) ids.add(forte.video_id)
     if (it.kind === 'parecido') for (const p of (it.proprios_agora ?? []).slice(0, PROPRIOS_NA_AMOSTRA)) ids.add(p)
+    // F4 T9: os vídeos seus que a seção "Pedir títulos" oferece (até 3) e os que já têm pedido, nos dois tipos de sugestão
+    for (const p of (it.proprios_agora ?? []).slice(0, PROPRIOS_NA_AMOSTRA)) ids.add(p)
+    for (const par of (it.titulos_complementares ?? [])) ids.add(par.own_video_id)
   }
   return [...ids]
 }

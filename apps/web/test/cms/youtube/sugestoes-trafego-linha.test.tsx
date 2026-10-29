@@ -8,7 +8,7 @@ import path from 'node:path'
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }) }))
 vi.mock('next/link', () => ({ default: ({ children, href, ...r }: { children: React.ReactNode; href: string }) => <a href={href} {...r}>{children}</a> }))
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
-vi.mock('@/app/cms/(authed)/youtube/competitors/_sugestoes/actions', () => ({ dispensarSugestao: async () => ({ ok: true }), adiarSugestao: async () => ({ ok: true }) }))
+vi.mock('@/app/cms/(authed)/youtube/competitors/_sugestoes/actions', () => ({ dispensarSugestao: async () => ({ ok: true }), adiarSugestao: async () => ({ ok: true }), pedirTitulos: async () => ({ ok: true }), cancelarTitulos: async () => ({ ok: true }) }))
 const mundo = vi.hoisted(() => ({ leitura: null as unknown }))
 vi.mock('@/app/cms/(authed)/youtube/competitors/_sugestoes/dados-da-tela', () => ({ abrirListaDaTela: async () => mundo.leitura }))
 
@@ -113,5 +113,29 @@ describe('frase-resumo, barra e faixa geral na lista', () => {
   it('sem cartão com linha: nada', () => {
     const { container } = render(<SugestoesLista modo="pagina" vista={vista([item('a', t({ estado: 'nao_se_aplica' }))])} acoes={null} verTodasHref="/x" />)
     expect(container.querySelector('.sg-trfsum, .sg-trfgeral')).toBeNull()
+  })
+})
+
+describe('link "Pedir títulos" na linha do "não" (F4 T9)', () => {
+  const amostra = new Map([['p1', { titulo: 'Meu vídeo do Vietnã', miniatura: null, origem: 'proprio' as const, canal: null, chaves: null }]])
+  const comTitulos = (itens: ItemDeSinal[]) => montarVistaDaLista({ lista: { ...lista(itens), titulos_forja: { leitura: 'ok', forja_sabe_pedir: true } }, amostra, agora: new Date(), filtro: 'todas', saiuDoAviso: false, limite: 100 })
+  const acoes = { dispensar: async () => ({ ok: true as const }), adiar: async () => ({ ok: true as const }), pedirTitulos: async () => ({ ok: true as const }), cancelarTitulos: async () => ({ ok: true as const }) }
+
+  it('com admin: o link abre o cartão e leva o foco ao botão da seção; sem admin o link não existe', () => {
+    const v = comTitulos([item('a', t({}))])
+    const { container, unmount } = render(<SugestoesLista modo="pagina" vista={v} acoes={acoes} verTodasHref="/x" />)
+    expect(container.querySelector('.sg-tit')).toBeNull()
+    fireEvent.click(screen.getByText('Pedir títulos'))
+    expect(container.querySelector('[data-row="a"]')!.classList.contains('sg-open')).toBe(true)
+    expect(container.querySelector('.sg-tit')).not.toBeNull()
+    expect(document.activeElement).toBe(container.querySelector('button[data-pedir]'))
+    unmount()
+    const sem = render(<SugestoesLista modo="pagina" vista={v} acoes={null} verTodasHref="/x" />)
+    expect(sem.container.querySelector('.sg-lnk')).toBeNull()
+  })
+  it('o link só existe no "não": no "sim" e no "não medido" não', () => {
+    const v = comTitulos([item('s', t({ estado: 'sim', videos_com_trafego: 1, views: 3 })), item('m', t({ estado: 'nao_medido', motivo: 'origem_nao_informada', ate: null }))])
+    render(<SugestoesLista modo="pagina" vista={v} acoes={acoes} verTodasHref="/x" />)
+    expect(screen.queryByText('Pedir títulos')).toBeNull()
   })
 })

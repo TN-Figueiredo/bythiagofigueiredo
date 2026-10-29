@@ -5,7 +5,8 @@ import CmsLink from '../../../_shared/cms-link'
 import type { AcaoDaLinha, DesfechoDaLinha, TipoDeErro } from './estado-da-lista'
 import { Ic } from './icones'
 import { ReguaMult } from './regua-mult'
-import type { MotivoDaTela } from './tipos'
+import type { AcoesDaLista, MotivoDaTela } from './tipos'
+import { TitulosDoCartao } from './titulos-cartao'
 import { INFO_QUANDO_NAO, INFO_REGRA_TRAFEGO, resumirTrafego, type SegmentoDaBarra } from './trafego'
 import { dataSP, diaSP, type LinhaDaVista } from './view-model'
 
@@ -44,6 +45,9 @@ export interface PropsDaLinha {
   onCancelar(): void
   onInfo(): void
   onExpandir(): void
+  /** F4 T9: as ações de título (só quem administra o site) e o link "Pedir títulos" da linha do "não" (abre o cartão com foco na seção). */
+  acoesTitulos?: Pick<AcoesDaLista, 'pedirTitulos' | 'cancelarTitulos'> | null
+  onPedirTitulos?(): void
 }
 
 /** Põe o primeiro número (com × ou "vídeo(s)") em <b>; só antes do "(cálculo de ...)", para não pegar a hora. */
@@ -62,7 +66,7 @@ function Seus(p: { l: LinhaDaVista }) {
 const LEAD_SIM = 'Já te manda visitas'
 
 /** F4: a linha de tráfego do terceiro. `nao_medido` leva o selo e nunca "0" nem "não"; só o "sim" ganha peso. */
-function LinhaDeTrafego(p: { l: LinhaDaVista; info: boolean; onInfo(): void }) {
+function LinhaDeTrafego(p: { l: LinhaDaVista; info: boolean; onInfo(): void; onPedirTitulos?: () => void }) {
   const t = p.l.trafego
   if (!t) return null
   const icone = t.estado === 'sim' ? Ic.entra() : t.estado === 'nao' ? Ic.nada() : t.estado === 'erro' ? Ic.warn() : null
@@ -79,6 +83,7 @@ function LinhaDeTrafego(p: { l: LinhaDaVista; info: boolean; onInfo(): void }) {
         {t.estado === 'erro' && <span className="t-short">{t.curto}</span>}
       </span>
       <span className="sg-trf-a">
+        {t.podePedir && p.l.titulos && p.onPedirTitulos && <button type="button" className="sg-lnk" onClick={p.onPedirTitulos}>Pedir títulos</button>}
         <button type="button" className="sg-ib" aria-expanded={p.info} aria-label="Como esta sugestão foi calculada e medida" onClick={p.onInfo}>i</button>
       </span>
     </div>
@@ -168,7 +173,7 @@ export function Linha(p: PropsDaLinha) {
           <p className="sg-vs">{Ic.vid()}<span><Seus l={l} /></span></p>
           <button type="button" className="sg-det" aria-expanded={p.expandida} onClick={p.onExpandir}>Detalhes{Ic.chev()}</button>
         </div>
-        <LinhaDeTrafego l={l} info={p.info} onInfo={p.onInfo} />
+        <LinhaDeTrafego l={l} info={p.info} onInfo={p.onInfo} onPedirTitulos={p.acoesTitulos?.pedirTitulos ? p.onPedirTitulos : undefined} />
       </div>
       <div className="sg-ra">
         <CmsLink href={l.primario.href} className={`sg-btn ${l.primario.cheio ? 'sg-pri' : 'sg-ol'}`}>
@@ -200,6 +205,7 @@ export function Linha(p: PropsDaLinha) {
           </dl>
         </div>
       )}
+      {p.expandida && l.titulos && <TitulosDoCartao titulos={l.titulos} acoes={p.acoesTitulos ?? null} />}
       {p.aberta && p.podeDispensar && (
         <div className="sg-dsp" role="group" aria-label="Dispensar ou adiar">
           <p>Por que dispensar?</p>

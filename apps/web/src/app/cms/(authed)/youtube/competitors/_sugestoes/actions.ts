@@ -10,10 +10,13 @@ import * as Sentry from '@sentry/nextjs'
 import { unstable_rethrow } from 'next/navigation'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSiteContext } from '@/lib/cms/site-context'
-import { denyUnlessSiteAdmin } from '@/lib/cms/auth-guards'
+import { denyUnlessSiteAdmin, requireSiteAdminScope } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { adiarSinal, dispensarSinal } from '@/lib/youtube/observatorio/sinais/leitura'
-import type { RespostaDaAcao } from './tipos'
+import { askReading, cancelReading } from '@/lib/pipeline/services/forja-queue'
+import { PipelineServiceError } from '@/lib/pipeline/services/types'
+import { observatoryNow } from '@/lib/youtube/observatorio/now'
+import type { RespostaDaAcao, RespostaDoPedidoDeTitulos } from './tipos'
 
 const ACAO = 'dispensar sugestões do nicho'
 const Entrada = z.object({
@@ -76,6 +79,64 @@ export async function adiarSugestao(id: string): Promise<RespostaDaAcao> {
   } catch (e) {
     unstable_rethrow(e)
     Sentry.captureException(e, { tags: { component: 'sugestoes', step: 'adiar' } })
+    return { ok: false, motivo: 'falhou' }
+  }
+}
+
+const EntradaTitulos = z.object({ ownVideoId: z.string().uuid(), signalId: z.string().uuid() })
+const ACAO_TITULOS = 'pedir títulos à forja'
+const NADA_CANCELADO = 'Nada cancelado: o pedido já saiu da fila ou está sendo escrito.'
+
+/** Pedido que nomeia a entrada da pessoa (400) é dito a ela; o resto é erro nosso. */
+const ehEntradaRuim = (e: unknown): e is PipelineServiceError =>
+  (e instanceof PipelineServiceError || (e instanceof Error && e.name === 'PipelineServiceError')) && (e as PipelineServiceError).status === 400
+
+/**
+ * F4 T9: "Pedir títulos". Ordem: Zod; quem administra o site, ANTES de qualquer cliente de serviço; a sessão de edição (id do usuário);
+ * `askReading`. O motor recusa com a frase dele (sem a capacidade, já há pedido, sem dado novo, sinal fechado). O Cowork NÃO tem esta ação (D-F4-4).
+ */
+export async function pedirTitulos(ownVideoId: string, signalId: string): Promise<RespostaDoPedidoDeTitulos> {
+  const entrada = EntradaTitulos.safeParse({ ownVideoId, signalId })
+  if (!entrada.success) return { ok: false, motivo: 'falhou' }
+  try {
+    const { siteId } = await getSiteContext()
+    const admin = await requireSiteAdminScope(siteId)
+    if (!admin.ok) return { ok: false, motivo: 'sem_permissao' }
+    const edicao = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    if (!edicao.ok) return { ok: false, motivo: 'sem_permissao' }
+    const ctx = { siteId, permissions: ['write' as const], supabase: getSupabaseServiceClient(), source: 'session' as const }
+    const r = await askReading(ctx, { type: 'titulo-complementar', scope: 'todos', ownVideoId: entrada.data.ownVideoId, signalId: entrada.data.signalId, userId: edicao.user.id }, observatoryNow())
+    revalidatePath('/cms/youtube/competitors', 'layout')
+    revalidatePath('/cms/youtube/ab-lab')
+    if (r.data.ok) return { ok: true }
+    return { ok: false, motivo: 'recusado', texto: r.data.reason ?? 'Nada enviado.' }
+  } catch (e) {
+    unstable_rethrow(e)
+    if (ehEntradaRuim(e)) return { ok: false, motivo: 'falhou' }
+    Sentry.captureException(e, { tags: { component: 'sugestoes', step: 'pedir-titulos' } })
+    return { ok: false, motivo: 'falhou' }
+  }
+}
+
+/** F4 T9: "Cancelar pedido" do par (vídeo seu × sugestão); só o que ainda espera na fila. Mesma ordem de guardas do pedido. */
+export async function cancelarTitulos(ownVideoId: string, signalId: string): Promise<RespostaDoPedidoDeTitulos> {
+  const entrada = EntradaTitulos.safeParse({ ownVideoId, signalId })
+  if (!entrada.success) return { ok: false, motivo: 'falhou' }
+  try {
+    const { siteId } = await getSiteContext()
+    const admin = await requireSiteAdminScope(siteId)
+    if (!admin.ok) return { ok: false, motivo: 'sem_permissao' }
+    const edicao = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
+    if (!edicao.ok) return { ok: false, motivo: 'sem_permissao' }
+    const ctx = { siteId, permissions: ['write' as const], supabase: getSupabaseServiceClient(), source: 'session' as const }
+    const r = await cancelReading(ctx, { type: 'titulo-complementar', ownVideoId: entrada.data.ownVideoId, signalId: entrada.data.signalId })
+    revalidatePath('/cms/youtube/competitors', 'layout')
+    revalidatePath('/cms/youtube/ab-lab')
+    return r.data.cancelled ? { ok: true } : { ok: false, motivo: 'recusado', texto: NADA_CANCELADO }
+  } catch (e) {
+    unstable_rethrow(e)
+    if (ehEntradaRuim(e)) return { ok: false, motivo: 'falhou' }
+    Sentry.captureException(e, { tags: { component: 'sugestoes', step: 'cancelar-titulos' } })
     return { ok: false, motivo: 'falhou' }
   }
 }

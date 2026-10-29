@@ -48,7 +48,7 @@ describe('abrirListaDaTela', () => {
     expect(await abrirListaDaTela(AGORA, 100)).toMatchObject({ estado: 'ok', podeResponder: true })
     expect(r.listaArgs[0]!.slice(1)).toEqual(['site-ctx', AGORA, 100, true, { marca: 'leitura' }])
   })
-  it('amostra: outlier mais forte de cada linha + até 3 próprios por parecido; destino não pede próprios', async () => {
+  it('amostra: outlier mais forte de cada linha + até 3 próprios por linha (F4 T9: os vídeos da seção "Pedir títulos", também no destino)', async () => {
     const lista = { n: 3, itens: [
       item('a', 'destino', [{ video_id: 'c1', mult_vpd7: 3 }, { video_id: 'c2', mult_vpd7: 9 }], ['p-nao']),
       item('b', 'parecido', [{ video_id: 'c3', mult_vpd7: 4 }], ['p1', 'p2', 'p3', 'p4']),
@@ -57,7 +57,7 @@ describe('abrirListaDaTela', () => {
     const { r, abrirListaDaTela } = await montar({ lista })
     const res = await abrirListaDaTela(AGORA, 100)
     expect(res.estado).toBe('ok')
-    expect(r.amostraIds[0]!.sort()).toEqual(['c2', 'c3', 'p1', 'p2', 'p3'])
+    expect(r.amostraIds[0]!.sort()).toEqual(['c2', 'c3', 'p-nao', 'p1', 'p2', 'p3'])
   })
   it('limite menor (bloco): só as linhas dentro do limite entram na amostra', async () => {
     const lista = { n: 4, itens: [1, 2, 3, 4].map((i) => item('i' + i, 'destino', [{ video_id: 'v' + i, mult_vpd7: 5 }], null)) }

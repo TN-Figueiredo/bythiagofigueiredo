@@ -9,6 +9,8 @@ import { REGRA_SINAIS } from '@/lib/youtube/observatorio/sinais/regra'
 import { outlierMaisForte, type Outlier } from '@/lib/youtube/observatorio/sinais/outlier'
 import { nomeDoLugar } from './lugar'
 import { montarTrafego, type TrafegoDaVista } from './trafego'
+import { montarTitulos, type TitulosDaVista } from './titulos'
+import type { TitulosDaForja } from '@/lib/youtube/observatorio/sinais/titulos-complementares/ler'
 import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { MotivoDaTela } from './tipos'
 
@@ -34,6 +36,8 @@ export interface LinhaDaVista {
   naoAdia: { dia: string; data: string } | null
   /** F4: "esse vídeo do terceiro já nos manda tráfego?"; `null` só para `nao_se_aplica` (a linha não aparece). */
   trafego: TrafegoDaVista | null
+  /** F4 T9: a seção "Pedir títulos" do cartão aberto; `null` = sem vídeo seu sobre o lugar (nada a pedir). */
+  titulos: TitulosDaVista | null
 }
 /** F3b: adiadas que VOLTAM (`proxima` = a primeira a voltar, ISO); `null` na vista = não medido. */
 export interface AdiadasDaVista { n: number; proxima: string | null }
@@ -145,7 +149,7 @@ function hrefPrimario(it: ItemDeSinal, forte: Outlier | null): string {
   }
 }
 
-function montarLinha(it: ItemDeSinal, amostra: ReadonlyMap<string, AmostraDoVideo>, calc: string, semVideoNenhum: boolean, agora: Date): LinhaDaVista {
+function montarLinha(it: ItemDeSinal, amostra: ReadonlyMap<string, AmostraDoVideo>, calc: string, semVideoNenhum: boolean, agora: Date, forja: TitulosDaForja | undefined): LinhaDaVista {
   const forte = outlierMaisForte(it.evidence)
   const lim = REGRA_SINAIS.multSozinho
   const lugar = it.kind === 'destino' ? nomeDoLugar(it.subject_key) : ''
@@ -180,6 +184,7 @@ function montarLinha(it: ItemDeSinal, amostra: ReadonlyMap<string, AmostraDoVide
     adiadaEm: it.adiada_em === null ? null : dataSP(it.adiada_em),
     // Mesma conta da função do banco: `expires_at <= agora + 7 d` não adia.
     trafego: montarTrafego(it.trafego_do_terceiro, dayPt(agora)),
+    titulos: montarTitulos(it, amostra, lugar, forja),
     naoAdia: new Date(it.expires_at).getTime() <= agora.getTime() + DIAS_DO_ADIAR * DIA_MS ? { dia: diaSP(it.expires_at), data: dataSP(it.expires_at) } : null,
   }
 }
@@ -256,7 +261,7 @@ export function montarVistaDaLista(e: {
   const calc = q === null || lista.desatualizado ? '' : q.hoje ? `hoje, ${q.hora}` : `${q.data}, ${q.hora}`
   const semVideoNenhum = lista.contagens.proprios === 0
   const itens = lista.itens.slice(0, limite)
-  const linhas = comCheio(itens.map((it) => montarLinha(it, amostra, calc, semVideoNenhum, agora)), filtro)
+  const linhas = comCheio(itens.map((it) => montarLinha(it, amostra, calc, semVideoNenhum, agora, lista.titulos_forja)), filtro)
   const velho = lista.desatualizado && lista.computado_em !== null
   const vazio = lista.n === 0 || itens.length === 0 ? vazioDe(lista, agora) : null
   const resumo = vazio ? vazio.topo

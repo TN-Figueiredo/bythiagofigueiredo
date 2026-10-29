@@ -8,6 +8,7 @@ import { dayPt } from '../../coleta/day-pt'
 import type { AcessoPrivado, LeituraPrivadaDoSite } from '../proprio/leitura-privada'
 import { lerTrafegoDoTerceiro } from './trafego-terceiro/ler'
 import type { TrafegoDoTerceiro } from './trafego-terceiro/regra'
+import { lerTitulosDosSinais, TITULOS_SEM_LEITURA, type ParDeTitulos, type TitulosDaForja } from './titulos-complementares/ler'
 import { DIAS_DO_ADIAR, HORAS_ATE_DESATUALIZAR } from './frases'
 import { derivarAcao, type AcaoDerivada, type RotuloDaAcao } from './acao'
 import type { Evidence, MotivoVazio } from './oportunidades'
@@ -39,6 +40,8 @@ export interface ItemDeSinal {
   proprios_agora_n: number | null
   /** F4: o vídeo do terceiro que puxa o sinal já nos manda tráfego (origem "vídeos sugeridos")? Sem a prova de leitura, `nao_medido`. */
   trafego_do_terceiro: TrafegoDoTerceiro
+  /** F4 (T9): o último pedido de títulos complementares de cada vídeo seu para este sinal. Ausente = nenhum pedido. Só leitura para o Cowork (D-F4-4). */
+  titulos_complementares?: ParDeTitulos[]
 }
 
 export interface ListaDeSinais {
@@ -57,6 +60,8 @@ export interface ListaDeSinais {
   calculoLigado: boolean
   /** F4 (C-P2): sentinela da origem "sem par" (código 32) medida na leitura; ausente = não medido. Fora de `contagens` e fora do pacote. */
   sentinelaF4?: { codigo32: number | null }
+  /** F4 (T9): a leitura dos pedidos de título e se a forja sabe fazê-los. Ausente = não lido (item de versão antiga). */
+  titulos_forja?: TitulosDaForja
   /** Só no `get_signals` do Cowork: a resposta foi cortada para caber no teto de texto. */
   aviso?: string
 }
@@ -265,8 +270,17 @@ export async function listarSinaisDoNicho(
   // F4: o tráfego do vídeo do terceiro (nunca derruba a lista: a borda captura toda exceção como `erro_de_leitura`)
   const trafego = await lerTrafegoDoTerceiro(sb, siteId, leitura, itens, dayPt(agora))
   for (const it of itens) it.trafego_do_terceiro = trafego.porItem.get(it.id) ?? it.trafego_do_terceiro
+  // F4 T9: os títulos pedidos à forja (nunca derruba a lista: erro vira `titulos_forja.leitura = 'erro'`, que a tela diz)
+  let titulosForja: TitulosDaForja = TITULOS_SEM_LEITURA
+  try {
+    const t = await lerTitulosDosSinais(sb, siteId, itens.map((i) => i.id), agora.getTime())
+    titulosForja = { leitura: 'ok', forja_sabe_pedir: t.forjaSabePedir }
+    for (const it of itens) { const pares = t.porSinal.get(it.id); if (pares && pares.length) it.titulos_complementares = pares }
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'sinais-nicho', step: 'titulos-complementares' } })
+  }
   // a sentinela fica FORA de `contagens` (que é "o que o cálculo contou"): é medida de agora, derivada de dado privado, e não vai ao pacote
-  return { n, itens, computado_em, desatualizado, motivoVazio: null, motivoDoCalculo: null, proximaVolta, contagens, calculoLigado, ...(trafego.codigo32 !== null ? { sentinelaF4: { codigo32: trafego.codigo32 } } : {}) }
+  return { n, itens, computado_em, desatualizado, motivoVazio: null, motivoDoCalculo: null, proximaVolta, contagens, calculoLigado, titulos_forja: titulosForja, ...(trafego.codigo32 !== null ? { sentinelaF4: { codigo32: trafego.codigo32 } } : {}) }
 }
 
 export type StatusDeResposta = 'dispensado' | 'feito'

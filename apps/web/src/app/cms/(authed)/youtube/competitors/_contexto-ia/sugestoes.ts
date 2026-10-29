@@ -40,7 +40,10 @@ export function modeloDeSugestoes(lista: ListaDeSinais, agora: Date): ModeloSuge
     itens: lista.itens.map((i) => {
       const { proprios: _foto, ...evidence } = i.evidence
       void _foto
-      return { ...i, evidence }
+      // F4 T9: os títulos pedidos à forja não entram neste pacote (o Cowork os lê pela rota e pelo get_signals)
+      const { titulos_complementares: _titulos, ...resto } = i
+      void _titulos
+      return { ...resto, evidence }
     }),
   }
 }

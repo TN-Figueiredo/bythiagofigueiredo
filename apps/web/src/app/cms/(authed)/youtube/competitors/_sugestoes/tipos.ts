@@ -17,4 +17,14 @@ export interface AcoesDaLista {
   dispensar(id: string, motivo: MotivoDaTela): Promise<RespostaDaAcao>
   /** F3b: "Adiar 7 dias". */
   adiar(id: string): Promise<RespostaDaAcao>
+  /** F4 T9: "Pedir títulos" (só quem administra o site; ausente = sem botão). */
+  pedirTitulos?(ownVideoId: string, signalId: string): Promise<RespostaDoPedidoDeTitulos>
+  /** F4 T9: "Cancelar pedido" (só enquanto espera na fila). */
+  cancelarTitulos?(ownVideoId: string, signalId: string): Promise<RespostaDoPedidoDeTitulos>
 }
+
+/** `texto` é a frase do motor em português (ex.: "Nada enviado: já há um pedido…"); `falhou` = fila fora do ar ou erro nosso. */
+export type RespostaDoPedidoDeTitulos =
+  | { ok: true }
+  | { ok: false; motivo: 'sem_permissao' | 'falhou' }
+  | { ok: false; motivo: 'recusado'; texto: string }
