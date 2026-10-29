@@ -196,6 +196,12 @@ describe('T11 r1: classificação do erro depois da chamada que muda (I-1)', () 
     expect(f.texto).toMatch(/^Ocupado/)
     expect(f.texto).not.toMatch(/banco/i)
   })
+  it.each(['40P01', '55P03'])('%s na conferência do liberar: ocupado, não falha (r1 Yannis, saida.ts executarLiberar)', async (code) => {
+    PREP({ obs_archive_precheck_channels: { data: null, error: { code, message: 'deadlock detected' } } })
+    const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')
+    expect(await a.liberarEspaco('competitor_video_daily', '2026-10-01')).toEqual({ ok: true, resposta: { tipo: 'recusado', codigo: 'ocupado', faltam: [] } })
+    expect(chamadas.map(c => c.fn)).not.toContain('obs_archive_discard_month')
+  })
   it('57014 (o banco cancelou e desfez) tem frase própria: não é "não foi possível ler" nem "sem resposta"', async () => {
     PREP({ obs_archive_detach_month: { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } } })
     const a = await import('@/app/cms/(authed)/youtube/competitors/_arquivo-saida/acoes')

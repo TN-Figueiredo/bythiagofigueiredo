@@ -145,7 +145,7 @@ export async function executarSaida(sb: SupabaseClient, a: { site: string; tabel
 export async function executarLiberar(sb: SupabaseClient, a: { site: string; tabela: TabelaDaSaida; mes: string; por: string; simular: boolean; ate?: number }): Promise<RespostaSaida> {
   const ate = a.ate ?? Date.now() + PRAZO_TOTAL_MS
   const c = await conferirCanais(sb, a.site, a.tabela, a.mes, ate)
-  if ('causa' in c) return { tipo: 'falhou', causa: c.causa }
+  if ('causa' in c) return deCausa(c.causa)
   return chamadaFinal(sb, 'obs_archive_discard_month', { p_site: a.site, p_table: a.tabela, p_month: a.mes, p_by: a.por, p_mode: 'clique', p_dry_run: a.simular }, ate, !a.simular)
 }
 export async function executarTrazer(sb: SupabaseClient, a: { site: string; tabela: TabelaDaSaida; mes: string; por: string; ate?: number }): Promise<RespostaSaida> {
