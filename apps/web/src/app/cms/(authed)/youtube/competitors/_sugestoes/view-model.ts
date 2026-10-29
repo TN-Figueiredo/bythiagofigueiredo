@@ -8,6 +8,8 @@ import type { Evidence } from '@/lib/youtube/observatorio/sinais/oportunidades'
 import { REGRA_SINAIS } from '@/lib/youtube/observatorio/sinais/regra'
 import { outlierMaisForte, type Outlier } from '@/lib/youtube/observatorio/sinais/outlier'
 import { nomeDoLugar } from './lugar'
+import { montarTrafego, type TrafegoDaVista } from './trafego'
+import { dayPt } from '@/lib/youtube/coleta/day-pt'
 import type { MotivoDaTela } from './tipos'
 
 export type FamiliaDoVazio = 'resolvido' | 'calmo' | 'espera' | 'problema' | 'nm' | 'adiado'
@@ -30,6 +32,8 @@ export interface LinhaDaVista {
   adiadaEm: string | null
   /** F3b: vence em até 7 dias (não dá para adiar): o dia por extenso ("qua, 28/10") e a data curta; `null` = dá para adiar. */
   naoAdia: { dia: string; data: string } | null
+  /** F4: "esse vídeo do terceiro já nos manda tráfego?"; `null` só para `nao_se_aplica` (a linha não aparece). */
+  trafego: TrafegoDaVista | null
 }
 /** F3b: adiadas que VOLTAM (`proxima` = a primeira a voltar, ISO); `null` na vista = não medido. */
 export interface AdiadasDaVista { n: number; proxima: string | null }
@@ -175,6 +179,7 @@ function montarLinha(it: ItemDeSinal, amostra: ReadonlyMap<string, AmostraDoVide
     motivos: MOTIVOS[it.kind].map((m) => ({ ...m })),
     adiadaEm: it.adiada_em === null ? null : dataSP(it.adiada_em),
     // Mesma conta da função do banco: `expires_at <= agora + 7 d` não adia.
+    trafego: montarTrafego(it.trafego_do_terceiro, dayPt(agora)),
     naoAdia: new Date(it.expires_at).getTime() <= agora.getTime() + DIAS_DO_ADIAR * DIA_MS ? { dia: diaSP(it.expires_at), data: dataSP(it.expires_at) } : null,
   }
 }

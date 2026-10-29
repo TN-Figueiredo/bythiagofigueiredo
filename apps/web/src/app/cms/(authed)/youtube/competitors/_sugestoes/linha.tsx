@@ -6,6 +6,7 @@ import type { AcaoDaLinha, DesfechoDaLinha, TipoDeErro } from './estado-da-lista
 import { Ic } from './icones'
 import { ReguaMult } from './regua-mult'
 import type { MotivoDaTela } from './tipos'
+import { INFO_QUANDO_NAO, INFO_REGRA_TRAFEGO } from './trafego'
 import { dataSP, diaSP, type LinhaDaVista } from './view-model'
 
 const MLAB: Record<MotivoDaTela, string> = { lugar_errado: 'lugar errado', nao_interessa: 'não me interessa', nao_e_parecido: 'não é parecido', ja_fiz: 'já fiz' }
@@ -58,6 +59,32 @@ function Seus(p: { l: LinhaDaVista }) {
   return <>{p.l.seus.naoMedido ? <><span className="sg-nm">não medido</span>{' '}{p.l.seus.texto}</> : <ComNumero texto={p.l.seus.texto} />}</>
 }
 
+const LEAD_SIM = 'Já te manda visitas'
+
+/** F4: a linha de tráfego do terceiro. `nao_medido` leva o selo e nunca "0" nem "não"; só o "sim" ganha peso. */
+function LinhaDeTrafego(p: { l: LinhaDaVista; info: boolean; onInfo(): void }) {
+  const t = p.l.trafego
+  if (!t) return null
+  const icone = t.estado === 'sim' ? Ic.entra() : t.estado === 'nao' ? Ic.nada() : t.estado === 'erro' ? Ic.warn() : null
+  const cls = t.estado === 'nao_medido' ? 'nm' : t.estado
+  const corpo = t.estado === 'sim' && t.texto.startsWith(LEAD_SIM)
+    ? <><b className="l">{LEAD_SIM}</b>{t.texto.slice(LEAD_SIM.length)}</>
+    : t.texto
+  return (
+    <div className={`sg-trf t-${cls}${icone ? '' : ' sg-ni'}`} data-trf={p.l.id}>
+      {icone}
+      <span className="t-txt">
+        {t.estado === 'nao_medido' && <span className="sg-nm">não medido</span>}
+        <span className="t-full">{corpo}</span>
+        {t.estado === 'erro' && <span className="t-short">{t.curto}</span>}
+      </span>
+      <span className="sg-trf-a">
+        <button type="button" className="sg-ib" aria-expanded={p.info} aria-label="Como esta sugestão foi calculada e medida" onClick={p.onInfo}>i</button>
+      </span>
+    </div>
+  )
+}
+
 export function Linha(p: PropsDaLinha) {
   const { linha: l } = p
   const [semFoto, setSemFoto] = useState(false)
@@ -108,6 +135,7 @@ export function Linha(p: PropsDaLinha) {
           <p className="sg-vs">{Ic.vid()}<span><Seus l={l} /></span></p>
           <button type="button" className="sg-det" aria-expanded={p.expandida} onClick={p.onExpandir}>Detalhes{Ic.chev()}</button>
         </div>
+        <LinhaDeTrafego l={l} info={p.info} onInfo={p.onInfo} />
       </div>
       <div className="sg-ra">
         <CmsLink href={l.primario.href} className={`sg-btn ${l.primario.cheio ? 'sg-pri' : 'sg-ol'}`}>
@@ -128,6 +156,13 @@ export function Linha(p: PropsDaLinha) {
             <dt>Medida</dt><dd>{l.info.medida}</dd>
             <dt>Para virar sugestão</dt><dd>{l.info.regra}</dd>
             <dt>Surgiu</dt><dd>{`${l.info.surgiu}; vence em ${l.info.vence}`}</dd>
+            {l.trafego && (
+              <>
+                <dt>Visitas vindas dele</dt><dd>{l.trafego.info}</dd>
+                <dt>Quando dizemos “não”</dt><dd>{INFO_QUANDO_NAO}</dd>
+                <dt>Regra do tráfego</dt><dd>{INFO_REGRA_TRAFEGO}</dd>
+              </>
+            )}
             <dt>Leitura</dt><dd>Pode ajudar. É associação, não causa.</dd>
           </dl>
         </div>
