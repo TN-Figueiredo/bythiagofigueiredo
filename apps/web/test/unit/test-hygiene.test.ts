@@ -39,6 +39,9 @@ function futureYearsIn(line: string): number[] {
 // Files verified to use future dates inertly (no wall-clock comparison on the
 // consuming path). Re-verify before adding to this list.
 const ALLOWLIST = new Set([
+  // F2b T5: `hoje` é parâmetro de gatilhoD2 (nunca o relógio); 2027-09-08 é a fronteira do placebo de
+  // impressões (regra do spec), e as datas de 2027 só exercitam os dois lados dela
+  'test/youtube/observatorio/sinais/medida/estimador.test.ts',
   // M6a: relógio simulado do arquivo (`obs_archive.agora`/`hoje` por set_config, `relogio`/`relogioSessao`
   // nos testes de integração; `hojeSP`/`agora` passados às funções puras). Os únicos Date.now() são medida
   // de duração (corridas) ou relógio falso do vitest (ações); nenhum compara com a data real
