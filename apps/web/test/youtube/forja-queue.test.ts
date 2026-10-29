@@ -143,7 +143,7 @@ describe('claim', () => {
     expect(cas.ops[0]!.op).toBe('update')
     expect(cas.ops[0]!.args[0]).toMatchObject({ status: 'running', started_at: new Date(NOW).toISOString(), result_summary: { claimed_by: 'key-forja' } })
     expect(has(cas, 'eq', 'id', TASK_ID) && has(cas, 'eq', 'site_id', 'site-1') && has(cas, 'eq', 'status', 'pending')).toBe(true)
-    expect(has(cas, 'select', 'id, site_id, channel_id, trigger_type, requested_at, started_at, task_type, target_niche, target_video_id, target_fmt')).toBe(true)
+    expect(has(cas, 'select', 'id, site_id, channel_id, trigger_type, requested_at, started_at, task_type, target_niche, target_video_id, target_fmt, target_own_video_id, target_signal_id')).toBe(true)
   })
 
   it('a heartbeat write error does not block the claim — it goes to Sentry', async () => {

@@ -22,19 +22,25 @@ import type { IntelTask } from './youtube'
 import type { NicheScope } from '@/lib/youtube/observatorio/niche'
 import type { Fmt, ForjaRequest, Niche } from '@/lib/youtube/observatorio/types'
 import { machineOf } from '@/lib/youtube/observatorio/forja/states'
-import { planAsk, type SessionOpts } from '@/lib/youtube/observatorio/forja/session'
+import { planAsk, NOT_ANNOUNCED, type SessionOpts } from '@/lib/youtube/observatorio/forja/session'
 import { canonicalNumberTokens, normalizeNumberToken } from '@/lib/youtube/observatorio/forja/numbers'
 import { spDayStart } from '@/lib/youtube/observatorio/time'
 import { isNicheSlug, parseNiche } from '@/lib/youtube/observatorio/niche'
 import { loadDataset, taskRowToRequest, TASK_COLS, type TaskRow } from '@/lib/youtube/observatorio/load'
 import { createObservatory } from '@/lib/youtube/observatorio'
 import { buildSent, TargetUnavailableError, type SentPack } from '@/lib/youtube/observatorio/forja/sent'
+import { REGRA_F4_TITULO, novidadeTitulo, validarTitulosComplementares, MOTIVO_TITULO_TEXT, type AlvoTitulo, type OutlierCongelado, type PedidoCongelado } from '@/lib/youtube/observatorio/forja/titulo-complementar'
+import { semNovidadeText } from '@/lib/youtube/observatorio/forja/novidade'
+import { outlierMaisForte } from '@/lib/youtube/observatorio/sinais/outlier'
+import { nomeDoLugar } from '@/lib/youtube/observatorio/sinais/nome-do-lugar'
+import type { Evidence } from '@/lib/youtube/observatorio/sinais/oportunidades'
 
-export const OBS_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] as const
+export const OBS_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video', 'titulo-complementar'] as const
 export type ObsType = typeof OBS_TYPES[number]
 export const isObsType = (t: unknown): t is ObsType => typeof t === 'string' && (OBS_TYPES as readonly string[]).includes(t)
 
-export interface AskInput { type: ObsType; scope: NicheScope; videoId?: string; fmt?: Fmt; userId: string }
+/** `ownVideoId` + `signalId`: o alvo de `titulo-complementar` (vídeo nosso × sinal). */
+export interface AskInput { type: ObsType; scope: NicheScope; videoId?: string; ownVideoId?: string; signalId?: string; fmt?: Fmt; userId: string }
 export interface AskOutcome {
   ok: boolean; reason: string | null
   results: Array<{ niche: Niche; ok: boolean; reason: string | null; taskId?: string; channelsOut?: Array<{ id: string; reason: string }> }>
@@ -45,7 +51,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** A channel id that cannot break out of a PostgREST `in.(…)` list. claim() already demands UUIDs. */
 const SAFE_ID = /^[A-Za-z0-9_-]+$/
 /** Closed column list, never '*': error_message and result_summary may carry text written by a narrow key. */
-const CLAIM_COLS = 'id, site_id, channel_id, trigger_type, requested_at, started_at, task_type, target_niche, target_video_id, target_fmt'
+const CLAIM_COLS = 'id, site_id, channel_id, trigger_type, requested_at, started_at, task_type, target_niche, target_video_id, target_fmt, target_own_video_id, target_signal_id'
+/** The columns of a held task (heldObsTask), without `sent`. */
+const HELD_COLS = 'id, status, task_type, target_niche, target_video_id, target_own_video_id, target_signal_id, target_fmt, result_summary, started_at'
 /** readQueue page size = PostgREST max_rows (supabase/config.toml); a bigger page would be truncated silently. */
 const QUEUE_PAGE = 1000
 const REFUSED_REASON_MAX = 200
@@ -164,9 +172,12 @@ const AskSchema = z.object({
   // only the FORM here ('todos' or a niche slug); that the niche exists in the site is checked against the engine below
   scope: z.string().refine(v => parseNiche(v) != null, { message: "expected 'todos' or a niche slug" }),
   videoId: z.string().uuid().optional(),
+  ownVideoId: z.string().uuid().optional(),
+  signalId: z.string().uuid().optional(),
   fmt: z.enum(['long', 'short']).optional(),
   userId: z.string().uuid(),
 }).refine(a => a.type !== 'leitura-video' || !!a.videoId, { message: 'videoId: required for leitura-video', path: ['videoId'] })
+  .refine(a => a.type !== 'titulo-complementar' || (!!a.ownVideoId && !!a.signalId && !a.videoId), { message: 'titulo-complementar: ownVideoId and signalId required, videoId absent', path: ['ownVideoId'] })
 
 const fmtFor = (type: ObsType, fmt: Fmt | undefined): Fmt | null =>
   type === 'padroes-titulo-shorts' ? 'short' : type === 'padroes-titulo' || type === 'temas' ? (fmt ?? 'long') : null
@@ -205,6 +216,7 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
     const reason = 'A forja ainda não lê vídeos dos seus canais.'
     return ok({ ok: false, reason, results: [{ niche: targetVideo.niche ?? scope as Niche, ok: false, reason }] })
   }
+  if (type === 'titulo-complementar') return askTitulo(ctx, obs, opts, parsed.data.ownVideoId!, parsed.data.signalId!, userId, now)
   const plan = planAsk(toRequests(rows), machine, clock, opts, scope, target)
 
   const fmt = fmtFor(type, parsed.data.fmt)
@@ -235,16 +247,75 @@ export async function askReading(ctx: ServiceContext, input: AskInput, now: numb
   return ok({ ok: anyOk, reason, results })
 }
 
-const CancelSchema = z.object({ type: z.enum(OBS_TYPES), niche: z.string().refine(isNicheSlug, { message: 'expected a niche slug' }), videoId: z.string().uuid().optional() })
+/**
+ * Ask for `titulo-complementar` (F4): the target is an own video x an open signal, not a niche. The ask planner (session.ts) keys requests
+ * by niche/video of competitors, so this type has its own small plan here: capability, one active request per (video, signal) -- the
+ * index idx_yt_intel_titulo_active is the race guard --, and the data rule (novidadeTitulo). The request's niche is the one of the
+ * strongest outlier's channel; the outliers' titles are frozen into `task.sent` NOW (the signal may close before the claim).
+ */
+async function askTitulo(
+  ctx: ServiceContext, obs: ReturnType<typeof createObservatory>, opts: SessionOpts, ownVideoId: string, signalId: string, userId: string, now: number,
+): Promise<ServiceResult<AskOutcome>> {
+  const refuse = (reason: string, niche: Niche = 'todos' as Niche): ServiceResult<AskOutcome> => ok({ ok: false, reason, results: [{ niche, ok: false, reason }] })
+  if (!opts.capabilities.includes('titulo-complementar')) return refuse(NOT_ANNOUNCED)
+  const own = obs.video(ownVideoId)
+  if (!own || !obs.channel(own.ch)?.own) return refuse('Nada enviado: o vídeo não é de um canal seu.')
+  const { data: sig, error: sigErr } = await ctx.supabase.from('niche_signals').select('id, subject_key, status, evidence').eq('site_id', ctx.siteId).eq('id', signalId).maybeSingle()
+  if (sigErr) return err('INTERNAL_ERROR', 'Failed to read the signal', 500)
+  const s = sig as { subject_key: string; status: string; evidence: Evidence } | null
+  if (!s || s.status !== 'aberto') return refuse('Nada enviado: este sinal não está mais aberto.')
+  // the request's niche = the niche of the strongest outlier's channel (same rule as the card); without one, nothing is written
+  const forte = outlierMaisForte(s.evidence)
+  const niche = forte ? obs.channel(forte.canal_id)?.niche ?? null : null
+  if (!niche) return refuse('Nada enviado: não dá para saber o nicho deste sinal.')
+  const lista = Array.isArray(s.evidence?.outliers) ? [...s.evidence.outliers].filter(o => Number.isFinite(o.mult_vpd7)) : []
+  lista.sort((a, b) => b.mult_vpd7 - a.mult_vpd7 || a.video_id.localeCompare(b.video_id))
+  const outliers: OutlierCongelado[] = []
+  for (const o of lista) {
+    const v = obs.video(o.video_id), ch = v ? obs.channel(v.ch) : undefined
+    if (v && ch && !ch.own && v.title) outliers.push({ video_id: o.video_id, canal_id: v.ch, canal: ch.name, titulo: v.title, mult_vpd7: o.mult_vpd7, vpd7: o.vpd7 })
+    if (outliers.length >= REGRA_F4_TITULO.outliersMax) break
+  }
+  if (!outliers.length) return refuse('Nada enviado: os vídeos deste sinal não estão mais disponíveis.', niche)
+
+  const { data: active, error: activeErr } = await ctx.supabase.from(TASKS).select('id').eq('site_id', ctx.siteId).eq('task_type', 'titulo-complementar')
+    .eq('target_own_video_id', ownVideoId).eq('target_signal_id', signalId).in('status', ['pending', 'running']).limit(1)
+  if (activeErr) return err('INTERNAL_ERROR', 'Failed to read the forja queue', 500)
+  const jaHa = 'Nada enviado: já há um pedido de títulos para este vídeo e este sinal.'
+  if (Array.isArray(active) && active.length) return refuse(jaHa, niche)
+
+  const { data: last, error: lastErr } = await ctx.supabase.from('competitor_readings').select('sent').eq('site_id', ctx.siteId).eq('task_type', 'titulo-complementar')
+    .eq('own_video_id', ownVideoId).eq('signal_id', signalId).order('generated_at', { ascending: false }).limit(1)
+  if (lastErr) return err('INTERNAL_ERROR', 'Failed to read the last reading of this target', 500)
+  const prev = Array.isArray(last) && last.length ? (last[0] as { sent: unknown }).sent : null
+  if (!novidadeTitulo(prev, { outlierIds: outliers.map(o => o.video_id), tituloAlvo: own.title }).pode) return refuse(semNovidadeText('deste vídeo'), niche)
+
+  const pedido: PedidoCongelado = { subject_key: s.subject_key, lugar: nomeDoLugar(s.subject_key), outliers }
+  const { data, error } = await ctx.supabase.from(TASKS).insert({
+    site_id: ctx.siteId, task_type: 'titulo-complementar', target_niche: niche, target_own_video_id: ownVideoId, target_signal_id: signalId, target_fmt: null,
+    trigger_type: 'manual', status: 'pending', requested_by: userId, requested_at: iso(now), sent: { pedido },
+  }).select('id').single()
+  if (error && error.code === '23505') return refuse(jaHa, niche)
+  if (error || !data) return err('INTERNAL_ERROR', 'Failed to write the forja request', 500)
+  return ok({ ok: true, reason: null, results: [{ niche, ok: true, reason: null, taskId: (data as { id: string }).id }] })
+}
+
+const CancelSchema = z.object({ type: z.enum(OBS_TYPES), niche: z.string().refine(isNicheSlug, { message: 'expected a niche slug' }).optional(), videoId: z.string().uuid().optional(), ownVideoId: z.string().uuid().optional(), signalId: z.string().uuid().optional() })
   .refine(c => c.type !== 'leitura-video' || !!c.videoId, { message: 'videoId: required for leitura-video', path: ['videoId'] })
+  .refine(c => c.type === 'titulo-complementar' || !!c.niche, { message: 'niche: required', path: ['niche'] })
+  .refine(c => c.type !== 'titulo-complementar' || (!!c.ownVideoId && !!c.signalId), { message: 'ownVideoId and signalId: required for titulo-complementar', path: ['ownVideoId'] })
 
 /** Cancel a request that is still waiting. A running one belongs to the machine and is not cancelled. */
-export async function cancelReading(ctx: ServiceContext, input: { type: ObsType; niche: Niche; videoId?: string }): Promise<ServiceResult<{ cancelled: boolean }>> {
+export async function cancelReading(ctx: ServiceContext, input: { type: ObsType; niche?: Niche; videoId?: string; ownVideoId?: string; signalId?: string }): Promise<ServiceResult<{ cancelled: boolean }>> {
   const parsed = CancelSchema.safeParse(input)
   if (!parsed.success) return err('VALIDATION_ERROR', validationMessage(parsed.error), 400)
-  const { type, niche, videoId } = parsed.data
-  let q = ctx.supabase.from(TASKS).delete().eq('site_id', ctx.siteId).eq('task_type', type).eq('target_niche', niche).eq('status', 'pending')
+  const { type, niche, videoId, ownVideoId, signalId } = parsed.data
+  let q = ctx.supabase.from(TASKS).delete().eq('site_id', ctx.siteId).eq('task_type', type).eq('status', 'pending')
+  // titulo-complementar: o par é único (índice parcial) e o nicho foi derivado no servidor no pedido; filtrar por ele faria o cancelamento falhar calado se o nicho mudasse (C-P7)
+  if (type !== 'titulo-complementar' && niche) q = q.eq('target_niche', niche)
   if (type === 'leitura-video' && videoId) q = q.eq('target_video_id', videoId)
+  // titulo-complementar: so o par (video nosso x sinal); o delete por nicho apagaria os pendentes de outros videos (R2-Y1)
+  if (type === 'titulo-complementar') q = q.eq('target_own_video_id', ownVideoId as string).eq('target_signal_id', signalId as string)
   const { data, error } = await q.select('id')
   if (error) return err('INTERNAL_ERROR', 'Failed to cancel the forja request', 500)
   return ok({ cancelled: Array.isArray(data) && data.length > 0 })
@@ -254,6 +325,7 @@ export async function cancelReading(ctx: ServiceContext, input: { type: ObsType;
 
 interface HeldTask {
   id: string; status: string; task_type: string; target_niche: string | null; target_video_id: string | null; target_fmt: string | null
+  target_own_video_id?: string | null; target_signal_id?: string | null
   result_summary: unknown; started_at: string | null; sent?: unknown
 }
 
@@ -282,18 +354,58 @@ async function heldObsTask(ctx: ServiceContext, taskId: string, cols: string): P
  * ('dado-velho'); the screen maps it to the canonical sentence (forja/states.ts refusedReasonText). A refusal does not
  * block a new request.
  */
-export async function refuseTask(ctx: ServiceContext, taskId: string, reason: string, now: number = Date.now()): Promise<ServiceResult<{ id: string; status: 'refused' }>> {
+export async function refuseTask(ctx: ServiceContext, taskId: string, reason: string, now: number = Date.now(), extra: Record<string, unknown> = {}): Promise<ServiceResult<{ id: string; status: 'refused' }>> {
   const code = typeof reason === 'string' ? reason.trim() : ''
   if (!code || code.length > REFUSED_REASON_MAX) return err('VALIDATION_ERROR', `reason: required, at most ${REFUSED_REASON_MAX} characters`, 400)
-  const { task, previous } = await heldObsTask(ctx, taskId, 'id, status, task_type, target_niche, target_video_id, target_fmt, result_summary, started_at')
+  const { task, previous } = await heldObsTask(ctx, taskId, HELD_COLS)
   let cas = ctx.supabase.from(TASKS)
-    .update({ status: 'refused', refused_at: iso(now), refused_reason: code, result_summary: { ...previous, closed_by: ctx.keyId ?? null } })
+    .update({ status: 'refused', refused_at: iso(now), refused_reason: code, result_summary: { ...previous, ...extra, closed_by: ctx.keyId ?? null } })
     .eq('id', taskId).eq('site_id', ctx.siteId).eq('status', 'running').eq('started_at', task.started_at as string)
   if (!isWideKey(ctx)) cas = cas.eq('result_summary->>claimed_by', ctx.keyId as string)
   const { data, error } = await cas.select('id, status').maybeSingle()
   if (error) return err('INTERNAL_ERROR', 'Failed to refuse the task', 500)
   if (!data) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
   return ok({ id: taskId, status: 'refused' as const })
+}
+
+/**
+ * Is `task.sent` the frozen data the forja reads? Always, once written -- except `titulo-complementar`, whose `sent` is first seeded
+ * with the request's context (`{ pedido }`, written by askReading) and only becomes the frozen pack when it carries `numbers`.
+ */
+function isFrozen(task: Pick<HeldTask, 'task_type' | 'sent'>): boolean {
+  if (task.sent == null) return false
+  if (task.task_type !== 'titulo-complementar') return true
+  return typeof task.sent === 'object' && Array.isArray((task.sent as { numbers?: unknown }).numbers)
+}
+
+const isRec = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
+const outlierDe = (o: unknown): OutlierCongelado | null => {
+  if (!isRec(o) || typeof o.video_id !== 'string' || typeof o.titulo !== 'string' || typeof o.canal_id !== 'string' || typeof o.canal !== 'string' || typeof o.mult_vpd7 !== 'number' || typeof o.vpd7 !== 'number') return null
+  return { video_id: o.video_id, canal_id: o.canal_id, canal: o.canal, titulo: o.titulo, mult_vpd7: o.mult_vpd7, vpd7: o.vpd7 }
+}
+function pedidoDe(sent: unknown): PedidoCongelado | null {
+  const p = isRec(sent) && isRec(sent.pedido) ? sent.pedido : null
+  if (!p || typeof p.subject_key !== 'string' || typeof p.lugar !== 'string' || !Array.isArray(p.outliers)) return null
+  return { subject_key: p.subject_key, lugar: p.lugar, outliers: p.outliers.map(outlierDe).filter((o): o is OutlierCongelado => o != null) }
+}
+
+/** What the pack of a titulo-complementar needs besides the dataset: the own video's description, the signal as it is now, the request's frozen context. null = the own video is gone. */
+async function alvoTitulo(ctx: ServiceContext, task: HeldTask): Promise<AlvoTitulo | null> {
+  const ownId = task.target_own_video_id, signalId = task.target_signal_id
+  if (!ownId || !signalId) throw new Error('titulo-complementar task without its target')
+  const [{ data: vid, error: vErr }, { data: sig, error: sErr }] = await Promise.all([
+    ctx.supabase.from('youtube_videos').select('id, description').eq('id', ownId).eq('site_id', ctx.siteId).maybeSingle(),
+    ctx.supabase.from('niche_signals').select('id, subject_key, status, evidence').eq('site_id', ctx.siteId).eq('id', signalId).maybeSingle(),
+  ])
+  if (vErr || sErr) throw new Error('titulo-complementar: failed to read the target (' + (vErr ? 'youtube_videos' : 'niche_signals') + ')')
+  if (!vid) return null
+  const s = sig as { subject_key: string; status: string; evidence: unknown } | null
+  const aberto = s != null && s.status === 'aberto'
+  return {
+    ownVideoId: ownId, signalId, descricao: (vid as { description: string | null }).description ?? null, congelado: pedidoDe(task.sent),
+    // the signal's outliers only count while it is open; their titles are the ones frozen at the request (the dataset prunes), so none here
+    sinal: aberto ? { subjectKey: s.subject_key, outliers: [] } : null, // `outliers` fica vazio de propósito: o sinal só dá o `subjectKey` (C-Y13)
+  }
 }
 
 export interface SentRead {
@@ -314,19 +426,26 @@ export interface SentRead {
  * frozen. Any other failure while building is a bug or a broken row: Sentry + a generic 500, which the worker retries.
  */
 export async function readSent(ctx: ServiceContext, taskId: string, now: number = Date.now()): Promise<ServiceResult<SentRead>> {
-  const cols = 'id, status, task_type, target_niche, target_video_id, target_fmt, result_summary, started_at, sent'
+  const cols = HELD_COLS + ', sent'
   const { task } = await heldObsTask(ctx, taskId, cols)
   const out = (sent: unknown): ServiceResult<SentRead> => ok({
     task_id: task.id, task_type: task.task_type as ObsType,
     target: { niche: task.target_niche, video_id: task.target_video_id, fmt: task.target_fmt },
     sent: sent as SentPack,
   })
-  if (task.sent != null) return out(task.sent)
+  if (isFrozen(task)) return out(task.sent)
 
   let sent: SentPack
   try {
     const obs = createObservatory(await loadDataset({ siteId: ctx.siteId, now, supabase: ctx.supabase }))
-    sent = buildSent(obs, task.task_type, { niche: task.target_niche as Niche | null, videoId: task.target_video_id, fmt: task.target_fmt as Fmt | null })
+    if (task.task_type === 'titulo-complementar') {
+      const alvo = await alvoTitulo(ctx, task)
+      // `err` THROWS: dentro do try o catch o viraria 500 + Sentry; o erro de domínio cai no ramo do 422 abaixo
+      if (!alvo) throw new TargetUnavailableError('titulo-complementar: the own video is gone')
+      sent = buildSent(obs, task.task_type, { niche: task.target_niche as Niche | null, titulo: alvo })
+    } else {
+      sent = buildSent(obs, task.task_type, { niche: task.target_niche as Niche | null, videoId: task.target_video_id, fmt: task.target_fmt as Fmt | null })
+    }
   } catch (e) {
     if (e instanceof TargetUnavailableError) return err('TARGET_UNAVAILABLE', 'The target of this task is no longer available', 422)
     Sentry.captureException(e, { extra: { taskId: task.id, taskType: task.task_type, siteId: ctx.siteId } })
@@ -334,14 +453,16 @@ export async function readSent(ctx: ServiceContext, taskId: string, now: number 
   }
 
   let cas = ctx.supabase.from(TASKS).update({ sent })
-    .eq('id', task.id).eq('site_id', ctx.siteId).eq('status', 'running').eq('started_at', task.started_at as string).is('sent', null)
+    .eq('id', task.id).eq('site_id', ctx.siteId).eq('status', 'running').eq('started_at', task.started_at as string)
+  // titulo-complementar: `sent` already holds the request's frozen context (no `numbers` yet): "not frozen" is "no numbers"
+  cas = task.task_type === 'titulo-complementar' ? cas.is('sent->numbers', null) : cas.is('sent', null)
   if (!isWideKey(ctx)) cas = cas.eq('result_summary->>claimed_by', ctx.keyId as string)
   const { data: frozen, error } = await cas.select('sent').maybeSingle()
   if (error) return err('INTERNAL_ERROR', 'Failed to freeze the data sent to the forja', 500)
   if (frozen) return out((frozen as { sent: unknown }).sent)
   // Lost the CAS: a concurrent read froze first (return ITS copy), or the task left 'running' / changed hands (409).
   const again = await heldObsTask(ctx, taskId, cols)
-  if (again.task.started_at !== task.started_at || again.task.sent == null) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
+  if (again.task.started_at !== task.started_at || !isFrozen(again.task)) return err('TASK_NOT_RUNNING', 'The task is no longer held by this key', 409)
   return out(again.task.sent)
 }
 
@@ -383,11 +504,22 @@ export async function completeReading(ctx: ServiceContext, input: ReadingSubmiss
   if (!parsed.success) return err('VALIDATION_ERROR', validationMessage(parsed.error), 400)
   const sub = parsed.data
   const { supabase, siteId } = ctx
-  const { task, previous } = await heldObsTask(ctx, sub.task_id, 'id, status, task_type, target_niche, target_video_id, target_fmt, result_summary, started_at, sent')
-  if (task.sent == null) return err('TASK_NOT_READY', 'The data sent to the forja was never read for this task (GET …/competitors/readings first)', 409)
+  const { task, previous } = await heldObsTask(ctx, sub.task_id, HELD_COLS + ', sent')
+  if (!isFrozen(task)) return err('TASK_NOT_READY', 'The data sent to the forja was never read for this task (GET …/competitors/readings first)', 409)
   const sent = SentSchema.safeParse(task.sent)
   if (!sent.success) return err('INTERNAL_ERROR', 'The frozen data of this task is malformed', 500)
 
+  if (task.task_type === 'titulo-complementar') {
+    // F4: the list of titles is the reading; the rule (<= 5, 1..100 chars, none already published, numbers from the pack) is the same the kit applies
+    const v = validarTitulosComplementares(sent.data, sub.text.items)
+    if (!v.ok) {
+      // the screen shows it refused, with the reason; a refusal that fails (the task moved on) still answers 400
+      // os títulos recusados (<= 5 x 100 caracteres) ficam em result_summary.recusados: sem eles não dá para afinar o prompt nem ver a divergência site x kit
+      const recusados = sub.text.items.slice(0, REGRA_F4_TITULO.k).map(i => [...i].slice(0, REGRA_F4_TITULO.maxCaracteres).join(''))
+      try { await refuseTask(ctx, task.id, 'validador-' + v.motivo, now, { recusados }) } catch { /* the 400 below is the answer */ }
+      return err('VALIDATION_ERROR', 'titles refused by the validator: ' + v.motivo + ' (' + MOTIVO_TITULO_TEXT[v.motivo] + ')', 400)
+    }
+  }
   const allowed = new Set(sent.data.numbers.map(n => normalizeNumberToken(n) || n))
   const texts = [sub.text.title, sub.text.lead, ...sub.text.items, ...sub.evidence.map(e => e.note)]
   const strangers = [...new Set(texts.flatMap(t => canonicalNumberTokens(t)).filter(t => !allowed.has(t)))]
@@ -398,6 +530,7 @@ export async function completeReading(ctx: ServiceContext, input: ReadingSubmiss
 
   const insertReading = () => supabase.from('competitor_readings').insert({
     site_id: siteId, task_id: task.id, task_type: task.task_type, niche: task.target_niche, video_id: task.target_video_id, fmt: task.target_fmt,
+    ...(task.task_type === 'titulo-complementar' ? { own_video_id: task.target_own_video_id ?? null, signal_id: task.target_signal_id ?? null } : {}),
     model: sub.model, generated_at: sub.generated_at, sent: task.sent, analysis: sub.analysis, text: sub.text, evidence: sub.evidence,
   }).select('id').single()
   let { data: reading, error: insertError } = await insertReading()

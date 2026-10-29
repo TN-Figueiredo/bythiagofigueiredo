@@ -9,7 +9,8 @@ import { getSiteContext } from '@/lib/cms/site-context'
 import { requireSiteAdminScope } from '@/lib/cms/auth-guards'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
 import { lerAmostraDasLinhas, type AmostraDoVideo } from '@/lib/youtube/observatorio/sinais/amostra'
-import { contarSinaisAbertos, lerEstadoDaAba, listarSinaisDoNicho, type ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
+import { calculoLigadoNoAmbiente, contarSinaisAbertos, lerEstadoDaAba, listarSinaisDoNicho, type ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
+import { acessoDoEditor } from '@/lib/youtube/observatorio/proprio/leitura-privada'
 import { observatoryNow } from '@/lib/youtube/observatorio/now'
 import { outlierMaisForte } from './view-model'
 
@@ -26,7 +27,9 @@ function idsDaAmostra(lista: ListaDeSinais, limite: number): string[] {
   for (const it of lista.itens.slice(0, limite)) {
     const forte = outlierMaisForte(it.evidence)
     if (forte) ids.add(forte.video_id)
-    if (it.kind === 'parecido') for (const p of (it.proprios_agora ?? []).slice(0, PROPRIOS_NA_AMOSTRA)) ids.add(p)
+    // F4 T9: os vídeos seus que a seção "Pedir títulos" oferece (até 3) e os que já têm pedido, nos dois tipos de sugestão
+    for (const p of (it.proprios_agora ?? []).slice(0, PROPRIOS_NA_AMOSTRA)) ids.add(p)
+    for (const par of (it.titulos_complementares ?? [])) ids.add(par.own_video_id)
   }
   return [...ids]
 }
@@ -38,7 +41,7 @@ export async function abrirListaDaTela(agora: Date, limite: number): Promise<Lei
   const podeResponder = (await requireSiteAdminScope(siteId)).ok
   try {
     const sb = getSupabaseServiceClient()
-    const lista = await listarSinaisDoNicho(sb, siteId, agora, limite)
+    const lista = await listarSinaisDoNicho(sb, siteId, agora, limite, calculoLigadoNoAmbiente(), await acessoDoEditor(siteId))
     const amostra = await lerAmostraDasLinhas(sb, siteId, idsDaAmostra(lista, limite))
     return { estado: 'ok', lista, amostra, podeResponder }
   } catch (e) {

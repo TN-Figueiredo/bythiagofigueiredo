@@ -16,5 +16,7 @@ export const Ic = {
   wait: (w = 18) => sv(w, <><circle cx={9} cy={9} r={6.5} {...tr} strokeWidth={1.6} /><path d="M9 5v4.2l2.8 1.8" {...tr} strokeWidth={1.6} /></>, 18),
   q: () => sv(18, <><circle cx={7} cy={7} r={5.5} {...tr} strokeWidth={1.5} /><path d="M5.3 5.5c0-1 .8-1.6 1.7-1.6s1.7.6 1.7 1.5c0 1.2-1.7 1.2-1.7 2.4M7 10v.1" {...tr} strokeWidth={1.5} /></>, 14),
   chev: () => sv(16, <path d="M3.5 6l4.5 4.5L12.5 6" {...tr} strokeWidth={1.8} />),
+  entra: () => sv(16, <><path d="M2 8h8M7 4.8L10.2 8 7 11.2" {...tr} strokeWidth={1.7} /><path d="M11.5 2.5h2v11h-2" {...tr} strokeWidth={1.5} /></>),
+  nada: () => sv(16, <><circle cx={8} cy={8} r={5.6} {...tr} strokeWidth={1.5} /><path d="M4.2 11.8l7.6-7.6" {...tr} strokeWidth={1.5} /></>),
   vid: () => sv(14, <><rect x={1.5} y={3} width={11} height={8} rx={2} {...tr} strokeWidth={1.4} /><path d="M6 5.5v3l2.6-1.5z" fill="currentColor" /></>),
 }

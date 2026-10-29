@@ -19,6 +19,7 @@ import type { Fmt, Niche, ReadingBase, ReadingEffect } from '../types'
 import type { Observatory } from '../index'
 import { eligibleChannels, videoFreezeIdx, type ForjaCtx } from './scope'
 import { canonicalNumberTokens } from './numbers'
+import { tituloComplementarPack, type AlvoTitulo, type TituloComplementarSent } from './titulo-complementar'
 
 export type SentCell = string | null
 export interface SentPack {
@@ -35,8 +36,10 @@ export interface SentPack {
   changeIds?: string[]; windowDays?: number
   /** leitura-video: each change's verdict and the video's views then. */
   effects?: ReadingEffect[]; viewsThen?: number | null
+  /** titulo-complementar (F4): o que o validador compara (títulos já publicados normalizados, ids dos outliers). */
+  titulo_complementar?: TituloComplementarSent
 }
-export interface SentTarget { niche?: Niche | null; videoId?: string | null; fmt?: Fmt | null }
+export interface SentTarget { niche?: Niche | null; videoId?: string | null; fmt?: Fmt | null; titulo?: AlvoTitulo }
 /**
  * The request's target no longer exists in the dataset (the video of a leitura-video is gone). The ONLY buildSent
  * failure that is about the data and not the code: the readings GET answers it with a non-retryable 422. Every other
@@ -149,6 +152,10 @@ function videoPack(ctx: ForjaCtx, videoId: string): SentPack {
 
 /** The frozen data for one request: one type × one target (a niche, or a video for leitura-video). */
 export function buildSentCtx(ctx: ForjaCtx, type: string, target: SentTarget): SentPack {
+  if (type === 'titulo-complementar') {
+    if (!target.titulo) throw new Error('buildSent: titulo-complementar needs the own video and the signal')
+    return tituloComplementarPack(ctx, target.titulo)
+  }
   if (type === 'leitura-video') {
     if (!target.videoId) throw new Error('buildSent: leitura-video needs a videoId')
     return videoPack(ctx, target.videoId)

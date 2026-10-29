@@ -5,7 +5,9 @@ import CmsLink from '../../../_shared/cms-link'
 import type { AcaoDaLinha, DesfechoDaLinha, TipoDeErro } from './estado-da-lista'
 import { Ic } from './icones'
 import { ReguaMult } from './regua-mult'
-import type { MotivoDaTela } from './tipos'
+import type { AcoesDaLista, MotivoDaTela } from './tipos'
+import { TitulosDoCartao } from './titulos-cartao'
+import { INFO_QUANDO_NAO, INFO_REGRA_TRAFEGO, resumirTrafego, type SegmentoDaBarra } from './trafego'
 import { dataSP, diaSP, type LinhaDaVista } from './view-model'
 
 const MLAB: Record<MotivoDaTela, string> = { lugar_errado: 'lugar errado', nao_interessa: 'não me interessa', nao_e_parecido: 'não é parecido', ja_fiz: 'já fiz' }
@@ -43,6 +45,9 @@ export interface PropsDaLinha {
   onCancelar(): void
   onInfo(): void
   onExpandir(): void
+  /** F4 T9: as ações de título (só quem administra o site) e o link "Pedir títulos" da linha do "não" (abre o cartão com foco na seção). */
+  acoesTitulos?: Pick<AcoesDaLista, 'pedirTitulos' | 'cancelarTitulos'> | null
+  onPedirTitulos?(): void
 }
 
 /** Põe o primeiro número (com × ou "vídeo(s)") em <b>; só antes do "(cálculo de ...)", para não pegar a hora. */
@@ -56,6 +61,66 @@ function ComNumero(p: { texto: string }) {
 
 function Seus(p: { l: LinhaDaVista }) {
   return <>{p.l.seus.naoMedido ? <><span className="sg-nm">não medido</span>{' '}{p.l.seus.texto}</> : <ComNumero texto={p.l.seus.texto} />}</>
+}
+
+const LEAD_SIM = 'Já te manda visitas'
+
+/** F4: a linha de tráfego do terceiro. `nao_medido` leva o selo e nunca "0" nem "não"; só o "sim" ganha peso. */
+function LinhaDeTrafego(p: { l: LinhaDaVista; info: boolean; onInfo(): void; onPedirTitulos?: () => void }) {
+  const t = p.l.trafego
+  if (!t) return null
+  const icone = t.estado === 'sim' ? Ic.entra() : t.estado === 'nao' ? Ic.nada() : t.estado === 'erro' ? Ic.warn() : null
+  const cls = t.estado === 'nao_medido' ? 'nm' : t.estado
+  const corpo = t.estado === 'sim' && t.texto.startsWith(LEAD_SIM)
+    ? <><b className="l">{LEAD_SIM}</b>{t.texto.slice(LEAD_SIM.length)}</>
+    : t.texto
+  return (
+    <div className={`sg-trf t-${cls}${icone ? '' : ' sg-ni'}`} data-trf={p.l.id}>
+      {icone}
+      <span className="t-txt">
+        {t.estado === 'nao_medido' && <span className="sg-nm">não medido</span>}
+        <span className="t-full">{corpo}</span>
+        {t.estado === 'erro' && <span className="t-short">{t.curto}</span>}
+      </span>
+      <span className="sg-trf-a">
+        {t.podePedir && p.l.titulos && p.onPedirTitulos && <button type="button" className="sg-lnk" onClick={p.onPedirTitulos}>Pedir títulos</button>}
+        <button type="button" className="sg-ib" aria-expanded={p.info} aria-label="Como esta sugestão foi calculada e medida" onClick={p.onInfo}>i</button>
+      </span>
+    </div>
+  )
+}
+
+const CLASSE_DA_BARRA: Record<SegmentoDaBarra['estado'], string> = { sim: 'b-s', nao: 'b-n', nao_medido: 'b-m', erro: 'b-e' }
+function Barra(p: { barra: SegmentoDaBarra[]; margem?: number }) {
+  return (
+    <div className="sg-bar" aria-hidden="true" style={p.margem ? { marginTop: p.margem } : undefined}>
+      {p.barra.map((b) => <span key={b.estado} className={CLASSE_DA_BARRA[b.estado]} style={{ flex: `${b.n} 1 0` }} />)}
+    </div>
+  )
+}
+
+/** F4: frase-resumo + barra no topo da lista (régua estável) ou a faixa única do motivo geral. No bloco do A/B Lab, a frase só entra se algum cartão disser "sim". */
+export function ResumoDeTrafegoNaTela(p: { linhas: ReadonlyArray<LinhaDaVista>; modo: 'pagina' | 'bloco' }) {
+  const r = resumirTrafego(p.linhas)
+  if (!r) return null
+  if (r.geral) {
+    return (
+      <>
+        <div className={`sg-band sg-trfgeral ${r.geral.tom === 'err' ? 'sg-err' : 'sg-warn'}`} role="status">
+          <span className="sg-ic">{Ic.warn()}</span>
+          <div><p style={{ margin: 0, color: 'var(--text)', fontSize: 14 }}>{r.geral.texto}</p></div>
+        </div>
+        <Barra barra={r.barra} margem={12} />
+      </>
+    )
+  }
+  if (p.modo === 'bloco' && !r.barra.some((b) => b.estado === 'sim')) return null
+  return (
+    <div className="sg-trfsum">
+      <p>{r.frase}</p>
+      <Barra barra={r.barra} />
+    </div>
+  )
 }
 
 export function Linha(p: PropsDaLinha) {
@@ -108,6 +173,7 @@ export function Linha(p: PropsDaLinha) {
           <p className="sg-vs">{Ic.vid()}<span><Seus l={l} /></span></p>
           <button type="button" className="sg-det" aria-expanded={p.expandida} onClick={p.onExpandir}>Detalhes{Ic.chev()}</button>
         </div>
+        <LinhaDeTrafego l={l} info={p.info} onInfo={p.onInfo} onPedirTitulos={p.acoesTitulos?.pedirTitulos ? p.onPedirTitulos : undefined} />
       </div>
       <div className="sg-ra">
         <CmsLink href={l.primario.href} className={`sg-btn ${l.primario.cheio ? 'sg-pri' : 'sg-ol'}`}>
@@ -128,10 +194,18 @@ export function Linha(p: PropsDaLinha) {
             <dt>Medida</dt><dd>{l.info.medida}</dd>
             <dt>Para virar sugestão</dt><dd>{l.info.regra}</dd>
             <dt>Surgiu</dt><dd>{`${l.info.surgiu}; vence em ${l.info.vence}`}</dd>
+            {l.trafego && (
+              <>
+                <dt>Visitas vindas dele</dt><dd>{l.trafego.info}</dd>
+                <dt>Quando dizemos “não”</dt><dd>{INFO_QUANDO_NAO}</dd>
+                <dt>Regra do tráfego</dt><dd>{INFO_REGRA_TRAFEGO}</dd>
+              </>
+            )}
             <dt>Leitura</dt><dd>Pode ajudar. É associação, não causa.</dd>
           </dl>
         </div>
       )}
+      {p.expandida && l.titulos && <TitulosDoCartao titulos={l.titulos} acoes={p.acoesTitulos ?? null} />}
       {p.aberta && p.podeDispensar && (
         <div className="sg-dsp" role="group" aria-label="Dispensar ou adiar">
           <p>Por que dispensar?</p>

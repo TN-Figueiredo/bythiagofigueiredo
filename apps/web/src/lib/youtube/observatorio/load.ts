@@ -69,6 +69,8 @@ export interface TaskRow {
   refused_reason: string | null; released_at: string | null; retry_count: number
   /** The forja's reason for a final failure (services/youtube.ts fail route); cleared on a requeue. */
   error_message?: string | null
+  /** titulo-complementar (F4): o par (vídeo nosso × sinal) do pedido; só existem depois da migration 20261029000003. */
+  target_own_video_id?: string | null; target_signal_id?: string | null
 }
 export interface HeartbeatRow { last_poll_at: string; capabilities: string[] }
 
@@ -115,7 +117,7 @@ export const SNAPSHOT_COLS = 'id, competitor_channel_id, snapshot_date, subscrib
 export const VERSION_COLS = 'id, video_id, field, value_text, value_hash, has_text, thumb_blob_url, first_seen_at, last_seen_at, window_start, precision, is_current'
 const OWN_VIDEO_COLS = 'id, channel_id, youtube_video_id, title, view_count, like_count, comment_count, duration_seconds, published_at, updated_at, tags'
 /** The task columns every reader of the observatory queue selects (the loader and services/forja-queue). */
-export const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count, error_message'
+export const TASK_COLS = 'id, task_type, target_niche, target_video_id, target_fmt, status, requested_at, started_at, completed_at, failed_at, refused_at, refused_reason, released_at, retry_count, error_message, target_own_video_id, target_signal_id'
 /** PostgREST `max_rows` (supabase/config.toml): a bigger read is silently truncated, so every list is paged. */
 const PAGE = 1000
 /**
@@ -133,7 +135,7 @@ const TASK_DAYS = 7
 const PAUSED_AFTER_DAYS = 30
 /** The forja cron drains the queue every 10 minutes (CLAUDE.md, "A forja"). */
 const FORJA_TICK_MINUTES = 10
-const OBS_TASK_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video'] as const
+const OBS_TASK_TYPES = ['padroes-titulo', 'padroes-titulo-shorts', 'temas', 'resumo-trocas', 'leitura-video', 'titulo-complementar'] as const
 const CHANNEL_COLORS = ['#E8823C', '#A77CE8', '#3FA9C0', '#D9614A', '#60A5FA', '#46B17E', '#E0A23C', '#BE5A96', '#78B450']
 const OWN_COLOR = '#B8481A'
 

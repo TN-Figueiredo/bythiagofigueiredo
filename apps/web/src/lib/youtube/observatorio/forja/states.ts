@@ -103,7 +103,7 @@ export function requestStateOf(task: TaskRow, machine: { lastPollAt: number | nu
 }
 
 /* The single queue (one machine): short type names and the "atrás de" phrase across types (dados.js:1680-1687). */
-export const TYPE_SHORT: Record<string, string> = { 'padroes-titulo': 'padrões de título', 'padroes-titulo-shorts': 'padrões de título de Shorts', 'temas': 'temas', 'resumo-trocas': 'resumo das trocas', 'leitura-video': 'leitura de vídeo' }
+export const TYPE_SHORT: Record<string, string> = { 'padroes-titulo': 'padrões de título', 'padroes-titulo-shorts': 'padrões de título de Shorts', 'temas': 'temas', 'resumo-trocas': 'resumo das trocas', 'leitura-video': 'leitura de vídeo', 'titulo-complementar': 'títulos complementares' }
 export function aheadNote(ahead: Pick<ForjaRequest, 'type' | 'niche'>, me: Pick<ForjaRequest, 'type'> | null, nx?: NicheCtx): string {
   const tA = ahead.type || 'padroes-titulo', tM = (me && me.type) || 'padroes-titulo'
   if (tA === tM && tA !== 'leitura-video') return 'atrás do de ' + label(ahead.niche, nx)

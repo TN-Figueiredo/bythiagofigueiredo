@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import CmsLink from '../../../_shared/cms-link'
 import { contagens, estadoInicial, reduzirLista, vistaVisivel, type AcaoDaLinha } from './estado-da-lista'
 import { Ic } from './icones'
-import { Confirmacao, Linha } from './linha'
+import { Confirmacao, Linha, ResumoDeTrafegoNaTela } from './linha'
 import type { AcoesDaLista, MotivoDaTela } from './tipos'
 import { VazioDaLista } from './vazio'
 import { filtrarVista, linhaDasAdiadas, type FiltroDaLista, type LinhaDaVista, type VistaDaLista } from './view-model'
@@ -52,6 +52,8 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
   const [aberta, setAberta] = useState<string | null>(null)
   const [infoId, setInfoId] = useState<string | null>(null)
   const [expId, setExpId] = useState<string | null>(null)
+  // F4 T9: o link "Pedir títulos" abre o cartão e leva o foco ao título da seção (que só existe depois de abrir).
+  const [focoTitulos, setFocoTitulos] = useState<string | null>(null)
   const [metodo, setMetodo] = useState(false)
   const [mais, setMais] = useState(false)
   const [recolhidas, setRecolhidas] = useState<ReadonlySet<string>>(new Set())
@@ -68,6 +70,13 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
   const agendadas = useRef(new Set<string>())
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
 
+  useEffect(() => {
+    if (focoTitulos === null) return
+    const sec = Array.from(raiz.current?.querySelectorAll<HTMLElement>('[data-row]') ?? []).find((x) => x.getAttribute('data-row') === focoTitulos)?.querySelector<HTMLElement>('.sg-tit')
+    const alvo = sec?.querySelector<HTMLElement>('button[data-pedir]') ?? sec?.querySelector<HTMLElement>('h5')
+    alvo?.focus()
+    setFocoTitulos(null)
+  }, [focoTitulos, expId])
   useEffect(() => { if (new URLSearchParams(window.location.search).get('mais') === '1') setMais(true) }, [])
   // O aviso do sino (`de`/`aviso`) vale só para a 1ª renderização: sem isso, dispensar ou F5 refaria a faixa "algumas saíram". replaceState não pede nada ao servidor.
   useEffect(() => {
@@ -197,6 +206,8 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
       )}
       <p className="sg-sum" tabIndex={-1} ref={resumoRef}>{semLeitura && !vazio ? 'Não deu para ler as sugestões.' : mostrada.resumo}{modo === 'pagina' && vivas.length > 0 && <small>Da mais forte para a mais fraca.</small>}</p>
 
+      {vivas.length > 0 && <ResumoDeTrafegoNaTela linhas={vivas} modo={modo} />}
+
       {vivas.length > 0 && linhaDasAdiadas(visivel.adiadas) && (
         <p className="sg-adl sg-meta" id={modo === 'pagina' ? 'sg-adiadas' : undefined}>{Ic.wait(14)}<span>{linhaDasAdiadas(visivel.adiadas)}</span></p>
       )}
@@ -241,6 +252,8 @@ export function SugestoesLista(p: PropsDaSugestoesLista) {
                 onCancelar={fecharMotivos}
                 onInfo={() => setInfoId((x) => (x === it.linha.id ? null : it.linha.id))}
                 onExpandir={() => setExpId((x) => (x === it.linha.id ? null : it.linha.id))}
+                acoesTitulos={acoes}
+                onPedirTitulos={() => { setExpId(it.linha.id); setFocoTitulos(it.linha.id) }}
               />
             ))}
         </ol>

@@ -3,6 +3,8 @@
 // (`ler-dimensoes.ts`) continuam sendo a porta das telas e chamam estas funções; a prova fica lá. Quem chama daqui sem prova é só
 // `sinais/medida/series.ts` (tarefa de servidor com cliente de serviço; sai agregado, nunca a linha do dia). O erro lançado leva só tabela,
 // motivo, código e contagem: a mensagem do banco é descartada (pode carregar conteúdo).
+// Quem importa este módulo é lista fechada (`PODE_IMPORTAR_CONSULTAS` em `proprio-varredura.test.ts`): `ler-dimensoes.ts`, `sinais/medida/series.ts`
+// e, desde a F4 T2, `sinais/trafego-terceiro/ler.ts` (atrás de `provaValida`).
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { TAMANHO_PAGINA } from '@/lib/youtube/coleta/paginar'
@@ -139,13 +141,42 @@ export function lerReachBase(sb: SupabaseClient, a: AlvoConsulta): Promise<Leitu
   }, a.teto)
 }
 
-/** O detalhe da origem. `filtro` (medida D2): só um tipo de origem e só os `detail` pedidos, nunca o texto de outro tipo. */
-export function lerDetalheDiario(sb: SupabaseClient, a: AlvoConsulta, filtro?: { sourceType: string; details: readonly string[] }): Promise<Leitura<DetalheRow>> {
+/**
+ * O detalhe da origem. `filtro` (medida D2 e F4): só um tipo de origem e só os `detail` pedidos, nunca o texto de outro tipo.
+ * `semOrigem: true` (F4): só as linhas de `detail` vazio (`.eq('detail', '')`), selecionando só vídeo e dia; `details` é ignorado.
+ * Nunca se manda `''` dentro de `.in(...)`: o `postgrest-js` monta `in.(a,)` e o PostgREST pode descartar o vazio.
+ */
+export function lerDetalheDiario(sb: SupabaseClient, a: AlvoConsulta, filtro?: { sourceType: string; details: readonly string[]; semOrigem?: boolean }): Promise<Leitura<DetalheRow>> {
   return lerTudo<DetalheRow>('yt_own_video_traffic_detail_daily', () => {
-    let q = sb.from('yt_own_video_traffic_detail_daily').select('youtube_video_id, day_pt, source_type, detail, detail_hash, views, watch_time_minutes').eq('site_id', a.siteId)
+    const colunasDoSelect = filtro?.semOrigem ? 'youtube_video_id, day_pt' : 'youtube_video_id, day_pt, source_type, detail, detail_hash, views, watch_time_minutes'
+    let q = sb.from('yt_own_video_traffic_detail_daily').select(colunasDoSelect).eq('site_id', a.siteId)
     if (a.canalId !== null) q = q.eq('channel_id', a.canalId)
     q = q.in('youtube_video_id', [...a.ytIds]).gte('day_pt', a.de).lte('day_pt', a.ate)
-    if (filtro) q = q.eq('source_type', filtro.sourceType).in('detail', [...filtro.details])
+    if (filtro) {
+      q = q.eq('source_type', filtro.sourceType)
+      q = filtro.semOrigem ? q.eq('detail', '') : q.in('detail', [...filtro.details])
+    }
     return q.order('youtube_video_id').order('day_pt').order('source_type').order('detail_hash')
   }, a.teto)
+}
+
+/**
+ * F4: quantas linhas de `origem` existem nos canais do site entre `de` e `ate` (sem filtro de `detail`). `count` exato com `head`, pelo índice
+ * `(channel_id, day_pt, source_type)`. Sem canais = 0. Tabela ausente = `ausente`; erro de banco lança sem o texto do banco.
+ */
+export async function contarOrigem(sb: SupabaseClient, siteId: string, canalIds: readonly string[], origem: string, de: string, ate: string): Promise<Leitura<number>> {
+  if (canalIds.length === 0) return { ausente: false, linhas: [0] }
+  let res: { count: number | null; error: { code?: string | null } | null }
+  try {
+    res = await sb.from('yt_own_video_traffic_detail_daily').select('youtube_video_id', { count: 'exact', head: true })
+      .eq('site_id', siteId).in('channel_id', [...canalIds]).gte('day_pt', de).lte('day_pt', ate).eq('source_type', origem)
+  } catch {
+    throw new ErroLeituraDimensoes('yt_own_video_traffic_detail_daily', 'erro_de_banco', null, 0)
+  }
+  if (res.error) {
+    if (ehSchemaAusente(res.error)) return { ausente: true }
+    throw new ErroLeituraDimensoes('yt_own_video_traffic_detail_daily', 'erro_de_banco', res.error.code ?? null, 0)
+  }
+  if (typeof res.count !== 'number') throw new ErroLeituraDimensoes('yt_own_video_traffic_detail_daily', 'erro_de_banco', null, 0)
+  return { ausente: false, linhas: [res.count] }
 }

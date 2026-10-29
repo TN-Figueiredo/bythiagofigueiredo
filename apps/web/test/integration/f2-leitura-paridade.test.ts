@@ -27,11 +27,16 @@ vi.mock('@/lib/cms/site-context', () => ({ getSiteContext: async () => ({ siteId
 import { listNicheSignals } from '@/lib/pipeline/services/niche-signals'
 import { youtubeObservatory } from '@/lib/pipeline/mcp/services/youtube-observatory'
 import { montarSugestoes } from '@/app/cms/(authed)/youtube/competitors/_sugestoes/montar'
+import { SUGESTOES_NO_PACOTE } from '@/app/cms/(authed)/youtube/competitors/_contexto-ia/sugestoes'
 import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { CONTEXTO } from '../youtube/observatorio/contexto-ia-fixture'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
-import { contarSinaisAbertos, contarAbertosEntre, listarSinaisDoNicho } from '@/lib/youtube/observatorio/sinais/leitura'
+import { contarSinaisAbertos, contarAbertosEntre, calculoLigadoNoAmbiente, listarSinaisDoNicho as listarF4 } from '@/lib/youtube/observatorio/sinais/leitura'
+
+/** F4: `listarSinaisDoNicho` ganhou a prova de leitura como 6º parâmetro; estes testes não a usam (sem prova = `sem_direito`, zero consultas). */
+const listar = (sb: Parameters<typeof listarF4>[0], site: string, agora: Date, limite = 50, calculo: boolean = calculoLigadoNoAmbiente(), leitura: Parameters<typeof listarF4>[5] = null) =>
+  listarF4(sb, site, agora, limite, calculo, leitura)
 import { lerAmostraDasLinhas } from '@/lib/youtube/observatorio/sinais/amostra'
 import type { ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import { apagarSites } from '../helpers/limpa-cena'
@@ -116,7 +121,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     expect(a.motivoVazio).toBeNull(); expect(b.motivoVazio).toBeNull(); expect(c.vazio).toBeNull()
   })
 
-  it('mais de 20 abertas: mesmo n e mesmo motivoVazio; os ids da sugestoes (20 mais fortes) são o PREFIXO, na mesma ordem, dos ids da rota e do get_signals', async () => {
+  it('mais de 20 abertas: mesmo n e mesmo motivoVazio; os ids da sugestoes (SUGESTOES_NO_PACOTE mais fortes) são o PREFIXO, na mesma ordem, dos ids da rota e do get_signals', async () => {
     await limpar()
     for (let k = 1; k <= 25; k++) await sinal(k, `pais:P${k}`, { forca: 100 - k })
     await estado(null, { canais_total: 5 })
@@ -125,8 +130,8 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     expect(b.n).toBe(25); expect(c.n).toBe(25)
     expect(a.itens).toHaveLength(25)
     expect(b.itens.map((i) => i.id)).toEqual(a.itens.map((i) => i.id))
-    expect(c.ids).toHaveLength(20)
-    expect(c.ids).toEqual(a.itens.slice(0, 20).map((i) => i.id))
+    expect(c.ids).toHaveLength(SUGESTOES_NO_PACOTE)
+    expect(c.ids).toEqual(a.itens.slice(0, SUGESTOES_NO_PACOTE).map((i) => i.id))
     expect(a.motivoVazio).toBeNull(); expect(b.motivoVazio).toBeNull(); expect(c.vazio).toBeNull()
   })
 
@@ -210,7 +215,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     await sinal(1, 'pais:JP', { forca: 30 }); await sinal(2, 'pais:VN', { forca: 20 }); await sinal(3, 'pais:TR', { expira: dia(-1) }); await sinal(4, 'pais:IT', { status: 'dispensado' })
     await estado(null, { canais_total: 5 })
     const agora = new Date()
-    const [a, b, c, lista, n] = [await rota(), await cowork(), await claudeCode(), await listarSinaisDoNicho(sb(), mundo.siteId, agora, 100), await contarSinaisAbertos(sb(), mundo.siteId, agora)]
+    const [a, b, c, lista, n] = [await rota(), await cowork(), await claudeCode(), await listar(sb(), mundo.siteId, agora, 100), await contarSinaisAbertos(sb(), mundo.siteId, agora)]
     expect(n).toBe(2)
     expect([a.n, b.n, c.n, lista.n]).toEqual([2, 2, 2, 2])
     expect(lista.itens.map((i) => i.id)).toEqual(a.itens.map((i) => i.id))

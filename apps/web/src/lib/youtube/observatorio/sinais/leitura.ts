@@ -4,6 +4,11 @@
 import * as Sentry from '@sentry/nextjs'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { readAll } from '../load'
+import { dayPt } from '../../coleta/day-pt'
+import type { AcessoPrivado, LeituraPrivadaDoSite } from '../proprio/leitura-privada'
+import { lerTrafegoDoTerceiro } from './trafego-terceiro/ler'
+import type { TrafegoDoTerceiro } from './trafego-terceiro/regra'
+import { lerTitulosDosSinais, TITULOS_SEM_LEITURA, type ParDeTitulos, type TitulosDaForja } from './titulos-complementares/ler'
 import { DIAS_DO_ADIAR, HORAS_ATE_DESATUALIZAR } from './frases'
 import { derivarAcao, type AcaoDerivada, type RotuloDaAcao } from './acao'
 import type { Evidence, MotivoVazio } from './oportunidades'
@@ -33,6 +38,10 @@ export interface ItemDeSinal {
   proprios_agora: string[] | null
   /** Total REAL de vídeos próprios que cobrem o lugar (a lista acima pode ser só os primeiros); `null` = não medido. */
   proprios_agora_n: number | null
+  /** F4: o vídeo do terceiro que puxa o sinal já nos manda tráfego (origem "vídeos sugeridos")? Sem a prova de leitura, `nao_medido`. */
+  trafego_do_terceiro: TrafegoDoTerceiro
+  /** F4 (T9): o último pedido de títulos complementares de cada vídeo seu para este sinal. Ausente = nenhum pedido. Só leitura para o Cowork (D-F4-4). */
+  titulos_complementares?: ParDeTitulos[]
 }
 
 export interface ListaDeSinais {
@@ -49,6 +58,10 @@ export interface ListaDeSinais {
   /** `adiados` (só os que voltam) existe só quando MEDIDO; chave ausente = "não medido", nunca 0. */
   contagens: Record<string, number>
   calculoLigado: boolean
+  /** F4 (C-P2): sentinela da origem "sem par" (código 32) medida na leitura; ausente = não medido. Fora de `contagens` e fora do pacote. */
+  sentinelaF4?: { codigo32: number | null }
+  /** F4 (T9): a leitura dos pedidos de título e se a forja sabe fazê-los. Ausente = não lido (item de versão antiga). */
+  titulos_forja?: TitulosDaForja
   /** Só no `get_signals` do Cowork: a resposta foi cortada para caber no teto de texto. */
   aviso?: string
 }
@@ -80,6 +93,9 @@ interface LinhaSinal {
   evidence: Evidence; first_seen_at: string; expires_at: string; adiado_ate: string | null; adiado_em: string | null
 }
 interface LinhaEstado { computed_at: string; motivo_vazio: MotivoVazio | null; contagens: Record<string, unknown> | null }
+
+/** Placeholder até a borda da F4 responder (a borda substitui todos; sem prova nada é lido). */
+const SEM_LEITURA: TrafegoDoTerceiro = { estado: 'nao_medido', motivo: 'sem_direito', terceiro_video_id: null, videos_com_trafego: 0, videos_medidos: 0, videos_total: 0, views: null, ate: null, desde: null, coberto_ate: null, regra: 'f4-trafego-v1' }
 
 export const calculoLigadoNoAmbiente = (): boolean => process.env.OBS_SINAIS_NICHO === 'on'
 
@@ -190,6 +206,8 @@ const adiadaEm = (adiadoEm: string | null): string | null =>
 
 export async function listarSinaisDoNicho(
   sb: SupabaseClient, siteId: string, agora: Date, limite = 50, calculoLigado: boolean = calculoLigadoNoAmbiente(),
+  /** F4 (6º parâmetro, obrigatório no tipo): a prova de leitura do dado privado; `null`/ausente em execução = `sem_direito`, zero consultas. */
+  leitura: AcessoPrivado | LeituraPrivadaDoSite | null,
 ): Promise<ListaDeSinais> {
   const [lista, est, adiados] = await Promise.all([
     sb.from('niche_signals')
@@ -246,9 +264,23 @@ export async function listarSinaisDoNicho(
       id: l.id, kind: l.kind, subject_key: l.subject_key, acao: d.acao, rotulo_acao: d.rotulo, n_proprios: d.n, acao_gravada: l.acao,
       forca: Number(l.forca), motivo: l.motivo, rule_version: l.rule_version, evidence: l.evidence,
       first_seen_at: l.first_seen_at, expires_at: l.expires_at, adiada_em: adiadaEm(l.adiado_em), proprios_agora: agoraProprios, proprios_agora_n: todos === null ? null : todos.length,
+      trafego_do_terceiro: SEM_LEITURA,
     }
   })
-  return { n, itens, computado_em, desatualizado, motivoVazio: null, motivoDoCalculo: null, proximaVolta, contagens, calculoLigado }
+  // F4: o tráfego do vídeo do terceiro (nunca derruba a lista: a borda captura toda exceção como `erro_de_leitura`)
+  const trafego = await lerTrafegoDoTerceiro(sb, siteId, leitura, itens, dayPt(agora))
+  for (const it of itens) it.trafego_do_terceiro = trafego.porItem.get(it.id) ?? it.trafego_do_terceiro
+  // F4 T9: os títulos pedidos à forja (nunca derruba a lista: erro vira `titulos_forja.leitura = 'erro'`, que a tela diz)
+  let titulosForja: TitulosDaForja = TITULOS_SEM_LEITURA
+  try {
+    const t = await lerTitulosDosSinais(sb, siteId, itens.map((i) => i.id), agora.getTime())
+    titulosForja = { leitura: 'ok', forja_sabe_pedir: t.forjaSabePedir }
+    for (const it of itens) { const pares = t.porSinal.get(it.id); if (pares && pares.length) it.titulos_complementares = pares }
+  } catch (e) {
+    Sentry.captureException(e, { tags: { area: 'sinais-nicho', step: 'titulos-complementares' } })
+  }
+  // a sentinela fica FORA de `contagens` (que é "o que o cálculo contou"): é medida de agora, derivada de dado privado, e não vai ao pacote
+  return { n, itens, computado_em, desatualizado, motivoVazio: null, motivoDoCalculo: null, proximaVolta, contagens, calculoLigado, titulos_forja: titulosForja, ...(trafego.codigo32 !== null ? { sentinelaF4: { codigo32: trafego.codigo32 } } : {}) }
 }
 
 export type StatusDeResposta = 'dispensado' | 'feito'

@@ -3784,7 +3784,9 @@ export type Database = {
           id: string
           model: string
           niche: string | null
+          own_video_id: string | null
           sent: Json
+          signal_id: string | null
           site_id: string
           task_id: string | null
           task_type: string
@@ -3800,7 +3802,9 @@ export type Database = {
           id?: string
           model: string
           niche?: string | null
+          own_video_id?: string | null
           sent: Json
+          signal_id?: string | null
           site_id: string
           task_id?: string | null
           task_type: string
@@ -3816,7 +3820,9 @@ export type Database = {
           id?: string
           model?: string
           niche?: string | null
+          own_video_id?: string | null
           sent?: Json
+          signal_id?: string | null
           site_id?: string
           task_id?: string | null
           task_type?: string
@@ -13330,6 +13336,8 @@ export type Database = {
           status: string
           target_fmt: string | null
           target_niche: string | null
+          target_own_video_id: string | null
+          target_signal_id: string | null
           target_video_id: string | null
           task_type: string
           trigger_type: string
@@ -13355,6 +13363,8 @@ export type Database = {
           status?: string
           target_fmt?: string | null
           target_niche?: string | null
+          target_own_video_id?: string | null
+          target_signal_id?: string | null
           target_video_id?: string | null
           task_type?: string
           trigger_type: string
@@ -13380,6 +13390,8 @@ export type Database = {
           status?: string
           target_fmt?: string | null
           target_niche?: string | null
+          target_own_video_id?: string | null
+          target_signal_id?: string | null
           target_video_id?: string | null
           task_type?: string
           trigger_type?: string

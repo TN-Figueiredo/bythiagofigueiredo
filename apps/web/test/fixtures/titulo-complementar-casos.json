@@ -1,0 +1,28 @@
+{
+  "descricao": "Casos do validador de titulos complementares (F4 T7). Lidos pelo Vitest (titulo-complementar.test.ts) e, na T8, pelo teste_obs_pacotes.py do kit. 'sent' traz so o que o validador le.",
+  "kinds": { "alvo": "vídeo nosso", "dono": "título do dono", "outlier": "outlier" },
+  "sent": {
+    "numbers": ["3", "8,2×", "1,5 mil"],
+    "titulo_complementar": {
+      "normalizados_proprios": ["10 praias do vietna", "vietna em 3 dias"],
+      "normalizados_outliers": ["o que ninguem conta de da nang"]
+    }
+  },
+  "casos": [
+    { "nome": "tres titulos validos", "itens": ["Da Nang em 3 dias", "Vietnã sem pressa", "Onde comer em Hoi An"], "esperado": "ok" },
+    { "nome": "cinco itens passam", "itens": ["a", "b", "c", "d", "e"], "esperado": "ok" },
+    { "nome": "seis itens", "itens": ["a", "b", "c", "d", "e", "f"], "esperado": "demais" },
+    { "nome": "100 caracteres passa", "itens": ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"], "esperado": "ok" },
+    { "nome": "101 caracteres", "itens": ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"], "esperado": "longo" },
+    { "nome": "lista vazia nao passa", "itens": [], "esperado": "vazio" },
+    { "nome": "item so com espacos", "itens": ["Vietnã sem pressa", "   "], "esperado": "vazio" },
+    { "nome": "igual a titulo do dono, acento e caixa diferentes", "itens": ["10 PRAIAS DO VIETNÃ"], "esperado": "repetido" },
+    { "nome": "igual a titulo do dono, com pontuacao a mais", "itens": ["Vietnã em 3 dias!"], "esperado": "repetido" },
+    { "nome": "igual a titulo de outlier", "itens": ["O que ninguém conta de Da Nang?"], "esperado": "repetido" },
+    { "nome": "sem o contexto do pedido (titulo_complementar ausente)", "sent": { "numbers": [] }, "itens": ["Algo novo"], "esperado": "vazio" },
+    { "nome": "titulo repetido dentro da propria lista", "itens": ["Hoi An em 3 dias", "Hoi An em 3 dias"], "esperado": "repetido" },
+    { "nome": "titulo repetido na lista, caixa e pontuacao diferentes", "itens": ["Hoi An em 3 dias", "HOI AN, em 3 dias!"], "esperado": "repetido" },
+    { "nome": "numero fora do pacote", "itens": ["Vietnã em 7 dias"], "esperado": "numero_fora" },
+    { "nome": "numero do pacote em forma equivalente", "itens": ["O Vietnã rendeu 8,2x mais"], "esperado": "ok" }
+  ]
+}
