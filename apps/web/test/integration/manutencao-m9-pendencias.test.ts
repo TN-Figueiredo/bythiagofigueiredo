@@ -6,7 +6,7 @@ import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { m3bNoBanco, aplicarM3b, escalar, tenta, semearCanal } from '../helpers/m3b'
 import { criarUsuario } from '../helpers/mg6'
-import { aplicarM9, sqlM9Resolvido } from '../helpers/m9'
+import { aplicarM9, sqlM9Resolvido, m9NoBanco } from '../helpers/m9'
 import { travarDdl } from '../helpers/ddl-testes'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -30,8 +30,10 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 6: wrappers do plano, lista de cana
       if (!(await m3bNoBanco(pg))) await aplicarM3b(pg)
       await travarDdl(pg)
       // o corpo original da M3b, lido ANTES de a M9 renomear (dentro da transação desfeita)
+      // Com a M9 já instalada (CI/produção) o corpo da M3b vive em <nome>_base e o nome original é o wrapper: lê a _base.
       const md5Original = Object.fromEntries((await pg.query(
         `select p.proname, md5(p.prosrc) as m from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any($1)`, [FNS_BASE])).rows.map(r => [r.proname as string, r.m as string]))
+      if (await m9NoBanco(pg)) for (const f of FNS_BASE) md5Original[f] = await escalar<string>(pg, `select md5(prosrc) from pg_proc where pronamespace = 'public'::regnamespace and proname = $1`, [f + '_base'])
       await aplicarM9(pg, 6)
       const s = await semearCanal(pg, { videos: 1 })
       const admin = await criarUsuario(pg)

@@ -164,7 +164,11 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 3: gravação, recebimento, resumo
     await receber(site, (await manifestoPelaRota({ site, classe: 'serie', mes: MES })).arquivos)
     await c.query(`delete from public.competitor_video_daily where video_id = any($1::uuid[])`, [videos])
     const reselar = async (marca: string, nulos = false): Promise<Record<string, unknown>> => {
+      // Com a M9 instalada o gatilho obs_archive_congela_dias devolve os dias antigos a todo update de mês fora do banco: para simular "sem medida
+      // anterior" (nulos), desliga-o só neste passo (dentro da transação desfeita) e religa em seguida.
+      if (nulos) await c.query('alter table public.obs_archive_months disable trigger obs_archive_congela_dias')
       await c.query(`update public.obs_archive_months set ${marca} = now(), unsealed_at = now(), unsealed_reason = 'expurgo'${nulos ? ', days_measured = null, days_in_month = null' : ''} where site_id = $1 and class = 'serie'`, [site])
+      if (nulos) await c.query('alter table public.obs_archive_months enable trigger obs_archive_congela_dias')
       expect(await escalar(c, `select public.obs_archive_seal($1, 'serie', $2::date)`, [site, MES])).toBe(1)
       return (await c.query(`select days_measured, days_in_month, unsealed_reason from public.obs_archive_months where site_id = $1 and class = 'serie' and table_name = $2`, [site, DAILY])).rows[0]
     }

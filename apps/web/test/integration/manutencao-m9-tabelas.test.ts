@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { m3bNoBanco, aplicarM3b, escalar, tenta, semearCanal, SITE_TESTE } from '../helpers/m3b'
-import { aplicarM9, semearE9, sqlM9Ate } from '../helpers/m9'
+import { aplicarM9, semearE9, sqlM9Ate, m9NoBanco } from '../helpers/m9'
 import { travarDdl } from '../helpers/ddl-testes'
 
 const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
@@ -165,9 +165,16 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 1: guardas, tabelas e interruptor',
     await emTx(async () => {
       expect(await escalar<boolean>(pg, `select public.obs_archive_m9_ligado($1)`, [SITE_TESTE])).toBe(false)
       const l = await tenta(pg, `select public.obs_archive_m9_ligar($1, true)`, [SITE_TESTE])   // a captura nasce na parte 2
-      expect(l.ok).toBe(false)
-      // ligar(site, false) também só roda depois da parte 2: o plpgsql resolve obs_archive_m9_captura_presente() ao executar a expressão
-      expect(await escalar<boolean>(pg, `select public.obs_archive_m9_ligado($1)`, [SITE_TESTE])).toBe(false)
+      if (await m9NoBanco(pg)) {
+        // CI/produção: a M9 inteira está instalada (aplicarM9 não corta mais na parte 1), então a captura existe e ligar não falha por falta dela.
+        // Prova sobre o estado instalado: ligar só liga o site pedido e o padrão de um site sem linha segue desligado.
+        expect(l.ok).toBe(true)
+        expect(await escalar<boolean>(pg, `select public.obs_archive_m9_ligado($1)`, [SITE_TESTE])).toBe(true)
+      } else {
+        expect(l.ok).toBe(false)
+        // ligar(site, false) também só roda depois da parte 2: o plpgsql resolve obs_archive_m9_captura_presente() ao executar a expressão
+        expect(await escalar<boolean>(pg, `select public.obs_archive_m9_ligado($1)`, [SITE_TESTE])).toBe(false)
+      }
       for (const f of ['obs_archive_m9_ligar(uuid,boolean)', 'obs_archive_m9_ligado(uuid)']) for (const r of ['service_role', 'anon', 'authenticated']) {
         expect(await escalar<boolean>(pg, `select has_function_privilege($1, $2, 'EXECUTE')`, [r, `public.${f}`]), `${r} ${f}`).toBe(false)
       }

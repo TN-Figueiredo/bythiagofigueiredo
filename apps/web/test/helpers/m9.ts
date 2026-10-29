@@ -69,9 +69,17 @@ export async function sqlM9Resolvido(c: Client, ate?: ParteM9): Promise<string> 
   return t
 }
 
+/** A M9 inteira está instalada (migration aplicada): a última parte (wrappers do plano) e a primeira (interruptor) existem. */
+export async function m9NoBanco(c: Client): Promise<boolean> {
+  return (await c.query(`select to_regclass('public.obs_archive_m9_interruptor') is not null and to_regprocedure('public.obs_archive_plan_base(uuid,boolean,text)') is not null as ok`)).rows[0].ok as boolean
+}
+
 /** M3b já em migration (e em produção): aplica só se o banco ainda não a tem (mesmo padrão dos testes da M3b). */
 export async function aplicarM9(c: Client, ate?: ParteM9): Promise<void> {
   if (!(await m3bNoBanco(c))) await aplicarM3b(c)
+  // CI e produção sobem com a migration 20261029000002 instalada. Reaplicar por cima é idempotente e é o que os testes precisam: vários rodam antes
+  // `aplicarM3b(c, <parte>)`, que devolve as funções da M3b a um corpo anterior; a M9 então restitui o estado instalado. Com `ate` parcial sobre um banco
+  // que já tem a M9 inteira o estado final é o da M9 inteira (use `m9NoBanco` para testar o que só vale com a M9 parcial).
   await semearE9(c)
   await semearWatch(c)
   await c.query(await sqlM9Resolvido(c, ate))

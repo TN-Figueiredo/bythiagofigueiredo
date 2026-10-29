@@ -250,6 +250,10 @@ describe.skipIf(skipIfNoLocalDb())('M3b-recusa: o banco recusa apagar vídeo e c
       expect(await escalar<boolean>(pg, `select to_regprocedure('${HELPER}') is not null`)).toBe(true)
     })
     await emTx(async () => {
+      // com a M9 instalada (CI/produção) o corpo vigente já é o da M9, que o desfazer da recusa recusa por outro motivo (testado acima):
+      // para provar a guarda de md5 do desfazer, volta à partida e reaplica só a recusa (corpo "recusa sem M9")
+      await desfazerRecusa(pg)
+      await aplicarRecusa(pg)
       const d = (await pg.query(`select pg_get_functiondef($1::regprocedure) as d`, [ASSIN_VIDEO])).rows[0].d as string
       await pg.query(d.replace(/\nbegin\n/, '\nbegin \n'))   // espaço a mais: depois de tirar a injeção o md5 não volta
       const r = await tenta(pg, (await import('node:fs')).readFileSync((await import('../helpers/m3b-recusa')).RECUSA_DESFAZER_CAMINHO, 'utf8').replace(/^begin;$/m, '').replace(/^commit;$/m, ''))

@@ -49,6 +49,16 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 2: a MG18, função por funçã
     'competitor_video_comments', 'competitor_readings', 'youtube_intelligence_tasks'] as const
   const COLUNA_VIDEO: Record<string, string> = { competitor_changes: 'video_id', youtube_intelligence_tasks: 'target_video_id' }
 
+  /**
+   * A M9 (D-M9-25) faz a E9 apagar também as yt_watch_* do vídeo/canal e relata as contagens em rows_deleted; a prévia (competitor_purge_preview)
+   * continua sem elas. Prévia = apagado vale para tudo o mais; as yt_watch_* conferem à parte (as 3, e só as 3, vêm com número).
+   */
+  const semWatch = (rows: unknown): { resto: Record<string, number>; watch: string[] } => {
+    const todas = rows as Record<string, number>
+    const resto = Object.fromEntries(Object.entries(todas).filter(([k]) => !k.startsWith('yt_watch_')))
+    return { resto, watch: Object.keys(todas).filter(k => k.startsWith('yt_watch_')).sort() }
+  }
+  const WATCH = ['yt_watch_alvos', 'yt_watch_readings', 'yt_watch_thumbs']
   async function cena(): Promise<Cena & { admin: string }> {
     const c = await semearCena(pg)
     await pg.query(`update public.competitor_videos set title = $2 where id = $1`, [c.videoA, TITULO])
@@ -78,8 +88,10 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 2: a MG18, função por funçã
         expect(await n(t, COLUNA_VIDEO[t] ?? 'video_id', c.videoA), t).toBe(0)
         if (antes[t]) expect(rows[t], t).toBe(antes[t])
       }
-      // prévia = apagado, chave a chave
-      expect(r.rows_deleted).toEqual(prev.rows)
+      // prévia = apagado, chave a chave (fora as yt_watch_*, ver semWatch)
+      const dv = semWatch(r.rows_deleted)
+      expect(dv.resto).toEqual(prev.rows)
+      expect(dv.watch).toEqual(WATCH)
     })
   })
 
@@ -181,7 +193,9 @@ describe.skipIf(skipIfNoLocalDb())('A5 E9 Tarefa 2: a MG18, função por funçã
       const prev = await rpc('competitor_purge_preview', [c.site, 'canal', c.canalA, 30])
       const r = await rpc('competitor_channel_purge', [c.site, c.canalA, c.admin, 30, null, null])
       expect(r.status).toBe('apagado')
-      expect(r.rows_deleted).toEqual(prev.rows)
+      const dc = semWatch(r.rows_deleted)
+      expect(dc.resto).toEqual(prev.rows)
+      expect(dc.watch).toEqual(WATCH)
       expect(await n('competitor_channels', 'id', c.canalA)).toBe(0)
       expect(await n('competitor_videos', 'competitor_channel_id', c.canalA)).toBe(0)
       expect(await n('competitor_channels', 'id', c.canalB)).toBe(1)
