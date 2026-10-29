@@ -70,7 +70,7 @@ describe('M9 guarda: as funções da E9 e do plano da M3b', () => {
     expect(corpo).toMatch(/lock table public\.obs_archive_switch in share mode/)
   })
 
-  it('o rascunho: nenhuma sobra de marcador de md5 depois da troca no helper', () => {
+  it.skipIf(!!m9)('o rascunho: nenhuma sobra de marcador de md5 depois da troca no helper', () => {
     expect(M9_SQL()).toContain('<<MD5_VIDEO>>')       // o texto cru carrega os marcadores; sqlM9Resolvido troca (a Tarefa 10 troca pelo md5 de produção)
   })
 })

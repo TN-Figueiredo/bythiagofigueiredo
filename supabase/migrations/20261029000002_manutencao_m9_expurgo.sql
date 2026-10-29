@@ -361,9 +361,9 @@ begin
     raise exception 'm9_sem_watch' using errcode = 'P0001', hint = 'a migration 20261018000005 (A5 S4) vem antes';
   end if;
   for r in select * from (values
-    ('competitor_video_purge', '<<MD5_VIDEO>>'),
-    ('competitor_comments_purge', '<<MD5_COMENTARIOS>>'),
-    ('competitor_channel_purge', '<<MD5_CANAL>>')
+    ('competitor_video_purge', 'ef1c5f6ec42164c59b9b0652edc88cbc'),
+    ('competitor_comments_purge', '07cd637de2ded4cc0f5e2ebcb71b2e22'),
+    ('competitor_channel_purge', '02d2a5b50a930a06ff2bc523226a0697')
   ) as t(nome, md5_esperado)
   loop
     select pg_get_functiondef(p.oid), md5(p.prosrc) into v_def, v_md5 from pg_proc p join pg_namespace n on n.oid = p.pronamespace

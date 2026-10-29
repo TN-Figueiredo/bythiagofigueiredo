@@ -7,6 +7,11 @@ const migrou = readdirSync(resolve(RAIZ, 'supabase/migrations')).some(n => n.inc
 const PENDENCIAS = 'apps/web/src/lib/youtube/observatorio/arquivo-mensal/pendencias.ts'
 
 describe('TRAVAs M9-1 e M9-2', () => {
+  it('nenhum marcador << sobra no rascunho nem na migration', () => {
+    for (const f of [resolve(RAIZ, 'supabase/rascunhos/m9.sql'), ...readdirSync(resolve(RAIZ, 'supabase/migrations')).filter(n => n.includes('_manutencao_m9_')).map(n => resolve(RAIZ, 'supabase/migrations', n))]) {
+      if (existsSync(f)) expect(readFileSync(f, 'utf8')).not.toContain('<<')
+    }
+  })
   it('o SQL da M9 vive no rascunho ou na migration, nunca nos dois', () => {
     const rascunho = existsSync(resolve(RAIZ, 'supabase/rascunhos/m9.sql'))
     expect(rascunho !== migrou).toBe(true)

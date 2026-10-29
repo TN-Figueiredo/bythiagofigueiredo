@@ -3,7 +3,8 @@ import { resolve } from 'node:path'
 import type { Client } from 'pg'
 import { aplicarM3b, m3bNoBanco } from './m3b'
 
-export const M9_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m9.sql')
+const DIR_MIG_M9 = resolve(__dirname, '../../../../supabase/migrations')
+export const M9_SQL_CAMINHO: string = resolve(DIR_MIG_M9, readdirSync(DIR_MIG_M9).find(n => n.includes('_manutencao_m9_')) ?? '__sem_migration_m9__.sql')
 export const M9_SQL = (): string => readFileSync(M9_SQL_CAMINHO, 'utf8')
 export type ParteM9 = 1 | 2 | 3 | 4 | 5 | 6
 
