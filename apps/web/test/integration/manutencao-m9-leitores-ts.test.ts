@@ -96,6 +96,7 @@ describe.skipIf(skipIfNoLocalDb())('M9 leitores Zod do TS contra a saída real d
       ['lateral z (antiga)', `select count(*) from public.obs_archive_absence z where z.site_id = $1 and z.alvo = $2 and z.encerrada_at is null and z.liberado_em is not null and z.b2_absent_at is null`, [c.site, alvoAntiga]],
       ['a2 (antiga, b2_nomes)', `select a2.filho from public.obs_archive_absence a2 cross join lateral unnest(a2.b2_nomes) n where a2.site_id = $1 and a2.alvo = $2 and a2.encerrada_at is null and a2.b2_absent_at is null`, [c.site, alvoAntiga]],
       ['a (canal, b2_nomes)', `select a.filho from public.obs_archive_absence a cross join lateral unnest(a.b2_nomes) n where a.site_id = $1 and a.alvo = $2 and a.encerrada_at is null and a.b2_absent_at is null`, [c.site, `canal:${c.canal}`]],
+      ['a (item, b2_nomes)', `select a.filho from public.obs_archive_absence a cross join lateral unnest(a.b2_nomes) n where a.site_id = $1 and a.alvo_id = $2 and a.encerrada_at is null and a.b2_absent_at is null`, [c.site, 1000001]],
       ['a (canal, prefixos)', `select a.prefixo from public.obs_archive_absence a where a.site_id = $1 and a.alvo = $2 and a.prefixo not like '\\_recebendo/%'`, [c.site, `canal:${c.canal}`]],
     ]
     for (const [nome, sql, p] of casos) {

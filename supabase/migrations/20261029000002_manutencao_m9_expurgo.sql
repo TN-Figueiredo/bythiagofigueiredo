@@ -1261,7 +1261,7 @@ begin
     select t.item_id, count(*) filter (where a.nas_absent_first_at is null) as sem_primeiro, count(*) filter (where a.nas_absent_at is null) as sem_nas,
            count(*) filter (where a.snap_absent_at is null) as sem_snap, min(a.nas_last_absent_at) as min_last,
            count(*) filter (where a.b2_checked_at is null) as nao_checado, min(a.snap_oldest) filter (where a.snap_absent_at is null) as snap_oldest
-      from public.obs_archive_item_targets t join public.obs_archive_absence a on a.alvo_id = t.id and a.encerrada_at is null and a.liberado_em is not null and a.b2_absent_at is null
+      from public.obs_archive_item_targets t join public.obs_archive_absence a on a.site_id = t.site_id and a.alvo_id = t.id and a.encerrada_at is null and a.liberado_em is not null and a.b2_absent_at is null
      where t.site_id = v_site and t.estado in ('apagar_antigas', 'conferir_b2') group by t.item_id
   ), it as (
     select x.*, i.youtube_id, i.decided_at, i.marcado_rodado_em, ab.snap_oldest,
@@ -1280,9 +1280,9 @@ begin
            to_char(x.mes, 'YYYY-MM') as mes, x.channel_ref, x.youtube_id, x.marcado_rodado_em as marcado, x.n_bloq as bloqueados, x.snap_oldest,
            case when x.tempo = 'apagar_antigas' then public.obs_archive_apagar_do_item(v_site, x.item_id) else '[]'::jsonb end as apagar,
            case when x.tempo = 'conferir_b2' then (select coalesce(jsonb_agg(a.filho || '/' || n order by a.filho, n), '[]'::jsonb)
-                                                     from public.obs_archive_item_targets t2 join public.obs_archive_absence a on a.alvo_id = t2.id
+                                                     from public.obs_archive_item_targets t2 join public.obs_archive_absence a on a.site_id = v_site and a.alvo_id = t2.id
                                                      cross join lateral unnest(a.b2_nomes) n
-                                                    where t2.item_id = x.item_id and t2.estado = 'conferir_b2' and a.encerrada_at is null and a.b2_absent_at is null)
+                                                    where t2.site_id = v_site and t2.item_id = x.item_id and t2.estado = 'conferir_b2' and a.encerrada_at is null and a.b2_absent_at is null)
                 else '[]'::jsonb end as b2_nomes,
            '[]'::jsonb as prefixos
       from it_tempo x
