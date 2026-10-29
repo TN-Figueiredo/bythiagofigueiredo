@@ -135,6 +135,7 @@ async function ler(sb: SupabaseClient, siteId: string, itens: ReadonlyArray<Item
   }
 
   let codigo32: number | null = null
+  const cobertoAte = new Map<string, string>() // item → maior fim de cobertura
   if (utilizaveis.length > 0) {
     const piso = addDays(hoje, -REGRA_F4.janelaMaxDias)
     const menorPub = utilizaveis.reduce((m, u) => (u.pub < m ? u.pub : m), utilizaveis[0]!.pub)
@@ -177,6 +178,7 @@ async function ler(sb: SupabaseClient, siteId: string, itens: ReadonlyArray<Item
 
     for (const u of utilizaveis) {
       const lista = resultado.get(u.itemId)!
+      for (const i of cobertura.get(u.nossoYt) ?? []) if (i.ate > (cobertoAte.get(u.itemId) ?? '')) cobertoAte.set(u.itemId, i.ate)
       if (ausente) { lista.push({ estado: 'nao_medido', motivo: 'schema_ausente' }); continue }
       lista.push(estadoDoPar({
         pubDoTerceiro: u.pub, hoje,
@@ -204,7 +206,9 @@ async function ler(sb: SupabaseClient, siteId: string, itens: ReadonlyArray<Item
   const porItem = new Map<string, TrafegoDoTerceiro>()
   for (const it of itens) {
     const motivo = geral.get(it.id) ?? null
-    porItem.set(it.id, estadoDaSugestao(resultado.get(it.id) ?? [], terceiroDe.get(it.id) ?? null, motivo, it.proprios_agora_n ?? 0, truncada.has(it.id)))
+    const tid = terceiroDe.get(it.id) ?? null
+    const contexto = { desde: (tid !== null ? terceiro.get(tid)?.pub : null) ?? null, coberto_ate: cobertoAte.get(it.id) ?? null }
+    porItem.set(it.id, estadoDaSugestao(resultado.get(it.id) ?? [], tid, motivo, it.proprios_agora_n ?? 0, truncada.has(it.id), contexto))
   }
   return { porItem, codigo32 }
 }

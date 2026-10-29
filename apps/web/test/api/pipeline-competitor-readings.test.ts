@@ -36,7 +36,7 @@ import { loadDataset } from '@/lib/youtube/observatorio/load'
 import * as Sentry from '@sentry/nextjs'
 import { buildSent, buildSentCtx, TargetUnavailableError, type SentPack } from '@/lib/youtube/observatorio/forja/sent'
 import type { ForjaCtx } from '@/lib/youtube/observatorio/forja/scope'
-import { ORPHAN_READING_MIN_AGE_MS } from '@/lib/pipeline/services/forja-queue'
+import { ORPHAN_READING_MIN_AGE_MS, OBS_TYPES } from '@/lib/pipeline/services/forja-queue'
 
 /* ------------------------------------------------------------------------------------------------ fake PostgREST */
 
@@ -194,7 +194,7 @@ describe('POST …/intelligence/task/claim with task_types', () => {
     useDb([])
     const { POST } = await import('@/app/api/pipeline/youtube/intelligence/task/claim/route')
     // [] too (M-3): the kit sends all its types or omits the key; an empty list would be a heartbeat with no capability
-    for (const task_types of [['nope'], ['temas', 'temas', 'temas', 'temas', 'temas', 'temas'], 'temas', []]) {
+    for (const task_types of [['nope'], Array<string>(OBS_TYPES.length + 1).fill('temas'), 'temas', []]) {
       const res = await POST(claimReq({ channel_ids: [CH], task_types }))
       expect(res.status).toBe(400)
       expect((await res.json()).error.code).toBe('VALIDATION_ERROR')

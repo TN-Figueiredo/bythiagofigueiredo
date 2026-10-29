@@ -88,7 +88,7 @@ interface LinhaSinal {
 interface LinhaEstado { computed_at: string; motivo_vazio: MotivoVazio | null; contagens: Record<string, unknown> | null }
 
 /** Placeholder até a borda da F4 responder (a borda substitui todos; sem prova nada é lido). */
-const SEM_LEITURA: TrafegoDoTerceiro = { estado: 'nao_medido', motivo: 'sem_direito', terceiro_video_id: null, videos_com_trafego: 0, videos_medidos: 0, videos_total: 0, views: null, ate: null, regra: 'f4-trafego-v1' }
+const SEM_LEITURA: TrafegoDoTerceiro = { estado: 'nao_medido', motivo: 'sem_direito', terceiro_video_id: null, videos_com_trafego: 0, videos_medidos: 0, videos_total: 0, views: null, ate: null, desde: null, coberto_ate: null, regra: 'f4-trafego-v1' }
 
 export const calculoLigadoNoAmbiente = (): boolean => process.env.OBS_SINAIS_NICHO === 'on'
 

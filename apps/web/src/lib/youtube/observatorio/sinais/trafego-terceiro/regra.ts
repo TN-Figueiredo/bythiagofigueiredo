@@ -95,8 +95,14 @@ export interface TrafegoDoTerceiro {
   videos_total: number
   views: number | null
   ate: string | null
+  /** Dia PT da publicação do vídeo do terceiro; `null` = não sei (vale também em `nao_medido`). */
+  desde: string | null
+  /** Maior fim de cobertura entre os vídeos nossos do item; `null` = nenhuma cobertura (vale também em `nao_medido`). */
+  coberto_ate: string | null
   regra: 'f4-trafego-v1'
 }
+
+export interface ContextoDaSugestao { desde: string | null; coberto_ate: string | null }
 
 export function estadoDaSugestao(
   pares: ReadonlyArray<EstadoDoPar>,
@@ -104,6 +110,7 @@ export function estadoDaSugestao(
   motivoGeral: MotivoNaoMedido | null,
   totalProprios: number,
   truncada: boolean,
+  contexto: ContextoDaSugestao = { desde: null, coberto_ate: null },
 ): TrafegoDoTerceiro {
   const sims = pares.filter((p): p is Extract<EstadoDoPar, { estado: 'sim' }> => p.estado === 'sim')
   const naos = pares.filter((p): p is Extract<EstadoDoPar, { estado: 'nao' }> => p.estado === 'nao')
@@ -122,6 +129,8 @@ export function estadoDaSugestao(
     videos_total: totalProprios,
     views: null,
     ate: null,
+    desde: contexto.desde,
+    coberto_ate: contexto.coberto_ate,
     regra: 'f4-trafego-v1',
     ...extra,
   })

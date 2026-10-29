@@ -62,6 +62,7 @@ export const LEITORES_NO_CODIGO: readonly LeitorNoCodigo[] = [
   { arquivo: 'apps/web/src/lib/youtube/observatorio/sinais/projecao.ts', ocorrencias: 1, trata: 'indiferente', motivo: 'só comentário' },
   { arquivo: 'apps/web/src/lib/youtube/observatorio/sinais/amostra.ts', ocorrencias: 4, trata: 'indiferente', motivo: 'título e miniatura por id e site; o toco continua com título' },
   { arquivo: 'apps/web/src/lib/youtube/observatorio/sinais/medida/passo.ts', ocorrencias: 3, trata: 'indiferente', motivo: 'lê só o id do YouTube do outlier (`video_id`) para a prova direta; o toco continua com o id' },
+  { arquivo: 'apps/web/src/lib/youtube/observatorio/sinais/trafego-terceiro/ler.ts', ocorrencias: 2, trata: 'indiferente', motivo: 'F4: lê id, id do YouTube e publicação do terceiro, por id e site (join com competitor_channels); só leitura, sem gravar' },
 ]
 
 export const LEITORES_NAS_MIGRATIONS: readonly LeitorNaMigration[] = [

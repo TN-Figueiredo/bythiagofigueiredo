@@ -118,6 +118,16 @@ describe('lerTrafegoDoTerceiro: com prova', () => {
     const r = await rodar(base)
     expect(estado(r)).toMatchObject({ estado: 'nao', ate: '2026-10-27' })
   })
+  it('nao_medido leva desde (publicação do terceiro) e coberto_ate (maior fim de cobertura)', async () => {
+    const r = await rodar({ ...base, semOrigem: [{ youtube_video_id: 'YTNOSSO0001', day_pt: '2026-10-10' }] })
+    expect(estado(r)).toMatchObject({ estado: 'nao_medido', desde: '2026-10-01', coberto_ate: '2026-10-27' })
+  })
+  it('nao_medido sem cobertura: coberto_ate nulo, desde preenchido; sem terceiro: os dois nulos', async () => {
+    const r = await rodar({ ...base, cobertura: [] })
+    expect(estado(r)).toMatchObject({ motivo: 'sem_cobertura', desde: '2026-10-01', coberto_ate: null })
+    const sem = await rodar(base, [{ id: ITEM, evidence: { outliers: [], outliers_total: 0, canais: 0, proprios: [] } as never, proprios_agora: ['n1'], proprios_agora_n: 1 }])
+    expect(estado(sem)).toMatchObject({ motivo: 'sem_terceiro', desde: null, coberto_ate: null })
+  })
   it('detail vazio e sem linha do terceiro: origem_nao_informada', async () => {
     const r = await rodar({ ...base, semOrigem: [{ youtube_video_id: 'YTNOSSO0001', day_pt: '2026-10-10' }] })
     expect(estado(r)).toMatchObject({ estado: 'nao_medido', motivo: 'origem_nao_informada' })

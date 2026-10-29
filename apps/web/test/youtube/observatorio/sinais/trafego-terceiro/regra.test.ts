@@ -111,6 +111,11 @@ describe('estadoDaSugestao', () => {
   it('nao + nao_medido => nao_medido', () => {
     expect(estadoDaSugestao([nao(), nm()], 'T', null, 2, false)).toMatchObject({ estado: 'nao_medido', motivo: 'sem_cobertura' })
   })
+  it('contexto (desde, coberto_ate) vai também no nao_medido; sem contexto, nulos', () => {
+    expect(estadoDaSugestao([nm()], 'T', null, 1, false, { desde: '2026-10-01', coberto_ate: '2026-10-20' })).toMatchObject({ estado: 'nao_medido', desde: '2026-10-01', coberto_ate: '2026-10-20' })
+    expect(estadoDaSugestao([nm()], 'T', null, 1, false)).toMatchObject({ desde: null, coberto_ate: null })
+  })
+
   it('nao + nao => nao com menor ate', () => {
     expect(estadoDaSugestao([nao('2026-10-27'), nao('2026-10-25')], 'T', null, 2, false)).toMatchObject({
       estado: 'nao',
