@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { aplicarM2 } from '../helpers/m2'
+import { aplicarM9 } from '../helpers/m9'
 import { aplicarM3b, sqlM3bAte, M3B_SQL_CAMINHO, escalar, q1, semearCanal } from '../helpers/m3b'
 import { M10A_SQL } from './video-antigo-m10a-caminho'
 import { lerPendencias } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
@@ -42,6 +43,7 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel 
       await aplicarM2(c)
       await c.query(readFileSync(M10A_SQL, 'utf8'))
       await aplicarM3b(c, 7)
+      await aplicarM9(c)                                  // M9: obs_archive_owner_pending passa a versão 2 (o leitor só aceita a 2)
       return await fn()
     } finally { await c.query('rollback') }
   }
@@ -77,10 +79,17 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel 
     await c.query(`set local session_replication_role = origin`)
   }
 
-  it('zero medido: site sem remoção e sem item devolve total 0, lista vazia, versão 1 e lido_em', async () => emTx(async () => {
+  /** v2: o item da fila sai da lista de alvos (obs_archive_item_targets); o gatilho liga `archive_pending` e o item ao alvo que cita o youtube_id. Alvo em `copiar`, sem grupo pronto. */
+  const mes = (n: number): string => `2026-${String(n).padStart(2, '0')}-01`
+  async function alvoDe(site: string, canal: string, kind: 'video' | 'comentario', refs: string[], mesN = 1): Promise<void> {
+    await c.query(`insert into public.obs_archive_item_targets (site_id, item_kind, item_refs, class, table_name, channel_ref, month, keys, from_unit_id, from_version)
+      values ($1, $2, $3::text[], 'serie', $4, $5, $6, array[gen_random_uuid()::text], gen_random_uuid(), 1)`, [site, kind, refs, DAILY, canal, mes(mesN)])
+  }
+
+  it('zero medido: site sem remoção e sem item devolve total 0, lista vazia, versão 2 e lido_em', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 1 })
     const r = await ler(a.site)
-    expect(r).toMatchObject({ versao: 1, total: 0, itens: [] })
+    expect(r).toMatchObject({ versao: 2, total: 0, itens: [] })
     expect(r.lido_em).toBeTruthy()
     expect(lerPendencias(r).ok).toBe(true)                                              // e o leitor aceita a forma que o banco devolve
   }))
@@ -90,7 +99,10 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel 
     const { canal } = await canalPedido(site)
     const r = await ler(site)
     expect(r.total).toBe(1)
-    expect(r.itens[0]).toMatchObject({ item_id: `canal:${canal}`, kind: 'canal', tempo: 'sem_comando', mes: null, channel_ref: canal, marcado_rodado_em: null, apagar: [], b2_nomes: [] })
+    // v2: o canal pedido com unidade no NAS já nasce em `apagar_antigas` (nenhuma conferência feita ainda) e traz o arquivo a apagar, sem versão nova (`nova: null`)
+    expect(r.itens[0]).toMatchObject({ item_id: `canal:${canal}`, kind: 'canal', tempo: 'apagar_antigas', mes: null, channel_ref: canal, marcado_rodado_em: null, b2_nomes: [] })
+    expect(r.itens[0]!.apagar).toHaveLength(1)
+    expect(r.itens[0]!.apagar[0]).toMatchObject({ filho: 'numerico', nova: null, caminho: expect.stringContaining(`serie/canais/${canal}/`) })
     const decidido = await escalar<Date>(c, `select decided_at from public.obs_archive_channel_removals where site_id = $1 and channel_ref = $2`, [site, canal])
     expect(new Date(r.itens[0]!.desde).getTime()).toBe(decidido.getTime())
     await c.query(`update public.obs_archive_channel_removals set reappeared_at = decided_at + interval '3 days', reappeared_count = 1 where site_id = $1`, [site])
@@ -114,26 +126,40 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel 
       values ($1, 'serie', $2, $3, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [site, DAILY, randomUUID()])
     const estados = (await c.query(`select e->>'estado' as estado from jsonb_array_elements(public.obs_archive_removed_channel_list($1)) e order by 1`, [site])).rows.map(x => x.estado)
     expect(estados).toEqual(['guardado', 'sem_arquivo', 'sem_destino'])
-    expect((await ler(site)).total).toBe(0)
+    // v2: guardado e sem_destino continuam fora. O `apagar` sem unidade (sem_arquivo) segue pendente até a remoção concluir (falta atestar o prefixo): entra, sem comando, esperando a M9 ligar
+    const r = await ler(site)
+    expect(r.itens.map(i => i.item_id)).toEqual([`canal:${a.canal}`])
+    expect(r.itens[0]).toMatchObject({ tempo: 'sem_comando', falta: 'm9_desligado', apagar: [], b2_nomes: [] })
   }))
 
   it('item da E9 com archive_pending entra; sem, não; comentário também', async () => emTx(async () => {
     const site = randomUUID()
     const a = await semearCanal(c, { site, videos: 0 }); const adm = await admin(site)
-    const item = async (kind: string, pendente: boolean): Promise<number> => Number((await q1(c, `insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted, archive_pending)
-      values ($1, $2, 'yt' || substr(gen_random_uuid()::text, 1, 8), $3, $4, '{}'::jsonb, $5) returning id`, [site, kind, a.canal, adm, pendente])).id)
-    const v = await item('video', true); await item('video', false); const cm = await item('comentario', true); await item('canal', true)
+    let n = 0
+    const item = async (kind: string, pendente: boolean): Promise<number> => {
+      const yt = `yt${++n}${randomUUID().slice(0, 8)}`
+      if (pendente && kind !== 'canal') await alvoDe(site, a.canal, kind as 'video' | 'comentario', [yt], n)     // v2: pendente = tem alvo aberto que cita o id
+      return Number((await q1(c, `insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted, archive_pending)
+        values ($1, $2, $3, $4, $5, '{}'::jsonb, $6) returning id`, [site, kind, yt, a.canal, adm, pendente])).id)
+    }
+    const v = await item('video', true); await item('video', false); const cm = await item('comentario', true); await item('canal', true)   // `canal` não passa pelo gatilho: sem alvo, não entra
     const r = await ler(site)
     expect(r.itens.map(i => i.item_id).sort()).toEqual([`item:${v}`, `item:${cm}`].sort())
-    expect(r.itens.every(i => i.tempo === 'sem_comando' && i.apagar.length === 0 && i.b2_nomes.length === 0 && i.channel_ref === a.canal)).toBe(true)
+    // v2: o alvo aberto cujo grupo já está pronto é `copiar` (o Mac copia o que vai sair); nada a apagar ainda
+    expect(r.itens.every(i => i.tempo === 'copiar' && i.falta === null && i.apagar.length === 0 && i.b2_nomes.length === 0 && i.channel_ref === a.canal)).toBe(true)
     expect(lerPendencias(r).ok).toBe(true)
   }))
 
   it('ordem estável: desde crescente, empate por item_id', async () => emTx(async () => {
     const site = randomUUID()
     const a = await semearCanal(c, { site, videos: 0 }); const adm = await admin(site)
-    const em = async (dias: number, kind = 'video'): Promise<number> => Number((await q1(c, `insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, decided_at, rows_deleted, archive_pending)
-      values ($1, $2, 'yt' || substr(gen_random_uuid()::text, 1, 8), $3, $4, now() - make_interval(days => $5::int), '{}'::jsonb, true) returning id`, [site, kind, a.canal, adm, dias])).id)
+    let n = 0
+    const em = async (dias: number, kind = 'video'): Promise<number> => {
+      const yt = `yt${++n}${randomUUID().slice(0, 8)}`
+      await alvoDe(site, a.canal, kind as 'video', [yt], n)       // v2: um alvo por item (mês diferente), senão os quatro viram um item só
+      return Number((await q1(c, `insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, decided_at, rows_deleted, archive_pending)
+        values ($1, $2, $3, $4, $5, now() - make_interval(days => $6::int), '{}'::jsonb, true) returning id`, [site, kind, yt, a.canal, adm, dias])).id)
+    }
     const recente = await em(1), antigo = await em(30), meio1 = await em(10), meio2 = await em(10)
     await c.query(`update public.competitor_removed_items set decided_at = (select decided_at from public.competitor_removed_items where id = $2) where id = $1`, [meio2, meio1])
     const ids = (await ler(site)).itens.map(i => i.item_id)
@@ -143,22 +169,21 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 7: pendências do dono (sem papel 
 
   it('erro sobe, nunca lista vazia', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
-    await c.query(`create or replace function public.obs_archive_removed_channel_list(p_site uuid) returns jsonb language plpgsql as $$ begin raise exception 'quebrou' using errcode = 'P0001'; end $$`)
+    // v2: a lista de remoções vem direto da tabela (não passa mais por removed_channel_list); o que a leitura sempre chama é o interruptor da M9
+    await c.query(`create or replace function public.obs_archive_m9_ligado(p_site uuid) returns boolean language plpgsql as $$ begin raise exception 'quebrou' using errcode = 'P0001'; end $$`)
     expect((await falha(`select public.obs_archive_owner_pending($1)`, [a.site]))?.message).toBe('quebrou')
-    await c.query(`create or replace function public.obs_archive_removed_channel_list(p_site uuid) returns jsonb language sql as $$ select null::jsonb $$`)
-    expect((await falha(`select public.obs_archive_owner_pending($1)`, [a.site]))?.message).toBe('lista_de_remocao_ilegivel')
   }))
 
   it('site resolvido dentro: o único site com canal no observatório; zero ou dois com canal lançam site_ambiguo; linhas em sites não contam (Phil I2)', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 0 })
     await limparSites(a.site)
-    expect(await ler(null)).toMatchObject({ versao: 1, total: 0 })
+    expect(await ler(null)).toMatchObject({ versao: 2, total: 0 })
     // um segundo site SEM canal (o hub é multi-site): continua resolvendo pelo que tem canal
     const org = (await c.query(`select org_id from public.sites where id = $1`, [a.site])).rows[0].org_id as string
     const outro = randomUUID()
     await c.query(`insert into public.sites (id, org_id, name, slug, domains, primary_domain) values ($1::uuid, $2, 'sem canal', 'sem-canal-' || substr($1::text, 1, 8), array['sc-' || substr($1::text, 1, 8) || '.test'], 'sc-' || substr($1::text, 1, 8) || '.test')`, [outro, org])
     expect(await escalar(c, `select count(*)::int from public.sites`)).toBe(2)
-    expect(await ler(null)).toMatchObject({ versao: 1, total: 0 })
+    expect(await ler(null)).toMatchObject({ versao: 2, total: 0 })
     const b = await semearCanal(c, { site: outro, videos: 0 })
     expect((await falha(`select public.obs_archive_owner_pending(null)`))?.message).toBe('site_ambiguo')           // dois sites com canal
     expect(await falha(`select public.obs_archive_owner_pending($1)`, [b.site])).toBeNull()      // com o site dado, não precisa resolver

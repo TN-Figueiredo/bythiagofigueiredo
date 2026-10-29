@@ -76,9 +76,19 @@ export const CorpoRecebido = z.object({
 }).strict()
 
 const estadoDoFilho = z.object({ montado: z.boolean(), sentinela: z.boolean() }).strict()
+// M9 (C4, resolve C10): a prova de ausência por prefixo. Mesmo alfabeto do check do banco (`obs_archive_absence.prefixo`), sem `..`, sem `//`, sem barra no começo.
+export const CAMINHO_SEGURO_PREFIXO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\/\/)[A-Za-z0-9_][A-Za-z0-9._/-]{0,299}$/
+export const NOME_B2 = /^(?!.*\.\.)[A-Za-z0-9._/-]{1,600}$/
+// O banco é a fonte (check de obs_archive_absence.alvo): `alvo:<n>` (alvo de item), `canal:<uuid>` e `antiga:<uuid>` (id da unidade superada). `item:<n>` nunca é gravado.
+const ALVO_PREFIXO = /^(alvo:[1-9][0-9]{0,18}|canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|antiga:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
+const prefixoBase = { alvo: z.string().regex(ALVO_PREFIXO), filho: z.enum(['numerico', 'texto']), prefixo: z.string().regex(CAMINHO_SEGURO_PREFIXO), estado: z.enum(['ausente', 'presente']) }
+/** `snapshots` e `snapshot_mais_antigo` só valem na fonte `nas`; `nomes` só na `b2` (a outra combinação cai no `.strict()`: 400). */
+const PrefixoNas = z.object({ ...prefixoBase, snapshots: z.enum(['ausente', 'presente', 'indisponivel']).optional(), snapshot_mais_antigo: z.string().max(80).optional() }).strict()
+const PrefixoB2 = z.object({ ...prefixoBase, nomes: z.array(z.string().regex(NOME_B2)).max(20).optional() }).strict()
 const AtestarNas = z.object({
   fonte: z.literal('nas'), plano_id: canal,
   filhos: z.object({ numerico: estadoDoFilho, texto: estadoDoFilho }).strict(),
+  prefixos: z.array(PrefixoNas).max(2000).optional(),
   canarios: z.array(z.object({ filho: z.enum(['numerico', 'texto']), dia: z.string().regex(DIA_RE), sha256: sha }).strict()).max(2),
   itens: z.array(z.object({
     arquivo_id: arquivoId, resultado: z.enum(['presente', 'ausente', 'nas_fora', 'ilegivel']),
@@ -90,6 +100,7 @@ const AtestarNas = z.object({
 }).strict()
 const AtestarB2 = z.object({
   fonte: z.literal('b2'), execucao_id: canal,
+  prefixos: z.array(PrefixoB2).max(2000).optional(),
   itens: z.array(z.object({
     arquivo_id: arquivoId, resultado: z.enum(['presente', 'ausente', 'sem_acesso', 'chave_ausente', 'nao_decifra']),
     sha256: sha.optional(), bytes: z.number().int().min(0).optional(), linhas: z.number().int().min(0).nullable().optional(), soma: soma.optional(),
@@ -134,6 +145,9 @@ export type ItemArquivo = z.infer<typeof ItemArquivo>
 const filho = z.enum(['numerico', 'texto'])
 const vermelhos = z.array(z.string().max(300))
 const iso = z.string().datetime({ offset: true })
+// M9 (C5): o que o site pede para a forja medir; vazio com a M9 desligada. `provar_snapshots` só no plano do NAS.
+const PrefixoAusenteB2 = z.object({ alvo: z.string().regex(ALVO_PREFIXO), filho, prefixo: z.string().regex(CAMINHO_SEGURO_PREFIXO), e_prefixo: z.boolean() }).strict()
+const PrefixoAusenteNas = PrefixoAusenteB2.extend({ provar_snapshots: z.boolean() }).strict()
 export const RespostaPlano = z.object({
   plano_id: canal, gerado_em: iso, modo: z.enum(['normal', 'completo']), cursor_seguinte: z.string().max(200).nullable(),
   primeira_selagem: mes.nullable(), vermelhos, canario: z.object({ dia: z.string().regex(DIA_RE) }).strict(),
@@ -142,7 +156,7 @@ export const RespostaPlano = z.object({
   resumos: z.array(z.object({ classe, canal, mes }).strict()), manifestos: z.array(z.object({ classe, mes }).strict()),
   aguardando_dono: z.array(ItemArquivo.extend({ b2_file_id_bom: z.string().nullable() })),
   a_apagar: z.array(z.object({ filho, caminho: z.string().min(1).max(320) }).strict()),
-  reconferir: z.array(ItemArquivo).max(1000), prefixos_ausentes: z.array(z.never()).length(0),
+  reconferir: z.array(ItemArquivo).max(1000), prefixos_ausentes: z.array(PrefixoAusenteNas).max(2000),
 }).strict()
 const estadoFilhoB2 = z.enum(['aguardando_primeira_selagem', 'nada_devido', 'com_pedidos'])
 export const RespostaPlanoB2 = z.object({
@@ -152,7 +166,7 @@ export const RespostaPlanoB2 = z.object({
   controle_negativo: z.object({ arquivo_id: z.literal('controle_negativo'), filho, caminho: z.string().min(1) }).strict(),
   canarios: z.array(z.object({ arquivo_id: z.enum(['canario:numerico', 'canario:texto']), filho,
     caminho: z.string().regex(/^_canario\/\d{4}-\d{2}-\d{2}$/).nullable() }).strict()).length(2),
-  arquivos: z.array(ItemArquivo).max(500), prefixos_ausentes: z.array(z.never()).length(0),
+  arquivos: z.array(ItemArquivo).max(500), prefixos_ausentes: z.array(PrefixoAusenteB2).max(2000),
   // r2.2 (I3 do Phil): o completo que não terminou é retomado pelo site; no normal os dois vêm nulos.
   retomado_de: z.string().min(1).max(200).nullable(),
   cobertura: z.object({ paginas_aceitas: z.number().int().min(0), paginas_total: z.number().int().min(1) }).strict()
@@ -167,6 +181,11 @@ export const RespostaAtestarNas = z.object({
   itens: z.array(z.object({ arquivo_id: arquivoId, resposta: z.enum(['aceito', 'recusado']), motivo: z.enum(['desconhecido', 'filho_fora', 'forma']).optional() }).strict()),
   canarios: z.array(z.object({ filho, dia: z.string().regex(DIA_RE), resposta: z.enum(['aceito', 'recusado']),
     motivo: z.enum(['sha256_diferente_no_dia', 'dia_invalido']).optional() }).strict()),
+}).strict()
+/** M9 (C4): a parte `prefixos` que a rota junta à resposta do attest quando o corpo trouxe prefixos. */
+export const RespostaAtestarPrefixos = z.object({
+  prefixos: z.array(z.object({ alvo: z.string(), filho, prefixo: z.string(), resposta: z.enum(['aceito', 'recusado']),
+    motivo: z.enum(['desconhecido', 'nao_aberto', 'filho_fora', 'forma', 'controle_pendente', 'snapshots_pendentes', 'conferencia_nas_velha']).optional() }).strict()),
 }).strict()
 export const RespostaAtestarB2 = z.object({
   execucao: z.object({ estado: z.enum(['aguardando_controle', 'controle_ok', 'controle_falhou']), negativo_ok: z.boolean(),
@@ -196,7 +215,7 @@ export const STATUS_DO_CODIGO = {
   arquivo_desligado: 503, erro_do_banco: 500, tempo_esgotado: 504,
   canal_removido: 409, sem_destino: 409, unidade_retirada: 409, mes_aberto: 409, nao_devida: 409, mes_fora_do_banco: 409,
   mudou_durante_a_leitura: 409, parte_mudou: 409, unidades_pendentes: 409, conteudo_mudou: 409, resumos_pendentes: 409,
-  ja_no_arquivo: 409, resumo_da_m10b: 409,
+  ja_no_arquivo: 409, resumo_da_m10b: 409, expurgo_em_curso: 409,
   grande_demais: 413, classe_tabela_invalida: 422, faixa_invalida: 422,
   tabela_ausente: 409, // X3 (controlador, 14/10): 409. A forja decide pelo code.
 } as const

@@ -611,7 +611,9 @@ describe.skipIf(skipIfNoLocalDb())('F1 §E: E9 x watch (prova da decisão P6, se
   beforeAll(async () => { pg = new Client({ connectionString: PG_URL }); await pg.connect() })
   afterAll(async () => { try { await pg.query('rollback') } catch { /* nada aberto */ } await pg.end() })
 
-  it('B7 vídeo apagado pela E9 tira o alvo na conciliação e a poda leva as leituras', async () => {
+  it('B7 vídeo apagado pela E9: a M9 (D-M9-25) leva junto o alvo e as leituras da watch; conciliar e podar depois não acham nada', async () => {
+    // Antes da M9 a E9 não tocava na watch: a conciliação marcava o alvo "removido" e a poda levava as leituras 31 dias depois (prova da decisão P6).
+    // Com a M9 instalada (CI e produção) a própria E9 apaga alvo, leituras e miniaturas do vídeo na mesma transação; a conciliação e a poda ficam inertes.
     await emTransacao(pg, async () => {
       const c = await semearCena(pg, { semWatch: true })
       const yt = (await q1(pg, `select video_id from public.competitor_videos where id = $1`, [c.videoA])).video_id as string
@@ -619,11 +621,13 @@ describe.skipIf(skipIfNoLocalDb())('F1 §E: E9 x watch (prova da decisão P6, se
       await pg.query(`update public.competitor_videos set missing_since = current_date - 10 where id = $1`, [c.videoA])
       const p = await q1(pg, `select public.competitor_video_purge($1, $2, $3, 30, null, null) as r`, [c.site, c.videoA, c.admin])
       expect(p.r).toBeTruthy()
+      const contar = (t: string): Promise<number> => escalar<number>(pg, `select count(*)::int from public.${t} where site_id = $1 and youtube_video_id = $2`, [c.site, yt])
+      expect(await contar('yt_watch_alvos')).toBe(0)
+      expect(await contar('yt_watch_readings')).toBe(0)
       await pg.query(`select public.yt_watch_conciliar(now(), '[]'::jsonb)`)
-      expect((await q1(pg, `select saiu_por from public.yt_watch_alvos where site_id = $1 and youtube_video_id = $2`, [c.site, yt])).saiu_por).toBe('removido')
-      expect(await escalar<number>(pg, `select count(*)::int from public.yt_watch_readings where site_id = $1 and youtube_video_id = $2`, [c.site, yt])).toBe(2)
       await pg.query(`select public.yt_watch_poda(now() + interval '31 days', 1000)`)
-      expect(await escalar<number>(pg, `select count(*)::int from public.yt_watch_readings where site_id = $1 and youtube_video_id = $2`, [c.site, yt])).toBe(0)
+      expect(await contar('yt_watch_alvos')).toBe(0)
+      expect(await contar('yt_watch_readings')).toBe(0)
     })
   })
 })

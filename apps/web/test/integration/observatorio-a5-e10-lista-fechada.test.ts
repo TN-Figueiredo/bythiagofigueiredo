@@ -66,6 +66,12 @@ const LISTA: Par[] = [
   { funcao: 'competitor_video_purge', tabela: 'competitor_videos', linha: 'E9: o dono mandou apagar o vídeo que saiu do YouTube (a cascata leva série, versões e comentários dele)', disparo: 'dono' },
   { funcao: 'competitor_channel_purge', tabela: 'competitor_channels', linha: 'E9: o dono mandou apagar o canal que saiu do YouTube', disparo: 'dono' },
   { funcao: 'competitor_comments_purge', tabela: 'competitor_video_comments', linha: 'E9: o dono mandou apagar os comentários listados de um vídeo que saiu do YouTube', disparo: 'dono' },
+  { funcao: 'competitor_video_purge', tabela: 'yt_watch_alvos', linha: 'M9 (D-M9-25): o dono mandou apagar o vídeo que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
+  { funcao: 'competitor_video_purge', tabela: 'yt_watch_readings', linha: 'M9 (D-M9-25): o dono mandou apagar o vídeo que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
+  { funcao: 'competitor_video_purge', tabela: 'yt_watch_thumbs', linha: 'M9 (D-M9-25): o dono mandou apagar o vídeo que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
+  { funcao: 'competitor_channel_purge', tabela: 'yt_watch_alvos', linha: 'M9 (D-M9-25): o dono mandou apagar o canal que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
+  { funcao: 'competitor_channel_purge', tabela: 'yt_watch_readings', linha: 'M9 (D-M9-25): o dono mandou apagar o canal que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
+  { funcao: 'competitor_channel_purge', tabela: 'yt_watch_thumbs', linha: 'M9 (D-M9-25): o dono mandou apagar o canal que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
   // canal de concorrente: agenda e comentários
   { funcao: 'competitor_agenda_lease_release', tabela: 'competitor_agenda_lease', linha: '3 (estado de execução, MG10)', disparo: 'agenda' },
   { funcao: 'competitor_comment_identity_purge', tabela: 'competitor_video_comment_authors', linha: '6 (identidade de autor vence em 30 dias, LGPD; não apaga texto nem série)', disparo: 'cron' },
@@ -104,7 +110,8 @@ const LISTA: Par[] = [
   { funcao: 'obs_native_poda', tabela: 'ab_native_observados', linha: 'T13: SÓ as linhas órfãs (canal apagado sem guardar); nunca por idade; a troca de vídeo vivo fica, a de vídeo que sumiu (canal apagado, E9) sai', disparo: 'agenda' },
   // M3b (o arquivo durável): o que a migration nova apaga, com a razão. Nenhuma é série, versão, texto ou bruto (PROIBIDAS).
   { funcao: 'competitor_channel_remove', tabela: 'competitor_channels', linha: 'M3b: o dono removeu o canal pelo botão, com o destino do arquivo (guardar ou apagar) declarado na mesma transação', disparo: 'dono' },
-  { funcao: 'obs_archive_b2_plan', tabela: 'obs_archive_b2_runs', linha: 'M3b: estado de execução da conferência no B2: o purgo de 90 dias nunca apaga o completo mais recente do site', disparo: 'agenda' },
+  // M9 (20261029000002) renomeia a função da M3b para obs_archive_b2_plan_base e põe um wrapper no lugar; o delete vive na _base.
+  { funcao: 'obs_archive_b2_plan_base', tabela: 'obs_archive_b2_runs', linha: 'M3b (corpo na _base desde a M9): estado de execução da conferência no B2: o purgo de 90 dias nunca apaga o completo mais recente do site', disparo: 'agenda' },
   { funcao: 'obs_archive_record_core', tabela: 'obs_archive_unit_parts', linha: 'M3b: refazer a versão em andamento sem parte recebida reescreve as partes dela (controle do próprio arquivo, não dado observado)', disparo: 'agenda' },
   // M6a (20261028000004): a conferência por canal da saída do mês. Sem par: a conferência anterior do canal/mês que não bate é apagada (controle da própria saída, não dado observado).
   { funcao: 'obs_archive_conferir_canal', tabela: 'obs_archive_prechecks', linha: 'M6a: apaga a conferência anterior do canal e mês quando a nova não bate (estado de execução da saída)', disparo: 'agenda' },

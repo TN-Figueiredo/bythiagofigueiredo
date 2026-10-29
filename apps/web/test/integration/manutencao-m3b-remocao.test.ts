@@ -218,8 +218,15 @@ describe.skipIf(skipIfNoLocalDb())('M3b parte 6: remover canal declara o destino
   it('item pendente da E9 é concluído com a anotação (D15); os de outro canal ficam', async () => emTx(async () => {
     const a = await semearCanal(c, { site: randomUUID(), videos: 0 }); const admin = await novoAdmin(a.site)
     const b = await semearCanal(c, { site: a.site, videos: 0 })
-    const item = async (canal: string, kind: string): Promise<number> => Number((await q1(c, `insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted, archive_pending)
-      values ($1, $2, 'x' || gen_random_uuid()::text, $3, $4, '{}'::jsonb, true) returning id`, [a.site, kind, canal, admin])).id)
+    // Com a M9 instalada (CI/produção) a bandeira archive_pending deixa de ser dado de entrada: o gatilho flag_pending a deriva de um alvo aberto
+    // (obs_archive_item_targets) que cita o youtube_id. Por isso cada item nasce com o alvo aberto dele; o resto da prova é o mesmo.
+    const item = async (canal: string, kind: string): Promise<number> => {
+      const ref = 'x' + randomUUID()
+      await c.query(`insert into public.obs_archive_item_targets (site_id, item_kind, item_refs, class, table_name, channel_ref, month, keys, from_unit_id, from_version, estado)
+        values ($1, $2, $3::text[], 'serie', 'competitor_video_daily', $4, '2026-09-01', array['k'], $5, 1, 'copiar')`, [a.site, kind, [ref], canal, randomUUID()])
+      return Number((await q1(c, `insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted, archive_pending)
+        values ($1, $2, $3, $4, $5, '{}'::jsonb, true) returning id`, [a.site, kind, ref, canal, admin])).id)
+    }
     const meu = await item(a.canal, 'video'), comentario = await item(a.canal, 'comentario'), alheio = await item(b.canal, 'video')
     await remover(a.site, a.canal, 'apagar', 'botao', admin)
     const ler = async (id: number): Promise<Record<string, unknown>> => q1(c, `select archive_pending, archive_note from public.competitor_removed_items where id = $1`, [id])

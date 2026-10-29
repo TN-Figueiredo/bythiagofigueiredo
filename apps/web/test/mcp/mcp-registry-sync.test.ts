@@ -25,8 +25,8 @@ describe('MCP Registry Sync', () => {
 
   it('covers all registry endpoints', () => {
     const { mapped, unmapped } = getRegistryCoverage()
-    // Sum: items(22) + playlists(13) + libraries(15) + research(26) + youtube(39) + utilities(11) + course(0) + links(5) = 131; + archive(9) = 140 (as rotas do arquivo nunca viram ferramenta MCP)
-    expect(mapped.length + unmapped.length).toBe(131 + 9)
+    // Sum: items(22) + playlists(13) + libraries(15) + research(26) + youtube(39) + utilities(11) + course(0) + links(5) = 131; + archive(10) = 141 (as rotas do arquivo nunca viram ferramenta MCP)
+    expect(mapped.length + unmapped.length).toBe(131 + 10)
   })
 
   it('GET /api/pipeline/youtube/channels (lista dos canais próprios) tem ferramenta MCP', () => {
@@ -38,6 +38,6 @@ describe('MCP Registry Sync', () => {
   it('as rotas do arquivo nunca viram ferramenta MCP', () => {
     const { mapped, unmapped } = getRegistryCoverage()
     expect(mapped.filter((m) => m.domain === 'archive')).toEqual([])
-    expect(unmapped.filter((u) => u.includes('/archive/'))).toHaveLength(9)
+    expect(unmapped.filter((u) => u.includes('/archive/'))).toHaveLength(10)
   })
 })

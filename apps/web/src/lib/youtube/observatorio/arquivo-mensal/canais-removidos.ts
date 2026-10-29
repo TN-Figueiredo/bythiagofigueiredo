@@ -19,6 +19,9 @@ const LinhaV2 = z.object({
   reappeared_count: z.number(), online_thumbs_known: z.boolean().nullable(), thumbs_unknown_ack_at: ts,
   blobs_pendentes: z.number(), youtube_channel_id: ts, nome: ts, removido_em: ts, removido_via: z.string(),
   primeiro_mes: ts, ultimo_mes: ts, meses: z.number().nullable(), registros: z.number().nullable(), classes: z.array(z.string()),
+  // M9 (wrapper de obs_archive_removed_channel_list): opcionais para a tela ler antes e depois da migration.
+  nas_last_absent_at: ts.optional(), marcado_rodado_em: ts.optional(), completed_at: ts.optional(), lote_e10_aberto: z.boolean().optional(),
+  prefixos_total: z.number().optional(), prefixos_ausentes_nas: z.number().optional(), snap_ok: z.number().optional(), snapshot_mais_antigo: ts.optional(),
 }).strict()
 const ListaV2 = z.array(LinhaV2)
 export type ListaRemovidosV2 = z.infer<typeof ListaV2>

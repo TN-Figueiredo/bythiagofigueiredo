@@ -62,7 +62,7 @@ const plano = {
   plano_id: UUID, gerado_em: '2026-11-28T10:00:00+00:00', modo: 'normal', cursor_seguinte: null, primeira_selagem: null, vermelhos: [],
   canario: { dia: '2026-11-28' }, exportar: [], resumos: [], manifestos: [], aguardando_dono: [], a_apagar: [], reconferir: [], prefixos_ausentes: [],
 }
-const pendente = { versao: 1, lido_em: '2026-11-28T10:00:00+00:00', total: 0, itens: [] }
+const pendente = { versao: 2, lido_em: '2026-11-28T10:00:00+00:00', total: 0, itens: [] }
 const exportCorpo = { classe: 'serie', tabela: 'competitor_video_daily', canal: CANAL, mes: '2026-10' }
 const atestarNas = { fonte: 'nas', plano_id: UUID, filhos: { numerico: { montado: true, sentinela: true }, texto: { montado: true, sentinela: true } }, canarios: [], itens: [] }
 const atestarB2 = { fonte: 'b2', execucao_id: UUID, itens: [{ arquivo_id: 'canario:numerico', resultado: 'ausente', tentativa: 1 }] }
@@ -150,7 +150,7 @@ describe('pending e pode-desligar', () => {
     expect(rpcs.chamadas).toEqual([{ fn: 'obs_archive_owner_pending', args: { p_site: 'site-1' } }])
   })
   it('pending: fora da forma nunca vira vazio', async () => {
-    for (const ruim of [null, {}, [], { ...pendente, total: 3 }, { ...pendente, versao: 2 }]) {
+    for (const ruim of [null, {}, [], { ...pendente, total: 3 }, { ...pendente, versao: 1 }]) {
       sentry.captureMessage.mockClear()
       rpcs.tabela.obs_archive_owner_pending = async () => ok(ruim)
       const r = await chamar(getPending, { perms: ['archive_owner'] })

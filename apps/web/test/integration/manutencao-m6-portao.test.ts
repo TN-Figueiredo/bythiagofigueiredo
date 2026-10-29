@@ -214,6 +214,9 @@ describe.skipIf(skipIfNoLocalDb())('M6 parte 3: o portão', () => {
     await emTransacao(async () => {
       const { site, admin, canal } = await cenario()
       const admin2 = admin
+      // Com a M9 instalada a bandeira archive_pending é derivada de um alvo aberto que cita o youtube_id (gatilho flag_pending): o item nasce com o alvo.
+      await c.query(`insert into public.obs_archive_item_targets (site_id, item_kind, item_refs, class, table_name, channel_ref, month, keys, from_unit_id, from_version, estado)
+                     values ($1, 'video', array['m6exp'], 'serie', 'competitor_video_daily', $2, '2026-09-01', array['k'], gen_random_uuid(), 1, 'copiar')`, [site, canal])
       await c.query(`insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted, archive_pending)
                      values ($1, 'video', 'm6exp', $2, $3, '{}'::jsonb, true)`, [site, canal, admin2])
       expect(await portao(site, admin, [10])).toEqual([{ codigo: 'expurgo_pendente', itens: 1 }])

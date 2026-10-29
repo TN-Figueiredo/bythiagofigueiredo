@@ -11,9 +11,11 @@ vi.mock('server-only', () => ({}))
 const SITE = '00000000-0000-0000-0000-00000000a3b0', AGORA = new Date('2025-05-03T15:00:00Z')
 const ITEM = { item_id: 'canal:aaaaaaaa-1111-2222-3333-444444444444', kind: 'canal', tempo: 'apagar_antigas', desde: '2025-03-01T12:00:00Z', mes: null,
   channel_ref: 'aaaaaaaa-1111-2222-3333-444444444444', youtube_id: null, marcado_rodado_em: null,
-  apagar: [{ filho: 'numerico', caminho: 'canal/x.csv', sha256: 'a'.repeat(64), nova: { caminho: 'canal/y.csv', sha256: 'b'.repeat(64) } }], b2_nomes: ['canal/b2-secreto.csv'] }
-// O Zod é estrito: `total` obrigatório e igual a itens.length; `apagar`/`b2_nomes` só existem (e não vazios) em 'apagar_antigas'.
-const CORPO = { versao: 1, lido_em: '2025-05-03T15:00:00Z', total: 1, itens: [ITEM] }
+  apagar: [{ filho: 'numerico', caminho: 'canal/x.csv', sha256: 'a'.repeat(64), nova: { caminho: 'canal/y.csv', sha256: 'b'.repeat(64) } }], b2_nomes: [],
+  falta: null, motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null }
+const ITEM_B2 = { ...ITEM, item_id: 'canal:bbbbbbbb-1111-2222-3333-444444444444', channel_ref: 'bbbbbbbb-1111-2222-3333-444444444444', tempo: 'conferir_b2', apagar: [], b2_nomes: ['canal/b2-secreto.csv'] }
+// O Zod é estrito: `total` obrigatório e igual a itens.length; `apagar` só existe (e não vazio) em 'apagar_antigas' e `b2_nomes` em 'conferir_b2' (versao 2).
+const CORPO = { versao: 2, lido_em: '2025-05-03T15:00:00Z', total: 2, itens: [ITEM, ITEM_B2] }
 const chamar = async (perm: { podeEditar: boolean; canUnlock: boolean }) => (await import('@/app/cms/(authed)/youtube/competitors/_canais/pendencias-da-fila')).lerPendenciasDaFila(SITE, perm, AGORA)
 
 describe('lerPendenciasDaFila', () => {
@@ -59,12 +61,12 @@ describe('lerPendenciasDaFila', () => {
 
   describe('nome do canal que já saiu (Yannis R-1 = Gio D4)', () => {
     const REF = ITEM.channel_ref
-    const SEM_COMANDO = { ...ITEM, tempo: 'sem_comando', apagar: [], b2_nomes: [] }
+    const SEM_COMANDO = { ...ITEM, tempo: 'sem_comando', falta: 'snapshots', apagar: [], b2_nomes: [] }
     const linha = (nome: string | null) => ({ channel_ref: REF, versao: 2, estado: 'pedido', decided_at: null, nas_absent_at: null, b2_absent_at: null, snapshots_clear_on: null, reappeared_at: null,
       reappeared_count: 0, online_thumbs_known: null, thumbs_unknown_ack_at: null, blobs_pendentes: 0, youtube_channel_id: null, nome, removido_em: null, removido_via: 'botao',
       primeiro_mes: null, ultimo_mes: null, meses: null, registros: null, classes: [] })
     const servir = (lista: unknown) => rpc.mockImplementation(async (fn: string) => fn === 'obs_archive_owner_pending'
-      ? { data: { ...CORPO, itens: [SEM_COMANDO] }, error: null } : { data: lista, error: null })
+      ? { data: { ...CORPO, total: 1, itens: [SEM_COMANDO] }, error: null } : { data: lista, error: null })
     const tituloDe = (r: unknown): string | null => (r as { itens: Array<{ titulo: string | null }> }).itens[0]!.titulo
     const perm = { podeEditar: true, canUnlock: false }
     const chamarComNomes = async () => (await import('@/app/cms/(authed)/youtube/competitors/_canais/pendencias-da-fila')).lerPendenciasDaFila(SITE, perm, AGORA, { canais: new Map(), videos: new Map() })
