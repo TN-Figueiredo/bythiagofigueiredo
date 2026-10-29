@@ -217,6 +217,9 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
     : enviando ? (caminho === 'apagar' ? `Apagando ${name}. Aguarde.` : `Parando a coleta de ${name}. Aguarde.`)
       : mostrarFalha ? TXT.falhaTitulo : ''
   const nums = impacto ? numerosDe(impacto) : null
+  // M3b-G5: depois de ver a lista contada no apagar, voltar a guardar não reserva de novo (a reserva só protege a chegada da contagem)
+  const [semReserva, setSemReserva] = useState(false)
+  useEffect(() => { if (caminho === 'apagar' && nums) setSemReserva(true) }, [caminho, nums])
   const arquivoLinha = linhaArquivo(arquivo)
   const blob = caminho === 'apagar' && arquivo ? fraseBlobDialogo(arquivo.imagensBlob) : null
   const lead = caminho === 'guardar' ? TXT.leadGuardar : TXT.leadApagar
@@ -292,7 +295,7 @@ export function RemoveDialog({ id, name, onImpact, onPedir, onApagar, onCancel, 
 
         <div className="fx-loss-box">
           {/* no caminho apagar, já contado, a reserva só deixaria vazio (Gio r4) */}
-          {mostrarFalha || (caminho === 'apagar' && nums) ? null : <div className="fx-sizer" aria-hidden="true">
+          {mostrarFalha || (caminho === 'apagar' && nums) || (semReserva && nums) ? null : <div className="fx-sizer" aria-hidden="true">
             <ul className="fx-lossz">
               {LINHAS.map(l => <li key={l.k}><b className="fx-wait">contando…</b><span>{l.varios}<span>{subDe(l.k, null) + TXT.subLeiturasExtra}</span></span></li>)}
               {caminho === 'guardar' ? <li><b className="fx-wait">contando…</b><span>meses já no arquivo<span>{SIZER_SUB_ARQUIVO}</span></span></li> : null}
