@@ -23,7 +23,7 @@ export interface MesFora {
 
 export const INFO_MES_FORA = 'Enquanto o mês pode voltar ao banco, remover o canal deixaria, na volta, registros dele sem canal a que pertencer. “Exportar” continua permitido.'
 
-export function fraseDoMesFora(m: MesFora): { negrito: string; resto: string; linkArquivo: boolean; info: string } {
+export function fraseDoMesFora(m: MesFora, caminho?: 'guardar' | 'apagar'): { negrito: string; resto: string; linkArquivo: boolean; info: string } {
   const recus = m.recusadoNoClique ? 'O mês saiu das telas enquanto este diálogo estava aberto. ' : ''
   const n = m.nomes ?? []
   let meses: string
@@ -37,18 +37,31 @@ export function fraseDoMesFora(m: MesFora): { negrito: string; resto: string; li
   } else {
     meses = m.meses === 2 ? 'Dois meses saíram das telas e o espaço deles ainda não foi liberado.' : 'Um mês saiu das telas e o espaço dele ainda não foi liberado.'
   }
-  let resto = 'Enquanto isso não dá para remover canal nem apagar vídeo.'
+  const dois = n.length === 2 || (n.length === 0 && m.meses === 2)
+  const temCauda = Boolean(m.liberarAPartir && m.hojeSP && m.podeAdministrar !== undefined)
+  let resto: string
+  if (caminho === 'guardar') {
+    resto = dois
+      ? 'Você pode guardar o pedido, mas ele fica parado: o canal só é removido quando os dois meses voltarem ou o espaço deles for liberado.'
+      : 'Você pode guardar o pedido, mas ele fica parado: o canal só é removido quando o mês voltar ou o espaço dele for liberado.'
+  } else if (caminho === 'apagar') {
+    resto = 'Apagar não funciona enquanto isso: o banco recusa.'
+    if (!temCauda) resto += dois ? ' Para apagar, espere o espaço dos dois ser liberado ou traga os dois meses de volta.' : ' Para apagar, espere o espaço ser liberado ou traga o mês de volta.'
+  } else {
+    resto = 'Enquanto isso não dá para remover canal nem apagar vídeo.'
+  }
   if (m.recusadoNoClique) resto += ' Nada foi removido.'
   let linkArquivo = false
   if (m.liberarAPartir && m.hojeSP && m.podeAdministrar !== undefined) {
     const depois = m.hojeSP >= m.liberarAPartir
-    const antes = `O espaço só pode ser liberado a partir de ${ddmm(m.liberarAPartir)}; até lá, o que dá para fazer é trazer o mês de volta.`
+    const antes = `O espaço só pode ser liberado a partir de ${ddmm(m.liberarAPartir)}; até lá, o que dá para fazer é trazer ${dois ? 'os dois meses' : 'o mês'} de volta.`
     if (m.podeAdministrar) {
-      resto += depois ? ' Você já pode liberar o espaço ou trazer o mês de volta.' : ` ${antes}`
+      resto += depois ? ` Você já pode liberar o espaço ou trazer ${dois ? 'os dois meses' : 'o mês'} de volta.` : ` ${antes}`
       linkArquivo = depois
     } else {
-      resto += depois ? ' O espaço já pode ser liberado, e o mês também pode voltar, por quem administra o site.' : ` ${antes} Quem só edita o site: peça a quem o administra.`
+      resto += depois ? ` O espaço já pode ser liberado, e ${dois ? 'os dois meses também podem voltar' : 'o mês também pode voltar'}, por quem administra o site.` : ` ${antes} Quem só edita o site: peça a quem o administra.`
     }
   }
+  if (caminho === 'apagar') resto += ' Guardar o pedido é possível, mas ele fica parado.'
   return { negrito: recus + meses, resto, linkArquivo, info: INFO_MES_FORA }
 }

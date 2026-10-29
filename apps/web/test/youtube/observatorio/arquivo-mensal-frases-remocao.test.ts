@@ -33,4 +33,26 @@ describe('M6a T13: D7 e D7r (mês fora das telas)', () => {
     })
     expect(fraseDoMesFora({ meses: 2, recusadoNoClique: false }).negrito).toBe('Dois meses saíram das telas e o espaço deles ainda não foi liberado.')
   })
+  it('T13c texto: os 4 casos do aviso por caminho (Logan) e a cauda não duplica', () => {
+    const um = { meses: 1 as const, recusadoNoClique: false, nomes: ['2026-01-01'] }
+    const dois = { meses: 2 as const, recusadoNoClique: false, nomes: ['2026-01-01', '2026-02-01'] }
+    expect(fraseDoMesFora(um, 'guardar').resto).toBe('Você pode guardar o pedido, mas ele fica parado: o canal só é removido quando o mês voltar ou o espaço dele for liberado.')
+    expect(fraseDoMesFora(dois, 'guardar').resto).toBe('Você pode guardar o pedido, mas ele fica parado: o canal só é removido quando os dois meses voltarem ou o espaço deles for liberado.')
+    expect(fraseDoMesFora(um, 'apagar').resto).toBe('Apagar não funciona enquanto isso: o banco recusa. Para apagar, espere o espaço ser liberado ou traga o mês de volta. Guardar o pedido é possível, mas ele fica parado.')
+    expect(fraseDoMesFora(dois, 'apagar').resto).toBe('Apagar não funciona enquanto isso: o banco recusa. Para apagar, espere o espaço dos dois ser liberado ou traga os dois meses de volta. Guardar o pedido é possível, mas ele fica parado.')
+    const cauda = { ...um, liberarAPartir: '2026-10-24', podeAdministrar: true, hojeSP: '2026-10-20' }
+    expect(fraseDoMesFora(cauda, 'apagar').resto).toBe('Apagar não funciona enquanto isso: o banco recusa. O espaço só pode ser liberado a partir de 24/10; até lá, o que dá para fazer é trazer o mês de volta. Guardar o pedido é possível, mas ele fica parado.')
+    for (const c of ['guardar', 'apagar'] as const) {
+      const r = fraseDoMesFora(cauda, c).resto
+      expect(r.includes('não dá para remover') && r.includes('fica parado')).toBe(false)
+    }
+    expect(fraseDoMesFora(um).resto).toContain('Enquanto isso não dá para remover canal nem apagar vídeo.')
+  })
+  it('T13c Gio: com dois meses a cauda concorda no plural', () => {
+    const dois = { meses: 2 as const, recusadoNoClique: false, nomes: ['2026-10-01', '2026-11-01'], liberarAPartir: '2026-10-24', podeAdministrar: true, hojeSP: '2026-10-20' }
+    expect(fraseDoMesFora(dois).resto).toContain('até lá, o que dá para fazer é trazer os dois meses de volta.')
+    expect(fraseDoMesFora({ ...dois, hojeSP: '2026-10-25' }).resto).toContain('ou trazer os dois meses de volta.')
+    expect(fraseDoMesFora({ ...dois, hojeSP: '2026-10-25', podeAdministrar: false }).resto).toContain('os dois meses também podem voltar')
+    for (const c of ['guardar', 'apagar'] as const) expect(fraseDoMesFora(dois, c).resto).not.toMatch(/o mês/)
+  })
 })
