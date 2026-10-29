@@ -6,6 +6,7 @@ import { DIAS_DO_ADIAR, textoDoRotulo, textoDoVazio } from '@/lib/youtube/observ
 import type { ItemDeSinal, ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import type { Evidence } from '@/lib/youtube/observatorio/sinais/oportunidades'
 import { REGRA_SINAIS } from '@/lib/youtube/observatorio/sinais/regra'
+import { outlierMaisForte, type Outlier } from '@/lib/youtube/observatorio/sinais/outlier'
 import { nomeDoLugar } from './lugar'
 import type { MotivoDaTela } from './tipos'
 
@@ -77,13 +78,7 @@ function quando(iso: string | null, agora: Date): { hoje: boolean; hora: string;
   return { hoje: p.dia === partesSP(agora).dia, hora: `${p.hh}:${p.mi}`, data: `${p.dd}/${p.mm}` }
 }
 
-type Outlier = Evidence['outliers'][number]
-/** Maior `mult_vpd7`, desempate por `video_id`. `null` se a evidência não traz outlier. */
-export function outlierMaisForte(e: Evidence): Outlier | null {
-  const lista = Array.isArray(e?.outliers) ? e.outliers.filter((o) => Number.isFinite(o.mult_vpd7)) : []
-  if (lista.length === 0) return null
-  return [...lista].sort((a, b) => b.mult_vpd7 - a.mult_vpd7 || a.video_id.localeCompare(b.video_id))[0]!
-}
+export { outlierMaisForte }
 
 function lugarDoParecido(it: ItemDeSinal, forte: Outlier | null, amostra: ReadonlyMap<string, AmostraDoVideo>): { nome: string; mesmo: boolean } | null {
   if (!forte || it.proprios_agora === null || it.proprios_agora.length === 0) return null

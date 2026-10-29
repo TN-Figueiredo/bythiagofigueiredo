@@ -7,11 +7,12 @@ import 'server-only'
 import { requireSiteScope } from '@tn-figueiredo/auth-nextjs/server'
 import { getSiteContext } from '@/lib/cms/site-context'
 import { getSupabaseServiceClient } from '@/lib/supabase/service'
-import { listarSinaisDoNicho, type ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
+import { leituraDoEditor } from '@/lib/youtube/observatorio/proprio/leitura-privada'
+import { calculoLigadoNoAmbiente, listarSinaisDoNicho, type ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 
 export async function abrirSugestoes(agora: Date, limite: number): Promise<ListaDeSinais | null> {
   const { siteId } = await getSiteContext()
   const guarda = await requireSiteScope({ area: 'cms', siteId, mode: 'edit' })
   if (!guarda.ok) return null
-  return listarSinaisDoNicho(getSupabaseServiceClient(), siteId, agora, limite)
+  return listarSinaisDoNicho(getSupabaseServiceClient(), siteId, agora, limite, calculoLigadoNoAmbiente(), await leituraDoEditor(siteId))
 }

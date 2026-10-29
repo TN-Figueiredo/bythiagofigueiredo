@@ -31,7 +31,11 @@ import { segmentar } from '@/lib/youtube/observatorio/contexto-ia/segmentar'
 import { montarTexto } from '@/lib/youtube/observatorio/contexto-ia/montar-texto'
 import { CONTEXTO } from '../youtube/observatorio/contexto-ia-fixture'
 import type { ServiceContext } from '@/lib/pipeline/services/types'
-import { contarSinaisAbertos, contarAbertosEntre, listarSinaisDoNicho } from '@/lib/youtube/observatorio/sinais/leitura'
+import { contarSinaisAbertos, contarAbertosEntre, calculoLigadoNoAmbiente, listarSinaisDoNicho as listarF4 } from '@/lib/youtube/observatorio/sinais/leitura'
+
+/** F4: `listarSinaisDoNicho` ganhou a prova de leitura como 6º parâmetro; estes testes não a usam (sem prova = `sem_direito`, zero consultas). */
+const listar = (sb: Parameters<typeof listarF4>[0], site: string, agora: Date, limite = 50, calculo: boolean = calculoLigadoNoAmbiente(), leitura: Parameters<typeof listarF4>[5] = null) =>
+  listarF4(sb, site, agora, limite, calculo, leitura)
 import { lerAmostraDasLinhas } from '@/lib/youtube/observatorio/sinais/amostra'
 import type { ListaDeSinais } from '@/lib/youtube/observatorio/sinais/leitura'
 import { apagarSites } from '../helpers/limpa-cena'
@@ -210,7 +214,7 @@ describe.skipIf(skipIfNoLocalDb())('F2 T8: paridade da leitura (rota, get_signal
     await sinal(1, 'pais:JP', { forca: 30 }); await sinal(2, 'pais:VN', { forca: 20 }); await sinal(3, 'pais:TR', { expira: dia(-1) }); await sinal(4, 'pais:IT', { status: 'dispensado' })
     await estado(null, { canais_total: 5 })
     const agora = new Date()
-    const [a, b, c, lista, n] = [await rota(), await cowork(), await claudeCode(), await listarSinaisDoNicho(sb(), mundo.siteId, agora, 100), await contarSinaisAbertos(sb(), mundo.siteId, agora)]
+    const [a, b, c, lista, n] = [await rota(), await cowork(), await claudeCode(), await listar(sb(), mundo.siteId, agora, 100), await contarSinaisAbertos(sb(), mundo.siteId, agora)]
     expect(n).toBe(2)
     expect([a.n, b.n, c.n, lista.n]).toEqual([2, 2, 2, 2])
     expect(lista.itens.map((i) => i.id)).toEqual(a.itens.map((i) => i.id))

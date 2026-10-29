@@ -92,7 +92,12 @@ export function importaConsultas(arq: string, s: string): boolean {
   return false
 }
 /** F2b T3: quem pode importar as consultas sem prova. */
-const PODE_IMPORTAR_CONSULTAS = new Set([LER_DIMENSOES, 'lib/youtube/observatorio/sinais/medida/series.ts', 'lib/youtube/observatorio/proprio/consultas.ts'])
+/**
+ * PONTO PARA PORTÃO (F4 T2): `sinais/trafego-terceiro/ler.ts` chama só `lerCobertura`, `lerDetalheDiario` e `contarOrigem` com `ORIGEM_SUGERIDOS` / `'32'`,
+ * atrás de `provaValida` (brand check da leitura E mesmo site); sai só estado/contagem/soma por vídeo do terceiro, nunca a linha do dia nem `detail`.
+ * `ler.ts` não faz `.from('yt_own_...')` direto.
+ */
+const PODE_IMPORTAR_CONSULTAS = new Set([LER_DIMENSOES, 'lib/youtube/observatorio/sinais/medida/series.ts', 'lib/youtube/observatorio/proprio/consultas.ts', 'lib/youtube/observatorio/sinais/trafego-terceiro/ler.ts'])
 /**
  * PONTO PARA PORTÃO (E9, noite 15/10): dois pontos da fila "Saíram do YouTube" consultam `competitor_video_comments` SEM `leituraValida`.
  * Ambos já estão atrás da guarda de EDIÇÃO do site e usam o cliente de serviço com o site em todo filtro; nenhum recebe o token de leitura
