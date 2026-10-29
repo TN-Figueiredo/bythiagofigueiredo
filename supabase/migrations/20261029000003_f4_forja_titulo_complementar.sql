@@ -52,7 +52,7 @@ create index if not exists idx_competitor_readings_own_video
 -- CAMINHO DE VOLTA (rodar nesta ordem; antes de recriar os CHECKs/indice antigos, senao o rollback falha por linha que viola o CHECK velho):
 --   -- 0) antes de tudo, exportar (texto do modelo nao e reproduzivel): \copy (select * from competitor_readings where task_type='titulo-complementar') to 'leituras-titulo-complementar-AAAAMMDD.csv' csv header
 --   delete from youtube_intelligence_tasks where task_type = 'titulo-complementar';
---   delete from competitor_readings where task_type = 'titulo-complementar';
+--   delete from "competitor_readings" where task_type = 'titulo-complementar';
 --   drop index if exists idx_yt_intel_titulo_active;
 --   drop index if exists idx_competitor_readings_own_video;
 --   alter table youtube_intelligence_tasks drop constraint youtube_intelligence_tasks_target_check;
