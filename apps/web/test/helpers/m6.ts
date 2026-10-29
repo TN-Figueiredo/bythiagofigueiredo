@@ -12,7 +12,7 @@ import { skipIfNoLocalDb } from './db-skip'
 import { M10A_SQL } from '../integration/video-antigo-m10a-caminho'
 
 export const M6_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/rascunhos/m6.sql')
-export const M6_EM_MIGRATION = false
+export const M6_EM_MIGRATION = true
 export const HASH_REL_SQL_CAMINHO: string = resolve(__dirname, '../../../../supabase/sql/obs-archive-hash-rel.sql')
 export type ParteM6 = 1 | 2 | 3 | 4 | 5 | 6 | 7   // 1 a 6 = M6a; 7 = M6b (o interruptor)
 
