@@ -410,3 +410,274 @@ $w$)
     if v_mudou then execute v_def; end if;
   end loop;
 end $m9$;
+
+-- M9 PARTE 3: abrir, registrar, bloquear e desbloquear o expurgo (rota C14)
+
+create or replace function public.obs_archive_caminho_unidade(p_class text, p_ref text, p_table text, p_month date, p_ver integer, p_parte integer default null)
+returns text language sql immutable set search_path = '' as $$
+  select p_class || '/canais/' || p_ref || '/' || p_table || '/' || to_char(p_month, 'YYYY-MM') || '.v' || p_ver
+         || case when p_parte is null then '' else '.p' || lpad(p_parte::text, 2, '0') end || '.csv.gz'
+$$;
+revoke all on function public.obs_archive_caminho_unidade(text, text, text, date, integer, integer) from public, anon, authenticated, service_role;
+
+-- Arquivos de uma unidade: um (parts = 1) ou um por parte. Unidade vazia não tem arquivo.
+create or replace function public.obs_archive_arquivos_da_unidade(p_unit uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select coalesce(jsonb_agg(f.o order by f.p), '[]'::jsonb) from (
+    select 1 as p, jsonb_build_object('caminho', public.obs_archive_caminho_unidade(u.class, u.channel_ref, u.table_name, u.month, u.version), 'sha256', u.sha256_bytes, 'parte', 1) as o
+      from public.obs_archive_units u where u.id = p_unit and u.parts = 1 and u.row_count > 0
+    union all
+    select pt.part, jsonb_build_object('caminho', public.obs_archive_caminho_unidade(u.class, u.channel_ref, u.table_name, u.month, u.version, pt.part), 'sha256', pt.sha256_bytes, 'parte', pt.part)
+      from public.obs_archive_units u join public.obs_archive_unit_parts pt on pt.unit_id = u.id where u.id = p_unit and u.parts > 1 and u.row_count > 0
+  ) f
+$$;
+revoke all on function public.obs_archive_arquivos_da_unidade(uuid) from public, anon, authenticated, service_role;
+
+-- As unidades correntes do grupo (classe, canal, mês): a maior versão por tabela, nem perdida nem purgada.
+create or replace function public.obs_archive_cur_group(p_site uuid, p_class text, p_channel text, p_month date)
+returns setof public.obs_archive_units language sql stable security definer set search_path = '' as $$
+  select distinct on (x.table_name) x.* from public.obs_archive_units x
+   where x.site_id = p_site and x.class = p_class and x.channel_ref = p_channel and x.month = p_month and x.lost_at is null and x.purged_at is null
+   order by x.table_name, x.version desc
+$$;
+revoke all on function public.obs_archive_cur_group(uuid, text, text, date) from public, anon, authenticated, service_role;
+
+-- Pronto para refazer: toda corrente com linhas está recebida e o último resumo está recebido (ou vazio). Também usado pelo owner_pending.
+create or replace function public.obs_archive_grupo_pronto(p_site uuid, p_class text, p_channel text, p_month date) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select not exists (select 1 from public.obs_archive_cur_group(p_site, p_class, p_channel, p_month) c where c.row_count > 0 and c.received_at is null)
+     and coalesce((select s.empty or s.received_at is not null from public.obs_archive_summaries s
+                    where s.site_id = p_site and s.class = p_class and s.channel_ref = p_channel and s.month = p_month and s.lost_at is null and s.purged_at is null
+                    order by s.version desc limit 1), true)
+$$;
+revoke all on function public.obs_archive_grupo_pronto(uuid, text, text, date) from public, anon, authenticated, service_role;
+
+create or replace function public.obs_archive_expurgo_open(p_site uuid, p_item_id bigint) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  a record; g record; c record; s record; v_grupos jsonb := '[]'::jsonb; v_esperando integer := 0; v_alvos jsonb; v_outras jsonb; v_vazias jsonb; v_resumo jsonb;
+  v_fora boolean;
+begin
+  if not exists (select 1 from public.obs_archive_item_targets t where t.site_id = p_site and t.item_id = p_item_id) then
+    raise exception 'item_desconhecido' using errcode = 'P0001';
+  end if;
+  -- rebase: alvo em copiar cuja origem deixou de ser a corrente
+  for a in select * from public.obs_archive_item_targets t where t.site_id = p_site and t.item_id = p_item_id and t.estado = 'copiar' order by t.id for update loop
+    select * into c from public.obs_archive_cur_group(p_site, a.class, a.channel_ref, a.month) x where x.table_name = a.table_name;
+    if c.id is not null and c.id = a.from_unit_id then continue; end if;
+    if c.id is null or c.row_count = 0 then
+      update public.obs_archive_item_targets set estado = 'sem_linhas', done_at = now(), updated_at = now() where id = a.id;
+    elsif c.received_at is not null then
+      update public.obs_archive_item_targets set from_unit_id = c.id, from_version = c.version, updated_at = now() where id = a.id;
+    end if;
+  end loop;
+  for g in select distinct t.class, t.channel_ref, t.month from public.obs_archive_item_targets t
+            where t.site_id = p_site and t.item_id = p_item_id and t.estado = 'copiar' order by 1, 2, 3 loop
+    -- todo alvo copiar do grupo (deste item) precisa estar na corrente e recebida
+    if not public.obs_archive_grupo_pronto(p_site, g.class, g.channel_ref, g.month)
+       or exists (select 1 from public.obs_archive_item_targets t
+                   where t.site_id = p_site and t.item_id = p_item_id and t.estado = 'copiar' and t.class = g.class and t.channel_ref = g.channel_ref and t.month = g.month
+                     and not exists (select 1 from public.obs_archive_cur_group(p_site, g.class, g.channel_ref, g.month) x
+                                      where x.id = t.from_unit_id and x.received_at is not null)) then
+      v_esperando := v_esperando + 1; continue;
+    end if;
+    select coalesce(jsonb_agg(jsonb_build_object('alvo_id', t.id, 'tabela', t.table_name, 'versao', u.version, 'linhas', u.row_count, 'soma', u.control_sum,
+             'coluna_controle', pol.control_column, 'schema_fp', u.schema_fp, 'hash_conteudo', u.hash_conteudo, 'esperadas', t.esperadas,
+             'chaves', to_jsonb(t.keys), 'refs', to_jsonb(t.item_refs), 'arquivos', public.obs_archive_arquivos_da_unidade(u.id)) order by t.table_name), '[]'::jsonb)
+      into v_alvos
+      from public.obs_archive_item_targets t join public.obs_archive_units u on u.id = t.from_unit_id
+      left join public.obs_archive_policy() pol on pol.class = t.class and pol.table_name = t.table_name
+     where t.site_id = p_site and t.item_id = p_item_id and t.estado = 'copiar' and t.class = g.class and t.channel_ref = g.channel_ref and t.month = g.month;
+    select coalesce(jsonb_agg(jsonb_build_object('tabela', x.table_name, 'unidade_id', x.id, 'versao', x.version, 'linhas', x.row_count, 'hash_conteudo', x.hash_conteudo,
+             'arquivos', public.obs_archive_arquivos_da_unidade(x.id)) order by x.table_name), '[]'::jsonb) into v_outras
+      from public.obs_archive_cur_group(p_site, g.class, g.channel_ref, g.month) x
+     where x.row_count > 0 and not exists (select 1 from public.obs_archive_item_targets t
+                                            where t.site_id = p_site and t.item_id = p_item_id and t.estado = 'copiar' and t.class = g.class and t.channel_ref = g.channel_ref
+                                              and t.month = g.month and t.table_name = x.table_name);
+    select coalesce(jsonb_agg(jsonb_build_object('tabela', x.table_name, 'hash_conteudo', x.hash_conteudo) order by x.table_name), '[]'::jsonb) into v_vazias
+      from public.obs_archive_cur_group(p_site, g.class, g.channel_ref, g.month) x where x.row_count = 0;
+    select * into s from public.obs_archive_summaries z
+     where z.site_id = p_site and z.class = g.class and z.channel_ref = g.channel_ref and z.month = g.month and z.lost_at is null and z.purged_at is null order by z.version desc limit 1;
+    v_resumo := case when s.id is null then null else jsonb_build_object('versao', s.version, 'canal', s.canal_sha256, 'video', s.video_sha256) end;
+    select coalesce(m.dropped_at is not null or m.detached_at is not null, false) into v_fora from public.obs_archive_months m
+     where m.site_id = p_site and m.class = g.class and m.month = g.month limit 1;
+    v_grupos := v_grupos || jsonb_build_object('classe', g.class, 'canal', g.channel_ref, 'mes', to_char(g.month, 'YYYY-MM'),
+      'filho', (select p.filho from public.obs_archive_policy() p where p.class = g.class limit 1),
+      'alvos', v_alvos, 'outras', v_outras, 'vazias', v_vazias, 'resumo', v_resumo,
+      'mes_online', not coalesce(v_fora, false), 'dias_do_mes', extract(day from (g.month + interval '1 month' - interval '1 day'))::int);
+  end loop;
+  return jsonb_build_object('grupos', v_grupos, 'esperando', v_esperando);
+end $$;
+revoke all on function public.obs_archive_expurgo_open(uuid, bigint) from public, anon, authenticated;
+grant execute on function public.obs_archive_expurgo_open(uuid, bigint) to service_role;
+
+create or replace function public.obs_archive_expurgo_record(p_site uuid, p_item_id bigint, p_grupo jsonb) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_class text := p_grupo->>'classe'; v_canal text := p_grupo->>'canal'; v_mes date := (p_grupo->>'mes' || '-01')::date;
+  v_corpo jsonb := p_grupo->'alvos'; v_res jsonb := p_grupo->'resumo';
+  b jsonb; a public.obs_archive_item_targets; c public.obs_archive_units; v_ids bigint[]; v_copiar bigint[]; v_fora boolean;
+  v_rem bigint; v_novo bigint; v_saida jsonb := '[]'::jsonb; v_ret jsonb; v_uid uuid; v_ver integer; v_arq text;
+  v_max integer; v_lidas text[]; v_correntes text[]; v_pol record; v_primeiro bigint; v_novas integer := 0; v_sid uuid; v_sver integer;
+  v_nova_cam text; v_nova_sha text; w record; ps record; pap text;
+begin
+  if v_class is null or v_canal is null or v_mes is null or jsonb_typeof(v_corpo) <> 'array' then
+    return jsonb_build_object('status', 'recusado', 'motivo', 'forma');
+  end if;
+  if not exists (select 1 from public.obs_archive_item_targets t where t.site_id = p_site and t.item_id = p_item_id) then
+    raise exception 'item_desconhecido' using errcode = 'P0001';
+  end if;
+  -- as mesmas travas do record_core, em ordem de tabela, e a do resumo
+  for b in select x from jsonb_array_elements(v_corpo) x order by x->>'tabela' loop
+    select * into a from public.obs_archive_item_targets t where t.id = (b->>'alvo_id')::bigint and t.site_id = p_site;
+    if a.id is null then return jsonb_build_object('status', 'recusado', 'motivo', 'alvo_de_outro_item', 'alvo_id', (b->>'alvo_id')::bigint); end if;
+    perform pg_advisory_xact_lock(hashtextextended(p_site::text || '|unidade|' || a.class || '|' || a.table_name || '|' || a.channel_ref || '|' || a.month::text, 0));
+  end loop;
+  perform pg_advisory_xact_lock(hashtextextended(p_site::text || '|resumo|' || v_class || '||' || v_canal || '|' || v_mes::text, 0));
+  select array_agg((x->>'alvo_id')::bigint order by (x->>'alvo_id')::bigint) into v_ids from jsonb_array_elements(v_corpo) x;
+  -- 1. cada alvo é deste item e deste grupo, e está em copiar
+  for a in select * from public.obs_archive_item_targets t where t.id = any(v_ids) and t.site_id = p_site order by t.id for update loop
+    if a.item_id is distinct from p_item_id or a.class <> v_class or a.channel_ref <> v_canal or a.month <> v_mes then
+      return jsonb_build_object('status', 'recusado', 'motivo', 'alvo_de_outro_item', 'alvo_id', a.id);
+    end if;
+    if a.estado <> 'copiar' then return jsonb_build_object('status', 'recusado', 'motivo', 'alvo_fora_de_copiar', 'alvo_id', a.id); end if;
+  end loop;
+  if (select count(*) from public.obs_archive_item_targets t where t.id = any(v_ids) and t.site_id = p_site) <> coalesce(cardinality(v_ids), 0) then
+    return jsonb_build_object('status', 'recusado', 'motivo', 'alvo_de_outro_item');
+  end if;
+  -- 2. o corpo cobre todos os alvos copiar do item neste grupo
+  select array_agg(t.id order by t.id) into v_copiar from public.obs_archive_item_targets t
+   where t.site_id = p_site and t.item_id = p_item_id and t.estado = 'copiar' and t.class = v_class and t.channel_ref = v_canal and t.month = v_mes;
+  if v_copiar is distinct from v_ids then return jsonb_build_object('status', 'recusado', 'motivo', 'grupo_incompleto'); end if;
+  -- 3. a base: cada origem ainda é a corrente e está recebida
+  for a in select * from public.obs_archive_item_targets t where t.id = any(v_ids) order by t.id loop
+    select * into c from public.obs_archive_cur_group(p_site, a.class, a.channel_ref, a.month) x where x.table_name = a.table_name;
+    if c.id is distinct from a.from_unit_id or c.received_at is null then
+      return jsonb_build_object('status', 'recusado', 'motivo', 'base_mudou', 'alvo_id', a.id);
+    end if;
+  end loop;
+  select coalesce(m.dropped_at is not null or m.detached_at is not null, false) into v_fora from public.obs_archive_months m
+   where m.site_id = p_site and m.class = v_class and m.month = v_mes limit 1;
+  v_fora := coalesce(v_fora, false);
+  -- 4. a contagem: antes de qualquer escrita
+  for b in select x from jsonb_array_elements(v_corpo) x order by (x->>'alvo_id')::bigint loop
+    select * into a from public.obs_archive_item_targets t where t.id = (b->>'alvo_id')::bigint;
+    select * into c from public.obs_archive_units u where u.id = a.from_unit_id;
+    v_rem := (b->>'removidas')::bigint;
+    v_novo := (b->'unidade'->>'row_count')::bigint;
+    if v_rem is null or v_rem < 0 or (v_rem > 0 and b->'unidade' is null) then return jsonb_build_object('status', 'recusado', 'motivo', 'forma', 'alvo_id', a.id); end if;
+    if (v_rem = 0 and (a.esperadas > 0 or (a.esperadas is null and not v_fora)))
+       or (a.esperadas is not null and v_rem > a.esperadas)
+       or (v_rem > 0 and v_novo is distinct from c.row_count - v_rem) then
+      update public.obs_archive_item_targets set estado = 'bloqueado', motivo = 'contagem_divergente', updated_at = now() where id = a.id;
+      return jsonb_build_object('status', 'recusado', 'motivo', 'contagem_divergente', 'alvo_id', a.id);
+    end if;
+    if v_rem > 0 then v_novas := v_novas + 1; end if;
+  end loop;
+  -- 5. o resumo (só quando houve unidade nova)
+  if v_novas > 0 then
+    if v_res is null or jsonb_typeof(v_res) <> 'object' then return jsonb_build_object('status', 'recusado', 'motivo', 'resumo_forma'); end if;
+    select coalesce(max(s.version), 0) into v_max from public.obs_archive_summaries s where s.site_id = p_site and s.class = v_class and s.channel_ref = v_canal and s.month = v_mes;
+    if (v_res->>'versao')::int is distinct from v_max + 1 then return jsonb_build_object('status', 'recusado', 'motivo', 'resumo_versao_mudou'); end if;
+    if (v_res->>'vazio') is null or ((v_res->>'vazio')::boolean) <> (v_res->>'canal_sha256' is null)
+       or (v_res->>'canal_sha256' is not null and v_res->>'canal_sha256' !~ '^[0-9a-f]{64}$') then
+      return jsonb_build_object('status', 'recusado', 'motivo', 'resumo_forma');
+    end if;
+    select array_agg(x order by x) into v_lidas from jsonb_array_elements_text(coalesce(v_res->'tabelas_lidas', '[]'::jsonb)) x;
+    select array_agg(x.table_name order by x.table_name) into v_correntes from public.obs_archive_cur_group(p_site, v_class, v_canal, v_mes) x where x.row_count > 0;
+    if v_lidas is distinct from v_correntes then return jsonb_build_object('status', 'recusado', 'motivo', 'resumo_com_unidade_nao_lida'); end if;
+  end if;
+  -- 6. escreve (a marca do expurgo vale a transação inteira; o record_core a regrava em cada chamada, então o resumo a repõe)
+  for b in select x from jsonb_array_elements(v_corpo) x order by (x->>'alvo_id')::bigint loop
+    select * into a from public.obs_archive_item_targets t where t.id = (b->>'alvo_id')::bigint;
+    select * into c from public.obs_archive_units u where u.id = a.from_unit_id;
+    v_rem := (b->>'removidas')::bigint;
+    if v_rem = 0 then
+      update public.obs_archive_item_targets set estado = 'sem_linhas', done_at = now(), updated_at = now() where id = a.id;
+      v_saida := v_saida || jsonb_build_object('alvo_id', a.id, 'estado', 'sem_linhas');
+      continue;
+    end if;
+    v_ret := public.obs_archive_record_core(p_site, 'unidade',
+               (b->'unidade') || jsonb_build_object('classe', a.class, 'tabela', a.table_name, 'canal', a.channel_ref, 'mes', to_char(a.month, 'YYYY-MM-DD')), 'expurgo');
+    v_uid := substr(v_ret->>'arquivo_id', 3)::uuid; v_ver := (v_ret->>'versao')::int;
+    update public.obs_archive_item_targets set estado = 'aguardando_nova', to_unit_id = v_uid, to_version = v_ver, rows_removed = v_rem, updated_at = now() where id = a.id;
+    select pol.filho into v_pol from public.obs_archive_policy() pol where pol.class = a.class and pol.table_name = a.table_name;
+    -- a nova (vazia: nulos)
+    select f->>'caminho', f->>'sha256' into v_nova_cam, v_nova_sha from jsonb_array_elements(public.obs_archive_arquivos_da_unidade(v_uid)) f order by (f->>'parte')::int limit 1;
+    -- TODAS as versões anteriores da unidade, inteira ou por parte (pula perdida e purgada)
+    for w in select u.id, u.version, u.parts, u.sha256_bytes from public.obs_archive_units u
+              where u.site_id = p_site and u.class = a.class and u.table_name = a.table_name and u.channel_ref = a.channel_ref and u.month = a.month
+                and u.version < v_ver and u.lost_at is null and u.purged_at is null and u.row_count > 0 loop
+      for ps in select (f->>'caminho') as caminho, (f->>'sha256') as sha from jsonb_array_elements(public.obs_archive_arquivos_da_unidade(w.id)) f loop
+        insert into public.obs_archive_absence (site_id, alvo, alvo_id, filho, prefixo, e_prefixo, sha256, nova_caminho, nova_sha256)
+        values (p_site, 'alvo:' || a.id, a.id, v_pol.filho, ps.caminho, false, ps.sha, v_nova_cam, v_nova_sha)
+        on conflict (site_id, alvo, filho, prefixo) do nothing;
+      end loop;
+    end loop;
+    v_saida := v_saida || jsonb_build_object('alvo_id', a.id, 'estado', 'aguardando_nova', 'arquivo_id', v_ret->>'arquivo_id', 'versao', v_ver);
+  end loop;
+  v_ret := null;
+  if v_novas > 0 then
+    perform set_config('obs_archive.origem', 'expurgo:' || pg_current_xact_id()::text, true);
+    v_sver := v_max + 1;
+    insert into public.obs_archive_summaries (site_id, class, channel_ref, month, version, empty, canal_sha256, canal_bytes, canal_rows, video_sha256, video_bytes, video_rows,
+                                              unit_hashes, origem, received_at)
+    values (p_site, v_class, v_canal, v_mes, v_sver, (v_res->>'vazio')::boolean, v_res->>'canal_sha256', (v_res->>'canal_bytes')::bigint, (v_res->>'canal_rows')::int,
+            v_res->>'video_sha256', (v_res->>'video_bytes')::bigint, (v_res->>'video_rows')::int,
+            public.obs_archive_channel_unit_hashes(p_site, v_class, v_canal, v_mes), 'expurgo', case when (v_res->>'vazio')::boolean then now() end)
+    returning id into v_sid;
+    v_primeiro := v_ids[1];
+    select pol.filho into v_pol from public.obs_archive_policy() pol where pol.class = v_class limit 1;
+    -- a versão anterior de CADA papel entra na ausência, mesmo se o papel novo ficou vazio (nova nula)
+    for w in select s.id, s.version, s.canal_sha256, s.video_sha256, s.ficha_sha256 from public.obs_archive_summaries s
+              where s.site_id = p_site and s.class = v_class and s.channel_ref = v_canal and s.month = v_mes and s.version < v_sver and s.lost_at is null and s.purged_at is null loop
+      foreach pap in array array['canal', 'video', 'ficha'] loop
+        if (case pap when 'canal' then w.canal_sha256 when 'video' then w.video_sha256 else w.ficha_sha256 end) is null then continue; end if;
+        v_nova_sha := case pap when 'canal' then v_res->>'canal_sha256' when 'video' then v_res->>'video_sha256' else null end;
+        v_nova_cam := case when v_nova_sha is null then null else
+          v_class || '/canais/' || v_canal || '/resumo/' || to_char(v_mes, 'YYYY-MM') || '.v' || v_sver || '.' || pap || '.csv.gz' end;
+        insert into public.obs_archive_absence (site_id, alvo, alvo_id, filho, prefixo, e_prefixo, sha256, nova_caminho, nova_sha256)
+        values (p_site, 'alvo:' || v_primeiro, v_primeiro, v_pol.filho,
+                v_class || '/canais/' || v_canal || '/resumo/' || to_char(v_mes, 'YYYY-MM') || '.v' || w.version || '.' || pap || '.csv.gz', false,
+                case pap when 'canal' then w.canal_sha256 when 'video' then w.video_sha256 else w.ficha_sha256 end, v_nova_cam, v_nova_sha)
+        on conflict (site_id, alvo, filho, prefixo) do nothing;
+      end loop;
+    end loop;
+    update public.obs_archive_months set unsealed_at = now(), unsealed_reason = 'expurgo'
+     where site_id = p_site and class = v_class and month = v_mes and sealed_at is not null;
+    v_ret := jsonb_build_object('arquivo_id', 's:' || v_sid, 'versao', v_sver);
+  end if;
+  return jsonb_build_object('status', 'ok', 'alvos', v_saida, 'resumo', v_ret);
+end $$;
+revoke all on function public.obs_archive_expurgo_record(uuid, bigint, jsonb) from public, anon, authenticated;
+grant execute on function public.obs_archive_expurgo_record(uuid, bigint, jsonb) to service_role;
+
+create or replace function public.obs_archive_expurgo_block(p_site uuid, p_alvo bigint, p_motivo text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare a public.obs_archive_item_targets;
+begin
+  if p_motivo not in ('antiga_ausente', 'antiga_divergente', 'grande_demais', 'contagem_divergente') then
+    return jsonb_build_object('status', 'recusado', 'motivo', 'forma');
+  end if;
+  select * into a from public.obs_archive_item_targets t where t.id = p_alvo and t.site_id = p_site for update;
+  if a.id is null then raise exception 'item_desconhecido' using errcode = 'P0001'; end if;
+  if a.estado <> 'copiar' then return jsonb_build_object('status', 'recusado', 'motivo', 'alvo_fora_de_copiar', 'alvo_id', a.id); end if;
+  update public.obs_archive_item_targets set estado = 'bloqueado', motivo = p_motivo, updated_at = now() where id = a.id;
+  return jsonb_build_object('status', 'ok', 'alvo_id', a.id);
+end $$;
+revoke all on function public.obs_archive_expurgo_block(uuid, bigint, text) from public, anon, authenticated;
+grant execute on function public.obs_archive_expurgo_block(uuid, bigint, text) to service_role;
+
+-- Só o dono, pelo SQL do painel (D-M9-5): volta um alvo bloqueado a copiar. depende_m10b só sai quando a M10b existir.
+create or replace function public.obs_archive_expurgo_unblock(p_site uuid, p_alvo bigint) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare a public.obs_archive_item_targets;
+begin
+  select * into a from public.obs_archive_item_targets t where t.id = p_alvo and t.site_id = p_site for update;
+  if a.id is null then raise exception 'item_desconhecido' using errcode = 'P0001'; end if;
+  if a.estado <> 'bloqueado' then return jsonb_build_object('status', 'recusado', 'motivo', 'alvo_fora_de_bloqueado'); end if;
+  if a.motivo = 'depende_m10b' then return jsonb_build_object('status', 'recusado', 'motivo', 'depende_m10b'); end if;
+  update public.obs_archive_item_targets set estado = 'copiar', motivo = null, updated_at = now() where id = a.id;
+  return jsonb_build_object('status', 'ok', 'alvo_id', a.id);
+end $$;
+revoke all on function public.obs_archive_expurgo_unblock(uuid, bigint) from public, anon, authenticated, service_role;
