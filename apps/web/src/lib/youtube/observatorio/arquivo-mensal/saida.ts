@@ -32,7 +32,7 @@ const CODIGOS_CONHECIDOS: ReadonlySet<string> = new Set(CODIGOS_DA_SAIDA)
 /** Código que a tela não conhece vira 'desconhecido' (nunca passa cru); a Tarefa 12 mostra esta frase para ele. */
 export { FRASE_CODIGO_DESCONHECIDO } from './frases-saida'   // a frase mora no módulo puro (o componente cliente não importa este arquivo)
 
-export type CausaDaFalha = 'somente_leitura' | 'prazo' | 'forma' | 'banco' | 'tempo_no_banco' | 'conferencia_parcial' | 'sem_tempo'
+export type CausaDaFalha = 'ocupado' | 'somente_leitura' | 'prazo' | 'forma' | 'banco' | 'tempo_no_banco' | 'conferencia_parcial' | 'sem_tempo'
 
 const Falta = z.object({ codigo: z.string() }).passthrough()
 export type Falta = z.infer<typeof Falta>
@@ -79,6 +79,8 @@ async function chamar<T>(sb: SupabaseClient, fn: string, args: Record<string, un
     if (error) {
       const codigo = String(error.code ?? '')
       if (codigo === '25006') return { causa: 'somente_leitura' }
+      // T14 (Phil I-1): deadlock (40P01) ou trava não obtida (55P03) = o banco desfez a chamada porque a ação de outra aba/o automático estava na frente; vale com `muda` true e false
+      if (codigo === '40P01' || codigo === '55P03') return { causa: 'ocupado' }
       if (codigo === '57014') return { causa: 'tempo_no_banco' }
       if (SQLSTATE.test(codigo) || codigo.startsWith('PGRST')) return { causa: 'banco' }
       return { causa: muda ? 'prazo' : 'banco' }
@@ -95,7 +97,9 @@ function traduzir(b: z.infer<typeof Bruta>): RespostaSaida {
   const codigo = b.codigo == null ? null : CODIGOS_CONHECIDOS.has(b.codigo) ? (b.codigo as CodigoDaSaida) : 'desconhecido'
   return { tipo: 'recusado', codigo, faltam: b.faltam ?? [], liberarAPartir: b.liberar_a_partir ?? undefined, descartadoEm: b.descartado_em ?? undefined }
 }
-const ouFalha = <T>(l: Lido<T>): T | RespostaSaida => ('valor' in l ? l.valor : { tipo: 'falhou', causa: l.causa })
+/** `ocupado` não é falha: é a mesma resposta que a trava consultiva devolve (recusado/ocupado, mesma frase). */
+const deCausa = (causa: CausaDaFalha): RespostaSaida => (causa === 'ocupado' ? { tipo: 'recusado', codigo: 'ocupado', faltam: [] } : { tipo: 'falhou', causa })
+const ouFalha = <T>(l: Lido<T>): T | RespostaSaida => ('valor' in l ? l.valor : deCausa(l.causa))
 
 export async function lerEstadoDoMes(sb: SupabaseClient, site: string, tabela: TabelaDaSaida, mes: string, por: string): Promise<EstadoDoMes | null> {
   const l = await chamar(sb, 'obs_archive_exit_check', { p_site: site, p_table: tabela, p_month: mes, p_by: por }, EstadoDoMes)
@@ -134,7 +138,7 @@ async function chamadaFinal(sb: SupabaseClient, fn: string, args: Record<string,
 export async function executarSaida(sb: SupabaseClient, a: { site: string; tabela: TabelaDaSaida; mes: string; por: string; simular: boolean; doisPassos: boolean; ate?: number }): Promise<RespostaSaida> {
   const ate = a.ate ?? Date.now() + PRAZO_TOTAL_MS
   const c = await conferirCanais(sb, a.site, a.tabela, a.mes, ate)
-  if ('causa' in c) return { tipo: 'falhou', causa: c.causa }
+  if ('causa' in c) return deCausa(c.causa)
   const fn = a.doisPassos ? 'obs_archive_detach_month' : 'obs_archive_drop_month'
   return chamadaFinal(sb, fn, { p_site: a.site, p_table: a.tabela, p_month: a.mes, p_by: a.por, p_mode: 'clique', p_dry_run: a.simular }, ate, !a.simular)
 }
