@@ -9,10 +9,10 @@ import { lerPendencias } from '@/lib/youtube/observatorio/arquivo-mensal/pendenc
 import { SITE, AGORA, discoFalso, baixarFalso } from './arquivo-fakes'
 
 const CHAVE = 'arqdono_' + 'A'.repeat(43)
-const leitura = (itens: unknown[]) => ({ versao: 1, lido_em: '2026-12-01T10:00:00Z', total: itens.length, itens })
+const leitura = (itens: unknown[]) => ({ versao: 2, lido_em: '2026-12-01T10:00:00Z', total: itens.length, itens })
 const item = (o: Record<string, unknown> = {}) => ({ item_id: 'canal:6f1c1b9e-0000-4000-8000-000000000001', kind: 'canal', tempo: 'sem_comando',
   desde: '2026-10-01T12:00:00Z', mes: null, channel_ref: '6f1c1b9e-0000-4000-8000-000000000001', youtube_id: 'UCx', marcado_rodado_em: null,
-  apagar: [], b2_nomes: [], ...o })
+  apagar: [], b2_nomes: [], falta: 'snapshots', motivo: null, prefixos: [], bloqueados: 0, snapshot_mais_antigo: null, ...o })
 
 /** Site falso (emenda 14/10 noite: rota com chave): status e corpo como texto; Error = rede, timeout ou redirecionamento. */
 function site(status: number, corpo: unknown) {
@@ -72,7 +72,7 @@ describe('o subcomando pendencias (pela rota C13)', () => {
     const r = await rodar({ nome: 'pendencias' }, deps(site(200, { data: leitura([item()]) })))
     expect(r.codigo).toBe(0)
     const s = r.saida.join('\n')
-    expect(s).toContain('ESPERA-COMANDO canal:6f1c1b9e-0000-4000-8000-000000000001')
+    expect(s).toContain('ESPERA canal:6f1c1b9e-0000-4000-8000-000000000001')
     expect(s).toContain('OBS-ARQUIVO: NADA A RODAR AGORA (1 esperando)')
     expect(s).not.toMatch(/NADA PENDENTE|\brm\b/)
   })
@@ -217,7 +217,7 @@ describe('criarPedirRotaDoDono: a borda do Mac contra um servidor de verdade (r2
 describe('scriptDasPendencias', () => {
   it('gera para os três tempos que só esperam (o bash de verdade está no teste seguinte)', () => {
     for (const tempo of ['sem_comando', 'conferir_b2', 'bloqueado']) {
-      const l = lerPendencias(leitura([item({ tempo })]))
+      const l = lerPendencias(leitura([item({ tempo, falta: tempo === 'sem_comando' ? 'snapshots' : null, motivo: tempo === 'bloqueado' ? 'grande_demais' : null, b2_nomes: tempo === 'conferir_b2' ? ['numerico/x.csv.gz'] : [] })]))
       expect(l.ok && scriptDasPendencias(l, { versao: 't' }).ok).toBe(true)
     }
   })

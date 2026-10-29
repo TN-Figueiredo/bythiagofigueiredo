@@ -9,15 +9,21 @@ import { z } from 'zod'
 import { MES_RE, SHA_RE, UUID_RE, type Filho } from './contrato'
 
 export const LINHA_DO_DONO = "cd ~/Workspace/bythiagofigueiredo && npm run -s obs:arquivo | ssh forja 'bash -s'"
-export const VERSAO_PENDENCIAS = 1
+export const VERSAO_PENDENCIAS = 2
 
 export const TEMPOS_PENDENCIA = ['sem_comando', 'copiar', 'conferir_b2', 'apagar_antigas', 'bloqueado'] as const
 export type TempoPendencia = (typeof TEMPOS_PENDENCIA)[number]
-const KINDS = ['canal', 'video', 'comentario'] as const
+export const FALTAS = ['unidade_no_nas', 'resumo', 'manifesto', 'b2_nova', 'versao_em_curso', 'segunda_conferencia', 'snapshots', 'conferencia_nas_recente', 'b2_sync', 'blobs', 'imagens', 'lote_e10', 'so_prefixo', 'm9_desligado'] as const
+export type Falta = (typeof FALTAS)[number]
+export const MOTIVOS = ['antiga_ausente', 'antiga_divergente', 'depende_m10b', 'grande_demais', 'contagem_divergente'] as const
+export type Motivo = (typeof MOTIVOS)[number]
+const KINDS = ['canal', 'video', 'comentario', 'versao'] as const
+// O nome do B2 vai a uma linha de shell na forja: alfabeto seguro e sem "..".
+const NOME_B2 = /^[A-Za-z0-9._/-]{1,600}$/
 
 // Sem "..", sem "." isolado, sem "/" no começo nem no fim, sem "//" (outro nome do mesmo arquivo), sem aspas, espaço, "$" ou crase.
 const CAMINHO_SEGURO = /^(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\/\/)(?!.*\/$)[A-Za-z0-9_][A-Za-z0-9._/-]{0,299}$/
-const ITEM_ID_RE = /^(?:canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|item:[1-9][0-9]{0,18})$/
+const ITEM_ID_RE = /^(?:canal:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|item:[1-9][0-9]{0,18}|antiga:[1-9][0-9]{0,18})$/
 const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 const data = z.string().datetime({ offset: true })
 const caminho = z.string().regex(CAMINHO_SEGURO)
@@ -28,9 +34,8 @@ const Apagar = z.object({
   filho, caminho, sha256: z.string().regex(SHA_RE),
   nova: z.object({ caminho, sha256: z.string().regex(SHA_RE) }).strict().nullable(),
 }).strict().superRefine((a, ctx) => {
-  // versao 1: sem versao nova no NAS nao ha o que conferir antes de apagar (Phil M1); a M9 abre o nulo junto com a versao 2.
-  if (a.nova === null) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'apagar sem versão nova' })
-  else if (a.nova.caminho === a.caminho) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'a antiga é a própria nova' })
+  // versao 2 (M9): `nova` nulo é aceito (arquivo sem versão nova a exigir, ex.: canal removido); o script pula a exigência.
+  if (a.nova !== null && a.nova.caminho === a.caminho) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'a antiga é a própria nova' })
 })
 
 const Item = z.object({
@@ -43,15 +48,23 @@ const Item = z.object({
   youtube_id: z.string().regex(YOUTUBE_ID_RE).nullable(),
   marcado_rodado_em: data.nullable(),
   apagar: z.array(Apagar),
-  b2_nomes: z.array(caminho),
+  b2_nomes: z.array(z.string().regex(NOME_B2).refine(n => !n.includes('..'), 'nome de B2 com ..')),
+  falta: z.enum(FALTAS).nullable(),
+  motivo: z.enum(MOTIVOS).nullable(),
+  prefixos: z.array(caminho),
+  bloqueados: z.number().int().min(0),
+  snapshot_mais_antigo: z.string().nullable(),
 }).strict().superRefine((i, ctx) => {
   const falha = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }) }
-  const apagarAntigas = i.tempo === 'apagar_antigas'
-  if ((i.apagar.length > 0) !== apagarAntigas) falha('apagar só existe em apagar_antigas, e lá não é vazio')
-  if (!apagarAntigas && i.b2_nomes.length > 0) falha('b2_nomes só existe em apagar_antigas')
+  if ((i.apagar.length > 0) !== (i.tempo === 'apagar_antigas')) falha('apagar só existe em apagar_antigas, e lá não é vazio')
+  if ((i.b2_nomes.length > 0) !== (i.tempo === 'conferir_b2')) falha('b2_nomes só existe em conferir_b2, e lá não é vazio')
+  if (i.falta !== null && i.tempo !== 'sem_comando') falha('falta só em sem_comando')
+  if ((i.motivo !== null) !== (i.tempo === 'bloqueado')) falha('motivo só em bloqueado, e lá obrigatório')
   const deCanal = i.item_id.startsWith('canal:')
   if (deCanal !== (i.kind === 'canal')) falha('kind canal se e só se item_id começa por canal:')
   if (deCanal && i.item_id.slice('canal:'.length) !== i.channel_ref) falha('canal:<uuid> diferente de channel_ref')
+  if (i.item_id.startsWith('antiga:') !== (i.kind === 'versao')) falha('kind versao se e só se item_id começa por antiga:')
+  if (i.prefixos.length > 0 && !deCanal) falha('prefixos só em canal')
 })
 
 const Corpo = z.object({ versao: z.literal(VERSAO_PENDENCIAS), lido_em: data, total: z.number().int().nonnegative(), itens: z.array(Item) })
@@ -73,6 +86,11 @@ export interface PendenciaDoDono {
   marcadoRodadoEm: Date | null
   apagar: Array<{ filho: Filho; caminho: string; sha256: string; nova: { caminho: string; sha256: string } | null }>
   b2Nomes: string[]
+  falta: Falta | null
+  motivo: Motivo | null
+  prefixos: string[]
+  bloqueados: number
+  snapshotMaisAntigo: string | null
 }
 export type LeituraPendencias = { ok: true; lidoEm: Date; itens: PendenciaDoDono[] } | { ok: false; porque: string }
 
@@ -88,6 +106,7 @@ export function lerPendencias(bruto: unknown): LeituraPendencias {
     itens: r.data.itens.map(i => ({
       itemId: i.item_id, kind: i.kind, tempo: i.tempo, desde: new Date(i.desde), mes: i.mes, channelRef: i.channel_ref, youtubeId: i.youtube_id,
       marcadoRodadoEm: i.marcado_rodado_em ? new Date(i.marcado_rodado_em) : null, apagar: i.apagar, b2Nomes: i.b2_nomes,
+      falta: i.falta, motivo: i.motivo, prefixos: i.prefixos, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshot_mais_antigo,
     })),
   }
 }
@@ -95,7 +114,7 @@ export function lerPendencias(bruto: unknown): LeituraPendencias {
 export type PendenciasDaTela =
   | { estado: 'nao_medido' }
   | { estado: 'zero'; lidoEm: Date; linha: string | null }
-  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null; /** desde quando o item espera (a data de saída do site) */ desde: Date; /** o código curto, para o item sem nome: o do YouTube ou os 8 primeiros do registro */ codigo: string | null }>; linha: string | null }
+  | { estado: 'com_itens'; lidoEm: Date; n: number; maisAntigoDias: number; itens: Array<{ item_id: string; kind: string; tempo: TempoPendencia; falta: Falta | null; motivo: Motivo | null; bloqueados: number; snapshotMaisAntigo: string | null; idadeDias: number; /** o nome (canal ou vídeo) ou, sem nome, o mês; nulo = nada para dizer. Nunca inventado. */ titulo: string | null; /** desde quando o item espera (a data de saída do site) */ desde: Date; /** o código curto, para o item sem nome: o do YouTube ou os 8 primeiros do registro */ codigo: string | null }>; linha: string | null }
 
 const DIA_MS = 86_400_000
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
@@ -109,6 +128,6 @@ export function pendenciasParaTela(l: LeituraPendencias, o: { podeVerComandos: b
   if (l.itens.length === 0) return { estado: 'zero', lidoEm: l.lidoEm, linha }
   const idade = (d: Date): number => Math.max(0, Math.floor((o.agora.getTime() - d.getTime()) / DIA_MS))
   const titulo = (i: PendenciaDoDono): string | null => (i.channelRef ? o.nomes?.canais?.get(i.channelRef) : i.youtubeId ? o.nomes?.videos?.get(i.youtubeId) : undefined) ?? (i.mes ? nomeDoMes(i.mes) : i.kind === 'canal' && i.channelRef ? i.channelRef.slice(0, 8) : null)
-  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, idadeDias: idade(i.desde), titulo: titulo(i), desde: i.desde, codigo: i.youtubeId ?? (i.channelRef ? i.channelRef.slice(0, 8) : null) }))
+  const itens = l.itens.map(i => ({ item_id: i.itemId, kind: i.kind, tempo: i.tempo, falta: i.falta, motivo: i.motivo, bloqueados: i.bloqueados, snapshotMaisAntigo: i.snapshotMaisAntigo, idadeDias: idade(i.desde), titulo: titulo(i), desde: i.desde, codigo: i.youtubeId ?? (i.channelRef ? i.channelRef.slice(0, 8) : null) }))
   return { estado: 'com_itens', lidoEm: l.lidoEm, n: itens.length, maisAntigoDias: Math.max(...itens.map(i => i.idadeDias)), itens, linha }
 }
