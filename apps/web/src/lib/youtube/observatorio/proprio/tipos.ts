@@ -71,3 +71,6 @@ export interface DiarioCanal {
 
 /** 'negado' = quem pede não edita o site (nada foi consultado); 'erro' = a leitura falhou (só onde D5 permite). */
 export type Privado<T> = { acesso: 'ok'; dado: T } | { acesso: 'negado' } | { acesso: 'erro' }
+
+/** O relatório do alcance básico (R2): impressões por vídeo e dia. Mora aqui (sem consulta) para `ler.ts` não importar `consultas.ts`. */
+export const TIPO_ALCANCE = 'channel_reach_basic_a1'

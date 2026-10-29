@@ -19,8 +19,8 @@ const R = { registroTotal: 10, registroApagadas: 3, taxaTotal: 8, taxaApagadas: 
 beforeEach(() => { podar.mockReset() })
 
 // A tarefa `playlists_semanais` só liga com `OBS_X3_PLAYLISTS=on`; os testes deste arquivo não são sobre ela (os dela: playlists-semanais.test.ts).
-beforeEach(() => { process.env.OBS_X3_PLAYLISTS = 'on'; process.env.OBS_WATCH_READ = 'on'; process.env.AB_NATIVO_REGISTRO = 'on'; process.env.OBS_SINAIS_NICHO = 'on' })
-afterEach(() => { delete process.env.OBS_X3_PLAYLISTS; delete process.env.OBS_WATCH_READ; delete process.env.AB_NATIVO_REGISTRO; delete process.env.OBS_SINAIS_NICHO })
+beforeEach(() => { process.env.OBS_X3_PLAYLISTS = 'on'; process.env.OBS_WATCH_READ = 'on'; process.env.AB_NATIVO_REGISTRO = 'on'; process.env.OBS_SINAIS_NICHO = 'on'; process.env.OBS_MEDIDA_D2 = 'on' })
+afterEach(() => { delete process.env.OBS_X3_PLAYLISTS; delete process.env.OBS_WATCH_READ; delete process.env.AB_NATIVO_REGISTRO; delete process.env.OBS_SINAIS_NICHO; delete process.env.OBS_MEDIDA_D2 })
 
 describe('poda_acesso_ia: definição', () => {
   it('cada campo da tabela do plano', () => {

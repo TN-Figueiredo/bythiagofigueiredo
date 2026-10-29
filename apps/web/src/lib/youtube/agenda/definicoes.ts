@@ -293,6 +293,23 @@ export const DEFINICAO_SINAIS_DO_NICHO: Definicao = {
   },
 }
 
+/**
+ * `medida_d2` (F2b T4): fecha, por par (sinal `destino` x outlier) e métrica, a medida da hipótese "destino esquentou" a partir das séries já coletadas e grava em
+ * a tabela de efeitos da F2b. Tarefa PRÓPRIA (não é passo da `sinais_do_nicho`): prazo próprio, vermelho próprio, nunca re-executa a F2. Pesada, diária, a partir das 08:00 de São Paulo
+ * (depois da `sinais_do_nicho` das 07:00, a quem cede), `ligaCom: 'OBS_MEDIDA_D2'` (só `on`). O código mora em `agenda/tarefas/medida-d2.ts`. Peso 'pesada' até a sonda do p95 dizer o contrário.
+ */
+export const DEFINICAO_MEDIDA_D2: Definicao = {
+  nome: 'medida_d2', rotulo: 'medida do destino (D2)', ordem: 8.6, peso: 'pesada', periodo: 'dia', aPartirDaHoraSP: 8,
+  cedeA: ['sincronizar_canais', 'sinais_do_nicho'],
+  tetoTentativas: 6, toleranciaVigiaH: 36, naoTerminouVermelhoEm: null,
+  comecaAteMs: 120_000, fimAteMs: PESADA_FIM_MS, ligaCom: 'OBS_MEDIDA_D2',
+  motivos: {
+    schema_ausente: 'as tabelas da medida não existem no banco (migration da F2b não aplicada)',
+    medida_falhou: 'a medida falhou em algum site (banco recusou ou resposta fora da forma)',
+    sem_prazo: 'o tempo acabou antes de medir todos os sites; os pares seguem devidos',
+  },
+}
+
 /** As duas definições da E14. O código de cada uma mora em `agenda/tarefas/anular-identidade.ts` e `retratos-comentarios.ts`, que declaram a `Tarefa` inteira. */
 export const DEFINICOES_COMENTARIOS: readonly Definicao[] = [DEFINICAO_ANULAR_IDENTIDADE, DEFINICAO_RETRATOS_COMENTARIOS]
 
@@ -323,7 +340,7 @@ export const DEFINICOES_MANUTENCAO: readonly Definicao[] = [DEFINICAO_PARTICOES_
  * A lista ÚNICA, em ordem de execução: as três da agenda, as duas da E14, a medida do banco (E10) e as marcas de idade (E4). É o que o vigia cobra (`saude.ts`) e o que o `CATALOGO` tem de
  * reproduzir (um teste compara os dois). Acrescentar uma tarefa ao catálogo é acrescentar a definição aqui.
  */
-export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, ...DEFINICOES_MANUTENCAO, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_AVISOS_PENDENTES, DEFINICAO_PODA_LEITURAS_WATCH, DEFINICAO_SINAIS_DO_NICHO].sort((a, b) => a.ordem - b.ordem)
+export const TODAS_AS_DEFINICOES: readonly Definicao[] = [...DEFINICOES, ...DEFINICOES_COMENTARIOS, ...DEFINICOES_MANUTENCAO, DEFINICAO_TAMANHO_DO_BANCO, DEFINICAO_PODA_ACESSO_IA, DEFINICAO_MARCAS_DE_IDADE, DEFINICAO_PLAYLISTS_SEMANAIS, DEFINICAO_LEITURA_WATCH, DEFINICAO_REGISTRO_TESTE_NATIVO, DEFINICAO_AVISOS_PENDENTES, DEFINICAO_PODA_LEITURAS_WATCH, DEFINICAO_SINAIS_DO_NICHO, DEFINICAO_MEDIDA_D2].sort((a, b) => a.ordem - b.ordem)
 
 /** O interruptor geral. Desligada SÓ com `OBS_AGENDA === 'off'` (exato: 'OFF', '0', '' e espaço deixam ligada). Variável apagada = ligada. */
 export function agendaLigada(env: NodeJS.ProcessEnv = process.env): boolean {

@@ -443,7 +443,7 @@ describe('executarAgenda: o catálogo desta ordem, de verdade (tarefas reais com
 // trocado por um espião, e `devidaPeloDado` sai, para o estado do banco falso decidir sozinho quem é devido). 18:10 em SP: as três
 // são devidas pela hora (série a partir das 12, retratos a partir das 13).
 describe('executarAgenda: quem leva a vaga da pesada, com o catálogo real', () => {
-  const PESADAS = ['sincronizar_canais', 'retratos_comentarios', 'serie_semanal', 'sinais_do_nicho']
+  const PESADAS = ['sincronizar_canais', 'retratos_comentarios', 'serie_semanal', 'sinais_do_nicho', 'medida_d2']
   const espioes = (): Record<string, ReturnType<typeof vi.fn>> => Object.fromEntries(CATALOGO.map(t => [t.nome, vi.fn(okPadrao)]))
   const catalogoReal = (e: Record<string, ReturnType<typeof vi.fn>>): Tarefa[] =>
     CATALOGO.map(t => ({ ...t, devidaPeloDado: undefined, rodar: e[t.nome]! }))

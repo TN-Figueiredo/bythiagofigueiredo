@@ -168,11 +168,11 @@ describe('RULES.hourly', () => {
 
 describe('a lista única de definições (o catálogo e o vigia leem a mesma)', () => {
   it('são doze, em ordem, e as do catálogo e as do vigia vêm do mesmo lugar (catalogo re-exporta o módulo leve)', () => {
-    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'particoes_a_frente', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal', 'sinais_do_nicho'])
-    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 2.5, 4, 5.2, 5.3, 5.5, 5.7, 5.9, 5.95, 5.96, 6, 7, 8, 8.5])
+    expect(TODAS_AS_DEFINICOES.map(d => d.nome)).toEqual(['leitura_horaria', 'anular_identidade', 'particoes_a_frente', 'tamanho_do_banco', 'poda_acesso_ia', 'poda_leituras_watch', 'marcas_de_idade', 'playlists_semanais', 'leitura_watch', 'registro_teste_nativo', 'avisos_pendentes', 'sincronizar_canais', 'retratos_comentarios', 'serie_semanal', 'sinais_do_nicho', 'medida_d2'])
+    expect(TODAS_AS_DEFINICOES.map(d => d.ordem)).toEqual([1, 2, 2.5, 4, 5.2, 5.3, 5.5, 5.7, 5.9, 5.95, 5.96, 6, 7, 8, 8.5, 8.6])
     expect(DEFINICOES_COMENTARIOS.map(d => d.nome)).toEqual(['anular_identidade', 'retratos_comentarios'])
     expect(DEFINICOES.length).toBe(3)
-    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + DEFINICOES_MANUTENCAO.length + 9) // + sinais_do_nicho (F2 T7) + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4) + poda_leituras_watch (A5 S4) + registro_teste_nativo (S7 fase 1) + avisos_pendentes (F1a-dado T12)
+    expect(TODAS_AS_DEFINICOES.length).toBe(DEFINICOES.length + DEFINICOES_COMENTARIOS.length + DEFINICOES_MANUTENCAO.length + 10) // + medida_d2 (F2b T4) + sinais_do_nicho (F2 T7) + tamanho_do_banco (A5 E10) + poda_acesso_ia (A5 E17 d2) + marcas_de_idade (A5 E4) + playlists_semanais (A5 X3) + leitura_watch (A5 S4) + poda_leituras_watch (A5 S4) + registro_teste_nativo (S7 fase 1) + avisos_pendentes (F1a-dado T12)
   })
   it('as duas da E14, valor por valor', () => {
     const por = (n: string) => TODAS_AS_DEFINICOES.find(d => d.nome === n)!

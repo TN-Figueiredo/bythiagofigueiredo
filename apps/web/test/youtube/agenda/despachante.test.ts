@@ -895,7 +895,7 @@ describe('despachante: as tarefas dos comentários de destaque no catálogo real
     const t1 = sp(13, 20)
     const b = montar({
       catalogo: catalogoReal(), t0: t1,
-      estado: estadoDe([linha(sinc(), t1, { status: 'ok', runs: 1 }), linha(coleta, t1, { status: 'erro', runs: 2, attempts: 2, last_run_status: 'erro', last_run_done_n: 0 }), linha(semanal, t1, { status: 'ok', runs: 1 }), linha(CATALOGO.find(t => t.nome === 'sinais_do_nicho')!, t1, { status: 'ok', runs: 1 })], t1),
+      estado: estadoDe([linha(sinc(), t1, { status: 'ok', runs: 1 }), linha(coleta, t1, { status: 'erro', runs: 2, attempts: 2, last_run_status: 'erro', last_run_done_n: 0 }), linha(semanal, t1, { status: 'ok', runs: 1 }), linha(CATALOGO.find(t => t.nome === 'sinais_do_nicho')!, t1, { status: 'ok', runs: 1 }), linha(CATALOGO.find(t => t.nome === 'medida_d2')!, t1, { status: 'ok', runs: 1 })], t1),
     })
     await b.rodar()
     expect(b.chamadas.filter(c => PESADAS.has(c.nome)).map(c => c.nome)).toEqual(['retratos_comentarios'])

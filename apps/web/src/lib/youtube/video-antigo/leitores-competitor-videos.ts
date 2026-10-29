@@ -61,6 +61,7 @@ export const LEITORES_NO_CODIGO: readonly LeitorNoCodigo[] = [
   { arquivo: 'apps/web/src/lib/youtube/observatorio/arquivo/sessao.ts', ocorrencias: 1, trata: 'indiferente', motivo: 'E10: miniaturas por canal para o arquivo da A5' },
   { arquivo: 'apps/web/src/lib/youtube/observatorio/sinais/projecao.ts', ocorrencias: 1, trata: 'indiferente', motivo: 'só comentário' },
   { arquivo: 'apps/web/src/lib/youtube/observatorio/sinais/amostra.ts', ocorrencias: 4, trata: 'indiferente', motivo: 'título e miniatura por id e site; o toco continua com título' },
+  { arquivo: 'apps/web/src/lib/youtube/observatorio/sinais/medida/passo.ts', ocorrencias: 3, trata: 'indiferente', motivo: 'lê só o id do YouTube do outlier (`video_id`) para a prova direta; o toco continua com o id' },
 ]
 
 export const LEITORES_NAS_MIGRATIONS: readonly LeitorNaMigration[] = [
