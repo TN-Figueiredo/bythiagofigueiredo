@@ -12,7 +12,8 @@ describe('TRAVA M6-1', () => {
   it('enquanto M6_EM_MIGRATION é false, nenhuma migration define as funções de saída', () => {
     if (M6_EM_MIGRATION) return
     expect(existsSync(M6_SQL_CAMINHO)).toBe(true)
-    for (const f of readdirSync(MIGRATIONS).filter(n => n.endsWith('.sql'))) {
+    // a migration 1 (Tarefa 14) é o destino do rascunho; o teste m-10 prova que é igual
+    for (const f of readdirSync(MIGRATIONS).filter(n => n.endsWith('.sql') && !n.endsWith('_manutencao_m6_saida.sql'))) {
       const sql = readFileSync(resolve(MIGRATIONS, f), 'utf8')
       expect(sql, f).not.toMatch(/function public\.obs_archive_(detach|discard|reattach|drop)_month/)
       expect(sql, f).not.toMatch(/obs_archive_block_delete_while_detached/)
