@@ -92,6 +92,7 @@ export const LEITORES_NAS_MIGRATIONS: readonly LeitorNaMigration[] = [
   { arquivo: '20261025000002_manutencao_m3b_arquivo.sql', funcoes: ['obs_archive_channel_archive_impact', 'obs_archive_channel_blobs', 'obs_archive_first_month', 'obs_archive_unit_source'], trata: 'indiferente', motivo: 'arquivo durável (M3b): lê o vídeo só para achar canal, mês e miniaturas do que vai ao arquivo; o toco (archive_dropped_at) é contado como destino, não filtrado' },
   { arquivo: '20261025000003_manutencao_m3b_recusa.sql', funcoes: [], trata: 'indiferente', motivo: 'a recusa (M3b): reedita competitor_video_purge/competitor_comments_purge só para chamar obs_archive_m9_pronto; o delete do vídeo é o da E9, sem leitura nova' },
   { arquivo: '20261027000003_manutencao_m5_telas.sql', funcoes: ['competitor_hourly_health', 'obs_archive_channel_archive_impact'], trata: 'indiferente', motivo: 'telas do arquivo (M5): a saúde da horária lê o vídeo só para achar canal e mês; o impacto do arquivo reedita o da M3b e conta o toco (archive_dropped_at) como destino, sem filtrar' },
+  { arquivo: '20261028000004_manutencao_m6_saida.sql', funcoes: ['obs_archive_detach_month', 'obs_archive_discard_core', 'obs_archive_drop_month', 'obs_archive_gate', 'obs_archive_invariante_faltam', 'obs_archive_reattach_month', 'obs_archive_tally'], trata: 'indiferente', motivo: 'saída do mês (M6a): as funções tocam o vídeo só para achar canal e site do mês ou travar a ordem contra o apagamento; nenhuma lê o toco como dado' },
 ]
 
 export const FUNCOES_VIVAS: readonly FuncaoViva[] = [
