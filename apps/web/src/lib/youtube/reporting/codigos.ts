@@ -71,6 +71,17 @@ export const ORIGEM_LOTE: Record<string, IEntradaOrigem> = {
   '32': { nome: null, rotulo: 'Vídeo relacionado', detalhe: 'nenhum' },
 }
 
+function acharOrigemSugeridos(): string {
+  const chaves = Object.keys(ORIGEM_LOTE).filter((k) => ORIGEM_LOTE[k]?.nome === 'RELATED_VIDEO')
+  if (chaves.length !== 1) throw new Error('ORIGEM_LOTE precisa ter exatamente uma origem RELATED_VIDEO')
+  return chaves[0] as string
+}
+
+/** Código do lote de "Vídeos sugeridos" (par RELATED_VIDEO conferido). */
+export const ORIGEM_SUGERIDOS: string = acharOrigemSugeridos()
+/** Código 32 ("Vídeo relacionado"): sem par conferido, sentinela da F4. */
+export const ORIGEM_SUGERIDOS_SEM_PAR = '32'
+
 export const APARELHO_LOTE: Record<string, IEntradaCodigo> = {
   '100': { nome: 'UNKNOWN_PLATFORM', rotulo: 'Desconhecido' },
   '101': { nome: 'DESKTOP', rotulo: 'Computador' },
