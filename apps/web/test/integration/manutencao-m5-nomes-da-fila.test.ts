@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { semearCanal } from '../helpers/m3b'
 import { prepararM5 } from '../helpers/m5'
+import { aplicarM9 } from '../helpers/m9'
 
 const URL_INT = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 let cliente: Client
@@ -26,7 +27,7 @@ vi.mock('@/lib/supabase/service', () => ({
 }))
 
 describe.skipIf(skipIfNoLocalDb())('M5 r2: nomes dos itens da fila (canal removido, vídeo apagado)', () => {
-  beforeEach(async () => { cliente = new Client({ connectionString: URL_INT }); await cliente.connect(); await cliente.query('begin'); await prepararM5(cliente, 3) })
+  beforeEach(async () => { cliente = new Client({ connectionString: URL_INT }); await cliente.connect(); await cliente.query('begin'); await prepararM5(cliente, 3); await aplicarM9(cliente) })   // M9: a saída de owner_pending é a versão 2, a única que o leitor aceita
   afterEach(async () => { await cliente.query('rollback'); await cliente.end() })
 
   it('o item de canal removido mostra o nome do registro; o de vídeo apagado mostra o canal dono; nenhum fica sem rótulo', async () => {
@@ -43,6 +44,9 @@ describe.skipIf(skipIfNoLocalDb())('M5 r2: nomes dos itens da fila (canal removi
       values ($1, 'serie', 'competitor_video_daily', $2, '2026-10-01', 1, 5, md5('a') || md5('a'), md5('s') || md5('s'), md5('b') || md5('b'), md5('c') || md5('c'), 100, now())`, [site, b.canal])
     await c.query(`select public.competitor_channel_remove($1, $2, 'guardar', 'e10_export', $3)`, [site, b.canal, adm])
     await c.query(`update public.obs_archive_channel_removals set archive_decision = 'apagar' where site_id = $1 and channel_ref = $2`, [site, b.canal])   // estado `pedido`
+    // M9 (versao 2): o item da fila só aparece com alvo na lista do item (obs_archive_item_targets), como na captura real: o alvo nasce ANTES do item e o gatilho obs_archive_link_item liga item_id ao inserir o item
+    await c.query(`insert into public.obs_archive_item_targets (site_id, item_kind, item_refs, class, table_name, channel_ref, month, keys, from_unit_id, from_version)
+      values ($1, 'video', array['ytapagado01'], 'serie', 'competitor_video_daily', $2, '2026-10-01', array[gen_random_uuid()::text], gen_random_uuid(), 1)`, [site, a.canal])
     // o vídeo: a linha foi apagada pela decisão; só o item da fila sobrou
     await c.query(`insert into public.competitor_removed_items (site_id, kind, youtube_id, competitor_channel_id, decided_by, rows_deleted, archive_pending)
       values ($1, 'video', 'ytapagado01', $2, $3, '{}'::jsonb, true)`, [site, a.canal, adm])

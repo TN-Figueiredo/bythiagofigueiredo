@@ -70,6 +70,7 @@ begin
 end $f$;
 drop trigger if exists obs_archive_item_targets_esvazia_keys on public.obs_archive_item_targets;
 create trigger obs_archive_item_targets_esvazia_keys before insert or update on public.obs_archive_item_targets for each row execute function public.obs_archive_item_targets_esvazia_keys();
+revoke all on function public.obs_archive_item_targets_esvazia_keys() from public, anon, authenticated, service_role;
 create index if not exists idx_oait_item on public.obs_archive_item_targets (site_id, item_id);
 create index if not exists idx_oait_open on public.obs_archive_item_targets (site_id, channel_ref) where done_at is null;
 create index if not exists idx_oait_refs on public.obs_archive_item_targets using gin (item_refs) where done_at is null;
