@@ -94,6 +94,7 @@ export const LEITORES_NAS_MIGRATIONS: readonly LeitorNaMigration[] = [
   { arquivo: '20261025000003_manutencao_m3b_recusa.sql', funcoes: [], trata: 'indiferente', motivo: 'a recusa (M3b): reedita competitor_video_purge/competitor_comments_purge só para chamar obs_archive_m9_pronto; o delete do vídeo é o da E9, sem leitura nova' },
   { arquivo: '20261027000003_manutencao_m5_telas.sql', funcoes: ['competitor_hourly_health', 'obs_archive_channel_archive_impact'], trata: 'indiferente', motivo: 'telas do arquivo (M5): a saúde da horária lê o vídeo só para achar canal e mês; o impacto do arquivo reedita o da M3b e conta o toco (archive_dropped_at) como destino, sem filtrar' },
   { arquivo: '20261028000004_manutencao_m6_saida.sql', funcoes: ['obs_archive_detach_month', 'obs_archive_discard_core', 'obs_archive_drop_month', 'obs_archive_gate', 'obs_archive_invariante_faltam', 'obs_archive_reattach_month', 'obs_archive_tally'], trata: 'indiferente', motivo: 'saída do mês (M6a): as funções tocam o vídeo só para achar canal e site do mês ou travar a ordem contra o apagamento; nenhuma lê o toco como dado' },
+  { arquivo: '20261029000002_manutencao_m9_expurgo.sql', funcoes: ['obs_archive_item_capture'], trata: 'inclui_e_rotula', motivo: 'expurgo enxuto (M9): a captura lê archive_frozen_at só para achar o toco do mês e bloquear o alvo até a M10b (D-M9-14); as injeções em competitor_*_purge apagam pela E9, sem leitura nova' },
 ]
 
 export const FUNCOES_VIVAS: readonly FuncaoViva[] = [
@@ -136,6 +137,7 @@ export const FUNCOES_VIVAS: readonly FuncaoViva[] = [
   { nome: 'obs_archive_invariante_faltam', trata: 'indiferente', motivo: 'M6a (20261028000004): lista os gatilhos do invariante do mês destacado em competitor_videos (catálogo, nenhuma linha lida)' },
   { nome: 'obs_archive_reattach_month', trata: 'indiferente', motivo: 'M6a (20261028000004): trazer o mês de volta; trava competitor_videos só para ordenar contra o apagamento, não lê o vídeo' },
   { nome: 'obs_archive_tally', trata: 'indiferente', motivo: 'M6a (20261028000004): contagem e soma por canal do mês; junta com o vídeo só para achar o canal' },
+  { nome: 'obs_archive_item_capture', trata: 'inclui_e_rotula', motivo: 'M9 (20261029000002): vídeo congelado no mês vira alvo bloqueado até a M10b (D-M9-14), nunca copiado como se fosse vivo' },
   { nome: 'obs_archive_first_month', trata: 'indiferente', motivo: 'M3b: primeiro mês com dado do canal, para as unidades devidas' },
   { nome: 'obs_archive_unit_source', trata: 'indiferente', motivo: 'M3b: monta a origem (junção com o vídeo) de cada unidade do arquivo' },
   { nome: 'obs_archive_register', trata: 'indiferente', motivo: 'registro do arquivo' },
