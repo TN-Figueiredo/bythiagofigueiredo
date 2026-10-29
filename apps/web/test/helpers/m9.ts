@@ -44,9 +44,34 @@ export async function semearE9(c: Client): Promise<void> {
   if ((await conta()) !== 3) throw new Error('semearE9: as três funções da E9 não nasceram')
 }
 
+/** As tabelas yt_watch_* (A5 S4) nascem na 20261018000005: a limpeza D-M9-25 precisa delas. Aplica só se faltarem (dentro de transação desfeita). */
+export async function semearWatch(c: Client): Promise<void> {
+  const falta = (await c.query(`select to_regclass('public.yt_watch_alvos') is null as f`)).rows[0].f as boolean
+  if (!falta) return
+  const nome = readdirSync(DIR_MIGRATIONS).find(n => n.startsWith('20261018000005_'))
+  if (!nome) throw new Error('migration 20261018000005_* ausente')
+  await c.query(readFileSync(resolve(DIR_MIGRATIONS, nome), 'utf8'))
+}
+
+/** O md5 do `prosrc` INSTALADO de cada função da E9 (N-M9-1: nunca constante copiada). */
+export async function md5Instalados(c: Client): Promise<{ video: string; comentarios: string; canal: string }> {
+  const r = await c.query(`select p.proname, md5(p.prosrc) as m from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = any($1)`, [FUNCOES_E9])
+  const m = new Map<string, string>(r.rows.map(x => [x.proname as string, x.m as string]))
+  return { video: m.get('competitor_video_purge') ?? '', comentarios: m.get('competitor_comments_purge') ?? '', canal: m.get('competitor_channel_purge') ?? '' }
+}
+
+/** O texto da M9 com os marcadores de md5 trocados pelo corpo instalado. Falha se sobrar `<<`. */
+export async function sqlM9Resolvido(c: Client, ate?: ParteM9): Promise<string> {
+  const m = await md5Instalados(c)
+  const t = sqlM9Ate(ate).replaceAll('<<MD5_VIDEO>>', m.video).replaceAll('<<MD5_COMENTARIOS>>', m.comentarios).replaceAll('<<MD5_CANAL>>', m.canal)
+  if (t.includes('<<MD5')) throw new Error('marcador de md5 sem troca')
+  return t
+}
+
 /** M3b já em migration (e em produção): aplica só se o banco ainda não a tem (mesmo padrão dos testes da M3b). */
 export async function aplicarM9(c: Client, ate?: ParteM9): Promise<void> {
   if (!(await m3bNoBanco(c))) await aplicarM3b(c)
   await semearE9(c)
-  await c.query(sqlM9Ate(ate))
+  await semearWatch(c)
+  await c.query(await sqlM9Resolvido(c, ate))
 }
