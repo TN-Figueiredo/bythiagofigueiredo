@@ -7,7 +7,7 @@
  * Frases sem equivalente no mockup (revisão Logan, T15): os textos por tempo e o título do item sem nome.
  */
 import { useState, type ReactElement } from 'react'
-import { fraseSnapBloqueado, type PendenciasDaTela, type TempoPendencia } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
+import { fraseSnapEspera, type PendenciasDaTela, type TempoPendencia } from '@/lib/youtube/observatorio/arquivo-mensal/pendencias'
 import type { Forma } from '@/lib/youtube/observatorio/arquivo-mensal/estado-do-mes'
 import { FormaIcone, FraseComForma } from '../_arquivo/regua'
 import '../_arquivo/arquivo.css'
@@ -34,21 +34,18 @@ const SITUACAO: Record<TempoPendencia, string> = {
 /**
  * M9-snap (D-M9-9b), sub-tarefa 9b-T: por que um `sem_comando` com `falta: 'snapshots'` espera. (a) sem bloqueio: espera sozinha, com a data por
  * volta de DD/MM ("hoje" quando a data já passou, nunca uma data no passado); (b) com bloqueio: âmbar, a espera não termina sozinha.
- * Sem `snapEsperaDias` (banco sem a migration, ou item sem linha esperando) não há frase.
+ * Sem os dados (banco sem a migration) diz só "Aguardando os snapshots do NAS."; o bloqueio nunca fica escondido.
  */
 export function fraseDeSnapshots(i: Itens[number]): { ambar: boolean; texto: string } | null {
-  if (i.falta !== 'snapshots' || i.snapEsperaDias === null || i.snapEsperaDias === undefined) return null
-  if (i.snapBloqueio) return { ambar: true, texto: fraseSnapBloqueado(i.snapBloqueio) }
-  const desde = i.snapEsperaDias <= 0 ? 'desde hoje' : `há ${dias(i.snapEsperaDias)}`
-  const libera = i.snapLiberaEm && !i.snapLiberaHoje ? `por volta de ${dmy(i.snapLiberaEm)}` : 'hoje'
-  return { ambar: false, texto: `Aguardando os snapshots do NAS ${desde}; libera ${libera}, sem ação sua.` }
+  if (i.falta !== 'snapshots') return null
+  return fraseSnapEspera({ bloqueio: i.snapBloqueio, esperaDesde: i.snapEsperaDesde ?? null, liberaEm: i.snapLiberaEm, passou: i.snapLiberaHoje, atrasada: i.snapLiberaAtrasada ?? false }, dmy)
 }
 
 function Idade({ d }: { d: number }): ReactElement {
   const pct = Math.min(100, Math.round((100 * d) / DIAS_VERMELHO))
   return (
     <>
-      <p className="p7-id"><FormaIcone forma={forma(d)} /><span><b>{d <= 0 ? 'hoje' : `há ${dias(d)}`}</b> {d <= 0 ? 'entrou na espera' : 'esperando os comandos'}</span></p>
+      <p className="p7-id"><FormaIcone forma={forma(d)} /><span><b>{d <= 0 ? 'hoje' : `há ${dias(d)}`}</b> {d <= 0 ? 'entrou na espera' : 'desde a remoção do site'}</span></p>
       <div className={`p7-age ${faixa(d)}`} role="img" aria-label={`${dias(d)} de ${DIAS_VERMELHO}; âmbar a partir de ${DIAS_AMBAR} e vermelho a partir de ${DIAS_VERMELHO}`}>
         <i style={{ width: `${pct}%` }} /><b className="t30" /><b className="t60" />
         <u className="z">0</u><u className="u30">30</u><u className="u60">{d > DIAS_VERMELHO ? '60+ dias' : '60 dias'}</u>
@@ -66,7 +63,7 @@ function Item({ i }: { i: Itens[number] }): ReactElement {
         <p className="p7-k">{QUEM[i.kind] ?? 'Item'}{` · ${i.titulo ?? (i.codigo ? `código ${i.codigo}` : 'sem nome')}`}</p>
         <p className="p7-t">{i.kind === 'canal' ? 'Removido do site em' : 'Apagado do site em'} {dmy(i.desde)}</p>
         {SITUACAO[i.tempo] ? <p className="p7-st"><FormaIcone forma="arquivo" /><span>{SITUACAO[i.tempo]}</span></p> : null}
-        {fraseSnap ? <p className="p7-st" data-snap={fraseSnap.ambar ? 'bloqueado' : 'espera'}><FormaIcone forma={fraseSnap.ambar ? 'triangulo' : 'arquivo'} /><span>{fraseSnap.texto}</span></p> : null}
+        {fraseSnap ? <p className="p7-st" data-snap={fraseSnap.ambar ? 'bloqueado' : 'espera'}><FormaIcone forma={fraseSnap.ambar ? 'triangulo' : 'pontilhado'} /><span>{fraseSnap.texto}</span></p> : null}
         {i.idadeDias >= DIAS_VERMELHO ? <p className="p7-lemb">Passou de 60 dias: é só um lembrete. Quando puder, rode a linha.</p> : null}
       </div>
       <div className="p7-side"><Idade d={i.idadeDias} /></div>

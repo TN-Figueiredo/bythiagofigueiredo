@@ -2,7 +2,7 @@
  * Peça 7 (M3b-forja, Tarefa 7a, D-F24/D-F25): o script `bash` que o Mac imprime e o `ssh forja 'bash -s'` roda na forja.
  * Puro. Todo valor do banco entra entre aspas simples; toda saída termina numa linha `OBS-ARQUIVO: ...`.
  */
-import { fraseSnapBloqueado, type Falta, type Motivo, type LeituraPendencias } from '../arquivo-mensal/pendencias'
+import { fraseSnapEspera, type Falta, type Motivo, type LeituraPendencias } from '../arquivo-mensal/pendencias'
 import type { Filho } from '../arquivo-mensal/contrato'
 
 /** O que o Mac já registrou nesta execução (M9, Tarefa 8): o arquivo da versão nova, em base64, para o script gravar em `_recebendo`. */
@@ -118,8 +118,10 @@ export function scriptDasPendencias(
     switch (i.tempo) {
       case 'sem_comando': {
         let frase = i.falta ? FRASE_DA_FALTA[i.falta] : 'o comando ainda não está liberado'
-        if (i.falta === 'snapshots' && i.snapBloqueio) frase = fraseSnapBloqueado(i.snapBloqueio)          // ramo (b): não libera sozinho
-        else if (i.falta === 'snapshots' && i.snapLiberaEm) frase += i.snapLiberaEm.getTime() <= l.lidoEm.getTime() ? '; libera hoje' : `; libera por volta de ${dataBr(i.snapLiberaEm).slice(0, 5)}`   // ramo (a), sem data no passado
+        if (i.falta === 'snapshots') {
+          const ms = i.snapLiberaEm?.getTime() ?? 0, agora = l.lidoEm.getTime()
+          frase = fraseSnapEspera({ bloqueio: i.snapBloqueio, esperaDesde: i.snapEsperaDesde, liberaEm: i.snapLiberaEm, passou: !!i.snapLiberaEm && ms <= agora, atrasada: !!i.snapLiberaEm && ms < agora - 86_400_000 }, d => dataBr(d).slice(0, 5)).texto
+        }
         itens.push(esp(`ESPERA ${i.itemId}: ${frase}`)); break
       }
       case 'bloqueado': itens.push(esp(`BLOQUEADO ${i.itemId}: ${i.motivo ? FRASE_DO_MOTIVO[i.motivo] : 'apagar está indisponível agora (veja o aviso na página)'}`)); break
