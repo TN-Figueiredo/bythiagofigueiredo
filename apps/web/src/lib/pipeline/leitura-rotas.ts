@@ -3,6 +3,7 @@
 const PADROES = [
   '/api/pipeline',
   '/api/pipeline/archive/attest',
+  '/api/pipeline/archive/expurgo',
   '/api/pipeline/archive/heartbeat',
   '/api/pipeline/archive/month/manifest',
   '/api/pipeline/archive/month/summary',

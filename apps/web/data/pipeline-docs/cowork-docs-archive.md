@@ -102,15 +102,41 @@ Headers: `X-RateLimit-*` and `Cache-Control: no-store`. The Mac reads anything b
 
 ## GET /archive/pending (archive_owner only)
 
-The owner's pending archive steps, read by the Mac command (`obs:arquivo`). No body, no query. Answer: `{ versao: 1, lido_em, total, itens: [...] }`.
+The owner's pending archive steps, read by the Mac command (`obs:arquivo`). No body, no query. Answer: `{ versao: 2, lido_em, total, itens: [...] }`.
 **Zero measured is `200` with `total: 0` and `itens: []`; never `data` empty, null or without `lido_em`.** A body outside the shape is `500 erro_do_banco` and goes to Sentry, never `200`.
-In M3b `apagar` and `b2_nomes` are always empty. The site is the key's own (`pipeline_api_keys.site_id`). Headers: `X-RateLimit-*` and `Cache-Control: no-store`.
+Before the M9 is on `apagar` and `b2_nomes` are always empty. The site is the key's own (`pipeline_api_keys.site_id`). Headers: `X-RateLimit-*` and `Cache-Control: no-store`.
+
+## POST /archive/expurgo (archive_owner only)
+
+The lean purge (M9, contract C14), driven by the owner's Mac. One body, a `passo` field picks the step; strict bodies (an unknown field is `400`). The site is the key's own.
+`item_id` is `item:<n>` (any other form is `400`).
+
+- `abrir` `{ passo, item_id }` -> `200 { grupos: [...], esperando }`: per group (`classe`, `canal`, `mes`, `filho`) the targets in `copiar` with `alvo_id`, `tabela`, `versao`, `linhas`,
+  `soma` (**text**, never a number), `hash_conteudo`, `esperadas`, `arquivos` (path, sha256, part), plus `outras`, `vazias`, `resumo`, `mes_online`, `dias_do_mes`.
+- `registrar` `{ passo, item_id, classe, canal, mes, alvos: [{ alvo_id, removidas, unidade|null }], resumo: { versao, vazio, canal_sha256, ..., tabelas_lidas } }` -> `200 { status: 'ok', alvos, resumo }`.
+  `removidas > 0` needs a `unidade`; sha fields are 64 hex; `resumo.tabelas_lidas` is required (without it `400`).
+- `bloquear` `{ passo, item_id, alvo_id, motivo }` with `motivo` in `antiga_ausente`, `antiga_divergente`, `grande_demais`, `contagem_divergente` -> `200 { status: 'ok' }`.
+- `canal` `{ passo, channel_ref }` -> `200 { motivo, prefixos: [] }` with `motivo` in `ok`, `canal_desconhecido`, `canal_nao_removido`, `canal_guardado`, `sem_destino`. Read-only; an unknown channel is an answer, not an error.
+
+Codes: any `{ status: 'recusado', motivo }` from the database function is `409 { error: { code: <motivo>, details?: { alvo_id } } }` (for example `resumo_versao_mudou`, `base_mudou`,
+`contagem_divergente` (already blocked the target), `grupo_incompleto`, `resumo_com_unidade_nao_lida`, `alvo_de_outro_item`, `alvo_fora_de_copiar`, `mes_destacado_em_transito`, `expurgo_em_curso`,
+`sem_destino`, `canal_removido`); `item_desconhecido` is `404`; a malformed body is `400`; `401`/`403` from the key; anything else is `500 erro_do_banco` with the cause only in Sentry.
+A refusal is never sent to Sentry. `unblock` and `obs_archive_m9_ligar` have no route (owner panel only).
+
+## Prefixes in attest, plan and pending (M9)
+
+- `POST /archive/attest` accepts `prefixos` (up to 2000): `{ alvo, filho, prefixo, estado: 'ausente'|'presente' }`. With `fonte: 'nas'` also `snapshots` (`ausente`|`presente`|`indisponivel`) and
+  `snapshot_mais_antigo`; with `fonte: 'b2'` also `nomes` (up to 20, safe alphabet) and the body needs `execucao_id`. The other combination is `400`. When present and not empty the answer gains `prefixos`
+  (`resposta` `aceito`|`recusado` and `motivo`); without them the answer is the one from M3b.
+- `GET /archive/plan` (and `?fonte=b2`) `prefixos_ausentes` is a list of `{ alvo, filho, prefixo, e_prefixo }` (NAS adds `provar_snapshots`); empty while the M9 is off.
+- `GET /archive/pending` answers `versao: 2`.
+- `POST /archive/unit/export` and `POST /archive/month/summary` answer `409 expurgo_em_curso` for a month a purge item is rewriting.
 
 ## Status codes added by this domain
 
 `arquivo_desligado` 503, `erro_do_banco` 500, `tempo_esgotado` 504, `canal_removido` 409, `sem_destino` 409, `unidade_retirada` 409, `mes_aberto` 409, `nao_devida` 409,
 `mes_fora_do_banco` 409, `mudou_durante_a_leitura` 409, `parte_mudou` 409, `unidades_pendentes` 409, `conteudo_mudou` 409, `resumos_pendentes` 409, `ja_no_arquivo` 409,
-`resumo_da_m10b` 409, `tabela_ausente` 409, `grande_demais` 413, `classe_tabela_invalida` 422, `faixa_invalida` 422.
+`resumo_da_m10b` 409, `expurgo_em_curso` 409, `tabela_ausente` 409, `grande_demais` 413, `classe_tabela_invalida` 422, `faixa_invalida` 422.
 A destination of the archive that was not declared (`destino_do_arquivo_nao_declarado`) and a repeated request (`ja_pedido`) come from the removal functions (`02` §10.6), not from these routes.
 
 ## What the worker never does

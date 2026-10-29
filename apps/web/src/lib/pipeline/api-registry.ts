@@ -264,7 +264,7 @@ const ARCHIVE: CapabilityDomain = {
   description: "Machine-to-machine routes used only by the home workers (copier, B2 checker) to copy sealed months of the Observatory to the NAS and attest the copies, and by the owner's Mac command to read pending archive steps. Not for Cowork.",
   suggest_when: "Never for Cowork tasks: these routes accept only archive_* keys held by the home workers and the owner's Mac",
   docs: '/api/pipeline/docs/archive',
-  endpoint_count: 9,
+  endpoint_count: 10,
   endpoints: [
     { method: 'GET', path: '/api/pipeline/archive/plan', summary: 'What is due, to re-check and red flags (copier); ?fonte=b2: what to check in B2 (B2 checker) — archive_copy | archive_b2', auth: 'archive_copy' },
     { method: 'POST', path: '/api/pipeline/archive/unit/export', summary: 'Serialize one monthly unit (gzip CSV bytes, values in headers) — archive_copy', auth: 'archive_copy' },
@@ -275,6 +275,7 @@ const ARCHIVE: CapabilityDomain = {
     { method: 'POST', path: '/api/pipeline/archive/heartbeat', summary: 'Worker heartbeat (worker derived from the key permission) — archive_copy | archive_b2 | archive_read', auth: 'archive_copy' },
     { method: 'GET', path: '/api/pipeline/archive/pode-desligar', summary: "Whether the NAS archive is safe to switch off (move house), read by the owner's Mac; never answers 'can switch off' without a well-formed answer — archive_owner only", auth: 'archive_owner' },
     { method: 'GET', path: '/api/pipeline/archive/pending', summary: "Owner's pending archive steps, read by the owner's Mac (obs:arquivo); zero pending is total 0, never empty data — archive_owner only", auth: 'archive_owner' },
+    { method: 'POST', path: '/api/pipeline/archive/expurgo', summary: "Lean purge (M9): steps abrir, registrar, bloquear and canal (read-only) for the owner's Mac; a refusal by the database function is 409 with its reason — archive_owner only", auth: 'archive_owner' },
   ],
 }
 
