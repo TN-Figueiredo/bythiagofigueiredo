@@ -337,3 +337,13 @@ describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemo
   })
 })
 
+
+describe('M6a T13: recusa por mês em trânsito (P0001 sem prefixo E10)', () => {
+  it.each(['mes_destacado_em_transito', 'ERROR: mes_destacado_em_transito'])('apagarCanalSemGuardar com %s devolve o código e a frase do catálogo e NÃO vai ao Sentry', async message => {
+    const { sb } = falso({ competitor_channel_delete_unarchived: { data: null, error: { code: 'P0001', message } } })
+    const r = await apagarCanalSemGuardar(sb, { siteId: SITE, canalId: CANAL, actorId: ATOR, nomeDigitado: 'Canal X', motivo: 'entrou_por_engano' })
+    expect(r).toEqual({ ok: false, codigo: 'mes_destacado_em_transito', frase: 'Não dá para remover canal agora: o mês saiu das telas.' })
+    expect(captureMessage).not.toHaveBeenCalled()
+    expect(captureException).not.toHaveBeenCalled()
+  })
+})

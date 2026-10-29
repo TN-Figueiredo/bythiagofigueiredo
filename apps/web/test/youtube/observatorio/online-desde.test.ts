@@ -41,9 +41,9 @@ describe('online desde', () => {
     }
     expect(Sentry.captureMessage).toHaveBeenCalledWith('obs_archive_online_since ausente com saída de mês existindo', expect.objectContaining({ level: 'error' }))
   })
-  it('a constante vale false hoje e o carregador a passa (sem ela o teste acima nunca roda em produção)', () => {
+  it('a constante vale true (migration 1 da M6 em produção) e o carregador a passa (sem ela o teste acima nunca roda em produção)', () => {
     const cap = readFileSync(resolve(__dirname, '../../../src/lib/youtube/observatorio/arquivo-mensal/capacidades.ts'), 'utf8')
-    expect(cap).toMatch(/export const SAIDA_DE_MES_EXISTE = false/)
+    expect(cap).toMatch(/export const SAIDA_DE_MES_EXISTE = true/)
     expect(readFileSync(resolve(__dirname, '../../../src/lib/youtube/observatorio/load.ts'), 'utf8')).toMatch(/lerOnlineDesde\([^)]*SAIDA_DE_MES_EXISTE/)
   })
   it('outro erro do banco: não lido', async () => {

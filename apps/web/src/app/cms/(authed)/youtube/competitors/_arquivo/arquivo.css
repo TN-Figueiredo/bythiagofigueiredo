@@ -55,8 +55,8 @@
 .arq-mes.nm{background:repeating-linear-gradient(135deg,var(--nm-bg) 0 6px,var(--nm-fio) 6px 8px)}
 .arq-mes.teste{border-left:3px dotted var(--dim)}
 .arq-marca{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;margin-left:6px;border:1px dotted var(--dim);border-radius:4px;font-size:12px;font-weight:400}
-@media (max-width:1200px){.arq-mes{grid-template-columns:130px minmax(0,1fr)}.arq-mes .arq-reg{grid-column:1/-1}}
-@media (max-width:600px){.arq-mes{grid-template-columns:minmax(0,1fr)}.arq-mes .arq-fr{order:2}.arq-mes .arq-reg{order:3}.arq-contorno{margin:6px 6px}}
+@media (max-width:1200px){.arq-mes{grid-template-columns:130px minmax(0,1fr)}.arq-mes>.arq-reg{grid-column:1/-1}}
+@media (max-width:600px){.arq-mes{grid-template-columns:minmax(0,1fr)}.arq-mes>.arq-fr{order:2}.arq-mes>.arq-reg{order:3}.arq-contorno{margin:6px 6px}}
 
 /* canais removidos */
 .arq-can{display:grid;grid-template-columns:150px minmax(0,1fr) 380px;gap:6px 16px;align-items:center;padding:12px 14px;border-top:1px solid var(--border-subtle)}
@@ -92,3 +92,60 @@
 .arq-fr-forma a,.arq-resumo-geral a,.arq-alem a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .arq-prob a{margin-left:6px;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 @media (pointer:coarse){.arq-prob a{display:inline-flex;align-items:center;min-height:44px}}
+
+/* peças de saída (M6a, Tarefa 12b, layout r4 do mockup 19 B): bloco por tabela, linha de efeito sob cada botão, mensagens com símbolo; só tokens da página; sem color-mix */
+.arq-dlg{flex:1 1 100%;margin:8px 0 0;padding:14px 16px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text);line-height:1.5}
+.arq-dlg h2{margin:0 0 8px;font:600 15px/1.35 Inter,system-ui,sans-serif}
+.arq-dlg p{margin:0 0 8px;font-size:13.5px}
+.arq-dlg-b{margin:0 0 10px!important}
+.arq-dlg-b>b{display:block;color:var(--text);font-size:12.5px;font-weight:600;margin-bottom:1px}
+.arq-dlg-b>span{font-size:13.5px;color:var(--muted);line-height:1.55}
+.arq-dlg-b>span strong{color:var(--text)}
+.arq-dlg .arq-btn{margin-right:8px}
+.arq-btn.pesado{background:var(--text);border-color:var(--text);color:var(--bg);font-weight:700}
+.arq-btn:focus-visible,.arq-ibtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.arq-btn[aria-disabled="true"],.arq-btn.pesado[aria-disabled="true"]{font-weight:500;background:transparent;border-style:dashed;border-color:var(--border-strong);color:var(--muted);cursor:default}
+.arq-bl{flex:1 1 100%;display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);min-width:0;text-align:left}
+.arq-bl h4{margin:0;font:600 14.5px/1.35 Inter,system-ui,sans-serif;overflow-wrap:anywhere}
+.arq-tab{display:block;margin-top:1px;font:400 12px/1.4 ui-monospace,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}
+.arq-mesb{margin:0;font-size:13.5px;line-height:1.45;color:var(--muted);overflow-wrap:anywhere}
+.arq-mesb-r{white-space:nowrap}
+.arq-mesb b{color:var(--text);font-weight:600}
+.arq-fr{margin:0;display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--text)}
+.arq-fr>b{flex:none;color:var(--success);width:16px;text-align:center}
+.arq-fr small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.arq-cond{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.arq-cond li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px}
+.arq-cond li>b{flex:none;width:16px;text-align:center;color:var(--warning-text)}
+.arq-passo{margin:0;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.arq-passo b{color:var(--text);font-weight:600}
+.arq-aviso{margin:0;display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1.5px solid var(--warning);border-radius:6px;background:var(--bg);font-size:13px;line-height:1.5;color:var(--text)}
+.arq-aviso>b{flex:none;width:16px;text-align:center;color:var(--warning-text)}
+.arq-ac2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 14px;margin-top:2px;align-items:start}
+@media (max-width:600px){.arq-ac2{grid-template-columns:minmax(0,1fr)}}
+.arq-acao{display:flex;flex-direction:column;gap:8px;min-width:0}
+.arq-acao .arq-btn{width:100%;justify-content:center}
+.arq-efl{display:flex;align-items:flex-start;gap:2px}
+.arq-efl .dica-i,.arq-efl .ibtn{flex:none}
+/* alvo de toque >= 44x44 sem deslocar o layout: o ícone segue em 16px, a área clicável cresce por margem negativa */
+.arq-efl .dica-i{width:44px;height:44px;margin:-8px -10px -8px -8px}
+.arq-ef{flex:1 1 auto;max-inline-size:60ch;font-size:12.5px;line-height:1.45;color:var(--muted)}
+.arq-acao:hover .arq-ef{color:var(--text)}
+.arq-saida-msg{display:flex;gap:8px;align-items:flex-start;flex:1 1 100%;margin:8px 0 0;padding:9px 12px;border-radius:6px;border:1.5px solid var(--border-strong);font-size:13.5px;line-height:1.5;color:var(--text)}
+.arq-saida-msg>b{flex:none;width:16px;text-align:center;font-weight:700}
+.arq-saida-msg:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.arq-saida-msg.ok{border-color:var(--success)}.arq-saida-msg.ok>b{color:var(--success)}
+.arq-saida-msg.aviso{border-color:var(--warning);background:var(--warn-subtle)}.arq-saida-msg.aviso>b{color:var(--warning-text)}
+.arq-saida-msg.erro{border-color:var(--danger);background:var(--danger-subtle)}.arq-saida-msg.erro>b{color:var(--danger-text)}
+.arq-sim{margin:0;padding:10px 12px;border:1.5px dotted var(--dim);border-radius:6px}
+.arq-sim p{margin:0;font-size:13.5px;color:var(--text)}
+.arq-sim .arq-marca{margin:0 6px 0 0;font-size:12px;color:var(--muted);border:1px dotted var(--dim);border-radius:4px;padding:1px 6px}
+.arq-sim .arq-sim-c{margin:4px 0 0;font-size:12.5px;color:var(--muted)}
+.arq-cont{display:grid;gap:6px;max-width:420px}
+.arq-cont-tx{font-size:13.5px;color:var(--text);display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.arq-cont-tx .arq-v{color:var(--success)}
+.arq-trilho{height:8px;border-radius:4px;background:var(--sunk);border:1px solid var(--border);overflow:hidden}
+/* trilho visível no escuro: literal rgba, nunca color-mix (o Opera o mostra transparente) */
+[data-theme="dark"] .arq-trilho,.dark .arq-trilho{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.38)}
+.arq-trilho i{display:block;height:100%;background:var(--muted)}
+.arq-trilho.cheio i{background:var(--success)}

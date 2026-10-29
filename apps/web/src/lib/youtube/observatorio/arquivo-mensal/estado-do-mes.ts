@@ -5,7 +5,7 @@
 import type { ReactNode } from 'react'
 import { DAY, H, spDateOf, spDateStart } from '../time'
 import type { PaginaLida, LinhaMesLida } from './pagina'
-import { descreverVermelho, type LinhaDeProblema } from './vermelhos'
+import { agruparVermelhos, descreverVermelho, type LinhaDeProblema } from './vermelhos'
 import { INFO } from './info'
 
 export type { LinhaDeProblema } from './vermelhos'
@@ -22,8 +22,12 @@ export interface LinhaDoMes {
   acao?: string | null
   /** O texto do ⓘ "Por que se espera" (A3, Logan r1). */
   info?: string | null
-  /** O encaixe da M6: o botão (Sair do banco, Liberar, Trazer de volta) entra aqui; a M5 nunca o preenche. */
+  /** O encaixe da M6: o botão (Esconder das telas, Apagar do banco, Mostrar de novo) entra aqui; a M5 nunca o preenche. */
   acoes?: ReactNode
+  /** Para o encaixe da M6 (D-M5-14): a tabela cuja saída o botão comanda, o mês ('AAAA-MM-01'), onde o mês está agora e a espera da política em dias. A M5 só os carrega. */
+  tabela?: string; mes?: string; fora?: 'online' | 'destacado' | 'descartado'; esperaDias?: number | null
+  /** M6a T12 r1 (Phil C1): a saída é por tabela, não pela classe. Uma entrada por tabela comandada, lida de cada linha ANTES de `juntarTabelas` (o `fora` juntado só avança quando as duas saem). */
+  saidas?: { tabela: string; fora: 'online' | 'destacado' | 'descartado' }[]
 }
 /** Um mês que já saiu do banco e só aparece dentro do `<details>` do ano (A2, Logan r1 / Naksu N1). `verificadoEm`: ms, ou nulo se nunca conferido. */
 export interface MesNoArquivo { mesNome: string; verificadoEm: number | null }
@@ -35,6 +39,8 @@ export interface Topo { texto: string; forma: Forma; partes?: ParteDaFrase[] }
 export const ancoraDoMes = (chave: string): string => 'mes-' + chave.replace(/[^a-z0-9-]/gi, '-')
 export interface Casa { estado: 'responde' | 'nao_respondeu' | 'nunca_deu_sinal' | 'programa_sem_sinal' | 'programa_atrasado' | 'nas_fora' | 'nas_cheio' | 'nas_sem_verificar' | 'nao_medida'; desde: number | null; forma: Forma; frase: string }
 export interface ModeloPagina {
+  /** O dia de hoje em SP ('AAAA-MM-DD'), do relógio do banco; o encaixe da M6 o usa nas datas. Ausente nos modelos sem leitura. */
+  hojeSP?: string
   resumo: Topo; /** "Além disso: …": o que perdeu o cabeçalho para a casa, nunca some (A1c). */ alem?: Topo | null; casa: Casa; tipos: CartaoDoTipo[]; problemas: LinhaDeProblema[]; mesesAFrente: { tabela: string; frase: string; forma: Forma }[]
   teste: null | { faixa: string; linhas: LinhaDoMes[]; encerradoEm: number | null }; ligado: boolean
 }
@@ -63,7 +69,7 @@ const quando = (c: Ctx, ms: number): string => (spDateOf(ms) === c.hoje ? `hoje 
 // ---------- a régua ----------
 const NOMES5: readonly (readonly [string, string])[] = [['No NAS', 'No NAS'], ['No B2', 'No B2'], ['Recuperação', 'Recup.'], ['Prazo', 'Prazo'], ['Pode sair', 'Pode sair']]
 const r5 = (f: Forma[]): Etapa[] => NOMES5.map(([rotulo, curto], i) => ({ rotulo, curto, forma: f[i] ?? 'pontilhado' }))
-const r2 = (a: Forma, b: Forma): Etapa[] => [{ rotulo: 'Saiu das telas', curto: 'Saiu', forma: a }, { rotulo: 'Espaço liberado', curto: 'Espaço', forma: b }]
+const r2 = (a: Forma, b: Forma): Etapa[] => [{ rotulo: 'Escondido das telas', curto: 'Escondido', forma: a }, { rotulo: 'Apagado do banco', curto: 'Apagado', forma: b }]
 const rArq = (problema?: Forma): Etapa[] => [{ rotulo: 'No arquivo', curto: 'Arquivo', forma: 'arquivo' }, ...(problema ? [{ rotulo: 'Verificação', curto: 'Verif.', forma: problema }] : [])]
 interface Res { frase: string; secundaria?: string | null; acao?: string; info?: string; gravidade: Gravidade; regua: Etapa[]; grupo: 0 | 1 | 2 | 3 | 4 }
 const neutro = (frase: string, f: Forma[] = []): Res => ({ frase, gravidade: 'nenhuma', regua: r5(f), grupo: 3 })
@@ -120,14 +126,14 @@ function mesDestacado(c: Ctx, r: LinhaMesLida, cl: Classe): Res {
   if (tent && ['divergente', 'arquivo_ausente', 'nao_decifra'].includes(tent)) motivos.push(`o do B2 falhou na conferência${tms(r.b2_last_attempt_at) ? ` de ${dmy(tms(r.b2_last_attempt_at)!)}` : ''}`)
   if (motivos.length) { // m9 e m9b
     const dd = dias >= 14
-    return { frase: `A cópia de ${mes} precisa ser refeita (${motivos.join(' e ')}), e para isso o mês tem de voltar ao banco. Traga de volta.`, acao: 'trazer de volta ao banco', gravidade: dd ? 'vermelho' : 'ambar', regua: r2(dd ? 'octogono' : 'triangulo', 'pontilhado'), grupo: 0 }
+    return { frase: `A cópia de ${mes} precisa ser refeita (${motivos.join(' e ')}), e para isso o mês tem de voltar ao banco. Use Mostrar de novo.`, acao: 'Mostrar de novo', gravidade: dd ? 'vermelho' : 'ambar', regua: r2(dd ? 'octogono' : 'triangulo', 'pontilhado'), grupo: 0 }
   }
   if (dias > 14) { // m8b
-    return { frase: `Saiu das telas há ${nDias(dias)} e o espaço ainda não foi liberado. Enquanto isso não dá para remover canal nem apagar vídeo. Libere o espaço ou traga o mês de volta.`, gravidade: 'ambar', regua: r2('visto', 'triangulo'), grupo: 0 }
+    return { frase: `Saiu das telas há ${nDias(dias)} e ainda não foi apagado do banco. Enquanto isso não dá para remover canal nem apagar vídeo. Use Apagar do banco ou Mostrar de novo.`, gravidade: 'ambar', regua: r2('visto', 'triangulo'), grupo: 0 }
   }
-  if (dias >= cl.wait) return { frase: 'Pronto para liberar o espaço. Ainda dá para trazer de volta', gravidade: 'nenhuma', regua: r2('visto', 'pontilhado'), grupo: 1 } // m8a
+  if (dias >= cl.wait) return { frase: 'Pronto para apagar do banco. Ainda dá para Mostrar de novo', gravidade: 'nenhuma', regua: r2('visto', 'pontilhado'), grupo: 1 } // m8a
   return { // m8
-    frase: `Saiu das telas em ${dmy(det)}. O espaço ainda não voltou. Você pode trazer de volta a qualquer momento, até liberar o espaço. A partir de ${dmy(det + cl.wait * DAY)} você pode liberar o espaço. Até lá não dá para remover canal nem apagar vídeo.`,
+    frase: `Saiu das telas em ${dmy(det)}. Ainda não foi apagado do banco. Você pode usar Mostrar de novo a qualquer momento, até apagar do banco. A partir de ${dmy(det + cl.wait * DAY)} você pode usar Apagar do banco. Até lá não dá para remover canal nem apagar vídeo.`,
     gravidade: 'nenhuma', regua: r2('visto', 'pontilhado'), grupo: 1,
   }
 }
@@ -285,6 +291,17 @@ export function casaVenceOTopo(formaDaCasa: Forma, formaDoProblema: Forma | null
 }
 
 const uns = (n: number, um: string, varios: string): string => `${n} ${n === 1 ? um : varios}`
+/** Resumo simétrico dos dois blocos da série (mockup 19 B r4): diária fora, early fora, ou as duas; nunca "segue online" para uma tabela que não é a do outro lado. Vazio quando nenhuma está escondida. */
+export function fraseDosEscondidos(linhas: { mes?: string; saidas?: LinhaDoMes['saidas'] }[]): string {
+  const maisAntigo = (t: string): string | null => { const ms = linhas.filter(l => l.mes && l.saidas?.some(x => x.tabela === t && x.fora === 'destacado')).map(l => l.mes!).sort(); return ms[0] ?? null }
+  const d = maisAntigo('competitor_video_daily'), e = maisAntigo('competitor_video_early')
+  const nomeD = NOME_DA_TABELA.competitor_video_daily!, nomeE = NOME_DA_TABELA.competitor_video_early!
+  if (d && e) return ` Os dois estão escondidos das telas e esperam o prazo para apagar do banco: ${nomeD} (${nomeDoMes(d)}) e ${nomeE} (${nomeDoMes(e)}).`
+  if (d) return ` ${nomeD}: ${nomeDoMes(d)} está escondido das telas e espera o prazo para apagar do banco. ${nomeE} segue online.`
+  if (e) return ` ${nomeE}: ${nomeDoMes(e)} está escondido das telas e espera o prazo para apagar do banco. ${nomeD} segue online.`
+  return ''
+}
+
 /** A frase-resumo dos problemas, uma unidade por parte (Logan A1): meses (linhas vermelhas), canais (bloco) e outros (itens do pulso que não são de mês nem de canal). */
 function resumoDosProblemas(o: { tipos: CartaoDoTipo[]; mesesVm: LinhaDoMes[]; probOct: LinhaDeProblema[]; amb: number }): Topo | null {
   const meses = o.mesesVm.length
@@ -336,7 +353,8 @@ function linhaDeTeste(t: PaginaLida['teste']['meses'][number]): LinhaDoMes {
     : t.nas_attested_at ? 'No NAS (dado de teste)' : t.sealed_at ? 'Copiado (dado de teste)' : 'Em teste'
   // a régua acompanha o estágio, com as mesmas réguas dos meses reais (Gio D1: antes era toda pontilhada)
   const regua = t.dropped_at ? rArq() : t.detached_at ? r2('visto', 'pontilhado') : t.b2_attested_at ? r5(['visto', 'visto']) : t.nas_attested_at ? r5(['visto']) : r5([])
-  return { chave: 'ensaio:' + t.month, mesNome: nomeDoMes(t.month), regua, frase, secundaria: null, gravidade: 'nenhuma', sobeAoTopo: false }
+  return { chave: 'ensaio:' + t.month, mesNome: nomeDoMes(t.month), regua, frase, secundaria: null, gravidade: 'nenhuma', sobeAoTopo: false,
+    tabela: 'obs_archive_rehearsal', mes: t.month, fora: t.dropped_at ? 'descartado' : t.detached_at ? 'destacado' : 'online', esperaDias: null }
 }
 
 /** r5 (Logan r2 A4): o vermelho `b2_atrasado: N meses…` não traz o mês. Se, nos dados da página, só um mês selado sem B2 passou de 7 dias, ele é nomeado com a classe; senão a frase genérica fica (nada inventado). */
@@ -350,6 +368,12 @@ function nomearB2Atrasado(l: LinhaDeProblema, p: PaginaLida, agora: number): Lin
   if (cand.size !== 1) return l
   return { ...l, frase: `O mês copiado de ${[...cand.values()][0]} ainda não chegou ao B2 depois de 7 dias. Nada se perde: a cópia do NAS continua. Veja a linha marcada.` }
 }
+
+/** A tabela cuja saída o botão de cada tipo comanda (a série sai pela diária; a horária pela dela). Fica para a M5 e para a linha de teste. */
+const TABELA_DA_SAIDA_DO_TIPO: Record<'horaria' | 'serie' | 'texto', string | undefined> = { horaria: 'competitor_video_hourly', serie: 'competitor_video_daily', texto: undefined }
+/** As tabelas que cada tipo comanda, na ordem da tela (M6a T12 r1, decisão do dono: um bloco por tabela). */
+const TABELAS_DA_SAIDA_DO_TIPO: Record<'horaria' | 'serie' | 'texto', readonly string[]> = { horaria: ['competitor_video_hourly'], serie: ['competitor_video_daily', 'competitor_video_early'], texto: [] }
+const foraDe = (r: { dropped_at?: string | null; detached_at?: string | null }): 'online' | 'destacado' | 'descartado' => (r.dropped_at ? 'descartado' : r.detached_at ? 'destacado' : 'online')
 
 export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): ModeloPagina {
   if (!o.arquivoLigado) return modeloDesligado()
@@ -375,6 +399,8 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
       const secundaria = [res.secundaria ?? null, rows.some(x => x.reattach_out_of_order) ? FRASE_FORA_DE_ORDEM : null].filter((x): x is string => x !== null).join(' ') || null
       const linha: LinhaDoMes = {
         chave: `${tipo}:${mes}`, mesNome: nomeDoMes(mes), regua: res.regua, frase: res.frase, secundaria, gravidade: res.gravidade,
+        tabela: TABELA_DA_SAIDA_DO_TIPO[tipo], mes, fora: foraDe(r), esperaDias: cl.wait,
+        saidas: TABELAS_DA_SAIDA_DO_TIPO[tipo].flatMap(t => { const x = rows.find(y => y.table_name === t); return x ? [{ tabela: t, fora: foraDe(x) }] : [] }),
         sobeAoTopo: res.gravidade === 'ambar' || res.gravidade === 'vermelho', ...(res.acao ? { acao: res.acao } : {}), ...(res.info ? { info: res.info } : {}),
       }
       return { linha, grupo: res.grupo, mes, online, verificadoEm: r.dropped_at ? tms(r.nas_attested_at) : null }
@@ -395,15 +421,16 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
     const prox = itens.find(i => i.online && i.mes !== c.mesCorrente && i.grupo !== 0)
     const saidaProx = prox ? spDateStart(maisMeses(prox.mes, 1 + cl.janela)) : null
     const proxima = prox && saidaProx != null ? `. ${nomeDoMes(prox.mes)[0]!.toUpperCase()}${nomeDoMes(prox.mes).slice(1)} pode sair ${c.hojeMs >= saidaProx ? 'agora' : `em ${dmy(saidaProx)}`}.` : ''
+    const escondidos = fraseDosEscondidos(linhas.map(l => ({ mes: l.mes, saidas: l.saidas })))
     tipos.push({
       tipo, titulo: NOME_DO_TIPO[tipo],
-      resumo: `${online} ${online === 1 ? 'mês online' : 'meses online'}, ${noArquivo.length} no arquivo${atencao ? `, ${atencao} ${atencao === 1 ? 'pede' : 'pedem'} atenção` : ''}${proxima}`,
+      resumo: `${online} ${online === 1 ? 'mês online' : 'meses online'}, ${noArquivo.length} no arquivo${atencao ? `, ${atencao} ${atencao === 1 ? 'pede' : 'pedem'} atenção` : ''}${proxima}${escondidos}`,
       linhas, anosNoArquivo: [...anos.entries()].sort((a, b) => b[0] - a[0]).map(([ano, v]) => ({ ano, ...v, itens: v.itens })),
     })
   }
   // r5 (Logan r2): "atraso de cópia" e "mês sem selo" descrevem os mesmos meses; fica a que traz a contagem
   const vermelhos = p.vermelhos.some(v => v.startsWith('mês sem selo')) ? p.vermelhos.filter(v => !v.startsWith('atraso de cópia')) : p.vermelhos
-  const problemas = vermelhos.map(descreverVermelho).map(l => (l.prefixo === 'b2_atrasado' ? nomearB2Atrasado(l, p, agora) : l))
+  const problemas = agruparVermelhos(vermelhos).map(descreverVermelho).map(l => (l.prefixo === 'b2_atrasado' ? nomearB2Atrasado(l, p, agora) : l))
   const todas = tipos.flatMap(t => t.linhas)
   const mesesVm = todas.filter(l => l.gravidade === 'vermelho')
   const probOct = problemas.filter(x => x.forma === 'octogono')
@@ -432,5 +459,5 @@ export function montarPagina(p: PaginaLida, o: { arquivoLigado: boolean }): Mode
   }
   const t = p.teste
   const teste = t.aberto || t.encerrado_em ? { faixa: t.aberto ? FAIXA_DO_TESTE : `Dado de teste encerrado${tms(t.encerrado_em) ? ` em ${dmy(tms(t.encerrado_em)!)}` : ''}.`, linhas: t.meses.map(linhaDeTeste), encerradoEm: tms(t.encerrado_em) } : null
-  return { resumo, alem, casa, tipos, problemas, mesesAFrente: mesesAFrente(p), teste, ligado: true }
+  return { hojeSP: p.hoje, resumo, alem, casa, tipos, problemas, mesesAFrente: mesesAFrente(p), teste, ligado: true }
 }

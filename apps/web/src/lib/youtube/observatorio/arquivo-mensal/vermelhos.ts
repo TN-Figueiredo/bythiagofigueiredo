@@ -2,6 +2,7 @@
  *  (arq-dados.js não desenhou os prefixos do pulso) ficam marcadas "revisão Logan" e entram na Tarefa 15. Prefixo desconhecido -> linha genérica, nunca engolido. */
 /** `tipo`: de que a linha fala. `mes` já está na linha do mês (não soma de novo no topo), `canal` é o bloco Canais removidos, `outro` é só desta lista. `n`: a contagem do canal. `ancora`: para onde o "ver" leva. */
 import { NOME_DA_TABELA as NOME_DO_DADO } from './estado-do-mes'
+import { nomeDoMes } from './frases-saida'
 
 export interface LinhaDeProblema { prefixo: string | null; frase: string; forma: 'octogono' | 'triangulo'; bruto: string; tipo?: 'mes' | 'canal' | 'outro'; n?: number; ancora?: string }
 
@@ -39,6 +40,18 @@ const REGRAS: readonly Regra[] = [
   { prefixo: 'b2_ilegivel:', tipo: 'mes', forma: 'octogono', frase: () => 'Um arquivo do B2 não pôde ser lido. Rode a conferência de novo (ver o comando).' },
   // arq-dados.js (pn2): "O NAS está cheio"
   { prefixo: 'nas_80:', forma: 'triangulo', frase: () => 'O NAS passou de 80% do espaço. Libere espaço (ver os comandos).' },
+  // M6a T12 r1 (Logan U2, Gio 2): `saida_particao_ausente:<tabela>:<AAAA-MM>[,<AAAA-MM>…]` (vários meses da mesma tabela chegam agrupados por `agruparVermelhos`)
+  { prefixo: 'saida_particao_ausente:', forma: 'octogono', frase: r => {
+    const resto = r.slice('saida_particao_ausente:'.length); const corte = resto.indexOf(':')
+    const tabela = corte < 0 ? resto : resto.slice(0, corte); const meses = corte < 0 ? '' : resto.slice(corte + 1)
+    const lista = meses.split(',').filter(m => /^\d{4}-\d{2}$/.test(m)).map(m => nomeDoMes(`${m}-01`))
+    const nome = NOME_DO_DADO[tabela] ?? 'um tipo de dado'
+    const aviso = 'Não apague do banco nem mostre de novo até avisar quem cuida do site. (código: saida_particao_ausente)'
+    if (lista.length === 0) return `Há mês de "${nome}" que foi escondido das telas, mas o lugar onde ele ficou guardado não existe mais no banco. ${aviso}`
+    return lista.length === 1
+      ? `O mês ${lista[0]} de "${nome}" foi escondido das telas, mas o lugar onde ele ficou guardado não existe mais no banco. ${aviso}`
+      : `${nome}: ${lista.length} meses sem o lugar onde ficaram guardados (${lista.join(', ')}). ${aviso}`
+  } },
   // revisão Logan
   { prefixo: 'tabela_ausente:', forma: 'octogono', frase: r => `Falta no banco o lugar dos dados de ${NOME_DO_DADO[qual(r)] || 'um tipo de dado'}, que o arquivo copia. Nada desse tipo sai até ele voltar.` },
   // revisão Logan
@@ -52,6 +65,19 @@ const REGRAS: readonly Regra[] = [
   // revisão Logan: o vermelho da remoção que começa por número (obs_archive_vermelhos_remocao)
   { prefixo: 'canais removidos sem destino', tipo: 'canal', padrao: /^\d+ canais removidos sem destino do arquivo/, forma: 'octogono', frase: r => (num(r) === '1' ? '1 canal removido está sem destino do arquivo.' : `${num(r)} canais removidos estão sem destino do arquivo.`) },
 ]
+
+/** Junta os `saida_particao_ausente:<tabela>:<mês>` da mesma tabela numa só linha (`...:<mês1>,<mês2>`); o resto passa como veio, na mesma ordem. */
+export function agruparVermelhos(brutos: string[]): string[] {
+  const P = 'saida_particao_ausente:'
+  const porTabela = new Map<string, string[]>()
+  const fora: string[] = []
+  for (const b of brutos) {
+    const m = b.startsWith(P) ? /^saida_particao_ausente:([^:]+):(\d{4}-\d{2})$/.exec(b) : null
+    if (!m) { fora.push(b); continue }
+    porTabela.set(m[1]!, [...(porTabela.get(m[1]!) ?? []), m[2]!])
+  }
+  return [...fora, ...[...porTabela].map(([t, ms]) => `${P}${t}:${[...ms].sort().join(',')}`)]
+}
 
 export const FRASE_VERMELHO_DESCONHECIDO = 'O arquivo tem um problema que esta página ainda não descreve.'
 
