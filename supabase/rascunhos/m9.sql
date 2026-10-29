@@ -483,7 +483,7 @@ begin
                                       where x.id = t.from_unit_id and x.received_at is not null)) then
       v_esperando := v_esperando + 1; continue;
     end if;
-    select coalesce(jsonb_agg(jsonb_build_object('alvo_id', t.id, 'tabela', t.table_name, 'versao', u.version, 'linhas', u.row_count, 'soma', u.control_sum,
+    select coalesce(jsonb_agg(jsonb_build_object('alvo_id', t.id, 'tabela', t.table_name, 'versao', u.version, 'linhas', u.row_count, 'soma', u.control_sum::text,
              'coluna_controle', pol.control_column, 'schema_fp', u.schema_fp, 'hash_conteudo', u.hash_conteudo, 'esperadas', t.esperadas,
              'chaves', to_jsonb(t.keys), 'refs', to_jsonb(t.item_refs), 'arquivos', public.obs_archive_arquivos_da_unidade(u.id)) order by t.table_name), '[]'::jsonb)
       into v_alvos

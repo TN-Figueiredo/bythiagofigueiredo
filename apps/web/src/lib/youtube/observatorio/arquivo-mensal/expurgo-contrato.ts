@@ -55,7 +55,9 @@ export const CorpoExpurgo = z.discriminatedUnion('passo', [CorpoAbrir, CorpoRegi
 
 const Arquivo = z.object({ caminho: z.string(), sha256: sha, parte: inteiro })
 const Alvo = z.object({
-  alvo_id: inteiro, tabela: z.string(), versao: inteiro, linhas: inteiro, soma: z.string().nullable(), coluna_controle: z.string().nullable(),
+  alvo_id: inteiro, tabela: z.string(), versao: inteiro, linhas: inteiro,
+  // `u.control_sum` é numeric: o SQL manda `::text` para não perder dígito acima de 2^53 (29/10).
+  soma: z.string().nullable(), coluna_controle: z.string().nullable(),
   schema_fp: sha, hash_conteudo: sha, esperadas: inteiro.nullable(), chaves: z.array(z.string()), refs: z.array(z.string()), arquivos: z.array(Arquivo),
 })
 const Outra = z.object({

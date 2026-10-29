@@ -105,7 +105,7 @@ describe.skipIf(skipIfNoLocalDb())('M9 parte 3: abrir, registrar, bloquear e des
       expect(r.esperando).toBe(0)
       expect(g).toMatchObject({ classe: 'serie', canal: c.canal, mes: '2026-09', filho: 'numerico', mes_online: true, dias_do_mes: 30, resumo: { versao: 1, canal: H('7'), video: H('8') } })
       const al = (g.alvos as Linha[])[0]!
-      expect(al).toMatchObject({ alvo_id: a.id, tabela: DAILY, versao: 1, linhas: 10, soma: 100, coluna_controle: 'views', schema_fp: H('b'), hash_conteudo: H('a'), esperadas: 4, chaves: [c.video], refs: ['yt1'] })
+      expect(al).toMatchObject({ alvo_id: a.id, tabela: DAILY, versao: 1, linhas: 10, soma: '100', coluna_controle: 'views', schema_fp: H('b'), hash_conteudo: H('a'), esperadas: 4, chaves: [c.video], refs: ['yt1'] })
       expect(al.arquivos).toEqual([{ caminho: `serie/canais/${c.canal}/${DAILY}/2026-09.v1.csv.gz`, sha256: H('c'), parte: 1 }])
       expect(g.outras).toMatchObject([{ tabela: EARLY, versao: 1, linhas: 5 }])
       expect((g.outras as Linha[])[0]!.arquivos).toHaveLength(1)
