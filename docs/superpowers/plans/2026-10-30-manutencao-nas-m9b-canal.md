@@ -207,7 +207,7 @@ Caso `so_prefixo` (`sem_comando`): também imprimir os `limpa_prefixo` quando `i
 - [ ] Negativos: uma linha `_recebendo` `presente` segura em `apagar_antigas` (o defeito, documentado); `blobs_pending` com URL segura com `falta 'blobs'`; linha montada à mão com `online_thumbs_known = false` e `thumbs_unknown_ack_at` nulo → `falta 'imagens'`. **Não** testar `sem_destino` por `decide` como negativo: `decide` grava `thumbs_unknown_ack_at = now()` (`20261025000002:2549-2550`), então `sem_destino` conclui; adicionar o positivo `sem_destino` → `concluido`.
 - [ ] `guardar` via `e10_export` nasce com `online_thumbs_known = true` (`:2720`): afirmar.
 - [ ] Unidade com `purged_at` fora de `aguardando_dono` no `obs_archive_plan` (fecha o `it.todo` de 165 `purged_at`; filtros `purged_at is null`, `:542-558`).
-- [ ] SQL de reversão (`archive_decision`, `purged_at`/`purged_by`/`purge_ref`, encerrar linhas de `obs_archive_absence`) provado dentro de `begin … rollback`; o texto vai ao runbook (T8).
+- [ ] SQL de reversão (`archive_decision`, `purged_at`/`purged_by`/`purge_ref`, APAGAR as linhas de `obs_archive_absence` do canal, nunca só encerrar) provado dentro de `begin … rollback`; o texto vai ao runbook (T8).
 - [ ] Rodar a suíte `manutencao-m9*` inteira. Se qualquer passo exigir SQL: **parar** (Global Constraints).
 - [ ] Commit: `test: M9b: canal de guardado a concluido, de ponta a ponta`.
 
