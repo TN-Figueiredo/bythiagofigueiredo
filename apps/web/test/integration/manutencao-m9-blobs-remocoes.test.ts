@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Client } from 'pg'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
-import { m3bNoBanco, aplicarM3b, semearCanal } from '../helpers/m3b'
+import { m3bNoBanco, aplicarM3b, semearCanal, escalar } from '../helpers/m3b'
 import { aplicarM9 } from '../helpers/m9'
 import { travarDdl } from '../helpers/ddl-testes'
 
@@ -52,7 +52,12 @@ describe.skipIf(skipIfNoLocalDb())('M9 T13: blobs das remoções e retenção da
   })
 
   describe('retenção de 90 dias da prova de ausência encerrada', () => {
-    async function linhaEncerrada(c: { site: string; canal: string }, dias: number | null, prefixo: string): Promise<number> {
+    /** Linha `canal:` encerrada; `concluida` cria a remoção do canal já concluída (a poda só apaga prova de remoção concluída). */
+    async function linhaEncerrada(c: { site: string; canal: string }, dias: number | null, prefixo: string, concluida = true): Promise<number> {
+      if (concluida) {
+        await pg.query(`insert into public.obs_archive_channel_removals (site_id, channel_ref, removed_via, archive_decision, decided_at, online_thumbs_known, completed_at)
+                        values ($1, $2, 'botao', 'apagar', now(), true, now()) on conflict (site_id, channel_ref) do update set completed_at = now()`, [c.site, c.canal])
+      }
       const id = (await pg.query(
         `insert into public.obs_archive_absence (site_id, alvo, canal_ref, filho, prefixo, e_prefixo, liberado_em, encerrada_at)
          values ($1, $2, $3, 'numerico', $4, true, now(), case when $5::int is null then null else now() - make_interval(days => $5::int) end) returning id`,
@@ -67,6 +72,62 @@ describe.skipIf(skipIfNoLocalDb())('M9 T13: blobs das remoções e retenção da
         const r = await pg.query(`select public.obs_archive_absence_prune() as n`)
         expect(r.rows[0].n).toBe(1)
         expect([await existe(a89), await existe(a91), await existe(aberta)]).toEqual([true, false, true])
+      })
+    })
+
+    it('canal: encerrada há 91 dias de remoção NÃO concluída fica', async () => {
+      await emTx(async c => {
+        const id = await linhaEncerrada(c, 91, 'serie/b', false)
+        expect(await escalar<number>(pg, `select public.obs_archive_absence_prune()`)).toBe(0)
+        expect(await existe(id)).toBe(true)
+      })
+    })
+
+    /** Versão v1 de texto superada, v2 recebida há 150 dias e atestada; B2 ok. Devolve o id da v1. */
+    async function antigaDeTexto(c: { site: string; canal: string }): Promise<string> {
+      const col = `site_id, class, table_name, channel_ref, month, version, row_count, control_sum, hash_conteudo, schema_fp, sha256_bytes, csv_sha256, file_bytes, parts, received_at, nas_attested_at, superseded_at`
+      const ins = async (v: number, ha: string, sup: boolean): Promise<string> => (await pg.query(
+        `insert into public.obs_archive_units (${col}) values ($1, 'texto', 'competitor_video_comments', $2, '2026-09-01', $3, 10, 100, $4, $5, $6, $7, 100, 1,
+           now() - $8::interval, now() - interval '1 hour', case when $9 then now() - interval '1 hour' end) returning id`,
+        [c.site, c.canal, v, 'a'.repeat(64), 'b'.repeat(64), String(v).repeat(64), 'c'.repeat(64), ha, sup])).rows[0].id as string
+      const v1 = await ins(1, '200 days', true)
+      const v2 = await ins(2, '150 days', false)
+      await pg.query(`insert into public.obs_archive_b2_files (site_id, arquivo_id, class, month, last_ok_at) values ($1, $2, 'texto', '2026-09-01', now() - interval '1 day')`, [c.site, `u:${v2}`])
+      return v1
+    }
+    const abertas = (c: { site: string }) => escalar<number>(pg, `select public.obs_archive_antigas_open($1)`, [c.site])
+    const fechar = (v1: string, dias: number) => pg.query(
+      `update public.obs_archive_absence set nas_absent_first_at = now() - interval '120 days', nas_absent_at = now() - interval '120 days', snap_absent_at = now() - interval '100 days',
+              b2_absent_at = now() - interval '92 days', encerrada_at = now() - make_interval(days => $2::int) where alvo = $1`, [`antiga:${v1}`, dias])
+
+    it('C1 (Yannis): depois da poda, antigas_open devolve 0 (a antiga encerrada não reabre)', async () => {
+      await emTx(async c => {
+        const v1 = await antigaDeTexto(c)
+        expect(await abertas(c)).toBe(1)
+        await fechar(v1, 91)
+        expect(await abertas(c)).toBe(0)
+        expect(await escalar<number>(pg, `select public.obs_archive_absence_prune()`)).toBe(0)
+        expect(await abertas(c)).toBe(0)
+      })
+    })
+
+    it('C1 (Phil): antiga em andamento com parte provada e encerrada há 91 dias não perde a linha', async () => {
+      await emTx(async c => {
+        const v1 = await antigaDeTexto(c)
+        await abertas(c)
+        await fechar(v1, 91)
+        await pg.query(`insert into public.obs_archive_absence (site_id, alvo, unidade_id, filho, prefixo, e_prefixo, sha256, liberado_em) values ($1, $2, $3, 'texto', $4, false, $5, now())`,
+          [c.site, `antiga:${v1}`, v1, `texto/${c.canal}/parte-2.csv.gz`, 'e'.repeat(64)])
+        const antes = Number((await pg.query(`select count(*) n from public.obs_archive_absence where alvo = $1`, [`antiga:${v1}`])).rows[0].n)
+        await escalar<number>(pg, `select public.obs_archive_absence_prune()`)
+        const depois = Number((await pg.query(`select count(*) n from public.obs_archive_absence where alvo = $1`, [`antiga:${v1}`])).rows[0].n)
+        expect(depois).toBe(antes)
+      })
+    })
+
+    it('blobs_done recusa p_urls nulo', async () => {
+      await emTx(async c => {
+        await expect(pg.query(`select public.obs_archive_removal_blobs_done($1, $2, null)`, [c.site, c.canal])).rejects.toThrow(/urls_nulas/)
       })
     })
 

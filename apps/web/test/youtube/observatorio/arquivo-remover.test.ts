@@ -273,6 +273,23 @@ describe('M9 T13: retentarBlobsDeRemocoes (atrás de OBS_ARQUIVO_LIMPEZA_CANAL)'
     const r = await retentarBlobsDeRemocoes(sb, o({ maximo: 1 }), { env: on, apagarDoBlob: async () => undefined })
     expect(r).toEqual({ apagadas: 1, pendentes: 1, foraDoPrefixo: 0 })
   })
+
+  it('M1: pendentes conta as URLs das linhas lidas mesmo quando o máximo corta antes delas', async () => {
+    const { sb } = fal([lin(CANAL, [url(1)]), lin(CANAL2, [url(2), url(3)])])
+    const r = await retentarBlobsDeRemocoes(sb, o({ maximo: 1 }), { env: on, apagarDoBlob: async () => undefined })
+    expect(r).toEqual({ apagadas: 1, pendentes: 2, foraDoPrefixo: 0 })
+  })
+
+  it('M1: 50 linhas lidas (o limite) marcam maisLinhas', async () => {
+    const { sb } = fal(Array.from({ length: 50 }, (_, i) => lin(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, [])))
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env: on, apagarDoBlob: async () => undefined })).toMatchObject({ maisLinhas: true })
+  })
+
+  it('M2: baixa que falha depois do Blob apagado conta baixaFalhou', async () => {
+    const { sb } = fal([lin(CANAL, [url(1)])], true)
+    const r = await retentarBlobsDeRemocoes(sb, o(), { env: on, apagarDoBlob: async () => undefined })
+    expect(r).toMatchObject({ apagadas: 0, pendentes: 1, baixaFalhou: 1 })
+  })
 })
 
 describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemocao', () => {

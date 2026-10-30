@@ -9,14 +9,18 @@ import type { ContextoTarefa, ResultadoTarefa, Tarefa } from '../tipos'
 const SOBRA_MINIMA_MS = 25_000
 const TENTATIVA_MAX_MS = 20_000
 const FOLGA_MS = 5_000
+const PODA_MAX_MS = 5_000
 
 /** M9 T13: os blobs dos canais removidos, com o máximo que SOBRA das miniaturas e o prazo que resta. Nunca troca o estado; `flag_desligada` fica visível no detalhe. */
 async function blobsDasRemocoes(c: ContextoTarefa, detalhe: Record<string, number>, maximo: number): Promise<void> {
-  // Retenção de 90 dias da prova de ausência encerrada (Phil I1): barata, sem Blob, não depende do prazo nem da flag.
+  // Retenção de 90 dias da prova de ausência de canal removido (Phil I1): sem Blob, não depende da flag; só roda depois de uma medida ok e de a
+  // tentativa das miniaturas voltar (o `catch` externo a pula). Teto de 5 s; a falha fica visível no detalhe.
   try {
-    const p = await c.sb.rpc('obs_archive_absence_prune', { p_dias: 90 })
-    if (!p.error && typeof p.data === 'number' && p.data > 0) detalhe.ausencia_podadas = p.data
-  } catch { /* a próxima rodada tenta */ }
+    const r = await comPrazo(Promise.resolve(c.sb.rpc('obs_archive_absence_prune', { p_dias: 90 })), PODA_MAX_MS)
+    if ('estourou' in r) detalhe.ausencia_poda_sem_tempo = 1
+    else if (r.valor.error) detalhe.ausencia_poda_falhou = 1
+    else if (typeof r.valor.data === 'number' && r.valor.data > 0) detalhe.ausencia_podadas = r.valor.data
+  } catch { detalhe.ausencia_poda_falhou = 1 }
   const sobra = c.t0 + DEFINICAO_TAMANHO_DO_BANCO.fimAteMs - c.agora()
   if (!(sobra > SOBRA_MINIMA_MS)) { detalhe.blobs_remocoes_sem_tempo = 1; return }
   const prazoMs = Math.min(TENTATIVA_MAX_MS, sobra - FOLGA_MS)
@@ -30,6 +34,8 @@ async function blobsDasRemocoes(c: ContextoTarefa, detalhe: Record<string, numbe
       detalhe.blobs_remocoes_apagadas = r.valor.apagadas
       detalhe.blobs_remocoes_pendentes = r.valor.pendentes
       if (r.valor.foraDoPrefixo > 0) detalhe.blobs_remocoes_fora_do_prefixo = r.valor.foraDoPrefixo
+      if (r.valor.maisLinhas) detalhe.blobs_remocoes_pendentes_mais = 1
+      if (r.valor.baixaFalhou) detalhe.blobs_remocoes_baixa_falhou = r.valor.baixaFalhou
     }
   } catch {
     detalhe.blobs_remocoes_nao_tentadas = 1
