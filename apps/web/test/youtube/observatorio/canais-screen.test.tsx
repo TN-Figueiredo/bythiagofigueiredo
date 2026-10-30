@@ -161,7 +161,7 @@ describe('CanaisScreen', () => {
       expect(refresh.mock.calls.length).toBe(n)
     } finally { vi.useRealTimers() }
   })
-  it('after an add, a row still fetching videos keeps the screen asking every few seconds', async () => {
+  it('after an add, a row still fetching videos keeps the screen asking at growing intervals (20 s, 60 s, 180 s)', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
@@ -172,7 +172,12 @@ describe('CanaisScreen', () => {
       await user.click(within(dlg).getByRole('button', { name: 'Adicionar canal' }))
       expect(await screen.findByText('Canal adicionado')).toBeInTheDocument()
       const n = refresh.mock.calls.length
+      // nada de polling de 6 s: o 1º refresh só vem aos 20 s, o 2º aos 60 s depois
       await vi.advanceTimersByTimeAsync(13_000)
+      expect(refresh.mock.calls.length).toBe(n)
+      await vi.advanceTimersByTimeAsync(8_000)
+      expect(refresh.mock.calls.length).toBe(n + 1)
+      await vi.advanceTimersByTimeAsync(60_000)
       expect(refresh.mock.calls.length).toBe(n + 2)
       expect(screen.queryByText(`${bf.name} pronto`)).toBeNull()
     } finally { vi.useRealTimers() }

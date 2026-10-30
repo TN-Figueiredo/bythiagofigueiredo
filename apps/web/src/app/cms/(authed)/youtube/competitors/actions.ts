@@ -181,7 +181,7 @@ export async function addCompetitorChannel(
     }
   }
 
-  revalidatePath('/cms/youtube/competitors', 'layout')
+  revalidatePath('/cms/youtube/competitors', 'page')
   // the resolved YouTube title; a bare id has none until the first sync
   return { ok: true, slots: await getChannelSlots(siteId), ...(parsed.kind === 'handle' ? { title } : {}), ...(aviso ? { aviso } : {}) }
 }

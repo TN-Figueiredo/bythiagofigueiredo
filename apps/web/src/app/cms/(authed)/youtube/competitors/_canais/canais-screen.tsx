@@ -83,8 +83,10 @@ export const FRASE_SO_LEITURA = { titulo: 'Você só pode ler esta lista.', corp
 export const PAGINA_INICIAL = 50, PAGINA_PASSO = 25
 
 const UPNEXT = '/cms/up-next'
-/** After an add: one refresh every ADD_WATCH_MS, at most ADD_WATCH_MAX times (3 min). */
-const ADD_WATCH_MS = 6_000, ADD_WATCH_MAX = 30
+/** After an add: few refreshes at growing gaps (20 s, 60 s, 180 s after the previous one); never while the form is open or a navigation is pending. */
+const ADD_WATCH_GAPS = [20_000, 60_000, 180_000]
+/** When a refresh is due but the screen is busy, ask again after this long (does not use up a try). */
+const ADD_WATCH_RETRY_MS = 5_000
 const WIDE = '(min-width: 1280px)'
 function useWide(): boolean {
   return useSyncExternalStore(
@@ -156,6 +158,8 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   const [irPendente, setIrPendente] = useState<string | null>(null)
   const [closedDrawer, setClosedDrawer] = useState<string | null>(null)
   const [addClosed, setAddClosed] = useState(false)
+  /** "Adicionar canal" opens by local state (no server round trip); the ?add=1 in the address bar is only for reload/share. */
+  const [addLocal, setAddLocal] = useState(false)
   const [nicheClosed, setNicheClosed] = useState(false)
   /** The channel whose ⋯ menu is open. Only the id: the menu measures its button itself (row-menu.tsx). */
   const [menu, setMenu] = useState<string | null>(null)
@@ -204,7 +208,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   const narrow = useNarrow()
   const layout = narrow ? 'cards' : (opt.layout ?? view.layout)
   const listBusy = (navPending && opt.busy) || undefined
-  const addOpen = (opt.add ?? view.addOpen) && !addClosed
+  const addOpen = (addLocal || (opt.add ?? view.addOpen)) && !addClosed
   const nicheOpen = view.nicheEditorOpen && !nicheClosed
   const drawerModal = !!panel && !wide
   const anyModal = addOpen || nicheOpen || !!confirm || drawerModal
@@ -241,7 +245,19 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
     requestAnimationFrame(() => (t ?? rowButton(id))?.focus())
     t?.focus()
   }, [panel, go])
-  const closeAdd = () => { setAddClosed(true); go({ add: null }, { add: false }) }
+  const openAdd = (e: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault()
+    setAddClosed(false); setAddLocal(true)
+    try { window.history.replaceState(window.history.state, '', urlWith({ add: '1' })) } catch { /* sem history o diálogo abre igual */ }
+  }
+  const closeAdd = () => {
+    setAddClosed(true)
+    if (addLocal && !view.addOpen) {
+      setAddLocal(false)
+      try { window.history.replaceState(window.history.state, '', urlWith({ add: null })) } catch { /* idem */ }
+    } else { setAddLocal(false); go({ add: null }, { add: false }) }
+  }
   const closeNiche = () => { setNicheClosed(true); go({ nicheEditor: null }) }
   const closeMenu = (focus: boolean) => { const id = menu; setMenu(null); if (focus && id) rowMenuButton(id)?.focus() }
   const focarAoFechar = useRef(false)
@@ -507,15 +523,24 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
   // A channel added here syncs in the background: the screen asks the server again every few seconds until its row
   // leaves "buscando vídeos" (or ADD_WATCH_MAX tries pass), and only then says it is ready.
   const [watch, setWatch] = useState<null | { name: string; tries: number }>(null)
-  const watchName = watch?.name ?? null
+  const watchName = watch?.name ?? null, watchTries = watch?.tries ?? 0
+  // o estado "ocupado" vai por ref: o timer lê o valor de agora sem ser rearmado a cada render
+  const ocupado = useRef(false)
+  // o roteador por ref: um objeto novo a cada render não pode zerar a contagem do timer
+  const routerRef = useRef(router)
+  routerRef.current = router
+  ocupado.current = anyModal || navPending || bloqueado.current
   useEffect(() => {
     if (!watchName) return
-    const t = setInterval(() => {
-      setWatch(w => (w && w.tries + 1 < ADD_WATCH_MAX ? { ...w, tries: w.tries + 1 } : null))
-      router.refresh()
-    }, ADD_WATCH_MS)
-    return () => clearInterval(t)
-  }, [watchName, router])
+    let t: ReturnType<typeof setTimeout>
+    const fire = () => {
+      if (ocupado.current) { t = setTimeout(fire, ADD_WATCH_RETRY_MS); return }
+      routerRef.current.refresh()
+      setWatch(w => (w && w.tries + 1 < ADD_WATCH_GAPS.length ? { ...w, tries: w.tries + 1 } : null))
+    }
+    t = setTimeout(fire, ADD_WATCH_GAPS[Math.min(watchTries, ADD_WATCH_GAPS.length - 1)])
+    return () => clearTimeout(t)
+  }, [watchName, watchTries])
   useEffect(() => {
     if (!watchName) return
     const r = todasLinhas.find(x => !x.own && x.name === watchName)
@@ -607,7 +632,7 @@ export function CanaisScreen({ view, canUnlock, onAdd, onPedir, onApagar, onDesf
                 <Ic n="plus" />Adicionar canal
               </a>
             ) : (
-              <Link className="btn primary btn-primary" href={urlWith({ add: '1' })} scroll={false} onClick={e => { setAddClosed(false); linkNav(e, urlWith({ add: '1' }), { add: true }) }}><Ic n="plus" />Adicionar canal</Link>
+              <Link className="btn primary btn-primary" href={urlWith({ add: '1' })} scroll={false} onClick={openAdd}><Ic n="plus" />Adicionar canal</Link>
             )}
           </div>
 
