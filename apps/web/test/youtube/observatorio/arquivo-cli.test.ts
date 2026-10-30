@@ -48,6 +48,10 @@ const dinheiro = (o: Partial<DepsDoComando> = {}): DepsDoComando => ({
   perguntar: async () => '', versaoDoScript: 'teste', ...o,
 })
 const tudo = (s: { saida: string[] }): string => s.saida.join('\n')
+const ENV_RECARGA = { OBS_ARQUIVO_DB_URL: URL_DO_BANCO, HOME: '/h' }
+/** M9b T3: o banco falso da recarga: responde só a `obs_archive_channel_is_removed` (e ao site único). */
+const bancoRecarga = (r: { removido: boolean; decisao: string | null; sem_destino: boolean } = { removido: false, decisao: null, sem_destino: false }) =>
+  roteirizado([rotaSite, [/obs_archive_channel_is_removed/, () => [{ r }]]])
 
 describe('A5 E10 T7: interpretar', () => {
   it('variável ausente: erro (código 2 no script) e nenhuma leitura de .env.local', () => {
@@ -70,9 +74,13 @@ describe('A5 E10 T7: interpretar', () => {
     expect('erro' in interpretar(argv('estado'), { OBS_ARQUIVO_DB_URL: '   ' })).toBe(true)
   })
 
-  it('os dois subcomandos que só imprimem não pedem a variável', () => {
+  it('comandos-nas só imprime e não pede a variável; comandos-recarga consulta o banco (M9b) e pede (variável apagada: erro)', () => {
     expect('erro' in interpretar(argv(`comandos-nas --lote ${LOTE} --destino u@nas:/vol/arquivo`), { HOME: '/h' })).toBe(false)
-    expect('erro' in interpretar(argv(`comandos-recarga --lote ${LOTE} --pasta /x`), {})).toBe(false)
+    const r = interpretar(argv(`comandos-recarga --lote ${LOTE} --pasta /x`), {})
+    expect('erro' in r && r.erro).toContain('OBS_ARQUIVO_DB_URL')
+    expect('erro' in interpretar(argv(`comandos-recarga --lote ${LOTE} --pasta /x`), ENV_RECARGA)).toBe(false)
+    expect(interpretar(argv(`comandos-recarga --lote ${LOTE} --pasta /x --site ${SITE}`), ENV_RECARGA)).toMatchObject({ nome: 'comandos-recarga', site: SITE })
+    expect('erro' in interpretar(argv(`comandos-recarga --lote ${LOTE} --pasta /x --site nao-uuid`), ENV_RECARGA)).toBe(true)
   })
 
   it('sem argumento: o uso; subcomando desconhecido; opção desconhecida; opção sem valor', () => {
@@ -142,9 +150,9 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
     return d
   }
 
-  it('comandos-recarga não chama o banco, lista as colunas do manifesto e põe pai antes de filho', async () => {
+  it('comandos-recarga consulta só o estado do canal, lista as colunas do manifesto e põe pai antes de filho', async () => {
     const d = await pastaComManifesto()
-    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga().sql }))
     expect(r.codigo).toBe(0)
     expect(r.saida).toHaveLength(5) // 4 \copy + o update que zera o pedido de remoção do canal (F1)
     expect(r.saida[0]).toBe(`\\copy public.competitor_channels ("id", "channel_name") from program 'gzip -dc /arquivo/${LOTE}/competitor_channels/${CANAL}/unico.csv.gz' csv header`)
@@ -176,7 +184,7 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
 
   it('comandos-recarga reajusta as sequências de identidade das tabelas que o manifesto carrega, DEPOIS de todos os \\copy (revisão Phil 14/10, I-3)', async () => {
     const d = await pastaComIdentidade()
-    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga().sql }))
     expect(r.codigo).toBe(0)
     const copias = r.saida.filter(l => l.startsWith('\\copy'))
     const ajustes = r.saida.filter(l => l.startsWith('select setval'))
@@ -195,13 +203,13 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
 
   it('comandos-recarga com --pasta com espaço ou aspa: o caminho vai entre aspas do shell dentro do programa, e o caminho comum continua sem aspas (revisão Yannis 14/10, M9)', async () => {
     const d = await pastaComManifesto()
-    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga().sql }))
     expect(r.saida[0]).toContain(`from program 'gzip -dc /arquivo/${LOTE}/competitor_channels/`) // caminho comum: nada muda
     // o manifesto é lido da pasta pedida: o falso do disco guarda tudo em `/arquivo`; copiamos para uma pasta com espaço e aspa
     for (const pasta of ['/tmp/a b', `/tmp/o'neil`, '/tmp/a;rm -rf x']) {
       const d2 = discoFalso()
       for (const [k, v] of d.arquivos) d2.arquivos.set(k.replace('/arquivo/', `${pasta}/`), v)
-      const out = await rodar({ nome: 'comandos-recarga', lote: LOTE, pasta }, dinheiro({ disco: d2.disco, sql: null }))
+      const out = await rodar({ nome: 'comandos-recarga', lote: LOTE, pasta, site: null }, dinheiro({ disco: d2.disco, sql: bancoRecarga().sql }))
       expect(out.codigo, pasta).toBe(0)
       const l = out.saida[0]!
       const caminho = `${pasta}/${LOTE}/competitor_channels/${CANAL}/unico.csv.gz`
@@ -213,7 +221,7 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
 
   it('C1.1 comandos-recarga zera as quatro colunas de remoção pedida do canal, depois dos \\copy e antes dos ajustes (F1, Phil M-4)', async () => {
     const d = await pastaComIdentidade()
-    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga().sql }))
     const i = r.saida.findIndex(l => l.startsWith('update public.competitor_channels'))
     expect(i).toBeGreaterThan(0)
     expect(r.saida[i]).toBe(`update public.competitor_channels set removal_requested_at = null, removal_requested_by = null, removal_was_paused = null, removal_reason = null, removal_reter_antes = null where id = '${CANAL}' and removal_requested_at is not null;`)
@@ -223,7 +231,7 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
 
   it('C1.2 (Phil C-2) a recarga devolve o reter_ate guardado no pedido, depois do \\copy de yt_watch_alvos e antes de zerar o pedido', async () => {
     const d = await pastaComIdentidade(['yt_watch_alvos'])
-    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga().sql }))
     expect(r.codigo).toBe(0)
     const iCopia = r.saida.findIndex(l => l.startsWith('\\copy public.yt_watch_alvos'))
     const iDevolve = r.saida.findIndex(l => l.startsWith('update public.yt_watch_alvos a set reter_ate = (c.removal_reter_antes'))
@@ -237,16 +245,60 @@ describe('A5 E10 T7: rodar, os que só imprimem', () => {
 
   it('comandos-recarga sem tabela de identidade no manifesto não imprime ajuste algum', async () => {
     const d = await pastaComManifesto()
-    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco, sql: null }))
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga().sql }))
     expect(r.saida.some(l => l.startsWith('select setval'))).toBe(false)
   })
 
+  it('M9b T3 (165 canal): canal que ainda existe imprime os \\copy e consulta com site e canal do manifesto', async () => {
+    const d = await pastaComManifesto()
+    const b = bancoRecarga({ removido: false, decisao: null, sem_destino: false })
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: b.sql }))
+    expect(r.codigo).toBe(0)
+    expect(r.saida.some(l => l.startsWith('\\copy'))).toBe(true)
+    const q = b.chamadas.find(c => /obs_archive_channel_is_removed/.test(c.texto))!
+    expect(q.parametros).toEqual([SITE, CANAL])
+  })
+
+  it('M9b T3 (165 canal): decisão apagar recusa com canal_apagado e nenhum \\copy na saída', async () => {
+    const d = await pastaComManifesto()
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga({ removido: true, decisao: 'apagar', sem_destino: false }).sql }))
+    expect(r.codigo).toBe(1)
+    expect(tudo(r)).toContain('canal_apagado')
+    expect(r.saida.some(l => l.includes('\\copy'))).toBe(false)
+  })
+
+  it('M9b T3 (165 canal): decisão guardar imprime (recarregar lote guardado é o uso legítimo)', async () => {
+    const d = await pastaComManifesto()
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga({ removido: true, decisao: 'guardar', sem_destino: false }).sql }))
+    expect(r.codigo).toBe(0)
+    expect(r.saida.some(l => l.startsWith('\\copy'))).toBe(true)
+  })
+
+  it('M9b T3 (165 canal): sem_destino imprime, com uma linha de aviso (lote anterior à M3b não quebra)', async () => {
+    const d = await pastaComManifesto()
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga({ removido: true, decisao: null, sem_destino: true }).sql }))
+    expect(r.codigo).toBe(0)
+    expect(r.saida.some(l => l.startsWith('\\copy'))).toBe(true)
+    expect((r.erros ?? []).join(' ')).toMatch(/sem destino|sem_destino/)
+  })
+
+  it('M9b T3: sem banco (sql nulo) nunca imprime os comandos; resposta da consulta fora da forma também recusa', async () => {
+    const d = await pastaComManifesto()
+    const sem = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: null }))
+    expect(sem.codigo).toBe(2)
+    expect(sem.saida.some(l => l.includes('\\copy'))).toBe(false)
+    const torta = roteirizado([rotaSite, [/obs_archive_channel_is_removed/, () => [{ r: 'lixo' }]]])
+    const r = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: torta.sql }))
+    expect(r.codigo).toBe(1)
+    expect(r.saida.some(l => l.includes('\\copy'))).toBe(false)
+  })
+
   it('comandos-recarga: pasta sem manifesto ou com manifesto adulterado não imprime nada', async () => {
-    const vazio = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /nada`, { HOME: '/h' }), dinheiro())
+    const vazio = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /nada`, ENV_RECARGA), dinheiro({ sql: bancoRecarga().sql }))
     expect(vazio.codigo).toBe(1)
     const d = await pastaComManifesto()
     d.arquivos.set(`/arquivo/${LOTE}/manifesto.json`, Buffer.from('{ "versao": 7 }'))
-    const ruim = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, { HOME: '/h' }), dinheiro({ disco: d.disco }))
+    const ruim = await rodar(cmd(`comandos-recarga --lote ${LOTE} --pasta /arquivo`, ENV_RECARGA), dinheiro({ disco: d.disco, sql: bancoRecarga().sql }))
     expect(ruim.codigo).toBe(1)
     expect(ruim.saida.some(l => l.startsWith('\\copy'))).toBe(false)
   })
