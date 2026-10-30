@@ -30,3 +30,7 @@ body.p9-so .p9-mob{display:none}
 .m-cinza .p9-wrap{filter:grayscale(1)}
 .m-can p code{white-space:nowrap}
 .p9-nome{padding:6px 8px;background:var(--sunk);border:1px solid var(--border);border-radius:6px}
+
+.p9-ja-w{margin-top:14px}
+.p9-ja .p9-sec{margin:0!important}
+.p9-av{margin-top:10px}

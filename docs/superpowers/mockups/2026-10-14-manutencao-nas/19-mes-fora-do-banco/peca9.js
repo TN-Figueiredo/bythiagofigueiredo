@@ -39,7 +39,7 @@
       '<div class="m-ac">' + (temCmd ? btn(pid, o.aberto) : '') + '</div>' + (temCmd ? painel(pid, o.cmd, o.aberto) : '') + '</li>';
   }
   function rot(t){ return '<li class="p9-rot" aria-hidden="true">' + t + '</li>'; }
-  function lista(itens){ return '<ul class="p9-lista" style="padding:0;list-style:none">' + itens.join('') + '</ul>'; }
+  function lista(itens){ return '<ul class="p9-lista">' + itens.join('') + '</ul>'; }
   var TIT_PEDIDO = 'Para limpar o arquivo de Viagem Lenta, rode uma linha no Mac.';
 
   /* ------------------------------------------------------------ 1. Ver os comandos do canal */
@@ -78,7 +78,7 @@
         frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS. <b>Espere até 08/05.</b> ' + info('O NAS guarda cópias diárias por 14 dias e 8 horas. Enquanto elas existirem, o arquivo ainda está no NAS, e o B2 só pode ser apagado depois.', 'Por que esperar') }),
       rot('Sem a data de liberação (nula): nunca "hoje" nem "0 dias"'),
       linha({ sub: 'removido em 10/04/2028', steps: [V, V, 'nm', P], forma: 'nm',
-        frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS: os snapshots do NAS ainda guardam o arquivo e a data em que expiram não foi lida. Nada a fazer agora.' }),
+        frase: 'Apagado do NAS em 24/04/2028. Os snapshots ainda guardam o arquivo; a data em que expiram não foi lida. Nada a fazer agora.' }),
       rot('Pendências não lidas: hachura (não medido), sem comando'),
       linha({ sub: 'removido em 10/04/2028', steps: [V, V, 'nm', P], forma: 'nm',
         frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS; a data não foi lida. A leitura é refeita na próxima carga.' }),
@@ -134,7 +134,7 @@
     return '<div class="m-dlg" role="group" aria-label="Apagar do arquivo: ' + esc(estado) + '"><div class="m-dlg-b"><h2>Apagar do arquivo os 14 meses de Viagem Lenta?</h2>' +
       '<p class="t"><b>Não dá para desfazer.</b> Os 14 meses (de 10/2026 a 11/2027) saem do arquivo e podem ser a única cópia dos registros deste canal.</p>' +
       '<p class="t">Para continuar, digite o nome do canal:</p><p class="t p9-nome"><b>Viagem Lenta</b></p>' +
-      '<label for="' + id('p9n') + '">Nome do canal</label><input type="text" value="Viagem Lenta"' + (enviando ? ' readonly' : '') + ' autocomplete="off">' + (aviso ? '<div style="margin-top:10px">' + aus('am', aviso).replace('<p class="m-ausente am"', '<p role="alert" tabindex="-1" class="m-ausente am"') + '</div>' : '<p class="m-st" role="status">Nome confirmado.</p>') + st +
+      '<label for="' + id('p9n') + '">Nome do canal</label><input type="text" value="Viagem Lenta"' + (enviando ? ' readonly' : '') + ' autocomplete="off">' + (aviso ? '<div class="p9-av">' + aus('am', aviso).replace('<p class="m-ausente am"', '<p role="alert" tabindex="-1" class="m-ausente am"') + '</div>' : '<p class="m-st" role="status">Nome confirmado.</p>') + st +
       '</div><div class="m-dlg-a"><button type="button" class="btn danger"' + (enviando ? ' aria-disabled="true"' : '') + '>' + (enviando ? 'Apagando…' : 'Apagar do arquivo') + '</button><button type="button" class="btn"' + (enviando ? ' aria-disabled="true"' : '') + '>Cancelar</button></div></div>';
   }
   function fig(cap, html){ return '<figure><figcaption>' + cap + '</figcaption>' + html + '</figure>'; }
@@ -178,10 +178,10 @@
   function it6(){
     var ja = '<details class="p9-ja" open><summary>' + ic('arq') + 'Já limpos (5)</summary><div>' +
       '<ul><li>Canal de Receitas da Vó: limpo em 12/03/2028</li><li>Trilhas do Sul: limpo em 02/02/2028</li><li>Viagem Lenta: limpo em 20/01/2028</li><li>Mochilão Barato: limpo em 15/01/2028</li><li>Estrada sem Mapa: limpo em 03/12/2027</li></ul>' +
-      '<p class="p9-sec" style="margin:0!important">' + ic('arq') + '<span>2 desses canais tinham lote exportado à mão; ele continua no Mac e no NAS: apague-o.</span></p></div></details>';
+      '<p class="p9-sec">' + ic('arq') + '<span>2 desses canais tinham lote exportado à mão; ele continua no Mac e no NAS: apague-o.</span></p></div></details>';
     return '<div class="p9-dlgs">' + fig('c-apagar, canal que veio de e10_export (o aviso do lote aparece só nesse caso)', dlgE10(false)) +
       fig('c-apagar-sd, com as duas condições: o aviso do lote vem primeiro (é ação sua), o do Blob depois (é espera do site)', dlgE10(true)) + '</div>' +
-      '<div style="margin-top:14px">' + ja + '</div>' +
+      '<div class="p9-ja-w">' + ja + '</div>' +
       '<p class="p9-nota">O canal concluído vai direto para "Já limpos", então a frase mora no &lt;details&gt;, uma linha só quando algum limpo veio de e10_export. Ela não some com o tempo: nada sustenta uma regra de 90 dias. A tela não enxerga o Mac, então a frase é neutra e não cobra com âmbar nem idade; o resumo fechado já leva a marca de arquivo ao lado do número.</p>';
   }
 
