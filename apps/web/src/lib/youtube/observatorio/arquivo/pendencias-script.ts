@@ -122,6 +122,12 @@ export function scriptDasPendencias(
           const ms = i.snapLiberaEm?.getTime() ?? 0, agora = l.lidoEm.getTime()
           frase = fraseSnapEspera({ bloqueio: i.snapBloqueio, esperaDesde: i.snapEsperaDesde, liberaEm: i.snapLiberaEm, passou: !!i.snapLiberaEm && ms <= agora, atrasada: !!i.snapLiberaEm && ms < agora - 86_400_000 }, d => dataBr(d).slice(0, 5)).texto
         }
+        // M9, Tarefa 8: o Mac já registrou a cópia (ou a reemite): o item saiu de `copiar` mas o arquivo ainda precisa chegar a `_recebendo`
+        const registradas = (o.copias ?? []).filter(c => c.itemId === i.itemId)
+        if (registradas.length > 0) {
+          temGrava = true
+          for (const c of registradas) itens.push(`  grava_recebendo ${aspas(c.filho)} ${aspas(c.caminho)} ${aspas(c.sha256)} <<'OBS-B64'`, ...tamanho(c.base64), 'OBS-B64')
+        }
         itens.push(esp(`ESPERA ${i.itemId}: ${frase}`)); break
       }
       case 'bloqueado': itens.push(esp(`BLOQUEADO ${i.itemId}: ${i.motivo ? FRASE_DO_MOTIVO[i.motivo] : 'apagar está indisponível agora (veja o aviso na página)'}`)); break

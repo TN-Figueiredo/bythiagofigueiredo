@@ -143,6 +143,8 @@ const TABELAS_PERMITIDAS = [
   'apps/web/src/lib/youtube/observatorio/arquivo-mensal/expurgo-filtro.ts',
   'apps/web/src/lib/youtube/observatorio/arquivo-mensal/expurgo-resumo.ts',
   'apps/web/src/lib/youtube/observatorio/arquivo/cli.ts',
+  // M9 T8: o tempo copiar no Mac cita os nomes das tabelas de comentários (marcas do item); lê arquivo do NAS, não o banco
+  'apps/web/src/lib/youtube/observatorio/arquivo/expurgar.ts',
   'apps/web/src/lib/youtube/observatorio/comentarios/gravar.ts',
   'apps/web/src/lib/youtube/observatorio/comentarios/identidade.ts',
   'apps/web/src/lib/youtube/observatorio/comentarios/leitor-contagem.ts',

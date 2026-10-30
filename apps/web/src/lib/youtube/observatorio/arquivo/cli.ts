@@ -16,6 +16,7 @@ import type { Baixar } from './miniaturas'
 import type { PedirPendencias } from './credencial'
 import { lerPendencias } from '../arquivo-mensal/pendencias'
 import { scriptDasPendencias, scriptDeFalha } from './pendencias-script'
+import { prepararCopias, type Copia, type DepsExpurgo } from './expurgar'
 import type { ClienteSql } from './sessao'
 import { sinalDoBanco, type LinhaBruta } from './sinal-do-banco'
 
@@ -34,6 +35,7 @@ export type Comando =
   | { nome: 'comandos-recarga'; lote: string; pasta: string }
   | { nome: 'pedidos'; por: string; site: string | null; pasta: string; destino: string | null }
   | { nome: 'pendencias' }
+  | { nome: 'expurgar'; item: string; apagarAntigas: boolean }
 
 export const USO = [
   'uso: npx tsx scripts/obs-arquivo.ts <comando> [opções]',
@@ -47,6 +49,7 @@ export const USO = [
   '  remover          --canal <uuid> --por <e-mail> [--site <uuid>]',
   '  pedidos          --por <e-mail> [--site <uuid>] [--pasta <raiz>] [--destino <usuario@host:/caminho>]   (remoções pedidas no CMS)',
   '  pendencias       (sem opção; chave em ~/.config/obs-arquivo/chave; imprime o script da forja: npm run -s obs:arquivo | ssh forja \'bash -s\')',
+  '  expurgar         --item <n> [--apagar-antigas]     (prepara a cópia do item e imprime o script: npm run -s obs:expurgar -- --item <n> | ssh forja "bash -s"; --canal: M9b)',
   '  comandos-recarga --lote <nome> [--pasta <raiz>]                                    (só imprime)',
   'ambiente: OBS_ARQUIVO_DB_URL (conexão direta ao banco; o .env.local nunca é lido)',
 ]
@@ -65,6 +68,7 @@ const OPCOES: Record<string, { valor: string[]; bandeira: string[]; obrigatorias
   pedidos: { valor: ['por', 'site', 'pasta', 'destino'], bandeira: [], obrigatorias: ['por'] },
   'comandos-recarga': { valor: ['lote', 'pasta'], bandeira: [], obrigatorias: ['lote'] },
   pendencias: { valor: [], bandeira: [], obrigatorias: [] },
+  expurgar: { valor: ['item', 'canal'], bandeira: ['apagar-antigas'], obrigatorias: [] },
 }
 
 export function pastaPadrao(env: NodeJS.ProcessEnv): string | null {
@@ -93,6 +97,13 @@ export function interpretar(argv: string[], env: NodeJS.ProcessEnv): Comando | {
   for (const o of regra.obrigatorias) if (!valores.has(o)) return { erro: `falta --${o}` }
   if (COM_BANCO.has(sub) && (typeof env.OBS_ARQUIVO_DB_URL !== 'string' || env.OBS_ARQUIVO_DB_URL.trim() === '')) {
     return { erro: 'OBS_ARQUIVO_DB_URL não está definida. Ela é a conexão direta ao banco e não vem do .env.local.' }
+  }
+  if (sub === 'expurgar') {
+    if (valores.has('canal')) return { erro: 'expurgar --canal fica para a M9b; nada foi feito' }
+    const item = valores.get('item')
+    if (item === undefined) return { erro: 'falta --item' }
+    if (!/^[1-9][0-9]{0,18}$/.test(item)) return { erro: '--item precisa ser o número do item (ex.: 12)' }
+    return { nome: 'expurgar', item, apagarAntigas: bandeiras.has('apagar-antigas') }
   }
   const canal = valores.get('canal')
   if (canal !== undefined && !ID.test(canal)) return { erro: '--canal precisa ser um uuid' }
@@ -135,6 +146,8 @@ export interface DepsDoComando {
   versaoDoScript: string
   /** Só `pendencias`: a ida à rota C13 com a chave do arquivo (nula = a chave não foi lida). */
   pedirPendencias?: PedirPendencias
+  /** `pendencias`/`expurgar`: o tempo `copiar` no Mac (M9, Tarefa 8). Ausente = o comando não prepara cópias. */
+  expurgo?: DepsExpurgo
 }
 export interface Saida { codigo: 0 | 1 | 2; saida: string[]; erros?: string[] }
 
@@ -169,6 +182,7 @@ async function administra(sql: ClienteSql, site: string, usuario: string): Promi
 
 export async function rodar(c: Comando, d: DepsDoComando): Promise<Saida> {
   if (c.nome === 'pendencias') return await pendencias(d)
+  if (c.nome === 'expurgar') return await pendencias(d, { itemId: `item:${c.item}`, apagarAntigas: c.apagarAntigas })
   try {
     if (c.nome === 'comandos-nas') return comandosNas(c)
     if (c.nome === 'comandos-recarga') return await comandosRecarga(c, d)
@@ -198,35 +212,75 @@ function falhaDaPendencias(codigo: 1 | 2, frase: string): Saida {
   return { codigo, saida: scriptDeFalha(frase), erros: [frase] }
 }
 
-async function pendencias(d: DepsDoComando): Promise<Saida> {
+type Lida = { ok: true; l: Extract<ReturnType<typeof lerPendencias>, { ok: true }> } | { ok: false; saida: Saida }
+
+/** A ida à rota C13 e a leitura estrita. Qualquer falha vira script de falha (nunca "nada pendente"). */
+async function lerDaRota(d: DepsDoComando): Promise<Lida> {
+  const falha = (frase: string): Lida => ({ ok: false, saida: falhaDaPendencias(1, frase) })
+  if (d.pedirPendencias === undefined) return falha('obs:arquivo: a chave do arquivo não foi lida; nada foi feito')
+  let r: { status: number; corpo: string }
   try {
-    if (d.pedirPendencias === undefined) return falhaDaPendencias(1, 'obs:arquivo: a chave do arquivo não foi lida; nada foi feito')
-    let r: { status: number; corpo: string }
-    try {
-      r = await d.pedirPendencias()
-    } catch (e) {
-      const tempo = (e as { name?: string } | null)?.name === 'TimeoutError'
-      return falhaDaPendencias(1, tempo
-        ? 'obs:arquivo: o site não respondeu em 15 s; nada foi feito'
-        : 'obs:arquivo: não consegui falar com o site (rede); nada foi feito')
+    r = await d.pedirPendencias()
+  } catch (e) {
+    const tempo = (e as { name?: string } | null)?.name === 'TimeoutError'
+    return falha(tempo ? 'obs:arquivo: o site não respondeu em 15 s; nada foi feito' : 'obs:arquivo: não consegui falar com o site (rede); nada foi feito')
+  }
+  let json: unknown = undefined
+  let temJson = true
+  try { json = JSON.parse(r.corpo) } catch { temJson = false }
+  if (r.status !== 200) {
+    const codigo = temJson && typeof json === 'object' && json !== null ? ((json as { error?: { code?: unknown } }).error?.code) : undefined
+    if (r.status === 503 && codigo === 'arquivo_desligado') return falha('obs:arquivo: o arquivo está desligado no site; nada foi feito')
+    if (r.status === 401 || r.status === 403) return falha('obs:arquivo: o site recusou a chave; rode o m3b-obs-arquivo-credencial.sh')
+    return falha(`obs:arquivo: o site não respondeu como esperado (HTTP ${r.status}); nada foi feito`)
+  }
+  if (!temJson) return falha('obs:arquivo: a resposta do site veio sem JSON; não consegui ler as pendências')
+  const env = json as Record<string, unknown> | null
+  const dentro = typeof env === 'object' && env !== null && !Array.isArray(env) && Object.keys(env).length === 1 && 'data' in env ? env.data : undefined
+  const l = lerPendencias(dentro)
+  if (!l.ok) return falha(`obs:arquivo: não consegui ler as pendências do site (${l.porque}); nada foi feito`)
+  return { ok: true, l }
+}
+
+const TEMPO_EM_PALAVRAS: Record<string, string> = {
+  sem_comando: 'ainda não há comando liberado para ele', copiar: 'a cópia ainda não foi preparada', conferir_b2: 'o passo agora é conferir o B2',
+  apagar_antigas: 'o passo agora é apagar as versões antigas', bloqueado: 'ele está bloqueado',
+}
+
+async function pendencias(d: DepsDoComando, so?: { itemId: string; apagarAntigas: boolean }): Promise<Saida> {
+  try {
+    const primeira = await lerDaRota(d)
+    if (!primeira.ok) return primeira.saida
+    let l = primeira.l
+    const todos = l.itens
+    const avisos: string[] = []
+    if (so) {
+      const i = l.itens.find(x => x.itemId === so.itemId)
+      if (!i) return falhaDaPendencias(1, `obs:arquivo: ${so.itemId} não está na lista de pendências (já concluído ou desconhecido); nada foi feito`)
+      if (so.apagarAntigas && i.tempo !== 'apagar_antigas' && i.tempo !== 'conferir_b2') {
+        return falhaDaPendencias(1, `obs:arquivo: ${so.itemId}: ${TEMPO_EM_PALAVRAS[i.tempo] ?? i.tempo}; só apago as antigas quando os três arquivos novos estiverem recebidos; nada foi feito`)
+      }
+      l = { ...l, itens: [i] }
     }
-    let json: unknown = undefined
-    let temJson = true
-    try { json = JSON.parse(r.corpo) } catch { temJson = false }
-    if (r.status !== 200) {
-      const codigo = temJson && typeof json === 'object' && json !== null ? ((json as { error?: { code?: unknown } }).error?.code) : undefined
-      if (r.status === 503 && codigo === 'arquivo_desligado') return falhaDaPendencias(1, 'obs:arquivo: o arquivo está desligado no site; nada foi feito')
-      if (r.status === 401 || r.status === 403) return falhaDaPendencias(1, 'obs:arquivo: o site recusou a chave; rode o m3b-obs-arquivo-credencial.sh')
-      return falhaDaPendencias(1, `obs:arquivo: o site não respondeu como esperado (HTTP ${r.status}); nada foi feito`)
+    let copias: Copia[] = []
+    if (d.expurgo) {
+      let prep: Awaited<ReturnType<typeof prepararCopias>>
+      try { prep = await prepararCopias(l.itens, d.expurgo, undefined, todos) } catch {
+        return falhaDaPendencias(1, 'obs:arquivo: a preparação da cópia falhou no meio (rede, NAS ou resposta fora da forma); nada foi gravado no NAS')
+      }
+      avisos.push(...prep.avisos)
+      copias = prep.copias
+      if (!prep.nasFora && (copias.length > 0 || prep.avisos.length > 0 || l.itens.some(i => i.tempo === 'copiar'))) {
+        // o registro mudou os tempos: o script sai do estado novo (D-F23)
+        const segunda = await lerDaRota(d)
+        if (!segunda.ok) return { ...segunda.saida, erros: ['obs:arquivo: o site registrou a cópia; rode de novo para o script', ...(segunda.saida.erros ?? [])] }
+        l = so ? { ...segunda.l, itens: segunda.l.itens.filter(x => x.itemId === so.itemId) } : segunda.l
+      }
     }
-    if (!temJson) return falhaDaPendencias(1, 'obs:arquivo: a resposta do site veio sem JSON; não consegui ler as pendências')
-    const env = json as Record<string, unknown> | null
-    const dentro = typeof env === 'object' && env !== null && !Array.isArray(env) && Object.keys(env).length === 1 && 'data' in env ? env.data : undefined
-    const l = lerPendencias(dentro)
-    if (!l.ok) return falhaDaPendencias(1, `obs:arquivo: não consegui ler as pendências do site (${l.porque}); nada foi feito`)
-    const s = scriptDasPendencias(l, { versao: d.versaoDoScript })
+    if (so?.apagarAntigas) l = { ...l, itens: l.itens.filter(i => i.tempo === 'apagar_antigas' || i.tempo === 'conferir_b2') }
+    const s = scriptDasPendencias(l, { versao: d.versaoDoScript, copias })
     if (!s.ok) return falhaDaPendencias(1, `obs:arquivo: ${s.porque}; nada foi feito`)
-    return { codigo: 0, saida: s.linhas, erros: [s.resumo] }
+    return { codigo: 0, saida: s.linhas, erros: [...avisos, s.resumo] }
   } catch {
     return falhaDaPendencias(1, 'obs:arquivo: erro inesperado; nada foi feito')
   }
