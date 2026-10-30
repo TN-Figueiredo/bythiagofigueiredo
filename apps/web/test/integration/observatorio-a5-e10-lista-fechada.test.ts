@@ -72,6 +72,7 @@ const LISTA: Par[] = [
   { funcao: 'competitor_channel_purge', tabela: 'yt_watch_alvos', linha: 'M9 (D-M9-25): o dono mandou apagar o canal que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
   { funcao: 'competitor_channel_purge', tabela: 'yt_watch_readings', linha: 'M9 (D-M9-25): o dono mandou apagar o canal que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
   { funcao: 'competitor_channel_purge', tabela: 'yt_watch_thumbs', linha: 'M9 (D-M9-25): o dono mandou apagar o canal que saiu do YouTube; a watch dele sai junto', disparo: 'dono' },
+  { funcao: 'obs_archive_absence_prune', tabela: 'obs_archive_absence', linha: 'M9 T13 (Phil I1): prova de ausência de canal: encerrada há mais de 90 dias, com a remoção concluída; nunca antiga:/alvo:', disparo: 'agenda' },
   // canal de concorrente: agenda e comentários
   { funcao: 'competitor_agenda_lease_release', tabela: 'competitor_agenda_lease', linha: '3 (estado de execução, MG10)', disparo: 'agenda' },
   { funcao: 'competitor_comment_identity_purge', tabela: 'competitor_video_comment_authors', linha: '6 (identidade de autor vence em 30 dias, LGPD; não apaga texto nem série)', disparo: 'cron' },
