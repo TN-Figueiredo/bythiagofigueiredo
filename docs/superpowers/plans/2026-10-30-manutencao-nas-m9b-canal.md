@@ -45,6 +45,7 @@ Fonte: `.superpowers/sdd/manutencao-nas/saidas/m9b-rev-phil.md`, `m9b-rev-yannis
 - T7, capacidade `blobsLigados` e frase de `guardar` em `canais-removidos.ts:83,89-92` (Phil I1): contar, na leitura do passo 3, as linhas `sem_arquivo` + `guardar` com blobs.
 - T7b: `marcar` traduz `sem_permissao` e `item_desconhecido` (hoje tudo vira `interno`). A tela também traduz o erro novo `canal_existe` de `apagarDoArquivoAction` (canal voltou a existir: a ação recusa antes do `decide`).
 - T8: `runbook-arquivo-mensal.md:241`, `env-vars.md:29`, `observatorio-arquivo-runbook.md:72` (`--tsconfig`).
+- Dívida (conserto 2 do lote 1): a checagem de canal vivo em `apagarDoArquivoAction` e o `decide` não são atômicos; quem fecha é o SQL (`obs_archive_channel_removal_decide`).
 - Conferir o papel do banco em `OBS_ARQUIVO_DB_URL`: `obs_archive_channel_is_removed` só tem grant a `service_role`.
 
 **Ordem das tarefas (código):** T6 primeiro (prova a tese; se falhar, para), depois T1, T3, T5 (ramo próprio), T2, T4 (mockup, em paralelo), T7, T7b, T8. A numeração não muda para não quebrar as referências das revisões.

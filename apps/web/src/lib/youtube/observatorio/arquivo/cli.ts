@@ -58,6 +58,14 @@ export const USO = [
 const COM_BANCO = new Set(['estado', 'pausar', 'despausar', 'exportar', 'conferir', 'confirmar-nas', 'remover', 'pedidos', 'comandos-recarga'])
 /** Pura: o subcomando precisa de conexão ao banco? Derivada de `COM_BANCO` (o script usa esta mesma função para decidir se conecta). */
 export const precisaDeBanco = (nome: string): boolean => COM_BANCO.has(nome)
+/** O script conecta ao banco só se há URL e o comando usa banco (ex.: `comandos-recarga` conecta). */
+export const deveConectar = (nome: string, url: string | undefined): boolean => Boolean(url) && precisaDeBanco(nome)
+/** `saida` vai ao stdout e `erros` (avisos como sem_destino, resumo do banco restaurado) ao stderr; devolve o código. */
+export function imprimirSaida(r: Saida, io: { out: (l: string) => void; err: (l: string) => void }): number {
+  for (const l of r.saida) io.out(l)
+  for (const l of r.erros ?? []) io.err(l)
+  return r.codigo
+}
 const OPCOES: Record<string, { valor: string[]; bandeira: string[]; obrigatorias: string[] }> = {
   estado: { valor: ['site', 'pasta'], bandeira: [], obrigatorias: [] },
   pausar: { valor: ['canal', 'por', 'site'], bandeira: [], obrigatorias: ['canal', 'por'] },

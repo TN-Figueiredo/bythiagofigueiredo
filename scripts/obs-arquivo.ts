@@ -7,7 +7,7 @@ import { Client } from 'pg'
 import { access, mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
-import { interpretar, precisaDeBanco, rodar, USO } from '../apps/web/src/lib/youtube/observatorio/arquivo/cli'
+import { deveConectar, imprimirSaida, interpretar, rodar, USO } from '../apps/web/src/lib/youtube/observatorio/arquivo/cli'
 import { criarBaixar } from '../apps/web/src/lib/youtube/observatorio/arquivo/miniaturas'
 import type { Disco } from '../apps/web/src/lib/youtube/observatorio/arquivo/exportar'
 import { escreverTudo } from '../apps/web/src/lib/youtube/observatorio/arquivo/escrever'
@@ -60,8 +60,8 @@ async function main(): Promise<number> {
   const url = process.env.OBS_ARQUIVO_DB_URL
   let cliente: Client | null = null
   let sql: ClienteSql | null = null
-  if (url && precisaDeBanco(comando.nome)) {
-    cliente = new Client({ connectionString: url })
+  if (deveConectar(comando.nome, url)) {
+    cliente = new Client({ connectionString: url! })
     try {
       await cliente.connect()
     } catch {
@@ -77,8 +77,7 @@ async function main(): Promise<number> {
       sql, disco, baixar: criarBaixar(fetch), agora: () => new Date(), ehTerminal: process.stdin.isTTY === true && process.stdout.isTTY === true,
       perguntar: pergunta => new Promise(resolve => leitor.question(pergunta, resolve)), versaoDoScript: VERSAO,
     })
-    for (const linha of r.saida) console.log(linha)
-    return r.codigo
+    return imprimirSaida(r, { out: l => console.log(l), err: l => console.error(l) })
   } finally {
     leitor.close()
     await cliente?.end().catch(() => undefined)
