@@ -263,20 +263,21 @@ export async function retentarMiniaturasPendentes(
 
 const LIMITE_LINHAS = 50
 
-/** M9 (D-M9-13): nova tentativa diária dos blobs dos canais removidos (obs_archive_channel_removals.blobs_pending). Só com OBS_ARQUIVO_LIMPEZA_CANAL='on'. Nunca lança. */
+/** M9 (D-M9-13): nova tentativa diária dos blobs dos canais removidos (obs_archive_channel_removals.blobs_pending). Só com OBS_ARQUIVO_LIMPEZA_BLOBS='on' (variável própria; a OBS_ARQUIVO_LIMPEZA_CANAL só liga a tela e a ação) e só em linha archive_decision='apagar'. Nunca lança. */
 export async function retentarBlobsDeRemocoes(
   sb: SupabaseClient,
   o: { agoraMs: number; maximo: number; prazoMs: number },
   deps: DepsDoBlob & { env?: NodeJS.ProcessEnv } = {},
 ): Promise<NovaTentativa> {
   try {
-    if ((deps.env ?? process.env).OBS_ARQUIVO_LIMPEZA_CANAL !== 'on') return { porque: 'flag_desligada' }
+    if ((deps.env ?? process.env).OBS_ARQUIVO_LIMPEZA_BLOBS !== 'on') return { porque: 'flag_desligada' }
     if (e2e()) return { porque: 'e2e' }
     if (!deps.apagarDoBlob && !process.env.BLOB_READ_WRITE_TOKEN) return { porque: 'sem_token' }
     const apagarDoBlob = deps.apagarDoBlob ?? apagarDoBlobPadrao
     const agora = deps.agora ?? Date.now
     const lido = await sb.from('obs_archive_channel_removals')
       .select('site_id, channel_ref, blobs_pending')
+      .eq('archive_decision', 'apagar')
       .not('blobs_pending', 'eq', '{}')
       .order('decided_at', { ascending: true })
       .limit(50)

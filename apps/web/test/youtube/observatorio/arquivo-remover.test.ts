@@ -192,30 +192,32 @@ describe('A5 E10 T11a: retentarMiniaturasPendentes', () => {
   })
 })
 
-describe('M9 T13: retentarBlobsDeRemocoes (atrás de OBS_ARQUIVO_LIMPEZA_CANAL)', () => {
+describe('M9 T13: retentarBlobsDeRemocoes (atrás de OBS_ARQUIVO_LIMPEZA_BLOBS)', () => {
   const { retentarBlobsDeRemocoes } = remover
   const CANAL2 = '44444444-4444-4444-8444-444444444444'
   const lin = (ref: string, urls: string[]) => ({ site_id: SITE, channel_ref: ref, blobs_pending: urls })
   const o = (extra: Partial<{ agoraMs: number; maximo: number; prazoMs: number }> = {}) => ({ agoraMs: Date.now(), maximo: 200, prazoMs: 60_000, ...extra })
-  const on = { OBS_ARQUIVO_LIMPEZA_CANAL: 'on' } as NodeJS.ProcessEnv
-  function fal(linhas: unknown[], rpcErro = false): { sb: SupabaseClient; ch: Chamada[]; lido: string[] } {
+  const on = { OBS_ARQUIVO_LIMPEZA_BLOBS: 'on' } as NodeJS.ProcessEnv
+  function fal(linhas: unknown[], rpcErro = false): { sb: SupabaseClient; ch: Chamada[]; lido: string[]; eqs: Array<[string, unknown]> } {
     const ch: Chamada[] = []
     const lido: string[] = []
+    const eqs: Array<[string, unknown]> = []
     const sb = {
       rpc: async (fn: string, args: Record<string, unknown>) => { ch.push({ fn, args }); return { data: 0, error: rpcErro ? { message: 'x' } : null } },
       from: (t: string) => {
         lido.push(t)
         const c: Record<string, unknown> = {}
         for (const m of ['select', 'not', 'order', 'limit']) c[m] = () => c
+        c.eq = (col: string, v: unknown) => { eqs.push([col, v]); return c }
         c.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: linhas, error: null }).then(ok)
         return c
       },
     }
-    return { sb: sb as unknown as SupabaseClient, ch, lido }
+    return { sb: sb as unknown as SupabaseClient, ch, lido, eqs }
   }
 
   it('sem a variável não tenta', async () => {
-    delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL
+    delete process.env.OBS_ARQUIVO_LIMPEZA_BLOBS
     const { sb, lido } = fal([lin(CANAL, [url(1)])])
     expect(await retentarBlobsDeRemocoes(sb, o(), { env: process.env, apagarDoBlob: vi.fn() })).toEqual({ porque: 'flag_desligada' })
     expect(lido).toHaveLength(0)
@@ -223,8 +225,37 @@ describe('M9 T13: retentarBlobsDeRemocoes (atrás de OBS_ARQUIVO_LIMPEZA_CANAL)'
 
   it('com off não tenta', async () => {
     const { sb, lido } = fal([lin(CANAL, [url(1)])])
-    expect(await retentarBlobsDeRemocoes(sb, o(), { env: { OBS_ARQUIVO_LIMPEZA_CANAL: 'off' } as NodeJS.ProcessEnv, apagarDoBlob: vi.fn() })).toEqual({ porque: 'flag_desligada' })
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env: { OBS_ARQUIVO_LIMPEZA_BLOBS: 'off' } as NodeJS.ProcessEnv, apagarDoBlob: vi.fn() })).toEqual({ porque: 'flag_desligada' })
     expect(lido).toHaveLength(0)
+  })
+
+  it('variável nova ausente com a antiga on: desligada e nada lido', async () => {
+    delete process.env.OBS_ARQUIVO_LIMPEZA_BLOBS
+    const { sb, lido } = fal([lin(CANAL, [url(1)])])
+    const apagar = vi.fn()
+    const env = { OBS_ARQUIVO_LIMPEZA_CANAL: 'on' } as NodeJS.ProcessEnv
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env, apagarDoBlob: apagar })).toEqual({ porque: 'flag_desligada' })
+    expect(apagar).not.toHaveBeenCalled()
+    expect(lido).toHaveLength(0)
+  })
+
+  it('variável nova on com a antiga ausente: apaga', async () => {
+    const { sb } = fal([lin(CANAL, [url(1)])])
+    const env = { OBS_ARQUIVO_LIMPEZA_BLOBS: 'on' } as NodeJS.ProcessEnv
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env, apagarDoBlob: async () => undefined })).toMatchObject({ apagadas: 1 })
+  })
+
+  it.each(['ON', '1', ''])('valor %j da variável nova: desligada', async (v) => {
+    const { sb, lido } = fal([lin(CANAL, [url(1)])])
+    const env = { OBS_ARQUIVO_LIMPEZA_BLOBS: v } as NodeJS.ProcessEnv
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env, apagarDoBlob: vi.fn() })).toEqual({ porque: 'flag_desligada' })
+    expect(lido).toHaveLength(0)
+  })
+
+  it('Y4: só linha com archive_decision = apagar é selecionada (guardar nunca é tocada)', async () => {
+    const { sb, eqs } = fal([lin(CANAL, [url(1)])])
+    await retentarBlobsDeRemocoes(sb, o(), { env: on, apagarDoBlob: async () => undefined })
+    expect(eqs).toContainEqual(['archive_decision', 'apagar'])
   })
 
   it('sem token: sem_token', async () => {
