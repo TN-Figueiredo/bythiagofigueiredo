@@ -141,14 +141,15 @@ export function scriptDasPendencias(
       case 'conferir_b2':
         temPrefixo = true
         for (const n of i.b2Nomes) itens.push(`  b2_painel ${aspas(n)}`)
-        itens.push(`  echo ${aspas('no painel do B2: Buckets > <bucket> > Browse Files, com "mostrar versões" ligado, procure o nome')}`)
+        itens.push(`  echo ${aspas('no painel do B2: Buckets > <bucket> > Browse Files, com "mostrar versões" ligado, APAGUE todas as versões de cada nome acima (inclusive a marca de ocultação); o conferir-b2 conclui sozinho, sem atestado seu')}`)
         break
       case 'apagar_antigas':
+        // Phil C1 / Hanna H4: o comando de apagar canal removido é da M9b; até lá o item de canal só espera
+        if (i.itemId.startsWith('canal:')) { itens.push(esp(`ESPERA ${i.itemId}: a limpeza de canal removido no NAS é da M9b; nada foi apagado`)); break }
         temApagar = true
         for (const a of i.apagar) {
           itens.push(`  apaga_conferido ${aspas(a.filho)} ${aspas(a.caminho)} ${aspas(a.sha256)} ${aspas(a.nova?.caminho ?? '')} ${aspas(a.nova?.sha256 ?? '')}`)
         }
-        if (i.itemId.startsWith('canal:')) { temPrefixo = true; for (const p of i.prefixos) itens.push(`  limpa_prefixo ${aspas(p)}`) }
         break
     }
   }

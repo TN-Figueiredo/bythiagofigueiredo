@@ -5,9 +5,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Client } from 'pg'
-import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { skipIfNoLocalDb } from '../helpers/db-skip'
 import { m3bNoBanco, aplicarM3b, semearCanal } from '../helpers/m3b'
 import { criarUsuario } from '../helpers/mg6'
@@ -22,8 +21,8 @@ const PG_URL = process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@12
 const H = (ch: string): string => ch.repeat(64)
 const DAILY = 'competitor_video_daily'
 const MES = '2026-09-01'
-// O arquivo de emergência mora no ledger do repositório principal (ninguém o roda; só este teste).
-const EMERGENCIA = join(homedir(), 'Workspace/bythiagofigueiredo/.superpowers/sdd/manutencao-nas/comandos/m9-emergencia.sql')
+// O arquivo de emergência é versionado (ninguém o roda sem o dono pedir; só este teste): existe em qualquer checkout, inclusive na CI.
+const EMERGENCIA = resolve(__dirname, '../../../../supabase/rascunhos/m9-emergencia.sql')
 
 describe.skipIf(skipIfNoLocalDb())('M9 leitores Zod do TS contra a saída real do banco (interruptor ligado)', () => {
   let pg: Client
@@ -107,7 +106,7 @@ describe.skipIf(skipIfNoLocalDb())('M9 leitores Zod do TS contra a saída real d
       expect(t, nome).toMatch(/Index Cond: .*site_id/)
     }
   }))
-  it.skipIf(!existsSync(EMERGENCIA))('I3 (Yannis): a emergência devolve a versao 1; o leitor v1 do origin/staging aceita; o v2 recusa (antes) e o v1 recusava a v2', async () => emTx(async c => {
+  it('I3 (Yannis): a emergência devolve a versao 1; o leitor v1 do origin/staging aceita; o v2 recusa (antes) e o v1 recusava a v2', async () => emTx(async c => {
     const antes = await um(`select public.obs_archive_owner_pending($1) as r`, [c.site])
     expect((antes as { versao: number }).versao).toBe(2)
     const recusa = lerPendenciasV1(antes)
