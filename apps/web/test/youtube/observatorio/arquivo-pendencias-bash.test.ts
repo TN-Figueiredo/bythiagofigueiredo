@@ -2,7 +2,7 @@
 /** Emenda da peça 7 (M3b, D-F24): o script impresso confere antes de apagar, é idempotente e não roda cortado. */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -242,25 +242,97 @@ describe('M9 T7: copiar, apagar e conferir B2 na versao 2', () => {
     expect(r.stdout).toContain('no painel do B2: Buckets > <bucket> > Browse Files, com "mostrar versões" ligado, APAGUE todas as versões de cada nome acima (inclusive a marca de ocultação); o conferir-b2 conclui sozinho, sem atestado seu')
     expect(l.join('\n')).not.toContain('nome_b2')
   })
-  describe('canal removido: segurado até a M9b (Phil C1, Hanna H4)', () => {
-    const canalItem = (prefixos: string[]) => it2({ item_id: 'canal:' + REF, kind: 'canal', channel_ref: REF, tempo: 'apagar_antigas', mes: null, prefixos,
-      apagar: [{ filho: 'texto', caminho: 'c1/a.csv', sha256: sha('A'), nova: null }, { filho: 'texto', caminho: 'c1/sub/b.csv', sha256: sha('B'), nova: null }] })
-    it('nenhum comando de apagar para canal: o script não tem apaga_conferido nem limpa_prefixo e os arquivos ficam', () => {
-      mkdirSync(join(M, 'texto', 'c1', 'sub'), { recursive: true })
-      writeFileSync(join(M, 'texto', 'c1', 'a.csv'), 'A'); writeFileSync(join(M, 'texto', 'c1', 'sub', 'b.csv'), 'B')
+  describe('canal removido: apaga o arquivo e limpa as pastas, inclusive _recebendo (M9b T5)', () => {
+    const arq = (...p: string[]) => join(M, 'texto', ...p)
+    const canalItem = (prefixos: string[], extra: Record<string, unknown> = {}) => it2({ item_id: 'canal:' + REF, kind: 'canal', channel_ref: REF, tempo: 'apagar_antigas', mes: null, prefixos,
+      apagar: [{ filho: 'texto', caminho: 'c1/a.csv', sha256: sha('A'), nova: null }, { filho: 'texto', caminho: 'c1/sub/b.csv', sha256: sha('B'), nova: null }], ...extra })
+    const monta = () => {
+      mkdirSync(arq('c1', 'sub'), { recursive: true }); mkdirSync(arq('_recebendo', 'c1', 'tab'), { recursive: true }); mkdirSync(arq('_recebendo', '_quarentena', 'c1'), { recursive: true })
+      writeFileSync(arq('c1', 'a.csv'), 'A'); writeFileSync(arq('c1', 'sub', 'b.csv'), 'B')
+    }
+    it('2 arquivos e _recebendo/<p>/tab/ vazio: tudo some e termina FEITO', () => {
+      monta()
+      const r = rodarNaForja(gerar2([canalItem(['c1'])]))
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('APAGADO texto/c1/a.csv')
+      expect(r.stdout).toContain('OBS-ARQUIVO: FEITO')
+      expect(existsSync(arq('c1'))).toBe(false)
+      expect(existsSync(arq('_recebendo', 'c1'))).toBe(false)
+      expect(existsSync(arq('_recebendo', '_quarentena', 'c1'))).toBe(false)
+    })
+    it('arquivo em _recebendo/_quarentena/<p>: fica, RESTA, sai 1, NÃO TERMINOU', () => {
+      monta(); writeFileSync(arq('_recebendo', '_quarentena', 'c1', 'x.csv'), 'X')
+      const r = rodarNaForja(gerar2([canalItem(['c1'])]))
+      expect(r.status).toBe(1)
+      expect(existsSync(arq('_recebendo', '_quarentena', 'c1', 'x.csv'))).toBe(true)
+      expect(r.stdout).toContain('RESTA')
+      expect(r.stdout).toContain('a pasta não ficou vazia')
+      expect(r.stderr).toContain('NÃO TERMINOU')
+      expect(r.stdout).not.toContain('FEITO')
+    })
+    it('arquivo desconhecido em <p>/: fica e RESTA (find só apaga pasta vazia)', () => {
+      monta(); writeFileSync(arq('c1', 'estranho.csv'), 'E')
+      const r = rodarNaForja(gerar2([canalItem(['c1'])]))
+      expect(r.stdout).toContain('RESTA')
+      expect(r.status).toBe(1)
+      expect(readFileSync(arq('c1', 'estranho.csv'), 'utf8')).toBe('E')
+    })
+    it('sha256 diverge: PULADO e nada apagado', () => {
+      monta(); writeFileSync(arq('c1', 'a.csv'), 'DIFERENTE')
+      const r = rodarNaForja(gerar2([canalItem(['c1'])]))
+      expect(r.stderr).toContain('PULADO texto/c1/a.csv')
+      expect(readFileSync(arq('c1', 'a.csv'), 'utf8')).toBe('DIFERENTE')
+      expect(r.status).toBe(1)
+    })
+    it('outro canal <p2> fica intacto', () => {
+      monta(); mkdirSync(arq('c2', 'sub'), { recursive: true }); writeFileSync(arq('c2', 'sub', 'z.csv'), 'Z'); mkdirSync(arq('_recebendo', 'c2'), { recursive: true })
+      rodarNaForja(gerar2([canalItem(['c1'])]))
+      expect(readFileSync(arq('c2', 'sub', 'z.csv'), 'utf8')).toBe('Z')
+      expect(existsSync(arq('_recebendo', 'c2'))).toBe(true)
+    })
+    it('sem sentinela: nada apagado', () => {
+      monta(); rmSync(arq('..', 'texto', '.arquivo-vivo'))
+      const r = rodarNaForja(gerar2([canalItem(['c1'])]))
+      expect(r.status).toBe(1)
+      expect(existsSync(arq('c1', 'a.csv'))).toBe(true)
+      expect(existsSync(arq('_recebendo', 'c1', 'tab'))).toBe(true)
+    })
+    it('2ª rodada: JA-APAGADO só em canal:, sai 0, falhas=0', () => {
+      monta()
       const l = gerar2([canalItem(['c1'])])
-      expect(l.join('\n')).not.toMatch(/^\s*(apaga_conferido|limpa_prefixo) /m)
+      expect(rodarNaForja(l).status).toBe(0)
+      const r2 = rodarNaForja(l)
+      expect(r2.status).toBe(0)
+      expect(r2.stdout).toContain('JA-APAGADO texto/c1/a.csv')
+      expect(r2.stdout).toContain('JA-APAGADO texto/c1/sub/b.csv')
+      expect(r2.stderr).not.toContain('PULADO')
+      expect(r2.stdout).toContain('OBS-ARQUIVO: FEITO')
+    })
+    it('pasta do canal nunca criada: JA-APAGADO, sai 0', () => {
+      const r = rodarNaForja(gerar2([canalItem(['c1'])]))
+      expect(r.status).toBe(0)
+      expect(r.stdout).toContain('JA-APAGADO texto/c1/a.csv')
+      expect(r.stderr).not.toContain('PULADO')
+    })
+    it('item: com pasta ausente segue PULADO (caminho errado não some em silêncio)', () => {
+      const r = rodarNaForja(gerar2([it2({ item_id: 'item:43', tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'texto/2099-01/v1.csv.gz', sha256: sha('NOVA'), nova: { caminho: 'texto/2026-10/v2.csv.gz', sha256: sha('NOVA') } }] })]))
+      expect(r.stderr).toContain('PULADO texto/texto/2099-01/v1.csv.gz: a pasta não existe')
+      expect(r.status).toBe(1)
+    })
+    it('so_prefixo: pasta vazia some e termina com a frase de limpeza, não NADA A RODAR', () => {
+      mkdirSync(arq('c1', 'sub'), { recursive: true }); mkdirSync(arq('_recebendo', 'c1'), { recursive: true })
+      const l = gerar2([it2({ item_id: 'canal:' + REF, kind: 'canal', channel_ref: REF, tempo: 'sem_comando', mes: null, falta: 'so_prefixo', prefixos: ['c1'] })])
       const r = rodarNaForja(l)
       expect(r.status).toBe(0)
-      expect(r.stdout).toContain('ESPERA canal:' + REF)
-      expect(r.stdout).toContain('M9b')
-      expect(existsSync(join(M, 'texto', 'c1', 'a.csv'))).toBe(true)
-      expect(existsSync(join(M, 'texto', 'c1', 'sub', 'b.csv'))).toBe(true)
+      expect(existsSync(arq('c1'))).toBe(false)
+      expect(existsSync(arq('_recebendo', 'c1'))).toBe(false)
+      expect(r.stdout).toContain('OBS-ARQUIVO: FEITO')
+      expect(r.stdout).not.toContain('NADA A RODAR')
     })
     it('item de vídeo ao lado do canal continua apagando', () => {
       const l = gerar2([canalItem(['c1']), it2({ item_id: 'item:43', tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'texto/2026-10/v1.csv.gz', sha256: sha('NOVA'), nova: { caminho: 'texto/2026-10/v2.csv.gz', sha256: sha('NOVA') } }] })])
       expect(l.join('\n')).toMatch(/^\s*apaga_conferido 'texto' 'texto\/2026-10\/v1/m)
-      expect(l.join('\n')).not.toMatch(/limpa_prefixo '/)
+      expect(l.join('\n')).toMatch(/limpa_prefixo '_recebendo\/c1'/)
     })
   })
   it('sem_comando diz o que falta: uma frase própria e não vazia por valor de FALTAS', () => {

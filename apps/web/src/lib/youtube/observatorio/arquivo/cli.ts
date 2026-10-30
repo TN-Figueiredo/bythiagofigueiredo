@@ -49,7 +49,7 @@ export const USO = [
   '  remover          --canal <uuid> --por <e-mail> [--site <uuid>]',
   '  pedidos          --por <e-mail> [--site <uuid>] [--pasta <raiz>] [--destino <usuario@host:/caminho>]   (remoções pedidas no CMS)',
   '  pendencias       (sem opção; chave em ~/.config/obs-arquivo/chave; imprime o script da forja: npm run -s obs:arquivo | ssh forja \'bash -s\')',
-  '  expurgar         --item <n> [--apagar-antigas]     (prepara a cópia do item e imprime o script: npm run -s obs:expurgar -- --item <n> | ssh forja "bash -s"; --canal: M9b)',
+  '  expurgar         --item <n> [--apagar-antigas]     (prepara a cópia do item e imprime o script: npm run -s obs:expurgar -- --item <n> | ssh forja "bash -s"; expurgar --canal não existe: a limpeza de canal é pelo obs:arquivo)',
   '  comandos-recarga --lote <nome> [--pasta <raiz>] [--site <uuid>]                    (consulta o banco: recusa canal com arquivo apagado; imprime os \\copy)',
   'ambiente: OBS_ARQUIVO_DB_URL (conexão direta ao banco; o .env.local nunca é lido)',
 ]
@@ -109,7 +109,7 @@ export function interpretar(argv: string[], env: NodeJS.ProcessEnv): Comando | {
     return { erro: 'OBS_ARQUIVO_DB_URL não está definida. Ela é a conexão direta ao banco e não vem do .env.local.' }
   }
   if (sub === 'expurgar') {
-    if (valores.has('canal')) return { erro: 'expurgar --canal fica para a M9b; nada foi feito' }
+    if (valores.has('canal')) return { erro: 'expurgar --canal não existe: a limpeza de canal é pelo obs:arquivo; nada foi feito' }
     const item = valores.get('item')
     if (item === undefined) return { erro: 'falta --item' }
     if (!/^[1-9][0-9]{0,18}$/.test(item)) return { erro: '--item precisa ser o número do item (ex.: 12)' }
