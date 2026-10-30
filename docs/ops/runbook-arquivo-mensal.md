@@ -222,6 +222,8 @@ O resto da M9 fica, compatível com o código antigo enquanto o interruptor esti
 4. No `conferir_b2` o script imprime `B2-PAINEL: <nome>`. No painel do B2 (Buckets, Browse Files), com **"mostrar versões" ligado, apague todas as versões de cada nome, inclusive a marca de ocultação**. O `conferir-b2` diário confere e, sem nenhuma versão, o item conclui sozinho. **Não há atestado do dono.** Conferência: `select alvo, b2_nomes, b2_absent_at from public.obs_archive_absence where encerrada_at is null and b2_absent_at is null;` antes e depois da limpeza; depois do `conferir-b2` seguinte `b2_absent_at` fica preenchido.
 5. Versão antiga de texto superada por outra sai em `antiga:<uuid>` 30 dias depois de a nova ser **recebida** pelo NAS (`received_at`), desde que o NAS a tenha atestado há até 48 h e o B2 há até 7 dias; versão numérica superada só entra se tiver item removido. Cerca de 45 dias até o item encerrar.
 
+As chaves `blobs`, `imagens`, `lote_e10` e `so_prefixo` não estão na tabela: são só de canal e não aparecem até a M9b.
+
 `competitor_removed_items` nunca é podada: o item concluído continua lá.
 
 ### Alvo bloqueado
