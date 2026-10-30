@@ -5,8 +5,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 const rodar = vi.fn()
 const retentar = vi.fn()
+const blobs = vi.fn()
 vi.mock('@/lib/youtube/observatorio/arquivo/medir-tamanho', () => ({ rodarTamanhoDoBanco: (...a: unknown[]) => rodar(...a), MOTIVOS_TAMANHO: {} }))
-vi.mock('@/lib/youtube/observatorio/arquivo/remover', () => ({ retentarMiniaturasPendentes: (...a: unknown[]) => retentar(...a) }))
+vi.mock('@/lib/youtube/observatorio/arquivo/remover', () => ({ retentarMiniaturasPendentes: (...a: unknown[]) => retentar(...a), retentarBlobsDeRemocoes: (...a: unknown[]) => blobs(...a) }))
 
 import { tamanhoDoBanco } from '@/lib/youtube/agenda/tarefas/tamanho-do-banco'
 
@@ -14,7 +15,7 @@ const ctx = (gasto = 0) => {
   let t = 1_000_000
   return { t0: t, agora: () => t + gasto, apiKey: 'k', sb: {} as SupabaseClient, linhas: null, avanca: (ms: number) => { t += ms } }
 }
-beforeEach(() => { rodar.mockReset().mockResolvedValue({ estado: 'ok', feitas: 1, deixadas: 0, detalhe: { medidas: 1 } }); retentar.mockReset() })
+beforeEach(() => { rodar.mockReset().mockResolvedValue({ estado: 'ok', feitas: 1, deixadas: 0, detalhe: { medidas: 1 } }); retentar.mockReset(); blobs.mockReset().mockResolvedValue({ porque: 'flag_desligada' }) })
 afterEach(() => vi.useRealTimers())
 
 describe('tamanho_do_banco', () => {
@@ -22,7 +23,7 @@ describe('tamanho_do_banco', () => {
     retentar.mockResolvedValue({ apagadas: 4, pendentes: 2, foraDoPrefixo: 0 })
     const r = await tamanhoDoBanco.rodar(ctx())
     expect(r.estado).toBe('ok')
-    expect(r.detalhe).toEqual({ medidas: 1, miniaturas_apagadas: 4, miniaturas_pendentes: 2 })
+    expect(r.detalhe).toEqual({ medidas: 1, miniaturas_apagadas: 4, miniaturas_pendentes: 2, blobs_remocoes_flag_desligada: 1 })
   })
   it('fora do prefixo > 0 aparece no detalhe', async () => {
     retentar.mockResolvedValue({ apagadas: 0, pendentes: 1, foraDoPrefixo: 3 })
@@ -38,7 +39,21 @@ describe('tamanho_do_banco', () => {
     retentar.mockResolvedValue({ porque: 'sem_token' })
     const r = await tamanhoDoBanco.rodar(ctx())
     expect(r.estado).toBe('ok')
-    expect(r.detalhe).toEqual({ medidas: 1, miniaturas_nao_tentadas: 1 })
+    expect(r.detalhe).toEqual({ medidas: 1, miniaturas_nao_tentadas: 1, blobs_remocoes_flag_desligada: 1 })
+  })
+  it('M9 T13: os blobs das remoções recebem o máximo que SOBRA das miniaturas e o resultado entra no detalhe', async () => {
+    retentar.mockResolvedValue({ apagadas: 50, pendentes: 0, foraDoPrefixo: 0 })
+    blobs.mockResolvedValue({ apagadas: 7, pendentes: 2, foraDoPrefixo: 1 })
+    const r = await tamanhoDoBanco.rodar(ctx())
+    expect(blobs.mock.calls[0]![1]).toMatchObject({ maximo: 150 })
+    expect(r.detalhe).toMatchObject({ blobs_remocoes_apagadas: 7, blobs_remocoes_pendentes: 2, blobs_remocoes_fora_do_prefixo: 1 })
+  })
+  it('M9 T13: os blobs lançando não trocam o estado', async () => {
+    retentar.mockResolvedValue({ apagadas: 0, pendentes: 0, foraDoPrefixo: 0 })
+    blobs.mockRejectedValue(new Error('x'))
+    const r = await tamanhoDoBanco.rodar(ctx())
+    expect(r.estado).toBe('ok')
+    expect(r.detalhe).toMatchObject({ blobs_remocoes_nao_tentadas: 1 })
   })
   it('a nova tentativa lança: miniaturas_nao_tentadas, estado ok', async () => {
     retentar.mockRejectedValue(new Error('blob caiu'))

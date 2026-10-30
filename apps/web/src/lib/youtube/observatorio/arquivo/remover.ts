@@ -260,3 +260,44 @@ export async function retentarMiniaturasPendentes(
     return { porque: 'inesperado' }
   }
 }
+
+/** M9 (D-M9-13): nova tentativa diária dos blobs dos canais removidos (obs_archive_channel_removals.blobs_pending). Só com OBS_ARQUIVO_LIMPEZA_CANAL='on'. Nunca lança. */
+export async function retentarBlobsDeRemocoes(
+  sb: SupabaseClient,
+  o: { agoraMs: number; maximo: number; prazoMs: number },
+  deps: DepsDoBlob & { env?: NodeJS.ProcessEnv } = {},
+): Promise<NovaTentativa> {
+  try {
+    if ((deps.env ?? process.env).OBS_ARQUIVO_LIMPEZA_CANAL !== 'on') return { porque: 'flag_desligada' }
+    if (e2e()) return { porque: 'e2e' }
+    if (!deps.apagarDoBlob && !process.env.BLOB_READ_WRITE_TOKEN) return { porque: 'sem_token' }
+    const apagarDoBlob = deps.apagarDoBlob ?? apagarDoBlobPadrao
+    const agora = deps.agora ?? Date.now
+    const lido = await sb.from('obs_archive_channel_removals')
+      .select('site_id, channel_ref, blobs_pending')
+      .not('blobs_pending', 'eq', '{}')
+      .order('decided_at', { ascending: true })
+      .limit(50)
+    if (lido.error) return { porque: 'leitura_falhou' }
+    let apagadas = 0, pendentes = 0, foraDoPrefixo = 0
+    for (const r of (Array.isArray(lido.data) ? lido.data : []).filter(ehObjeto)) {
+      const urls = Array.isArray(r.blobs_pending) ? r.blobs_pending.filter((u): u is string => typeof u === 'string') : []
+      const { apagar, fora } = soMiniaturasDoObservatorio(urls)
+      foraDoPrefixo += fora.length
+      pendentes += urls.length
+      for (let i = 0; i < apagar.length; i += BLOCO) {
+        const folga = o.maximo - apagadas
+        if (folga <= 0 || agora() - o.agoraMs > o.prazoMs) return { apagadas, pendentes: pendentes - apagadas, foraDoPrefixo }
+        const bloco = apagar.slice(i, i + Math.min(BLOCO, folga))
+        try {
+          await apagarDoBlob(bloco)
+          const b = await sb.rpc('obs_archive_removal_blobs_done', { p_site: String(r.site_id), p_ref: String(r.channel_ref), p_urls: bloco })
+          if (!b.error) apagadas += bloco.length
+        } catch { /* fica pendente; a próxima rodada tenta */ }
+      }
+    }
+    return { apagadas, pendentes: pendentes - apagadas, foraDoPrefixo }
+  } catch {
+    return { porque: 'erro' }
+  }
+}
