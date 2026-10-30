@@ -66,7 +66,7 @@
       linha({ sub: 'removido em 28/04/2028', steps: s0(5), cmd: '', frase: 'Limpeza pedida há 5 dias. Espera o comando, que ainda não tem data para chegar.', forma: 'pont' }),
       rot('Você marcou "Já rodei" na peça 7: só leitura aqui, sem botão (o botão e o Desfazer ficam na peça 7)'),
       linha({ sub: 'removido em 28/04/2028', steps: s0(5), cmd: TIT_PEDIDO,
-        frase: 'Limpeza pedida há 5 dias. Falta a confirmação do site, em até 24 horas.', sec: 'Você marcou que rodou em 02/05; a confirmação chega em até 24 horas.' })
+        frase: 'Limpeza pedida há 5 dias. Falta a confirmação do site, em até 24 horas.', secIc: ic('pont'), sec: 'Você marcou que rodou em 02/05; a confirmação chega em até 24 horas.' })
     ]) + '<p class="p9-nota">Item 5 (decisão do plano, Logan e Naksu de acordo): "Já rodei" fica só no painel da peça 7. A linha do canal ganha apenas a frase de leitura acima, quando o site já tem a marca.</p>';
   }
 
@@ -75,10 +75,10 @@
     return lista([
       rot('Apagado do NAS, snapshots ainda guardando: espera, sem comando, sem idade'),
       linha({ sub: 'removido em 10/04/2028', steps: [V, V, 'pont', P], forma: 'pont',
-        frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS; o comando libera por volta de 08/05/2028. Nada a fazer até lá. ' + info('O NAS guarda cópias diárias por 14 dias e 8 horas. Enquanto elas existirem, o arquivo ainda está no NAS, e o B2 só pode ser apagado depois.', 'Por que esperar') }),
+        frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS; o comando libera por volta de 08/05/2028. <b>Espere até 08/05.</b> ' + info('O NAS guarda cópias diárias por 14 dias e 8 horas. Enquanto elas existirem, o arquivo ainda está no NAS, e o B2 só pode ser apagado depois.', 'Por que esperar') }),
       rot('Sem a data de liberação (nula): nunca "hoje" nem "0 dias"'),
-      linha({ sub: 'removido em 10/04/2028', steps: [V, V, 'pont', P], forma: 'pont',
-        frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS. Nada a fazer até lá.' }),
+      linha({ sub: 'removido em 10/04/2028', steps: [V, V, 'nm', P], forma: 'nm',
+        frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS: os snapshots do NAS ainda guardam o arquivo e a data em que expiram não foi lida. Nada a fazer agora.' }),
       rot('Pendências não lidas: hachura (não medido), sem comando'),
       linha({ sub: 'removido em 10/04/2028', steps: [V, V, 'nm', P], forma: 'nm',
         frase: 'Apagado do NAS em 24/04/2028. Aguardando os snapshots do NAS; a data não foi lida. A leitura é refeita na próxima carga.' }),
@@ -93,11 +93,11 @@
         frase: 'O B2 ainda lista 7 arquivos deste canal (conferido em 02/05/2028). Rode a linha de novo (ver os comandos): ela imprime <code>B2-PAINEL: &lt;nome&gt;</code> para cada arquivo. Se o painel do B2 só os escondeu, apague as versões antigas por lá.' }),
       rot('Apagado do B2: sua parte terminou (a frase "falta só o prazo dos snapshots" saiu)'),
       linha({ sub: 'removido em 20/03/2028', steps: [V, V, V, V], forma: 'ok',
-        frase: 'Apagado do NAS e do B2 em 01/05/2028. <b>Sua parte terminou;</b> falta só o site confirmar, em até 24 horas.' }),
+        frase: 'Apagado do NAS e do B2 em 01/05/2028. Sua parte terminou. O site conclui a limpeza sozinho; não há mais nada a rodar.' }),
       rot('Apagado do B2, e a confirmação final não chegou (c9): âmbar'),
       linha({ sub: 'removido em 20/03/2028', al: 'am', steps: [V, V, V, 'tri'],
         frase: 'Apagado do NAS e do B2 em 20/04/2028, e a confirmação final ainda não chegou: peça para olhar a conferência do B2.' })
-    ]) + '<p class="p9-nota">Ordem nova: pedida, NAS, snapshots (14 dias), B2. O estado "prazo não medido no fim" (antigo c8) deixou de existir. Rótulo curto a 390 px: Pedida, NAS, Snapshots, B2. Premissa não verificada no banco: que apagado_b2 só ocorre depois do prazo dos snapshots (o plano pede o teste com a data futura).</p>';
+    ]) + '<p class="p9-nota">Ordem nova: pedida, NAS, snapshots (14 dias), B2. O estado "prazo não medido no fim" (antigo c8) deixou de existir. Rótulo curto a 390 px: Pedida, NAS, Snapshots, B2. Verificado no SQL: apagado_b2 só ocorre depois do prazo dos snapshots. Sinal do âmbar c9: apagado_b2, completed_at nulo e mais de 24 horas desde o fim.</p>';
   }
 
   /* ------------------------------------------------------------ 3. Estados com falta */
@@ -133,7 +133,7 @@
     var st = enviando ? '<p class="p9-st" role="status">' + ic('pont') + '<span>Enviando o pedido…</span></p>' : '';
     return '<div class="m-dlg" role="group" aria-label="Apagar do arquivo: ' + esc(estado) + '"><div class="m-dlg-b"><h2>Apagar do arquivo os 14 meses de Viagem Lenta?</h2>' +
       '<p class="t"><b>Não dá para desfazer.</b> Os 14 meses (de 10/2026 a 11/2027) saem do arquivo e podem ser a única cópia dos registros deste canal.</p>' +
-      '<p class="t">Para continuar, digite o nome do canal:</p><p class="t" style="padding:6px 8px;background:var(--sunk);border:1px solid var(--border);border-radius:6px"><b>Viagem Lenta</b></p>' +
+      '<p class="t">Para continuar, digite o nome do canal:</p><p class="t p9-nome"><b>Viagem Lenta</b></p>' +
       '<label for="' + id('p9n') + '">Nome do canal</label><input type="text" value="Viagem Lenta"' + (enviando ? ' readonly' : '') + ' autocomplete="off">' + (aviso ? '<div style="margin-top:10px">' + aus('am', aviso).replace('<p class="m-ausente am"', '<p role="alert" tabindex="-1" class="m-ausente am"') + '</div>' : '<p class="m-st" role="status">Nome confirmado.</p>') + st +
       '</div><div class="m-dlg-a"><button type="button" class="btn danger"' + (enviando ? ' aria-disabled="true"' : '') + '>' + (enviando ? 'Apagando…' : 'Apagar do arquivo') + '</button><button type="button" class="btn"' + (enviando ? ' aria-disabled="true"' : '') + '>Cancelar</button></div></div>';
   }
