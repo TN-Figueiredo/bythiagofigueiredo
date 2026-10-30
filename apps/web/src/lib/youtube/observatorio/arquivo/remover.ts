@@ -170,7 +170,7 @@ export async function cancelarRemocao(
   return { ok: true, naoPedido: r.data.status === 'nao_pedido', despausado: r.data.despausado === true }
 }
 
-export type NovaTentativa = { apagadas: number; pendentes: number; foraDoPrefixo: number } | { porque: string }
+export type NovaTentativa = { apagadas: number; pendentes: number; foraDoPrefixo: number; maisLinhas?: boolean; baixaFalhou?: number } | { porque: string }
 
 /**
  * Nova tentativa diária das miniaturas pendentes de canais já removidos, de TODOS os sites. No máximo `o.maximo` URLs; `o.prazoMs` é o prazo
@@ -258,5 +258,54 @@ export async function retentarMiniaturasPendentes(
     return { apagadas, pendentes, foraDoPrefixo }
   } catch {
     return { porque: 'inesperado' }
+  }
+}
+
+const LIMITE_LINHAS = 50
+
+/** M9 (D-M9-13): nova tentativa diária dos blobs dos canais removidos (obs_archive_channel_removals.blobs_pending). Só com OBS_ARQUIVO_LIMPEZA_CANAL='on'. Nunca lança. */
+export async function retentarBlobsDeRemocoes(
+  sb: SupabaseClient,
+  o: { agoraMs: number; maximo: number; prazoMs: number },
+  deps: DepsDoBlob & { env?: NodeJS.ProcessEnv } = {},
+): Promise<NovaTentativa> {
+  try {
+    if ((deps.env ?? process.env).OBS_ARQUIVO_LIMPEZA_CANAL !== 'on') return { porque: 'flag_desligada' }
+    if (e2e()) return { porque: 'e2e' }
+    if (!deps.apagarDoBlob && !process.env.BLOB_READ_WRITE_TOKEN) return { porque: 'sem_token' }
+    const apagarDoBlob = deps.apagarDoBlob ?? apagarDoBlobPadrao
+    const agora = deps.agora ?? Date.now
+    const lido = await sb.from('obs_archive_channel_removals')
+      .select('site_id, channel_ref, blobs_pending')
+      .not('blobs_pending', 'eq', '{}')
+      .order('decided_at', { ascending: true })
+      .limit(50)
+    if (lido.error) return { porque: 'leitura_falhou' }
+    let apagadas = 0, foraDoPrefixo = 0, baixaFalhou = 0
+    const linhas = (Array.isArray(lido.data) ? lido.data : []).filter(ehObjeto)
+    const urlsDe = (r: Record<string, unknown>): string[] => Array.isArray(r.blobs_pending) ? r.blobs_pending.filter((u): u is string => typeof u === 'string') : []
+    const total = linhas.reduce((n, r) => n + urlsDe(r).length, 0)   // conta também as linhas que o máximo ou o prazo deixam para depois
+    const resultado = (): NovaTentativa => ({
+      apagadas, pendentes: total - apagadas, foraDoPrefixo,
+      ...(linhas.length >= LIMITE_LINHAS ? { maisLinhas: true } : {}), ...(baixaFalhou > 0 ? { baixaFalhou } : {}),
+    })
+    for (const r of linhas) {
+      const urls = urlsDe(r)
+      const { apagar, fora } = soMiniaturasDoObservatorio(urls)
+      foraDoPrefixo += fora.length
+      for (let i = 0; i < apagar.length; i += BLOCO) {
+        const folga = o.maximo - apagadas
+        if (folga <= 0 || agora() - o.agoraMs > o.prazoMs) return resultado()
+        const bloco = apagar.slice(i, i + Math.min(BLOCO, folga))
+        try {
+          await apagarDoBlob(bloco)
+          const b = await sb.rpc('obs_archive_removal_blobs_done', { p_site: String(r.site_id), p_ref: String(r.channel_ref), p_urls: bloco })
+          if (b.error) baixaFalhou++; else apagadas += bloco.length
+        } catch { /* fica pendente; a próxima rodada tenta */ }
+      }
+    }
+    return resultado()
+  } catch {
+    return { porque: 'erro' }
   }
 }

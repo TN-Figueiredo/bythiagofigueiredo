@@ -192,6 +192,106 @@ describe('A5 E10 T11a: retentarMiniaturasPendentes', () => {
   })
 })
 
+describe('M9 T13: retentarBlobsDeRemocoes (atrás de OBS_ARQUIVO_LIMPEZA_CANAL)', () => {
+  const { retentarBlobsDeRemocoes } = remover
+  const CANAL2 = '44444444-4444-4444-8444-444444444444'
+  const lin = (ref: string, urls: string[]) => ({ site_id: SITE, channel_ref: ref, blobs_pending: urls })
+  const o = (extra: Partial<{ agoraMs: number; maximo: number; prazoMs: number }> = {}) => ({ agoraMs: Date.now(), maximo: 200, prazoMs: 60_000, ...extra })
+  const on = { OBS_ARQUIVO_LIMPEZA_CANAL: 'on' } as NodeJS.ProcessEnv
+  function fal(linhas: unknown[], rpcErro = false): { sb: SupabaseClient; ch: Chamada[]; lido: string[] } {
+    const ch: Chamada[] = []
+    const lido: string[] = []
+    const sb = {
+      rpc: async (fn: string, args: Record<string, unknown>) => { ch.push({ fn, args }); return { data: 0, error: rpcErro ? { message: 'x' } : null } },
+      from: (t: string) => {
+        lido.push(t)
+        const c: Record<string, unknown> = {}
+        for (const m of ['select', 'not', 'order', 'limit']) c[m] = () => c
+        c.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: linhas, error: null }).then(ok)
+        return c
+      },
+    }
+    return { sb: sb as unknown as SupabaseClient, ch, lido }
+  }
+
+  it('sem a variável não tenta', async () => {
+    delete process.env.OBS_ARQUIVO_LIMPEZA_CANAL
+    const { sb, lido } = fal([lin(CANAL, [url(1)])])
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env: process.env, apagarDoBlob: vi.fn() })).toEqual({ porque: 'flag_desligada' })
+    expect(lido).toHaveLength(0)
+  })
+
+  it('com off não tenta', async () => {
+    const { sb, lido } = fal([lin(CANAL, [url(1)])])
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env: { OBS_ARQUIVO_LIMPEZA_CANAL: 'off' } as NodeJS.ProcessEnv, apagarDoBlob: vi.fn() })).toEqual({ porque: 'flag_desligada' })
+    expect(lido).toHaveLength(0)
+  })
+
+  it('sem token: sem_token', async () => {
+    delete process.env.BLOB_READ_WRITE_TOKEN
+    const { sb } = fal([lin(CANAL, [url(1)])])
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env: on })).toEqual({ porque: 'sem_token' })
+  })
+
+  it('com on apaga e baixa', async () => {
+    const { sb, ch } = fal([lin(CANAL, [url(1), url(2)]), lin(CANAL2, [url(3)])])
+    const apagar = vi.fn(async () => undefined)
+    const r = await retentarBlobsDeRemocoes(sb, o(), { env: on, apagarDoBlob: apagar })
+    expect(r).toEqual({ apagadas: 3, pendentes: 0, foraDoPrefixo: 0 })
+    expect(apagar).toHaveBeenCalledTimes(2)
+    expect(ch.filter(c => c.fn === 'obs_archive_removal_blobs_done').map(c => c.args)).toEqual([
+      { p_site: SITE, p_ref: CANAL, p_urls: [url(1), url(2)] }, { p_site: SITE, p_ref: CANAL2, p_urls: [url(3)] },
+    ])
+  })
+
+  it('fora do prefixo fica', async () => {
+    const { sb, ch } = fal([lin(CANAL, [url(1), 'https://abc.public.blob.vercel-storage.com/outro/x.jpg'])])
+    const apagar = vi.fn(async () => undefined)
+    const r = await retentarBlobsDeRemocoes(sb, o(), { env: on, apagarDoBlob: apagar })
+    expect(r).toEqual({ apagadas: 1, pendentes: 1, foraDoPrefixo: 1 })
+    expect(ch.find(c => c.fn === 'obs_archive_removal_blobs_done')?.args.p_urls).toEqual([url(1)])
+  })
+
+  it('falha não baixa e o segundo canal segue', async () => {
+    const { sb, ch } = fal([lin(CANAL, [url(1)]), lin(CANAL2, [url(2)])])
+    let n = 0
+    const r = await retentarBlobsDeRemocoes(sb, o(), { env: on, apagarDoBlob: async () => { if (n++ === 0) throw new Error('x') } })
+    expect(r).toEqual({ apagadas: 1, pendentes: 1, foraDoPrefixo: 0 })
+    expect(ch.filter(c => c.fn === 'obs_archive_removal_blobs_done').map(c => c.args.p_ref)).toEqual([CANAL2])
+  })
+
+  it('prazo: depois do primeiro canal para e devolve o parcial', async () => {
+    const { sb, ch } = fal([lin(CANAL, [url(1)]), lin(CANAL2, [url(2)])])
+    let t = 1000
+    const r = await retentarBlobsDeRemocoes(sb, o({ agoraMs: 1000, prazoMs: 500 }), { env: on, apagarDoBlob: async () => { t += 1000 }, agora: () => t })
+    expect(r).toEqual({ apagadas: 1, pendentes: 1, foraDoPrefixo: 0 })
+    expect(ch.filter(c => c.fn === 'obs_archive_removal_blobs_done')).toHaveLength(1)
+  })
+
+  it('o máximo que sobra limita o apagamento', async () => {
+    const { sb } = fal([lin(CANAL, [url(1)]), lin(CANAL2, [url(2)])])
+    const r = await retentarBlobsDeRemocoes(sb, o({ maximo: 1 }), { env: on, apagarDoBlob: async () => undefined })
+    expect(r).toEqual({ apagadas: 1, pendentes: 1, foraDoPrefixo: 0 })
+  })
+
+  it('M1: pendentes conta as URLs das linhas lidas mesmo quando o máximo corta antes delas', async () => {
+    const { sb } = fal([lin(CANAL, [url(1)]), lin(CANAL2, [url(2), url(3)])])
+    const r = await retentarBlobsDeRemocoes(sb, o({ maximo: 1 }), { env: on, apagarDoBlob: async () => undefined })
+    expect(r).toEqual({ apagadas: 1, pendentes: 2, foraDoPrefixo: 0 })
+  })
+
+  it('M1: 50 linhas lidas (o limite) marcam maisLinhas', async () => {
+    const { sb } = fal(Array.from({ length: 50 }, (_, i) => lin(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, [])))
+    expect(await retentarBlobsDeRemocoes(sb, o(), { env: on, apagarDoBlob: async () => undefined })).toMatchObject({ maisLinhas: true })
+  })
+
+  it('M2: baixa que falha depois do Blob apagado conta baixaFalhou', async () => {
+    const { sb } = fal([lin(CANAL, [url(1)])], true)
+    const r = await retentarBlobsDeRemocoes(sb, o(), { env: on, apagarDoBlob: async () => undefined })
+    expect(r).toMatchObject({ apagadas: 0, pendentes: 1, baixaFalhou: 1 })
+  })
+})
+
 describe('F1 do Remover canal: apagarCanalSemGuardar, pedirRemocao, cancelarRemocao', () => {
   const apagado = (urls: string[]): Resp => ({ data: { status: 'apagado', deletion_id: 9, videos: 2, linhas: {}, watch: { readings: 0, thumbs: 0, alvos: 0 }, blob_urls: urls }, error: null })
   const e = { siteId: SITE, canalId: CANAL, actorId: ATOR, nomeDigitado: 'Canal X', motivo: 'entrou_por_engano' }
