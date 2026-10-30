@@ -83,7 +83,7 @@ export const FRASE_SO_LEITURA = { titulo: 'Você só pode ler esta lista.', corp
 export const PAGINA_INICIAL = 50, PAGINA_PASSO = 25
 
 const UPNEXT = '/cms/up-next'
-/** After an add: few refreshes at growing gaps (20 s, 60 s, 180 s after the previous one); never while the form is open or a navigation is pending. */
+/** After an add: few refreshes at growing gaps (20 s, 1 min, 3 min after the previous one); never while the form is open or a navigation is pending. */
 const ADD_WATCH_GAPS = [20_000, 60_000, 180_000]
 /** When a refresh is due but the screen is busy, ask again after this long (does not use up a try). */
 const ADD_WATCH_RETRY_MS = 5_000

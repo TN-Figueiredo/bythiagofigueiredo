@@ -9,5 +9,6 @@ import { invalidateObservatory } from '@/lib/youtube/observatorio/cache-tag'
 export function soltarCache(siteId: string): void {
   invalidateObservatory(siteId)
   revalidatePath('/cms/youtube/competitors', 'layout')
-  revalidateTag(arquivoTag(siteId), { expire: 0 })   // o aviso do arquivo (300 s) conta canais removidos e vermelhos: não pode ficar velho depois de um comando do dono (Phil r2 R2)
+  const tagArquivo = arquivoTag(siteId)
+  revalidateTag(tagArquivo, { expire: 0 })   // o aviso do arquivo (300 s) conta canais removidos e vermelhos: não pode ficar velho depois de um comando do dono (Phil r2 R2)
 }
