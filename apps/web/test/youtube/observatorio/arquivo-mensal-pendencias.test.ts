@@ -28,7 +28,7 @@ describe('lerPendencias: a forma do C12', () => {
     const video = canal({ item_id: 'item:42', kind: 'video', channel_ref: null, youtube_id: 'abc_DEF-123' })
     expect(lerPendencias(base([video])).ok).toBe(true)
     const antigas = canal({ tempo: 'apagar_antigas', falta: null, mes: '2026-10',
-      apagar: [{ filho: 'numerico', caminho: 'serie/canais/x/2026-10.v1.csv.gz', sha256: SHA, nova: { caminho: 'serie/canais/x/2026-10.v2.csv.gz', sha256: SHA } }] })
+      apagar: [{ filho: 'numerico', caminho: 'serie/canais/6f1c1b9e-0000-4000-8000-000000000001/2026-10.v1.csv.gz', sha256: SHA, nova: { caminho: 'serie/canais/6f1c1b9e-0000-4000-8000-000000000001/2026-10.v2.csv.gz', sha256: SHA } }] })
     expect(lerPendencias(base([antigas])).ok).toBe(true)
   })
   it.each([
@@ -61,6 +61,9 @@ describe('lerPendencias: a forma do C12', () => {
     ['antiga: com kind video', base([canal({ item_id: 'antiga:11111111-1111-4111-8111-111111111115', kind: 'video', channel_ref: null })])],
     ['kind versao sem antiga:', base([canal({ item_id: 'item:5', kind: 'versao', channel_ref: null })])],
     ['prefixos fora de canal', base([canal({ item_id: 'item:5', kind: 'video', channel_ref: null, prefixos: ['a/b'] })])],
+    ['canal:A com prefixo do canal B (M9b)', base([canal({ tempo: 'apagar_antigas', falta: null, prefixos: ['serie/canais/6f1c1b9e-0000-4000-8000-000000000002'], apagar: [{ filho: 'numerico', caminho: 'serie/canais/6f1c1b9e-0000-4000-8000-000000000001/a.csv.gz', sha256: SHA, nova: null }] })])],
+    ['canal:A com caminho a apagar do canal B (M9b)', base([canal({ tempo: 'apagar_antigas', falta: null, prefixos: ['serie/canais/6f1c1b9e-0000-4000-8000-000000000001'], apagar: [{ filho: 'numerico', caminho: 'serie/canais/6f1c1b9e-0000-4000-8000-000000000002/a.csv.gz', sha256: SHA, nova: null }] })])],
+    ['canal:A com prefixo genérico fora de <classe>/canais/<ref> (M9b)', base([canal({ tempo: 'apagar_antigas', falta: null, prefixos: ['serie'], apagar: [{ filho: 'numerico', caminho: 'serie/canais/6f1c1b9e-0000-4000-8000-000000000001/a.csv.gz', sha256: SHA, nova: null }] })])],
     ['caminho com ..', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: '../etc/x', sha256: SHA, nova: null }] })])],
     ['caminho com .. no meio', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: 'a/../x', sha256: SHA, nova: null }] })])],
     ['caminho absoluto', base([canal({ tempo: 'apagar_antigas', apagar: [{ filho: 'numerico', caminho: '/etc/x', sha256: SHA, nova: null }] })])],
@@ -99,13 +102,13 @@ describe('lerPendencias: a versao 2 (M9)', () => {
       canal({ falta: 'snapshots', snapshot_mais_antigo: '2026-11-01T00:00:00Z', bloqueados: 2, marcado_rodado_em: '2026-11-02T00:00:00Z' }),
       canal({ item_id: 'antiga:11111111-1111-4111-8111-111111111117', kind: 'versao', channel_ref: null, youtube_id: null, falta: 'segunda_conferencia', mes: '2026-09' }),
       canal({ item_id: 'item:9', kind: 'video', channel_ref: null, tempo: 'bloqueado', falta: null, motivo: 'grande_demais' }),
-      canal({ item_id: 'canal:' + c2, channel_ref: c2, tempo: 'apagar_antigas', falta: null, prefixos: ['serie/canais/x'], apagar: [{ filho: 'numerico', caminho: 'serie/canais/x/a.csv.gz', sha256: SHA, nova: null }] }),
+      canal({ item_id: 'canal:' + c2, channel_ref: c2, tempo: 'apagar_antigas', falta: null, prefixos: ['serie/canais/' + c2], apagar: [{ filho: 'numerico', caminho: 'serie/canais/' + c2 + '/a.csv.gz', sha256: SHA, nova: null }] }),
       canal({ item_id: 'item:11', kind: 'video', channel_ref: null, tempo: 'conferir_b2', falta: null, b2_nomes: ['numerico/serie/x.csv.gz'] })]))
     if (!l.ok) throw new Error(l.porque)
     expect(l.itens[0]).toMatchObject({ falta: 'snapshots', motivo: null, bloqueados: 2, snapshotMaisAntigo: '2026-11-01T00:00:00Z', marcadoRodadoEm: new Date('2026-11-02T00:00:00Z'), prefixos: [] })
     expect(l.itens[1]).toMatchObject({ kind: 'versao', itemId: 'antiga:11111111-1111-4111-8111-111111111117', falta: 'segunda_conferencia' })
     expect(l.itens[2]).toMatchObject({ tempo: 'bloqueado', motivo: 'grande_demais' })
-    expect(l.itens[3]).toMatchObject({ prefixos: ['serie/canais/x'], apagar: [{ nova: null }] })
+    expect(l.itens[3]).toMatchObject({ prefixos: ['serie/canais/' + c2], apagar: [{ nova: null }] })
     expect(l.itens[4]!.b2Nomes).toEqual(['numerico/serie/x.csv.gz'])
   })
   it('recusa a versao 1 e diz por quê', () => {
@@ -114,7 +117,7 @@ describe('lerPendencias: a versao 2 (M9)', () => {
     if (!l.ok) expect(l.porque).toContain('versao')
   })
   it('Phil: até 2000 prefixos passa; 2001 é recusado (o teto do attest do site)', () => {
-    const pref = (n: number) => Array.from({ length: n }, (_, i) => `serie/canais/x${i}`)
+    const pref = (n: number) => Array.from({ length: n }, () => 'serie/canais/6f1c1b9e-0000-4000-8000-000000000001')
     expect(lerPendencias(base([canal({ prefixos: pref(2000) })])).ok).toBe(true)
     const l = lerPendencias(base([canal({ prefixos: pref(2001) })]))
     expect(l.ok).toBe(false)
@@ -156,7 +159,7 @@ describe('pendenciasParaTela (E-D4)', () => {
     expect(pendenciasParaTela(lerPendencias(base([canal()])), { podeVerComandos: true, agora })).toMatchObject({ linha: LINHA_DO_DONO })
   })
   it('a tela nunca recebe apagar nem b2_nomes', () => {
-    const antigas = canal({ tempo: 'apagar_antigas', falta: null, apagar: [{ filho: 'texto', caminho: 'a/b', sha256: SHA, nova: { caminho: 'a/c', sha256: SHA } }] })
+    const antigas = canal({ tempo: 'apagar_antigas', falta: null, apagar: [{ filho: 'texto', caminho: 'serie/canais/6f1c1b9e-0000-4000-8000-000000000001/b', sha256: SHA, nova: { caminho: 'serie/canais/6f1c1b9e-0000-4000-8000-000000000001/c', sha256: SHA } }] })
     const t = pendenciasParaTela(lerPendencias(base([antigas])), { podeVerComandos: true, agora })
     expect(JSON.stringify(t)).not.toMatch(/apagar"|b2_nomes|sha256|caminho/)
     expect(t).toMatchObject({ estado: 'com_itens', itens: [{ item_id: antigas.item_id, kind: 'canal', tempo: 'apagar_antigas', idadeDias: 61 }] })

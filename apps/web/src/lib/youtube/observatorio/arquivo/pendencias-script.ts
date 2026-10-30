@@ -66,11 +66,18 @@ const CORPO_ABRE = [
 ]
 const FUNCAO = [
   '  apaga_conferido() {   # filho caminho sha256 nova_caminho nova_sha256 canal (nova_* vazios = sem versão nova a exigir; canal=1 só em item canal:)',
-  '    local base="$M/$1" alvo="$M/$1/$2"',
+  '    local base="$M/$1" alvo="$M/$1/$2" e',
   '    if ! mountpoint -q "$base" || [ ! -f "$base/.arquivo-vivo" ]; then echo "PULADO $1/$2: o NAS não está montado ou sem a sentinela" >&2; falhas=$((falhas+1)); return 0; fi',
   '    if [ -n "$4" ] && [ "$alvo" -ef "$base/$4" ]; then echo "PULADO $1/$2: a antiga e a nova são o mesmo arquivo" >&2; falhas=$((falhas+1)); return 0; fi',
   '    if [ -n "$4" ] && { [ ! -f "$base/$4" ] || [ "$(sha256sum < "$base/$4" | cut -c1-64)" != "$5" ]; }; then echo "PULADO $1/$2: a versão nova não está no NAS como o site registrou" >&2; falhas=$((falhas+1)); return 0; fi',
-  '    if [ ! -e "$alvo" ]; then if [ "${6:-}" = 1 ] || [ -d "$(dirname "$alvo")" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: a pasta não existe (caminho errado no site?)" >&2; falhas=$((falhas+1)); fi; return 0; fi',
+  '    if [ ! -e "$alvo" ]; then',
+  '      e="$(LC_ALL=C stat -- "$alvo" 2>&1)"   # só "não existe" (ENOENT/ENOTDIR) vale como já apagado; link quebrado ou permissão é PULADO',
+  '      case "$e" in',
+  '        *"No such file or directory"*|*"Not a directory"*) if [ "${6:-}" = 1 ] || [ -d "$(dirname "$alvo")" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: a pasta não existe (caminho errado no site?)" >&2; falhas=$((falhas+1)); fi ;;',
+  '        *) echo "PULADO $1/$2: não consegui conferir o arquivo (permissão ou link quebrado)" >&2; falhas=$((falhas+1)) ;;',
+  '      esac',
+  '      return 0',
+  '    fi',
   '    if [ "$(sha256sum < "$alvo" | cut -c1-64)" != "$3" ]; then echo "PULADO $1/$2: o arquivo no NAS não é o que o site registrou" >&2; falhas=$((falhas+1)); return 0; fi',
   '    if rm -- "$alvo"; then echo "APAGADO $1/$2"; apagados=$((apagados+1)); elif [ ! -e "$alvo" ]; then echo "JA-APAGADO $1/$2"; ja=$((ja+1)); else echo "PULADO $1/$2: o rm falhou" >&2; falhas=$((falhas+1)); fi',
   '  }',
@@ -91,8 +98,9 @@ const PREFIXO = [
   '    local f d',
   '    for f in numerico texto; do',
   '      d="$M/$f/$1"',
-  '      if ! mountpoint -q "$M/$f" || [ ! -f "$M/$f/.arquivo-vivo" ]; then continue; fi',
-  '      [ -d "$d" ] || continue',
+  '      if ! mountpoint -q "$M/$f" || [ ! -f "$M/$f/.arquivo-vivo" ]; then echo "PULADO $f/$1: o NAS não está montado ou sem a sentinela" >&2; falhas=$((falhas+1)); continue; fi',
+  '      [ -e "$d" ] || [ -L "$d" ] || continue',
+  '      if [ ! -d "$d" ] || [ "$(realpath -- "$d" 2>/dev/null)" != "$(realpath -- "$M/$f" 2>/dev/null)/$1" ]; then echo "RESTA $f/$1: não é uma pasta comum dentro do arquivo (arquivo ou link); veja \\"Sobrou arquivo no canal\\" no runbook"; esperando=$((esperando+1)); falhas=$((falhas+1)); continue; fi',
   '      find "$d" -xdev -depth -type d -empty -delete',
   '      if [ -d "$d" ]; then echo "RESTA $f/$1: a pasta não ficou vazia; veja \\"Sobrou arquivo no canal\\" no runbook"; esperando=$((esperando+1)); falhas=$((falhas+1)); fi',
   '    done',
@@ -112,8 +120,9 @@ export function scriptDasPendencias(
 ): { ok: true; linhas: string[]; resumo: string } | { ok: false; porque: string } {
   const itens: string[] = []
   let temApagar = false, temGrava = false, temPrefixo = false, temPainel = false
+  const jaLimpos = new Set<string>()
   const limpaCanal = (prefixos: readonly string[]): void => {
-    for (const p of prefixos) itens.push(`  limpa_prefixo ${aspas(p)}`, `  limpa_prefixo ${aspas('_recebendo/' + p)}`, `  limpa_prefixo ${aspas('_recebendo/_quarentena/' + p)}`)
+    for (const p of prefixos) if (!jaLimpos.has(p)) { jaLimpos.add(p); itens.push(`  limpa_prefixo ${aspas(p)}`, `  limpa_prefixo ${aspas('_recebendo/' + p)}`, `  limpa_prefixo ${aspas('_recebendo/_quarentena/' + p)}`) }
   }
   const esp = (frase: string): string => `  echo ${aspas(frase)}; esperando=$((esperando+1))`
   const tamanho = (b64: string): string[] => b64.replace(/\s+/g, '').match(/.{1,76}/g) ?? []
@@ -176,7 +185,7 @@ export function scriptDasPendencias(
     ...(temLimpeza || temPainel ? PREFIXO : []),
     ...(temLimpeza || temGrava ? TRAVA : []),
     ...itens,
-    '  if [ "$falhas" -gt 0 ]; then echo "OBS-ARQUIVO: NÃO TERMINOU ($falhas conferência(s) falharam; nada delas foi apagado)" >&2; return 1; fi',
+    '  if [ "$falhas" -gt 0 ]; then echo "OBS-ARQUIVO: NÃO TERMINOU ($falhas pendência(s) sem concluir; veja PULADO/RESTA acima)" >&2; return 1; fi',
     fim,
     '}; obs_arquivo_main; exit $?',
   ]

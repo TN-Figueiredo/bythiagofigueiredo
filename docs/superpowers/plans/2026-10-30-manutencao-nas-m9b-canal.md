@@ -290,6 +290,7 @@ select r.channel_ref, r.name_at_removal, r.removed_via, r.archive_decision, card
   from public.obs_archive_channel_removals r where r.archive_decision = 'guardar' and cardinality(r.blobs_pending) > 0;
 ```
    Guardar a saída em `saidas/` junto com a primeira. Linha aqui = imagens do canal fora do arquivo que só saem com decisão do dono.
+   Na mesma leitura: `select ligado from public.obs_archive_m9_interruptor;` (coluna `ligado`, migration 20261029000002). Se não for `true`, **o passo 4 não acontece**: `obs_archive_etapa` devolve `apagar_antigas` antes de olhar `p_lig`, então com o interruptor desligado o script já apagaria. Repetir este `select` junto com a consulta antes do `git pull`. A seção "Sobrou arquivo no canal" do runbook (T8) entra antes ou junto do passo 4.
    Regra: `unidades_com_linhas > 0` em qualquer linha, ou canal que o dono não reconheça: **o passo 4 não acontece**, e a volta atrás vira tarefa própria (SQL de reversão da T6, com migration só se o dono pedir). Lista vazia: segue sem perguntar. Linha na lista exige "pode" por canal: o dono diz "pode apagar o arquivo do canal X, na primeira rodada", um por linha. A T5 aponta para esta frase. Guardar a saída em `saidas/`.
 4. **T5 em ramo próprio, mergeada em `staging` só depois do passo 3.** Repetir a consulta do passo 3 imediatamente antes do `git pull` no Mac. A partir desse pull, `obs:arquivo` deixa de ser só espera: apaga. Promoção a `main` depois.
 5. **`OBS_ARQUIVO_LIMPEZA_CANAL=on` no Vercel**, redeploy. Invertido com o passo 4, a tela promete um comando que ainda só espera.
