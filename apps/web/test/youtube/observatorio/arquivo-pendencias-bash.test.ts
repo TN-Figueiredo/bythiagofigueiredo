@@ -239,35 +239,28 @@ describe('M9 T7: copiar, apagar e conferir B2 na versao 2', () => {
     expect(r.status).toBe(0)
     expect(r.stdout).toContain('B2-PAINEL: texto/texto/2026-10/v1.csv.gz')
     expect(r.stdout).toContain('B2-PAINEL: numerico/serie/x.csv.gz')
-    expect(r.stdout).toContain('no painel do B2: Buckets > <bucket> > Browse Files, com "mostrar versões" ligado, procure o nome')
+    expect(r.stdout).toContain('no painel do B2: Buckets > <bucket> > Browse Files, com "mostrar versões" ligado, APAGUE todas as versões de cada nome acima (inclusive a marca de ocultação); o conferir-b2 conclui sozinho, sem atestado seu')
     expect(l.join('\n')).not.toContain('nome_b2')
   })
-  describe('canal: apaga arquivo a arquivo e o diretório vazio', () => {
+  describe('canal removido: segurado até a M9b (Phil C1, Hanna H4)', () => {
     const canalItem = (prefixos: string[]) => it2({ item_id: 'canal:' + REF, kind: 'canal', channel_ref: REF, tempo: 'apagar_antigas', mes: null, prefixos,
       apagar: [{ filho: 'texto', caminho: 'c1/a.csv', sha256: sha('A'), nova: null }, { filho: 'texto', caminho: 'c1/sub/b.csv', sha256: sha('B'), nova: null }] })
-    it('arquivos conhecidos apagados e a pasta vazia removida', () => {
+    it('nenhum comando de apagar para canal: o script não tem apaga_conferido nem limpa_prefixo e os arquivos ficam', () => {
       mkdirSync(join(M, 'texto', 'c1', 'sub'), { recursive: true })
       writeFileSync(join(M, 'texto', 'c1', 'a.csv'), 'A'); writeFileSync(join(M, 'texto', 'c1', 'sub', 'b.csv'), 'B')
       const l = gerar2([canalItem(['c1'])])
-      expect(l.join('\n')).toContain('find "$d" -xdev -depth -type d -empty -delete')
+      expect(l.join('\n')).not.toMatch(/^\s*(apaga_conferido|limpa_prefixo) /m)
       const r = rodarNaForja(l)
       expect(r.status).toBe(0)
-      expect(r.stdout).toContain('APAGADO texto/c1/a.csv')
-      expect(existsSync(join(M, 'texto', 'c1'))).toBe(false)
-      expect(r.stdout).not.toContain('RESTA')
+      expect(r.stdout).toContain('ESPERA canal:' + REF)
+      expect(r.stdout).toContain('M9b')
+      expect(existsSync(join(M, 'texto', 'c1', 'a.csv'))).toBe(true)
+      expect(existsSync(join(M, 'texto', 'c1', 'sub', 'b.csv'))).toBe(true)
     })
-    it('arquivo que o site não conhece: a pasta fica e diz RESTA', () => {
-      mkdirSync(join(M, 'texto', 'c1', 'sub'), { recursive: true })
-      writeFileSync(join(M, 'texto', 'c1', 'a.csv'), 'A'); writeFileSync(join(M, 'texto', 'c1', 'sub', 'b.csv'), 'B'); writeFileSync(join(M, 'texto', 'c1', 'estranho.csv'), 'X')
-      const r = rodarNaForja(gerar2([canalItem(['c1'])]))
-      expect(r.stdout).toContain('RESTA c1: há arquivo que o site não conhece; use "Ver os comandos" na página do Arquivo')
-      expect(existsSync(join(M, 'texto', 'c1', 'estranho.csv'))).toBe(true)
-    })
-    it('sem montagem: a pasta não é tocada', () => {
-      mkdirSync(join(M, 'texto', 'c1', 'vazia'), { recursive: true })
-      const r = rodarNaForja(gerar2([canalItem(['c1'])]), { SEM_MONTAGEM: '1' })
-      expect(r.status).toBe(1)
-      expect(existsSync(join(M, 'texto', 'c1', 'vazia'))).toBe(true)
+    it('item de vídeo ao lado do canal continua apagando', () => {
+      const l = gerar2([canalItem(['c1']), it2({ item_id: 'item:43', tempo: 'apagar_antigas', apagar: [{ filho: 'texto', caminho: 'texto/2026-10/v1.csv.gz', sha256: sha('NOVA'), nova: { caminho: 'texto/2026-10/v2.csv.gz', sha256: sha('NOVA') } }] })])
+      expect(l.join('\n')).toMatch(/^\s*apaga_conferido 'texto' 'texto\/2026-10\/v1/m)
+      expect(l.join('\n')).not.toMatch(/limpa_prefixo '/)
     })
   })
   it('sem_comando diz o que falta: uma frase própria e não vazia por valor de FALTAS', () => {

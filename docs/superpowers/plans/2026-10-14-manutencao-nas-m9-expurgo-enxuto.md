@@ -25,7 +25,7 @@
 
 ## Emenda 25/10 (dono, P4): a parte de canal vai para a M9b
 
-Decisão do dono (25/10, recomendação da Hanna): a **Tarefa 12** (a tela, no que toca "Canais removidos" e o "Apagar do arquivo") e o **`expurgar --canal` da Tarefa 8** (com o arquivo de comandos do canal da Tarefa 6) saem desta etapa e vão para a **M9b**, sem plano próprio ainda. O SQL das Tarefas 1 a 5 **fica** (a prova de ausência e os marcos da remoção continuam). O núcleo (apagar vídeo e comentário da fila "Saíram do YouTube" até o NAS e o B2) não muda. **Gatilho de volta:** o dono pedir, ou o CAP mostrar o espaço apertando. Fonte: `.superpowers/sdd/manutencao-nas/decisoes-dono-t12-2510.md`.
+Decisão do dono (25/10, recomendação da Hanna): a **Tarefa 12** (a tela, no que toca "Canais removidos" e o "Apagar do arquivo") e o **`expurgar --canal` da Tarefa 8** (com o arquivo de comandos do canal da Tarefa 6) saem desta etapa e vão para a **M9b**, sem plano próprio ainda. O SQL das Tarefas 1 a 5 **fica** (a prova de ausência e os marcos da remoção continuam). O núcleo (apagar vídeo e comentário da fila "Saíram do YouTube" até o NAS e o B2) não muda. **Gatilho de volta:** o dono pedir, ou o CAP mostrar o espaço apertando, ou **fechar a M9 (30/10, Hanna H1): plano da M9b antes da selagem em que o canal do passo 19 entra**. Fonte: `.superpowers/sdd/manutencao-nas/decisoes-dono-t12-2510.md`.
 
 ## Emenda 23/10 (retomada)
 
@@ -3157,7 +3157,7 @@ export async function retentarBlobsDeRemocoes(
   4. Tarefas 8 e 12 (Mac e tela; um envio).
   5. Dono: pré-condição P-M9-1 lida (Tarefa 0, Passo 4) e a decisão dele sobre o snapshot órfão de 96 dias registrada no ledger ("decisão do dono"; o agente não apaga snapshot); depois `select public.obs_archive_m9_ligar('<site>', true)` no painel. Só então a prova de ausência começa a andar.
   6. Tarefa 13 com a variável ainda ausente; depois de um ciclo inteiro limpo (um canal de teste de ponta a ponta), o dono liga `OBS_ARQUIVO_LIMPEZA_CANAL=on` no Vercel.
-- [ ] **Passo 4. Revisão final:** Phil e Yannis (agentes `phil-dados`, `yannis-software`) revisam o lote inteiro antes da promoção; conserta-se até acordo; Hanna confere a amarração do release com a M8 (passo 19 da M8 consome o `concluido` da M9).
+- [ ] **Passo 4. Revisão final:** Phil e Yannis (agentes `phil-dados`, `yannis-software`) revisam o lote inteiro antes da promoção; conserta-se até acordo; Hanna confere a amarração do release com a M8 (passo 19 da M8 consome o `concluido` da M9b, nota de 30/10).
 
 ---
 
@@ -3200,7 +3200,7 @@ Limites declarados (não são bug; estão nos testes):
 - **M3b em produção** e **M3b-forja Tarefa 7a** (o `pendencias-script.ts`, `apaga_conferido`, `obs:arquivo` no Mac): a Tarefa 7 estende código que só existe depois delas. **Pedido da M9 à Tarefa 10 da M3b** (`m3b-site-progresso.md`, "Pedido da M9 para a Tarefa 10"): o CHECK de `unsealed_reason` aceita `'expurgo'`. O kit é estendido só na Tarefa 9 da M9; nada obrigatório na M3b-forja.
 - **M5** (página do Arquivo e componentes): Tarefa 12. **M6**: o mês destacado e a saída de canal criam os canais removidos que a M9 limpa (Travas).
 - **M10b**: `video_antigo` fica `bloqueado` com `depende_m10b` até ela (D-M9-14).
-- **M8**, passo 19: consome o `concluido` da M9.
+- **M8**, passo 19: consome o `concluido` da M9b (30/10; a M9 sem a Tarefa 12 não o entrega). Terceiro gatilho da M9b: ao fechar a M9, plano da M9b antes da selagem em que o canal do passo 19 entra.
 - **Dono**: migration (Tarefa 10), kit da forja (Tarefa 9), interruptor `obs_archive_m9_ligar` e decisão sobre o snapshot órfão (Tarefa 14), variável no Vercel (Tarefa 14), toda escrita no NAS e no B2.
 
 ## Self-review (feito)
